@@ -114,6 +114,9 @@ function creatureLimb(g, x, y, ex, ey, bend, phase) {
   );
   g.stroke();
 }
+function creatureAppendageVisible(model, index) {
+  return !(model.missingAppendageIndices || []).includes(index);
+}
 function drawCreaturePattern(g, m, primary, secondary, accent, detail) {
   if (detail < 1 || m.pattern === "plain") return;
   g.lineWidth = 0.08;
@@ -184,6 +187,7 @@ function drawCreatureModelShape(g, m, phase, detail, colors) {
   }
   if (m.topology === "radial") {
     for (let n = 0; n < m.appendages; n++) {
+      if (!creatureAppendageVisible(m, n)) continue;
       const a = (n * Math.PI * 2) / m.appendages + wave * 0.25,
         ca = Math.cos(a),
         sa = Math.sin(a);
@@ -210,6 +214,7 @@ function drawCreatureModelShape(g, m, phase, detail, colors) {
   } else if (m.topology === "serpentine") {
     if (m.appendages > 2)
       for (let n = 0; n < Math.min(5, m.appendages / 2); n++) {
+        if (!creatureAppendageVisible(m, n)) continue;
         const x = -0.72 + n * 0.36,
           y = Math.sin(phase + n) * 0.12;
         creatureLimb(g, x, y, x - 0.05, y + (n % 2 ? -0.62 : 0.62), 0.1, phase + n);
@@ -234,6 +239,7 @@ function drawCreatureModelShape(g, m, phase, detail, colors) {
     g.stroke();
   } else if (m.topology === "floater") {
     for (let n = 0; n < m.appendages; n++) {
+      if (!creatureAppendageVisible(m, n)) continue;
       const x = (n / Math.max(1, m.appendages - 1) - 0.5) * 1.15;
       creatureLimb(
         g,
@@ -256,6 +262,7 @@ function drawCreatureModelShape(g, m, phase, detail, colors) {
     g.stroke();
   } else if (m.topology === "colonial") {
     for (let n = 0; n < m.appendages; n++) {
+      if (!creatureAppendageVisible(m, n)) continue;
       const a = (n * Math.PI * 2) / m.appendages;
       creatureLimb(
         g,
@@ -279,10 +286,12 @@ function drawCreatureModelShape(g, m, phase, detail, colors) {
     }
   } else if (m.topology === "upright") {
     g.strokeStyle = secondary;
-    creatureLimb(g, -0.18, -0.05, -0.68, 0.5 + wave, 0.12, phase);
-    creatureLimb(g, 0.18, -0.05, 0.68, 0.5 - wave, 0.12, phase + 2);
-    creatureLimb(g, -0.2, 0.55, -0.48, 1.18, 0.1, phase + 1);
-    creatureLimb(g, 0.2, 0.55, 0.48, 1.18, 0.1, phase + 3);
+    if (creatureAppendageVisible(m, 0))
+      creatureLimb(g, -0.18, -0.05, -0.68, 0.5 + wave, 0.12, phase);
+    if (creatureAppendageVisible(m, 1))
+      creatureLimb(g, 0.18, -0.05, 0.68, 0.5 - wave, 0.12, phase + 2);
+    if (creatureAppendageVisible(m, 2)) creatureLimb(g, -0.2, 0.55, -0.48, 1.18, 0.1, phase + 1);
+    if (creatureAppendageVisible(m, 3)) creatureLimb(g, 0.2, 0.55, 0.48, 1.18, 0.1, phase + 3);
     g.fillStyle = primary;
     g.beginPath();
     g.ellipse(0, 0.18, 0.46, 0.73, 0, 0, Math.PI * 2);
@@ -299,11 +308,14 @@ function drawCreatureModelShape(g, m, phase, detail, colors) {
     for (let n = 0; n < pairs; n++) {
       const x = pairs === 1 ? 0 : -0.55 + (n * 1.1) / (pairs - 1),
         stride = Math.sin(phase + n * Math.PI) * 0.16;
-      creatureLimb(g, x, -0.28, x - 0.15 + stride, -0.92, 0.11, phase + n);
-      creatureLimb(g, x, 0.28, x + 0.15 - stride, 0.92, 0.11, phase + n + 2);
+      if (creatureAppendageVisible(m, n * 2))
+        creatureLimb(g, x, -0.28, x - 0.15 + stride, -0.92, 0.11, phase + n);
+      if (creatureAppendageVisible(m, n * 2 + 1))
+        creatureLimb(g, x, 0.28, x + 0.15 - stride, 0.92, 0.11, phase + n + 2);
     }
     if (m.topology === "tripod")
       for (let n = 0; n < 3; n++) {
+        if (!creatureAppendageVisible(m, n)) continue;
         const a = (n * Math.PI * 2) / 3;
         creatureLimb(
           g,

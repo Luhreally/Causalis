@@ -320,6 +320,7 @@ function applyEmbodiedInjury(
     eventId: ev.id,
     composition,
     hue: bloodVisualHue(victimId),
+    lifeTicks: severedPartPersistenceTicks(tile, composition),
   });
   if (W.severedParts.length > 180) W.severedParts.splice(0, W.severedParts.length - 180);
   recordFluidSplatter(victimId, tile, ev.id, composition[C.BLOOD] || 0, {
@@ -348,11 +349,32 @@ function embodiedVisualModel(id, model) {
   const life = W?.components.life?.[id];
   if (!life || !model) return model;
   const anatomy = ensureEmbodiedAnatomy(id, model),
-    lost = Object.values(anatomy.parts).filter(
-      (part) => part.severed && part.role !== "core",
-    ).length;
-  if (!lost) return model;
-  return { ...model, appendages: Math.max(0, model.appendages - lost), lostAppendages: lost };
+    lostParts = Object.values(anatomy.parts).filter((part) => part.severed),
+    visualAppendageCount = model.topology === "upright" ? 4 : model.appendages,
+    missingAppendageIndices = [];
+  for (const part of lostParts) {
+    const namedIndex = /^appendage (\d+)$/i.exec(part.name)?.[1],
+      uprightIndex =
+        part.name === "left arm"
+          ? 0
+          : part.name === "right arm"
+            ? 1
+            : part.name === "left leg"
+              ? 2
+              : part.name === "right leg"
+                ? 3
+                : -1,
+      index = namedIndex ? Number(namedIndex) - 1 : uprightIndex;
+    if (index >= 0 && index < visualAppendageCount && !missingAppendageIndices.includes(index))
+      missingAppendageIndices.push(index);
+  }
+  if (!lostParts.length) return model;
+  return {
+    ...model,
+    missingParts: lostParts.map((part) => part.name),
+    missingAppendageIndices,
+    lostAppendages: missingAppendageIndices.length,
+  };
 }
 
 function drawLostLimbStumps(g, id, model, detail, colors) {
@@ -362,10 +384,21 @@ function drawLostLimbStumps(g, id, model, detail, colors) {
   g.fillStyle = hsl(bloodVisualHue(id), 82, 30, 0.94);
   g.strokeStyle = colors.outline;
   g.lineWidth = 0.055;
-  for (let n = 0; n < Math.min(4, lost.length); n++) {
-    const side = n % 2 ? 1 : -1,
-      y = n < 2 ? 0.31 * side : 0.18 * side,
-      x = n < 2 ? 0.12 : -0.38;
+  for (let n = 0; n < Math.min(6, lost.length); n++) {
+    const part = lost[n],
+      upright = {
+        "left arm": [-0.2, -0.03],
+        "right arm": [0.2, -0.03],
+        "left hand": [-0.68, 0.5],
+        "right hand": [0.68, 0.5],
+        "left leg": [-0.2, 0.56],
+        "right leg": [0.2, 0.56],
+        head: [0, -0.65],
+      }[part],
+      appendageIndex = Math.max(0, Number(/^appendage (\d+)$/i.exec(part)?.[1] || n + 1) - 1),
+      angle = (appendageIndex * Math.PI * 2) / Math.max(1, model.appendages),
+      x = upright?.[0] ?? Math.cos(angle) * 0.32,
+      y = upright?.[1] ?? Math.sin(angle) * 0.32;
     g.beginPath();
     g.arc(x, y, 0.105, 0, Math.PI * 2);
     g.fill();
@@ -374,18 +407,35 @@ function drawLostLimbStumps(g, id, model, detail, colors) {
   g.restore();
 }
 
+function severedPartPersistenceTicks(tile, composition = {}) {
+  if (tile < 0 || tile >= W.tileCount) return 24;
+  const mass = Object.values(composition).reduce((total, amount) => total + amount, 0),
+    moisture = clamp(tileMoisture(tile) / 100, 0, 1),
+    temperature = W.tiles.temperature[tile] / 10,
+    heat = clamp((temperature - 9) / 26, 0, 1),
+    decay = 1 + moisture * 0.55 + heat * 0.5,
+    dryOrColdPreservation = clamp((0.28 - moisture) * 30 + (11 - temperature) / 1.8, 0, 18);
+  return Math.round(
+    clamp(34 + Math.sqrt(Math.max(1, mass)) * 3 + dryOrColdPreservation, 32, 112) / decay,
+  );
+}
+
 function drawSeveredBodyParts(g, now, bounds, metrics) {
   drawPersistentFluidSplatters(g, bounds, metrics);
   for (const part of W.severedParts || []) {
-    if (part.tile < 0 || W.tick - part.tick > 2048) continue;
+    const lifeTicks = part.lifeTicks || severedPartPersistenceTicks(part.tile, part.composition),
+      age = W.tick - part.tick;
+    if (part.tile < 0 || age >= lifeTicks) continue;
     const [x, y] = xy(part.tile);
     if (x < bounds.x0 - 2 || x > bounds.x1 + 2 || y < bounds.y0 - 2 || y > bounds.y1 + 2) continue;
     const screen = proceduralProjectTile(x + 0.5, y + 0.5, metrics),
-      size = clamp(metrics.tw * 0.11, 2.5, 14),
+      remaining = clamp(1 - age / lifeTicks, 0, 1),
+      size = clamp(metrics.tw * 0.11, 2.5, 14) * (0.72 + remaining * 0.28),
       rotation = visualHash01(part.eventId, 0x51) * Math.PI * 2;
     g.save();
     g.translate(screen.x + (visualHash01(part.eventId, 3) - 0.5) * size, screen.y + size * 0.28);
     g.rotate(rotation);
+    g.globalAlpha = clamp(remaining * 1.35, 0, 1);
     g.fillStyle = hsl(part.hue, 72, 28, 0.82);
     g.strokeStyle = hsl(part.hue, 84, 52, 0.72);
     g.lineWidth = Math.max(1, size * 0.12);
@@ -1111,8 +1161,11 @@ simTick = function () {
   if (!W) return;
   updateFirefighting();
   ensurePrimitiveEquipment();
-  if (W.tick % 128 === 0)
-    W.severedParts = (W.severedParts || []).filter((part) => W.tick - part.tick <= 2048);
+  if (W.tick % 8 === 0)
+    W.severedParts = (W.severedParts || []).filter((part) => {
+      const lifeTicks = part.lifeTicks || severedPartPersistenceTicks(part.tile, part.composition);
+      return W.tick - part.tick < lifeTicks;
+    });
   W.fluidSplatters = (W.fluidSplatters || []).filter((splatter) => {
     const lifeTicks =
       splatter.lifeTicks || fluidPersistenceTicks(splatter.tile, splatter.amount, splatter.severed);
@@ -1193,6 +1246,12 @@ function embodiedSystemsAudit() {
       !artifact.composition.some((amount) => amount > 0)
     )
       failures.push(`vessel ${artifact.id} has no conserved composition`);
+  }
+  for (const part of W.severedParts || []) {
+    const lifeTicks = part.lifeTicks || severedPartPersistenceTicks(part.tile, part.composition);
+    if (lifeTicks > 112) failures.push(`detached ${part.part} persists for ${lifeTicks} ticks`);
+    if (W.tick - part.tick >= lifeTicks)
+      failures.push(`expired detached ${part.part} remained in the rendered world`);
   }
   return {
     failures,
@@ -1341,6 +1400,7 @@ function debugEmbodiedSystemsProbe() {
   }
   const arrivedTile = idx(W.components.position[worker].x, W.components.position[worker].y),
     beforeCapability = embodiedCapability(victim),
+    beforeVisual = embodiedVisualModel(victim, creatureModel(victim)),
     victimPosition = W.components.position[victim],
     attack = emitEvent("CombatExchangeEvent", {
       subjects: [attacker, victim],
@@ -1362,6 +1422,8 @@ function debugEmbodiedSystemsProbe() {
       { forceDismember: true },
     ),
     afterCapability = embodiedCapability(victim),
+    afterVisual = embodiedVisualModel(victim, creatureModel(victim)),
+    severedRecord = (W.severedParts || []).find((part) => part.eventId === limb.eventId),
     matterDelta = totalMatter() - beforeMatter;
   return {
     ok:
@@ -1373,6 +1435,10 @@ function debugEmbodiedSystemsProbe() {
       !!deep &&
       arrivedTile === deep.tile &&
       limb.severed &&
+      !beforeVisual.missingAppendageIndices?.includes(0) &&
+      afterVisual.missingAppendageIndices?.includes(0) &&
+      severedRecord?.lifeTicks > 0 &&
+      severedRecord.lifeTicks <= 112 &&
       afterCapability.manipulation < beforeCapability.manipulation &&
       Math.abs(matterDelta) < 1e-8,
     worker,
@@ -1395,6 +1461,8 @@ function debugEmbodiedSystemsProbe() {
       part: limb.part,
       severed: limb.severed,
       eventId: limb.eventId,
+      visualSlotRemoved: afterVisual.missingAppendageIndices?.includes(0) || false,
+      detachedLifeTicks: severedRecord?.lifeTicks || 0,
       manipulationBefore: beforeCapability.manipulation,
       manipulationAfter: afterCapability.manipulation,
     },

@@ -653,9 +653,12 @@ if (process.env.SYSTEMS_DEBUG === "1") {
     failures.push("watercraft did not complete a long move onto deep water");
   if (
     !embodiedProbe.anatomy?.severed ||
+    !embodiedProbe.anatomy.visualSlotRemoved ||
+    embodiedProbe.anatomy.detachedLifeTicks < 1 ||
+    embodiedProbe.anatomy.detachedLifeTicks > 112 ||
     embodiedProbe.anatomy.manipulationAfter >= embodiedProbe.anatomy.manipulationBefore
   )
-    failures.push("dismemberment did not persist or reduce embodied capability");
+    failures.push("dismemberment did not remove the rendered limb or decay its detached tissue");
   if (!embodiedAudit.severedVisuals || embodiedDrawOps < 1)
     failures.push("persistent limb-loss state did not survive a high-detail oblique render");
   if (!embodiedAudit.fluidSplatters)
