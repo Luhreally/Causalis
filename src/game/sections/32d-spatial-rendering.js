@@ -694,9 +694,11 @@ function buildingScreenSize(b, m) {
       ? 1.35
       : b.type === "wall"
         ? 1.25
-        : b.type === "shelter"
-          ? 1.05
-          : 0.86;
+        : b.type === "corral"
+          ? 2.05
+          : b.type === "shelter"
+            ? 1.05
+            : 0.86;
   return Math.max(3.5, m.tw * 0.62 * scale);
 }
 function buildingFootprintPoints(s, r, view) {
@@ -749,6 +751,53 @@ function drawBuildingSite(g, b, now, m) {
     work = clamp(b.workDone / b.workRequired, 0, 1),
     stage = b.complete ? 6 : b.stage;
   g.save();
+  if (b.type === "corral" && stage >= 2) {
+    const completion = b.complete ? 1 : clamp(work, 0.18, 1),
+      points = buildingFootprintPoints(s, r, UI.view),
+      gateSide = b.orientation % 4,
+      builtSides = Math.max(1, Math.ceil(completion * 4));
+    drawBuildingFootprint(g, s, r, UI.view, hsl(95, 34, 28, 0.12), p.dark, false);
+    g.strokeStyle = p.light;
+    g.fillStyle = p.base;
+    g.lineWidth = Math.max(1.4, r * 0.1);
+    g.lineCap = "round";
+    for (let side = 0; side < builtSides; side++) {
+      const from = points[side],
+        to = points[(side + 1) % 4],
+        gate = b.complete && side === gateSide,
+        segments = gate
+          ? [
+              [0, 0.38],
+              [0.62, 1],
+            ]
+          : [[0, 1]];
+      for (const [start, end] of segments) {
+        g.beginPath();
+        g.moveTo(lerp(from[0], to[0], start), lerp(from[1], to[1], start));
+        g.lineTo(lerp(from[0], to[0], end), lerp(from[1], to[1], end));
+        g.stroke();
+      }
+      if (gate) {
+        g.save();
+        g.strokeStyle = p.accent;
+        g.lineWidth = Math.max(1.2, r * 0.075);
+        g.beginPath();
+        g.moveTo(lerp(from[0], to[0], 0.38), lerp(from[1], to[1], 0.38));
+        g.lineTo(lerp(from[0], to[0], 0.62), lerp(from[1], to[1], 0.62));
+        g.stroke();
+        g.restore();
+      }
+      for (const t of [0, 0.5, 1]) {
+        if (gate && t === 0.5) continue;
+        const x = lerp(from[0], to[0], t),
+          y = lerp(from[1], to[1], t),
+          post = Math.max(2, r * 0.17);
+        g.fillRect(x - post * 0.25, y - post, post * 0.5, post * 1.25);
+      }
+    }
+    g.restore();
+    return;
+  }
   if (stage === 0) {
     drawBuildingFootprint(
       g,

@@ -311,6 +311,178 @@ function herdForAnimal(id) {
   return herdId ? W.herds.find((herd) => herd.id === herdId && herd.active) || null : null;
 }
 
+function herdEnclosure(herd) {
+  if (!herd?.enclosureBuildingId) return null;
+  return W.buildings.find((building) => building.id === herd.enclosureBuildingId) || null;
+}
+
+function ensureHerdEnclosure(herd, place) {
+  let enclosure = herdEnclosure(herd);
+  if (enclosure && !enclosure.ruined) return enclosure;
+  const kind = placeKindKey(place);
+  enclosure = W.buildings.find(
+    (building) =>
+      !building.ruined &&
+      building.type === "corral" &&
+      building.placeKind === kind &&
+      building.placeId === place.id,
+  );
+  if (!enclosure)
+    enclosure = planBuilding(
+      place,
+      "corral",
+      Math.max(place.management?.priorities?.food || 3, place.management?.priorities?.defense || 2),
+    );
+  herd.enclosureBuildingId = enclosure?.id || 0;
+  return enclosure || null;
+}
+
+function herdEnclosureRadius(herd) {
+  return clamp(2 + Math.floor(Math.sqrt(Math.max(1, herd.animalIds.length)) / 2), 2, 4);
+}
+
+function enclosureCondition(enclosure) {
+  return enclosure?.complete && !enclosure.ruined
+    ? clamp(enclosure.integrity / Math.max(1, enclosure.maxIntegrity), 0, 1)
+    : 0;
+}
+
+function animalInsideEnclosure(animalId, herd, enclosure = herdEnclosure(herd)) {
+  const position = W.components.position[animalId];
+  if (!position || !enclosure?.complete || enclosure.ruined) return false;
+  const radius = herdEnclosureRadius(herd);
+  return dist2(position.x, position.y, enclosure.x, enclosure.y) <= radius * radius;
+}
+
+function removeHerdAnimal(herd, animalId) {
+  herd.animalIds = herd.animalIds.filter((id) => id !== animalId);
+  if (W.components.life[animalId]) W.components.life[animalId].herdId = 0;
+}
+
+function releaseEscapedAnimal(herd, animalId, enclosure) {
+  removeHerdAnimal(herd, animalId);
+  const event = emitEvent("HerdEscapeEvent", {
+    subjects: [animalId, herd.herderId],
+    location: idx(enclosure.x, enclosure.y),
+    causes: [herd.causeEvent, enclosure.lastDamage?.causeEvent || 0],
+    evidence: [
+      `${enclosure.name} had only ${Math.round(enclosureCondition(enclosure) * 100)}% structural integrity`,
+      `${entityName(animalId)} physically crossed the damaged perimeter instead of disappearing from an abstract livestock count`,
+    ],
+    magnitude: 1,
+    importance: 2,
+    data: { herdId: herd.id, buildingId: enclosure.id },
+  });
+  herd.state = "animal escaped through damaged enclosure";
+  herd.causeEvent = event.id;
+}
+
+function constrainHerdMovement(animalId, proposedX, proposedY) {
+  const position = W.components.position[animalId],
+    herd = herdForAnimal(animalId),
+    enclosure = herdEnclosure(herd);
+  if (!position || !herd || !enclosure?.complete || enclosure.ruined)
+    return { x: proposedX, y: proposedY };
+  const radius = herdEnclosureRadius(herd),
+    currentDistance = dist2(position.x, position.y, enclosure.x, enclosure.y),
+    proposedDistance = dist2(proposedX, proposedY, enclosure.x, enclosure.y),
+    limit = radius * radius;
+  if (proposedDistance <= limit || (currentDistance > limit && proposedDistance < currentDistance))
+    return { x: proposedX, y: proposedY };
+  if (currentDistance > limit) return { x: position.x, y: position.y };
+  const condition = enclosureCondition(enclosure);
+  if (condition >= 0.35) {
+    herd.state = "contained behind a closed material gate";
+    return { x: position.x, y: position.y };
+  }
+  const life = W.components.life[animalId],
+    hunger = clamp((life?.hunger || 0) / 100, 0, 1),
+    escapeChance = clamp(
+      0.08 + (0.35 - condition) * 1.4 + hunger * 0.24 - (life?.domestication || 0) * 0.18,
+      0.04,
+      0.72,
+    );
+  if (counterRand("corral-escape", W.tick, animalId, enclosure.id) < escapeChance) {
+    releaseEscapedAnimal(herd, animalId, enclosure);
+    return { x: proposedX, y: proposedY };
+  }
+  return { x: position.x, y: position.y };
+}
+
+function markEnclosureBreach(herd, enclosure, attackerId, causeEvent) {
+  if (herd.lastBreachBuildingId === enclosure.id && herd.lastBreachTick === W.tick) return 0;
+  const event = emitEvent("EnclosureBreachedEvent", {
+    subjects: [attackerId, herd.herderId].filter(Boolean),
+    location: idx(enclosure.x, enclosure.y),
+    factions: attackerId ? combatFactions(attackerId, herd.herderId) : [],
+    causes: [causeEvent, herd.causeEvent],
+    evidence: [
+      `${enclosure.name} fell below safe containment strength after cited structural damage`,
+      "predators, thieves, and herd animals can cross only through this physical breach",
+    ],
+    magnitude: Math.max(1, Math.round((1 - enclosureCondition(enclosure)) * 100)),
+    importance: 2,
+    data: { herdId: herd.id, buildingId: enclosure.id, condition: enclosureCondition(enclosure) },
+  });
+  herd.lastBreachBuildingId = enclosure.id;
+  herd.lastBreachTick = W.tick;
+  herd.state = "material enclosure breached";
+  herd.causeEvent = event.id;
+  return event.id;
+}
+
+function enclosureBlocksPredator(predatorId, animalId) {
+  const herd = herdForAnimal(animalId),
+    enclosure = herdEnclosure(herd);
+  if (
+    !herd ||
+    !enclosure?.complete ||
+    enclosure.ruined ||
+    !animalInsideEnclosure(animalId, herd, enclosure)
+  )
+    return false;
+  const predator = W.components.position[predatorId];
+  if (!predator || animalInsideEnclosure(predatorId, herd, enclosure)) return false;
+  if (enclosureCondition(enclosure) < 0.35) return false;
+  const life = W.components.life[predatorId],
+    previous = life?.lastEnclosureAttackTick ?? -999;
+  if (W.tick - previous >= 5) {
+    life.lastEnclosureAttackTick = W.tick;
+    const event = emitEvent("EnclosureAttackedEvent", {
+        subjects: [predatorId, animalId, herd.herderId],
+        location: idx(enclosure.x, enclosure.y),
+        causes: [herd.causeEvent],
+        evidence: [
+          `${entityName(predatorId)} reached the enclosure perimeter but not the protected prey`,
+          `${enclosure.name} is made from ${enclosure.requirements.map(([species]) => W.definitions.species[species].name).join(" and ")}`,
+        ],
+        magnitude: 1,
+        importance: 1,
+        data: { herdId: herd.id, buildingId: enclosure.id, protectedId: animalId },
+      }),
+      force = 12 + phenotype(predatorId).size * 18 + phenotype(predatorId).aggression * 12,
+      damage = damageBuildingDirect(
+        enclosure,
+        force,
+        `${entityName(predatorId)} tore at the livestock enclosure`,
+        event.id,
+      );
+    event.magnitude = damage;
+    event.data.damage = damage;
+    event.data.remainingIntegrity = enclosure.integrity;
+    if (enclosure.ruined || enclosureCondition(enclosure) < 0.35)
+      markEnclosureBreach(herd, enclosure, predatorId, event.id);
+    else herd.state = "predator stopped at material enclosure";
+  }
+  return true;
+}
+
+const performHuntEnclosureBase = performHunt;
+performHunt = function (id, prey) {
+  const accessible = prey.filter((target) => !enclosureBlocksPredator(id, target));
+  return performHuntEnclosureBase(id, accessible);
+};
+
 function chooseHerdPasture(place, herd) {
   let best = idx(place.x, place.y),
     bestScore = -Infinity;
@@ -380,6 +552,8 @@ function formPreyHerd(herderId, place, suppliedAnimals = null) {
   herd.pastureTile = pasture;
   herd.causeEvent = ev.id;
   W.herds.push(herd);
+  const enclosure = ensureHerdEnclosure(herd, place);
+  if (enclosure) herd.state = "awaiting material enclosure";
   for (const animal of animals) {
     const life = W.components.life[animal];
     life.herdId = herd.id;
@@ -450,6 +624,146 @@ function absorbHerdBirths(herd) {
   }
 }
 
+function feedEnclosedHerd(herd, place, enclosure) {
+  if (W.tick % 32 || !enclosure?.complete || enclosure.ruined) return 0;
+  const tile = idx(enclosure.x, enclosure.y),
+    members = herd.animalIds.filter(classifyAlive).length;
+  if (!members || tileFood(tile, "grazer") >= members * 2.5) return 0;
+  let moved = 0;
+  for (const [species, requested] of [
+    [C.ORGANIC, Math.max(1, Math.ceil(members * 0.7))],
+    [C.NUTRIENT, Math.max(1, Math.ceil(members * 0.24))],
+  ]) {
+    const amount = Math.min(place.inventory?.[species] || 0, requested);
+    if (!amount) continue;
+    place.inventory[species] -= amount;
+    setTileMatterAmount(tile, species, tileMatterAmount(tile, species) + amount);
+    moved += amount;
+  }
+  if (!moved) return 0;
+  const event = emitEvent("HerdFedEvent", {
+    subjects: [herd.herderId, ...herd.animalIds.slice(0, 5)],
+    location: tile,
+    factions: place.factionId ? [place.factionId] : [],
+    causes: [herd.causeEvent],
+    evidence: [
+      `${moved} conserved food matter moved from community stores into the enclosure`,
+      "contained prey still consume ordinary tile chemistry rather than an abstract feed score",
+    ],
+    magnitude: moved,
+    importance: 1,
+    data: { herdId: herd.id, buildingId: enclosure.id },
+  });
+  herd.causeEvent = event.id;
+  return moved;
+}
+
+function factionsAtWar(left, right) {
+  return !!(
+    left &&
+    right &&
+    left !== right &&
+    W.activeWars?.some(
+      (war) =>
+        !war.ended && ((war.a === left && war.b === right) || (war.a === right && war.b === left)),
+    )
+  );
+}
+
+function updateHerdTheftThreats() {
+  for (const herd of W.herds.filter((candidate) => candidate.active)) {
+    const place = fieldPlace(herd),
+      enclosure = herdEnclosure(herd);
+    if (!place?.factionId || !enclosure || !herd.animalIds.length) continue;
+    const intruders = W.activeIds
+      .filter((id) => {
+        if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) return false;
+        const factionId = W.components.social[id]?.factionId || 0,
+          position = W.components.position[id];
+        return (
+          factionsAtWar(factionId, place.factionId) &&
+          position &&
+          (dist2(position.x, position.y, enclosure.x, enclosure.y) <= 25 ||
+            herd.animalIds.some((animal) => {
+              const animalPosition = W.components.position[animal];
+              return (
+                animalPosition &&
+                dist2(position.x, position.y, animalPosition.x, animalPosition.y) <= 9
+              );
+            }))
+        );
+      })
+      .sort((left, right) => left - right);
+    const thief = intruders[0];
+    if (!thief) continue;
+    const thiefLife = W.components.life[thief],
+      previous = thiefLife.lastHerdTheftTick ?? -999;
+    if (W.tick - previous < 16) continue;
+    thiefLife.lastHerdTheftTick = W.tick;
+    if (enclosureCondition(enclosure) >= 0.35) {
+      const event = emitEvent("HerdTheftPreventedEvent", {
+          subjects: [thief, herd.herderId, herd.animalIds[0]],
+          location: idx(enclosure.x, enclosure.y),
+          factions: [W.components.social[thief]?.factionId, place.factionId].filter(Boolean),
+          causes: [herd.causeEvent],
+          evidence: [
+            `${entityName(thief)} reached the herd but the closed material perimeter blocked removal`,
+            "the intruder must physically breach the enclosure before an animal can be taken",
+          ],
+          magnitude: 1,
+          importance: 2,
+          data: { herdId: herd.id, buildingId: enclosure.id },
+        }),
+        force = 6 + combatEquipmentQuality(thief) * 0.16,
+        damage = damageBuildingDirect(
+          enclosure,
+          force,
+          `${entityName(thief)} attempted to force the livestock gate`,
+          event.id,
+        );
+      event.data.damage = damage;
+      event.data.remainingIntegrity = enclosure.integrity;
+      herd.state = "theft attempt stopped by enclosure";
+      herd.causeEvent = event.id;
+      if (enclosure.ruined || enclosureCondition(enclosure) < 0.35)
+        markEnclosureBreach(herd, enclosure, thief, event.id);
+      continue;
+    }
+    const thiefPosition = W.components.position[thief],
+      animal =
+        herd.animalIds.find((id) => animalInsideEnclosure(id, herd, enclosure)) ||
+        herd.animalIds.find((id) => {
+          const position = W.components.position[id];
+          return (
+            position &&
+            thiefPosition &&
+            dist2(position.x, position.y, thiefPosition.x, thiefPosition.y) <= 25
+          );
+        });
+    if (!animal) continue;
+    removeHerdAnimal(herd, animal);
+    W.components.life[animal].stolenByFactionId = W.components.social[thief]?.factionId || 0;
+    const event = emitEvent("HerdAnimalStolenEvent", {
+      subjects: [thief, animal, herd.herderId],
+      location: idx(enclosure.x, enclosure.y),
+      factions: [W.components.social[thief]?.factionId, place.factionId].filter(Boolean),
+      causes: [herd.causeEvent, enclosure.lastDamage?.causeEvent || 0],
+      evidence: [
+        enclosure.ruined || enclosure.lastDamage
+          ? "a prior physical breach opened the livestock perimeter"
+          : "the livestock enclosure was not yet complete enough to close its perimeter",
+        `${entityName(thief)} removed ${entityName(animal)} from the living herd roster`,
+      ],
+      magnitude: 1,
+      importance: 3,
+      data: { herdId: herd.id, buildingId: enclosure.id },
+    });
+    addRelation(thief, animal, "stole", 1, event.id);
+    herd.state = "animal stolen through breached enclosure";
+    herd.causeEvent = event.id;
+  }
+}
+
 function updateLivingHerds() {
   initializeAgricultureHerding();
   let moved = false;
@@ -470,9 +784,34 @@ function updateLivingHerds() {
       for (const animal of herd.animalIds) W.components.life[animal].herdId = 0;
       continue;
     }
+    const enclosure = ensureHerdEnclosure(herd, place),
+      enclosed = !!(enclosure?.complete && !enclosure.ruined);
+    if (enclosed) {
+      herd.pastureTile = idx(enclosure.x, enclosure.y);
+      if (!herd.enclosedTick || herd.enclosureCompletedBuildingId !== enclosure.id) {
+        const event = emitEvent("HerdEnclosedEvent", {
+          subjects: [herd.herderId, ...herd.animalIds.slice(0, 8), place.entityId].filter(Boolean),
+          location: herd.pastureTile,
+          factions: place.factionId ? [place.factionId] : [],
+          causes: [herd.causeEvent, enclosure.completedEvent || enclosure.causeEvent],
+          evidence: [
+            `${enclosure.name} was completed from ${enclosure.requirements.map(([species, amount]) => `${amount} ${W.definitions.species[species].name}`).join(", ")}`,
+            "its closed gate constrains individual animal movement and blocks unbreached predator or theft access",
+          ],
+          magnitude: herd.animalIds.length,
+          importance: 2,
+          data: { herdId: herd.id, buildingId: enclosure.id },
+        });
+        herd.enclosedTick = W.tick || 1;
+        herd.enclosureCompletedBuildingId = enclosure.id;
+        herd.causeEvent = event.id;
+      }
+      feedEnclosedHerd(herd, place, enclosure);
+    }
     if (
-      W.tick - herd.lastMoveTick >= 96 ||
-      tileFood(herd.pastureTile, "grazer") < herd.animalIds.length * 2
+      !enclosed &&
+      (W.tick - herd.lastMoveTick >= 96 ||
+        tileFood(herd.pastureTile, "grazer") < herd.animalIds.length * 2)
     ) {
       const previous = herd.pastureTile,
         next = chooseHerdPasture(place, herd);
@@ -513,11 +852,13 @@ function updateLivingHerds() {
           `🐑 guiding ${herd.animalIds.length} living grazers toward pasture`,
         );
       else {
-        herd.state = "grazing under watch";
+        herd.state = enclosed ? "secured inside material enclosure" : "grazing under watch";
         setWorkAction(
           herder,
           "herd",
-          `🐑 watching ${herd.animalIds.length} grazers reproduce and feed`,
+          enclosed
+            ? `🔒 tending feed and the closed gate for ${herd.animalIds.length} grazers`
+            : `🐑 watching ${herd.animalIds.length} grazers reproduce and feed`,
           herd.pastureTile,
         );
       }
@@ -699,6 +1040,7 @@ simTick = function () {
   initializeAgricultureHerding();
   if (W.tick % 4 === 0) updatePredatorDefense();
   if (W.tick % 8 === 0) updateLivingHerds();
+  if (W.tick % 16 === 0) updateHerdTheftThreats();
   if (W.tick % 32 === 0) updateCultivatedFields();
   if (W.tick % 64 === 0) maybeFormLivingHerds();
   // A tick boundary is a save/hash boundary. Resolve any defensive or herding
@@ -728,6 +1070,20 @@ eventSentence = function (event) {
       return `🐾 Herd ${event.data.herdId} walked to a safer, richer pasture at ${location}.`;
     case "HerdBirthEvent":
       return `🐣 ${names[0]} was born from physically present herd parents and joined herd ${event.data.herdId}.`;
+    case "HerdEnclosedEvent":
+      return `🔒 ${names[0]} secured herd ${event.data.herdId} inside a completed material enclosure at ${location}.`;
+    case "HerdFedEvent":
+      return `🌿 ${names[0]} moved ${event.magnitude} conserved food matter into enclosed herd ${event.data.herdId}.`;
+    case "HerdEscapeEvent":
+      return `🐾 ${names[0]} escaped herd ${event.data.herdId} through a physically damaged enclosure at ${location}.`;
+    case "EnclosureAttackedEvent":
+      return `🦷 ${names[0]} attacked the material enclosure protecting ${names[1]} at ${location}, causing ${event.data.damage || 0} structural damage.`;
+    case "EnclosureBreachedEvent":
+      return `⚠️ ${names[0]} breached herd ${event.data.herdId}'s enclosure at ${location}; containment and access protection were physically lost.`;
+    case "HerdTheftPreventedEvent":
+      return `🔐 ${names[0]} tried to take ${names[2]} but herd ${event.data.herdId}'s closed enclosure blocked the theft.`;
+    case "HerdAnimalStolenEvent":
+      return `🐑 ${names[0]} removed ${names[1]} through a prior breach in herd ${event.data.herdId}'s enclosure.`;
     case "PredatorDefenseEvent":
       return `🛡️ ${names[0]} intercepted ${names[1]} while it threatened ${names[2]} at ${location}; ${event.data.outcome || "combat followed"}.`;
     default:
@@ -741,8 +1097,12 @@ organismInspector = function (id) {
   const herd = herdForAnimal(id);
   if (!herd) return html;
   const place = fieldPlace(herd),
-    herder = classifyAlive(herd.herderId) ? entityName(herd.herderId) : "no living herder";
-  html += `<div class="subhead">Living herd state</div><div class="card"><div class="kv"><span>Herd</span><b>${herd.id} · ${esc(herd.state)}</b><span>Home community</span><b>${esc(place?.name || "dispersed")}</b><span>Herder</span><b>${esc(herder)}</b><span>Living herd members</span><b>${herd.animalIds.filter(classifyAlive).length}</b><span>Domestication</span><b>${pct((W.components.life[id].domestication || 0) * 100)}</b><span>Pasture tile</span><b>${xy(herd.pastureTile).join(", ")}</b></div><div class="divider"></div><small class="muted">This is still a normal prey organism: it feeds, flees, reproduces from parent matter, can be injured, and can be killed. Herding changes guidance and protection, not its physical identity.</small></div>`;
+    herder = classifyAlive(herd.herderId) ? entityName(herd.herderId) : "no living herder",
+    enclosure = herdEnclosure(herd),
+    materials = enclosure?.requirements
+      ?.map(([species]) => W.definitions.species[species].name)
+      .join(" + ");
+  html += `<div class="subhead">Living herd state</div><div class="card"><div class="kv"><span>Herd</span><b>${herd.id} · ${esc(herd.state)}</b><span>Home community</span><b>${esc(place?.name || "dispersed")}</b><span>Herder</span><b>${esc(herder)}</b><span>Living herd members</span><b>${herd.animalIds.filter(classifyAlive).length}</b><span>Domestication</span><b>${pct((W.components.life[id].domestication || 0) * 100)}</b><span>Pasture tile</span><b>${xy(herd.pastureTile).join(", ")}</b><span>Enclosure</span><b>${enclosure ? `${esc(enclosure.name)} · ${enclosure.complete && !enclosure.ruined ? `${pct(enclosureCondition(enclosure) * 100)} secure` : enclosure.ruined ? "breached" : `${pct(enclosure.progress * 100)} built`}` : "not planned"}</b><span>Fence analogue</span><b>${esc(materials || "awaiting materials")}</b><span>Gate</span><b>${enclosure?.complete && enclosureCondition(enclosure) >= 0.35 ? "closed and containing" : "open or breached"}</b></div><div class="divider"></div><small class="muted">This is still a normal prey organism: it feeds, reproduces, can be injured, and can be killed. A completed enclosure physically constrains movement and must be damaged before predators or wartime thieves can cross it.</small></div>`;
   return html;
 };
 
@@ -761,10 +1121,18 @@ placeDevelopmentCard = function (place, interactive = true) {
         `<div class="card"><div class="row between"><b>🌾 ${esc(field.cropName)}</b><span class="tag ${field.stage === "ripe" ? "good" : ""}">${esc(titleCase(field.stage))}</span></div><small class="muted">Growth ${field.growth} · completed harvests ${field.cycles} · tile ${xy(field.tile).join(", ")}</small></div>`,
     )
     .join("")}${herds
-    .map(
-      (herd) =>
-        `<div class="card"><div class="row between"><b>🐑 Living herd ${herd.id}</b><span class="tag">${herd.animalIds.filter(classifyAlive).length} prey</span></div><small class="muted">${esc(herd.state)} · pasture ${xy(herd.pastureTile).join(", ")} · herder ${esc(entityName(herd.herderId))}</small></div>`,
-    )
+    .map((herd) => {
+      const enclosure = herdEnclosure(herd),
+        security =
+          enclosure?.complete && !enclosure.ruined
+            ? `${pct(enclosureCondition(enclosure) * 100)} enclosure integrity`
+            : enclosure?.ruined
+              ? "enclosure breached"
+              : enclosure
+                ? `${pct(enclosure.progress * 100)} enclosure construction`
+                : "no enclosure";
+      return `<div class="card"><div class="row between"><b>🐑 Living herd ${herd.id}</b><span class="tag">${herd.animalIds.filter(classifyAlive).length} prey</span></div><small class="muted">${esc(herd.state)} · ${esc(security)} · pasture ${xy(herd.pastureTile).join(", ")} · herder ${esc(entityName(herd.herderId))}</small></div>`;
+    })
     .join("")}</div>`;
 };
 
@@ -781,6 +1149,9 @@ function agricultureHerdingAudit() {
   }
   for (const herd of W.herds.filter((candidate) => candidate.active)) {
     if (!classifyAlive(herd.herderId)) failures.push(`herd ${herd.id} lacks a living herder`);
+    const enclosure = herdEnclosure(herd);
+    if (!enclosure || enclosure.type !== "corral")
+      failures.push(`herd ${herd.id} lacks a material enclosure plan`);
     for (const animal of herd.animalIds)
       if (W.kind[animal] !== KINDS.HERBIVORE || W.components.life[animal]?.herdId !== herd.id)
         failures.push(`herd ${herd.id} contains invalid prey ${animal}`);
@@ -801,9 +1172,23 @@ function agricultureHerdingAudit() {
         members: herd.animalIds.filter(classifyAlive).length,
         state: herd.state,
         pastureTile: herd.pastureTile,
+        enclosure: (() => {
+          const building = herdEnclosure(herd);
+          return building
+            ? {
+                buildingId: building.id,
+                complete: building.complete,
+                ruined: building.ruined,
+                condition: enclosureCondition(building),
+                materials: building.requirements.map(([species, amount]) => [species, amount]),
+              }
+            : null;
+        })(),
         causeEvent: herd.causeEvent,
       })),
     predatorDefenses: W.events.filter((event) => event.type === "PredatorDefenseEvent").length,
+    enclosureAttacks: W.events.filter((event) => event.type === "EnclosureAttackedEvent").length,
+    preventedThefts: W.events.filter((event) => event.type === "HerdTheftPreventedEvent").length,
     fluidSplatters: W.fluidSplatters.length,
     matter: auditMatter(),
   };
@@ -821,13 +1206,26 @@ function debugMoveTileMatterToStore(store, species, requested) {
   return requested - needed;
 }
 
-function debugCompletePhysicalFarm(place) {
-  let building = completedBuildings(place, "farm")[0];
+function debugCompletePhysicalBuilding(place, type) {
+  let building = completedBuildings(place, type)[0];
   if (building) return building;
-  building = planBuilding(place, "farm", 5);
+  building = W.buildings.find(
+    (candidate) =>
+      !candidate.ruined &&
+      candidate.type === type &&
+      candidate.placeKind === placeKindKey(place) &&
+      candidate.placeId === place.id,
+  );
+  if (!building) building = planBuilding(place, type, 5);
   if (!building) return null;
   for (const [species, required] of building.requirements) {
     let needed = required;
+    const stored = Math.min(needed, place.inventory?.[species] || 0);
+    if (stored) {
+      place.inventory[species] -= stored;
+      building.composition[species] += stored;
+      needed -= stored;
+    }
     for (let tile = 0; tile < W.tileCount && needed > 0; tile++) {
       const amount = Math.min(needed, tileMatterAmount(tile, species));
       if (!amount) continue;
@@ -840,6 +1238,10 @@ function debugCompletePhysicalFarm(place) {
   building.workDone = building.workRequired;
   refreshBuildingStage(building);
   return building.complete ? building : null;
+}
+
+function debugCompletePhysicalFarm(place) {
+  return debugCompletePhysicalBuilding(place, "farm");
 }
 
 function debugAgricultureHerdingProbe() {
@@ -887,20 +1289,81 @@ function debugAgricultureHerdingProbe() {
     position.regionId = regionId(position.x, position.y);
   }
   const herd = formPreyHerd(worker, place, localPrey),
+    enclosure = herd ? debugCompletePhysicalBuilding(place, "corral") : null,
     predator = predators[0],
     protectedAnimal = herd?.animalIds[0] || 0;
-  if (herd && protectedAnimal) {
-    const animalPosition = W.components.position[protectedAnimal],
-      predatorPosition = W.components.position[predator];
-    workerPosition.x = animalPosition.x;
-    workerPosition.y = animalPosition.y;
-    predatorPosition.x = clamp(animalPosition.x + 1, 0, W.width - 1);
-    predatorPosition.y = animalPosition.y;
+  if (herd && enclosure) {
+    herd.enclosureBuildingId = enclosure.id;
+    herd.pastureTile = idx(enclosure.x, enclosure.y);
+    for (const animal of herd.animalIds) {
+      const position = W.components.position[animal];
+      position.x = enclosure.x;
+      position.y = enclosure.y;
+      position.regionId = regionId(position.x, position.y);
+    }
+    updateLivingHerds();
+  }
+  const animalPosition = protectedAnimal ? W.components.position[protectedAnimal] : null,
+    predatorPosition = W.components.position[predator],
+    radius = herd ? herdEnclosureRadius(herd) : 0,
+    constrained =
+      herd && enclosure && animalPosition
+        ? constrainHerdMovement(
+            protectedAnimal,
+            clamp(enclosure.x + radius + 1, 0, W.width - 1),
+            enclosure.y,
+          )
+        : null,
+    containmentBlocked =
+      !!animalPosition &&
+      !!constrained &&
+      constrained.x === animalPosition.x &&
+      constrained.y === animalPosition.y;
+  if (herd && enclosure && protectedAnimal) {
+    workerPosition.x = clamp(enclosure.x + radius + 1, 0, W.width - 1);
+    workerPosition.y = enclosure.y;
+    predatorPosition.x = workerPosition.x;
+    predatorPosition.y = workerPosition.y;
     workerPosition.regionId = regionId(workerPosition.x, workerPosition.y);
     predatorPosition.regionId = regionId(predatorPosition.x, predatorPosition.y);
+    W.components.life[predator].lastAttackTick = W.tick - 10;
   }
+  const thief = people.find((id) => id !== worker) || 0,
+    herdCountBeforeTheft = herd?.animalIds.length || 0,
+    theftEventCountBefore = W.events.filter(
+      (event) => event.type === "HerdTheftPreventedEvent",
+    ).length;
+  if (thief && herd && enclosure) {
+    const ownerFaction = place.factionId || 910001,
+      thiefFaction = ownerFaction + 1,
+      thiefPosition = W.components.position[thief],
+      probeWar = { id: 910001, a: ownerFaction, b: thiefFaction, ended: false };
+    place.factionId = ownerFaction;
+    W.components.social[worker].factionId = ownerFaction;
+    W.components.social[thief].factionId = thiefFaction;
+    thiefPosition.x = clamp(enclosure.x + radius, 0, W.width - 1);
+    thiefPosition.y = enclosure.y;
+    thiefPosition.regionId = regionId(thiefPosition.x, thiefPosition.y);
+    W.components.life[thief].lastHerdTheftTick = W.tick - 32;
+    W.activeWars.push(probeWar);
+    updateHerdTheftThreats();
+    W.activeWars = W.activeWars.filter((war) => war !== probeWar);
+  }
+  const theftPrevented =
+    !!herd &&
+    herd.animalIds.length === herdCountBeforeTheft &&
+    W.events.filter((event) => event.type === "HerdTheftPreventedEvent").length >
+      theftEventCountBefore;
   rebuildSpatialBins();
-  const defense = herd
+  const protectedIntegrityBefore = W.components.life[protectedAnimal]?.integrity || 0,
+    enclosureIntegrityBefore = enclosure?.integrity || 0,
+    huntResult = herd ? performHunt(predator, [protectedAnimal]) : false,
+    enclosureBlockedPredator =
+      !!enclosure &&
+      !huntResult &&
+      enclosure.integrity < enclosureIntegrityBefore &&
+      W.components.life[protectedAnimal]?.integrity === protectedIntegrityBefore,
+    defense = herd
       ? defendAgainstPredator(worker, predator, { targetId: protectedAnimal, herd }, true)
       : 0,
     eventTypes = W.events.slice(-40).map((event) => event.type),
@@ -910,11 +1373,19 @@ function debugAgricultureHerdingProbe() {
       !!sown &&
       !!harvested &&
       !!herd &&
+      !!enclosure &&
+      enclosure.complete &&
+      containmentBlocked &&
+      enclosureBlockedPredator &&
+      theftPrevented &&
       herd.animalIds.length >= 2 &&
       !!defense &&
       eventTypes.includes("CropSownEvent") &&
       eventTypes.includes("CropHarvestedEvent") &&
       eventTypes.includes("HerdFormedEvent") &&
+      eventTypes.includes("HerdEnclosedEvent") &&
+      eventTypes.includes("EnclosureAttackedEvent") &&
+      eventTypes.includes("HerdTheftPreventedEvent") &&
       eventTypes.includes("PredatorDefenseEvent") &&
       W.fluidSplatters.length > 0 &&
       Math.abs(matterDelta) < 1e-8,
@@ -931,6 +1402,17 @@ function debugAgricultureHerdingProbe() {
           actualAnimalIds: herd.animalIds.slice(),
           state: herd.state,
           pastureTile: herd.pastureTile,
+          enclosure: enclosure
+            ? {
+                buildingId: enclosure.id,
+                complete: enclosure.complete,
+                condition: enclosureCondition(enclosure),
+                materials: enclosure.requirements.map(([species, amount]) => [species, amount]),
+                containmentBlocked,
+                predatorBlocked: enclosureBlockedPredator,
+                theftBlocked: theftPrevented,
+              }
+            : null,
         }
       : null,
     predatorDefense: { defender: worker, predator, protectedAnimal, result: defense },

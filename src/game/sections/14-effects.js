@@ -81,6 +81,15 @@ function resolveEffects() {
               ny = clamp(p.y + Math.sign(ny - p.y), 0, W.height - 1);
             }
           }
+          if (
+            !d.forced &&
+            kind === KINDS.HERBIVORE &&
+            typeof constrainHerdMovement === "function"
+          ) {
+            const constrained = constrainHerdMovement(d.entityId, nx, ny);
+            nx = constrained.x;
+            ny = constrained.y;
+          }
           p.x = nx;
           p.y = ny;
           p.regionId = regionId(nx, ny);

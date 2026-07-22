@@ -95,6 +95,14 @@ const BUILDING_DEFS = Object.freeze({
     defense: 0,
     priority: "food",
   },
+  corral: {
+    name: "Material livestock enclosure",
+    work: 52,
+    housing: 0,
+    storage: 18,
+    defense: 9,
+    priority: "food",
+  },
   wall: {
     name: "Defensive wall",
     work: 74,
@@ -332,7 +340,16 @@ function makeArchitectureGenome(place, tile = idx(place.x, place.y)) {
 function buildingRequirements(place, type) {
   const a = makeArchitectureGenome(place),
     def = BUILDING_DEFS[type],
-    scale = type === "wall" ? 1 : type === "hall" ? 2.2 : type === "shelter" ? 1.15 : 1,
+    scale =
+      type === "wall"
+        ? 1
+        : type === "corral"
+          ? 0.72
+          : type === "hall"
+            ? 2.2
+            : type === "shelter"
+              ? 1.15
+              : 1,
     rigid = Math.max(6, Math.round(def.work * 0.18 * scale)),
     flex = Math.max(3, Math.round(def.work * 0.13 * scale)),
     raw = [[a.rigid, rigid]];
@@ -733,6 +750,8 @@ function ensurePlacePlans(place) {
   const desiredFarms = place.management.policy === "growth" ? 2 : 1;
   while (count("farm") < desiredFarms && activeBuildings(place).length < 4)
     planBuilding(place, "farm", place.management.priorities.food);
+  if (W.herds?.some((herd) => herd.active && herd.placeKind === kind && herd.placeId === place.id))
+    plan("corral", Math.max(place.management.priorities.food, place.management.priorities.defense));
   if (place.knownProcesses.includes("controlled_fire"))
     plan("kiln", place.management.priorities.knowledge);
   if (place.knownProcesses.includes("metalworking"))

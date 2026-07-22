@@ -668,12 +668,25 @@ if (process.env.SYSTEMS_DEBUG === "1") {
     "CropSownEvent",
     "CropHarvestedEvent",
     "HerdFormedEvent",
+    "HerdEnclosedEvent",
+    "EnclosureAttackedEvent",
+    "HerdTheftPreventedEvent",
     "PredatorDefenseEvent",
   ])
     if (!agricultureProbe.eventTypes?.includes(type))
       failures.push(`agriculture and herding mechanics omitted ${type}`);
   if (agricultureProbe.herd?.actualAnimalIds?.length < 2)
     failures.push("herding did not retain individually simulated prey organisms");
+  if (
+    !agricultureProbe.herd?.enclosure?.complete ||
+    !agricultureProbe.herd.enclosure.materials?.length ||
+    !agricultureProbe.herd.enclosure.containmentBlocked ||
+    !agricultureProbe.herd.enclosure.predatorBlocked ||
+    !agricultureProbe.herd.enclosure.theftBlocked
+  )
+    failures.push(
+      "the living herd lacked a material enclosure that blocks escape, predation, and theft before breach",
+    );
   if (!agricultureProbe.predatorDefense?.result)
     failures.push("people did not physically fight a predator threatening protected prey");
   if (!agricultureProbe.fluidSplatters)
