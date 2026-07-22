@@ -276,8 +276,7 @@ function updateDrowning() {
     if (!p) continue;
     const ti = idx(p.x, p.y);
     if (W.tiles.liquid[ti] <= 820) continue;
-    const fid = W.components.social[id]?.factionId || 0;
-    if (fid && factionHasTech(fid, "navigation")) continue;
+    if (hasNavigableWatercraft(id)) continue;
     const l = W.components.life[id];
     l.integrity = Math.max(0, l.integrity - 46);
     W.components.body[id].integrity = l.integrity;

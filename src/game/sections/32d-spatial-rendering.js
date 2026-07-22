@@ -341,7 +341,7 @@ function drawCreatureGlyph(
 ) {
   const ph = phenotype(id),
     life = W.components.life[id],
-    m = creatureModel(id),
+    m = embodiedVisualModel(id, creatureModel(id)),
     corpse = W.kind[id] === KINDS.CORPSE,
     qualityDetail =
       portrait || (UI.quality === "high" && UI.camera.zoom > 1.25) || UI.camera.zoom > 2.5
@@ -403,6 +403,7 @@ function drawCreatureGlyph(
     g.ellipse(s.x, s.y, r * 1.15, r * 0.85, 0, 0, Math.PI * 2);
     g.fill();
     g.stroke();
+    drawEmotionGlyph(g, id, s, r, now, portrait);
     return r;
   }
   g.save();
@@ -422,6 +423,7 @@ function drawCreatureGlyph(
     g.scale(1 + bounce, 1 - bounce);
   }
   drawCreatureModelShape(g, m, phase, qualityDetail, { primary, secondary, accent, outline });
+  drawLostLimbStumps(g, id, m, qualityDetail, { primary, secondary, accent, outline });
   g.restore();
   if (life?.infected) {
     g.fillStyle = hsl(294, 72, 67, 0.9);
@@ -437,6 +439,7 @@ function drawCreatureGlyph(
     g.lineTo(s.x + r * 0.72, s.y + r * 0.64 - hover);
     g.stroke();
   }
+  drawEmotionGlyph(g, id, s, r, now, portrait);
   return r;
 }
 function sceneEntityVisible(id, b) {
@@ -1702,6 +1705,25 @@ function drawRealtimePredation(now, bounds) {
       );
       ctx.fill();
     }
+    if (v.severedPart && t > 0.24) {
+      const severPhase = clamp((t - 0.24) / 0.48, 0, 1),
+        angle = Math.atan2(dy, dx) + (visualHash01(v.eventId, 0x61) - 0.5) * 2.4,
+        travel = r * (0.45 + severPhase * 1.25),
+        lx = vw.x + Math.cos(angle) * travel,
+        ly = vw.y + Math.sin(angle) * travel + r * severPhase * severPhase * 0.72;
+      ctx.save();
+      ctx.translate(lx, ly);
+      ctx.rotate(angle + severPhase * 5.2);
+      ctx.fillStyle = hsl(creatureModel(v.victim).primaryHue, 45, 36, 0.94);
+      ctx.strokeStyle = hsl(v.bloodHue, 86, 34, 0.96);
+      ctx.lineWidth = Math.max(1.2, r * 0.08);
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(-r * 0.32, -r * 0.1, r * 0.64, r * 0.2, r * 0.08);
+      else ctx.rect(-r * 0.32, -r * 0.1, r * 0.64, r * 0.2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
     if (v.lethal && t > 0.32) {
       const fragmentPhase = clamp((t - 0.32) / 0.5, 0, 1);
       for (let n = 0; n < (v.critical ? 11 : 7); n++) {
@@ -1730,7 +1752,7 @@ function drawRealtimePredation(now, bounds) {
       ctx.fillStyle = "#fff1d4";
       ctx.strokeStyle = "#071016dd";
       ctx.lineWidth = 3;
-      const label = `${v.style}${v.bodyPart ? ` · ${v.bodyPart.toUpperCase()}` : ""}${v.lethal ? " · KILL" : " · " + v.damage}`;
+      const label = `${v.style}${v.bodyPart ? ` · ${v.bodyPart.toUpperCase()}` : ""}${v.severedPart ? " · LIMB LOST" : v.lethal ? " · KILL" : " · " + v.damage}`;
       ctx.strokeText(label, vw.x, vw.y - r * 1.05);
       ctx.fillText(label, vw.x, vw.y - r * 1.05);
     }
@@ -1803,6 +1825,7 @@ function drawGroundConflictTraces(now, bounds) {
     );
     ctx.fill();
   }
+  drawSeveredBodyParts(ctx, now, bounds, m);
   ctx.restore();
 }
 function drawImpactBurst(s, item, now, m) {

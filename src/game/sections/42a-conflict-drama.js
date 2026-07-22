@@ -187,6 +187,7 @@ function detailedCombatExchange(attacker, victim, context = {}) {
     defense =
       COMBAT_DEFENSES[hashParts(W.seedHash, "defense", serial, victim) % COMBAT_DEFENSES.length],
     part = weightedBodyPart(serial, attacker, victim),
+    specificPart = selectEmbodiedBodyPart(victim, part.name, serial, attacker),
     attackerUnit = combatUnitFor(attacker),
     victimUnit = combatUnitFor(victim),
     training = context.training ?? attackerUnit?.training ?? 0,
@@ -252,7 +253,7 @@ function detailedCombatExchange(attacker, victim, context = {}) {
         warId: context.war?.id || 0,
         tactic: tactic.name,
         defense: defense.name,
-        bodyPart: part.name,
+        bodyPart: specificPart,
         outcome: hit ? (critical ? "critical" : "hit") : "evaded",
       },
     });
@@ -264,7 +265,10 @@ function detailedCombatExchange(attacker, victim, context = {}) {
     return 0;
   }
 
-  const armor = (W.components.body[victim]?.armor || 0) * 17 + defensiveEquipment * 0.11,
+  const armor =
+      (W.components.body[victim]?.armor || 0) * 17 +
+      defensiveEquipment * 0.11 +
+      equipmentProtection(victim),
     intensity = context.intensity ?? 1,
     raw = (12 + equipment * 0.28 + training * 1.15 + Math.max(0, margin) * 28) * tactic.force,
     damage = Math.max(2, Math.floor((raw - armor * 0.42) * part.vulnerability * intensity)),
@@ -280,7 +284,7 @@ function detailedCombatExchange(attacker, victim, context = {}) {
     wound = {
       id: serial,
       tick: W.tick,
-      part: part.name,
+      part: specificPart,
       type: tactic.wound,
       severity: clamp(actual / 42 + (critical ? 0.34 : 0), 0.08, 1),
       bleed: clamp(Math.ceil((spilled + requestedBlood) / 3), 1, 18),
@@ -305,7 +309,7 @@ function detailedCombatExchange(attacker, victim, context = {}) {
     factions,
     causes: [exchange.id, causeEvent],
     evidence: [
-      `${tactic.name} overcame ${defense.name} and struck the ${part.name}`,
+      `${tactic.name} overcame ${defense.name} and struck the ${specificPart}`,
       `${tactic.wound} removed ${actual} structural integrity and spilled ${spilled} conserved blood mass`,
       critical ? "the exchange produced a critical wound" : "the wound remained survivable",
     ],
@@ -316,12 +320,26 @@ function detailedCombatExchange(attacker, victim, context = {}) {
       military: !!context.military,
       woundId: wound.id,
       wound: tactic.wound,
-      bodyPart: part.name,
+      bodyPart: specificPart,
       bloodLost: spilled,
       critical,
     },
   });
   wound.causeEvent = injury.id;
+  const anatomyTrauma = applyEmbodiedInjury(
+    victim,
+    specificPart,
+    tactic.wound,
+    actual,
+    wound.severity,
+    critical,
+    attacker,
+    injury.id,
+    { forceDismember: !!context.forceDismember },
+  );
+  injury.data.disabledPart = anatomyTrauma.disabled;
+  injury.data.limbLostEventId = anatomyTrauma.eventId;
+  injury.data.severed = anatomyTrauma.severed;
   exchange.magnitude = actual;
   exchange.data.damage = actual;
   exchange.data.injuryEventId = injury.id;
@@ -330,10 +348,11 @@ function detailedCombatExchange(attacker, victim, context = {}) {
   const visual = UI.combatVisuals?.at(-1);
   if (visual?.eventId === injury.id) {
     visual.style = tactic.name.toUpperCase();
-    visual.bodyPart = part.name;
+    visual.bodyPart = specificPart;
     visual.bloodAmount = spilled + wound.bleed;
     visual.critical = critical;
     visual.internal = !!context.internal;
+    visual.severedPart = anatomyTrauma.severed ? specificPart : "";
   }
   if (a.identity) a.identity.battles = (a.identity.battles || 0) + 1;
   if (v.identity) v.identity.battles = (v.identity.battles || 0) + 1;
@@ -341,7 +360,7 @@ function detailedCombatExchange(attacker, victim, context = {}) {
     setWorkAction(attacker, "fight", `${tactic.name} against ${entityName(victim)}`, terrain);
   if (!lethal) return 1;
 
-  killEntity(victim, `${tactic.wound} to the ${part.name} caused structural failure`, injury.id);
+  killEntity(victim, `${tactic.wound} to the ${specificPart} caused structural failure`, injury.id);
   if (a.identity) a.identity.kills = (a.identity.kills || 0) + 1;
   W.statistics.kills++;
   emitEvent("KillEvent", {
@@ -350,7 +369,7 @@ function detailedCombatExchange(attacker, victim, context = {}) {
     factions,
     causes: [injury.id, exchange.id, causeEvent],
     evidence: [
-      `${tactic.wound} to the ${part.name} reduced body integrity to zero`,
+      `${tactic.wound} to the ${specificPart} reduced body integrity to zero`,
       `${spilled} blood mass had already entered the local substrate`,
       context.internal
         ? "the lethal exchange arose inside the community"
@@ -576,7 +595,7 @@ function captureSettlementCausally(target, attacker, defender, war, attackers) {
   return ev;
 }
 
-resolveImplicitWarTurn = function (war, a, b) {
+function resolveImplicitWarTurn(war, a, b) {
   initializeConflictDrama();
   war.turns++;
   war.captureProgress = war.captureProgress || {};
@@ -697,7 +716,7 @@ resolveImplicitWarTurn = function (war, a, b) {
     war.turns > 48
   )
     endWar(war, a, b, "casualties, supply, morale, and control ended sustained operations");
-};
+}
 
 resolveWarTurn = function (war, a, b) {
   return resolveImplicitWarTurn(war, a, b);

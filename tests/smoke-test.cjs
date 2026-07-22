@@ -591,6 +591,82 @@ if (process.env.PROGRESSION_DEBUG === "1") {
   return;
 }
 
+if (process.env.SYSTEMS_DEBUG === "1") {
+  const social = sandbox.window.ALIFE_SOCIAL_DEBUG,
+    embodied = sandbox.window.ALIFE_EMBODIED_DEBUG;
+  if (!social || !embodied)
+    throw new Error("Social or embodied-system debug surface did not initialize");
+  game.createTestWorld({
+    seed: "embodied-social-systems-probe",
+    size: "phone",
+    lifeDensity: 0.9,
+    harshness: 0.5,
+    variability: 0.65,
+    disasterFrequency: 1,
+    complexity: "lean",
+  });
+  const fixture = controls.createCivicTestScenario(),
+    socialProbe = social.probe(),
+    embodiedProbe = embodied.probe();
+  game.step(8);
+  const drawOpsBefore = drawOps.count;
+  visuals.renderOnly({ view: "oblique", quality: "high", zoom: 9, now: 1800 });
+  const embodiedDrawOps = drawOps.count - drawOpsBefore;
+  const socialAudit = social.audit(),
+    embodiedAudit = embodied.audit(),
+    failures = [...socialAudit.failures, ...embodiedAudit.failures];
+  if (!fixture)
+    failures.push("civic fixture could not gather enough people for causal system probes");
+  if (!socialProbe.ok)
+    failures.push(
+      `social drama probe failed: ${socialProbe.reason || "missing causal emotional state"}`,
+    );
+  for (const type of [
+    "LoveBondEvent",
+    "BetrayalEvent",
+    "CheatingDiscoveredEvent",
+    "GriefEvent",
+    "RevengeVowEvent",
+  ])
+    if (!socialProbe.eventTypes?.includes(type)) failures.push(`social drama omitted ${type}`);
+  if (!socialProbe.concealedBeforeDiscovery || !socialProbe.relationshipEnded)
+    failures.push(
+      "betrayal was not concealed before observation or did not alter the prior relationship",
+    );
+  if (!socialProbe.betrayedBy?.includes(socialProbe.people?.betrayer))
+    failures.push("betrayal knowledge was assigned to the wrong person");
+  if (!embodiedProbe.ok)
+    failures.push(`embodied systems probe failed: ${embodiedProbe.reason || "incomplete result"}`);
+  if (!embodiedProbe.fire?.eventId || embodiedProbe.fire.after >= embodiedProbe.fire.before)
+    failures.push("a bucket did not physically transfer solvent and suppress fire");
+  if (!embodiedProbe.navigation?.exactArrival || embodiedProbe.navigation.depth <= 820)
+    failures.push("watercraft did not complete a long move onto deep water");
+  if (
+    !embodiedProbe.anatomy?.severed ||
+    embodiedProbe.anatomy.manipulationAfter >= embodiedProbe.anatomy.manipulationBefore
+  )
+    failures.push("dismemberment did not persist or reduce embodied capability");
+  if (!embodiedAudit.severedVisuals || embodiedDrawOps < 1)
+    failures.push("persistent limb-loss state did not survive a high-detail oblique render");
+  if (Math.abs(embodiedProbe.matterDelta || 0) > 1e-8 || embodiedAudit.matter.relative > 1e-8)
+    failures.push("equipment, firefighting, or dismemberment violated matter conservation");
+  console.log(
+    JSON.stringify(
+      {
+        ok: !failures.length,
+        failures,
+        fixture,
+        social: { probe: socialProbe, audit: socialAudit },
+        embodied: { probe: embodiedProbe, audit: embodiedAudit, drawOps: embodiedDrawOps },
+      },
+      null,
+      2,
+    ),
+  );
+  if (failures.length) process.exitCode = 1;
+  return;
+}
+
 if (process.env.CONFLICT_DEBUG === "1") {
   const conflict = sandbox.window.ALIFE_CONFLICT_DEBUG;
   if (!conflict) throw new Error("Conflict-drama debug surface did not initialize");

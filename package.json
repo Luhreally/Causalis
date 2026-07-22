@@ -1,6 +1,6 @@
 {
   "name": "causalis-living-equation",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "A deterministic artificial-life god game and emergent-history simulator.",
   "scripts": {
@@ -11,11 +11,12 @@
     "test:cohort": "node tests/cohort-smoke.cjs",
     "test:mobile": "node tests/mobile-smoke.cjs",
     "test:conflict": "node scripts/run-smoke-mode.cjs CONFLICT_DEBUG",
+    "test:systems": "node scripts/run-smoke-mode.cjs SYSTEMS_DEBUG",
     "test:save": "node scripts/run-smoke-mode.cjs SAVE_DEBUG",
     "test:clock": "node scripts/run-smoke-mode.cjs CLOCK_DEBUG",
     "test:visual": "node scripts/run-smoke-mode.cjs QUICK_VISUAL",
     "test:syntax": "node scripts/check-runtime.cjs",
-    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:save",
+    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

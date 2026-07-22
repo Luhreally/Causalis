@@ -75,12 +75,7 @@ function resolveEffects() {
             W.tiles.liquid &&
             (W.tiles.liquid[idx(nx, ny)] > 420 || W.tiles.liquid[idx(p.x, p.y)] > 420)
           ) {
-            const boat =
-              kind === KINDS.PERSON &&
-              !!(
-                W.components.social[d.entityId]?.factionId &&
-                factionHasTech(W.components.social[d.entityId].factionId, "navigation")
-              );
+            const boat = kind === KINDS.PERSON && hasNavigableWatercraft(d.entityId);
             if (!boat) {
               nx = clamp(p.x + Math.sign(nx - p.x), 0, W.width - 1);
               ny = clamp(p.y + Math.sign(ny - p.y), 0, W.height - 1);

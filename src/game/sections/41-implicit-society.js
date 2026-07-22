@@ -706,6 +706,11 @@ function updateEmergentMilitias() {
           objectiveSettlementId: 0,
           formedTick: W.tick,
           lastBattleTick: -1,
+          phase: "mustering",
+          phaseDetail: `residents are gathering and drawing supplies at ${home.name}`,
+          phaseTick: W.tick,
+          lastProgressTick: W.tick,
+          stalledTicks: 0,
           active: true,
         };
         W.militaryUnits.push(unit);

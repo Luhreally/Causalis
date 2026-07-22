@@ -58,7 +58,7 @@ function applyInterfaceMode(mode = "auto", refresh = true) {
   }
   if (DOM.cameraHint)
     DOM.cameraHint.textContent = mobile
-      ? "Drag to pan · pinch to zoom · tap the world to inspect or apply a tool"
+      ? "Drag to pan · two-finger drag orbits + tilts · pinch to zoom · tap to inspect or apply"
       : "Wheel zoom · middle/right-drag orbit + pitch · Shift-drag pan · WASD/arrows move · Q/E rotate · Z/X pitch";
   if (refresh && DOM.canvas) {
     resizeCanvas();
