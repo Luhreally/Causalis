@@ -316,6 +316,13 @@ function debugPredationDemo(lethal = true) {
     bodyPart: injury?.data?.bodyPart || "",
     severed: !!injury?.data?.limbLostEventId,
     fluidSplatters: splatters.length,
+    bloodLost: injury?.data?.bloodLost || 0,
+    fluid: splatters.map((splatter) => ({
+      amount: splatter.amount,
+      lifeTicks: splatter.lifeTicks,
+      severed: splatter.severed,
+      source: splatter.source,
+    })),
     visual,
   };
 }

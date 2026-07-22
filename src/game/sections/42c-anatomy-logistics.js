@@ -143,58 +143,95 @@ function recordFluidSplatter(
   { critical = false, severed = false, source = "wound" } = {},
 ) {
   if (!W || tile < 0 || tile >= W.tileCount || amount <= 0) return null;
+  const actualAmount = Math.max(1, Math.round(amount)),
+    existing = (W.fluidSplatters || []).findLast(
+      (splatter) =>
+        splatter.victimId === victimId && splatter.tile === tile && splatter.tick === W.tick,
+    );
+  if (existing) {
+    existing.amount += actualAmount;
+    existing.actualBloodAtTile = tileBlood(tile);
+    existing.eventId = causeEvent || existing.eventId;
+    existing.eventIds = [...new Set([...(existing.eventIds || []), causeEvent].filter(Boolean))];
+    existing.critical ||= !!critical;
+    existing.severed ||= !!severed;
+    existing.source = existing.source === source ? source : "combined trauma";
+    existing.lifeTicks = fluidPersistenceTicks(tile, existing.amount, existing.severed);
+    return existing;
+  }
   const record = {
     id: `${causeEvent || W.tick}:${victimId}:${(W.fluidSplatters || []).length}`,
     victimId,
     tile,
     tick: W.tick,
     eventId: causeEvent || 0,
-    amount: Math.max(1, Math.round(amount)),
+    amount: actualAmount,
     actualBloodAtTile: tileBlood(tile),
     hue: bloodVisualHue(victimId),
     critical: !!critical,
     severed: !!severed,
     source,
+    eventIds: causeEvent ? [causeEvent] : [],
+    lifeTicks: fluidPersistenceTicks(tile, actualAmount, severed),
   };
   W.fluidSplatters = (W.fluidSplatters || []).concat(record);
   if (W.fluidSplatters.length > 360) W.fluidSplatters.splice(0, W.fluidSplatters.length - 360);
   return record;
 }
 
+function fluidPersistenceTicks(tile, amount, severed = false) {
+  const weather = W.weather?.name || "Clear",
+    raining = weather === "Rain" || weather === "Heavy Rain" || weather === "Storm",
+    rainFactor = weather === "Storm" ? 0.24 : weather === "Heavy Rain" ? 0.34 : raining ? 0.5 : 1,
+    moistureFactor = W.tiles.liquid[tile] > 100 ? 0.3 : tileMoisture(tile) > 70 ? 0.68 : 1,
+    temperature = W.tiles.temperature[tile] / 10,
+    temperatureFactor = temperature > 38 ? 0.72 : temperature < 4 ? 1.15 : 1,
+    base = 2 + Math.sqrt(Math.max(1, amount)) * 1.6 + (severed ? 1.5 : 0);
+  return clamp(Math.round(base * Math.min(rainFactor, moistureFactor) * temperatureFactor), 2, 12);
+}
+
 function drawPersistentFluidSplatters(g, bounds, metrics) {
   for (const splatter of W.fluidSplatters || []) {
-    const age = W.tick - splatter.tick;
-    if (age > 4096 || splatter.tile < 0) continue;
+    const age = W.tick - splatter.tick,
+      lifeTicks =
+        splatter.lifeTicks ||
+        fluidPersistenceTicks(splatter.tile, splatter.amount, splatter.severed);
+    if (age >= lifeTicks || splatter.tile < 0) continue;
     const [x, y] = xy(splatter.tile);
     if (x < bounds.x0 - 2 || x > bounds.x1 + 2 || y < bounds.y0 - 2 || y > bounds.y1 + 2) continue;
     const screen = proceduralProjectTile(x + 0.5, y + 0.5, metrics),
-      fade = clamp(1 - Math.max(0, age - 2048) / 2048, 0.18, 1),
-      intensity = Math.log2(2 + splatter.amount + splatter.actualBloodAtTile * 0.12),
+      remaining = clamp(1 - age / lifeTicks, 0, 1),
+      fade = remaining ** 1.35,
+      drying = 1 - remaining,
+      intensity = Math.sqrt(Math.max(1, splatter.amount)),
       radius = clamp(
-        metrics.tw * (0.14 + intensity * 0.035 + (splatter.severed ? 0.1 : 0)),
-        3,
-        Math.max(32, metrics.tw * 0.72),
+        metrics.tw * (0.025 + intensity * 0.018 + (splatter.severed ? 0.02 : 0)),
+        1.25,
+        Math.max(4, metrics.tw * 0.22),
       ),
       angle = visualHash01(splatter.eventId || splatter.tick, 0x551) * Math.PI * 2,
       offsetX = (visualHash01(splatter.eventId, splatter.victimId) - 0.5) * radius * 0.72,
       offsetY = (visualHash01(splatter.victimId, splatter.eventId ^ 0x77) - 0.5) * radius * 0.34;
-    g.fillStyle = hsl(splatter.hue, 78, 20, 0.56 * fade);
+    g.fillStyle = hsl(splatter.hue, 72 - drying * 22, 22 - drying * 8, 0.48 * fade);
     g.beginPath();
     g.ellipse(
       screen.x + offsetX,
       screen.y + radius * 0.28 + offsetY,
-      radius * (0.86 + visualHash01(splatter.eventId, 3) * 0.52),
-      radius * (0.24 + visualHash01(splatter.eventId, 4) * 0.18),
+      radius * (0.72 + visualHash01(splatter.eventId, 3) * 0.4),
+      radius * (0.2 + visualHash01(splatter.eventId, 4) * 0.16),
       angle,
       0,
       Math.PI * 2,
     );
     g.fill();
-    const drops = Math.min(18, 6 + Math.floor(intensity * 2) + (splatter.critical ? 4 : 0));
+    const drops = Math.min(
+      7,
+      Math.max(1, Math.round(intensity) + (splatter.critical ? 1 : 0) + (splatter.severed ? 1 : 0)),
+    );
     for (let n = 0; n < drops; n++) {
       const a = visualHash01(splatter.eventId ^ 0xa9, n) * Math.PI * 2,
-        distance = radius * (0.7 + visualHash01(splatter.victimId ^ 0x42, n) * 1.9),
-        drop = Math.max(1.25, radius * (0.045 + visualHash01(n, splatter.eventId) * 0.1));
+        distance = radius * (0.65 + visualHash01(splatter.victimId ^ 0x42, n) * 1.35),
+        drop = Math.max(0.7, radius * (0.04 + visualHash01(n, splatter.eventId) * 0.08));
       g.beginPath();
       g.ellipse(
         screen.x + offsetX + Math.cos(a) * distance,
@@ -207,11 +244,6 @@ function drawPersistentFluidSplatters(g, bounds, metrics) {
       );
       g.fill();
     }
-    g.strokeStyle = hsl(splatter.hue, 88, 48, 0.34 * fade);
-    g.lineWidth = Math.max(1, radius * 0.055);
-    g.beginPath();
-    g.arc(screen.x + offsetX, screen.y + offsetY + radius * 0.25, radius * 0.64, 0, Math.PI * 2);
-    g.stroke();
   }
 }
 
@@ -290,13 +322,11 @@ function applyEmbodiedInjury(
     hue: bloodVisualHue(victimId),
   });
   if (W.severedParts.length > 180) W.severedParts.splice(0, W.severedParts.length - 180);
-  recordFluidSplatter(
-    victimId,
-    tile,
-    ev.id,
-    Math.max(8, (composition[C.BLOOD] || 0) + Math.round(severity * 16)),
-    { critical: true, severed: true, source: "severed tissue" },
-  );
+  recordFluidSplatter(victimId, tile, ev.id, composition[C.BLOOD] || 0, {
+    critical: true,
+    severed: true,
+    source: "severed tissue",
+  });
   const life = W.components.life[victimId];
   life.pain = clamp((life.pain || 0) + 24 + severity * 35, 0, 100);
   life.trauma = clamp((life.trauma || 0) + 18 + severity * 28, 0, 100);
@@ -427,7 +457,7 @@ performHunt = function (id, prey) {
     target,
     idx(W.components.position[target].x, W.components.position[target].y),
     event.id,
-    Math.max(4, damage / 2),
+    event.data?.bloodLost || 0,
     {
       critical: lethal || damage > 42,
       severed: trauma.severed,
@@ -1083,10 +1113,11 @@ simTick = function () {
   ensurePrimitiveEquipment();
   if (W.tick % 128 === 0)
     W.severedParts = (W.severedParts || []).filter((part) => W.tick - part.tick <= 2048);
-  if (W.tick % 256 === 0)
-    W.fluidSplatters = (W.fluidSplatters || []).filter(
-      (splatter) => W.tick - splatter.tick <= 4096,
-    );
+  W.fluidSplatters = (W.fluidSplatters || []).filter((splatter) => {
+    const lifeTicks =
+      splatter.lifeTicks || fluidPersistenceTicks(splatter.tile, splatter.amount, splatter.severed);
+    return W.tick - splatter.tick < lifeTicks;
+  });
 };
 
 const eventSentenceAnatomyBase = eventSentence;

@@ -974,11 +974,15 @@ if (process.env.QUICK_VISUAL === "1") {
     !predation.visual ||
     !predation.bodyPart ||
     !predation.fluidSplatters ||
+    !predation.bloodLost ||
+    !predation.fluid?.every(
+      (splatter) => splatter.amount > 0 && splatter.lifeTicks >= 2 && splatter.lifeTicks <= 12,
+    ) ||
     !predation.events.includes("InjuryEvent") ||
     !predation.events.includes("KillEvent")
   )
     failures.push(
-      "predation did not target embodied anatomy or queue visible real-time and persistent gore",
+      "predation did not create anatomy-scaled fluid that dries within its causal lifetime",
     );
   if (!renderIsolation.ok)
     failures.push(

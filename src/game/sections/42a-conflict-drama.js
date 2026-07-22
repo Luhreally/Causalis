@@ -150,8 +150,9 @@ function combatUnitFor(id) {
 function spillBodyBlood(id, tile, requested) {
   const q = W.components.chemistry[id]?.q;
   if (!q || requested <= 0) return 0;
-  const made = executeProcess("bleeding_signal", invEntity(id), Math.max(1, Math.ceil(requested)));
-  const spill = Math.min(q[C.BLOOD] || 0, Math.max(1, made || Math.floor(requested * 0.5)));
+  const quantity = Math.max(1, Math.ceil(requested));
+  executeProcess("bleeding_signal", invEntity(id), quantity);
+  const spill = Math.min(q[C.BLOOD] || 0, quantity);
   if (!spill) return 0;
   q[C.BLOOD] -= spill;
   setTileMatterAmount(tile, C.BLOOD, tileMatterAmount(tile, C.BLOOD) + spill);
@@ -340,7 +341,7 @@ function detailedCombatExchange(attacker, victim, context = {}) {
   injury.data.disabledPart = anatomyTrauma.disabled;
   injury.data.limbLostEventId = anatomyTrauma.eventId;
   injury.data.severed = anatomyTrauma.severed;
-  recordFluidSplatter(victim, terrain, injury.id, spilled + wound.bleed, {
+  recordFluidSplatter(victim, terrain, injury.id, spilled, {
     critical,
     severed: anatomyTrauma.severed,
     source: context.predatorDefense ? "predator defense" : context.military ? "battle" : "combat",

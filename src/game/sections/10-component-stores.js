@@ -147,6 +147,7 @@ function createOrganism(kind, x, y, rng, parents = [], sourceTile = -1, divineIn
       [C.PIGMENT, 5],
       [C.FIBER, 20],
       [C.BONE, kind === KINDS.PREDATOR ? 35 : 20],
+      [C.BLOOD, kind === KINDS.PREDATOR ? 32 : kind === KINDS.PERSON ? 27 : 22],
     ];
   for (const [sp, amt] of needs) {
     let got = 0;

@@ -520,17 +520,14 @@ function performHunt(id, prey) {
     damage = repeated ? 0 : Math.min(damage, Math.max(0, targetLife.integrity - 320));
     targetLife.lastBottleneckEscapeTick = W.tick;
   }
-  const lethal = targetLife.integrity <= damage + 2,
-    made = executeProcess(
-      "bleeding_signal",
-      invEntity(target),
-      Math.max(1, Math.floor(Math.max(1, damage) / 3)),
-    );
-  if (made) {
-    const q = W.components.chemistry[target].q,
-      spill = Math.min(made, q[C.BLOOD]);
-    q[C.BLOOD] -= spill;
-    setTileMatterAmount(ti, C.BLOOD, tileMatterAmount(ti, C.BLOOD) + spill);
+  const requestedBlood = clamp(Math.ceil(Math.max(1, damage) / 12), 1, 12),
+    lethal = targetLife.integrity <= damage + 2;
+  executeProcess("bleeding_signal", invEntity(target), requestedBlood);
+  const q = W.components.chemistry[target].q,
+    spilled = Math.min(q[C.BLOOD] || 0, requestedBlood);
+  if (spilled) {
+    q[C.BLOOD] -= spilled;
+    setTileMatterAmount(ti, C.BLOOD, tileMatterAmount(ti, C.BLOOD) + spilled);
   }
   queueEffect("DamageStructure", { entityId: target, amount: damage }, id);
   W.tiles.danger[ti] = u16(W.tiles.danger[ti] + Math.max(4, damage) * 4);
@@ -547,7 +544,13 @@ function performHunt(id, prey) {
     ],
     magnitude: damage,
     importance: 1,
-    data: { attack, armor, defenseFactor: +defenseFactor.toFixed(3), learnedBottleneckResponse },
+    data: {
+      attack,
+      armor,
+      defenseFactor: +defenseFactor.toFixed(3),
+      learnedBottleneckResponse,
+      bloodLost: spilled,
+    },
   });
   queuePredationVisual(id, target, ti, damage, lethal, ev.id);
   const hunterMind = W.components.cognition?.[id],
