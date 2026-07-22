@@ -1855,13 +1855,17 @@ function drawGroundConflictTraces(now, bounds) {
     )
       continue;
     const tile = idx(p.x, p.y),
-      signal = tileBlood(tile) + (W.components.chemistry[id]?.q?.[C.BLOOD] || 0);
+      signal = tileBlood(tile) + (W.components.chemistry[id]?.q?.[C.BLOOD] || 0),
+      corpseAge = Math.max(0, W.tick - (W.components.life[id]?.deathTick ?? W.tick)),
+      corpsePoolLife = 48;
+    if (corpseAge >= corpsePoolLife) continue;
     if (signal < 2) continue;
     const s = W.components.genome[id]
         ? visualAnchor(id, p, m, ACTIVE_RENDER_NOW || performance.now()).s
         : proceduralProjectTile(p.x + 0.5, p.y + 0.5, m),
-      r = clamp(m.tw * (0.12 + Math.log2(signal + 1) * 0.018), 1.5, Math.max(22, m.tw * 0.42));
-    ctx.fillStyle = hsl(bloodVisualHue(id), 68, 22, 0.28);
+      r = clamp(m.tw * (0.15 + Math.log2(signal + 1) * 0.025), 2, Math.max(26, m.tw * 0.5)),
+      corpsePoolFade = clamp(1 - corpseAge / corpsePoolLife, 0, 1) ** 1.2;
+    ctx.fillStyle = hsl(bloodVisualHue(id), 72, 22, 0.48 * corpsePoolFade);
     ctx.beginPath();
     ctx.ellipse(
       s.x,

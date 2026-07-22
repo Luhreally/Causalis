@@ -995,7 +995,11 @@ if (process.env.QUICK_VISUAL === "1") {
     !predation.fluidSplatters ||
     !predation.bloodLost ||
     !predation.fluid?.every(
-      (splatter) => splatter.amount > 0 && splatter.lifeTicks >= 2 && splatter.lifeTicks <= 12,
+      (splatter) =>
+        splatter.amount > 0 &&
+        splatter.lifeTicks >= 4 &&
+        splatter.lifeTicks <= 20 &&
+        splatter.gorePile,
     ) ||
     !predation.events.includes("InjuryEvent") ||
     !predation.events.includes("KillEvent")

@@ -321,6 +321,7 @@ function debugPredationDemo(lethal = true) {
       amount: splatter.amount,
       lifeTicks: splatter.lifeTicks,
       severed: splatter.severed,
+      gorePile: splatter.gorePile,
       source: splatter.source,
     })),
     visual,

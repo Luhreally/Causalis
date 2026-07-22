@@ -155,6 +155,7 @@ function recordFluidSplatter(
     existing.eventIds = [...new Set([...(existing.eventIds || []), causeEvent].filter(Boolean))];
     existing.critical ||= !!critical;
     existing.severed ||= !!severed;
+    existing.gorePile ||= !!(critical || severed);
     existing.source = existing.source === source ? source : "combined trauma";
     existing.lifeTicks = fluidPersistenceTicks(tile, existing.amount, existing.severed);
     return existing;
@@ -170,6 +171,7 @@ function recordFluidSplatter(
     hue: bloodVisualHue(victimId),
     critical: !!critical,
     severed: !!severed,
+    gorePile: !!(critical || severed),
     source,
     eventIds: causeEvent ? [causeEvent] : [],
     lifeTicks: fluidPersistenceTicks(tile, actualAmount, severed),
@@ -186,8 +188,8 @@ function fluidPersistenceTicks(tile, amount, severed = false) {
     moistureFactor = W.tiles.liquid[tile] > 100 ? 0.3 : tileMoisture(tile) > 70 ? 0.68 : 1,
     temperature = W.tiles.temperature[tile] / 10,
     temperatureFactor = temperature > 38 ? 0.72 : temperature < 4 ? 1.15 : 1,
-    base = 2 + Math.sqrt(Math.max(1, amount)) * 1.6 + (severed ? 1.5 : 0);
-  return clamp(Math.round(base * Math.min(rainFactor, moistureFactor) * temperatureFactor), 2, 12);
+    base = 5 + Math.sqrt(Math.max(1, amount)) * 2.1 + (severed ? 4 : 0);
+  return clamp(Math.round(base * Math.min(rainFactor, moistureFactor) * temperatureFactor), 4, 20);
 }
 
 function drawPersistentFluidSplatters(g, bounds, metrics) {
@@ -201,18 +203,18 @@ function drawPersistentFluidSplatters(g, bounds, metrics) {
     if (x < bounds.x0 - 2 || x > bounds.x1 + 2 || y < bounds.y0 - 2 || y > bounds.y1 + 2) continue;
     const screen = proceduralProjectTile(x + 0.5, y + 0.5, metrics),
       remaining = clamp(1 - age / lifeTicks, 0, 1),
-      fade = remaining ** 1.35,
+      fade = remaining ** 1.15,
       drying = 1 - remaining,
       intensity = Math.sqrt(Math.max(1, splatter.amount)),
       radius = clamp(
-        metrics.tw * (0.025 + intensity * 0.018 + (splatter.severed ? 0.02 : 0)),
-        1.25,
-        Math.max(4, metrics.tw * 0.22),
+        metrics.tw * (0.035 + intensity * 0.027 + (splatter.severed ? 0.035 : 0)),
+        1.8,
+        Math.max(6, metrics.tw * 0.32),
       ),
       angle = visualHash01(splatter.eventId || splatter.tick, 0x551) * Math.PI * 2,
       offsetX = (visualHash01(splatter.eventId, splatter.victimId) - 0.5) * radius * 0.72,
       offsetY = (visualHash01(splatter.victimId, splatter.eventId ^ 0x77) - 0.5) * radius * 0.34;
-    g.fillStyle = hsl(splatter.hue, 72 - drying * 22, 22 - drying * 8, 0.48 * fade);
+    g.fillStyle = hsl(splatter.hue, 76 - drying * 24, 24 - drying * 9, 0.72 * fade);
     g.beginPath();
     g.ellipse(
       screen.x + offsetX,
@@ -225,8 +227,11 @@ function drawPersistentFluidSplatters(g, bounds, metrics) {
     );
     g.fill();
     const drops = Math.min(
-      7,
-      Math.max(1, Math.round(intensity) + (splatter.critical ? 1 : 0) + (splatter.severed ? 1 : 0)),
+      12,
+      Math.max(
+        3,
+        Math.round(intensity * 1.5) + (splatter.critical ? 3 : 0) + (splatter.severed ? 3 : 0),
+      ),
     );
     for (let n = 0; n < drops; n++) {
       const a = visualHash01(splatter.eventId ^ 0xa9, n) * Math.PI * 2,
@@ -243,6 +248,31 @@ function drawPersistentFluidSplatters(g, bounds, metrics) {
         Math.PI * 2,
       );
       g.fill();
+    }
+    if (splatter.gorePile || splatter.critical || splatter.severed) {
+      const clumps = Math.min(6, 2 + Math.round(intensity * 0.75) + (splatter.severed ? 1 : 0));
+      for (let n = 0; n < clumps; n++) {
+        const a = visualHash01(splatter.eventId ^ 0x319, n) * Math.PI * 2,
+          distance = radius * visualHash01(splatter.victimId ^ 0x711, n) * 0.78,
+          clump = radius * (0.09 + visualHash01(n, splatter.eventId ^ 0x23) * 0.13);
+        g.fillStyle = hsl(
+          splatter.hue + (n % 2 ? 8 : -5),
+          56 - drying * 20,
+          17 + (n % 3) * 5,
+          0.82 * fade,
+        );
+        g.beginPath();
+        g.ellipse(
+          screen.x + offsetX + Math.cos(a) * distance,
+          screen.y + radius * 0.25 + offsetY + Math.sin(a) * distance * 0.35,
+          clump * (0.8 + visualHash01(n, 0x99) * 0.7),
+          clump * (0.45 + visualHash01(n, 0x44) * 0.4),
+          a,
+          0,
+          Math.PI * 2,
+        );
+        g.fill();
+      }
     }
   }
 }
