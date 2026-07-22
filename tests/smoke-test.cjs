@@ -593,9 +593,10 @@ if (process.env.PROGRESSION_DEBUG === "1") {
 
 if (process.env.SYSTEMS_DEBUG === "1") {
   const social = sandbox.window.ALIFE_SOCIAL_DEBUG,
-    embodied = sandbox.window.ALIFE_EMBODIED_DEBUG;
-  if (!social || !embodied)
-    throw new Error("Social or embodied-system debug surface did not initialize");
+    embodied = sandbox.window.ALIFE_EMBODIED_DEBUG,
+    agriculture = sandbox.window.ALIFE_AGRICULTURE_DEBUG;
+  if (!social || !embodied || !agriculture)
+    throw new Error("Social, embodied, or agriculture-system debug surface did not initialize");
   game.createTestWorld({
     seed: "embodied-social-systems-probe",
     size: "phone",
@@ -607,14 +608,16 @@ if (process.env.SYSTEMS_DEBUG === "1") {
   });
   const fixture = controls.createCivicTestScenario(),
     socialProbe = social.probe(),
-    embodiedProbe = embodied.probe();
+    embodiedProbe = embodied.probe(),
+    agricultureProbe = agriculture.probe();
   game.step(8);
   const drawOpsBefore = drawOps.count;
   visuals.renderOnly({ view: "oblique", quality: "high", zoom: 9, now: 1800 });
   const embodiedDrawOps = drawOps.count - drawOpsBefore;
   const socialAudit = social.audit(),
     embodiedAudit = embodied.audit(),
-    failures = [...socialAudit.failures, ...embodiedAudit.failures];
+    agricultureAudit = agriculture.audit(),
+    failures = [...socialAudit.failures, ...embodiedAudit.failures, ...agricultureAudit.failures];
   if (!fixture)
     failures.push("civic fixture could not gather enough people for causal system probes");
   if (!socialProbe.ok)
@@ -635,6 +638,13 @@ if (process.env.SYSTEMS_DEBUG === "1") {
     );
   if (!socialProbe.betrayedBy?.includes(socialProbe.people?.betrayer))
     failures.push("betrayal knowledge was assigned to the wrong person");
+  if (
+    socialProbe.criticalPriority?.key !== "critical" ||
+    socialProbe.criticalPriority.glyphs?.[0] !== socialProbe.criticalPriority.emoji
+  )
+    failures.push("critical bodily distress did not override a contentment emoji");
+  if (!socialProbe.attachmentCondition || /concealed bond/i.test(socialProbe.attachmentCondition))
+    failures.push("attachment state remained a one-off concealed-bond counter");
   if (!embodiedProbe.ok)
     failures.push(`embodied systems probe failed: ${embodiedProbe.reason || "incomplete result"}`);
   if (!embodiedProbe.fire?.eventId || embodiedProbe.fire.after >= embodiedProbe.fire.before)
@@ -648,8 +658,30 @@ if (process.env.SYSTEMS_DEBUG === "1") {
     failures.push("dismemberment did not persist or reduce embodied capability");
   if (!embodiedAudit.severedVisuals || embodiedDrawOps < 1)
     failures.push("persistent limb-loss state did not survive a high-detail oblique render");
+  if (!embodiedAudit.fluidSplatters)
+    failures.push("injury did not create persistent causal fluid-splatter records");
+  if (!agricultureProbe.ok)
+    failures.push(
+      `agriculture and herding probe failed: ${agricultureProbe.reason || "incomplete result"}`,
+    );
+  for (const type of [
+    "CropSownEvent",
+    "CropHarvestedEvent",
+    "HerdFormedEvent",
+    "PredatorDefenseEvent",
+  ])
+    if (!agricultureProbe.eventTypes?.includes(type))
+      failures.push(`agriculture and herding mechanics omitted ${type}`);
+  if (agricultureProbe.herd?.actualAnimalIds?.length < 2)
+    failures.push("herding did not retain individually simulated prey organisms");
+  if (!agricultureProbe.predatorDefense?.result)
+    failures.push("people did not physically fight a predator threatening protected prey");
+  if (!agricultureProbe.fluidSplatters)
+    failures.push("predator defense did not leave persistent blood/fluid traces");
   if (Math.abs(embodiedProbe.matterDelta || 0) > 1e-8 || embodiedAudit.matter.relative > 1e-8)
     failures.push("equipment, firefighting, or dismemberment violated matter conservation");
+  if (Math.abs(agricultureProbe.matterDelta || 0) > 1e-8 || agricultureAudit.matter.relative > 1e-8)
+    failures.push("farming, herding, or predator defense violated matter conservation");
   console.log(
     JSON.stringify(
       {
@@ -658,6 +690,7 @@ if (process.env.SYSTEMS_DEBUG === "1") {
         fixture,
         social: { probe: socialProbe, audit: socialAudit },
         embodied: { probe: embodiedProbe, audit: embodiedAudit, drawOps: embodiedDrawOps },
+        agriculture: { probe: agricultureProbe, audit: agricultureAudit },
       },
       null,
       2,
@@ -905,6 +938,7 @@ if (process.env.QUICK_VISUAL === "1") {
       });
   }
   const interiors = visuals.interiorSummary();
+  const renderIsolation = visuals.renderIsolation(2200);
   controls.collapseKindForTest("person");
   const combat = visuals.combatSummary();
   const hashAfter = game.hashNow();
@@ -938,10 +972,18 @@ if (process.env.QUICK_VISUAL === "1") {
     !predation.ok ||
     !predation.lethal ||
     !predation.visual ||
+    !predation.bodyPart ||
+    !predation.fluidSplatters ||
     !predation.events.includes("InjuryEvent") ||
     !predation.events.includes("KillEvent")
   )
-    failures.push("predation did not queue a visible real-time strike and lethal gore event");
+    failures.push(
+      "predation did not target embodied anatomy or queue visible real-time and persistent gore",
+    );
+  if (!renderIsolation.ok)
+    failures.push(
+      `close-view rendering mutated authoritative state: ${renderIsolation.changedKeys.join(", ")}`,
+    );
   if (hashBefore === hashAfter) failures.push("death fixture failed to alter authoritative state");
   if (!combat.recent.some((event) => event.death))
     failures.push("death did not enter the close combat/death visual feed");
@@ -954,6 +996,7 @@ if (process.env.QUICK_VISUAL === "1") {
     simsCamera,
     projection,
     interiors,
+    renderIsolation,
     combat,
     drawOps: drawOps.count,
   };

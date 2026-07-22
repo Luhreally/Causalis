@@ -340,6 +340,11 @@ function detailedCombatExchange(attacker, victim, context = {}) {
   injury.data.disabledPart = anatomyTrauma.disabled;
   injury.data.limbLostEventId = anatomyTrauma.eventId;
   injury.data.severed = anatomyTrauma.severed;
+  recordFluidSplatter(victim, terrain, injury.id, spilled + wound.bleed, {
+    critical,
+    severed: anatomyTrauma.severed,
+    source: context.predatorDefense ? "predator defense" : context.military ? "battle" : "combat",
+  });
   exchange.magnitude = actual;
   exchange.data.damage = actual;
   exchange.data.injuryEventId = injury.id;

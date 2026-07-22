@@ -3120,14 +3120,7 @@ function updateCivicProduction() {
     ) {
       const farm = completedBuildings(s, "farm")[0],
         operator = operateFacility(s, "farm", "cultivating producer beds", C.NUTRIENT);
-      if (operator) {
-        const farmTile = idx(farm.x, farm.y),
-          solar = reactionById("photosynthesis")?.externalEnergyRequirement || W.laws.solarFlux,
-          grew = executeProcess("photosynthesis", invTile(farmTile), 4, {
-            externalEnergy: Math.max(solar, W.laws.solarFlux),
-          });
-        if (grew) W.tiles.plantOrder[farmTile] = u16(W.tiles.plantOrder[farmTile] + grew * 8);
-      }
+      if (operator) updateCultivatedField(farm, s, operator);
     }
     if (s.knownProcesses.includes("metalworking") && s.researchInventory) {
       const wantOre = Math.min(

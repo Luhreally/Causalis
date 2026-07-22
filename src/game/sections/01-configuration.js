@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. CONFIGURATION AND CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const VERSION = 8,
+const VERSION = 9,
   SAVE_PREFIX = "causalis.save.",
   SAVE_INDEX = "causalis.saveIndex",
   SETTINGS_KEY = "causalis.settings";
@@ -261,6 +261,14 @@ const EVENT_CATEGORY = Object.freeze({
   WatercraftLaunchedEvent: "technology",
   EquipmentCraftedEvent: "technology",
   MilitaryPhaseEvent: "war",
+  CropSownEvent: "settlements",
+  FieldMaturedEvent: "settlements",
+  CropHarvestedEvent: "settlements",
+  CropFailedEvent: "disasters",
+  HerdFormedEvent: "settlements",
+  HerdMovedEvent: "ecology",
+  HerdBirthEvent: "ecology",
+  PredatorDefenseEvent: "ecology",
   ConstructionStartedEvent: "settlements",
   BuildingCompletedEvent: "settlements",
   BuildingCollapsedEvent: "settlements",

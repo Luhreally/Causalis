@@ -135,6 +135,86 @@ function transferSeveredMatter(id, tile, severity) {
   return composition;
 }
 
+function recordFluidSplatter(
+  victimId,
+  tile,
+  causeEvent,
+  amount,
+  { critical = false, severed = false, source = "wound" } = {},
+) {
+  if (!W || tile < 0 || tile >= W.tileCount || amount <= 0) return null;
+  const record = {
+    id: `${causeEvent || W.tick}:${victimId}:${(W.fluidSplatters || []).length}`,
+    victimId,
+    tile,
+    tick: W.tick,
+    eventId: causeEvent || 0,
+    amount: Math.max(1, Math.round(amount)),
+    actualBloodAtTile: tileBlood(tile),
+    hue: bloodVisualHue(victimId),
+    critical: !!critical,
+    severed: !!severed,
+    source,
+  };
+  W.fluidSplatters = (W.fluidSplatters || []).concat(record);
+  if (W.fluidSplatters.length > 360) W.fluidSplatters.splice(0, W.fluidSplatters.length - 360);
+  return record;
+}
+
+function drawPersistentFluidSplatters(g, bounds, metrics) {
+  for (const splatter of W.fluidSplatters || []) {
+    const age = W.tick - splatter.tick;
+    if (age > 4096 || splatter.tile < 0) continue;
+    const [x, y] = xy(splatter.tile);
+    if (x < bounds.x0 - 2 || x > bounds.x1 + 2 || y < bounds.y0 - 2 || y > bounds.y1 + 2) continue;
+    const screen = proceduralProjectTile(x + 0.5, y + 0.5, metrics),
+      fade = clamp(1 - Math.max(0, age - 2048) / 2048, 0.18, 1),
+      intensity = Math.log2(2 + splatter.amount + splatter.actualBloodAtTile * 0.12),
+      radius = clamp(
+        metrics.tw * (0.14 + intensity * 0.035 + (splatter.severed ? 0.1 : 0)),
+        3,
+        Math.max(32, metrics.tw * 0.72),
+      ),
+      angle = visualHash01(splatter.eventId || splatter.tick, 0x551) * Math.PI * 2,
+      offsetX = (visualHash01(splatter.eventId, splatter.victimId) - 0.5) * radius * 0.72,
+      offsetY = (visualHash01(splatter.victimId, splatter.eventId ^ 0x77) - 0.5) * radius * 0.34;
+    g.fillStyle = hsl(splatter.hue, 78, 20, 0.56 * fade);
+    g.beginPath();
+    g.ellipse(
+      screen.x + offsetX,
+      screen.y + radius * 0.28 + offsetY,
+      radius * (0.86 + visualHash01(splatter.eventId, 3) * 0.52),
+      radius * (0.24 + visualHash01(splatter.eventId, 4) * 0.18),
+      angle,
+      0,
+      Math.PI * 2,
+    );
+    g.fill();
+    const drops = Math.min(18, 6 + Math.floor(intensity * 2) + (splatter.critical ? 4 : 0));
+    for (let n = 0; n < drops; n++) {
+      const a = visualHash01(splatter.eventId ^ 0xa9, n) * Math.PI * 2,
+        distance = radius * (0.7 + visualHash01(splatter.victimId ^ 0x42, n) * 1.9),
+        drop = Math.max(1.25, radius * (0.045 + visualHash01(n, splatter.eventId) * 0.1));
+      g.beginPath();
+      g.ellipse(
+        screen.x + offsetX + Math.cos(a) * distance,
+        screen.y + offsetY + Math.sin(a) * distance * 0.42 + radius * 0.3,
+        drop * (0.7 + visualHash01(n, 11) * 0.8),
+        drop * 0.64,
+        a,
+        0,
+        Math.PI * 2,
+      );
+      g.fill();
+    }
+    g.strokeStyle = hsl(splatter.hue, 88, 48, 0.34 * fade);
+    g.lineWidth = Math.max(1, radius * 0.055);
+    g.beginPath();
+    g.arc(screen.x + offsetX, screen.y + offsetY + radius * 0.25, radius * 0.64, 0, Math.PI * 2);
+    g.stroke();
+  }
+}
+
 function applyEmbodiedInjury(
   victimId,
   partName,
@@ -210,6 +290,13 @@ function applyEmbodiedInjury(
     hue: bloodVisualHue(victimId),
   });
   if (W.severedParts.length > 180) W.severedParts.splice(0, W.severedParts.length - 180);
+  recordFluidSplatter(
+    victimId,
+    tile,
+    ev.id,
+    Math.max(8, (composition[C.BLOOD] || 0) + Math.round(severity * 16)),
+    { critical: true, severed: true, source: "severed tissue" },
+  );
   const life = W.components.life[victimId];
   life.pain = clamp((life.pain || 0) + 24 + severity * 35, 0, 100);
   life.trauma = clamp((life.trauma || 0) + 18 + severity * 28, 0, 100);
@@ -258,6 +345,7 @@ function drawLostLimbStumps(g, id, model, detail, colors) {
 }
 
 function drawSeveredBodyParts(g, now, bounds, metrics) {
+  drawPersistentFluidSplatters(g, bounds, metrics);
   for (const part of W.severedParts || []) {
     if (part.tile < 0 || W.tick - part.tick > 2048) continue;
     const [x, y] = xy(part.tile);
@@ -296,16 +384,20 @@ performHunt = function (id, prey) {
         (left, right) => huntTargetScore(id, left) - huntTargetScore(id, right) || left - right,
       ),
     target = eligible[0],
-    beforeIntegrity = target ? W.components.life[target]?.integrity || 0 : 0,
     result = performHuntAnatomyBase(id, prey);
   if (!result || !target || !W.components.life[target]) return result;
-  const damage = Math.max(0, beforeIntegrity - (W.components.life[target].integrity || 0)),
-    event = W.events.findLast(
+  const event = W.events.findLast(
       (candidate) =>
-        candidate.type === "PredationEvent" &&
-        candidate.subjects[0] === id &&
-        candidate.subjects[1] === target,
-    );
+        (candidate.type === "PredationEvent" &&
+          candidate.subjects[0] === id &&
+          candidate.subjects[1] === target) ||
+        (candidate.type === "InjuryEvent" &&
+          candidate.subjects[0] === target &&
+          candidate.subjects[1] === id),
+    ),
+    // Hunt damage is queued for the effect resolver, so its cited event is the
+    // authoritative strike size before that queue commits.
+    damage = Math.max(0, event?.magnitude || 0);
   if (!damage || !event) return result;
   const generic = ["limb", "torso", "limb", "neck"][
       hashParts(W.seedHash, "predation-part", event.id, id, target) % 4
@@ -331,6 +423,17 @@ performHunt = function (id, prey) {
     visual.severedPart = trauma.severed ? part : "";
     visual.bloodAmount = (visual.bloodAmount || 0) + (trauma.severed ? 10 : 2);
   }
+  recordFluidSplatter(
+    target,
+    idx(W.components.position[target].x, W.components.position[target].y),
+    event.id,
+    Math.max(4, damage / 2),
+    {
+      critical: lethal || damage > 42,
+      severed: trauma.severed,
+      source: "predation",
+    },
+  );
   return result;
 };
 
@@ -980,6 +1083,10 @@ simTick = function () {
   ensurePrimitiveEquipment();
   if (W.tick % 128 === 0)
     W.severedParts = (W.severedParts || []).filter((part) => W.tick - part.tick <= 2048);
+  if (W.tick % 256 === 0)
+    W.fluidSplatters = (W.fluidSplatters || []).filter(
+      (splatter) => W.tick - splatter.tick <= 4096,
+    );
 };
 
 const eventSentenceAnatomyBase = eventSentence;
@@ -1063,6 +1170,7 @@ function embodiedSystemsAudit() {
       0,
     ),
     severedVisuals: (W.severedParts || []).length,
+    fluidSplatters: (W.fluidSplatters || []).length,
     buckets: W.artifacts.filter((artifact) => artifact.tool?.capabilities.includes("firefighting"))
       .length,
     watercraft: W.artifacts.filter((artifact) => artifact.tool?.capabilities.includes("watercraft"))

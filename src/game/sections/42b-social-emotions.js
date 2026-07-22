@@ -5,6 +5,8 @@
 // Every displayed emotion is backed by needs, a relationship, or an event.
 
 const EMOTION_SEMANTICS = Object.freeze({
+    critical: { emoji: "😵", label: "critical bodily distress and failing regulation" },
+    agony: { emoji: "😖", label: "acute pain, blood loss, or disabling injury" },
     love: { emoji: "❤️", label: "bonded affection" },
     affection: { emoji: "💞", label: "growing affection" },
     heartbreak: { emoji: "💔", label: "betrayal or separation" },
@@ -30,6 +32,11 @@ const EMOTION_SEMANTICS = Object.freeze({
     gather: "🧺",
     haul: "📦",
     heal: "🩹",
+    sow: "🌱",
+    tend: "🌾",
+    harvest: "🧺",
+    herd: "🐑",
+    predator_defense: "🛡️",
   });
 
 function defaultEmotionState() {
@@ -124,6 +131,43 @@ function emotionMeaning(id) {
   const social = ensureSocialEmotion(id),
     life = W.components.life[id];
   if (!social || !life) return { key: "contentment", ...EMOTION_SEMANTICS.contentment, value: 0.5 };
+  const structuralHealth = clamp(
+      Math.min(Number.isFinite(life.health) ? life.health : 100, life.integrity / 10),
+      0,
+      100,
+    ),
+    openWounds = (life.wounds || []).filter((wound) => !wound.healedTick),
+    bleeding = sum(openWounds.map((wound) => wound.bleed || 0)),
+    lostParts = life.anatomy?.parts
+      ? Object.values(life.anatomy.parts).filter((part) => part.severed).length
+      : 0,
+    criticalDistress = clamp(
+      Math.max(
+        (32 - structuralHealth) / 28,
+        (320 - life.integrity) / 300,
+        (240 - life.regulation) / 220,
+        bleeding / 18,
+      ),
+      0,
+      1.5,
+    ),
+    acutePain = clamp(
+      Math.max((life.pain || 0) / 72, bleeding / 12, lostParts ? 0.74 : 0),
+      0,
+      1.25,
+    );
+  if (criticalDistress >= 0.42)
+    return {
+      key: "critical",
+      ...EMOTION_SEMANTICS.critical,
+      value: clamp(0.58 + criticalDistress * 0.36, 0, 1),
+    };
+  if (acutePain >= 0.52)
+    return {
+      key: "agony",
+      ...EMOTION_SEMANTICS.agony,
+      value: clamp(0.46 + acutePain * 0.42, 0, 1),
+    };
   const emotion = social.emotion,
     partner = social.partnerId ? relationshipState(id, social.partnerId) : null,
     candidates = [
@@ -150,6 +194,9 @@ function updateMeasuredEmotion(id) {
     tile = idx(position.x, position.y),
     partner = social.partnerId ? relationshipState(id, social.partnerId) : null,
     needs = derivedLife(id),
+    activeBleeding = sum(
+      (life.wounds || []).filter((wound) => !wound.healedTick).map((wound) => wound.bleed || 0),
+    ),
     physicalDistress = clamp(
       ((needs.hunger || 0) + (needs.thirst || 0) + (needs.fatigue || 0) + (life.pain || 0)) / 360,
       0,
@@ -172,6 +219,7 @@ function updateMeasuredEmotion(id) {
     0,
     1,
   );
+  if (needs.health < 34 || life.integrity < 340 || activeBleeding > 7) state.contentment = 0;
   const meaning = emotionMeaning(id);
   state.dominant = meaning.key;
   state.emoji = meaning.emoji;
@@ -612,7 +660,7 @@ function agentEmojiState(id) {
     glyphs = [];
   if (meaning.value > 0.43) glyphs.push(meaning.emoji);
   const functionGlyph = FUNCTION_EMOJI[work?.task];
-  if (functionGlyph) glyphs.push(functionGlyph);
+  if (functionGlyph && meaning.key !== "critical") glyphs.push(functionGlyph);
   if ((life?.wounds || []).some((wound) => !wound.healedTick && wound.bleed > 1)) glyphs.push("🩸");
   if (life?.anatomy && Object.values(life.anatomy.parts || {}).some((part) => part.severed))
     glyphs.push("🦿");
@@ -624,6 +672,38 @@ function agentEmojiState(id) {
     causeEvent: social?.emotion.causeEvent || 0,
     work: work?.phase || work?.task || "idle",
   };
+}
+
+function attachmentCondition(id) {
+  const social = ensureSocialEmotion(id),
+    meaning = emotionMeaning(id),
+    memory = W.components.memory[id],
+    relationships = Object.values(social?.relationships || {}),
+    partner = social?.partnerId ? relationshipState(id, social.partnerId) : null;
+  if (!social) return "no modeled social state";
+  if (meaning.key === "critical" || meaning.key === "agony")
+    return "care-dependent during bodily crisis";
+  if (social.revengeTargetId) return "attachment redirected into a revenge fixation";
+  if ((memory?.kinDeaths || []).length && social.emotion.sadness > 0.34)
+    return "grieving a lost attachment";
+  if (social.betrayedBy.length && (social.emotion.jealousy > 0.22 || social.emotion.anger > 0.3))
+    return "betrayed and socially guarded";
+  if (partner) {
+    if (partner.betrayal > 0.28 || partner.jealousy > 0.45)
+      return "committed relationship under trust strain";
+    if (social.affairs.some((affair) => !affair.endedTick))
+      return "conflicted commitment across competing attachments";
+    if (partner.commitment > 0.68 && partner.trust > 0.62) return "secure reciprocal partnership";
+    return "developing reciprocal partnership";
+  }
+  const supportive = relationships.filter(
+    (relationship) => relationship.trust > 0.52 || relationship.affection > 0.48,
+  ).length;
+  if (supportive >= 3) return "embedded in a supportive social network";
+  if (supportive) return "connected by a small number of trusted bonds";
+  return relationships.length
+    ? "socially familiar but without a secure attachment"
+    : "socially isolated";
 }
 
 function drawEmotionGlyph(g, id, screen, radius, now, portrait = false) {
@@ -695,10 +775,10 @@ organismInspector = function (id) {
     state = agentEmojiState(id),
     emotion = social.emotion,
     partner = social.partnerId ? entityName(social.partnerId) : "none",
-    affairs = social.affairs.filter((affair) => !affair.endedTick),
     relationshipCount = Object.keys(social.relationships).length,
-    revenge = social.revengeTargetId ? entityName(social.revengeTargetId) : "none";
-  const block = `<div class="subhead">Emotional and social state</div><div class="card"><div class="row between"><b>${esc(state.glyphs.join(" ") || "😌")} ${esc(titleCase(state.dominant))}</b><span class="tag">${pct(state.value * 100)}</span></div><div class="kv"><span>Objective meaning</span><b>${esc(state.label)}</b><span>Partner</span><b>${esc(partner)}</b><span>Known relationships</span><b>${relationshipCount}</b><span>Active concealed bonds</span><b>${affairs.length}</b><span>Revenge target</span><b>${esc(revenge)}</b><span>Current function</span><b>${esc(state.work)}</b></div><div class="divider"></div><small class="muted">Affection ${pct(emotion.affection * 100)} · anger ${pct(emotion.anger * 100)} · sadness ${pct(emotion.sadness * 100)} · fear ${pct(emotion.fear * 100)} · jealousy ${pct(emotion.jealousy * 100)} · resolve ${pct(emotion.resolve * 100)}. Emoji summarize these measured causes.</small></div>`;
+    revenge = social.revengeTargetId ? entityName(social.revengeTargetId) : "none",
+    attachment = attachmentCondition(id);
+  const block = `<div class="subhead">Emotional and social state</div><div class="card"><div class="row between"><b>${esc(state.glyphs.join(" ") || "😌")} ${esc(titleCase(state.dominant))}</b><span class="tag">${pct(state.value * 100)}</span></div><div class="kv"><span>Objective meaning</span><b>${esc(state.label)}</b><span>Attachment condition</span><b>${esc(attachment)}</b><span>Partner</span><b>${esc(partner)}</b><span>Known relationships</span><b>${relationshipCount}</b><span>Revenge target</span><b>${esc(revenge)}</b><span>Current function</span><b>${esc(state.work)}</b></div><div class="divider"></div><small class="muted">Affection ${pct(emotion.affection * 100)} · anger ${pct(emotion.anger * 100)} · sadness ${pct(emotion.sadness * 100)} · fear ${pct(emotion.fear * 100)} · jealousy ${pct(emotion.jealousy * 100)} · resolve ${pct(emotion.resolve * 100)}. Bodily crisis overrides contentment; social labels summarize the whole attachment pattern rather than exposing one special case.</small></div>`;
   return `${html}${block}`;
 };
 
@@ -798,6 +878,28 @@ function debugSocialDramaProbe() {
       .map((event) => event.type),
     betrayedState = ensureSocialEmotion(partner),
     meaning = emotionMeaning(partner),
+    partnerLife = W.components.life[partner],
+    savedBodyState = {
+      integrity: partnerLife.integrity,
+      pain: partnerLife.pain,
+      wounds: partnerLife.wounds.slice(),
+    };
+  partnerLife.integrity = 150;
+  partnerLife.pain = 92;
+  partnerLife.wounds = partnerLife.wounds.concat({
+    id: -1,
+    bleed: 14,
+    healedTick: 0,
+    part: "torso",
+    type: "controlled critical-state probe",
+  });
+  const criticalMeaning = emotionMeaning(partner),
+    criticalGlyphs = agentEmojiState(partner).glyphs.slice();
+  partnerLife.integrity = savedBodyState.integrity;
+  partnerLife.pain = savedBodyState.pain;
+  partnerLife.wounds = savedBodyState.wounds;
+  derivedLife(partner);
+  const attachment = attachmentCondition(partner),
     result = {
       ok:
         !!love &&
@@ -805,13 +907,21 @@ function debugSocialDramaProbe() {
         !!discovery &&
         betrayedState.betrayedBy.includes(betrayer) &&
         betrayedState.emotion.anger > 0.4 &&
-        betrayedState.emotion.sadness > 0.3,
+        betrayedState.emotion.sadness > 0.3 &&
+        criticalMeaning.key === "critical" &&
+        criticalGlyphs[0] === EMOTION_SEMANTICS.critical.emoji,
       people: { partner, betrayer, lover, mourner: mourner || 0, victim: killed },
       eventTypes,
       concealedBeforeDiscovery: betrayal?.data?.discovered === false,
       relationshipEnded: !betrayedState.partnerId,
       betrayedBy: betrayedState.betrayedBy.slice(),
       emotion: { ...betrayedState.emotion, dominant: meaning.key, emoji: meaning.emoji },
+      criticalPriority: {
+        key: criticalMeaning.key,
+        emoji: criticalMeaning.emoji,
+        glyphs: criticalGlyphs,
+      },
+      attachmentCondition: attachment,
       revengeTarget: mourner ? ensureSocialEmotion(mourner).revengeTargetId : 0,
     };
   return result;
@@ -822,6 +932,7 @@ window.ALIFE_SOCIAL_DEBUG = Object.freeze({
   probe: debugSocialDramaProbe,
   state: agentEmojiState,
   relationship: relationshipState,
+  attachment: attachmentCondition,
   update: () => updateSocialDrama(true),
   bond: formLoveBond,
   affair: startAffair,

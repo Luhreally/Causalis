@@ -76,11 +76,9 @@ function updateMaterialProcesses() {
       s.productionTemperature = Math.max(s.productionTemperature || 20, 420);
       executeProcess("combustion", inv, 1);
     }
-    if (s.knownProcesses.includes("agriculture") && W.tick % 64 === 0) {
-      const solar = reactionById("photosynthesis")?.externalEnergyRequirement || 0,
-        grew = executeProcess("photosynthesis", invTile(ti), 2, { externalEnergy: solar });
-      if (grew) W.tiles.plantOrder[ti] = u16(W.tiles.plantOrder[ti] + grew * 6);
-    }
+    // Cultivation is handled by a completed farm's explicit sow, tend, growth,
+    // failure, and harvest cycle; knowing agriculture no longer creates food at
+    // the settlement center without labor or stored inputs.
     if (
       s.knownProcesses.includes("metalworking") &&
       s.inventory[C.ORE] > 20 &&

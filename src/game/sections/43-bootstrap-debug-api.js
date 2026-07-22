@@ -294,14 +294,28 @@ function debugPredationDemo(lethal = true) {
     hit = performHunt(attacker, [victim]);
   resolveEffects();
   const visual = debugCombatSummary().realtime.find(
-    (v) => v.attacker === attacker && v.victim === victim,
-  );
+      (v) => v.attacker === attacker && v.victim === victim,
+    ),
+    injury = W.events
+      .slice(before)
+      .find(
+        (event) =>
+          event.type === "InjuryEvent" &&
+          event.subjects[0] === victim &&
+          event.subjects[1] === attacker,
+      ),
+    splatters = (W.fluidSplatters || []).filter(
+      (splatter) => splatter.victimId === victim && splatter.eventId === injury?.id,
+    );
   return {
-    ok: !!hit && !!visual,
+    ok: !!hit && !!visual && !!injury?.data?.bodyPart && splatters.length > 0,
     attacker,
     victim,
     lethal: W.kind[victim] === KINDS.CORPSE,
     events: W.events.slice(before).map((e) => e.type),
+    bodyPart: injury?.data?.bodyPart || "",
+    severed: !!injury?.data?.limbLostEventId,
+    fluidSplatters: splatters.length,
     visual,
   };
 }
@@ -392,10 +406,17 @@ window.ALIFE_VISUAL_DEBUG = Object.freeze({
   combatSummary: debugCombatSummary,
   cameraProjection: debugCameraProjection,
   renderIsolation: (now) => {
-    const before = worldHash();
+    const before = worldHash(),
+      beforeState = Object.fromEntries(
+        Object.keys(W).map((key) => [key, JSON.stringify(W[key], saveReplacer)]),
+      );
     renderWorld(now || 0);
-    const after = worldHash();
-    return { ok: before === after, before, after };
+    const after = worldHash(),
+      changedKeys = Object.keys(W)
+        .filter((key) => beforeState[key] !== JSON.stringify(W[key], saveReplacer))
+        .filter((key) => !["hash", "spatialBins"].includes(key))
+        .sort();
+    return { ok: before === after, before, after, changedKeys };
   },
   renderOnly: (options = {}) => {
     UI.view = options.view || "top";
