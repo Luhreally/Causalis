@@ -745,6 +745,14 @@ if (process.env.CONFLICT_DEBUG === "1") {
     failures.push("occupation doctrine damaged intact test buildings without a physical strike");
   if (probe.siege.damage <= 0 || probe.siege.eventType !== "BuildingDamagedEvent")
     failures.push("siege damage did not cite a physical building-damage event");
+  if (
+    !probe.contact?.buildingId ||
+    probe.contact.kind !== "wall" ||
+    probe.contact.phase !== "besieging" ||
+    probe.contact.combatEvents < 1 ||
+    probe.contact.recorded < 1
+  )
+    failures.push("army contact with an enemy building did not immediately begin tactical combat");
   if (probe.internalEvent !== "InternalConflictEvent")
     failures.push(
       "material and social tension did not produce an implicit internal-conflict event",

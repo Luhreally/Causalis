@@ -625,8 +625,35 @@ function resolveImplicitWarTurn(war, a, b) {
   const attacker = war.attackerId === a.id ? a : b,
     defender = attacker === a ? b : a,
     targets = defender === a ? settlementsA : settlementsB,
-    target = targets.sort((left, right) => left.defense - right.defense || left.id - right.id)[0],
-    tile = idx(target.x, target.y),
+    contactRecord = (war.contactRecords || [])
+      .filter(
+        (record) =>
+          record.factionId === attacker.id &&
+          W.settlements.some(
+            (settlement) =>
+              settlement.id === record.placeId &&
+              !settlement.ruined &&
+              settlement.factionId === defender.id,
+          ),
+      )
+      .sort((left, right) => right.tick - left.tick || left.unitId - right.unitId)[0],
+    contactedTarget = contactRecord
+      ? W.settlements.find(
+          (settlement) =>
+            settlement.id === contactRecord.placeId &&
+            !settlement.ruined &&
+            settlement.factionId === defender.id,
+        )
+      : null,
+    target =
+      contactedTarget ||
+      targets.sort((left, right) => left.defense - right.defense || left.id - right.id)[0],
+    battleX = contactRecord?.x ?? target.x,
+    battleY = contactRecord?.y ?? target.y,
+    tile = idx(
+      clamp(Math.round(battleX), 0, W.width - 1),
+      clamp(Math.round(battleY), 0, W.height - 1),
+    ),
     attackers = W.militaryUnits
       .filter((unit) => unit.active && unit.factionId === attacker.id)
       .flatMap((unit) => unit.memberIds.map((id) => ({ id, u: unit })))
@@ -634,21 +661,22 @@ function resolveImplicitWarTurn(war, a, b) {
         const position = W.components.position[entry.id];
         return (
           position &&
-          dist2(position.x, position.y, target.x, target.y) <= 25 &&
+          dist2(position.x, position.y, battleX, battleY) <= 36 &&
           classifyAlive(entry.id)
         );
       }),
-    defenders = W.militaryUnits
-      .filter((unit) => unit.active && unit.factionId === defender.id)
-      .flatMap((unit) => unit.memberIds.map((id) => ({ id, u: unit })))
-      .filter((entry) => {
-        const position = W.components.position[entry.id];
+    defenders = W.activeIds
+      .filter((id) => {
+        const position = W.components.position[id];
         return (
+          W.kind[id] === KINDS.PERSON &&
           position &&
-          dist2(position.x, position.y, target.x, target.y) <= 49 &&
-          classifyAlive(entry.id)
+          dist2(position.x, position.y, battleX, battleY) <= 49 &&
+          classifyAlive(id) &&
+          W.components.social[id]?.factionId === defender.id
         );
-      });
+      })
+      .map((id) => ({ id, u: combatUnitFor(id) || { training: 0 } }));
   if (!attackers.length) {
     war.marches = (war.marches || 0) + 1;
     if (war.turns > 36)
@@ -1312,6 +1340,7 @@ function debugConflictDramaProbe() {
   victimSocial.factionId = defenderFaction.id;
   victimSocial.cultureId = 1;
   victimSocial.resentment = 0.5;
+  victimSocial.unitId = syntheticId + 2;
   W.components.life[attacker].lastMilitaryAttackTick = -999;
   rebuildSpatialBins();
   const siegeWar = { id: syntheticId, startEventId: 0, lastEventId: 0 },
@@ -1320,6 +1349,42 @@ function debugConflictDramaProbe() {
     internalEvent = triggerInternalConflict(target, { tension: 1 });
   W.factions.push(attackerFaction, defenderFaction);
   W.settlements.push(target);
+  for (const building of testBuildings) {
+    building.x = target.x;
+    building.y = target.y;
+    building.defense = BUILDING_DEFS[building.type]?.defense || 0;
+  }
+  const contactUnit = {
+      id: syntheticId,
+      factionId: attackerFaction.id,
+      homeSettlementId: 0,
+      memberIds: [attacker],
+      training: 6,
+      supply: 1,
+      morale: 0.8,
+      formedTick: W.tick - 64,
+      active: true,
+    },
+    contactWar = {
+      id: syntheticId,
+      a: attackerFaction.id,
+      b: defenderFaction.id,
+      attackerId: attackerFaction.id,
+      startEventId: internalEvent?.id || 0,
+      lastEventId: internalEvent?.id || 0,
+      contactRecords: [],
+    };
+  W.militaryUnits.push(contactUnit);
+  W.components.life[attacker].lastMilitaryAttackTick = -999;
+  const contact = militaryContact(contactUnit, contactWar),
+    contactTactic = contact ? militaryTacticalAssessment(contactUnit, contact) : null,
+    contactEventsBefore = W.events.length,
+    contactExchanges = contact
+      ? resolveMilitaryContact(contactUnit, contact, contactWar, contactTactic)
+      : 0,
+    contactCombatEvents = W.events
+      .slice(contactEventsBefore)
+      .filter((event) => event.type === "CombatExchangeEvent").length;
   const captureEvent = captureSettlementCausally(
     target,
     attackerFaction,
@@ -1330,6 +1395,8 @@ function debugConflictDramaProbe() {
       { id: victim, u: { training: 2 } },
     ],
   );
+  W.militaryUnits = W.militaryUnits.filter((unit) => unit !== contactUnit);
+  victimSocial.unitId = 0;
   return {
     ok: result > 0,
     attacker,
@@ -1351,6 +1418,18 @@ function debugConflictDramaProbe() {
       remainingIntegrity: testBuildings[1].integrity,
     },
     internalEvent: internalEvent?.type || null,
+    contact: {
+      key: contact?.key || "",
+      kind: contact?.kind || "",
+      buildingId: contact?.building?.id || 0,
+      objectiveTileRequired: contact?.distance > 0,
+      distance: contact?.distance ?? -1,
+      tactic: contactTactic?.name || "",
+      phase: contactTactic?.phase || "",
+      exchanges: contactExchanges,
+      combatEvents: contactCombatEvents,
+      recorded: contactWar.contactRecords.length,
+    },
     capture: {
       eventId: captureEvent.id,
       owner: target.factionId,

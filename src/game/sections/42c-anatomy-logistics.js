@@ -1023,11 +1023,50 @@ function militaryObjective(unit) {
       b = W.factions.find((faction) => faction.id === war.b);
     war.attackerId = (a?.militaryStrength || 0) >= (b?.militaryStrength || 0) ? war.a : war.b;
   }
-  const defenderId = war.attackerId === war.a ? war.b : war.a,
-    targets = W.settlements
-      .filter((settlement) => !settlement.ruined && settlement.factionId === defenderId)
-      .sort((left, right) => left.defense - right.defense || left.id - right.id),
-    target = targets[0] || home;
+  const attackerId = war.attackerId,
+    defenderId = attackerId === war.a ? war.b : war.a,
+    attacking = unit.factionId === attackerId,
+    enemyUnits = W.militaryUnits.filter(
+      (candidate) => candidate.active && candidate.factionId !== unit.factionId,
+    ),
+    enemyCentroids = enemyUnits
+      .map((candidate) => unitGeometry(candidate, null))
+      .filter((geometry) => geometry.members.length),
+    targets = W.settlements.filter(
+      (settlement) =>
+        !settlement.ruined && settlement.factionId === (attacking ? defenderId : unit.factionId),
+    ),
+    strategicScore = (settlement) => {
+      const originDistance = home
+          ? Math.sqrt(dist2(home.x, home.y, settlement.x, settlement.y))
+          : 0,
+        threatDistance = enemyCentroids.length
+          ? Math.min(
+              ...enemyCentroids.map((geometry) =>
+                Math.sqrt(dist2(geometry.x, geometry.y, settlement.x, settlement.y)),
+              ),
+            )
+          : originDistance,
+        stores = sum(Array.from(settlement.inventory || [])),
+        strategicValue =
+          completedBuildings(settlement, "hall").length * 8 +
+          completedBuildings(settlement, "stockpile").length * 5 +
+          completedBuildings(settlement, "farm").length * 4 +
+          (settlement.id ===
+          W.factions.find((faction) => faction.id === settlement.factionId)?.capitalSettlementId
+            ? 10
+            : 0);
+      return attacking
+        ? originDistance * 0.58 +
+            settlementDefense(settlement) * 0.12 -
+            strategicValue -
+            stores * 0.002
+        : threatDistance - settlementDefense(settlement) * 0.04;
+    },
+    target =
+      targets.sort(
+        (left, right) => strategicScore(left) - strategicScore(right) || left.id - right.id,
+      )[0] || home;
   unit.objectiveSettlementId = target?.id || 0;
   return { war, target, home };
 }
@@ -1047,6 +1086,273 @@ function unitGeometry(unit, target) {
   return { members, x, y, spread, distance };
 }
 
+function enemyFactionInWar(war, factionId) {
+  if (!war || (war.a !== factionId && war.b !== factionId)) return 0;
+  return war.a === factionId ? war.b : war.a;
+}
+
+function militaryContact(unit, war) {
+  const enemyFactionId = enemyFactionInWar(war, unit.factionId),
+    geometry = unitGeometry(unit, null);
+  if (!enemyFactionId || !geometry.members.length) return null;
+  const distanceFromMembers = (x, y) =>
+      Math.min(
+        ...geometry.members.map((id) => {
+          const position = W.components.position[id];
+          return Math.sqrt(dist2(position.x, position.y, x, y));
+        }),
+      ),
+    candidates = [];
+  for (const enemyUnit of W.militaryUnits) {
+    if (!enemyUnit.active || enemyUnit.factionId !== enemyFactionId) continue;
+    const enemyGeometry = unitGeometry(enemyUnit, null);
+    if (!enemyGeometry.members.length) continue;
+    const distance = distanceFromMembers(enemyGeometry.x, enemyGeometry.y);
+    if (distance <= 4.5)
+      candidates.push({
+        key: `unit:${enemyUnit.id}`,
+        kind: "enemy formation",
+        name: `enemy unit ${enemyUnit.id}`,
+        x: enemyGeometry.x,
+        y: enemyGeometry.y,
+        distance,
+        priority: 0,
+        enemyUnitId: enemyUnit.id,
+        place: null,
+        building: null,
+      });
+  }
+  for (const building of W.buildings || []) {
+    if (building.ruined || (!building.complete && sum(Array.from(building.composition || [])) <= 0))
+      continue;
+    const place = buildingPlace(building);
+    if (!place || place.factionId !== enemyFactionId) continue;
+    const distance = distanceFromMembers(building.x, building.y),
+      radius = buildingSpatialRadius(building.type) + 3.25;
+    if (distance <= radius)
+      candidates.push({
+        key: `building:${building.id}`,
+        kind: building.type,
+        name: building.name,
+        x: building.x,
+        y: building.y,
+        distance,
+        priority: building.type === "wall" ? 1 : building.type === "hall" ? 2 : 3,
+        enemyUnitId: 0,
+        place,
+        building,
+      });
+  }
+  for (const place of [...W.settlements, ...W.camps]) {
+    if (place.ruined || place.active === false || place.factionId !== enemyFactionId) continue;
+    const distance = distanceFromMembers(place.x, place.y);
+    if (distance <= 4.5)
+      candidates.push({
+        key: `${place.knownProcesses ? "settlement" : "camp"}:${place.id}`,
+        kind: place.knownProcesses ? "settlement" : "camp",
+        name: place.name,
+        x: place.x,
+        y: place.y,
+        distance,
+        priority: 2,
+        enemyUnitId: 0,
+        place,
+        building: null,
+      });
+  }
+  candidates.sort(
+    (left, right) =>
+      left.distance - right.distance ||
+      left.priority - right.priority ||
+      left.key.localeCompare(right.key),
+  );
+  return candidates[0] || null;
+}
+
+function militaryTacticalAssessment(unit, contact) {
+  const attackers = unit.memberIds.filter(classifyAlive),
+    enemyFactionId =
+      contact.place?.factionId ||
+      W.militaryUnits.find((candidate) => candidate.id === contact.enemyUnitId)?.factionId ||
+      0,
+    nearbyEnemies = W.activeIds.filter((id) => {
+      const position = W.components.position[id];
+      return (
+        W.kind[id] === KINDS.PERSON &&
+        classifyAlive(id) &&
+        W.components.social[id]?.factionId === enemyFactionId &&
+        position &&
+        dist2(position.x, position.y, contact.x, contact.y) <= 49
+      );
+    }),
+    ranged = attackers.filter((id) => attackerRangedTier(id) > 0).length,
+    outnumbered = nearbyEnemies.length > attackers.length * 1.45,
+    cohesive = unitGeometry(unit, contact).spread < 3.4,
+    trained = (unit.training || 0) > 3.5;
+  if (outnumbered && (unit.morale || 0.5) < 0.62)
+    return { phase: "screening", name: "fighting withdrawal", enemies: nearbyEnemies.length };
+  if (contact.kind === "wall")
+    return { phase: "besieging", name: "breach concentration", enemies: nearbyEnemies.length };
+  if (["farm", "stockpile", "waterworks"].includes(contact.kind))
+    return { phase: "raiding", name: "material interdiction", enemies: nearbyEnemies.length };
+  if (contact.kind === "enemy formation" && ranged >= Math.ceil(attackers.length / 2))
+    return { phase: "volleying", name: "ranged suppression", enemies: nearbyEnemies.length };
+  if (contact.kind === "enemy formation" && trained && cohesive)
+    return { phase: "flanking", name: "coordinated flank", enemies: nearbyEnemies.length };
+  if (contact.building || contact.place)
+    return {
+      phase: "assaulting",
+      name: "local strongpoint assault",
+      enemies: nearbyEnemies.length,
+    };
+  return { phase: "skirmishing", name: "contact skirmish", enemies: nearbyEnemies.length };
+}
+
+function militaryTacticalTile(unit, contact, memberId, tactic) {
+  if (tactic.phase !== "flanking" && tactic.phase !== "screening")
+    return idx(
+      clamp(Math.round(contact.x), 0, W.width - 1),
+      clamp(Math.round(contact.y), 0, W.height - 1),
+    );
+  const position = W.components.position[memberId],
+    dx = contact.x - position.x,
+    dy = contact.y - position.y,
+    length = Math.max(1, Math.hypot(dx, dy)),
+    side = (memberId + unit.id) & 1 ? 1 : -1,
+    offset = tactic.phase === "screening" ? 2.4 : 2,
+    x = clamp(Math.round(contact.x - (dy / length) * offset * side), 0, W.width - 1),
+    y = clamp(Math.round(contact.y + (dx / length) * offset * side), 0, W.height - 1);
+  return idx(x, y);
+}
+
+function resolveMilitaryContact(unit, contact, war, tactic) {
+  if (!war || W.tick - (unit.lastContactCombatTick ?? -999) < 8) return 0;
+  const enemyFactionId = enemyFactionInWar(war, unit.factionId),
+    attackers = unit.memberIds
+      .filter((id) => {
+        const position = W.components.position[id];
+        return (
+          classifyAlive(id) &&
+          position &&
+          dist2(position.x, position.y, contact.x, contact.y) <= (attackerRangedTier(id) ? 36 : 25)
+        );
+      })
+      .sort((left, right) => {
+        const rangedBias =
+          tactic.phase === "volleying" ? attackerRangedTier(right) - attackerRangedTier(left) : 0;
+        return rangedBias || left - right;
+      }),
+    defenders = W.activeIds
+      .filter((id) => {
+        const position = W.components.position[id],
+          social = W.components.social[id],
+          military = !!social?.unitId,
+          localDefense = (social?.aggression || 0) > 0.48 && derivedLife(id).health > 30;
+        return (
+          W.kind[id] === KINDS.PERSON &&
+          classifyAlive(id) &&
+          social?.factionId === enemyFactionId &&
+          (military || localDefense) &&
+          position &&
+          dist2(position.x, position.y, contact.x, contact.y) <= 49
+        );
+      })
+      .sort((left, right) => {
+        const leftMilitary = W.components.social[left]?.unitId ? 0 : 1,
+          rightMilitary = W.components.social[right]?.unitId ? 0 : 1,
+          leftHealth = derivedLife(left).health,
+          rightHealth = derivedLife(right).health;
+        return leftMilitary - rightMilitary || leftHealth - rightHealth || left - right;
+      });
+  if (!attackers.length) return 0;
+  unit.lastContactCombatTick = W.tick;
+  unit.contactKey = contact.key;
+  unit.contactPlaceId = contact.place?.knownProcesses ? contact.place.id : 0;
+  unit.contactBuildingId = contact.building?.id || 0;
+  unit.contactX = contact.x;
+  unit.contactY = contact.y;
+  unit.tactic = tactic.name;
+  war.contactRecords = war.contactRecords || [];
+  if (!war.contactRecords.length || war.contactRecords.at(-1).key !== contact.key)
+    war.contactRecords.push({
+      tick: W.tick,
+      unitId: unit.id,
+      factionId: unit.factionId,
+      key: contact.key,
+      placeId: unit.contactPlaceId,
+      buildingId: unit.contactBuildingId,
+      tactic: tactic.name,
+      x: contact.x,
+      y: contact.y,
+    });
+  war.contactRecords = war.contactRecords.slice(-80);
+  let exchanges = 0;
+  for (const attackerId of attackers.slice(0, 4)) {
+    const attackerPosition = W.components.position[attackerId],
+      defenderId = defenders.filter(classifyAlive).sort((left, right) => {
+        const leftPosition = W.components.position[left],
+          rightPosition = W.components.position[right];
+        return (
+          dist2(attackerPosition.x, attackerPosition.y, leftPosition.x, leftPosition.y) -
+            dist2(attackerPosition.x, attackerPosition.y, rightPosition.x, rightPosition.y) ||
+          left - right
+        );
+      })[0];
+    if (!defenderId) break;
+    const defenderPosition = W.components.position[defenderId],
+      attackRange = attackerRangedTier(attackerId) ? 36 : 9;
+    if (
+      dist2(attackerPosition.x, attackerPosition.y, defenderPosition.x, defenderPosition.y) >
+      attackRange
+    )
+      continue;
+    const result = detailedCombatExchange(attackerId, defenderId, {
+      war,
+      training: unit.training,
+      military: true,
+      intensity: tactic.phase === "screening" ? 0.72 : tactic.phase === "volleying" ? 0.9 : 1,
+      causeEvent: war.lastEventId || war.startEventId,
+    });
+    if (result) exchanges++;
+    if (
+      classifyAlive(defenderId) &&
+      classifyAlive(attackerId) &&
+      dist2(attackerPosition.x, attackerPosition.y, defenderPosition.x, defenderPosition.y) <= 9
+    ) {
+      const defenderUnit = combatUnitFor(defenderId);
+      detailedCombatExchange(defenderId, attackerId, {
+        war,
+        training: defenderUnit?.training || 0,
+        military: true,
+        intensity: tactic.phase === "screening" ? 0.82 : 1,
+        causeEvent: war.lastEventId || war.startEventId,
+      });
+    }
+  }
+  const livingDefenders = defenders.filter(classifyAlive),
+    shouldBreach =
+      contact.building &&
+      (contact.building.type === "wall" ||
+        contact.building.defense >= 5 ||
+        (tactic.phase === "raiding" &&
+          (W.factions.find((faction) => faction.id === unit.factionId)?.aggression || 0) > 0.7));
+  if (shouldBreach && livingDefenders.length <= attackers.length)
+    for (const attackerId of attackers.slice(0, 2))
+      exchanges += razeStrike(attackerId, contact.place, contact.building, war) > 0 ? 1 : 0;
+  if (exchanges) {
+    unit.lastBattleTick = W.tick;
+    war.contactTurns = (war.contactTurns || 0) + 1;
+    war.lastEventId =
+      W.lastEventByType.BuildingDamagedEvent ||
+      W.lastEventByType.KillEvent ||
+      W.lastEventByType.InjuryEvent ||
+      W.lastEventByType.CombatExchangeEvent ||
+      war.lastEventId ||
+      war.startEventId;
+  }
+  return exchanges;
+}
+
 function setMilitaryPhase(unit, phase, detail, target, war) {
   const previous = unit.phase;
   unit.phase = phase;
@@ -1061,8 +1367,27 @@ function setMilitaryPhase(unit, phase, detail, target, war) {
       factions: [unit.factionId],
       causes: [war?.lastEventId, war?.startEventId],
       evidence: [detail, `the unit phase changed from ${previous || "unformed"} to ${phase}`],
-      importance: ["engaged", "withdrawing", "rerouting"].includes(phase) ? 2 : 1,
-      data: { unitId: unit.id, phase, previous: previous || "", detail },
+      importance: [
+        "skirmishing",
+        "flanking",
+        "volleying",
+        "assaulting",
+        "besieging",
+        "raiding",
+        "screening",
+        "withdrawing",
+        "rerouting",
+      ].includes(phase)
+        ? 2
+        : 1,
+      data: {
+        unitId: unit.id,
+        phase,
+        previous: previous || "",
+        detail,
+        tactic: unit.tactic || "",
+        contactKey: unit.contactKey || "",
+      },
     });
   unit.lastPhaseEventId = event.id;
 }
@@ -1075,11 +1400,21 @@ function updateMilitaryMovement() {
       setMilitaryPhase(unit, "inactive", "no intact home or objective remains", null, war);
       continue;
     }
-    let target = objective,
+    const contact = war ? militaryContact(unit, war) : null,
+      tactic = contact ? militaryTacticalAssessment(unit, contact) : null;
+    let target = contact || objective,
       geometry = unitGeometry(unit, target),
-      progress = Number.isFinite(unit.lastObjectiveDistance)
-        ? unit.lastObjectiveDistance - geometry.distance
-        : 0;
+      movementTargetKey = contact?.key || `objective:${objective.id}`,
+      progress =
+        unit.lastMovementTargetKey === movementTargetKey &&
+        Number.isFinite(unit.lastObjectiveDistance)
+          ? unit.lastObjectiveDistance - geometry.distance
+          : 0;
+    if (unit.lastMovementTargetKey !== movementTargetKey) {
+      unit.stalledTicks = 0;
+      unit.lastObjectiveDistance = geometry.distance;
+    }
+    unit.lastMovementTargetKey = movementTargetKey;
     if (progress > 0.12) {
       unit.lastProgressTick = W.tick;
       unit.stalledTicks = 0;
@@ -1088,7 +1423,8 @@ function updateMilitaryMovement() {
     unit.lastObjectiveDistance = geometry.distance;
     unit.lastCentroid = { x: geometry.x, y: geometry.y, tick: W.tick };
     let phase;
-    if (!war) phase = geometry.distance > 4 ? "returning" : "guarding";
+    if (contact) phase = tactic.phase;
+    else if (!war) phase = geometry.distance > 4 ? "returning" : "guarding";
     else if (W.tick - unit.formedTick < 28 || geometry.members.length < 2) phase = "mustering";
     else if (geometry.spread > 5.5) phase = "forming";
     else if (geometry.distance <= 2.4) phase = "engaged";
@@ -1103,15 +1439,26 @@ function updateMilitaryMovement() {
         phase = "recovering";
       }
     }
-    const detail =
-      phase === "mustering"
+    if (!contact && W.tick - (unit.lastBattleTick ?? -999) > 16) {
+      unit.contactKey = "";
+      unit.contactPlaceId = 0;
+      unit.contactBuildingId = 0;
+      unit.tactic = "";
+    }
+    if (contact) {
+      unit.contactKey = contact.key;
+      unit.tactic = tactic.name;
+    }
+    const detail = contact
+      ? `${tactic.name} began ${contact.distance.toFixed(1)} tiles from ${contact.name}; ${geometry.members.length} fighters met ${tactic.enemies} nearby enemy people without waiting for the strategic objective tile`
+      : phase === "mustering"
         ? `${geometry.members.length} members are gathering and drawing supplies at ${home?.name || "home"}`
         : phase === "forming"
           ? `the unit is closing a ${geometry.spread.toFixed(1)}-tile formation spread before advance`
           : phase === "marching"
             ? `the centroid is ${geometry.distance.toFixed(1)} tiles from ${target.name} and made ${Math.max(0, progress).toFixed(1)} tiles of measured progress`
             : phase === "engaged"
-              ? `the formation has reached the ${target.name} contact zone`
+              ? `the formation has reached the ${target.name} occupation zone`
               : phase === "rerouting"
                 ? `no measurable advance for ${unit.stalledTicks} ticks; members are testing alternate terrain steps`
                 : phase === "withdrawing"
@@ -1173,7 +1520,28 @@ function updateMilitaryMovement() {
           "withdraw",
           `↩️ returning toward ${target.name}`,
         );
-      else if (phase === "engaged")
+      else if (tactic) {
+        const tacticalTile = militaryTacticalTile(unit, contact, id, tactic),
+          [tacticalX, tacticalY] = xy(tacticalTile),
+          attackRange = attackerRangedTier(id) ? 25 : 4;
+        if (dist2(p.x, p.y, tacticalX, tacticalY) > attackRange)
+          moveWorkerToward(
+            id,
+            tacticalTile,
+            tactic.phase,
+            `⚔️ ${tactic.name} against ${contact.name}`,
+          );
+        else
+          setWorkAction(
+            id,
+            "fight",
+            `⚔️ ${tactic.name} at ${contact.name}`,
+            idx(
+              clamp(Math.round(contact.x), 0, W.width - 1),
+              clamp(Math.round(contact.y), 0, W.height - 1),
+            ),
+          );
+      } else if (phase === "engaged")
         setWorkAction(
           id,
           "fight",
@@ -1182,6 +1550,7 @@ function updateMilitaryMovement() {
         );
       else setWorkAction(id, "guard", `🛡️ ${detail}`, idx(target.x, target.y));
     }
+    if (contact) resolveMilitaryContact(unit, contact, war, tactic);
   }
 }
 
@@ -1217,7 +1586,7 @@ eventSentence = function (event) {
     case "EquipmentCraftedEvent":
       return `🛠️ ${names[0]} made ${event.data.name}, an alien form with the real function of ${event.data.purpose}.`;
     case "MilitaryPhaseEvent":
-      return `${event.data.phase === "marching" ? "🥾" : event.data.phase === "mustering" ? "📯" : event.data.phase === "engaged" ? "⚔️" : "🛡️"} Unit ${event.data.unitId} changed from ${event.data.previous || "unformed"} to ${event.data.phase}: ${event.data.detail}.`;
+      return `${event.data.phase === "marching" ? "🥾" : event.data.phase === "mustering" ? "📯" : ["engaged", "skirmishing", "flanking", "volleying", "assaulting", "besieging", "raiding", "screening"].includes(event.data.phase) ? "⚔️" : "🛡️"} Unit ${event.data.unitId} changed from ${event.data.previous || "unformed"} to ${event.data.phase}: ${event.data.detail}.`;
     default:
       return eventSentenceAnatomyBase(event);
   }
