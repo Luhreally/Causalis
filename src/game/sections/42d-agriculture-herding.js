@@ -30,8 +30,21 @@ function cultivatedField(building) {
   initializeAgricultureHerding();
   if (!building || building.type !== "farm" || !building.complete || building.ruined) return null;
   let field = W.fields.find((candidate) => candidate.buildingId === building.id);
-  if (field) return field;
-  const tile = idx(building.x, building.y);
+  if (field) {
+    if (field.stage === "fallow" && !cultivatedPlotClear(field.tile, building, field.id)) {
+      const replacement = chooseCultivatedPlot(building, field.id);
+      if (replacement !== null) {
+        field.tile = replacement;
+        field.baseline = {
+          organic: tileMatterAmount(replacement, C.ORGANIC),
+          energy: tileMatterAmount(replacement, C.ENERGY),
+        };
+      }
+    }
+    return field;
+  }
+  const tile = chooseCultivatedPlot(building);
+  if (tile === null) return null;
   field = {
     id: W.nextFieldId++,
     buildingId: building.id,
@@ -54,6 +67,38 @@ function cultivatedField(building) {
   };
   W.fields.push(field);
   return field;
+}
+
+function cultivatedPlotClear(tile, building, fieldId = 0) {
+  if (!Number.isInteger(tile) || tile < 0 || tile >= W.tileCount) return false;
+  const [x, y] = xy(tile);
+  if (Math.max(Math.abs(x - building.x), Math.abs(y - building.y)) < 2) return false;
+  return (
+    developmentFootprintClear(x, y, 1, building.id, fieldId) &&
+    W.tiles.liquid[tile] < 650 &&
+    W.tiles.fire[tile] < 120
+  );
+}
+
+function chooseCultivatedPlot(building, fieldId = 0) {
+  const rotation = Math.abs(building.styleSeed || building.id) % 8,
+    ringOffsets = [];
+  for (let ring = 2; ring <= 9; ring++)
+    for (let dy = -ring; dy <= ring; dy++)
+      for (let dx = -ring; dx <= ring; dx++)
+        if (Math.max(Math.abs(dx), Math.abs(dy)) === ring) ringOffsets.push([dx, dy]);
+  if (ringOffsets.length) {
+    const shift = rotation % ringOffsets.length;
+    ringOffsets.push(...ringOffsets.splice(0, shift));
+  }
+  for (const [dx, dy] of ringOffsets) {
+    const x = building.x + dx,
+      y = building.y + dy;
+    if (!inside(x, y)) continue;
+    const tile = idx(x, y);
+    if (cultivatedPlotClear(tile, building, fieldId)) return tile;
+  }
+  return null;
 }
 
 function fieldPlace(field) {
@@ -932,10 +977,12 @@ function defendAgainstPredator(defenderId, predatorId, protectedState, forceHit 
     );
     return 0;
   }
-  const predatorLife = W.components.life[predatorId],
-    previous = predatorLife.lastCommunityDefenseTick || -999;
+  const defenderLife = W.components.life[defenderId],
+    defenseCooldowns =
+      defenderLife.predatorDefenseCooldowns || (defenderLife.predatorDefenseCooldowns = {}),
+    previous = defenseCooldowns[predatorId] ?? -999;
   if (!forceHit && W.tick - previous < 8) return 0;
-  predatorLife.lastCommunityDefenseTick = W.tick;
+  defenseCooldowns[predatorId] = W.tick;
   const cause =
       W.events.findLast(
         (event) =>
@@ -953,7 +1000,7 @@ function defendAgainstPredator(defenderId, predatorId, protectedState, forceHit 
         protectedState.herd
           ? `the predator entered striking range of herd ${protectedState.herd.id}`
           : "the predator entered striking range of a living community member",
-        "a person physically intercepted it instead of only increasing an abstract defense score",
+        "a people-level defender physically intercepted it instead of only increasing an abstract defense score",
       ],
       magnitude: 1,
       importance: 2,
@@ -985,12 +1032,15 @@ function defendAgainstPredator(defenderId, predatorId, protectedState, forceHit 
 function updatePredatorDefense() {
   let responses = 0;
   for (const predatorId of W.activeIds) {
-    if (responses >= 3 || W.kind[predatorId] !== KINDS.PREDATOR || !classifyAlive(predatorId))
+    if (responses >= 12 || W.kind[predatorId] !== KINDS.PREDATOR || !classifyAlive(predatorId))
       continue;
     const protectedState = protectedPreyNearPredator(predatorId);
     if (!protectedState) continue;
     const predator = W.components.position[predatorId],
       preferred = protectedState.herd?.herderId || 0,
+      protectedFaction = protectedState.herd
+        ? fieldPlace(protectedState.herd)?.factionId || 0
+        : W.components.social[protectedState.targetId]?.factionId || 0,
       defenders = [preferred, ...nearbyIds(predatorId, 7, (id) => W.kind[id] === KINDS.PERSON)]
         .filter(
           (id, index, list) =>
@@ -999,7 +1049,10 @@ function updatePredatorDefense() {
             classifyAlive(id) &&
             derivedLife(id).health > 24 &&
             embodiedCapability(id).locomotion > 0.2 &&
-            embodiedCapability(id).manipulation > 0.15,
+            embodiedCapability(id).manipulation > 0.15 &&
+            (!protectedFaction ||
+              !W.components.social[id]?.factionId ||
+              W.components.social[id].factionId === protectedFaction),
         )
         .sort(
           (left, right) =>
@@ -1017,8 +1070,11 @@ function updatePredatorDefense() {
               ) || left - right,
         );
     if (!defenders.length) continue;
-    defendAgainstPredator(defenders[0], predatorId, protectedState);
-    responses++;
+    for (const defenderId of defenders.slice(0, Math.min(4, 12 - responses))) {
+      defendAgainstPredator(defenderId, predatorId, protectedState);
+      responses++;
+      if (!classifyAlive(predatorId)) break;
+    }
   }
 }
 
@@ -1138,6 +1194,25 @@ placeDevelopmentCard = function (place, interactive = true) {
 
 function agricultureHerdingAudit() {
   const failures = [];
+  const standingBuildings = (W.buildings || []).filter(
+    (building) => !building.ruined || sum(Array.from(building.composition || [])) > 0,
+  );
+  for (let leftIndex = 0; leftIndex < standingBuildings.length; leftIndex++)
+    for (let rightIndex = leftIndex + 1; rightIndex < standingBuildings.length; rightIndex++) {
+      const left = standingBuildings[leftIndex],
+        right = standingBuildings[rightIndex];
+      if (
+        spatialFootprintsOverlap(
+          left.x,
+          left.y,
+          buildingSpatialRadius(left.type),
+          right.x,
+          right.y,
+          buildingSpatialRadius(right.type),
+        )
+      )
+        failures.push(`buildings ${left.id} and ${right.id} have overlapping footprints`);
+    }
   for (const field of W.fields || []) {
     const building = W.buildings.find((candidate) => candidate.id === field.buildingId);
     if (!building || building.type !== "farm")
@@ -1146,6 +1221,8 @@ function agricultureHerdingAudit() {
       failures.push(`field ${field.id} has invalid stage ${field.stage}`);
     if (field.causeEvent && !W.events.some((event) => event.id === field.causeEvent))
       failures.push(`field ${field.id} cites a missing event`);
+    if (building && !cultivatedPlotClear(field.tile, building, field.id))
+      failures.push(`field ${field.id} overlaps a structure or unsafe terrain`);
   }
   for (const herd of W.herds.filter((candidate) => candidate.active)) {
     if (!classifyAlive(herd.herderId)) failures.push(`herd ${herd.id} lacks a living herder`);
@@ -1160,6 +1237,7 @@ function agricultureHerdingAudit() {
     failures,
     fields: W.fields.map((field) => ({
       id: field.id,
+      tile: field.tile,
       stage: field.stage,
       growth: field.growth,
       cycles: field.cycles,
@@ -1363,9 +1441,44 @@ function debugAgricultureHerdingProbe() {
       !huntResult &&
       enclosure.integrity < enclosureIntegrityBefore &&
       W.components.life[protectedAnimal]?.integrity === protectedIntegrityBefore,
-    defense = herd
-      ? defendAgainstPredator(worker, predator, { targetId: protectedAnimal, herd }, true)
-      : 0,
+    alliedDefenders = people.slice(0, 4);
+  if (herd && enclosure && protectedAnimal) {
+    const ownerFaction = place.factionId || 910001,
+      offsets = [
+        [0, 0],
+        [1, 0],
+        [0, 1],
+        [-1, 0],
+      ],
+      predatorLife = W.components.life[predator];
+    predatorLife.integrity = Math.max(predatorLife.integrity, 1000);
+    W.components.body[predator].integrity = predatorLife.integrity;
+    for (let index = 0; index < alliedDefenders.length; index++) {
+      const defenderId = alliedDefenders[index],
+        position = W.components.position[defenderId],
+        [dx, dy] = offsets[index];
+      W.components.social[defenderId].factionId = ownerFaction;
+      W.components.life[defenderId].lastMilitaryAttackTick = W.tick - 99;
+      W.components.life[defenderId].predatorDefenseCooldowns = {};
+      position.x = clamp(predatorPosition.x + dx, 0, W.width - 1);
+      position.y = clamp(predatorPosition.y + dy, 0, W.height - 1);
+      position.regionId = regionId(position.x, position.y);
+    }
+    rebuildSpatialBins();
+  }
+  const defenseEventsBefore = W.events.length;
+  if (herd) updatePredatorDefense();
+  const coordinatedDefenseEvents = W.events
+      .slice(defenseEventsBefore)
+      .filter((event) => event.type === "PredatorDefenseEvent" && event.subjects[1] === predator),
+    coordinatedDefenders = Array.from(
+      new Set(coordinatedDefenseEvents.map((event) => event.subjects[0])),
+    ),
+    forcedDefense =
+      herd && classifyAlive(predator)
+        ? defendAgainstPredator(worker, predator, { targetId: protectedAnimal, herd }, true)
+        : coordinatedDefenseEvents.length,
+    defense = coordinatedDefenders.length,
     eventTypes = W.events.slice(-40).map((event) => event.type),
     matterDelta = totalMatter() - beforeMatter;
   return {
@@ -1379,7 +1492,7 @@ function debugAgricultureHerdingProbe() {
       enclosureBlockedPredator &&
       theftPrevented &&
       herd.animalIds.length >= 2 &&
-      !!defense &&
+      defense >= 2 &&
       eventTypes.includes("CropSownEvent") &&
       eventTypes.includes("CropHarvestedEvent") &&
       eventTypes.includes("HerdFormedEvent") &&
@@ -1415,7 +1528,13 @@ function debugAgricultureHerdingProbe() {
             : null,
         }
       : null,
-    predatorDefense: { defender: worker, predator, protectedAnimal, result: defense },
+    predatorDefense: {
+      defenders: coordinatedDefenders,
+      predator,
+      protectedAnimal,
+      result: defense,
+      forcedResult: forcedDefense,
+    },
     eventTypes,
     fluidSplatters: W.fluidSplatters.length,
     matterDelta,

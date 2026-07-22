@@ -687,8 +687,11 @@ if (process.env.SYSTEMS_DEBUG === "1") {
     failures.push(
       "the living herd lacked a material enclosure that blocks escape, predation, and theft before breach",
     );
-  if (!agricultureProbe.predatorDefense?.result)
-    failures.push("people did not physically fight a predator threatening protected prey");
+  if (
+    agricultureProbe.predatorDefense?.result < 2 ||
+    agricultureProbe.predatorDefense?.defenders?.length < 2
+  )
+    failures.push("multiple people-level defenders did not attack the same threatening predator");
   if (!agricultureProbe.fluidSplatters)
     failures.push("predator defense did not leave persistent blood/fluid traces");
   if (Math.abs(embodiedProbe.matterDelta || 0) > 1e-8 || embodiedAudit.matter.relative > 1e-8)

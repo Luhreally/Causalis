@@ -276,6 +276,48 @@ function buildingAtTile(tile) {
     (b) => idx(b.x, b.y) === tile && (!b.ruined || sum(Array.from(b.composition || [])) > 0),
   );
 }
+function buildingSpatialRadius(type) {
+  if (type === "corral") return 2;
+  if (type === "wall") return 0.5;
+  return 1;
+}
+function spatialFootprintsOverlap(ax, ay, ar, bx, by, br) {
+  return Math.max(Math.abs(ax - bx), Math.abs(ay - by)) < ar + br;
+}
+function developmentFootprintClear(x, y, radius, ignoreBuildingId = 0, ignoreFieldId = 0) {
+  if (
+    !inside(x, y) ||
+    x - radius < 0 ||
+    y - radius < 0 ||
+    x + radius >= W.width ||
+    y + radius >= W.height
+  )
+    return false;
+  for (const building of W.buildings || []) {
+    if (
+      building.id === ignoreBuildingId ||
+      (building.ruined && sum(Array.from(building.composition || [])) <= 0)
+    )
+      continue;
+    if (
+      spatialFootprintsOverlap(
+        x,
+        y,
+        radius,
+        building.x,
+        building.y,
+        buildingSpatialRadius(building.type),
+      )
+    )
+      return false;
+  }
+  for (const field of W.fields || []) {
+    if (field.id === ignoreFieldId || !Number.isInteger(field.tile)) continue;
+    const [fieldX, fieldY] = xy(field.tile);
+    if (spatialFootprintsOverlap(x, y, radius, fieldX, fieldY, 1)) return false;
+  }
+  return true;
+}
 function localMaterialAbundance(tile, sp, r = 4) {
   const [cx, cy] = xy(tile);
   let total = 0;
@@ -390,15 +432,27 @@ function plannedBuildingTile(place, type, ordinal) {
     ox = Math.round(Math.cos(angle) * (2 + radius));
     oy = Math.round(Math.sin(angle) * (2 + radius));
   }
-  let x = clamp(place.x + Math.round(ox), 1, W.width - 2),
-    y = clamp(place.y + Math.round(oy), 1, W.height - 2);
-  for (let n = 0; n < 12; n++) {
-    const tx = clamp(x + (n % 4) - 1, 1, W.width - 2),
-      ty = clamp(y + Math.floor(n / 4) - 1, 1, W.height - 2),
-      ti = idx(tx, ty);
-    if (!buildingAtTile(ti) && W.tiles.liquid[ti] < 700 && W.tiles.fire[ti] < 200) return [tx, ty];
+  const x = clamp(place.x + Math.round(ox), 1, W.width - 2),
+    y = clamp(place.y + Math.round(oy), 1, W.height - 2),
+    footprint = buildingSpatialRadius(type),
+    candidates = [];
+  for (let ring = 0; ring <= 10; ring++)
+    for (let dy = -ring; dy <= ring; dy++)
+      for (let dx = -ring; dx <= ring; dx++) {
+        if (ring && Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+        candidates.push([x + dx, y + dy]);
+      }
+  for (const [tx, ty] of candidates) {
+    if (!inside(tx, ty)) continue;
+    const ti = idx(tx, ty);
+    if (
+      developmentFootprintClear(tx, ty, footprint) &&
+      W.tiles.liquid[ti] < 700 &&
+      W.tiles.fire[ti] < 200
+    )
+      return [tx, ty];
   }
-  return [x, y];
+  return null;
 }
 function buildingMaterialRatio(b) {
   let ratio = 1;
@@ -437,8 +491,11 @@ function planBuilding(place, type, priority = 3) {
     ordinal = W.buildings.filter(
       (b) => !b.ruined && b.placeKind === kind && b.placeId === place.id,
     ).length,
-    [x, y] = plannedBuildingTile(place, type, ordinal),
-    def = BUILDING_DEFS[type],
+    plannedTile = plannedBuildingTile(place, type, ordinal);
+  if (!plannedTile) return null;
+  const def = BUILDING_DEFS[type],
+    x = plannedTile?.[0],
+    y = plannedTile?.[1],
     b = {
       id: W.nextBuildingId++,
       placeKind: kind,
