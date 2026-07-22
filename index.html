@@ -1,0 +1,311 @@
+<!--
+This is a complete single-file deterministic Artificial-Life god-game and emergent-history simulator. The authoritative reality consists of immutable definitions, tile columns, fields, entities, components, relations, population cohorts, processes, effects, events, causal links, and deterministic time. Rendering and UI are lenses over the simulation. Local areas use high-detail individual simulation while distant or large-scale activity uses deterministic aggregation. Ecology, evolution, personal stories, settlements, factions, technology, conflict, and history share the same world state.
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="A deterministic artificial-life world where chemistry, ecology, civilization, conflict, and history share one conserved causal state."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Causalis — The Living Equation" />
+    <meta
+      property="og:description"
+      content="Watch matter become life, culture, settlement, conflict, and recorded history in a conserved artificial world."
+    />
+    <meta property="og:image" content="/causalis-social-card.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Causalis — The Living Equation" />
+    <meta
+      name="twitter:description"
+      content="A deterministic artificial-life god game with causal ecology, civilization, warfare, and history."
+    />
+    <meta name="twitter:image" content="/causalis-social-card.png" />
+    <title>Causalis — The Living Equation</title>
+  </head>
+  <body>
+    <section id="titleScreen" aria-label="Title screen">
+      <div class="title-card">
+        <div class="title-art">
+          <div class="title-mark">C<i></i></div>
+          <div class="eyebrow">A deterministic living universe</div>
+          <h1>Causalis<span>The Living Equation</span></h1>
+          <p>
+            Watch chemistry become life, memory become culture, and need become history. Every
+            flame, lineage, city, and war shares one conserved world.
+          </p>
+          <div class="formula">
+            <b>MATTER</b> + LAWS + TIME + INTERVENTION <span class="gold">→</span> <b>HISTORY</b>
+          </div>
+          <div class="title-orbit"></div>
+        </div>
+        <nav class="title-menu">
+          <div class="eyebrow">Enter the observatory</div>
+          <button id="newWorldBtn" class="primary">New World <span>↗</span></button
+          ><button id="continueBtn">Continue <span>›</span></button
+          ><button id="titleLoadBtn">Load World <span>›</span></button
+          ><button id="titleSettingsBtn">Settings <span>›</span></button
+          ><button id="titleHelpBtn">Help & Controls <span>?</span></button>
+          <div class="divider"></div>
+          <small class="muted"
+            >No goal is imposed. Observe, intervene, or simply let reality unfold.</small
+          >
+        </nav>
+      </div>
+      <div class="title-footer">
+        SINGLE-FILE CAUSAL ARTIFICIAL LIFE · ALL MATTER IS ONE SUBSTRATE
+      </div>
+    </section>
+    <div id="loadingScreen" class="loading-screen">
+      <div class="loader">
+        <div class="loader-orbit"></div>
+        <div class="eyebrow">Compiling a cosmos</div>
+        <h2 id="loadingTitle">Generating immutable laws…</h2>
+        <small id="loadingDetail">Balancing matter families and reaction networks</small>
+        <div class="loadbar"><i id="loadProgress"></i></div>
+      </div>
+    </div>
+    <main id="game" class="hidden">
+      <header class="topbar">
+        <div class="brand-mini">
+          <div class="sigil">C</div>
+          <b>CAUSALIS</b>
+        </div>
+        <div class="top-stats">
+          <div class="top-stat">
+            <small>Seed</small><strong class="mono" id="topSeed">—</strong>
+          </div>
+          <div class="top-stat">
+            <small>Time</small><strong id="topTime">Tick 0 · Year 0</strong>
+          </div>
+          <div class="top-stat"><small>Epoch</small><strong id="topEpoch">Genesis</strong></div>
+          <div class="top-stat"><small>Weather</small><strong id="topWeather">Clear</strong></div>
+          <div class="top-stat">
+            <small>World hash</small><strong class="mono cyan" id="topHash">00000000</strong>
+          </div>
+          <div class="top-stat">
+            <small>Clock</small
+            ><strong id="topStatus" class="status-pill paused"
+              ><span class="dot"></span>Paused · 1×</strong
+            >
+          </div>
+        </div>
+        <div class="top-actions">
+          <button
+            id="mobileLeftBtn"
+            class="iconbtn always mobile-panel-btn mobile-left"
+            title="Open controls"
+            aria-controls="leftPanel"
+            aria-expanded="false"
+          >
+            ☷</button
+          ><button
+            id="mobileRightBtn"
+            class="iconbtn always mobile-panel-btn mobile-right"
+            title="Open observatory"
+            aria-controls="rightPanel"
+            aria-expanded="false"
+          >
+            ◫</button
+          ><button id="copySeedBtn" class="small" title="Copy seed">Copy seed</button
+          ><button id="saveBtn" class="small">Save</button
+          ><button id="loadBtn" class="small">Load</button
+          ><button id="menuBtn" class="iconbtn always" title="Pause menu">☰</button>
+        </div>
+      </header>
+      <aside class="sidebar left" id="leftPanel">
+        <div class="side-head">
+          <b>World controls</b><button class="iconbtn small" data-collapse="left">‹</button>
+        </div>
+        <div class="side-scroll">
+          <section class="section">
+            <div class="section-title">
+              <span>Deterministic time</span><span id="speedLabel">1×</span>
+            </div>
+            <div class="speed-row">
+              <button id="pauseBtn" title="Play / pause">▶</button>
+              <div class="segmented speed-options" id="speedControls">
+                <button data-speed="0.25">¼×</button><button data-speed="0.5">½×</button
+                ><button data-speed="1" class="active">1×</button><button data-speed="4">4×</button
+                ><button data-speed="16">16×</button><button data-speed="64">64×</button
+                ><button data-speed="128">128×</button>
+              </div>
+              <button id="stepBtn" title="Advance one fixed tick">+1</button>
+            </div>
+            <button
+              id="causalSkipBtn"
+              class="causal-skip"
+              title="Concerted causal push: real ticks until the next micro-milestone — about five per epoch"
+            >
+              ⏩ Causal skip</button
+            ><small id="causalSkipStatus" class="causal-skip-note"
+              >Each press drives a concerted push to the next of five micro-stages per epoch; matter
+              is conserved and history is never invented or rewound.</small
+            >
+          </section>
+          <section class="section">
+            <div class="section-title">
+              <span>Render lens</span><span id="viewLabel">Top-down</span>
+            </div>
+            <div class="segmented" id="viewControls">
+              <button data-view="top" class="active">Top</button><button data-view="iso">Iso</button
+              ><button data-view="oblique">3D</button>
+            </div>
+          </section>
+          <section class="section">
+            <div class="section-title">
+              <span>Sims 3 camera</span><span id="zoomLabel">100%</span>
+            </div>
+            <div class="control-grid camera-controls">
+              <button id="zoomOutBtn" title="Zoom out (−)">−</button
+              ><button id="centerCameraBtn" title="Center or reset camera (0)">Center</button
+              ><button id="zoomInBtn" title="Zoom in (+)">+</button>
+            </div>
+            <div class="camera-orbit-controls">
+              <button id="rotateLeftBtn" title="Orbit left (Q)">↶</button
+              ><button id="cameraModeLabel" title="Middle/right-drag in 3D to orbit">
+                Orbit 0°</button
+              ><button id="rotateRightBtn" title="Orbit right (E)">↷</button>
+            </div>
+            <label class="field camera-tilt"
+              ><span>Tilt <b id="tiltLabel">58%</b></span
+              ><input
+                id="tiltRange"
+                type="range"
+                min="0.22"
+                max="1"
+                step="0.01"
+                value="0.58" /></label
+            ><label class="check camera-sims"
+              ><input id="edgeScrollToggle" type="checkbox" checked /> Edge scrolling</label
+            ><button id="interiorBtn" class="camera-cutaway" title="Toggle roof cutaways (I)">
+              Interiors: roofs on</button
+            ><small class="camera-hint" id="cameraHint"
+              >Wheel zoom · middle/right-drag orbit + pitch · Shift-drag pan · WASD/arrows move ·
+              Q/E rotate · Z/X pitch</small
+            >
+          </section>
+          <section class="section">
+            <div class="section-title">
+              <span>Divine instruments</span><span class="gold" id="toolLabel">Inspect</span>
+            </div>
+            <div id="toolGrid" class="tool-grid"></div>
+            <label class="field" style="margin-top: 8px"
+              ><span>Brush radius <b class="range-value" id="brushValue">1</b></span
+              ><input id="brushRange" type="range" min="1" max="8" value="1"
+            /></label>
+          </section>
+          <section class="section">
+            <div class="section-title">
+              <span>Field lenses</span><button id="clearOverlay" class="ghost small">Clear</button>
+            </div>
+            <div id="overlayGrid" class="overlay-grid"></div>
+          </section>
+          <section class="section">
+            <div class="section-title">
+              <span>Living state</span><span class="muted" id="entityCapLabel">0 detailed</span>
+            </div>
+            <div id="populationCounts" class="count-list"></div>
+          </section>
+          <section class="section">
+            <div class="section-title"><span>Display load</span></div>
+            <label class="field"
+              ><span>Render detail</span
+              ><select id="renderQuality">
+                <option value="low">Lean</option>
+                <option value="standard" selected>Balanced</option>
+                <option value="high">Rich</option>
+              </select></label
+            ><label class="check" style="margin-top: 8px"
+              ><input id="showLabels" type="checkbox" checked /> Settlement and notable
+              labels</label
+            >
+          </section>
+        </div>
+      </aside>
+      <section class="stage" id="stage">
+        <canvas id="world"></canvas>
+        <div class="canvas-vignette"></div>
+        <div class="map-badge">
+          <span class="dot cyan"></span><strong id="mapLens">Top-down substrate</strong
+          ><span id="mapOverlay">No overlay</span>
+        </div>
+        <div id="tooltip"></div>
+        <div id="toastStack" class="toast-stack"></div>
+        <div id="sceneFeed" class="scene-feed hidden" aria-live="polite"></div>
+      </section>
+      <aside class="sidebar right" id="rightPanel">
+        <div class="side-head">
+          <b>Observatory</b><button class="iconbtn small" data-collapse="right">›</button>
+        </div>
+        <div class="tabs">
+          <button class="tab active" data-tab="inspect">Inspect</button
+          ><button class="tab" data-tab="chronicle">History</button
+          ><button class="tab" data-tab="worldinfo">World</button
+          ><button class="tab" data-tab="stats">Trends</button>
+        </div>
+        <div class="side-scroll grow">
+          <div class="section-tools">
+            <button id="fieldGuideBtn" title="Open the field guide (G)">Field guide</button
+            ><button data-guide-topic="reading-world" title="How to read this screen">
+              What am I seeing?
+            </button>
+          </div>
+          <section id="tab-inspect" class="tabpane active"></section>
+          <section id="tab-chronicle" class="tabpane"></section>
+          <section id="tab-worldinfo" class="tabpane"></section>
+          <section id="tab-stats" class="tabpane">
+            <canvas id="statsChart" width="290" height="128"></canvas>
+            <div id="statsBody"></div>
+          </section>
+        </div>
+      </aside>
+      <div id="panelScrim" class="panel-scrim" aria-hidden="true"></div>
+      <footer class="bottom-strip">
+        <span class="eyebrow" id="bottomTool">Inspect</span
+        ><span id="contextText"
+          >Click a tile to inspect its matter, chemistry, organisms, and causal history.</span
+        >
+        <div class="bottom-right">
+          <span><span class="key">WASD</span> Move</span
+          ><span><span class="key">Wheel</span> Zoom</span
+          ><span><span class="key">M/R-drag</span> Orbit</span
+          ><span><span class="key">Shift-drag</span> Pan</span
+          ><span><span class="key">I</span> Interior</span
+          ><span><span class="key">Space</span> Pause</span>
+        </div>
+        <nav id="mobileDock" class="mobile-dock" aria-label="Mobile world controls">
+          <button id="dockToolsBtn" aria-controls="leftPanel" aria-expanded="false">
+            <span>☷</span><small id="dockToolLabel">Inspect</small></button
+          ><button id="dockZoomOutBtn" aria-label="Zoom out">
+            <span>−</span><small>Zoom</small></button
+          ><button id="dockPauseBtn" class="dock-primary" aria-label="Play simulation">
+            <span>▶</span><small>Play</small></button
+          ><button id="dockZoomInBtn" aria-label="Zoom in"><span>+</span><small>Zoom</small></button
+          ><button id="dockSpeedBtn" aria-label="Change simulation speed">
+            <span id="dockSpeedValue">1×</span><small>Speed</small></button
+          ><button id="dockInspectBtn" aria-controls="rightPanel" aria-expanded="false">
+            <span>◫</span><small>Observe</small>
+          </button>
+        </nav>
+      </footer>
+    </main>
+
+    <div id="modalLayer" class="modal-layer" aria-live="polite">
+      <div id="modalBox" class="modal">
+        <div class="modal-head">
+          <h2 id="modalTitle">Menu</h2>
+          <button id="modalClose" class="iconbtn">×</button>
+        </div>
+        <div id="modalBody" class="modal-body"></div>
+        <div id="modalFoot" class="modal-foot"></div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,25 @@
+@media (max-width: 900px) {
+  .periodic-grid {
+    grid-template-columns: repeat(4, minmax(68px, 1fr));
+  }
+  .guide-intro {
+    grid-template-columns: 1fr;
+  }
+  .scene-feed {
+    width: min(280px, 70vw);
+  }
+}
+@media (max-width: 570px) {
+  .periodic-grid {
+    grid-template-columns: repeat(2, minmax(90px, 1fr));
+  }
+  .matter-family-grid,
+  .glossary-grid {
+    grid-template-columns: 1fr;
+  }
+  .scene-feed {
+    right: 7px;
+    bottom: 7px;
+    width: calc(100% - 14px);
+  }
+}
