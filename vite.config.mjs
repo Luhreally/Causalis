@@ -58,6 +58,7 @@ export default worker;
 }
 
 export default defineConfig({
+  base: process.env.GITHUB_ACTIONS ? "/Causalis/" : "/",
   plugins: [
     {
       name: "causalis-section-runtime",
