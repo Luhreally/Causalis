@@ -728,8 +728,29 @@ function buildingFootprintPoints(s, r, view) {
     [s.x - vx[0] + vy[0], s.y - vx[1] + vy[1]],
   ];
 }
-function drawBuildingFootprint(g, s, r, view, fill, stroke, dashed = false) {
-  const points = buildingFootprintPoints(s, r, view);
+function buildingTileFootprintPoints(building, metrics, span = 3) {
+  const half = span / 2,
+    centerX = building.x + 0.5,
+    centerY = building.y + 0.5,
+    elevation = W.tiles.elevation[idx(building.x, building.y)] / 1000;
+  return [
+    projectWithMetrics(centerX - half, centerY - half, elevation, metrics),
+    projectWithMetrics(centerX + half, centerY - half, elevation, metrics),
+    projectWithMetrics(centerX + half, centerY + half, elevation, metrics),
+    projectWithMetrics(centerX - half, centerY + half, elevation, metrics),
+  ].map((point) => [point.x, point.y]);
+}
+function drawBuildingFootprint(
+  g,
+  s,
+  r,
+  view,
+  fill,
+  stroke,
+  dashed = false,
+  footprintPoints = null,
+) {
+  const points = footprintPoints || buildingFootprintPoints(s, r, view);
   g.save();
   g.fillStyle = fill;
   g.strokeStyle = stroke;
@@ -753,10 +774,10 @@ function drawBuildingSite(g, b, now, m) {
   g.save();
   if (b.type === "corral" && stage >= 2) {
     const completion = b.complete ? 1 : clamp(work, 0.18, 1),
-      points = buildingFootprintPoints(s, r, UI.view),
+      points = buildingTileFootprintPoints(b, m, 3),
       gateSide = b.orientation % 4,
       builtSides = Math.max(1, Math.ceil(completion * 4));
-    drawBuildingFootprint(g, s, r, UI.view, hsl(95, 34, 28, 0.12), p.dark, false);
+    drawBuildingFootprint(g, s, r, UI.view, hsl(95, 34, 28, 0.12), p.dark, false, points);
     g.strokeStyle = p.light;
     g.fillStyle = p.base;
     g.lineWidth = Math.max(1.4, r * 0.1);

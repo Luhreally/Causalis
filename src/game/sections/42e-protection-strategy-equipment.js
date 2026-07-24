@@ -49,7 +49,7 @@ drawBuildingSite = function (g, building, now, metrics) {
     field = W.fields?.find((candidate) => candidate.buildingId === building.id),
     stage = field?.stage || (building.complete ? "fallow" : "construction"),
     progress = building.complete ? 1 : clamp(building.progress || 0, 0, 1),
-    points = buildingFootprintPoints(screen, radius, UI.view),
+    points = buildingTileFootprintPoints(building, metrics, 3),
     cropHue =
       stage === "ripe"
         ? 52
@@ -67,6 +67,7 @@ drawBuildingSite = function (g, building, now, metrics) {
     hsl(cropHue, stage === "fallow" ? 24 : 48, stage === "ripe" ? 34 : 22, 0.92),
     building.complete ? palette.light : palette.accent,
     !building.complete,
+    points,
   );
   g.strokeStyle = hsl(cropHue, 46, 55, 0.7);
   g.lineWidth = Math.max(1, radius * 0.035);
@@ -99,7 +100,13 @@ drawBuildingSite = function (g, building, now, metrics) {
         x = lerp(left[0], right[0], u),
         y = lerp(left[1], right[1], u);
       g.beginPath();
-      g.arc(x, y - radius * (stage === "ripe" ? 0.045 : 0.025), Math.max(1, radius * 0.035), 0, Math.PI * 2);
+      g.arc(
+        x,
+        y - radius * (stage === "ripe" ? 0.045 : 0.025),
+        Math.max(1, radius * 0.035),
+        0,
+        Math.PI * 2,
+      );
       g.fill();
     }
   }
@@ -124,7 +131,8 @@ function normalizeHerdEnclosure(herd, enclosure) {
         ? clamp((enclosure.integrity || priorMaximum) / priorMaximum, 0, 1)
         : 0;
     enclosure.maxIntegrity = Math.max(priorMaximum, targetMaximum);
-    if (enclosure.complete) enclosure.integrity = Math.max(1, Math.round(enclosure.maxIntegrity * condition));
+    if (enclosure.complete)
+      enclosure.integrity = Math.max(1, Math.round(enclosure.maxIntegrity * condition));
     enclosure.defense = Math.max(enclosure.defense || 0, 18);
     enclosure.sealedPerimeterVersion = 2;
   }
@@ -282,7 +290,9 @@ function attackOccupiedBuilding(attackerId, victimId, building, context = {}) {
       subjects: [attackerId, victimId].filter(Boolean),
       location: idx(building.x, building.y),
       factions: combatFactions(attackerId, victimId),
-      causes: [context.causeEvent, context.war?.lastEventId, context.war?.startEventId].filter(Boolean),
+      causes: [context.causeEvent, context.war?.lastEventId, context.war?.startEventId].filter(
+        Boolean,
+      ),
       evidence: [
         `${entityName(victimId)} was inside ${building.name}, so the body could not be targeted`,
         `${entityName(attackerId)} struck one structural segment instead`,
@@ -323,7 +333,8 @@ const performHuntBuildingProtectionBase = performHunt;
 performHunt = function (predatorId, prey) {
   const accessible = [];
   for (const targetId of prey) {
-    const building = W.kind[targetId] === KINDS.PERSON ? protectedBuildingForPerson(targetId) : null;
+    const building =
+      W.kind[targetId] === KINDS.PERSON ? protectedBuildingForPerson(targetId) : null;
     if (building) attackOccupiedBuilding(predatorId, targetId, building);
     else accessible.push(targetId);
   }
@@ -332,8 +343,7 @@ performHunt = function (predatorId, prey) {
 
 const detailedCombatExchangeBuildingProtectionBase = detailedCombatExchange;
 detailedCombatExchange = function (attackerId, victimId, context = {}) {
-  const building =
-    W.kind[victimId] === KINDS.PERSON ? protectedBuildingForPerson(victimId) : null;
+  const building = W.kind[victimId] === KINDS.PERSON ? protectedBuildingForPerson(victimId) : null;
   if (building && attackerOutsideBuilding(attackerId, building)) {
     if (context.military || W.kind[attackerId] === KINDS.PREDATOR)
       attackOccupiedBuilding(attackerId, victimId, building, context);
@@ -365,7 +375,8 @@ function campaignMotive(war, attacker, defender, target) {
   const relation = attacker?.relations?.[defender?.id] || {},
     stores = sum(Array.from(target?.inventory || [])),
     reasons = [];
-  if ((relation.grievance || 0) > 4) reasons.push(`answer ${Math.round(relation.grievance)} grievance`);
+  if ((relation.grievance || 0) > 4)
+    reasons.push(`answer ${Math.round(relation.grievance)} grievance`);
   if ((relation.pressure || 0) > 80) reasons.push("break escalating territorial pressure");
   if (target && settlementFood(target) > 14) reasons.push("seize a food-secure objective");
   if (stores > 160) reasons.push("capture concentrated material stores");
@@ -390,11 +401,11 @@ function campaignApproach(war, attackerId, target, units) {
 }
 
 function campaignReadiness(war, plan) {
-  const units = W.militaryUnits.filter(
-      (unit) => unit.active && unit.factionId === plan.attackerId,
-    ),
+  const units = W.militaryUnits.filter((unit) => unit.active && unit.factionId === plan.attackerId),
     members = units.flatMap((unit) => unit.memberIds).filter(classifyAlive),
-    target = W.settlements.find((settlement) => settlement.id === plan.targetSettlementId && !settlement.ruined),
+    target = W.settlements.find(
+      (settlement) => settlement.id === plan.targetSettlementId && !settlement.ruined,
+    ),
     averageSupply = units.length ? mean(units.map((unit) => unit.supply || 0)) : 0,
     averageTraining = units.length ? mean(units.map((unit) => unit.training || 0)) : 0,
     armed = members.filter((id) => !!toolForPurpose(id, "war")).length,
@@ -475,9 +486,7 @@ function ensureAttackPlan(war) {
   const attacker = war.attackerId === war.a ? a : b,
     defender = attacker === a ? b : a,
     target = campaignTarget(war, attacker?.id),
-    units = W.militaryUnits.filter(
-      (unit) => unit.active && unit.factionId === attacker?.id,
-    );
+    units = W.militaryUnits.filter((unit) => unit.active && unit.factionId === attacker?.id);
   if (!war.attackPlan) {
     const distance = target
         ? Math.min(
@@ -486,7 +495,8 @@ function ensureAttackPlan(war) {
               .map((home) => Math.sqrt(dist2(home.x, home.y, target.x, target.y))),
           )
         : 0,
-      preparation = 80 + Math.round(distance * 3) + (hashParts(W.seedHash, "attack-plan", war.id) % 65);
+      preparation =
+        80 + Math.round(distance * 3) + (hashParts(W.seedHash, "attack-plan", war.id) % 65);
     war.attackPlan = {
       createdTick: war.started,
       attackerId: attacker?.id || war.attackerId,
@@ -494,7 +504,10 @@ function ensureAttackPlan(war) {
       targetSettlementId: target?.id || 0,
       plannedLaunchTick: war.started + preparation,
       latestLaunchTick: war.started + preparation + 384,
-      minimumFighters: Math.max(2, Math.min(8, Math.ceil((settlementDefense(target || {}) || 8) / 12))),
+      minimumFighters: Math.max(
+        2,
+        Math.min(8, Math.ceil((settlementDefense(target || {}) || 8) / 12)),
+      ),
       motive: campaignMotive(war, attacker, defender, target),
       approach: campaignApproach(war, attacker?.id, target, units),
       launchedTick: 0,
@@ -524,7 +537,10 @@ function updateAttackPlan(war) {
     target = readiness.target,
     event = emitEvent("MilitaryPhaseEvent", {
       subjects: readiness.units
-        .map((unit) => W.settlements.find((settlement) => settlement.id === unit.homeSettlementId)?.entityId)
+        .map(
+          (unit) =>
+            W.settlements.find((settlement) => settlement.id === unit.homeSettlementId)?.entityId,
+        )
         .filter(Boolean),
       location: target ? idx(target.x, target.y) : -1,
       factions: [plan.attackerId, plan.defenderId],
@@ -575,7 +591,11 @@ militaryObjective = function (unit) {
 function requirementRow(requirement) {
   const current = `${requirement.current}${requirement.unit || ""}`,
     target = `${requirement.target}${requirement.unit || ""}`,
-    width = clamp((Number(requirement.current) / Math.max(0.001, Number(requirement.target))) * 100, 0, 100);
+    width = clamp(
+      (Number(requirement.current) / Math.max(0.001, Number(requirement.target))) * 100,
+      0,
+      100,
+    );
   return `<div class="campaign-requirement"><div class="row between"><span>${esc(requirement.label)}</span><b class="${requirement.ready ? "good-text" : "gold"}">${requirement.ready ? "Ready" : `${current} / ${target}`}</b></div><div class="bar"><i style="width:${width}%;background:${requirement.ready ? "#79c989" : "#d9b56d"}"></i></div></div>`;
 }
 
@@ -600,11 +620,16 @@ function campaignCard(war) {
 function refreshWarfare() {
   if (!W || !DOM.warfarePane) return;
   const active = W.activeWars.filter((war) => !war.ended),
-    ended = W.activeWars.filter((war) => war.ended).slice(-6).reverse(),
+    ended = W.activeWars
+      .filter((war) => war.ended)
+      .slice(-6)
+      .reverse(),
     tensions = W.factions
       .flatMap((faction) =>
         Object.entries(faction.relations || {})
-          .filter(([otherId, relation]) => faction.id < Number(otherId) && relation.status === "hostile")
+          .filter(
+            ([otherId, relation]) => faction.id < Number(otherId) && relation.status === "hostile",
+          )
           .map(([otherId, relation]) => ({
             faction,
             other: W.factions.find((candidate) => candidate.id === Number(otherId)),
@@ -629,17 +654,26 @@ primitiveWarForm = function (id, recipe) {
         ? [
             { form: "spark-tube dart caster", capabilities: ["war", "ranged", "powder", "pierce"] },
             { form: "thunder-seed projector", capabilities: ["war", "ranged", "powder", "crush"] },
-            { form: "rotary ember launcher", capabilities: ["war", "ranged", "powder", "suppress"] },
+            {
+              form: "rotary ember launcher",
+              capabilities: ["war", "ranged", "powder", "suppress"],
+            },
           ]
         : tier >= 2
           ? [
               { form: "sinew recurved caster", capabilities: ["war", "ranged", "pierce"] },
               { form: "torsion shard sling", capabilities: ["war", "ranged", "crush"] },
-              { form: "levered bolt thrower", capabilities: ["war", "ranged", "pierce", "shield_break"] },
+              {
+                form: "levered bolt thrower",
+                capabilities: ["war", "ranged", "pierce", "shield_break"],
+              },
             ]
           : recipe.head === C.BONE
             ? [
-                { form: "barbed bone reach-spear", capabilities: ["war", "cut", "pierce", "reach"] },
+                {
+                  form: "barbed bone reach-spear",
+                  capabilities: ["war", "cut", "pierce", "reach"],
+                },
                 { form: "jaw-tooth sickle club", capabilities: ["war", "cut", "hook"] },
                 { form: "antler fork staff", capabilities: ["war", "reach", "disarm"] },
               ]
@@ -655,7 +689,9 @@ primitiveWarForm = function (id, recipe) {
                   { form: "weighted cord sling", capabilities: ["war", "ranged", "crush"] },
                   { form: "obsidian-tooth paddle", capabilities: ["war", "cut", "shield_break"] },
                 ],
-    choice = hashParts(W.seedHash, "primitive-war-form", id, recipe.head, recipe.binding) % variants.length;
+    choice =
+      hashParts(W.seedHash, "primitive-war-form", id, recipe.head, recipe.binding) %
+      variants.length;
   return variants[choice] || primitiveWarFormDeepBase(id, recipe);
 };
 
@@ -670,47 +706,139 @@ equipmentBlueprint = function (id, recipe) {
     return choose(
       head.density > 0.66
         ? [
-            { form: "overlapping lamellar mantle", name: `${headName} scale mantle`, capabilities: ["armor", "torso_guard"] },
-            { form: "corded plate carapace", name: `${headName} corded carapace`, capabilities: ["armor", "torso_guard", "shoulder_guard"] },
-            { form: "articulated shell coat", name: `${headName} shell coat`, capabilities: ["armor", "torso_guard", "cut_resist"] },
+            {
+              form: "overlapping lamellar mantle",
+              name: `${headName} scale mantle`,
+              capabilities: ["armor", "torso_guard"],
+            },
+            {
+              form: "corded plate carapace",
+              name: `${headName} corded carapace`,
+              capabilities: ["armor", "torso_guard", "shoulder_guard"],
+            },
+            {
+              form: "articulated shell coat",
+              name: `${headName} shell coat`,
+              capabilities: ["armor", "torso_guard", "cut_resist"],
+            },
           ]
         : [
-            { form: "woven impact mantle", name: `${bindingName} impact mantle`, capabilities: ["armor", "torso_guard"] },
-            { form: "quilted fiber jack", name: `${bindingName} layered jack`, capabilities: ["armor", "blunt_resist"] },
-            { form: "resin-bound scale vest", name: `${headName} resin scale vest`, capabilities: ["armor", "cut_resist"] },
+            {
+              form: "woven impact mantle",
+              name: `${bindingName} impact mantle`,
+              capabilities: ["armor", "torso_guard"],
+            },
+            {
+              form: "quilted fiber jack",
+              name: `${bindingName} layered jack`,
+              capabilities: ["armor", "blunt_resist"],
+            },
+            {
+              form: "resin-bound scale vest",
+              name: `${headName} resin scale vest`,
+              capabilities: ["armor", "cut_resist"],
+            },
           ],
     );
   if (recipe.purpose === "shield")
     return choose([
-      { form: "layered deflection disk", name: `${headName} round shield`, capabilities: ["shield", "armor", "war", "deflect"] },
-      { form: "tall woven body screen", name: `${bindingName} tower screen`, capabilities: ["shield", "armor", "war", "formation"] },
-      { form: "hide-faced rib shield", name: `${headName} rib shield`, capabilities: ["shield", "armor", "war", "brace"] },
-      { form: "sacrificial shard buckler", name: `${headName} shard buckler`, capabilities: ["shield", "war", "parry"] },
+      {
+        form: "layered deflection disk",
+        name: `${headName} round shield`,
+        capabilities: ["shield", "armor", "war", "deflect"],
+      },
+      {
+        form: "tall woven body screen",
+        name: `${bindingName} tower screen`,
+        capabilities: ["shield", "armor", "war", "formation"],
+      },
+      {
+        form: "hide-faced rib shield",
+        name: `${headName} rib shield`,
+        capabilities: ["shield", "armor", "war", "brace"],
+      },
+      {
+        form: "sacrificial shard buckler",
+        name: `${headName} shard buckler`,
+        capabilities: ["shield", "war", "parry"],
+      },
     ]);
   if (recipe.purpose === "helmet")
     return choose([
-      { form: "ridged skull cap", name: `${headName} ridge helm`, capabilities: ["helmet", "armor", "head_guard"] },
-      { form: "cheek-plated war mask", name: `${headName} war mask`, capabilities: ["helmet", "armor", "face_guard"] },
-      { form: "woven shock hood", name: `${bindingName} shock hood`, capabilities: ["helmet", "armor", "blunt_resist"] },
+      {
+        form: "ridged skull cap",
+        name: `${headName} ridge helm`,
+        capabilities: ["helmet", "armor", "head_guard"],
+      },
+      {
+        form: "cheek-plated war mask",
+        name: `${headName} war mask`,
+        capabilities: ["helmet", "armor", "face_guard"],
+      },
+      {
+        form: "woven shock hood",
+        name: `${bindingName} shock hood`,
+        capabilities: ["helmet", "armor", "blunt_resist"],
+      },
     ]);
   if (recipe.purpose === "limb_armor")
     return choose([
-      { form: "splinted arm and shin guards", name: `${headName} limb splints`, capabilities: ["limb_armor", "armor", "limb_guard"] },
-      { form: "corded joint scales", name: `${headName} joint scales`, capabilities: ["limb_armor", "armor", "joint_guard"] },
-      { form: "woven bracers and gaiters", name: `${bindingName} limb wraps`, capabilities: ["limb_armor", "armor", "cut_resist"] },
+      {
+        form: "splinted arm and shin guards",
+        name: `${headName} limb splints`,
+        capabilities: ["limb_armor", "armor", "limb_guard"],
+      },
+      {
+        form: "corded joint scales",
+        name: `${headName} joint scales`,
+        capabilities: ["limb_armor", "armor", "joint_guard"],
+      },
+      {
+        form: "woven bracers and gaiters",
+        name: `${bindingName} limb wraps`,
+        capabilities: ["limb_armor", "armor", "cut_resist"],
+      },
     ]);
   if (recipe.purpose === "carry_liquid")
     return choose([
-      { form: "sealed flex-vessel bucket", name: `${headName} seal-bucket`, capabilities: ["carry_liquid", "firefighting", "gather"] },
-      { form: "shouldered skin amphora", name: `${bindingName} carry-vessel`, capabilities: ["carry_liquid", "transport", "gather"] },
-      { form: "fired shell dipper", name: `${headName} shell dipper`, capabilities: ["carry_liquid", "firefighting", "measure"] },
+      {
+        form: "sealed flex-vessel bucket",
+        name: `${headName} seal-bucket`,
+        capabilities: ["carry_liquid", "firefighting", "gather"],
+      },
+      {
+        form: "shouldered skin amphora",
+        name: `${bindingName} carry-vessel`,
+        capabilities: ["carry_liquid", "transport", "gather"],
+      },
+      {
+        form: "fired shell dipper",
+        name: `${headName} shell dipper`,
+        capabilities: ["carry_liquid", "firefighting", "measure"],
+      },
     ]);
   if (recipe.purpose === "utility")
     return choose([
-      { form: "bow-drill fire kit", name: `${headName} bow-drill`, capabilities: ["utility", "firemaking", "craft"] },
-      { form: "bone awl and fiber gauge", name: `${headName} stitch kit`, capabilities: ["utility", "sew", "repair"] },
-      { form: "weighted plumb cord", name: `${headName} builder's plumb`, capabilities: ["utility", "measure", "build"] },
-      { form: "resin scraper and burnisher", name: `${headName} finishing kit`, capabilities: ["utility", "craft", "repair"] },
+      {
+        form: "bow-drill fire kit",
+        name: `${headName} bow-drill`,
+        capabilities: ["utility", "firemaking", "craft"],
+      },
+      {
+        form: "bone awl and fiber gauge",
+        name: `${headName} stitch kit`,
+        capabilities: ["utility", "sew", "repair"],
+      },
+      {
+        form: "weighted plumb cord",
+        name: `${headName} builder's plumb`,
+        capabilities: ["utility", "measure", "build"],
+      },
+      {
+        form: "resin scraper and burnisher",
+        name: `${headName} finishing kit`,
+        capabilities: ["utility", "craft", "repair"],
+      },
     ]);
   return equipmentBlueprintDeepBase(id, recipe);
 };
@@ -723,28 +851,72 @@ function ordinaryToolBlueprint(id, recipe) {
       items[hashParts(W.seedHash, "ordinary-tool", id, recipe.purpose, recipe.head) % items.length];
   if (recipe.purpose === "cut")
     return choose([
-      { form: "serrated harvest sickle", name: `${headName} tooth sickle`, capabilities: ["cut", "harvest"] },
-      { form: "drawknife and bark peeler", name: `${headName} drawknife`, capabilities: ["cut", "shape"] },
+      {
+        form: "serrated harvest sickle",
+        name: `${headName} tooth sickle`,
+        capabilities: ["cut", "harvest"],
+      },
+      {
+        form: "drawknife and bark peeler",
+        name: `${headName} drawknife`,
+        capabilities: ["cut", "shape"],
+      },
       { form: "backed flake saw", name: `${headName} flake saw`, capabilities: ["cut", "saw"] },
       { form: "adze-hook cutter", name: `${headName} hooked adze`, capabilities: ["cut", "build"] },
     ]);
   if (recipe.purpose === "mine")
     return choose([
-      { form: "socketed stone pick", name: `${headName} socket pick`, capabilities: ["mine", "pierce", "build"] },
-      { form: "wedge and striker set", name: `${headName} splitting set`, capabilities: ["mine", "split"] },
-      { form: "antler pressure pick", name: `${headName} pressure pick`, capabilities: ["mine", "gather"] },
-      { form: "two-faced quarry hammer", name: `${headName} quarry hammer`, capabilities: ["mine", "crush", "build"] },
+      {
+        form: "socketed stone pick",
+        name: `${headName} socket pick`,
+        capabilities: ["mine", "pierce", "build"],
+      },
+      {
+        form: "wedge and striker set",
+        name: `${headName} splitting set`,
+        capabilities: ["mine", "split"],
+      },
+      {
+        form: "antler pressure pick",
+        name: `${headName} pressure pick`,
+        capabilities: ["mine", "gather"],
+      },
+      {
+        form: "two-faced quarry hammer",
+        name: `${headName} quarry hammer`,
+        capabilities: ["mine", "crush", "build"],
+      },
     ]);
   if (recipe.purpose === "build")
     return choose([
-      { form: "corded assembly maul", name: `${headName} assembly maul`, capabilities: ["build", "crush"] },
-      { form: "notching chisel", name: `${headName} notch chisel`, capabilities: ["build", "cut", "shape"] },
-      { form: "lever and tamping bar", name: `${headName} setting bar`, capabilities: ["build", "lever"] },
+      {
+        form: "corded assembly maul",
+        name: `${headName} assembly maul`,
+        capabilities: ["build", "crush"],
+      },
+      {
+        form: "notching chisel",
+        name: `${headName} notch chisel`,
+        capabilities: ["build", "cut", "shape"],
+      },
+      {
+        form: "lever and tamping bar",
+        name: `${headName} setting bar`,
+        capabilities: ["build", "lever"],
+      },
     ]);
   if (recipe.purpose === "gather")
     return choose([
-      { form: "woven collection rake", name: `${bindingName} gathering rake`, capabilities: ["gather", "harvest"] },
-      { form: "shell scoop and sieve", name: `${headName} sorting scoop`, capabilities: ["gather", "sort"] },
+      {
+        form: "woven collection rake",
+        name: `${bindingName} gathering rake`,
+        capabilities: ["gather", "harvest"],
+      },
+      {
+        form: "shell scoop and sieve",
+        name: `${headName} sorting scoop`,
+        capabilities: ["gather", "sort"],
+      },
     ]);
   return null;
 }
@@ -863,13 +1035,15 @@ organismInspector = function (id) {
     .map((entityId) => W.artifacts.find((artifact) => artifact.entityId === entityId))
     .filter((artifact) => isFunctionalTool(artifact) && artifact.tool.profile);
   if (!gear.length) return html;
-  html += `<details><summary>Primitive loadout engineering · ${gear.length}</summary>${gear.map((artifact) => {
-    const profile = artifact.tool.profile,
-      condition = Math.round(
-        (1 - artifact.tool.wear / Math.max(1, artifact.tool.durability)) * 100,
-      );
-    return `<div class="card" style="margin:6px 0"><div class="row between"><b>${esc(artifact.name)}</b><span class="tag">${esc(profile.slot)} · ${condition}%</span></div><div class="kv" style="margin-top:6px"><span>Form</span><b>${esc(artifact.tool.form)}</b><span>Functions</span><b>${esc(artifact.tool.capabilities.join(" · "))}</b><span>Damage / work mode</span><b>${esc(profile.damageType)}</b><span>Reach</span><b>${profile.reach} tiles</b><span>Coverage / absorption</span><b>${Math.round(profile.coverage * 100)}% / ${Math.round(profile.absorption * 100)}%</b><span>Handling</span><b>${Math.round(profile.handling * 100)}%</b></div></div>`;
-  }).join("")}</details>`;
+  html += `<details><summary>Primitive loadout engineering · ${gear.length}</summary>${gear
+    .map((artifact) => {
+      const profile = artifact.tool.profile,
+        condition = Math.round(
+          (1 - artifact.tool.wear / Math.max(1, artifact.tool.durability)) * 100,
+        );
+      return `<div class="card" style="margin:6px 0"><div class="row between"><b>${esc(artifact.name)}</b><span class="tag">${esc(profile.slot)} · ${condition}%</span></div><div class="kv" style="margin-top:6px"><span>Form</span><b>${esc(artifact.tool.form)}</b><span>Functions</span><b>${esc(artifact.tool.capabilities.join(" · "))}</b><span>Damage / work mode</span><b>${esc(profile.damageType)}</b><span>Reach</span><b>${profile.reach} tiles</b><span>Coverage / absorption</span><b>${Math.round(profile.coverage * 100)}% / ${Math.round(profile.absorption * 100)}%</b><span>Handling</span><b>${Math.round(profile.handling * 100)}%</b></div></div>`;
+    })
+    .join("")}</details>`;
   return html;
 };
 
