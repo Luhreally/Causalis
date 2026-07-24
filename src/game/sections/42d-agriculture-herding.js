@@ -33,9 +33,19 @@ function cultivatedField(building) {
   if (field) {
     field.tile = idx(building.x, building.y);
     field.tiles = farmFootprintTiles(building);
+    field.baselines = field.tiles.map((tile) => ({
+      tile,
+      organic:
+        field.baselines?.find((baseline) => baseline.tile === tile)?.organic ??
+        (tile === field.tile ? field.baseline?.organic : tileMatterAmount(tile, C.ORGANIC)),
+      energy:
+        field.baselines?.find((baseline) => baseline.tile === tile)?.energy ??
+        (tile === field.tile ? field.baseline?.energy : tileMatterAmount(tile, C.ENERGY)),
+    }));
     return field;
   }
   const tile = idx(building.x, building.y);
+  const tiles = farmFootprintTiles(building);
   field = {
     id: W.nextFieldId++,
     buildingId: building.id,
@@ -55,7 +65,13 @@ function cultivatedField(building) {
       organic: tileMatterAmount(tile, C.ORGANIC),
       energy: tileMatterAmount(tile, C.ENERGY),
     },
-    tiles: farmFootprintTiles(building),
+    baselines: tiles.map((fieldTile) => ({
+      tile: fieldTile,
+      organic: tileMatterAmount(fieldTile, C.ORGANIC),
+      energy: tileMatterAmount(fieldTile, C.ENERGY),
+    })),
+    cropChemistry: null,
+    tiles,
   };
   W.fields.push(field);
   return field;
@@ -69,6 +85,15 @@ function farmFootprintTiles(building) {
         y = building.y + dy;
       if (inside(x, y)) tiles.push(idx(x, y));
     }
+  return tiles;
+}
+
+function squareTilesAround(centerTile, radius) {
+  const [centerX, centerY] = xy(centerTile),
+    tiles = [];
+  for (let y = Math.max(0, centerY - radius); y <= Math.min(W.height - 1, centerY + radius); y++)
+    for (let x = Math.max(0, centerX - radius); x <= Math.min(W.width - 1, centerX + radius); x++)
+      tiles.push(idx(x, y));
   return tiles;
 }
 
@@ -124,6 +149,38 @@ function transferPlaceMatterToTile(place, tile, requests) {
   return moved;
 }
 
+function transferPlaceMatterToField(place, tiles, requests) {
+  const moved = {};
+  for (const [species, requested] of requests) {
+    let remaining = Math.min(requested, place.inventory?.[species] || 0);
+    for (let n = 0; n < tiles.length && remaining > 0; n++) {
+      const tile = tiles[n],
+        share = Math.max(1, Math.ceil(remaining / (tiles.length - n))),
+        amount = Math.min(
+          share,
+          remaining,
+          Number.MAX_SAFE_INTEGER - tileMatterAmount(tile, species),
+        );
+      if (!amount) continue;
+      place.inventory[species] -= amount;
+      setTileMatterAmount(tile, species, tileMatterAmount(tile, species) + amount);
+      moved[species] = (moved[species] || 0) + amount;
+      remaining -= amount;
+    }
+  }
+  return moved;
+}
+
+function fieldChemistrySignature(field) {
+  const totals = {};
+  for (const species of [C.ORGANIC, C.NUTRIENT, C.SOLVENT, C.PIGMENT, C.CATALYST, C.MINERAL])
+    totals[species] = field.tiles.reduce(
+      (total, tile) => total + tileMatterAmount(tile, species),
+      0,
+    );
+  return totals;
+}
+
 function transferTileCropToPlace(place, tile, species, requested, reserve) {
   const available = Math.max(0, tileMatterAmount(tile, species) - reserve),
     room = Math.max(0, placeStorageRemaining(place)),
@@ -136,17 +193,23 @@ function transferTileCropToPlace(place, tile, species, requested, reserve) {
 
 function sowCultivatedField(workerId, field, place) {
   if (!field || field.stage !== "fallow" || !place) return false;
+  const tiles = field.tiles?.length ? field.tiles : [field.tile];
   const needed = [
-    [C.ORGANIC, 6],
-    [C.NUTRIENT, 5],
-    [C.SOLVENT, 10],
+    [C.ORGANIC, tiles.length],
+    [C.NUTRIENT, tiles.length],
+    [C.SOLVENT, tiles.length * 2],
   ];
   if (needed.some(([species, amount]) => (place.inventory[species] || 0) < amount)) return false;
   field.baseline = {
     organic: tileMatterAmount(field.tile, C.ORGANIC),
     energy: tileMatterAmount(field.tile, C.ENERGY),
   };
-  const moved = transferPlaceMatterToTile(place, field.tile, needed),
+  field.baselines = tiles.map((tile) => ({
+    tile,
+    organic: tileMatterAmount(tile, C.ORGANIC),
+    energy: tileMatterAmount(tile, C.ENERGY),
+  }));
+  const moved = transferPlaceMatterToField(place, tiles, needed),
     seedMass = Object.values(moved).reduce((total, amount) => total + amount, 0),
     ev = emitEvent("CropSownEvent", {
       subjects: [workerId, place.entityId].filter(Boolean),
@@ -154,8 +217,8 @@ function sowCultivatedField(workerId, field, place) {
       factions: place.factionId ? [place.factionId] : [],
       causes: [field.causeEvent, place.importantEvents?.at(-1) || 0],
       evidence: [
-        `${seedMass} conserved matter packets moved from storage into a bounded producer bed`,
-        "soil order and a remembered planting location replaced random extraction",
+        `${seedMass} conserved matter packets were divided across ${tiles.length} bounded producer tiles`,
+        "every visible crop tile received remembered seed chemistry instead of only the center tile",
       ],
       magnitude: seedMass,
       importance: 2,
@@ -167,9 +230,16 @@ function sowCultivatedField(workerId, field, place) {
   field.lastLaborTick = W.tick;
   field.lastGrowthTick = W.tick;
   field.growth = 0;
+  field.cropChemistry = fieldChemistrySignature(field);
   field.causeEvent = ev.id;
-  W.tiles.plantOrder[field.tile] = u16(W.tiles.plantOrder[field.tile] + seedMass * 5);
-  W.tiles.soilOrder[field.tile] = u16(W.tiles.soilOrder[field.tile] + seedMass * 2);
+  for (const tile of tiles) {
+    W.tiles.plantOrder[tile] = u16(
+      W.tiles.plantOrder[tile] + Math.max(2, Math.ceil((seedMass * 5) / tiles.length)),
+    );
+    W.tiles.soilOrder[tile] = u16(
+      W.tiles.soilOrder[tile] + Math.max(1, Math.ceil((seedMass * 2) / tiles.length)),
+    );
+  }
   if (place.importantEvents) place.importantEvents.push(ev.id);
   setWorkAction(
     workerId,
@@ -185,10 +255,12 @@ function sowCultivatedField(workerId, field, place) {
 function updateCultivatedField(building, place, operatorId = 0) {
   const field = cultivatedField(building);
   if (!field || !place || !["sown", "growing"].includes(field.stage)) return 0;
-  if (W.tiles.fire[field.tile] > 90 || tileMoisture(field.tile) < 8) {
+  const tiles = field.tiles?.length ? field.tiles : [field.tile],
+    viableTiles = tiles.filter((tile) => W.tiles.fire[tile] <= 90 && tileMoisture(tile) >= 8);
+  if (!viableTiles.length) {
     const cause = W.events.findLast(
         (event) =>
-          event.location === field.tile &&
+          tiles.includes(event.location) &&
           ["FireStartedEvent", "FireDisasterEvent", "DroughtEvent"].includes(event.type),
       )?.id,
       ev = emitEvent("CropFailedEvent", {
@@ -197,14 +269,16 @@ function updateCultivatedField(building, place, operatorId = 0) {
         factions: place.factionId ? [place.factionId] : [],
         causes: [cause || field.causeEvent],
         evidence: [
-          W.tiles.fire[field.tile] > 90
-            ? `fire intensity ${W.tiles.fire[field.tile]} destroyed producer order`
-            : `moisture ${tileMoisture(field.tile).toFixed(1)} fell below the crop threshold`,
+          `all ${tiles.length} producer tiles fell below the moisture/fire viability threshold`,
           "remaining crop matter stayed in the tile substrate for decay or later recovery",
         ],
         magnitude: field.growth,
         importance: 2,
-        data: { fieldId: field.id, crop: field.cropName, fire: W.tiles.fire[field.tile] },
+        data: {
+          fieldId: field.id,
+          crop: field.cropName,
+          fire: Math.max(...tiles.map((tile) => W.tiles.fire[tile])),
+        },
       });
     field.stage = "fallow";
     field.growth = 0;
@@ -212,16 +286,22 @@ function updateCultivatedField(building, place, operatorId = 0) {
     if (place.importantEvents) place.importantEvents.push(ev.id);
     return 0;
   }
-  const solar = reactionById("photosynthesis")?.externalEnergyRequirement || W.laws.solarFlux,
-    grew = executeProcess("photosynthesis", invTile(field.tile), 4, {
+  const solar = reactionById("photosynthesis")?.externalEnergyRequirement || W.laws.solarFlux;
+  let grew = 0;
+  for (const tile of viableTiles)
+    grew += executeProcess("photosynthesis", invTile(tile), 1, {
       externalEnergy: Math.max(solar, W.laws.solarFlux),
     });
   field.lastGrowthTick = W.tick;
   if (!grew) return 0;
   field.growth += grew;
   field.stage = "growing";
-  W.tiles.plantOrder[field.tile] = u16(W.tiles.plantOrder[field.tile] + grew * 8);
-  if (W.tick - field.sowTick >= 64 && field.growth >= 6) {
+  for (const tile of viableTiles)
+    W.tiles.plantOrder[tile] = u16(
+      W.tiles.plantOrder[tile] + Math.max(1, Math.ceil((grew * 8) / viableTiles.length)),
+    );
+  field.cropChemistry = fieldChemistrySignature(field);
+  if (W.tick - field.sowTick >= 64 && field.growth >= Math.max(6, tiles.length)) {
     field.stage = "ripe";
     field.matureTick = W.tick;
     const ev = emitEvent("FieldMaturedEvent", {
@@ -230,7 +310,7 @@ function updateCultivatedField(building, place, operatorId = 0) {
       factions: place.factionId ? [place.factionId] : [],
       causes: [field.causeEvent],
       evidence: [
-        `${field.growth} balanced photosynthesis extents accumulated after sowing`,
+        `${field.growth} balanced photosynthesis extents accumulated across ${viableTiles.length}/${tiles.length} viable crop tiles`,
         "solvent, nutrient, gas, and radiant energy produced harvestable organic matter",
       ],
       magnitude: field.growth,
@@ -245,15 +325,16 @@ function updateCultivatedField(building, place, operatorId = 0) {
 
 function harvestCultivatedField(workerId, field, place) {
   if (!field || field.stage !== "ripe" || !place) return false;
-  const organic = transferTileCropToPlace(
-      place,
-      field.tile,
-      C.ORGANIC,
-      28,
-      field.baseline.organic + 2,
-    ),
-    energy = transferTileCropToPlace(place, field.tile, C.ENERGY, 16, field.baseline.energy + 1),
-    harvested = organic + energy;
+  const tiles = field.tiles?.length ? field.tiles : [field.tile];
+  let organic = 0,
+    energy = 0;
+  for (const tile of tiles) {
+    const baseline =
+      field.baselines?.find((candidate) => candidate.tile === tile) || field.baseline;
+    organic += transferTileCropToPlace(place, tile, C.ORGANIC, 8, (baseline?.organic || 0) + 1);
+    energy += transferTileCropToPlace(place, tile, C.ENERGY, 5, (baseline?.energy || 0) + 1);
+  }
+  const harvested = organic + energy;
   if (!harvested) return false;
   const ev = emitEvent("CropHarvestedEvent", {
     subjects: [workerId, place.entityId].filter(Boolean),
@@ -261,7 +342,7 @@ function harvestCultivatedField(workerId, field, place) {
     factions: place.factionId ? [place.factionId] : [],
     causes: [field.causeEvent],
     evidence: [
-      `${harvested} crop matter moved from the field tile into ${place.name}'s finite storage`,
+      `${harvested} crop matter moved from ${tiles.length} field tiles into ${place.name}'s finite storage`,
       `${organic} organic and ${energy} energetic packets were actually transferred`,
     ],
     magnitude: harvested,
@@ -279,7 +360,10 @@ function harvestCultivatedField(workerId, field, place) {
   field.lastLaborTick = W.tick;
   field.growth = 0;
   field.causeEvent = ev.id;
-  W.tiles.plantOrder[field.tile] = u16(Math.max(0, W.tiles.plantOrder[field.tile] - harvested * 3));
+  for (const tile of tiles)
+    W.tiles.plantOrder[tile] = u16(
+      Math.max(0, W.tiles.plantOrder[tile] - Math.ceil((harvested * 3) / tiles.length)),
+    );
   if (place.importantEvents) place.importantEvents.push(ev.id);
   setWorkAction(
     workerId,
@@ -323,12 +407,12 @@ function performFarmLabor(workerId) {
   if (field.stage === "fallow") return sowCultivatedField(workerId, field, place);
   if (field.stage === "ripe") return harvestCultivatedField(workerId, field, place);
   if (["sown", "growing"].includes(field.stage)) {
-    const moved = transferPlaceMatterToTile(place, field.tile, [
-      [C.SOLVENT, 2],
-      [C.NUTRIENT, 1],
+    const moved = transferPlaceMatterToField(place, field.tiles, [
+      [C.SOLVENT, Math.max(2, field.tiles.length)],
+      [C.NUTRIENT, Math.max(1, Math.ceil(field.tiles.length / 3))],
     ]);
     field.lastLaborTick = W.tick;
-    W.tiles.soilOrder[field.tile] = u16(W.tiles.soilOrder[field.tile] + 3);
+    for (const tile of field.tiles) W.tiles.soilOrder[tile] = u16(W.tiles.soilOrder[tile] + 1);
     setWorkAction(
       workerId,
       "tend",
@@ -386,7 +470,7 @@ function ensureHerdEnclosure(herd, place) {
 }
 
 function herdEnclosureRadius(herd) {
-  return clamp(2 + Math.floor(Math.sqrt(Math.max(1, herd.animalIds.length)) / 2), 2, 4);
+  return 1;
 }
 
 function enclosureCondition(enclosure) {
@@ -398,8 +482,10 @@ function enclosureCondition(enclosure) {
 function animalInsideEnclosure(animalId, herd, enclosure = herdEnclosure(herd)) {
   const position = W.components.position[animalId];
   if (!position || !enclosure?.complete || enclosure.ruined) return false;
-  const radius = herdEnclosureRadius(herd);
-  return dist2(position.x, position.y, enclosure.x, enclosure.y) <= radius * radius;
+  return (
+    Math.max(Math.abs(position.x - enclosure.x), Math.abs(position.y - enclosure.y)) <=
+    herdEnclosureRadius(herd)
+  );
 }
 
 function removeHerdAnimal(herd, animalId) {
@@ -432,28 +518,20 @@ function constrainHerdMovement(animalId, proposedX, proposedY) {
   if (!position || !herd || !enclosure?.complete || enclosure.ruined)
     return { x: proposedX, y: proposedY };
   const radius = herdEnclosureRadius(herd),
-    currentDistance = dist2(position.x, position.y, enclosure.x, enclosure.y),
-    proposedDistance = dist2(proposedX, proposedY, enclosure.x, enclosure.y),
-    limit = radius * radius;
-  if (proposedDistance <= limit || (currentDistance > limit && proposedDistance < currentDistance))
-    return { x: proposedX, y: proposedY };
-  if (currentDistance > limit) return { x: position.x, y: position.y };
-  const condition = enclosureCondition(enclosure);
-  if (condition >= 0.35) {
-    herd.state = "contained behind a closed material gate";
-    return { x: position.x, y: position.y };
-  }
-  const life = W.components.life[animalId],
-    hunger = clamp((life?.hunger || 0) / 100, 0, 1),
-    escapeChance = clamp(
-      0.08 + (0.35 - condition) * 1.4 + hunger * 0.24 - (life?.domestication || 0) * 0.18,
-      0.04,
-      0.72,
+    currentDistance = Math.max(
+      Math.abs(position.x - enclosure.x),
+      Math.abs(position.y - enclosure.y),
+    ),
+    proposedDistance = Math.max(
+      Math.abs(proposedX - enclosure.x),
+      Math.abs(proposedY - enclosure.y),
     );
-  if (counterRand("corral-escape", W.tick, animalId, enclosure.id) < escapeChance) {
-    releaseEscapedAnimal(herd, animalId, enclosure);
+  if (
+    proposedDistance <= radius ||
+    (currentDistance > radius && proposedDistance < currentDistance)
+  )
     return { x: proposedX, y: proposedY };
-  }
+  herd.state = "contained behind a closed material gate";
   return { x: position.x, y: position.y };
 }
 
@@ -491,7 +569,7 @@ function enclosureBlocksPredator(predatorId, animalId) {
     return false;
   const predator = W.components.position[predatorId];
   if (!predator || animalInsideEnclosure(predatorId, herd, enclosure)) return false;
-  if (enclosureCondition(enclosure) < 0.35) return false;
+  if (enclosure.integrity <= 0) return false;
   const life = W.components.life[predatorId],
     previous = life?.lastEnclosureAttackTick ?? -999;
   if (W.tick - previous >= 5) {
@@ -518,8 +596,7 @@ function enclosureBlocksPredator(predatorId, animalId) {
     event.magnitude = damage;
     event.data.damage = damage;
     event.data.remainingIntegrity = enclosure.integrity;
-    if (enclosure.ruined || enclosureCondition(enclosure) < 0.35)
-      markEnclosureBreach(herd, enclosure, predatorId, event.id);
+    if (enclosure.ruined) markEnclosureBreach(herd, enclosure, predatorId, event.id);
     else herd.state = "predator stopped at material enclosure";
   }
   return true;
@@ -673,20 +750,58 @@ function absorbHerdBirths(herd) {
 }
 
 function feedEnclosedHerd(herd, place, enclosure) {
-  if (W.tick % 32 || !enclosure?.complete || enclosure.ruined) return 0;
+  if (W.tick % 8 || !enclosure?.complete || enclosure.ruined) return 0;
   const tile = idx(enclosure.x, enclosure.y),
-    members = herd.animalIds.filter(classifyAlive).length;
-  if (!members || tileFood(tile, "grazer") >= members * 2.5) return 0;
+    animals = herd.animalIds.filter(classifyAlive),
+    interiorTiles = farmFootprintTiles(enclosure);
+  if (!animals.length) return 0;
   let moved = 0;
-  for (const [species, requested] of [
-    [C.ORGANIC, Math.max(1, Math.ceil(members * 0.7))],
-    [C.NUTRIENT, Math.max(1, Math.ceil(members * 0.24))],
-  ]) {
-    const amount = Math.min(place.inventory?.[species] || 0, requested);
-    if (!amount) continue;
-    place.inventory[species] -= amount;
-    setTileMatterAmount(tile, species, tileMatterAmount(tile, species) + amount);
-    moved += amount;
+  for (const animal of animals) {
+    const chemistry = W.components.chemistry[animal]?.q,
+      digestive = W.components.inventory[animal]?.digestive;
+    if (!chemistry || !digestive) continue;
+    for (const [species, target] of [
+      [C.ORGANIC, 18],
+      [C.NUTRIENT, 9],
+    ]) {
+      const amount = Math.min(
+        Math.max(0, target - digestive[species]),
+        place.inventory?.[species] || 0,
+        65535 - digestive[species],
+      );
+      if (!amount) continue;
+      place.inventory[species] -= amount;
+      digestive[species] += amount;
+      moved += amount;
+    }
+    const water = Math.min(
+      Math.max(0, 120 - chemistry[C.SOLVENT]),
+      place.inventory?.[C.SOLVENT] || 0,
+      65535 - chemistry[C.SOLVENT],
+    );
+    if (water) {
+      place.inventory[C.SOLVENT] -= water;
+      chemistry[C.SOLVENT] += water;
+      moved += water;
+    }
+  }
+  if (!moved) {
+    for (const [n, interiorTile] of interiorTiles.entries()) {
+      const species = n % 3 === 2 ? C.NUTRIENT : C.ORGANIC,
+        reserve = species === C.ORGANIC ? 8 : 5,
+        sourceTiles = squareTilesAround(tile, 5)
+          .filter((source) => !interiorTiles.includes(source))
+          .sort(
+            (left, right) =>
+              tileMatterAmount(right, species) - tileMatterAmount(left, species) || left - right,
+          ),
+        source = sourceTiles.find((candidate) => tileMatterAmount(candidate, species) > reserve);
+      if (source == null) continue;
+      const amount = Math.min(2, tileMatterAmount(source, species) - reserve);
+      setTileMatterAmount(source, species, tileMatterAmount(source, species) - amount);
+      setTileMatterAmount(interiorTile, species, tileMatterAmount(interiorTile, species) + amount);
+      moved += amount;
+    }
   }
   if (!moved) return 0;
   const event = emitEvent("HerdFedEvent", {
@@ -695,8 +810,8 @@ function feedEnclosedHerd(herd, place, enclosure) {
     factions: place.factionId ? [place.factionId] : [],
     causes: [herd.causeEvent],
     evidence: [
-      `${moved} conserved food matter moved from community stores into the enclosure`,
-      "contained prey still consume ordinary tile chemistry rather than an abstract feed score",
+      `${moved} conserved food and water packets were provisioned across the nine-tile enclosure`,
+      "ranch feed came from community stores or nearby forage and entered real digestive/body chemistry",
     ],
     magnitude: moved,
     importance: 1,
@@ -705,6 +820,41 @@ function feedEnclosedHerd(herd, place, enclosure) {
   herd.causeEvent = event.id;
   return moved;
 }
+
+const shelterProtectionHerdBase = shelterProtectionAt;
+shelterProtectionAt = function (id, tile) {
+  const protection = shelterProtectionHerdBase(id, tile),
+    herd = herdForAnimal(id),
+    enclosure = herdEnclosure(herd);
+  if (
+    W.kind[id] !== KINDS.HERBIVORE ||
+    !enclosure?.complete ||
+    enclosure.ruined ||
+    !animalInsideEnclosure(id, herd, enclosure)
+  )
+    return protection;
+  return Math.max(protection, 0.9 * Math.max(0.35, enclosureCondition(enclosure)));
+};
+
+const updateHealthHerdBase = updateHealth;
+updateHealth = function (id) {
+  const herd = herdForAnimal(id),
+    enclosure = herdEnclosure(herd);
+  if (
+    W.kind[id] === KINDS.HERBIVORE &&
+    enclosure?.complete &&
+    !enclosure.ruined &&
+    animalInsideEnclosure(id, herd, enclosure)
+  ) {
+    const position = W.components.position[id],
+      tile = idx(position.x, position.y),
+      chemistry = W.components.chemistry[id]?.q,
+      digestive = W.components.inventory[id]?.digestive;
+    if (digestive?.[C.ORGANIC] < 6) performFeeding(id, tile);
+    if (chemistry?.[C.SOLVENT] < 35) performDrinking(id, tile);
+  }
+  return updateHealthHerdBase(id);
+};
 
 function factionsAtWar(left, right) {
   return !!(
@@ -748,7 +898,7 @@ function updateHerdTheftThreats() {
       previous = thiefLife.lastHerdTheftTick ?? -999;
     if (W.tick - previous < 16) continue;
     thiefLife.lastHerdTheftTick = W.tick;
-    if (enclosureCondition(enclosure) >= 0.35) {
+    if (enclosure.complete && !enclosure.ruined) {
       const event = emitEvent("HerdTheftPreventedEvent", {
           subjects: [thief, herd.herderId, herd.animalIds[0]],
           location: idx(enclosure.x, enclosure.y),
@@ -773,8 +923,7 @@ function updateHerdTheftThreats() {
       event.data.remainingIntegrity = enclosure.integrity;
       herd.state = "theft attempt stopped by enclosure";
       herd.causeEvent = event.id;
-      if (enclosure.ruined || enclosureCondition(enclosure) < 0.35)
-        markEnclosureBreach(herd, enclosure, thief, event.id);
+      if (enclosure.ruined) markEnclosureBreach(herd, enclosure, thief, event.id);
       continue;
     }
     const thiefPosition = W.components.position[thief],
@@ -1161,7 +1310,7 @@ organismInspector = function (id) {
     materials = enclosure?.requirements
       ?.map(([species]) => W.definitions.species[species].name)
       .join(" + ");
-  html += `<div class="subhead">Living herd state</div><div class="card"><div class="kv"><span>Herd</span><b>${herd.id} · ${esc(herd.state)}</b><span>Home community</span><b>${esc(place?.name || "dispersed")}</b><span>Herder</span><b>${esc(herder)}</b><span>Living herd members</span><b>${herd.animalIds.filter(classifyAlive).length}</b><span>Domestication</span><b>${pct((W.components.life[id].domestication || 0) * 100)}</b><span>Pasture tile</span><b>${xy(herd.pastureTile).join(", ")}</b><span>Enclosure</span><b>${enclosure ? `${esc(enclosure.name)} · ${enclosure.complete && !enclosure.ruined ? `${pct(enclosureCondition(enclosure) * 100)} secure` : enclosure.ruined ? "breached" : `${pct(enclosure.progress * 100)} built`}` : "not planned"}</b><span>Fence analogue</span><b>${esc(materials || "awaiting materials")}</b><span>Gate</span><b>${enclosure?.complete && enclosureCondition(enclosure) >= 0.35 ? "closed and containing" : "open or breached"}</b></div><div class="divider"></div><small class="muted">This is still a normal prey organism: it feeds, reproduces, can be injured, and can be killed. A completed enclosure physically constrains movement and must be damaged before predators or wartime thieves can cross it.</small></div>`;
+  html += `<div class="subhead">Living herd state</div><div class="card"><div class="kv"><span>Herd</span><b>${herd.id} · ${esc(herd.state)}</b><span>Home community</span><b>${esc(place?.name || "dispersed")}</b><span>Herder</span><b>${esc(herder)}</b><span>Living herd members</span><b>${herd.animalIds.filter(classifyAlive).length}</b><span>Domestication</span><b>${pct((W.components.life[id].domestication || 0) * 100)}</b><span>Pasture tile</span><b>${xy(herd.pastureTile).join(", ")}</b><span>Enclosure</span><b>${enclosure ? `${esc(enclosure.name)} · ${enclosure.complete && !enclosure.ruined ? `${pct(enclosureCondition(enclosure) * 100)} secure` : enclosure.ruined ? "breached" : `${pct(enclosure.progress * 100)} built`}` : "not planned"}</b><span>Fence analogue</span><b>${esc(materials || "awaiting materials")}</b><span>Gate</span><b>${enclosure?.complete && !enclosure.ruined ? "closed and containing" : "open or breached"}</b></div><div class="divider"></div><small class="muted">This remains an individually simulated prey organism. A completed standing enclosure constrains movement to its nine interior tiles, provisions conserved feed and water, blocks attacks and theft, and opens only when the structure is actually ruined.</small></div>`;
   return html;
 };
 
@@ -1368,6 +1517,30 @@ function debugAgricultureHerdingProbe() {
     W.tick += 64;
     updateCultivatedField(building, place, worker);
   }
+  const cropVisual =
+      field.stage === "ripe" && typeof cultivatedCropVisual === "function"
+        ? cultivatedCropVisual(field, building)
+        : null,
+    alternateCropVisual = cropVisual
+      ? cultivatedCropVisual(
+          {
+            ...field,
+            cropChemistry: {
+              ...field.cropChemistry,
+              [C.PIGMENT]: (field.cropChemistry?.[C.PIGMENT] || 0) + 997,
+              [C.CATALYST]: (field.cropChemistry?.[C.CATALYST] || 0) + 431,
+            },
+          },
+          building,
+        )
+      : null,
+    cropVisualVaries =
+      !!cropVisual &&
+      !!alternateCropVisual &&
+      (cropVisual.form !== alternateCropVisual.form ||
+        cropVisual.stemHue !== alternateCropVisual.stemHue ||
+        cropVisual.bloomHue !== alternateCropVisual.bloomHue);
+  if (cropVisual) drawBuildingSite(ctx, building, 0, projectionMetrics());
   const harvested = field.stage === "ripe" && harvestCultivatedField(worker, field, place);
   const localPrey = prey.slice(0, 4);
   for (let index = 0; index < localPrey.length; index++) {
@@ -1407,6 +1580,21 @@ function debugAgricultureHerdingProbe() {
       !!constrained &&
       constrained.x === animalPosition.x &&
       constrained.y === animalPosition.y;
+  let damagedStandingContainment = false;
+  if (herd && enclosure && animalPosition) {
+    const priorIntegrity = enclosure.integrity;
+    enclosure.integrity = 1;
+    const damagedConstraint = constrainHerdMovement(
+      protectedAnimal,
+      clamp(enclosure.x + radius + 1, 0, W.width - 1),
+      enclosure.y,
+    );
+    damagedStandingContainment =
+      !enclosure.ruined &&
+      damagedConstraint.x === animalPosition.x &&
+      damagedConstraint.y === animalPosition.y;
+    enclosure.integrity = priorIntegrity;
+  }
   if (herd && enclosure && protectedAnimal) {
     workerPosition.x = clamp(enclosure.x + radius + 1, 0, W.width - 1);
     workerPosition.y = enclosure.y;
@@ -1495,10 +1683,12 @@ function debugAgricultureHerdingProbe() {
     ok:
       !!sown &&
       !!harvested &&
+      cropVisualVaries &&
       !!herd &&
       !!enclosure &&
       enclosure.complete &&
       containmentBlocked &&
+      damagedStandingContainment &&
       enclosureBlockedPredator &&
       theftPrevented &&
       herd.animalIds.length >= 2 &&
@@ -1518,6 +1708,14 @@ function debugAgricultureHerdingProbe() {
       harvested,
       stage: field.stage,
       cycles: field.cycles,
+      visual: cropVisual
+        ? {
+            form: cropVisual.form,
+            stemHue: cropVisual.stemHue,
+            bloomHue: cropVisual.bloomHue,
+            chemistryVaries: cropVisualVaries,
+          }
+        : null,
     },
     herd: herd
       ? {
@@ -1532,6 +1730,7 @@ function debugAgricultureHerdingProbe() {
                 condition: enclosureCondition(enclosure),
                 materials: enclosure.requirements.map(([species, amount]) => [species, amount]),
                 containmentBlocked,
+                damagedStandingContainment,
                 predatorBlocked: enclosureBlockedPredator,
                 theftBlocked: theftPrevented,
               }

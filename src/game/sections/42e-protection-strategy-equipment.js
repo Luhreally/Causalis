@@ -39,6 +39,126 @@ buildingScreenSize = function (building, metrics) {
   return buildingScreenSizeFarmBase(building, metrics);
 };
 
+function cultivatedCropVisual(field, building) {
+  const chemistry = field?.cropChemistry || fieldChemistrySignature(field),
+    values = [
+      chemistry?.[C.ORGANIC] || 0,
+      chemistry?.[C.NUTRIENT] || 0,
+      chemistry?.[C.SOLVENT] || 0,
+      chemistry?.[C.PIGMENT] || 0,
+      chemistry?.[C.CATALYST] || 0,
+      chemistry?.[C.MINERAL] || 0,
+    ],
+    seed = hashParts(
+      W.seedHash,
+      "cultivated-crop-visual",
+      building.styleSeed || building.id,
+      ...values.map((value) => value >> 3),
+    ),
+    forms = ["stalk", "rosette", "reed", "fruiting-vine", "fanleaf", "bulb"],
+    pigmentHue = W.definitions.species[C.PIGMENT]?.colorHue ?? W.terrainGenome?.floraHue ?? 110,
+    nutrientBias = (values[1] % 61) - 30,
+    catalystBias = (values[4] % 47) - 23;
+  return {
+    seed,
+    form: forms[seed % forms.length],
+    stemHue: wrapHue(pigmentHue + nutrientBias + (seed % 37) - 18),
+    bloomHue: wrapHue(pigmentHue + 95 + catalystBias + ((seed >>> 8) % 53)),
+    height: 0.78 + ((seed >>> 12) % 45) / 100,
+    leafWidth: 0.72 + ((seed >>> 18) % 55) / 100,
+  };
+}
+
+function cropQuadPoint(points, u, v) {
+  const topX = lerp(points[0][0], points[1][0], u),
+    topY = lerp(points[0][1], points[1][1], u),
+    bottomX = lerp(points[3][0], points[2][0], u),
+    bottomY = lerp(points[3][1], points[2][1], u);
+  return [lerp(topX, bottomX, v), lerp(topY, bottomY, v)];
+}
+
+function drawCultivatedCrop(g, x, y, size, profile, stage, variant) {
+  const mature = stage === "ripe",
+    young = stage === "sown",
+    height = size * profile.height * (young ? 0.45 : mature ? 1.15 : 0.82),
+    width = size * profile.leafWidth,
+    sway = ((variant % 5) - 2) * size * 0.07;
+  g.save();
+  g.translate(x, y);
+  g.lineCap = "round";
+  g.strokeStyle = hsl(profile.stemHue, 55, mature ? 38 : 46, 0.96);
+  g.fillStyle = hsl(profile.stemHue + 8, 62, young ? 55 : 43, 0.94);
+  g.lineWidth = Math.max(1, size * 0.13);
+  if (profile.form === "rosette") {
+    for (let leaf = 0; leaf < (young ? 4 : 7); leaf++) {
+      g.save();
+      g.rotate((Math.PI * 2 * leaf) / (young ? 4 : 7) + variant * 0.17);
+      g.beginPath();
+      g.ellipse(0, -width * 0.42, width * 0.22, width * 0.58, 0, 0, Math.PI * 2);
+      g.fill();
+      g.restore();
+    }
+  } else if (profile.form === "reed") {
+    for (const offset of [-0.28, 0, 0.28]) {
+      g.beginPath();
+      g.moveTo(offset * width, 0);
+      g.lineTo(offset * width + sway, -height * (1 - Math.abs(offset) * 0.22));
+      g.stroke();
+      if (!young) {
+        g.fillStyle = hsl(profile.bloomHue, 64, mature ? 62 : 49, 0.96);
+        g.beginPath();
+        g.ellipse(
+          offset * width + sway,
+          -height * (1 - Math.abs(offset) * 0.22),
+          width * 0.13,
+          height * 0.18,
+          0,
+          0,
+          Math.PI * 2,
+        );
+        g.fill();
+      }
+    }
+  } else {
+    g.beginPath();
+    g.moveTo(0, 0);
+    if (profile.form === "fruiting-vine")
+      g.quadraticCurveTo(width * 0.7, -height * 0.45, sway, -height);
+    else g.lineTo(sway, -height);
+    g.stroke();
+    for (const side of [-1, 1]) {
+      g.save();
+      g.translate(sway * 0.45, -height * (side < 0 ? 0.42 : 0.68));
+      g.rotate(side * (profile.form === "fanleaf" ? 0.95 : 0.62));
+      g.beginPath();
+      g.ellipse(0, -width * 0.25, width * 0.2, width * 0.52, 0, 0, Math.PI * 2);
+      g.fill();
+      g.restore();
+    }
+    if (profile.form === "fanleaf" && !young)
+      for (const fan of [-1, 0, 1]) {
+        g.beginPath();
+        g.moveTo(sway, -height * 0.8);
+        g.lineTo(sway + fan * width * 0.55, -height * 1.18);
+        g.stroke();
+      }
+    if (mature || profile.form === "bulb") {
+      g.fillStyle = hsl(profile.bloomHue, 72, mature ? 58 : 48, 0.98);
+      g.beginPath();
+      const fruitY = profile.form === "bulb" ? -height * 0.25 : -height;
+      g.arc(
+        sway,
+        fruitY,
+        Math.max(1.2, width * (profile.form === "bulb" ? 0.34 : 0.22)),
+        0,
+        Math.PI * 2,
+      );
+      g.fill();
+    }
+  }
+  g.restore();
+}
+
 const drawBuildingSiteFarmBase = drawBuildingSite;
 drawBuildingSite = function (g, building, now, metrics) {
   if (building?.type !== "farm" || building.ruined)
@@ -87,28 +207,22 @@ drawBuildingSite = function (g, building, now, metrics) {
     g.lineTo(right[0], right[1]);
     g.stroke();
   }
-  if (building.complete && ["sown", "growing", "ripe"].includes(stage)) {
-    const cropCount = stage === "sown" ? 9 : stage === "growing" ? 18 : 27;
-    g.fillStyle = hsl(cropHue, stage === "ripe" ? 78 : 62, stage === "ripe" ? 61 : 48);
-    for (let n = 0; n < cropCount; n++) {
-      const row = n % 9,
-        band = Math.floor(n / 9),
-        u = 0.12 + (row / 8) * 0.76,
-        v = 0.22 + band * 0.27,
-        left = line(0, 3, v),
-        right = line(1, 2, v),
-        x = lerp(left[0], right[0], u),
-        y = lerp(left[1], right[1], u);
-      g.beginPath();
-      g.arc(
-        x,
-        y - radius * (stage === "ripe" ? 0.045 : 0.025),
-        Math.max(1, radius * 0.035),
-        0,
-        Math.PI * 2,
-      );
-      g.fill();
-    }
+  if (building.complete && field && ["sown", "growing", "ripe"].includes(stage)) {
+    const profile = cultivatedCropVisual(field, building),
+      plantsPerTile = stage === "sown" ? 1 : stage === "growing" ? 2 : 3,
+      cropSize = Math.max(2.2, radius * 0.105);
+    for (let tileRow = 0; tileRow < 3; tileRow++)
+      for (let tileColumn = 0; tileColumn < 3; tileColumn++)
+        for (let plant = 0; plant < plantsPerTile; plant++) {
+          const variant = tileRow * 17 + tileColumn * 5 + plant + profile.seed,
+            u =
+              (tileColumn +
+                (plantsPerTile === 1 ? 0.5 : 0.24 + plant * (0.52 / (plantsPerTile - 1)))) /
+              3,
+            v = (tileRow + 0.38 + (visualHash01(profile.seed, variant) - 0.5) * 0.24) / 3,
+            [x, y] = cropQuadPoint(points, u, v);
+          drawCultivatedCrop(g, x, y, cropSize, profile, stage, variant);
+        }
   }
   if (!building.complete) {
     g.fillStyle = palette.accent;
@@ -153,7 +267,7 @@ enclosureBlocksPredator = function (predatorId, animalId) {
     !enclosure?.complete ||
     enclosure.ruined ||
     !animalInsideEnclosure(animalId, herd, enclosure) ||
-    enclosureCondition(enclosure) < 0.2
+    enclosure.integrity <= 0
   )
     return false;
   const life = W.components.life[predatorId],
@@ -186,8 +300,7 @@ enclosureBlocksPredator = function (predatorId, animalId) {
     event.magnitude = damage;
     event.data.damage = damage;
     event.data.remainingIntegrity = enclosure.integrity;
-    if (enclosure.ruined || enclosureCondition(enclosure) < 0.2)
-      markEnclosureBreach(herd, enclosure, predatorId, event.id);
+    if (enclosure.ruined) markEnclosureBreach(herd, enclosure, predatorId, event.id);
     else herd.state = "predator stopped outside sealed enclosure";
   }
   return true;
@@ -197,7 +310,7 @@ function pushPredatorsOutsideEnclosures() {
   let moved = false;
   for (const herd of W.herds?.filter((candidate) => candidate.active) || []) {
     const enclosure = normalizeHerdEnclosure(herd, herdEnclosure(herd));
-    if (!enclosure?.complete || enclosure.ruined || enclosureCondition(enclosure) < 0.2) continue;
+    if (!enclosure?.complete || enclosure.ruined || enclosure.integrity <= 0) continue;
     const radius = herdEnclosureRadius(herd),
       predators = entityAtRadius(idx(enclosure.x, enclosure.y), radius + 1, KINDS.PREDATOR)
         .filter(classifyAlive)
