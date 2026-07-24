@@ -319,6 +319,34 @@ function developmentFootprintClear(x, y, radius, ignoreBuildingId = 0, ignoreFie
   }
   return true;
 }
+
+function farmFootprintNaturallyDry(x, y) {
+  for (let dy = -1; dy <= 1; dy++)
+    for (let dx = -1; dx <= 1; dx++) {
+      const tx = x + dx,
+        ty = y + dy;
+      if (!inside(tx, ty)) return false;
+      const tile = idx(tx, ty),
+        naturalWater = W.tiles.hydrologyBase?.[tile] ?? W.tiles.liquid[tile];
+      if (naturalWater >= 140) return false;
+    }
+  return true;
+}
+
+function buildingTerrainFootprintValid(type, x, y) {
+  const radius = type === "farm" || type === "corral" ? 1 : 0;
+  if (type === "farm" && !farmFootprintNaturallyDry(x, y)) return false;
+  for (let dy = -radius; dy <= radius; dy++)
+    for (let dx = -radius; dx <= radius; dx++) {
+      const tx = x + dx,
+        ty = y + dy;
+      if (!inside(tx, ty)) return false;
+      const tile = idx(tx, ty);
+      if (W.tiles.fire[tile] >= 200 || W.tiles.liquid[tile] >= (type === "farm" ? 220 : 700))
+        return false;
+    }
+  return true;
+}
 function localMaterialAbundance(tile, sp, r = 4) {
   const [cx, cy] = xy(tile);
   let total = 0;
@@ -445,12 +473,7 @@ function plannedBuildingTile(place, type, ordinal) {
       }
   for (const [tx, ty] of candidates) {
     if (!inside(tx, ty)) continue;
-    const ti = idx(tx, ty);
-    if (
-      developmentFootprintClear(tx, ty, footprint) &&
-      W.tiles.liquid[ti] < 700 &&
-      W.tiles.fire[ti] < 200
-    )
+    if (developmentFootprintClear(tx, ty, footprint) && buildingTerrainFootprintValid(type, tx, ty))
       return [tx, ty];
   }
   return null;
@@ -591,6 +614,8 @@ function completeBuilding(b) {
   b.progress = 1;
   b.integrity = b.maxIntegrity;
   b.completedTick = W.tick;
+  if (typeof invalidateDevelopmentMovementCache === "function")
+    invalidateDevelopmentMovementCache();
   const order = W.workOrders.find((o) => o.buildingId === b.id && o.status !== "complete");
   if (order) order.status = "complete";
   const place = buildingPlace(b);
@@ -617,6 +642,8 @@ function collapseBuilding(b, evidence = "structural integrity failed", causeEven
   b.stage = 1;
   b.progress = buildingMaterialRatio(b) * 0.18;
   b.integrity = 0;
+  if (typeof invalidateDevelopmentMovementCache === "function")
+    invalidateDevelopmentMovementCache();
   const order = W.workOrders.find((o) => o.buildingId === b.id && o.status !== "complete");
   if (order) order.status = "cancelled";
   for (const id of W.activeIds)

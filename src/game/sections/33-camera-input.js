@@ -221,7 +221,6 @@ function makeCausalSkipState(limitOverride = 0) {
       limitOverride > 0
         ? Math.floor(limitOverride)
         : Math.min(24576, Math.round(base + probability * span));
-  causalSkipIntervene();
   return {
     startTick: W.tick,
     startStageIndex: authority.stageIndex,
@@ -239,8 +238,6 @@ function makeCausalSkipState(limitOverride = 0) {
 function causalSkipStep(state) {
   if (state.done || state.advanced >= state.limit)
     return ((state.done = true), (state.stopReason = state.stopReason || "horizon"), state);
-  if (W.civilization) W.civilization.concertedEffortUntil = W.tick + 8;
-  if (state.advanced > 0 && state.advanced % 160 === 0) causalSkipIntervene();
   simTick();
   state.advanced++;
   const authority = normalizeCivilizationAuthority();
@@ -279,11 +276,6 @@ function causalSkipStep(state) {
   return state;
 }
 function causalSkipResult(state) {
-  if (W?.civilization)
-    W.civilization.concertedEffortLevel =
-      state.stopReason === "milestone" || state.stopReason === "epoch"
-        ? 0
-        : Math.min((W.civilization.concertedEffortLevel || 0) + 1, 4);
   return {
     startTick: state.startTick,
     endTick: W.tick,
@@ -324,11 +316,16 @@ async function causalSkipForward() {
   try {
     const clickDeadline = performance.now() + 8000;
     while (!state.done) {
-      const frameStart = performance.now();
-      do causalSkipStep(state);
-      while (
+      const frameStart = performance.now(),
+        tickBudget = UI.quality === "low" ? 12 : 6;
+      let frameTicks = 0;
+      do {
+        causalSkipStep(state);
+        frameTicks++;
+      } while (
         !state.done &&
-        performance.now() - frameStart < 34 &&
+        frameTicks < 48 &&
+        performance.now() - frameStart < tickBudget &&
         performance.now() < clickDeadline
       );
       refreshTopbar();
@@ -337,7 +334,8 @@ async function causalSkipForward() {
         state.done = true;
         state.stopReason = "horizon";
       }
-      if (!state.done) await new Promise((resolve) => requestAnimationFrame(resolve));
+      if (!state.done)
+        await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
     }
     worldHash();
     refreshUI(true);

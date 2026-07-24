@@ -1403,6 +1403,7 @@ function agricultureHerdingAudit() {
       building &&
       (field.tile !== idx(building.x, building.y) ||
         (field.tiles || farmFootprintTiles(building)).length !== 9 ||
+        !farmFootprintNaturallyDry(building.x, building.y) ||
         (field.tiles || farmFootprintTiles(building)).some(
           (tile) => W.tiles.liquid[tile] >= 700 || W.tiles.fire[tile] >= 200,
         ))
@@ -1527,6 +1528,7 @@ function debugAgricultureHerdingProbe() {
     worker = people[0],
     building = debugCompletePhysicalFarm(place);
   if (!building) return { ok: false, reason: "could not assemble a conserved farm building" };
+  const farmTerrainDry = buildingTerrainFootprintValid("farm", building.x, building.y);
   for (const [species, amount] of [
     [C.ORGANIC, 18],
     [C.NUTRIENT, 18],
@@ -1751,6 +1753,7 @@ function debugAgricultureHerdingProbe() {
       farmFootprintClear &&
       corralContainsOnlyOwnedHerd &&
       farmPerimeterAccess &&
+      farmTerrainDry &&
       inventoryManifest &&
       herd.animalIds.length >= 2 &&
       defense >= 2 &&
@@ -1780,6 +1783,7 @@ function debugAgricultureHerdingProbe() {
       collision: {
         footprintClear: farmFootprintClear,
         perimeterAccess: farmPerimeterAccess,
+        allNineTilesDry: farmTerrainDry,
       },
     },
     herd: herd

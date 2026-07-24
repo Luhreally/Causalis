@@ -58,16 +58,22 @@ function cultivatedCropVisual(field, building) {
       ...values.map((value) => value >> 3),
     ),
     forms = ["stalk", "rosette", "reed", "fruiting-vine", "fanleaf", "bulb"],
+    fruitForms = ["berry", "pod", "cone", "cluster"],
     pigmentHue = W.definitions.species[C.PIGMENT]?.colorHue ?? W.terrainGenome?.floraHue ?? 110,
     nutrientBias = (values[1] % 61) - 30,
-    catalystBias = (values[4] % 47) - 23;
+    catalystBias = (values[4] % 47) - 23,
+    mineralBias = (values[5] % 43) - 21;
   return {
     seed,
     form: forms[seed % forms.length],
+    fruitForm: fruitForms[(seed >>> 5) % fruitForms.length],
     stemHue: wrapHue(pigmentHue + nutrientBias + (seed % 37) - 18),
     bloomHue: wrapHue(pigmentHue + 95 + catalystBias + ((seed >>> 8) % 53)),
+    leafHue: wrapHue(pigmentHue + nutrientBias * 0.4 + ((seed >>> 4) % 29) - 14),
+    soilHue: wrapHue((W.terrainGenome?.baseHue || 35) + mineralBias * 0.35),
     height: 0.78 + ((seed >>> 12) % 45) / 100,
     leafWidth: 0.72 + ((seed >>> 18) % 55) / 100,
+    density: 0.88 + ((seed >>> 22) % 33) / 100,
   };
 }
 
@@ -88,8 +94,12 @@ function drawCultivatedCrop(g, x, y, size, profile, stage, variant) {
   g.save();
   g.translate(x, y);
   g.lineCap = "round";
+  g.fillStyle = "rgba(0,0,0,.2)";
+  g.beginPath();
+  g.ellipse(0, size * 0.05, width * 0.34, size * 0.13, 0, 0, Math.PI * 2);
+  g.fill();
   g.strokeStyle = hsl(profile.stemHue, 55, mature ? 38 : 46, 0.96);
-  g.fillStyle = hsl(profile.stemHue + 8, 62, young ? 55 : 43, 0.94);
+  g.fillStyle = hsl(profile.leafHue, 62, young ? 55 : 43, 0.96);
   g.lineWidth = Math.max(1, size * 0.13);
   if (profile.form === "rosette") {
     for (let leaf = 0; leaf < (young ? 4 : 7); leaf++) {
@@ -98,6 +108,14 @@ function drawCultivatedCrop(g, x, y, size, profile, stage, variant) {
       g.beginPath();
       g.ellipse(0, -width * 0.42, width * 0.22, width * 0.58, 0, 0, Math.PI * 2);
       g.fill();
+      if (!young) {
+        g.strokeStyle = hsl(profile.leafHue + 18, 42, 68, 0.58);
+        g.lineWidth = Math.max(0.65, size * 0.045);
+        g.beginPath();
+        g.moveTo(0, 0);
+        g.lineTo(0, -width * 0.8);
+        g.stroke();
+      }
       g.restore();
     }
   } else if (profile.form === "reed") {
@@ -135,6 +153,12 @@ function drawCultivatedCrop(g, x, y, size, profile, stage, variant) {
       g.beginPath();
       g.ellipse(0, -width * 0.25, width * 0.2, width * 0.52, 0, 0, Math.PI * 2);
       g.fill();
+      g.strokeStyle = hsl(profile.leafHue + 20, 38, 68, 0.64);
+      g.lineWidth = Math.max(0.6, size * 0.045);
+      g.beginPath();
+      g.moveTo(0, 0);
+      g.lineTo(0, -width * 0.62);
+      g.stroke();
       g.restore();
     }
     if (profile.form === "fanleaf" && !young)
@@ -146,16 +170,23 @@ function drawCultivatedCrop(g, x, y, size, profile, stage, variant) {
       }
     if (mature || profile.form === "bulb") {
       g.fillStyle = hsl(profile.bloomHue, 72, mature ? 58 : 48, 0.98);
-      g.beginPath();
       const fruitY = profile.form === "bulb" ? -height * 0.25 : -height;
-      g.arc(
-        sway,
-        fruitY,
-        Math.max(1.2, width * (profile.form === "bulb" ? 0.34 : 0.22)),
-        0,
-        Math.PI * 2,
-      );
-      g.fill();
+      const fruitRadius = Math.max(1.2, width * (profile.form === "bulb" ? 0.34 : 0.2));
+      for (let fruit = 0; fruit < (mature && profile.fruitForm === "cluster" ? 3 : 1); fruit++) {
+        const angle = (fruit / 3) * Math.PI * 2 + variant * 0.31,
+          fx = sway + (fruit ? Math.cos(angle) * fruitRadius * 0.72 : 0),
+          fy = fruitY + (fruit ? Math.sin(angle) * fruitRadius * 0.52 : 0);
+        g.beginPath();
+        if (profile.fruitForm === "pod")
+          g.ellipse(fx, fy, fruitRadius * 0.58, fruitRadius * 1.25, angle, 0, Math.PI * 2);
+        else if (profile.fruitForm === "cone") {
+          g.moveTo(fx, fy - fruitRadius);
+          g.lineTo(fx + fruitRadius * 0.75, fy + fruitRadius);
+          g.lineTo(fx - fruitRadius * 0.75, fy + fruitRadius);
+          g.closePath();
+        } else g.arc(fx, fy, fruitRadius, 0, Math.PI * 2);
+        g.fill();
+      }
     }
   }
   g.restore();
@@ -172,6 +203,7 @@ drawBuildingSite = function (g, building, now, metrics) {
     stage = field?.stage || (building.complete ? "fallow" : "construction"),
     progress = building.complete ? 1 : clamp(building.progress || 0, 0, 1),
     points = buildingTileFootprintPoints(building, metrics, 3),
+    profile = field ? cultivatedCropVisual(field, building) : null,
     cropHue =
       stage === "ripe"
         ? 52
@@ -181,47 +213,76 @@ drawBuildingSite = function (g, building, now, metrics) {
             ? 88
             : W.terrainGenome?.baseHue || 35;
   g.save();
+  const soilDark = hsl(profile?.soilHue ?? cropHue, 34, 15, 0.96),
+    soilLight = hsl(profile?.soilHue ?? cropHue, 42, 25, 0.96);
   drawBuildingFootprint(
     g,
     screen,
     radius,
     UI.view,
-    hsl(cropHue, stage === "fallow" ? 24 : 48, stage === "ripe" ? 34 : 22, 0.92),
+    building.complete ? soilDark : hsl(cropHue, 30, 18, 0.92),
     building.complete ? palette.light : palette.accent,
     !building.complete,
     points,
   );
-  g.strokeStyle = hsl(cropHue, 46, 55, 0.7);
-  g.lineWidth = Math.max(1, radius * 0.035);
+  g.strokeStyle = soilLight;
+  g.lineWidth = Math.max(1, radius * 0.025);
   const line = (a, b, t) => [
     lerp(points[a][0], points[b][0], t),
     lerp(points[a][1], points[b][1], t),
   ];
-  for (const t of [1 / 3, 2 / 3]) {
+  for (const t of [0.08, 0.17, 0.29, 0.38, 0.5, 0.59, 0.71, 0.8, 0.92]) {
     const top = line(0, 1, t),
-      bottom = line(3, 2, t),
-      left = line(0, 3, t),
-      right = line(1, 2, t);
+      bottom = line(3, 2, t);
     g.beginPath();
     g.moveTo(top[0], top[1]);
     g.lineTo(bottom[0], bottom[1]);
-    g.moveTo(left[0], left[1]);
-    g.lineTo(right[0], right[1]);
     g.stroke();
   }
+  if (building.complete) {
+    g.fillStyle = hsl(profile?.soilHue ?? cropHue, 25, 40, 0.42);
+    for (let speck = 0; speck < 42; speck++) {
+      const u = 0.04 + visualHash01(building.styleSeed + speck, 0x51af) * 0.92,
+        v = 0.04 + visualHash01(building.styleSeed + speck, 0xa719) * 0.92,
+        [x, y] = cropQuadPoint(points, u, v);
+      g.beginPath();
+      g.arc(x, y, Math.max(0.5, radius * 0.008), 0, Math.PI * 2);
+      g.fill();
+    }
+    g.strokeStyle = hsl(W.terrainGenome?.liquidHue || 195, 52, 52, 0.55);
+    g.lineWidth = Math.max(1, radius * 0.032);
+    for (const u of [1 / 3, 2 / 3]) {
+      const top = cropQuadPoint(points, u, 0.03),
+        bottom = cropQuadPoint(points, u, 0.97);
+      g.beginPath();
+      g.moveTo(top[0], top[1]);
+      g.lineTo(bottom[0], bottom[1]);
+      g.stroke();
+    }
+  }
   if (building.complete && field && ["sown", "growing", "ripe"].includes(stage)) {
-    const profile = cultivatedCropVisual(field, building),
-      plantsPerTile = stage === "sown" ? 1 : stage === "growing" ? 2 : 3,
-      cropSize = Math.max(2.2, radius * 0.105);
+    const plantsPerTile = stage === "sown" ? 3 : stage === "growing" ? 5 : 7,
+      cropSize = Math.max(1.8, radius * 0.074 * profile.density);
     for (let tileRow = 0; tileRow < 3; tileRow++)
       for (let tileColumn = 0; tileColumn < 3; tileColumn++)
         for (let plant = 0; plant < plantsPerTile; plant++) {
           const variant = tileRow * 17 + tileColumn * 5 + plant + profile.seed,
+            plantRow = plantsPerTile <= 3 ? 0 : Math.floor(plant / 3),
+            plantsInRow = Math.min(3, plantsPerTile - plantRow * 3),
+            plantColumn = plant % 3,
             u =
               (tileColumn +
-                (plantsPerTile === 1 ? 0.5 : 0.24 + plant * (0.52 / (plantsPerTile - 1)))) /
+                (plantsInRow === 1
+                  ? 0.5
+                  : plantsInRow === 2
+                    ? 0.3 + plantColumn * 0.4
+                    : 0.16 + plantColumn * 0.34)) /
               3,
-            v = (tileRow + 0.38 + (visualHash01(profile.seed, variant) - 0.5) * 0.24) / 3,
+            v =
+              (tileRow +
+                (plantsPerTile <= 3 ? 0.52 : [0.26, 0.56, 0.79][plantRow]) +
+                (visualHash01(profile.seed, variant) - 0.5) * 0.1) /
+              3,
             [x, y] = cropQuadPoint(points, u, v);
           drawCultivatedCrop(g, x, y, cropSize, profile, stage, variant);
         }
@@ -363,16 +424,48 @@ function protectedBuildingForPerson(id) {
   return building;
 }
 
+let DEVELOPMENT_MOVEMENT_CACHE = {
+  world: null,
+  tick: -1,
+  buildingCount: -1,
+  tiles: new Map(),
+};
+
+function invalidateDevelopmentMovementCache() {
+  DEVELOPMENT_MOVEMENT_CACHE.tick = -1;
+}
+
+function rebuildDevelopmentMovementCache() {
+  const tiles = new Map();
+  for (const building of W.buildings || []) {
+    if (!building.complete || building.ruined || building.integrity <= 0) continue;
+    const radius = building.type === "farm" || building.type === "corral" ? 1 : 0;
+    for (let dy = -radius; dy <= radius; dy++)
+      for (let dx = -radius; dx <= radius; dx++) {
+        const x = building.x + dx,
+          y = building.y + dy;
+        if (!inside(x, y)) continue;
+        const tile = idx(x, y),
+          prior = tiles.get(tile);
+        if (!prior || building.id < prior.id) tiles.set(tile, building);
+      }
+  }
+  DEVELOPMENT_MOVEMENT_CACHE = {
+    world: W,
+    tick: W.tick,
+    buildingCount: W.buildings?.length || 0,
+    tiles,
+  };
+}
+
 function standingBuildingAtMovementTile(x, y) {
-  return (
-    (W.buildings || [])
-      .filter((building) => building.complete && !building.ruined && building.integrity > 0)
-      .sort((left, right) => left.id - right.id)
-      .find((building) => {
-        const radius = building.type === "farm" || building.type === "corral" ? 1 : 0;
-        return Math.max(Math.abs(x - building.x), Math.abs(y - building.y)) <= radius;
-      }) || null
-  );
+  if (
+    DEVELOPMENT_MOVEMENT_CACHE.world !== W ||
+    DEVELOPMENT_MOVEMENT_CACHE.tick !== W.tick ||
+    DEVELOPMENT_MOVEMENT_CACHE.buildingCount !== (W.buildings?.length || 0)
+  )
+    rebuildDevelopmentMovementCache();
+  return DEVELOPMENT_MOVEMENT_CACHE.tiles.get(idx(x, y)) || null;
 }
 
 function personMayEnterBuilding(id, building) {
@@ -1330,7 +1423,7 @@ const simTickPhysicalBuildingsBase = simTick;
 simTick = function () {
   simTickPhysicalBuildingsBase();
   if (!W) return;
-  if (W.tick % 8 === 0) {
+  if (W.tick % 64 === 0) {
     reconcileBuildingOccupancy();
     rebuildSpatialBins();
   }
