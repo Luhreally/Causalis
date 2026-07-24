@@ -14,6 +14,8 @@ const PROTECTIVE_BUILDING_TYPES = new Set([
   "clinic",
   "archive",
   "hall",
+  "hearth",
+  "waterworks",
 ]);
 
 function farmTiles(building) {
@@ -342,45 +344,185 @@ updateLivingHerds = function () {
 function buildingOccupancyCandidate(id) {
   if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) return null;
   const position = W.components.position[id],
-    life = W.components.life[id],
-    work = W.components.work?.[id];
+    life = W.components.life[id];
   if (!position || !life) return null;
-  const candidates = W.buildings
-    .filter(
-      (building) =>
-        building.complete &&
-        !building.ruined &&
-        PROTECTIVE_BUILDING_TYPES.has(building.type) &&
-        dist2(position.x, position.y, building.x, building.y) <= 16,
-    )
-    .map((building) => {
-      const distance = dist2(position.x, position.y, building.x, building.y),
-        onFootprint =
-          Math.max(Math.abs(position.x - building.x), Math.abs(position.y - building.y)) <=
-          buildingSpatialRadius(building.type),
-        activeWork =
-          work?.buildingId === building.id &&
-          work.task !== "idle" &&
-          W.tick - (work.handledTick ?? -999) <= 16,
-        resting =
-          ["rest", "socialize"].includes(life.behavior) &&
-          ["shelter", "clinic", "hall"].includes(building.type) &&
-          distance <= 9;
-      if (!onFootprint && !activeWork && !resting) return null;
-      return {
-        building,
-        score: distance - (onFootprint ? 8 : 0) - (activeWork ? 12 : 0) - (resting ? 4 : 0),
-      };
-    })
-    .filter(Boolean)
-    .sort((left, right) => left.score - right.score || left.building.id - right.building.id);
-  return candidates[0]?.building || null;
+  const building = W.buildings.find(
+    (candidate) =>
+      candidate.id === life.insideBuildingId &&
+      candidate.complete &&
+      !candidate.ruined &&
+      PROTECTIVE_BUILDING_TYPES.has(candidate.type),
+  );
+  if (!building || position.x !== building.x || position.y !== building.y) return null;
+  return building;
 }
 
 function protectedBuildingForPerson(id) {
   const building = buildingOccupancyCandidate(id);
-  if (W.components.life[id]) W.components.life[id].insideBuildingId = building?.id || 0;
+  if (!building && W.components.life[id]) W.components.life[id].insideBuildingId = 0;
   return building;
+}
+
+function standingBuildingAtMovementTile(x, y) {
+  return (
+    (W.buildings || [])
+      .filter((building) => building.complete && !building.ruined && building.integrity > 0)
+      .sort((left, right) => left.id - right.id)
+      .find((building) => {
+        const radius = building.type === "farm" || building.type === "corral" ? 1 : 0;
+        return Math.max(Math.abs(x - building.x), Math.abs(y - building.y)) <= radius;
+      }) || null
+  );
+}
+
+function personMayEnterBuilding(id, building) {
+  if (
+    W.kind[id] !== KINDS.PERSON ||
+    !building ||
+    ["farm", "corral", "wall"].includes(building.type)
+  )
+    return false;
+  const life = W.components.life[id],
+    work = W.components.work?.[id],
+    activeWork =
+      work?.buildingId === building.id &&
+      work.task !== "idle" &&
+      W.tick - (work.handledTick ?? -999) <= 16;
+  if (activeWork) return true;
+  if (life?.wounded || life?.infected)
+    return building.type === "clinic" || building.type === "shelter";
+  if (life?.behavior === "rest") return ["shelter", "hearth", "clinic"].includes(building.type);
+  if (life?.behavior === "return")
+    return ["shelter", "hall", "clinic", "hearth"].includes(building.type);
+  if (life?.behavior === "socialize") return ["hall", "hearth", "shelter"].includes(building.type);
+  return false;
+}
+
+function preferredReturnBuilding(id) {
+  if (W.kind[id] !== KINDS.PERSON) return nearestFriendlyPlace(id);
+  const place = nearestFriendlyPlace(id),
+    position = W.components.position[id];
+  if (!place || !position) return place;
+  const priorities = { shelter: 0, clinic: 1, hall: 2, hearth: 3 };
+  return (
+    completedBuildings(place)
+      .filter((building) => Object.hasOwn(priorities, building.type))
+      .sort(
+        (left, right) =>
+          priorities[left.type] - priorities[right.type] ||
+          dist2(position.x, position.y, left.x, left.y) -
+            dist2(position.x, position.y, right.x, right.y) ||
+          left.id - right.id,
+      )[0] || place
+  );
+}
+
+function herdOwnsCorralTile(id, building) {
+  if (W.kind[id] !== KINDS.HERBIVORE || building?.type !== "corral") return false;
+  const herd = herdForAnimal(id);
+  return !!herd && herd.enclosureBuildingId === building.id;
+}
+
+function movementTileBlocked(id, x, y) {
+  const building = standingBuildingAtMovementTile(x, y);
+  if (!building) return false;
+  if (herdOwnsCorralTile(id, building)) return false;
+  const life = W.components.life[id];
+  if (life?.insideBuildingId === building.id && x === building.x && y === building.y) return false;
+  return !(x === building.x && y === building.y && personMayEnterBuilding(id, building));
+}
+
+function constrainDevelopedMovement(id, proposedX, proposedY) {
+  const position = W.components.position[id],
+    life = W.components.life[id];
+  if (!position) return { x: proposedX, y: proposedY };
+  const occupied = life?.insideBuildingId
+    ? W.buildings.find(
+        (building) =>
+          building.id === life.insideBuildingId &&
+          building.complete &&
+          !building.ruined &&
+          building.integrity > 0,
+      )
+    : null;
+  if (occupied && (proposedX !== occupied.x || proposedY !== occupied.y)) {
+    life.insideBuildingId = 0;
+  }
+  const building = standingBuildingAtMovementTile(proposedX, proposedY);
+  if (!building) return { x: proposedX, y: proposedY };
+  if (herdOwnsCorralTile(id, building)) return { x: proposedX, y: proposedY };
+  if (
+    proposedX === building.x &&
+    proposedY === building.y &&
+    personMayEnterBuilding(id, building)
+  ) {
+    life.insideBuildingId = building.id;
+    return { x: proposedX, y: proposedY };
+  }
+  if (
+    life?.insideBuildingId === building.id &&
+    proposedX === building.x &&
+    proposedY === building.y
+  )
+    return { x: proposedX, y: proposedY };
+  return { x: position.x, y: position.y };
+}
+
+function nearestOpenDevelopmentTile(id, originX, originY) {
+  const options = [];
+  for (let radius = 1; radius <= 4; radius++) {
+    for (let dy = -radius; dy <= radius; dy++)
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+        const x = originX + dx,
+          y = originY + dy;
+        if (!inside(x, y) || movementTileBlocked(id, x, y)) continue;
+        options.push({
+          x,
+          y,
+          score:
+            radius * 1000 +
+            organismHabitatStress(id, idx(x, y)) * 10 +
+            (hashParts(W.seedHash, "building-exit", id, x, y) % 101),
+        });
+      }
+    if (options.length) break;
+  }
+  options.sort((left, right) => left.score - right.score || left.y - right.y || left.x - right.x);
+  return options[0] || null;
+}
+
+function reconcileBuildingOccupancy() {
+  for (const id of W.activeIds) {
+    if (![KINDS.PERSON, KINDS.PREDATOR, KINDS.HERBIVORE].includes(W.kind[id])) continue;
+    const position = W.components.position[id],
+      life = W.components.life[id];
+    if (!position || !life || !classifyAlive(id)) continue;
+    const building = standingBuildingAtMovementTile(position.x, position.y);
+    if (!building) {
+      life.insideBuildingId = 0;
+      continue;
+    }
+    if (herdOwnsCorralTile(id, building)) {
+      life.insideBuildingId = 0;
+      continue;
+    }
+    if (
+      position.x === building.x &&
+      position.y === building.y &&
+      personMayEnterBuilding(id, building)
+    ) {
+      life.insideBuildingId = building.id;
+      continue;
+    }
+    life.insideBuildingId = 0;
+    const exit = nearestOpenDevelopmentTile(id, building.x, building.y);
+    if (exit) {
+      position.x = exit.x;
+      position.y = exit.y;
+      position.regionId = regionId(exit.x, exit.y);
+    }
+  }
 }
 
 function attackerOutsideBuilding(attackerId, building) {
@@ -765,20 +907,32 @@ primitiveWarForm = function (id, recipe) {
     variants =
       tier >= 3
         ? [
-            { form: "spark-tube dart caster", capabilities: ["war", "ranged", "powder", "pierce"] },
-            { form: "thunder-seed projector", capabilities: ["war", "ranged", "powder", "crush"] },
             {
-              form: "rotary ember launcher",
-              capabilities: ["war", "ranged", "powder", "suppress"],
+              form: "spark-lock gun analogue",
+              capabilities: ["war", "ranged", "firearm", "gun", "powder", "pierce"],
+            },
+            {
+              form: "hand-cannon analogue",
+              capabilities: ["war", "ranged", "firearm", "gun", "powder", "crush"],
+            },
+            {
+              form: "rotary ember gun analogue",
+              capabilities: ["war", "ranged", "firearm", "gun", "powder", "suppress"],
             },
           ]
         : tier >= 2
           ? [
-              { form: "sinew recurved caster", capabilities: ["war", "ranged", "pierce"] },
-              { form: "torsion shard sling", capabilities: ["war", "ranged", "crush"] },
               {
-                form: "levered bolt thrower",
-                capabilities: ["war", "ranged", "pierce", "shield_break"],
+                form: "sinew-backed bow analogue",
+                capabilities: ["war", "ranged", "bow", "pierce"],
+              },
+              {
+                form: "torsion sling analogue",
+                capabilities: ["war", "ranged", "sling", "crush"],
+              },
+              {
+                form: "lever-drawn crossbow analogue",
+                capabilities: ["war", "ranged", "crossbow", "pierce", "shield_break"],
               },
             ]
           : recipe.head === C.BONE
@@ -1041,24 +1195,36 @@ function artifactFunctionalProfile(artifact, recipe) {
       ? "head"
       : capabilities.includes("limb_armor")
         ? "limbs"
-        : capabilities.includes("armor")
-          ? "torso"
-          : capabilities.includes("shield")
-            ? "off-hand"
+        : capabilities.includes("shield")
+          ? "off-hand"
+          : capabilities.includes("armor")
+            ? "torso"
             : capabilities.includes("war")
               ? "main hand"
               : "tool hand",
-    damageType = capabilities.includes("pierce")
-      ? "piercing"
-      : capabilities.includes("cut")
-        ? "cutting"
-        : capabilities.includes("crush")
-          ? "blunt"
-          : "utility";
+    damageType = capabilities.includes("firearm")
+      ? "ballistic"
+      : capabilities.includes("pierce")
+        ? "piercing"
+        : capabilities.includes("cut")
+          ? "cutting"
+          : capabilities.includes("crush")
+            ? "blunt"
+            : "utility";
   return {
     slot,
     damageType,
-    reach: capabilities.includes("ranged") ? 6 : capabilities.includes("reach") ? 2.4 : 1,
+    reach: capabilities.includes("firearm")
+      ? 8
+      : capabilities.includes("crossbow")
+        ? 7
+        : capabilities.includes("bow")
+          ? 7
+          : capabilities.includes("ranged")
+            ? 6
+            : capabilities.includes("reach")
+              ? 2.4
+              : 1,
     coverage: capabilities.includes("helmet")
       ? 0.18
       : capabilities.includes("limb_armor")
@@ -1158,6 +1324,16 @@ organismInspector = function (id) {
     })
     .join("")}</details>`;
   return html;
+};
+
+const simTickPhysicalBuildingsBase = simTick;
+simTick = function () {
+  simTickPhysicalBuildingsBase();
+  if (!W) return;
+  if (W.tick % 8 === 0) {
+    reconcileBuildingOccupancy();
+    rebuildSpatialBins();
+  }
 };
 
 const nonLifeInspectorDeepEquipmentBase = nonLifeInspector;

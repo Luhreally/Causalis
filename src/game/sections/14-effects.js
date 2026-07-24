@@ -90,6 +90,11 @@ function resolveEffects() {
             nx = constrained.x;
             ny = constrained.y;
           }
+          if (!d.forced && typeof constrainDevelopedMovement === "function") {
+            const constrained = constrainDevelopedMovement(d.entityId, nx, ny);
+            nx = constrained.x;
+            ny = constrained.y;
+          }
           p.x = nx;
           p.y = ny;
           p.regionId = regionId(nx, ny);

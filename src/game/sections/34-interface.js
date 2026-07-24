@@ -92,30 +92,66 @@ function personInventoryPanel(id) {
       return `<div title="${esc(d.name)} · ${n} units — ${esc(d.role || "material")}" style="${slotCss};background:${hsl(d.colorHue, 45, 20)};border:1px solid ${hsl(d.colorHue, 55, 42)}"><span style="font-size:9px;color:${hsl(d.colorHue, 70, 80)};text-align:center;line-height:1.05;overflow:hidden;max-height:30px;padding:0 2px">${esc(d.name.split(" ")[0].slice(0, 8))}</span><b style="position:absolute;right:3px;bottom:1px;font-size:10px;color:#ffe9b0">${n > 999 ? "999+" : n}</b></div>`;
     })
     .join("");
-  const arts = (inv.artifactIds || [])
+  const artifacts = (inv.artifactIds || [])
     .map((eid) => W.artifacts.find((a) => a.entityId === eid))
-    .filter((a) => a && a.tool)
+    .filter(Boolean)
+    .sort((left, right) => {
+      const lc = equipmentDisplayCategory(left),
+        rc = equipmentDisplayCategory(right);
+      return (
+        lc.localeCompare(rc) ||
+        (left.name || "").localeCompare(right.name || "") ||
+        left.entityId - right.entityId
+      );
+    });
+  const arts = artifacts
     .map((a) => {
-      const wear = 1 - a.tool.wear / Math.max(1, a.tool.durability),
-        war = a.tool.capabilities.includes("war"),
+      const capabilities = a.tool?.capabilities || [],
+        wear = a.tool ? 1 - a.tool.wear / Math.max(1, a.tool.durability) : 1,
+        functional = !a.tool || a.tool.wear < a.tool.durability,
+        category = equipmentDisplayCategory(a),
+        war = capabilities.includes("war"),
         hue = W.definitions.species[a.materialId]?.colorHue ?? 40,
-        glyph = a.tool.capabilities.includes("powder")
-          ? "✸"
-          : a.tool.capabilities.includes("ranged")
-            ? "➶"
-            : war
-              ? "⚔"
-              : a.tool.purpose === "mine"
-                ? "⛏"
-                : a.tool.purpose === "cut"
-                  ? "🪓"
-                  : a.tool.purpose === "gather"
-                    ? "✤"
-                    : "🔨";
-      return `<div data-world-target="${a.entityId}" title="${esc(a.name)} · quality ${a.quality} · ${Math.round(wear * 100)}% condition — ${esc(a.tool.capabilities.join(", "))}" style="${slotCss};cursor:pointer;background:${hsl(hue, 40, 16)};border:1.5px solid ${war ? "#e0645c" : hsl(hue, 60, 50)}"><span style="font-size:16px">${glyph}</span><i style="position:absolute;left:3px;right:3px;bottom:2px;height:3px;background:#0009;border-radius:2px"><i style="display:block;height:3px;border-radius:2px;width:${Math.round(clamp(wear, 0, 1) * 100)}%;background:${wear > 0.5 ? "#8fc07a" : "#e0645c"}"></i></i></div>`;
+        glyph =
+          capabilities.includes("gun") || capabilities.includes("firearm")
+            ? "✸"
+            : capabilities.includes("bow") || capabilities.includes("crossbow")
+              ? "➶"
+              : capabilities.includes("shield")
+                ? "◈"
+                : capabilities.includes("armor") || capabilities.includes("helmet")
+                  ? "⬡"
+                  : war
+                    ? "⚔"
+                    : capabilities.includes("mine")
+                      ? "⛏"
+                      : capabilities.includes("cut")
+                        ? "🪓"
+                        : capabilities.includes("gather")
+                          ? "✤"
+                          : "🔨",
+        form = a.tool?.form || "carried artifact",
+        functions = capabilities.length ? capabilities.join(" / ") : "material artifact";
+      return `<div data-world-target="${a.entityId}" style="cursor:pointer;display:grid;grid-template-columns:46px minmax(0,1fr);gap:8px;padding:7px;margin:5px 0;border-radius:7px;background:${hsl(hue, 32, 14)};border:1px solid ${war ? "#e0645c" : hsl(hue, 45, 38)}"><div title="${esc(category)}" style="${slotCss};background:${hsl(hue, 40, 18)};border:1px solid ${hsl(hue, 55, 42)}"><span style="font-size:18px">${glyph}</span><i style="position:absolute;left:3px;right:3px;bottom:2px;height:3px;background:#0009;border-radius:2px"><i style="display:block;height:3px;border-radius:2px;width:${Math.round(clamp(wear, 0, 1) * 100)}%;background:${functional && wear > 0.5 ? "#8fc07a" : "#e0645c"}"></i></i></div><div style="min-width:0"><div class="row between"><b>${esc(a.name || form)}</b><span class="tag ${functional ? "" : "red"}">${functional ? "ready" : "broken"}</span></div><small class="gold">${esc(category)} · quality ${a.quality ?? 0} · ${Math.round(clamp(wear, 0, 1) * 100)}% condition</small><div class="muted" style="font-size:11px;margin-top:2px">${esc(form)} · ${esc(functions)}</div></div></div>`;
     })
     .join("");
-  return `<details open><summary>Carried equipment and matter · ${(inv.artifactIds || []).length} item${(inv.artifactIds || []).length === 1 ? "" : "s"}</summary><div><div class="subhead">Equipment</div><div class="row wrap" style="gap:5px">${arts || `<span class="muted">bare-handed — no crafted equipment</span>`}</div><div class="subhead">Carried materials · ${fmt(sum(Array.from(inv.materials || [])))} mass</div><div class="row wrap" style="gap:5px">${matSlots || `<span class="muted">nothing carried</span>`}</div></div></details>`;
+  return `<details open><summary>Character inventory · ${artifacts.length} equipment item${artifacts.length === 1 ? "" : "s"}</summary><div><div class="subhead">All tools, weapons and armor</div><div class="muted" style="font-size:11px;margin-bottom:4px">Every intact carried item is automatically available to this character in work or combat.</div>${arts || `<span class="muted">bare-handed — no crafted equipment</span>`}<div class="subhead">Carried materials · ${fmt(sum(Array.from(inv.materials || [])))} mass</div><div class="row wrap" style="gap:5px">${matSlots || `<span class="muted">nothing carried</span>`}</div></div></details>`;
+}
+
+function equipmentDisplayCategory(artifact) {
+  const capabilities = artifact?.tool?.capabilities || [];
+  if (capabilities.includes("firearm") || capabilities.includes("gun")) return "Firearm analogue";
+  if (capabilities.includes("crossbow")) return "Crossbow analogue";
+  if (capabilities.includes("bow")) return "Bow analogue";
+  if (capabilities.includes("sling")) return "Sling weapon";
+  if (capabilities.includes("shield")) return "Shield";
+  if (capabilities.includes("helmet")) return "Helmet";
+  if (capabilities.includes("limb_armor")) return "Limb armor";
+  if (capabilities.includes("armor")) return "Body armor";
+  if (capabilities.includes("war"))
+    return capabilities.includes("ranged") ? "Ranged weapon" : "Melee weapon";
+  if (artifact?.tool) return `${titleCase(artifact.tool.purpose || "utility")} tool`;
+  return "Carried artifact";
 }
 function organismInspector(id) {
   const k = W.kind[id],

@@ -444,9 +444,20 @@ function drawCreatureGlyph(
 }
 function sceneEntityVisible(id, b) {
   const p = W.components.position[id],
-    k = W.kind[id];
+    k = W.kind[id],
+    insideBuildingId = W.components.life[id]?.insideBuildingId || 0,
+    insideStandingBuilding =
+      insideBuildingId &&
+      W.buildings.some(
+        (building) =>
+          building.id === insideBuildingId &&
+          building.complete &&
+          !building.ruined &&
+          building.integrity > 0,
+      );
   return (
     !!p &&
+    !insideStandingBuilding &&
     !ACTIVE_INTERIOR_IDS.has(id) &&
     !ACTIVE_PREDATION_IDS.has(id) &&
     k !== "faction" &&
@@ -992,6 +1003,7 @@ const INTERIOR_BUILDING_TYPES = new Set([
   "clinic",
   "archive",
   "hall",
+  "waterworks",
 ]);
 function householdGroups(residents) {
   const residentSet = new Set(residents),
@@ -1103,21 +1115,14 @@ function makeInteriorState(bounds) {
     }
     const interiors = completedBuildings(place).filter((b) => state.visible.has(b.id));
     for (const id of residents) {
-      const p = W.components.position[id],
-        homeId = state.homeByPerson.get(id) || 0;
-      let best = null;
-      for (const b of interiors) {
-        const d = dist2(p.x, p.y, b.x, b.y),
-          limit = b.id === homeId ? 10 : 5;
-        if (d > limit || !personFitsInterior(id, b, homeId)) continue;
-        const score =
-          d - (b.id === homeId ? 2 : 0) - (W.components.work?.[id]?.buildingId === b.id ? 4 : 0);
-        if (!best || score < best.score || (score === best.score && b.id < best.b.id))
-          best = { b, score };
-      }
-      if (best) {
-        state.inside.get(best.b.id).push(id);
-        ACTIVE_INTERIOR_IDS.add(id);
+      const explicitBuildingId = W.components.life[id]?.insideBuildingId || 0;
+      if (explicitBuildingId) {
+        const interior = interiors.find((building) => building.id === explicitBuildingId);
+        if (interior) {
+          state.inside.get(interior.id).push(id);
+          ACTIVE_INTERIOR_IDS.add(id);
+        }
+        continue;
       }
     }
   }

@@ -395,10 +395,12 @@ function performFarmLabor(workerId) {
   const building = W.buildings.find((candidate) => candidate.id === field.buildingId),
     position = W.components.position[workerId];
   if (!building || !position) return false;
-  if (dist2(position.x, position.y, building.x, building.y) > 2)
+  const access = farmLaborAccessTile(workerId, building);
+  if (!access) return false;
+  if (Math.max(Math.abs(position.x - access.x), Math.abs(position.y - access.y)) > 0)
     return moveWorkerToward(
       workerId,
-      field.tile,
+      idx(access.x, access.y),
       field.stage === "ripe" ? "harvest" : field.stage === "fallow" ? "sow" : "tend",
       `${field.stage === "ripe" ? "🧺 moving to harvest" : field.stage === "fallow" ? "🌱 carrying seed matter to" : "🌾 tending"} ${building.name}`,
       C.ORGANIC,
@@ -424,6 +426,30 @@ function performFarmLabor(workerId) {
     return true;
   }
   return false;
+}
+
+function farmLaborAccessTile(workerId, building) {
+  const position = W.components.position[workerId];
+  if (!position || !building) return null;
+  const options = [];
+  for (let dy = -2; dy <= 2; dy++)
+    for (let dx = -2; dx <= 2; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== 2) continue;
+      const x = building.x + dx,
+        y = building.y + dy;
+      if (!inside(x, y)) continue;
+      if (typeof movementTileBlocked === "function" && movementTileBlocked(workerId, x, y))
+        continue;
+      options.push({
+        x,
+        y,
+        score:
+          dist2(position.x, position.y, x, y) * 100 +
+          (hashParts(W.seedHash, "farm-access", workerId, building.id, x, y) % 97),
+      });
+    }
+  options.sort((left, right) => left.score - right.score || left.y - right.y || left.x - right.x);
+  return options[0] || null;
 }
 
 const performCivilLaborAgricultureBase = performCivilLabor;
@@ -1677,6 +1703,37 @@ function debugAgricultureHerdingProbe() {
         ? defendAgainstPredator(worker, predator, { targetId: protectedAnimal, herd }, true)
         : coordinatedDefenseEvents.length,
     defense = coordinatedDefenders.length,
+    farmAccess =
+      typeof farmLaborAccessTile === "function" ? farmLaborAccessTile(worker, building) : null;
+  if (typeof reconcileBuildingOccupancy === "function") reconcileBuildingOccupancy();
+  const farmFootprintClear = !W.activeIds.some((id) => {
+      const position = W.components.position[id];
+      return (
+        classifyAlive(id) &&
+        [KINDS.PERSON, KINDS.PREDATOR, KINDS.HERBIVORE].includes(W.kind[id]) &&
+        position &&
+        Math.max(Math.abs(position.x - building.x), Math.abs(position.y - building.y)) <= 1
+      );
+    }),
+    corralContainsOnlyOwnedHerd =
+      !herd ||
+      !enclosure ||
+      !W.activeIds.some((id) => {
+        const position = W.components.position[id];
+        if (
+          !classifyAlive(id) ||
+          !position ||
+          Math.max(Math.abs(position.x - enclosure.x), Math.abs(position.y - enclosure.y)) > 1
+        )
+          return false;
+        return !herd.animalIds.includes(id);
+      }),
+    farmPerimeterAccess =
+      !!farmAccess &&
+      Math.max(Math.abs(farmAccess.x - building.x), Math.abs(farmAccess.y - building.y)) === 2 &&
+      (typeof movementTileBlocked !== "function" ||
+        !movementTileBlocked(worker, farmAccess.x, farmAccess.y)),
+    inventoryManifest = personInventoryPanel(worker).includes("All tools, weapons and armor"),
     eventTypes = W.events.slice(-40).map((event) => event.type),
     matterDelta = totalMatter() - beforeMatter;
   return {
@@ -1691,6 +1748,10 @@ function debugAgricultureHerdingProbe() {
       damagedStandingContainment &&
       enclosureBlockedPredator &&
       theftPrevented &&
+      farmFootprintClear &&
+      corralContainsOnlyOwnedHerd &&
+      farmPerimeterAccess &&
+      inventoryManifest &&
       herd.animalIds.length >= 2 &&
       defense >= 2 &&
       eventTypes.includes("CropSownEvent") &&
@@ -1716,6 +1777,10 @@ function debugAgricultureHerdingProbe() {
             chemistryVaries: cropVisualVaries,
           }
         : null,
+      collision: {
+        footprintClear: farmFootprintClear,
+        perimeterAccess: farmPerimeterAccess,
+      },
     },
     herd: herd
       ? {
@@ -1733,6 +1798,7 @@ function debugAgricultureHerdingProbe() {
                 damagedStandingContainment,
                 predatorBlocked: enclosureBlockedPredator,
                 theftBlocked: theftPrevented,
+                ownedAnimalsOnly: corralContainsOnlyOwnedHerd,
               }
             : null,
         }
@@ -1746,6 +1812,7 @@ function debugAgricultureHerdingProbe() {
     },
     eventTypes,
     fluidSplatters: W.fluidSplatters.length,
+    inventoryManifest,
     matterDelta,
   };
 }

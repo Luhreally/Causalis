@@ -128,6 +128,8 @@ function directionScore(id, dx, dy, goal) {
     x = p.x + dx,
     y = p.y + dy;
   if (!inside(x, y)) return -1e9;
+  if ((dx || dy) && typeof movementTileBlocked === "function" && movementTileBlocked(id, x, y))
+    return -1e9;
   const i = idx(x, y),
     k = W.kind[id],
     life = W.components.life[id],
@@ -167,8 +169,11 @@ function directionScore(id, dx, dy, goal) {
   if (goal === "scavenge") score += blood * 2 + disease * -0.5;
   if (goal === "gather") score += tileResource(i) * 2 + food * 0.5;
   if (goal === "return") {
-    const s = nearestFriendlyPlace(id);
-    if (s) score -= Math.sqrt(dist2(x, y, s.x, s.y)) * 8;
+    const destination =
+      typeof preferredReturnBuilding === "function"
+        ? preferredReturnBuilding(id)
+        : nearestFriendlyPlace(id);
+    if (destination) score -= Math.sqrt(dist2(x, y, destination.x, destination.y)) * 8;
   }
   if (goal === "migrate") score += food + moist - danger - organismHabitatStress(id, i) * 1.5;
   score += counterRand("behavior-tie", W.tick, id, (dx + 2) * 13 + (dy + 2)) * 1e-3;

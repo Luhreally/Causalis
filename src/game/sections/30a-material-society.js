@@ -1936,6 +1936,8 @@ function moveWorkerToward(id, tile, task, phase, material = -1, buildingId = 0, 
         const x = p.x + d[0],
           y = p.y + d[1];
         if (!inside(x, y)) return { d, score: -1e9, n };
+        if (typeof movementTileBlocked === "function" && movementTileBlocked(id, x, y))
+          return { d, score: -1e9, n };
         const i = idx(x, y);
         return {
           d,
