@@ -253,6 +253,34 @@
   font-size: 9px;
   padding: 5px 6px;
 }
+
+.campaign-card {
+  margin: 10px 0;
+  border-color: color-mix(in srgb, var(--gold) 42%, var(--line));
+}
+
+.campaign-timing,
+.campaign-blockers {
+  margin-top: 8px;
+  padding: 8px 9px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--gold) 10%, transparent);
+  color: var(--gold);
+  font-size: 12px;
+}
+
+.campaign-blockers.ready {
+  background: color-mix(in srgb, #79c989 11%, transparent);
+  color: #9cd38c;
+}
+
+.campaign-requirement {
+  padding: 4px 0;
+}
+
+.good-text {
+  color: #9cd38c;
+}
 .guide-intro {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(180px, 0.6fr);

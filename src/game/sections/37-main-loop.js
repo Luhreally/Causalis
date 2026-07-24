@@ -47,6 +47,7 @@ function cacheDom() {
     "contextText",
     "tab-inspect",
     "tab-chronicle",
+    "tab-warfare",
     "tab-worldinfo",
     "tab-stats",
     "statsChart",
@@ -67,6 +68,7 @@ function cacheDom() {
   DOM.canvas = DOM.world;
   DOM.inspectPane = document.getElementById("tab-inspect");
   DOM.chroniclePane = document.getElementById("tab-chronicle");
+  DOM.warfarePane = document.getElementById("tab-warfare");
   DOM.worldPane = document.getElementById("tab-worldinfo");
   DOM.statsPane = document.getElementById("tab-stats");
   DOM.statsBody = $("#statsBody");

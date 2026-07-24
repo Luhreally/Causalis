@@ -31,20 +31,11 @@ function cultivatedField(building) {
   if (!building || building.type !== "farm" || !building.complete || building.ruined) return null;
   let field = W.fields.find((candidate) => candidate.buildingId === building.id);
   if (field) {
-    if (field.stage === "fallow" && !cultivatedPlotClear(field.tile, building, field.id)) {
-      const replacement = chooseCultivatedPlot(building, field.id);
-      if (replacement !== null) {
-        field.tile = replacement;
-        field.baseline = {
-          organic: tileMatterAmount(replacement, C.ORGANIC),
-          energy: tileMatterAmount(replacement, C.ENERGY),
-        };
-      }
-    }
+    field.tile = idx(building.x, building.y);
+    field.tiles = farmFootprintTiles(building);
     return field;
   }
-  const tile = chooseCultivatedPlot(building);
-  if (tile === null) return null;
+  const tile = idx(building.x, building.y);
   field = {
     id: W.nextFieldId++,
     buildingId: building.id,
@@ -64,9 +55,21 @@ function cultivatedField(building) {
       organic: tileMatterAmount(tile, C.ORGANIC),
       energy: tileMatterAmount(tile, C.ENERGY),
     },
+    tiles: farmFootprintTiles(building),
   };
   W.fields.push(field);
   return field;
+}
+
+function farmFootprintTiles(building) {
+  const tiles = [];
+  for (let dy = -1; dy <= 1; dy++)
+    for (let dx = -1; dx <= 1; dx++) {
+      const x = building.x + dx,
+        y = building.y + dy;
+      if (inside(x, y)) tiles.push(idx(x, y));
+    }
+  return tiles;
 }
 
 function cultivatedPlotClear(tile, building, fieldId = 0) {
@@ -1221,8 +1224,15 @@ function agricultureHerdingAudit() {
       failures.push(`field ${field.id} has invalid stage ${field.stage}`);
     if (field.causeEvent && !W.events.some((event) => event.id === field.causeEvent))
       failures.push(`field ${field.id} cites a missing event`);
-    if (building && !cultivatedPlotClear(field.tile, building, field.id))
-      failures.push(`field ${field.id} overlaps a structure or unsafe terrain`);
+    if (
+      building &&
+      (field.tile !== idx(building.x, building.y) ||
+        (field.tiles || farmFootprintTiles(building)).length !== 9 ||
+        (field.tiles || farmFootprintTiles(building)).some(
+          (tile) => W.tiles.liquid[tile] >= 700 || W.tiles.fire[tile] >= 200,
+        ))
+    )
+      failures.push(`field ${field.id} is not a safe centered nine-tile farm footprint`);
   }
   for (const herd of W.herds.filter((candidate) => candidate.active)) {
     if (!classifyAlive(herd.herderId)) failures.push(`herd ${herd.id} lacks a living herder`);

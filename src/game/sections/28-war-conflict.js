@@ -128,7 +128,9 @@ function updateDiplomacyAndWar() {
             turns: 0,
             ended: 0,
           };
-        W.activeWars.push(war || w);
+        const createdWar = war || w;
+        W.activeWars.push(createdWar);
+        if (typeof ensureAttackPlan === "function") ensureAttackPlan(createdWar);
       }
     }
   for (const [i, a] of W.factions.entries())

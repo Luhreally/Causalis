@@ -278,6 +278,7 @@ function buildingAtTile(tile) {
 }
 function buildingSpatialRadius(type) {
   if (type === "corral") return 2;
+  if (type === "farm") return 1.5;
   if (type === "wall") return 0.5;
   return 1;
 }

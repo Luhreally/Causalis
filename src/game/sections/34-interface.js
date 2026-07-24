@@ -21,6 +21,7 @@ function refreshTabs(tab) {
   $$(`.tab`).forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   $$(`.tabpane`).forEach((p) => p.classList.toggle("active", p.id === `tab-${tab}`));
   if (tab === "chronicle") refreshChronicle();
+  if (tab === "warfare") refreshWarfare();
   if (tab === "worldinfo") refreshWorldInfo();
   if (tab === "stats") refreshStats();
 }
@@ -602,6 +603,7 @@ function refreshUI(force = false) {
   refreshCounts();
   if (UI.activeTab === "inspect") refreshInspector();
   else if (UI.activeTab === "chronicle") refreshChronicle();
+  else if (UI.activeTab === "warfare") refreshWarfare();
   else if (UI.activeTab === "worldinfo" && (force || stageChanged || W.tick % 32 === 0))
     refreshWorldInfo();
   else if (UI.activeTab === "stats") refreshStats();
