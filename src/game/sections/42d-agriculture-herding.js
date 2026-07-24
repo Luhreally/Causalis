@@ -1267,6 +1267,45 @@ function updateCultivatedFields() {
   }
 }
 
+function retirePermanentlyFloodedFarmSites() {
+  const invalid = W.buildings.filter(
+    (building) =>
+      building.type === "farm" &&
+      !building.ruined &&
+      !farmFootprintNaturallyDry(building.x, building.y),
+  );
+  for (const building of invalid) {
+    const place = buildingPlace(building),
+      field = W.fields.find((candidate) => candidate.buildingId === building.id),
+      collapse = collapseBuilding(
+        building,
+        "a full nine-tile land survey found permanent water beneath the cultivation bed",
+        field?.causeEvent || building.causeEvent || 0,
+      );
+    if (field)
+      emitEvent("CropFailedEvent", {
+        subjects: [place?.entityId].filter(Boolean),
+        location: field.tile,
+        causes: [collapse?.id, field.causeEvent].filter(Boolean),
+        evidence: [
+          `${field.cropName} could not remain organized over the permanent waterline`,
+          "temporary storm runoff was not the cause",
+          "the old structure and its matter remain as rubble while a dry replacement is surveyed",
+        ],
+        magnitude: 1,
+        importance: 2,
+        data: {
+          fieldId: field.id,
+          buildingId: building.id,
+          crop: field.cropName,
+          reason: "permanent water beneath farm footprint",
+        },
+      });
+    W.fields = W.fields.filter((candidate) => candidate.buildingId !== building.id);
+    if (place) planBuilding(place, "farm", Math.max(4, place.management?.priorities?.food || 0));
+  }
+}
+
 const simTickAgricultureBase = simTick;
 simTick = function () {
   simTickAgricultureBase();
@@ -1275,7 +1314,10 @@ simTick = function () {
   if (W.tick % 4 === 0) updatePredatorDefense();
   if (W.tick % 8 === 0) updateLivingHerds();
   if (W.tick % 16 === 0) updateHerdTheftThreats();
-  if (W.tick % 32 === 0) updateCultivatedFields();
+  if (W.tick % 32 === 0) {
+    retirePermanentlyFloodedFarmSites();
+    updateCultivatedFields();
+  }
   if (W.tick % 64 === 0) maybeFormLivingHerds();
   // A tick boundary is a save/hash boundary. Resolve any defensive or herding
   // movement queued by this late wrapper so archives never discard pending work.
