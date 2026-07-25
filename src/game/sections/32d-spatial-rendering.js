@@ -171,34 +171,88 @@ function visualAnchor(id, p, m, now) {
   e.screenHeading = Math.atan2(dir.y, dir.x);
   return e;
 }
+// Two stacked ellipses: a wide faint penumbra and a tighter contact shadow.
+// One hard-edged ellipse reads as a sticker under the model; the pair reads as
+// a body sitting on ground.
 function drawGroundShadow(g, s, r, squash = 0.36, alpha = 0.34) {
   const v = ACTIVE_PLANET_VISUAL || makePlanetVisualGenome(),
     top = UI.view === "top",
-    L = ACTIVE_LIGHT_SCREEN;
-  g.fillStyle = hsl(v.voidHue, 45, 4, top ? alpha * 0.5 : alpha);
+    L = ACTIVE_LIGHT_SCREEN,
+    cx = s.x + (top ? 0 : -L.x * r * 0.34),
+    cy = s.y + (top ? 0 : r * 0.42 - L.y * r * 0.1),
+    base = top ? alpha * 0.5 : alpha;
+  if (UI.quality !== "low" && r > 2.6) {
+    g.fillStyle = hsl(v.voidHue, 45, 5, base * 0.42);
+    g.beginPath();
+    g.ellipse(cx, cy, r * 1.55, r * squash * 1.5, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.fillStyle = hsl(v.voidHue, 45, 4, base);
   g.beginPath();
-  g.ellipse(
-    s.x + (top ? 0 : -L.x * r * 0.34),
-    s.y + (top ? 0 : r * 0.42 - L.y * r * 0.1),
-    r * 1.08,
-    r * squash,
-    0,
-    0,
-    Math.PI * 2,
-  );
+  g.ellipse(cx, cy, r * 1.08, r * squash, 0, 0, Math.PI * 2);
   g.fill();
 }
+// Fire is the brightest thing in the world and used to be one opaque teardrop.
+// Layered tongues over an additive halo let it actually light its surroundings.
 function drawTileFlame(x, y, i, m) {
   const p = proceduralProjectTile(x + 0.5, y + 0.5, m),
+    now = ACTIVE_RENDER_NOW,
     f = clamp(W.tiles.fire[i] / 800, 0, 1),
-    flick = 1 + Math.sin(ACTIVE_RENDER_NOW * 0.011 + (x * 13 + y * 7)) * 0.14,
-    r = Math.max(1.2, m.tw * 0.18 * (0.5 + f)) * flick;
-  ctx.fillStyle = hsl(18 + f * 34, 96, 60, 0.82);
-  ctx.beginPath();
-  ctx.moveTo(p.x, p.y - r * 1.25);
-  ctx.quadraticCurveTo(p.x + r * 0.8, p.y - r * 0.1, p.x, p.y + r * 0.65);
-  ctx.quadraticCurveTo(p.x - r * 0.75, p.y - r * 0.1, p.x, p.y - r * 1.25);
-  ctx.fill();
+    seed = x * 13 + y * 7,
+    flick = 1 + Math.sin(now * 0.011 + seed) * 0.14,
+    r = Math.max(1.2, m.tw * 0.18 * (0.5 + f)) * flick,
+    detail = UI.quality !== "low" && r > 2.4;
+  if (detail) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const halo = ctx.createRadialGradient(p.x, p.y - r * 0.3, 0, p.x, p.y - r * 0.3, r * 3.4);
+    halo.addColorStop(0, hsl(32 + f * 18, 96, 58, 0.34 + f * 0.2));
+    halo.addColorStop(0.45, hsl(22 + f * 14, 92, 48, 0.13));
+    halo.addColorStop(1, hsl(18, 90, 40, 0));
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - r * 0.3, r * 3.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  const tongue = (scale, lean, hue, sat, light, alpha) => {
+    const h = r * scale;
+    ctx.fillStyle = hsl(hue, sat, light, alpha);
+    ctx.beginPath();
+    ctx.moveTo(p.x + lean * r * 0.5, p.y - h * 1.25);
+    ctx.quadraticCurveTo(p.x + r * 0.8 * scale, p.y - h * 0.1, p.x, p.y + r * 0.65);
+    ctx.quadraticCurveTo(
+      p.x - r * 0.75 * scale,
+      p.y - h * 0.1,
+      p.x + lean * r * 0.5,
+      p.y - h * 1.25,
+    );
+    ctx.fill();
+  };
+  tongue(1, Math.sin(now * 0.009 + seed) * 0.22, 18 + f * 20, 96, 52, 0.8);
+  if (!detail) return;
+  tongue(0.66, Math.sin(now * 0.013 + seed * 1.7) * 0.3, 38 + f * 18, 98, 66, 0.85);
+  tongue(0.34, Math.sin(now * 0.017 + seed * 2.3) * 0.34, 52 + f * 8, 100, 82, 0.9);
+  // Embers rise out of anything more than a smoulder.
+  if (UI.quality === "high" && f > 0.35) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (let n = 0; n < 3; n++) {
+      const t = (now * 0.0007 + visualHash01(i, 0x51 + n)) % 1,
+        er = Math.max(0.5, r * 0.14 * (1 - t));
+      ctx.fillStyle = hsl(30 + n * 10, 95, 70, (1 - t) * 0.5 * f);
+      ctx.beginPath();
+      ctx.arc(
+        p.x + Math.sin(t * 5.2 + n * 2.1 + seed) * r * 0.7,
+        p.y - r * 1.2 - t * r * 2.6,
+        er,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+    ctx.restore();
+  }
 }
 function glideZoomStep(zoom, px, py) {
   const m = projectionMetrics(),

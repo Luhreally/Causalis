@@ -10,6 +10,9 @@ let PLANET_VISUAL_CACHE = null,
   ACTIVE_COMBAT_STATE = null;
 let ACTIVE_INTERIOR_IDS = new Set();
 const CREATURE_VISUAL_CACHE = new Map();
+// How far, in device-independent pixels, each terrain polygon grows past its
+// true edge so neighbouring fills overlap instead of leaving an antialiased gap.
+const TERRAIN_SEAM_BLEED = 0.75;
 function wrapHue(v) {
   return ((v % 360) + 360) % 360;
 }
@@ -127,6 +130,7 @@ function makePlanetVisualGenome() {
         "Stone Upland": "Ore Spine",
         "Sand Plain": "Mineral Expanse",
       };
+  harmonizePlanetPalette(palette, base, earthlike);
   PLANET_VISUAL_CACHE = {
     key,
     earthlike,
@@ -151,6 +155,32 @@ function makePlanetVisualGenome() {
   CREATURE_VISUAL_CACHE.clear();
   return PLANET_VISUAL_CACHE;
 }
+// An alien biome palette is drawn from an independent hue harmony per band, so
+// two neighbouring biomes could land on fully saturated complements and the
+// world read as a political map. Hue variety is the planet's identity and is
+// kept; chroma and value are pulled toward the planet's own key so those hues
+// read as materials under one sun. Earth-adjacent palettes are already coherent.
+function harmonizePlanetPalette(palette, base, earthlike) {
+  if (earthlike) return palette;
+  const tones = Object.values(palette),
+    keySat = mean(tones.map((t) => t.s)),
+    keyLum = mean(tones.map((t) => t.l)),
+    // Circular mean of the band hues: the direction the planet already leans.
+    keyHue = wrapHue(
+      (Math.atan2(
+        mean(tones.map((t) => Math.sin((t.h * Math.PI) / 180))),
+        mean(tones.map((t) => Math.cos((t.h * Math.PI) / 180))),
+      ) *
+        180) /
+        Math.PI,
+    );
+  for (const tone of tones) {
+    tone.h = mixHue(mixHue(tone.h, keyHue, 0.3), base, 0.1);
+    tone.s = clamp(keySat + (tone.s - keySat) * 0.64, 9, 55);
+    tone.l = clamp(keyLum + (tone.l - keyLum) * 0.84, 12, 62);
+  }
+  return palette;
+}
 function biomeDisplayName(i) {
   const v = makePlanetVisualGenome(),
     canonical = biomeAt(i);
@@ -164,6 +194,32 @@ function proceduralProjectTile(x, y, m, withElevation = true) {
     : 0;
   return projectWithMetrics(x, y, e, m);
 }
+// Neighbouring fills antialias against whatever lies behind them, so a
+// projected heightfield grows a dark hairline grid where the void shows
+// through. Growing each tile by a fraction of a pixel about its own centre
+// closes those seams for the cost of four multiplies — far cheaper than
+// stroking every polygon, and it does not change the silhouette.
+function bleedPolygon(poly, cx, cy, span) {
+  const k = 1 + TERRAIN_SEAM_BLEED / Math.max(2, span);
+  for (const point of poly) {
+    point[0] = cx + (point[0] - cx) * k;
+    point[1] = cy + (point[1] - cy) * k;
+  }
+  return poly;
+}
+// The half-extent of a tile depends only on the projection, so it is resolved
+// once per frame and hung off the metrics rather than recomputed per tile.
+function tileBleedSpan(m) {
+  if (m.bleedSpan != null && m.bleedView === UI.view) return m.bleedSpan;
+  let span;
+  if (UI.view === "iso") span = Math.min(m.tw, m.th) / 2;
+  else {
+    const q = obliqueBasis(m);
+    span = Math.min(Math.hypot(q.xx, q.xy), Math.hypot(q.yx, q.yy)) * 0.5;
+  }
+  m.bleedView = UI.view;
+  return (m.bleedSpan = span);
+}
 function proceduralTilePolygon(x, y, m) {
   const p = proceduralProjectTile(x + 0.5, y + 0.5, m);
   if (UI.view === "top")
@@ -174,23 +230,33 @@ function proceduralTilePolygon(x, y, m) {
       [p.x - m.tw / 2, p.y + m.th / 2],
     ];
   if (UI.view === "iso")
-    return [
-      [p.x, p.y - m.th / 2],
-      [p.x + m.tw / 2, p.y],
-      [p.x, p.y + m.th / 2],
-      [p.x - m.tw / 2, p.y],
-    ];
+    return bleedPolygon(
+      [
+        [p.x, p.y - m.th / 2],
+        [p.x + m.tw / 2, p.y],
+        [p.x, p.y + m.th / 2],
+        [p.x - m.tw / 2, p.y],
+      ],
+      p.x,
+      p.y,
+      tileBleedSpan(m),
+    );
   const q = obliqueBasis(m),
     hx = q.xx * 0.5,
     hy = q.xy * 0.5,
     kx = q.yx * 0.5,
     ky = q.yy * 0.5;
-  return [
-    [p.x - hx - kx, p.y - hy - ky],
-    [p.x + hx - kx, p.y + hy - ky],
-    [p.x + hx + kx, p.y + hy + ky],
-    [p.x - hx + kx, p.y - hy + ky],
-  ];
+  return bleedPolygon(
+    [
+      [p.x - hx - kx, p.y - hy - ky],
+      [p.x + hx - kx, p.y + hy - ky],
+      [p.x + hx + kx, p.y + hy + ky],
+      [p.x - hx + kx, p.y - hy + ky],
+    ],
+    p.x,
+    p.y,
+    tileBleedSpan(m),
+  );
 }
 function terrainVisualSignature(i) {
   const t = W.tiles;
@@ -205,6 +271,15 @@ function terrainVisualSignature(i) {
   s ^= Math.imul(t.chem[C.TOXIN][i] >>> 5, 0xc2b2ae35);
   s ^= t.fire[i] ? 0x5bd1e995 : 0;
   const [x, y] = xy(i);
+  // Terrain tones depend on neighbouring biome/elevation state as well as the
+  // newer temperature, solvent, and fire fields. Include both sets in the
+  // signature so the blended colour cache never lags behind the simulation.
+  const coarse = (j) =>
+    ((t.elevation[j] >>> 5) | ((t.liquid[j] >>> 7) << 6) | ((t.plantOrder[j] >>> 7) << 12)) >>> 0;
+  s ^= Math.imul(coarse(x ? i - 1 : i), 0x7feb352d);
+  s ^= Math.imul(coarse(x < W.width - 1 ? i + 1 : i), 0x846ca68b);
+  s ^= Math.imul(coarse(y ? i - W.width : i), 0x2545f491);
+  s ^= Math.imul(coarse(y < W.height - 1 ? i + W.width : i), 0x9e3779b9);
   for (const [nx, ny] of [
     [x - 1, y],
     [x + 1, y],
@@ -219,44 +294,118 @@ function terrainVisualSignature(i) {
   }
   return s | 0;
 }
+function paletteToneAt(v, i) {
+  return v.palette[biomeAt(i)] || { h: v.floraHue, s: 35, l: 42 };
+}
+// Neighbour-weighted tone. Hard palette steps between adjacent biomes are the
+// single largest source of "paint by numbers" flatness; a partial blend keeps
+// each biome identifiable while letting the boundary read as a transition.
+// Shorelines keep most of their contrast so land and liquid stay legible.
+function blendedTerrainTone(v, i, x, y) {
+  const base = paletteToneAt(v, i),
+    wet = W.tiles.liquid[i] > 140;
+  let h = base.h,
+    s = base.s,
+    l = base.l;
+  const pull = (j) => {
+    const q = paletteToneAt(v, j),
+      w = W.tiles.liquid[j] > 140 === wet ? 0.16 : 0.06;
+    h = mixHue(h, q.h, w);
+    s += (q.s - s) * w;
+    l += (q.l - l) * w;
+  };
+  if (x) pull(i - 1);
+  if (x < W.width - 1) pull(i + 1);
+  if (y) pull(i - W.width);
+  if (y < W.height - 1) pull(i + W.width);
+  return { h, s, l };
+}
+// Reached several times per tile per frame, so validity is an identity check on
+// the genome object rather than a freshly built key string.
+function terrainToneCache() {
+  const v = ACTIVE_PLANET_VISUAL || makePlanetVisualGenome();
+  if (
+    TILE_VISUAL_CACHE &&
+    TILE_VISUAL_CACHE.planet === v &&
+    TILE_VISUAL_CACHE.count === W.tileCount
+  )
+    return TILE_VISUAL_CACHE;
+  TILE_VISUAL_CACHE = {
+    planet: v,
+    count: W.tileCount,
+    signatures: new Int32Array(W.tileCount),
+    colors: Array(W.tileCount),
+    hue: new Float32Array(W.tileCount),
+    sat: new Float32Array(W.tileCount),
+    lum: new Float32Array(W.tileCount),
+  };
+  TILE_VISUAL_CACHE.signatures.fill(-2147483648);
+  return TILE_VISUAL_CACHE;
+}
 function terrainColorProcedural(i) {
   const v = ACTIVE_PLANET_VISUAL || makePlanetVisualGenome(),
-    cacheKey = `${v.key}:${W.tileCount}`;
-  if (!TILE_VISUAL_CACHE || TILE_VISUAL_CACHE.key !== cacheKey) {
-    TILE_VISUAL_CACHE = {
-      key: cacheKey,
-      signatures: new Int32Array(W.tileCount),
-      colors: Array(W.tileCount),
-    };
-    TILE_VISUAL_CACHE.signatures.fill(-2147483648);
-  }
-  const signature = terrainVisualSignature(i);
-  if (TILE_VISUAL_CACHE.signatures[i] === signature && TILE_VISUAL_CACHE.colors[i])
-    return TILE_VISUAL_CACHE.colors[i];
-  const tone = v.palette[biomeAt(i)] || { h: v.floraHue, s: 35, l: 42 },
-    t = W.tiles,
-    [x, y] = xy(i),
+    cache = terrainToneCache(),
+    signature = terrainVisualSignature(i);
+  if (cache.signatures[i] === signature && cache.colors[i]) return cache.colors[i];
+  const t = W.tiles,
+    x = i % W.width,
+    y = (i / W.width) | 0,
+    tone = blendedTerrainTone(v, i, x, y),
+    e = t.elevation[i],
     left = t.elevation[y * W.width + Math.max(0, x - 1)],
     right = t.elevation[y * W.width + Math.min(W.width - 1, x + 1)],
     up = t.elevation[Math.max(0, y - 1) * W.width + x],
     down = t.elevation[Math.min(W.height - 1, y + 1) * W.width + x],
     lx = Math.cos(v.lightAngle),
     ly = Math.sin(v.lightAngle),
-    slope = ((left - right) * lx + (up - down) * ly) / 95,
-    grain = (visualHash01(i, 0x731d) - 0.5) * 5.8,
-    macro = (noise2(W.seedHash ^ 0x8ab3, x / 9, y / 9) - 0.5) * 4.2,
+    // Directional key light plus concavity: ridges catch the light, hollows
+    // and valley floors collect ambient occlusion.
+    lit = clamp(((left - right) * lx + (up - down) * ly) / 58, -9, 9),
+    occlusion = clamp(((left + right + up + down) / 4 - e) / 62, -1.1, 1.1),
+    // Per-tile grain reads as dither noise once neighbouring tones are close,
+    // so most of the variation now comes from coherent multi-scale noise.
+    grain = (visualHash01(i, 0x731d) - 0.5) * 2.6,
+    macro =
+      (noise2(W.seedHash ^ 0x8ab3, x / 9, y / 9) - 0.5) * 4.4 +
+      (noise2(W.seedHash ^ 0x51c7, x / 2.7, y / 2.7) - 0.5) * 2.4,
     temp = t.temperature[i] / 10,
     cold = temp < 0 ? clamp(-temp * 0.32, 0, 12) : 0,
     toxin = clamp(t.chem[C.TOXIN][i] / 800, 0, 1),
-    color = hsl(
+    // Warm key, cool sky-fill: shaded faces drift toward the atmosphere rather
+    // than simply going grey, which is what sells a lit surface.
+    hue = mixHue(
       tone.h + toxin * 9,
-      clamp(tone.s - cold * 0.7 + toxin * 7, 8, 78),
-      clamp(tone.l + slope + grain + macro + cold, 9, 78),
-      1,
-    );
-  TILE_VISUAL_CACHE.signatures[i] = signature;
-  TILE_VISUAL_CACHE.colors[i] = color;
+      lit >= 0 ? v.accentHue : v.atmosphereHue,
+      clamp(Math.abs(lit) * 0.017, 0, 0.15),
+    ),
+    sat = clamp(tone.s - cold * 0.7 + toxin * 7 + lit * 0.9 - occlusion * 2, 8, 78),
+    lum = clamp(tone.l + lit + grain + macro + cold - occlusion * 3.4, 8, 80),
+    color = hsl(hue, sat, lum, 1);
+  cache.signatures[i] = signature;
+  cache.colors[i] = color;
+  cache.hue[i] = hue;
+  cache.sat[i] = sat;
+  cache.lum[i] = lum;
   return color;
+}
+// The projected height difference between two columns leaves a real gap, so a
+// face always has to close it. What made the old landscape read as corduroy was
+// painting every one of those gaps at a fixed dark mineral tone: a one-unit
+// ripple looked exactly like a cliff. The face is now tinted from the tile it
+// belongs to and darkened in proportion to the step, so gentle relief melts into
+// the surface and only genuine escarpments read as shadowed rock.
+function terrainFaceColor(i, drop, shaded) {
+  const cache = terrainToneCache();
+  if (cache.signatures[i] === -2147483648 || !cache.colors[i]) terrainColorProcedural(i);
+  const v = ACTIVE_PLANET_VISUAL || makePlanetVisualGenome(),
+    depth = clamp(drop / 300, 0, 1),
+    shade = (shaded ? 0.44 : 0.24) * (0.28 + 0.72 * depth);
+  return hsl(
+    mixHue(cache.hue[i], shaded ? v.atmosphereHue : v.accentHue, 0.06 + depth * 0.08),
+    clamp(cache.sat[i] * (1 - depth * 0.18), 6, 66),
+    clamp(cache.lum[i] * (1 - shade), 6, 66),
+    1,
+  );
 }
 function drawCoastEdges(poly, x, y, i, v, m) {
   if (W.tiles.liquid[i] < 140) return;
@@ -267,19 +416,61 @@ function drawCoastEdges(poly, x, y, i, v, m) {
   if (inside(x, y + 1) && !wet(x, y + 1)) edges.push([2, 3]);
   if (inside(x - 1, y) && !wet(x - 1, y)) edges.push([3, 0]);
   if (!edges.length) return;
-  ctx.strokeStyle = hsl(
-    v.liquidHue - 18,
-    50,
-    78,
-    0.38 + Math.sin(ACTIVE_RENDER_NOW * 0.0018 + (x + y) * 0.9) * 0.12,
-  );
-  ctx.lineWidth = clamp(m.tw * 0.09, 0.45, 12);
-  ctx.beginPath();
-  for (const [a, b] of edges) {
-    ctx.moveTo(poly[a][0], poly[a][1]);
-    ctx.lineTo(poly[b][0], poly[b][1]);
+  const swell = Math.sin(ACTIVE_RENDER_NOW * 0.0018 + (x + y) * 0.9),
+    // Surf is a local detail. Held at full strength while zoomed out it becomes
+    // a continuous cartoon outline traced around every landmass.
+    near = clamp(UI.camera.zoom * 0.75, 0.34, 1),
+    // Straight down, a shoreline is a wet margin rather than breaking surf; the
+    // bright line is held back so it does not trace a neon outline round a coast.
+    plan = UI.view === "top" ? 0.55 : 1,
+    path = () => {
+      ctx.beginPath();
+      for (const [a, b] of edges) {
+        ctx.moveTo(poly[a][0], poly[a][1]);
+        ctx.lineTo(poly[b][0], poly[b][1]);
+      }
+      ctx.stroke();
+    };
+  // Two passes: a wide diffuse wash for the wet margin, then the thin bright
+  // break line on top. One flat stroke never reads as surf. The wash is only
+  // worth its stroke once a tile is big enough for the margin to be visible.
+  if (UI.quality !== "low" && m.tw >= 7) {
+    ctx.strokeStyle = hsl(v.liquidHue - 8, 62, 66, (0.16 + swell * 0.05) * near);
+    ctx.lineWidth = clamp(m.tw * 0.24, 0.9, 26);
+    path();
   }
-  ctx.stroke();
+  ctx.strokeStyle = hsl(v.liquidHue - 18, 50, 80, (0.34 + swell * 0.12) * near * plan);
+  ctx.lineWidth = clamp(m.tw * 0.07, 0.45, 7);
+  path();
+}
+// Liquid is otherwise a single flat wash. Depth banding plus a drifting
+// specular highlight give the surface a plane and a light source.
+function drawWaterSurface(x, y, i, p, m, v, top) {
+  // Sub-pixel sparkle is invisible and expensive, so the highlight only exists
+  // once a tile is large enough on screen to hold one.
+  if (UI.quality === "low" || m.tw < 9) return;
+  const now = ACTIVE_RENDER_NOW,
+    glitter =
+      Math.sin(now * 0.0021 + x * 0.83 + y * 1.27) * Math.cos(now * 0.0013 - x * 0.41 + y * 0.66);
+  if (glitter < 0.72) return;
+  const depth = clamp(W.tiles.liquid[i] / 2500, 0, 1),
+    strength = (glitter - 0.72) / 0.28,
+    r = Math.max(0.6, m.tw * 0.17 * (0.5 + strength * 0.7)),
+    L = ACTIVE_LIGHT_SCREEN || { x: 0.62, y: 0.5 };
+  ctx.globalCompositeOperation = "lighter";
+  ctx.fillStyle = hsl(v.liquidHue - 26, 70, 72, 0.1 + strength * 0.16 * (1 - depth * 0.45));
+  ctx.beginPath();
+  ctx.ellipse(
+    p.x - L.x * r * 0.5,
+    p.y - (top ? 0 : r * 0.28) - L.y * r * 0.3,
+    r,
+    r * (top ? 0.62 : 0.3),
+    0,
+    0,
+    Math.PI * 2,
+  );
+  ctx.fill();
+  ctx.globalCompositeOperation = "source-over";
 }
 function drawPlantMotif(p, r, form, hue, detail, phase) {
   ctx.strokeStyle = hsl(hue, 64, 66, 0.7);
@@ -773,19 +964,35 @@ function drawTileMotifs(x, y, i, p, m, v) {
     liquid = W.tiles.liquid[i],
     seed = visualHash01(i, 0x2e71);
   if (liquid > 140) {
-    if (seed < 0.18 && zoom > 0.62) {
+    // Open water used to be a single flat wash with a rare static tick mark, so
+    // a close camera saw nothing but a gradient. Ripple density now follows the
+    // zoom and the crests drift, which is what makes a surface read as liquid.
+    const density = clamp(0.18 + (zoom - 1) * 0.05, 0.18, 0.46);
+    if (seed < density && zoom > 0.62) {
       const r = Math.max(0.7, m.tw * 0.17),
-        phase = visualHash01(i, 0x11) * Math.PI * 2;
+        drift = Math.sin(ACTIVE_RENDER_NOW * 0.0016 + seed * 31.4) * r * 0.28;
       ctx.strokeStyle = hsl(v.liquidHue - 18, 64, 74, 0.24);
       ctx.lineWidth = clamp(m.tw * 0.055, 0.35, 8);
       ctx.beginPath();
       if (v.waterForm === "cells") {
-        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y + drift * 0.4, r, 0, Math.PI * 2);
       } else {
-        ctx.moveTo(p.x - r, p.y);
-        ctx.quadraticCurveTo(p.x, p.y - r * 0.5, p.x + r, p.y);
+        ctx.moveTo(p.x - r, p.y + drift);
+        ctx.quadraticCurveTo(p.x, p.y - r * 0.5 + drift, p.x + r, p.y + drift);
       }
       ctx.stroke();
+      if (zoom > 3 && UI.quality !== "low") {
+        ctx.strokeStyle = hsl(v.liquidHue - 4, 58, 40, 0.2);
+        ctx.beginPath();
+        ctx.moveTo(p.x - r * 0.7, p.y - drift * 0.8 + r * 0.55);
+        ctx.quadraticCurveTo(
+          p.x,
+          p.y - drift * 0.8 + r * 0.15,
+          p.x + r * 0.7,
+          p.y - drift * 0.8 + r * 0.55,
+        );
+        ctx.stroke();
+      }
     }
     return;
   }
@@ -835,27 +1042,32 @@ function drawTileProcedural(x, y) {
           UI.view === "iso"
             ? 0.013 * UI.camera.zoom
             : 0.018 * UI.camera.zoom * (1.12 - cameraTilt() * 0.35),
+        maxDrop = Math.max(14, UI.camera.zoom * 3.2),
         faces = [
-          { elevation: y > 0 ? W.tiles.elevation[i - W.width] : 0, a: 0, b: 1, shade: 5 },
-          { elevation: x < W.width - 1 ? W.tiles.elevation[i + 1] : 0, a: 1, b: 2, shade: 1 },
+          { elevation: y > 0 ? W.tiles.elevation[i - W.width] : e, a: 0, b: 1 },
+          { elevation: x < W.width - 1 ? W.tiles.elevation[i + 1] : e, a: 1, b: 2 },
           {
-            elevation: y < W.height - 1 ? W.tiles.elevation[i + W.width] : 0,
+            elevation: y < W.height - 1 ? W.tiles.elevation[i + W.width] : e,
             a: 2,
             b: 3,
-            shade: -2,
           },
-          { elevation: x > 0 ? W.tiles.elevation[i - 1] : 0, a: 3, b: 0, shade: 3 },
+          { elevation: x > 0 ? W.tiles.elevation[i - 1] : e, a: 3, b: 0 },
         ];
       for (const face of faces) {
-        const drop = Math.max(0, (e - face.elevation) * elevationScale);
-        if (drop <= 0.5) continue;
+        const step = Math.max(0, e - face.elevation),
+          drop = clamp(step * elevationScale, 0, maxDrop);
+        if (drop <= 0.4) continue;
         ctx.beginPath();
         ctx.moveTo(poly[face.a][0], poly[face.a][1]);
         ctx.lineTo(poly[face.b][0], poly[face.b][1]);
-        ctx.lineTo(poly[face.b][0], poly[face.b][1] + drop);
-        ctx.lineTo(poly[face.a][0], poly[face.a][1] + drop);
+        ctx.lineTo(poly[face.b][0], poly[face.b][1] + drop + TERRAIN_SEAM_BLEED);
+        ctx.lineTo(poly[face.a][0], poly[face.a][1] + drop + TERRAIN_SEAM_BLEED);
         ctx.closePath();
-        ctx.fillStyle = hsl(v.mineralHue + face.shade, 29, 16 + e / 100);
+        ctx.fillStyle = terrainFaceColor(
+          i,
+          step,
+          ACTIVE_TILE_SHADE ? ACTIVE_TILE_SHADE.di === face.a : face.a === 2,
+        );
         ctx.fill();
       }
     }
@@ -864,7 +1076,9 @@ function drawTileProcedural(x, y) {
     ctx.fill();
     if (ACTIVE_TILE_SHADE && UI.quality === "high" && UI.camera.zoom > 0.62) {
       const es = ACTIVE_TILE_SHADE;
-      ctx.lineWidth = Math.max(0.5, m.tw * 0.05);
+      // Unclamped this scales with the tile, so a close camera paints fat dark
+      // rules along every tile edge instead of a hint of surface relief.
+      ctx.lineWidth = clamp(m.tw * 0.05, 0.5, 1.8);
       ctx.strokeStyle = "rgba(255,252,238,.05)";
       ctx.beginPath();
       ctx.moveTo(poly[es.li][0], poly[es.li][1]);
@@ -891,6 +1105,7 @@ function drawTileProcedural(x, y) {
       );
       ctx.fill();
     }
+    drawWaterSurface(x, y, i, p, m, v, top);
     const coast =
       (x && W.tiles.liquid[i - 1] < 140) ||
       (x < W.width - 1 && W.tiles.liquid[i + 1] < 140) ||
@@ -960,7 +1175,35 @@ function drawTopTerrainLayer(m, v) {
   const left = m.w / 2 - UI.camera.x * m.tw,
     top = m.h / 2 - UI.camera.y * m.th;
   ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.drawImage(TOP_TERRAIN_CACHE.canvas, left, top, W.width * m.tw, W.height * m.th);
+}
+// Aerial perspective. In every projected view the screen's vertical axis is the
+// world's depth axis, so one haze ramp over the finished scene separates far
+// ground from near ground — cheaper and more convincing than per-tile fog, and
+// it reaches terrain features, buildings, and creatures alike because they are
+// all painted into the same depth-sorted list before this runs.
+function drawAerialPerspective(m, v) {
+  if (UI.view === "top" || UI.quality === "low") return;
+  const reach = clamp(1.35 - UI.camera.zoom * 0.055, 0.3, 1),
+    horizon = ctx.createLinearGradient(0, 0, 0, m.h);
+  horizon.addColorStop(0, hsl(v.atmosphereHue, 42, 56, 0.34 * reach));
+  horizon.addColorStop(0.34, hsl(v.atmosphereHue, 38, 44, 0.15 * reach));
+  horizon.addColorStop(0.68, hsl(v.atmosphereHue, 34, 30, 0.04 * reach));
+  horizon.addColorStop(1, hsl(v.voidHue, 40, 10, 0));
+  ctx.fillStyle = horizon;
+  ctx.fillRect(0, 0, m.w, m.h);
+  if (UI.quality !== "high") return;
+  // A soft bloom where the key light meets the horizon anchors the light
+  // direction that the terrain shading is already using.
+  const L = ACTIVE_LIGHT_SCREEN || { x: 0.62, y: 0.5 },
+    gx = m.w * (0.5 - L.x * 0.42),
+    gy = m.h * (0.16 - L.y * 0.1),
+    glow = ctx.createRadialGradient(gx, gy, 0, gx, gy, Math.max(m.w, m.h) * 0.55);
+  glow.addColorStop(0, hsl(v.accentHue, 70, 66, 0.14 * reach));
+  glow.addColorStop(1, hsl(v.accentHue, 70, 60, 0));
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, m.w, m.h);
 }
 function drawTopTileDetails(x, y, m, v) {
   const i = idx(x, y),
@@ -976,6 +1219,7 @@ function drawTopTileDetails(x, y, m, v) {
       poly = proceduralTilePolygon(x, y, m);
       drawCoastEdges(poly, x, y, i, v, m);
     }
+    drawWaterSurface(x, y, i, p, m, v, true);
   }
   if (UI.quality !== "low") drawTileMotifs(x, y, i, p, m, v);
   drawEcologicalStructure(x, y, i, p, m, v);
@@ -1035,6 +1279,7 @@ function drawLightningFlash(now, m) {
   ctx.restore();
 }
 function drawProceduralAtmosphere(now, m, v) {
+  drawAerialPerspective(m, v);
   if (UI.quality === "high" && v.alienness > 0.55) {
     const count = 12 + Math.floor(v.alienness * 16);
     ctx.fillStyle = hsl(v.accentHue, 72, 70, 0.11);

@@ -28,6 +28,18 @@ Useful commands:
 - `npm test` runs the complete deterministic simulation suite.
 - `npm run format` and `npm run format:check` keep the migrated sections consistent.
 
+## Render lenses
+
+Rendering reads world state and never writes it, so nothing here affects the simulation hash or replay determinism.
+
+Terrain is lit rather than merely coloured. Each tile blends part way into its neighbours so a biome boundary reads as a transition instead of a hard palette step, and shading combines a directional key light with concavity so ridges catch light and hollows collect occlusion; shaded faces drift toward the atmosphere colour instead of turning grey. Terrace faces between columns are tinted from the tile they belong to and darkened in proportion to the actual step, so gentle relief melts into the surface while genuine escarpments read as shadowed rock. Polygons overlap by a fraction of a pixel to close the antialiasing seams that otherwise draw a dark grid over a projected heightfield.
+
+An alien biome palette is drawn per band from an independent hue harmony, which can place fully saturated complements side by side. Hue variety is the planet's identity and is kept; chroma and value are pulled toward the planet's own key so those hues read as materials under one sun. Earth-adjacent palettes are already coherent and pass through untouched.
+
+Projected views apply aerial perspective — screen depth is world depth, so a single haze ramp separates far ground from near ground and, at Rich quality, a bloom marks where the key light meets the horizon. Liquid carries drifting ripples, a specular highlight, and a two-pass shoreline of diffuse wet margin plus bright break line. Fire layers tongues over an additive halo and sheds embers.
+
+Detail is budgeted by the render quality setting: Lean skips haze, surf wash, water highlights, flame detail, and shadow penumbra entirely, keeping the mobile render budget unchanged.
+
 ## Mobile profile
 
 The interface switches automatically on touch phones and can also be forced from Settings. It uses safe-area-aware drawers, a six-button world dock, one-finger pan, combined two-finger pinch/orbit/tilt in free roam, 44 px controls, and a reduced mobile render budget without changing fixed-tick simulation order.
