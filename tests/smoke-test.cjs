@@ -185,6 +185,14 @@ const predationDebug = sandbox.window.ALIFE_PREDATION_DEBUG;
 if (!game || !visuals || !controls || !cameraDebug || !predationDebug)
   throw new Error("Debug surfaces did not initialize");
 
+const newWorldButton = getElement("newWorldBtn");
+if (typeof newWorldButton.onclick !== "function")
+  throw new Error("New World button was not bound during boot");
+newWorldButton.onclick();
+if (!getElement("modalLayer").classList.contains("open"))
+  throw new Error("New World button did not open the world composer");
+getElement("cancelNew").onclick();
+
 if (process.env.SAVE_DEBUG === "1") {
   const saves = sandbox.window.ALIFE_SAVE_DEBUG;
   if (!saves) throw new Error("Save debug surface did not initialize");

@@ -13,9 +13,6 @@ function boot() {
   DOM.showLabels.checked = UI.labels;
   setAudio(false, settings.volume);
   refreshContinueButton();
-  hydrateSaveList()
-    .then(refreshContinueButton)
-    .catch(() => {});
   window.ALIFE_DEBUG = Object.freeze({
     createTestWorld: debugCreateWorld,
     step: (n) => stepTicks(n || 1),
