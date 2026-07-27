@@ -49,7 +49,7 @@ function updateEnvironmentalFields() {
       diffusePair(t.temperature, i, i + W.width, W.laws.heatDiffusion * 0.02, t.tempDelta);
     if (t.chem[C.BLOOD][i]) executeProcess("blood_decay", invTile(i), 1);
     if (t.chem[C.FEAR][i]) executeProcess("fear_decay", invTile(i), Math.min(2, t.chem[C.FEAR][i]));
-    if (t.danger[i]) t.danger[i] = u16(t.danger[i] * 0.994);
+    if (t.danger[i]) t.danger[i] = Math.max(0, Math.floor(t.danger[i] * 0.94) - 1);
     if (t.populationPressure[i]) t.populationPressure[i] = u16(t.populationPressure[i] * 0.998);
   }
   for (let i = start; i < tempApplyEnd; i++)

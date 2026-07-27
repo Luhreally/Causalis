@@ -49,7 +49,7 @@ function createFaction(settlementId, tile = -1, cause = 0) {
   if (activeFactionCount() >= CAPS.faction) return null;
   let s = W.settlements.find((x) => x.id === settlementId);
   if (!s && tile >= 0) s = nearestSettlement(tile, 9);
-  if (!s || s.factionId) return null;
+  if (!s || s.ruined || s.factionId) return null;
   const r = makeRng(hashParts(W.seedHash, s.id, W.tick), "faction"),
     name = `The ${NAME_B[r.int(NAME_B.length)]} ${["Kin", "League", "Concord", "Circle", "Hearths", "Accord"][r.int(6)]}`,
     id = takeFactionId(),
@@ -230,7 +230,11 @@ function updateLongEpoch() {
     const f = W.factions.find((x) => x.cultureId === c.id);
     if (f && f.stability < 0.3) c.values.communal = clamp(c.values.communal + 0.03, 0, 1);
   }
-  for (const t of W.tiles.habitation) void t;
+  for (let tile = 0; tile < W.tiles.habitation.length; tile++) {
+    const habitation = W.tiles.habitation[tile];
+    if (habitation)
+      W.tiles.habitation[tile] = u16(habitation - Math.max(1, Math.ceil(habitation * 0.035)));
+  }
   decayMemories();
   for (const s of W.settlements)
     if (s.ruined && W.tick - s.foundedTick > 2048) s.structure.order = u16(s.structure.order - 6);

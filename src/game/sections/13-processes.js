@@ -75,7 +75,9 @@ function invSettlement(s) {
     hasStructure: (req) => req !== "bounded reaction space" || s.structure.integrity > 80,
     structure: (kind, amount) => {
       if (kind === "damage") s.structure.integrity = u16(s.structure.integrity - amount);
-      else s.structure.order = u16(s.structure.order + amount);
+      else if (kind === "decay") s.structure.order = u16(s.structure.order - amount);
+      else if (kind === "repair" || kind === "growth" || kind === "order")
+        s.structure.order = u16(s.structure.order + amount);
     },
     energy: (d) => {
       s.heat = u16((s.heat || 0) + d);
@@ -102,12 +104,8 @@ function executeProcess(processId, inventory, requested = 1, context = {}) {
     structureOk = rx.structuralRequirements.every(
       (s) => !inventory.hasStructure || inventory.hasStructure(s),
     ),
-    externalPer =
-      rx.externalEnergyRequirement > 0
-        ? context.externalEnergy
-          ? Math.max(context.externalEnergy, rx.externalEnergyRequirement)
-          : 0
-        : context.externalEnergy || 0;
+    externalPer = Math.max(0, Number(context.externalEnergy) || 0),
+    externalFlux = Math.max(0, Number(context.externalFlux ?? 1) || 0);
   if (
     temp < rx.minimumTemperature ||
     temp > rx.maximumTemperature ||
@@ -124,9 +122,22 @@ function executeProcess(processId, inventory, requested = 1, context = {}) {
       0.2,
       1,
     ),
-    kinetic = clamp(rx.baseRate * 4 + thermal * 0.65, 0.2, 1);
-  let extent = Math.max(0, Math.floor(requested * kinetic));
-  if (requested > 0 && extent === 0) extent = 1;
+    kinetic = clamp(rx.baseRate * 4 + thermal * 0.65, 0.2, 1),
+    potentialExtent = Math.max(0, requested * kinetic * externalFlux);
+  let extent = Math.floor(potentialExtent);
+  if (
+    requested > 0 &&
+    potentialExtent > 0 &&
+    extent === 0 &&
+    counterRand(
+      "fractional-process",
+      processId,
+      W.tick,
+      Number(context.location) || 0,
+      Number(context.subjects?.[0]) || 0,
+    ) < potentialExtent
+  )
+    extent = 1;
   for (const [s, n] of rx.reactants) extent = Math.min(extent, Math.floor(inventory.get(s) / n));
   for (const [s, n] of rx.products) {
     const capacity = inventory.capacity ? inventory.capacity(s) : 65535;

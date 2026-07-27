@@ -23,7 +23,7 @@ function creatureModel(id) {
     role = creatureSourceKind(id),
     v = makePlanetVisualGenome(),
     signature = creatureMorphSignature(g),
-    key = `${v.key}:${role}:${g?.lineageId || id}:${signature}`;
+    key = `${v.key}:${role}:${g?.lineageId || id}:${signature}:${id}`;
   if (CREATURE_VISUAL_CACHE.has(key)) return CREATURE_VISUAL_CACHE.get(key);
   const seed = hashParts(
       W.seedHash,
@@ -59,12 +59,12 @@ function creatureModel(id) {
     armor = clamp(support * 0.65 + (W.components.body[id]?.armor || 0) * 0.4, 0, 1.4),
     shell = topology === "shelled" || armor > 0.83 || r.next() < support * 0.16,
     frill = thermal > 0.72 || signal > 0.82 || r.next() < 0.12,
-    spines = clamp(Math.floor((support + (phenotype(id)?.aggression || 0)) * 2.2), 0, 5),
+    spines = clamp(Math.floor((support + (peekPhenotype(id)?.aggression || 0)) * 2.2), 0, 5),
     glow = signal > 0.55 || detox > 0.9 || r.next() < v.alienness * 0.2,
     patterns = ["spots", "bands", "veins", "plates", "rings", "plain"],
     pattern = patterns[r.int(patterns.length)],
     aspect = clamp(
-      0.72 + transport * 0.3 + (phenotype(id)?.speed || 1) * 0.16 + r.range(-0.12, 0.16),
+      0.72 + transport * 0.3 + (peekPhenotype(id)?.speed || 1) * 0.16 + r.range(-0.12, 0.16),
       0.65,
       1.55,
     ),
@@ -95,6 +95,7 @@ function creatureModel(id) {
     accentHue,
     sat,
     light,
+    individualVariation,
     label:
       `${titleCase(topology)} ${shell ? "armored " : ""}${pattern === "plain" ? "" : pattern + " "}form`
         .replace(/\s+/g, " ")
@@ -304,16 +305,7 @@ function drawCreatureModelShape(g, m, phase, detail, colors) {
     g.fill();
     g.stroke();
   } else {
-    const pairs = Math.max(1, Math.floor(m.appendages / 2));
-    for (let n = 0; n < pairs; n++) {
-      const x = pairs === 1 ? 0 : -0.55 + (n * 1.1) / (pairs - 1),
-        stride = Math.sin(phase + n * Math.PI) * 0.16;
-      if (creatureAppendageVisible(m, n * 2))
-        creatureLimb(g, x, -0.28, x - 0.15 + stride, -0.92, 0.11, phase + n);
-      if (creatureAppendageVisible(m, n * 2 + 1))
-        creatureLimb(g, x, 0.28, x + 0.15 - stride, 0.92, 0.11, phase + n + 2);
-    }
-    if (m.topology === "tripod")
+    if (m.topology === "tripod") {
       for (let n = 0; n < 3; n++) {
         if (!creatureAppendageVisible(m, n)) continue;
         const a = (n * Math.PI * 2) / 3;
@@ -327,6 +319,17 @@ function drawCreatureModelShape(g, m, phase, detail, colors) {
           phase + n,
         );
       }
+    } else {
+      const pairs = Math.max(1, Math.floor(m.appendages / 2));
+      for (let n = 0; n < pairs; n++) {
+        const x = pairs === 1 ? 0 : -0.55 + (n * 1.1) / (pairs - 1),
+          stride = Math.sin(phase + n * Math.PI) * 0.16;
+        if (creatureAppendageVisible(m, n * 2))
+          creatureLimb(g, x, -0.28, x - 0.15 + stride, -0.92, 0.11, phase + n);
+        if (creatureAppendageVisible(m, n * 2 + 1))
+          creatureLimb(g, x, 0.28, x + 0.15 - stride, 0.92, 0.11, phase + n + 2);
+      }
+    }
     g.fillStyle = primary;
     g.beginPath();
     g.ellipse(0, 0, m.aspect, m.shell ? 0.68 : 0.54, 0, 0, Math.PI * 2);

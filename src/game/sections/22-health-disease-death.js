@@ -23,7 +23,7 @@ function infectEntity(id, amount = 30, cause = 0) {
   });
   W.components.memory[id].rememberedEvents.push(ev.id);
 }
-function updateHealth(id) {
+function updateHealth(id, elapsed = 1) {
   const l = W.components.life[id],
     ch = W.components.chemistry[id],
     p = phenotype(id),
@@ -34,9 +34,9 @@ function updateHealth(id) {
     accl =
       l.acclimation ||
       (l.acclimation = { temperature: temp, hydration: tileMoisture(ti) / 100, toxin: 0 });
-  accl.temperature = lerp(accl.temperature, temp, 0.004);
-  accl.hydration = lerp(accl.hydration, tileMoisture(ti) / 100, 0.006);
-  accl.toxin = lerp(accl.toxin, clamp(ch.q[C.TOXIN] / 300, 0, 1), 0.003);
+  accl.temperature = lerp(accl.temperature, temp, 1 - (1 - 0.004) ** elapsed);
+  accl.hydration = lerp(accl.hydration, tileMoisture(ti) / 100, 1 - (1 - 0.006) ** elapsed);
+  accl.toxin = lerp(accl.toxin, clamp(ch.q[C.TOXIN] / 300, 0, 1), 1 - (1 - 0.003) ** elapsed);
   const heatLimit = p.heatTolerance + Math.max(0, accl.temperature - 20) * 0.22,
     coldLimit = (body.coldTolerance ?? -8) - Math.max(0, 20 - accl.temperature) * 0.18,
     niche = ecologicalNicheAt(ti),
@@ -54,10 +54,16 @@ function updateHealth(id) {
     ageDamage = l.age > body.maxAge ? (l.age - body.maxAge) / 170 : 0,
     total =
       heatDamage + coldDamage + toxDamage + pathDamage + starve + dehydrate + asphyxia + ageDamage;
-  if (total > 0) l.integrity = u16(l.integrity - total);
+  if (total > 0) {
+    const accumulated = Math.max(0, Number(l.damageRemainder) || 0) + total * elapsed,
+      applied = Math.floor(accumulated);
+    l.damageRemainder = accumulated - applied;
+    if (applied) l.integrity = u16(l.integrity - applied);
+  }
   if (
     W.tiles.chem[C.PATHOGEN][ti] > 80 &&
-    counterRand("infection", W.tick, id) < 0.006 * (1 - p.diseaseResistance) * (1 - shelter * 0.35)
+    counterRand("infection", W.tick, id) <
+      1 - (1 - 0.006 * (1 - p.diseaseResistance) * (1 - shelter * 0.35)) ** elapsed
   )
     infectEntity(id, 4, W.causalIndex.tile[ti] || 0);
   if (l.integrity < 1 || l.regulation < 1) {
@@ -65,13 +71,15 @@ function updateHealth(id) {
     if (starve) cause = "chemical energy depletion";
     else if (dehydrate) cause = "solvent deprivation";
     else if (asphyxia) cause = "oxidant deprivation";
-    else if (pathDamage > heatDamage) cause = "infection";
+    else if (toxDamage > Math.max(pathDamage, heatDamage, coldDamage)) cause = "toxin poisoning";
+    else if (pathDamage > Math.max(heatDamage, coldDamage)) cause = "infection";
     else if (heatDamage > 1) cause = "thermal destruction";
+    else if (coldDamage > 0) cause = "cold exposure";
     else if (ageDamage) cause = "accumulated repair failure";
     killEntity(id, cause, W.causalIndex.tile[ti] || 0);
   } else {
     if (l.integrity < 920 && ch.q[C.ENERGY] > 20 && ch.q[C.NUTRIENT] > 10)
-      executeProcess("healing", invEntity(id), 1);
+      executeProcess("healing", invEntity(id), Math.max(1, elapsed));
     derivedLife(id);
   }
 }
@@ -136,6 +144,7 @@ killEntity = function (id, cause = "regulatory collapse", causeEvent = 0, erase 
   if (wasFollowed) {
     UI.running = false;
     UI.clockInterrupted = true;
+    UI.deathInterruptTick = W.tick;
     UI.followDeathWasRunning = wasRunning;
     accumulator = 0;
     UI.keys.clear();
@@ -169,6 +178,17 @@ function updateDiseaseAndDecay() {
       if (ch.q[C.PATHOGEN] > 5) {
         executeProcess("pathogen_replication", invEntity(id), 1);
         if (ch.q[C.MEDICINE] > 0) executeProcess("medicine_neutralization", invEntity(id), 3);
+        else {
+          const resistance = phenotype(id).diseaseResistance,
+            clear = Math.min(
+              ch.q[C.PATHOGEN],
+              Math.floor(resistance * 3) +
+                (counterRand("immune-clearance", Math.floor(W.tick / 8), id) < resistance ? 1 : 0),
+              65535 - ch.q[C.WASTE],
+            );
+          ch.q[C.PATHOGEN] -= clear;
+          ch.q[C.WASTE] += clear;
+        }
       }
     }
   }
@@ -233,7 +253,36 @@ function finalizeCorpse(id) {
         }
       : null,
   };
+  pruneHistoricalIdentities();
   removeEntity(id);
+}
+function pruneHistoricalIdentities(limit = 2048) {
+  const history = W.historicalIdentities || {},
+    ids = Object.keys(history).map(Number);
+  if (ids.length <= limit + 256) return;
+  const referenced = new Set(W.events.flatMap((event) => event.subjects || [])),
+    removable = ids
+      .filter((id) => !history[id]?.notable && !referenced.has(id))
+      .sort(
+        (a, b) =>
+          (history[a]?.lifeSummary?.deathTick ?? history[a]?.aggregatedTick ?? -1) -
+            (history[b]?.lifeSummary?.deathTick ?? history[b]?.aggregatedTick ?? -1) || a - b,
+      );
+  let excess = ids.length - limit;
+  for (const id of removable) {
+    if (excess-- <= 0) break;
+    delete history[id];
+  }
+  if (Object.keys(history).length > limit * 2) {
+    const survivors = Object.keys(history)
+      .map(Number)
+      .sort(
+        (a, b) =>
+          (history[b]?.lifeSummary?.deathTick ?? history[b]?.aggregatedTick ?? -1) -
+            (history[a]?.lifeSummary?.deathTick ?? history[a]?.aggregatedTick ?? -1) || b - a,
+      );
+    for (const id of survivors.slice(limit * 2)) delete history[id];
+  }
 }
 function corpseDeathTick(id) {
   const life = W.components.life[id];

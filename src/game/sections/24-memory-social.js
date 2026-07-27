@@ -27,21 +27,33 @@ updateReproduction = function () {
   const ids = W.activeIds
       .filter(
         (id) =>
-          [KINDS.HERBIVORE, KINDS.PREDATOR, KINDS.PERSON].includes(W.kind[id]) && canReproduce(id),
+          [KINDS.HERBIVORE, KINDS.PREDATOR, KINDS.PERSON].includes(W.kind[id]) &&
+          (W.kind[id] === KINDS.PREDATOR ? canJoinPredatorPair(id) : canReproduce(id)),
       )
-      .sort((a, b) => a - b),
+      .sort(
+        (a, b) =>
+          counterRand("reproduction-order", Math.floor(W.tick / 16), a) -
+            counterRand("reproduction-order", Math.floor(W.tick / 16), b) || a - b,
+      ),
     used = new Set();
   for (const id of ids) {
-    if (used.has(id) || !canReproduce(id)) continue;
-    const kind = W.kind[id],
-      p = W.components.position[id],
+    const kind = W.kind[id];
+    if (used.has(id) || !(kind === KINDS.PREDATOR ? canJoinPredatorPair(id) : canReproduce(id)))
+      continue;
+    const p = W.components.position[id],
       radius = kind === KINDS.PERSON ? 7 : 4,
       mates = nearbyIds(
         id,
         radius,
-        (other) => other > id && W.kind[other] === kind && canReproduce(other) && !used.has(other),
-      ),
-      mate = mates[0];
+        (other) =>
+          other !== id &&
+          W.kind[other] === kind &&
+          (kind === KINDS.PREDATOR
+            ? canJoinPredatorPair(other) && predatorPairHasMatter(id, other)
+            : canReproduce(other)) &&
+          !used.has(other),
+      ).sort((a, b) => mateChoiceScore(id, b) - mateChoiceScore(id, a) || a - b),
+      mate = mates.find((candidate) => Number.isFinite(mateChoiceScore(id, candidate)));
     if (!mate) continue;
     const parents = [id, mate],
       tile = idx(p.x, p.y);
@@ -65,11 +77,37 @@ function remember(id, eventId, emotion = "observed") {
   if (m.rememberedEvents.length > 30) m.rememberedEvents.shift();
   if (m.ring.length > 16) m.ring.shift();
 }
+function rememberFearLocation(id, tile) {
+  const memory = W.components.memory[id];
+  if (!memory) return;
+  memory.fearLocations = (memory.fearLocations || []).filter((entry) => {
+    const rememberedTile = typeof entry === "number" ? entry : entry?.tile;
+    return rememberedTile !== tile;
+  });
+  memory.fearLocations.push({ tile, tick: W.tick });
+  if (memory.fearLocations.length > 16)
+    memory.fearLocations.splice(0, memory.fearLocations.length - 16);
+}
+function fearMemoryStrength(id, tile) {
+  const entries = W.components.memory[id]?.fearLocations || [];
+  let strongest = 0;
+  for (const entry of entries) {
+    if (typeof entry === "number") {
+      if (entry === tile) strongest = Math.max(strongest, 0.2);
+      continue;
+    }
+    if (entry?.tile !== tile) continue;
+    strongest = Math.max(strongest, clamp(1 - (W.tick - entry.tick) / 1536, 0, 1));
+  }
+  return strongest;
+}
 function decayMemories() {
   for (const id of W.activeIds) {
     const m = W.components.memory[id];
     if (!m) continue;
-    if (m.fearLocations.length > 12) m.fearLocations.shift();
+    m.fearLocations = (m.fearLocations || [])
+      .filter((entry) => typeof entry !== "object" || W.tick - entry.tick < 1536)
+      .slice(-16);
     for (const k of Object.keys(m.socialMemories)) m.socialMemories[k] *= 0.995;
   }
 }

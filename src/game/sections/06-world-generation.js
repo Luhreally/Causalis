@@ -578,12 +578,31 @@ function generateChemistry(seed, laws, unfiltered) {
     ["glass", C.GLASS, 10],
   ];
   const meanFormulaMass = mean(species.map((s) => s.molecularMass)),
+    intrinsicHardness = Object.freeze({
+      water: 0.06,
+      soil: 0.2,
+      sand: 0.42,
+      clay: 0.34,
+      wood: 0.38,
+      "plant matter": 0.12,
+      flesh: 0.08,
+      bone: 0.76,
+      stone: 1.08,
+      ore: 0.92,
+      metal: 1.38,
+      ash: 0.14,
+      glass: 0.96,
+    }),
     materials = materialRoles.map((m, i) => {
       const sp = species[m[1]];
-      let hard = clamp((sp.stability * 0.8 + (m[2] / 15) * 1.5) * laws.materialHardness, 0.1, 2.5);
+      let hard = clamp(
+        intrinsicHardness[m[0]] * (0.72 + sp.stability * 0.42) * laws.materialHardness,
+        0.04,
+        2.5,
+      );
       if (!unfiltered && ["bone", "stone", "ore", "metal", "ceramic", "glass"].includes(m[0]))
         hard = Math.max(0.78, hard);
-      if (!unfiltered && m[0] === "water") hard = Math.min(0.32, hard);
+      if (m[0] === "water") hard = Math.min(0.22, hard);
       return Object.freeze({
         id: i,
         category: m[0],

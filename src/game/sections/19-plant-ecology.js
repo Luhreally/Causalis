@@ -14,16 +14,19 @@ function updatePlants() {
         fert = tileFertility(i);
       if (t.fire[i] > 0 || (W.weather.name === "Drought" && moist < 15)) {
         if (t.plantOrder[i] > 0) {
-          const loss = Math.min(t.plantOrder[i], 3 + Math.floor((20 - moist) * 0.2));
+          const loss = Math.min(t.plantOrder[i], Math.max(1, 3 + Math.floor((20 - moist) * 0.2)));
           t.plantOrder[i] -= loss;
           executeProcess("decomposition", invTile(i), Math.max(1, loss >> 3));
         }
         continue;
       }
       if (temp > -8 && temp < 48 && moist > 16 && fert > 10 && t.liquid[i] < 1600) {
-        const possible = Math.max(1, Math.floor(((moist + fert) * W.laws.plantEfficiency) / 80)),
+        const photosynthesis = reactionById("photosynthesis"),
+          possible = Math.max(1, Math.floor(((moist + fert) * W.laws.plantEfficiency) / 80)),
           made = executeProcess("photosynthesis", invTile(i), possible, {
-            externalEnergy: W.laws.solarFlux,
+            externalEnergy: photosynthesis?.externalEnergyRequirement || 0,
+            externalFlux: W.laws.solarFlux,
+            location: i,
           });
         if (made) t.plantOrder[i] = u16(t.plantOrder[i] + made * 2);
       }
@@ -47,8 +50,11 @@ function updateNichePrimaryProduction() {
       const i = f.tile,
         flux = W.tiles.geothermal[i] || 0;
       if (flux < 120 || W.tiles.fire[i]) continue;
+      const chemosynthesis = reactionById("chemosynthesis");
       const made = executeProcess("chemosynthesis", invTile(i), 1 + Math.floor(f.strength / 420), {
-        externalEnergy: Math.max(1, flux / 180),
+        externalEnergy: chemosynthesis?.externalEnergyRequirement || 0,
+        externalFlux: Math.max(0.1, flux / 360),
+        location: i,
       });
       if (made) W.tiles.plantOrder[i] = u16(W.tiles.plantOrder[i] + made * 2);
     }

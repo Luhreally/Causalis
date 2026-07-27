@@ -111,20 +111,21 @@ function applyTool(tile) {
         break;
       case "heal":
         for (const id of W.spatialBins[i] || []) {
-          if (!classifyAlive(id)) continue;
-          const q = W.components.chemistry[id].q;
-          let added = 0;
-          for (const [sp, requested] of [
-            [C.ENERGY, 20],
-            [C.NUTRIENT, 12],
-            [C.ORGANIC, 12],
-          ]) {
-            const moved = Math.min(requested, 65535 - q[sp]);
-            q[sp] += moved;
-            added += moved;
-          }
-          input(added);
-          executeProcess("healing", invEntity(id), 8);
+          if (!peekAlive(id)) continue;
+          queueEffect(
+            "HealEntity",
+            {
+              entityId: id,
+              amounts: [
+                [C.ENERGY, 20],
+                [C.NUTRIENT, 12],
+                [C.ORGANIC, 12],
+              ],
+              extent: 8,
+              causeEvent: cause.id,
+            },
+            cause.id,
+          );
         }
         break;
       case "erase":
@@ -161,6 +162,7 @@ function applyTool(tile) {
         input(320);
         break;
       case "claim": {
+        if (i !== tile) break;
         const f = nearestFaction(i);
         if (f)
           queueEffect("ChangeOwnership", {

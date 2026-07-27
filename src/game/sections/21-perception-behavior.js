@@ -25,40 +25,108 @@ function nearbyIds(id, radius = 3, filter = null) {
   out.sort((a, b) => a - b);
   return out;
 }
+function mateChoiceScore(id, other) {
+  const p = W.components.position[id],
+    op = W.components.position[other];
+  if (!p || !op || id === other) return -Infinity;
+  const a = W.components.reproduction[id],
+    b = W.components.reproduction[other],
+    compatibility = 1 - Math.abs((a?.matePreference ?? 0.5) - (b?.matePreference ?? 0.5)),
+    social = W.components.social[id],
+    otherSocial = W.components.social[other];
+  if (W.kind[id] === KINDS.PERSON) {
+    if (social?.partnerId && social.partnerId !== other && peekAlive(social.partnerId))
+      return -Infinity;
+    if (otherSocial?.partnerId && otherSocial.partnerId !== id && peekAlive(otherSocial.partnerId))
+      return -Infinity;
+  }
+  const relationship = social?.relationships?.[other],
+    bond =
+      (social?.partnerId === other ? 6 : 0) +
+      (relationship?.affection || 0) * 2 +
+      (relationship?.trust || social?.trust?.[other] || 0) * 1.5,
+    distance = Math.sqrt(dist2(p.x, p.y, op.x, op.y)),
+    stableVariation =
+      (hashParts(W.seedHash, "mate-choice", Math.min(id, other), Math.max(id, other)) >>> 0) /
+      4294967295;
+  return compatibility * 5 + bond + stableVariation * 0.5 - distance * 0.28;
+}
+function eligibleMateCandidates(id, radius = 32) {
+  const position = W.components.position[id],
+    kind = W.kind[id];
+  if (!position) return [];
+  return W.activeIds
+    .filter((other) => {
+      if (other === id || W.kind[other] !== kind) return false;
+      const available = kind === KINDS.PREDATOR ? canJoinPredatorPair(other) : canReproduce(other);
+      if (!available) return false;
+      const otherPosition = W.components.position[other];
+      return (
+        otherPosition &&
+        dist2(position.x, position.y, otherPosition.x, otherPosition.y) <= radius * radius &&
+        Number.isFinite(mateChoiceScore(id, other))
+      );
+    })
+    .sort((a, b) => mateChoiceScore(id, b) - mateChoiceScore(id, a) || a - b);
+}
+function simulationStrideForTier(tier) {
+  if (tier !== "simplified-due") return 1;
+  return W.config.complexity === "lean" ? 8 : W.config.complexity === "deep" ? 2 : 4;
+}
 function runMetabolism(id, tier) {
   const ch = W.components.chemistry[id],
     l = W.components.life[id],
     p = phenotype(id),
-    rate =
-      tier === "simplified-due"
-        ? W.config.complexity === "lean"
-          ? 8
-          : W.config.complexity === "deep"
-            ? 2
-            : 4
-        : 1,
+    rate = simulationStrideForTier(tier),
     inv = invEntity(id),
     d = W.components.inventory[id].digestive,
     pos = W.components.position[id],
     ti = idx(pos.x, pos.y);
-  for (const sp of [C.ENERGY, C.SOLVENT, C.NUTRIENT, C.CATALYST, C.TOXIN, C.PATHOGEN]) {
-    const limit = sp === C.ENERGY ? 14 * rate : sp === C.NUTRIENT ? 6 * rate : 3 * rate,
+  for (const sp of [
+    C.ENERGY,
+    C.SOLVENT,
+    C.NUTRIENT,
+    C.CATALYST,
+    C.INFO,
+    C.MEMBRANE,
+    C.TOXIN,
+    C.PATHOGEN,
+  ]) {
+    const limit =
+        sp === C.ENERGY
+          ? 14 * rate
+          : sp === C.NUTRIENT
+            ? 6 * rate
+            : sp === C.INFO || sp === C.MEMBRANE
+              ? 2 * rate
+              : 3 * rate,
       take = Math.min(d[sp], limit, 65535 - ch.q[sp]);
     d[sp] -= take;
     ch.q[sp] += take;
   }
-  const respiratoryDemand = Math.max(
-      1,
-      Math.floor((rate * (1 + p.speed * 0.2)) / Math.max(0.35, p.metabolism)),
-    ),
+  const trophicScale = W.kind[id] === KINDS.PREDATOR ? 0.14 : 1,
+    rawRespiratoryDemand =
+      (rate * (1 + p.speed * 0.2) * trophicScale) / Math.max(0.35, p.metabolism),
+    respiratoryBudget = (l.respiratoryRemainder || 0) + rawRespiratoryDemand,
+    respiratoryDemand = Math.floor(respiratoryBudget),
     oxidantNeed = Math.max(0, respiratoryDemand + 2 - ch.q[C.OXIDANT]),
     oxidantIntake = Math.min(oxidantNeed, W.tiles.chem[C.OXIDANT][ti], 65535 - ch.q[C.OXIDANT]);
+  l.respiratoryRemainder = respiratoryBudget - respiratoryDemand;
   W.tiles.chem[C.OXIDANT][ti] -= oxidantIntake;
   ch.q[C.OXIDANT] += oxidantIntake;
   const respired = executeProcess("respiration", inv, respiratoryDemand, { dissipate: 1 }),
     exhaled = Math.min(respired, ch.q[C.GAS], 65535 - W.tiles.chem[C.GAS][ti]);
   ch.q[C.GAS] -= exhaled;
   W.tiles.chem[C.GAS][ti] += exhaled;
+  const organicReserveTarget =
+      W.kind[id] === KINDS.PERSON ? 76 : W.kind[id] === KINDS.PREDATOR ? 88 : 68,
+    assimilatedOrganic = Math.min(
+      d[C.ORGANIC],
+      4 * rate,
+      Math.max(0, organicReserveTarget - ch.q[C.ORGANIC]),
+    );
+  d[C.ORGANIC] -= assimilatedOrganic;
+  ch.q[C.ORGANIC] += assimilatedOrganic;
   const energyReserve = W.kind[id] === KINDS.PERSON ? 200 : 150;
   if (ch.q[C.ENERGY] < energyReserve) {
     const intake = Math.min(10 * rate, d[C.ORGANIC], 65535 - ch.q[C.ORGANIC]);
@@ -72,7 +140,11 @@ function runMetabolism(id, tier) {
       amount = Math.min(10 * rate, available);
     if (amount > 0) executeProcess("digestion", inv, Math.max(1, Math.floor(amount / 2)));
   }
-  const solventLoss = Math.min(ch.q[C.SOLVENT], rate + (p.size > 1.3 ? 1 : 0));
+  const solventBudget =
+      (l.solventLossRemainder || 0) +
+      (rate + (p.size > 1.3 ? 1 : 0)) * (W.kind[id] === KINDS.PREDATOR ? 0.3 : 1),
+    solventLoss = Math.min(ch.q[C.SOLVENT], Math.floor(solventBudget));
+  l.solventLossRemainder = solventBudget - Math.floor(solventBudget);
   ch.q[C.SOLVENT] -= solventLoss;
   setTileMatterAmount(ti, C.SOLVENT, tileMatterAmount(ti, C.SOLVENT) + solventLoss);
   if (ch.q[C.WASTE] > 90) {
@@ -88,7 +160,7 @@ function runMetabolism(id, tier) {
   );
   l.regulation = u16(
     l.regulation +
-      (respired && ch.q[C.ENERGY] >= 5 ? rate : -2 * rate) -
+      ((respiratoryDemand === 0 || respired) && ch.q[C.ENERGY] >= 5 ? rate : -2 * rate) -
       (ch.q[C.ENERGY] < 5 ? 5 * rate : 0),
   );
   const rep = W.components.reproduction[id];
@@ -158,7 +230,16 @@ function directionScore(id, dx, dy, goal) {
   if (goal === "food") score += food * 3;
   if (goal === "water") score += moist * 2;
   if (goal === "hunt") {
-    score += blood * 0.65 + tilePopulation(i) * 3;
+    const localPrey = (W.spatialBins[i] || []).filter((other) => {
+      const kind = W.kind[other],
+        otherLife = W.components.life[other];
+      return (
+        (kind === KINDS.HERBIVORE || kind === KINDS.PERSON) &&
+        otherLife?.regulation > 0 &&
+        otherLife.integrity > 0
+      );
+    }).length;
+    score += blood * 0.65 + localPrey * 18;
     const target = W.components.position[life?.preyTargetId];
     if (target && classifyAlive(life.preyTargetId)) {
       const targetLife = derivedLife(life.preyTargetId);
@@ -166,7 +247,24 @@ function directionScore(id, dx, dy, goal) {
       score += (100 - targetLife.health) * 0.16;
     }
   }
-  if (goal === "scavenge") score += blood * 2 + disease * -0.5;
+  if (goal === "defend") {
+    const threat = W.components.position[life?.threatId];
+    if (threat && classifyAlive(life.threatId))
+      score -= Math.sqrt(dist2(x, y, threat.x, threat.y)) * 28;
+    else score += danger * 1.5 + fire * 0.3;
+  }
+  if (goal === "wander") {
+    score -= W.tiles.habitation[i] * 0.018 + W.tiles.populationPressure[i] * 0.025;
+    score +=
+      counterRand("wander-direction", Math.floor(W.tick / 8), id, (dx + 2) * 13 + (dy + 2)) * 18;
+    if (!dx && !dy) score -= 24;
+  }
+  if (goal === "scavenge") {
+    score += blood * 2 + disease * -0.5;
+    const corpse = W.components.position[life?.scavengeTargetId];
+    if (corpse && W.kind[life.scavengeTargetId] === KINDS.CORPSE)
+      score -= Math.sqrt(dist2(x, y, corpse.x, corpse.y)) * 30;
+  }
   if (goal === "gather") score += tileResource(i) * 2 + food * 0.5;
   if (goal === "return") {
     const destination =
@@ -176,7 +274,7 @@ function directionScore(id, dx, dy, goal) {
     if (destination) score -= Math.sqrt(dist2(x, y, destination.x, destination.y)) * 8;
   }
   if (goal === "migrate") score += food + moist - danger - organismHabitatStress(id, i) * 1.5;
-  score += counterRand("behavior-tie", W.tick, id, (dx + 2) * 13 + (dy + 2)) * 1e-3;
+  score += counterRand("behavior-tie", W.tick, id, (dx + 2) * 13 + (dy + 2)) * 0.05;
   return score;
 }
 function bestDirection(id, goal) {
@@ -200,8 +298,16 @@ function huntTargetScore(id, target) {
     ph = phenotype(id),
     distance = Math.sqrt(dist2(p.x, p.y, tp.x, tp.y)),
     vulnerability = (100 - life.health) * 0.24 + tileBlood(idx(tp.x, tp.y)) * 0.08,
-    defense = (body?.armor || 0) * 12 + (phenotype(target).size - ph.size) * 7;
-  return distance * 18 + defense - vulnerability + target * 0.0001;
+    defense =
+      (body?.armor || 0) * 12 +
+      (phenotype(target).size - ph.size) * 7 +
+      (W.kind[target] === KINDS.PERSON ? 60 : 0);
+  return (
+    distance * 18 +
+    defense -
+    vulnerability +
+    counterRand("hunt-target-tie", Math.floor(W.tick / 8), id, target) * 0.01
+  );
 }
 function chooseBehavior(id, tier) {
   const k = W.kind[id],
@@ -215,18 +321,31 @@ function chooseBehavior(id, tier) {
     l.behaviorReason = assignedWork.phase || "executing an assigned material task";
     return;
   }
-  const senseRadius = clamp(Math.round(ph.sense), 4, 11),
+  const senseRadius = clamp(Math.round(ph.sense), 2, 11),
+    huntableHerbivores = k === KINDS.PREDATOR ? biospherePopulation(KINDS.HERBIVORE) > 24 : true,
+    huntablePeople =
+      k === KINDS.PREDATOR ? !huntableHerbivores && biospherePopulation(KINDS.PERSON) > 10 : true,
     nearPred =
-      k === KINDS.HERBIVORE ? nearbyIds(id, senseRadius, (o) => W.kind[o] === KINDS.PREDATOR) : [],
+      k !== KINDS.PREDATOR
+        ? nearbyIds(id, senseRadius, (o) => W.kind[o] === KINDS.PREDATOR && classifyAlive(o))
+        : [],
     nearPrey =
       k === KINDS.PREDATOR
         ? nearbyIds(
             id,
             senseRadius,
-            (o) => W.kind[o] === KINDS.HERBIVORE || W.kind[o] === KINDS.PERSON,
+            (o) =>
+              (W.kind[o] === KINDS.HERBIVORE && huntableHerbivores) ||
+              (W.kind[o] === KINDS.PERSON && huntablePeople),
           )
         : [],
     nearCorpse = nearbyIds(id, senseRadius, (o) => W.kind[o] === KINDS.CORPSE);
+  nearCorpse.sort((a, b) => {
+    const ap = W.components.position[a],
+      bp = W.components.position[b];
+    return dist2(p.x, p.y, ap.x, ap.y) - dist2(p.x, p.y, bp.x, bp.y) || a - b;
+  });
+  l.scavengeTargetId = nearCorpse[0] || 0;
   if (nearPred.length) {
     nearPred.sort(
       (a, b) =>
@@ -246,17 +365,60 @@ function chooseBehavior(id, tier) {
     if (
       remembered &&
       classifyAlive(remembered) &&
-      (W.kind[remembered] === KINDS.HERBIVORE || W.kind[remembered] === KINDS.PERSON) &&
+      ((W.kind[remembered] === KINDS.HERBIVORE && huntableHerbivores) ||
+        (W.kind[remembered] === KINDS.PERSON && huntablePeople)) &&
       !nearPrey.includes(remembered)
     ) {
       const rp = W.components.position[remembered];
       if (rp && dist2(p.x, p.y, rp.x, rp.y) <= senseRadius * senseRadius * 2.25)
         nearPrey.push(remembered);
     }
+    if (!nearPrey.length && l.hunger > 28) {
+      const searchRadius = l.hunger > 50 ? Math.hypot(W.width, W.height) : senseRadius * 5,
+        distantPrey = W.activeIds
+          .filter((other) => {
+            if (
+              other === id ||
+              !peekAlive(other) ||
+              (W.kind[other] === KINDS.HERBIVORE
+                ? !huntableHerbivores
+                : W.kind[other] === KINDS.PERSON
+                  ? !huntablePeople
+                  : true)
+            )
+              return false;
+            const otherPosition = W.components.position[other];
+            return (
+              otherPosition &&
+              dist2(p.x, p.y, otherPosition.x, otherPosition.y) <= searchRadius * searchRadius
+            );
+          })
+          .sort((a, b) => huntTargetScore(id, a) - huntTargetScore(id, b));
+      if (distantPrey[0]) nearPrey.push(distantPrey[0]);
+    }
     nearPrey.sort((a, b) => huntTargetScore(id, a) - huntTargetScore(id, b));
     l.preyTargetId = nearPrey[0] || 0;
   }
-  const target = l.preyTargetId ? derivedLife(l.preyTargetId) : null,
+  const threatPosition = l.threatId ? W.components.position[l.threatId] : null,
+    threatLife = l.threatId ? W.components.life[l.threatId] : null,
+    threatDistance =
+      threatPosition && classifyAlive(l.threatId)
+        ? Math.sqrt(dist2(p.x, p.y, threatPosition.x, threatPosition.y))
+        : Infinity,
+    threatProximity = Number.isFinite(threatDistance)
+      ? clamp(1 - threatDistance / Math.max(1, senseRadius * 1.5), 0, 1)
+      : 0,
+    threatTargetsSelf =
+      Number.isFinite(threatDistance) &&
+      (threatDistance <= Math.SQRT2 || threatLife?.preyTargetId === id),
+    localizedFlight =
+      Number.isFinite(threatDistance) &&
+      (k === KINDS.HERBIVORE
+        ? 280 + threatProximity * 120
+        : threatTargetsSelf
+          ? 300 + threatProximity * 140
+          : 70 + threatProximity * 150),
+    target = l.preyTargetId ? derivedLife(l.preyTargetId) : null,
     targetProximity = l.preyTargetId
       ? clamp(
           1 -
@@ -283,29 +445,32 @@ function chooseBehavior(id, tier) {
       {
         id: "food",
         score:
-          l.hunger * 1.25 +
-          tileFood(
-            ti,
-            k === KINDS.PREDATOR ? "predator" : k === KINDS.PERSON ? "omnivore" : "grazer",
-          ),
+          k === KINDS.PREDATOR
+            ? 0
+            : l.hunger * 1.25 + tileFood(ti, k === KINDS.PERSON ? "omnivore" : "grazer"),
         reason: "low accessible chemical energy",
       },
-      { id: "water", score: l.thirst * 1.3, reason: "low internal solvent balance" },
+      {
+        id: "water",
+        score: l.thirst > 72 ? 1e6 : l.thirst * 1.3,
+        reason: "low internal solvent balance",
+      },
       {
         id: "flee",
         score:
           W.tiles.fire[ti] / 4 +
           W.tiles.danger[ti] / 6 +
-          nearPred.length * 82 +
+          localizedFlight +
           tileFear(ti) * (k === KINDS.HERBIVORE ? 1.1 : 0.25),
-        reason: nearPred.length
-          ? "a predator entered sensory range and its position was localized"
-          : "fire, danger, or alarm compounds were sensed",
+        reason: threatTargetsSelf
+          ? "a predator localized this individual and began an immediate approach"
+          : Number.isFinite(threatDistance)
+            ? "a predator entered sensory range and its position was localized"
+            : "fire, danger, or alarm compounds were sensed",
       },
       {
         id: "mate",
-        score:
-          W.components.reproduction[id].cooldown === 0 && l.energy > 65 ? ph.fertility * 50 : 0,
+        score: canReproduce(id) ? (k === KINDS.PREDATOR ? 180 : 48) + ph.fertility * 38 : 0,
         reason: "stored matter permits reproduction",
       },
     ];
@@ -325,7 +490,7 @@ function chooseBehavior(id, tier) {
       },
       {
         id: "scavenge",
-        score: nearCorpse.length * 48 + l.hunger * 0.4,
+        score: Math.min(2, nearCorpse.length) * 36 + l.hunger * 0.4,
         reason: "decomposition volatiles revealed tissue",
       },
     );
@@ -362,6 +527,11 @@ function chooseBehavior(id, tier) {
       },
     );
   }
+  if (W.tiles.fire[ti] > 90) {
+    const forcedFlee = scores.find((candidate) => candidate.id === "flee");
+    forcedFlee.score = 1e9;
+    forcedFlee.reason = "combustion heat and smoke exceeded the immediate escape threshold";
+  }
   const heuristicWinner = scores
       .slice()
       .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))[0],
@@ -379,10 +549,6 @@ function chooseBehavior(id, tier) {
   }
   scores.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
   const action = scores[0];
-  if (W.tiles.fire[ti] > 90) {
-    action.id = "flee";
-    action.reason = "combustion heat and smoke exceeded the immediate escape threshold";
-  }
   if (cognition) {
     const actual = LTC_ACTIONS.indexOf(action.id);
     if (actual >= 0) cognition.lastAction = actual;
@@ -404,7 +570,7 @@ function chooseBehavior(id, tier) {
         emit = Math.min(made, q[C.FEAR]);
       q[C.FEAR] -= emit;
       setTileMatterAmount(ti, C.FEAR, tileMatterAmount(ti, C.FEAR) + emit);
-      W.components.memory[id].fearLocations.push(ti);
+      rememberFearLocation(id, ti);
     }
   } else if (action.id === "rest") {
     const recovery =
@@ -418,12 +584,10 @@ function chooseBehavior(id, tier) {
       shelter = 1 + shelterProtectionAt(id, ti) * 0.65;
     l.fatigue = clamp(l.fatigue - 2.4 * recovery * shelter, 0, 100);
   } else if (action.id === "mate") {
-    const mates = nearbyIds(id, 8, (o) => W.kind[o] === k && canReproduce(o)).sort(
-        (a, b) =>
-          dist2(p.x, p.y, W.components.position[a].x, W.components.position[a].y) -
-            dist2(p.x, p.y, W.components.position[b].x, W.components.position[b].y) || a - b,
-      ),
-      mate = mates[0];
+    const mate = eligibleMateCandidates(
+      id,
+      k === KINDS.PREDATOR ? Math.max(W.width, W.height) : 32,
+    )[0];
     if (mate) {
       const mp = W.components.position[mate];
       dir = [Math.sign(mp.x - p.x), Math.sign(mp.y - p.y)];
@@ -436,20 +600,39 @@ function chooseBehavior(id, tier) {
   else if (action.id === "gather") performGather(id, ti) || (dir = bestDirection(id, "gather"));
   else if (action.id === "return") dir = bestDirection(id, "return");
   else if (action.id === "socialize") performSocialInteraction(id);
-  else if (action.id === "defend") dir = bestDirection(id, "flee");
-  else if (action.id === "wander") dir = bestDirection(id, "migrate");
+  else if (action.id === "defend") dir = bestDirection(id, "defend");
+  else if (action.id === "wander") dir = bestDirection(id, "wander");
   if (dir[0] || dir[1]) {
     const nx = clamp(p.x + dir[0], 0, W.width - 1),
-      ny = clamp(p.y + dir[1], 0, W.height - 1);
+      ny = clamp(p.y + dir[1], 0, W.height - 1),
+      chargeMotion = k !== KINDS.PERSON || W.tick % 2 === id % 2,
+      motionEffort = chargeMotion
+        ? ph.speed * ph.size * 0.35 * (k === KINDS.PREDATOR ? 0.45 : 1)
+        : 0;
     if (W.tiles.liquid[idx(nx, ny)] < 1100 && W.tiles.fire[idx(nx, ny)] < 700) {
-      queueEffect("MoveEntity", { entityId: id, x: nx, y: ny }, id);
-      if (k !== KINDS.PERSON || W.tick % 2 === id % 2)
-        executeProcess(
-          "motion_dissipation",
-          invEntity(id),
-          Math.max(1, Math.ceil(ph.speed * ph.size * 0.35)),
-          { dissipate: 1 },
+      queueEffect("MoveEntity", { entityId: id, x: nx, y: ny, motionEffort }, id);
+      if (k === KINDS.PREDATOR && action.id === "hunt" && l.preyTargetId) {
+        const pursuitChance = clamp(
+          0.42 +
+            (ph.speed - (peekPhenotype(l.preyTargetId)?.speed || 1)) * 0.35 +
+            ph.aggression * 0.18,
+          0.25,
+          0.85,
         );
+        if (counterRand("predator-pursuit-step", W.tick, id, l.preyTargetId) < pursuitChance) {
+          queueEffect(
+            "MoveEntity",
+            {
+              entityId: id,
+              x: clamp(p.x + dir[0] * 2, 0, W.width - 1),
+              y: clamp(p.y + dir[1] * 2, 0, W.height - 1),
+              pursuit: true,
+              motionEffort,
+            },
+            id,
+          );
+        }
+      }
     }
   }
   if (k === KINDS.PERSON) W.tiles.habitation[ti] = u16(W.tiles.habitation[ti] + 1);
@@ -457,6 +640,7 @@ function chooseBehavior(id, tier) {
 function performFeeding(id, tile) {
   const k = W.kind[id],
     available = tileFood(tile, k === KINDS.PERSON ? "omnivore" : "grazer");
+  if (k === KINDS.PREDATOR) return false;
   if (available < 3) return false;
   const inv = W.components.inventory[id].digestive,
     amount = Math.min(
@@ -477,6 +661,14 @@ function performFeeding(id, tile) {
   const cat = Math.min(2, W.tiles.chem[C.CATALYST][tile], 65535 - inv[C.CATALYST]);
   W.tiles.chem[C.CATALYST][tile] -= cat;
   inv[C.CATALYST] += cat;
+  for (const [species, limit] of [
+    [C.INFO, 1],
+    [C.MEMBRANE, 2],
+  ]) {
+    const moved = Math.min(limit, tileMatterAmount(tile, species), 65535 - inv[species]);
+    setTileMatterAmount(tile, species, tileMatterAmount(tile, species) - moved);
+    inv[species] += moved;
+  }
   W.tiles.plantOrder[tile] = u16(W.tiles.plantOrder[tile] - amount);
   return true;
 }
@@ -534,6 +726,23 @@ function performHunt(id, prey) {
     q[C.BLOOD] -= spilled;
     setTileMatterAmount(ti, C.BLOOD, tileMatterAmount(ti, C.BLOOD) + spilled);
   }
+  const hunterDigestive = W.components.inventory[id].digestive,
+    targetChemistry = W.components.chemistry[target].q;
+  let consumed = 0;
+  for (const [species, requested] of [
+    [C.ORGANIC, Math.max(3, Math.ceil(damage / 7))],
+    [C.ENERGY, Math.max(2, Math.ceil(damage / 12))],
+    [C.NUTRIENT, Math.max(1, Math.ceil(damage / 18))],
+    [C.SOLVENT, Math.max(1, Math.ceil(damage / 20))],
+    [C.INFO, Math.max(1, Math.ceil(damage / 36))],
+    [C.MEMBRANE, Math.max(1, Math.ceil(damage / 24))],
+    [C.CATALYST, 1],
+  ]) {
+    const moved = Math.min(requested, targetChemistry[species], 65535 - hunterDigestive[species]);
+    targetChemistry[species] -= moved;
+    hunterDigestive[species] += moved;
+    consumed += moved;
+  }
   queueEffect("DamageStructure", { entityId: target, amount: damage }, id);
   W.tiles.danger[ti] = u16(W.tiles.danger[ti] + Math.max(4, damage) * 4);
   const ev = emitEvent("InjuryEvent", {
@@ -555,6 +764,7 @@ function performHunt(id, prey) {
       defenseFactor: +defenseFactor.toFixed(3),
       learnedBottleneckResponse,
       bloodLost: spilled,
+      consumed,
     },
   });
   queuePredationVisual(id, target, ti, damage, lethal, ev.id);
@@ -589,15 +799,25 @@ performHunt = function (id, prey) {
 function performScavenge(id, corpses) {
   if (!corpses.length) return false;
   const p = W.components.position[id],
-    corpse = corpses.find((c) => {
-      const q = W.components.position[c];
-      return dist2(p.x, p.y, q.x, q.y) <= 2;
-    });
+    corpse = corpses
+      .filter((candidate) => {
+        const position = W.components.position[candidate];
+        return position && dist2(p.x, p.y, position.x, position.y) <= 2;
+      })
+      .sort((a, b) => {
+        const aq = W.components.chemistry[a]?.q,
+          bq = W.components.chemistry[b]?.q;
+        return (bq?.[C.ORGANIC] || 0) - (aq?.[C.ORGANIC] || 0) || a - b;
+      })[0];
   if (!corpse) return false;
   const from = W.components.chemistry[corpse].q,
     to = W.components.inventory[id].digestive;
-  for (const sp of [C.ORGANIC, C.ENERGY, C.NUTRIENT, C.SOLVENT]) {
-    const amount = Math.min(from[sp], sp === C.ORGANIC ? 12 : 6, 65535 - to[sp]);
+  for (const sp of [C.ORGANIC, C.ENERGY, C.NUTRIENT, C.SOLVENT, C.INFO, C.MEMBRANE, C.CATALYST]) {
+    const amount = Math.min(
+      from[sp],
+      sp === C.ORGANIC ? 24 : sp === C.INFO || sp === C.CATALYST ? 3 : 12,
+      65535 - to[sp],
+    );
     from[sp] -= amount;
     to[sp] += amount;
   }
@@ -620,7 +840,17 @@ function performGather(id, tile) {
   return got > 0;
 }
 function performSocialInteraction(id) {
-  const others = nearbyIds(id, 2, (o) => W.kind[o] === KINDS.PERSON),
+  const others = nearbyIds(id, 2, (o) => W.kind[o] === KINDS.PERSON).sort((left, right) => {
+      const a = W.components.social[id],
+        leftTrust = a.trust[left] || 0,
+        rightTrust = a.trust[right] || 0,
+        cycle = Math.floor(W.tick / 16);
+      return (
+        leftTrust - rightTrust ||
+        counterRand("social-partner", cycle, id, left) -
+          counterRand("social-partner", cycle, id, right)
+      );
+    }),
     a = W.components.social[id];
   if (!others.length) return false;
   const other = others[0],
@@ -665,5 +895,5 @@ function nearestFriendlyPlace(id) {
       best = s;
     }
   }
-  return bd <= 676 ? best : null;
+  return best;
 }

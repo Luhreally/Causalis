@@ -160,7 +160,7 @@ function organismInspector(id) {
   if (!l)
     return `<div class="eyebrow">Historical identity</div><h3>${esc(ident?.name || ident?.generatedName || `Entity ${id}`)}</h3><div class="empty">Its matter has returned to the environment; its event record remains.</div>`;
   const p = W.components.position[id],
-    ph = phenotype(id),
+    ph = peekPhenotype(id),
     g = W.components.genome[id],
     ch = W.components.chemistry[id],
     b = W.components.body[id],
@@ -171,7 +171,7 @@ function organismInspector(id) {
     parents = ident.parents.map(entityLink),
     children = ident.children.map(entityLink),
     rels = relationsOf(id);
-  return `<div class="row between"><div><div class="eyebrow">${titleCase(k)} · #${id}</div><h3 style="margin:4px 0">${esc(ident.generatedName)}</h3><div class="muted">${esc(species?.name || speciesLabel(k, g.lineageId))}${fac ? ` · ${esc(fac.name)}` : ""}</div></div>${classifyAlive(id) ? `<button class="small ${UI.followId === id ? "primary" : ""}" data-follow="${id}">${UI.followId === id ? "Following" : "Follow"}</button>` : ""}</div>${ident.titles.length ? `<div class="row wrap" style="margin-top:8px">${ident.titles.map((t) => `<span class="tag gold">${esc(t)}</span>`).join("")}</div>` : ""}<div class="subhead">Life and causality</div><div class="kv"><span>Age</span><b>${l.age} / ${b.maxAge}</b><span>Health</span><b>${l.health.toFixed(1)}% (structure-derived)</b><span>Energy</span><b>${l.energy.toFixed(1)}% (${ch.q[C.ENERGY]} carrier mass)</b><span>Hunger / thirst</span><b>${l.hunger.toFixed(0)} / ${l.thirst.toFixed(0)}</b><span>Behavior</span><b>${esc(l.behavior || "none")}</b><span>Why?</span><b>${esc(l.behaviorReason || "no active need")}</b><span>Injury / pathogen</span><b>${l.wounded ? "wounded" : "intact"} / ${ch.q[C.PATHOGEN]}</b><span>Cause of death</span><b>${esc(l.causeOfDeath || "—")}</b><span>Significance</span><b>${ident.significance.toFixed(1)}${ident.notable ? " · notable" : ""}</b></div>${k === KINDS.PERSON ? personInventoryPanel(id) : ""}<details open><summary>Body composition and metabolism</summary><div>${chemistryRows(ch.q, 12)}<div class="divider"></div><div class="kv"><span>Stored energy compound</span><b>${esc(W.definitions.species[C.ENERGY].name)} · ${ch.q[C.ENERGY]}</b><span>Pathways</span><b>respiration, digestion, repair, information copying</b><span>Compatible foods</span><b>${esc(b.diet)}</b><span>Waste products</span><b>${esc(W.definitions.species[C.WASTE].name)} · ${ch.q[C.WASTE]}</b><span>Toxins</span><b>${ch.q[C.TOXIN]}</b><span>Boundary integrity</span><b>${l.integrity}/1000</b><span>Tissue allocation</span><b>${Object.entries(
+  return `<div class="row between"><div><div class="eyebrow">${titleCase(k)} · #${id}</div><h3 style="margin:4px 0">${esc(ident.generatedName)}</h3><div class="muted">${esc(species?.name || speciesLabel(k, g.lineageId))}${fac ? ` · ${esc(fac.name)}` : ""}</div></div>${peekAlive(id) ? `<button class="small ${UI.followId === id ? "primary" : ""}" data-follow="${id}">${UI.followId === id ? "Following" : "Follow"}</button>` : ""}</div>${ident.titles.length ? `<div class="row wrap" style="margin-top:8px">${ident.titles.map((t) => `<span class="tag gold">${esc(t)}</span>`).join("")}</div>` : ""}<div class="subhead">Life and causality</div><div class="kv"><span>Age</span><b>${l.age} / ${b.maxAge}</b><span>Health</span><b>${l.health.toFixed(1)}% (structure-derived)</b><span>Energy</span><b>${l.energy.toFixed(1)}% (${ch.q[C.ENERGY]} carrier mass)</b><span>Hunger / thirst</span><b>${l.hunger.toFixed(0)} / ${l.thirst.toFixed(0)}</b><span>Behavior</span><b>${esc(l.behavior || "none")}</b><span>Why?</span><b>${esc(l.behaviorReason || "no active need")}</b><span>Injury / pathogen</span><b>${l.wounded ? "wounded" : "intact"} / ${ch.q[C.PATHOGEN]}</b><span>Cause of death</span><b>${esc(l.causeOfDeath || "—")}</b><span>Significance</span><b>${ident.significance.toFixed(1)}${ident.notable ? " · notable" : ""}</b></div>${k === KINDS.PERSON ? personInventoryPanel(id) : ""}<details open><summary>Body composition and metabolism</summary><div>${chemistryRows(ch.q, 12)}<div class="divider"></div><div class="kv"><span>Stored energy compound</span><b>${esc(W.definitions.species[C.ENERGY].name)} · ${ch.q[C.ENERGY]}</b><span>Pathways</span><b>respiration, digestion, repair, information copying</b><span>Compatible foods</span><b>${esc(b.diet)}</b><span>Waste products</span><b>${esc(W.definitions.species[C.WASTE].name)} · ${ch.q[C.WASTE]}</b><span>Toxins</span><b>${ch.q[C.TOXIN]}</b><span>Boundary integrity</span><b>${l.integrity}/1000</b><span>Tissue allocation</span><b>${Object.entries(
     b.tissues,
   )
     .map(([k, v]) => `${k} ${v}`)
@@ -438,6 +438,7 @@ function refreshChronicle() {
       "factions",
       "technology",
       "war",
+      "conflict",
       "disasters",
       "species",
     ],
@@ -517,7 +518,7 @@ refreshWorldInfo = function () {
 };
 function averageTraits(kind) {
   const ids = W.activeIds.filter((id) => W.kind[id] === kind && W.components.genome[id]),
-    ps = ids.map(phenotype),
+    ps = ids.map(peekPhenotype),
     cohortCount = sum(W.cohorts.filter((c) => c.kind === kind).map((c) => c.count)),
     registry = Object.values(W.speciesRegistry).filter(
       (s) => s.kind === kind && !s.extinct && s.avg,

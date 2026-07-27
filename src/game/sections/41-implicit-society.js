@@ -501,10 +501,34 @@ function concertedIntensity() {
     ? 1 + (W.civilization.concertedEffortLevel || 0)
     : 0;
 }
+function updateConcertedEffortState() {
+  if (!W?.civilization) return 0;
+  const living = W.settlements.filter((settlement) => !settlement.ruined),
+    camps = W.camps.filter((camp) => camp.active),
+    people = biospherePopulation(KINDS.PERSON);
+  let level = 0;
+  if (!living.length && camps.length && people >= 4) level = 2;
+  for (const settlement of living) {
+    if (settlementFood(settlement) < 8 || settlementWater(settlement) < 8)
+      level = Math.max(level, 2);
+    else if (settlementFood(settlement) < 16 || settlementWater(settlement) < 16)
+      level = Math.max(level, 1);
+  }
+  if ((W.activeWars || []).some((war) => !war.ended)) level = Math.max(level, 1);
+  if (level) {
+    W.civilization.concertedEffortLevel = Math.max(level, W.civilization.concertedEffortLevel || 0);
+    W.civilization.concertedEffortUntil = Math.max(
+      W.civilization.concertedEffortUntil || 0,
+      W.tick + 256,
+    );
+  } else if ((W.civilization.concertedEffortUntil || 0) <= W.tick)
+    W.civilization.concertedEffortLevel = 0;
+  return concertedIntensity();
+}
 function causalSkipIntervene() {
   const level = W?.civilization?.concertedEffortLevel || 0;
-  const next = CIV_STAGE_ORDER[normalizeCivilizationAuthority().stageIndex + 1];
-  if (!next) return;
+  const next =
+    CIV_STAGE_ORDER[normalizeCivilizationAuthority().stageIndex + 1] || CIV_STAGE_ORDER.at(-1);
   const input = (n) => (W.conservation.playerInput += n),
     living = W.settlements.filter((s) => !s.ruined);
   {
@@ -723,12 +747,15 @@ function updateEmergentMilitias() {
         W.components.social[id].militaryRole = "militia";
         W.components.social[id].unitId = unit.id;
       }
-      if (!war && pressure < 24 && unit.memberIds.length > 1) {
-        for (const id of unit.memberIds.splice(1)) {
+      const retained = !war && pressure < 24 ? 0 : desired;
+      if (unit.memberIds.length > retained) {
+        for (const id of unit.memberIds.splice(retained)) {
           W.components.social[id].militaryRole = "";
           W.components.social[id].unitId = 0;
+          assigned.delete(id);
         }
       }
+      unit.active = unit.memberIds.length > 0;
       unit.training = clamp(unit.training + unit.memberIds.length * 0.012, 0, 25);
       let supplied = 0;
       for (const id of unit.memberIds) {

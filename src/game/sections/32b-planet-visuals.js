@@ -204,6 +204,19 @@ function terrainVisualSignature(i) {
   s ^= Math.imul(t.chem[C.ASH][i] >>> 4, 0x85ebca6b);
   s ^= Math.imul(t.chem[C.TOXIN][i] >>> 5, 0xc2b2ae35);
   s ^= t.fire[i] ? 0x5bd1e995 : 0;
+  const [x, y] = xy(i);
+  for (const [nx, ny] of [
+    [x - 1, y],
+    [x + 1, y],
+    [x, y - 1],
+    [x, y + 1],
+  ]) {
+    if (!inside(nx, ny)) continue;
+    const ni = idx(nx, ny);
+    s ^= Math.imul((t.temperature[ni] + 400) >>> 4, 0x6d2b79f5);
+    s ^= Math.imul(t.chem[C.SOLVENT][ni] >>> 6, 0x1b873593);
+    s ^= t.fire[ni] ? Math.imul(ni + 1, 0x27d4eb2d) : 0;
+  }
   return s | 0;
 }
 function terrainColorProcedural(i) {
@@ -249,10 +262,10 @@ function drawCoastEdges(poly, x, y, i, v, m) {
   if (W.tiles.liquid[i] < 140) return;
   const wet = (xx, yy) => inside(xx, yy) && W.tiles.liquid[idx(xx, yy)] >= 140,
     edges = [];
-  if (!wet(x, y - 1)) edges.push([0, 1]);
-  if (!wet(x + 1, y)) edges.push([1, 2]);
-  if (!wet(x, y + 1)) edges.push([2, 3]);
-  if (!wet(x - 1, y)) edges.push([3, 0]);
+  if (inside(x, y - 1) && !wet(x, y - 1)) edges.push([0, 1]);
+  if (inside(x + 1, y) && !wet(x + 1, y)) edges.push([1, 2]);
+  if (inside(x, y + 1) && !wet(x, y + 1)) edges.push([2, 3]);
+  if (inside(x - 1, y) && !wet(x - 1, y)) edges.push([3, 0]);
   if (!edges.length) return;
   ctx.strokeStyle = hsl(
     v.liquidHue - 18,
@@ -377,6 +390,7 @@ function drawEcologicalStructure(x, y, i, p, m, v, inst = null) {
     return;
   }
   ctx.save();
+  ctx.lineWidth = Math.max(1, r * 0.12);
   if (UI.view !== "top") {
     ctx.fillStyle = "rgba(0,0,0,.28)";
     ctx.beginPath();
@@ -817,36 +831,31 @@ function drawTileProcedural(x, y) {
   } else {
     poly = proceduralTilePolygon(x, y, m);
     if (UI.quality !== "low" && UI.camera.zoom > 0.4) {
-      const south = y < W.height - 1 ? W.tiles.elevation[i + W.width] : e,
-        east = x < W.width - 1 ? W.tiles.elevation[i + 1] : e,
-        dropSouth = clamp(
-          (e - south) * 0.018 * UI.camera.zoom,
-          0,
-          Math.max(14, UI.camera.zoom * 3.2),
-        ),
-        dropEast = clamp(
-          (e - east) * 0.018 * UI.camera.zoom,
-          0,
-          Math.max(14, UI.camera.zoom * 3.2),
-        );
-      if (dropSouth > 0.5) {
+      const elevationScale =
+          UI.view === "iso"
+            ? 0.013 * UI.camera.zoom
+            : 0.018 * UI.camera.zoom * (1.12 - cameraTilt() * 0.35),
+        faces = [
+          { elevation: y > 0 ? W.tiles.elevation[i - W.width] : 0, a: 0, b: 1, shade: 5 },
+          { elevation: x < W.width - 1 ? W.tiles.elevation[i + 1] : 0, a: 1, b: 2, shade: 1 },
+          {
+            elevation: y < W.height - 1 ? W.tiles.elevation[i + W.width] : 0,
+            a: 2,
+            b: 3,
+            shade: -2,
+          },
+          { elevation: x > 0 ? W.tiles.elevation[i - 1] : 0, a: 3, b: 0, shade: 3 },
+        ];
+      for (const face of faces) {
+        const drop = Math.max(0, (e - face.elevation) * elevationScale);
+        if (drop <= 0.5) continue;
         ctx.beginPath();
-        ctx.moveTo(poly[2][0], poly[2][1]);
-        ctx.lineTo(poly[3][0], poly[3][1]);
-        ctx.lineTo(poly[3][0], poly[3][1] + dropSouth);
-        ctx.lineTo(poly[2][0], poly[2][1] + dropSouth);
+        ctx.moveTo(poly[face.a][0], poly[face.a][1]);
+        ctx.lineTo(poly[face.b][0], poly[face.b][1]);
+        ctx.lineTo(poly[face.b][0], poly[face.b][1] + drop);
+        ctx.lineTo(poly[face.a][0], poly[face.a][1] + drop);
         ctx.closePath();
-        ctx.fillStyle = hsl(v.mineralHue, 31, 18 + e / 90);
-        ctx.fill();
-      }
-      if (dropEast > 0.5) {
-        ctx.beginPath();
-        ctx.moveTo(poly[1][0], poly[1][1]);
-        ctx.lineTo(poly[2][0], poly[2][1]);
-        ctx.lineTo(poly[2][0], poly[2][1] + dropEast);
-        ctx.lineTo(poly[1][0], poly[1][1] + dropEast);
-        ctx.closePath();
-        ctx.fillStyle = hsl(v.mineralHue + 7, 27, 15 + e / 100);
+        ctx.fillStyle = hsl(v.mineralHue + face.shade, 29, 16 + e / 100);
         ctx.fill();
       }
     }
@@ -887,7 +896,7 @@ function drawTileProcedural(x, y) {
       (x < W.width - 1 && W.tiles.liquid[i + 1] < 140) ||
       (y && W.tiles.liquid[i - W.width] < 140) ||
       (y < W.height - 1 && W.tiles.liquid[i + W.width] < 140);
-    if (coast) {
+    if (coast && UI.quality !== "low") {
       if (!poly) poly = proceduralTilePolygon(x, y, m);
       drawCoastEdges(poly, x, y, i, v, m);
     }
@@ -1033,8 +1042,10 @@ function drawProceduralAtmosphere(now, m, v) {
       const a = visualHash01(n, 0x83e1),
         b = visualHash01(n, 0x19af),
         speed = 0.003 + visualHash01(n, 0x331) * 0.008,
-        x = (a * m.w + now * speed * (n % 2 ? 1 : -1) + m.w) % m.w,
-        y = (b * m.h + Math.sin(now * 0.0003 + n) * 18 + m.h) % m.h,
+        rawX = a * m.w + now * speed * (n % 2 ? 1 : -1),
+        rawY = b * m.h + Math.sin(now * 0.0003 + n) * 18,
+        x = ((rawX % m.w) + m.w) % m.w,
+        y = ((rawY % m.h) + m.h) % m.h,
         r = 0.45 + visualHash01(n, 0x71) * 1.25;
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);

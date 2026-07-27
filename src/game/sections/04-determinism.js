@@ -88,7 +88,6 @@ function fbm(seed, x, y) {
 }
 function worldHash() {
   if (!W) return "00000000";
-  commitDerivedCaches();
   let h = 2166136261 >>> 0;
   const feed = (n) => {
       h ^= n >>> 0;
@@ -103,7 +102,17 @@ function worldHash() {
     }
     const t = typeof v;
     if (t === "number") {
-      feed(hashString(Number.isFinite(v) ? String(v) : "0"));
+      feed(
+        hashString(
+          Number.isNaN(v)
+            ? "number:NaN"
+            : v === Infinity
+              ? "number:+Infinity"
+              : v === -Infinity
+                ? "number:-Infinity"
+                : String(v),
+        ),
+      );
       return;
     }
     if (t === "string") {

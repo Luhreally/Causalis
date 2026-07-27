@@ -283,7 +283,7 @@ function sentientRecoverySites() {
   }
   return sites;
 }
-function ensureSentientContinuity() {
+function ensureSentientContinuity(force = false) {
   if (!W?.biosphere) return null;
   if (W.biosphere.emergencePlan && W.biosphere.emergencePlan.phase < 5) return null;
   const state = initializeSentienceContinuity(),
@@ -292,6 +292,8 @@ function ensureSentientContinuity() {
   const detailed = livingSentientIds();
   if (before >= state.minimumViable && detailed.length >= state.minimumViable)
     return { recovered: 0, before, after: before };
+  if (!force && state.lastRecoveryTick >= 0 && W.tick - state.lastRecoveryTick < 256)
+    return { recovered: 0, before, after: before, cooldown: true };
   const sites = sentientRecoverySites(),
     needed = Math.max(0, state.recoveryTarget - before),
     recovered = [];
@@ -345,7 +347,7 @@ function ensureSentientContinuity() {
         after: biospherePopulation(KINDS.PERSON),
       },
     });
-    W.biosphere.emergenceEvents.push(event.id);
+    recordEmergenceEvent(event.id);
     rebuildSpatialBins();
   }
   return { recovered: recovered.length, before, after: biospherePopulation(KINDS.PERSON) };
@@ -354,7 +356,7 @@ const bootstrapWorldSentienceBase = bootstrapWorld;
 bootstrapWorld = function () {
   bootstrapWorldSentienceBase();
   initializeSentienceContinuity();
-  ensureSentientContinuity();
+  ensureSentientContinuity(true);
   W.conservation.initialMatter = totalMatter();
   W.conservation.initialChemicalEnergy = totalChemicalEnergy();
   worldHash();
@@ -389,8 +391,9 @@ huntTargetScore = function (id, target) {
         (o) => W.kind[o] === KINDS.PERSON && classifyAlive(o),
       ).length,
       tools = (W.components.inventory[target]?.artifactIds || []).length,
-      mind = W.components.cognition?.[target];
-    score += allies * 18 + tools * 28 + (mind?.updates || 0) / 5;
+      mind = W.components.cognition?.[target],
+      learnedDefense = Math.min(14, Math.log2(1 + (mind?.updates || 0)) * 1.6);
+    score += allies * 18 + tools * 28 + learnedDefense;
   }
   return score;
 };
@@ -442,7 +445,7 @@ function debugSentienceCollapse() {
     cohort.ageBins.fill(0);
   }
   const collapsed = biospherePopulation(KINDS.PERSON),
-    result = ensureSentientContinuity(),
+    result = ensureSentientContinuity(true),
     after = sentienceContinuitySummary(),
     afterMatter = totalMatter();
   return { before, collapsed, result, after, matterDelta: afterMatter - beforeMatter };
@@ -477,7 +480,7 @@ function debugLegacySentienceRecovery() {
   delete W.biosphere.sentience;
   const legacyPopulation = biospherePopulation(KINDS.PERSON);
   restoreWorldDefaults();
-  ensureSentientContinuity();
+  ensureSentientContinuity(true);
   const after = sentienceContinuitySummary();
   return { legacyPopulation, after, matterDelta: totalMatter() - beforeMatter };
 }
@@ -632,7 +635,7 @@ function ensureProtoSettlement() {
     importance: 4,
     data: { species: "people-level tool users", stage: "communal home selection", campId: camp.id },
   });
-  W.biosphere.emergenceEvents.push(ev.id);
+  recordEmergenceEvent(ev.id);
   return camp;
 }
 const updateSettlementsEmergenceBase = updateSettlements;

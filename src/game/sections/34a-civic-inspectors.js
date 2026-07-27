@@ -101,12 +101,24 @@ function placePopulation(place) {
     : entityAtRadius(idx(place.x, place.y), 6, KINDS.PERSON).filter(classifyAlive).length;
 }
 function localPlaceWorkers(place) {
-  const ids = entityAtRadius(
-    idx(place.x, place.y),
-    place.knownProcesses ? 9 : 7,
-    KINDS.PERSON,
-  ).filter(classifyAlive);
-  return ids.sort((a, b) => a - b);
+  const kind = placeKindKey(place),
+    physical = entityAtRadius(
+      idx(place.x, place.y),
+      place.knownProcesses ? 9 : 7,
+      KINDS.PERSON,
+    ).filter(classifyAlive),
+    assigned = W.activeIds.filter((id) => {
+      if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) return false;
+      const social = W.components.social[id],
+        position = W.components.position[id];
+      return (
+        position &&
+        social?.homePlaceKind === kind &&
+        social.homePlaceId === place.id &&
+        dist2(position.x, position.y, place.x, place.y) <= 28 * 28
+      );
+    });
+  return Array.from(new Set([...physical, ...assigned])).sort((a, b) => a - b);
 }
 function availableBuildingTypes(place) {
   const out = ["shelter", "hearth", "workshop"];
@@ -126,7 +138,7 @@ function placeProjectRow(b) {
       (id) =>
         W.components.work?.[id]?.buildingId === b.id &&
         W.tick - W.components.work[id].handledTick <= 8 &&
-        classifyAlive(id),
+        peekAlive(id),
     ).length,
     requirements = b.requirements
       .map(
@@ -273,7 +285,7 @@ organismInspector = function (id) {
       .join("");
   return (
     html +
-    `<details open><summary>Extended sensory controller</summary><div class="stack">${states}</div><div class="kv" style="margin-top:9px"><span>Network topology</span><b>${LTC_SENSE_LABELS.length} senses â†’ ${LTC_HIDDEN} liquid states â†’ ${LTC_ACTIONS.length} drives</b><span>Connections</span><b>${LTC_INPUT_BASE.length} sensory Â· ${LTC_REC_BASE.length} recurrent Â· ${LTC_OUT_BASE.length} action</b><span>Tracked threat / prey</span><b>${W.components.life[id].threatId || "none"} / ${W.components.life[id].preyTargetId || "none"}</b></div><div class="divider"></div><b>Strongest live inputs</b><div class="stack" style="margin-top:7px">${senseRows || `<small class="muted">Controller is waiting for its next sensory update.</small>`}</div><div class="divider"></div><b>Leading action drives</b><div class="stack" style="margin-top:7px">${driveRows}</div></details>`
+    `<details open><summary>Extended sensory controller</summary><div class="stack">${states}</div><div class="kv" style="margin-top:9px"><span>Network topology</span><b>${LTC_SENSE_LABELS.length} senses → ${LTC_HIDDEN} liquid states → ${LTC_ACTIONS.length} drives</b><span>Connections</span><b>${LTC_INPUT_BASE.length} sensory · ${LTC_REC_BASE.length} recurrent · ${LTC_OUT_BASE.length} action</b><span>Tracked threat / prey</span><b>${W.components.life[id].threatId || "none"} / ${W.components.life[id].preyTargetId || "none"}</b></div><div class="divider"></div><b>Strongest live inputs</b><div class="stack" style="margin-top:7px">${senseRows || `<small class="muted">Controller is waiting for its next sensory update.</small>`}</div><div class="divider"></div><b>Leading action drives</b><div class="stack" style="margin-top:7px">${driveRows}</div></details>`
   );
 };
 

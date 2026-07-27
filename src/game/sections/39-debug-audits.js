@@ -142,7 +142,13 @@ function debugPopulationMechanics() {
     starving: people.filter((id) => value(id, C.ENERGY) < 30).length,
     working: people.filter(
       (id) =>
-        W.components.work?.[id]?.task !== "idle" && W.tick - W.components.work[id].handledTick <= 8,
+        W.components.work?.[id]?.task &&
+        W.components.work[id].task !== "idle" &&
+        W.tick -
+          (Number.isFinite(W.components.work[id].handledTick)
+            ? W.components.work[id].handledTick
+            : -Infinity) <=
+          8,
     ).length,
     places,
   };
@@ -359,6 +365,7 @@ function debugCivicAudit() {
       placeKind: b.placeKind,
       placeId: b.placeId,
       type: b.type,
+      position: [b.x, b.y],
       stage: b.stage,
       progress: b.progress,
       complete: b.complete,
@@ -437,12 +444,43 @@ function debugArchiveReplay(ticks = 128) {
     typed,
   };
 }
-function induceSurfaceFloodForTest(amount = 600) {
+function recordDebugControl(action, data = {}, tile = -1) {
+  const event = recordIntervention("debug-control", tile, 0),
+    entry = W.interventions.at(-1);
+  if (entry) entry.data = { action, ...data };
+  return event.id;
+}
+function induceSurfaceFloodForTest(amount = 600, record = true) {
   ensureHydrologyBaseline(W);
   const rise = clamp(Math.floor(amount), 1, 4000);
+  if (record) recordDebugControl("surface-flood", { amount: rise });
   for (let i = 0; i < W.tileCount; i++)
     if (W.tiles.hydrologyBase[i] < 100) W.tiles.liquid[i] = u16(W.tiles.liquid[i] + rise);
   return hydrologySummary();
+}
+function collapseKindForTest(kind, record = true) {
+  if (record) recordDebugControl("collapse-kind", { kind });
+  for (const id of W.activeIds.slice())
+    if (W.kind[id] === kind) killEntity(id, "controlled extinction test", 0);
+  return populationSummary();
+}
+function armFollowedDeathForTest(kind = KINDS.HERBIVORE, record = true, entityId = 0) {
+  const id = entityId || W.activeIds.find((entity) => W.kind[entity] === kind && peekAlive(entity));
+  if (!id) return 0;
+  if (record) recordDebugControl("arm-followed-death", { kind, entityId: id });
+  UI.followId = id;
+  UI.selectedEntity = id;
+  const life = W.components.life[id],
+    chemistry = W.components.chemistry[id]?.q;
+  if (!life || !chemistry) return 0;
+  life.regulation = 1;
+  life.forceHealthUpdateTick = W.tick + 1;
+  chemistry[C.ENERGY] = 0;
+  chemistry[C.ORGANIC] = 0;
+  chemistry[C.NUTRIENT] = 0;
+  life.integrity = Math.min(life.integrity, 2);
+  W.components.body[id].integrity = life.integrity;
+  return id;
 }
 function auditEnergy() {
   const chemical = totalChemicalEnergy(),
@@ -462,6 +500,70 @@ function auditEnergy() {
     dissipated: W.conservation.dissipatedEnergy,
   };
 }
+function debugNicheAudit() {
+  const result = {};
+  for (const kind of [KINDS.HERBIVORE, KINDS.PREDATOR, KINDS.PERSON]) {
+    const active = W.activeIds
+      .filter((id) => W.kind[id] === kind && peekAlive(id))
+      .map((id) => {
+        const life = peekDerivedLife(id),
+          chemistry = W.components.chemistry[id]?.q,
+          identity = W.components.identity[id],
+          position = W.components.position[id],
+          reproduction = W.components.reproduction[id],
+          nearestMateDistance = Math.min(
+            Infinity,
+            ...W.activeIds
+              .filter((other) => other !== id && W.kind[other] === kind && peekAlive(other))
+              .map((other) => {
+                const otherPosition = W.components.position[other];
+                return otherPosition
+                  ? Math.sqrt(dist2(position.x, position.y, otherPosition.x, otherPosition.y))
+                  : Infinity;
+              }),
+          );
+        return {
+          id,
+          age: W.components.life[id]?.age || 0,
+          maturityAge: W.components.body[id]?.maturityAge || 0,
+          health: life?.health || 0,
+          hunger: life?.hunger || 0,
+          energy: chemistry?.[C.ENERGY] || 0,
+          organic: chemistry?.[C.ORGANIC] || 0,
+          nutrient: chemistry?.[C.NUTRIENT] || 0,
+          solvent: chemistry?.[C.SOLVENT] || 0,
+          info: chemistry?.[C.INFO] || 0,
+          membrane: chemistry?.[C.MEMBRANE] || 0,
+          regulation: W.components.life[id]?.regulation || 0,
+          behavior: W.components.life[id]?.behavior || "",
+          cooldown: reproduction?.cooldown || 0,
+          reproductionReady: canReproduce(id),
+          nearestMateDistance: Number.isFinite(nearestMateDistance)
+            ? +nearestMateDistance.toFixed(2)
+            : null,
+          kills: identity?.kills || 0,
+          children: identity?.children?.length || 0,
+        };
+      });
+    result[kind] = {
+      active,
+      cohorts: sum(
+        (W.cohorts || []).filter((cohort) => cohort.kind === kind).map((cohort) => cohort.count),
+      ),
+      availableRefuges: W.biosphere.refugia.filter(
+        (refuge) => refuge.available && refuge.kind === kind,
+      ).length,
+      deaths: W.events
+        .filter((event) => event.type === "DeathEvent" && event.data?.kind === kind)
+        .reduce((counts, event) => {
+          const cause = event.evidence?.[0] || "unknown";
+          counts[cause] = (counts[cause] || 0) + 1;
+          return counts;
+        }, {}),
+    };
+  }
+  return result;
+}
 function auditRelations() {
   const bad = [];
   for (const e of W.relations.edges)
@@ -473,6 +575,33 @@ function auditRelations() {
       bad.push(e.id);
   return { ok: bad.length === 0, total: W.relations.edges.filter(Boolean).length, bad };
 }
+function runIsolatedWorldProbe(probe) {
+  if (!W || typeof probe !== "function") return null;
+  const priorWorld = W,
+    priorUi = {
+      selectedTile: UI.selectedTile,
+      selectedEntity: UI.selectedEntity,
+      selectedEvent: UI.selectedEvent,
+      followId: UI.followId,
+      combatVisuals: UI.combatVisuals,
+      emotionVisuals: UI.emotionVisuals,
+      clockInterrupted: UI.clockInterrupted,
+    },
+    encoded = JSON.stringify(priorWorld, saveReplacer);
+  W = JSON.parse(encoded, saveReviver);
+  restoreWorldDefaults();
+  rebuildSpatialBins();
+  try {
+    return probe();
+  } finally {
+    W = priorWorld;
+    Object.assign(UI, priorUi);
+  }
+}
+const debugArchiveReplayInPlace = debugArchiveReplay;
+debugArchiveReplay = function (ticks = 128) {
+  return runIsolatedWorldProbe(() => debugArchiveReplayInPlace(ticks));
+};
 function applyRecordedIntervention(entry) {
   if (entry.tool === "city-management") {
     const d = entry.data || {};
@@ -481,26 +610,40 @@ function applyRecordedIntervention(entry) {
     if (typeof d.type === "string") return requestCityBuilding(d.kind, d.id, d.type);
     return false;
   }
+  if (entry.tool === "debug-control") {
+    const data = entry.data || {};
+    if (data.action === "surface-flood") return induceSurfaceFloodForTest(data.amount, true);
+    if (data.action === "collapse-kind") return collapseKindForTest(data.kind, true);
+    if (data.action === "arm-followed-death")
+      return armFollowedDeathForTest(data.kind, true, data.entityId);
+    return false;
+  }
   UI.tool = entry.tool;
   UI.brush = entry.brush;
   applyTool(entry.tile);
   return true;
 }
-function debugReplay(seed, interventions = [], ticks = 200) {
+function debugReplay(seed, interventions = [], ticks = 200, options = null) {
   const oldW = W,
     oldTool = UI.tool,
-    oldBrush = UI.brush;
-  W = createWorld({
-    seed,
-    size: "small",
-    lifeDensity: 0.7,
-    harshness: 0.5,
-    variability: 0.5,
-    disasterFrequency: 1,
-    complexity: "standard",
-    tutorial: false,
-    unfiltered: false,
-  });
+    oldBrush = UI.brush,
+    replayConfig = {
+      origin: "cellular",
+      size: "small",
+      lifeDensity: 0.7,
+      harshness: 0.5,
+      variability: 0.5,
+      disasterFrequency: 1,
+      complexity: "standard",
+      tutorial: false,
+      unfiltered: false,
+      ...(oldW?.config || {}),
+      ...(options || {}),
+      seed,
+    };
+  delete replayConfig.width;
+  delete replayConfig.height;
+  W = createWorld(replayConfig);
   bootstrapWorld();
   const sorted = interventions.slice().sort((a, b) => a.tick - b.tick || a.sequence - b.sequence);
   let n = 0;
@@ -511,11 +654,10 @@ function debugReplay(seed, interventions = [], ticks = 200) {
     }
     simTick();
   }
-  const result = { hash: worldHash(), summary: debugSummary() };
+  const result = { hash: worldHash(), summary: debugSummary(), config: { ...W.config } };
   W = oldW;
   UI.tool = oldTool;
   UI.brush = oldBrush;
-  if (W) rebuildDerivedCaches();
   return result;
 }
 function determinismProbe(seed = "probe", ticks = 200) {

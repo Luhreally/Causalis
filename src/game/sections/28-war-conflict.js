@@ -5,12 +5,18 @@ function relationPressure(a, b) {
   let border = 0,
     scarcity = 0;
   const t = W.tiles;
-  for (let y = 0; y < W.height; y += 2)
-    for (let x = 0; x < W.width - 1; x += 2) {
+  for (let y = 0; y < W.height; y++)
+    for (let x = 0; x < W.width; x++) {
       const i = idx(x, y);
       if (
-        (t.owner[i] === a.id && t.owner[i + 1] === b.id) ||
-        (t.owner[i] === b.id && t.owner[i + 1] === a.id)
+        (x + 1 < W.width && t.owner[i] === a.id && t.owner[i + 1] === b.id) ||
+        (x + 1 < W.width && t.owner[i] === b.id && t.owner[i + 1] === a.id)
+      )
+        border++;
+      if (
+        y + 1 < W.height &&
+        ((t.owner[i] === a.id && t.owner[i + W.width] === b.id) ||
+          (t.owner[i] === b.id && t.owner[i + W.width] === a.id))
       )
         border++;
     }
@@ -62,6 +68,23 @@ function reciprocalTradeTrips(a, b) {
   );
 }
 function updateDiplomacyAndWar() {
+  if (W.activeWars.length > 24) {
+    const active = W.activeWars.filter((war) => !war.ended),
+      recent = W.activeWars.filter((war) => war.ended).slice(-12);
+    W.activeWars = [...active, ...recent];
+  }
+  for (const war of W.activeWars.filter((candidate) => !candidate.ended)) {
+    const a = W.factions.find((faction) => faction.id === war.a),
+      b = W.factions.find((faction) => faction.id === war.b),
+      aHasPlace = W.settlements.some(
+        (settlement) => !settlement.ruined && settlement.factionId === war.a,
+      ),
+      bHasPlace = W.settlements.some(
+        (settlement) => !settlement.ruined && settlement.factionId === war.b,
+      );
+    if (!a || !b || !aHasPlace || !bHasPlace)
+      endWar(war, a, b, "political collapse ended the campaign");
+  }
   for (const f of W.factions) f.warPressure = 0;
   for (let i = 0; i < W.factions.length; i++)
     for (let j = i + 1; j < W.factions.length; j++) {
@@ -79,6 +102,16 @@ function updateDiplomacyAndWar() {
       rel.pressure = rev.pressure = clamp(rel.pressure * 0.85 + p.pressure, 0, 200);
       a.warPressure = Math.max(a.warPressure, rel.pressure);
       b.warPressure = Math.max(b.warPressure, rel.pressure);
+      const truceUntil = Math.max(rel.truceUntil || 0, rev.truceUntil || 0);
+      if (W.tick < truceUntil) {
+        rel.status = rev.status = "truce";
+        rel.pressure = rev.pressure = Math.min(52, rel.pressure * 0.7);
+        continue;
+      }
+      if (rel.status === "truce" || rev.status === "truce") {
+        rel.status = rev.status = rel.pressure < 58 ? "neutral" : "hostile";
+        rel.truceUntil = rev.truceUntil = 0;
+      }
       const war = W.activeWars.find(
         (w) => !w.ended && ((w.a === a.id && w.b === b.id) || (w.a === b.id && w.b === a.id)),
       );
@@ -88,8 +121,8 @@ function updateDiplomacyAndWar() {
       }
       if (rel.pressure > 58 && rel.status !== "hostile") {
         rel.status = rev.status = "hostile";
-        a.rivals.push(b.id);
-        b.rivals.push(a.id);
+        if (!a.rivals.includes(b.id)) a.rivals.push(b.id);
+        if (!b.rivals.includes(a.id)) b.rivals.push(a.id);
         emitEvent("WarTensionEvent", {
           factions: [a.id, b.id],
           causes: [W.lastEventByType.SettlementFoundedEvent],
@@ -118,7 +151,7 @@ function updateDiplomacyAndWar() {
             importance: 5,
           }),
           w = {
-            id: W.activeWars.length + 1,
+            id: Math.max(0, ...W.activeWars.map((candidate) => candidate.id || 0)) + 1,
             a: a.id,
             b: b.id,
             started: W.tick,
@@ -130,7 +163,7 @@ function updateDiplomacyAndWar() {
           };
         const createdWar = war || w;
         W.activeWars.push(createdWar);
-        if (typeof ensureAttackPlan === "function") ensureAttackPlan(createdWar);
+        if (typeof ensureAttackPlan === "function") ensureAttackPlan(createdWar, true);
       }
     }
   for (const [i, a] of W.factions.entries())
@@ -327,15 +360,31 @@ function resolveWarTurn(war, a, b) {
     endWar(war, a, b, target.ruined ? `${target.name} fell` : "casualties and food exhaustion");
 }
 function endWar(war, a, b, reason) {
+  if (!war || war.ended) return;
   war.ended = W.tick;
-  const ra = a.relations[b.id],
-    rb = b.relations[a.id];
-  if (ra) ra.status = "hostile";
-  if (rb) rb.status = "hostile";
-  removeRelation(a.entityId, b.entityId, "at_war_with");
-  removeRelation(b.entityId, a.entityId, "at_war_with");
+  war.endedTick = W.tick;
+  war.endReason = reason;
+  const ra = a?.relations?.[b?.id],
+    rb = b?.relations?.[a?.id];
+  const truceUntil = W.tick + 1024;
+  if (ra) {
+    ra.status = "truce";
+    ra.pressure = Math.min(44, (ra.pressure || 0) * 0.25);
+    ra.grievance = Math.max(0, (ra.grievance || 0) * 0.82);
+    ra.truceUntil = truceUntil;
+  }
+  if (rb) {
+    rb.status = "truce";
+    rb.pressure = Math.min(44, (rb.pressure || 0) * 0.25);
+    rb.grievance = Math.max(0, (rb.grievance || 0) * 0.82);
+    rb.truceUntil = truceUntil;
+  }
+  if (a?.entityId && b?.entityId) {
+    removeRelation(a.entityId, b.entityId, "at_war_with");
+    removeRelation(b.entityId, a.entityId, "at_war_with");
+  }
   emitEvent("WarEndedEvent", {
-    factions: [a.id, b.id],
+    factions: [a?.id, b?.id].filter(Boolean),
     causes: [war.startEventId, war.lastEventId || 0],
     evidence: [reason],
     magnitude: war.casualties,

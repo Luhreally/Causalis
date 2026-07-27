@@ -95,7 +95,7 @@ function updateEmergence() {
         data: { species: "founder cells", stage: "colonial" },
       });
       plan.colonyId = colony.id;
-      W.biosphere.emergenceEvents.push(colony.id);
+      recordEmergenceEvent(colony.id);
       W.biosphere.stage = "colonial";
       W.biosphere.stageTick = W.tick;
       plan.phase = 1;
@@ -112,7 +112,7 @@ function updateEmergence() {
         data: { species: "multicellular founder networks", stage: "multicellular" },
       });
       plan.multiId = multi.id;
-      W.biosphere.emergenceEvents.push(multi.id);
+      recordEmergenceEvent(multi.id);
       W.biosphere.stage = "multicellular";
       W.biosphere.stageTick = W.tick;
       plan.phase = 2;
@@ -139,7 +139,7 @@ function updateEmergence() {
         data: { text: "Habitat-filtered multicellular lineages entered adaptive radiation" },
       });
       plan.radId = radiation.id;
-      W.biosphere.emergenceEvents.push(radiation.id);
+      recordEmergenceEvent(radiation.id);
       W.biosphere.stage = "adaptive radiation";
       W.biosphere.stageTick = W.tick;
       plan.phase = 3;
@@ -421,6 +421,7 @@ const updateFactionsImplicitBase = updateFactions;
 updateFactions = function () {
   const result = updateFactionsImplicitBase();
   initializeImplicitSociety();
+  updateConcertedEffortState();
   maybeFactionSchism();
   updateImplicitEconomy();
   updateEmergentMilitias();

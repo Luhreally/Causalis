@@ -7,6 +7,7 @@ let VISUAL_MOTION = new Map(),
   INTERIOR_MOTION = new Map(),
   BASH_SHAKE = new Map(),
   VISUAL_MOTION_WORLD = null,
+  VISUAL_MOTION_PRUNE_TICK = -1,
   ACTIVE_RENDER_NOW = 0,
   ACTIVE_LIGHT_SCREEN = { x: 0.62, y: 0.5 },
   ACTIVE_TILE_SHADE = null,
@@ -52,6 +53,15 @@ function rebuildVisualCrowd(now, bounds) {
         : [],
     ),
   };
+  if (
+    VISUAL_MOTION_PRUNE_TICK !== W.tick &&
+    (W.tick % 128 === 0 || VISUAL_MOTION.size > W.activeIds.length + 128)
+  ) {
+    const active = new Set(W.activeIds);
+    for (const cache of [VISUAL_MOTION, INTERIOR_MOTION, BASH_SHAKE])
+      for (const id of cache.keys()) if (!active.has(id)) cache.delete(id);
+    VISUAL_MOTION_PRUNE_TICK = W.tick;
+  }
   for (const id of W.activeIds) {
     const p = W.components.position[id];
     if (!p || !W.components.genome[id]) continue;
@@ -282,7 +292,7 @@ function pickSceneTarget(px, py) {
     const rr = Math.max(UI.mobileMode ? 22 : 9, (e.lastR || 8) * 1.2);
     if (Math.abs(px - e.s.x) > rr * 1.4 || Math.abs(py - e.s.y) > rr * 1.6) continue;
     if (Math.hypot(px - e.s.x, py - e.s.y + (e.lastR || 8) * 0.15) > rr * 1.35) continue;
-    const depth = dep(e.wx, e.wy);
+    const depth = dep(e.wx, e.wy) + id * 1e-7;
     if (depth > bestDepth) {
       bestDepth = depth;
       best = id;
@@ -316,9 +326,8 @@ function focusHistoryTarget(id, tile = -1) {
   if (tx >= 0) {
     const [x, y] = xy(tx);
     UI.followId = 0;
-    const tv = id ? VISUAL_MOTION.get(id) : null;
-    CAMERA_GLIDE.cx = tv && Number.isFinite(tv.wx) ? tv.wx : x + 0.5;
-    CAMERA_GLIDE.cy = tv && Number.isFinite(tv.wy) ? tv.wy : y + 0.5;
+    CAMERA_GLIDE.cx = p ? p.x + 0.5 : x + 0.5;
+    CAMERA_GLIDE.cy = p ? p.y + 0.5 : y + 0.5;
     if (UI.camera.zoom < 2.2) {
       CAMERA_GLIDE.zoom = 2.6;
       CAMERA_GLIDE.px = null;
@@ -339,7 +348,7 @@ function drawCreatureGlyph(
   portrait = false,
   motion = null,
 ) {
-  const ph = phenotype(id),
+  const ph = peekPhenotype(id),
     life = W.components.life[id],
     m = embodiedVisualModel(id, creatureModel(id)),
     corpse = W.kind[id] === KINDS.CORPSE,
@@ -356,7 +365,10 @@ function drawCreatureGlyph(
         (ACTIVE_RENDER_METRICS || projectionMetrics()).tw *
           (0.05 + 0.042 * clamp(ph.size, 0.35, 1.8)),
       ) * (motion?.crowd > 1 ? 1 / (1 + 0.1 * Math.min(motion.crowd - 1, 4)) : 1),
-    individual = (visualHash01(id, 0x91d) - 0.5) * m.individualVariation * 120,
+    individual =
+      (visualHash01(id, 0x91d) - 0.5) *
+      (Number.isFinite(m.individualVariation) ? m.individualVariation : 0) *
+      120,
     primary = corpse ? hsl(m.primaryHue, 11, 27) : hsl(m.primaryHue + individual, m.sat, m.light),
     secondary = corpse
       ? hsl(m.secondaryHue, 10, 20)
@@ -610,6 +622,7 @@ function drawSceneEntity(id, now, m, v, labels) {
 }
 function drawEntityLabels(labels, v) {
   if (!labels.length || UI.camera.zoom <= 0.55) return;
+  ctx.save();
   const px = Math.round(clamp(9 + UI.camera.zoom * 0.55, 10, 13));
   ctx.font = `${px}px system-ui`;
   ctx.textAlign = "center";
@@ -654,13 +667,20 @@ function drawEntityLabels(labels, v) {
     ctx.fillText(l.text, l.x, y - 2);
     drawn++;
   }
+  ctx.restore();
 }
 function drawEntitiesProcedural(now, b) {
   const labels = [],
     v = ACTIVE_PLANET_VISUAL || makePlanetVisualGenome(),
-    m = ACTIVE_RENDER_METRICS || projectionMetrics();
-  for (const id of W.activeIds) {
-    if (!sceneEntityVisible(id, b)) continue;
+    m = ACTIVE_RENDER_METRICS || projectionMetrics(),
+    ids = W.activeIds
+      .filter((id) => sceneEntityVisible(id, b))
+      .sort((a, c) => {
+        const ap = W.components.position[a],
+          cp = W.components.position[c];
+        return ap.y - cp.y || ap.x - cp.x || a - c;
+      });
+  for (const id of ids) {
     drawSceneEntity(id, now, m, v, labels);
   }
   drawEntityLabels(labels, v);
@@ -1056,7 +1076,7 @@ function personFitsInterior(id, b, homeId) {
   if (behavior === "rest") return b.id === homeId || b.type === "hearth";
   if (behavior === "socialize") return ["hall", "hearth", "shelter"].includes(b.type);
   if (behavior === "food" || behavior === "water") return b.type === "hearth";
-  return b.id === homeId && derivedLife(id).fatigue > 35;
+  return b.id === homeId && peekDerivedLife(id).fatigue > 35;
 }
 function makeInteriorState(bounds) {
   const state = {
@@ -1396,6 +1416,7 @@ function drawWorkerActivity(now, bounds) {
     if (
       !p ||
       !w ||
+      W.components.life[id]?.insideBuildingId ||
       w.task === "idle" ||
       W.tick - w.handledTick > 12 ||
       p.x < bounds.x0 - 2 ||
@@ -1417,7 +1438,11 @@ function drawWorkerActivity(now, bounds) {
       ctx.strokeRect(s.x - r * 0.65, s.y - r * 1.55, r * 1.3, r * 0.85);
     }
     if (["mine", "cut", "build", "craft", "raze"].includes(w.task)) {
-      const hasTool = w.task === "raze" ? !!toolForPurpose(id, "war") || !!w.toolId : !!w.toolId;
+      const hasTool =
+        w.task === "raze"
+          ? !!w.toolId ||
+            (typeof carriedToolForPurpose === "function" && !!carriedToolForPurpose(id, "war"))
+          : !!w.toolId;
       if (hasTool) {
         const a = -1.15 + Math.sin(phase) * 0.95,
           len = r * 1.65,
@@ -1687,14 +1712,25 @@ function drawRealtimePredation(now, bounds) {
         moving: impact > 0 && recoil < 1,
         screenHeading: Math.atan2(dy, dx) + Math.PI,
       });
+      const victimMotion = VISUAL_MOTION.get(v.victim);
+      if (victimMotion) {
+        victimMotion.s = vw;
+        victimMotion.lastR = rV;
+      }
       ctx.restore();
     }
-    if (W.components.genome[v.attacker])
+    if (W.components.genome[v.attacker]) {
       rA = drawCreatureGlyph(ctx, v.attacker, aw, now, null, 0, false, {
         gait: (VISUAL_MOTION.get(v.attacker)?.gait || 0) + strike * 2.6,
         moving: t < 0.6,
         screenHeading: Math.atan2(dy, dx),
       });
+      const attackerMotion = VISUAL_MOTION.get(v.attacker);
+      if (attackerMotion) {
+        attackerMotion.s = aw;
+        attackerMotion.lastR = rA;
+      }
+    }
     if (v.ranged && t > 0.05 && t < 0.34) {
       const pt = clamp((t - 0.05) / 0.27, 0, 1),
         lob = v.ranged === 3 ? 0.04 : 0.22,
@@ -1823,6 +1859,7 @@ function drawRealtimePredation(now, bounds) {
     ctx.stroke();
     if (UI.camera.zoom > 2.2) {
       ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
       ctx.font = `800 ${clamp(Math.round(r * 0.25), 9, 15)}px system-ui`;
       ctx.fillStyle = "#fff1d4";
       ctx.strokeStyle = "#071016dd";
@@ -1988,6 +2025,7 @@ function drawCombatEffects(now, bounds) {
       const cause = e.evidence?.[0] || e.type.replace("Event", "");
       ctx.font = "bold 9px system-ui";
       ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
       ctx.fillStyle = "#fff2d0";
       ctx.fillText(cause.toUpperCase().slice(0, 28), impact.x, impact.y - m.tw * 0.45);
     }
@@ -2007,7 +2045,7 @@ function drawCombatEffects(now, bounds) {
     const s = W.components.genome[id]
         ? visualAnchor(id, p, m, now).s
         : proceduralProjectTile(p.x + 0.5, p.y + 0.5, m),
-      health = clamp(derivedLife(id).health / 100, 0, 1),
+      health = clamp(peekDerivedLife(id).health / 100, 0, 1),
       r = clamp(m.tw * 0.32, 4, 28),
       off = Math.max(r * 1.25, m.tw * 0.55);
     ctx.fillStyle = "#071016c9";
@@ -2121,6 +2159,7 @@ function drawWarFronts(now, bounds) {
     if (UI.labels) {
       ctx.font = "bold 10px system-ui";
       ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
       const phase =
           war.casualties > 0 || war.contactTurns
             ? `${war.casualties} fallen`
@@ -2440,7 +2479,7 @@ function drawMilitaryBanners(now, bounds) {
       cy = 0,
       n = 0;
     for (const id of unit.memberIds) {
-      if (!classifyAlive(id)) continue;
+      if (!peekAlive(id)) continue;
       const p = W.components.position[id];
       if (
         !p ||
@@ -2488,6 +2527,7 @@ function drawMilitaryBanners(now, bounds) {
     if (UI.camera.zoom > 1.6) {
       ctx.font = `700 ${Math.round(clamp(9 + UI.camera.zoom * 0.3, 9, 13))}px system-ui`;
       ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
       ctx.fillStyle = "#071016d0";
       const label = `${n}`;
       const wdt = ctx.measureText(label).width;

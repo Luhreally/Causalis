@@ -18,12 +18,20 @@ function cohortLifeSpan(kind) {
   return kind === KINDS.HERBIVORE ? 36000 : kind === KINDS.PREDATOR ? 48000 : 72000;
 }
 function cohortMaturityAge(kind) {
-  return kind === KINDS.PREDATOR ? 1400 : 1000;
+  return 1000;
 }
 function ensureCohortState(c) {
   c.count = Math.max(0, Math.floor(Number(c.count) || 0));
   c.chemistryTotals = Array.from({ length: SPECIES_COUNT }, (_, sp) =>
     Math.max(0, Number(c.chemistryTotals?.[sp]) || 0),
+  );
+  c.bodyChemistryTotals = Array.from({ length: SPECIES_COUNT }, (_, sp) =>
+    Math.max(
+      0,
+      Number.isFinite(Number(c.bodyChemistryTotals?.[sp]))
+        ? Number(c.bodyChemistryTotals[sp])
+        : Math.min(c.chemistryTotals[sp], c.count * (sp === C.SOLVENT ? 180 : 90)),
+    ),
   );
   c.geneSums = Array.from({ length: 13 }, (_, i) => Number(c.geneSums?.[i]) || 0);
   c.geneSquares = Array.from({ length: 13 }, (_, i) =>
@@ -73,6 +81,7 @@ function cohortFor(kind, region, faction = 0, lineage = 0) {
       lineageId: lineage,
       count: 0,
       chemistryTotals: Array(SPECIES_COUNT).fill(0),
+      bodyChemistryTotals: Array(SPECIES_COUNT).fill(0),
       geneSums: Array(13).fill(0),
       geneSquares: Array(13).fill(0),
       ageBins: [0, 0, 0, 0],
@@ -136,23 +145,14 @@ function aggregateIntoCohort(id, reason = "density cap") {
     inventory = W.components.inventory[id],
     life = W.components.life[id],
     body = W.components.body[id];
-  if (
-    !p ||
-    !g ||
-    !ch ||
-    !life ||
-    !body ||
-    ident?.notable ||
-    UI.followId === id ||
-    UI.selectedEntity === id
-  )
-    return false;
+  if (!p || !g || !ch || !life || !body || ident?.notable) return false;
   const c = cohortFor(k, p.regionId, social?.factionId || 0, g.lineageId);
   c.maxAge = Math.max(1, Math.floor(body.maxAge || c.maxAge));
   c.count++;
   for (let i = 0; i < SPECIES_COUNT; i++)
     c.chemistryTotals[i] +=
       ch.q[i] + (inventory?.materials[i] || 0) + (inventory?.digestive[i] || 0);
+  for (let i = 0; i < SPECIES_COUNT; i++) c.bodyChemistryTotals[i] += ch.q[i];
   for (let i = 0; i < 13; i++) {
     const v = g.instructions[i]?.expression || 0;
     c.geneSums[i] += v;
@@ -167,6 +167,7 @@ function aggregateIntoCohort(id, reason = "density cap") {
     aggregatedTick: W.tick,
     cohortId: c.id,
   };
+  if (typeof pruneHistoricalIdentities === "function") pruneHistoricalIdentities();
   removeEntity(id);
   return true;
 }
@@ -178,7 +179,10 @@ function addBirthToCohort(kind, region, parents, chemistry, genome) {
     parentBody = parents[0] ? W.components.body[parents[0]] : null;
   c.maxAge = Math.max(1, Math.floor(parentBody?.maxAge || c.maxAge));
   c.count++;
-  for (let i = 0; i < SPECIES_COUNT; i++) c.chemistryTotals[i] += chemistry[i] || 0;
+  for (let i = 0; i < SPECIES_COUNT; i++) {
+    c.chemistryTotals[i] += chemistry[i] || 0;
+    c.bodyChemistryTotals[i] += chemistry[i] || 0;
+  }
   for (let i = 0; i < 13; i++) {
     const v = genome.instructions[i]?.expression || 0;
     c.geneSums[i] += v;
@@ -235,6 +239,11 @@ function materializeCohort(c) {
     const share = Math.max(0, Math.floor(c.chemistryTotals[s] / countBefore));
     storeMaterializedSpecies(id, s, share, tile);
     c.chemistryTotals[s] = Math.max(0, c.chemistryTotals[s] - share);
+    c.bodyChemistryTotals[s] = Math.max(
+      0,
+      c.bodyChemistryTotals[s] -
+        Math.min(c.bodyChemistryTotals[s], W.components.chemistry[id].q[s]),
+    );
   }
   W.components.chemistry[id].storedFreeEnergy =
     W.components.chemistry[id].q[C.ENERGY] * W.definitions.species[C.ENERGY].freeEnergy;
@@ -304,8 +313,11 @@ function removeCohortMembers(c, amount, tile, cause, oldestFirst = false, import
   for (let bin = 0; bin < 4; bin++) c.ageBins[bin] -= removed[bin];
   for (let sp = 0; sp < SPECIES_COUNT; sp++) {
     const total = c.chemistryTotals[sp],
-      released = amount === before ? total : Math.floor((total * amount) / before);
+      bodyTotal = c.bodyChemistryTotals[sp],
+      released = amount === before ? total : Math.floor((total * amount) / before),
+      bodyReleased = amount === before ? bodyTotal : (bodyTotal * amount) / before;
     c.chemistryTotals[sp] = Math.max(0, total - released);
+    c.bodyChemistryTotals[sp] = Math.max(0, bodyTotal - bodyReleased);
     depositTileMatter(tile, sp, released);
   }
   for (let i = 0; i < 13; i++) {
@@ -404,13 +416,63 @@ function activeCount(kind) {
   for (const id of W.activeIds) if (W.kind[id] === kind) n++;
   return n;
 }
+function cohortEnvironmentTiles(c) {
+  const [cx, cy] = regionCenter(c.regionId),
+    points = [
+      [cx, cy],
+      [cx - 6, cy - 6],
+      [cx + 6, cy - 6],
+      [cx - 6, cy + 6],
+      [cx + 6, cy + 6],
+    ];
+  return [
+    ...new Set(points.map(([x, y]) => idx(clamp(x, 0, W.width - 1), clamp(y, 0, W.height - 1)))),
+  ];
+}
+function mergeDuplicateCohorts() {
+  const canonical = new Map();
+  for (const cohort of W.cohorts.slice().sort((a, b) => a.id - b.id)) {
+    if (!cohort.count || cohort.mergedInto) continue;
+    ensureCohortState(cohort);
+    const key = `${cohort.kind}:${cohort.regionId}:${cohort.factionId || 0}:${cohort.lineageId || 0}`,
+      target = canonical.get(key);
+    if (!target) {
+      canonical.set(key, cohort);
+      continue;
+    }
+    const before = target.count,
+      total = before + cohort.count;
+    for (let sp = 0; sp < SPECIES_COUNT; sp++) {
+      target.chemistryTotals[sp] += cohort.chemistryTotals[sp];
+      target.bodyChemistryTotals[sp] += cohort.bodyChemistryTotals[sp];
+    }
+    for (let gene = 0; gene < 13; gene++) {
+      target.geneSums[gene] += cohort.geneSums[gene];
+      target.geneSquares[gene] += cohort.geneSquares[gene];
+    }
+    for (let bin = 0; bin < 4; bin++) target.ageBins[bin] += cohort.ageBins[bin];
+    target.health = (target.health * before + cohort.health * cohort.count) / total;
+    target.morale = (target.morale * before + cohort.morale * cohort.count) / total;
+    target.count = total;
+    target.materializedCount += cohort.materializedCount;
+    target.history = target.history
+      .concat(cohort.history)
+      .sort((a, b) => a.tick - b.tick)
+      .slice(-24);
+    cohort.count = 0;
+    cohort.ageBins.fill(0);
+    cohort.chemistryTotals.fill(0);
+    cohort.bodyChemistryTotals.fill(0);
+    cohort.geneSums.fill(0);
+    cohort.geneSquares.fill(0);
+    cohort.mergedInto = target.id;
+  }
+}
 function detailTier(id) {
   const ident = W.components.identity[id],
     p = W.components.position[id];
   if (!p) return "historical";
   if (
-    UI.followId === id ||
-    UI.selectedEntity === id ||
     ident?.notable ||
     W.tiles.fire[idx(p.x, p.y)] > 300 ||
     W.tiles.danger[idx(p.x, p.y)] > 500 ||
@@ -426,13 +488,7 @@ function updateCohorts() {
     const over = activeCount(kind) - CAPS[kind];
     if (over > 0) {
       const candidates = W.activeIds
-        .filter(
-          (id) =>
-            W.kind[id] === kind &&
-            !W.components.identity[id]?.notable &&
-            UI.followId !== id &&
-            UI.selectedEntity !== id,
-        )
+        .filter((id) => W.kind[id] === kind && !W.components.identity[id]?.notable)
         .sort((a, b) => b - a);
       let aggregated = 0;
       for (const id of candidates) {
@@ -445,12 +501,18 @@ function updateCohorts() {
     ensureCohortState(c);
     if (!c.count) continue;
     const [rx, ry] = regionCenter(c.regionId),
-      i = idx(rx, ry);
+      i = idx(rx, ry),
+      samples = cohortEnvironmentTiles(c);
     advanceCohortAges(c, i);
     if (!c.count) continue;
-    c.foodAccess = tileFood(i, c.kind === KINDS.PREDATOR ? "predator" : "grazer") / 100;
-    c.health = clamp(c.health + (c.foodAccess - 0.45) * 0.015 - tileDisease(i) * 0.0005, 0.1, 1);
-    c.migrationPressure = clamp(0.35 - c.foodAccess + W.tiles.danger[i] / 1300, 0, 1);
+    c.foodAccess =
+      mean(
+        samples.map((tile) => tileFood(tile, c.kind === KINDS.PREDATOR ? "predator" : "grazer")),
+      ) / 100;
+    const disease = mean(samples.map(tileDisease)),
+      danger = mean(samples.map((tile) => W.tiles.danger[tile]));
+    c.health = clamp(c.health + (c.foodAccess - 0.45) * 0.015 - disease * 0.0005, 0.1, 1);
+    c.migrationPressure = clamp(0.35 - c.foodAccess + danger / 1300, 0, 1);
     if (c.health < 0.2 && W.tick % 128 === 0)
       removeCohortMembers(
         c,
@@ -464,13 +526,23 @@ function updateCohorts() {
     if (W.tick % 128 === 0) reproduceCohort(c, i);
     const active = activeCount(c.kind),
       cap = CAPS[c.kind] || 100;
+    const representedInRegion = W.activeIds.some(
+      (id) =>
+        W.kind[id] === c.kind &&
+        W.components.position[id]?.regionId === c.regionId &&
+        classifyAlive(id),
+    );
     if (
       c.count &&
       active < cap * 0.55 &&
-      (W.tiles.danger[i] > 350 || W.tiles.fire[i] > 200 || settlementNear(i, 6))
+      (W.tiles.danger[i] > 350 ||
+        W.tiles.fire[i] > 200 ||
+        settlementNear(i, 6) ||
+        (!representedInRegion && Math.floor(W.tick / 32) % 8 === c.id % 8))
     )
       materializeCohort(c);
   }
+  mergeDuplicateCohorts();
 }
 function debugCohortInvariants() {
   if (!W) return null;

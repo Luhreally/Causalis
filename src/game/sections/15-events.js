@@ -28,7 +28,7 @@ function emitEvent(type, data = {}) {
   if (location >= 0) W.causalIndex.tile[location] = id;
   for (const s of ev.subjects) W.causalIndex.entity[s] = id;
   W.causalIndex.domain[ev.category] = id;
-  if (W.events.length > MAX_EVENTS) compressEvents();
+  if (W.events.length > MAX_EVENTS + 128) compressEvents(W.events.length - MAX_EVENTS);
   return ev;
 }
 function eventReferenceIds() {
@@ -88,17 +88,21 @@ function summarizeCompressedEvent(event) {
   W.worldSummary.push({ tick: event.tick, category: event.category, count: 1 });
   if (W.worldSummary.length > 300) W.worldSummary.shift();
 }
-function compressEvents() {
+function compressEvents(amount = 1) {
   if (!W.events.length) return null;
   const referenced = eventReferenceIds();
-  let remove = W.events.findIndex((e) => e.importance < 2 && !referenced.has(e.id));
-  if (remove < 0) remove = W.events.findIndex((e) => !referenced.has(e.id));
-  const tombstone = remove < 0;
-  if (tombstone) remove = 0;
-  const event = W.events.splice(remove, 1)[0];
-  if (tombstone) recordEventTombstone(event);
-  summarizeCompressedEvent(event);
-  return event;
+  let first = null;
+  for (let count = 0; count < amount && W.events.length; count++) {
+    let remove = W.events.findIndex((e) => e.importance < 2 && !referenced.has(e.id));
+    if (remove < 0) remove = W.events.findIndex((e) => !referenced.has(e.id));
+    const tombstone = remove < 0;
+    if (tombstone) remove = 0;
+    const event = W.events.splice(remove, 1)[0];
+    first ||= event;
+    if (tombstone) recordEventTombstone(event);
+    summarizeCompressedEvent(event);
+  }
+  return first;
 }
 function lastCauseForTile(i, types = null) {
   for (let n = W.events.length - 1; n >= 0; n--) {

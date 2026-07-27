@@ -162,7 +162,10 @@ function settlementPopulation(s) {
   }
   const localRegion = regionId(s.x, s.y);
   for (const c of W.cohorts)
-    if (c.kind === KINDS.PERSON && c.regionId === localRegion) n += c.count;
+    if (c.kind === KINDS.PERSON && c.regionId === localRegion) {
+      const [x, y] = regionCenter(c.regionId);
+      if (dist2(x, y, s.x, s.y) <= 49) n += c.count;
+    }
   return n;
 }
 function settlementFood(s) {
@@ -181,9 +184,10 @@ function settlementWater(s) {
   );
 }
 function settlementDefense(s) {
+  if (!s?.structure?.composition) return 0;
   const c = s.structure.composition,
     material = c[C.MINERAL] + c[C.FIBER] * 0.7 + c[C.METAL] * 1.8 + c[C.CERAMIC] * 1.3,
-    fort = s.knownProcesses.includes("fortification") ? 1.45 : 1;
+    fort = s.knownProcesses?.includes("fortification") ? 1.45 : 1;
   return clamp(((material * s.structure.integrity) / 70000) * fort, 0, 100);
 }
 function ruinSettlement(s, causes = [], evidence = "structural material failed") {

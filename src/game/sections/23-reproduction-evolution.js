@@ -19,9 +19,19 @@ function sustainableSexualCapacity(kind) {
     Math.floor(W.tileCount * 0.0042 * density * clamp(food / 8, 0.6, 1.15) * agriculture),
   );
 }
+let reproductionDensityCache = { tick: -1, byKind: {} };
+let reproductionEligibilityCache = { world: null, tick: -1, values: new Map() };
 function reproductionDensityAllows(id, kind) {
-  const population = biospherePopulation(kind),
-    capacity = sustainableSexualCapacity(kind);
+  if (reproductionDensityCache.tick !== W.tick)
+    reproductionDensityCache = { tick: W.tick, byKind: {} };
+  const cached =
+      reproductionDensityCache.byKind[kind] ||
+      (reproductionDensityCache.byKind[kind] = {
+        population: biospherePopulation(kind),
+        capacity: sustainableSexualCapacity(kind),
+      }),
+    population = cached.population,
+    capacity = cached.capacity;
   if (population >= capacity) return false;
   const pressure = population / capacity;
   if (pressure <= 0.62) return true;
@@ -37,25 +47,71 @@ function reproductionDensityAllows(id, kind) {
   );
 }
 function canReproduce(id) {
+  if (reproductionEligibilityCache.world !== W || reproductionEligibilityCache.tick !== W.tick)
+    reproductionEligibilityCache = { world: W, tick: W.tick, values: new Map() };
+  if (reproductionEligibilityCache.values.has(id))
+    return reproductionEligibilityCache.values.get(id);
   const ch = W.components.chemistry[id],
     l = derivedLife(id),
     r = W.components.reproduction[id],
     body = W.components.body[id],
     kind = W.kind[id],
-    social = kind === KINDS.PERSON;
-  return (
+    social = kind === KINDS.PERSON,
+    predator = kind === KINDS.PREDATOR;
+  const eligible = !!(
+    ch &&
+    l &&
+    r &&
+    body &&
     classifyAlive(id) &&
     r.mode === "paired" &&
     r.cooldown <= 0 &&
     l.age > (body.maturityAge ?? 1200) &&
-    l.energy > (social ? 22 : 30) &&
-    l.health > 48 &&
-    ch.q[C.ORGANIC] > (social ? 34 : 40) &&
-    ch.q[C.NUTRIENT] > (social ? 16 : 20) &&
-    ch.q[C.SOLVENT] > (social ? 75 : 90) &&
-    ch.q[C.INFO] > 16 &&
-    ch.q[C.MEMBRANE] > 23 &&
+    l.energy > (social ? 22 : predator ? 8 : 30) &&
+    l.health > (predator ? 35 : 48) &&
+    (predator
+      ? ch.q[C.ORGANIC] > 4 || ch.q[C.ENERGY] > 80
+      : ch.q[C.ORGANIC] > (social ? 34 : 40)) &&
+    ch.q[C.NUTRIENT] > (social ? 16 : predator ? 8 : 20) &&
+    ch.q[C.SOLVENT] > (social ? 75 : predator ? 50 : 90) &&
+    ch.q[C.INFO] > (predator ? 5 : 16) &&
+    ch.q[C.MEMBRANE] > (predator ? 10 : 23) &&
     reproductionDensityAllows(id, kind)
+  );
+  reproductionEligibilityCache.values.set(id, eligible);
+  return eligible;
+}
+function canJoinPredatorPair(id) {
+  if (W.kind[id] !== KINDS.PREDATOR || !classifyAlive(id)) return false;
+  const life = derivedLife(id),
+    body = W.components.body[id],
+    reproduction = W.components.reproduction[id],
+    chemistry = W.components.chemistry[id]?.q;
+  return !!(
+    body &&
+    reproduction &&
+    chemistry &&
+    reproduction.mode === "paired" &&
+    reproduction.cooldown <= 0 &&
+    life.age > (body.maturityAge ?? 1400) &&
+    life.health > 35 &&
+    chemistry[C.SOLVENT] > 50 &&
+    chemistry[C.INFO] > 5 &&
+    chemistry[C.MEMBRANE] > 10 &&
+    reproductionDensityAllows(id, KINDS.PREDATOR)
+  );
+}
+function predatorPairHasMatter(first, second) {
+  const a = W.components.chemistry[first]?.q,
+    b = W.components.chemistry[second]?.q;
+  if (!a || !b) return false;
+  return (
+    a[C.ENERGY] + b[C.ENERGY] > 80 &&
+    a[C.ORGANIC] + b[C.ORGANIC] > 20 &&
+    a[C.NUTRIENT] + b[C.NUTRIENT] > 16 &&
+    a[C.SOLVENT] + b[C.SOLVENT] > 100 &&
+    a[C.INFO] + b[C.INFO] > 10 &&
+    a[C.MEMBRANE] + b[C.MEMBRANE] > 20
   );
 }
 function createOffspring(kind, parents, tile) {

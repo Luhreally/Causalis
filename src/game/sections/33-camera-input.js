@@ -40,6 +40,8 @@ function setSpeed(speed) {
 }
 function togglePause(force) {
   UI.running = force == null ? !UI.running : !!force;
+  accumulator = 0;
+  frameTime = 0;
   if (UI.running) {
     UI.clockInterrupted = false;
     UI.followDeathWasRunning = false;
@@ -221,6 +223,13 @@ function makeCausalSkipState(limitOverride = 0) {
       limitOverride > 0
         ? Math.floor(limitOverride)
         : Math.min(24576, Math.round(base + probability * span));
+  if (W.civilization) {
+    W.civilization.concertedEffortLevel = Math.max(1, W.civilization.concertedEffortLevel || 0);
+    W.civilization.concertedEffortUntil = Math.max(
+      W.civilization.concertedEffortUntil || 0,
+      W.tick + limit,
+    );
+  }
   return {
     startTick: W.tick,
     startStageIndex: authority.stageIndex,
@@ -240,6 +249,13 @@ function causalSkipStep(state) {
     return ((state.done = true), (state.stopReason = state.stopReason || "horizon"), state);
   simTick();
   state.advanced++;
+  if (
+    W.tick % 128 === 0 &&
+    typeof causalSkipIntervene === "function" &&
+    typeof concertedIntensity === "function" &&
+    concertedIntensity() > 0
+  )
+    causalSkipIntervene();
   const authority = normalizeCivilizationAuthority();
   if (
     authority.stageIndex > state.startStageIndex ||
@@ -314,7 +330,7 @@ async function causalSkipForward() {
   DOM.causalSkipBtn.textContent = "⏩ Searching…";
   DOM.causalSkipStatus.textContent = `Causally seeking ${state.pending[0]?.label || "the next epoch boundary"} within ${state.limit.toLocaleString()} future ticks…`;
   try {
-    const clickDeadline = performance.now() + 8000;
+    let computeElapsed = 0;
     while (!state.done) {
       const frameStart = performance.now(),
         tickBudget = UI.quality === "low" ? 12 : 6;
@@ -326,13 +342,14 @@ async function causalSkipForward() {
         !state.done &&
         frameTicks < 48 &&
         performance.now() - frameStart < tickBudget &&
-        performance.now() < clickDeadline
+        computeElapsed + performance.now() - frameStart < 8000
       );
+      computeElapsed += performance.now() - frameStart;
       refreshTopbar();
       DOM.causalSkipStatus.textContent = `Advanced ${state.advanced.toLocaleString()} real ticks…`;
-      if (!state.done && performance.now() >= clickDeadline) {
+      if (!state.done && computeElapsed >= 8000) {
         state.done = true;
-        state.stopReason = "horizon";
+        state.stopReason = "budget";
       }
       if (!state.done)
         await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
@@ -341,7 +358,7 @@ async function causalSkipForward() {
     refreshUI(true);
     renderWorld(performance.now());
     const result = causalSkipResult(state),
-      gate = state.stopReason === "horizon" ? civilizationGateStatus() : null,
+      gate = ["horizon", "budget"].includes(state.stopReason) ? civilizationGateStatus() : null,
       message =
         state.stopReason === "epoch"
           ? `Reached ${epochName()} after ${state.advanced.toLocaleString()} causal ticks.`
@@ -349,9 +366,11 @@ async function causalSkipForward() {
             ? `Reached ${state.milestone.label || causalSkipEventLabel(state.milestone)} after ${state.advanced.toLocaleString()} causal ticks.`
             : state.stopReason === "interrupted"
               ? `Stopped after ${state.advanced.toLocaleString()} ticks because followed life ended.`
-              : gate && gate.missing.length
-                ? `Advanced ${state.advanced.toLocaleString()} causal ticks; ${gate.leader ? `${gate.leader} still needs: ` : "next: "}${gate.missing.join(" · ")}.`
-                : `Advanced ${state.advanced.toLocaleString()} causal ticks; no milestone occurred inside this horizon.`;
+              : state.stopReason === "budget"
+                ? `Paused after searching ${state.advanced.toLocaleString()} of ${state.limit.toLocaleString()} future ticks; no milestone has occurred yet.`
+                : gate && gate.missing.length
+                  ? `Advanced ${state.advanced.toLocaleString()} causal ticks; ${gate.leader ? `${gate.leader} still needs: ` : "next: "}${gate.missing.join(" · ")}.`
+                  : `Advanced ${state.advanced.toLocaleString()} causal ticks; no milestone occurred inside this horizon.`;
     DOM.causalSkipStatus.textContent = message;
     toast(message);
     return result;
@@ -615,7 +634,7 @@ function handleKey(e) {
   else if (k === "b") setOverlay("blood");
   else if (k === "t") setOverlay("territory");
   else if (k === "c") setOverlay("culture");
-  else if (k === "r" && W) regenerateCurrent();
+  else if (k === "r" && W) confirmRegenerateCurrent();
   else if (k === "escape") {
     if (modalOpen) closeModal();
     else {

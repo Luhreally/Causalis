@@ -86,6 +86,8 @@ function deltaDecode(bytes, T, length) {
   return out;
 }
 function saveReplacer(k, v) {
+  if (typeof v === "number" && !Number.isFinite(v))
+    throw new Error(`Archive contains a non-finite number at ${k || "root"}`);
   if (ArrayBuffer.isView(v)) {
     const name = v.constructor?.name,
       T = SAVE_TYPED_ARRAY_TYPES[name];
@@ -437,22 +439,25 @@ function restoreUiState(state) {
   for (const [key, value] of Object.entries(state)) UI[key] = value;
 }
 async function loadWorld(slot) {
-  let priorWorld = null,
-    priorUi = null,
+  let priorWorld = W,
+    priorUi = captureUiState(),
     staged = false;
+  UI.running = false;
+  accumulator = 0;
+  if (DOM.pauseBtn) DOM.pauseBtn.textContent = "▶";
+  refreshTopbar();
   try {
     const raw = await readSaveData(slot);
     if (typeof raw !== "string" || !raw) throw new Error("Save slot is empty");
     const snap = validateSaveCandidate(migrateSave(JSON.parse(raw, saveReviver))),
       uiPatch = loadedUiPatch(snap.ui);
-    priorWorld = W;
-    priorUi = captureUiState();
     W = snap.world;
     staged = true;
-    restoreWorldDefaults();
     const actual = worldHash();
     if (snap.savedHash && actual !== snap.savedHash)
       throw new Error(`archive integrity check failed (${actual} != ${snap.savedHash})`);
+    restoreWorldDefaults();
+    worldHash();
     if (snap.migratedFrom != null) {
       ensureSentientContinuity();
       worldHash();
@@ -471,10 +476,11 @@ async function loadWorld(slot) {
     toast(`Loaded ${W.seed}`);
     return true;
   } catch (err) {
-    if (staged) {
-      W = priorWorld;
-      restoreUiState(priorUi);
-    }
+    if (staged) W = priorWorld;
+    restoreUiState(priorUi);
+    accumulator = 0;
+    if (DOM.pauseBtn) DOM.pauseBtn.textContent = UI.running ? "Ⅱ" : "▶";
+    refreshTopbar();
     toast(`Could not load: ${err?.message || "invalid archive"}`, "bad");
     return false;
   }

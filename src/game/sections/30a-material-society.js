@@ -359,7 +359,9 @@ function localMaterialAbundance(tile, sp, r = 4) {
 }
 function materialTrait(sp) {
   return (
-    W.definitions.materials.find((m) => m.speciesId === sp) || {
+    W.definitions.materials
+      .filter((m) => m.speciesId === sp)
+      .sort((a, b) => b.hardness - a.hardness || a.id - b.id)[0] || {
       hardness: 0.35,
       brittleness: 0.4,
       density: 0.5,
@@ -600,12 +602,14 @@ function recomputePlaceCapacity(place) {
 }
 const settlementDefenseBuildingsBase = settlementDefense;
 settlementDefense = function (s) {
+  if (!s) return 0;
   const built = completedBuildings(s).reduce((n, b) => {
-    const hardness = materialTrait(b.architecture?.rigid ?? C.MINERAL).hardness,
-      condition = clamp(b.integrity / Math.max(1, b.maxIntegrity), 0, 1);
-    return n + b.defense * condition * (0.75 + hardness * 0.5);
-  }, 0);
-  return clamp(settlementDefenseBuildingsBase(s) + built, 0, 100);
+      const hardness = materialTrait(b.architecture?.rigid ?? C.MINERAL).hardness,
+        condition = clamp(b.integrity / Math.max(1, b.maxIntegrity), 0, 1);
+      return n + b.defense * condition * (0.75 + hardness * 0.5);
+    }, 0),
+    fortification = s.knownProcesses?.includes("fortification") ? 1.45 : 1;
+  return clamp(settlementDefenseBuildingsBase(s) + built * fortification, 0, 100);
 };
 function completeBuilding(b) {
   if (!b || b.ruined) return;
@@ -830,11 +834,13 @@ function ensurePlacePlans(place) {
       1,
       Math.ceil(pop / (compact ? 8 : 6)) + (place.management.policy === "growth" ? 1 : 0),
     );
-  while (count("shelter") < desiredShelters && activeBuildings(place).length < 4)
-    planBuilding(place, "shelter", place.management.priorities.shelter);
+  while (count("shelter") < desiredShelters && activeBuildings(place).length < 4) {
+    if (!planBuilding(place, "shelter", place.management.priorities.shelter)) break;
+  }
   const desiredFarms = place.management.policy === "growth" ? 2 : 1;
-  while (count("farm") < desiredFarms && activeBuildings(place).length < 4)
-    planBuilding(place, "farm", place.management.priorities.food);
+  while (count("farm") < desiredFarms && activeBuildings(place).length < 4) {
+    if (!planBuilding(place, "farm", place.management.priorities.food)) break;
+  }
   if (W.herds?.some((herd) => herd.active && herd.placeKind === kind && herd.placeId === place.id))
     plan("corral", Math.max(place.management.priorities.food, place.management.priorities.defense));
   if (place.knownProcesses.includes("controlled_fire"))
@@ -854,8 +860,9 @@ function ensurePlacePlans(place) {
       : place.knownProcesses.includes("fortification")
         ? 4
         : 0;
-  while (count("wall") < desiredWalls && activeBuildings(place).length < 5)
-    planBuilding(place, "wall", place.management.priorities.defense);
+  while (count("wall") < desiredWalls && activeBuildings(place).length < 5) {
+    if (!planBuilding(place, "wall", place.management.priorities.defense)) break;
+  }
 }
 function compileLegacyPlaceBuildings() {
   for (const place of [
@@ -870,8 +877,10 @@ function compileLegacyPlaceBuildings() {
       ? ["stockpile", "shelter", "workshop"]
       : ["stockpile", "shelter"];
     for (const [n, type] of types.entries()) {
+      const planned = plannedBuildingTile(place, type, n);
+      if (!planned) continue;
       const def = BUILDING_DEFS[type],
-        [x, y] = plannedBuildingTile(place, type, n),
+        [x, y] = planned,
         b = {
           id: W.nextBuildingId++,
           placeKind: kind,
@@ -920,7 +929,10 @@ restoreWorldDefaults = function () {
   const legacy = !W.buildings;
   initializeSocietyState(W);
   for (const id of W.activeIds)
-    if ([KINDS.HERBIVORE, KINDS.PREDATOR, KINDS.PERSON].includes(W.kind[id])) initCognition(id);
+    if ([KINDS.HERBIVORE, KINDS.PREDATOR, KINDS.PERSON].includes(W.kind[id])) {
+      initCognition(id);
+      workState(id);
+    }
   if (legacy) compileLegacyPlaceBuildings();
   for (const b of W.buildings) refreshBuildingStage(b);
   rebuildSpatialBins();
@@ -1513,9 +1525,7 @@ function cognitionInputs(id) {
     shelter = shelterProtectionAt(id, ti),
     severeWeather = W.weather.name === "Storm" || W.weather.name === "Drought" ? 0.25 : 0,
     exposure = clamp(stress + severeWeather - shelter * 0.4, 0, 1),
-    fearMemory = W.components.memory[id]?.fearLocations?.includes(ti)
-      ? 1
-      : clamp(tileFear(ti) / 140, 0, 1),
+    fearMemory = Math.max(fearMemoryStrength(id, ti), clamp(tileFear(ti) / 140, 0, 1)),
     values = [
       l.hunger / 100,
       l.thirst / 100,
@@ -1684,7 +1694,7 @@ function toolForPurpose(id, purpose) {
 function toolRecipeFromInventory(id, purpose) {
   if (purpose === "gather") return null;
   const inv = W.components.inventory[id].materials,
-    candidates = [C.METAL, C.CRYSTAL, C.MINERAL, C.ORE, C.BONE]
+    candidates = [C.METAL, C.CRYSTAL, C.CERAMIC, C.MINERAL, C.ORE, C.BONE]
       .filter((sp) => inv[sp] >= 2)
       .map((sp) => {
         const m = materialTrait(sp);
@@ -1868,6 +1878,37 @@ function workState(id) {
     })
   );
 }
+function laborPredatorThreat(id, radius = 7) {
+  const position = W.components.position[id];
+  if (!position) return 0;
+  return nearbyIds(id, radius, (other) => {
+    if (W.kind[other] !== KINDS.PREDATOR || !classifyAlive(other)) return false;
+    const predator = W.components.position[other],
+      preyTargetId = W.components.life[other]?.preyTargetId || 0,
+      distance = predator ? dist2(position.x, position.y, predator.x, predator.y) : Infinity;
+    return distance <= 2 || preyTargetId === id;
+  }).length;
+}
+function workerReadyForLabor(id) {
+  const l = derivedLife(id),
+    q = W.components.chemistry[id]?.q,
+    p = W.components.position[id];
+  if (!l || !q || !p) return false;
+  const tile = idx(p.x, p.y),
+    locomotion = typeof embodiedCapability === "function" ? embodiedCapability(id).locomotion : 1;
+  return (
+    l.hunger <= 68 &&
+    l.thirst <= 70 &&
+    l.fatigue <= 88 &&
+    l.health >= 42 &&
+    (l.pain || 0) < 76 &&
+    q[C.ENERGY] >= 125 &&
+    locomotion >= 0.12 &&
+    W.tiles.fire[tile] <= 100 &&
+    W.tiles.danger[tile] <= 850 &&
+    !laborPredatorThreat(id)
+  );
+}
 function setWorkAction(
   id,
   task,
@@ -1957,6 +1998,8 @@ function findResourceTile(id, sp, radius = 9) {
 }
 function moveWorkerToward(id, tile, task, phase, material = -1, buildingId = 0, toolId = 0) {
   const p = W.components.position[id],
+    w = workState(id),
+    currentTile = idx(p.x, p.y),
     [tx, ty] = xy(tile),
     options = DIRS.slice(0, 8)
       .map((d, n) => {
@@ -1977,9 +2020,37 @@ function moveWorkerToward(id, tile, task, phase, material = -1, buildingId = 0, 
         };
       })
       .sort((a, b) => b.score - a.score || a.n - b.n),
-    d = options[0]?.d || [0, 0],
+    best = options[0],
+    d = best?.d || [0, 0],
     nx = clamp(p.x + d[0], 0, W.width - 1),
     ny = clamp(p.y + d[1], 0, W.height - 1);
+  if (
+    w.travelTargetTile === tile &&
+    w.travelLastTile === currentTile &&
+    W.tick > (w.travelAttemptTick ?? -1)
+  )
+    w.travelStuckTicks = (w.travelStuckTicks || 0) + Math.max(1, W.tick - w.travelAttemptTick);
+  else w.travelStuckTicks = 0;
+  w.travelTargetTile = tile;
+  w.travelLastTile = currentTile;
+  w.travelAttemptTick = W.tick;
+  if (!best || best.score <= -1e8 || w.travelStuckTicks >= 32) {
+    w.blockedTargetTile = tile;
+    w.blockedUntil = W.tick + 64;
+    w.resourceTile = -1;
+    w.resourceSpecies = -1;
+    setWorkAction(
+      id,
+      task,
+      `route blocked; abandoning and replanning ${phase}`,
+      tile,
+      material,
+      buildingId,
+      toolId,
+    );
+    return false;
+  }
+  if (w.blockedTargetTile === tile && W.tick < (w.blockedUntil || 0)) return false;
   if (d[0] || d[1]) queueEffect("MoveEntity", { entityId: id, x: nx, y: ny }, id);
   setWorkAction(id, task, phase, tile, material, buildingId, toolId);
   return true;
@@ -1991,7 +2062,8 @@ function extractForWork(id, tile, sp) {
     mat = materialTrait(sp),
     bare = sp === C.ORGANIC || sp === C.SOLVENT || sp === C.NUTRIENT ? 2 : 1,
     bonus = tool ? Math.max(1, Math.floor(tool.quality / (14 + mat.hardness * 8))) : 0,
-    limit = bare + bonus;
+    coordinated = concertedIntensity(),
+    limit = (bare + bonus) * (coordinated ? 1 + coordinated : 1);
   if (sp === C.FIBER && available < 1 && resourceAmountAt(tile, C.ORGANIC) > 0) {
     executeProcess(
       "fiber_curing",
@@ -2036,9 +2108,15 @@ function orderPriority(order, place, id) {
   if (!b || b.complete || b.ruined) return -1e9;
   const p = W.components.position[id],
     def = BUILDING_DEFS[b.type],
-    policy = place.management?.priorities?.[def.priority] || 2;
+    policy = place.management?.priorities?.[def.priority] || 2,
+    foundingNeed =
+      !place.knownProcesses && ["stockpile", "shelter", "hearth"].includes(b.type) ? 96 : 0;
   return (
-    order.priority * 18 + policy * 12 - Math.sqrt(dist2(p.x, p.y, b.x, b.y)) * 2 - b.id * 0.0001
+    foundingNeed +
+    order.priority * 18 +
+    policy * 12 -
+    Math.sqrt(dist2(p.x, p.y, b.x, b.y)) * 2 -
+    b.id * 0.0001
   );
 }
 function selectWorkOrder(id, place) {
@@ -2554,7 +2632,12 @@ function performCivilLabor(id) {
     const sp = missing.sp,
       purpose = toolPurposeForMaterial(sp),
       tool = toolForPurpose(id, purpose);
-    if (!tool && toolRecipeFromInventory(id, purpose)) return beginOrAdvanceCraft(id, purpose);
+    if (
+      !tool &&
+      !functionalToolsAtPlace(place, purpose).length &&
+      toolRecipeFromInventory(id, purpose)
+    )
+      return beginOrAdvanceCraft(id, purpose);
     if (inv[sp] > 0) {
       const site = idx(b.x, b.y);
       if (dist2(p.x, p.y, b.x, b.y) > 2)
@@ -2618,7 +2701,12 @@ function performCivilLabor(id) {
     return false;
   }
   const buildTool = toolForPurpose(id, "build");
-  if (!buildTool && toolRecipeFromInventory(id, "build")) return beginOrAdvanceCraft(id, "build");
+  if (
+    !buildTool &&
+    !functionalToolsAtPlace(place, "build").length &&
+    toolRecipeFromInventory(id, "build")
+  )
+    return beginOrAdvanceCraft(id, "build");
   const site = idx(b.x, b.y);
   if (dist2(p.x, p.y, b.x, b.y) > 2)
     return moveWorkerToward(
@@ -2795,10 +2883,10 @@ performCivilLabor = function (id) {
 };
 const performCivilLaborHomeostasisBase = performCivilLabor;
 performCivilLabor = function (id) {
-  const l = derivedLife(id),
-    q = W.components.chemistry[id]?.q;
-  if (!l || !q || l.hunger > 56 || l.thirst > 62 || l.fatigue > 79 || q[C.ENERGY] < 125)
+  if (!workerReadyForLabor(id)) {
+    clearStaleWork(id);
     return false;
+  }
   return performCivilLaborHomeostasisBase(id);
 };
 const directionScoreCognitionBase = directionScore;
@@ -2809,25 +2897,17 @@ const chooseBehaviorCognitionBase = chooseBehavior;
 chooseBehavior = function (id, tier) {
   const w = W.components.work?.[id],
     l = W.components.life[id],
-    p = W.components.position[id],
-    ti = p ? idx(p.x, p.y) : -1,
-    unsafe =
-      l &&
-      (l.hunger > 68 ||
-        l.thirst > 70 ||
-        l.fatigue > 88 ||
-        (ti >= 0 && (W.tiles.fire[ti] > 100 || W.tiles.danger[ti] > 850))),
+    unsafe = W.kind[id] === KINDS.PERSON && !workerReadyForLabor(id),
     urgent = unsafe || l?.hunger > 55 || l?.thirst > 58 || l?.fatigue > 62;
-  if (w?.handledTick === W.tick || (w?.task !== "idle" && W.tick - w.handledTick <= 4 && !unsafe))
-    return;
   if (
-    tier === "detailed" &&
-    !urgent &&
-    UI.followId !== id &&
-    UI.selectedEntity !== id &&
-    W.tick % 2 !== id % 2
+    w?.handledTick === W.tick ||
+    (w &&
+      w.task !== "idle" &&
+      W.tick - (Number.isFinite(w.handledTick) ? w.handledTick : -Infinity) <= 4 &&
+      !unsafe)
   )
     return;
+  if (tier === "detailed" && !urgent && W.tick % 2 !== id % 2) return;
   return chooseBehaviorCognitionBase(id, tier);
 };
 function clearStaleWork(id) {
@@ -2843,13 +2923,33 @@ function clearStaleWork(id) {
     progress: 0,
     craftPurpose: "",
     recipe: null,
+    facilityBuildingId: 0,
+    facilityUntil: 0,
   });
+}
+function facilityAssignment(id) {
+  const w = W.components.work?.[id];
+  if (!w?.facilityBuildingId || W.tick > (w.facilityUntil || 0)) return null;
+  const building = W.buildings.find(
+    (candidate) =>
+      candidate.id === w.facilityBuildingId &&
+      candidate.complete &&
+      !candidate.ruined &&
+      candidate.integrity > 0,
+  );
+  if (!building) {
+    w.facilityBuildingId = 0;
+    w.facilityUntil = 0;
+    return null;
+  }
+  return building;
 }
 function updateCognitionAndLabor() {
   initializeSocietyState(W);
   const ids = W.activeIds.slice().sort((a, b) => a - b),
     essential = new Set(),
-    places = [...W.camps.filter((c) => c.active), ...W.settlements.filter((s) => !s.ruined)];
+    places = [...W.camps.filter((c) => c.active), ...W.settlements.filter((s) => !s.ruined)],
+    coordinatedLabor = concertedIntensity() > 0;
   for (const place of places) {
     if (!placeNeedsLabor(place)) continue;
     const healthy = localPlaceWorkers(place)
@@ -2870,7 +2970,9 @@ function updateCognitionAndLabor() {
       research = eligibleResearchMaterialNeeds(place).length,
       slots = Math.min(
         healthy.length,
-        Math.max(2, Math.ceil(healthy.length * (projects ? 0.55 : research ? 0.4 : 0.3))),
+        concertedIntensity()
+          ? healthy.length
+          : Math.max(2, Math.ceil(healthy.length * (projects ? 0.55 : research ? 0.4 : 0.3))),
       );
     for (const id of healthy.slice(0, slots)) essential.add(id);
   }
@@ -2878,18 +2980,48 @@ function updateCognitionAndLabor() {
     if (
       ![KINDS.HERBIVORE, KINDS.PREDATOR, KINDS.PERSON].includes(W.kind[id]) ||
       !classifyAlive(id) ||
-      W.tick % 4 !== id % 4
+      (W.tick % 4 !== id % 4 && !(coordinatedLabor && W.kind[id] === KINDS.PERSON))
     )
       continue;
     const c = W.tick % 8 === id % 8 ? advanceLTC(id) : initCognition(id);
     if (W.kind[id] !== KINDS.PERSON) continue;
     const w = workState(id),
+      facility = facilityAssignment(id),
       place = nearestWorkPlace(id),
       continuing = w.task !== "idle" && W.tick - w.handledTick <= 8,
       hasWork = placeNeedsLabor(place),
       workDrive = cognitionBias(id, "work") + cognitionBias(id, "shelter") * 0.35,
       networkChoosesWork = c.dominant === "work" || c.dominant === "shelter" || workDrive > -12,
       assigned = essential.has(id);
+    if (facility) {
+      if (!workerReadyForLabor(id)) {
+        clearStaleWork(id);
+        continue;
+      }
+      const p = W.components.position[id],
+        site = idx(facility.x, facility.y);
+      if (dist2(p.x, p.y, facility.x, facility.y) > 2)
+        moveWorkerToward(
+          id,
+          site,
+          "operate",
+          `moving to operate ${facility.name}`,
+          w.facilityMaterialId ?? -1,
+          facility.id,
+          w.toolId || 0,
+        );
+      else
+        setWorkAction(
+          id,
+          "operate",
+          w.facilityPhase || `waiting to operate ${facility.name}`,
+          site,
+          w.facilityMaterialId ?? -1,
+          facility.id,
+          w.toolId || 0,
+        );
+      continue;
+    }
     if ((continuing || (hasWork && (assigned || networkChoosesWork))) && performCivilLabor(id)) {
       w.handledTick = W.tick;
       const action = w.task === "gather" ? "gather" : "work",
@@ -2935,34 +3067,7 @@ updateCognitionAndLabor = function () {
 };
 const runMetabolismSocietyBase = runMetabolism;
 runMetabolism = function (id, tier) {
-  const l = W.components.life[id],
-    rep = W.components.reproduction[id],
-    stride =
-      tier === "simplified-due"
-        ? W.config.complexity === "lean"
-          ? 8
-          : W.config.complexity === "deep"
-            ? 2
-            : 4
-        : 1,
-    due = W.tick % 4 === id % 4;
-  if (!due) {
-    l.age += stride;
-    rep.cooldown = Math.max(0, rep.cooldown - stride);
-    l.fatigue = clamp(
-      l.fatigue + stride * (0.018 + (0.022 * l.age) / Math.max(1, W.components.body[id].maxAge)),
-      0,
-      100,
-    );
-    derivedLife(id);
-    return;
-  }
-  runMetabolismSocietyBase(id, "detailed");
-  if (stride > 1) {
-    l.age += stride - 1;
-    rep.cooldown = Math.max(0, rep.cooldown - (stride - 1));
-  }
-  return derivedLife(id);
+  return runMetabolismSocietyBase(id, tier);
 };
 function prepareSexualPropagule(id) {
   if (!classifyAlive(id)) return 0;
@@ -3129,11 +3234,13 @@ function operateFacility(s, type, phase, material = -1) {
   const b = completedBuildings(s, type)[0];
   if (!b) return null;
   const workers = localPlaceWorkers(s)
-      .filter((id) => {
-        const l = derivedLife(id);
-        return l.hunger < 75 && l.thirst < 78 && l.fatigue < 92;
-      })
+      .filter(workerReadyForLabor)
       .sort((a, c) => {
+        const wa = workState(a),
+          wc = workState(c),
+          assignedA = wa.facilityBuildingId === b.id && W.tick <= (wa.facilityUntil || 0) ? 0 : 1,
+          assignedC = wc.facilityBuildingId === b.id && W.tick <= (wc.facilityUntil || 0) ? 0 : 1;
+        if (assignedA !== assignedC) return assignedA - assignedC;
         const pa = W.components.position[a],
           pc = W.components.position[c];
         return dist2(pa.x, pa.y, b.x, b.y) - dist2(pc.x, pc.y, b.x, b.y) || a - c;
@@ -3142,7 +3249,12 @@ function operateFacility(s, type, phase, material = -1) {
   if (!id) return null;
   const p = W.components.position[id],
     site = idx(b.x, b.y),
-    tool = toolForPurpose(id, "build");
+    tool = toolForPurpose(id, "build"),
+    work = workState(id);
+  work.facilityBuildingId = b.id;
+  work.facilityMaterialId = material;
+  work.facilityPhase = phase;
+  work.facilityUntil = W.tick + 160;
   if (dist2(p.x, p.y, b.x, b.y) > 2) {
     moveWorkerToward(
       id,
@@ -3865,6 +3977,39 @@ const updateTechnologyKnowledgeBase = updateTechnology;
 updateTechnology = function () {
   updateTechnologyKnowledgeBase();
   shareFactionKnowledge();
+  if (W.tick % 256 !== 0) return;
+  const culturalArtifacts = W.artifacts.filter((artifact) => !artifact.tool).length;
+  if (culturalArtifacts >= 100) return;
+  let artifactSlots = 100 - culturalArtifacts;
+  for (const settlement of W.settlements.filter(
+    (candidate) =>
+      !candidate.ruined &&
+      candidate.knownProcesses.includes("tools") &&
+      candidate.knownProcesses.length >= 3,
+  )) {
+    if (artifactSlots <= 0) break;
+    const maker = entityAtRadius(idx(settlement.x, settlement.y), 7, KINDS.PERSON)
+      .filter((id) => peekAlive(id))
+      .sort(
+        (a, b) =>
+          (W.components.identity[b]?.significance || 0) -
+            (W.components.identity[a]?.significance || 0) ||
+          counterRand("artifact-maker", Math.floor(W.tick / 256), settlement.id, a) -
+            counterRand("artifact-maker", Math.floor(W.tick / 256), settlement.id, b) ||
+          a - b,
+      )[0];
+    if (!maker) continue;
+    queueEffect(
+      "CreateArtifact",
+      {
+        settlementId: settlement.id,
+        creatorId: maker,
+        causeEvent: settlement.importantEvents.at(-1) || 0,
+      },
+      settlement.entityId,
+    );
+    artifactSlots--;
+  }
 };
 function settlementDevelopmentStage(s) {
   const buildings = completedBuildings(s),

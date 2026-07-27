@@ -28,6 +28,7 @@ function boot() {
     hydrology: hydrologySummary,
     auditMatter: () => auditMatter(),
     auditEnergy,
+    nicheAudit: debugNicheAudit,
     auditReactions: () => auditReactions(),
     auditRelations,
     exportInterventions: () => W?.interventions.slice() || [],
@@ -161,8 +162,13 @@ function debugConstructionSummary() {
   for (const id of W.activeIds)
     if (
       W.kind[id] === KINDS.PERSON &&
-      W.components.work?.[id]?.task !== "idle" &&
-      W.tick - W.components.work[id].handledTick <= 8
+      W.components.work?.[id]?.task &&
+      W.components.work[id].task !== "idle" &&
+      W.tick -
+        (Number.isFinite(W.components.work[id].handledTick)
+          ? W.components.work[id].handledTick
+          : -Infinity) <=
+        8
     ) {
       const w = W.components.work[id];
       labor.push({
@@ -427,6 +433,20 @@ window.ALIFE_VISUAL_DEBUG = Object.freeze({
     return { ok: before === after, before, after, changedKeys };
   },
   renderOnly: (options = {}) => {
+    const before = options.audit ? worldHash() : "",
+      beforeState = options.audit
+        ? Object.fromEntries(
+            Object.keys(W).map((key) => [key, JSON.stringify(W[key], saveReplacer)]),
+          )
+        : null,
+      beforeComponents = options.audit
+        ? Object.fromEntries(
+            Object.keys(W.components).map((key) => [
+              key,
+              JSON.stringify(W.components[key], saveReplacer),
+            ]),
+          )
+        : null;
     UI.view = options.view || "top";
     UI.quality = options.quality || "high";
     if (options.overlay !== undefined) UI.overlay = options.overlay;
@@ -437,7 +457,16 @@ window.ALIFE_VISUAL_DEBUG = Object.freeze({
     UI.camera.tilt = options.tilt ?? cameraTilt();
     UI.camera.cutaway = options.cutaway ?? !!UI.camera.cutaway;
     renderWorld(options.now || 1234);
-    return true;
+    if (!options.audit) return true;
+    const after = worldHash(),
+      changedKeys = Object.keys(W)
+        .filter((key) => beforeState[key] !== JSON.stringify(W[key], saveReplacer))
+        .filter((key) => !["hash", "spatialBins"].includes(key))
+        .sort(),
+      changedComponentStores = Object.keys(W.components)
+        .filter((key) => beforeComponents[key] !== JSON.stringify(W.components[key], saveReplacer))
+        .sort();
+    return { ok: before === after, before, after, changedKeys, changedComponentStores };
   },
   renderFrame: (options = {}) => {
     window.ALIFE_VISUAL_DEBUG.renderOnly(options);
@@ -472,30 +501,12 @@ window.ALIFE_CONTROL_DEBUG = Object.freeze({
   orbit: (angle, tilt = 0) => orbitCamera(angle, tilt),
   cutaway: (value) => toggleCutaway(value),
   createCivicTestScenario: debugCreateCivicScenario,
-  setCityPriority: (kind, id, key, value) => setCityPriority(kind, id, key, value, false),
-  setCityPolicy: (kind, id, policy) => setCityPolicy(kind, id, policy, false),
-  planBuilding: (kind, id, type) => requestCityBuilding(kind, id, type, false),
+  setCityPriority: (kind, id, key, value) => setCityPriority(kind, id, key, value, true),
+  setCityPolicy: (kind, id, policy) => setCityPolicy(kind, id, policy, true),
+  planBuilding: (kind, id, type) => requestCityBuilding(kind, id, type, true),
   induceSurfaceFloodForTest,
-  collapseKindForTest: (kind) => {
-    for (const id of W.activeIds.slice())
-      if (W.kind[id] === kind) killEntity(id, "controlled extinction test", 0);
-    return populationSummary();
-  },
-  armFollowedDeathForTest: (kind = KINDS.HERBIVORE) => {
-    const id = W.activeIds.find((entity) => W.kind[entity] === kind && classifyAlive(entity));
-    if (!id) return 0;
-    UI.followId = id;
-    UI.selectedEntity = id;
-    const l = W.components.life[id],
-      q = W.components.chemistry[id].q;
-    l.regulation = 1;
-    q[C.ENERGY] = 0;
-    q[C.ORGANIC] = 0;
-    q[C.NUTRIENT] = 0;
-    l.integrity = Math.min(l.integrity, 2);
-    W.components.body[id].integrity = l.integrity;
-    return id;
-  },
+  collapseKindForTest,
+  armFollowedDeathForTest,
   controlState: () => ({
     running: UI.running,
     interrupted: !!UI.clockInterrupted,

@@ -82,38 +82,41 @@ restoreWorldDefaults = function () {
   initializeConflictDrama(W);
 };
 
-function factionXenophobia(faction, world = W) {
+function factionXenophobia(faction, world = W, commit = true) {
   if (!faction) return 0.18;
   if (Number.isFinite(faction.xenophobia)) return clamp(faction.xenophobia, 0, 1);
   const culture = world?.cultures?.find((c) => c.id === faction.cultureId),
     communal = culture?.values?.communal ?? 0.5,
-    inherited = hashParts(world?.seedHash || 0, "xenophobia", faction.id) / 4294967295;
-  faction.xenophobia = clamp(
-    0.06 +
-      (faction.aggression || 0.3) * 0.34 +
-      (1 - communal) * 0.28 +
-      (1 - (faction.cohesion || 0.5)) * 0.12 +
-      inherited * 0.2,
-    0.04,
-    0.94,
-  );
-  return faction.xenophobia;
+    inherited = hashParts(world?.seedHash || 0, "xenophobia", faction.id) / 4294967295,
+    value = clamp(
+      0.06 +
+        (faction.aggression || 0.3) * 0.34 +
+        (1 - communal) * 0.28 +
+        (1 - (faction.cohesion || 0.5)) * 0.12 +
+        inherited * 0.2,
+      0.04,
+      0.94,
+    );
+  if (commit) faction.xenophobia = value;
+  return value;
 }
 
-function personXenophobia(id) {
+function personXenophobia(id, commit = true) {
   const social = W.components.social[id];
   if (!social) return 0;
   if (!Number.isFinite(social.xenophobia)) {
     const faction = W.factions.find((f) => f.id === social.factionId),
-      inherited = counterRand("person-xenophobia", id, W.seedHash);
-    social.xenophobia = clamp(
-      factionXenophobia(faction) * 0.62 +
-        (social.aggression || 0.3) * 0.16 +
-        (social.dominance || 0.5) * 0.08 +
-        inherited * 0.14,
-      0,
-      1,
-    );
+      inherited = counterRand("person-xenophobia", id, W.seedHash),
+      value = clamp(
+        factionXenophobia(faction, W, commit) * 0.62 +
+          (social.aggression || 0.3) * 0.16 +
+          (social.dominance || 0.5) * 0.08 +
+          inherited * 0.14,
+        0,
+        1,
+      );
+    if (commit) social.xenophobia = value;
+    return value;
   }
   return social.xenophobia;
 }
@@ -208,6 +211,9 @@ function detailedCombatExchange(attacker, victim, context = {}) {
       ((attackerLife.hunger || 0) + (attackerLife.thirst || 0) + (attackerLife.fatigue || 0)) /
         340 +
       a.life.pain / 180,
+    defenderFatigue =
+      ((victimLife.hunger || 0) + (victimLife.thirst || 0) + (victimLife.fatigue || 0)) / 340 +
+      v.life.pain / 180,
     attackSkill =
       0.38 +
       phenotype(attacker).aggression * 0.36 +
@@ -224,7 +230,8 @@ function detailedCombatExchange(attacker, victim, context = {}) {
       defenderTraining * 0.014 +
       (victimUnit?.morale || 0) * 0.18 +
       defense.skill +
-      terrainCover,
+      terrainCover -
+      defenderFatigue * 0.32,
     roll =
       context.rollOverride ??
       counterRand("combat-outcome", W.tick, serial, attacker, victim) * 0.74,
@@ -383,7 +390,7 @@ function detailedCombatExchange(attacker, victim, context = {}) {
     ],
     magnitude: actual,
     importance: context.internal ? 4 : 3,
-    data: { ...injury.data, lethal: true },
+    data: { ...injury.data, attackerId: attacker, lethal: true },
   });
   return 2;
 }
@@ -686,10 +693,31 @@ function resolveImplicitWarTurn(war, a, b) {
   W.implicitMetrics.battles++;
   war.contactTurns = (war.contactTurns || 0) + 1;
   let casualties = 0;
+  const previousEventId = W.events.at(-1)?.id || 0;
   const exchanges = Math.min(7, attackers.length, Math.max(1, defenders.length));
   for (let n = 0; n < exchanges; n++) {
     const attack = attackers[n % attackers.length],
-      defense = defenders.length ? defenders[n % defenders.length] : null;
+      attackPosition = W.components.position[attack.id],
+      reach = typeof combatReach === "function" ? combatReach(attack.id) : 1.5,
+      defense =
+        defenders
+          .filter((entry) => {
+            const position = W.components.position[entry.id];
+            return (
+              position &&
+              attackPosition &&
+              classifyAlive(entry.id) &&
+              dist2(position.x, position.y, attackPosition.x, attackPosition.y) <= reach * reach
+            );
+          })
+          .sort((left, right) => {
+            const lp = W.components.position[left.id],
+              rp = W.components.position[right.id];
+            return (
+              dist2(lp.x, lp.y, attackPosition.x, attackPosition.y) -
+                dist2(rp.x, rp.y, attackPosition.x, attackPosition.y) || left.id - right.id
+            );
+          })[0] || null;
     if (defense && classifyAlive(attack.id) && classifyAlive(defense.id)) {
       casualties += militaryStrike(attack.id, defense.id, war, attack.u.training) === 2 ? 1 : 0;
       if (classifyAlive(defense.id) && classifyAlive(attack.id))
@@ -698,14 +726,28 @@ function resolveImplicitWarTurn(war, a, b) {
   }
   war.casualties += casualties;
   war.lastEventId =
-    W.lastEventByType.KillEvent ||
-    W.lastEventByType.InjuryEvent ||
-    W.lastEventByType.CombatExchangeEvent ||
+    W.events.findLast(
+      (event) =>
+        event.id > previousEventId &&
+        ["KillEvent", "InjuryEvent", "CombatExchangeEvent"].includes(event.type),
+    )?.id ||
+    war.lastEventId ||
     war.startEventId;
   const livingAttackers = attackers.filter((entry) => classifyAlive(entry.id)),
     livingDefenders = defenders.filter((entry) => classifyAlive(entry.id)),
     control = livingAttackers.length - livingDefenders.length,
     standingWalls = completedBuildings(target, "wall").filter((wall) => !wall.ruined);
+  const aggregateFaction = control >= 0 ? defender.id : attacker.id,
+    aggregate = removeCohortWarCasualties(
+      aggregateFaction,
+      casualties || war.contactTurns % 4 === 0 ? 1 : 0,
+      tile,
+      war.lastEventId || war.startEventId,
+    );
+  if (aggregate.count) {
+    war.casualties += aggregate.count;
+    war.lastEventId = aggregate.eventId;
+  }
   if (control > 0 && livingDefenders.length && standingWalls.length) {
     let breached = 0;
     for (const entry of livingAttackers) {
@@ -929,7 +971,10 @@ function updatePersistentWounds() {
   for (const id of W.activeIds.slice()) {
     if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
     const state = ensureConflictPerson(id);
-    if (!state?.life.wounds.length) continue;
+    if (!state) continue;
+    state.life.pain = clamp(state.life.pain - 0.35, 0, 100);
+    state.life.trauma = clamp(state.life.trauma - 0.025, 0, 100);
+    if (!state.life.wounds.length) continue;
     const position = W.components.position[id],
       tile = idx(position.x, position.y),
       local = nearestSettlement(tile, 4),
@@ -939,6 +984,7 @@ function updatePersistentWounds() {
     for (const wound of state.life.wounds) {
       if (wound.healedTick) continue;
       open++;
+      wound.peakSeverity = Math.max(wound.peakSeverity || 0, wound.severity || 0);
       const healing =
         0.45 +
         (medicine ? 0.72 : 0) +
@@ -958,7 +1004,7 @@ function updatePersistentWounds() {
       if (wound.bleed <= 0 && wound.severity < 0.12) {
         wound.healedTick = W.tick;
         wound.treated = medicine;
-        wound.scar = wound.bloodLost > 3 || wound.severity > 0.35;
+        wound.scar = wound.bloodLost > 3 || (wound.peakSeverity || 0) > 0.35;
         if (wound.scar && state.identity) {
           state.identity.scars.push(`${wound.type} scar on ${wound.part}`);
           state.identity.scars = [...new Set(state.identity.scars)].slice(-8);
@@ -972,8 +1018,8 @@ function updatePersistentWounds() {
     }
     if (!classifyAlive(id)) continue;
     state.life.wounded = open > 0;
-    state.life.pain = clamp(state.life.pain - (medicine ? 1.2 : 0.55), 0, 100);
-    state.life.trauma = clamp(state.life.trauma - (sheltered ? 0.18 : 0.06), 0, 100);
+    state.life.pain = clamp(state.life.pain - (medicine ? 0.85 : 0.2), 0, 100);
+    state.life.trauma = clamp(state.life.trauma - (sheltered ? 0.155 : 0.035), 0, 100);
   }
 }
 
@@ -999,6 +1045,7 @@ const updateSettlementsOccupationBase = updateSettlements;
 updateSettlements = function () {
   const protectedResidents = occupationProtectedResidents(),
     result = updateSettlementsOccupationBase();
+  if (W.tick % 32 === 0) updateMaterialProcesses();
   for (const entry of protectedResidents) {
     const social = W.components.social[entry.id];
     if (social && !social.integrated) social.factionId = entry.factionId;
@@ -1118,8 +1165,7 @@ organismInspector = function (id) {
   const life = W.components.life[id],
     identity = W.components.identity[id];
   if (!life || W.kind[id] !== KINDS.PERSON) return html;
-  ensureConflictPerson(id);
-  const open = life.wounds.filter((wound) => !wound.healedTick),
+  const open = (life.wounds || []).filter((wound) => !wound.healedTick),
     wounds = open
       .map(
         (wound) =>
@@ -1129,12 +1175,12 @@ organismInspector = function (id) {
     scars = identity?.scars?.join("; ") || "none";
   html = html.replace(
     "<span>Cause of death</span>",
-    `<span>Open wounds</span><b>${esc(wounds || "none")}</b><span>Pain / trauma</span><b>${life.pain.toFixed(1)} / ${life.trauma.toFixed(1)}</b><span>Scars</span><b>${esc(scars)}</b><span>Cause of death</span>`,
+    `<span>Open wounds</span><b>${esc(wounds || "none")}</b><span>Pain / trauma</span><b>${Number(life.pain || 0).toFixed(1)} / ${Number(life.trauma || 0).toFixed(1)}</b><span>Scars</span><b>${esc(scars)}</b><span>Cause of death</span>`,
   );
   const social = W.components.social[id];
   html = html.replace(
     "<span>Kills</span>",
-    `<span>Xenophobia / resentment</span><b>${pct(personXenophobia(id) * 100)} / ${pct((social?.resentment || 0) * 100)}</b><span>Kills</span>`,
+    `<span>Xenophobia / resentment</span><b>${pct(personXenophobia(id, false) * 100)} / ${pct((social?.resentment || 0) * 100)}</b><span>Kills</span>`,
   );
   return html;
 };
@@ -1157,7 +1203,7 @@ showFaction = function (id) {
   showFactionConflictBase(id);
   const faction = W.factions.find((candidate) => candidate.id === id);
   if (!faction) return;
-  const xenophobia = factionXenophobia(faction),
+  const xenophobia = factionXenophobia(faction, W, false),
     occupations = W.settlements.filter(
       (settlement) =>
         settlement.occupation?.active && settlement.occupation.occupierFactionId === id,
@@ -1441,6 +1487,11 @@ function debugConflictDramaProbe() {
     matterDelta: totalMatter() - beforeMatter,
   };
 }
+
+const debugConflictDramaProbeMutating = debugConflictDramaProbe;
+debugConflictDramaProbe = function () {
+  return runIsolatedWorldProbe(debugConflictDramaProbeMutating);
+};
 
 window.ALIFE_CONFLICT_DEBUG = Object.freeze({
   summary: () => implicitSocietySummary(),

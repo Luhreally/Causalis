@@ -339,7 +339,7 @@ function drawEntities(now, b) {
       ctx.fill();
       continue;
     }
-    const ph = W.components.genome[id] ? phenotype(id) : { size: 1, hue: 0, aggression: 0 },
+    const ph = W.components.genome[id] ? peekPhenotype(id) : { size: 1, hue: 0, aggression: 0 },
       life = W.components.life[id],
       r = clamp(2.1 * ph.size * UI.camera.zoom, 1.5, 7),
       ageDim = life ? clamp(1 - life.age / (W.components.body[id].maxAge * 1.8), 0.45, 1) : 0.5;
@@ -449,6 +449,7 @@ function drawPlace(id, k, s) {
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = "#f0c77b";
+    ctx.lineWidth = 1;
     ctx.stroke();
   } else {
     ctx.fillStyle =

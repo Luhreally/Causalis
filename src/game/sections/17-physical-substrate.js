@@ -145,8 +145,10 @@ function igniteTile(i, intensity = 300, cause = 0, origin = "combustion") {
     });
     cause = ev.id;
   }
-  const heat = Math.max(0, 300 - W.tiles.temperature[i]) / 14;
-  W.tiles.temperature[i] = i16(W.tiles.temperature[i] + heat * 10);
+  const ignitionTemperature = (reactionById("combustion")?.minimumTemperature ?? 28) + 2,
+    targetTemperature = Math.ceil(ignitionTemperature * 10),
+    heat = Math.max(0, targetTemperature - W.tiles.temperature[i]) / 10;
+  W.tiles.temperature[i] = i16(Math.max(W.tiles.temperature[i], targetTemperature));
   W.conservation.radiantInput += heat;
   W.conservation.thermalEnergy = (W.conservation.thermalEnergy || 0) + heat;
   W.tiles.fire[i] = u16(Math.max(W.tiles.fire[i], intensity));

@@ -624,6 +624,32 @@ function attackerOutsideBuilding(attackerId, building) {
   return Math.max(Math.abs(position.x - building.x), Math.abs(position.y - building.y)) > 0;
 }
 
+function combatReach(id) {
+  const weapon = (W.components.inventory[id]?.artifactIds || [])
+    .map((entityId) => W.artifacts.find((artifact) => artifact.entityId === entityId))
+    .filter((artifact) => isFunctionalTool(artifact, "war"))
+    .sort((left, right) => right.quality - left.quality || left.id - right.id)[0];
+  if (!weapon) return 1;
+  if (Number.isFinite(weapon.tool.profile?.reach)) return weapon.tool.profile.reach;
+  const capabilities = weapon.tool.capabilities || [];
+  return capabilities.includes("firearm")
+    ? 8
+    : capabilities.includes("ranged")
+      ? 6
+      : capabilities.includes("reach")
+        ? 2.4
+        : 1;
+}
+
+function applyCombatWear(artifact, amount = 1) {
+  if (!artifact?.tool || !isFunctionalTool(artifact)) return;
+  artifact.tool.wear = Math.min(artifact.tool.durability, artifact.tool.wear + Math.max(1, amount));
+  artifact.damage = Math.floor(
+    (artifact.tool.wear / Math.max(1, artifact.tool.durability)) *
+      (artifact.structure?.integrity || 100),
+  );
+}
+
 function attackOccupiedBuilding(attackerId, victimId, building, context = {}) {
   const attackerLife = W.components.life[attackerId],
     cooldown = W.kind[attackerId] === KINDS.PREDATOR ? 8 : 6,
@@ -665,6 +691,7 @@ function attackOccupiedBuilding(attackerId, victimId, building, context = {}) {
   event.magnitude = damage;
   event.data.damage = damage;
   event.data.remainingIntegrity = building.integrity;
+  if (damage) applyCombatWear(carriedToolForPurpose(attackerId, "war"), 2);
   if (context.military)
     setWorkAction(
       attackerId,
@@ -691,13 +718,42 @@ performHunt = function (predatorId, prey) {
 
 const detailedCombatExchangeBuildingProtectionBase = detailedCombatExchange;
 detailedCombatExchange = function (attackerId, victimId, context = {}) {
+  const attackerPosition = W.components.position[attackerId],
+    victimPosition = W.components.position[victimId],
+    reach = combatReach(attackerId);
+  if (
+    !attackerPosition ||
+    !victimPosition ||
+    (!context.force &&
+      dist2(attackerPosition.x, attackerPosition.y, victimPosition.x, victimPosition.y) >
+        reach * reach)
+  )
+    return 0;
   const building = W.kind[victimId] === KINDS.PERSON ? protectedBuildingForPerson(victimId) : null;
   if (building && attackerOutsideBuilding(attackerId, building)) {
     if (context.military || W.kind[attackerId] === KINDS.PREDATOR)
       attackOccupiedBuilding(attackerId, victimId, building, context);
     return 0;
   }
-  return detailedCombatExchangeBuildingProtectionBase(attackerId, victimId, context);
+  const beforeAttackTick = W.components.life[attackerId]?.lastMilitaryAttackTick,
+    result = detailedCombatExchangeBuildingProtectionBase(attackerId, victimId, context),
+    attempted =
+      W.components.life[attackerId]?.lastMilitaryAttackTick === W.tick &&
+      beforeAttackTick !== W.tick;
+  if (attempted) applyCombatWear(carriedToolForPurpose(attackerId, "war"), result ? 2 : 1);
+  if (result)
+    for (const entityId of W.components.inventory[victimId]?.artifactIds || []) {
+      const artifact = W.artifacts.find((candidate) => candidate.entityId === entityId);
+      if (
+        isFunctionalTool(artifact) &&
+        (artifact.tool.profile?.coverage ||
+          artifact.tool.capabilities.some((capability) =>
+            ["armor", "shield", "helmet", "limb_armor"].includes(capability),
+          ))
+      )
+        applyCombatWear(artifact, result === 2 ? 2 : 1);
+    }
+  return result;
 };
 
 function campaignFactions(war) {
@@ -748,6 +804,15 @@ function campaignApproach(war, attackerId, target, units) {
   return "muster a compact column, approach the least-defended route, and force close contact";
 }
 
+function carriedToolForPurpose(id, purpose) {
+  return (
+    (W.components.inventory[id]?.artifactIds || [])
+      .map((entityId) => W.artifacts.find((artifact) => artifact.entityId === entityId))
+      .filter((artifact) => isFunctionalTool(artifact, purpose))
+      .sort((left, right) => right.quality - left.quality || left.id - right.id)[0] || null
+  );
+}
+
 function campaignReadiness(war, plan) {
   const units = W.militaryUnits.filter((unit) => unit.active && unit.factionId === plan.attackerId),
     members = units.flatMap((unit) => unit.memberIds).filter(classifyAlive),
@@ -756,9 +821,9 @@ function campaignReadiness(war, plan) {
     ),
     averageSupply = units.length ? mean(units.map((unit) => unit.supply || 0)) : 0,
     averageTraining = units.length ? mean(units.map((unit) => unit.training || 0)) : 0,
-    armed = members.filter((id) => !!toolForPurpose(id, "war")).length,
+    armed = members.filter((id) => !!carriedToolForPurpose(id, "war")).length,
     protectedCount = members.filter((id) => equipmentProtection(id) >= 8).length,
-    healthy = members.filter((id) => derivedLife(id).health >= 55).length,
+    healthy = members.filter((id) => peekDerivedLife(id).health >= 55).length,
     requirements = [
       {
         key: "fighters",
@@ -826,8 +891,9 @@ function campaignReadiness(war, plan) {
   };
 }
 
-function ensureAttackPlan(war) {
+function ensureAttackPlan(war, create = false) {
   if (!war || war.ended) return war?.attackPlan || null;
+  if (!war.attackPlan && !create) return null;
   const { a, b } = campaignFactions(war);
   if (!war.attackerId)
     war.attackerId = (a?.militaryStrength || 0) >= (b?.militaryStrength || 0) ? war.a : war.b;
@@ -836,13 +902,13 @@ function ensureAttackPlan(war) {
     target = campaignTarget(war, attacker?.id),
     units = W.militaryUnits.filter((unit) => unit.active && unit.factionId === attacker?.id);
   if (!war.attackPlan) {
-    const distance = target
-        ? Math.min(
-            ...W.settlements
-              .filter((settlement) => !settlement.ruined && settlement.factionId === attacker?.id)
-              .map((home) => Math.sqrt(dist2(home.x, home.y, target.x, target.y))),
-          )
-        : 0,
+    const homes = W.settlements.filter(
+        (settlement) => !settlement.ruined && settlement.factionId === attacker?.id,
+      ),
+      distance =
+        target && homes.length
+          ? Math.min(...homes.map((home) => Math.sqrt(dist2(home.x, home.y, target.x, target.y))))
+          : 0,
       preparation =
         80 + Math.round(distance * 3) + (hashParts(W.seedHash, "attack-plan", war.id) % 65);
     war.attackPlan = {
@@ -854,21 +920,35 @@ function ensureAttackPlan(war) {
       latestLaunchTick: war.started + preparation + 384,
       minimumFighters: Math.max(
         2,
-        Math.min(8, Math.ceil((settlementDefense(target || {}) || 8) / 12)),
+        Math.min(8, Math.ceil((target ? settlementDefense(target) : 8) / 12)),
       ),
       motive: campaignMotive(war, attacker, defender, target),
       approach: campaignApproach(war, attacker?.id, target, units),
       launchedTick: 0,
       launchEventId: 0,
     };
-  } else if (!war.attackPlan.targetSettlementId || !target) {
-    war.attackPlan.targetSettlementId = target?.id || 0;
+  } else if (create) {
+    const currentTarget = W.settlements.find(
+      (settlement) =>
+        settlement.id === war.attackPlan.targetSettlementId &&
+        !settlement.ruined &&
+        settlement.factionId === war.attackPlan.defenderId,
+    );
+    if (!currentTarget) {
+      war.attackPlan.targetSettlementId = target?.id || 0;
+      war.attackPlan.motive = campaignMotive(war, attacker, defender, target);
+      war.attackPlan.approach = campaignApproach(war, attacker?.id, target, units);
+      war.attackPlan.minimumFighters = Math.max(
+        2,
+        Math.min(8, Math.ceil((target ? settlementDefense(target) : 8) / 12)),
+      );
+    }
   }
   return war.attackPlan;
 }
 
 function updateAttackPlan(war) {
-  const plan = ensureAttackPlan(war);
+  const plan = ensureAttackPlan(war, true);
   if (!plan || plan.launchedTick) return plan;
   const readiness = campaignReadiness(war, plan),
     earliestReached = W.tick >= plan.plannedLaunchTick,
@@ -919,8 +999,20 @@ function updateAttackPlan(war) {
 
 const resolveWarTurnPlannedBase = resolveWarTurn;
 resolveWarTurn = function (war, a, b) {
+  const settlementsA = W.settlements.filter(
+      (settlement) => !settlement.ruined && settlement.factionId === a?.id,
+    ),
+    settlementsB = W.settlements.filter(
+      (settlement) => !settlement.ruined && settlement.factionId === b?.id,
+    );
+  if (!a || !b || !settlementsA.length || !settlementsB.length)
+    return endWar(war, a, b, "political collapse before mobilization");
   const plan = updateAttackPlan(war);
-  if (plan && !plan.launchedTick) return;
+  if (plan && !plan.launchedTick) {
+    if (W.tick > plan.latestLaunchTick + 512)
+      return endWar(war, a, b, "mobilization failed to meet a viable launch window");
+    return;
+  }
   return resolveWarTurnPlannedBase(war, a, b);
 };
 
@@ -928,7 +1020,7 @@ const militaryObjectivePlannedBase = militaryObjective;
 militaryObjective = function (unit) {
   const objective = militaryObjectivePlannedBase(unit);
   if (!objective.war) return objective;
-  const plan = ensureAttackPlan(objective.war);
+  const plan = ensureAttackPlan(objective.war, true);
   if (plan && !plan.launchedTick) {
     unit.objectiveSettlementId = 0;
     return { war: null, target: objective.home, home: objective.home, planningWar: objective.war };
@@ -948,8 +1040,10 @@ function requirementRow(requirement) {
 }
 
 function campaignCard(war) {
-  const plan = ensureAttackPlan(war),
-    readiness = campaignReadiness(war, plan),
+  const plan = war.attackPlan;
+  if (!plan)
+    return `<article class="card campaign-card"><div class="eyebrow">War #${war.id}</div><p class="muted">The simulation has not yet created an operational plan for this legacy war.</p></article>`;
+  const readiness = campaignReadiness(war, plan),
     attacker = W.factions.find((faction) => faction.id === plan.attackerId),
     defender = W.factions.find((faction) => faction.id === plan.defenderId),
     target = readiness.target,
@@ -1350,22 +1444,27 @@ createPersonalTool = function (id, recipe) {
   return artifact;
 };
 
-const equipmentProtectionDeepBase = equipmentProtection;
 equipmentProtection = function (id) {
-  const base = equipmentProtectionDeepBase(id);
-  let coverage = 0;
+  let protection = 0;
   for (const entityId of W.components.inventory[id]?.artifactIds || []) {
     const artifact = W.artifacts.find((candidate) => candidate.entityId === entityId);
-    if (!isFunctionalTool(artifact) || !artifact.tool.profile?.coverage) continue;
-    const wear = 1 - artifact.tool.wear / Math.max(1, artifact.tool.durability);
-    coverage +=
-      artifact.quality *
-      artifact.tool.profile.coverage *
-      artifact.tool.profile.absorption *
-      wear *
-      0.22;
+    if (!isFunctionalTool(artifact)) continue;
+    const capabilities = artifact.tool.capabilities || [],
+      wear = 1 - artifact.tool.wear / Math.max(1, artifact.tool.durability),
+      legacyWeight = capabilities.includes("helmet")
+        ? 0.13
+        : capabilities.includes("limb_armor")
+          ? 0.2
+          : capabilities.includes("armor")
+            ? 0.34
+            : capabilities.includes("shield")
+              ? 0.23
+              : 0,
+      profile = artifact.tool.profile,
+      profileWeight = profile?.coverage ? profile.coverage * profile.absorption * 0.44 : 0;
+    protection += artifact.quality * wear * Math.max(legacyWeight, profileWeight);
   }
-  return base + coverage;
+  return protection;
 };
 
 const ensurePrimitiveEquipmentDeepBase = ensurePrimitiveEquipment;
@@ -1384,13 +1483,17 @@ ensurePrimitiveEquipment = function () {
     }
   }
   const artisan = W.activeIds
-    .filter(
-      (id) =>
-        W.kind[id] === KINDS.PERSON &&
-        classifyAlive(id) &&
-        !toolForPurpose(id, "utility") &&
-        ["builder", "artisan", "researcher"].includes(workSpecialization(id)),
-    )
+    .filter((id) => {
+      if (
+        W.kind[id] !== KINDS.PERSON ||
+        !classifyAlive(id) ||
+        toolForPurpose(id, "utility") ||
+        !["builder", "artisan", "researcher"].includes(workSpecialization(id))
+      )
+        return false;
+      const place = nearestFriendlyPlace(id);
+      return !!place && completedBuildings(place, "workshop").length > 0;
+    })
     .sort((left, right) => left - right)[0];
   if (artisan) {
     const recipe =
@@ -1448,7 +1551,7 @@ window.ALIFE_PROTECTION_STRATEGY_DEBUG = Object.freeze({
     const war = W.activeWars.find((candidate) => candidate.id === warId);
     if (!war) return null;
     const plan = ensureAttackPlan(war);
-    return { ...plan, readiness: campaignReadiness(war, plan) };
+    return plan ? { ...plan, readiness: campaignReadiness(war, plan) } : null;
   },
   warfareHtml: () => {
     refreshWarfare();

@@ -41,6 +41,9 @@ function cultivatedField(building) {
       energy:
         field.baselines?.find((baseline) => baseline.tile === tile)?.energy ??
         (tile === field.tile ? field.baseline?.energy : tileMatterAmount(tile, C.ENERGY)),
+      plantOrder:
+        field.baselines?.find((baseline) => baseline.tile === tile)?.plantOrder ??
+        W.tiles.plantOrder[tile],
     }));
     return field;
   }
@@ -69,6 +72,7 @@ function cultivatedField(building) {
       tile: fieldTile,
       organic: tileMatterAmount(fieldTile, C.ORGANIC),
       energy: tileMatterAmount(fieldTile, C.ENERGY),
+      plantOrder: W.tiles.plantOrder[fieldTile],
     })),
     cropChemistry: null,
     tiles,
@@ -208,6 +212,7 @@ function sowCultivatedField(workerId, field, place) {
     tile,
     organic: tileMatterAmount(tile, C.ORGANIC),
     energy: tileMatterAmount(tile, C.ENERGY),
+    plantOrder: W.tiles.plantOrder[tile],
   }));
   const moved = transferPlaceMatterToField(place, tiles, needed),
     seedMass = Object.values(moved).reduce((total, amount) => total + amount, 0),
@@ -283,14 +288,20 @@ function updateCultivatedField(building, place, operatorId = 0) {
     field.stage = "fallow";
     field.growth = 0;
     field.causeEvent = ev.id;
+    for (const tile of tiles) {
+      const baseline = field.baselines?.find((candidate) => candidate.tile === tile);
+      if (baseline) W.tiles.plantOrder[tile] = u16(baseline.plantOrder);
+    }
     if (place.importantEvents) place.importantEvents.push(ev.id);
     return 0;
   }
-  const solar = reactionById("photosynthesis")?.externalEnergyRequirement || W.laws.solarFlux;
   let grew = 0;
+  const photosynthesis = reactionById("photosynthesis");
   for (const tile of viableTiles)
     grew += executeProcess("photosynthesis", invTile(tile), 1, {
-      externalEnergy: Math.max(solar, W.laws.solarFlux),
+      externalEnergy: photosynthesis?.externalEnergyRequirement || 0,
+      externalFlux: W.laws.solarFlux,
+      location: tile,
     });
   field.lastGrowthTick = W.tick;
   if (!grew) return 0;
@@ -335,7 +346,46 @@ function harvestCultivatedField(workerId, field, place) {
     energy += transferTileCropToPlace(place, tile, C.ENERGY, 5, (baseline?.energy || 0) + 1);
   }
   const harvested = organic + energy;
-  if (!harvested) return false;
+  if (!harvested) {
+    const cropRemaining = tiles.some((tile) => {
+      const baseline =
+        field.baselines?.find((candidate) => candidate.tile === tile) || field.baseline;
+      return (
+        tileMatterAmount(tile, C.ORGANIC) > (baseline?.organic || 0) + 1 ||
+        tileMatterAmount(tile, C.ENERGY) > (baseline?.energy || 0) + 1
+      );
+    });
+    if (cropRemaining && placeStorageRemaining(place) <= 0) {
+      field.harvestBlockedUntil = W.tick + 64;
+      field.harvestBlockedReason = "settlement storage is full";
+      return false;
+    }
+    const failure = emitEvent("CropFailedEvent", {
+      subjects: [workerId, place.entityId].filter(Boolean),
+      location: field.tile,
+      factions: place.factionId ? [place.factionId] : [],
+      causes: [field.causeEvent],
+      evidence: [
+        cropRemaining
+          ? "remaining crop chemistry could not be transferred"
+          : "the ripe crop matter was lost before harvest",
+        "the plot returned to fallow so labor could be reassigned",
+      ],
+      magnitude: field.growth,
+      importance: 1,
+      data: { fieldId: field.id, buildingId: field.buildingId, crop: field.cropName },
+    });
+    field.stage = "fallow";
+    field.growth = 0;
+    field.lastLaborTick = W.tick;
+    field.causeEvent = failure.id;
+    field.harvestBlockedUntil = 0;
+    for (const tile of tiles) {
+      const baseline = field.baselines?.find((candidate) => candidate.tile === tile);
+      if (baseline) W.tiles.plantOrder[tile] = u16(baseline.plantOrder);
+    }
+    return true;
+  }
   const ev = emitEvent("CropHarvestedEvent", {
     subjects: [workerId, place.entityId].filter(Boolean),
     location: field.tile,
@@ -360,10 +410,15 @@ function harvestCultivatedField(workerId, field, place) {
   field.lastLaborTick = W.tick;
   field.growth = 0;
   field.causeEvent = ev.id;
-  for (const tile of tiles)
+  field.harvestBlockedUntil = 0;
+  for (const tile of tiles) {
+    const baseline = field.baselines?.find((candidate) => candidate.tile === tile);
     W.tiles.plantOrder[tile] = u16(
-      Math.max(0, W.tiles.plantOrder[tile] - Math.ceil((harvested * 3) / tiles.length)),
+      baseline
+        ? baseline.plantOrder
+        : Math.max(0, W.tiles.plantOrder[tile] - Math.ceil((harvested * 3) / tiles.length)),
     );
+  }
   if (place.importantEvents) place.importantEvents.push(ev.id);
   setWorkAction(
     workerId,
@@ -389,7 +444,9 @@ function performFarmLabor(workerId) {
           (right.stage === "ripe" ? -2 : right.stage === "fallow" ? -1 : 0) || left.id - right.id,
     );
   const field = fields.find(
-    (candidate) => candidate.stage === "ripe" || W.tick - candidate.lastLaborTick >= 12,
+    (candidate) =>
+      (candidate.stage === "ripe" && W.tick >= (candidate.harvestBlockedUntil || 0)) ||
+      (candidate.stage !== "ripe" && W.tick - candidate.lastLaborTick >= 12),
   );
   if (!field) return false;
   const building = W.buildings.find((candidate) => candidate.id === field.buildingId),
@@ -454,13 +511,23 @@ function farmLaborAccessTile(workerId, building) {
 
 const performCivilLaborAgricultureBase = performCivilLabor;
 performCivilLabor = function (id) {
-  const place = W.kind[id] === KINDS.PERSON ? nearestFriendlyPlace(id) : null,
+  const life = W.kind[id] === KINDS.PERSON ? derivedLife(id) : null,
+    chemistry = W.components.chemistry[id]?.q,
+    fitForLabor =
+      life &&
+      chemistry &&
+      life.hunger <= 56 &&
+      life.thirst <= 62 &&
+      life.fatigue <= 79 &&
+      chemistry[C.ENERGY] >= 125,
+    place = fitForLabor ? nearestFriendlyPlace(id) : null,
     ripe = place
-      ? completedBuildings(place, "farm").some(
-          (building) => cultivatedField(building)?.stage === "ripe",
-        )
+      ? completedBuildings(place, "farm").some((building) => {
+          const field = cultivatedField(building);
+          return field?.stage === "ripe" && W.tick >= (field.harvestBlockedUntil || 0);
+        })
       : false;
-  if ((ripe || (W.tick + id) % 8 === 0) && performFarmLabor(id)) return true;
+  if (fitForLabor && (ripe || (W.tick + id) % 8 === 0) && performFarmLabor(id)) return true;
   return performCivilLaborAgricultureBase(id);
 };
 
@@ -541,7 +608,13 @@ function constrainHerdMovement(animalId, proposedX, proposedY) {
   const position = W.components.position[animalId],
     herd = herdForAnimal(animalId),
     enclosure = herdEnclosure(herd);
-  if (!position || !herd || !enclosure?.complete || enclosure.ruined)
+  if (
+    !position ||
+    !herd ||
+    !enclosure?.complete ||
+    enclosure.ruined ||
+    !animalInsideEnclosure(animalId, herd, enclosure)
+  )
     return { x: proposedX, y: proposedY };
   const radius = herdEnclosureRadius(herd),
     currentDistance = Math.max(
@@ -642,7 +715,9 @@ function chooseHerdPasture(place, herd) {
       const tile = idx(x, y);
       if (W.tiles.liquid[tile] > 650 || W.tiles.fire[tile] > 100) continue;
       const cultivated = W.fields.some(
-          (field) => field.tile === tile && ["sown", "growing", "ripe"].includes(field.stage),
+          (field) =>
+            (field.tiles || [field.tile]).includes(tile) &&
+            ["sown", "growing", "ripe"].includes(field.stage),
         ),
         score =
           tileFood(tile, "grazer") * 3.2 +
@@ -725,6 +800,8 @@ function moveHerdAnimalToward(animalId, targetTile) {
       const x = position.x + dx,
         y = position.y + dy;
       if (!inside(x, y)) return { x, y, order, score: -Infinity };
+      if (typeof movementTileBlocked === "function" && movementTileBlocked(animalId, x, y))
+        return { x, y, order, score: -Infinity };
       const tile = idx(x, y);
       return {
         x,
@@ -755,7 +832,15 @@ function absorbHerdBirths(herd) {
         herdForAnimal(id)
       )
         return false;
-      return (W.components.identity[id]?.parents || []).some((parent) => members.has(parent));
+      const position = W.components.position[id],
+        [pastureX, pastureY] = xy(herd.pastureTile),
+        young = (W.components.life[id]?.age || Infinity) <= 256;
+      return (
+        young &&
+        position &&
+        dist2(position.x, position.y, pastureX, pastureY) <= 100 &&
+        (W.components.identity[id]?.parents || []).some((parent) => members.has(parent))
+      );
     });
   for (const newborn of newborns) {
     herd.animalIds.push(newborn);
@@ -778,7 +863,9 @@ function absorbHerdBirths(herd) {
 function feedEnclosedHerd(herd, place, enclosure) {
   if (W.tick % 8 || !enclosure?.complete || enclosure.ruined) return 0;
   const tile = idx(enclosure.x, enclosure.y),
-    animals = herd.animalIds.filter(classifyAlive),
+    animals = herd.animalIds.filter(
+      (animal) => classifyAlive(animal) && animalInsideEnclosure(animal, herd, enclosure),
+    ),
     interiorTiles = farmFootprintTiles(enclosure);
   if (!animals.length) return 0;
   let moved = 0;
@@ -863,7 +950,7 @@ shelterProtectionAt = function (id, tile) {
 };
 
 const updateHealthHerdBase = updateHealth;
-updateHealth = function (id) {
+updateHealth = function (id, elapsed = 1) {
   const herd = herdForAnimal(id),
     enclosure = herdEnclosure(herd);
   if (
@@ -879,7 +966,7 @@ updateHealth = function (id) {
     if (digestive?.[C.ORGANIC] < 6) performFeeding(id, tile);
     if (chemistry?.[C.SOLVENT] < 35) performDrinking(id, tile);
   }
-  return updateHealthHerdBase(id);
+  return updateHealthHerdBase(id, elapsed);
 };
 
 function factionsAtWar(left, right) {
@@ -897,8 +984,10 @@ function factionsAtWar(left, right) {
 function updateHerdTheftThreats() {
   for (const herd of W.herds.filter((candidate) => candidate.active)) {
     const place = fieldPlace(herd),
-      enclosure = herdEnclosure(herd);
-    if (!place?.factionId || !enclosure || !herd.animalIds.length) continue;
+      enclosure = herdEnclosure(herd),
+      anchorTile = enclosure ? idx(enclosure.x, enclosure.y) : herd.pastureTile,
+      [anchorX, anchorY] = xy(anchorTile);
+    if (!place?.factionId || !herd.animalIds.length) continue;
     const intruders = W.activeIds
       .filter((id) => {
         if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) return false;
@@ -907,7 +996,7 @@ function updateHerdTheftThreats() {
         return (
           factionsAtWar(factionId, place.factionId) &&
           position &&
-          (dist2(position.x, position.y, enclosure.x, enclosure.y) <= 25 ||
+          (dist2(position.x, position.y, anchorX, anchorY) <= 25 ||
             herd.animalIds.some((animal) => {
               const animalPosition = W.components.position[animal];
               return (
@@ -924,7 +1013,7 @@ function updateHerdTheftThreats() {
       previous = thiefLife.lastHerdTheftTick ?? -999;
     if (W.tick - previous < 16) continue;
     thiefLife.lastHerdTheftTick = W.tick;
-    if (enclosure.complete && !enclosure.ruined) {
+    if (enclosure?.complete && !enclosure.ruined) {
       const event = emitEvent("HerdTheftPreventedEvent", {
           subjects: [thief, herd.herderId, herd.animalIds[0]],
           location: idx(enclosure.x, enclosure.y),
@@ -953,33 +1042,33 @@ function updateHerdTheftThreats() {
       continue;
     }
     const thiefPosition = W.components.position[thief],
-      animal =
-        herd.animalIds.find((id) => animalInsideEnclosure(id, herd, enclosure)) ||
-        herd.animalIds.find((id) => {
-          const position = W.components.position[id];
-          return (
-            position &&
-            thiefPosition &&
-            dist2(position.x, position.y, thiefPosition.x, thiefPosition.y) <= 25
-          );
-        });
+      animal = herd.animalIds.find((id) => {
+        const position = W.components.position[id];
+        return (
+          position &&
+          thiefPosition &&
+          dist2(position.x, position.y, thiefPosition.x, thiefPosition.y) <= 25
+        );
+      });
     if (!animal) continue;
     removeHerdAnimal(herd, animal);
     W.components.life[animal].stolenByFactionId = W.components.social[thief]?.factionId || 0;
     const event = emitEvent("HerdAnimalStolenEvent", {
       subjects: [thief, animal, herd.herderId],
-      location: idx(enclosure.x, enclosure.y),
+      location: anchorTile,
       factions: [W.components.social[thief]?.factionId, place.factionId].filter(Boolean),
-      causes: [herd.causeEvent, enclosure.lastDamage?.causeEvent || 0],
+      causes: [herd.causeEvent, enclosure?.lastDamage?.causeEvent || 0],
       evidence: [
-        enclosure.ruined || enclosure.lastDamage
+        enclosure?.ruined || enclosure?.lastDamage
           ? "a prior physical breach opened the livestock perimeter"
-          : "the livestock enclosure was not yet complete enough to close its perimeter",
+          : enclosure
+            ? "the livestock enclosure was not yet complete enough to close its perimeter"
+            : "the herd had no completed livestock perimeter",
         `${entityName(thief)} removed ${entityName(animal)} from the living herd roster`,
       ],
       magnitude: 1,
       importance: 3,
-      data: { herdId: herd.id, buildingId: enclosure.id },
+      data: { herdId: herd.id, buildingId: enclosure?.id || 0 },
     });
     addRelation(thief, animal, "stole", 1, event.id);
     herd.state = "animal stolen through breached enclosure";
@@ -1029,6 +1118,18 @@ function updateLivingHerds() {
         herd.enclosureCompletedBuildingId = enclosure.id;
         herd.causeEvent = event.id;
       }
+      const condition = enclosureCondition(enclosure);
+      if (condition < 0.45) {
+        const candidate = herd.animalIds
+          .filter((animal) => animalInsideEnclosure(animal, herd, enclosure))
+          .sort((left, right) => left - right)
+          .find(
+            (animal) =>
+              counterRand("herd-escape", Math.floor(W.tick / 8), herd.id, animal) >
+              condition + 0.35,
+          );
+        if (candidate) releaseEscapedAnimal(herd, candidate, enclosure);
+      }
       feedEnclosedHerd(herd, place, enclosure);
     }
     if (
@@ -1066,7 +1167,11 @@ function updateLivingHerds() {
     const herder = herd.herderId,
       herderPosition = W.components.position[herder],
       [px, py] = xy(herd.pastureTile);
-    if (herderPosition && classifyAlive(herder)) {
+    const herderWork = W.components.work?.[herder],
+      activelyDefending =
+        herderWork?.task === "predator_defense" &&
+        W.tick - (herderWork.handledTick ?? -Infinity) <= 8;
+    if (herderPosition && classifyAlive(herder) && !activelyDefending) {
       if (dist2(herderPosition.x, herderPosition.y, px, py) > 9)
         moveWorkerToward(
           herder,
@@ -1104,7 +1209,19 @@ function maybeFormLivingHerds() {
       continue;
     const people = entityAtRadius(idx(place.x, place.y), 8, KINDS.PERSON)
         .filter(classifyAlive)
-        .sort((left, right) => left - right),
+        .filter(
+          (id) =>
+            W.components.life[id].age >= (W.components.body[id].maturityAge || 1000) &&
+            derivedLife(id).health > 45 &&
+            embodiedCapability(id).locomotion > 0.45 &&
+            embodiedCapability(id).manipulation > 0.35,
+        )
+        .sort(
+          (left, right) =>
+            derivedLife(right).health +
+              phenotype(right).cooperation * 30 -
+              (derivedLife(left).health + phenotype(left).cooperation * 30) || left - right,
+        ),
       prey = entityAtRadius(idx(place.x, place.y), 9, KINDS.HERBIVORE).filter(classifyAlive);
     if (people.length < 2 || prey.length < 2) continue;
     const supported =
@@ -1117,21 +1234,29 @@ function maybeFormLivingHerds() {
 }
 
 function protectedPreyNearPredator(predatorId) {
-  const predator = W.components.position[predatorId];
+  const predator = W.components.position[predatorId],
+    remembered = W.components.life[predatorId]?.preyTargetId || 0;
   if (!predator) return null;
   for (const herd of W.herds.filter((candidate) => candidate.active))
     for (const animal of herd.animalIds) {
       const position = W.components.position[animal];
-      if (position && dist2(position.x, position.y, predator.x, predator.y) <= 25)
+      if (
+        position &&
+        (remembered === animal || dist2(position.x, position.y, predator.x, predator.y) <= 25)
+      )
         return { targetId: animal, herd };
     }
   const target = nearbyIds(
     predatorId,
-    4,
-    (id) => W.kind[id] === KINDS.PERSON && classifyAlive(id),
+    1,
+    (id) =>
+      W.kind[id] === KINDS.PERSON &&
+      classifyAlive(id) &&
+      (remembered === id ||
+        dist2(W.components.position[id].x, W.components.position[id].y, predator.x, predator.y) <=
+          2),
   )[0];
   if (target) return { targetId: target, herd: null };
-  const remembered = W.components.life[predatorId]?.preyTargetId || 0;
   if (
     remembered &&
     classifyAlive(remembered) &&
@@ -1210,7 +1335,7 @@ function defendAgainstPredator(defenderId, predatorId, protectedState, forceHit 
 function updatePredatorDefense() {
   let responses = 0;
   for (const predatorId of W.activeIds) {
-    if (responses >= 12 || W.kind[predatorId] !== KINDS.PREDATOR || !classifyAlive(predatorId))
+    if (responses >= 4 || W.kind[predatorId] !== KINDS.PREDATOR || !classifyAlive(predatorId))
       continue;
     const protectedState = protectedPreyNearPredator(predatorId);
     if (!protectedState) continue;
@@ -1225,6 +1350,12 @@ function updatePredatorDefense() {
             id &&
             list.indexOf(id) === index &&
             classifyAlive(id) &&
+            dist2(
+              W.components.position[id].x,
+              W.components.position[id].y,
+              predator.x,
+              predator.y,
+            ) <= 49 &&
             derivedLife(id).health > 24 &&
             embodiedCapability(id).locomotion > 0.2 &&
             embodiedCapability(id).manipulation > 0.15 &&
@@ -1248,7 +1379,8 @@ function updatePredatorDefense() {
               ) || left - right,
         );
     if (!defenders.length) continue;
-    for (const defenderId of defenders.slice(0, Math.min(4, 12 - responses))) {
+    const responderLimit = protectedState.herd ? Math.min(3, 4 - responses) : 1;
+    for (const defenderId of defenders.slice(0, responderLimit)) {
       defendAgainstPredator(defenderId, predatorId, protectedState);
       responses++;
       if (!classifyAlive(predatorId)) break;

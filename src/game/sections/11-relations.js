@@ -33,6 +33,32 @@ function removeRelation(from, to, type) {
   }
   return false;
 }
+function compactRelations() {
+  const edges = W.relations.edges.filter(Boolean);
+  W.relations.edges = edges;
+  W.relations.byEntity = {};
+  for (let index = 0; index < edges.length; index++) {
+    const edge = edges[index];
+    (W.relations.byEntity[edge.from] || (W.relations.byEntity[edge.from] = [])).push(index);
+    (W.relations.byEntity[edge.to] || (W.relations.byEntity[edge.to] = [])).push(index);
+  }
+}
+function removeAllRelationsForEntity(id) {
+  const indices = W.relations.byEntity[id] || [];
+  for (const index of indices) {
+    const edge = W.relations.edges[index];
+    if (!edge) continue;
+    W.relations.edges[index] = null;
+    const other = edge.from === id ? edge.to : edge.from;
+    if (W.relations.byEntity[other])
+      W.relations.byEntity[other] = W.relations.byEntity[other].filter(
+        (candidate) => candidate !== index,
+      );
+  }
+  delete W.relations.byEntity[id];
+  const tombstones = W.relations.edges.length - W.relations.edges.filter(Boolean).length;
+  if (tombstones > Math.max(64, W.relations.edges.length / 4)) compactRelations();
+}
 function relationsOf(id, type = null) {
   const r = [];
   for (const i of W.relations.byEntity[id] || []) {

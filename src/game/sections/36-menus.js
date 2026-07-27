@@ -66,6 +66,8 @@ function showNewWorld() {
 }
 function performWorldCreation(opts) {
   togglePause(false);
+  accumulator = 0;
+  frameTime = 0;
   setLoading(
     8,
     "Generating immutable laws…",
@@ -127,6 +129,20 @@ function regenerateCurrent() {
   if (!W) return;
   const opts = { ...W.config, seed: W.seed };
   performWorldCreation(opts);
+}
+function confirmRegenerateCurrent() {
+  if (!W) return;
+  openModal(
+    "Regenerate this world?",
+    `<div class="card"><b>This replaces the current history with a fresh run of the same seed.</b><div class="muted" style="margin-top:7px">Save first if you want to keep this timeline.</div></div>`,
+    `<button id="cancelRegenerate">Cancel</button><button id="confirmRegenerate" class="danger">Regenerate</button>`,
+  );
+  $("#cancelRegenerate").onclick = closeModal;
+  $("#confirmRegenerate").onclick = () => {
+    UI.modalResumeOnClose = false;
+    closeModal();
+    regenerateCurrent();
+  };
 }
 function enterGame() {
   DOM.titleScreen.classList.add("hidden");

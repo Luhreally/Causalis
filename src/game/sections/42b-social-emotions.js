@@ -128,9 +128,10 @@ function setEmotionImpulse(id, values, causeEvent = 0, glyph = "") {
 }
 
 function emotionMeaning(id) {
-  const social = ensureSocialEmotion(id),
+  const social = W.components.social[id],
     life = W.components.life[id];
-  if (!social || !life) return { key: "contentment", ...EMOTION_SEMANTICS.contentment, value: 0.5 };
+  if (!social?.emotion || !life)
+    return { key: "contentment", ...EMOTION_SEMANTICS.contentment, value: 0.5 };
   const structuralHealth = clamp(
       Math.min(Number.isFinite(life.health) ? life.health : 100, life.integrity / 10),
       0,
@@ -138,8 +139,13 @@ function emotionMeaning(id) {
     ),
     openWounds = (life.wounds || []).filter((wound) => !wound.healedTick),
     bleeding = sum(openWounds.map((wound) => wound.bleed || 0)),
-    lostParts = life.anatomy?.parts
-      ? Object.values(life.anatomy.parts).filter((part) => part.severed).length
+    amputationPain = life.anatomy?.parts
+      ? Math.max(
+          0,
+          ...Object.values(life.anatomy.parts)
+            .filter((part) => part.severed && Number.isFinite(part.lostTick))
+            .map((part) => clamp(1 - (W.tick - part.lostTick) / 768, 0, 1) * 0.74),
+        )
       : 0,
     criticalDistress = clamp(
       Math.max(
@@ -151,11 +157,7 @@ function emotionMeaning(id) {
       0,
       1.5,
     ),
-    acutePain = clamp(
-      Math.max((life.pain || 0) / 72, bleeding / 12, lostParts ? 0.74 : 0),
-      0,
-      1.25,
-    );
+    acutePain = clamp(Math.max((life.pain || 0) / 72, bleeding / 12, amputationPain), 0, 1.25);
   if (criticalDistress >= 0.42)
     return {
       key: "critical",
@@ -182,6 +184,12 @@ function emotionMeaning(id) {
       ["contentment", emotion.contentment],
     ].sort((left, right) => right[1] - left[1]);
   const [key, value] = candidates[0];
+  if (value < 0.05)
+    return {
+      key: "contentment",
+      ...EMOTION_SEMANTICS.contentment,
+      value: clamp(emotion.contentment || 0, 0, 1),
+    };
   return { key, ...EMOTION_SEMANTICS[key], value };
 }
 
@@ -280,6 +288,20 @@ function affairBetween(id, otherId) {
   );
 }
 
+function endAffairPair(id, affair) {
+  if (!affair || affair.endedTick) return;
+  affair.endedTick = W.tick || 1;
+  const other = ensureSocialEmotion(affair.otherId),
+    reciprocal = other?.affairs.find(
+      (candidate) => candidate.otherId === id && !candidate.endedTick,
+    );
+  if (reciprocal) reciprocal.endedTick = affair.endedTick;
+  const relationship = ensureSocialEmotion(id)?.relationships?.[affair.otherId],
+    otherRelationship = other?.relationships?.[id];
+  if (relationship) relationship.affair = false;
+  if (otherRelationship) otherRelationship.affair = false;
+}
+
 function startAffair(id, otherId) {
   const a = ensureSocialEmotion(id),
     b = ensureSocialEmotion(otherId),
@@ -349,7 +371,6 @@ function discoverAffair(id, affair) {
     (candidate) => candidate.otherId === id && !candidate.endedTick,
   );
   affair.discovered = true;
-  if (reciprocal) reciprocal.discovered = true;
   const p = W.components.position[partnerId],
     relationship = relationshipState(partnerId, id),
     ev = emitEvent("CheatingDiscoveredEvent", {
@@ -379,7 +400,37 @@ function discoverAffair(id, affair) {
   setEmotionImpulse(id, { fear: 0.32, sadness: 0.12 }, ev.id, "😨");
   if (relationship.commitment > 0.52 || relationship.betrayal > 0.7)
     endPartnership(partnerId, id, ev.id, "observed betrayal broke reciprocal commitment");
+  const loverHasPartner = !!lover.partnerId && classifyAlive(lover.partnerId);
+  if (!loverHasPartner || reciprocal?.discovered) endAffairPair(id, affair);
   return ev;
+}
+
+function maybeStartAffair(initiatorId, otherId, sharedKin) {
+  const initiator = ensureSocialEmotion(initiatorId),
+    relationship = relationshipState(initiatorId, otherId),
+    reciprocal = relationshipState(otherId, initiatorId);
+  if (
+    !initiator?.partnerId ||
+    initiator.partnerId === otherId ||
+    sharedKin ||
+    affairBetween(initiatorId, otherId) ||
+    Math.min(relationship.attraction, reciprocal.attraction) <= 0.72 ||
+    Math.min(relationship.affection, reciprocal.affection) <= 0.56
+  )
+    return;
+  const bond = initiator.relationships?.[initiator.partnerId];
+  if (!bond) {
+    initiator.partnerId = 0;
+    return;
+  }
+  const opportunity = clamp(
+      (1 - bond.commitment) * 0.52 + relationship.attraction * 0.28 + initiator.aggression * 0.12,
+      0,
+      0.72,
+    ),
+    cycle = Math.floor(W.tick / 64);
+  if (counterRand("affair-opportunity", cycle, initiatorId, otherId) < opportunity * 0.018)
+    startAffair(initiatorId, otherId);
 }
 
 function updateRelationshipPair(id, otherId) {
@@ -417,6 +468,19 @@ function updateRelationshipPair(id, otherId) {
   );
   ar.affection = clamp(ar.affection * 0.994 + affectionTarget * 0.006, 0, 1);
   br.affection = clamp(br.affection * 0.994 + affectionTarget * 0.006, 0, 1);
+  if (ar.bonded && br.bonded) {
+    const commitmentTarget = clamp((ar.trust + br.trust + ar.affection + br.affection) / 4, 0, 1);
+    ar.commitment = clamp(
+      ar.commitment * 0.994 + commitmentTarget * 0.006 - ar.betrayal * 0.002,
+      0,
+      1,
+    );
+    br.commitment = clamp(
+      br.commitment * 0.994 + commitmentTarget * 0.006 - br.betrayal * 0.002,
+      0,
+      1,
+    );
+  }
   ar.lastInteractionTick = br.lastInteractionTick = W.tick;
   a.trust[otherId] = ar.trust;
   b.trust[id] = br.trust;
@@ -429,27 +493,26 @@ function updateRelationshipPair(id, otherId) {
     Math.min(ar.attraction, br.attraction) > 0.58
   )
     formLoveBond(id, otherId);
-  const affairCandidate = a.partnerId && a.partnerId !== otherId && !sharedKin;
-  if (
-    affairCandidate &&
-    Math.min(ar.attraction, br.attraction) > 0.72 &&
-    Math.min(ar.affection, br.affection) > 0.56
-  ) {
-    const bond = relationshipState(id, a.partnerId),
-      opportunity = clamp(
-        (1 - bond.commitment) * 0.52 + ar.attraction * 0.28 + a.aggression * 0.12,
-        0,
-        0.72,
-      ),
-      cycle = Math.floor(W.tick / 64);
-    if (counterRand("affair-opportunity", cycle, id, otherId) < opportunity * 0.018)
-      startAffair(id, otherId);
-  }
+  maybeStartAffair(id, otherId, sharedKin);
+  maybeStartAffair(otherId, id, sharedKin);
 }
 
 function updateAffairKnowledge(id) {
   const social = ensureSocialEmotion(id);
-  if (!social?.partnerId || !classifyAlive(social.partnerId)) return;
+  if (!social) return;
+  const ownPosition = W.components.position[id];
+  for (const affair of social.affairs) {
+    if (affair.endedTick) continue;
+    const loverPosition = W.components.position[affair.otherId];
+    if (!classifyAlive(affair.otherId) || !loverPosition || !ownPosition) {
+      endAffairPair(id, affair);
+      continue;
+    }
+    if (dist2(loverPosition.x, loverPosition.y, ownPosition.x, ownPosition.y) <= 25)
+      affair.lastCloseTick = W.tick;
+    else if (W.tick - (affair.lastCloseTick ?? affair.startedTick) > 512) endAffairPair(id, affair);
+  }
+  if (!social.partnerId || !classifyAlive(social.partnerId)) return;
   const partnerPosition = W.components.position[social.partnerId];
   if (!partnerPosition) return;
   for (const affair of social.affairs) {
@@ -457,7 +520,7 @@ function updateAffairKnowledge(id) {
     const loverPosition = W.components.position[affair.otherId],
       ownPosition = W.components.position[id];
     if (!loverPosition || !ownPosition) continue;
-    const witnessDistance = Math.min(
+    const witnessDistance = Math.max(
       dist2(partnerPosition.x, partnerPosition.y, ownPosition.x, ownPosition.y),
       dist2(partnerPosition.x, partnerPosition.y, loverPosition.x, loverPosition.y),
     );
@@ -468,17 +531,15 @@ function updateAffairKnowledge(id) {
 function knownKillerFromCause(victimId, causeEvent) {
   const event = causeEvent ? eventById(causeEvent) : null;
   if (!event) return 0;
-  const candidates = event.subjects.filter(
-    (id) => id !== victimId && classifyAlive(id) && W.components.life[id],
-  );
-  return (
-    candidates.find(
-      (id) =>
-        event.type.includes("Injury") ||
-        event.type.includes("Predation") ||
-        event.type.includes("Combat"),
-    ) || 0
-  );
+  const explicit = event.data?.attackerId || event.data?.killerId || 0;
+  if (explicit && explicit !== victimId && classifyAlive(explicit)) return explicit;
+  const candidate =
+    event.type.includes("Combat") || event.type.includes("Predation")
+      ? event.subjects[0]
+      : event.type.includes("Injury")
+        ? event.subjects.find((id) => id !== victimId)
+        : 0;
+  return candidate && candidate !== victimId && classifyAlive(candidate) ? candidate : 0;
 }
 
 function notifySocialDeath(victimId, causeEvent) {
@@ -491,7 +552,7 @@ function notifySocialDeath(victimId, causeEvent) {
         if (id === victimId || W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) return false;
         const social = ensureSocialEmotion(id),
           identity = W.components.identity[id],
-          relationship = relationshipState(id, victimId);
+          relationship = social.relationships?.[victimId];
         return (
           social.partnerId === victimId ||
           social.kinGroupId === victimSocial.kinGroupId ||
@@ -502,8 +563,8 @@ function notifySocialDeath(victimId, causeEvent) {
       })
       .sort(
         (left, right) =>
-          (relationshipState(right, victimId)?.affection || 0) -
-            (relationshipState(left, victimId)?.affection || 0) || left - right,
+          (ensureSocialEmotion(right)?.relationships?.[victimId]?.affection || 0) -
+            (ensureSocialEmotion(left)?.relationships?.[victimId]?.affection || 0) || left - right,
       )
       .slice(0, 18);
   if (!mourners.length) return;
@@ -525,7 +586,7 @@ function notifySocialDeath(victimId, causeEvent) {
     });
   for (const id of mourners) {
     const social = ensureSocialEmotion(id),
-      relationship = relationshipState(id, victimId),
+      relationship = social.relationships?.[victimId],
       bond = clamp(
         relationship?.affection || (social.kinGroupId === victimSocial.kinGroupId ? 0.55 : 0.25),
         0.2,
@@ -561,6 +622,7 @@ function notifySocialDeath(victimId, causeEvent) {
         });
       social.revengeTargetId = killerId;
       social.revengeCauseEvent = vow.id;
+      social.revengeVowTick = W.tick;
       setEmotionImpulse(avenger, { resolve: 0.78, anger: 0.46, sadness: 0.2 }, vow.id, "😤");
       remember(avenger, vow.id, "revenge");
     }
@@ -570,8 +632,40 @@ function notifySocialDeath(victimId, causeEvent) {
 const killEntitySocialBase = killEntity;
 killEntity = function (id, cause = "regulatory collapse", causeEvent = 0, erase = false) {
   const wasLivingPerson = W?.kind[id] === KINDS.PERSON && classifyAlive(id),
-    result = killEntitySocialBase(id, cause, causeEvent, erase);
-  if (wasLivingPerson && W.kind[id] === KINDS.CORPSE) notifySocialDeath(id, causeEvent);
+    social = wasLivingPerson ? ensureSocialEmotion(id) : null,
+    partnerId = social?.partnerId || 0,
+    result = killEntitySocialBase(id, cause, causeEvent, false);
+  if (wasLivingPerson && W.kind[id] === KINDS.CORPSE) {
+    notifySocialDeath(id, causeEvent);
+    if (partnerId) {
+      const survivor = ensureSocialEmotion(partnerId),
+        deadRelationship = social?.relationships?.[partnerId],
+        survivorRelationship = survivor?.relationships?.[id];
+      if (survivor?.partnerId === id) survivor.partnerId = 0;
+      if (social) social.partnerId = 0;
+      if (deadRelationship) {
+        deadRelationship.bonded = false;
+        deadRelationship.commitment = 0;
+      }
+      if (survivorRelationship) {
+        survivorRelationship.bonded = false;
+        survivorRelationship.commitment = 0;
+      }
+      removeRelation(id, partnerId, "partner_of");
+      removeRelation(partnerId, id, "partner_of");
+    }
+    for (const survivorId of W.activeIds) {
+      if (survivorId === id || W.kind[survivorId] !== KINDS.PERSON) continue;
+      const survivor = W.components.social[survivorId];
+      if (survivor?.relationships) delete survivor.relationships[id];
+      if (survivor?.trust) delete survivor.trust[id];
+    }
+    removeAllRelationsForEntity(id);
+    if (erase && W.kind[id] === KINDS.CORPSE) finalizeCorpse(id);
+  } else if (W.kind[id] === KINDS.CORPSE) {
+    removeAllRelationsForEntity(id);
+    if (erase) finalizeCorpse(id);
+  }
   return result;
 };
 
@@ -587,9 +681,25 @@ function updateRevengeBehavior(id) {
   const p = W.components.position[id],
     target = W.components.position[targetId];
   if (!p || !target) return false;
-  if (dist2(p.x, p.y, target.x, target.y) > 4) return false;
+  const reach = typeof combatReach === "function" ? combatReach(id) : 1.5;
+  if (dist2(p.x, p.y, target.x, target.y) > reach * reach) {
+    if (W.tick - (social.revengeVowTick ?? W.tick) > 2048 && social.emotion.resolve < 0.35) {
+      social.revengeTargetId = 0;
+      return false;
+    }
+    moveWorkerToward(
+      id,
+      idx(target.x, target.y),
+      "revenge",
+      `pursuing ${entityName(targetId)} from a remembered revenge vow`,
+      -1,
+      0,
+      toolForPurpose(id, "war")?.entityId || 0,
+    );
+    return true;
+  }
   const life = W.components.life[id];
-  if (W.tick - (life.lastRevengeTick ?? -999) < 32 || social.emotion.anger < 0.52) return false;
+  if (W.tick - (life.lastRevengeTick ?? -999) < 32 || social.emotion.resolve < 0.34) return false;
   life.lastRevengeTick = W.tick;
   const attempt = emitEvent("RevengeAttemptEvent", {
     subjects: [id, targetId],
@@ -625,17 +735,24 @@ function updateSocialDrama(force = false) {
     ensureSocialEmotion(id);
     updateMeasuredEmotion(id);
   }
-  let pairs = 0;
+  const cycle = Math.floor(W.tick / 16),
+    pairCandidates = [];
+  for (const id of people)
+    for (const otherId of nearbyIds(
+      id,
+      3,
+      (other) => other > id && W.kind[other] === KINDS.PERSON && classifyAlive(other),
+    ))
+      pairCandidates.push({ id, otherId });
+  pairCandidates.sort(
+    (left, right) =>
+      hashParts(W.seedHash, "social-pair-rotation", cycle, left.id, left.otherId) -
+        hashParts(W.seedHash, "social-pair-rotation", cycle, right.id, right.otherId) ||
+      left.id - right.id ||
+      left.otherId - right.otherId,
+  );
+  for (const pair of pairCandidates.slice(0, 320)) updateRelationshipPair(pair.id, pair.otherId);
   for (const id of people) {
-    if (pairs < 320)
-      for (const otherId of nearbyIds(
-        id,
-        3,
-        (other) => other > id && W.kind[other] === KINDS.PERSON && classifyAlive(other),
-      )) {
-        updateRelationshipPair(id, otherId);
-        if (++pairs >= 320) break;
-      }
     updateAffairKnowledge(id);
     updateRevengeBehavior(id);
   }
@@ -653,7 +770,7 @@ simTick = function () {
 };
 
 function agentEmojiState(id) {
-  const social = ensureSocialEmotion(id),
+  const social = W.components.social[id],
     life = W.components.life[id],
     work = W.components.work?.[id],
     meaning = emotionMeaning(id),
@@ -669,35 +786,39 @@ function agentEmojiState(id) {
     dominant: meaning.key,
     label: meaning.label,
     value: meaning.value,
-    causeEvent: social?.emotion.causeEvent || 0,
+    causeEvent: social?.emotion?.causeEvent || 0,
     work: work?.phase || work?.task || "idle",
   };
 }
 
 function attachmentCondition(id) {
-  const social = ensureSocialEmotion(id),
+  const social = W.components.social[id],
     meaning = emotionMeaning(id),
     memory = W.components.memory[id],
     relationships = Object.values(social?.relationships || {}),
-    partner = social?.partnerId ? relationshipState(id, social.partnerId) : null;
+    partner = social?.partnerId ? social.relationships?.[social.partnerId] || null : null;
   if (!social) return "no modeled social state";
   if (meaning.key === "critical" || meaning.key === "agony")
     return "care-dependent during bodily crisis";
   if (social.revengeTargetId) return "attachment redirected into a revenge fixation";
-  if ((memory?.kinDeaths || []).length && social.emotion.sadness > 0.34)
+  if ((memory?.kinDeaths || []).length && (social.emotion?.sadness || 0) > 0.34)
     return "grieving a lost attachment";
-  if (social.betrayedBy.length && (social.emotion.jealousy > 0.22 || social.emotion.anger > 0.3))
+  if (
+    social.betrayedBy?.length &&
+    ((social.emotion?.jealousy || 0) > 0.22 || (social.emotion?.anger || 0) > 0.3)
+  )
     return "betrayed and socially guarded";
   if (partner) {
     if (partner.betrayal > 0.28 || partner.jealousy > 0.45)
       return "committed relationship under trust strain";
-    if (social.affairs.some((affair) => !affair.endedTick))
+    if (social.affairs?.some((affair) => !affair.endedTick))
       return "conflicted commitment across competing attachments";
     if (partner.commitment > 0.68 && partner.trust > 0.62) return "secure reciprocal partnership";
     return "developing reciprocal partnership";
   }
-  const supportive = relationships.filter(
-    (relationship) => relationship.trust > 0.52 || relationship.affection > 0.48,
+  const supportive = Object.entries(social.relationships || {}).filter(
+    ([otherId, relationship]) =>
+      peekAlive(Number(otherId)) && (relationship.trust > 0.52 || relationship.affection > 0.48),
   ).length;
   if (supportive >= 3) return "embedded in a supportive social network";
   if (supportive) return "connected by a small number of trusted bonds";
@@ -771,11 +892,12 @@ const organismInspectorEmotionBase = organismInspector;
 organismInspector = function (id) {
   let html = organismInspectorEmotionBase(id);
   if (W.kind[id] !== KINDS.PERSON || !W.components.life[id]) return html;
-  const social = ensureSocialEmotion(id),
-    state = agentEmojiState(id),
-    emotion = social.emotion,
+  const social = W.components.social[id];
+  if (!social) return html;
+  const state = agentEmojiState(id),
+    emotion = social.emotion || defaultEmotionState(),
     partner = social.partnerId ? entityName(social.partnerId) : "none",
-    relationshipCount = Object.keys(social.relationships).length,
+    relationshipCount = Object.keys(social.relationships || {}).length,
     revenge = social.revengeTargetId ? entityName(social.revengeTargetId) : "none",
     attachment = attachmentCondition(id);
   const block = `<div class="subhead">Emotional and social state</div><div class="card"><div class="row between"><b>${esc(state.glyphs.join(" ") || "😌")} ${esc(titleCase(state.dominant))}</b><span class="tag">${pct(state.value * 100)}</span></div><div class="kv"><span>Objective meaning</span><b>${esc(state.label)}</b><span>Attachment condition</span><b>${esc(attachment)}</b><span>Partner</span><b>${esc(partner)}</b><span>Known relationships</span><b>${relationshipCount}</b><span>Revenge target</span><b>${esc(revenge)}</b><span>Current function</span><b>${esc(state.work)}</b></div><div class="divider"></div><small class="muted">Affection ${pct(emotion.affection * 100)} · anger ${pct(emotion.anger * 100)} · sadness ${pct(emotion.sadness * 100)} · fear ${pct(emotion.fear * 100)} · jealousy ${pct(emotion.jealousy * 100)} · resolve ${pct(emotion.resolve * 100)}. Bodily crisis overrides contentment; social labels summarize the whole attachment pattern rather than exposing one special case.</small></div>`;
@@ -926,6 +1048,11 @@ function debugSocialDramaProbe() {
     };
   return result;
 }
+
+const debugSocialDramaProbeMutating = debugSocialDramaProbe;
+debugSocialDramaProbe = function () {
+  return runIsolatedWorldProbe(debugSocialDramaProbeMutating);
+};
 
 window.ALIFE_SOCIAL_DEBUG = Object.freeze({
   audit: socialEmotionAudit,

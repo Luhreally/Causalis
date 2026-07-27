@@ -15,8 +15,9 @@ function speciesLabel(kind, lineage) {
 function cohortTraitSummary(c) {
   const count = Math.max(1, c.count),
     ex = (i) => (c.geneSums[i] || 0) / count,
-    per = (sp) => (c.chemistryTotals[sp] || 0) / count,
-    mass = Math.max(20, sum(c.chemistryTotals) / count),
+    bodyTotals = c.bodyChemistryTotals || c.chemistryTotals,
+    per = (sp) => (bodyTotals[sp] || 0) / count,
+    mass = Math.max(20, sum(bodyTotals) / count),
     energy = per(C.ENERGY),
     actuator = ex(8) + 0.2;
   return {

@@ -14,9 +14,15 @@ function updateMigration() {
       const d = bestDirection(id, "migrate"),
         from = ti,
         nav = factionHasTech(W.components.social[id]?.factionId || 0, "navigation"),
-        stride = nav ? 3 : 2,
-        nx = clamp(p.x + d[0] * stride, 0, W.width - 1),
-        ny = clamp(p.y + d[1] * stride, 0, W.height - 1);
+        nx = clamp(p.x + d[0], 0, W.width - 1),
+        ny = clamp(p.y + d[1], 0, W.height - 1),
+        destination = idx(nx, ny);
+      if (
+        destination === from ||
+        (typeof movementTileBlocked === "function" && movementTileBlocked(id, nx, ny)) ||
+        (W.tiles.liquid[destination] > 420 && !hasNavigableWatercraft(id))
+      )
+        continue;
       executeProcess("motion_dissipation", invEntity(id), nav ? 1 : 2, { dissipate: 1 });
       queueEffect("MoveEntity", { entityId: id, x: nx, y: ny }, id);
       W.components.identity[id].migrations++;
@@ -53,14 +59,16 @@ function updateMigration() {
       }
       const nx = clamp(x + DIRS[dir * 2][0] * stride, 0, W.width - 1),
         ny = clamp(y + DIRS[dir * 2][1] * stride, 0, W.height - 1),
-        old = c.regionId;
+        old = c.regionId,
+        nextRegion = regionId(nx, ny);
+      if (nextRegion === old) continue;
       executeAggregateProcess(
         c.chemistryTotals,
         "motion_dissipation",
         Math.max(1, Math.ceil(c.count * (nav ? 0.01 : 0.02))),
         { dissipate: 1 },
       );
-      c.regionId = regionId(nx, ny);
+      c.regionId = nextRegion;
       emitEvent("MigrationEvent", {
         location: idx(nx, ny),
         causes: [W.causalIndex.domain.disasters || 0],
@@ -73,6 +81,7 @@ function updateMigration() {
         data: { fromRegion: old },
       });
     }
+  mergeDuplicateCohorts();
 }
 function commitDerivedCaches() {
   for (const id of W.activeIds)
@@ -82,6 +91,7 @@ function commitDerivedCaches() {
     }
 }
 function rebuildDerivedCaches() {
+  commitDerivedCaches();
   rebuildSpatialBins();
   worldHash();
 }

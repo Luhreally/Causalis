@@ -1,6 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // 20. ARTIFICIAL-LIFE SYSTEMS
 // ═══════════════════════════════════════════════════════════════════════════
+function recordEmergenceEvent(eventId) {
+  if (!eventId || !W?.biosphere) return eventId;
+  const events = W.biosphere.emergenceEvents || (W.biosphere.emergenceEvents = []);
+  events.push(eventId);
+  if (events.length > 256) events.splice(0, events.length - 256);
+  return eventId;
+}
 function habitatScore(i, kind = "person") {
   const temp = W.tiles.temperature[i] / 10,
     food = tileFood(
@@ -71,6 +78,72 @@ function findHabitable(rng, kind = "person") {
     }
   }
   return best;
+}
+function findSeparatedHabitats(rng, kind, count) {
+  const selected = [],
+    separation = Math.max(3, Math.floor(Math.min(W.width, W.height) / 18)),
+    separation2 = separation * separation;
+  for (let n = 0; n < count; n++) {
+    let best = -1,
+      bestScore = -Infinity;
+    for (let attempt = 0; attempt < 500; attempt++) {
+      const tile = rng.int(W.tileCount),
+        [x, y] = xy(tile);
+      if (W.tiles.elevation[tile] <= (W.terrainGenome?.seaLevel ?? 430) - 15) continue;
+      const nearest = selected.length
+          ? Math.min(
+              ...selected.map((other) => {
+                const [ox, oy] = xy(other);
+                return dist2(x, y, ox, oy);
+              }),
+            )
+          : Infinity,
+        score = habitatScore(tile, kind) - (nearest < separation2 ? 1e5 : 0);
+      if (score > bestScore) {
+        best = tile;
+        bestScore = score;
+      }
+    }
+    selected.push(best >= 0 ? best : findHabitable(rng, kind));
+  }
+  return selected;
+}
+function findPairedRescueHabitats(rng, kind, count) {
+  const living = W.activeIds
+      .filter((id) => W.kind[id] === kind && classifyAlive(id))
+      .sort((a, b) => (W.components.life[b]?.age || 0) - (W.components.life[a]?.age || 0) || a - b),
+    anchor = living.length
+      ? idx(W.components.position[living[0]].x, W.components.position[living[0]].y)
+      : findHabitable(rng, kind),
+    [cx, cy] = xy(anchor),
+    candidates = [];
+  for (let radius = 1; radius <= 7; radius++)
+    for (let y = cy - radius; y <= cy + radius; y++)
+      for (let x = cx - radius; x <= cx + radius; x++) {
+        if (!inside(x, y) || Math.max(Math.abs(x - cx), Math.abs(y - cy)) !== radius) continue;
+        const tile = idx(x, y);
+        if (
+          W.tiles.elevation[tile] <= (W.terrainGenome?.seaLevel ?? 430) - 15 ||
+          W.tiles.fire[tile] > 100 ||
+          W.tiles.liquid[tile] > 780
+        )
+          continue;
+        candidates.push({
+          tile,
+          score:
+            habitatScore(tile, kind) -
+            radius * 4 +
+            counterRand("paired-refuge-tile", W.tick, anchor, tile) * 0.01,
+        });
+      }
+  const selected = candidates
+    .sort((a, b) => b.score - a.score || a.tile - b.tile)
+    .slice(0, count)
+    .map((candidate) => candidate.tile);
+  if (selected.length < count)
+    for (const tile of findSeparatedHabitats(rng, kind, count - selected.length))
+      if (!selected.includes(tile)) selected.push(tile);
+  return selected.slice(0, count);
 }
 function compileCellularResilienceGenome() {
   const candidates = [];
@@ -461,21 +534,25 @@ function updateBiosphereResilience() {
     const population = biospherePopulation(kind),
       floor = floors[kind];
     if (population < floor) persistent = false;
-    if (population <= Math.ceil(floor / 3)) {
+    if (population < floor) {
       const refuges = W.biosphere.refugia
           .filter((x) => x.available && x.kind === kind)
           .sort(
             (a, b) =>
               habitatScore(b.homeTile, kind) - habitatScore(a.homeTile, kind) || a.id - b.id,
           ),
-        needed = Math.max(1, Math.ceil(floor / 2) - population);
+        needed = Math.max(1, floor - population);
       if (refuges.length) {
         const r = makeRng(
             hashParts(W.seedHash, W.tick, kind, "paired-refuge"),
             "paired-dormancy-exit",
           ),
-          target = findHabitable(r, kind);
-        for (const refuge of refuges.slice(0, needed)) germinateRefuge(refuge, target);
+          selected = refuges.slice(0, needed),
+          targets =
+            kind === KINDS.PREDATOR
+              ? findPairedRescueHabitats(r, kind, selected.length)
+              : findSeparatedHabitats(r, kind, selected.length);
+        selected.forEach((refuge, index) => germinateRefuge(refuge, targets[index]));
       }
     }
     const available = W.biosphere.refugia.filter((x) => x.available && x.kind === kind).length;
@@ -490,9 +567,7 @@ function updateBiosphereResilience() {
             W.kind[id] === kind &&
             classifyAlive(id) &&
             W.components.life[id].age < 240 &&
-            !W.components.identity[id].notable &&
-            UI.followId !== id &&
-            UI.selectedEntity !== id,
+            !W.components.identity[id].notable,
         )
         .sort((a, b) => W.components.life[a].age - W.components.life[b].age || a - b)[0];
       if (candidate) {
@@ -513,7 +588,7 @@ function updateBiosphereResilience() {
       importance: 4,
       data: { species: "planetary biosphere", stage: "persistent biosphere" },
     });
-    W.biosphere.emergenceEvents.push(ev.id);
+    recordEmergenceEvent(ev.id);
   }
 }
 function updateArtificialLife() {
@@ -522,11 +597,16 @@ function updateArtificialLife() {
     const k = W.kind[id];
     if (k !== KINDS.HERBIVORE && k !== KINDS.PREDATOR && k !== KINDS.PERSON) continue;
     if (!classifyAlive(id)) continue;
-    const tier = detailTier(id);
-    if (tier === "simplified") continue;
-    runMetabolism(id, tier);
-    chooseBehavior(id, tier);
-    updateHealth(id);
+    const forcedHealthUpdate = W.components.life[id]?.forceHealthUpdateTick === W.tick,
+      tier = detailTier(id);
+    if (tier === "simplified" && !forcedHealthUpdate) continue;
+    const effectiveTier = forcedHealthUpdate ? "detailed" : tier;
+    runMetabolism(id, effectiveTier);
+    chooseBehavior(id, effectiveTier);
+    updateHealth(id, simulationStrideForTier(effectiveTier));
+    if (forcedHealthUpdate && W.components.life[id])
+      delete W.components.life[id].forceHealthUpdateTick;
+    if (UI.clockInterrupted && UI.deathInterruptTick === W.tick) break;
   }
   resolveEffects();
 }

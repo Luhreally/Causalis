@@ -413,19 +413,74 @@ if (process.env.CLOCK_DEBUG === "1") {
   }
   controls.setRunning(false);
   const firstMismatch = manual.findIndex((hash, n) => hash !== scheduled[n]);
+  game.createTestWorld({
+    seed: "followed-death-64x",
+    size: "small",
+    lifeDensity: 0.7,
+    harshness: 0.5,
+    variability: 0.5,
+  });
+  const followedId = controls.armFollowedDeathForTest("herbivore");
+  controls.setSpeed(64);
+  controls.resetClock();
+  controls.setRunning(true);
+  const followedBefore = controls.controlState(),
+    followedTicks = controls.advanceClock(1000),
+    followedAfter = controls.controlState();
+  visuals.renderOnly({ view: "top", quality: "standard", zoom: 1, now: 1500 });
+  const renderBefore = game.hashNow();
+  const renderAudits = [];
+  for (const angle of [-2.7, 0, 2.8])
+    for (const tilt of [0.24, 0.58, 0.96])
+      renderAudits.push(
+        visuals.renderOnly({
+          view: "oblique",
+          quality: "high",
+          zoom: 14,
+          angle,
+          tilt,
+          cutaway: false,
+          now: 1550 + angle + tilt,
+          audit: true,
+        }),
+      );
+  const renderAfter = game.hashNow(),
+    followedExact =
+      !!followedId &&
+      followedTicks === 1 &&
+      !followedAfter.running &&
+      followedAfter.interrupted &&
+      followedBefore.population.herbivore - followedAfter.population.herbivore === 1 &&
+      followedBefore.population.predator === followedAfter.population.predator &&
+      followedBefore.population.person === followedAfter.population.person,
+    renderIsolated = renderBefore === renderAfter,
+    ok = firstMismatch < 0 && followedExact && renderIsolated;
   console.log(
     JSON.stringify(
       {
-        ok: firstMismatch < 0,
+        ok,
         firstMismatch,
         manual: firstMismatch < 0 ? manual.at(-1) : manual[firstMismatch],
         scheduled: firstMismatch < 0 ? scheduled.at(-1) : scheduled[firstMismatch],
+        followed: {
+          id: followedId,
+          ticks: followedTicks,
+          exact: followedExact,
+          before: followedBefore,
+          after: followedAfter,
+        },
+        renderIsolation: {
+          ok: renderIsolated,
+          before: renderBefore,
+          after: renderAfter,
+          audits: renderAudits,
+        },
       },
       null,
       2,
     ),
   );
-  if (firstMismatch >= 0) process.exitCode = 1;
+  if (!ok) process.exitCode = 1;
   return;
 }
 
@@ -873,6 +928,7 @@ if (process.env.ECO_DEBUG === "1") {
         meanEnergy: people.mean.energy,
         starving: people.starving,
       },
+      niches: game.nicheAudit(),
       civilization: game.civilization(),
       matter: game.auditMatter(),
     };

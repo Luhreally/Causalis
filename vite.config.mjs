@@ -8,6 +8,7 @@ const { composeRuntime } = require("./scripts/compose-runtime.cjs");
 const virtualId = "virtual:causalis-game";
 const resolvedVirtualId = `\0${virtualId}`;
 const sectionsRoot = path.resolve("src/game/sections");
+const manifestPath = path.resolve("src/game/manifest.json");
 
 function sitesStaticOutput() {
   return {
@@ -69,7 +70,8 @@ export default defineConfig({
         return id === resolvedVirtualId ? composeRuntime({ format: "module" }) : null;
       },
       handleHotUpdate({ file, server }) {
-        if (!path.resolve(file).startsWith(sectionsRoot)) return;
+        const changed = path.resolve(file);
+        if (!changed.startsWith(sectionsRoot) && changed !== manifestPath) return;
         const module = server.moduleGraph.getModuleById(resolvedVirtualId);
         if (module) server.moduleGraph.invalidateModule(module);
         server.ws.send({ type: "full-reload" });

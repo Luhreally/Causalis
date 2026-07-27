@@ -9,6 +9,7 @@ const EFFECT_PRIORITY = Object.freeze({
   MoveEntity: 5,
   DamageStructure: 6,
   InfectEntity: 7,
+  HealEntity: 8,
   ModifyComponent: 8,
   SpawnEntity: 9,
   DestroyEntity: 10,
@@ -67,19 +68,37 @@ function resolveEffects() {
         if (p && inside(d.x, d.y)) {
           let nx = d.x,
             ny = d.y;
-          const kind = W.kind[d.entityId];
-          if (
-            !d.forced &&
-            (kind === KINDS.PERSON || kind === KINDS.HERBIVORE || kind === KINDS.PREDATOR) &&
-            (Math.abs(nx - p.x) > 1 || Math.abs(ny - p.y) > 1) &&
-            W.tiles.liquid &&
-            (W.tiles.liquid[idx(nx, ny)] > 420 || W.tiles.liquid[idx(p.x, p.y)] > 420)
-          ) {
-            const boat = kind === KINDS.PERSON && hasNavigableWatercraft(d.entityId);
-            if (!boat) {
-              nx = clamp(p.x + Math.sign(nx - p.x), 0, W.width - 1);
-              ny = clamp(p.y + Math.sign(ny - p.y), 0, W.height - 1);
+          const kind = W.kind[d.entityId],
+            mobileOrganism =
+              kind === KINDS.PERSON || kind === KINDS.HERBIVORE || kind === KINDS.PREDATOR,
+            life = W.components.life[d.entityId];
+          if (!d.forced && mobileOrganism) {
+            nx = clamp(p.x + Math.sign(nx - p.x), 0, W.width - 1);
+            ny = clamp(p.y + Math.sign(ny - p.y), 0, W.height - 1);
+            if (typeof embodiedCapability === "function") {
+              const locomotion = embodiedCapability(d.entityId).locomotion,
+                interval = locomotion < 0.42 ? 3 : locomotion < 0.72 ? 2 : 1,
+                chainedPursuit =
+                  d.pursuit === true &&
+                  kind === KINDS.PREDATOR &&
+                  life?.lastEmbodiedMoveTick === W.tick;
+              if (
+                locomotion < 0.12 ||
+                (!chainedPursuit &&
+                  W.tick -
+                    (Number.isFinite(life?.lastEmbodiedMoveTick)
+                      ? life.lastEmbodiedMoveTick
+                      : -Infinity) <
+                    interval)
+              )
+                break;
             }
+            if (
+              kind === KINDS.PERSON &&
+              W.tiles.liquid?.[idx(nx, ny)] > 420 &&
+              (typeof hasNavigableWatercraft !== "function" || !hasNavigableWatercraft(d.entityId))
+            )
+              break;
           }
           if (
             !d.forced &&
@@ -95,9 +114,29 @@ function resolveEffects() {
             nx = constrained.x;
             ny = constrained.y;
           }
+          if (
+            !d.forced &&
+            typeof movementTileBlocked === "function" &&
+            movementTileBlocked(d.entityId, nx, ny)
+          ) {
+            nx = p.x;
+            ny = p.y;
+          }
+          if (nx === p.x && ny === p.y) break;
           p.x = nx;
           p.y = ny;
           p.regionId = regionId(nx, ny);
+          if (!d.forced && mobileOrganism && life) {
+            life.lastEmbodiedMoveTick = W.tick;
+            const motionBudget =
+                (life.motionEnergyRemainder || 0) + Math.max(0, Number(d.motionEffort) || 0),
+              motionCost = Math.floor(motionBudget);
+            life.motionEnergyRemainder = motionBudget - motionCost;
+            if (motionCost)
+              executeProcess("motion_dissipation", invEntity(d.entityId), motionCost, {
+                dissipate: 1,
+              });
+          }
         }
         break;
       }
@@ -133,6 +172,9 @@ function resolveEffects() {
         break;
       case "InfectEntity":
         if ((d.amount ?? 30) > 0) infectEntity(d.entityId, d.amount ?? 30, d.causeEvent || 0);
+        break;
+      case "HealEntity":
+        resolveDivineHealing(d);
         break;
       case "IgniteTile":
         if ((d.intensity ?? 300) > 0)
@@ -197,7 +239,12 @@ function resolveSpawn(d, source, seq) {
 function paintOwnership(d) {
   if (d.tiles) {
     for (const tile of d.tiles)
-      paintOwnership({ tile, radius: 0, factionId: d.factionId, pressure: d.pressure });
+      paintOwnership({
+        tile,
+        radius: Math.max(0, Number(d.radius) || 0),
+        factionId: d.factionId,
+        pressure: d.pressure,
+      });
     return;
   }
   const [cx, cy] = xy(d.tile),
@@ -219,11 +266,42 @@ function applyOwnership(d) {
       tiles: [],
       factionId: d.factionId,
       pressure: d.pressure || 700,
+      radius: Math.max(0, Number(d.radius) || 0),
     };
     W.divineClaims.push(claim);
   }
+  claim.radius = Math.max(claim.radius || 0, Math.max(0, Number(d.radius) || 0));
   if (!claim.tiles.includes(d.tile)) claim.tiles.push(d.tile);
-  paintOwnership({ tile: d.tile, radius: 0, factionId: d.factionId, pressure: d.pressure });
+  paintOwnership({
+    tile: d.tile,
+    radius: Math.max(0, Number(d.radius) || 0),
+    factionId: d.factionId,
+    pressure: d.pressure,
+  });
+}
+function resolveDivineHealing(d) {
+  const id = d.entityId,
+    chemistry = W.components.chemistry[id],
+    position = W.components.position[id];
+  if (!chemistry || !peekAlive(id)) return;
+  let added = 0;
+  for (const [sp, requested] of d.amounts || []) {
+    if (!Number.isInteger(sp) || sp < 0 || sp >= SPECIES_COUNT) continue;
+    const moved = Math.min(Math.max(0, Math.floor(requested)), 65535 - chemistry.q[sp]);
+    chemistry.q[sp] += moved;
+    added += moved;
+  }
+  W.conservation.playerInput += added;
+  const extent = executeProcess("healing", invEntity(id), Math.max(1, Number(d.extent) || 8));
+  emitEvent("HealingEvent", {
+    subjects: [id],
+    location: position ? idx(position.x, position.y) : -1,
+    causes: d.causeEvent ? [d.causeEvent] : [],
+    evidence: [
+      `external intervention supplied ${added} matter units and drove ${extent} healing extents`,
+    ],
+    importance: 1,
+  });
 }
 function damageAt(d) {
   const amount = Math.max(0, Number(d.amount ?? 20) || 0);

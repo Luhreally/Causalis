@@ -828,6 +828,8 @@ drawCombatEffects = function (now, bounds) {
       const l = W.components.life[id],
         p = W.components.position[id];
       return (
+        W.kind[id] !== KINDS.CORPSE &&
+        peekAlive(id) &&
         l?.wounded &&
         p &&
         p.x >= bounds.x0 - 2 &&
@@ -839,7 +841,7 @@ drawCombatEffects = function (now, bounds) {
     .sort(
       (a, b) =>
         (focus.has(b) ? 1 : 0) - (focus.has(a) ? 1 : 0) ||
-        derivedLife(a).health - derivedLife(b).health,
+        peekDerivedLife(a).health - peekDerivedLife(b).health,
     )
     .slice(0, focus.size ? 4 : 3);
   for (const id of wounded) {
@@ -847,7 +849,7 @@ drawCombatEffects = function (now, bounds) {
       s = W.components.genome[id]
         ? visualAnchor(id, p, m, now).s
         : proceduralProjectTile(p.x + 0.5, p.y + 0.5, m),
-      health = clamp(derivedLife(id).health / 100, 0, 1),
+      health = clamp(peekDerivedLife(id).health / 100, 0, 1),
       r = clamp(m.tw * 0.24, 5, 22),
       off = Math.max(r * 1.25, m.tw * 0.5);
     ctx.globalAlpha = focus.has(id) ? 1 : 0.72;

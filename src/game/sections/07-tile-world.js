@@ -87,8 +87,45 @@ function tileFertility(i) {
   );
 }
 function tileFood(i, metabolism = "grazer") {
-  const q = W.tiles.chem,
-    compat = metabolism === "grazer" ? 1 : metabolism === "omnivore" ? 0.72 : 0.2,
+  const q = W.tiles.chem;
+  if (metabolism === "predator") {
+    const [cx, cy] = xy(i);
+    let prey = 0,
+      carrion = 0;
+    for (let y = Math.max(0, cy - 2); y <= Math.min(W.height - 1, cy + 2); y++)
+      for (let x = Math.max(0, cx - 2); x <= Math.min(W.width - 1, cx + 2); x++) {
+        if (dist2(cx, cy, x, y) > 4) continue;
+        for (const id of W.spatialBins[idx(x, y)] || []) {
+          const kind = W.kind[id],
+            life = W.components.life[id];
+          if (
+            (kind === KINDS.HERBIVORE || kind === KINDS.PERSON) &&
+            life?.regulation > 0 &&
+            life.integrity > 0
+          )
+            prey++;
+          else if (kind === KINDS.CORPSE) carrion++;
+        }
+      }
+    const region = regionId(cx, cy),
+      regionalPrey = sum(
+        (W.cohorts || [])
+          .filter(
+            (cohort) =>
+              cohort.regionId === region &&
+              (cohort.kind === KINDS.HERBIVORE || cohort.kind === KINDS.PERSON),
+          )
+          .map((cohort) => cohort.count || 0),
+      ),
+      regionalPredators = sum(
+        (W.cohorts || [])
+          .filter((cohort) => cohort.regionId === region && cohort.kind === KINDS.PREDATOR)
+          .map((cohort) => cohort.count || 0),
+      ),
+      regionalAccess = (regionalPrey / Math.max(1, regionalPredators * 3 + 1)) * 70;
+    return clamp(prey * 24 + carrion * 12 + regionalAccess + tileBlood(i) * 0.45, 0, 100);
+  }
+  const compat = metabolism === "grazer" ? 1 : metabolism === "omnivore" ? 0.72 : 0.2,
     n = ecologicalNicheAt(i);
   return clamp(
     ((Math.min(q[C.ORGANIC][i], q[C.ENERGY][i] * 1.4) * W.tiles.plantOrder[i]) / 9000 + n.food) *

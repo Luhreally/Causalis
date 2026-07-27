@@ -222,8 +222,11 @@ function createArtifact(settlementId, creatorId, cause = 0) {
     structuralOrder: a.structure.order,
     phaseFractions: { solid: 100, liquid: 0, gas: 0 },
   };
-  W.components.identity[creatorId].artifacts.push(id);
-  W.components.inventory[creatorId]?.artifactIds?.push(id);
+  const creatorIdentity = W.components.identity[creatorId];
+  if (creatorIdentity) (creatorIdentity.artifacts || (creatorIdentity.artifacts = [])).push(id);
+  const creatorInventory = W.components.inventory[creatorId];
+  if (creatorInventory)
+    (creatorInventory.artifactIds || (creatorInventory.artifactIds = [])).push(id);
   const ev = emitEvent("ArtifactCreatedEvent", {
     subjects: [creatorId, id],
     location: idx(s.x, s.y),

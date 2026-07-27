@@ -533,7 +533,7 @@ const TECH_BASE = Object.freeze([
     structures: [],
     heat: 120,
     prior: ["controlled_fire", "ceramics"],
-    process: "preservation",
+    process: "crystallization",
     risk: "contamination",
   },
   {
@@ -577,7 +577,7 @@ const TECH_BASE = Object.freeze([
     structures: ["composite"],
     heat: 0,
     prior: [],
-    process: "construction",
+    process: "fiber_curing",
     risk: "injury",
   },
   {
@@ -621,7 +621,7 @@ const TECH_BASE = Object.freeze([
     structures: ["composite"],
     heat: 0,
     prior: ["tools"],
-    process: "construction",
+    process: "fiber_curing",
     risk: "material hunger",
   },
   {
@@ -632,7 +632,7 @@ const TECH_BASE = Object.freeze([
     structures: [],
     heat: 0,
     prior: [],
-    process: "information_copying",
+    process: "polymer_copying",
     risk: "lost expeditions",
   },
   {
@@ -643,7 +643,7 @@ const TECH_BASE = Object.freeze([
     structures: [],
     heat: 0,
     prior: ["writing"],
-    process: "information_copying",
+    process: "polymer_copying",
     risk: "factionalism",
   },
 ]);

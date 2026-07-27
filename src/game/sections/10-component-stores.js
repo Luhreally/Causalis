@@ -66,7 +66,7 @@ function compilePhenotype(id) {
     actuator = ex(8) + b.tissues.actuator / 100,
     speed = clamp((actuator * (0.8 + energy / 900)) / (mass / 500 + 1), 0.25, 2.5),
     size = clamp(Math.sqrt(mass) / 14, 0.45, 2.2),
-    sense = clamp((ex(7) + b.tissues.sensory / 100) * 3, 1, 7),
+    sense = clamp((ex(7) + b.tissues.sensory / 100) * 5, 1, 11),
     resist = clamp((ex(10) + ex(1) + b.tissues.boundary / 130) * 0.45, 0, 1),
     heatTol = 15 + ex(11) * 38,
     aggression = clamp(
@@ -103,6 +103,42 @@ function phenotype(id) {
   const g = W.components.genome[id];
   return g?.dirty || !g?.phenotype ? compilePhenotype(id) : g.phenotype;
 }
+function peekPhenotype(id) {
+  const g = W.components.genome[id],
+    b = W.components.body[id];
+  if (!g) return null;
+  if (!g.dirty && g.phenotype) return g.phenotype;
+  const priorPhenotype = g.phenotype,
+    priorDirty = g.dirty,
+    priorBody = b
+      ? {
+          mass: b.mass,
+          size: b.size,
+          speed: b.speed,
+          integrity: b.integrity,
+          armor: b.armor,
+        }
+      : null,
+    result = { ...compilePhenotype(id) };
+  g.phenotype = priorPhenotype;
+  g.dirty = priorDirty;
+  if (b && priorBody) Object.assign(b, priorBody);
+  return result;
+}
+function peekAlive(id) {
+  const l = W.components.life[id],
+    ch = W.components.chemistry[id],
+    g = W.components.genome[id];
+  return !!(
+    l &&
+    ch &&
+    g &&
+    l.regulation > 0 &&
+    l.integrity > 0 &&
+    ch.q[C.INFO] > 0 &&
+    ch.q[C.MEMBRANE] > 0
+  );
+}
 function classifyAlive(id) {
   const l = W.components.life[id],
     ch = W.components.chemistry[id],
@@ -128,6 +164,30 @@ function derivedLife(id) {
   l.wounded = l.integrity < 760;
   l.fatigue = clamp(Number.isFinite(l.fatigue) ? l.fatigue : 0, 0, 100);
   return l;
+}
+function peekDerivedLife(id) {
+  const l = W.components.life[id],
+    ch = W.components.chemistry[id],
+    p = peekPhenotype(id);
+  if (!l || !ch || !p) return l || null;
+  const energy = ch.q[C.ENERGY],
+    solvent = ch.q[C.SOLVENT],
+    toxin = ch.q[C.TOXIN],
+    pathogen = ch.q[C.PATHOGEN];
+  return {
+    ...l,
+    energy: clamp(energy / 6, 0, 100),
+    hunger: clamp(100 - energy / 5, 0, 100),
+    thirst: clamp(100 - solvent / 5, 0, 100),
+    health: clamp(
+      l.integrity / 10 - toxin / 20 - (pathogen * (1 - p.diseaseResistance)) / 14,
+      0,
+      100,
+    ),
+    infected: pathogen > 18,
+    wounded: l.integrity < 760,
+    fatigue: clamp(Number.isFinite(l.fatigue) ? l.fatigue : 0, 0, 100),
+  };
 }
 function createOrganism(kind, x, y, rng, parents = [], sourceTile = -1, divineInput = 0) {
   const id = allocEntity(kind),
@@ -237,6 +297,7 @@ function createOrganism(kind, x, y, rng, parents = [], sourceTile = -1, divineIn
     socialSensitivity: kind === KINDS.PERSON ? 0.9 : 0.25,
   };
   W.components.reproduction[id] = {
+    mode: "paired",
     cooldown: 80 + rng.int(100),
     fertility: 0.6,
     matePreference: rng.next(),
@@ -319,7 +380,7 @@ createOrganism = function (kind, x, y, rng, parents = [], sourceTile = -1, divin
     id = createOrganismBase(kind, x, y, rng, parents, sourceTile, divineInput),
     body = W.components.body[id];
   body.maxAge = kind === KINDS.HERBIVORE ? 36000 : kind === KINDS.PREDATOR ? 48000 : 72000;
-  body.maturityAge = kind === KINDS.PREDATOR ? 1400 : 1000;
+  body.maturityAge = 1000;
   if (!divineInput && !parents.length && W.tick === 0) {
     const q = W.components.chemistry[id].q,
       pool = W.reservoirs.primordialPackets || [];
@@ -344,8 +405,8 @@ restoreWorldDefaults = function () {
     if (!body || !rep || ![KINDS.HERBIVORE, KINDS.PREDATOR, KINDS.PERSON].includes(kind)) continue;
     const target = kind === KINDS.HERBIVORE ? 36000 : kind === KINDS.PREDATOR ? 48000 : 72000;
     if (body.maxAge < target * 0.5) body.maxAge = target;
-    body.maturityAge = kind === KINDS.PREDATOR ? 1400 : 1000;
-    rep.mode = "paired";
+    body.maturityAge = 1000;
+    if (!rep.mode) rep.mode = "paired";
   }
 };
 function regionId(x, y) {

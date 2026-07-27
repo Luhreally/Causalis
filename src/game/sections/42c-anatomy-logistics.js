@@ -80,8 +80,8 @@ function selectEmbodiedBodyPart(id, genericPart, serial = 0, attackerId = 0) {
   return candidates[index].name;
 }
 
-function embodiedCapability(id) {
-  const anatomy = ensureEmbodiedAnatomy(id),
+function embodiedCapability(id, create = true) {
+  const anatomy = W.components.life[id]?.anatomy || (create ? ensureEmbodiedAnatomy(id) : null),
     parts = Object.values(anatomy?.parts || {}),
     ratio = (role) => {
       const selected = parts.filter((part) => part.role === role);
@@ -314,7 +314,19 @@ function applyEmbodiedInjury(
   part.lostTick = W.tick;
   part.causeEvent = causeEvent;
   part.attackerId = attackerId;
-  anatomy.lostParts.push(part.name);
+  if (!anatomy.lostParts.includes(part.name)) anatomy.lostParts.push(part.name);
+  const dependentName =
+      part.name === "left arm" ? "left hand" : part.name === "right arm" ? "right hand" : "",
+    dependent = dependentName ? anatomy.parts[dependentName] : null;
+  if (dependent && !dependent.severed) {
+    dependent.severed = true;
+    dependent.disabled = true;
+    dependent.integrity = 0;
+    dependent.lostTick = W.tick;
+    dependent.causeEvent = causeEvent;
+    dependent.attackerId = attackerId;
+    if (!anatomy.lostParts.includes(dependent.name)) anatomy.lostParts.push(dependent.name);
+  }
   const position = W.components.position[victimId],
     tile = position ? idx(position.x, position.y) : -1,
     composition = transferSeveredMatter(victimId, tile, severity),
@@ -378,8 +390,9 @@ function applyEmbodiedInjury(
 function embodiedVisualModel(id, model) {
   const life = W?.components.life?.[id];
   if (!life || !model) return model;
-  const anatomy = ensureEmbodiedAnatomy(id, model),
-    lostParts = Object.values(anatomy.parts).filter((part) => part.severed),
+  const anatomy = life.anatomy?.parts ? life.anatomy : null;
+  if (!anatomy) return model;
+  const lostParts = Object.values(anatomy.parts).filter((part) => part.severed),
     visualAppendageCount = model.topology === "upright" ? 4 : model.appendages,
     missingAppendageIndices = [];
   for (const part of lostParts) {
@@ -408,7 +421,7 @@ function embodiedVisualModel(id, model) {
 }
 
 function drawLostLimbStumps(g, id, model, detail, colors) {
-  const lost = embodiedCapability(id).lost;
+  const lost = embodiedCapability(id, false).lost;
   if (!lost.length || detail < 1) return;
   g.save();
   g.fillStyle = hsl(bloodVisualHue(id), 82, 30, 0.94);
@@ -552,9 +565,7 @@ function hasNavigableWatercraft(id) {
   const carried = (W.components.inventory[id]?.artifactIds || [])
     .map((entityId) => W.artifacts.find((artifact) => artifact.entityId === entityId))
     .some((artifact) => isFunctionalTool(artifact, "watercraft"));
-  if (carried) return true;
-  const factionId = W.components.social[id]?.factionId || 0;
-  return !!(factionId && factionHasTech(factionId, "navigation"));
+  return carried;
 }
 
 const organismHabitatStressWatercraftBase = organismHabitatStress;
@@ -579,19 +590,6 @@ moveWorkerToward = function (id, tile, task, phase, material = -1, buildingId = 
       toolId,
     );
     return false;
-  }
-  const delay = capability.locomotion < 0.42 ? 3 : capability.locomotion < 0.72 ? 2 : 1;
-  if ((W.tick + id) % delay) {
-    setWorkAction(
-      id,
-      task,
-      `moving slowly with ${Math.round(capability.locomotion * 100)}% locomotor capacity · ${phase}`,
-      tile,
-      material,
-      buildingId,
-      toolId,
-    );
-    return true;
   }
   const result = moveWorkerTowardAnatomyBase(id, tile, task, phase, material, buildingId, toolId);
   const p = W.components.position[id];
@@ -793,8 +791,15 @@ function nearestProtectedFire(id, radius = 14) {
         fire = W.tiles.fire[tile];
       if (fire < 55) continue;
       const protectedPlace = settlementNear(tile, 7) || campNear(tile, 7),
-        structure = W.tiles.structureOrder[tile] + W.tiles.habitation[tile];
-      if (!protectedPlace && structure < 100) continue;
+        protectedBuilding = W.buildings.some(
+          (building) =>
+            building.complete &&
+            !building.ruined &&
+            building.integrity > 0 &&
+            dist2(building.x, building.y, x, y) <= 7 * 7,
+        ),
+        structure = protectedBuilding ? W.tiles.structureOrder[tile] : 0;
+      if (!protectedPlace && !protectedBuilding) continue;
       candidates.push({
         tile,
         score: fire * 2 + structure * 0.15 - Math.sqrt(dist2(p.x, p.y, x, y)) * 18,
@@ -828,6 +833,23 @@ function fillFireBucket(id, bucket, fireTile) {
     place = nearestFriendlyPlace(id),
     capacity = Math.max(8, Math.floor(bucket.quality / 5));
   if (inventory[C.SOLVENT] >= capacity) return true;
+  const localTile = idx(p.x, p.y),
+    localSolvent = tileMatterAmount(localTile, C.SOLVENT);
+  if (localSolvent >= 12) {
+    const moved = Math.min(capacity - inventory[C.SOLVENT], localSolvent);
+    setTileMatterAmount(localTile, C.SOLVENT, localSolvent - moved);
+    inventory[C.SOLVENT] += moved;
+    setWorkAction(
+      id,
+      "fill_bucket",
+      `💧 filled ${bucket.name} from ${locationName(localTile)}`,
+      fireTile,
+      C.SOLVENT,
+      0,
+      bucket.entityId,
+    );
+    return moved > 0;
+  }
   if (place && place.inventory[C.SOLVENT] >= 6) {
     if (dist2(p.x, p.y, place.x, place.y) > 2)
       return moveWorkerToward(
@@ -906,8 +928,9 @@ function suppressFireWithBucket(id, fireTile, bucket) {
   setTileMatterAmount(fireTile, C.SOLVENT, tileMatterAmount(fireTile, C.SOLVENT) + water);
   W.tiles.fire[fireTile] = u16(before - quenched);
   W.tiles.temperature[fireTile] = i16(W.tiles.temperature[fireTile] - Math.min(80, water * 3));
-  W.conservation.dissipatedEnergy += quenched;
-  W.conservation.thermalEnergy = Math.max(0, (W.conservation.thermalEnergy || 0) - quenched);
+  const thermalRemoved = Math.min(quenched, Math.max(0, W.conservation.thermalEnergy || 0));
+  W.conservation.dissipatedEnergy += thermalRemoved;
+  W.conservation.thermalEnergy = (W.conservation.thermalEnergy || 0) - thermalRemoved;
   bucket.tool.wear = Math.min(bucket.tool.durability, bucket.tool.wear + 1);
   const ignition = W.events.findLast(
       (event) => event.type === "FireStartedEvent" && event.location === fireTile,
@@ -978,15 +1001,22 @@ function updateFirefighting() {
 }
 
 function ensurePrimitiveEquipment() {
-  if (W.tick % 64) return;
+  if (W.tick % 4) return;
   for (const unit of W.militaryUnits || []) {
     if (!unit.active) continue;
     for (const id of unit.memberIds.filter(classifyAlive).slice(0, 8)) {
       const purposes = ["war", "shield", "armor"],
         missing = purposes.find((purpose) => !toolForPurpose(id, purpose));
       if (!missing) continue;
-      const recipe = toolRecipeFromInventory(id, missing) || supplyEquipmentMaterials(id, missing);
-      if (recipe) beginOrAdvanceCraft(id, missing);
+      const work = workState(id),
+        activePurpose =
+          work.task === "craft" && ["war", "shield", "armor"].includes(work.craftPurpose)
+            ? work.craftPurpose
+            : missing,
+        recipe =
+          toolRecipeFromInventory(id, activePurpose) ||
+          (W.tick % 64 === 0 ? supplyEquipmentMaterials(id, activePurpose) : null);
+      if (recipe) beginOrAdvanceCraft(id, activePurpose);
     }
   }
   for (const id of W.activeIds) {
@@ -1003,9 +1033,12 @@ function ensurePrimitiveEquipment() {
     const nearDeepWater = neighbors4(idx(p.x, p.y)).some((tile) => W.tiles.liquid[tile] > 420);
     if (!nearDeepWater) continue;
     const recipe =
-      toolRecipeFromInventory(id, "watercraft") || supplyEquipmentMaterials(id, "watercraft");
-    if (recipe) beginOrAdvanceCraft(id, "watercraft");
-    break;
+      toolRecipeFromInventory(id, "watercraft") ||
+      (W.tick % 64 === 0 ? supplyEquipmentMaterials(id, "watercraft") : null);
+    if (recipe) {
+      beginOrAdvanceCraft(id, "watercraft");
+      break;
+    }
   }
 }
 
@@ -1300,7 +1333,7 @@ function resolveMilitaryContact(unit, contact, war, tactic) {
       })[0];
     if (!defenderId) break;
     const defenderPosition = W.components.position[defenderId],
-      attackRange = attackerRangedTier(attackerId) ? 36 : 9;
+      attackRange = (typeof combatReach === "function" ? combatReach(attackerId) : 1.5) ** 2;
     if (
       dist2(attackerPosition.x, attackerPosition.y, defenderPosition.x, defenderPosition.y) >
       attackRange
@@ -1475,6 +1508,15 @@ function updateMilitaryMovement() {
         clearStaleWork(id);
         continue;
       }
+      const equipmentWork = workState(id);
+      if (
+        equipmentWork.task === "craft" &&
+        (EQUIPMENT_PURPOSES.has(equipmentWork.craftPurpose) ||
+          ["war", "shield", "armor"].includes(equipmentWork.craftPurpose))
+      ) {
+        beginOrAdvanceCraft(id, equipmentWork.craftPurpose);
+        continue;
+      }
       if (phase === "mustering") {
         if (home && dist2(p.x, p.y, home.x, home.y) > 9)
           moveWorkerToward(
@@ -1523,7 +1565,7 @@ function updateMilitaryMovement() {
       else if (tactic) {
         const tacticalTile = militaryTacticalTile(unit, contact, id, tactic),
           [tacticalX, tacticalY] = xy(tacticalTile),
-          attackRange = attackerRangedTier(id) ? 25 : 4;
+          attackRange = (typeof combatReach === "function" ? combatReach(id) : 1.5) ** 2;
         if (dist2(p.x, p.y, tacticalX, tacticalY) > attackRange)
           moveWorkerToward(
             id,
@@ -1554,12 +1596,29 @@ function updateMilitaryMovement() {
   }
 }
 
+function updateEmbodiedRecovery() {
+  if (W.tick % 8) return;
+  for (const id of W.activeIds) {
+    const anatomy = W.components.life[id]?.anatomy;
+    if (!anatomy?.parts || !classifyAlive(id)) continue;
+    const life = derivedLife(id);
+    if (life.health < 38 || life.hunger > 72 || life.thirst > 76) continue;
+    const recovery = clamp((life.health - 30) / 120, 0.08, 0.58);
+    for (const part of Object.values(anatomy.parts)) {
+      if (part.severed || part.integrity >= part.maxIntegrity) continue;
+      part.integrity = Math.min(part.maxIntegrity, part.integrity + recovery);
+      part.disabled = part.integrity / part.maxIntegrity < 0.34;
+    }
+  }
+}
+
 const simTickAnatomyBase = simTick;
 simTick = function () {
   simTickAnatomyBase();
   if (!W) return;
   updateFirefighting();
   ensurePrimitiveEquipment();
+  updateEmbodiedRecovery();
   if (W.tick % 8 === 0)
     W.severedParts = (W.severedParts || []).filter((part) => {
       const lifeTicks = part.lifeTicks || severedPartPersistenceTicks(part.tile, part.composition);
@@ -1596,9 +1655,9 @@ const organismInspectorAnatomyBase = organismInspector;
 organismInspector = function (id) {
   let html = organismInspectorAnatomyBase(id);
   if (!W.components.life[id]) return html;
-  const capability = embodiedCapability(id),
-    anatomy = ensureEmbodiedAnatomy(id),
-    damaged = Object.values(anatomy.parts)
+  const capability = embodiedCapability(id, false),
+    anatomy = W.components.life[id].anatomy,
+    damaged = Object.values(anatomy?.parts || {})
       .filter((part) => part.severed || part.disabled || part.integrity < part.maxIntegrity)
       .map(
         (part) =>
@@ -1618,7 +1677,7 @@ showFaction = function (id) {
     `<div class="subhead">Active force states</div><div class="stack">${units
       .map(
         (unit) =>
-          `<div class="card"><div class="row between"><b>Unit ${unit.id} · ${esc(titleCase(unit.phase || "guarding"))}</b><span class="tag">${unit.memberIds.filter(classifyAlive).length} active</span></div><small class="muted">${esc(unit.phaseDetail || "No current movement report")}</small></div>`,
+          `<div class="card"><div class="row between"><b>Unit ${unit.id} · ${esc(titleCase(unit.phase || "guarding"))}</b><span class="tag">${unit.memberIds.filter(peekAlive).length} active</span></div><small class="muted">${esc(unit.phaseDetail || "No current movement report")}</small></div>`,
       )
       .join("")}</div>`,
   );
@@ -1628,8 +1687,8 @@ function embodiedSystemsAudit() {
   const failures = [];
   for (const id of W.activeIds) {
     if (!W.components.life[id]) continue;
-    const anatomy = ensureEmbodiedAnatomy(id),
-      lost = Object.values(anatomy.parts).filter((part) => part.severed);
+    const anatomy = W.components.life[id].anatomy,
+      lost = Object.values(anatomy?.parts || {}).filter((part) => part.severed);
     for (const part of lost)
       if (!part.causeEvent)
         failures.push(`entity ${id} missing ${part.name} without a cause event`);
@@ -1792,7 +1851,7 @@ function debugEmbodiedSystemsProbe() {
   if (watercraft && deep) {
     queueEffect(
       "MoveEntity",
-      { entityId: worker, x: xy(deep.tile)[0], y: xy(deep.tile)[1] },
+      { entityId: worker, x: xy(deep.tile)[0], y: xy(deep.tile)[1], forced: true },
       worker,
     );
     resolveEffects();
