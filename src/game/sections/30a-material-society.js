@@ -1906,6 +1906,7 @@ function workerReadyForLabor(id) {
     locomotion >= 0.12 &&
     W.tiles.fire[tile] <= 100 &&
     W.tiles.danger[tile] <= 850 &&
+    !personNeedsWaterEscape(id) &&
     !laborPredatorThreat(id)
   );
 }

@@ -568,6 +568,17 @@ function hasNavigableWatercraft(id) {
   return carried;
 }
 
+function personHasSafeBirthSite(id) {
+  if (W?.kind[id] !== KINDS.PERSON) return true;
+  const position = W.components.position[id];
+  return !!position && W.tiles.liquid[idx(position.x, position.y)] <= 420;
+}
+
+const canReproduceWaterSafetyBase = canReproduce;
+canReproduce = function (id) {
+  return personHasSafeBirthSite(id) && canReproduceWaterSafetyBase(id);
+};
+
 const organismHabitatStressWatercraftBase = organismHabitatStress;
 organismHabitatStress = function (id, tile) {
   const base = organismHabitatStressWatercraftBase(id, tile);
@@ -1755,6 +1766,75 @@ function debugDeepWaterProbe(id = 0) {
   };
 }
 
+function debugWaterEscapeProbe() {
+  const person = W.activeIds
+    .filter(
+      (candidate) =>
+        W.kind[candidate] === KINDS.PERSON &&
+        classifyAlive(candidate) &&
+        !hasNavigableWatercraft(candidate),
+    )
+    .sort((left, right) => left - right)[0];
+  const deep = Array.from(W.tiles.liquid)
+    .map((depth, tile) => ({ depth, tile }))
+    .filter((entry) => entry.depth > 820)
+    .sort((left, right) => right.depth - left.depth || left.tile - right.tile)[0];
+  if (!person || !deep) return { ok: false, reason: "missing unboated person or deep water" };
+  const position = W.components.position[person],
+    original = { ...position },
+    originalLastMoveTick = W.components.life[person].lastEmbodiedMoveTick,
+    [deepX, deepY] = xy(deep.tile);
+  Object.assign(position, {
+    x: deepX,
+    y: deepY,
+    regionId: regionId(deepX, deepY),
+  });
+  const offshoreBirthBlocked = !personHasSafeBirthSite(person),
+    escapeRecognized = personNeedsWaterEscape(person),
+    laborInterrupted = !workerReadyForLabor(person);
+  let steps = 0;
+  while (
+    steps < W.tileCount &&
+    classifyAlive(person) &&
+    W.tiles.liquid[idx(position.x, position.y)] > 420
+  ) {
+    W.components.life[person].lastEmbodiedMoveTick = -Infinity;
+    const [dx, dy] = bestWaterEscapeDirection(person);
+    if (!dx && !dy) break;
+    queueEffect(
+      "MoveEntity",
+      {
+        entityId: person,
+        x: position.x + dx,
+        y: position.y + dy,
+        waterEscape: true,
+      },
+      person,
+    );
+    resolveEffects();
+    steps++;
+  }
+  const finalTile = idx(position.x, position.y),
+    escaped = W.tiles.liquid[finalTile] <= 420,
+    result = {
+      ok: escaped && offshoreBirthBlocked && escapeRecognized && laborInterrupted,
+      person,
+      deepTile: deep.tile,
+      depth: deep.depth,
+      finalTile,
+      finalDepth: W.tiles.liquid[finalTile],
+      steps,
+      escaped,
+      offshoreBirthBlocked,
+      escapeRecognized,
+      laborInterrupted,
+    };
+  Object.assign(position, original);
+  W.components.life[person].lastEmbodiedMoveTick = originalLastMoveTick;
+  rebuildSpatialBins();
+  return result;
+}
+
 function debugConsolidateTileMatter(species, targetTile, requested) {
   let needed = Math.min(requested, 65535 - tileMatterAmount(targetTile, species));
   for (let tile = 0; tile < W.tileCount && needed > 0; tile++) {
@@ -1934,6 +2014,7 @@ window.ALIFE_EMBODIED_DEBUG = Object.freeze({
   anatomy: (id) => ensureEmbodiedAnatomy(id),
   capability: embodiedCapability,
   deepWater: debugDeepWaterProbe,
+  waterEscape: debugWaterEscapeProbe,
   firefight: (id, tile) => performFirefighting(id, tile),
   dismember: (victim, attacker, part = "left arm") =>
     applyEmbodiedInjury(victim, part, "controlled severing test", 80, 1, true, attacker, 0, {

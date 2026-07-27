@@ -664,6 +664,7 @@ if (process.env.SYSTEMS_DEBUG === "1") {
   const fixture = controls.createCivicTestScenario(),
     socialProbe = social.probe(),
     embodiedProbe = embodied.probe(),
+    waterEscapeProbe = embodied.waterEscape(),
     agricultureProbe = agriculture.probe();
   game.step(8);
   const drawOpsBefore = drawOps.count;
@@ -706,6 +707,14 @@ if (process.env.SYSTEMS_DEBUG === "1") {
     failures.push("a bucket did not physically transfer solvent and suppress fire");
   if (!embodiedProbe.navigation?.exactArrival || embodiedProbe.navigation.depth <= 820)
     failures.push("watercraft did not complete a long move onto deep water");
+  if (
+    !waterEscapeProbe.ok ||
+    !waterEscapeProbe.escaped ||
+    !waterEscapeProbe.offshoreBirthBlocked ||
+    !waterEscapeProbe.escapeRecognized ||
+    !waterEscapeProbe.laborInterrupted
+  )
+    failures.push("unboated people could not escape deep water or reproduce only on safe land");
   if (
     !embodiedProbe.anatomy?.severed ||
     !embodiedProbe.anatomy.visualSlotRemoved ||
@@ -763,7 +772,12 @@ if (process.env.SYSTEMS_DEBUG === "1") {
         failures,
         fixture,
         social: { probe: socialProbe, audit: socialAudit },
-        embodied: { probe: embodiedProbe, audit: embodiedAudit, drawOps: embodiedDrawOps },
+        embodied: {
+          probe: embodiedProbe,
+          waterEscape: waterEscapeProbe,
+          audit: embodiedAudit,
+          drawOps: embodiedDrawOps,
+        },
         agriculture: { probe: agricultureProbe, audit: agricultureAudit },
       },
       null,

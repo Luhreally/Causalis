@@ -96,7 +96,9 @@ function resolveEffects() {
             if (
               kind === KINDS.PERSON &&
               W.tiles.liquid?.[idx(nx, ny)] > 420 &&
-              (typeof hasNavigableWatercraft !== "function" || !hasNavigableWatercraft(d.entityId))
+              (typeof hasNavigableWatercraft !== "function" ||
+                !hasNavigableWatercraft(d.entityId)) &&
+              !(d.waterEscape === true && W.tiles.liquid?.[idx(p.x, p.y)] > 420)
             )
               break;
           }

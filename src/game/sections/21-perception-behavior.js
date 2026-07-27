@@ -290,6 +290,55 @@ function bestDirection(id, goal) {
   }
   return best;
 }
+function personNeedsWaterEscape(id) {
+  if (W.kind[id] !== KINDS.PERSON) return false;
+  const position = W.components.position[id];
+  return !!(
+    position &&
+    W.tiles.liquid[idx(position.x, position.y)] > 420 &&
+    (typeof hasNavigableWatercraft !== "function" || !hasNavigableWatercraft(id))
+  );
+}
+function bestWaterEscapeDirection(id) {
+  const position = W.components.position[id];
+  if (!position) return [0, 0];
+  const start = idx(position.x, position.y);
+  if (W.tiles.liquid[start] <= 420) return [0, 0];
+  const predecessor = new Int32Array(W.tileCount);
+  predecessor.fill(-2);
+  predecessor[start] = -1;
+  const queue = [start];
+  let goal = -1;
+  for (let cursor = 0; cursor < queue.length && goal < 0; cursor++) {
+    const current = queue[cursor];
+    for (const next of neighbors4(current)) {
+      if (predecessor[next] !== -2) continue;
+      const [nextX, nextY] = xy(next);
+      if (typeof movementTileBlocked === "function" && movementTileBlocked(id, nextX, nextY))
+        continue;
+      predecessor[next] = current;
+      if (W.tiles.liquid[next] <= 420) {
+        goal = next;
+        break;
+      }
+      queue.push(next);
+    }
+  }
+  if (goal < 0) {
+    const fallback = neighbors4(start)
+      .filter((tile) => {
+        const [x, y] = xy(tile);
+        return typeof movementTileBlocked !== "function" || !movementTileBlocked(id, x, y);
+      })
+      .sort((left, right) => W.tiles.liquid[left] - W.tiles.liquid[right] || left - right)[0];
+    if (fallback === undefined) return [0, 0];
+    const [x, y] = xy(fallback);
+    return [Math.sign(x - position.x), Math.sign(y - position.y)];
+  }
+  while (predecessor[goal] !== start && predecessor[goal] >= 0) goal = predecessor[goal];
+  const [x, y] = xy(goal);
+  return [Math.sign(x - position.x), Math.sign(y - position.y)];
+}
 function huntTargetScore(id, target) {
   const p = W.components.position[id],
     tp = W.components.position[target],
@@ -418,6 +467,7 @@ function chooseBehavior(id, tier) {
         : threatTargetsSelf
           ? 300 + threatProximity * 140
           : 70 + threatProximity * 150),
+    waterEscape = personNeedsWaterEscape(id),
     target = l.preyTargetId ? derivedLife(l.preyTargetId) : null,
     targetProximity = l.preyTargetId
       ? clamp(
@@ -458,15 +508,18 @@ function chooseBehavior(id, tier) {
       {
         id: "flee",
         score:
+          (waterEscape ? 1e9 : 0) +
           W.tiles.fire[ti] / 4 +
           W.tiles.danger[ti] / 6 +
           localizedFlight +
           tileFear(ti) * (k === KINDS.HERBIVORE ? 1.1 : 0.25),
-        reason: threatTargetsSelf
-          ? "a predator localized this individual and began an immediate approach"
-          : Number.isFinite(threatDistance)
-            ? "a predator entered sensory range and its position was localized"
-            : "fire, danger, or alarm compounds were sensed",
+        reason: waterEscape
+          ? "deep water exceeded unassisted locomotion; following the shortest reachable route to land"
+          : threatTargetsSelf
+            ? "a predator localized this individual and began an immediate approach"
+            : Number.isFinite(threatDistance)
+              ? "a predator entered sensory range and its position was localized"
+              : "fire, danger, or alarm compounds were sensed",
       },
       {
         id: "mate",
@@ -563,7 +616,7 @@ function chooseBehavior(id, tier) {
   l.behaviorReason = action.reason;
   let dir = [0, 0];
   if (action.id === "flee") {
-    dir = bestDirection(id, "flee");
+    dir = waterEscape ? bestWaterEscapeDirection(id) : bestDirection(id, "flee");
     const made = executeProcess("fear_signal", invEntity(id), 2);
     if (made) {
       const q = W.components.chemistry[id].q,
@@ -609,8 +662,8 @@ function chooseBehavior(id, tier) {
       motionEffort = chargeMotion
         ? ph.speed * ph.size * 0.35 * (k === KINDS.PREDATOR ? 0.45 : 1)
         : 0;
-    if (W.tiles.liquid[idx(nx, ny)] < 1100 && W.tiles.fire[idx(nx, ny)] < 700) {
-      queueEffect("MoveEntity", { entityId: id, x: nx, y: ny, motionEffort }, id);
+    if ((waterEscape || W.tiles.liquid[idx(nx, ny)] < 1100) && W.tiles.fire[idx(nx, ny)] < 700) {
+      queueEffect("MoveEntity", { entityId: id, x: nx, y: ny, motionEffort, waterEscape }, id);
       if (k === KINDS.PREDATOR && action.id === "hunt" && l.preyTargetId) {
         const pursuitChance = clamp(
           0.42 +
