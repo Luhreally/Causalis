@@ -275,13 +275,15 @@ function updateDrowning() {
     const p = W.components.position[id];
     if (!p) continue;
     const ti = idx(p.x, p.y);
-    if (W.tiles.liquid[ti] <= 820) continue;
-    if (hasNavigableWatercraft(id)) continue;
+    if (!personDrowningRisk(id, ti)) continue;
     const l = W.components.life[id];
     l.integrity = Math.max(0, l.integrity - 46);
     W.components.body[id].integrity = l.integrity;
     if (l.integrity <= 0) killEntity(id, "drowned in deep water");
   }
+}
+function personDrowningRisk(id, tile) {
+  return W.tiles.liquid[tile] > WATER_DEPTH.DEEP && !hasNavigableWatercraft(id);
 }
 function conquestAggression(f) {
   const home = W.settlements.find((s) => !s.ruined && s.factionId === f.id),

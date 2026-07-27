@@ -684,6 +684,7 @@ if (process.env.SYSTEMS_DEBUG === "1") {
   const fixture = controls.createCivicTestScenario(),
     socialProbe = social.probe(),
     embodiedProbe = embodied.probe(),
+    drowningThresholdProbe = embodied.drowningThreshold(),
     waterEscapeProbe = embodied.waterEscape(),
     agricultureProbe = agriculture.probe();
   game.step(8);
@@ -725,8 +726,13 @@ if (process.env.SYSTEMS_DEBUG === "1") {
     failures.push(`embodied systems probe failed: ${embodiedProbe.reason || "incomplete result"}`);
   if (!embodiedProbe.fire?.eventId || embodiedProbe.fire.after >= embodiedProbe.fire.before)
     failures.push("a bucket did not physically transfer solvent and suppress fire");
-  if (!embodiedProbe.navigation?.exactArrival || embodiedProbe.navigation.depth <= 820)
+  if (
+    !embodiedProbe.navigation?.exactArrival ||
+    embodiedProbe.navigation.depth <= drowningThresholdProbe.shallow?.depth
+  )
     failures.push("watercraft did not complete a long move onto deep water");
+  if (!drowningThresholdProbe.ok)
+    failures.push("shallow-water classification and drowning threshold diverged");
   if (
     !waterEscapeProbe.ok ||
     !waterEscapeProbe.escaped ||
@@ -794,6 +800,7 @@ if (process.env.SYSTEMS_DEBUG === "1") {
         social: { probe: socialProbe, audit: socialAudit },
         embodied: {
           probe: embodiedProbe,
+          drowningThreshold: drowningThresholdProbe,
           waterEscape: waterEscapeProbe,
           audit: embodiedAudit,
           drawOps: embodiedDrawOps,

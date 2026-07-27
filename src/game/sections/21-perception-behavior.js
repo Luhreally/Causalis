@@ -295,7 +295,7 @@ function personNeedsWaterEscape(id) {
   const position = W.components.position[id];
   return !!(
     position &&
-    W.tiles.liquid[idx(position.x, position.y)] > 420 &&
+    W.tiles.liquid[idx(position.x, position.y)] > WATER_DEPTH.WADE_LIMIT &&
     (typeof hasNavigableWatercraft !== "function" || !hasNavigableWatercraft(id))
   );
 }
@@ -303,7 +303,7 @@ function bestWaterEscapeDirection(id) {
   const position = W.components.position[id];
   if (!position) return [0, 0];
   const start = idx(position.x, position.y);
-  if (W.tiles.liquid[start] <= 420) return [0, 0];
+  if (W.tiles.liquid[start] <= WATER_DEPTH.WADE_LIMIT) return [0, 0];
   const predecessor = new Int32Array(W.tileCount);
   predecessor.fill(-2);
   predecessor[start] = -1;
@@ -317,7 +317,7 @@ function bestWaterEscapeDirection(id) {
       if (typeof movementTileBlocked === "function" && movementTileBlocked(id, nextX, nextY))
         continue;
       predecessor[next] = current;
-      if (W.tiles.liquid[next] <= 420) {
+      if (W.tiles.liquid[next] <= WATER_DEPTH.WADE_LIMIT) {
         goal = next;
         break;
       }

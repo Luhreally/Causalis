@@ -9,6 +9,12 @@ const TICKS_PER_YEAR = 256,
   MAX_EVENTS = 4200,
   COMMON_CHEM = 16,
   SPECIES_COUNT = 32;
+const WATER_DEPTH = Object.freeze({
+  SURFACE: 140,
+  SHALLOW: 160,
+  WADE_LIMIT: 420,
+  DEEP: 1200,
+});
 const SIZE_PRESETS = Object.freeze({
   battery: [72, 44],
   phone: [96, 58],

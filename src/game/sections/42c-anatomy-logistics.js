@@ -571,7 +571,7 @@ function hasNavigableWatercraft(id) {
 function personHasSafeBirthSite(id) {
   if (W?.kind[id] !== KINDS.PERSON) return true;
   const position = W.components.position[id];
-  return !!position && W.tiles.liquid[idx(position.x, position.y)] <= 420;
+  return !!position && W.tiles.liquid[idx(position.x, position.y)] <= WATER_DEPTH.WADE_LIMIT;
 }
 
 const canReproduceWaterSafetyBase = canReproduce;
@@ -582,7 +582,7 @@ canReproduce = function (id) {
 const organismHabitatStressWatercraftBase = organismHabitatStress;
 organismHabitatStress = function (id, tile) {
   const base = organismHabitatStressWatercraftBase(id, tile);
-  if (!hasNavigableWatercraft(id) || W.tiles.liquid[tile] <= 420) return base;
+  if (!hasNavigableWatercraft(id) || W.tiles.liquid[tile] <= WATER_DEPTH.WADE_LIMIT) return base;
   const floodPenalty = Math.max(0, W.tiles.liquid[tile] - 780) / 18;
   return Math.max(0, base - floodPenalty) + Math.min(2.5, W.tiles.fire[tile] / 300);
 };
@@ -604,7 +604,12 @@ moveWorkerToward = function (id, tile, task, phase, material = -1, buildingId = 
   }
   const result = moveWorkerTowardAnatomyBase(id, tile, task, phase, material, buildingId, toolId);
   const p = W.components.position[id];
-  if (result && p && W.tiles.liquid[idx(p.x, p.y)] > 420 && hasNavigableWatercraft(id))
+  if (
+    result &&
+    p &&
+    W.tiles.liquid[idx(p.x, p.y)] > WATER_DEPTH.WADE_LIMIT &&
+    hasNavigableWatercraft(id)
+  )
     setWorkAction(
       id,
       "sail",
@@ -1041,7 +1046,9 @@ function ensurePrimitiveEquipment() {
       toolForPurpose(id, "watercraft")
     )
       continue;
-    const nearDeepWater = neighbors4(idx(p.x, p.y)).some((tile) => W.tiles.liquid[tile] > 420);
+    const nearDeepWater = neighbors4(idx(p.x, p.y)).some(
+      (tile) => W.tiles.liquid[tile] > WATER_DEPTH.WADE_LIMIT,
+    );
     if (!nearDeepWater) continue;
     const recipe =
       toolRecipeFromInventory(id, "watercraft") ||
@@ -1752,7 +1759,7 @@ function debugDeepWaterProbe(id = 0) {
   const factionId = W.components.social[person]?.factionId || 0,
     deep = Array.from(W.tiles.liquid)
       .map((depth, tile) => ({ depth, tile }))
-      .filter((entry) => entry.depth > 820)
+      .filter((entry) => entry.depth > WATER_DEPTH.DEEP)
       .sort((left, right) => right.depth - left.depth || left.tile - right.tile)[0];
   return {
     ok: !!deep && hasNavigableWatercraft(person),
@@ -1763,6 +1770,34 @@ function debugDeepWaterProbe(id = 0) {
     deepTile: deep?.tile ?? -1,
     depth: deep?.depth || 0,
     stress: deep ? organismHabitatStress(person, deep.tile) : null,
+  };
+}
+
+function debugDrowningThresholdProbe() {
+  const person = W.activeIds
+    .filter(
+      (candidate) =>
+        W.kind[candidate] === KINDS.PERSON &&
+        classifyAlive(candidate) &&
+        !hasNavigableWatercraft(candidate),
+    )
+    .sort((left, right) => left - right)[0];
+  if (!person) return { ok: false, reason: "no unboated living person" };
+  const position = W.components.position[person],
+    tile = idx(position.x, position.y),
+    originalDepth = W.tiles.liquid[tile];
+  W.tiles.liquid[tile] = WATER_DEPTH.DEEP;
+  const shallowBiome = biomeAt(tile),
+    shallowRisk = personDrowningRisk(person, tile);
+  W.tiles.liquid[tile] = WATER_DEPTH.DEEP + 1;
+  const deepBiome = biomeAt(tile),
+    deepRisk = personDrowningRisk(person, tile);
+  W.tiles.liquid[tile] = originalDepth;
+  return {
+    ok: shallowBiome === "Shallow Water" && !shallowRisk && deepBiome === "Deep Water" && deepRisk,
+    person,
+    shallow: { depth: WATER_DEPTH.DEEP, biome: shallowBiome, drowning: shallowRisk },
+    deep: { depth: WATER_DEPTH.DEEP + 1, biome: deepBiome, drowning: deepRisk },
   };
 }
 
@@ -1777,7 +1812,7 @@ function debugWaterEscapeProbe() {
     .sort((left, right) => left - right)[0];
   const deep = Array.from(W.tiles.liquid)
     .map((depth, tile) => ({ depth, tile }))
-    .filter((entry) => entry.depth > 820)
+    .filter((entry) => entry.depth > WATER_DEPTH.DEEP)
     .sort((left, right) => right.depth - left.depth || left.tile - right.tile)[0];
   if (!person || !deep) return { ok: false, reason: "missing unboated person or deep water" };
   const position = W.components.position[person],
@@ -1796,7 +1831,7 @@ function debugWaterEscapeProbe() {
   while (
     steps < W.tileCount &&
     classifyAlive(person) &&
-    W.tiles.liquid[idx(position.x, position.y)] > 420
+    W.tiles.liquid[idx(position.x, position.y)] > WATER_DEPTH.WADE_LIMIT
   ) {
     W.components.life[person].lastEmbodiedMoveTick = -Infinity;
     const [dx, dy] = bestWaterEscapeDirection(person);
@@ -1815,7 +1850,7 @@ function debugWaterEscapeProbe() {
     steps++;
   }
   const finalTile = idx(position.x, position.y),
-    escaped = W.tiles.liquid[finalTile] <= 420,
+    escaped = W.tiles.liquid[finalTile] <= WATER_DEPTH.WADE_LIMIT,
     result = {
       ok: escaped && offshoreBirthBlocked && escapeRecognized && laborInterrupted,
       person,
@@ -1925,7 +1960,7 @@ function debugEmbodiedSystemsProbe() {
   }
   const deep = Array.from(W.tiles.liquid)
       .map((depth, tile) => ({ depth, tile }))
-      .filter((entry) => entry.depth > 820)
+      .filter((entry) => entry.depth > WATER_DEPTH.DEEP)
       .sort((left, right) => right.depth - left.depth || left.tile - right.tile)[0],
     originalTile = idx(workerPosition.x, workerPosition.y);
   if (watercraft && deep) {
@@ -2014,6 +2049,7 @@ window.ALIFE_EMBODIED_DEBUG = Object.freeze({
   anatomy: (id) => ensureEmbodiedAnatomy(id),
   capability: embodiedCapability,
   deepWater: debugDeepWaterProbe,
+  drowningThreshold: debugDrowningThresholdProbe,
   waterEscape: debugWaterEscapeProbe,
   firefight: (id, tile) => performFirefighting(id, tile),
   dismember: (victim, attacker, part = "left arm") =>

@@ -95,10 +95,10 @@ function resolveEffects() {
             }
             if (
               kind === KINDS.PERSON &&
-              W.tiles.liquid?.[idx(nx, ny)] > 420 &&
+              W.tiles.liquid?.[idx(nx, ny)] > WATER_DEPTH.WADE_LIMIT &&
               (typeof hasNavigableWatercraft !== "function" ||
                 !hasNavigableWatercraft(d.entityId)) &&
-              !(d.waterEscape === true && W.tiles.liquid?.[idx(p.x, p.y)] > 420)
+              !(d.waterEscape === true && W.tiles.liquid?.[idx(p.x, p.y)] > WATER_DEPTH.WADE_LIMIT)
             )
               break;
           }

@@ -20,7 +20,7 @@ function updateMigration() {
       if (
         destination === from ||
         (typeof movementTileBlocked === "function" && movementTileBlocked(id, nx, ny)) ||
-        (W.tiles.liquid[destination] > 420 && !hasNavigableWatercraft(id))
+        (W.tiles.liquid[destination] > WATER_DEPTH.WADE_LIMIT && !hasNavigableWatercraft(id))
       )
         continue;
       executeProcess("motion_dissipation", invEntity(id), nav ? 1 : 2, { dissipate: 1 });

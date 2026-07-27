@@ -173,8 +173,8 @@ function biomeAt(i) {
     f = tileFertility(i),
     p = t.plantOrder[i],
     temp = t.temperature[i] / 10;
-  if (t.liquid[i] > 1200) return "Deep Water";
-  if (t.liquid[i] > 160) return "Shallow Water";
+  if (t.liquid[i] > WATER_DEPTH.DEEP) return "Deep Water";
+  if (t.liquid[i] > WATER_DEPTH.SHALLOW) return "Shallow Water";
   if (e > 860) return "Mountain";
   if (t.chem[C.ASH][i] > 650 && p < 150) return "Ash Waste";
   if (t.fire[i] || t.structureOrder[i] < 180) return "Burned Ground";
