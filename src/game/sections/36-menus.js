@@ -177,11 +177,11 @@ function renderSaveModal(update = false) {
   const metas = saveList(),
     by = Object.fromEntries(metas.map((m) => [m.slot, m])),
     slots = ["auto", "slot1", "slot2", "slot3"],
-    body = `<div class="save-slots">${slots
+    body = `<div class="card" style="margin-bottom:10px"><b>Browser archives</b><div class="muted" style="margin-top:4px">Slots persist in this browser and site origin. Export a file to move a world between domains or devices.</div></div><div class="save-slots">${slots
       .map((slot, n) => {
         const m = by[slot],
           label = slot === "auto" ? "Autosave" : `Manual slot ${n}`;
-        return `<div class="save-slot" data-slotbox="${slot}"><div><input class="slot-name" type="text" value="${esc(m?.name || label)}" ${slot === "auto" ? "readonly" : ""}><div class="slot-meta">${m ? `${new Date(m.date).toLocaleString()} · Year ${m.year} · ${esc(m.seed)} · ${fmt(m.population.person || 0)} people · ${fmt(m.bytes / 1024)} KB` : "Empty slot"}</div></div><div class="row wrap">${W && slot !== "auto" ? `<button class="small primary" data-save-slot="${slot}">Save</button>` : ""}${m ? `<button class="small" data-load-slot="${slot}">Load</button><button class="small danger" data-delete-slot="${slot}">Delete</button>` : ""}</div></div>`;
+        return `<div class="save-slot" data-slotbox="${slot}"><div><input class="slot-name" type="text" value="${esc(m?.name || label)}" ${slot === "auto" ? "readonly" : ""}><div class="slot-meta">${m ? `${new Date(m.date).toLocaleString()} · Year ${m.year} · ${esc(m.seed)} · ${fmt(m.population.person || 0)} people · ${fmt(m.bytes / 1024)} KB` : "Empty slot"}</div></div><div class="row wrap">${W && slot !== "auto" ? `<button class="small primary" data-save-slot="${slot}">Save</button>` : ""}${m ? `<button class="small" data-load-slot="${slot}">Load</button><button class="small" data-export-slot="${slot}">Export</button>` : ""}${slot !== "auto" ? `<button class="small" data-import-slot="${slot}">Import</button>` : ""}${m ? `<button class="small danger" data-delete-slot="${slot}">Delete</button>` : ""}</div></div>`;
       })
       .join("")}</div>`;
   if (!update) openModal("World archives", body, `<button id="closeSaves">Close</button>`, true);
@@ -211,7 +211,9 @@ renderSaveModal = function (update = false) {
   DOM.modalBody.onclick = async (e) => {
     const save = e.target.closest("[data-save-slot]"),
       load = e.target.closest("[data-load-slot]"),
-      del = e.target.closest("[data-delete-slot]");
+      del = e.target.closest("[data-delete-slot]"),
+      exportButton = e.target.closest("[data-export-slot]"),
+      importButton = e.target.closest("[data-import-slot]");
     if (save) {
       const slot = save.dataset.saveSlot,
         name = save.closest(".save-slot").querySelector(".slot-name").value || "World";
@@ -225,7 +227,8 @@ renderSaveModal = function (update = false) {
     } else if (del) {
       del.disabled = true;
       await deleteSave(del.dataset.deleteSlot);
-    }
+    } else if (exportButton) await exportSaveFile(exportButton.dataset.exportSlot);
+    else if (importButton) promptImportSave(importButton.dataset.importSlot);
   };
 };
 function showSettings() {

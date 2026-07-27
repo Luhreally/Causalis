@@ -204,6 +204,7 @@ if (process.env.SAVE_DEBUG === "1") {
     const archive = game.archiveReplay(8);
     const rollback = await saves.loadRollbackProbe();
     const switchedSave = await saves.saveSwitchProbe();
+    const recoveredIndex = await saves.indexRecoveryProbe();
     const failures = [];
     if (!codec.ok) failures.push("typed-array archive validation or round-trip failed");
     if (!eventRetention.ok)
@@ -217,9 +218,20 @@ if (process.env.SAVE_DEBUG === "1") {
       failures.push(
         "delayed save used or annotated the world that became active after its snapshot",
       );
+    if (!recoveredIndex.ok)
+      failures.push("IndexedDB archive metadata could not recover after localStorage loss");
     console.log(
       JSON.stringify(
-        { ok: !failures.length, failures, codec, eventRetention, archive, rollback, switchedSave },
+        {
+          ok: !failures.length,
+          failures,
+          codec,
+          eventRetention,
+          archive,
+          rollback,
+          switchedSave,
+          recoveredIndex,
+        },
         null,
         2,
       ),

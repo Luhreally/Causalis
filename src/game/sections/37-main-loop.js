@@ -129,11 +129,15 @@ function overlayLegendColor(id) {
 }
 function bindUI() {
   DOM.newWorldBtn.onclick = showNewWorld;
-  DOM.continueBtn.onclick = () => {
+  DOM.continueBtn.onclick = async () => {
+    await hydrateSaveList();
     const s = saveList()[0];
     if (s) loadWorld(s.slot);
   };
-  DOM.titleLoadBtn.onclick = () => renderSaveModal();
+  DOM.titleLoadBtn.onclick = async () => {
+    await hydrateSaveList();
+    renderSaveModal();
+  };
   DOM.titleSettingsBtn.onclick = showSettings;
   DOM.titleHelpBtn.onclick = showHelp;
   DOM.modalClose.onclick = closeModal;
@@ -170,8 +174,14 @@ function bindUI() {
       ?.writeText(W.seed)
       .then(() => toast("Seed copied"))
       .catch(() => toast(`Seed: ${W.seed}`));
-  DOM.saveBtn.onclick = () => renderSaveModal();
-  DOM.loadBtn.onclick = () => renderSaveModal();
+  DOM.saveBtn.onclick = async () => {
+    await hydrateSaveList();
+    renderSaveModal();
+  };
+  DOM.loadBtn.onclick = async () => {
+    await hydrateSaveList();
+    renderSaveModal();
+  };
   DOM.menuBtn.onclick = showPauseMenu;
   $$(`.tab`).forEach((b) => (b.onclick = () => refreshTabs(b.dataset.tab)));
   $$(`[data-collapse]`).forEach(

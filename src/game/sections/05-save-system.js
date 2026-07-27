@@ -138,8 +138,11 @@ function saveReviver(k, v) {
   return v;
 }
 const SAVE_DB_NAME = "causalis.archives",
-  SAVE_DB_STORE = "worlds";
+  SAVE_DB_STORE = "worlds",
+  SAVE_DB_INDEX_KEY = "__save_index__";
 let saveDbPromise = null,
+  saveIndexCache = null,
+  saveIndexHydration = null,
   autosaveWriteBlocked = false,
   autosaveWarningShown = false,
   autosaveInFlight = false;
@@ -169,9 +172,22 @@ function openSaveDatabase() {
       const db = request.result;
       if (!db.objectStoreNames.contains(SAVE_DB_STORE)) db.createObjectStore(SAVE_DB_STORE);
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error("Archive database unavailable"));
-    request.onblocked = () => reject(new Error("Archive database blocked by another tab"));
+    request.onsuccess = () => {
+      const db = request.result;
+      db.onversionchange = () => {
+        db.close();
+        saveDbPromise = null;
+      };
+      resolve(db);
+    };
+    request.onerror = () => {
+      saveDbPromise = null;
+      reject(request.error || new Error("Archive database unavailable"));
+    };
+    request.onblocked = () => {
+      saveDbPromise = null;
+      reject(new Error("Archive database blocked by another tab"));
+    };
   });
   return saveDbPromise;
 }
@@ -235,17 +251,137 @@ async function readSaveData(slot) {
     const data = await databaseLoad(slot);
     if (data) return data;
   } catch {}
-  return localStorage.getItem(SAVE_PREFIX + slot);
-}
-function saveList() {
   try {
-    return JSON.parse(localStorage.getItem(SAVE_INDEX) || "[]");
+    return localStorage.getItem(SAVE_PREFIX + slot);
+  } catch {
+    return null;
+  }
+}
+function normalizeSaveList(list) {
+  if (!Array.isArray(list)) return [];
+  const bySlot = new Map();
+  for (const entry of list) {
+    if (
+      !entry ||
+      (!["auto", "slot1", "slot2", "slot3"].includes(entry.slot) &&
+        !/^__debug-[a-z0-9_-]+$/i.test(entry.slot || "")) ||
+      typeof entry.seed !== "string"
+    )
+      continue;
+    const prior = bySlot.get(entry.slot),
+      time = Date.parse(entry.date || "") || 0,
+      priorTime = Date.parse(prior?.date || "") || 0;
+    if (!prior || time >= priorTime)
+      bySlot.set(entry.slot, {
+        ...entry,
+        slot: entry.slot,
+        name: String(entry.name || "World").slice(0, 80),
+        date: new Date(time || 0).toISOString(),
+        seed: entry.seed.slice(0, 512),
+        year: Math.max(0, Number(entry.year) || 0),
+        population:
+          entry.population && typeof entry.population === "object" ? entry.population : {},
+        bytes: Math.max(0, Number(entry.bytes) || 0),
+        version: Math.max(1, Number(entry.version) || 1),
+      });
+  }
+  return [...bySlot.values()]
+    .sort(
+      (left, right) =>
+        (Date.parse(right.date) || 0) - (Date.parse(left.date) || 0) ||
+        left.slot.localeCompare(right.slot),
+    )
+    .slice(0, 4);
+}
+function localSaveList() {
+  try {
+    return normalizeSaveList(JSON.parse(localStorage.getItem(SAVE_INDEX) || "[]"));
   } catch {
     return [];
   }
 }
-function writeSaveList(list) {
-  localStorage.setItem(SAVE_INDEX, JSON.stringify(list.slice(0, 4)));
+function saveList() {
+  if (!saveIndexCache) saveIndexCache = localSaveList();
+  return saveIndexCache.slice();
+}
+function saveMetadataFromArchive(slot, data, name = "") {
+  const snap = validateSaveCandidate(migrateSave(JSON.parse(data, saveReviver))),
+    population = { herbivore: 0, predator: 0, person: 0, corpse: 0 };
+  for (const id of snap.world.activeIds || []) {
+    const kind = snap.world.kind?.[id];
+    if (kind in population) population[kind]++;
+  }
+  for (const cohort of snap.world.cohorts || [])
+    if (cohort.kind in population) population[cohort.kind] += cohort.count || 0;
+  return {
+    slot,
+    name: String(name || (slot === "auto" ? "Autosave" : "Recovered world")).slice(0, 80),
+    date: new Date(snap.savedAt || snap.world.createdAt || Date.now()).toISOString(),
+    seed: snap.world.seed,
+    year: Math.floor(snap.world.tick / TICKS_PER_YEAR),
+    population,
+    hash: snap.savedHash || "",
+    bytes: data.length,
+    version: snap.version,
+    backend: "database",
+  };
+}
+async function hydrateSaveList() {
+  if (saveIndexHydration) return saveIndexHydration;
+  saveIndexHydration = (async () => {
+    const local = localSaveList();
+    let database = [];
+    try {
+      const raw = await databaseLoad(SAVE_DB_INDEX_KEY);
+      database = normalizeSaveList(typeof raw === "string" ? JSON.parse(raw) : raw);
+    } catch {}
+    const indexed = normalizeSaveList([...local, ...database]),
+      indexedSlots = new Set(indexed.map((entry) => entry.slot)),
+      recovered = [];
+    for (const slot of ["auto", "slot1", "slot2", "slot3"]) {
+      if (indexedSlots.has(slot)) continue;
+      try {
+        const data = await databaseLoad(slot);
+        if (typeof data === "string" && data) recovered.push(saveMetadataFromArchive(slot, data));
+      } catch {}
+    }
+    saveIndexCache = normalizeSaveList([...indexed, ...recovered]);
+    if (saveIndexCache.length) {
+      try {
+        localStorage.setItem(SAVE_INDEX, JSON.stringify(saveIndexCache));
+      } catch {}
+      try {
+        await databaseSave(SAVE_DB_INDEX_KEY, JSON.stringify(saveIndexCache));
+      } catch {}
+    }
+    return saveIndexCache.slice();
+  })().finally(() => {
+    saveIndexHydration = null;
+  });
+  return saveIndexHydration;
+}
+async function writeSaveList(list) {
+  const normalized = normalizeSaveList(list);
+  saveIndexCache = normalized;
+  let localWritten = false,
+    databaseWritten = false,
+    localError = null,
+    databaseError = null;
+  try {
+    localStorage.setItem(SAVE_INDEX, JSON.stringify(normalized));
+    localWritten = true;
+  } catch (error) {
+    localError = error;
+  }
+  try {
+    await databaseSave(SAVE_DB_INDEX_KEY, JSON.stringify(normalized));
+    databaseWritten = true;
+  } catch (error) {
+    databaseError = error;
+  }
+  if (!localWritten && !databaseWritten)
+    throw databaseError || localError || new Error("Archive index storage is unavailable");
+  return normalized;
 }
 function populationSummary() {
   if (!W) return {};
@@ -298,7 +434,7 @@ async function saveWorld(slot = "auto", name = "Autosave", quiet = false) {
       backend = await storeSaveData(slot, data);
     let list = saveList().filter((x) => x.slot !== slot);
     list.unshift({ ...record, backend });
-    writeSaveList(list);
+    await writeSaveList(list);
     saveTarget.saveMetadata = { slot, name, date: savedAt, backend };
     autosaveWriteBlocked = false;
     autosaveWarningShown = false;
@@ -584,6 +720,7 @@ async function debugSaveSwitchProbe() {
     priorMetadata = savedWorld.saveMetadata,
     switchedWorld = { seed: "debug-switched-world", saveMetadata: { marker: "untouched" } },
     priorIndex = localStorage.getItem(SAVE_INDEX),
+    priorIndexCache = saveIndexCache,
     priorFlags = { autosaveWriteBlocked, autosaveWarningShown, autosaveInFlight },
     originalStore = storeSaveData;
   let release = null;
@@ -619,17 +756,128 @@ async function debugSaveSwitchProbe() {
   autosaveInFlight = priorFlags.autosaveInFlight;
   if (priorIndex == null) localStorage.removeItem(SAVE_INDEX);
   else localStorage.setItem(SAVE_INDEX, priorIndex);
+  saveIndexCache = priorIndexCache;
   return result;
+}
+async function debugSaveIndexRecoveryProbe() {
+  const priorLocal = localStorage.getItem(SAVE_INDEX),
+    priorCache = saveIndexCache,
+    originalDatabaseSave = databaseSave,
+    originalDatabaseLoad = databaseLoad;
+  let databaseIndex = "";
+  databaseSave = async (slot, data) => {
+    if (slot !== SAVE_DB_INDEX_KEY) return originalDatabaseSave(slot, data);
+    databaseIndex = data;
+    return true;
+  };
+  databaseLoad = async (slot) => {
+    if (slot !== SAVE_DB_INDEX_KEY) return originalDatabaseLoad(slot);
+    return databaseIndex || null;
+  };
+  const fixture = {
+    slot: "slot3",
+    name: "Index recovery fixture",
+    date: new Date(1700000000000).toISOString(),
+    seed: "index-recovery",
+    year: 7,
+    population: { person: 4 },
+    bytes: 1234,
+    version: VERSION,
+    backend: "database",
+  };
+  try {
+    await writeSaveList([fixture]);
+    localStorage.removeItem(SAVE_INDEX);
+    saveIndexCache = null;
+    await hydrateSaveList();
+    const recovered = saveList().find((entry) => entry.slot === fixture.slot);
+    return {
+      ok: recovered?.seed === fixture.seed && recovered?.backend === "database",
+      recovered,
+    };
+  } finally {
+    databaseSave = originalDatabaseSave;
+    databaseLoad = originalDatabaseLoad;
+    if (priorLocal == null) localStorage.removeItem(SAVE_INDEX);
+    else localStorage.setItem(SAVE_INDEX, priorLocal);
+    saveIndexCache = priorCache;
+    saveIndexHydration = null;
+  }
 }
 async function deleteSave(slot) {
   localStorage.removeItem(SAVE_PREFIX + slot);
   try {
     await databaseDelete(slot);
   } catch {}
-  writeSaveList(saveList().filter((x) => x.slot !== slot));
+  await writeSaveList(saveList().filter((x) => x.slot !== slot));
   autosaveWriteBlocked = false;
   autosaveWarningShown = false;
   renderSaveModal(true);
+}
+async function exportSaveFile(slot) {
+  try {
+    const data = await readSaveData(slot);
+    if (typeof data !== "string" || !data) throw new Error("Save slot is empty");
+    const meta = saveList().find((entry) => entry.slot === slot),
+      seed = String(meta?.seed || "world")
+        .replace(/[^a-z0-9_-]+/gi, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 48);
+    downloadText(`causalis-${seed || "world"}-${slot}.json`, data);
+    toast("Save file exported");
+    return true;
+  } catch (error) {
+    toast(`Could not export: ${error?.message || "archive unavailable"}`, "bad");
+    return false;
+  }
+}
+async function importSaveFile(slot, file) {
+  try {
+    if (!file) throw new Error("No save file selected");
+    const data = await file.text();
+    if (data.length > 128 * 1024 * 1024) throw new Error("Save file is too large");
+    const snap = validateSaveCandidate(migrateSave(JSON.parse(data, saveReviver))),
+      savedAt = Date.now(),
+      population = { herbivore: 0, predator: 0, person: 0, corpse: 0 };
+    for (const id of snap.world.activeIds || []) {
+      const kind = snap.world.kind?.[id];
+      if (kind in population) population[kind]++;
+    }
+    for (const cohort of snap.world.cohorts || [])
+      if (cohort.kind in population) population[cohort.kind] += cohort.count || 0;
+    const record = {
+      slot,
+      name: String(file.name || "Imported world")
+        .replace(/\.(?:json|causalis)$/i, "")
+        .slice(0, 80),
+      date: new Date(savedAt).toISOString(),
+      seed: snap.world.seed,
+      year: Math.floor(snap.world.tick / TICKS_PER_YEAR),
+      population,
+      hash: snap.savedHash || "",
+      bytes: data.length,
+      version: snap.version,
+      backend: "database",
+    };
+    record.backend = await storeSaveData(slot, data);
+    await writeSaveList([record, ...saveList().filter((entry) => entry.slot !== slot)]);
+    autosaveWriteBlocked = false;
+    autosaveWarningShown = false;
+    refreshContinueButton();
+    renderSaveModal(true);
+    toast(`Imported ${record.seed}`);
+    return true;
+  } catch (error) {
+    toast(`Could not import: ${error?.message || "invalid archive"}`, "bad");
+    return false;
+  }
+}
+function promptImportSave(slot) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json,.causalis,application/json";
+  input.onchange = () => importSaveFile(slot, input.files?.[0]);
+  input.click();
 }
 function loadSettings() {
   try {
