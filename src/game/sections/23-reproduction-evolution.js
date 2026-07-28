@@ -7,8 +7,14 @@ function sustainableSexualCapacity(kind) {
     foodFactor = clamp((food - 2) / 8, 0.5, 1.2);
   if (kind === KINDS.HERBIVORE)
     return Math.max(96, Math.floor(W.tileCount * 0.016 * density * foodFactor));
-  if (kind === KINDS.PREDATOR)
-    return Math.max(10, Math.floor(sustainableSexualCapacity(KINDS.HERBIVORE) * 0.19));
+  if (kind === KINDS.PREDATOR) {
+    const prey = biospherePopulation(KINDS.HERBIVORE);
+    return clamp(
+      Math.floor(prey * 0.16),
+      6,
+      Math.max(6, Math.floor(sustainableSexualCapacity(KINDS.HERBIVORE) * 0.19)),
+    );
+  }
   const knows = (process) =>
       W.settlements.some(
         (s) =>

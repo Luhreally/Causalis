@@ -377,9 +377,13 @@ function chooseBehavior(id, tier) {
     return;
   }
   const senseRadius = clamp(Math.round(ph.sense), 2, 11),
-    huntableHerbivores = k === KINDS.PREDATOR ? biospherePopulation(KINDS.HERBIVORE) > 24 : true,
+    huntableHerbivores = k === KINDS.PREDATOR ? biospherePopulation(KINDS.HERBIVORE) > 8 : true,
     huntablePeople =
-      k === KINDS.PREDATOR ? !huntableHerbivores && biospherePopulation(KINDS.PERSON) > 10 : true,
+      k === KINDS.PREDATOR
+        ? !huntableHerbivores &&
+          biospherePopulation(KINDS.PERSON) > 10 &&
+          derivedLife(id).hunger > 70
+        : true,
     nearPred =
       k !== KINDS.PREDATOR
         ? nearbyIds(id, senseRadius, (o) => W.kind[o] === KINDS.PREDATOR && classifyAlive(o))
