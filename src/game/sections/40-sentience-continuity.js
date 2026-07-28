@@ -392,16 +392,16 @@ function sentientClusters() {
 function ensureParallelPeoples() {
   if (!W?.biosphere) return null;
   if (W.biosphere.emergencePlan && W.biosphere.emergencePlan.phase < 5) return null;
-  if (W.tick % 1024 !== 512) return null;
+  if (W.tick % 512 !== 256) return null;
   const state = initializeSentienceContinuity(),
     clusters = sentientClusters(),
     clusterCap = clamp(Math.floor(W.tileCount / 3300), 3, 8);
   if (!clusters.length || clusters.length >= clusterCap) return null;
   if (biospherePopulation(KINDS.PERSON) < 6) return null;
   const lonely = clusters.length === 1,
-    cooldown = lonely ? 8192 : 12288;
+    cooldown = lonely ? 3072 : 6144;
   if (W.tick - (state.lastParallelSeedTick ?? -Infinity) < cooldown) return null;
-  if (!lonely && counterRand("wild-sapience", Math.floor(W.tick / 1024)) > 0.35) return null;
+  if (!lonely && counterRand("wild-sapience", Math.floor(W.tick / 512)) > 0.55) return null;
   const separation = clamp(Math.floor(Math.min(W.width, W.height) * 0.55), 12, 40),
     sep2 = separation * separation,
     separated = sentientRecoverySites().filter((tile) => {
@@ -418,9 +418,11 @@ function ensureParallelPeoples() {
       [-1, 0],
       [0, -1],
       [1, 1],
+      [-1, 1],
+      [1, -1],
     ],
     seeded = [];
-  for (let n = 0; n < 6; n++) {
+  for (let n = 0; n < 8; n++) {
     const offset = ring[n % ring.length],
       tile = idx(clamp(cx + offset[0], 0, W.width - 1), clamp(cy + offset[1], 0, W.height - 1)),
       id = createArchivedSentientFounder(tile, n);

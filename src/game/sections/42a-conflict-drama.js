@@ -788,7 +788,10 @@ function resolveImplicitWarTurn(war, a, b) {
   }
   W.implicitMetrics.battles++;
   war.contactTurns = (war.contactTurns || 0) + 1;
-  if (war.contactTurns > 6 && !(war.casualties > 0 || (war.wounded || 0) > 0))
+  if (
+    war.contactTurns > 10 &&
+    !(war.casualties > 0 || (war.wounded || 0) > 0 || (war.siegeDamage || 0) > 0)
+  )
     return endWar(war, a, b, "a bloodless standoff proved neither side could reach the other");
   let casualties = 0;
   const previousEventId = W.events.at(-1)?.id || 0;
@@ -856,7 +859,10 @@ function resolveImplicitWarTurn(war, a, b) {
             left.integrity / left.maxIntegrity - right.integrity / right.maxIntegrity ||
             left.id - right.id,
         )[0];
-      if (wall && razeStrike(entry.id, target, wall, war)) breached++;
+      if (wall && razeStrike(entry.id, target, wall, war)) {
+        breached++;
+        war.siegeDamage = (war.siegeDamage || 0) + 1;
+      }
     }
   }
   const wallsStillBlocking =

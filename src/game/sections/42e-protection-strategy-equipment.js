@@ -1063,6 +1063,7 @@ function levyCampaignForce(war, plan, attacker, home) {
 }
 const resolveWarTurnPlannedBase = resolveWarTurn;
 resolveWarTurn = function (war, a, b) {
+  if (!war || war.ended) return;
   const settlementsA = W.settlements.filter(
       (settlement) => !settlement.ruined && settlement.factionId === a?.id,
     ),
