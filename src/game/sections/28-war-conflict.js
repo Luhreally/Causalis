@@ -368,8 +368,60 @@ function resolveWarTurn(war, a, b) {
   )
     endWar(war, a, b, target.ruined ? `${target.name} fell` : "casualties and food exhaustion");
 }
+function warFinalReckoning(war, a, b) {
+  const cause = war.lastEventId || war.startEventId || 0;
+  let count = 0,
+    eventId = 0;
+  for (const faction of [a, b]) {
+    if (!faction) continue;
+    const places = W.settlements.filter((s) => !s.ruined && s.factionId === faction.id);
+    if (!places.length) continue;
+    const seat = places.slice().sort((left, right) => left.id - right.id)[0],
+      ti = idx(clamp(seat.x, 0, W.width - 1), clamp(seat.y, 0, W.height - 1)),
+      toll = removeCohortWarCasualties(faction.id, 1 + (war.turns % 3), ti, cause);
+    count += toll.count;
+    eventId = toll.eventId || eventId;
+    if (toll.count) continue;
+    const exposed = W.activeIds
+      .filter(
+        (id) =>
+          W.kind[id] === KINDS.PERSON &&
+          classifyAlive(id) &&
+          (W.components.social[id]?.factionId || 0) === faction.id &&
+          W.components.position[id],
+      )
+      .sort(
+        (left, right) =>
+          dist2(
+            W.components.position[left].x,
+            W.components.position[left].y,
+            seat.x,
+            seat.y,
+          ) -
+            dist2(
+              W.components.position[right].x,
+              W.components.position[right].y,
+              seat.x,
+              seat.y,
+            ) || left - right,
+      );
+    if (!exposed.length) continue;
+    killEntity(exposed[0], "wounds taken in the closing skirmishes of the war", cause);
+    count++;
+    eventId = W.lastEventByType.DeathEvent || eventId;
+  }
+  return { count, eventId };
+}
 function endWar(war, a, b, reason) {
   if (!war || war.ended) return;
+  if (!(war.casualties > 0) && !((war.wounded || 0) > 0)) {
+    const reckoning = warFinalReckoning(war, a, b);
+    if (reckoning.count) {
+      war.casualties = (war.casualties || 0) + reckoning.count;
+      war.lastEventId = reckoning.eventId || war.lastEventId;
+      reason = `${reason} — but ${reckoning.count} still fell in the closing skirmishes`;
+    }
+  }
   war.ended = W.tick;
   war.endedTick = W.tick;
   war.endReason = reason;

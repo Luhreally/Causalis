@@ -810,6 +810,7 @@ function createWorld(options) {
       inventory: {},
       chemistry: {},
       structure: {},
+      campaign: {},
     },
     relations: { edges: [], byEntity: {} },
     cohorts: [],

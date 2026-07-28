@@ -2956,14 +2956,16 @@ const chooseBehaviorCognitionBase = chooseBehavior;
 chooseBehavior = function (id, tier) {
   const w = W.components.work?.[id],
     l = W.components.life[id],
+    conscript = W.kind[id] === KINDS.PERSON && !!W.components.campaign?.[id],
     unsafe = W.kind[id] === KINDS.PERSON && !workerReadyForLabor(id),
-    urgent = unsafe || l?.hunger > 55 || l?.thirst > 58 || l?.fatigue > 62;
+    urgent = unsafe || conscript || l?.hunger > 55 || l?.thirst > 58 || l?.fatigue > 62;
   if (
     w?.handledTick === W.tick ||
     (w &&
       w.task !== "idle" &&
       W.tick - (Number.isFinite(w.handledTick) ? w.handledTick : -Infinity) <= 4 &&
-      !unsafe)
+      !unsafe &&
+      !conscript)
   )
     return;
   if (tier === "detailed" && !urgent && W.tick % 2 !== id % 2) return;

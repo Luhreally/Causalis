@@ -608,6 +608,18 @@ function chooseBehavior(id, tier) {
       },
     );
   }
+  const campaignOrder = k === KINDS.PERSON ? W.components.campaign?.[id] : null;
+  if (campaignOrder && l.hunger < 78 && l.thirst < 70) {
+    const away = Math.max(Math.abs(campaignOrder.x - p.x), Math.abs(campaignOrder.y - p.y));
+    scores.push({
+      id: "march",
+      score: 140 + Math.min(90, away * 3),
+      reason:
+        campaignOrder.role === "attack"
+          ? "campaign orders carried the column toward the objective"
+          : "the muster fell back to hold the threatened settlement",
+    });
+  }
   if (W.tiles.fire[ti] > 90) {
     const forcedFlee = scores.find((candidate) => candidate.id === "flee");
     forcedFlee.score = 1e9;
@@ -695,7 +707,11 @@ function chooseBehavior(id, tier) {
   else if (action.id === "scavenge")
     performScavenge(id, nearCorpse) || (dir = bestDirection(id, "scavenge"));
   else if (action.id === "gather") performGather(id, ti) || (dir = bestDirection(id, "gather"));
-  else if (action.id === "return") dir = bestDirection(id, "return");
+  else if (action.id === "march") {
+    dir = campaignMarchStep(id);
+    if (l.hunger > 52) performFeeding(id, ti, actionStride) || feedFromAdjacent(id, actionStride);
+    if (l.thirst > 52) performDrinking(id, ti, actionStride) || drinkFromAdjacent(id, actionStride);
+  } else if (action.id === "return") dir = bestDirection(id, "return");
   else if (action.id === "socialize") performSocialInteraction(id);
   else if (action.id === "defend") dir = bestDirection(id, "defend");
   else if (action.id === "wander") dir = bestDirection(id, "wander");

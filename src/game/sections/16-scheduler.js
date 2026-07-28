@@ -16,6 +16,7 @@ function simTick() {
     updateDiseaseAndDecay();
     resolveEffects();
   }
+  if (W.tick % 16 === 0) updateCampaignOrders();
   if (W.tick % 32 === 0) {
     updateSettlements();
     updateCohorts();

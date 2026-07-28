@@ -660,6 +660,131 @@ function warCampaignRouteExists(attacker, defender) {
   }
   return false;
 }
+function campaignObjectiveFor(war) {
+  const a = W.factions.find((faction) => faction.id === war.a),
+    b = W.factions.find((faction) => faction.id === war.b);
+  if (!a || !b) return null;
+  const attacker = war.attackerId === b.id ? b : a,
+    defender = attacker === a ? b : a,
+    homes = W.settlements.filter((s) => !s.ruined && s.factionId === attacker.id),
+    targets = W.settlements.filter((s) => !s.ruined && s.factionId === defender.id);
+  if (!homes.length || !targets.length) return null;
+  const origin = homes.find((s) => s.id === attacker.capitalSettlementId) || homes[0],
+    objective = targets
+      .slice()
+      .sort(
+        (left, right) =>
+          dist2(left.x, left.y, origin.x, origin.y) - dist2(right.x, right.y, origin.x, origin.y) ||
+          left.id - right.id,
+      )[0];
+  return { attacker, defender, origin, objective };
+}
+function updateCampaignOrders() {
+  if (!W?.components) return;
+  const orders = W.components.campaign || (W.components.campaign = {}),
+    live = new Set();
+  for (const war of W.activeWars) {
+    if (war.ended) continue;
+    const scene = campaignObjectiveFor(war);
+    if (!scene) continue;
+    const { attacker, defender, objective } = scene,
+      plan = war.attackPlan;
+    if (plan && !plan.launchedTick) continue;
+    for (const unit of W.militaryUnits) {
+      if (!unit.active) continue;
+      const role =
+        unit.factionId === attacker.id ? "attack" : unit.factionId === defender.id ? "defend" : "";
+      if (!role) continue;
+      for (const id of unit.memberIds) {
+        if (!classifyAlive(id) || !W.components.position[id]) continue;
+        const existing = orders[id];
+        if (
+          !existing ||
+          existing.warId !== war.id ||
+          existing.x !== objective.x ||
+          existing.y !== objective.y
+        )
+          orders[id] = {
+            warId: war.id,
+            unitId: unit.id,
+            factionId: unit.factionId,
+            x: objective.x,
+            y: objective.y,
+            placeId: objective.id,
+            role,
+            issuedTick: W.tick,
+          };
+        live.add(id);
+        if (typeof clearStaleWork === "function") clearStaleWork(id);
+      }
+    }
+  }
+  for (const key of Object.keys(orders)) if (!live.has(Number(key))) delete orders[key];
+}
+function campaignMarchStep(id) {
+  const order = W.components.campaign?.[id],
+    p = W.components.position[id];
+  if (!order || !p) return [0, 0];
+  const dx = Math.sign(order.x - p.x),
+    dy = Math.sign(order.y - p.y);
+  if (!dx && !dy) return [0, 0];
+  const sails = typeof factionHasTech === "function" && factionHasTech(order.factionId, "navigation"),
+    passable = (x, y) =>
+      inside(x, y) &&
+      (sails || W.tiles.liquid[idx(x, y)] <= WATER_DEPTH.WADE_LIMIT) &&
+      W.tiles.fire[idx(x, y)] < 400,
+    lateral = Math.abs(order.x - p.x) >= Math.abs(order.y - p.y),
+    routes = lateral
+      ? [
+          [dx, dy],
+          [dx, 0],
+          [0, dy],
+          [dx, 1],
+          [dx, -1],
+        ]
+      : [
+          [dx, dy],
+          [0, dy],
+          [dx, 0],
+          [1, dy],
+          [-1, dy],
+        ];
+  for (const [sx, sy] of routes)
+    if ((sx || sy) && passable(p.x + sx, p.y + sy)) return [sx, sy];
+  const detours = [
+      [0, 1],
+      [1, 0],
+      [0, -1],
+      [-1, 0],
+    ],
+    pick = detours[Math.floor(counterRand("campaign-detour", W.tick, id) * 4) % 4];
+  return passable(p.x + pick[0], p.y + pick[1]) ? pick : [0, 0];
+}
+function campaignAttrition(war, fielded) {
+  if (!fielded.length) return 0;
+  let fallen = 0;
+  for (const id of fielded) {
+    const l = W.components.life[id];
+    if (!l) continue;
+    const strain =
+      6 + Math.max(0, l.hunger - 40) * 0.5 + Math.max(0, l.thirst - 40) * 0.5 + l.fatigue * 0.12;
+    l.fatigue = clamp(l.fatigue + 3, 0, 100);
+    l.integrity = Math.max(0, l.integrity - strain);
+    if (l.integrity < 1) {
+      killEntity(
+        id,
+        "campaign attrition on the march wore the body past recovery",
+        war.lastEventId || war.startEventId || 0,
+      );
+      fallen++;
+    } else if (l.integrity < 420) war.wounded = (war.wounded || 0) + 1;
+  }
+  if (fallen) {
+    war.casualties = (war.casualties || 0) + fallen;
+    war.lastEventId = W.lastEventByType.DeathEvent || war.lastEventId || war.startEventId;
+  }
+  return fallen;
+}
 function resolveImplicitWarTurn(war, a, b) {
   initializeConflictDrama();
   war.turns++;
@@ -751,39 +876,22 @@ function resolveImplicitWarTurn(war, a, b) {
       .map((id) => ({ id, u: combatUnitFor(id) || { training: 0 } }));
   if (!attackers.length) {
     war.marches = (war.marches || 0) + 1;
-    const marchers = W.militaryUnits
+    const fielded = W.militaryUnits
       .filter((unit) => unit.active && unit.factionId === attacker.id)
       .flatMap((unit) => unit.memberIds)
-      .filter((id) => classifyAlive(id))
-      .slice(0, 8);
-    for (const id of marchers) {
-      const p = W.components.position[id];
-      if (!p) continue;
-      for (let step = 0; step < 3; step++) {
-        const dx = Math.sign(battleX - p.x),
-          dy = Math.sign(battleY - p.y);
-        if (!dx && !dy) break;
-        const options = [
-          [p.x + dx, p.y + dy],
-          [p.x + dx, p.y],
-          [p.x, p.y + dy],
-        ].filter(
-          ([x, y]) =>
-            inside(x, y) &&
-            (dx || dy) &&
-            !(x === p.x && y === p.y) &&
-            (W.tiles.liquid[idx(x, y)] <= WATER_DEPTH.WADE_LIMIT ||
-              factionHasTech(attacker.id, "navigation")),
-        );
-        if (!options.length) break;
-        const [nx, ny] = options[0];
-        p.x = nx;
-        p.y = ny;
-        p.regionId = regionId(nx, ny);
-      }
+      .filter((id) => classifyAlive(id) && W.components.position[id]);
+    let closest = Infinity;
+    for (const id of fielded) {
+      const q = W.components.position[id];
+      closest = Math.min(closest, dist2(q.x, q.y, battleX, battleY));
     }
-    if (war.turns > 12)
-      return endWar(war, a, b, "mobilization exhausted before either force could sustain contact");
+    if (fielded.length && closest < (war.bestApproach ?? Infinity)) {
+      war.bestApproach = closest;
+      war.stalledTurns = 0;
+    } else war.stalledTurns = (war.stalledTurns || 0) + 1;
+    campaignAttrition(war, fielded);
+    if (war.stalledTurns > 8)
+      return endWar(war, a, b, "the column stalled short of contact and the levies broke up");
     return;
   }
   W.implicitMetrics.battles++;
