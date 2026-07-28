@@ -119,17 +119,17 @@ function runMetabolism(id, tier) {
   ch.q[C.GAS] -= exhaled;
   W.tiles.chem[C.GAS][ti] += exhaled;
   const organicReserveTarget =
-      W.kind[id] === KINDS.PERSON ? 110 : W.kind[id] === KINDS.PREDATOR ? 88 : 68,
+      W.kind[id] === KINDS.PERSON ? 150 : W.kind[id] === KINDS.PREDATOR ? 88 : 68,
     assimilatedOrganic = Math.min(
       d[C.ORGANIC],
-      4 * rate,
+      6 * rate,
       Math.max(0, organicReserveTarget - ch.q[C.ORGANIC]),
     );
   d[C.ORGANIC] -= assimilatedOrganic;
   ch.q[C.ORGANIC] += assimilatedOrganic;
-  const energyReserve = W.kind[id] === KINDS.PERSON ? 280 : 150;
+  const energyReserve = W.kind[id] === KINDS.PERSON ? 500 : 150;
   if (ch.q[C.ENERGY] < energyReserve) {
-    const intake = Math.min(10 * rate, d[C.ORGANIC], 65535 - ch.q[C.ORGANIC]);
+    const intake = Math.min(14 * rate, d[C.ORGANIC], 65535 - ch.q[C.ORGANIC]);
     d[C.ORGANIC] -= intake;
     ch.q[C.ORGANIC] += intake;
     const cat = Math.min(d[C.CATALYST], 2, 65535 - ch.q[C.CATALYST]);
@@ -137,7 +137,7 @@ function runMetabolism(id, tier) {
     ch.q[C.CATALYST] += cat;
     const structuralReserve = W.kind[id] === KINDS.PERSON ? 24 : 30,
       available = Math.max(0, ch.q[C.ORGANIC] - structuralReserve),
-      amount = Math.min(10 * rate, available);
+      amount = Math.min(14 * rate, available);
     if (amount > 0) executeProcess("digestion", inv, Math.max(1, Math.floor(amount / 2)));
   }
   const solventBudget =
@@ -519,7 +519,9 @@ function chooseBehavior(id, tier) {
         score:
           k === KINDS.PREDATOR
             ? 0
-            : l.hunger * 1.25 + tileFood(ti, k === KINDS.PERSON ? "omnivore" : "grazer"),
+            : l.hunger * 1.25 +
+              Math.max(0, l.hunger - 55) * 3 +
+              tileFood(ti, k === KINDS.PERSON ? "omnivore" : "grazer"),
         reason: "low accessible chemical energy",
       },
       {
