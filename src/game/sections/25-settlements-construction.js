@@ -195,17 +195,43 @@ function ruinSettlement(s, causes = [], evidence = "structural material failed")
   s.ruined = true;
   W.kind[s.entityId] = "ruin";
   const ti = idx(s.x, s.y),
+    yearsStood = Math.max(0, Math.round((W.tick - (s.foundedTick || 0)) / TICKS_PER_YEAR)),
+    population = settlementPopulation(s),
+    crafts = (s.knownProcesses || []).slice(),
     ev = emitEvent("SettlementDestroyedEvent", {
       subjects: [s.entityId],
       location: ti,
       factions: [s.factionId],
       causes: Array.isArray(causes) ? causes : [causes],
-      evidence: [evidence],
+      evidence: [
+        evidence,
+        `${s.name} stood ${yearsStood} year${yearsStood === 1 ? "" : "s"} and held ${population} people at the end`,
+        crafts.length
+          ? `its people practiced ${crafts.join(", ")}; that knowledge survives in the ruins and in memory`
+          : "its people never completed a lasting craft",
+      ],
       importance: 4,
-      data: { name: s.name },
+      data: { name: s.name, yearsStood, population, crafts: crafts.length },
     });
   s.importantEvents.push(ev.id);
   W.tiles.danger[ti] = u16(W.tiles.danger[ti] + 180);
+  const faction = W.factions.find((f) => f.id === s.factionId),
+    remaining = W.settlements.filter(
+      (x) => !x.ruined && x.factionId === s.factionId && x !== s,
+    ).length;
+  if (faction && !remaining)
+    emitEvent("FactionCollapsedEvent", {
+      subjects: [s.entityId],
+      location: ti,
+      factions: [s.factionId],
+      causes: [ev.id],
+      evidence: [
+        `the fall of ${s.name} ended the last settlement of ${faction.name}`,
+        `${(W.civilization?.legacyProcesses || []).length} crafts survive in the world's shared memory for whoever rises next`,
+      ],
+      importance: 5,
+      data: { name: faction.name, lastSettlement: s.name },
+    });
   return ev;
 }
 function updateSettlements() {

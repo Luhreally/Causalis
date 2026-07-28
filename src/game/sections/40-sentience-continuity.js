@@ -376,10 +376,74 @@ germinateRefuge = function (refuge, targetTile = null) {
     if (pool[sp] < before[sp]) pool[sp] += before[sp] - pool[sp];
   return id;
 };
+function sentientClusters() {
+  const clusters = [];
+  for (const id of livingSentientIds().sort((a, b) => a - b)) {
+    const p = W.components.position[id];
+    if (!p) continue;
+    let home = clusters.find((c) => dist2(c.x / c.n, c.y / c.n, p.x, p.y) <= 676);
+    if (!home) clusters.push((home = { x: 0, y: 0, n: 0 }));
+    home.x += p.x;
+    home.y += p.y;
+    home.n++;
+  }
+  return clusters.filter((c) => c.n >= 3);
+}
+function ensureParallelPeoples() {
+  if (!W?.biosphere) return null;
+  if (W.biosphere.emergencePlan && W.biosphere.emergencePlan.phase < 5) return null;
+  if (W.tick % 1024 !== 512) return null;
+  const state = initializeSentienceContinuity();
+  if (W.tick - (state.lastParallelSeedTick ?? -Infinity) < 8192) return null;
+  const clusters = sentientClusters();
+  if (clusters.length !== 1) return null;
+  if (biospherePopulation(KINDS.PERSON) < state.minimumViable) return null;
+  const anchor = clusters[0],
+    ax = anchor.x / anchor.n,
+    ay = anchor.y / anchor.n,
+    separated = sentientRecoverySites().filter((tile) => {
+      const [x, y] = xy(tile);
+      return dist2(x, y, ax, ay) > 1600;
+    });
+  if (!separated.length) return null;
+  const site = separated[0],
+    [cx, cy] = xy(site),
+    ring = [
+      [0, 0],
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+      [0, -1],
+      [1, 1],
+    ],
+    seeded = [];
+  for (let n = 0; n < 6; n++) {
+    const offset = ring[n % ring.length],
+      tile = idx(clamp(cx + offset[0], 0, W.width - 1), clamp(cy + offset[1], 0, W.height - 1)),
+      id = createArchivedSentientFounder(tile, n);
+    if (id) seeded.push(id);
+  }
+  if (!seeded.length) return null;
+  state.lastParallelSeedTick = W.tick;
+  emitEvent("AdaptationEvent", {
+    subjects: seeded.slice(0, 6),
+    location: site,
+    causes: [W.biosphere.emergenceEvents?.at(-1) || 0],
+    evidence: [
+      "an isolated band of people-level intelligence took root far from the surviving heartland",
+      "two peoples now walk the world; their histories will diverge",
+      `${(W.civilization?.legacyProcesses || []).length} remembered crafts await rediscovery in ruins and stories`,
+    ],
+    importance: 5,
+    data: { species: "people-level tool users", stage: "parallel emergence" },
+  });
+  return seeded;
+}
 const simTickSentienceBase = simTick;
 simTick = function () {
   simTickSentienceBase();
   ensureSentientContinuity();
+  ensureParallelPeoples();
 };
 const huntTargetScoreSentienceBase = huntTargetScore;
 huntTargetScore = function (id, target) {

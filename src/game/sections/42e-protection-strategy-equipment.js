@@ -1569,3 +1569,12 @@ window.ALIFE_PROTECTION_STRATEGY_DEBUG = Object.freeze({
     return building?.type === "farm" ? farmTiles(building) : [];
   },
 });
+
+const eventSentenceCollapseBase = eventSentence;
+eventSentence = function (e) {
+  if (e.type === "SettlementDestroyedEvent" && e.data?.yearsStood != null)
+    return `${e.data.name} fell after ${e.data.yearsStood} year${e.data.yearsStood === 1 ? "" : "s"} — ${e.evidence[0]}; ${e.data.crafts ? `${e.data.crafts} craft${e.data.crafts === 1 ? "" : "s"} pass into ruin and memory` : "no lasting craft survived it"}.`;
+  if (e.type === "FactionCollapsedEvent")
+    return `The ${e.data?.name || "fallen"} civilization passed into history with the fall of ${e.data?.lastSettlement || "its last settlement"}.`;
+  return eventSentenceCollapseBase(e);
+};

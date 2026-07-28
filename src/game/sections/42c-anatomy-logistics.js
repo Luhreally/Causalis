@@ -1036,7 +1036,8 @@ function personInDistress(id) {
   return (
     q[C.ENERGY] < 25 ||
     q[C.SOLVENT] < 14 ||
-    life.integrity < 150 ||
+    life.integrity < 300 ||
+    (life.wounds || []).some((w) => !w.treated && (w.bleed || 0) > 0) ||
     embodiedCapability(id).locomotion < 0.12
   );
 }
@@ -1061,14 +1062,37 @@ function performRescue(helper, victim) {
     hq[C.ORGANIC] -= organic;
     vd[C.ORGANIC] += organic;
   }
-  const aided = energy + solvent + organic > 0;
+  const wounds = life.wounds || [],
+    open = wounds.filter((w) => !w.treated && ((w.bleed || 0) > 0 || (w.severity || 0) > 0.2)),
+    aidPlace = open.length ? nearestFriendlyPlace(helper) : null,
+    medicineSupplied =
+      !!aidPlace?.knownProcesses?.includes("medicine") &&
+      (aidPlace.inventory?.[C.MEDICINE] || 0) > 0 &&
+      ((aidPlace.inventory[C.MEDICINE] -= 1), (vq[C.MEDICINE] = u16(vq[C.MEDICINE] + 1)), true);
+  let treated = 0;
+  for (const wound of open.slice(0, medicineSupplied ? open.length : 1)) {
+    wound.treated = true;
+    wound.bleed = medicineSupplied ? 0 : Math.max(0, (wound.bleed || 0) * 0.5);
+    treated++;
+  }
+  if (treated) life.pain = clamp((life.pain || 0) - (medicineSupplied ? 30 : 10), 0, 100);
+  const aided = energy + solvent + organic + treated > 0;
   if (aided && W.tick - (life.lastRescueAidTick ?? -999) >= 64) {
     life.lastRescueAidTick = W.tick;
     emitEvent("RescueEvent", {
       subjects: [helper, victim],
       location: idx(vp.x, vp.y),
       importance: 2,
-      evidence: ["a companion hand-delivered stored energy, solvent, and food"],
+      evidence: [
+        "a companion hand-delivered stored energy, solvent, and food",
+        ...(treated
+          ? [
+              medicineSupplied
+                ? `open wounds were dressed with conserved medicine from ${aidPlace.name}`
+                : "open wounds were staunched by hand with no medicine to spare",
+            ]
+          : []),
+      ],
     });
   }
   if (embodiedCapability(victim).locomotion < 0.12) {

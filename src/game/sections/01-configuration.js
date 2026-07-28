@@ -264,6 +264,7 @@ const EVENT_CATEGORY = Object.freeze({
   RevengeAttemptEvent: "people",
   LimbLostEvent: "people",
   RescueEvent: "people",
+  FactionCollapsedEvent: "factions",
   FireSuppressedEvent: "settlements",
   WatercraftLaunchedEvent: "technology",
   EquipmentCraftedEvent: "technology",
