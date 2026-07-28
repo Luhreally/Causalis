@@ -119,7 +119,7 @@ function runMetabolism(id, tier) {
   ch.q[C.GAS] -= exhaled;
   W.tiles.chem[C.GAS][ti] += exhaled;
   const organicReserveTarget =
-      W.kind[id] === KINDS.PERSON ? 76 : W.kind[id] === KINDS.PREDATOR ? 88 : 68,
+      W.kind[id] === KINDS.PERSON ? 110 : W.kind[id] === KINDS.PREDATOR ? 88 : 68,
     assimilatedOrganic = Math.min(
       d[C.ORGANIC],
       4 * rate,
@@ -127,7 +127,7 @@ function runMetabolism(id, tier) {
     );
   d[C.ORGANIC] -= assimilatedOrganic;
   ch.q[C.ORGANIC] += assimilatedOrganic;
-  const energyReserve = W.kind[id] === KINDS.PERSON ? 200 : 150;
+  const energyReserve = W.kind[id] === KINDS.PERSON ? 280 : 150;
   if (ch.q[C.ENERGY] < energyReserve) {
     const intake = Math.min(10 * rate, d[C.ORGANIC], 65535 - ch.q[C.ORGANIC]);
     d[C.ORGANIC] -= intake;

@@ -40,14 +40,14 @@ function updateFeatureEcology() {
         if (
           t.featureStrength[i] > 260 &&
           !t.fire[i] &&
-          t.chem[C.ORGANIC][i] < 260 &&
+          t.chem[C.ORGANIC][i] < 380 &&
           t.liquid[i] < 1600
         ) {
           const photosynthesis = reactionById("photosynthesis"),
             made = executeProcess(
               "photosynthesis",
               invTile(i),
-              1 + Math.floor(t.featureStrength[i] / 340),
+              2 + Math.floor(t.featureStrength[i] / 250),
               {
                 externalEnergy: photosynthesis?.externalEnergyRequirement || 0,
                 externalFlux: W.laws.solarFlux,
