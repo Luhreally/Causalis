@@ -1004,6 +1004,63 @@ function updateAttackPlan(war) {
   return plan;
 }
 
+function levyCampaignForce(war, plan, attacker, home) {
+  const fieldable = [];
+  for (const id of W.activeIds) {
+    if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
+    if ((W.components.social[id]?.factionId || 0) !== attacker.id) continue;
+    const locomotion =
+      typeof embodiedCapability === "function" ? embodiedCapability(id).locomotion : 1;
+    if (locomotion >= 0.42) fieldable.push(id);
+  }
+  if (fieldable.length < 2) return false;
+  fieldable.sort((x, y) => x - y);
+  let unit = W.militaryUnits
+    .filter((u) => u.active && u.factionId === attacker.id)
+    .sort((x, y) => y.memberIds.length - x.memberIds.length || x.id - y.id)[0];
+  if (!unit) {
+    unit = {
+      id: Math.max(0, ...W.militaryUnits.map((u) => u.id || 0)) + 1,
+      factionId: attacker.id,
+      homeSettlementId: home?.id || 0,
+      memberIds: [],
+      training: 0.2,
+      supply: 0.6,
+      morale: 0.6,
+      objectiveSettlementId: plan.targetSettlementId || 0,
+      formedTick: W.tick,
+      lastBattleTick: 0,
+      phase: "mustering",
+      phaseDetail: "an emergency levy answered the horns",
+      phaseTick: W.tick,
+      lastProgressTick: W.tick,
+      stalledTicks: 0,
+      active: true,
+    };
+    W.militaryUnits.push(unit);
+  }
+  for (const id of fieldable) {
+    if (unit.memberIds.length >= Math.max(plan.minimumFighters || 2, 4)) break;
+    if (!unit.memberIds.includes(id)) unit.memberIds.push(id);
+  }
+  if (unit.memberIds.filter(classifyAlive).length < 2) return false;
+  plan.launchedTick = W.tick || 1;
+  const anchor = home || { x: W.components.position[unit.memberIds[0]]?.x || 0, y: 0 },
+    event = emitEvent("MilitaryPhaseEvent", {
+      subjects: unit.memberIds.slice(0, 4),
+      location: idx(anchor.x || 0, anchor.y || 0),
+      factions: [attacker.id],
+      causes: [war.startEventId].filter(Boolean),
+      evidence: [
+        "the launch window closed with the standing muster short",
+        `an emergency levy conscripted ${unit.memberIds.length} fieldable adults to carry the campaign`,
+      ],
+      importance: 3,
+      data: { phase: "levy", warId: war.id },
+    });
+  war.lastEventId = event.id || war.lastEventId;
+  return true;
+}
 const resolveWarTurnPlannedBase = resolveWarTurn;
 resolveWarTurn = function (war, a, b) {
   const settlementsA = W.settlements.filter(
@@ -1016,6 +1073,13 @@ resolveWarTurn = function (war, a, b) {
     return endWar(war, a, b, "political collapse before mobilization");
   const plan = updateAttackPlan(war);
   if (plan && !plan.launchedTick) {
+    if (W.tick >= plan.latestLaunchTick && typeof factionFieldableFighters === "function") {
+      const attacker = W.factions.find((faction) => faction.id === plan.attackerId) || a,
+        home = (attacker.id === a.id ? settlementsA : settlementsB)[0];
+      if (factionFieldableFighters(attacker) >= 2)
+        levyCampaignForce(war, plan, attacker, home);
+    }
+    if (plan.launchedTick) return resolveWarTurnPlannedBase(war, a, b);
     if (W.tick > plan.latestLaunchTick + 512)
       return endWar(war, a, b, "mobilization failed to meet a viable launch window");
     return;
@@ -1087,7 +1151,7 @@ function refreshWarfare() {
       )
       .sort((left, right) => right.pressure - left.pressure)
       .slice(0, 5);
-  DOM.warfarePane.innerHTML = `<div class="eyebrow">Operational intelligence</div><h3 style="margin:5px 0">Army attack plans</h3><p class="muted">Launch dates are real simulation gates. Armies wait for people, supplies, training, equipment, health, and a reachable objective; after launch, their tactics respond to contact and structures.</p>${active.length ? active.map(campaignCard).join("") : `<div class="empty">No army is preparing an attack. Hostile pressure and defensive musters still appear below.</div>`}${tensions.length ? `<div class="subhead">Hostile pressure before war</div>${tensions.map((entry) => `<div class="faction-row"><div class="row between"><b>${esc(entry.faction.name)} ↔ ${esc(entry.other?.name || "unknown")}</b><span class="tag gold">${Math.round(entry.pressure)} pressure</span></div><small class="muted">War begins only if pressure exceeds the political threshold and both sides can field material military strength.</small></div>`).join("")}` : ""}${ended.length ? `<details><summary>Recently ended wars · ${ended.length}</summary>${ended.map((war) => `<div class="faction-row"><b>War #${war.id}</b><small class="muted">Ended tick ${war.ended.toLocaleString()} · ${war.wounded == null ? `${war.casualties || 0} dead · fought before the casualty reform` : `${war.casualties || 0} dead · ${war.wounded} wounded`} · ${war.contactTurns || 0} contact turns</small></div>`).join("")}</details>` : ""}`;
+  DOM.warfarePane.innerHTML = `<div class="eyebrow">Operational intelligence</div><h3 style="margin:5px 0">Army attack plans</h3><p class="muted">Launch dates are real simulation gates. Armies wait for people, supplies, training, equipment, health, and a reachable objective; after launch, their tactics respond to contact and structures.</p>${active.length ? active.map(campaignCard).join("") : `<div class="empty">No army is preparing an attack. Hostile pressure and defensive musters still appear below.</div>`}${tensions.length ? `<div class="subhead">Hostile pressure before war</div>${tensions.map((entry) => `<div class="faction-row"><div class="row between"><b>${esc(entry.faction.name)} ↔ ${esc(entry.other?.name || "unknown")}</b><span class="tag gold">${Math.round(entry.pressure)} pressure</span></div><small class="muted">War begins only if pressure exceeds the political threshold and both sides can field material military strength.</small></div>`).join("")}` : ""}${ended.length ? `<details><summary>Recently ended wars · ${ended.length}</summary>${ended.map((war) => `<div class="faction-row"><b>War #${war.id}</b><small class="muted">Ended tick ${war.ended.toLocaleString()} · ${war.wounded == null ? `${war.casualties || 0} dead · fought before the casualty reform` : `${war.casualties || 0} dead · ${war.wounded} wounded`} · ${war.contactTurns || 0} contact turns${war.endReason ? ` · ${esc(war.endReason)}` : ""}</small></div>`).join("")}</details>` : ""}`;
 }
 
 EQUIPMENT_PURPOSES.add("helmet");
