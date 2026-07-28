@@ -127,10 +127,12 @@ function tileFood(i, metabolism = "grazer") {
   }
   const compat = metabolism === "grazer" ? 1 : metabolism === "omnivore" ? 0.72 : 0.2,
     n = ecologicalNicheAt(i),
-    edibleNicheFood = n.food * clamp(q[C.ORGANIC][i] / 40, 0, 1);
+    edibleNicheFood = n.food * clamp(q[C.ORGANIC][i] / 40, 0, 1),
+    detritus = Math.min(6, q[C.ORGANIC][i] / 12);
   return clamp(
     ((Math.min(q[C.ORGANIC][i], q[C.ENERGY][i] * 1.4) * W.tiles.plantOrder[i]) / 9000 +
-      edibleNicheFood) *
+      edibleNicheFood +
+      detritus) *
       compat,
     0,
     100,

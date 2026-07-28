@@ -389,7 +389,9 @@ function chooseBehavior(id, tier) {
         ? nearbyIds(id, senseRadius, (o) => W.kind[o] === KINDS.PREDATOR && classifyAlive(o))
         : [],
     nearPrey =
-      k === KINDS.PREDATOR
+      k === KINDS.PERSON
+        ? nearbyIds(id, senseRadius, (o) => W.kind[o] === KINDS.HERBIVORE && classifyAlive(o))
+        : k === KINDS.PREDATOR
         ? nearbyIds(
             id,
             senseRadius,
@@ -537,6 +539,12 @@ function chooseBehavior(id, tier) {
         reason: "stored matter permits reproduction",
       },
     ];
+  if (k === KINDS.PERSON && nearPrey.length)
+    scores.push({
+      id: "hunt",
+      score: l.hunger * 0.9 + nearPrey.length * 12 + targetProximity * 40,
+      reason: "hunger and nearby game made a hunt worth the risk",
+    });
   if (k === KINDS.PREDATOR)
     scores.push(
       {
@@ -720,7 +728,7 @@ function performFeeding(id, tile, stride = 1) {
   const k = W.kind[id],
     available = tileFood(tile, k === KINDS.PERSON ? "omnivore" : "grazer");
   if (k === KINDS.PREDATOR) return false;
-  if (available < 3) return false;
+  if (available < 0.5) return false;
   const inv = W.components.inventory[id].digestive,
     amount = Math.min(
       18 * stride,
