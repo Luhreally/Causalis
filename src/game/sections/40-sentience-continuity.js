@@ -394,13 +394,14 @@ function ensureParallelPeoples() {
   if (W.biosphere.emergencePlan && W.biosphere.emergencePlan.phase < 5) return null;
   if (W.tick % 1024 !== 512) return null;
   const state = initializeSentienceContinuity(),
-    clusters = sentientClusters();
-  if (!clusters.length || clusters.length >= 4) return null;
+    clusters = sentientClusters(),
+    clusterCap = clamp(Math.floor(W.tileCount / 3300), 3, 8);
+  if (!clusters.length || clusters.length >= clusterCap) return null;
   if (biospherePopulation(KINDS.PERSON) < state.minimumViable) return null;
   const lonely = clusters.length === 1,
-    cooldown = lonely ? 8192 : 16384;
+    cooldown = lonely ? 8192 : 12288;
   if (W.tick - (state.lastParallelSeedTick ?? -Infinity) < cooldown) return null;
-  if (!lonely && counterRand("wild-sapience", Math.floor(W.tick / 1024)) > 0.3) return null;
+  if (!lonely && counterRand("wild-sapience", Math.floor(W.tick / 1024)) > 0.35) return null;
   const separated = sentientRecoverySites().filter((tile) => {
     const [x, y] = xy(tile);
     return clusters.every((c) => dist2(x, y, c.x / c.n, c.y / c.n) > 1600);
