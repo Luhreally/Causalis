@@ -181,6 +181,12 @@ function detailedCombatExchange(attacker, victim, context = {}) {
     ap = W.components.position[attacker],
     vp = W.components.position[victim];
   if (!a || !v || !ap || !vp) return 0;
+  const engagementRange = attackerRangedTier(attacker) ? 36 : 2;
+  if (!context.force && dist2(ap.x, ap.y, vp.x, vp.y) > engagementRange) {
+    if (W.kind[attacker] === KINDS.PERSON && typeof moveWorkerToward === "function")
+      moveWorkerToward(attacker, idx(vp.x, vp.y), "fight", "closing with an opponent");
+    return 0;
+  }
   const cooldown = context.internal ? 10 : 5;
   if (!context.force && W.tick - (a.life.lastMilitaryAttackTick ?? -999) < cooldown) return 0;
   a.life.lastMilitaryAttackTick = W.tick;

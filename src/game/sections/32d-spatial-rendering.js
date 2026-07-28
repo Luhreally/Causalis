@@ -415,6 +415,13 @@ function drawCreatureGlyph(
     g.ellipse(s.x, s.y, r * 1.15, r * 0.85, 0, 0, Math.PI * 2);
     g.fill();
     g.stroke();
+    if (!corpse && W.kind[id] === KINDS.PREDATOR) {
+      g.strokeStyle = hsl(4, 85, 58, 0.75);
+      g.lineWidth = 0.9;
+      g.beginPath();
+      g.ellipse(s.x, s.y, r * 1.5, r * 1.1, 0, 0, Math.PI * 2);
+      g.stroke();
+    }
     drawEmotionGlyph(g, id, s, r, now, portrait);
     return r;
   }
@@ -437,6 +444,23 @@ function drawCreatureGlyph(
   drawCreatureModelShape(g, m, phase, qualityDetail, { primary, secondary, accent, outline });
   drawLostLimbStumps(g, id, m, qualityDetail, { primary, secondary, accent, outline });
   g.restore();
+  if (!corpse && W.kind[id] === KINDS.PREDATOR) {
+    const hunting = !!W.components.life[id]?.preyTargetId,
+      pulse = hunting ? 0.5 + 0.5 * Math.sin(now * 0.012 + (id % 17)) : 0;
+    g.strokeStyle = hsl(4, 85, 58, hunting ? 0.55 + 0.4 * pulse : 0.4);
+    g.lineWidth = hunting ? 1.8 : 1.1;
+    g.beginPath();
+    g.ellipse(
+      s.x,
+      s.y + r * 0.34 - hover,
+      r * (1.3 + pulse * 0.35),
+      r * (0.52 + pulse * 0.14),
+      0,
+      0,
+      Math.PI * 2,
+    );
+    g.stroke();
+  }
   if (life?.infected) {
     g.fillStyle = hsl(294, 72, 67, 0.9);
     g.beginPath();
