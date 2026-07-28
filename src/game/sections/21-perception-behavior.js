@@ -388,9 +388,19 @@ function chooseBehavior(id, tier) {
       k !== KINDS.PREDATOR
         ? nearbyIds(id, senseRadius, (o) => W.kind[o] === KINDS.PREDATOR && classifyAlive(o))
         : [],
+    wildGameSustains = k === KINDS.PERSON ? biospherePopulation(KINDS.HERBIVORE) > 20 : false,
     nearPrey =
       k === KINDS.PERSON
-        ? nearbyIds(id, senseRadius, (o) => W.kind[o] === KINDS.HERBIVORE && classifyAlive(o))
+        ? wildGameSustains
+          ? nearbyIds(
+              id,
+              senseRadius,
+              (o) =>
+                W.kind[o] === KINDS.HERBIVORE &&
+                classifyAlive(o) &&
+                !(typeof herdForAnimal === "function" && herdForAnimal(o)),
+            )
+          : []
         : k === KINDS.PREDATOR
         ? nearbyIds(
             id,
