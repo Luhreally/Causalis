@@ -138,6 +138,9 @@ function updateDiplomacyAndWar() {
       if (
         rel.pressure > 105 &&
         Math.min(a.militaryStrength, b.militaryStrength) > 3 &&
+        typeof factionFieldableFighters === "function" &&
+        factionFieldableFighters(a) >= 2 &&
+        factionFieldableFighters(b) >= 2 &&
         typeof warCampaignRouteExists === "function" &&
         (warCampaignRouteExists(a, b) || warCampaignRouteExists(b, a))
       ) {

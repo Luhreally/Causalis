@@ -617,6 +617,18 @@ function captureSettlementCausally(target, attacker, defender, war, attackers) {
   return ev;
 }
 
+function factionFieldableFighters(faction) {
+  if (!faction) return 0;
+  let fighters = 0;
+  for (const id of W.activeIds) {
+    if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
+    if ((W.components.social[id]?.factionId || 0) !== faction.id) continue;
+    const locomotion =
+      typeof embodiedCapability === "function" ? embodiedCapability(id).locomotion : 1;
+    if (locomotion >= 0.42) fighters++;
+  }
+  return fighters;
+}
 function warCampaignRouteExists(attacker, defender) {
   const origins = W.settlements.filter(
       (s) => !s.ruined && s.factionId === attacker.id,
@@ -661,6 +673,8 @@ function resolveImplicitWarTurn(war, a, b) {
   if (!settlementsA.length || !settlementsB.length) return endWar(war, a, b, "political collapse");
   if (war.turns === 1 && !warCampaignRouteExists(a, b) && !warCampaignRouteExists(b, a))
     return endWar(war, a, b, "no campaign route existed between the belligerents");
+  if (factionFieldableFighters(a) < 2 || factionFieldableFighters(b) < 2)
+    return endWar(war, a, b, "neither polity could field enough fighters to shed blood");
   const combinedPopulation = a.population + b.population;
   if (war.turns > 4 && war.startPopulation && combinedPopulation < war.startPopulation * 0.72)
     return endWar(war, a, b, "attrition and desertion exhausted both polities");
