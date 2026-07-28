@@ -341,8 +341,13 @@ function buildingTerrainFootprintValid(type, x, y) {
       const tx = x + dx,
         ty = y + dy;
       if (!inside(tx, ty)) return false;
-      const tile = idx(tx, ty);
-      if (W.tiles.fire[tile] >= 200 || W.tiles.liquid[tile] >= (type === "farm" ? 220 : 700))
+      const tile = idx(tx, ty),
+        naturalWater = W.tiles.hydrologyBase?.[tile] ?? 0;
+      if (
+        W.tiles.fire[tile] >= 200 ||
+        W.tiles.liquid[tile] > (type === "farm" ? 140 : WATER_DEPTH.SHALLOW) ||
+        naturalWater > WATER_DEPTH.SHALLOW
+      )
         return false;
     }
   return true;

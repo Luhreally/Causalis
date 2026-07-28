@@ -1016,6 +1016,116 @@ function updateFirefighting() {
   }
 }
 
+function updateWaterloggedBuildings() {
+  if (W.tick % 32 !== 12) return;
+  for (const b of W.buildings || []) {
+    if (b.ruined || !b.complete) continue;
+    const tile = idx(b.x, b.y),
+      naturalWater = W.tiles.hydrologyBase?.[tile] ?? 0;
+    if (W.tiles.liquid[tile] <= WATER_DEPTH.SHALLOW && naturalWater <= WATER_DEPTH.SHALLOW)
+      continue;
+    b.integrity = Math.max(0, b.integrity - 12);
+    if (b.integrity <= 0)
+      collapseBuilding(b, "persistent standing water dissolved the structure's footings");
+  }
+}
+function personInDistress(id) {
+  const life = W.components.life[id],
+    q = W.components.chemistry[id]?.q;
+  if (!life || !q) return false;
+  return (
+    q[C.ENERGY] < 25 ||
+    q[C.SOLVENT] < 14 ||
+    life.integrity < 150 ||
+    embodiedCapability(id).locomotion < 0.12
+  );
+}
+function performRescue(helper, victim) {
+  const hp = W.components.position[helper],
+    vp = W.components.position[victim];
+  if (!hp || !vp) return false;
+  if (dist2(hp.x, hp.y, vp.x, vp.y) > 2)
+    return moveWorkerToward(helper, idx(vp.x, vp.y), "rescue", "hurrying to a collapsed companion");
+  const hq = W.components.chemistry[helper].q,
+    vq = W.components.chemistry[victim].q,
+    vd = W.components.inventory[victim]?.digestive,
+    life = W.components.life[victim],
+    energy = Math.min(24, Math.max(0, hq[C.ENERGY] - 140)),
+    solvent = Math.min(24, Math.max(0, hq[C.SOLVENT] - 110)),
+    organic = vd ? Math.min(10, Math.max(0, hq[C.ORGANIC] - 40)) : 0;
+  hq[C.ENERGY] -= energy;
+  vq[C.ENERGY] += energy;
+  hq[C.SOLVENT] -= solvent;
+  vq[C.SOLVENT] += solvent;
+  if (organic) {
+    hq[C.ORGANIC] -= organic;
+    vd[C.ORGANIC] += organic;
+  }
+  const aided = energy + solvent + organic > 0;
+  if (aided && W.tick - (life.lastRescueAidTick ?? -999) >= 64) {
+    life.lastRescueAidTick = W.tick;
+    emitEvent("RescueEvent", {
+      subjects: [helper, victim],
+      location: idx(vp.x, vp.y),
+      importance: 2,
+      evidence: ["a companion hand-delivered stored energy, solvent, and food"],
+    });
+  }
+  if (embodiedCapability(victim).locomotion < 0.12) {
+    const home = nearestFriendlyPlace(victim);
+    if (home && Math.max(Math.abs(vp.x - home.x), Math.abs(vp.y - home.y)) > 1) {
+      queueEffect(
+        "MoveEntity",
+        {
+          entityId: victim,
+          x: clamp(vp.x + Math.sign(home.x - vp.x), 0, W.width - 1),
+          y: clamp(vp.y + Math.sign(home.y - vp.y), 0, W.height - 1),
+          forced: true,
+        },
+        victim,
+      );
+      moveWorkerToward(helper, idx(home.x, home.y), "rescue", "carrying a companion home");
+    }
+  }
+  return aided;
+}
+function updatePersonRescue() {
+  if (W.tick % 4 !== 2) return;
+  const people = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id)),
+    busyHelpers = new Set();
+  let rescues = 0;
+  for (const victim of people) {
+    if (rescues >= 6) break;
+    if (!personInDistress(victim)) continue;
+    const vp = W.components.position[victim];
+    if (!vp) continue;
+    const helper = people
+      .filter((id) => {
+        if (id === victim || busyHelpers.has(id)) return false;
+        const q = W.components.chemistry[id]?.q,
+          l = derivedLife(id),
+          p = W.components.position[id];
+        return (
+          p &&
+          q &&
+          !personInDistress(id) &&
+          l.hunger < 70 &&
+          l.thirst < 75 &&
+          q[C.ENERGY] > 150 &&
+          embodiedCapability(id).locomotion >= 0.42 &&
+          dist2(p.x, p.y, vp.x, vp.y) <= 100
+        );
+      })
+      .sort((a, b) => {
+        const pa = W.components.position[a],
+          pb = W.components.position[b];
+        return dist2(pa.x, pa.y, vp.x, vp.y) - dist2(pb.x, pb.y, vp.x, vp.y) || a - b;
+      })[0];
+    if (!helper) continue;
+    busyHelpers.add(helper);
+    if (performRescue(helper, victim)) rescues++;
+  }
+}
 function ensurePrimitiveEquipment() {
   if (W.tick % 4) return;
   for (const unit of W.militaryUnits || []) {
@@ -1635,6 +1745,8 @@ simTick = function () {
   simTickAnatomyBase();
   if (!W) return;
   updateFirefighting();
+  updatePersonRescue();
+  updateWaterloggedBuildings();
   ensurePrimitiveEquipment();
   updateEmbodiedRecovery();
   if (W.tick % 8 === 0)
