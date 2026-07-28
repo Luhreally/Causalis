@@ -3197,8 +3197,8 @@ function placeHasFacility(place, type) {
   return completedBuildings(place, type).length > 0;
 }
 const performFeedingSocietyBase = performFeeding;
-performFeeding = function (id, tile) {
-  if (performFeedingSocietyBase(id, tile)) return true;
+performFeeding = function (id, tile, stride = 1) {
+  if (performFeedingSocietyBase(id, tile, stride)) return true;
   if (W.kind[id] !== KINDS.PERSON) return false;
   const place = nearestFriendlyPlace(id),
     p = W.components.position[id];
@@ -3211,7 +3211,7 @@ performFeeding = function (id, tile) {
     [C.NUTRIENT, 8],
     [C.CATALYST, 2],
   ]) {
-    const amount = Math.min(limit, place.inventory[sp] || 0, 65535 - digestive[sp]);
+    const amount = Math.min(limit * stride, place.inventory[sp] || 0, 65535 - digestive[sp]);
     place.inventory[sp] -= amount;
     digestive[sp] += amount;
     moved += amount;
@@ -3223,15 +3223,15 @@ performFeeding = function (id, tile) {
   return false;
 };
 const performDrinkingSocietyBase = performDrinking;
-performDrinking = function (id, tile) {
-  if (performDrinkingSocietyBase(id, tile)) return true;
+performDrinking = function (id, tile, stride = 1) {
+  if (performDrinkingSocietyBase(id, tile, stride)) return true;
   if (W.kind[id] !== KINDS.PERSON) return false;
   const place = nearestFriendlyPlace(id),
     p = W.components.position[id],
     body = W.components.chemistry[id].q;
   if (!place || dist2(p.x, p.y, place.x, place.y) > 8 * 8 || !place.inventory[C.SOLVENT])
     return false;
-  const amount = Math.min(42, place.inventory[C.SOLVENT], 65535 - body[C.SOLVENT]);
+  const amount = Math.min(42 * stride, place.inventory[C.SOLVENT], 65535 - body[C.SOLVENT]);
   place.inventory[C.SOLVENT] -= amount;
   body[C.SOLVENT] += amount;
   if (amount) W.components.life[id].behaviorReason = `drank conserved solvent from ${place.name}`;

@@ -621,10 +621,11 @@ function chooseBehavior(id, tier) {
   l.behavior = action.id;
   l.behaviorReason = action.reason;
   let dir = [0, 0];
+  const actionStride = simulationStrideForTier(tier);
   if (action.id === "flee") {
     dir = waterEscape ? bestWaterEscapeDirection(id) : bestDirection(id, "flee");
-    if (l.hunger > 88) performFeeding(id, ti) || feedFromAdjacent(id);
-    if (l.thirst > 88) performDrinking(id, ti) || drinkFromAdjacent(id);
+    if (l.hunger > 88) performFeeding(id, ti, actionStride) || feedFromAdjacent(id, actionStride);
+    if (l.thirst > 88) performDrinking(id, ti, actionStride) || drinkFromAdjacent(id, actionStride);
     const made = executeProcess("fear_signal", invEntity(id), 2);
     if (made) {
       const q = W.components.chemistry[id].q,
@@ -654,7 +655,7 @@ function chooseBehavior(id, tier) {
       dir = [Math.sign(mp.x - p.x), Math.sign(mp.y - p.y)];
     } else dir = bestDirection(id, "migrate");
   } else if (action.id === "food") {
-    if (!performFeeding(id, ti) && !feedFromAdjacent(id)) {
+    if (!performFeeding(id, ti, actionStride) && !feedFromAdjacent(id, actionStride)) {
       dir = bestDirection(id, "food");
       if (
         (!dir[0] && !dir[1]) ||
@@ -665,7 +666,9 @@ function chooseBehavior(id, tier) {
       }
     }
   } else if (action.id === "water")
-    performDrinking(id, ti) || drinkFromAdjacent(id) || (dir = bestDirection(id, "water"));
+    performDrinking(id, ti, actionStride) ||
+      drinkFromAdjacent(id, actionStride) ||
+      (dir = bestDirection(id, "water"));
   else if (action.id === "hunt") performHunt(id, nearPrey) || (dir = bestDirection(id, "hunt"));
   else if (action.id === "scavenge")
     performScavenge(id, nearCorpse) || (dir = bestDirection(id, "scavenge"));
@@ -709,20 +712,20 @@ function chooseBehavior(id, tier) {
   }
   if (k === KINDS.PERSON) W.tiles.habitation[ti] = u16(W.tiles.habitation[ti] + 1);
 }
-function performFeeding(id, tile) {
+function performFeeding(id, tile, stride = 1) {
   const k = W.kind[id],
     available = tileFood(tile, k === KINDS.PERSON ? "omnivore" : "grazer");
   if (k === KINDS.PREDATOR) return false;
   if (available < 3) return false;
   const inv = W.components.inventory[id].digestive,
     amount = Math.min(
-      18,
+      18 * stride,
       W.tiles.chem[C.ORGANIC][tile],
-      Math.floor(available / 2) + 2,
+      (Math.floor(available / 2) + 2) * stride,
       65535 - inv[C.ORGANIC],
     ),
-    energy = Math.min(12, W.tiles.chem[C.ENERGY][tile], 65535 - inv[C.ENERGY]),
-    nutrient = Math.min(8, W.tiles.chem[C.NUTRIENT][tile], 65535 - inv[C.NUTRIENT]);
+    energy = Math.min(12 * stride, W.tiles.chem[C.ENERGY][tile], 65535 - inv[C.ENERGY]),
+    nutrient = Math.min(8 * stride, W.tiles.chem[C.NUTRIENT][tile], 65535 - inv[C.NUTRIENT]);
   if (!amount) return false;
   W.tiles.chem[C.ORGANIC][tile] -= amount;
   W.tiles.chem[C.ENERGY][tile] -= energy;
@@ -730,28 +733,28 @@ function performFeeding(id, tile) {
   inv[C.ORGANIC] += amount;
   inv[C.ENERGY] += energy;
   inv[C.NUTRIENT] += nutrient;
-  const cat = Math.min(2, W.tiles.chem[C.CATALYST][tile], 65535 - inv[C.CATALYST]);
+  const cat = Math.min(2 * stride, W.tiles.chem[C.CATALYST][tile], 65535 - inv[C.CATALYST]);
   W.tiles.chem[C.CATALYST][tile] -= cat;
   inv[C.CATALYST] += cat;
   for (const [species, limit] of [
     [C.INFO, 1],
     [C.MEMBRANE, 2],
   ]) {
-    const moved = Math.min(limit, tileMatterAmount(tile, species), 65535 - inv[species]);
+    const moved = Math.min(limit * stride, tileMatterAmount(tile, species), 65535 - inv[species]);
     setTileMatterAmount(tile, species, tileMatterAmount(tile, species) - moved);
     inv[species] += moved;
   }
   W.tiles.plantOrder[tile] = u16(W.tiles.plantOrder[tile] - amount);
   return true;
 }
-function performDrinking(id, tile) {
+function performDrinking(id, tile, stride = 1) {
   const available = W.tiles.chem[C.SOLVENT][tile],
     ch = W.components.chemistry[id];
   if (available < 10 || ch.q[C.SOLVENT] > 600) return false;
-  const amount = Math.min(35, available, 65535 - ch.q[C.SOLVENT]);
+  const amount = Math.min(35 * stride, available, 65535 - ch.q[C.SOLVENT]);
   W.tiles.chem[C.SOLVENT][tile] -= amount;
   ch.q[C.SOLVENT] += amount;
-  const oxidant = Math.min(10, W.tiles.chem[C.OXIDANT][tile], 65535 - ch.q[C.OXIDANT]);
+  const oxidant = Math.min(10 * stride, W.tiles.chem[C.OXIDANT][tile], 65535 - ch.q[C.OXIDANT]);
   W.tiles.chem[C.OXIDANT][tile] -= oxidant;
   ch.q[C.OXIDANT] += oxidant;
   for (const sp of [C.TOXIN, C.PATHOGEN]) {
@@ -784,7 +787,7 @@ function bestSensedFoodStep(id, radius) {
     }
   return [Math.sign(bx), Math.sign(by)];
 }
-function feedFromAdjacent(id) {
+function feedFromAdjacent(id, stride = 1) {
   if (W.kind[id] !== KINDS.PERSON) return false;
   const p = W.components.position[id];
   let best = -1,
@@ -800,9 +803,9 @@ function feedFromAdjacent(id) {
       best = tile;
     }
   }
-  return best >= 0 && performFeeding(id, best);
+  return best >= 0 && performFeeding(id, best, stride);
 }
-function drinkFromAdjacent(id) {
+function drinkFromAdjacent(id, stride = 1) {
   const p = W.components.position[id];
   let best = -1,
     bestScore = 9;
@@ -817,7 +820,7 @@ function drinkFromAdjacent(id) {
       best = tile;
     }
   }
-  return best >= 0 && performDrinking(id, best);
+  return best >= 0 && performDrinking(id, best, stride);
 }
 function performHunt(id, prey) {
   if (!prey.length) return false;
