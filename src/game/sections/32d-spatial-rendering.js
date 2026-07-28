@@ -569,7 +569,7 @@ function drawSceneEntity(id, now, m, v, labels) {
           ctx.lineTo(s.x + rr * 2.6 * hs, s.y + rr * 0.9);
           ctx.stroke();
         }
-      } else if (W.tiles.liquid[ti] > 820) {
+      } else if (W.tiles.liquid[ti] > WATER_DEPTH.DEEP) {
         const rip = (now * 0.006 + (id % 37)) % 1;
         ctx.strokeStyle = hsl(v.liquidHue, 70, 72, 0.7 * (1 - rip));
         ctx.lineWidth = 1.5;

@@ -27,8 +27,8 @@ function updateEnvironmentalFields() {
       rate =
         a === C.SOLVENT
           ? W.laws.moistureDiffusion * 0.08
-          : a === C.OXIDANT
-            ? 0.055
+          : a === C.OXIDANT || a === C.GAS
+            ? 0.16
             : a === C.PATHOGEN
               ? 0.025
               : 0.08;

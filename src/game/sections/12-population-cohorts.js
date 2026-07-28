@@ -217,11 +217,26 @@ function storeMaterializedSpecies(id, sp, amount, tile) {
   if (remaining) depositTileMatter(tile, sp, remaining);
   return amount;
 }
+function materializeSite(regionId) {
+  const [cx, cy] = regionCenter(regionId);
+  for (let radius = 0; radius <= 8; radius++)
+    for (let dy = -radius; dy <= radius; dy++)
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+        const x = cx + dx,
+          y = cy + dy;
+        if (!inside(x, y)) continue;
+        const tile = idx(x, y);
+        if (W.tiles.liquid[tile] <= WATER_DEPTH.WADE_LIMIT && W.tiles.fire[tile] < 100)
+          return [x, y];
+      }
+  return [cx, cy];
+}
 function materializeCohort(c) {
   ensureCohortState(c);
   if (!c.count) return 0;
   const countBefore = c.count,
-    [x, y] = regionCenter(c.regionId),
+    [x, y] = materializeSite(c.regionId),
     tile = idx(x, y),
     before = Array.from({ length: COMMON_CHEM }, (_, s) => W.tiles.chem[s][tile]),
     initial = W.conservation.initialMatter,

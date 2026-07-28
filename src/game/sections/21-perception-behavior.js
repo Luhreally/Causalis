@@ -645,8 +645,13 @@ function chooseBehavior(id, tier) {
       const mp = W.components.position[mate];
       dir = [Math.sign(mp.x - p.x), Math.sign(mp.y - p.y)];
     } else dir = bestDirection(id, "migrate");
-  } else if (action.id === "food") performFeeding(id, ti) || (dir = bestDirection(id, "food"));
-  else if (action.id === "water") performDrinking(id, ti) || (dir = bestDirection(id, "water"));
+  } else if (action.id === "food") {
+    if (!performFeeding(id, ti) && !feedFromAdjacent(id)) {
+      dir = bestDirection(id, "food");
+      if (!dir[0] && !dir[1]) dir = bestSensedFoodStep(id, senseRadius);
+    }
+  } else if (action.id === "water")
+    performDrinking(id, ti) || drinkFromAdjacent(id) || (dir = bestDirection(id, "water"));
   else if (action.id === "hunt") performHunt(id, nearPrey) || (dir = bestDirection(id, "hunt"));
   else if (action.id === "scavenge")
     performScavenge(id, nearCorpse) || (dir = bestDirection(id, "scavenge"));
@@ -743,6 +748,62 @@ function performDrinking(id, tile) {
     }
   }
   return true;
+}
+function bestSensedFoodStep(id, radius) {
+  const p = W.components.position[id],
+    metabolism = W.kind[id] === KINDS.PERSON ? "omnivore" : "grazer";
+  let bx = 0,
+    by = 0,
+    bestScore = 4;
+  for (let dy = -radius; dy <= radius; dy++)
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (!dx && !dy) continue;
+      const x = p.x + dx,
+        y = p.y + dy;
+      if (!inside(x, y)) continue;
+      const score = tileFood(idx(x, y), metabolism) - Math.max(Math.abs(dx), Math.abs(dy)) * 2;
+      if (score > bestScore) {
+        bestScore = score;
+        bx = dx;
+        by = dy;
+      }
+    }
+  return [Math.sign(bx), Math.sign(by)];
+}
+function feedFromAdjacent(id) {
+  if (W.kind[id] !== KINDS.PERSON) return false;
+  const p = W.components.position[id];
+  let best = -1,
+    bestScore = 0;
+  for (let k = 0; k < 8; k++) {
+    const x = p.x + DIRS[k][0],
+      y = p.y + DIRS[k][1];
+    if (!inside(x, y)) continue;
+    const tile = idx(x, y),
+      score = tileFood(tile, "omnivore");
+    if (score > bestScore) {
+      bestScore = score;
+      best = tile;
+    }
+  }
+  return best >= 0 && performFeeding(id, best);
+}
+function drinkFromAdjacent(id) {
+  const p = W.components.position[id];
+  let best = -1,
+    bestScore = 9;
+  for (let k = 0; k < 8; k++) {
+    const x = p.x + DIRS[k][0],
+      y = p.y + DIRS[k][1];
+    if (!inside(x, y)) continue;
+    const tile = idx(x, y),
+      score = W.tiles.chem[C.SOLVENT][tile];
+    if (score > bestScore) {
+      bestScore = score;
+      best = tile;
+    }
+  }
+  return best >= 0 && performDrinking(id, best);
 }
 function performHunt(id, prey) {
   if (!prey.length) return false;

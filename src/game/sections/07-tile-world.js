@@ -126,9 +126,11 @@ function tileFood(i, metabolism = "grazer") {
     return clamp(prey * 24 + carrion * 12 + regionalAccess + tileBlood(i) * 0.45, 0, 100);
   }
   const compat = metabolism === "grazer" ? 1 : metabolism === "omnivore" ? 0.72 : 0.2,
-    n = ecologicalNicheAt(i);
+    n = ecologicalNicheAt(i),
+    edibleNicheFood = n.food * clamp(q[C.ORGANIC][i] / 40, 0, 1);
   return clamp(
-    ((Math.min(q[C.ORGANIC][i], q[C.ENERGY][i] * 1.4) * W.tiles.plantOrder[i]) / 9000 + n.food) *
+    ((Math.min(q[C.ORGANIC][i], q[C.ENERGY][i] * 1.4) * W.tiles.plantOrder[i]) / 9000 +
+      edibleNicheFood) *
       compat,
     0,
     100,
