@@ -403,7 +403,7 @@ function maybeFactionSchism() {
           (1 - s.stability) * 0.65 +
           scarcity * 0.22 +
           materialDifference;
-      if (autonomy > 1.02) candidates.push({ s, parent, autonomy });
+      if (autonomy > 0.9) candidates.push({ s, parent, autonomy });
     }
   }
   candidates.sort((a, b) => b.autonomy - a.autonomy || a.s.id - b.s.id);
@@ -411,7 +411,7 @@ function maybeFactionSchism() {
   if (
     !pick ||
     counterRand("political-schism", Math.floor(W.tick / 1024), pick.parent.id, pick.s.id) >
-      clamp((pick.autonomy - 1) * 0.32 + 0.05, 0.05, 0.42)
+      clamp((pick.autonomy - 0.88) * 0.45 + 0.1, 0.1, 0.6)
   )
     return null;
   const oldId = pick.parent.id;

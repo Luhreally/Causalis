@@ -169,9 +169,15 @@ function settlementPopulation(s) {
   return n;
 }
 function settlementFood(s) {
+  const stored =
+      s.inventory[C.ORGANIC] * 0.35 + s.inventory[C.ENERGY] * 0.8 - s.inventory[C.TOXIN] * 0.5,
+    center = idx(s.x, s.y);
+  let forage = tileFood(center, "omnivore");
+  for (const n of neighbors4(center)) forage += tileFood(n, "omnivore");
+  const farms =
+    typeof completedBuildings === "function" ? completedBuildings(s, "farm").length * 14 : 0;
   return clamp(
-    (s.inventory[C.ORGANIC] * 0.35 + s.inventory[C.ENERGY] * 0.8 - s.inventory[C.TOXIN] * 0.5) /
-      (1 + settlementPopulation(s) * 0.12),
+    (stored + forage * 0.6 + farms) / (1 + settlementPopulation(s) * 0.12),
     0,
     999,
   );
