@@ -1694,13 +1694,16 @@ function cognitionBias(id, action) {
   if (!c || n < 0) return 0;
   const bias = ((c.output?.[n] || 0) * 30) / LTC_Q + ((c.value?.[n] || 0) * 10) / LTC_Q,
     l = W.components.life[id];
+  if (!l) return bias;
+  const survival = action === "food" || action === "water" || action === "flee",
+    desperate = l.hunger > 72 || l.thirst > 72;
   if (
-    l &&
-    ((action === "food" && l.hunger > 78) ||
-      (action === "water" && l.thirst > 78) ||
-      (action === "flee" && l.threatId))
+    (action === "food" && l.hunger > 72) ||
+    (action === "water" && l.thirst > 72) ||
+    (action === "flee" && l.threatId)
   )
     return Math.max(0, bias);
+  if (desperate && !survival) return Math.min(0, bias);
   return bias;
 }
 function isFunctionalTool(a, purpose = null) {
