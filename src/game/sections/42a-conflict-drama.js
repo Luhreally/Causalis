@@ -737,6 +737,37 @@ function resolveImplicitWarTurn(war, a, b) {
       .map((id) => ({ id, u: combatUnitFor(id) || { training: 0 } }));
   if (!attackers.length) {
     war.marches = (war.marches || 0) + 1;
+    const marchers = W.militaryUnits
+      .filter((unit) => unit.active && unit.factionId === attacker.id)
+      .flatMap((unit) => unit.memberIds)
+      .filter((id) => classifyAlive(id))
+      .slice(0, 8);
+    for (const id of marchers) {
+      const p = W.components.position[id];
+      if (!p) continue;
+      for (let step = 0; step < 3; step++) {
+        const dx = Math.sign(battleX - p.x),
+          dy = Math.sign(battleY - p.y);
+        if (!dx && !dy) break;
+        const options = [
+          [p.x + dx, p.y + dy],
+          [p.x + dx, p.y],
+          [p.x, p.y + dy],
+        ].filter(
+          ([x, y]) =>
+            inside(x, y) &&
+            (dx || dy) &&
+            !(x === p.x && y === p.y) &&
+            (W.tiles.liquid[idx(x, y)] <= WATER_DEPTH.WADE_LIMIT ||
+              factionHasTech(attacker.id, "navigation")),
+        );
+        if (!options.length) break;
+        const [nx, ny] = options[0];
+        p.x = nx;
+        p.y = ny;
+        p.regionId = regionId(nx, ny);
+      }
+    }
     if (war.turns > 12)
       return endWar(war, a, b, "mobilization exhausted before either force could sustain contact");
     return;
