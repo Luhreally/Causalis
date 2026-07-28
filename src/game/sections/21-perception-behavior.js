@@ -304,26 +304,32 @@ function bestWaterEscapeDirection(id) {
   if (!position) return [0, 0];
   const start = idx(position.x, position.y);
   if (W.tiles.liquid[start] <= WATER_DEPTH.WADE_LIMIT) return [0, 0];
-  const predecessor = new Int32Array(W.tileCount);
-  predecessor.fill(-2);
-  predecessor[start] = -1;
-  const queue = [start];
-  let goal = -1;
-  for (let cursor = 0; cursor < queue.length && goal < 0; cursor++) {
-    const current = queue[cursor];
-    for (const next of neighbors4(current)) {
-      if (predecessor[next] !== -2) continue;
-      const [nextX, nextY] = xy(next);
-      if (typeof movementTileBlocked === "function" && movementTileBlocked(id, nextX, nextY))
-        continue;
-      predecessor[next] = current;
-      if (W.tiles.liquid[next] <= WATER_DEPTH.WADE_LIMIT) {
-        goal = next;
-        break;
+  const search = (avoidDeep) => {
+    const predecessor = new Int32Array(W.tileCount);
+    predecessor.fill(-2);
+    predecessor[start] = -1;
+    const queue = [start];
+    let goal = -1;
+    for (let cursor = 0; cursor < queue.length && goal < 0; cursor++) {
+      const current = queue[cursor];
+      for (const next of neighbors4(current)) {
+        if (predecessor[next] !== -2) continue;
+        const [nextX, nextY] = xy(next);
+        if (typeof movementTileBlocked === "function" && movementTileBlocked(id, nextX, nextY))
+          continue;
+        if (avoidDeep && W.tiles.liquid[next] > WATER_DEPTH.DEEP) continue;
+        predecessor[next] = current;
+        if (W.tiles.liquid[next] <= WATER_DEPTH.WADE_LIMIT) {
+          goal = next;
+          break;
+        }
+        queue.push(next);
       }
-      queue.push(next);
     }
-  }
+    return { predecessor, goal };
+  };
+  let { predecessor, goal } = search(true);
+  if (goal < 0) ({ predecessor, goal } = search(false));
   if (goal < 0) {
     const fallback = neighbors4(start)
       .filter((tile) => {

@@ -346,7 +346,8 @@ function buildingTerrainFootprintValid(type, x, y) {
       if (
         W.tiles.fire[tile] >= 200 ||
         W.tiles.liquid[tile] > (type === "farm" ? 140 : WATER_DEPTH.SHALLOW) ||
-        naturalWater > WATER_DEPTH.SHALLOW
+        naturalWater > WATER_DEPTH.SHALLOW ||
+        (W.tiles.featureType?.[tile] && (W.tiles.featureStrength?.[tile] || 0) >= 150)
       )
         return false;
     }

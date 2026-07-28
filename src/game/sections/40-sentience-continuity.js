@@ -507,7 +507,7 @@ function protoSettlementCandidate() {
       danger = W.tiles.danger[tile],
       flood = W.tiles.liquid[tile],
       fire = W.tiles.fire[tile];
-    if (flood > 850 || fire > 120 || moisture < 10 || food < 2) continue;
+    if (flood > WATER_DEPTH.WADE_LIMIT || fire > 120 || moisture < 10 || food < 2) continue;
     const score =
       local.length * 210 +
       Math.log2(memory + 1) * 55 +

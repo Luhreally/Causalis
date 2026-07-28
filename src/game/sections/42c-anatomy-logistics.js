@@ -1074,17 +1074,12 @@ function performRescue(helper, victim) {
   if (embodiedCapability(victim).locomotion < 0.12) {
     const home = nearestFriendlyPlace(victim);
     if (home && Math.max(Math.abs(vp.x - home.x), Math.abs(vp.y - home.y)) > 1) {
-      queueEffect(
-        "MoveEntity",
-        {
-          entityId: victim,
-          x: clamp(vp.x + Math.sign(home.x - vp.x), 0, W.width - 1),
-          y: clamp(vp.y + Math.sign(home.y - vp.y), 0, W.height - 1),
-          forced: true,
-        },
-        victim,
-      );
-      moveWorkerToward(helper, idx(home.x, home.y), "rescue", "carrying a companion home");
+      const cx = clamp(vp.x + Math.sign(home.x - vp.x), 0, W.width - 1),
+        cy = clamp(vp.y + Math.sign(home.y - vp.y), 0, W.height - 1);
+      if (W.tiles.liquid[idx(cx, cy)] <= WATER_DEPTH.WADE_LIMIT) {
+        queueEffect("MoveEntity", { entityId: victim, x: cx, y: cy, forced: true }, victim);
+        moveWorkerToward(helper, idx(home.x, home.y), "rescue", "carrying a companion home");
+      }
     }
   }
   return aided;

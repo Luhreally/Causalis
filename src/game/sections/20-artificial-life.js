@@ -20,7 +20,7 @@ function habitatScore(i, kind = "person") {
       tileDisease(i) * 1.8 +
       W.tiles.danger[i] / 20 +
       W.tiles.fire[i] / 8 +
-      (W.tiles.liquid[i] > 800 ? 120 : 0) +
+      (W.tiles.liquid[i] > WATER_DEPTH.WADE_LIMIT ? 120 : 0) +
       n.hazard,
     thermal =
       Math.abs(temp - 20) *
@@ -125,7 +125,7 @@ function findPairedRescueHabitats(rng, kind, count) {
         if (
           W.tiles.elevation[tile] <= (W.terrainGenome?.seaLevel ?? 430) - 15 ||
           W.tiles.fire[tile] > 100 ||
-          W.tiles.liquid[tile] > 780
+          W.tiles.liquid[tile] > WATER_DEPTH.WADE_LIMIT
         )
           continue;
         candidates.push({
@@ -148,7 +148,10 @@ function findPairedRescueHabitats(rng, kind, count) {
 function compileCellularResilienceGenome() {
   const candidates = [];
   for (let i = 0; i < W.tileCount; i += Math.max(1, Math.floor(W.tileCount / 720))) {
-    if (W.tiles.elevation[i] < (W.terrainGenome?.seaLevel ?? 430) - 15 || W.tiles.liquid[i] > 850)
+    if (
+      W.tiles.elevation[i] < (W.terrainGenome?.seaLevel ?? 430) - 15 ||
+      W.tiles.liquid[i] > WATER_DEPTH.WADE_LIMIT
+    )
       continue;
     candidates.push({
       i,
