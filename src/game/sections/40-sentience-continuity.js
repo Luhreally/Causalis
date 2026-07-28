@@ -446,11 +446,83 @@ function ensureParallelPeoples() {
   });
   return seeded;
 }
+function upliftWildSapience() {
+  if (!W?.biosphere) return null;
+  if (W.biosphere.emergencePlan && W.biosphere.emergencePlan.phase < 5) return null;
+  if (W.tick % 512 !== 384) return null;
+  const state = initializeSentienceContinuity(),
+    clusters = sentientClusters(),
+    clusterCap = clamp(Math.floor(W.tileCount / 3300), 3, 8);
+  if (clusters.length >= clusterCap) return null;
+  if (W.tick - (state.lastUpliftTick ?? -Infinity) < 5120) return null;
+  if (counterRand("wild-uplift", Math.floor(W.tick / 512)) > 0.5) return null;
+  const separation = clamp(Math.floor(Math.min(W.width, W.height) * 0.4), 9, 30),
+    sep2 = separation * separation,
+    candidates = W.activeIds.filter((id) => {
+      if (W.kind[id] !== KINDS.HERBIVORE || !classifyAlive(id)) return false;
+      const p = W.components.position[id];
+      if (!p) return false;
+      const tile = idx(p.x, p.y);
+      if (tileFood(tile, "omnivore") < 8 || W.tiles.liquid[tile] > WATER_DEPTH.WADE_LIMIT)
+        return false;
+      return clusters.every((c) => dist2(p.x, p.y, c.x / c.n, c.y / c.n) > sep2);
+    });
+  if (candidates.length < 4) return null;
+  const seed = candidates.sort((a, b) => a - b)[0],
+    sp = W.components.position[seed],
+    band = candidates
+      .filter((id) => {
+        const p = W.components.position[id];
+        return p && dist2(p.x, p.y, sp.x, sp.y) <= 25;
+      })
+      .slice(0, 7);
+  if (band.length < 4) return null;
+  const lineage = hashParts(W.seedHash, W.tick, "uplift-lineage", seed),
+    uplifted = [];
+  for (const id of band) {
+    const p = W.components.position[id],
+      tile = idx(p.x, p.y),
+      genome = W.components.genome[id];
+    if (!genome) continue;
+    W.kind[id] = KINDS.PERSON;
+    genome.lineageId = lineage;
+    genome.controller =
+      typeof makeLTCController === "function"
+        ? makeLTCController(id, KINDS.PERSON, [])
+        : genome.controller;
+    if (W.components.cognition) delete W.components.cognition[id];
+    if (typeof initCognition === "function") initCognition(id);
+    if (typeof tuneGenomeToHabitat === "function")
+      tuneGenomeToHabitat(id, tile, 0.2, "radiation", (W.components.life[id]?.generation || 0) + 1);
+    if (typeof hardenSentientFounder === "function")
+      hardenSentientFounder(id, tile, uplifted.length);
+    genome.dirty = true;
+    uplifted.push(id);
+  }
+  if (uplifted.length < 4) return null;
+  state.lastUpliftTick = W.tick;
+  const home = idx(sp.x, sp.y),
+    ev = emitEvent("AdaptationEvent", {
+      subjects: uplifted.slice(0, 6),
+      location: home,
+      causes: [W.biosphere.emergenceEvents?.at(-1) || 0].filter(Boolean),
+      evidence: [
+        "a wild grazing band crossed the threshold into people-level intelligence",
+        "their bodies are the same conserved matter; their minds are newly their own",
+        `a second sapient lineage now shares the world with ${clusters.length} older people${clusters.length === 1 ? "" : "s"}`,
+      ],
+      importance: 5,
+      data: { species: "uplifted people-level lineage", stage: "wild speciation", lineage },
+    });
+  recordEmergenceEvent(ev.id);
+  return uplifted;
+}
 const simTickSentienceBase = simTick;
 simTick = function () {
   simTickSentienceBase();
   ensureSentientContinuity();
   ensureParallelPeoples();
+  upliftWildSapience();
 };
 const huntTargetScoreSentienceBase = huntTargetScore;
 huntTargetScore = function (id, target) {
