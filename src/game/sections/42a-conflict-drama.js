@@ -594,6 +594,9 @@ function captureSettlementCausally(target, attacker, defender, war, attackers) {
       doctrine.plundered
         ? `${doctrine.plundered} conserved material packets were physically carried away as plunder`
         : "no stored matter was removed by the occupation doctrine",
+      doctrine.razed || doctrine.massacred
+        ? `the victors' doctrine razed ${doctrine.razed || 0} structures and killed ${doctrine.massacred || 0} resisting residents`
+        : "the victors incorporated the settlement without razing or reprisals",
       "ownership and faction color changed without deleting or inventing building matter",
     ],
     importance: 5,
@@ -658,9 +661,18 @@ function resolveImplicitWarTurn(war, a, b) {
             settlement.factionId === defender.id,
         )
       : null,
+    ownSettlements = attacker === a ? settlementsA : settlementsB,
+    marchOrigin =
+      ownSettlements.find((s) => s.id === attacker.capitalSettlementId) || ownSettlements[0],
     target =
       contactedTarget ||
-      targets.sort((left, right) => left.defense - right.defense || left.id - right.id)[0],
+      (marchOrigin
+        ? targets.sort(
+            (left, right) =>
+              dist2(left.x, left.y, marchOrigin.x, marchOrigin.y) -
+                dist2(right.x, right.y, marchOrigin.x, marchOrigin.y) || left.id - right.id,
+          )[0]
+        : targets.sort((left, right) => left.defense - right.defense || left.id - right.id)[0]),
     battleX = contactRecord?.x ?? target.x,
     battleY = contactRecord?.y ?? target.y,
     tile = idx(
@@ -692,7 +704,7 @@ function resolveImplicitWarTurn(war, a, b) {
       .map((id) => ({ id, u: combatUnitFor(id) || { training: 0 } }));
   if (!attackers.length) {
     war.marches = (war.marches || 0) + 1;
-    if (war.turns > 36)
+    if (war.turns > 12)
       return endWar(war, a, b, "mobilization exhausted before either force could sustain contact");
     return;
   }
@@ -746,7 +758,7 @@ function resolveImplicitWarTurn(war, a, b) {
   const aggregateFaction = control >= 0 ? defender.id : attacker.id,
     aggregate = removeCohortWarCasualties(
       aggregateFaction,
-      casualties || war.contactTurns % 4 === 0 ? 1 : 0,
+      casualties + (control > 0 ? 2 : war.contactTurns % 4 === 0 ? 1 : 0),
       tile,
       war.lastEventId || war.startEventId,
     );

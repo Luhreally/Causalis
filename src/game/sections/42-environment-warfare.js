@@ -323,10 +323,35 @@ function applyConquestDoctrine(target, attacker, ti, raiders = null) {
       (b) => b.placeKind === "settlement" && b.placeId === target.id && b.complete && !b.ruined,
     ),
     damaged = buildings.filter((b) => b.integrity < b.maxIntegrity).length;
-  let plundered = 0;
-  // Capturing a place changes its government, not its matter. Structures are
-  // preserved unless a simulated strike, fire, or other recorded cause damaged
-  // them before occupation. Aggressive armies can still plunder physical stores.
+  let plundered = 0,
+    razed = 0,
+    massacred = 0;
+  // Conquest never deletes or invents matter: razed structures collapse into
+  // rebuildable rubble and killed residents leave ordinary corpses. How harsh
+  // the doctrine is follows the victor's aggression and xenophobia.
+  const xenophobia = typeof factionXenophobia === "function" ? factionXenophobia(attacker) : 0.5,
+    brutality = aggression * 0.55 + xenophobia * 0.45;
+  if (brutality > 0.62) {
+    const residents =
+        typeof occupationResidents === "function" ? occupationResidents(target) : [],
+      holdouts = residents.filter(
+        (id) => classifyAlive(id) && W.components.social[id]?.factionId !== attacker.id,
+      ),
+      kills = Math.min(holdouts.length, Math.ceil(holdouts.length * (brutality - 0.5)), 6);
+    for (let n = 0; n < kills; n++) {
+      killEntity(holdouts[n], "conquest violence", 0);
+      massacred++;
+    }
+    const razeBudget = Math.min(buildings.length, Math.floor(brutality * 4) - 1, 4);
+    for (let n = 0; n < razeBudget; n++) {
+      const doomed = buildings
+        .filter((b) => !b.ruined && b.type !== "wall")
+        .sort((l, r) => l.integrity - r.integrity || l.id - r.id)[0];
+      if (!doomed) break;
+      collapseBuilding(doomed, "the occupying force razed the structure", 0);
+      razed++;
+    }
+  }
   if (aggression > 0.5 && raiders?.length) {
     const cap = W.settlements.find((s3) => s3.id === attacker.capitalSettlementId && !s3.ruined);
     for (const atk of raiders) {
@@ -366,15 +391,16 @@ function applyConquestDoctrine(target, attacker, ti, raiders = null) {
     y: target.y,
     color: W.factions.find((f) => f.id === attacker.id)?.color || "#e8c66f",
     aggression,
-    razed: 0,
+    razed,
     burned: false,
     started: performance.now(),
     duration: 5200 / Math.max(1, Math.sqrt(UI.speed || 1)),
   });
   return {
-    razed: 0,
+    razed,
+    massacred,
     burned: false,
-    preserved: buildings.length,
+    preserved: buildings.length - razed,
     damaged,
     destroyed: W.buildings.filter(
       (b) => b.placeKind === "settlement" && b.placeId === target.id && b.ruined,
