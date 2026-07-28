@@ -163,6 +163,7 @@ function updateDiplomacyAndWar() {
             startEventId: ev.id,
             startPopulation: a.population + b.population,
             casualties: 0,
+            wounded: 0,
             turns: 0,
             ended: 0,
           };
