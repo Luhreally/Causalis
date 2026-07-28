@@ -106,7 +106,7 @@ function runMetabolism(id, tier) {
   }
   const trophicScale = W.kind[id] === KINDS.PREDATOR ? 0.14 : 1,
     rawRespiratoryDemand =
-      (rate * (1 + p.speed * 0.2) * trophicScale) / Math.max(0.35, p.metabolism),
+      (rate * METABOLIC_PACE * (1 + p.speed * 0.2) * trophicScale) / Math.max(0.35, p.metabolism),
     respiratoryBudget = (l.respiratoryRemainder || 0) + rawRespiratoryDemand,
     respiratoryDemand = Math.floor(respiratoryBudget),
     oxidantNeed = Math.max(0, respiratoryDemand + 2 - ch.q[C.OXIDANT]),
@@ -142,7 +142,7 @@ function runMetabolism(id, tier) {
   }
   const solventBudget =
       (l.solventLossRemainder || 0) +
-      (rate + (p.size > 1.3 ? 1 : 0)) * (W.kind[id] === KINDS.PREDATOR ? 0.3 : 1),
+      (rate + (p.size > 1.3 ? 1 : 0)) * METABOLIC_PACE * (W.kind[id] === KINDS.PREDATOR ? 0.3 : 1),
     solventLoss = Math.min(ch.q[C.SOLVENT], Math.floor(solventBudget));
   l.solventLossRemainder = solventBudget - Math.floor(solventBudget);
   ch.q[C.SOLVENT] -= solventLoss;
@@ -682,7 +682,7 @@ function chooseBehavior(id, tier) {
       ny = clamp(p.y + dir[1], 0, W.height - 1),
       chargeMotion = k !== KINDS.PERSON || W.tick % 2 === id % 2,
       motionEffort = chargeMotion
-        ? ph.speed * ph.size * 0.35 * (k === KINDS.PREDATOR ? 0.45 : 1)
+        ? ph.speed * ph.size * 0.22 * (k === KINDS.PREDATOR ? 0.45 : 1)
         : 0;
     if ((waterEscape || W.tiles.liquid[idx(nx, ny)] < 1100) && W.tiles.fire[idx(nx, ny)] < 700) {
       queueEffect("MoveEntity", { entityId: id, x: nx, y: ny, motionEffort, waterEscape }, id);

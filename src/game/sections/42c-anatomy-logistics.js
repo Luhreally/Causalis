@@ -1029,6 +1029,111 @@ function updateWaterloggedBuildings() {
       collapseBuilding(b, "persistent standing water dissolved the structure's footings");
   }
 }
+function ensureGraveSite(place) {
+  if (Number.isInteger(place.graveTile) && place.graveTile >= 0) return place.graveTile;
+  let best = -1,
+    bestScore = -Infinity;
+  for (let radius = 4; radius <= 8; radius++)
+    for (let dy = -radius; dy <= radius; dy++)
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+        const x = place.x + dx,
+          y = place.y + dy;
+        if (!inside(x, y)) continue;
+        const tile = idx(x, y);
+        if (
+          W.tiles.liquid[tile] > 140 ||
+          (W.tiles.hydrologyBase?.[tile] ?? 0) > 140 ||
+          (W.tiles.featureStrength?.[tile] || 0) >= 150
+        )
+          continue;
+        const score = -W.tiles.habitation[tile] - W.tiles.danger[tile] / 4 - radius;
+        if (score > bestScore) {
+          bestScore = score;
+          best = tile;
+        }
+      }
+  if (best >= 0) place.graveTile = best;
+  return best;
+}
+function updateBurials() {
+  if (W.tick % 8 !== 4) return;
+  const places = [...W.settlements.filter((s) => !s.ruined), ...W.camps.filter((c) => c.active)];
+  for (const place of places) {
+    const grave = ensureGraveSite(place);
+    if (grave == null || grave < 0) continue;
+    const [gx, gy] = xy(grave),
+      corpses = W.activeIds
+        .filter((id) => {
+          if (W.kind[id] !== KINDS.CORPSE) return false;
+          const p = W.components.position[id];
+          return (
+            p &&
+            dist2(p.x, p.y, place.x, place.y) <= 144 &&
+            W.tiles.liquid[idx(p.x, p.y)] <= WATER_DEPTH.WADE_LIMIT &&
+            !(p.x === gx && p.y === gy)
+          );
+        })
+        .sort((a, b) => a - b)
+        .slice(0, 2);
+    for (const corpse of corpses) {
+      const cp = W.components.position[corpse],
+        undertaker = W.activeIds
+          .filter((id) => {
+            if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) return false;
+            if (!workerReadyForLabor(id)) return false;
+            const w = workState(id);
+            if (w.task === "bury" && w.buryTargetId && w.buryTargetId !== corpse) return false;
+            const p = W.components.position[id];
+            return p && dist2(p.x, p.y, cp.x, cp.y) <= 100;
+          })
+          .sort((a, b) => {
+            const pa = W.components.position[a],
+              pb = W.components.position[b];
+            return dist2(pa.x, pa.y, cp.x, cp.y) - dist2(pb.x, pb.y, cp.x, cp.y) || a - b;
+          })[0];
+      if (!undertaker) continue;
+      const up = W.components.position[undertaker];
+      if (dist2(up.x, up.y, cp.x, cp.y) > 2) {
+        moveWorkerToward(
+          undertaker,
+          idx(cp.x, cp.y),
+          "bury",
+          `going to carry one of ${place.name}'s dead to rest`,
+        );
+        workState(undertaker).buryTargetId = corpse;
+        continue;
+      }
+      if (Math.max(Math.abs(cp.x - gx), Math.abs(cp.y - gy)) <= 1) {
+        place.burials = (place.burials || 0) + 1;
+        emitEvent("BurialEvent", {
+          subjects: [undertaker, corpse],
+          location: grave,
+          importance: place.burials % 5 === 0 ? 2 : 1,
+          evidence: [
+            `${place.burials} of ${place.name}'s dead now rest in its grave field`,
+            "the body's conserved matter returned to the soil of one tended plot",
+          ],
+        });
+        finalizeCorpse(corpse);
+        delete workState(undertaker).buryTargetId;
+        continue;
+      }
+      const nx = clamp(cp.x + Math.sign(gx - cp.x), 0, W.width - 1),
+        ny = clamp(cp.y + Math.sign(gy - cp.y), 0, W.height - 1);
+      if (W.tiles.liquid[idx(nx, ny)] <= WATER_DEPTH.WADE_LIMIT) {
+        queueEffect("MoveEntity", { entityId: corpse, x: nx, y: ny, forced: true }, corpse);
+        moveWorkerToward(
+          undertaker,
+          grave,
+          "bury",
+          `bearing the dead to ${place.name}'s grave field`,
+        );
+        workState(undertaker).buryTargetId = corpse;
+      }
+    }
+  }
+}
 function personInDistress(id) {
   const life = W.components.life[id],
     q = W.components.chemistry[id]?.q;
@@ -1779,6 +1884,7 @@ simTick = function () {
   if (!W) return;
   updateFirefighting();
   updatePersonRescue();
+  updateBurials();
   updateWaterloggedBuildings();
   ensurePrimitiveEquipment();
   updateEmbodiedRecovery();

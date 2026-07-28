@@ -617,6 +617,37 @@ function captureSettlementCausally(target, attacker, defender, war, attackers) {
   return ev;
 }
 
+function warCampaignRouteExists(attacker, defender) {
+  const origins = W.settlements.filter(
+      (s) => !s.ruined && s.factionId === attacker.id,
+    ),
+    targets = W.settlements.filter((s) => !s.ruined && s.factionId === defender.id);
+  if (!origins.length || !targets.length) return false;
+  const origin =
+      origins.find((s) => s.id === attacker.capitalSettlementId) || origins[0],
+    sails = factionHasTech(attacker.id, "navigation"),
+    passable = (tile) => sails || W.tiles.liquid[tile] <= WATER_DEPTH.WADE_LIMIT,
+    goal = (tile) => {
+      const [x, y] = xy(tile);
+      return targets.some((s) => Math.max(Math.abs(s.x - x), Math.abs(s.y - y)) <= 3);
+    },
+    start = idx(origin.x, origin.y),
+    visited = new Uint8Array(W.tileCount),
+    queue = [start];
+  visited[start] = 1;
+  let explored = 0;
+  for (let cursor = 0; cursor < queue.length; cursor++) {
+    const current = queue[cursor];
+    if (goal(current)) return true;
+    if (++explored > 12000) return false;
+    for (const next of neighbors4(current)) {
+      if (visited[next] || !passable(next)) continue;
+      visited[next] = 1;
+      queue.push(next);
+    }
+  }
+  return false;
+}
 function resolveImplicitWarTurn(war, a, b) {
   initializeConflictDrama();
   war.turns++;
@@ -628,6 +659,8 @@ function resolveImplicitWarTurn(war, a, b) {
       (settlement) => settlement.factionId === b.id && !settlement.ruined,
     );
   if (!settlementsA.length || !settlementsB.length) return endWar(war, a, b, "political collapse");
+  if (war.turns === 1 && !warCampaignRouteExists(a, b) && !warCampaignRouteExists(b, a))
+    return endWar(war, a, b, "no campaign route existed between the belligerents");
   const combinedPopulation = a.population + b.population;
   if (war.turns > 4 && war.startPopulation && combinedPopulation < war.startPopulation * 0.72)
     return endWar(war, a, b, "attrition and desertion exhausted both polities");
@@ -710,23 +743,19 @@ function resolveImplicitWarTurn(war, a, b) {
   }
   W.implicitMetrics.battles++;
   war.contactTurns = (war.contactTurns || 0) + 1;
+  if (war.contactTurns > 6 && !(war.casualties > 0 || (war.wounded || 0) > 0))
+    return endWar(war, a, b, "a bloodless standoff proved neither side could reach the other");
   let casualties = 0;
   const previousEventId = W.events.at(-1)?.id || 0;
   const exchanges = Math.min(7, attackers.length, Math.max(1, defenders.length));
   for (let n = 0; n < exchanges; n++) {
     const attack = attackers[n % attackers.length],
       attackPosition = W.components.position[attack.id],
-      reach = typeof combatReach === "function" ? combatReach(attack.id) : 1.5,
       defense =
         defenders
           .filter((entry) => {
             const position = W.components.position[entry.id];
-            return (
-              position &&
-              attackPosition &&
-              classifyAlive(entry.id) &&
-              dist2(position.x, position.y, attackPosition.x, attackPosition.y) <= reach * reach
-            );
+            return position && attackPosition && classifyAlive(entry.id);
           })
           .sort((left, right) => {
             const lp = W.components.position[left.id],
@@ -737,9 +766,14 @@ function resolveImplicitWarTurn(war, a, b) {
             );
           })[0] || null;
     if (defense && classifyAlive(attack.id) && classifyAlive(defense.id)) {
-      casualties += militaryStrike(attack.id, defense.id, war, attack.u.training) === 2 ? 1 : 0;
-      if (classifyAlive(defense.id) && classifyAlive(attack.id))
-        casualties += militaryStrike(defense.id, attack.id, war, defense.u.training) === 2 ? 1 : 0;
+      const strike = militaryStrike(attack.id, defense.id, war, attack.u.training);
+      casualties += strike === 2 ? 1 : 0;
+      war.wounded = (war.wounded || 0) + (strike === 1 ? 1 : 0);
+      if (classifyAlive(defense.id) && classifyAlive(attack.id)) {
+        const counter = militaryStrike(defense.id, attack.id, war, defense.u.training);
+        casualties += counter === 2 ? 1 : 0;
+        war.wounded = (war.wounded || 0) + (counter === 1 ? 1 : 0);
+      }
     }
   }
   war.casualties += casualties;

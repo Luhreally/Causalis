@@ -9,6 +9,7 @@ const TICKS_PER_YEAR = 256,
   MAX_EVENTS = 4200,
   COMMON_CHEM = 16,
   SPECIES_COUNT = 32;
+const METABOLIC_PACE = 0.3;
 const WATER_DEPTH = Object.freeze({
   SURFACE: 140,
   SHALLOW: 160,
@@ -264,6 +265,7 @@ const EVENT_CATEGORY = Object.freeze({
   RevengeAttemptEvent: "people",
   LimbLostEvent: "people",
   RescueEvent: "people",
+  BurialEvent: "people",
   FactionCollapsedEvent: "factions",
   FireSuppressedEvent: "settlements",
   WatercraftLaunchedEvent: "technology",

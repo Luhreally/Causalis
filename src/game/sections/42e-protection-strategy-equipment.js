@@ -1087,7 +1087,7 @@ function refreshWarfare() {
       )
       .sort((left, right) => right.pressure - left.pressure)
       .slice(0, 5);
-  DOM.warfarePane.innerHTML = `<div class="eyebrow">Operational intelligence</div><h3 style="margin:5px 0">Army attack plans</h3><p class="muted">Launch dates are real simulation gates. Armies wait for people, supplies, training, equipment, health, and a reachable objective; after launch, their tactics respond to contact and structures.</p>${active.length ? active.map(campaignCard).join("") : `<div class="empty">No army is preparing an attack. Hostile pressure and defensive musters still appear below.</div>`}${tensions.length ? `<div class="subhead">Hostile pressure before war</div>${tensions.map((entry) => `<div class="faction-row"><div class="row between"><b>${esc(entry.faction.name)} ↔ ${esc(entry.other?.name || "unknown")}</b><span class="tag gold">${Math.round(entry.pressure)} pressure</span></div><small class="muted">War begins only if pressure exceeds the political threshold and both sides can field material military strength.</small></div>`).join("")}` : ""}${ended.length ? `<details><summary>Recently ended wars · ${ended.length}</summary>${ended.map((war) => `<div class="faction-row"><b>War #${war.id}</b><small class="muted">Ended tick ${war.ended.toLocaleString()} · ${war.casualties || 0} casualties · ${war.turns || 0} contact turns</small></div>`).join("")}</details>` : ""}`;
+  DOM.warfarePane.innerHTML = `<div class="eyebrow">Operational intelligence</div><h3 style="margin:5px 0">Army attack plans</h3><p class="muted">Launch dates are real simulation gates. Armies wait for people, supplies, training, equipment, health, and a reachable objective; after launch, their tactics respond to contact and structures.</p>${active.length ? active.map(campaignCard).join("") : `<div class="empty">No army is preparing an attack. Hostile pressure and defensive musters still appear below.</div>`}${tensions.length ? `<div class="subhead">Hostile pressure before war</div>${tensions.map((entry) => `<div class="faction-row"><div class="row between"><b>${esc(entry.faction.name)} ↔ ${esc(entry.other?.name || "unknown")}</b><span class="tag gold">${Math.round(entry.pressure)} pressure</span></div><small class="muted">War begins only if pressure exceeds the political threshold and both sides can field material military strength.</small></div>`).join("")}` : ""}${ended.length ? `<details><summary>Recently ended wars · ${ended.length}</summary>${ended.map((war) => `<div class="faction-row"><b>War #${war.id}</b><small class="muted">Ended tick ${war.ended.toLocaleString()} · ${war.casualties || 0} dead · ${war.wounded || 0} wounded · ${war.contactTurns || 0} contact turns</small></div>`).join("")}</details>` : ""}`;
 }
 
 EQUIPMENT_PURPOSES.add("helmet");
@@ -1572,6 +1572,10 @@ window.ALIFE_PROTECTION_STRATEGY_DEBUG = Object.freeze({
 
 const eventSentenceCollapseBase = eventSentence;
 eventSentence = function (e) {
+  if (e.type === "BurialEvent") {
+    const names = e.subjects.map(entityName);
+    return `${names[0] || "A villager"} laid ${names[1] || "one of the dead"} to rest in the grave field.`;
+  }
   if (e.type === "SettlementDestroyedEvent" && e.data?.yearsStood != null)
     return `${e.data.name} fell after ${e.data.yearsStood} year${e.data.yearsStood === 1 ? "" : "s"} — ${e.evidence[0]}; ${e.data.crafts ? `${e.data.crafts} craft${e.data.crafts === 1 ? "" : "s"} pass into ruin and memory` : "no lasting craft survived it"}.`;
   if (e.type === "FactionCollapsedEvent")

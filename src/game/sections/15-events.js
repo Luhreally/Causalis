@@ -252,7 +252,7 @@ function eventSentence(e) {
     case "KillEvent":
       return `${names[0]} killed ${names[1]} in ${loc}.`;
     case "InjuryEvent":
-      return `${names[0]} was injured in ${loc}.`;
+      return `${names[0]} was injured${names[1] ? ` by ${names[1]}` : ""} in ${loc}.`;
     case "InfectionEvent":
       return `${names[0]} became host to a replicating pathogen in ${loc}.`;
     case "DiseaseOutbreakEvent":

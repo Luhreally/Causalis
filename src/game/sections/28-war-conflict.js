@@ -135,7 +135,12 @@ function updateDiplomacyAndWar() {
           importance: 3,
         });
       }
-      if (rel.pressure > 105 && Math.min(a.militaryStrength, b.militaryStrength) > 3) {
+      if (
+        rel.pressure > 105 &&
+        Math.min(a.militaryStrength, b.militaryStrength) > 3 &&
+        typeof warCampaignRouteExists === "function" &&
+        (warCampaignRouteExists(a, b) || warCampaignRouteExists(b, a))
+      ) {
         rel.status = rev.status = "at war";
         addRelation(a.entityId, b.entityId, "at_war_with", 1);
         addRelation(b.entityId, a.entityId, "at_war_with", 1);
