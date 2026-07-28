@@ -259,6 +259,22 @@ const PROCESS_TEMPLATES = Object.freeze([
     event: null,
   },
   {
+    id: "waste_mineralization",
+    domain: "ecology",
+    inputs: [
+      [C.WASTE, 2],
+      [C.SOLVENT, 1],
+    ],
+    outputs: [
+      [C.NUTRIENT, 2],
+      [C.GAS, 1],
+    ],
+    energyCost: 0,
+    energyYield: 0,
+    structure: null,
+    event: null,
+  },
+  {
     id: "pathogen_replication",
     domain: "disease",
     inputs: [

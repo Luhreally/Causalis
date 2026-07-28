@@ -623,6 +623,8 @@ function chooseBehavior(id, tier) {
   let dir = [0, 0];
   if (action.id === "flee") {
     dir = waterEscape ? bestWaterEscapeDirection(id) : bestDirection(id, "flee");
+    if (l.hunger > 88) performFeeding(id, ti) || feedFromAdjacent(id);
+    if (l.thirst > 88) performDrinking(id, ti) || drinkFromAdjacent(id);
     const made = executeProcess("fear_signal", invEntity(id), 2);
     if (made) {
       const q = W.components.chemistry[id].q,
@@ -654,7 +656,13 @@ function chooseBehavior(id, tier) {
   } else if (action.id === "food") {
     if (!performFeeding(id, ti) && !feedFromAdjacent(id)) {
       dir = bestDirection(id, "food");
-      if (!dir[0] && !dir[1]) dir = bestSensedFoodStep(id, senseRadius);
+      if (
+        (!dir[0] && !dir[1]) ||
+        (l.hunger > 74 && tileFood(ti, k === KINDS.PERSON ? "omnivore" : "grazer") < 3)
+      ) {
+        const sensed = bestSensedFoodStep(id, senseRadius);
+        if (sensed[0] || sensed[1]) dir = sensed;
+      }
     }
   } else if (action.id === "water")
     performDrinking(id, ti) || drinkFromAdjacent(id) || (dir = bestDirection(id, "water"));

@@ -42,13 +42,15 @@ function updateEnvironmentalFields() {
         d[i] = 0;
       }
   }
-  const tempApplyEnd = Math.min(W.tileCount, end + W.width);
+  const tempApplyEnd = Math.min(W.tileCount, end + W.width),
+    mineralizes = typeof reactionById === "function" && !!reactionById("waste_mineralization");
   for (let i = start; i < end; i++) {
     if (i + 1 < end) diffusePair(t.temperature, i, i + 1, W.laws.heatDiffusion * 0.02, t.tempDelta);
     if (i + W.width < W.tileCount)
       diffusePair(t.temperature, i, i + W.width, W.laws.heatDiffusion * 0.02, t.tempDelta);
     if (t.chem[C.BLOOD][i]) executeProcess("blood_decay", invTile(i), 1);
     if (t.chem[C.FEAR][i]) executeProcess("fear_decay", invTile(i), Math.min(2, t.chem[C.FEAR][i]));
+    if (mineralizes && t.chem[C.WASTE][i] > 40) executeProcess("waste_mineralization", invTile(i), 2);
     if (t.danger[i]) t.danger[i] = Math.max(0, Math.floor(t.danger[i] * 0.94) - 1);
     if (t.populationPressure[i]) t.populationPressure[i] = u16(t.populationPressure[i] * 0.998);
   }

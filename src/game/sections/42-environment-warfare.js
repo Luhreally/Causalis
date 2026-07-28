@@ -37,6 +37,25 @@ function updateFeatureEcology() {
         if (t.fire[i] > 200) t.featureStrength[i] = Math.max(0, t.featureStrength[i] - 120);
         else if (t.featureStrength[i] < 1000 && t.plantOrder[i] > 260)
           t.featureStrength[i] = Math.min(1000, t.featureStrength[i] + 7);
+        if (
+          t.featureStrength[i] > 260 &&
+          !t.fire[i] &&
+          t.chem[C.ORGANIC][i] < 260 &&
+          t.liquid[i] < 1600
+        ) {
+          const photosynthesis = reactionById("photosynthesis"),
+            made = executeProcess(
+              "photosynthesis",
+              invTile(i),
+              1 + Math.floor(t.featureStrength[i] / 340),
+              {
+                externalEnergy: photosynthesis?.externalEnergyRequirement || 0,
+                externalFlux: W.laws.solarFlux,
+                location: i,
+              },
+            );
+          if (made) t.plantOrder[i] = u16(t.plantOrder[i] + made * 2);
+        }
         if (t.featureStrength[i] <= 0) t.featureType[i] = 0;
       } else {
         if (people < 10 && t.featureStrength[i] > 0 && t.featureStrength[i] < 1000)
