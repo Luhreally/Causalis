@@ -710,8 +710,15 @@ performHunt = function (predatorId, prey) {
   for (const targetId of prey) {
     const building =
       W.kind[targetId] === KINDS.PERSON ? protectedBuildingForPerson(targetId) : null;
-    if (building) attackOccupiedBuilding(predatorId, targetId, building);
-    else accessible.push(targetId);
+    if (building) {
+      const predator = W.components.position[predatorId],
+        reach = buildingSpatialRadius(building.type) + 1;
+      if (
+        predator &&
+        Math.max(Math.abs(predator.x - building.x), Math.abs(predator.y - building.y)) <= reach
+      )
+        attackOccupiedBuilding(predatorId, targetId, building);
+    } else accessible.push(targetId);
   }
   return accessible.length ? performHuntBuildingProtectionBase(predatorId, accessible) : false;
 };

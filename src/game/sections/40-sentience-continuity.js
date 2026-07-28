@@ -631,6 +631,11 @@ function ensureProtoSettlement() {
       "regional habitation memory identified a safe communal home",
       `${candidate.local} nearby people and dispersed social knowledge supported the founding council`,
       `stockpile and shelter remained blueprints requiring hauled matter and visible labor`,
+      ...(W.civilization?.legacyProcesses?.length
+        ? [
+            `stories and ruins preserved ${W.civilization.legacyProcesses.length} crafts of earlier peoples for rediscovery`,
+          ]
+        : []),
     ],
     importance: 4,
     data: { species: "people-level tool users", stage: "communal home selection", campId: camp.id },

@@ -1380,6 +1380,7 @@ function initCognition(id, parents = []) {
     g.controller = upgraded;
   }
   const store = W.components.cognition || (W.components.cognition = {}),
+    fresh = !store[id],
     c =
       store[id] ||
       (store[id] = {
@@ -1399,6 +1400,24 @@ function initCognition(id, parents = []) {
         dominant: "wander",
       });
   c.inputs = resizedTyped(c.inputs, Int16Array, LTC_SENSE_LABELS.length);
+  if (fresh && parents.length) {
+    const teachers = parents
+      .map((parent) => store[parent])
+      .filter((t) => t && t.plastic?.length === c.plastic.length);
+    if (teachers.length) {
+      for (let i = 0; i < c.plastic.length; i++) {
+        const t = teachers[hashParts(W.seedHash, id, "ltc-taught", i) % teachers.length];
+        c.plastic[i] = clamp(Math.round(t.plastic[i] * 0.6), -LTC_Q, LTC_Q);
+      }
+      for (let i = 0; i < c.value.length; i++) {
+        const t = teachers[hashParts(W.seedHash, id, "ltc-taught-value", i) % teachers.length];
+        c.value[i] = clamp(Math.round(t.value[i] * 0.5), -LTC_Q, LTC_Q);
+      }
+      c.confidence = Math.round(
+        teachers.reduce((sum, t) => sum + (t.confidence || 0), 0) / (teachers.length * 2),
+      );
+    }
+  }
   c.state = resizedTyped(c.state, Int16Array, LTC_HIDDEN);
   c.plastic = resizedTyped(c.plastic, Int16Array, LTC_ACTIONS.length * LTC_OUTPUT_FAN);
   c.value = resizedTyped(c.value, Int16Array, LTC_ACTIONS.length);
@@ -3733,7 +3752,7 @@ function researchObservationEvidence(s, tech) {
 updateTechnology = function () {
   const catalog = [...TECH_BASE, ...ADVANCED_TECH_BASE];
   for (const s of W.settlements) {
-    if (s.ruined || settlementPopulation(s) < 4 || s.stability < 0.2) continue;
+    if (s.ruined || settlementPopulation(s) < 1 || s.stability < 0.2) continue;
     s.researchProgress = s.researchProgress || {};
     for (const tech of catalog) {
       if (
@@ -3821,7 +3840,7 @@ updateTechnology = function () {
 updateTechnology = function () {
   const catalog = [...TECH_BASE, ...ADVANCED_TECH_BASE];
   for (const s of W.settlements) {
-    if (s.ruined || settlementPopulation(s) < 4 || s.stability < 0.2) continue;
+    if (s.ruined || settlementPopulation(s) < 1 || s.stability < 0.2) continue;
     s.researchProgress = s.researchProgress || {};
     for (const tech of catalog) {
       if (
@@ -3851,16 +3870,32 @@ updateTechnology = function () {
             ["craft", "build"].includes(workState(id).task) ||
             W.components.cognition[id]?.dominant === "work",
         ).length,
+        legacy = (W.civilization?.legacyProcesses || []).includes(tech.id),
+        ruinMemory =
+          legacy &&
+          W.settlements.some(
+            (ruin) =>
+              ruin.ruined &&
+              ruin.knownProcesses?.includes(tech.id) &&
+              dist2(ruin.x, ruin.y, s.x, s.y) <= 196,
+          ),
         rate =
           (pop * 0.18 + workers * 0.8 + knowledgePriority * 0.35) *
           s.stability *
           (0.65 + inventive) *
           W.laws.technologyRate *
+          (legacy ? (ruinMemory ? 3 : 1.8) : 1) *
           (concertedIntensity() ? 8 * concertedIntensity() : 1),
         threshold = tech.threshold || 24 + (tech.prior?.length || 0) * 14;
       s.researchProgress[tech.id] = (s.researchProgress[tech.id] || 0) + rate;
       if (s.researchProgress[tech.id] < threshold) continue;
       s.knownProcesses.push(tech.id);
+      const civ = (W.civilization = W.civilization || {});
+      civ.legacyProcesses = civ.legacyProcesses || [];
+      if (!civ.legacyProcesses.includes(tech.id)) {
+        civ.legacyProcesses.push(tech.id);
+        civ.legacyProcesses.sort();
+      }
       s.observations.push(...obs);
       const discoverer = entityAtRadius(idx(s.x, s.y), 8, KINDS.PERSON).sort(
           (a, b) =>
@@ -3880,7 +3915,11 @@ updateTechnology = function () {
             facility
               ? `${BUILDING_DEFS[facility]?.name || facility} supplied a real workspace`
               : "open-air observation supplied the workspace",
-            `knowledge priority ${knowledgePriority}/5`,
+            legacy
+              ? ruinMemory
+                ? "surviving practices were studied in the ruins of those who came before"
+                : "fragments of a fallen people's knowledge guided the work"
+              : `knowledge priority ${knowledgePriority}/5`,
           ],
           importance: 4,
           data: {
