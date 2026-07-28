@@ -1166,6 +1166,20 @@ function ensurePrimitiveEquipment() {
   }
   for (const id of W.activeIds) {
     if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
+    const p = W.components.position[id];
+    if (!p || toolForPurpose(id, "war")) continue;
+    const threatened =
+      W.tiles.danger[idx(p.x, p.y)] >= 120 || !!W.components.life[id]?.threatId;
+    if (!threatened) continue;
+    const w = workState(id);
+    if (w.task === "craft" && w.craftPurpose && w.craftPurpose !== "war") continue;
+    const recipe =
+      toolRecipeFromInventory(id, "war") ||
+      (W.tick % 64 === 0 ? supplyEquipmentMaterials(id, "war") : null);
+    if (recipe) beginOrAdvanceCraft(id, "war");
+  }
+  for (const id of W.activeIds) {
+    if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
     const p = W.components.position[id],
       factionId = W.components.social[id]?.factionId || 0;
     if (

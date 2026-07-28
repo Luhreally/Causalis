@@ -1331,6 +1331,11 @@ function makeLTCController(id, kind, parents = []) {
   }
   if (kind === KINDS.HERBIVORE)
     for (const n of [4, 12, 15, 25]) input[n] = clamp(input[n] + 360, -2560, 2560);
+  if (kind === KINDS.PERSON) {
+    for (const n of [0, 1, 5, 7, 16, 22, 28, 30, 34, 36, 45])
+      input[n] = clamp(input[n] + 380, -2560, 2560);
+    for (const n of [9, 11, 24, 29, 32, 38, 40]) input[n] = clamp(input[n] + 300, -2560, 2560);
+  }
   return {
     version: 2,
     input,
@@ -1400,6 +1405,21 @@ function initCognition(id, parents = []) {
         dominant: "wander",
       });
   c.inputs = resizedTyped(c.inputs, Int16Array, LTC_SENSE_LABELS.length);
+  if (fresh && W.kind[id] === KINDS.PERSON) {
+    const innate = {
+      water: 300,
+      flee: 340,
+      food: 260,
+      socialize: 220,
+      work: 240,
+      shelter: 160,
+      rest: 90,
+    };
+    for (const [action, value] of Object.entries(innate)) {
+      const n = LTC_ACTIONS.indexOf(action);
+      if (n >= 0) c.value[n] = value;
+    }
+  }
   if (fresh && parents.length) {
     const teachers = parents
       .map((parent) => store[parent])
@@ -1411,7 +1431,7 @@ function initCognition(id, parents = []) {
       }
       for (let i = 0; i < c.value.length; i++) {
         const t = teachers[hashParts(W.seedHash, id, "ltc-taught-value", i) % teachers.length];
-        c.value[i] = clamp(Math.round(t.value[i] * 0.5), -LTC_Q, LTC_Q);
+        c.value[i] = clamp(Math.round(c.value[i] * 0.5 + t.value[i] * 0.5), -LTC_Q, LTC_Q);
       }
       c.confidence = Math.round(
         teachers.reduce((sum, t) => sum + (t.confidence || 0), 0) / (teachers.length * 2),
