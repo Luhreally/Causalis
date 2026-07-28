@@ -959,10 +959,11 @@ function updateAttackPlan(war) {
   if (!plan || plan.launchedTick) return plan;
   const readiness = campaignReadiness(war, plan),
     earliestReached = W.tick >= plan.plannedLaunchTick,
+    softGates = ["training", "protection"],
     forcedWindow =
       W.tick >= plan.latestLaunchTick &&
-      readiness.members.length >= 2 &&
-      readiness.requirements.find((requirement) => requirement.key === "supply")?.current >= 42;
+      readiness.members.length >= plan.minimumFighters &&
+      readiness.blockers.every((requirement) => softGates.includes(requirement.key));
   plan.lastReadiness = readiness.readiness;
   plan.lastBlockers = readiness.blockers.map((requirement) => requirement.key);
   if (!earliestReached || (readiness.blockers.length && !forcedWindow)) return plan;
@@ -1004,6 +1005,127 @@ function updateAttackPlan(war) {
   return plan;
 }
 
+function musterFactionForce(faction, home, size) {
+  if (!faction) return null;
+  const fieldable = [];
+  for (const id of W.activeIds) {
+    if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
+    if ((W.components.social[id]?.factionId || 0) !== faction.id) continue;
+    const locomotion =
+      typeof embodiedCapability === "function" ? embodiedCapability(id).locomotion : 1;
+    if (locomotion >= 0.42) fieldable.push(id);
+  }
+  if (fieldable.length < 2) return null;
+  fieldable.sort((x, y) => x - y);
+  let unit = W.militaryUnits
+    .filter((u) => u.active && u.factionId === faction.id)
+    .sort((x, y) => y.memberIds.length - x.memberIds.length || x.id - y.id)[0];
+  if (!unit) {
+    unit = {
+      id: Math.max(0, ...W.militaryUnits.map((u) => u.id || 0)) + 1,
+      factionId: faction.id,
+      homeSettlementId: home?.id || 0,
+      memberIds: [],
+      training: 0.2,
+      supply: 0.62,
+      morale: 0.6,
+      objectiveSettlementId: 0,
+      formedTick: W.tick,
+      lastBattleTick: 0,
+      phase: "mustering",
+      phaseDetail: "the polity called up its fighters ahead of open war",
+      phaseTick: W.tick,
+      lastProgressTick: W.tick,
+      stalledTicks: 0,
+      active: true,
+    };
+    W.militaryUnits.push(unit);
+  }
+  for (const id of fieldable) {
+    if (unit.memberIds.length >= size) break;
+    if (!unit.memberIds.includes(id)) unit.memberIds.push(id);
+  }
+  return unit;
+}
+function factionMobilizationReadiness(faction, need) {
+  const members = W.militaryUnits
+      .filter((unit) => unit.active && unit.factionId === faction.id)
+      .flatMap((unit) => unit.memberIds)
+      .filter(classifyAlive),
+    armed = members.filter((id) => !!carriedToolForPurpose(id, "war")).length,
+    healthy = members.filter((id) => peekDerivedLife(id).health >= 55).length;
+  return {
+    members: members.length,
+    need,
+    armedFraction: members.length ? armed / members.length : 0,
+    ready:
+      members.length >= need &&
+      members.length > 0 &&
+      armed / members.length >= 0.55 &&
+      healthy / members.length >= 0.7,
+  };
+}
+function advanceWarMobilization(a, b, rel, rev) {
+  const attacker =
+      a.militaryStrength > b.militaryStrength || (a.militaryStrength === b.militaryStrength && a.id < b.id)
+        ? a
+        : b,
+    defender = attacker === a ? b : a,
+    homes = W.settlements.filter((s) => !s.ruined && s.factionId === attacker.id),
+    targets = W.settlements.filter((s) => !s.ruined && s.factionId === defender.id);
+  if (!homes.length || !targets.length) return false;
+  const home = homes.find((s) => s.id === attacker.capitalSettlementId) || homes[0],
+    target = targets
+      .slice()
+      .sort(
+        (left, right) =>
+          dist2(left.x, left.y, home.x, home.y) - dist2(right.x, right.y, home.x, home.y) ||
+          left.id - right.id,
+      )[0],
+    need = clamp(Math.ceil(settlementDefense(target) / 12), 4, 10);
+  musterFactionForce(attacker, home, need);
+  musterFactionForce(
+    defender,
+    targets.find((s) => s.id === defender.capitalSettlementId) || targets[0],
+    Math.max(3, Math.floor(need * 0.75)),
+  );
+  if (!rel.mobilizeSince) {
+    rel.mobilizeSince = rev.mobilizeSince = W.tick;
+    emitEvent("WarTensionEvent", {
+      factions: [attacker.id, defender.id],
+      causes: [W.lastEventByType.WarTensionEvent || 0].filter(Boolean),
+      evidence: [
+        `${attacker.name} began arming for war against ${defender.name}`,
+        "smiths turned to spearheads and shields; the muster grounds filled",
+      ],
+      magnitude: rel.pressure,
+      importance: 3,
+      data: { phase: "mobilization" },
+    });
+  }
+  rel.status = rev.status = "mobilizing";
+  const readiness = factionMobilizationReadiness(attacker, need);
+  if (readiness.ready) {
+    rel.mobilizeSince = rev.mobilizeSince = 0;
+    return true;
+  }
+  if (W.tick - rel.mobilizeSince > 6144) {
+    rel.mobilizeSince = rev.mobilizeSince = 0;
+    rel.status = rev.status = "hostile";
+    rel.pressure = rev.pressure = rel.pressure * 0.6;
+    emitEvent("WarTensionEvent", {
+      factions: [attacker.id, defender.id],
+      evidence: [
+        `${attacker.name} could not raise an army fit to march on ${defender.name}`,
+        "the muster dispersed and the arms race cooled without open war",
+      ],
+      magnitude: rel.pressure,
+      importance: 2,
+      data: { phase: "mobilization failed" },
+    });
+  }
+  return false;
+}
 function levyCampaignForce(war, plan, attacker, home) {
   const fieldable = [];
   for (const id of W.activeIds) {
@@ -1043,7 +1165,8 @@ function levyCampaignForce(war, plan, attacker, home) {
     if (unit.memberIds.length >= Math.max(plan.minimumFighters || 2, 4)) break;
     if (!unit.memberIds.includes(id)) unit.memberIds.push(id);
   }
-  if (unit.memberIds.filter(classifyAlive).length < 2) return false;
+  if (unit.memberIds.filter(classifyAlive).length < Math.max(2, plan.minimumFighters || 2))
+    return false;
   plan.launchedTick = W.tick || 1;
   const anchor = home || { x: W.components.position[unit.memberIds[0]]?.x || 0, y: 0 },
     event = emitEvent("MilitaryPhaseEvent", {
@@ -1077,7 +1200,7 @@ resolveWarTurn = function (war, a, b) {
     if (W.tick >= plan.latestLaunchTick && typeof factionFieldableFighters === "function") {
       const attacker = W.factions.find((faction) => faction.id === plan.attackerId) || a,
         home = (attacker.id === a.id ? settlementsA : settlementsB)[0];
-      if (factionFieldableFighters(attacker) >= 2)
+      if (factionFieldableFighters(attacker) >= Math.max(2, plan.minimumFighters))
         levyCampaignForce(war, plan, attacker, home);
     }
     if (plan.launchedTick) return resolveWarTurnPlannedBase(war, a, b);

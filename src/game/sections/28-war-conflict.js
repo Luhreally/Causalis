@@ -135,6 +135,10 @@ function updateDiplomacyAndWar() {
           importance: 3,
         });
       }
+      if (rel.mobilizeSince && rel.pressure < 80) {
+        rel.mobilizeSince = rev.mobilizeSince = 0;
+        if (rel.status === "mobilizing") rel.status = rev.status = "hostile";
+      }
       if (
         rel.pressure > 105 &&
         Math.min(a.militaryStrength, b.militaryStrength) > 3 &&
@@ -142,7 +146,8 @@ function updateDiplomacyAndWar() {
         factionFieldableFighters(a) >= 2 &&
         factionFieldableFighters(b) >= 2 &&
         typeof warCampaignRouteExists === "function" &&
-        (warCampaignRouteExists(a, b) || warCampaignRouteExists(b, a))
+        (warCampaignRouteExists(a, b) || warCampaignRouteExists(b, a)) &&
+        (typeof advanceWarMobilization !== "function" || advanceWarMobilization(a, b, rel, rev))
       ) {
         rel.status = rev.status = "at war";
         addRelation(a.entityId, b.entityId, "at_war_with", 1);

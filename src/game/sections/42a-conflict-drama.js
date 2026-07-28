@@ -889,6 +889,25 @@ function resolveImplicitWarTurn(war, a, b) {
       war.bestApproach = closest;
       war.stalledTurns = 0;
     } else war.stalledTurns = (war.stalledTurns || 0) + 1;
+    let pillage = 0;
+    for (const id of fielded) {
+      if (pillage >= 2) break;
+      const q = W.components.position[id],
+        building = (W.buildings || []).find(
+          (candidate) =>
+            !candidate.ruined &&
+            candidate.placeKind === "settlement" &&
+            targets.some((s) => s.id === candidate.placeId) &&
+            dist2(q.x, q.y, candidate.x, candidate.y) <= 9,
+        );
+      if (!building) continue;
+      const site = targets.find((s) => s.id === building.placeId),
+        damage = razeStrike(id, site, building, war);
+      if (damage > 0) {
+        pillage++;
+        war.siegeDamage = (war.siegeDamage || 0) + damage;
+      }
+    }
     campaignAttrition(war, fielded);
     if (war.stalledTurns > 8)
       return endWar(war, a, b, "the column stalled short of contact and the levies broke up");
@@ -903,7 +922,7 @@ function resolveImplicitWarTurn(war, a, b) {
     return endWar(war, a, b, "a bloodless standoff proved neither side could reach the other");
   let casualties = 0;
   const previousEventId = W.events.at(-1)?.id || 0;
-  const exchanges = Math.min(7, attackers.length, Math.max(1, defenders.length));
+  const exchanges = Math.min(12, attackers.length, Math.max(2, defenders.length + 3));
   for (let n = 0; n < exchanges; n++) {
     const attack = attackers[n % attackers.length],
       attackPosition = W.components.position[attack.id],
@@ -956,6 +975,17 @@ function resolveImplicitWarTurn(war, a, b) {
     war.casualties += aggregate.count;
     war.lastEventId = aggregate.eventId;
   }
+  const counterFaction = aggregateFaction === defender.id ? attacker.id : defender.id,
+    counter = removeCohortWarCasualties(
+      counterFaction,
+      Math.max(war.contactTurns % 2, Math.floor(casualties * 0.5)),
+      tile,
+      war.lastEventId || war.startEventId,
+    );
+  if (counter.count) {
+    war.casualties += counter.count;
+    war.lastEventId = counter.eventId;
+  }
   if (control > 0 && livingDefenders.length && standingWalls.length) {
     let breached = 0;
     for (const entry of livingAttackers) {
@@ -977,7 +1007,7 @@ function resolveImplicitWarTurn(war, a, b) {
       livingDefenders.length > 0 && completedBuildings(target, "wall").length > 0,
     gain =
       control > 0
-        ? (control * 0.052 + (livingDefenders.length ? 0 : 0.1)) * (wallsStillBlocking ? 0.32 : 1)
+        ? (control * 0.075 + (livingDefenders.length ? 0 : 0.14)) * (wallsStillBlocking ? 0.32 : 1)
         : -0.045;
   war.captureProgress[target.id] = clamp((war.captureProgress[target.id] || 0) + gain, 0, 1);
   if (control > 0) {
@@ -987,7 +1017,7 @@ function resolveImplicitWarTurn(war, a, b) {
   if (
     livingAttackers.length >= 2 &&
     control >= 2 &&
-    war.captureProgress[target.id] >= 0.62 &&
+    war.captureProgress[target.id] >= 0.55 &&
     (!livingDefenders.length || control >= 3)
   ) {
     const ev = captureSettlementCausally(target, attacker, defender, war, livingAttackers);
