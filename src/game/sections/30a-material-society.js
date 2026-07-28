@@ -1755,8 +1755,8 @@ function toolForPurpose(id, purpose) {
 function toolRecipeFromInventory(id, purpose) {
   if (purpose === "gather") return null;
   const inv = W.components.inventory[id].materials,
-    candidates = [C.METAL, C.CRYSTAL, C.CERAMIC, C.MINERAL, C.ORE, C.BONE]
-      .filter((sp) => inv[sp] >= 2)
+    candidates = [C.METAL, C.CRYSTAL, C.CERAMIC, C.MINERAL, C.ORE, C.BONE, C.ORGANIC]
+      .filter((sp) => (sp === C.ORGANIC ? purpose === "war" && inv[sp] >= 4 : inv[sp] >= 2))
       .map((sp) => {
         const m = materialTrait(sp);
         return {

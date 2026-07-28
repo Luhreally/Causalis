@@ -1082,13 +1082,22 @@ function advanceWarMobilization(a, b, rel, rev) {
           dist2(left.x, left.y, home.x, home.y) - dist2(right.x, right.y, home.x, home.y) ||
           left.id - right.id,
       )[0],
-    need = clamp(Math.ceil(settlementDefense(target) / 12), 4, 10);
-  musterFactionForce(attacker, home, need);
-  musterFactionForce(
-    defender,
-    targets.find((s) => s.id === defender.capitalSettlementId) || targets[0],
-    Math.max(3, Math.floor(need * 0.75)),
-  );
+    need = clamp(Math.ceil(settlementDefense(target) / 12), 4, 10),
+    attackerUnit = musterFactionForce(attacker, home, need),
+    defenderUnit = musterFactionForce(
+      defender,
+      targets.find((s) => s.id === defender.capitalSettlementId) || targets[0],
+      Math.max(3, Math.floor(need * 0.75)),
+    );
+  for (const unit of [attackerUnit, defenderUnit]) {
+    if (!unit) continue;
+    for (const id of unit.memberIds.filter(classifyAlive)) {
+      if (carriedToolForPurpose(id, "war")) continue;
+      const recipe =
+        toolRecipeFromInventory(id, "war") || supplyEquipmentMaterials(id, "war");
+      if (recipe) beginOrAdvanceCraft(id, "war");
+    }
+  }
   if (!rel.mobilizeSince) {
     rel.mobilizeSince = rev.mobilizeSince = W.tick;
     emitEvent("WarTensionEvent", {

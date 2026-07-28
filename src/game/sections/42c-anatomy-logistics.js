@@ -763,8 +763,12 @@ function supplyEquipmentMaterials(id, purpose) {
   const inventory = W.components.inventory[id]?.materials,
     place = nearestFriendlyPlace(id);
   if (!inventory || !place) return null;
-  const rigid = [C.CERAMIC, C.METAL, C.CRYSTAL, C.MINERAL, C.ORE, C.BONE]
-      .filter((species) => (place.inventory[species] || 0) >= 2)
+  const rigidPool =
+      purpose === "war"
+        ? [C.CERAMIC, C.METAL, C.CRYSTAL, C.MINERAL, C.ORE, C.BONE, C.ORGANIC]
+        : [C.CERAMIC, C.METAL, C.CRYSTAL, C.MINERAL, C.ORE, C.BONE],
+    rigid = rigidPool
+      .filter((species) => (place.inventory[species] || 0) >= (species === C.ORGANIC ? 6 : 2))
       .sort(
         (left, right) =>
           materialTrait(right).hardness - materialTrait(left).hardness || left - right,
