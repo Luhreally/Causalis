@@ -1691,7 +1691,17 @@ function advanceLTC(id) {
 function cognitionBias(id, action) {
   const c = W.components.cognition?.[id],
     n = LTC_ACTIONS.indexOf(action);
-  return !c || n < 0 ? 0 : ((c.output?.[n] || 0) * 30) / LTC_Q + ((c.value?.[n] || 0) * 10) / LTC_Q;
+  if (!c || n < 0) return 0;
+  const bias = ((c.output?.[n] || 0) * 30) / LTC_Q + ((c.value?.[n] || 0) * 10) / LTC_Q,
+    l = W.components.life[id];
+  if (
+    l &&
+    ((action === "food" && l.hunger > 78) ||
+      (action === "water" && l.thirst > 78) ||
+      (action === "flee" && l.threatId))
+  )
+    return Math.max(0, bias);
+  return bias;
 }
 function isFunctionalTool(a, purpose = null) {
   return (
@@ -3029,7 +3039,8 @@ function updateCognitionAndLabor() {
       (W.tick % 4 !== id % 4 && !(coordinatedLabor && W.kind[id] === KINDS.PERSON))
     )
       continue;
-    const c = W.tick % 8 === id % 8 ? advanceLTC(id) : initCognition(id);
+    const thinkCadence = W.kind[id] === KINDS.PERSON ? 4 : 8,
+      c = W.tick % thinkCadence === id % thinkCadence ? advanceLTC(id) : initCognition(id);
     if (W.kind[id] !== KINDS.PERSON) continue;
     const w = workState(id),
       facility = facilityAssignment(id),

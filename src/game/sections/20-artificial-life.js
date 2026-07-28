@@ -529,7 +529,11 @@ function germinateRefuge(refuge, targetTile = null) {
 }
 function updateBiosphereResilience() {
   if (!W.biosphere) return;
-  const floors = { [KINDS.HERBIVORE]: 18, [KINDS.PREDATOR]: 4, [KINDS.PERSON]: 8 },
+  const floors = {
+      [KINDS.HERBIVORE]: Math.max(30, Math.floor(W.tileCount / 400)),
+      [KINDS.PREDATOR]: Math.max(6, Math.floor(W.tileCount / 2400)),
+      [KINDS.PERSON]: 8,
+    },
     reserveTargets = { [KINDS.HERBIVORE]: 4, [KINDS.PREDATOR]: 3, [KINDS.PERSON]: 8 },
     bankTicks = W.biosphere.lastBankTickByKind || (W.biosphere.lastBankTickByKind = {});
   let persistent = true;

@@ -6,17 +6,26 @@ function sustainableSexualCapacity(kind) {
     density = Number(W.config.lifeDensity || 1),
     foodFactor = clamp((food - 2) / 8, 0.5, 1.2);
   if (kind === KINDS.HERBIVORE)
-    return Math.max(72, Math.floor(W.tileCount * 0.01 * density * foodFactor));
+    return Math.max(96, Math.floor(W.tileCount * 0.016 * density * foodFactor));
   if (kind === KINDS.PREDATOR)
-    return Math.max(8, Math.floor(sustainableSexualCapacity(KINDS.HERBIVORE) * 0.19));
-  const agriculture = W.settlements.some(
-    (s) => !s.ruined && (s.knownProcesses.includes("agriculture") || placeHasFacility(s, "farm")),
-  )
-    ? 1.15
-    : 1;
+    return Math.max(10, Math.floor(sustainableSexualCapacity(KINDS.HERBIVORE) * 0.19));
+  const knows = (process) =>
+      W.settlements.some(
+        (s) =>
+          !s.ruined &&
+          (s.knownProcesses.includes(process) ||
+            (process === "agriculture" && placeHasFacility(s, "farm"))),
+      ),
+    techLift =
+      1 +
+      (knows("agriculture") ? 0.6 : 0) +
+      (knows("irrigation") ? 0.5 : 0) +
+      (knows("waterworks") ? 0.5 : 0) +
+      (knows("sanitation") ? 0.4 : 0) +
+      (knows("mechanization") ? 0.6 : 0);
   return Math.max(
-    24,
-    Math.floor(W.tileCount * 0.0042 * density * clamp(food / 8, 0.6, 1.15) * agriculture),
+    40,
+    Math.floor(W.tileCount * 0.008 * density * clamp(food / 8, 0.6, 1.3) * techLift),
   );
 }
 let reproductionDensityCache = { tick: -1, byKind: {} };
@@ -34,7 +43,7 @@ function reproductionDensityAllows(id, kind) {
     capacity = cached.capacity;
   if (population >= capacity) return false;
   const pressure = population / capacity;
-  if (pressure <= 0.62) return true;
+  if (pressure <= 0.78) return true;
   const remaining = clamp((1 - pressure) / 0.38, 0.05, 1),
     cycle = Math.floor(W.tick / 128);
   return (
