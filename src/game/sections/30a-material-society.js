@@ -524,7 +524,10 @@ function planBuilding(place, type, priority = 3) {
       (b) => !b.ruined && b.placeKind === kind && b.placeId === place.id,
     ).length,
     plannedTile = plannedBuildingTile(place, type, ordinal);
-  if (!plannedTile) return null;
+  if (!plannedTile) {
+    queueRuinSalvage(place);
+    return null;
+  }
   const def = BUILDING_DEFS[type],
     x = plannedTile?.[0],
     y = plannedTile?.[1],
@@ -2162,9 +2165,118 @@ function nearestWorkPlace(id) {
   const p = W.components.position[id];
   return dist2(p.x, p.y, place.x, place.y) <= 28 * 28 ? place : null;
 }
+function ruinRubble(b) {
+  return b?.ruined ? sum(Array.from(b.composition || [])) : 0;
+}
+function queueRuinSalvage(place) {
+  if (!place) return null;
+  const kind = place.knownProcesses ? "settlement" : "camp",
+    ruin = (W.buildings || [])
+      .filter(
+        (b) =>
+          ruinRubble(b) > 0 &&
+          dist2(b.x, b.y, place.x, place.y) <= 196 &&
+          !W.workOrders.some(
+            (o) => o.status === "open" && o.type === "salvage" && o.buildingId === b.id,
+          ),
+      )
+      .sort(
+        (left, right) =>
+          dist2(left.x, left.y, place.x, place.y) - dist2(right.x, right.y, place.x, place.y) ||
+          left.id - right.id,
+      )[0];
+  if (!ruin) return null;
+  const order = {
+    id: W.nextWorkOrderId++,
+    type: "salvage",
+    buildingId: ruin.id,
+    placeKind: kind,
+    placeId: place.id,
+    priority: 4,
+    status: "open",
+    createdTick: W.tick,
+    claimedBy: 0,
+  };
+  W.workOrders.push(order);
+  return order;
+}
+function completeRuinSalvage(place, ruin, order) {
+  if (order) order.status = "done";
+  emitEvent("RuinsClearedEvent", {
+    subjects: [place?.entityId].filter(Boolean),
+    location: idx(ruin.x, ruin.y),
+    factions: [place?.factionId].filter(Boolean),
+    causes: [W.lastEventByType.SettlementDestroyedEvent || 0].filter(Boolean),
+    evidence: [
+      `the collapsed ${ruin.name} was pulled down and its material carried into the stockpile`,
+      "the ground it stood on is open for building again",
+    ],
+    importance: 2,
+    data: { type: ruin.type, placeId: place?.id || 0 },
+  });
+}
+function performRuinSalvage(id, place, order, ruin) {
+  if (!ruin || !ruin.ruined) {
+    if (order) order.status = "done";
+    return false;
+  }
+  if (ruinRubble(ruin) <= 0) {
+    completeRuinSalvage(place, ruin, order);
+    return false;
+  }
+  const p = W.components.position[id];
+  if (dist2(p.x, p.y, ruin.x, ruin.y) > 2)
+    return moveWorkerToward(
+      id,
+      idx(ruin.x, ruin.y),
+      "salvage",
+      `going to pull down the ruined ${ruin.name}`,
+      -1,
+      ruin.id,
+      0,
+    );
+  const inv = W.components.inventory[id].materials,
+    budget = concertedIntensity() ? 32 : 8;
+  let moved = 0,
+    lastSpecies = -1;
+  for (let sp = 0; sp < ruin.composition.length && moved < budget; sp++) {
+    const take = Math.min(ruin.composition[sp], budget - moved, 65535 - inv[sp]);
+    if (take <= 0) continue;
+    ruin.composition[sp] -= take;
+    inv[sp] += take;
+    moved += take;
+    lastSpecies = sp;
+  }
+  if (!moved) {
+    completeRuinSalvage(place, ruin, order);
+    return false;
+  }
+  refreshBuildingStage(ruin);
+  W.civicMetrics.salvaged = (W.civicMetrics.salvaged || 0) + moved;
+  setWorkAction(
+    id,
+    "salvage",
+    `salvaged ${moved} ${W.definitions.species[lastSpecies].name} from the ruined ${ruin.name}`,
+    idx(ruin.x, ruin.y),
+    lastSpecies,
+    ruin.id,
+    0,
+  );
+  W.components.cognition[id].pendingReward += 72;
+  if (ruinRubble(ruin) <= 0) completeRuinSalvage(place, ruin, order);
+  return true;
+}
 function orderPriority(order, place, id) {
   const b = W.buildings.find((x) => x.id === order.buildingId);
-  if (!b || b.complete || b.ruined) return -1e9;
+  if (!b) return -1e9;
+  if (order.type === "salvage") {
+    if (ruinRubble(b) <= 0) return -1e9;
+    const q = W.components.position[id];
+    return (
+      70 + order.priority * 18 - Math.sqrt(dist2(q.x, q.y, b.x, b.y)) * 2 - b.id * 0.0001
+    );
+  }
+  if (b.complete || b.ruined) return -1e9;
   const p = W.components.position[id],
     def = BUILDING_DEFS[b.type],
     policy = place.management?.priorities?.[def.priority] || 2,
@@ -2685,6 +2797,7 @@ function performCivilLabor(id) {
   if (!order) return performStockpileLabor(id, place);
   const b = W.buildings.find((x) => x.id === order.buildingId);
   if (!b) return false;
+  if (order.type === "salvage") return performRuinSalvage(id, place, order, b);
   const missing = missingBuildingMaterial(b),
     inv = W.components.inventory[id].materials;
   if (missing) {
