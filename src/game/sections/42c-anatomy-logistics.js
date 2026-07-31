@@ -782,18 +782,19 @@ function supplyEquipmentMaterials(id, purpose) {
   if (rigid === undefined || flexible === undefined) return null;
   const extra =
       purpose === "watercraft" ? 6 : purpose === "armor" ? 2 : purpose === "shield" ? 1 : 0,
-    amount = 2 + extra;
+    rigidAmount = purpose === "war" && rigid === C.ORGANIC ? 4 : 2 + extra,
+    flexAmount = 2 + extra;
   if (
-    place.inventory[rigid] < amount ||
-    place.inventory[flexible] < amount ||
-    inventory[rigid] > 65535 - amount ||
-    inventory[flexible] > 65535 - amount
+    place.inventory[rigid] < rigidAmount ||
+    place.inventory[flexible] < flexAmount ||
+    inventory[rigid] > 65535 - rigidAmount ||
+    inventory[flexible] > 65535 - flexAmount
   )
     return null;
-  place.inventory[rigid] -= amount;
-  place.inventory[flexible] -= amount;
-  inventory[rigid] += amount;
-  inventory[flexible] += amount;
+  place.inventory[rigid] -= rigidAmount;
+  place.inventory[flexible] -= flexAmount;
+  inventory[rigid] += rigidAmount;
+  inventory[flexible] += flexAmount;
   return { head: rigid, binding: flexible, purpose };
 }
 

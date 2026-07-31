@@ -2322,6 +2322,7 @@ function beginOrAdvanceCraft(id, purpose) {
     w.actionSerial++;
   }
   w.progress += 4;
+  w.handledTick = W.tick;
   setWorkAction(
     id,
     "craft",
