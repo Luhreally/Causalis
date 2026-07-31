@@ -479,6 +479,11 @@ function biospherePopulation(kind) {
   for (const cohort of W.cohorts) if (cohort.kind === kind) count += cohort.count;
   return count;
 }
+function livePopulation(kind) {
+  let count = 0;
+  for (const id of W.activeIds) if (W.kind[id] === kind && classifyAlive(id)) count++;
+  return count;
+}
 function germinateRefuge(refuge, targetTile = null) {
   if (!refuge?.available) return 0;
   if (W.biosphere.emergencePlan && W.biosphere.emergencePlan.phase < 5) return 0;
@@ -538,18 +543,28 @@ function updateBiosphereResilience() {
     bankTicks = W.biosphere.lastBankTickByKind || (W.biosphere.lastBankTickByKind = {});
   let persistent = true;
   for (const kind of [KINDS.HERBIVORE, KINDS.PREDATOR, KINDS.PERSON]) {
-    const population = biospherePopulation(kind),
+    const live = livePopulation(kind),
       floor = floors[kind];
-    if (population < floor) persistent = false;
-    if (population < floor) {
+    if (live < floor) persistent = false;
+    if (live < floor) {
+      let needed = Math.max(1, floor - live);
+      const cohorts = W.cohorts
+        .filter((c) => c.kind === kind && c.count > 0)
+        .sort((a, b) => b.count - a.count || a.id - b.id);
+      let revived = 0;
+      for (const cohort of cohorts) {
+        while (cohort.count > 0 && revived < Math.min(needed, 3) && materializeCohort(cohort))
+          revived++;
+        if (revived >= Math.min(needed, 3)) break;
+      }
+      needed -= revived;
       const refuges = W.biosphere.refugia
-          .filter((x) => x.available && x.kind === kind)
-          .sort(
-            (a, b) =>
-              habitatScore(b.homeTile, kind) - habitatScore(a.homeTile, kind) || a.id - b.id,
-          ),
-        needed = Math.max(1, floor - population);
-      if (refuges.length) {
+        .filter((x) => x.available && x.kind === kind)
+        .sort(
+          (a, b) =>
+            habitatScore(b.homeTile, kind) - habitatScore(a.homeTile, kind) || a.id - b.id,
+        );
+      if (needed > 0 && refuges.length) {
         const r = makeRng(
             hashParts(W.seedHash, W.tick, kind, "paired-refuge"),
             "paired-dormancy-exit",
@@ -565,7 +580,7 @@ function updateBiosphereResilience() {
     const available = W.biosphere.refugia.filter((x) => x.available && x.kind === kind).length;
     if (
       W.tick - (bankTicks[kind] || 0) >= 1024 &&
-      population > floor * 2 &&
+      live > Math.ceil(floor * 1.15) &&
       available < reserveTargets[kind]
     ) {
       const candidate = W.activeIds
