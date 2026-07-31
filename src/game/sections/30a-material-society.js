@@ -1917,7 +1917,12 @@ createPersonalTool = function (id, recipe) {
       kind === "camp"
         ? W.camps.find((x) => x.id === placeId && x.active)
         : W.settlements.find((x) => x.id === placeId && !x.ruined);
-  if (place && functionalToolsAtPlace(place, recipe.purpose).length) return null;
+  if (
+    place &&
+    !["war", "armor", "shield"].includes(recipe.purpose) &&
+    functionalToolsAtPlace(place, recipe.purpose).length
+  )
+    return null;
   return createPersonalToolUniqueBase(id, recipe);
 };
 function workState(id) {
