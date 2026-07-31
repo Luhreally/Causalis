@@ -135,7 +135,7 @@ function runMetabolism(id, tier) {
     const cat = Math.min(d[C.CATALYST], 2, 65535 - ch.q[C.CATALYST]);
     d[C.CATALYST] -= cat;
     ch.q[C.CATALYST] += cat;
-    const structuralReserve = W.kind[id] === KINDS.PERSON ? 24 : 30,
+    const structuralReserve = W.kind[id] === KINDS.PERSON ? 64 : 30,
       available = Math.max(0, ch.q[C.ORGANIC] - structuralReserve),
       amount = Math.min(14 * rate, available);
     if (amount > 0) executeProcess("digestion", inv, Math.max(1, Math.floor(amount / 2)));
