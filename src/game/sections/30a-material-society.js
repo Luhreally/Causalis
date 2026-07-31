@@ -2935,8 +2935,7 @@ performCivilLabor = function (id) {
   const place = nearestWorkPlace(id),
     w = workState(id);
   let handled = false;
-  if (w.task === "craft" && w.craftPurpose && !w.toolOrderPurpose)
-    handled = performCivilLaborSafetyBase(id);
+  if (w.task === "craft" && w.craftPurpose) handled = performCivilLaborSafetyBase(id);
   if (!handled && place) handled = performPlaceToolmaking(id, place);
   if (
     !handled &&
