@@ -332,8 +332,7 @@ function applyConquestDoctrine(target, attacker, ti, raiders = null) {
   const xenophobia = typeof factionXenophobia === "function" ? factionXenophobia(attacker) : 0.5,
     brutality = aggression * 0.55 + xenophobia * 0.45;
   if (brutality > 0.62) {
-    const residents =
-        typeof occupationResidents === "function" ? occupationResidents(target) : [],
+    const residents = typeof occupationResidents === "function" ? occupationResidents(target) : [],
       holdouts = residents.filter(
         (id) => classifyAlive(id) && W.components.social[id]?.factionId !== attacker.id,
       ),
@@ -480,11 +479,63 @@ simTick = function () {
   initializeImplicitSociety();
   updateMilitaryMovement();
 };
+// Famine as recorded history: starvation deaths are tallied against the nearest community and
+// a year in which they exceed a share of the population becomes a single chronicle entry.
+const killEntityFamineBase = killEntity;
+killEntity = function (id, cause = "regulatory collapse", causeEvent = 0, erase = false) {
+  const kind = W.kind[id],
+    p = W.components.position[id],
+    result = killEntityFamineBase(id, cause, causeEvent, erase);
+  if (kind === KINDS.PERSON && p && /energy depletion|solvent deprivation/.test(cause)) {
+    const tile = idx(p.x, p.y),
+      place = settlementNear(tile, 9) || campNear(tile, 7);
+    if (place) place.hungerDeaths = (place.hungerDeaths || 0) + 1;
+  }
+  return result;
+};
+function updateFamineChronicle() {
+  for (const s of W.settlements) {
+    const deaths = s.hungerDeaths || 0;
+    s.hungerDeaths = 0;
+    if (s.ruined || !deaths) continue;
+    const pop = settlementPopulation(s);
+    if (deaths < Math.max(3, Math.ceil(pop * 0.08))) continue;
+    s.famineYears = (s.famineYears || 0) + 1;
+    s.stability = clamp(s.stability - 0.04, 0, 1);
+    const ev = emitEvent("FamineEvent", {
+      subjects: [s.entityId].filter(Boolean),
+      location: idx(s.x, s.y),
+      factions: [s.factionId].filter(Boolean),
+      causes: [
+        W.lastEventByType.DroughtEvent,
+        W.lastEventByType.CropFailedEvent,
+        W.lastEventByType.DeathEvent,
+      ].filter(Boolean),
+      evidence: [
+        `${deaths} people starved within a single year`,
+        `${pop} remained`,
+        `stored food index ${Math.round(settlementFood(s))}`,
+      ],
+      magnitude: deaths,
+      importance: 4,
+      data: { name: s.name, deaths, population: pop, famineYears: s.famineYears },
+    });
+    s.importantEvents.push(ev.id);
+  }
+  for (const c of W.camps) c.hungerDeaths = 0;
+}
+const simTickFamineBase = simTick;
+simTick = function () {
+  simTickFamineBase();
+  if (W && W.tick % TICKS_PER_YEAR === 128) updateFamineChronicle();
+};
 const eventSentenceImplicitBase = eventSentence;
 eventSentence = function (e) {
   const f = e.factions.map((id) => W.factions.find((x) => x.id === id)?.name || `Faction ${id}`),
     names = e.subjects.map(entityName),
     loc = locationName(e.location);
+  if (e.type === "FamineEvent")
+    return `Famine struck ${e.data.name || loc}: ${e.data.deaths} starved in a single year${e.data.famineYears > 1 ? `, the ${e.data.famineYears === 2 ? "second" : `${e.data.famineYears}th`} such year` : ""}.`;
   if (e.type === "ExchangeEvent")
     return `${names[0]} and ${names[1]} completed a conserved material exchange in ${loc}.`;
   if (e.type === "InstitutionFormedEvent")

@@ -388,8 +388,12 @@ function updateSettlements() {
 }
 function entityAtRadius(tile, r, kind) {
   const cx = tile % W.width,
-    cy = Math.floor(tile / W.width),
-    r2 = r * r,
+    cy = Math.floor(tile / W.width);
+  if (r >= 5) {
+    const viaCells = entitiesWithinRadius(cx, cy, r, 0, kind ? (id) => W.kind[id] === kind : null);
+    if (viaCells) return viaCells;
+  }
+  const r2 = r * r,
     bins = W.spatialBins,
     width = W.width,
     out = [];

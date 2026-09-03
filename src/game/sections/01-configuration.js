@@ -264,6 +264,7 @@ const EVENT_CATEGORY = Object.freeze({
   CampAbandonedEvent: "settlements",
   SettlementFoundedEvent: "settlements",
   SettlementDestroyedEvent: "settlements",
+  FamineEvent: "settlements",
   SettlementCapturedEvent: "war",
   OccupationResistanceEvent: "war",
   OccupationViolenceEvent: "war",

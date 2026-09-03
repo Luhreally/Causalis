@@ -16,6 +16,10 @@ function nearbyIds(id, radius = 3, filter = null) {
   const p = W.components.position[id],
     out = [];
   if (!p) return out;
+  if (radius >= 5) {
+    const viaCells = entitiesWithinRadius(p.x, p.y, radius, id, filter);
+    if (viaCells) return viaCells;
+  }
   const bins = W.spatialBins,
     width = W.width,
     px = p.x,

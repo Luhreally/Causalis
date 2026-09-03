@@ -207,15 +207,17 @@ function updateHistoricalSignificance() {
         (life.age / W.components.body[id].maxAge) * 5 +
         ident.battles * 2,
     );
-    if (!ident.notable && ident.significance >= 8) {
+    // With lifespans of decades and villages of hundreds, a low bar made most elders
+    // "notable" and drowned the chronicle; renown now takes a genuinely unusual life.
+    if (!ident.notable && ident.significance >= 16) {
       ident.notable = true;
       const title = ident.settlementsFounded.length
         ? "the Founder"
-        : ident.artifacts.length
+        : ident.artifacts.length >= 3
           ? "the Maker"
           : ident.kills > 2
             ? "the Defender"
-            : life.age > W.components.body[id].maxAge * 0.75
+            : life.age > W.components.body[id].maxAge * 0.9
               ? "the Long-Lived"
               : "the Remembered";
       ident.titles.push(title);
@@ -224,13 +226,21 @@ function updateHistoricalSignificance() {
         location: idx(W.components.position[id].x, W.components.position[id].y),
         causes: [W.causalIndex.entity[id] || 0],
         evidence: [`historical significance reached ${ident.significance.toFixed(1)}`],
-        importance: 3,
+        importance: 2,
         data: { title },
       });
     }
-    if (ident.notable && ident.significance >= 22 && !ident.legendary) {
+    if (ident.notable && ident.significance >= 40 && !ident.legendary) {
       ident.legendary = true;
       ident.titles.push("Living Legend");
+      emitEvent("NotableFigureEvent", {
+        subjects: [id],
+        location: idx(W.components.position[id].x, W.components.position[id].y),
+        causes: [W.causalIndex.entity[id] || 0],
+        evidence: [`historical significance reached ${ident.significance.toFixed(1)}`],
+        importance: 4,
+        data: { title: "Living Legend" },
+      });
     }
   }
 }

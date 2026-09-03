@@ -28,7 +28,8 @@ function emitEvent(type, data = {}) {
   if (location >= 0) W.causalIndex.tile[location] = id;
   for (const s of ev.subjects) W.causalIndex.entity[s] = id;
   W.causalIndex.domain[ev.category] = id;
-  if (W.events.length > MAX_EVENTS + 128) compressEvents(W.events.length - MAX_EVENTS);
+  // Compression walks the whole world for live references, so trim in larger batches.
+  if (W.events.length > MAX_EVENTS + 384) compressEvents(W.events.length - MAX_EVENTS + 256);
   return ev;
 }
 function eventReferenceIds() {

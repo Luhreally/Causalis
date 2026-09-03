@@ -1,6 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // 12. POPULATION COHORTS AND AGGREGATION
 // ═══════════════════════════════════════════════════════════════════════════
+// Coarse spatial cells (render-side and query-side only, never saved or hashed) let wide
+// perception queries visit a handful of cells instead of hundreds of individual tiles.
+const SPATIAL_CELL_SHIFT = 3;
+let SPATIAL_CELLS = { world: null, cells: null, columns: 0, rows: 0 };
 function rebuildSpatialBins() {
   // Reuse the bin table between ticks; allocating a tile-count array every tick was measurable.
   const bins =
@@ -10,16 +14,55 @@ function rebuildSpatialBins() {
   bins.fill(null);
   W.spatialBins = bins;
   W.tiles.populationPressure.fill(0);
+  const columns = (W.width + (1 << SPATIAL_CELL_SHIFT) - 1) >> SPATIAL_CELL_SHIFT,
+    rows = (W.height + (1 << SPATIAL_CELL_SHIFT) - 1) >> SPATIAL_CELL_SHIFT,
+    cells =
+      SPATIAL_CELLS.world === W && SPATIAL_CELLS.cells?.length === columns * rows
+        ? SPATIAL_CELLS.cells
+        : new Array(columns * rows);
+  cells.fill(null);
   for (const id of W.activeIds) {
     const p = W.components.position[id];
     if (!p) continue;
     const i = idx(p.x, p.y);
     (bins[i] || (bins[i] = [])).push(id);
+    const cell = (p.y >> SPATIAL_CELL_SHIFT) * columns + (p.x >> SPATIAL_CELL_SHIFT);
+    (cells[cell] || (cells[cell] = [])).push(id);
     const kind = W.kind[id];
     if (kind === KINDS.HERBIVORE || kind === KINDS.PREDATOR || kind === KINDS.PERSON)
       W.tiles.populationPressure[i] = u16(W.tiles.populationPressure[i] + 80);
   }
   for (const bin of bins) if (bin && bin.length > 1) bin.sort((a, b) => a - b);
+  SPATIAL_CELLS = { world: W, cells, columns, rows };
+}
+// Entities within `radius` of (cx, cy), read from the coarse cells against binned positions.
+// Returns null when the cell index is not current for this world (callers fall back to tiles).
+function entitiesWithinRadius(cx, cy, radius, exclude, predicate) {
+  if (SPATIAL_CELLS.world !== W || !SPATIAL_CELLS.cells) return null;
+  const { cells, columns, rows } = SPATIAL_CELLS,
+    r2 = radius * radius,
+    x0 = Math.max(0, (cx - radius) >> SPATIAL_CELL_SHIFT),
+    x1 = Math.min(columns - 1, (cx + radius) >> SPATIAL_CELL_SHIFT),
+    y0 = Math.max(0, (cy - radius) >> SPATIAL_CELL_SHIFT),
+    y1 = Math.min(rows - 1, (cy + radius) >> SPATIAL_CELL_SHIFT),
+    positions = W.components.position,
+    out = [];
+  for (let y = y0; y <= y1; y++)
+    for (let x = x0; x <= x1; x++) {
+      const cell = cells[y * columns + x];
+      if (!cell) continue;
+      for (const other of cell) {
+        if (other === exclude) continue;
+        const op = positions[other];
+        if (!op) continue;
+        const dx = op.x - cx,
+          dy = op.y - cy;
+        if (dx * dx + dy * dy > r2) continue;
+        if (!predicate || predicate(other)) out.push(other);
+      }
+    }
+  if (out.length > 1) out.sort((a, b) => a - b);
+  return out;
 }
 function cohortLifeSpan(kind) {
   return (LIFE_HISTORY[kind] || LIFE_HISTORY.person).maxAge;
