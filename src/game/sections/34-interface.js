@@ -431,6 +431,7 @@ function eventTree(id, depth = 0, seen = new Set()) {
 function refreshChronicle() {
   if (!W) return;
   const filters = [
+      "notable",
       "all",
       "ecology",
       "people",
@@ -443,7 +444,15 @@ function refreshChronicle() {
       "species",
     ],
     events = W.events
-      .filter((e) => UI.chronicleFilter === "all" || e.category === UI.chronicleFilter)
+      // "Notable" is the default lens: births, bites and feedings stay in the raw feed, while
+      // the history a reader wants (founding, discovery, war, collapse) surfaces on its own.
+      .filter((e) =>
+        UI.chronicleFilter === "all"
+          ? true
+          : UI.chronicleFilter === "notable"
+            ? e.importance >= 3
+            : e.category === UI.chronicleFilter,
+      )
       .slice(-90)
       .reverse(),
     selected = UI.selectedEvent ? eventById(UI.selectedEvent) : null;

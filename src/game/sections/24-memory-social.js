@@ -13,9 +13,11 @@ createOffspring = function (kind, parents, tile) {
     W.components.life[parents[0]]?.emergenceStage || "multicellular",
     generation,
   );
+  const recovery = LIFE_HISTORY[kind] || LIFE_HISTORY.person;
   for (const parent of parents)
     W.components.reproduction[parent].cooldown =
-      900 + Math.floor(counterRand("sexual-recovery", W.tick, parent, id) * 600);
+      recovery.birthRecovery +
+      Math.floor(counterRand("sexual-recovery", W.tick, parent, id) * recovery.birthRecoverySpread);
   const byKind =
     W.statistics.birthsByKind ||
     (W.statistics.birthsByKind = { herbivore: 0, predator: 0, person: 0 });
@@ -63,7 +65,10 @@ updateReproduction = function () {
         g = genomeFrom(r, kind, W.components.genome[id], W.components.genome[mate]),
         chem = makeCohortBirthMatter(parents);
       addBirthToCohort(kind, p.regionId, parents, chem, g);
-      for (const parent of parents) W.components.reproduction[parent].cooldown = 1100;
+      for (const parent of parents)
+        W.components.reproduction[parent].cooldown =
+          (LIFE_HISTORY[kind] || LIFE_HISTORY.person).birthRecovery +
+          (LIFE_HISTORY[kind] || LIFE_HISTORY.person).birthRecoverySpread;
     }
     used.add(id);
     used.add(mate);

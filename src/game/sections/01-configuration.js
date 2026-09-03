@@ -32,6 +32,20 @@ const CAPS = Object.freeze({
   settlement: 40,
   faction: 12,
 });
+// Life-history clock in ticks (256 per year). People mature at about fifteen and live about
+// seventy-five years; wild animals turn over in years rather than centuries, so their numbers
+// track food and predation instead of accumulating immortal individuals.
+// Research pacing. A settlement pursues one line of inquiry at a time; side topics only gather
+// incidental notes. TEMPO scales the work-unit rate so a village needs a generation, not a
+// season, per discovery, and knowledge already practiced by a neighboring people is easier.
+const RESEARCH_TEMPO = 0.06,
+  RESEARCH_SIDE_SHARE = 0.12,
+  RESEARCH_NEIGHBOR_REACH = 40;
+const LIFE_HISTORY = Object.freeze({
+  herbivore: { maxAge: 4600, maturityAge: 640, birthRecovery: 200, birthRecoverySpread: 120 },
+  predator: { maxAge: 4100, maturityAge: 900, birthRecovery: 320, birthRecoverySpread: 160 },
+  person: { maxAge: 19200, maturityAge: 3840, birthRecovery: 1400, birthRecoverySpread: 900 },
+});
 const STREAM_NAMES = Object.freeze([
   "worldGeneration",
   "climate",
@@ -338,7 +352,7 @@ const UI = {
   quality: "standard",
   labels: true,
   activeTab: "inspect",
-  chronicleFilter: "all",
+  chronicleFilter: "notable",
   lastUiTick: -1,
   lastRender: 0,
   renderSkip: 0,

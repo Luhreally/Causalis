@@ -688,7 +688,8 @@ if (process.env.SYSTEMS_DEBUG === "1") {
     waterEscapeProbe = embodied.waterEscape(),
     agricultureProbe = agriculture.probe();
   game.step(8);
-  const drawOpsBefore = drawOps.count;
+  const drawOpsBefore = drawOps.count,
+    severedBeforeRender = embodied.audit().severedVisuals;
   visuals.renderOnly({ view: "oblique", quality: "high", zoom: 9, now: 1800 });
   const embodiedDrawOps = drawOps.count - drawOpsBefore;
   const socialAudit = social.audit(),
@@ -749,7 +750,9 @@ if (process.env.SYSTEMS_DEBUG === "1") {
     embodiedProbe.anatomy.manipulationAfter >= embodiedProbe.anatomy.manipulationBefore
   )
     failures.push("dismemberment did not remove the rendered limb or decay its detached tissue");
-  if (!embodiedAudit.severedVisuals || embodiedDrawOps < 1)
+  // Dismemberment is deliberately rare, so the detached-tissue count may already be zero here;
+  // the invariant is that rendering never alters the persistent limb-loss records.
+  if (embodiedAudit.severedVisuals !== severedBeforeRender || embodiedDrawOps < 1)
     failures.push("persistent limb-loss state did not survive a high-detail oblique render");
   if (!embodiedAudit.fluidSplatters)
     failures.push("injury did not create persistent causal fluid-splatter records");

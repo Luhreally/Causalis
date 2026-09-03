@@ -22,10 +22,10 @@ function rebuildSpatialBins() {
   for (const bin of bins) if (bin && bin.length > 1) bin.sort((a, b) => a - b);
 }
 function cohortLifeSpan(kind) {
-  return kind === KINDS.HERBIVORE ? 36000 : kind === KINDS.PREDATOR ? 48000 : 72000;
+  return (LIFE_HISTORY[kind] || LIFE_HISTORY.person).maxAge;
 }
 function cohortMaturityAge(kind) {
-  return 1000;
+  return (LIFE_HISTORY[kind] || LIFE_HISTORY.person).maturityAge;
 }
 function ensureCohortState(c) {
   c.count = Math.max(0, Math.floor(Number(c.count) || 0));
@@ -62,6 +62,9 @@ function ensureCohortState(c) {
   );
   c.lastAgeTick = Number.isFinite(c.lastAgeTick) ? Math.min(c.lastAgeTick, W.tick) : W.tick;
   c.maxAge = Math.max(1, Math.floor(Number(c.maxAge) || cohortLifeSpan(c.kind)));
+  // Age bins are quartiles of the lifespan, so an archived century-scale cohort simply adopts
+  // the current lifespan without shifting anyone between bins.
+  if (c.maxAge > cohortLifeSpan(c.kind) * 1.5) c.maxAge = cohortLifeSpan(c.kind);
   c.reproductionRemainder = clamp(Number(c.reproductionRemainder) || 0, 0, 0.999999999);
   c.materializedCount = Math.max(0, Math.floor(Number(c.materializedCount) || 0));
   c.history = Array.isArray(c.history) ? c.history : [];

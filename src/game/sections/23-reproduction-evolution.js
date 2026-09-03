@@ -82,6 +82,8 @@ function canReproduce(id) {
     r.mode === "paired" &&
     r.cooldown <= 0 &&
     l.age > (body.maturityAge ?? 1200) &&
+    // People have a fertile window; a village grows by generations, not by centenarians.
+    (!social || l.age < body.maxAge * 0.62) &&
     l.energy > (social ? 22 : predator ? 8 : 30) &&
     l.health > (predator ? 35 : 48) &&
     (predator

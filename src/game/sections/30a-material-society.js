@@ -3997,11 +3997,40 @@ updateTechnology = function () {
     }
   }
 };
+function researchThreshold(tech) {
+  return tech.threshold || 24 + (tech.prior?.length || 0) * 14;
+}
+// The current line of inquiry persists while it stays feasible; otherwise the settlement
+// commits to the feasible topic with the most accumulated notes, then the cheapest one.
+function chooseResearchFocus(s, eligible) {
+  const current = eligible.find((entry) => entry.tech.id === s.researchFocus);
+  if (current) return current;
+  const ranked = eligible
+    .slice()
+    .sort(
+      (a, b) =>
+        (s.researchProgress[b.tech.id] || 0) - (s.researchProgress[a.tech.id] || 0) ||
+        researchThreshold(a.tech) - researchThreshold(b.tech),
+    );
+  s.researchFocus = ranked[0]?.tech.id || "";
+  return ranked[0] || null;
+}
+function neighborPracticesProcess(s, techId) {
+  const reach2 = RESEARCH_NEIGHBOR_REACH * RESEARCH_NEIGHBOR_REACH;
+  return W.settlements.some(
+    (other) =>
+      other !== s &&
+      !other.ruined &&
+      other.knownProcesses.includes(techId) &&
+      dist2(other.x, other.y, s.x, s.y) <= reach2,
+  );
+}
 updateTechnology = function () {
   const catalog = [...TECH_BASE, ...ADVANCED_TECH_BASE];
   for (const s of W.settlements) {
     if (s.ruined || settlementPopulation(s) < 1 || s.stability < 0.2) continue;
     s.researchProgress = s.researchProgress || {};
+    const eligible = [];
     for (const tech of catalog) {
       if (
         s.knownProcesses.includes(tech.id) ||
@@ -4021,15 +4050,33 @@ updateTechnology = function () {
         ? settlementTemperatureCapacity(s, tech, obs)
         : s.productionTemperature || 20;
       if (base && temperature < (tech.heat || 0)) continue;
-      const faction = W.factions.find((f) => f.id === s.factionId),
-        inventive = faction?.ethos.inventive || 0.5,
-        pop = settlementPopulation(s),
-        knowledgePriority = s.management?.priorities?.knowledge || 2,
-        workers = entityAtRadius(idx(s.x, s.y), 8, KINDS.PERSON).filter(
-          (id) =>
-            ["craft", "build"].includes(workState(id).task) ||
-            W.components.cognition[id]?.dominant === "work",
-        ).length,
+      eligible.push({ tech, facility, base, obs, temperature });
+    }
+    if (!eligible.length) {
+      s.researchFocus = "";
+      continue;
+    }
+    const focus = chooseResearchFocus(s, eligible),
+      faction = W.factions.find((f) => f.id === s.factionId),
+      inventive = faction?.ethos.inventive || 0.5,
+      pop = settlementPopulation(s),
+      knowledgePriority = s.management?.priorities?.knowledge || 2,
+      workers = entityAtRadius(idx(s.x, s.y), 8, KINDS.PERSON).filter(
+        (id) =>
+          ["craft", "build"].includes(workState(id).task) ||
+          W.components.cognition[id]?.dominant === "work",
+      ).length,
+      // Population and specialists both help, with diminishing returns: a village of twenty
+      // needs about a generation per discovery, a city of sixty roughly half that.
+      baseRate =
+        (Math.min(pop, 60) * 0.12 + Math.min(workers, 12) * 0.4 + knowledgePriority * 0.35) *
+        s.stability *
+        (0.65 + inventive) *
+        W.laws.technologyRate *
+        RESEARCH_TEMPO *
+        (concertedIntensity() ? 8 * concertedIntensity() : 1);
+    for (const entry of eligible) {
+      const { tech, facility, base, obs, temperature } = entry,
         legacy = (W.civilization?.legacyProcesses || []).includes(tech.id),
         ruinMemory =
           legacy &&
@@ -4039,14 +4086,12 @@ updateTechnology = function () {
               ruin.knownProcesses?.includes(tech.id) &&
               dist2(ruin.x, ruin.y, s.x, s.y) <= 196,
           ),
+        neighborKnows = !legacy && neighborPracticesProcess(s, tech.id),
         rate =
-          (pop * 0.18 + workers * 0.8 + knowledgePriority * 0.35) *
-          s.stability *
-          (0.65 + inventive) *
-          W.laws.technologyRate *
-          (legacy ? (ruinMemory ? 3 : 1.8) : 1) *
-          (concertedIntensity() ? 8 * concertedIntensity() : 1),
-        threshold = tech.threshold || 24 + (tech.prior?.length || 0) * 14;
+          baseRate *
+          (legacy ? (ruinMemory ? 3 : 1.8) : neighborKnows ? 1.8 : 1) *
+          (entry === focus ? 1 : RESEARCH_SIDE_SHARE),
+        threshold = researchThreshold(tech);
       s.researchProgress[tech.id] = (s.researchProgress[tech.id] || 0) + rate;
       if (s.researchProgress[tech.id] < threshold) continue;
       s.knownProcesses.push(tech.id);
@@ -4079,7 +4124,9 @@ updateTechnology = function () {
               ? ruinMemory
                 ? "surviving practices were studied in the ruins of those who came before"
                 : "fragments of a fallen people's knowledge guided the work"
-              : `knowledge priority ${knowledgePriority}/5`,
+              : neighborKnows
+                ? "a neighboring people already practiced the process"
+                : `knowledge priority ${knowledgePriority}/5`,
           ],
           importance: 4,
           data: {

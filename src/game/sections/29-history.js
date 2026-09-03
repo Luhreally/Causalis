@@ -88,6 +88,7 @@ function classifySpecies() {
         firstTick: W.tick,
         lastSeen: W.tick,
         count: g.ids.length + g.cohort,
+        peakCount: g.ids.length + g.cohort,
         avg,
         adaptationBaseline: { ...avg },
         adaptationStreak: 0,
@@ -98,6 +99,7 @@ function classifySpecies() {
     }
     prev.lastSeen = W.tick;
     prev.count = g.ids.length + g.cohort;
+    prev.peakCount = Math.max(prev.peakCount || 0, prev.count);
     prev.extinct = false;
     const prior = prev.avg || avg;
     if (!prev.adaptationBaseline) {
@@ -170,13 +172,23 @@ function classifySpecies() {
   }
   for (const s of Object.values(W.speciesRegistry))
     if (!groups[s.key] && !s.extinct) {
+      // A dormant founder that never established a breeding population is not a lost
+      // lineage; recording every eaten propagule buried real extinctions in noise.
+      const established = (s.peakCount || 0) >= 4 || W.tick - s.firstTick >= 1536;
+      if (!established) {
+        delete W.speciesRegistry[s.key];
+        continue;
+      }
       s.extinct = true;
       W.statistics.extinctions++;
       emitEvent("ExtinctionEvent", {
         causes: [W.lastEventByType.DeathEvent],
-        evidence: ["no living entities or cohorts retained the lineage"],
-        importance: 4,
-        data: { species: s.name },
+        evidence: [
+          "no living entities or cohorts retained the lineage",
+          `the lineage had numbered ${s.peakCount || s.count || 0} at its height`,
+        ],
+        importance: s.kind === KINDS.PERSON ? 5 : 3,
+        data: { species: s.name, kind: s.kind, peakCount: s.peakCount || 0 },
       });
     }
 }

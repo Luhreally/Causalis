@@ -257,7 +257,8 @@ function createOrganism(kind, x, y, rng, parents = [], sourceTile = -1, divineIn
         : kind === KINDS.PREDATOR
           ? "tissue-compatible"
           : "generalist",
-    maxAge: kind === KINDS.PREDATOR ? 1250 : kind === KINDS.PERSON ? 2100 : 1050,
+    maxAge: LIFE_HISTORY[kind]?.maxAge ?? LIFE_HISTORY.herbivore.maxAge,
+    maturityAge: LIFE_HISTORY[kind]?.maturityAge ?? LIFE_HISTORY.herbivore.maturityAge,
     tissues: {
       boundary: 18,
       support: 18,
@@ -379,8 +380,8 @@ createOrganism = function (kind, x, y, rng, parents = [], sourceTile = -1, divin
     before = Array.from({ length: COMMON_CHEM }, (_, sp) => W.tiles.chem[sp][tile]),
     id = createOrganismBase(kind, x, y, rng, parents, sourceTile, divineInput),
     body = W.components.body[id];
-  body.maxAge = kind === KINDS.HERBIVORE ? 36000 : kind === KINDS.PREDATOR ? 48000 : 72000;
-  body.maturityAge = 1000;
+  body.maxAge = LIFE_HISTORY[kind]?.maxAge ?? body.maxAge;
+  body.maturityAge = LIFE_HISTORY[kind]?.maturityAge ?? body.maturityAge;
   if (!divineInput && !parents.length && W.tick === 0) {
     const q = W.components.chemistry[id].q,
       pool = W.reservoirs.primordialPackets || [];
@@ -403,9 +404,14 @@ restoreWorldDefaults = function () {
       body = W.components.body[id],
       rep = W.components.reproduction[id];
     if (!body || !rep || ![KINDS.HERBIVORE, KINDS.PREDATOR, KINDS.PERSON].includes(kind)) continue;
-    const target = kind === KINDS.HERBIVORE ? 36000 : kind === KINDS.PREDATOR ? 48000 : 72000;
-    if (body.maxAge < target * 0.5) body.maxAge = target;
-    body.maturityAge = 1000;
+    const history = LIFE_HISTORY[kind],
+      life = W.components.life[id];
+    if (body.maxAge !== history.maxAge) {
+      // Archives from the century-lifespan era: keep every creature at the same life stage.
+      if (life && body.maxAge > 0) life.age = Math.round((life.age / body.maxAge) * history.maxAge);
+      body.maxAge = history.maxAge;
+    }
+    body.maturityAge = history.maturityAge;
     if (!rep.mode) rep.mode = "paired";
   }
 };

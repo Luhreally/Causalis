@@ -193,8 +193,8 @@ function hardenSentientFounder(id, tile, sequence) {
     rep = W.components.reproduction[id],
     social = W.components.social[id],
     senses = W.components.senses[id];
-  body.maxAge = Math.max(body.maxAge, 72000);
-  body.maturityAge = 1000;
+  body.maxAge = LIFE_HISTORY.person.maxAge;
+  body.maturityAge = LIFE_HISTORY.person.maturityAge;
   body.coldTolerance = Math.min(body.coldTolerance, W.tiles.temperature[tile] / 10 - 18);
   life.age =
     sequence < SENTIENT_MINIMUM_VIABLE

@@ -299,14 +299,16 @@ function applyEmbodiedInjury(
     ),
     severable = part.role !== "core" || part.name === "head",
     threshold = part.role === "manipulator" ? 0.62 : part.role === "locomotor" ? 0.7 : 0.86,
+    // Losing a limb is a rare, dramatic outcome: the part must be destroyed or the wound both
+    // critical and near-maximal, and even then most such wounds heal into scars.
     severed =
       severable &&
       (options.forceDismember ||
         (severingWound &&
           severity >= threshold &&
-          (part.integrity <= 0 || critical) &&
+          (part.integrity <= 0 || (critical && severity >= 0.85)) &&
           counterRand("dismemberment", causeEvent || W.tick, victimId, attackerId) <
-            clamp(0.16 + severity * 0.58 + (critical ? 0.18 : 0), 0, 0.88)));
+            clamp(0.05 + severity * 0.25 + (critical ? 0.1 : 0), 0, 0.45)));
   if (!severed) return { part: part.name, severed: false, disabled: part.disabled, eventId: 0 };
   part.severed = true;
   part.disabled = true;
@@ -341,13 +343,14 @@ function applyEmbodiedInjury(
         `${part.role} capability now reflects the missing body part`,
       ],
       magnitude: damage,
-      importance: part.name === "head" ? 5 : 3,
+      importance: W.kind[victimId] === KINDS.CORPSE ? 1 : part.name === "head" ? 5 : 3,
       data: {
         part: part.name,
         role: part.role,
         wound: woundType,
         composition,
         critical: !!critical,
+        posthumous: W.kind[victimId] === KINDS.CORPSE,
       },
     });
   part.causeEvent = ev.id;
@@ -532,11 +535,13 @@ performHunt = function (id, prey) {
       part,
       event.data?.learnedBottleneckResponse ? "grappling bite" : "bite and tearing trauma",
       damage,
-      clamp(damage / 52 + (lethal ? 0.35 : 0), 0.08, 1),
-      lethal || damage > 42,
+      // Body integrity runs to 1000, so a typical 50-100 point bite is a serious wound, not
+      // an amputation; the old 52-point scale saturated severity on nearly every strike.
+      clamp(damage / 150 + (lethal ? 0.35 : 0), 0.08, 1),
+      lethal || damage > 90,
       id,
       event.id,
-      { forceDismember: lethal && counterRand("predation-dismember", event.id, id, target) < 0.42 },
+      { forceDismember: lethal && counterRand("predation-dismember", event.id, id, target) < 0.2 },
     );
   event.data.bodyPart = part;
   event.data.limbLostEventId = trauma.eventId;

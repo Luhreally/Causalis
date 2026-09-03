@@ -23,6 +23,11 @@ function infectEntity(id, amount = 30, cause = 0) {
   });
   W.components.memory[id].rememberedEvents.push(ev.id);
 }
+// Senescence begins at a stable, individual fraction of the species lifespan, so a village
+// buries its elders across a span of years instead of on one shared birthday.
+function naturalLifespan(id, body) {
+  return body.maxAge * (0.84 + 0.32 * counterRand("natural-lifespan", 0, id));
+}
 function updateHealth(id, elapsed = 1) {
   const l = W.components.life[id],
     ch = W.components.chemistry[id],
@@ -51,7 +56,8 @@ function updateHealth(id, elapsed = 1) {
     starve = ch.q[C.ENERGY] < 3 ? 0.8 : 0,
     dehydrate = ch.q[C.SOLVENT] < 4 ? 1 : 0,
     asphyxia = ch.q[C.OXIDANT] < 1 && W.tiles.chem[C.OXIDANT][ti] < 1 ? 4 : 0,
-    ageDamage = l.age > body.maxAge ? (l.age - body.maxAge) / 170 : 0,
+    lifespan = naturalLifespan(id, body),
+    ageDamage = l.age > lifespan ? (l.age - lifespan) / 170 : 0,
     total =
       heatDamage + coldDamage + toxDamage + pathDamage + starve + dehydrate + asphyxia + ageDamage;
   if (total > 0) {
