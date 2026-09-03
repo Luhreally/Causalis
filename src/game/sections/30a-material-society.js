@@ -1799,8 +1799,10 @@ function createPersonalTool(id, recipe) {
     home = nearestFriendlyPlace(id),
     placeKind = work.toolOrderPlaceKind || placeKindKey(home),
     placeId = work.toolOrderPlaceId || home?.id || 0;
-  q[recipe.head] = 2;
-  q[recipe.binding] = 2;
+  // Accumulate: a recipe whose head and binding are the same compound must hold all four
+  // units it consumed, or two units of matter vanish with every such tool.
+  q[recipe.head] += 2;
+  q[recipe.binding] += 2;
   const warTier = recipe.purpose === "war" ? warToolTier(id) : 0,
     form =
       recipe.purpose === "war"
