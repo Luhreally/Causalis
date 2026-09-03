@@ -12,6 +12,12 @@ const DIRS = Object.freeze([
   [-1, -1],
   [0, 0],
 ]);
+const BREATHING_NEIGHBORS = Object.freeze([
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+]);
 function nearbyIds(id, radius = 3, filter = null) {
   const p = W.components.position[id],
     out = [];
@@ -127,6 +133,24 @@ function runMetabolism(id, tier) {
   l.respiratoryRemainder = respiratoryBudget - respiratoryDemand;
   W.tiles.chem[C.OXIDANT][ti] -= oxidantIntake;
   ch.q[C.OXIDANT] += oxidantIntake;
+  // Air is shared with the surrounding tiles: a crowd inhales from its neighborhood rather
+  // than from one square column, so a full shelter does not suffocate its occupants.
+  let shortfall = oxidantNeed - oxidantIntake;
+  if (shortfall > 0) {
+    const oxidant = W.tiles.chem[C.OXIDANT];
+    for (const [dx, dy] of BREATHING_NEIGHBORS) {
+      if (shortfall <= 0) break;
+      const nx = pos.x + dx,
+        ny = pos.y + dy;
+      if (nx < 0 || ny < 0 || nx >= W.width || ny >= W.height) continue;
+      const nt = ny * W.width + nx,
+        drawn = Math.min(shortfall, oxidant[nt], 65535 - ch.q[C.OXIDANT]);
+      if (!drawn) continue;
+      oxidant[nt] -= drawn;
+      ch.q[C.OXIDANT] += drawn;
+      shortfall -= drawn;
+    }
+  }
   const respired = executeProcess("respiration", inv, respiratoryDemand, { dissipate: 1 }),
     exhaled = Math.min(respired, ch.q[C.GAS], 65535 - W.tiles.chem[C.GAS][ti]);
   ch.q[C.GAS] -= exhaled;

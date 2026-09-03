@@ -38,6 +38,8 @@ const CAPS = Object.freeze({
 // Research pacing. A settlement pursues one line of inquiry at a time; side topics only gather
 // incidental notes. TEMPO scales the work-unit rate so a village needs a generation, not a
 // season, per discovery, and knowledge already practiced by a neighboring people is easier.
+// Rows of atmospheric gas diffusion processed per tick (dissolved compounds get one).
+const GAS_MIX_ROWS = 8;
 const RESEARCH_TEMPO = 0.06,
   RESEARCH_SIDE_SHARE = 0.12,
   RESEARCH_NEIGHBOR_REACH = 40;

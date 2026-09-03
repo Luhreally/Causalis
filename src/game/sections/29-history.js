@@ -174,7 +174,7 @@ function classifySpecies() {
     if (!groups[s.key] && !s.extinct) {
       // A dormant founder that never established a breeding population is not a lost
       // lineage; recording every eaten propagule buried real extinctions in noise.
-      const established = (s.peakCount || 0) >= 4 || W.tick - s.firstTick >= 1536;
+      const established = (s.peakCount || 0) >= 3;
       if (!established) {
         delete W.speciesRegistry[s.key];
         continue;

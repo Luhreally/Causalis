@@ -517,7 +517,9 @@ function updateFamineChronicle() {
         `stored food index ${Math.round(settlementFood(s))}`,
       ],
       magnitude: deaths,
-      importance: 4,
+      // The first year of a famine is a major entry; a famine that drags on is chronicled
+      // at ordinary notable weight so a long hunger does not crowd out everything else.
+      importance: s.famineYears === 1 ? 4 : 3,
       data: { name: s.name, deaths, population: pop, famineYears: s.famineYears },
     });
     s.importantEvents.push(ev.id);

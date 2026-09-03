@@ -42,6 +42,28 @@ function updateEnvironmentalFields() {
         d[i] = 0;
       }
   }
+  // Atmospheric gases mix far faster than dissolved compounds: sweep several additional rows
+  // every tick so a crowded settlement cannot exhaust the oxidant under its own feet.
+  const gasStride = Math.max(1, Math.ceil(W.height / GAS_MIX_ROWS));
+  for (let k = 1; k < GAS_MIX_ROWS; k++) {
+    const gy = (y + k * gasStride) % W.height,
+      gs = gy * W.width,
+      ge = gs + W.width,
+      gasApplyEnd = Math.min(W.tileCount, ge + W.width);
+    for (const a of [C.OXIDANT, C.GAS]) {
+      const arr = t.chem[a],
+        d = t.chemDelta[a];
+      for (let i = gs; i < ge; i++) {
+        if (i + 1 < ge) diffusePair(arr, i, i + 1, 0.16, d);
+        if (i + W.width < W.tileCount) diffusePair(arr, i, i + W.width, 0.16, d);
+      }
+      for (let i = gs; i < gasApplyEnd; i++)
+        if (d[i]) {
+          arr[i] = u16(arr[i] + d[i]);
+          d[i] = 0;
+        }
+    }
+  }
   const tempApplyEnd = Math.min(W.tileCount, end + W.width),
     mineralizes = typeof reactionById === "function" && !!reactionById("waste_mineralization");
   for (let i = start; i < end; i++) {
@@ -50,7 +72,8 @@ function updateEnvironmentalFields() {
       diffusePair(t.temperature, i, i + W.width, W.laws.heatDiffusion * 0.02, t.tempDelta);
     if (t.chem[C.BLOOD][i]) executeProcess("blood_decay", invTile(i), 1);
     if (t.chem[C.FEAR][i]) executeProcess("fear_decay", invTile(i), Math.min(2, t.chem[C.FEAR][i]));
-    if (mineralizes && t.chem[C.WASTE][i] > 40) executeProcess("waste_mineralization", invTile(i), 2);
+    if (mineralizes && t.chem[C.WASTE][i] > 40)
+      executeProcess("waste_mineralization", invTile(i), 2);
     if (t.danger[i]) t.danger[i] = Math.max(0, Math.floor(t.danger[i] * 0.94) - 1);
     if (t.populationPressure[i]) t.populationPressure[i] = u16(t.populationPressure[i] * 0.998);
   }
