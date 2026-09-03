@@ -1379,8 +1379,10 @@ const civicAudit = game.civicAudit();
 const cognitionAudit = game.cognitionAudit();
 const civilization = game.civilization();
 const civicArchive = game.archiveReplay(16);
+// Weapons, armor, and vessels are personal equipment (one per bearer); only the communal
+// civil tool orders must stay unique per place.
 const functionalToolKeys = civicAudit.tools
-  .filter((tool) => tool.functional)
+  .filter((tool) => tool.functional && ["cut", "mine", "build", "gather"].includes(tool.purpose))
   .map((tool) => `${tool.placeKind}:${tool.placeId}:${tool.purpose}`);
 const civicMechanics = {
   fixture: civicFixture,
