@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. CONFIGURATION AND CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const VERSION = 9,
+const VERSION = 10,
   SAVE_PREFIX = "causalis.save.",
   SAVE_INDEX = "causalis.saveIndex",
   SETTINGS_KEY = "causalis.settings";

@@ -802,30 +802,51 @@ function bucketForPerson(id) {
   return toolForPurpose(id, "carry_liquid") || toolForPurpose(id, "firefighting");
 }
 
+// Burning tiles near protected places are collected once per tick; every person then only
+// scans that short list instead of an 841-tile window of its own.
+let protectedFireCache = { world: null, tick: -1, tiles: [] };
+function protectedFireTiles() {
+  if (protectedFireCache.world === W && protectedFireCache.tick === W.tick)
+    return protectedFireCache.tiles;
+  const tiles = [],
+    fire = W.tiles.fire;
+  for (let tile = 0; tile < W.tileCount; tile++) {
+    if (fire[tile] < 55) continue;
+    const [x, y] = xy(tile),
+      protectedPlace = settlementNear(tile, 7) || campNear(tile, 7),
+      protectedBuilding = W.buildings.some(
+        (building) =>
+          building.complete &&
+          !building.ruined &&
+          building.integrity > 0 &&
+          dist2(building.x, building.y, x, y) <= 7 * 7,
+      );
+    if (!protectedPlace && !protectedBuilding) continue;
+    tiles.push({
+      tile,
+      x,
+      y,
+      fire: fire[tile],
+      structure: protectedBuilding ? W.tiles.structureOrder[tile] : 0,
+    });
+  }
+  protectedFireCache = { world: W, tick: W.tick, tiles };
+  return tiles;
+}
 function nearestProtectedFire(id, radius = 14) {
   const p = W.components.position[id];
   if (!p) return -1;
   const candidates = [];
-  for (let y = Math.max(0, p.y - radius); y <= Math.min(W.height - 1, p.y + radius); y++)
-    for (let x = Math.max(0, p.x - radius); x <= Math.min(W.width - 1, p.x + radius); x++) {
-      const tile = idx(x, y),
-        fire = W.tiles.fire[tile];
-      if (fire < 55) continue;
-      const protectedPlace = settlementNear(tile, 7) || campNear(tile, 7),
-        protectedBuilding = W.buildings.some(
-          (building) =>
-            building.complete &&
-            !building.ruined &&
-            building.integrity > 0 &&
-            dist2(building.x, building.y, x, y) <= 7 * 7,
-        ),
-        structure = protectedBuilding ? W.tiles.structureOrder[tile] : 0;
-      if (!protectedPlace && !protectedBuilding) continue;
-      candidates.push({
-        tile,
-        score: fire * 2 + structure * 0.15 - Math.sqrt(dist2(p.x, p.y, x, y)) * 18,
-      });
-    }
+  for (const burning of protectedFireTiles()) {
+    if (Math.abs(burning.x - p.x) > radius || Math.abs(burning.y - p.y) > radius) continue;
+    candidates.push({
+      tile: burning.tile,
+      score:
+        burning.fire * 2 +
+        burning.structure * 0.15 -
+        Math.sqrt(dist2(p.x, p.y, burning.x, burning.y)) * 18,
+    });
+  }
   return (
     candidates.sort((left, right) => right.score - left.score || left.tile - right.tile)[0]?.tile ??
     -1
@@ -1278,8 +1299,7 @@ function ensurePrimitiveEquipment() {
     if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
     const p = W.components.position[id];
     if (!p || toolForPurpose(id, "war")) continue;
-    const threatened =
-      W.tiles.danger[idx(p.x, p.y)] >= 120 || !!W.components.life[id]?.threatId;
+    const threatened = W.tiles.danger[idx(p.x, p.y)] >= 120 || !!W.components.life[id]?.threatId;
     if (!threatened) continue;
     const w = workState(id);
     if (w.task === "craft" && w.craftPurpose && w.craftPurpose !== "war") continue;

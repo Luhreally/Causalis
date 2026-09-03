@@ -176,11 +176,7 @@ function settlementFood(s) {
   for (const n of neighbors4(center)) forage += tileFood(n, "omnivore");
   const farms =
     typeof completedBuildings === "function" ? completedBuildings(s, "farm").length * 14 : 0;
-  return clamp(
-    (stored + forage * 0.6 + farms) / (1 + settlementPopulation(s) * 0.12),
-    0,
-    999,
-  );
+  return clamp((stored + forage * 0.6 + farms) / (1 + settlementPopulation(s) * 0.12), 0, 999);
 }
 function settlementWater(s) {
   return clamp(
@@ -391,12 +387,21 @@ function updateSettlements() {
   updateMaterialProcesses();
 }
 function entityAtRadius(tile, r, kind) {
-  const [cx, cy] = xy(tile),
+  const cx = tile % W.width,
+    cy = Math.floor(tile / W.width),
+    r2 = r * r,
+    bins = W.spatialBins,
+    width = W.width,
     out = [];
-  for (let y = Math.max(0, cy - r); y <= Math.min(W.height - 1, cy + r); y++)
-    for (let x = Math.max(0, cx - r); x <= Math.min(W.width - 1, cx + r); x++)
-      if (dist2(x, y, cx, cy) <= r * r)
-        for (const id of W.spatialBins[idx(x, y)] || [])
-          if (!kind || W.kind[id] === kind) out.push(id);
-  return out.sort((a, b) => a - b);
+  for (let y = Math.max(0, cy - r); y <= Math.min(W.height - 1, cy + r); y++) {
+    const dy2 = (y - cy) * (y - cy),
+      row = y * width;
+    for (let x = Math.max(0, cx - r); x <= Math.min(width - 1, cx + r); x++) {
+      if ((x - cx) * (x - cx) + dy2 > r2) continue;
+      const bin = bins[row + x];
+      if (!bin) continue;
+      for (const id of bin) if (!kind || W.kind[id] === kind) out.push(id);
+    }
+  }
+  return out.length > 1 ? out.sort((a, b) => a - b) : out;
 }

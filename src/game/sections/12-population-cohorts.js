@@ -2,17 +2,24 @@
 // 12. POPULATION COHORTS AND AGGREGATION
 // ═══════════════════════════════════════════════════════════════════════════
 function rebuildSpatialBins() {
-  W.spatialBins = Array.from({ length: W.tileCount }, () => null);
+  // Reuse the bin table between ticks; allocating a tile-count array every tick was measurable.
+  const bins =
+    Array.isArray(W.spatialBins) && W.spatialBins.length === W.tileCount
+      ? W.spatialBins
+      : new Array(W.tileCount);
+  bins.fill(null);
+  W.spatialBins = bins;
   W.tiles.populationPressure.fill(0);
   for (const id of W.activeIds) {
     const p = W.components.position[id];
     if (!p) continue;
     const i = idx(p.x, p.y);
-    (W.spatialBins[i] || (W.spatialBins[i] = [])).push(id);
-    if ([KINDS.HERBIVORE, KINDS.PREDATOR, KINDS.PERSON].includes(W.kind[id]))
+    (bins[i] || (bins[i] = [])).push(id);
+    const kind = W.kind[id];
+    if (kind === KINDS.HERBIVORE || kind === KINDS.PREDATOR || kind === KINDS.PERSON)
       W.tiles.populationPressure[i] = u16(W.tiles.populationPressure[i] + 80);
   }
-  for (const bin of W.spatialBins) if (bin) bin.sort((a, b) => a - b);
+  for (const bin of bins) if (bin && bin.length > 1) bin.sort((a, b) => a - b);
 }
 function cohortLifeSpan(kind) {
   return kind === KINDS.HERBIVORE ? 36000 : kind === KINDS.PREDATOR ? 48000 : 72000;

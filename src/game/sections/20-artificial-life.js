@@ -250,8 +250,8 @@ function cloneGenome(g) {
     lineageId: g.lineageId,
     ancestorSignature: g.ancestorSignature,
     mutationRate: g.mutationRate,
-    emergenceStage: g.emergenceStage,
-    generation: g.generation,
+    emergenceStage: g.emergenceStage ?? "multicellular",
+    generation: g.generation ?? 0,
     dirty: true,
   };
 }
@@ -561,8 +561,7 @@ function updateBiosphereResilience() {
       const refuges = W.biosphere.refugia
         .filter((x) => x.available && x.kind === kind)
         .sort(
-          (a, b) =>
-            habitatScore(b.homeTile, kind) - habitatScore(a.homeTile, kind) || a.id - b.id,
+          (a, b) => habitatScore(b.homeTile, kind) - habitatScore(a.homeTile, kind) || a.id - b.id,
         );
       if (needed > 0 && refuges.length) {
         const r = makeRng(

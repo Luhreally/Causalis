@@ -37,7 +37,7 @@ function simTick() {
   commitDerivedCaches();
   if (W.tick % 1024 === 0) updateLongEpoch();
   if (W.tick % autosaveCadence() === 0) queueAutosave();
-  if (W.tick % 100 === 0) worldHash();
+  if (W.tick % TICKS_PER_YEAR === 0) worldHash();
   rebuildSpatialBins();
 }
 function stepTicks(n) {

@@ -100,9 +100,18 @@ function placePopulation(place) {
     ? settlementPopulation(place)
     : entityAtRadius(idx(place.x, place.y), 6, KINDS.PERSON).filter(classifyAlive).length;
 }
+// Worker rosters are requested many times per tick per place (labor dispatch, tool orders,
+// facility operation), and each computation scans every active entity. Memoize per tick;
+// the cache is dropped whenever the spatial bins are rebuilt so positions never go stale.
+let localPlaceWorkersCache = { world: null, tick: -1, values: new Map() };
 function localPlaceWorkers(place) {
+  if (localPlaceWorkersCache.world !== W || localPlaceWorkersCache.tick !== W.tick)
+    localPlaceWorkersCache = { world: W, tick: W.tick, values: new Map() };
   const kind = placeKindKey(place),
-    physical = entityAtRadius(
+    cacheKey = `${kind}:${place.id}`,
+    cached = localPlaceWorkersCache.values.get(cacheKey);
+  if (cached) return cached.slice();
+  const physical = entityAtRadius(
       idx(place.x, place.y),
       place.knownProcesses ? 9 : 7,
       KINDS.PERSON,
@@ -117,9 +126,16 @@ function localPlaceWorkers(place) {
         social.homePlaceId === place.id &&
         dist2(position.x, position.y, place.x, place.y) <= 28 * 28
       );
-    });
-  return Array.from(new Set([...physical, ...assigned])).sort((a, b) => a - b);
+    }),
+    workers = Array.from(new Set([...physical, ...assigned])).sort((a, b) => a - b);
+  localPlaceWorkersCache.values.set(cacheKey, workers);
+  return workers.slice();
 }
+const rebuildSpatialBinsWorkerCacheBase = rebuildSpatialBins;
+rebuildSpatialBins = function () {
+  rebuildSpatialBinsWorkerCacheBase();
+  localPlaceWorkersCache.tick = -1;
+};
 function availableBuildingTypes(place) {
   const out = ["shelter", "hearth", "workshop"];
   if (place.knownProcesses) {

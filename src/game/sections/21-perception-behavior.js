@@ -16,13 +16,22 @@ function nearbyIds(id, radius = 3, filter = null) {
   const p = W.components.position[id],
     out = [];
   if (!p) return out;
-  for (let y = Math.max(0, p.y - radius); y <= Math.min(W.height - 1, p.y + radius); y++)
-    for (let x = Math.max(0, p.x - radius); x <= Math.min(W.width - 1, p.x + radius); x++) {
-      if (dist2(x, y, p.x, p.y) > radius * radius) continue;
-      for (const other of W.spatialBins[idx(x, y)] || [])
-        if (other !== id && (!filter || filter(other))) out.push(other);
+  const bins = W.spatialBins,
+    width = W.width,
+    px = p.x,
+    py = p.y,
+    r2 = radius * radius;
+  for (let y = Math.max(0, py - radius); y <= Math.min(W.height - 1, py + radius); y++) {
+    const dy2 = (y - py) * (y - py),
+      row = y * width;
+    for (let x = Math.max(0, px - radius); x <= Math.min(width - 1, px + radius); x++) {
+      if ((x - px) * (x - px) + dy2 > r2) continue;
+      const bin = bins[row + x];
+      if (!bin) continue;
+      for (const other of bin) if (other !== id && (!filter || filter(other))) out.push(other);
     }
-  out.sort((a, b) => a - b);
+  }
+  if (out.length > 1) out.sort((a, b) => a - b);
   return out;
 }
 function mateChoiceScore(id, other) {
@@ -364,6 +373,19 @@ function huntTargetScore(id, target) {
     counterRand("hunt-target-tie", Math.floor(W.tick / 8), id, target) * 0.01
   );
 }
+// Population gates inside perception only need tick-level precision; counting every entity
+// for every creature made behavior selection quadratic in population.
+let perceptionCensusCache = { world: null, tick: -1, herbivores: 0, people: 0 };
+function perceptionCensus() {
+  if (perceptionCensusCache.world !== W || perceptionCensusCache.tick !== W.tick)
+    perceptionCensusCache = {
+      world: W,
+      tick: W.tick,
+      herbivores: biospherePopulation(KINDS.HERBIVORE),
+      people: biospherePopulation(KINDS.PERSON),
+    };
+  return perceptionCensusCache;
+}
 function chooseBehavior(id, tier) {
   const k = W.kind[id],
     l = derivedLife(id),
@@ -377,24 +399,23 @@ function chooseBehavior(id, tier) {
     return;
   }
   const senseRadius = clamp(Math.round(ph.sense), 2, 11),
-    huntableHerbivores = k === KINDS.PREDATOR ? biospherePopulation(KINDS.HERBIVORE) > 8 : true,
+    census = perceptionCensus(),
+    huntableHerbivores = k === KINDS.PREDATOR ? census.herbivores > 8 : true,
     huntablePeople =
       k === KINDS.PREDATOR
-        ? !huntableHerbivores &&
-          biospherePopulation(KINDS.PERSON) > 10 &&
-          derivedLife(id).hunger > 70
+        ? !huntableHerbivores && census.people > 10 && derivedLife(id).hunger > 70
         : true,
+    // One neighborhood scan feeds every perception list below (same ordering as before).
+    around = nearbyIds(id, senseRadius),
     nearPred =
       k !== KINDS.PREDATOR
-        ? nearbyIds(id, senseRadius, (o) => W.kind[o] === KINDS.PREDATOR && classifyAlive(o))
+        ? around.filter((o) => W.kind[o] === KINDS.PREDATOR && classifyAlive(o))
         : [],
-    wildGameSustains = k === KINDS.PERSON ? biospherePopulation(KINDS.HERBIVORE) > 20 : false,
+    wildGameSustains = k === KINDS.PERSON ? census.herbivores > 20 : false,
     nearPrey =
       k === KINDS.PERSON
         ? wildGameSustains
-          ? nearbyIds(
-              id,
-              senseRadius,
+          ? around.filter(
               (o) =>
                 W.kind[o] === KINDS.HERBIVORE &&
                 classifyAlive(o) &&
@@ -402,15 +423,13 @@ function chooseBehavior(id, tier) {
             )
           : []
         : k === KINDS.PREDATOR
-        ? nearbyIds(
-            id,
-            senseRadius,
-            (o) =>
-              (W.kind[o] === KINDS.HERBIVORE && huntableHerbivores) ||
-              (W.kind[o] === KINDS.PERSON && huntablePeople),
-          )
-        : [],
-    nearCorpse = nearbyIds(id, senseRadius, (o) => W.kind[o] === KINDS.CORPSE);
+          ? around.filter(
+              (o) =>
+                (W.kind[o] === KINDS.HERBIVORE && huntableHerbivores) ||
+                (W.kind[o] === KINDS.PERSON && huntablePeople),
+            )
+          : [],
+    nearCorpse = around.filter((o) => W.kind[o] === KINDS.CORPSE);
   nearCorpse.sort((a, b) => {
     const ap = W.components.position[a],
       bp = W.components.position[b];

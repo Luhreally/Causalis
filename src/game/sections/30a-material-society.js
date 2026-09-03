@@ -2014,7 +2014,10 @@ function workResourceAmount(tile, sp) {
 function findResourceTile(id, sp, radius = 9) {
   const p = W.components.position[id],
     w = workState(id),
-    cached = w.resourceSpecies === sp ? w.resourceTile : -1;
+    known = w.resourceTiles || (w.resourceTiles = {}),
+    cached = w.resourceSpecies === sp ? w.resourceTile : (known[sp] ?? -1);
+  // A search that found nothing is not repeated every tick; the tile window changes slowly.
+  if (cached < 0 && (w.resourceRetry?.[sp] || 0) > W.tick) return -1;
   if (
     cached >= 0 &&
     workResourceAmount(cached, sp) >= 2 &&
@@ -2046,17 +2049,20 @@ function findResourceTile(id, sp, radius = 9) {
         affinity = 100;
       candidates.push({
         i,
-        score:
-          Math.log2(amount + 1) * 12 +
-          affinity -
-          Math.sqrt(dist2(x, y, p.x, p.y)) * 5 -
-          organismHabitatStress(id, i),
+        score: Math.log2(amount + 1) * 12 + affinity - Math.sqrt(dist2(x, y, p.x, p.y)) * 5,
       });
     }
+  // Habitat stress is the expensive term; rank cheaply first and only weigh it for the
+  // shortlist, which keeps this search from dominating the tick at village populations.
+  candidates.sort((a, b) => b.score - a.score || a.i - b.i);
+  if (candidates.length > 12) candidates.length = 12;
+  for (const candidate of candidates) candidate.score -= organismHabitatStress(id, candidate.i);
   candidates.sort((a, b) => b.score - a.score || a.i - b.i);
   const best = candidates[0]?.i ?? -1;
   w.resourceTile = best;
   w.resourceSpecies = best >= 0 ? sp : -1;
+  known[sp] = best;
+  if (best < 0) (w.resourceRetry || (w.resourceRetry = {}))[sp] = W.tick + 12;
   if (best >= 0 && !remembered.includes(best)) {
     remembered.push(best);
     if (remembered.length > 24) remembered.shift();
@@ -2106,6 +2112,7 @@ function moveWorkerToward(id, tile, task, phase, material = -1, buildingId = 0, 
     w.blockedUntil = W.tick + 64;
     w.resourceTile = -1;
     w.resourceSpecies = -1;
+    w.resourceTiles = {};
     setWorkAction(
       id,
       task,
@@ -2161,6 +2168,7 @@ function extractForWork(id, tile, sp) {
     const w = workState(id);
     w.resourceTile = -1;
     w.resourceSpecies = -1;
+    if (w.resourceTiles) delete w.resourceTiles[sp];
   }
   return amount;
 }
@@ -2277,9 +2285,7 @@ function orderPriority(order, place, id) {
   if (order.type === "salvage") {
     if (ruinRubble(b) <= 0) return -1e9;
     const q = W.components.position[id];
-    return (
-      70 + order.priority * 18 - Math.sqrt(dist2(q.x, q.y, b.x, b.y)) * 2 - b.id * 0.0001
-    );
+    return 70 + order.priority * 18 - Math.sqrt(dist2(q.x, q.y, b.x, b.y)) * 2 - b.id * 0.0001;
   }
   if (b.complete || b.ruined) return -1e9;
   const p = W.components.position[id],

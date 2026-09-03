@@ -7,21 +7,32 @@ function reactionById(id) {
 function tileMatterKey(tile, species) {
   return `${tile}:${species}`;
 }
+// Common compounds live in 16-bit tile columns; an overflow record in rareChem can only exist
+// once that column is saturated, so the (string-keyed) overflow lookup is skipped otherwise.
 function tileMatterAmount(tile, species) {
-  const overflow = W.tiles.rareChem[tileMatterKey(tile, species)] || 0;
-  return (species < COMMON_CHEM ? W.tiles.chem[species][tile] : 0) + overflow;
+  if (species < COMMON_CHEM) {
+    const primary = W.tiles.chem[species][tile];
+    return primary < 65535
+      ? primary
+      : primary + (W.tiles.rareChem[tileMatterKey(tile, species)] || 0);
+  }
+  return W.tiles.rareChem[tileMatterKey(tile, species)] || 0;
 }
 function setTileMatterAmount(tile, species, value) {
   value = Number(value);
   value = Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
-  const key = tileMatterKey(tile, species);
   if (species < COMMON_CHEM) {
-    const primary = Math.min(65535, value);
-    W.tiles.chem[species][tile] = primary;
+    const column = W.tiles.chem[species],
+      previous = column[tile],
+      primary = Math.min(65535, value);
+    column[tile] = primary;
     const overflow = value - primary;
-    if (overflow) W.tiles.rareChem[key] = overflow;
-    else delete W.tiles.rareChem[key];
-  } else if (value) W.tiles.rareChem[key] = value;
+    if (overflow) W.tiles.rareChem[tileMatterKey(tile, species)] = overflow;
+    else if (previous === 65535) delete W.tiles.rareChem[tileMatterKey(tile, species)];
+    return value;
+  }
+  const key = tileMatterKey(tile, species);
+  if (value) W.tiles.rareChem[key] = value;
   else delete W.tiles.rareChem[key];
   return value;
 }
