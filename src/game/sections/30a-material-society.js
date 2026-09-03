@@ -3173,6 +3173,8 @@ function updateCognitionAndLabor() {
     const thinkCadence = W.kind[id] === KINDS.PERSON ? 4 : 8,
       c = W.tick % thinkCadence === id % thinkCadence ? advanceLTC(id) : initCognition(id);
     if (W.kind[id] !== KINDS.PERSON) continue;
+    // Fighters under marching orders belong to the column, not to the labor pool.
+    if (W.components.campaign?.[id]?.role === "attack") continue;
     const w = workState(id),
       facility = facilityAssignment(id),
       place = nearestWorkPlace(id),
@@ -3376,6 +3378,24 @@ aggregateIntoCohort = function (id, reason = "density cap") {
 
 function placeHasFacility(place, type) {
   return completedBuildings(place, type).length > 0;
+}
+function personIsHostileVisitor(id, factionId) {
+  const social = W.components.social[id];
+  if (!social || !factionId || social.factionId === factionId) return false;
+  if (W.components.campaign?.[id]) return true;
+  if (
+    social.unitId &&
+    (W.militaryUnits || []).some(
+      (unit) => unit.active && unit.id === social.unitId && unit.factionId !== factionId,
+    )
+  )
+    return true;
+  return (W.activeWars || []).some(
+    (war) =>
+      !war.ended &&
+      ((war.a === factionId && war.b === social.factionId) ||
+        (war.b === factionId && war.a === social.factionId)),
+  );
 }
 const performFeedingSocietyBase = performFeeding;
 performFeeding = function (id, tile, stride = 1) {
@@ -3723,6 +3743,10 @@ updateSettlements = function () {
     const ti = idx(s.x, s.y),
       people = entityAtRadius(ti, 8, KINDS.PERSON).filter(classifyAlive);
     for (const id of people) {
+      // Enemy soldiers standing in the streets are invaders, not immigrants: they neither
+      // adopt the town's allegiance nor draw its rations. (Without this, an attacking column
+      // was absorbed by the settlement it reached and its muster rebuilt the army at home.)
+      if (personIsHostileVisitor(id, s.factionId)) continue;
       if (s.factionId) W.components.social[id].factionId = s.factionId;
       const digestive = W.components.inventory[id].digestive,
         body = W.components.chemistry[id].q,

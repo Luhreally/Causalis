@@ -653,14 +653,36 @@ function causalSkipIntervene() {
     }
   }
 }
+// A launched column that has left home keeps its roster: nobody is struck from it for growing
+// hungry on the road (only for being unable to stand), and nobody is conscripted into a unit
+// that is already miles away. Without this the muster rebuilt the army every war turn from
+// whoever stood at home, and the fighters at the front lost their orders and walked back.
+function unitOnCampaign(unit) {
+  const war = W.activeWars.find(
+    (candidate) =>
+      !candidate.ended && (candidate.a === unit.factionId || candidate.b === unit.factionId),
+  );
+  if (!war?.attackPlan?.launchedTick || war.attackPlan.attackerId !== unit.factionId) return false;
+  const members = unit.memberIds.filter((id) => classifyAlive(id) && W.components.position[id]);
+  if (!members.length) return false;
+  const home = W.settlements.find((s) => s.id === unit.homeSettlementId && !s.ruined);
+  if (!home) return true;
+  let away = 0;
+  for (const id of members) {
+    const p = W.components.position[id];
+    if (dist2(p.x, p.y, home.x, home.y) > 36) away++;
+  }
+  return away * 2 >= members.length;
+}
 function updateEmergentMilitias() {
   for (const unit of W.militaryUnits) {
+    const campaigning = unitOnCampaign(unit);
     unit.memberIds = unit.memberIds.filter((id) => {
       const keep =
         W.kind[id] === KINDS.PERSON &&
         classifyAlive(id) &&
         W.components.social[id]?.factionId === unit.factionId &&
-        !militiaSurvivalCrisis(id);
+        (campaigning ? derivedLife(id).health >= 25 : !militiaSurvivalCrisis(id));
       if (!keep && classifyAlive(id) && W.components.social[id]?.unitId === unit.id) {
         W.components.social[id].militaryRole = "";
         W.components.social[id].unitId = 0;
@@ -669,6 +691,10 @@ function updateEmergentMilitias() {
     });
     unit.active = unit.memberIds.length > 0;
   }
+  // Disbanded units linger long enough for records to resolve, then leave the roster.
+  W.militaryUnits = W.militaryUnits.filter(
+    (u) => u.active || u.memberIds.length || W.tick - (u.phaseTick || u.formedTick || 0) <= 1024,
+  );
   const assigned = new Set(W.militaryUnits.filter((u) => u.active).flatMap((u) => u.memberIds));
   for (const faction of W.factions.filter((f) => f.stability > 0)) {
     const war = W.activeWars.find((w) => !w.ended && (w.a === faction.id || w.b === faction.id)),
@@ -699,14 +725,14 @@ function updateEmergentMilitias() {
           ),
         desired = war
           ? Math.min(
-              settlementFood(home) < 12 ? 2 : 8,
+              settlementFood(home) < 12 ? 4 : 10,
               Math.max(
                 2,
                 Math.ceil(
                   (locals.length +
                     (W.militaryUnits.find((u) => u.active && u.homeSettlementId === home.id)
                       ?.memberIds.length || 0)) *
-                    0.25,
+                    0.35,
                 ),
               ),
             )
@@ -718,7 +744,8 @@ function updateEmergentMilitias() {
       let unit = W.militaryUnits.find(
         (u) => u.active && u.factionId === faction.id && u.homeSettlementId === home.id,
       );
-      if (!unit && desired > 0) {
+      // Only raise a unit when someone can actually join it; an empty muster is not a unit.
+      if (!unit && desired > 0 && locals.length) {
         unit = {
           id: W.nextMilitaryUnitId++,
           factionId: faction.id,
@@ -740,14 +767,15 @@ function updateEmergentMilitias() {
         W.militaryUnits.push(unit);
       }
       if (!unit) continue;
-      while (unit.memberIds.length < desired && locals.length) {
+      const campaigning = unitOnCampaign(unit);
+      while (!campaigning && unit.memberIds.length < desired && locals.length) {
         const id = locals.shift();
         unit.memberIds.push(id);
         assigned.add(id);
         W.components.social[id].militaryRole = "militia";
         W.components.social[id].unitId = unit.id;
       }
-      const retained = !war && pressure < 24 ? 0 : desired;
+      const retained = campaigning ? unit.memberIds.length : !war && pressure < 24 ? 0 : desired;
       if (unit.memberIds.length > retained) {
         for (const id of unit.memberIds.splice(retained)) {
           W.components.social[id].militaryRole = "";

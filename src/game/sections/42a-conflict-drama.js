@@ -630,13 +630,10 @@ function factionFieldableFighters(faction) {
   return fighters;
 }
 function warCampaignRouteExists(attacker, defender) {
-  const origins = W.settlements.filter(
-      (s) => !s.ruined && s.factionId === attacker.id,
-    ),
+  const origins = W.settlements.filter((s) => !s.ruined && s.factionId === attacker.id),
     targets = W.settlements.filter((s) => !s.ruined && s.factionId === defender.id);
   if (!origins.length || !targets.length) return false;
-  const origin =
-      origins.find((s) => s.id === attacker.capitalSettlementId) || origins[0],
+  const origin = origins.find((s) => s.id === attacker.capitalSettlementId) || origins[0],
     sails = factionHasTech(attacker.id, "navigation"),
     passable = (tile) => sails || W.tiles.liquid[tile] <= WATER_DEPTH.WADE_LIMIT,
     goal = (tile) => {
@@ -679,6 +676,180 @@ function campaignObjectiveFor(war) {
       )[0];
   return { attacker, defender, origin, objective };
 }
+// ── Campaign routes ─────────────────────────────────────────────────────────────
+// Greedy steps toward an objective stall against lakes and built-up districts, so a launched
+// column follows a breadth-first corridor of wadeable, unbuilt tiles that is shared by every
+// member of the unit, refreshed a few times per march, and rejoined by stragglers. Members
+// far ahead of the column's rear hold so the force arrives together.
+const CAMPAIGN_ROUTE_REFRESH = 96,
+  CAMPAIGN_ROUTE_LOOKAHEAD = 3,
+  CAMPAIGN_COLUMN_SLACK = 8;
+function campaignTilePassable(tile, factionId, sails) {
+  if (!sails && W.tiles.liquid[tile] > WATER_DEPTH.WADE_LIMIT) return false;
+  if (W.tiles.fire[tile] >= 400) return false;
+  const building =
+    typeof standingBuildingAtMovementTile === "function"
+      ? standingBuildingAtMovementTile(tile % W.width, (tile / W.width) | 0)
+      : null;
+  return !building || buildingPlace(building)?.factionId === factionId;
+}
+function campaignPath(seeds, target, factionId) {
+  const sails = typeof factionHasTech === "function" && factionHasTech(factionId, "navigation"),
+    width = W.width,
+    parent = new Int32Array(W.tileCount).fill(-1),
+    queue = [],
+    approach = (tile) =>
+      Math.max(Math.abs((tile % width) - target.x), Math.abs(((tile / width) | 0) - target.y));
+  for (const seed of seeds)
+    if (seed >= 0 && seed < W.tileCount && parent[seed] === -1) {
+      parent[seed] = seed;
+      queue.push(seed);
+    }
+  let best = -1,
+    bestApproach = Infinity;
+  for (let cursor = 0; cursor < queue.length; cursor++) {
+    const current = queue[cursor],
+      reach = approach(current);
+    if (reach < bestApproach) {
+      bestApproach = reach;
+      best = current;
+      if (reach <= 3) break;
+    }
+    for (const next of neighbors4(current)) {
+      if (parent[next] !== -1 || !campaignTilePassable(next, factionId, sails)) continue;
+      parent[next] = current;
+      queue.push(next);
+    }
+  }
+  if (best < 0) return [];
+  const path = [];
+  for (let tile = best, guard = 0; guard <= W.tileCount; tile = parent[tile], guard++) {
+    path.push(tile);
+    if (parent[tile] === tile) break;
+  }
+  return path.reverse();
+}
+function campaignRouteIndex(path, x, y) {
+  let index = 0,
+    distance = Infinity;
+  for (let i = 0; i < path.length; i++) {
+    const d = Math.max(Math.abs((path[i] % W.width) - x), Math.abs(((path[i] / W.width) | 0) - y));
+    if (d < distance || (d === distance && i > index)) {
+      distance = d;
+      index = i;
+    }
+  }
+  return { index, distance };
+}
+function campaignRoute(unit, target) {
+  if (!unit || !target) return null;
+  const members = unit.memberIds.filter((id) => classifyAlive(id) && W.components.position[id]);
+  if (!members.length) return null;
+  const route = unit.route;
+  if (
+    route &&
+    route.targetId === target.id &&
+    route.path.length &&
+    W.tick - route.tick < CAMPAIGN_ROUTE_REFRESH
+  ) {
+    let nearest = Infinity;
+    for (const id of members) {
+      const p = W.components.position[id];
+      nearest = Math.min(nearest, campaignRouteIndex(route.path, p.x, p.y).distance);
+    }
+    if (nearest <= 6) return route;
+  }
+  const seeds = members.map((id) => idx(W.components.position[id].x, W.components.position[id].y));
+  unit.route = {
+    tick: W.tick,
+    targetId: target.id,
+    path: campaignPath(seeds, target, unit.factionId),
+  };
+  return unit.route;
+}
+function campaignWaypoint(id, unit, target) {
+  const route = campaignRoute(unit, target);
+  if (!route || !route.path.length) return null;
+  const p = W.components.position[id];
+  if (!p) return null;
+  const { index, distance } = campaignRouteIndex(route.path, p.x, p.y),
+    ahead =
+      distance > 2 ? index : Math.min(route.path.length - 1, index + CAMPAIGN_ROUTE_LOOKAHEAD);
+  return {
+    tile: route.path[ahead],
+    index,
+    offRoute: distance,
+    remaining: route.path.length - 1 - index,
+  };
+}
+function campaignColumnRear(unit) {
+  if (unit.columnRearTick === W.tick && Number.isFinite(unit.columnRear)) return unit.columnRear;
+  const route = unit.route;
+  let rear = Infinity;
+  if (route?.path?.length)
+    for (const id of unit.memberIds) {
+      const p = W.components.position[id];
+      if (!classifyAlive(id) || !p) continue;
+      const { index, distance } = campaignRouteIndex(route.path, p.x, p.y);
+      if (distance <= 4) rear = Math.min(rear, index);
+    }
+  unit.columnRearTick = W.tick;
+  unit.columnRear = Number.isFinite(rear) ? rear : 0;
+  return unit.columnRear;
+}
+function campaignColumnShouldHold(unit, waypoint, position, target) {
+  if (!waypoint || !target || !position) return false;
+  if (Math.max(Math.abs(position.x - target.x), Math.abs(position.y - target.y)) <= 6) return false;
+  return waypoint.index > campaignColumnRear(unit) + CAMPAIGN_COLUMN_SLACK;
+}
+function campaignAdvance(unit, target, geometry) {
+  const route = campaignRoute(unit, target);
+  if (!route || !route.path.length) return geometry.distance;
+  const { index, distance } = campaignRouteIndex(
+    route.path,
+    Math.round(geometry.x),
+    Math.round(geometry.y),
+  );
+  return route.path.length - 1 - index + distance;
+}
+function campaignRemaining(factionId, target) {
+  let remaining = Infinity;
+  for (const unit of W.militaryUnits) {
+    if (!unit.active || unit.factionId !== factionId) continue;
+    const route = campaignRoute(unit, target);
+    if (!route?.path?.length) continue;
+    for (const id of unit.memberIds) {
+      const p = W.components.position[id];
+      if (!classifyAlive(id) || !p) continue;
+      const { index, distance } = campaignRouteIndex(route.path, p.x, p.y);
+      remaining = Math.min(remaining, route.path.length - 1 - index + distance);
+    }
+  }
+  return remaining;
+}
+// Rations for the road, drawn from the home stores the moment a fighter receives marching
+// orders: conserved matter moved into the marcher's stomach and body, not created.
+function provisionCampaigner(id, unit) {
+  const home = W.settlements.find((s) => s.id === unit.homeSettlementId && !s.ruined),
+    digestive = W.components.inventory[id]?.digestive,
+    body = W.components.chemistry[id]?.q;
+  if (!home || !digestive || !body) return 0;
+  let moved = 0;
+  for (const [species, limit] of [
+    [C.ORGANIC, 40],
+    [C.ENERGY, 24],
+    [C.NUTRIENT, 10],
+  ]) {
+    const amount = Math.min(limit, home.inventory[species] || 0, 65535 - digestive[species]);
+    home.inventory[species] -= amount;
+    digestive[species] += amount;
+    moved += amount;
+  }
+  const water = Math.min(60, home.inventory[C.SOLVENT] || 0, 65535 - body[C.SOLVENT]);
+  home.inventory[C.SOLVENT] -= water;
+  body[C.SOLVENT] += water;
+  return moved + water;
+}
 function updateCampaignOrders() {
   if (!W?.components) return;
   const orders = W.components.campaign || (W.components.campaign = {}),
@@ -703,7 +874,9 @@ function updateCampaignOrders() {
           existing.warId !== war.id ||
           existing.x !== objective.x ||
           existing.y !== objective.y
-        )
+        ) {
+          if (role === "attack" && (!existing || existing.warId !== war.id))
+            provisionCampaigner(id, unit);
           orders[id] = {
             warId: war.id,
             unitId: unit.id,
@@ -714,6 +887,7 @@ function updateCampaignOrders() {
             role,
             issuedTick: W.tick,
           };
+        }
         live.add(id);
         if (typeof clearStaleWork === "function") clearStaleWork(id);
       }
@@ -725,15 +899,23 @@ function campaignMarchStep(id) {
   const order = W.components.campaign?.[id],
     p = W.components.position[id];
   if (!order || !p) return [0, 0];
-  const dx = Math.sign(order.x - p.x),
-    dy = Math.sign(order.y - p.y);
-  if (!dx && !dy) return [0, 0];
-  const sails = typeof factionHasTech === "function" && factionHasTech(order.factionId, "navigation"),
+  const sails =
+      typeof factionHasTech === "function" && factionHasTech(order.factionId, "navigation"),
     passable = (x, y) =>
       inside(x, y) &&
       (sails || W.tiles.liquid[idx(x, y)] <= WATER_DEPTH.WADE_LIMIT) &&
-      W.tiles.fire[idx(x, y)] < 400,
-    lateral = Math.abs(order.x - p.x) >= Math.abs(order.y - p.y),
+      W.tiles.fire[idx(x, y)] < 400 &&
+      !(typeof movementTileBlocked === "function" && movementTileBlocked(id, x, y)),
+    unit = W.militaryUnits.find((candidate) => candidate.active && candidate.id === order.unitId),
+    objective = W.settlements.find((s) => s.id === order.placeId && !s.ruined),
+    waypoint =
+      unit && objective && order.role === "attack" ? campaignWaypoint(id, unit, objective) : null;
+  if (waypoint && campaignColumnShouldHold(unit, waypoint, p, objective)) return [0, 0];
+  const [gx, gy] = waypoint ? xy(waypoint.tile) : [order.x, order.y],
+    dx = Math.sign(gx - p.x),
+    dy = Math.sign(gy - p.y);
+  if (!dx && !dy) return [0, 0];
+  const lateral = Math.abs(gx - p.x) >= Math.abs(gy - p.y),
     routes = lateral
       ? [
           [dx, dy],
@@ -749,8 +931,19 @@ function campaignMarchStep(id) {
           [1, dy],
           [-1, dy],
         ];
-  for (const [sx, sy] of routes)
-    if ((sx || sy) && passable(p.x + sx, p.y + sy)) return [sx, sy];
+  for (const [sx, sy] of routes) if ((sx || sy) && passable(p.x + sx, p.y + sy)) return [sx, sy];
+  if (waypoint && unit.route?.path?.length) {
+    // The corridor is four-connected through passable tiles: its next tile is a legal step.
+    const next = unit.route.path[Math.min(unit.route.path.length - 1, waypoint.index + 1)],
+      [nx, ny] = xy(next);
+    if (
+      Math.abs(nx - p.x) <= 1 &&
+      Math.abs(ny - p.y) <= 1 &&
+      (nx !== p.x || ny !== p.y) &&
+      passable(nx, ny)
+    )
+      return [Math.sign(nx - p.x), Math.sign(ny - p.y)];
+  }
   const detours = [
       [0, 1],
       [1, 0],
@@ -784,6 +977,39 @@ function campaignAttrition(war, fielded) {
     war.lastEventId = W.lastEventByType.DeathEvent || war.lastEventId || war.startEventId;
   }
   return fallen;
+}
+// Only those who will actually stand and fight count as defenders in a war turn: militia,
+// the armed, and the aggressive. Frightened civilians in the streets are not a garrison, so a
+// column that has beaten the defenders can take the town instead of besieging it forever.
+function warTurnCombatant(id) {
+  const social = W.components.social[id];
+  if (!social) return false;
+  if (
+    social.unitId &&
+    (W.militaryUnits || []).some((unit) => unit.active && unit.id === social.unitId)
+  )
+    return true;
+  if (typeof carriedToolForPurpose === "function" && carriedToolForPurpose(id, "war")) return true;
+  return (social.aggression || 0) > 0.48 && derivedLife(id).health > 30;
+}
+function settlementCombatants(target) {
+  if (!target) return 0;
+  let count = 0;
+  for (const id of entityAtRadius(idx(target.x, target.y), 9, KINDS.PERSON)) {
+    if (!classifyAlive(id) || W.components.social[id]?.factionId !== target.factionId) continue;
+    if (warTurnCombatant(id)) count++;
+  }
+  return count;
+}
+// An army is sized to the fight ahead of it: enough to face the town's actual defenders,
+// bounded by what the polity can field. Four raiders against a village of fifty can only
+// skirmish forever; a real levy can win or lose.
+function campaignMinimumFighters(target, attacker) {
+  const wanted = target
+      ? Math.ceil(Math.max(settlementDefense(target) / 12, settlementCombatants(target) * 0.7))
+      : 2,
+    fieldable = attacker ? factionFieldableFighters(attacker) : wanted;
+  return Math.max(2, Math.min(10, wanted, Math.max(2, Math.floor(fieldable * 0.6))));
 }
 function resolveImplicitWarTurn(war, a, b) {
   initializeConflictDrama();
@@ -870,7 +1096,8 @@ function resolveImplicitWarTurn(war, a, b) {
           position &&
           dist2(position.x, position.y, battleX, battleY) <= 49 &&
           classifyAlive(id) &&
-          W.components.social[id]?.factionId === defender.id
+          W.components.social[id]?.factionId === defender.id &&
+          warTurnCombatant(id)
         );
       })
       .map((id) => ({ id, u: combatUnitFor(id) || { training: 0 } }));
@@ -885,10 +1112,16 @@ function resolveImplicitWarTurn(war, a, b) {
       const q = W.components.position[id];
       closest = Math.min(closest, dist2(q.x, q.y, battleX, battleY));
     }
+    // A column rounding a lake gets no closer as the crow flies; progress along its route
+    // counts as progress, so only a force that is truly not advancing is called stalled.
+    const routeRemaining = campaignRemaining(attacker.id, target);
     if (fielded.length && closest < (war.bestApproach ?? Infinity)) {
       war.bestApproach = closest;
       war.stalledTurns = 0;
-    } else war.stalledTurns = (war.stalledTurns || 0) + 1;
+    } else if (routeRemaining < (war.routeRemaining ?? Infinity)) war.stalledTurns = 0;
+    else war.stalledTurns = (war.stalledTurns || 0) + 1;
+    if (Number.isFinite(routeRemaining))
+      war.routeRemaining = Math.min(war.routeRemaining ?? Infinity, routeRemaining);
     let pillage = 0;
     for (const id of fielded) {
       if (pillage >= 2) break;
@@ -909,6 +1142,15 @@ function resolveImplicitWarTurn(war, a, b) {
       }
     }
     campaignAttrition(war, fielded);
+    const launchedOnMarch = war.attackPlan?.launchedFighters || 0,
+      survivingOnMarch = fielded.filter(classifyAlive).length;
+    if (launchedOnMarch >= 4 && survivingOnMarch < Math.max(2, Math.ceil(launchedOnMarch * 0.4)))
+      return endWar(
+        war,
+        a,
+        b,
+        `${attacker.name}'s column wasted away on the march and the survivors turned home`,
+      );
     if (war.stalledTurns > 8)
       return endWar(war, a, b, "the column stalled short of contact and the levies broke up");
     return;
@@ -1024,6 +1266,19 @@ function resolveImplicitWarTurn(war, a, b) {
     war.lastEventId = ev.id;
     return endWar(war, a, b, `${target.name} was physically occupied`);
   }
+  // A column reduced to a fraction of what marched is beaten, and the war says so.
+  const launched = war.attackPlan?.launchedFighters || 0,
+    stillFielded = W.militaryUnits
+      .filter((unit) => unit.active && unit.factionId === attacker.id)
+      .flatMap((unit) => unit.memberIds)
+      .filter(classifyAlive).length;
+  if (launched >= 4 && stillFielded < Math.max(2, Math.ceil(launched * 0.4)))
+    return endWar(
+      war,
+      a,
+      b,
+      `${attacker.name}'s column was broken before ${target.name} and the survivors withdrew`,
+    );
   const foodA = mean(settlementsA.map(settlementFood)),
     foodB = mean(settlementsB.map(settlementFood));
   if (

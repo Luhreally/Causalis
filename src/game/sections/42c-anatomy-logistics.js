@@ -1284,7 +1284,8 @@ function updatePersonRescue() {
 function ensurePrimitiveEquipment() {
   if (W.tick % 4) return;
   for (const unit of W.militaryUnits || []) {
-    if (!unit.active) continue;
+    // Equipment is made at the muster ground, not while the column is on the road.
+    if (!unit.active || unitOnCampaign(unit)) continue;
     for (const id of unit.memberIds.filter(classifyAlive).slice(0, 8)) {
       const purposes = ["war", "shield", "armor"],
         missing = purposes.find((purpose) => !toolForPurpose(id, purpose));
@@ -1643,19 +1644,24 @@ function resolveMilitaryContact(unit, contact, war, tactic) {
       causeEvent: war.lastEventId || war.startEventId,
     });
     if (result) exchanges++;
+    // Skirmish outcomes belong to the war's ledger, not only the turn-level battle.
+    if (result === 2) war.casualties = (war.casualties || 0) + 1;
+    else if (result === 1) war.wounded = (war.wounded || 0) + 1;
     if (
       classifyAlive(defenderId) &&
       classifyAlive(attackerId) &&
       dist2(attackerPosition.x, attackerPosition.y, defenderPosition.x, defenderPosition.y) <= 9
     ) {
-      const defenderUnit = combatUnitFor(defenderId);
-      detailedCombatExchange(defenderId, attackerId, {
-        war,
-        training: defenderUnit?.training || 0,
-        military: true,
-        intensity: tactic.phase === "screening" ? 0.82 : 1,
-        causeEvent: war.lastEventId || war.startEventId,
-      });
+      const defenderUnit = combatUnitFor(defenderId),
+        riposte = detailedCombatExchange(defenderId, attackerId, {
+          war,
+          training: defenderUnit?.training || 0,
+          military: true,
+          intensity: tactic.phase === "screening" ? 0.82 : 1,
+          causeEvent: war.lastEventId || war.startEventId,
+        });
+      if (riposte === 2) war.casualties = (war.casualties || 0) + 1;
+      else if (riposte === 1) war.wounded = (war.wounded || 0) + 1;
     }
   }
   const livingDefenders = defenders.filter(classifyAlive),
@@ -1670,7 +1676,9 @@ function resolveMilitaryContact(unit, contact, war, tactic) {
       exchanges += razeStrike(attackerId, contact.place, contact.building, war) > 0 ? 1 : 0;
   if (exchanges) {
     unit.lastBattleTick = W.tick;
-    war.contactTurns = (war.contactTurns || 0) + 1;
+    // Unit-level engagements are counted apart from war-turn contact so the standoff rule
+    // measures whole turns of contact, not individual skirmish pulses.
+    war.engagements = (war.engagements || 0) + 1;
     war.lastEventId =
       W.lastEventByType.BuildingDamagedEvent ||
       W.lastEventByType.KillEvent ||
@@ -1724,6 +1732,7 @@ function setMilitaryPhase(unit, phase, detail, target, war) {
 function updateMilitaryMovement() {
   if (W.tick % 4) return;
   for (const unit of W.militaryUnits.filter((candidate) => candidate.active)) {
+    const campaigning = unitOnCampaign(unit);
     const { war, target: objective, home } = militaryObjective(unit);
     if (!objective) {
       setMilitaryPhase(unit, "inactive", "no intact home or objective remains", null, war);
@@ -1734,14 +1743,17 @@ function updateMilitaryMovement() {
     let target = contact || objective,
       geometry = unitGeometry(unit, target),
       movementTargetKey = contact?.key || `objective:${objective.id}`,
+      // Progress is measured along the campaign corridor when one exists, so a column
+      // rounding a lake is not mistaken for a stalled one.
+      advance = war && !contact ? campaignAdvance(unit, objective, geometry) : geometry.distance,
       progress =
         unit.lastMovementTargetKey === movementTargetKey &&
         Number.isFinite(unit.lastObjectiveDistance)
-          ? unit.lastObjectiveDistance - geometry.distance
+          ? unit.lastObjectiveDistance - advance
           : 0;
     if (unit.lastMovementTargetKey !== movementTargetKey) {
       unit.stalledTicks = 0;
-      unit.lastObjectiveDistance = geometry.distance;
+      unit.lastObjectiveDistance = advance;
     }
     unit.lastMovementTargetKey = movementTargetKey;
     if (progress > 0.12) {
@@ -1749,7 +1761,7 @@ function updateMilitaryMovement() {
       unit.stalledTicks = 0;
     } else if (war && geometry.distance > 3) unit.stalledTicks = (unit.stalledTicks || 0) + 4;
     else unit.stalledTicks = 0;
-    unit.lastObjectiveDistance = geometry.distance;
+    unit.lastObjectiveDistance = advance;
     unit.lastCentroid = { x: geometry.x, y: geometry.y, tick: W.tick };
     let phase;
     if (contact) phase = tactic.phase;
@@ -1806,6 +1818,7 @@ function updateMilitaryMovement() {
       }
       const equipmentWork = workState(id);
       if (
+        !campaigning &&
         equipmentWork.task === "craft" &&
         (EQUIPMENT_PURPOSES.has(equipmentWork.craftPurpose) ||
           ["war", "shield", "armor"].includes(equipmentWork.craftPurpose))
@@ -1828,30 +1841,50 @@ function updateMilitaryMovement() {
             `📯 drawing supplies and waiting for the unit to assemble`,
             idx(p.x, p.y),
           );
-      } else if (phase === "forming" || phase === "rerouting") {
-        const centroidTile = idx(
-          clamp(Math.round(geometry.x), 0, W.width - 1),
-          clamp(Math.round(geometry.y), 0, W.height - 1),
-        );
-        if (dist2(p.x, p.y, geometry.x, geometry.y) > 4)
-          moveWorkerToward(id, centroidTile, "form", `🫡 closing formation before movement`);
-        else
+      } else if (phase === "forming" || phase === "rerouting" || phase === "marching") {
+        const waypoint = war && !contact ? campaignWaypoint(id, unit, target) : null;
+        if (waypoint) {
+          if (campaignColumnShouldHold(unit, waypoint, p, target))
+            setWorkAction(
+              id,
+              "march",
+              `🥾 holding so the column stays together on the road to ${target.name}`,
+              waypoint.tile,
+            );
+          else
+            moveWorkerToward(
+              id,
+              waypoint.tile,
+              "march",
+              phase === "rerouting"
+                ? `🥾 following a replotted route toward ${target.name}`
+                : `🥾 marching the column's route toward ${target.name}`,
+            );
+        } else if (phase === "marching")
           moveWorkerToward(
             id,
             idx(target.x, target.y),
-            "form",
-            phase === "rerouting"
-              ? `🫡 probing an alternate route toward ${target.name}`
-              : `🫡 holding the formed line`,
+            "march",
+            `🥾 actively marching toward ${target.name}`,
           );
-      } else if (phase === "marching")
-        moveWorkerToward(
-          id,
-          idx(target.x, target.y),
-          "march",
-          `🥾 actively marching toward ${target.name}`,
-        );
-      else if (phase === "withdrawing" || phase === "returning")
+        else {
+          const centroidTile = idx(
+            clamp(Math.round(geometry.x), 0, W.width - 1),
+            clamp(Math.round(geometry.y), 0, W.height - 1),
+          );
+          if (dist2(p.x, p.y, geometry.x, geometry.y) > 4)
+            moveWorkerToward(id, centroidTile, "form", `🫡 closing formation before movement`);
+          else
+            moveWorkerToward(
+              id,
+              idx(target.x, target.y),
+              "form",
+              phase === "rerouting"
+                ? `🫡 probing an alternate route toward ${target.name}`
+                : `🫡 holding the formed line`,
+            );
+        }
+      } else if (phase === "withdrawing" || phase === "returning")
         moveWorkerToward(
           id,
           idx(target.x, target.y),

@@ -925,10 +925,7 @@ function ensureAttackPlan(war, create = false) {
       targetSettlementId: target?.id || 0,
       plannedLaunchTick: war.started + preparation,
       latestLaunchTick: war.started + preparation + 384,
-      minimumFighters: Math.max(
-        2,
-        Math.min(8, Math.ceil((target ? settlementDefense(target) : 8) / 12)),
-      ),
+      minimumFighters: campaignMinimumFighters(target, attacker),
       motive: campaignMotive(war, attacker, defender, target),
       approach: campaignApproach(war, attacker?.id, target, units),
       launchedTick: 0,
@@ -945,10 +942,7 @@ function ensureAttackPlan(war, create = false) {
       war.attackPlan.targetSettlementId = target?.id || 0;
       war.attackPlan.motive = campaignMotive(war, attacker, defender, target);
       war.attackPlan.approach = campaignApproach(war, attacker?.id, target, units);
-      war.attackPlan.minimumFighters = Math.max(
-        2,
-        Math.min(8, Math.ceil((target ? settlementDefense(target) : 8) / 12)),
-      );
+      war.attackPlan.minimumFighters = campaignMinimumFighters(target, attacker);
     }
   }
   return war.attackPlan;
@@ -968,6 +962,7 @@ function updateAttackPlan(war) {
   plan.lastBlockers = readiness.blockers.map((requirement) => requirement.key);
   if (!earliestReached || (readiness.blockers.length && !forcedWindow)) return plan;
   plan.launchedTick = W.tick || 1;
+  plan.launchedFighters = readiness.members.length;
   const attacker = W.factions.find((faction) => faction.id === plan.attackerId),
     defender = W.factions.find((faction) => faction.id === plan.defenderId),
     target = readiness.target,
@@ -1067,7 +1062,8 @@ function factionMobilizationReadiness(faction, need) {
 }
 function advanceWarMobilization(a, b, rel, rev) {
   const attacker =
-      a.militaryStrength > b.militaryStrength || (a.militaryStrength === b.militaryStrength && a.id < b.id)
+      a.militaryStrength > b.militaryStrength ||
+      (a.militaryStrength === b.militaryStrength && a.id < b.id)
         ? a
         : b,
     defender = attacker === a ? b : a,
@@ -1082,7 +1078,12 @@ function advanceWarMobilization(a, b, rel, rev) {
           dist2(left.x, left.y, home.x, home.y) - dist2(right.x, right.y, home.x, home.y) ||
           left.id - right.id,
       )[0],
-    need = clamp(Math.ceil(settlementDefense(target) / 12), 4, 10),
+    fieldable = factionFieldableFighters(attacker),
+    need = clamp(
+      Math.ceil(Math.max(settlementDefense(target) / 12, settlementCombatants(target) * 0.9)),
+      4,
+      Math.max(4, Math.min(12, Math.floor(fieldable * 0.45))),
+    ),
     attackerUnit = musterFactionForce(attacker, home, need),
     defenderUnit = musterFactionForce(
       defender,
@@ -1093,8 +1094,7 @@ function advanceWarMobilization(a, b, rel, rev) {
     if (!unit) continue;
     for (const id of unit.memberIds.filter(classifyAlive)) {
       if (carriedToolForPurpose(id, "war")) continue;
-      const recipe =
-        toolRecipeFromInventory(id, "war") || supplyEquipmentMaterials(id, "war");
+      const recipe = toolRecipeFromInventory(id, "war") || supplyEquipmentMaterials(id, "war");
       if (recipe) beginOrAdvanceCraft(id, "war");
     }
   }
@@ -1170,13 +1170,18 @@ function levyCampaignForce(war, plan, attacker, home) {
     };
     W.militaryUnits.push(unit);
   }
+  const levySize = Math.max(
+    plan.minimumFighters || 2,
+    Math.min(10, Math.ceil(fieldable.length * 0.4)),
+  );
   for (const id of fieldable) {
-    if (unit.memberIds.length >= Math.max(plan.minimumFighters || 2, 4)) break;
+    if (unit.memberIds.length >= levySize) break;
     if (!unit.memberIds.includes(id)) unit.memberIds.push(id);
   }
   if (unit.memberIds.filter(classifyAlive).length < Math.max(2, plan.minimumFighters || 2))
     return false;
   plan.launchedTick = W.tick || 1;
+  plan.launchedFighters = unit.memberIds.filter(classifyAlive).length;
   const anchor = home || { x: W.components.position[unit.memberIds[0]]?.x || 0, y: 0 },
     event = emitEvent("MilitaryPhaseEvent", {
       subjects: unit.memberIds.slice(0, 4),
@@ -1676,7 +1681,7 @@ ensurePrimitiveEquipment = function () {
   ensurePrimitiveEquipmentDeepBase();
   if (W.tick % 64) return;
   for (const unit of W.militaryUnits || []) {
-    if (!unit.active) continue;
+    if (!unit.active || unitOnCampaign(unit)) continue;
     for (const id of unit.memberIds.filter(classifyAlive).slice(0, 6)) {
       const work = workState(id);
       if (work.task === "craft") continue;

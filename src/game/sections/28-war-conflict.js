@@ -173,6 +173,7 @@ function updateDiplomacyAndWar() {
             casualties: 0,
             wounded: 0,
             turns: 0,
+            contactTurns: 0,
             ended: 0,
           };
         const createdWar = war || w;
@@ -397,18 +398,9 @@ function warFinalReckoning(war, a, b) {
       )
       .sort(
         (left, right) =>
-          dist2(
-            W.components.position[left].x,
-            W.components.position[left].y,
-            seat.x,
-            seat.y,
-          ) -
-            dist2(
-              W.components.position[right].x,
-              W.components.position[right].y,
-              seat.x,
-              seat.y,
-            ) || left - right,
+          dist2(W.components.position[left].x, W.components.position[left].y, seat.x, seat.y) -
+            dist2(W.components.position[right].x, W.components.position[right].y, seat.x, seat.y) ||
+          left - right,
       );
     if (!exposed.length) continue;
     killEntity(exposed[0], "wounds taken in the closing skirmishes of the war", cause);

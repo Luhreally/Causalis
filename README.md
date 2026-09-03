@@ -48,6 +48,8 @@ Person-level combat resolves attack tactics against defensive responses using tr
 
 Internal violence is implicit: scarcity, instability, crowding, resentment, trust, cultural or faction difference, occupation, and individual temperament can produce a confrontation without a scripted incident. Faction and personal xenophobia affect out-group tension and integration but do not independently create violence.
 
+A launched column keeps its roster until it returns: fighters draw rations from the home stores when their orders are issued, follow a shared route of wadeable, unbuilt tiles around lakes and districts, hold so the column arrives together, and are neither drafted into civilian labor nor absorbed as immigrants by the town they attack. Only militia, the armed, and the aggressive count as a settlement's defenders in a war turn, so a force that has beaten them can take the town rather than besieging it indefinitely.
+
 Armies must establish physical control to capture a settlement. Defended walls can be breached through cited structural-damage events; intact buildings transfer to the occupier and display its faction color. Damaged buildings retain their integrity state and residents repair them through ordinary labor, while collapsed buildings are rebuilt from conserved construction matter. Residents can integrate or retain their former allegiance, creating persistent occupation resistance and later reconciliation.
 
 ## Social drama and embodied consequences

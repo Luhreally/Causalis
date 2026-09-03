@@ -1171,7 +1171,13 @@ function updateLivingHerds() {
       activelyDefending =
         herderWork?.task === "predator_defense" &&
         W.tick - (herderWork.handledTick ?? -Infinity) <= 8;
-    if (herderPosition && classifyAlive(herder) && !activelyDefending) {
+    // A herder called to war leaves the flock untended rather than being dragged back to it.
+    if (
+      herderPosition &&
+      classifyAlive(herder) &&
+      !activelyDefending &&
+      !W.components.campaign?.[herder]
+    ) {
       if (dist2(herderPosition.x, herderPosition.y, px, py) > 9)
         moveWorkerToward(
           herder,
@@ -1214,7 +1220,8 @@ function maybeFormLivingHerds() {
             W.components.life[id].age >= (W.components.body[id].maturityAge || 1000) &&
             derivedLife(id).health > 45 &&
             embodiedCapability(id).locomotion > 0.45 &&
-            embodiedCapability(id).manipulation > 0.35,
+            embodiedCapability(id).manipulation > 0.35 &&
+            !W.components.campaign?.[id],
         )
         .sort(
           (left, right) =>
