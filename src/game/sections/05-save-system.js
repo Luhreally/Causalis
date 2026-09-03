@@ -146,18 +146,25 @@ let saveDbPromise = null,
   autosaveWriteBlocked = false,
   autosaveWarningShown = false,
   autosaveInFlight = false;
-let autosaveScheduled = false;
+let autosaveScheduled = false,
+  lastAutosaveWall = 0;
+const AUTOSAVE_MIN_INTERVAL_MS = 90000;
 function autosaveCadence() {
   return UI.speed >= 64 ? 4096 : UI.speed >= 16 ? 2048 : 1024;
 }
 function queueAutosave() {
   if (!W || !UI.running || autosaveScheduled || autosaveInFlight || autosaveWriteBlocked)
     return false;
+  // Serializing a mature world takes a visible fraction of a second on the main thread, so
+  // autosaves are also spaced by real time, not only by simulated ticks.
+  if (lastAutosaveTick > 0 && performance.now() - lastAutosaveWall < AUTOSAVE_MIN_INTERVAL_MS)
+    return false;
   const scheduledWorld = W;
   autosaveScheduled = true;
   setTimeout(() => {
     autosaveScheduled = false;
     if (!W || W !== scheduledWorld || !UI.running) return;
+    lastAutosaveWall = performance.now();
     saveWorld("auto", "Autosave", true);
     lastAutosaveTick = W.tick;
   }, 0);

@@ -4074,7 +4074,9 @@ updateTechnology = function () {
         (0.65 + inventive) *
         W.laws.technologyRate *
         RESEARCH_TEMPO *
-        (concertedIntensity() ? 8 * concertedIntensity() : 1);
+        // A causal skip is a concerted push, not a warp: it triples inquiry rather than
+        // compressing a generation of research into a season.
+        (concertedIntensity() ? 3 * concertedIntensity() : 1);
     for (const entry of eligible) {
       const { tech, facility, base, obs, temperature } = entry,
         legacy = (W.civilization?.legacyProcesses || []).includes(tech.id),

@@ -22,6 +22,7 @@ Useful commands:
 
 - `npm run build` creates a production build in `dist/`.
 - `npm run test:fast` runs syntax, conservation/cohort, mobile, causal conflict, social/embodied systems, and save regressions.
+- Saves store the world's determinism hash; archives written before save version 10 load without the integrity check because the hash algorithm changed.
 - `npm run test:conflict` checks tactical wounds, blood-matter conservation, internal conflict, cited siege damage, and non-destructive capture.
 - `npm run test:systems` checks causal love/betrayal/grief/revenge, critical emotion priority, buckets and fire suppression, deep-water vessels, persistent limb loss and fluid traces, field cycles, living herds, predator defense, and matter conservation.
 - `npm test` runs the complete deterministic simulation suite.
@@ -32,6 +33,14 @@ Useful commands:
 The interface switches automatically on touch phones and can also be forced from Settings. It uses safe-area-aware drawers, a six-button world dock, one-finger pan, combined two-finger pinch/orbit/tilt in free roam, 44 px controls, and a reduced mobile render budget without changing fixed-tick simulation order.
 
 New phone worlds default to the `Phone` profile (`96 × 58`, Lean simulation, Low rendering, labels off). `Battery saver` (`72 × 44`) is the smallest supported world for longer sessions. Existing saves retain their original dimensions and rules.
+
+## Deep time and pacing
+
+A year is 256 fixed ticks. People mature at about fifteen, bear children through their forties, and live around seventy-five years with individually varied senescence; grazers and hunters turn over in years, so herds track pasture and predators track herds instead of accumulating immortal individuals. Villages therefore grow by generations: a founding band holds steady until its first children come of age, then roughly doubles every decade until food, disease, or war intervene.
+
+Each settlement pursues one line of inquiry at a time. Side topics only gather incidental notes, a village of twenty needs about a generation per discovery, a city of sixty roughly half that, and a process already practiced by a neighboring people within reach is learned faster. Knowledge survives collapse as legacy and is rediscovered quickest in the ruins of those who held it. The History tab opens on a notable-events lens (founding, discovery, war, famine, collapse, legends); the raw feed of births, bites, and feedings is one click away.
+
+Famine is recorded history: a community that loses more than eight percent of its people to hunger in a year enters the chronicle and loses stability. Species extinctions are recorded only for lineages that established themselves, and losing a limb is a rare, dramatic outcome rather than the usual result of a bite.
 
 ## Causal conflict and occupation
 
