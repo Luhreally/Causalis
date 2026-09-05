@@ -36,6 +36,17 @@ for camera changes, overlays, and interventions. Creatures and atmospheric effec
 continue to draw. This reduces repeated terrain work; it is not a universal
 frame-rate guarantee. Large worlds remain more expensive than Small or Phone.
 
+The **Legends** tab is a linked encyclopedia of the world's history. Every notable
+event is also written to the annals, a durable ledger that survives the chronicle
+feed's compression, so old history stays readable and causes can be followed back
+for the life of the world. Pages exist for lives (born, died, family, deeds,
+bonds, and a personal chronicle with a live portrait), polities (Voices in order,
+wars, allies and enemies), peoples, places, species, artifacts, wars, and
+calamities; every name is a link to another page, every page can jump to its
+subject in the world, and every inspector offers "Open in Legends". Search boxes
+filter the index and its lists. `npm run test:legends` renders the pages headlessly
+and checks that annals outlive event compression.
+
 `npm run test:experience` exercises the expedition sequence, real intervention
 readings, successful-save completion, archive restoration, optional storage
 failure, render isolation, and terrain cache invalidation.
