@@ -636,7 +636,7 @@ function chemShapes(m) {
       link(centre, pts[k]);
     }
     pts.push(centre);
-  } else if (m.topology === "lattice") {
+  } else if (m.topology === "lattice" || m.topology === "network") {
     for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) pts.push(rot(i * 0.24, j * 0.24));
     for (let i = 0; i < 9; i++) {
       if (i % 3 < 2) link(pts[i], pts[i + 1]);
