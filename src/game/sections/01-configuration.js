@@ -247,6 +247,7 @@ const OVERLAY_DEFS = Object.freeze([
   ["season", "Season"],
   ["species", "Species ranges"],
   ["history", "History"],
+  ["belief", "Belief"],
 ]);
 const EVENT_CATEGORY = Object.freeze({
   BirthEvent: "people",
@@ -337,6 +338,11 @@ const EVENT_CATEGORY = Object.freeze({
   SeasonEvent: "ecology",
   SuccessionEvent: "factions",
   OmenEvent: "factions",
+  NamingEvent: "factions",
+  RiteEvent: "factions",
+  ProphecyEvent: "factions",
+  ProphecyFulfilledEvent: "factions",
+  SchismEvent: "factions",
   ChemistryEvent: "ecology",
 });
 const DOM = {};
