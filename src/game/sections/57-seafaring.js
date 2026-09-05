@@ -80,7 +80,8 @@ ensurePlacePlans = function (place) {
   if (!placeWantsDock(place)) return;
   if (
     W.buildings.some(
-      (b) => !b.ruined && b.placeKind === "settlement" && b.placeId === place.id && b.type === "dock",
+      (b) =>
+        !b.ruined && b.placeKind === "settlement" && b.placeId === place.id && b.type === "dock",
     )
   )
     return;
@@ -100,7 +101,8 @@ plannedBuildingTile = function (place, type, ordinal) {
       const tile = idx(x, y);
       if (W.tiles.liquid[tile] > WATER_DEPTH.SHALLOW) continue;
       if (!neighbors4(tile).some((n) => isWater(n))) continue;
-      if (!developmentFootprintClear(x, y, 1) || !buildingTerrainFootprintValid(type, x, y)) continue;
+      if (!developmentFootprintClear(x, y, 1) || !buildingTerrainFootprintValid(type, x, y))
+        continue;
       const d = dx * dx + dy * dy;
       if (d < bd || (d === bd && tile < idx(best[0], best[1]))) {
         bd = d;
@@ -115,7 +117,10 @@ function aboardTownBoat(id) {
   if (!order) return false;
   if (order.kind === "fish" || order.kind === "voyage") return true;
   if (order.kind === "caravan" || order.kind === "envoy" || order.kind === "wedding")
-    return !!W.components.social[id]?.factionId && factionHasTech(W.components.social[id].factionId, "navigation");
+    return (
+      !!W.components.social[id]?.factionId &&
+      factionHasTech(W.components.social[id].factionId, "navigation")
+    );
   return false;
 }
 const hasNavigableWatercraftSeaBase = hasNavigableWatercraft;
@@ -125,7 +130,12 @@ hasNavigableWatercraft = function (id) {
 const spawnCaravanSeaBase = spawnCaravan;
 spawnCaravan = function (from, to, route, cargoSp = -1, cargoAmount = 0) {
   const caravan = spawnCaravanSeaBase(from, to, route, cargoSp, cargoAmount);
-  if (caravan && placeSails(from) && placeSails(to) && waterBetween(idx(from.x, from.y), idx(to.x, to.y)) >= 3) {
+  if (
+    caravan &&
+    placeSails(from) &&
+    placeSails(to) &&
+    waterBetween(idx(from.x, from.y), idx(to.x, to.y)) >= 3
+  ) {
     caravan.sea = true;
     for (const id of caravan.members) {
       const order = civilOrderOf(id);
@@ -150,7 +160,11 @@ function fishingGround(place, dock) {
         l = W.tiles.liquid[tile];
       // Walking never enters water past 1100, so grounds stop short of it.
       if (l <= WATER_DEPTH.SURFACE || l >= 1100) continue;
-      if (!sails && l > WATER_DEPTH.WADE_LIMIT && !neighbors4(tile).some((n) => W.tiles.liquid[n] <= WATER_DEPTH.WADE_LIMIT))
+      if (
+        !sails &&
+        l > WATER_DEPTH.WADE_LIMIT &&
+        !neighbors4(tile).some((n) => W.tiles.liquid[n] <= WATER_DEPTH.WADE_LIMIT)
+      )
         continue;
       const organic = W.tiles.chem[C.ORGANIC][tile];
       if (organic < 4) continue;
@@ -176,7 +190,8 @@ function startFishing(place) {
   if (active >= 2) return [];
   const ground = fishingGround(place, dock);
   if (ground < 0) return [];
-  const fishers = typeof caravanCandidates === "function" ? caravanCandidates(place, 2 - active) : [],
+  const fishers =
+      typeof caravanCandidates === "function" ? caravanCandidates(place, 2 - active) : [],
     cast = castingTile(place, ground),
     [tx, ty] = xy(cast),
     trips = [];
@@ -206,7 +221,14 @@ function updateFishing() {
       place = W.settlements.find((s) => s.id === trip.placeId),
       dock = W.buildings.find((b) => b.id === trip.dockId && !b.ruined),
       p = W.components.position[id];
-    if (!classifyAlive(id) || !p || !place || place.ruined || !dock || W.tick - trip.startedTick > 700) {
+    if (
+      !classifyAlive(id) ||
+      !p ||
+      !place ||
+      place.ruined ||
+      !dock ||
+      W.tick - trip.startedTick > 700
+    ) {
       if (classifyAlive(id)) clearCivilOrder(id);
       trip.active = false;
       continue;
@@ -265,7 +287,9 @@ function updateFishing() {
     }
   }
   if (W.sea.trips.length > 60)
-    W.sea.trips = W.sea.trips.filter((t) => t.active).concat(W.sea.trips.filter((t) => !t.active).slice(-16));
+    W.sea.trips = W.sea.trips
+      .filter((t) => t.active)
+      .concat(W.sea.trips.filter((t) => !t.active).slice(-16));
 }
 // ── Voyages: settlers for a far shore ──────────────────────────────────────────
 function colonySite(place) {
@@ -280,7 +304,13 @@ function colonySite(place) {
       y = Math.round(place.y + Math.sin(a) * d);
     if (!inside(x, y) || x < 2 || y < 2 || x >= W.width - 2 || y >= W.height - 2) continue;
     const tile = idx(x, y);
-    if (!isSolidLand(tile) || W.tiles.owner[tile] || campNear(tile, 6) || nearestSettlement(tile, 8)) continue;
+    if (
+      !isSolidLand(tile) ||
+      W.tiles.owner[tile] ||
+      campNear(tile, 6) ||
+      nearestSettlement(tile, 8)
+    )
+      continue;
     if (waterBetween(from, tile) < 3) continue;
     const food = tileFood(tile, "omnivore");
     if (food < 3) continue;
@@ -300,7 +330,10 @@ function launchVoyage(place, force = false) {
   const target = colonySite(place);
   if (target < 0) return null;
   const [sx, sy] = xy(target);
-  if (typeof civilReachable === "function" && !civilReachable(idx(place.x, place.y), { x: sx, y: sy }, place.factionId || 0, "sea"))
+  if (
+    typeof civilReachable === "function" &&
+    !civilReachable(idx(place.x, place.y), { x: sx, y: sy }, place.factionId || 0, "sea")
+  )
     return null;
   const members = typeof caravanCandidates === "function" ? caravanCandidates(place, 4) : [];
   if (members.length < 3) return null;
@@ -327,13 +360,17 @@ function launchVoyage(place, force = false) {
       eventId: 0,
     };
   W.sea.voyages.push(voyage);
-  for (const id of members) issueCivilOrder(id, "voyage", tx, ty, { voyageId: voyage.id, sea: true });
+  for (const id of members)
+    issueCivilOrder(id, "voyage", tx, ty, { voyageId: voyage.id, sea: true });
   const ev = emitEvent("VoyageEvent", {
     subjects: [...members.slice(0, 3), place.entityId],
     location: idx(place.x, place.y),
     factions: place.factionId ? [place.factionId] : [],
     causes: [W.lastEventByType.TechAdvanceEvent || 0].filter(Boolean),
-    evidence: [`${members.length} settlers`, `${waterBetween(idx(place.x, place.y), target)} tiles of open water`],
+    evidence: [
+      `${members.length} settlers`,
+      `${waterBetween(idx(place.x, place.y), target)} tiles of open water`,
+    ],
     importance: 3,
     data: {
       place: place.name,
@@ -419,12 +456,17 @@ function updateVoyages() {
         causes: [voyage.eventId].filter(Boolean),
         evidence: ["the crossing outlasted the provisions"],
         importance: 3,
-        data: { place: place?.name || "a lost town", reason: "the crossing outlasted the provisions" },
+        data: {
+          place: place?.name || "a lost town",
+          reason: "the crossing outlasted the provisions",
+        },
       });
     }
   }
   if (W.sea.voyages.length > 30)
-    W.sea.voyages = W.sea.voyages.filter((v) => v.active).concat(W.sea.voyages.filter((v) => !v.active).slice(-10));
+    W.sea.voyages = W.sea.voyages
+      .filter((v) => v.active)
+      .concat(W.sea.voyages.filter((v) => !v.active).slice(-10));
 }
 function considerVoyages() {
   const cycle = Math.floor(W.tick / 256);
@@ -433,7 +475,8 @@ function considerVoyages() {
     if (settlementPopulation(place) < 14 || (place.stability || 0) < 0.5) continue;
     const f = W.factions.find((x) => x.id === place.factionId),
       restless = entityAtRadius(idx(place.x, place.y), 8, KINDS.PERSON).some(
-        (id) => classifyAlive(id) && ["found", "journey"].includes(W.components.identity[id]?.want?.id),
+        (id) =>
+          classifyAlive(id) && ["found", "journey"].includes(W.components.identity[id]?.want?.id),
       ),
       chance = 0.08 + (f?.ethos?.expansionist || 0) * 0.15 + (restless ? 0.15 : 0);
     if (counterRand("voyage", place.id, cycle) < chance) launchVoyage(place);
@@ -487,7 +530,9 @@ renderPlacePage = function (id) {
     s = W.settlements.find((x) => x.id === id);
   if (!s || !placeDock(s)) return html;
   ensureSea();
-  const catches = legendEvents((e) => e.type === "CatchEvent" && e.subjects?.includes(s.entityId)).length,
+  const catches = legendEvents(
+      (e) => e.type === "CatchEvent" && e.subjects?.includes(s.entityId),
+    ).length,
     voyages = W.sea.voyages.filter((v) => v.from === s.id),
     colonies = voyages.filter((v) => v.campId).length,
     at = html.indexOf('<div class="subhead">Chronicle</div>');
@@ -598,7 +643,15 @@ function drawDock(g, b, s, r, p, now, detail) {
     g.lineWidth = 1;
     for (const t of [0.7, 1.0]) {
       g.beginPath();
-      g.ellipse(px(t), py(t) + r * 0.14, r * (0.35 + lap * 0.12), r * (0.12 + lap * 0.04), 0, 0, Math.PI);
+      g.ellipse(
+        px(t),
+        py(t) + r * 0.14,
+        r * (0.35 + lap * 0.12),
+        r * (0.12 + lap * 0.04),
+        0,
+        0,
+        Math.PI,
+      );
       g.stroke();
     }
   }
@@ -611,7 +664,8 @@ drawWorkerActivity = function (now, bounds) {
     v = ACTIVE_PLANET_VISUAL || makePlanetVisualGenome(),
     still = ACTIVE_REDUCED_MOTION,
     clock = performance.now(),
-    inView = (x, y) => x >= bounds.x0 - 1 && x <= bounds.x1 + 1 && y >= bounds.y0 - 1 && y <= bounds.y1 + 1;
+    inView = (x, y) =>
+      x >= bounds.x0 - 1 && x <= bounds.x1 + 1 && y >= bounds.y0 - 1 && y <= bounds.y1 + 1;
   if (UI.camera.zoom >= 1.3) {
     let docks = 0;
     for (const b of W.buildings) {
@@ -666,21 +720,36 @@ drawWorkerActivity = function (now, bounds) {
       const s = motion.s,
         r = clamp(m.tw * 0.3, 3, 40);
       for (let k = 0; k < 3; k++) {
-        const t = still ? 0.3 + k * 0.25 : ((clock * 0.0008 + k * 0.33 + order.id * 0.1) % 1);
+        const t = still ? 0.3 + k * 0.25 : (clock * 0.0008 + k * 0.33 + order.id * 0.1) % 1;
         ctx.strokeStyle = hsl(v.liquidHue, 60, 80, (1 - t) * 0.5);
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.ellipse(s.x - t * r * 1.5, s.y + r * 0.4 + t * r * 0.3, r * (0.4 + t * 1.2), r * (0.15 + t * 0.4), 0, 0, Math.PI * 2);
+        ctx.ellipse(
+          s.x - t * r * 1.5,
+          s.y + r * 0.4 + t * r * 0.3,
+          r * (0.4 + t * 1.2),
+          r * (0.15 + t * 0.4),
+          0,
+          0,
+          Math.PI * 2,
+        );
         ctx.stroke();
       }
       ripples++;
     }
   }
-  for (const d of (UI.seaVisuals || []).filter((x) => x.world === W && clock - x.started < 6000 && x.tile >= 0 && x.tile < W.tileCount)) {
+  for (const d of (UI.seaVisuals || []).filter(
+    (x) => x.world === W && clock - x.started < 6000 && x.tile >= 0 && x.tile < W.tileCount,
+  )) {
     const age = clamp((clock - d.started) / 6000, 0, 1),
       [tx, ty] = xy(d.tile),
       p = proceduralProjectTile(tx + 0.5, ty + 0.5, m);
-    ctx.strokeStyle = hsl(d.kind === "landing" ? v.accentHue : v.liquidHue, 70, 80, (1 - age) * 0.7);
+    ctx.strokeStyle = hsl(
+      d.kind === "landing" ? v.accentHue : v.liquidHue,
+      70,
+      80,
+      (1 - age) * 0.7,
+    );
     ctx.lineWidth = 2;
     for (let n = 1; n <= 3; n++) {
       ctx.beginPath();
@@ -697,7 +766,8 @@ window.ALIFE_SEA_DEBUG = Object.freeze({
     return b ? { id: b.id, x: b.x, y: b.y } : null;
   },
   wantsDock: (settlementId) => placeWantsDock(W.settlements.find((x) => x.id === settlementId)),
-  fish: (settlementId) => startFishing(W.settlements.find((x) => x.id === settlementId)).map((t) => ({ ...t })),
+  fish: (settlementId) =>
+    startFishing(W.settlements.find((x) => x.id === settlementId)).map((t) => ({ ...t })),
   trips: () => (W.sea?.trips || []).map((t) => ({ ...t })),
   tick: () => {
     updateFishing();
@@ -709,7 +779,11 @@ window.ALIFE_SEA_DEBUG = Object.freeze({
     return dock ? fishingGround(s, dock) : -1;
   },
   site: (settlementId) => colonySite(W.settlements.find((x) => x.id === settlementId)),
-  voyage: (settlementId) => launchVoyage(W.settlements.find((x) => x.id === settlementId), true),
+  voyage: (settlementId) =>
+    launchVoyage(
+      W.settlements.find((x) => x.id === settlementId),
+      true,
+    ),
   voyages: () => (W.sea?.voyages || []).map((v) => ({ ...v, members: v.members.slice() })),
   aboard: (id) => aboardTownBoat(id),
   waterBetween: (a, b) => waterBetween(a, b),

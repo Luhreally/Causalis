@@ -60,7 +60,9 @@ function cultureOfPlace(place) {
   return (
     (place?.cultureId && W.cultures.find((c) => c.id === place.cultureId)) ||
     (place?.factionId &&
-      W.cultures.find((c) => c.id === W.factions.find((f) => f.id === place.factionId)?.cultureId)) ||
+      W.cultures.find(
+        (c) => c.id === W.factions.find((f) => f.id === place.factionId)?.cultureId,
+      )) ||
     null
   );
 }
@@ -92,7 +94,9 @@ function feastAttendees(place, limit = 14) {
 function songTitleFor(event) {
   const names = (event.subjects || []).map((id) => entityName(id)).filter(Boolean),
     d = event.data || {},
-    f = (event.factions || []).map((id) => W.factions.find((x) => x.id === id)?.name || "a lost polity");
+    f = (event.factions || []).map(
+      (id) => W.factions.find((x) => x.id === id)?.name || "a lost polity",
+    );
   switch (event.type) {
     case "WarStartedEvent":
       return { kind: "song", title: `The War Song of ${f[0]} and ${f[1]}` };
@@ -110,7 +114,10 @@ function songTitleFor(event) {
     case "MeteorEvent":
     case "DisasterEvent":
     case "FireDisasterEvent":
-      return { kind: "tale", title: `The Night of the ${titleCase(event.type.replace("Event", "").replace("Disaster", "Ruin"))}` };
+      return {
+        kind: "tale",
+        title: `The Night of the ${titleCase(event.type.replace("Event", "").replace("Disaster", "Ruin"))}`,
+      };
     case "RoyalMarriageEvent":
       return { kind: "dance", title: `The Wedding Dance of ${d.a} and ${d.b}` };
     case "ColonyEvent":
@@ -158,13 +165,20 @@ function composerFor(culture) {
   for (const s of W.settlements) {
     if (s.ruined || s.cultureId !== culture.id) continue;
     for (const id of entityAtRadius(idx(s.x, s.y), 8, KINDS.PERSON))
-      if (classifyAlive(id) && W.components.social[id]?.cultureId === culture.id) candidates.push(id);
+      if (classifyAlive(id) && W.components.social[id]?.cultureId === culture.id)
+        candidates.push(id);
   }
   candidates.sort((a, b) => {
     const ia = W.components.identity[a],
       ib = W.components.identity[b],
-      la = (ia?.skills?.lore || 0) + (ia?.traits?.includes("curious") ? 8 : 0) + (ia?.traits?.includes("warm") ? 4 : 0),
-      lb = (ib?.skills?.lore || 0) + (ib?.traits?.includes("curious") ? 8 : 0) + (ib?.traits?.includes("warm") ? 4 : 0);
+      la =
+        (ia?.skills?.lore || 0) +
+        (ia?.traits?.includes("curious") ? 8 : 0) +
+        (ia?.traits?.includes("warm") ? 4 : 0),
+      lb =
+        (ib?.skills?.lore || 0) +
+        (ib?.traits?.includes("curious") ? 8 : 0) +
+        (ib?.traits?.includes("warm") ? 4 : 0);
     return lb - la || (ib?.significance || 0) - (ia?.significance || 0) || a - b;
   });
   return candidates[0] || 0;
@@ -191,9 +205,7 @@ function composeSong(culture, event, composerId = composerFor(culture)) {
     };
   culture.songs.push(song);
   if (culture.songs.length > SONG_LIMIT) {
-    const drop = culture.songs
-      .slice(0, -4)
-      .sort((a, b) => a.sung - b.sung || a.tick - b.tick)[0];
+    const drop = culture.songs.slice(0, -4).sort((a, b) => a.sung - b.sung || a.tick - b.tick)[0];
     culture.songs = culture.songs.filter((s) => s !== drop);
   }
   const home = W.settlements.find((s) => !s.ruined && s.cultureId === culture.id),
@@ -231,7 +243,12 @@ function composeSongs() {
   for (const a of annals) {
     if (a.id <= since) continue;
     since = Math.max(since, a.id);
-    if (a.type === "SongEvent" || a.type === "FeastEvent" || a.type === "YearEvent" || a.importance < 4)
+    if (
+      a.type === "SongEvent" ||
+      a.type === "FeastEvent" ||
+      a.type === "YearEvent" ||
+      a.importance < 4
+    )
       continue;
     for (const culture of culturesConcerned(a)) {
       if (composed >= 3) break;
@@ -253,7 +270,14 @@ function pickSongs(culture, n = 2) {
 function spreadSong(song, culture, place) {
   if (!culture || culture.id === song.originCultureId) return null;
   if (culture.songs.some((s) => s.eventId === song.eventId && s.title === song.title)) return null;
-  culture.songs.push({ ...song, id: ++culture.songSeq, sung: 0, spreadTo: [], spreadFrom: song.originCultureId, tick: W.tick });
+  culture.songs.push({
+    ...song,
+    id: ++culture.songSeq,
+    sung: 0,
+    spreadTo: [],
+    spreadFrom: song.originCultureId,
+    tick: W.tick,
+  });
   if (culture.songs.length > SONG_LIMIT) culture.songs.shift();
   if (!song.spreadTo.includes(culture.id)) song.spreadTo.push(culture.id);
   return emitEvent("SongSpreadEvent", {
@@ -317,7 +341,11 @@ function holdFeast(place, occasion = "feast", cause = 0) {
         ar = W.components.social[a].relationships?.[b],
         br = W.components.social[b].relationships?.[a];
       if (!ar || !br) continue;
-      ar.familiarity = br.familiarity = clamp(Math.max(ar.familiarity, br.familiarity) + 0.05, 0, 1);
+      ar.familiarity = br.familiarity = clamp(
+        Math.max(ar.familiarity, br.familiarity) + 0.05,
+        0,
+        1,
+      );
       ar.affection = clamp(ar.affection + 0.03, 0, 1);
       br.affection = clamp(br.affection + 0.03, 0, 1);
     }
@@ -363,7 +391,8 @@ function updateFestivals() {
     if (!feast.active) continue;
     const place = W.settlements.find((s) => s.id === feast.placeId);
     if (W.tick >= feast.endTick || !place || place.ruined) {
-      for (const id of feast.attendees) if (civilOrderOf(id)?.kind === "festival") clearCivilOrder(id);
+      for (const id of feast.attendees)
+        if (civilOrderOf(id)?.kind === "festival") clearCivilOrder(id);
       feast.active = false;
     }
   }
@@ -384,8 +413,13 @@ function updateFestivals() {
   for (const e of fresh) {
     const place =
       (e.location >= 0 && nearestSettlement(e.location, 8)) ||
-      W.settlements.find((s) => !s.ruined && s.id === W.factions.find((f) => f.id === e.factions?.[0])?.capitalSettlementId);
-    if (place && W.tick - (place.lastFeastTick || -9999) > 128) holdFeast(place, FEAST_TRIGGERS[e.type], e.id);
+      W.settlements.find(
+        (s) =>
+          !s.ruined &&
+          s.id === W.factions.find((f) => f.id === e.factions?.[0])?.capitalSettlementId,
+      );
+    if (place && W.tick - (place.lastFeastTick || -9999) > 128)
+      holdFeast(place, FEAST_TRIGGERS[e.type], e.id);
   }
   // The harvest feast falls on each people's own day of the year.
   const phase = seasonPhase(W.tick);
@@ -429,8 +463,10 @@ function paintMural(place) {
       const ia = W.components.identity[a],
         ib = W.components.identity[b];
       return (
-        (ib?.skills?.craft || 0) + (ib?.traits?.includes("curious") ? 10 : 0) -
-          (ia?.skills?.craft || 0) - (ia?.traits?.includes("curious") ? 10 : 0) || a - b
+        (ib?.skills?.craft || 0) +
+          (ib?.traits?.includes("curious") ? 10 : 0) -
+          (ia?.skills?.craft || 0) -
+          (ia?.traits?.includes("curious") ? 10 : 0) || a - b
       );
     })[0];
   if (!artist) return null;
@@ -445,10 +481,13 @@ function paintMural(place) {
   if (!moved) return null;
   const culture = cultureOfPlace(place),
     seed = hashParts(W.seedHash, "mural", canvasBuilding.id, W.tick),
-    motif = MURAL_MOTIFS[hashParts(W.seedHash, "motif", culture?.id || 0, canvasBuilding.id) % MURAL_MOTIFS.length];
+    motif =
+      MURAL_MOTIFS[
+        hashParts(W.seedHash, "motif", culture?.id || 0, canvasBuilding.id) % MURAL_MOTIFS.length
+      ];
   canvasBuilding.mural = {
     seed,
-    hue: (hashParts(W.seedHash, "mural-hue", culture?.id || place.id) % 360),
+    hue: hashParts(W.seedHash, "mural-hue", culture?.id || place.id) % 360,
     motif,
     tick: W.tick,
     artistId: artist,
@@ -514,7 +553,9 @@ function songRow(song, culture) {
   return `<div class="legend-row" data-legend="event:${song.eventId}"><span class="legend-year">Y${formatYear(song.tick)}</span><span><b>${esc(song.title)}</b>${
     song.name ? ` <span class="muted">(${esc(song.name)})</span>` : ""
   } · ${esc(song.kind)}${composer ? ` · by ${composer}` : ""}${song.sung ? ` · sung ${song.sung} time${song.sung === 1 ? "" : "s"}` : ""}${
-    song.spreadFrom ? ` · learned from the ${esc(W.cultures.find((c) => c.id === song.spreadFrom)?.name || "old people")}` : ""
+    song.spreadFrom
+      ? ` · learned from the ${esc(W.cultures.find((c) => c.id === song.spreadFrom)?.name || "old people")}`
+      : ""
   }${song.spreadTo?.length ? ` · known to ${song.spreadTo.length} other people${song.spreadTo.length === 1 ? "" : "s"}` : ""}</span></div>`;
 }
 const renderCulturePageFestivalsBase = renderCulturePage;
@@ -528,7 +569,9 @@ renderCulturePage = function (id) {
       .reverse()
       .map((s) => songRow(s, c)),
     block = `<div class="subhead">Songs and stories</div><div class="kv"><span>Dance</span><b>${esc(titleCase(danceStyle(c)))} dance</b></div>${
-      rows.length ? `<div class="legend-timeline">${rows.join("")}</div>` : `<div class="empty">Nothing sung yet.</div>`
+      rows.length
+        ? `<div class="legend-timeline">${rows.join("")}</div>`
+        : `<div class="empty">Nothing sung yet.</div>`
     }`,
     at = html.indexOf('<div class="subhead">Chronicle</div>');
   return at < 0 ? html + block : html.slice(0, at) + block + html.slice(at);
@@ -547,7 +590,9 @@ renderLifePage = function (id) {
     }
   if (!composed.length && !about.length) return html;
   return `${html}${composed.length ? `<div class="subhead">Composed</div><div class="legend-timeline">${composed.map(([s, c]) => songRow(s, c)).join("")}</div>` : ""}${
-    about.length ? `<div class="subhead">Sung of</div><div class="legend-timeline">${about.map(([s, c]) => songRow(s, c)).join("")}</div>` : ""
+    about.length
+      ? `<div class="subhead">Sung of</div><div class="legend-timeline">${about.map(([s, c]) => songRow(s, c)).join("")}</div>`
+      : ""
   }`;
 };
 const renderPlacePageFestivalsBase = renderPlacePage;
@@ -555,7 +600,9 @@ renderPlacePage = function (id) {
   const html = renderPlacePageFestivalsBase(id),
     s = W.settlements.find((x) => x.id === id);
   if (!s || !s.feasts) return html;
-  const murals = W.buildings.filter((b) => !b.ruined && b.placeKind === "settlement" && b.placeId === s.id && b.mural).length,
+  const murals = W.buildings.filter(
+      (b) => !b.ruined && b.placeKind === "settlement" && b.placeId === s.id && b.mural,
+    ).length,
     block = `<div class="subhead">Festivals</div><div class="kv"><span>Feasts held</span><b>${s.feasts}${s.lastFeastTick != null ? ` · last Year ${formatYear(s.lastFeastTick)}` : ""}</b><span>Murals</span><b>${murals || "none"}</b></div>`,
     at = html.indexOf('<div class="subhead">Chronicle</div>');
   return at < 0 ? html + block : html.slice(0, at) + block + html.slice(at);
@@ -566,7 +613,8 @@ renderLegendIndex = function (query = "") {
     q = query.trim().toLowerCase(),
     songs = [];
   for (const c of W.cultures)
-    for (const s of c.songs || []) if (!s.spreadFrom && (!q || s.title.toLowerCase().includes(q))) songs.push([s, c]);
+    for (const s of c.songs || [])
+      if (!s.spreadFrom && (!q || s.title.toLowerCase().includes(q))) songs.push([s, c]);
   if (!songs.length) return html;
   songs.sort((a, b) => b[0].tick - a[0].tick || b[0].id - a[0].id);
   const cards = songs
@@ -634,7 +682,8 @@ drawWorkerActivity = function (now, bounds) {
   for (const feast of W.festivals.active) {
     if (!feast.active) continue;
     const [tx, ty] = xy(feast.tile);
-    if (tx < bounds.x0 - 2 || tx > bounds.x1 + 2 || ty < bounds.y0 - 2 || ty > bounds.y1 + 2) continue;
+    if (tx < bounds.x0 - 2 || tx > bounds.x1 + 2 || ty < bounds.y0 - 2 || ty > bounds.y1 + 2)
+      continue;
     const s = proceduralProjectTile(tx + 0.5, ty + 0.5, m),
       r = clamp(m.tw * 0.45, 4, 50),
       flick = still ? 1 : 1 + Math.sin(now * 0.012 + feast.id) * 0.15;
@@ -659,7 +708,12 @@ drawWorkerActivity = function (now, bounds) {
       ctx.beginPath();
       ctx.moveTo(s.x + lean * r * 0.3, s.y - h * 1.3);
       ctx.quadraticCurveTo(s.x + r * 0.35 * scale, s.y - h * 0.2, s.x, s.y + r * 0.2);
-      ctx.quadraticCurveTo(s.x - r * 0.35 * scale, s.y - h * 0.2, s.x + lean * r * 0.3, s.y - h * 1.3);
+      ctx.quadraticCurveTo(
+        s.x - r * 0.35 * scale,
+        s.y - h * 0.2,
+        s.x + lean * r * 0.3,
+        s.y - h * 1.3,
+      );
       ctx.fill();
     }
     for (let k = 0; k < 6; k++) {
@@ -667,16 +721,26 @@ drawWorkerActivity = function (now, bounds) {
         pulse = still ? 0.7 : 0.6 + 0.4 * Math.sin(now * 0.005 + k * 1.7 + feast.id);
       ctx.fillStyle = hsl(40, 90, 70, 0.55 * pulse);
       ctx.beginPath();
-      ctx.arc(s.x + Math.cos(a) * r * 2.2, s.y - r * 0.9 + Math.sin(a) * r * 1.1, Math.max(1.2, r * 0.13), 0, Math.PI * 2);
+      ctx.arc(
+        s.x + Math.cos(a) * r * 2.2,
+        s.y - r * 0.9 + Math.sin(a) * r * 1.1,
+        Math.max(1.2, r * 0.13),
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
     }
     if (feast.songIds.length || true) {
       ctx.font = `${Math.max(9, Math.round(r * 0.7))}px "Segoe UI Symbol","Apple Symbols",sans-serif`;
       ctx.textAlign = "center";
       for (let k = 0; k < 4; k++) {
-        const t = still ? 0.3 + k * 0.15 : ((now * 0.0004 + k * 0.25 + feast.id * 0.13) % 1);
+        const t = still ? 0.3 + k * 0.15 : (now * 0.0004 + k * 0.25 + feast.id * 0.13) % 1;
         ctx.fillStyle = hsl(v.accentHue, 70, 80, (1 - t) * 0.8);
-        ctx.fillText(k % 2 ? "♫" : "♪", s.x + Math.sin(t * 6 + k) * r * 1.4, s.y - r * 1.4 - t * r * 3);
+        ctx.fillText(
+          k % 2 ? "♫" : "♪",
+          s.x + Math.sin(t * 6 + k) * r * 1.4,
+          s.y - r * 1.4 - t * r * 3,
+        );
       }
     }
   }
@@ -739,7 +803,8 @@ window.ALIFE_FESTIVAL_DEBUG = Object.freeze({
       W.settlements.find((s) => s.id === settlementId),
       occasion,
     ),
-  festivals: () => (W.festivals?.active || []).map((f) => ({ ...f, attendees: f.attendees.slice() })),
+  festivals: () =>
+    (W.festivals?.active || []).map((f) => ({ ...f, attendees: f.attendees.slice() })),
   tick: () => updateFestivals(),
   compose: (annalId, cultureId) =>
     composeSong(
@@ -750,7 +815,8 @@ window.ALIFE_FESTIVAL_DEBUG = Object.freeze({
     composeSongs();
     return W.cultures.reduce((n, c) => n + (c.songs?.length || 0), 0);
   },
-  songs: (cultureId) => (W.cultures.find((c) => c.id === cultureId)?.songs || []).map((s) => ({ ...s })),
+  songs: (cultureId) =>
+    (W.cultures.find((c) => c.id === cultureId)?.songs || []).map((s) => ({ ...s })),
   spread: (cultureId, song, settlementId) =>
     spreadSong(
       song,

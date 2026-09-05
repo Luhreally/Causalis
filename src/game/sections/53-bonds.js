@@ -128,8 +128,7 @@ function bondPairUpdate(id, other, ar, br, feuds) {
       ["voice", "partner", "mastery", "found"].includes(ia.want.id)
         ? 1
         : 0,
-    proudPair =
-      (ia?.traits?.includes("proud") ? 1 : 0) + (ib?.traits?.includes("proud") ? 1 : 0),
+    proudPair = (ia?.traits?.includes("proud") ? 1 : 0) + (ib?.traits?.includes("proud") ? 1 : 0),
     dominanceClash = a.dominance > 0.7 && b.dominance > 0.7 ? 1 : 0,
     feud = feuds.get(feudKey(a.kinGroupId, b.kinGroupId)),
     trust = (ar.trust + br.trust) / 2,
@@ -189,8 +188,7 @@ function declareBond(id, other, ar, br, kind, measure) {
     b = W.components.social[other],
     p = W.components.position[id],
     notable = !!(W.components.identity[id]?.notable || W.components.identity[other]?.notable),
-    cause =
-      kind === "friend" ? friendshipCause(id, other, measure) : rivalryCause(id, measure);
+    cause = kind === "friend" ? friendshipCause(id, other, measure) : rivalryCause(id, measure);
   ar.bond = br.bond = kind;
   ar.bondTick = br.bondTick = W.tick;
   addRelation(id, other, kind === "friend" ? "friend_of" : "rival_of", 1);
@@ -334,7 +332,8 @@ function updateBonds() {
       if (id < other && (ar.bond || ar.familiarity >= 0.25)) {
         const measure = bondPairUpdate(id, other, ar, br, feuds);
         if (!ar.bond) {
-          if (ar.friendship > 0.55 && ar.rivalry < 0.35) declareBond(id, other, ar, br, "friend", measure);
+          if (ar.friendship > 0.55 && ar.rivalry < 0.35)
+            declareBond(id, other, ar, br, "friend", measure);
           else if (ar.rivalry > 0.6 && ar.friendship < 0.4 && isAdultPerson(other))
             declareBond(id, other, ar, br, "rival", measure);
         } else if (ar.bond === "friend" && (ar.friendship < 0.3 || ar.rivalry > 0.65))
@@ -484,9 +483,7 @@ function noteKilling(killer, victim, causeEvent = 0) {
     fa &&
     fb &&
     fa !== fb &&
-    W.activeWars.some(
-      (w) => !w.ended && ((w.a === fa && w.b === fb) || (w.a === fb && w.b === fa)),
-    )
+    W.activeWars.some((w) => !w.ended && ((w.a === fa && w.b === fb) || (w.a === fb && w.b === fa)))
   )
     return null;
   let feud = feudBetween(ka, kb);
@@ -754,7 +751,11 @@ drawWorkerActivity = function (now, bounds) {
     life = W.components.life;
   let drawn = 0;
   const visible = (p) =>
-    p && p.x >= bounds.x0 - 1 && p.x <= bounds.x1 + 1 && p.y >= bounds.y0 - 1 && p.y <= bounds.y1 + 1;
+    p &&
+    p.x >= bounds.x0 - 1 &&
+    p.x <= bounds.x1 + 1 &&
+    p.y >= bounds.y0 - 1 &&
+    p.y <= bounds.y1 + 1;
   for (const id of W.activeIds) {
     if (drawn > 40) break;
     if (W.kind[id] !== KINDS.PERSON) continue;
@@ -798,15 +799,19 @@ drawWorkerActivity = function (now, bounds) {
       ctx.moveTo(s.x, s.y - r * 0.9);
       for (let k = 1; k <= 3; k++) {
         const f = k / 4,
-          jitter = (visualHash01(id + other, k + (still ? 0 : Math.floor(now / 90))) - 0.5) * r * 0.9;
-        ctx.lineTo(s.x + (t.x - s.x) * f + jitter, s.y - r * 0.9 + (t.y - s.y) * f - Math.abs(jitter) * 0.6);
+          jitter =
+            (visualHash01(id + other, k + (still ? 0 : Math.floor(now / 90))) - 0.5) * r * 0.9;
+        ctx.lineTo(
+          s.x + (t.x - s.x) * f + jitter,
+          s.y - r * 0.9 + (t.y - s.y) * f - Math.abs(jitter) * 0.6,
+        );
       }
       ctx.lineTo(t.x, t.y - r * 0.9);
       ctx.stroke();
       if (foe) {
         ctx.fillStyle = hsl(18, 95, 62, 0.85);
         for (let k = 0; k < 3; k++) {
-          const u = still ? 0.25 + k * 0.25 : ((now * 0.0006 + k * 0.33 + visualHash01(id, k)) % 1),
+          const u = still ? 0.25 + k * 0.25 : (now * 0.0006 + k * 0.33 + visualHash01(id, k)) % 1,
             ex = s.x + (t.x - s.x) * u,
             ey = s.y - r * 0.9 + (t.y - s.y) * u - u * r * 1.2;
           ctx.beginPath();

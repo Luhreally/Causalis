@@ -241,8 +241,18 @@ const TOOL_DEFS = Object.freeze([
     "✶",
     "Write a portent across the sky for nearby towns to read and their Speakers to answer.",
   ],
-  ["truce", "Bind a truce", "☮", "End the nearest polity's war, or still its bitterest quarrel, for eight years."],
-  ["discord", "Sow discord", "☇", "Tear open old wounds between the nearest polity and its closest neighbour."],
+  [
+    "truce",
+    "Bind a truce",
+    "☮",
+    "End the nearest polity's war, or still its bitterest quarrel, for eight years.",
+  ],
+  [
+    "discord",
+    "Sow discord",
+    "☇",
+    "Tear open old wounds between the nearest polity and its closest neighbour.",
+  ],
 ]);
 const OVERLAY_DEFS = Object.freeze([
   ["elevation", "Elevation"],

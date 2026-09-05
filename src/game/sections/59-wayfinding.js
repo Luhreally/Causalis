@@ -33,7 +33,9 @@ function civilPathFind(seed, target, factionId = 0, mode = "land") {
     passable =
       mode === "sea"
         ? (tile) =>
-            seaTilePassable(tile) || nearShoreOf(tile, sx, sy) || nearShoreOf(tile, target.x, target.y)
+            seaTilePassable(tile) ||
+            nearShoreOf(tile, sx, sy) ||
+            nearShoreOf(tile, target.x, target.y)
         : (tile) => campaignTilePassable(tile, factionId, false);
   parent[seed] = seed;
   let best = -1,

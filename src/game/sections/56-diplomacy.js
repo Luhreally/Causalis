@@ -195,7 +195,9 @@ function resolveEnvoy(envoy, force = null) {
       if (accept) result = makeVassal(from, to, envoy, war);
       break;
     case "peace": {
-      const exhaustion = war ? Math.min(0.4, (war.casualties || 0) / Math.max(1, to.population) * 2) : 0;
+      const exhaustion = war
+        ? Math.min(0.4, ((war.casualties || 0) / Math.max(1, to.population)) * 2)
+        : 0;
       accept = force ?? roll < 0.45 + exhaustion;
       if (accept) result = makePeace(from, to, envoy, war);
       break;
@@ -214,7 +216,11 @@ function resolveEnvoy(envoy, force = null) {
       causes: [envoy.eventId].filter(Boolean),
       evidence: [accept ? "the terms could not be kept" : "the court would not hear them"],
       importance: 2,
-      data: { from: from.name, to: to.name, terms: DIPLOMACY_TERMS[envoy.proposal] || envoy.proposal },
+      data: {
+        from: from.name,
+        to: to.name,
+        terms: DIPLOMACY_TERMS[envoy.proposal] || envoy.proposal,
+      },
     });
     if (court) diplomacyVisual("refusal", idx(court.x, court.y));
   }
@@ -327,7 +333,9 @@ function makeTribute(payer, receiver, envoy, war) {
     data: { kind: "tribute", a: payer.name, b: receiver.name, amount, years, war: !!war },
   });
   treaty.eventId = ev.id;
-  diplomacyVisual("treaty", idx(court.x, court.y), { tiles: [idx(home.x, home.y), idx(court.x, court.y)] });
+  diplomacyVisual("treaty", idx(court.x, court.y), {
+    tiles: [idx(home.x, home.y), idx(court.x, court.y)],
+  });
   return ev;
 }
 function makeVassal(vassal, overlord, envoy, war) {
@@ -541,7 +549,12 @@ function endTreaty(t, reason, importance = 3) {
     causes: [t.eventId].filter(Boolean),
     evidence: [reason],
     importance,
-    data: { kind: t.kind, a: a?.name || "a fallen polity", b: b?.name || "a fallen polity", reason },
+    data: {
+      kind: t.kind,
+      a: a?.name || "a fallen polity",
+      b: b?.name || "a fallen polity",
+      reason,
+    },
   });
 }
 // ── Vassals: following into war, protection, independence ──────────────────────
@@ -602,7 +615,12 @@ function declareIndependence(t, vassal, overlord) {
   overlord.vassalIds = (overlord.vassalIds || []).filter((id) => id !== vassal.id);
   removeRelation(vassal.entityId, overlord.entityId, "vassal_of");
   for (const tribute of W.diplomacy.treaties)
-    if (tribute.active && tribute.kind === "tribute" && tribute.a === vassal.id && tribute.b === overlord.id)
+    if (
+      tribute.active &&
+      tribute.kind === "tribute" &&
+      tribute.a === vassal.id &&
+      tribute.b === overlord.id
+    )
       endTreaty(tribute, "the vassal threw off its overlord", 2);
   relationOf(vassal, overlord).grievance += 8;
   relationOf(overlord, vassal).grievance += 15;
@@ -613,7 +631,9 @@ function declareIndependence(t, vassal, overlord) {
     location: home ? idx(home.x, home.y) : -1,
     factions: [vassal.id, overlord.id],
     causes: [t.eventId].filter(Boolean),
-    evidence: [`strength ${Math.round(factionPower(vassal))} against ${Math.round(factionPower(overlord))}`],
+    evidence: [
+      `strength ${Math.round(factionPower(vassal))} against ${Math.round(factionPower(overlord))}`,
+    ],
     importance: 4,
     data: { a: vassal.name, b: overlord.name },
   });
@@ -650,7 +670,14 @@ function considerProposals() {
       const rel = f.relations[g.id];
       if (rel && (rel.status === "hostile" || rel.status === "mobilizing")) continue;
       if (!factionsHaveContact(f, g)) continue;
-      if (W.diplomacy.marriages.some((m) => ((m.from === f.id && m.to === g.id) || (m.from === g.id && m.to === f.id)) && W.tick - m.tick < TICKS_PER_YEAR * 20)) continue;
+      if (
+        W.diplomacy.marriages.some(
+          (m) =>
+            ((m.from === f.id && m.to === g.id) || (m.from === g.id && m.to === f.id)) &&
+            W.tick - m.tick < TICKS_PER_YEAR * 20,
+        )
+      )
+        continue;
       const court = factionCapital(g),
         d = dist2(home.x, home.y, court.x, court.y);
       if (d < bd) {
@@ -668,7 +695,9 @@ function inheritClaims() {
     f.claims = f.claims
       .map((c) => {
         if (classifyAlive(c.personId)) return c;
-        const heir = (W.components.identity[c.personId] || W.historicalIdentities?.[c.personId])?.children?.find((id) => classifyAlive(id));
+        const heir = (
+          W.components.identity[c.personId] || W.historicalIdentities?.[c.personId]
+        )?.children?.find((id) => classifyAlive(id));
         return heir ? { ...c, personId: heir, inherited: true } : null;
       })
       .filter(Boolean);
@@ -705,7 +734,10 @@ function claimAtSuccession(f, leader, successionEvent) {
         subjects: [leader, f.entityId, claimant.entityId],
         location: capital ? idx(capital.x, capital.y) : -1,
         factions: [f.id, claimant.id],
-        causes: [successionEvent?.id, claim.marriageId && W.diplomacy.marriages.find((m) => m.id === claim.marriageId)?.eventId].filter(Boolean),
+        causes: [
+          successionEvent?.id,
+          claim.marriageId && W.diplomacy.marriages.find((m) => m.id === claim.marriageId)?.eventId,
+        ].filter(Boolean),
         evidence: ["the new Voice carries the blood of both houses"],
         importance: 5,
         data: { leader: entityName(leader), a: claimant.name, b: f.name },
@@ -733,9 +765,17 @@ function claimAtSuccession(f, leader, successionEvent) {
       location: capital ? idx(capital.x, capital.y) : -1,
       factions: [claimant.id, f.id],
       causes: [successionEvent?.id].filter(Boolean),
-      evidence: [proud ? "a proud claimant pressed hard" : "the claim was pressed", `grievance now ${Math.round(relationOf(claimant, f).grievance)}`],
+      evidence: [
+        proud ? "a proud claimant pressed hard" : "the claim was pressed",
+        `grievance now ${Math.round(relationOf(claimant, f).grievance)}`,
+      ],
       importance: 4,
-      data: { a: claimant.name, b: f.name, claimant: entityName(person), leader: entityName(leader) },
+      data: {
+        a: claimant.name,
+        b: f.name,
+        claimant: entityName(person),
+        leader: entityName(leader),
+      },
     });
   }
 }
@@ -826,30 +866,43 @@ function diplomacySection(f) {
   const treaties = W.diplomacy.treaties.filter((t) => t.active && (t.a === f.id || t.b === f.id)),
     marriages = W.diplomacy.marriages.filter((m) => m.from === f.id || m.to === f.id),
     envoys = W.diplomacy.envoys.filter((e) => e.active && (e.from === f.id || e.to === f.id)),
-    claimsOut = (f.claims || []).map((c) => ({ ...c, other: factionById(c.on) })).filter((c) => c.other),
+    claimsOut = (f.claims || [])
+      .map((c) => ({ ...c, other: factionById(c.on) }))
+      .filter((c) => c.other),
     claimsIn = W.factions.filter((g) => g !== f && g.claims?.some((c) => c.on === f.id)),
     overlord = f.overlordId ? factionById(f.overlordId) : null,
     vassals = (f.vassalIds || []).map(factionById).filter(Boolean),
     rows = [];
   if (overlord) rows.push(`<span>Overlord</span><b>${factionLink(overlord.id)}</b>`);
-  if (vassals.length) rows.push(`<span>Vassals</span><b>${vassals.map((v) => factionLink(v.id)).join(", ")}</b>`);
+  if (vassals.length)
+    rows.push(`<span>Vassals</span><b>${vassals.map((v) => factionLink(v.id)).join(", ")}</b>`);
   for (const t of treaties) {
     if (t.kind === "vassal") continue;
     const other = factionById(t.a === f.id ? t.b : t.a);
     if (!other) continue;
     rows.push(
       `<span>${t.kind === "tribute" ? (t.a === f.id ? "Pays tribute" : "Receives tribute") : "Peace"}</span><b>${factionLink(other.id)}${
-        t.kind === "tribute" ? ` · ${t.amount} a year until Year ${formatYear(t.until)} · ${t.paid} paid` : ` · until Year ${formatYear(t.until)}`
+        t.kind === "tribute"
+          ? ` · ${t.amount} a year until Year ${formatYear(t.until)} · ${t.paid} paid`
+          : ` · until Year ${formatYear(t.until)}`
       }</b>`,
     );
   }
   for (const m of marriages.slice(-4))
-    rows.push(`<span>Marriage</span><b>${lifeLink(m.a) || esc(entityName(m.a))} and ${lifeLink(m.b) || esc(entityName(m.b))} · Year ${formatYear(m.tick)}</b>`);
-  for (const c of claimsOut) rows.push(`<span>Claim on</span><b>${factionLink(c.other.id)} through ${lifeLink(c.personId) || esc(entityName(c.personId))}</b>`);
+    rows.push(
+      `<span>Marriage</span><b>${lifeLink(m.a) || esc(entityName(m.a))} and ${lifeLink(m.b) || esc(entityName(m.b))} · Year ${formatYear(m.tick)}</b>`,
+    );
+  for (const c of claimsOut)
+    rows.push(
+      `<span>Claim on</span><b>${factionLink(c.other.id)} through ${lifeLink(c.personId) || esc(entityName(c.personId))}</b>`,
+    );
   for (const g of claimsIn) rows.push(`<span>Claimed by</span><b>${factionLink(g.id)}</b>`);
   for (const e of envoys) {
     const other = factionById(e.from === f.id ? e.to : e.from);
-    if (other) rows.push(`<span>Envoy</span><b>${lifeLink(e.personId) || esc(entityName(e.personId))} · ${e.from === f.id ? "to" : "from"} ${factionLink(other.id)} · ${esc(DIPLOMACY_TERMS[e.proposal] || e.proposal)}</b>`);
+    if (other)
+      rows.push(
+        `<span>Envoy</span><b>${lifeLink(e.personId) || esc(entityName(e.personId))} · ${e.from === f.id ? "to" : "from"} ${factionLink(other.id)} · ${esc(DIPLOMACY_TERMS[e.proposal] || e.proposal)}</b>`,
+      );
   }
   return `<div class="subhead">Diplomacy</div>${rows.length ? `<div class="kv">${rows.join("")}</div>` : `<div class="empty">No treaties, marriages, or envoys.</div>`}`;
 }
@@ -859,7 +912,9 @@ renderFactionPage = function (id) {
     f = factionById(id);
   if (!f) return html;
   const at = html.indexOf('<div class="subhead">Voices</div>');
-  return at < 0 ? html + diplomacySection(f) : html.slice(0, at) + diplomacySection(f) + html.slice(at);
+  return at < 0
+    ? html + diplomacySection(f)
+    : html.slice(0, at) + diplomacySection(f) + html.slice(at);
 };
 // ── Drawing ────────────────────────────────────────────────────────────────────
 // Envoys carry a swaying pennant; travelling spouses walk in a ring of petals;
@@ -898,7 +953,11 @@ drawWorkerActivity = function (now, bounds) {
     still = ACTIVE_REDUCED_MOTION,
     clock = performance.now(),
     inView = (p) =>
-      p && p.x >= bounds.x0 - 1 && p.x <= bounds.x1 + 1 && p.y >= bounds.y0 - 1 && p.y <= bounds.y1 + 1;
+      p &&
+      p.x >= bounds.x0 - 1 &&
+      p.x <= bounds.x1 + 1 &&
+      p.y >= bounds.y0 - 1 &&
+      p.y <= bounds.y1 + 1;
   if (UI.camera.zoom >= 1.4) {
     for (const order of W.civilOrders || []) {
       if (order.kind !== "envoy" && order.kind !== "wedding") continue;
@@ -909,14 +968,27 @@ drawWorkerActivity = function (now, bounds) {
         f = factionById(W.components.social[order.id]?.factionId);
       if (order.kind === "envoy") {
         const sway = still ? 0 : Math.sin(now * 0.005 + order.id) * r * 0.12;
-        drawPennant({ x: s.x + r * 0.7 + sway, y: s.y - r * 0.4 }, r * 2.2, f?.color || "#d8c184", "#f4f1e6");
+        drawPennant(
+          { x: s.x + r * 0.7 + sway, y: s.y - r * 0.4 },
+          r * 2.2,
+          f?.color || "#d8c184",
+          "#f4f1e6",
+        );
       } else {
         ctx.fillStyle = hsl(v.accentHue, 75, 78, 0.8);
         for (let k = 0; k < 6; k++) {
           const a = (still ? 0 : now * 0.002) + (k * Math.PI) / 3 + order.id,
             rr = r * (1.1 + (still ? 0 : 0.15 * Math.sin(now * 0.004 + k)));
           ctx.beginPath();
-          ctx.ellipse(s.x + Math.cos(a) * rr, s.y - r * 0.6 + Math.sin(a) * rr * 0.5, Math.max(1, r * 0.1), Math.max(0.7, r * 0.06), a, 0, Math.PI * 2);
+          ctx.ellipse(
+            s.x + Math.cos(a) * rr,
+            s.y - r * 0.6 + Math.sin(a) * rr * 0.5,
+            Math.max(1, r * 0.1),
+            Math.max(0.7, r * 0.06),
+            a,
+            0,
+            Math.PI * 2,
+          );
           ctx.fill();
         }
       }
@@ -941,7 +1013,15 @@ drawWorkerActivity = function (now, bounds) {
       if (!f.overlordId) continue;
       const capital = factionCapital(f),
         overlord = factionById(f.overlordId);
-      if (!capital || !overlord || capital.x < bounds.x0 || capital.x > bounds.x1 || capital.y < bounds.y0 || capital.y > bounds.y1) continue;
+      if (
+        !capital ||
+        !overlord ||
+        capital.x < bounds.x0 ||
+        capital.x > bounds.x1 ||
+        capital.y < bounds.y0 ||
+        capital.y > bounds.y1
+      )
+        continue;
       const s = proceduralProjectTile(capital.x + 0.5, capital.y - 0.4, m),
         h = Math.max(14, m.tw * 0.7);
       drawPennant({ x: s.x, y: s.y }, h, overlord.color || "#d8c184");
@@ -954,11 +1034,20 @@ drawWorkerActivity = function (now, bounds) {
       ctx.fill();
     }
   }
-  for (const d of (UI.diplomacyVisuals || []).filter((x) => x.world === W && clock - x.started < 6000 && x.tile >= 0 && x.tile < W.tileCount)) {
+  for (const d of (UI.diplomacyVisuals || []).filter(
+    (x) => x.world === W && clock - x.started < 6000 && x.tile >= 0 && x.tile < W.tileCount,
+  )) {
     const age = clamp((clock - d.started) / 6000, 0, 1),
       [tx, ty] = xy(d.tile),
       p = proceduralProjectTile(tx + 0.5, ty + 0.5, m),
-      hue = d.kind === "marriage" ? v.accentHue : d.kind === "union" ? 46 : d.kind === "refusal" ? 0 : 52,
+      hue =
+        d.kind === "marriage"
+          ? v.accentHue
+          : d.kind === "union"
+            ? 46
+            : d.kind === "refusal"
+              ? 0
+              : 52,
       sat = d.kind === "refusal" ? 0 : 80;
     ctx.strokeStyle = hsl(hue, sat, 82, (1 - age) * 0.7);
     ctx.lineWidth = 2;
@@ -1001,7 +1090,12 @@ window.ALIFE_DIPLOMACY_DEBUG = Object.freeze({
     envoy.phase = "return";
     envoy.resolvedTick = W.tick;
     const home = factionCapital(factionById(envoy.from));
-    if (home) issueCivilOrder(envoy.personId, "envoy", home.x, home.y, { placeId: home.id, envoyId: envoy.id, sea: !!envoy.sea });
+    if (home)
+      issueCivilOrder(envoy.personId, "envoy", home.x, home.y, {
+        placeId: home.id,
+        envoyId: envoy.id,
+        sea: !!envoy.sea,
+      });
     return result;
   },
   settle: () => {

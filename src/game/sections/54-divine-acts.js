@@ -386,7 +386,10 @@ function sowDiscord(tile, cause, target = discordTarget(tile)) {
     location: tile,
     factions: [f.id, other.id],
     causes: cause ? [cause.id] : [],
-    evidence: ["old wounds torn open", `grievance now ${Math.round(f.relations[other.id].grievance)}`],
+    evidence: [
+      "old wounds torn open",
+      `grievance now ${Math.round(f.relations[other.id].grievance)}`,
+    ],
     importance: 4,
     data: { a: f.name, b: other.name },
   });
@@ -536,7 +539,13 @@ drawWorkerActivity = function (now, bounds) {
       for (let k = 0; k < 3; k++) {
         const a = still ? k * 2.09 : now * 0.003 + k * 2.09 + id;
         ctx.beginPath();
-        ctx.arc(s.x + Math.cos(a) * r * 0.75, cy + Math.sin(a) * r * 0.3, Math.max(1, r * 0.09), 0, Math.PI * 2);
+        ctx.arc(
+          s.x + Math.cos(a) * r * 0.75,
+          cy + Math.sin(a) * r * 0.3,
+          Math.max(1, r * 0.09),
+          0,
+          Math.PI * 2,
+        );
         ctx.fill();
       }
       halos++;
@@ -565,7 +574,15 @@ drawWorkerActivity = function (now, bounds) {
       ctx.strokeStyle = hsl(46, 90, 75, (1 - age) * 0.7);
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.ellipse(p.x, p.y, m.tw * (0.6 + age * 2.4), m.th * (0.6 + age * 2.4) * 0.6, 0, 0, Math.PI * 2);
+      ctx.ellipse(
+        p.x,
+        p.y,
+        m.tw * (0.6 + age * 2.4),
+        m.th * (0.6 + age * 2.4) * 0.6,
+        0,
+        0,
+        Math.PI * 2,
+      );
       ctx.stroke();
     } else if ((d.kind === "truce" || d.kind === "discord") && d.tiles?.length === 2) {
       const [a, b] = d.tiles.map((t) => {
@@ -578,7 +595,15 @@ drawWorkerActivity = function (now, bounds) {
         for (const c of [a, b]) {
           for (let n = 1; n <= 2; n++) {
             ctx.beginPath();
-            ctx.ellipse(c.x, c.y, m.tw * age * 6 * n * 0.5, m.th * age * 6 * n * 0.3, 0, 0, Math.PI * 2);
+            ctx.ellipse(
+              c.x,
+              c.y,
+              m.tw * age * 6 * n * 0.5,
+              m.th * age * 6 * n * 0.3,
+              0,
+              0,
+              Math.PI * 2,
+            );
             ctx.stroke();
           }
         }
@@ -597,8 +622,12 @@ drawWorkerActivity = function (now, bounds) {
         ctx.moveTo(a.x, a.y - m.th);
         for (let k = 1; k <= 5; k++) {
           const f = k / 6,
-            jitter = (visualHash01(d.tile, k + (still ? 0 : Math.floor(clock / 80))) - 0.5) * m.tw * 2;
-          ctx.lineTo(a.x + (b.x - a.x) * f + jitter, a.y - m.th + (b.y - a.y) * f - Math.abs(jitter) * 0.5);
+            jitter =
+              (visualHash01(d.tile, k + (still ? 0 : Math.floor(clock / 80))) - 0.5) * m.tw * 2;
+          ctx.lineTo(
+            a.x + (b.x - a.x) * f + jitter,
+            a.y - m.th + (b.y - a.y) * f - Math.abs(jitter) * 0.5,
+          );
         }
         ctx.lineTo(b.x, b.y - m.th);
         ctx.stroke();
@@ -629,7 +658,13 @@ drawProceduralAtmosphere = function (now, m, v) {
       const t = k / 9;
       ctx.fillStyle = hsl(v.accentHue, 80, 85, fade * (1 - t) * 0.55);
       ctx.beginPath();
-      ctx.arc(x - t * m.w * 0.16, y + t * m.h * 0.02, Math.max(2, m.w * 0.006 * (1.4 - t)), 0, Math.PI * 2);
+      ctx.arc(
+        x - t * m.w * 0.16,
+        y + t * m.h * 0.02,
+        Math.max(2, m.w * 0.006 * (1.4 - t)),
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
     }
     ctx.fillStyle = hsl(50, 90, 92, fade * 0.95);

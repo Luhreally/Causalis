@@ -33,20 +33,32 @@ function yearsScope(id) {
     key = Math.floor(n / 10);
   if (kind === 1) {
     const f = W.factions.find((x) => x.id === key);
-    return f ? { kind: "faction", id: key, name: f.name, entity: f } : { kind: "world", id: 0, name: W.seed };
+    return f
+      ? { kind: "faction", id: key, name: f.name, entity: f }
+      : { kind: "world", id: 0, name: W.seed };
   }
   if (kind === 2) {
     const s = W.settlements.find((x) => x.id === key);
-    return s ? { kind: "place", id: key, name: s.name, entity: s } : { kind: "world", id: 0, name: W.seed };
+    return s
+      ? { kind: "place", id: key, name: s.name, entity: s }
+      : { kind: "world", id: 0, name: W.seed };
   }
   if (kind === 3) {
     const c = W.cultures.find((x) => x.id === key);
-    return c ? { kind: "culture", id: key, name: c.name, entity: c } : { kind: "world", id: 0, name: W.seed };
+    return c
+      ? { kind: "culture", id: key, name: c.name, entity: c }
+      : { kind: "world", id: 0, name: W.seed };
   }
   return { kind: "world", id: 0, name: W.seed };
 }
 function yearsScopeId(kind, id) {
-  return kind === "faction" ? id * 10 + 1 : kind === "place" ? id * 10 + 2 : kind === "culture" ? id * 10 + 3 : 0;
+  return kind === "faction"
+    ? id * 10 + 1
+    : kind === "place"
+      ? id * 10 + 2
+      : kind === "culture"
+        ? id * 10 + 3
+        : 0;
 }
 function yearsFilter(scope) {
   if (scope.kind === "faction") {
@@ -130,7 +142,10 @@ function yearsBars(events, selected, firstYear, lastYear) {
   for (const e of events) counts.set(e.year, (counts.get(e.year) || 0) + 1);
   const span = Math.max(1, lastYear - firstYear + 1),
     from = Math.max(firstYear, lastYear - 39),
-    max = Math.max(1, ...Array.from({ length: lastYear - from + 1 }, (_, i) => counts.get(from + i) || 0)),
+    max = Math.max(
+      1,
+      ...Array.from({ length: lastYear - from + 1 }, (_, i) => counts.get(from + i) || 0),
+    ),
     bars = [];
   for (let y = from; y <= lastYear; y++) {
     const n = counts.get(y) || 0,
@@ -142,7 +157,9 @@ function yearsBars(events, selected, firstYear, lastYear) {
     );
   }
   return `<div class="years-bars" role="group" aria-label="Events per year">${bars.join("")}</div>${
-    span > 40 ? `<div class="muted" style="font-size:11px">Showing the last 40 of ${span} years.</div>` : ""
+    span > 40
+      ? `<div class="muted" style="font-size:11px">Showing the last 40 of ${span} years.</div>`
+      : ""
   }`;
 }
 function renderYearsPage(id = 0) {
