@@ -364,7 +364,9 @@ function holdRites(force = false) {
     for (const s of cultureSettlements(c)) {
       const shrine = completedBuildings(s, "shrine")[0];
       if (!shrine && !force) continue;
-      if (!force && W.tick - (b.lastRiteTick || -1) < 64) continue;
+      // One rite a year, and only when there is something to offer.
+      if (!force && W.tick - (b.lastRiteTick || -1) < TICKS_PER_YEAR - 8) continue;
+      if (!force && (s.inventory?.[C.ORGANIC] || 0) < 4) continue;
       const tile = shrine ? idx(shrine.x, shrine.y) : idx(s.x, s.y),
         offering = resolveTransfer({
           fromType: "settlement",

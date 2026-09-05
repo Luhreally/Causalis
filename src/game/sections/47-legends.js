@@ -45,7 +45,7 @@ function recordAnnal(ev) {
 const emitEventLegendsBase = emitEvent;
 emitEvent = function (type, data = {}) {
   const ev = emitEventLegendsBase(type, data);
-  if (W && ev.importance >= 3) recordAnnal(ev);
+  if (W?.components?.identity && ev.importance >= 3) recordAnnal(ev);
   return ev;
 };
 // Annals are appended in id order, so an old event can be found by bisection

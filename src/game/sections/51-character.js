@@ -143,29 +143,30 @@ function fightBonus(id) {
 const emitEventCharacterBase = emitEvent;
 emitEvent = function (type, data = {}) {
   const ev = emitEventCharacterBase(type, data);
-  if (!W) return ev;
+  // Probes swap in bare worlds without kinds or identities; character reads nothing there.
+  if (!W?.kind || !W.components?.identity || !W.components.life) return ev;
   const people = (ev.subjects || []).filter((id) => W.kind[id] === KINDS.PERSON);
   switch (type) {
     case "ToolCraftedEvent":
     case "EquipmentCraftedEvent":
-      for (const id of people) grantSkill(id, "craft", 6, ev.id);
+      for (const id of people) grantSkill(id, "craft", 3, ev.id);
       break;
     case "BuildingCompletedEvent": {
       const built = W.buildings.find(
         (b) => b.completedTick === W.tick && idx(b.x, b.y) === ev.location,
       );
       for (const id of (built?.workers || people).slice(0, 8))
-        if (W.kind[id] === KINDS.PERSON) grantSkill(id, "build", 4, ev.id);
+        if (W.kind[id] === KINDS.PERSON) grantSkill(id, "build", 2, ev.id);
       break;
     }
     case "CropHarvestedEvent":
     case "CropSownEvent":
-      for (const id of people) grantSkill(id, "farm", 4, ev.id);
+      for (const id of people) grantSkill(id, "farm", 2, ev.id);
       break;
     case "HerdFormedEvent":
     case "HerdMovedEvent":
     case "HerdFedEvent":
-      for (const id of people) grantSkill(id, "herd", 3, ev.id);
+      for (const id of people) grantSkill(id, "herd", 1.5, ev.id);
       break;
     case "KillEvent": {
       const killer = ev.subjects?.[0],
@@ -176,11 +177,11 @@ emitEvent = function (type, data = {}) {
     }
     case "InjuryEvent": {
       const attacker = ev.subjects?.[1];
-      if (W.kind[attacker] === KINDS.PERSON) grantSkill(attacker, "fight", 1.5, ev.id);
+      if (W.kind[attacker] === KINDS.PERSON) grantSkill(attacker, "fight", 0.6, ev.id);
       break;
     }
     case "PredatorDefenseEvent":
-      for (const id of people) grantSkill(id, "fight", 2, ev.id);
+      for (const id of people) grantSkill(id, "fight", 1, ev.id);
       break;
     case "TechAdvanceEvent":
       for (const id of people) grantSkill(id, "lore", 8, ev.id);

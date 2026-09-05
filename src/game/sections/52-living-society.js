@@ -101,23 +101,27 @@ function caravanCandidates(place, count) {
   const voices = new Set(W.factions.map((f) => f.leaderId).filter(Boolean)),
     out = [];
   for (const id of entityAtRadius(idx(place.x, place.y), 6, KINDS.PERSON)) {
-    if (out.length >= count) break;
     const life = W.components.life[id],
       social = W.components.social[id];
     if (!classifyAlive(id) || !life || voices.has(id) || W.components.campaign?.[id]) continue;
-    if (social?.factionId !== place.factionId || life.hunger > 60 || life.wounded) continue;
+    if (social?.factionId !== place.factionId || life.hunger > 70 || life.wounded) continue;
     if (life.age < (W.components.body[id]?.maxAge || 19200) * 0.2) continue;
-    if (W.components.work?.[id]?.task && W.components.work[id].task !== "idle") continue;
     out.push(id);
   }
-  return out;
+  // Idle hands go first; a busy worker is only taken when no one else is free.
+  out.sort((a, b) => {
+    const ia = W.components.work?.[a]?.task && W.components.work[a].task !== "idle" ? 1 : 0,
+      ib = W.components.work?.[b]?.task && W.components.work[b].task !== "idle" ? 1 : 0;
+    return ia - ib || a - b;
+  });
+  return out.slice(0, count);
 }
 function spawnCaravan(from, to, route, cargoSp = -1, cargoAmount = 0) {
   ensureSociety();
   if (!from || !to || from.id === to.id || from.ruined || to.ruined) return null;
   if (dist2(from.x, from.y, to.x, to.y) < 36) return null;
   if (W.caravans.some((c) => c.routeId === route?.id && c.active)) return null;
-  if (settlementPopulation(from) < 8) return null;
+  if (settlementPopulation(from) < 6) return null;
   const members = caravanCandidates(from, 2);
   if (!members.length) return null;
   for (const id of members)
@@ -509,7 +513,7 @@ ensurePlacePlans = function (place) {
 const emitEventSocietyBase = emitEvent;
 emitEvent = function (type, data = {}) {
   const ev = emitEventSocietyBase(type, data);
-  if (type === "BuildingCompletedEvent" && W) {
+  if (type === "BuildingCompletedEvent" && Array.isArray(W?.buildings)) {
     const b = W.buildings.find(
       (x) => x.type === "monument" && x.completedTick === W.tick && idx(x.x, x.y) === ev.location,
     );
@@ -762,9 +766,12 @@ function updateBeastsOfLegend() {
       body = W.components.body[id];
     if (!ident || ident.beastOfLegend || !life || !body) continue;
     const old = life.age >= (body.maxAge || 3000) * 0.6,
-      deadly = (ident.kills || 0) >= 4,
-      huge = (peekPhenotype(id)?.size || 1) >= 1.25;
-    if (!(old && (deadly || huge))) continue;
+      huge = (peekPhenotype(id)?.size || 1) >= 1.25,
+      deadly = (ident.kills || 0) >= (huge ? 3 : 4);
+    if (!(old && deadly)) continue;
+    // Legends are rare: at most one new beast in any four years.
+    if (W.tick - (W.living?.lastBeastTick || -99999) < TICKS_PER_YEAR * 4) continue;
+    if (W.living) W.living.lastBeastTick = W.tick;
     const g = W.components.genome[id],
       species =
         W.speciesRegistry[`${KINDS.PREDATOR}:${g?.lineageId}`]?.name ||
@@ -869,7 +876,7 @@ eventSentence = function (e) {
     case "MonumentRaisedEvent":
       return `${e.data.place} raised the ${e.data.name}.`;
     case "BeastOfLegendEvent":
-      return `${e.data.name} grew into a beast of legend, a ${e.data.species} with ${e.data.kills} kills.`;
+      return `${e.data.name} grew into a beast of legend among the ${e.data.species}, with ${countNoun(e.data.kills, "kill")}.`;
     default:
       return eventSentenceLivingSocietyBase(e);
   }
