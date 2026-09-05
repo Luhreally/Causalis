@@ -28,7 +28,8 @@
     "test:divine": "node tests/divine-smoke.cjs",
     "test:years": "node tests/years-smoke.cjs",
     "test:diplomacy": "node tests/diplomacy-smoke.cjs",
-    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages && npm run test:observatory && npm run test:belief && npm run test:character && npm run test:society && npm run test:bonds && npm run test:divine && npm run test:years && npm run test:diplomacy",
+    "test:sea": "node tests/seafaring-smoke.cjs",
+    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages && npm run test:observatory && npm run test:belief && npm run test:character && npm run test:society && npm run test:bonds && npm run test:divine && npm run test:years && npm run test:diplomacy && npm run test:sea",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

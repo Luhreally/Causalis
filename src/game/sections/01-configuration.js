@@ -398,6 +398,10 @@ const EVENT_CATEGORY = Object.freeze({
   DynasticUnionEvent: "factions",
   TributeEvent: "factions",
   TributeDefaultEvent: "factions",
+  CatchEvent: "settlements",
+  VoyageEvent: "settlements",
+  ColonyEvent: "settlements",
+  VoyageLostEvent: "settlements",
   ChemistryEvent: "ecology",
 });
 const DOM = {};
