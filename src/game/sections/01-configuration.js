@@ -223,6 +223,26 @@ const TOOL_DEFS = Object.freeze([
   ["faction", "Seed faction", "⚑", "Organize a local community into a polity."],
   ["claim", "Claim territory", "◫", "Project the nearest faction's claim."],
   ["disaster", "Create disaster", "☄", "Trigger fire, contamination, and structural shock."],
+  [
+    "anoint",
+    "Mark a chosen one",
+    "✧",
+    "Mark the nearest person as chosen: renown, a calling, and a Speaker if the god is named.",
+  ],
+  [
+    "whisper",
+    "Whisper knowledge",
+    "☽",
+    "Reveal the next process a town could learn. Knowledge moves; matter does not.",
+  ],
+  [
+    "sign",
+    "Sign in the sky",
+    "✶",
+    "Write a portent across the sky for nearby towns to read and their Speakers to answer.",
+  ],
+  ["truce", "Bind a truce", "☮", "End the nearest polity's war, or still its bitterest quarrel, for eight years."],
+  ["discord", "Sow discord", "☇", "Tear open old wounds between the nearest polity and its closest neighbour."],
 ]);
 const OVERLAY_DEFS = Object.freeze([
   ["elevation", "Elevation"],
@@ -360,6 +380,11 @@ const EVENT_CATEGORY = Object.freeze({
   QuarrelEvent: "conflict",
   FeudEvent: "conflict",
   FeudEndedEvent: "conflict",
+  ChosenEvent: "people",
+  WhisperEvent: "settlements",
+  SkySignEvent: "factions",
+  DivineTruceEvent: "factions",
+  DiscordEvent: "factions",
   ChemistryEvent: "ecology",
 });
 const DOM = {};

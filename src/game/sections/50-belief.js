@@ -31,6 +31,11 @@ const BELIEF_EPITHETS = Object.freeze({
   herbivore: ["the Seeder of Beasts", "the Seeder of Beasts"],
   predator: ["the Seeder of Beasts", "the Loosener of Fangs"],
   person: ["the Kin-Maker", "the Kin-Maker"],
+  anoint: ["the Chooser", "the Chooser"],
+  whisper: ["the Whisperer", "the Whisperer"],
+  sign: ["the Sky-Writer", "the Sky-Writer"],
+  truce: ["the Peace-Binder", "the Peace-Binder"],
+  discord: ["the Sower of Discord", "the Sower of Discord"],
 });
 const BELIEF_TENETS = Object.freeze({
   rain: [
@@ -101,6 +106,11 @@ const TOOL_NOUNS = Object.freeze({
   herbivore: "new beasts",
   predator: "new hunters",
   person: "new kin",
+  anoint: "a chosen one",
+  whisper: "whispered knowledge",
+  sign: "a sign in the sky",
+  truce: "a truce",
+  discord: "discord",
 });
 function toolNoun(tool) {
   return (
