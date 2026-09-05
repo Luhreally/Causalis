@@ -9,6 +9,7 @@ let PLANET_VISUAL_CACHE = null,
   ACTIVE_INTERIOR_STATE = null,
   ACTIVE_COMBAT_STATE = null;
 let ACTIVE_INTERIOR_IDS = new Set();
+let ACTIVE_REDUCED_MOTION = false;
 const CREATURE_VISUAL_CACHE = new Map();
 // How far, in device-independent pixels, each terrain polygon grows past its
 // true edge so neighbouring fills overlap instead of leaving an antialiased gap.
@@ -131,8 +132,16 @@ function makePlanetVisualGenome() {
         "Sand Plain": "Mineral Expanse",
       };
   harmonizePlanetPalette(palette, base, earthlike);
+  const surface = makeSurfaceGenome(terrain, earthlike, alienness, {
+    base,
+    liquidHue,
+    floraHue,
+    mineralHue,
+    accentHue,
+  });
   PLANET_VISUAL_CACHE = {
     key,
+    surface,
     earthlike,
     alienness,
     terrain,
@@ -152,8 +161,545 @@ function makePlanetVisualGenome() {
   };
   TILE_VISUAL_CACHE = null;
   TOP_TERRAIN_CACHE = null;
+  SURFACE_TEXTURE_CACHE = null;
+  SURFACE_FLORA_MASK = null;
   CREATURE_VISUAL_CACHE.clear();
   return PLANET_VISUAL_CACHE;
+}
+// ── Surface genome ─────────────────────────────────────────────────────────────
+// Everything here is cosmetic and derived only from the seed and the terrain
+// genome: the grain a surface is textured with, how its vegetation mixes, which
+// way the wind blows, what drifts in the air, what the sky does, and how the
+// liquid moves. It is read alongside world state and never written back, so the
+// simulation hash and replay determinism are untouched. Its own random stream
+// is separate from the palette stream so existing palettes keep their seeds.
+let SURFACE_TEXTURE_CACHE = null,
+  SURFACE_FLORA_MASK = null;
+const SURFACE_GRAINS = Object.freeze([
+  "banded",
+  "mottled",
+  "crystalline",
+  "fibrous",
+  "scaled",
+  "dunes",
+  "porous",
+]);
+function makeSurfaceGenome(terrain, earthlike, alienness, hues) {
+  const r = makeRng(W.seed, "planet-surface-genome-v1"),
+    t = W.tiles,
+    n = W.tileCount,
+    stride = Math.max(1, Math.floor(n / 4096));
+  // A climate summary decides what the air carries: cold worlds snow, burned
+  // worlds shed ash, dry bare worlds raise dust, green worlds loose pollen.
+  let temp = 0,
+    wet = 0,
+    plant = 0,
+    ash = 0,
+    samples = 0;
+  for (let i = 0; i < n; i += stride) {
+    temp += t.temperature[i] / 10;
+    wet += t.liquid[i] > 140 ? 1 : 0;
+    plant += t.plantOrder[i];
+    ash += t.chem[C.ASH][i];
+    samples++;
+  }
+  temp /= samples;
+  wet /= samples;
+  plant /= samples;
+  ash /= samples;
+  const floraForms = ["rosette", "filament", "fan", "crystal", "bubble", "branching", "plate"],
+    cloudForms = ["cumulus", "streak", "veil"],
+    grain = earthlike ? "mottled" : SURFACE_GRAINS[r.int(SURFACE_GRAINS.length)],
+    grainAngle = r.range(0, Math.PI),
+    grainScale = earthlike ? 6 : r.range(3.2, 9),
+    grainStrength = earthlike ? 0.42 : r.range(0.38, 0.86),
+    floraFormAlt = earthlike
+      ? r.next() < 0.5
+        ? "fan"
+        : "rosette"
+      : floraForms[r.int(floraForms.length)],
+    floraMix = r.range(0.25, 0.6),
+    floraDensity = earthlike ? 1 : r.range(0.7, 1.5),
+    wind = { angle: r.range(0, Math.PI * 2), speed: r.range(0.45, 1.6), gust: r.range(0.2, 1) },
+    clouds = {
+      form: earthlike ? "cumulus" : cloudForms[r.int(cloudForms.length)],
+      coverage: clamp((earthlike ? 0.3 : r.range(0.05, 0.6)) + wet * 0.2, 0, 0.75),
+      scale: r.range(5, 13),
+      speed: r.range(0.5, 1.4),
+    },
+    roll = r.next(),
+    // Thresholds sit inside the range the generator actually produces (mean
+    // temperature 11 to 22, liquid fraction 0.2 to 0.7, plant order 140 to 340
+    // across sampled seeds) so every kind of air turns up somewhere.
+    particleKind =
+      temp < 12.5
+        ? "snow"
+        : ash > 20
+          ? "ash"
+          : wet < 0.3 && plant < 230
+            ? "dust"
+            : plant > 260
+              ? roll < 0.5
+                ? "pollen"
+                : "spores"
+              : alienness > 0.55 && roll < 0.6
+                ? "motes"
+                : roll < 0.8
+                  ? "pollen"
+                  : "none",
+    particle = {
+      kind: particleKind,
+      hue:
+        particleKind === "snow"
+          ? hues.liquidHue
+          : particleKind === "ash"
+            ? wrapHue(hues.mineralHue - 10)
+            : particleKind === "dust"
+              ? hues.mineralHue
+              : particleKind === "spores"
+                ? wrapHue(hues.floraHue + 30)
+                : particleKind === "motes"
+                  ? hues.accentHue
+                  : wrapHue(hues.accentHue + 20),
+      density: r.range(0.6, 1.4),
+    },
+    sky = {
+      aurora: !earthlike && alienness > 0.5 && r.next() < 0.5,
+      auroraHue: wrapHue(hues.accentHue + r.range(-40, 40)),
+    },
+    water = {
+      angle: r.range(0, Math.PI * 2),
+      speed: r.range(0.6, 1.5),
+      amplitude: r.range(0.7, 1.4),
+    };
+  return {
+    grain,
+    grainAngle,
+    grainScale,
+    grainStrength,
+    floraFormAlt,
+    floraMix,
+    floraDensity,
+    wind,
+    clouds,
+    particle,
+    sky,
+    water,
+    climate: { temp: +temp.toFixed(1), wet: +wet.toFixed(2), plant: Math.round(plant) },
+  };
+}
+function reducedMotionPreferred() {
+  try {
+    return !!document.body?.classList?.contains("reduced-motion");
+  } catch (error) {
+    return false;
+  }
+}
+// Value noise on a seeded permutation table: cheap enough to sample several
+// hundred thousand times while a texture is baked.
+function makeGrainNoise(seed) {
+  const r = makeRng(seed, "grain-permutation"),
+    order = Array.from({ length: 256 }, (_, i) => i),
+    perm = new Uint8Array(512);
+  for (let i = 255; i > 0; i--) {
+    const j = r.int(i + 1),
+      swap = order[i];
+    order[i] = order[j];
+    order[j] = swap;
+  }
+  for (let i = 0; i < 512; i++) perm[i] = order[i & 255];
+  return (x, y) => {
+    const xi = Math.floor(x),
+      yi = Math.floor(y),
+      xf = x - xi,
+      yf = y - yi,
+      X = xi & 255,
+      Y = yi & 255,
+      sx = xf * xf * (3 - 2 * xf),
+      sy = yf * yf * (3 - 2 * yf),
+      a = perm[X + perm[Y]] / 255,
+      b = perm[X + 1 + perm[Y]] / 255,
+      c = perm[X + perm[Y + 1]] / 255,
+      d = perm[X + 1 + perm[Y + 1]] / 255;
+    return (a + (b - a) * sx) * (1 - sy) + (c + (d - c) * sx) * sy;
+  };
+}
+// The grain field in world coordinates, in [-1, 1]: positive lightens, negative
+// darkens. Each grammar is a different way of organising the same noise.
+function surfaceGrainAt(s, noise, x, y) {
+  const k = 1 / s.grainScale,
+    ca = Math.cos(s.grainAngle),
+    sa = Math.sin(s.grainAngle),
+    u = x * ca + y * sa,
+    n1 = noise(x * k * 2.3, y * k * 2.3) - 0.5,
+    n2 = noise(x * k * 5.1 + 17, y * k * 5.1 + 9) - 0.5;
+  switch (s.grain) {
+    case "banded":
+      return Math.sin(u * k * Math.PI * 2 + n1 * 3) * 0.8 + n2 * 0.4;
+    case "fibrous":
+      return Math.sin((u + n1 * s.grainScale * 1.6) * k * Math.PI * 3) * 0.7 + n2 * 0.3;
+    case "dunes": {
+      const phase = (((u * k * 1.4 + n1 * 0.8) % 1) + 1) % 1,
+        crest = phase < 0.7 ? phase / 0.7 : 1 - (phase - 0.7) / 0.3;
+      return crest * 1.6 - 0.8 + n2 * 0.3;
+    }
+    case "crystalline": {
+      const cs = s.grainScale * 0.9,
+        gx = Math.round(x / cs),
+        gy = Math.round(y / cs);
+      let f1 = 9,
+        f2 = 9;
+      for (let oy = -1; oy <= 0; oy++)
+        for (let ox = -1; ox <= 0; ox++) {
+          const cx = gx + ox,
+            cy = gy + oy,
+            px = (cx + noise(cx * 7.7 + 0.5, cy * 7.7 + 0.5)) * cs,
+            py = (cy + noise(cx * 7.7 + 31.5, cy * 7.7 + 5.5)) * cs,
+            d = Math.hypot(px - x, py - y) / cs;
+          if (d < f1) {
+            f2 = f1;
+            f1 = d;
+          } else if (d < f2) f2 = d;
+        }
+      return (clamp((f2 - f1) * 3, 0, 1) - 0.55) * 1.6 + n2 * 0.25;
+    }
+    case "scaled": {
+      const cs = s.grainScale * 0.6,
+        gx = x / cs,
+        gy = y / cs + (Math.floor(x / cs) % 2) * 0.5,
+        fx = gx - Math.round(gx),
+        fy = gy - Math.round(gy);
+      return (0.5 - Math.hypot(fx, fy)) * 2.2 + n2 * 0.3;
+    }
+    case "porous": {
+      const b = noise(x * k * 3.7 + 41, y * k * 3.7 + 3);
+      return b > 0.62 ? -((b - 0.62) / 0.38) * 1.4 : n2 * 0.5 + 0.15;
+    }
+    default:
+      return n1 * 1.5 + n2 * 0.8;
+  }
+}
+// The top-down grain texture is baked once per world at a few texels per tile
+// and composited over the colour bitmap with an overlay blend. Baking is spread
+// across frames so a new world never stalls on its first render.
+function surfaceTexture(v) {
+  const s = v.surface;
+  if (!s) return null;
+  const scale = W.tileCount > 20000 ? 3 : 4,
+    key = `${v.key}:${scale}`;
+  if (!SURFACE_TEXTURE_CACHE || SURFACE_TEXTURE_CACHE.key !== key) {
+    const canvas = document.createElement("canvas"),
+      width = W.width * scale,
+      height = W.height * scale;
+    canvas.width = width;
+    canvas.height = height;
+    const g = canvas.getContext("2d"),
+      image =
+        g && typeof g.createImageData === "function" ? g.createImageData(width, height) : null;
+    SURFACE_TEXTURE_CACHE = {
+      key,
+      canvas: image && image.data ? canvas : null,
+      g,
+      image,
+      scale,
+      width,
+      height,
+      row: 0,
+      done: !(image && image.data),
+      noise: makeGrainNoise(hashParts(W.seedHash, "surface-grain")),
+    };
+  }
+  const cache = SURFACE_TEXTURE_CACHE;
+  if (cache.done) return cache;
+  const started = performance.now(),
+    data = cache.image.data,
+    liquid = W.tiles.liquid,
+    { width, height, scale: px } = cache;
+  while (cache.row < height && performance.now() - started < 4) {
+    const py = cache.row,
+      ty = Math.min(W.height - 1, (py / px) | 0);
+    for (let x = 0; x < width; x++) {
+      const tx = Math.min(W.width - 1, (x / px) | 0),
+        grain = clamp(surfaceGrainAt(s, cache.noise, x / px, py / px), -1, 1),
+        wet = liquid[ty * W.width + tx] > 140,
+        alpha = Math.abs(grain) * s.grainStrength * (wet ? 0.28 : 0.62),
+        o = (py * width + x) * 4,
+        light = grain > 0 ? 255 : 0;
+      data[o] = light;
+      data[o + 1] = light;
+      data[o + 2] = light;
+      data[o + 3] = Math.round(clamp(alpha, 0, 1) * 255);
+    }
+    cache.row++;
+  }
+  if (cache.row >= height) {
+    cache.g.putImageData(cache.image, 0, 0);
+    cache.done = true;
+  }
+  return cache;
+}
+// Vegetation mixes two motif forms in coherent patches rather than one form
+// everywhere; the mask is baked once per world.
+function floraMaskCache(v) {
+  if (SURFACE_FLORA_MASK && SURFACE_FLORA_MASK.key === v.key) return SURFACE_FLORA_MASK.mask;
+  const mask = new Uint8Array(W.tileCount),
+    mix = v.surface?.floraMix ?? 0;
+  for (let y = 0; y < W.height; y++)
+    for (let x = 0; x < W.width; x++)
+      if (noise2(W.seedHash ^ 0x3f1d, x / 7, y / 7) < mix) mask[y * W.width + x] = 1;
+  SURFACE_FLORA_MASK = { key: v.key, mask };
+  return mask;
+}
+function floraFormAt(v, i) {
+  if (!v.surface) return v.floraForm;
+  return floraMaskCache(v)[i] ? v.surface.floraFormAlt : v.floraForm;
+}
+// Wind is a travelling wave across the map: the same phase field sways plant
+// motifs and canopy crowns so gusts visibly move through a forest.
+function windSwayAt(v, x, y) {
+  const s = v.surface;
+  if (!s || UI.quality === "low" || ACTIVE_REDUCED_MOTION) return 0;
+  const w = s.wind;
+  return (
+    Math.sin(
+      ACTIVE_RENDER_NOW * 0.0011 * w.speed + (x * Math.cos(w.angle) + y * Math.sin(w.angle)) * 0.5,
+    ) *
+    (0.1 + 0.24 * w.gust)
+  );
+}
+// In projected views the baked texture cannot be draped over a heightfield, so
+// a fraction of the tiles near the camera carry one hand-drawn grain mark in
+// the grammar's shape instead: a stroke along the banding, a facet, a blotch.
+function drawGrainMark(x, y, i, p, m, v) {
+  const s = v.surface,
+    pick = visualHash01(i, 0x5e3);
+  if (!s || pick > 0.35 + s.grainStrength * 0.45) return;
+  const cache = terrainToneCache(),
+    lum = cache.lum[i] || 40,
+    light = visualHash01(i, 0x6a1) > 0.5,
+    tone = hsl(
+      cache.hue[i] || v.mineralHue,
+      clamp((cache.sat[i] || 30) * 0.8, 6, 60),
+      light ? clamp(lum + 14, 12, 90) : clamp(lum - 12, 4, 80),
+      0.06 + 0.28 * s.grainStrength,
+    ),
+    r = m.tw * 0.36,
+    dir = worldDirToScreen(Math.cos(s.grainAngle), Math.sin(s.grainAngle), m),
+    dl = Math.hypot(dir.x, dir.y) || 1,
+    dx = dir.x / dl,
+    dy = dir.y / dl,
+    jx = (visualHash01(i, 0x7b1) - 0.5) * m.tw * 0.4,
+    jy = (visualHash01(i, 0x7c1) - 0.5) * m.th * 0.4,
+    rot = visualHash01(i, 0x8d1) * Math.PI;
+  ctx.strokeStyle = tone;
+  ctx.fillStyle = tone;
+  ctx.lineWidth = clamp(m.tw * 0.045, 0.5, 2.2);
+  ctx.beginPath();
+  if (s.grain === "banded" || s.grain === "fibrous" || s.grain === "dunes") {
+    ctx.moveTo(p.x + jx - dx * r, p.y + jy - dy * r * 0.6);
+    ctx.lineTo(p.x + jx + dx * r, p.y + jy + dy * r * 0.6);
+    ctx.stroke();
+  } else if (s.grain === "crystalline" || s.grain === "scaled") {
+    const sides = s.grain === "scaled" ? 6 : 4,
+      rr = r * 0.5;
+    for (let n = 0; n < sides; n++) {
+      const a = rot + (n * Math.PI * 2) / sides,
+        vx = p.x + jx + Math.cos(a) * rr,
+        vy = p.y + jy + Math.sin(a) * rr * 0.6;
+      if (n) ctx.lineTo(vx, vy);
+      else ctx.moveTo(vx, vy);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  } else {
+    ctx.ellipse(p.x + jx, p.y + jy, r * 0.45, r * 0.22, rot, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+// ── Living sky ─────────────────────────────────────────────────────────────────
+// Cloud shadows, wind sweeps, whatever the air carries, and an aurora where the
+// planet has one. All live: they run every frame from the wall clock and read
+// only weather and the surface genome.
+function drawSurfaceWeatherLayers(now, m, v) {
+  const s = v.surface;
+  if (!s || UI.quality === "low") return;
+  const clock = ACTIVE_REDUCED_MOTION ? 0 : now;
+  drawCloudShadows(clock, m, v, s);
+  if (UI.quality === "high" && UI.camera.zoom > 1.1 && !ACTIVE_REDUCED_MOTION)
+    drawWindSweep(clock, m, v, s);
+  drawAirborneParticles(clock, m, v, s);
+  if (UI.quality === "high" && UI.view !== "top" && s.sky.aurora) drawAurora(clock, m, v, s);
+}
+function drawCloudShadows(now, m, v, s) {
+  const weather = W.weather?.name || "Clear",
+    cover = clamp(
+      s.clouds.coverage + (/Rain|Storm/.test(weather) ? 0.25 : weather === "Heat Wave" ? -0.15 : 0),
+      0,
+      0.85,
+    ),
+    count = Math.round(cover * 8);
+  if (!count) return;
+  const drift = s.wind.speed * s.clouds.speed * 0.0018,
+    wx = Math.cos(s.wind.angle) * drift,
+    wy = Math.sin(s.wind.angle) * drift,
+    spanX = W.width + 24,
+    spanY = W.height + 24,
+    alpha = (0.08 + cover * 0.08) * (UI.view === "top" ? 1 : 0.85);
+  ctx.save();
+  ctx.globalCompositeOperation = "multiply";
+  for (let n = 0; n < count; n++) {
+    const ax = visualHash01(n, 0xc10d) * spanX,
+      ay = visualHash01(n, 0xc20d) * spanY,
+      cx0 = ((((ax + now * wx) % spanX) + spanX) % spanX) - 12,
+      cy0 = ((((ay + now * wy) % spanY) + spanY) % spanY) - 12,
+      size = s.clouds.scale * (0.7 + visualHash01(n, 0xc30d) * 0.7),
+      lobes = s.clouds.form === "veil" ? 1 : s.clouds.form === "streak" ? 2 : 3;
+    for (let k = 0; k < lobes; k++) {
+      const ox =
+          s.clouds.form === "streak"
+            ? (k - 0.5) * size * 0.9 * Math.cos(s.wind.angle)
+            : (k - 1) * size * 0.35,
+        oy =
+          s.clouds.form === "streak"
+            ? (k - 0.5) * size * 0.9 * Math.sin(s.wind.angle)
+            : (k % 2) * size * 0.25,
+        p = proceduralProjectTile(cx0 + ox, cy0 + oy, m, false),
+        rx = size * m.tw * (s.clouds.form === "veil" ? 1.6 : 0.65),
+        ry = rx * (UI.view === "top" ? 0.7 : 0.42);
+      if (p.x < -rx || p.x > m.w + rx || p.y < -ry || p.y > m.h + ry) continue;
+      const shade = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rx);
+      shade.addColorStop(0, hsl(v.atmosphereHue, 30, 40, alpha));
+      shade.addColorStop(0.6, hsl(v.atmosphereHue, 30, 40, alpha * 0.5));
+      shade.addColorStop(1, hsl(v.atmosphereHue, 30, 40, 0));
+      ctx.fillStyle = shade;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+function drawWindSweep(now, m, v, s) {
+  const d = worldDirToScreen(Math.cos(s.wind.angle), Math.sin(s.wind.angle), m),
+    l = Math.hypot(d.x, d.y) || 1,
+    ux = d.x / l,
+    uy = d.y / l,
+    period = Math.max(120, m.tw * 14),
+    travel = (now * 0.00025 * s.wind.speed * m.tw * 4) % period,
+    len = Math.hypot(m.w, m.h) + period,
+    gx0 = m.w / 2 - (ux * len) / 2 + ux * travel,
+    gy0 = m.h / 2 - (uy * len) / 2 + uy * travel,
+    sweep = ctx.createLinearGradient(gx0, gy0, gx0 + ux * len, gy0 + uy * len),
+    bands = Math.max(1, Math.ceil(len / period)),
+    a = 0.035 + s.wind.gust * 0.03;
+  for (let n = 0; n <= bands; n++) {
+    const t0 = n / bands;
+    sweep.addColorStop(clamp(t0, 0, 1), hsl(v.accentHue, 40, 80, 0));
+    sweep.addColorStop(clamp(t0 + 0.5 / bands, 0, 1), hsl(v.accentHue, 40, 80, a));
+    if (n < bands) sweep.addColorStop(clamp(t0 + 0.75 / bands, 0, 1), hsl(v.accentHue, 40, 80, 0));
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = "overlay";
+  ctx.fillStyle = sweep;
+  ctx.fillRect(0, 0, m.w, m.h);
+  ctx.restore();
+}
+function drawAirborneParticles(now, m, v, s) {
+  const weather = W.weather?.name || "Clear",
+    kind = /Rain|Storm/.test(weather) ? "rain" : s.particle.kind;
+  if (kind === "none") return;
+  const quality = UI.quality === "high" ? 1 : 0.55,
+    count = Math.round(
+      (kind === "rain" ? 90 : kind === "snow" ? 70 : kind === "motes" ? 26 : 40) *
+        s.particle.density *
+        quality,
+    ),
+    sd = worldDirToScreen(Math.cos(s.wind.angle), Math.sin(s.wind.angle), m),
+    sl = Math.hypot(sd.x, sd.y) || 1,
+    dx = sd.x / sl,
+    dy = sd.y / sl,
+    scale = clamp(UI.camera.zoom * 0.35 + 0.6, 0.7, 2);
+  ctx.save();
+  if (kind === "motes" || kind === "pollen") ctx.globalCompositeOperation = "lighter";
+  for (let n = 0; n < count; n++) {
+    const a = visualHash01(n, 0xa11d),
+      b = visualHash01(n, 0xa21d),
+      c = visualHash01(n, 0xa31d),
+      speed =
+        (kind === "rain"
+          ? 0.55
+          : kind === "dust"
+            ? 0.16
+            : kind === "snow"
+              ? 0.045
+              : kind === "ash"
+                ? 0.035
+                : 0.03) *
+        (0.7 + c * 0.6) *
+        s.wind.speed,
+      fall =
+        kind === "rain"
+          ? 0.9
+          : kind === "snow"
+            ? 0.35
+            : kind === "ash"
+              ? -0.12
+              : kind === "dust"
+                ? 0.05
+                : 0.08,
+      vx = dx * speed * (kind === "rain" ? 0.35 : 1),
+      vy = fall * speed + dy * speed * 0.3,
+      sway = kind === "rain" || kind === "dust" ? 0 : Math.sin(now * 0.0012 + n * 1.7) * 6,
+      x = (((a * m.w + now * vx + sway) % m.w) + m.w) % m.w,
+      y = (((b * m.h + now * vy) % m.h) + m.h) % m.h,
+      size =
+        (kind === "rain" ? 1 : kind === "snow" ? 1.6 : kind === "motes" ? 1.4 : 1.1) *
+        (0.6 + c * 0.9) *
+        scale;
+    if (kind === "rain") {
+      ctx.strokeStyle = hsl(v.liquidHue, 55, 78, 0.28);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - dx * 6 * size, y - 9 * size);
+      ctx.stroke();
+      continue;
+    }
+    const pulse = kind === "motes" ? 0.45 + 0.55 * Math.abs(Math.sin(now * 0.002 + n)) : 1,
+      alpha =
+        (kind === "snow" ? 0.7 : kind === "ash" ? 0.45 : kind === "dust" ? 0.22 : 0.5) * pulse,
+      light = kind === "snow" ? 92 : kind === "ash" ? 28 : kind === "dust" ? 64 : 70;
+    ctx.fillStyle = hsl(
+      s.particle.hue,
+      kind === "snow" ? 20 : kind === "ash" ? 12 : 60,
+      light,
+      alpha,
+    );
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+function drawAurora(now, m, v, s) {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (let band = 0; band < 3; band++) {
+    const baseY = m.h * (0.06 + band * 0.05),
+      amp = m.h * 0.03,
+      hue = wrapHue(s.sky.auroraHue + band * 22),
+      alpha = 0.05 + 0.03 * Math.abs(Math.sin(now * 0.0004 + band));
+    ctx.fillStyle = hsl(hue, 70, 62, alpha);
+    ctx.beginPath();
+    ctx.moveTo(0, baseY - amp * 2);
+    for (let x = 0; x <= m.w; x += m.w / 12)
+      ctx.lineTo(x, baseY + Math.sin((x / m.w) * 5 + now * 0.0006 + band) * amp);
+    ctx.lineTo(m.w, baseY + m.h * 0.08);
+    ctx.lineTo(0, baseY + m.h * 0.08);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
 }
 // An alien biome palette is drawn from an independent hue harmony per band, so
 // two neighbouring biomes could land on fully saturated complements and the
@@ -595,6 +1141,9 @@ function drawEcologicalStructure(x, y, i, p, m, v, inst = null) {
     ctx.moveTo(p.x, p.y + r * 0.25);
     ctx.lineTo(p.x, p.y - h * 0.68);
     ctx.stroke();
+    // Crowns lean with the wind field while the trunk stays rooted.
+    const crownSway = windSwayAt(v, x, y) * r * 0.45;
+    if (crownSway) ctx.translate(crownSway, Math.abs(crownSway) * 0.15);
     ctx.strokeStyle = hsl(hue + 18, 70, 65, 0.9);
     ctx.fillStyle = hsl(hue, 58, 38, 0.96);
     if (spec.form === "fungal") {
@@ -732,6 +1281,24 @@ function drawEcologicalStructure(x, y, i, p, m, v, inst = null) {
         p.y - h * 1.25,
       );
       ctx.stroke();
+    }
+    // Vents breathe: two puffs rise, spread, and fade on the wall clock.
+    if (UI.quality !== "low" && !ACTIVE_REDUCED_MOTION) {
+      const now = ACTIVE_RENDER_NOW;
+      for (let n = 0; n < 2; n++) {
+        const t = (((now * 0.00035 * (1 + n * 0.3) + visualHash01(i, 0x9d + n)) % 1) + 1) % 1,
+          pr = r * (0.18 + t * 0.5);
+        ctx.fillStyle = hsl(hue + 30, 30, 82, (1 - t) * 0.22);
+        ctx.beginPath();
+        ctx.arc(
+          p.x + (n - 0.5) * r * 0.4 + Math.sin(t * 6 + n) * r * 0.25,
+          p.y - h * 1.25 - t * h * 1.4,
+          pr,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
     }
   } else if (type === TERRAIN_FEATURE.AQUATIC) {
     ctx.strokeStyle = hsl(hue + 18, 76, 68, 0.9);
@@ -969,8 +1536,20 @@ function drawTileMotifs(x, y, i, p, m, v) {
     // zoom and the crests drift, which is what makes a surface read as liquid.
     const density = clamp(0.18 + (zoom - 1) * 0.05, 0.18, 0.46);
     if (seed < density && zoom > 0.62) {
-      const r = Math.max(0.7, m.tw * 0.17),
-        drift = Math.sin(ACTIVE_RENDER_NOW * 0.0016 + seed * 31.4) * r * 0.28;
+      // Crests travel along the planet's own swell direction rather than
+      // bobbing independently per tile, so a body of liquid reads as one surface.
+      const sw = v.surface?.water,
+        r = Math.max(0.7, m.tw * 0.17),
+        drift = sw
+          ? Math.sin(
+              ACTIVE_RENDER_NOW * 0.0016 * sw.speed +
+                (x * Math.cos(sw.angle) + y * Math.sin(sw.angle)) * 0.9 +
+                seed * 2.1,
+            ) *
+            r *
+            0.28 *
+            sw.amplitude
+          : Math.sin(ACTIVE_RENDER_NOW * 0.0016 + seed * 31.4) * r * 0.28;
       ctx.strokeStyle = hsl(v.liquidHue - 18, 64, 74, 0.24);
       ctx.lineWidth = clamp(m.tw * 0.055, 0.35, 8);
       ctx.beginPath();
@@ -996,12 +1575,22 @@ function drawTileMotifs(x, y, i, p, m, v) {
     }
     return;
   }
-  if (plant > 170 && seed < clamp(plant / 3400, 0.04, 0.28) && zoom > 0.55) {
+  if (
+    plant > 170 &&
+    seed <
+      clamp(
+        (plant / 3400) * (UI.quality === "low" ? 1 : (v.surface?.floraDensity ?? 1)),
+        0.04,
+        UI.quality === "low" ? 0.28 : 0.4,
+      ) &&
+    zoom > 0.55
+  ) {
     const r = Math.max(0.8, m.tw * (0.08 + plant / 14000)),
       h = v.floraHue + (visualHash01(i, 0x315) - 0.5) * 18,
       detail = zoom > 1.35 && UI.quality !== "low" ? 5 : 3,
-      phase = visualHash01(i, 0x991) * Math.PI * 2;
-    drawPlantMotif(p, r, v.floraForm, h, detail, phase);
+      form = floraFormAt(v, i),
+      phase = visualHash01(i, 0x991) * Math.PI * 2 + windSwayAt(v, x, y);
+    drawPlantMotif(p, r, form, h, detail, phase);
     if (zoom > 2.5) {
       const extra = 1 + (plant > 900 ? 1 : 0) + (zoom > 6 ? 1 : 0);
       for (let n = 1; n <= extra; n++)
@@ -1011,10 +1600,10 @@ function drawTileMotifs(x, y, i, p, m, v) {
             y: p.y + (visualHash01(i, 0x61 + n) - 0.5) * m.th * 0.55,
           },
           r * (0.6 + 0.4 * visualHash01(i, 0xa1 + n)),
-          v.floraForm,
+          form,
           h,
           detail,
-          visualHash01(i, 0xe1 + n) * Math.PI * 2,
+          visualHash01(i, 0xe1 + n) * Math.PI * 2 + windSwayAt(v, x, y) * 0.8,
         );
     }
   } else if (seed > 0.88 && zoom > 0.78) {
@@ -1090,6 +1679,8 @@ function drawTileProcedural(x, y) {
       ctx.lineTo(poly[(es.di + 1) % 4][0], poly[(es.di + 1) % 4][1]);
       ctx.stroke();
     }
+    if (UI.quality !== "low" && m.tw >= 14 && W.tiles.liquid[i] <= 140)
+      drawGrainMark(x, y, i, p, m, v);
   }
   if (W.tiles.liquid[i] > 140) {
     if (!top) {
@@ -1177,6 +1768,18 @@ function drawTopTerrainLayer(m, v) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(TOP_TERRAIN_CACHE.canvas, left, top, W.width * m.tw, W.height * m.th);
+  // The baked grain sits over the colour bitmap; it fades out where tiles are
+  // too small on screen for texture to read as anything but noise.
+  if (UI.quality !== "low" && m.tw >= 2.5) {
+    const texture = surfaceTexture(v);
+    if (texture?.done && texture.canvas) {
+      ctx.save();
+      ctx.globalCompositeOperation = "overlay";
+      ctx.globalAlpha = clamp((m.tw - 2) / 8, 0.15, 1) * (UI.quality === "high" ? 1 : 0.8);
+      ctx.drawImage(texture.canvas, left, top, W.width * m.tw, W.height * m.th);
+      ctx.restore();
+    }
+  }
 }
 // Aerial perspective. In every projected view the screen's vertical axis is the
 // world's depth axis, so one haze ramp over the finished scene separates far
@@ -1279,24 +1882,9 @@ function drawLightningFlash(now, m) {
   ctx.restore();
 }
 function drawProceduralAtmosphere(now, m, v) {
+  // Clouds and airborne matter sit under the haze so distance dims them too.
+  drawSurfaceWeatherLayers(now, m, v);
   drawAerialPerspective(m, v);
-  if (UI.quality === "high" && v.alienness > 0.55) {
-    const count = 12 + Math.floor(v.alienness * 16);
-    ctx.fillStyle = hsl(v.accentHue, 72, 70, 0.11);
-    for (let n = 0; n < count; n++) {
-      const a = visualHash01(n, 0x83e1),
-        b = visualHash01(n, 0x19af),
-        speed = 0.003 + visualHash01(n, 0x331) * 0.008,
-        rawX = a * m.w + now * speed * (n % 2 ? 1 : -1),
-        rawY = b * m.h + Math.sin(now * 0.0003 + n) * 18,
-        x = ((rawX % m.w) + m.w) % m.w,
-        y = ((rawY % m.h) + m.h) % m.h,
-        r = 0.45 + visualHash01(n, 0x71) * 1.25;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
   if (W.weather.name !== "Clear") {
     const alpha = W.weather.name.includes("Rain")
       ? 0.035
@@ -1411,6 +1999,7 @@ function renderWorldProcedural(now) {
   if (!W) return;
   resizeCanvas();
   ACTIVE_RENDER_NOW = now;
+  ACTIVE_REDUCED_MOTION = reducedMotionPreferred();
   updateCameraGlide(now);
   if (UI.followId && W.components.position[UI.followId]) {
     const p = W.components.position[UI.followId],

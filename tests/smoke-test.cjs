@@ -1066,6 +1066,12 @@ if (process.env.QUICK_VISUAL === "1") {
   }
   const interiors = visuals.interiorSummary();
   const renderIsolation = visuals.renderIsolation(2200);
+  // Top-down frames bake the surface texture and drive the live sky layers.
+  for (const quality of ["low", "standard", "high"])
+    for (let frame = 0; frame < 6; frame++)
+      visuals.renderOnly({ view: "top", quality, zoom: 1 + frame * 1.5, now: 3000 + frame * 40 });
+  const topIsolation = visuals.renderIsolation(3300);
+  const surfaceA = visuals.summary().surface;
   controls.collapseKindForTest("person");
   const combat = visuals.combatSummary();
   const hashAfter = game.hashNow();
@@ -1119,6 +1125,21 @@ if (process.env.QUICK_VISUAL === "1") {
     failures.push(
       `close-view rendering mutated authoritative state: ${renderIsolation.changedKeys.join(", ")}`,
     );
+  if (!topIsolation.ok)
+    failures.push(
+      `top-down surface rendering mutated authoritative state: ${topIsolation.changedKeys.join(", ")}`,
+    );
+  if (
+    !surfaceA ||
+    !["banded", "mottled", "crystalline", "fibrous", "scaled", "dunes", "porous"].includes(
+      surfaceA.grain,
+    ) ||
+    !surfaceA.wind ||
+    !surfaceA.clouds ||
+    !surfaceA.particle ||
+    !surfaceA.water
+  )
+    failures.push("surface genome is missing or malformed");
   if (hashBefore === hashAfter) failures.push("death fixture failed to alter authoritative state");
   if (!combat.recent.some((event) => event.death))
     failures.push("death did not enter the close combat/death visual feed");
@@ -1135,6 +1156,13 @@ if (process.env.QUICK_VISUAL === "1") {
     combat,
     drawOps: drawOps.count,
   };
+  // A second seed must draw a different surface: grain, wind, sky, or air.
+  game.createTestWorld({ seed: "surface-variety-probe", size: "small" });
+  const surfaceB = visuals.summary().surface;
+  if (surfaceA && surfaceB && JSON.stringify(surfaceA) === JSON.stringify(surfaceB))
+    failures.push("surface genome did not vary between seeds");
+  report.surface = { a: surfaceA, b: surfaceB };
+  report.ok = !failures.length;
   console.log(JSON.stringify(report, null, 2));
   if (failures.length) process.exitCode = 1;
   return;

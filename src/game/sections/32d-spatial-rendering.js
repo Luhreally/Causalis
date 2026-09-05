@@ -494,6 +494,12 @@ function drawCreatureGlyph(
   if (motion && motion.moving && !corpse) {
     const bounce = Math.sin(motion.gait * 2) * 0.045;
     g.scale(1 + bounce, 1 - bounce);
+  } else if (motion && !corpse && UI.quality !== "low" && !ACTIVE_REDUCED_MOTION) {
+    // Standing bodies still breathe, and a feeding animal dips as it grazes.
+    const breath = Math.sin(now * 0.0024 + (id % 31)) * 0.022,
+      feeding = life?.behavior === "food" || life?.behavior === "graze",
+      dip = feeding ? Math.max(0, Math.sin(now * 0.005 + (id % 23))) * 0.06 : 0;
+    g.scale(1 + breath, 1 - breath * 0.6 + dip);
   }
   drawCreatureModelShape(g, m, phase, qualityDetail, { primary, secondary, accent, outline });
   drawLostLimbStumps(g, id, m, qualityDetail, { primary, secondary, accent, outline });
@@ -1406,6 +1412,33 @@ function drawBuildingExteriorDetails(g, b, now, m) {
     r = buildingScreenSize(b, m),
     p = buildingPalette(b);
   g.save();
+  if (
+    UI.quality !== "low" &&
+    !ACTIVE_REDUCED_MOTION &&
+    (b.type === "hearth" || b.type === "kiln" || b.type === "forge")
+  ) {
+    // Working hearths and furnaces smoke, and the smoke leans with the wind.
+    const v = ACTIVE_PLANET_VISUAL || makePlanetVisualGenome(),
+      strength = b.type === "hearth" ? 0.55 : 0.9,
+      wd = v.surface
+        ? worldDirToScreen(Math.cos(v.surface.wind.angle), Math.sin(v.surface.wind.angle), m)
+        : { x: 1, y: 0 },
+      wl = Math.hypot(wd.x, wd.y) || 1;
+    for (let n = 0; n < 3; n++) {
+      const t = (((now * 0.00028 * (1 + n * 0.25) + visualHash01(b.id, 0x5a0 + n)) % 1) + 1) % 1,
+        sr = r * (0.1 + t * 0.32) * strength;
+      g.fillStyle = hsl(v.mineralHue, 12, 62, (1 - t) * 0.26 * strength);
+      g.beginPath();
+      g.arc(
+        s.x + r * 0.32 + Math.sin(t * 5 + n) * r * 0.15 + (wd.x / wl) * t * r * 0.9,
+        s.y - r * 0.9 - t * r * 1.5 + (wd.y / wl) * t * r * 0.3,
+        sr,
+        0,
+        Math.PI * 2,
+      );
+      g.fill();
+    }
+  }
   g.fillStyle = p.dark;
   g.fillRect(s.x - r * 0.12, s.y - r * 0.18, r * 0.24, r * 0.48);
   g.fillStyle = hsl(ACTIVE_PLANET_VISUAL?.accentHue || 45, 62, 72, 0.8);

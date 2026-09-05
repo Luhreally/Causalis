@@ -144,6 +144,7 @@ function debugVisualSummary() {
         form: x.form,
       })),
     },
+    surface: v.surface,
     palette: {
       liquid: v.liquidHue,
       flora: v.floraHue,
