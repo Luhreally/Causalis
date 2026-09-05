@@ -30,7 +30,10 @@
     "test:diplomacy": "node tests/diplomacy-smoke.cjs",
     "test:sea": "node tests/seafaring-smoke.cjs",
     "test:festivals": "node tests/festivals-smoke.cjs",
-    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages && npm run test:observatory && npm run test:belief && npm run test:character && npm run test:society && npm run test:bonds && npm run test:divine && npm run test:years && npm run test:diplomacy && npm run test:sea && npm run test:festivals",
+    "test:lore": "node tests/lore-smoke.cjs",
+    "test:items": "node tests/items-smoke.cjs",
+    "test:mind": "node tests/mind-smoke.cjs",
+    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages && npm run test:observatory && npm run test:belief && npm run test:character && npm run test:society && npm run test:bonds && npm run test:divine && npm run test:years && npm run test:diplomacy && npm run test:sea && npm run test:festivals && npm run test:lore && npm run test:items && npm run test:mind",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

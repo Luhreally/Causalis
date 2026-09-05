@@ -67,5 +67,8 @@
   "56-diplomacy.js",
   "57-seafaring.js",
   "58-festivals.js",
-  "59-wayfinding.js"
+  "59-wayfinding.js",
+  "60-lore.js",
+  "61-item-models.js",
+  "62-liquid-mind.js"
 ]

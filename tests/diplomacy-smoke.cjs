@@ -46,6 +46,17 @@ const fixtureSource = String.raw`(() => {
   // Marriage: an envoy carries the offer, the court accepts, a claim is left.
   const kinA = dip.kin(A.id), kinB = dip.kin(B.id);
   out.kin = [kinA.length, kinB.length];
+  // The fixture guarantees a land road between the capitals; a world where water
+  // parts them is a fair refusal in play but not what this test measures.
+  const way = window.ALIFE_WAYFINDING_DEBUG;
+  if (!way.reachable(idx(homeA.x, homeA.y), homeB.x, homeB.y, A.id)) {
+    const steps = Math.max(Math.abs(homeB.x - homeA.x), Math.abs(homeB.y - homeA.y));
+    for (let k = 0; k <= steps; k++) for (let w = -1; w <= 1; w++) {
+      const x = Math.round(homeA.x + ((homeB.x - homeA.x) * k) / steps), y = clamp(Math.round(homeA.y + ((homeB.y - homeA.y) * k) / steps) + w, 0, W.height - 1);
+      if (inside(x, y)) { const t = idx(x, y); if (W.tiles.liquid[t] > WATER_DEPTH.WADE_LIMIT) W.tiles.liquid[t] = 0; W.tiles.fire[t] = 0; }
+    }
+    out.carved = true;
+  }
   const envoy = dip.send(A.id, B.id, "marriage");
   if (!envoy) { fail("no envoy could be sent"); return out; }
   if (!W.civilOrders.some((o) => o.id === envoy.personId && o.kind === "envoy")) fail("the envoy has no travel order");
