@@ -8,7 +8,7 @@
 // Songs and tales are composed from the annals by a person with a gift for
 // lore and spread to other peoples who hear them at a feast. Painters spend
 // pigment on murals that show on the walls. Rendering only reads the world.
-const FEAST_LENGTH = 96,
+const FEAST_LENGTH = 24,
   FEAST_SHARE = 3,
   SONG_LIMIT = 16,
   DANCE_STYLES = Object.freeze(["ring", "line", "leaping", "stamping"]),

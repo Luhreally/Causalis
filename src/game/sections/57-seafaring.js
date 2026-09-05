@@ -125,8 +125,13 @@ hasNavigableWatercraft = function (id) {
 const spawnCaravanSeaBase = spawnCaravan;
 spawnCaravan = function (from, to, route, cargoSp = -1, cargoAmount = 0) {
   const caravan = spawnCaravanSeaBase(from, to, route, cargoSp, cargoAmount);
-  if (caravan && placeSails(from) && placeSails(to) && waterBetween(idx(from.x, from.y), idx(to.x, to.y)) >= 3)
+  if (caravan && placeSails(from) && placeSails(to) && waterBetween(idx(from.x, from.y), idx(to.x, to.y)) >= 3) {
     caravan.sea = true;
+    for (const id of caravan.members) {
+      const order = civilOrderOf(id);
+      if (order) order.sea = true;
+    }
+  }
   return caravan;
 };
 // ── Fishing ────────────────────────────────────────────────────────────────────
@@ -143,7 +148,8 @@ function fishingGround(place, dock) {
       if (!inside(x, y)) continue;
       const tile = idx(x, y),
         l = W.tiles.liquid[tile];
-      if (l <= WATER_DEPTH.SURFACE || l > WATER_DEPTH.DEEP) continue;
+      // Walking never enters water past 1100, so grounds stop short of it.
+      if (l <= WATER_DEPTH.SURFACE || l >= 1100) continue;
       if (!sails && l > WATER_DEPTH.WADE_LIMIT && !neighbors4(tile).some((n) => W.tiles.liquid[n] <= WATER_DEPTH.WADE_LIMIT))
         continue;
       const organic = W.tiles.chem[C.ORGANIC][tile];
@@ -293,6 +299,9 @@ function launchVoyage(place, force = false) {
   if (W.sea.voyages.some((v) => v.active && v.from === place.id)) return null;
   const target = colonySite(place);
   if (target < 0) return null;
+  const [sx, sy] = xy(target);
+  if (typeof civilReachable === "function" && !civilReachable(idx(place.x, place.y), { x: sx, y: sy }, place.factionId || 0, "sea"))
+    return null;
   const members = typeof caravanCandidates === "function" ? caravanCandidates(place, 4) : [];
   if (members.length < 3) return null;
   for (const id of members)
@@ -318,7 +327,7 @@ function launchVoyage(place, force = false) {
       eventId: 0,
     };
   W.sea.voyages.push(voyage);
-  for (const id of members) issueCivilOrder(id, "voyage", tx, ty, { voyageId: voyage.id });
+  for (const id of members) issueCivilOrder(id, "voyage", tx, ty, { voyageId: voyage.id, sea: true });
   const ev = emitEvent("VoyageEvent", {
     subjects: [...members.slice(0, 3), place.entityId],
     location: idx(place.x, place.y),

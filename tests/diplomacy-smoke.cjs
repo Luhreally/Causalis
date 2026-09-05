@@ -49,6 +49,9 @@ const fixtureSource = String.raw`(() => {
   const envoy = dip.send(A.id, B.id, "marriage");
   if (!envoy) { fail("no envoy could be sent"); return out; }
   if (!W.civilOrders.some((o) => o.id === envoy.personId && o.kind === "envoy")) fail("the envoy has no travel order");
+  for (let i = 0; i < 20; i++) simTick();
+  out.roadLength = window.ALIFE_WAYFINDING_DEBUG.orderPath(envoy.personId)?.length || 0;
+  if (!out.roadLength) fail("the envoy follows no found road");
   const envoyEvent = W.events.filter((e) => e.type === "EnvoyEvent").at(-1);
   if (!envoyEvent) fail("no EnvoyEvent"); else out.envoySentence = eventSentence(envoyEvent);
   for (let i = 0; i < 40; i++) simTick();

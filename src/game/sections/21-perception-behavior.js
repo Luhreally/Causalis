@@ -662,7 +662,8 @@ function chooseBehavior(id, tier) {
     const away = Math.max(Math.abs(campaignOrder.x - p.x), Math.abs(campaignOrder.y - p.y));
     scores.push({
       id: "march",
-      score: 140 + Math.min(90, away * 3),
+      // Civil journeys (caravans, envoys, settlers) are deliberate: they outrank the pull of home.
+      score: 140 + Math.min(90, away * 3) + (campaignOrder.warId === 0 ? 80 : 0),
       reason:
         campaignOrder.role === "attack"
           ? "campaign orders carried the column toward the objective"

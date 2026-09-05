@@ -115,8 +115,15 @@ function sendEnvoy(from, to, proposal, terms = {}) {
   if (W.diplomacy.envoys.filter((e) => e.active).length >= 6) return null;
   const home = factionCapital(from),
     court = factionCapital(to),
-    candidates =
-      typeof caravanCandidates === "function" ? caravanCandidates(home, 3) : [];
+    byLand =
+      typeof civilReachable !== "function" || civilReachable(idx(home.x, home.y), court, from.id),
+    bySea =
+      !byLand &&
+      factionHasTech(from.id, "navigation") &&
+      factionHasTech(to.id, "navigation") &&
+      civilReachable(idx(home.x, home.y), court, from.id, "sea");
+  if (!byLand && !bySea) return null;
+  const candidates = typeof caravanCandidates === "function" ? caravanCandidates(home, 3) : [];
   // The polity sends its most commanding free adult.
   candidates.sort(
     (a, b) =>
@@ -138,9 +145,14 @@ function sendEnvoy(from, to, proposal, terms = {}) {
     phase: "outbound",
     active: true,
     eventId: 0,
+    sea: bySea,
   };
   W.diplomacy.envoys.push(envoy);
-  issueCivilOrder(person, "envoy", court.x, court.y, { placeId: court.id, envoyId: envoy.id });
+  issueCivilOrder(person, "envoy", court.x, court.y, {
+    placeId: court.id,
+    envoyId: envoy.id,
+    sea: bySea,
+  });
   const ev = emitEvent("EnvoyEvent", {
     subjects: [person, from.entityId, to.entityId],
     location: idx(home.x, home.y),
@@ -230,6 +242,7 @@ function updateEnvoys() {
         issueCivilOrder(envoy.personId, "envoy", home.x, home.y, {
           placeId: home.id,
           envoyId: envoy.id,
+          sea: !!envoy.sea,
         });
       } else if (W.tick - envoy.startedTick > 1400) {
         emitEvent("EnvoyLostEvent", {
@@ -401,7 +414,11 @@ function makeMarriage(from, to, envoy) {
   }
   W.components.identity[bride].titles.push(`Wed into ${to.name}`);
   W.components.identity[groom].titles.push(`Wed to the house of ${from.name}`);
-  issueCivilOrder(bride, "wedding", court.x, court.y, { placeId: court.id, marriageId: marriage.id });
+  issueCivilOrder(bride, "wedding", court.x, court.y, {
+    placeId: court.id,
+    marriageId: marriage.id,
+    sea: !!envoy?.sea,
+  });
   const ev = emitEvent("RoyalMarriageEvent", {
     subjects: [bride, groom, from.entityId, to.entityId],
     location: idx(court.x, court.y),
@@ -984,7 +1001,7 @@ window.ALIFE_DIPLOMACY_DEBUG = Object.freeze({
     envoy.phase = "return";
     envoy.resolvedTick = W.tick;
     const home = factionCapital(factionById(envoy.from));
-    if (home) issueCivilOrder(envoy.personId, "envoy", home.x, home.y, { placeId: home.id, envoyId: envoy.id });
+    if (home) issueCivilOrder(envoy.personId, "envoy", home.x, home.y, { placeId: home.id, envoyId: envoy.id, sea: !!envoy.sea });
     return result;
   },
   settle: () => {
