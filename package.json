@@ -24,7 +24,8 @@
     "test:belief": "node tests/belief-smoke.cjs",
     "test:character": "node tests/character-smoke.cjs",
     "test:society": "node tests/society-smoke.cjs",
-    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages && npm run test:observatory && npm run test:belief && npm run test:character && npm run test:society",
+    "test:bonds": "node tests/bonds-smoke.cjs",
+    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages && npm run test:observatory && npm run test:belief && npm run test:character && npm run test:society && npm run test:bonds",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

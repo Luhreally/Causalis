@@ -353,6 +353,13 @@ const EVENT_CATEGORY = Object.freeze({
   CaptiveIntegratedEvent: "war",
   MonumentRaisedEvent: "settlements",
   BeastOfLegendEvent: "ecology",
+  FriendshipEvent: "people",
+  RivalryEvent: "people",
+  EstrangementEvent: "people",
+  ReconciliationEvent: "people",
+  QuarrelEvent: "conflict",
+  FeudEvent: "conflict",
+  FeudEndedEvent: "conflict",
   ChemistryEvent: "ecology",
 });
 const DOM = {};
