@@ -94,6 +94,101 @@
   margin: 8px 0;
   border: 1px solid var(--line);
 }
+/* Years: the annals read year by year. */
+.years-card {
+  margin: 6px 0 2px;
+  border-color: rgba(236, 201, 122, 0.35);
+}
+.years-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 64px;
+  margin: 8px 0 4px;
+  padding: 0 2px;
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+.years-bar {
+  flex: 1 1 0;
+  min-width: 4px;
+  height: 100%;
+  position: relative;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+.years-bar-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--h, 4%);
+  border-radius: 2px 2px 0 0;
+  background: rgba(236, 201, 122, 0.55);
+  transform-origin: bottom;
+  animation: years-grow 420ms ease-out both;
+}
+.years-bar.empty .years-bar-fill {
+  background: rgba(255, 255, 255, 0.12);
+}
+.years-bar:hover .years-bar-fill,
+.years-bar.active .years-bar-fill {
+  background: rgba(236, 201, 122, 0.95);
+}
+.years-bar-label {
+  position: absolute;
+  left: 50%;
+  bottom: -16px;
+  transform: translateX(-50%);
+  font-size: 9px;
+  opacity: 0.6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.years-chips {
+  margin-top: 18px;
+}
+.years-group {
+  margin-top: 10px;
+  animation: years-fade 360ms ease-out both;
+}
+.years-head {
+  margin-bottom: 2px;
+}
+.years-digest {
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.85;
+  padding: 6px 8px;
+  border-left: 2px solid rgba(236, 201, 122, 0.55);
+  margin: 4px 0 2px;
+}
+@keyframes years-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes years-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .years-bar-fill,
+  .years-group {
+    animation: none;
+  }
+}
 .legend-search {
   width: 100%;
   box-sizing: border-box;

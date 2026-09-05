@@ -385,6 +385,7 @@ const EVENT_CATEGORY = Object.freeze({
   SkySignEvent: "factions",
   DivineTruceEvent: "factions",
   DiscordEvent: "factions",
+  YearEvent: "history",
   ChemistryEvent: "ecology",
 });
 const DOM = {};
