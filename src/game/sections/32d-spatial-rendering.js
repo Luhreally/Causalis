@@ -392,6 +392,28 @@ function focusHistoryTarget(id, tile = -1) {
   if (id && (W.kind[id] || W.historicalIdentities[id])) selectEntity(id);
   else if (tx >= 0) selectTile(tx);
 }
+// What a person wears: a hue from the culture's defining substance, a style
+// hashed per culture so neighbouring peoples dress differently, and the
+// faction's colour as a mark at the brow. Bands without a culture go plain.
+const CULTURE_DRESS_CACHE = new Map();
+function personDress(id, fac) {
+  const cultureId = W.components.social[id]?.cultureId || 0,
+    key = `${W.seedHash}:${cultureId}`;
+  let dress = CULTURE_DRESS_CACHE.get(key);
+  if (!dress) {
+    const v = ACTIVE_PLANET_VISUAL || makePlanetVisualGenome(),
+      culture = cultureId ? W.cultures.find((c) => c.id === cultureId) : null;
+    dress = {
+      hue: culture ? chemistryHue(culture.values.substance, v.accentHue) : v.accentHue,
+      style: culture
+        ? DRESS_STYLES[hashParts(W.seedHash, "dress", cultureId) % DRESS_STYLES.length]
+        : "none",
+    };
+    if (CULTURE_DRESS_CACHE.size > 512) CULTURE_DRESS_CACHE.clear();
+    CULTURE_DRESS_CACHE.set(key, dress);
+  }
+  return { hue: dress.hue, style: dress.style, faction: fac?.color || null };
+}
 function drawCreatureGlyph(
   g,
   id,
@@ -433,6 +455,7 @@ function drawCreatureGlyph(
         ),
     accent = corpse ? hsl(m.accentHue, 8, 32) : hsl(m.accentHue, 75, m.glow ? 68 : 58),
     outline = fac?.color || hsl(m.primaryHue, 31, 10),
+    dress = !corpse && W.kind[id] === KINDS.PERSON ? personDress(id, fac) : null,
     phase = motion
       ? corpse
         ? motion.gait
@@ -501,7 +524,13 @@ function drawCreatureGlyph(
       dip = feeding ? Math.max(0, Math.sin(now * 0.005 + (id % 23))) * 0.06 : 0;
     g.scale(1 + breath, 1 - breath * 0.6 + dip);
   }
-  drawCreatureModelShape(g, m, phase, qualityDetail, { primary, secondary, accent, outline });
+  drawCreatureModelShape(g, m, phase, qualityDetail, {
+    primary,
+    secondary,
+    accent,
+    outline,
+    dress,
+  });
   drawLostLimbStumps(g, id, m, qualityDetail, { primary, secondary, accent, outline });
   g.restore();
   if (!corpse && W.kind[id] === KINDS.PREDATOR) {

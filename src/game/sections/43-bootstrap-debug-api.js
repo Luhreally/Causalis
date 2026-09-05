@@ -146,6 +146,7 @@ function debugVisualSummary() {
       })),
     },
     surface: v.surface,
+    fauna: v.fauna,
     palette: {
       liquid: v.liquidHue,
       flora: v.floraHue,

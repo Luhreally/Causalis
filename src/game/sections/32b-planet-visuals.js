@@ -139,9 +139,11 @@ function makePlanetVisualGenome() {
     mineralHue,
     accentHue,
   });
+  const fauna = makeFaunaGenome(earthlike);
   PLANET_VISUAL_CACHE = {
     key,
     surface,
+    fauna,
     earthlike,
     alienness,
     terrain,
@@ -286,6 +288,92 @@ function makeSurfaceGenome(terrain, earthlike, alienness, hues) {
     sky,
     water,
     climate: { temp: +temp.toFixed(1), wet: +wet.toFixed(2), plant: Math.round(plant) },
+  };
+}
+// ── Fauna morphospace ──────────────────────────────────────────────────────────
+// Each world favours a few body plans and shares a family resemblance across
+// its creatures: how limbs are built, what a head looks like, tails, skin
+// finish, eyes, ornaments, and which patterns occur. Species still differ
+// within that space through their genomes. People get an upright form and,
+// per culture, a style of dress. Cosmetic only, from its own random stream.
+const FAUNA_PLANS = Object.freeze([
+  "bilateral",
+  "radial",
+  "tripod",
+  "serpentine",
+  "shelled",
+  "floater",
+  "colonial",
+]);
+const FAUNA_PATTERNS = Object.freeze([
+  "spots",
+  "bands",
+  "veins",
+  "plates",
+  "rings",
+  "plain",
+  "speckle",
+  "mosaic",
+  "gradient",
+  "stripes",
+]);
+const DRESS_STYLES = Object.freeze(["band", "sash", "cloak", "paint", "collar"]);
+function makeFaunaGenome(earthlike) {
+  const r = makeRng(W.seed, "planet-fauna-genome-v1"),
+    pick = (list) => list[r.int(list.length)],
+    planWeights = FAUNA_PLANS.map(() => +Math.pow(r.next(), 2.4).toFixed(3)),
+    patterns = [];
+  while (patterns.length < 3) {
+    const p = pick(FAUNA_PATTERNS);
+    if (!patterns.includes(p)) patterns.push(p);
+  }
+  if (earthlike) {
+    planWeights.fill(0);
+    planWeights[0] = 1;
+  }
+  const limbStyle = earthlike
+      ? "jointed"
+      : pick(["jointed", "tentacle", "stilt", "paddle", "hooked"]),
+    headStyle = earthlike ? "bulb" : pick(["none", "bulb", "crest", "beak", "stalks", "hood"]),
+    tail = earthlike
+      ? r.next() < 0.6
+        ? "whip"
+        : "none"
+      : pick(["none", "whip", "fan", "club", "twin"]),
+    skin = earthlike
+      ? r.next() < 0.5
+        ? "furred"
+        : "matte"
+      : pick(["matte", "glossy", "iridescent", "translucent", "furred"]),
+    eyeStyle = earthlike ? "dot" : pick(["dot", "slit", "compound", "glow", "ring"]),
+    ornament = earthlike
+      ? r.next() < 0.3
+        ? "antlers"
+        : "none"
+      : pick(["none", "antlers", "fins", "tendrils", "lanterns", "plates"]),
+    ornamentChance = +r.range(0.15, 0.6).toFixed(2),
+    silhouette = {
+      bulk: +r.range(0.8, 1.25).toFixed(2),
+      limb: +r.range(0.75, 1.35).toFixed(2),
+      neck: +r.range(0, 1).toFixed(2),
+    },
+    people = {
+      form: earthlike ? "biped" : pick(["biped", "tall", "broad", "tripod", "quadruped"]),
+      head: earthlike ? "round" : pick(["round", "tall", "crested", "hooded", "split"]),
+      uprightShare: earthlike ? 1 : +r.range(0.35, 1).toFixed(2),
+    };
+  return {
+    planWeights,
+    patterns: earthlike ? ["spots", "bands", "plain"] : patterns,
+    limbStyle,
+    headStyle,
+    tail,
+    skin,
+    eyeStyle,
+    ornament,
+    ornamentChance,
+    silhouette,
+    people,
   };
 }
 function reducedMotionPreferred() {
