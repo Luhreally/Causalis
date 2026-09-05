@@ -343,6 +343,16 @@ const EVENT_CATEGORY = Object.freeze({
   ProphecyEvent: "factions",
   ProphecyFulfilledEvent: "factions",
   SchismEvent: "factions",
+  MasteryEvent: "people",
+  AspirationEvent: "people",
+  CaravanEvent: "settlements",
+  TheftEvent: "conflict",
+  ExileEvent: "people",
+  CaptiveEvent: "war",
+  CaptiveFreedEvent: "war",
+  CaptiveIntegratedEvent: "war",
+  MonumentRaisedEvent: "settlements",
+  BeastOfLegendEvent: "ecology",
   ChemistryEvent: "ecology",
 });
 const DOM = {};

@@ -1130,7 +1130,7 @@ function landformSummary(g) {
   if (!lf?.landforms?.length) return "Plain relief";
   return lf.landforms.map((l) => LANDFORM_NAMES[l.kind] || titleCase(l.kind)).join(" · ");
 }
-function hydrologySummary(g) {
+function landformHydrologySummary(g) {
   const lf = g?.landform || LEGACY_LANDFORM,
     rivers = lf.hydrology === "dry" ? "No rivers" : `${titleCase(lf.hydrology)} rivers`;
   return `${rivers}${lf.lakes > 0.6 ? " · basin lakes" : ""}${lf.saltFlats ? " · salt flats" : ""}`;

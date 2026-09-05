@@ -920,6 +920,7 @@ const OPEN_BUILDING_TYPES = new Set([
   "corral",
   "farm",
   "shrine",
+  "monument",
 ]);
 function buildingDetailLevel() {
   return UI.quality === "low" ? 0 : UI.camera.zoom > 4 ? 2 : UI.camera.zoom > 1.6 ? 1 : 0;
@@ -935,6 +936,8 @@ function drawCompletedBuilding(g, b, s, r, p, now, m) {
   if (type === "stockpile") return drawStockpileBins(g, b, s, r, p, detail);
   if (type === "waterworks") return drawWaterworksBasin(g, b, s, r, p, now, detail);
   if (type === "shrine") return drawShrineSpire(g, b, s, r, p, now, detail);
+  if (type === "monument" && typeof drawMonument === "function")
+    return drawMonument(g, b, s, r, p, now, detail);
   const tall =
       type === "hall"
         ? 1.3

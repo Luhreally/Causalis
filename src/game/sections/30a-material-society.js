@@ -159,6 +159,14 @@ const BUILDING_DEFS = Object.freeze({
     defense: 2,
     priority: "governance",
   },
+  monument: {
+    name: "Monument",
+    work: 96,
+    housing: 0,
+    storage: 0,
+    defense: 1,
+    priority: "governance",
+  },
   waterworks: {
     name: "Waterworks",
     work: 136,
@@ -434,9 +442,11 @@ function buildingRequirements(place, type) {
           ? 0.72
           : type === "hall"
             ? 2.2
-            : type === "shelter"
-              ? 1.15
-              : 1,
+            : type === "monument"
+              ? 1.6
+              : type === "shelter"
+                ? 1.15
+                : 1,
     rigid = Math.max(6, Math.round(def.work * 0.18 * scale)),
     flex = Math.max(3, Math.round(def.work * 0.13 * scale)),
     raw = [[a.rigid, rigid]];
@@ -447,6 +457,7 @@ function buildingRequirements(place, type) {
   if (type === "clinic") raw.push([C.CATALYST, 8], [C.ORGANIC, 10]);
   if (type === "archive" || type === "hall") raw.push([C.INFO, 8], [C.PIGMENT, 4]);
   if (type === "shrine") raw.push([C.PIGMENT, 4]);
+  if (type === "monument") raw.push([C.PIGMENT, 2]);
   const totals = new Map();
   for (const [sp, n] of raw) totals.set(sp, (totals.get(sp) || 0) + n);
   return Array.from(totals.entries()).sort((a, b) => a[0] - b[0]);
