@@ -402,6 +402,10 @@ const EVENT_CATEGORY = Object.freeze({
   VoyageEvent: "settlements",
   ColonyEvent: "settlements",
   VoyageLostEvent: "settlements",
+  FeastEvent: "settlements",
+  SongEvent: "people",
+  SongSpreadEvent: "people",
+  MuralEvent: "settlements",
   ChemistryEvent: "ecology",
 });
 const DOM = {};
