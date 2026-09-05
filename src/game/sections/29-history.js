@@ -2,15 +2,7 @@
 // 29. HISTORICAL SIGNIFICANCE AND CHRONICLES
 // ═══════════════════════════════════════════════════════════════════════════
 function speciesLabel(kind, lineage) {
-  const n = hashParts(W.seedHash, lineage),
-    a = NAME_B[n % NAME_B.length],
-    b =
-      kind === KINDS.PREDATOR
-        ? ["Stalker", "Fang", "Hunter"][n % 3]
-        : kind === KINDS.HERBIVORE
-          ? ["Grazer", "Browser", "Drifter"][n % 3]
-          : ["Kin", "Folk", "People"][n % 3];
-  return `${a} ${b}`;
+  return speciesName(kind, lineage);
 }
 function cohortTraitSummary(c) {
   const count = Math.max(1, c.count),

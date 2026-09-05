@@ -28,7 +28,7 @@ function createCamp(tile, founderId, cause = 0) {
   const [x, y] = xy(tile),
     id = allocEntity(KINDS.CAMP),
     r = makeRng(hashParts(W.seedHash, tile, W.tick), "camp-name"),
-    name = `${NAME_B[r.int(NAME_B.length)]}${["rest", "hearth", "hold", "camp"][r.int(4)]}`,
+    name = campName(tile, r),
     inventory = new Uint16Array(SPECIES_COUNT),
     structureQ = new Uint16Array(SPECIES_COUNT);
   for (const sp of [C.ORGANIC, C.MINERAL, C.SOLVENT]) {
@@ -104,7 +104,7 @@ function createSettlement(campId, cause = 0) {
   camp.active = false;
   W.kind[camp.entityId] = KINDS.SETTLEMENT;
   const r = makeRng(hashParts(W.seedHash, camp.id, W.tick), "settlement-name"),
-    name = `${NAME_B[r.int(NAME_B.length)]}${["watch", "hollow", "reach", "haven", "ford", "spire"][r.int(6)]}`,
+    name = settlementName(camp, r),
     composition = camp.structure.composition;
   for (const sp of [C.MINERAL, C.ORGANIC]) {
     const amount = Math.min(camp.inventory[sp], 20);

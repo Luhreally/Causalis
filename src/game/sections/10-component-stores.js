@@ -228,7 +228,7 @@ function createOrganism(kind, x, y, rng, parents = [], sourceTile = -1, divineIn
   const pg = parents[0] ? W.components.genome[parents[0]] : null,
     qg = parents[1] ? W.components.genome[parents[1]] : null,
     g = genomeFrom(rng, kind, pg, qg),
-    name = generatedName(rng, kind === KINDS.PERSON);
+    name = organismName(kind, rng, parents, tile, id);
   W.components.position[id] = { x, y, layer: 0, regionId: regionId(x, y) };
   W.components.chemistry[id] = chem;
   W.components.genome[id] = g;
@@ -316,7 +316,8 @@ function createOrganism(kind, x, y, rng, parents = [], sourceTile = -1, divineIn
   };
   W.components.social[id] = {
     factionId: 0,
-    cultureId: 0,
+    // Children are born into their parents' culture; membership in a polity comes with residence.
+    cultureId: parents[0] ? W.components.social[parents[0]]?.cultureId || 0 : 0,
     kinGroupId: parents[0] ? W.components.social[parents[0]].kinGroupId : id,
     partnerId: 0,
     relationships: {},

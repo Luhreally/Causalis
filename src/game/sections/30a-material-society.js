@@ -1004,7 +1004,7 @@ createCamp = function (tile, founderId, cause = 0) {
   const [x, y] = xy(tile),
     id = allocEntity(KINDS.CAMP),
     r = makeRng(hashParts(W.seedHash, tile, W.tick), "camp-name"),
-    name = `${NAME_B[r.int(NAME_B.length)]}${["rest", "hearth", "hold", "camp"][r.int(4)]}`,
+    name = campName(tile, r),
     camp = {
       id: W.camps.length + 1,
       entityId: id,
@@ -1097,7 +1097,7 @@ createSettlement = function (campId, cause = 0) {
   camp.active = false;
   W.kind[camp.entityId] = KINDS.SETTLEMENT;
   const r = makeRng(hashParts(W.seedHash, camp.id, W.tick), "settlement-name"),
-    name = `${NAME_B[r.int(NAME_B.length)]}${["watch", "hollow", "reach", "haven", "ford", "spire"][r.int(6)]}`,
+    name = settlementName(camp, r),
     inventory = camp.inventory.slice();
   camp.inventory.fill(0);
   const s = {
@@ -3757,6 +3757,8 @@ updateSettlements = function () {
       // was absorbed by the settlement it reached and its muster rebuilt the army at home.)
       if (personIsHostileVisitor(id, s.factionId)) continue;
       if (s.factionId) W.components.social[id].factionId = s.factionId;
+      if (s.cultureId && !W.components.social[id].cultureId)
+        W.components.social[id].cultureId = s.cultureId;
       const digestive = W.components.inventory[id].digestive,
         body = W.components.chemistry[id].q,
         foodNeed = Math.max(0, 24 - digestive[C.ORGANIC]),

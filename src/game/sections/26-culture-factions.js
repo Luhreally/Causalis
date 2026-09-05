@@ -50,15 +50,19 @@ function createFaction(settlementId, tile = -1, cause = 0) {
   let s = W.settlements.find((x) => x.id === settlementId);
   if (!s && tile >= 0) s = nearestSettlement(tile, 9);
   if (!s || s.ruined || s.factionId) return null;
+  ensureLanguages();
   const r = makeRng(hashParts(W.seedHash, s.id, W.tick), "faction"),
-    name = `The ${NAME_B[r.int(NAME_B.length)]} ${["Kin", "League", "Concord", "Circle", "Hearths", "Accord"][r.int(6)]}`,
+    cultureId = W.cultures.length + 1,
+    tongue = cultureLanguage(cultureId),
+    name = polityName(tongue, r),
     id = takeFactionId(),
     entityId = allocEntity("faction"),
     cultureEntity = allocEntity("culture"),
     culture = {
-      id: W.cultures.length + 1,
+      id: cultureId,
       entityId: cultureEntity,
-      name: `${NAME_B[r.int(NAME_B.length)]} Ways`,
+      name: cultureName(tongue, r),
+      language: tongue,
       values: {
         substance: r.int(SPECIES_COUNT),
         environment: biomeAt(idx(s.x, s.y)),

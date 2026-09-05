@@ -284,7 +284,7 @@ ${section(
         "culture",
         c.id,
         c.name,
-        `origin ${W.settlements.find((s) => s.id === c.originSettlementId)?.name || "lost"}`,
+        `${languageOf(c).legacy ? "speaks Common" : `speaks ${languageOf(c).name}`} · origin ${W.settlements.find((s) => s.id === c.originSettlementId)?.name || "lost"}`,
       ),
     ),
   cultures.length,

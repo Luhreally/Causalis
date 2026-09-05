@@ -47,6 +47,19 @@ subject in the world, and every inspector offers "Open in Legends". Search boxes
 filter the index and its lists. `npm run test:legends` renders the pages headlessly
 and checks that annals outlive event compression.
 
+Every world speaks. A first tongue is drawn from the seed: a phoneme inventory,
+syllable shapes, a spelling style, and a small lexicon for the concepts names are
+built from. Each culture speaks a dialect derived from it by one to three regular
+sound changes with a few words replaced, so a world's peoples sound related but
+distinct, and the culture page in Legends shows the tongue, its sounds, its sound
+changes, and sample words. People take a given name in their culture's tongue and
+a family name shared by their kin group, children are born into their parents'
+culture, and residents adopt their settlement's culture; camps, towns, polities,
+cultures, species, and artifacts are named from the lexicon. The canonical
+Earth-adjacent seed keeps the founding word lists. `npm run test:languages` checks
+that alien seeds differ, kin share family names, names are deterministic, and old
+saves regain their tongues.
+
 `npm run test:experience` exercises the expedition sequence, real intervention
 readings, successful-save completion, archive restoration, optional storage
 failure, render isolation, and terrain cache invalidation.
