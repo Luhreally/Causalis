@@ -981,8 +981,8 @@ function makeTerrainGenome(world) {
       depth: r.range(0.09, 0.27),
       rim: r.range(0.04, 0.14),
     });
-  return {
-    version: 3,
+  const genome = {
+    version: 4,
     earthlike,
     alienness,
     topology,
@@ -1009,6 +1009,338 @@ function makeTerrainGenome(world) {
     craters,
     structureGenome: makeStructureGenome(world, earthlike),
   };
+  genome.landform = makeLandformGenome(world, genome);
+  return genome;
+}
+// ── Landform grammar ───────────────────────────────────────────────────────────
+// Landforms are a second grammar layered over the relief grammar. They draw from
+// their own stream, so the relief a seed already had is kept and only gains
+// character: carved channels, towers, plateaus, cones, rings, a trench, blocks,
+// or troughs, plus a hydrology style, basin lakes, salt flats, and the axial
+// tilt that drives the seasons. Like the relief grammar these are authoritative
+// generation inputs; rendering only reads them.
+const LANDFORM_KINDS = Object.freeze([
+  "fjords",
+  "canyons",
+  "karst",
+  "dunes",
+  "mesas",
+  "volcanic",
+  "atolls",
+  "rift",
+  "shattered",
+  "glacial",
+]);
+const LANDFORM_NAMES = Object.freeze({
+  fjords: "Fjord coasts",
+  canyons: "Canyon lands",
+  karst: "Karst towers",
+  dunes: "Dune seas",
+  mesas: "Mesa country",
+  volcanic: "Volcanic chain",
+  atolls: "Atoll rings",
+  rift: "Great rift",
+  shattered: "Shattered plates",
+  glacial: "Glacial troughs",
+});
+const HYDROLOGY_STYLES = Object.freeze(["meandering", "braided", "delta", "sparse", "dry"]);
+const LEGACY_LANDFORM = Object.freeze({
+  version: 0,
+  landforms: [],
+  cones: [],
+  rings: [],
+  hydrology: "meandering",
+  lakes: 0,
+  saltFlats: false,
+  coldShift: 0,
+  wetShift: 0,
+  season: { amplitude: 0, phase: 0 },
+});
+function makeLandformGenome(world, base) {
+  const r = makeRng(world.seed, "terrain-landforms-v1"),
+    earthlike = base.earthlike,
+    landforms = [],
+    wanted = earthlike ? 1 : r.int(3);
+  while (landforms.length < wanted) {
+    const kind = earthlike
+      ? r.next() < 0.5
+        ? "fjords"
+        : "canyons"
+      : LANDFORM_KINDS[r.int(LANDFORM_KINDS.length)];
+    if (landforms.some((l) => l.kind === kind)) continue;
+    landforms.push({
+      kind,
+      strength: earthlike ? 0.55 : +r.range(0.55, 1.25).toFixed(2),
+      angle: +r.range(0, Math.PI).toFixed(3),
+      scale: +r.range(0.8, 1.35).toFixed(2),
+      x: +r.range(-0.55, 0.55).toFixed(3),
+      y: +r.range(-0.55, 0.55).toFixed(3),
+    });
+  }
+  const cones = [],
+    rings = [],
+    volcanic = landforms.find((l) => l.kind === "volcanic");
+  if (volcanic) {
+    const count = 3 + r.int(4),
+      dx = Math.cos(volcanic.angle),
+      dy = Math.sin(volcanic.angle);
+    for (let n = 0; n < count; n++) {
+      const t = (n / (count - 1) - 0.5) * 1.3;
+      cones.push({
+        x: +clamp(volcanic.x + dx * t + r.range(-0.06, 0.06), -0.9, 0.9).toFixed(3),
+        y: +clamp(volcanic.y + dy * t + r.range(-0.06, 0.06), -0.9, 0.9).toFixed(3),
+        radius: +r.range(0.06, 0.13).toFixed(3),
+        height: +r.range(0.22, 0.42).toFixed(3),
+      });
+    }
+  }
+  if (landforms.some((l) => l.kind === "atolls"))
+    for (let n = 0, count = 3 + r.int(4); n < count; n++)
+      rings.push({
+        x: 0,
+        y: 0,
+        radius: +r.range(0.07, 0.16).toFixed(3),
+        turn: +r.range(0, 1).toFixed(3),
+      });
+  const hydrology = earthlike ? "meandering" : HYDROLOGY_STYLES[r.int(HYDROLOGY_STYLES.length)],
+    lakes = earthlike ? 0.5 : +r.range(0, 1.2).toFixed(2),
+    saltFlats = !earthlike && base.targetWater < 0.42 && r.next() < 0.55,
+    tilted = earthlike || r.next() >= 0.2,
+    amplitude = earthlike ? 70 : tilted ? Math.round(r.range(20, 140)) : 0;
+  return {
+    version: 1,
+    landforms,
+    cones,
+    rings,
+    hydrology,
+    lakes,
+    saltFlats,
+    coldShift: landforms.some((l) => l.kind === "glacial") ? 55 : 0,
+    wetShift:
+      (landforms.some((l) => l.kind === "dunes") ? -70 : 0) + (hydrology === "dry" ? -45 : 0),
+    // Axial tilt: how far the year swings temperature, in tenths of a degree,
+    // and where in the cycle Year 0 begins. Untilted worlds have no seasons.
+    season: { amplitude, phase: +r.range(0, 1).toFixed(3) },
+  };
+}
+function landformSummary(g) {
+  const lf = g?.landform;
+  if (!lf?.landforms?.length) return "Plain relief";
+  return lf.landforms.map((l) => LANDFORM_NAMES[l.kind] || titleCase(l.kind)).join(" · ");
+}
+function hydrologySummary(g) {
+  const lf = g?.landform || LEGACY_LANDFORM,
+    rivers = lf.hydrology === "dry" ? "No rivers" : `${titleCase(lf.hydrology)} rivers`;
+  return `${rivers}${lf.lakes > 0.6 ? " · basin lakes" : ""}${lf.saltFlats ? " · salt flats" : ""}`;
+}
+// The height offset a landform grammar adds to the relief field, in the same
+// pre-normalisation units the relief grammar uses. It is evaluated on the
+// warped coordinates so channels and blocks follow the same distortion.
+function landformHeightOffset(g, seed, x, y, w, h) {
+  const lf = g.landform;
+  if (!lf || !lf.landforms.length) return 0;
+  const nx = (x / (w - 1) - 0.5) * 2,
+    ny = (y / (h - 1) - 0.5) * 2,
+    warpX = (noise2(seed ^ 0x51a7, x / 57, y / 57) - 0.5) * g.domainWarp,
+    warpY = (noise2(seed ^ 0xa175, x / 61, y / 61) - 0.5) * g.domainWarp,
+    xx = x + warpX,
+    yy = y + warpY,
+    n = fbm(seed ^ 0x7381, xx / g.continentScale, yy / g.continentScale);
+  let v = 0;
+  for (const l of lf.landforms) {
+    const ca = Math.cos(l.angle),
+      sa = Math.sin(l.angle),
+      u = (xx * ca + yy * sa) * l.scale,
+      t = (-xx * sa + yy * ca) * l.scale,
+      k = l.strength;
+    switch (l.kind) {
+      case "canyons": {
+        if (n < 0.46) break;
+        const ridged = Math.abs(noise2(seed ^ 0x3c11, u / 13, t / 7) - 0.5) * 2;
+        v -= k * 0.24 * Math.pow(1 - ridged, 7) * clamp((n - 0.46) / 0.2, 0, 1);
+        break;
+      }
+      case "fjords": {
+        if (n < 0.36 || n > 0.66) break;
+        const ridged = Math.abs(noise2(seed ^ 0x7f21, u / 5, t / 21) - 0.5) * 2,
+          band = 1 - Math.abs((n - 0.51) / 0.15);
+        v -= k * 0.2 * Math.pow(1 - ridged, 5) * clamp(band, 0, 1);
+        break;
+      }
+      case "karst": {
+        if (n > 0.62) break;
+        const bump = noise2(seed ^ 0x2b5d, u / 2.6, t / 2.6);
+        if (bump > 0.6) v += k * 0.16 * Math.sqrt((bump - 0.6) / 0.4);
+        break;
+      }
+      case "dunes": {
+        if (n < 0.48) break;
+        const mask = clamp((noise2(seed ^ 0x6d3a, xx / 41, yy / 41) - 0.45) * 4, 0, 1);
+        v +=
+          k *
+          0.045 *
+          mask *
+          (0.5 + 0.5 * Math.sin(u * 0.9 + noise2(seed ^ 0x1e7, u / 9, t / 9) * 4));
+        break;
+      }
+      case "mesas": {
+        const mask = clamp((noise2(seed ^ 0x4a9c, xx / 37, yy / 37) - 0.5) * 5, 0, 1);
+        if (mask <= 0 || n < 0.5) break;
+        const stepped = Math.round(n * 4) / 4;
+        v += k * (stepped - n) * 0.9 * mask;
+        break;
+      }
+      case "volcanic": {
+        for (const c of lf.cones) {
+          const d = Math.hypot(nx - c.x, ny - c.y) / c.radius;
+          if (d < 1)
+            v +=
+              k * c.height * Math.pow(1 - d, 1.35) -
+              (d < 0.2 ? k * c.height * 0.45 * (1 - d / 0.2) : 0);
+        }
+        break;
+      }
+
+      case "rift": {
+        const dist =
+            Math.abs((nx - l.x) * -sa + (ny - l.y) * ca) +
+            (noise2(seed ^ 0x9c4e, u / 19, t / 19) - 0.5) * 0.16,
+          width = 0.09 * l.scale;
+        if (dist < width) v -= k * 0.36 * Math.pow(1 - dist / width, 1.6);
+        else if (dist < width * 2.2) v += k * 0.08 * (1 - (dist - width) / (width * 1.2));
+        break;
+      }
+      case "shattered": {
+        const cs = 17 / l.scale,
+          block =
+            hashParts(
+              seed,
+              "shattered-block",
+              Math.floor(u / cs) + 4096,
+              Math.floor(t / cs) + 4096,
+            ) / 4294967296;
+        v += k * (block - 0.5) * 0.2;
+        break;
+      }
+      case "glacial": {
+        if (n < 0.5) break;
+        v -=
+          k *
+          0.13 *
+          Math.pow(
+            Math.max(0, Math.cos(u / 6.5 + (noise2(seed ^ 0x77e2, u / 23, t / 23) - 0.5) * 3)),
+            3,
+          );
+        break;
+      }
+    }
+  }
+  return v;
+}
+// Inland water: rivers in the world's hydrology style, and lakes where basins
+// collect. Salt flats are the dry basins of arid worlds.
+function riverChannelAt(g, seed, x, y, e, sea) {
+  const lf = g.landform || LEGACY_LANDFORM,
+    style = lf.hydrology;
+  if (style === "dry" || e >= sea + 255) return 0;
+  const rc = Math.cos(g.riverAngle),
+    rs = Math.sin(g.riverAngle),
+    rx = (x * rc - y * rs) / g.riverScale,
+    ry = (x * rs + y * rc) / (g.riverScale * 0.55);
+  let river = Math.abs(noise2(seed ^ 0x9911, rx, ry) - 0.5),
+    width = g.riverWidth;
+  if (style === "braided") {
+    river = Math.min(river, Math.abs(noise2(seed ^ 0x9912, rx + 0.37, ry * 1.08 + 0.21) - 0.5));
+    width *= 0.8;
+  } else if (style === "delta") width *= 1 + 1.3 * Math.pow(1 - (e - sea) / 255, 2);
+  else if (style === "sparse") {
+    if (noise2(seed ^ 0x9913, x / 29, y / 29) < 0.5) return 0;
+    width *= 0.7;
+  }
+  return river < width ? u16((width - river) * 15500 + 150) : 0;
+}
+function basinNoiseAt(seed, x, y) {
+  return noise2(seed ^ 0xb451, x / 23, y / 23);
+}
+function basinLakeAt(g, seed, x, y, e, sea) {
+  const lf = g.landform;
+  if (!lf || !lf.lakes || e < sea || e >= sea + 120) return 0;
+  if (690 + g.wetBias + lf.wetShift - (e - sea) * 0.72 < 520) return 0;
+  const basin = basinNoiseAt(seed, x, y),
+    threshold = 0.79 - lf.lakes * 0.06;
+  if (basin < threshold) return 0;
+  return u16(clamp(((basin - threshold) / (1 - threshold)) * 620 + 160, 160, 780));
+}
+function saltFlatAt(g, seed, x, y, e, sea, wet) {
+  const lf = g.landform;
+  if (!lf?.saltFlats || e < sea || e >= sea + 150 || wet > 380) return false;
+  return basinNoiseAt(seed, x, y) > 0.73;
+}
+function inlandWaterAt(g, seed, x, y, e, sea) {
+  return Math.max(riverChannelAt(g, seed, x, y, e, sea), basinLakeAt(g, seed, x, y, e, sea));
+}
+// Atoll rims must break the surface wherever they sit, so they are placed after
+// sea level is known: the ring is raised to a low island with gaps for passes,
+// and its lagoon is kept as shallow water.
+function applyEmergentLandforms(g, seed, raw, w, h, sea) {
+  const lf = g.landform;
+  if (!lf?.rings?.length) return 0;
+  // Ring centres are chosen from deep water, spaced apart, in a hashed order.
+  const deep = [];
+  for (let y = 4; y < h - 4; y += 2)
+    for (let x = 4; x < w - 4; x += 2) if (raw[y * w + x] < sea - 110) deep.push(y * w + x);
+  if (!deep.length) return 0;
+  deep.sort(
+    (a, b) => structureRand(seed, "atoll-site", a) - structureRand(seed, "atoll-site", b) || a - b,
+  );
+  const halfW = (w - 1) / 2,
+    placed = [];
+  for (const i of deep) {
+    if (placed.length >= lf.rings.length) break;
+    const x = i % w,
+      y = (i / w) | 0,
+      ring = lf.rings[placed.length],
+      radiusTiles = ring.radius * halfW;
+    if (placed.some((p) => Math.hypot(p.x - x, p.y - y) < (p.radiusTiles + radiusTiles) * 2.4))
+      continue;
+    ring.x = +((x / (w - 1) - 0.5) * 2).toFixed(3);
+    ring.y = +((y / (h - 1) - 0.5) * 2).toFixed(3);
+    placed.push({ x, y, radiusTiles });
+  }
+  lf.rings = lf.rings.slice(0, placed.length);
+  let emerged = 0;
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x,
+        e = raw[i],
+        nx = (x / (w - 1) - 0.5) * 2,
+        ny = (y / (h - 1) - 0.5) * 2;
+      for (const ring of lf.rings) {
+        const d =
+          Math.hypot(nx - ring.x, (ny * (h - 1)) / (w - 1) - (ring.y * (h - 1)) / (w - 1)) /
+          ring.radius;
+        if (d > 1.4) continue;
+        const rim = Math.exp(-Math.pow((d - 1) / 0.2, 2)),
+          gap = noise2(seed ^ 0x5a5a, x / 3 + ring.turn * 40, y / 3);
+        if (rim > 0.5 && gap > 0.3 && e < sea) {
+          raw[i] = u16(sea + 4 + rim * 34 * (0.6 + gap * 0.8));
+          emerged++;
+        } else if (d < 0.8 && e < sea - 60) raw[i] = u16(sea - 30 - (0.8 - d) * 50);
+      }
+    }
+  return emerged;
+}
+function volcanicHeatAt(g, x, y, w, h) {
+  const cones = g?.landform?.cones;
+  if (!cones?.length) return 0;
+  const nx = (x / (w - 1) - 0.5) * 2,
+    ny = (y / (h - 1) - 0.5) * 2;
+  let heat = 0;
+  for (const c of cones) {
+    const d = Math.hypot(nx - c.x, ny - c.y) / (c.radius * 1.6);
+    if (d < 1) heat = Math.max(heat, (1 - d) * 900);
+  }
+  return heat;
 }
 function terrainGrammarHeight(g, seed, x, y, w, h) {
   const nx = (x / (w - 1) - 0.5) * 2,
@@ -1091,7 +1423,7 @@ function generateProceduralTileWorld(world) {
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
       const i = y * w + x,
-        v = terrainGrammarHeight(g, s, x, y, w, h);
+        v = terrainGrammarHeight(g, s, x, y, w, h) + landformHeightOffset(g, s, x, y, w, h);
       raw[i] = v;
       if (v < lo) lo = v;
       if (v > hi) hi = v;
@@ -1123,57 +1455,62 @@ function generateProceduralTileWorld(world) {
   g.waterTargetTiles = waterTarget;
   g.oceanTileCount = oceanFit.count;
   g.waterTargetExact = oceanFit.exact;
-  const rc = Math.cos(g.riverAngle),
-    rs = Math.sin(g.riverAngle);
+  const emerged = applyEmergentLandforms(g, s, raw, w, h, sea);
+  if (emerged) {
+    g.oceanTileCount -= emerged;
+    g.waterTargetExact = false;
+    g.emergedTiles = emerged;
+  }
+  const landform = g.landform || LEGACY_LANDFORM;
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
       const i = y * w + x,
         e = raw[i] | 0,
-        rx = (x * rc - y * rs) / g.riverScale,
-        ry = (x * rs + y * rc) / (g.riverScale * 0.55),
-        river = Math.abs(noise2(s ^ 0x9911, rx, ry) - 0.5),
-        surfaceWater =
-          e < sea
-            ? u16((sea - e) * 12.5)
-            : river < g.riverWidth && e < sea + 255
-              ? u16((g.riverWidth - river) * 15500 + 150)
-              : 0;
+        surfaceWater = e < sea ? u16((sea - e) * 12.5) : inlandWaterAt(g, s, x, y, e, sea);
       t.elevation[i] = e;
       t.liquid[i] = surfaceWater;
       t.hydrologyBase[i] = surfaceWater;
       const climate = terrainClimateDistance(g, s, x, y, w, h),
         temp =
           g.baseTemperature -
+          landform.coldShift -
           climate * g.temperatureSpan -
           e * g.lapseRate +
           (noise2(s ^ 0x1837, x / 47, y / 47) - 0.5) * g.temperatureNoise;
       t.temperature[i] = i16(temp);
-      const wet = clamp(
+      let wet = clamp(
         surfaceWater
           ? 900
-          : 690 + g.wetBias - (e - sea) * 0.72 + (noise2(s ^ 0x77a1, x / 21, y / 21) - 0.5) * 560,
+          : 690 +
+              g.wetBias +
+              landform.wetShift -
+              (e - sea) * 0.72 +
+              (noise2(s ^ 0x77a1, x / 21, y / 21) - 0.5) * 560,
         45,
         880,
       );
+      const salt = saltFlatAt(g, s, x, y, e, sea, wet);
+      if (salt) wet = Math.min(wet, 190);
       t.chem[C.SOLVENT][i] = u16(surfaceWater + wet);
       t.chem[C.OXIDANT][i] = u16(610 + laws.oxidationPotential * 130);
       t.chem[C.NUTRIENT][i] = u16(
         (390 + noise2(s ^ 0x2281, x / 15, y / 15) * 1020) * laws.resourceRichness,
       );
-      t.chem[C.MINERAL][i] = u16(1450 + e * 3.35);
+      t.chem[C.MINERAL][i] = u16(1450 + e * 3.35 + (salt ? 900 : 0));
       t.chem[C.ORE][i] = u16(
         Math.max(0, (noise2(s ^ 0x4921, x / 11, y / 11) - 0.64) * 7800) * laws.resourceRichness,
       );
       t.chem[C.CATALYST][i] = u16(35 + noise2(s ^ 0x7719, x / 8, y / 8) * 210);
       t.chem[C.TOXIN][i] = u16(Math.max(0, (noise2(s ^ 0x9953, x / 14, y / 14) - 0.8) * 1300));
       t.chem[C.GAS][i] = u16(470 + noise2(s ^ 0x61c3, x / 43, y / 43) * 145);
-      t.soilOrder[i] = u16(e < sea ? 120 : 450 + wet * 0.39);
+      t.soilOrder[i] = u16(e < sea ? 120 : salt ? 160 : 450 + wet * 0.39);
       t.structureOrder[i] = u16(e < sea ? 240 : 500 + e * 0.31);
       const motif = mix32(s ^ Math.imul(i + 1, 0x9e3779b1));
       t.basePattern[i] = u16(g.topologyIndex * 24 + (motif % 24));
       const compat = clamp(1 - Math.abs(temp - 205) / 225, 0, 1),
-        plant =
-          e > sea - 18
+        plant = salt
+          ? 0
+          : e > sea - 18
             ? u16(clamp((wet - 135) * compat * laws.plantEfficiency, 0, 940))
             : u16(surfaceWater < 720 ? wet * 0.18 : 0);
       t.plantOrder[i] = plant;
@@ -1198,12 +1535,7 @@ function naturalSurfaceWaterAt(world, x, y) {
     sea = g?.seaLevel ?? 430;
   if (e < sea) return u16((sea - e) * 12.5);
   if (!g) return 0;
-  const rc = Math.cos(g.riverAngle),
-    rs = Math.sin(g.riverAngle),
-    rx = (x * rc - y * rs) / g.riverScale,
-    ry = (x * rs + y * rc) / (g.riverScale * 0.55),
-    river = Math.abs(noise2(world.seedHash ^ 0x9911, rx, ry) - 0.5);
-  return river < g.riverWidth && e < sea + 255 ? u16((g.riverWidth - river) * 15500 + 150) : 0;
+  return inlandWaterAt(g, world.seedHash, x, y, e, sea);
 }
 function ensureHydrologyBaseline(world) {
   const n = world.tileCount,
@@ -1243,7 +1575,13 @@ function compileEcologicalStructures(world) {
       const thermal =
         noise2(s ^ 0x6e31, x / 17, y / 17) * 0.62 + noise2(s ^ 0xa913, x / 5, y / 5) * 0.38;
       t.geothermal[i] = u16(
-        clamp((thermal - 0.42) * 1700 + Math.max(0, t.temperature[i] - 300) * 1.2, 0, 1000),
+        clamp(
+          (thermal - 0.42) * 1700 +
+            Math.max(0, t.temperature[i] - 300) * 1.2 +
+            volcanicHeatAt(world.terrainGenome, x, y, w, h),
+          0,
+          1000,
+        ),
       );
     }
   const moisture = (i) => clamp((t.chem[C.SOLVENT][i] - t.liquid[i] * 0.55) / 9, 0, 100),

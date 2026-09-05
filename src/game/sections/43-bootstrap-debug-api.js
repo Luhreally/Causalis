@@ -125,6 +125,7 @@ function debugVisualSummary() {
     terrain: {
       topology: v.terrain.topology,
       climate: v.terrain.climate,
+      landform: v.terrain.landform || null,
       alienness: v.alienness,
       waterTarget: v.terrain.targetWater,
       actualWater: water / W.tileCount,
