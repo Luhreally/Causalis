@@ -386,6 +386,18 @@ const EVENT_CATEGORY = Object.freeze({
   DivineTruceEvent: "factions",
   DiscordEvent: "factions",
   YearEvent: "history",
+  EnvoyEvent: "factions",
+  EnvoyLostEvent: "factions",
+  TreatyEvent: "factions",
+  TreatyRefusedEvent: "factions",
+  TreatyEndedEvent: "factions",
+  VassalageEvent: "factions",
+  IndependenceEvent: "factions",
+  RoyalMarriageEvent: "factions",
+  SuccessionClaimEvent: "factions",
+  DynasticUnionEvent: "factions",
+  TributeEvent: "factions",
+  TributeDefaultEvent: "factions",
   ChemistryEvent: "ecology",
 });
 const DOM = {};
