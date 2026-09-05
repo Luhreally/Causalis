@@ -151,6 +151,14 @@ const BUILDING_DEFS = Object.freeze({
     defense: 8,
     priority: "governance",
   },
+  shrine: {
+    name: "Shrine",
+    work: 70,
+    housing: 0,
+    storage: 24,
+    defense: 2,
+    priority: "governance",
+  },
   waterworks: {
     name: "Waterworks",
     work: 136,
@@ -438,6 +446,7 @@ function buildingRequirements(place, type) {
   if (type === "farm") raw.push([C.NUTRIENT, 12], [C.SOLVENT, 16]);
   if (type === "clinic") raw.push([C.CATALYST, 8], [C.ORGANIC, 10]);
   if (type === "archive" || type === "hall") raw.push([C.INFO, 8], [C.PIGMENT, 4]);
+  if (type === "shrine") raw.push([C.PIGMENT, 4]);
   const totals = new Map();
   for (const [sp, n] of raw) totals.set(sp, (totals.get(sp) || 0) + n);
   return Array.from(totals.entries()).sort((a, b) => a[0] - b[0]);

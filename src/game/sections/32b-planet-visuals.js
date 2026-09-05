@@ -694,7 +694,15 @@ function drawWindSweep(now, m, v, s) {
 }
 function drawAirborneParticles(now, m, v, s) {
   const weather = W.weather?.name || "Clear",
-    kind = /Rain|Storm/.test(weather) ? "rain" : s.particle.kind;
+    // Precipitation falls as snow where the ground under the camera is below freezing.
+    freezing =
+      W.tiles.temperature[
+        idx(
+          clamp(Math.round(UI.camera.x), 0, W.width - 1),
+          clamp(Math.round(UI.camera.y), 0, W.height - 1),
+        )
+      ] < 0,
+    kind = /Rain|Storm/.test(weather) ? (freezing ? "snow" : "rain") : s.particle.kind;
   if (kind === "none") return;
   const quality = UI.quality === "high" ? 1 : 0.55,
     count = Math.round(
@@ -1613,7 +1621,47 @@ function drawStructureIdentity(i, p, m, v) {
   }
   ctx.restore();
 }
+// Worn paths: traffic the simulation records is drawn as darkened ground
+// joining neighbouring worn tiles, so trails and roads emerge where feet go.
+function drawWornPath(x, y, i, p, m, v) {
+  const traffic = W.tiles.traffic;
+  if (!traffic || traffic[i] <= 260 || W.tiles.liquid[i] > 140) return;
+  const strength = clamp((traffic[i] - 260) / 2400, 0.15, 1),
+    cache = terrainToneCache();
+  ctx.strokeStyle = hsl(
+    v.mineralHue,
+    clamp((cache.sat[i] || 30) * 0.6, 8, 40),
+    clamp((cache.lum[i] || 40) - 10 - strength * 8, 6, 70),
+    0.3 + strength * 0.45,
+  );
+  ctx.lineCap = "round";
+  ctx.lineWidth = Math.max(1, m.tw * (0.16 + strength * 0.16));
+  let drawn = false;
+  ctx.beginPath();
+  for (const [dx, dy] of [
+    [1, 0],
+    [0, 1],
+    [1, 1],
+    [-1, 1],
+  ]) {
+    const nx = x + dx,
+      ny = y + dy;
+    if (nx < 0 || ny < 0 || nx >= W.width || ny >= W.height) continue;
+    const j = ny * W.width + nx;
+    if (traffic[j] <= 260 || W.tiles.liquid[j] > 140) continue;
+    const q = proceduralProjectTile(nx + 0.5, ny + 0.5, m);
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(q.x, q.y);
+    drawn = true;
+  }
+  if (!drawn) {
+    ctx.moveTo(p.x - m.tw * 0.2, p.y);
+    ctx.lineTo(p.x + m.tw * 0.2, p.y);
+  }
+  ctx.stroke();
+}
 function drawTileMotifs(x, y, i, p, m, v) {
+  drawWornPath(x, y, i, p, m, v);
   const zoom = UI.camera.zoom,
     plant = W.tiles.plantOrder[i],
     liquid = W.tiles.liquid[i],

@@ -611,7 +611,7 @@ function drawStatsChart() {
 function refreshTopbar() {
   if (!W) return;
   DOM.topSeed.textContent = W.seed.length > 16 ? W.seed.slice(0, 14) + "…" : W.seed;
-  DOM.topTime.textContent = `Tick ${W.tick.toLocaleString()} · Year ${formatYear()}`;
+  DOM.topTime.textContent = `Tick ${W.tick.toLocaleString()} · Year ${formatYear()}${seasonLabel()}`;
   DOM.topEpoch.textContent = epochName();
   DOM.topWeather.textContent = W.weather.name;
   DOM.topHash.textContent = W.hash;

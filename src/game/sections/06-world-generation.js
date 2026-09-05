@@ -703,6 +703,8 @@ function newTileColumns(n) {
     owner: new Uint8Array(n),
     cultureOwner: new Uint8Array(n),
     basePattern: new Uint8Array(n),
+    traffic: new Uint16Array(n),
+    seasonOffset: new Int16Array(n),
     chem: Array.from({ length: COMMON_CHEM }, () => new Uint16Array(n)),
     rareChem: {},
     tempDelta: new Int32Array(n),

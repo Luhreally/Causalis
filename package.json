@@ -17,7 +17,8 @@
     "test:visual": "node scripts/run-smoke-mode.cjs QUICK_VISUAL",
     "test:syntax": "node scripts/check-runtime.cjs",
     "test:experience": "node tests/experience-smoke.cjs",
-    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save",
+    "test:living": "node tests/living-world-smoke.cjs",
+    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

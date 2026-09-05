@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. CONFIGURATION AND CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const VERSION = 10,
+const VERSION = 11,
   SAVE_PREFIX = "causalis.save.",
   SAVE_INDEX = "causalis.saveIndex",
   SETTINGS_KEY = "causalis.settings";
@@ -327,6 +327,12 @@ const EVENT_CATEGORY = Object.freeze({
   LeadershipEvent: "factions",
   DisasterEvent: "disasters",
   InterventionEvent: "disasters",
+  EruptionEvent: "disasters",
+  EarthquakeEvent: "disasters",
+  MeteorEvent: "disasters",
+  SeasonEvent: "ecology",
+  SuccessionEvent: "factions",
+  OmenEvent: "factions",
   ChemistryEvent: "ecology",
 });
 const DOM = {};

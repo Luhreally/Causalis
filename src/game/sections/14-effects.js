@@ -77,7 +77,12 @@ function resolveEffects() {
             ny = clamp(p.y + Math.sign(ny - p.y), 0, W.height - 1);
             if (typeof embodiedCapability === "function") {
               const locomotion = embodiedCapability(d.entityId).locomotion,
-                interval = locomotion < 0.42 ? 3 : locomotion < 0.72 ? 2 : 1,
+                // A worn road is easier going: one tick less between steps.
+                onRoad = kind === KINDS.PERSON && W.tiles.traffic?.[idx(nx, ny)] > 900,
+                interval = Math.max(
+                  1,
+                  (locomotion < 0.42 ? 3 : locomotion < 0.72 ? 2 : 1) - (onRoad ? 1 : 0),
+                ),
                 chainedPursuit =
                   d.pursuit === true &&
                   kind === KINDS.PREDATOR &&
@@ -128,6 +133,12 @@ function resolveEffects() {
           p.x = nx;
           p.y = ny;
           p.regionId = regionId(nx, ny);
+          // Feet wear the ground: traffic accumulates into paths and roads.
+          if (mobileOrganism && W.tiles.traffic) {
+            const worn = idx(nx, ny),
+              tread = kind === KINDS.PERSON ? 48 : kind === KINDS.HERBIVORE ? 12 : 4;
+            W.tiles.traffic[worn] = Math.min(65535, W.tiles.traffic[worn] + tread);
+          }
           if (!d.forced && mobileOrganism && life) {
             life.lastEmbodiedMoveTick = W.tick;
             const motionBudget =
