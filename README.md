@@ -60,6 +60,19 @@ Earth-adjacent seed keeps the founding word lists. `npm run test:languages` chec
 that alien seeds differ, kin share family names, names are deterministic, and old
 saves regain their tongues.
 
+The drama is on screen without hunting. A **people bar** along the bottom of the
+world shows the lives that matter now (followed, selected, pinned, every polity's
+Voice, and whoever the annals just named) with a live portrait, mood, current
+activity, and health; a click selects and finds them, a second click follows them.
+**Alert cards** at the top right announce notable events as they happen and link
+each one to the earlier event it follows, so a Voice's death and the succession
+that answers it, or a war and its ending, read as one arc; each card opens its
+Legends page or jumps to its place, and alerts can be muted. **Map modes** join
+the field lenses: polities and borders, cultures, roads and trade (worn paths in
+brown, trade routes in gold), season (warm and cold offsets), species ranges (one
+colour per species), and history (brighter where the annals gather), each with a
+one-line legend in the map badge. `npm run test:observatory` covers all three.
+
 `npm run test:experience` exercises the expedition sequence, real intervention
 readings, successful-save completion, archive restoration, optional storage
 failure, render isolation, and terrain cache invalidation.

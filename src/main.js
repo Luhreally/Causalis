@@ -7,6 +7,7 @@ import "./styles/06-observatory-responsive.css";
 import "./styles/07-mobile.css";
 import "./styles/08-player-experience.css";
 import "./styles/09-legends.css";
+import "./styles/10-observatory-bar.css";
 import Game from "virtual:causalis-game";
 
 Game.boot();

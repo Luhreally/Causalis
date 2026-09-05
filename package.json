@@ -20,7 +20,8 @@
     "test:living": "node tests/living-world-smoke.cjs",
     "test:legends": "node tests/legends-smoke.cjs",
     "test:languages": "node tests/languages-smoke.cjs",
-    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages",
+    "test:observatory": "node tests/observatory-smoke.cjs",
+    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages && npm run test:observatory",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

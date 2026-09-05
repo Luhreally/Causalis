@@ -1,0 +1,171 @@
+/* People bar and alert pairs on the stage. */
+.people-bar {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: min(62%, 720px);
+}
+.people-bar.hidden {
+  display: none;
+}
+.people-toggle {
+  padding: 4px 8px;
+  font-size: 11px;
+  min-height: 28px;
+}
+.people-scroll {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px;
+  background: #081118e0;
+  border: 1px solid #334957;
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+  scrollbar-width: thin;
+}
+.people-entry {
+  display: grid;
+  grid-template-rows: auto auto auto auto;
+  justify-items: center;
+  gap: 2px;
+  width: 58px;
+  padding: 5px 4px 4px;
+  border: 1px solid transparent;
+  border-top: 2px solid var(--fac, transparent);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  font-size: 10px;
+  line-height: 1.1;
+  cursor: pointer;
+  flex: none;
+  min-height: 44px;
+}
+.people-entry.active {
+  border-color: var(--gold);
+  background: rgba(217, 181, 109, 0.12);
+}
+.people-portrait {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: block;
+}
+.people-name {
+  max-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.people-mood {
+  font-size: 12px;
+  line-height: 1;
+}
+.people-health {
+  display: block;
+  width: 44px;
+  height: 3px;
+  background: #0b1015;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.people-health i {
+  display: block;
+  height: 100%;
+}
+.stage.has-people-bar .scene-feed {
+  bottom: 100px;
+}
+.alert-stack {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 8;
+  width: min(330px, 46vw);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+.alert-stack > * {
+  pointer-events: auto;
+}
+.alert-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.8;
+  padding: 0 2px;
+}
+.alert-head button {
+  padding: 1px 6px;
+  font-size: 11px;
+  min-height: 24px;
+}
+.alert-card {
+  background: #081118e8;
+  border: 1px solid #334957;
+  border-left: 3px solid var(--gold);
+  border-radius: 8px;
+  padding: 7px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: 0 10px 26px #0008;
+  backdrop-filter: blur(8px);
+}
+.alert-card.disasters {
+  border-left-color: #ef745d;
+}
+.alert-card.war {
+  border-left-color: #d45454;
+}
+.alert-card.factions {
+  border-left-color: #76a8de;
+}
+.alert-card.settlements {
+  border-left-color: #87c96c;
+}
+.alert-line {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px;
+}
+.alert-follows {
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.8;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.alert-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+html.mobile-mode .alert-stack {
+  right: 8px;
+  left: 8px;
+  width: auto;
+  top: 8px;
+}
+html.mobile-mode .alert-card {
+  font-size: 12.5px;
+}
+html.mobile-mode .people-bar {
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  max-width: none;
+}
+html.mobile-mode .stage.has-people-bar .scene-feed {
+  bottom: 104px;
+}
