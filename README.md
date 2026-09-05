@@ -11,7 +11,36 @@ Causalis is a deterministic artificial-life god game in which chemistry, ecology
 - `tests/` covers determinism, conservation, cohorts, ecology, causal conflict/occupation, camera behavior, saves, construction, cognition, civilization progression, and the phone interface.
 - `legacy/index.single-file.html` is the untouched pre-migration source for comparison.
 
-## Development
+## Player experience
+
+Choose **First expedition** to begin in a small, inhabited world with a five-step
+field journal: inspect a life, observe time, bring rain, inspect the recorded
+change, and save. **Create a world** retains the full cellular start and generation
+controls. Expedition saves use an empty manual slot; existing manual saves are
+never silently overwritten.
+
+Simple controls are the default. **All controls** exposes the full instruments.
+Inspectors lead with the selected life or habitat and put the original detailed
+record behind a disclosure. Pin up to eight identities to the watchlist, and jump
+from notable event notifications into their history. Pins and journal progress
+are device-local; world archives still export and import through the save menu.
+
+Sound can be enabled in the expedition setup or world controls. Ambient rain and
+wind, intervention cues, and discovery/warning tones respect the volume setting.
+Reduced motion can be selected in Settings and follows the operating-system
+preference for interface motion and intervention rings. Switching to another tab
+pauses an active simulation.
+
+Projected terrain is reused between unchanged frames, with immediate invalidation
+for camera changes, overlays, and interventions. Creatures and atmospheric effects
+continue to draw. This reduces repeated terrain work; it is not a universal
+frame-rate guarantee. Large worlds remain more expensive than Small or Phone.
+
+`npm run test:experience` exercises the expedition sequence, real intervention
+readings, successful-save completion, archive restoration, optional storage
+failure, render isolation, and terrain cache invalidation.
+
+## Development commands
 
 ```sh
 npm install

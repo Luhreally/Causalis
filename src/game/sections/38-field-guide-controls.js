@@ -1017,7 +1017,7 @@ function runSimulationClock(dt, budgetMs = null) {
     simTick();
     accumulator -= 100;
     steps++;
-    if (steps % 4 === 0 && performance.now() - started >= budget) break;
+    if (performance.now() - started >= budget) break;
   }
   if (UI.clockInterrupted) accumulator = 0;
   else {
@@ -1031,14 +1031,20 @@ function mainLoop(now) {
   const dt = Math.min(250, now - frameTime);
   frameTime = now;
   updateCameraKeys(dt);
-  runSimulationClock(dt);
+  const interacting =
+    UI.drag ||
+    UI.keys.size > 0 ||
+    UI.followId ||
+    CAMERA_GLIDE.zoom != null ||
+    CAMERA_GLIDE.angle != null;
+  runSimulationClock(dt, interacting ? 6 : null);
   if (W && !DOM.game.classList.contains("hidden")) {
     const interval =
-      UI.speed >= 128
+      UI.running && !interacting && UI.speed >= 128
         ? 160
-        : UI.speed >= 64
+        : UI.running && !interacting && UI.speed >= 64
           ? 100
-          : UI.speed >= 16
+          : UI.running && !interacting && UI.speed >= 16
             ? 50
             : UI.quality === "low"
               ? 50

@@ -16,6 +16,7 @@
     "test:clock": "node scripts/run-smoke-mode.cjs CLOCK_DEBUG",
     "test:visual": "node scripts/run-smoke-mode.cjs QUICK_VISUAL",
     "test:syntax": "node scripts/check-runtime.cjs",
+    "test:experience": "node tests/experience-smoke.cjs",
     "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

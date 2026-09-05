@@ -45,7 +45,13 @@ This is a complete single-file deterministic Artificial-Life god-game and emerge
         </div>
         <nav class="title-menu">
           <div class="eyebrow">Enter the observatory</div>
-          <button id="newWorldBtn" class="primary">New World <span>↗</span></button
+          <button id="firstJourneyBtn" data-experience="journey" class="primary">
+            First expedition <span>↗</span>
+          </button>
+          <small class="expedition-caption"
+            >An inhabited world. A short field journal. Your first intervention.</small
+          >
+          <button id="newWorldBtn">Create a world <span>+</span></button
           ><button id="continueBtn">Continue <span>›</span></button
           ><button id="titleLoadBtn">Load World <span>›</span></button
           ><button id="titleSettingsBtn">Settings <span>›</span></button
@@ -56,9 +62,7 @@ This is a complete single-file deterministic Artificial-Life god-game and emerge
           >
         </nav>
       </div>
-      <div class="title-footer">
-        SINGLE-FILE CAUSAL ARTIFICIAL LIFE · ALL MATTER IS ONE SUBSTRATE
-      </div>
+      <div class="title-footer">OBSERVE · INTERVENE · FOLLOW THE CONSEQUENCES</div>
     </section>
     <div id="loadingScreen" class="loading-screen">
       <div class="loader">
@@ -298,7 +302,14 @@ This is a complete single-file deterministic Artificial-Life god-game and emerge
     </main>
 
     <div id="modalLayer" class="modal-layer" aria-live="polite">
-      <div id="modalBox" class="modal">
+      <div
+        id="modalBox"
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modalTitle"
+        tabindex="-1"
+      >
         <div class="modal-head">
           <h2 id="modalTitle">Menu</h2>
           <button id="modalClose" class="iconbtn">×</button>

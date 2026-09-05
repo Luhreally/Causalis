@@ -1356,6 +1356,9 @@ function drawProceduralAtmosphere(now, m, v) {
     ctx.restore();
   }
 }
+let PROJECTED_TILE_ORDER = null;
+let PROJECTED_FRAME_CACHE = null;
+const TERRAIN_FRAME_STATS = { hits: 0, misses: 0 };
 function drawProjectedTerrain(b, m) {
   if (UI.view === "iso") {
     for (let sum = b.x0 + b.y0; sum <= b.x1 + b.y1; sum++)
@@ -1366,11 +1369,43 @@ function drawProjectedTerrain(b, m) {
     return;
   }
   const q = obliqueBasis(m),
-    tiles = [];
-  for (let y = b.y0; y <= b.y1; y++)
-    for (let x = b.x0; x <= b.x1; x++) tiles.push({ x, y, depth: -x * q.s + y * q.c });
-  tiles.sort((a, c) => a.depth - c.depth || a.y - c.y || a.x - c.x);
-  for (const tile of tiles) drawTileProcedural(tile.x, tile.y);
+    key = [b.x0, b.x1, b.y0, b.y1, q.s, q.c].join(":");
+  if (
+    !PROJECTED_TILE_ORDER ||
+    PROJECTED_TILE_ORDER.world !== W ||
+    PROJECTED_TILE_ORDER.key !== key
+  ) {
+    const tiles = [];
+    for (let y = b.y0; y <= b.y1; y++)
+      for (let x = b.x0; x <= b.x1; x++) tiles.push({ x, y, depth: -x * q.s + y * q.c });
+    tiles.sort((a, c) => a.depth - c.depth || a.y - c.y || a.x - c.x);
+    PROJECTED_TILE_ORDER = { world: W, key, tiles };
+  }
+  for (const tile of PROJECTED_TILE_ORDER.tiles) drawTileProcedural(tile.x, tile.y);
+}
+function terrainFrameKey(m) {
+  // Only terrain is cached. Creatures, combat, weather, selection, and input
+  // remain live. Direct interventions invalidate immediately, including paused.
+  const cadence = UI.running && UI.speed >= 16 ? 8 : UI.running && UI.speed >= 4 ? 2 : 1;
+  return [
+    UI.view,
+    UI.quality,
+    UI.overlay,
+    UI.camera.x,
+    UI.camera.y,
+    UI.camera.zoom,
+    cameraAngle(),
+    cameraTilt(),
+    UI.camera.cutaway,
+    m.w,
+    m.h,
+    DOM.canvas.width,
+    DOM.canvas.height,
+    Math.floor(W.tick / cadence),
+    W.hash,
+    W.interventions.length,
+    W.weather.started,
+  ].join(":");
 }
 function renderWorldProcedural(now) {
   if (!W) return;
@@ -1412,27 +1447,52 @@ function renderWorldProcedural(now) {
     }
     ACTIVE_TILE_SHADE = { li, di };
   }
-  const bg = ctx.createRadialGradient(
-    m.w * 0.56,
-    m.h * 0.42,
-    0,
-    m.w * 0.5,
-    m.h * 0.5,
-    Math.max(m.w, m.h) * 0.76,
-  );
-  bg.addColorStop(0, hsl(v.voidHue, 38, 12));
-  bg.addColorStop(1, hsl(v.voidHue, 44, 4));
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, m.w, m.h);
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
+  const terrainKey = UI.view === "top" ? null : terrainFrameKey(m),
+    cached = PROJECTED_FRAME_CACHE,
+    maxAge = UI.quality === "high" ? 90 : 140,
+    reuse =
+      terrainKey &&
+      cached?.world === W &&
+      cached.key === terrainKey &&
+      now >= cached.now &&
+      now - cached.now < maxAge;
   const b = visibleBounds();
-  if (UI.view === "top") {
-    drawTopTerrainLayer(m, v);
-    if (UI.camera.zoom > 0.48 || UI.overlay)
-      for (let y = b.y0; y <= b.y1; y++)
-        for (let x = b.x0; x <= b.x1; x++) drawTopTileDetails(x, y, m, v);
-  } else drawProjectedTerrain(b, m);
+  if (reuse) {
+    ctx.drawImage(cached.canvas, 0, 0, m.w, m.h);
+    TERRAIN_FRAME_STATS.hits++;
+  } else {
+    const bg = ctx.createRadialGradient(
+      m.w * 0.56,
+      m.h * 0.42,
+      0,
+      m.w * 0.5,
+      m.h * 0.5,
+      Math.max(m.w, m.h) * 0.76,
+    );
+    bg.addColorStop(0, hsl(v.voidHue, 38, 12));
+    bg.addColorStop(1, hsl(v.voidHue, 44, 4));
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, m.w, m.h);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    if (UI.view === "top") {
+      drawTopTerrainLayer(m, v);
+      if (UI.camera.zoom > 0.48 || UI.overlay)
+        for (let y = b.y0; y <= b.y1; y++)
+          for (let x = b.x0; x <= b.x1; x++) drawTopTileDetails(x, y, m, v);
+    } else drawProjectedTerrain(b, m);
+    if (terrainKey) {
+      const canvas = cached?.canvas || document.createElement("canvas");
+      if (canvas.width !== DOM.canvas.width || canvas.height !== DOM.canvas.height) {
+        canvas.width = DOM.canvas.width;
+        canvas.height = DOM.canvas.height;
+      }
+      const target = canvas.getContext("2d", { alpha: false });
+      target.drawImage(DOM.canvas, 0, 0);
+      PROJECTED_FRAME_CACHE = { world: W, key: terrainKey, now, canvas };
+      TERRAIN_FRAME_STATS.misses++;
+    }
+  }
   drawEntitiesProcedural(now, b);
   drawProceduralAtmosphere(now, m, v);
   drawSelection();

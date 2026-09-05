@@ -1,0 +1,460 @@
+/* The observatory: legible instruments around an uninterrupted living world. */
+:root {
+  --muted: #a0b4b7;
+  --dim: #8b9ca3;
+  --left: 240px;
+  --right: 340px;
+}
+body {
+  font-size: 14px;
+}
+.expedition-caption {
+  display: block;
+  margin: 5px 0 18px;
+  color: var(--muted);
+  line-height: 1.5;
+  font-size: 13px;
+}
+.title-art p {
+  font-size: 16px;
+}
+.title-menu button {
+  min-height: 46px;
+}
+.title-footer {
+  font-size: 12px;
+  letter-spacing: 0.13em;
+}
+.title-menu small {
+  line-height: 1.6;
+}
+.title-card {
+  border-radius: 16px;
+}
+.section-title,
+.side-head,
+.eyebrow,
+.subhead {
+  font-size: 12px;
+}
+.top-stat small {
+  font-size: 10px;
+}
+.top-stat strong {
+  font-size: 12px;
+}
+.tab,
+.tool,
+.overlay-btn {
+  font-size: 13px;
+  min-height: 36px;
+}
+.help-card p,
+.kv,
+.entity-row small,
+.slot-meta,
+.save-slot .slot-meta {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.help-card h3 {
+  font-size: 15px;
+}
+.modal-body {
+  line-height: 1.6;
+  font-size: 15px;
+}
+.modal-head h2 {
+  font-size: 18px;
+}
+.modal-foot {
+  flex-wrap: wrap;
+}
+.modal-foot button {
+  min-height: 40px;
+}
+.modal-layer {
+  z-index: 250;
+}
+.modal {
+  overscroll-behavior: contain;
+}
+.field select,
+.field input[type="text"] {
+  min-height: 40px;
+}
+.expedition-chooser {
+  display: grid;
+  gap: 16px;
+}
+.expedition-chooser p {
+  margin: 0;
+  color: var(--muted);
+}
+.expedition-chooser h3 {
+  margin: 0;
+  color: var(--ink);
+  font:
+    26px Georgia,
+    serif;
+}
+.expedition-facts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.expedition-facts span {
+  border: 1px solid var(--line);
+  padding: 5px 9px;
+  border-radius: 5px;
+  font-size: 13px;
+}
+.experience-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.experience-actions button {
+  min-height: 36px;
+  font-size: 13px;
+}
+.experience-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.experience-toolbar button {
+  flex: 1;
+  min-height: 36px;
+  font-size: 13px;
+}
+.experience-toolbar button[aria-pressed="true"] {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+.compact-controls
+  #toolGrid
+  .tool:not([data-tool="inspect"]):not([data-tool="rain"]):not([data-tool="ignite"]):not(
+    [data-tool="plants"]
+  ):not([data-tool="person"]):not([data-tool="heal"]):not(.active) {
+  display: none;
+}
+.compact-controls
+  #overlayGrid
+  .overlay-btn:not([data-overlay="fertility"]):not([data-overlay="moisture"]):not(
+    [data-overlay="territory"]
+  ):not([data-overlay="population"]):not(.active) {
+  display: none;
+}
+.compact-controls .advanced-instrument {
+  display: none;
+}
+.compact-controls .top-stat:has(#topHash) {
+  display: none;
+}
+.instrument-details {
+  border-top: 1px solid var(--line);
+  padding: 12px 0;
+}
+.instrument-details > summary {
+  cursor: pointer;
+  color: var(--cyan);
+  font-size: 14px;
+  padding: 7px 0;
+}
+.selection-summary {
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid #385351;
+  border-left: 3px solid var(--cyan);
+  border-radius: 7px;
+  background: #0d201fe8;
+}
+.selection-summary h3 {
+  font-size: 18px;
+  margin: 5px 0 8px;
+  color: #eef7ef;
+}
+.selection-summary p {
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 6px 0 12px;
+  color: #c5d4d1;
+}
+.selection-summary .summary-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  color: var(--cyan);
+}
+.journal-card {
+  position: absolute;
+  z-index: 7;
+  left: 18px;
+  bottom: 18px;
+  width: min(370px, calc(100% - 36px));
+  border: 1px solid #788168;
+  border-top: 2px solid var(--gold);
+  border-radius: 10px;
+  background: #0d181df5;
+  box-shadow: 0 14px 35px #0006;
+  overflow: hidden;
+}
+.journal-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.journal-top span {
+  font-size: 11px;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.journal-top button {
+  padding: 3px 8px;
+  min-height: 30px;
+  background: transparent;
+  font-size: 12px;
+}
+.journal-body {
+  padding: 14px;
+}
+.journal-body h3 {
+  margin: 0 0 7px;
+  font:
+    23px Georgia,
+    serif;
+  color: #f5e6c8;
+}
+.journal-body p {
+  margin: 0 0 12px;
+  line-height: 1.55;
+  font-size: 14px;
+  color: #becdca;
+}
+.journal-progress {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.journal-progress i {
+  height: 3px;
+  background: #2a3c42;
+  flex: 1;
+}
+.journal-progress i.done {
+  background: var(--cyan);
+}
+.journal-progress i.current {
+  background: var(--gold);
+}
+.journal-mini .journal-body {
+  display: none;
+}
+.journal-mini {
+  width: 230px;
+}
+.world-notice {
+  position: absolute;
+  z-index: 6;
+  left: 18px;
+  top: 50px;
+  max-width: min(370px, calc(100% - 85px));
+}
+.world-notice button {
+  display: block;
+  text-align: left;
+  border-color: #3b5a60;
+  background: #0b181deb;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px 13px;
+  box-shadow: 0 5px 20px #0004;
+}
+.world-notice small {
+  display: block;
+  text-transform: uppercase;
+  color: var(--cyan);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  margin-bottom: 3px;
+}
+.experience-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+.experience-footer button {
+  padding: 4px 7px;
+  font-size: 12px;
+  margin-left: auto;
+}
+.impact-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0;
+  font-size: 14px;
+}
+.impact-table th,
+.impact-table td {
+  text-align: left;
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.impact-table th {
+  color: var(--muted);
+  font-weight: 500;
+}
+.impact-table td:last-child {
+  color: var(--cyan);
+}
+.watch-list {
+  display: grid;
+  gap: 10px;
+}
+.watch-record {
+  border: 1px solid var(--line);
+  padding: 12px;
+  border-radius: 8px;
+}
+.watch-record strong {
+  display: block;
+  margin-bottom: 7px;
+}
+.watch-record p {
+  color: var(--muted);
+  font-size: 14px;
+}
+.guide-pulse {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+.stage .scene-feed {
+  display: none;
+}
+.compact-controls .causal-skip-note {
+  font-size: 12px;
+  line-height: 1.45;
+}
+button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+button:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+@media (max-width: 1150px) {
+  :root {
+    --left: 218px;
+    --right: 300px;
+  }
+  .top-stat:has(#topSeed),
+  .top-stat:has(#topHash) {
+    display: none;
+  }
+  .brand-mini {
+    min-width: 112px;
+  }
+  .journal-card {
+    left: 10px;
+    bottom: 10px;
+    width: min(340px, calc(100% - 20px));
+  }
+}
+@media (max-width: 700px) {
+  .title-card {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 48px);
+    overflow: auto;
+  }
+  .title-art {
+    padding: 28px;
+    min-height: auto;
+  }
+  .title-mark,
+  .formula,
+  .title-orbit {
+    display: none;
+  }
+  .title-art h1 {
+    font-size: 48px;
+  }
+  .title-art h1 span {
+    font-size: 14px;
+  }
+  .title-art p {
+    margin: 15px 0 0;
+    font-size: 14px;
+  }
+  .title-menu {
+    padding: 20px 24px;
+  }
+  .title-footer {
+    font-size: 10px;
+    bottom: 7px;
+  }
+  .expedition-caption {
+    margin-bottom: 10px;
+  }
+  .journal-card {
+    bottom: 12px;
+  }
+  .journal-body {
+    padding: 12px;
+  }
+  .journal-body h3 {
+    font-size: 20px;
+  }
+  .journal-body p {
+    font-size: 13px;
+  }
+  .world-notice {
+    left: 10px;
+    top: 46px;
+    max-width: calc(100% - 75px);
+  }
+  .world-notice button {
+    font-size: 12px;
+  }
+  .experience-actions button {
+    min-height: 42px;
+  }
+  .experience-toolbar button {
+    min-height: 42px;
+  }
+}
+html.mobile-mode .journal-card {
+  bottom: 12px;
+}
+html.mobile-mode:has(.sidebar.open) .journal-card,
+html.mobile-mode:has(.sidebar.open) .world-notice {
+  visibility: hidden;
+}
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

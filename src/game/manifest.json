@@ -52,5 +52,6 @@
   "42d-agriculture-herding.js",
   "42e-protection-strategy-equipment.js",
   "43-bootstrap-debug-api.js",
-  "44-mobile-runtime.js"
+  "44-mobile-runtime.js",
+  "45-player-experience.js"
 ]
