@@ -82,13 +82,15 @@ const fixtureSource = String.raw`(() => {
   if (adults.length < 3) { out.rivalrySkipped = "too few adults"; return out; }
   const [x, y, z] = adults;
   for (const id of [x, y, z]) { const soc = W.components.social[id]; soc.partnerId = 0; }
-  relationshipState(x, z).attraction = 0.7; relationshipState(y, z).attraction = 0.7;
+  relationshipState(x, z).attraction = 0.9; relationshipState(y, z).attraction = 0.9;
   const measure = { feud: null, grievance: 0, contest: rivalContest(x, y), proudPair: 0, dominanceClash: 0, jealousy: 0 };
   out.belovedCause = rivalryCause(x, y, measure);
   if (!measure.contest || measure.contest.kind !== "beloved" || !out.belovedCause.includes(entityName(z))) fail("two people courting the same person are not rivals over that person: " + out.belovedCause);
+  // Diffuse attraction to a popular person is no quarrel: only a strong, shared, strongest pull is.
+  relationshipState(x, z).attraction = 0.45; relationshipState(y, z).attraction = 0.45;
+  if (rivalContest(x, y)) fail("two people mildly drawn to the same person were made rivals");
   relationshipState(x, z).attraction = 0; relationshipState(y, z).attraction = 0;
   const ix = characterOf(x), iy = characterOf(y);
-  ix.want = { id: "mastery", since: W.tick }; iy.want = { id: "mastery", since: W.tick };
   ix.skills.craft = 20; iy.skills.craft = 18; ix.skills.build = 2; iy.skills.build = 2;
   const craft = rivalContest(x, y);
   out.craftCause = craft ? craft.text : "";
@@ -96,7 +98,25 @@ const fixtureSource = String.raw`(() => {
   iy.skills.craft = 2; iy.skills.build = 20;
   if (rivalContest(x, y)) fail("masters of different crafts were made rivals");
   ix.want = { id: "partner", since: W.tick }; iy.want = { id: "partner", since: W.tick };
+  iy.skills.craft = 2;
   if (rivalContest(x, y)) fail("two people who merely both want a partner were made rivals");
+  // Siblings over what a parent just left behind.
+  const w = adults.find((id) => ![x, y, z].includes(id));
+  if (w) {
+    ix.parents = [w]; iy.parents = [w];
+    killEntity(w, "a fever for the test", 0);
+    const heirs = rivalContest(x, y);
+    out.inheritanceCause = heirs ? heirs.text : "";
+    if (!heirs || heirs.kind !== "inheritance") fail("siblings did not contest the inheritance: " + out.inheritanceCause);
+    ix.parents = []; iy.parents = [];
+  }
+  // Two workers on the same ground.
+  const wx = workState(x), wy = workState(y);
+  wx.task = "mine"; wy.task = "mine"; wx.targetTile = 77; wy.targetTile = 77; wx.materialId = C.ORE;
+  const ground = rivalContest(x, y);
+  out.groundCause = ground ? ground.text : "";
+  if (!ground || ground.kind !== "ground") fail("two miners on one ground were not rivals: " + out.groundCause);
+  wx.task = "idle"; wy.task = "idle"; wx.targetTile = -1; wy.targetTile = -1;
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;
 })()`;

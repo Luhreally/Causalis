@@ -15,7 +15,6 @@ const DRAMA_ALERTS = new Set([
   "CheatingDiscoveredEvent",
   "FeudEvent",
   "QuarrelEvent",
-  "RivalryEvent",
   "ParentageRevealedEvent",
   "RelationshipBrokenEvent",
 ]);

@@ -159,9 +159,11 @@ function bondPairUpdate(id, other, ar, br, feuds) {
   return { affinity, contest, proudPair, dominanceClash, grievance, jealousy, feud, sharedFaction };
 }
 // ── What two people actually contest ───────────────────────────────────────────
-// A rivalry needs a real bone: the same beloved, an affair with a partner, the
-// same seat, or the same craft in the same town. Wanting "a partner" or "a
-// craft" in the abstract is not a quarrel with anyone in particular.
+// A rivalry needs a real bone: an affair with a partner, a dead parent's
+// inheritance, the same seat, the one person both are truly courting, the same
+// ground worked, the same trade in one town, the god read two ways, or the
+// wealth of one against the want of the other. Diffuse attraction to the same
+// popular person is not a quarrel with anyone in particular.
 function topSkill(ident) {
   let best = "",
     value = 8;
@@ -174,25 +176,33 @@ function topSkill(ident) {
   }
   return best;
 }
-function sharedBeloved(id, other) {
-  const a = W.components.social[id],
-    b = W.components.social[other];
-  if (!a?.relationships || !b?.relationships) return 0;
+// The one person someone is most drawn to, if that pull is strong.
+function topAttraction(id, minimum = 0.55) {
+  const soc = W.components.social[id];
+  if (!soc?.relationships) return 0;
   let best = 0,
-    score = 0;
-  for (const key in a.relationships) {
+    score = minimum;
+  for (const key in soc.relationships) {
     const x = +key;
-    if (x === other || !(x > 0) || !bondPerson(x)) continue;
-    const ax = a.relationships[key].attraction || 0,
-      bx = b.relationships[key]?.attraction || 0;
-    if (ax < 0.4 || bx < 0.4) continue;
-    const s = Math.min(ax, bx);
-    if (s > score) {
-      score = s;
+    if (!(x > 0) || x === id || !bondPerson(x)) continue;
+    const a = soc.relationships[key].attraction || 0;
+    if (a > score) {
+      score = a;
       best = x;
     }
   }
   return best;
+}
+function sharedBeloved(id, other) {
+  const a = W.components.social[id],
+    b = W.components.social[other];
+  if (!a || !b) return 0;
+  const x = topAttraction(id);
+  if (!x || x === other || topAttraction(other) !== x) return 0;
+  // Two partnered people are not courting anyone; one partnered person and the
+  // other's partner is a different story, told by the text.
+  if (a.partnerId && a.partnerId !== x && b.partnerId && b.partnerId !== x) return 0;
+  return x;
 }
 function sharedBelovedText(id, other, x) {
   const a = W.components.social[id],
@@ -209,11 +219,33 @@ function personTownName(id) {
     place = p ? nearestSettlement(idx(p.x, p.y), 8) : null;
   return place?.name || "";
 }
+function deathTickOf(id) {
+  return (
+    W.components.life[id]?.deathTick ??
+    W.historicalIdentities?.[id]?.lifeSummary?.deathTick ??
+    W.historicalIdentities?.[id]?.deathTick ??
+    -1
+  );
+}
+function sharedDeadParent(ia, ib) {
+  for (const p of ia?.parents || [])
+    if ((ib?.parents || []).includes(p) && !classifyAlive(p)) {
+      const died = deathTickOf(p);
+      if (died >= 0 && W.tick - died <= TICKS_PER_YEAR * 5) return p;
+    }
+  return 0;
+}
+function personFaithKey(id) {
+  const cultureId = W.components.social[id]?.cultureId,
+    culture = cultureId ? W.cultures.find((c) => c.id === cultureId) : null;
+  return typeof cultureFaith === "function" && culture ? cultureFaith(culture)?.key || "" : "";
+}
 function rivalContest(id, other) {
   const a = W.components.social[id],
     b = W.components.social[other],
     ia = W.components.identity[id],
-    ib = W.components.identity[other];
+    ib = W.components.identity[other],
+    ar = a?.relationships?.[other];
   if (!a || !b) return null;
   if (typeof affairBetween === "function") {
     if (a.partnerId && a.partnerId !== other && affairBetween(other, a.partnerId))
@@ -231,14 +263,6 @@ function rivalContest(id, other) {
         text: `${entityName(id)}'s affair with ${entityName(b.partnerId)}`,
       };
   }
-  const beloved = sharedBeloved(id, other);
-  if (beloved)
-    return {
-      kind: "beloved",
-      weight: 0.45,
-      aboutId: beloved,
-      text: sharedBelovedText(id, other, beloved),
-    };
   if (
     ia?.want?.id === "voice" &&
     ib?.want?.id === "voice" &&
@@ -253,19 +277,71 @@ function rivalContest(id, other) {
       text: `who would be Voice of ${f?.name || "their people"}`,
     };
   }
-  if (ia?.want?.id === "mastery" && ib?.want?.id === "mastery") {
-    const ka = topSkill(ia),
-      kb = topSkill(ib);
-    if (ka && ka === kb) {
-      const town = personTownName(id);
+  const parent = sharedDeadParent(ia, ib);
+  if (parent)
+    return {
+      kind: "inheritance",
+      weight: 0.4,
+      aboutId: parent,
+      text: `what ${entityName(parent)} left behind`,
+    };
+  const beloved = sharedBeloved(id, other);
+  if (beloved)
+    return {
+      kind: "beloved",
+      weight: 0.35,
+      aboutId: beloved,
+      text: sharedBelovedText(id, other, beloved),
+    };
+  const wa = W.components.work?.[id],
+    wb = W.components.work?.[other];
+  if (
+    wa &&
+    wb &&
+    wa.targetTile >= 0 &&
+    wa.targetTile === wb.targetTile &&
+    ["gather", "mine", "cut"].includes(wa.task) &&
+    ["gather", "mine", "cut"].includes(wb.task)
+  ) {
+    const material = wa.materialId >= 0 ? W.definitions.species[wa.materialId]?.name : "";
+    return {
+      kind: "ground",
+      weight: 0.3,
+      aboutId: 0,
+      text: `the same ${material ? material + " " : ""}ground${personTownName(id) ? ` near ${personTownName(id)}` : ""}`,
+    };
+  }
+  const ka = topSkill(ia),
+    kb = topSkill(ib);
+  if (ka && ka === kb && (ia.skills?.[ka] || 0) >= 12 && (ib.skills?.[kb] || 0) >= 12) {
+    const townA = personTownName(id),
+      townB = personTownName(other);
+    if (!townA || townA === townB)
       return {
         kind: "craft",
-        weight: 0.35,
+        weight: 0.25,
         aboutId: 0,
-        text: `who was the finer ${(SKILL_TITLES[ka] || ka).toLowerCase()}${town ? ` in ${town}` : ""}`,
+        text: `who was the finer ${(SKILL_TITLES[ka] || ka).toLowerCase()}${townA ? ` in ${townA}` : ""}`,
       };
-    }
   }
+  const standingA = ia?.standing,
+    standingB = ib?.standing,
+    richPoor =
+      (standingA === "rich" && standingB === "poor") ||
+      (standingA === "poor" && standingB === "rich");
+  if (richPoor && ((ar?.jealousy || 0) > 0.2 || (b.relationships?.[id]?.jealousy || 0) > 0.2)) {
+    const rich = standingA === "rich" ? id : other;
+    return {
+      kind: "wealth",
+      weight: 0.25,
+      aboutId: rich,
+      text: `the wealth of ${entityName(rich)}`,
+    };
+  }
+  const fa = personFaithKey(id),
+    fb = personFaithKey(other);
+  if (fa && fb && fa !== fb && personTownName(id) && personTownName(id) === personTownName(other))
+    return { kind: "sect", weight: 0.2, aboutId: 0, text: "the god read two ways under one roof" };
   return null;
 }
 // The latest thing that actually happened between two people.
