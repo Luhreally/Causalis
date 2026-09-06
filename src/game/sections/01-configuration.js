@@ -278,6 +278,8 @@ const OVERLAY_DEFS = Object.freeze([
   ["species", "Species ranges"],
   ["history", "History"],
   ["belief", "Belief"],
+  ["wealth", "Wealth"],
+  ["unrest", "Unrest"],
 ]);
 const EVENT_CATEGORY = Object.freeze({
   BirthEvent: "people",
@@ -416,6 +418,11 @@ const EVENT_CATEGORY = Object.freeze({
   SongEvent: "people",
   SongSpreadEvent: "people",
   MuralEvent: "settlements",
+  FortuneEvent: "people",
+  UnrestEvent: "settlements",
+  RebellionEvent: "factions",
+  CivilWarEvent: "war",
+  CoupEvent: "factions",
   ChemistryEvent: "ecology",
 });
 const DOM = {};

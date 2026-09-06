@@ -91,7 +91,10 @@ function personStory(id) {
   let who = `<b>${esc(ident.generatedName)}</b>${house ? ` of the house of ${esc(house)}` : ""} is ${age} years old${adult ? "" : ", still young"}${
     titles.length ? `, ${esc(titles.slice(0, 3).join(", "))}` : ""
   }.`;
-  if (traits.length) who += ` ${titleCase(loreJoin(traits))} by nature.`;
+  if (traits.length) {
+    const phrase = loreJoin(traits);
+    who += ` ${phrase.charAt(0).toUpperCase()}${phrase.slice(1)} by nature.`;
+  }
   if (culture || faction || home)
     who += ` One of the ${culture ? esc(culture.name) : "unnamed people"}${
       faction ? `, living under ${legendLink("faction", faction.id, faction.name)}` : ""
@@ -218,6 +221,8 @@ function personStory(id) {
     .slice(0, 2);
   if (skills.length)
     works += ` Skilled in ${loreJoin(skills.map(([k, v]) => `${k} (${Math.round(v)})`))}.`;
+  const standing = typeof personStandingLine === "function" ? personStandingLine(id) : "";
+  if (standing) works += ` ${standing}`;
   if (works) paras.push(works.trim());
   // Where they are bound now.
   if (alive) {

@@ -106,7 +106,10 @@ function songTitleFor(event) {
     case "DeathEvent":
       return names[0] ? { kind: "song", title: `The Lament for ${names[0]}` } : null;
     case "SettlementFoundedEvent":
+    case "FactionFoundedEvent":
       return { kind: "tale", title: `The Founding of ${d.name}` };
+    case "TechAdvanceEvent":
+      return names[0] && d.name ? { kind: "tale", title: `How ${names[0]} Made ${d.name}` } : null;
     case "SettlementDestroyedEvent":
       return { kind: "song", title: `The Fall of ${d.name}` };
     case "EruptionEvent":
