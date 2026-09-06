@@ -22,8 +22,10 @@ const SIZE_PRESETS = Object.freeze({
   small: [120, 72],
   standard: [180, 110],
   grand: [220, 132],
+  vast: [300, 180],
 });
-const CAPS = Object.freeze({
+// Base caps for a standard map; section 68 scales them with the map's area.
+const CAP_BASE = Object.freeze({
   herbivore: 300,
   predator: 80,
   person: 250,
@@ -32,6 +34,7 @@ const CAPS = Object.freeze({
   settlement: 40,
   faction: 12,
 });
+let CAPS = CAP_BASE;
 // Life-history clock in ticks (256 per year). People mature at about fifteen and live about
 // seventy-five years; wild animals turn over in years rather than centuries, so their numbers
 // track food and predation instead of accumulating immortal individuals.
@@ -425,6 +428,9 @@ const EVENT_CATEGORY = Object.freeze({
   CoupEvent: "factions",
   TraitGainedEvent: "factions",
   TraitLostEvent: "factions",
+  ExpeditionEvent: "settlements",
+  SettlersEvent: "settlements",
+  SettlersTurnedBackEvent: "settlements",
   ChemistryEvent: "ecology",
 });
 const DOM = {};
