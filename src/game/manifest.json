@@ -77,5 +77,6 @@
   "66-legends-export.js",
   "67-polity-traits.js",
   "68-expansion.js",
-  "69-eras.js"
+  "69-eras.js",
+  "70-performance.js"
 ]

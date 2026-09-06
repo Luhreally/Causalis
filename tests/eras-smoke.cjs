@@ -89,14 +89,17 @@ const fixtureSource = String.raw`(() => {
   if (!technologyDefinition("astronomy") || !technologyDefinition("starflight")) fail("the sky techs are missing");
   if (!BUILDING_DEFS.observatory || !BUILDING_DEFS.launch_tower) fail("the wonder buildings are missing");
   grant("writing", "navigation");
+  simTick(); // plans refresh once per tick
   eras.plan(settlement.id);
   const planned = (type) => W.buildings.find((b) => !b.ruined && b.placeKind === "settlement" && b.placeId === settlement.id && b.type === type);
   if (!planned("observatory")) fail("no observatory was planned");
   grant("astronomy", "mechanization", "waterworks", "sanitation", "public_works", "planetary_stewardship");
+  simTick(); // plans refresh once per tick
   eras.plan(settlement.id);
   const tower = planned("launch_tower");
   if (!tower) { fail("no launch tower was planned"); return out; }
   tower.complete = true; tower.stage = 6; tower.integrity = tower.maxIntegrity; tower.completedTick = W.tick;
+  settlement.stability = Math.max(settlement.stability || 0, 0.6);
   if (eras.launch(settlement.id, false)) fail("a ship left before starflight was known");
   grant("starflight");
   const ship = eras.launch(settlement.id, false);

@@ -95,7 +95,7 @@ function launchSettlers(place, force = false) {
   if (!place || place.ruined || !place.knownProcesses) return null;
   if (W.expeditions.some((e) => e.active && e.from === place.id)) return null;
   if (!force) {
-    if (settlementPopulation(place) < 12 || (place.stability || 0) < 0.5) return null;
+    if (settlementPopulation(place) < 12 || (place.stability || 0) < 0.35) return null;
     if (W.tick - (place.lastSettlersTick || -99999) < SETTLER_COOLDOWN) return null;
     if (W.camps.filter((c) => c.active).length >= CAPS.camp) return null;
   }
@@ -168,7 +168,7 @@ function updateSettlers() {
     }
     const arrived = e.members.filter((id) => {
       const p = W.components.position[id];
-      return Math.max(Math.abs(p.x - tx), Math.abs(p.y - ty)) <= 2;
+      return Math.max(Math.abs(p.x - tx), Math.abs(p.y - ty)) <= 3;
     });
     if (arrived.length >= Math.min(e.members.length, 2)) {
       for (const id of arrived) {

@@ -508,7 +508,7 @@ function launchTower(place) {
 function launchShip(place, force = false) {
   ensureEras();
   if (!place || place.ruined || !place.knownProcesses) return null;
-  if (!force && (!place.knownProcesses.includes("starflight") || (place.stability || 0) < 0.5))
+  if (!force && (!place.knownProcesses.includes("starflight") || (place.stability || 0) < 0.35))
     return null;
   const tower = launchTower(place);
   if (!tower || W.ascensions.some((a) => a.settlementId === place.id)) return null;
@@ -790,7 +790,7 @@ refreshWorldInfo = function () {
   if (!W || !DOM?.worldPane) return;
   const age = currentAge(),
     card = `<div class="subhead">The age of the world</div><div class="card"><div class="row between"><b>${esc(ageLabel(age))}</b><span class="tag mono">${
-      age.name ? esc(age.name) : "first tongue unknown"
+      age.name ? esc(age.name) : "in the Common tongue"
     }</span></div><small class="muted">${
       W.ages.length
         ? W.ages.map((x) => `${esc(ageLabel(x))} from year ${formatYear(x.tick)}`).join(" · ")
