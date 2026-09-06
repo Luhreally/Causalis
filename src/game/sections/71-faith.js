@@ -94,7 +94,11 @@ function pressFaith() {
         (typeof activeTreaty === "function" && activeTreaty("peace", a, b))
       )
         continue;
-      ra.pressure = rb.pressure = Math.min(200, (ra.pressure || 0) + zeal * ZEAL_PRESSURE);
+      const appetite = typeof warAppetite === "function" ? warAppetite(a, b) : 1;
+      ra.pressure = rb.pressure = Math.min(
+        200,
+        (ra.pressure || 0) + zeal * ZEAL_PRESSURE * appetite,
+      );
     }
 }
 function markHolyWars() {

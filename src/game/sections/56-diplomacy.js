@@ -203,6 +203,7 @@ function resolveEnvoy(envoy, force = null) {
         roll <
           0.45 +
             exhaustion +
+            (to.weariness || 0) * 0.3 +
             (typeof polityHasTrait === "function" && polityHasTrait(to, "Peaceful") ? 0.25 : 0);
       if (accept) result = makePeace(from, to, envoy, war);
       break;

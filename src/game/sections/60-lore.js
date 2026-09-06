@@ -166,14 +166,17 @@ function personStory(id) {
       other = (last.subjects || []).find((x) => x !== id);
     strife += ` ${quarrels.length === 1 ? "One quarrel" : `${quarrels.length} quarrels`} on record, the last with ${
       other ? loreName(other) : "a stranger"
-    } in ${loreYear(last.tick)}${last.data?.brawl ? ", when blows were struck" : ""}.`;
+    } in ${loreYear(last.tick)}${last.data?.cause ? ` over ${esc(last.data.cause)}` : ""}${last.data?.brawl ? ", when blows were struck" : ""}.`;
   }
   const grudges = Object.entries(rels)
     .filter(([k, r]) => r.grievance > 0.4 && isPerson(+k) && !rivals.includes(+k))
     .sort((a, b) => b[1].grievance - a[1].grievance)
     .slice(0, 2)
     .map(([k]) => +k);
-  if (grudges.length) strife += ` Holds a grudge against ${loreList(grudges, 2)}.`;
+  for (const gid of grudges) {
+    const why = typeof grievanceCause === "function" ? grievanceCause(id, gid) : "";
+    strife += ` Holds a grudge against ${loreName(gid)}${why ? ` over ${esc(why)}` : ""}.`;
+  }
   if (soc.revengeTargetId && isPerson(soc.revengeTargetId))
     strife += ` Has sworn revenge on ${loreName(soc.revengeTargetId)}.`;
   const feuds = typeof houseFeuds === "function" ? houseFeuds(soc.kinGroupId) : [];

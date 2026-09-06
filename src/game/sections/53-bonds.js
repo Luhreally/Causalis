@@ -121,13 +121,7 @@ function bondPairUpdate(id, other, ar, br, feuds) {
     ib = W.components.identity[other],
     sharedFaction = a.factionId && a.factionId === b.factionId,
     affinity = traitAffinity(id, other),
-    sameWant =
-      ia?.want &&
-      ib?.want &&
-      ia.want.id === ib.want.id &&
-      ["voice", "partner", "mastery", "found"].includes(ia.want.id)
-        ? 1
-        : 0,
+    contest = rivalContest(id, other),
     proudPair = (ia?.traits?.includes("proud") ? 1 : 0) + (ib?.traits?.includes("proud") ? 1 : 0),
     dominanceClash = a.dominance > 0.7 && b.dominance > 0.7 ? 1 : 0,
     feud = feuds.get(feudKey(a.kinGroupId, b.kinGroupId)),
@@ -150,7 +144,7 @@ function bondPairUpdate(id, other, ar, br, feuds) {
     ),
     rivalTarget = clamp(
       Math.max(0, -affinity) * 0.25 +
-        sameWant * 0.35 +
+        (contest ? contest.weight : 0) +
         proudPair * 0.18 +
         dominanceClash * 0.2 +
         grievance * 0.6 +
@@ -162,17 +156,177 @@ function bondPairUpdate(id, other, ar, br, feuds) {
     );
   ar.friendship = br.friendship = +lerp(ar.friendship || 0, friendTarget, 0.15).toFixed(3);
   ar.rivalry = br.rivalry = +lerp(ar.rivalry || 0, rivalTarget, 0.15).toFixed(3);
-  return { affinity, sameWant, proudPair, dominanceClash, grievance, feud, sharedFaction };
+  return { affinity, contest, proudPair, dominanceClash, grievance, jealousy, feud, sharedFaction };
 }
-function rivalryCause(id, measure) {
-  if (measure.feud) return "the feud between their houses";
-  if (measure.grievance > 0.4) return "old grievances";
-  if (measure.sameWant) {
-    const want = W.components.identity[id]?.want?.id;
-    return `both wanting ${WANT_DEFS[want]?.[0] || "the same thing"}`;
+// ── What two people actually contest ───────────────────────────────────────────
+// A rivalry needs a real bone: the same beloved, an affair with a partner, the
+// same seat, or the same craft in the same town. Wanting "a partner" or "a
+// craft" in the abstract is not a quarrel with anyone in particular.
+function topSkill(ident) {
+  let best = "",
+    value = 8;
+  for (const k of SKILL_KEYS) {
+    const s = ident?.skills?.[k] || 0;
+    if (s > value) {
+      value = s;
+      best = k;
+    }
   }
-  if (measure.proudPair >= 2) return "pride";
-  if (measure.dominanceClash) return "who would lead";
+  return best;
+}
+function sharedBeloved(id, other) {
+  const a = W.components.social[id],
+    b = W.components.social[other];
+  if (!a?.relationships || !b?.relationships) return 0;
+  let best = 0,
+    score = 0;
+  for (const key in a.relationships) {
+    const x = +key;
+    if (x === other || !(x > 0) || !bondPerson(x)) continue;
+    const ax = a.relationships[key].attraction || 0,
+      bx = b.relationships[key]?.attraction || 0;
+    if (ax < 0.4 || bx < 0.4) continue;
+    const s = Math.min(ax, bx);
+    if (s > score) {
+      score = s;
+      best = x;
+    }
+  }
+  return best;
+}
+function sharedBelovedText(id, other, x) {
+  const a = W.components.social[id],
+    b = W.components.social[other],
+    name = entityName(x);
+  if (a.partnerId === x)
+    return `${entityName(other)}'s eyes on ${name}, ${entityName(id)}'s partner`;
+  if (b.partnerId === x)
+    return `${entityName(id)}'s eyes on ${name}, ${entityName(other)}'s partner`;
+  return `both courting ${name}`;
+}
+function personTownName(id) {
+  const p = W.components.position[id],
+    place = p ? nearestSettlement(idx(p.x, p.y), 8) : null;
+  return place?.name || "";
+}
+function rivalContest(id, other) {
+  const a = W.components.social[id],
+    b = W.components.social[other],
+    ia = W.components.identity[id],
+    ib = W.components.identity[other];
+  if (!a || !b) return null;
+  const beloved = sharedBeloved(id, other);
+  if (beloved)
+    return {
+      kind: "beloved",
+      weight: 0.45,
+      aboutId: beloved,
+      text: sharedBelovedText(id, other, beloved),
+    };
+  if (typeof affairBetween === "function") {
+    if (a.partnerId && a.partnerId !== other && affairBetween(other, a.partnerId))
+      return {
+        kind: "affair",
+        weight: 0.55,
+        aboutId: a.partnerId,
+        text: `${entityName(other)}'s affair with ${entityName(a.partnerId)}`,
+      };
+    if (b.partnerId && b.partnerId !== id && affairBetween(id, b.partnerId))
+      return {
+        kind: "affair",
+        weight: 0.55,
+        aboutId: b.partnerId,
+        text: `${entityName(id)}'s affair with ${entityName(b.partnerId)}`,
+      };
+  }
+  if (
+    ia?.want?.id === "voice" &&
+    ib?.want?.id === "voice" &&
+    a.factionId &&
+    a.factionId === b.factionId
+  ) {
+    const f = W.factions.find((x) => x.id === a.factionId);
+    return {
+      kind: "voice",
+      weight: 0.4,
+      aboutId: 0,
+      text: `who would be Voice of ${f?.name || "their people"}`,
+    };
+  }
+  if (ia?.want?.id === "mastery" && ib?.want?.id === "mastery") {
+    const ka = topSkill(ia),
+      kb = topSkill(ib);
+    if (ka && ka === kb) {
+      const town = personTownName(id);
+      return {
+        kind: "craft",
+        weight: 0.35,
+        aboutId: 0,
+        text: `who was the finer ${(SKILL_TITLES[ka] || ka).toLowerCase()}${town ? ` in ${town}` : ""}`,
+      };
+    }
+  }
+  return null;
+}
+// The latest thing that actually happened between two people.
+function grievanceCause(id, other) {
+  const ar = W.components.social[id]?.relationships?.[other],
+    types = new Set([
+      "QuarrelEvent",
+      "InjuryEvent",
+      "KillEvent",
+      "BetrayalEvent",
+      "AffairEvent",
+      "TheftEvent",
+    ]);
+  for (let n = W.events.length - 1; n >= 0 && n > W.events.length - 3000; n--) {
+    const e = W.events[n];
+    if (!types.has(e.type) || !e.subjects?.includes(id) || !e.subjects?.includes(other)) continue;
+    const year = formatYear(e.tick);
+    switch (e.type) {
+      case "QuarrelEvent":
+        return `the quarrel in ${e.data?.place || "the street"} in Year ${year}`;
+      case "InjuryEvent":
+        return `the wound ${entityName(e.subjects[1])} gave ${entityName(e.subjects[0])} in Year ${year}`;
+      case "KillEvent":
+        return `blood spilled in Year ${year}`;
+      case "BetrayalEvent":
+        return `${entityName(e.subjects[0])}'s affair with ${entityName(e.subjects[1])}`;
+      case "AffairEvent":
+        return `the affair that came to light in Year ${year}`;
+      case "TheftEvent":
+        return `the theft in Year ${year}`;
+      default:
+        break;
+    }
+  }
+  if ((ar?.betrayal || 0) > 0.3) return `${entityName(other)}'s betrayal`;
+  if ((ar?.jealousy || 0) > 0.3) {
+    const standing = W.components.identity[other]?.standing;
+    if (standing === "rich" || standing === "prosperous")
+      return `the wealth of ${entityName(other)}`;
+    return `jealousy of ${entityName(other)}`;
+  }
+  return "";
+}
+function rivalryCause(id, other, measure) {
+  if (measure.feud)
+    return `the feud between the houses of ${measure.feud.names[0]} and ${measure.feud.names[1]}`;
+  if (measure.grievance > 0.4) {
+    const why = grievanceCause(id, other);
+    if (why) return why;
+  }
+  if (measure.contest) return measure.contest.text;
+  if ((measure.jealousy || 0) > 0.3) {
+    const why = grievanceCause(id, other);
+    if (why) return why;
+  }
+  if (measure.proudPair >= 2) return "the pride of both";
+  if (measure.dominanceClash) {
+    const town = personTownName(id);
+    return town ? `who would lead in ${town}` : "who would lead";
+  }
+  if (measure.grievance > 0.4) return "old grievances";
   return "a clash of natures";
 }
 function friendshipCause(id, other, measure) {
@@ -188,7 +342,8 @@ function declareBond(id, other, ar, br, kind, measure) {
     b = W.components.social[other],
     p = W.components.position[id],
     notable = !!(W.components.identity[id]?.notable || W.components.identity[other]?.notable),
-    cause = kind === "friend" ? friendshipCause(id, other, measure) : rivalryCause(id, measure);
+    cause =
+      kind === "friend" ? friendshipCause(id, other, measure) : rivalryCause(id, other, measure);
   ar.bond = br.bond = kind;
   ar.bondTick = br.bondTick = W.tick;
   addRelation(id, other, kind === "friend" ? "friend_of" : "rival_of", 1);
@@ -205,7 +360,14 @@ function declareBond(id, other, ar, br, kind, measure) {
         : `rivalry ${ar.rivalry.toFixed(2)}`,
     ],
     importance: notable ? 3 : 2,
-    data: { a: entityName(id), b: entityName(other), cause, kind },
+    data: {
+      a: entityName(id),
+      b: entityName(other),
+      cause,
+      kind,
+      contest: measure.contest?.kind || "",
+      aboutId: measure.contest?.aboutId || 0,
+    },
   });
   ar.lastEventId = br.lastEventId = ev.id;
   const impulse =
@@ -247,13 +409,14 @@ function dissolveBond(id, other, ar, br) {
   return ev;
 }
 // ── Quarrels ───────────────────────────────────────────────────────────────────
-function quarrel(id, other, ar, br, feud = null) {
+function quarrel(id, other, ar, br, feud = null, measure = null) {
   const a = W.components.social[id],
     b = W.components.social[other],
     p = W.components.position[id];
   if (!a || !b || !p || !ar || !br) return null;
   const tile = idx(p.x, p.y),
     place = nearestSettlement(tile, 8),
+    cause = measure ? rivalryCause(id, other, measure) : "",
     brawl =
       a.aggression + a.dominance + b.aggression + b.dominance > 1.9 &&
       typeof detailedCombatExchange === "function",
@@ -272,6 +435,7 @@ function quarrel(id, other, ar, br, feud = null) {
         b: entityName(other),
         place: place?.name || locationName(tile),
         brawl,
+        cause,
         feudId: feud?.id || 0,
       },
     });
@@ -353,7 +517,7 @@ function updateBonds() {
             dist2(p.x, p.y, q.x, q.y) <= 6.25 &&
             counterRand("quarrel", cycle, id, other) < 0.2
           ) {
-            quarrel(id, other, ar, br, measure.feud || null);
+            quarrel(id, other, ar, br, measure.feud || null, measure);
             quarrels++;
           }
         }
@@ -622,7 +786,7 @@ eventSentence = function (e) {
     case "ReconciliationEvent":
       return `${d.a} and ${d.b} set their rivalry aside.`;
     case "QuarrelEvent":
-      return `${d.a} quarrelled with ${d.b} in ${d.place}${d.brawl ? " and blows were struck" : ""}.`;
+      return `${d.a} quarrelled with ${d.b} in ${d.place}${d.cause ? ` over ${d.cause}` : ""}${d.brawl ? ", and blows were struck" : ""}.`;
     case "FeudEvent":
       return d.reason === "brawls"
         ? `A feud began between the houses of ${d.houseA} and ${d.houseB} after the third brawl between ${d.killer} and ${d.victim}.`
