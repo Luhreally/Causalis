@@ -88,7 +88,7 @@ function personStory(id) {
   // Who they are.
   const titles = (ident.titles || []).filter((t) => t && t !== "Polity"),
     traits = (ident.traits || []).map((t) => (TRAIT_DEFS[t]?.[0] || t).toLowerCase());
-  let who = `<b>${esc(ident.generatedName)}</b>${house ? ` of the house of ${esc(house)}` : ""} is ${age} years old${adult ? "" : ", still young"}${
+  let who = `<b>${esc(ident.generatedName)}</b>${house ? ` of the house of ${W.houses?.[soc.kinGroupId] ? legendLink("house", soc.kinGroupId, house) : esc(house)}` : ""} is ${age} years old${adult ? "" : ", still young"}${
     titles.length ? `, ${esc(titles.slice(0, 3).join(", "))}` : ""
   }.`;
   if (traits.length) {

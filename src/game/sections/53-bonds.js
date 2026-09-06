@@ -683,7 +683,7 @@ function renderFeudPage(id) {
       .filter(Boolean)
       .sort((x, y) => x.tick - y.tick || x.id - y.id),
     house = (name, members, polity) =>
-      `<span>House of ${esc(name)}</span><b>${members.length ? `${members.length} living` : "died out"}${
+      `<span>House of ${typeof W.houses === "object" && W.houses?.[name === f.names[0] ? f.a : f.b] ? legendLink("house", name === f.names[0] ? f.a : f.b, name) : esc(name)}</span><b>${members.length ? `${members.length} living` : "died out"}${
         polity ? ` · ${legendLink("faction", polity.id, polity.name)}` : ""
       }${members.length ? ` · ${bondNames(members.slice(0, 4))}` : ""}</b>`;
   return `${legendHero(titleCase(feudTitle(f)), [f.ended ? "Ended" : titleCase(feudHeatWord(f)), `${f.deaths} dead`])}<div class="kv">${house(f.names[0], membersA, pa)}${house(f.names[1], membersB, pb)}<span>Began</span><b>Year ${formatYear(f.started)}</b><span>${
