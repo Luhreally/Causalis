@@ -9,8 +9,9 @@
 // war ends, the boats are recalled, or the blockader loses its own docks. Sea
 // battles and blockades are chronicled and drawn as hulls riding off the
 // blockaded shore. Rendering only reads the world.
-const BLOCKADE_LENGTH = 512,
-  SEA_BATTLE_CHANCE = 0.35;
+const BLOCKADE_LENGTH = 320,
+  SEA_BATTLE_CHANCE = 0.2,
+  SEA_BATTLE_REST = 384;
 function ensureNaval(world = W) {
   if (!world) return;
   world.naval = world.naval || { lastEventId: 0, blockades: [], battles: 0, nextId: 1 };
@@ -127,6 +128,7 @@ function seaBattle(war, a, b) {
     });
   W.naval.battles++;
   war.seaBattles = (war.seaBattles || 0) + 1;
+  war.lastSeaBattleTick = W.tick;
   war.casualties = (war.casualties || 0) + lost;
   war.lastEventId = ev.id;
   damageBuildingDirect(dock, 40 + lost * 30, "boats broke against the pier in a sea battle", ev.id);
@@ -140,6 +142,7 @@ function updateNaval() {
     const a = W.factions.find((f) => f.id === war.a),
       b = W.factions.find((f) => f.id === war.b);
     if (!a || !b) continue;
+    if (W.tick - (war.lastSeaBattleTick || -99999) < SEA_BATTLE_REST) continue;
     if (counterRand("sea-battle-roll", war.id, Math.floor(W.tick / 128)) < SEA_BATTLE_CHANCE)
       seaBattle(war, a, b);
   }
