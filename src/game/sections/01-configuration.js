@@ -440,6 +440,13 @@ const EVENT_CATEGORY = Object.freeze({
   LeagueDissolvedEvent: "factions",
   LeagueWarEvent: "war",
   AscensionEvent: "technology",
+  SectEvent: "factions",
+  HolyWarEvent: "war",
+  SeaBattleEvent: "war",
+  BlockadeEvent: "war",
+  BlockadeLiftedEvent: "war",
+  CalamityEvent: "disasters",
+  BlamedVoiceEvent: "factions",
   ChemistryEvent: "ecology",
 });
 const DOM = {};
