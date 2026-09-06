@@ -45,7 +45,9 @@
     "test:naval": "node tests/naval-smoke.cjs",
     "test:calamity": "node tests/calamity-smoke.cjs",
     "test:weariness": "node tests/weariness-smoke.cjs",
-    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages && npm run test:observatory && npm run test:belief && npm run test:character && npm run test:society && npm run test:bonds && npm run test:divine && npm run test:years && npm run test:diplomacy && npm run test:sea && npm run test:festivals && npm run test:lore && npm run test:items && npm run test:mind && npm run test:wealth && npm run test:politics && npm run test:houses && npm run test:export && npm run test:traits && npm run test:expansion && npm run test:eras && npm run test:perf && npm run test:faith && npm run test:naval && npm run test:calamity && npm run test:weariness",
+    "test:temptation": "node tests/temptation-smoke.cjs",
+    "test:mating": "node tests/mating-smoke.cjs",
+    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages && npm run test:observatory && npm run test:belief && npm run test:character && npm run test:society && npm run test:bonds && npm run test:divine && npm run test:years && npm run test:diplomacy && npm run test:sea && npm run test:festivals && npm run test:lore && npm run test:items && npm run test:mind && npm run test:wealth && npm run test:politics && npm run test:houses && npm run test:export && npm run test:traits && npm run test:expansion && npm run test:eras && npm run test:perf && npm run test:faith && npm run test:naval && npm run test:calamity && npm run test:weariness && npm run test:temptation && npm run test:mating",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

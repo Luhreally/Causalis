@@ -215,14 +215,6 @@ function rivalContest(id, other) {
     ia = W.components.identity[id],
     ib = W.components.identity[other];
   if (!a || !b) return null;
-  const beloved = sharedBeloved(id, other);
-  if (beloved)
-    return {
-      kind: "beloved",
-      weight: 0.45,
-      aboutId: beloved,
-      text: sharedBelovedText(id, other, beloved),
-    };
   if (typeof affairBetween === "function") {
     if (a.partnerId && a.partnerId !== other && affairBetween(other, a.partnerId))
       return {
@@ -239,6 +231,14 @@ function rivalContest(id, other) {
         text: `${entityName(id)}'s affair with ${entityName(b.partnerId)}`,
       };
   }
+  const beloved = sharedBeloved(id, other);
+  if (beloved)
+    return {
+      kind: "beloved",
+      weight: 0.45,
+      aboutId: beloved,
+      text: sharedBelovedText(id, other, beloved),
+    };
   if (
     ia?.want?.id === "voice" &&
     ib?.want?.id === "voice" &&
