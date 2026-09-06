@@ -113,28 +113,39 @@ function couple(id, other, tile) {
   setEmotionImpulse(other, { affection: 0.12, contentment: 0.1 }, ev.id, "💞");
   return ev;
 }
+// The house a child is born into: partners pass on the older house, so a line
+// keeps one name across generations; otherwise the child follows the bearer.
+function houseBearer(id, other) {
+  const a = W.components.social[id],
+    b = W.components.social[other];
+  if (a?.partnerId === other && b?.partnerId === id && (b.kinGroupId || 0) < (a.kinGroupId || 0))
+    return [other, id];
+  return [id, other];
+}
 function conceive(id, other, tile) {
   const kind = W.kind[id],
     p = W.components.position[id],
-    parents = [id, other];
+    parents = houseBearer(id, other);
   if (activeCount(kind) < CAPS[kind]) {
     const child = createOffspring(kind, parents, tile),
-      bearer = W.components.social[id],
-      affair = typeof affairBetween === "function" ? affairBetween(id, other) : null;
+      bearerId = parents[0],
+      loverId = parents[1],
+      bearer = W.components.social[bearerId],
+      affair = typeof affairBetween === "function" ? affairBetween(bearerId, loverId) : null;
     // A child of a secret affair is raised as the partner’s child.
     if (
       child &&
       bearer?.partnerId &&
-      bearer.partnerId !== other &&
+      bearer.partnerId !== loverId &&
       affair &&
       !affair.discovered &&
       typeof setSecretParentage === "function"
     )
-      setSecretParentage(child, id, other, bearer.partnerId);
+      setSecretParentage(child, bearerId, loverId, bearer.partnerId);
     return child;
   }
   const r = makeRng(hashParts(W.seedHash, W.tick, id, other), "cohort-birth"),
-    g = genomeFrom(r, kind, W.components.genome[id], W.components.genome[other]),
+    g = genomeFrom(r, kind, W.components.genome[parents[0]], W.components.genome[parents[1]]),
     chem = makeCohortBirthMatter(parents);
   addBirthToCohort(kind, p.regionId, parents, chem, g);
   for (const par of parents) W.components.reproduction[par].cooldown = 240;

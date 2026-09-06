@@ -387,8 +387,19 @@ function organismName(kind, rng, parents, tile, id) {
     const lang = protoLanguageOf(W);
     return lang.legacy ? generatedName(rng, false) : titleWord(langWord(lang, rng, 2));
   }
-  const kinGroupId = parents[0] ? W.components.social[parents[0]]?.kinGroupId || id : id;
-  return personName(personLanguage(parents, tile), rng, kinGroupId);
+  const kinGroupId = parents[0] ? W.components.social[parents[0]]?.kinGroupId || id : id,
+    name = personName(personLanguage(parents, tile), rng, kinGroupId),
+    inherited = parents[0] ? surnameOf(parents[0]) : "";
+  // A child keeps the family name of the house it is born into, whatever tongue
+  // its town speaks now, so a line carries one name down the generations.
+  return inherited ? `${name.slice(0, name.lastIndexOf(" "))} ${inherited}` : name;
+}
+function surnameOf(id) {
+  const name = String(
+      W.components.identity[id]?.generatedName || W.historicalIdentities?.[id]?.name || "",
+    ),
+    cut = name.lastIndexOf(" ");
+  return cut > 0 ? name.slice(cut + 1) : "";
 }
 function campName(tile, rng) {
   ensureLanguages();

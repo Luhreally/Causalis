@@ -1,6 +1,7 @@
 // Mating smoke: people couple by choice, partners first, never kin; a partnered
 // person coupling with another is an affair; only some couplings conceive; the
-// chronicle and the person's story say who lay with whom.
+// chronicle and the person's story say who lay with whom; children of partners
+// are born into the older house, and stories name siblings and grandparents.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
@@ -13,10 +14,10 @@ const fixtureSource = String.raw`(() => {
   const people = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id));
   if (people.length < 4) { fail("too few people: " + people.length); return out; }
   const [A, B, Cc, D] = people;
-  // Four fertile adults, all in different houses except D who is A's kin.
+  // Four fertile adults, all in different houses except D who is A's kin; B's house is the older.
   const feed = (id) => { const q = W.components.chemistry[id].q; q[C.ORGANIC] = Math.max(q[C.ORGANIC], 80); q[C.NUTRIENT] = Math.max(q[C.NUTRIENT], 40); q[C.SOLVENT] = Math.max(q[C.SOLVENT], 160); q[C.INFO] = Math.max(q[C.INFO], 40); q[C.MEMBRANE] = Math.max(q[C.MEMBRANE], 50); q[C.ENERGY] = Math.max(q[C.ENERGY], 400); const l = W.components.life[id]; l.age = Math.max(l.age, 5000); l.integrity = Math.max(l.integrity, 900); const r = W.components.reproduction[id]; r.cooldown = 0; r.mode = "paired"; };
   for (const id of [A, B, Cc, D]) { feed(id); const soc = W.components.social[id]; soc.partnerId = 0; soc.lovers = {}; }
-  W.components.social[A].kinGroupId = 9001; W.components.social[B].kinGroupId = 9002; W.components.social[Cc].kinGroupId = 9003; W.components.social[D].kinGroupId = 9001;
+  W.components.social[A].kinGroupId = 9002; W.components.social[B].kinGroupId = 9001; W.components.social[Cc].kinGroupId = 9003; W.components.social[D].kinGroupId = 9002;
   const pA = W.components.position[A];
   const put = (id, dx) => { const p = W.components.position[id]; p.x = Math.max(0, Math.min(W.width - 1, pA.x + dx)); p.y = pA.y; rebuildSpatialBins(); };
   const set = (x, y, v) => { const r = relationshipState(x, y); Object.assign(r, v); return r; };
@@ -44,6 +45,21 @@ const fixtureSource = String.raw`(() => {
   const born = W.events.filter((e) => e.type === "BirthEvent").at(-1);
   if (child == null && !born) fail("no conception");
   if (born && !(born.subjects.includes(A) && born.subjects.includes(B))) fail("the birth does not name both parents");
+  // The child is born into the older house and carries its name; the story names the wider family.
+  if (child) {
+    out.child = entityName(child); out.house = W.components.social[child].kinGroupId;
+    if (out.house !== 9001) fail("the child of partners was not born into the older house: " + out.house);
+    if (entityName(child).split(" ").at(-1) !== entityName(B).split(" ").at(-1)) fail("the child does not carry the family name of the older house: " + out.child + " / " + entityName(B));
+    W.components.identity[B].parents = [Cc];
+    W.components.reproduction[A].cooldown = 0; W.components.reproduction[B].cooldown = 0;
+    const sibling = mating.conceive(A, B);
+    out.childStory = personStory(child);
+    if (!/Child of/.test(out.childStory)) fail("the child's story does not name its parents");
+    if (!new RegExp("Grandchild of .*" + entityName(Cc)).test(out.childStory)) fail("the child's story does not name its grandparent");
+    if (sibling && !new RegExp("Sibling of .*" + entityName(sibling)).test(out.childStory)) fail("the child's story does not name its sibling");
+    if (sibling && W.components.social[sibling].kinGroupId !== 9001) fail("the second child was born into another house");
+    W.components.identity[B].parents = [];
+  }
   // A partnered person coupling with a lover is an affair.
   put(B, 30); put(Cc, 1);
   set(A, Cc, { attraction: 0.7, affection: 0.5, familiarity: 0.5 }); set(Cc, A, { attraction: 0.7, affection: 0.5, familiarity: 0.5 });

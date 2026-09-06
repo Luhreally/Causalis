@@ -147,6 +147,16 @@ function personStory(id) {
     kids = (ident.children || []).filter(isPerson);
   if (parents.length) heart += ` Child of ${loreList(parents, 2)}.`;
   if (kids.length) heart += ` Parent of ${loreList(kids, 4)}.`;
+  // The wider family: siblings through either parent, and the grandparents.
+  const known = (x) => W.components.identity[x] || W.historicalIdentities?.[x],
+    siblings = [
+      ...new Set(
+        parents.flatMap((q) => (known(q)?.children || []).filter((c) => c !== id && isPerson(c))),
+      ),
+    ],
+    grandparents = [...new Set(parents.flatMap((q) => (known(q)?.parents || []).filter(isPerson)))];
+  if (siblings.length) heart += ` Sibling of ${loreList(siblings, 4)}.`;
+  if (grandparents.length) heart += ` Grandchild of ${loreList(grandparents, 3)}.`;
   if (heart) paras.push(heart);
   // Friends, rivals, quarrels, grudges, feuds, grief.
   const bonds = soc.bonds || { friends: [], rivals: [], foes: [] },

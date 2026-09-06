@@ -43,7 +43,7 @@ let CAPS = CAP_BASE;
 // season, per discovery, and knowledge already practiced by a neighboring people is easier.
 // Rows of atmospheric gas diffusion processed per tick (dissolved compounds get one).
 const GAS_MIX_ROWS = 8;
-const RESEARCH_TEMPO = 0.07,
+const RESEARCH_TEMPO = 0.09,
   RESEARCH_SIDE_SHARE = 0.12,
   RESEARCH_NEIGHBOR_REACH = 40;
 const LIFE_HISTORY = Object.freeze({

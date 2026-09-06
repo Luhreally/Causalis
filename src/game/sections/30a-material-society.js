@@ -4087,7 +4087,7 @@ updateTechnology = function () {
   }
 };
 function researchThreshold(tech) {
-  return tech.threshold || 24 + (tech.prior?.length || 0) * 14;
+  return tech.threshold || 20 + (tech.prior?.length || 0) * 11;
 }
 // The current line of inquiry persists while it stays feasible; otherwise the settlement
 // commits to the feasible topic with the most accumulated notes, then the cheapest one.
@@ -4178,9 +4178,19 @@ updateTechnology = function () {
               dist2(ruin.x, ruin.y, s.x, s.y) <= 196,
           ),
         neighborKnows = !legacy && neighborPracticesProcess(s, tech.id),
+        polityKnows =
+          !legacy &&
+          !!s.factionId &&
+          W.settlements.some(
+            (other) =>
+              other !== s &&
+              !other.ruined &&
+              other.factionId === s.factionId &&
+              other.knownProcesses.includes(tech.id),
+          ),
         rate =
           baseRate *
-          (legacy ? (ruinMemory ? 3 : 1.8) : neighborKnows ? 1.8 : 1) *
+          (legacy ? (ruinMemory ? 3 : 1.8) : polityKnows ? 3 : neighborKnows ? 1.8 : 1) *
           (entry === focus ? 1 : RESEARCH_SIDE_SHARE),
         threshold = researchThreshold(tech);
       s.researchProgress[tech.id] = (s.researchProgress[tech.id] || 0) + rate;
