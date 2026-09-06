@@ -56,6 +56,30 @@ const fixtureSource = String.raw`(() => {
   if (!founded) fail("no SettlersEvent"); else out.founded = eventSentence(founded);
   for (const id of expedition.members) if (civilOrderOf(id)) fail("a settler still carries an order");
   if (!/Settled from/.test(window.ALIFE_LEGENDS_DEBUG.render("camp", camp.id))) fail("the camp page does not say where it was settled from");
+  // A prospector fetches a research material from far away and brings it home.
+  const oreTile = ex.resourceWithin(settlement.id, C.ORE, 40);
+  if (oreTile < 0) { out.prospectSkipped = "no ore within forty tiles"; }
+  else {
+    const before2 = settlement.inventory[C.ORE];
+    const journey = ex.prospect(settlement.id, C.ORE, oreTile);
+    if (!journey) fail("no prospector left");
+    else {
+      out.prospecting = eventSentence(W.events.find((e) => e.type === "ProspectingEvent"));
+      if (civilOrderOf(journey.personId)?.kind !== "prospect") fail("the prospector carries no order");
+      const [ox, oy] = xy(oreTile), pp = W.components.position[journey.personId];
+      pp.x = ox; pp.y = oy;
+      ex.tickProspectors();
+      const mid = ex.journeys().find((j) => j.id === journey.id);
+      if (mid.phase !== "home" || !(mid.carried > 0)) fail("the prospector dug nothing: " + JSON.stringify({ phase: mid.phase, carried: mid.carried }));
+      pp.x = settlement.x; pp.y = settlement.y;
+      ex.tickProspectors();
+      const done = ex.journeys().find((j) => j.id === journey.id);
+      if (done.active) fail("the prospector never came home");
+      if (!(settlement.inventory[C.ORE] > before2)) fail("the town gained no ore");
+      const back = W.events.find((e) => e.type === "ProspectorReturnedEvent");
+      if (!back) fail("no ProspectorReturnedEvent"); else out.returned = eventSentence(back);
+    }
+  }
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;
 })()`;

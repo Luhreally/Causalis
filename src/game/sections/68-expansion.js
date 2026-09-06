@@ -35,6 +35,7 @@ const restoreWorldExpansionBase = restoreWorldDefaults;
 restoreWorldDefaults = function () {
   restoreWorldExpansionBase();
   ensureExpansion(W);
+  ensureProspecting(W);
   if (W?.width && W?.height) scaleCaps(W.width, W.height);
 };
 // ── Choosing where to go ───────────────────────────────────────────────────────
@@ -240,6 +241,176 @@ function considerSettlers() {
     if (counterRand("settlers", cycle, place.id) < settlerUrge(place)) launchSettlers(place);
   }
 }
+// ── Prospecting: a town sends someone far for the ore, pigment, or crystal its research lacks ──
+const PROSPECT_REACH = 40,
+  PROSPECT_LOAD = 14,
+  PROSPECT_COOLDOWN = TICKS_PER_YEAR * 2;
+function ensureProspecting(world = W) {
+  if (!world) return;
+  world.journeys = world.journeys || [];
+  if (world.nextJourneyId == null) world.nextJourneyId = 1;
+}
+function resourceWithin(place, sp, radius, minimum = 2) {
+  for (let y = Math.max(0, place.y - radius); y <= Math.min(W.height - 1, place.y + radius); y++)
+    for (let x = Math.max(0, place.x - radius); x <= Math.min(W.width - 1, place.x + radius); x++)
+      if (workResourceAmount(idx(x, y), sp) >= minimum) return idx(x, y);
+  return -1;
+}
+function prospectSite(place, sp) {
+  let best = -1,
+    score = -Infinity;
+  const y0 = Math.max(1, place.y - PROSPECT_REACH),
+    y1 = Math.min(W.height - 2, place.y + PROSPECT_REACH),
+    x0 = Math.max(1, place.x - PROSPECT_REACH),
+    x1 = Math.min(W.width - 2, place.x + PROSPECT_REACH);
+  for (let y = y0; y <= y1; y++)
+    for (let x = x0; x <= x1; x++) {
+      const tile = idx(x, y),
+        amount = workResourceAmount(tile, sp);
+      if (amount < 6 || W.tiles.liquid[tile] > WATER_DEPTH.SURFACE || W.tiles.fire[tile] >= 100)
+        continue;
+      const s = Math.log2(amount + 1) * 6 - Math.sqrt(dist2(place.x, place.y, x, y)) * 0.6;
+      if (s > score) {
+        score = s;
+        best = tile;
+      }
+    }
+  if (best >= 0 && typeof civilReachable === "function") {
+    const [tx, ty] = xy(best);
+    if (!civilReachable(idx(place.x, place.y), { x: tx, y: ty }, place.factionId || 0)) return -1;
+  }
+  return best;
+}
+function launchProspector(place, sp, force = false, site = -1) {
+  ensureProspecting();
+  if (!place || place.ruined || !place.knownProcesses) return null;
+  if (W.journeys.some((j) => j.active && j.from === place.id)) return null;
+  place.prospectedTick = place.prospectedTick || {};
+  if (!force && W.tick - (place.prospectedTick[sp] || -99999) < PROSPECT_COOLDOWN) return null;
+  if (!force && resourceWithin(place, sp, 9) >= 0) return null;
+  const target = site >= 0 ? site : prospectSite(place, sp);
+  if (target < 0) return null;
+  const [who] = typeof caravanCandidates === "function" ? caravanCandidates(place, 1) : [];
+  if (!who) return null;
+  const [tx, ty] = xy(target),
+    need =
+      typeof eligibleResearchMaterialNeeds === "function"
+        ? eligibleResearchMaterialNeeds(place).find((n) => n.sp === sp)
+        : null,
+    tech = need ? technologyDefinition(need.techId)?.name || need.techId : "",
+    distance = Math.round(Math.sqrt(dist2(place.x, place.y, tx, ty))),
+    direction = compassWord(tx - place.x, ty - place.y),
+    journey = {
+      id: W.nextJourneyId++,
+      from: place.id,
+      personId: who,
+      sp,
+      target,
+      startedTick: W.tick,
+      phase: "out",
+      carried: 0,
+      active: true,
+      techId: need?.techId || "",
+    };
+  W.journeys.push(journey);
+  place.prospectedTick[sp] = W.tick;
+  issueCivilOrder(who, "prospect", tx, ty, { placeId: place.id, journeyId: journey.id, sp });
+  emitEvent("ProspectingEvent", {
+    subjects: [who, place.entityId],
+    location: idx(place.x, place.y),
+    factions: place.factionId ? [place.factionId] : [],
+    causes: [W.causalIndex.tile[idx(place.x, place.y)] || 0].filter(Boolean),
+    evidence: [
+      `no ${W.definitions.species[sp].name} within nine tiles`,
+      `${distance} tiles to the ${direction}`,
+    ],
+    importance: 2,
+    data: {
+      place: place.name,
+      material: W.definitions.species[sp].name,
+      tech,
+      distance,
+      direction,
+    },
+  });
+  return journey;
+}
+function updateProspectors() {
+  ensureProspecting();
+  for (const j of W.journeys) {
+    if (!j.active) continue;
+    const id = j.personId,
+      place = W.settlements.find((s) => s.id === j.from),
+      p = W.components.position[id],
+      order = civilOrderOf(id);
+    if (!classifyAlive(id) || !p || !place || place.ruined || W.tick - j.startedTick > 2400) {
+      if (classifyAlive(id)) clearCivilOrder(id);
+      j.active = false;
+      continue;
+    }
+    if (!order) {
+      const [x, y] = j.phase === "out" ? xy(j.target) : [place.x, place.y];
+      issueCivilOrder(id, "prospect", x, y, { placeId: place.id, journeyId: j.id, sp: j.sp });
+      continue;
+    }
+    if (j.phase === "out") {
+      if (!orderArrived(order)) continue;
+      j.carried = resolveTransfer({
+        fromType: "tile",
+        from: j.target,
+        toType: "entity",
+        to: id,
+        amounts: [[j.sp, PROSPECT_LOAD]],
+      });
+      j.phase = "home";
+      issueCivilOrder(id, "prospect", place.x, place.y, {
+        placeId: place.id,
+        journeyId: j.id,
+        sp: j.sp,
+      });
+    } else if (orderArrived(order)) {
+      const landed = resolveTransfer({
+        fromType: "entity",
+        from: id,
+        toType: "settlement",
+        to: place.id,
+        amounts: [[j.sp, Math.max(0, j.carried)]],
+      });
+      clearCivilOrder(id);
+      j.active = false;
+      j.landed = landed;
+      if (landed > 0) {
+        W.components.identity[id].significance += 2;
+        emitEvent("ProspectorReturnedEvent", {
+          subjects: [id, place.entityId],
+          location: idx(place.x, place.y),
+          factions: place.factionId ? [place.factionId] : [],
+          causes: [W.lastEventByType.ProspectingEvent].filter(Boolean),
+          evidence: [`${landed} units carried home`],
+          importance: 2,
+          data: {
+            place: place.name,
+            material: W.definitions.species[j.sp].name,
+            amount: landed,
+            tech: j.techId ? technologyDefinition(j.techId)?.name || j.techId : "",
+          },
+        });
+      }
+    }
+  }
+  if (W.journeys.length > 40)
+    W.journeys = W.journeys
+      .filter((j) => j.active)
+      .concat(W.journeys.filter((j) => !j.active).slice(-12));
+}
+function considerProspecting() {
+  if (typeof eligibleResearchMaterialNeeds !== "function") return;
+  for (const place of W.settlements) {
+    if (place.ruined || !place.knownProcesses || settlementPopulation(place) < 6) continue;
+    for (const need of eligibleResearchMaterialNeeds(place))
+      if (launchProspector(place, need.sp)) break;
+  }
+}
 // ── Tick hook and reasons ──────────────────────────────────────────────────────
 const updateWeatherCycleExpansionBase = updateWeatherCycle;
 updateWeatherCycle = function () {
@@ -248,6 +419,8 @@ updateWeatherCycle = function () {
   ensureExpansion(W);
   if (W.tick % 16 === 9) updateSettlers();
   if (W.tick % 256 === 232) considerSettlers();
+  if (W.tick % 16 === 11) updateProspectors();
+  if (W.tick % 256 === 24) considerProspecting();
 };
 const chooseBehaviorExpansionBase = chooseBehavior;
 chooseBehavior = function (id, tier) {
@@ -255,6 +428,8 @@ chooseBehavior = function (id, tier) {
   const l = W.components.life[id];
   if (l?.behavior === "march" && civilOrderOf(id)?.kind === "settle")
     l.behaviorReason = "walking out to found a new camp";
+  if (l?.behavior === "march" && civilOrderOf(id)?.kind === "prospect")
+    l.behaviorReason = "prospecting far afield for what the town lacks";
 };
 // ── Chronicle and Legends ──────────────────────────────────────────────────────
 const eventSentenceExpansionBase = eventSentence;
@@ -265,6 +440,10 @@ eventSentence = function (e) {
       return `${d.settlers} settlers left ${d.place} for free land ${d.distance} tiles to the ${d.direction}.`;
     case "SettlersEvent":
       return `Settlers from ${d.place} raised the camp of ${d.camp}${d.direction ? ` to the ${d.direction}` : ""}.`;
+    case "ProspectingEvent":
+      return `A prospector left ${d.place} for ${d.material}${d.tech ? ` to study ${d.tech}` : ""}, ${d.distance} tiles to the ${d.direction}.`;
+    case "ProspectorReturnedEvent":
+      return `A prospector brought ${d.amount} units of ${d.material} home to ${d.place}${d.tech ? ` for ${d.tech}` : ""}.`;
     case "SettlersTurnedBackEvent":
       return `The settlers from ${d.place} turned back: ${d.reason}.`;
     default:
@@ -306,4 +485,19 @@ window.ALIFE_EXPANSION_DEBUG = Object.freeze({
     ),
   expeditions: () => (W.expeditions || []).map((e) => ({ ...e, members: e.members.slice() })),
   tick: () => updateSettlers(),
+  prospect: (settlementId, sp, site = -1) =>
+    launchProspector(
+      W.settlements.find((s) => s.id === settlementId),
+      sp,
+      true,
+      site,
+    ),
+  journeys: () => (W.journeys || []).map((j) => ({ ...j })),
+  tickProspectors: () => updateProspectors(),
+  resourceWithin: (settlementId, sp, radius = 9) =>
+    resourceWithin(
+      W.settlements.find((s) => s.id === settlementId),
+      sp,
+      radius,
+    ),
 });

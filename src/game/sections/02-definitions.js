@@ -644,7 +644,7 @@ const TECH_BASE = Object.freeze([
     id: "navigation",
     name: "Gradient Navigation",
     observed: ["MigrationEvent"],
-    materials: [C.PIGMENT, C.CRYSTAL],
+    materials: [C.PIGMENT, C.MINERAL],
     structures: [],
     heat: 0,
     prior: [],

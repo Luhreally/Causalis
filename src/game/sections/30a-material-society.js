@@ -33,7 +33,7 @@ const ADVANCED_TECH_BASE = Object.freeze([
     materials: [C.INFO, C.PIGMENT],
     prior: ["writing", "governance"],
     facility: "hall",
-    threshold: 62,
+    threshold: 44,
   },
   {
     id: "waterworks",
@@ -49,7 +49,7 @@ const ADVANCED_TECH_BASE = Object.freeze([
     materials: [C.METAL, C.FUEL],
     prior: ["metalworking", "tools"],
     facility: "forge",
-    threshold: 82,
+    threshold: 60,
   },
   {
     id: "public_works",
@@ -57,7 +57,7 @@ const ADVANCED_TECH_BASE = Object.freeze([
     materials: [C.MINERAL, C.INFO],
     prior: ["governance", "logistics", "masonry"],
     facility: "hall",
-    threshold: 88,
+    threshold: 60,
   },
   {
     id: "planetary_stewardship",
@@ -65,7 +65,7 @@ const ADVANCED_TECH_BASE = Object.freeze([
     materials: [C.INFO, C.CATALYST],
     prior: ["waterworks", "sanitation", "navigation", "public_works"],
     facility: "archive",
-    threshold: 110,
+    threshold: 72,
   },
   {
     id: "astronomy",
@@ -73,7 +73,7 @@ const ADVANCED_TECH_BASE = Object.freeze([
     materials: [C.INFO, C.MINERAL],
     prior: ["writing", "navigation"],
     facility: "observatory",
-    threshold: 96,
+    threshold: 56,
   },
   {
     id: "starflight",
@@ -81,7 +81,7 @@ const ADVANCED_TECH_BASE = Object.freeze([
     materials: [C.METAL, C.FUEL],
     prior: ["planetary_stewardship", "mechanization", "astronomy"],
     facility: "launch_tower",
-    threshold: 150,
+    threshold: 90,
   },
 ]);
 const BUILDING_DEFS = Object.freeze({

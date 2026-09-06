@@ -818,5 +818,9 @@ window.ALIFE_ERAS_DEBUG = Object.freeze({
     ),
   ascensions: () => (W.ascensions || []).map((a) => ({ ...a })),
   ending: () => renderEnding(),
+  show: () => {
+    W.endingShownTick = 0;
+    return showEnding();
+  },
   page: (kind, id) => renderLegendPage(kind, id),
 });
