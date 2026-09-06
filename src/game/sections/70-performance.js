@@ -153,6 +153,31 @@ functionalToolsAtPlace = function (place, purpose) {
   if (!out) memo.set(key, (out = functionalToolsAtPlacePerfBase(place, purpose)));
   return out.slice();
 };
+// Food on a tile, read once per tick per metabolism. Hungry people scan hundreds
+// of tiles each, and the tiles of one town are scanned by everyone in it.
+const FOOD_METABOLISMS = ["grazer", "omnivore", "predator"];
+let FOOD_CACHE = { world: null, size: 0, values: null, stamps: null };
+const tileFoodPerfBase = tileFood;
+tileFood = function (i, metabolism = "grazer") {
+  if (!PERF_TICKING || !W) return tileFoodPerfBase(i, metabolism);
+  const m = FOOD_METABOLISMS.indexOf(metabolism);
+  if (m < 0 || !(i >= 0 && i < W.tileCount)) return tileFoodPerfBase(i, metabolism);
+  let cache = FOOD_CACHE;
+  if (cache.world !== W || cache.size !== W.tileCount) {
+    cache = FOOD_CACHE = {
+      world: W,
+      size: W.tileCount,
+      values: new Float32Array(W.tileCount * 3),
+      stamps: new Int32Array(W.tileCount * 3).fill(-1),
+    };
+  }
+  const slot = m * W.tileCount + i;
+  if (cache.stamps[slot] === W.tick) return cache.values[slot];
+  const v = tileFoodPerfBase(i, metabolism);
+  cache.values[slot] = v;
+  cache.stamps[slot] = W.tick;
+  return v;
+};
 // A building finished mid-tick is seen by the rest of that tick.
 const completeBuildingPerfBase = completeBuilding;
 completeBuilding = function (b) {
