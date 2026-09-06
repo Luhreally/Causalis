@@ -217,9 +217,54 @@ renderLeaguePage = function (id) {
   const at = html.indexOf('<div class="subhead">Members</div>');
   return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
 };
+// ── Compacts: polities of one sect at peace count as bound for leagues ─────────
+function faithBond(a, b) {
+  if (!a || !b || a === b) return false;
+  const fa = faithOf(a),
+    fb = faithOf(b);
+  if (!fa || !fb || fa.key !== fb.key) return false;
+  const rel = a.relations?.[b.id],
+    rev = b.relations?.[a.id];
+  if (!rel || !rev) return false;
+  if (
+    ["hostile", "mobilizing", "at war"].includes(rel.status) ||
+    ["hostile", "mobilizing", "at war"].includes(rev.status)
+  )
+    return false;
+  if ((rel.pressure || 0) >= 30 || (rev.pressure || 0) >= 30) return false;
+  if (warBetween(a, b)) return false;
+  return (a.ethos?.spiritual || 0) >= 0.45 && (b.ethos?.spiritual || 0) >= 0.45;
+}
+leagueClusters = function () {
+  const living = livingPolities(),
+    seen = new Set(),
+    clusters = [];
+  for (const f of living) {
+    if (seen.has(f.id)) continue;
+    const stack = [f],
+      members = [];
+    seen.add(f.id);
+    while (stack.length) {
+      const x = stack.pop();
+      members.push(x.id);
+      for (const y of living)
+        if (!seen.has(y.id) && (alliedPair(x, y) || faithBond(x, y))) {
+          seen.add(y.id);
+          stack.push(y);
+        }
+    }
+    if (members.length >= 3) clusters.push(members.sort((p, q) => p - q));
+  }
+  return clusters;
+};
 window.ALIFE_FAITH_DEBUG = Object.freeze({
   faith: (factionId) => faithOf(W.factions.find((f) => f.id === factionId)),
   update: () => (updateFaith(), { sects: { ...W.faith.sects }, holyWars: W.faith.holyWars }),
   sects: () => ({ ...(W.faith?.sects || {}) }),
   zeal: (a, b) => W.factions.find((f) => f.id === a)?.relations?.[b]?.zeal ?? null,
+  bond: (a, b) =>
+    faithBond(
+      W.factions.find((f) => f.id === a),
+      W.factions.find((f) => f.id === b),
+    ),
 });

@@ -18,9 +18,9 @@ const fixtureSource = String.raw`(() => {
   if (!settlement) { fail("no settlement"); return out; }
   if (!settlement.factionId) createFaction(settlement.id);
   // A second polity of its own culture.
-  for (const t of W.settlements) if (!t.ruined && !t.factionId && W.factions.length < 2) createFaction(t.id);
+  for (const t of W.settlements) if (!t.ruined && !t.factionId && W.factions.length < 3) createFaction(t.id);
   const people = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id));
-  while (W.factions.length < 2 && people.length) {
+  while (W.factions.length < 3 && people.length) {
     const founder = people.pop();
     let tile = -1;
     for (let tries = 0; tries < 400 && tile < 0; tries++) {
@@ -40,13 +40,21 @@ const fixtureSource = String.raw`(() => {
     if (town) createFaction(town.id);
   }
   const living = W.factions.filter((f) => f.stability > 0);
-  if (living.length < 2) { fail("could not raise two polities"); return out; }
-  const [A, B] = living, cA = W.cultures.find((c) => c.id === A.cultureId), cB = W.cultures.find((c) => c.id === B.cultureId);
+  if (living.length < 3) { fail("could not raise three polities"); return out; }
+  const [A, B, Cc] = living, cC = W.cultures.find((c) => c.id === Cc.cultureId), cA = W.cultures.find((c) => c.id === A.cultureId), cB = W.cultures.find((c) => c.id === B.cultureId);
   if (!cA || !cB || cA === cB) { fail("the polities do not have their own cultures"); return out; }
   ensureBeliefs();
   // Beliefs named: one god, read as favour by one people and wrath by the other.
-  for (const [c, favour] of [[cA, 5], [cB, 5]]) { c.belief.named = true; c.belief.name = "Ora"; c.belief.gloss = "the tide"; c.belief.favour = favour; }
-  A.ethos.spiritual = 0.8; B.ethos.spiritual = 0.8;
+  for (const [c, favour] of [[cA, 5], [cB, 5], [cC, 5]]) { c.belief.named = true; c.belief.name = "Ora"; c.belief.gloss = "the tide"; c.belief.favour = favour; }
+  A.ethos.spiritual = 0.8; B.ethos.spiritual = 0.8; Cc.ethos.spiritual = 0.8;
+  for (const [p, q] of [[A, B], [B, A], [A, Cc], [Cc, A], [B, Cc], [Cc, B]]) { const rel = relationOf(p, q); rel.pressure = 10; rel.status = "neutral"; }
+  faith.update();
+  // Three polities of one sect at peace are bound: a league forms without any formal alliance.
+  if (!faith.bond(A.id, Cc.id)) fail("co-religionists at peace share no bond");
+  window.ALIFE_ERAS_DEBUG.updateLeagues();
+  const compact = window.ALIFE_ERAS_DEBUG.leagues().find((l) => !l.dissolvedTick);
+  if (!compact) fail("no league formed from a shared faith"); else out.compact = compact.name + " (" + compact.members.length + ")";
+  if (compact && !/binds every member/.test(window.ALIFE_ERAS_DEBUG.page("league", compact.id))) fail("the league page does not name its faith");
   relationOf(A, B).pressure = 50; relationOf(B, A).pressure = 50;
   faith.update();
   out.faithA = faith.faith(A.id)?.name;
