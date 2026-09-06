@@ -41,9 +41,15 @@ function warAppetite(a, b) {
 const relationPressureWearinessBase = relationPressure;
 relationPressure = function (a, b) {
   const p = relationPressureWearinessBase(a, b),
-    appetite = warAppetite(a, b);
+    appetite = warAppetite(a, b),
+    wars = Math.max(warsActive(a), warsActive(b)),
+    weary = Math.max(a?.weariness || 0, b?.weariness || 0);
   p.appetite = appetite;
   p.pressure *= appetite;
+  // A polity already fighting two wars will not be pressed into a third, and an
+  // exhausted people barely feels the old grievances.
+  if (wars >= 2 && !warBetween(a, b)) p.pressure = Math.min(p.pressure, 10);
+  if (weary > 0.6) p.pressure *= 0.4;
   return p;
 };
 function updateWeariness() {
@@ -68,6 +74,10 @@ function updateWeariness() {
       ? Math.min(1, f.weariness + gain)
       : Math.max(0, f.weariness - WEARINESS_REST);
   }
+  // Grievances fade a little each cycle when the two are not at war.
+  for (const f of W.factions)
+    for (const rel of Object.values(f.relations || {}))
+      if (rel.status !== "at war" && rel.grievance > 0) rel.grievance *= 0.97;
   // Polities already fighting two wars do not slide into a third.
   for (const a of W.factions) {
     if (a.stability <= 0 || warsActive(a) < 2) continue;

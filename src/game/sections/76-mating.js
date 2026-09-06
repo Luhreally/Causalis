@@ -10,9 +10,8 @@
 // social layer follow from that act. Each coupling is chronicled, only some
 // conceive, lovers remember each other, and a person's story says who they
 // have lain with. Animals keep the old way. Rendering only reads the world.
-const MATE_ATTRACTION = 0.25,
-  STRAY_ATTRACTION = 0.6,
-  CONCEIVE_CHANCE = 0.7,
+const MATE_ATTRACTION = 0.2,
+  CONCEIVE_CHANCE = 0.85,
   MATE_REST = 32;
 let MATING_ANIMALS_ONLY = false;
 function ensureMating(world = W) {
@@ -45,15 +44,17 @@ function mateChoice(id, candidates) {
     const lover = pool.find((o) => affairBetween(id, o));
     if (lover) return lover;
   }
+  // A partnered person strays only through an affair already begun by temptation.
+  if (soc.partnerId) return 0;
   let best = 0,
     score = 0;
   for (const o of pool) {
     const os = W.components.social[o],
       ar = soc.relationships?.[o],
       br = os.relationships?.[id],
-      mutual = Math.min(ar?.attraction || 0, br?.attraction || 0),
-      need = soc.partnerId || os.partnerId ? STRAY_ATTRACTION : MATE_ATTRACTION;
-    if (mutual >= need && mutual > score) {
+      mutual = Math.min(ar?.attraction || 0, br?.attraction || 0);
+    if (os.partnerId) continue;
+    if (mutual >= MATE_ATTRACTION && mutual > score) {
       score = mutual;
       best = o;
     }
@@ -116,7 +117,22 @@ function conceive(id, other, tile) {
   const kind = W.kind[id],
     p = W.components.position[id],
     parents = [id, other];
-  if (activeCount(kind) < CAPS[kind]) return createOffspring(kind, parents, tile);
+  if (activeCount(kind) < CAPS[kind]) {
+    const child = createOffspring(kind, parents, tile),
+      bearer = W.components.social[id],
+      affair = typeof affairBetween === "function" ? affairBetween(id, other) : null;
+    // A child of a secret affair is raised as the partner’s child.
+    if (
+      child &&
+      bearer?.partnerId &&
+      bearer.partnerId !== other &&
+      affair &&
+      !affair.discovered &&
+      typeof setSecretParentage === "function"
+    )
+      setSecretParentage(child, id, other, bearer.partnerId);
+    return child;
+  }
   const r = makeRng(hashParts(W.seedHash, W.tick, id, other), "cohort-birth"),
     g = genomeFrom(r, kind, W.components.genome[id], W.components.genome[other]),
     chem = makeCohortBirthMatter(parents);
@@ -124,6 +140,38 @@ function conceive(id, other, tile) {
   for (const par of parents) W.components.reproduction[par].cooldown = 240;
   return null;
 }
+// Fertility follows the town: full stores and a roof raise it, hunger, a
+// blockade, and a fresh calamity lower it.
+function fertilityFactor(id, other) {
+  const p = W.components.position[id],
+    place = p ? nearestSettlement(idx(p.x, p.y), 8) : null,
+    hunger = Math.max(W.components.life[id]?.hunger || 0, W.components.life[other]?.hunger || 0);
+  let factor = hunger > 75 ? 0.6 : 1;
+  if (!place) return factor;
+  const food = typeof settlementFood === "function" ? settlementFood(place) : 6;
+  factor *= food >= 6 ? 1.2 : food >= 2 ? 1 : 0.7;
+  factor *= completedBuildings(place, "shelter").length ? 1.1 : 0.95;
+  if (typeof blockadeOf === "function" && blockadeOf(place)) factor *= 0.7;
+  if ((place.calamity || 0) > 0.3) factor *= 0.8;
+  return clamp(factor, 0.2, 1.35);
+}
+function fertilityWord(place) {
+  const food = typeof settlementFood === "function" ? settlementFood(place) : 6,
+    blockaded = typeof blockadeOf === "function" && blockadeOf(place),
+    roof = completedBuildings(place, "shelter").length > 0;
+  if (blockaded || food < 3) return "lean";
+  if (food >= 6 && roof) return "thriving";
+  return "steady";
+}
+const renderPlacePageMatingBase = renderPlacePage;
+renderPlacePage = function (id) {
+  const html = renderPlacePageMatingBase(id),
+    s = W.settlements.find((x) => x.id === id);
+  if (!s) return html;
+  const row = `<div class="kv"><span>Fertility</span><b>${fertilityWord(s)}</b></div>`,
+    at = html.indexOf('<div class="subhead">Chronicle</div>');
+  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
+};
 // Animals keep the old adjacency; people are hidden from it and couple below.
 const canReproduceMatingBase = canReproduce;
 canReproduce = function (id) {
@@ -140,16 +188,33 @@ function updateCouplings() {
     if (used.has(id)) continue;
     const p = W.components.position[id];
     if (!p) continue;
-    const near = nearbyIds(
-        id,
-        2,
-        (o) => o !== id && W.kind[o] === KINDS.PERSON && !used.has(o) && canReproduce(o),
-      ),
+    const soc = W.components.social[id],
+      partnerNear =
+        soc?.partnerId &&
+        !used.has(soc.partnerId) &&
+        classifyAlive(soc.partnerId) &&
+        W.components.genome[soc.partnerId] &&
+        canReproduce(soc.partnerId) &&
+        W.components.position[soc.partnerId] &&
+        dist2(
+          p.x,
+          p.y,
+          W.components.position[soc.partnerId].x,
+          W.components.position[soc.partnerId].y,
+        ) <= 16,
+      near = partnerNear
+        ? [soc.partnerId]
+        : nearbyIds(
+            id,
+            2,
+            (o) => o !== id && W.kind[o] === KINDS.PERSON && !used.has(o) && canReproduce(o),
+          ),
       mate = mateChoice(id, near);
     if (!mate) continue;
     const tile = idx(p.x, p.y);
     couple(id, mate, tile);
-    if (counterRand("conceive", W.tick, id, mate) < CONCEIVE_CHANCE) conceive(id, mate, tile);
+    if (counterRand("conceive", W.tick, id, mate) < CONCEIVE_CHANCE * fertilityFactor(id, mate))
+      conceive(id, mate, tile);
     else
       for (const par of [id, mate])
         W.components.reproduction[par].cooldown = Math.max(
@@ -227,4 +292,5 @@ window.ALIFE_MATING_DEBUG = Object.freeze({
   },
   lovers: (id) => ({ ...(W.components.social[id]?.lovers || {}) }),
   couplings: () => W.living?.couplings || 0,
+  fertility: (a, b) => fertilityFactor(a, b),
 });

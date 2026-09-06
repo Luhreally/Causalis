@@ -48,13 +48,15 @@ const fixtureSource = String.raw`(() => {
   put(B, 30); put(Cc, 1);
   set(A, Cc, { attraction: 0.7, affection: 0.5, familiarity: 0.5 }); set(Cc, A, { attraction: 0.7, affection: 0.5, familiarity: 0.5 });
   feed(A); feed(Cc);
-  if (mating.choose(A) !== Cc) fail("a strongly drawn lover beside them was not chosen: " + mating.choose(A));
+  if (mating.choose(A)) fail("a partnered person strayed without an affair: " + mating.choose(A));
   const betrayalsBefore = W.events.filter((e) => e.type === "BetrayalEvent").length;
+  startAffair(A, Cc);
+  if (mating.choose(A) !== Cc) fail("a lover beside them was not chosen once the affair had begun: " + mating.choose(A));
   if (canReproduce(A) && canReproduce(Cc)) mating.update(); else mating.couple(A, Cc);
   const secret = W.events.find((e) => e.type === "MatingEvent" && e.subjects.includes(A) && e.subjects.includes(Cc));
   if (!secret) fail("the lovers did not couple");
   else { out.secret = eventSentence(secret); if (!secret.data.secret) fail("the coupling was not marked secret"); }
-  if (!(W.events.filter((e) => e.type === "BetrayalEvent").length > betrayalsBefore)) fail("the coupling did not start an affair");
+  if (!(W.events.filter((e) => e.type === "BetrayalEvent").length > betrayalsBefore)) fail("no affair was recorded");
   if (!affairBetween(A, Cc)) fail("the affair is not recorded");
   // Without any bond or attraction, two adults do not couple.
   put(Cc, 30); put(D, 30);

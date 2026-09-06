@@ -11,12 +11,12 @@
 // is restless and bold; the devout resist. Everything downstream is unchanged:
 // a witnessed affair still wounds, breaks bonds, breeds grudges and revenge,
 // and names itself in a rival's story. Rendering only reads the world.
-const LOVE_TRUST = 0.42,
-  LOVE_AFFECTION = 0.35,
-  LOVE_ATTRACTION = 0.45,
+const LOVE_TRUST = 0.4,
+  LOVE_AFFECTION = 0.3,
+  LOVE_ATTRACTION = 0.4,
   AFFAIR_ATTRACTION = 0.45,
   AFFAIR_AFFECTION = 0.3,
-  AFFAIR_CHANCE = 0.045;
+  AFFAIR_CHANCE = 0.02;
 function partnerAway(id) {
   const soc = W.components.social[id],
     partner = soc?.partnerId;
@@ -77,6 +77,7 @@ maybeStartAffair = function (initiatorId, otherId, sharedKin) {
   }
   const opportunity = affairOpportunity(initiatorId, otherId),
     cycle = Math.floor(W.tick / 64);
+  if (opportunity < 0.35) return;
   if (counterRand("affair-opportunity", cycle, initiatorId, otherId) < opportunity * AFFAIR_CHANCE)
     startAffair(initiatorId, otherId);
 };

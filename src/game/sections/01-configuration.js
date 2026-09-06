@@ -448,6 +448,7 @@ const EVENT_CATEGORY = Object.freeze({
   CalamityEvent: "disasters",
   BlamedVoiceEvent: "factions",
   MatingEvent: "people",
+  ParentageRevealedEvent: "people",
   ChemistryEvent: "ecology",
 });
 const DOM = {};

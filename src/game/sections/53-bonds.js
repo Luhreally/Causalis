@@ -149,7 +149,7 @@ function bondPairUpdate(id, other, ar, br, feuds) {
         dominanceClash * 0.2 +
         grievance * 0.6 +
         jealousy * 0.3 +
-        (feud ? 0.45 + Math.min(1, feud.heat) * 0.2 : 0) -
+        (feud ? 0.3 + Math.min(1, feud.heat) * 0.15 : 0) -
         affection * 0.35,
       0,
       1,
@@ -498,7 +498,12 @@ function updateBonds() {
         if (!ar.bond) {
           if (ar.friendship > 0.55 && ar.rivalry < 0.35)
             declareBond(id, other, ar, br, "friend", measure);
-          else if (ar.rivalry > 0.6 && ar.friendship < 0.4 && isAdultPerson(other))
+          else if (
+            ar.rivalry > 0.6 &&
+            ar.friendship < 0.4 &&
+            isAdultPerson(other) &&
+            (!measure.feud || ar.familiarity >= 0.45)
+          )
             declareBond(id, other, ar, br, "rival", measure);
         } else if (ar.bond === "friend" && (ar.friendship < 0.3 || ar.rivalry > 0.65))
           dissolveBond(id, other, ar, br);
