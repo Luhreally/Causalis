@@ -423,6 +423,8 @@ const EVENT_CATEGORY = Object.freeze({
   RebellionEvent: "factions",
   CivilWarEvent: "war",
   CoupEvent: "factions",
+  TraitGainedEvent: "factions",
+  TraitLostEvent: "factions",
   ChemistryEvent: "ecology",
 });
 const DOM = {};

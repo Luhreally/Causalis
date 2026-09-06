@@ -478,7 +478,12 @@ function considerVoyages() {
         (id) =>
           classifyAlive(id) && ["found", "journey"].includes(W.components.identity[id]?.want?.id),
       ),
-      chance = 0.08 + (f?.ethos?.expansionist || 0) * 0.15 + (restless ? 0.15 : 0);
+      chance =
+        0.08 +
+        (f?.ethos?.expansionist || 0) * 0.15 +
+        (restless ? 0.15 : 0) +
+        (typeof polityHasTrait === "function" && polityHasTrait(f, "Seafarers") ? 0.1 : 0) +
+        (typeof polityHasTrait === "function" && polityHasTrait(f, "Expansionist") ? 0.05 : 0);
     if (counterRand("voyage", place.id, cycle) < chance) launchVoyage(place);
   }
 }

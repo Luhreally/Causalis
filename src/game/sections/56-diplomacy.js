@@ -198,12 +198,23 @@ function resolveEnvoy(envoy, force = null) {
       const exhaustion = war
         ? Math.min(0.4, ((war.casualties || 0) / Math.max(1, to.population)) * 2)
         : 0;
-      accept = force ?? roll < 0.45 + exhaustion;
+      accept =
+        force ??
+        roll <
+          0.45 +
+            exhaustion +
+            (typeof polityHasTrait === "function" && polityHasTrait(to, "Peaceful") ? 0.25 : 0);
       if (accept) result = makePeace(from, to, envoy, war);
       break;
     }
     case "marriage":
-      accept = force ?? roll < 0.5 + (rel.trade || 0) * 0.05 + (to.ethos?.hierarchical || 0) * 0.3;
+      accept =
+        force ??
+        roll <
+          0.5 +
+            (rel.trade || 0) * 0.05 +
+            (to.ethos?.hierarchical || 0) * 0.3 -
+            (typeof polityHasTrait === "function" && polityHasTrait(to, "Isolationist") ? 0.3 : 0);
       if (accept) result = makeMarriage(from, to, envoy);
       break;
   }
@@ -661,6 +672,7 @@ function considerProposals() {
   }
   for (const f of W.factions) {
     if (!livingFaction(f) || activeEnvoyFrom(f) || !f.leaderId) continue;
+    if (typeof polityHasTrait === "function" && polityHasTrait(f, "Isolationist")) continue;
     if (counterRand("court", f.id, cycle) > 0.12) continue;
     const home = factionCapital(f);
     let best = null,
