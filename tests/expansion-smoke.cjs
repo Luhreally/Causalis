@@ -80,6 +80,23 @@ const fixtureSource = String.raw`(() => {
       if (!back) fail("no ProspectorReturnedEvent"); else out.returned = eventSentence(back);
     }
   }
+  // A material wanted for research counts as a deficit, so a neighbour with a surplus sends it.
+  const needs = eligibleResearchMaterialNeeds(settlement), targets = economicTargets(settlement),
+    need = needs.find((n) => !targets.get(n.sp)) || needs[0];
+  if (!need) out.tradeSkipped = "the town wants no research material";
+  else {
+    settlement.inventory[need.sp] = 0; settlement.researchInventory[need.sp] = 0;
+    out.researchWant = W.definitions.species[need.sp].name + (targets.get(need.sp) ? " (also an economic target)" : " (research only)");
+    out.researchDeficit = materialDeficit(settlement, need.sp);
+    if (!(out.researchDeficit >= need.target)) fail("a research material the town lacks is not a want in trade: " + out.researchDeficit);
+    const other = W.settlements.find((s) => !s.ruined && s !== settlement);
+    if (other) {
+      other.inventory[need.sp] = 40;
+      const deal = bestInternalTransfer(other, settlement);
+      out.deal = deal ? W.definitions.species[deal.sp].name + " x" + deal.amount : "";
+      if (!deal || deal.sp !== need.sp) fail("the neighbour would not send the research material: " + out.deal);
+    }
+  }
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;
 })()`;

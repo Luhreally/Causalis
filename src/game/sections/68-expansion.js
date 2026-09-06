@@ -256,30 +256,36 @@ function resourceWithin(place, sp, radius, minimum = 2) {
       if (workResourceAmount(idx(x, y), sp) >= minimum) return idx(x, y);
   return -1;
 }
+// The richest reachable deposit within reach; thin seams count, since a few
+// units of pigment are all a town needs to begin its letters, and when the best
+// seam lies across water the next ones are tried before giving up.
+const PROSPECT_CANDIDATES = 8;
 function prospectSite(place, sp) {
-  let best = -1,
-    score = -Infinity;
   const y0 = Math.max(1, place.y - PROSPECT_REACH),
     y1 = Math.min(W.height - 2, place.y + PROSPECT_REACH),
     x0 = Math.max(1, place.x - PROSPECT_REACH),
-    x1 = Math.min(W.width - 2, place.x + PROSPECT_REACH);
+    x1 = Math.min(W.width - 2, place.x + PROSPECT_REACH),
+    candidates = [];
   for (let y = y0; y <= y1; y++)
     for (let x = x0; x <= x1; x++) {
       const tile = idx(x, y),
         amount = workResourceAmount(tile, sp);
-      if (amount < 6 || W.tiles.liquid[tile] > WATER_DEPTH.SURFACE || W.tiles.fire[tile] >= 100)
+      if (amount < 3 || W.tiles.liquid[tile] > WATER_DEPTH.SURFACE || W.tiles.fire[tile] >= 100)
         continue;
       const s = Math.log2(amount + 1) * 6 - Math.sqrt(dist2(place.x, place.y, x, y)) * 0.6;
-      if (s > score) {
-        score = s;
-        best = tile;
+      if (candidates.length < PROSPECT_CANDIDATES || s > candidates[candidates.length - 1].s) {
+        candidates.push({ tile, s });
+        candidates.sort((a, b) => b.s - a.s || a.tile - b.tile);
+        if (candidates.length > PROSPECT_CANDIDATES) candidates.pop();
       }
     }
-  if (best >= 0 && typeof civilReachable === "function") {
-    const [tx, ty] = xy(best);
-    if (!civilReachable(idx(place.x, place.y), { x: tx, y: ty }, place.factionId || 0)) return -1;
+  for (const c of candidates) {
+    if (typeof civilReachable !== "function") return c.tile;
+    const [tx, ty] = xy(c.tile);
+    if (civilReachable(idx(place.x, place.y), { x: tx, y: ty }, place.factionId || 0))
+      return c.tile;
   }
-  return best;
+  return -1;
 }
 function launchProspector(place, sp, force = false, site = -1) {
   ensureProspecting();

@@ -88,10 +88,14 @@ function materialSurplus(place, sp) {
     reserve = researchMaterialReserve(place, sp);
   return Math.max(0, (place.inventory?.[sp] || 0) - Math.max(reserve, target * 1.15 + 4));
 }
-function materialDeficit(place, sp) {
+function materialDeficit(place, sp, researchNeeds = eligibleResearchMaterialNeeds(place)) {
   const target = economicTargets(place).get(sp) || 0,
-    stock = (place.inventory?.[sp] || 0) + (place.researchInventory?.[sp] || 0);
-  return Math.max(0, target * 0.72 - stock);
+    stock = (place.inventory?.[sp] || 0) + (place.researchInventory?.[sp] || 0),
+    // A material a town lacks for the process it is trying to learn is a want
+    // its neighbours can answer, so pigment and ore travel to where letters and
+    // metal are being worked out.
+    research = researchNeeds.find((n) => n.sp === sp)?.target || 0;
+  return Math.max(0, target * 0.72 - stock, research - stock);
 }
 function transferSettlementMatter(from, to, sp, wanted) {
   if (!from || !to || from === to || wanted <= 0) return 0;
@@ -260,9 +264,10 @@ function deriveEconomicInstitutions(route) {
 }
 function bestInternalTransfer(from, to) {
   let best = null;
+  const needs = eligibleResearchMaterialNeeds(to);
   for (let sp = 0; sp < SPECIES_COUNT; sp++) {
     const surplus = materialSurplus(from, sp),
-      deficit = materialDeficit(to, sp);
+      deficit = materialDeficit(to, sp, needs);
     if (surplus < 1 || deficit < 1) continue;
     const score = Math.min(surplus, deficit) * marginalUtility(to, sp);
     if (!best || score > best.score || (score === best.score && sp < best.sp))
@@ -273,11 +278,13 @@ function bestInternalTransfer(from, to) {
 function bestBarter(a, b) {
   let offerA = null,
     offerB = null;
+  const needsA = eligibleResearchMaterialNeeds(a),
+    needsB = eligibleResearchMaterialNeeds(b);
   for (let sp = 0; sp < SPECIES_COUNT; sp++) {
     const surplusA = materialSurplus(a, sp),
-      needB = materialDeficit(b, sp),
+      needB = materialDeficit(b, sp, needsB),
       surplusB = materialSurplus(b, sp),
-      needA = materialDeficit(a, sp);
+      needA = materialDeficit(a, sp, needsA);
     if (surplusA > 0 && needB > 0) {
       const score = Math.min(surplusA, needB) * marginalUtility(b, sp);
       if (!offerA || score > offerA.score)
