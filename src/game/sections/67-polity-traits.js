@@ -79,6 +79,7 @@ const POLITY_TRAITS = Object.freeze([
   { id: "Singers", gloss: "every deed becomes a song", test: (f, s) => s.songs >= 6 },
   { id: "Xenophobes", gloss: "strangers are not welcome", test: (f, s) => s.xenophobia > 0.6 },
   { id: "Fractious", gloss: "risings and coups come easily", test: (f, s) => s.upheavals >= 2 },
+  { id: "Starfarers", gloss: "they sent a ship beyond the sky", test: (f, s) => s.ascensions >= 1 },
 ]);
 const TRAIT_GLOSS = Object.freeze(Object.fromEntries(POLITY_TRAITS.map((t) => [t.id, t.gloss])));
 function ensureTraits(world = W) {
@@ -132,6 +133,7 @@ function polityStats(f) {
     songs: (culture?.songs || []).filter((s) => !s.spreadFrom).length,
     xenophobia: typeof factionXenophobia === "function" ? factionXenophobia(f, W, false) : 0,
     upheavals: count(["RebellionEvent", "CoupEvent", "CivilWarEvent"]),
+    ascensions: count(["AscensionEvent"]),
   };
 }
 function traitsFor(f, stats) {

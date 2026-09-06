@@ -67,6 +67,22 @@ const ADVANCED_TECH_BASE = Object.freeze([
     facility: "archive",
     threshold: 110,
   },
+  {
+    id: "astronomy",
+    name: "Sky Charts",
+    materials: [C.INFO, C.MINERAL],
+    prior: ["writing", "navigation"],
+    facility: "observatory",
+    threshold: 96,
+  },
+  {
+    id: "starflight",
+    name: "Starflight",
+    materials: [C.METAL, C.FUEL],
+    prior: ["planetary_stewardship", "mechanization", "astronomy"],
+    facility: "launch_tower",
+    threshold: 150,
+  },
 ]);
 const BUILDING_DEFS = Object.freeze({
   stockpile: {
@@ -182,6 +198,22 @@ const BUILDING_DEFS = Object.freeze({
     storage: 220,
     defense: 6,
     priority: "water",
+  },
+  observatory: {
+    name: "Observatory",
+    work: 150,
+    housing: 0,
+    storage: 40,
+    defense: 2,
+    priority: "knowledge",
+  },
+  launch_tower: {
+    name: "Launch tower",
+    work: 300,
+    housing: 0,
+    storage: 80,
+    defense: 3,
+    priority: "knowledge",
   },
 });
 function technologyDefinition(id) {

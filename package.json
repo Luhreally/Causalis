@@ -39,7 +39,8 @@
     "test:export": "node tests/export-smoke.cjs",
     "test:traits": "node tests/traits-smoke.cjs",
     "test:expansion": "node tests/expansion-smoke.cjs",
-    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages && npm run test:observatory && npm run test:belief && npm run test:character && npm run test:society && npm run test:bonds && npm run test:divine && npm run test:years && npm run test:diplomacy && npm run test:sea && npm run test:festivals && npm run test:lore && npm run test:items && npm run test:mind && npm run test:wealth && npm run test:politics && npm run test:houses && npm run test:export && npm run test:traits && npm run test:expansion",
+    "test:eras": "node tests/eras-smoke.cjs",
+    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages && npm run test:observatory && npm run test:belief && npm run test:character && npm run test:society && npm run test:bonds && npm run test:divine && npm run test:years && npm run test:diplomacy && npm run test:sea && npm run test:festivals && npm run test:lore && npm run test:items && npm run test:mind && npm run test:wealth && npm run test:politics && npm run test:houses && npm run test:export && npm run test:traits && npm run test:expansion && npm run test:eras",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

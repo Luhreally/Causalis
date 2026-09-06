@@ -431,6 +431,13 @@ const EVENT_CATEGORY = Object.freeze({
   ExpeditionEvent: "settlements",
   SettlersEvent: "settlements",
   SettlersTurnedBackEvent: "settlements",
+  AgeEvent: "technology",
+  LeagueFormedEvent: "factions",
+  LeagueJoinedEvent: "factions",
+  LeagueLeftEvent: "factions",
+  LeagueDissolvedEvent: "factions",
+  LeagueWarEvent: "war",
+  AscensionEvent: "technology",
   ChemistryEvent: "ecology",
 });
 const DOM = {};
