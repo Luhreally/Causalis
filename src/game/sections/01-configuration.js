@@ -306,6 +306,7 @@ const EVENT_CATEGORY = Object.freeze({
   RoadEvent: "settlements",
   RailEvent: "settlements",
   PurchaseEvent: "settlements",
+  StreetsPavedEvent: "settlements",
   ColonyLostEvent: "settlements",
   MutationEvent: "species",
   AdaptationEvent: "species",
