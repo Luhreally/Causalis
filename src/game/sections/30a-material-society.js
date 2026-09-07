@@ -2374,7 +2374,23 @@ function selectWorkOrder(id, place) {
 }
 // The rare inputs a prospector or a caravan brings home: builders fetch these
 // from the town stores instead of hoping to find them on the ground nearby.
-const STORE_DRAWN_MATERIALS = [C.PIGMENT, C.INFO, C.ORE, C.CRYSTAL];
+const STORE_DRAWN_MATERIALS = [C.PIGMENT, C.INFO, C.ORE, C.CRYSTAL],
+  // The buildings that open the way to letters, law, and metal come first when
+  // a rare material is short, and may borrow research samples the town is not
+  // studying with right now.
+  CIVIC_BUILDING_TYPES = new Set(["archive", "hall", "forge"]);
+function civicBuildingWants(place, sp, except) {
+  return activeBuildings(place).some(
+    (o) =>
+      o !== except &&
+      CIVIC_BUILDING_TYPES.has(o.type) &&
+      (o.requirements || []).some(([s, n]) => s === sp && n - (o.composition?.[s] || 0) > 0),
+  );
+}
+function researchFocusNeeds(place, sp) {
+  const focus = place?.researchFocus ? technologyDefinition(place.researchFocus) : null;
+  return !!focus && (focus.materials || []).includes(sp);
+}
 function missingBuildingMaterial(b) {
   const missing = b.requirements
     .map(([sp, n]) => ({
@@ -2922,13 +2938,27 @@ function performCivilLabor(id) {
       W.components.cognition[id].pendingReward += 96;
       return true;
     }
-    if (STORE_DRAWN_MATERIALS.includes(sp)) {
+    if (
+      STORE_DRAWN_MATERIALS.includes(sp) &&
+      (CIVIC_BUILDING_TYPES.has(b.type) || !civicBuildingWants(place, sp, b))
+    ) {
       const reserve = Math.max(
           0,
           researchMaterialReserve(place, sp) - (place.researchInventory?.[sp] || 0),
         ),
-        available = Math.min((place.inventory[sp] || 0) - reserve, missing.needed, 8);
+        borrowable =
+          CIVIC_BUILDING_TYPES.has(b.type) && !researchFocusNeeds(place, sp)
+            ? place.researchInventory?.[sp] || 0
+            : 0,
+        stocked = (place.inventory[sp] || 0) - reserve,
+        available = Math.min(stocked + borrowable, missing.needed, 8);
       if (available > 0) {
+        // Borrow from the research samples only what the stores cannot give.
+        const borrowed = Math.max(0, available - Math.max(0, stocked));
+        if (borrowed > 0) {
+          place.researchInventory[sp] -= borrowed;
+          place.inventory[sp] = (place.inventory[sp] || 0) + borrowed;
+        }
         const store = idx(place.x, place.y);
         if (dist2(p.x, p.y, place.x, place.y) > 4)
           return moveWorkerToward(
