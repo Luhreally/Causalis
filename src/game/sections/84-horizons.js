@@ -8,8 +8,8 @@
 // and the urban stage never came. The thresholds of history now scale with
 // the map, as the caps already do in the other direction: on the smallest
 // worlds a town of ten or a polity of thirteen is metropolitan, the civic
-// buildings ask for proportionally less common material (their rare inputs
-// unchanged), settlers and prospectors leave from smaller towns, and the
+// buildings ask for proportionally less common material and labour (their
+// rare inputs unchanged), prospectors leave from smaller towns, and the
 // buildings that gate a stage are worked with priority. Standard and larger
 // worlds keep their original numbers.
 const HORIZON_MIN_SCALE = 0.35,
@@ -108,28 +108,12 @@ buildingRequirements = function (place, type) {
     factor = Math.max(0.55, k);
   return raw.map(([sp, n]) => [sp, rare.has(sp) ? n : Math.max(4, Math.ceil(n * factor))]);
 };
-// Settlers and prospectors leave from smaller towns on smaller worlds.
+// Prospectors leave from smaller towns on smaller worlds. (Settlers keep the
+// standard minimum of twelve: on a tiny map, splitting a town of six only
+// dilutes the labour a hall needs.)
 function settlerMinimum() {
-  return Math.max(6, Math.round(12 * smallWorldFactor()));
+  return 12;
 }
-const launchSettlersHorizonBase = launchSettlers;
-launchSettlers = function (place, force = false) {
-  if (!force && place && !place.ruined && place.knownProcesses) {
-    const pop = settlementPopulation(place),
-      minimum = settlerMinimum();
-    if (
-      minimum < 12 &&
-      pop >= minimum &&
-      pop < 12 &&
-      (place.stability || 0) >= 0.35 &&
-      W.tick - (place.lastSettlersTick || -99999) >= SETTLER_COOLDOWN &&
-      W.camps.filter((c) => c.active).length < CAPS.camp &&
-      !(W.expeditions || []).some((e) => e.active && e.from === place.id)
-    )
-      return launchSettlersHorizonBase(place, true);
-  }
-  return launchSettlersHorizonBase(place, force);
-};
 considerProspecting = function () {
   if (typeof eligibleResearchMaterialNeeds !== "function") return;
   const far = PROSPECT_MATERIALS(),

@@ -13,7 +13,7 @@ const fixtureSource = String.raw`(() => {
   out.size = [W.width, W.height]; out.scale = hz.scale(); out.gate = hz.gate(); out.settlerMinimum = hz.settlerMinimum();
   if (!(out.scale < 1)) fail("a battery map does not read as a small world: " + out.scale);
   if (!(out.gate.local < 24 && out.gate.local >= 8 && out.gate.network < 32 && out.gate.network >= 12)) fail("the urban gate did not scale down: " + JSON.stringify(out.gate));
-  if (!(out.settlerMinimum < 12 && out.settlerMinimum >= 6)) fail("the settler minimum did not scale down: " + out.settlerMinimum);
+  if (out.settlerMinimum !== 12) fail("the settler minimum changed on a small world: " + out.settlerMinimum);
   let settlement = null;
   for (let attempt = 0; attempt < 4 && !settlement; attempt++) {
     for (let i = 0; i < 160; i++) simTick();
