@@ -14,9 +14,9 @@
 // there; and births slow when the stores cannot carry more mouths. Every
 // transfer is a real move of conserved matter, and every relief and migration
 // is chronicled.
-const GRANARY_PEOPLE_PER_FARM = 8,
+const GRANARY_PEOPLE_PER_FARM = 6,
   GRANARY_PEOPLE_PER_STORE = 14,
-  GRANARY_MAX_FARMS = 6,
+  GRANARY_MAX_FARMS = 8,
   GRANARY_MAX_STORES = 4,
   GRANARY_ACTIVE_CAP = 6,
   LEAN_FOOD = 10,
@@ -114,21 +114,26 @@ essentialStockTargets = function (place) {
 // for other labour work the fields, because that is the way out of hunger.
 const performCivilLaborGranaryBase = performCivilLabor;
 performCivilLabor = function (id) {
-  if (W.kind[id] === KINDS.PERSON && (W.tick + id) % 4 === 0) {
+  if (W.kind[id] === KINDS.PERSON && (W.tick + id) % 2 === 0) {
     const life = W.components.life[id],
       q = W.components.chemistry[id]?.q;
     if (
       life &&
       q &&
       life.hunger > 56 &&
-      life.hunger <= 78 &&
-      life.thirst <= 72 &&
-      q[C.ENERGY] >= 60
+      life.hunger <= 92 &&
+      life.thirst <= 80 &&
+      q[C.ENERGY] >= 20
     ) {
-      const place = nearestFriendlyPlace(id),
-        outlook = place?.knownProcesses ? foodOutlook(place) : null;
-      if (outlook?.lean && completedBuildings(place, "farm").length && performFarmLabor(id))
-        return true;
+      const place = nearestFriendlyPlace(id);
+      if (place?.knownProcesses) {
+        const farms = completedBuildings(place, "farm"),
+          ripe = farms.some((b) => cultivatedField(b)?.stage === "ripe"),
+          outlook = ripe ? null : foodOutlook(place);
+        // A ripe field is food at hand for anyone still standing; a fallow one
+        // is worked when the stores are lean.
+        if (farms.length && (ripe || outlook?.lean) && performFarmLabor(id)) return true;
+      }
     }
   }
   return performCivilLaborGranaryBase(id);
