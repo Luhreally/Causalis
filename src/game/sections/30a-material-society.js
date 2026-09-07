@@ -2372,6 +2372,9 @@ function selectWorkOrder(id, place) {
       .sort((a, b) => b.score - a.score || a.o.id - b.o.id);
   return orders[0]?.o || null;
 }
+// The rare inputs a prospector or a caravan brings home: builders fetch these
+// from the town stores instead of hoping to find them on the ground nearby.
+const STORE_DRAWN_MATERIALS = [C.PIGMENT, C.INFO, C.ORE, C.CRYSTAL];
 function missingBuildingMaterial(b) {
   const missing = b.requirements
     .map(([sp, n]) => ({
@@ -2918,6 +2921,39 @@ function performCivilLabor(id) {
       );
       W.components.cognition[id].pendingReward += 96;
       return true;
+    }
+    if (STORE_DRAWN_MATERIALS.includes(sp)) {
+      const reserve = Math.max(
+          0,
+          researchMaterialReserve(place, sp) - (place.researchInventory?.[sp] || 0),
+        ),
+        available = Math.min((place.inventory[sp] || 0) - reserve, missing.needed, 8);
+      if (available > 0) {
+        const store = idx(place.x, place.y);
+        if (dist2(p.x, p.y, place.x, place.y) > 4)
+          return moveWorkerToward(
+            id,
+            store,
+            "haul",
+            `fetching ${W.definitions.species[sp].name} from the stores of ${place.name}`,
+            sp,
+            b.id,
+            tool?.entityId || 0,
+          );
+        place.inventory[sp] -= available;
+        inv[sp] += available;
+        setWorkAction(
+          id,
+          "haul",
+          `drew ${available} ${W.definitions.species[sp].name} from the stores for the ${b.name}`,
+          store,
+          sp,
+          b.id,
+          tool?.entityId || 0,
+        );
+        W.components.cognition[id].pendingReward += 48;
+        return true;
+      }
     }
     const source = findResourceTile(id, sp),
       toolId = tool?.entityId || 0;

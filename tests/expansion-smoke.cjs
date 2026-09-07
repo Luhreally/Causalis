@@ -97,6 +97,31 @@ const fixtureSource = String.raw`(() => {
       if (!deal || deal.sp !== need.sp) fail("the neighbour would not send the research material: " + out.deal);
     }
   }
+  // A builder fetches pigment a prospector brought home from the stores instead of searching the ground.
+  const shrine = planBuilding(settlement, "shrine", 9) || W.buildings.find((b) => !b.ruined && b.placeKind === "settlement" && b.placeId === settlement.id && b.type === "shrine" && !b.complete);
+  if (!shrine) out.storesSkipped = "no shrine could be planned";
+  else {
+    for (const b of activeBuildings(settlement)) if (b !== shrine) { b.complete = true; b.stage = 6; b.integrity = b.maxIntegrity; b.completedTick = W.tick; }
+    for (const [sp, n] of shrine.requirements) if (sp !== C.PIGMENT) shrine.composition[sp] = n;
+    shrine.composition[C.PIGMENT] = 0;
+    settlement.inventory[C.PIGMENT] = 20; settlement.researchInventory[C.PIGMENT] = 10;
+    const builder = W.activeIds.find((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && isAdultPerson(id) && W.components.social[id].homePlaceId === settlement.id) || W.activeIds.find((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && isAdultPerson(id));
+    if (!builder) out.storesSkipped = "no builder";
+    else {
+      const bp = W.components.position[builder]; bp.x = settlement.x; bp.y = settlement.y; rebuildSpatialBins();
+      { const q = W.components.chemistry[builder].q; q[C.ORGANIC] = Math.max(q[C.ORGANIC], 80); q[C.NUTRIENT] = Math.max(q[C.NUTRIENT], 40); q[C.SOLVENT] = Math.max(q[C.SOLVENT], 160); q[C.INFO] = Math.max(q[C.INFO], 40); q[C.MEMBRANE] = Math.max(q[C.MEMBRANE], 50); q[C.ENERGY] = Math.max(q[C.ENERGY], 400); const l = W.components.life[builder]; l.integrity = Math.max(l.integrity, 900); }
+      const ws0 = workState(builder); ws0.task = "idle"; ws0.targetTile = -1;
+      const carried = W.components.inventory[builder].materials, stockBefore = settlement.inventory[C.PIGMENT];
+      carried[C.PIGMENT] = 0;
+      let drew = false;
+      // The bare labor step, under the safety, maintenance and homeostasis wrappers.
+      for (let i = 0; i < 6 && !drew; i++) { performCivilLaborSafetyBase(builder); drew = carried[C.PIGMENT] > 0 || shrine.composition[C.PIGMENT] > 0; }
+      const ws = workState(builder), order = selectWorkOrder(builder, settlement), nearestPlace = nearestWorkPlace(builder);
+      out.stores = { drew, stock: settlement.inventory[C.PIGMENT], carried: carried[C.PIGMENT], placed: shrine.composition[C.PIGMENT], doing: ws.task + "/" + (ws.phase || ""), order: order ? order.type + ":" + order.buildingId : "none", shrineId: shrine.id, nearest: nearestPlace ? nearestPlace.name + "=" + (nearestPlace === settlement) : "none", missing: JSON.stringify(missingBuildingMaterial(shrine)), active: activeBuildings(settlement).map((b) => b.type + (b === shrine ? "*" : "")).join(",") };
+      if (!drew) fail("the builder did not draw pigment from the stores: " + JSON.stringify(out.stores));
+      if (drew && settlement.inventory[C.PIGMENT] >= stockBefore) fail("the stores did not shrink when pigment was drawn");
+    }
+  }
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;
 })()`;

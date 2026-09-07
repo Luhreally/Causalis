@@ -88,14 +88,25 @@ function materialSurplus(place, sp) {
     reserve = researchMaterialReserve(place, sp);
   return Math.max(0, (place.inventory?.[sp] || 0) - Math.max(reserve, target * 1.15 + 4));
 }
-function materialDeficit(place, sp, researchNeeds = eligibleResearchMaterialNeeds(place)) {
+function materialDeficit(
+  place,
+  sp,
+  researchNeeds = eligibleResearchMaterialNeeds(place),
+  buildingWants = typeof buildingMaterialWants === "function" ? buildingMaterialWants(place) : null,
+) {
   const target = economicTargets(place).get(sp) || 0,
     stock = (place.inventory?.[sp] || 0) + (place.researchInventory?.[sp] || 0),
-    // A material a town lacks for the process it is trying to learn is a want
-    // its neighbours can answer, so pigment and ore travel to where letters and
-    // metal are being worked out.
-    research = researchNeeds.find((n) => n.sp === sp)?.target || 0;
-  return Math.max(0, target * 0.72 - stock, research - stock);
+    // A material a town lacks for the process it is trying to learn, or for the
+    // archive or hall it is raising, is a want its neighbours can answer, so
+    // pigment and ore travel to where letters and metal are being worked out.
+    research = researchNeeds.find((n) => n.sp === sp)?.target || 0,
+    building = buildingWants?.get(sp) || 0;
+  return Math.max(
+    0,
+    target * 0.72 - stock,
+    research - stock,
+    building - (place.inventory?.[sp] || 0),
+  );
 }
 function transferSettlementMatter(from, to, sp, wanted) {
   if (!from || !to || from === to || wanted <= 0) return 0;
@@ -264,10 +275,11 @@ function deriveEconomicInstitutions(route) {
 }
 function bestInternalTransfer(from, to) {
   let best = null;
-  const needs = eligibleResearchMaterialNeeds(to);
+  const needs = eligibleResearchMaterialNeeds(to),
+    wants = typeof buildingMaterialWants === "function" ? buildingMaterialWants(to) : null;
   for (let sp = 0; sp < SPECIES_COUNT; sp++) {
     const surplus = materialSurplus(from, sp),
-      deficit = materialDeficit(to, sp, needs);
+      deficit = materialDeficit(to, sp, needs, wants);
     if (surplus < 1 || deficit < 1) continue;
     const score = Math.min(surplus, deficit) * marginalUtility(to, sp);
     if (!best || score > best.score || (score === best.score && sp < best.sp))
@@ -279,12 +291,14 @@ function bestBarter(a, b) {
   let offerA = null,
     offerB = null;
   const needsA = eligibleResearchMaterialNeeds(a),
-    needsB = eligibleResearchMaterialNeeds(b);
+    needsB = eligibleResearchMaterialNeeds(b),
+    wantsA = typeof buildingMaterialWants === "function" ? buildingMaterialWants(a) : null,
+    wantsB = typeof buildingMaterialWants === "function" ? buildingMaterialWants(b) : null;
   for (let sp = 0; sp < SPECIES_COUNT; sp++) {
     const surplusA = materialSurplus(a, sp),
-      needB = materialDeficit(b, sp, needsB),
+      needB = materialDeficit(b, sp, needsB, wantsB),
       surplusB = materialSurplus(b, sp),
-      needA = materialDeficit(a, sp, needsA);
+      needA = materialDeficit(a, sp, needsA, wantsA);
     if (surplusA > 0 && needB > 0) {
       const score = Math.min(surplusA, needB) * marginalUtility(b, sp);
       if (!offerA || score > offerA.score)

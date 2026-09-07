@@ -382,6 +382,9 @@ function updateProspectors() {
         to: place.id,
         amounts: [[j.sp, Math.max(0, j.carried)]],
       });
+      // A thin haul from a poor seam does not earn the town two idle years.
+      if (landed < PROSPECT_LOAD / 2)
+        place.prospectedTick[j.sp] = W.tick - Math.round(PROSPECT_COOLDOWN * 0.75);
       clearCivilOrder(id);
       j.active = false;
       j.landed = landed;
@@ -409,12 +412,34 @@ function updateProspectors() {
       .filter((j) => j.active)
       .concat(W.journeys.filter((j) => !j.active).slice(-12));
 }
+// Materials that are dug or found, not grown: the ones worth a far journey.
+const PROSPECT_MATERIALS = () => [C.ORE, C.PIGMENT, C.INFO, C.CRYSTAL, C.MINERAL, C.CATALYST];
+// What the town's half-built archives, halls, and forges still lack from the ground.
+function buildingMaterialWants(place) {
+  const wants = new Map();
+  if (typeof activeBuildings !== "function" || !place?.knownProcesses) return wants;
+  for (const b of activeBuildings(place))
+    for (const [sp, n] of b.requirements || []) {
+      const short = n - (b.composition?.[sp] || 0);
+      if (short > 0) wants.set(sp, (wants.get(sp) || 0) + short);
+    }
+  return wants;
+}
 function considerProspecting() {
   if (typeof eligibleResearchMaterialNeeds !== "function") return;
+  const far = PROSPECT_MATERIALS();
   for (const place of W.settlements) {
     if (place.ruined || !place.knownProcesses || settlementPopulation(place) < 6) continue;
+    let sent = false;
     for (const need of eligibleResearchMaterialNeeds(place))
-      if (launchProspector(place, need.sp)) break;
+      if (launchProspector(place, need.sp)) {
+        sent = true;
+        break;
+      }
+    if (sent) continue;
+    for (const [sp, short] of buildingMaterialWants(place))
+      if (far.includes(sp) && (place.inventory?.[sp] || 0) < short && launchProspector(place, sp))
+        break;
   }
 }
 // ── Tick hook and reasons ──────────────────────────────────────────────────────
