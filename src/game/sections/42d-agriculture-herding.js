@@ -1728,7 +1728,9 @@ function debugAgricultureHerdingProbe() {
   workerPosition.regionId = regionId(building.x, building.y);
   const field = cultivatedField(building),
     sown = sowCultivatedField(worker, field, place);
-  for (let cycle = 0; sown && cycle < 4 && field.stage !== "ripe"; cycle++) {
+  // A field ripens on a real crop or when its ground is spent (86), so the probe
+  // gives it up to a dozen growth steps.
+  for (let cycle = 0; sown && cycle < 12 && field.stage !== "ripe"; cycle++) {
     W.tick += 64;
     updateCultivatedField(building, place, worker);
   }

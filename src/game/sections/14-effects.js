@@ -77,8 +77,10 @@ function resolveEffects() {
             ny = clamp(p.y + Math.sign(ny - p.y), 0, W.height - 1);
             if (typeof embodiedCapability === "function") {
               const locomotion = embodiedCapability(d.entityId).locomotion,
-                // A worn road is easier going: one tick less between steps.
-                onRoad = kind === KINDS.PERSON && W.tiles.traffic?.[idx(nx, ny)] > 900,
+                // A worn path or a paved road is easier going: one tick less between steps.
+                onRoad =
+                  kind === KINDS.PERSON &&
+                  (W.tiles.traffic?.[idx(nx, ny)] > 900 || W.tiles.road?.[idx(nx, ny)] > 0),
                 interval = Math.max(
                   1,
                   (locomotion < 0.42 ? 3 : locomotion < 0.72 ? 2 : 1) - (onRoad ? 1 : 0),

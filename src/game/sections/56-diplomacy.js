@@ -86,7 +86,7 @@ function voiceKin(f) {
         classifyAlive(id) &&
         W.components.social[id]?.factionId === f.id &&
         !W.components.social[id].partnerId &&
-        !W.components.campaign?.[id] &&
+        freeForCivilDuty(id) &&
         isAdultPerson(id),
     ),
     children = members.filter((id) => voice?.children?.includes(id)),
@@ -132,8 +132,33 @@ function sendEnvoy(from, to, proposal, terms = {}) {
         (W.components.identity[a]?.skills?.lore || 0) -
         (W.components.social[a]?.dominance || 0) * 20 || a - b,
   );
-  const person = candidates[0];
-  if (!person) return null;
+  let person = candidates[0];
+  if (!person) {
+    // A polity at war still finds an envoy: the muster gives up its most
+    // commanding free adult, and the civil order outranks the column.
+    const voices = new Set(W.factions.map((f) => f.leaderId).filter(Boolean));
+    person = entityAtRadius(idx(home.x, home.y), 6, KINDS.PERSON)
+      .filter((id) => {
+        const life = W.components.life[id],
+          body = W.components.body[id];
+        return (
+          classifyAlive(id) &&
+          life &&
+          !voices.has(id) &&
+          W.components.social[id]?.factionId === from.id &&
+          !!W.components.campaign?.[id]?.warId &&
+          !life.wounded &&
+          life.hunger <= 70 &&
+          life.age >= (body?.maxAge || 19200) * 0.2
+        );
+      })
+      .sort(
+        (a, b) =>
+          (W.components.social[b]?.dominance || 0) - (W.components.social[a]?.dominance || 0) ||
+          a - b,
+      )[0];
+    if (!person) return null;
+  }
   const envoy = {
     id: W.diplomacy.nextId++,
     personId: person,

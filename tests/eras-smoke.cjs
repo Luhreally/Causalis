@@ -107,7 +107,7 @@ const fixtureSource = String.raw`(() => {
   out.ship = { first: ship.first, tile: ship.tile };
   const rose = W.events.find((e) => e.type === "AscensionEvent");
   if (!rose) fail("no AscensionEvent"); else out.shipSentence = eventSentence(rose);
-  if (eras.age().tier !== 6) fail("the Age of Stars did not begin");
+  if (eras.age().gloss !== "Stars") fail("the Age of Stars did not begin: " + JSON.stringify(eras.age()));
   if (!W.endingShownTick) fail("the ending was not marked shown");
   out.ending = eras.ending().length;
   if (/undefined|NaN/.test(eras.ending())) fail("the ending contains undefined");

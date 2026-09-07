@@ -69,7 +69,14 @@ function updateHealth(id, elapsed = 1) {
   if (
     W.tiles.chem[C.PATHOGEN][ti] > 80 &&
     counterRand("infection", W.tick, id) <
-      1 - (1 - 0.006 * (1 - p.diseaseResistance) * (1 - shelter * 0.35)) ** elapsed
+      1 -
+        (1 -
+          0.006 *
+            (1 - p.diseaseResistance) *
+            (1 - shelter * 0.35) *
+            // Sanitation and germ theory at home thin the pathogens a person meets (87).
+            (typeof hygieneFactor === "function" ? hygieneFactor(id) : 1)) **
+          elapsed
   )
     infectEntity(id, 4, W.causalIndex.tile[ti] || 0);
   if (l.integrity < 1 || l.regulation < 1) {

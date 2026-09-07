@@ -97,13 +97,20 @@ function farLandTile(fromX, fromY, minDist, maxDist, salt) {
   return null;
 }
 // ── Caravans ───────────────────────────────────────────────────────────────────
+// A person is free for a civil duty (a caravan, an embassy, a marriage) when
+// they carry no orders, or only a feast or a walk to the horizon, which the
+// road interrupts; a column, a caravan, an exile, or a migration is not broken.
+function freeForCivilDuty(id) {
+  const order = W.components.campaign?.[id];
+  return !order || (order.warId === 0 && ["festival", "journey"].includes(order.role));
+}
 function caravanCandidates(place, count) {
   const voices = new Set(W.factions.map((f) => f.leaderId).filter(Boolean)),
     out = [];
   for (const id of entityAtRadius(idx(place.x, place.y), 6, KINDS.PERSON)) {
     const life = W.components.life[id],
       social = W.components.social[id];
-    if (!classifyAlive(id) || !life || voices.has(id) || W.components.campaign?.[id]) continue;
+    if (!classifyAlive(id) || !life || voices.has(id) || !freeForCivilDuty(id)) continue;
     if (social?.factionId !== place.factionId || life.hunger > 70 || life.wounded) continue;
     if (life.age < (W.components.body[id]?.maxAge || 19200) * 0.2) continue;
     out.push(id);

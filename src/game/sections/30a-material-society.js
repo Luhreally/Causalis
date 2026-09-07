@@ -218,8 +218,13 @@ const BUILDING_DEFS = Object.freeze({
     priority: "knowledge",
   },
 });
+// Later sections extend the tree by pushing definitions into TECH_EXTENSIONS.
+const TECH_EXTENSIONS = [];
+function techCatalog() {
+  return [...TECH_BASE, ...ADVANCED_TECH_BASE, ...TECH_EXTENSIONS];
+}
 function technologyDefinition(id) {
-  return TECH_BASE.find((t) => t.id === id) || ADVANCED_TECH_BASE.find((t) => t.id === id);
+  return techCatalog().find((t) => t.id === id);
 }
 function defaultCityManagement() {
   return {
@@ -2606,7 +2611,7 @@ function hasResearchMaterial(place, sp) {
 }
 function researchMaterialReserve(place, sp) {
   if (!place?.knownProcesses) return 0;
-  for (const tech of [...TECH_BASE, ...ADVANCED_TECH_BASE]) {
+  for (const tech of techCatalog()) {
     if (
       place.knownProcesses.includes(tech.id) ||
       !(tech.prior || []).every((id) => place.knownProcesses.includes(id))
@@ -2643,7 +2648,7 @@ function eligibleResearchMaterialNeeds(place) {
   if (!place?.knownProcesses || place.ruined) return [];
   const seen = new Set(),
     out = [];
-  for (const tech of [...TECH_BASE, ...ADVANCED_TECH_BASE]) {
+  for (const tech of techCatalog()) {
     if (
       place.knownProcesses.includes(tech.id) ||
       !(tech.prior || []).every((id) => place.knownProcesses.includes(id))
@@ -3037,6 +3042,8 @@ function performCivilLabor(id) {
     (3 +
       (buildTool ? Math.max(1, Math.floor(buildTool.quality / 24)) : 0) +
       Math.floor((W.components.cognition[id]?.state?.[4] || 0) / 700)) *
+    // Engines and electricity quicken the work face (87).
+    (typeof constructionTempoFactor === "function" ? constructionTempoFactor(place) : 1) *
     (concertedIntensity() ? 4 + 2 * concertedIntensity() : 1);
   b.workDone = Math.min(b.workRequired, b.workDone + effort);
   if (buildTool) {
@@ -3320,7 +3327,10 @@ function updateCognitionAndLabor() {
       hasWork = placeNeedsLabor(place),
       workDrive = cognitionBias(id, "work") + cognitionBias(id, "shelter") * 0.35,
       networkChoosesWork = c.dominant === "work" || c.dominant === "shelter" || workDrive > -12,
-      assigned = essential.has(id);
+      // Hungry hands go to a lean town's fields whatever their mind is set on (86).
+      assigned =
+        essential.has(id) ||
+        (typeof hungryHandsWanted === "function" && hungryHandsWanted(id, place));
     if (facility) {
       if (!workerReadyForLabor(id)) {
         clearStaleWork(id);
@@ -4003,7 +4013,7 @@ updateSettlements = function () {
   updateSettlementsResearchLaborBase();
   for (const s of W.settlements) {
     if (s.ruined) continue;
-    const tech = [...TECH_BASE, ...ADVANCED_TECH_BASE].find(
+    const tech = techCatalog().find(
       (t) =>
         !s.knownProcesses.includes(t.id) &&
         (t.prior || []).every((id) => s.knownProcesses.includes(id)) &&
@@ -4090,7 +4100,7 @@ function researchObservationEvidence(s, tech) {
   return [];
 }
 updateTechnology = function () {
-  const catalog = [...TECH_BASE, ...ADVANCED_TECH_BASE];
+  const catalog = techCatalog();
   for (const s of W.settlements) {
     if (s.ruined || settlementPopulation(s) < 1 || s.stability < 0.2) continue;
     s.researchProgress = s.researchProgress || {};
@@ -4206,7 +4216,7 @@ function neighborPracticesProcess(s, techId) {
   );
 }
 updateTechnology = function () {
-  const catalog = [...TECH_BASE, ...ADVANCED_TECH_BASE];
+  const catalog = techCatalog();
   for (const s of W.settlements) {
     if (s.ruined || settlementPopulation(s) < 1 || s.stability < 0.2) continue;
     s.researchProgress = s.researchProgress || {};
@@ -4258,6 +4268,8 @@ updateTechnology = function () {
         (0.65 + inventive) *
         W.laws.technologyRate *
         RESEARCH_TEMPO *
+        // Mathematics, printing, and computing quicken inquiry (87).
+        (typeof researchTempoFactor === "function" ? researchTempoFactor(s) : 1) *
         // A causal skip is a concerted push, not a warp: it triples inquiry rather than
         // compressing a generation of research into a season.
         (concertedIntensity() ? 3 * concertedIntensity() : 1);
@@ -4364,7 +4376,7 @@ updateTechnology = function () {
 };
 function shareFactionKnowledge() {
   if (W.tick % 256) return;
-  const catalog = [...TECH_BASE, ...ADVANCED_TECH_BASE];
+  const catalog = techCatalog();
   for (const faction of W.factions) {
     const places = W.settlements
       .filter((s) => !s.ruined && s.factionId === faction.id)
@@ -4622,7 +4634,7 @@ function technologyBlockers(s, tech) {
 function civilizationProgressAudit() {
   if (!W) return null;
   initializeSocietyState(W);
-  const catalog = [...TECH_BASE, ...ADVANCED_TECH_BASE],
+  const catalog = techCatalog(),
     definitions = [];
   for (const tech of catalog) {
     for (const prior of tech.prior || [])
