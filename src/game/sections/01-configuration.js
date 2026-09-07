@@ -424,6 +424,7 @@ const EVENT_CATEGORY = Object.freeze({
   EmbassyEvent: "factions",
   AllianceTreatyEvent: "factions",
   CoalitionEvent: "factions",
+  PeaceEvent: "factions",
   IdeologyEvent: "factions",
   StationEvent: "settlements",
   ClimateEvent: "ecology",

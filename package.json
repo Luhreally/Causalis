@@ -48,7 +48,7 @@
     "test:temptation": "node tests/temptation-smoke.cjs",
     "test:mating": "node tests/mating-smoke.cjs",
     "test:heartlines": "node tests/heartlines-smoke.cjs",
-    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages && npm run test:observatory && npm run test:belief && npm run test:character && npm run test:society && npm run test:bonds && npm run test:divine && npm run test:years && npm run test:diplomacy && npm run test:sea && npm run test:festivals && npm run test:lore && npm run test:items && npm run test:mind && npm run test:wealth && npm run test:politics && npm run test:houses && npm run test:export && npm run test:traits && npm run test:expansion && npm run test:eras && npm run test:perf && npm run test:faith && npm run test:naval && npm run test:calamity && npm run test:weariness && npm run test:temptation && npm run test:mating && npm run test:heartlines && npm run test:instinct && npm run test:causal && npm run test:provision && npm run test:records && npm run test:granary && npm run test:aftermath && npm run test:scale && npm run test:orbit && npm run test:harvest && npm run test:technology && npm run test:roads && npm run test:markets && npm run test:statecraft && npm run test:afternoon && npm run test:townscape && npm run test:daylight && npm run test:figures && npm run test:cities && npm run test:solid",
+    "test:fast": "npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages && npm run test:observatory && npm run test:belief && npm run test:character && npm run test:society && npm run test:bonds && npm run test:divine && npm run test:years && npm run test:diplomacy && npm run test:sea && npm run test:festivals && npm run test:lore && npm run test:items && npm run test:mind && npm run test:wealth && npm run test:politics && npm run test:houses && npm run test:export && npm run test:traits && npm run test:expansion && npm run test:eras && npm run test:perf && npm run test:faith && npm run test:naval && npm run test:calamity && npm run test:weariness && npm run test:temptation && npm run test:mating && npm run test:heartlines && npm run test:instinct && npm run test:causal && npm run test:provision && npm run test:records && npm run test:granary && npm run test:aftermath && npm run test:scale && npm run test:orbit && npm run test:harvest && npm run test:technology && npm run test:roads && npm run test:markets && npm run test:statecraft && npm run test:afternoon && npm run test:townscape && npm run test:daylight && npm run test:figures && npm run test:cities && npm run test:solid && npm run test:peace",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:instinct": "node tests/instinct-smoke.cjs",
@@ -70,6 +70,7 @@
     "test:figures": "node tests/figures-smoke.cjs",
     "test:cities": "node tests/cities-smoke.cjs",
     "test:solid": "node tests/solid-smoke.cjs",
+    "test:peace": "node tests/peace-smoke.cjs",
     "regress:200": "node scripts/regression-200.cjs"
   },
   "devDependencies": {
