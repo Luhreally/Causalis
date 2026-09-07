@@ -297,6 +297,9 @@ const EVENT_CATEGORY = Object.freeze({
   RainEvent: "ecology",
   DroughtEvent: "disasters",
   MigrationEvent: "people",
+  SettlementResettledEvent: "settlements",
+  RefugeesEvent: "people",
+  ColonistsEvent: "settlements",
   MutationEvent: "species",
   AdaptationEvent: "species",
   SpeciesDivergenceEvent: "species",
@@ -452,6 +455,8 @@ const EVENT_CATEGORY = Object.freeze({
   CannibalismEvent: "people",
   RobberyEvent: "conflict",
   KnowledgeRecoveredEvent: "settlements",
+  ReliefEvent: "settlements",
+  MigrationEvent: "people",
   ChemistryEvent: "ecology",
 });
 const DOM = {};

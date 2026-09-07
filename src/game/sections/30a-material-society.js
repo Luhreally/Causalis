@@ -3881,7 +3881,12 @@ updateSettlements = function () {
         body = W.components.chemistry[id].q,
         foodNeed = Math.max(0, 24 - digestive[C.ORGANIC]),
         drinkNeed = Math.max(0, 560 - body[C.SOLVENT]),
-        food = Math.min(18, foodNeed, s.inventory[C.ORGANIC], 65535 - digestive[C.ORGANIC]),
+        food = Math.min(
+          typeof rationCap === "function" ? rationCap(s) : 18,
+          foodNeed,
+          s.inventory[C.ORGANIC],
+          65535 - digestive[C.ORGANIC],
+        ),
         drink = Math.min(36, drinkNeed, s.inventory[C.SOLVENT], 65535 - body[C.SOLVENT]);
       s.inventory[C.ORGANIC] -= food;
       digestive[C.ORGANIC] += food;
