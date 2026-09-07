@@ -3884,7 +3884,10 @@ updateSettlements = function () {
         food = Math.min(
           typeof rationCap === "function" ? rationCap(s) : 18,
           foodNeed,
-          s.inventory[C.ORGANIC],
+          Math.max(
+            0,
+            s.inventory[C.ORGANIC] - (typeof seedReserve === "function" ? seedReserve(s) : 0),
+          ),
           65535 - digestive[C.ORGANIC],
         ),
         drink = Math.min(36, drinkNeed, s.inventory[C.SOLVENT], 65535 - body[C.SOLVENT]);
@@ -3899,7 +3902,13 @@ updateSettlements = function () {
         c.count &&
         ((s.factionId && c.factionId === s.factionId) || c.regionId === regionId(s.x, s.y))
       ) {
-        const food = Math.min(c.count, s.inventory[C.ORGANIC]),
+        const food = Math.min(
+            c.count,
+            Math.max(
+              0,
+              s.inventory[C.ORGANIC] - (typeof seedReserve === "function" ? seedReserve(s) : 0),
+            ),
+          ),
           drink = Math.min(c.count, s.inventory[C.SOLVENT]);
         s.inventory[C.ORGANIC] -= food;
         c.chemistryTotals[C.ORGANIC] += food;

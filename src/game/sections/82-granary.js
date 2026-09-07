@@ -85,6 +85,19 @@ ensurePlacePlans = function (place) {
   if (outlook.lean && place.management?.priorities)
     place.management.priorities.food = Math.max(place.management.priorities.food || 0, 4);
 };
+// Seed corn: enough food to sow the fallow fields is kept back from the daily
+// draw, so a hungry town does not eat the seed of next season's harvest.
+function seedReserve(place) {
+  if (!place?.knownProcesses || !W.fields) return 0;
+  let fallow = 0,
+    tiles = 9;
+  for (const f of W.fields)
+    if (f.placeKind === "settlement" && f.placeId === place.id && f.stage === "fallow") {
+      fallow++;
+      tiles = Math.max(tiles, f.tiles?.length || 9);
+    }
+  return Math.min(2, fallow) * tiles;
+}
 // Stretched rations: the daily draw shrinks as the stores run low.
 function rationCap(place) {
   const outlook = foodOutlook(place);
@@ -364,6 +377,7 @@ renderPlacePage = function (id) {
 window.ALIFE_GRANARY_DEBUG = Object.freeze({
   outlook: (settlementId) => foodOutlook(W.settlements.find((s) => s.id === settlementId)),
   ration: (settlementId) => rationCap(W.settlements.find((s) => s.id === settlementId)),
+  seedReserve: (settlementId) => seedReserve(W.settlements.find((s) => s.id === settlementId)),
   plan: (settlementId) => {
     const s = W.settlements.find((x) => x.id === settlementId);
     if (s) ensurePlacePlans(s);

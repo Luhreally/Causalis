@@ -84,6 +84,11 @@ const fixtureSource = String.raw`(() => {
       if (civilOrderOf(mover)) fail("the migrant's order was not cleared on arrival");
     }
   }
+  // Seed corn is kept back from the daily draw while fields lie fallow.
+  for (const b of W.buildings) if (!b.ruined && b.placeKind === "settlement" && b.placeId === settlement.id && b.type === "farm" && !b.complete) { b.complete = true; b.stage = 6; b.integrity = b.maxIntegrity; b.completedTick = W.tick; for (const [sp, n] of b.requirements || []) b.composition[sp] = n; }
+  for (const b of completedBuildings(settlement, "farm")) cultivatedField(b);
+  out.seedReserve = gran.seedReserve(settlement.id);
+  if (completedBuildings(settlement, "farm").length && !(out.seedReserve >= 9)) fail("no seed corn is kept back for the fallow fields: " + out.seedReserve);
   // Hungry towns send settlers sooner.
   out.urgeHungry = gran.urge(settlement.id);
   settlement.inventory[C.ORGANIC] = 900; settlement.inventory[C.ENERGY] = 200;
@@ -95,7 +100,9 @@ const fixtureSource = String.raw`(() => {
   if (pair.length === 2) {
     const fed = fertilityFactor(pair[0], pair[1]);
     settlement.inventory[C.ORGANIC] = 0; settlement.inventory[C.ENERGY] = 0;
+    for (const id of W.activeIds) if (W.kind[id] === KINDS.PERSON && W.components.social[id]?.homePlaceId === settlement.id) W.components.life[id].hunger = 90;
     const starving = fertilityFactor(pair[0], pair[1]);
+    for (const id of W.activeIds) if (W.kind[id] === KINDS.PERSON && W.components.social[id]?.homePlaceId === settlement.id) W.components.life[id].hunger = 10;
     out.fertility = { fed, starving };
     if (!(starving < fed)) fail("famine did not slow births: " + JSON.stringify(out.fertility));
   }

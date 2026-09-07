@@ -153,8 +153,17 @@ const ensurePlacePlansHorizonBase = ensurePlacePlans;
 ensurePlacePlans = function (place) {
   ensurePlacePlansHorizonBase(place);
   if (!place?.knownProcesses || place.ruined) return;
-  for (const b of activeBuildings(place))
-    if (HORIZON_CIVIC_TYPES.has(b.type) && (b.priority || 0) < 4) b.priority = 4;
+  const k = smallWorldFactor();
+  for (const b of activeBuildings(place)) {
+    if (!HORIZON_CIVIC_TYPES.has(b.type)) continue;
+    if ((b.priority || 0) < 4) b.priority = 4;
+    // Less labour too, on small worlds: a town of six cannot raise a hall
+    // sized for a town of sixty.
+    if (k < 1 && !b.horizonScaled && b.workRequired > 0) {
+      b.workRequired = Math.max(24, Math.ceil(b.workRequired * Math.max(0.55, k)));
+      b.horizonScaled = true;
+    }
+  }
 };
 window.ALIFE_HORIZON_DEBUG = Object.freeze({
   scale: () => worldScale(),

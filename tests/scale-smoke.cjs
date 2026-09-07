@@ -27,6 +27,9 @@ const fixtureSource = String.raw`(() => {
   const rigid = BUILDING_DEFS.hall.work * 0.18 * 2.2, pigment = out.hall.find(([n]) => n === W.definitions.species[C.PIGMENT].name);
   if (!out.hall.some(([, n]) => n < Math.round(rigid) && n >= 4)) fail("the hall did not get cheaper on a small world: " + JSON.stringify(out.hall) + " vs rigid " + Math.round(rigid));
   if (!pigment || pigment[1] !== 4) fail("the hall's pigment changed: " + JSON.stringify(pigment));
+  // Civic buildings also ask for less labour on a small world.
+  const hallPlan = planBuilding(settlement, "hall", 9) || W.buildings.find((x) => !x.ruined && x.placeKind === "settlement" && x.placeId === settlement.id && x.type === "hall");
+  if (hallPlan) { ensurePlacePlans(settlement); out.hallWork = { required: hallPlan.workRequired, base: BUILDING_DEFS.hall.work }; if (!(hallPlan.workRequired < BUILDING_DEFS.hall.work)) fail("the hall asks for as much labour as on a standard world: " + JSON.stringify(out.hallWork)); }
   // A town that meets the scaled gate with a hall, a clinic and eight structures is urban.
   const complete = (type) => {
     const b = planBuilding(settlement, type, 9) || W.buildings.find((x) => !x.ruined && x.placeKind === "settlement" && x.placeId === settlement.id && x.type === type && !x.complete);
