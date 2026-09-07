@@ -217,6 +217,14 @@ const BUILDING_DEFS = Object.freeze({
     defense: 3,
     priority: "knowledge",
   },
+  market: {
+    name: "Market",
+    work: 90,
+    housing: 0,
+    storage: 60,
+    defense: 0,
+    priority: "knowledge",
+  },
 });
 // Later sections extend the tree by pushing definitions into TECH_EXTENSIONS.
 const TECH_EXTENSIONS = [];

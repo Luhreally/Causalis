@@ -195,6 +195,10 @@ function runMetabolism(id, tier) {
     0,
     100,
   );
+  // Past the labour gate a rest is owed, and it is owed until truly rested (86):
+  // a worker who dozed back to the gate and rose again hovered there for life.
+  if (l.fatigue > 88) l.restDebt = true;
+  else if (l.restDebt && l.fatigue <= 50) l.restDebt = false;
   l.regulation = u16(
     l.regulation +
       ((respiratoryDemand === 0 || respired) && ch.q[C.ENERGY] >= 5 ? rate : -2 * rate) -
@@ -560,7 +564,11 @@ function chooseBehavior(id, tier) {
         score: 8 + counterRand("wander", W.tick, id) * 8,
         reason: "exploring nearby chemical gradients",
       },
-      { id: "rest", score: l.fatigue * 0.65, reason: "low actuator recovery" },
+      {
+        id: "rest",
+        score: l.restDebt ? 150 + l.fatigue : l.fatigue * 0.65,
+        reason: l.restDebt ? "a rest owed past the labour gate" : "low actuator recovery",
+      },
       {
         id: "food",
         score:

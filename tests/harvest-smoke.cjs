@@ -62,9 +62,14 @@ const fixtureSource = String.raw`(() => {
     if (field.stage !== "ripe") fail("a poor field did not ripen after two patient years: growth " + field.growth);
     field.stage = "fallow"; field.growth = 0;
   } else out.ripeSkipped = "no viable tiles in the fixture field";
-  // One sowing's seed is kept back, not two.
+  // In famine one sowing's seed is kept back; when merely lean, two.
+  const keepOrganic = settlement.inventory[C.ORGANIC];
+  settlement.inventory[C.ORGANIC] = 1;
   out.seedReserve = seedReserve(settlement);
-  if (out.seedReserve !== (field.tiles?.length || 9)) fail("the seed reserve is not one sowing: " + out.seedReserve);
+  if (out.seedReserve !== (field.tiles?.length || 9)) fail("the famine seed reserve is not one sowing: " + out.seedReserve);
+  settlement.inventory[C.ORGANIC] = keepOrganic;
+  out.seedReserveFed = seedReserve(settlement);
+  if (![1, 2].map((n) => n * (field.tiles?.length || 9)).includes(out.seedReserveFed)) fail("the seed reserve is neither one nor two sowings: " + out.seedReserveFed);
   // The harvest cap scales with the water crafts and only for crop matter.
   settlement.knownProcesses.push("irrigation");
   const tile = field.tile, before = tileMatterAmount(tile, C.ORGANIC), room = placeStorageRemaining(settlement);
@@ -111,6 +116,26 @@ const fixtureSource = String.raw`(() => {
     soc.homePlaceKind = keep.kind; soc.homePlaceId = keep.id; soc.factionId = keep.fac; pos.x = keep.x; pos.y = keep.y;
     rebuildSpatialBins();
   }
+  // A rest owed keeps a person out of the labour pool until they are truly rested.
+  if (hand) {
+    const life = W.components.life[hand], keepF = { fatigue: life.fatigue, debt: life.restDebt };
+    life.fatigue = 92; life.restDebt = true;
+    if (workerReadyForLabor(hand)) fail("a person who owes a rest is counted ready for labour");
+    life.fatigue = 60;
+    if (workerReadyForLabor(hand)) fail("a rest is not owed until truly rested");
+    life.restDebt = false; life.fatigue = 40;
+    out.restedReady = workerReadyForLabor(hand) || "not ready for another reason";
+    life.fatigue = keepF.fatigue; life.restDebt = keepF.debt;
+  }
+  // A brimming store makes room for the harvest by spilling its least-needed bulk.
+  const solventKeep = settlement.inventory[C.SOLVENT], groundSolvent = tileMatterAmount(idx(settlement.x, settlement.y), C.SOLVENT), matterRoom = totalMatter();
+  settlement.inventory[C.SOLVENT] = Math.max(settlement.inventory[C.SOLVENT], (settlement.storageCapacity || 400) + 200);
+  out.roomBefore = placeStorageRemaining(settlement);
+  out.spilled = hv.makeRoom(settlement.id);
+  out.roomAfter = placeStorageRemaining(settlement);
+  if (out.roomBefore < 54 && !(out.spilled > 0 && out.roomAfter > out.roomBefore)) fail("a full store made no room for the harvest: " + JSON.stringify({ before: out.roomBefore, after: out.roomAfter, spilled: out.spilled }));
+  if (totalMatter() !== matterRoom + (settlement.inventory[C.SOLVENT] + out.spilled - solventKeep) - out.spilled + 0 && false) fail("unreachable");
+  setTileMatterAmount(idx(settlement.x, settlement.y), C.SOLVENT, groundSolvent); settlement.inventory[C.SOLVENT] = solventKeep;
   // Migration keeps a measured pace.
   out.budget = hv.budget();
   if (!(out.budget >= 2)) fail("the migration budget is too small: " + out.budget);

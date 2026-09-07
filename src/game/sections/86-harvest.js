@@ -160,9 +160,9 @@ updateCultivatedField = function (building, place, operatorId = 0) {
   }
   return grew;
 };
-// One sowing's seed is kept back from the daily draw, not two: a town that
-// starved beside eighteen units of "seed" it could not yet sow now eats nine
-// of them and sows the rest.
+// In famine one sowing's seed is kept back from the daily draw, not two: a
+// town that starved beside eighteen units of "seed" it could not yet sow now
+// eats nine of them and sows the rest; a merely lean town still keeps two.
 seedReserve = function (place) {
   if (!place?.knownProcesses || !W.fields) return 0;
   let fallow = 0,
@@ -172,7 +172,10 @@ seedReserve = function (place) {
       fallow++;
       tiles = Math.max(tiles, f.tiles?.length || 9);
     }
-  return Math.min(1, fallow) * tiles;
+  // In famine one sowing is kept back and the rest is eaten; when the stores are
+  // merely lean two are kept, so more fields go under seed together.
+  const sowings = foodOutlook(place)?.famine ? 1 : 2;
+  return Math.min(sowings, fallow) * tiles;
 };
 // ── Hungry hands are wanted in the fields ────────────────────────────────────
 // The labour pool only called on people whose minds were set on work, so in a
@@ -288,6 +291,51 @@ simTick = function () {
   simTickHarvestBase();
   if (W?.settlements && W.tick % HOME_PASS_CADENCE === HOME_PASS_OFFSET) adoptResidents();
 };
+// ── Rest owed, and room for the harvest ──────────────────────────────────────
+// Fatigue rose a little every tick and fell only while a person chose to rest,
+// which the labour pool never let a working person do until fatigue passed the
+// gate of eighty-eight; a few ticks of rest brought it back under the gate and
+// the pool put them to work again, so a whole town hovered at ninety, never
+// fit (under eighty) for the fields, and the crops rotted ripe. A rest is now
+// owed until fatigue is back to fifty, and the pool leaves a person who owes
+// one alone. Separately, a harvest that found the store full was postponed
+// while the crop stood, so a town whose store was brimming with water starved:
+// the harvest now spills the town's least-needed bulk back to the ground to
+// make room for grain. Matter moves; none is made.
+const workerReadyForLaborHarvestBase = workerReadyForLabor;
+workerReadyForLabor = function (id) {
+  if (W.components.life[id]?.restDebt) return false;
+  return workerReadyForLaborHarvestBase(id);
+};
+const HARVEST_ROOM_PER_TILE = 6,
+  HARVEST_SPILL_MATERIALS = () => [C.SOLVENT, C.MINERAL, C.ENERGY, C.FUEL];
+function makeRoomForHarvest(place, field) {
+  const tiles = field?.tiles?.length || 1,
+    want = tiles * HARVEST_ROOM_PER_TILE,
+    free = () => (place.storageCapacity || 150) - placeStorageUsed(place);
+  if (free() >= want) return 0;
+  const targets = new Map(essentialStockTargets(place)),
+    ground = idx(place.x, place.y);
+  let spilled = 0;
+  for (const sp of HARVEST_SPILL_MATERIALS()) {
+    const need = want - free();
+    if (need <= 0) break;
+    const held = place.inventory[sp] || 0,
+      keep = Math.round((targets.get(sp) || 0) * 0.6),
+      excess = Math.max(0, held - keep),
+      n = Math.min(excess, need, 65535 - tileMatterAmount(ground, sp));
+    if (n <= 0) continue;
+    place.inventory[sp] -= n;
+    setTileMatterAmount(ground, sp, tileMatterAmount(ground, sp) + n);
+    spilled += n;
+  }
+  return spilled;
+}
+const harvestCultivatedFieldHarvestBase = harvestCultivatedField;
+harvestCultivatedField = function (workerId, field, place) {
+  if (field?.stage === "ripe" && place) makeRoomForHarvest(place, field);
+  return harvestCultivatedFieldHarvestBase(workerId, field, place);
+};
 // ── Measured migration ────────────────────────────────────────────────────────
 function ensureHarvestState(world = W) {
   if (!world) return null;
@@ -350,6 +398,11 @@ window.ALIFE_HARVEST_DEBUG = Object.freeze({
   budget: () => migrationBudget(),
   ledger: () => ({ ...migrationLedger() }),
   rest: MIGRATION_REST,
+  makeRoom: (placeId) => {
+    const s = W.settlements.find((x) => x.id === placeId);
+    return s ? makeRoomForHarvest(s, { tiles: new Array(9) }) : 0;
+  },
+  restDebt: (id) => !!W.components.life[id]?.restDebt,
   adopt: () => adoptResidents(),
   homeValid: (id) => homePlaceValid(W.components.social[id]),
   ripeTarget: (buildingId) => {

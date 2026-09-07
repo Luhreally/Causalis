@@ -409,7 +409,7 @@ renderLegendPage = function (kind = UI.legend.kind, id = UI.legend.id) {
 const renderLegendIndexTreeBase = renderLegendIndex;
 renderLegendIndex = function (query = "") {
   const html = renderLegendIndexTreeBase(query);
-  if (!W?.settlements?.some((s) => !s.ruined && s.knownProcesses?.length)) return html;
+  if (!W?.settlements?.some((s) => !s.ruined)) return html;
   const catalog = techCatalog(),
     known = catalog.filter((t) => techKnownCount(t.id) > 0).length,
     count = (W.milestones || []).length,
