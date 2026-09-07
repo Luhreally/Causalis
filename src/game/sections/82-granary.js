@@ -98,6 +98,41 @@ function seedReserve(place) {
     }
   return Math.min(2, fallow) * tiles;
 }
+// Farms eat nutrient to be built and to be tended: the stores aim to hold it.
+const essentialStockTargetsGranaryBase = essentialStockTargets;
+essentialStockTargets = function (place) {
+  const targets = essentialStockTargetsGranaryBase(place);
+  if (!place?.knownProcesses) return targets;
+  const farms = W.buildings.filter(
+    (b) => !b.ruined && b.placeKind === "settlement" && b.placeId === place.id && b.type === "farm",
+  );
+  if (!farms.length) return targets;
+  const want = 20 + farms.filter((b) => !b.complete).length * 12 + farms.length * 6;
+  return targets.map(([sp, n]) => (sp === C.NUTRIENT ? [sp, Math.max(n, want)] : [sp, n]));
+};
+// Hungry hands still sow and reap: when the stores are lean, people too hungry
+// for other labour work the fields, because that is the way out of hunger.
+const performCivilLaborGranaryBase = performCivilLabor;
+performCivilLabor = function (id) {
+  if (W.kind[id] === KINDS.PERSON && (W.tick + id) % 4 === 0) {
+    const life = W.components.life[id],
+      q = W.components.chemistry[id]?.q;
+    if (
+      life &&
+      q &&
+      life.hunger > 56 &&
+      life.hunger <= 78 &&
+      life.thirst <= 72 &&
+      q[C.ENERGY] >= 60
+    ) {
+      const place = nearestFriendlyPlace(id),
+        outlook = place?.knownProcesses ? foodOutlook(place) : null;
+      if (outlook?.lean && completedBuildings(place, "farm").length && performFarmLabor(id))
+        return true;
+    }
+  }
+  return performCivilLaborGranaryBase(id);
+};
 // Stretched rations: the daily draw shrinks as the stores run low.
 function rationCap(place) {
   const outlook = foodOutlook(place);

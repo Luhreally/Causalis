@@ -88,6 +88,18 @@ const fixtureSource = String.raw`(() => {
   for (const b of W.buildings) if (!b.ruined && b.placeKind === "settlement" && b.placeId === settlement.id && b.type === "farm" && !b.complete) { b.complete = true; b.stage = 6; b.integrity = b.maxIntegrity; b.completedTick = W.tick; for (const [sp, n] of b.requirements || []) b.composition[sp] = n; }
   for (const b of completedBuildings(settlement, "farm")) cultivatedField(b);
   out.seedReserve = gran.seedReserve(settlement.id);
+  // A field is sown with seed alone when the stores hold no nutrient.
+  const farmBuilding = completedBuildings(settlement, "farm")[0], field = farmBuilding ? cultivatedField(farmBuilding) : null;
+  if (field) {
+    settlement.inventory[C.NUTRIENT] = 0; settlement.inventory[C.ORGANIC] = Math.max(settlement.inventory[C.ORGANIC], 40); settlement.inventory[C.SOLVENT] = Math.max(settlement.inventory[C.SOLVENT], 4);
+    const sower = W.activeIds.find((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id));
+    const sown = sowCultivatedField(sower, field, settlement);
+    out.sown = { sown, stage: field.stage };
+    if (!sown || field.stage !== "sown") fail("a field with seed but no nutrient was not sown: " + JSON.stringify(out.sown));
+    const targets = new Map(essentialStockTargets(settlement));
+    out.nutrientTarget = targets.get(C.NUTRIENT);
+    if (!(out.nutrientTarget >= 26)) fail("the nutrient target does not rise with farms: " + out.nutrientTarget);
+  }
   if (completedBuildings(settlement, "farm").length && !(out.seedReserve >= 9)) fail("no seed corn is kept back for the fallow fields: " + out.seedReserve);
   // Hungry towns send settlers sooner.
   out.urgeHungry = gran.urge(settlement.id);

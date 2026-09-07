@@ -203,7 +203,9 @@ function sowCultivatedField(workerId, field, place) {
     [C.NUTRIENT, tiles.length],
     [C.SOLVENT, tiles.length * 2],
   ];
-  if (needed.some(([species, amount]) => (place.inventory[species] || 0) < amount)) return false;
+  // Seed is the one thing a sowing cannot do without; nutrient and water go
+  // in as far as the stores allow and the crop grows slower without them.
+  if ((place.inventory[C.ORGANIC] || 0) < tiles.length) return false;
   field.baseline = {
     organic: tileMatterAmount(field.tile, C.ORGANIC),
     energy: tileMatterAmount(field.tile, C.ENERGY),
