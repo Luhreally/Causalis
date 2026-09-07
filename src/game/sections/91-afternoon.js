@@ -353,7 +353,7 @@ drawBuildingExteriorDetails = function (g, b, now, m) {
   const s = proceduralProjectTile(b.x + 0.5, b.y + 0.5, m),
     r = buildingScreenSize(b, m);
   g.save();
-  if (crafts.electricity && ["hall", "archive", "shelter", "clinic", "workshop", "market"].includes(b.type)) {
+  if (crafts.electricity && ["hall", "archive", "shelter", "clinic", "workshop", "market", "tenement", "factory"].includes(b.type)) {
     const flicker = ACTIVE_REDUCED_MOTION ? 1 : 0.85 + 0.15 * Math.sin(now * 0.003 + b.id);
     g.fillStyle = hsl(42, 90, 70, 0.75 * flicker);
     const w = Math.max(1.2, r * 0.14),

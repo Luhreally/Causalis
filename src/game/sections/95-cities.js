@@ -54,6 +54,8 @@ function housingCapacity(place) {
 function wantsTenement(place) {
   if (!place?.knownProcesses || place.ruined) return false;
   if (!place.knownProcesses.includes("masonry") || !cityStage(place)) return false;
+  // A city with current builds tower blocks (103), not tenements.
+  if (place.knownProcesses.includes("electricity")) return false;
   if (housingCapacity(place) >= settlementPopulation(place)) return false;
   return !W.buildings.some(
     (b) =>

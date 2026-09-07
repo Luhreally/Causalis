@@ -3,9 +3,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // A person was drawn a tenth of a tile tall, so the poses and dress of 94 were
 // three pixels of difference at the zooms a player watches a town from, and a
-// herd was a scatter of grains. Walkers are now drawn a little over twice as
-// tall (herds and hunters about half again), the same figure at a legible size, and the
-// dot rule still takes over far out. A figure carries its work: an axe to the
+// herd was a scatter of grains. Walkers are now drawn a third again as tall
+// (herds and hunters a quarter again), with structures enlarged beside them
+// by 103, so a person is legible and still shorter than a cottage; the dot
+// rule still takes over far out. A figure carries its work: an axe to the
 // cut, a pick to the mine, a hoe or sickle to the field, a hammer to the site,
 // a bundle on the back when hauling or gathering, a spear and shield to the
 // fight, a bow to the hunt. Heads have hair, dark or fair by birth and grey
@@ -14,7 +15,7 @@
 // in a town that knows fire carries a torch, in an electric town a lantern,
 // so the streets read at night. Rendering only reads; everything is per
 // visible figure and skipped at Lean quality or far zoom.
-const PRESENCE_SCALE = Object.freeze({ person: 2.2, herbivore: 1.6, predator: 1.6 }),
+const PRESENCE_SCALE = Object.freeze({ person: 1.35, herbivore: 1.25, predator: 1.3 }),
   PRESENCE_DOT = 3.4,
   PRESENCE_TOOL_TASKS = new Set(["cut", "mine", "build", "craft", "sow", "tend", "harvest", "haul", "gather", "raze", "hunt", "operate", "firefight"]),
   PRESENCE = { scaled: 0, tools: 0, hair: 0, torches: 0 };

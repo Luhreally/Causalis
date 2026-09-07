@@ -105,6 +105,8 @@ const BUILDING_DEFS = Object.freeze({
   shelter: { name: "Shelter", work: 64, housing: 6, storage: 30, defense: 3, priority: "shelter" },
   tenement: { name: "Tenement", work: 168, housing: 18, storage: 40, defense: 3, priority: "shelter" },
   factory: { name: "Factory", work: 220, housing: 0, storage: 200, defense: 3, priority: "materials" },
+  tower: { name: "Tower block", work: 360, housing: 36, storage: 60, defense: 3, priority: "shelter" },
+  office: { name: "Office tower", work: 420, housing: 0, storage: 200, defense: 3, priority: "knowledge" },
   hearth: { name: "Hearth", work: 42, housing: 0, storage: 20, defense: 1, priority: "food" },
   workshop: {
     name: "Tool workshop",
@@ -514,7 +516,11 @@ function buildingRequirements(place, type) {
                   ? 1.8
                   : type === "factory"
                     ? 2
-                    : 1,
+                    : type === "tower"
+                      ? 2.6
+                      : type === "office"
+                        ? 3
+                        : 1,
     rigid = Math.max(6, Math.round(def.work * 0.18 * scale)),
     flex = Math.max(3, Math.round(def.work * 0.13 * scale)),
     raw = [[a.rigid, rigid]];
@@ -528,6 +534,7 @@ function buildingRequirements(place, type) {
   if (type === "monument") raw.push([C.PIGMENT, 2]);
   if (type === "dock") raw.push([C.FIBER, 6]);
   if (type === "factory") raw.push([C.METAL, 12], [C.CATALYST, 4]);
+  if (type === "tower" || type === "office") raw.push([C.METAL, 24], [C.CATALYST, 6]);
   const totals = new Map();
   for (const [sp, n] of raw) totals.set(sp, (totals.get(sp) || 0) + n);
   return Array.from(totals.entries()).sort((a, b) => a[0] - b[0]);
