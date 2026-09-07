@@ -368,6 +368,7 @@ ensurePlacePlans = function (place) {
     knows("astronomy") &&
     knows("mechanization") &&
     knows("planetary_stewardship") &&
+    (typeof launchSiteReady !== "function" || launchSiteReady(place)) &&
     !has("launch_tower")
   )
     planBuilding(place, "launch_tower", Math.max(4, pr.knowledge || 3));
@@ -510,6 +511,8 @@ function launchShip(place, force = false) {
   if (!place || place.ruined || !place.knownProcesses) return null;
   if (!force && (!place.knownProcesses.includes("starflight") || (place.stability || 0) < 0.35))
     return null;
+  // Only a city sends a ship away; a village with a tower keeps its feet on the ground.
+  if (!force && typeof cityStage === "function" && !cityStage(place)) return null;
   const tower = launchTower(place);
   // One ship per tower per generation.
   if (

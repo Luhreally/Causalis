@@ -47,7 +47,12 @@ settlementDevelopmentStage = function (s) {
   const buildings = completedBuildings(s),
     types = new Set(buildings.map((b) => b.type)),
     tech = new Set(s.knownProcesses);
-  if (tech.has("planetary_stewardship") && tech.has("mechanization") && types.has("waterworks"))
+  if (
+    tech.has("planetary_stewardship") &&
+    tech.has("mechanization") &&
+    tech.has("electricity") &&
+    types.has("waterworks")
+  )
     return "complex terrestrial";
   if (
     metropolitan(s, buildings) &&

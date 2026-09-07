@@ -306,6 +306,8 @@ function orbitalShortfall() {
     missing.push("develop Starflight");
   if (!towns.some((s) => completedBuildings(s, "launch_tower").length))
     missing.push("complete a Launch tower");
+  if (typeof cityStage === "function" && !towns.some((s) => cityStage(s)))
+    missing.push("grow a city to the urban stage");
   if (!missing.length && !orbitalStageReached()) missing.push("launch the first ship");
   return missing;
 }

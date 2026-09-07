@@ -184,6 +184,11 @@ function causalSkipMicroStages() {
         done: () => settlements().some((s) => s.knownProcesses.includes("planetary_stewardship")),
       },
       {
+        key: "electricity",
+        label: "Electricity",
+        done: () => settlements().some((s) => s.knownProcesses.includes("electricity")),
+      },
+      {
         key: "waterworks",
         label: "completed Waterworks",
         done: () => settlements().some((s) => completedBuildings(s, "waterworks").length > 0),

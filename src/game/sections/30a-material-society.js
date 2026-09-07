@@ -81,7 +81,14 @@ const ADVANCED_TECH_BASE = Object.freeze([
     id: "starflight",
     name: "Starflight",
     materials: [C.METAL, C.FUEL],
-    prior: ["planetary_stewardship", "mechanization", "astronomy"],
+    prior: [
+      "planetary_stewardship",
+      "mechanization",
+      "astronomy",
+      "combustion",
+      "electricity",
+      "computing",
+    ],
     facility: "launch_tower",
     threshold: 90,
   },
@@ -96,6 +103,7 @@ const BUILDING_DEFS = Object.freeze({
     priority: "materials",
   },
   shelter: { name: "Shelter", work: 64, housing: 6, storage: 30, defense: 3, priority: "shelter" },
+  tenement: { name: "Tenement", work: 168, housing: 18, storage: 40, defense: 3, priority: "shelter" },
   hearth: { name: "Hearth", work: 42, housing: 0, storage: 20, defense: 1, priority: "food" },
   workshop: {
     name: "Tool workshop",
@@ -501,7 +509,9 @@ function buildingRequirements(place, type) {
               ? 1.6
               : type === "shelter"
                 ? 1.15
-                : 1,
+                : type === "tenement"
+                  ? 1.8
+                  : 1,
     rigid = Math.max(6, Math.round(def.work * 0.18 * scale)),
     flex = Math.max(3, Math.round(def.work * 0.13 * scale)),
     raw = [[a.rigid, rigid]];
@@ -915,9 +925,11 @@ function ensurePlacePlans(place) {
     plan("workshop", place.management.priorities.tools);
   if (!settlement) return;
   const compact = !place.management.expansion,
+    housed = completedBuildings(place, "tenement").length * (BUILDING_DEFS.tenement?.housing || 0),
     desiredShelters = Math.max(
       1,
-      Math.ceil(pop / (compact ? 8 : 6)) + (place.management.policy === "growth" ? 1 : 0),
+      Math.ceil(Math.max(0, pop - housed) / (compact ? 8 : 6)) +
+        (place.management.policy === "growth" ? 1 : 0),
     );
   while (count("shelter") < desiredShelters && activeBuildings(place).length < 4) {
     if (!planBuilding(place, "shelter", place.management.priorities.shelter)) break;
@@ -4538,6 +4550,7 @@ function settlementStageShortfall(s, target) {
   } else if (target === "complex terrestrial") {
     if (!known.has("planetary_stewardship")) missing.push("develop Planetary Stewardship");
     if (!known.has("mechanization")) missing.push("develop Terrestrial Mechanization");
+    if (!known.has("electricity")) missing.push("develop Electricity");
     if (!types.has("waterworks")) missing.push("complete Waterworks");
   }
   return missing;

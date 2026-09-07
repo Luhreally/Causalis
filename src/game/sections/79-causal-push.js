@@ -308,6 +308,8 @@ function causalPushToward(target = causalTarget()) {
       return research(target.key) ? "research" : null;
     case "stewardship":
       return research("planetary_stewardship") ? "research" : null;
+    case "electricity":
+      return research("electricity") ? "research" : null;
     case "waterworks":
       if (lead && !lead.knownProcesses.includes("waterworks"))
         return research("waterworks") ? "research" : null;
@@ -323,7 +325,9 @@ function causalPushToward(target = causalTarget()) {
       return building("observatory") ? "observatory" : null;
     case "tower":
       if (lead)
-        for (const t of ["astronomy", "mechanization", "planetary_stewardship"])
+        for (const t of typeof STARFLIGHT_GROUNDWORK !== "undefined"
+          ? STARFLIGHT_GROUNDWORK
+          : ["astronomy", "mechanization", "planetary_stewardship"])
           if (!lead.knownProcesses.includes(t)) return research(t) ? "research" : null;
       return building("launch_tower") ? "tower" : null;
     case "ascension":

@@ -93,8 +93,9 @@ const fixtureSource = String.raw`(() => {
   eras.plan(settlement.id);
   const planned = (type) => W.buildings.find((b) => !b.ruined && b.placeKind === "settlement" && b.placeId === settlement.id && b.type === type);
   if (!planned("observatory")) fail("no observatory was planned");
-  grant("astronomy", "mechanization", "waterworks", "sanitation", "public_works", "planetary_stewardship");
+  grant("astronomy", "mechanization", "waterworks", "sanitation", "public_works", "planetary_stewardship", "chemistry", "combustion", "electricity", "computing");
   simTick(); // plans refresh once per tick
+  settlement.stage = "urban"; // only a city raises the tower and sends the ship
   eras.plan(settlement.id);
   const tower = planned("launch_tower");
   if (!tower) { fail("no launch tower was planned"); return out; }
