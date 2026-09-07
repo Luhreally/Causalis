@@ -55,7 +55,12 @@ const INSTINCT_BASE = Object.freeze({
   INSTINCT_JITTER = 96,
   INSTINCT_MUTATION = 160,
   DESPERATE_HUNGER = 78,
-  DESPERATE_REST = 8;
+  DESPERATE_REST = 8,
+  // A person robs at most once in a season, and the same victim is not robbed
+  // again for two; the dead are not returned to for a while.
+  ROBBERY_REST = 96,
+  VICTIM_REST = 256,
+  CANNIBAL_REST = 64;
 function instinctKindKey(kind) {
   return kind === KINDS.PREDATOR ? "predator" : kind === KINDS.HERBIVORE ? "herbivore" : "person";
 }
@@ -343,6 +348,9 @@ function desperateAct(id, override = null) {
   )
     return null;
   if (!override?.ignoreFood && !noFoodAround(id)) return null;
+  // Someone carrying food eats what they carry before turning on anyone.
+  if (!override?.ignoreFood && (W.components.inventory[id]?.materials?.[C.ORGANIC] || 0) >= 4)
+    return null;
   l.lastDesperateTick = W.tick;
   const corpses = nearbyIds(id, 2, (o) => W.kind[o] === KINDS.CORPSE),
     isPersonCorpse = (o) => W.components.identity[o]?.lifeKind === KINDS.PERSON,
@@ -357,7 +365,12 @@ function desperateAct(id, override = null) {
     l.behaviorReason = "hunger drove them to carrion";
     return { act: "carrion" };
   }
-  if (dead.length && hunger >= tabooThreshold(id)) {
+  const ident = W.components.identity[id];
+  if (
+    dead.length &&
+    hunger >= tabooThreshold(id) &&
+    (override || W.tick - (ident?.cannibalTick || -99999) >= CANNIBAL_REST)
+  ) {
     const ev = eatTheDead(id, dead[0], hunger);
     if (ev) {
       l.behavior = "scavenge";
@@ -365,14 +378,16 @@ function desperateAct(id, override = null) {
       return { act: "cannibalism", event: ev };
     }
   }
+  if (!override && W.tick - (l.lastRobberyTick || -99999) < ROBBERY_REST) return null;
   const g = W.components.genome[id]?.controller,
     restraint = (g?.restraint ?? 512) / LTC_Q,
-    bold = !!W.components.identity[id]?.traits?.includes("bold"),
+    bold = !!ident?.traits?.includes("bold"),
     mine = personStrength(id),
     victims = nearbyIds(id, 1, (o) => W.kind[o] === KINDS.PERSON && o !== id && classifyAlive(o))
       .filter(
         (o) =>
           (W.components.inventory[o]?.materials?.[C.ORGANIC] || 0) >= 4 &&
+          W.tick - (W.components.life[o]?.lastRobbedTick || -99999) >= VICTIM_REST &&
           !(typeof isKin === "function" && isKin(id, o)) &&
           mine > personStrength(o) * (1 + restraint * 0.5) &&
           (bold || hunger >= 88),
@@ -381,6 +396,8 @@ function desperateAct(id, override = null) {
   if (victims.length) {
     const ev = robOfFood(id, victims[0], hunger);
     if (ev) {
+      l.lastRobberyTick = W.tick;
+      W.components.life[victims[0]].lastRobbedTick = W.tick;
       l.behavior = "food";
       l.behaviorReason = "hunger past bearing: they robbed the weaker of food";
       return { act: "robbery", event: ev };
