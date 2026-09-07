@@ -103,5 +103,6 @@
   "92-townscape.js",
   "93-daylight.js",
   "94-figures.js",
-    "95-cities.js"
+    "95-cities.js",
+    "96-solid.js"
 ]
