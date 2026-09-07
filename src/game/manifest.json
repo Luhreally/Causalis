@@ -109,5 +109,6 @@
     "98-industry.js",
     "99-civil.js",
     "100-blocs.js",
-    "101-finery.js"
+    "101-finery.js",
+    "102-presence.js"
 ]
