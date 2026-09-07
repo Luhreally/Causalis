@@ -19,6 +19,17 @@ const fixtureSource = String.raw`(() => {
   const people = entityAtRadius(idx(settlement.x, settlement.y), 8, KINDS.PERSON).filter((id) => classifyAlive(id));
   if (people.length < 3) { fail("too few people at the settlement"); return out; }
   for (const id of people) W.components.life[id].age = Math.max(W.components.life[id].age, 4000);
+  // Civil orders: a journey moves a person toward its goal through the ordinary march.
+  // (Checked before the eruption below: a fire beside the town rightly calls every
+  // neighbour to the buckets, and a walker with a bucket is not a fair test of the road.)
+  const walker = people[0], wp = W.components.position[walker];
+  const gx = clamp(wp.x + 24, 1, W.width - 2), gy = clamp(wp.y, 1, W.height - 2);
+  society.journey(walker, gx, gy);
+  const startDist = Math.abs(wp.x - gx) + Math.abs(wp.y - gy);
+  for (let i = 0; i < 96; i++) simTick();
+  const after = W.components.position[walker];
+  out.journey = { start: startDist, after: after ? Math.abs(after.x - gx) + Math.abs(after.y - gy) : null, reason: W.components.life[walker]?.behaviorReason };
+  if (!after || out.journey.after >= startDist) fail("a civil order did not move the traveller toward its goal");
   // Monument: a calamity beside the town becomes a stone.
   living.erupt(idx(clamp(settlement.x + 4, 0, W.width - 1), clamp(settlement.y + 3, 0, W.height - 1)));
   const monument = society.planMonument(settlement.id);
@@ -32,15 +43,6 @@ const fixtureSource = String.raw`(() => {
     window.ALIFE_VISUAL_DEBUG.renderOnly({ view: "top", quality: "standard", zoom: 3, now: 5100 });
     if (typeof worldHash === "function" && worldHash() !== worldHash()) fail("monument rendering was not stable");
   }
-  // Civil orders: a journey moves a person toward its goal through the ordinary march.
-  const walker = people[0], wp = W.components.position[walker];
-  const gx = clamp(wp.x + 24, 1, W.width - 2), gy = clamp(wp.y, 1, W.height - 2);
-  society.journey(walker, gx, gy);
-  const startDist = Math.abs(wp.x - gx) + Math.abs(wp.y - gy);
-  for (let i = 0; i < 96; i++) simTick();
-  const after = W.components.position[walker];
-  out.journey = { start: startDist, after: after ? Math.abs(after.x - gx) + Math.abs(after.y - gy) : null, reason: W.components.life[walker]?.behaviorReason };
-  if (!after || out.journey.after >= startDist) fail("a civil order did not move the traveller toward its goal");
   // Caravans need two towns; when only one exists the spawn refuses cleanly.
   const other = W.settlements.find((s) => !s.ruined && s.id !== settlement.id);
   if (other) {

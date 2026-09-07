@@ -9,6 +9,7 @@ import "./styles/08-player-experience.css";
 import "./styles/09-legends.css";
 import "./styles/10-observatory-bar.css";
 import "./styles/11-lore-items.css";
+import "./styles/12-y2k.css";
 import Game from "virtual:causalis-game";
 
 Game.boot();

@@ -889,11 +889,11 @@ function promptImportSave(slot) {
 function loadSettings() {
   try {
     return Object.assign(
-      { audio: false, volume: 0.12, quality: "standard", labels: true },
+      { audio: false, volume: 0.12, quality: "standard", labels: true, theme: "y2k" },
       JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"),
     );
   } catch {
-    return { audio: false, volume: 0.12, quality: "standard", labels: true };
+    return { audio: false, volume: 0.12, quality: "standard", labels: true, theme: "y2k" };
   }
 }
 function persistSettings(s) {

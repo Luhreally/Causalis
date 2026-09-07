@@ -128,7 +128,7 @@ This is a complete single-file deterministic Artificial-Life god-game and emerge
         <div class="side-scroll">
           <section class="section">
             <div class="section-title">
-              <span>Deterministic time</span><span id="speedLabel">1×</span>
+              <span>Time</span><span id="speedLabel">1×</span>
             </div>
             <div class="speed-row">
               <button id="pauseBtn" title="Play / pause">▶</button>
@@ -147,13 +147,13 @@ This is a complete single-file deterministic Artificial-Life god-game and emerge
             >
               ⏩ Causal skip</button
             ><small id="causalSkipStatus" class="causal-skip-note"
-              >Each press drives a concerted push to the next of five micro-stages per epoch; matter
-              is conserved and history is never invented or rewound.</small
+              >Drives the world to its next milestone. Matter is conserved and history is never
+              rewound.</small
             >
           </section>
           <section class="section">
             <div class="section-title">
-              <span>Render lens</span><span id="viewLabel">Top-down</span>
+              <span>View</span><span id="viewLabel">Top-down</span>
             </div>
             <div class="segmented" id="viewControls">
               <button data-view="top" class="active">Top</button><button data-view="iso">Iso</button
@@ -162,7 +162,7 @@ This is a complete single-file deterministic Artificial-Life god-game and emerge
           </section>
           <section class="section">
             <div class="section-title">
-              <span>Sims 3 camera</span><span id="zoomLabel">100%</span>
+              <span>Camera</span><span id="zoomLabel">100%</span>
             </div>
             <div class="control-grid camera-controls">
               <button id="zoomOutBtn" title="Zoom out (−)">−</button
@@ -195,7 +195,7 @@ This is a complete single-file deterministic Artificial-Life god-game and emerge
           </section>
           <section class="section">
             <div class="section-title">
-              <span>Divine instruments</span><span class="gold" id="toolLabel">Inspect</span>
+              <span>Instruments</span><span class="gold" id="toolLabel">Inspect</span>
             </div>
             <div id="toolGrid" class="tool-grid"></div>
             <label class="field" style="margin-top: 8px"
@@ -205,18 +205,18 @@ This is a complete single-file deterministic Artificial-Life god-game and emerge
           </section>
           <section class="section">
             <div class="section-title">
-              <span>Field lenses</span><button id="clearOverlay" class="ghost small">Clear</button>
+              <span>Map lenses</span><button id="clearOverlay" class="ghost small">Clear</button>
             </div>
             <div id="overlayGrid" class="overlay-grid"></div>
           </section>
           <section class="section">
             <div class="section-title">
-              <span>Living state</span><span class="muted" id="entityCapLabel">0 detailed</span>
+              <span>Population</span><span class="muted" id="entityCapLabel">0 detailed</span>
             </div>
             <div id="populationCounts" class="count-list"></div>
           </section>
           <section class="section">
-            <div class="section-title"><span>Display load</span></div>
+            <div class="section-title"><span>Display</span></div>
             <label class="field"
               ><span>Render detail</span
               ><select id="renderQuality">

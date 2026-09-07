@@ -74,9 +74,11 @@ const fixtureSource = String.raw`(() => {
   if (!voyage.members.every((id) => sea.aboard(id) && hasNavigableWatercraft(id))) fail("settlers are not counted as aboard a boat");
   const voyageEvent = W.events.filter((e) => e.type === "VoyageEvent").at(-1);
   if (!voyageEvent) fail("no VoyageEvent"); else out.voyageSentence = eventSentence(voyageEvent);
+  // Counted before the crossing: unencumbered by labour calls, a crew can make
+  // a short crossing and found its camp within these ticks.
+  const campsBefore = W.camps.filter((c) => c.active).length;
   for (let i = 0; i < 24; i++) simTick();
   const [tx, ty] = xy(voyage.target);
-  const campsBefore = W.camps.filter((c) => c.active).length;
   for (const id of voyage.members) { const p = W.components.position[id]; if (p) { p.x = tx; p.y = ty; } }
   rebuildSpatialBins();
   sea.tick();

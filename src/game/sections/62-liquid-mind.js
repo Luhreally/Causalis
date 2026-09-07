@@ -172,9 +172,12 @@ refreshInspector = function () {
     return;
   const card = mindCard(id);
   if (!card) return;
-  const anchor =
-    DOM.inspectPane.querySelector?.(".story-card") ||
-    DOM.inspectPane.querySelector?.(".legend-entry");
+  // The mind follows the life it belongs to: after the story and the summary
+  // card, whichever comes last, and only then after the Legends link row.
+  const anchors = DOM.inspectPane.querySelectorAll?.(".story-card, .selection-summary"),
+    anchor =
+      (anchors && anchors.length ? anchors[anchors.length - 1] : null) ||
+      DOM.inspectPane.querySelector?.(".legend-entry");
   if (anchor?.insertAdjacentHTML) anchor.insertAdjacentHTML("afterend", card);
   else if (typeof DOM.inspectPane.insertAdjacentHTML === "function")
     DOM.inspectPane.insertAdjacentHTML("afterbegin", card);

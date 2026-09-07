@@ -518,6 +518,7 @@ function handlePointerDown(e) {
   UI.dragButton = e.button;
   UI.dragMode = orbitButton && !e.shiftKey ? "orbit" : "pan";
   UI.lastPointer = p;
+  UI.lastPointerMoveAt = performance.now();
   DOM.canvas.style.cursor = "grabbing";
   DOM.canvas.setPointerCapture(e.pointerId);
 }
@@ -537,8 +538,10 @@ function handlePointerMove(e) {
       }
     }
     UI.lastPointer = p;
+    UI.lastPointerMoveAt = performance.now();
   } else {
     UI.lastPointer = p;
+    UI.lastPointerMoveAt = performance.now();
     UI.hoverTile = pickTile(p.x, p.y);
     updateTooltip(p.x, p.y, UI.hoverTile);
   }
@@ -662,6 +665,8 @@ function updateCameraKeys(dt) {
     edgeAllowed =
       UI.camera.edgeScroll !== false &&
       UI.pointerInside &&
+      // A pointer parked at the edge does not scroll the world forever.
+      performance.now() - (UI.lastPointerMoveAt || 0) < 1500 &&
       !UI.drag &&
       !UI.followId &&
       !DOM.modalLayer.classList.contains("open"),

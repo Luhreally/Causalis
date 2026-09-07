@@ -155,7 +155,8 @@ html.mobile-mode .alert-stack {
   right: 8px;
   left: 8px;
   width: auto;
-  top: 8px;
+  /* Below the lens badge, which spans the top of the stage on phones. */
+  top: 44px;
 }
 html.mobile-mode .alert-card {
   font-size: 12.5px;

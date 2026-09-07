@@ -103,7 +103,7 @@ html.mobile-mode #tooltip {
 html.mobile-mode .toast-stack {
   left: max(8px, var(--safe-left));
   right: max(8px, var(--safe-right));
-  top: 8px;
+  top: 44px;
   transform: none;
 }
 html.mobile-mode .toast {

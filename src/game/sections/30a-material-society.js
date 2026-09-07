@@ -3302,8 +3302,17 @@ function updateCognitionAndLabor() {
     const thinkCadence = W.kind[id] === KINDS.PERSON ? 4 : 8,
       c = W.tick % thinkCadence === id % thinkCadence ? advanceLTC(id) : initCognition(id);
     if (W.kind[id] !== KINDS.PERSON) continue;
-    // Fighters under marching orders belong to the column, not to the labor pool.
-    if (W.components.campaign?.[id]?.role === "attack") continue;
+    // Fighters under marching orders belong to the column, not to the labor pool;
+    // nor do travellers under a fresh civil order (caravans, settlers, exiles,
+    // migrants), who would otherwise be called back to the workshop at every
+    // labour tick and reach the road's end a year late.
+    const marching = W.components.campaign?.[id];
+    if (
+      marching &&
+      (marching.role === "attack" ||
+        (marching.warId === 0 && W.tick - (marching.issuedTick || 0) <= 1500))
+    )
+      continue;
     const w = workState(id),
       facility = facilityAssignment(id),
       place = nearestWorkPlace(id),

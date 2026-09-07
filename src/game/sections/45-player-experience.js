@@ -547,7 +547,7 @@ function updatePlayerExperience(now = performance.now()) {
   if (save)
     save.textContent = autosaveWriteBlocked
       ? "Autosave unavailable — save manually"
-      : W.saveMetadata
+      : W.saveMetadata?.date
         ? "Saved " +
           new Date(W.saveMetadata.date).toLocaleTimeString([], {
             hour: "2-digit",
@@ -662,8 +662,16 @@ function installPlayerExperience() {
     }
   });
 }
+// The interface skin: Y2K chrome by default, the classic observatory one setting away.
+function applyInterfaceTheme(theme = loadSettings().theme || "y2k") {
+  const root = document.documentElement;
+  root.classList.toggle("theme-y2k", theme !== "classic");
+  root.classList.toggle("lean-fx", UI.quality === "low");
+  return theme;
+}
 const bootExperienceBase = boot;
 boot = function () {
+  applyInterfaceTheme();
   bootExperienceBase();
   installPlayerExperience();
 };
@@ -671,6 +679,17 @@ const enterExperienceBase = enterGame;
 enterGame = function () {
   const changed = PLAYER_EXPERIENCE.world !== W;
   enterExperienceBase();
+  if (changed && W) {
+    // Open on the whole world; the tutorial tile stays selected but is not the anchor.
+    const keepTile = UI.selectedTile,
+      keepEntity = UI.selectedEntity;
+    UI.selectedTile = -1;
+    UI.selectedEntity = 0;
+    UI.followId = 0;
+    centerCamera(true);
+    UI.selectedTile = keepTile;
+    UI.selectedEntity = keepEntity;
+  }
   if (!PLAYER_EXPERIENCE.ready) return;
   if (PLAYER_EXPERIENCE.world !== W) resetExperienceWorld();
   if (changed && W.config.expedition && PLAYER_EXPERIENCE.guide.step === 0) {
@@ -815,6 +834,11 @@ showSettings = function () {
       '<label class="check"><input id="settingReducedMotion" type="checkbox"' +
         (experiencePreference("reducedMotion", false) ? " checked" : "") +
         "> Reduce interface motion and intervention effects</label>" +
+        '<label class="field"><span>Interface skin</span><select id="settingTheme"><option value="y2k"' +
+        (loadSettings().theme !== "classic" ? " selected" : "") +
+        '>Y2K chrome · glossy aqua and silver</option><option value="classic"' +
+        (loadSettings().theme === "classic" ? " selected" : "") +
+        ">Classic observatory · dark and quiet</option></select></label>" +
         '<div class="card"><b>Display performance</b><p class="muted">' +
         (PLAYER_EXPERIENCE.renderSamples
           ? "Recent drawing work averages " +
@@ -826,8 +850,11 @@ showSettings = function () {
   const save = $("#saveSettings"),
     original = save.onclick;
   save.onclick = () => {
-    const reduced = $("#settingReducedMotion").checked;
+    const reduced = $("#settingReducedMotion").checked,
+      theme = $("#settingTheme")?.value || "y2k";
     original();
+    persistSettings({ ...loadSettings(), theme });
+    applyInterfaceTheme(theme);
     storeExperiencePreference("reducedMotion", reduced);
     document.body.classList.toggle("reduced-motion", reduced);
     $("#experienceSound").textContent = UI.audio ? "Sound on" : "Sound off";

@@ -56,8 +56,10 @@ const fixtureSource = String.raw`(() => {
   if (!rec.recorded(second.id, "metalworking")) fail("the second town does not see the record");
   // The first town falls; the record survives in the second town's archive.
   const ruin = ruinSettlement(settlement, [], "sacked for the test");
-  out.ruinEvidence = ruin ? ruin.evidence.at(-1) : "";
-  if (!/archive of/.test(out.ruinEvidence)) fail("the ruin does not say the archive holds the record: " + out.ruinEvidence);
+  // Later sections add their own evidence to the fall (refugees setting out), so
+  // the archive's line is looked for anywhere in the record, not at its end.
+  out.ruinEvidence = ruin ? ruin.evidence.find((e) => /archive of/.test(e)) || ruin.evidence.at(-1) : "";
+  if (!/archive of/.test(out.ruinEvidence)) fail("the ruin does not say the archive holds the record: " + (ruin ? ruin.evidence.join(" | ") : ""));
   if (!rec.records(faction.id).includes("metalworking")) fail("the record was lost with the town");
   // The second town, ready with a kiln and ore, recovers the craft outright.
   complete(second, "kiln");
