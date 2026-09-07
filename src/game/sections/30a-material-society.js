@@ -4196,9 +4196,13 @@ updateTechnology = function () {
       const facility = facilityForTechnology(tech.id);
       if (facility && !placeHasFacility(s, facility)) continue;
       const base = TECH_BASE.includes(tech),
-        obs = base
-          ? researchObservationEvidence(s, tech)
-          : [s.importantEvents.at(-1) || W.lastEventByType.TechAdvanceEvent || 0].filter(Boolean);
+        // A process the polity holds on record needs no fresh observation.
+        recorded = typeof processRecorded === "function" && processRecorded(s, tech.id),
+        observed = base ? researchObservationEvidence(s, tech) : [],
+        obs =
+          base && (observed.length || !recorded)
+            ? observed
+            : [s.importantEvents.at(-1) || W.lastEventByType.TechAdvanceEvent || 0].filter(Boolean);
       if (base && !obs.length) continue;
       if (base && !(tech.structures || []).every((req) => settlementHasStructure(s, req))) continue;
       const temperature = base
@@ -4254,11 +4258,22 @@ updateTechnology = function () {
               other.factionId === s.factionId &&
               other.knownProcesses.includes(tech.id),
           ),
+        recorded = typeof processRecorded === "function" && processRecorded(s, tech.id),
         rate =
           baseRate *
-          (legacy ? (ruinMemory ? 3 : 1.8) : polityKnows ? 3 : neighborKnows ? 1.8 : 1) *
+          (legacy
+            ? recorded
+              ? 4
+              : ruinMemory
+                ? 3
+                : 1.8
+            : polityKnows
+              ? 3
+              : neighborKnows
+                ? 1.8
+                : 1) *
           (entry === focus ? 1 : RESEARCH_SIDE_SHARE),
-        threshold = researchThreshold(tech);
+        threshold = researchThreshold(tech) * (recorded ? 0.5 : 1);
       s.researchProgress[tech.id] = (s.researchProgress[tech.id] || 0) + rate;
       if (s.researchProgress[tech.id] < threshold) continue;
       s.knownProcesses.push(tech.id);
