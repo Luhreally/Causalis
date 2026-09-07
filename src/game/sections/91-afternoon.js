@@ -322,6 +322,62 @@ refreshWorldInfo = function () {
     anchor = `<div class="subhead">Chemistry viability`;
   DOM.worldPane.innerHTML = DOM.worldPane.innerHTML.includes(anchor) ? DOM.worldPane.innerHTML.replace(anchor, card + anchor) : DOM.worldPane.innerHTML + card;
 };
+// ── The look of the late ages ─────────────────────────────────────────────────
+// At close zoom, towns that know Electricity show warm window lights on their
+// halls, archives, and shelters, and towns that know Radio raise a mast with a
+// blinking lamp over the archive; a few strokes per building, only when the
+// building is already drawn in detail. Rendering only reads.
+const lateAgeTownCache = { world: null, tick: -1, byPlace: new Map() };
+function lateAgeCrafts(b) {
+  if (lateAgeTownCache.world !== W || lateAgeTownCache.tick !== W.tick) {
+    lateAgeTownCache.world = W;
+    lateAgeTownCache.tick = W.tick;
+    lateAgeTownCache.byPlace.clear();
+  }
+  const key = `${b.placeKind}:${b.placeId}`;
+  let crafts = lateAgeTownCache.byPlace.get(key);
+  if (!crafts) {
+    const place = b.placeKind === "settlement" ? W.settlements.find((s) => s.id === b.placeId) : null,
+      k = place?.knownProcesses || [];
+    crafts = { electricity: k.includes("electricity"), radio: k.includes("radio") };
+    lateAgeTownCache.byPlace.set(key, crafts);
+  }
+  return crafts;
+}
+const drawBuildingExteriorDetailsAfternoonBase = drawBuildingExteriorDetails;
+drawBuildingExteriorDetails = function (g, b, now, m) {
+  drawBuildingExteriorDetailsAfternoonBase(g, b, now, m);
+  if (!b.complete || b.ruined || UI.camera.zoom < 2.1 || UI.quality === "low") return;
+  const crafts = lateAgeCrafts(b);
+  if (!crafts.electricity && !crafts.radio) return;
+  const s = proceduralProjectTile(b.x + 0.5, b.y + 0.5, m),
+    r = buildingScreenSize(b, m);
+  g.save();
+  if (crafts.electricity && ["hall", "archive", "shelter", "clinic", "workshop", "market"].includes(b.type)) {
+    const flicker = ACTIVE_REDUCED_MOTION ? 1 : 0.85 + 0.15 * Math.sin(now * 0.003 + b.id);
+    g.fillStyle = hsl(42, 90, 70, 0.75 * flicker);
+    const w = Math.max(1.2, r * 0.14),
+      h = Math.max(1.6, r * 0.2);
+    for (let i = 0; i < (b.type === "hall" ? 3 : 2); i++)
+      g.fillRect(s.x - r * 0.45 + i * r * 0.36, s.y - r * 0.62, w, h);
+  }
+  if (crafts.radio && b.type === "archive") {
+    g.strokeStyle = "#6f7378";
+    g.lineWidth = Math.max(1, r * 0.06);
+    g.beginPath();
+    g.moveTo(s.x + r * 0.3, s.y - r * 0.9);
+    g.lineTo(s.x + r * 0.3, s.y - r * 1.9);
+    g.moveTo(s.x + r * 0.16, s.y - r * 1.55);
+    g.lineTo(s.x + r * 0.44, s.y - r * 1.55);
+    g.stroke();
+    const on = ACTIVE_REDUCED_MOTION || Math.floor(now / 700) % 2 === 0;
+    g.fillStyle = on ? "#ff5a5a" : "#5a1d1d";
+    g.beginPath();
+    g.arc(s.x + r * 0.3, s.y - r * 1.95, Math.max(1, r * 0.07), 0, Math.PI * 2);
+    g.fill();
+  }
+  g.restore();
+};
 window.ALIFE_AFTERNOON_DEBUG = Object.freeze({
   strain: () => ensureAfternoon(W).strain,
   delta: () => industrialStrainDelta(),

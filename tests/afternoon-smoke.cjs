@@ -95,6 +95,12 @@ const fixtureSource = String.raw`(() => {
   const loud = { type: "MilestoneEvent", importance: 4, data: {} };
   if (!alertWorthy(loud)) fail("a milestone is silenced in the epilogue");
   W.civilization.stage = keepStage.stage; W.civilization.stageIndex = keepStage.index;
+  // The look of the late ages draws without error at close zoom.
+  know("electricity", "radio"); complete("archive"); complete("hall");
+  UI.camera.x = settlement.x; UI.camera.y = settlement.y;
+  window.ALIFE_VISUAL_DEBUG.renderOnly({ view: "top", quality: "high", zoom: 3, now: 5000 });
+  window.ALIFE_VISUAL_DEBUG.renderOnly({ view: "iso", quality: "standard", zoom: 2.5, now: 5100 });
+  if (typeof worldHash === "function" && worldHash() !== worldHash()) fail("rendering the late ages was not stable");
   // Pages.
   const ages = window.ALIFE_LEGENDS_DEBUG.render("ages", 0);
   if (!/The sky/.test(ages) || !/long afternoon/.test(ages)) fail("the Ages page lacks the sky and the afternoon");
