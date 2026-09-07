@@ -433,6 +433,8 @@ const EVENT_CATEGORY = Object.freeze({
   LoanEvent: "factions",
   RepaymentEvent: "factions",
   DefaultEvent: "factions",
+  TitheEvent: "factions",
+  FineryEvent: "settlements",
   IdeologyEvent: "factions",
   StationEvent: "settlements",
   ClimateEvent: "ecology",
