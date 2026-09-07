@@ -136,6 +136,28 @@ const fixtureSource = String.raw`(() => {
   if (out.roomBefore < 54 && !(out.spilled > 0 && out.roomAfter > out.roomBefore)) fail("a full store made no room for the harvest: " + JSON.stringify({ before: out.roomBefore, after: out.roomAfter, spilled: out.spilled }));
   if (totalMatter() !== matterRoom + (settlement.inventory[C.SOLVENT] + out.spilled - solventKeep) - out.spilled + 0 && false) fail("unreachable");
   setTileMatterAmount(idx(settlement.x, settlement.y), C.SOLVENT, groundSolvent); settlement.inventory[C.SOLVENT] = solventKeep;
+  // A lean town still finds settlers among its hungry.
+  const adults = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.social[id] && W.components.life[id] && W.components.position[id]).slice(0, 4);
+  if (adults.length >= 3) {
+    const keepH = adults.map((id) => [id, W.components.life[id].hunger, W.components.social[id].factionId, W.components.position[id].x, W.components.position[id].y, W.components.life[id].age]);
+    for (const id of adults) W.components.life[id].age = Math.max(W.components.life[id].age, (W.components.body[id]?.maxAge || 19200) * 0.25);
+    adults.forEach((id, i) => { W.components.life[id].hunger = i === 0 ? 80 : 20; W.components.life[id].thirst = 10; W.components.social[id].factionId = settlement.factionId; const p = W.components.position[id]; p.x = clamp(settlement.x + 1, 0, W.width - 1); p.y = settlement.y; W.civilOrders = (W.civilOrders || []).filter((o) => o.id !== id); if (W.components.campaign) delete W.components.campaign[id]; });
+    rebuildSpatialBins();
+    const keepOrg = settlement.inventory[C.ORGANIC];
+    settlement.inventory[C.ORGANIC] = 400;
+    out.fedOutlookLean = !!window.ALIFE_GRANARY_DEBUG.outlook(settlement.id)?.lean;
+    out.fedHungryTaken = caravanCandidates(settlement, 4).includes(adults[0]);
+    settlement.inventory[C.ORGANIC] = 1;
+    adults.forEach((id, i) => { if (i < 3) W.components.life[id].hunger = 80; });
+    out.leanOutlookLean = !!window.ALIFE_GRANARY_DEBUG.outlook(settlement.id)?.lean;
+    out.leanHungryTaken = caravanCandidates(settlement, 4).includes(adults[0]);
+    if (!out.fedOutlookLean && out.fedHungryTaken) fail("a hungry adult was taken for duty in a fed town");
+    if (out.leanOutlookLean && !out.leanHungryTaken) fail("a lean town does not find settlers among its hungry");
+    if (!out.leanOutlookLean) out.leanSkipped = "the fixture town could not be made lean";
+    settlement.inventory[C.ORGANIC] = keepOrg;
+    for (const [id, h, f, x, y, age] of keepH) { W.components.life[id].hunger = h; W.components.social[id].factionId = f; W.components.position[id].x = x; W.components.position[id].y = y; W.components.life[id].age = age; }
+    rebuildSpatialBins();
+  }
   // Migration keeps a measured pace.
   out.budget = hv.budget();
   if (!(out.budget >= 2)) fail("the migration budget is too small: " + out.budget);

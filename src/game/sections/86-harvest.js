@@ -183,24 +183,38 @@ seedReserve = function (place) {
 // ripe crops rotted while the stores held seed: the hungry-hands rule of 82
 // was never reached. A lean town now counts every hungry resident as wanted
 // labour whenever a field can be sown or reaped (read by 30a).
+// The fields' state is read once per town per tick, not once per worker.
+const farmStatusCache = { world: null, tick: -1, byPlace: new Map() };
+function farmStatus(place) {
+  if (farmStatusCache.world !== W || farmStatusCache.tick !== W.tick) {
+    farmStatusCache.world = W;
+    farmStatusCache.tick = W.tick;
+    farmStatusCache.byPlace.clear();
+  }
+  let status = farmStatusCache.byPlace.get(place.id);
+  if (!status) {
+    status = { ripe: false, fallow: false, farms: 0, lean: null };
+    for (const b of completedBuildings(place, "farm")) {
+      status.farms++;
+      const f = cultivatedField(b);
+      if (!f) continue;
+      if (f.stage === "ripe" && W.tick >= (f.harvestBlockedUntil || 0)) status.ripe = true;
+      else if (f.stage === "fallow") status.fallow = true;
+    }
+    farmStatusCache.byPlace.set(place.id, status);
+  }
+  return status;
+}
 function hungryHandsWanted(id, place) {
   if (!place?.knownProcesses || W.kind[id] !== KINDS.PERSON) return false;
   const life = W.components.life[id];
   if (!life || life.hunger <= 56 || life.hunger > 92 || life.thirst > 80) return false;
-  const farms = completedBuildings(place, "farm");
-  if (!farms.length) return false;
-  let ripe = false,
-    fallow = false;
-  for (const b of farms) {
-    const f = cultivatedField(b);
-    if (!f) continue;
-    if (f.stage === "ripe" && W.tick >= (f.harvestBlockedUntil || 0)) ripe = true;
-    else if (f.stage === "fallow") fallow = true;
-  }
-  if (ripe) return true;
-  if (!fallow || (place.inventory[C.ORGANIC] || 0) < 9) return false;
-  const outlook = foodOutlook(place);
-  return !!outlook?.lean;
+  const status = farmStatus(place);
+  if (!status.farms) return false;
+  if (status.ripe) return true;
+  if (!status.fallow || (place.inventory[C.ORGANIC] || 0) < 9) return false;
+  if (status.lean === null) status.lean = !!foodOutlook(place)?.lean;
+  return status.lean;
 }
 // ── Hearth and home: a child belongs where its parents live ───────────────────
 // A person's social record was born without a home, on the rule that
@@ -209,10 +223,11 @@ function hungryHandsWanted(id, place) {
 // count of residents all go by the home place, so once a town's founders aged
 // out, a second generation stood in its streets counted by the population but
 // fed by nobody, and starved beside the granary. Every season the homeless
-// take the home of a parent who has one, or of the town they live beside.
+// take the home of a parent who has one, or of the town they live beside
+// (within fourteen tiles, the reach of a day's foraging).
 const HOME_PASS_CADENCE = 64,
   HOME_PASS_OFFSET = 20,
-  HOME_RADIUS = 8;
+  HOME_RADIUS = 14;
 function homePlaceValid(soc) {
   if (!soc?.homePlaceKind || !soc.homePlaceId) return false;
   if (soc.homePlaceKind === "settlement")
@@ -335,6 +350,33 @@ const harvestCultivatedFieldHarvestBase = harvestCultivatedField;
 harvestCultivatedField = function (workerId, field, place) {
   if (field?.stage === "ripe" && place) makeRoomForHarvest(place, field);
   return harvestCultivatedFieldHarvestBase(workerId, field, place);
+};
+// ── A lean town still sends people out ───────────────────────────────────────
+// Caravans, envoys, and above all settlers were drawn only from people with
+// hunger under seventy, so a starving town, where nearly everyone is hungrier
+// than that, could send no settlers to found a new camp and sat in its trap
+// for a century. When the stores are lean, hungry adults short of starving
+// are taken too, hungriest last.
+const LEAN_DUTY_HUNGER = 92;
+const caravanCandidatesHarvestBase = caravanCandidates;
+caravanCandidates = function (place, count) {
+  const out = caravanCandidatesHarvestBase(place, count);
+  if (out.length >= count || !place?.knownProcesses) return out;
+  const outlook = foodOutlook(place);
+  if (!outlook?.lean) return out;
+  const voices = new Set(W.factions.map((f) => f.leaderId).filter(Boolean)),
+    extra = [];
+  for (const id of entityAtRadius(idx(place.x, place.y), 6, KINDS.PERSON)) {
+    if (out.includes(id)) continue;
+    const life = W.components.life[id],
+      social = W.components.social[id];
+    if (!classifyAlive(id) || !life || voices.has(id) || !freeForCivilDuty(id)) continue;
+    if (social?.factionId !== place.factionId || life.hunger > LEAN_DUTY_HUNGER || life.wounded) continue;
+    if (life.age < (W.components.body[id]?.maxAge || 19200) * 0.2) continue;
+    extra.push(id);
+  }
+  extra.sort((a, b) => (W.components.life[a].hunger || 0) - (W.components.life[b].hunger || 0) || a - b);
+  return out.concat(extra.slice(0, count - out.length));
 };
 // ── Measured migration ────────────────────────────────────────────────────────
 function ensureHarvestState(world = W) {
