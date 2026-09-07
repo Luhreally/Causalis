@@ -41,6 +41,10 @@ function figurePose(id, motion) {
     campaign = W.components.campaign?.[id];
   if (FIGURE_KNEEL_TASKS.has(task)) return "kneel";
   if (task === "raze" || campaign?.role === "attack" || life?.behavior === "defend" || life?.behavior === "hunt") return "fight";
+  if (life?.behavior === "rest" && typeof nightAt === "function") {
+    const p = W.components.position[id];
+    if (p && nightAt(p.x, p.y)) return "sleep";
+  }
   if (life?.restDebt || life?.behavior === "rest") return "sit";
   if (FIGURE_WORK_TASKS.has(task)) return "work";
   return motion?.moving ? "walk" : "stand";
@@ -92,20 +96,20 @@ drawUprightPerson = function (g, m, phase, detail, colors) {
   FIGURES_DRAWN++;
   const { primary, secondary, accent, outline, dress } = colors,
     pose = fig.pose,
-    swing = pose === "walk" ? 0.2 : pose === "stand" || pose === "sit" || pose === "kneel" ? 0.02 : 0.1,
+    swing = pose === "walk" ? 0.2 : pose === "stand" || pose === "sit" || pose === "kneel" || pose === "sleep" ? 0.02 : 0.1,
     wave = Math.sin(phase) * swing,
     torsoW = form === "broad" ? 0.56 : form === "tall" ? 0.38 : 0.46,
     torsoH = form === "tall" ? 0.86 : form === "broad" ? 0.64 : 0.73,
     legLen = form === "tall" ? 1.3 : form === "broad" ? 1.05 : 1.18,
     dressed = dress && dress.style !== "none",
-    drop = pose === "kneel" ? 0.32 : pose === "sit" ? 0.38 : 0;
+    drop = pose === "kneel" ? 0.32 : pose === "sit" ? 0.38 : pose === "sleep" ? 0.52 : 0;
   g.save();
   if (fig.child) g.scale(0.72, 0.72);
   if (drop) g.translate(0, drop);
   if (dressed && (dress.style === "cloak" || fig.era === "letters")) {
     g.fillStyle = hsl(dress.hue, 45, 32, 0.85);
     g.beginPath();
-    g.ellipse(0, 0.32, torsoW * 1.35, torsoH * (pose === "sit" || pose === "kneel" ? 0.8 : 1.05), 0, 0, Math.PI * 2);
+    g.ellipse(0, 0.32, torsoW * 1.35, torsoH * (pose === "sit" || pose === "kneel" ? 0.8 : pose === "sleep" ? 0.62 : 1.05), 0, 0, Math.PI * 2);
     g.fill();
     if (fig.era === "letters" && detail > 1) {
       g.strokeStyle = hsl(dress.hue, 60, 60, 0.9);
@@ -125,11 +129,13 @@ drawUprightPerson = function (g, m, phase, detail, colors) {
     else if (pose === "work") creatureLimbStyled(g, m, -torsoW * 0.4, shoulder, -0.5, -0.38, 0.12, phase);
     else if (pose === "fight") creatureLimbStyled(g, m, -torsoW * 0.4, shoulder, -0.72, -0.78, 0.12, phase);
     else if (pose === "sit") creatureLimbStyled(g, m, -torsoW * 0.4, shoulder, -0.55, 0.55, 0.12, phase);
+    else if (pose === "sleep") creatureLimbStyled(g, m, -torsoW * 0.4, shoulder + 0.2, -0.5, 0.3, 0.12, phase);
     else creatureLimbStyled(g, m, -torsoW * 0.4, shoulder, -0.68, 0.5 + wave, 0.12, phase);
   }
   if (creatureAppendageVisible(m, 1)) {
     if (pose === "kneel") creatureLimbStyled(g, m, torsoW * 0.4, shoulder, 0.6, 0.62, 0.12, phase + 2);
     else if (pose === "work") creatureLimbStyled(g, m, torsoW * 0.4, shoulder, 0.5, -0.38, 0.12, phase + 2);
+    else if (pose === "sleep") creatureLimbStyled(g, m, torsoW * 0.4, shoulder + 0.2, 0.5, 0.3, 0.12, phase + 2);
     else creatureLimbStyled(g, m, torsoW * 0.4, shoulder, 0.68, 0.5 - wave, 0.12, phase + 2);
   }
   // Legs.
@@ -140,6 +146,10 @@ drawUprightPerson = function (g, m, phase, detail, colors) {
   } else if (pose === "sit") {
     if (creatureAppendageVisible(m, 2)) creatureLimbStyled(g, m, -0.2, 0.6, -0.9, 0.78, 0.1, phase + 1);
     if (creatureAppendageVisible(m, 3)) creatureLimbStyled(g, m, 0.2, 0.6, 0.9, 0.78, 0.1, phase + 3);
+  } else if (pose === "sleep") {
+    // Curled on the ground: legs drawn in under the body.
+    if (creatureAppendageVisible(m, 2)) creatureLimbStyled(g, m, -0.2, 0.62, -0.72, 0.62, 0.1, phase + 1);
+    if (creatureAppendageVisible(m, 3)) creatureLimbStyled(g, m, 0.2, 0.62, 0.72, 0.62, 0.1, phase + 3);
   } else {
     if (creatureAppendageVisible(m, 2)) creatureLimbStyled(g, m, -0.2, 0.55, -0.48 - wave * 1.6, legLen, 0.1, phase + 1);
     if (creatureAppendageVisible(m, 3)) creatureLimbStyled(g, m, 0.2, 0.55, 0.48 + wave * 1.6, legLen, 0.1, phase + 3);
@@ -148,7 +158,7 @@ drawUprightPerson = function (g, m, phase, detail, colors) {
   // Torso.
   g.fillStyle = primary;
   g.beginPath();
-  g.ellipse(0, 0.18, torsoW, torsoH, 0, 0, Math.PI * 2);
+  g.ellipse(0, 0.18, torsoW, torsoH * (pose === "sleep" ? 0.72 : 1), 0, 0, Math.PI * 2);
   g.fill();
   g.strokeStyle = outline;
   g.lineWidth = 0.13;

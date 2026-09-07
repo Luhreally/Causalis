@@ -566,8 +566,14 @@ function chooseBehavior(id, tier) {
       },
       {
         id: "rest",
-        score: l.restDebt ? 150 + l.fatigue : l.fatigue * 0.65,
-        reason: l.restDebt ? "a rest owed past the labour gate" : "low actuator recovery",
+        score:
+          (l.restDebt ? 150 + l.fatigue : l.fatigue * 0.65) +
+          (typeof sleepScore === "function" ? sleepScore(id, k, p, l, "rest") : 0),
+        reason: l.restDebt
+          ? "a rest owed past the labour gate"
+          : typeof nightAt === "function" && nightAt(p.x, p.y)
+            ? "night, and sleep"
+            : "low actuator recovery",
       },
       {
         id: "food",
@@ -646,8 +652,13 @@ function chooseBehavior(id, tier) {
       },
       {
         id: "return",
-        score: place ? Math.sqrt(dist2(p.x, p.y, place.x, place.y)) * 4 : 0,
-        reason: "stored social memory points toward home",
+        score:
+          (place ? Math.sqrt(dist2(p.x, p.y, place.x, place.y)) * 4 : 0) +
+          (typeof sleepScore === "function" ? sleepScore(id, k, p, l, "return", place) : 0),
+        reason:
+          typeof nightAt === "function" && nightAt(p.x, p.y)
+            ? "nightfall, and the walk home to sleep"
+            : "stored social memory points toward home",
       },
       {
         id: "socialize",
@@ -735,8 +746,9 @@ function chooseBehavior(id, tier) {
               ? 2
               : 4
           : 1,
-      shelter = 1 + shelterProtectionAt(id, ti) * 0.65;
-    l.fatigue = clamp(l.fatigue - 2.4 * recovery * shelter, 0, 100);
+      shelter = 1 + shelterProtectionAt(id, ti) * 0.65,
+      asleep = typeof sleepRecoveryFactor === "function" ? sleepRecoveryFactor(id) : 1;
+    l.fatigue = clamp(l.fatigue - 2.4 * recovery * shelter * asleep, 0, 100);
   } else if (action.id === "mate") {
     const mate = eligibleMateCandidates(
       id,

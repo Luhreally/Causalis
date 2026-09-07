@@ -61,6 +61,7 @@ function reproductionDensityAllows(id, kind) {
     ) < remaining
   );
 }
+const CONCEPTION_HUNGER = 60;
 function canReproduce(id) {
   if (reproductionEligibilityCache.world !== W || reproductionEligibilityCache.tick !== W.tick)
     reproductionEligibilityCache = { world: W, tick: W.tick, values: new Map() };
@@ -84,6 +85,10 @@ function canReproduce(id) {
     l.age > (body.maturityAge ?? 1200) &&
     // People have a fertile window; a village grows by generations, not by centenarians.
     (!social || l.age < body.maxAge * 0.62) &&
+    // A hungry people does not grow: conception waits until the belly is quiet, so a
+    // town meets its food ceiling by fewer births rather than by famine (93 made
+    // rested people mate far more, and seed 7 boomed to 249 and starved).
+    (!social || l.hunger < CONCEPTION_HUNGER) &&
     l.energy > (social ? 22 : predator ? 8 : 30) &&
     l.health > (predator ? 35 : 48) &&
     (predator

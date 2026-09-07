@@ -23,7 +23,9 @@ const fixtureSource = String.raw`(() => {
   for (const id of people) { W.components.life[id].age = Math.max(W.components.life[id].age, 4000); window.ALIFE_CHARACTER_DEBUG.ensure(id); }
   // Two people in different houses, standing together.
   const houseOf = (id) => W.components.social[id].kinGroupId;
-  const a = people[0], b = people.find((id) => houseOf(id) !== houseOf(a));
+  // A pair whose houses hold no feud and who contest nothing, so trust alone decides.
+  const noFeud = (x, y) => !(W.feuds || []).some((f) => !f.ended && f.key === feudKey(houseOf(x), houseOf(y)));
+  const a = people[0], b = people.find((id) => houseOf(id) !== houseOf(a) && noFeud(a, id) && !rivalContest(a, id));
   if (!b) { fail("everyone shares one house"); return out; }
   const pa = W.components.position[a], pb = W.components.position[b];
   pb.x = pa.x; pb.y = pa.y; rebuildSpatialBins();
