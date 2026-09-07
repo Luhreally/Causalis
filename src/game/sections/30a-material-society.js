@@ -9,6 +9,8 @@ const CIV_STAGE_ORDER = Object.freeze([
   "civic",
   "urban",
   "complex terrestrial",
+  "orbital",
+  "interstellar",
 ]);
 const ADVANCED_TECH_BASE = Object.freeze([
   {
@@ -4725,7 +4727,7 @@ function updateCivilizationProgression() {
         stage === "tribal"
           ? "functional tools, a communal cache, and a completed shelter"
           : "material, demographic, and institutional gates were satisfied",
-        "development remains terrestrial; spaceflight is outside this simulation",
+        "the ladder runs on to orbit and the stars once a ship has left",
       ],
       importance: 5,
       data: { name: titleCase(stage), stage, prior },

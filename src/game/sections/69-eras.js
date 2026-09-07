@@ -511,7 +511,17 @@ function launchShip(place, force = false) {
   if (!force && (!place.knownProcesses.includes("starflight") || (place.stability || 0) < 0.35))
     return null;
   const tower = launchTower(place);
-  if (!tower || W.ascensions.some((a) => a.settlementId === place.id)) return null;
+  // One ship per tower per generation.
+  if (
+    !tower ||
+    W.ascensions.some(
+      (a) =>
+        a.settlementId === place.id &&
+        W.tick - a.tick <
+          (typeof ORBIT_RELAUNCH_TICKS === "number" ? ORBIT_RELAUNCH_TICKS : Infinity),
+    )
+  )
+    return null;
   const f = W.factions.find((x) => x.id === place.factionId),
     builders = typeof caravanCandidates === "function" ? caravanCandidates(place, 3) : [],
     first = !W.ascensions.length,

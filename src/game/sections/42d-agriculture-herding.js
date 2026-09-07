@@ -529,7 +529,11 @@ performCivilLabor = function (id) {
           return field?.stage === "ripe" && W.tick >= (field.harvestBlockedUntil || 0);
         })
       : false;
-  if (fitForLabor && (ripe || (W.tick + id) % 8 === 0) && performFarmLabor(id)) return true;
+  // Labour ticks fall on tick ≡ id (mod 4), so the old (tick + id) % 8 gate
+  // could never be met by anyone with an odd id: half the town never farmed.
+  // Every other labour tick now goes to the fields for everyone.
+  if (fitForLabor && (ripe || Math.floor((W.tick + id) / 4) % 2 === 0) && performFarmLabor(id))
+    return true;
   return performCivilLaborAgricultureBase(id);
 };
 
