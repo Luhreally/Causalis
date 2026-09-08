@@ -101,7 +101,7 @@ const fixtureSource = String.raw`(() => {
   }
   // A branch craft is learned by ordinary research and chronicled.
   revoke("oral_tradition");
-  s.inventory[C.PIGMENT] = Math.max(s.inventory[C.PIGMENT], 40);
+  s.inventory[C.FIBER] = Math.max(s.inventory[C.FIBER], 40);
   s.inventory[C.ORGANIC] = Math.max(s.inventory[C.ORGANIC], 40);
   s.stability = Math.max(s.stability, 0.6);
   s.researchProgress = s.researchProgress || {};
@@ -116,6 +116,11 @@ const fixtureSource = String.raw`(() => {
   // The focus chooser prefers by branch, and the preference is whole.
   out.preference = br.preference(f.id, s.id);
   if (!(out.preference.matter > 0 && out.preference.life > 0 && out.preference.mind > 0)) fail("the branch preference is not whole");
+  const fedFood = settlementFood(s), keepOrganic = s.inventory[C.ORGANIC];
+  s.inventory[C.ORGANIC] = 0;
+  out.hungryLife = br.preference(f.id, s.id).life;
+  s.inventory[C.ORGANIC] = keepOrganic;
+  if (settlementFood(s) < 4 && !(out.hungryLife > out.preference.life)) fail("a hungry town does not turn to field and herd: " + out.preference.life + " -> " + out.hungryLife + " (food " + fedFood + ")");
   s.researchFocus = "";
   updateTechnology();
   out.focus = s.researchFocus;

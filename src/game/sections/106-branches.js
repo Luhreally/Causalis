@@ -42,6 +42,8 @@ const BRANCHES = Object.freeze({ matter: "Matter", life: "Life", mind: "Mind" })
   BRANCH_ADDITIVE = Object.freeze(["unrest", "taxes", "opinion", "urge"]),
   BRANCH_FRONTIER_TIERS = 3,
   BRANCH_SPINE_WEIGHT = 1.4,
+  BRANCH_HUNGER_FOOD = 4,
+  BRANCH_HUNGER_PULL = 0.5,
   BRANCH_MASTERY_TICK = 120,
   EMPTY_BRANCH_EFFECTS = Object.freeze({
     research: 1,
@@ -113,8 +115,8 @@ const BRANCH_TECH_DEFS = Object.freeze([
   branchDef("life", 6, "hydroponics", "Hydroponics", ["fertilizer", "power_grid"], [C.NUTRIENT, C.SOLVENT], "factory", 80, "crops raised in water under a made light", { harvest: 1.25 }),
   branchDef("life", 6, "gene_therapy", "Gene Therapy", ["genetics", "computing"], [C.MEDICINE, C.INFO], "clinic", 86, "the thread of inheritance mended where it frays", { longevity: 1.12, fertility: 1.05 }),
   // ── Mind ────────────────────────────────────────────────────────────────────
-  branchDef("mind", 1, "oral_tradition", "Oral Tradition", [], [C.PIGMENT, C.ORGANIC], "hearth", 26, "the long tale told the same way every winter", { research: 1.05, unrest: 0.02 }),
-  branchDef("mind", 1, "ritual_calendar", "Ritual Calendar", ["oral_tradition"], [C.PIGMENT, C.MINERAL], "shrine", 34, "the year marked in stones and feasts so sowing is never late", { harvest: 1.05, unrest: 0.02 }),
+  branchDef("mind", 1, "oral_tradition", "Oral Tradition", [], [C.ORGANIC, C.FIBER], "hearth", 26, "the long tale told the same way every winter", { research: 1.05, unrest: 0.02 }),
+  branchDef("mind", 1, "ritual_calendar", "Ritual Calendar", ["oral_tradition"], [C.MINERAL, C.FIBER], "shrine", 34, "the year marked in stones and feasts so sowing is never late", { harvest: 1.05, unrest: 0.02 }),
   branchDef("mind", 2, "weights_measures", "Weights and Measures", ["writing"], [C.INFO, C.METAL], "market", 44, "one bushel and one span agreed by all", { taxes: 1, barter: 1.1 }),
   branchDef("mind", 2, "philosophy", "Philosophy", ["writing", "oral_tradition"], [C.INFO, C.PIGMENT], "archive", 46, "the habit of asking why, written down", { research: 1.1, unrest: 0.02 }),
   branchDef("mind", 2, "theatre", "Theatre", ["ritual_calendar", "writing"], [C.PIGMENT, C.FIBER], "hall", 44, "the town's own story played back to it", { unrest: 0.04 }),
@@ -297,7 +299,8 @@ function branchKnownCount(place, branch) {
   for (const id of place?.knownProcesses || []) if (branchOf(id) === branch) n++;
   return n;
 }
-// Ethos tilts the choice; the branch a town has neglected pulls a little harder.
+// Ethos tilts the choice; the branch a town has neglected pulls a little harder,
+// and a hungry town turns to the crafts of field and herd.
 function branchPreference(f, place = null) {
   const e = f?.ethos || {},
     ideology = f?.ideology || {},
@@ -314,6 +317,7 @@ function branchPreference(f, place = null) {
     const counts = { matter: branchKnownCount(place, "matter"), life: branchKnownCount(place, "life"), mind: branchKnownCount(place, "mind") },
       least = Math.min(counts.matter, counts.life, counts.mind);
     for (const k in pref) pref[k] += 0.06 * Math.min(3, counts[k] - least) * -1 + (counts[k] === least ? 0.08 : 0);
+    if (typeof settlementFood === "function" && settlementFood(place) < BRANCH_HUNGER_FOOD) pref.life += BRANCH_HUNGER_PULL;
   }
   return pref;
 }

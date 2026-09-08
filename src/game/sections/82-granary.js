@@ -387,7 +387,7 @@ eventSentence = function (e) {
   const d = e.data || {};
   if (e.type === "ReliefEvent")
     return `${d.from} sent ${d.amount} units of food${d.water ? ` and ${d.water} of water` : ""} to ${d.to}, where ${d.hungry}% went hungry.`;
-  if (e.type === "MigrationEvent")
+  if (e.type === "MigrationEvent" && d.count != null && d.from && d.to)
     return `${d.count} starving ${d.count === 1 ? "person" : "people"} left ${d.from} for the fed stores of ${d.to}.`;
   return eventSentenceGranaryBase(e);
 };
