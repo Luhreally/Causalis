@@ -93,6 +93,16 @@ const fixtureSource = String.raw`(() => {
   out.countryside = modern.counts();
   if (!(out.countryside.hedgerows >= 1)) fail("no hedgerows along the fields");
   if (!(out.countryside.windmills + out.countryside.scarecrows >= 1)) fail("no windmill or scarecrow over the farms");
+  // The skip halts when the world's people halve since it began.
+  const st = makeCausalSkipState(4096);
+  st.startStageIndex = 1e9; st.pending = [];
+  out.startPeople = st.startPeople;
+  const alive = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id));
+  for (const id of alive.slice(0, Math.ceil(alive.length * 0.6))) killEntity(id, "struck for the test");
+  for (let i = 0; i < 600 && !st.done; i++) causalSkipStep(st);
+  out.skipStop = st.stopReason; out.skipTicks = st.advanced;
+  if (st.stopReason !== "collapse") fail("the skip did not halt on a collapsing world: " + st.stopReason + " after " + st.advanced);
+  if (!(st.milestone && /halving/.test(st.milestone.label))) fail("the collapse stop names no halving");
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;
 })()`;

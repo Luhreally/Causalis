@@ -303,7 +303,46 @@ drawBuildingSite = function (g, b, now, m) {
   }
   g.restore();
 };
+// ── The skip stops when the world is dying ───────────────────────────────────
+// A skip on a target the world could not reach ran its whole horizon, up to
+// ninety-six years, while the towns starved and fell; the player came back to a
+// handful of people and a page of ruins. The skip now stops when the world's
+// people have halved since it began, and says so.
+const MODERN_COLLAPSE_SHARE = 0.5,
+  MODERN_COLLAPSE_MIN = 20,
+  MODERN_COLLAPSE_CHECK = 256;
+function modernLivingPeople() {
+  return biospherePopulation(KINDS.PERSON);
+}
+const makeCausalSkipStateModernBase = makeCausalSkipState;
+makeCausalSkipState = function (limitOverride = 0) {
+  const state = makeCausalSkipStateModernBase(limitOverride);
+  state.startPeople = modernLivingPeople();
+  return state;
+};
+const causalSkipStepModernBase = causalSkipStep;
+causalSkipStep = function (state) {
+  const out = causalSkipStepModernBase(state);
+  if (
+    !state.done &&
+    state.advanced % MODERN_COLLAPSE_CHECK === 0 &&
+    (state.startPeople || 0) >= MODERN_COLLAPSE_MIN &&
+    modernLivingPeople() < state.startPeople * MODERN_COLLAPSE_SHARE
+  ) {
+    state.done = true;
+    state.stopReason = "collapse";
+    state.milestone = {
+      type: "CausalMicroStage",
+      id: 0,
+      tick: W.tick,
+      key: "collapse",
+      label: `a halving of the world's people (${state.startPeople} to ${modernLivingPeople()}; the skip halts)`,
+    };
+  }
+  return out;
+};
 window.ALIFE_MODERN_DEBUG = Object.freeze({
+  living: () => modernLivingPeople(),
   shortfall: () => modernShortfall(),
   stages: () => modernStages().map((s) => ({ key: s.key, label: s.label, done: s.done() })),
   push: (key, pushes = 1) => modernPush(key, pushes),

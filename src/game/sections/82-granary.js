@@ -19,6 +19,7 @@ const GRANARY_PEOPLE_PER_FARM = 6,
   GRANARY_MAX_FARMS = 24,
   GRANARY_MAX_STORES = 4,
   GRANARY_ACTIVE_CAP = 6,
+  GRANARY_ACTIVE_FIELDS = 2,
   LEAN_FOOD = 10,
   FAMINE_FOOD = 5,
   RELIEF_LOAD = 60,
@@ -72,14 +73,19 @@ ensurePlacePlans = function (place) {
       clamp(Math.ceil(outlook.pop / GRANARY_PEOPLE_PER_FARM), 1, GRANARY_MAX_FARMS) +
       (outlook.lean ? 1 : 0),
     desiredStores = clamp(Math.ceil(outlook.pop / GRANARY_PEOPLE_PER_STORE), 1, GRANARY_MAX_STORES);
+  // Fields and stores do not wait for the skyline: a city at the tower stage
+  // keeps six or more sites open for years, and a cap that counted them all
+  // planned no farm while they stood. Only unfinished fields and stores count.
   while (
     granaryCount(place, "farm") < desiredFarms &&
-    activeBuildings(place).length < GRANARY_ACTIVE_CAP
+    activeBuildings(place, "farm").length < GRANARY_ACTIVE_FIELDS &&
+    activeBuildings(place).length < GRANARY_ACTIVE_CAP + GRANARY_ACTIVE_FIELDS * 2
   )
     if (!planBuilding(place, "farm", foodPriority)) break;
   while (
     granaryCount(place, "stockpile") < desiredStores &&
-    activeBuildings(place).length < GRANARY_ACTIVE_CAP
+    activeBuildings(place, "stockpile").length < 1 &&
+    activeBuildings(place).length < GRANARY_ACTIVE_CAP + GRANARY_ACTIVE_FIELDS * 2
   )
     if (!planBuilding(place, "stockpile", Math.max(pr.materials || 3, outlook.lean ? 4 : 0))) break;
   if (outlook.lean && place.management?.priorities)
