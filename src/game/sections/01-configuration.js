@@ -443,6 +443,7 @@ const EVENT_CATEGORY = Object.freeze({
   FineryEvent: "settlements",
   GhostTownEvent: "settlements",
   TownReclaimedEvent: "settlements",
+  UrbanMigrationEvent: "people",
   IdeologyEvent: "factions",
   StationEvent: "settlements",
   ClimateEvent: "ecology",
