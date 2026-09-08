@@ -117,6 +117,30 @@ const fixtureSource = String.raw`(() => {
     for (const id of W.activeIds) if (W.kind[id] === KINDS.PERSON && W.components.social[id]?.homePlaceId === settlement.id) W.components.life[id].hunger = 10;
     out.fertility = { fed, starving };
     if (!(starving < fed)) fail("famine did not slow births: " + JSON.stringify(out.fertility));
+    // The granary paces the concerted haste: one fed person hurries the next
+    // child while the town is provisioned, and keeps the ordinary pace once a
+    // quarter of the neighbours go hungry, however full that one belly is.
+    const person = pair[0], residents = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.social[id]?.homePlaceId === settlement.id);
+    const hungerWas = residents.map((id) => W.components.life[id].hunger);
+    W.civilization.concertedEffortLevel = 2;
+    W.civilization.concertedEffortUntil = W.tick + 512;
+    // The famine test above emptied the stores; fill them again for the fed case.
+    settlement.storageCapacity = Math.max(settlement.storageCapacity || 150, placeStorageUsed(settlement) + 500);
+    { const want = 400 - (settlement.inventory[C.ORGANIC] || 0); if (want > 0) { settlement.inventory[C.ORGANIC] += want; W.conservation.playerInput += want; } }
+    for (const id of residents) W.components.life[id].hunger = 10;
+    out.foodFed = Math.round(settlementFood(settlement));
+    out.hasteFed = gran.haste(person);
+    out.paceFed = gran.pace(settlement.id);
+    for (const id of residents) if (id !== person) W.components.life[id].hunger = 80;
+    W.components.life[person].hunger = 10;
+    W.tick++; // the town's reading is taken once a tick
+    out.hasteHungryTown = gran.haste(person);
+    out.paceHungryTown = gran.pace(settlement.id);
+    residents.forEach((id, n) => { W.components.life[id].hunger = hungerWas[n]; });
+    W.civilization.concertedEffortLevel = 0;
+    W.civilization.concertedEffortUntil = 0;
+    if (!(out.hasteFed > 1)) fail("a provisioned town does not hurry the next child: " + out.hasteFed);
+    if (!(out.hasteHungryTown <= 1)) fail("a hungry town still hurries the next child: " + out.hasteHungryTown);
   }
   if (!/Granaries/.test(window.ALIFE_LEGENDS_DEBUG.render("place", settlement.id))) fail("the place page shows no granary row");
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");

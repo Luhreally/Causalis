@@ -377,6 +377,41 @@ launchSettlers = function (place, force = false) {
   return launchSettlersGranaryBase(place, force);
 };
 // ── Births answer the stores ───────────────────────────────────────────────────
+// ── The granary, not the belly, sets the pace of birth ────────────────────────
+// A concerted effort quickened every fed person's next child threefold, and a
+// famine anywhere puts the whole world under concerted effort, so the fed few
+// of a starving world bred fastest of all: the population overshot the fields,
+// emptied the stores, and starved, again and again. A household hurries its
+// next child only where the granary holds more than the mouths it already
+// feeds; a lean town keeps the ordinary pace, and a town in famine slows. The
+// reading is taken once a tick per town, not once per person.
+const HASTE_FOOD = LEAN_FOOD * 2,
+  HASTE_HUNGRY = 0.1,
+  HASTE_FAMINE = 0.6;
+let hasteCache = { world: null, tick: -1, values: new Map() };
+function granaryBirthPace(town) {
+  if (!town || town.ruined) return null;
+  if (hasteCache.world !== W || hasteCache.tick !== W.tick)
+    hasteCache = { world: W, tick: W.tick, values: new Map() };
+  if (hasteCache.values.has(town.id)) return hasteCache.values.get(town.id);
+  const outlook = foodOutlook(town);
+  let pace = null;
+  if (outlook) {
+    if (outlook.famine) pace = HASTE_FAMINE;
+    else if (outlook.lean || outlook.food < HASTE_FOOD || outlook.hungry > HASTE_HUNGRY) pace = 1;
+  }
+  hasteCache.values.set(town.id, pace);
+  return pace;
+}
+const concertedBirthHasteGranaryBase = concertedBirthHaste;
+concertedBirthHaste = function (id, l) {
+  const haste = concertedBirthHasteGranaryBase(id, l);
+  if (haste <= 1) return haste;
+  const p = W.components.position[id],
+    town = p ? nearestSettlement(idx(p.x, p.y), 8) : null,
+    pace = granaryBirthPace(town);
+  return pace === null ? haste : pace;
+};
 const fertilityFactorGranaryBase = fertilityFactor;
 fertilityFactor = function (id, other) {
   let f = fertilityFactorGranaryBase(id, other);
@@ -424,6 +459,8 @@ window.ALIFE_GRANARY_DEBUG = Object.freeze({
   outlook: (settlementId) => foodOutlook(W.settlements.find((s) => s.id === settlementId)),
   ration: (settlementId) => rationCap(W.settlements.find((s) => s.id === settlementId)),
   seedReserve: (settlementId) => seedReserve(W.settlements.find((s) => s.id === settlementId)),
+  pace: (settlementId) => granaryBirthPace(W.settlements.find((s) => s.id === settlementId)),
+  haste: (id) => concertedBirthHaste(id, derivedLife(id)),
   plan: (settlementId) => {
     const s = W.settlements.find((x) => x.id === settlementId);
     if (s) ensurePlacePlans(s);

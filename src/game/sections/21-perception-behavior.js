@@ -205,12 +205,14 @@ function runMetabolism(id, tier) {
       (ch.q[C.ENERGY] < 5 ? 5 * rate : 0),
   );
   const rep = W.components.reproduction[id];
-  rep.cooldown = Math.max(
-    0,
-    rep.cooldown -
-      rate * (W.kind[id] === KINDS.PERSON && concertedIntensity() && l.hunger < 50 ? 2 + concertedIntensity() : 1),
-  );
+  rep.cooldown = Math.max(0, rep.cooldown - rate * concertedBirthHaste(id, l));
   derivedLife(id);
+}
+// How much sooner a person may bear the next child under a concerted effort.
+// A hungry body does not hurry; later sections weigh the granary too (82).
+function concertedBirthHaste(id, l) {
+  if (W.kind[id] !== KINDS.PERSON || !concertedIntensity() || l.hunger >= 50) return 1;
+  return 2 + concertedIntensity();
 }
 function organismHabitatStress(id, i) {
   const ph = phenotype(id),
