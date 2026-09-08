@@ -102,7 +102,8 @@ function townBuildings(place) {
 }
 // The edge of the built town: the farthest house within a town's reach; a dock
 // or a lone hut sited far off by another system does not stretch the belt.
-const TOWN_RING_CAP = 8;
+const TOWN_RING_CAP = 8,
+  FIELD_RING_CAP = 7;
 function townOuterRing(place, buildings = townBuildings(place)) {
   let ring = 3;
   for (const b of buildings) {
@@ -129,10 +130,13 @@ function zoneTarget(zone, place, plan, buildings) {
   if (zone === "civic") return 2.5;
   if (zone === "industry") return Math.max(3, Math.min(outer, 5));
   if (zone === "edge") return outer + 2;
-  if (zone === "farm") return outer + 2.5;
-  if (zone === "pasture") return outer + 4;
+  // Fields and pasture stay within the seven tiles a town's hands range over
+  // (118): a belt laid at the edge of a sprawling town put fields thirteen
+  // tiles out, where they ripened and rotted unworked.
+  if (zone === "farm") return Math.min(outer + 2.5, FIELD_RING_CAP);
+  if (zone === "pasture") return Math.min(outer + 4, FIELD_RING_CAP + 1);
   if (zone === "wall") return outer + 1;
-  if (zone === "belt") return outer + 2.5;
+  if (zone === "belt") return Math.min(outer + 2.5, FIELD_RING_CAP);
   return Math.min(outer + 1, 7);
 }
 const plannedBuildingTileTownBase = plannedBuildingTile;

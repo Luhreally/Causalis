@@ -125,5 +125,6 @@
     "114-modern.js",
     "115-foundry.js",
     "116-farmland.js",
-    "117-granary-call.js"
+    "117-granary-call.js",
+    "118-common-fields.js"
 ]
