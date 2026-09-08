@@ -185,6 +185,8 @@ function drawTowerBlock(g, b, s, r, p, now, detail) {
     } else g.fillRect(s.x - hw, topY - r * 0.05, hw * 1.62, r * 0.05);
   }
   SKYLINE.blocksDrawn++;
+  // 95 counts tenements it draws; the block drawer now draws them for it.
+  if (b.type === "tenement" && typeof CITIES !== "undefined") CITIES.tenementsDrawn++;
   drawBuildingFunctionMarks(g, b, s, r, p, now, detail, { hw, h, baseY, topY });
 }
 const drawCompletedBuildingSkylineBase = drawCompletedBuilding;

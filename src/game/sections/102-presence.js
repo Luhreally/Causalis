@@ -15,7 +15,7 @@
 // in a town that knows fire carries a torch, in an electric town a lantern,
 // so the streets read at night. Rendering only reads; everything is per
 // visible figure and skipped at Lean quality or far zoom.
-const PRESENCE_SCALE = Object.freeze({ person: 1.35, herbivore: 1.25, predator: 1.3 }),
+const PRESENCE_SCALE = Object.freeze({ person: 1.35, herbivore: 1.45, predator: 1.4 }),
   PRESENCE_DOT = 3.4,
   PRESENCE_TOOL_TASKS = new Set(["cut", "mine", "build", "craft", "sow", "tend", "harvest", "haul", "gather", "raze", "hunt", "operate", "firefight"]),
   PRESENCE = { scaled: 0, tools: 0, hair: 0, torches: 0 };

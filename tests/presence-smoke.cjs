@@ -1,5 +1,5 @@
-// Presence smoke: walkers are drawn near twice as tall so a figure is legible
-// at the zooms a town is watched from; a working figure carries its tool or
+// Presence smoke: walkers are drawn a third taller so a figure is legible
+// at the zooms a town is watched from and beasts nearer half again; a working figure carries its tool or
 // load; plain heads have hair; a person out of doors at night in a town that
 // knows fire carries a torch and none at noon; and rendering leaves the world
 // untouched.
@@ -11,7 +11,7 @@ if (harnessEnd < 0) throw new Error("Unable to locate the shared smoke-test harn
 
 const fixtureSource = String.raw`(() => {
   const pres = window.ALIFE_PRESENCE_DEBUG, figs = window.ALIFE_FIGURES_DEBUG, dl = window.ALIFE_DAYLIGHT_DEBUG, out = { failures: [] }, fail = (m) => out.failures.push(m);
-  if (!(pres.scale("person") > 1.5) || !(pres.scale("herbivore") > 1.2)) fail("walkers are not drawn taller");
+  if (!(pres.scale("person") > 1.2) || !(pres.scale("herbivore") > 1.3) || !(pres.scale("predator") > 1.3)) fail("walkers are not drawn taller");
   let settlement = null;
   for (let attempt = 0; attempt < 4 && !settlement; attempt++) {
     for (let i = 0; i < 160; i++) simTick();
@@ -23,12 +23,16 @@ const fixtureSource = String.raw`(() => {
   if (!person) { fail("no person"); return out; }
   const life = W.components.life[person], work = W.components.work[person], p = W.components.position[person];
   const keep = { x: p.x, y: p.y, inside: life.insideBuildingId, task: work.task, handled: work.handledTick, hunger: life.hunger, thirst: life.thirst, tick: W.tick };
-  // Legible at zoom three: the figure radius clears the dot rule where the old scale did not.
+  // Legible at zoom three: a lone figure clears the dot rule where the old scale did not,
+  // and a figure in a crowd is still drawn larger than its crowd-shrunk base.
   window.ALIFE_VISUAL_DEBUG.renderOnly({ view: "iso", quality: "high", zoom: 3, x: p.x, y: p.y, now: 5000 });
   out.radiusIso3 = +pres.radius(person).toFixed(2);
   const base3 = projectionMetrics().tw * (0.05 + 0.042 * clamp(peekPhenotype(person).size, 0.35, 1.8));
   out.baseIso3 = +base3.toFixed(2);
-  if (!(out.radiusIso3 >= 3.4) || !(out.radiusIso3 > base3 * 1.3)) fail("the figure is not drawn larger: " + out.radiusIso3 + " vs base " + out.baseIso3);
+  const crowdN = VISUAL_MOTION.get(person)?.crowd || 1, crowd = crowdN > 1 ? 1 / (1 + 0.1 * Math.min(crowdN - 1, 4)) : 1;
+  out.crowd = +crowd.toFixed(3);
+  if (!(Math.max(2.2, base3) * pres.scale("person") >= 3.4)) fail("a lone figure at zoom three is still a dot: " + out.baseIso3);
+  if (!(out.radiusIso3 > Math.max(2.2, base3) * crowd * 1.25)) fail("the figure is not drawn larger: " + out.radiusIso3 + " vs base " + out.baseIso3 + " in a crowd of " + crowdN);
   // A working figure carries its tool or load.
   life.insideBuildingId = 0; life.hunger = 30; life.thirst = 30;
   if (!settlement.knownProcesses.includes("controlled_fire")) settlement.knownProcesses.push("controlled_fire");

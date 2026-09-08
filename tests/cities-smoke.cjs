@@ -64,9 +64,10 @@ const fixtureSource = String.raw`(() => {
   grant("electricity");
   out.stageWithCurrent = settlementDevelopmentStage(settlement);
   if (waterworks && out.stageWithCurrent !== "complex terrestrial") fail("complex terrestrial did not come with Electricity: " + out.stageWithCurrent);
-  // A city short of beds raises a tenement.
+  // A city short of beds raises a tenement (a city with current raises tower blocks instead, 103).
   settlement.stage = "urban";
   grant("masonry");
+  settlement.knownProcesses = settlement.knownProcesses.filter((t) => t !== "electricity");
   const housing = cities.housing(settlement.id);
   out.housing = housing;
   const hidden = [];
