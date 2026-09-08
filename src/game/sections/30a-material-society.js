@@ -3821,6 +3821,8 @@ function updateCivicProduction() {
       executeProcess("corrosion", inv, 1, context);
   }
 }
+const PLACE_PEOPLE_PER_TOWN = 14,
+  PLACE_PEOPLE_NEARBY = 16;
 updateSettlements = function () {
   assignPartners();
   const candidates = [];
@@ -3843,7 +3845,10 @@ updateSettlements = function () {
   candidates.sort((a, b) => b.score - a.score || a.id - b.id);
   let livePlaceCount =
       W.settlements.filter((s) => !s.ruined).length + W.camps.filter((c) => c.active).length,
-    placeCapacity = Math.max(4, Math.floor(biospherePopulation(KINDS.PERSON) / 6));
+    // One place for every fourteen people, not six: a world that allowed a
+    // camp per six settled into hamlets of six to twelve and never raised a
+    // city; the pull of the city and the granary both want fewer, larger towns.
+    placeCapacity = Math.max(4, Math.floor(biospherePopulation(KINDS.PERSON) / PLACE_PEOPLE_PER_TOWN));
   for (const c of candidates.slice(0, 2)) {
     if (livePlaceCount >= placeCapacity) break;
     const [ccx, ccy] = xy(c.tile),
@@ -3852,7 +3857,7 @@ updateSettlements = function () {
         ...W.camps.filter((q) => q.active),
         ...W.settlements.filter((q) => !q.ruined),
       ].filter((q) => dist2(q.x, q.y, ccx, ccy) <= 484).length;
-    if (nearPlaces >= Math.max(1, Math.floor(nearPeople / 9))) continue;
+    if (nearPlaces >= Math.max(1, Math.floor(nearPeople / PLACE_PEOPLE_NEARBY))) continue;
     const local = entityAtRadius(c.tile, 3, KINDS.PERSON).filter(classifyAlive),
       pioneer = nearPlaces === 0,
       needPeople = pioneer ? 3 : 4,
