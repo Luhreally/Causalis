@@ -4431,11 +4431,15 @@ function shareFactionKnowledge() {
     if (places.length < 2 || !places.some((s) => s.knownProcesses.includes("writing"))) continue;
     for (const target of places) {
       if (settlementPopulation(target) < 4 || target.stability < 0.2) continue;
+      // A craft taught by a sister town needs no research samples in the
+      // learner's stores: the samples were the discoverer's; the learner still
+      // needs the facility, the heat, and the structures to practise it. Without
+      // this, current and engines never reached the villages of a polity that
+      // had them, and the hub could not be taught what its neighbour knew.
       const transferable = catalog.find(
         (tech) =>
           !target.knownProcesses.includes(tech.id) &&
           (tech.prior || []).every((id) => target.knownProcesses.includes(id)) &&
-          (tech.materials || []).every((sp) => hasResearchMaterial(target, sp)) &&
           (!facilityForTechnology(tech.id) ||
             placeHasFacility(target, facilityForTechnology(tech.id))) &&
           (!TECH_BASE.includes(tech) ||

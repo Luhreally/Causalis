@@ -139,8 +139,10 @@ function hubStoresLean(f) {
   if (typeof urbanHub !== "function" || typeof foodOutlook !== "function") return false;
   const hub = urbanHub(f);
   if (!hub) return false;
-  const outlook = foodOutlook(hub);
-  return !!outlook?.lean || (hub.inventory[C.ORGANIC] || 0) < GRANARY_CALL_STOCK * 2;
+  // Lean by the granary's own reckoning (food short or a quarter hungry), not
+  // by the store alone: a fed hub often keeps its food in the fields and the
+  // ground rather than the granary, and a store clause held seven pulls in ten.
+  return !!foodOutlook(hub)?.lean;
 }
 const urbanPullGranaryBase = urbanPull;
 urbanPull = function (f, force = false) {
