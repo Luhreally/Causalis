@@ -433,6 +433,7 @@ const EVENT_CATEGORY = Object.freeze({
   CoalitionEvent: "factions",
   PeaceEvent: "factions",
   RailFreightEvent: "settlements",
+  RoadFreightEvent: "settlements",
   PetitionEvent: "settlements",
   LawEvent: "factions",
   JudgementEvent: "settlements",
