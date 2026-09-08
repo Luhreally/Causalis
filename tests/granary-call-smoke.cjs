@@ -79,6 +79,15 @@ const fixtureSource = String.raw`(() => {
   out.leanGate = typeof urbanHub === "function" && urbanHub(f) === s ? call.lean(f.id) : "no hub";
   if (out.leanGate === false) fail("an empty hub store does not hold the pull");
   s.inventory[C.ORGANIC] = keep; W.conservation.playerInput += keep;
+  // The hungry do not march: a polity whose people are all hungry fields no fighters.
+  const people = W.activeIds.filter((x) => W.kind[x] === KINDS.PERSON && classifyAlive(x) && (W.components.social[x]?.factionId || 0) === f.id);
+  const fed = people.map((x) => W.components.chemistry[x].q[C.ENERGY]);
+  people.forEach((x, i) => { const q = W.components.chemistry[x].q; const spare = q[C.ENERGY] - 100; if (spare > 0) { q[C.ENERGY] -= spare; W.conservation.playerInput -= spare; } derivedLife(x); });
+  out.fieldableHungry = call.fieldable(f.id);
+  if (out.fieldableHungry !== 0) fail("a starving polity still fields fighters: " + out.fieldableHungry);
+  people.forEach((x, i) => { const q = W.components.chemistry[x].q; const want = Math.max(fed[i], 400) - q[C.ENERGY]; if (want > 0) { q[C.ENERGY] += want; W.conservation.playerInput += want; } derivedLife(x); });
+  out.fieldableFed = call.fieldable(f.id);
+  if (!(out.fieldableFed >= 1)) fail("a fed polity fields no fighters: " + out.fieldableFed);
   out.counts = call.counts();
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;

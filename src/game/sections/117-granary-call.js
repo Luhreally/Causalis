@@ -16,7 +16,12 @@
 // pull of the city marched villagers into a hub whose stores were already
 // bare. A person now eats at home whatever flag flies over the hall, unless
 // they came as an enemy; and the hub calls no one while its stores are lean.
+// And the hungry do not march: a fighter past the hunger gate is not counted
+// among a polity's fieldable fighters, so a starving polity neither starts a
+// war nor is marched against until it has eaten; without this, scarcity fed
+// war and war fed scarcity until the towns were empty.
 const GRANARY_CALL_HUNGER = 52,
+  GRANARY_CALL_MARCH_HUNGER = 60,
   GRANARY_CALL_STOCK = 12,
   GRANARY_CALL_NEAR = 8,
   GRANARY_CALL_REACH = 48,
@@ -72,14 +77,28 @@ bestDirection = function (id, goal) {
   return bestDirectionGranaryBase(id, goal);
 };
 // ── Rations at home, whatever flag flies over the hall ───────────────────────
-function homeRationPlace(id) {
+// Home first; failing that, any fed town within the ration ring that the
+// person has not come to as an enemy: a neighbour of the same polity feeds a
+// hungry visitor whose own store stands empty.
+function homeRationPlace(id, sp = C.ORGANIC) {
   const soc = W.components.social[id],
     p = W.components.position[id];
-  if (!soc || !p || soc.homePlaceKind !== "settlement") return null;
-  const home = W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined);
-  if (!home || dist2(p.x, p.y, home.x, home.y) > GRANARY_CALL_NEAR * GRANARY_CALL_NEAR) return null;
-  if (typeof personIsHostileVisitor === "function" && personIsHostileVisitor(id, home.factionId)) return null;
-  return home;
+  if (!soc || !p) return null;
+  const near = GRANARY_CALL_NEAR * GRANARY_CALL_NEAR,
+    hostile = (s) => typeof personIsHostileVisitor === "function" && personIsHostileVisitor(id, s.factionId),
+    home = soc.homePlaceKind === "settlement" ? W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined) : null;
+  if (home && dist2(p.x, p.y, home.x, home.y) <= near && !hostile(home) && (home.inventory?.[sp] || 0) > 0) return home;
+  let best = null,
+    bestD = near + 1;
+  for (const s of W.settlements) {
+    if (s.ruined || !(s.inventory?.[sp] > 0)) continue;
+    const d = dist2(p.x, p.y, s.x, s.y);
+    if (d > near || d >= bestD || hostile(s)) continue;
+    if (soc.factionId && s.factionId && s.factionId !== soc.factionId && s !== home) continue;
+    best = s;
+    bestD = d;
+  }
+  return best;
 }
 const performFeedingGranaryBase = performFeeding;
 performFeeding = function (id, tile, stride = 1) {
@@ -104,7 +123,7 @@ const performDrinkingGranaryBase = performDrinking;
 performDrinking = function (id, tile, stride = 1) {
   if (performDrinkingGranaryBase(id, tile, stride)) return true;
   if (W.kind[id] !== KINDS.PERSON) return false;
-  const home = homeRationPlace(id);
+  const home = homeRationPlace(id, C.SOLVENT);
   if (!home || !home.inventory[C.SOLVENT]) return false;
   const body = W.components.chemistry[id].q,
     amount = Math.min(42 * stride, home.inventory[C.SOLVENT], 65535 - body[C.SOLVENT]);
@@ -131,7 +150,23 @@ urbanPull = function (f, force = false) {
   }
   return urbanPullGranaryBase(f, force);
 };
+// ── The hungry do not march ──────────────────────────────────────────────────
+const factionFieldableFightersGranaryBase = factionFieldableFighters;
+factionFieldableFighters = function (faction) {
+  if (!faction) return 0;
+  let fighters = 0;
+  for (const id of W.activeIds) {
+    if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
+    if ((W.components.social[id]?.factionId || 0) !== faction.id) continue;
+    const l = W.components.life[id];
+    if (!l || l.hunger > GRANARY_CALL_MARCH_HUNGER || l.thirst > GRANARY_CALL_MARCH_HUNGER) continue;
+    const locomotion = typeof embodiedCapability === "function" ? embodiedCapability(id).locomotion : 1;
+    if (locomotion >= 0.42) fighters++;
+  }
+  return fighters;
+};
 window.ALIFE_GRANARY_CALL_DEBUG = Object.freeze({
+  fieldable: (factionId) => factionFieldableFighters(W.factions.find((f) => f.id === factionId)),
   home: (id) => homeRationPlace(id)?.id || 0,
   lean: (factionId) => hubStoresLean(W.factions.find((f) => f.id === factionId)),
   place: (id) => granaryCallPlace(id)?.id || 0,
