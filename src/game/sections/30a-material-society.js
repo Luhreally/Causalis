@@ -2883,7 +2883,13 @@ performGather = function (id, tile) {
   if (place) {
     for (const b of activeBuildings(place)) {
       const missing = missingBuildingMaterial(b);
-      if (missing) add(missing.sp);
+      if (missing) {
+        add(missing.sp);
+        // Metal and ceramic are made, not found: the site's gatherers look
+        // for the ore, mineral, and fuel the forge or kiln makes them from.
+        if (typeof constructionFeedstock === "function")
+          for (const feed of constructionFeedstock(place, missing.sp)) add(feed);
+      }
     }
     for (const need of eligibleResearchMaterialNeeds(place)) add(need.sp);
     const a = makeArchitectureGenome(place);

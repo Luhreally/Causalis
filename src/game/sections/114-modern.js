@@ -105,6 +105,44 @@ causalSkipMicroStages = function () {
   if (at < 0) return stages;
   return [...stages.slice(0, at), ...modernStages(), ...stages.slice(at)];
 };
+// A city may hold several towers; the push feeds the site that is not yet
+// complete instead of refusing because one already stands. Store-drawn inputs
+// (the rare ones, and the foundry's metal, catalyst, and ceramic) reach the
+// stores whole, where builders fetch them; common material is placed at the
+// work face once the push has gone on a while, as the older pushes do.
+function modernSite(place, type) {
+  return (
+    W.buildings.find((b) => !b.ruined && !b.complete && b.placeKind === "settlement" && b.placeId === place.id && b.type === type) ||
+    planBuilding(place, type, 9)
+  );
+}
+function modernSupply(place, type, pushes) {
+  const b = modernSite(place, type);
+  if (!b) return false;
+  const missing = missingBuildingMaterial(b);
+  if (!missing) return true;
+  const sp = missing.sp,
+    drawn = STORE_DRAWN_MATERIALS.includes(sp),
+    reserve = drawn ? researchMaterialReserve(place, sp) : 0,
+    held = place.inventory[sp] || 0;
+  let store = null,
+    amount = 0;
+  if (drawn && held < missing.needed + reserve) {
+    store = place.inventory;
+    amount = missing.needed + reserve - held;
+  } else if (pushes >= 3) {
+    store = b.composition;
+    amount = Math.min(missing.needed, 24);
+  }
+  if (!store) return true;
+  amount = Math.min(amount, 65535 - (store[sp] || 0));
+  if (amount > 0) {
+    store[sp] = (store[sp] || 0) + amount;
+    causalPushInput(amount);
+    if (store === b.composition) refreshBuildingStage(b);
+  }
+  return true;
+}
 // The pushes raise buildings and crafts; they never force births.
 function modernPush(key, pushes) {
   const towns = worldTowns().sort((a, b) => settlementPopulation(b) - settlementPopulation(a) || a.id - b.id),
@@ -125,14 +163,14 @@ function modernPush(key, pushes) {
     const city = (cities.length ? cities : towns).slice().sort((a, b) => completedBuildings(a, "tower").length + completedBuildings(a, "office").length - completedBuildings(b, "tower").length - completedBuildings(b, "office").length || a.id - b.id)[0];
     if (!["electricity", "mechanization", "masonry"].every((t) => city.knownProcesses.includes(t))) {
       for (const t of ["masonry", "mechanization", "electricity"]) if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
-    } else causalPushBuilding(city, city.knownProcesses.includes("computing") && placeHasFacility(city, "market") ? "office" : "tower", pushes);
+    } else modernSupply(city, city.knownProcesses.includes("computing") && placeHasFacility(city, "market") ? "office" : "tower", pushes);
     return "skyline";
   }
   if (key === "works") {
     const city = (cities.length ? cities : towns).slice().sort((a, b) => completedBuildings(a, "factory").length - completedBuildings(b, "factory").length || a.id - b.id)[0];
     if (!["electricity", "mechanization"].every((t) => city.knownProcesses.includes(t))) {
       for (const t of ["mechanization", "electricity"]) if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
-    } else causalPushBuilding(city, "factory", pushes);
+    } else modernSupply(city, "factory", pushes);
     return "works";
   }
   if (key === "road") {
@@ -268,7 +306,8 @@ drawBuildingSite = function (g, b, now, m) {
 window.ALIFE_MODERN_DEBUG = Object.freeze({
   shortfall: () => modernShortfall(),
   stages: () => modernStages().map((s) => ({ key: s.key, label: s.label, done: s.done() })),
-  push: (key) => modernPush(key, 1),
+  push: (key, pushes = 1) => modernPush(key, pushes),
+  supply: (placeId, type, pushes = 1) => modernSupply(W.settlements.find((s) => s.id === placeId), type, pushes),
   towers: (placeId) => towersWanted(W.settlements.find((s) => s.id === placeId)),
   offices: (placeId) => officesWanted(W.settlements.find((s) => s.id === placeId)),
   counts: () => ({ ...MODERN }),
