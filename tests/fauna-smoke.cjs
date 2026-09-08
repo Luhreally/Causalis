@@ -18,7 +18,14 @@ const fixtureSource = String.raw`(() => {
   out.herb = fauna.model(herb); out.pred = fauna.model(pred);
   if (!out.herb?.sideView || out.herb.personForm !== "quadruped" || out.herb.role !== KINDS.HERBIVORE) fail("the herbivore is not a side-view quadruped: " + JSON.stringify(out.herb));
   if (!out.pred?.sideView || out.pred.personForm !== "quadruped" || out.pred.role !== KINDS.PREDATOR) fail("the predator is not a side-view quadruped: " + JSON.stringify(out.pred));
-  if (!/Grazer/.test(out.herb?.label || "") || !/Hunter/.test(out.pred?.label || "")) fail("the labels do not name grazer and hunter");
+  // Every beast has a kind from its lineage; herds are not all deer.
+  out.kinds = fauna.kinds();
+  const herbKinds = ["deer", "boar", "goat", "bison", "hare", "horse"], predKinds = ["wolf", "cat", "bear", "fox", "croc"];
+  if (!herbKinds.includes(out.herb?.kind) || !predKinds.includes(out.pred?.kind)) fail("beasts have no kind: " + JSON.stringify([out.herb?.kind, out.pred?.kind]));
+  if (!new RegExp(out.herb.kind, "i").test(out.herb.label) || !new RegExp(out.pred.kind, "i").test(out.pred.label)) fail("the labels do not name the kind");
+  const lineages = new Set(), lineageKinds = {};
+  for (const id of W.activeIds) { if (!(W.kind[id] === KINDS.HERBIVORE || W.kind[id] === KINDS.PREDATOR) || !classifyAlive(id)) continue; const g = W.components.genome[id]; const key = (W.kind[id] === KINDS.HERBIVORE ? "h" : "p") + ":" + (g?.lineageId || id); lineages.add(key); const k = fauna.model(id)?.kind; if (lineageKinds[key] && lineageKinds[key] !== k) fail("a lineage wears two kinds: " + key); lineageKinds[key] = k; }
+  out.lineages = lineages.size;
   if (person) { const pm = creatureModel(person); if (pm.faunaRole || pm.personForm === "quadruped") fail("a person was turned into a beast"); }
   const clean = (opts) => { const h0 = worldHash(); window.ALIFE_VISUAL_DEBUG.renderOnly(opts); if (worldHash() !== h0) fail("drawing fauna changed the world (" + opts.view + ")"); };
   const hp = W.components.position[herb], pp = W.components.position[pred];
