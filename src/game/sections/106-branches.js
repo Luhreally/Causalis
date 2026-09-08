@@ -15,7 +15,8 @@
 // sixth tier each branch runs on in frontier crafts that repeat with rising
 // cost and a small gain each, so a late civilisation always has somewhere to
 // push. A polity's ethos tilts which branch its towns follow, and the branch
-// it has neglected pulls a little harder, so no polity grows one-armed. The
+// it has neglected pulls a little harder, so no polity grows one-armed; the
+// spine of the tree keeps the lead whenever one of its rungs is within reach. The
 // Technology page lays the branches out tier by tier, and the annals keep the
 // first town to master each branch. Rendering only reads.
 const BRANCHES = Object.freeze({ matter: "Matter", life: "Life", mind: "Mind" }),
@@ -40,6 +41,7 @@ const BRANCHES = Object.freeze({ matter: "Matter", life: "Life", mind: "Mind" })
   ]),
   BRANCH_ADDITIVE = Object.freeze(["unrest", "taxes", "opinion", "urge"]),
   BRANCH_FRONTIER_TIERS = 3,
+  BRANCH_SPINE_WEIGHT = 1.4,
   BRANCH_MASTERY_TICK = 120,
   EMPTY_BRANCH_EFFECTS = Object.freeze({
     research: 1,
@@ -318,8 +320,9 @@ chooseResearchFocus = function (s, eligible) {
         threshold = researchThreshold(t),
         closeness = (s.researchProgress?.[t.id] || 0) / Math.max(1, threshold),
         branch = branchOf(t.id),
-        // The spine of the tree keeps a slight lead so no polity forgets the stars.
-        weight = branch ? pref[branch] : 1.15;
+        // The spine of the tree keeps the lead whenever a rung of it is within reach, so
+        // the branches fill the years when no rung is, and no polity forgets the stars.
+        weight = branch ? Math.min(1.3, pref[branch]) : BRANCH_SPINE_WEIGHT;
       return closeness * 2 + weight - threshold / 300;
     },
     ranked = eligible.slice().sort((a, b) => score(b) - score(a) || (a.tech.id < b.tech.id ? -1 : 1));
