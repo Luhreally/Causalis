@@ -5,8 +5,8 @@
 // and not one city: settlers kept founding new hamlets, the largest town held
 // forty-five people, and the towers, offices, and factories that wait on a
 // city never came. People had no reason to move to town. Now they do. Once a
-// polity knows Recorded Governance, the Census, or Public Works, its largest
-// town with a hall becomes the pull of the city: every year a few people leave
+// polity knows Polymer Inscription, Recorded Governance, the Census, or Public
+// Works, its largest town (one with a hall first) becomes the pull of the city: every year a few people leave
 // each village of the polity for it while it has food to spare and the peace
 // to keep, walking there as migrants and taking it as their home, so that
 // beds run short, tenements and towers are planned, research quickens with
@@ -15,7 +15,7 @@
 // village would. Every year's movement is chronicled and the town's page
 // counts who it has drawn in. Rendering only reads.
 const URBAN_TICK = 184,
-  URBAN_MIN_HUB = 20,
+  URBAN_MIN_HUB = 16,
   URBAN_VILLAGE_FLOOR = 8,
   URBAN_PER_VILLAGE = 2,
   URBAN_ROUGH = 2,
@@ -24,22 +24,21 @@ const URBAN_TICK = 184,
   URBAN_UNREST = 0.45,
   URBAN_VILLAGE_REST = TICKS_PER_YEAR * 2,
   URBAN_HUB_URGE = 0.5,
-  URBAN_AGE_TECHS = Object.freeze(["governance", "census", "public_works"]);
+  URBAN_AGE_TECHS = Object.freeze(["writing", "governance", "census", "public_works"]);
 function urbanAge(f) {
   return !!f && URBAN_AGE_TECHS.some((t) => factionHasTech(f.id, t));
 }
 function polityTowns(f) {
   return W.settlements.filter((s) => !s.ruined && s.knownProcesses && s.factionId === f.id);
 }
-// The largest town of the polity that keeps a hall.
+// The largest town of the polity, a town with a hall before one without.
 function urbanHub(f) {
   if (!f) return null;
   return (
     polityTowns(f)
-      .filter((s) => completedBuildings(s, "hall").length > 0)
-      .map((s) => ({ s, pop: settlementPopulation(s) }))
+      .map((s) => ({ s, pop: settlementPopulation(s), hall: completedBuildings(s, "hall").length > 0 ? 1 : 0 }))
       .filter((x) => x.pop >= URBAN_MIN_HUB)
-      .sort((a, b) => b.pop - a.pop || a.s.id - b.s.id)[0]?.s || null
+      .sort((a, b) => b.hall - a.hall || b.pop - a.pop || a.s.id - b.s.id)[0]?.s || null
   );
 }
 // Beds to spare; a city without them still draws a couple who live rough, so

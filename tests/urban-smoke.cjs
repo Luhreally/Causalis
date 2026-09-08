@@ -1,5 +1,5 @@
-// Urban smoke: once a polity knows governance, its largest town with a hall is
-// the pull of the city; a yearly pull sends a few villagers walking to it as
+// Urban smoke: once a polity knows letters, its largest town (a hall preferred)
+// is the pull of the city; a yearly pull sends a few villagers walking to it as
 // migrants who take it as their home on arrival, never draining a village
 // below its floor; the pull is chronicled and counted on the town's page; and
 // the great town sends out fewer settlers than it would as a village.
@@ -64,14 +64,18 @@ const fixtureSource = String.raw`(() => {
   });
   rebuildSpatialBins();
   out.hubPop = settlementPopulation(hub); out.villagePop = settlementPopulation(village);
-  // The age of the city: governance and a hall; beds to spare at the hub.
+  // The age of the city: letters and a hall; beds to spare at the hub.
+  for (const t of W.settlements) if (t.factionId === f.id) t.knownProcesses = t.knownProcesses.filter((x) => !["writing", "governance", "census", "public_works"].includes(x));
   out.ageBefore = urban.age(f.id);
+  hub.knownProcesses.push("writing");
+  out.ageWithLetters = urban.age(f.id);
+  if (!out.ageWithLetters) fail("letters do not open the age of the city");
   if (!hub.knownProcesses.includes("governance")) hub.knownProcesses.push("governance");
   complete(hub, "hall");
   for (let n = 0; n < 4; n++) complete(hub, "shelter");
   hub.inventory[C.ORGANIC] = Math.max(hub.inventory[C.ORGANIC], 400);
   out.ageAfter = urban.age(f.id);
-  if (out.ageBefore) fail("the age of the city came before governance");
+  if (out.ageBefore) fail("the age of the city came before letters");
   if (!out.ageAfter) fail("governance does not open the age of the city");
   out.hub = urban.hub(f.id);
   if (out.hub !== hub.id) fail("the largest town with a hall is not the hub: " + out.hub);
@@ -98,9 +102,10 @@ const fixtureSource = String.raw`(() => {
   // The page counts them; the great town sends out fewer settlers.
   if (!/Drawn in/.test(renderLegendPage("place", hub.id))) fail("the hub's page shows no migrants");
   out.urgeHub = settlerUrge(hub);
-  hub.knownProcesses = hub.knownProcesses.filter((t) => t !== "governance");
+  const keepKnown = hub.knownProcesses.slice();
+  hub.knownProcesses = hub.knownProcesses.filter((t) => !["writing", "governance"].includes(t));
   out.urgeVillageAge = settlerUrge(hub);
-  hub.knownProcesses.push("governance");
+  hub.knownProcesses = keepKnown;
   if (!(out.urgeHub < out.urgeVillageAge)) fail("the great town sends out as many settlers as a village: " + out.urgeHub + " vs " + out.urgeVillageAge);
   // A hungry or restless hub pulls nobody without force.
   const keepFood = hub.inventory[C.ORGANIC];
