@@ -2648,6 +2648,7 @@ function researchMaterialReserve(place, sp) {
       !(tech.prior || []).every((id) => place.knownProcesses.includes(id))
     )
       continue;
+    if (tech.branch && typeof branchProvisionAllowed === "function" && !branchProvisionAllowed(place, tech)) continue;
     const facility = facilityForTechnology(tech.id);
     if ((!facility || placeHasFacility(place, facility)) && (tech.materials || []).includes(sp))
       return 10;
@@ -2685,6 +2686,7 @@ function eligibleResearchMaterialNeeds(place) {
       !(tech.prior || []).every((id) => place.knownProcesses.includes(id))
     )
       continue;
+    if (tech.branch && typeof branchProvisionAllowed === "function" && !branchProvisionAllowed(place, tech)) continue;
     const facility = facilityForTechnology(tech.id);
     if (facility && !placeHasFacility(place, facility)) continue;
     for (const sp of tech.materials || [])

@@ -283,6 +283,14 @@ bestBarter = function (a, b) {
   }
   return offer;
 };
+// A branch craft draws gathering labour and stock reserves (30a) only while the
+// town is not working on a rung of the spine, so the branches fill idle years
+// instead of pulling hands off the road to metal, letters, and engines.
+function branchProvisionAllowed(place, tech) {
+  const focus = place?.researchFocus;
+  if (!focus || focus === tech.id) return true;
+  return !!branchOf(focus);
+}
 // ── Which branch a polity follows ────────────────────────────────────────────
 function branchKnownCount(place, branch) {
   let n = 0;
@@ -391,6 +399,7 @@ window.ALIFE_BRANCHES_DEBUG = Object.freeze({
   faction: (factionId, key) => factionBranchEffect(factionId, key),
   preference: (factionId, placeId = 0) => branchPreference(W.factions.find((f) => f.id === factionId), W.settlements.find((s) => s.id === placeId) || null),
   tier: (placeId, branch) => branchTier(W.settlements.find((s) => s.id === placeId), branch),
+  provisionAllowed: (placeId, techId) => branchProvisionAllowed(W.settlements.find((s) => s.id === placeId), BRANCH_BY_ID.get(techId) || { id: techId }),
   gateOpen: (placeId, techId) => {
     const d = BRANCH_BY_ID.get(techId),
       s = W.settlements.find((x) => x.id === placeId);
