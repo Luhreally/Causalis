@@ -322,10 +322,16 @@ const MODERN_COLLAPSE_SHARE = 0.5,
 function modernLivingPeople() {
   return biospherePopulation(KINDS.PERSON);
 }
+// A skip also runs no longer than twenty-four years at a stretch: the horizon
+// of sixty to ninety-six years was set when a skip sought the next epoch, and
+// on a stalled modern stage it spent decades while the towns starved. A shorter
+// horizon hands the world back with its shortfall named, before the damage.
+const MODERN_SKIP_MAX_TICKS = TICKS_PER_YEAR * 24;
 const makeCausalSkipStateModernBase = makeCausalSkipState;
 makeCausalSkipState = function (limitOverride = 0) {
   const state = makeCausalSkipStateModernBase(limitOverride);
   state.startPeople = modernLivingPeople();
+  if (!(limitOverride > 0)) state.limit = Math.min(state.limit, MODERN_SKIP_MAX_TICKS);
   return state;
 };
 const causalSkipStepModernBase = causalSkipStep;
