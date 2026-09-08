@@ -4261,6 +4261,8 @@ updateTechnology = function () {
         continue;
       const facility = facilityForTechnology(tech.id);
       if (facility && !placeHasFacility(s, facility)) continue;
+      // A rare craft opens only to a town that has seen the thing itself (106).
+      if (typeof tech.gate === "function" && !tech.gate(s)) continue;
       const base = TECH_BASE.includes(tech),
         // A process the polity holds on record needs no fresh observation.
         recorded = typeof processRecorded === "function" && processRecorded(s, tech.id),

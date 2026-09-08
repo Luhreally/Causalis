@@ -97,7 +97,7 @@ function factoryFurnace(place) {
 }
 function runFactory(place, factory) {
   const inv = factoryFurnace(place),
-    runs = Math.round(FACTORY_RUNS * (knowsTech(place, "fusion") ? 1.5 : 1)),
+    runs = Math.round(FACTORY_RUNS * (knowsTech(place, "fusion") ? 1.5 : 1) * (typeof factoryTempoFactor === "function" ? factoryTempoFactor(place) : 1)),
     q = place.inventory;
   let made = 0;
   for (let n = 0; n < runs; n++) {
