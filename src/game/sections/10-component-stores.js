@@ -99,9 +99,25 @@ function compilePhenotype(id) {
   g.dirty = false;
   return g.phenotype;
 }
+const PHENOTYPE_FALLBACK = Object.freeze({
+  speed: 1,
+  size: 1,
+  sense: 4,
+  diseaseResistance: 0.3,
+  heatTolerance: 30,
+  aggression: 0.3,
+  social: 0.5,
+  cooperation: 0.4,
+  fertility: 0.5,
+  hue: 0,
+  metabolism: 1,
+});
 function phenotype(id) {
   const g = W.components.genome[id];
-  return g?.dirty || !g?.phenotype ? compilePhenotype(id) : g.phenotype;
+  // An entity whose genome is gone (freed mid-tick, or never given one) reads as
+  // a neutral phenotype rather than ending the session.
+  if (!g || !W.components.body[id] || !W.components.chemistry[id]) return PHENOTYPE_FALLBACK;
+  return g.dirty || !g.phenotype ? compilePhenotype(id) : g.phenotype;
 }
 function peekPhenotype(id) {
   const g = W.components.genome[id],

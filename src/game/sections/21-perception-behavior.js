@@ -208,7 +208,7 @@ function runMetabolism(id, tier) {
   rep.cooldown = Math.max(
     0,
     rep.cooldown -
-      rate * (W.kind[id] === KINDS.PERSON && concertedIntensity() ? 2 + concertedIntensity() : 1),
+      rate * (W.kind[id] === KINDS.PERSON && concertedIntensity() && l.hunger < 50 ? 2 + concertedIntensity() : 1),
   );
   derivedLife(id);
 }

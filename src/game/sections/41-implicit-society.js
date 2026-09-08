@@ -724,6 +724,7 @@ function updateEmergentMilitias() {
     for (const home of places) {
       const locals = localPlaceWorkers(home)
           .filter((id) => {
+            if (!classifyAlive(id) || !W.components.body[id]) return false;
             const life = derivedLife(id),
               body = W.components.body[id];
             return (
