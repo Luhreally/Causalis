@@ -180,6 +180,7 @@ const BUILDING_DEFS = Object.freeze({
     defense: 8,
     priority: "governance",
   },
+  totem: { name: "Spirit post", work: 48, housing: 0, storage: 0, defense: 1, priority: "governance" },
   shrine: {
     name: "Shrine",
     work: 70,
