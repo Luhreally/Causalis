@@ -126,5 +126,6 @@
     "115-foundry.js",
     "116-farmland.js",
     "117-granary-call.js",
-    "118-common-fields.js"
+    "118-common-fields.js",
+    "119-living-grove.js"
 ]
