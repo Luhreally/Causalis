@@ -122,8 +122,10 @@ preferredReturnBuilding = function (id) {
 function blockStoreys(b) {
   const place = buildingPlace(b),
     pop = place?.knownProcesses ? settlementPopulation(place) : 0;
-  if (b.type === "office") return clamp(7 + Math.floor(pop / 30), 7, 12);
-  if (b.type === "tower") return clamp(5 + Math.floor(pop / 40), 5, 9);
+  // Tall enough to read as a skyline over the cottages: eight storeys and up
+  // for a tower block, eleven and up for an office tower, more with the crowd.
+  if (b.type === "office") return clamp(11 + Math.floor(pop / 25), 11, 18);
+  if (b.type === "tower") return clamp(8 + Math.floor(pop / 25), 8, 14);
   return 3;
 }
 function drawTowerBlock(g, b, s, r, p, now, detail) {

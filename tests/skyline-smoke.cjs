@@ -54,7 +54,7 @@ const fixtureSource = String.raw`(() => {
   if (BUILDING_DEFS.tower.housing !== 36) fail("a tower does not house thirty-six");
   complete("tower");
   out.towerStoreys = sky.storeys(tower.id);
-  if (!(out.towerStoreys >= 5 && out.towerStoreys <= 9)) fail("a tower has the wrong storeys: " + out.towerStoreys);
+  if (!(out.towerStoreys >= 8 && out.towerStoreys <= 14)) fail("a tower has the wrong storeys: " + out.towerStoreys);
   // ── Offices where computing is known and a market stands ──
   know("mathematics", "printing", "computing");
   complete("market");
