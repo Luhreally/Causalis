@@ -101,6 +101,14 @@ function settlerUrge(place) {
     (pop >= 24 ? 0.08 : 0)
   );
 }
+// Every founding path — settlers, voyages, refugees, wandering bands — passes
+// through createCamp; none founds while the world already holds a place for
+// every fourteen people, so the towns that stand keep their hands.
+const createCampExpansionBase = createCamp;
+createCamp = function (tile, founderId, cause = 0) {
+  if (W?.settlements && !worldHasRoomForPlaces()) return null;
+  return createCampExpansionBase(tile, founderId, cause);
+};
 function launchSettlers(place, force = false) {
   ensureExpansion();
   if (!place || place.ruined || !place.knownProcesses) return null;

@@ -131,8 +131,12 @@ function modernSupply(place, type, pushes) {
     store = place.inventory;
     amount = missing.needed + reserve - held;
   } else if (pushes >= 3) {
+    // A tower wants a hundred and seventy stone and a hundred timber; at
+    // twenty-four a push a town of ten spent a decade fetching them while its
+    // people went hungry. From the third push the work face gets the whole of
+    // what is missing, booked as input like every other push.
     store = b.composition;
-    amount = Math.min(missing.needed, 24);
+    amount = missing.needed;
   }
   if (!store) return true;
   amount = Math.min(amount, 65535 - (store[sp] || 0));
@@ -163,7 +167,11 @@ function modernPush(key, pushes) {
     const city = (cities.length ? cities : towns).slice().sort((a, b) => completedBuildings(a, "tower").length + completedBuildings(a, "office").length - completedBuildings(b, "tower").length - completedBuildings(b, "office").length || a.id - b.id)[0];
     if (!["electricity", "mechanization", "masonry"].every((t) => city.knownProcesses.includes(t))) {
       for (const t of ["masonry", "mechanization", "electricity"]) if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
-    } else modernSupply(city, city.knownProcesses.includes("computing") && placeHasFacility(city, "market") ? "office" : "tower", pushes);
+    } else {
+      modernSupply(city, city.knownProcesses.includes("computing") && placeHasFacility(city, "market") ? "office" : "tower", pushes);
+      // Builders who are hungry do not build: a lean city gets a field with its tower.
+      if (typeof foodOutlook === "function" && foodOutlook(city)?.lean) causalPushBuilding(city, "farm", pushes);
+    }
     return "skyline";
   }
   if (key === "works") {
