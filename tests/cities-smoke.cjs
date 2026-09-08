@@ -52,6 +52,8 @@ const fixtureSource = String.raw`(() => {
   settlement.stage = "village";
   if (eras.launch(settlement.id, false)) fail("a ship left a village");
   settlement.stage = "urban";
+  // No ship leaves a city of cottages (110): a tower block and a factory stand first.
+  for (const type of ["tower", "factory"]) { const b = planned(type) || planBuilding(settlement, type, 9); if (b) finish(b); else fail("no " + type + " could be raised for the launch"); }
   const ship = eras.launch(settlement.id, false);
   if (!ship) fail("no ship left the city");
   out.ship = !!ship;
@@ -70,13 +72,17 @@ const fixtureSource = String.raw`(() => {
   settlement.knownProcesses = settlement.knownProcesses.filter((t) => t !== "electricity");
   const housing = cities.housing(settlement.id);
   out.housing = housing;
+  // Beds run short by felling homes (not by un-finishing them, which would fill the active-site cap), and stray sites are finished first.
+  for (const b of W.buildings) if (!b.ruined && !b.complete && b.placeKind === "settlement" && b.placeId === settlement.id && b.type !== "tenement") finish(b);
   const hidden = [];
   if (housing.beds >= housing.people)
-    for (const b of W.buildings) if (!b.ruined && b.complete && b.placeKind === "settlement" && b.placeId === settlement.id && (BUILDING_DEFS[b.type]?.housing || 0) > 0) { b.complete = false; hidden.push(b); }
+    for (const b of W.buildings) if (!b.ruined && b.complete && b.placeKind === "settlement" && b.placeId === settlement.id && (BUILDING_DEFS[b.type]?.housing || 0) > 0) { b.ruined = true; hidden.push(b); }
+  recomputePlaceCapacity(settlement);
   out.wants = cities.wants(settlement.id);
   if (!out.wants) fail("a city short of beds wants no tenement: " + JSON.stringify(cities.housing(settlement.id)));
   cities.plan(settlement.id);
-  for (const b of hidden) b.complete = true;
+  for (const b of hidden) b.ruined = false;
+  recomputePlaceCapacity(settlement);
   const tenement = planned("tenement");
   if (!tenement) { fail("no tenement was planned"); return out; }
   if (!(BUILDING_DEFS.tenement.housing >= BUILDING_DEFS.shelter.housing * 3)) fail("a tenement houses too few");

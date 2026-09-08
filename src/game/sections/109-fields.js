@@ -9,10 +9,12 @@
 // granary plans farms for the crowd it has (one for every six people, up to
 // twenty-four, land permitting); a town of two dozen that knows letters raises
 // a hall and takes its civic stage; and a crowded town that knows masonry
-// raises tenements whether or not the annals yet call it a city. Rendering
-// only reads.
+// raises tenements whether or not the annals yet call it a city, and past
+// eight cottages a crowded masonry town's beds come from tenements and towers,
+// not from a fifteenth cottage. Rendering only reads.
 const FIELDS_HALL_POP = 24,
   FIELDS_TENEMENT_POP = 36,
+  FIELDS_SHELTER_CAP = 8,
   FIELDS_ACTIVE_CAP = 6;
 function fieldsCount(place, type) {
   return W.buildings.filter((b) => !b.ruined && b.placeKind === "settlement" && b.placeId === place.id && b.type === type).length;
@@ -31,6 +33,20 @@ ensurePlacePlans = function (place) {
   )
     planBuilding(place, "hall", Math.max(3, place.management?.priorities?.governance || 3));
 };
+// Past eight cottages a crowded masonry town stops planning cottages, so the
+// shortage of beds is felt and tenements and towers are raised instead.
+const planBuildingFieldsBase = planBuilding;
+planBuilding = function (place, type, priority = 3) {
+  if (
+    type === "shelter" &&
+    place?.knownProcesses &&
+    place.knownProcesses.includes("masonry") &&
+    settlementPopulation(place) >= FIELDS_TENEMENT_POP &&
+    fieldsCount(place, "shelter") >= FIELDS_SHELTER_CAP
+  )
+    return null;
+  return planBuildingFieldsBase(place, type, priority);
+};
 // A crowded masonry town raises tenements before the annals call it a city.
 const wantsTenementFieldsBase = wantsTenement;
 wantsTenement = function (place) {
@@ -48,6 +64,7 @@ window.ALIFE_FIELDS_DEBUG = Object.freeze({
   },
   farms: (placeId) => fieldsCount(W.settlements.find((x) => x.id === placeId) || { id: 0 }, "farm"),
   maxFarms: () => GRANARY_MAX_FARMS,
+  shelterCap: () => FIELDS_SHELTER_CAP,
   wantsHall: (placeId) => {
     const s = W.settlements.find((x) => x.id === placeId);
     return !!s && s.knownProcesses.includes("writing") && settlementPopulation(s) >= FIELDS_HALL_POP;

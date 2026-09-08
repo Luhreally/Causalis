@@ -61,6 +61,10 @@ const fixtureSource = String.raw`(() => {
   if (!out.wantsTenement) fail("a crowded masonry village wants no tenement");
   cities.plan(s.id);
   if (!W.buildings.some((b) => !b.ruined && b.type === "tenement" && b.placeKind === "settlement" && b.placeId === s.id)) fail("no tenement was planned for the crowded village");
+  // Past eight cottages the crowded masonry town plans no more of them.
+  while (W.buildings.filter((b) => !b.ruined && b.type === "shelter" && b.placeKind === "settlement" && b.placeId === s.id).length < fields.shelterCap()) { const b = planBuilding(s, "shelter", 3); if (!b) break; complete(b); }
+  out.shelters = W.buildings.filter((b) => !b.ruined && b.type === "shelter" && b.placeKind === "settlement" && b.placeId === s.id).length;
+  if (out.shelters >= fields.shelterCap() && planBuilding(s, "shelter", 3)) fail("a crowded masonry town still plans a " + (out.shelters + 1) + "th cottage");
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;
 })()`;

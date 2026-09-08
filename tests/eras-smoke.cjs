@@ -103,6 +103,8 @@ const fixtureSource = String.raw`(() => {
   settlement.stability = Math.max(settlement.stability || 0, 0.6);
   if (eras.launch(settlement.id, false)) fail("a ship left before starflight was known");
   grant("starflight");
+  // No ship leaves a city of cottages (110): a tower block and a factory stand first.
+  for (const type of ["tower", "factory"]) { const b = planned(type) || planBuilding(settlement, type, 9); if (b) { b.complete = true; b.stage = 6; b.integrity = b.maxIntegrity; b.completedTick = W.tick; } else fail("no " + type + " could be raised for the launch"); }
   const ship = eras.launch(settlement.id, false);
   if (!ship) { fail("no ship left"); return out; }
   out.ship = { first: ship.first, tile: ship.tile };
