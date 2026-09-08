@@ -8,7 +8,17 @@
 // Expansionist and Colonizers are keenest. The world's caps on people, camps,
 // towns, and polities scale with the map's area, so larger maps hold more, and
 // a vast size joins the presets. Rendering only reads the world.
-const SETTLER_COOLDOWN = TICKS_PER_YEAR * 4;
+const SETTLER_COOLDOWN = TICKS_PER_YEAR * 4,
+  // Settlers leave crowded towns, not villages: a town of twelve that sent four
+  // away became a hamlet of eight beside a camp of four, and a world of such
+  // hamlets never raised a city. Only a town of twenty-four or more sends them,
+  // and none while the world already holds a place for every fourteen people.
+  SETTLER_MIN_POP = 24;
+function worldHasRoomForPlaces() {
+  const places = W.settlements.filter((s) => !s.ruined).length + W.camps.filter((c) => c.active).length,
+    per = typeof PLACE_PEOPLE_PER_TOWN !== "undefined" ? PLACE_PEOPLE_PER_TOWN : 14;
+  return places < Math.max(4, Math.floor(biospherePopulation(KINDS.PERSON) / per));
+}
 function ensureExpansion(world = W) {
   if (!world) return;
   world.expeditions = world.expeditions || [];
@@ -96,7 +106,8 @@ function launchSettlers(place, force = false) {
   if (!place || place.ruined || !place.knownProcesses) return null;
   if (W.expeditions.some((e) => e.active && e.from === place.id)) return null;
   if (!force) {
-    if (settlementPopulation(place) < 12 || (place.stability || 0) < 0.35) return null;
+    if (settlementPopulation(place) < SETTLER_MIN_POP || (place.stability || 0) < 0.35) return null;
+    if (!worldHasRoomForPlaces()) return null;
     if (W.tick - (place.lastSettlersTick || -99999) < SETTLER_COOLDOWN) return null;
     if (W.camps.filter((c) => c.active).length >= CAPS.camp) return null;
   }
