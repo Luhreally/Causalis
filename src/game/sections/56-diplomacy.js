@@ -9,6 +9,7 @@
 // real food carried by a caravan; vassals follow their overlord into war and
 // are protected by them; claims speak up at successions and can bind two
 // polities as one house or start a war of succession. Rendering only reads.
+const TREATY_FOREVER = Number.MAX_SAFE_INTEGER;
 const DIPLOMACY_TERMS = Object.freeze({
   tribute: "tribute for peace",
   vassal: "submission as a vassal",
@@ -387,7 +388,9 @@ function makeVassal(vassal, overlord, envoy, war) {
     a: vassal.id,
     b: overlord.id,
     started: W.tick,
-    until: Infinity,
+    // A finite far-future term: an infinite one could not be written to a save,
+    // so every world with a vassal failed to save until the oath was broken.
+    until: TREATY_FOREVER,
     active: true,
     eventId: 0,
   };

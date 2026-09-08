@@ -114,6 +114,8 @@ const fixtureSource = String.raw`(() => {
     const oath = dip.arrive(vassalEnvoy.id, true);
     if (!oath || oath.type !== "VassalageEvent") fail("vassalage produced no VassalageEvent");
     else out.vassalSentence = eventSentence(oath);
+    // A world with a vassal can still be written to a save.
+    try { out.savedBytes = JSON.stringify(snapshot(), saveReplacer).length; } catch (e) { fail("a world with a vassal cannot be saved: " + e.message); }
     if (B.overlordId !== A.id || !A.vassalIds.includes(B.id)) fail("the vassal is not recorded");
     dip.enforce();
     const free = dip.independence(B.id);
