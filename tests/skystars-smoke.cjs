@@ -34,6 +34,8 @@ const fixtureSource = String.raw`(() => {
   out.towersWanted = sky.towersWanted(s.id);
   out.wantsTower = skyline.wantsTower(s.id);
   if (!out.wantsTower) fail("an electric city without towers wants none");
+  // This fixture tests the skyline gate, not the modern world (114), which is waived here.
+  window.ALIFE_MODERN_DEBUG.waive(true);
   // No ship leaves a city of cottages, even with a launch tower.
   const launchTower = finish(planned("launch_tower") || planBuilding(s, "launch_tower", 9));
   if (!launchTower) { fail("no launch tower could be raised"); return out; }

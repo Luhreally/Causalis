@@ -1,0 +1,272 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// 114. THE MODERN WORLD — skylines, works, roads, and countryside before the stars
+// ═══════════════════════════════════════════════════════════════════════════
+// One city with one tower and one factory could send a ship to the stars while
+// the rest of the world was villages, and the Causal skip drove straight for
+// that ship. A world that leaves for the stars now has to look like one that
+// could: the launching polity needs two cities at the urban stage, current in
+// three of its towns, three tower blocks or offices, two working factories, a
+// paved road or rail between two of its towns, and a hundred people under one
+// Voice. The Causal skip builds those before it reaches for Starflight,
+// pushing the second city up, current into the villages, towers and works into
+// the cities, and the road between them. Skylines grow denser (a tower block
+// for every eighteen people, an office for every twenty), and the countryside
+// gains its own detail: hedgerows along the fields, hay bales in the fall, a
+// scarecrow here and there, and windmills turning over the farms of a people
+// that knows the mill. Rendering only reads.
+const MODERN_CITIES = 2,
+  MODERN_ELECTRIC_TOWNS = 3,
+  MODERN_SKYLINE = 3,
+  MODERN_WORKS = 2,
+  MODERN_PEOPLE = 100,
+  MODERN_TOWER_PER_PEOPLE = 18,
+  MODERN_OFFICE_PER_PEOPLE = 20,
+  MODERN_STAGE_KEYS = Object.freeze(["cities", "current", "skyline", "works", "road", "hundred"]),
+  MODERN = { hedgerows: 0, hay: 0, scarecrows: 0, windmills: 0 };
+// Fixtures that test the ship itself may waive the modern world; play never does.
+let MODERN_WAIVED = false;
+function polityTownsOf(f) {
+  return W.settlements.filter((s) => !s.ruined && s.knownProcesses && (!f || s.factionId === f.id));
+}
+function modernCities(f) {
+  return polityTownsOf(f).filter((s) => typeof cityStage === "function" && cityStage(s));
+}
+function modernCount(f, types) {
+  let n = 0;
+  for (const s of polityTownsOf(f)) for (const t of types) n += completedBuildings(s, t).length;
+  return n;
+}
+function modernElectricTowns(f) {
+  return polityTownsOf(f).filter((s) => s.knownProcesses.includes("electricity")).length;
+}
+function modernLink(f) {
+  return (W.roads?.links || []).some((l) => l.complete && (!f || l.factionId === f.id));
+}
+function modernPeople(f) {
+  return polityTownsOf(f).reduce((n, s) => n + settlementPopulation(s), 0);
+}
+function modernShortfall(f) {
+  const missing = [];
+  if (modernCities(f).length < MODERN_CITIES) missing.push(`${MODERN_CITIES} cities at the urban stage`);
+  if (modernElectricTowns(f) < MODERN_ELECTRIC_TOWNS) missing.push(`current in ${MODERN_ELECTRIC_TOWNS} towns`);
+  if (modernCount(f, ["tower", "office"]) < MODERN_SKYLINE) missing.push(`${MODERN_SKYLINE} tower blocks or offices`);
+  if (modernCount(f, ["factory"]) < MODERN_WORKS) missing.push(`${MODERN_WORKS} working factories`);
+  if (!modernLink(f)) missing.push("a paved road or rail between two towns");
+  if (modernPeople(f) < MODERN_PEOPLE) missing.push(`a polity of ${MODERN_PEOPLE} people`);
+  return missing;
+}
+function polityOfPlace(place) {
+  return place?.factionId ? W.factions.find((f) => f.id === place.factionId) || null : null;
+}
+// The polity of the largest living town. The causal lead town is not used here:
+// finding it asks each town's stage shortfall, which asks the orbital shortfall,
+// which would ask for the lead town again without end.
+function modernLeadPolity() {
+  const top = W.settlements
+    .filter((s) => !s.ruined && s.knownProcesses)
+    .sort((a, b) => settlementPopulation(b) - settlementPopulation(a) || a.id - b.id)[0];
+  return polityOfPlace(top);
+}
+// ── No ship leaves before the world is modern ────────────────────────────────
+const launchShipModernBase = launchShip;
+launchShip = function (place, force = false) {
+  if (!force && !MODERN_WAIVED && place?.knownProcesses && modernShortfall(polityOfPlace(place)).length) return null;
+  return launchShipModernBase(place, force);
+};
+const orbitalShortfallModernBase = orbitalShortfall;
+orbitalShortfall = function () {
+  const missing = orbitalShortfallModernBase();
+  for (const m of modernShortfall(modernLeadPolity())) missing.push(m);
+  return missing;
+};
+// ── The Causal skip builds the modern world first ────────────────────────────
+function modernStages(f) {
+  return [
+    { key: "cities", label: `${MODERN_CITIES} cities at the urban stage`, done: () => modernCities(f).length >= MODERN_CITIES },
+    { key: "current", label: `current in ${MODERN_ELECTRIC_TOWNS} towns`, done: () => modernElectricTowns(f) >= MODERN_ELECTRIC_TOWNS },
+    { key: "skyline", label: `${MODERN_SKYLINE} tower blocks or offices`, done: () => modernCount(f, ["tower", "office"]) >= MODERN_SKYLINE },
+    { key: "works", label: `${MODERN_WORKS} working factories`, done: () => modernCount(f, ["factory"]) >= MODERN_WORKS },
+    { key: "road", label: "a paved road or rail between two towns", done: () => modernLink(f) },
+    { key: "hundred", label: `a polity of ${MODERN_PEOPLE} people`, done: () => modernPeople(f) >= MODERN_PEOPLE },
+  ];
+}
+const causalSkipMicroStagesModernBase = causalSkipMicroStages;
+causalSkipMicroStages = function () {
+  const stages = causalSkipMicroStagesModernBase(),
+    at = stages.findIndex((s) => s.key === "starflight");
+  if (at < 0) return stages;
+  const f = modernLeadPolity();
+  return [...stages.slice(0, at), ...modernStages(f), ...stages.slice(at)];
+};
+function modernPush(key, pushes) {
+  const lead = typeof causalLeadSettlement === "function" ? causalLeadSettlement() : null,
+    f = polityOfPlace(lead),
+    towns = polityTownsOf(f).sort((a, b) => settlementPopulation(b) - settlementPopulation(a) || a.id - b.id),
+    cities = modernCities(f);
+  if (!towns.length) return null;
+  if (key === "cities") {
+    const town = towns.find((s) => !cities.includes(s)) || towns[1] || towns[0];
+    causalPushPopulation(idx(town.x, town.y), 10);
+    for (const type of ["hall", "clinic", "shelter", "workshop"]) if (!completedBuildings(town, type).length) causalPushBuilding(town, type, pushes);
+    if (completedBuildings(town).length < 8) causalPushBuilding(town, "shelter", pushes);
+    return "cities";
+  }
+  if (key === "current") {
+    const town = towns.find((s) => !s.knownProcesses.includes("electricity"));
+    if (town) causalPushResearch(town, "electricity", pushes);
+    return "current";
+  }
+  if (key === "skyline") {
+    const city = (cities.length ? cities : towns).slice().sort((a, b) => completedBuildings(a, "tower").length + completedBuildings(a, "office").length - completedBuildings(b, "tower").length - completedBuildings(b, "office").length || a.id - b.id)[0];
+    if (!["electricity", "mechanization", "masonry"].every((t) => city.knownProcesses.includes(t))) {
+      for (const t of ["masonry", "mechanization", "electricity"]) if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
+    } else causalPushBuilding(city, city.knownProcesses.includes("computing") && placeHasFacility(city, "market") ? "office" : "tower", pushes);
+    return "skyline";
+  }
+  if (key === "works") {
+    const city = (cities.length ? cities : towns).slice().sort((a, b) => completedBuildings(a, "factory").length - completedBuildings(b, "factory").length || a.id - b.id)[0];
+    if (!["electricity", "mechanization"].every((t) => city.knownProcesses.includes(t))) {
+      for (const t of ["mechanization", "electricity"]) if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
+    } else causalPushBuilding(city, "factory", pushes);
+    return "works";
+  }
+  if (key === "road") {
+    if (f && typeof roadPassFor === "function" && factionHasTech(f.id, "road_building")) roadPassFor(f, true);
+    else causalPushResearch(towns[0], "road_building", pushes);
+    return "road";
+  }
+  if (key === "hundred") {
+    for (const town of towns.slice(0, 2)) causalPushPopulation(idx(town.x, town.y), 10);
+    return "hundred";
+  }
+  return null;
+}
+const causalPushTowardModernBase = causalPushToward;
+causalPushToward = function (target = causalTarget()) {
+  if (target && MODERN_STAGE_KEYS.includes(target.key)) {
+    target.pushes = (target.pushes || 0) + 1;
+    return modernPush(target.key, target.pushes);
+  }
+  return causalPushTowardModernBase(target);
+};
+// ── Denser skylines ──────────────────────────────────────────────────────────
+const towersWantedModernBase = towersWanted;
+towersWanted = function (place) {
+  return Math.max(2, Math.floor(settlementPopulation(place) / MODERN_TOWER_PER_PEOPLE), towersWantedModernBase(place));
+};
+const officesWantedModernBase = officesWanted;
+officesWanted = function (place) {
+  return Math.max(Math.floor(settlementPopulation(place) / MODERN_OFFICE_PER_PEOPLE), officesWantedModernBase(place));
+};
+// ── Countryside: hedgerows, hay, scarecrows, windmills ───────────────────────
+function drawWindmill(g, s, r, now, still) {
+  const post = hsl(30, 30, 30),
+    sail = "rgba(240,235,220,0.92)",
+    hubY = s.y - r * 1.5,
+    spin = still ? 0.4 : now * 0.0012;
+  g.strokeStyle = post;
+  g.lineWidth = Math.max(1.2, r * 0.1);
+  g.lineCap = "round";
+  g.beginPath();
+  g.moveTo(s.x, s.y + r * 0.1);
+  g.lineTo(s.x, hubY);
+  g.stroke();
+  g.fillStyle = post;
+  g.beginPath();
+  g.moveTo(s.x - r * 0.22, s.y + r * 0.1);
+  g.lineTo(s.x + r * 0.22, s.y + r * 0.1);
+  g.lineTo(s.x + r * 0.08, s.y - r * 0.6);
+  g.lineTo(s.x - r * 0.08, s.y - r * 0.6);
+  g.closePath();
+  g.fill();
+  g.strokeStyle = sail;
+  g.lineWidth = Math.max(1, r * 0.09);
+  g.beginPath();
+  for (let k = 0; k < 4; k++) {
+    const a = spin + (k * Math.PI) / 2;
+    g.moveTo(s.x, hubY);
+    g.lineTo(s.x + Math.cos(a) * r * 0.85, hubY + Math.sin(a) * r * 0.85);
+  }
+  g.stroke();
+  g.fillStyle = "#3a3330";
+  g.beginPath();
+  g.arc(s.x, hubY, Math.max(1, r * 0.08), 0, Math.PI * 2);
+  g.fill();
+}
+// Fields are drawn by their own site drawer (42e), which skips the exterior
+// pass, so the countryside hangs off the site drawer itself.
+const drawBuildingSiteModernBase = drawBuildingSite;
+drawBuildingSite = function (g, b, now, m) {
+  drawBuildingSiteModernBase(g, b, now, m);
+  if (b.type !== "farm" || !b.complete || b.ruined || b.abandoned || b.placeKind !== "settlement" || UI.quality === "low" || UI.camera.zoom < 1.4) return;
+  const place = buildingPlace(b);
+  if (!place) return;
+  const s = proceduralProjectTile(b.x + 0.5, b.y + 0.5, m),
+    r = buildingScreenSize(b, m),
+    still = ACTIVE_REDUCED_MOTION,
+    h1 = visualHash01(b.id, 0x41f),
+    h2 = visualHash01(b.id, 0x52e),
+    season = typeof groveSeason === "function" ? groveSeason(b.x, b.y) : { fall: 0, bare: 0 };
+  g.save();
+  // A hedgerow along the field's far edge.
+  g.strokeStyle = hsl(112, 40, 26, 0.9);
+  g.lineWidth = Math.max(1.4, r * 0.16);
+  g.setLineDash([Math.max(1.5, r * 0.18), Math.max(1, r * 0.1)]);
+  g.beginPath();
+  g.moveTo(s.x - r * 1.05, s.y - r * 0.55);
+  g.lineTo(s.x + r * 0.2, s.y - r * 1.05);
+  g.stroke();
+  g.setLineDash([]);
+  MODERN.hedgerows++;
+  if (season.fall > 0.4 && place.knownProcesses.includes("agriculture")) {
+    g.fillStyle = hsl(42, 55, 62);
+    g.strokeStyle = hsl(38, 45, 40);
+    g.lineWidth = 1;
+    for (let k = 0; k < 3; k++) {
+      g.beginPath();
+      g.arc(s.x - r * 0.5 + k * r * 0.45, s.y + r * 0.25 - (k % 2) * r * 0.12, Math.max(1.2, r * 0.13), 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+    }
+    MODERN.hay++;
+  }
+  if (h1 < 0.34) {
+    // A scarecrow.
+    const cx = s.x + r * 0.55,
+      cy = s.y - r * 0.2;
+    g.strokeStyle = hsl(30, 30, 28);
+    g.lineWidth = Math.max(1, r * 0.06);
+    g.lineCap = "round";
+    g.beginPath();
+    g.moveTo(cx, cy + r * 0.3);
+    g.lineTo(cx, cy - r * 0.55);
+    g.moveTo(cx - r * 0.3, cy - r * 0.35);
+    g.lineTo(cx + r * 0.3, cy - r * 0.35);
+    g.stroke();
+    g.fillStyle = hsl(40, 60, 60);
+    g.beginPath();
+    g.arc(cx, cy - r * 0.62, Math.max(1, r * 0.09), 0, Math.PI * 2);
+    g.fill();
+    MODERN.scarecrows++;
+  }
+  if (place.knownProcesses.includes("windmills") && h2 < 0.34) {
+    drawWindmill(g, { x: s.x - r * 0.7, y: s.y + r * 0.1 }, r * 0.9, now, still);
+    MODERN.windmills++;
+  }
+  g.restore();
+};
+window.ALIFE_MODERN_DEBUG = Object.freeze({
+  shortfall: (factionId = 0) => modernShortfall(W.factions.find((f) => f.id === factionId) || null),
+  stages: (factionId = 0) => modernStages(W.factions.find((f) => f.id === factionId) || null).map((s) => ({ key: s.key, label: s.label, done: s.done() })),
+  push: (key) => modernPush(key, 1),
+  towers: (placeId) => towersWanted(W.settlements.find((s) => s.id === placeId)),
+  offices: (placeId) => officesWanted(W.settlements.find((s) => s.id === placeId)),
+  counts: () => ({ ...MODERN }),
+  waive: (on = true) => {
+    MODERN_WAIVED = !!on;
+    return MODERN_WAIVED;
+  },
+  reset: () => {
+    for (const k of Object.keys(MODERN)) MODERN[k] = 0;
+  },
+});

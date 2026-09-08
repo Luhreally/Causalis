@@ -52,6 +52,8 @@ const fixtureSource = String.raw`(() => {
   settlement.stage = "village";
   if (eras.launch(settlement.id, false)) fail("a ship left a village");
   settlement.stage = "urban";
+  // This fixture tests the city gate, not the modern world (114), which is waived here.
+  window.ALIFE_MODERN_DEBUG.waive(true);
   // No ship leaves a city of cottages (110): a tower block and a factory stand first.
   for (const type of ["tower", "factory"]) { const b = planned(type) || planBuilding(settlement, type, 9); if (b) finish(b); else fail("no " + type + " could be raised for the launch"); }
   const ship = eras.launch(settlement.id, false);
