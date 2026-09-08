@@ -4,12 +4,15 @@
 // One city with one tower and one factory could send a ship to the stars while
 // the rest of the world was villages, and the Causal skip drove straight for
 // that ship. A world that leaves for the stars now has to look like one that
-// could: the launching polity needs two cities at the urban stage, current in
-// three of its towns, three tower blocks or offices, two working factories, a
-// paved road or rail between two of its towns, and a hundred people under one
-// Voice. The Causal skip builds those before it reaches for Starflight,
-// pushing the second city up, current into the villages, towers and works into
-// the cities, and the road between them. Skylines grow denser (a tower block
+// could: two cities at the urban stage, current in three towns, three tower
+// blocks or offices, two working factories, a paved road or rail between two
+// towns, and a hundred people living in towns, counted across the whole world,
+// since a modern world is not one polity's. The Causal skip builds those
+// before it reaches for Starflight, raising the second city's civic buildings,
+// pushing current into the villages and towers and works into the cities,
+// laying the road through the craft that lays roads, and planting the fields
+// that let a hundred people live; it never forces births, which a long skip
+// turned into famine and war. Skylines grow denser (a tower block
 // for every eighteen people, an office for every twenty), and the countryside
 // gains its own detail: hedgerows along the fields, hay bales in the fall, a
 // scarecrow here and there, and windmills turning over the farms of a people
@@ -25,34 +28,39 @@ const MODERN_CITIES = 2,
   MODERN = { hedgerows: 0, hay: 0, scarecrows: 0, windmills: 0 };
 // Fixtures that test the ship itself may waive the modern world; play never does.
 let MODERN_WAIVED = false;
+// The modern world is counted across every living town; the polity is kept
+// only for the roads it can lay.
 function polityTownsOf(f) {
   return W.settlements.filter((s) => !s.ruined && s.knownProcesses && (!f || s.factionId === f.id));
 }
-function modernCities(f) {
-  return polityTownsOf(f).filter((s) => typeof cityStage === "function" && cityStage(s));
+function worldTowns() {
+  return polityTownsOf(null);
 }
-function modernCount(f, types) {
+function modernCities() {
+  return worldTowns().filter((s) => typeof cityStage === "function" && cityStage(s));
+}
+function modernCount(types) {
   let n = 0;
-  for (const s of polityTownsOf(f)) for (const t of types) n += completedBuildings(s, t).length;
+  for (const s of worldTowns()) for (const t of types) n += completedBuildings(s, t).length;
   return n;
 }
-function modernElectricTowns(f) {
-  return polityTownsOf(f).filter((s) => s.knownProcesses.includes("electricity")).length;
+function modernElectricTowns() {
+  return worldTowns().filter((s) => s.knownProcesses.includes("electricity")).length;
 }
-function modernLink(f) {
-  return (W.roads?.links || []).some((l) => l.complete && (!f || l.factionId === f.id));
+function modernLink() {
+  return (W.roads?.links || []).some((l) => l.complete);
 }
-function modernPeople(f) {
-  return polityTownsOf(f).reduce((n, s) => n + settlementPopulation(s), 0);
+function modernPeople() {
+  return worldTowns().reduce((n, s) => n + settlementPopulation(s), 0);
 }
-function modernShortfall(f) {
+function modernShortfall() {
   const missing = [];
-  if (modernCities(f).length < MODERN_CITIES) missing.push(`${MODERN_CITIES} cities at the urban stage`);
-  if (modernElectricTowns(f) < MODERN_ELECTRIC_TOWNS) missing.push(`current in ${MODERN_ELECTRIC_TOWNS} towns`);
-  if (modernCount(f, ["tower", "office"]) < MODERN_SKYLINE) missing.push(`${MODERN_SKYLINE} tower blocks or offices`);
-  if (modernCount(f, ["factory"]) < MODERN_WORKS) missing.push(`${MODERN_WORKS} working factories`);
-  if (!modernLink(f)) missing.push("a paved road or rail between two towns");
-  if (modernPeople(f) < MODERN_PEOPLE) missing.push(`a polity of ${MODERN_PEOPLE} people`);
+  if (modernCities().length < MODERN_CITIES) missing.push(`${MODERN_CITIES} cities at the urban stage`);
+  if (modernElectricTowns() < MODERN_ELECTRIC_TOWNS) missing.push(`current in ${MODERN_ELECTRIC_TOWNS} towns`);
+  if (modernCount(["tower", "office"]) < MODERN_SKYLINE) missing.push(`${MODERN_SKYLINE} tower blocks or offices`);
+  if (modernCount(["factory"]) < MODERN_WORKS) missing.push(`${MODERN_WORKS} working factories`);
+  if (!modernLink()) missing.push("a paved road or rail between two towns");
+  if (modernPeople() < MODERN_PEOPLE) missing.push(`${MODERN_PEOPLE} people living in towns`);
   return missing;
 }
 function polityOfPlace(place) {
@@ -70,24 +78,24 @@ function modernLeadPolity() {
 // ── No ship leaves before the world is modern ────────────────────────────────
 const launchShipModernBase = launchShip;
 launchShip = function (place, force = false) {
-  if (!force && !MODERN_WAIVED && place?.knownProcesses && modernShortfall(polityOfPlace(place)).length) return null;
+  if (!force && !MODERN_WAIVED && place?.knownProcesses && modernShortfall().length) return null;
   return launchShipModernBase(place, force);
 };
 const orbitalShortfallModernBase = orbitalShortfall;
 orbitalShortfall = function () {
   const missing = orbitalShortfallModernBase();
-  for (const m of modernShortfall(modernLeadPolity())) missing.push(m);
+  for (const m of modernShortfall()) missing.push(m);
   return missing;
 };
 // ── The Causal skip builds the modern world first ────────────────────────────
-function modernStages(f) {
+function modernStages() {
   return [
-    { key: "cities", label: `${MODERN_CITIES} cities at the urban stage`, done: () => modernCities(f).length >= MODERN_CITIES },
-    { key: "current", label: `current in ${MODERN_ELECTRIC_TOWNS} towns`, done: () => modernElectricTowns(f) >= MODERN_ELECTRIC_TOWNS },
-    { key: "skyline", label: `${MODERN_SKYLINE} tower blocks or offices`, done: () => modernCount(f, ["tower", "office"]) >= MODERN_SKYLINE },
-    { key: "works", label: `${MODERN_WORKS} working factories`, done: () => modernCount(f, ["factory"]) >= MODERN_WORKS },
-    { key: "road", label: "a paved road or rail between two towns", done: () => modernLink(f) },
-    { key: "hundred", label: `a polity of ${MODERN_PEOPLE} people`, done: () => modernPeople(f) >= MODERN_PEOPLE },
+    { key: "cities", label: `${MODERN_CITIES} cities at the urban stage`, done: () => modernCities().length >= MODERN_CITIES },
+    { key: "current", label: `current in ${MODERN_ELECTRIC_TOWNS} towns`, done: () => modernElectricTowns() >= MODERN_ELECTRIC_TOWNS },
+    { key: "skyline", label: `${MODERN_SKYLINE} tower blocks or offices`, done: () => modernCount(["tower", "office"]) >= MODERN_SKYLINE },
+    { key: "works", label: `${MODERN_WORKS} working factories`, done: () => modernCount(["factory"]) >= MODERN_WORKS },
+    { key: "road", label: "a paved road or rail between two towns", done: () => modernLink() },
+    { key: "hundred", label: `${MODERN_PEOPLE} people living in towns`, done: () => modernPeople() >= MODERN_PEOPLE },
   ];
 }
 const causalSkipMicroStagesModernBase = causalSkipMicroStages;
@@ -95,19 +103,16 @@ causalSkipMicroStages = function () {
   const stages = causalSkipMicroStagesModernBase(),
     at = stages.findIndex((s) => s.key === "starflight");
   if (at < 0) return stages;
-  const f = modernLeadPolity();
-  return [...stages.slice(0, at), ...modernStages(f), ...stages.slice(at)];
+  return [...stages.slice(0, at), ...modernStages(), ...stages.slice(at)];
 };
+// The pushes raise buildings and crafts; they never force births.
 function modernPush(key, pushes) {
-  const lead = typeof causalLeadSettlement === "function" ? causalLeadSettlement() : null,
-    f = polityOfPlace(lead),
-    towns = polityTownsOf(f).sort((a, b) => settlementPopulation(b) - settlementPopulation(a) || a.id - b.id),
-    cities = modernCities(f);
+  const towns = worldTowns().sort((a, b) => settlementPopulation(b) - settlementPopulation(a) || a.id - b.id),
+    cities = modernCities();
   if (!towns.length) return null;
   if (key === "cities") {
     const town = towns.find((s) => !cities.includes(s)) || towns[1] || towns[0];
-    causalPushPopulation(idx(town.x, town.y), 10);
-    for (const type of ["hall", "clinic", "shelter", "workshop"]) if (!completedBuildings(town, type).length) causalPushBuilding(town, type, pushes);
+    for (const type of ["hall", "clinic", "shelter", "workshop", "farm"]) if (!completedBuildings(town, type).length) causalPushBuilding(town, type, pushes);
     if (completedBuildings(town).length < 8) causalPushBuilding(town, "shelter", pushes);
     return "cities";
   }
@@ -131,12 +136,17 @@ function modernPush(key, pushes) {
     return "works";
   }
   if (key === "road") {
-    if (f && typeof roadPassFor === "function" && factionHasTech(f.id, "road_building")) roadPassFor(f, true);
+    // A polity that knows the craft lays a road; one that does not learns it first.
+    const paver = W.factions.find((f) => f.stability > 0 && factionHasTech(f.id, "road_building") && polityTownsOf(f).length >= 2);
+    if (paver && typeof roadPassFor === "function") roadPassFor(paver, false, "road");
     else causalPushResearch(towns[0], "road_building", pushes);
     return "road";
   }
   if (key === "hundred") {
-    for (const town of towns.slice(0, 2)) causalPushPopulation(idx(town.x, town.y), 10);
+    // Fields and stores, so a hundred can live; never forced births.
+    for (const town of towns.slice(0, 2)) {
+      if (!causalPushBuilding(town, "farm", pushes)) causalPushBuilding(town, "stockpile", pushes);
+    }
     return "hundred";
   }
   return null;
@@ -256,8 +266,8 @@ drawBuildingSite = function (g, b, now, m) {
   g.restore();
 };
 window.ALIFE_MODERN_DEBUG = Object.freeze({
-  shortfall: (factionId = 0) => modernShortfall(W.factions.find((f) => f.id === factionId) || null),
-  stages: (factionId = 0) => modernStages(W.factions.find((f) => f.id === factionId) || null).map((s) => ({ key: s.key, label: s.label, done: s.done() })),
+  shortfall: () => modernShortfall(),
+  stages: () => modernStages().map((s) => ({ key: s.key, label: s.label, done: s.done() })),
   push: (key) => modernPush(key, 1),
   towers: (placeId) => towersWanted(W.settlements.find((s) => s.id === placeId)),
   offices: (placeId) => officesWanted(W.settlements.find((s) => s.id === placeId)),
