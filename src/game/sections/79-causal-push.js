@@ -66,9 +66,13 @@ function causalNextStep(place, techId, seen = new Set()) {
 function causalPushBuilding(place, type, pushes) {
   if (!place || !BUILDING_DEFS[type]) return false;
   const kind = place.knownProcesses ? "settlement" : "camp",
-    existing = W.buildings.find(
+    // A town with one finished field and a second one planned was told it
+    // already had a field, and the planned one never got its material. A push
+    // works on the unfinished one wherever there is one.
+    standing = W.buildings.filter(
       (b) => !b.ruined && b.placeKind === kind && b.placeId === place.id && b.type === type,
-    );
+    ),
+    existing = standing.find((b) => !b.complete) || standing[0];
   if (existing?.complete) return false;
   const b = existing || planBuilding(place, type, 9);
   if (!b) return false;
@@ -444,8 +448,9 @@ causalSkipForward = async function () {
                 : gate && gate.missing.length
                   ? `Advanced ${ticks} causal ticks toward ${aim}; ${gate.leader ? `${gate.leader} still needs: ` : "next: "}${gate.missing.join(" · ")}.`
                   : `Advanced ${ticks} causal ticks; ${aim} did not occur inside this horizon.`;
-    DOM.causalSkipStatus.textContent = message;
-    toast(message);
+    const told = result.toll > 0 ? `${message} ${result.toll} fewer people than when it began.` : message;
+    DOM.causalSkipStatus.textContent = told;
+    toast(told);
     return result;
   } finally {
     UI.causalSkipActive = false;

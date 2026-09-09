@@ -108,6 +108,36 @@ const fixtureSource = String.raw`(() => {
   out.groundworkWorking = W.settlements.filter((x) => !x.ruined && x.researchFocus).length;
   if (!(out.groundworkWorking >= 2)) fail("the tower push set " + out.groundworkWorking + " town to work alone");
   out.groundworkLead = push.lead();
+  // The effort feeds the hands it works: a lean town with one finished field
+  // and a second one planned gets the planned one supplied, where the push used
+  // to see the finished field beside it and call the town fed.
+  const hungerTown = c;
+  // Clear the town's fields so the finished one stands first in the world's
+  // list and the planned one after it, which is the order that hid the second.
+  for (const x of W.buildings) if (!x.ruined && x.placeKind === "settlement" && x.placeId === hungerTown.id && x.type === "farm") x.ruined = true;
+  if (!complete(hungerTown, "farm")) fail("no field could be finished");
+  const secondFarm = planBuilding(hungerTown, "farm", 9);
+  if (!secondFarm) fail("no second field could be planned");
+  out.fieldOrder = W.buildings.filter((x) => !x.ruined && x.placeKind === "settlement" && x.placeId === hungerTown.id && x.type === "farm").map((x) => (x.complete ? "done" : "planned"));
+  hungerTown.inventory[C.ORGANIC] = 0;
+  for (const id of W.activeIds) {
+    const soc = W.components.social[id];
+    if (soc?.homePlaceKind === "settlement" && soc.homePlaceId === hungerTown.id) {
+      const life = W.components.life?.[id];
+      if (life) life.hunger = 90;
+    }
+  }
+  out.hungerFamine = !!foodOutlook(hungerTown)?.famine;
+  if (!out.hungerFamine) fail("the starved town does not read famine");
+  out.pushUnfinishedField = causalPushBuilding(hungerTown, "farm", 3);
+  if (!out.pushUnfinishedField) fail("the push saw the finished field beside the unfinished one and called the town fed");
+  const breadBefore = hungerTown.inventory[C.ORGANIC] || 0, inputBeforeBread = W.conservation.playerInput;
+  out.fed = modern.feed(1);
+  out.bread = (hungerTown.inventory[C.ORGANIC] || 0) - breadBefore;
+  out.breadBooked = W.conservation.playerInput - inputBeforeBread;
+  if (!(out.fed > 0)) fail("the effort fed no starving town");
+  if (!(out.bread > 0)) fail("the effort carried no food to the starving town: " + out.bread);
+  if (!(out.breadBooked >= out.bread)) fail("the food was not booked as the player's doing: " + out.breadBooked);
   // Countryside: hedgerows, scarecrows, and windmills over the farms.
   for (let n = 0; n < 4; n++) complete(s, "farm");
   grant(s, "windmills");
@@ -129,6 +159,9 @@ const fixtureSource = String.raw`(() => {
   out.skipStop = st.stopReason; out.skipTicks = st.advanced;
   if (st.stopReason !== "collapse") fail("the skip did not halt on a collapsing world: " + st.stopReason + " after " + st.advanced);
   if (!(st.milestone && /halving/.test(st.milestone.label))) fail("the collapse stop names no halving");
+  // A skip that ends smaller than it began says what it cost, in people.
+  out.skipToll = causalSkipResult(st).toll;
+  if (!(out.skipToll > 0)) fail("the skip named no toll after the world was struck: " + out.skipToll);
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;
 })()`;

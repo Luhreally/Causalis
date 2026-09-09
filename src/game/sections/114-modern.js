@@ -238,8 +238,35 @@ function modernPush(key, pushes) {
   }
   return null;
 }
+// A concerted effort that leaves its people hungry reaches nothing. A town in
+// famine keeps its fields and its stores and still holds nothing in them: half
+// its people are hungry, no neighbour has a surplus to send, and the objective
+// waits on hands that are not there while the world shrinks under the skip. The
+// road got its stone; the two hungriest towns get their bread the same way, and
+// it is booked as the player's doing.
+const MODERN_FED_TOWNS = 2,
+  MODERN_RATION = 4;
+function modernFeedTheEffort(pushes) {
+  if (typeof foodOutlook !== "function") return 0;
+  const starving = worldTowns()
+    .map((s) => ({ s, outlook: foodOutlook(s) }))
+    .filter((x) => x.outlook?.famine)
+    .sort((a, b) => b.outlook.hungry - a.outlook.hungry || a.s.id - b.s.id);
+  let fed = 0;
+  for (const { s, outlook } of starving) {
+    if (fed >= MODERN_FED_TOWNS) break;
+    const want = Math.round(outlook.pop * MODERN_RATION) - (s.inventory[C.ORGANIC] || 0);
+    if (want <= 0) continue;
+    s.inventory[C.ORGANIC] += want;
+    causalPushInput(want);
+    causalPushBuilding(s, "farm", pushes);
+    fed++;
+  }
+  return fed;
+}
 const causalPushTowardModernBase = causalPushToward;
 causalPushToward = function (target = causalTarget()) {
+  if (target) modernFeedTheEffort(target.pushes || 1);
   if (target && MODERN_STAGE_KEYS.includes(target.key)) {
     target.pushes = (target.pushes || 0) + 1;
     return modernPush(target.key, target.pushes);
@@ -402,6 +429,17 @@ makeCausalSkipState = function (limitOverride = 0) {
   if (!(limitOverride > 0)) state.limit = Math.min(state.limit, MODERN_SKIP_MAX_TICKS);
   return state;
 };
+// What a skip cost. The halting guard compares a skip against its own start, so
+// a world that loses a tenth of its people every skip never trips it and dies
+// quietly over a dozen presses. A skip that ends smaller than it began now says
+// so, in people.
+const causalSkipResultModernBase = causalSkipResult;
+causalSkipResult = function (state) {
+  const out = causalSkipResultModernBase(state);
+  out.startPeople = state.startPeople || 0;
+  out.toll = Math.max(0, out.startPeople - modernLivingPeople());
+  return out;
+};
 const causalSkipStepModernBase = causalSkipStep;
 causalSkipStep = function (state) {
   const out = causalSkipStepModernBase(state);
@@ -444,6 +482,7 @@ window.ALIFE_MODERN_DEBUG = Object.freeze({
   towers: (placeId) => towersWanted(W.settlements.find((s) => s.id === placeId)),
   offices: (placeId) => officesWanted(W.settlements.find((s) => s.id === placeId)),
   counts: () => ({ ...MODERN }),
+  feed: (pushes = 1) => modernFeedTheEffort(pushes),
   groundwork: (placeId = 0) =>
     modernGroundworkMissing(
       placeId
