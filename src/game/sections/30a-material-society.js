@@ -2638,11 +2638,24 @@ function rebalancePlaceStorage(place) {
   if (overflow) spillStoredMatter(place, overflow);
   return placeStorageRemaining(place);
 }
-function hasResearchMaterial(place, sp) {
-  return (place.researchInventory?.[sp] || 0) >= 10 || (place.inventory?.[sp] || 0) >= 10;
+// Samples a town keeps by for a craft it is working toward. Ten of a thing is
+// enough to study it, but a craft that wants a hot fire wants a woodpile behind
+// it: Ore Reduction asks for seven hundred degrees, which a town can raise only
+// with fuel in hand, and the hearth burns the stores down to a couple of sticks
+// every day, so a town that kept the usual ten samples stood for ever at twelve
+// and never grew hot enough to smelt. A hot craft banks a woodpile instead.
+const RESEARCH_SAMPLE = 10,
+  RESEARCH_WOODPILE = 24,
+  RESEARCH_HOT = 700;
+function researchMaterialTarget(tech, sp) {
+  return sp === C.FUEL && (tech?.heat || 0) >= RESEARCH_HOT ? RESEARCH_WOODPILE : RESEARCH_SAMPLE;
+}
+function hasResearchMaterial(place, sp, target = RESEARCH_SAMPLE) {
+  return (place.researchInventory?.[sp] || 0) >= target || (place.inventory?.[sp] || 0) >= target;
 }
 function researchMaterialReserve(place, sp) {
   if (!place?.knownProcesses) return 0;
+  let reserve = 0;
   for (const tech of techCatalog()) {
     if (
       place.knownProcesses.includes(tech.id) ||
@@ -2652,9 +2665,9 @@ function researchMaterialReserve(place, sp) {
     if (tech.branch && typeof branchProvisionAllowed === "function" && !branchProvisionAllowed(place, tech)) continue;
     const facility = facilityForTechnology(tech.id);
     if ((!facility || placeHasFacility(place, facility)) && (tech.materials || []).includes(sp))
-      return 10;
+      reserve = Math.max(reserve, researchMaterialTarget(tech, sp));
   }
-  return 0;
+  return reserve;
 }
 function essentialStockTargets(place) {
   const pop = Math.max(1, placePopulation(place)),
@@ -2690,11 +2703,13 @@ function eligibleResearchMaterialNeeds(place) {
     if (tech.branch && typeof branchProvisionAllowed === "function" && !branchProvisionAllowed(place, tech)) continue;
     const facility = facilityForTechnology(tech.id);
     if (facility && !placeHasFacility(place, facility)) continue;
-    for (const sp of tech.materials || [])
-      if (!hasResearchMaterial(place, sp) && !seen.has(sp)) {
+    for (const sp of tech.materials || []) {
+      const target = researchMaterialTarget(tech, sp);
+      if (!hasResearchMaterial(place, sp, target) && !seen.has(sp)) {
         seen.add(sp);
-        out.push({ techId: tech.id, sp, target: 10 });
+        out.push({ techId: tech.id, sp, target });
       }
+    }
   }
   const feedstock = { [C.METAL]: [C.ORE, C.FUEL], [C.CERAMIC]: [C.MINERAL, C.FUEL] };
   for (const need of out.slice())
@@ -2723,8 +2738,9 @@ function depositCarriedToPlace(id, place) {
   let moved = 0,
     sampled = 0;
   for (let sp = 0; sp < SPECIES_COUNT; sp++) {
-    if (!researchMaterialReserve(place, sp) || place.researchInventory[sp] >= 10) continue;
-    const amount = Math.min(inv[sp], 10 - place.researchInventory[sp]);
+    const keep = researchMaterialReserve(place, sp);
+    if (!keep || place.researchInventory[sp] >= keep) continue;
+    const amount = Math.min(inv[sp], keep - place.researchInventory[sp]);
     if (amount) {
       inv[sp] -= amount;
       place.researchInventory[sp] += amount;
