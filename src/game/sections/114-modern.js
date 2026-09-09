@@ -244,8 +244,35 @@ causalPushToward = function (target = causalTarget()) {
     target.pushes = (target.pushes || 0) + 1;
     return modernPush(target.key, target.pushes);
   }
-  return causalPushTowardModernBase(target);
+  const acted = causalPushTowardModernBase(target);
+  if (target?.key === "tower") modernGroundworkPush(target);
+  return acted;
 };
+// A launch tower waits on six understandings, and the objective sought them one
+// at a time: combustion, and then, years later, computing, while the rest of the
+// polity stood idle. The effort now sets the polity's other towns on what the
+// lead city is not working on, and a polity teaches what its towns learn; the
+// lead city gets the samples and the fires for the rest of what it lacks and is
+// left at work on the first of them.
+function modernGroundworkMissing(place) {
+  if (!place?.knownProcesses || typeof STARFLIGHT_GROUNDWORK === "undefined") return [];
+  return STARFLIGHT_GROUNDWORK.filter((t) => !place.knownProcesses.includes(t));
+}
+function modernGroundworkPush(target) {
+  const lead = typeof causalLeadSettlement === "function" ? causalLeadSettlement() : null,
+    missing = modernGroundworkMissing(lead);
+  if (missing.length < 2) return 0;
+  const pushes = target?.pushes || 1,
+    f = W.factions.find((x) => x.id === lead.factionId) || null;
+  let n = 1;
+  for (const town of polityTownsOf(f)) {
+    if (n >= missing.length) break;
+    if (town === lead) continue;
+    if (causalPushResearch(town, missing[n], pushes)) n++;
+  }
+  for (let k = missing.length - 1; k >= 0; k--) causalPushResearch(lead, missing[k], pushes);
+  return n;
+}
 // ── Denser skylines ──────────────────────────────────────────────────────────
 const towersWantedModernBase = towersWanted;
 towersWanted = function (place) {
@@ -417,6 +444,14 @@ window.ALIFE_MODERN_DEBUG = Object.freeze({
   towers: (placeId) => towersWanted(W.settlements.find((s) => s.id === placeId)),
   offices: (placeId) => officesWanted(W.settlements.find((s) => s.id === placeId)),
   counts: () => ({ ...MODERN }),
+  groundwork: (placeId = 0) =>
+    modernGroundworkMissing(
+      placeId
+        ? W.settlements.find((x) => x.id === placeId)
+        : typeof causalLeadSettlement === "function"
+          ? causalLeadSettlement()
+          : null,
+    ),
   waive: (on = true) => {
     MODERN_WAIVED = !!on;
     return MODERN_WAIVED;

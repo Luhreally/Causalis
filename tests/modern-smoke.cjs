@@ -13,7 +13,7 @@ const harnessEnd = smokeSource.indexOf('if (process.env.SETTLEMENT_DEBUG === "1"
 if (harnessEnd < 0) throw new Error("Unable to locate the shared smoke-test harness");
 
 const fixtureSource = String.raw`(() => {
-  const modern = window.ALIFE_MODERN_DEBUG, eras = window.ALIFE_ERAS_DEBUG, out = { failures: [] }, fail = (m) => out.failures.push(m);
+  const modern = window.ALIFE_MODERN_DEBUG, eras = window.ALIFE_ERAS_DEBUG, push = window.ALIFE_CAUSAL_PUSH_DEBUG, out = { failures: [] }, fail = (m) => out.failures.push(m);
   let s = null;
   for (let attempt = 0; attempt < 4 && !s; attempt++) {
     for (let i = 0; i < 160; i++) simTick();
@@ -99,6 +99,15 @@ const fixtureSource = String.raw`(() => {
   out.roadStoneBooked = W.conservation.playerInput - inputBefore;
   if (!(out.roadStoneBooked > 0)) fail("the road push brought no stone: " + out.roadStoneBooked);
   if (!(out.pavedByPush > 0)) fail("the road push laid no stone: " + out.pavedByPush);
+  // The groundwork for a tower is sought side by side: a world whose lead city
+  // lacks two of the understandings sets more than one town to work on them.
+  for (const town of W.settlements) { if (town.ruined) continue; town.knownProcesses = town.knownProcesses.filter((x) => x !== "combustion" && x !== "computing"); town.researchFocus = ""; }
+  out.groundwork = modern.groundwork();
+  if (!(out.groundwork.length >= 2)) fail("the lead city lacks fewer than two understandings: " + out.groundwork.join(","));
+  out.towerPush = causalPushToward({ key: "tower", pushes: 2 });
+  out.groundworkWorking = W.settlements.filter((x) => !x.ruined && x.researchFocus).length;
+  if (!(out.groundworkWorking >= 2)) fail("the tower push set " + out.groundworkWorking + " town to work alone");
+  out.groundworkLead = push.lead();
   // Countryside: hedgerows, scarecrows, and windmills over the farms.
   for (let n = 0; n < 4; n++) complete(s, "farm");
   grant(s, "windmills");
