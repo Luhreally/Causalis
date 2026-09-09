@@ -66,7 +66,11 @@ function modernPeople() {
 // it had already passed.
 function modernPeopleWanted() {
   const k = typeof smallWorldFactor === "function" ? smallWorldFactor() : 1;
-  return Math.max(MODERN_PEOPLE_FLOOR, Math.round(MODERN_PEOPLE * k));
+  // People live on land, and land is what shrank, so the gate falls with the
+  // map's area and not with its edge. Scaling by the edge left a battery world
+  // asking for forty, and over a hundred and seven years and eighteen presses
+  // its towns held between sixteen and thirty-four.
+  return Math.max(MODERN_PEOPLE_FLOOR, Math.round(MODERN_PEOPLE * k * k));
 }
 function modernShortfall() {
   const missing = [];
