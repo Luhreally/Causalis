@@ -159,26 +159,45 @@ function modernPush(key, pushes) {
     return "cities";
   }
   if (key === "current") {
-    const town = towns.find((s) => !s.knownProcesses.includes("electricity"));
-    if (town) causalPushResearch(town, "electricity", pushes);
+    // Current is wanted in three towns, so three towns learn it at once: a
+    // concerted effort works on every town the goal still needs, not on one at
+    // a time while the others wait a decade for their turn.
+    let want = MODERN_ELECTRIC_TOWNS - modernElectricTowns();
+    for (const town of towns) {
+      if (want <= 0) break;
+      if (town.knownProcesses.includes("electricity")) continue;
+      if (causalPushResearch(town, "electricity", pushes)) want--;
+    }
     return "current";
   }
   if (key === "skyline") {
-    const city = (cities.length ? cities : towns).slice().sort((a, b) => completedBuildings(a, "tower").length + completedBuildings(a, "office").length - completedBuildings(b, "tower").length - completedBuildings(b, "office").length || a.id - b.id)[0];
-    if (!["electricity", "mechanization", "masonry"].every((t) => city.knownProcesses.includes(t))) {
-      for (const t of ["masonry", "mechanization", "electricity"]) if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
-    } else {
-      modernSupply(city, city.knownProcesses.includes("computing") && placeHasFacility(city, "market") ? "office" : "tower", pushes);
-      // Builders who are hungry do not build: a lean city gets a field with its tower.
-      if (typeof foodOutlook === "function" && foodOutlook(city)?.lean) causalPushBuilding(city, "farm", pushes);
+    const list = (cities.length ? cities : towns).slice().sort((a, b) => completedBuildings(a, "tower").length + completedBuildings(a, "office").length - completedBuildings(b, "tower").length - completedBuildings(b, "office").length || a.id - b.id),
+      want = Math.max(1, MODERN_SKYLINE - modernCount(["tower", "office"]));
+    // Every block the skyline still wants is raised at once, sharing the cities
+    // and doubling back on the first when there are fewer cities than blocks.
+    for (let n = 0; n < want; n++) {
+      const city = list[n % list.length];
+      if (!city) break;
+      if (!["electricity", "mechanization", "masonry"].every((t) => city.knownProcesses.includes(t))) {
+        for (const t of ["masonry", "mechanization", "electricity"]) if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
+      } else {
+        modernSupply(city, city.knownProcesses.includes("computing") && placeHasFacility(city, "market") ? "office" : "tower", pushes);
+        // Builders who are hungry do not build: a lean city gets a field with its tower.
+        if (typeof foodOutlook === "function" && foodOutlook(city)?.lean) causalPushBuilding(city, "farm", pushes);
+      }
     }
     return "skyline";
   }
   if (key === "works") {
-    const city = (cities.length ? cities : towns).slice().sort((a, b) => completedBuildings(a, "factory").length - completedBuildings(b, "factory").length || a.id - b.id)[0];
-    if (!["electricity", "mechanization"].every((t) => city.knownProcesses.includes(t))) {
-      for (const t of ["mechanization", "electricity"]) if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
-    } else modernSupply(city, "factory", pushes);
+    const list = (cities.length ? cities : towns).slice().sort((a, b) => completedBuildings(a, "factory").length - completedBuildings(b, "factory").length || a.id - b.id),
+      want = Math.max(1, MODERN_WORKS - modernCount(["factory"]));
+    for (let n = 0; n < want; n++) {
+      const city = list[n % list.length];
+      if (!city) break;
+      if (!["electricity", "mechanization"].every((t) => city.knownProcesses.includes(t))) {
+        for (const t of ["mechanization", "electricity"]) if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
+      } else modernSupply(city, "factory", pushes);
+    }
     return "works";
   }
   if (key === "road") {
@@ -337,6 +356,18 @@ makeCausalSkipState = function (limitOverride = 0) {
 const causalSkipStepModernBase = causalSkipStep;
 causalSkipStep = function (state) {
   const out = causalSkipStepModernBase(state);
+  // The concerted effort turns its hand to the objective twice a year rather
+  // than once: the skip was given a shorter horizon, so it must do more within
+  // it. The intervention on the half year does the rest of the work (41).
+  if (
+    !state.done &&
+    W.tick % 128 === 64 &&
+    typeof concertedIntensity === "function" &&
+    concertedIntensity() > 0 &&
+    typeof causalPushToward === "function" &&
+    causalTarget()
+  )
+    causalPushToward(causalTarget());
   if (
     !state.done &&
     state.advanced % MODERN_COLLAPSE_CHECK === 0 &&
