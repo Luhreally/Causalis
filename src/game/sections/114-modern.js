@@ -32,6 +32,7 @@ const MODERN_CITIES = 2,
   MODERN_ROAD_STONE = 48,
   MODERN_ROAD_PASSES = 4,
   MODERN_STAGE_KEYS = Object.freeze(["cities", "current", "skyline", "works", "road", "hundred"]),
+  MODERN_LAUNCH_KEYS = new Set(["starflight", "tower", "ascension"]),
   MODERN = { hedgerows: 0, hay: 0, scarecrows: 0, windmills: 0 };
 // Fixtures that test the ship itself may waive the modern world; play never does.
 let MODERN_WAIVED = false;
@@ -331,7 +332,7 @@ causalPushToward = function (target = causalTarget()) {
     target.pushes = (target.pushes || 0) + 1;
     return modernPush(target.key, target.pushes);
   }
-  if (target && (target.key === "tower" || target.key === "ascension")) {
+  if (target && MODERN_LAUNCH_KEYS.has(target.key)) {
     target.pushes = (target.pushes || 0) + 1;
     return modernLaunchPush(target.key, target.pushes);
   }
@@ -387,6 +388,13 @@ function modernLaunchSite() {
 function modernLaunchPush(key, pushes) {
   const site = modernLaunchSite();
   if (!site) return null;
+  if (key === "starflight") {
+    // The stage counts the craft understood anywhere in the world, so the
+    // effort taught it to whichever town happened to be leading. Only the place
+    // the ship leaves from can use it, and on a small world that was a
+    // different town: one knew how to fly and the other had the tower.
+    return causalPushResearch(site, "starflight", pushes) ? "research" : null;
+  }
   if (key === "ascension") {
     if (!site.knownProcesses.includes("starflight"))
       return causalPushResearch(site, "starflight", pushes) ? "research" : null;

@@ -133,6 +133,11 @@ const fixtureSource = String.raw`(() => {
   for (const town of W.settlements) { if (town.ruined) continue; town.knownProcesses = town.knownProcesses.filter((x) => x !== "starflight"); town.researchFocus = ""; }
   out.ascensionPush = causalPushToward({ key: "ascension", pushes: 2 });
   out.ascensionFocus = s.researchFocus || "";
+  // The Starflight stage teaches the place the ship leaves from, not the lead.
+  for (const town of W.settlements) { if (!town.ruined) town.researchFocus = ""; }
+  out.starflightPush = causalPushToward({ key: "starflight", pushes: 2 });
+  out.starflightFocus = s.researchFocus || "";
+  if (out.starflightFocus !== "starflight") fail("the Starflight stage did not set the launch site to work on it: " + out.starflightFocus);
   if (out.ascensionPush !== "research") fail("the ascension push pushed no research: " + out.ascensionPush);
   if (out.ascensionFocus !== "starflight") fail("the ascension push did not set the launch site to work on Starflight: " + out.ascensionFocus);
   // A site that knows how to fly but holds no tower gets one raised, even
