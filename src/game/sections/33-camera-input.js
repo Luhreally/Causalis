@@ -274,7 +274,10 @@ function causalSkipStep(state) {
   }
   if (W.tick % 16 === 0)
     for (const stage of state.pending)
-      if (stage.done()) {
+      // A stage the world has already reached once and then lost is worth
+      // working toward again, but it is not news: stopping on it spends a press
+      // on a milestone the player was shown before (114).
+      if (!stage.quiet && stage.done()) {
         state.done = true;
         state.stopReason = "milestone";
         state.milestone = {

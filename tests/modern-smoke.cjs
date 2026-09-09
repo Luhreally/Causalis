@@ -177,6 +177,34 @@ const fixtureSource = String.raw`(() => {
   out.skipStop = st.stopReason; out.skipTicks = st.advanced;
   if (st.stopReason !== "collapse") fail("the skip did not halt on a collapsing world: " + st.stopReason + " after " + st.advanced);
   if (!(st.milestone && /halving/.test(st.milestone.label))) fail("the collapse stop names no halving");
+  // A stage the world has already reached does not end a later press: it is
+  // still worked toward, but reaching it again is not news.
+  const notDone = causalSkipMicroStages().find((x) => !x.done());
+  if (!notDone) fail("every micro-stage is done; the quiet flag cannot be checked");
+  else {
+    W.causalReached = [];
+    modernRecordReached({ stopReason: "milestone", milestone: { key: notDone.key } });
+    out.reached = modern.reached();
+    if (!out.reached.includes(notDone.key)) fail("the skip recorded no stage it reached: " + JSON.stringify(out.reached));
+    const again = makeCausalSkipState(64).pending.find((x) => x.key === notDone.key);
+    out.quietStage = again ? !!again.quiet : null;
+    if (!out.quietStage) fail("a stage already reached is not marked quiet: " + notDone.key);
+    W.causalReached = [];
+  }
+  // A quiet stage that is already met does not end the press; a loud one does.
+  const stepOnce = (quiet) => {
+    const st = makeCausalSkipState(64);
+    st.startStageIndex = 1e9;
+    st.startBiosphereStage = W.biosphere?.stage || "";
+    st.pending = [{ key: "test-stage", label: "a stage for the test", quiet, done: () => true }];
+    while (W.tick % 16 !== 15) simTick();
+    causalSkipStep(st);
+    return st;
+  };
+  out.quietDidNotStop = !stepOnce(true).done;
+  out.loudDidStop = stepOnce(false).stopReason === "milestone";
+  if (!out.quietDidNotStop) fail("a stage already reached still ended the press");
+  if (!out.loudDidStop) fail("a stage not yet reached no longer ends the press");
   // A skip that ends smaller than it began says what it cost, in people.
   out.skipToll = causalSkipResult(st).toll;
   if (!(out.skipToll > 0)) fail("the skip named no toll after the world was struck: " + out.skipToll);

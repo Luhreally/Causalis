@@ -489,11 +489,37 @@ function modernLivingPeople() {
 // on a stalled modern stage it spent decades while the towns starved. A shorter
 // horizon hands the world back with its shortfall named, before the damage.
 const MODERN_SKIP_MAX_TICKS = TICKS_PER_YEAR * 24;
+// What the world has already reached. Every condition of a modern world is a
+// live count, so a world sitting on one of them crosses back and forth: on a
+// small map the skip reported "2 cities at the urban stage" four times and "100
+// people living in towns" four times in ten presses, and each of those presses
+// ended on a milestone the player had already been shown. A stage the world has
+// reached once is still worth working toward when it comes undone, but reaching
+// it again is not news, so the skip carries on to something that is.
+function ensureCausalReached(world = W) {
+  if (world && !Array.isArray(world.causalReached)) world.causalReached = [];
+  return world?.causalReached || [];
+}
+function modernRecordReached(state) {
+  const key = state?.stopReason === "milestone" ? state.milestone?.key : "";
+  if (!key) return false;
+  const reached = ensureCausalReached();
+  if (reached.includes(key)) return false;
+  reached.push(key);
+  return true;
+}
+const restoreWorldDefaultsModernBase = restoreWorldDefaults;
+restoreWorldDefaults = function () {
+  restoreWorldDefaultsModernBase();
+  ensureCausalReached(W);
+};
 const makeCausalSkipStateModernBase = makeCausalSkipState;
 makeCausalSkipState = function (limitOverride = 0) {
   const state = makeCausalSkipStateModernBase(limitOverride);
   state.startPeople = modernLivingPeople();
   if (!(limitOverride > 0)) state.limit = Math.min(state.limit, MODERN_SKIP_MAX_TICKS);
+  const reached = ensureCausalReached();
+  for (const stage of state.pending) if (reached.includes(stage.key)) stage.quiet = true;
   return state;
 };
 // What a skip cost. The halting guard compares a skip against its own start, so
@@ -510,6 +536,7 @@ causalSkipResult = function (state) {
 const causalSkipStepModernBase = causalSkipStep;
 causalSkipStep = function (state) {
   const out = causalSkipStepModernBase(state);
+  if (state.done) modernRecordReached(state);
   // The concerted effort turns its hand to the objective twice a year rather
   // than once: the skip was given a shorter horizon, so it must do more within
   // it. The intervention on the half year does the rest of the work (41).
@@ -549,6 +576,7 @@ window.ALIFE_MODERN_DEBUG = Object.freeze({
   towers: (placeId) => towersWanted(W.settlements.find((s) => s.id === placeId)),
   offices: (placeId) => officesWanted(W.settlements.find((s) => s.id === placeId)),
   counts: () => ({ ...MODERN }),
+  reached: () => ensureCausalReached().slice(),
   gate: () => modernPeopleWanted(),
   people: () => modernPeople(),
   feed: (pushes = 1) => modernFeedTheEffort(pushes),
