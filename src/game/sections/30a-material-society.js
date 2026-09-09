@@ -3682,6 +3682,19 @@ function operateFacility(s, type, phase, material = -1) {
   setWorkAction(id, "craft", phase, site, material, b.id, tool?.entityId || 0);
   return { id, building: b };
 }
+// A town with ore lying by and a forge to reduce it in keeps the fuel that
+// smelt will need. The hearth burned the stores down to two and the kiln to
+// eight, so the woodpile never reached the eleven a smelt asks for, and a town
+// that had learned to work metal never worked any: the lesser fires now burn
+// only what stands above the smith's floor.
+const SMELT_FUEL_FLOOR = 14;
+function smeltingFuelFloor(s) {
+  return s.knownProcesses?.includes("metalworking") &&
+    (s.inventory[C.ORE] || 0) > 10 &&
+    placeHasFacility(s, "forge")
+    ? SMELT_FUEL_FLOOR
+    : 0;
+}
 function updateCivicProduction() {
   for (const s of W.settlements) {
     if (s.ruined) continue;
@@ -3731,7 +3744,7 @@ function updateCivicProduction() {
           }
         }
     }
-    if (placeHasFacility(s, "hearth") && s.inventory[C.FUEL] > 2 && W.tick % 64 === 0) {
+    if (placeHasFacility(s, "hearth") && s.inventory[C.FUEL] > 2 + smeltingFuelFloor(s) && W.tick % 64 === 0) {
       const operator = operateFacility(s, "hearth", "tending a bounded combustion bed", C.FUEL);
       if (operator) {
         const room = placeStorageRemaining(s),
@@ -3778,7 +3791,7 @@ function updateCivicProduction() {
     if (
       s.knownProcesses.includes("ceramics") &&
       s.inventory[C.MINERAL] > 10 &&
-      s.inventory[C.FUEL] > 8 &&
+      s.inventory[C.FUEL] > 8 + smeltingFuelFloor(s) &&
       operateFacility(s, "kiln", "firing a rigid ceramic matrix", C.MINERAL)
     ) {
       s.productionTemperature = 560;
