@@ -24,6 +24,8 @@ const MODERN_CITIES = 2,
   MODERN_PEOPLE = 100,
   MODERN_TOWER_PER_PEOPLE = 18,
   MODERN_OFFICE_PER_PEOPLE = 20,
+  MODERN_ROAD_STONE = 48,
+  MODERN_ROAD_PASSES = 4,
   MODERN_STAGE_KEYS = Object.freeze(["cities", "current", "skyline", "works", "road", "hundred"]),
   MODERN = { hedgerows: 0, hay: 0, scarecrows: 0, windmills: 0 };
 // Fixtures that test the ship itself may waive the modern world; play never does.
@@ -201,10 +203,30 @@ function modernPush(key, pushes) {
     return "works";
   }
   if (key === "road") {
-    // A polity that knows the craft lays a road; one that does not learns it first.
+    // A polity that knows the craft lays a road; one that does not learns it
+    // first, and two learn it at once rather than one. Paving spends stone from
+    // the two towns at the ends of the link and stops dead the moment neither
+    // can pay: a link of forty-three tiles stood at three for want of two
+    // stone. The effort brings the stone as well as the hands, and lays four
+    // passes where it laid one.
     const paver = W.factions.find((f) => f.stability > 0 && factionHasTech(f.id, "road_building") && polityTownsOf(f).length >= 2);
-    if (paver && typeof roadPassFor === "function") roadPassFor(paver, false, "road");
-    else causalPushResearch(towns[0], "road_building", pushes);
+    if (paver && typeof roadPassFor === "function") {
+      for (const town of polityTownsOf(paver)) {
+        const want = MODERN_ROAD_STONE - (town.inventory[C.MINERAL] || 0);
+        if (want > 0) {
+          town.inventory[C.MINERAL] = (town.inventory[C.MINERAL] || 0) + want;
+          causalPushInput(want);
+        }
+      }
+      for (let n = 0; n < MODERN_ROAD_PASSES; n++) roadPassFor(paver, false, "road");
+    } else {
+      let want = 2;
+      for (const town of towns) {
+        if (want <= 0) break;
+        if (town.factionId && factionHasTech(town.factionId, "road_building")) continue;
+        if (causalPushResearch(town, "road_building", pushes)) want--;
+      }
+    }
     return "road";
   }
   if (key === "hundred") {
