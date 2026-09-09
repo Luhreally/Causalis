@@ -122,6 +122,13 @@ const fixtureSource = String.raw`(() => {
   // tower and teaches that town to fly, not whichever town happens to lead.
   out.site = modern.site();
   if (out.site !== s.name) fail("the launch site is not the town with the tower: " + out.site + " vs " + s.name);
+  // The place does not move under the work when another town outgrows it.
+  const held = modern.siteId();
+  for (const id of W.activeIds) { const soc = W.components.social[id]; if (soc?.homePlaceKind === "settlement" && soc.homePlaceId === s.id) { soc.homePlaceId = b.id; } }
+  rebuildSpatialBins();
+  out.siteAfterGrowth = modern.site();
+  out.siteHeld = modern.siteId() === held;
+  if (!out.siteHeld) fail("the launch site moved when another town outgrew it: " + out.siteAfterGrowth);
   grant(s, "combustion", "computing");
   for (const town of W.settlements) { if (town.ruined) continue; town.knownProcesses = town.knownProcesses.filter((x) => x !== "starflight"); town.researchFocus = ""; }
   out.ascensionPush = causalPushToward({ key: "ascension", pushes: 2 });

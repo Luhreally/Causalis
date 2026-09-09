@@ -365,12 +365,24 @@ function modernLaunchSite() {
     (s.knownProcesses.includes("starflight") ? 4 : 0) +
     (modernGroundworkMissing(s).length ? 0 : 2) +
     ((s.stability || 0) >= 0.35 ? 1 : 0);
-  return towns
+  const best = towns
     .slice()
     .sort(
       (a, b) =>
         score(b) - score(a) || settlementPopulation(b) - settlementPopulation(a) || a.id - b.id,
     )[0];
+  // A ship leaves from one place, and which place must not move under it. Two
+  // cities of nine and twelve people traded the larger population back and
+  // forth on a battery-saver world, so a site chosen by size alone changed
+  // between presses: the effort taught one town the craft and raised the
+  // other's tower, and neither of them could fly. The world remembers the place
+  // it chose and keeps it until another is strictly better on its own merits,
+  // which size is not one of.
+  ensureCausalReached();
+  const held = towns.find((t) => t.id === W.causalLaunchSiteId);
+  if (held && score(held) >= score(best)) return held;
+  W.causalLaunchSiteId = best.id;
+  return best;
 }
 function modernLaunchPush(key, pushes) {
   const site = modernLaunchSite();
@@ -548,8 +560,10 @@ const MODERN_SKIP_MAX_TICKS = TICKS_PER_YEAR * 24;
 // reached once is still worth working toward when it comes undone, but reaching
 // it again is not news, so the skip carries on to something that is.
 function ensureCausalReached(world = W) {
-  if (world && !Array.isArray(world.causalReached)) world.causalReached = [];
-  return world?.causalReached || [];
+  if (!world) return [];
+  if (!Array.isArray(world.causalReached)) world.causalReached = [];
+  if (typeof world.causalLaunchSiteId !== "number") world.causalLaunchSiteId = 0;
+  return world.causalReached;
 }
 function modernRecordReached(state) {
   const key = state?.stopReason === "milestone" ? state.milestone?.key : "";
@@ -640,6 +654,7 @@ window.ALIFE_MODERN_DEBUG = Object.freeze({
   people: () => modernPeople(),
   feed: (pushes = 1) => modernFeedTheEffort(pushes),
   site: () => modernLaunchSite()?.name || null,
+  siteId: () => (ensureCausalReached(), W.causalLaunchSiteId || 0),
   launchPush: (key = "tower", pushes = 1) => modernLaunchPush(key, pushes),
   groundwork: (placeId = 0) =>
     modernGroundworkMissing(
