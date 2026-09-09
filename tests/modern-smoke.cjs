@@ -82,6 +82,16 @@ const fixtureSource = String.raw`(() => {
   if (out.shortfallAfter.length) fail("the modern world still falls short: " + out.shortfallAfter.join(","));
   out.shipModern = !!eras.launch(s.id, false);
   if (!out.shipModern) fail("no ship left the modern world");
+  // The effort sends the ship itself when nothing is missing, rather than
+  // leaving a world at the edge of its conditions to win a roll of the dice.
+  const shipsBefore = W.ascensions.slice();
+  W.ascensions.length = 0;
+  out.ascensionShortfall = modern.shortfall();
+  out.ascensionPushShip = causalPushToward({ key: "ascension", pushes: 3 });
+  out.shipFromPush = W.ascensions.length > 0;
+  if (!out.ascensionShortfall.length && !out.shipFromPush) fail("the ascension push sent no ship from a world with nothing missing");
+  W.ascensions.length = 0;
+  for (const a of shipsBefore) W.ascensions.push(a);
   W.roads.links = W.roads.links.filter((l) => l !== link);
   // Stone to the road: a polity that knows road building but holds no stone
   // paves nothing, and the road push brings the stone so the link advances.

@@ -385,6 +385,16 @@ function modernLaunchPush(key, pushes) {
       return modernSupply(site, "launch_tower", pushes) ? "tower" : null;
     // A town in disorder sends nobody anywhere.
     if ((site.stability || 0) < 0.4) site.stability = clamp((site.stability || 0) + 0.03, 0, 1);
+    // The world sends a ship on a roll of the dice, a chance in three every two
+    // years for each town that understands the craft. That is right for a world
+    // left to itself, and wrong for one the player is pressing: a small world
+    // can hold every condition for a few years at the very edge of them and
+    // slip back before it ever wins the roll. A battery-saver world did exactly
+    // that, standing with nothing missing, its tower complete and Starflight
+    // understood, for three presses running. When the place is ready and
+    // nothing is missing, the effort sends it. `launchShip` checks every
+    // condition again for itself, so this can only fire what was already due.
+    if (typeof launchShip === "function" && !modernShortfall().length) launchShip(site);
     return "ascension";
   }
   const missing = modernGroundworkMissing(site);
