@@ -2,7 +2,8 @@
 // and its launch tower still cannot send a ship until the world is modern (two
 // cities, current in three towns, three towers or offices, two factories, a
 // road, a hundred people); the shortfall names what is missing, the causal
-// push raises those things, the stage list carries them before Starflight,
+// push raises those things and brings the stone the road is paved with, the
+// stage list carries them before Starflight,
 // skylines want more towers and offices, and the countryside gains hedgerows,
 // scarecrows, and windmills.
 const fs = require("node:fs");
@@ -82,6 +83,22 @@ const fixtureSource = String.raw`(() => {
   out.shipModern = !!eras.launch(s.id, false);
   if (!out.shipModern) fail("no ship left the modern world");
   W.roads.links = W.roads.links.filter((l) => l !== link);
+  // Stone to the road: a polity that knows road building but holds no stone
+  // paves nothing, and the road push brings the stone so the link advances.
+  grant(s, "road_building");
+  f.stability = Math.max(f.stability || 0, 0.5);
+  for (const town of [s, b, c]) town.inventory[C.MINERAL] = 0;
+  ensureRoads();
+  const pavedTotal = () => W.roads.links.filter((l) => l.factionId === f.id && l.kind === "road" && !l.abandoned).reduce((n, l) => n + l.paved, 0);
+  out.pavedWithoutStone = roadPassFor(f, false, "road").road;
+  if (out.pavedWithoutStone > 0) fail("a polity with no stone paved " + out.pavedWithoutStone + " tiles");
+  if (!W.roads.links.some((l) => l.factionId === f.id && l.kind === "road" && !l.abandoned)) fail("no road link was started between the towns");
+  const pavedBefore = pavedTotal(), inputBefore = W.conservation.playerInput;
+  out.roadPush = modern.push("road");
+  out.pavedByPush = pavedTotal() - pavedBefore;
+  out.roadStoneBooked = W.conservation.playerInput - inputBefore;
+  if (!(out.roadStoneBooked > 0)) fail("the road push brought no stone: " + out.roadStoneBooked);
+  if (!(out.pavedByPush > 0)) fail("the road push laid no stone: " + out.pavedByPush);
   // Countryside: hedgerows, scarecrows, and windmills over the farms.
   for (let n = 0; n < 4; n++) complete(s, "farm");
   grant(s, "windmills");
