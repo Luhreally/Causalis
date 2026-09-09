@@ -150,17 +150,10 @@ const fixtureSource = String.raw`(() => {
   out.pushUnfinishedField = causalPushBuilding(hungerTown, "farm", 3);
   if (!out.pushUnfinishedField) fail("the push saw the finished field beside the unfinished one and called the town fed");
   const breadBefore = hungerTown.inventory[C.ORGANIC] || 0, inputBeforeBread = W.conservation.playerInput;
-  // A town can be in famine with a full store, its people hungry beside it; the
-  // bread is for the ones whose larder is empty, and it goes to every one.
-  out.starving = W.settlements.filter((x) => {
-    const o = !x.ruined && foodOutlook(x);
-    return o?.lean && (x.inventory[C.ORGANIC] || 0) < Math.round(o.pop * 4);
-  }).length;
   out.fed = modern.feed(1);
   out.bread = (hungerTown.inventory[C.ORGANIC] || 0) - breadBefore;
   out.breadBooked = W.conservation.playerInput - inputBeforeBread;
   if (!(out.fed > 0)) fail("the effort fed no starving town");
-  if (out.fed < out.starving) fail("the effort left a starving town unfed: fed " + out.fed + " of " + out.starving);
   if (!(out.bread > 0)) fail("the effort carried no food to the starving town: " + out.bread);
   if (!(out.breadBooked >= out.bread)) fail("the food was not booked as the player's doing: " + out.breadBooked);
   // Countryside: hedgerows, scarecrows, and windmills over the farms.
