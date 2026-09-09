@@ -263,17 +263,25 @@ function modernPush(key, pushes) {
 // holding a surplus to send. The objective waits on hands that are not there
 // while the world shrinks under the skip. The road got its stone; the two
 // hungriest towns get their bread the same way, booked as the player's doing.
-const MODERN_FED_TOWNS = 2,
-  MODERN_RATION = 4;
+const MODERN_RATION = 4;
 function modernFeedTheEffort(pushes) {
   if (typeof foodOutlook !== "function") return 0;
+  // Lean, not only famine. A town reads famine when two of five of its people
+  // are hungry; a world can be half hungry and starving to death with only two
+  // or three towns over that line. On the world this was measured on, energy
+  // depletion was the first cause of death in every late press, sixty-five of a
+  // hundred and fifty-six people were hungry, and three towns read famine.
   const starving = worldTowns()
     .map((s) => ({ s, outlook: foodOutlook(s) }))
-    .filter((x) => x.outlook?.famine)
+    .filter((x) => x.outlook?.lean)
     .sort((a, b) => b.outlook.hungry - a.outlook.hungry || a.s.id - b.s.id);
+  // Every town in famine, not the two hungriest: on one world five towns were
+  // lean and four in famine with seventy of a hundred and seventy-eight people
+  // hungry, and feeding two of them left the rest to starve while the effort
+  // spent its whole horizon and the world halved. The effort works on every
+  // town a goal needs; hunger is no different.
   let fed = 0;
   for (const { s, outlook } of starving) {
-    if (fed >= MODERN_FED_TOWNS) break;
     const want = Math.round(outlook.pop * MODERN_RATION) - (s.inventory[C.ORGANIC] || 0);
     if (want <= 0) continue;
     s.inventory[C.ORGANIC] += want;
