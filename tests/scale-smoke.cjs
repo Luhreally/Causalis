@@ -14,6 +14,11 @@ const fixtureSource = String.raw`(() => {
   if (!(out.scale < 1)) fail("a battery map does not read as a small world: " + out.scale);
   if (!(out.gate.local < 24 && out.gate.local >= 8 && out.gate.network < 32 && out.gate.network >= 12)) fail("the urban gate did not scale down: " + JSON.stringify(out.gate));
   if (out.settlerMinimum !== 12) fail("the settler minimum changed on a small world: " + out.settlerMinimum);
+  // The people a modern world needs scale with the map too, or a battery world
+  // could never be modern and its ship could never leave.
+  out.modernGate = window.ALIFE_MODERN_DEBUG.gate();
+  if (!(out.modernGate < 100 && out.modernGate >= 24)) fail("the modern people gate did not scale down: " + out.modernGate);
+  if (!window.ALIFE_MODERN_DEBUG.stages().some((x) => x.label === out.modernGate + " people living in towns")) fail("the skip's stage does not carry the scaled gate: " + JSON.stringify(window.ALIFE_MODERN_DEBUG.stages().map((x) => x.label)));
   let settlement = null;
   for (let attempt = 0; attempt < 4 && !settlement; attempt++) {
     for (let i = 0; i < 160; i++) simTick();
@@ -74,6 +79,9 @@ game.createTestWorld({ seed: "x3", size: "standard" });
 const gate = sandbox.window.ALIFE_HORIZON_DEBUG.gate();
 if (gate.local !== 24 || gate.network !== 32) failures.push("a standard world changed its urban gate: " + JSON.stringify(gate));
 result.standardGate = gate;
+const modernGate = sandbox.window.ALIFE_MODERN_DEBUG.gate();
+if (modernGate !== 100) failures.push("a standard world changed the people a modern world needs: " + modernGate);
+result.standardModernGate = modernGate;
 console.log(JSON.stringify({ ok: !failures.length, failures, result }, null, 2));
 if (failures.length) process.exitCode = 1;
 `;

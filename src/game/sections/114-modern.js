@@ -22,6 +22,7 @@ const MODERN_CITIES = 2,
   MODERN_SKYLINE = 3,
   MODERN_WORKS = 2,
   MODERN_PEOPLE = 100,
+  MODERN_PEOPLE_FLOOR = 24,
   MODERN_TOWER_PER_PEOPLE = 18,
   MODERN_OFFICE_PER_PEOPLE = 20,
   MODERN_ROAD_STONE = 48,
@@ -55,6 +56,18 @@ function modernLink() {
 function modernPeople() {
   return worldTowns().reduce((n, s) => n + settlementPopulation(s), 0);
 }
+// A hundred people in towns is a hundred on a standard map. A battery-saver
+// world is a sixth of that area, and its towns held twenty-three people at year
+// sixty-five, so it could never be a modern world and its ship could never
+// leave. The gate scales with the map the way the urban gate does (84). It also
+// stops a world sitting on the boundary from flickering across it: on a small
+// map the skip reported "100 people living in towns" four times in ten presses
+// as the count crossed back and forth, and spent those presses on a milestone
+// it had already passed.
+function modernPeopleWanted() {
+  const k = typeof smallWorldFactor === "function" ? smallWorldFactor() : 1;
+  return Math.max(MODERN_PEOPLE_FLOOR, Math.round(MODERN_PEOPLE * k));
+}
 function modernShortfall() {
   const missing = [];
   if (modernCities().length < MODERN_CITIES) missing.push(`${MODERN_CITIES} cities at the urban stage`);
@@ -62,7 +75,8 @@ function modernShortfall() {
   if (modernCount(["tower", "office"]) < MODERN_SKYLINE) missing.push(`${MODERN_SKYLINE} tower blocks or offices`);
   if (modernCount(["factory"]) < MODERN_WORKS) missing.push(`${MODERN_WORKS} working factories`);
   if (!modernLink()) missing.push("a paved road or rail between two towns");
-  if (modernPeople() < MODERN_PEOPLE) missing.push(`${MODERN_PEOPLE} people living in towns`);
+  if (modernPeople() < modernPeopleWanted())
+    missing.push(`${modernPeopleWanted()} people living in towns`);
   return missing;
 }
 function polityOfPlace(place) {
@@ -97,7 +111,7 @@ function modernStages() {
     { key: "skyline", label: `${MODERN_SKYLINE} tower blocks or offices`, done: () => modernCount(["tower", "office"]) >= MODERN_SKYLINE },
     { key: "works", label: `${MODERN_WORKS} working factories`, done: () => modernCount(["factory"]) >= MODERN_WORKS },
     { key: "road", label: "a paved road or rail between two towns", done: () => modernLink() },
-    { key: "hundred", label: `${MODERN_PEOPLE} people living in towns`, done: () => modernPeople() >= MODERN_PEOPLE },
+    { key: "hundred", label: `${modernPeopleWanted()} people living in towns`, done: () => modernPeople() >= modernPeopleWanted() },
   ];
 }
 const causalSkipMicroStagesModernBase = causalSkipMicroStages;
@@ -531,6 +545,8 @@ window.ALIFE_MODERN_DEBUG = Object.freeze({
   towers: (placeId) => towersWanted(W.settlements.find((s) => s.id === placeId)),
   offices: (placeId) => officesWanted(W.settlements.find((s) => s.id === placeId)),
   counts: () => ({ ...MODERN }),
+  gate: () => modernPeopleWanted(),
+  people: () => modernPeople(),
   feed: (pushes = 1) => modernFeedTheEffort(pushes),
   site: () => modernLaunchSite()?.name || null,
   launchPush: (key = "tower", pushes = 1) => modernLaunchPush(key, pushes),
