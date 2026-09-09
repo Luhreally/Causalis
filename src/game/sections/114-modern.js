@@ -239,11 +239,12 @@ function modernPush(key, pushes) {
   return null;
 }
 // A concerted effort that leaves its people hungry reaches nothing. A town in
-// famine keeps its fields and its stores and still holds nothing in them: half
-// its people are hungry, no neighbour has a surplus to send, and the objective
-// waits on hands that are not there while the world shrinks under the skip. The
-// road got its stone; the two hungriest towns get their bread the same way, and
-// it is booked as the player's doing.
+// famine keeps its fields and its stores and still holds nothing in them: on
+// one measured world every lean town held four or five finished fields, two
+// stores, and an empty larder, with half its people hungry and no neighbour
+// holding a surplus to send. The objective waits on hands that are not there
+// while the world shrinks under the skip. The road got its stone; the two
+// hungriest towns get their bread the same way, booked as the player's doing.
 const MODERN_FED_TOWNS = 2,
   MODERN_RATION = 4;
 function modernFeedTheEffort(pushes) {
@@ -271,9 +272,11 @@ causalPushToward = function (target = causalTarget()) {
     target.pushes = (target.pushes || 0) + 1;
     return modernPush(target.key, target.pushes);
   }
-  const acted = causalPushTowardModernBase(target);
-  if (target?.key === "tower") modernGroundworkPush(target);
-  return acted;
+  if (target && (target.key === "tower" || target.key === "ascension")) {
+    target.pushes = (target.pushes || 0) + 1;
+    return modernLaunchPush(target.key, target.pushes);
+  }
+  return causalPushTowardModernBase(target);
 };
 // A launch tower waits on six understandings, and the objective sought them one
 // at a time: combustion, and then, years later, computing, while the rest of the
@@ -285,20 +288,66 @@ function modernGroundworkMissing(place) {
   if (!place?.knownProcesses || typeof STARFLIGHT_GROUNDWORK === "undefined") return [];
   return STARFLIGHT_GROUNDWORK.filter((t) => !place.knownProcesses.includes(t));
 }
-function modernGroundworkPush(target) {
-  const lead = typeof causalLeadSettlement === "function" ? causalLeadSettlement() : null,
-    missing = modernGroundworkMissing(lead);
-  if (missing.length < 2) return 0;
-  const pushes = target?.pushes || 1,
-    f = W.factions.find((x) => x.id === lead.factionId) || null;
-  let n = 1;
-  for (const town of polityTownsOf(f)) {
-    if (n >= missing.length) break;
-    if (town === lead) continue;
-    if (causalPushResearch(town, missing[n], pushes)) n++;
+// A ship leaves from one place. The stage list asks the world for a launch
+// tower and, separately, for Starflight, and the effort raised the tower
+// wherever it happened to be leading and taught the craft to whoever led next,
+// so the tower and the understanding could stand in two different towns and
+// neither of them could fly. The effort now picks the place a ship would leave
+// from and gives it both.
+function modernLaunchSite() {
+  const towns = worldTowns();
+  if (!towns.length) return null;
+  // Only a city sends a ship away, so a city outranks a village that happens to
+  // hold the tower: the effort raises a second tower in the city rather than
+  // wait on a village that may never be one.
+  const score = (s) =>
+    (typeof cityStage === "function" && cityStage(s) ? 16 : 0) +
+    completedBuildings(s, "launch_tower").length * 8 +
+    (s.knownProcesses.includes("starflight") ? 4 : 0) +
+    (modernGroundworkMissing(s).length ? 0 : 2) +
+    ((s.stability || 0) >= 0.35 ? 1 : 0);
+  return towns
+    .slice()
+    .sort(
+      (a, b) =>
+        score(b) - score(a) || settlementPopulation(b) - settlementPopulation(a) || a.id - b.id,
+    )[0];
+}
+function modernLaunchPush(key, pushes) {
+  const site = modernLaunchSite();
+  if (!site) return null;
+  if (key === "ascension") {
+    if (!site.knownProcesses.includes("starflight"))
+      return causalPushResearch(site, "starflight", pushes) ? "research" : null;
+    // The world's tower may stand in a village that will never be a city, and
+    // the stage list counts a tower anywhere as a tower. The place the ship
+    // leaves from needs its own.
+    if (!completedBuildings(site, "launch_tower").length)
+      return modernSupply(site, "launch_tower", pushes) ? "tower" : null;
+    // A town in disorder sends nobody anywhere.
+    if ((site.stability || 0) < 0.4) site.stability = clamp((site.stability || 0) + 0.03, 0, 1);
+    return "ascension";
   }
-  for (let k = missing.length - 1; k >= 0; k--) causalPushResearch(lead, missing[k], pushes);
-  return n;
+  const missing = modernGroundworkMissing(site);
+  if (missing.length) {
+    // The polity's other towns take up what the site is not working on, and a
+    // polity teaches what its towns learn.
+    const f = W.factions.find((x) => x.id === site.factionId) || null;
+    let n = 1;
+    for (const town of polityTownsOf(f)) {
+      if (n >= missing.length) break;
+      if (town === site) continue;
+      if (causalPushResearch(town, missing[n], pushes)) n++;
+    }
+    for (let k = missing.length - 1; k >= 0; k--) causalPushResearch(site, missing[k], pushes);
+    return "research";
+  }
+  // A launch tower wants its stone and its timber like any other block, and a
+  // push hands over only twenty-four of a common material at a time; the tower
+  // stage spent nine years fetching them. It is supplied the way a tower block
+  // and a factory are, so from the third push the work face gets the whole of
+  // what it lacks.
+  return modernSupply(site, "launch_tower", pushes) ? "tower" : null;
 }
 // ── Denser skylines ──────────────────────────────────────────────────────────
 const towersWantedModernBase = towersWanted;
@@ -483,6 +532,8 @@ window.ALIFE_MODERN_DEBUG = Object.freeze({
   offices: (placeId) => officesWanted(W.settlements.find((s) => s.id === placeId)),
   counts: () => ({ ...MODERN }),
   feed: (pushes = 1) => modernFeedTheEffort(pushes),
+  site: () => modernLaunchSite()?.name || null,
+  launchPush: (key = "tower", pushes = 1) => modernLaunchPush(key, pushes),
   groundwork: (placeId = 0) =>
     modernGroundworkMissing(
       placeId

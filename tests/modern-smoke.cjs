@@ -102,15 +102,33 @@ const fixtureSource = String.raw`(() => {
   // The groundwork for a tower is sought side by side: a world whose lead city
   // lacks two of the understandings sets more than one town to work on them.
   for (const town of W.settlements) { if (town.ruined) continue; town.knownProcesses = town.knownProcesses.filter((x) => x !== "combustion" && x !== "computing"); town.researchFocus = ""; }
-  out.groundwork = modern.groundwork();
-  if (!(out.groundwork.length >= 2)) fail("the lead city lacks fewer than two understandings: " + out.groundwork.join(","));
+  out.groundwork = modern.groundwork(modernLaunchSite()?.id || 0);
+  if (!(out.groundwork.length >= 2)) fail("the launch site lacks fewer than two understandings: " + out.groundwork.join(","));
   out.towerPush = causalPushToward({ key: "tower", pushes: 2 });
   out.groundworkWorking = W.settlements.filter((x) => !x.ruined && x.researchFocus).length;
   if (!(out.groundworkWorking >= 2)) fail("the tower push set " + out.groundworkWorking + " town to work alone");
   out.groundworkLead = push.lead();
-  // The effort feeds the hands it works: a lean town with one finished field
-  // and a second one planned gets the planned one supplied, where the push used
-  // to see the finished field beside it and call the town fed.
+  // A ship leaves from one place: the effort picks the town that holds the
+  // tower and teaches that town to fly, not whichever town happens to lead.
+  out.site = modern.site();
+  if (out.site !== s.name) fail("the launch site is not the town with the tower: " + out.site + " vs " + s.name);
+  grant(s, "combustion", "computing");
+  for (const town of W.settlements) { if (town.ruined) continue; town.knownProcesses = town.knownProcesses.filter((x) => x !== "starflight"); town.researchFocus = ""; }
+  out.ascensionPush = causalPushToward({ key: "ascension", pushes: 2 });
+  out.ascensionFocus = s.researchFocus || "";
+  if (out.ascensionPush !== "research") fail("the ascension push pushed no research: " + out.ascensionPush);
+  if (out.ascensionFocus !== "starflight") fail("the ascension push did not set the launch site to work on Starflight: " + out.ascensionFocus);
+  // A site that knows how to fly but holds no tower gets one raised, even
+  // though a tower stands elsewhere in the world.
+  grant(s, "starflight");
+  for (const x of W.buildings) if (!x.ruined && x.placeKind === "settlement" && x.placeId === s.id && x.type === "launch_tower") x.ruined = true;
+  out.towerlessPush = causalPushToward({ key: "ascension", pushes: 3 });
+  out.towerRaised = W.buildings.filter((x) => !x.ruined && x.placeKind === "settlement" && x.placeId === s.id && x.type === "launch_tower").length;
+  if (out.towerlessPush !== "tower") fail("the ascension push raised no tower for a site without one: " + out.towerlessPush);
+  if (!(out.towerRaised > 0)) fail("no launch tower was planned at the launch site");
+  // The effort feeds the hands it works: a town in famine gets bread carried to
+  // it, and its second field, half raised beside a finished one, gets supplied
+  // where the push used to see the finished one and call the town served.
   const hungerTown = c;
   // Clear the town's fields so the finished one stands first in the world's
   // list and the planned one after it, which is the order that hid the second.
