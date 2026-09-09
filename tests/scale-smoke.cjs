@@ -16,8 +16,17 @@ const fixtureSource = String.raw`(() => {
   if (out.settlerMinimum !== 12) fail("the settler minimum changed on a small world: " + out.settlerMinimum);
   // The people a modern world needs scale with the map too, or a battery world
   // could never be modern and its ship could never leave.
+  // The floor is two cities' worth at this world's own urban gate, never a
+  // number of its own: ten a city here, so twenty.
   out.modernGate = window.ALIFE_MODERN_DEBUG.gate();
-  if (!(out.modernGate < 100 && out.modernGate >= 24)) fail("the modern people gate did not scale down: " + out.modernGate);
+  out.modernFloor = hz.gate().local * window.ALIFE_MODERN_DEBUG.wants().cities;
+  if (!(out.modernGate < 100)) fail("the modern people gate did not scale down: " + out.modernGate);
+  if (out.modernGate !== out.modernFloor) fail("the people gate is not two cities' worth of this world: " + out.modernGate + " vs " + out.modernFloor);
+  out.modernWants = window.ALIFE_MODERN_DEBUG.wants();
+  if (!(out.modernWants.share < 0.25)) fail("a battery map is not read as a small share of a standard one: " + out.modernWants.share);
+  if (out.modernWants.works !== 1) fail("a battery world still wants more than one factory: " + out.modernWants.works);
+  if (out.modernWants.skyline !== 2 || out.modernWants.electric !== 2) fail("the skyline and current counts did not fall to their floors: " + JSON.stringify(out.modernWants));
+  if (out.modernWants.cities !== 2) fail("a world that leaves for the stars should still want two cities: " + out.modernWants.cities);
   if (!window.ALIFE_MODERN_DEBUG.stages().some((x) => x.label === out.modernGate + " people living in towns")) fail("the skip's stage does not carry the scaled gate: " + JSON.stringify(window.ALIFE_MODERN_DEBUG.stages().map((x) => x.label)));
   let settlement = null;
   for (let attempt = 0; attempt < 4 && !settlement; attempt++) {
@@ -82,6 +91,10 @@ result.standardGate = gate;
 const modernGate = sandbox.window.ALIFE_MODERN_DEBUG.gate();
 if (modernGate !== 100) failures.push("a standard world changed the people a modern world needs: " + modernGate);
 result.standardModernGate = modernGate;
+const standardWants = sandbox.window.ALIFE_MODERN_DEBUG.wants();
+result.standardWants = standardWants;
+if (standardWants.cities !== 2 || standardWants.electric !== 3 || standardWants.skyline !== 3 || standardWants.works !== 2)
+  failures.push("a standard world changed what a modern world asks of it: " + JSON.stringify(standardWants));
 console.log(JSON.stringify({ ok: !failures.length, failures, result }, null, 2));
 if (failures.length) process.exitCode = 1;
 `;

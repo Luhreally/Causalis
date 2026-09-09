@@ -22,7 +22,11 @@ const MODERN_CITIES = 2,
   MODERN_SKYLINE = 3,
   MODERN_WORKS = 2,
   MODERN_PEOPLE = 100,
-  MODERN_PEOPLE_FLOOR = 24,
+  MODERN_CITIES_FLOOR = 2,
+  MODERN_ELECTRIC_FLOOR = 2,
+  MODERN_SKYLINE_FLOOR = 2,
+  MODERN_WORKS_FLOOR = 1,
+  MODERN_PEOPLE_MIN = 12,
   MODERN_TOWER_PER_PEOPLE = 18,
   MODERN_OFFICE_PER_PEOPLE = 20,
   MODERN_ROAD_STONE = 48,
@@ -64,20 +68,57 @@ function modernPeople() {
 // map the skip reported "100 people living in towns" four times in ten presses
 // as the count crossed back and forth, and spent those presses on a milestone
 // it had already passed.
-function modernPeopleWanted() {
+// What a modern world looks like depends on how much world there is. A standard
+// map is the measure: every count falls with the map's area, because people and
+// the towns they fill live on land and land is what shrinks, and each holds at
+// the floor that keeps its meaning. Two cities, because one city is a one-city
+// world. Current in two towns and two blocks, because one of either is not a
+// grid or a skyline. One working factory, because one is industry and none is
+// not. A battery-saver world is a sixth of a standard map: it reached two
+// cities, current in three towns and three tower blocks by year ninety-nine
+// with forty people alive, and then died asking for two factories it had no
+// hands to staff.
+function modernWorldShare() {
   const k = typeof smallWorldFactor === "function" ? smallWorldFactor() : 1;
-  // People live on land, and land is what shrank, so the gate falls with the
-  // map's area and not with its edge. Scaling by the edge left a battery world
-  // asking for forty, and over a hundred and seven years and eighteen presses
-  // its towns held between sixteen and thirty-four.
-  return Math.max(MODERN_PEOPLE_FLOOR, Math.round(MODERN_PEOPLE * k * k));
+  return k * k;
+}
+function modernWant(full, floor) {
+  return Math.max(floor, Math.round(full * modernWorldShare()));
+}
+function modernCitiesWanted() {
+  return modernWant(MODERN_CITIES, MODERN_CITIES_FLOOR);
+}
+function modernElectricWanted() {
+  return modernWant(MODERN_ELECTRIC_TOWNS, MODERN_ELECTRIC_FLOOR);
+}
+function modernSkylineWanted() {
+  return modernWant(MODERN_SKYLINE, MODERN_SKYLINE_FLOOR);
+}
+function modernWorksWanted() {
+  return modernWant(MODERN_WORKS, MODERN_WORKS_FLOOR);
+}
+// The floor under the people is not a number picked out of the air. A world
+// that has to show two cities has to hold the people to fill them, so the
+// fewest a modern world can ask for is two cities' worth at that world's own
+// urban gate (84). On a battery-saver world that is ten a city, so twenty; on a
+// standard map twenty-four a city, so forty-eight, which the hundred covers.
+function modernPeopleFloor() {
+  const gate = typeof urbanGate === "function" ? urbanGate() : null;
+  return Math.max(MODERN_PEOPLE_MIN, (gate?.local || 24) * modernCitiesWanted());
+}
+function modernPeopleWanted() {
+  return modernWant(MODERN_PEOPLE, modernPeopleFloor());
 }
 function modernShortfall() {
   const missing = [];
-  if (modernCities().length < MODERN_CITIES) missing.push(`${MODERN_CITIES} cities at the urban stage`);
-  if (modernElectricTowns() < MODERN_ELECTRIC_TOWNS) missing.push(`current in ${MODERN_ELECTRIC_TOWNS} towns`);
-  if (modernCount(["tower", "office"]) < MODERN_SKYLINE) missing.push(`${MODERN_SKYLINE} tower blocks or offices`);
-  if (modernCount(["factory"]) < MODERN_WORKS) missing.push(`${MODERN_WORKS} working factories`);
+  if (modernCities().length < modernCitiesWanted())
+    missing.push(`${modernCitiesWanted()} cities at the urban stage`);
+  if (modernElectricTowns() < modernElectricWanted())
+    missing.push(`current in ${modernElectricWanted()} towns`);
+  if (modernCount(["tower", "office"]) < modernSkylineWanted())
+    missing.push(`${modernSkylineWanted()} tower blocks or offices`);
+  if (modernCount(["factory"]) < modernWorksWanted())
+    missing.push(`${modernWorksWanted()} working factories`);
   if (!modernLink()) missing.push("a paved road or rail between two towns");
   if (modernPeople() < modernPeopleWanted())
     missing.push(`${modernPeopleWanted()} people living in towns`);
@@ -110,10 +151,10 @@ orbitalShortfall = function () {
 // ── The Causal skip builds the modern world first ────────────────────────────
 function modernStages() {
   return [
-    { key: "cities", label: `${MODERN_CITIES} cities at the urban stage`, done: () => modernCities().length >= MODERN_CITIES },
-    { key: "current", label: `current in ${MODERN_ELECTRIC_TOWNS} towns`, done: () => modernElectricTowns() >= MODERN_ELECTRIC_TOWNS },
-    { key: "skyline", label: `${MODERN_SKYLINE} tower blocks or offices`, done: () => modernCount(["tower", "office"]) >= MODERN_SKYLINE },
-    { key: "works", label: `${MODERN_WORKS} working factories`, done: () => modernCount(["factory"]) >= MODERN_WORKS },
+    { key: "cities", label: `${modernCitiesWanted()} cities at the urban stage`, done: () => modernCities().length >= modernCitiesWanted() },
+    { key: "current", label: `current in ${modernElectricWanted()} towns`, done: () => modernElectricTowns() >= modernElectricWanted() },
+    { key: "skyline", label: `${modernSkylineWanted()} tower blocks or offices`, done: () => modernCount(["tower", "office"]) >= modernSkylineWanted() },
+    { key: "works", label: `${modernWorksWanted()} working factories`, done: () => modernCount(["factory"]) >= modernWorksWanted() },
     { key: "road", label: "a paved road or rail between two towns", done: () => modernLink() },
     { key: "hundred", label: `${modernPeopleWanted()} people living in towns`, done: () => modernPeople() >= modernPeopleWanted() },
   ];
@@ -182,7 +223,7 @@ function modernPush(key, pushes) {
     // Current is wanted in three towns, so three towns learn it at once: a
     // concerted effort works on every town the goal still needs, not on one at
     // a time while the others wait a decade for their turn.
-    let want = MODERN_ELECTRIC_TOWNS - modernElectricTowns();
+    let want = modernElectricWanted() - modernElectricTowns();
     for (const town of towns) {
       if (want <= 0) break;
       if (town.knownProcesses.includes("electricity")) continue;
@@ -192,7 +233,7 @@ function modernPush(key, pushes) {
   }
   if (key === "skyline") {
     const list = (cities.length ? cities : towns).slice().sort((a, b) => completedBuildings(a, "tower").length + completedBuildings(a, "office").length - completedBuildings(b, "tower").length - completedBuildings(b, "office").length || a.id - b.id),
-      want = Math.max(1, MODERN_SKYLINE - modernCount(["tower", "office"]));
+      want = Math.max(1, modernSkylineWanted() - modernCount(["tower", "office"]));
     // Every block the skyline still wants is raised at once, sharing the cities
     // and doubling back on the first when there are fewer cities than blocks.
     for (let n = 0; n < want; n++) {
@@ -210,7 +251,7 @@ function modernPush(key, pushes) {
   }
   if (key === "works") {
     const list = (cities.length ? cities : towns).slice().sort((a, b) => completedBuildings(a, "factory").length - completedBuildings(b, "factory").length || a.id - b.id),
-      want = Math.max(1, MODERN_WORKS - modernCount(["factory"]));
+      want = Math.max(1, modernWorksWanted() - modernCount(["factory"]));
     for (let n = 0; n < want; n++) {
       const city = list[n % list.length];
       if (!city) break;
@@ -578,6 +619,14 @@ window.ALIFE_MODERN_DEBUG = Object.freeze({
   counts: () => ({ ...MODERN }),
   reached: () => ensureCausalReached().slice(),
   gate: () => modernPeopleWanted(),
+  wants: () => ({
+    share: +modernWorldShare().toFixed(3),
+    cities: modernCitiesWanted(),
+    electric: modernElectricWanted(),
+    skyline: modernSkylineWanted(),
+    works: modernWorksWanted(),
+    people: modernPeopleWanted(),
+  }),
   people: () => modernPeople(),
   feed: (pushes = 1) => modernFeedTheEffort(pushes),
   site: () => modernLaunchSite()?.name || null,
