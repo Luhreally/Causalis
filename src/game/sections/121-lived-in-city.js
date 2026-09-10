@@ -2,6 +2,8 @@
 // A resident used to choose the nearest shelter on every return, while the
 // renderer invented a different home. Keep one tenancy in the world instead.
 const HABITATION_TYPES = new Set(["shelter", "tenement", "tower"]);
+// How often a grown child left home, and how often there was nowhere to go.
+const HABITATION = { leftHome: 0, stayedHome: 0 };
 for (const type of ["tenement", "tower", "office"]) INTERIOR_BUILDING_TYPES.add(type);
 function habitationBeds(b) {
   return b && b.complete && !b.ruined && !b.abandoned && HABITATION_TYPES.has(b.type)
@@ -17,18 +19,44 @@ function habitationResidents(town) {
     W.components.social[id]?.homePlaceKind === "settlement" && W.components.social[id]?.homePlaceId === town.id)
     .sort((a, b) => a - b);
 }
+// A grown child leaves home when there is a home to leave into. In a town of
+// masonry and law that is rare, so the household is the whole line under one
+// roof; in a city with current and a surplus of beds it is ordinary, and the
+// household narrows to a couple and the children who cannot yet keep
+// themselves. Nothing forces it either way — the beds decide, and the beds
+// come with the city.
+function habitationSpareBeds(town) {
+  let beds = 0;
+  for (const b of W.buildings)
+    if (b.placeKind === "settlement" && b.placeId === town.id) beds += habitationBeds(b);
+  return beds - habitationResidents(town).length;
+}
 function habitationFamilies(town, residents) {
   if (!cityKnows(town, "masonry", "governance")) return householdGroups(residents);
-  // Grown children can start a household of their own when the city has rooms.
+  const modern = cityKnows(town, "electricity") || cityKnows(town, "computing");
   // Partners and dependent children stay together; kinship is never erased.
   const ids = new Set(residents), used = new Set(), groups = [];
+  let rooms = modern ? Math.max(0, habitationSpareBeds(town)) : 0;
   for (const id of residents) {
     if (used.has(id) || !isAdultPerson(id)) continue;
     const group = [id], partner = W.components.social[id]?.partnerId;
     if (ids.has(partner) && !used.has(partner) && partner !== id) group.push(partner);
     for (const parent of group.slice())
-      for (const child of W.components.identity[parent]?.children || [])
-        if (ids.has(child) && !used.has(child) && !isAdultPerson(child) && !group.includes(child)) group.push(child);
+      for (const child of W.components.identity[parent]?.children || []) {
+        if (!ids.has(child) || used.has(child) || group.includes(child)) continue;
+        if (!isAdultPerson(child)) {
+          group.push(child);
+          continue;
+        }
+        // Grown, and the city has a bed spare: a household of their own.
+        if (rooms > 0) {
+          rooms--;
+          HABITATION.leftHome = (HABITATION.leftHome || 0) + 1;
+          continue;
+        }
+        group.push(child);
+        HABITATION.stayedHome = (HABITATION.stayedHome || 0) + 1;
+      }
     group.forEach((x) => used.add(x));
     groups.push(group);
   }
@@ -234,4 +262,6 @@ window.ALIFE_HABITATION_DEBUG = Object.freeze({
   update: () => { for (const s of W.settlements) if (!s.ruined) habitationAccounts(s, updateHabitationTown(s)); },
   home: (id) => habitationHome(id)?.id || 0,
   homes: () => W.buildings.filter((b) => habitationBeds(b)).map((b) => ({ id: b.id, capacity: habitationBeds(b), ...b.tenancy })),
+  families: () => ({ ...HABITATION }),
+  spare: (placeId) => habitationSpareBeds(W.settlements.find((s) => s.id === placeId)),
 });

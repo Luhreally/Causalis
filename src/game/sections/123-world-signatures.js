@@ -34,6 +34,15 @@ function worldDesignSignature() {
     boughDroop: r.range(-0.05, 0.28),
     canopyLift: r.range(0.12, 0.42),
     vehicleGrammar: earth ? "classic" : wet > 0.65 ? "pod" : (t.ridgeWeight || 0) > 0.24 ? "crawler" : r.next() < 0.5 ? "wedge" : "tandem",
+    // A machine is built for the ground it crosses. Broken country wants
+    // clearance and a short wheelbase; open plains want length; a wet world
+    // wants a sealed cabin and a cold one wants small glass. These come from
+    // the terrain the world was actually generated with, not from the die, so
+    // the cars of a ridged world look like each other and unlike a plain's.
+    roughness: clamp((t.ridgeWeight || 0.15) / 0.35, 0, 1.4),
+    openness: clamp((t.continentScale || 30) / 46, 0.25, 1.4),
+    chill: clamp(1 - ((t.baseTemperature || 14) + 12) / 52, 0, 1),
+    terracing: clamp((t.terraceLevels || 0) / 6, 0, 1),
   });
   signatureWorldCache = { world: W, value };
   return value;
@@ -45,12 +54,23 @@ function signatureCarModel(id = 0, hue = 30, truck = false) {
     profile = truck ? 4 : (world.carProfile + r.int(3)) % 4;
   return {
     profile: ["saloon", "fastback", "compact", "estate", "utility"][profile],
-    length: (profile === 2 ? 1.45 : profile === 4 ? 2.2 : 1.8) * world.wheelbase * r.range(0.93, 1.07),
-    height: (profile === 1 ? 0.42 : profile === 3 ? 0.63 : 0.53) * r.range(0.9, 1.13),
-    wheel: world.clearance * r.range(0.9, 1.2), roof: r.range(0.45, 0.75),
-    nose: r.range(0.12, 0.3), hue: wrapHue(hue + r.range(-16, 16)),
-    rack: truck || (world.wet < 0.4 && r.next() < 0.5),
-    twoTone: r.next() < 0.45, windows: profile === 3 || truck ? 3 : 2,
+    // Long on open ground, short and high over broken country.
+    length:
+      (profile === 2 ? 1.45 : profile === 4 ? 2.2 : 1.8) *
+      world.wheelbase *
+      (1.12 - world.roughness * 0.28) *
+      (0.86 + world.openness * 0.22) *
+      r.range(0.93, 1.07),
+    height: (profile === 1 ? 0.42 : profile === 3 ? 0.63 : 0.53) * (0.92 + world.roughness * 0.2) * r.range(0.9, 1.13),
+    wheel: world.clearance * (0.85 + world.roughness * 0.45) * r.range(0.9, 1.2),
+    roof: r.range(0.45, 0.75),
+    nose: r.range(0.12, 0.3) * (1.25 - world.roughness * 0.35),
+    hue: wrapHue(hue + r.range(-16, 16)),
+    rack: truck || (world.wet < 0.4 && r.next() < 0.5) || world.terracing > 0.6,
+    twoTone: r.next() < 0.45,
+    // Small glass on a cold world, a sealed cabin on a wet one.
+    windows: profile === 3 || truck ? 3 : world.chill > 0.62 ? 1 : 2,
+    sealed: world.wet > 0.6 || world.chill > 0.7,
     layout: world.vehicleGrammar,
   };
 }
