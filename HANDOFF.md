@@ -144,7 +144,7 @@ Measured end to end, current `main`:
 | phone 96×58 lean | ship at year 104 |
 | battery 72×44 lean, `causal-origin` | ship at year 117 |
 | battery 72×44 lean, `ship-b` | no ship; collapses |
-| battery 72×44 lean, `ship-c` | no ship; blocked on a road, then collapses |
+| battery 72×44 lean, `ship-c` | no ship; clears the modern gate at year 98 and dies before Starflight |
 
 "Low battery mode" means two settings in the create-world form: the world size
 `battery` (72×44) or `phone` (96×58), and `complexity: "lean"`.
@@ -199,14 +199,22 @@ provides. Note also that `makeCausalSkipState` pins the level to at least 2 for
 a skip's whole duration, so fixing the water trigger alone will not change
 anything during skips.
 
-**2. A one-town polity can never build a road.** `roadPassFor` in
-`88-roads.js` returns immediately unless a faction has two or more towns, and
-`chooseRoadPair` only pairs towns of the same faction. On `ship-c` battery at
-year 98 there were four towns in four separate factions, one town each, and
-only one of those factions knew road building. Every pair was a fine distance
-apart (21–51 tiles, well inside `ROAD_LINK_REACH` of 64). The world stood one
-requirement — a road — from launching, for ten presses, and could not build one
-in principle. This looks like the most tractable remaining blocker.
+**2. A one-town polity could never build a road — fixed in `28966fe`.** Kept
+here because the shape recurs. `roadPassFor` in `88-roads.js` returns at once
+unless a faction holds two or more towns, and `chooseRoadPair` only pairs towns
+under the same flag. On `ship-c` battery at year 98 there were four towns in
+four separate factions, one town each, every pair 21–51 tiles apart and well
+inside `ROAD_LINK_REACH` of 64, one of them knowing the craft, and none of them
+able to pave anything. The world stood one line short of its ship for ten
+presses. `modernRoadBetweenStrangers` now starts and paves a link between the
+nearest reachable pair when no polity has two towns. After it, `ship-c` builds
+its road and clears the whole modern gate at year 98 — and then dies of problem
+1 before it reaches Starflight and a tower.
+
+**The general lesson from that one:** a requirement can be unreachable in
+principle rather than merely hard, and the shortfall list will not tell you
+which. When a stage stalls for many presses, probe the mechanism that satisfies
+it and check its preconditions, rather than pushing harder at it.
 
 **3. `causal-origin` on small regressed.** It shipped at year 104 before the
 food work and now reaches the road and three tower blocks by year 135 before
