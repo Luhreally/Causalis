@@ -68,7 +68,11 @@ const fine = `(() => {
   for (let i = 0; i < state.limit && !state.done && found.length < 8; i++) {
     const firstEvent = W.nextEventId;
     const before = ${BUCKETS};
-    const rareBefore = { ...W.tiles.rareChem };
+    const rareBefore = { ...W.tiles.rareChem }, columnBefore = {};
+    for (const k of Object.keys(rareBefore)) {
+      const t = Number(k.slice(0, k.lastIndexOf(":"))), sp = Number(k.slice(k.lastIndexOf(":") + 1));
+      if (sp < COMMON_CHEM) columnBefore[k] = W.tiles.chem[sp][t];
+    }
     causalSkipStep(state);
     const d = auditMatter().delta;
     if (d !== last) {
@@ -79,7 +83,15 @@ const fine = `(() => {
       const rareNow = { ...W.tiles.rareChem }, rareMoved = [];
       for (const k of new Set([...Object.keys(rareBefore), ...Object.keys(rareNow)])) {
         const d = (rareNow[k] || 0) - (rareBefore[k] || 0);
-        if (d) rareMoved.push({ key: k, change: d, species: W.definitions.species[Number(k.slice(k.lastIndexOf(":") + 1))]?.name || k });
+        if (d) {
+          const t = Number(k.slice(0, k.lastIndexOf(":"))), sp = Number(k.slice(k.lastIndexOf(":") + 1));
+          rareMoved.push({ key: k, change: d, species: W.definitions.species[sp]?.name || k,
+            record: [rareBefore[k] || 0, rareNow[k] || 0],
+            // The column on either side of the tick says whether the record was
+            // folded into it or simply removed: a fold shows in the column, a
+            // deletion does not.
+            column: [columnBefore[k] ?? null, sp < COMMON_CHEM ? W.tiles.chem[sp][t] : null] });
+        }
       }
       rareMoved.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
       // What stands on the tile that lost it: the occupant names the system as

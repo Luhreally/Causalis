@@ -26,7 +26,7 @@ const GRANARY_CALL_HUNGER = 52,
   GRANARY_CALL_NEAR = 8,
   GRANARY_CALL_REACH = 48,
   GRANARY_CALL_GROUND = 3,
-  GRANARY_CALL = { steps: 0, arrivals: 0, homeMeals: 0, homeDrinks: 0, pullsHeld: 0 };
+  GRANARY_CALL = { steps: 0, arrivals: 0, homeMeals: 0, homeDrinks: 0, pullsHeld: 0, packMeals: 0 };
 function granaryCallPlace(id) {
   if (W.kind[id] !== KINDS.PERSON) return null;
   const l = W.components.life[id],
@@ -187,6 +187,40 @@ factionFieldableFighters = function (faction) {
     if (locomotion >= 0.42) fighters++;
   }
   return fighters;
+};
+// ── A person eats what they are carrying ─────────────────────────────────────
+// Foraging puts food straight in the gut; gathering puts it in a pocket, and
+// nothing ever moved it from the one to the other. So a field hand filled their
+// pack with grain and starved carrying it. Measured on a battery world:
+// Flinthollow, twenty-five people, three hundred and nine units in the town
+// store, seven farms, twenty-four of the twenty-five carrying food, and
+// eighty-four in a hundred hungry. The town read rich, the people were fed
+// nothing, and the world halved twice and never launched. A person who is
+// properly hungry now eats from their own pack, which is what a pack is for.
+// The gate is set above "hungry" rather than at it on purpose: a peckish
+// gatherer who ate their haul never stocked the granary, and a fixture world
+// that used to raise two towns raised one.
+const CARRIED_MEAL_HUNGER = 70,
+  CARRIED_MEAL_BITE = 6;
+const runMetabolismGranaryBase = runMetabolism;
+runMetabolism = function (id, tier) {
+  if (W.kind[id] === KINDS.PERSON) {
+    const l = W.components.life[id],
+      inv = W.components.inventory[id];
+    if (l && inv && l.hunger >= CARRIED_MEAL_HUNGER) {
+      const bite = Math.min(
+        inv.materials[C.ORGANIC] || 0,
+        CARRIED_MEAL_BITE * simulationStrideForTier(tier),
+        65535 - inv.digestive[C.ORGANIC],
+      );
+      if (bite > 0) {
+        inv.materials[C.ORGANIC] -= bite;
+        inv.digestive[C.ORGANIC] += bite;
+        GRANARY_CALL.packMeals++;
+      }
+    }
+  }
+  return runMetabolismGranaryBase(id, tier);
 };
 window.ALIFE_GRANARY_CALL_DEBUG = Object.freeze({
   fieldable: (factionId) => factionFieldableFighters(W.factions.find((f) => f.id === factionId)),

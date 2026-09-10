@@ -1885,7 +1885,19 @@ function toolPurposeForMaterial(sp) {
 }
 function createPersonalTool(id, recipe) {
   const inv = W.components.inventory[id]?.materials;
-  if (!inv || inv[recipe.head] < 2 || inv[recipe.binding] < 2 || toolForPurpose(id, recipe.purpose))
+  if (!inv) return null;
+  // A tool's head and its binding can be the same compound, and then it costs
+  // four units of that compound, not two. The guard asked for two twice over
+  // the one slot and the withdrawal took two twice, so a crafter holding two or
+  // three wrapped their own store and made 65,536 units of matter out of
+  // nothing. Caught on a battery world at tick 448, two tools in one tick:
+  // entity materials rose by 65,516 while every other ledger moved by tens.
+  const same = recipe.head === recipe.binding;
+  if (
+    inv[recipe.head] < (same ? 4 : 2) ||
+    (!same && inv[recipe.binding] < 2) ||
+    toolForPurpose(id, recipe.purpose)
+  )
     return null;
   inv[recipe.head] -= 2;
   inv[recipe.binding] -= 2;
