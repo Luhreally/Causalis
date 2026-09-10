@@ -73,6 +73,13 @@ sceneEntityVisible = function (id, ...args) {
   if (W.components.life[id]?.transitLinkId) return false;
   return sceneEntityVisiblePublicBase(id, ...args);
 };
+// How hard a street is used, from the tread already written to the tile. A
+// pavement the whole town crosses is polished pale and worn wide; a lane the
+// carts take is darkened by them. Read at draw time only, so nothing here
+// writes the world.
+function streetWear(i) {
+  return Math.min(1, (W.tiles.traffic?.[i] || 0) / 2600);
+}
 const drawWornPathPublicBase = drawWornPath;
 drawWornPath = function (x, y, i, p, m, v) {
   if (roadLevel(i) !== ROAD_PAVED) return drawWornPathPublicBase(x, y, i, p, m, v);
@@ -89,14 +96,18 @@ drawWornPath = function (x, y, i, p, m, v) {
     for (const q of segments) { ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); }
     ctx.stroke();
   };
-  // Curbs and pedestrian verges share the existing paved tile footprint.
-  stroke("#b7afa0", m.tw * 0.48); stroke("#e1d8c7", m.tw * 0.43);
-  stroke(motor ? "#424a50" : "#918577", m.tw * 0.29);
+  // Curbs and pedestrian verges share the existing paved tile footprint, and
+  // both carry their wear: a busy verge is walked pale and broad, a busy lane
+  // is darkened and widened by what runs on it.
+  const wear = streetWear(i);
+  stroke("#b7afa0", m.tw * (0.46 + wear * 0.05));
+  stroke(hsl(40, 22 - wear * 10, 83 + wear * 7), m.tw * (0.41 + wear * 0.05));
+  stroke(motor ? hsl(205, 9, 28 - wear * 10) : hsl(35, 11, 47 - wear * 9), m.tw * (0.28 + wear * 0.04));
   if (motor && UI.camera.zoom > 1.5) {
     ctx.setLineDash([Math.max(1, m.tw * 0.13), Math.max(1, m.tw * 0.12)]);
     stroke("#e8d9a2", Math.max(0.65, m.tw * 0.015)); ctx.setLineDash([]);
     if (segments.length >= 3) {
-      ctx.strokeStyle = "#eee9db"; ctx.lineWidth = Math.max(0.65, m.tw * 0.025);
+      ctx.strokeStyle = hsl(44, 22, 88 + wear * 6); ctx.lineWidth = Math.max(0.65, m.tw * (0.025 + wear * 0.012));
       for (let n = -2; n <= 2; n++) {
         ctx.beginPath(); ctx.moveTo(p.x + n * m.tw * 0.04, p.y - m.th * 0.1);
         ctx.lineTo(p.x + n * m.tw * 0.04, p.y + m.th * 0.1); ctx.stroke();

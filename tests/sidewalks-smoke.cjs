@@ -88,6 +88,19 @@ const fixtureSource = String.raw`(() => {
   if (!(out.afterRemoval.nodes < out.graph.nodes)) fail("lifting a paved tile left the graph unchanged: " + JSON.stringify(out.afterRemoval));
 
   out.traffic = sw.traffic().length;
+  // A street carries its use: the tread already on a tile is what makes a busy
+  // pavement read as busy, so wear has to rise with traffic and stop at one.
+  const wearTile = paved[1], [wx, wy] = xy(wearTile);
+  W.tiles.traffic[wearTile] = 0;
+  const quiet = sw.wear(wx, wy);
+  W.tiles.traffic[wearTile] = 1300;
+  const busy = sw.wear(wx, wy);
+  W.tiles.traffic[wearTile] = 60000;
+  const saturated = sw.wear(wx, wy);
+  out.wear = { quiet, busy, saturated };
+  if (!(quiet === 0)) fail("an untrodden street is already worn: " + quiet);
+  if (!(busy > quiet)) fail("wear does not rise with traffic: " + busy + " vs " + quiet);
+  if (saturated !== 1) fail("wear does not stop at one: " + saturated);
   const hash = worldHash();
   window.ALIFE_VISUAL_DEBUG.renderOnly({ view: "iso", quality: "high", zoom: 3, x: settlement.x, y: settlement.y, now: 5000 });
   if (worldHash() !== hash) fail("drawing the streets changed the world");

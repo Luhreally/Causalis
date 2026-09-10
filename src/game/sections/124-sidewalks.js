@@ -135,4 +135,5 @@ window.ALIFE_SIDEWALK_DEBUG = Object.freeze({
   route: (from, to) => sidewalkRoute(from, to),
   on: (x, y) => onSidewalk(idx(x, y)),
   traffic: () => (W.roads?.links || []).filter((l) => l.complete).map((l) => ({ id: l.id, kind: l.kind, traffic: sidewalkTraffic(l) })),
+  wear: (x, y) => (typeof streetWear === "function" ? streetWear(idx(x, y)) : null),
 });
