@@ -82,6 +82,20 @@ const fine = `(() => {
         if (d) rareMoved.push({ key: k, change: d, species: W.definitions.species[Number(k.slice(k.lastIndexOf(":") + 1))]?.name || k });
       }
       rareMoved.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+      // What stands on the tile that lost it: the occupant names the system as
+      // surely as the species does.
+      for (const m of rareMoved.slice(0, 3)) {
+        const t = Number(m.key.slice(0, m.key.lastIndexOf(":")));
+        const [tx, ty] = xy(t);
+        m.at = {
+          tile: t, x: tx, y: ty,
+          settlement: W.settlements.find((s) => !s.ruined && s.x === tx && s.y === ty)?.name || null,
+          camp: W.camps.find((c) => c.active && c.x === tx && c.y === ty)?.name || null,
+          buildings: W.buildings.filter((b) => b.x === tx && b.y === ty).map((b) => b.type + (b.ruined ? ":ruined" : b.complete ? "" : ":building")),
+          nearestTown: nearestSettlement(t, 12)?.name || null,
+          column: W.tiles.chem[Number(m.key.slice(m.key.lastIndexOf(":") + 1))]?.[t] ?? null,
+        };
+      }
       found.push({
         moved, rareMoved: rareMoved.slice(0, 6),
         tick: W.tick, year: Math.floor(W.tick / TICKS_PER_YEAR), from: last, to: d, change: d - last,

@@ -12,6 +12,16 @@ function worldDesignSignature() {
     canopyLean: earth ? 0.08 : r.range(-0.3, 0.3),
     mountain: earth ? "ridge" : ["mesa", "needle", "dome", "ridge"][r.int(4)],
     mountainAspect: earth ? 1 : r.range(0.65, 1.6),
+    // A family is not a shape. Two worlds that both raise mesas were drawing
+    // the same silhouette with only the height between them, and with four
+    // families one world in four repeated the last. The crown, the lean of the
+    // ridgeline, where the shoulder breaks and how many strata show are all
+    // continuous now, so a mesa on one world is not a mesa on another.
+    cragCrown: r.range(0.04, 0.62),
+    cragLean: r.range(-0.34, 0.34),
+    cragShoulder: r.range(0.16, 0.62),
+    cragTiers: 3 + r.int(5),
+    cragBite: r.range(0, 0.3),
     buildWidth: r.range(0.8, 1.2), facade: r.int(4),
     bodyWidth: earth ? 1 : r.range(0.7, 1.4), limbLength: earth ? 1 : r.range(0.7, 1.5),
     canopyGrammar: r.int(4), branches: 3 + r.int(4),
@@ -225,18 +235,31 @@ drawCrag = function (x, y, i, p, m, v, spec, inst) {
   const at = inst ? { x: p.x + inst.dx, y: p.y + inst.dy } : p,
     r = Math.max(3, m.tw * 0.5 * (spec.scale || 1) * (inst?.s || 1)),
     h = featureVerticalUnit(m) * (1.5 + visualHash01(i, 0xc4a2)) * design.mountainAspect,
-    crown = design.mountain === "mesa" ? 0.52 : design.mountain === "dome" ? 0.28 : 0.06;
+    // The family sets the range and the world sets the shape inside it.
+    crown = clamp(
+      design.cragCrown *
+        (design.mountain === "mesa" ? 1.35 : design.mountain === "dome" ? 0.8 : 0.35),
+      0.03,
+      0.72,
+    ),
+    lean = r * design.cragLean,
+    shoulder = design.cragShoulder;
   ctx.save(); ctx.fillStyle = hsl(v.mineralHue, 26, 45); ctx.strokeStyle = hsl(v.mineralHue, 24, 25);
   ctx.lineWidth = Math.max(0.7, r * 0.03); ctx.beginPath(); ctx.moveTo(at.x - r, at.y);
-  if (design.mountain === "dome") ctx.bezierCurveTo(at.x - r * 0.8, at.y - h, at.x + r * 0.8, at.y - h, at.x + r, at.y);
+  if (design.mountain === "dome")
+    ctx.bezierCurveTo(at.x - r * 0.8 + lean, at.y - h, at.x + r * 0.8 + lean, at.y - h * (1 - design.cragBite * 0.4), at.x + r, at.y);
   else {
-    ctx.lineTo(at.x - r * crown, at.y - h); ctx.lineTo(at.x + r * crown * 0.8, at.y - h * 0.96); ctx.lineTo(at.x + r, at.y);
+    ctx.lineTo(at.x - r * shoulder + lean * 0.4, at.y - h * (0.42 + design.cragBite));
+    ctx.lineTo(at.x - r * crown + lean, at.y - h);
+    ctx.lineTo(at.x + r * crown * 0.8 + lean, at.y - h * (0.96 - design.cragBite * 0.25));
+    ctx.lineTo(at.x + r * shoulder + lean * 0.4, at.y - h * 0.5);
+    ctx.lineTo(at.x + r, at.y);
   }
   ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.fillStyle = hsl(v.mineralHue - 10, 24, 31); ctx.beginPath(); ctx.moveTo(at.x, at.y - h * (design.mountain === "dome" ? 0.74 : 0.98));
   ctx.lineTo(at.x + r * crown * 0.8, at.y - h * 0.96); ctx.lineTo(at.x + r, at.y); ctx.lineTo(at.x + r * 0.15, at.y); ctx.closePath(); ctx.fill();
-  if (UI.quality !== "low") for (let n = 1; n < 6; n++) {
-    const f = n / 6, half = r * (crown + (1 - crown) * f);
+  if (UI.quality !== "low") for (let n = 1; n < design.cragTiers; n++) {
+    const f = n / design.cragTiers, half = r * (crown + (1 - crown) * f);
     ctx.strokeStyle = hsl(v.mineralHue + n * 2, 22, 30 + n * 3, 0.6); ctx.beginPath();
     ctx.moveTo(at.x - half * 0.9, at.y - h * (1 - f)); ctx.lineTo(at.x + half * 0.8, at.y - h * (1 - f) + r * 0.06); ctx.stroke();
   }

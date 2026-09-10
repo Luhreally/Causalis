@@ -23,12 +23,30 @@ function setTileMatterAmount(tile, species, value) {
   value = Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
   if (species < COMMON_CHEM) {
     const column = W.tiles.chem[species],
-      previous = column[tile],
-      primary = Math.min(65535, value);
+      key = tileMatterKey(tile, species),
+      held = W.tiles.rareChem[key] || 0,
+      primary = Math.min(65535, value),
+      overflow = value - primary;
     column[tile] = primary;
-    const overflow = value - primary;
-    if (overflow) W.tiles.rareChem[tileMatterKey(tile, species)] = overflow;
-    else if (previous === 65535) delete W.tiles.rareChem[tileMatterKey(tile, species)];
+    if (overflow) {
+      W.tiles.rareChem[key] = overflow;
+      return value;
+    }
+    // The caller has set a value the column can hold while an overflow record
+    // still stood. It may have meant the total, or it may have read only the
+    // column and never known the record was there — and the second is what
+    // happened: a saturated tile lost 10,939 units in the tick an organism was
+    // born on it, because the birth took seventy-three from the column and the
+    // record went with them. The remainder is not the caller's to discard, so
+    // it folds back into the column as far as that fits and the rest stays on
+    // record. A caller that truly meant the total sees a tile that refuses to
+    // go below what it holds, which is the honest answer.
+    if (held) {
+      const folded = Math.min(held, 65535 - primary);
+      column[tile] = primary + folded;
+      if (held - folded) W.tiles.rareChem[key] = held - folded;
+      else delete W.tiles.rareChem[key];
+    }
     return value;
   }
   const key = tileMatterKey(tile, species);
