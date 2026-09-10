@@ -4,3 +4,6 @@ dist/
 *.log
 .agents/
 .sites/
+
+# Browser-shot fixtures: a scratch world dumped for a screenshot, not source.
+public/__shot-*.json
