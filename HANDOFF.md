@@ -195,7 +195,37 @@ whole set with `window.ALIFE_MODERN_DEBUG.wants()`.
 
 ### Open problems, with what is already known
 
-**1. Worlds overshoot and starve.** This is the big one and it is upstream of
+**0. The matter drift is located but not caught.** On a collapsing world,
+`causal-origin` battery at year 188, one tick lost 23,613. `matter-leak-probe`
+narrowed it to a single rare record — tile 326, species 2, a *common* species
+whose 16-bit column was saturated with 23,611 held in the overflow record, and
+the record was deleted. `setTileMatterAmount` drops that record when the new
+value fits the column, which is right for a caller setting a total and wrong
+for one that read only the column. Every caller found so far reads through
+`tileMatterAmount`, which includes the overflow, so the guilty one has not been
+identified. `scripts/overflow-catch-probe.cjs` wraps the setter and records the
+stack of any call that would drop a non-empty record; it found nothing on the
+current source because the world it needs no longer collapses. Run it on a
+world that does.
+
+**1. Worlds overshoot and starve — the cause was found on 2026-09-09.**
+`settlementFood` counts fourteen for every completed farm, so a town scored
+well on fields it had not harvested. Measured: Maatsutsea, seven people, score
+72.6, six units in the larder; Armuuni, score 19.5, four units, two thirds
+hungry. The town read rich, so no relief came and the granary let its people
+hurry another child at five times the pace while they starved beside their own
+fields. `foodOutlook` now judges lean and famine on `settlementLarder` — what
+is stored plus what grows within reach — and keeps the old score as what the
+land could yield. This is also why the earlier ration experiments backfired:
+they raised the score without reaching a mouth.
+
+Measured after, with the downtown requirement in place: **phone launches at
+year 109 with eighteen blocks and seven apartment blocks**, battery `ship-b` at
+143 with twenty-three and eight, small `ship-b` peaks at 200 people where it
+peaked at 148. Battery `causal-origin` and `ship-c` still do not launch. Two of
+five, up from one of five.
+
+**1b. What remains of the overshoot.** This is the big one and it is upstream of
 almost everything else. `updateConcertedEffortState` in `41-implicit-society.js`
 raises the concerted effort to level 2 whenever any settlement has
 `settlementFood(s) < 8` **or `settlementWater(s) < 8`**. The water term pins it

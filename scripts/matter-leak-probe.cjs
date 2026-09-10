@@ -68,14 +68,22 @@ const fine = `(() => {
   for (let i = 0; i < state.limit && !state.done && found.length < 8; i++) {
     const firstEvent = W.nextEventId;
     const before = ${BUCKETS};
+    const rareBefore = { ...W.tiles.rareChem };
     causalSkipStep(state);
     const d = auditMatter().delta;
     if (d !== last) {
       const after = ${BUCKETS};
       const moved = {};
       for (const k of Object.keys(after)) if (after[k] !== before[k]) moved[k] = after[k] - before[k];
+      // Which rare records moved, biggest first: the species names the system.
+      const rareNow = { ...W.tiles.rareChem }, rareMoved = [];
+      for (const k of new Set([...Object.keys(rareBefore), ...Object.keys(rareNow)])) {
+        const d = (rareNow[k] || 0) - (rareBefore[k] || 0);
+        if (d) rareMoved.push({ key: k, change: d, species: W.definitions.species[Number(k.slice(k.lastIndexOf(":") + 1))]?.name || k });
+      }
+      rareMoved.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
       found.push({
-        moved,
+        moved, rareMoved: rareMoved.slice(0, 6),
         tick: W.tick, year: Math.floor(W.tick / TICKS_PER_YEAR), from: last, to: d, change: d - last,
         mod: { c8: W.tick % 8, c16: W.tick % 16, c32: W.tick % 32, c128: W.tick % 128, c256: W.tick % 256 },
         events: W.events.filter((e) => e.id >= firstEvent)
