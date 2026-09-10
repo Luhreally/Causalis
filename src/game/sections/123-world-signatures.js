@@ -25,6 +25,14 @@ function worldDesignSignature() {
     buildWidth: r.range(0.8, 1.2), facade: r.int(4),
     bodyWidth: earth ? 1 : r.range(0.7, 1.4), limbLength: earth ? 1 : r.range(0.7, 1.5),
     canopyGrammar: r.int(4), branches: 3 + r.int(4),
+    // Four grammars meant every fourth world grew the same leaf. The spread,
+    // the rise, the tilt and how far a bough droops are the world's own, so two
+    // worlds that both grow blades do not grow the same blade.
+    leafSpread: r.range(0.2, 0.62),
+    leafRise: r.range(0.22, 0.85),
+    leafTilt: r.range(-0.6, 0.6),
+    boughDroop: r.range(-0.05, 0.28),
+    canopyLift: r.range(0.12, 0.42),
     vehicleGrammar: earth ? "classic" : wet > 0.65 ? "pod" : (t.ridgeWeight || 0) > 0.24 ? "crawler" : r.next() < 0.5 ? "wedge" : "tandem",
   });
   signatureWorldCache = { world: W, value };
@@ -200,17 +208,19 @@ function signatureNativeCanopy(g, species, p, r, h, v, i, sway, season, detail) 
   for (let n = 0; n < count; n++) {
     const f = (n + 1) / (count + 1), side = n % 2 ? -1 : 1,
       reach = r * (0.6 + visualHash01(i, 0xca30 + n)) * Math.sin(f * Math.PI),
-      x = p.x + side * reach + sway * f, y = p.y - h * (0.3 + f * 0.65);
+      x = p.x + side * reach + sway * f,
+      y = p.y - h * (world.canopyLift + f * 0.65) + reach * world.boughDroop;
     tips.push({ x, y });
     g.lineWidth = Math.max(0.8, r * 0.08 * (1 - f * 0.4)); g.beginPath();
     g.moveTo(p.x + sway * f * 0.5, p.y - h * (f * 0.62 + 0.18));
     g.quadraticCurveTo(x, y + h * 0.1, x, y); g.stroke();
     if (season.bare > 0.65) continue;
     g.fillStyle = hsl(leaves.hue + n * 3, 48, leaves.light + n % 3 * 7); g.beginPath();
-    if (world.canopyGrammar === 0) g.ellipse(x, y, r * 0.42, r * 0.26, side * 0.45, 0, Math.PI * 2);
-    else if (world.canopyGrammar === 1) { g.moveTo(x - r * 0.5, y); g.quadraticCurveTo(x, y - r * 0.55, x + r * 0.5, y); g.lineTo(x, y + r * 0.12); }
-    else if (world.canopyGrammar === 2) { g.moveTo(x - r * 0.3, y); g.lineTo(x, y - r * 0.75); g.lineTo(x + r * 0.3, y); g.lineTo(x, y + r * 0.15); }
-    else { g.ellipse(x, y, r * 0.24, r * 0.48, side * 0.2, 0, Math.PI * 2); }
+    const spread = r * world.leafSpread, rise = r * world.leafRise, tilt = side * world.leafTilt;
+    if (world.canopyGrammar === 0) g.ellipse(x, y, spread, rise * 0.55, tilt, 0, Math.PI * 2);
+    else if (world.canopyGrammar === 1) { g.moveTo(x - spread, y); g.quadraticCurveTo(x + tilt * r * 0.2, y - rise, x + spread, y); g.lineTo(x, y + rise * 0.2); }
+    else if (world.canopyGrammar === 2) { g.moveTo(x - spread * 0.7, y); g.lineTo(x + tilt * r * 0.15, y - rise * 1.2); g.lineTo(x + spread * 0.7, y); g.lineTo(x, y + rise * 0.22); }
+    else { g.ellipse(x, y, spread * 0.6, rise, tilt, 0, Math.PI * 2); }
     g.closePath(); g.fill();
     if (detail > 1) { g.strokeStyle = hsl(leaves.hue + 20, 38, leaves.light + 18); g.lineWidth = Math.max(0.6, r * 0.025); g.stroke(); g.strokeStyle = hsl(v.mineralHue, 30, 32); }
   }
