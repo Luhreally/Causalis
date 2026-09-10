@@ -324,15 +324,84 @@ but this seed wants its own diagnosis.
   one roof until the city has current and beds to spare, and only then narrows
   to a couple and their dependent children.
 
-**Still wanted, in the order I would take them:** a real sidewalk path graph
-and traffic in `122-public-streets` (it has curbs and crossings, not a graph);
-a visual pass on interiors and the floor selector in a browser; better
-character and creature models, which is the one part of the seed-variation work
-that has had no attention; and the two battery seeds that still do not launch.
+- **A street that is walked on.** `124-sidewalks` builds the paved tiles into a
+  graph — nodes and eight-way edges — rebuilt when the paving changes, at most
+  once a tick, and refreshed every sixty-four ticks besides, because road tiles
+  can be laid without a link. `sidewalkRoute(a, b)` walks the pavement or says
+  there is none, and `directionScore` gives a person on foot a bonus of 5.5 for
+  a paved step. `122-public-streets` reads the tread already written to each
+  tile, so a busy verge is walked pale and broad and a busy lane is darkened by
+  what runs on it.
+- **A world's beasts share a dialect.** Segment, spine and eye biases and the
+  chance of a frill, a shell or a glow lean a whole biosphere, with a favoured
+  tail and head. Each creature still rolls against it, so a world of shells
+  keeps a few bare backs. Earth is untouched.
+- **Flats that look lived in.** A block's cutaway was a coloured lozenge with
+  one divider line. It is a floor plan now: partitions with doorways, a bed and
+  a table in each unit, grey where nobody has moved in, and the household's own
+  rug or bookshelf beside it. The floor label no longer writes itself across
+  every neighbouring block.
+
+**Still wanted, in the order I would take them:** the two battery seeds that
+still do not launch (see problem 4 below, which is now the whole of it); people
+inside the blocks in a cutaway — `occupiedRooms` reads 0 because
+`personFitsInterior` only lets a resident in when they are resting or tired,
+so a daytime cutaway is a furnished but empty building; and the floor plan is
+drawn axis-aligned over an isometric footprint, which reads as a section rather
+than as part of the scene.
+
+### 4. The battery seeds do not launch, and the reason is now food, not access
+
+Two faults were found and fixed on the way here, and both changed the picture.
+
+**Tools were making matter from nothing.** A tool's head and its binding can be
+the same compound, and then it costs four units of it, not two. The guard asked
+for two twice over the one slot and the withdrawal took two twice, so a crafter
+holding two or three wrapped their own `Uint16Array` and 65,536 units appeared.
+Caught at tick 448 on a battery world, two tools in one tick: entity materials
+rose by 65,516 while every other ledger moved by tens. Thirty years of that
+world now audit at delta zero. **This matters for reading the old numbers:** the
+sixteen- and twenty-block downtowns that battery worlds used to raise were built
+partly out of matter that should not have existed. With conservation honest,
+those worlds are poorer, and they raise a downtown later or not at all. Do not
+compare a post-fix run against a pre-fix one and call it a regression.
+
+**People carried their food and starved on it.** Foraging puts food straight in
+the gut; gathering puts it in a pocket, and nothing ever moved it between them.
+Measured on battery `causal-origin`: Flinthollow, twenty-five people, three
+hundred and nine units in the store, seven farms, twenty-four of the twenty-five
+carrying food, eighty-four in a hundred hungry. Fixed in `117-granary-call` by
+letting a properly hungry person eat their own pack. After: carrying falls from
+24 of 25 to 5 of 28, the store draws down from 309 to 24, and a second town
+stands where there was one.
+
+The gate is at hunger 70, not at the hungry mark of 60, and the difference is
+load-bearing: at 45 a peckish gatherer ate their haul on the way home and never
+stocked the granary, and `diplomacy-smoke` failed because a fixture world that
+had always raised two towns raised one. If you move this constant, run the whole
+suite, not the city tests.
+
+**What is left is carrying capacity.** Flinthollow holds forty-eight people on
+seven farms on a 72x44 map and sits at hunger 0.6 to 1.0 for ten presses before
+it dies; the survivors found new towns and do it again. Access is fixed; the
+land does not feed that many mouths in one place. The lever is most likely how
+many people one town may hold on a small map — `PLACE_PEOPLE_PER_TOWN`, the
+urban pull in `108-urban`, and the farm cap — not more relief. Measured runs:
+`scripts/continuing-city-probe.cjs causal-origin battery lean 30` and the same
+for `ship-c`. Both conserve matter throughout and neither launches.
+
+**A note on measuring here.** The machine is suspended between tool calls, so a
+probe launched in the background gets almost no CPU while you wait on a timer.
+Run the wait in the foreground — a bounded `while` loop that polls the log —
+or the run will still be at press 2 an hour later.
 
 ## The recent commits, newest first
 
 ```
+a03fe36  Furnish the flats: a floor of a block is a floor of homes
+db5d3a8  Stop tools making matter, and let a hungry man eat what he is carrying
+bc67f98  Let a street show what it carries
+6e0bf23  Pave a street worth walking, give a world its own beasts, and send the hungry where the food is
 f08f188  Teach the craft to the place that will use it
 2c4e3f5  Hold the place the ship leaves from still
 b090940  Let the effort send the ship it built
