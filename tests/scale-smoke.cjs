@@ -25,8 +25,13 @@ const fixtureSource = String.raw`(() => {
   out.modernWants = window.ALIFE_MODERN_DEBUG.wants();
   if (!(out.modernWants.share < 0.25)) fail("a battery map is not read as a small share of a standard one: " + out.modernWants.share);
   if (out.modernWants.works !== 1) fail("a battery world still wants more than one factory: " + out.modernWants.works);
-  if (out.modernWants.skyline !== 2 || out.modernWants.electric !== 2) fail("the skyline and current counts did not fall to their floors: " + JSON.stringify(out.modernWants));
+  if (out.modernWants.electric !== 2) fail("current did not fall to its floor: " + JSON.stringify(out.modernWants));
   if (out.modernWants.cities !== 2) fail("a world that leaves for the stars should still want two cities: " + out.modernWants.cities);
+  // A downtown on every map: the floor is sixteen blocks and six apartments,
+  // swayed by the seed, so a battery world still has to raise a real skyline.
+  if (!(out.modernWants.skyline >= 12 && out.modernWants.skyline <= 20)) fail("a battery world's skyline is not a downtown: " + out.modernWants.skyline);
+  if (!(out.modernWants.homes >= 4 && out.modernWants.homes <= 8)) fail("a battery world wants no apartments: " + out.modernWants.homes);
+  if (!(out.modernWants.sway >= 0.8 && out.modernWants.sway <= 1.2)) fail("the seed sway left its band: " + out.modernWants.sway);
   if (!window.ALIFE_MODERN_DEBUG.stages().some((x) => x.label === out.modernGate + " people living in towns")) fail("the skip's stage does not carry the scaled gate: " + JSON.stringify(window.ALIFE_MODERN_DEBUG.stages().map((x) => x.label)));
   let settlement = null;
   for (let attempt = 0; attempt < 4 && !settlement; attempt++) {
@@ -93,8 +98,12 @@ if (modernGate !== 100) failures.push("a standard world changed the people a mod
 result.standardModernGate = modernGate;
 const standardWants = sandbox.window.ALIFE_MODERN_DEBUG.wants();
 result.standardWants = standardWants;
-if (standardWants.cities !== 2 || standardWants.electric !== 3 || standardWants.skyline !== 3 || standardWants.works !== 2)
+if (standardWants.cities !== 2 || standardWants.electric !== 3 || standardWants.works !== 2)
   failures.push("a standard world changed what a modern world asks of it: " + JSON.stringify(standardWants));
+if (!(standardWants.skyline > result.modernWants.skyline && standardWants.homes > result.modernWants.homes))
+  failures.push("a standard world does not ask for more downtown than a battery one: " + JSON.stringify({ standard: standardWants, battery: result.modernWants }));
+if (standardWants.sway !== result.modernWants.sway)
+  failures.push("the same seed swayed differently on two map sizes: " + standardWants.sway + " vs " + result.modernWants.sway);
 console.log(JSON.stringify({ ok: !failures.length, failures, result }, null, 2));
 if (failures.length) process.exitCode = 1;
 `;

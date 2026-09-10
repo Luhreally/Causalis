@@ -73,6 +73,7 @@ const fixtureSource = String.raw`(() => {
   out.pushWorks = modern.push("works");
   for (const town of [s, b]) for (const x of W.buildings) if (!x.ruined && !x.complete && x.placeKind === "settlement" && x.placeId === town.id && ["tower", "office", "factory", "hall", "clinic"].includes(x.type)) finish(x);
   while (modern.shortfall(f.id).some((m) => /tower blocks/.test(m))) { if (!complete(b, "tower") && !complete(s, "tower")) break; }
+  while (modern.shortfall(f.id).some((m) => /apartment blocks/.test(m))) { if (!complete(b, "tenement") && !complete(s, "tenement") && !complete(c, "tenement")) break; }
   while (modern.shortfall(f.id).some((m) => /factories/.test(m))) { if (!complete(b, "factory") && !complete(s, "factory")) break; }
   ensureRoads();
   const link = { id: 9101, factionId: f.id, a: s.id, b: b.id, kind: "road", complete: true, path: [idx(s.x, s.y), idx(b.x, b.y)], tiles: 2, completedEventId: 0 };
