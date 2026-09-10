@@ -24,6 +24,19 @@ function worldDesignSignature() {
     cragBite: r.range(0, 0.3),
     buildWidth: r.range(0.8, 1.2), facade: r.int(4),
     bodyWidth: earth ? 1 : r.range(0.7, 1.4), limbLength: earth ? 1 : r.range(0.7, 1.5),
+    // A world's beasts share a dialect. The genome already gives each animal
+    // its own head, tail and armour, but nothing tied a world's animals to each
+    // other, so two worlds differed only as much as two herds on one. These
+    // biases lean a whole biosphere: this one runs to segments and long tails,
+    // that one to shells and few eyes. Earth is left as it is.
+    segmentBias: earth ? 0 : r.int(3) - 1,
+    spineBias: earth ? 1 : r.range(0.3, 2.1),
+    frillChance: earth ? null : r.range(0, 1),
+    shellChance: earth ? null : r.range(0, 1),
+    glowChance: earth ? null : r.range(0, 1),
+    eyeBias: earth ? 0 : r.int(3) - 1,
+    tailBias: earth ? null : ["fan", "whip", "stub", "plume", "none"][r.int(5)],
+    headBias: earth ? null : ["hood", "crest", "blunt", "beak", "domed"][r.int(5)],
     canopyGrammar: r.int(4), branches: 3 + r.int(4),
     // Four grammars meant every fourth world grew the same leaf. The spread,
     // the rise, the tilt and how far a bough droops are the world's own, so two
@@ -216,6 +229,18 @@ creatureModel = function (id) {
       neck: clamp((base.neck || 0.2) * r.range(0.65, 1.45), 0.05, 0.9),
     };
   if (role !== KINDS.PERSON && model.faunaKind) model.faunaPattern = ["plain", "spots", "bands", "veins"][r.int(4)];
+  // The world's dialect, laid over the animal's own genome. Each creature still
+  // rolls against it, so a world of shells still has a few bare-backed beasts.
+  if (!world.earth && role !== KINDS.PERSON) {
+    model.segments = Math.max(1, (base.segments || 1) + world.segmentBias);
+    model.spines = Math.max(0, Math.round((base.spines || 0) * world.spineBias));
+    model.eyes = Math.max(1, (base.eyes || 2) + (r.next() < 0.6 ? world.eyeBias : 0));
+    if (world.frillChance !== null) model.frill = r.next() < world.frillChance;
+    if (world.shellChance !== null) model.shell = r.next() < world.shellChance;
+    if (world.glowChance !== null) model.glow = r.next() < world.glowChance;
+    if (world.tailBias && r.next() < 0.7) model.tail = world.tailBias;
+    if (world.headBias && r.next() < 0.6) model.headStyle = world.headBias;
+  }
   if (!world.earth) { model.primaryHue = wrapHue(base.primaryHue + r.range(-20, 20)); model.secondaryHue = wrapHue(base.secondaryHue + r.range(-20, 20)); }
   signatureCreatureCache.set(base, model); return model;
 };

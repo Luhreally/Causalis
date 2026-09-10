@@ -33,9 +33,30 @@ function granaryCallPlace(id) {
     p = W.components.position[id];
   if (!l || !p || l.hunger < GRANARY_CALL_HUNGER) return null;
   if (tileFood(idx(p.x, p.y), "omnivore") >= GRANARY_CALL_GROUND) return null;
-  const place = nearestFriendlyPlace(id);
-  if (!place || (place.inventory?.[C.ORGANIC] || 0) < GRANARY_CALL_STOCK) return null;
-  const d = Math.sqrt(dist2(p.x, p.y, place.x, place.y));
+  // The nearest place is not the same as the nearest place with food in it. A
+  // hungry townsman beside an empty store used to be told there was nowhere to
+  // go, while a full one stood within the walk: on one battery world Plepli
+  // held four units and Ple Chyply a hundred and fifty-three, and everyone in
+  // both was hungry. The call now goes to the nearest store that can feed him.
+  const home = nearestFriendlyPlace(id),
+    fed = (s) => (s?.inventory?.[C.ORGANIC] || 0) >= GRANARY_CALL_STOCK,
+    social = W.components.social[id],
+    faction = social?.factionId || 0;
+  let place = fed(home) ? home : null,
+    bestD = place ? dist2(p.x, p.y, place.x, place.y) : Infinity;
+  if (!place)
+    for (const s of W.settlements) {
+      if (s.ruined || !fed(s)) continue;
+      if (faction && s.factionId && s.factionId !== faction) continue;
+      if (typeof personIsHostileVisitor === "function" && personIsHostileVisitor(id, s.factionId)) continue;
+      const d = dist2(p.x, p.y, s.x, s.y);
+      if (d < bestD) {
+        bestD = d;
+        place = s;
+      }
+    }
+  if (!place) return null;
+  const d = Math.sqrt(bestD);
   if (d <= GRANARY_CALL_NEAR || d > GRANARY_CALL_REACH) return null;
   return place;
 }
