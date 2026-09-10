@@ -172,6 +172,10 @@ plannedBuildingTile = function (place, type, ordinal) {
       if (zone === "farm" || zone === "belt")
         for (const b of buildings)
           if (b.type === "farm" && Math.max(Math.abs(b.x - x), Math.abs(b.y - y)) <= 3) score += zone === "belt" ? 2 : 0.6;
+      // The town's quarters, when a later section has drawn them (125): a
+      // preference on top of the ring targets, never a veto, so a plot is
+      // always found even where the quarter it wanted is full.
+      if (typeof zoningSiteBias === "function") score += zoningSiteBias(place, type, x, y);
       score += (hashParts(W.seedHash, "site", place.id, x, y) % 7) * 0.05;
       candidates.push({ x, y, score });
     }

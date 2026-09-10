@@ -100,6 +100,11 @@ function updateHabitationTown(town) {
     households: new Set(residents.map((id) => W.components.social[id].householdId)).size };
   return homes;
 }
+// What a flat costs to buy out of municipal hands. Kept as its own reading so a
+// later section can price it against the demand for it (125).
+function habitationPrice(b) {
+  return habitationBeds(b) * 4;
+}
 function habitationAccounts(town, homes) {
   const year = Math.floor(W.tick / TICKS_PER_YEAR), faction = polityOfPlace(town);
   if (town.habitationAccountsYear === year) return;
@@ -121,9 +126,10 @@ function habitationAccounts(town, homes) {
         tenancy.arrears[id] = Math.min(12, due - paid);
       }
       if (!tenancy.ownerId) {
-        const buyer = tenancy.residents.find((id) => (W.components.identity[id]?.civicCoins || 0) >= habitationBeds(b) * 4);
+        const asking = habitationPrice(b, town),
+          buyer = tenancy.residents.find((id) => (W.components.identity[id]?.civicCoins || 0) >= asking);
         if (buyer) {
-          const price = habitationBeds(b) * 4;
+          const price = asking;
           W.components.identity[buyer].civicCoins -= price;
           faction.treasury += price;
           tenancy.ownerId = buyer;

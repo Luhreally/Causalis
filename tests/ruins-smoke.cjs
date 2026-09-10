@@ -46,8 +46,12 @@ const fixtureSource = String.raw`(() => {
     return null;
   };
   // A town with finished buildings, a fire, and a half-built site.
-  // Within the living town's salvage reach (fourteen tiles) but outside its founding radius.
-  const doomed = raiseTown(settlement.x + 12, settlement.y - 6, 1);
+  // Within the living town's salvage reach (fourteen tiles) but outside its
+  // founding radius. Sited with room to spare: at twelve and six the centres
+  // were 13.4 tiles apart and a building on the far side of the doomed town was
+  // already out of reach, so the fixture turned on which side of its own town a
+  // stockpile happened to stand — which zoning (125) is entitled to change.
+  const doomed = raiseTown(settlement.x + 9, settlement.y - 4, 1);
   if (!doomed) { fail("could not raise the doomed town"); return out; }
   for (const t of ["controlled_fire", "masonry"]) if (!doomed.knownProcesses.includes(t)) doomed.knownProcesses.push(t);
   for (const t of ["shelter", "hearth", "workshop", "hall"]) complete(doomed, t);
