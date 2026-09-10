@@ -41,18 +41,36 @@ function hungryShare(place) {
   for (const id of residents) if ((W.components.life[id]?.hunger || 0) > 60) hungry++;
   return hungry / residents.length;
 }
+// A standing field is not a meal. `settlementFood` counts fourteen for every
+// completed farm, so a town with six fields scores forty-five from them alone,
+// and reads well fed while its larder holds six units for seven people. Every
+// judgement that hung on that score was wrong in the same direction: the town
+// looked rich, so nothing was sent to it and the granary let its people hurry
+// another child, while they went hungry beside their own fields. Measured on
+// ship-b at year 89: Maatsutsea, seven people, score 72.6, larder 6.
+//
+// So the score keeps its old meaning, which is what the land could yield, and
+// what a town is judged on is the larder: what is stored and what grows within
+// reach, which is what anyone can actually eat this year.
+function settlementLarder(place) {
+  const pop = settlementPopulation(place),
+    farms = typeof completedBuildings === "function" ? completedBuildings(place, "farm").length : 0;
+  return Math.max(0, settlementFood(place) - (farms * 14) / (1 + pop * 0.12));
+}
 function foodOutlook(place) {
   if (!place || place.ruined || !place.knownProcesses) return null;
   const food = settlementFood(place),
+    larder = settlementLarder(place),
     hungry = hungryShare(place),
     pop = settlementPopulation(place);
   return {
     food,
+    larder,
     stock: place.inventory[C.ORGANIC] || 0,
     pop,
     hungry,
-    lean: food < LEAN_FOOD || hungry > 0.25,
-    famine: food < FAMINE_FOOD || hungry > 0.4,
+    lean: larder < LEAN_FOOD || hungry > 0.25,
+    famine: larder < FAMINE_FOOD || hungry > 0.4,
   };
 }
 function granaryCount(place, type) {
