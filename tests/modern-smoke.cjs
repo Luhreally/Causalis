@@ -109,6 +109,21 @@ const fixtureSource = String.raw`(() => {
   out.roadStoneBooked = W.conservation.playerInput - inputBefore;
   if (!(out.roadStoneBooked > 0)) fail("the road push brought no stone: " + out.roadStoneBooked);
   if (!(out.pavedByPush > 0)) fail("the road push laid no stone: " + out.pavedByPush);
+  // A road between neighbours under different flags is still a road: no polity
+  // here has two towns, and the push must still pave one.
+  for (const l of W.roads.links) l.abandoned = true;
+  for (const town of [b, c]) town.factionId = 0;
+  for (const town of [s, b, c]) town.inventory[C.MINERAL] = 0;
+  out.strangerPolities = W.factions.filter((x) => x.stability > 0 && polityTownsOf(x).length >= 2).length;
+  if (out.strangerPolities) fail("a polity still holds two towns; the stranger road is not being tested");
+  const strangerPaved = () => W.roads.links.filter((l) => l.kind === "road" && !l.abandoned).reduce((n, l) => n + l.paved, 0);
+  const strangerBefore = strangerPaved(), strangerInput = W.conservation.playerInput;
+  out.strangerPush = modern.push("road");
+  out.strangerPavedBy = strangerPaved() - strangerBefore;
+  out.strangerStone = W.conservation.playerInput - strangerInput;
+  if (!(out.strangerStone > 0)) fail("the road push brought no stone across the border: " + out.strangerStone);
+  if (!(out.strangerPavedBy > 0)) fail("the road push laid nothing between towns of different flags: " + out.strangerPavedBy);
+  for (const town of [b, c]) town.factionId = f.id;
   // The groundwork for a tower is sought side by side: a world whose lead city
   // lacks two of the understandings sets more than one town to work on them.
   for (const town of W.settlements) { if (town.ruined) continue; town.knownProcesses = town.knownProcesses.filter((x) => x !== "combustion" && x !== "computing"); town.researchFocus = ""; }

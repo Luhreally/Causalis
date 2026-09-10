@@ -58,6 +58,56 @@ function modernElectricTowns() {
 function modernLink() {
   return (W.roads?.links || []).some((l) => l.complete);
 }
+// A road is only ever laid between two towns under one flag, and on a small
+// world the towns never gather into one. Measured on a battery-saver world at
+// year ninety-eight: four towns, four factions, one town each, twenty-one to
+// fifty-one tiles apart and every pair well within reach, one of them knowing
+// the craft, and not one of them able to pave anything. The world stood a
+// single requirement short of its ship for ten presses. A road between
+// neighbours is still a road, so the effort that carries the stone carries it
+// across a border too.
+function modernRoadBetweenStrangers(pushes) {
+  if (typeof startRoadLink !== "function" || typeof paveLink !== "function") return false;
+  const towns = worldTowns();
+  if (towns.length < 2 || !towns.some((s) => s.knownProcesses.includes("road_building")))
+    return false;
+  if (typeof ensureRoads === "function") ensureRoads();
+  let link = (W.roads?.links || []).find((l) => l.kind === "road" && !l.complete && !l.abandoned);
+  if (!link) {
+    let pair = null,
+      near = Infinity;
+    for (let i = 0; i < towns.length; i++)
+      for (let j = i + 1; j < towns.length; j++) {
+        const a = towns[i],
+          b = towns[j],
+          d = Math.sqrt(dist2(a.x, a.y, b.x, b.y));
+        if (d < 4 || d > ROAD_LINK_REACH || roadLinkBetween(a.id, b.id, "road")) continue;
+        if (d < near) {
+          near = d;
+          pair = [a, b];
+        }
+      }
+    if (!pair) return false;
+    const f =
+      W.factions.find((x) => x.id === pair[0].factionId) ||
+      W.factions.find((x) => x.id === pair[1].factionId) ||
+      W.factions[0];
+    if (!f) return false;
+    link = startRoadLink(f, pair[0], pair[1], "road");
+  }
+  if (!link) return false;
+  for (const id of [link.a, link.b]) {
+    const town = W.settlements.find((s) => s.id === id);
+    if (!town) continue;
+    const want = MODERN_ROAD_STONE - (town.inventory[C.MINERAL] || 0);
+    if (want > 0) {
+      town.inventory[C.MINERAL] += want;
+      causalPushInput(want);
+    }
+  }
+  for (let n = 0; n < MODERN_ROAD_PASSES; n++) paveLink(link);
+  return true;
+}
 function modernPeople() {
   return worldTowns().reduce((n, s) => n + settlementPopulation(s), 0);
 }
@@ -279,6 +329,8 @@ function modernPush(key, pushes) {
         }
       }
       for (let n = 0; n < MODERN_ROAD_PASSES; n++) roadPassFor(paver, false, "road");
+    } else if (modernRoadBetweenStrangers(pushes)) {
+      return "road";
     } else {
       let want = 2;
       for (const town of towns) {
