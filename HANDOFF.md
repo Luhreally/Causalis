@@ -127,6 +127,11 @@ parallel; the machine has 32 cores.
   CRLF and `git diff --stat` shows thousands of changed lines.
 - **`prettier` is not installed** in the work clone. Format by hand in its
   style.
+- **Give Python Windows paths.** A heredoc patch with
+  `p = "/c/Users/danie/..."` printed success and changed nothing; the file was
+  untouched and `git status` clean. Use `C:/Users/danie/...`. The same applies
+  to `$PWD` inside a Python string from Git Bash. Always `grep` the file
+  afterwards — this cost two wasted measurement runs in one sitting.
 
 ## Where the work stands
 
@@ -163,12 +168,26 @@ and people living in towns. Those counts were written for a standard map and
 did not scale, while every other gate in the game does. They now all fall with
 the map's **area** and hold at a floor that keeps each one's meaning.
 
-| size | cities | current in | blocks | factories | people |
-| --- | --- | --- | --- | --- | --- |
-| battery | 2 | 2 | 2 | 1 | 20 |
-| phone | 2 | 2 | 2 | 1 | 28 |
-| small | 2 | 2 | 2 | 1 | 44 |
-| standard and above | 2 | 3 | 3 | 2 | 100 |
+| size | cities | current in | blocks | apartments | factories | people |
+| --- | --- | --- | --- | --- | --- | --- |
+| battery | 2 | 2 | 16 | 6 | 1 | 20 |
+| phone | 2 | 2 | 16 | 6 | 1 | 28 |
+| small | 2 | 2 | 16 | 6 | 1 | 44 |
+| standard and above | 2 | 3 | 28 | 12 | 2 | 100 |
+
+The block and apartment counts are then swayed by the seed, up to a fifth
+either way and fixed for that world, so one world asks nineteen blocks where
+another asks fourteen. `causal-origin` sits near the middle at 0.99. Read the
+whole set, sway included, with `window.ALIFE_MODERN_DEBUG.wants()`.
+
+**A downtown was impossible before 2026-09-09 and the reason was mechanical,
+not numerical.** `modernSite` returns the first *unfinished* building of a
+type, so the skyline stage's loop supplied the same block once per block it
+still wanted. With the requirement set to forty, worlds raised two. Only after
+`modernRaise` was added — work every unfinished block, plan another when they
+all stand — did the same world raise forty in one press. If a count-based
+requirement is not being met, check whether the mechanism can produce more than
+one of the thing per press before touching the number.
 
 The people floor is not a number of its own: it is two cities' worth at that
 world's own urban gate (`urbanGate().local` from `84-horizons.js`). Read the
@@ -218,7 +237,14 @@ principle rather than merely hard, and the shortfall list will not tell you
 which. When a stage stalls for many presses, probe the mechanism that satisfies
 it and check its preconditions, rather than pushing harder at it.
 
-**3. `causal-origin` on small regressed.** It shipped at year 104 before the
+**3. The downtown costs slow worlds their ship.** `ship-c` on battery launched
+at year 102 with the old two-block bar and now dies at 164 short of fourteen
+blocks. `ship-b` on battery launched at 116 with twenty-four blocks and ten
+apartment blocks, then reached Cold Stores, Hydroponics and a colony. The
+difference between those two seeds is time, and the thing eating it is problem
+1. Do not lower the downtown to paper over that.
+
+**4. `causal-origin` on small regressed.** It shipped at year 104 before the
 food work and now reaches the road and three tower blocks by year 135 before
 halving. Two of three small seeds went the other way, so the net is positive,
 but this seed wants its own diagnosis.
