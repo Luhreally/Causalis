@@ -1,5 +1,7 @@
 # Handoff
 
+> **September 9, 2026 checkpoint:** Read [the current continuation notes](docs/CITY-CHECKPOINT.md) first. This branch now contains unfinished city/progression work. The older launch table below describes the baseline, not this checkpoint. Known collapse regressions and a long-run matter failure remain; do not deploy this as a validated balance fix.
+
 For an agent picking this up cold. Read this before touching anything. It is
 about how to work on Causalis without breaking it, and what is currently true
 about the part of it under active work.
@@ -51,10 +53,10 @@ for deploying. Do all work in the clone:
 
 ```
 npm run test:fast > log 2>&1
-bash $SCRATCH/suite-check.sh log 93
+bash $SCRATCH/suite-check.sh log 94
 ```
 
-The expected count is the number of `"ok": true` lines, currently **93**. It
+The expected count is the number of `"ok": true` lines, currently **94**. It
 changes only when you add a test file. A green suite is necessary and not
 sufficient — see "Pitfalls".
 

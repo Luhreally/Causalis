@@ -550,6 +550,8 @@ function causalSkipIntervene() {
   const level = W?.civilization?.concertedEffortLevel || 0;
   const next =
     CIV_STAGE_ORDER[normalizeCivilizationAuthority().stageIndex + 1] || CIV_STAGE_ORDER.at(-1);
+  // A skip can stop before the next effect queue drains. Its gifts arrive now,
+  // and only the amount that fits is booked, so a stopped world still balances.
   const input = (n) => (W.conservation.playerInput += n),
     living = W.settlements.filter((s) => !s.ruined);
   {
@@ -589,10 +591,8 @@ function causalSkipIntervene() {
         W.settlements.find((s2) => !s2.ruined && dist2(s2.x, s2.y, band.x, band.y) <= 64) ||
         W.camps.find((c3) => c3.active && dist2(c3.x, c3.y, band.x, band.y) <= 64);
       if (!localPlace && tileFood(bti, "omnivore") < 10) {
-        queueEffect("ModifyField", { tile: bti, chem: C.ORGANIC, delta: 30 });
-        input(30);
-        queueEffect("ModifyField", { tile: bti, chem: C.SOLVENT, delta: 40 });
-        input(40);
+        input(depositTileMatter(bti, C.ORGANIC, 30));
+        input(depositTileMatter(bti, C.SOLVENT, 40));
       }
     }
   }
@@ -600,10 +600,8 @@ function causalSkipIntervene() {
     const camp = W.camps.filter((c) => c.active).sort((a, b) => a.id - b.id)[0];
     if (!camp) return;
     const campTile = idx(camp.x, camp.y);
-    queueEffect("ModifyField", { tile: campTile, chem: C.ORGANIC, delta: 40 });
-    input(40);
-    queueEffect("ModifyField", { tile: campTile, chem: C.SOLVENT, delta: 60 });
-    input(60);
+    input(depositTileMatter(campTile, C.ORGANIC, 40));
+    input(depositTileMatter(campTile, C.SOLVENT, 60));
     for (const pid of entityAtRadius(campTile, 8, KINDS.PREDATOR).slice(0, 6)) {
       const p = W.components.position[pid];
       if (!p) continue;
@@ -646,12 +644,10 @@ function causalSkipIntervene() {
       });
     }
     if (settlementFood(town) < 12) {
-      queueEffect("ModifyField", { tile: tti, chem: C.ORGANIC, delta: 40 });
-      input(40);
+      input(depositTileMatter(tti, C.ORGANIC, 40));
     }
     if (settlementWater(town) < 12) {
-      queueEffect("ModifyField", { tile: tti, chem: C.SOLVENT, delta: 60 });
-      input(60);
+      input(depositTileMatter(tti, C.SOLVENT, 60));
     }
   }
   if (level < 3) return;

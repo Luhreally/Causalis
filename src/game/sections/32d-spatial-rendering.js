@@ -1884,7 +1884,7 @@ function drawBuildingInterior(g, b, now, m, state) {
       g.fillText(name, pos.x, pos.y - r * 0.15);
     }
   }
-  if (UI.camera.zoom > 4.5) {
+  if (UI.labels && UI.camera.zoom > 8) {
     const household = homes.length
         ? `${homes.length} resident${homes.length === 1 ? "" : "s"}`
         : "shared interior",

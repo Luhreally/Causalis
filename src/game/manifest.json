@@ -127,5 +127,9 @@
     "116-farmland.js",
     "117-granary-call.js",
     "118-common-fields.js",
-    "119-living-grove.js"
+    "119-living-grove.js",
+    "120-continuing-world.js",
+    "121-lived-in-city.js",
+    "122-public-streets.js",
+    "123-world-signatures.js"
 ]

@@ -13,6 +13,47 @@ Causalis is a deterministic artificial-life god game in which chemistry, ecology
 
 ## Player experience
 
+A bed now has an address. Households keep their homes between visits, move out
+of ruins, and fit within the beds actually built. Later cities distinguish
+partners and dependent children from grown children beginning households of
+their own. Homesteads belong to their residents; apartment blocks begin as
+municipal property. Where coin is used, the treasury pays civic wages,
+households pay rent, and a resident with enough savings can buy a block.
+Residents make rugs, pictures, cushions and shelves from their own fiber and
+pigment. The material stays in the building and its rubble. Place and person
+records show addresses, ownership, savings and furnishings. **Interiors** now
+opens tenements, tower blocks and offices too; **Floor · next** looks through
+successive floors, showing the people actually inside.
+
+Cities pave pedestrian verges, curbs, crossings and marked carriageways. A
+pair of cities joined by a completed road can fund a bus from its metal;
+railway towns can run a tram. Eight travellers can share a vehicle, boarding
+at its stops and riding the laid route to their destination. Wars or lost
+towns suspend the service. Routes and completed trips appear in the town
+record. Motor bodies, wheelbases, clearance, cabins and cargo racks vary with
+the seed, culture and terrain. Wet alien worlds favour enclosed pods; rough
+ones can favour six wheels. Towers have individual setbacks, facades, roofs
+and balconies; their height follows what was built, and residential lights
+follow occupancy. People and animals gain individual body proportions;
+native canopies and crags inherit a world's own branching and rock forms.
+`causal-origin` keeps its Earth-like terrain and living forms.
+
+The Causal skip's food and water now arrive when their input is booked, so
+stopping the skip leaves its matter audit balanced. Early growth remains
+quick. In a mature city, once the world's town population is half again its
+modern requirement, households with modest stores ease their birth pace while
+the existing famine brake stays in place. Starflight opens further skip
+objectives in cold storage, hydroponics, medicine, networks and the three
+frontiers of knowledge. These use the existing research tree, its materials
+and its effects; flight no longer exhausts the skip's list of discoveries.
+
+`npm run test:continuing-city` checks tenancy capacity, stable addresses,
+money and material transfers, save roundtrips, cutaway purity, real passengers
+and repeatable designs across three seeds. For generated worlds, run
+`node scripts/continuing-city-probe.cjs causal-origin battery lean 40`.
+Each press reports population, food, houses, journeys, discoveries and matter
+balance, and the probe continues for five presses beyond a first launch.
+
 Choose **First expedition** to begin in a small, inhabited world with a five-step
 field journal: inspect a life, observe time, bring rain, inspect the recorded
 change, and save. **Create a world** retains the full cellular start and generation

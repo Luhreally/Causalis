@@ -1,0 +1,3648 @@
+
+> causalis-living-equation@0.9.0 test:fast
+> npm run test:syntax && npm run test:cohort && npm run test:mobile && npm run test:conflict && npm run test:systems && npm run test:save && npm run test:living && npm run test:legends && npm run test:languages && npm run test:observatory && npm run test:belief && npm run test:character && npm run test:society && npm run test:bonds && npm run test:divine && npm run test:years && npm run test:diplomacy && npm run test:sea && npm run test:festivals && npm run test:lore && npm run test:items && npm run test:mind && npm run test:wealth && npm run test:politics && npm run test:houses && npm run test:export && npm run test:traits && npm run test:expansion && npm run test:eras && npm run test:perf && npm run test:faith && npm run test:naval && npm run test:calamity && npm run test:weariness && npm run test:temptation && npm run test:mating && npm run test:heartlines && npm run test:instinct && npm run test:causal && npm run test:provision && npm run test:records && npm run test:granary && npm run test:aftermath && npm run test:scale && npm run test:orbit && npm run test:harvest && npm run test:technology && npm run test:roads && npm run test:markets && npm run test:statecraft && npm run test:afternoon && npm run test:townscape && npm run test:daylight && npm run test:figures && npm run test:cities && npm run test:solid && npm run test:peace && npm run test:industry && npm run test:civil && npm run test:blocs && npm run test:finery && npm run test:presence && npm run test:skyline && npm run test:fauna && npm run test:ruins && npm run test:branches && npm run test:galaxy && npm run test:urban && npm run test:fields && npm run test:skystars && npm run test:steady && npm run test:tribes && npm run test:grove && npm run test:modern && npm run test:foundry && npm run test:farmland && npm run test:granary-call && npm run test:common-fields && npm run test:living-grove && npm run test:continuing-city
+
+
+> causalis-living-equation@0.9.0 test:syntax
+> node scripts/check-runtime.cjs
+
+Runtime syntax and strict-module override bindings are valid across 133 ordered sections.
+
+> causalis-living-equation@0.9.0 test:cohort
+> node tests/cohort-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "aggregated": true,
+    "materializedId": 80,
+    "expectedSpeciesMatter": 135535,
+    "materializedSpeciesMatter": 135535,
+    "roundTripMatterDelta": 0,
+    "agedOut": 5,
+    "ageMatterDelta": 0,
+    "deathStatisticDelta": 6,
+    "deathEvent": {
+      "type": "DeathEvent",
+      "magnitude": 5
+    },
+    "born": 1,
+    "birthMatterDelta": 0,
+    "birthStatisticDelta": 1,
+    "birthEvent": {
+      "type": "BirthEvent",
+      "magnitude": 1
+    },
+    "zeroDamageNoOp": true,
+    "overflowEffectExact": true,
+    "overflowVisibleToWork": true,
+    "transferCapacityExact": true,
+    "transferMatterDelta": 0,
+    "deathTickRecorded": true,
+    "remainingCorpses": 500,
+    "oldestPruned": true,
+    "newestRetained": true,
+    "pruneMatterDelta": 0,
+    "audit": {
+      "ok": true,
+      "cohorts": [
+        {
+          "id": 1,
+          "kind": "person",
+          "count": 0,
+          "ageBins": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "represented": 0,
+          "valid": true,
+          "negativeMatter": false,
+          "negativeGenes": false
+        },
+        {
+          "id": 2,
+          "kind": "herbivore",
+          "count": 16,
+          "ageBins": [
+            1,
+            15,
+            0,
+            0
+          ],
+          "represented": 16,
+          "valid": true,
+          "negativeMatter": false,
+          "negativeGenes": false
+        }
+      ]
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:mobile
+> node tests/mobile-smoke.cjs
+
+{
+  "ok": true,
+  "report": {
+    "portrait": {
+      "mode": {
+        "preference": "auto",
+        "active": true,
+        "viewport": [
+          430,
+          932
+        ],
+        "edgeScroll": false
+      },
+      "defaults": {
+        "size": "phone",
+        "complexity": "lean",
+        "quality": "low",
+        "labels": false
+      },
+      "canvas": {
+        "width": 645,
+        "height": 1224,
+        "dpr": 1.5
+      },
+      "sizes": {
+        "battery": [
+          72,
+          44
+        ],
+        "phone": [
+          96,
+          58
+        ],
+        "small": [
+          120,
+          72
+        ],
+        "standard": [
+          180,
+          110
+        ],
+        "grand": [
+          220,
+          132
+        ],
+        "vast": [
+          300,
+          180
+        ]
+      }
+    },
+    "gestures": {
+      "tappedSelection": {
+        "tile": 1297,
+        "entity": 0
+      },
+      "panDelta": -7.2727,
+      "pinchZoom": [
+        1.4,
+        2.38
+      ],
+      "orbitAngle": [
+        -0.35,
+        -0.21999999999999886
+      ],
+      "orbitTilt": [
+        0.58,
+        0.508
+      ],
+      "resumedPanDelta": -0.1299
+    },
+    "landscape": {
+      "mode": {
+        "preference": "auto",
+        "active": true,
+        "viewport": [
+          932,
+          430
+        ],
+        "edgeScroll": false
+      },
+      "canvas": {
+        "width": 1398,
+        "height": 492,
+        "dpr": 1.5
+      }
+    },
+    "desktop": {
+      "explicit": "desktop collapse retained",
+      "automaticLargeViewport": "desktop",
+      "explicitTouchOverride": "mobile"
+    },
+    "static": {
+      "viewportFit": true,
+      "safeAreas": true,
+      "dynamicViewport": true,
+      "touchTargets": true,
+      "landscapeSheet": true
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:conflict
+> node scripts/run-smoke-mode.cjs CONFLICT_DEBUG
+
+{
+  "ok": true,
+  "failures": [],
+  "probe": {
+    "ok": true,
+    "attacker": 1,
+    "victim": 2,
+    "result": 1,
+    "integrityLost": 49,
+    "wounds": [
+      {
+        "id": 1,
+        "tick": 0,
+        "part": "right arm",
+        "type": "impact fracture",
+        "severity": 0.19047619047619047,
+        "bleed": 1,
+        "bloodLost": 1,
+        "attackerId": 1,
+        "causeEvent": 92,
+        "treated": false,
+        "healedTick": 0,
+        "scar": false
+      }
+    ],
+    "combatEvent": {
+      "military": true,
+      "internal": false,
+      "occupation": false,
+      "xenophobic": false,
+      "warId": 900000,
+      "tactic": "shield rush",
+      "defense": "parry",
+      "bodyPart": "right arm",
+      "outcome": "hit",
+      "damage": 6,
+      "injuryEventId": 100
+    },
+    "injuryEvent": {
+      "military": true,
+      "internal": false,
+      "occupation": false,
+      "xenophobic": false,
+      "warId": 900000,
+      "tactic": "shield rush",
+      "defense": "parry",
+      "bodyPart": "right arm",
+      "outcome": "hit",
+      "woundId": 4,
+      "wound": "impact fracture",
+      "bloodLost": 1,
+      "critical": false,
+      "disabledPart": false,
+      "limbLostEventId": 0,
+      "severed": false
+    },
+    "doctrine": {
+      "razed": 0,
+      "massacred": 0,
+      "burned": false,
+      "preserved": 2,
+      "damaged": 0,
+      "destroyed": 0,
+      "plundered": 0
+    },
+    "beforeBuildings": [
+      {
+        "id": 900000,
+        "integrity": 100,
+        "ruined": false
+      },
+      {
+        "id": 900001,
+        "integrity": 100,
+        "ruined": false
+      }
+    ],
+    "afterBuildings": [
+      {
+        "id": 900000,
+        "integrity": 100,
+        "ruined": false
+      },
+      {
+        "id": 900001,
+        "integrity": 100,
+        "ruined": false
+      }
+    ],
+    "preservedOnCapture": true,
+    "siege": {
+      "damage": 6,
+      "eventType": "BuildingDamagedEvent",
+      "causeEvent": 101,
+      "remainingIntegrity": 88
+    },
+    "internalEvent": "InternalConflictEvent",
+    "contact": {
+      "key": "building:900001",
+      "kind": "wall",
+      "buildingId": 900001,
+      "objectiveTileRequired": false,
+      "distance": 0,
+      "tactic": "breach concentration",
+      "phase": "besieging",
+      "exchanges": 2,
+      "combatEvents": 2,
+      "recorded": 1
+    },
+    "capture": {
+      "eventId": 102,
+      "owner": 900000,
+      "expectedOwner": 900000,
+      "occupation": {
+        "active": true,
+        "formerFactionId": 900002,
+        "occupierFactionId": 900000,
+        "capturedTick": 0,
+        "resistance": 0,
+        "rebuildPriority": 1,
+        "warId": 900000,
+        "causeEvent": 102,
+        "adopted": 1,
+        "resisting": 0
+      },
+      "structures": {
+        "all": [
+          {
+            "id": 900000,
+            "placeKind": "settlement",
+            "placeId": 900000,
+            "type": "shelter",
+            "name": "Probe shelter",
+            "complete": true,
+            "ruined": false,
+            "integrity": 100,
+            "maxIntegrity": 100,
+            "x": 13,
+            "y": 27,
+            "defense": 3
+          },
+          {
+            "id": 900001,
+            "placeKind": "settlement",
+            "placeId": 900000,
+            "type": "wall",
+            "name": "Probe wall",
+            "complete": true,
+            "ruined": false,
+            "integrity": 88,
+            "maxIntegrity": 100,
+            "lastDamage": {
+              "tick": 0,
+              "amount": 6,
+              "causeEvent": 101,
+              "attackerId": 1,
+              "warId": 900000
+            },
+            "x": 13,
+            "y": 27,
+            "defense": 18
+          }
+        ],
+        "standing": [
+          {
+            "id": 900000,
+            "placeKind": "settlement",
+            "placeId": 900000,
+            "type": "shelter",
+            "name": "Probe shelter",
+            "complete": true,
+            "ruined": false,
+            "integrity": 100,
+            "maxIntegrity": 100,
+            "x": 13,
+            "y": 27,
+            "defense": 3
+          },
+          {
+            "id": 900001,
+            "placeKind": "settlement",
+            "placeId": 900000,
+            "type": "wall",
+            "name": "Probe wall",
+            "complete": true,
+            "ruined": false,
+            "integrity": 88,
+            "maxIntegrity": 100,
+            "lastDamage": {
+              "tick": 0,
+              "amount": 6,
+              "causeEvent": 101,
+              "attackerId": 1,
+              "warId": 900000
+            },
+            "x": 13,
+            "y": 27,
+            "defense": 18
+          }
+        ],
+        "preserved": 1,
+        "damaged": 1,
+        "destroyed": 0
+      },
+      "eventData": {
+        "name": "Probe settlement",
+        "preserved": 1,
+        "damaged": 1,
+        "destroyed": 0,
+        "adopted": 1,
+        "resisting": 0,
+        "resistance": 0,
+        "plundered": 0
+      }
+    },
+    "matterDelta": 0
+  },
+  "audit": {
+    "failures": [],
+    "metrics": {
+      "exchanges": 3,
+      "misses": 0,
+      "wounds": 3,
+      "criticals": 0,
+      "internalConflicts": 0,
+      "occupationClashes": 0,
+      "integrations": 0,
+      "structuresDamagedInWar": 0
+    },
+    "occupations": 0,
+    "recentInternalConflicts": [],
+    "matter": {
+      "current": 46388891,
+      "expected": 46388891,
+      "delta": 0,
+      "relative": 0,
+      "note": "Integer matter packets; solar and dissipated heat are tracked outside mass."
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:systems
+> node scripts/run-smoke-mode.cjs SYSTEMS_DEBUG
+
+{
+  "ok": true,
+  "failures": [],
+  "fixture": {
+    "campId": 1,
+    "entityId": 108,
+    "tile": 3781,
+    "people": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "architecture": {
+      "signature": "hive:interlocked lattice:membrane:5:3",
+      "layout": "hive",
+      "wallForm": "interlocked lattice",
+      "roofForm": "membrane",
+      "rigid": 5,
+      "flexible": 3,
+      "orientation": 0,
+      "paletteShift": -17
+    },
+    "matterBefore": 54274175,
+    "matterAfter": 54274175,
+    "matterDelta": 0,
+    "buildings": [
+      1,
+      2
+    ]
+  },
+  "social": {
+    "probe": {
+      "ok": true,
+      "people": {
+        "partner": 1,
+        "betrayer": 2,
+        "lover": 3,
+        "mourner": 4,
+        "victim": 5
+      },
+      "eventTypes": [
+        "LoveBondEvent",
+        "BetrayalEvent",
+        "CheatingDiscoveredEvent",
+        "GriefEvent",
+        "RevengeVowEvent"
+      ],
+      "concealedBeforeDiscovery": true,
+      "relationshipEnded": true,
+      "betrayedBy": [
+        2
+      ],
+      "emotion": {
+        "schema": 1,
+        "affection": 0.38,
+        "anger": 0.7,
+        "sadness": 0.8200000000000001,
+        "fear": 0,
+        "jealousy": 0.72,
+        "resolve": 0,
+        "contentment": 0.19999999999999996,
+        "dominant": "heartbreak",
+        "emoji": "💔",
+        "causeEvent": 97,
+        "updatedTick": 0
+      },
+      "criticalPriority": {
+        "key": "critical",
+        "emoji": "😵",
+        "glyphs": [
+          "😵",
+          "🩸"
+        ]
+      },
+      "attachmentCondition": "betrayed and socially guarded",
+      "revengeTarget": 3
+    },
+    "audit": {
+      "failures": [],
+      "bonded": 0,
+      "affairs": 0,
+      "revengeVows": 0,
+      "emotions": {
+        "critical": 0,
+        "agony": 1,
+        "love": 0,
+        "affection": 0,
+        "heartbreak": 0,
+        "anger": 0,
+        "grief": 0,
+        "fear": 0,
+        "jealousy": 0,
+        "revenge": 0,
+        "contentment": 15
+      }
+    }
+  },
+  "embodied": {
+    "probe": {
+      "ok": true,
+      "worker": 1,
+      "originalTile": 3781,
+      "equipment": {
+        "bucket": "Duresh-Ate seal-bucket",
+        "watercraft": "Duresh-Ate ribbed deep-water craft",
+        "bucketEvent": 95,
+        "watercraftEvent": 97
+      },
+      "fire": {
+        "filled": true,
+        "suppressed": true,
+        "before": 420,
+        "after": 260,
+        "eventId": 100
+      },
+      "navigation": {
+        "deepTile": 1299,
+        "depth": 6563,
+        "arrivedTile": 1299,
+        "exactArrival": true
+      },
+      "anatomy": {
+        "victim": 2,
+        "part": "left arm",
+        "severed": true,
+        "eventId": 102,
+        "visualSlotRemoved": true,
+        "detachedLifeTicks": 26,
+        "manipulationBefore": 1,
+        "manipulationAfter": 0.5
+      },
+      "matterDelta": 0
+    },
+    "drowningThreshold": {
+      "ok": true,
+      "person": 2,
+      "shallow": {
+        "depth": 1200,
+        "biome": "Shallow Water",
+        "drowning": false
+      },
+      "deep": {
+        "depth": 1201,
+        "biome": "Deep Water",
+        "drowning": true
+      }
+    },
+    "waterEscape": {
+      "ok": true,
+      "person": 2,
+      "deepTile": 1299,
+      "depth": 6563,
+      "finalTile": 542,
+      "finalDepth": 163,
+      "steps": 19,
+      "escaped": true,
+      "offshoreBirthBlocked": true,
+      "escapeRecognized": true,
+      "laborInterrupted": true
+    },
+    "audit": {
+      "failures": [],
+      "missingParts": 3,
+      "severedVisuals": 1,
+      "fluidSplatters": 8,
+      "buckets": 1,
+      "watercraft": 1,
+      "phases": {},
+      "matter": {
+        "current": 54274175,
+        "expected": 54274175,
+        "delta": 0,
+        "relative": 0,
+        "note": "Integer matter packets; solar and dissipated heat are tracked outside mass."
+      }
+    },
+    "drawOps": 215944
+  },
+  "agriculture": {
+    "probe": {
+      "ok": true,
+      "field": {
+        "id": 1,
+        "sown": true,
+        "harvested": true,
+        "stage": "fallow",
+        "cycles": 1,
+        "visual": {
+          "form": "reed",
+          "stemHue": 193,
+          "bloomHue": 291,
+          "chemistryVaries": true
+        },
+        "collision": {
+          "footprintClear": true,
+          "perimeterAccess": true,
+          "allNineTilesDry": true
+        }
+      },
+      "herd": {
+        "id": 1,
+        "actualAnimalIds": [
+          17,
+          18,
+          19,
+          20
+        ],
+        "state": "defended from predator",
+        "pastureTile": 4164,
+        "enclosure": {
+          "buildingId": 4,
+          "complete": true,
+          "condition": 0.9890243902439024,
+          "materials": [
+            [
+              3,
+              5
+            ],
+            [
+              5,
+              7
+            ]
+          ],
+          "containmentBlocked": true,
+          "damagedStandingContainment": true,
+          "predatorBlocked": true,
+          "theftBlocked": true,
+          "ownedAnimalsOnly": true
+        }
+      },
+      "predatorDefense": {
+        "defenders": [
+          1,
+          2,
+          3
+        ],
+        "predator": 74,
+        "protectedAnimal": 17,
+        "result": 3,
+        "forcedResult": 1
+      },
+      "eventTypes": [
+        "BirthEvent",
+        "BirthEvent",
+        "BirthEvent",
+        "BirthEvent",
+        "BirthEvent",
+        "CampFoundedEvent",
+        "ConstructionStartedEvent",
+        "ConstructionStartedEvent",
+        "ToolCraftedEvent",
+        "EquipmentCraftedEvent",
+        "ToolCraftedEvent",
+        "WatercraftLaunchedEvent",
+        "InterventionEvent",
+        "FireStartedEvent",
+        "FireSuppressedEvent",
+        "CombatExchangeEvent",
+        "LimbLostEvent",
+        "ConstructionStartedEvent",
+        "BuildingCompletedEvent",
+        "CropSownEvent",
+        "FieldMaturedEvent",
+        "CropHarvestedEvent",
+        "HerdFormedEvent",
+        "ConstructionStartedEvent",
+        "BuildingCompletedEvent",
+        "HerdEnclosedEvent",
+        "HerdFedEvent",
+        "HerdTheftPreventedEvent",
+        "EnclosureAttackedEvent",
+        "PredatorDefenseEvent",
+        "CombatExchangeEvent",
+        "PredatorDefenseEvent",
+        "CombatExchangeEvent",
+        "InjuryEvent",
+        "PredatorDefenseEvent",
+        "CombatExchangeEvent",
+        "InjuryEvent",
+        "PredatorDefenseEvent",
+        "CombatExchangeEvent",
+        "InjuryEvent"
+      ],
+      "fluidSplatters": 2,
+      "inventoryManifest": true,
+      "matterDelta": 0
+    },
+    "audit": {
+      "failures": [],
+      "fields": [
+        {
+          "id": 1,
+          "tile": 4074,
+          "stage": "fallow",
+          "growth": 0,
+          "cycles": 1,
+          "causeEvent": 107
+        }
+      ],
+      "herds": [
+        {
+          "id": 1,
+          "members": 4,
+          "state": "defended from predator",
+          "pastureTile": 4164,
+          "enclosure": {
+            "buildingId": 4,
+            "complete": true,
+            "ruined": false,
+            "condition": 0.9817073170731707,
+            "materials": [
+              [
+                3,
+                5
+              ],
+              [
+                5,
+                7
+              ]
+            ]
+          },
+          "causeEvent": 142
+        }
+      ],
+      "predatorDefenses": 6,
+      "enclosureAttacks": 2,
+      "preventedThefts": 1,
+      "fluidSplatters": 8,
+      "matter": {
+        "current": 54274175,
+        "expected": 54274175,
+        "delta": 0,
+        "relative": 0,
+        "note": "Integer matter packets; solar and dissipated heat are tracked outside mass."
+      }
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:save
+> node scripts/run-smoke-mode.cjs SAVE_DEBUG
+
+{
+  "ok": true,
+  "failures": [],
+  "codec": {
+    "ok": true,
+    "roundTrips": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "rejected": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "eventRetention": {
+    "ok": true,
+    "retained": true,
+    "unreferencedRemoved": true,
+    "militaryCategory": true,
+    "tombstones": {
+      "firstId": 1,
+      "lastId": 2,
+      "firstTick": 1,
+      "lastTick": 2,
+      "count": 2
+    },
+    "remaining": [
+      3
+    ]
+  },
+  "archive": {
+    "ok": true,
+    "savedHash": "ddb34422",
+    "restoredHash": "ddb34422",
+    "firstContinuation": "ac7d2a11",
+    "replayContinuation": "ac7d2a11",
+    "typed": {
+      "buildingComposition": true,
+      "cognition": true
+    }
+  },
+  "rollback": {
+    "ok": true,
+    "loaded": false,
+    "sameWorld": true,
+    "sameUi": true,
+    "ensureCallsBeforeCurrentHash": 0
+  },
+  "switchedSave": {
+    "ok": true,
+    "saved": true,
+    "recordSeed": "save-integrity-probe",
+    "targetSeed": "save-integrity-probe",
+    "targetAnnotated": true,
+    "switchedUntouched": true
+  },
+  "recoveredIndex": {
+    "ok": true,
+    "recovered": {
+      "slot": "slot3",
+      "name": "Index recovery fixture",
+      "date": "2023-11-14T22:13:20.000Z",
+      "seed": "index-recovery",
+      "year": 7,
+      "population": {
+        "person": 4
+      },
+      "bytes": 1234,
+      "version": 11,
+      "backend": "database"
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:living
+> node tests/living-world-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "results": {
+    "x3": {
+      "failures": [],
+      "tilt": 88,
+      "season": {
+        "genome": {
+          "amplitude": 88,
+          "phase": 0.483
+        },
+        "phase": 0.9830000000000001,
+        "name": "Thaw",
+        "label": " · Thaw · Morning",
+        "offsets": {
+          "min": -9,
+          "max": 9
+        }
+      },
+      "offsetSamples": [
+        9,
+        6,
+        -9
+      ],
+      "hemispheres": [
+        9,
+        -9
+      ],
+      "traffic": {
+        "worn": 52,
+        "roads": 9,
+        "max": 4050
+      },
+      "disasterEvents": [
+        "EruptionEvent",
+        "EarthquakeEvent",
+        "MeteorEvent"
+      ],
+      "ashGained": 3252,
+      "disasterMatterDelta": 0,
+      "disasterMatterDeltaAfterFires": 0,
+      "sentences": [
+        "A vent erupted near burned ground at 45,66: rock became ash, the ground burned, and 0 buildings were damaged.",
+        "An earthquake of magnitude 1.2 shook grassland at 79,45, damaging 1 building.",
+        "A falling star struck near burned ground at 81,54, cratering the ground, igniting it, and leaving ore in the rock."
+      ],
+      "settlementId": 1,
+      "factionId": 1,
+      "succession": {
+        "factionId": 1,
+        "leaderId": 5,
+        "succeeded": true
+      },
+      "successionSentence": "Kaa Yu chose its first Voice by trust and dominance.",
+      "omens": {
+        "id": 1,
+        "omens": 1,
+        "favour": 1
+      },
+      "omenSentence": "Kwas Baerou read rain as favour under Smutkur Smun.",
+      "shrinesPlanned": 1,
+      "columns": {
+        "traffic": true,
+        "seasonOffset": true
+      }
+    },
+    "hollow-crown": {
+      "failures": [],
+      "tilt": 0,
+      "season": {
+        "genome": {
+          "amplitude": 0,
+          "phase": 0.791
+        },
+        "phase": 0.2909999999999999,
+        "name": "",
+        "label": " · Afternoon",
+        "offsets": {
+          "min": 0,
+          "max": 0
+        }
+      },
+      "traffic": {
+        "worn": 87,
+        "roads": 28,
+        "max": 10252
+      },
+      "disasterEvents": [
+        "EruptionEvent",
+        "EarthquakeEvent",
+        "MeteorEvent"
+      ],
+      "ashGained": 1990,
+      "disasterMatterDelta": 0,
+      "disasterMatterDeltaAfterFires": 0,
+      "sentences": [
+        "A vent erupted near burned ground at 0,15: rock became ash, the ground burned, and 0 buildings were damaged.",
+        "An earthquake of magnitude 1.2 shook grassland at 84,47, damaging 0 buildings.",
+        "A falling star struck near burned ground at 66,8, cratering the ground, igniting it, and leaving ore in the rock."
+      ],
+      "settlementId": 1,
+      "factionId": 1,
+      "succession": {
+        "factionId": 1,
+        "leaderId": 15,
+        "succeeded": true
+      },
+      "successionSentence": "Zijo Yr chose its first Voice by trust and dominance.",
+      "omens": {
+        "id": 1,
+        "omens": 1,
+        "favour": 1
+      },
+      "omenSentence": "Ynjuer read rain as favour under Onnu Yz.",
+      "shrinesPlanned": 1,
+      "columns": {
+        "traffic": true,
+        "seasonOffset": true
+      }
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:legends
+> node tests/legends-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "annals": 28,
+    "recoveredType": "EruptionEvent",
+    "pages": {
+      "index": 5600,
+      "faction": 3593,
+      "life": 3063,
+      "place": 4938,
+      "event": 877
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:languages
+> node tests/languages-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "alien": {
+    "proto": {
+      "name": "Dzyotyo",
+      "legacy": false,
+      "consonants": 10,
+      "vowels": 7
+    },
+    "children": [
+      "Vaa Ratru",
+      "Baatsaan Ratru"
+    ],
+    "settlement": "Kwots Baerou",
+    "faction": "Ybau Yu",
+    "culture": "Yssmy Smun",
+    "tongue": "Dzyutyu",
+    "camp": null,
+    "species": "Kwitbae Taibyn"
+  },
+  "other": {
+    "proto": {
+      "name": "Irgy",
+      "legacy": false,
+      "consonants": 7,
+      "vowels": 5
+    },
+    "faction": "Izgu Un",
+    "species": "Nu Ez"
+  },
+  "earth": {
+    "children": [
+      "Mira Hollow",
+      "Bren Hollow"
+    ],
+    "faction": "The Pine League",
+    "species": "Kin Folk"
+  }
+}
+
+> causalis-living-equation@0.9.0 test:observatory
+> node tests/observatory-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "alertTypes": [
+      "FactionFoundedEvent",
+      "LeadershipEvent",
+      "SuccessionEvent",
+      "EruptionEvent"
+    ],
+    "ring": 13,
+    "follows": "Kwuky Jya became a leader of Ybau Yu.",
+    "people": [
+      "voice",
+      "in the annals"
+    ],
+    "routesPainted": 5,
+    "seasonPainted": 412,
+    "speciesPainted": 4,
+    "historyPainted": 9,
+    "territoryPainted": 0,
+    "culturePainted": 0
+  }
+}
+
+> causalis-living-equation@0.9.0 test:belief
+> node tests/belief-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "attention": 3,
+    "favour": 4.35,
+    "named": true,
+    "god": "Tarrua, Rain-Giver",
+    "tenets": [
+      "Water is holy; rain is answered with offerings.",
+      "Plenty is lent, not owned; a share is given back."
+    ],
+    "namingSentence": "Yssmy Smun named the power that moves their world: Tarrua, Rain-Giver, whom they read as favour.",
+    "omenSentence": "Kwots Baerou read a blessing as favour from Tarrua, Rain-Giver.",
+    "myth": {
+      "told": "In the year 0, Tarrua, Rain-Giver sent a blessing upon Kwots Baerou, and the people knew favour.",
+      "truth": "Kwots Baerou read a blessing as favour from Tarrua, Rain-Giver."
+    },
+    "retold": {
+      "told": "In the year 0, Tarrua, Rain-Giver sent a blessing upon Kwots Baerou, and a hundred were fed and none went hungry.",
+      "truth": "Kwots Baerou read a blessing as favour from Tarrua, Rain-Giver.",
+      "retellings": 1
+    },
+    "rites": 1,
+    "offeringMoved": 4,
+    "riteSentence": "Kwots Baerou held rites to Tarrua, Rain-Giver and offered 4 units of stored matter.",
+    "prophet": "Kwuky Jya",
+    "prophecySentence": "Kwuky Jya rose as Speaker of Tarrua, Rain-Giver among Yssmy Smun and foretold years of plenty.",
+    "child": {
+      "name": "Dzysye Smun",
+      "tongue": "Ketkween",
+      "favour": -4,
+      "parent": 1
+    },
+    "schismSentence": "Kwots Baerou broke from Yssmy Smun over the meaning of Tarrua, Rain-Giver and became Dzysye Smun."
+  }
+}
+
+> causalis-living-equation@0.9.0 test:character
+> node tests/character-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "people": 15,
+    "sampleTraits": [
+      [
+        "restless",
+        "proud",
+        "wary"
+      ],
+      [
+        "rooted",
+        "curious",
+        "proud"
+      ],
+      [
+        "hardy",
+        "skeptic"
+      ],
+      [
+        "proud",
+        "frail",
+        "wary"
+      ]
+    ],
+    "traitSpread": 11,
+    "wanting": 8,
+    "aspiration": "Smaajaa Taabat found a partner.",
+    "craft": 55.2,
+    "mastery": "Kwaa Tsu was recognised as Adept Crafter.",
+    "fightBonus": 2.392,
+    "cardLength": 525
+  }
+}
+
+> causalis-living-equation@0.9.0 test:society
+> node tests/society-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "journey": {
+      "start": 24,
+      "after": 3,
+      "reason": "walking to see what lies beyond the horizon"
+    },
+    "monument": {
+      "id": 9,
+      "name": "Monument to the eruption survived",
+      "commemorates": 271
+    },
+    "caravan": "single town, refused",
+    "taken": 6,
+    "theftSentence": "Kwaa Tsu stole 6 units of food from Kwots Baerou.",
+    "exileSentence": "Kwaa Tsu was exiled from Kwots Baerou.",
+    "freedSentence": "Smaajaa Taabat was freed by Ybau Yu and set out for home.",
+    "dens": 9,
+    "beastSentence": "Tuntyn grew into a beast of legend among the Kwynsmi Kwibou, with 4 kills.",
+    "pasture": 5818
+  }
+}
+
+> causalis-living-equation@0.9.0 test:bonds
+> node tests/bonds-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "house": [
+      "Ratru",
+      "Tsu"
+    ],
+    "friend": "friend",
+    "friendSentence": "Yut Ratru and Kwaa Tsu became fast friends after seasons side by side in Kwots Baerou.",
+    "rival": "rival",
+    "rivalSentence": "Yut Ratru and Kwaa Tsu became rivals over jealousy of Kwaa Tsu.",
+    "quarrelSentence": "Yut Ratru quarrelled with Kwaa Tsu in Kwots Baerou, and blows were struck.",
+    "feud": {
+      "names": [
+        "Ratru",
+        "Tsu"
+      ],
+      "heat": 1,
+      "deaths": 1
+    },
+    "feudSentence": "A feud began between the houses of Ratru and Tsu after Kwaa Tsu killed Yut Ratru.",
+    "card": "<div class=\"card bonds-card\"><div class=\"subhead\" style=\"margin-top:0\">Bonds</div><div class=\"kv\"><span>House</span><b>Ratru <span class=\"muted\">· 1 living</span></b><span>Friends</span><b><span class=\"muted\">none yet</span></b><span>Rivals</span><b><span class=\"legend-link gold \" data-legend=\"life:2\">Kwaa Tsu</span></b><span>Feud</span><b><span class=\"legend-link gold \" data-legend=\"feud:1\">The Ratru–Tsu Feud</span> <span class=\"muted\">· smouldering</span></b></div></div>",
+    "page": 1218,
+    "endedSentence": "The feud between the houses of Ratru and Tsu ended: the marriage of Yut Ratru and Kwaa Tsu joined the houses.",
+    "summary": {
+      "friends": 0,
+      "rivals": 1,
+      "feuds": 1
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:divine
+> node tests/divine-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "chosenSentence": "Yut Ratru was marked as Chosen of the Unseen before the Yssmy Smun.",
+    "whisperSentence": "Kwots Baerou woke knowing Controlled Combustion; Yut Ratru heard it first.",
+    "signSentence": "A slow star crossing the noon sky appeared in the sky over Kwots Baerou.",
+    "singlePolity": true,
+    "omens": [
+      "anoint:favour",
+      "whisper:favour",
+      "sign:a portent"
+    ]
+  }
+}
+
+> causalis-living-equation@0.9.0 test:years
+> node tests/years-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "yearEvents": [
+      "Year 0: 12 notable events (3 species, 3 settlements, 3 polities). Life advanced from Multicellular to Sapient Foraging. Stable phases, energy gradients, catalysts, and information polymers assembled in the wider world. Life crossed the threshold of bounded replication in shell banks at 83,23."
+    ],
+    "digest": "12 notable events (3 species, 3 settlements, 3 polities). Life advanced from Multicellular to Sapient Foraging. Stable phases, energy gradients, catalysts, and information polymers assembled in the wider world. Life crossed the threshold of bounded replication in shell banks at 83,23.",
+    "pageLength": 10836,
+    "scope": "faction/place/world",
+    "forced": 1
+  }
+}
+
+> causalis-living-equation@0.9.0 test:diplomacy
+> node tests/diplomacy-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "people": [
+      10,
+      11
+    ],
+    "kin": [
+      2,
+      1
+    ],
+    "carved": true,
+    "roadLength": 51,
+    "envoySentence": "Kwaa Tsu set out from Ybau Yu to Smosme Smidkwees bearing terms of a marriage between the houses.",
+    "marriageSentence": "Yut Ratru of Ybau Yu was wed to Ri Yunban of Smosme Smidkwees, joining the houses of two polities.",
+    "claimSentence": "Ybau Yu claimed a voice in the succession of Smosme Smidkwees through Yut Ratru, against Raetsmae Yunban.",
+    "unionSentence": "Yut Ratru, of the blood of both Ybau Yu and Smosme Smidkwees, took the Voice of Smosme Smidkwees; the polities are bound as one house.",
+    "treatySentence": "Ybau Yu agreed to pay Smosme Smidkwees 15 measures of food each year for 8 years, and the war ended.",
+    "paid": [
+      "TributeEvent"
+    ],
+    "vassalSentence": "Smosme Smidkwees bent the knee to Ybau Yu and became its vassal.",
+    "savedBytes": 1829582,
+    "independenceSentence": "Smosme Smidkwees threw off the overlordship of Ybau Yu.",
+    "section": 1004
+  }
+}
+
+> causalis-living-equation@0.9.0 test:sea
+> node tests/seafaring-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "wantsDock": true,
+    "trips": 2,
+    "catchSentence": "Kwaa Tsu brought 12 units of the catch into Kwots Baerou.",
+    "sails": true,
+    "site": 2929,
+    "voyage": {
+      "settlers": 4,
+      "target": 2929
+    },
+    "voyageSentence": "4 settlers set sail from Kwots Baerou for a shore 26 tiles across the water.",
+    "colonySentence": "Settlers from Kwots Baerou landed across the water and founded Smo Smorsmus."
+  }
+}
+
+> causalis-living-equation@0.9.0 test:festivals
+> node tests/festivals-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "song": {
+      "title": "The Founding of Kwots Baerou",
+      "name": "Kwaandzae",
+      "kind": "tale"
+    },
+    "songSentence": "Kwaa Tsu composed 'The Founding of Kwots Baerou' (Kwaandzae), a tale of the Yssmy Smun.",
+    "dance": "stamping",
+    "feast": {
+      "attendees": 10,
+      "songs": 1
+    },
+    "feastSentence": "Kwots Baerou feasted for the harvest: 10 gathered and 30 units of food were eaten, and 'The Founding of Kwots Baerou' was sung.",
+    "dancers": 10,
+    "singleCulture": true,
+    "muralSentence": "Kwaa Tsu painted the walls of the Shelter in Kwots Baerou with suns."
+  }
+}
+
+> causalis-living-equation@0.9.0 test:lore
+> node tests/lore-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "length": 2644,
+    "deadOk": true
+  }
+}
+
+> causalis-living-equation@0.9.0 test:items
+> node tests/items-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "silhouettes": [
+      "blade",
+      "sling",
+      "tube",
+      "axe",
+      "pick",
+      "scoop",
+      "hammer",
+      "spear",
+      "maul",
+      "bucket",
+      "helm",
+      "boat",
+      "shield"
+    ],
+    "model": {
+      "silhouette": "axe",
+      "hue": 63,
+      "quality": 78
+    },
+    "glyphs": 32,
+    "topologies": [
+      "ring",
+      "branched",
+      "network"
+    ]
+  }
+}
+
+> causalis-living-equation@0.9.0 test:mind
+> node tests/mind-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "trace": [
+      455,
+      657,
+      747,
+      787,
+      804,
+      812,
+      "…",
+      818
+    ],
+    "state": [
+      690,
+      702,
+      -456,
+      822,
+      506,
+      -644,
+      819,
+      615
+    ],
+    "gate": [
+      847,
+      936,
+      788,
+      801,
+      226,
+      834,
+      949,
+      611
+    ],
+    "dominant": "flee",
+    "reasoned": 5,
+    "snapshot": "691,700,-453,830,512,-647,818,643"
+  }
+}
+
+> causalis-living-equation@0.9.0 test:wealth
+> node tests/wealth-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "wealthA": 259.2,
+    "standingA": "rich",
+    "inequality": 1,
+    "line": "Counted among the rich of Kwots Baerou, with 259.2 in goods.",
+    "fortuneSentence": "Kwaa Tsu became the richest in Kwots Baerou, with 556.6 in goods."
+  }
+}
+
+> causalis-living-equation@0.9.0 test:politics
+> node tests/politics-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "calm": 0.108,
+    "troubled": 0.7999999999999999,
+    "unrestSentence": "Unrest simmers in Kwots Baerou: a town losing faith in itself and 10 hungry mouths.",
+    "coupSentence": "Kwuky Jya seized the Voice of Ybau Yu; Yut Ratru was driven into exile.",
+    "singleTown": true
+  }
+}
+
+> causalis-living-equation@0.9.0 test:houses
+> node tests/houses-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "houses": 15,
+    "house": {
+      "name": "Ratru",
+      "members": 3,
+      "voices": 1
+    },
+    "treeLength": 418,
+    "dynasty": {
+      "factionId": 1,
+      "count": 2
+    },
+    "deadNote": "the dead grandchild left the record"
+  }
+}
+
+> causalis-living-equation@0.9.0 test:export
+> node tests/export-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "htmlBytes": 63542,
+    "textBytes": 2857
+  }
+}
+
+> causalis-living-equation@0.9.0 test:traits
+> node tests/traits-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "first": [
+      "Expansionist",
+      "Warlike",
+      "Zealots"
+    ],
+    "gainedSentence": "Ybau Yu came to be known as Expansionist: hungry for land; settlers and claims come easier.",
+    "lostSentence": "Ybau Yu were no longer called Zealots.",
+    "stats": {
+      "age": 0,
+      "towns": 1,
+      "docks": 0,
+      "sails": false,
+      "colonies": 0,
+      "envoys": 0,
+      "wars": 0,
+      "trades": 0,
+      "rites": 0,
+      "buildings": 5,
+      "captives": 0,
+      "feuds": 0,
+      "songs": 0,
+      "xenophobia": 0.5892418412592432,
+      "upheavals": 0,
+      "ascensions": 0
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:expansion
+> node tests/expansion-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "caps": {
+      "herbivore": 300,
+      "predator": 80,
+      "person": 250,
+      "corpse": 500,
+      "camp": 40,
+      "settlement": 40,
+      "faction": 12
+    },
+    "vastCaps": {
+      "herbivore": 495,
+      "predator": 132,
+      "person": 413,
+      "corpse": 826,
+      "camp": 66,
+      "settlement": 66,
+      "faction": 20
+    },
+    "members": 4,
+    "leaving": "4 settlers left Kwots Baerou for free land 20 tiles to the east.",
+    "urge": 0.13720000000000002,
+    "founded": "Settlers from Kwots Baerou raised the camp of Taa Dzynsmar to the east.",
+    "prospecting": "A prospector left Kwots Baerou for Ircae-Ene, 57 tiles to the northwest.",
+    "returned": "A prospector brought 14 units of Ircae-Ene home to Kwots Baerou.",
+    "researchWant": "Joraein (research only)",
+    "researchDeficit": 10,
+    "stores": {
+      "drew": true,
+      "stock": 16,
+      "carried": 4,
+      "placed": 0,
+      "doing": "haul/drew 4 Durglyox from the stores for the Shrine",
+      "order": "construct:11",
+      "shrineId": 11,
+      "nearest": "Kwots Baerou=true",
+      "missing": "{\"sp\":18,\"needed\":4,\"ratio\":0}",
+      "active": "shrine*"
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:eras
+> node tests/eras-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "age0": 0,
+    "ageSentence": "The Age of Metal began, called Kwukwaar in the first tongue; Kwots Baerou of Ybau Yu led the way.",
+    "league": {
+      "name": "Vyttay League",
+      "members": 3
+    },
+    "leagueSentence": "Ybau Yu, Suodzee Smer, Kwykwit Kwaet swore the Vyttay League, a league of 3 polities.",
+    "warNotJoined": "hostile",
+    "ship": {
+      "first": true,
+      "tile": 4505
+    },
+    "shipSentence": "From the launch tower of Kwots Baerou of Ybau Yu, the first ship left the world, carrying seed, record, and the names of its peoples.",
+    "ending": 2070
+  }
+}
+
+> causalis-living-equation@0.9.0 test:perf
+> node tests/performance-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "edgePlan": false,
+    "hearth": true,
+    "msPerTick": 4.328845000000001
+  }
+}
+
+> causalis-living-equation@0.9.0 test:faith
+> node tests/faith-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "compact": "Vyttay League (3)",
+    "faithA": "the Bright Way of Ora",
+    "faithB": "the Dread Way of Ora",
+    "zeal": 1,
+    "holySentence": "Ybau Yu marched against Suodzee Smer in the name of Ora: a holy war of the Bright Way of Ora against the Dread Way of Ora, two readings of one god."
+  }
+}
+
+> causalis-living-equation@0.9.0 test:naval
+> node tests/naval-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "battle": "The boats of Ybau Yu beat the boats of Suodzee Smer off Tsae Tinkwaa; 3 went under.",
+    "blockade": "Ybau Yu blockaded Tsae Tinkwaa of Suodzee Smer; no boat could fish or sail.",
+    "lifted": "The blockade of Tsae Tinkwaa by Ybau Yu was lifted: the war ended."
+  }
+}
+
+> causalis-living-equation@0.9.0 test:calamity
+> node tests/calamity-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "state": {
+      "calamity": 0.5571428571428572,
+      "kind": "quake",
+      "tick": 160
+    },
+    "struckSentence": "The quake reached Kwots Baerou of Ybau Yu, the capital itself, and the people looked to their Voice.",
+    "blamedSentence": "The Voice of Ybau Yu was blamed for the quake that struck Kwots Baerou and deposed."
+  }
+}
+
+> causalis-living-equation@0.9.0 test:weariness
+> node tests/weariness-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "appetite": 0.5735294117647058,
+    "endedReason": "the war petered out without a battle",
+    "rivalrySkipped": "too few adults"
+  }
+}
+
+> causalis-living-equation@0.9.0 test:temptation
+> node tests/temptation-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "bond": "Yut Ratru and Kwaa Tsu became partners.",
+    "betrayal": "Yut Ratru began an affair with Smaajaa Taabat behind Kwaa Tsu's back.",
+    "rivalCause": "Smaajaa Taabat's affair with Yut Ratru",
+    "caught": "Smaajaa Taabat caught Kwaa Tsu with Yut Ratru."
+  }
+}
+
+> causalis-living-equation@0.9.0 test:mating
+> node tests/mating-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "naturalSkipped": "the fixture town is at its carrying capacity or has no safe birth site; coupling forced",
+    "partners": "Yut Ratru and Kwaa Tsu, partners, coupled in shallow water at 62,47.",
+    "child": "Smor Tsu",
+    "house": 9001,
+    "childStory": "<div class=\"card story-card\"><div class=\"row between\"><div class=\"subhead\" style=\"margin:0\">Story</div><button class=\"small\" data-legend=\"life:94\">Full story in Legends</button></div><p><b>Smor Tsu</b> of the house of Tsu is 0.0 years old, still young. Skeptic, wary and proud by nature.</p><p> Child of <span class=\"gold\" data-world-target=\"2\" style=\"cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px\" title=\"Go to Kwaa Tsu\">Kwaa Tsu</span> and <span class=\"gold\" data-world-target=\"1\" style=\"cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px\" title=\"Go to Yut Ratru\">Yut Ratru</span>. Sibling of <span class=\"gold\" data-world-target=\"95\" style=\"cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px\" title=\"Go to Smor Tsu\">Smor Tsu</span>. Grandchild of <span class=\"gold\" data-world-target=\"3\" style=\"cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px\" title=\"Go to Smaajaa Taabat\">Smaajaa Taabat</span>.</p><div class=\"subhead\">Lately</div><div class=\"legend-timeline\"><div class=\"legend-row\" data-legend=\"event:228\"><span class=\"legend-year\">Y0</span><span>Smor Tsu was born in shallow water at 62,47.</span></div></div></div>",
+    "secret": "Yut Ratru and Smaajaa Taabat lay together in secret in shallow water at 62,47.",
+    "lovers": 2
+  }
+}
+
+> causalis-living-equation@0.9.0 test:heartlines
+> node tests/heartlines-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "statusWithPartner": "with Kwaa",
+    "statusSecret": "keeping a secret",
+    "birth": "Yutu Ratru was born to Yut Ratru and Kwaa Tsu.",
+    "reveal": "Yutu Ratru, raised as the child of Yut Ratru and Kwaa Tsu, was seen to be Smaajaa Taabat's: the look of another house was on them."
+  }
+}
+
+> causalis-living-equation@0.9.0 test:instinct
+> node tests/instinct-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "childGenesFromParents": "13/14",
+    "impulse": {
+      "damped": 195,
+      "raw": 713
+    },
+    "carrion": "carrion",
+    "threshold": 87.07421875,
+    "cannibalism": "cannibalism",
+    "cannibalSentence": "Kwae Smujiu, with hunger at 99 and nothing else to eat, ate of the dead: Kwuky Jya.",
+    "strength": {
+      "strong": 1.71,
+      "weak": 1
+    },
+    "robbery": "robbery",
+    "robberySentence": "Kwae Smujiu, starving, robbed Smaajaa Taabat of 8 units of food."
+  }
+}
+
+> causalis-living-equation@0.9.0 test:causal
+> node tests/causal-push-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "presses": [
+      {
+        "stop": "epoch",
+        "milestone": "an epoch boundary",
+        "advanced": 128,
+        "drift": 0
+      },
+      {
+        "stop": "milestone",
+        "milestone": "a permanent settlement",
+        "advanced": 95,
+        "drift": 0
+      },
+      {
+        "stop": "epoch",
+        "milestone": "an epoch boundary",
+        "advanced": 31,
+        "drift": 0
+      },
+      {
+        "stop": "milestone",
+        "milestone": "a founded polity",
+        "advanced": 127,
+        "drift": 0
+      },
+      {
+        "stop": "epoch",
+        "milestone": null,
+        "advanced": 383,
+        "drift": 0
+      }
+    ],
+    "nextStep": "controlled_fire",
+    "recordsPush": "research",
+    "hallPush": "hall",
+    "lateStages": [
+      "astronomy",
+      "observatory",
+      "cities",
+      "current",
+      "skyline",
+      "works",
+      "road",
+      "hundred",
+      "starflight",
+      "tower",
+      "ascension"
+    ]
+  }
+}
+
+> causalis-living-equation@0.9.0 test:provision
+> node tests/provision-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "state": {
+      "version": 1,
+      "seams": 11,
+      "deposited": 224,
+      "tick": 0,
+      "reason": "worldgen"
+    },
+    "blocks": 15,
+    "missing": 0,
+    "drift": 0
+  }
+}
+
+> causalis-living-equation@0.9.0 test:records
+> node tests/records-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "archives": [
+      "Tsae Tinkwaa"
+    ],
+    "records": [
+      "ceramics",
+      "controlled_fire",
+      "metalworking",
+      "writing"
+    ],
+    "ruinEvidence": "the archive of Tsae Tinkwaa holds the record of its crafts",
+    "readiness": {
+      "pop": 4,
+      "kiln": true,
+      "ore": true,
+      "fuel": true,
+      "heat": 560,
+      "need": 700,
+      "structures": true,
+      "heatWithFuel": 760
+    },
+    "recovered": [
+      {
+        "settlement": "Tsae Tinkwaa",
+        "process": "metalworking"
+      }
+    ],
+    "sentence": "Tsae Tinkwaa recovered Ore Reduction from the records kept at Tsae Tinkwaa.",
+    "researchAfter": 4.129220998246273
+  }
+}
+
+> causalis-living-equation@0.9.0 test:granary
+> node tests/granary-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "outlook": {
+      "food": 102.71494426229506,
+      "stock": 216,
+      "pop": 12,
+      "hungry": 0.16666666666666666,
+      "lean": false,
+      "famine": false
+    },
+    "plan": {
+      "farms": 2,
+      "stores": 1,
+      "active": 3
+    },
+    "famineOutlook": {
+      "food": 0,
+      "stock": 0,
+      "pop": 12,
+      "hungry": 0.16666666666666666,
+      "lean": true,
+      "famine": true
+    },
+    "ration": 8,
+    "donor": "Tsae Tinkwaa",
+    "relief": "Tsae Tinkwaa sent 60 units of food to Kwots Baerou, where 17% went hungry.",
+    "migration": "3 starving people left Kwots Baerou for the fed stores of Tsae Tinkwaa.",
+    "seedReserve": 18,
+    "sown": {
+      "sown": true,
+      "stage": "sown"
+    },
+    "nutrientTarget": 33,
+    "urgeHungry": 0.2572,
+    "urgeFed": 0.13720000000000002,
+    "fertility": {
+      "fed": 1.32,
+      "starving": 0.35640000000000005
+    },
+    "foodFed": 72,
+    "hasteFed": 5,
+    "paceFed": null,
+    "hasteHungryTown": 0.6,
+    "paceHungryTown": 0.6
+  }
+}
+
+> causalis-living-equation@0.9.0 test:aftermath
+> node tests/aftermath-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "refuge": "Kwots Baerou",
+    "ruinEvidence": "4 survivors set out for Kwots Baerou",
+    "refugees": "4 survivors of Tsae Tinkwaa walked to Kwots Baerou.",
+    "ruinSite": 4517,
+    "reborn": {
+      "name": "Reu Ru",
+      "from": "Tsae Tinkwaa",
+      "crafts": [
+        "ceramics",
+        "controlled_fire"
+      ]
+    },
+    "rose": "Reu Ru rose on the ruins of Tsae Tinkwaa, and 2 of the old crafts were found again in the rubble.",
+    "source": "Kwots Baerou",
+    "colonists": "3 colonists left Kwots Baerou for thinly held Reu Ru."
+  }
+}
+
+> causalis-living-equation@0.9.0 test:scale
+> node tests/scale-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "size": [
+      72,
+      44
+    ],
+    "scale": 0.4,
+    "gate": {
+      "local": 10,
+      "network": 13
+    },
+    "settlerMinimum": 12,
+    "modernGate": 20,
+    "modernFloor": 20,
+    "modernWants": {
+      "share": 0.16,
+      "cities": 2,
+      "electric": 2,
+      "skyline": 2,
+      "works": 1,
+      "people": 20
+    },
+    "hall": [
+      [
+        "Ferhal-Ite",
+        24
+      ],
+      [
+        "Aeesh-Ate",
+        32
+      ],
+      [
+        "Haljorin",
+        8
+      ],
+      [
+        "Durglyox",
+        4
+      ]
+    ],
+    "hallWork": {
+      "required": 81,
+      "base": 146
+    },
+    "pop": 10,
+    "built": 20,
+    "stage": "urban",
+    "shortfall": [],
+    "metroLabel": "a metropolitan population (10 local or 13 across the polity)",
+    "requirement": "one settlement with a Civic hall, a Catalytic clinic, 8 completed structures, and 10 local or 13 faction-network people",
+    "standardGate": {
+      "local": 24,
+      "network": 32
+    },
+    "standardModernGate": 100,
+    "standardWants": {
+      "share": 1,
+      "cities": 2,
+      "electric": 3,
+      "skyline": 3,
+      "works": 2,
+      "people": 100
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:orbit
+> node tests/orbit-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "stars": 7,
+    "ladder": [
+      "complex terrestrial",
+      "orbital",
+      "interstellar"
+    ],
+    "charted": "Kwots Baerou charted Tsostsa, 6.2 light-years away, and read its prime world as a garden world.",
+    "orbitalGate": [
+      "complete a Launch tower",
+      "grow a city to the urban stage",
+      "2 cities at the urban stage",
+      "current in 2 towns",
+      "2 tower blocks or offices",
+      "1 working factories",
+      "a paved road or rail between two towns",
+      "44 people living in towns"
+    ],
+    "voyage": {
+      "name": "Kwots Baerou 1",
+      "star": "Tsostsa",
+      "status": "under way",
+      "years": 12,
+      "crew": 0,
+      "crafts": 4
+    },
+    "interstellarGate": [
+      "a colony (Kwots Baerou 1 reaches Tsostsa in year 13)"
+    ],
+    "founded": "New Kwots Baerou was founded under Tsostsa by the ship from Kwots Baerou of Ybau Yu, 0 years after it left.",
+    "colonyGrowth": {
+      "before": 24,
+      "after": 25
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:harvest
+> node tests/harvest-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "plain": {
+      "extent": 1,
+      "interval": 64,
+      "cap": 1
+    },
+    "tended": {
+      "extent": 4,
+      "interval": 16,
+      "cap": 1.5,
+      "tended": true
+    },
+    "updatedTick": true,
+    "ripeTarget": 54,
+    "earlyStage": "growing",
+    "fullStage": "ripe",
+    "seedReserve": 9,
+    "seedReserveFed": 9,
+    "harvest": {
+      "moved": 10,
+      "room": 256,
+      "expected": 10
+    },
+    "wantedRipe": true,
+    "adopted": 1,
+    "strayHome": "settlement:1",
+    "restedReady": true,
+    "roomBefore": 0,
+    "spilled": 502,
+    "roomAfter": 54,
+    "fedOutlookLean": false,
+    "fedHungryTaken": false,
+    "leanOutlookLean": true,
+    "leanHungryTaken": true,
+    "budget": 2,
+    "gateRested": "rested",
+    "gateBudget": "budget"
+  }
+}
+
+> causalis-living-equation@0.9.0 test:technology
+> node tests/technology-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "catalog": 104,
+    "ladder": [
+      "Stone",
+      "Hearths",
+      "Metal",
+      "Letters",
+      "Engines",
+      "Electricity",
+      "Information",
+      "Stewardship",
+      "Stars"
+    ],
+    "research": [
+      1,
+      1.2,
+      2.07
+    ],
+    "construction": [
+      1,
+      1.25,
+      1.5625
+    ],
+    "hygiene": [
+      1,
+      0.6,
+      0.3
+    ],
+    "tier": [
+      5,
+      6,
+      7
+    ],
+    "retiered": 1,
+    "recordedBefore": false,
+    "recordedAfter": true,
+    "wheelProgress": 0.2183093060850874,
+    "milestone": "A test first was passed.",
+    "milestones": 2
+  }
+}
+
+> causalis-living-equation@0.9.0 test:roads
+> node tests/roads-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "distance": 29,
+    "passes": 5,
+    "road": {
+      "tiles": 34,
+      "paved": 34,
+      "complete": true
+    },
+    "tilesRoad": {
+      "paved": 34,
+      "rail": 0
+    },
+    "ledger": 84,
+    "roadSentence": "A paved road now joins Kwots Baerou and Tsae Tinkwaa, 34 tiles of graded stone.",
+    "vehicleNone": null,
+    "vehicleCart": "cart",
+    "trace": {
+      "kind": "caravan",
+      "sea": false,
+      "alive": true,
+      "inside": 0,
+      "level": 1,
+      "vehicle": "cart",
+      "goal": [
+        87,
+        60
+      ],
+      "near": 25,
+      "step": [
+        63,
+        47
+      ],
+      "onLink": true,
+      "link": {
+        "i": 1,
+        "n": 34,
+        "sign": 1,
+        "toA": 26,
+        "toB": 3,
+        "nextLevel": 1,
+        "nextFire": 0,
+        "nextBlocked": false,
+        "nextLiquid": 171
+      },
+      "neighbours": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "cartSteps": 1,
+    "motorSteps": 2,
+    "rail": {
+      "tiles": 34,
+      "paved": 34,
+      "complete": true
+    },
+    "tiles": {
+      "paved": 0,
+      "rail": 34
+    },
+    "railSentence": "Iron rails now run between Kwots Baerou and Tsae Tinkwaa, 34 tiles of track.",
+    "railSteps": 3
+  }
+}
+
+> causalis-living-equation@0.9.0 test:markets
+> node tests/markets-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "priceDear": 24,
+    "priceCheap": 0.21,
+    "specialty": 6,
+    "treasuryBefore": 0,
+    "tax": 5,
+    "purchase": "Kwots Baerou bought 40 units of grain from Tsae Tinkwaa for 8.4 coin.",
+    "bought": 40,
+    "coinSpent": 8.4,
+    "hired": 1,
+    "pop": 10,
+    "marketPlanned": true
+  }
+}
+
+> causalis-living-equation@0.9.0 test:statecraft
+> node tests/statecraft-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "opinionTrade": 3.8,
+    "opinionGrievance": -19.8,
+    "pressureGap": 40,
+    "pactSentence": "Ybau Yu and Suodzee Smer swore a pact of non-aggression for 20 years.",
+    "pactPressure": 19.63480487268884,
+    "embassySentence": "Ybau Yu set an embassy at the court of Kwykwit Kwaet.",
+    "hegemon": "Ybau Yu",
+    "coalitionSentence": "Suodzee Smer and Kwykwit Kwaet joined in a coalition against Ybau Yu.",
+    "wire": {
+      "candidates": 0,
+      "reach": true,
+      "living": [
+        true,
+        true
+      ]
+    },
+    "wireSkipped": "no envoy could be sent in this fixture: {\"candidates\":0,\"reach\":true,\"living\":[true,true]}"
+  }
+}
+
+> causalis-living-equation@0.9.0 test:afternoon
+> node tests/afternoon-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "deltaClean": 0,
+    "deltaIndustry": 0.08,
+    "strainIndustry": 2.42,
+    "heavySentence": "The sky over Kwots Baerou grew heavy with industry.",
+    "weather": "Drought",
+    "deltaTended": 0.01,
+    "strainEased": 1.19,
+    "government": "Autocracy",
+    "openness": [
+      -0.5,
+      -0.43
+    ],
+    "autocracy": "Autocracy",
+    "distance": 0.7701148702634965,
+    "stations": 1,
+    "stationSentence": "Ybau Yu raised an orbital station from Kwots Baerou, its first.",
+    "tempo": [
+      1.15,
+      1.265
+    ],
+    "epilogue": "Year 0: 15 people in 1 towns under 1 polity, 0 colonies among the stars, Ybau Yu foremost as closed oligarchy."
+  }
+}
+
+> causalis-living-equation@0.9.0 test:townscape
+> node tests/townscape-smoke.cjs
+
+{
+  "seed": "causal-origin",
+  "ok": true,
+  "result": {
+    "failures": [],
+    "plan": {
+      "version": 1,
+      "family": "earthen",
+      "pattern": "gridded",
+      "axis": 2,
+      "spacing": 3,
+      "paved": false,
+      "pavedTiles": 0,
+      "nextShelterZone": ""
+    },
+    "earthlike": true,
+    "lanes": 105,
+    "rings": {
+      "hall": 4,
+      "archive": 5,
+      "shelters": [
+        7,
+        7,
+        7
+      ],
+      "workshop": 5,
+      "kiln": 5,
+      "farm": 10,
+      "farm2": 10,
+      "wall": 8
+    },
+    "pop": 15,
+    "farmsteads": 0,
+    "sheltersPlanned": 0,
+    "farmsteadSkipped": "too few people to test farmsteads",
+    "paved": 8,
+    "pavedSentence": "Cloudford paved its gridded streets."
+  }
+}
+{
+  "seed": "x3",
+  "ok": true,
+  "result": {
+    "failures": [],
+    "plan": {
+      "version": 1,
+      "family": "lattice",
+      "pattern": "gridded",
+      "axis": 3,
+      "spacing": 3,
+      "paved": false,
+      "pavedTiles": 0,
+      "nextShelterZone": ""
+    },
+    "earthlike": false,
+    "lanes": 105,
+    "rings": {
+      "hall": 2,
+      "archive": 2,
+      "shelters": [
+        5,
+        7,
+        7
+      ],
+      "workshop": 5,
+      "kiln": 5,
+      "farm": 7,
+      "farm2": 8,
+      "wall": 8
+    },
+    "pop": 15,
+    "farmsteads": 0,
+    "sheltersPlanned": 0,
+    "farmsteadSkipped": "too few people to test farmsteads",
+    "paved": 5,
+    "pavedSentence": "Kwots Baerou paved its gridded streets."
+  }
+}
+{
+  "ok": true,
+  "failures": []
+}
+
+> causalis-living-equation@0.9.0 test:daylight
+> node tests/daylight-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "noon": 196,
+    "midnight": 69,
+    "darkShare": 0.3,
+    "words": [
+      "Noon",
+      "Night"
+    ],
+    "seasonAtNoon": "High sun",
+    "townHemisphere": 0.64,
+    "nightAtMidnight": 0.89,
+    "nightAtSpeed": 0.11,
+    "nightOff": 0,
+    "nightAtPerson": true,
+    "asleep": true,
+    "readyAtNight": false,
+    "recovery": 2,
+    "hungryAsleep": false,
+    "fireReady": true,
+    "asleepAtNoon": false,
+    "recoveryAtNoon": 1,
+    "herdAsleep": true,
+    "lightsAtNight": 6,
+    "lightsAtNoon": 0
+  }
+}
+
+> causalis-living-equation@0.9.0 test:figures
+> node tests/figures-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "kneel": "kneel",
+    "work": "work",
+    "fight": "fight",
+    "sit": "sit",
+    "stand": "stand",
+    "eraStone": "stone",
+    "eraElectric": "electric",
+    "state": {
+      "id": 1,
+      "pose": "stand",
+      "moving": false,
+      "standing": "rich",
+      "era": "electric",
+      "child": true,
+      "portrait": false
+    },
+    "drawnWorld": 8,
+    "callsWorld": 10,
+    "tw": 38.5,
+    "lastR": 4.2214942097751775,
+    "canvas": [
+      960,
+      720
+    ],
+    "zoom": 7,
+    "quality": "high",
+    "drawnPortrait": 1
+  }
+}
+
+> causalis-living-equation@0.9.0 test:cities
+> node tests/cities-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "prior": [
+      "planetary_stewardship",
+      "mechanization",
+      "astronomy",
+      "combustion",
+      "electricity",
+      "computing"
+    ],
+    "shortfallVillage": [
+      "a city at the urban stage",
+      "Combustion Engines",
+      "Electricity",
+      "Computing"
+    ],
+    "ship": true,
+    "stageWithoutCurrent": "village",
+    "stageWithCurrent": "complex terrestrial",
+    "housing": {
+      "beds": 42,
+      "people": 10,
+      "tenements": 0
+    },
+    "wants": true,
+    "bedsAfter": 66,
+    "mayEnter": true,
+    "drawnTop": 1,
+    "drawnBoth": 2,
+    "housingRow": true
+  }
+}
+
+> causalis-living-equation@0.9.0 test:solid
+> node tests/solid-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "top": {
+      "segments": 40,
+      "tiles": 32,
+      "perTile": 3350
+    },
+    "iso": {
+      "segments": 40,
+      "tiles": 32,
+      "perTile": 8640
+    },
+    "oblique": {
+      "segments": 40,
+      "tiles": 32,
+      "perTile": 8640
+    },
+    "lowQuality": {
+      "segments": 18,
+      "tiles": 23,
+      "perTile": 0
+    },
+    "farZoom": {
+      "segments": 18,
+      "tiles": 23,
+      "perTile": 8640
+    },
+    "cliff": true,
+    "cliffBlocked": true,
+    "openPath": 4,
+    "detour": 4,
+    "deepBlocked": true,
+    "push": {
+      "dx": 0.3,
+      "dy": 0
+    },
+    "anchorDx": 0.26,
+    "hiddenIso": true,
+    "visibleIso": false,
+    "hiddenTop": false
+  }
+}
+
+> causalis-living-equation@0.9.0 test:peace
+> node tests/peace-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "aims": [
+      "border",
+      "granary",
+      "tribute",
+      "liberation",
+      "oath",
+      "plunder"
+    ],
+    "aimGrievance": "tribute",
+    "aimRevolt": "liberation",
+    "aimPlain": "plunder",
+    "aim": "tribute",
+    "target": 2,
+    "peace1": {
+      "goal": "tribute",
+      "outcome": "attacker",
+      "terms": "Suodzee Smer pays Ybau Yu 12 measures of food a year for 8 years",
+      "years": 8,
+      "winnerId": 1,
+      "tick": 160
+    },
+    "sentence": "Ybau Yu won the war for tribute for old grievances: Suodzee Smer pays Ybau Yu 12 measures of food a year for 8 years.",
+    "peace2": {
+      "goal": "plunder",
+      "outcome": "defender",
+      "terms": "Ybau Yu's war for plunder and standing failed; the old border stood for 10 years",
+      "years": 10,
+      "winnerId": 3,
+      "tick": 160
+    },
+    "peace3": {
+      "goal": "tribute",
+      "outcome": "draw",
+      "terms": "a peace of exhaustion for 6 years",
+      "years": 6,
+      "winnerId": 0,
+      "tick": 160
+    },
+    "leagueEnded": true,
+    "leagueReason": "Vyttay League made peace as one",
+    "conferenceSentence": "Kwykwit Kwaet and Suodzee Smer made peace at the league's table: a peace of exhaustion for 6 years.",
+    "peace5": {
+      "goal": "plunder",
+      "outcome": "collapse",
+      "terms": "no terms; one of them had fallen apart",
+      "years": 0,
+      "winnerId": 0,
+      "tick": 160
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:industry
+> node tests/industry-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "freight": 124,
+    "secondFood": 84,
+    "freightSentence": "The first train ran between Kwots Baerou and Tsae Tinkwaa, carrying 124 measures of Ybau Yu's stores.",
+    "linked": [
+      2
+    ],
+    "linkedWithoutRail": false,
+    "linkedByEmbassy": true,
+    "recorded": true,
+    "wantsFactory": true,
+    "made": 12,
+    "factories": [
+      {
+        "id": 19,
+        "made": 12,
+        "workedTick": 160
+      }
+    ],
+    "chartPlain": 1,
+    "chartLenses": 2
+  }
+}
+
+> causalis-living-equation@0.9.0 test:civil
+> node tests/civil-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "choice": "exile",
+    "adopted": 1,
+    "law": "exile",
+    "lawSentence": "Ybau Yu set down a law code: banishment.",
+    "heatAfter": 1.692,
+    "feudEnd": "a blood-price was paid under the law",
+    "fined": 10,
+    "fineSentence": "Yut Ratru was made to return 8 units of food to Kwaa Tsu under Ybau Yu's law.",
+    "crimes": 2,
+    "banishSentence": "Yut Ratru was banished from Kwots Baerou under Ybau Yu's law of banishment.",
+    "lessons": 2,
+    "childCraft": 0.6,
+    "childLore": 0.5,
+    "calmBefore": 0,
+    "calmAfter": 0.03,
+    "circles": [
+      "Kwots Baerou artisan circle"
+    ],
+    "petitions": 1,
+    "petitionSentence": "The Kwots Baerou artisan circle petitioned Ybau Yu over unrest in Kwots Baerou, and was heard."
+  }
+}
+
+> causalis-living-equation@0.9.0 test:blocs
+> node tests/blocs-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "blocsApart": [
+      1,
+      2,
+      3
+    ],
+    "blocsAllied": [
+      1,
+      1,
+      3
+    ],
+    "styles": [
+      "hsl(141 62% 58% / 0.648)",
+      "hsl(141 62% 58% / 0.648)",
+      "hsl(65 62% 58% / 0.292)"
+    ],
+    "loansMade": 2,
+    "loanB": {
+      "principal": 30,
+      "owed": 38
+    },
+    "loanSentence": "Ybau Yu lent 30 coin to Suodzee Smer, 38 to be repaid within 8 years.",
+    "repaid": true,
+    "repaySentence": "Suodzee Smer repaid its debt of 38 coin to Ybau Yu.",
+    "defaulted": true,
+    "defaultSentence": "Kwykwit Kwaet defaulted on 13 coin owed to Ybau Yu.",
+    "loansAfterDefault": 0
+  }
+}
+
+> causalis-living-equation@0.9.0 test:finery
+> node tests/finery-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "policyRich": "light",
+    "policyPoor": "heavy",
+    "titheSentence": "Ybau Yu raised a heavy tithe: an empty treasury.",
+    "coins": [
+      2,
+      4,
+      4
+    ],
+    "strain": 0.06,
+    "unrest": [
+      0.168,
+      0.108
+    ],
+    "relief": 0.06,
+    "demand": 3,
+    "bought": true,
+    "finerySentence": "Kwots Baerou bought 12 of Durglyox from Tsae Tinkwaa for its 3 well-off households."
+  }
+}
+
+> causalis-living-equation@0.9.0 test:presence
+> node tests/presence-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "radiusIso3": 3.29,
+    "baseIso3": 3.41,
+    "crowd": 0.714,
+    "haul": {
+      "scaled": 37,
+      "tools": 8,
+      "hair": 11,
+      "torches": 0,
+      "figures": 11
+    },
+    "cut": {
+      "scaled": 37,
+      "tools": 8,
+      "hair": 11,
+      "torches": 0,
+      "figures": 11
+    },
+    "harvest": {
+      "scaled": 37,
+      "tools": 8,
+      "hair": 11,
+      "torches": 0,
+      "figures": 11
+    },
+    "idle": {
+      "scaled": 37,
+      "tools": 7,
+      "hair": 11,
+      "torches": 0,
+      "figures": 11
+    },
+    "head": "round",
+    "torchKind": "torch",
+    "torchesNight": 10,
+    "torchesNoon": 0
+  }
+}
+
+> causalis-living-equation@0.9.0 test:skyline
+> node tests/skyline-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "proportion": 0.43,
+    "wantsTower": true,
+    "wantsTenement": false,
+    "towerStoreys": 9,
+    "wantsOffice": true,
+    "officeStoreys": 19,
+    "tempo": [
+      2.07,
+      2.2356
+    ],
+    "custom": 4,
+    "blocksDay": 2,
+    "litWindows": 18
+  }
+}
+
+> causalis-living-equation@0.9.0 test:fauna
+> node tests/fauna-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "herb": {
+      "topology": "upright",
+      "personForm": "quadruped",
+      "sideView": true,
+      "role": "herbivore",
+      "kind": "bison",
+      "appendages": 6,
+      "pattern": "spots",
+      "label": "Bison spots form"
+    },
+    "pred": {
+      "topology": "upright",
+      "personForm": "quadruped",
+      "sideView": true,
+      "role": "predator",
+      "kind": "wolf",
+      "appendages": 4,
+      "pattern": "plain",
+      "label": "Wolf form"
+    },
+    "kinds": {
+      "bison": 9,
+      "deer": 17,
+      "goat": 5,
+      "horse": 5,
+      "boar": 1,
+      "wolf": 4,
+      "cat": 4,
+      "bear": 1
+    },
+    "lineages": 46,
+    "isoHerb": {
+      "drawn": 43,
+      "herbivores": 36,
+      "predators": 7,
+      "kinds": {
+        "bison": 8,
+        "cat": 3,
+        "goat": 7,
+        "boar": 1,
+        "horse": 4,
+        "deer": 16,
+        "bear": 1,
+        "wolf": 3
+      }
+    },
+    "topPred": {
+      "drawn": 16,
+      "herbivores": 12,
+      "predators": 4,
+      "kinds": {
+        "goat": 2,
+        "bison": 2,
+        "bear": 1,
+        "deer": 5,
+        "horse": 3,
+        "wolf": 2,
+        "cat": 1
+      }
+    }
+  },
+  "alien": {
+    "failures": [],
+    "forms": [
+      [
+        4,
+        false
+      ],
+      [
+        6,
+        false
+      ],
+      [
+        3,
+        false
+      ],
+      [
+        3,
+        false
+      ],
+      [
+        3,
+        false
+      ],
+      [
+        6,
+        false
+      ],
+      [
+        6,
+        false
+      ],
+      [
+        6,
+        false
+      ],
+      [
+        6,
+        false
+      ],
+      [
+        3,
+        false
+      ],
+      [
+        6,
+        false
+      ],
+      [
+        3,
+        false
+      ]
+    ]
+  }
+}
+
+> causalis-living-equation@0.9.0 test:ruins
+> node tests/ruins-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "built": 7,
+    "sites": 5,
+    "standing": 7,
+    "collapsedAtFall": 5,
+    "ghost": "7 buildings of Tsae Tinkwaa stood empty after its fall, a ghost town for the years to take.",
+    "ghostsIso": 7,
+    "ghostsTop": 7,
+    "lightsGhost": 0,
+    "lightsIfLived": 2,
+    "life": [
+      36.2,
+      25.9,
+      26.4,
+      31.8,
+      28.9,
+      31.5,
+      34.4
+    ],
+    "materials": [
+      "Aeesh-Ate",
+      "Aeesh-Ate",
+      "Aeesh-Ate",
+      "Aeesh-Ate",
+      "Aeesh-Ate",
+      "Aeesh-Ate",
+      "Aeesh-Ate"
+    ],
+    "yearOne": {
+      "fell": 0,
+      "weathered": 1,
+      "cleared": 4,
+      "salvage": 1
+    },
+    "pageRuin": true,
+    "heirDistance": 0,
+    "reclaimed": {
+      "count": 7,
+      "from": "Tsae Tinkwaa"
+    },
+    "near": 7,
+    "reclaimSentence": "Rau Baerou took up 7 standing buildings of Tsae Tinkwaa.",
+    "clearedUnder": 1,
+    "standingAgain": 10,
+    "fell": 10,
+    "rubbleLeft": 0,
+    "cleared": 15,
+    "afterCounts": {
+      "ghostsDrawn": 0,
+      "weatheredDrawn": 0,
+      "skipped": 20
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:branches
+> node tests/branches-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "catalog": 104,
+    "branchTechs": 66,
+    "research0": 1,
+    "research1": 1.3860000000000003,
+    "build0": 1,
+    "build1": 1.265,
+    "hyg0": 1,
+    "hyg1": 0.63,
+    "harvest0": 1,
+    "harvest1": 1.15,
+    "fert0": 1.32,
+    "life0": 21786.690764665604,
+    "fert1": 1.4520000000000002,
+    "life1": 23562.306061985848,
+    "unrest0": 0.06799999999999999,
+    "unrest1": 0,
+    "urge0": 0.13720000000000002,
+    "urge1": 0.18720000000000003,
+    "defense0": 9.840000000000002,
+    "defense1": 10.824000000000003,
+    "dmgEngineered": 35,
+    "dmgPlain": 52,
+    "coin": 3,
+    "coins": true,
+    "learned": true,
+    "advance": "Kwuky Jya made Oral Tradition reproducible from local matter.",
+    "preference": {
+      "matter": 1.254,
+      "life": 0.9375,
+      "mind": 0.845
+    },
+    "hungryLife": 0.9375,
+    "focus": "drying",
+    "gateBefore": false,
+    "gateAfter": true,
+    "matterTier": 3
+  }
+}
+
+> causalis-living-equation@0.9.0 test:galaxy
+> node tests/galaxy-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "stars": 7,
+    "colony": "New Kwots Baerou",
+    "target": "agriculture",
+    "learned": "agriculture",
+    "discovery": "New Kwots Baerou worked out Cultivated Producers, and the finding was received at home by radio.",
+    "coin": 4,
+    "daughter": "Tsostsa III",
+    "onward": "New Kwots Baerou 1",
+    "second": "Dzoatsykwa I",
+    "pass": {
+      "learned": 0,
+      "coin": 0,
+      "hardships": 0,
+      "daughters": 0,
+      "ships": 0,
+      "freed": 0
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:urban
+> node tests/urban-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "people": 34,
+    "hubPop": 22,
+    "villagePop": 12,
+    "ageBefore": false,
+    "ageWithLetters": true,
+    "ageAfter": true,
+    "hub": 1,
+    "room": 12,
+    "beds": 34,
+    "pull": "2 people left Tsae Tinkwaa for Kwots Baerou of Ybau Yu.",
+    "movers": 2,
+    "urgeHub": 0.1486,
+    "urgeVillageAge": 0.2972,
+    "hungryPull": "skipped"
+  }
+}
+
+> causalis-living-equation@0.9.0 test:fields
+> node tests/fields-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "pop": 60,
+    "maxFarms": 24,
+    "desired": 10,
+    "farms": 11,
+    "blocked": false,
+    "wantsHall": true,
+    "beds": 54,
+    "city": false,
+    "wantsTenement": true,
+    "shelters": 10
+  }
+}
+
+> causalis-living-equation@0.9.0 test:skystars
+> node tests/skystars-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "shortfall": [
+      "a skyline (a tower block or an office)",
+      "a working factory"
+    ],
+    "towersWanted": 2,
+    "wantsTower": true,
+    "shipWithoutSkyline": false,
+    "push1": "skyline",
+    "push2": "works",
+    "push3": "ready",
+    "shortfallAfter": [],
+    "shipWithSkyline": true,
+    "mended": 25
+  }
+}
+
+> causalis-living-equation@0.9.0 test:steady
+> node tests/steady-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "flips": 1,
+    "facing": 1,
+    "offsetStep": 0.042,
+    "kinds": [
+      "truck",
+      "car"
+    ],
+    "drawn": {
+      "flips": 0,
+      "cars": 1,
+      "trucks": 1,
+      "parked": 0
+    },
+    "parkedSpots": 2,
+    "parked": 2,
+    "tonnage": 42,
+    "fuelBurned": 4,
+    "freightSentence": "Trucks began to run between Kwots Baerou and Tsaet Betsus of Ybau Yu, 42 measures the first year.",
+    "dryTonnage": 0,
+    "motored": "no offer"
+  }
+}
+
+> causalis-living-equation@0.9.0 test:tribes
+> node tests/tribes-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "era": true,
+    "nomad": {
+      "tents": 2,
+      "roundhouses": 0,
+      "firepits": 2,
+      "pits": 2,
+      "racks": 0,
+      "workgrounds": 2,
+      "palisades": 1,
+      "kilns": 0,
+      "totems": 1,
+      "props": 4,
+      "feathers": 0
+    },
+    "farming": {
+      "tents": 0,
+      "roundhouses": 2,
+      "firepits": 2,
+      "pits": 2,
+      "racks": 2,
+      "workgrounds": 2,
+      "palisades": 1,
+      "kilns": 0,
+      "totems": 1,
+      "props": 4,
+      "feathers": 0
+    },
+    "civic": {
+      "tents": 0,
+      "roundhouses": 0,
+      "firepits": 0,
+      "pits": 0,
+      "racks": 0,
+      "workgrounds": 0,
+      "palisades": 0,
+      "kilns": 0,
+      "totems": 1,
+      "props": 0,
+      "feathers": 0
+    },
+    "wantsTotem": false,
+    "alreadyRaised": true,
+    "unrest": [
+      0.188,
+      0.168
+    ],
+    "totems": 2,
+    "campEra": "no camp"
+  }
+}
+
+> causalis-living-equation@0.9.0 test:grove
+> node tests/grove-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "species": {
+      "broadleaf": 38,
+      "palm": 15,
+      "shrub": 1,
+      "baobab": 1,
+      "conifer": 3,
+      "willow": 3,
+      "birch": 1
+    },
+    "iso": {
+      "trees": 129,
+      "crags": 23,
+      "marks": 821,
+      "snow": 21,
+      "strata": 59,
+      "alien": 0
+    },
+    "top": {
+      "trees": 21,
+      "crags": 13,
+      "marks": 243,
+      "snow": 0,
+      "strata": 32,
+      "alien": 0
+    },
+    "leaves": {
+      "green": 112.19053320586681,
+      "turned": 42.16205040712981,
+      "fall": 0.9785714285714278
+    },
+    "crags": 28,
+    "strata": 35,
+    "steepest": 167
+  },
+  "alien": {
+    "failures": [],
+    "counts": {
+      "trees": 0,
+      "crags": 169,
+      "marks": 6764,
+      "snow": 0,
+      "strata": 223,
+      "alien": 0
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:modern
+> node tests/modern-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "shortfall": [
+      "2 cities at the urban stage",
+      "current in 2 towns",
+      "2 tower blocks or offices",
+      "a paved road or rail between two towns",
+      "44 people living in towns"
+    ],
+    "shipAlone": false,
+    "stages": [
+      "cities",
+      "current",
+      "skyline",
+      "works",
+      "road",
+      "hundred"
+    ],
+    "towersWanted": 2,
+    "officesWanted": 1,
+    "pushCities": "cities",
+    "pushSkyline": "skyline",
+    "pushWorks": "works",
+    "people": 110,
+    "shortfallAfter": [],
+    "shipModern": true,
+    "ascensionShortfall": [],
+    "ascensionPushShip": "ascension",
+    "shipFromPush": true,
+    "pavedWithoutStone": 0,
+    "roadPush": "road",
+    "pavedByPush": 20,
+    "roadStoneBooked": 144,
+    "strangerPolities": 0,
+    "strangerPush": "road",
+    "strangerPavedBy": 24,
+    "strangerStone": 96,
+    "groundwork": [
+      "combustion",
+      "computing"
+    ],
+    "towerPush": "research",
+    "groundworkWorking": 2,
+    "groundworkLead": "Kwots Baerou",
+    "site": "Kwots Baerou",
+    "siteAfterGrowth": "Kwots Baerou",
+    "siteHeld": true,
+    "ascensionPush": "research",
+    "ascensionFocus": "starflight",
+    "starflightPush": "research",
+    "starflightFocus": "starflight",
+    "towerlessPush": "tower",
+    "towerRaised": 1,
+    "fieldOrder": [
+      "done",
+      "planned"
+    ],
+    "hungerFamine": true,
+    "pushUnfinishedField": true,
+    "fed": 1,
+    "bread": 148,
+    "breadBooked": 148,
+    "countryside": {
+      "hedgerows": 5,
+      "hay": 0,
+      "scarecrows": 3,
+      "windmills": 0
+    },
+    "startPeople": 110,
+    "skipStop": "collapse",
+    "skipTicks": 256,
+    "reached": [
+      "metalworking"
+    ],
+    "quietStage": true,
+    "quietDidNotStop": true,
+    "loudDidStop": true,
+    "skipToll": 58
+  }
+}
+
+> causalis-living-equation@0.9.0 test:foundry
+> node tests/foundry-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "drawn": [
+      "Durglyox",
+      "Haljorin",
+      "Ircae-Ene",
+      "Ferjoryl",
+      "Ferglyin",
+      "Borcae-Ol",
+      "Aeeshox"
+    ],
+    "missing": "Ferglyin",
+    "ready": true,
+    "wants": [
+      {
+        "species": "Ferglyin",
+        "demand": 24,
+        "stock": 0,
+        "short": 24,
+        "facility": "forge",
+        "feedstock": [
+          "Ircae-Ene"
+        ]
+      },
+      {
+        "species": "Borcae-Ol",
+        "demand": 6,
+        "stock": 0,
+        "short": 6,
+        "facility": null,
+        "feedstock": []
+      },
+      {
+        "species": "Aeeshox",
+        "demand": 0,
+        "stock": 0,
+        "short": 0,
+        "facility": null,
+        "feedstock": []
+      }
+    ],
+    "smelted": 6,
+    "oreLeft": 6,
+    "runs": 3,
+    "drew": 8,
+    "drawReason": "drew 8 Ferglyin from the stores for the Tower block",
+    "seek": true,
+    "seekReason": "seeking Ircae-Ene to smelt for the Tower block",
+    "dig": true,
+    "dug": 4,
+    "digReason": "digging Ircae-Ene to smelt for the Tower block",
+    "haul": true,
+    "hauled": 8,
+    "feedstock": [
+      "Ircae-Ene",
+      "Durjor-Ase"
+    ],
+    "counts": {
+      "smelted": 3,
+      "fired": 0,
+      "dug": 1,
+      "hauled": 1,
+      "runs": 1
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:farmland
+> node tests/farmland-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "style": "pickets",
+    "counts": {
+      "boundaries": 12,
+      "orchards": 2,
+      "sheds": 4,
+      "silos": 3,
+      "tractors": 6,
+      "frost": 0,
+      "stock": 0,
+      "troughs": 1
+    },
+    "lean": {
+      "boundaries": 0,
+      "orchards": 0,
+      "sheds": 0,
+      "silos": 0,
+      "tractors": 0,
+      "frost": 0,
+      "stock": 0,
+      "troughs": 0
+    },
+    "top": {
+      "boundaries": 12,
+      "orchards": 2,
+      "sheds": 4,
+      "silos": 3,
+      "tractors": 6,
+      "frost": 0,
+      "stock": 0,
+      "troughs": 1
+    },
+    "orchards": 2
+  }
+}
+
+> causalis-living-equation@0.9.0 test:granary-call
+> node tests/granary-call-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "hunger": 87,
+    "tileFood": 0,
+    "place": 1,
+    "step": [
+      -1,
+      0
+    ],
+    "dir": [
+      -1,
+      0
+    ],
+    "reason": "walking to the stores of Kwots Baerou",
+    "steps": 1,
+    "emptyPlace": 0,
+    "fedGroundPlace": 0,
+    "nearPlace": 0,
+    "home": 1,
+    "ateAtHome": true,
+    "storeDrop": 18,
+    "homeReason": "ate rations at home in Kwots Baerou, whatever flag flies there",
+    "leanGate": "no hub",
+    "fieldableHungry": 0,
+    "fieldableFed": 11,
+    "counts": {
+      "steps": 1,
+      "arrivals": 0,
+      "homeMeals": 1,
+      "homeDrinks": 0,
+      "pullsHeld": 0
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:common-fields
+> node tests/common-fields-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "own": 3,
+    "candidates": [
+      {
+        "building": 23,
+        "town": 2,
+        "stage": "ripe",
+        "d": 2
+      }
+    ],
+    "reaped": true,
+    "carried": 64,
+    "stageAfterReap": "fallow",
+    "reapReason": "reaped a neighbour's Producer garden and carried the crop to Rau Baerou",
+    "sown": true,
+    "seedUsed": 9,
+    "stageAfterSow": "sown",
+    "abandonedListed": true,
+    "counts": {
+      "reaped": 1,
+      "sown": 1,
+      "walks": 0
+    }
+  }
+}
+
+> causalis-living-equation@0.9.0 test:living-grove
+> node tests/living-grove-smoke.cjs
+
+{
+  "ok": true,
+  "failures": [],
+  "result": {
+    "failures": [],
+    "open": true,
+    "seeded": true,
+    "saplingStrength": 80,
+    "childType": 1,
+    "witherPasses": 2,
+    "gone": true,
+    "fruitPeak": 0.99,
+    "fruitLow": 0,
+    "foodBare": 46.1,
+    "foodFruit": 53.99,
+    "counts": {
+      "saplings": 0,
+      "withered": 0,
+      "diebacks": 0,
+      "fruitDrawn": 76,
+      "brambles": 227
+    },
+    "brambleTiles": 227,
+    "passMs": 0.05,
+    "passActed": 5
+  }
+}
+
+> causalis-living-equation@0.9.0 test:continuing-city
+> node tests/continuing-city-smoke.cjs
+
+{
+  "ok": true,
+  "result": {
+    "failures": [],
+    "furnishings": 2,
+    "saved": true,
+    "research": "controlled_fire",
+    "journeys": 1
+  },
+  "distinctSeeds": 3
+}
