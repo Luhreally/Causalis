@@ -342,6 +342,30 @@ but this seed wants its own diagnosis.
   rug or bookshelf beside it. The floor label no longer writes itself across
   every neighbouring block.
 
+- **A town with a plan of its own.** `125-zoning` divides the ground round a
+  town into quarters — civic square, commercial frontage, residential ring, a
+  works quarter, the fields — with the direction of each taken from the town's
+  architecture and its seed. What it builds comes from what it is short of
+  (beds, work, trade), and the place page shows all three demands. A cottage in
+  a dense core is bought out for a block, one plot at a time, and a flat's price
+  follows the demand for it, so owner-occupancy falls as a city modernises.
+  Measured on `causal-origin`: apartment blocks 0 to 13, buy-outs 0 to 14,
+  owner-occupancy 0.74 to 0.44, matter conserved at every press.
+
+  **Read this before touching it.** The plan places nothing. `92-townscape`
+  already lays a town out — the square, the lanes, a ring target per use, works
+  to leeward — and 125 only offers a preference into 92's scoring, deliberately
+  weaker than one ring step (92 scores three a ring; the bias tops out under
+  one). Two things bit hard when it was stronger. Set as large as a ring step it
+  dragged a hall from four tiles out to five, because a sector preference beat
+  the ring that makes a hall central; and a use whose quarter here disagreed
+  with 92's ring there — a hearth called civic by 125 and industrial by 92 — was
+  pulled onto the square and pushed the hall out of its own town. `ZONE_OF_TYPE`
+  must agree with 92's `zoneOf`, and anything 92 sites specially (the dock on
+  its water, the observatory at the edge) is left out of the table entirely.
+  Zoning also plans nothing until a town's hall stands: planning to demand in a
+  hamlet filled the middle before the hall was ever sited.
+
 **Still wanted, in the order I would take them:** the two battery seeds that
 still do not launch (see problem 4 below, which is now the whole of it); people
 inside the blocks in a cutaway — `occupiedRooms` reads 0 because
@@ -398,6 +422,7 @@ or the run will still be at press 2 an hour later.
 ## The recent commits, newest first
 
 ```
+fe598d7  Give a town a plan, and let the city buy its cottages out
 a03fe36  Furnish the flats: a floor of a block is a floor of homes
 db5d3a8  Stop tools making matter, and let a hungry man eat what he is carrying
 bc67f98  Let a street show what it carries
@@ -417,6 +442,18 @@ da29345  Scale that gate by the land, not by the edge
 Commit messages here carry the measurement that justified the change, and the
 ones that record a reverted experiment are as useful as the rest. Read them
 before re-treading ground.
+
+## A note on bisecting a layout change
+
+Zoning cost four rounds of guessing before it was measured, and the measuring
+took minutes where the guessing took an hour. When a change to how a town is
+laid out breaks a test somewhere else, do not reason about the scores. Put a
+`if (true) return 0;` at the top of each effect in turn — the placement bias,
+the demand planning, the redevelopment — and run the one failing test. Confirm
+first that the test passes with the section unregistered from the manifest, so
+you know the section is responsible at all, then bisect. Twice the answer was
+the opposite of what the arithmetic suggested: turning the bias off made the
+hall *worse*, because the effects interact.
 
 ## House style
 
