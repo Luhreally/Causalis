@@ -192,7 +192,68 @@ makeInteriorState = function (bounds) {
   return state;
 };
 const drawInteriorFurnitureHabitationBase = drawInteriorFurniture;
+// A floor of a block is a floor of flats, not an empty plate. Looked at in the
+// browser at close zoom, a tenement cutaway was a coloured lozenge with one
+// divider line across it: no walls between the homes, no bed you could see, no
+// sign that anyone lived there. It is drawn as a plan now — partitions between
+// the units on this floor, and in each unit a bed, a table and whatever the
+// household has made for itself.
+const HABITATION_ROOMS = 4;
+function habitationFloorPlan(g, b, s, r, p, homes) {
+  const beds = typeof habitationBeds === "function" ? habitationBeds(b) : 0,
+    storeys = typeof blockStoreys === "function" ? Math.max(1, blockStoreys(b)) : 1,
+    perFloor = Math.max(1, Math.ceil(beds / storeys)),
+    units = Math.max(2, Math.min(HABITATION_ROOMS, Math.ceil(perFloor / 2))),
+    w = r * 1.5,
+    h = r * 0.78,
+    left = s.x - w / 2,
+    top = s.y - h * 0.3,
+    unitW = w / units;
+  g.save();
+  // The floor itself, so a room reads as a room and not as the block's colour.
+  g.fillStyle = hsl((W.terrainGenome?.baseHue || 35) + 22, 12, 26, 0.55);
+  g.fillRect(left, top, w, h);
+  g.strokeStyle = p.light;
+  g.lineWidth = Math.max(1, r * 0.035);
+  for (let n = 0; n <= units; n++) {
+    const x = left + unitW * n;
+    g.beginPath();
+    g.moveTo(x, top);
+    // A doorway in each partition: a corridor of flats, not sealed cells.
+    g.lineTo(x, top + h * 0.42);
+    g.moveTo(x, top + h * 0.68);
+    g.lineTo(x, top + h);
+    g.stroke();
+  }
+  g.strokeRect(left, top, w, h);
+  const held = b.tenancy?.decor || [];
+  for (let n = 0; n < units; n++) {
+    const x = left + unitW * n,
+      lived = n < homes.length;
+    // A bed against the back wall, a table in the middle of the room.
+    g.fillStyle = lived ? p.light : hsl(0, 0, 62, 0.5);
+    g.fillRect(x + unitW * 0.12, top + h * 0.1, unitW * 0.34, h * 0.3);
+    g.fillStyle = lived ? p.accent : hsl(0, 0, 48, 0.5);
+    g.fillRect(x + unitW * 0.12, top + h * 0.1, unitW * 0.34, h * 0.1);
+    g.fillStyle = hsl((W.terrainGenome?.baseHue || 35) + 40, 16, 44);
+    g.fillRect(x + unitW * 0.56, top + h * 0.52, unitW * 0.3, h * 0.22);
+    // What the household has made. Each unit shows its own share, so a block
+    // whose people have been weaving for a century looks like it.
+    const item = held[n];
+    if (!item) continue;
+    g.fillStyle = hsl(item.hue, 46, 56);
+    if (item.kind === "woven rug") g.fillRect(x + unitW * 0.2, top + h * 0.74, unitW * 0.6, h * 0.16);
+    else if (item.kind === "bookshelf") {
+      for (let j = 0; j < 4; j++) {
+        g.fillStyle = hsl(item.hue + j * 34, 40, 50);
+        g.fillRect(x + unitW * (0.16 + j * 0.09), top + h * 0.76, unitW * 0.06, h * 0.16);
+      }
+    } else g.fillRect(x + unitW * 0.62, top + h * 0.14, unitW * 0.24, h * 0.18);
+  }
+  g.restore();
+}
 drawInteriorFurniture = function (g, b, s, r, p, homes) {
+  if (HABITATION_TYPES.has(b.type) && b.type !== "shelter") return habitationFloorPlan(g, b, s, r, p, homes);
   drawInteriorFurnitureHabitationBase(g, HABITATION_TYPES.has(b.type) ? { ...b, type: "shelter" } : b, s, r, p, homes);
   for (const [n, item] of (b.tenancy?.decor || []).slice(-4).entries()) {
     const x = s.x - r * 0.65 + n * r * 0.4, y = s.y - r * 0.65;
@@ -217,6 +278,9 @@ refreshCameraControls = function () {
   if (!DOM.interiorFloorBtn) {
     const button = document.createElement("button");
     button.id = "interiorFloorBtn";
+    // Same full width as the interiors toggle it sits under; without the class
+    // it rendered at its own natural width and read as a stray control.
+    button.className = "camera-cutaway";
     button.title = "Show the next floor of apartment and office cutaways";
     button.onclick = () => {
       const tallest = W ? Math.max(1, ...W.buildings.filter((b) => ["tower", "tenement", "office"].includes(b.type)).map(blockStoreys)) : 1;
@@ -240,7 +304,11 @@ drawBuildingInterior = function (g, b, now, m, state) {
   local.homes.set(b.id, onFloor); local.inside.set(b.id, inside);
   drawBuildingInteriorHabitationBase(g, b, now, m, local);
   const s = proceduralProjectTile(b.x + 0.5, b.y + 0.5, m), r = buildingScreenSize(b, m);
-  g.save(); g.font = `${Math.max(9, Math.min(13, r * 0.35))}px sans-serif`;
+  // The label crowded the map: every block in view wrote its floor across its
+  // neighbours. Only a block big enough on screen to be the one you are looking
+  // at says which floor it is showing.
+  if (r < 26) return;
+  g.save(); g.font = `${Math.max(9, Math.min(13, r * 0.28))}px sans-serif`;
   g.textAlign = "center"; g.fillStyle = "#f2e8d4";
   g.fillText(`Floor ${floor + 1}/${floors} · ${onFloor.length} residents`, s.x, s.y - r * 1.03); g.restore();
 };
