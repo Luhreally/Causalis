@@ -195,7 +195,31 @@ whole set with `window.ALIFE_MODERN_DEBUG.wants()`.
 
 ### Open problems, with what is already known
 
-**0. The matter drift is located but not caught.** On a collapsing world,
+**0. The matter drift is fixed (2026-09-10).** Kept for the method. On a
+collapsing world one tick lost 23,613, and a second world lost 10,948. The
+probe narrowed it to a single rare record: a *common* species whose 16-bit
+column was saturated, with the remainder held in the tile's overflow record,
+and the record deleted in the tick an organism was born on that tile — the
+birth took seventy-three from the column and the record went with them.
+`setTileMatterAmount` dropped the record whenever the new value fitted the
+column, which is right for a caller that means the total and wrong for one that
+read only the column. No caller was ever named; instead the loss was made
+impossible. The remainder now folds back into the column as far as it fits and
+the rest stays on record. Every caller that reads the total is unaffected,
+because their value is above the ceiling and takes the earlier branch.
+Verified: zero drift across fifty-three presses on the four worlds that used to
+lose matter.
+
+**The method is the reusable part.** `matter-leak-probe` runs coarsely to the
+press before the drift, then audits every tick, and reports which part of the
+ledger moved and what stands on the tile a record vanished from. That took the
+search from "a tick divisible by thirty-two with a solstice in it" to one tile
+and one species in two runs. Note that wrapping a runtime function to catch a
+caller *perturbs the run* — `overflow-catch-probe` diverged from the world it
+was meant to observe and never reached the drift. Prefer observation to
+instrumentation here.
+
+**0b. Old note, superseded.** On a collapsing world,
 `causal-origin` battery at year 188, one tick lost 23,613. `matter-leak-probe`
 narrowed it to a single rare record — tile 326, species 2, a *common* species
 whose 16-bit column was saturated with 23,611 held in the overflow record, and
@@ -278,6 +302,33 @@ difference between those two seeds is time, and the thing eating it is problem
 food work and now reaches the road and three tower blocks by year 135 before
 halving. Two of three small seeds went the other way, so the net is positive,
 but this seed wants its own diagnosis.
+
+## What the city has, after 2026-09-10
+
+- **A downtown before the ship.** Sixteen blocks and six apartment blocks on
+  the small maps, twenty-eight and twelve on standard, swayed per seed. The
+  enabling fix was `modernRaise`: `modernSite` returns the first *unfinished*
+  building, so the old loop supplied one block per city per press however many
+  the skyline wanted.
+- **Cars built for their ground.** Proportions come from the terrain genome —
+  `roughness` from ridge weight, `openness` from continent scale, `chill` from
+  base temperature. Broken country shortens and raises a car, plains lengthen
+  it, cold fits smaller glass, wet seals the cabin.
+- **Mountains and leaves that do not repeat.** Crown, ridge lean, shoulder,
+  bite and strata count are continuous per seed inside the family the seed
+  picked; so are leaf spread, rise, tilt, bough droop and canopy lift. Earth
+  keeps its own grammar. `scripts/seed-variety-probe.cjs` counts how many seeds
+  share a shape.
+- **Families that follow the beds.** A grown child used to leave home the
+  moment its town learned masonry. Now the household is the whole line under
+  one roof until the city has current and beds to spare, and only then narrows
+  to a couple and their dependent children.
+
+**Still wanted, in the order I would take them:** a real sidewalk path graph
+and traffic in `122-public-streets` (it has curbs and crossings, not a graph);
+a visual pass on interiors and the floor selector in a browser; better
+character and creature models, which is the one part of the seed-variation work
+that has had no attention; and the two battery seeds that still do not launch.
 
 ## The recent commits, newest first
 
