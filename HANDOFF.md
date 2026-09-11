@@ -419,6 +419,61 @@ probe launched in the background gets almost no CPU while you wait on a timer.
 Run the wait in the foreground — a bounded `while` loop that polls the log —
 or the run will still be at press 2 an hour later.
 
+### 5. Where every world actually stops, measured 2026-09-11
+
+No size launches. Every size builds a downtown. Measured post-conservation-fix,
+`continuing-city-probe`, lean profile:
+
+| size | seed | outcome |
+|---|---|---|
+| battery 72x44 | causal-origin | 18 blocks, no ship, 15 people by y371 |
+| battery 72x44 | ship-c | 14 blocks + 5 apartments, no ship, 8 people |
+| phone 96x58 | causal-origin | 16 blocks, no ship, 16 people by y301 |
+| small 120x72 | causal-origin | 15 blocks + 16 apartments, collapses y184 |
+| small 120x72 | ship-b | **19 blocks by y182, shortfall down to two** |
+| small 120x72 | ship-c | 153 to 62 people, no blocks |
+
+**The gates oscillate, and that is the whole failure.** `ship-b` on small is the
+closest anything has come. At press 18 its shortfall was *19 tower blocks, a
+paved road*; at press 19 it had built the nineteen blocks and its shortfall was
+*2 cities at the urban stage, a paved road*. It has met every condition at some
+point and never all at once, because building the skyline costs the city that
+builds it enough people to drop back below the urban stage.
+
+**Do not "fix" this by latching the gate.** 114 already latches which milestones
+have been *reported* (`causalReached`, so a stage reached twice is not news
+twice), and that is as far as latching should go. `modernShortfall` is a live
+check on purpose: a starship wants a living industrial society at the moment it
+leaves, and a latched gate would let a dying world of eleven people launch one.
+The society has to actually hold together. That is a balance problem.
+
+**What the balance problem is.** On `ship-b` small at press 10 the world births
+170 and the recorded deaths are 50, while the population falls from 112 to 70 —
+so the real deaths are nearer 210 and most are never written to
+`historicalIdentities`, which only keeps the notable. Do not measure mortality
+from that store; take the population before and after the press. The churn is
+enormous: a world of a hundred people births and buries two hundred in thirteen
+years. Among recorded deaths the largest cause is `accumulated repair failure`
+(old age), not starvation and not war, and towns are lost while well fed —
+Zephyrhollow was ruined holding 294 of food for two people.
+
+Two experiments are already on the reverted list (see problem 1): feeding every
+lean town, and `HASTE_FOOD` at four times `LEAN_FOOD`. Both made it worse. The
+untried lever is the other end — how many people one town may hold on a given
+map (`PLACE_PEOPLE_PER_TOWN`, the urban pull in 108, the farm cap in 109) —
+rather than more relief.
+
+### 6. A third conservation leak, small and diffuse (open)
+
+`causal-origin` small, press 16, **tick 47671**, delta **-4**. Nothing like the
+first two: the buckets move together — reservoirs +533, tile chemistry -882,
+rare records -18, entities +363 — and the only rare record that loses anything
+unmatched is `950:17` (a rare species, -16, no column). The 902:2 record loses 2
+and its column gains 2, which is correct. A leak of four units against flows of
+hundreds reads as a rounding error in whatever moved that water, not as a
+structural fault. `matter-leak-probe causal-origin small lean 15 17` reproduces
+it and prints the bucket movement.
+
 ## The recent commits, newest first
 
 ```
