@@ -474,9 +474,84 @@ hundreds reads as a rounding error in whatever moved that water, not as a
 structural fault. `matter-leak-probe causal-origin small lean 15 17` reproduces
 it and prints the bucket movement.
 
+### 7. The road to a launch, as far as it got (2026-09-11)
+
+Four faults were found and fixed in a row, each one uncovering the next. The
+order matters, because each looked like the whole problem until it was measured.
+
+**A town's population was whoever stood near it.** `settlementPopulation`
+counted anyone within seven tiles of the centre — a snapshot of the square, not
+a population. Willowwatch read 22 people at one press, 12 at the next, 11 at
+the one after, while the number who actually *lived* there went 40, 42, 42.
+Eighty-three call sites read that number, including `cityStage`, so the launch
+site flickered in and out of being a city between presses and could never hold
+its stage long enough to fly. It now counts the people who live there wherever
+they are standing, plus anyone nearby who lives nowhere else. A camp, which has
+no residents yet, reads exactly as before.
+
+**A world would not let a town grow into a city.** It allowed one place per
+fourteen people; spread evenly that is towns of fourteen, and the modern stage
+wants cities of whatever `urbanGate` calls urban — twenty-two on a small map.
+The divisor is now whichever is larger. Towns went from eight to six and from
+almost none above eighteen to one or two at nineteen to thirty.
+
+**The city starves, and the young die first.** Collected a year at a time —
+the event log prunes at 4,200 and `historicalIdentities` keeps only the notable,
+so it recorded one death in four — the largest cause is `chemical energy
+depletion` at nine, thirteen, sixteen, nineteen, twenty-six and thirty-one years
+old. Old age is the other half, at seventy-five to ninety, as it should be.
+
+**But the world is not short of food.** Over the same forty years Mosshollow
+went 61 to 24 people at hunger 0.76 rising to 0.92, while Willowwatch
+thirty-seven tiles off sat on a food score of 817 to 895 with nobody hungry.
+That is why the farms-per-head curve is flat (see `carrying-probe`): production
+was never the binding thing. Two reasons it could not move, both fixed: a store
+counted as feeding a town at a flat twelve units however many mouths it had,
+and food could not cross a flag — at year 114 the world had fragmented into
+seven towns under six flags and every fed town in reach belonged to somebody
+else. Merely hungry, a man keeps to his own people; starving (hunger 80), he
+goes where the food is, and a town at war with him is still closed.
+
+**What is left is the ground.** A town's food score is dominated by forage on
+the tiles around it, not by its farms or its stores. Willowwatch is rich because
+its ground is; Mosshollow is poor because sixty people stripped theirs over
+forty years and it does not grow back fast enough. Neither farms nor the granary
+call bridges that, and it is the honest next question.
+
+**The stage list and the ship disagreed about *where*.** `starflight` was done
+when any town knew the craft and `tower` when any town had one, while
+`launchShip` wants both in the one place it leaves from. A village learns the
+craft, another raises the tower, both stages report done, and the city that must
+fly has neither — measured, the site held `tower=0 sf=false` while the world
+announced both. Both stages are now judged at `modernLaunchSite()`.
+
+**Two counters to distrust.** `GRANARY_CALL.arrivals` was declared and never
+written to, so it read zero however far anyone walked; ninety-six thousand steps
+against zero arrivals reads as a broken mechanism and was taken for one before
+being checked. It is wired up now. And `grep -c '"ok": false'` exits 1 when it
+finds nothing, so `echo "... $?"` after it reports a failure on a clean suite.
+
+**Probes added this pass**, all read-only: `city-killer-probe` (deaths by cause
+and age, a year at a time, beside each town's food and hunger),
+`hunger-call-probe` (asks `granaryCallPlace` why it refuses, per person, with
+every town's distance, flag and hostility), `carrying-probe` (hunger against
+fields per head, bucketed across every town in the world), `city-death-probe`,
+and `modernLaunchBlockers` on the modern debug surface, which names which of
+`launchShip`'s five conditions refused instead of returning a bare null.
+
+**Where it stands.** A world now holds a stable city, clears every condition of
+the modern stage — shortfall empty for three presses running — completes its
+launch tower and understands Starflight. No ship has left yet. The last
+measured run collapses around year 130 from the starvation above, which is the
+remaining thing between here and a launch.
+
 ## The recent commits, newest first
 
 ```
+95cadab  Find what kills the city: it starves beside its neighbour's full fields
+07c0f80  Count the people who live in a town, not the ones standing in its square
+3a12a8a  Never spread a world thinner than the size it calls a city
+4c9712f  Measure where every world stops, and say why the gate cannot be latched
 fe598d7  Give a town a plan, and let the city buy its cottages out
 a03fe36  Furnish the flats: a floor of a block is a floor of homes
 db5d3a8  Stop tools making matter, and let a hungry man eat what he is carrying
