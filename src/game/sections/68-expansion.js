@@ -16,7 +16,10 @@ const SETTLER_COOLDOWN = TICKS_PER_YEAR * 4,
   SETTLER_MIN_POP = 24;
 function worldHasRoomForPlaces() {
   const places = W.settlements.filter((s) => !s.ruined).length + W.camps.filter((c) => c.active).length,
-    per = typeof PLACE_PEOPLE_PER_TOWN !== "undefined" ? PLACE_PEOPLE_PER_TOWN : 14;
+    // The same divisor the camp founder uses (30a): never fewer people to a
+    // place than the crowd that makes one urban, or settlers keep leaving to
+    // found the hamlets that stop any town becoming a city.
+    per = typeof placePeoplePerTown === "function" ? placePeoplePerTown() : 14;
   return places < Math.max(4, Math.floor(biospherePopulation(KINDS.PERSON) / per));
 }
 function ensureExpansion(world = W) {

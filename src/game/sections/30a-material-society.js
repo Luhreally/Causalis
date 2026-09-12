@@ -3862,6 +3862,15 @@ function updateCivicProduction() {
       executeProcess("corrosion", inv, 1, context);
   }
 }
+// How many people the world insists on before it allows another place. Never
+// fewer than the crowd that makes a town urban (84), or the world scatters
+// itself into hamlets that can never become the cities the modern stage asks
+// for. Read through a function so the gate is consulted at the time it matters
+// rather than frozen at load.
+function placePeoplePerTown() {
+  const urban = typeof urbanGate === "function" ? urbanGate().local : 0;
+  return Math.max(PLACE_PEOPLE_PER_TOWN, urban);
+}
 const PLACE_PEOPLE_PER_TOWN = 14,
   PLACE_PEOPLE_NEARBY = 16;
 updateSettlements = function () {
@@ -3889,7 +3898,17 @@ updateSettlements = function () {
     // One place for every fourteen people, not six: a world that allowed a
     // camp per six settled into hamlets of six to twelve and never raised a
     // city; the pull of the city and the granary both want fewer, larger towns.
-    placeCapacity = Math.max(4, Math.floor(biospherePopulation(KINDS.PERSON) / PLACE_PEOPLE_PER_TOWN));
+    //
+    // Fourteen was still too many, and for a reason arithmetic makes plain: a
+    // world that allows a place per fourteen people and spreads them evenly
+    // holds towns of fourteen, and the modern stage wants cities of whatever
+    // `urbanGate` calls urban — twenty-two on a small map. No town could ever
+    // reach that, because the world founded another the moment it had the
+    // people for one. Measured on causal-origin small: a hundred and thirty
+    // people across six to eight towns and almost none above eighteen, press
+    // after press. The divisor is now whichever is larger, so a world never
+    // spreads itself thinner than the size it calls a city.
+    placeCapacity = Math.max(4, Math.floor(biospherePopulation(KINDS.PERSON) / placePeoplePerTown()));
   for (const c of candidates.slice(0, 2)) {
     if (livePlaceCount >= placeCapacity) break;
     const [ccx, ccy] = xy(c.tile),

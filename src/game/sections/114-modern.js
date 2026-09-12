@@ -756,7 +756,41 @@ causalSkipStep = function (state) {
   }
   return out;
 };
+// Why the ship did not go. A world reached every condition of the modern stage
+// on causal-origin small — the shortfall empty for three presses, its launch
+// tower complete and Starflight understood — and no ship left. `launchShip`
+// re-checks its own conditions and returns null without saying which one it
+// refused on, so from outside the two look identical. This names it.
+function modernLaunchBlockers() {
+  const site = modernLaunchSite();
+  if (!site) return { site: null, blockers: ["no town at all"] };
+  const blockers = [],
+    towers = completedBuildings(site, "launch_tower").length,
+    isCity = typeof cityStage === "function" ? !!cityStage(site) : true,
+    stability = +(site.stability || 0).toFixed(2),
+    recent =
+      typeof ORBIT_RELAUNCH_TICKS === "number"
+        ? W.ascensions.filter(
+            (a) => a.settlementId === site.id && W.tick - a.tick < ORBIT_RELAUNCH_TICKS,
+          ).length
+        : 0,
+    shortfall = modernShortfall();
+  if (!site.knownProcesses.includes("starflight")) blockers.push("the site does not know starflight");
+  if (stability < 0.35) blockers.push("stability " + stability + " below 0.35");
+  if (!isCity) blockers.push("the site is not a city");
+  if (!towers) blockers.push("the site has no completed launch tower");
+  if (recent) blockers.push("a ship already left here this generation");
+  if (shortfall.length) blockers.push("world shortfall: " + shortfall.join("; "));
+  return {
+    site: { id: site.id, name: site.name, pop: settlementPopulation(site), stage: site.stage || null },
+    sticky: W.causalLaunchSiteId,
+    isCity, stability, towers, recent,
+    knows: site.knownProcesses.includes("starflight"),
+    blockers,
+  };
+}
 window.ALIFE_MODERN_DEBUG = Object.freeze({
+  launchBlockers: modernLaunchBlockers,
   living: () => modernLivingPeople(),
   shortfall: () => modernShortfall(),
   stages: () => modernStages().map((s) => ({ key: s.key, label: s.label, done: s.done() })),

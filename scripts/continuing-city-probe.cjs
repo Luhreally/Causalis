@@ -17,6 +17,7 @@ for (let press = 1; press <= +(process.argv[5] || 40); press++) {
       continuing: window.ALIFE_CONTINUING_DEBUG?.counts(),
       homes: towns.map((s) => ({ name: s.name, ...s.habitation, food: +settlementFood(s).toFixed(1), hungry: +hungryShare(s).toFixed(2) })),
       routes: (W.publicTransport?.routes || []).length, journeys: W.publicTransport?.journeys || 0,
+      launch: window.ALIFE_MODERN_DEBUG.launchBlockers(),
       blocks: modernCount(["tower", "office"]), apts: modernCount(["tenement"]), works: modernCount(["factory"]),
       wants: window.ALIFE_MODERN_DEBUG?.wants?.(),
       crafts: typeof CONTINUING_CRAFTS !== "undefined" ? CONTINUING_CRAFTS.filter(continuingKnows) : [],
