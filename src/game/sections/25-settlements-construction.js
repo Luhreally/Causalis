@@ -153,10 +153,33 @@ function createSettlement(campId, cause = 0) {
   addRelation(s.founderId, s.entityId, "founded", 1, ev.id);
   return s;
 }
+// How many people a town has. This used to be whoever happened to be standing
+// within seven tiles of the middle of it, which is not a population but a
+// snapshot of the square: measured on causal-origin small, Willowwatch read
+// twenty-two people at one press, twelve at the next and eleven at the one
+// after, while the number who actually lived there went 40, 42, 42. Nobody had
+// died — they were out in the fields when the town was counted.
+//
+// Every civic decision rides on this reading: how many fields the granary
+// plans, when settlers leave, whether the place is urban, and so whether a ship
+// may leave from it. On that noise a city flickered in and out of being a city
+// between presses and could never hold its stage long enough to launch.
+//
+// A town's people are the ones who live there, wherever they are standing, plus
+// anyone nearby who lives nowhere else. Someone with a home in the next town is
+// a visitor and is not counted twice. Before anyone has a home — camps, a young
+// settlement — nobody has a residence to look up and this reads exactly as it
+// always did.
 function settlementPopulation(s) {
   let n = 0;
   for (const id of W.activeIds) {
     if (W.kind[id] !== KINDS.PERSON) continue;
+    const social = W.components.social[id],
+      home = social && social.homePlaceKind === "settlement" ? social.homePlaceId || 0 : 0;
+    if (home) {
+      if (home === s.id) n++;
+      continue;
+    }
     const p = W.components.position[id];
     if (p && dist2(p.x, p.y, s.x, s.y) <= 49) n++;
   }

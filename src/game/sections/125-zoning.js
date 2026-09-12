@@ -388,8 +388,14 @@ function zoningRedevelop(town) {
 }
 const updateHabitationTownZoningBase = updateHabitationTown;
 updateHabitationTown = function (town) {
-  const homes = updateHabitationTownZoningBase(town);
+  // Buy the cottage out *before* the habitation pass, never after. The pass
+  // returns the list of homes it has just filled and its callers go on using
+  // it; pulling a building down behind them left a household holding an address
+  // that no longer stood, which reads as a home over capacity and as addresses
+  // moving on their own. Demolish first, and the pass rehouses in the same
+  // breath.
   zoningRedevelop(town);
+  const homes = updateHabitationTownZoningBase(town);
   if (town.habitation) {
     const owned = homes.filter((b) => b.tenancy?.ownerId).length;
     town.habitation.homes = homes.length;
