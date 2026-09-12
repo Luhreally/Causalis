@@ -579,12 +579,29 @@ these was enough on its own:
    `launchShip` wants them at the site; so were the skyline and the factory that
    section 110 asks of the launching city.
 
-**Not yet general.** battery `causal-origin` still dies (fourteen people by year
-506, "no town at all"); `ship-b` small raised nineteen blocks and then fell to
-sixty-three people by year 180. At the time of writing `causal-origin` phone,
-`ship-c` small and `variety-5` small are still running. One seed launching is
-not the same as the game launching, and the remaining failures look like the
-same starvation, further along.
+**A second world launched**, and not the Earth-modelled one: `variety-5`,
+small, lean, at year 125 — eighteen blocks at press 15, its launch tower at
+16, Starflight at 17, the ship away at 18, with 143 people all living in towns
+and nineteen blocks, ten apartment blocks and four factories standing. Same
+shape as the first: the whole modern society, then the ship.
+
+**Not yet general.** Of six worlds measured on this code, two launch:
+
+| size | seed | outcome |
+|---|---|---|
+| small | causal-origin | **ship away y113**, 174 people |
+| small | variety-5 | **ship away y125**, 143 people |
+| small | ship-b | 19 blocks by y148, then down to 9 people by y421 |
+| small | ship-c | 12 blocks, peak 124 people, down to 53 by y121 |
+| phone | causal-origin | 7 blocks, peak 119 people, down to 57 by y119 |
+| battery | causal-origin | dies out, "no town at all" by y506 |
+
+The four failures all have the same shape: the world raises a real downtown and
+then starves, later than it used to but for the same reason. The ground is the
+thing left (problem 7, last paragraph) — a town's food is dominated by forage on
+its own tiles, and a town that has stripped them starves whatever its granary
+holds. A launch is now a question of whether a world survives long enough, not
+of whether it can reach the gate.
 
 ## The recent commits, newest first
 
