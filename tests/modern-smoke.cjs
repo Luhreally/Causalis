@@ -164,6 +164,29 @@ const fixtureSource = String.raw`(() => {
   out.towerRaised = W.buildings.filter((x) => !x.ruined && x.placeKind === "settlement" && x.placeId === s.id && x.type === "launch_tower").length;
   if (out.towerlessPush !== "tower") fail("the ascension push raised no tower for a site without one: " + out.towerlessPush);
   if (!(out.towerRaised > 0)) fail("no launch tower was planned at the launch site");
+  // A neighbour's industry satisfies the world gate but cannot launch this
+  // city's ship. The blocker report and the effort must include the local gate.
+  const localSite = modernLaunchSite();
+  const localIndustry = W.buildings.filter((x) => !x.ruined && x.placeKind === "settlement" && x.placeId === localSite.id && ["tower", "office", "factory"].includes(x.type));
+  for (const x of localIndustry) x.placeId = b.id;
+  const localBlockers = modern.launchBlockers().blockers;
+  if (!localBlockers.includes("the site has no completed skyline") || !localBlockers.includes("the site has no completed factory"))
+    fail("the launch report omitted the site's missing industry");
+  const localAudit = auditMatter().delta;
+  modernLaunchPush("ascension", 5);
+  for (const type of ["tower", "factory"])
+    if (!W.buildings.some((x) => !x.ruined && x.placeId === localSite.id && x.placeKind === "settlement" && x.type === type))
+      fail("the launch effort did not plan its own " + type);
+  if (auditMatter().delta !== localAudit) fail("supplying the launch site's industry lost matter");
+  for (const x of localIndustry) x.placeId = localSite.id;
+  const suppliedFactory = W.buildings.find((x) => !x.ruined && !x.complete && x.placeKind === "settlement" && x.placeId === localSite.id && x.type === "factory");
+  const suppliedOrder = W.workOrders.find((o) => o.buildingId === suppliedFactory?.id && o.status === "open");
+  if (!suppliedOrder) fail("no factory work order to test");
+  else {
+    suppliedOrder.priority = 3;
+    modernSupplySite(localSite, suppliedFactory, 8);
+    if (suppliedOrder.priority < 9) fail("the supplied factory retained its abandoned work priority");
+  }
   // The effort feeds the hands it works: a town in famine gets bread carried to
   // it, and its second field, half raised beside a finished one, gets supplied
   // where the push used to see the finished one and call the town served.

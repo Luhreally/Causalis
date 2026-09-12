@@ -26,7 +26,7 @@ const GRANARY_CALL_HUNGER = 52,
   GRANARY_CALL_NEAR = 8,
   GRANARY_CALL_REACH = 48,
   GRANARY_CALL_GROUND = 3,
-  GRANARY_CALL = { steps: 0, arrivals: 0, homeMeals: 0, homeDrinks: 0, pullsHeld: 0, packMeals: 0 };
+  GRANARY_CALL = { steps: 0, arrivals: 0, homeMeals: 0, homeDrinks: 0, pullsHeld: 0, packMeals: 0, toppedMeals: 0, foreignMeals: 0 };
 // Whether a store can feed the town standing on it. This used to be twelve
 // units, flat, however many mouths there were — so a town of sixty with
 // twenty-four units in its granary counted as fed, and its people were told
@@ -146,7 +146,10 @@ function homeRationPlace(id, sp = C.ORGANIC) {
     if (s.ruined || !(s.inventory?.[sp] > 0)) continue;
     const d = dist2(p.x, p.y, s.x, s.y);
     if (d > near || d >= bestD || hostile(s)) continue;
-    if (soc.factionId && s.factionId && s.factionId !== soc.factionId && s !== home) continue;
+    // The same peaceful granary that calls a starving visitor must feed them
+    // on arrival. Previously the walk crossed a border but the meal could not.
+    if (soc.factionId && s.factionId && s.factionId !== soc.factionId && s !== home &&
+      (W.components.life[id]?.hunger || 0) < GRANARY_CALL_DESPERATE) continue;
     best = s;
     bestD = d;
   }
@@ -154,27 +157,39 @@ function homeRationPlace(id, sp = C.ORGANIC) {
 }
 const performFeedingGranaryBase = performFeeding;
 performFeeding = function (id, tile, stride = 1) {
-  if (performFeedingGranaryBase(id, tile, stride)) return true;
-  if (W.kind[id] !== KINDS.PERSON) return false;
+  const person = W.kind[id] === KINDS.PERSON,
+    digestive = W.components.inventory[id]?.digestive,
+    meal = [[C.ORGANIC, 18], [C.ENERGY, 10], [C.NUTRIENT, 8], [C.CATALYST, 2]],
+    before = person ? meal.map(([sp]) => digestive[sp]) : null,
+    ate = performFeedingGranaryBase(id, tile, stride);
+  if (!person) return ate;
+  // A mouthful from stripped ground is not a full meal. The old early return
+  // let one organic packet suppress eighteen available in the granary. Top up
+  // a seriously hungry person's meal, counting what the forage already gave.
+  if (ate && (W.components.life[id]?.hunger || 0) < CARRIED_MEAL_HUNGER) return true;
   const home = homeRationPlace(id);
-  if (!home) return false;
-  const digestive = W.components.inventory[id].digestive;
+  if (!home) return ate;
   let moved = 0;
-  for (const [sp, limit] of [[C.ORGANIC, 18], [C.ENERGY, 10], [C.NUTRIENT, 8], [C.CATALYST, 2]]) {
-    const amount = Math.min(limit * stride, home.inventory[sp] || 0, 65535 - digestive[sp]);
+  for (let k = 0; k < meal.length; k++) {
+    const [sp, limit] = meal[k],
+      remaining = Math.max(0, limit * stride - (digestive[sp] - before[k])),
+      amount = Math.min(remaining, home.inventory[sp] || 0, 65535 - digestive[sp]);
     home.inventory[sp] -= amount;
     digestive[sp] += amount;
     moved += amount;
   }
-  if (!moved) return false;
+  if (!moved) return ate;
   W.components.life[id].behaviorReason = `ate rations at home in ${home.name}, whatever flag flies there`;
   GRANARY_CALL.homeMeals++;
+  if (ate) GRANARY_CALL.toppedMeals++;
   // `arrivals` was declared with the other counters and never once written to,
   // so it read zero however far anyone walked — and zero arrivals against
   // ninety-six thousand steps reads as a broken mechanism rather than a dead
   // tally. It counts what it always claimed to: a meal taken somewhere that is
   // not the eater's own town, which is the walk actually paying off.
   const soc = W.components.social[id];
+  if (soc?.factionId && home.factionId && soc.factionId !== home.factionId)
+    GRANARY_CALL.foreignMeals++;
   if (!soc || soc.homePlaceKind !== "settlement" || soc.homePlaceId !== home.id)
     GRANARY_CALL.arrivals++;
   return true;

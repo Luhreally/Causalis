@@ -295,6 +295,13 @@ function modernRaise(place, type, want, pushes) {
 }
 function modernSupplySite(place, b, pushes) {
   if (!place || !b) return false;
+  // An existing project keeps its old work order. Supplying a priority-three
+  // factory while priority-six towers take every builder left it fully stocked
+  // with zero work for decades. The effort must give it the same priority as a
+  // new project it commissions, not just deliver another load of material.
+  for (const order of W.workOrders)
+    if (order.buildingId === b.id && order.status === "open")
+      order.priority = Math.max(order.priority || 0, 9);
   const missing = missingBuildingMaterial(b);
   if (!missing) return true;
   const sp = missing.sp,
@@ -524,6 +531,12 @@ function modernLaunchSite() {
 function modernLaunchPush(key, pushes) {
   const site = modernLaunchSite();
   if (!site) return null;
+  // Section 110 requires these in the city that launches, not merely somewhere
+  // in the world. Mosshollow reached Starflight with a tower and an empty world
+  // shortfall while its neighbours held the skyline and works. Supply the
+  // site's missing facilities alongside its research, using the same ledger.
+  if (!hasSkyline(site)) modernSupply(site, "tower", pushes);
+  if (!hasWorks(site)) modernSupply(site, "factory", pushes);
   if (key === "starflight") {
     // The stage counts the craft understood anywhere in the world, so the
     // effort taught it to whichever town happened to be leading. Only the place
@@ -799,6 +812,8 @@ function modernLaunchBlockers() {
   if (stability < 0.35) blockers.push("stability " + stability + " below 0.35");
   if (!isCity) blockers.push("the site is not a city");
   if (!towers) blockers.push("the site has no completed launch tower");
+  if (!hasSkyline(site)) blockers.push("the site has no completed skyline");
+  if (!hasWorks(site)) blockers.push("the site has no completed factory");
   if (recent) blockers.push("a ship already left here this generation");
   if (shortfall.length) blockers.push("world shortfall: " + shortfall.join("; "));
   return {

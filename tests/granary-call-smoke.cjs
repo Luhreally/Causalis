@@ -72,6 +72,37 @@ const fixtureSource = String.raw`(() => {
   if (!(out.ateAtHome && out.storeDrop > 0 && W.components.inventory[id].digestive[C.ORGANIC] - eaten0 === out.storeDrop)) fail("the resident under another flag did not eat at home: " + JSON.stringify([out.ateAtHome, out.storeDrop]));
   out.homeReason = W.components.life[id].behaviorReason || "";
   if (!/at home/.test(out.homeReason)) fail("no reason names the home meal: " + out.homeReason);
+  // A starving peaceful visitor is admitted by the same rule as the walk.
+  const savedHome = soc.homePlaceId, savedHunger = W.components.life[id].hunger;
+  soc.homePlaceId = -1;
+  W.components.life[id].hunger = 85;
+  if (call.home(id) !== s.id) fail("a starving peaceful visitor is refused on arrival");
+  const visitorStock = s.inventory[C.ORGANIC], visitorGut = W.components.inventory[id].digestive[C.ORGANIC];
+  const visitorAudit = auditMatter().delta;
+  performFeeding(id, idx(p.x, p.y), 1);
+  if (!(s.inventory[C.ORGANIC] < visitorStock &&
+    W.components.inventory[id].digestive[C.ORGANIC] - visitorGut === visitorStock - s.inventory[C.ORGANIC]))
+    fail("a starving visitor did not receive conserved food");
+  if (auditMatter().delta !== visitorAudit) fail("visitor rations changed total matter");
+  W.components.life[id].hunger = 65;
+  if (call.home(id)) fail("a merely hungry foreign visitor bypassed the border rule");
+  W.components.life[id].hunger = 85;
+  W.activeWars.push({ a: soc.factionId, b: s.factionId, ended: false });
+  if (call.home(id)) fail("a hostile visitor received rations");
+  W.activeWars.pop();
+  soc.homePlaceId = savedHome; W.components.life[id].hunger = savedHunger;
+  // A tiny forage meal must not suppress available rations or double a meal.
+  const crumbTile = idx(p.x, p.y), crumbBefore = tileMatterAmount(crumbTile, C.ORGANIC);
+  setTileMatterAmount(crumbTile, C.ORGANIC, 12); W.conservation.playerInput += 12 - crumbBefore;
+  const crumbGut = W.components.inventory[id].digestive[C.ORGANIC], crumbStock = s.inventory[C.ORGANIC];
+  const crumbAudit = auditMatter().delta;
+  W.components.life[id].hunger = 85;
+  performFeeding(id, crumbTile, 1);
+  const crumbForage = 12 - tileMatterAmount(crumbTile, C.ORGANIC);
+  if (!(crumbForage > 0) || W.components.inventory[id].digestive[C.ORGANIC] - crumbGut !== 18 || crumbStock - s.inventory[C.ORGANIC] !== 18 - crumbForage)
+    fail("a forage crumb was not topped up to exactly one meal: " + JSON.stringify([crumbForage, W.components.inventory[id].digestive[C.ORGANIC] - crumbGut, crumbStock - s.inventory[C.ORGANIC]]));
+  if (auditMatter().delta !== crumbAudit) fail("a topped-up meal changed total matter");
+  W.components.life[id].hunger = savedHunger;
   soc.factionId = s.factionId;
   // The hub calls no one while its stores are lean.
   const f = W.factions.find((x) => x.id === s.factionId);
