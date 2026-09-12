@@ -27,6 +27,27 @@ const GRANARY_CALL_HUNGER = 52,
   GRANARY_CALL_REACH = 48,
   GRANARY_CALL_GROUND = 3,
   GRANARY_CALL = { steps: 0, arrivals: 0, homeMeals: 0, homeDrinks: 0, pullsHeld: 0, packMeals: 0 };
+// Whether a store can feed the town standing on it. This used to be twelve
+// units, flat, however many mouths there were — so a town of sixty with
+// twenty-four units in its granary counted as fed, and its people were told
+// there was food at home and never made the walk. Measured on causal-origin
+// small: Mosshollow sat between seventy-six and ninety-two in a hundred hungry
+// for forty years, dying of chemical energy depletion at nine, thirteen,
+// sixteen, nineteen and twenty-six years old, while Willowwatch twenty tiles
+// off held a food score of eight hundred and nobody hungry at all. The food was
+// never the problem; the threshold was. A store now has to hold enough for the
+// people who live there.
+const GRANARY_CALL_PER_HEAD = 0.5,
+  // Hungry enough to leave his own people over it.
+  GRANARY_CALL_DESPERATE = 80;
+function granaryStoreFeeds(s) {
+  if (!s || s.ruined) return false;
+  const stock = s.inventory?.[C.ORGANIC] || 0,
+    // Written by the habitation pass each year (121); a place that has not had
+    // one yet is judged the old way rather than guessed at.
+    mouths = s.habitation?.residents || 0;
+  return stock >= Math.max(GRANARY_CALL_STOCK, Math.ceil(mouths * GRANARY_CALL_PER_HEAD));
+}
 function granaryCallPlace(id) {
   if (W.kind[id] !== KINDS.PERSON) return null;
   const l = W.components.life[id],
@@ -39,15 +60,25 @@ function granaryCallPlace(id) {
   // held four units and Ple Chyply a hundred and fifty-three, and everyone in
   // both was hungry. The call now goes to the nearest store that can feed him.
   const home = nearestFriendlyPlace(id),
-    fed = (s) => (s?.inventory?.[C.ORGANIC] || 0) >= GRANARY_CALL_STOCK,
+    fed = granaryStoreFeeds,
     social = W.components.social[id],
     faction = social?.factionId || 0;
+  // A border is not a wall to a starving man. Measured on causal-origin small
+  // at year 114: the world had fragmented into seven towns under six flags, and
+  // for every starving person every fed town in reach was another polity's, so
+  // the call refused all of them — ten thousand walking steps and not one
+  // arrival, ever, in that world. Mosshollow starved at eight in ten hungry
+  // thirty-seven tiles from Willowwatch and its food score of eight hundred and
+  // twenty-five. Merely hungry, a man keeps to his own people; starving, he
+  // goes where the food is. A town actually at war with him is still closed,
+  // which is what `personIsHostileVisitor` already means.
+  const desperate = l.hunger >= GRANARY_CALL_DESPERATE;
   let place = fed(home) ? home : null,
     bestD = place ? dist2(p.x, p.y, place.x, place.y) : Infinity;
   if (!place)
     for (const s of W.settlements) {
       if (s.ruined || !fed(s)) continue;
-      if (faction && s.factionId && s.factionId !== faction) continue;
+      if (!desperate && faction && s.factionId && s.factionId !== faction) continue;
       if (typeof personIsHostileVisitor === "function" && personIsHostileVisitor(id, s.factionId)) continue;
       const d = dist2(p.x, p.y, s.x, s.y);
       if (d < bestD) {
@@ -138,6 +169,14 @@ performFeeding = function (id, tile, stride = 1) {
   if (!moved) return false;
   W.components.life[id].behaviorReason = `ate rations at home in ${home.name}, whatever flag flies there`;
   GRANARY_CALL.homeMeals++;
+  // `arrivals` was declared with the other counters and never once written to,
+  // so it read zero however far anyone walked — and zero arrivals against
+  // ninety-six thousand steps reads as a broken mechanism rather than a dead
+  // tally. It counts what it always claimed to: a meal taken somewhere that is
+  // not the eater's own town, which is the walk actually paying off.
+  const soc = W.components.social[id];
+  if (!soc || soc.homePlaceKind !== "settlement" || soc.homePlaceId !== home.id)
+    GRANARY_CALL.arrivals++;
   return true;
 };
 const performDrinkingGranaryBase = performDrinking;
@@ -227,6 +266,12 @@ window.ALIFE_GRANARY_CALL_DEBUG = Object.freeze({
   home: (id) => homeRationPlace(id)?.id || 0,
   lean: (factionId) => hubStoresLean(W.factions.find((f) => f.id === factionId)),
   place: (id) => granaryCallPlace(id)?.id || 0,
+  feeds: (placeId) => {
+    const s = W.settlements.find((x) => x.id === placeId);
+    return s ? { feeds: granaryStoreFeeds(s), stock: s.inventory[C.ORGANIC] || 0,
+      mouths: s.habitation?.residents || 0,
+      needs: Math.max(GRANARY_CALL_STOCK, Math.ceil((s.habitation?.residents || 0) * GRANARY_CALL_PER_HEAD)) } : null;
+  },
   step: (id) => {
     const place = granaryCallPlace(id);
     return place ? granaryCallStep(id, place) : null;
