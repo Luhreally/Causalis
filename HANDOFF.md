@@ -545,9 +545,53 @@ launch tower and understands Starflight. No ship has left yet. The last
 measured run collapses around year 130 from the starvation above, which is the
 remaining thing between here and a launch.
 
+### 8. A ship leaves (2026-09-12)
+
+`causal-origin`, small, lean, `scripts/food-launch-probe.cjs`:
+
+    p18  y110  176 people  22 blocks  4 works   a completed Launch tower
+    p19  y113  174 people  22 blocks  4 works   Starflight
+    p20  y113  174 people  22 blocks  4 works   THE FIRST SHIP AWAY
+
+A living world behind it: 174 people, **every one of them living in a town**,
+twenty-two tower blocks, eight apartment blocks, four factories, and matter
+conserved at every press of the run. The blocker after the launch reads "a ship
+already left here this generation", which is the right reason for a city not to
+send a second one immediately.
+
+The granary counters, which used to read zero, now read like a working society:
+1,321 arrivals, 750 topped-up meals, 915 meals out of a pack, 5 taken under
+another polity's flag.
+
+**What finally did it**, in the order the faults were found — no single one of
+these was enough on its own:
+
+1. A town's population counted who stood near it, not who lived there, so the
+   launch site flickered in and out of city stage (problem 7).
+2. A world allowed one place per fourteen people and so could never grow a city
+   of twenty-two (problem 7).
+3. `performFeeding` returned as soon as forage gave anything, so one packet off
+   stripped ground suppressed eighteen in the granary the eater stood on.
+4. A starving visitor could be called across a border and then refused the meal.
+5. A supplied project kept its old work priority, so a stocked factory stood
+   untouched for decades while towers took every builder.
+6. `starflight` and `tower` were satisfied by any town in the world while
+   `launchShip` wants them at the site; so were the skyline and the factory that
+   section 110 asks of the launching city.
+
+**Not yet general.** battery `causal-origin` still dies (fourteen people by year
+506, "no town at all"); `ship-b` small raised nineteen blocks and then fell to
+sixty-three people by year 180. At the time of writing `causal-origin` phone,
+`ship-c` small and `variety-5` small are still running. One seed launching is
+not the same as the game launching, and the remaining failures look like the
+same starvation, further along.
+
 ## The recent commits, newest first
 
 ```
+64f45a9  Finish the meal the call started, and give the ship's own city its works
+122e6c7  Write down the road to a launch, and the two counters that lied
+573cc62  Ask for Starflight and a tower where the ship is, not anywhere in the world
 95cadab  Find what kills the city: it starves beside its neighbour's full fields
 07c0f80  Count the people who live in a town, not the ones standing in its square
 3a12a8a  Never spread a world thinner than the size it calls a city
