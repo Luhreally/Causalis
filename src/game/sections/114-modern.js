@@ -232,7 +232,27 @@ causalSkipMicroStages = function () {
   const stages = causalSkipMicroStagesModernBase(),
     at = stages.findIndex((s) => s.key === "starflight");
   if (at < 0) return stages;
-  return [...stages.slice(0, at), ...modernStages(), ...stages.slice(at)];
+  const all = [...stages.slice(0, at), ...modernStages(), ...stages.slice(at)];
+  // The stage list and the ship disagreed about *where*. "Starflight" counted
+  // the craft understood in any town and "a completed Launch tower" a tower
+  // standing in any town, while `launchShip` wants both in the one place it
+  // leaves from — and a village will happily learn the craft while another
+  // village raises the tower, at which point both stages report themselves done
+  // and the city that must actually fly has neither. Measured on causal-origin
+  // small: the world announced its launch tower at one press and Starflight at
+  // the next while the site the effort had chosen held `tower=0 sf=false`
+  // throughout, and then the world collapsed with the whole thing still to do.
+  // Judged at the site, the effort works on the right town from the start.
+  for (const stage of all) {
+    if (stage.key === "starflight")
+      stage.done = () => !!modernLaunchSite()?.knownProcesses.includes("starflight");
+    else if (stage.key === "tower")
+      stage.done = () => {
+        const site = modernLaunchSite();
+        return !!site && completedBuildings(site, "launch_tower").length > 0;
+      };
+  }
+  return all;
 };
 // A city may hold several towers; the push feeds the site that is not yet
 // complete instead of refusing because one already stands. Store-drawn inputs
