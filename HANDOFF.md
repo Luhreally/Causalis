@@ -89,7 +89,7 @@ npm run test:fast > log 2>&1
 bash $SCRATCH/suite-check.sh log 94
 ```
 
-The expected count is the number of `"ok": true` lines, currently **98**. It
+The expected count is the number of `"ok": true` lines, currently **100**. It
 changes only when you add a test file. A green suite is necessary and not
 sufficient — see "Pitfalls".
 
@@ -828,9 +828,93 @@ Six of six, every run with matter conserved at every press. The years are
 those of the final code; a run on the code a commit earlier launched the same
 seeds a decade or three later or earlier, as said above.
 
+### 10. Past the ship, and what the world beneath it does (2026-09-14, battery and phone only)
+
+Everything below is on `battery` and `phone`, lean — the profiles the game is
+played on. Nothing here was measured on standard or larger.
+
+**The arc past the ship works, mechanically.** `scripts/arc-probe.cjs` presses
+on after the launch. Battery causal-origin: ship at year 67, bound for a star
+23.5 light-years off; the voyage takes 47 years, and every press meanwhile
+stops on a branch craft (Cold Stores, Hydroponics, Antibiotics, Global
+Networks … Deep Theory III — sixteen presses to reach the colony, each with
+something to show); the colony is founded at year 114 and the world's stage
+turns interstellar; the colony grows to 349, founds daughters, and sends its
+own ship onward at year 284. Phone: ship at 59, colony due at 106. Two things
+did not happen. No colony declared independence in two hundred years: the
+rule wants nine-tenths of the world's capacity held for sixty years fifteen
+light-years out, with a chance in twenty a year, and hardships keep knocking
+the population under the nine-tenths. And **the home world dies behind the
+ship**: battery went from 46 people at the launch to 18 by year 130 and no
+town at all by 154, four-fifths hungry on the way down. The epilogue (91)
+records exactly that. Whether a world *should* survive its own ascent is a
+design question the code does not answer yet; the mechanism is the lean-town
+one below.
+
+**The skip says what stops it (129).** The line a press ends on now carries
+a reason a player can act on, read from the world without writing it: "16
+tower blocks or offices (0 of 18 standing, 1 rising; the furthest along, at
+Kwots Baerou, stocked, nobody is working on it)", "complete a Launch tower
+(none is planned at X, which usually means no plot is free)", "20 people
+living in towns (Needlespire is 7 in 10 hungry)", "develop Starflight (X is on
+Computing, 0 of 78 notes, and has no archive to study it at)". It shows in the
+world pane's progression card too, so nothing in it may write: the launch site
+is read from the held id, not chosen.
+
+**A launch is guarded in under a minute.** `tests/fixtures/launch-battery.json.gz`
+is causal-origin battery lean archived at press 16 (year 66, the launch tower
+just complete; 8.9 MB of archive, 1.1 MB gzipped), made by
+`scripts/make-launch-fixture.cjs` through the game's own `snapshot()`.
+`tests/launch-smoke.cjs` loads it the way the game loads a save — hash
+checked — and presses: Starflight on the first press, the first ship away on
+the second, matter conserved. It is in `test:fast`. When the launch chain
+breaks again, this is what notices.
+
+**Fields wanted a full seed.** `sowCultivatedField` refused unless the store
+held one organic for every tile of the field; a lean town's store sits at the
+granary's floor and the effort's ration is eaten within the season, so on
+battery two hundred sowings a year were refused with twenty-four in the store
+and seven to eleven fields fallow for up to six years (`scripts/sowing-probe.cjs`
+counts what happens to every hand that reaches a field). A third of the tiles
+seeded is a sowing now, and the transfer takes what the store has. Measured:
+sowings went from 0–4 a year to 6–10, harvests to 224 a year, fields growing
+7–10 of 10. Hunger at Flinthollow still ran 0.13–0.5: the fields are worked
+now, and the town is still lean — that is the open problem, not the sowing.
+
+**The granary counts seven tiles, and widening it collapsed the world.** 82's
+`granaryResidents` is the town's people within seven tiles of the hall; a city
+of 62 counted 3 to 8, and the hungry share, the birth brake, the famine
+outlook and the call to the granary all read that handful. A section that
+counted the whole town, the way `settlementPopulation` does, was measured and
+**withdrawn**: the people far from the hall are the hungry ones (out at the
+fields and the hunt), the share read 0.44 from year 33, every brake fired at
+once, and the battery world never built a block. The seven-tile count is a
+bias that happens to hold the world together. Any future change to it must be
+measured on battery first; the sowing-probe and food-launch runs are the
+measurement.
+
+**Performance, measured for the first time.** `scripts/perf-probe.cjs` loads
+the launch fixture and times ticks; `scripts/perf-summary.cjs` reads the V8
+profile back by section and function. Battery at year 66 with 48 people runs
+at **12.8 ms a tick** on the development machine, with three ticks of the 512
+at 100–357 ms: those are `worldHash()`, which walks every array and every
+event's text once a year and costs ~300 ms — 17 percent of all sampled time
+in `feed`, `walk` and `hashString`. Behaviour and cognition (21, 30b, 62) are
+the next 25 percent; `nearbyIds` alone is 7. The hash algorithm is written
+into every save's integrity check, so it cannot be changed without a save
+migration; hashing the event log by id rather than by text would remove most
+of the stall and is the one clear candidate. There is no other quick win.
+
+The full run of every seed and size above the phone is deliberately not
+re-measured in this pass.
+
 ## The recent commits, newest first
 
 ```
+15b3a12  Say what is stopping the skip, in plain words
+df63e03  Guard the launch in under a minute
+ee721f3  Sow with the seed there is
+cb56d26  Probes for the arc past the ship, the sowing, a launch fixture, and the tick's cost
 5f4ab61  Split the material society in six along its own seams
 b4413b8  Move tile matter through two functions, so the conservation rule lives in one place
 298fa92  Call the kin check and the age label that exist
