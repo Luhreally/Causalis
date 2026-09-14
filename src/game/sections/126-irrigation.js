@@ -19,10 +19,20 @@
 // a garden. The water moves; it is not made. Rain wrote depth and matter
 // together and evaporation takes them together, but a bucket is matter alone,
 // and the depth model is left to the hydrology that owns it.
+// A channel reaches further than a bucket, and it draws a little from the whole
+// shore rather than draining the tile nearest the field. Measured with a reach
+// of seven and nearest-first draw on battery causal-origin: only three to five
+// of eight fields had any water within reach at all, and the few lake tiles
+// that were in reach were drawn down by nine hundred a year and refilled by
+// rain at fifty, so the water within reach of the first field fell from nine
+// and a half thousand to under five in fifteen years while the lake as a whole
+// held a million and a half. Twelve tiles finds the shore for nearly every
+// field, and a sip from each of many tiles stays under what rain gives back.
 const IRRIGATION_TICK = 32,
   IRRIGATION_TARGET = 26,
   IRRIGATION_BUCKET = 10,
-  IRRIGATION_REACH = 7,
+  IRRIGATION_SIP = 2,
+  IRRIGATION_REACH = 12,
   IRRIGATION = { passes: 0, fieldsWatered: 0, tilesWatered: 0, moved: 0, dryLeft: 0 };
 // The water a field tile is short of the target, in the units the tile holds.
 // `tileMoisture` reads (solvent - liquid * 0.55) / 9, so a target in moisture
@@ -57,18 +67,30 @@ function irrigateField(place, field) {
   if (!sources.length) return 0;
   let moved = 0,
     watered = 0;
-  for (const tile of tiles) {
+  for (let k = 0; k < tiles.length; k++) {
+    const tile = tiles[k];
     let need = Math.min(IRRIGATION_BUCKET, irrigationDeficit(tile));
     if (!need) continue;
     const wanted = need;
-    for (const src of sources) {
-      if (!need) break;
-      const give = Math.min(need, irrigationSpare(src.tile), 65535 - W.tiles.chem[C.SOLVENT][tile]);
-      if (give <= 0) continue;
-      W.tiles.chem[C.SOLVENT][src.tile] -= give;
-      W.tiles.chem[C.SOLVENT][tile] += give;
-      need -= give;
-      moved += give;
+    // Round the shore: a sip from each source in turn, starting from a
+    // different tile for each field tile, until the bucket is filled or a full
+    // circuit finds nothing left to sip.
+    let start = k % sources.length,
+      circuit = 0;
+    while (need > 0 && circuit < 4) {
+      let took = 0;
+      for (let n = 0; n < sources.length && need > 0; n++) {
+        const src = sources[(start + n) % sources.length],
+          give = Math.min(need, IRRIGATION_SIP, irrigationSpare(src.tile), 65535 - W.tiles.chem[C.SOLVENT][tile]);
+        if (give <= 0) continue;
+        W.tiles.chem[C.SOLVENT][src.tile] -= give;
+        W.tiles.chem[C.SOLVENT][tile] += give;
+        need -= give;
+        moved += give;
+        took += give;
+      }
+      if (!took) break;
+      circuit++;
     }
     if (need < wanted) watered++;
     else IRRIGATION.dryLeft++;

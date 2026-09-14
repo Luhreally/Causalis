@@ -75,7 +75,20 @@ const aYear = `(() => {
   let hungry = 0;
   for (const id of residents) if ((W.components.life[id]?.hunger || 0) > 60) hungry++;
   const waterTechs = ["irrigation", "waterworks", "chemistry"].filter((t) => town.knownProcesses.includes(t));
+  // Whether irrigation actually fired, and whether there was any water for it
+  // to carry: the counters since last year, how many of the town's fields have
+  // a source within reach, and how much those sources could spare.
+  const irr = window.ALIFE_IRRIGATION_DEBUG, ic = irr ? irr.counts() : null;
+  if (irr) irr.reset();
+  const ifields = irr ? irr.fields(town.id) : [], withSource = ifields.filter((f) => f.sources > 0).length;
+  let spare = 0;
+  if (fields.length) {
+    const [fx0, fy0] = xy(fields[0].tile);
+    for (let dy = -7; dy <= 7; dy++) for (let dx = -7; dx <= 7; dx++)
+      if (inside(fx0 + dx, fy0 + dy)) spare += irr ? irr.spare(fx0 + dx, fy0 + dy) : 0;
+  }
   return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), town: town.name.slice(0, 11),
+    irrigation: ic ? { moved: ic.moved, fields: ic.fieldsWatered, tiles: ic.tilesWatered, dryLeft: ic.dryLeft, withSource, of: ifields.length, spare } : null,
     weather: W.weather.name, waterTechs, townWater: town.inventory[C.SOLVENT] || 0,
     pop: settlementPopulation(town), farms: completedBuildings(town, "farm").length, fields: fields.length,
     stages, harvests, moved, sown, failed, matured,
@@ -90,6 +103,6 @@ for (let n = 1; n <= years; n++) {
   if (row.gone) { console.log("no town left"); break; }
   const gd = row.ground;
   console.log(
-    `y${String(row.year).padStart(4)} ${row.town.padEnd(11)} ${String(row.weather).padEnd(10).slice(0, 10)} tech${row.waterTechs.length} tw${String(row.townWater).padStart(4)} pop${String(row.pop).padStart(3)} farms${row.farms} fields${row.fields} ${JSON.stringify(row.stages)} | harv${String(row.harvests).padStart(3)} moved${String(row.moved).padStart(5)} sown${row.sown} fail${row.failed} | store ${row.store[0]}->${row.store[1]} hungry${row.hungry} | ground moist${gd.moist} fert${gd.fert} order${gd.order} org${gd.organic} h2o${gd.water} nut${gd.nutrient} dry${gd.dry}/${gd.tiles} barren${gd.barren}`,
+    `y${String(row.year).padStart(4)} ${row.town.padEnd(11)} ${String(row.weather).padEnd(10).slice(0, 10)} tech${row.waterTechs.length} tw${String(row.townWater).padStart(4)} pop${String(row.pop).padStart(3)} farms${row.farms} fields${row.fields} ${JSON.stringify(row.stages)} | harv${String(row.harvests).padStart(3)} moved${String(row.moved).padStart(5)} sown${row.sown} fail${row.failed} | store ${row.store[0]}->${row.store[1]} hungry${row.hungry} | irr ${row.irrigation ? `moved${row.irrigation.moved} f${row.irrigation.fields}/${row.irrigation.withSource}src/${row.irrigation.of} dryLeft${row.irrigation.dryLeft} spare${row.irrigation.spare}` : "-"} | ground moist${gd.moist} fert${gd.fert} order${gd.order} org${gd.organic} h2o${gd.water} nut${gd.nutrient} dry${gd.dry}/${gd.tiles} barren${gd.barren}`,
   );
 }

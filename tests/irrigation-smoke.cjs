@@ -46,6 +46,10 @@ const fixtureSource = String.raw`(() => {
   W.conservation.playerInput += W.tiles.chem[C.SOLVENT][lake] - lakeSolventBefore;
   const spareBefore = irr.spare(lakeX, lakeY);
   if (!(spareBefore >= 1500)) fail("the lake has nothing to spare: " + spareBefore);
+  // A channel draws from the whole shore in reach, so conservation is checked
+  // against every source within it, not the one lake we dug.
+  const shore = () => { let n = 0; for (let dy = -12; dy <= 12; dy++) for (let dx = -12; dx <= 12; dx++) if (inside(fx + dx, fy + dy)) n += irr.spare(fx + dx, fy + dy); return n; };
+  const shoreBefore = shore();
   // The craft and the care.
   town.knownProcesses = [...new Set([...town.knownProcesses, "irrigation"])];
   field.lastLaborTick = W.tick;
@@ -56,10 +60,10 @@ const fixtureSource = String.raw`(() => {
   irr.pass();
   out.counts = irr.counts();
   const fieldWaterAfter = tiles.reduce((n, t) => n + W.tiles.chem[C.SOLVENT][t], 0),
-    gained = fieldWaterAfter - fieldWaterBefore, lakeLost = spareBefore - irr.spare(lakeX, lakeY);
-  out.gained = gained; out.lakeLost = lakeLost;
+    gained = fieldWaterAfter - fieldWaterBefore, shoreLost = shoreBefore - shore();
+  out.gained = gained; out.shoreLost = shoreLost;
   if (!(gained > 0)) fail("the dry field got no water: " + gained);
-  if (gained !== lakeLost) fail("water was made or lost on the way: field +" + gained + ", lake -" + lakeLost);
+  if (gained !== shoreLost) fail("water was made or lost on the way: field +" + gained + ", shore -" + shoreLost);
   if (auditMatter().delta !== audit) fail("irrigation changed total matter: " + audit + " -> " + auditMatter().delta);
   if (!(out.counts.moved === gained)) fail("the tally does not match the water moved: " + out.counts.moved + " vs " + gained);
   // One bucket a tile a pass is a trickle: moisture rises, it does not jump.
@@ -72,6 +76,15 @@ const fixtureSource = String.raw`(() => {
   if (out.dryAfter !== 0) fail("tiles still dry after a season of watering: " + out.dryAfter + "/" + tiles.length);
   out.lakeFloor = W.tiles.chem[C.SOLVENT][lake] - W.tiles.liquid[lake];
   if (out.lakeFloor < 0) fail("the lake was drawn below its depth: " + out.lakeFloor);
+  // Nor is any other tile on the shore: solvent never falls under depth anywhere in reach.
+  let underDepth = 0;
+  for (let dy = -12; dy <= 12; dy++) for (let dx = -12; dx <= 12; dx++) {
+    if (!inside(fx + dx, fy + dy)) continue;
+    const i = idx(fx + dx, fy + dy);
+    if (W.tiles.liquid[i] > WATER_DEPTH.SURFACE && W.tiles.chem[C.SOLVENT][i] < W.tiles.liquid[i]) underDepth++;
+  }
+  out.underDepth = underDepth;
+  if (underDepth) fail("a source on the shore was drawn below its depth: " + underDepth + " tiles");
   // A field nobody tended is not watered, and a town without the craft does nothing.
   for (const t of tiles) { const s = W.tiles.chem[C.SOLVENT][t], keep = Math.floor(W.tiles.liquid[t] * 0.55) + 9, mv = Math.max(0, s - keep); W.tiles.chem[C.SOLVENT][t] -= mv; W.tiles.chem[C.SOLVENT][sink] += Math.min(mv, 65535 - W.tiles.chem[C.SOLVENT][sink]); }
   W.tiles.chem[C.SOLVENT][lake] = W.tiles.liquid[lake] + 1500; W.conservation.playerInput += 1500 - out.lakeFloor;
