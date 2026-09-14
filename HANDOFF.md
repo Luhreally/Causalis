@@ -603,7 +603,7 @@ its own tiles, and a town that has stripped them starves whatever its granary
 holds. A launch is now a question of whether a world survives long enough, not
 of whether it can reach the gate.
 
-### 9. Both causal-origin worlds launch: small at year 93, battery at year 115 (2026-09-14)
+### 9. Every measured world launches: battery at year 67, phone at 59, small at 64 (2026-09-14)
 
 Measured with `scripts/food-launch-probe.cjs`, matter conserved at every press:
 
@@ -611,23 +611,28 @@ Measured with `scripts/food-launch-probe.cjs`, matter conserved at every press:
                             p19 y72  16 tower blocks             p20 y72 THE FIRST SHIP AWAY
                             206 people, 16 blocks, 9 apartment blocks, 4 factories
 
-    causal-origin  battery  p12 y63  a paved road   p13 y65 2 cities   p14 y68 1 factory
-                            p15 y69  6 apartment blocks             p16 y76 current in 2 towns
-                            p17 y85  a completed Launch tower       p18 y87 Starflight
-                            p25 y115 16 tower blocks                p26 y115 THE FIRST SHIP AWAY
-                            54 people, 16 blocks, 9 apartment blocks, 2 factories
+    causal-origin  battery  p12 y61  16 tower blocks (2 cities and current still short)
+                            p16 y67  a completed Launch tower, Starflight
+                            p18 y67  THE FIRST SHIP AWAY — 61 people, 16 blocks, 6 apartment blocks, 2 factories
 
-The small figures above are from the run before the last commit of this pass
-(the push memory, below); on the final code the same seed launches at year 93
-from Yewreach, a village of eleven that raised the tower beside Willowwatch's
-hundred and thirty-one — 192 people, 18 blocks — because a standing tower
-outranks size in the site's merits, as 114 set it. The small world launched at
-year 113 in section 8. The battery world had never held a city past year 130;
-one run before the last commit it met every condition but the skyline, reached
-Starflight with its own tower standing, and starved nine blocks short at 134.
-What follows is what was found on the way, in the order it was found, because
-the order is the point: nothing here was visible until the thing before it was
-fixed.
+    causal-origin  phone    p16 y57  16 tower blocks   p17 y59 a completed Launch tower
+                            p18 y59  Starflight        p19 y59 THE FIRST SHIP AWAY — 141 people, 17 blocks
+
+    causal-origin  small    p16 y60  Starflight and the tower   p18 y64 16 tower blocks
+                            p19 y64  THE FIRST SHIP AWAY — 192 people, 16 blocks, 6 apartment blocks
+
+Those are the final figures on the last commit of this pass. The small world
+launched at year 113 in section 8; the battery world had never held a city
+past year 130; the phone world had never launched. On the way the same seed
+launched at 115 on battery and 93 on small (the push memory, below, before the
+siting fix), and the small first-ship figures in the earlier drafts of this
+section — 72, then 93 — were the same code a commit or two apart: the year a
+world launches moves by twenty either way between commits that change nothing
+about its mechanism, because every change to any town's plan moves every
+roll after it. Read a launch year as "launches" and a difference of a decade
+as noise. What follows is what was found on the way, in the order it was
+found, because the order is the point: nothing here was visible until the
+thing before it was fixed.
 
 **The objective was serial, and the buildings waited on the studies.** The
 skip works one stage at a time in the order of the ages. On battery the
@@ -738,15 +743,35 @@ key and restored when the same objective is taken up again (127). With that,
 the skyline went from seven blocks at year 76 to fourteen at 85 and the ship
 left at 115.
 
-**What is still thin on the battery world.** The towns are lean the whole
-way: the site held 31–49 people and was a quarter to two-thirds hungry in most
-presses from year 87, and the world sent its ship with 54 people, down from
-74. Flinthollow with ten to twelve irrigated fields fed 55 with nobody hungry;
-a second city of the same size on 72 × 44 is not fed. The famine brake stops
-births but does not feed the living, and 42d already sends every fit hand to
-the fields every other labour tick, so the next thing to measure is why a
-lean city's fallow fields go unsown (the field-yield probe showed sown 0–1 a
-year at Flinthollow from year 61 to 65 with 200–600 organic in store).
+**A full city had no plot for its blocks, and the plots it had could not be
+walked to.** What stopped the phone world on the run before last, and slowed
+every other. Lakeford at year fifty-six held eighty-eight buildings; two
+hundred and fifty of the two hundred and fifty-two tiles the townscape
+considered for a tower block were built on, so the effort's push planned
+nothing there for fifty years, and the second city, with the crafts and
+thirty people, never got a block either. And the two blocks that were
+planned stood stocked at stage two with fifteen hands assigned and none
+within a tile and a half of the face — every one "moving to the Tower block
+work face", seven tiles off and stuck — because their plots lay past ground a
+walker cannot cross: a builder walks one greedy step at a time round standing
+buildings and never over a cliff (96). The open-ground siting (128) now
+serves the tower, office, apartment block and factory as it serves the edge
+buildings, and a plot is only a plot if the hall can reach it: the ground a
+walker can reach from the hall is flooded once a tick per town, stepping the
+way a walker steps, and both the townscape's plot and the open ground are
+held to it. `scripts/hands-probe.cjs` reads, for every unfinished block at
+the launch site, each assigned hand's task, phase, distance and stuck count.
+With that the battery world's skyline went from seven blocks at year 76 to
+sixteen at 61, and the ship left at 67 instead of 115.
+
+**What is still thin on the battery world.** The towns are lean: the site held
+47–72 people and the world sent its ship with 61, down from 76 at year 61;
+Flinthollow with ten to twelve irrigated fields fed 55 with nobody hungry. The
+famine brake stops births but does not feed the living, and 42d already
+sends every fit hand to the fields every other labour tick, so the next thing
+to measure, if a battery world is to hold past its ship, is why a lean city's
+fallow fields go unsown (the field-yield probe showed sown 0–1 a year at
+Flinthollow from year 61 to 65 with 200–600 organic in store).
 
 Two counters to distrust, added to the list in section 7: `born` in
 `scripts/city-killer-probe.cjs` counted every BirthEvent, animals included,
@@ -759,23 +784,23 @@ lean, matter conserved at every press of every run):
 
 | size | seed | section 8 | now |
 |---|---|---|---|
-| small | causal-origin | ship away y113 | **ship away y93**, 192 people, 18 blocks |
-| small | variety-5 | ship away y125 | **ship away y58**, 164 people, 18 blocks |
-| small | ship-b | 19 blocks by y148, 9 people by y421 | **ship away y83**, 196 people, 19 blocks, 8 works |
+| small | causal-origin | ship away y113 | **ship away y64**, 192 people, 16 blocks |
+| small | variety-5 | ship away y125 | **ship away y59**, 164 people, 18 blocks |
+| small | ship-b | 19 blocks by y148, 9 people by y421 | **ship away y85**, 180 people, 21 blocks |
 | small | ship-c | 12 blocks, 53 people by y121 | **ship away y122**, 89 people, 19 blocks |
-| phone | causal-origin | 7 blocks, 57 people by y119 | tower and Starflight by y55 with 133 people, then 51 by y110, no town by y175 |
-| battery | causal-origin | no town at all by y506 | **ship away y115**, 54 people, 16 blocks |
+| phone | causal-origin | 7 blocks, 57 people by y119 | **ship away y59**, 141 people, 17 blocks |
+| battery | causal-origin | no town at all by y506 | **ship away y67**, 61 people, 16 blocks |
 
-Five of six. The phone world is the battery world's failure one commit
-earlier: it reaches everything but the skyline (8 blocks of 16 at year 55,
-11 at 110) and its people fall from 133 to 51 while it waits — the lean-town
-starvation named above, on the map the mobile menu recommends. That is the
-next thing to measure (`scripts/field-yield-probe.cjs causal-origin phone lean
-16 45` is the run to start from).
+Six of six, every run with matter conserved at every press. The years are
+those of the final code; a run on the code a commit earlier launched the same
+seeds a decade or three later or earlier, as said above.
 
 ## The recent commits, newest first
 
 ```
+2924fb7  Site the blocks of the modern world on ground the town can walk to
+1c1a793  Re-measure the six worlds: five launch, the phone world starves
+05318b2  Record the two launches, and what is still thin on the battery world
 2628ac0  Let the effort resume an objective where the last press left it
 fe82619  List the commits of the pass in the handoff
 a145e2f  Write down the pass that took the small world to year 72 and the battery world to Starflight
