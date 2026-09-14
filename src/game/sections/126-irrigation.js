@@ -27,12 +27,20 @@
 // rain at fifty, so the water within reach of the first field fell from nine
 // and a half thousand to under five in fifteen years while the lake as a whole
 // held a million and a half. Twelve tiles finds the shore for nearly every
-// field, and a sip from each of many tiles stays under what rain gives back.
+// field, and a sip from each of many tiles stays under what rain gives back —
+// for a while. Measured again with twelve on the same world, forty years on:
+// ten fields drew two to five thousand a year, the shore within reach held
+// four and a half thousand to spare at year thirty-nine and nothing from year
+// fifty-nine, the ground under the fields fell from moisture thirty to twelve
+// by year sixty-seven, harvests from fifteen a year to one, and the town
+// starved with the lake still holding its million and a half. Rain refills a
+// tile at about fifty a year, so a shore of a few dozen tiles cannot keep ten
+// fields; a shore of a few hundred can. Twenty-four tiles reaches one.
 const IRRIGATION_TICK = 32,
   IRRIGATION_TARGET = 26,
   IRRIGATION_BUCKET = 10,
   IRRIGATION_SIP = 2,
-  IRRIGATION_REACH = 12,
+  IRRIGATION_REACH = 24,
   IRRIGATION = { passes: 0, fieldsWatered: 0, tilesWatered: 0, moved: 0, dryLeft: 0 };
 // The water a field tile is short of the target, in the units the tile holds.
 // `tileMoisture` reads (solvent - liquid * 0.55) / 9, so a target in moisture

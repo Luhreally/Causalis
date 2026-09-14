@@ -48,7 +48,7 @@ const fixtureSource = String.raw`(() => {
   if (!(spareBefore >= 1500)) fail("the lake has nothing to spare: " + spareBefore);
   // A channel draws from the whole shore in reach, so conservation is checked
   // against every source within it, not the one lake we dug.
-  const shore = () => { let n = 0; for (let dy = -12; dy <= 12; dy++) for (let dx = -12; dx <= 12; dx++) if (inside(fx + dx, fy + dy)) n += irr.spare(fx + dx, fy + dy); return n; };
+  const shore = () => { let n = 0; for (let dy = -IRRIGATION_REACH; dy <= IRRIGATION_REACH; dy++) for (let dx = -IRRIGATION_REACH; dx <= IRRIGATION_REACH; dx++) if (inside(fx + dx, fy + dy)) n += irr.spare(fx + dx, fy + dy); return n; };
   const shoreBefore = shore();
   // The craft and the care.
   town.knownProcesses = [...new Set([...town.knownProcesses, "irrigation"])];
@@ -78,7 +78,7 @@ const fixtureSource = String.raw`(() => {
   if (out.lakeFloor < 0) fail("the lake was drawn below its depth: " + out.lakeFloor);
   // Nor is any other tile on the shore: solvent never falls under depth anywhere in reach.
   let underDepth = 0;
-  for (let dy = -12; dy <= 12; dy++) for (let dx = -12; dx <= 12; dx++) {
+  for (let dy = -IRRIGATION_REACH; dy <= IRRIGATION_REACH; dy++) for (let dx = -IRRIGATION_REACH; dx <= IRRIGATION_REACH; dx++) {
     if (!inside(fx + dx, fy + dy)) continue;
     const i = idx(fx + dx, fy + dy);
     if (W.tiles.liquid[i] > WATER_DEPTH.SURFACE && W.tiles.chem[C.SOLVENT][i] < W.tiles.liquid[i]) underDepth++;
