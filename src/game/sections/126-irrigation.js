@@ -89,10 +89,13 @@ function irrigateField(place, field) {
       let took = 0;
       for (let n = 0; n < sources.length && need > 0; n++) {
         const src = sources[(start + n) % sources.length],
-          give = Math.min(need, IRRIGATION_SIP, irrigationSpare(src.tile), 65535 - W.tiles.chem[C.SOLVENT][tile]);
+          give = takeTileMatter(
+            src.tile,
+            C.SOLVENT,
+            Math.min(need, IRRIGATION_SIP, irrigationSpare(src.tile), 65535 - W.tiles.chem[C.SOLVENT][tile]),
+          );
         if (give <= 0) continue;
-        W.tiles.chem[C.SOLVENT][src.tile] -= give;
-        W.tiles.chem[C.SOLVENT][tile] += give;
+        giveTileMatter(tile, C.SOLVENT, give);
         need -= give;
         moved += give;
         took += give;

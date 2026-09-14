@@ -32,12 +32,10 @@ function createCamp(tile, founderId, cause = 0) {
     inventory = new Uint16Array(SPECIES_COUNT),
     structureQ = new Uint16Array(SPECIES_COUNT);
   for (const sp of [C.ORGANIC, C.MINERAL, C.SOLVENT]) {
-    const amount = Math.min(W.tiles.chem[sp][tile], sp === C.SOLVENT ? 80 : 30);
-    W.tiles.chem[sp][tile] -= amount;
+    const amount = takeTileMatter(tile, sp, sp === C.SOLVENT ? 80 : 30);
     inventory[sp] += amount;
   }
-  const fiberRaw = Math.min(30, W.tiles.chem[C.ORGANIC][tile]);
-  W.tiles.chem[C.ORGANIC][tile] -= fiberRaw;
+  const fiberRaw = takeTileMatter(tile, C.ORGANIC, Math.min(30, 65535 - inventory[C.ORGANIC]));
   inventory[C.ORGANIC] += fiberRaw;
   executeProcess("fiber_curing", invArray(inventory), fiberRaw);
   const camp = {
@@ -317,11 +315,9 @@ function updateSettlements() {
       );
     if (W.tick - c.lastOccupied > 512 || c.structure.integrity < 20) {
       c.active = false;
-      for (let sp = 0; sp < SPECIES_COUNT; sp++) {
-        const amount = c.inventory[sp] + c.structure.composition[sp];
-        if (sp < COMMON_CHEM) W.tiles.chem[sp][ti] = u16(W.tiles.chem[sp][ti] + amount);
-        else W.tiles.rareChem[`${ti}:${sp}`] = (W.tiles.rareChem[`${ti}:${sp}`] || 0) + amount;
-      }
+      // What the camp held goes back to the ground it stood on; a column past
+      // its cap keeps the rest on record instead of clamping it away.
+      for (let sp = 0; sp < SPECIES_COUNT; sp++) giveTileMatter(ti, sp, c.inventory[sp] + c.structure.composition[sp]);
       emitEvent("CampAbandonedEvent", {
         subjects: [c.entityId],
         location: ti,
@@ -345,12 +341,11 @@ function updateSettlements() {
       }
       if (s.factionId) W.components.social[id].factionId = s.factionId;
     }
-    const harvest = Math.min(W.tiles.chem[C.ORGANIC][ti], Math.max(0, people.length * 2));
-    W.tiles.chem[C.ORGANIC][ti] -= harvest;
-    s.inventory[C.ORGANIC] = u16(s.inventory[C.ORGANIC] + harvest);
-    const water = Math.min(W.tiles.chem[C.SOLVENT][ti], people.length * 2 + 2);
-    W.tiles.chem[C.SOLVENT][ti] -= water;
-    s.inventory[C.SOLVENT] = u16(s.inventory[C.SOLVENT] + water);
+    // The store's own cap bounds the take, so nothing is clamped away.
+    const harvest = takeTileMatter(ti, C.ORGANIC, Math.min(Math.max(0, people.length * 2), 65535 - s.inventory[C.ORGANIC]));
+    s.inventory[C.ORGANIC] += harvest;
+    const water = takeTileMatter(ti, C.SOLVENT, Math.min(people.length * 2 + 2, 65535 - s.inventory[C.SOLVENT]));
+    s.inventory[C.SOLVENT] += water;
     const rawPop = settlementPopulation(s),
       safePop = Math.max(1, rawPop);
     for (const id of people) {

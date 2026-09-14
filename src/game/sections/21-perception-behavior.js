@@ -129,32 +129,28 @@ function runMetabolism(id, tier) {
     respiratoryBudget = (l.respiratoryRemainder || 0) + rawRespiratoryDemand,
     respiratoryDemand = Math.floor(respiratoryBudget),
     oxidantNeed = Math.max(0, respiratoryDemand + 2 - ch.q[C.OXIDANT]),
-    oxidantIntake = Math.min(oxidantNeed, W.tiles.chem[C.OXIDANT][ti], 65535 - ch.q[C.OXIDANT]);
+    oxidantIntake = takeTileMatter(ti, C.OXIDANT, Math.min(oxidantNeed, 65535 - ch.q[C.OXIDANT]));
   l.respiratoryRemainder = respiratoryBudget - respiratoryDemand;
-  W.tiles.chem[C.OXIDANT][ti] -= oxidantIntake;
   ch.q[C.OXIDANT] += oxidantIntake;
   // Air is shared with the surrounding tiles: a crowd inhales from its neighborhood rather
   // than from one square column, so a full shelter does not suffocate its occupants.
   let shortfall = oxidantNeed - oxidantIntake;
   if (shortfall > 0) {
-    const oxidant = W.tiles.chem[C.OXIDANT];
     for (const [dx, dy] of BREATHING_NEIGHBORS) {
       if (shortfall <= 0) break;
       const nx = pos.x + dx,
         ny = pos.y + dy;
       if (nx < 0 || ny < 0 || nx >= W.width || ny >= W.height) continue;
-      const nt = ny * W.width + nx,
-        drawn = Math.min(shortfall, oxidant[nt], 65535 - ch.q[C.OXIDANT]);
+      const drawn = takeTileMatter(ny * W.width + nx, C.OXIDANT, Math.min(shortfall, 65535 - ch.q[C.OXIDANT]));
       if (!drawn) continue;
-      oxidant[nt] -= drawn;
       ch.q[C.OXIDANT] += drawn;
       shortfall -= drawn;
     }
   }
   const respired = executeProcess("respiration", inv, respiratoryDemand, { dissipate: 1 }),
-    exhaled = Math.min(respired, ch.q[C.GAS], 65535 - W.tiles.chem[C.GAS][ti]);
+    exhaled = Math.min(respired, ch.q[C.GAS]);
   ch.q[C.GAS] -= exhaled;
-  W.tiles.chem[C.GAS][ti] += exhaled;
+  giveTileMatter(ti, C.GAS, exhaled);
   const organicReserveTarget =
       W.kind[id] === KINDS.PERSON ? 150 : W.kind[id] === KINDS.PREDATOR ? 88 : 68,
     assimilatedOrganic = Math.min(
@@ -828,30 +824,24 @@ function performFeeding(id, tile, stride = 1) {
   if (k === KINDS.PREDATOR) return false;
   if (available < 0.5) return false;
   const inv = W.components.inventory[id].digestive,
-    amount = Math.min(
-      18 * stride,
-      W.tiles.chem[C.ORGANIC][tile],
-      (Math.floor(available / 2) + 2) * stride,
-      65535 - inv[C.ORGANIC],
-    ),
-    energy = Math.min(12 * stride, W.tiles.chem[C.ENERGY][tile], 65535 - inv[C.ENERGY]),
-    nutrient = Math.min(8 * stride, W.tiles.chem[C.NUTRIENT][tile], 65535 - inv[C.NUTRIENT]);
+    amount = takeTileMatter(
+      tile,
+      C.ORGANIC,
+      Math.min(18 * stride, (Math.floor(available / 2) + 2) * stride, 65535 - inv[C.ORGANIC]),
+    );
   if (!amount) return false;
-  W.tiles.chem[C.ORGANIC][tile] -= amount;
-  W.tiles.chem[C.ENERGY][tile] -= energy;
-  W.tiles.chem[C.NUTRIENT][tile] -= nutrient;
+  const energy = takeTileMatter(tile, C.ENERGY, Math.min(12 * stride, 65535 - inv[C.ENERGY])),
+    nutrient = takeTileMatter(tile, C.NUTRIENT, Math.min(8 * stride, 65535 - inv[C.NUTRIENT]));
   inv[C.ORGANIC] += amount;
   inv[C.ENERGY] += energy;
   inv[C.NUTRIENT] += nutrient;
-  const cat = Math.min(2 * stride, W.tiles.chem[C.CATALYST][tile], 65535 - inv[C.CATALYST]);
-  W.tiles.chem[C.CATALYST][tile] -= cat;
+  const cat = takeTileMatter(tile, C.CATALYST, Math.min(2 * stride, 65535 - inv[C.CATALYST]));
   inv[C.CATALYST] += cat;
   for (const [species, limit] of [
     [C.INFO, 1],
     [C.MEMBRANE, 2],
   ]) {
-    const moved = Math.min(limit * stride, tileMatterAmount(tile, species), 65535 - inv[species]);
-    setTileMatterAmount(tile, species, tileMatterAmount(tile, species) - moved);
+    const moved = takeTileMatter(tile, species, Math.min(limit * stride, 65535 - inv[species]));
     inv[species] += moved;
   }
   W.tiles.plantOrder[tile] = u16(W.tiles.plantOrder[tile] - amount);
@@ -861,16 +851,13 @@ function performDrinking(id, tile, stride = 1) {
   const available = W.tiles.chem[C.SOLVENT][tile],
     ch = W.components.chemistry[id];
   if (available < 10 || ch.q[C.SOLVENT] > 600) return false;
-  const amount = Math.min(35 * stride, available, 65535 - ch.q[C.SOLVENT]);
-  W.tiles.chem[C.SOLVENT][tile] -= amount;
+  const amount = takeTileMatter(tile, C.SOLVENT, Math.min(35 * stride, 65535 - ch.q[C.SOLVENT]));
   ch.q[C.SOLVENT] += amount;
-  const oxidant = Math.min(10 * stride, W.tiles.chem[C.OXIDANT][tile], 65535 - ch.q[C.OXIDANT]);
-  W.tiles.chem[C.OXIDANT][tile] -= oxidant;
+  const oxidant = takeTileMatter(tile, C.OXIDANT, Math.min(10 * stride, 65535 - ch.q[C.OXIDANT]));
   ch.q[C.OXIDANT] += oxidant;
   for (const sp of [C.TOXIN, C.PATHOGEN]) {
     if (W.tiles.chem[sp][tile] > (sp === C.TOXIN ? 300 : 100)) {
-      const trace = Math.min(2, W.tiles.chem[sp][tile], 65535 - ch.q[sp]);
-      W.tiles.chem[sp][tile] -= trace;
+      const trace = takeTileMatter(tile, sp, Math.min(2, 65535 - ch.q[sp]));
       ch.q[sp] += trace;
     }
   }
@@ -1073,8 +1060,7 @@ function performGather(id, tile) {
   for (const sp of [C.MINERAL, C.ORE, C.CATALYST, C.FUEL, C.FIBER])
     got += extractMatter(id, tile, sp);
   if (tileFood(tile, "omnivore") > 12) {
-    const amount = Math.min(5, W.tiles.chem[C.ORGANIC][tile], 65535 - inv[C.ORGANIC]);
-    W.tiles.chem[C.ORGANIC][tile] -= amount;
+    const amount = takeTileMatter(tile, C.ORGANIC, Math.min(5, 65535 - inv[C.ORGANIC]));
     inv[C.ORGANIC] += amount;
     got += amount;
   }

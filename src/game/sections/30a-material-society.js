@@ -3728,28 +3728,22 @@ function updateCivicProduction() {
       for (let y = Math.max(0, cy - 3); y <= Math.min(W.height - 1, cy + 3); y++)
         for (let x = Math.max(0, cx - 3); x <= Math.min(W.width - 1, cx + 3); x++) {
           const i = idx(x, y),
-            food = Math.min(
-              4,
-              W.tiles.chem[C.ORGANIC][i],
-              Math.max(0, 24 - foodMoved),
-              Math.max(0, room),
-              65535 - s.inventory[C.ORGANIC],
+            food = takeTileMatter(
+              i,
+              C.ORGANIC,
+              Math.min(4, Math.max(0, 24 - foodMoved), Math.max(0, room), 65535 - s.inventory[C.ORGANIC]),
             );
           if (food > 0) {
-            W.tiles.chem[C.ORGANIC][i] -= food;
             s.inventory[C.ORGANIC] += food;
             foodMoved += food;
             room -= food;
           }
-          const water = Math.min(
-            6,
-            W.tiles.chem[C.SOLVENT][i],
-            Math.max(0, 32 - waterMoved),
-            Math.max(0, room),
-            65535 - s.inventory[C.SOLVENT],
+          const water = takeTileMatter(
+            i,
+            C.SOLVENT,
+            Math.min(6, Math.max(0, 32 - waterMoved), Math.max(0, room), 65535 - s.inventory[C.SOLVENT]),
           );
           if (water > 0) {
-            W.tiles.chem[C.SOLVENT][i] -= water;
             s.inventory[C.SOLVENT] += water;
             waterMoved += water;
             room -= water;
@@ -3760,8 +3754,7 @@ function updateCivicProduction() {
       const operator = operateFacility(s, "hearth", "tending a bounded combustion bed", C.FUEL);
       if (operator) {
         const room = placeStorageRemaining(s),
-          oxidant = Math.min(3, room, W.tiles.chem[C.OXIDANT][ti], 65535 - s.inventory[C.OXIDANT]);
-        W.tiles.chem[C.OXIDANT][ti] -= oxidant;
+          oxidant = takeTileMatter(ti, C.OXIDANT, Math.min(3, room, 65535 - s.inventory[C.OXIDANT]));
         s.inventory[C.OXIDANT] += oxidant;
         s.productionTemperature = Math.max(s.productionTemperature || 20, 420);
         if (s.knownProcesses.includes("controlled_fire"))

@@ -339,9 +339,9 @@ function resolveWarTurn(war, a, b) {
     p.regionId = regionId(target.x, target.y);
     const made = executeProcess("fear_signal", invEntity(id), 4),
       q = W.components.chemistry[id].q,
-      spill = Math.min(made, q[C.FEAR], 65535 - W.tiles.chem[C.FEAR][ti]);
+      spill = Math.min(made, q[C.FEAR]);
     q[C.FEAR] -= spill;
-    W.tiles.chem[C.FEAR][ti] += spill;
+    giveTileMatter(ti, C.FEAR, spill);
     killEntity(id, "war injury", war.startEventId);
     detailed++;
   }

@@ -30,22 +30,14 @@ function extractMatter(personId, tile, s) {
     hard = W.definitions.materials.find((m) => m.speciesId === s)?.hardness || 1,
     tool = toolQuality(inv) + carriedToolQuality(personId) + 10,
     amount = Math.max(1, Math.floor(tool / (hard * 12)));
-  if (s < COMMON_CHEM) {
-    const got = Math.min(amount, q[s][tile], 65535 - inv[s]);
-    q[s][tile] -= got;
+  // Common and rare alike come off the tile through 13's one rule.
+  const got = takeTileMatter(tile, s, Math.min(amount, 65535 - inv[s]));
+  if (got) {
     inv[s] += got;
     return got;
   }
-  const key = `${tile}:${s}`,
-    rare = Math.min(amount, W.tiles.rareChem[key] || 0, 65535 - inv[s]);
-  if (rare) {
-    W.tiles.rareChem[key] -= rare;
-    inv[s] += rare;
-    return rare;
-  }
   if (s === C.FIBER) {
-    const raw = Math.min(amount, q[C.ORGANIC][tile], 65535 - inv[C.ORGANIC]);
-    q[C.ORGANIC][tile] -= raw;
+    const raw = takeTileMatter(tile, C.ORGANIC, Math.min(amount, 65535 - inv[C.ORGANIC]));
     inv[C.ORGANIC] += raw;
     return executeProcess("fiber_curing", invArray(inv), raw);
   }
@@ -70,8 +62,7 @@ function updateMaterialProcesses() {
       s.inventory[C.FUEL] > 2 &&
       W.tick % 64 === 0
     ) {
-      const oxidant = Math.min(3, W.tiles.chem[C.OXIDANT][ti], 65535 - s.inventory[C.OXIDANT]);
-      W.tiles.chem[C.OXIDANT][ti] -= oxidant;
+      const oxidant = takeTileMatter(ti, C.OXIDANT, Math.min(3, 65535 - s.inventory[C.OXIDANT]));
       s.inventory[C.OXIDANT] += oxidant;
       s.productionTemperature = Math.max(s.productionTemperature || 20, 420);
       executeProcess("combustion", inv, 1);

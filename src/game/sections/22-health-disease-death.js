@@ -7,9 +7,8 @@ function infectEntity(id, amount = 30, cause = 0) {
     p = phenotype(id),
     ti = idx(W.components.position[id].x, W.components.position[id].y),
     requested = Math.max(1, Math.floor(amount * (1 - p.diseaseResistance))),
-    accepted = Math.min(requested, W.tiles.chem[C.PATHOGEN][ti], 65535 - ch.q[C.PATHOGEN]);
+    accepted = takeTileMatter(ti, C.PATHOGEN, Math.min(requested, 65535 - ch.q[C.PATHOGEN]));
   if (!accepted) return;
-  W.tiles.chem[C.PATHOGEN][ti] -= accepted;
   ch.q[C.PATHOGEN] += accepted;
   const ident = W.components.identity[id];
   ident.infections++;
@@ -114,9 +113,9 @@ function killEntity(id, cause = "regulatory collapse", causeEvent = 0, erase = f
   W.components.structure[id].order = 420;
   const ti = idx(p.x, p.y);
   for (const sp of [C.BLOOD, C.PATHOGEN]) {
-    const released = Math.min(sp === C.BLOOD ? 24 : 8, ch.q[sp], 65535 - W.tiles.chem[sp][ti]);
+    const released = Math.min(sp === C.BLOOD ? 24 : 8, ch.q[sp]);
     ch.q[sp] -= released;
-    W.tiles.chem[sp][ti] += released;
+    giveTileMatter(ti, sp, released);
   }
   W.tiles.danger[ti] = u16(W.tiles.danger[ti] + 90);
   const ev = emitEvent("DeathEvent", {
@@ -176,13 +175,9 @@ function updateDiseaseAndDecay() {
         decay = Math.max(1, Math.floor((moist + W.tiles.temperature[ti] / 10 + 40) / 35));
       executeProcess("decomposition", invEntity(id), decay);
       for (const sp of [C.SOLVENT, C.WASTE, C.NUTRIENT, C.GAS, C.PATHOGEN, C.BLOOD]) {
-        const amount = Math.min(
-          ch.q[sp],
-          decay + (sp === C.PATHOGEN ? 1 : 3),
-          65535 - W.tiles.chem[sp][ti],
-        );
+        const amount = Math.min(ch.q[sp], decay + (sp === C.PATHOGEN ? 1 : 3));
         ch.q[sp] -= amount;
-        W.tiles.chem[sp][ti] += amount;
+        giveTileMatter(ti, sp, amount);
       }
       W.components.structure[id].order = u16(W.components.structure[id].order - decay);
       if (sum(Array.from(ch.q)) < 22 || W.components.structure[id].order < 2) finalizeCorpse(id);
@@ -222,17 +217,9 @@ function updateDiseaseAndDecay() {
     } else if (disease < 20) s.outbreakActive = 0;
   }
 }
+// The tile side of every deposit is one rule, and it lives in 13.
 function depositTileMatter(ti, sp, amount) {
-  amount = Math.max(0, Math.floor(amount));
-  if (!amount) return 0;
-  if (sp < COMMON_CHEM) {
-    const moved = Math.min(amount, 65535 - W.tiles.chem[sp][ti]);
-    W.tiles.chem[sp][ti] += moved;
-    const overflow = amount - moved;
-    if (overflow)
-      W.tiles.rareChem[`${ti}:${sp}`] = (W.tiles.rareChem[`${ti}:${sp}`] || 0) + overflow;
-  } else W.tiles.rareChem[`${ti}:${sp}`] = (W.tiles.rareChem[`${ti}:${sp}`] || 0) + amount;
-  return amount;
+  return giveTileMatter(ti, sp, amount);
 }
 function releaseEntityMatter(id, ti) {
   const stores = [

@@ -62,6 +62,64 @@ function setTileMatterAmount(tile, species, value) {
   else delete W.tiles.rareChem[key];
   return value;
 }
+// Matter leaves a tile and lands on one through these two, so the rule that
+// keeps a column and its overflow record honest lives here and nowhere else:
+// nothing is taken that is not there, so a Uint16 column never wraps; nothing
+// given is lost past the column's cap, it goes on record; and while the column
+// is full the record is drawn first, so a saturated tile stays saturated and
+// `tileMatterAmount` keeps reporting the record. Twenty-nine sites wrote the
+// columns directly with their own bounds, and one clamped with `u16` and lost
+// the excess; they call these now. Both return what actually moved.
+// Breathing calls these for every organism every tick, so the string key of
+// the record is built only on the paths that touch a record.
+function takeTileMatter(tile, species, amount) {
+  amount = Math.max(0, Math.floor(Number(amount) || 0));
+  if (!amount) return 0;
+  if (species < COMMON_CHEM) {
+    const column = W.tiles.chem[species];
+    let taken = 0;
+    if (column[tile] >= 65535) {
+      const key = tileMatterKey(tile, species),
+        held = W.tiles.rareChem[key] || 0,
+        fromRecord = Math.min(held, amount);
+      if (fromRecord) {
+        if (held - fromRecord) W.tiles.rareChem[key] = held - fromRecord;
+        else delete W.tiles.rareChem[key];
+        taken += fromRecord;
+        amount -= fromRecord;
+      }
+    }
+    const fromColumn = Math.min(amount, column[tile]);
+    column[tile] -= fromColumn;
+    return taken + fromColumn;
+  }
+  const key = tileMatterKey(tile, species),
+    held = W.tiles.rareChem[key] || 0,
+    taken = Math.min(held, amount);
+  if (taken) {
+    if (held - taken) W.tiles.rareChem[key] = held - taken;
+    else delete W.tiles.rareChem[key];
+  }
+  return taken;
+}
+function giveTileMatter(tile, species, amount) {
+  amount = Math.max(0, Math.floor(Number(amount) || 0));
+  if (!amount) return 0;
+  if (species < COMMON_CHEM) {
+    const column = W.tiles.chem[species],
+      moved = Math.min(amount, 65535 - column[tile]);
+    column[tile] += moved;
+    const overflow = amount - moved;
+    if (overflow) {
+      const key = tileMatterKey(tile, species);
+      W.tiles.rareChem[key] = (W.tiles.rareChem[key] || 0) + overflow;
+    }
+    return amount;
+  }
+  const key = tileMatterKey(tile, species);
+  W.tiles.rareChem[key] = (W.tiles.rareChem[key] || 0) + amount;
+  return amount;
+}
 function invEntity(id) {
   const q = W.components.chemistry[id].q;
   return {
