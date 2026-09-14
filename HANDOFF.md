@@ -35,6 +35,39 @@ consequences you must hold in your head:
 - **Duplicate top-level identifiers silently override each other.** Two
   sections declaring the same `const` is a real bug that no test may catch.
   There is a `dupscan.cjs` in the scratchpad for this.
+- **A misspelled name is not a load error, it is a rule that never runs**, and
+  behind `typeof x === "function"` it is a feature that is silently off.
+  `scripts/lint-undefined.cjs` parses the composite and resolves every
+  reference; it runs inside `npm run test:syntax`, so the fast suite fails on
+  one. The day it was added it found two (a robber's kin check calling `isKin`,
+  which never existed; an export line calling `worldAgeName`).
+
+Three tools for reading the closure, all in `scripts/`:
+
+- `node scripts/who-overrides.cjs <name>` prints a function's chain in manifest
+  order — where it is declared, every `...Base` capture, every reassignment,
+  and whether each reassignment calls a base or **REPLACES** everything before
+  it. `--most` lists the deepest chains (`eventSentence` has 48 layers,
+  `simTick` 31), `--dead` every reassignment that calls no base.
+- `node scripts/linemap.cjs 75379` says which section and line a composite
+  line is; pipe a stack trace through it to rewrite every frame. The test
+  harness does this itself now: an uncaught error in any smoke test prints
+  `section.js:line (index.inline.js:N)`.
+- `scripts/lint-undefined.cjs --all` also lists the browser and language
+  globals the runtime reads, which is the allowlist to extend if a new API
+  is used.
+
+**Matter leaves a tile and lands on one through two functions** in 13,
+`takeTileMatter(tile, species, amount)` and `giveTileMatter(tile, species,
+amount)`; both return what actually moved. They own the rule that a Uint16
+column never wraps, that an excess past the cap goes on the overflow record
+rather than being clamped away, and that a full column's record is drawn
+first. Do not write `W.tiles.chem[sp][tile] -=` or `+=` in new code — the only
+direct writes left are three snapshot restores after a birth.
+
+The material society, once one file of five thousand lines (`30a`), is six
+sections `30a`–`30f` (places, cognition, work, labour, production,
+technology), split along its own seams with the composed runtime unchanged.
 
 Every system also carries a `window.ALIFE_*_DEBUG` surface. Use it. It is how
 the tests and every probe reach inside the closure.
@@ -56,7 +89,7 @@ npm run test:fast > log 2>&1
 bash $SCRATCH/suite-check.sh log 94
 ```
 
-The expected count is the number of `"ok": true` lines, currently **94**. It
+The expected count is the number of `"ok": true` lines, currently **98**. It
 changes only when you add a test file. A green suite is necessary and not
 sufficient — see "Pitfalls".
 
@@ -798,6 +831,12 @@ seeds a decade or three later or earlier, as said above.
 ## The recent commits, newest first
 
 ```
+5f4ab61  Split the material society in six along its own seams
+b4413b8  Move tile matter through two functions, so the conservation rule lives in one place
+298fa92  Call the kin check and the age label that exist
+1017ba0  Resolve every free reference in the composed runtime, and fail the suite on one that resolves to nothing
+5abd0eb  Say which section a composite line is, and list a function's layers in order
+58a12d3  Record that every measured world launches, and the ground the blocks stand on
 2924fb7  Site the blocks of the modern world on ground the town can walk to
 1c1a793  Re-measure the six worlds: five launch, the phone world starves
 05318b2  Record the two launches, and what is still thin on the battery world
