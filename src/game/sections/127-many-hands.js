@@ -291,7 +291,14 @@ function manyHandsFarms() {
 // The hungry share of everyone living in a town. A single village of three
 // with an empty larder is not a world in famine, and gating on any town at all
 // left the floor at forty on a world whose cities were fed.
-const MANY_HANDS_HUNGRY_SHARE = 0.25,
+// A quarter was the first bar, and it braked the wrong world: the hungry share
+// is read within seven tiles of each hall and swings between a fifth and a
+// half from year to year on a lean city, so the capacity fell to nine-tenths
+// of the people every other year and births stopped on a world that was not
+// starving — measured on battery causal-origin at year sixty, capacity 83 one
+// year and 68 the next with 78 people, births 0 to 2 a year. The bar is the
+// granary's own famine line (82), two in five.
+const MANY_HANDS_HUNGRY_SHARE = 0.4,
   MANY_HANDS_FAMINE_BRAKE = 0.9;
 function manyHandsHungryShare() {
   if (typeof hungryShare !== "function") return 0;

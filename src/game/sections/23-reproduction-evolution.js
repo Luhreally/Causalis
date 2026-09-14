@@ -61,7 +61,8 @@ function reproductionDensityAllows(id, kind) {
     ) < remaining
   );
 }
-const CONCEPTION_HUNGER = 60;
+const CONCEPTION_HUNGER = 60,
+  PERSON_FERTILE_SHARE = 0.68;
 function canReproduce(id) {
   if (reproductionEligibilityCache.world !== W || reproductionEligibilityCache.tick !== W.tick)
     reproductionEligibilityCache = { world: W, tick: W.tick, values: new Map() };
@@ -84,7 +85,13 @@ function canReproduce(id) {
     r.cooldown <= 0 &&
     l.age > (body.maturityAge ?? 1200) &&
     // People have a fertile window; a village grows by generations, not by centenarians.
-    (!social || l.age < body.maxAge * 0.62) &&
+    // It closed at 0.62 of the lifespan — forty-six years of seventy-five — and on a
+    // battery-saver world the founding cohort aged out of it together: at year
+    // sixty-four fifty-five of seventy-three adults were past it, eighteen were
+    // in it, and the world bore one child a year and died behind its ship. It
+    // closes at 0.68 now, fifty-one years, which is the same window a life of
+    // seventy-five would be given anywhere else.
+    (!social || l.age < body.maxAge * PERSON_FERTILE_SHARE) &&
     // A hungry people does not grow: conception waits until the belly is quiet, so a
     // town meets its food ceiling by fewer births rather than by famine (93 made
     // rested people mate far more, and seed 7 boomed to 249 and starved).
