@@ -23,7 +23,12 @@ const GALAXY_TICK = 232,
   GALAXY_DAUGHTER_SEED = 12,
   GALAXY_DAUGHTER_YEARS = 20,
   GALAXY_ONWARD_YEARS = 40,
-  GALAXY_FREE_YEARS = 60,
+  // Sixty years at nine-tenths of the world's capacity, then a chance in twenty
+  // a year: no colony declared itself free in two hundred years on battery
+  // causal-origin, because hardship kept knocking the population under the
+  // nine-tenths. Thirty years at three-quarters is a phone-length game's wait.
+  GALAXY_FREE_YEARS = 30,
+  GALAXY_FREE_SHARE = 0.75,
   GALAXY_FREE_DISTANCE = 15,
   GALAXY_FREE_CHANCE = 0.05,
   GALAXY_SHIPMENT_MIN_PEOPLE = 50,
@@ -301,7 +306,7 @@ function declareColonyIndependence(colony, year, force = false) {
   if (!colony.factionId || colony.status !== "founded") return null;
   const star = starOf(colony);
   if (!force) {
-    if (colony.population < colonyCap(colony) * 0.9 || colonyYears(colony) < GALAXY_FREE_YEARS) return null;
+    if (colony.population < colonyCap(colony) * GALAXY_FREE_SHARE || colonyYears(colony) < GALAXY_FREE_YEARS) return null;
     if (!star || star.distance < GALAXY_FREE_DISTANCE) return null;
     if (counterRand("colony-free", year, colony.id) >= GALAXY_FREE_CHANCE) return null;
   }
