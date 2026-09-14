@@ -1,10 +1,18 @@
 const fs = require("node:fs");
 const vm = require("node:vm");
 const { webcrypto } = require("node:crypto");
-const { composeRuntime } = require("../scripts/compose-runtime.cjs");
+const { composeRuntime, sectionFrames } = require("../scripts/compose-runtime.cjs");
 
 const script = composeRuntime({ format: "script" });
 const drawOps = { count: 0 };
+// The composite runs as `index.inline.js`, so an uncaught error names a line in
+// seventy-five thousand. Every frame is rewritten to `section:line` before it
+// is printed — for this test and for every derived test that reuses this head
+// (`script` is whatever the derived test composed, fixture included).
+process.on("uncaughtException", (error) => {
+  console.error(sectionFrames(error && error.stack ? error.stack : String(error), script));
+  process.exit(1);
+});
 
 class ClassList {
   constructor() {
