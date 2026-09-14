@@ -448,7 +448,11 @@ causalSkipForward = async function () {
                 : gate && gate.missing.length
                   ? `Advanced ${ticks} causal ticks toward ${aim}; ${gate.leader ? `${gate.leader} still needs: ` : "next: "}${gate.missing.join(" · ")}.`
                   : `Advanced ${ticks} causal ticks; ${aim} did not occur inside this horizon.`;
-    const told = result.toll > 0 ? `${message} ${result.toll} fewer people than when it began.` : message;
+    // A later section may add a sentence of its own to the result (131 tells of
+    // a ship under way); it is said after the toll.
+    const told =
+      (result.toll > 0 ? `${message} ${result.toll} fewer people than when it began.` : message) +
+      (result.note ? ` ${result.note}` : "");
     DOM.causalSkipStatus.textContent = told;
     toast(told);
     return result;
