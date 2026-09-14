@@ -603,6 +603,150 @@ its own tiles, and a town that has stripped them starves whatever its granary
 holds. A launch is now a question of whether a world survives long enough, not
 of whether it can reach the gate.
 
+### 9. The small world launches at year 72; the battery world reaches Starflight and starves (2026-09-14)
+
+Measured with `scripts/food-launch-probe.cjs`, matter conserved at every press:
+
+    causal-origin  small    p16 y62  a completed Launch tower   p17 y63 Starflight
+                            p19 y72  16 tower blocks             p20 y72 THE FIRST SHIP AWAY
+                            206 people, 16 blocks, 9 apartment blocks, 4 factories
+
+    causal-origin  battery  p12 y63  a paved road   p13 y65 2 cities   p14 y68 1 factory
+                            p15 y69  6 apartment blocks             p16 y76 current in 2 towns
+                            p17 y92  a completed Launch tower       p18 y94 Starflight
+                            p19-27 y107-121  7 tower blocks of 16, the site 45-53 people
+                            p28 y134 a halving of the world's people (10 blocks)
+
+The small world launched at year 113 in section 8 and launches at 72 now. The
+battery world, which had never held a city past year 130, now meets every
+condition of the modern world but the skyline, and reaches Starflight with its
+own launch tower standing — and then starves nine blocks short. What follows is
+what was found on the way, in the order it was found, because the order is the
+point: nothing here was visible until the thing before it was fixed.
+
+**The objective was serial, and the buildings waited on the studies.** The
+skip works one stage at a time in the order of the ages. On battery the
+objective sat on Planetary Stewardship from year 88 to 126 — thirty-two
+research pushes in the last eight years — while both cities knew electricity,
+machines and masonry and held tower blocks at stage one, "needs 28 timber",
+"needs 24 metal", for fifteen years. Nothing pushed them because the skyline
+was not the objective. Section 127 raises the towers, blocks, works and road
+in every city that knows the crafts beside whatever the objective is, and
+studies the ship's groundwork at the launch site beside every building stage.
+(`scripts/skyline-probe.cjs` shows the objective, the pushes and every
+delivery a year at a time; `scripts/research-probe.cjs` shows, for a craft,
+the step each town is on, its facility, its samples and its notes.)
+
+**Rare inputs never reached the face.** Cloudwatch's archive read "needs 4
+pigment" for nine years while the push fed the store four at a time: the
+research reserve, the sample borrowing and the spill between them kept the
+four from the site, and Governance waits on the archive, Stewardship on
+Governance. From the third push a rare input is placed at the work face like a
+common one (127).
+
+**The floor of forty.** `sustainableSexualCapacity` is tiles × density × food
+× crafts with a floor of forty; on 72 × 44 the product is twenty-five times
+those factors, so the floor always won, and the world sat at 31–40 people
+with births rationed above 31 and, by year 120, twenty-two adults in
+thirty-three past the fertile window. It never starved; it aged out. The
+floor now follows the fields — two people a finished farm over forty — and
+is not lifted while more than a quarter of the townspeople are hungry (127).
+
+**The crafts lift starves the world instead.** With waterworks, sanitation and
+machines the formula's own lift took battery to a capacity of 94 and the world
+to 89 people on ten fields that had fed 55 with nobody hungry; a quarter were
+hungry by year 62 and all of them by 69. Conception waits on a quiet belly
+(23), but the fed majority kept a starving world growing. While more than a
+quarter of the townspeople are hungry the capacity now sits just under the
+people there are (127). The world no longer crashes from 108 to 24; it holds
+60–70. It still cannot feed a city of fifty on this map — see the end.
+
+**Irrigation drank its shore dry.** With a reach of twelve, ten fields drew
+two to five thousand a year from a shore holding 4,500 to spare; it was empty
+by year 59 and the ground under the fields fell from moisture 30 to 12 by
+67, harvests from fifteen a year to one, with the lake holding a million and a
+half. Rain refills a tile at about fifty a year; a shore of a few hundred tiles
+keeps ten fields, a few dozen does not. The reach is twenty-four (126).
+
+**A full city has no plot for its launch tower.** This is why section 8's
+world had *stopped* launching before this pass began (the L5 run on that code:
+horizon at y98 and y122, a halving at y138). Starflight is studied at a launch
+tower, the townscape sites one "at the edge" — ring outer+2, searched to
+twelve tiles, every third row and column a lane, every tile within one of a
+building refused — and Mosshollow at year 73 held 68 buildings, 26 of them
+tool workshops. Two hundred and thirty-six candidate tiles, none clear; the
+base siting found nothing either; the site's notes stood at 85.5 of 90 for
+seventy years because the push plans the facility a study wants and was handed
+an empty plan every time. Section 128 seeks a plot ring by ring beyond the
+town's reach, lanes and all, when both sitings give up on an edge building
+(`scripts/siting-probe.cjs` counts what refused each tile).
+
+**Twenty-six workshops.** The zoning's industry demand adds 0.12 for every
+site waiting on material, uncapped; an effort that plans eight towers at once
+and supplies them a year later made the demand 1 for a year, and the answer to
+industry demand was a workshop every time. The waiting term is capped at
+three sites, a town has works enough at a workshop for every sixteen people
+and a factory for every twenty-four, and past that the answer is nothing (125).
+
+**A third conservation leak, found and closed.** −640 at tick 18847 on
+battery. A common compound's overflow record in `rareChem` can stand under a
+column that is no longer saturated, because extraction, growth and diffusion
+write the column directly and `tileMatterAmount` reads the column alone while
+it is under the cap. A caller that sets what it read plus a little past the
+cap had never seen the record, and `setTileMatterAmount` wrote the overflow
+over it: a nutrient tile at 65,532 with 641 on record was set to 65,536 and
+kept 1. What the caller could not have read now stays (13). The camp-abandon
+deposit clamped a record at 65,535 with `u16`; it adds now (25). The −3151 the
+old code showed on small at year 145 was the same fault. The diffuse ±4 drift
+of section 6 was not seen on any run of this pass.
+
+**The site held an emptied city.** 114 holds the launch site until another
+town is strictly better on its merits, and size is not one. Battery's site was
+Kinhollow at nineteen people; by year 101 it held five, Willowwatch forty, and
+Kinhollow's groundwork outscored Willowwatch's population. Being populous
+enough for the gate is now a merit — more than groundwork and order, less than
+a tower or the craft — so an emptied city yields and a town with the tower is
+held whatever the other's size (127). On battery the site moved to Needlespire
+at year 92 and the tower and Starflight followed within two years.
+
+**Five hamlets of sixty-six.** A world founds a place for every fourteen
+people and a town of twenty-four sends settlers; the city that held the site
+went from 62 to 7 while the hamlets it seeded held their people half to all
+hungry. Once the modern stages are sought the concerted effort founds no new
+place (127).
+
+**The urban stage was unscaled.** `settlementDevelopmentStage` called a town
+urban at a hard twenty-four while 84's `metropolitan()` scales the gate with
+the map (ten on battery), so battery could never hold two urban cities. It
+asks `metropolitan()` now (30a).
+
+**What still stops the battery world**, measured on the last run:
+
+1. *The skyline's pace under short presses.* From year 94 the site knew
+   Starflight and kept discovering — Global Networks, Advanced Composites,
+   Thinking Machines, Materials Science, Deep Theory I–III — and every
+   discovery is a milestone that stops the press. Each press restarts the
+   effort at zero pushes, and a work face is stocked only from the third, so
+   the towers got a year of material and then a new press. Seven blocks stood
+   at 7 from year 107 to 121. Either later-tier discoveries should not stop a
+   skip that is seeking the skyline, or the push count should survive a stop
+   when the objective has not changed.
+2. *Food at a city of fifty.* Needlespire held 45–53 people from year 92 and
+   was 0.75–0.87 hungry from year 117; the halving came at 134. Flinthollow
+   with ten to twelve irrigated fields fed 55. Whether a second city can be
+   fed on 72 × 44 is the open question; the famine brake stops births but does
+   not feed the living.
+
+Two counters to distrust, added to the list in section 7: `born` in
+`scripts/city-killer-probe.cjs` counted every BirthEvent, animals included,
+until this pass (it counts people now); and the `floor` the field-yield probe
+prints reads 40 whenever the hungry share is over a quarter, which on a lean
+world is most of the time.
+
+The six-world table of section 8 was not re-measured except for the two
+`causal-origin` rows above; the other four should be run again on this code
+before anything is claimed for them.
+
 ## The recent commits, newest first
 
 ```
