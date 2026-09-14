@@ -50,6 +50,11 @@ const fixtureSource = String.raw`(() => {
   // against every source within it, not the one lake we dug.
   const shore = () => { let n = 0; for (let dy = -IRRIGATION_REACH; dy <= IRRIGATION_REACH; dy++) for (let dx = -IRRIGATION_REACH; dx <= IRRIGATION_REACH; dx++) if (inside(fx + dx, fy + dy)) n += irr.spare(fx + dx, fy + dy); return n; };
   const shoreBefore = shore();
+  // Some water tiles hold less solvent than their depth accounts for before any
+  // channel is dug (the hydrology's, not ours); the check below is that the
+  // drawing adds none.
+  const underDepthAt = () => { let n = 0; for (let dy = -IRRIGATION_REACH; dy <= IRRIGATION_REACH; dy++) for (let dx = -IRRIGATION_REACH; dx <= IRRIGATION_REACH; dx++) { if (!inside(fx + dx, fy + dy)) continue; const i = idx(fx + dx, fy + dy); if (W.tiles.liquid[i] > WATER_DEPTH.SURFACE && W.tiles.chem[C.SOLVENT][i] < W.tiles.liquid[i]) n++; } return n; };
+  const underDepthBefore = underDepthAt();
   // The craft and the care.
   town.knownProcesses = [...new Set([...town.knownProcesses, "irrigation"])];
   field.lastLaborTick = W.tick;
@@ -77,14 +82,9 @@ const fixtureSource = String.raw`(() => {
   out.lakeFloor = W.tiles.chem[C.SOLVENT][lake] - W.tiles.liquid[lake];
   if (out.lakeFloor < 0) fail("the lake was drawn below its depth: " + out.lakeFloor);
   // Nor is any other tile on the shore: solvent never falls under depth anywhere in reach.
-  let underDepth = 0;
-  for (let dy = -IRRIGATION_REACH; dy <= IRRIGATION_REACH; dy++) for (let dx = -IRRIGATION_REACH; dx <= IRRIGATION_REACH; dx++) {
-    if (!inside(fx + dx, fy + dy)) continue;
-    const i = idx(fx + dx, fy + dy);
-    if (W.tiles.liquid[i] > WATER_DEPTH.SURFACE && W.tiles.chem[C.SOLVENT][i] < W.tiles.liquid[i]) underDepth++;
-  }
-  out.underDepth = underDepth;
-  if (underDepth) fail("a source on the shore was drawn below its depth: " + underDepth + " tiles");
+  const underDepth = underDepthAt();
+  out.underDepth = [underDepthBefore, underDepth];
+  if (underDepth > underDepthBefore) fail("a source on the shore was drawn below its depth: " + (underDepth - underDepthBefore) + " tiles");
   // A field nobody tended is not watered, and a town without the craft does nothing.
   for (const t of tiles) { const s = W.tiles.chem[C.SOLVENT][t], keep = Math.floor(W.tiles.liquid[t] * 0.55) + 9, mv = Math.max(0, s - keep); W.tiles.chem[C.SOLVENT][t] -= mv; W.tiles.chem[C.SOLVENT][sink] += Math.min(mv, 65535 - W.tiles.chem[C.SOLVENT][sink]); }
   W.tiles.chem[C.SOLVENT][lake] = W.tiles.liquid[lake] + 1500; W.conservation.playerInput += 1500 - out.lakeFloor;
