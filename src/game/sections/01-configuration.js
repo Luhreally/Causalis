@@ -1,7 +1,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. CONFIGURATION AND CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const VERSION = 11,
+// 12: the world hash feeds the event log and the annals by record, not by
+// sentence (04); an archive hashed under 11 loads with its check waived.
+const VERSION = 12,
   SAVE_PREFIX = "causalis.save.",
   SAVE_INDEX = "causalis.saveIndex",
   SETTINGS_KEY = "causalis.settings";

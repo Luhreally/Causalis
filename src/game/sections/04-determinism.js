@@ -109,6 +109,9 @@ const WORLD_HASH_SKIP = new Set(["hash", "spatialBins", "tempDelta", "chemDelta"
 function worldHashKey(key) {
   let value = WORLD_HASH_KEY_CACHE.get(key);
   if (value === undefined) {
+    // Strings in the world recur (names, types, epochs) but are not finite;
+    // the memo is emptied when it grows large rather than kept for ever.
+    if (WORLD_HASH_KEY_CACHE.size > 65536) WORLD_HASH_KEY_CACHE.clear();
     value = hashString(key);
     WORLD_HASH_KEY_CACHE.set(key, value);
   }
@@ -148,7 +151,9 @@ function worldHash() {
       return;
     }
     if (t === "string") {
-      feed(hashString(v));
+      // Names, types and epochs recur thousands of times; the hash of a string
+      // is the same every time, so it is looked up before it is computed.
+      feed(worldHashKey(v));
       return;
     }
     if (t === "boolean") {
@@ -169,6 +174,33 @@ function worldHash() {
       return;
     }
     if (Array.isArray(v)) {
+      // The event log and the annals are records of what the rest of the state
+      // already determines, and their sentences are most of the world's text:
+      // 4,248 events and 4,267 annals held 384,000 characters of evidence on a
+      // battery-saver city, and hashing them was three-fifths of a hash that
+      // stalled a tick for a third of a second once a year. A record is fed by
+      // what identifies it — id, tick, type, importance, location, subjects —
+      // and its sentences are left to the chronicle. (Save VERSION 12: an
+      // archive hashed the old way loads with its check waived by migrateSave.)
+      if (v === W.events || v === W.annals) {
+        feed(v.length);
+        for (let i = 0; i < v.length; i++) {
+          const e = v[i];
+          if (!e || typeof e !== "object") {
+            walk(e);
+            continue;
+          }
+          feed(e.id | 0);
+          feed(e.tick | 0);
+          feed(worldHashKey(String(e.type || "")));
+          feed(e.importance | 0);
+          feed(e.location | 0);
+          const subjects = Array.isArray(e.subjects) ? e.subjects : [];
+          feed(subjects.length);
+          for (let n = 0; n < subjects.length; n++) feed(subjects[n] | 0);
+        }
+        return;
+      }
       feed(v.length);
       for (let i = 0; i < v.length; i++) walk(v[i]);
       return;
