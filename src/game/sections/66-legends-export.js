@@ -165,7 +165,7 @@ function exportLegendsHtml() {
   parts.push(
     `<h2 id="annals">The annals, year by year</h2>${years.join("") || `<div class="empty">Nothing recorded.</div>`}`,
   );
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Legends of ${esc(W.seed)}</title><style>${EXPORT_CSS}</style></head><body><main><div class="eyebrow">Causalis · exported Year ${formatYear()}</div><h1>Legends of ${esc(W.seed)}</h1><div class="muted">${factions.filter((f) => f.stability > 0).length} living polities · ${people} people under polities · ${places.filter((s) => !s.ruined).length} standing places · ${(W.annals || []).length} notable events in the annals${typeof worldAgeName === "function" ? ` · ${esc(worldAgeName())}` : ""}</div><nav class="toc">${toc.join("")}</nav>${parts.join("")}</main><script>${EXPORT_SCRIPT}</script></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Legends of ${esc(W.seed)}</title><style>${EXPORT_CSS}</style></head><body><main><div class="eyebrow">Causalis · exported Year ${formatYear()}</div><h1>Legends of ${esc(W.seed)}</h1><div class="muted">${factions.filter((f) => f.stability > 0).length} living polities · ${people} people under polities · ${places.filter((s) => !s.ruined).length} standing places · ${(W.annals || []).length} notable events in the annals${typeof currentAge === "function" && typeof ageLabel === "function" ? ` · ${esc(ageLabel(currentAge()))}` : ""}</div><nav class="toc">${toc.join("")}</nav>${parts.join("")}</main><script>${EXPORT_SCRIPT}</script></body></html>`;
 }
 function exportLegendsText() {
   ensureAnnals();
