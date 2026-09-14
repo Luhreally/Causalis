@@ -204,8 +204,14 @@ function sowCultivatedField(workerId, field, place) {
     [C.SOLVENT, tiles.length * 2],
   ];
   // Seed is the one thing a sowing cannot do without; nutrient and water go
-  // in as far as the stores allow and the crop grows slower without them.
-  if ((place.inventory[C.ORGANIC] || 0) < tiles.length) return false;
+  // in as far as the stores allow and the crop grows slower without them. A
+  // full seed for every tile was the bar, and a lean town's fields stood
+  // fallow for years while its store held a little less than a field's worth:
+  // on battery causal-origin two hundred sowings a year were refused with
+  // twenty-four in the store and nine to twenty-five tiles to seed. A third of
+  // the tiles seeded is a sowing; what seed there is goes in, and the
+  // transfer takes no more than the store holds.
+  if ((place.inventory[C.ORGANIC] || 0) < Math.max(1, Math.ceil(tiles.length / 3))) return false;
   field.baseline = {
     organic: tileMatterAmount(field.tile, C.ORGANIC),
     energy: tileMatterAmount(field.tile, C.ENERGY),
