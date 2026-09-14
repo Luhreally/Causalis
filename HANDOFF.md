@@ -754,11 +754,24 @@ until this pass (it counts people now); and the `floor` the field-yield probe
 prints reads 40 whenever the hungry share is over a quarter, which on a lean
 world is most of the time.
 
-The six-world table of section 8 was not re-measured except for the two
-`causal-origin` rows above; the other four should be run again on this code
-before anything is claimed for them. The two that launch now are the
-Earth-modelled seed on the smallest and the second-smallest map; a launch on
-`phone` and on the other small seeds is the next measurement.
+**The six worlds of section 8, re-measured on this code** (`food-launch-probe`,
+lean, matter conserved at every press of every run):
+
+| size | seed | section 8 | now |
+|---|---|---|---|
+| small | causal-origin | ship away y113 | **ship away y93**, 192 people, 18 blocks |
+| small | variety-5 | ship away y125 | **ship away y58**, 164 people, 18 blocks |
+| small | ship-b | 19 blocks by y148, 9 people by y421 | **ship away y83**, 196 people, 19 blocks, 8 works |
+| small | ship-c | 12 blocks, 53 people by y121 | **ship away y122**, 89 people, 19 blocks |
+| phone | causal-origin | 7 blocks, 57 people by y119 | tower and Starflight by y55 with 133 people, then 51 by y110, no town by y175 |
+| battery | causal-origin | no town at all by y506 | **ship away y115**, 54 people, 16 blocks |
+
+Five of six. The phone world is the battery world's failure one commit
+earlier: it reaches everything but the skyline (8 blocks of 16 at year 55,
+11 at 110) and its people fall from 133 to 51 while it waits — the lean-town
+starvation named above, on the map the mobile menu recommends. That is the
+next thing to measure (`scripts/field-yield-probe.cjs causal-origin phone lean
+16 45` is the run to start from).
 
 ## The recent commits, newest first
 
