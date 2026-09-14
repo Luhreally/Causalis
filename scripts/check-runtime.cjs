@@ -23,6 +23,22 @@ if (undeclaredOverrides.length)
     `Strict-module binding failure: override target(s) lack declarations: ${undeclaredOverrides.join(", ")}`,
   );
 
+// An assignment to an undeclared name is caught above; a *read* of one is not
+// a load error in a single closure, it is a rule that never runs — and behind
+// a `typeof x === "function"` guard, a feature that is silently off. Two were
+// found the day this was added: a robber's kin check that called `isKin`, which
+// never existed, and an export line that called `worldAgeName`. Every free
+// reference in the composite must resolve to a declaration or an allowed
+// browser or language global (scripts/lint-undefined.cjs).
+const { lintUndefined } = require("./lint-undefined.cjs"),
+  { findings } = lintUndefined(runtime);
+if (findings.length)
+  throw new Error(
+    `Undeclared name(s) read by the runtime: ${findings
+      .map((f) => `${f.name} (${f.where.join(", ")})`)
+      .join("; ")}`,
+  );
+
 console.log(
-  `Runtime syntax and strict-module override bindings are valid across ${sections.length} ordered sections.`,
+  `Runtime syntax, strict-module override bindings and every free reference are valid across ${sections.length} ordered sections.`,
 );

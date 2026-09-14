@@ -98,9 +98,14 @@
     "test:sidewalks": "node tests/sidewalks-smoke.cjs",
     "test:zoning": "node tests/zoning-smoke.cjs",
     "test:irrigation": "node tests/irrigation-smoke.cjs",
-    "test:many-hands": "node tests/many-hands-smoke.cjs"
+    "test:many-hands": "node tests/many-hands-smoke.cjs",
+    "lint:undef": "node scripts/lint-undefined.cjs",
+    "who": "node scripts/who-overrides.cjs",
+    "linemap": "node scripts/linemap.cjs"
   },
   "devDependencies": {
+    "acorn": "^8.18.0",
+    "eslint-scope": "^9.1.2",
     "prettier": "^3.9.6",
     "vite": "^7.0.0"
   }
