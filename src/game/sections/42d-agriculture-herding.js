@@ -521,10 +521,17 @@ const performCivilLaborAgricultureBase = performCivilLabor;
 performCivilLabor = function (id) {
   const life = W.kind[id] === KINDS.PERSON ? derivedLife(id) : null,
     chemistry = W.components.chemistry[id]?.q,
+    // Fit for the fields at the same hunger as for any other labour (30d): the
+    // gate stood at fifty-six, and a townsperson works until sixty-eight and
+    // then takes a mouthful, so their hunger sits between fifty-eight and
+    // seventy for life and almost nobody was ever fit to sow. Measured behind
+    // the ship on battery causal-origin: ten to seventeen of twenty-six fields
+    // lay fallow for decades with seed in the store and a third of the people
+    // hungry, and the harvest fell from a hundred to eleven a field a year.
     fitForLabor =
       life &&
       chemistry &&
-      life.hunger <= 56 &&
+      life.hunger <= 68 &&
       life.thirst <= 62 &&
       life.fatigue <= 79 &&
       chemistry[C.ENERGY] >= 125,

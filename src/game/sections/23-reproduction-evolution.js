@@ -61,7 +61,14 @@ function reproductionDensityAllows(id, kind) {
     ) < remaining
   );
 }
-const CONCEPTION_HUNGER = 60,
+// Seventy, not sixty: a townsperson works until sixty-eight and then eats a
+// mouthful (30d, 117), so a fed adult's hunger sits between fifty-five and
+// seventy-five for life, and at sixty the gate refused half the adults of a
+// town whose stores were full — measured on battery causal-origin, twenty to
+// thirty of forty-five in the fertile window every year, with nobody
+// starving. Above seventy a person is hungrier than the point at which they
+// would have eaten: that is the quiet belly the gate was written for.
+const CONCEPTION_HUNGER = 70,
   PERSON_FERTILE_SHARE = 0.68;
 function canReproduce(id) {
   if (reproductionEligibilityCache.world !== W || reproductionEligibilityCache.tick !== W.tick)

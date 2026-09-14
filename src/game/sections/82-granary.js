@@ -22,6 +22,17 @@ const GRANARY_PEOPLE_PER_FARM = 6,
   GRANARY_ACTIVE_FIELDS = 2,
   LEAN_FOOD = 10,
   FAMINE_FOOD = 5,
+  // Past this a person is hungry in the famine sense: hungrier than the point
+  // where they would have eaten if there were anything to eat. Hunger is a
+  // hundred less a fifth of stored energy (10), a worker labours until it
+  // passes sixty-eight (30d) and then takes a mouthful of eighteen (117),
+  // which is a few points, so a working person's hunger sits between
+  // fifty-five and seventy-five for life. The line stood at sixty and read
+  // half of a fed town as hungry: on battery causal-origin at year thirty-five,
+  // with every store full, a third of the adults were between sixty and
+  // eighty and none above, and the town read "lean" a quarter of the time.
+  // Seventy is the line the labour and the carried meal already use.
+  GRANARY_HUNGRY = 70,
   RELIEF_LOAD = 60,
   RELIEF_REACH = 58,
   RELIEF_CADENCE = 128,
@@ -38,7 +49,7 @@ function hungryShare(place) {
   const residents = granaryResidents(place);
   if (!residents.length) return 0;
   let hungry = 0;
-  for (const id of residents) if ((W.components.life[id]?.hunger || 0) > 60) hungry++;
+  for (const id of residents) if ((W.components.life[id]?.hunger || 0) > GRANARY_HUNGRY) hungry++;
   return hungry / residents.length;
 }
 // A standing field is not a meal. `settlementFood` counts fourteen for every
