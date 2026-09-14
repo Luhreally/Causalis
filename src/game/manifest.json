@@ -133,5 +133,6 @@
   "122-public-streets.js",
   "123-world-signatures.js",
   "124-sidewalks.js",
-  "125-zoning.js"
+  "125-zoning.js",
+  "126-irrigation.js"
 ]
