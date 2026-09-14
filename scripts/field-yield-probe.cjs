@@ -90,6 +90,8 @@ const aYear = `(() => {
   return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), town: town.name.slice(0, 11),
     irrigation: ic ? { moved: ic.moved, fields: ic.fieldsWatered, tiles: ic.tilesWatered, dryLeft: ic.dryLeft, withSource, of: ifields.length, spare } : null,
     weather: W.weather.name, waterTechs, townWater: town.inventory[C.SOLVENT] || 0,
+    outlook: typeof foodOutlook === "function" ? (() => { const o = foodOutlook(town); return o ? (o.famine ? "famine" : o.lean ? "lean" : "fed") + ":" + (o.hungry ?? "") : null; })() : null,
+    worldFloor: window.ALIFE_MANY_HANDS_DEBUG ? window.ALIFE_MANY_HANDS_DEBUG.floor() : null, people: modernLivingPeople(),
     pop: settlementPopulation(town), farms: completedBuildings(town, "farm").length, fields: fields.length,
     stages, harvests, moved, sown, failed, matured,
     store: [storeBefore, town.inventory[C.ORGANIC] || 0],
@@ -103,6 +105,6 @@ for (let n = 1; n <= years; n++) {
   if (row.gone) { console.log("no town left"); break; }
   const gd = row.ground;
   console.log(
-    `y${String(row.year).padStart(4)} ${row.town.padEnd(11)} ${String(row.weather).padEnd(10).slice(0, 10)} tech${row.waterTechs.length} tw${String(row.townWater).padStart(4)} pop${String(row.pop).padStart(3)} farms${row.farms} fields${row.fields} ${JSON.stringify(row.stages)} | harv${String(row.harvests).padStart(3)} moved${String(row.moved).padStart(5)} sown${row.sown} fail${row.failed} | store ${row.store[0]}->${row.store[1]} hungry${row.hungry} | irr ${row.irrigation ? `moved${row.irrigation.moved} f${row.irrigation.fields}/${row.irrigation.withSource}src/${row.irrigation.of} dryLeft${row.irrigation.dryLeft} spare${row.irrigation.spare}` : "-"} | ground moist${gd.moist} fert${gd.fert} order${gd.order} org${gd.organic} h2o${gd.water} nut${gd.nutrient} dry${gd.dry}/${gd.tiles} barren${gd.barren}`,
+    `y${String(row.year).padStart(4)} ${row.town.padEnd(11)} ppl${row.people} floor${row.worldFloor} ${row.outlook} ${String(row.weather).padEnd(10).slice(0, 10)} tech${row.waterTechs.length} tw${String(row.townWater).padStart(4)} pop${String(row.pop).padStart(3)} farms${row.farms} fields${row.fields} ${JSON.stringify(row.stages)} | harv${String(row.harvests).padStart(3)} moved${String(row.moved).padStart(5)} sown${row.sown} fail${row.failed} | store ${row.store[0]}->${row.store[1]} hungry${row.hungry} | irr ${row.irrigation ? `moved${row.irrigation.moved} f${row.irrigation.fields}/${row.irrigation.withSource}src/${row.irrigation.of} dryLeft${row.irrigation.dryLeft} spare${row.irrigation.spare}` : "-"} | ground moist${gd.moist} fert${gd.fert} order${gd.order} org${gd.organic} h2o${gd.water} nut${gd.nutrient} dry${gd.dry}/${gd.tiles} barren${gd.barren}`,
   );
 }

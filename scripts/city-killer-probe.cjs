@@ -48,6 +48,9 @@ const aYear = `(() => {
   while (W.tick < stop && !state.done) causalSkipStep(state);
   if (state.done) globalThis.__state = makeCausalSkipState();
   const byCause = {};
+  // Births since the last reading, counted before the floor moves on.
+  let born = 0;
+  for (const e of W.events) if (e.id >= globalThis.__floor && e.type === "BirthEvent" && (e.importance || 0) >= 2) born++;
   for (const e of W.events) {
     if (e.id < globalThis.__floor || e.type !== "DeathEvent") continue;
     if (e.data?.kind !== KINDS.PERSON) continue;
@@ -79,7 +82,7 @@ const aYear = `(() => {
     .slice(0, 6)
     .map(([k, v]) => k + " x" + v.n + " @" + (v.age / v.n).toFixed(0) + "y");
   return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR),
-    people: modernLivingPeople(), born: W.events.filter((e) => e.type === "BirthEvent").length,
+    people: modernLivingPeople(), born,
     wars: W.activeWars.filter((w) => !w.ended).length,
     died: Object.values(byCause).reduce((n, v) => n + v.n, 0), deaths, towns });
 })()`;
@@ -90,7 +93,7 @@ for (let n = 1; n <= watch * 24; n++) {
     .map((t) => `${t.name} p${t.pop} f${t.food} s${t.store} h${t.hungry} w${t.wounded} i${t.infected} st${t.stability}`)
     .join(" | ");
   console.log(
-    `y${String(row.year).padStart(4)} ppl${String(row.people).padStart(4)} died${String(row.died).padStart(4)} wars${row.wars} :: ${row.deaths.join(", ")} :: ${towns}`,
+    `y${String(row.year).padStart(4)} ppl${String(row.people).padStart(4)} born${String(row.born).padStart(3)} died${String(row.died).padStart(4)} wars${row.wars} :: ${row.deaths.join(", ")} :: ${towns}`,
   );
   if (row.people < 12) break;
 }
