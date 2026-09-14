@@ -25,11 +25,19 @@ function setTileMatterAmount(tile, species, value) {
     const column = W.tiles.chem[species],
       key = tileMatterKey(tile, species),
       held = W.tiles.rareChem[key] || 0,
+      before = column[tile],
       primary = Math.min(65535, value),
       overflow = value - primary;
     column[tile] = primary;
     if (overflow) {
-      W.tiles.rareChem[key] = overflow;
+      // A record can stand under a column that is no longer saturated: the
+      // column is written directly by extraction, growth and diffusion, and
+      // `tileMatterAmount` reads the column alone while it is under the cap.
+      // A caller that then sets what it read plus a little past the cap has
+      // never seen the record, and writing the overflow over it lost the
+      // record: a nutrient tile at 65,532 with 641 on record was set to
+      // 65,536 and kept 1. What the caller could not have read stays.
+      W.tiles.rareChem[key] = (before < 65535 ? held : 0) + overflow;
       return value;
     }
     // The caller has set a value the column can hold while an overflow record

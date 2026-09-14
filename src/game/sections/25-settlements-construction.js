@@ -320,7 +320,7 @@ function updateSettlements() {
       for (let sp = 0; sp < SPECIES_COUNT; sp++) {
         const amount = c.inventory[sp] + c.structure.composition[sp];
         if (sp < COMMON_CHEM) W.tiles.chem[sp][ti] = u16(W.tiles.chem[sp][ti] + amount);
-        else W.tiles.rareChem[`${ti}:${sp}`] = u16((W.tiles.rareChem[`${ti}:${sp}`] || 0) + amount);
+        else W.tiles.rareChem[`${ti}:${sp}`] = (W.tiles.rareChem[`${ti}:${sp}`] || 0) + amount;
       }
       emitEvent("CampAbandonedEvent", {
         subjects: [c.entityId],

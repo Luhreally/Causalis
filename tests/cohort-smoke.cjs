@@ -79,6 +79,14 @@ const fixtureSource = String.raw`(() => {
   const transferred = resolveTransfer({fromType: "tile", from: overflowTile, toType: "entity", to: transferTarget, amounts: [[overflowSpecies, 20]]});
   const transferCapacityExact = transferred === 5 && W.components.chemistry[transferTarget].q[overflowSpecies] === 65535 && tileMatterAmount(overflowTile, overflowSpecies) === 65565;
   const transferMatterDelta = totalMatter() - beforeTransferMatter;
+  // A record can stand under a column that is no longer saturated, because
+  // extraction and growth write the column directly; a caller that then sets
+  // what the column alone reads plus a little past the cap has never seen the
+  // record, and the record must survive it.
+  W.tiles.chem[overflowSpecies][overflowTile] -= 3;
+  const beforeUnderCap = totalMatter();
+  setTileMatterAmount(overflowTile, overflowSpecies, W.tiles.chem[overflowSpecies][overflowTile] + 4);
+  const underCapRecordKept = tileMatterAmount(overflowTile, overflowSpecies) === 65566 && totalMatter() - beforeUnderCap === 4;
 
   const deathId = live().find(id => id !== materializedId && id !== damageId);
   const deathTick = W.tick;
@@ -125,6 +133,7 @@ const fixtureSource = String.raw`(() => {
     overflowVisibleToWork,
     transferCapacityExact,
     transferMatterDelta,
+    underCapRecordKept,
     deathTickRecorded,
     remainingCorpses: remainingCorpses.length,
     oldestPruned,
@@ -152,6 +161,7 @@ if (first.birthMatterDelta !== 0) failures.push("cohort reproduction changed tot
 if (!first.zeroDamageNoOp) failures.push("zero damage mutated authoritative state");
 if (!first.overflowEffectExact || !first.overflowVisibleToWork) failures.push("tile matter overflow was clipped or hidden from resource work");
 if (!first.transferCapacityExact || first.transferMatterDelta !== 0) failures.push("capacity-limited resource transfer lost or created matter");
+if (!first.underCapRecordKept) failures.push("setting a tile past the cap from a column read alone discarded the overflow record");
 if (!first.deathTickRecorded) failures.push("erased corpse did not retain its death tick in history");
 if (first.remainingCorpses !== 500 || !first.oldestPruned || !first.newestRetained) failures.push("corpse cap did not prune the oldest-dead corpses");
 if (first.pruneMatterDelta !== 0) failures.push("corpse pruning changed total matter");
