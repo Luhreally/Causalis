@@ -1,6 +1,9 @@
 # Handoff
 
-> **September 9, 2026 checkpoint:** Read [the current continuation notes](docs/CITY-CHECKPOINT.md) first. This branch now contains unfinished city/progression work. The older launch table below describes the baseline, not this checkpoint. Known collapse regressions and a long-run matter failure remain; do not deploy this as a validated balance fix.
+> **Where to start (2026-09-14):** sections 9 and 10 below are current — every
+> measured world launches, the tools for reading the closure are in `scripts/`,
+> and the open problems are named there. `docs/CITY-CHECKPOINT.md` is the
+> September 9 checkpoint that preceded them and is kept as history.
 
 For an agent picking this up cold. Read this before touching anything. It is
 about how to work on Causalis without breaking it, and what is currently true
@@ -67,7 +70,23 @@ direct writes left are three snapshot restores after a birth.
 
 The material society, once one file of five thousand lines (`30a`), is six
 sections `30a`–`30f` (places, cognition, work, labour, production,
-technology), split along its own seams with the composed runtime unchanged.
+technology); the spatial rendering (`32d`, three thousand three hundred lines)
+is six sections `32d`–`32i` (figures, architecture, interiors, the town,
+conflict, the scene). Both were split along their own seams with the composed
+runtime unchanged (`$SCRATCH/split-section.py` with a JSON of seams does it
+and asserts byte identity).
+
+`node scripts/who-overrides.cjs --dead` lists 47 reassignments that call no
+captured base. Read them as *replacements*, not bugs: `counterRand` and
+`hashParts` in 70 are bit-identical rewrites for speed; 96 replaces the path
+search; 44 replaces desktop panels for the phone; 123 replaces the tower and
+car drawers; `updateTechnology` (30f, twice), `updateSettlements` (30e),
+`createCamp`/`createSettlement` (30a) and `updateCultivatedField(s)` (86) are
+later rewrites that superseded earlier bodies in the same or an earlier file.
+What is left behind each of those is the earlier body, now unreachable unless
+some section captured it before the replacement — which is why nothing has
+been deleted: a capture can keep an old body alive. Before deleting one, grep
+for `= <name>;` captures above the replacing line.
 
 Every system also carries a `window.ALIFE_*_DEBUG` surface. Use it. It is how
 the tests and every probe reach inside the closure.
@@ -173,18 +192,10 @@ world runs toward the next milestone under a concerted effort, and eventually a
 ship leaves for the stars. The goal is that a ship actually launches, on every
 world size, including the ones a phone would pick.
 
-Measured end to end, current `main`:
-
-| world | result |
-| --- | --- |
-| standard 180×110 | not yet measured |
-| small 120×72, `ship-b` | ship at year 86 |
-| small 120×72, `ship-c` | ship at year 80 |
-| small 120×72, `causal-origin` | no ship; starves from year 122 |
-| phone 96×58 lean | ship at year 104 |
-| battery 72×44 lean, `causal-origin` | ship at year 117 |
-| battery 72×44 lean, `ship-b` | no ship; collapses |
-| battery 72×44 lean, `ship-c` | no ship; clears the modern gate at year 98 and dies before Starflight |
+Measured end to end: see **section 9** (every measured world launches; the
+table there is the current one) and **section 10** (what follows the ship, on
+battery and phone). The table that stood here — standard not yet measured,
+battery dying by year 506 — was true on 2026-09-11 and is not any more.
 
 "Low battery mode" means two settings in the create-world form: the world size
 `battery` (72×44) or `phone` (96×58), and `complexity: "lean"`.
@@ -911,6 +922,7 @@ re-measured in this pass.
 ## The recent commits, newest first
 
 ```
+eac9de6  Split the spatial rendering in six along its own seams
 15b3a12  Say what is stopping the skip, in plain words
 df63e03  Guard the launch in under a minute
 ee721f3  Sow with the seed there is
