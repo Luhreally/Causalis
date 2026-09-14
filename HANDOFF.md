@@ -750,6 +750,15 @@ before anything is claimed for them.
 ## The recent commits, newest first
 
 ```
+a145e2f  Write down the pass that took the small world to year 72 and the battery world to Starflight
+5d23e24  Probes for the objective, the studies and the siting
+9a497b8  Many hands: raise the city beside the study, and open ground for its tower
+ca012e4  Bound the works a waiting site can ask for
+ede899d  Reach a shore that can keep ten fields
+00edde9  Keep the overflow record a column read alone could not see
+43d721b  Call a town urban by the map's own gate
+f551a1b  Reach the shore, and sip from all of it
+3328fde  Make irrigation irrigate
 64f45a9  Finish the meal the call started, and give the ship's own city its works
 122e6c7  Write down the road to a launch, and the two counters that lied
 573cc62  Ask for Starflight and a tower where the ship is, not anywhere in the world
