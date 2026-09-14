@@ -603,7 +603,7 @@ its own tiles, and a town that has stripped them starves whatever its granary
 holds. A launch is now a question of whether a world survives long enough, not
 of whether it can reach the gate.
 
-### 9. The small world launches at year 72; the battery world reaches Starflight and starves (2026-09-14)
+### 9. Both causal-origin worlds launch: small at year 93, battery at year 115 (2026-09-14)
 
 Measured with `scripts/food-launch-probe.cjs`, matter conserved at every press:
 
@@ -613,16 +613,21 @@ Measured with `scripts/food-launch-probe.cjs`, matter conserved at every press:
 
     causal-origin  battery  p12 y63  a paved road   p13 y65 2 cities   p14 y68 1 factory
                             p15 y69  6 apartment blocks             p16 y76 current in 2 towns
-                            p17 y92  a completed Launch tower       p18 y94 Starflight
-                            p19-27 y107-121  7 tower blocks of 16, the site 45-53 people
-                            p28 y134 a halving of the world's people (10 blocks)
+                            p17 y85  a completed Launch tower       p18 y87 Starflight
+                            p25 y115 16 tower blocks                p26 y115 THE FIRST SHIP AWAY
+                            54 people, 16 blocks, 9 apartment blocks, 2 factories
 
-The small world launched at year 113 in section 8 and launches at 72 now. The
-battery world, which had never held a city past year 130, now meets every
-condition of the modern world but the skyline, and reaches Starflight with its
-own launch tower standing — and then starves nine blocks short. What follows is
-what was found on the way, in the order it was found, because the order is the
-point: nothing here was visible until the thing before it was fixed.
+The small figures above are from the run before the last commit of this pass
+(the push memory, below); on the final code the same seed launches at year 93
+from Yewreach, a village of eleven that raised the tower beside Willowwatch's
+hundred and thirty-one — 192 people, 18 blocks — because a standing tower
+outranks size in the site's merits, as 114 set it. The small world launched at
+year 113 in section 8. The battery world had never held a city past year 130;
+one run before the last commit it met every condition but the skyline, reached
+Starflight with its own tower standing, and starved nine blocks short at 134.
+What follows is what was found on the way, in the order it was found, because
+the order is the point: nothing here was visible until the thing before it was
+fixed.
 
 **The objective was serial, and the buildings waited on the studies.** The
 skip works one stage at a time in the order of the ages. On battery the
@@ -720,22 +725,28 @@ urban at a hard twenty-four while 84's `metropolitan()` scales the gate with
 the map (ten on battery), so battery could never hold two urban cities. It
 asks `metropolitan()` now (30a).
 
-**What still stops the battery world**, measured on the last run:
+**The effort forgot how long it had worked.** What stopped the battery world
+on the run before last: from year 94 the site knew Starflight and kept
+discovering a branch craft a press — Global Networks, Advanced Composites,
+Thinking Machines, Materials Science, Deep Theory I–III — and every discovery
+is a milestone that stops the press. A press releases its objective when it
+ends and the next began the same objective at zero pushes, while a work face
+is stocked only from the third, so the towers got a year of material per
+press; seven blocks stood at seven from year 107 to 121 and the world starved
+at 134. The count of pushes an objective has had is kept on the world by its
+key and restored when the same objective is taken up again (127). With that,
+the skyline went from seven blocks at year 76 to fourteen at 85 and the ship
+left at 115.
 
-1. *The skyline's pace under short presses.* From year 94 the site knew
-   Starflight and kept discovering — Global Networks, Advanced Composites,
-   Thinking Machines, Materials Science, Deep Theory I–III — and every
-   discovery is a milestone that stops the press. Each press restarts the
-   effort at zero pushes, and a work face is stocked only from the third, so
-   the towers got a year of material and then a new press. Seven blocks stood
-   at 7 from year 107 to 121. Either later-tier discoveries should not stop a
-   skip that is seeking the skyline, or the push count should survive a stop
-   when the objective has not changed.
-2. *Food at a city of fifty.* Needlespire held 45–53 people from year 92 and
-   was 0.75–0.87 hungry from year 117; the halving came at 134. Flinthollow
-   with ten to twelve irrigated fields fed 55. Whether a second city can be
-   fed on 72 × 44 is the open question; the famine brake stops births but does
-   not feed the living.
+**What is still thin on the battery world.** The towns are lean the whole
+way: the site held 31–49 people and was a quarter to two-thirds hungry in most
+presses from year 87, and the world sent its ship with 54 people, down from
+74. Flinthollow with ten to twelve irrigated fields fed 55 with nobody hungry;
+a second city of the same size on 72 × 44 is not fed. The famine brake stops
+births but does not feed the living, and 42d already sends every fit hand to
+the fields every other labour tick, so the next thing to measure is why a
+lean city's fallow fields go unsown (the field-yield probe showed sown 0–1 a
+year at Flinthollow from year 61 to 65 with 200–600 organic in store).
 
 Two counters to distrust, added to the list in section 7: `born` in
 `scripts/city-killer-probe.cjs` counted every BirthEvent, animals included,
@@ -745,11 +756,15 @@ world is most of the time.
 
 The six-world table of section 8 was not re-measured except for the two
 `causal-origin` rows above; the other four should be run again on this code
-before anything is claimed for them.
+before anything is claimed for them. The two that launch now are the
+Earth-modelled seed on the smallest and the second-smallest map; a launch on
+`phone` and on the other small seeds is the next measurement.
 
 ## The recent commits, newest first
 
 ```
+2628ac0  Let the effort resume an objective where the last press left it
+fe82619  List the commits of the pass in the handoff
 a145e2f  Write down the pass that took the small world to year 72 and the battery world to Starflight
 5d23e24  Probes for the objective, the studies and the siting
 9a497b8  Many hands: raise the city beside the study, and open ground for its tower
