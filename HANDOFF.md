@@ -919,9 +919,157 @@ of the stall and is the one clear candidate. There is no other quick win.
 The full run of every seed and size above the phone is deliberately not
 re-measured in this pass.
 
+### 11. Why the home world dies behind the ship, and which levers cost the ship (2026-09-14, battery and phone only)
+
+Measured with the probes under `scripts/` named below; every number is battery
+72×44 lean unless it says phone. The launch guard (`test:launch`) held on both
+fixtures through every change here.
+
+**Almost nobody is born on a battery world, before the ship or after.**
+`scripts/births-probe.cjs` wraps every road a person enters the world by. At
+sixty to eighty people the coupling loop (76) bore nought to three children a
+year; what read as growth was section 40's *wild kindling* — a band of eight
+new founders every dozen years or so (`ensureParallelPeoples`), adopted by the
+nearest town within fourteen tiles (86). Two births a year is replacement level
+for sixty people who live seventy-five years, so the world holds until, behind
+the ship, the founding cohort ages out together and nothing replaces it.
+`scripts/houses-probe.cjs` reads the whole fertile generation a year at a time:
+who is partnered and to whom (alive, corpse, gone), the first clause of
+`canReproduce` that refuses each, and why the ready ones still did not couple.
+Post-ship: forty in the fertile window, twenty to thirty refused by *hunger*,
+eight to thirty-six by the tile-count *density* cap, and of the eight or so who
+passed, most had nobody to lie with — a partner beyond the loop's four tiles, a
+partner dead and never mourned (two or three every year), or nobody fertile
+within two tiles.
+
+**Hunger sits at fifty-five to seventy-five for life, by construction.**
+Hunger is a hundred less a fifth of stored energy (10); a townsperson labours
+until it passes sixty-eight (30d) and then takes one serving of eighteen (117),
+which digests to a few points. `scripts/hunger-probe.cjs` histograms a town's
+adults: on a fed year-thirty-five world a third sat between sixty and eighty
+and none above; behind the ship a third sat above eighty. Every "hungry" bar at
+sixty — `hungryShare` (82), `CONCEPTION_HUNGER` (23) — read half of a fed town
+as hungry and the town as "lean" a quarter of the time. Both now stand at
+seventy, the line the labour gate and the carried meal already use
+(`GRANARY_HUNGRY`). The farm-labour fitness gate (42d) stood at fifty-six, so
+almost nobody was ever fit to sow or reap; it stands at sixty-eight like every
+other labour. `scripts/farmwatch-probe.cjs` had shown Zephyrford's seventh
+field planned and unbuilt for eight years and ten to seventeen of twenty-six
+fields fallow with seed in the store.
+
+**A city's rations reached eight tiles; its people lived at twenty (133).**
+`scripts/rations-probe.cjs` maps a town's people by distance from the hall.
+Zephyrford: thirty-eight people, twenty-seven of them twelve to twenty tiles
+out in the edge blocks, hunger seventy-two to ninety-eight, the store holding
+a hundred and forty to three hundred and sixty-six; those within eight tiles of
+Stonespire's hall ate there and drained it, and Stonespire's twenty went hungry
+two years in three beside an empty store. `hearthReach(town)` is two tiles past
+the farthest finished building, clamped eight to twenty-four, and
+`homeRationPlace` feeds a resident anywhere within it. The same probe showed
+`granaryResidents` (seven tiles) counting six of thirty-eight, so the hub read
+"fed" and kept calling villagers in; counting residents within the reach makes
+the reading honest and was measured (below) to cost the ship — it is not
+shipped. `scripts/inflow-probe.cjs` showed where the hub's growth came from:
+eight strangers at once, the kindled band, adopted in a famine.
+
+**The soil is exhausted, and the goodness is in the streets.**
+`scripts/soil-probe.cjs`: at year thirty a field tile held six hundred and
+sixty nutrient; at a hundred, Zephyrford's fields held two hundred and eighty
+and its streets eight hundred and fifty, Stonespire's three hundred and sixty
+against a thousand. Fertility is a tenth of the nutrient (07) and plants grow
+only above ten (19): both towns' fields sat at ten, six farms fed thirty-five
+people nothing. Farming carries the nutrient into the granary, through the
+people, and out where they stand. A muck section (nutrient and waste carted
+from the richest town tiles back to the poorest fields, matter-conserving)
+restored the fields to a fertility of thirty-five in two years and doubled the
+harvest — and cost the ship on both seeds measured, because drawing on the
+town's own ground strips the forage its people actually live on; the
+bare-ground-only version did too. Withdrawn, with the finding kept here.
+
+**What was shipped, and what was measured and withdrawn.** Every candidate
+was A/B'd on the launch road with `scripts/food-balance-probe.cjs <seed>
+battery lean 26`, which reports per press the people, farms, harvest, hungry
+share, births and deaths, and takes `OFF=reach,hinter,adopt,mourn` to turn a
+later section back to its captured base on the same seed. The simulation is
+chaotic, so single seeds move launch years by ±20; what was judged is
+"launches on all three seeds" and the post-ship count.
+
+| set on causal-origin / ship-b / ship-c | launch year | notes |
+| --- | --- | --- |
+| hungry line 70, farm gate 68, mourning (base of this batch) | 63 / — / — | post-ship 47→80 people by y109, 2 ships |
+| + rations by reach (133) | 74 / 120 / — | post-ship 48→63, 4 ships on causal-origin |
+| + fields past the seventh tile, no strangers in a famine (135) | **58 / 90 / 67** | shipped set; ship-c 71 people at y113 with 2 ships |
+| shipped set + partners lie together at home at night | 102 / none by 143 / 65 | withdrawn |
+| shipped set + the single of a town court every sixteen ticks | 89 / 144 / 77 | withdrawn |
+| shipped set + honest `granaryResidents` within reach | none by 290 / 97 / 69 | withdrawn |
+| + a fed town below 6 + 4/farm bypasses the density cap | 85 / — / — | world to 127 people; withdrawn |
+| + a full meal of three servings at home | none by 187 / — / — | drains the ORGANIC the blocks draw; ate the seed corn before it spared it |
+| + muck, living or bare ground | none / none / — | strips forage |
+| + widening the cottage belt with the field ring | none by 305 / — / — | sprawl; farms and pasture only now |
+
+The withdrawn levers all did what they were meant to — more children, fuller
+bellies, richer fields, wider towns — and each one grew the world before the
+ship faster than the effort could carry it; the launch road is the tightest
+constraint in the game and anything that adds mouths or draws on the store
+before year seventy costs it. The things that helped fed the people the world
+already had (the reach), stopped refusing the fed as hungry (the seventy
+line), and let hands work (the gate).
+
+**The sweeps, on the shipped set (8f8e661), eleven seeds each, 26 presses.**
+Battery launches 8 of 11: causal-origin y58 (78 people at the launch), ship-b
+90 (74), ship-c 67 (81), variety-2 90 (63), variety-5 89 (74), variety-6 115
+(81), variety-7 113 (56), variety-8 113 (76); variety-1, -3 and -4 collapse.
+The same code with the new sections turned off (`OFF=reach,hinter,adopt,mourn`)
+launches 6 of 11 (causal-origin 87, ship-c 73, variety-5 80, variety-6 154,
+variety-7 106, variety-8 78), so the sections earn two launches and four
+earlier ones on the same code. Against a0624e3 (9 of 11: causal-origin 75,
+ship-b 138, ship-c 93, variety-1 133, variety-2 82, variety-4 131, variety-5
+93, variety-7 86, variety-8 82) the count is one lower and five seeds launch
+earlier, five later — the chaos band — while the worlds at the launch are
+larger and fed (56–81 people at hungry 0–0.1, against 40–65). Phone launches 7
+of 11: causal-origin 91 (134 people), variety-1 90, variety-2 78, variety-4 84,
+variety-5 57, variety-6 149, variety-7 96; ship-b sits at 115 people without a
+ship at y119, ship-c and variety-3 collapse, and variety-8 stopped the probe at
+press 10 on a **matter drift of 80** (below). a0624e3 launched 9 of 11 on phone.
+
+**Behind the ship, on the shipped set** (`scripts/arc-probe.cjs`): ship-b
+holds 55–81 people for eighty-five years after its launch at y90 (81 at y103,
+70 at y157) before famine takes it at y166–177; ship-c holds 71–78 for sixty
+years after y67 and falls from y130; causal-origin falls from 78 at y58 to 38
+by y98. Longer than before on two seeds of three; not survival.
+
+**A matter drift to chase (§6).** phone variety-8, year 71, ticks 18275–18297:
+`scripts/matter-leak-probe.cjs variety-8 phone lean 10 11` shows the drift
+arriving in steps of 8 and 16 with no events in the tick, each step a
+rare-species record on an open tile near Mung-ngengua moving without a
+matching gain — "Durcaeyl" (species 17, record only, column null) down 16
+twice, and at tile 2265 species 3's record going 8→0 while its column went
+65535→65519. The overflow-record and rare-record paths of 13 are where to
+look; none of this batch's sections touches tile matter.
+
+**Still open.** The home world still declines behind the ship: the founders
+age out together, the fields are exhausted by then (the soil probe's numbers
+above), and the pushes go to the crafts and the colony. The honest levers —
+soil renewal that does not touch the forage, a post-ship push that plants and
+sows, courtship that costs nothing before the ship — are the next work, and
+the probes to judge them are under `scripts/` now. Judge any of them the way
+this batch was judged: `food-balance-probe` with the change switched off on the
+same seed, then the eleven-seed sweep on battery and phone, launches counted,
+not years.
+
 ## The recent commits, newest first
 
 ```
+64e20a7  Give the sweep probe the same switches as the food-balance probe
+8f8e661  Let a grown town lay fields past the seventh tile, and let a starving town take in no strangers
+2e61d1a  Mourn a partner who is dead or gone, and eat at home wherever the town reaches
+51b8a87  Call a person hungry past seventy, not sixty, and fit for the fields at sixty-eight
+62ebc48  Probes for who is born, who is hungry, where the rations reach, what the soil holds, and what the fields carry
+a0624e3  Let the fertile window close at fifty-one, and brake births only at the famine line
+b1ce206  Let a colony declare itself free within a game's length
+9348c65  Run a press with the ship, and say where it is
+9248a6d  Guard the phone launch as well
+35ca5f9  Hash the world's records by what identifies them, not by their sentences
 eac9de6  Split the spatial rendering in six along its own seams
 15b3a12  Say what is stopping the skip, in plain words
 df63e03  Guard the launch in under a minute
