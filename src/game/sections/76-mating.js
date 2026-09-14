@@ -189,6 +189,27 @@ canReproduce = function (id) {
   if (MATING_ANIMALS_ONLY && W.kind[id] === KINDS.PERSON) return false;
   return canReproduceMatingBase(id);
 };
+// The partner a person would lie with: alive, fertile, not already spoken for
+// this tick, and within four tiles. A later section may widen "near" (132).
+function matingPartnerNear(id, soc, p, used) {
+  const partner = soc?.partnerId;
+  if (!partner || used.has(partner) || !classifyAlive(partner)) return false;
+  const pp = W.components.position[partner];
+  return !!(
+    pp &&
+    W.components.genome[partner] &&
+    canReproduce(partner) &&
+    dist2(p.x, p.y, pp.x, pp.y) <= 16
+  );
+}
+// Everyone else close enough to couple with: fertile people within two tiles.
+function matingCandidates(id, used) {
+  return nearbyIds(
+    id,
+    2,
+    (o) => o !== id && W.kind[o] === KINDS.PERSON && !used.has(o) && canReproduce(o),
+  );
+}
 function updateCouplings() {
   ensureMating();
   const people = W.activeIds
@@ -200,26 +221,7 @@ function updateCouplings() {
     const p = W.components.position[id];
     if (!p) continue;
     const soc = W.components.social[id],
-      partnerNear =
-        soc?.partnerId &&
-        !used.has(soc.partnerId) &&
-        classifyAlive(soc.partnerId) &&
-        W.components.genome[soc.partnerId] &&
-        canReproduce(soc.partnerId) &&
-        W.components.position[soc.partnerId] &&
-        dist2(
-          p.x,
-          p.y,
-          W.components.position[soc.partnerId].x,
-          W.components.position[soc.partnerId].y,
-        ) <= 16,
-      near = partnerNear
-        ? [soc.partnerId]
-        : nearbyIds(
-            id,
-            2,
-            (o) => o !== id && W.kind[o] === KINDS.PERSON && !used.has(o) && canReproduce(o),
-          ),
+      near = matingPartnerNear(id, soc, p, used) ? [soc.partnerId] : matingCandidates(id, used),
       mate = mateChoice(id, near);
     if (!mate) continue;
     const tile = idx(p.x, p.y);

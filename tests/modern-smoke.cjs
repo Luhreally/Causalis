@@ -206,7 +206,11 @@ const fixtureSource = String.raw`(() => {
       if (life) life.hunger = 90;
     }
   }
-  out.hungerFamine = !!foodOutlook(hungerTown)?.famine;
+  W.tick++; // the granary reads its residents once a tick (133); the homes changed this tick
+  out.hungerOutlook = foodOutlook(hungerTown);
+  out.hungerResidents = granaryResidents(hungerTown).length;
+  out.hungerMembers = W.activeIds.filter((id) => W.components.social[id]?.homePlaceKind === "settlement" && W.components.social[id]?.homePlaceId === hungerTown.id).length;
+  out.hungerFamine = !!out.hungerOutlook?.famine;
   if (!out.hungerFamine) fail("the starved town does not read famine");
   out.pushUnfinishedField = causalPushBuilding(hungerTown, "farm", 3);
   if (!out.pushUnfinishedField) fail("the push saw the finished field beside the unfinished one and called the town fed");
