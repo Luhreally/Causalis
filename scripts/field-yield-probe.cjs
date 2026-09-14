@@ -14,6 +14,11 @@
 // reactants present, and a stripped tile has none of them.
 //
 // node scripts/field-yield-probe.cjs <seed> <size> <complexity> <quiet> <years>
+// A fixture archive (tests/fixtures/*.json.gz) may stand in for the seed: it is
+// loaded in place of the thirty quiet years. TOWN=<name prefix> reads that
+// town instead of the largest.
+const fs = require("node:fs");
+const zlib = require("node:zlib");
 const { loadRuntime } = require("./runtime-probe.cjs");
 const rt = loadRuntime(),
   seed = process.argv[2] || "causal-origin",
@@ -21,7 +26,15 @@ const rt = loadRuntime(),
   complexity = process.argv[4] || "lean",
   quiet = Number(process.argv[5] || 3),
   years = Number(process.argv[6] || 30);
-rt.game.createTestWorld({ seed, size, complexity });
+const fixture = fs.existsSync(seed);
+if (fixture) {
+  rt.sandbox.localStorage.setItem("causalis.save.launch", zlib.gunzipSync(fs.readFileSync(seed)).toString("utf8"));
+  rt.sandbox.window.ALIFE_SAVE_DEBUG.load("launch").then((ok) => { if (!ok) throw new Error("fixture did not load"); run(); });
+} else {
+  rt.game.createTestWorld({ seed, size, complexity });
+  run();
+}
+function run() {
 const tick = rt.get("simTick"),
   year = rt.get("TICKS_PER_YEAR");
 console.log(JSON.stringify({ seed, size, complexity, quiet, years,
@@ -31,13 +44,14 @@ console.log(JSON.stringify({ seed, size, complexity, quiet, years,
     return JSON.stringify({ w: W.width, h: W.height, wetBias: W.terrainGenome?.wetBias ?? null,
       baseTemp: W.terrainGenome?.baseTemperature ?? null, land, water, plantEfficiency: W.laws.plantEfficiency, solarFlux: W.laws.solarFlux });
   })()`)) }));
-for (let i = 0; i < year * 30; i++) tick();
+if (!fixture) for (let i = 0; i < year * 30; i++) tick();
 for (let press = 1; press <= quiet; press++) rt.get(`(() => { runCausalSkipForDebug(); return "1"; })()`);
 rt.get(`(() => { globalThis.__floor = W.nextEventId; return "1"; })()`);
 
 const aYear = `(() => {
   const state = globalThis.__state || (globalThis.__state = makeCausalSkipState());
-  const town = W.settlements.filter((s) => !s.ruined)
+  const wanted = ${JSON.stringify(process.env.TOWN || "")},
+    town = W.settlements.filter((s) => !s.ruined && (!wanted || s.name.startsWith(wanted)))
     .sort((a, b) => settlementPopulation(b) - settlementPopulation(a))[0];
   if (!town) return JSON.stringify({ gone: true });
   const storeBefore = town.inventory[C.ORGANIC] || 0, stop = W.tick + ${year};
@@ -107,4 +121,5 @@ for (let n = 1; n <= years; n++) {
   console.log(
     `y${String(row.year).padStart(4)} ${row.town.padEnd(11)} ppl${row.people} floor${row.worldFloor} ${row.outlook} ${String(row.weather).padEnd(10).slice(0, 10)} tech${row.waterTechs.length} tw${String(row.townWater).padStart(4)} pop${String(row.pop).padStart(3)} farms${row.farms} fields${row.fields} ${JSON.stringify(row.stages)} | harv${String(row.harvests).padStart(3)} moved${String(row.moved).padStart(5)} sown${row.sown} fail${row.failed} | store ${row.store[0]}->${row.store[1]} hungry${row.hungry} | irr ${row.irrigation ? `moved${row.irrigation.moved} f${row.irrigation.fields}/${row.irrigation.withSource}src/${row.irrigation.of} dryLeft${row.irrigation.dryLeft} spare${row.irrigation.spare}` : "-"} | ground moist${gd.moist} fert${gd.fert} order${gd.order} org${gd.organic} h2o${gd.water} nut${gd.nutrient} dry${gd.dry}/${gd.tiles} barren${gd.barren}`,
   );
+}
 }
