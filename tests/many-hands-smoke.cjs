@@ -91,6 +91,16 @@ const fixtureSource = String.raw`(() => {
   const sited = plannedBuildingTile(s, "launch_tower", W.buildings.filter((b) => !b.ruined && b.placeKind === "settlement" && b.placeId === s.id).length);
   out.sited = sited;
   if (!sited) fail("a launch tower could not be sited at all");
+  // A block of the modern world finds open ground past the cottages as well.
+  const towerGround = ground.plot(s.id, "tower");
+  out.towerGround = towerGround;
+  if (!towerGround) fail("no open ground for a tower block");
+  else if (!developmentFootprintClear(towerGround[0], towerGround[1], buildingSpatialRadius("tower"))) fail("the tower's open ground is built on");
+  // And every plot is one the hall can walk to.
+  out.flooded = ground.flooded(s.id);
+  if (!(out.flooded > 8)) fail("the hall can reach almost nothing: " + out.flooded);
+  for (const [label, at] of [["launch tower", plot], ["tower", towerGround], ["sited", sited]])
+    if (at && !ground.reachable(s.id, at[0], at[1])) fail("the " + label + " plot cannot be walked to from the hall: " + at.join(","));
   // ── The effort remembers how long it has worked on an objective ──
   const push = window.ALIFE_CAUSAL_PUSH_DEBUG;
   push.finish();
