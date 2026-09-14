@@ -4600,7 +4600,17 @@ function settlementDevelopmentStage(s) {
     tech = new Set(s.knownProcesses),
     pop = settlementPopulation(s),
     network = factionNetworkPopulation(s),
-    metro = pop >= 24 || (!!s.factionId && network >= 32 && buildings.length >= 8);
+    // The gates of history scale with the map (84): on a battery-saver world a
+    // town of ten is metropolitan, and `metropolitan` says so. This read the
+    // unscaled twenty-four regardless, so on a map the code itself says holds
+    // thirty to fifty people the modern stage asked for two cities of
+    // twenty-four and never got one — the world sat two gates short at
+    // year 118 with thirty-one people, hunger nought, and dwindled. Standard
+    // and larger worlds keep twenty-four, since the gate is twenty-four there.
+    metro =
+      typeof metropolitan === "function"
+        ? metropolitan(s, buildings)
+        : pop >= 24 || (!!s.factionId && network >= 32 && buildings.length >= 8);
   if (tech.has("planetary_stewardship") && tech.has("mechanization") && types.has("waterworks"))
     return "complex terrestrial";
   if (metro && types.has("hall") && types.has("clinic") && buildings.length >= 8) return "urban";
