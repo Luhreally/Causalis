@@ -91,6 +91,21 @@ const fixtureSource = String.raw`(() => {
   const sited = plannedBuildingTile(s, "launch_tower", W.buildings.filter((b) => !b.ruined && b.placeKind === "settlement" && b.placeId === s.id).length);
   out.sited = sited;
   if (!sited) fail("a launch tower could not be sited at all");
+  // ── The effort remembers how long it has worked on an objective ──
+  const push = window.ALIFE_CAUSAL_PUSH_DEBUG;
+  push.finish();
+  push.push("skyline");
+  out.pushesFirst = causalTarget()?.pushes;
+  push.finish();
+  if (causalTarget()) fail("the objective was not released at the end of the press");
+  push.push("skyline");
+  out.pushesResumed = causalTarget()?.pushes;
+  if (!(out.pushesFirst === 1 && out.pushesResumed === 2)) fail("the objective did not resume where it left off: " + out.pushesFirst + " then " + out.pushesResumed);
+  push.finish();
+  push.push("homes");
+  out.pushesOther = causalTarget()?.pushes;
+  if (out.pushesOther !== 1) fail("a new objective did not start at one: " + out.pushesOther);
+  push.finish();
   // ── A rare input reaches the work face from the third push ──
   grant(s, "writing", "governance");
   const archive = planBuilding(s, "archive", 9);

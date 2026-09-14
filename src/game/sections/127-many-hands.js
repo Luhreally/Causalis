@@ -40,7 +40,7 @@
 const MANY_HANDS_FACE_PUSH = 3,
   MANY_HANDS_PEOPLE_FLOOR = 40,
   MANY_HANDS_ASIDE = Object.freeze(["skyline", "homes", "works", "road"]),
-  MANY_HANDS = { aside: 0, raised: 0, faced: 0, studied: 0, yielded: 0 };
+  MANY_HANDS = { aside: 0, raised: 0, faced: 0, studied: 0, yielded: 0, remembered: 0 };
 // ── Rare inputs reach the work face ──────────────────────────────────────────
 function manyHandsFace(b) {
   if (!b || b.complete || b.ruined) return 0;
@@ -230,10 +230,38 @@ function manyHandsAside(target) {
   }
   return worked;
 }
+// ── The effort remembers how long it has worked on an objective ──────────────
+// A press ends at every milestone, the objective is released when it ends,
+// and the next press begins the same objective at zero pushes — and a work
+// face is stocked only from the third. On battery causal-origin the site knew
+// Starflight from year 94 and kept discovering, one branch craft a press:
+// Global Networks, Advanced Composites, Thinking Machines, Materials Science,
+// Deep Theory I to III. Each press gave the skyline a year of material and
+// stopped; seven blocks stood at seven from year 107 to 121. The count of
+// pushes an objective has had is kept on the world by its key and restored
+// when the same objective is taken up again, so the next press starts where
+// the last left off. A new objective still starts at zero.
+function manyHandsMemory() {
+  if (!W?.civilization) return null;
+  return (W.civilization.effortMemory = W.civilization.effortMemory || {});
+}
+const setCausalTargetManyHandsBase = setCausalTarget;
+setCausalTarget = function (stage) {
+  const before = W?.civilization?.concertedTarget || null,
+    target = setCausalTargetManyHandsBase(stage),
+    memory = manyHandsMemory();
+  if (target && target !== before && memory && !target.pushes && memory[target.key]) {
+    target.pushes = memory[target.key];
+    MANY_HANDS.remembered++;
+  }
+  return target;
+};
 const causalPushTowardManyHandsBase = causalPushToward;
 causalPushToward = function (target = causalTarget()) {
   const out = causalPushTowardManyHandsBase(target);
   if (target && W) {
+    const memory = manyHandsMemory();
+    if (memory && target.key) memory[target.key] = target.pushes || 0;
     manyHandsAside(target);
     if (manyHandsModernSought()) manyHandsStudy(target);
   }
