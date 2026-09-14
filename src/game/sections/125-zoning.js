@@ -195,7 +195,11 @@ function zoningDemand(place) {
       0,
       1,
     ),
-    industry: clamp(pop / (16 * (works + 1)) - 0.35 + waiting * 0.12, 0, 1),
+    // Sites waiting on material raise the want for works, but only so far: a
+    // concerted effort plans eight tower blocks at once and supplies them a
+    // year later, and every one of them counted, Mosshollow answered with
+    // twenty-six tool workshops that left the city no ground for its tower.
+    industry: clamp(pop / (16 * (works + 1)) - 0.35 + Math.min(waiting, 3) * 0.12, 0, 1),
     commercial: clamp(pop / (13 * (trade + 1)) - 0.4, 0, 1),
     works,
     trade,
@@ -219,10 +223,14 @@ function zoningWantedType(place, demand) {
     return "shelter";
   }
   if (strongest === "industry") {
-    if (knows("electricity") && has("workshop")) return "factory";
+    // A town has works enough at a workshop for every sixteen people and a
+    // factory for every twenty-four; past that the want is for material and
+    // hands, not for another floor.
+    if (knows("electricity") && has("workshop"))
+      return has("factory") >= Math.max(1, Math.ceil(demand.pop / 24)) ? null : "factory";
     if (knows("metallurgy") && !has("forge")) return "forge";
     if (knows("ceramics") && !has("kiln")) return "kiln";
-    return "workshop";
+    return has("workshop") >= Math.max(2, Math.ceil(demand.pop / 16)) ? null : "workshop";
   }
   if (knows("currency") || knows("governance")) return has("market") ? "office" : "market";
   return "stockpile";
