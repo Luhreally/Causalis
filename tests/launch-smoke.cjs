@@ -13,31 +13,42 @@ const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8")
 const harnessEnd = smokeSource.indexOf('if (process.env.SETTLEMENT_DEBUG === "1")');
 if (harnessEnd < 0) throw new Error("Unable to locate the shared smoke-test harness");
 
-const fixturePath = path.join(__dirname, "fixtures", "launch-battery.json.gz"),
-  archive = zlib.gunzipSync(fs.readFileSync(fixturePath)).toString("utf8");
+// Both profiles the game is played on: battery (72×44, press 16) and phone
+// (96×58, press 17), each archived with its launch tower just complete.
+const fixtures = ["launch-battery.json.gz", "launch-phone.json.gz"]
+  .map((name) => path.join(__dirname, "fixtures", name))
+  .filter((file) => fs.existsSync(file));
+if (!fixtures.length) throw new Error("no launch fixtures under tests/fixtures");
+const archives = Object.fromEntries(
+  fixtures.map((file) => [path.basename(file), zlib.gunzipSync(fs.readFileSync(file)).toString("utf8")]),
+);
 
 const assertions = String.raw`
 const failures = [];
 const saves = sandbox.window.ALIFE_SAVE_DEBUG, skip = sandbox.window.ALIFE_CAUSAL_SKIP_DEBUG, orbit = sandbox.window.ALIFE_ORBIT_DEBUG, modern = sandbox.window.ALIFE_MODERN_DEBUG;
 if (!saves || !skip || !orbit || !modern) throw new Error("debug surfaces missing");
 (async () => {
-  // The archive goes where the game would read it from when the database is absent.
-  localStorage.setItem("causalis.save.launch", ARCHIVE);
-  const loaded = await saves.load("launch");
-  if (!loaded) failures.push("the launch fixture did not load (hash or shape)");
-  const presses = [];
-  let ships = 0;
-  for (let n = 1; n <= 4 && !ships && loaded; n++) {
-    const r = skip.run();
-    ships = orbit.voyages().length;
-    presses.push({ press: n, stop: r.stopReason, milestone: r.milestone?.label || "", drift: r.matter?.delta, ships });
-    if (Math.abs(r.matter?.delta || 0) > 0) failures.push("matter drifted during press " + n + ": " + r.matter.delta);
+  const worlds = {};
+  for (const [name, archive] of Object.entries(ARCHIVES)) {
+    // The archive goes where the game would read it from when the database is absent.
+    localStorage.setItem("causalis.save.launch", archive);
+    const loaded = await saves.load("launch");
+    if (!loaded) failures.push(name + ": the fixture did not load (hash or shape)");
+    const presses = [];
+    let ships = 0;
+    for (let n = 1; n <= 4 && !ships && loaded; n++) {
+      const r = skip.run();
+      ships = orbit.voyages().length;
+      presses.push({ press: n, stop: r.stopReason, milestone: r.milestone?.label || "", drift: r.matter?.delta, ships });
+      if (Math.abs(r.matter?.delta || 0) > 0) failures.push(name + ": matter drifted during press " + n + ": " + r.matter.delta);
+    }
+    if (loaded && !ships) failures.push(name + ": no ship left within four presses: " + JSON.stringify(modern.launchBlockers()));
+    worlds[name] = presses;
   }
-  if (!ships) failures.push("no ship left within four presses: " + JSON.stringify(modern.launchBlockers()));
-  console.log(JSON.stringify({ ok: !failures.length, failures, presses }, null, 2));
+  console.log(JSON.stringify({ ok: !failures.length, failures, worlds }, null, 2));
   if (failures.length) process.exitCode = 1;
 })().catch((error) => { console.error(error); process.exitCode = 1; });
 `;
 
 const harnessSource = smokeSource.slice(0, harnessEnd);
-new Function("require", "ARCHIVE", harnessSource + "\n" + assertions)(require, archive);
+new Function("require", "ARCHIVES", harnessSource + "\n" + assertions)(require, archives);
