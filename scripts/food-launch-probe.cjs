@@ -2,6 +2,17 @@
 // node scripts/food-launch-probe.cjs <seed> <size> <complexity> <presses>
 const { loadRuntime } = require("./runtime-probe.cjs");
 const rt = loadRuntime(), seed = process.argv[2] || "causal-origin";
+// OFF=reach,hinter,adopt,mourn turns the named later sections back to their
+// captured bases before the world is made, for a sweep against the same code.
+const off = new Set(String(process.env.OFF || "").split(",").filter(Boolean));
+const resets = {
+  reach: "homeRationPlace = homeRationPlaceHearthBase",
+  hinter: "zoneTarget = zoneTargetHinterlandBase",
+  adopt: "adoptInto = adoptIntoHinterlandBase",
+  mourn: "updateCouplings = updateCouplingsCradleBase, matingPartnerNear = matingPartnerNearCradleBase",
+};
+for (const k of off) { if (!resets[k]) throw new Error("unknown OFF " + k); rt.get("(() => { " + resets[k] + "; return 1; })()"); }
+if (off.size) console.log(JSON.stringify({ off: [...off] }));
 rt.game.createTestWorld({ seed, size: process.argv[3] || "battery", complexity: process.argv[4] || "lean" });
 const tick = rt.get("simTick"), year = rt.get("TICKS_PER_YEAR"), started = performance.now();
 console.log(JSON.stringify({ seed, size: process.argv[3] || "battery", complexity: process.argv[4] || "lean" }));
