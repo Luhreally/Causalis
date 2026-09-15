@@ -38,6 +38,16 @@
 //     at year 105 and the world went from eighty-five to twenty-nine by 114,
 //     every field fallow again. With no target, behind the ship, the press
 //     feeds the famine towns and tends the fields at the same half-year beat.
+//   • Hungry hands eat first. Under the concerted effort the labour tick
+//     handles every person every tick, and a person it handles skips the
+//     behaviour step that would have fed them (21); the granary's hungry-hands
+//     rule (82) and this section's send the hungry to the fields up to hunger
+//     ninety-two, so a hungry town's people sowed and reaped beside a full
+//     store and starved at it: battery causal-origin at year 104 read
+//     Flintholl fifteen people, a store of 189, six of seven hungry. Behind the
+//     ship a person past seventy hunger with a meal to be had at home is not
+//     wanted at any labour and is left to go and eat; hungry hands work the
+//     fields only when there is nothing to eat.
 //   • A field the town cannot walk to is given up. The ship-c A/B found Ple
 //     Chyp's stocked farm untouched for twenty-five years with hungry hands
 //     walking toward it a thousand ticks a year and building nothing: the
@@ -54,7 +64,8 @@ const FIELD_WAIT = TICKS_PER_YEAR * 2,
   FIELD_HANDS_REACH = 12,
   FIELD_SOW_REST = 64,
   FIELD_SOW_PER_PUSH = 2,
-  FIELD = { supplied: 0, drawn: 0, carried: 0, built: 0, hands: 0, first: 0, givenUp: 0, resited: 0, sown: 0, tended: 0 };
+  FIELD_MEAL_HUNGER = 70,
+  FIELD = { supplied: 0, drawn: 0, carried: 0, built: 0, hands: 0, first: 0, givenUp: 0, resited: 0, sown: 0, tended: 0, sentToEat: 0 };
 function fieldCommon(sp) {
   return sp >= 0 && !(typeof STORE_DRAWN_MATERIALS !== "undefined" && STORE_DRAWN_MATERIALS.includes(sp));
 }
@@ -243,14 +254,28 @@ function fieldBuild(id, place, b) {
 }
 // The labour tick asks whether hungry hands are wanted before it sends anyone
 // to work; the granary's fields, and now the unfinished farm.
+// A meal to be had at home comes before any labour for the hungry.
+function fieldMealFirst(id) {
+  if (W.kind[id] !== KINDS.PERSON || !shipHasLeft() || typeof homeRationPlace !== "function") return false;
+  const life = W.components.life[id];
+  if (!life || life.hunger <= FIELD_MEAL_HUNGER) return false;
+  if (!homeRationPlace(id)) return false;
+  FIELD.sentToEat++;
+  return true;
+}
 const hungryHandsWantedFieldBase = typeof hungryHandsWanted === "function" ? hungryHandsWanted : () => false;
 hungryHandsWanted = function (id, place) {
+  if (fieldMealFirst(id)) return false;
   if (hungryHandsWantedFieldBase(id, place)) return true;
   const fit = fieldHandsFit(id);
   return !!fit && fit.place === place;
 };
 const performCivilLaborFieldBase = performCivilLabor;
 performCivilLabor = function (id) {
+  if (fieldMealFirst(id)) {
+    if (typeof clearStaleWork === "function") clearStaleWork(id);
+    return false;
+  }
   const fit = fieldHandsFit(id);
   if (!fit) return performCivilLaborFieldBase(id);
   // The granary's own hungry-hands rule first: a ripe or fallow field is the nearer meal.
@@ -288,6 +313,7 @@ window.ALIFE_FIELD_DEBUG = Object.freeze({
   giveUp: (townId) => fieldGiveUp(W.settlements.find((s) => s.id === townId)),
   sow: (townId) => fieldSow(W.settlements.find((s) => s.id === townId)),
   tend: () => fieldTend(),
+  mealFirst: (id) => fieldMealFirst(id),
   fit: (id) => fieldHandsFit(id),
   build: (id) => {
     const fit = fieldHandsFit(id);

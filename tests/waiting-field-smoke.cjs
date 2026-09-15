@@ -3,8 +3,9 @@
 // any ship has left the effort supplies nothing; behind the ship one push
 // places its first missing common material at the face, booked as the
 // player's input, and a farm planned this year is left to the builders; a
-// resident at hunger eighty beside a lean town's stocked farm raises it, and
-// one at the hall draws the farm's water from the town's own stores; before
+// resident at hunger eighty beside a lean town's stocked farm raises it when
+// there is nothing to eat and is sent to eat when there is, and one at the
+// hall draws the farm's water from the town's own stores; before
 // the ship the same hands stand aside as they always did; the waiting farm's
 // order outranks a tower block's behind the ship and not before, and a farm
 // planned this year is not raised; a farm the town cannot walk to is neither
@@ -92,6 +93,18 @@ const fixtureSource = String.raw`(() => {
   const residents = granaryResidents(s).filter((x) => x !== id && W.components.chemistry[x]),
     savedEnergy = residents.map((x) => [x, W.components.chemistry[x].q[C.ENERGY]]);
   for (const [x, e] of savedEnergy) { W.conservation.playerInput += 100 - e; W.components.chemistry[x].q[C.ENERGY] = 100; derivedLife(x); }
+  // With a meal to be had at home, the hungry are sent to eat, not to labour.
+  const storeSaved = s.inventory[C.ORGANIC] || 0;
+  W.conservation.playerInput += seedReserve(s) + 60 - storeSaved; s.inventory[C.ORGANIC] = seedReserve(s) + 60;
+  W.tick++;
+  derivedLife(id);
+  out.mealFirst = field.mealFirst(id);
+  if (!out.mealFirst) fail("a hungry resident with a meal at home was not sent to eat");
+  out.labourWithMeal = performCivilLabor(id);
+  if (out.labourWithMeal) fail("a hungry resident laboured with a meal to be had at home");
+  if (hungryHandsWanted(id, s)) fail("the labour tick wanted hungry hands that had a meal at home");
+  // With the store at its seed reserve there is nothing to eat, and hungry hands work.
+  W.conservation.playerInput -= s.inventory[C.ORGANIC] - seedReserve(s); s.inventory[C.ORGANIC] = seedReserve(s);
   // The granary's own field rule works even ticks; the farm is raised on the odd ones.
   W.tick += ((W.tick + id) % 2 === 0) ? 1 : 2;
   // The face fully stocked: only the work remains.
@@ -114,6 +127,8 @@ const fixtureSource = String.raw`(() => {
   if (!out.labour) fail("hungry hands did no labour on the stocked farm");
   if (!(b.workDone > work0)) fail("the stocked farm's work did not advance: " + work0 + " -> " + b.workDone);
   if (W.components.work?.[id]?.buildingId !== b.id) fail("the hungry hands' work is not the farm: " + JSON.stringify(W.components.work?.[id]?.task));
+  W.conservation.playerInput += storeSaved - s.inventory[C.ORGANIC]; s.inventory[C.ORGANIC] = storeSaved;
+  W.conservation.playerInput -= storeSaved - seedReserve(s); s.inventory[C.ORGANIC] = seedReserve(s);
   // The farm's water, from the town's own stores, by a hand at the hall.
   W.conservation.playerInput -= b.composition[C.SOLVENT]; b.composition[C.SOLVENT] = 0;
   refreshBuildingStage(b);
@@ -164,6 +179,7 @@ const fixtureSource = String.raw`(() => {
     W.ascensions.pop();
   }
   // Put the world back the way it was, matter and all.
+  W.conservation.playerInput += storeSaved - s.inventory[C.ORGANIC]; s.inventory[C.ORGANIC] = storeSaved;
   W.conservation.playerInput -= inv[C.SOLVENT] - carried0; inv[C.SOLVENT] = carried0;
   W.conservation.playerInput -= (s.inventory[C.SOLVENT] || 0) - water0; s.inventory[C.SOLVENT] = water0;
   W.conservation.playerInput -= 100 - saved.energy; q[C.ENERGY] = saved.energy;
