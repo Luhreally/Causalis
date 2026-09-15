@@ -2,7 +2,7 @@
 // node scripts/food-launch-probe.cjs <seed> <size> <complexity> <presses>
 const { loadRuntime } = require("./runtime-probe.cjs");
 const rt = loadRuntime(), seed = process.argv[2] || "causal-origin";
-// OFF=reach,hinter,adopt,mourn turns the named later sections back to their
+// OFF=reach,hinter,adopt,mourn,seed,ferry,gated turns the named later sections back to their
 // captured bases before the world is made, for a sweep against the same code.
 const off = new Set(String(process.env.OFF || "").split(",").filter(Boolean));
 const resets = {
@@ -10,6 +10,9 @@ const resets = {
   hinter: "zoneTarget = zoneTargetHinterlandBase",
   adopt: "adoptInto = adoptIntoHinterlandBase",
   mourn: "updateCouplings = updateCouplingsCradleBase, matingPartnerNear = matingPartnerNearCradleBase",
+  seed: "hearthSpareFood = function (home, sp) { return home.inventory?.[sp] || 0; }",
+  ferry: "startRoadLink = startRoadLinkFerryBase",
+  gated: "shipHasLeft = function () { return false; }",
 };
 for (const k of off) { if (!resets[k]) throw new Error("unknown OFF " + k); rt.get("(() => { " + resets[k] + "; return 1; })()"); }
 if (off.size) console.log(JSON.stringify({ off: [...off] }));

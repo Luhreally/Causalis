@@ -15,7 +15,7 @@ const rt = loadRuntime(),
   size = process.argv[3] || "battery",
   complexity = process.argv[4] || "lean",
   presses = Number(process.argv[5] || 24);
-// OFF=reach,hinter,adopt,mourn turns the named later sections back to their
+// OFF=reach,hinter,adopt,mourn,seed,ferry,gated turns the named later sections back to their
 // bases, for an A/B on the same seed.
 const off = new Set(String(process.env.OFF || "").split(",").filter(Boolean));
 const resets = {
@@ -23,6 +23,9 @@ const resets = {
   hinter: "zoneTarget = zoneTargetHinterlandBase",
   adopt: "adoptInto = adoptIntoHinterlandBase",
   mourn: "updateCouplings = updateCouplingsCradleBase, matingPartnerNear = matingPartnerNearCradleBase",
+  seed: "hearthSpareFood = function (home, sp) { return home.inventory?.[sp] || 0; }",
+  ferry: "startRoadLink = startRoadLinkFerryBase",
+  gated: "shipHasLeft = function () { return false; }",
 };
 for (const k of off) { if (!resets[k]) throw new Error("unknown OFF " + k); rt.get("(() => { " + resets[k] + "; return 1; })()"); }
 console.log(JSON.stringify({ off: [...off] }));
