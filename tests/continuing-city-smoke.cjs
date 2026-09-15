@@ -62,22 +62,43 @@ const result = rt.get(`(() => {
   {
     const strainWas = ensureAfternoon(W).strain;
     W.afternoon.strain = 3;
-    const heavyList = causalSkipMicroStages().filter((s) => s.key.startsWith("inquiry:"));
-    out.skyFirst = heavyList[0]?.key;
-    if (out.skyFirst !== "inquiry:ecological_engineering") fail("a heavy sky does not put Ecological Engineering first: " + out.skyFirst);
+    const heavyList = causalSkipMicroStages().filter((s) => s.key.startsWith("inquiry:")),
+      stageOf = (list, id) => list.find((s) => s.key === "inquiry:" + id);
+    out.skyFirst = heavyList.slice(0, 3).map((s) => s.key.slice(8));
+    if (out.skyFirst.join() !== "planetary_stewardship,ecological_engineering,fusion") fail("a heavy sky does not put the sky crafts first: " + out.skyFirst.join());
+    const eco = stageOf(heavyList, "ecological_engineering");
+    if (!eco) fail("no Ecological Engineering stage");
     else {
-      if (heavyList[0].done()) fail("the sky craft is done while a straining town lacks it");
-      const skyTown = window.ALIFE_CONTINUING_DEBUG.sky().crafts[0].town;
+      if (eco.done()) fail("the sky craft is done while a straining town lacks it");
+      const skyTown = window.ALIFE_CONTINUING_DEBUG.sky().crafts.find((c) => c.id === "ecological_engineering")?.town;
       if (skyTown !== town.name) fail("the sky push does not aim at the straining town: " + skyTown);
       town.knownProcesses.push("ecological_engineering");
-      if (!heavyList[0].done()) fail("the sky craft is not done when every straining town knows it");
+      if (!eco.done()) fail("the sky craft is not done when every straining town knows it");
+      town.knownProcesses = town.knownProcesses.filter((t) => t !== "ecological_engineering");
+    }
+    // Once one town knows the craft, a push carries it to a straining town that lacks it and holds its priors and its hall.
+    {
+      const twin = { ...town, id: 100002, name: "Twin hall", x: clamp(town.x + 3, 2, W.width - 3), y: clamp(town.y + 3, 2, W.height - 3), knownProcesses: town.knownProcesses.filter((t) => t !== "ecological_engineering"), inventory: new Uint16Array(town.inventory), importantEvents: [] };
+      W.settlements.push(twin);
+      const hall = planBuilding(twin, "hall", 9);
+      if (hall) { hall.complete = true; hall.stage = 6; hall.integrity = hall.maxIntegrity; hall.completedTick = W.tick; for (const [sp, n] of hall.requirements || []) hall.composition[sp] = n; }
+      for (const t of ["planetary_stewardship", "chemistry"]) { if (!town.knownProcesses.includes(t)) town.knownProcesses.push(t); if (!twin.knownProcesses.includes(t)) twin.knownProcesses.push(t); }
+      town.knownProcesses.push("ecological_engineering");
+      const matterT = totalMatter(), inputT = W.conservation.playerInput;
+      causalPushToward({ key: "inquiry:ecological_engineering", pushes: 3 });
+      out.taught = twin.knownProcesses.includes("ecological_engineering");
+      if (!hall) fail("fixture could not give the twin a hall");
+      else if (!out.taught) fail("the push did not carry the sky craft to the straining town that lacked it");
+      if (totalMatter() - matterT !== W.conservation.playerInput - inputT) fail("carrying a craft moved matter");
+      W.settlements.splice(W.settlements.indexOf(twin), 1);
+      for (let i = W.buildings.length - 1; i >= 0; i--) if (W.buildings[i].placeKind === "settlement" && W.buildings[i].placeId === twin.id) W.buildings.splice(i, 1);
       town.knownProcesses = town.knownProcesses.filter((t) => t !== "ecological_engineering");
     }
     W.afternoon.strain = 0.6;
-    if (causalSkipMicroStages().filter((s) => s.key.startsWith("inquiry:"))[0]?.key !== "inquiry:ecological_engineering") fail("a hazed sky does not lead with the sky craft");
+    if (causalSkipMicroStages().filter((s) => s.key.startsWith("inquiry:"))[0]?.key !== "inquiry:planetary_stewardship") fail("a hazed sky does not lead with the sky crafts");
     W.afternoon.strain = 0.2;
     const clearList = causalSkipMicroStages().filter((s) => s.key.startsWith("inquiry:"));
-    if (clearList[0]?.key === "inquiry:ecological_engineering") fail("a clear sky still leads with the sky craft");
+    if (/planetary_stewardship|ecological_engineering|fusion/.test(clearList[0]?.key || "")) fail("a clear sky still leads with a sky craft: " + clearList[0]?.key);
     W.afternoon.strain = strainWas;
   }
   const target = inquiry.find((s) => !s.done()), matter0 = totalMatter(), input0 = W.conservation.playerInput;

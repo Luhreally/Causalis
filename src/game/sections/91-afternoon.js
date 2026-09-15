@@ -26,14 +26,19 @@
 // causal-origin's home world starved from year 92 on every variant of every
 // lever behind the ship; with the forced spells switched off it stood at 117
 // people at year 107 with nobody starved (HANDOFF section 15). Ecological
-// Engineering eases 0.08, so a tended industrial town clears its sky, and the
-// continuing effort (120) aims at the sky crafts while the sky is heavy.
+// Engineering eases 0.12: a tended industrial town takes 0.06 a year off the
+// sky, four tended towns of six clear it, and the continuing effort (120)
+// aims at the sky crafts and carries them from town to town while the sky is
+// hazed or worse. (At 0.08 a tended town offset only itself, and combustion
+// and current spread to the villages faster than the craft did: causal-origin
+// eased to 1.18 and then climbed back to the cap by year 94 and starved as
+// before, and ship-c held at 2.2 for thirty years.)
 const STRAIN_PER_ENGINE_TOWN = 0.02,
   STRAIN_PER_COMBUSTION_TOWN = 0.03,
   STRAIN_PER_ELECTRIC_TOWN = 0.03,
   STRAIN_FUSION_RELIEF = 0.02,
   STRAIN_EASE_STEWARDSHIP = 0.02,
-  STRAIN_EASE_ECOLOGY = 0.08,
+  STRAIN_EASE_ECOLOGY = 0.12,
   STRAIN_DECAY = 0.985,
   STRAIN_MAX = 3,
   STRAIN_HEAVY = 1,

@@ -81,15 +81,24 @@ function continuingResearchTown(id, towns = W.settlements.filter((s) => !s.ruine
 // year 107 with nobody starved. While the sky is hazed or worse (strain at or
 // past STRAIN_EASED; the forced spells begin at 0.3, and every measured world
 // launches under a sky of about one, so this is from the first press) the
-// continuing inquiry leads with the crafts that ease it, Ecological
-// Engineering and then Fusion, and a sky craft is not done when one town
-// knows it: every town with engines lays its own strain, so the push goes on,
-// town by town, until each straining town knows the craft or the sky has
-// cleared. Sister towns of a polity teach each other (30f); the push carries
-// it across polities. (Leading only from "heavy", one, let ship-c's first
-// twelve-year press chase refrigeration while its sky climbed from 0.96 to
-// 1.73.)
-const CONTINUING_SKY_CRAFTS = Object.freeze(["ecological_engineering", "fusion"]),
+// continuing inquiry leads with the crafts that ease it, Planetary
+// Stewardship, Ecological Engineering and then Fusion, and a sky craft is not
+// done when one town knows it: every town with engines lays its own strain,
+// so the push goes on, town by town, until each straining town knows the
+// craft or the sky has cleared. Stewardship is first because it is the prior
+// Ecological Engineering needs and the villages never hold it: on battery
+// causal-origin the two cities knew it at the launch and the three villages
+// that took engines, combustion and current by teaching did not, so the
+// craft that eases the sky could reach the cities and no further. Sister towns of a polity teach each other (30f); the push carries
+// it across polities: once one town knows a sky craft, a push teaches it to
+// a straining town that lacks it and holds the craft's priors and its
+// facility, as a sister town would, and researches it only where no town can
+// be taught. Without the carrying, the craft reached four or five towns of
+// six while combustion and current spread to the rest by teaching, and the
+// sky climbed back to the cap on causal-origin by year 94. (Leading only from
+// "heavy", one, let ship-c's first twelve-year press chase refrigeration while
+// its sky climbed from 0.96 to 1.73.)
+const CONTINUING_SKY_CRAFTS = Object.freeze(["planetary_stewardship", "ecological_engineering", "fusion"]),
   CONTINUING_STRAINING = Object.freeze(["mechanization", "combustion", "electricity"]);
 function continuingStrainingTowns() {
   return W.settlements.filter((s) => !s.ruined && s.knownProcesses && CONTINUING_STRAINING.some((t) => s.knownProcesses.includes(t)));
@@ -104,6 +113,31 @@ function continuingSkyDone(id) {
 }
 function continuingSkyTown(id) {
   return continuingResearchTown(id, continuingStrainingTowns().filter((s) => !s.knownProcesses.includes(id)));
+}
+// The straining town that lacks a sky craft another town knows, holds its
+// priors and its facility, and is taught it: knowledge moves, matter does not.
+function continuingTeachSky(id) {
+  const tech = technologyDefinition(id),
+    source = W.settlements.find((s) => !s.ruined && s.knownProcesses?.includes(id));
+  if (!tech || !source) return null;
+  const facility = typeof facilityForTechnology === "function" ? facilityForTechnology(id) : null,
+    target = continuingStrainingTowns()
+      .filter((s) => !s.knownProcesses.includes(id) && (tech.prior || []).every((p) => s.knownProcesses.includes(p)) && (!facility || placeHasFacility(s, facility)))
+      .sort((a, b) => settlementPopulation(b) - settlementPopulation(a) || a.id - b.id)[0];
+  if (!target) return null;
+  target.knownProcesses.push(id);
+  target.researchProgress = target.researchProgress || {};
+  target.researchProgress[id] = tech.threshold || 24;
+  emitEvent("TechAdvanceEvent", {
+    subjects: [source.entityId, target.entityId].filter(Boolean),
+    location: idx(target.x, target.y),
+    factions: [target.factionId].filter(Boolean),
+    causes: [source.importantEvents?.at(-1) || W.lastEventByType.TechAdvanceEvent || 0],
+    evidence: [`${source.name} carried its ${tech.name} to ${target.name} under the concerted effort`, facility ? `${BUILDING_DEFS[facility].name} reproduced the process locally` : "local practitioners reproduced the process", "knowledge moved; matter did not"],
+    importance: 3,
+    data: { name: tech.name, process: tech.process || "recorded civic practice", settlement: target.name, source: source.name },
+  });
+  return target;
 }
 const causalSkipMicroStagesContinuingBase = causalSkipMicroStages;
 causalSkipMicroStages = function () {
@@ -127,6 +161,10 @@ causalPushToward = function (target = causalTarget()) {
   target.pushes = (target.pushes || 0) + 1;
   if (sky) CONTINUING.skyPushes = (CONTINUING.skyPushes || 0) + 1;
   modernFeedTheEffort(target.pushes);
+  if (sky && continuingKnows(id) && continuingTeachSky(id)) {
+    CONTINUING.skyTaught = (CONTINUING.skyTaught || 0) + 1;
+    return target.key;
+  }
   if (causalPushResearch(place, id, target.pushes)) CONTINUING.researchPushes++;
   return target.key;
 };
