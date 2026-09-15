@@ -15,7 +15,7 @@ const rt = loadRuntime(),
   size = process.argv[3] || "battery",
   complexity = process.argv[4] || "lean",
   presses = Number(process.argv[5] || 24);
-// OFF=reach,hinter,adopt,mourn,seed,ferry,gated,draw,field turns the named later sections back to their
+// OFF=reach,hinter,adopt,mourn,seed,ferry,gated,draw,field,militia,provision,gutcap,ration turns the named later sections back to their
 // bases, for an A/B on the same seed.
 const off = new Set(String(process.env.OFF || "").split(",").filter(Boolean));
 const resets = {
@@ -28,6 +28,10 @@ const resets = {
   gated: "shipHasLeft = function () { return false; }",
   draw: "hearthDraw = () => 0",
   field: "fieldSupplyAll = () => 0, fieldHandsFit = () => null",
+  militia: "MILITIA_FULL_GUT = 65535, MILITIA_FULL_ENERGY = 65535, MILITIA_FULL_WATER = 65535",
+  provision: "PROVISION_TOPS_UP = false",
+  gutcap: "GUT_FULL = { [C.ORGANIC]: 65535, [C.ENERGY]: 65535, [C.NUTRIENT]: 65535, [C.CATALYST]: 65535 }",
+  ration: "rationCap = rationCapHearthBase",
 };
 for (const k of off) { if (!resets[k]) throw new Error("unknown OFF " + k); rt.get("(() => { " + resets[k] + "; return 1; })()"); }
 // MUCKFERT=15 lets a town whose fields average under that fertility cart muck before the ship (134).
