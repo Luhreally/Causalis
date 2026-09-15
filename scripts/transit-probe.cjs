@@ -22,7 +22,9 @@
 //
 // Each year also reads the sky: the strain of industry and the count of
 // forced spells (91), and the share of the year's ticks spent in a Drought or
-// Heat Wave from any cause.
+// Heat Wave from any cause; and the land: mean moisture over the land tiles,
+// the share of them under the 16 that photosynthesis needs, the plants
+// standing on them, their water, and the water held in the air.
 //
 // node scripts/transit-probe.cjs <fixture.json.gz | seed:size:complexity> <years> <presses>
 const fs = require("node:fs");
@@ -42,7 +44,9 @@ if (off.has("roomhunger")) rt.get("(() => { cradleFed = (outlook, hungry) => !!o
 if (off.has("reach2")) rt.get("(() => { cradleNightReach = () => 8; return 1; })()");
 if (off.has("reunite")) rt.get("(() => { cradleReunite = () => 0; return 1; })()");
 if (off.has("quota")) rt.get("(() => { hearthMealQuotaLeft = () => 65535; return 1; })()");
-if (off.has("sky")) rt.get("(() => { strainedWeatherRoll = () => null; return 1; })()");
+// The sky's forced weather is part of the launch road, so the switch is
+// gated behind the ship: before it the roll is as it was.
+if (off.has("sky")) rt.get("(() => { const b = strainedWeatherRoll; strainedWeatherRoll = (cycle) => (shipHasLeft() ? null : b(cycle)); return 1; })()");
 if (off.size) console.log(JSON.stringify({ off: [...off] }));
 (async () => {
   if (/\.gz$/.test(source)) {
@@ -93,15 +97,18 @@ if (off.size) console.log(JSON.stringify({ off: [...off] }));
       return s.name.slice(0, 8) + ":" + settlementPopulation(s) + "p/" + farms.filter((x) => x.complete).length + "f fert" + avgFert + " " + JSON.stringify(stages) + (unfinished.length ? " planned[" + unfinished.join("; ") + "]" : "") + " forage" + Math.round(forage / 1000) + "k larder" + Math.round(o.larder) + " hungry" + o.hungry.toFixed(2) + (o.famine ? "F" : o.lean ? "L" : "") + " store" + (s.inventory[C.ORGANIC] || 0) + " water" + (s.inventory[C.SOLVENT] || 0);
     });
     const townPeople = W.settlements.filter((s) => !s.ruined && s.knownProcesses).reduce((n, s) => n + settlementPopulation(s), 0);
+    let landTiles = 0, landDry = 0, moistSum = 0, plants = 0, solvent = 0;
+    for (let i = 0; i < W.tileCount; i++) { if (W.tiles.liquid[i] > WATER_DEPTH.SURFACE) continue; landTiles++; const m = tileMoisture(i); moistSum += m; if (m < 16) landDry++; plants += W.tiles.plantOrder[i]; solvent += W.tiles.chem[C.SOLVENT][i]; }
+    const land = { moist: Math.round(moistSum / Math.max(1, landTiles)), dryShare: +(landDry / Math.max(1, landTiles)).toFixed(2), plants: Math.round(plants / 1000) + "k", water: Math.round(solvent / 1000) + "k", air: Math.round((W.reservoirs?.atmosphericSolvent || 0) / 1000) + "k" };
     const ships = (W.voyages || []).map((v) => v.status[0] + (v.status === "under way" ? Math.ceil((v.arriveTick - W.tick) / TICKS_PER_YEAR) : "")).join(",");
     const colonies = (W.colonies || []).map((c) => c.status[0] + c.population).join(",");
     const cradle1 = window.ALIFE_CRADLE_DEBUG.counts(), cradle = Object.fromEntries(Object.keys(cradle1).map((k) => [k, cradle1[k] - cradle0[k]]));
     const field1 = field0 ? window.ALIFE_FIELD_DEBUG.counts() : null, field = field1 ? Object.fromEntries(Object.keys(field1).map((k) => [k, Math.round(field1[k] - field0[k])])) : null;
-    return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: done, people0, people: biospherePopulation(KINDS.PERSON), townPeople, born: (W.statistics.birthsByKind?.person || 0) - births0, deaths, causes, cradle, field, ships, colonies, relief: (CONTINUING.relief || 0) - relief0, muck: window.ALIFE_MUCK_DEBUG.counts().moved - muck0, sky: W.afternoon ? { strain: +W.afternoon.strain.toFixed(2), spells: W.afternoon.droughts } : null, dry: +(dry / ${year}).toFixed(2), log: globalThis.__log, target: causalTarget()?.key || null, towns });
+    return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: done, people0, people: biospherePopulation(KINDS.PERSON), townPeople, born: (W.statistics.birthsByKind?.person || 0) - births0, deaths, causes, cradle, field, ships, colonies, relief: (CONTINUING.relief || 0) - relief0, muck: window.ALIFE_MUCK_DEBUG.counts().moved - muck0, sky: W.afternoon ? { strain: +W.afternoon.strain.toFixed(2), spells: W.afternoon.droughts } : null, dry: +(dry / ${year}).toFixed(2), land, log: globalThis.__log, target: causalTarget()?.key || null, towns });
   })()`;
   for (let n = 0; n < years; n++) {
     const r = JSON.parse(rt.get(aYear));
-    console.log(`y${r.year} ${r.stop ? "STOP:" + r.stop : ""} ppl${r.people0}->${r.people} (towns ${r.townPeople}) born${r.born} deaths${r.deaths} ${JSON.stringify(r.causes)} cradle${JSON.stringify(r.cradle)} field${JSON.stringify(r.field)} ships[${r.ships}] colonies[${r.colonies}] relief${r.relief} muck${r.muck} sky${JSON.stringify(r.sky)} dry${r.dry} fed${r.log.fed} farmPush${r.log.farmPush} target=${r.target} pushes${JSON.stringify(r.log.pushes)} supplied${JSON.stringify(r.log.supplied)}`);
+    console.log(`y${r.year} ${r.stop ? "STOP:" + r.stop : ""} ppl${r.people0}->${r.people} (towns ${r.townPeople}) born${r.born} deaths${r.deaths} ${JSON.stringify(r.causes)} cradle${JSON.stringify(r.cradle)} field${JSON.stringify(r.field)} ships[${r.ships}] colonies[${r.colonies}] relief${r.relief} muck${r.muck} sky${JSON.stringify(r.sky)} dry${r.dry} land${JSON.stringify(r.land)} fed${r.log.fed} farmPush${r.log.farmPush} target=${r.target} pushes${JSON.stringify(r.log.pushes)} supplied${JSON.stringify(r.log.supplied)}`);
     for (const t of r.towns) console.log("   " + t);
     if (r.people < 6) break;
   }
