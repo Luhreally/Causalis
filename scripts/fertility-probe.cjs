@@ -30,41 +30,51 @@ for (let press = 1; press <= 40; press++) {
 }
 const gates = `(() => {
   const tally = {}, count = (k) => { tally[k] = (tally[k] || 0) + 1; };
+  const gateOf = (id) => {
+    const ch = W.components.chemistry[id], l = derivedLife(id), r = W.components.reproduction[id], body = W.components.body[id];
+    if (!ch || !r || !body) return "no-parts";
+    if (r.mode !== "paired") return "mode:" + r.mode;
+    if (l.age <= (body.maturityAge ?? 1200)) return "child";
+    if (l.age >= body.maxAge * PERSON_FERTILE_SHARE) return "past-fertile-window";
+    if (r.cooldown > 0) return "cooldown";
+    if (l.hunger >= CONCEPTION_HUNGER) return "hunger>=70";
+    if (l.energy <= 22) return "energy<=22";
+    if (l.health <= 48) return "health<=48";
+    if (ch.q[C.ORGANIC] <= 34) return "organic<=34";
+    if (ch.q[C.NUTRIENT] <= 16) return "nutrient<=16";
+    if (ch.q[C.SOLVENT] <= 75) return "water<=75";
+    if (ch.q[C.INFO] <= 16) return "info<=16";
+    if (ch.q[C.MEMBRANE] <= 23) return "membrane<=23";
+    if (!reproductionDensityAllows(id, KINDS.PERSON)) return "no-room";
+    return "eligible";
+  };
   const eligible = [], pyramid = {};
   for (const id of W.activeIds) {
     if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
-    const ch = W.components.chemistry[id], l = derivedLife(id), r = W.components.reproduction[id], body = W.components.body[id];
-    const band = Math.floor(l.age / body.maxAge * 10) / 10;
-    pyramid[band] = (pyramid[band] || 0) + 1;
-    if (!ch || !r || !body) { count("no-parts"); continue; }
-    if (r.mode !== "paired") { count("mode:" + r.mode); continue; }
-    if (l.age <= (body.maturityAge ?? 1200)) { count("child"); continue; }
-    if (l.age >= body.maxAge * PERSON_FERTILE_SHARE) { count("past-fertile-window"); continue; }
-    if (r.cooldown > 0) { count("cooldown"); continue; }
-    if (l.hunger >= CONCEPTION_HUNGER) { count("hunger>=70"); continue; }
-    if (l.energy <= 22) { count("energy<=22"); continue; }
-    if (l.health <= 48) { count("health<=48"); continue; }
-    if (ch.q[C.ORGANIC] <= 34) { count("organic<=34"); continue; }
-    if (ch.q[C.NUTRIENT] <= 16) { count("nutrient<=16"); continue; }
-    if (ch.q[C.SOLVENT] <= 75) { count("water<=75"); continue; }
-    if (ch.q[C.INFO] <= 16) { count("info<=16"); continue; }
-    if (ch.q[C.MEMBRANE] <= 23) { count("membrane<=23"); continue; }
-    if (!reproductionDensityAllows(id, KINDS.PERSON)) { count("no-room"); continue; }
-    count("eligible");
-    eligible.push(id);
+    const l = derivedLife(id), body = W.components.body[id];
+    if (body) { const band = Math.floor(l.age / body.maxAge * 10) / 10; pyramid[band] = (pyramid[band] || 0) + 1; }
+    const g = gateOf(id);
+    count(g);
+    if (g === "eligible") eligible.push(id);
   }
-  const partners = { none: 0, partnerDead: 0, partnerIneligible: 0, partnerFar: 0, partnerEligibleNear: 0 };
+  // For the eligible: the partner's own gate, how far they stand, whether they share a home, and whether it is night there.
+  const partners = { none: 0, partnerDead: 0, partnerIneligible: 0, partnerFar: 0, partnerEligibleNear: 0 }, partnerGates = {}, distances = {}, homes = { same: 0, different: 0 }, nights = { night: 0, day: 0 };
   for (const id of eligible) {
     const soc = W.components.social[id], p = W.components.position[id];
     if (!soc?.partnerId) { partners.none++; continue; }
     if (!classifyAlive(soc.partnerId)) { partners.partnerDead++; continue; }
-    if (!canReproduce(soc.partnerId)) { partners.partnerIneligible++; continue; }
-    const pp = W.components.position[soc.partnerId];
-    if (!pp || dist2(p.x, p.y, pp.x, pp.y) > 64) { partners.partnerFar++; continue; }
+    const pp = W.components.position[soc.partnerId], ps = W.components.social[soc.partnerId];
+    const d = pp ? Math.sqrt(dist2(p.x, p.y, pp.x, pp.y)) : 99;
+    const bucket = d <= 4 ? "<=4" : d <= 8 ? "<=8" : d <= 16 ? "<=16" : d <= 24 ? "<=24" : ">24";
+    distances[bucket] = (distances[bucket] || 0) + 1;
+    if (ps && ps.homePlaceKind === soc.homePlaceKind && ps.homePlaceId === soc.homePlaceId) homes.same++; else homes.different++;
+    if (typeof nightAt === "function" && nightAt(p.x, p.y)) nights.night++; else nights.day++;
+    if (!canReproduce(soc.partnerId)) { partners.partnerIneligible++; const g = gateOf(soc.partnerId); partnerGates[g] = (partnerGates[g] || 0) + 1; continue; }
+    if (d > 8) { partners.partnerFar++; continue; }
     partners.partnerEligibleNear++;
   }
   const rooms = W.settlements.filter((s) => !s.ruined && s.knownProcesses).map((s) => { const r = window.ALIFE_CRADLE_DEBUG.room(s.id); return s.name.slice(0, 8) + ":" + (r ? r.people + "p/" + r.cap + " hungry" + r.hungry + " larder" + r.larder + (r.room ? " ROOM" : r.fed ? " full" : " unfed") : "-"); });
-  return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: biospherePopulation(KINDS.PERSON), tally, partners, pyramid, rooms });
+  return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: biospherePopulation(KINDS.PERSON), tally, partners, partnerGates, distances, homes, nights, pyramid, rooms });
 })()`;
 const aYear = `(() => {
   const state = globalThis.__state || (globalThis.__state = makeCausalSkipState());
@@ -78,7 +88,7 @@ const aYear = `(() => {
 rt.get(`(() => { for (let presses = 0; presses < 400 && Math.floor(W.tick / TICKS_PER_YEAR) < ${target}; presses++) { const state = makeCausalSkipState(); while (Math.floor(W.tick / TICKS_PER_YEAR) < ${target} && !state.done) causalSkipStep(state); } return 1; })()`);
 for (let n = 0; n < years; n++) {
   const g = JSON.parse(rt.get(gates));
-  console.log(`y${g.year} people${g.people} gates${JSON.stringify(g.tally)} partners${JSON.stringify(g.partners)} pyramid${JSON.stringify(g.pyramid)}`);
+  console.log(`y${g.year} people${g.people} gates${JSON.stringify(g.tally)} partners${JSON.stringify(g.partners)} partnerGates${JSON.stringify(g.partnerGates)} distances${JSON.stringify(g.distances)} homes${JSON.stringify(g.homes)} nights${JSON.stringify(g.nights)} pyramid${JSON.stringify(g.pyramid)}`);
   for (const r of g.rooms) console.log("   " + r);
   const y = JSON.parse(rt.get(aYear));
   console.log(`   next year: ${JSON.stringify(y)}`);

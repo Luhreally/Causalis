@@ -12,9 +12,11 @@
 // The world is a fixture (a .json.gz save) or a seed spec "seed:size:complexity"
 // generated fresh and run to year thirty as the arc probe does.
 //
-// OFF=field,draw,cradle switches a lever off for an A/B: the waiting field and
-// hungry hands (137), the reach-wide daily draw (133), the courtship and room
-// behind the ship (132).
+// OFF=field,draw,cradle,match,roomhunger,reach2,reunite switches a lever off
+// for an A/B: the waiting field and hungry hands (137), the reach-wide daily
+// draw (133), the courtship and room behind the ship (132), the town matching
+// its courted singles, the room judged by the hungry share alone, the night
+// rule reaching the whole town, and the couple keeping one home (132).
 //
 // node scripts/transit-probe.cjs <fixture.json.gz | seed:size:complexity> <years> <presses>
 const fs = require("node:fs");
@@ -29,6 +31,10 @@ const off = new Set((process.env.OFF || "").split(",").filter(Boolean));
 if (off.has("field")) rt.get("(() => { fieldSupplyAll = () => 0; fieldHandsFit = () => null; return 1; })()");
 if (off.has("draw")) rt.get("(() => { hearthDraw = () => 0; return 1; })()");
 if (off.has("cradle")) rt.get("(() => { cradleCourtship = () => 0; cradleRoom = () => null; return 1; })()");
+if (off.has("match")) rt.get("(() => { cradleMatch = () => false; return 1; })()");
+if (off.has("roomhunger")) rt.get("(() => { cradleFed = (outlook, hungry) => !!outlook && outlook.larder >= 10 && hungry <= 0.25; return 1; })()");
+if (off.has("reach2")) rt.get("(() => { cradleNightReach = () => 8; return 1; })()");
+if (off.has("reunite")) rt.get("(() => { cradleReunite = () => 0; return 1; })()");
 if (off.size) console.log(JSON.stringify({ off: [...off] }));
 (async () => {
   if (/\.gz$/.test(source)) {
