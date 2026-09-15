@@ -35,6 +35,9 @@ const fixtureSource = String.raw`(() => {
   out.deltaClean = af.delta();
   if (out.deltaClean !== 0) fail("a town without engines strains the sky: " + out.deltaClean);
   know("mechanization", "combustion", "electricity");
+  out.deltaKnownOnly = af.delta();
+  if (out.deltaKnownOnly !== 0) fail("a town that knows engines but has no factory strains the sky: " + out.deltaKnownOnly);
+  if (!complete("factory")) fail("fixture could not build a factory");
   out.deltaIndustry = +af.delta().toFixed(3);
   if (!(out.deltaIndustry > 0.07)) fail("engines, combustion, and current do not strain the sky: " + out.deltaIndustry);
   let strain = 0;

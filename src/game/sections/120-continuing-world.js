@@ -78,14 +78,14 @@ function continuingResearchTown(id, towns = W.settlements.filter((s) => !s.ruine
 // half its years were forced dry, its plants and crops died with the ground,
 // and it starved from year 92 to 20 people by 117 on every variant of every
 // lever behind the ship; with the forced spells off it stood at 117 people at
-// year 107 with nobody starved. While the sky is hazed or worse (strain at or
-// past STRAIN_EASED; the forced spells begin at 0.3, and every measured world
-// launches under a sky of about one, so this is from the first press) the
-// continuing inquiry leads with the crafts that ease it, Planetary
+// year 107 with nobody starved. While the sky can force a spell (strain at or
+// past STRAIN_FORCING, 0.3; every measured world launches past it, so this is
+// from the first press) the continuing inquiry leads with the crafts that
+// ease it, Planetary
 // Stewardship, Ecological Engineering and then Fusion, and a sky craft is not
-// done when one town knows it: every town with engines lays its own strain,
-// so the push goes on, town by town, until each straining town knows the
-// craft or the sky has cleared. Stewardship is first because it is the prior
+// done when one town knows it: every town with a factory lays its own strain
+// (91, industrialTown), so the push goes on, town by town, until each such
+// town knows the craft or the sky has cleared. Stewardship is first because it is the prior
 // Ecological Engineering needs and the villages never hold it: on battery
 // causal-origin the two cities knew it at the launch and the three villages
 // that took engines, combustion and current by teaching did not, so the
@@ -101,10 +101,11 @@ function continuingResearchTown(id, towns = W.settlements.filter((s) => !s.ruine
 const CONTINUING_SKY_CRAFTS = Object.freeze(["planetary_stewardship", "ecological_engineering", "fusion"]),
   CONTINUING_STRAINING = Object.freeze(["mechanization", "combustion", "electricity"]);
 function continuingStrainingTowns() {
+  if (typeof industrialTowns === "function") return industrialTowns();
   return W.settlements.filter((s) => !s.ruined && s.knownProcesses && CONTINUING_STRAINING.some((t) => s.knownProcesses.includes(t)));
 }
 function continuingSkyStrained() {
-  return typeof STRAIN_EASED === "number" && (W.afternoon?.strain || 0) >= STRAIN_EASED;
+  return (W.afternoon?.strain || 0) >= (typeof STRAIN_FORCING === "number" ? STRAIN_FORCING : 0.3);
 }
 function continuingSkyDone(id) {
   const towns = continuingStrainingTowns();

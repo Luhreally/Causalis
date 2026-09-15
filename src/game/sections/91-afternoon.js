@@ -33,6 +33,15 @@
 // and current spread to the villages faster than the craft did: causal-origin
 // eased to 1.18 and then climbed back to the cap by year 94 and starved as
 // before, and ship-c held at 2.2 for thirty years.)
+//
+// Industry strains the sky where it runs: a town lays its part, and eases it,
+// only while it has a finished factory. A village of four that had taken
+// engines, combustion and current by teaching (30f) laid 0.08 a year like the
+// city, and could take no relief, because Stewardship is practised at an
+// archive and the craft that eases the sky at a hall, and it had neither: on
+// battery ship-c the effort pushed Stewardship at such villages for fourteen
+// years while the sky climbed from 0.96 to 1.78. The works foul the sky; the
+// works run cleaner where the town knows the crafts.
 const STRAIN_PER_ENGINE_TOWN = 0.02,
   STRAIN_PER_COMBUSTION_TOWN = 0.03,
   STRAIN_PER_ELECTRIC_TOWN = 0.03,
@@ -43,6 +52,7 @@ const STRAIN_PER_ENGINE_TOWN = 0.02,
   STRAIN_MAX = 3,
   STRAIN_HEAVY = 1,
   STRAIN_EASED = 0.5,
+  STRAIN_FORCING = 0.3, // from here the sky can force a drought or a heat wave
   STATION_YEARS = 10,
   STATION_MAX = 3,
   EPILOGUE_DECADE = TICKS_PER_YEAR * 10;
@@ -69,10 +79,18 @@ restoreWorldDefaults = function () {
   ensureAfternoon(W);
 };
 // ── Climate strain ────────────────────────────────────────────────────────────
+// An industrial town: a living town with a finished factory that knows an
+// engine craft. Its part on the sky, and the crafts that ease it, count here.
+const STRAIN_ENGINE_CRAFTS = Object.freeze(["mechanization", "combustion", "electricity"]);
+function industrialTown(s) {
+  return !!s && !s.ruined && !!s.knownProcesses && STRAIN_ENGINE_CRAFTS.some((t) => s.knownProcesses.includes(t)) && completedBuildings(s, "factory").length > 0;
+}
+function industrialTowns() {
+  return (W?.settlements || []).filter(industrialTown);
+}
 function industrialStrainDelta() {
   let delta = 0;
-  for (const s of W.settlements) {
-    if (s.ruined || !s.knownProcesses) continue;
+  for (const s of industrialTowns()) {
     const k = s.knownProcesses;
     if (k.includes("mechanization")) delta += STRAIN_PER_ENGINE_TOWN;
     if (k.includes("combustion")) delta += STRAIN_PER_COMBUSTION_TOWN;
@@ -90,7 +108,7 @@ function updateClimateStrain() {
     before = a.strain;
   a.strain = clamp(a.strain * STRAIN_DECAY + industrialStrainDelta(), 0, STRAIN_MAX);
   a.peakStrain = Math.max(a.peakStrain, a.strain);
-  const lead = W.settlements.filter((s) => !s.ruined && s.knownProcesses?.includes("mechanization")).sort((x, y) => settlementPopulation(y) - settlementPopulation(x))[0];
+  const lead = industrialTowns().sort((x, y) => settlementPopulation(y) - settlementPopulation(x))[0];
   if (!a.heavy && a.strain >= STRAIN_HEAVY) {
     a.heavy = true;
     const ev = emitEvent("ClimateEvent", {
@@ -98,7 +116,7 @@ function updateClimateStrain() {
       location: lead ? idx(lead.x, lead.y) : -1,
       factions: lead?.factionId ? [lead.factionId] : [],
       causes: [W.lastEventByType.TechAdvanceEvent].filter(Boolean),
-      evidence: [`strain ${a.strain.toFixed(2)} on the sky`, `${W.settlements.filter((s) => !s.ruined && s.knownProcesses?.includes("mechanization")).length} engine towns`],
+      evidence: [`strain ${a.strain.toFixed(2)} on the sky`, `${industrialTowns().length} engine towns`],
       importance: 4,
       data: { strain: +a.strain.toFixed(2), word: strainWord(a.strain), place: lead?.name || "" },
     });
@@ -122,7 +140,7 @@ function updateClimateStrain() {
 // A strained sky tips the season toward drought and heat.
 function strainedWeatherRoll(cycle = Math.floor(W.tick / 256)) {
   const a = W.afternoon;
-  if (!a || a.strain < 0.3) return null;
+  if (!a || a.strain < STRAIN_FORCING) return null;
   const chance = Math.min(0.5, a.strain * 0.2);
   if (counterRand("strain-weather", cycle) >= chance) return null;
   return counterRand("strain-kind", cycle) < 0.5 ? "Drought" : "Heat Wave";
