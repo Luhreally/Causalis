@@ -18,15 +18,19 @@
 //
 // Tried and withdrawn (HANDOFF §11): a full meal of three servings at home,
 // which drained the store the skyline's blocks draw ORGANIC from and, before
-// it spared the seed corn, left the fields fallow — no ship on either seed;
-// and counting the granary's residents within this same reach instead of
-// seven tiles, which reads a city honestly (Zephyrford's hungry share went
-// from nought to two in three) but braked the world — on causal-origin no ship
-// in two hundred and ninety years. The readings stay as 82 left them.
+// it spared the seed corn, left the fields fallow — no ship on either seed.
+//
+// Behind the ship only (132's shipHasLeft), the granary's residents are the
+// members within this same reach: the seven-tile reading of 82 saw six of
+// Zephyrford's thirty-eight and called it fed, with a hungry share of nought,
+// while the hub kept calling villagers in and households kept migrating toward
+// its "fed" store. Honest readings before the ship braked the world — on
+// causal-origin no ship in two hundred and ninety years — so the village keeps
+// its seven tiles until the ship has gone.
 const HEARTH_REACH_MIN = 8,
   HEARTH_REACH_MAX = 24,
   HEARTH_REACH_MARGIN = 2;
-const HEARTH = { homeMeals: 0 };
+const HEARTH = { homeMeals: 0, seedKept: 0 };
 let hearthReachCache = { world: null, tick: -1, values: new Map() };
 function hearthReach(town) {
   if (!town || town.ruined) return HEARTH_REACH_MIN;
@@ -41,6 +45,19 @@ function hearthReach(town) {
   hearthReachCache.values.set(town.id, reach);
   return reach;
 }
+// The seed corn is not a meal. The granary keeps back enough organic to sow
+// the fallow fields (82's seedReserve) from its daily draw, but the meal at
+// home (117) took from the store down to nothing, and behind the ship a town
+// in famine ate its seed, could not sow, and lay fallow into the next famine:
+// on the post-ship battery fixture Zephyrford's store stood at nought for eight
+// years with three of six fields fallow and sowing failing a hundred times a
+// year. A store at or under its seed reserve feeds nobody at home; the hungry
+// forage or walk to a fed store as they did before there were rations.
+function hearthSpareFood(home, sp) {
+  const held = home.inventory?.[sp] || 0;
+  if (sp !== C.ORGANIC || typeof seedReserve !== "function") return held;
+  return Math.max(0, held - seedReserve(home));
+}
 const homeRationPlaceHearthBase = homeRationPlace;
 homeRationPlace = function (id, sp = C.ORGANIC) {
   const soc = W.components.social[id],
@@ -49,7 +66,7 @@ homeRationPlace = function (id, sp = C.ORGANIC) {
     const home = W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined);
     if (
       home &&
-      (home.inventory?.[sp] || 0) > 0 &&
+      hearthSpareFood(home, sp) > 0 &&
       !(typeof personIsHostileVisitor === "function" && personIsHostileVisitor(id, home.factionId))
     ) {
       const reach = hearthReach(home);
@@ -59,9 +76,31 @@ homeRationPlace = function (id, sp = C.ORGANIC) {
       }
     }
   }
-  return homeRationPlaceHearthBase(id, sp);
+  const place = homeRationPlaceHearthBase(id, sp);
+  if (place && hearthSpareFood(place, sp) <= 0) {
+    HEARTH.seedKept++;
+    return null;
+  }
+  return place;
+};
+let hearthResidentsCache = { world: null, tick: -1, values: new Map() };
+const granaryResidentsHearthBase = granaryResidents;
+granaryResidents = function (place) {
+  if (!place || place.ruined || !place.knownProcesses || !shipHasLeft()) return granaryResidentsHearthBase(place);
+  if (hearthResidentsCache.world !== W || hearthResidentsCache.tick !== W.tick)
+    hearthResidentsCache = { world: W, tick: W.tick, values: new Map() };
+  const cached = hearthResidentsCache.values.get(place.id);
+  if (cached) return cached.slice();
+  const reach = hearthReach(place),
+    out = [];
+  for (const id of entityAtRadius(idx(place.x, place.y), reach, KINDS.PERSON))
+    if (classifyAlive(id) && W.components.social[id]?.homePlaceId === place.id) out.push(id);
+  out.sort((a, b) => a - b);
+  hearthResidentsCache.values.set(place.id, out);
+  return out.slice();
 };
 window.ALIFE_HEARTH_DEBUG = Object.freeze({
   reach: (townId) => hearthReach(W.settlements.find((s) => s.id === townId)),
+  residents: (townId) => granaryResidents(W.settlements.find((s) => s.id === townId)).length,
   counts: () => ({ ...HEARTH }),
 });

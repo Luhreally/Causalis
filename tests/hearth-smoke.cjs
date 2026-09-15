@@ -2,8 +2,8 @@
 // building, never under eight nor over twenty-four; a resident standing
 // fourteen tiles from the hall is fed from home once the town has built out
 // that far, and not before; the meal moves rations from the store into the
-// eater; a stranger's meal is judged as before; and reading the reach never
-// writes the world.
+// eater; a store at its seed reserve feeds nobody at home; a stranger's meal
+// is judged as before; and reading the reach never writes the world.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
@@ -52,6 +52,17 @@ const fixtureSource = String.raw`(() => {
   if (worldHash() !== before) fail("reading the reach wrote the world");
   out.farAfter = homeRationPlace(a)?.id || 0;
   if (out.farAfter !== s.id) fail("a resident fourteen tiles out is not fed from home once the town reaches him: " + out.farAfter);
+  // The granary counts him among its residents only behind the ship.
+  rebuildSpatialBins();
+  W.tick++;
+  out.residentBeforeShip = granaryResidents(s).includes(a);
+  if (out.residentBeforeShip) fail("a member fourteen tiles out was counted among the residents before any ship had left");
+  W.ascensions.push({ id: 1, settlementId: s.id, factionId: s.factionId || 0, buildingId: 0, tile: idx(s.x, s.y), tick: W.tick, eventId: 0, first: true });
+  W.tick++;
+  out.residentBehindShip = granaryResidents(s).includes(a);
+  if (!out.residentBehindShip) fail("a member fourteen tiles out is not counted among the residents behind the ship");
+  W.ascensions.pop();
+  W.tick++;
   // The meal moves rations from the store into the eater.
   // On bare ground, so the mouthful cannot come from underfoot.
   const digestive = W.components.inventory[a].digestive, ateBefore = digestive[C.ORGANIC], storeBefore = s.inventory[C.ORGANIC], tile = idx(p.x, p.y),
@@ -62,6 +73,18 @@ const fixtureSource = String.raw`(() => {
   out.moved = [digestive[C.ORGANIC] - ateBefore, storeBefore - s.inventory[C.ORGANIC]];
   [W.tiles.chem[C.ORGANIC][tile], W.tiles.chem[C.ENERGY][tile], W.tiles.plantOrder[tile]] = ground;
   if (!out.fed || out.moved[0] <= 0 || out.moved[0] !== out.moved[1]) fail("the meal did not move rations from the store to the eater: " + JSON.stringify(out.moved));
+  // The seed corn is not a meal: a store at its seed reserve feeds nobody at home.
+  const savedStore = s.inventory[C.ORGANIC];
+  const fallowField = cultivatedField(W.buildings.find((b) => b.type === "farm" && b.placeId === s.id && !b.ruined) || planBuilding(s, "farm", 9));
+  if (fallowField) fallowField.stage = "fallow";
+  out.seedReserve = seedReserve(s);
+  s.inventory[C.ORGANIC] = out.seedReserve;
+  out.fedAtSeed = homeRationPlace(a)?.id || 0;
+  if (out.seedReserve > 0 && out.fedAtSeed === s.id) fail("a store at its seed reserve fed a resident at home");
+  s.inventory[C.ORGANIC] = out.seedReserve + 5;
+  out.fedAboveSeed = homeRationPlace(a)?.id || 0;
+  if (out.fedAboveSeed !== s.id) fail("a store above its seed reserve did not feed a resident at home");
+  s.inventory[C.ORGANIC] = savedStore;
   // A stranger to the town is judged as before.
   soc.homePlaceId = s.id + 1000;
   out.stranger = homeRationPlace(a)?.id || 0;
