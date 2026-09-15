@@ -2,8 +2,10 @@
 // coupling loop when the survivor is ready and by the sweep for everyone; a
 // living partner is judged as before; and only once a ship has left do
 // partners lie together at home at night within eight tiles, do the single of
-// a town court to a partnership, and does a fed town under the count of its
-// fields pass the tile-count capacity.
+// a town court and get matched by the town within a year and a half (never a
+// single with no years of the window ahead), does a couple parted by the
+// towns keep one home, and does a town with nobody hungry, its store empty,
+// pass the tile-count capacity under the count of its fields.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
@@ -81,27 +83,62 @@ const fixtureSource = String.raw`(() => {
     const pc = W.components.position[c], pd = W.components.position[d];
     put(pc, clamp(s.x - 6, 0, W.width - 1), s.y); put(pd, clamp(s.x + 6, 0, W.width - 1), s.y);
     const attractionBefore = Math.min(sc.relationships?.[d]?.attraction || 0, sd.relationships?.[c]?.attraction || 0);
+    const matched0 = cradle.counts().matched;
+    // A single near the end of the window is courted but not matched.
+    const ld = W.components.life[d], bodyD = W.components.body[d], ageD = ld.age;
+    ld.age = Math.floor(bodyD.maxAge * 0.64);
+    for (let n = 0; n < 40 && !sc.partnerId; n++) cradle.court();
+    out.matchedLate = !!sc.partnerId;
+    if (out.matchedLate) fail("the town matched a single with no years of the window ahead");
+    ld.age = ageD;
     out.courted = cradle.court();
     if (!(out.courted > 0)) fail("nobody courted");
-    let bonded = false;
-    for (let n = 0; n < 400 && !bonded; n++) { cradle.court(); bonded = !!sc.partnerId || !!sd.partnerId; }
+    let bonded = false, rounds = 1;
+    for (let n = 0; n < 400 && !bonded; n++) { cradle.court(); rounds++; bonded = !!sc.partnerId || !!sd.partnerId; }
     out.attractionAfter = +Math.min(sc.relationships?.[d]?.attraction || 0, sd.relationships?.[c]?.attraction || 0).toFixed(2);
     out.bonded = bonded;
+    out.rounds = rounds;
+    out.matched = cradle.counts().matched - matched0;
     if (!(out.attractionAfter > attractionBefore) && !bonded) fail("courting did not draw two singles of different houses closer: " + attractionBefore + " -> " + out.attractionAfter);
     if (!bonded) fail("four hundred courtships made no partnership: attraction " + out.attractionAfter);
+    // The town matches a courted pair within a few rounds of the match's count, not after years.
+    if (rounds > cradle.matchCourtings() + 8) fail("the town did not match the courted pair: " + rounds + " rounds for " + cradle.matchCourtings());
+    if (out.matched !== 1) fail("the match was not counted: " + out.matched);
+    if (sc.partnerId !== d || sd.partnerId !== c) fail("the matched pair are not each other's partner");
+  }
+  // A couple parted by the towns keeps one home behind the ship: the later-born takes the elder's town.
+  {
+    const [c, d] = singles, sc = W.components.social[c], sd = W.components.social[d];
+    if (sc.partnerId === d && sd.partnerId === c) {
+      const elder = Math.min(c, d), younger = Math.max(c, d), se = W.components.social[elder], sy = W.components.social[younger];
+      const savedHome = [sy.homePlaceKind, sy.homePlaceId];
+      se.homePlaceKind = "settlement"; se.homePlaceId = s.id;
+      sy.homePlaceKind = "settlement"; sy.homePlaceId = s.id + 1000;
+      W.ascensions.pop();
+      out.reunitedBeforeShip = cradle.reunite();
+      if (out.reunitedBeforeShip !== 0 || sy.homePlaceId !== s.id + 1000) fail("a parted couple was reunited before any ship had left");
+      W.ascensions.push({ id: 1, settlementId: s.id, factionId: s.factionId || 0, buildingId: 0, tile: idx(s.x, s.y), tick: W.tick, eventId: 0, first: true });
+      out.reunited = cradle.reunite();
+      if (out.reunited !== 1 || sy.homePlaceId !== s.id || sy.homePlaceKind !== "settlement") fail("the later-born did not take the elder's town: " + sy.homePlaceKind + " " + sy.homePlaceId);
+      if (se.homePlaceId !== s.id) fail("the elder moved");
+      [sy.homePlaceKind, sy.homePlaceId] = savedHome;
+    } else fail("no matched pair to part");
   }
   // A town with room passes the capacity gate behind the ship, and is judged as before without one.
   const finish = (bld) => { if (bld) { bld.complete = true; bld.stage = 6; bld.integrity = bld.maxIntegrity; bld.completedTick = W.tick; for (const [sp, n] of bld.requirements || []) { W.conservation.playerInput += Math.max(0, n - (bld.composition[sp] || 0)); bld.composition[sp] = n; } } return bld; };
   const complete = (place, type) => finish(planBuilding(place, type, 9) || W.buildings.find((x) => !x.ruined && x.placeKind === "settlement" && x.placeId === place.id && x.type === type && !x.complete));
+  // Fed means nobody hungry, not a full larder: the store is emptied to nothing and the town still has room.
   const hungers = people.map((id) => W.components.life[id].hunger);
   for (const id of people) W.components.life[id].hunger = 20;
-  const grant = 600;
-  s.inventory[C.ORGANIC] = (s.inventory[C.ORGANIC] || 0) + grant;
+  const grant = -(s.inventory[C.ORGANIC] || 0);
+  s.inventory[C.ORGANIC] = 0;
   W.conservation.playerInput += grant;
   W.tick++;
+  out.larder = Math.round(foodOutlook(s)?.larder ?? -1);
   for (let n = 0; n < 12 && cradle.room(s.id).people >= cradle.room(s.id).cap; n++) { if (!complete(s, "farm")) break; W.tick++; }
   out.room = cradle.room(s.id);
   if (!out.room?.room) fail("a fed town under the count of its fields has no room: " + JSON.stringify(out.room));
+  if (!(out.room?.fed) ) fail("a town with nobody hungry did not read as fed with its store empty: " + JSON.stringify(out.room));
   out.allowsRoom = reproductionDensityAllows(a, KINDS.PERSON);
   if (out.allowsRoom !== true) fail("a person of a town with room was refused by the capacity behind the ship");
   W.ascensions.pop();
