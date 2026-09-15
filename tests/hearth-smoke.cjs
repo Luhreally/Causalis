@@ -2,8 +2,9 @@
 // building, never under eight nor over twenty-four; a resident standing
 // fourteen tiles from the hall is fed from home once the town has built out
 // that far, and not before; the meal moves rations from the store into the
-// eater; a store at its seed reserve feeds nobody at home; a stranger's meal
-// is judged as before; and reading the reach never writes the world.
+// eater; behind the ship a store at its seed reserve feeds nobody at home; a
+// stranger's meal is judged as before; and reading the reach never writes the
+// world.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
@@ -79,11 +80,15 @@ const fixtureSource = String.raw`(() => {
   if (fallowField) fallowField.stage = "fallow";
   out.seedReserve = seedReserve(s);
   s.inventory[C.ORGANIC] = out.seedReserve;
+  out.fedAtSeedBeforeShip = homeRationPlace(a)?.id || 0;
+  if (out.seedReserve > 0 && out.fedAtSeedBeforeShip !== s.id) fail("before any ship the seed was kept from a hungry resident");
+  W.ascensions.push({ id: 1, settlementId: s.id, factionId: s.factionId || 0, buildingId: 0, tile: idx(s.x, s.y), tick: W.tick, eventId: 0, first: true });
   out.fedAtSeed = homeRationPlace(a)?.id || 0;
-  if (out.seedReserve > 0 && out.fedAtSeed === s.id) fail("a store at its seed reserve fed a resident at home");
+  if (out.seedReserve > 0 && out.fedAtSeed === s.id) fail("behind the ship a store at its seed reserve fed a resident at home");
   s.inventory[C.ORGANIC] = out.seedReserve + 5;
   out.fedAboveSeed = homeRationPlace(a)?.id || 0;
   if (out.fedAboveSeed !== s.id) fail("a store above its seed reserve did not feed a resident at home");
+  W.ascensions.pop();
   s.inventory[C.ORGANIC] = savedStore;
   // A stranger to the town is judged as before.
   soc.homePlaceId = s.id + 1000;

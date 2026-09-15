@@ -53,9 +53,12 @@ function hearthReach(town) {
 // years with three of six fields fallow and sowing failing a hundred times a
 // year. A store at or under its seed reserve feeds nobody at home; the hungry
 // forage or walk to a fed store as they did before there were rations.
+// Behind the ship only: kept before it, on battery causal-origin the village
+// stores sat under the reserve half the time, nobody ate at home, and the ship
+// that left at year 58 with the rule off never left with it on (HANDOFF §12).
 function hearthSpareFood(home, sp) {
   const held = home.inventory?.[sp] || 0;
-  if (sp !== C.ORGANIC || typeof seedReserve !== "function") return held;
+  if (sp !== C.ORGANIC || typeof seedReserve !== "function" || !shipHasLeft()) return held;
   return Math.max(0, held - seedReserve(home));
 }
 const homeRationPlaceHearthBase = homeRationPlace;
