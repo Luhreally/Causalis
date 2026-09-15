@@ -15,7 +15,7 @@ const rt = loadRuntime(),
   size = process.argv[3] || "battery",
   complexity = process.argv[4] || "lean",
   presses = Number(process.argv[5] || 24);
-// OFF=reach,hinter,adopt,mourn,seed,ferry,gated turns the named later sections back to their
+// OFF=reach,hinter,adopt,mourn,seed,ferry,gated,draw,field turns the named later sections back to their
 // bases, for an A/B on the same seed.
 const off = new Set(String(process.env.OFF || "").split(",").filter(Boolean));
 const resets = {
@@ -26,9 +26,14 @@ const resets = {
   seed: "hearthSpareFood = function (home, sp) { return home.inventory?.[sp] || 0; }",
   ferry: "startRoadLink = startRoadLinkFerryBase",
   gated: "shipHasLeft = function () { return false; }",
+  draw: "hearthDraw = () => 0",
+  field: "fieldSupplyAll = () => 0, fieldHandsFit = () => null",
 };
 for (const k of off) { if (!resets[k]) throw new Error("unknown OFF " + k); rt.get("(() => { " + resets[k] + "; return 1; })()"); }
-console.log(JSON.stringify({ off: [...off] }));
+// MUCKFERT=15 lets a town whose fields average under that fertility cart muck before the ship (134).
+const muckFert = Number(process.env.MUCKFERT || 0);
+if (muckFert > 0) rt.get("(() => { MUCK_POOR_FIELDS = " + muckFert + "; return 1; })()");
+console.log(JSON.stringify({ off: [...off], muckFert }));
 rt.game.createTestWorld({ seed, size, complexity });
 const tick = rt.get("simTick"),
   year = rt.get("TICKS_PER_YEAR");
@@ -52,7 +57,9 @@ const press = `(() => {
     const f = completedBuildings(s, "farm").length, pop = settlementPopulation(s), o = foodOutlook(s);
     farms += f; store += s.inventory[C.ORGANIC] || 0; townPeople += pop; hungryPeople += (o?.hungry || 0) * pop;
     for (const b of completedBuildings(s, "farm")) { const fld = cultivatedField(b); if (fld) stages[fld.stage] = (stages[fld.stage] || 0) + 1; }
-    rows.push(s.name.slice(0, 7) + ":" + pop + "/" + f + (o?.famine ? "F" : o?.lean ? "L" : ""));
+    // The average fertility of the town's field tiles, as the muck (134) reads it.
+    const fert = window.ALIFE_MUCK_DEBUG ? window.ALIFE_MUCK_DEBUG.fields(s.id) : [], avgFert = fert.length ? Math.round(fert.reduce((n, q) => n + q.fertility, 0) / fert.length) : null;
+    rows.push(s.name.slice(0, 7) + ":" + pop + "/" + f + (o?.famine ? "F" : o?.lean ? "L" : "") + (avgFert === null ? "" : " fert" + avgFert));
   }
   const years = (W.tick - tick0) / TICKS_PER_YEAR;
   return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), years: +years.toFixed(1), stop: r.stopReason, milestone: (r.milestone?.label || "").slice(0, 30),
