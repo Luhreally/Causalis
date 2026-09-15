@@ -1138,9 +1138,118 @@ courtships, births) and do not change the outcome. The next honest lever is
 labour in a famine town: the seventh field and its water, and hands fit to sow
 at the hunger they actually have.
 
+### 13. Inside the press behind the ship: the draw, the waiting field, the twelve-year voyage (2026-09-14, latest; battery and phone only)
+
+Three items asked for in order, each measured on generated worlds with
+`scripts/transit-probe.cjs <seed:size:complexity> <years> <presses>`, which
+steps the voyage press a year at a time and reads births, deaths by cause,
+every town's fields and store, the cradle's and the field's counters, and the
+ships; `OFF=field,draw,cradle` turns a lever off for an A/B on the same seed.
+Read A/B pairs by their thirty-year totals of births and deaths, not by a
+year: the runs diverge by chaos from the first courtship.
+
+**What the press delivers, and what it did not (item 1).** The effort feeds
+the two hungriest famine towns at four a head and pushes their farms, every
+128 ticks, for the whole voyage; nothing else reaches the home world. The
+ration-why probe counted the hungry of Stonespire and Zephyrford failing the
+meal at home four thousand times a year on a store that read twenty to three
+hundred — the granary's daily draw (30e) had just emptied it to the seed
+reserve into the guts of whoever stood within eight tiles of the hall, and a
+city's residents twelve to twenty tiles out were never in the draw at all.
+Behind the ship the draw now reaches the town's whole reach (133,
+`hearthDraw`): on the battery fixture sixty people became a hundred and three
+inside thirty voyage years, where the old code made eighty-two. The
+hungry-town probe then found two of Flintholl's twelve at hunger ninety-eight
+six tiles from a store of a hundred and fifty: `personIsHostileVisitor` refuses
+the draw to any campaign-flagged member under another flag, and both had kept
+the flag of a conquered polity. A member now takes the town's flag and eats.
+
+**The field that waited (137, all behind the ship).** Zephyrford kept a
+planned farm at stage nought for seven years wanting sixteen of water with
+sixteen in its stores (builders fetch only the rare inputs from the stores);
+Needleford at year fifty-nine held eleven fed people and a fully stocked farm,
+and the stocked-farm probe read every one of them choosing the pushed tower
+block: `selectWorkOrder` gives every hand the one top-scoring order, the
+effort plans its blocks at priority nine (162 + policy) and a famine farm at
+five (90 + 60), so the farm stood stocked and untouched for forty-five years.
+Now, at each push, a farm two years planned has its missing common material
+placed at the face (24 a push, the player's input); its order scores two
+hundred above any other in its town; and a resident too hungry for the labour
+pool but on their feet (68–92) carries its material from the town's stores and
+works the face, within twelve tiles, never gathering. The first version let
+hungry hands go gathering and walk to any site: on phone ship-c they walked
+toward Ple Chyp's stocked farm a thousand ticks a year for twenty-five years
+and built nothing, because the plot lay past ground a walker cannot cross —
+the tower-block fault of 128 again. A plot the hall cannot reach
+(`openGroundPlotReachable`) is now none of these; two years planned it falls to
+rubble, and the next farm is sited on open ground the town can walk to.
+
+**Measured (battery causal-origin and ship-c, 70 voyage years, A/B against
+`OFF=field`).** The levers fire — supplied 3 to 45 a year, first place taken
+hundreds to thousands of times, hands at the face — and the arc is within
+chaos of the baseline: causal-origin 78 → 79 (y90) → 15 (y125) with the field
+on, 78 → 70 (y90) → 10 (y126) with it off; ship-c 81 → 80 (y98) → 69 (y132)
+on, 81 → 86 (y98) → 62 (y130) off. Births over y59–y90: 34 with the field on
+against 22 off on causal-origin; deaths 46 against 42.
+
+**Why the home world still dies, named.** `scripts/fertility-probe.cjs` on
+battery causal-origin at year eighty: of seventy-five people, forty-four to
+forty-seven are past the fertile window (0.68 of the lifespan), nine or ten are
+children, five to eleven fail the cradle's room (its "fed" needs a larder of
+ten, and a store drawn daily to the seed reserve rarely reads it), four to six
+are in cooldown, and three to five are eligible — of whom none has an eligible
+partner near. The cradle courts thirty-six to seventy-two pairs a year and one
+or two couple: a bond (42b) needs trust over 0.57, affection over 0.6 and
+attraction over 0.58 both ways; courtship moves trust and affection under one
+per cent an update, and attraction is fixed. Old age takes one to three a
+year; births are nought to three. The famine of the hundred-and-tens finishes
+what the empty cradle began. The next honest lever is the cradle — bonds, and
+room by the hungry share rather than the larder — not food or fields.
+
+**The five worlds that die before any ship (item 2).** The food-balance probe
+now prints every town's average field fertility. Phone variety-2 launches
+(year 78, over the ferry of §12) and phone variety-6 launches at 149 after a
+collapse to seventeen at 120; they are no longer on the list. Battery
+variety-1 collapses at 113 with fertile fields (41–44) and nobody hungry;
+battery variety-4 and phone ship-c have exhausted fields (8–18 in the big
+towns). The muck gated on fertility rather than the ship (134,
+`MUCK_POOR_FIELDS`, set with `MUCKFERT=15`) raised variety-4's fields from 8–18
+to 15–25 and did not move its collapse (52 → 23 at year 106 either way, with
+stores of a hundred to six hundred and a hungry share of nought); on phone
+ship-c the big city's fields read 17–18 and the gate never opened; the fertile
+control, battery causal-origin, still launches at 58. The switch stays at
+nought. What kills them, by the transit probe's death causes over the whole
+arc (year 34 to the collapse): battery variety-1 bore 55 and buried 108 — 50
+of old age, 38 of starvation, the rest in war — peaking at 86 in year 71;
+battery variety-4 bore 34 and buried 108 (56 old age, 24 starvation, 26 war),
+peaking at 89 in year 57; phone variety-6 bore 44 and buried 117 (47 old age,
+49 starvation, 21 war), peaking at 97 in year 82. Phone ship-c is the one
+world that starves outright: 109 born, 178 dead, 110 of them of starvation,
+from a peak of 133 in year 83 with a city of fifty-eight on eleven fields at
+fertility 17 — the muck gate at 15 never opened for it, and a second A/B at
+MUCKFERT=20 is the one measurement still worth taking. Everywhere else the
+shape is the one behind the ship: the founders age out together and the
+cradle does not refill, and the ship comes too late for what is left.
+
+**The voyage press (item 3).** One press ran from year 59 to 104 on battery
+causal-origin and came back to fifty-four people from seventy-eight with
+nothing said of the years between. A voyage press now runs twelve years at
+most, or to the arrival when that is nearer (131), and its result adds a line
+after the ship's: "At home: 65 people in 6 towns; Flinthollow is 7 in 10
+hungry." Nothing in the simulation changes; the same ticks run.
+
+**Suite** at 107 (`test:waiting-field` added). Pre-ship code is untouched
+except the muck switch at its default, so §12's launch sweeps stand.
+
 ## The recent commits, newest first
 
 ```
+703f75c  A voyage press runs twelve years at most and says how the home world stands
+a652fa7  The field that waited for water: supplied by the effort, first in every hand's choice, built by hungry hands, and given up when the town cannot walk to it
+785df28  A switch for the muck before the ship, gated on the fields' fertility
+9dd6e14  The daily draw reaches the whole town behind the ship, and the member the draw refused
+bc97173  Probes for the press behind the ship: what the effort delivers, why a meal fails, where the store goes, who is fertile, why a stocked farm stands
+a1ca367  Record the round behind the ship: the gated levers, the tile leak, and the island world's roads
 e6b4108  Switches for the seed guard, the ferry, and the whole gate on both probes
 63a44c6  Keep the seed corn from the meal only behind the ship
 c79488a  Probes that name a leak's species, its calls, and its gainer; a road probe; a post-ship probe
