@@ -1057,9 +1057,97 @@ this batch was judged: `food-balance-probe` with the change switched off on the
 same seed, then the eleven-seed sweep on battery and phone, launches counted,
 not years.
 
+### 12. Behind the ship, a leak, and an island world (2026-09-14, later; battery and phone only)
+
+Three follow-ups to §11, each measured before it was kept.
+
+**The withdrawn levers run behind the ship, and not before (132, 133, 134).**
+Every lever of §11 that grew the world before year seventy cost the ship, so
+they run once a ship has left (`shipHasLeft`, read by all three sections):
+partners at home lying together at night within eight tiles, the single of a
+town courting, a fed town under the count of its fields passing the tile-count
+capacity, the granary counting its residents within the town's reach, and the
+muck of the town's bare ground going back to its exhausted fields (134,
+recreated with the bare-ground rule). `scripts/postship-probe.cjs` on the
+battery fixture: field fertility from twenty to thirty-five in two years,
+courtships and room passes in the hundreds, births from nought to four a year
+where there had been nought to one. And the seed corn is not a meal: the meal
+at home took the store to nothing, and a famine town that has eaten its seed
+lies fallow into the next famine (Zephyrford's store at nought for eight years
+with three of six fields fallow); a store at or under its seed reserve feeds
+nobody at home (133). `scripts/arc-probe.cjs` on three battery seeds with the
+gated set showed the same post-ship trajectory as without it — the decline is
+food, not births: fields exhausted, hands too hungry to labour, a seventh
+field wanting sixteen of water for eight years — so the gated levers are kept
+for what they do and not credited with survival.
+
+**The matter drift was in the tile setter (13).** `setTileMatterAmount` kept
+a rule for the caller who read a column under its cap, never saw the overflow
+record, and set the column plus a little: the record folded back. At the cap
+the caller had read column and record together and set the total, and folding
+the record back made the units it consumed out of nothing. Found in three
+steps, each a probe now under `scripts/`: `leak-who-probe` (which species'
+world total moved and who gained it — herbivores, sixteen of a record-only
+species at a time), `leak-net-probe` (each entity's total against the tiles
+round it — the people "collecting by hand" gaining eight their tile never lost)
+and `leak-trace-probe` (every helper call on the species with the record
+before and after and the section frames above it — fibre curing on a saturated
+organic tile with eight on record: 65,543 less eight set, eight kept). The
+record is spent first when the column was at the cap; the cohort test asserts
+it. phone variety-8 runs to year 99 at drift nought where it drifted eighty at
+year 75.
+
+**An island world lays no roads (136).** Phone ship-b stood from year 105 to
+119 a single requirement short of its ship — "a paved road or rail between two
+towns" — with a hundred and fifteen people, fed, a polity of three towns that
+knew the craft twenty-two to forty-nine tiles apart, and not one road link in
+the world: `scripts/road-probe.cjs` showed the pathfinder finding no land
+between any two of them. When no land joins two towns the link takes the sea
+road (59): paving already skips deep water and counts it as bridged, so the
+shore tiles are paved and the crossing is left to the boats; the link and its
+chronicle say so. Phone ship-b launches at year 79 over four ferried roads.
+
+**The seed guard before the ship cost a launch, and was gated too.** Measured
+with the probe's `OFF=seed` switch on battery causal-origin: the world that
+launches at year 58 with the guard off did not launch with it on (forty people
+at year 110). Before the ship the village stores sit under the reserve half the
+time and nobody ate at home. It runs behind the ship like the rest. The ferry
+had no effect on that seed's road before the ship (`OFF=ferry`: year 58 either
+way).
+
+**Sweeps on the final code (e6b4108), eleven seeds, 26 presses.** Battery
+launches **9 of 11**: causal-origin y58 (78 people), ship-b 90 (75), ship-c 67
+(81), variety-2 90 (63), variety-3 76 (62), variety-5 89 (74), variety-6 115
+(82), variety-7 113 (56), variety-8 113 (76); variety-1 and -4 collapse. That
+is the shipped set of §11 plus variety-3 (up from 8 of 11; a0624e3 had 9 of
+11), and the years and counts are the same seed for seed, because everything
+in this round runs behind the ship or fixes a rare tile. Phone launches **8 of
+11**: causal-origin y88 (133), ship-b 65 (135), variety-1 76 (130), variety-3
+90 (58), variety-4 97 (87), variety-5 64 (146), variety-7 78 (131), variety-8
+71 (132); ship-c, variety-2 and variety-6 collapse. Up from 7 of 11 (§11);
+a0624e3 had 9. The ferry gave ship-b (none by y119 → 65), variety-3 and
+variety-8 their ships, and the leak fix let variety-8's probe finish at all.
+The drift is nought in every one of the twenty-two runs.
+
+**Still open.** Behind the ship the world declines on every battery seed
+measured, later than it did but not held: the founders die together, and the
+towns' fields, hands and stores are the constraint — a seventh field wanting
+sixteen of water for eight years, hands too hungry to labour, a store eaten to
+nothing. The gated levers move what they were built to move (fertility,
+courtships, births) and do not change the outcome. The next honest lever is
+labour in a famine town: the seventh field and its water, and hands fit to sow
+at the hunger they actually have.
+
 ## The recent commits, newest first
 
 ```
+e6b4108  Switches for the seed guard, the ferry, and the whole gate on both probes
+63a44c6  Keep the seed corn from the meal only behind the ship
+c79488a  Probes that name a leak's species, its calls, and its gainer; a road probe; a post-ship probe
+45a4657  Let a road cross the water
+55f051d  Behind the ship, the town bears its own children, carts its muck to the fields, counts its people honestly, and keeps its seed
+187c129  Spend a saturated tile's overflow record when a caller sets the total under the cap
+52ca235  Record why the home world dies behind the ship, and which levers cost the ship
 64e20a7  Give the sweep probe the same switches as the food-balance probe
 8f8e661  Let a grown town lay fields past the seventh tile, and let a starving town take in no strangers
 2e61d1a  Mourn a partner who is dead or gone, and eat at home wherever the town reaches
