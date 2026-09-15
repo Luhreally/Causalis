@@ -49,7 +49,16 @@ const report = `(() => {
   const guts0 = members.reduce((n, id) => n + (W.components.inventory[id]?.digestive?.[C.ORGANIC] || 0), 0);
   const bodies0 = members.reduce((n, id) => n + (W.components.chemistry[id]?.q[C.ORGANIC] || 0), 0);
   const unitGuts0 = (W.militaryUnits || []).filter((u) => u.active && u.homeSettlementId === town.id).flatMap((u) => u.memberIds).reduce((n, id) => n + (W.components.inventory[id]?.digestive?.[C.ORGANIC] || 0), 0);
-  const store0 = store(), o0 = foodOutlook(town);
+  const fed0 = Object.fromEntries(members.map((id) => [id, (W.components.inventory[id]?.digestive?.[C.ORGANIC] || 0) + (W.components.chemistry[id]?.q[C.ORGANIC] || 0) + (W.components.chemistry[id]?.q[C.ENERGY] || 0)]));
+  // Every person within sixteen tiles of the hall, member or not: who gains.
+  const nearby = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.position[id] && dist2(W.components.position[id].x, W.components.position[id].y, town.x, town.y) <= 16 * 16);
+  const total = (id) => (W.components.inventory[id]?.digestive?.[C.ORGANIC] || 0) + (W.components.chemistry[id]?.q[C.ORGANIC] || 0) + (W.components.chemistry[id]?.q[C.ENERGY] || 0);
+  const near0 = Object.fromEntries(nearby.map((id) => [id, total(id)]));
+  const beasts = W.activeIds.filter((id) => (W.kind[id] === KINDS.HERBIVORE || W.kind[id] === KINDS.PREDATOR) && classifyAlive(id) && W.components.position[id] && dist2(W.components.position[id].x, W.components.position[id].y, town.x, town.y) <= 16 * 16);
+  const beast0 = Object.fromEntries(beasts.map((id) => [id, total(id)]));
+  const farPeople = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.position[id] && dist2(W.components.position[id].x, W.components.position[id].y, town.x, town.y) > 16 * 16);
+  const far0 = Object.fromEntries(farPeople.map((id) => [id, total(id)]));
+  const store0 = store(), o0 = foodOutlook(town), cap0 = rationCap(town);
   const audit0 = auditMatter().delta, tiles0 = (() => { let n = 0; for (let i = 0; i < W.tileCount; i++) n += W.tiles.chem[C.ORGANIC][i]; return n; })();
   let perTick = [];
   for (let i = 0; i < 32; i++) { const a = store(); simTick(); perTick.push(store() - a); }
@@ -59,7 +68,13 @@ const report = `(() => {
   const unitGuts1 = (W.militaryUnits || []).filter((u) => u.active && u.homeSettlementId === town.id).flatMap((u) => u.memberIds).reduce((n, id) => n + (W.components.inventory[id]?.digestive?.[C.ORGANIC] || 0), 0);
   const tiles1 = (() => { let n = 0; for (let i = 0; i < W.tileCount; i++) n += W.tiles.chem[C.ORGANIC][i]; return n; })();
   const outSum = Object.values(book).reduce((n, b) => n + b.out, 0), inSum = Object.values(book).reduce((n, b) => n + b.in, 0);
-  return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), town: town.name, pop: settlementPopulation(town), members: members.length, residents: granaryResidents(town).length, outlook: { larder: Math.round(o0.larder), hungry: +o0.hungry.toFixed(2), lean: o0.lean, famine: o0.famine }, cap: rationCap(town), seed: seedReserve(town), store: store0 + " -> " + store(), byPhase: book, attributedOut: outSum, attributedIn: inSum, residualOut: (store0 - store()) - (outSum - inSum), memberGuts: guts0 + " -> " + guts1, memberBodies: bodies0 + " -> " + bodies1, unitGuts: unitGuts0 + " -> " + unitGuts1, tilesOrganic: tiles0 + " -> " + tiles1, audit: auditMatter().delta - audit0, perTick });
+  const membersFed = members.filter((id) => (W.components.inventory[id]?.digestive?.[C.ORGANIC] || 0) + (W.components.chemistry[id]?.q[C.ORGANIC] || 0) + (W.components.chemistry[id]?.q[C.ENERGY] || 0) > fed0[id]).length;
+  const gainers = nearby.map((id) => ({ id, gain: total(id) - near0[id] })).filter((g) => g.gain > 0).sort((a, b) => b.gain - a.gain).slice(0, 12).map((g) => { const soc = W.components.social[g.id], p = W.components.position[g.id], home = soc?.homePlaceKind === "settlement" ? W.settlements.find((s) => s.id === soc.homePlaceId) : null; return g.id + ":+" + g.gain + " home=" + (home ? home.name.slice(0, 8) : soc?.homePlaceKind || "none") + " d" + Math.round(Math.sqrt(dist2(p.x, p.y, town.x, town.y))) + (soc?.unitId ? " unit" + soc.unitId : "") + (W.components.campaign?.[g.id] ? " campaign" : "") + " h" + Math.round(W.components.life[g.id]?.hunger || 0) + " gut" + (W.components.inventory[g.id]?.digestive?.[C.ORGANIC] || 0); });
+  const nearbyGain = nearby.reduce((n, id) => n + Math.max(0, total(id) - near0[id]), 0);
+  const beasts1 = beasts.reduce((n, id) => n + Math.max(0, total(id) - beast0[id]), 0);
+  const farPeople1 = farPeople.reduce((n, id) => n + Math.max(0, total(id) - far0[id]), 0);
+  const corrals = W.buildings.filter((b) => !b.ruined && b.complete && b.placeKind === "settlement" && b.placeId === town.id && b.type === "corral").length;
+  return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), town: town.name, pop: settlementPopulation(town), members: members.length, residents: granaryResidents(town).length, membersFed, nearby: nearby.length, nearbyGain, beasts: beasts.length, beastGain: beasts1, farPeople: farPeople.length, farPeopleGain: farPeople1, corrals, gainers, outlook: { larder: Math.round(o0.larder), hungry: +o0.hungry.toFixed(2), lean: o0.lean, famine: o0.famine }, cap: cap0, seed: seedReserve(town), store: store0 + " -> " + store(), byPhase: book, attributedOut: outSum, attributedIn: inSum, residualOut: (store0 - store()) - (outSum - inSum), memberGuts: guts0 + " -> " + guts1, memberBodies: bodies0 + " -> " + bodies1, unitGuts: unitGuts0 + " -> " + unitGuts1, tilesOrganic: tiles0 + " -> " + tiles1, audit: auditMatter().delta - audit0, perTick });
 })()`;
 const r = JSON.parse(rt.get(report));
 console.log(JSON.stringify(r, null, 1).replace(/\n\s*/g, " "));
