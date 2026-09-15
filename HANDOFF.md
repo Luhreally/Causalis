@@ -1370,9 +1370,247 @@ the cap (people per farm from the measured yield, not four) and the far
 tier's stride, which lets one eater take eight meals while the next in line
 starves.
 
+### 15. The sky over the home world: the famine behind the ship is the strained sky, not the people (2026-09-15, later; battery and phone only)
+
+The round was asked for in order: a floor under the cradle from what the
+fields carry, a fair order of eating on a lean world, and the reading of the
+three phone worlds that die before a ship. The first was built three ways,
+measured, and rejected; the second is shipped; the third was read, and the
+reading turned the round: the famine that has ended every measured home
+world behind its ship is not the people outgrowing their fields. It is the
+sky. Battery causal-origin starves between years 92 and 100 whether it
+holds 64, 67, 74, 96 or 116 people at the time, on the oldest arc of section
+10 and on every lever since. An event at a time is not a population level,
+and no cradle lever can touch it.
+
+**Item 1, room from what the fields carry: built three ways, rejected.**
+The first ledger asked every eight ticks whether a town's store above the
+seed reserve held six a head; the daily draw and the meals empty a fed
+town's store by design, so it read every town as short and ship-c lost its
+growth, 72 at year 106 against 90. The second wrote at the daily draw
+whether the ration had half a meal a head to spare, remembered over eight
+days; the same. The third was the ledger the item asked for: every crop
+reaped into a town's store booked to its year, room six plus one for every
+sixty the last year brought in, and a world-level fallback when a town
+stood over its own cap. Measured on battery through year 98 against the
+same code with the lever off: causal-origin born 39 against 46, 77 people
+against 75, and 11 at year 126 either way; ship-c 95 at year 102 against 85
+(98 on the shipped code) with 49 born against 50. The lever cut births on
+the world it was meant to save and did not move the famine by a year. It is
+reverted: 132 stands as it was at a23f72d. The premise in the item, that the
+room cap "lets 110 people stand on 25 farms", is contradicted by the arcs:
+the 64 people of the section 10 arc starved in the same decade.
+
+**Item 2, the order of eating: the daily meal quota, kept (3833751).** A
+person simulated at the far tier's stride of eight eats once a call and is
+called once for everyone else's eight ticks, so the first at the store ate
+for eight before the second was asked, and the store-drain probe read a
+famine town's day of bread, 192, gone in one tick to two mouths. Each
+person may now take one gut's worth, twenty-four, from the stores by meals
+in a day of thirty-two ticks (`hearthHideAbove`, 133): what is above the
+eater's quota, and the seed reserve under it, is hidden from the meal while
+it is eaten and put back after. The drain probe at year 104 reads eight of
+thirteen members fed at the same hall where two of sixteen were, the day's
+bread over nine people; behind-the-ship arcs on battery ship-c stand at 90
+at year 127 against 60 with nineteen starved without it. The same commit
+fixes `hearthSpareFood`, which refused the meal at home whenever the spare
+store was under the seed reserve itself, because the reserve was already
+hidden while the meal was eaten. The alternative in the item, the daily
+draw every eight ticks at a quarter ration, was not needed.
+
+**Item 3, the three phone worlds.** Phone ship-c peaks at 133 in year 83
+and falls to 40 by 114, ninety-three of 158 deaths by starvation; variety-3
+peaks at 95 in year 69, 14 by 95, then 65 by 125, eighty-three of 117 by
+starvation; variety-8 peaks at 113 in year 85 and falls to 52 of war and
+old age, fifty old, twenty-six starved, some forty-six in war. The first
+two are the overshoot famine this section names. The pre-ship room floor
+the item asked about (the third ledger with its switch on before the ship,
+`SPARE=1`) was measured and cost every launch it touched: battery
+causal-origin no ship by year 124 against 58, battery ship-c year 89 with
+51 against 67 with 81, phone causal-origin 49 people at year 85 against a
+launch at 91 with 136, phone ship-c a launch at 82 with 33, variety-3 no
+ship. It is not shipped, and the switch is gone with the ledger.
+
+**What kills causal-origin in year 92: the sky.** Section 91 lays a strain
+on the sky for every town that knows mechanization, combustion or
+electricity, 0.02, 0.03 and 0.03 a year, decaying by a hundredth and a half
+a year with a cap of three. Battery causal-origin's six towns reach a
+strain of 1.29 at the launch and the cap in year 76; ship-c's 0.96 and the
+cap in year 88. At the cap `strainedWeatherRoll` forces a Drought or Heat
+Wave in half of all years (min(0.5, strain x 0.2)), and a spell lasts the
+whole year, because the weather is rolled once every 256 ticks and a year is
+256 ticks: on causal-origin eleven forced spells in the twenty-four years
+from 76 to 100, six dry years in a row from 77 to 82. A dry year lifts the
+land's water into the air (one drought year moved 80,000 of 480,000 into
+`W.reservoirs.atmosphericSolvent`, which stood at 412,000 in year 83),
+kills plants where the ground reads under moisture 15 (19) and fails crops
+under 8 (86): the land's mean moisture fell from 44 at the launch to 20 to
+30, the plants standing on it from 154,000 to 102,000, and `tileFood` is
+plant order times organic, so the hungry seek food and find none. The
+famine probe at year 101 read 5,792 feeding calls at Flintholl for 375
+meals, 167 of 197 hungry samples "seeking food"; the hungry-town probe at
+year 100 read twelve of seventeen members at hunger 92 to 100 with energy 3
+to 38 at the hall, eight of them on a war campaign. The forage column that
+read the tiles' organic as stable through the famine was reading dead
+matter. Ship-c has four times the plants (448,000) and the same fall
+(294,000 by year 98, moisture 31 to 13, three land tiles in four under 16),
+and starves the same way thirty years later: ten starved in the 120s and
+fourteen in the 130s on the shipped code. A/B on `transit-probe` with the
+forced spells switched off (`OFF=sky`): over the whole road, causal-origin
+stands at 117 people in year 107 with nobody starved against 20 in year 117;
+with the switch gated behind the ship so the launch is the same (84 at year
+58), 124 in year 110 with one starved against 59. The cause is settled.
+
+**Why relief never worked, and the fix (1a3d232, cea9769, edab634, and the
+gate).** A town with all three crafts lays 0.08 a year; Stewardship eased
+0.02 and Ecological Engineering 0.05, 0.07 together, so six tended towns
+still laid 0.06 a year and sat at the cap for ever, and only Fusion in every
+town could have brought a sky back. Four changes, each measured on the way,
+because each one alone was not enough, and then a gate.
+
+Ecological Engineering eases 0.12 behind the ship (91). At 0.08 a tended
+town offset only itself and the world needed five of six tended; at 0.12 a
+tended town takes 0.06 a year off the sky and four of six clear it.
+Measured at 0.08 on battery causal-origin: the strain fell from 1.29 to 1.18
+by year 67 and climbed back to the cap by 94, and the famine came as before
+(36 people at 110), because combustion and current spread to the villages
+by teaching (30f) faster than the craft did.
+
+Behind the ship the continuing effort aims at the sky (120): from the
+strain at which the sky can force a spell, 0.3 (`STRAIN_FORCING`, the
+roll's own floor, now named), the inquiry leads with Planetary Stewardship,
+Ecological Engineering and then Fusion; a sky craft is not done when one
+town knows it but when every straining town does, or the sky has cleared;
+each push researches at a straining town that lacks it; and once one town
+knows a sky craft a push carries it to a straining town that lacks it and
+holds the craft's priors and its facility, as a sister town of its polity
+would teach it (30f), knowledge moving and matter not. Leading only from a
+heavy sky, one, let ship-c's first twelve-year press chase refrigeration
+while its sky climbed from 0.96 to 1.73. Stewardship is first because it is
+the prior Ecological Engineering needs, and the town probe read the two
+cities holding it at the launch and none of the three villages that had
+taken engines by teaching, so the craft that eases the sky reached the
+cities and no further.
+
+Industry strains the sky where it runs, behind the ship (91,
+`industrialTown`): a town lays its part, and eases it, only while it has a
+finished factory and knows an engine craft. A village of four that had taken
+engines, combustion and current by teaching laid 0.08 a year like the city
+and could take no relief, because Stewardship is practised at an archive and
+the craft that eases the sky at a hall, and it had neither: on battery
+ship-c the effort pushed Stewardship at such villages for fourteen years
+while the sky climbed from 0.96 to 1.78. The works foul the sky; the works
+run cleaner where the town knows the crafts.
+
+The gate. Both the eased constant and the factory rule change the launch
+road when they run before the ship, since the strain passes 0.3 and the
+first forced spells fall before any ship, so each was swept on the eleven
+seeds at 26 presses. At 0.08 ungated, battery launched the same nine of
+eleven as section 14, causal-origin 58 (84), ship-b 90 (75), ship-c 67
+(83), variety-2 90 (63) against 100, variety-3 76 (62), variety-5 89 (75),
+variety-6 115 (83), variety-7 113 (56), variety-8 113 (76), variety-1 and -4
+collapsing as before. The factory rule ungated launched eight: causal-origin
+58 (79), ship-b 90 (75), ship-c 68 (82), variety-2 91 (74), variety-3 117
+(46) against 76, variety-5 90 (80), variety-6 118 (77), variety-8 106 (71),
+and variety-7 no ship by year 194 at 26 presses. Fewer droughts before the
+ship reshuffle the marginal roads, and a lost launch is not noise. So the
+sky before the ship is as it was, on the road the sweeps of section 14
+verified, and behind the ship the ledger is tended: the factory rule and the
+0.12 apply from the launch (`skyTended`, 91). This is the rule the round
+before used for the 41 and 42a caps, which ungated cost the launch the same
+way. Verified on the gated code: causal-origin launches in year 58 and reads 84
+people at the first press behind it, ship-c 67 and 83, variety-7 113 and
+56, variety-3 76 and 62, each the figure of section 14 to the person, so
+the battery list of nine and the phone list of eight stand without another
+sweep.
+
+Tests: the afternoon smoke requires the ledger before the ship to read as it
+did (a town that knows engines lays 0.08, tended 0.01), and behind the ship
+a town that knows engines but has no factory to lay nothing, a factory town
+to lay 0.08, and a tended factory town to fall below zero and clear its sky;
+the continuing smoke requires a heavy sky to put Stewardship, Ecological
+Engineering and Fusion first in that order, the craft not done while a
+straining town lacks it, the push aimed at that town, a push to carry the
+craft to a straining twin town with a factory, the priors and a hall without
+moving matter, a sky at 0.35 to lead with the sky crafts, and a clear sky
+not to.
+
+**Measured on the shipped code (9c89061), seventy voyage years on battery,
+`transit-probe`.** Ship-c: 83 at the launch, 104 at year 124, sixty-four
+born and fifty-nine dead, nobody starved, the strain 0.89 at its highest and
+zero from year 88, one forced spell behind the ship (the code before this
+round: 71 at 134 with twenty-four starved, ten in the 120s and fourteen in
+the 130s, seventeen forced spells). Causal-origin: 84 at the launch, 122 at
+year 79, 115 at 99, 104 at 110 and 54 at 125; ninety-two born and 143 dead,
+forty-six of them starved, none before year 92 and thirty-seven of them
+after 110; the strain zero from year 76 and two forced spells behind the
+ship, both in its first years (the code before: 59 at 110 and 17 at 126,
+fifty-six starved, twenty-five forced spells). The forced spells are gone
+and ship-c is fed to the horizon measured; causal-origin's famine comes
+twenty years later and half as deep, and it still comes, under a clear sky.
+The land dries on its own: causal-origin's mean moisture from 44 at the
+launch to 22 by year 110 and its plants from 154,000 to 89,000, ship-c's
+from 31 to 12 with the plants from 448,000 to 189,000 and three land tiles
+in four under the 16 that photosynthesis needs, on the natural weather
+alone, a drought in about one year in eight and a heat wave in one in five,
+each a whole year. The sky's forced spells were the trigger; the land drying
+under the natural sky is what remains, and where its water goes, the air,
+the lakes, the fields' irrigation, is the next probe.
+
+
+
+**The launch figures carry a burst, and the levers are gated.** Every arc of
+sections 13 and 14 reads causal-origin at 84 people at the launch, and every
+arc with a cradle switch off at 78 to 81; that looked like a lever running
+before the ship. A per-press read shows the same road in all of them: 78
+people at the press before the launch, and the six more born in the ticks
+between the ship's leaving and the press's stop sixteen ticks later, when
+the cradle's room opens the density gate to a town that had waited years.
+Nine launches with one switch off each (field, draw, cradle, match,
+roomhunger, reach2, reunite, quota, sky) all launch in year 58, and only
+the three cradle switches change the count at the stop. The third ledger's
+78 at the launch was the same burst refused. Read a launch population from
+the press before the milestone, or read the burst as the first of the
+cradle's births.
+
+**Two soldiers hold the world's food.** The hoard probe at year 100 reads
+three people holding 20,324 of some 31,500 units of food and energy in 73
+guts and bodies, a campaigner of Flintholl with 4,631 in the gut and 10,003
+in the body and a guard with 3,470, against stores of 225, 117 and 69. The
+41 and 42a caps on provisioning are behind the ship; these are legacies of
+the uncapped road before it, and they are not the famine (the stores are
+empty because the land is), but a campaigner home with more than a full gut
+could unload it to the store. Open.
+
+**Probes.** `transit-probe` prints the sky each year (strain, forced spells
+so far, the share of the year's ticks in a Drought or Heat Wave) and the
+land (mean moisture over land tiles, the share under 16, plants, water,
+the water in the air), and `OFF=sky` gates the forced roll behind the ship;
+`famine-probe` takes a seed spec and `YEAR=<n>`. Scratchpad only:
+`hoard-probe`, `known-at-launch`, `press-people`, `sweep-run.sh`.
+
+**Still open.** The land dries under the natural sky, above: a hydrology
+ledger by year (land water, lake water, the air, what irrigation lifts
+from the shore) is the probe to write, and the balance of rain against
+evaporation the constant to read before any lever. The continuing crafts take twelve years each on
+causal-origin (refrigeration 59 to 71, hydroponics to 83, antibiotics to
+95, global networks to 116), each a horizon; a sky craft at that pace
+arrives after the land has dried. The phone worlds that die before a ship
+build strain on more towns and should be read with the sky columns before
+any other lever is tried on them. The war takes eight of Flintholl's
+seventeen in the famine year. The hoards above.
+
 ## The recent commits, newest first
 
 ```
+9c89061  Before the ship the sky is as it was; behind it the ledger is tended
+edab634  Industry strains the sky where it runs, and the effort tends the sky from the first spell it can force
+cea9769  A tended town offsets more than itself, and the effort carries the sky crafts town to town
+1a3d232  The sky can clear, and behind the ship the effort tends it
+8094ba6  Transit probe: the land each year, and the sky switch gated behind the ship
+39f39b4  Probes: the famine probe takes a seed and steps to a year; the transit probe reads the sky
+3833751  Behind the ship a day's meals from the store are one gut's worth a person
+5ebc8bc  Record the round that fixed the rest: the cradle, the seed, the mouths, the ration, and what is still open
 a4fda1a  Behind the ship the ration is the store shared out equally, and a meal is two meals at most
 3a636e3  Switches for the four store caps on the food-balance probe; a probe that attributes a store's day of outflow by scheduler phase
 8f8b7cc  Behind the ship no mouth outgrows its gut, and a full store gives a full ration
