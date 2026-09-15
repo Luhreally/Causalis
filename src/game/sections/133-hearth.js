@@ -159,21 +159,21 @@ updateSettlements = function () {
 // some fifty ticks): the hungry-town probe on battery causal-origin at year
 // 104 read Flintholl at four in five hungry beside a store of 189, and the
 // transit probe at 103 read it at every soul hungry beside 156, nine fields
-// ripe. The ration is eighteen whenever the store above the seed reserve
-// holds eighteen for every resident, twelve when it holds twelve, and only
-// then stretched. Behind the ship, like the rest of this section: with the
-// rule everywhere the launch road changed (see 41).
-const HEARTH_RATION_FULL = 18,
-  HEARTH_RATION_LEAN = 12;
+// ripe. The ration is the store above the seed reserve shared out equally,
+// up to eighteen a head, and never under the granary's own figure: with 168
+// to share among twelve, fourteen each rather than eight. The store-drain
+// probe (battery causal-origin, year 104) had read that store emptied in one
+// tick by two eaters at a stride of eight while ten went without. Behind the
+// ship, like the rest of this section: with the rule everywhere the launch
+// road changed (see 41).
+const HEARTH_RATION_FULL = 18;
 const rationCapHearthBase = rationCap;
 rationCap = function (place) {
   const base = rationCapHearthBase(place);
   if (!place?.knownProcesses || place.ruined || base >= HEARTH_RATION_FULL || !shipHasLeft()) return base;
   const residents = Math.max(1, granaryResidents(place).length),
     spare = Math.max(0, (place.inventory[C.ORGANIC] || 0) - (typeof seedReserve === "function" ? seedReserve(place) : 0));
-  if (spare >= residents * HEARTH_RATION_FULL) return HEARTH_RATION_FULL;
-  if (spare >= residents * HEARTH_RATION_LEAN) return Math.max(base, HEARTH_RATION_LEAN);
-  return base;
+  return Math.max(base, Math.min(HEARTH_RATION_FULL, Math.floor(spare / residents)));
 };
 // ── The seed is kept from every mouth (behind the ship) ─────────────────────
 // The seed guard above chooses whether the meal at home is served, and the

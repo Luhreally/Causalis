@@ -675,7 +675,11 @@ function personIsHostileVisitor(id, factionId) {
         (war.b === factionId && war.a === social.factionId)),
   );
 }
-let GUT_FULL = Object.freeze({ [C.ORGANIC]: 96, [C.ENERGY]: 60, [C.NUTRIENT]: 40, [C.CATALYST]: 12 }); // `let`, for a probe's A/B (OFF=gutcap)
+// Two meals' worth: a person simulated at a stride of eight (a lean world's
+// far tier) ate eight meals at a sitting and the store-drain probe read a
+// famine town's day of bread taken in one tick by two such eaters while ten
+// went without. `let`, for a probe's A/B (OFF=gutcap).
+let GUT_FULL = Object.freeze({ [C.ORGANIC]: 36, [C.ENERGY]: 20, [C.NUTRIENT]: 16, [C.CATALYST]: 4 });
 // The room left in a gut for a meal: to GUT_FULL behind the ship, to the
 // sixteen-bit ceiling before it, as it always was (see 41 for why).
 function gutRoom(sp, digestive) {
@@ -696,7 +700,7 @@ performFeeding = function (id, tile, stride = 1) {
   // the stride at every call, so the hungry-town probe (battery causal-origin,
   // year 104) read a guard with five thousand organic in his gut, drawing
   // fifty-three a day from a store his town starved beside. `GUT_FULL` (also
-  // read by 117) is five meals' worth, room enough for any stride.
+  // read by 117) is two meals' worth; a far-tier eater comes back sooner.
   for (const [sp, limit] of [
     [C.ORGANIC, 18],
     [C.ENERGY, 10],
