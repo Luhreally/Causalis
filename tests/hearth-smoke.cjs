@@ -2,9 +2,10 @@
 // building, never under eight nor over twenty-four; a resident standing
 // fourteen tiles from the hall is fed from home once the town has built out
 // that far, and not before; the meal moves rations from the store into the
-// eater; behind the ship a store at its seed reserve feeds nobody at home; a
-// stranger's meal is judged as before; and reading the reach never writes the
-// world.
+// eater; behind the ship a store at its seed reserve feeds nobody at home and
+// the daily draw reaches a member fourteen tiles out and a member six tiles
+// out the base draw refused as a hostile visitor for their flag; a stranger's
+// meal is judged as before; and reading the reach never writes the world.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
@@ -90,6 +91,57 @@ const fixtureSource = String.raw`(() => {
   if (out.fedAboveSeed !== s.id) fail("a store above its seed reserve did not feed a resident at home");
   W.ascensions.pop();
   s.inventory[C.ORGANIC] = savedStore;
+  // The daily draw reaches a member fourteen tiles out only behind the ship, by the granary's own ration.
+  {
+    const digestive = W.components.inventory[a].digestive, gutBefore = digestive[C.ORGANIC];
+    digestive[C.ORGANIC] = 0;
+    W.conservation.playerInput -= gutBefore;
+    s.inventory[C.ORGANIC] = seedReserve(s) + 200;
+    W.tick++;
+    const storeBefore = s.inventory[C.ORGANIC];
+    out.drawBeforeShip = hearth.draw(s.id);
+    if (out.drawBeforeShip !== 0 || digestive[C.ORGANIC] !== 0) fail("the far member drew a ration before any ship had left: " + out.drawBeforeShip);
+    W.ascensions.push({ id: 1, settlementId: s.id, factionId: s.factionId || 0, buildingId: 0, tile: idx(s.x, s.y), tick: W.tick, eventId: 0, first: true });
+    W.tick++;
+    out.drawBehindShip = hearth.draw(s.id);
+    out.drawCap = rationCap(s);
+    if (!(out.drawBehindShip > 0)) fail("the far member drew nothing behind the ship");
+    if (out.drawBehindShip > out.drawCap) fail("the far member drew more than the ration: " + out.drawBehindShip + " > " + out.drawCap);
+    if (digestive[C.ORGANIC] !== out.drawBehindShip || storeBefore - s.inventory[C.ORGANIC] !== out.drawBehindShip) fail("the ration did not move from the store to the gut: gut " + digestive[C.ORGANIC] + " store -" + (storeBefore - s.inventory[C.ORGANIC]));
+    W.ascensions.pop();
+    digestive[C.ORGANIC] = gutBefore;
+    W.conservation.playerInput += gutBefore;
+    s.inventory[C.ORGANIC] = savedStore;
+  }
+  // A member six tiles from the hall under another flag and a campaign is a hostile visitor to the
+  // base draw; behind the ship the hearth feeds them and they take the town's flag.
+  if (s.factionId) {
+    const digestive = W.components.inventory[a].digestive, gutBefore = digestive[C.ORGANIC], pos = W.components.position[a], savedPos = [pos.x, pos.y], savedFaction = soc.factionId;
+    pos.x = clamp(s.x + 6, 0, W.width - 1); pos.y = s.y;
+    rebuildSpatialBins();
+    soc.factionId = s.factionId + 1000;
+    W.components.campaign = W.components.campaign || {};
+    W.components.campaign[a] = { role: "rescue", warId: 0, issuedTick: W.tick };
+    digestive[C.ORGANIC] = 0;
+    W.conservation.playerInput -= gutBefore;
+    s.inventory[C.ORGANIC] = seedReserve(s) + 200;
+    W.tick++;
+    out.refused = personIsHostileVisitor(a, s.factionId);
+    if (!out.refused) fail("the flagged member at six tiles was not refused by the base draw's rule");
+    W.ascensions.push({ id: 1, settlementId: s.id, factionId: s.factionId || 0, buildingId: 0, tile: idx(s.x, s.y), tick: W.tick, eventId: 0, first: true });
+    W.tick++;
+    out.drawRefused = hearth.draw(s.id);
+    if (!(out.drawRefused > 0) || digestive[C.ORGANIC] !== out.drawRefused) fail("the refused member six tiles out drew nothing behind the ship: " + out.drawRefused);
+    if (soc.factionId !== s.factionId) fail("the refused member did not take the town's flag: " + soc.factionId + " vs " + s.factionId);
+    W.ascensions.pop();
+    delete W.components.campaign[a];
+    soc.factionId = savedFaction;
+    W.conservation.playerInput -= digestive[C.ORGANIC] - gutBefore;
+    digestive[C.ORGANIC] = gutBefore;
+    s.inventory[C.ORGANIC] = savedStore;
+    [pos.x, pos.y] = savedPos;
+    rebuildSpatialBins();
+  }
   // A stranger to the town is judged as before.
   soc.homePlaceId = s.id + 1000;
   out.stranger = homeRationPlace(a)?.id || 0;

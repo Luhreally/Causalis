@@ -30,7 +30,7 @@
 const HEARTH_REACH_MIN = 8,
   HEARTH_REACH_MAX = 24,
   HEARTH_REACH_MARGIN = 2;
-const HEARTH = { homeMeals: 0, seedKept: 0 };
+const HEARTH = { homeMeals: 0, seedKept: 0, drawn: 0 };
 let hearthReachCache = { world: null, tick: -1, values: new Map() };
 function hearthReach(town) {
   if (!town || town.ruined) return HEARTH_REACH_MIN;
@@ -102,8 +102,57 @@ granaryResidents = function (place) {
   hearthResidentsCache.values.set(place.id, out);
   return out.slice();
 };
+// ── The daily draw reaches the whole town (behind the ship) ─────────────────
+// The granary's daily draw (30e) hands the store, down to the seed reserve, to
+// whoever stands within eight tiles of the hall, filling each gut to
+// twenty-four: the store is at its reserve by the time any meal at home is
+// asked for, and the ration-why probe counted the hungry of Stonespire and
+// Zephyrford failing that meal four thousand times a year on an empty store
+// while the store's samples read twenty to three hundred. A city's residents
+// twelve to twenty tiles out were never in the draw at all, and the draw fed
+// the neighbouring town's people who happened to stand near the hall. Behind
+// the ship, after the draw, the town's own members within its reach and
+// beyond the eight tiles draw the same ration by the same rule, and so do the
+// near ones the draw refused as hostile visitors for the flag they kept
+// through a conquest: a member takes the town's flag, as the near ones
+// already do, and is no stranger at their own hall.
+const HEARTH_DRAW_FILL = 24,
+  HEARTH_DRAW_NEAR = 8;
+function hearthDraw(s) {
+  if (!s || s.ruined || !s.knownProcesses || typeof rationCap !== "function") return 0;
+  const cap = rationCap(s),
+    seed = typeof seedReserve === "function" ? seedReserve(s) : 0,
+    near2 = HEARTH_DRAW_NEAR * HEARTH_DRAW_NEAR;
+  let drawn = 0;
+  for (const id of granaryResidents(s)) {
+    const p = W.components.position[id];
+    if (!p) continue;
+    const soc = W.components.social[id],
+      // The base draw refuses a member under another flag as a hostile visitor; the
+      // hungry-town probe found two of Flintholl's twelve at hunger ninety-eight six
+      // tiles from a store of a hundred and fifty, refused so for years.
+      refused = typeof personIsHostileVisitor === "function" && !!s.factionId && personIsHostileVisitor(id, s.factionId);
+    if (dist2(p.x, p.y, s.x, s.y) <= near2 && !refused) continue;
+    if (soc && s.factionId && soc.factionId !== s.factionId && !soc.unitId) soc.factionId = s.factionId;
+    const digestive = W.components.inventory[id]?.digestive;
+    if (!digestive) continue;
+    const food = Math.min(cap, Math.max(0, HEARTH_DRAW_FILL - digestive[C.ORGANIC]), Math.max(0, (s.inventory[C.ORGANIC] || 0) - seed), 65535 - digestive[C.ORGANIC]);
+    if (food <= 0) continue;
+    s.inventory[C.ORGANIC] -= food;
+    digestive[C.ORGANIC] += food;
+    drawn += food;
+  }
+  if (drawn) HEARTH.drawn += drawn;
+  return drawn;
+}
+const updateSettlementsHearthBase = updateSettlements;
+updateSettlements = function () {
+  updateSettlementsHearthBase();
+  if (W?.settlements && shipHasLeft()) for (const s of W.settlements) hearthDraw(s);
+};
 window.ALIFE_HEARTH_DEBUG = Object.freeze({
   reach: (townId) => hearthReach(W.settlements.find((s) => s.id === townId)),
   residents: (townId) => granaryResidents(W.settlements.find((s) => s.id === townId)).length,
+  draw: (townId) => hearthDraw(W.settlements.find((s) => s.id === townId)),
   counts: () => ({ ...HEARTH }),
 });
