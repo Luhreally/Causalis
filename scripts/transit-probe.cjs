@@ -12,11 +12,17 @@
 // The world is a fixture (a .json.gz save) or a seed spec "seed:size:complexity"
 // generated fresh and run to year thirty as the arc probe does.
 //
-// OFF=field,draw,cradle,match,roomhunger,reach2,reunite switches a lever off
-// for an A/B: the waiting field and hungry hands (137), the reach-wide daily
-// draw (133), the courtship and room behind the ship (132), the town matching
-// its courted singles, the room judged by the hungry share alone, the night
-// rule reaching the whole town, and the couple keeping one home (132).
+// OFF=field,draw,cradle,match,roomhunger,reach2,reunite,quota,sky
+// switches a lever off for an A/B: the waiting field and hungry hands (137),
+// the reach-wide daily draw (133), the courtship and room behind the ship
+// (132), the town matching its courted singles, the room judged by the hungry
+// share alone, the night rule reaching the whole town, the couple keeping one
+// home, the daily meal quota (133), and the strained sky's forced droughts
+// and heat waves (91).
+//
+// Each year also reads the sky: the strain of industry and the count of
+// forced spells (91), and the share of the year's ticks spent in a Drought or
+// Heat Wave from any cause.
 //
 // node scripts/transit-probe.cjs <fixture.json.gz | seed:size:complexity> <years> <presses>
 const fs = require("node:fs");
@@ -35,6 +41,8 @@ if (off.has("match")) rt.get("(() => { cradleMatch = () => false; return 1; })()
 if (off.has("roomhunger")) rt.get("(() => { cradleFed = (outlook, hungry) => !!outlook && outlook.larder >= 10 && hungry <= 0.25; return 1; })()");
 if (off.has("reach2")) rt.get("(() => { cradleNightReach = () => 8; return 1; })()");
 if (off.has("reunite")) rt.get("(() => { cradleReunite = () => 0; return 1; })()");
+if (off.has("quota")) rt.get("(() => { hearthMealQuotaLeft = () => 65535; return 1; })()");
+if (off.has("sky")) rt.get("(() => { strainedWeatherRoll = () => null; return 1; })()");
 if (off.size) console.log(JSON.stringify({ off: [...off] }));
 (async () => {
   if (/\.gz$/.test(source)) {
@@ -63,9 +71,14 @@ if (off.size) console.log(JSON.stringify({ off: [...off] }));
     globalThis.__log = { pushes: {}, fed: 0, farmPush: 0, supplied: {} };
     const births0 = W.statistics.birthsByKind?.person || 0, relief0 = CONTINUING.relief || 0, muck0 = window.ALIFE_MUCK_DEBUG.counts().moved, people0 = biospherePopulation(KINDS.PERSON), stop = W.tick + ${year};
     const cradle0 = window.ALIFE_CRADLE_DEBUG.counts(), field0 = window.ALIFE_FIELD_DEBUG ? window.ALIFE_FIELD_DEBUG.counts() : null;
-    let deaths = 0;
+    let deaths = 0, dry = 0, tPrev = W.tick;
     const causes = {}, floor = W.nextEventId;
-    while (W.tick < stop && !state.done) causalSkipStep(state);
+    while (W.tick < stop && !state.done) {
+      causalSkipStep(state);
+      const wn = W.weather?.name;
+      if (wn === "Drought" || wn === "Heat Wave") dry += W.tick - tPrev;
+      tPrev = W.tick;
+    }
     for (const e of W.events) if (e.id >= floor && e.type === "DeathEvent" && e.data?.kind === "person") { deaths++; const k = String(e.evidence?.[0] || "?").slice(0, 18); causes[k] = (causes[k] || 0) + 1; }
     const done = state.done ? state.stopReason : null;
     if (state.done) globalThis.__state = makeCausalSkipState();
@@ -75,18 +88,20 @@ if (off.size) console.log(JSON.stringify({ off: [...off] }));
       const unfinished = farms.filter((x) => !x.complete).map((x) => { const m = missingBuildingMaterial(x); const hands = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && W.components.work?.[id]?.buildingId === x.id).length; return "s" + x.stage + (m ? " wants " + m.needed + " " + spName[m.sp] : " stocked") + " hands" + hands; });
       const stages = {}; for (const x of farms) if (x.complete) { const fld = cultivatedField(x); if (fld) stages[fld.stage] = (stages[fld.stage] || 0) + 1; }
       const fert = window.ALIFE_MUCK_DEBUG.fields(s.id); const avgFert = fert.length ? Math.round(fert.reduce((n, q) => n + q.fertility, 0) / fert.length) : null;
-      return s.name.slice(0, 8) + ":" + settlementPopulation(s) + "p/" + farms.filter((x) => x.complete).length + "f fert" + avgFert + " " + JSON.stringify(stages) + (unfinished.length ? " planned[" + unfinished.join("; ") + "]" : "") + " larder" + Math.round(o.larder) + " hungry" + o.hungry.toFixed(2) + (o.famine ? "F" : o.lean ? "L" : "") + " store" + (s.inventory[C.ORGANIC] || 0) + " water" + (s.inventory[C.SOLVENT] || 0);
+      // The forage within the town's reach: organic on the ground, in thousands.
+      const reach = typeof hearthReach === "function" ? hearthReach(s) : 8; let forage = 0; for (let y = Math.max(0, s.y - reach); y <= Math.min(W.height - 1, s.y + reach); y++) for (let x = Math.max(0, s.x - reach); x <= Math.min(W.width - 1, s.x + reach); x++) if (dist2(x, y, s.x, s.y) <= reach * reach) forage += W.tiles.chem[C.ORGANIC][idx(x, y)];
+      return s.name.slice(0, 8) + ":" + settlementPopulation(s) + "p/" + farms.filter((x) => x.complete).length + "f fert" + avgFert + " " + JSON.stringify(stages) + (unfinished.length ? " planned[" + unfinished.join("; ") + "]" : "") + " forage" + Math.round(forage / 1000) + "k larder" + Math.round(o.larder) + " hungry" + o.hungry.toFixed(2) + (o.famine ? "F" : o.lean ? "L" : "") + " store" + (s.inventory[C.ORGANIC] || 0) + " water" + (s.inventory[C.SOLVENT] || 0);
     });
     const townPeople = W.settlements.filter((s) => !s.ruined && s.knownProcesses).reduce((n, s) => n + settlementPopulation(s), 0);
     const ships = (W.voyages || []).map((v) => v.status[0] + (v.status === "under way" ? Math.ceil((v.arriveTick - W.tick) / TICKS_PER_YEAR) : "")).join(",");
     const colonies = (W.colonies || []).map((c) => c.status[0] + c.population).join(",");
     const cradle1 = window.ALIFE_CRADLE_DEBUG.counts(), cradle = Object.fromEntries(Object.keys(cradle1).map((k) => [k, cradle1[k] - cradle0[k]]));
     const field1 = field0 ? window.ALIFE_FIELD_DEBUG.counts() : null, field = field1 ? Object.fromEntries(Object.keys(field1).map((k) => [k, Math.round(field1[k] - field0[k])])) : null;
-    return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: done, people0, people: biospherePopulation(KINDS.PERSON), townPeople, born: (W.statistics.birthsByKind?.person || 0) - births0, deaths, causes, cradle, field, ships, colonies, relief: (CONTINUING.relief || 0) - relief0, muck: window.ALIFE_MUCK_DEBUG.counts().moved - muck0, log: globalThis.__log, target: causalTarget()?.key || null, towns });
+    return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: done, people0, people: biospherePopulation(KINDS.PERSON), townPeople, born: (W.statistics.birthsByKind?.person || 0) - births0, deaths, causes, cradle, field, ships, colonies, relief: (CONTINUING.relief || 0) - relief0, muck: window.ALIFE_MUCK_DEBUG.counts().moved - muck0, sky: W.afternoon ? { strain: +W.afternoon.strain.toFixed(2), spells: W.afternoon.droughts } : null, dry: +(dry / ${year}).toFixed(2), log: globalThis.__log, target: causalTarget()?.key || null, towns });
   })()`;
   for (let n = 0; n < years; n++) {
     const r = JSON.parse(rt.get(aYear));
-    console.log(`y${r.year} ${r.stop ? "STOP:" + r.stop : ""} ppl${r.people0}->${r.people} (towns ${r.townPeople}) born${r.born} deaths${r.deaths} ${JSON.stringify(r.causes)} cradle${JSON.stringify(r.cradle)} field${JSON.stringify(r.field)} ships[${r.ships}] colonies[${r.colonies}] relief${r.relief} muck${r.muck} fed${r.log.fed} farmPush${r.log.farmPush} target=${r.target} pushes${JSON.stringify(r.log.pushes)} supplied${JSON.stringify(r.log.supplied)}`);
+    console.log(`y${r.year} ${r.stop ? "STOP:" + r.stop : ""} ppl${r.people0}->${r.people} (towns ${r.townPeople}) born${r.born} deaths${r.deaths} ${JSON.stringify(r.causes)} cradle${JSON.stringify(r.cradle)} field${JSON.stringify(r.field)} ships[${r.ships}] colonies[${r.colonies}] relief${r.relief} muck${r.muck} sky${JSON.stringify(r.sky)} dry${r.dry} fed${r.log.fed} farmPush${r.log.farmPush} target=${r.target} pushes${JSON.stringify(r.log.pushes)} supplied${JSON.stringify(r.log.supplied)}`);
     for (const t of r.towns) console.log("   " + t);
     if (r.people < 6) break;
   }
