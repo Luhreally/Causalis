@@ -1244,9 +1244,146 @@ hungry." Nothing in the simulation changes; the same ticks run.
 **Suite** at 107 (`test:waiting-field` added). Pre-ship code is untouched
 except the muck switch at its default, so §12's launch sweeps stand.
 
+### 14. "Fix the rest": the cradle, the seed, the mouths, and the ration (2026-09-15; battery and phone only)
+
+Section 13 left the home world dying of an empty cradle. This round went down
+that road and found four more doors behind it. Everything here runs behind
+the ship (`shipHasLeft`), and every lever has a switch on `transit-probe`
+(`OFF=match,roomhunger,reach2,reunite`) or `food-balance-probe`
+(`OFF=militia,provision,gutcap,ration`). Read A/B pairs by decade totals of
+births and deaths; single years are chaos.
+
+**The cradle (132).** The fertility probe read the eligible adults'
+partners: two of eleven already past the window the year after the match,
+most of the rest more than twenty-four tiles off or under a different roof
+(the urban pull moves one of a couple). Four rules: a pair the town has
+courted twenty-four times, drawn to each other (attraction 0.3) and both with
+years of the window ahead (under 0.6 of the lifespan), are bonded by the town
+as a diplomatic marriage is; the later-born of a couple parted by the towns
+takes the elder's home in the sweep that mourns the dead; partners lie
+together at night within the town's reach (133's, up to twenty-four), not
+eight tiles; and room is the hungry share alone, no larder. Measured, seventy
+voyage years on battery against the same code with the levers off: ship-c 83
+at the launch to 114 at year 125 (69 off), 75 born against 53; causal-origin
+held ninety to year 95 (seventy-five off) and then starved on its fallow
+fields. The fertility probe at year eighty on the new code: 92 people from
+75, sixteen children from nine, eleven adults in the cooldown after a
+conception.
+
+**The seed (133, 137).** `scripts/fallow-probe.cjs` at year 94: Flintholl,
+fifteen people, nine fields fallow for up to thirty-seven years, a store of
+189 eaten to nought inside a day, thirty sowings tried by hungry hands and
+every one refused for want of three seed. The seed guard chose whether the
+meal at home was served; the meal itself (117), the emergency ration (30d)
+and the conserved rations took whatever the store held. Behind the ship the
+reserve is hidden from every meal while it is eaten and put back after, and at
+each push a lean town has up to two long-fallow fields sown from the player's
+input, the seed, nutrient and water going through the store into the ground.
+The same probe on the new code: three fields ripe, two sown, one growing,
+three lately reaped, nobody past hunger ninety-two where seven had been.
+
+**The press with nothing to reach for (137).** After the colony is founded
+and the last craft learned the concerted target is null, and with it the
+bread, the farm pushes, the supply and the sowing all stop: on causal-origin
+the pushes ended at year 105 and the world went from 85 to 29 by 114. With no
+target, behind the ship, the press feeds the famine towns and tends the
+fields at the same half-year beat. It fires (twice a year from 105) and the
+world starved on the same road anyway, beside stores of a hundred to two
+hundred: bread was not the shortfall.
+
+**Hungry hands eat first (137).** Under the concerted effort the labour tick
+handles every person every tick, and a person it handles skips the behaviour
+step that would have fed them (21). The granary's hungry-hands rule and the
+field's sent the hungry to the fields up to hunger ninety-two, so they sowed
+and reaped beside a full store and starved at it. A person past seventy hunger
+with a meal to be had at home is now not wanted at labour. Causal-origin held
+106 to year 99 where it had held 84, with one death of starvation in forty
+years; ship-c 108 at 119 where it had 93.
+
+**Four mouths with no bottom (41, 42a, 30d, 117).** `hungry-town-probe` at
+year 104: a militia guard of Flintholl with five thousand organic in his gut
+and eleven thousand energy, drawing fifty-three a day. The militia's supply
+(five a member a turn), the marcher's provisions (forty at every new war
+order), the conserved rations (eighteen times the simulation stride, which is
+eight on a lean world) and the meal at home were capped only at the
+sixteen-bit ceiling. Behind the ship a militia member is supplied to a full
+gut and no further, the marcher's ration tops the pack up to its limit, and a
+meal fills a gut to two meals' worth. With the caps everywhere, battery
+causal-origin stood one town at year 32 where it had three and reached no
+ship by 95: the pre-ship road is sensitive to who eats what, so they are
+gated like the rest, and the launch verification on the gated code is
+bit-identical (causal-origin year 58 with 78, ship-c 67 with 81).
+
+**The ration (133).** `scripts/store-drain-probe.cjs` wraps every function
+the scheduler calls and books a town's store before and after each: at year
+104 Flintholl's 177 became 9 in one tick of the artificial-life step, two
+eaters at a stride of eight taking it while ten residents with empty guts
+went without. The granary stretched the ration to eight a day in "famine",
+which is read from the hungry share too, so a full store fed nobody; eight a
+day is under what a working body burns. Behind the ship the ration is the
+store above the seed reserve shared out equally, up to eighteen a head.
+At one meal's worth the same probe named the eaters: of 192 gone in
+one tick, eighty-one went to the seventeen people within sixteen tiles (a
+member of the town, three campaigners), no beast was within sixteen tiles of
+the hall (the herd rule of a0704ea, which lets a hungry town's herd graze,
+was built on the wrong guess and is kept because it is right anyway), and the
+rest went to the town's own members twelve to twenty-four tiles out at
+their fields and blocks, whose meal at home reaches the whole town's reach.
+Sixteen mouths at some thirteen a day want two hundred; the store took in
+about that; twelve of them at the hall with empty guts got nothing until the
+next draw. The famine at year 104 is scarcity first, and the order of
+eating second.
+
+**Measured on the final code (a23f72d), seventy voyage years on battery,
+`transit-probe`.** Ship-c: 83 at the launch, 104 at year 125, seventy-three
+born and sixty-five dead, one of them of starvation in fifty-seven years (the
+code before this round: 69 at 132, five starved; the cradle alone: 114 at 125
+and then 55 at 134 with fifty-one starved). Causal-origin: 84 at the launch,
+116 at year 89 with nobody starved, and then the same famine as every
+variant, 57 at 109 and 19 at 120 with forty-three starved (23 at 125 before
+the round, 48 starved). The famine on causal-origin is moved later and
+higher by the levers and not away: it comes when a hundred and ten people
+stand on twenty-five farms.
+
+**Launch sweeps on the final code, eleven seeds, 26 presses.** Battery
+launches **9 of 11**, seed for seed and year for year the set of section 12:
+causal-origin y58 (78), ship-b 90 (75), ship-c 67 (81), variety-2 100 (58),
+variety-3 76 (63), variety-5 89 (74), variety-6 117 (79), variety-7 113 (56),
+variety-8 113 (76); variety-1 and -4 collapse. Every lever of this round runs
+behind the ship, and the battery road is bit-identical. Phone launches **8 of
+11**, `food-launch-probe` and `food-balance-probe` agreeing to the year:
+causal-origin y91 (136), ship-b 79 (136), variety-1 90 (133), variety-2 78
+(136), variety-4 84 (111), variety-5 57 (141), variety-6 149 (34), variety-7
+78 (136); ship-c, variety-3 and variety-8 collapse. That is not section 12's
+phone list (variety-2 and -6 gained, variety-3 and -8 lost, several years
+moved), and it is not this round's doing: the section 12 code itself
+(a1ca367), re-run today with the same probe, gives variety-5 at 57 with 141,
+and a six-commit bisect on variety-8 is bit-identical through year 75. The
+section 12 phone list was of an earlier state of the code than the one it
+names; this list is the one the shipped code makes.
+
+**Still open.** Battery causal-origin still starves between years 100 and
+110 on every variant: ninety people on twenty-five farms yielding some 128 a
+farm-year, which feeds under two people a farm, and a room cap of six plus
+four a farm that overshoots what the fields carry. The honest next levers are
+the cap (people per farm from the measured yield, not four) and the far
+tier's stride, which lets one eater take eight meals while the next in line
+starves.
+
 ## The recent commits, newest first
 
 ```
+a4fda1a  Behind the ship the ration is the store shared out equally, and a meal is two meals at most
+3a636e3  Switches for the four store caps on the food-balance probe; a probe that attributes a store's day of outflow by scheduler phase
+8f8b7cc  Behind the ship no mouth outgrows its gut, and a full store gives a full ration
+a35358a  Behind the ship, hungry hands eat first
+c28807e  The press tends the home world when it has nothing left to reach for
+4d5b00a  A probe for why a hungry town's fields stand fallow
+f4a32c8  Behind the ship the seed is kept from every mouth, and the press sows a lean town's fallow fields
+eb61b7d  The fertility probe names the partner's gate, distance, roof and hour; switches for every cradle lever
+cf16728  Behind the ship the town matches its courted singles, keeps a couple under one roof, and judges its room by the hungry share
+8f91cec  Record the second muck A/B: a richer field does not save phone ship-c
+8fa3a4f  Record the press behind the ship: the draw, the waiting field, the twelve-year voyage, and what kills the worlds that die before a ship
 703f75c  A voyage press runs twelve years at most and says how the home world stands
 a652fa7  The field that waited for water: supplied by the effort, first in every hand's choice, built by hungry hands, and given up when the town cannot walk to it
 785df28  A switch for the muck before the ship, gated on the fields' fertility
