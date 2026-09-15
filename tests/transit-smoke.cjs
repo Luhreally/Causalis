@@ -1,7 +1,8 @@
 // Transit smoke: while a ship is under way and the colony is what the world
-// waits for, the continuing crafts do not stop a press, the press's horizon
-// reaches to the arrival, the result says where the ship is, and none of it
-// changes the world the ticks would have made anyway.
+// waits for, the continuing crafts do not stop a press, the press runs twelve
+// years at most and to the arrival when that is nearer, the result says where
+// the ship is and how the home world stands, and none of it changes the world
+// the ticks would have made anyway.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
@@ -38,13 +39,22 @@ const fixtureSource = String.raw`(() => {
   if (!inquiries.length) fail("no continuing crafts pending to be quieted: " + out.pending.join(","));
   if (inquiries.some((st) => !st.quiet)) fail("a craft still stops the press with a ship under way: " + out.pending.join(","));
   if (!plan.pending.some((st) => st.key === "colony" && !st.quiet)) fail("the colony is not the loud stage: " + out.pending.join(","));
+  // A voyage twenty years out is pressed twelve years at a time; one five years out, to its arrival.
   out.limit = plan.limit;
-  if (!(plan.limit >= voyage.arriveTick - W.tick)) fail("the horizon does not reach the arrival: " + plan.limit + " < " + (voyage.arriveTick - W.tick));
+  if (plan.limit !== transit.pressTicks()) fail("a twenty-year voyage was not pressed twelve years: " + plan.limit + " vs " + transit.pressTicks());
+  voyage.arriveTick = W.tick + TICKS_PER_YEAR * 5;
+  const near = skip.plan();
+  out.limitNear = near.limit;
+  if (!(near.limit >= voyage.arriveTick - W.tick && near.limit <= transit.pressTicks())) fail("a five-year voyage's horizon does not reach its arrival: " + near.limit + " vs " + (voyage.arriveTick - W.tick));
+  voyage.arriveTick = W.tick + TICKS_PER_YEAR * 20;
+  out.home = transit.home();
+  if (!/^At home: \d+ (person|people) in \d+ (town|towns); .+\.$/.test(out.home)) fail("the home sentence is not in plain words: " + out.home);
   // The report carries the sentence, and the ticks are the same ticks.
   const hashBefore = worldHash(), tickBefore = W.tick;
   const r = skip.run(64);
   out.note = r.note || "";
   if (!out.note.includes(voyage.name)) fail("the result has no word of the ship: " + out.note);
+  if (!out.note.includes("At home:")) fail("the result has no word of the home world: " + out.note);
   if (W.tick !== tickBefore + 64 && !r.milestone) fail("the press did not run its ticks: " + (W.tick - tickBefore));
   W.voyages.pop();
   W.civilization.stageIndex = saved; W.civilization.stage = CIV_STAGE_ORDER[saved];

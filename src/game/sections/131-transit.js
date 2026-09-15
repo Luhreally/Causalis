@@ -12,9 +12,17 @@
 // not end the press, and the press's horizon reaches to the arrival, so a
 // voyage is one or two presses. The result says where the ship is.
 //
+// The horizon first reached all the way to the arrival, up to sixty-four
+// years: on battery causal-origin one press ran from year 59 to 104 and came
+// back to a home world of fifty-four from seventy-eight, with nothing said of
+// the forty-five years between. A voyage press now runs twelve years at most,
+// so the player sees the home world every twelve voyage years, and the result
+// adds a line on how it stands: the people, the towns, and the hungriest town
+// in the plain words of 129.
+//
 // Nothing here changes the simulation: the same ticks run; only where the
-// skip chooses to stop, and one sentence of its report, differ.
-const TRANSIT_MAX_TICKS = TICKS_PER_YEAR * 64;
+// skip chooses to stop, and two sentences of its report, differ.
+const TRANSIT_PRESS_TICKS = TICKS_PER_YEAR * 12;
 function transitUnderWay() {
   return (W?.voyages || []).filter((v) => v.status === "under way").sort((a, b) => a.arriveTick - b.arriveTick)[0] || null;
 }
@@ -34,18 +42,27 @@ makeCausalSkipState = function (limitOverride = 0) {
     voyage = transitUnderWay();
   if (!voyage || !state.pending?.some((s) => s.key === "colony")) return state;
   for (const stage of state.pending) if (String(stage.key).startsWith("inquiry:")) stage.quiet = true;
-  if (!(limitOverride > 0)) state.limit = Math.max(state.limit, Math.min(TRANSIT_MAX_TICKS, voyage.arriveTick - W.tick + 16));
+  if (!(limitOverride > 0)) state.limit = Math.min(Math.max(state.limit, voyage.arriveTick - W.tick + 16), TRANSIT_PRESS_TICKS);
   state.transit = voyage.id;
   return state;
 };
+// How the home world stands: the people, the towns, and the hungriest town.
+function transitHomeSentence() {
+  const towns = (W?.settlements || []).filter((s) => !s.ruined && s.knownProcesses),
+    people = biospherePopulation(KINDS.PERSON),
+    hungry = typeof plainWordsHunger === "function" ? plainWordsHunger() : null;
+  return `At home: ${people} ${people === 1 ? "person" : "people"} in ${towns.length} ${towns.length === 1 ? "town" : "towns"}; ${hungry || "the towns are fed"}.`;
+}
 const causalSkipResultTransitBase = causalSkipResult;
 causalSkipResult = function (state) {
   const out = causalSkipResultTransitBase(state),
     voyage = transitUnderWay() || (W?.voyages || []).find((v) => v.id === state?.transit) || null;
-  if (voyage) out.note = transitSentence(voyage);
+  if (voyage) out.note = `${transitSentence(voyage)} ${transitHomeSentence()}`;
   return out;
 };
 window.ALIFE_TRANSIT_DEBUG = Object.freeze({
   underWay: () => transitUnderWay(),
   sentence: () => transitSentence(transitUnderWay()),
+  home: () => transitHomeSentence(),
+  pressTicks: () => TRANSIT_PRESS_TICKS,
 });
