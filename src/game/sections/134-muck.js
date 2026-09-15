@@ -112,9 +112,23 @@ function muckTown(town) {
   }
   return moved;
 }
+// For an A/B before the ship: a town whose fields average under this fertility
+// carts muck before any ship has left (nought, the shipped value, never does).
+// The food-balance probe sets it with MUCKFERT=15.
+let MUCK_POOR_FIELDS = 0;
+function muckExhausted(town) {
+  if (!(MUCK_POOR_FIELDS > 0) || !town || town.ruined || !town.knownProcesses) return false;
+  const tiles = muckFields(town);
+  if (!tiles.length) return false;
+  let sum = 0;
+  for (const t of tiles) sum += tileFertility(t);
+  return sum / tiles.length < MUCK_POOR_FIELDS;
+}
 function updateMuck() {
-  if (!W?.settlements || !shipHasLeft()) return;
-  for (const town of W.settlements) if (W.tick % MUCK_CADENCE === town.id % MUCK_CADENCE) muckTown(town);
+  if (!W?.settlements) return;
+  const behind = shipHasLeft();
+  for (const town of W.settlements)
+    if (W.tick % MUCK_CADENCE === town.id % MUCK_CADENCE && (behind || muckExhausted(town))) muckTown(town);
 }
 const simTickMuckBase = simTick;
 simTick = function () {
@@ -123,6 +137,8 @@ simTick = function () {
 };
 window.ALIFE_MUCK_DEBUG = Object.freeze({
   counts: () => ({ ...MUCK }),
+  poorFields: (n) => (n === undefined ? MUCK_POOR_FIELDS : (MUCK_POOR_FIELDS = n)),
+  exhausted: (townId) => muckExhausted(W.settlements.find((s) => s.id === townId)),
   run: (townId) => muckTown(W.settlements.find((s) => s.id === townId)),
   pass: () => updateMuck(),
   fields: (townId) => {
