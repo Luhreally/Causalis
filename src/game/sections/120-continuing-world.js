@@ -61,24 +61,59 @@ function continuingKnows(id) {
   return W.settlements.some((s) => !s.ruined && s.knownProcesses.includes(id)) ||
     (W.colonies || []).some((c) => (c.knownProcesses || []).includes(id));
 }
-function continuingResearchTown(id) {
+function continuingResearchTown(id, towns = W.settlements.filter((s) => !s.ruined && s.knownProcesses)) {
   const depth = (s, tech, seen = new Set()) => {
     if (s.knownProcesses.includes(tech) || seen.has(tech)) return 0;
     seen.add(tech);
     return 1 + (technologyDefinition(tech)?.prior || []).reduce((n, p) => n + depth(s, p, seen), 0);
   };
-  return W.settlements.filter((s) => !s.ruined && s.knownProcesses)
+  return towns
     .map((s) => ({ s, missing: depth(s, id) }))
     .sort((a, b) => a.missing - b.missing || b.s.knownProcesses.length - a.s.knownProcesses.length || a.s.id - b.s.id)[0]?.s || null;
+}
+// ── The effort tends the sky ────────────────────────────────────────────────
+// Industry lays a strain on the sky (91) that forces droughts and heat waves,
+// and a heavy sky is what killed every measured home world behind its ship:
+// battery causal-origin's sky reached the cap eighteen years after the launch,
+// half its years were forced dry, its plants and crops died with the ground,
+// and it starved from year 92 to 20 people by 117 on every variant of every
+// lever behind the ship; with the forced spells off it stood at 117 people at
+// year 107 with nobody starved. While the sky is hazed or worse (strain at or
+// past STRAIN_EASED; the forced spells begin at 0.3, and every measured world
+// launches under a sky of about one, so this is from the first press) the
+// continuing inquiry leads with the crafts that ease it, Ecological
+// Engineering and then Fusion, and a sky craft is not done when one town
+// knows it: every town with engines lays its own strain, so the push goes on,
+// town by town, until each straining town knows the craft or the sky has
+// cleared. Sister towns of a polity teach each other (30f); the push carries
+// it across polities. (Leading only from "heavy", one, let ship-c's first
+// twelve-year press chase refrigeration while its sky climbed from 0.96 to
+// 1.73.)
+const CONTINUING_SKY_CRAFTS = Object.freeze(["ecological_engineering", "fusion"]),
+  CONTINUING_STRAINING = Object.freeze(["mechanization", "combustion", "electricity"]);
+function continuingStrainingTowns() {
+  return W.settlements.filter((s) => !s.ruined && s.knownProcesses && CONTINUING_STRAINING.some((t) => s.knownProcesses.includes(t)));
+}
+function continuingSkyStrained() {
+  return typeof STRAIN_EASED === "number" && (W.afternoon?.strain || 0) >= STRAIN_EASED;
+}
+function continuingSkyDone(id) {
+  const towns = continuingStrainingTowns();
+  if (towns.length && towns.every((s) => s.knownProcesses.includes(id))) return true;
+  return (W.afternoon?.strain || 0) < (typeof STRAIN_EASED === "number" ? STRAIN_EASED : 0.5) && continuingKnows(id);
+}
+function continuingSkyTown(id) {
+  return continuingResearchTown(id, continuingStrainingTowns().filter((s) => !s.knownProcesses.includes(id)));
 }
 const causalSkipMicroStagesContinuingBase = causalSkipMicroStages;
 causalSkipMicroStages = function () {
   const stages = causalSkipMicroStagesContinuingBase();
   if (!continuingKnows("starflight")) return stages;
-  const inquiry = CONTINUING_CRAFTS.map((id) => ({
-    key: `inquiry:${id}`, label: technologyDefinition(id)?.name || id,
-    done: () => continuingKnows(id),
-  }));
+  const crafts = continuingSkyStrained() ? [...CONTINUING_SKY_CRAFTS, ...CONTINUING_CRAFTS] : [...CONTINUING_CRAFTS, ...CONTINUING_SKY_CRAFTS],
+    inquiry = crafts.map((id) => ({
+      key: `inquiry:${id}`, label: technologyDefinition(id)?.name || id,
+      done: () => (CONTINUING_SKY_CRAFTS.includes(id) ? continuingSkyDone(id) : continuingKnows(id)),
+    }));
   // An expedition's transit years are time for research at home. Retain the
   // colony milestone as well, so arriving still brings news.
   const at = stages.findIndex((s) => s.key === "colony");
@@ -87,9 +122,10 @@ causalSkipMicroStages = function () {
 const causalPushTowardContinuingBase = causalPushToward;
 causalPushToward = function (target = causalTarget()) {
   if (!target?.key?.startsWith("inquiry:")) return causalPushTowardContinuingBase(target);
-  const id = target.key.slice(8), place = continuingResearchTown(id);
-  if (!CONTINUING_CRAFTS.includes(id) || !place) return null;
+  const id = target.key.slice(8), sky = CONTINUING_SKY_CRAFTS.includes(id), place = sky ? continuingSkyTown(id) : continuingResearchTown(id);
+  if (!(sky || CONTINUING_CRAFTS.includes(id)) || !place) return null;
   target.pushes = (target.pushes || 0) + 1;
+  if (sky) CONTINUING.skyPushes = (CONTINUING.skyPushes || 0) + 1;
   modernFeedTheEffort(target.pushes);
   if (causalPushResearch(place, id, target.pushes)) CONTINUING.researchPushes++;
   return target.key;
@@ -97,5 +133,6 @@ causalPushToward = function (target = causalTarget()) {
 window.ALIFE_CONTINUING_DEBUG = Object.freeze({
   birthLimit: (id) => continuingBirthLimit(id),
   counts: () => ({ ...CONTINUING }),
-  crafts: () => CONTINUING_CRAFTS.map((id) => ({ id, known: continuingKnows(id), town: continuingResearchTown(id)?.id || 0 })),
+  crafts: () => [...CONTINUING_CRAFTS, ...CONTINUING_SKY_CRAFTS].map((id) => ({ id, known: continuingKnows(id), town: continuingResearchTown(id)?.id || 0 })),
+  sky: () => ({ strained: continuingSkyStrained(), straining: continuingStrainingTowns().map((s) => s.name), crafts: CONTINUING_SKY_CRAFTS.map((id) => ({ id, done: continuingSkyDone(id), town: continuingSkyTown(id)?.name || null })) }),
 });

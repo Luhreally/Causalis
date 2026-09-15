@@ -16,12 +16,24 @@
 // reaches the stars the world enters its epilogue: the annals keep a decade
 // ledger, the alert feed quietens to what matters, and the Ages page tells the
 // long afternoon decade by decade. Rendering only reads.
+//
+// A town with engines, combustion and current lays 0.08 on the sky a year, and
+// Stewardship with Ecological Engineering must take more than that off it, or
+// no sky ever clears: at 0.02 and 0.05 six such towns tended by both still
+// laid 0.06 a year against a decay of a hundredth and a half, so every
+// measured world sat at the cap of three from about eighteen years after its
+// ship and was forced a drought or a heat wave in half its years. Battery
+// causal-origin's home world starved from year 92 on every variant of every
+// lever behind the ship; with the forced spells switched off it stood at 117
+// people at year 107 with nobody starved (HANDOFF section 15). Ecological
+// Engineering eases 0.08, so a tended industrial town clears its sky, and the
+// continuing effort (120) aims at the sky crafts while the sky is heavy.
 const STRAIN_PER_ENGINE_TOWN = 0.02,
   STRAIN_PER_COMBUSTION_TOWN = 0.03,
   STRAIN_PER_ELECTRIC_TOWN = 0.03,
   STRAIN_FUSION_RELIEF = 0.02,
   STRAIN_EASE_STEWARDSHIP = 0.02,
-  STRAIN_EASE_ECOLOGY = 0.05,
+  STRAIN_EASE_ECOLOGY = 0.08,
   STRAIN_DECAY = 0.985,
   STRAIN_MAX = 3,
   STRAIN_HEAVY = 1,

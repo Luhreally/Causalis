@@ -48,6 +48,7 @@ const fixtureSource = String.raw`(() => {
   know("planetary_stewardship", "ecological_engineering");
   out.deltaTended = +af.delta().toFixed(3);
   if (!(out.deltaTended < out.deltaIndustry)) fail("stewardship does not ease the strain: " + out.deltaTended);
+  if (!(out.deltaTended < 0)) fail("a town tended by stewardship and ecological engineering still lays strain on the sky: " + out.deltaTended);
   for (let i = 0; i < 80; i++) af.tick();
   out.strainEased = +af.strain().toFixed(2);
   if (!(out.strainEased < out.strainIndustry)) fail("eighty tended years did not ease the sky: " + out.strainEased);

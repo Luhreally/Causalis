@@ -57,6 +57,29 @@ const result = rt.get(`(() => {
   out.saved = !!decoded;
   const inquiry = causalSkipMicroStages().filter((s) => s.key.startsWith("inquiry:"));
   if (!inquiry.length || !inquiry.some((s) => !s.done())) fail("Starflight has no further research objective");
+  // The effort tends the sky: under a hazed or heavy sky the inquiry leads with
+  // Ecological Engineering, and the craft is not done while a straining town lacks it.
+  {
+    const strainWas = ensureAfternoon(W).strain;
+    W.afternoon.strain = 3;
+    const heavyList = causalSkipMicroStages().filter((s) => s.key.startsWith("inquiry:"));
+    out.skyFirst = heavyList[0]?.key;
+    if (out.skyFirst !== "inquiry:ecological_engineering") fail("a heavy sky does not put Ecological Engineering first: " + out.skyFirst);
+    else {
+      if (heavyList[0].done()) fail("the sky craft is done while a straining town lacks it");
+      const skyTown = window.ALIFE_CONTINUING_DEBUG.sky().crafts[0].town;
+      if (skyTown !== town.name) fail("the sky push does not aim at the straining town: " + skyTown);
+      town.knownProcesses.push("ecological_engineering");
+      if (!heavyList[0].done()) fail("the sky craft is not done when every straining town knows it");
+      town.knownProcesses = town.knownProcesses.filter((t) => t !== "ecological_engineering");
+    }
+    W.afternoon.strain = 0.6;
+    if (causalSkipMicroStages().filter((s) => s.key.startsWith("inquiry:"))[0]?.key !== "inquiry:ecological_engineering") fail("a hazed sky does not lead with the sky craft");
+    W.afternoon.strain = 0.2;
+    const clearList = causalSkipMicroStages().filter((s) => s.key.startsWith("inquiry:"));
+    if (clearList[0]?.key === "inquiry:ecological_engineering") fail("a clear sky still leads with the sky craft");
+    W.afternoon.strain = strainWas;
+  }
   const target = inquiry.find((s) => !s.done()), matter0 = totalMatter(), input0 = W.conservation.playerInput;
   causalPushToward({ key: target.key, pushes: 8 });
   if (!town.researchFocus) fail("post-flight push did not set real research");
