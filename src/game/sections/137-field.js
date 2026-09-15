@@ -31,6 +31,13 @@
 //     a lean or famine town has up to two of its long-fallow fields sown from
 //     the player's input, the seed, nutrient and water a sowing asks for going
 //     through the store straight into the ground.
+//   • The press tends the home world when it has nothing left to reach for.
+//     The effort's bread, the farm pushes, the supply and the sowing all hang
+//     on the concerted target, and once the colony is founded and the last
+//     craft learned there is none: on battery causal-origin the pushes stopped
+//     at year 105 and the world went from eighty-five to twenty-nine by 114,
+//     every field fallow again. With no target, behind the ship, the press
+//     feeds the famine towns and tends the fields at the same half-year beat.
 //   • A field the town cannot walk to is given up. The ship-c A/B found Ple
 //     Chyp's stocked farm untouched for twenty-five years with hungry hands
 //     walking toward it a thousand ticks a year and building nothing: the
@@ -47,7 +54,7 @@ const FIELD_WAIT = TICKS_PER_YEAR * 2,
   FIELD_HANDS_REACH = 12,
   FIELD_SOW_REST = 64,
   FIELD_SOW_PER_PUSH = 2,
-  FIELD = { supplied: 0, drawn: 0, carried: 0, built: 0, hands: 0, first: 0, givenUp: 0, resited: 0, sown: 0 };
+  FIELD = { supplied: 0, drawn: 0, carried: 0, built: 0, hands: 0, first: 0, givenUp: 0, resited: 0, sown: 0, tended: 0 };
 function fieldCommon(sp) {
   return sp >= 0 && !(typeof STORE_DRAWN_MATERIALS !== "undefined" && STORE_DRAWN_MATERIALS.includes(sp));
 }
@@ -151,6 +158,21 @@ const causalPushTowardFieldBase = causalPushToward;
 causalPushToward = function (target = causalTarget()) {
   const out = causalPushTowardFieldBase(target);
   fieldSupplyAll();
+  return out;
+};
+// ── The press tends the home world when it has nothing left to reach for ────
+function fieldTend() {
+  if (!W?.settlements || !shipHasLeft()) return 0;
+  let done = 0;
+  if (typeof modernFeedTheEffort === "function") done += modernFeedTheEffort(1) || 0;
+  done += fieldSupplyAll();
+  FIELD.tended++;
+  return done;
+}
+const causalSkipStepFieldBase = causalSkipStep;
+causalSkipStep = function (state) {
+  const out = causalSkipStepFieldBase(state);
+  if (!state.done && W.tick % 128 === 64 && !causalTarget() && shipHasLeft()) fieldTend();
   return out;
 };
 // ── Hungry hands build it ────────────────────────────────────────────────────
@@ -265,6 +287,7 @@ window.ALIFE_FIELD_DEBUG = Object.freeze({
   reachable: (townId) => { const s = W.settlements.find((x) => x.id === townId), b = fieldUnfinished(s); return b ? fieldReachable(s, b) : null; },
   giveUp: (townId) => fieldGiveUp(W.settlements.find((s) => s.id === townId)),
   sow: (townId) => fieldSow(W.settlements.find((s) => s.id === townId)),
+  tend: () => fieldTend(),
   fit: (id) => fieldHandsFit(id),
   build: (id) => {
     const fit = fieldHandsFit(id);

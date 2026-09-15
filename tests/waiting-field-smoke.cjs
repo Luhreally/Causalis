@@ -10,8 +10,8 @@
 // planned this year is not raised; a farm the town cannot walk to is neither
 // first nor built by hungry hands nor sited again behind the ship, and two
 // years planned it falls to rubble; the effort sows a lean town's long-fallow
-// field behind the ship and not before; and the matter audit stays at nought
-// throughout.
+// field behind the ship and not before, and tends it again when the press has
+// no objective left; and the matter audit stays at nought throughout.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
@@ -190,7 +190,20 @@ const fixtureSource = String.raw`(() => {
       out.sowInput = W.conservation.playerInput - input0;
       if (out.sown !== 1 || fld.stage !== "sown") fail("the effort did not sow the lean town's fallow field: " + out.sown + " " + fld.stage);
       if (!(out.sowInput > 0)) fail("the sowing was not booked as the player's input");
+      // With no objective left, the press tends the home world at its half-year beat: the field is sown again.
+      fld.stage = "fallow"; fld.lastLaborTick = W.tick - 200;
+      const target = W.civilization.concertedTarget;
+      W.civilization.concertedTarget = null;
+      W.tick++;
+      out.tended = field.tend();
+      if (fld.stage !== "sown") fail("the press with no target did not tend the fallow field: " + fld.stage);
+      W.civilization.concertedTarget = target;
       W.ascensions.pop();
+      fld.stage = "fallow"; fld.lastLaborTick = W.tick - 200;
+      W.tick++;
+      out.tendedBeforeShip = field.tend();
+      if (out.tendedBeforeShip !== 0 || fld.stage !== "fallow") fail("the press tended the home world before any ship had left");
+      W.ascensions.push(ship);
       for (const [x, e] of savedEnergy) { W.conservation.playerInput -= 100 - e; W.components.chemistry[x].q[C.ENERGY] = e; derivedLife(x); }
       W.conservation.playerInput -= 100 - saved.energy; q[C.ENERGY] = saved.energy; derivedLife(id);
     }
