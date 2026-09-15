@@ -1226,8 +1226,11 @@ peaking at 89 in year 57; phone variety-6 bore 44 and buried 117 (47 old age,
 49 starvation, 21 war), peaking at 97 in year 82. Phone ship-c is the one
 world that starves outright: 109 born, 178 dead, 110 of them of starvation,
 from a peak of 133 in year 83 with a city of fifty-eight on eleven fields at
-fertility 17 — the muck gate at 15 never opened for it, and a second A/B at
-MUCKFERT=20 is the one measurement still worth taking. Everywhere else the
+fertility 17 — the muck gate at 15 never opened for it. A second A/B at
+MUCKFERT=20 opened it: the fields of Dzo Chy rose from 17 to 20–22 and the
+world collapsed on the same road (peak 128 at year 85, 73 at 97, 34 at 116;
+the baseline peaked at 132 at 84, 82 at 102, 40 at 114). The fields are not
+what kills it either; the switch stays at nought. Everywhere else the
 shape is the one behind the ship: the founders age out together and the
 cradle does not refill, and the ship comes too late for what is left.
 
