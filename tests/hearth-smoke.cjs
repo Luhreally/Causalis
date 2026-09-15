@@ -4,8 +4,9 @@
 // that far, and not before; the meal moves rations from the store into the
 // eater; behind the ship a store at its seed reserve feeds nobody at home and
 // the daily draw reaches a member fourteen tiles out and a member six tiles
-// out the base draw refused as a hostile visitor for their flag; a stranger's
-// meal is judged as before; and reading the reach never writes the world.
+// out the base draw refused as a hostile visitor for their flag; the meal at
+// the hall leaves the seed reserve in the store; a stranger's meal is judged
+// as before; and reading the reach never writes the world.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
@@ -138,6 +139,32 @@ const fixtureSource = String.raw`(() => {
     soc.factionId = savedFaction;
     W.conservation.playerInput -= digestive[C.ORGANIC] - gutBefore;
     digestive[C.ORGANIC] = gutBefore;
+    s.inventory[C.ORGANIC] = savedStore;
+    [pos.x, pos.y] = savedPos;
+    rebuildSpatialBins();
+  }
+  // The seed is kept from the meal behind the ship: a hungry member at the hall eats what is above the reserve.
+  {
+    const q = W.components.chemistry[a].q, digestive = W.components.inventory[a].digestive, pos = W.components.position[a];
+    const savedPos = [pos.x, pos.y], energy0 = q[C.ENERGY], gut0 = digestive[C.ORGANIC];
+    pos.x = clamp(s.x + 1, 0, W.width - 1); pos.y = s.y;
+    rebuildSpatialBins();
+    W.conservation.playerInput += 50 - energy0; q[C.ENERGY] = 50;
+    W.conservation.playerInput -= gut0; digestive[C.ORGANIC] = 0;
+    W.ascensions.push({ id: 1, settlementId: s.id, factionId: s.factionId || 0, buildingId: 0, tile: idx(s.x, s.y), tick: W.tick, eventId: 0, first: true });
+    W.tick++;
+    const reserve = seedReserve(s);
+    s.inventory[C.ORGANIC] = reserve + 5;
+    derivedLife(a);
+    out.mealHunger = Math.round(W.components.life[a].hunger);
+    out.mealAte = performFeeding(a, idx(pos.x, pos.y));
+    out.mealStore = s.inventory[C.ORGANIC];
+    out.mealReserve = reserve;
+    if (s.inventory[C.ORGANIC] < reserve) fail("the meal ate the seed corn: store " + s.inventory[C.ORGANIC] + " under the reserve " + reserve);
+    if (typeof window.ALIFE_HEARTH_DEBUG.counts().seedHidden !== "number") fail("no count of the seed hidden");
+    W.ascensions.pop();
+    W.conservation.playerInput -= digestive[C.ORGANIC] - gut0; digestive[C.ORGANIC] = gut0;
+    W.conservation.playerInput -= q[C.ENERGY] - energy0; q[C.ENERGY] = energy0;
     s.inventory[C.ORGANIC] = savedStore;
     [pos.x, pos.y] = savedPos;
     rebuildSpatialBins();

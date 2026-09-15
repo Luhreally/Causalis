@@ -30,7 +30,7 @@
 const HEARTH_REACH_MIN = 8,
   HEARTH_REACH_MAX = 24,
   HEARTH_REACH_MARGIN = 2;
-const HEARTH = { homeMeals: 0, seedKept: 0, drawn: 0 };
+const HEARTH = { homeMeals: 0, seedKept: 0, drawn: 0, seedHidden: 0 };
 let hearthReachCache = { world: null, tick: -1, values: new Map() };
 function hearthReach(town) {
   if (!town || town.ruined) return HEARTH_REACH_MIN;
@@ -150,9 +150,52 @@ updateSettlements = function () {
   updateSettlementsHearthBase();
   if (W?.settlements && shipHasLeft()) for (const s of W.settlements) hearthDraw(s);
 };
+// ── The seed is kept from every mouth (behind the ship) ─────────────────────
+// The seed guard above chooses whether the meal at home is served, and the
+// daily draw stops at the reserve; the meal itself (117) then takes up to
+// eighteen of whatever the store holds, the emergency ration of a starving
+// walker (30d) takes eight from any friendly store within twelve tiles, and
+// the conserved rations of 30d take from the nearest place. The fallow probe
+// on battery causal-origin at year 94 read Flintholl: fifteen people, nine
+// fields all fallow for up to thirty-seven years, a store of 189 eaten to
+// nought inside a day, and thirty sowings tried by hungry hands and every one
+// refused for want of three seed. Behind the ship the seed reserve is hidden
+// from every meal while it is eaten and put back after: the mouths get what
+// is above it, and the fields get sown.
+let hearthHiding = null;
+function hearthHideSeed(place, fn) {
+  if (!place || place.ruined || !place.knownProcesses || !shipHasLeft() || typeof seedReserve !== "function" || hearthHiding === place) return fn();
+  const held = place.inventory[C.ORGANIC] || 0,
+    hidden = Math.min(held, seedReserve(place));
+  if (hidden <= 0) return fn();
+  place.inventory[C.ORGANIC] -= hidden;
+  const was = hearthHiding;
+  hearthHiding = place;
+  try {
+    return fn();
+  } finally {
+    hearthHiding = was;
+    place.inventory[C.ORGANIC] += hidden;
+    HEARTH.seedHidden++;
+  }
+}
+const performFeedingHearthBase = performFeeding;
+performFeeding = function (id, tile, stride = 1) {
+  if (W.kind[id] !== KINDS.PERSON || !shipHasLeft()) return performFeedingHearthBase(id, tile, stride);
+  const near = typeof nearestFriendlyPlace === "function" ? nearestFriendlyPlace(id) : null,
+    home = typeof homeRationPlace === "function" ? homeRationPlace(id) : null;
+  return hearthHideSeed(near?.knownProcesses ? near : null, () => hearthHideSeed(home && home !== near ? home : null, () => performFeedingHearthBase(id, tile, stride)));
+};
+const runMetabolismHearthBase = runMetabolism;
+runMetabolism = function (id, tier) {
+  if (W.kind[id] !== KINDS.PERSON || !shipHasLeft() || (W.components.chemistry[id]?.q[C.ENERGY] ?? 99) >= 18) return runMetabolismHearthBase(id, tier);
+  const place = typeof nearestFriendlyPlace === "function" ? nearestFriendlyPlace(id) : null;
+  return hearthHideSeed(place?.knownProcesses ? place : null, () => runMetabolismHearthBase(id, tier));
+};
 window.ALIFE_HEARTH_DEBUG = Object.freeze({
   reach: (townId) => hearthReach(W.settlements.find((s) => s.id === townId)),
   residents: (townId) => granaryResidents(W.settlements.find((s) => s.id === townId)).length,
   draw: (townId) => hearthDraw(W.settlements.find((s) => s.id === townId)),
+  hideSeed: (townId, fn) => hearthHideSeed(W.settlements.find((s) => s.id === townId), fn),
   counts: () => ({ ...HEARTH }),
 });

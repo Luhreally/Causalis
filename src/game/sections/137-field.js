@@ -24,6 +24,13 @@
 //   • The waiting field comes first. A farm two years planned outranks every
 //     other order of its town in each hand's choice of work, so the pushed
 //     skyline no longer takes every builder while the field stands stocked.
+//   • The effort sows the fallow field. The fallow probe read Flintholl at
+//     year 94: fifteen people, nine fields fallow for up to thirty-seven
+//     years, thirty sowings tried by hungry hands and every one refused for
+//     want of three seed, the store eaten to nought inside a day. At each push
+//     a lean or famine town has up to two of its long-fallow fields sown from
+//     the player's input, the seed, nutrient and water a sowing asks for going
+//     through the store straight into the ground.
 //   • A field the town cannot walk to is given up. The ship-c A/B found Ple
 //     Chyp's stocked farm untouched for twenty-five years with hungry hands
 //     walking toward it a thousand ticks a year and building nothing: the
@@ -38,7 +45,9 @@ const FIELD_WAIT = TICKS_PER_YEAR * 2,
   FIELD_HANDS_HUNGER = 92,
   FIELD_FIRST = 200,
   FIELD_HANDS_REACH = 12,
-  FIELD = { supplied: 0, drawn: 0, carried: 0, built: 0, hands: 0, first: 0, givenUp: 0, resited: 0 };
+  FIELD_SOW_REST = 64,
+  FIELD_SOW_PER_PUSH = 2,
+  FIELD = { supplied: 0, drawn: 0, carried: 0, built: 0, hands: 0, first: 0, givenUp: 0, resited: 0, sown: 0 };
 function fieldCommon(sp) {
   return sp >= 0 && !(typeof STORE_DRAWN_MATERIALS !== "undefined" && STORE_DRAWN_MATERIALS.includes(sp));
 }
@@ -100,12 +109,41 @@ function fieldSupply(place) {
   }
   return placed;
 }
+// ── The effort sows the fallow field ─────────────────────────────────────────
+function fieldSow(place) {
+  if (!place?.knownProcesses || place.ruined || !shipHasLeft() || typeof sowCultivatedField !== "function" || typeof cultivatedField !== "function") return 0;
+  const outlook = foodOutlook(place);
+  if (!outlook || !(outlook.lean || outlook.famine)) return 0;
+  const sower = W.activeIds.find((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.social[id]?.homePlaceKind === "settlement" && W.components.social[id].homePlaceId === place.id && W.components.position[id]);
+  if (sower === undefined) return 0;
+  let sown = 0;
+  for (const b of completedBuildings(place, "farm")) {
+    if (sown >= FIELD_SOW_PER_PUSH) break;
+    const field = cultivatedField(b);
+    if (!field || field.stage !== "fallow" || W.tick - (field.lastLaborTick || 0) < FIELD_SOW_REST) continue;
+    const tiles = field.tiles?.length ? field.tiles : [field.tile],
+      n = tiles.length;
+    let given = 0;
+    for (const [sp, amount] of [[C.ORGANIC, n], [C.NUTRIENT, n], [C.SOLVENT, n * 2]]) {
+      const add = Math.min(amount, 65535 - (place.inventory[sp] || 0));
+      place.inventory[sp] = (place.inventory[sp] || 0) + add;
+      given += add;
+    }
+    causalPushInput(given);
+    if (sowCultivatedField(sower, field, place)) {
+      sown++;
+      FIELD.sown++;
+    }
+  }
+  return sown;
+}
 function fieldSupplyAll() {
   if (!W?.settlements || !shipHasLeft()) return 0;
   let placed = 0;
   for (const s of W.settlements) {
     if (fieldGiveUp(s)) continue;
     placed += fieldSupply(s);
+    fieldSow(s);
   }
   return placed;
 }
@@ -226,6 +264,7 @@ window.ALIFE_FIELD_DEBUG = Object.freeze({
   supplyAll: () => fieldSupplyAll(),
   reachable: (townId) => { const s = W.settlements.find((x) => x.id === townId), b = fieldUnfinished(s); return b ? fieldReachable(s, b) : null; },
   giveUp: (townId) => fieldGiveUp(W.settlements.find((s) => s.id === townId)),
+  sow: (townId) => fieldSow(W.settlements.find((s) => s.id === townId)),
   fit: (id) => fieldHandsFit(id),
   build: (id) => {
     const fit = fieldHandsFit(id);

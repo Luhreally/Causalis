@@ -9,7 +9,8 @@
 // order outranks a tower block's behind the ship and not before, and a farm
 // planned this year is not raised; a farm the town cannot walk to is neither
 // first nor built by hungry hands nor sited again behind the ship, and two
-// years planned it falls to rubble; and the matter audit stays at nought
+// years planned it falls to rubble; the effort sows a lean town's long-fallow
+// field behind the ship and not before; and the matter audit stays at nought
 // throughout.
 const fs = require("node:fs");
 
@@ -170,6 +171,30 @@ const fixtureSource = String.raw`(() => {
   for (const [x, e] of savedEnergy) { W.conservation.playerInput -= 100 - e; W.components.chemistry[x].q[C.ENERGY] = e; derivedLife(x); }
   [soc.homePlaceKind, soc.homePlaceId, soc.factionId] = saved.home; [p.x, p.y] = saved.pos;
   rebuildSpatialBins();
+  // The effort sows a lean town's long-fallow field behind the ship, and not before.
+  {
+    const finish = (bld) => { if (bld) { bld.complete = true; bld.stage = 6; bld.integrity = bld.maxIntegrity; bld.completedTick = W.tick; for (const [sp, n] of bld.requirements || []) { W.conservation.playerInput += Math.max(0, n - (bld.composition[sp] || 0)); bld.composition[sp] = n; } } return bld; };
+    const farm2 = finish(planBuilding(s, "farm", 9)), fld = farm2 ? cultivatedField(farm2) : null;
+    if (!fld) fail("could not raise a finished farm with a field to sow");
+    else {
+      fld.stage = "fallow"; fld.lastLaborTick = W.tick - 200;
+      for (const [x, e] of savedEnergy) { W.conservation.playerInput += 100 - e; W.components.chemistry[x].q[C.ENERGY] = 100; derivedLife(x); }
+      W.conservation.playerInput += 100 - q[C.ENERGY]; q[C.ENERGY] = 100; derivedLife(id);
+      W.tick++;
+      out.sowBeforeShip = field.sow(s.id);
+      if (out.sowBeforeShip !== 0 || fld.stage !== "fallow") fail("the effort sowed before any ship had left: " + out.sowBeforeShip);
+      W.ascensions.push(ship);
+      W.tick++;
+      const input0 = W.conservation.playerInput;
+      out.sown = field.sow(s.id);
+      out.sowInput = W.conservation.playerInput - input0;
+      if (out.sown !== 1 || fld.stage !== "sown") fail("the effort did not sow the lean town's fallow field: " + out.sown + " " + fld.stage);
+      if (!(out.sowInput > 0)) fail("the sowing was not booked as the player's input");
+      W.ascensions.pop();
+      for (const [x, e] of savedEnergy) { W.conservation.playerInput -= 100 - e; W.components.chemistry[x].q[C.ENERGY] = e; derivedLife(x); }
+      W.conservation.playerInput -= 100 - saved.energy; q[C.ENERGY] = saved.energy; derivedLife(id);
+    }
+  }
   out.audit = auditMatter().delta - auditBefore;
   if (out.audit !== 0) fail("the matter audit moved: " + out.audit);
   out.counts = field.counts();
