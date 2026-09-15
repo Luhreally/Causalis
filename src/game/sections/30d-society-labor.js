@@ -675,6 +675,13 @@ function personIsHostileVisitor(id, factionId) {
         (war.b === factionId && war.a === social.factionId)),
   );
 }
+let GUT_FULL = Object.freeze({ [C.ORGANIC]: 96, [C.ENERGY]: 60, [C.NUTRIENT]: 40, [C.CATALYST]: 12 }); // `let`, for a probe's A/B (OFF=gutcap)
+// The room left in a gut for a meal: to GUT_FULL behind the ship, to the
+// sixteen-bit ceiling before it, as it always was (see 41 for why).
+function gutRoom(sp, digestive) {
+  const capped = typeof shipHasLeft === "function" && shipHasLeft();
+  return Math.max(0, (capped ? GUT_FULL[sp] : 65535) - digestive[sp]);
+}
 const performFeedingSocietyBase = performFeeding;
 performFeeding = function (id, tile, stride = 1) {
   if (performFeedingSocietyBase(id, tile, stride)) return true;
@@ -684,13 +691,19 @@ performFeeding = function (id, tile, stride = 1) {
   if (!place || dist2(p.x, p.y, place.x, place.y) > 8 * 8) return false;
   const digestive = W.components.inventory[id].digestive;
   let moved = 0;
+  // A meal fills a gut, not a granary: the take was capped only at the
+  // sixteen-bit ceiling, and a person eating at a stride took eighteen times
+  // the stride at every call, so the hungry-town probe (battery causal-origin,
+  // year 104) read a guard with five thousand organic in his gut, drawing
+  // fifty-three a day from a store his town starved beside. `GUT_FULL` (also
+  // read by 117) is five meals' worth, room enough for any stride.
   for (const [sp, limit] of [
     [C.ORGANIC, 18],
     [C.ENERGY, 10],
     [C.NUTRIENT, 8],
     [C.CATALYST, 2],
   ]) {
-    const amount = Math.min(limit * stride, place.inventory[sp] || 0, 65535 - digestive[sp]);
+    const amount = Math.min(limit * stride, place.inventory[sp] || 0, gutRoom(sp, digestive), 65535 - digestive[sp]);
     place.inventory[sp] -= amount;
     digestive[sp] += amount;
     moved += amount;

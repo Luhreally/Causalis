@@ -691,6 +691,10 @@ function unitOnCampaign(unit) {
   }
   return away * 2 >= members.length;
 }
+// `let`, so a probe can lift the caps for an A/B (food-balance-probe OFF=militia).
+let MILITIA_FULL_GUT = 24,
+  MILITIA_FULL_ENERGY = 500,
+  MILITIA_FULL_WATER = 560;
 function updateEmergentMilitias() {
   for (const unit of W.militaryUnits) {
     const campaigning = unitOnCampaign(unit);
@@ -803,20 +807,34 @@ function updateEmergentMilitias() {
       }
       unit.active = unit.memberIds.length > 0;
       unit.training = clamp(unit.training + unit.memberIds.length * 0.012, 0, 25);
+      // Behind the ship a member is supplied to a full gut, a full body and a
+      // full skin of water, and no further: the supply once filled to the
+      // sixteen-bit cap, and the hungry-town probe on battery causal-origin at
+      // year 104 read a guard of Flintholl with five thousand organic in his
+      // gut and eleven thousand energy, drawing fifty-three a day from a store
+      // his town starved beside. A member who is full counts as supplied.
+      // Before the ship the supply is as it was: with the cap everywhere,
+      // battery causal-origin stood one town at year 32 where it had three, and
+      // reached no ship by 95 (HANDOFF section 14).
+      const capped = typeof shipHasLeft === "function" && shipHasLeft(),
+        gutCap = capped ? MILITIA_FULL_GUT : 65535,
+        energyCap = capped ? MILITIA_FULL_ENERGY : 65535,
+        waterCap = capped ? MILITIA_FULL_WATER : 65535;
       let supplied = 0;
       for (const id of unit.memberIds) {
         const inv = W.components.inventory[id],
           body = W.components.chemistry[id].q,
-          food = Math.min(5, home.inventory[C.ORGANIC], 65535 - inv.digestive[C.ORGANIC]),
-          energy = Math.min(5, home.inventory[C.ENERGY], 65535 - body[C.ENERGY]),
-          water = Math.min(8, home.inventory[C.SOLVENT], 65535 - body[C.SOLVENT]);
+          food = Math.min(5, home.inventory[C.ORGANIC], Math.max(0, gutCap - inv.digestive[C.ORGANIC])),
+          energy = Math.min(5, home.inventory[C.ENERGY], Math.max(0, energyCap - body[C.ENERGY])),
+          water = Math.min(8, home.inventory[C.SOLVENT], Math.max(0, waterCap - body[C.SOLVENT]));
         home.inventory[C.ORGANIC] -= food;
         inv.digestive[C.ORGANIC] += food;
         home.inventory[C.ENERGY] -= energy;
         body[C.ENERGY] += energy;
         home.inventory[C.SOLVENT] -= water;
         body[C.SOLVENT] += water;
-        supplied += food + energy + water;
+        const full = capped && inv.digestive[C.ORGANIC] >= MILITIA_FULL_GUT && body[C.ENERGY] >= MILITIA_FULL_ENERGY && body[C.SOLVENT] >= MILITIA_FULL_WATER;
+        supplied += full ? 9 : food + energy + water;
       }
       unit.supply = clamp(
         unit.supply * 0.78 + (supplied >= unit.memberIds.length * 9 ? 1 : 0.45) * 0.22,

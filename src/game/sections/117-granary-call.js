@@ -173,7 +173,9 @@ performFeeding = function (id, tile, stride = 1) {
   for (let k = 0; k < meal.length; k++) {
     const [sp, limit] = meal[k],
       remaining = Math.max(0, limit * stride - (digestive[sp] - before[k])),
-      amount = Math.min(remaining, home.inventory[sp] || 0, 65535 - digestive[sp]);
+      // To a full gut and no further behind the ship (30d's gutRoom).
+      room = typeof gutRoom === "function" ? gutRoom(sp, digestive) : 65535 - digestive[sp],
+      amount = Math.min(remaining, room, home.inventory[sp] || 0, 65535 - digestive[sp]);
     home.inventory[sp] -= amount;
     digestive[sp] += amount;
     moved += amount;

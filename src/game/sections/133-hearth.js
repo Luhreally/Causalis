@@ -150,6 +150,31 @@ updateSettlements = function () {
   updateSettlementsHearthBase();
   if (W?.settlements && shipHasLeft()) for (const s of W.settlements) hearthDraw(s);
 };
+// ── A full store gives a full ration ────────────────────────────────────────
+// The granary stretches the daily ration as the stores run low: eighteen a
+// day, twelve when lean, eight in famine. But "famine" is also read from the
+// hungry share, so a town whose people were hungry for any other reason was
+// put on eight a day with a store of two hundred behind them, and eight a day
+// is under what a working body burns (a serving of eighteen carries a worker
+// some fifty ticks): the hungry-town probe on battery causal-origin at year
+// 104 read Flintholl at four in five hungry beside a store of 189, and the
+// transit probe at 103 read it at every soul hungry beside 156, nine fields
+// ripe. The ration is eighteen whenever the store above the seed reserve
+// holds eighteen for every resident, twelve when it holds twelve, and only
+// then stretched. Behind the ship, like the rest of this section: with the
+// rule everywhere the launch road changed (see 41).
+const HEARTH_RATION_FULL = 18,
+  HEARTH_RATION_LEAN = 12;
+const rationCapHearthBase = rationCap;
+rationCap = function (place) {
+  const base = rationCapHearthBase(place);
+  if (!place?.knownProcesses || place.ruined || base >= HEARTH_RATION_FULL || !shipHasLeft()) return base;
+  const residents = Math.max(1, granaryResidents(place).length),
+    spare = Math.max(0, (place.inventory[C.ORGANIC] || 0) - (typeof seedReserve === "function" ? seedReserve(place) : 0));
+  if (spare >= residents * HEARTH_RATION_FULL) return HEARTH_RATION_FULL;
+  if (spare >= residents * HEARTH_RATION_LEAN) return Math.max(base, HEARTH_RATION_LEAN);
+  return base;
+};
 // ── The seed is kept from every mouth (behind the ship) ─────────────────────
 // The seed guard above chooses whether the meal at home is served, and the
 // daily draw stops at the reserve; the meal itself (117) then takes up to

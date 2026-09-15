@@ -829,23 +829,32 @@ function campaignRemaining(factionId, target) {
 }
 // Rations for the road, drawn from the home stores the moment a fighter receives marching
 // orders: conserved matter moved into the marcher's stomach and body, not created.
+// The ration tops the pack up to its limit and no further. It once added the
+// whole limit at every order, and a militia standing guard at home has its
+// orders renewed again and again: the hungry-town probe on battery
+// causal-origin at year 104 read a guard of Flintholl with five thousand
+// organic in his gut and eleven thousand energy, drawing fifty-three a day from
+// the store his town starved beside.
+let PROVISION_TOPS_UP = true; // `let`, so a probe can restore the old ration for an A/B (OFF=provision)
 function provisionCampaigner(id, unit) {
   const home = W.settlements.find((s) => s.id === unit.homeSettlementId && !s.ruined),
     digestive = W.components.inventory[id]?.digestive,
     body = W.components.chemistry[id]?.q;
   if (!home || !digestive || !body) return 0;
+  // Behind the ship only (see 41): before it the ration is as it was.
+  const topsUp = PROVISION_TOPS_UP && typeof shipHasLeft === "function" && shipHasLeft();
   let moved = 0;
   for (const [species, limit] of [
     [C.ORGANIC, 40],
     [C.ENERGY, 24],
     [C.NUTRIENT, 10],
   ]) {
-    const amount = Math.min(limit, home.inventory[species] || 0, 65535 - digestive[species]);
+    const amount = Math.min(topsUp ? Math.max(0, limit - digestive[species]) : limit, home.inventory[species] || 0, 65535 - digestive[species]);
     home.inventory[species] -= amount;
     digestive[species] += amount;
     moved += amount;
   }
-  const water = Math.min(60, home.inventory[C.SOLVENT] || 0, 65535 - body[C.SOLVENT]);
+  const water = Math.min(topsUp ? Math.max(0, 560 - body[C.SOLVENT]) : 60, 60, home.inventory[C.SOLVENT] || 0, 65535 - body[C.SOLVENT]);
   home.inventory[C.SOLVENT] -= water;
   body[C.SOLVENT] += water;
   return moved + water;

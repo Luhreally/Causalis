@@ -5,8 +5,9 @@
 // eater; behind the ship a store at its seed reserve feeds nobody at home and
 // the daily draw reaches a member fourteen tiles out and a member six tiles
 // out the base draw refused as a hostile visitor for their flag; the meal at
-// the hall leaves the seed reserve in the store; a stranger's meal is judged
-// as before; and reading the reach never writes the world.
+// the hall leaves the seed reserve in the store; a full store gives a hungry
+// town a full ration and a store at its reserve is stretched; a stranger's
+// meal is judged as before; and reading the reach never writes the world.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
@@ -168,6 +169,27 @@ const fixtureSource = String.raw`(() => {
     s.inventory[C.ORGANIC] = savedStore;
     [pos.x, pos.y] = savedPos;
     rebuildSpatialBins();
+  }
+  // A full store gives a full ration whatever the hungry share; a store at its seed reserve is stretched as before.
+  {
+    W.ascensions.push({ id: 1, settlementId: s.id, factionId: s.factionId || 0, buildingId: 0, tile: idx(s.x, s.y), tick: W.tick, eventId: 0, first: true });
+    W.tick++;
+    const residents = granaryResidents(s), hungers = residents.map((id) => [id, W.components.life[id].hunger]);
+    for (const [id] of hungers) W.components.life[id].hunger = 90;
+    W.tick++;
+    const reserve = seedReserve(s);
+    s.inventory[C.ORGANIC] = reserve + 18 * Math.max(1, residents.length);
+    out.rationFull = rationCap(s);
+    out.rationHungry = +hungryShare(s).toFixed(2);
+    if (out.rationFull !== 18) fail("a full store did not give a full ration to a hungry town: " + out.rationFull + " with hungry " + out.rationHungry);
+    s.inventory[C.ORGANIC] = reserve;
+    W.tick++;
+    out.rationStretched = rationCap(s);
+    if (out.rationStretched >= 18) fail("a store at its seed reserve was not stretched: " + out.rationStretched);
+    W.ascensions.pop();
+    for (const [id, h] of hungers) W.components.life[id].hunger = h;
+    s.inventory[C.ORGANIC] = savedStore;
+    W.tick++;
   }
   // A stranger to the town is judged as before.
   soc.homePlaceId = s.id + 1000;
