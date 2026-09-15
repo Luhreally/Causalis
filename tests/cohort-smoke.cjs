@@ -87,6 +87,15 @@ const fixtureSource = String.raw`(() => {
   const beforeUnderCap = totalMatter();
   setTileMatterAmount(overflowTile, overflowSpecies, W.tiles.chem[overflowSpecies][overflowTile] + 4);
   const underCapRecordKept = tileMatterAmount(overflowTile, overflowSpecies) === 65566 && totalMatter() - beforeUnderCap === 4;
+  // At the cap the caller read column and record together, so a value it sets
+  // under the cap has spent the record first: nothing folds back.
+  W.tiles.chem[overflowSpecies][overflowTile] = 65535;
+  W.tiles.rareChem[overflowTile + ":" + overflowSpecies] = 8;
+  const beforeSaturated = totalMatter(), readSaturated = tileMatterAmount(overflowTile, overflowSpecies);
+  setTileMatterAmount(overflowTile, overflowSpecies, readSaturated - 8);
+  const saturatedRecordSpent = readSaturated === 65543 && tileMatterAmount(overflowTile, overflowSpecies) === 65535 && W.tiles.rareChem[overflowTile + ":" + overflowSpecies] === undefined && totalMatter() - beforeSaturated === -8;
+  setTileMatterAmount(overflowTile, overflowSpecies, tileMatterAmount(overflowTile, overflowSpecies) - 20);
+  const saturatedBelowCap = tileMatterAmount(overflowTile, overflowSpecies) === 65515 && totalMatter() - beforeSaturated === -28;
 
   const deathId = live().find(id => id !== materializedId && id !== damageId);
   const deathTick = W.tick;
@@ -134,6 +143,8 @@ const fixtureSource = String.raw`(() => {
     transferCapacityExact,
     transferMatterDelta,
     underCapRecordKept,
+    saturatedRecordSpent,
+    saturatedBelowCap,
     deathTickRecorded,
     remainingCorpses: remainingCorpses.length,
     oldestPruned,
@@ -162,6 +173,8 @@ if (!first.zeroDamageNoOp) failures.push("zero damage mutated authoritative stat
 if (!first.overflowEffectExact || !first.overflowVisibleToWork) failures.push("tile matter overflow was clipped or hidden from resource work");
 if (!first.transferCapacityExact || first.transferMatterDelta !== 0) failures.push("capacity-limited resource transfer lost or created matter");
 if (!first.underCapRecordKept) failures.push("setting a tile past the cap from a column read alone discarded the overflow record");
+if (!first.saturatedRecordSpent) failures.push("setting a saturated tile under the cap folded the spent record back and made matter");
+if (!first.saturatedBelowCap) failures.push("setting a saturated tile well under the cap did not spend the record and the column together");
 if (!first.deathTickRecorded) failures.push("erased corpse did not retain its death tick in history");
 if (first.remainingCorpses !== 500 || !first.oldestPruned || !first.newestRetained) failures.push("corpse cap did not prune the oldest-dead corpses");
 if (first.pruneMatterDelta !== 0) failures.push("corpse pruning changed total matter");

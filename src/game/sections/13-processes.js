@@ -41,19 +41,27 @@ function setTileMatterAmount(tile, species, value) {
       return value;
     }
     // The caller has set a value the column can hold while an overflow record
-    // still stood. It may have meant the total, or it may have read only the
-    // column and never known the record was there — and the second is what
-    // happened: a saturated tile lost 10,939 units in the tick an organism was
-    // born on it, because the birth took seventy-three from the column and the
-    // record went with them. The remainder is not the caller's to discard, so
-    // it folds back into the column as far as that fits and the rest stays on
-    // record. A caller that truly meant the total sees a tile that refuses to
-    // go below what it holds, which is the honest answer.
+    // still stood. Which of two things it meant is told by the column it read.
+    // Under the cap, `tileMatterAmount` reads the column alone, so the caller
+    // never saw the record and the remainder is not theirs to discard: a
+    // saturated tile once lost 10,939 units in the tick an organism was born on
+    // it, because the birth took seventy-three from the column and the record
+    // went with them. The record folds back into the column as far as that
+    // fits and the rest stays on record. At the cap, the caller read column
+    // and record together and has set the total, so the record was spent
+    // first: folding it back made the units the caller consumed out of
+    // nothing — on phone variety-8 at year 71, curing fibre from a saturated
+    // organic tile with eight on record set 65,543 minus eight, kept the
+    // eight, and the audit rose by eight, sixteen with two curers, at every
+    // such tick.
     if (held) {
-      const folded = Math.min(held, 65535 - primary);
-      column[tile] = primary + folded;
-      if (held - folded) W.tiles.rareChem[key] = held - folded;
-      else delete W.tiles.rareChem[key];
+      if (before >= 65535) delete W.tiles.rareChem[key];
+      else {
+        const folded = Math.min(held, 65535 - primary);
+        column[tile] = primary + folded;
+        if (held - folded) W.tiles.rareChem[key] = held - folded;
+        else delete W.tiles.rareChem[key];
+      }
     }
     return value;
   }
