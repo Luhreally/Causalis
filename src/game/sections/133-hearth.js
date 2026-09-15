@@ -30,7 +30,7 @@
 const HEARTH_REACH_MIN = 8,
   HEARTH_REACH_MAX = 24,
   HEARTH_REACH_MARGIN = 2;
-const HEARTH = { homeMeals: 0, seedKept: 0, drawn: 0, seedHidden: 0 };
+const HEARTH = { homeMeals: 0, seedKept: 0, drawn: 0, seedHidden: 0, herdKept: 0 };
 let hearthReachCache = { world: null, tick: -1, values: new Map() };
 function hearthReach(town) {
   if (!town || town.ruined) return HEARTH_REACH_MIN;
@@ -217,6 +217,30 @@ runMetabolism = function (id, tier) {
   const place = typeof nearestFriendlyPlace === "function" ? nearestFriendlyPlace(id) : null;
   return hearthHideSeed(place?.knownProcesses ? place : null, () => runMetabolismHearthBase(id, tier));
 };
+// ── The herd does not eat the bread of a hungry town (behind the ship) ──────
+// Every eight ticks each animal of an enclosed herd is topped up to eighteen
+// organic and nine nutrient from the town's store (42d `feedEnclosedHerd`),
+// and only when the store has nothing does the herd graze the ground. The
+// store-drain probe on battery causal-origin at year 104 read Flintholl's day
+// of bread, 192, gone in one tick, and of it only eighty-one into any person
+// within sixteen tiles: the rest went into the corral. Behind the ship a lean
+// or famine town's herd grazes: the bread is hidden while the herd is fed and
+// put back after.
+const feedEnclosedHerdHearthBase = typeof feedEnclosedHerd === "function" ? feedEnclosedHerd : null;
+if (feedEnclosedHerdHearthBase)
+  feedEnclosedHerd = function (herd, place, enclosure) {
+    if (!place?.knownProcesses || place.ruined || !shipHasLeft() || typeof foodOutlook !== "function") return feedEnclosedHerdHearthBase(herd, place, enclosure);
+    const outlook = foodOutlook(place);
+    if (!outlook || !(outlook.lean || outlook.famine)) return feedEnclosedHerdHearthBase(herd, place, enclosure);
+    const held = place.inventory[C.ORGANIC] || 0;
+    place.inventory[C.ORGANIC] = 0;
+    try {
+      return feedEnclosedHerdHearthBase(herd, place, enclosure);
+    } finally {
+      place.inventory[C.ORGANIC] += held;
+      HEARTH.herdKept++;
+    }
+  };
 window.ALIFE_HEARTH_DEBUG = Object.freeze({
   reach: (townId) => hearthReach(W.settlements.find((s) => s.id === townId)),
   residents: (townId) => granaryResidents(W.settlements.find((s) => s.id === townId)).length,

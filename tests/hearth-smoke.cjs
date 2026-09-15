@@ -6,8 +6,9 @@
 // the daily draw reaches a member fourteen tiles out and a member six tiles
 // out the base draw refused as a hostile visitor for their flag; the meal at
 // the hall leaves the seed reserve in the store; a full store gives a hungry
-// town a full ration and a store at its reserve is stretched; a stranger's
-// meal is judged as before; and reading the reach never writes the world.
+// town a full ration and a store at its reserve is stretched; a lean town's
+// herd is fed no bread; a stranger's meal is judged as before; and reading
+// the reach never writes the world.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
@@ -186,6 +187,24 @@ const fixtureSource = String.raw`(() => {
     W.tick++;
     out.rationStretched = rationCap(s);
     if (out.rationStretched >= 18) fail("a store at its seed reserve was not stretched: " + out.rationStretched);
+    W.ascensions.pop();
+    for (const [id, h] of hungers) W.components.life[id].hunger = h;
+    s.inventory[C.ORGANIC] = savedStore;
+    W.tick++;
+  }
+  // A lean town's herd is fed no bread behind the ship: the store is whole after the feeding.
+  if (typeof feedEnclosedHerd === "function") {
+    const residents = granaryResidents(s), hungers = residents.map((id) => [id, W.components.life[id].hunger]);
+    for (const [id] of hungers) W.components.life[id].hunger = 90;
+    W.ascensions.push({ id: 1, settlementId: s.id, factionId: s.factionId || 0, buildingId: 0, tile: idx(s.x, s.y), tick: W.tick, eventId: 0, first: true });
+    W.tick += (8 - (W.tick % 8)) % 8;
+    s.inventory[C.ORGANIC] = seedReserve(s) + 120;
+    const storeBefore = s.inventory[C.ORGANIC], kept0 = window.ALIFE_HEARTH_DEBUG.counts().herdKept;
+    const corral = { id: -1, type: "corral", complete: true, ruined: false, x: s.x, y: s.y, composition: new Uint16Array(SPECIES_COUNT) };
+    out.herdFed = feedEnclosedHerd({ animalIds: [], herderId: 0 }, s, corral);
+    out.herdKept = window.ALIFE_HEARTH_DEBUG.counts().herdKept - kept0;
+    if (s.inventory[C.ORGANIC] !== storeBefore) fail("the lean town's store changed while its herd was fed: " + storeBefore + " -> " + s.inventory[C.ORGANIC]);
+    if (out.herdKept !== 1) fail("the herd's bread was not kept from it: " + out.herdKept);
     W.ascensions.pop();
     for (const [id, h] of hungers) W.components.life[id].hunger = h;
     s.inventory[C.ORGANIC] = savedStore;
