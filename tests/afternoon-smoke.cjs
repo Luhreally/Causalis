@@ -35,9 +35,6 @@ const fixtureSource = String.raw`(() => {
   out.deltaClean = af.delta();
   if (out.deltaClean !== 0) fail("a town without engines strains the sky: " + out.deltaClean);
   know("mechanization", "combustion", "electricity");
-  out.deltaKnownOnly = af.delta();
-  if (out.deltaKnownOnly !== 0) fail("a town that knows engines but has no factory strains the sky: " + out.deltaKnownOnly);
-  if (!complete("factory")) fail("fixture could not build a factory");
   out.deltaIndustry = +af.delta().toFixed(3);
   if (!(out.deltaIndustry > 0.07)) fail("engines, combustion, and current do not strain the sky: " + out.deltaIndustry);
   let strain = 0;
@@ -51,11 +48,23 @@ const fixtureSource = String.raw`(() => {
   know("planetary_stewardship", "ecological_engineering");
   out.deltaTended = +af.delta().toFixed(3);
   if (!(out.deltaTended < out.deltaIndustry)) fail("stewardship does not ease the strain: " + out.deltaTended);
-  if (!(out.deltaTended < 0)) fail("a town tended by stewardship and ecological engineering still lays strain on the sky: " + out.deltaTended);
+  // Behind the ship the ledger is tended: a town lays its part only with a finished
+  // factory, and a tended factory town takes the sky down.
+  W.ascensions = W.ascensions || []; W.ascensions.push({ smoke: true });
+  out.deltaKnownOnly = af.delta();
+  if (out.deltaKnownOnly !== 0) fail("behind the ship a town that knows engines but has no factory is in the ledger: " + out.deltaKnownOnly);
+  if (!complete("factory")) fail("fixture could not build a factory");
+  out.deltaTendedWorks = +af.delta().toFixed(3);
+  if (!(out.deltaTendedWorks < 0)) fail("behind the ship a tended factory town still lays strain on the sky: " + out.deltaTendedWorks);
+  forget("planetary_stewardship", "ecological_engineering");
+  out.deltaWorks = +af.delta().toFixed(3);
+  if (!(out.deltaWorks > 0.07)) fail("behind the ship a factory town with engines does not strain the sky: " + out.deltaWorks);
+  know("planetary_stewardship", "ecological_engineering");
   for (let i = 0; i < 80; i++) af.tick();
   out.strainEased = +af.strain().toFixed(2);
   if (!(out.strainEased < out.strainIndustry)) fail("eighty tended years did not ease the sky: " + out.strainEased);
   if (!W.events.some((e) => e.type === "ClimateEasedEvent") && out.strainEased < 0.5) fail("the sky cleared without a ClimateEasedEvent");
+  W.ascensions.pop();
   // Ways of rule.
   const ideology = af.ideology(faction.id);
   if (!(Math.abs(ideology.rule) <= 1 && Math.abs(ideology.openness) <= 1)) fail("the way of rule is off its axes: " + JSON.stringify(ideology));

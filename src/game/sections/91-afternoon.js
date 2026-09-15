@@ -25,29 +25,31 @@
 // ship and was forced a drought or a heat wave in half its years. Battery
 // causal-origin's home world starved from year 92 on every variant of every
 // lever behind the ship; with the forced spells switched off it stood at 117
-// people at year 107 with nobody starved (HANDOFF section 15). Ecological
-// Engineering eases 0.12: a tended industrial town takes 0.06 a year off the
-// sky, four tended towns of six clear it, and the continuing effort (120)
-// aims at the sky crafts and carries them from town to town while the sky is
-// hazed or worse. (At 0.08 a tended town offset only itself, and combustion
-// and current spread to the villages faster than the craft did: causal-origin
-// eased to 1.18 and then climbed back to the cap by year 94 and starved as
-// before, and ship-c held at 2.2 for thirty years.)
+// people at year 107 with nobody starved (HANDOFF section 15).
 //
-// Industry strains the sky where it runs: a town lays its part, and eases it,
-// only while it has a finished factory. A village of four that had taken
-// engines, combustion and current by teaching (30f) laid 0.08 a year like the
-// city, and could take no relief, because Stewardship is practised at an
-// archive and the craft that eases the sky at a hall, and it had neither: on
-// battery ship-c the effort pushed Stewardship at such villages for fourteen
-// years while the sky climbed from 0.96 to 1.78. The works foul the sky; the
-// works run cleaner where the town knows the crafts.
+// Before the ship the sky is as it was, and the launch road of section 14
+// stands on it: every living town that knows a craft is in the ledger, each
+// engine craft laying its part, Stewardship easing 0.02 and Ecological
+// Engineering 0.05. Behind the ship the ledger is tended. Industry strains
+// the sky where it runs, in a town with a finished factory that knows an
+// engine craft: a village of four that had taken engines by teaching (30f)
+// laid 0.08 a year like the city and could take no relief, because
+// Stewardship is practised at an archive and the craft that eases the sky at
+// a hall, and it had neither. And Ecological Engineering eases 0.12, so a
+// tended factory town takes 0.06 a year off the sky and four of six clear it;
+// at 0.08 a tended town offset only itself and causal-origin climbed back to
+// the cap by year 94. The continuing effort (120) aims at the sky crafts and
+// carries them town to town from the strain at which the sky can force a
+// spell. Swept as a launch-road change, the factory rule cost variety-7 its
+// battery launch and moved variety-3 from year 76 to 117; gated, the road is
+// bit-identical.
 const STRAIN_PER_ENGINE_TOWN = 0.02,
   STRAIN_PER_COMBUSTION_TOWN = 0.03,
   STRAIN_PER_ELECTRIC_TOWN = 0.03,
   STRAIN_FUSION_RELIEF = 0.02,
   STRAIN_EASE_STEWARDSHIP = 0.02,
-  STRAIN_EASE_ECOLOGY = 0.12,
+  STRAIN_EASE_ECOLOGY = 0.05,
+  STRAIN_EASE_ECOLOGY_TENDED = 0.12, // behind the ship
   STRAIN_DECAY = 0.985,
   STRAIN_MAX = 3,
   STRAIN_HEAVY = 1,
@@ -79,24 +81,36 @@ restoreWorldDefaults = function () {
   ensureAfternoon(W);
 };
 // ── Climate strain ────────────────────────────────────────────────────────────
-// An industrial town: a living town with a finished factory that knows an
-// engine craft. Its part on the sky, and the crafts that ease it, count here.
+// Before the ship the ledger holds every living town that knows a craft, as
+// it was; behind it (skyTended) the industrial towns: a living town with a
+// finished factory that knows an engine craft. Its part on the sky, and the
+// crafts that ease it, count there.
 const STRAIN_ENGINE_CRAFTS = Object.freeze(["mechanization", "combustion", "electricity"]);
+function skyTended() {
+  return typeof shipHasLeft === "function" && shipHasLeft();
+}
 function industrialTown(s) {
   return !!s && !s.ruined && !!s.knownProcesses && STRAIN_ENGINE_CRAFTS.some((t) => s.knownProcesses.includes(t)) && completedBuildings(s, "factory").length > 0;
 }
 function industrialTowns() {
   return (W?.settlements || []).filter(industrialTown);
 }
+function strainLedgerTowns() {
+  return skyTended() ? industrialTowns() : (W?.settlements || []).filter((s) => !s.ruined && s.knownProcesses);
+}
+function strainLeadTowns() {
+  return skyTended() ? industrialTowns() : W.settlements.filter((s) => !s.ruined && s.knownProcesses?.includes("mechanization"));
+}
 function industrialStrainDelta() {
+  const easeEcology = skyTended() ? STRAIN_EASE_ECOLOGY_TENDED : STRAIN_EASE_ECOLOGY;
   let delta = 0;
-  for (const s of industrialTowns()) {
+  for (const s of strainLedgerTowns()) {
     const k = s.knownProcesses;
     if (k.includes("mechanization")) delta += STRAIN_PER_ENGINE_TOWN;
     if (k.includes("combustion")) delta += STRAIN_PER_COMBUSTION_TOWN;
     if (k.includes("electricity")) delta += k.includes("fusion") ? STRAIN_PER_ELECTRIC_TOWN - STRAIN_FUSION_RELIEF : STRAIN_PER_ELECTRIC_TOWN;
     if (k.includes("planetary_stewardship")) delta -= STRAIN_EASE_STEWARDSHIP;
-    if (k.includes("ecological_engineering")) delta -= STRAIN_EASE_ECOLOGY;
+    if (k.includes("ecological_engineering")) delta -= easeEcology;
   }
   return delta;
 }
@@ -108,7 +122,7 @@ function updateClimateStrain() {
     before = a.strain;
   a.strain = clamp(a.strain * STRAIN_DECAY + industrialStrainDelta(), 0, STRAIN_MAX);
   a.peakStrain = Math.max(a.peakStrain, a.strain);
-  const lead = industrialTowns().sort((x, y) => settlementPopulation(y) - settlementPopulation(x))[0];
+  const lead = strainLeadTowns().sort((x, y) => settlementPopulation(y) - settlementPopulation(x))[0];
   if (!a.heavy && a.strain >= STRAIN_HEAVY) {
     a.heavy = true;
     const ev = emitEvent("ClimateEvent", {
@@ -116,7 +130,7 @@ function updateClimateStrain() {
       location: lead ? idx(lead.x, lead.y) : -1,
       factions: lead?.factionId ? [lead.factionId] : [],
       causes: [W.lastEventByType.TechAdvanceEvent].filter(Boolean),
-      evidence: [`strain ${a.strain.toFixed(2)} on the sky`, `${industrialTowns().length} engine towns`],
+      evidence: [`strain ${a.strain.toFixed(2)} on the sky`, `${strainLeadTowns().length} engine towns`],
       importance: 4,
       data: { strain: +a.strain.toFixed(2), word: strainWord(a.strain), place: lead?.name || "" },
     });

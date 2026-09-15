@@ -83,9 +83,10 @@ function continuingResearchTown(id, towns = W.settlements.filter((s) => !s.ruine
 // from the first press) the continuing inquiry leads with the crafts that
 // ease it, Planetary
 // Stewardship, Ecological Engineering and then Fusion, and a sky craft is not
-// done when one town knows it: every town with a factory lays its own strain
-// (91, industrialTown), so the push goes on, town by town, until each such
-// town knows the craft or the sky has cleared. Stewardship is first because it is the prior
+// done when one town knows it: behind the ship every town with a factory lays
+// its own strain (91, industrialTown; before the ship the ledger is as it
+// was), so the push goes on, town by town, until each such town knows the
+// craft or the sky has cleared. Stewardship is first because it is the prior
 // Ecological Engineering needs and the villages never hold it: on battery
 // causal-origin the two cities knew it at the launch and the three villages
 // that took engines, combustion and current by teaching did not, so the
