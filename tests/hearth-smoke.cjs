@@ -6,9 +6,10 @@
 // the daily draw reaches a member fourteen tiles out and a member six tiles
 // out the base draw refused as a hostile visitor for their flag; the meal at
 // the hall leaves the seed reserve in the store; a full store gives a hungry
-// town a full ration and a store at its reserve is stretched; a lean town's
-// herd is fed no bread; a stranger's meal is judged as before; and reading
-// the reach never writes the world.
+// town a full ration and a store at its reserve is stretched; a day's meals
+// from the store are one gut's worth; a lean town's herd is fed no bread; a
+// stranger's meal is judged as before; and reading the reach never writes the
+// world.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
@@ -190,6 +191,41 @@ const fixtureSource = String.raw`(() => {
     W.ascensions.pop();
     for (const [id, h] of hungers) W.components.life[id].hunger = h;
     s.inventory[C.ORGANIC] = savedStore;
+    W.tick++;
+  }
+  // A day's meals are one gut's worth: the second meal of the day takes nothing from the store, the next day's does.
+  {
+    const q = W.components.chemistry[a].q, digestive = W.components.inventory[a].digestive, pos = W.components.position[a], life = W.components.life[a];
+    const savedPos = [pos.x, pos.y], energy0 = q[C.ENERGY], gut0 = digestive[C.ORGANIC], day0 = [life.mealDay, life.mealTaken];
+    pos.x = clamp(s.x + 1, 0, W.width - 1); pos.y = s.y;
+    rebuildSpatialBins();
+    W.ascensions.push({ id: 1, settlementId: s.id, factionId: s.factionId || 0, buildingId: 0, tile: idx(s.x, s.y), tick: W.tick, eventId: 0, first: true });
+    W.tick += 1 + (32 - (W.tick % 32)) % 32;
+    s.inventory[C.ORGANIC] = seedReserve(s) + 400;
+    const eat = () => { W.conservation.playerInput += 50 - q[C.ENERGY]; q[C.ENERGY] = 50; W.conservation.playerInput -= digestive[C.ORGANIC]; digestive[C.ORGANIC] = 0; derivedLife(a); const before = s.inventory[C.ORGANIC]; performFeeding(a, idx(pos.x, pos.y)); return before - s.inventory[C.ORGANIC]; };
+    // Bare ground under the eater: the forage would fill the gut before the store was asked.
+    const ti = idx(pos.x, pos.y), bare = {};
+    for (const sp of [C.ORGANIC, C.ENERGY, C.NUTRIENT]) { bare[sp] = W.tiles.chem[sp][ti]; W.conservation.playerInput -= bare[sp]; W.tiles.chem[sp][ti] = 0; }
+    W.conservation.playerInput += 50 - q[C.ENERGY]; q[C.ENERGY] = 50; derivedLife(a);
+    out.quotaFirst = eat();
+    out.quotaLeft = window.ALIFE_HEARTH_DEBUG.quotaLeft(a);
+    if (!(out.quotaFirst > 0)) fail("the first meal of the day took nothing from a full store: " + out.quotaFirst);
+    if (out.quotaFirst > 24) fail("the first meal took more than a gut's worth: " + out.quotaFirst);
+    if (out.quotaLeft !== 24 - out.quotaFirst) fail("the meal was not booked to the day: left " + out.quotaLeft + " after " + out.quotaFirst);
+    life.mealTaken = 24;
+    out.quotaSecond = eat();
+    if (out.quotaSecond !== 0) fail("a meal past the day's quota took from the store: " + out.quotaSecond);
+    W.tick += 32;
+    out.quotaNextDay = eat();
+    if (!(out.quotaNextDay > 0)) fail("the next day's meal took nothing: " + out.quotaNextDay);
+    W.ascensions.pop();
+    W.conservation.playerInput -= digestive[C.ORGANIC] - gut0; digestive[C.ORGANIC] = gut0;
+    W.conservation.playerInput -= q[C.ENERGY] - energy0; q[C.ENERGY] = energy0;
+    [life.mealDay, life.mealTaken] = day0;
+    for (const sp of [C.ORGANIC, C.ENERGY, C.NUTRIENT]) { W.conservation.playerInput += bare[sp] - W.tiles.chem[sp][ti]; W.tiles.chem[sp][ti] = bare[sp]; }
+    s.inventory[C.ORGANIC] = savedStore;
+    [pos.x, pos.y] = savedPos;
+    rebuildSpatialBins();
     W.tick++;
   }
   // A lean town's herd is fed no bread behind the ship: the store is whole after the feeding.

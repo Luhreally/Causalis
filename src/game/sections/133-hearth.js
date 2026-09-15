@@ -30,7 +30,7 @@
 const HEARTH_REACH_MIN = 8,
   HEARTH_REACH_MAX = 24,
   HEARTH_REACH_MARGIN = 2;
-const HEARTH = { homeMeals: 0, seedKept: 0, drawn: 0, seedHidden: 0, herdKept: 0 };
+const HEARTH = { homeMeals: 0, seedKept: 0, drawn: 0, seedHidden: 0, herdKept: 0, quotaKept: 0 };
 let hearthReachCache = { world: null, tick: -1, values: new Map() };
 function hearthReach(town) {
   if (!town || town.ruined) return HEARTH_REACH_MIN;
@@ -59,6 +59,10 @@ function hearthReach(town) {
 function hearthSpareFood(home, sp) {
   const held = home.inventory?.[sp] || 0;
   if (sp !== C.ORGANIC || typeof seedReserve !== "function" || !shipHasLeft()) return held;
+  // While a meal is being eaten the reserve is already hidden (hearthHideAbove
+  // below): what is held is what is spare. Without this the meal at home was
+  // refused whenever the spare store was under the reserve itself.
+  if (typeof hearthHiding !== "undefined" && hearthHiding === home) return held;
   return Math.max(0, held - seedReserve(home));
 }
 const homeRationPlaceHearthBase = homeRationPlace;
@@ -187,12 +191,49 @@ rationCap = function (place) {
 // refused for want of three seed. Behind the ship the seed reserve is hidden
 // from every meal while it is eaten and put back after: the mouths get what
 // is above it, and the fields get sown.
+// ── A day's meals are one gut's worth (behind the ship) ─────────────────────
+// The store-drain probe (battery causal-origin, year 104) read a famine
+// town's day of bread, 192, gone in one tick of the artificial-life step to
+// whoever reached it first, and twelve residents at the hall with empty guts
+// until the next draw. A person simulated at the far tier's stride of eight
+// eats once a call and is called once for the eight ticks of everyone else,
+// so the first at the store eats for eight before the second is asked. Each
+// person may take one gut's worth (twenty-four) from the stores by meals in a
+// day of thirty-two ticks; the daily draw is shared out equally apart. What
+// is above the person's quota, and the seed reserve under it, is hidden from
+// the meal while it is eaten and put back after.
+const HEARTH_MEAL_QUOTA = 24,
+  HEARTH_MEAL_DAY = 32;
+function hearthMealQuotaLeft(id) {
+  const life = W.components.life[id];
+  if (!life) return 0;
+  const day = Math.floor(W.tick / HEARTH_MEAL_DAY);
+  if (life.mealDay !== day) {
+    life.mealDay = day;
+    life.mealTaken = 0;
+  }
+  return Math.max(0, HEARTH_MEAL_QUOTA - (life.mealTaken || 0));
+}
+function hearthMealTaken(id, amount) {
+  const life = W.components.life[id];
+  if (!life || amount <= 0) return;
+  life.mealTaken = (life.mealTaken || 0) + amount;
+}
 let hearthHiding = null;
-function hearthHideSeed(place, fn) {
+// Hide all of a place's organic but `visible` above the seed reserve while
+// `fn` eats, and put it back after; `fn`'s take from the place is booked to
+// the eater's day.
+function hearthHideAbove(place, visible, id, fn) {
   if (!place || place.ruined || !place.knownProcesses || !shipHasLeft() || typeof seedReserve !== "function" || hearthHiding === place) return fn();
   const held = place.inventory[C.ORGANIC] || 0,
-    hidden = Math.min(held, seedReserve(place));
-  if (hidden <= 0) return fn();
+    spare = Math.max(0, held - seedReserve(place)),
+    shown = Math.max(0, Math.min(visible, spare)),
+    hidden = held - shown;
+  if (hidden <= 0 && shown === held) {
+    const before = held, out = fn();
+    hearthMealTaken(id, before - (place.inventory[C.ORGANIC] || 0));
+    return out;
+  }
   place.inventory[C.ORGANIC] -= hidden;
   const was = hearthHiding;
   hearthHiding = place;
@@ -200,22 +241,29 @@ function hearthHideSeed(place, fn) {
     return fn();
   } finally {
     hearthHiding = was;
+    const taken = shown - (place.inventory[C.ORGANIC] || 0);
+    hearthMealTaken(id, taken);
+    if (shown < spare) HEARTH.quotaKept++;
     place.inventory[C.ORGANIC] += hidden;
     HEARTH.seedHidden++;
   }
+}
+function hearthHideSeed(place, fn) {
+  return hearthHideAbove(place, 65535, 0, fn);
 }
 const performFeedingHearthBase = performFeeding;
 performFeeding = function (id, tile, stride = 1) {
   if (W.kind[id] !== KINDS.PERSON || !shipHasLeft()) return performFeedingHearthBase(id, tile, stride);
   const near = typeof nearestFriendlyPlace === "function" ? nearestFriendlyPlace(id) : null,
-    home = typeof homeRationPlace === "function" ? homeRationPlace(id) : null;
-  return hearthHideSeed(near?.knownProcesses ? near : null, () => hearthHideSeed(home && home !== near ? home : null, () => performFeedingHearthBase(id, tile, stride)));
+    home = typeof homeRationPlace === "function" ? homeRationPlace(id) : null,
+    left = hearthMealQuotaLeft(id);
+  return hearthHideAbove(near?.knownProcesses ? near : null, left, id, () => hearthHideAbove(home && home !== near ? home : null, hearthMealQuotaLeft(id), id, () => performFeedingHearthBase(id, tile, stride)));
 };
 const runMetabolismHearthBase = runMetabolism;
 runMetabolism = function (id, tier) {
   if (W.kind[id] !== KINDS.PERSON || !shipHasLeft() || (W.components.chemistry[id]?.q[C.ENERGY] ?? 99) >= 18) return runMetabolismHearthBase(id, tier);
   const place = typeof nearestFriendlyPlace === "function" ? nearestFriendlyPlace(id) : null;
-  return hearthHideSeed(place?.knownProcesses ? place : null, () => runMetabolismHearthBase(id, tier));
+  return hearthHideAbove(place?.knownProcesses ? place : null, hearthMealQuotaLeft(id), id, () => runMetabolismHearthBase(id, tier));
 };
 // ── The herd does not eat the bread of a hungry town (behind the ship) ──────
 // Every eight ticks each animal of an enclosed herd is topped up to eighteen
@@ -246,5 +294,6 @@ window.ALIFE_HEARTH_DEBUG = Object.freeze({
   residents: (townId) => granaryResidents(W.settlements.find((s) => s.id === townId)).length,
   draw: (townId) => hearthDraw(W.settlements.find((s) => s.id === townId)),
   hideSeed: (townId, fn) => hearthHideSeed(W.settlements.find((s) => s.id === townId), fn),
+  quotaLeft: (id) => hearthMealQuotaLeft(id),
   counts: () => ({ ...HEARTH }),
 });
