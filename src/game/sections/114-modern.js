@@ -794,8 +794,14 @@ causalSkipStep = function (state) {
 // tower complete and Starflight understood — and no ship left. `launchShip`
 // re-checks its own conditions and returns null without saying which one it
 // refused on, so from outside the two look identical. This names it.
+// Reading the blockers must not choose the site: modernLaunchSite remembers the
+// place it picks, and the launch probe read this at the end of every press,
+// so a sweep stuck the site a press early and battery ship-c left in year 76
+// on the probe and 90 on the road the game plays. The choice is put back.
 function modernLaunchBlockers() {
-  const site = modernLaunchSite();
+  const stickyBefore = W?.causalLaunchSiteId,
+    site = modernLaunchSite();
+  if (W) W.causalLaunchSiteId = typeof stickyBefore === "number" ? stickyBefore : 0;
   if (!site) return { site: null, blockers: ["no town at all"] };
   const blockers = [],
     towers = completedBuildings(site, "launch_tower").length,
