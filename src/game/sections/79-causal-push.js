@@ -96,12 +96,62 @@ function causalPushBuilding(place, type, pushes) {
   }
   return true;
 }
+// ── A craft the world holds is carried where its facility will not rise ──────
+// The push raises a craft to ninety-five hundredths of its threshold and no
+// further; the town does the rest with the facility the craft wants. Where
+// the facility never rises the craft never comes, and the site probe read it
+// on phone causal-origin at year 100: the launch site knew Astronomy, the
+// next step to Starflight was Mechanization, its forge was never built, its
+// progress stood at 57 of 60, and it stood there from year 73 to 265 while
+// four other towns knew the craft; on phone variety-2 the site stood at 53 of
+// 56 on Astronomy with its observatory planned, stocked and unworked. Sister
+// towns of a polity teach each other (30f) and the effort carries the sky
+// crafts town to town (120); now, once a step has been pushed a long while
+// with its facility still wanting, the effort carries that step too from any
+// town that knows it: knowledge moves, matter does not, and a craft nobody
+// knows is still the town's own to reach.
+const CAUSAL_CARRY_PUSHES = 24,
+  CAUSAL_CARRIED = { count: 0 };
+function causalCarryCraft(place, step, facility) {
+  const source = W.settlements.find(
+    (s) => !s.ruined && s.id !== place.id && s.knownProcesses?.includes(step.id),
+  );
+  if (!source) return false;
+  const tech = typeof technologyDefinition === "function" ? technologyDefinition(step.id) : null,
+    hall = typeof BUILDING_DEFS !== "undefined" && BUILDING_DEFS[facility]?.name ? BUILDING_DEFS[facility].name : facility;
+  place.knownProcesses.push(step.id);
+  place.researchProgress = place.researchProgress || {};
+  place.researchProgress[step.id] = researchThreshold(step);
+  emitEvent("TechAdvanceEvent", {
+    subjects: [source.entityId, place.entityId].filter(Boolean),
+    location: idx(place.x, place.y),
+    factions: [place.factionId].filter(Boolean),
+    causes: [source.importantEvents?.at(-1) || W.lastEventByType.TechAdvanceEvent || 0],
+    evidence: [
+      `${source.name} carried its ${tech?.name || step.id} to ${place.name} under the concerted effort`,
+      `no ${hall} rose in ${place.name} for the asking`,
+      "knowledge moved; matter did not",
+    ],
+    importance: 3,
+    data: {
+      name: tech?.name || step.id,
+      process: tech?.process || "recorded civic practice",
+      settlement: place.name,
+      source: source.name,
+    },
+  });
+  CAUSAL_CARRIED.count++;
+  return true;
+}
 function causalPushResearch(place, techId, pushes) {
   if (!place?.knownProcesses) return false;
   const step = causalNextStep(place, techId);
   if (!step) return false;
   const facility = facilityForTechnology(step.id);
-  if (facility && !placeHasFacility(place, facility)) causalPushBuilding(place, facility, pushes);
+  if (facility && !placeHasFacility(place, facility)) {
+    causalPushBuilding(place, facility, pushes);
+    if (pushes >= CAUSAL_CARRY_PUSHES && causalCarryCraft(place, step, facility)) return true;
+  }
   if ((step.heat || 0) >= 500 && !placeHasFacility(place, "kiln"))
     causalPushBuilding(place, "kiln", pushes);
   else if ((step.heat || 0) > 0 && !placeHasFacility(place, "hearth"))
