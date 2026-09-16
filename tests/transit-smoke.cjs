@@ -1,7 +1,8 @@
 // Transit smoke: while a ship is under way and the colony is what the world
 // waits for, the continuing crafts do not stop a press, the press runs twelve
 // years at most and to the arrival when that is nearer, the result says where
-// the ship is and how the home world stands, and none of it changes the world
+// the ship is and how the home world stands, the effort turns from a craft the
+// world has reached to the next within the press, and none of it changes the world
 // the ticks would have made anyway.
 const fs = require("node:fs");
 
@@ -56,6 +57,23 @@ const fixtureSource = String.raw`(() => {
   if (!out.note.includes(voyage.name)) fail("the result has no word of the ship: " + out.note);
   if (!out.note.includes("At home:")) fail("the result has no word of the home world: " + out.note);
   if (W.tick !== tickBefore + 64 && !r.milestone) fail("the press did not run its ticks: " + (W.tick - tickBefore));
+  // A craft the world has reached is not pushed for the rest of the press: the effort turns to the first not yet reached, and a craft not yet reached keeps it.
+  {
+    const turned0 = transit.turned();
+    setCausalTarget({ key: "inquiry:refrigeration", label: "Refrigeration" });
+    s.knownProcesses.push("refrigeration");
+    causalSkipIntervene();
+    out.turnedTo = causalTarget()?.key || null;
+    if (transit.turned() !== turned0 + 1) fail("the effort did not turn from a reached craft: " + transit.turned());
+    if (out.turnedTo === "inquiry:refrigeration") fail("the effort kept pushing a craft the world had reached");
+    s.knownProcesses.pop();
+    setCausalTarget({ key: "inquiry:refrigeration", label: "Refrigeration" });
+    causalSkipIntervene();
+    out.keptTarget = causalTarget()?.key || null;
+    if (out.keptTarget !== "inquiry:refrigeration") fail("the effort turned from a craft not yet reached: " + out.keptTarget);
+    if (transit.turned() !== turned0 + 1) fail("a turn was counted for a craft not yet reached");
+    setCausalTarget(null);
+  }
   W.voyages.pop();
   W.civilization.stageIndex = saved; W.civilization.stage = CIV_STAGE_ORDER[saved];
   s.knownProcesses.pop();

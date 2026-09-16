@@ -60,9 +60,33 @@ causalSkipResult = function (state) {
   if (voyage) out.note = `${transitSentence(voyage)} ${transitHomeSentence()}`;
   return out;
 };
+// ── The effort turns to the next craft within the press ─────────────────────
+// A transit press does not stop at a craft (above), and the objective is set
+// once, when the press begins (79): a craft learned in the second year of a
+// twelve-year press left the effort pushing a done stage for ten. On battery
+// causal-origin every continuing craft arrived exactly a horizon apart,
+// Stewardship at 71, Hydroponics at 83, Antibiotics at 95, whatever year each
+// was actually reached. Now, at each intervention, if the press's objective is
+// a craft the world has reached, the effort turns to the first objective not
+// yet reached, within the same press.
+const TRANSIT = { turned: 0 };
+const causalSkipInterveneTransitBase = causalSkipIntervene;
+causalSkipIntervene = function () {
+  const target = causalTarget();
+  if (target && String(target.key).startsWith("inquiry:") && transitUnderWay()) {
+    const stages = causalSkipMicroStages(),
+      current = stages.find((s) => s.key === target.key);
+    if (!current || current.done()) {
+      TRANSIT.turned++;
+      setCausalTarget(stages.find((s) => !s.done()) || null);
+    }
+  }
+  return causalSkipInterveneTransitBase();
+};
 window.ALIFE_TRANSIT_DEBUG = Object.freeze({
   underWay: () => transitUnderWay(),
   sentence: () => transitSentence(transitUnderWay()),
   home: () => transitHomeSentence(),
   pressTicks: () => TRANSIT_PRESS_TICKS,
+  turned: () => TRANSIT.turned,
 });
