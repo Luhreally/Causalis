@@ -137,14 +137,45 @@ const STRUCTURE_PATTERNS = Object.freeze([
   "ruined structure",
   "fluid medium",
 ]);
+// The living loop returns the water it drinks. Photosynthesis took two solvent
+// for every two organic it made and nothing gave solvent back: decomposition
+// and mineralization drank a solvent each, and the hydrology probe read the
+// world's water falling by twenty-one thousand a year on battery causal-origin
+// (7,741 thousand at year one, 5,870 thousand at 110) and by twenty-two
+// thousand on ship-c (3,217 to 1,229), the land's share first: its mean
+// moisture fell from 54 to 31 and from 56 to 20, its plants from 511 thousand
+// to 67 and from 524 to 185, and the famines of the late game followed the dry
+// ground. Now photosynthesis takes one solvent, a nutrient and two gas and
+// gives two organic, an energy and an oxidant; mineralization takes oxidant,
+// not solvent, and gives back a nutrient, a solvent and a gas for two waste;
+// decomposition takes oxidant, not solvent, and returns a solvent with the
+// nutrient and gas.
+// Respiration is as it was, energy and oxidant to waste and gas: the waste a
+// body breathes out is excreted where it stands and mineralizes there into
+// the ground's nutrient, and that is the only path that fertilizes the land
+// where the animals and the people feed. A draft that had respiration exhale
+// solvent instead closed the water and opened the ground: with no waste to
+// mineralize, the tiles under the 10 fertility that photosynthesis needs went
+// from 11 of causal-origin's 1,389 land tiles to 724 in twenty-eight years,
+// its plants fell as before under a wet sky, and the world reached no ship
+// by year 100 where it had at 58. Measured on the probe, respiration runs
+// about as many units a year as photosynthesis (eight thousand of each on
+// battery causal-origin from year eighteen), so a solvent drunk per unit and a
+// solvent returned per two waste mineralized come near to level, and the lakes'
+// breath (17) carries what remains. The gas: photosynthesis takes two a unit,
+// respiration gives one back for each energy burned, rot (19) one for two
+// organic, and mineralization one for two waste; with mineralization giving
+// its two nutrient and no gas the probe read the gas falling ten thousand a
+// year on both worlds, to nothing within two centuries. Every species here shares one
+// composition, so the balance the world checks (06) holds.
 const PROCESS_TEMPLATES = Object.freeze([
   {
     id: "photosynthesis",
     domain: "producer",
     inputs: [
-      [C.SOLVENT, 2],
+      [C.SOLVENT, 1],
       [C.NUTRIENT, 1],
-      [C.GAS, 1],
+      [C.GAS, 2],
     ],
     outputs: [
       [C.ORGANIC, 2],
@@ -160,9 +191,9 @@ const PROCESS_TEMPLATES = Object.freeze([
     id: "chemosynthesis",
     domain: "producer",
     inputs: [
-      [C.SOLVENT, 2],
+      [C.SOLVENT, 1],
       [C.NUTRIENT, 1],
-      [C.GAS, 1],
+      [C.GAS, 2],
       [C.CATALYST, 1],
     ],
     outputs: [
@@ -246,11 +277,11 @@ const PROCESS_TEMPLATES = Object.freeze([
     domain: "ecology",
     inputs: [
       [C.ORGANIC, 2],
-      [C.SOLVENT, 1],
+      [C.OXIDANT, 1],
     ],
     outputs: [
       [C.NUTRIENT, 1],
-      [C.WASTE, 1],
+      [C.SOLVENT, 1],
       [C.GAS, 1],
     ],
     energyCost: 0,
@@ -263,10 +294,11 @@ const PROCESS_TEMPLATES = Object.freeze([
     domain: "ecology",
     inputs: [
       [C.WASTE, 2],
-      [C.SOLVENT, 1],
+      [C.OXIDANT, 1],
     ],
     outputs: [
-      [C.NUTRIENT, 2],
+      [C.NUTRIENT, 1],
+      [C.SOLVENT, 1],
       [C.GAS, 1],
     ],
     energyCost: 0,

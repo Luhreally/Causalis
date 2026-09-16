@@ -21,9 +21,41 @@ const fixtureSource = String.raw`(() => {
   let B = W.factions.find((f) => f.id !== A.id && f.stability > 0);
   for (let attempt = 0; attempt < 12 && !B; attempt++) {
     for (let i = 0; i < 160; i++) simTick();
-    const second = W.settlements.find((s) => !s.ruined && s.id !== settlement.id && !s.factionId);
+    // A world that keeps to one town for these years has its second founded from a camp, as the first was.
+    let second = W.settlements.find((s) => !s.ruined && s.id !== settlement.id && !s.factionId);
+    if (!second) { const camp = W.camps.find((c) => c.active); if (camp) { createSettlement(camp.id); second = W.settlements.find((s) => !s.ruined && s.id !== settlement.id && !s.factionId); } }
     if (second) createFaction(second.id);
     B = W.factions.find((f) => f.id !== A.id && f.stability > 0);
+  }
+  // A world that keeps to one town for these years has its second founded as
+  // the statecraft fixture founds its polities: a camp with a founder within
+  // contact, made a town and given its own Voice. What the test measures is
+  // the diplomacy between two courts, not whether this world splits in time.
+  if (!B) {
+    const complete = (place, type) => {
+      const b = planBuilding(place, type, 9) || W.buildings.find((x) => !x.ruined && x.placeId === place.id && x.type === type && !x.complete);
+      if (b) { b.complete = true; b.stage = 6; b.integrity = b.maxIntegrity; b.completedTick = W.tick; for (const [sp, n] of b.requirements || []) b.composition[sp] = n; }
+      return b;
+    };
+    const people = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.social[id]);
+    for (let tries = 0; tries < 900 && !B && people.length > 3; tries++) {
+      const x = 4 + ((tries * 37 + 11) % (W.width - 8)), y = 4 + ((tries * 23) % (W.height - 8)), t = idx(x, y), d = Math.sqrt(dist2(x, y, settlement.x, settlement.y));
+      if (d < 14 || d > 26) continue;
+      if (W.tiles.liquid[t] > WATER_DEPTH.SURFACE || campNear(t, 6) || nearestSettlement(t, 10)) continue;
+      if (!civilReachable(idx(settlement.x, settlement.y), { x, y }, settlement.factionId)) continue;
+      const founder = people.pop(), soc = W.components.social[founder];
+      soc.homePlaceKind = ""; soc.homePlaceId = 0; soc.factionId = 0;
+      const camp = createCamp(t, founder);
+      if (!camp) continue;
+      for (const type of ["stockpile", "shelter", "hearth"]) complete(camp, type);
+      const town = createSettlement(camp.id);
+      if (!town) continue;
+      if (!town.factionId || town.factionId === A.id) { town.factionId = 0; createFaction(town.id); }
+      B = W.factions.find((f) => f.id === town.factionId && f.id !== A.id && f.stability > 0) || null;
+      if (B) { soc.factionId = B.id; soc.homePlaceKind = "settlement"; soc.homePlaceId = town.id; B.leaderId = B.leaderId || founder; }
+      // A court of one cannot send anyone: three more move to the new town, and two ticks re-bin them there.
+      if (B) { for (let k = 0; k < 8 && people.length > 3; k++) { const id = people.pop(), s2 = W.components.social[id], p2 = W.components.position[id]; if (!s2 || !p2) continue; s2.factionId = B.id; s2.homePlaceKind = "settlement"; s2.homePlaceId = town.id; p2.x = town.x; p2.y = town.y; } for (let i = 0; i < 2; i++) simTick(); }
+    }
   }
   if (!B) { fail("no second polity formed"); return out; }
   const capital = (f) => W.settlements.find((s) => s.id === f.capitalSettlementId);
@@ -65,9 +97,13 @@ const fixtureSource = String.raw`(() => {
   if (!out.roadLength) fail("the envoy follows no found road");
   const envoyEvent = W.events.filter((e) => e.type === "EnvoyEvent").at(-1);
   if (!envoyEvent) fail("no EnvoyEvent"); else out.envoySentence = eventSentence(envoyEvent);
-  for (let i = 0; i < 40; i++) simTick();
+  // The envoy walks until it is near the court and no further: on a short road it would arrive on its own inside forty ticks and be answered by the court's own roll before the test could force the answer.
+  for (let i = 0; i < 40; i++) { const pe = W.components.position[envoy.personId]; if (!pe || Math.hypot(pe.x - homeB.x, pe.y - homeB.y) <= 4 || !W.diplomacy.envoys.find((e) => e.id === envoy.id)?.active) break; simTick(); }
+  // The courts are read again at the arrival: sixty ticks have passed, and a kin who wandered from the hall or found a partner is no longer one.
+  const kinANow = dip.kin(A.id), kinBNow = dip.kin(B.id);
+  out.kinAtArrive = [kinANow.length, kinBNow.length];
   const wedding = dip.arrive(envoy.id, true);
-  if (kinA.length && kinB.length) {
+  if (kinANow.length && kinBNow.length) {
     if (!wedding || wedding.type !== "RoyalMarriageEvent") fail("an accepted marriage produced no RoyalMarriageEvent");
     else {
       out.marriageSentence = eventSentence(wedding);

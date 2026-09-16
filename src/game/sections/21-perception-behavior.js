@@ -92,6 +92,29 @@ function simulationStrideForTier(tier) {
   if (tier !== "simplified-due") return 1;
   return W.config.complexity === "lean" ? 8 : W.config.complexity === "deep" ? 2 : 4;
 }
+// ── Nutrient the body cannot use goes back to the ground ─────────────────────
+// A meal took eight nutrient a stride from the tile (performFeeding), the gut
+// passed it to the body at six a call, and the body kept all of it until it
+// died: nothing below excretes nutrient as it does water and waste. The
+// hydrology probe's census on battery causal-origin read 38 thousand nutrient
+// in living bodies at year one and 653 thousand by year sixty, all of it drawn
+// from the tiles the herds and the towns feed on; the land tiles under the
+// fertility of 10 that photosynthesis needs went from 12 of 1,389 to 665, and
+// the plants fell from 511 thousand to 146 on the code before this round and
+// on it, with the land wet and cool. What a body holds above its reserve is now
+// passed where it stands, six a call as the gut fills it: the manure of the
+// herd and the town is the fertility of the ground they stand on. Matter
+// moves; none is made.
+const NUTRIENT_RESERVE_PERSON = 240,
+  NUTRIENT_RESERVE_BEAST = 120;
+function passSurplusNutrient(id, ch, ti, rate) {
+  const reserve = W.kind[id] === KINDS.PERSON ? NUTRIENT_RESERVE_PERSON : NUTRIENT_RESERVE_BEAST;
+  if (ch.q[C.NUTRIENT] <= reserve) return 0;
+  const pass = Math.min(ch.q[C.NUTRIENT] - reserve, Math.max(1, Math.floor(6 * rate)));
+  ch.q[C.NUTRIENT] -= pass;
+  setTileMatterAmount(ti, C.NUTRIENT, tileMatterAmount(ti, C.NUTRIENT) + pass);
+  return pass;
+}
 function runMetabolism(id, tier) {
   const ch = W.components.chemistry[id],
     l = W.components.life[id],
@@ -185,6 +208,7 @@ function runMetabolism(id, tier) {
     ch.q[C.WASTE] -= excrete;
     setTileMatterAmount(ti, C.WASTE, tileMatterAmount(ti, C.WASTE) + excrete);
   }
+  passSurplusNutrient(id, ch, ti, rate);
   l.age += rate;
   l.fatigue = clamp(
     l.fatigue + rate * (0.018 + (0.022 * l.age) / Math.max(1, W.components.body[id].maxAge)),

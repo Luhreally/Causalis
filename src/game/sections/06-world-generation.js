@@ -684,6 +684,7 @@ function newTileColumns(n) {
   return {
     elevation: new Uint16Array(n),
     temperature: new Int16Array(n),
+    climateBase: new Int16Array(n),
     liquid: new Uint16Array(n),
     hydrologyBase: new Uint16Array(n),
     fire: new Uint16Array(n),
@@ -733,6 +734,7 @@ function generateTileWorld(world) {
       const lat = Math.abs(y / (h - 1) - 0.5) * 2,
         temp = 295 - lat * 185 - e * 0.11 + (noise2(s ^ 0x1837, x / 55, y / 55) - 0.5) * 70;
       t.temperature[i] = i16(temp);
+      t.climateBase[i] = t.temperature[i];
       const wet = clamp(
         water ? 900 : 720 - (e - sea) * 0.75 + (noise2(s ^ 0x77a1, x / 22, y / 22) - 0.5) * 520,
         60,
@@ -1480,6 +1482,7 @@ function generateProceduralTileWorld(world) {
           e * g.lapseRate +
           (noise2(s ^ 0x1837, x / 47, y / 47) - 0.5) * g.temperatureNoise;
       t.temperature[i] = i16(temp);
+      t.climateBase[i] = t.temperature[i];
       let wet = clamp(
         surfaceWater
           ? 900

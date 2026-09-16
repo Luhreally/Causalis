@@ -1,6 +1,35 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // 19. PLANT AND ECOLOGICAL SYSTEMS
 // ═══════════════════════════════════════════════════════════════════════════
+// ── Litter rots ──────────────────────────────────────────────────────────────
+// Decomposition ran on the dead of a drought and on corpses and nowhere else,
+// so what fell to the ground lay there: once the water, the heat and the
+// nutrient were mended (02, 17, 21) the world greened and locked its carbon.
+// The hydrology probe read battery causal-origin's tile organic climbing from
+// 1,215 thousand to 2,125 thousand by year 100 and its gas falling from 1,681
+// thousand to 377; ship-c's gas from 1,600 thousand to 124 by year 110.
+// Photosynthesis takes two gas a unit and would have stopped within a decade
+// or two more, and the plants with it. Now the litter above a floor rots, a
+// unit for every five hundred above it at each pass of the plant update, by
+// the balanced decomposition of 02 (two organic and an oxidant to a nutrient,
+// a solvent and a gas), so the ground gives back what the plants took as fast
+// as it piles up and no faster. The rot does not eat a tile's structure and its
+// heat is booked as dissipated, not laid on the ground. Matter moves; none is
+// made.
+const LITTER_FLOOR = 600,
+  LITTER_PER_UNIT = 500;
+let litterHeat = 0;
+function rotLitter(i) {
+  const t = W.tiles,
+    excess = t.chem[C.ORGANIC][i] - LITTER_FLOOR;
+  if (excess <= 0) return 0;
+  if (!litterHeat) litterHeat = Math.max(0, -(reactionById("decomposition")?.chemicalEnergyDelta || 0));
+  const quiet = { ...invTile(i), structure: () => {} };
+  return executeProcess("decomposition", quiet, Math.ceil(excess / LITTER_PER_UNIT), {
+    dissipate: litterHeat,
+    location: i,
+  });
+}
 function updatePlants() {
   const t = W.tiles,
     batch = 5,
@@ -30,6 +59,7 @@ function updatePlants() {
           });
         if (made) t.plantOrder[i] = u16(t.plantOrder[i] + made * 2);
       }
+      rotLitter(i);
       if (t.plantOrder[i] > 700 && counterRand("plant-spread", W.tick, i) < 0.045) {
         const ns = neighbors4(i),
           n = ns[Math.floor(counterRand("plant-neighbor", W.tick, i) * ns.length)];

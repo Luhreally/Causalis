@@ -61,11 +61,15 @@ const fixtureSource = String.raw`(() => {
   dl.set(true);
   if (!dl.enabled()) fail("the setting did not come back on");
   if (!/Night/.test(seasonLabel())) fail("the Time panel does not name the night: " + seasonLabel());
-  // Sleep: a fed, rested person sleeps at night and is released from labour.
-  const sleeper = W.activeIds.find((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.life[id] && W.components.position[id] && !W.components.campaign?.[id] && !(W.civilOrders || []).some((o) => o.id === id));
+  // Sleep: a fed, rested person sleeps at night and is released from labour. Fire within six tiles is the one thing that keeps hands up at night, so the sleeper is chosen away from any.
+  const fireNear = (id) => { const q = W.components.position[id]; for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) if (inside(q.x + dx, q.y + dy) && W.tiles.fire[idx(q.x + dx, q.y + dy)] > 25) return true; return false; };
+  const sleeper = W.activeIds.find((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.life[id] && W.components.position[id] && !W.components.campaign?.[id] && !(W.civilOrders || []).some((o) => o.id === id) && !fireNear(id));
   if (!sleeper) { fail("no person to put to bed"); return out; }
   const life = W.components.life[sleeper], p = W.components.position[sleeper], keep = { hunger: life.hunger, thirst: life.thirst, fatigue: life.fatigue };
   life.hunger = 30; life.thirst = 30; life.fatigue = 60;
+  // Hunger and thirst are read from the body (10, derivedLife), so the body is watered and fed to match, booked as player input and put back after.
+  const q = W.components.chemistry[sleeper].q, keepQ = [q[C.SOLVENT], q[C.ENERGY]], topUp = (sp, to) => { const d = Math.max(0, to - q[sp]); q[sp] += d; W.conservation.playerInput += d; };
+  topUp(C.SOLVENT, 400); topUp(C.ENERGY, 400);
   const personH = dl.hemisphereAt(p.x, p.y);
   let personMidnight = year, personNoon = year;
   for (let t = year; t < year + TICKS_PER_YEAR; t++) {
@@ -111,6 +115,7 @@ const fixtureSource = String.raw`(() => {
     hl.hunger = keepH.hunger; hl.thirst = keepH.thirst;
   }
   life.hunger = keep.hunger; life.thirst = keep.thirst; life.fatigue = keep.fatigue;
+  W.conservation.playerInput -= (q[C.SOLVENT] - keepQ[0]) + (q[C.ENERGY] - keepQ[1]); q[C.SOLVENT] = keepQ[0]; q[C.ENERGY] = keepQ[1];
   // An electric town lights up at night; a fire town glows at its hearths only.
   const complete = (type) => {
     const b = planBuilding(settlement, type, 9) || W.buildings.find((x) => !x.ruined && x.placeKind === "settlement" && x.placeId === settlement.id && x.type === type && !x.complete);
@@ -119,8 +124,9 @@ const fixtureSource = String.raw`(() => {
   };
   complete("shelter"); complete("hall"); complete("hearth");
   for (const t of ["electricity", "controlled_fire"]) if (!settlement.knownProcesses.includes(t)) settlement.knownProcesses.push(t);
-  const hashBefore = typeof worldHash === "function" ? worldHash() : null;
+  // The hash is taken at the town's midnight, the tick the check below returns to; the herd's midnight above may lie in the other hemisphere.
   W.tick = townMidnight;
+  const hashBefore = typeof worldHash === "function" ? worldHash() : null;
   window.ALIFE_VISUAL_DEBUG.renderOnly({ view: "top", quality: "high", zoom: 3, x: settlement.x, y: settlement.y, now: 5000 });
   for (let i = 0; i < 60; i++) dl.light();
   window.ALIFE_VISUAL_DEBUG.renderOnly({ view: "top", quality: "high", zoom: 3, x: settlement.x, y: settlement.y, now: 5100 });

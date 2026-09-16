@@ -209,6 +209,86 @@ function updateSurfaceHydrology(i, weather) {
     W.reservoirs.atmosphericSolvent += evapMass;
   }
 }
+// ── The sky breathes ─────────────────────────────────────────────────────────
+// Rain fell from what the air held, and only a drought filled the air: the
+// evaporation above takes depth and matter from a tile only while it stands
+// above its natural waterline, so a lake at its level gave the sky nothing,
+// and neither did wet ground. The hydrology probe on battery causal-origin
+// read the air at 953 thousand at the start, 12 thousand by year six after
+// three wet years had laid it on the ground, and near nothing for a hundred
+// years after, filled by droughts alone; on battery ship-c the air read zero
+// from year ten, and each rain year of the century after carried nothing.
+// Meanwhile the plants drank the land (02): ship-c's land water fell from
+// 1,241 thousand to 447 by year 110, its mean moisture from 56 to 20, three
+// land tiles in five under the 16 photosynthesis needs, with the lake beside
+// it holding 726 thousand nobody could reach. Now standing water breathes: in
+// weather that is not rain or drought, a lake or sea tile above freezing gives
+// the air a hundredth of the matter above what its depth accounts for each
+// pass (the floor irrigation respects, so a lake keeps its level), twice that
+// in a heat wave; and wet ground above fifty moisture gives back one a pass
+// and one more for every ten above, so the land cannot flood without end. The rain then
+// has something to carry, and what it lays on the land came from the lakes
+// and goes back to them. Matter moves; none is made.
+const BREATH_LAKE_RATE = 0.01,
+  BREATH_LAND_FLOOR = 50,
+  BREATH_LAND_STEP = 10;
+function breatheSurfaceWater(i, weather) {
+  if (weather === "Rain" || weather === "Heavy Rain" || weather === "Storm" || weather === "Drought")
+    return 0;
+  const t = W.tiles;
+  if (t.temperature[i] < 0) return 0;
+  const heat = weather === "Heat Wave" ? 2 : 1;
+  let lift = 0;
+  if (t.liquid[i] > WATER_DEPTH.SURFACE) {
+    const spare = t.chem[C.SOLVENT][i] - t.liquid[i];
+    if (spare > 0) lift = Math.min(spare, Math.ceil(spare * BREATH_LAKE_RATE) * heat);
+  } else {
+    const moisture = tileMoisture(i);
+    if (moisture > BREATH_LAND_FLOOR)
+      lift = Math.min(
+        t.chem[C.SOLVENT][i],
+        (1 + Math.floor((moisture - BREATH_LAND_FLOOR) / BREATH_LAND_STEP)) * heat,
+      );
+  }
+  if (lift <= 0) return 0;
+  const taken = takeTileMatter(i, C.SOLVENT, lift);
+  W.reservoirs.atmosphericSolvent += taken;
+  return taken;
+}
+// ── The land cools to its climate ────────────────────────────────────────────
+// A drought warmed every tile by two tenths of a degree a pass and a heat wave
+// by one, a fire by six for every packet it burned, and nothing ever cooled
+// them: the seasons swing about the mean (46) and the diffusion (08) only
+// spreads what is there. The hydrology probe read battery causal-origin's
+// mean land temperature at 19 degrees in year one and 24 by year 18 on the
+// code before this round, a third of a degree a year; at that pace the
+// warm tiles pass the 48 degrees photosynthesis allows within the century,
+// and the "thermal destruction" of the late game (22) was this heat. Every
+// tile now remembers the climate it was made with, and each pass draws its
+// temperature back toward that climate and the season's swing by a twentieth
+// of the excess, so a heat-wave year stands about two degrees above the mean
+// and a drought four, and a burned tile cools once the fire is out. A world
+// saved before this remembers the climate it has when it is next stepped. The
+// heat goes to the sky and is booked as dissipated.
+const CLIMATE_RELAX = 0.05;
+function ensureClimateBaseline(world = W) {
+  const t = world?.tiles;
+  if (!t || (t.climateBase && t.climateBase.length === world.tileCount)) return;
+  t.climateBase = new Int16Array(world.tileCount);
+  for (let i = 0; i < world.tileCount; i++)
+    t.climateBase[i] = t.temperature[i] - (t.seasonOffset ? t.seasonOffset[i] : 0);
+}
+function coolTileToClimate(i) {
+  const t = W.tiles,
+    base = t.climateBase[i] + (t.seasonOffset ? t.seasonOffset[i] : 0),
+    excess = t.temperature[i] - base;
+  if (!excess) return 0;
+  const step = Math.sign(excess) * Math.max(1, Math.round(Math.abs(excess) * CLIMATE_RELAX));
+  t.temperature[i] = i16(t.temperature[i] - step);
+  W.conservation.dissipatedEnergy += Math.abs(step);
+  W.conservation.thermalEnergy = (W.conservation.thermalEnergy || 0) - step;
+  return step;
+}
 function hydrologySummary() {
   if (!W) return null;
   ensureHydrologyBaseline(W);
@@ -237,6 +317,7 @@ function hydrologySummary() {
   };
 }
 function updatePhysicalSubstrate() {
+  ensureClimateBaseline(W);
   const t = W.tiles,
     start = (W.tick % W.height) * W.width,
     end = start + W.width,
@@ -267,6 +348,8 @@ function updatePhysicalSubstrate() {
       W.conservation.thermalEnergy = (W.conservation.thermalEnergy || 0) + 1;
     }
     updateSurfaceHydrology(i, weather);
+    breatheSurfaceWater(i, weather);
+    coolTileToClimate(i);
     if (t.fire[i] > 0) {
       const moisture = tileMoisture(i),
         requested = Math.max(1, Math.floor(t.fire[i] / 150)),
