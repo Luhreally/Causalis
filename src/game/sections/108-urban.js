@@ -31,11 +31,31 @@ function urbanAge(f) {
 function polityTowns(f) {
   return W.settlements.filter((s) => !s.ruined && s.knownProcesses && s.factionId === f.id);
 }
-// The largest town of the polity, a town with a hall before one without.
+// ── The pull follows the place a ship would leave from ───────────────────────
+// The launch site of 114 sticks to a town, and the pull followed size; the two
+// came apart on phone causal-origin. The site, Lakehaven, held 61 people in
+// year 73 with the world's skyline built and no launch tower or Starflight
+// yet, and the pull took its polity's villagers to Fenspire once Fenspire was
+// the larger, 29 to 67 while Lakehaven emptied to 11: the press ran five whole
+// horizons on a site that could neither build nor learn, and the ship left in
+// year 201 from a third town. Phone variety-2 did the same from year 82 and
+// had no ship by 298. Once the world has chosen the place a ship would leave
+// from, that place is the pull of its polity while it is a city with a hall,
+// whatever its size; the largest town otherwise, as before.
+// The largest town of the polity otherwise, a town with a hall before one without.
 function urbanHub(f) {
   if (!f) return null;
+  const towns = polityTowns(f),
+    site = W.causalLaunchSiteId ? towns.find((s) => s.id === W.causalLaunchSiteId) : null;
+  if (
+    site &&
+    completedBuildings(site, "hall").length > 0 &&
+    typeof cityStage === "function" &&
+    cityStage(site)
+  )
+    return site;
   return (
-    polityTowns(f)
+    towns
       .map((s) => ({ s, pop: settlementPopulation(s), hall: completedBuildings(s, "hall").length > 0 ? 1 : 0 }))
       .filter((x) => x.pop >= URBAN_MIN_HUB)
       .sort((a, b) => b.hall - a.hall || b.pop - a.pop || a.s.id - b.s.id)[0]?.s || null

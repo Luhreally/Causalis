@@ -78,6 +78,8 @@ const fixtureSource = String.raw`(() => {
   if (out.ageBefore) fail("the age of the city came before letters");
   if (!out.ageAfter) fail("governance does not open the age of the city");
   out.hub = urban.hub(f.id);
+  // Once the world has chosen the place a ship would leave from, the pull follows it while it is a city with a hall, whatever its size; a chosen site that is no city does not take it.
+  { const keepSite = W.causalLaunchSiteId, keepStage = village.stage; complete(village, "hall"); W.causalLaunchSiteId = village.id; out.hubSiteNoCity = urban.hub(f.id); if (out.hubSiteNoCity !== hub.id) fail("a launch site that is no city took the pull: " + out.hubSiteNoCity); village.stage = "urban"; out.hubSite = urban.hub(f.id); if (out.hubSite !== village.id) fail("the pull did not follow the launch site: " + out.hubSite); village.stage = keepStage; W.causalLaunchSiteId = keepSite; }
   if (out.hub !== hub.id) fail("the largest town with a hall is not the hub: " + out.hub);
   out.room = urban.room(hub.id);
   out.beds = housingCapacity(hub);
