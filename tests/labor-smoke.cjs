@@ -61,6 +61,23 @@ const fixtureSource = String.raw`(() => {
   wantOrder.blockedUntil = W.tick;
   out.laterPick = selectWorkOrder(worker, town)?.id || 0;
   if (out.laterPick !== wantOrder.id) fail("the set-aside plan did not come back: " + out.laterPick);
+  // A plot the hands cannot work is no plot (128): the open ground offers nothing past the labour reach,
+  // and a foundation laid out past it is laid out again where the town's siting puts it now.
+  const openPlot = openGroundPlot(town, "launch_tower");
+  out.openPlot = openPlot ? Math.round(Math.sqrt(dist2(town.x, town.y, openPlot[0], openPlot[1]))) : null;
+  if (openPlot && out.openPlot > OPEN_GROUND_WORK_REACH) fail("the open ground offered a plot past the labour reach: " + out.openPlot);
+  let fx = -1, fy = -1;
+  for (const [dx, dy] of [[31, 0], [-31, 0], [0, 31], [0, -31], [22, 22], [-22, 22], [22, -22], [-22, -22]]) {
+    const x = town.x + dx, y = town.y + dy;
+    if (x >= 1 && y >= 1 && x < W.width - 1 && y < W.height - 1) { fx = x; fy = y; break; }
+  }
+  if (fx >= 0) {
+    stocked.x = fx; stocked.y = fy; stocked.workDone = 0;
+    out.farBefore = Math.round(Math.sqrt(dist2(town.x, town.y, fx, fy)));
+    out.resited = openGroundResite(town);
+    out.farAfter = Math.round(Math.sqrt(dist2(town.x, town.y, stocked.x, stocked.y)));
+    if (!(out.resited >= 1) || out.farAfter > OPEN_GROUND_WORK_REACH) fail("a foundation past the labour reach was not laid out again nearer: " + out.farBefore + " -> " + out.farAfter);
+  } else out.resited = "map too small for a far plot";
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;
 })()`;

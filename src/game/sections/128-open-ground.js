@@ -21,6 +21,20 @@
 // the nearest clear ground on dry land, deterministic by the same hash the
 // townscape uses. Nothing else about where a building goes changes.
 const OPEN_GROUND_REACH = 26;
+// A plot the hands cannot work is no plot either. A worker's town is theirs
+// only within twenty-eight tiles of its hall (30c, nearestWorkPlace), and the
+// rings above are counted the chessboard way, so a plot at the twenty-sixth
+// ring can lie thirty-six tiles off as the walker walks. Measured on battery
+// variety-3 at year 115: Tratritrop, the launch site, held its launch tower
+// planned at the map's edge thirty tiles from the hall, stocked by the effort
+// and at its second stage, with thirteen of thirty-two people assigned and
+// not one unit of work laid in eleven years; every hand lost its order two
+// tiles short of the face, turned home, took the order again inside the
+// twenty-eighth tile, and walked out again, and the world flew a century
+// late when two blocks fell and freed a plot in town. The open ground offers
+// nothing farther than twenty-six tiles as the crow flies, two inside the
+// labour reach, so a hand at the face is still in its town's employ.
+const OPEN_GROUND_WORK_REACH = 26;
 // ── A plot the town can walk to ──────────────────────────────────────────────
 // A builder walks one greedy step at a time round standing buildings and
 // never across a cliff (96). Measured on causal-origin phone at year fifty-six:
@@ -90,6 +104,7 @@ function openGroundPlot(place, type) {
           y = place.y + dy;
         if (x < 1 || y < 1 || x >= W.width - 1 || y >= W.height - 1) continue;
         if (!developmentFootprintClear(x, y, footprint) || !buildingTerrainFootprintValid(type, x, y)) continue;
+        if (dist2(place.x, place.y, x, y) > OPEN_GROUND_WORK_REACH * OPEN_GROUND_WORK_REACH) continue;
         if (!openGroundPlotReachable(place, x, y)) continue;
         const score = (hashParts(W.seedHash, "site", place.id, x, y) % 7) * 0.05 - (Math.abs(dx) + Math.abs(dy)) * 0.01;
         if (score > bestScore) {
@@ -121,7 +136,52 @@ plannedBuildingTile = function (place, type, ordinal) {
   if (plot && openGroundPlotReachable(place, plot[0], plot[1])) return plot;
   return openGroundPlot(place, type);
 };
+// ── A foundation the hands cannot reach is laid out again ────────────────────
+// A plan already laid past the labour reach, by the rings above before this
+// mend or by any siting that reaches farther than the hands do, would stand
+// stocked and unworked for good. Once in a while a town looks over its
+// unstarted plans, and one whose plot lies past the reach is laid out again
+// where the town's own siting puts it now; the material stocked at it moves
+// with the plan, since it is the plan's and not the ground's. A plan with work
+// already in it is left where it stands.
+const OPEN_GROUND_RESITE_EVERY = 32,
+  OPEN_GROUND = { resited: 0, unsited: 0 };
+function openGroundFarPlan(place, b) {
+  return (
+    !b.complete &&
+    !b.ruined &&
+    !b.workDone &&
+    dist2(place.x, place.y, b.x, b.y) > OPEN_GROUND_WORK_REACH * OPEN_GROUND_WORK_REACH
+  );
+}
+function openGroundResite(place) {
+  if (!place?.knownProcesses || !W) return 0;
+  let moved = 0;
+  for (const b of W.buildings) {
+    if (b.placeKind !== "settlement" || b.placeId !== place.id || !openGroundFarPlan(place, b)) continue;
+    const ordinal = W.buildings.filter((x) => !x.ruined && x.placeKind === "settlement" && x.placeId === place.id).length,
+      plot = plannedBuildingTile(place, b.type, ordinal);
+    if (!plot || dist2(place.x, place.y, plot[0], plot[1]) > OPEN_GROUND_WORK_REACH * OPEN_GROUND_WORK_REACH) {
+      OPEN_GROUND.unsited++;
+      continue;
+    }
+    b.x = plot[0];
+    b.y = plot[1];
+    if (typeof clearRuinsUnder === "function") clearRuinsUnder(b);
+    OPEN_GROUND.resited++;
+    moved++;
+  }
+  return moved;
+}
+const ensurePlacePlansOpenGroundBase = ensurePlacePlans;
+ensurePlacePlans = function (place) {
+  ensurePlacePlansOpenGroundBase(place);
+  if (place?.knownProcesses && W && (W.tick + place.id) % OPEN_GROUND_RESITE_EVERY === 0) openGroundResite(place);
+};
 window.ALIFE_OPEN_GROUND_DEBUG = Object.freeze({
+  workReach: OPEN_GROUND_WORK_REACH,
+  resited: () => ({ ...OPEN_GROUND }),
+  resite: (placeId) => openGroundResite(W.settlements.find((s) => s.id === placeId)),
   plot: (placeId, type = "launch_tower") => openGroundPlot(W.settlements.find((s) => s.id === placeId), type),
   reachable: (placeId, x, y) => openGroundPlotReachable(W.settlements.find((s) => s.id === placeId), x, y),
   flooded: (placeId) => openGroundReachable(W.settlements.find((s) => s.id === placeId)).size,
