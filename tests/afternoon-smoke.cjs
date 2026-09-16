@@ -30,41 +30,38 @@ const fixtureSource = String.raw`(() => {
     if (b) { b.complete = true; b.stage = 6; b.integrity = b.maxIntegrity; b.completedTick = W.tick; for (const [sp, n] of b.requirements || []) b.composition[sp] = n; }
     return b;
   };
-  // Industry strains the sky; stewardship and ecological engineering ease it.
+  // Industry strains the sky where it runs, a living town with a finished factory
+  // and an engine craft; stewardship and ecological engineering ease it, and a
+  // tended factory town takes the sky down. Since section 17 this ledger runs
+  // before the ship as well as behind it.
   forget("mechanization", "combustion", "electricity", "fusion", "planetary_stewardship", "ecological_engineering");
   out.deltaClean = af.delta();
   if (out.deltaClean !== 0) fail("a town without engines strains the sky: " + out.deltaClean);
   know("mechanization", "combustion", "electricity");
+  out.deltaKnownOnly = af.delta();
+  if (out.deltaKnownOnly !== 0) fail("a town that knows engines but has no factory is in the ledger: " + out.deltaKnownOnly);
+  if (!complete("factory")) fail("fixture could not build a factory");
   out.deltaIndustry = +af.delta().toFixed(3);
-  if (!(out.deltaIndustry > 0.07)) fail("engines, combustion, and current do not strain the sky: " + out.deltaIndustry);
+  if (!(out.deltaIndustry > 0.07)) fail("a factory town with engines, combustion, and current does not strain the sky: " + out.deltaIndustry);
   let strain = 0;
   for (let i = 0; i < 40; i++) af.tick();
   strain = af.strain(); out.strainIndustry = +strain.toFixed(2);
   if (!(strain >= 1)) fail("forty years of industry did not make the sky heavy: " + strain);
   const heavy = W.events.find((e) => e.type === "ClimateEvent");
-  if (!heavy) fail("no ClimateEvent when the sky grew heavy"); else { out.heavySentence = eventSentence(heavy); if (!/heavy|choking/.test(out.heavySentence) || !alertWorthy(heavy)) fail("the heavy sky is not chronicled or alerted: " + out.heavySentence); }
+  if (!heavy) fail("no ClimateEvent when the sky grew heavy"); else { out.heavySentence = eventSentence(heavy); if (!/heavy|choking/.test(out.heavySentence) || !alertWorthy(heavy)) fail("the heavy sky is not said in plain words or not alert-worthy: " + out.heavySentence); }
   out.weather = af.weather(1) || af.weather(2) || af.weather(3) || af.weather(4) || af.weather(5) || af.weather(6) || af.weather(7) || af.weather(8);
   if (!["Drought", "Heat Wave"].includes(out.weather)) fail("a strained sky forces no drought or heat within eight seasons: " + out.weather);
   know("planetary_stewardship", "ecological_engineering");
   out.deltaTended = +af.delta().toFixed(3);
-  if (!(out.deltaTended < out.deltaIndustry)) fail("stewardship does not ease the strain: " + out.deltaTended);
-  // Behind the ship the ledger is tended: a town lays its part only with a finished
-  // factory, and a tended factory town takes the sky down.
-  W.ascensions = W.ascensions || []; W.ascensions.push({ smoke: true });
-  out.deltaKnownOnly = af.delta();
-  if (out.deltaKnownOnly !== 0) fail("behind the ship a town that knows engines but has no factory is in the ledger: " + out.deltaKnownOnly);
-  if (!complete("factory")) fail("fixture could not build a factory");
-  out.deltaTendedWorks = +af.delta().toFixed(3);
-  if (!(out.deltaTendedWorks < 0)) fail("behind the ship a tended factory town still lays strain on the sky: " + out.deltaTendedWorks);
+  if (!(out.deltaTended < 0)) fail("a tended factory town still lays strain on the sky: " + out.deltaTended);
   forget("planetary_stewardship", "ecological_engineering");
   out.deltaWorks = +af.delta().toFixed(3);
-  if (!(out.deltaWorks > 0.07)) fail("behind the ship a factory town with engines does not strain the sky: " + out.deltaWorks);
+  if (!(out.deltaWorks > 0.07)) fail("a factory town with engines does not strain the sky once untended: " + out.deltaWorks);
   know("planetary_stewardship", "ecological_engineering");
   for (let i = 0; i < 80; i++) af.tick();
   out.strainEased = +af.strain().toFixed(2);
   if (!(out.strainEased < out.strainIndustry)) fail("eighty tended years did not ease the sky: " + out.strainEased);
   if (!W.events.some((e) => e.type === "ClimateEasedEvent") && out.strainEased < 0.5) fail("the sky cleared without a ClimateEasedEvent");
-  W.ascensions.pop();
   // Ways of rule.
   const ideology = af.ideology(faction.id);
   if (!(Math.abs(ideology.rule) <= 1 && Math.abs(ideology.openness) <= 1)) fail("the way of rule is off its axes: " + JSON.stringify(ideology));

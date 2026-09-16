@@ -81,13 +81,17 @@ restoreWorldDefaults = function () {
   ensureAfternoon(W);
 };
 // ── Climate strain ────────────────────────────────────────────────────────────
-// Before the ship the ledger holds every living town that knows a craft, as
-// it was; behind it (skyTended) the industrial towns: a living town with a
-// finished factory that knows an engine craft. Its part on the sky, and the
-// crafts that ease it, count there.
+// The ledger holds the industrial towns: a living town with a finished factory
+// that knows an engine craft. Its part on the sky, and the crafts that ease
+// it, count there. Through section 16 this held only behind the ship
+// (skyTended) and before it every town that knew a craft was in the ledger.
 const STRAIN_ENGINE_CRAFTS = Object.freeze(["mechanization", "combustion", "electricity"]);
+// Round eight (HANDOFF section 17) brought the tended ledger forward of the
+// ship: phone worlds strained their own sky before launching and phone ship-c
+// halved under it; the launch sweep on both sizes was run again and is the
+// baseline of section 17. The name is kept for the probes and the tests.
 function skyTended() {
-  return typeof shipHasLeft === "function" && shipHasLeft();
+  return true;
 }
 function industrialTown(s) {
   return !!s && !s.ruined && !!s.knownProcesses && STRAIN_ENGINE_CRAFTS.some((t) => s.knownProcesses.includes(t)) && completedBuildings(s, "factory").length > 0;
