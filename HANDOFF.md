@@ -1600,9 +1600,353 @@ build strain on more towns and should be read with the sky columns before
 any other lever is tried on them. The war takes eight of Flintholl's
 seventeen in the famine year. The hoards above.
 
+### 16. Where the water goes: the sky breathes and the living loop returns what it drinks (2026-09-15, latest; battery and phone only)
+
+The round was asked for as "do all this, fix all the remaining issues": the
+open items of section 15. The land drying under the natural sky came first,
+because the reading of section 15 had already shown it was what remained
+after the forced spells were gone, and the other items followed it: the
+continuing crafts' twelve-year pace, the three phone worlds that die before
+a ship, the soldiers' hoards, and the war in the famine year.
+
+**The ledger.** `scripts/hydrology-probe.cjs <seed> <size> <complexity>
+<years>` generates a world and steps it a year at a time, summing every pool
+the solvent can sit in (the land tiles, the lake tiles, the matter above what
+their depth accounts for, the air, bodies and guts, stores, walls, roads,
+cohorts), the year's flows (the air's change under each weather, so a rain
+year's delivery and a dry year's lift are read apart; every balanced
+reaction's net take of solvent, and its unit count), what irrigation carried,
+and the land as the transit probe reads it. `OFF=breath` turns the breathing
+sky off. Two facts came out of it that nothing else had shown.
+
+**Nothing made water, and the sky had none to give.** Photosynthesis took two
+solvent for every two organic it made; respiration turned energy and oxidant
+into waste and gas; decomposition and mineralization drank a solvent each;
+no reaction in the table returned any. Battery causal-origin's water fell by
+twenty-one thousand a year, 7,741 thousand at year one to 5,870 thousand at
+110; ship-c's by twenty-two thousand, 3,217 thousand to 1,229. The land paid
+first: causal-origin's mean moisture 54 to 31 and its plants 511 thousand to
+67; ship-c's moisture 56 to 20, three land tiles in five under the 16
+photosynthesis needs, its plants 524 thousand to 185. And the rain had
+nothing to carry: evaporation took depth and matter from a tile only while it
+stood above its natural waterline, so a lake at its level gave the air
+nothing and neither did wet ground; the air was filled by droughts alone.
+Causal-origin's air read 953 thousand at the start, 12 thousand by year six
+after three wet years had laid it on the ground, and near nothing for a
+hundred years after; ship-c's read zero from year ten, and each rain year of
+the century after delivered nothing (the probe's air column: "Rain": 0).
+Section 15's forced spells were the trigger of the famine behind the ship;
+this is why the land never recovered between them, before the ship as well
+as after, on every size.
+
+**The living loop returns what it drinks (02).** Photosynthesis now takes one
+solvent, a nutrient and two gas and gives two organic, an energy and an
+oxidant (chemosynthesis follows it); mineralization takes oxidant, not
+solvent, and gives back a nutrient, a solvent and a gas for two waste;
+decomposition takes oxidant, not solvent, and returns a solvent with the
+nutrient and gas. Respiration is as it was, energy and oxidant to waste and
+gas, and that is not an oversight: the waste a body breathes out is excreted where it stands
+and mineralizes there, and it is the only path that fertilizes the ground
+where the animals and the people feed. Two organic eaten, their two energies
+respired and the two waste mineralized return the solvent and the gas their
+making took, and a gas and a nutrient over; two organic rotted return the
+solvent, the nutrient and the oxidant. Every species in these
+reactions shares one composition, so the balance the world checks at
+creation (06) holds, and photosynthesis asks the sun for 11.92 against 11.76
+before. Two drafts were measured and rejected on the way. The first kept two
+solvent a unit and gave two oxidant: the water still fell ten thousand a
+year, because from year eighteen respiration runs about as many units a
+year as photosynthesis, eight thousand of each on battery causal-origin, not
+twice as many. The second had respiration exhale solvent instead of waste:
+it levelled the water and opened the ground, since with no waste to
+mineralize nothing returned nutrient to the tiles the herds and the towns
+graze; the land tiles under the fertility of 10 that photosynthesis needs
+went from 11 of causal-origin's 1,389 to 724 in twenty-eight years, the
+plants fell as before under a wet sky, and the world reached no ship by year
+100 where it had at 58. The census that found it is in the ledger now: mean
+fertility, the count of land tiles failing each of photosynthesis' gates
+(moisture, fertility, heat, cold, flood, gas, nutrient), the tile energy the
+forage is worth, the nutrient held in bodies, and the mean land temperature.
+
+**The land cools to its climate (17).** The same census, run on the code
+before this round, read the mean land temperature of battery causal-origin
+at 19 degrees in year one and 24 by year 18, a third of a degree a year, and
+the fertility gate closing on 409 of 1,389 tiles by year 18 as well: both
+drifts are older than this round. A drought warmed every tile by two tenths
+a pass and a heat wave by one, a fire by six for every packet burned, and
+nothing ever cooled them; the seasons (46) swing about the mean and the
+diffusion (08) only spreads what is there. At that pace the warm tiles pass
+the 48 degrees photosynthesis allows within the century, and the "thermal
+destruction" deaths of every late game were this heat. Every tile now keeps
+the climate it was made with (`climateBase`, written beside the temperature
+in both generators of 06; a world saved before this takes the climate it has
+when next stepped) and each pass draws its temperature back toward that
+climate plus the season's swing by a twentieth of the excess, at least a
+tenth: a heat-wave year stands about two degrees over the mean, a drought
+four, a burned tile cools once the fire is out, and the heat is booked as
+dissipated. Measured: causal-origin's mean land temperature reads 17.8 to 19.0 degrees
+in every decade to year 90 (36.2 by year 60 before), ship-c's 15.9 to 16.0,
+and no land tile passes 48.
+
+**The body passes its surplus nutrient to the ground (21).** With the water
+level and the land cool, the plants still thinned the same way on both codes,
+and the census said why: a meal took eight nutrient a stride from the tile
+(performFeeding), the gut passed it to the body at six a call, and the body
+kept every unit until it died, as nothing below excreted nutrient the way it
+excretes water and waste. Living bodies on battery causal-origin held 38
+thousand nutrient in year one and 653 thousand by year sixty, all of it
+drawn from the tiles the herds and the towns feed on, and the land tiles
+under the fertility of 10 that photosynthesis needs went from 12 of 1,389 to
+665 while the plants fell from 511 thousand to 146. What a body holds above
+its reserve (240 for a person, 120 for a beast) is now passed where it
+stands, six a call as the gut fills it: the manure of the herd and the town
+is the fertility of the ground they stand on. Measured: living bodies hold 12 to 35 thousand nutrient through the century
+(653 thousand by year 60 before), the tiles under the fertility gate number
+0 to 17 through year 60 (665 before), mean fertility 40 to 44 (22), and the
+plants stand where they fell before. Late in the century the count climbs
+again, 173 tiles at year 90 on causal-origin and 211 at 110 on ship-c, with
+the tile nutrient easing five thousand a year: the price of the gas, below.
+
+**Tried and rejected: litter rots (19).** With water, heat and nutrient
+mended the world greened and, greening, locked its carbon: causal-origin's
+tile organic climbed from 1,215 thousand to 2,125 thousand by year 100 and
+its gas fell from 1,681 thousand to 377; ship-c's gas to 124 by year 110.
+Photosynthesis takes two gas a unit. A rot of the litter above a floor of 600
+organic a tile, a unit asked for every 500 above it at each pass of the plant
+update by the decomposition of 02, levelled the gas (1,686 thousand to 1,184
+by year 110 on causal-origin, with mineralization's gas) and halved the
+standing plants: 291 thousand at year 80 against 572 without it, tile organic
+927 thousand at year 60 against 1,840. The civilization slowed with its
+forage and its materials: the same road to Ore Reduction at year 41 on both,
+then Waterworks at 57 against 45, and the ship at year 104 with 56 people
+against year 63. The rot is out; the gas is carried by mineralization and
+respiration instead (next), and what the greening world locks in its litter
+it locks slowly.
+
+**The gas (02).** Photosynthesis takes two gas a unit; respiration gives one
+back for each energy burned and mineralization one for two waste. With
+mineralization giving its two nutrient and no gas, the ledger read the gas
+falling thirteen thousand a year on both worlds (ten with the litter rotting,
+above), to nothing within a century and a half, so it gives one nutrient, one
+solvent and one gas instead: the nutrient it no
+longer gives the ground was over-returned once the bodies passed theirs (21),
+the tile nutrient rising two and a half thousand a year on both worlds. Measured with mineralization giving its gas: causal-origin's gas reads 1,681
+thousand at the start and 973 at year 90, eight thousand a year against
+thirteen (and against a rise of seven a year before this round, when nothing
+grew); ship-c's 1,600 thousand to 637 at 110. At that pace the gas lasts
+two centuries, and what the greening world locks in its standing litter
+(tile organic 1,215 thousand to 1,897 on causal-origin, 1,151 to 2,278 on
+ship-c) is where the carbon and the nutrient go. See the open items.
+
+**The sky breathes (17).** In weather that is not rain or drought, a lake or
+sea tile above freezing gives the air a hundredth of the matter above what
+its depth accounts for each pass, twice in a heat wave: the floor irrigation
+respects, so a lake keeps its level; and wet ground above fifty moisture
+gives one a pass, and one more for every ten above, twice in a heat wave,
+so the land cannot flood without end. The rain then has something to carry;
+what it lays on the land came from the lakes and goes back to them. Matter
+moves through `takeTileMatter` into the air reservoir; none is made.
+`tests/water-smoke.cjs` (in the fast chain) holds the loop's balance and the
+breath's rules.
+
+**Measured with the ledger on battery, 110 years of plain ticks, on the shipped
+code (3912cf3; the ledger is bit-identical on a86fa5f, d5f8a5f and 3912cf3,
+which differ only in what a press does).** Causal-origin's water stands at 7,753 thousand in year one and
+7,193 thousand at 90, six thousand a year against twenty-one; its land holds
+1,213 thousand at 90 against 678 at the start, its mean moisture reads 67 to
+97 through the century (54 at the start, 31 at 110 before), no land tile is
+under the 16 that photosynthesis needs in any year read, the air carries
+half a million to a million and a rain year lays 150 to 300 thousand on the
+ground where it laid nothing. Its plants: 511 thousand at the start, 311 at
+year 20, 347 at 90, against 90 at 90 before. Ship-c: 3,228 thousand of water
+to 2,502 at year 110 against 1,229; moisture 66 to 77 against 20; plants 515
+thousand at 110 against 185. Ship-c's lake had 715 thousand above its depth
+and the wetting land took most of it by year 40; from there the rain is what
+the wet ground and the lake's remainder breathe, a hundred to two hundred
+thousand a year, and the land holds. No matter is made or lost: the audit is
+nought in every year of every ledger.
+
+**The effort turns to the next craft within the press (131).** A transit
+press does not stop at a craft, and the objective was set once when the press
+began (79), so a craft learned in the second year of a twelve-year press left
+the effort pushing a done stage for ten: on the section 15 arc every
+continuing craft arrived exactly a horizon apart, Stewardship at 71,
+Hydroponics at 83, Antibiotics at 95, whatever year each was actually
+reached. Now at each intervention, if the objective is a craft the world has
+reached, the effort turns to the first objective not yet reached. `OFF=turn`
+on the transit probe restores the old press; the probe's yearly line now
+carries `known[...]`, the continuing crafts the world holds, so the year each
+arrives is read directly. Measured on the causal-origin arc: the ship leaves in year 74; by 80 the
+straining towns know Stewardship, Ecological Engineering and Fusion, by 86
+Refrigeration and Hydroponics, by 92 Antibiotics, Global Networks and
+Composites, by 98 Gene Therapy, Artificial Minds and the first two frontier
+crafts: twelve crafts in twenty-four years where each took a horizon. On
+ship-c (ship in 79) every continuing craft is known by 115.
+
+**A hoard comes home to the hall (133).** Before the ship a fighter drew a
+full ration at every order and a guard's orders are renewed again and again
+(42a), so section 15's hungry-town probe read three people holding 20,324 of
+the world's 31,500 food-energy at year 100. The caps of 41 and 42a stop the
+drawing behind the ship; they did not empty what was drawn before it. Behind
+the ship a person within the hall's reach with more than eight days' meals
+in the gut (192) puts what is above two days' (48) back in the town's store,
+where the daily draw shares it out. A forager home from a rich tile carries a
+day or two, never eight, so this is the hoards alone. `OFF=unload` on the
+transit probe; `ALIFE_HEARTH_DEBUG.unload(id)` and the `unloaded` count.
+Measured with the hoard probe on battery causal-origin at year 100 on the
+shipped code, three ships away: 14,664 organic returned to the stores over
+the arc, the whole world's guts hold 984 across 75 people and the largest
+holds 18, against 30,638 with one gut of 9,993 on a road where no ship had
+left, and the 20,324 in three people of section 15.
+
+**Behind the ship, on the shipped code, sixty and seventy voyage years on
+battery, `transit-probe`.** Causal-origin: 72 at the launch in year 74, 81
+at 79, 78 at 89, 73 at 99, 80 at 109, 102 at 119, 113 at 129 and 114 at year
+134; eighty-nine born, fifty-five dead, **nobody starved** and nobody burned
+in sixty years; the strain 2.42 at its highest and nought from year 86, two
+forced spells behind the ship; its plants 321 thousand at the launch and 475
+at 132, its moisture 92, and a colony founded (section 15 measured 104 at 110
+and 54 at 125 with forty-six starved, on a launch at 58). Ship-c: 62 at the
+launch in year 79, 78 at 89, 85 at 109, 110 at 129 and 126 at year 147; a
+hundred and sixteen born, seventy-two dead, four of them starved (three in
+the 100s, one in the 110s); the strain 1.43 at the launch and nought from 91,
+one forced spell behind; plants 490 thousand to 675, and a colony founded
+(section 15: 104 at 124, none starved, from a launch at 67). War deaths fall
+in a few of causal-origin's voyage years, one to three a year, as before.
+
+**The three phone worlds that died before a ship.** Read with the transit
+probe from year 31 on the press road, to year 110, on the shipped code. Phone
+ship-c, which starved from year 31 and peaked at 133 in year 83 before dying,
+holds 71 to 82 people through year 66 with two starved in forty years, thins
+to 39 by year 86 under a sky it strains itself (0.5 in year 86, 1.9 with four
+forced spells by 101: before the ship the ledger of section 15 is as it was,
+and on phone the villages that take engines by teaching strain it), and
+sends its first ship in year 106 with 50 people at home, 53 by 110. Phone
+variety-3, which fell to 14 by year 99, stands at 128 in year 72 when its
+first ship leaves and has a colony founded and a second ship under way by
+106, at 135 people, its land at moisture 99. Phone variety-8, which lived to
+103 and no ship, sends its first in year 89 at 124 and its second by 108, at
+134 people; its land reads moisture 85 to 94 the whole way and its plants
+climb from 919 thousand to 1,286. All three were the empty sky: on the code
+before, phone ship-c's air read zero from year ten and every rain year of the
+century delivered nothing.
+
+**Launch sweeps on the shipped code (3912cf3), eleven seeds, 26 presses, the
+launch site read honestly (114).** Every change of this round runs before the
+ship as well as after, so every road moved, and this list replaces section
+14's. Battery launches **11 of 11** (9 before): causal-origin y74 (71 people
+at the press before; 58 and 78 before this round), ship-b 111 (68; 90),
+ship-c 79 (62; 67), variety-1 77 (68; collapsed before), variety-2 87 (76;
+100), variety-3 110 (78; 76), variety-4 91 (71; collapsed before), variety-5
+70 (71; 89), variety-6 121 (73; 117), variety-7 114 (78; 113), variety-8 82
+(72; 113). Six worlds leave earlier or where none left, five later; none
+dies. The transit probe's arcs above leave in the same years, 74 and 79, as
+the sweep now reads the site without choosing it.
+Phone launches **11 of 11** (8 before): causal-origin y73 (135 people at the
+press before; 91 and 136 before this round), ship-b 65 (135; 79), ship-c 106
+(50; collapsed before), variety-1 97 (139; 90), variety-2 85 (134; 78),
+variety-3 72 (126; collapsed), variety-4 73 (81; 84), variety-5 83 (134;
+57), variety-6 141 (75; 149), variety-7 64 (140; 78), variety-8 89 (126;
+collapsed). Before the carry of 79 the same sweep read causal-origin at 267
+and variety-2 with no ship by 221, when a halving of its people halted the
+press; that stall is the two paragraphs that follow. Section 14's 91 and 78
+were read with the probe choosing the site.
+
+**The pull of the city follows the launch site (108).** The first phone sweep
+on this round's code launched ten worlds of eleven and put two far out:
+causal-origin in year 201 and variety-2 not by 298, alive at 101 people.
+Both were the same thing. The launch site of 114 sticks to a town, and the
+pull of the city (108) followed size: on phone causal-origin the site,
+Lakehaven, held 61 people in year 73 with the world's skyline built and no
+launch tower or Starflight yet; the pull took its polity's villagers to
+Fenspire once Fenspire was the larger, 29 to 67 while Lakehaven emptied to
+11, the press ran five whole horizons on a site that could neither build nor
+learn, and the ship left in year 201 from a third town that had grown to the
+city gate. Once the world has chosen the place a ship would leave from, that
+place is now the pull of its polity while it is a city with a hall, whatever
+its size; the largest town otherwise, as before. Measured: it did not mend the stall. With the pull following the site,
+phone causal-origin's Lakehaven still fell from 61 to 12 while Fenspire
+grew, so the drain is not the pull (deaths of a founding generation, and
+households leaving for a fed store, are the other movers), and the site
+held the same two blockers, no launch tower and no Starflight, from year 73
+to 265, with 20 to 40 people; the ship left in 267 from a third town. On
+the battery roads the change is idle where the site and the hub already
+agreed (every battery launch year stands but variety-6, 130 to 121, and
+variety-7, 109 to 114). What the site waits for is read with
+`scripts/site-probe.cjs <seed:size:complexity> <year>`, below.
+
+
+**A craft the world holds is carried where its facility will not rise (79).**
+The site probe named the stall. On phone causal-origin at year 100 the site
+knew Astronomy, the next step on the road to Starflight was Mechanization,
+its forge was never built, and its progress stood at 57 of 60: the push
+raises a craft to ninety-five hundredths of its threshold and no further,
+the town does the rest with the facility the craft wants, and where the
+facility never rises the craft never comes, though four other towns of the
+world knew it. On phone variety-2 the site stood at 53 of 56 on Astronomy
+with its observatory planned, stocked and unworked for thirty years, while
+two towns of the world, one of its own polity, knew the craft. Sister towns
+of a polity teach each other (30f) and the effort carries the sky crafts
+town to town (120); now, once a step has been pushed twenty-four times with
+its facility still wanting, the effort carries that step from any town that
+knows it, with a TechAdvanceEvent that says so: knowledge moves, matter does
+not, and a craft nobody knows is still the town's own to reach.
+`scripts/site-probe.cjs <seed:size:complexity> <year>` reads a site's step,
+facility, unfinished buildings and their wants, store, research progress
+and the world's wants. Measured with the site probe on the shipped code: at year 100 phone
+causal-origin's site knows Astronomy and Starflight (progress 109 of 90),
+holds a launch tower, and a ship has already left it, the effort pushing
+Gene Therapy; at year 110 phone variety-2's site knows both (136 of 90),
+holds a tower, and a ship has left it too, its observatory still planned,
+stocked and unworked. In the sweep below the two leave in years 73 and 85, with 135 and 134
+people at home. The battery roads are bit-identical
+with the carry: it never fires where nothing stalls.
+
+
+**The war in the famine year.** Section 15 saw a war take eight of
+Flintholl's seventeen in the year it starved. Read across the whole arcs,
+war deaths run one to three a year on causal-origin from year 70 on and one
+or two on ship-c, with or without famine; the eight were one year's battle
+in a war of the ordinary kind, not a rule that sends a starving town to
+fight. Nothing was changed for it; the arcs above say what the wars cost
+under the new sky.
+
+**Still open.** A planned building that is stocked and never worked: phone
+variety-2's observatory stood at its second stage with its materials and no
+hands from year 80 to 110 while the town had fifty to sixty people and its
+farm had four hands; the carry went round it, but the labour pool's reason
+for never sending anyone is unread (an unreachable plot, or a priority that
+never comes up, are the two candidates; 137 gives up a field the town
+cannot walk to, and no rule does the same for a building). The gas eases
+eight thousand a year on both battery worlds
+(two centuries at that pace) and the tile nutrient five thousand late in the
+century, with the fertility gate closing on 173 tiles by year 90 on
+causal-origin: the carbon and the nutrient of the greening world lie in its
+standing litter, which nothing rots since the ground decomposer was
+rejected; a rot that spares the towns' reach and the fields is the honest
+next lever, and mineralization's second nutrient could come back with it.
+Ship-c's lake has no water above its depth from year 40, so its rain is
+what the wet ground breathes and its land eases from 77 to 66 by year 110;
+the sea's own body is not touched, and could be, slowly. Before the ship the
+sky is still the sky of section 15, and on phone the villages strain it: phone
+ship-c halved between years 42 and 86 under it; the sky fix is gated behind
+the ship and would need its own sweep to come forward. The predators die
+out by year 50 on battery causal-origin on every code, an old finding: the
+rescue refugia are spent once the people pass two hundred. The launch roads
+moved with the chemistry, as every pre-ship change moves them: the sweep
+above is the new baseline, and section 14's is history. The war is as it was.
+
 ## The recent commits, newest first
 
 ```
+3912cf3  A craft the world holds is carried where its facility will not rise, and a probe reads what a launch site waits for
+d5f8a5f  The pull of the city follows the place a ship would leave from
+a86fa5f  The litter does not rot: the ground decomposer halved the plants and put the ship back forty years
+b4fec9c  Reading the launch blockers no longer chooses the launch site
+e57e898  Behind the ship a hoard in the gut comes home to the hall
+c4b9080  Behind the ship the effort turns to the next craft within the press
+09b4ec2  The land stops drifting: the living loop returns its water, the sky breathes, the land cools to its climate, bodies pass their surplus nutrient to the ground, and litter rots
+c624dec  Probes: a hydrology ledger by year, and the transit probe reads the crafts the world holds
 9c89061  Before the ship the sky is as it was; behind it the ledger is tended
 edab634  Industry strains the sky where it runs, and the effort tends the sky from the first spell it can force
 cea9769  A tended town offsets more than itself, and the effort carries the sky crafts town to town
