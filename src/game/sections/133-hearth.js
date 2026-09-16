@@ -30,7 +30,7 @@
 const HEARTH_REACH_MIN = 8,
   HEARTH_REACH_MAX = 24,
   HEARTH_REACH_MARGIN = 2;
-const HEARTH = { homeMeals: 0, seedKept: 0, drawn: 0, seedHidden: 0, herdKept: 0, quotaKept: 0 };
+const HEARTH = { homeMeals: 0, seedKept: 0, drawn: 0, seedHidden: 0, herdKept: 0, quotaKept: 0, unloaded: 0 };
 let hearthReachCache = { world: null, tick: -1, values: new Map() };
 function hearthReach(town) {
   if (!town || town.ruined) return HEARTH_REACH_MIN;
@@ -259,8 +259,42 @@ performFeeding = function (id, tile, stride = 1) {
     left = hearthMealQuotaLeft(id);
   return hearthHideAbove(near?.knownProcesses ? near : null, left, id, () => hearthHideAbove(home && home !== near ? home : null, hearthMealQuotaLeft(id), id, () => performFeedingHearthBase(id, tile, stride)));
 };
+// ── A hoard comes home to the hall (behind the ship) ─────────────────────────
+// Before the ship a fighter drew a full ration at every order, and a guard at
+// home has his orders renewed again and again (42a): the hungry-town probe on
+// battery causal-origin at year 100 read three people holding 20,324 of the
+// world's 31,500 food-energy, a soldier with 4,631 organic in his gut and
+// 10,003 energy in his body, a guard with 3,470 in his gut, beside a store of
+// 225 in a town that starved. The caps of 41 and 42a stop the drawing behind
+// the ship; they do not empty what was drawn before it. Behind the ship a
+// person standing within the hall's reach with more than eight days' meals in
+// the gut puts what is above two days' back in the town's store, where the
+// daily draw shares it out: matter moved, none made. A forager home from a
+// rich tile carries a day or two, never eight, so this is the hoards alone.
+const HEARTH_HOARD = HEARTH_MEAL_QUOTA * 8,
+  HEARTH_HOARD_KEEP = HEARTH_MEAL_QUOTA * 2;
+function hearthUnload(id) {
+  const gut = W.components.inventory[id]?.digestive;
+  if (!gut || gut[C.ORGANIC] <= HEARTH_HOARD) return 0;
+  const soc = W.components.social[id],
+    p = W.components.position[id],
+    home =
+      soc?.homePlaceKind === "settlement"
+        ? W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined)
+        : null;
+  if (!home?.knownProcesses || !p) return 0;
+  const reach = hearthReach(home);
+  if (dist2(p.x, p.y, home.x, home.y) > reach * reach) return 0;
+  const moved = Math.min(gut[C.ORGANIC] - HEARTH_HOARD_KEEP, 65535 - (home.inventory[C.ORGANIC] || 0));
+  if (moved <= 0) return 0;
+  gut[C.ORGANIC] -= moved;
+  home.inventory[C.ORGANIC] = (home.inventory[C.ORGANIC] || 0) + moved;
+  HEARTH.unloaded += moved;
+  return moved;
+}
 const runMetabolismHearthBase = runMetabolism;
 runMetabolism = function (id, tier) {
+  if (W.kind[id] === KINDS.PERSON && shipHasLeft()) hearthUnload(id);
   if (W.kind[id] !== KINDS.PERSON || !shipHasLeft() || (W.components.chemistry[id]?.q[C.ENERGY] ?? 99) >= 18) return runMetabolismHearthBase(id, tier);
   const place = typeof nearestFriendlyPlace === "function" ? nearestFriendlyPlace(id) : null;
   return hearthHideAbove(place?.knownProcesses ? place : null, hearthMealQuotaLeft(id), id, () => runMetabolismHearthBase(id, tier));
@@ -295,5 +329,6 @@ window.ALIFE_HEARTH_DEBUG = Object.freeze({
   draw: (townId) => hearthDraw(W.settlements.find((s) => s.id === townId)),
   hideSeed: (townId, fn) => hearthHideSeed(W.settlements.find((s) => s.id === townId), fn),
   quotaLeft: (id) => hearthMealQuotaLeft(id),
+  unload: (id) => hearthUnload(id),
   counts: () => ({ ...HEARTH }),
 });

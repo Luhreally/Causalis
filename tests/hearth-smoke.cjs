@@ -8,7 +8,8 @@
 // the hall leaves the seed reserve in the store; a full store gives a hungry
 // town a full ration and a store at its reserve is stretched; a day's meals
 // from the store are one gut's worth; a lean town's herd is fed no bread; a
-// stranger's meal is judged as before; and reading the reach never writes the
+// stranger's meal is judged as before; behind the ship a hoard in a resident's gut
+// goes back to the store; and reading the reach never writes the
 // world.
 const fs = require("node:fs");
 
@@ -244,6 +245,32 @@ const fixtureSource = String.raw`(() => {
     W.ascensions.pop();
     for (const [id, h] of hungers) W.components.life[id].hunger = h;
     s.inventory[C.ORGANIC] = savedStore;
+    W.tick++;
+  }
+  // Behind the ship a hoard in the gut of a resident at home goes back to the store; a modest gut, and a hoard away from home, are left alone.
+  {
+    W.ascensions.push({ smoke: true });
+    const gut = W.components.inventory[a].digestive, gutBefore = gut[C.ORGANIC], storeBefore = s.inventory[C.ORGANIC] || 0, px = p.x, py = p.y;
+    p.x = s.x; p.y = s.y;
+    gut[C.ORGANIC] = 500;
+    W.conservation.playerInput += 500 - gutBefore;
+    out.unloaded = hearth.unload(a);
+    if (out.unloaded !== 500 - 48) fail("the hoard was not unloaded down to two days' meals: " + out.unloaded);
+    if ((s.inventory[C.ORGANIC] || 0) !== storeBefore + out.unloaded) fail("the store did not receive the hoard: " + (s.inventory[C.ORGANIC] || 0) + " vs " + (storeBefore + out.unloaded));
+    if (gut[C.ORGANIC] !== 48) fail("the gut was not left with two days' meals: " + gut[C.ORGANIC]);
+    gut[C.ORGANIC] = 150;
+    W.conservation.playerInput += 150 - 48;
+    out.keptModest = hearth.unload(a);
+    if (out.keptModest !== 0) fail("a gut under eight days' meals was unloaded: " + out.keptModest);
+    gut[C.ORGANIC] = 500;
+    W.conservation.playerInput += 350;
+    p.x = clamp(s.x + (s.x + 30 < W.width ? 30 : -30), 0, W.width - 1);
+    out.keptAway = hearth.unload(a);
+    if (out.keptAway !== 0) fail("a hoard away from home was unloaded: " + out.keptAway);
+    W.ascensions.pop();
+    s.inventory[C.ORGANIC] += gut[C.ORGANIC] - gutBefore;
+    gut[C.ORGANIC] = gutBefore;
+    p.x = px; p.y = py;
     W.tick++;
   }
   // A stranger to the town is judged as before.
