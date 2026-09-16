@@ -618,7 +618,13 @@ function orderPriority(order, place, id) {
 function selectWorkOrder(id, place) {
   const kind = place.knownProcesses ? "settlement" : "camp",
     orders = W.workOrders
-      .filter((o) => o.status === "open" && o.placeKind === kind && o.placeId === place.id)
+      .filter(
+        (o) =>
+          o.status === "open" &&
+          o.placeKind === kind &&
+          o.placeId === place.id &&
+          !(o.blockedUntil > W.tick),
+      )
       .map((o) => ({ o, score: orderPriority(o, place, id) }))
       .sort((a, b) => b.score - a.score || a.o.id - b.o.id);
   return orders[0]?.o || null;

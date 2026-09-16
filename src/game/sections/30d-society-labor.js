@@ -7,6 +7,10 @@
 // society.js, split in six along its own seams on 2026-09-14; the composed
 // runtime is unchanged, and `scripts/who-overrides.cjs <name>` shows a
 // function's layers across them.
+// How long a plan whose want cannot be sourced is set aside before a worker
+// looks at it again: a caravan or a prospector may have brought the want.
+const LABOR_BLOCK_TICKS = 256,
+  LABOR_BLOCKED = { count: 0 };
 function performCivilLabor(id) {
   const l = derivedLife(id),
     p = W.components.position[id],
@@ -124,7 +128,18 @@ function performCivilLabor(id) {
     }
     const source = findResourceTile(id, sp),
       toolId = tool?.entityId || 0;
-    if (source < 0) return performStockpileLabor(id, place);
+    // A plan whose want has no source within reach, in the hand, the store or
+    // the ground, is set aside for a while and the next plan taken: every worker
+    // of a town takes the one open order that scores highest for it, so a
+    // monument wanting two of a rare material nobody could find held every
+    // hand of phone variety-2's Spapaikhsai at stockpile labour for thirty
+    // years while its observatory stood stocked at its second stage with no one
+    // at the work face (HANDOFF section 17).
+    if (source < 0) {
+      order.blockedUntil = W.tick + LABOR_BLOCK_TICKS;
+      LABOR_BLOCKED.count++;
+      return performStockpileLabor(id, place);
+    }
     if (ti !== source)
       return moveWorkerToward(
         id,
