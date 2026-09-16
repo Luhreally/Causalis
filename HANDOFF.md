@@ -105,10 +105,10 @@ for deploying. Do all work in the clone:
 
 ```
 npm run test:fast > log 2>&1
-bash $SCRATCH/suite-check.sh log 94
+bash $SCRATCH/suite-check.sh log 110
 ```
 
-The expected count is the number of `"ok": true` lines, currently **100**. It
+The expected count is the number of `"ok": true` lines, currently **110**. It
 changes only when you add a test file. A green suite is necessary and not
 sufficient — see "Pitfalls".
 
@@ -131,6 +131,17 @@ curl -s "https://api.github.com/repos/Luhreally/Causalis/actions/runs?per_page=3
 and confirm the change is really live by grepping the served bundle for a
 marker the commit introduced. A test-only commit produces a byte-identical
 bundle, so its asset hash will not change.
+
+**The pre-ship road is frozen (section 17).** The launch lists of section 17
+are the baseline, and `tests/baseline-smoke.cjs` holds the world hash of
+battery causal-origin after eight years: any change to what runs before the
+ship moves that hash and every launch year with it, because the sim is
+deterministic chaos. A new lever runs behind the ship (gated on
+`shipHasLeft()`) unless it is meant to change the roads; if it is, run the
+launch sweep on both sizes (`scratchpad/sweep-run.sh`, eleven seeds, 26
+presses), record the new lists in the handoff and the new hash in the test,
+in the same commit. A change that only renders, or only runs behind the
+ship, leaves the hash as it is.
 
 **Each change wants:** a numbered section or an override in one, a
 `window.ALIFE_*_DEBUG` entry, a `tests/*-smoke.cjs` assertion chained into
