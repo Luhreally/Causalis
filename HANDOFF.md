@@ -1947,9 +1947,188 @@ rescue refugia are spent once the people pass two hundred. The launch roads
 moved with the chemistry, as every pre-ship change moves them: the sweep
 above is the new baseline, and section 14's is history. The war is as it was.
 
+### 17. The baseline: the road is frozen, the sky comes forward, and a plan nobody can fill is set aside (2026-09-16; battery and phone only)
+
+The round was asked for in order: declare section 16's lists the baseline
+and freeze the pre-ship physics; fix the one defect that could still stall a
+world, the stocked building that never gets hands; bring the sky fix forward
+of the ship, with a sweep; widen the evidence to thirty battery seeds. The
+order was kept, except that the two pre-ship changes were made before the
+baseline hash was recorded, since each would have moved it.
+
+**The freeze.** The sim is deterministic chaos: any change to what runs
+before the ship moves every launch year, and section 14's lists were history
+the day section 16's chemistry landed. So the launch lists are now guarded by
+`tests/baseline-smoke.cjs` (`npm run test:baseline`, in the fast chain):
+battery causal-origin, lean, generated and stepped eight years, its
+`worldHash()` compared with the recorded one and its matter audited. The hash
+recorded is the one after the two changes below, `7a2d4ecb`, 25 people at
+year eight. A lever that runs behind `shipHasLeft()`, or only renders, leaves
+it as it is; a lever meant to change the roads fails it, and the rule in
+"Working rules" says what that costs: the sweep on both sizes, the new lists
+in this file and the new hash in the test, in the same commit. Eight years
+was chosen because the hash is a guard, not a measurement, and the test takes
+a minute and a half; it catches what changes from generation on, and it has
+a limit found the same day: a rule that fires only in a grown town leaves it
+as it is (the open-ground reach below did not move it), so the sweep is the
+measurement and the hash is the tripwire for the common case.
+
+**The stocked building nobody worked.** Section 16 left it open: phone
+variety-2's Spapaikhsai, the launch site, held its observatory stocked at its
+second stage with no hands from year 80 to 110, at fifty to sixty people,
+while its farm had four. The site probe's list of the unfinished at year 110
+said what the labour saw: `observatory s2 stocked hands0`, `monument s0
+wants 2 Glydurox hands0`, `farm s2 stocked hands4`, `market s1 wants 11
+Caedur-Ate hands0`, `office s2 stocked hands0`. The labour works this way
+(30c, 30d): `selectWorkOrder` gives a worker the single open order that scores
+highest for them, `order.priority × 18 + the policy × 12 − distance × 2`,
+founding orders 96 more; `performCivilLabor` then looks for that order's
+missing material in the hand, in the stores when it is a store-drawn kind, and
+on the ground within reach by `findResourceTile`; and when none of those had
+it, the worker did stockpile labour and came back to the same order next
+tick. The monument, planned at the effort's priority, scored highest for
+every worker of the town; its Glydurox lay nowhere they could reach; so every
+worker of Spapaikhsai went to the stockpile for thirty years, and the
+observatory, the office and the market behind it were never chosen. It was
+never a matter of reach or of hands: the town had both. Section 13's waiting
+field was the same shape with a farm; 137 mended that one by rank, and this
+round mends the general case at the source.
+
+**The rule.** A plan whose want has no source in the hand, the store or the
+ground is set aside: `order.blockedUntil = W.tick + LABOR_BLOCK_TICKS` (256
+ticks, a year) in the branch that used to fall to stockpile labour, and
+`selectWorkOrder` skips an order whose `blockedUntil` is ahead of the tick.
+The worker still does stockpile labour that tick, and takes the next plan the
+next; the set-aside plan comes back when its year is up, in case the material
+has come in by trade, prospecting or a store-drawn craft. `LABOR_BLOCKED.count`
+counts the set-asides. `tests/labor-smoke.cjs` (`npm run test:labor`) plans a
+monument wanting glass, which lies on no ground, and a stocked shelter in the
+civic fixture, and asserts the four things: the glass plan scores highest, one
+tick of the labour body sets it aside a year, the next pick is another plan
+and the stocked one when it is the next, and the plan comes back when its
+year is up. `scripts/order-probe.cjs <seed:size:complexity> <year> [place]`
+presses a world to a year and reads, for a place, every open order with its
+score for six of the town's workers, what it wants and whether the want is in
+the hand, the store or the ground, how long it is set aside, its hands, and
+which order each worker would take, and for each plan its crew (task, phase,
+distance from the face, stuck ticks, a blocked route) and its plot (distance
+from the hall, work done, reachable). On phone variety-2 at year 95 under this
+rule the town had 29 people, at war (its sampled workers raiding, assaulting,
+fighting), 69 set-asides so far, and every open order with a source; the road
+had moved with the sky, and the observatory of section 16 was not on it. The
+rule's proof is the test and the count; the worlds it changed are in the sweep
+below.
+
+**The world that flew a century late.** The sweep with the sky forward flew
+twenty-one of twenty-two worlds on their old years and battery variety-3 at
+207 where it had flown at 110; the sky-only run never flew it. The site
+probe read its launch site, Tratritrop, at years 120 and 150: starflight
+studied to 85.5 of 90, the launch tower planned, stocked by the effort and at
+its second stage, five hands and then sixteen, and not one unit of work laid
+in forty years. The order probe at year 115, with its new columns for the
+crew of each plan and the plot's distance from the hall, said why: the plot
+lay at the map's edge thirty tiles from the hall, where the open ground of
+128 had put it when the town was full (fifteen blocks, six tenements, four
+walls), and a worker's town is theirs only within twenty-eight tiles of its
+hall (30c, `nearestWorkPlace`). Thirteen of thirty-two people were "moving to
+the Launch tower work face", standing three to five tiles from it; each lost
+the order two tiles short, turned home, took it again inside the
+twenty-eighth tile, and walked out again. The rings of the open ground are
+counted the chessboard way, so its twenty-sixth ring can lie thirty-six tiles
+off as the walker walks. The world flew when two blocks fell and freed a plot
+in town. Chaos put variety-3 on this road under the new sky; the defect was
+there for any world whose city fills before its tower is planned.
+
+**The rule.** The open ground offers nothing farther than
+`OPEN_GROUND_WORK_REACH` (26) tiles as the crow flies, two inside the labour
+reach, so a hand at the face is still in its town's employ; and once every 32
+ticks a town looks over its unstarted plans (`openGroundResite`) and lays out
+again, where its own siting puts it now, any whose plot lies past the reach,
+the stocked material moving with the plan; a plan with work in it is left
+where it stands. `OPEN_GROUND.resited` and `.unsited` count them. The labour
+test asserts that the open ground offers no plot past the reach and that a
+foundation laid thirty-one tiles out is laid out again six tiles out. On
+battery variety-3 under the mend the site had no open order at all at year
+115, and the world flew at 117 (110 in section 16, 207 before the mend);
+battery variety-1 moved from 65 to 60 and phone variety-7 from 72 to 74;
+every other year on both sizes stood where it was, so the mend fired where it
+was needed and nowhere else.
+
+**The sky before the ship.** Section 15's sky fix (the ledger's strain no
+longer forcing dry years) was gated behind the ship because bringing it
+forward would move the roads; section 16 then gave the world a real water
+cycle, the land cooling to its climate (17) and the sky breathing, so the
+strain the afternoon ledger accumulated stood for a drying the physics no
+longer produced. `skyTended()` (91) now returns true on every world: the
+ledger still counts the industrial towns and the strain, the ideologies still
+answer it, but the ledger holds only the industrial towns (a finished factory
+and an engine craft) before the ship as well, and eases at the tended rate, so
+a village no longer strains its own sky; a forced spell still comes when
+factories strain it. The afternoon test was rewritten for it: the ledger rises
+on completing a factory, the strain and its climate event come, the tending
+eases them, and it no longer pushes an ascension to open the gate. Measured
+alone on the battery sweep (the first column of the lists below): ten of
+eleven on their old years and variety-3 lost, the road read above. On the
+phone arcs behind the ship it did what section 15 hoped: ship-c, which held
+53 people at year 110 under six forced spells and a strain of 2.07, held 61
+under none and a strain of 0.51; variety-8 held 147 with one starved where it
+had held 134 with eighteen; variety-3 137 with four where it had 134 with
+eight.
+
+**The sweep, both sizes, 22 of 22.** Eleven seeds, 26 presses, lean, run
+three times: with the sky forward alone (battery only), with the set-aside
+plans added, and with the open-ground reach added, which is the shipped code;
+section 16's year in brackets. Battery: causal-origin 74 / 72 / 72 (74),
+ship-b 110 / 110 / 110 (111), ship-c 79 / 80 / 80 (79), variety-1 76 / 65 /
+60 (77), variety-2 92 / 84 / 84 (87), variety-3 none by 226 / 207 / 117
+(110), variety-4 97 / 83 / 83 (91), variety-5 70 / 72 / 72 (70), variety-6
+119 / 120 / 120 (121), variety-7 102 / 109 / 109 (114), variety-8 81 / 82 /
+82 (82). Phone, with the set-aside plans / the shipped code (section 16):
+causal-origin 75 / 75 (73), ship-b 66 / 66 (65), ship-c 89 /
+89 (106), variety-1 77 / 77 (97), variety-2 76 / 76 (85),
+variety-3 64 / 64 (72), variety-4 73 / 73 (73), variety-5 73 / 73 (83),
+variety-6 124 / 124 (141), variety-7 72 / 74 (64), variety-8 83 /
+83 (89). The shipped code's lists are the baseline; section 16's are
+history.
+
+**The arcs behind the ship** (the transit probe: battery to year 70 and forty
+presses on, phone to year 90; section 16 in brackets). Battery causal-origin
+flies at 73 and holds 123 people at year 140, nobody starved (114 at 134,
+none); ship-c flies at 73 and holds 146 at 147, nobody starved (126 at 147,
+four). Phone ship-c flies at 71 and holds 144 at year 114 with 23 starved,
+where it held 53 with 36 starved (and 61 with 36 under the sky alone); phone
+variety-3 flies at 41 and holds 142 at 108 with four starved (134, eight);
+phone variety-8 flies at 56 and holds 199 at 110 with 30 starved (134, 18),
+its hunger in the eighties and nineties as its people doubled. Strain peaks
+between 0.4 and 0.8 on every arc and ends at nought; one forced spell behind
+the ship where section 16 saw three to six. The plants grow on every arc.
+
+**Thirty battery seeds.** The thirty-seed battery sweep (`scratchpad/sweep30-run.sh`,
+the eleven seeds above and variety-9 to variety-27, 26 presses, lean) was running
+on the shipped code as this was written; its distribution is recorded in the
+commit that follows this one.
+
+**Still open.** The labour reach is a literal twenty-eight in 30c's
+`nearestWorkPlace`, and the open ground now keeps two inside it; any other
+siting that reaches farther than the hands do would stall the same way, and
+the re-siting above would catch it only for an unstarted plan. The eight-year
+hash guards what changes from generation on and not a rule that first fires
+in a grown town; a longer window would cost the fast suite minutes, so the
+sweep stays the measurement. Phone variety-8 behind the ship goes hungry in
+its eighties and nineties as its people double (30 starved by year 110);
+phone ship-c in its fifties and sixties before the ship (23). The gas and the
+tile nutrient ease as in section 16 (the litter holds the carbon; the rot was
+rejected there). The predators die out by year 50 on battery causal-origin.
+The war is as it was. Ship-c's lake has no water above its depth from year
+40.
+
 ## The recent commits, newest first
 
 ```
+c0a8a67  The pre-ship road is frozen: a baseline hash guards the launch lists
+8c1f3c9  A plot the hands cannot work is no plot: the open ground stays within the labour reach, and a far foundation is laid out again
+67d7e50  A plan whose want has no source is set aside for a year, and the next plan is taken
+9657892  The sky is tended before the ship
 3912cf3  A craft the world holds is carried where its facility will not rise, and a probe reads what a launch site waits for
 d5f8a5f  The pull of the city follows the place a ship would leave from
 a86fa5f  The litter does not rot: the ground decomposer halved the plants and put the ship back forty years
