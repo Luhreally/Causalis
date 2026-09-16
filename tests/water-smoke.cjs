@@ -12,8 +12,7 @@
 // level; wet ground above fifty moisture gives one a pass and one more for
 // every ten above; dry ground gives nothing; every tile cools back toward the
 // climate it was made with by a twentieth of the excess a pass; a body passes
-// the nutrient above its reserve to the ground it stands on; the litter above a
-// floor rots by its excess into nutrient, solvent and gas; and matter
+// the nutrient above its reserve to the ground it stands on; and matter
 // moves, none is made.
 const fs = require("node:fs");
 
@@ -110,26 +109,6 @@ const fixtureSource = String.raw`(() => {
     W.conservation.playerInput -= 200 - nKeep + 6;
     eq[C.NUTRIENT] = nKeep;
     setTileMatterAmount(eti, C.NUTRIENT, tileBefore);
-  }
-  // Litter rots: a tile a thousand organic above the floor asks for two units and rots what the world's kinetics allow of them, giving a nutrient, a solvent and a gas for two organic and an oxidant each; its structure and temperature stand; a tile at the floor does not rot.
-  {
-    const rt = land >= 0 ? land : 0, rq = W.tiles.chem, keepO = rq[C.ORGANIC][rt], keepN = rq[C.NUTRIENT][rt], keepS = rq[C.SOLVENT][rt], keepG = rq[C.GAS][rt], keepOx = rq[C.OXIDANT][rt], keepT = W.tiles.temperature[rt], keepSt = W.tiles.structureOrder[rt];
-    let injected = 1600 - keepO;
-    rq[C.ORGANIC][rt] = 1600;
-    if (rq[C.OXIDANT][rt] < 10) { injected += 10 - rq[C.OXIDANT][rt]; rq[C.OXIDANT][rt] = 10; }
-    W.conservation.playerInput += injected;
-    const ox0 = rq[C.OXIDANT][rt];
-    out.rot = rotLitter(rt);
-    if (!(out.rot >= 1 && out.rot <= 2)) fail("a thousand organic above the floor did not rot one or two units: " + out.rot);
-    if (rq[C.ORGANIC][rt] !== 1600 - 2 * out.rot || rq[C.NUTRIENT][rt] !== keepN + out.rot || rq[C.SOLVENT][rt] !== keepS + out.rot || rq[C.GAS][rt] !== keepG + out.rot || rq[C.OXIDANT][rt] !== ox0 - out.rot) fail("the rot did not move two organic and an oxidant into a nutrient, a solvent and a gas per unit");
-    if (W.tiles.temperature[rt] !== keepT) fail("the rot warmed the ground: " + (W.tiles.temperature[rt] - keepT));
-    if (W.tiles.structureOrder[rt] !== keepSt) fail("the rot ate the tile's structure");
-    rq[C.ORGANIC][rt] = LITTER_FLOOR;
-    out.rotAtFloor = rotLitter(rt);
-    if (out.rotAtFloor !== 0) fail("a tile at the floor rotted: " + out.rotAtFloor);
-    // The tile is put back as it was, so what was lent is taken back exactly.
-    W.conservation.playerInput -= injected;
-    rq[C.ORGANIC][rt] = keepO; rq[C.NUTRIENT][rt] = keepN; rq[C.SOLVENT][rt] = keepS; rq[C.GAS][rt] = keepG; rq[C.OXIDANT][rt] = keepOx;
   }
   if (auditMatter().delta !== delta0) fail("the breath made or lost matter: " + (auditMatter().delta - delta0));
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");

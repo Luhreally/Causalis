@@ -163,10 +163,12 @@ const STRUCTURE_PATTERNS = Object.freeze([
 // battery causal-origin from year eighteen), so a solvent drunk per unit and a
 // solvent returned per two waste mineralized come near to level, and the lakes'
 // breath (17) carries what remains. The gas: photosynthesis takes two a unit,
-// respiration gives one back for each energy burned, rot (19) one for two
-// organic, and mineralization one for two waste; with mineralization giving
-// its two nutrient and no gas the probe read the gas falling ten thousand a
-// year on both worlds, to nothing within two centuries. Every species here shares one
+// respiration gives one back for each energy burned and mineralization one
+// for two waste; with mineralization giving its two nutrient and no gas the
+// probe read the gas falling ten thousand a year on both worlds, to nothing
+// within two centuries. A rot of the litter on the ground was tried for the
+// rest and rejected: it halved the standing plants and put causal-origin's
+// ship back from year 63 to 104 (HANDOFF section 16). Every species here shares one
 // composition, so the balance the world checks (06) holds.
 const PROCESS_TEMPLATES = Object.freeze([
   {
