@@ -154,5 +154,6 @@
   "134-muck.js",
   "135-hinterland.js",
   "136-ferry.js",
-  "137-field.js"
+  "137-field.js",
+  "138-field-gates.js"
 ]

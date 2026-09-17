@@ -8,14 +8,15 @@
 // the handoff, and record the new hash here, in the same commit. The guard has
 // a limit: a rule that fires only in a grown town, past year eight, leaves the
 // hash as it is (the open-ground reach of 128 did), so the sweep, not this
-// hash, is the measurement; this catches what changes from generation on.
+// hash, is the measurement; this catches what changes from generation on, as
+// the field gates of 138 did (7a2d4ecb to 6d96cf30, with the sweep rerun).
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
 const harnessEnd = smokeSource.indexOf('if (process.env.SETTLEMENT_DEBUG === "1")');
 if (harnessEnd < 0) throw new Error("Unable to locate the shared smoke-test harness");
 
-const BASELINE_HASH = "7a2d4ecb",
+const BASELINE_HASH = "6d96cf30",
   BASELINE_YEARS = 8;
 
 const fixtureSource = String.raw`(() => {

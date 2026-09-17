@@ -106,6 +106,41 @@ const fixtureSource = String.raw`(() => {
     out.wetAfter = openGroundPlotReachable(town, stocked.x, stocked.y);
     if (out.wetBefore || !(out.wetResited >= 1) || !out.wetAfter) fail("a foundation on ground the hall cannot walk to was not laid out again: " + JSON.stringify([out.wetBefore, out.wetResited, out.wetAfter]));
   } else out.wetResited = "no deep water within reach of the fixture town";
+  // A field has a gate (138): a person's step onto a standing field is not blocked, a grazer's is.
+  let field = completedBuildings(town, "farm")[0] || W.buildings.find((b) => b.type === "farm" && b.complete && !b.ruined);
+  if (!field) {
+    // The fixture has no standing field: plan one and finish it, its material booked as the player's gift.
+    field = planBuilding(town, "farm", 9);
+    if (field) {
+      for (const [sp, n] of field.requirements) { W.conservation.playerInput += n - (field.composition[sp] || 0); field.composition[sp] = n; }
+      field.workDone = field.workRequired;
+      refreshBuildingStage(field);
+      if (!field.complete) field = null;
+      else if (typeof rebuildDevelopmentMovementCache === "function") rebuildDevelopmentMovementCache();
+    }
+  }
+  if (field) {
+    const grazer = W.activeIds.find((id) => W.kind[id] === KINDS.HERBIVORE && classifyAlive(id) && W.components.position[id]);
+    out.personBlocked = movementTileBlocked(worker, field.x, field.y);
+    out.grazerBlocked = grazer ? movementTileBlocked(grazer, field.x, field.y) : null;
+    const step = constrainDevelopedMovement(worker, field.x, field.y);
+    out.personStep = step.x === field.x && step.y === field.y;
+    if (out.personBlocked || !out.personStep) fail("a person was kept off a field: blocked " + out.personBlocked + " step " + out.personStep);
+    if (grazer && !out.grazerBlocked) fail("a grazer walked into a field");
+    // A person crossing the field does not graze it: the crop is no food to a person's appetite, and no meal is taken.
+    const fieldTile = idx(field.x, field.y);
+    W.tiles.chem[C.ORGANIC][fieldTile] = Math.max(W.tiles.chem[C.ORGANIC][fieldTile], 400); W.tiles.chem[C.ENERGY][fieldTile] = Math.max(W.tiles.chem[C.ENERGY][fieldTile], 400); W.tiles.plantOrder[fieldTile] = Math.max(W.tiles.plantOrder[fieldTile], 400);
+    W.conservation.playerInput += 0; // the top-up above is a test fixture write; the labour test does not audit matter
+    out.fieldFoodPerson = +tileFood(fieldTile, "omnivore").toFixed(2);
+    out.fieldFoodGrazer = +tileFood(fieldTile, "grazer").toFixed(2);
+    // performFeeding is wrapped downstream by the rations of the store, so a true here may be a meal from the granary;
+    // grazing is read from the field's own tile matter, which must not move.
+    const organicBefore = W.tiles.chem[C.ORGANIC][fieldTile];
+    out.fieldMeal = performFeeding(worker, fieldTile);
+    out.fieldOrganicTaken = organicBefore - W.tiles.chem[C.ORGANIC][fieldTile];
+    if (out.fieldFoodPerson !== 0 || out.fieldOrganicTaken !== 0) fail("a person grazed a standing field: food " + out.fieldFoodPerson + " taken " + out.fieldOrganicTaken);
+    if (!(out.fieldFoodGrazer > 0)) fail("a grazer's read of the field was changed: " + out.fieldFoodGrazer);
+  } else out.personBlocked = "no standing field in the fixture";
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;
 })()`;

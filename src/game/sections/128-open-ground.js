@@ -73,8 +73,11 @@ function openGroundReachable(place) {
         if (liquid[next] > WATER_DEPTH.WADE_LIMIT) continue;
         if (typeof cliffBetween === "function" && cliffBetween(tile, next)) continue;
         // A standing building is walked round, not through; the plot itself
-        // is never one, so a plot beside a lane is reached from the lane.
-        if (typeof standingBuildingAtMovementTile === "function" && standingBuildingAtMovementTile(nx, ny)) continue;
+        // is never one, so a plot beside a lane is reached from the lane. A
+        // field is crossed, as a person crosses it (138): six fields round a
+        // town's centre had made its walkable ground two tiles.
+        const standing = typeof standingBuildingAtMovementTile === "function" ? standingBuildingAtMovementTile(nx, ny) : null;
+        if (standing && standing.type !== "farm") continue;
         seen.add(next);
         queue.push(next);
       }
