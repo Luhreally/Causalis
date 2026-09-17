@@ -2103,10 +2103,132 @@ its hunger in the eighties and nineties as its people doubled. Strain peaks
 between 0.4 and 0.8 on every arc and ends at nought; one forced spell behind
 the ship where section 16 saw three to six. The plants grow on every arc.
 
-**Thirty battery seeds.** The thirty-seed battery sweep (`scratchpad/sweep30-run.sh`,
-the eleven seeds above and variety-9 to variety-27, 26 presses, lean) was running
-on the shipped code as this was written; its distribution is recorded in the
-commit that follows this one.
+**Thirty battery seeds, first run.** `scratchpad/sweep30-run.sh r8 11`: the
+eleven seeds above and variety-9 to variety-27, battery, lean, 26 presses
+each, on the code deployed at 2226efe. Twenty-five of thirty flew:
+causal-origin 72, ship-b 110, ship-c 80, variety-1 60, variety-2 84, variety-3
+117, variety-4 83, variety-5 72, variety-6 120, variety-7 109, variety-8 82,
+variety-10 124, variety-11 71, variety-12 94, variety-13 79, variety-16 143,
+variety-17 191, variety-18 124, variety-20 89, variety-22 172, variety-23 86,
+variety-24 88, variety-25 71, variety-26 98, variety-27 252. The middle of the
+twenty-five is year 88; twenty-one fly by 125, and four fly late, at 143, 172,
+191 and 252. Five did not fly in 26 presses, and the last press of each says
+why, read from the launch record the probe keeps: variety-14 died (37 people
+halved to 18 and to 9 by year 319, its site a town of one); variety-15 stayed
+small (28 people in two towns of 12 and 9 at year 311, one city where the
+gate wants two); variety-21 is slow (80 people at 206, still short of the
+second city, current in a second town, and its seventeen blocks); variety-9
+stood at year 148 with 82 people, its site knowing starflight with its tower
+up, the world short of its second city and of current in a second town; and
+variety-19 the same at 170 with 70 people. The first three are the world: a
+battery map of seventy-two by forty-four does not always carry two cities.
+The last two were asked for as the next work.
+
+**The two that stood at the gate.** `scripts/current-probe.cjs
+<seed:size:complexity> <year>` presses a world to a year and reads every
+living town: its people, stage and stage shortfall, its road to electricity
+step by step (progress, threshold, priors known, the facility and whether it
+stands, the research materials in the samples and the store), its unfinished
+plans with their hands, and where a hall, a clinic, a workshop or a forge
+could stand by the town's own siting and on the open ground; the press's
+target and its pushes beside them. On variety-19 at year 130 the target was
+"cities" with 114 pushes since year 101, and the second town, Dyliqi (23
+people, civic, 28 buildings, stability 0.58, a forge standing), lacked one
+thing to be a city, a Catalytic clinic, and had no plan open at all: the
+push for a second city (`modernPush("cities")`) asked it for a clinic every
+128 ticks and `planBuilding` handed back nothing, because the townscape's
+civic ring and the base siting were both built over and the open ground of
+128 was kept for blocks and edge buildings; its people stood idle. On
+variety-9 at year 120 the target was "cities" with 85 pushes since 98, and
+the second town, Vouloshyo (11 people, civic, stability 0.45), had its clinic
+planned at year 98, stocked, at its second stage, 4.5 tiles from the hall,
+with every one of six sampled workers choosing it (scores 171 to 182 against
+113 for the next plan) and none on it, four crafting a build tool and one
+travelling: the plot's `reachable` column read false, the hall's flood not
+reaching it, and the townscape checks reachability only for blocks. Two
+faces of one fault: a town that cannot hold a structure in its quarters, or
+cannot walk to where it put one, and a press that plans and stocks and waits.
+
+**The rule.** In 128, a plot the hall cannot walk to is no plot for any
+structure, and a town that cannot site a structure in its quarters stands it
+on the open ground within the labour reach, as the blocks and the edge
+buildings already did (`OPEN_GROUND_OWN_SITING` keeps fields, pasture, walls,
+docks and waterworks on their own siting, each bound to its ground);
+`OPEN_GROUND.spilled` counts them. The town's look over its unstarted plans
+(`openGroundResite`) now also lays out again a plan whose plot the hall cannot
+reach, and lands every re-sited plan on ground it can. The labour test asserts
+that the open ground offers a clinic a plot within reach, that a sited clinic
+is reachable, and that a foundation set in deep water within reach is laid out
+again on walkable ground. The eight-year hash did not move (no town fills its
+quarters in eight years). Variety-9 flew at 154 under it, its second town
+becoming a city and taking current by 146; variety-19 did not, and the probe
+run again, with new columns for the hall's walkable flood and what rejects
+each candidate tile, read why.
+
+**The wall of fields.** On variety-19's new road the second-city candidate at
+year 130 was Wiliiakhhya, nineteen people and a village wanting a Civic hall,
+and the ground its hall could be reached from was two tiles: six fields stood
+on the eight tiles round the town's centre. A field is a solid body three
+tiles square (42e) that nobody steps on, so the flood of 128 stopped at the
+first hedge; of the 2,800 tiles within twenty-six of the centre, 1,405 lay
+off the map, 792 were built on, 314 were water or rock, 167 stood past ground
+the flood did not reach, and none was left. The other candidates were no
+better: Yats, five people in twenty-five buildings on a pocket of 103 walkable
+tiles, all of them built on. The effort's push for a second city asked
+Wiliiakhhya for a hall every 128 ticks and was handed nothing, and it never
+tried another town.
+
+**The rule (138).** A field has a gate: a person walks across a field as
+across any ground (the cliff rule of 96 still holds), a herd or a hunter still
+does not, and the flood of 128 walks the same way (`movementTileBlocked` and
+`constrainDevelopedMovement` overridden for people on a field's nine tiles).
+The push for a second city (`modernPush("cities")`) now tries the towns in
+order of size and works on the first where it can plan or supply anything the
+stage still wants, passing over a town where every want is unplannable.
+`FIELD_GATES.crossed` and `.passedOver` count them.
+
+**The gate alone starved the phone worlds.** Measured first without more, on
+the arcs behind the ship: phone variety-8 buried 63 in its sixties, 58 of them
+starved, where the code before had buried seven; phone variety-3 buried 76 in
+its eighties and nineties, 50 starved, where it had buried 25; battery
+causal-origin held 89 people at year 131 where it had held 123 at 140. The
+same decades came out to the person on a second press schedule (`88 2` against
+`90 0`), so it was the road and not the press. The cause was the appetite: a
+hungry person's search for food scores the tiles in reach by `tileFood`, the
+standing crops are the richest tiles a town has, and with the hedge open the
+hungry walked onto the fields and ate the crop as forage before it ripened.
+Now a standing field holds no food to a person's appetite (`tileFood` for
+"omnivore" reads nought on a farm's nine tiles), so nobody seeks the crops and
+nobody eats them; a grazer reads a field as before and cannot enter it anyway.
+The labour test raises a field in its fixture and asserts a person's step onto
+it lands, a grazer's is blocked, the field reads as no food to a person and as
+food to a grazer, and a person fed on the field takes nothing from its tile.
+The movement rule acts from the first year, so the eight-year hash moved,
+`7a2d4ecb` to `6d96cf30`, and is recorded with the sweep below. Variety-19 flies at 102 under it,
+current in its second town at 97 where it had stood at the gate to 170;
+variety-9 at 84.
+
+**The sweep again, both sizes, 22 of 22.** Eleven seeds, 26 presses, lean, on
+the code with the civic open ground, the field gates and the grazing guard;
+this section's first baseline in brackets. Battery: causal-origin 64 (72),
+ship-b 119 (110), ship-c 74 (80), variety-1 64 (60), variety-2 60 (84),
+variety-3 141 (117), variety-4 80 (83), variety-5 74 (72), variety-6 105
+(120), variety-7 86 (109), variety-8 72 (82). Phone: causal-origin 78 (75),
+ship-b 63 (66), ship-c 83 (89), variety-1 60 (77), variety-2 59 (76),
+variety-3 66 (64), variety-4 84 (73), variety-5 65 (73), variety-6 77 (124),
+variety-7 64 (74), variety-8 74 (83). Every year moved, as a movement rule
+moves every road; these lists are the baseline now, with the hash `6d96cf30`.
+The arcs behind the ship: battery causal-origin flies at 97 and holds 117
+people at year 119, ship-c at 77 and 192 at 142, phone ship-c at 72 and 153 at
+110, phone variety-3 at 38 and 155 at 106, all four with nobody starved; phone
+variety-8 at 61 and 273 at 105 with six starved. The gate alone had starved
+variety-3 and variety-8; with the field no food to a person's appetite they
+hold more people than under any code before, and the phone worlds' hunger
+noted as open above is gone from these arcs.
+
+**Thirty battery seeds, second run.** Running on this code as this was written
+(`scratchpad/sweep30-run.sh r8g 11`); its distribution is recorded in the commit
+that follows this one.
 
 **Still open.** The labour reach is a literal twenty-eight in 30c's
 `nearestWorkPlace`, and the open ground now keeps two inside it; any other
@@ -2125,6 +2247,8 @@ The war is as it was. Ship-c's lake has no water above its depth from year
 ## The recent commits, newest first
 
 ```
+2f0bc03  A field has a gate: a townsperson crosses it, a herd does not, and the effort builds its second city where there is room
+43685d8  A second town's clinic stands on the open ground when its quarters are full or cut off, so the world gets its second city
 c0a8a67  The pre-ship road is frozen: a baseline hash guards the launch lists
 8c1f3c9  A plot the hands cannot work is no plot: the open ground stays within the labour reach, and a far foundation is laid out again
 67d7e50  A plan whose want has no source is set aside for a year, and the next plan is taken
