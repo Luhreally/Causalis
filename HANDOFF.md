@@ -2311,9 +2311,30 @@ two sweeps above, the waiver firing in none of the twenty-two worlds, and the
 arcs behind the ship the same; those lists and the hash `6d96cf30` are the
 baseline.
 
-**Thirty battery seeds, fourth run.** Running on the shipped code as this was
-written (`scratchpad/sweep30-run.sh r8i 11`); recorded in the commit that
-follows this one.
+**Thirty battery seeds, fourth run.** `scratchpad/sweep30-run.sh r8i 11` on
+the shipped code (1c23f9b and after), the session restarting twice under it
+and six seeds run again to the same protocol. Twenty-six of thirty flew:
+causal-origin 64, ship-b 119, ship-c 74, variety-1 64, variety-2 60, variety-3
+141, variety-4 80, variety-5 74, variety-6 105, variety-7 86, variety-8 72,
+variety-9 69, variety-10 85, variety-11 69, variety-12 63, variety-13 74,
+variety-14 145, variety-15 111, variety-16 66, variety-17 112, variety-19 84,
+variety-23 68, variety-24 87, variety-25 59, variety-26 65, variety-27 67. The
+middle of the twenty-six is year 74 (88 in the first run); twenty-three fly
+by 125 (twenty-one); the two that stood at the gate when this was asked,
+variety-9 and variety-19, fly at 69 and 84, and variety-14 and variety-15,
+which died or stayed too small in the first run, at 145 and 111. Four did not
+fly in 26 presses: variety-18 died (nine people at year 584); variety-20
+stands at 227 with 64 people and fourteen blocks short of its skyline;
+variety-21 at 445 with 69 people, short of its skyline and its apartment
+blocks (it flew at 318 in the second run, a movement rule having moved its
+road); and variety-22's presses ran out at 163 with 76 people, short of the
+second city, of current in a second town and of a road. Two are the world,
+one too small to fill its skyline and one that died; two are the second-town
+road and the skyline, where the next round's work is. So the honest answer to
+"stable across seeds" on battery-saver, lean, on the shipped code: seven
+worlds in eight fly, most of them between years 60 and 90; about one in
+fifteen is too small or dies; and about one in fifteen stands at the modern
+gate past year 150 for want of a second city or its skyline.
 
 **Still open.** The labour reach is a literal twenty-eight in 30c's
 `nearestWorkPlace`, and the open ground now keeps two inside it; any other
