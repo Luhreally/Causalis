@@ -2226,9 +2226,68 @@ variety-3 and variety-8; with the field no food to a person's appetite they
 hold more people than under any code before, and the phone worlds' hunger
 noted as open above is gone from these arcs.
 
-**Thirty battery seeds, second run.** Running on this code as this was written
-(`scratchpad/sweep30-run.sh r8g 11`); its distribution is recorded in the commit
-that follows this one.
+**Thirty battery seeds, second run.** `scratchpad/sweep30-run.sh r8g 11` on the
+shipped code (2f0bc03 and after). Twenty-six of thirty flew: causal-origin 64,
+ship-b 119, ship-c 74, variety-1 64, variety-2 60, variety-3 141, variety-4 80,
+variety-5 74, variety-6 105, variety-7 86, variety-8 72, variety-9 69,
+variety-10 85, variety-11 69, variety-12 63, variety-13 74, variety-14 145,
+variety-15 107, variety-16 66, variety-17 112, variety-21 318, variety-23 68,
+variety-24 87, variety-25 61, variety-26 65, variety-27 67. The middle of the
+twenty-six is year 74 where the first run's middle was 88; twenty-two fly by
+125 where twenty-one did; variety-14, which died in the first run, flies at
+145, variety-15, which stayed too small, at 107, and variety-21, which was
+slow, at 318. Four did not fly in 26 presses, and they are not the four of the
+first run, since a movement rule moves every road: variety-18 died (nine
+people at year 584); variety-20 stands at 227 with 64 people and its skyline
+of fourteen blocks short; variety-22 at 203 with 68 people, short of the
+second city, of current in a second town and of a road; and variety-19's
+twenty-six presses ran out at year 130, so many late crafts stopping them,
+with 49 people and the same three wants, and forty presses ran to year 466
+with 70 people and the same three wants; the paragraph after this one reads
+why and mends it. Two of the four are the
+world again, one too small to fill fourteen blocks and one that died; the
+other two are the second-town road, which the mends above shortened for many
+seeds and not for every seed. So the honest answer to "stable across seeds"
+on battery-saver, lean, today: seven worlds in eight fly, most of them between
+years 60 and 90; about one in fifteen is too small or dies; and about one in
+fifteen stands at the modern gate past year 200 for want of a second city or
+its skyline, where the next round's work is.
+
+**A town with no room makes room.** The thirty seeds run again on the field
+gates flew twenty-six (below), and variety-19, which the gate alone had flown
+at 102, stood at the modern gate on its new road: forty presses ran to year
+466 with seventy people and the same three wants, a second city, current in
+a second town, a road. The second-town probe at year 200 read the candidate,
+Yats, thirty-seven people in twenty-eight buildings wanting a Civic hall, on
+a walkable pocket of 113 tiles every one of them built on or water or rock,
+with 193 clear tiles beyond that nobody there could walk to; its own siting
+and the open ground both handed back nothing, the push for a second city
+passed it over and found no other town, and the world stood. Now a town that
+cannot site a hall or a clinic its stage wants anywhere it can reach pulls
+down a lesser building for the ground (`makeRoomFor`, 138): a monument first,
+then a totem, a shrine, a wall, a second stockpile; the building falls the way
+a building falls (`collapseBuilding`), its matter kept as rubble, and the
+salvage that clears rubble when a plot is missing is queued for it; one at a
+time, the next only when the last is cleared, and never a house, a field, a
+workshop or a hall. `FIELD_GATES.pulledDown` counts them. The labour test
+raises a monument in its fixture, asks for room for a hall, and asserts the
+monument is ruined with its matter kept and a salvage order open, and that
+nothing else falls while the rubble lies. The rule fires only where a stage
+building can stand nowhere, so the eight-year hash stays `6d96cf30`.
+Variety-19 under it:
+its second city and current in a second town come by year 206, where forty
+presses before had left it short of both at 466; at 254 it waits on the last
+want, a paved road or rail between its two towns, and no road link exists
+between them, which is the next reading.
+
+**The sweep, both sizes, on the shipped code.** Eleven seeds, 26 presses, lean,
+with the room-making: the same twenty-two years to the year as the sweep
+above, since the rule fired in none of the twenty-two worlds; those lists and
+the hash `6d96cf30` are the baseline.
+
+**Thirty battery seeds, third run.** Running on the shipped code as this was
+written (`scratchpad/sweep30-run.sh r8h 11`); recorded in the commit that
+follows this one.
 
 **Still open.** The labour reach is a literal twenty-eight in 30c's
 `nearestWorkPlace`, and the open ground now keeps two inside it; any other
@@ -2236,9 +2295,10 @@ siting that reaches farther than the hands do would stall the same way, and
 the re-siting above would catch it only for an unstarted plan. The eight-year
 hash guards what changes from generation on and not a rule that first fires
 in a grown town; a longer window would cost the fast suite minutes, so the
-sweep stays the measurement. Phone variety-8 behind the ship goes hungry in
-its eighties and nineties as its people double (30 starved by year 110);
-phone ship-c in its fifties and sixties before the ship (23). The gas and the
+sweep stays the measurement. On the shipped code's arcs nobody starves on
+four of the five worlds and six starve on phone variety-8, which doubles to
+273 people by year 105; the hunger the earlier arcs showed (30 on variety-8,
+23 on ship-c) belonged to the road before the field gates. The gas and the
 tile nutrient ease as in section 16 (the litter holds the carbon; the rot was
 rejected there). The predators die out by year 50 on battery causal-origin.
 The war is as it was. Ship-c's lake has no water above its depth from year
@@ -2247,6 +2307,7 @@ The war is as it was. Ship-c's lake has no water above its depth from year
 ## The recent commits, newest first
 
 ```
+2c1d1be  A town with no room makes room: a monument comes down for the hall a second city wants
 2f0bc03  A field has a gate: a townsperson crosses it, a herd does not, and the effort builds its second city where there is room
 43685d8  A second town's clinic stands on the open ground when its quarters are full or cut off, so the world gets its second city
 c0a8a67  The pre-ship road is frozen: a baseline hash guards the launch lists
