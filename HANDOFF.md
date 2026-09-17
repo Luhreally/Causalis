@@ -2285,8 +2285,34 @@ with the room-making: the same twenty-two years to the year as the sweep
 above, since the rule fired in none of the twenty-two worlds; those lists and
 the hash `6d96cf30` are the baseline.
 
-**Thirty battery seeds, third run.** Running on the shipped code as this was
-written (`scratchpad/sweep30-run.sh r8h 11`); recorded in the commit that
+**The road the ground allows.** Variety-19 under the room-making had its
+second city and its current by year 206 and stood on the modern world's last
+want, a paved road or rail between two towns, to year 466. A road probe at
+year 210 (`scratchpad/road-probe.cjs`: the towns with their places, and for
+every pair the distance and the land corridor under the first town's flag,
+under none, and the sea corridor) read the two towns: Yats at the map's
+western edge (1, 34), Tsyaiakhhya thirty-seven tiles east (38, 32), both
+knowing Road Building, no link begun, and between them no corridor of any
+kind: the enclave Yats stands in is walled by water and rock on every side,
+so the road of 88 and the ferry of 136 could never join them, and the effort
+asked for the road for ever with everything else done. Now, when no two
+living towns can be joined by any corridor within a road's reach, the road is
+not wanted and the gate closes on everything else (`modernLink` in 138,
+`modernTownsJoinable` read once a tick at most); with fewer than two towns the
+road is still wanted, and the gate's other wants say why. The labour test
+asserts a lone town is neither joinable nor linked. The rule fires only at the
+modern gate, so the eight-year hash stays `6d96cf30`. Variety-19 under it:
+it flies at 84, its second city at 77 and current in its second town at 83,
+where it had stood at the gate to 466.
+
+**The sweep, both sizes, with the road waived where the ground forbids it.**
+Eleven seeds, 26 presses, lean: the same twenty-two years to the year as the
+two sweeps above, the waiver firing in none of the twenty-two worlds, and the
+arcs behind the ship the same; those lists and the hash `6d96cf30` are the
+baseline.
+
+**Thirty battery seeds, fourth run.** Running on the shipped code as this was
+written (`scratchpad/sweep30-run.sh r8i 11`); recorded in the commit that
 follows this one.
 
 **Still open.** The labour reach is a literal twenty-eight in 30c's
@@ -2307,6 +2333,7 @@ The war is as it was. Ship-c's lake has no water above its depth from year
 ## The recent commits, newest first
 
 ```
+1c23f9b  A world asks of itself only what its ground allows: no road is wanted where no two towns can be joined
 2c1d1be  A town with no room makes room: a monument comes down for the hall a second city wants
 2f0bc03  A field has a gate: a townsperson crosses it, a herd does not, and the effort builds its second city where there is room
 43685d8  A second town's clinic stands on the open ground when its quarters are full or cut off, so the world gets its second city
