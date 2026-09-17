@@ -165,6 +165,13 @@ const fixtureSource = String.raw`(() => {
       if (!out.roomMade || !out.monumentRuined || !out.rubbleKept || !out.salvageQueued || out.secondFall) fail("making room went wrong: " + JSON.stringify([out.roomMade, out.monumentRuined, out.rubbleKept, out.salvageQueued, out.secondFall]));
     }
   } else out.roomMade = "no monument could stand in the fixture";
+  // The road the ground allows (138): with one town there is nothing to join and the road is still wanted;
+  // the corridor read is a function of the living towns and answers false for one town.
+  const living = W.settlements.filter((s) => !s.ruined && s.knownProcesses).length;
+  out.livingTowns = living;
+  out.joinable = modernTownsJoinable();
+  out.link = modernLink();
+  if (living < 2 && (out.joinable || out.link)) fail("a lone town was joined or linked: " + JSON.stringify([out.joinable, out.link]));
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;
 })()`;

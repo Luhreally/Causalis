@@ -129,8 +129,56 @@ modernPush = function (key, pushes) {
   }
   return "cities";
 };
+// ── The road the ground allows ───────────────────────────────────────────────
+// The modern world's last want is a paved road or rail between two towns
+// (114), laid along a land corridor (88) or, when there is none, ferried
+// across the water (136). Variety-19 under the room-making above had its
+// second city and its current by year 206 and stood on that one want to year
+// 466: its two towns, Yats at the map's western edge and Tsyaiakhhya
+// thirty-seven tiles east, both knowing Road Building, had no land corridor
+// between them under either flag or none, and no sea corridor either; the
+// enclave Yats stands in is walled by water and rock on every side, so no
+// road and no ferry could ever join them, and the world asked for one for
+// ever. A world asks of itself only what its ground allows: when no two
+// living towns can be joined by any corridor, the road is not wanted, and the
+// gate closes on everything else. Read once a tick at most, the way the
+// hall's flood is.
+const ROAD_CORRIDOR = { world: null, tick: -1, joinable: true, checked: 0 };
+function modernTownsJoinable() {
+  if (ROAD_CORRIDOR.world === W && ROAD_CORRIDOR.tick === W.tick) return ROAD_CORRIDOR.joinable;
+  const towns = worldTowns();
+  let joinable = false;
+  for (let i = 0; i < towns.length && !joinable; i++)
+    for (let j = i + 1; j < towns.length && !joinable; j++) {
+      const a = towns[i],
+        b = towns[j],
+        d = Math.sqrt(dist2(a.x, a.y, b.x, b.y));
+      if (d < 4 || d > ROAD_LINK_REACH) continue;
+      const from = idx(a.x, a.y);
+      if (
+        civilPathFind(from, b, a.factionId || 0, "land").length >= 2 ||
+        civilPathFind(from, b, 0, "land").length >= 2 ||
+        civilPathFind(from, b, a.factionId || 0, "sea").length >= 2
+      )
+        joinable = true;
+    }
+  ROAD_CORRIDOR.world = W;
+  ROAD_CORRIDOR.tick = W.tick;
+  ROAD_CORRIDOR.joinable = joinable;
+  ROAD_CORRIDOR.checked++;
+  return joinable;
+}
+const modernLinkFieldGatesBase = modernLink;
+modernLink = function () {
+  if (modernLinkFieldGatesBase()) return true;
+  // With fewer than two towns there is nothing to join, and the gate's other wants say so.
+  if (worldTowns().length < 2) return false;
+  return !modernTownsJoinable();
+};
 window.ALIFE_FIELD_GATES_DEBUG = Object.freeze({
   counts: () => ({ ...FIELD_GATES }),
+  joinable: () => modernTownsJoinable(),
+  corridorChecks: () => ROAD_CORRIDOR.checked,
   makeRoom: (placeId, type = "hall") => makeRoomFor(W.settlements.find((s) => s.id === placeId), type),
   fieldAt: (x, y) => fieldAtMovementTile(x, y)?.id || 0,
   candidates: () => {
