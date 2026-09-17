@@ -125,33 +125,61 @@ function openGroundPlot(place, type) {
 // open ground past the cottages is a tower; a skyline that cannot be sited
 // is not one.
 const OPEN_GROUND_TYPES = new Set(["tower", "office", "tenement", "factory"]);
+// The civic quarter fills too. The thirty-seed battery sweep (HANDOFF section
+// 17) left variety-19 at the modern gate for seventy years: its second town,
+// Dyliqi, twenty-three people and twenty-eight buildings, wanted one thing to
+// be a city, a Catalytic clinic, and the effort's push for a second city asked
+// it for a clinic every hundred and twenty-eight ticks from year 101 and was
+// handed an empty plan every time, because the townscape's civic ring and the
+// base siting were both built over and the open ground was kept for blocks
+// and edge buildings. A clinic past the cottages is a clinic, and a hall or a
+// forge the same: when a town cannot site any structure in its quarters, it
+// stands on the open ground, within the labour reach as above. And the same
+// sweep left variety-9 at the gate with the other half of the fault: its
+// second town, Vouloshyo, eleven people, had its clinic planned at year 98
+// four and a half tiles from the hall, stocked by the effort, and every hand
+// of the town choosing it and none reaching it for twenty-two years, because
+// the plot lay past ground the town could not cross (the hall's flood above
+// did not reach it) and the townscape checks that only for blocks. A plot the
+// hall cannot walk to is no plot for any structure. Fields, pasture, walls,
+// docks and waterworks keep their own siting, since each is bound to its
+// ground (the fields to the seven tiles a town's hands range over, 118; the
+// dock and the waterworks to the water).
+const OPEN_GROUND_RESITE_EVERY = 32,
+  OPEN_GROUND = { resited: 0, unsited: 0, spilled: 0 };
+const OPEN_GROUND_OWN_SITING = new Set(["farm", "corral", "wall", "dock", "waterworks"]);
 const plannedBuildingTileOpenGroundBase = plannedBuildingTile;
 plannedBuildingTile = function (place, type, ordinal) {
   const plot = plannedBuildingTileOpenGroundBase(place, type, ordinal);
   if (!place?.knownProcesses) return plot;
   const edge = typeof EDGE_TYPES !== "undefined" && EDGE_TYPES.has(type),
     block = edge || OPEN_GROUND_TYPES.has(type);
-  if (!block) return plot;
-  // A plot the townscape found past ground the town cannot cross is no plot.
+  if (block) {
+    // A plot the townscape found past ground the town cannot cross is no plot.
+    if (plot && openGroundPlotReachable(place, plot[0], plot[1])) return plot;
+    return openGroundPlot(place, type);
+  }
+  if (OPEN_GROUND_OWN_SITING.has(type)) return plot;
   if (plot && openGroundPlotReachable(place, plot[0], plot[1])) return plot;
-  return openGroundPlot(place, type);
+  const spilled = openGroundPlot(place, type);
+  if (spilled) OPEN_GROUND.spilled++;
+  return spilled;
 };
 // ── A foundation the hands cannot reach is laid out again ────────────────────
 // A plan already laid past the labour reach, by the rings above before this
-// mend or by any siting that reaches farther than the hands do, would stand
-// stocked and unworked for good. Once in a while a town looks over its
-// unstarted plans, and one whose plot lies past the reach is laid out again
-// where the town's own siting puts it now; the material stocked at it moves
-// with the plan, since it is the plan's and not the ground's. A plan with work
-// already in it is left where it stands.
-const OPEN_GROUND_RESITE_EVERY = 32,
-  OPEN_GROUND = { resited: 0, unsited: 0 };
+// mend or by any siting that reaches farther than the hands do, or laid on
+// ground the hall cannot walk to, would stand stocked and unworked for good.
+// Once in a while a town looks over its unstarted plans, and one whose plot
+// lies past the reach, or past ground the town cannot cross, is laid out
+// again where the town's own siting puts it now; the material stocked at it
+// moves with the plan, since it is the plan's and not the ground's. A plan
+// with work already in it is left where it stands, and so is one of the kinds
+// that keep their own siting.
 function openGroundFarPlan(place, b) {
+  if (b.complete || b.ruined || b.workDone || OPEN_GROUND_OWN_SITING.has(b.type)) return false;
   return (
-    !b.complete &&
-    !b.ruined &&
-    !b.workDone &&
-    dist2(place.x, place.y, b.x, b.y) > OPEN_GROUND_WORK_REACH * OPEN_GROUND_WORK_REACH
+    dist2(place.x, place.y, b.x, b.y) > OPEN_GROUND_WORK_REACH * OPEN_GROUND_WORK_REACH ||
+    !openGroundPlotReachable(place, b.x, b.y)
   );
 }
 function openGroundResite(place) {
@@ -161,7 +189,11 @@ function openGroundResite(place) {
     if (b.placeKind !== "settlement" || b.placeId !== place.id || !openGroundFarPlan(place, b)) continue;
     const ordinal = W.buildings.filter((x) => !x.ruined && x.placeKind === "settlement" && x.placeId === place.id).length,
       plot = plannedBuildingTile(place, b.type, ordinal);
-    if (!plot || dist2(place.x, place.y, plot[0], plot[1]) > OPEN_GROUND_WORK_REACH * OPEN_GROUND_WORK_REACH) {
+    if (
+      !plot ||
+      dist2(place.x, place.y, plot[0], plot[1]) > OPEN_GROUND_WORK_REACH * OPEN_GROUND_WORK_REACH ||
+      !openGroundPlotReachable(place, plot[0], plot[1])
+    ) {
       OPEN_GROUND.unsited++;
       continue;
     }

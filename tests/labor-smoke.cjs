@@ -78,6 +78,34 @@ const fixtureSource = String.raw`(() => {
     out.farAfter = Math.round(Math.sqrt(dist2(town.x, town.y, stocked.x, stocked.y)));
     if (!(out.resited >= 1) || out.farAfter > OPEN_GROUND_WORK_REACH) fail("a foundation past the labour reach was not laid out again nearer: " + out.farBefore + " -> " + out.farAfter);
   } else out.resited = "map too small for a far plot";
+  // A structure the quarters cannot hold stands on the open ground too (128): the open ground offers a clinic
+  // a plot within the labour reach, and the fields, pasture, walls, docks and waterworks keep their own siting.
+  const clinicPlot = openGroundPlot(town, "clinic");
+  out.clinicPlot = clinicPlot ? Math.round(Math.sqrt(dist2(town.x, town.y, clinicPlot[0], clinicPlot[1]))) : null;
+  if (!clinicPlot || out.clinicPlot > OPEN_GROUND_WORK_REACH) fail("the open ground offered a clinic no plot within the labour reach: " + out.clinicPlot);
+  if (!OPEN_GROUND_OWN_SITING.has("farm") || OPEN_GROUND_OWN_SITING.has("clinic")) fail("the own-siting set is wrong");
+  const planned = plannedBuildingTile(town, "clinic", 9);
+  if (!planned) fail("a clinic could not be sited at all");
+  if (planned && !openGroundPlotReachable(town, planned[0], planned[1])) fail("a clinic was sited where the hall cannot walk");
+  // A plan on ground the hall cannot walk to is laid out again as well: the shelter is set in deep water within reach.
+  let wx = -1, wy = -1;
+  for (let r = 3; r <= 20 && wx < 0; r++)
+    for (let dy = -r; dy <= r && wx < 0; dy++)
+      for (let dx = -r; dx <= r && wx < 0; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = town.x + dx, y = town.y + dy;
+        if (x < 2 || y < 2 || x >= W.width - 2 || y >= W.height - 2) continue;
+        let deep = true;
+        for (let ny = -1; ny <= 1 && deep; ny++) for (let nx = -1; nx <= 1 && deep; nx++) if (W.tiles.liquid[idx(x + nx, y + ny)] <= WATER_DEPTH.WADE_LIMIT) deep = false;
+        if (deep) { wx = x; wy = y; }
+      }
+  if (wx >= 0) {
+    stocked.x = wx; stocked.y = wy; stocked.workDone = 0;
+    out.wetBefore = openGroundPlotReachable(town, wx, wy);
+    out.wetResited = openGroundResite(town);
+    out.wetAfter = openGroundPlotReachable(town, stocked.x, stocked.y);
+    if (out.wetBefore || !(out.wetResited >= 1) || !out.wetAfter) fail("a foundation on ground the hall cannot walk to was not laid out again: " + JSON.stringify([out.wetBefore, out.wetResited, out.wetAfter]));
+  } else out.wetResited = "no deep water within reach of the fixture town";
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;
 })()`;
