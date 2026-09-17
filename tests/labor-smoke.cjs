@@ -141,6 +141,30 @@ const fixtureSource = String.raw`(() => {
     if (out.fieldFoodPerson !== 0 || out.fieldOrganicTaken !== 0) fail("a person grazed a standing field: food " + out.fieldFoodPerson + " taken " + out.fieldOrganicTaken);
     if (!(out.fieldFoodGrazer > 0)) fail("a grazer's read of the field was changed: " + out.fieldFoodGrazer);
   } else out.personBlocked = "no standing field in the fixture";
+  // A town with no room makes room (138): a standing monument is pulled down for the hall the stage wants,
+  // its matter kept as rubble with a salvage order, and no second building falls while the rubble lies.
+  let monument = completedBuildings(town, "monument")[0];
+  if (!monument) {
+    monument = planBuilding(town, "monument", 9);
+    if (monument) {
+      for (const [sp, n] of monument.requirements) { W.conservation.playerInput += n - (monument.composition[sp] || 0); monument.composition[sp] = n; }
+      monument.workDone = monument.workRequired;
+      refreshBuildingStage(monument);
+      if (!monument.complete) monument = null;
+    }
+  }
+  if (monument) {
+    const rubbleBefore = sum(Array.from(monument.composition));
+    const hallOpen = W.buildings.some((b) => !b.ruined && !b.complete && b.placeKind === "settlement" && b.placeId === town.id && b.type === "hall");
+    out.roomMade = hallOpen ? "a hall is already planned" : makeRoomFor(town, "hall");
+    if (!hallOpen) {
+      out.monumentRuined = monument.ruined;
+      out.rubbleKept = sum(Array.from(monument.composition)) === rubbleBefore;
+      out.salvageQueued = W.workOrders.some((o) => o.type === "salvage" && o.buildingId === monument.id && o.status === "open");
+      out.secondFall = makeRoomFor(town, "hall");
+      if (!out.roomMade || !out.monumentRuined || !out.rubbleKept || !out.salvageQueued || out.secondFall) fail("making room went wrong: " + JSON.stringify([out.roomMade, out.monumentRuined, out.rubbleKept, out.salvageQueued, out.secondFall]));
+    }
+  } else out.roomMade = "no monument could stand in the fixture";
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;
 })()`;

@@ -36,9 +36,21 @@
 // planned where nobody could walk. Now the push for a second city tries the
 // towns in order of size and works on the first where it can plan or supply
 // anything the stage still wants; a town where every want is unplannable is
-// passed over, and the next town gets the effort. FIELD_GATES counts the
-// crossings the rule allowed a person and the towns the effort passed over.
-const FIELD_GATES = { crossed: 0, passedOver: 0 };
+// passed over, and the next town gets the effort.
+//
+// And a town with no room makes room. On the same world at year 200 the
+// second-city candidate was Yats, thirty-seven people in twenty-eight
+// buildings on a walkable pocket of 113 tiles, every one of them built on or
+// water or rock, with 193 clear tiles beyond that no one there could walk to;
+// it wanted a Civic hall, and the world stood at the gate to year 466. When a
+// town cannot site a hall or a clinic its stage wants anywhere it can reach,
+// it pulls down a lesser building for the ground, a monument first, then a
+// totem, a shrine, a wall, a second stockpile, and the rubble is salvaged as
+// rubble already is when a plot is missing (30a queues it); one at a time,
+// the next only when the last is cleared, and never a house, a field, a
+// workshop or a hall. FIELD_GATES counts the crossings the rule allowed a
+// person, the towns the effort passed over, and the buildings pulled down.
+const FIELD_GATES = { crossed: 0, passedOver: 0, pulledDown: 0 };
 function fieldAtMovementTile(x, y) {
   const b = typeof standingBuildingAtMovementTile === "function" ? standingBuildingAtMovementTile(x, y) : null;
   return b && b.type === "farm" ? b : null;
@@ -72,11 +84,34 @@ tileFood = function (i, metabolism = "grazer") {
   return tileFoodFieldGatesBase(i, metabolism);
 };
 // ── The second city is built where there is room ─────────────────────────────
-const MODERN_CITY_STAGE_TYPES = Object.freeze(["hall", "clinic", "shelter", "workshop", "farm"]);
+const MODERN_CITY_STAGE_TYPES = Object.freeze(["hall", "clinic", "shelter", "workshop", "farm"]),
+  ROOM_WANTED_FOR = new Set(["hall", "clinic"]),
+  ROOM_SACRIFICE = Object.freeze(["monument", "totem", "shrine", "wall", "stockpile"]);
+function townRubbleLeft(town) {
+  return W.buildings.some((b) => b.ruined && b.placeKind === "settlement" && b.placeId === town.id && ruinRubble(b) > 0);
+}
+function makeRoomFor(town, type) {
+  if (!town?.knownProcesses || !ROOM_WANTED_FOR.has(type) || townRubbleLeft(town)) return false;
+  // A plan of the kind already open is room enough; this is for a town whose siting hands back nothing.
+  if (W.buildings.some((b) => !b.ruined && !b.complete && b.placeKind === "settlement" && b.placeId === town.id && b.type === type)) return false;
+  for (const kind of ROOM_SACRIFICE) {
+    const standing = completedBuildings(town, kind);
+    if (!standing.length || (kind === "stockpile" && standing.length < 2)) continue;
+    const b = standing.slice().sort((a, c) => dist2(a.x, a.y, town.x, town.y) - dist2(c.x, c.y, town.x, town.y) || a.id - c.id)[0];
+    collapseBuilding(b, `pulled down to make room for the ${BUILDING_DEFS[type]?.name || type}`);
+    queueRuinSalvage(town);
+    FIELD_GATES.pulledDown++;
+    return true;
+  }
+  return false;
+}
 function fieldGatesPushCity(town, pushes) {
   let pushed = 0;
-  for (const type of MODERN_CITY_STAGE_TYPES)
-    if (!completedBuildings(town, type).length && causalPushBuilding(town, type, pushes)) pushed++;
+  for (const type of MODERN_CITY_STAGE_TYPES) {
+    if (completedBuildings(town, type).length) continue;
+    if (causalPushBuilding(town, type, pushes)) pushed++;
+    else if (makeRoomFor(town, type)) pushed++;
+  }
   if (completedBuildings(town).length < 8 && causalPushBuilding(town, "shelter", pushes)) pushed++;
   return pushed;
 }
@@ -96,6 +131,7 @@ modernPush = function (key, pushes) {
 };
 window.ALIFE_FIELD_GATES_DEBUG = Object.freeze({
   counts: () => ({ ...FIELD_GATES }),
+  makeRoom: (placeId, type = "hall") => makeRoomFor(W.settlements.find((s) => s.id === placeId), type),
   fieldAt: (x, y) => fieldAtMovementTile(x, y)?.id || 0,
   candidates: () => {
     const cities = modernCities();
