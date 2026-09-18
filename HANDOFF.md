@@ -2384,12 +2384,13 @@ out at year 163 and variety-19 at 130 with their gates open, and read as
 stalls when they were slow. `scratchpad/sweep-run.sh` and `sweep30-run.sh`
 run forty presses now, and the measuring section says so; the lists of
 section 17 and before were run at twenty-six. On the shipped code before this
-round's mend, forty presses gave: variety-22 no ship by year 409 with 73
-people, short of a second city, current in a second town and a road;
-variety-20 no ship by 289 with 83 people and fourteen blocks short, the run
-cut at thirty-three presses; variety-21 no ship by 277, cut at nineteen. So
-variety-22 was a stall and not a slow world, and the other two were stalls
-of their own kind, read below.
+round's mend, forty presses gave (control runs from a worktree at 4d4aae7):
+variety-22 no ship by year 409 with 73 people, short of a second city,
+current in a second town and a road; variety-20 no ship by 406, fourteen
+blocks short at 289 and dead at nine people by 406; variety-21 no ship by
+740, fourteen people. So variety-22 was a stall and not a slow world, and
+the other two were stalls of their own kind that the world did not outlive,
+read below.
 
 **The skyline stall.** `scripts/blocks-probe.cjs <seed:size:complexity>
 <year>` presses a world to a year and reads every living town: its people,
@@ -2460,9 +2461,24 @@ variety-8 72; phone 78, 63, 83, 60, 59, 66, 84, 65, 77, 64, 74), neither
 bound firing on those seeds, the arcs behind the ship the same, and the hash
 `6d96cf30`; those lists stand as the baseline at forty presses.
 
-**Thirty battery seeds at forty presses.** Running on the shipped code as this
-was written (`scratchpad/sweep30-run.sh r9d 11`); recorded in the commit that
-follows this one.
+**Thirty battery seeds at forty presses.** `scratchpad/sweep30-run.sh r9d 11`
+on the shipped code (87ba118). Twenty-eight of thirty flew: causal-origin 64,
+ship-b 119, ship-c 74, variety-1 64, variety-2 60, variety-3 141, variety-4
+80, variety-5 74, variety-6 105, variety-7 86, variety-8 72, variety-9 69,
+variety-10 85, variety-11 69, variety-12 63, variety-13 74, variety-14 130,
+variety-15 109, variety-16 66, variety-17 112, variety-19 84, variety-20 76,
+variety-22 123, variety-23 68, variety-24 87, variety-25 59, variety-26 65,
+variety-27 67. The middle of the twenty-eight is year 74; twenty-six fly by
+125. The two that did not fly are the two that died: variety-18 (thirteen
+people and no town by year 726) and variety-21 (eleven and no town by 735,
+one apartment block from the gate at 181). Section 17's second run flew
+twenty-six with four standing; the two that stood at the gate for want of a
+skyline or a second town, variety-20 and variety-22, fly at 76 and 123 under
+the bounds, and variety-14 and variety-15 moved from 145 and 111 to 130 and
+109 as the bounds closed their gates a little sooner. So the honest answer to
+"stable across seeds" on battery-saver, lean, on the shipped code at forty
+presses: every world that lives to the gate flies, most between years 60 and
+90, and one world in fifteen dies before it. The deaths are the next round.
 
 **Still open.** Why variety-22 is a world of one town: seventy-three people
 and twenty in the town, the rest in bands and camps that never became a
