@@ -171,6 +171,27 @@ without either, which fails in a way that looks like an empty result.
 A run to a launch takes 10–25 minutes of wall clock. Run several seeds in
 parallel; the machine has 32 cores.
 
+The launch probes and sweeps of sections 11 to 17 live in `scripts/` and the
+scratchpad, and are the ones to reach for now:
+
+| probe | what it answers |
+| --- | --- |
+| `scripts/food-launch-probe.cjs <seed> <size> <complexity> <presses>` | press to a ship; one JSON row per press with the shortfall, the launch site and its blockers |
+| `scripts/transit-probe.cjs <seed:size:cx> <year> <extraPresses>` | the arc behind the ship: people, births, deaths, starved, strain, per year and town |
+| `scripts/site-probe.cjs <seed:size:cx> <year>` | what a launch site waits for: the step, the facility, the unfinished with their hands |
+| `scripts/order-probe.cjs <seed:size:cx> <year> [place]` | a town's open orders, scores, wants and sources, crews and plots |
+| `scripts/current-probe.cjs <seed:size:cx> <year>` | every town's stage shortfall, road to electricity, plans, and where a hall or clinic could stand |
+| `scripts/blocks-probe.cjs <seed:size:cx> <year>` | every town's skyline: crafts, foundry ledger, block plots, and each unfinished block's want, hands and plot |
+| `scripts/hydrology-probe.cjs <seed> <size> <cx> <years>` | the water, heat, nutrient and gas ledgers a year at a time |
+| `$SCRATCH/sweep-run.sh <tag>` / `sweep30-run.sh <tag>` / `arcs-run.sh <tag>` | the launch sweep on both sizes, the thirty battery seeds, the arcs behind the ship |
+
+**The press budget is forty since round nine.** A press stops at every
+milestone, and a world learning its late crafts stops one press a craft: at
+twenty-six presses variety-22 ran out at year 163 and variety-19 at 130 with
+their gates still open, and read as stalls when they were slow. A "none" is a
+"none" only at forty presses; the sweeps of section 17 and before were run at
+twenty-six and say so.
+
 ## Pitfalls that have actually bitten
 
 - **A green smoke test is not evidence a change fires.** Twice a suite-clean,
@@ -2351,9 +2372,115 @@ rejected there). The predators die out by year 50 on battery causal-origin.
 The war is as it was. Ship-c's lake has no water above its depth from year
 40.
 
+### 18. The press budget and the skyline the ground allows (2026-09-17; battery and phone only)
+
+The round was asked for in two parts, the second first: raise the press
+budget before believing a "none", and probe the skyline stall of the two
+battery worlds that stood short of their blocks, mend it, sweep both sizes.
+
+**Forty presses.** A press stops at every milestone, and a world learning its
+late crafts stops one press a craft, so at twenty-six presses variety-22 ran
+out at year 163 and variety-19 at 130 with their gates open, and read as
+stalls when they were slow. `scratchpad/sweep-run.sh` and `sweep30-run.sh`
+run forty presses now, and the measuring section says so; the lists of
+section 17 and before were run at twenty-six. On the shipped code before this
+round's mend, forty presses gave: variety-22 no ship by year 409 with 73
+people, short of a second city, current in a second town and a road;
+variety-20 no ship by 289 with 83 people and fourteen blocks short, the run
+cut at thirty-three presses; variety-21 no ship by 277, cut at nineteen. So
+variety-22 was a stall and not a slow world, and the other two were stalls
+of their own kind, read below.
+
+**The skyline stall.** `scripts/blocks-probe.cjs <seed:size:complexity>
+<year>` presses a world to a year and reads every living town: its people,
+stage and whether it is a city, the crafts a block wants, the blocks finished
+by kind, the foundry's ledger for metal, catalyst and ceramic, where a tower,
+a tenement and a factory could stand by its own siting and on the open ground
+and, where neither finds one, what rejects each candidate tile by kind (water,
+natural water, fire, a feature by type), and every unfinished block with its
+want and where the want is, its hands, its order's priority and its plot. On
+variety-20 at year 150 the target had been "skyline" for 377 pushes since year
+55: three cities of 29, 32 and 11 people with five blocks, five apartment
+blocks and five factories among them against a want of fourteen, every craft
+known, the foundry short of nothing, and no city able to site a tower, a
+tenement or a factory anywhere it could reach. Of the tiles within twenty-six
+of the three towns, 991, 1,106 and 962 were water, 851, 789 and 599 were
+built on, 20, 108 and none stood past ground the town could not cross, and
+none was left; the forest, which the living grove walks onto open ground,
+took only 13 to 23 tiles a town. The towns stand on a coast that is nine
+tenths sea within reach, every dry tile they can walk to carries a building,
+and the effort pushed the skyline for a hundred years at towns that had
+nowhere to put it. Variety-21 at 150 read the same for its one city (36
+people, two blocks, no plot for any kind) with its two villages of 10 and 14
+unable to become the second city, one of them on a two-tile flood.
+
+**The rule (138).** A world asks of itself only what its ground allows, as
+the road rule of section 17. When no city can site another block of a kind,
+the want for that kind is what stands and what is already planned
+(`modernSkylineWanted`, `modernHomesWanted`); where any city has room the want
+is the seed's, so a world with ground is still asked for its skyline. The
+room (`modernCityRoomFor`) is a function of the buildings that stand, are
+planned or lie in ruin, and of the ground, which drifts by the year; it is
+kept beside the world, keyed on those counts and the year, so reading it
+writes nothing to the world (a first cut kept it on `W.civilization` and the
+plain-words test caught the gate's reasons changing the world hash) and a
+saved game reads the same answer for the same buildings. `FIELD_GATES
+.skylineBounded` and `.homesBounded` count the reads the bound held. The
+labour test asserts the wants never fall below one and that a city with room
+is asked the floor. The rule fires only at the modern gate, so the eight-year
+hash stays `6d96cf30`. The three worlds under both bounds:
+variety-20 flies at 76, where forty presses before the bound had left it
+fourteen blocks short at year 289; variety-22 at 123, where they had left it
+at 409; variety-21 came within one apartment block of the gate at 181 and
+then died, eleven people and no town by 735, a world's end and not the
+gate's.
+
+**The towns the world has.** Variety-22 stood at the gate from year 110 to
+409, forty presses and all (the control run at forty presses on the code
+before this round), for a second city, current in a second town and a road.
+`current-probe` at year 200 read one living town in the world: the launch
+site, Nga-pruap, twenty-three people in eighty buildings, city, current and
+every craft known, and fifty people more in no town at all (the launch record
+counts 73 people and 20 in towns); the push for a second city had no town to
+work on and passed over nothing for three hundred pushes. A world of one town
+is now asked one city and current in one town (`modernCitiesWanted`,
+`modernElectricWanted` bounded by the living towns, 138), and no road (the
+fewer-than-two-towns case of `modernLink`, which section 17 had left wanted);
+the people the gate wants in towns, its skyline, its works and the ship's own
+city are asked as before. The labour test asserts a lone town is asked one
+city, current in one town and no road. Why the world has one town is the
+next reading: fifty people in bands and camps and a hub of twenty-three
+below the settler line.
+
+**The sweep, both sizes, at forty presses.** Eleven seeds, lean, on the
+shipped code: the same twenty-two years to the year as section 17's baseline
+(battery causal-origin 64, ship-b 119, ship-c 74, variety-1 64, variety-2 60,
+variety-3 141, variety-4 80, variety-5 74, variety-6 105, variety-7 86,
+variety-8 72; phone 78, 63, 83, 60, 59, 66, 84, 65, 77, 64, 74), neither
+bound firing on those seeds, the arcs behind the ship the same, and the hash
+`6d96cf30`; those lists stand as the baseline at forty presses.
+
+**Thirty battery seeds at forty presses.** Running on the shipped code as this
+was written (`scratchpad/sweep30-run.sh r9d 11`); recorded in the commit that
+follows this one.
+
+**Still open.** Why variety-22 is a world of one town: seventy-three people
+and twenty in the town, the rest in bands and camps that never became a
+settlement while the hub sat below the settler line; the founding rules (30a
+camps, `SETTLER_MIN_POP`, the pull of the city of 108) are the next reading.
+The bounds above let a small coast or a lone city fly with the skyline it has;
+a world with ground is still asked the seed's skyline, and the thirty seeds
+below say how often each case comes. The thirty-seed evidence is battery
+only; thirty phone seeds are still to run. Variety-21 died with one apartment
+block to go: a planned block counts toward the bounded want, and a world that
+falls before it is built falls; whether a plan nobody can build should hold
+the gate is a question for the thirty seeds. The war, the predators
+dying out by year 50, and the gas easing are as they were in section 16.
+
 ## The recent commits, newest first
 
 ```
+87ba118  The skyline the ground allows, and the towns the world has: a gate asks for no block the cities have nowhere to put, and of one town asks one city
 1c23f9b  A world asks of itself only what its ground allows: no road is wanted where no two towns can be joined
 2c1d1be  A town with no room makes room: a monument comes down for the hall a second city wants
 2f0bc03  A field has a gate: a townsperson crosses it, a herd does not, and the effort builds its second city where there is room
