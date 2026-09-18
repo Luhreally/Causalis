@@ -171,13 +171,112 @@ function modernTownsJoinable() {
 const modernLinkFieldGatesBase = modernLink;
 modernLink = function () {
   if (modernLinkFieldGatesBase()) return true;
-  // With fewer than two towns there is nothing to join, and the gate's other wants say so.
-  if (worldTowns().length < 2) return false;
+  // With fewer than two towns there is nothing to join, once the world has a city to ask it of; a young world
+  // is still asked its road, and the gate's other wants say why.
+  if (worldTowns().length < 2) return modernCities().length > 0;
   return !modernTownsJoinable();
+};
+// ── The towns the world has ──────────────────────────────────────────────────
+// The gate wants two cities and current in two towns (114). Variety-22 in the
+// thirty-seed sweep stood at that gate from year 110 to 409, forty presses and
+// all: the second-town probe at year 200 read one living town in the world,
+// Nga-pruap, the launch site, twenty-three people in eighty buildings, city,
+// current and every craft known, and fifty people more in no town at all; the
+// effort's push for a second city had no town to work on and passed over
+// nothing for three hundred pushes. A world of one town is asked one city and
+// current in one town, as a world of no corridor is asked no road; the people
+// the gate wants in towns, its skyline, its works and the ship's own city are
+// asked as before. The bound holds only once the world has a city: a young
+// world of one village is still asked two, as the scale test asserts, since
+// its second town is still to come.
+function modernTownsBound(want) {
+  const towns = worldTowns().length;
+  if (!towns || towns >= want || !modernCities().length) return want;
+  return Math.max(1, towns);
+}
+const modernCitiesWantedTownsBase = modernCitiesWanted;
+modernCitiesWanted = function () {
+  return modernTownsBound(modernCitiesWantedTownsBase());
+};
+const modernElectricWantedTownsBase = modernElectricWanted;
+modernElectricWanted = function () {
+  return modernTownsBound(modernElectricWantedTownsBase());
+};
+// ── The skyline the ground allows ────────────────────────────────────────────
+// The modern gate wants a skyline of fourteen to nineteen tower blocks or
+// offices and five or six apartment blocks, swayed by the seed (114), and the
+// effort raises them at the cities. The thirty-seed battery sweep left
+// variety-20 at year 227 fourteen blocks short with 64 people and variety-21
+// at 445 short of blocks and apartments with 69, and the skyline probe read
+// both at year 150: no city could site a tower, a tenement or a factory by its
+// own siting or on the open ground, and of the tiles within twenty-six of
+// variety-20's three towns 991, 1,106 and 962 were water, 851, 789 and 599
+// were built on, and none was left; the towns stand on a coast that is nine
+// tenths sea within reach, and every dry tile they can walk to carries a
+// building. The effort pushed the skyline for a hundred years at towns that
+// had nowhere to put it. A world asks of itself only what its ground allows:
+// when no city can site another block of a kind, the want for that kind is
+// what stands and what is already planned, and the gate closes on the rest.
+// The room is a function of the buildings that stand, are planned or lie in
+// ruin, and of the ground, which drifts by the year; it is kept beside the
+// world, keyed on those counts and the year, so reading it writes nothing to
+// the world (the plain-words test holds the reasons to that) and a saved game
+// reads the same answer for the same buildings.
+const BLOCK_ROOM = { world: null, key: "", kinds: {} };
+function modernCityRoomFor(type) {
+  let planned = 0,
+    complete = 0,
+    ruined = 0;
+  for (const b of W.buildings) {
+    if (b.ruined) ruined++;
+    else if (b.complete) complete++;
+    else planned++;
+  }
+  const key = planned + ":" + complete + ":" + ruined + ":" + Math.floor(W.tick / TICKS_PER_YEAR);
+  if (BLOCK_ROOM.world !== W || BLOCK_ROOM.key !== key) {
+    BLOCK_ROOM.world = W;
+    BLOCK_ROOM.key = key;
+    BLOCK_ROOM.kinds = {};
+  }
+  if (type in BLOCK_ROOM.kinds) return BLOCK_ROOM.kinds[type];
+  let found = false;
+  for (const city of modernCities()) {
+    const ordinal = W.buildings.filter((b) => !b.ruined && b.placeKind === "settlement" && b.placeId === city.id).length;
+    if (plannedBuildingTile(city, type, ordinal)) {
+      found = true;
+      break;
+    }
+  }
+  BLOCK_ROOM.kinds[type] = found;
+  return found;
+}
+function modernPlannedCount(types) {
+  let n = 0;
+  for (const b of W.buildings) if (!b.ruined && !b.complete && b.placeKind === "settlement" && types.includes(b.type)) n++;
+  return n;
+}
+const modernSkylineWantedGroundBase = modernSkylineWanted;
+modernSkylineWanted = function () {
+  const want = modernSkylineWantedGroundBase(),
+    standing = modernCount(["tower", "office"]);
+  if (standing >= want || !modernCities().length) return want;
+  if (modernCityRoomFor("tower") || modernCityRoomFor("office")) return want;
+  FIELD_GATES.skylineBounded = (FIELD_GATES.skylineBounded || 0) + 1;
+  return Math.max(1, standing + modernPlannedCount(["tower", "office"]));
+};
+const modernHomesWantedGroundBase = modernHomesWanted;
+modernHomesWanted = function () {
+  const want = modernHomesWantedGroundBase(),
+    standing = modernCount(["tenement"]);
+  if (standing >= want || !modernCities().length) return want;
+  if (modernCityRoomFor("tenement")) return want;
+  FIELD_GATES.homesBounded = (FIELD_GATES.homesBounded || 0) + 1;
+  return Math.max(1, standing + modernPlannedCount(["tenement"]));
 };
 window.ALIFE_FIELD_GATES_DEBUG = Object.freeze({
   counts: () => ({ ...FIELD_GATES }),
   joinable: () => modernTownsJoinable(),
+  roomFor: (type) => modernCityRoomFor(type),
   corridorChecks: () => ROAD_CORRIDOR.checked,
   makeRoom: (placeId, type = "hall") => makeRoomFor(W.settlements.find((s) => s.id === placeId), type),
   fieldAt: (x, y) => fieldAtMovementTile(x, y)?.id || 0,

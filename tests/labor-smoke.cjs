@@ -171,7 +171,18 @@ const fixtureSource = String.raw`(() => {
   out.livingTowns = living;
   out.joinable = modernTownsJoinable();
   out.link = modernLink();
-  if (living < 2 && (out.joinable || out.link)) fail("a lone town was joined or linked: " + JSON.stringify([out.joinable, out.link]));
+  if (living < 2 && out.joinable) fail("a lone town was joined: " + JSON.stringify([out.joinable, out.link]));
+  // The towns the world has (138): a world of one town is asked one city and current in one town, and no road,
+  // once that town is a city; a lone village is still asked two, its second town still to come.
+  out.townWants = { cities: modernCitiesWanted(), electric: modernElectricWanted(), link: out.link, city: !!cityStage(town) };
+  if (living < 2 && out.townWants.city && (out.townWants.cities !== 1 || out.townWants.electric !== 1 || !out.link)) fail("a lone city was asked for more towns: " + JSON.stringify(out.townWants));
+  if (living < 2 && !out.townWants.city && (out.townWants.cities < 2 || out.townWants.electric < 2 || out.link)) fail("a lone village was asked less than two towns: " + JSON.stringify(out.townWants));
+  // The skyline the ground allows (138): the want is never below what stands and is planned, never above the seed's want,
+  // and where a city has room for a tower the want is the seed's want.
+  const skyWant = modernSkylineWanted(), homesWant = modernHomesWanted();
+  out.skyline = { want: skyWant, standing: modernCount(["tower", "office"]), planned: modernPlannedCount(["tower", "office"]), cities: modernCities().length, room: modernCities().length ? modernCityRoomFor("tower") : null, homes: homesWant };
+  if (!(skyWant >= 1) || !(homesWant >= 1)) fail("the skyline or homes want fell below one: " + JSON.stringify(out.skyline));
+  if (out.skyline.cities && out.skyline.room && skyWant < MODERN_SKYLINE_FLOOR * 0.8) fail("a city with room was asked for less than the floor: " + JSON.stringify(out.skyline));
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;
 })()`;
