@@ -165,6 +165,8 @@ const fixtureSource = String.raw`(() => {
       if (!out.roomMade || !out.monumentRuined || !out.rubbleKept || !out.salvageQueued || out.secondFall) fail("making room went wrong: " + JSON.stringify([out.roomMade, out.monumentRuined, out.rubbleKept, out.salvageQueued, out.secondFall]));
     }
   } else out.roomMade = "no monument could stand in the fixture";
+  // The launch tower makes room too (138), and may take a block when nothing lesser stands.
+  if (!ROOM_WANTED_FOR.has("launch_tower") || !roomSacrificesFor("launch_tower").includes("tower") || roomSacrificesFor("hall").includes("tower")) fail("the launch tower's room-making is wrong");
   // The road the ground allows (138): with one town there is nothing to join and the road is still wanted;
   // the corridor read is a function of the living towns and answers false for one town.
   const living = W.settlements.filter((s) => !s.ruined && s.knownProcesses).length;
@@ -177,6 +179,17 @@ const fixtureSource = String.raw`(() => {
   out.townWants = { cities: modernCitiesWanted(), electric: modernElectricWanted(), link: out.link, city: !!cityStage(town) };
   if (living < 2 && out.townWants.city && (out.townWants.cities !== 1 || out.townWants.electric !== 1 || !out.link)) fail("a lone city was asked for more towns: " + JSON.stringify(out.townWants));
   if (living < 2 && !out.townWants.city && (out.townWants.cities < 2 || out.townWants.electric < 2 || out.link)) fail("a lone village was asked less than two towns: " + JSON.stringify(out.townWants));
+  // A world whose towns have fallen founds again (138): a world of one town is fallen by count; with a quarter of
+  // its people homeless it is fallen by people; with its people housed and enough towns it is not.
+  out.fallenByCount = worldTownsFallen();
+  if (living < 2 && !out.fallenByCount) fail("a world of one town was not read as fallen");
+  const folk = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.social[id]);
+  const kinds = folk.map((id) => W.components.social[id].homePlaceKind);
+  const quarter = Math.ceil(folk.length * 0.25);
+  for (let i = 0; i < quarter; i++) W.components.social[folk[i]].homePlaceKind = "";
+  out.fallenByPeople = worldTownsFallen();
+  for (let i = 0; i < folk.length; i++) W.components.social[folk[i]].homePlaceKind = kinds[i];
+  if (folk.length >= 8 && !out.fallenByPeople) fail("a world with a quarter of its people homeless was not read as fallen");
   // The skyline the ground allows (138): the want is never below what stands and is planned, never above the seed's want,
   // and where a city has room for a tower the want is the seed's want.
   const skyWant = modernSkylineWanted(), homesWant = modernHomesWanted();

@@ -84,9 +84,22 @@ tileFood = function (i, metabolism = "grazer") {
   return tileFoodFieldGatesBase(i, metabolism);
 };
 // ── The second city is built where there is room ─────────────────────────────
+// The launch tower too. The thirty phone seeds of section 19 flew four worlds
+// late, at 188 to 237, and the site probe read two of them at year 140: the
+// launch site knew every craft but Starflight, held its notes at 85.5 of 90,
+// the cap the effort holds until the facility stands, and had no launch tower
+// planned at all, its siting handing back nothing on a full coast, for fifty
+// years, until the world halved and the site moved to a town with room. A
+// city makes room for its launch tower as for its hall: the lesser buildings
+// first, and if none stands, a tower block, an office or an apartment block,
+// since the skyline the gate asks of a full city is the skyline that stands.
 const MODERN_CITY_STAGE_TYPES = Object.freeze(["hall", "clinic", "shelter", "workshop", "farm"]),
-  ROOM_WANTED_FOR = new Set(["hall", "clinic"]),
-  ROOM_SACRIFICE = Object.freeze(["monument", "totem", "shrine", "wall", "stockpile"]);
+  ROOM_WANTED_FOR = new Set(["hall", "clinic", "launch_tower"]),
+  ROOM_SACRIFICE = Object.freeze(["monument", "totem", "shrine", "wall", "stockpile"]),
+  ROOM_SACRIFICE_FOR_TOWER = Object.freeze([...ROOM_SACRIFICE, "tower", "office", "tenement"]);
+function roomSacrificesFor(type) {
+  return type === "launch_tower" ? ROOM_SACRIFICE_FOR_TOWER : ROOM_SACRIFICE;
+}
 function townRubbleLeft(town) {
   return W.buildings.some((b) => b.ruined && b.placeKind === "settlement" && b.placeId === town.id && ruinRubble(b) > 0);
 }
@@ -94,7 +107,7 @@ function makeRoomFor(town, type) {
   if (!town?.knownProcesses || !ROOM_WANTED_FOR.has(type) || townRubbleLeft(town)) return false;
   // A plan of the kind already open is room enough; this is for a town whose siting hands back nothing.
   if (W.buildings.some((b) => !b.ruined && !b.complete && b.placeKind === "settlement" && b.placeId === town.id && b.type === type)) return false;
-  for (const kind of ROOM_SACRIFICE) {
+  for (const kind of roomSacrificesFor(type)) {
     const standing = completedBuildings(town, kind);
     if (!standing.length || (kind === "stockpile" && standing.length < 2)) continue;
     const b = standing.slice().sort((a, c) => dist2(a.x, a.y, town.x, town.y) - dist2(c.x, c.y, town.x, town.y) || a.id - c.id)[0];
@@ -115,6 +128,21 @@ function fieldGatesPushCity(town, pushes) {
   if (completedBuildings(town).length < 8 && causalPushBuilding(town, "shelter", pushes)) pushed++;
   return pushed;
 }
+// The effort's two paths to a launch tower both hand back nothing when the
+// site has no plot: the research push plans the facility a study wants (79)
+// and the launch push supplies the tower (114). Either way, the site makes room.
+const causalPushBuildingFieldGatesBase = causalPushBuilding;
+causalPushBuilding = function (place, type, pushes) {
+  const pushed = causalPushBuildingFieldGatesBase(place, type, pushes);
+  if (!pushed && type === "launch_tower" && place?.knownProcesses) return makeRoomFor(place, type);
+  return pushed;
+};
+const modernSupplyFieldGatesBase = modernSupply;
+modernSupply = function (place, type, pushes) {
+  const supplied = modernSupplyFieldGatesBase(place, type, pushes);
+  if (!supplied && type === "launch_tower" && place?.knownProcesses) return makeRoomFor(place, type);
+  return supplied;
+};
 const modernPushFieldGatesBase = modernPush;
 modernPush = function (key, pushes) {
   if (key !== "cities") return modernPushFieldGatesBase(key, pushes);
@@ -273,9 +301,45 @@ modernHomesWanted = function () {
   FIELD_GATES.homesBounded = (FIELD_GATES.homesBounded || 0) + 1;
   return Math.max(1, standing + modernPlannedCount(["tenement"]));
 };
+// ── A world whose towns have fallen founds again ─────────────────────────────
+// Once the modern stages are sought and the effort is on, the world founds
+// nothing new (127): the ship wants two cities, not five hamlets. That rule
+// never allowed for a world whose towns fall. The founding probe read
+// variety-22 in the thirty-seed sweep: four towns of 22, 25, 3 and 3 at year
+// 53, three of them destroyed by year 114 with thirty to forty-five people
+// living in no town at all for sixty years, the world "with no room for
+// places" the whole time because the effort was on, and one town left. A
+// world with fewer living towns than the gate's cities want, or with a quarter
+// of its people homeless, founds again; a world whose towns hold its people
+// founds nothing, as before. FIELD_GATES.refounded counts the reads that
+// opened the ground.
+const HOMELESS_SHARE = 0.25;
+function worldTownsFallen() {
+  const towns = worldTowns().length,
+    wanted = typeof modernCitiesWantedTownsBase === "function" ? modernCitiesWantedTownsBase() : 2;
+  if (towns < wanted) return true;
+  let people = 0,
+    homeless = 0;
+  for (const id of W.activeIds) {
+    if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
+    people++;
+    const h = W.components.social[id]?.homePlaceKind;
+    if (h !== "settlement" && h !== "camp") homeless++;
+  }
+  return people >= 8 && homeless >= people * HOMELESS_SHARE;
+}
+const worldHasRoomForPlacesFieldGatesBase = worldHasRoomForPlaces;
+worldHasRoomForPlaces = function () {
+  if (worldHasRoomForPlacesFieldGatesBase()) return true;
+  if (!W?.settlements || typeof worldHasRoomForPlacesManyHandsBase !== "function" || !worldTownsFallen()) return false;
+  const room = worldHasRoomForPlacesManyHandsBase();
+  if (room) FIELD_GATES.refounded = (FIELD_GATES.refounded || 0) + 1;
+  return room;
+};
 window.ALIFE_FIELD_GATES_DEBUG = Object.freeze({
   counts: () => ({ ...FIELD_GATES }),
   joinable: () => modernTownsJoinable(),
+  fallen: () => worldTownsFallen(),
   roomFor: (type) => modernCityRoomFor(type),
   corridorChecks: () => ROAD_CORRIDOR.checked,
   makeRoom: (placeId, type = "hall") => makeRoomFor(W.settlements.find((s) => s.id === placeId), type),
