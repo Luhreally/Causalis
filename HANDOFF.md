@@ -183,6 +183,8 @@ scratchpad, and are the ones to reach for now:
 | `scripts/current-probe.cjs <seed:size:cx> <year>` | every town's stage shortfall, road to electricity, plans, and where a hall or clinic could stand |
 | `scripts/blocks-probe.cjs <seed:size:cx> <year>` | every town's skyline: crafts, foundry ledger, block plots, and each unfinished block's want, hands and plot |
 | `scripts/hydrology-probe.cjs <seed> <size> <cx> <years>` | the water, heat, nutrient and gas ledgers a year at a time |
+| `scripts/death-probe.cjs <seed:size:cx> <presses>` | a world pressed the way the sweeps are, with every press's deaths by cause, births, and where the people live |
+| `scripts/founding-probe.cjs <seed:size:cx> <presses>` | the towns and why each cannot send settlers, the camps and what they lack to become towns, the homeless, and whether the world has room for a place |
 | `$SCRATCH/sweep-run.sh <tag>` / `sweep30-run.sh <tag>` / `arcs-run.sh <tag>` | the launch sweep on both sizes, the thirty battery seeds, the arcs behind the ship |
 
 **The press budget is forty since round nine.** A press stops at every
@@ -2493,9 +2495,130 @@ falls before it is built falls; whether a plan nobody can build should hold
 the gate is a question for the thirty seeds. The war, the predators
 dying out by year 50, and the gas easing are as they were in section 16.
 
+### 19. The worlds that die, the world of one town, and thirty phone seeds (2026-09-18; battery and phone only)
+
+The round was asked for in four parts: why worlds die before the gate, thirty
+phone seeds at forty presses, why a world has one town, and whether a planned
+block that never rises should hold the gate.
+
+**Thirty phone seeds at forty presses.** `scratchpad/sweep30-phone-run.sh r9p
+11` on the shipped code (87ba118 and after): thirty of thirty flew.
+causal-origin 78, ship-b 63, ship-c 83, variety-1 60, variety-2 59, variety-3
+66, variety-4 84, variety-5 65, variety-6 77, variety-7 64, variety-8 74,
+variety-9 124, variety-10 69, variety-11 102, variety-12 74, variety-13 64,
+variety-14 63, variety-15 84, variety-16 72, variety-17 237, variety-18 92,
+variety-19 209, variety-20 232, variety-21 188, variety-22 64, variety-23 81,
+variety-24 82, variety-25 107, variety-26 70, variety-27 69. The middle of the
+thirty is year 76; twenty-six fly by 125, and four fly late, at 188, 209, 232
+and 237. The four late ones share one shape in the launch record: the world's
+gate is met for fifty years while the launch site never learns Starflight or
+raises its tower, then the world halves, the site moves to another town, and
+that town flies within three years. The site probe read two of them at year
+140, variety-21's Wir'idrii (31 people) and variety-17's Trethits-pe (56):
+every craft but Starflight, the notes at 85.5 of 90, the cap the effort holds
+until the facility stands, and no launch tower planned at all, the siting
+handing back nothing on a full coast. The room-making of section 17 now
+covers the launch tower (`ROOM_WANTED_FOR`), the lesser buildings first and,
+if none stands, a tower block, an office or an apartment block, since the
+skyline the gate asks of a full city is the skyline that stands; and both of
+the effort's paths to the tower, the research push that plans the facility a
+study wants (79) and the launch push that supplies it (114), make room when
+their siting hands back nothing. Under it, before the sky below was added,
+variety-21 flies at 70 where it flew at 188 and variety-17 at 150 where it
+flew at 237. No phone world was held by a planned block, so the skyline
+bound stands as it is: what stands and what is planned. So the phone, the size
+that is played most, at forty presses: every one of thirty flies, most between
+years 60 and 90, and one in eight past 180.
+
+**The worlds that die.** `scripts/death-probe.cjs <seed:size:complexity>
+<presses>` presses a world the way the sweeps do and reads, press by press,
+the people and where they live, the births, the deaths by cause (the first
+line of each death's evidence), the towns with their hunger and food outlook,
+the camps and the homeless, the strain and the dry share of the year. On
+variety-18 the deaths to year 350 are old age ("accumulated repair failure"),
+hunger and the wars' wounds in the ordinary way, births near deaths, one town
+of thirty to fifty; from year 372 nearly every death is "oxidant
+deprivation": 21, 43, 43, 20, 45, 35, 53, 87 and 65 a press, the world falling
+from 41 to 9 people by 514 and standing at 13 in 726 with the births of every
+press suffocating within it. The air's oxidant is gone. The hydrology ledger
+(`scripts/hydrology-probe.cjs variety-18 battery lean 420`) read the cause a
+year at a time: photosynthesis 7,000 units a year at year 100, respiration
+6,000, waste mineralization 5,000 and decomposition none, so the living loop
+gives one oxidant for every two it breathes and nothing rots on the ground to
+return any; the tiles' oxidant fell from 2,335 thousand at year one to 1,415
+thousand at 320 and 1,177 at 420, the gas from 1,763 thousand to 961, the
+organic litter rising from 827 thousand to 2,111 the while. Under the press, where the world
+runs fuller, the air ran out by 372.
+
+**The sky is deep (17).** A planet's air is not the film over its ground.
+Every world now holds an atmospheric reservoir of oxidant and gas
+(`W.reservoirs.atmosphericOxidant`, `atmosphericGas`: 6,000 and 4,500 a tile
+beside the six or seven hundred the tiles hold), and each tile in the
+substrate's row breathes against the world's own starting air
+(`W.skyBaseline`, the mean tile oxidant and gas at the first tick): below it,
+the tile draws a twentieth of the shortfall from the reservoir; a quarter
+above it, a twentieth of the excess returns (`ensureSky`, `breatheSky`,
+`SKY.drawn` and `.returned`). The reservoir is matter and `totalMatter` counts
+it with the other reservoirs; a world saved before this is given its sky when
+next stepped, the gift booked as the world's own matter, so its audit holds.
+The water test asserts a tile emptied of oxidant draws it back from the
+reservoir, the reservoir falling by the same, with the audit at nought. The
+sky runs from the first tick, so the eight-year hash moved, `6d96cf30` to
+`6bee0692`. Measured on the same ledger with the sky: the tiles' oxidant
+2,338 thousand at year one and 2,410 thousand at 120, the gas 1,775 thousand
+and 1,858, where without it they had fallen to 1,930 and 1,491 by 120; the
+people the same to the head at every twentieth year, since air above the need
+changes nothing until it is short. The death probe on variety-18 with the
+sky was running as this was written; recorded in the commit that follows.
+
+**The world of one town.** `scripts/founding-probe.cjs <seed:size:complexity>
+<presses>` presses a world the way the sweeps do and reads, press by press,
+the living towns with why each could not send settlers, the camps with the
+three buildings a camp needs to become a town, the people by the kind of
+place they call home, whether the world has room for another place, the
+expeditions, and the founding events. On variety-22 it read four towns at
+year 53, of 22, 25, 3 and 3 people, and the world with no room for another
+place; between years 62 and 114 three of them were destroyed, and thirty to
+forty-five people lived in no town at all for sixty years while the world
+stayed "with no room for places" and founded nothing, until one town of
+twenty-three was left. The rule was 127's: once the modern stages are sought
+and the effort is on, the world founds nothing new, the ship wanting two
+cities and not five hamlets. It never allowed for a world whose towns fall.
+Now a world with fewer living towns than the gate's cities want, or with a
+quarter of its people homeless, founds again (`worldTownsFallen`, 138), and a
+world whose towns hold its people founds nothing, as before;
+`FIELD_GATES.refounded` counts the reads that opened the ground. The labour
+test asserts a world of one town is read as fallen by count, a world with a
+quarter of its people homeless as fallen by people, and neither otherwise.
+Under it, before the sky below was added, variety-22 founds its second town
+and has two cities at year 114, flying at 123 by the ordinary gate where the
+bound of section 18 had let it fly as a world of one.
+
+**The sweep, both sizes, on the shipped code.** Eleven seeds, 26 presses of
+forty used at most, lean, with the deep sky, the refounding and the launch
+tower's room: battery causal-origin 60, ship-b 121, ship-c 74, variety-1 64, variety-2 60, variety-3 141, variety-4 80, variety-5 74, variety-6 105, variety-7 86, variety-8 72; phone causal-origin 75, ship-b 63, ship-c 83, variety-1 60, variety-2 59, variety-3 66, variety-4 84, variety-5 65, variety-6 77, variety-7 64, variety-8 74; twenty-two of twenty-two, three years moved by one to four and the rest to the year. Behind the ship battery causal-origin flies at 92 and holds 134 people at year 107, ship-c at 77 and 200 at 142, phone ship-c at 72 and 154, phone variety-3 at 38 and 158, none of them starved; phone variety-8 at 61 and 273 with six starved. The
+hash `6bee0692` and these lists are the baseline.
+
+**Thirty seeds of each size.** Running on the shipped code as this was written
+(`scratchpad/sweep30-run.sh r10 11` and `sweep30-phone-run.sh r10p 11`);
+recorded in the commit that follows this one.
+
+**Still open.** Variety-21's death is the other kind, read to year 400 by the
+death probe: old age and the wars' wounds a press at a time with births near
+deaths, a town of thirty to fifty that halves and regrows; its end at 735 is
+in the probe's last rows, recorded with the thirty seeds. The litter still does
+not rot (decomposition ran no units in four hundred years of the ledger), so
+the carbon of the greening world stays locked and the gas would drain without
+the sky; the sky holds it, and the rot is still the honest next lever, twice
+rejected. The water eases three thousand a year on the ledger, as in section
+16. The war, the predators dying out by year 50, and the eight-year hash's
+limit are as they were.
+
 ## The recent commits, newest first
 
 ```
+552d639  The sky is deep: the tiles breathe against an atmosphere of oxidant and gas, so a world that lives to the gate does not suffocate
+89c37d1  A world whose towns have fallen founds again, and a city makes room for its launch tower
 87ba118  The skyline the ground allows, and the towns the world has: a gate asks for no block the cities have nowhere to put, and of one town asks one city
 1c23f9b  A world asks of itself only what its ground allows: no road is wanted where no two towns can be joined
 2c1d1be  A town with no room makes room: a monument comes down for the hall a second city wants
