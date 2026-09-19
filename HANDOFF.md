@@ -2568,8 +2568,14 @@ sky runs from the first tick, so the eight-year hash moved, `6d96cf30` to
 2,338 thousand at year one and 2,410 thousand at 120, the gas 1,775 thousand
 and 1,858, where without it they had fallen to 1,930 and 1,491 by 120; the
 people the same to the head at every twentieth year, since air above the need
-changes nothing until it is short. The death probe on variety-18 with the
-sky was running as this was written; recorded in the commit that follows.
+changes nothing until it is short; and to year 420 the oxidant stands at
+2,418 thousand and the gas at 1,854 where without the sky they had fallen to
+1,177 and 961, the plants at 659 thousand where they had been 553, the audit
+at nought throughout, and the water easing 2,200 a year as in section 16. The
+death probe on variety-18 with the sky, forty presses to year 972: not one
+death for want of air; 404 of old age, 333 of hunger, a hundred or so the
+wars', and 45 people alive at the end, the world lean and small and short of
+the gate, which is the next reading of that seed and not this round's.
 
 **The world of one town.** `scripts/founding-probe.cjs <seed:size:complexity>
 <presses>` presses a world the way the sweeps do and reads, press by press,
@@ -2599,14 +2605,48 @@ forty used at most, lean, with the deep sky, the refounding and the launch
 tower's room: battery causal-origin 60, ship-b 121, ship-c 74, variety-1 64, variety-2 60, variety-3 141, variety-4 80, variety-5 74, variety-6 105, variety-7 86, variety-8 72; phone causal-origin 75, ship-b 63, ship-c 83, variety-1 60, variety-2 59, variety-3 66, variety-4 84, variety-5 65, variety-6 77, variety-7 64, variety-8 74; twenty-two of twenty-two, three years moved by one to four and the rest to the year. Behind the ship battery causal-origin flies at 92 and holds 134 people at year 107, ship-c at 77 and 200 at 142, phone ship-c at 72 and 154, phone variety-3 at 38 and 158, none of them starved; phone variety-8 at 61 and 273 with six starved. The
 hash `6bee0692` and these lists are the baseline.
 
-**Thirty seeds of each size.** Running on the shipped code as this was written
-(`scratchpad/sweep30-run.sh r10 11` and `sweep30-phone-run.sh r10p 11`);
-recorded in the commit that follows this one.
+**Thirty phone seeds on the shipped code.** `scratchpad/sweep30-phone-run.sh
+r10p 11`, forty presses: thirty of thirty flew. causal-origin 75, ship-b 63,
+ship-c 83, variety-1 60, variety-2 59, variety-3 66, variety-4 84, variety-5
+65, variety-6 77, variety-7 64, variety-8 74, variety-9 124, variety-10 69,
+variety-11 102, variety-12 74, variety-13 64, variety-14 63, variety-15 96,
+variety-16 72, variety-17 150, variety-18 92, variety-19 204, variety-20 291,
+variety-21 70, variety-22 64, variety-23 81, variety-24 82, variety-25 107,
+variety-26 71, variety-27 69. The middle of the thirty is year 74 where it was
+76; twenty-seven fly by 125 where twenty-six did; variety-21 flies at 70 where
+it flew at 188 and variety-17 at 150 where it flew at 237, the launch tower's
+room; variety-20 moved the other way, 232 to 291, on a road the sky changed,
+short of one tower block and a factory for sixty years as before, and flies.
 
-**Still open.** Variety-21's death is the other kind, read to year 400 by the
-death probe: old age and the wars' wounds a press at a time with births near
-deaths, a town of thirty to fifty that halves and regrows; its end at 735 is
-in the probe's last rows, recorded with the thirty seeds. The litter still does
+**Thirty battery seeds on the shipped code.** `scratchpad/sweep30-run.sh r10
+11`, forty presses: twenty-nine of thirty flew. causal-origin 60, ship-b 121,
+ship-c 74, variety-1 64, variety-2 60, variety-3 141, variety-4 80, variety-5
+74, variety-6 105, variety-7 86, variety-8 72, variety-9 69, variety-10 85,
+variety-11 69, variety-12 63, variety-13 74, variety-14 69, variety-15 112,
+variety-16 66, variety-17 112, variety-19 84, variety-20 64, variety-21 198,
+variety-22 120, variety-23 68, variety-24 87, variety-25 59, variety-26 65,
+variety-27 67. The middle is year 74 as in section 18; twenty-seven fly by 125
+where twenty-six did; variety-21, which died at 735 one apartment block from
+the gate, flies at 198, and variety-14 at 69 where it flew at 145. The one
+that does not fly is variety-18: alive at 972 with forty-five people and no
+death for want of air, short of its second city, its current, its skyline
+and its homes, a lean world of one small town that never becomes a city;
+that seed is the next reading. So on the shipped code, at forty presses, on
+both sizes: fifty-nine of sixty worlds fly, most between years 60 and 90,
+and none dies before the gate.
+
+**How variety-21 ends.** The death probe read it to 735 on the code before
+this round: old age and the wars' wounds a press at a time with births near
+deaths, a town of thirty to fifty that halves and regrows, to year 421; then
+old age and hunger draw it down, 79 people to 13 by 528, the last town falls
+by 576 with every survivor homeless and the world forbidden to found, and from
+624 the deaths are oxidant deprivation, 7, 40, 27, 71 and 37 a press, to
+eleven people in no town at 735. Of the 737 deaths the probe counted, 379 were
+old age, 183 suffocation, 98 hunger and some sixty the wars'. Both of this
+round's mends meet that road: the fallen world founds again, and the air
+holds.
+
+**Still open.** The litter still does
 not rot (decomposition ran no units in four hundred years of the ledger), so
 the carbon of the greening world stays locked and the gas would drain without
 the sky; the sky holds it, and the rot is still the honest next lever, twice
