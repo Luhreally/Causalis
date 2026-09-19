@@ -831,7 +831,7 @@ function createWorld(options) {
     interventions: [],
     divineClaims: [],
     statistics: { history: [], births: 0, deaths: 0, kills: 0, extinctions: 0 },
-    reservoirs: { atmosphericSolvent: n * 260, deepMineral: n * 400 },
+    reservoirs: { atmosphericSolvent: n * 260, deepMineral: n * 400, atmosphericOxidant: n * 6000, atmosphericGas: n * 4500 },
     conservation: {
       initialMatter: 0,
       playerInput: 0,

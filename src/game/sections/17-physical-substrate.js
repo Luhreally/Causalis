@@ -316,8 +316,80 @@ function hydrologySummary() {
     landFloodCoverage: floodedLandTiles / W.tileCount,
   };
 }
+// ── The sky is deep ───────────────────────────────────────────────────────────
+// The air the tiles hold is all the air the world had, and the living loop
+// does not return what it breathes: photosynthesis gives one oxidant for the
+// two organic and one energy it makes, respiration takes one for the energy
+// and the mineralizing of the waste it leaves takes one for two, and nothing
+// rots on the ground to give any back. The ledger on battery variety-18 read
+// it a year at a time: photosynthesis 7,000 units, respiration 6,000,
+// mineralization 5,000, decomposition none, the tiles' oxidant falling from
+// 2,335 thousand at year one to 1,415 thousand at 320, and under the press,
+// where the world runs fuller, the death probe read "oxidant deprivation" on
+// nearly every death from year 372, 21 to 87 a press, until thirteen people
+// stood in no town at 726 (HANDOFF section 19). The gas fell the same way,
+// 1,763 thousand to 1,120. A planet's air is not the film over its ground: it
+// is deep, and the film exchanges with it. Every world now holds an
+// atmospheric reservoir of oxidant and of gas, a few thousand a tile beside
+// the six or seven hundred the tiles hold, and each tile in the substrate's
+// row breathes against the world's own starting air: below it, the tile draws
+// a twentieth of the shortfall from the reservoir; well above it, a twentieth
+// of the excess returns. The reservoir is matter and the audit counts it; a
+// world saved before this is given its sky when it is next stepped, and the
+// gift is booked as the world's own. The reservoir outlasts the drain by
+// thousands of years, which is the point: worlds that live to the gate should
+// not suffocate on the way.
+const SKY_DEPTH_OXIDANT = 6000,
+  SKY_DEPTH_GAS = 4500,
+  SKY_RATE = 0.05,
+  SKY_SLACK = 1.25,
+  SKY = { drawn: 0, returned: 0 };
+function ensureSky(world = W) {
+  if (!world?.tiles || !world.reservoirs) return;
+  const n = world.tileCount;
+  if (!world.skyBaseline) {
+    let ox = 0,
+      gas = 0;
+    for (let i = 0; i < n; i++) {
+      ox += world.tiles.chem[C.OXIDANT][i];
+      gas += world.tiles.chem[C.GAS][i];
+    }
+    world.skyBaseline = { oxidant: Math.round(ox / Math.max(1, n)), gas: Math.round(gas / Math.max(1, n)) };
+  }
+  if (typeof world.reservoirs.atmosphericOxidant !== "number") {
+    world.reservoirs.atmosphericOxidant = n * SKY_DEPTH_OXIDANT;
+    world.reservoirs.atmosphericGas = n * SKY_DEPTH_GAS;
+    // A world saved before the sky was deep is given its sky: the world's own matter, not the player's.
+    if (world.conservation) world.conservation.initialMatter += n * (SKY_DEPTH_OXIDANT + SKY_DEPTH_GAS);
+  }
+}
+function breatheSky(i) {
+  const t = W.tiles,
+    r = W.reservoirs,
+    b = W.skyBaseline;
+  for (const [sp, key, base] of [
+    [C.OXIDANT, "atmosphericOxidant", b.oxidant],
+    [C.GAS, "atmosphericGas", b.gas],
+  ]) {
+    const v = t.chem[sp][i];
+    if (v < base) {
+      const take = Math.min(r[key], Math.ceil((base - v) * SKY_RATE), 65535 - v);
+      if (take > 0) {
+        t.chem[sp][i] = u16(v + take);
+        r[key] -= take;
+        SKY.drawn += take;
+      }
+    } else if (v > base * SKY_SLACK) {
+      const give = Math.ceil((v - base) * SKY_RATE);
+      t.chem[sp][i] = u16(v - give);
+      r[key] += give;
+      SKY.returned += give;
+    }
+  }
+}
 function updatePhysicalSubstrate() {
   ensureClimateBaseline(W);
+  ensureSky(W);
   const t = W.tiles,
     start = (W.tick % W.height) * W.width,
     end = start + W.width,
@@ -350,6 +422,7 @@ function updatePhysicalSubstrate() {
     updateSurfaceHydrology(i, weather);
     breatheSurfaceWater(i, weather);
     coolTileToClimate(i);
+    breatheSky(i);
     if (t.fire[i] > 0) {
       const moisture = tileMoisture(i),
         requested = Math.max(1, Math.floor(t.fire[i] / 150)),
@@ -436,3 +509,8 @@ function updatePhysicalSubstrate() {
     }
   }
 }
+window.ALIFE_SKY_DEBUG = Object.freeze({
+  reservoirs: () => ({ oxidant: W.reservoirs?.atmosphericOxidant, gas: W.reservoirs?.atmosphericGas, baseline: W.skyBaseline ? { ...W.skyBaseline } : null }),
+  flows: () => ({ ...SKY }),
+  depth: { oxidant: SKY_DEPTH_OXIDANT, gas: SKY_DEPTH_GAS, rate: SKY_RATE, slack: SKY_SLACK },
+});

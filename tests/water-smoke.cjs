@@ -111,6 +111,16 @@ const fixtureSource = String.raw`(() => {
     setTileMatterAmount(eti, C.NUTRIENT, tileBefore);
   }
   if (auditMatter().delta !== delta0) fail("the breath made or lost matter: " + (auditMatter().delta - delta0));
+  // The sky is deep (17): a tile below the world's starting air draws oxidant from the reservoir when the
+  // substrate breathes it, the reservoir falls by the same, and the audit holds.
+  ensureSky(W);
+  const skyTile = idx(Math.floor(W.width / 2), Math.floor(W.height / 2)), base = W.skyBaseline.oxidant;
+  const had = W.tiles.chem[C.OXIDANT][skyTile], taken = Math.min(had, base);
+  W.tiles.chem[C.OXIDANT][skyTile] = u16(had - taken); W.conservation.playerInput -= taken;
+  const reservoirBefore = W.reservoirs.atmosphericOxidant;
+  breatheSky(skyTile);
+  out.sky = { base, had, taken, drawn: W.tiles.chem[C.OXIDANT][skyTile] - (had - taken), reservoirDrop: reservoirBefore - W.reservoirs.atmosphericOxidant, audit: auditMatter().delta };
+  if (!(out.sky.drawn > 0) || out.sky.drawn !== out.sky.reservoirDrop || out.sky.audit !== 0) fail("the sky did not give the tile its air back: " + JSON.stringify(out.sky));
   for (const [k, v] of Object.entries(out)) if (typeof v === "string" && /undefined|NaN/.test(v)) fail(k + " contains undefined");
   return out;
 })()`;
