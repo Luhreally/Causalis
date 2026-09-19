@@ -2654,9 +2654,135 @@ rejected. The water eases three thousand a year on the ledger, as in section
 16. The war, the predators dying out by year 50, and the eight-year hash's
 limit are as they were.
 
+### 20. The wants follow the world's size: the settler line and the skyline floor (2026-09-19; battery and phone only)
+
+The question was whether the barriers to the ship are adaptive to the world's
+size. Partly: a world scale k, the square root of the map's area over a
+standard map's (0.4 on battery, 0.53 on phone), sets the size of a city (24k
+people or 32k across the polity, floors 8 and 12) and the modern gate's wants
+(the standard map's two cities, current in three towns, twenty-eight blocks,
+twelve apartment blocks, two factories and a hundred people in towns, times
+k², with floors of 2, 2, 16, 6, 1 and two cities' worth of people); and
+sections 17 to 19 made the gate adapt to the ground and the towns a world
+actually has. But on battery and phone every want sits on its floor, and two
+constants never scaled at all: the settler line of twenty-four people, and the
+skyline floor of sixteen blocks. Both were asked for, and both were done and
+swept on both sizes.
+
+**The settler line.** Twenty-four people was the standard map's line, chosen
+so a town of twelve did not split into a hamlet of eight and a camp of four;
+on a battery map a city is eight, so a town that had to be twenty-four to send
+anyone never sent, and the world's second town came from a camp or not at
+all, which is how sections 18 and 19 found worlds of one town. A world of one
+town now sends at its own urban gate and a settler party's worth over it
+(`settlerLine`, 68: `max(12, min(24, urbanGate().local + 6))` while the
+living towns are fewer than two, else 24), so the town that sends stays a
+city and no map splits a town of six: sixteen on battery, where a city is
+ten, nineteen on phone, twenty-four on standard and above. 84's
+`settlerMinimum` reads it, the founding probe prints it, and the scale and
+labour tests assert the formula. The founding probe on
+variety-22 under the line: the same four towns at
+year 54 and the same war that captured and destroyed three of them by 93,
+forty-five people homeless; then the fallen world founds again (section 19),
+Nga-pruap regrows past sixteen and "could send" at 114, and by 127 a second
+town of ten stands beside a hub of forty-three, the ship leaving that year
+where it had left at 123 as a world of one.
+
+**The skyline floor.** Sixteen blocks swayed by the seed on every map, and
+section 18 bounded it only when no city could site one more block, so a coast
+that could site three more was still asked sixteen and pushed for them for
+decades before the last plot went. The want is now the seed's or the ground's,
+whichever is less: the blocks standing and planned plus the block plots the
+cities' ground can still hold (`modernBlockRoomEstimate`, 138), a plot being a
+tile within the labour reach that the hall can walk to, clear of every
+footprint and valid ground for a block, five such tiles to a block and its
+spacing; counted once a year for the buildings that stand, are planned or lie
+in ruin, and kept beside the world so reading it writes nothing. The
+apartment blocks are bounded the same way. A young world with no city is asked
+the seed's want, as the scale test asserts.
+
+**The first sweep, with every town over the line sending.** Round eleven
+measured both levers as first written, the line for every town. On battery
+all eleven flew, three earlier (ship-b 121 to 99, variety-5 74 to 66,
+causal-origin 60 to 56), one later (variety-2 by two), seven bit-identical to
+round ten; on phone all eleven flew, one earlier (causal-origin 75 to 64) and
+three later (ship-c 83 to 101, variety-2 59 to 71, variety-3 by one). The
+thirty phone seeds all flew, seven earlier and seven later, variety-20 from
+291 to 95 and ship-c the eighteen years back; the thirty battery seeds, twenty-nine of thirty, six earlier and six
+later, variety-21 from 198 to 135, variety-17 from 112 to 168, and variety-22,
+the world of one town, from 120 to 127 with its second town; variety-18
+alone did not fly, alive at 945 with sixty-five people. Behind
+the phone delays stood the line itself. Ship-c held eight towns of 131 people
+at year 51 where round ten held five of 114 at 61; its second city's
+candidate stood at twenty-one for twenty years while round ten's grew from
+twenty-six to thirty-two in eight, and the cities stage held from 51 to 73.
+The founding probe on that world under the line reads it plainly: the hub
+Plozr Klepli could send from year 32 and did; Dzo Chyply, the second city's
+candidate, stood at fifteen below the line until it grew, sent a party at
+twenty-one and was on cooldown at 51, stood at sixteen to eighteen for the
+twenty years after and was a city only at 73; Ki Ku sent at twenty-two;
+between 38 and 73 the world raised seven expeditions. Variety-17 on battery flew fifty-six years later for
+another reason: its second town, a city of nineteen at 55, sent no one (the
+world had no room for places) and bled to four by the pull of the hub
+(108), so the world stood at the gate with one city from 104 to 168; the
+same seed's second town recovered from thirteen to twenty in round ten, and
+the difference between the two is the skyline want the ground lever set and
+the chaos after it. So the line was narrowed to the world of one town, and
+the round swept again.
+
+**The sweep, both sizes, at forty presses.** Round twelve, the levers as
+they stand. Battery, all eleven flew: causal-origin 60, ship-b 121, ship-c 74,
+variety-1 64, variety-2 62, variety-3 141, variety-4 80, variety-5 67,
+variety-6 105, variety-7 86, variety-8 72; nine bit-identical to round ten,
+variety-5 seven years earlier, variety-2 two later. Phone, all eleven flew,
+every one bit-identical to round ten: causal-origin 75, ship-b 63, ship-c 83,
+variety-1 60, variety-2 59, variety-3 66, variety-4 84, variety-5 65,
+variety-6 77, variety-7 64, variety-8 74. The narrowed line touches no world
+of two towns, so the phone worlds are round ten's to the tick, and the two
+battery worlds that moved are the ground lever's. The arcs behind the ship
+are round ten's to the tick on all five worlds: causal-origin battery 125
+people at 127, ship-c battery 200 at 142, ship-c phone 154 at 110, variety-3
+phone 155 at 109, variety-8 phone 273 at 105 with the same six starved in its
+seventies and eighties; none starved on four of five.
+
+**Thirty seeds of each size.** Thirty phone seeds at forty presses, all
+thirty flew: twenty-seven bit-identical to round ten, variety-20 from 291 to
+95, variety-17 from 150 to 133, variety-19 from 204 to 205. Thirty battery seeds at forty presses,
+twenty-nine of thirty flew: twenty-three bit-identical to round ten,
+variety-21 from 198 to 135, variety-5 from 74 to 67, variety-20 from 64 to
+61; variety-14 from 69 to 106 (below), variety-22, the world of one town,
+from 120 to 127 with its second town, variety-2 from 60 to 62. Variety-18 alone did not fly, at forty presses in
+either round: alive at 945 with sixty-five people under the first line and at
+972 with forty-five under the narrowed one, a lean world of twenty to sixty
+people that founds a second town now and then (638, 921) and has never raised
+a city in nine centuries.
+
+**Still open.** Variety-18 on battery, the one battery seed that has never
+flown, is not held by the line: the founding probe under it reads a world of
+one town of thirty to fifty-seven people, stable at 0.45, with room for places
+and "no site" at every press from year 40 to 304. The settler site (68,
+`settlerSite`) is forty tries a cycle at ten to twenty-six tiles out, needing
+land inside the map's margin, no water or fire, no other polity's ground, no
+camp within six or town within nine, three food on the tile and a walkable
+way; on that world every try fails, and which of those it is was not read.
+Variety-17 on battery shows what the pull of the hub does to a second city of
+nineteen when nothing feeds it, and round ten's recovery of the same town was
+luck. Variety-14 on battery under the levers as they stand shows the next
+stall behind the ship: its gate was met at 63 and the site Tsuc'chiah, a
+city of thirty-one that knew Starflight and had its launch tower, stood
+forty-three years with "no completed factory" and sixteen of them with "no
+completed skyline" while seven factories worked in other towns and the
+effort researched refrigeration, composites, global networks and three
+frontier minds; the world shrank from seventy-four to forty-one waiting, and
+flew at 106 where round ten flew at 69. The make-room of section 19 covers a
+hall, a clinic and the launch tower, not the site's own factory or its first
+block; that, or a site that moves to the city with ground, is the next
+lever.
+
 ## The recent commits, newest first
 
 ```
+7c60ca7  The skyline floor is the ground the cities have, and the settler line is the world's own urban gate
 552d639  The sky is deep: the tiles breathe against an atmosphere of oxidant and gas, so a world that lives to the gate does not suffocate
 89c37d1  A world whose towns have fallen founds again, and a city makes room for its launch tower
 87ba118  The skyline the ground allows, and the towns the world has: a gate asks for no block the cities have nowhere to put, and of one town asks one city
