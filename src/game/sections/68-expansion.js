@@ -13,7 +13,31 @@ const SETTLER_COOLDOWN = TICKS_PER_YEAR * 4,
   // away became a hamlet of eight beside a camp of four, and a world of such
   // hamlets never raised a city. Only a town of twenty-four or more sends them,
   // and none while the world already holds a place for every fourteen people.
-  SETTLER_MIN_POP = 24;
+  // Twenty-four is the standard map's line; on a smaller map a city is smaller
+  // (84, urbanGate), and a town that has to be twenty-four to send anyone
+  // never sends on a battery map, where a city is ten: the thirty-seed
+  // sweeps of HANDOFF sections 18 and 19 found worlds of one town for that
+  // reason as much as any. A world of one town now sends at its own urban
+  // gate and a settler party's worth over it, so the town that sends stays a
+  // city, and never above the standard line: sixteen on battery, nineteen on
+  // phone, twenty-four on standard and above. Only a world of one town: the
+  // first sweep under the gate's line let every town over it send, and on a
+  // phone map the towns of nineteen to twenty-three that should have grown
+  // into the second city sent their growth away instead (ship-c stood eight
+  // towns where it had five, and flew eighteen years later; variety-2 twelve
+  // later). A world of two or more towns keeps the standard line, since the
+  // two cities every gate wants (114) need the second town to grow, not a
+  // third to be founded.
+  SETTLER_MIN_POP = 24,
+  SETTLER_PARTY_MARGIN = 6,
+  SETTLER_LINE_FLOOR = 12,
+  SETTLER_LINE_TOWNS = 2;
+function settlerLine(world = W) {
+  const towns = world.settlements.filter((s) => !s.ruined).length;
+  if (towns >= SETTLER_LINE_TOWNS) return SETTLER_MIN_POP;
+  const local = typeof urbanGate === "function" ? urbanGate(world).local : SETTLER_MIN_POP;
+  return Math.max(SETTLER_LINE_FLOOR, Math.min(SETTLER_MIN_POP, local + SETTLER_PARTY_MARGIN));
+}
 function worldHasRoomForPlaces() {
   const places = W.settlements.filter((s) => !s.ruined).length + W.camps.filter((c) => c.active).length,
     // The same divisor the camp founder uses (30a): never fewer people to a
@@ -117,7 +141,7 @@ function launchSettlers(place, force = false) {
   if (!place || place.ruined || !place.knownProcesses) return null;
   if (W.expeditions.some((e) => e.active && e.from === place.id)) return null;
   if (!force) {
-    if (settlementPopulation(place) < SETTLER_MIN_POP || (place.stability || 0) < 0.35) return null;
+    if (settlementPopulation(place) < settlerLine() || (place.stability || 0) < 0.35) return null;
     if (!worldHasRoomForPlaces()) return null;
     if (W.tick - (place.lastSettlersTick || -99999) < SETTLER_COOLDOWN) return null;
     if (W.camps.filter((c) => c.active).length >= CAPS.camp) return null;

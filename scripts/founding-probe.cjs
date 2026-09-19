@@ -35,7 +35,7 @@ for (let press = 1; press <= presses; press++) {
     for (const id of people) { const h = W.components.social[id]?.homePlaceKind; byHome[h === "settlement" || h === "camp" ? h : "none"]++; }
     const towns = W.settlements.filter((s) => !s.ruined).map((s) => {
       const pop = settlementPopulation(s), why = [];
-      if (pop < SETTLER_MIN_POP) why.push("below settler line " + pop + "/" + SETTLER_MIN_POP);
+      const line = typeof settlerLine === "function" ? settlerLine() : SETTLER_MIN_POP; if (pop < line) why.push("below settler line " + pop + "/" + line);
       if ((s.stability || 0) < 0.35) why.push("unstable " + (s.stability || 0).toFixed(2));
       if (typeof worldHasRoomForPlaces === "function" && !worldHasRoomForPlaces()) why.push("no room for places");
       if (W.tick - (s.lastSettlersTick || -99999) < SETTLER_COOLDOWN) why.push("cooldown");

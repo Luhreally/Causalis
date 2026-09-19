@@ -183,6 +183,14 @@ const fixtureSource = String.raw`(() => {
   // its people homeless it is fallen by people; with its people housed and enough towns it is not.
   out.fallenByCount = worldTownsFallen();
   if (living < 2 && !out.fallenByCount) fail("a world of one town was not read as fallen");
+  // The settler line of a world of one town scales with the urban gate and a world of more keeps twenty-four (68), and
+  // the skyline floor is the ground (138): the room estimate is a count.
+  out.settlerLine = settlerLine();
+  out.settlerLineTowns = W.settlements.filter((s) => !s.ruined).length;
+  out.settlerLineExpected = out.settlerLineTowns >= 2 ? 24 : Math.max(12, Math.min(24, urbanGate().local + 6));
+  if (out.settlerLine !== out.settlerLineExpected) fail("the settler line is off for a world of " + out.settlerLineTowns + " towns: " + out.settlerLine);
+  out.blockRoom = modernBlockRoomEstimate();
+  if (!Number.isInteger(out.blockRoom) || out.blockRoom < 0) fail("the block room estimate is not a count: " + out.blockRoom);
   const folk = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.social[id]);
   const kinds = folk.map((id) => W.components.social[id].homePlaceKind);
   const quarter = Math.ceil(folk.length * 0.25);

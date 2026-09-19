@@ -113,11 +113,13 @@ buildingRequirements = function (place, type) {
     factor = Math.max(0.55, k);
   return raw.map(([sp, n]) => [sp, rare.has(sp) ? n : Math.max(4, Math.ceil(n * factor))]);
 };
-// Prospectors leave from smaller towns on smaller worlds. (Settlers keep the
-// standard minimum of twelve: on a tiny map, splitting a town of six only
-// dilutes the labour a hall needs.)
+// Prospectors leave from smaller towns on smaller worlds. Settlers leave a
+// world of one town at its own urban gate and a party's worth over it (68,
+// settlerLine): sixteen on battery, nineteen on phone, twenty-four on
+// standard, never below twelve, so a tiny map never splits a town of six; a
+// world of two or more towns keeps the standard twenty-four.
 function settlerMinimum() {
-  return 12;
+  return typeof settlerLine === "function" ? settlerLine() : 12;
 }
 considerProspecting = function () {
   if (typeof eligibleResearchMaterialNeeds !== "function") return;

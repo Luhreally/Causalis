@@ -283,23 +283,64 @@ function modernPlannedCount(types) {
   for (const b of W.buildings) if (!b.ruined && !b.complete && b.placeKind === "settlement" && types.includes(b.type)) n++;
   return n;
 }
+// The floor itself is the ground. Section 18 bounded the skyline only when no
+// city could site one more block; a coast that could site three more was still
+// asked sixteen, and pushed for them for decades before the last plot went.
+// The want is now the seed's or the ground's, whichever is less: the blocks
+// standing and planned plus the block plots the cities' ground can still hold,
+// counted once a year for the buildings that stand, are planned or lie in
+// ruin. A plot is a tile within the labour reach that the hall can walk to,
+// clear of every footprint and valid ground for a block; a block and the
+// spacing round it take about five such tiles, so the room is the count over
+// five. The estimate is kept beside the world, so reading it writes nothing.
+const BLOCK_ROOM_TILES_PER_PLOT = 5,
+  BLOCK_ROOM_COUNT = { world: null, key: "", room: -1 };
+function modernBlockRoomEstimate() {
+  let planned = 0,
+    complete = 0,
+    ruined = 0;
+  for (const b of W.buildings) {
+    if (b.ruined) ruined++;
+    else if (b.complete) complete++;
+    else planned++;
+  }
+  const key = planned + ":" + complete + ":" + ruined + ":" + Math.floor(W.tick / TICKS_PER_YEAR);
+  if (BLOCK_ROOM_COUNT.world === W && BLOCK_ROOM_COUNT.key === key) return BLOCK_ROOM_COUNT.room;
+  const reach = typeof OPEN_GROUND_WORK_REACH === "number" ? OPEN_GROUND_WORK_REACH : 26,
+    footprint = buildingSpatialRadius("tower");
+  let tiles = 0;
+  for (const city of modernCities()) {
+    for (let dy = -reach; dy <= reach; dy++)
+      for (let dx = -reach; dx <= reach; dx++) {
+        const x = city.x + dx,
+          y = city.y + dy;
+        if (x < 1 || y < 1 || x >= W.width - 1 || y >= W.height - 1) continue;
+        if (dx * dx + dy * dy > reach * reach) continue;
+        if (!developmentFootprintClear(x, y, footprint) || !buildingTerrainFootprintValid("tower", x, y)) continue;
+        if (typeof openGroundPlotReachable === "function" && !openGroundPlotReachable(city, x, y)) continue;
+        tiles++;
+      }
+  }
+  BLOCK_ROOM_COUNT.world = W;
+  BLOCK_ROOM_COUNT.key = key;
+  BLOCK_ROOM_COUNT.room = Math.floor(tiles / BLOCK_ROOM_TILES_PER_PLOT);
+  return BLOCK_ROOM_COUNT.room;
+}
+function modernGroundWant(want, types, counter) {
+  const standing = modernCount(types);
+  if (standing >= want || !modernCities().length) return want;
+  const ground = standing + modernPlannedCount(types) + modernBlockRoomEstimate();
+  if (ground >= want) return want;
+  FIELD_GATES[counter] = (FIELD_GATES[counter] || 0) + 1;
+  return Math.max(1, ground);
+}
 const modernSkylineWantedGroundBase = modernSkylineWanted;
 modernSkylineWanted = function () {
-  const want = modernSkylineWantedGroundBase(),
-    standing = modernCount(["tower", "office"]);
-  if (standing >= want || !modernCities().length) return want;
-  if (modernCityRoomFor("tower") || modernCityRoomFor("office")) return want;
-  FIELD_GATES.skylineBounded = (FIELD_GATES.skylineBounded || 0) + 1;
-  return Math.max(1, standing + modernPlannedCount(["tower", "office"]));
+  return modernGroundWant(modernSkylineWantedGroundBase(), ["tower", "office"], "skylineBounded");
 };
 const modernHomesWantedGroundBase = modernHomesWanted;
 modernHomesWanted = function () {
-  const want = modernHomesWantedGroundBase(),
-    standing = modernCount(["tenement"]);
-  if (standing >= want || !modernCities().length) return want;
-  if (modernCityRoomFor("tenement")) return want;
-  FIELD_GATES.homesBounded = (FIELD_GATES.homesBounded || 0) + 1;
-  return Math.max(1, standing + modernPlannedCount(["tenement"]));
+  return modernGroundWant(modernHomesWantedGroundBase(), ["tenement"], "homesBounded");
 };
 // ── A world whose towns have fallen founds again ─────────────────────────────
 // Once the modern stages are sought and the effort is on, the world founds
@@ -341,6 +382,7 @@ window.ALIFE_FIELD_GATES_DEBUG = Object.freeze({
   joinable: () => modernTownsJoinable(),
   fallen: () => worldTownsFallen(),
   roomFor: (type) => modernCityRoomFor(type),
+  blockRoom: () => modernBlockRoomEstimate(),
   corridorChecks: () => ROAD_CORRIDOR.checked,
   makeRoom: (placeId, type = "hall") => makeRoomFor(W.settlements.find((s) => s.id === placeId), type),
   fieldAt: (x, y) => fieldAtMovementTile(x, y)?.id || 0,

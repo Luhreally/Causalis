@@ -13,7 +13,11 @@ const fixtureSource = String.raw`(() => {
   out.size = [W.width, W.height]; out.scale = hz.scale(); out.gate = hz.gate(); out.settlerMinimum = hz.settlerMinimum();
   if (!(out.scale < 1)) fail("a battery map does not read as a small world: " + out.scale);
   if (!(out.gate.local < 24 && out.gate.local >= 8 && out.gate.network < 32 && out.gate.network >= 12)) fail("the urban gate did not scale down: " + JSON.stringify(out.gate));
-  if (out.settlerMinimum !== 12) fail("the settler minimum changed on a small world: " + out.settlerMinimum);
+  // The settler line of a world of one town is the urban gate and a party over it, never below twelve nor above the
+  // standard twenty-four; a world of two or more towns keeps twenty-four (68).
+  out.livingTowns = W.settlements.filter((s) => !s.ruined).length;
+  out.settlerLineExpected = out.livingTowns >= 2 ? 24 : Math.max(12, Math.min(24, out.gate.local + 6));
+  if (out.settlerMinimum !== out.settlerLineExpected) fail("the settler line is not the gate and a party over it for a world of " + out.livingTowns + " towns: " + out.settlerMinimum + " for a gate of " + out.gate.local);
   // The people a modern world needs scale with the map too, or a battery world
   // could never be modern and its ship could never leave.
   // The floor is two cities' worth at this world's own urban gate, never a
