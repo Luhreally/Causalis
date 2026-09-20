@@ -2960,9 +2960,107 @@ probe world of year 58 had none. The scalar lenses (fertility, moisture and
 the rest) are still tints over the terrain; a smoothed field rather than a
 tile grid would read as the weather maps do.
 
+### 24. The war seen: a warfare lens, formations and objectives on the map, the Warfare tab; the signal lenses hear a whisper (2026-09-19)
+
+Asked for: the Warfare column brought up to date, a warfare lens, better
+war animations and formations, strategy that emerges; and the fear, blood
+and unrest lenses made detailed, sensitive and clear at any time.
+
+**What the war already is.** Units (`W.militaryUnits`) with a home, an
+objective, members, training, supply and morale; a phase machine in 42c
+(`updateMilitaryMovement` every four ticks: mustering, forming, marching,
+rerouting, withdrawing, recovering, engaged, guarding, returning) with a
+tactical assessment on contact (screening as a fighting withdrawal when
+outnumbered and shaken, besieging at a wall, raiding at a farm, stockpile
+or waterworks, volleying with a ranged half, flanking when trained and
+cohesive, assaulting a strongpoint, skirmishing otherwise) and members
+placed by tactic (`militaryTacticalTile`); attack plans in 42e with a
+target chosen by the war's aim (97: border, granary, tribute, liberation,
+oath, plunder), a launch window and gates (fighters, health, arms,
+protection, training); peace in 97 with an outcome read from the reason.
+The war probe (`war-probe.cjs`) on battery causal-origin: from year 33, twenty-five presses to
+year 131, the columns sampled every sixty-four ticks. The first war came at
+year 36 (The Iron Concord on The Bark Concord: two to four fighters a
+column, skirmishing, screening and assaulting) and was over by year 41 with
+one fallen; seventeen wars had ended by year 131 among eight polities, most
+of them in a year with no fallen, the plan never launched. The phases seen:
+returning 122, guarding 14, forming 5, assaulting 3, skirmishing 2,
+screening 1, besieging 1; the tactics: contact skirmish, fighting withdrawal,
+local strongpoint assault, breach concentration. Between wars every column
+(eleven by year 96) sat in "returning" or "guarding" for decades, for the
+pressure over 48 that keeps a militia raised (41) and members who work fields
+away from home; two presses of twenty-five had two columns of one polity at
+war on one objective, and no defender ever met a column on the road.
+
+**What could not be seen.** A unit was a pennant with a count at zoom 1.6
+and above (32i `drawMilitaryBanners`); its phase, objective and ground were
+in its record only; the war front was a dashed line from each polity's
+anchor to the last event; the Warfare tab was the attack plan's gates and
+nothing of the columns once they marched.
+
+**The lens (142, `warfare`).** Veils the ground and tints each holding
+lightly so 140's borders and fronts read under it (`lensCategoryAt` answers
+the owner for it), paints the danger field as a breathing red heat
+(`drawWarHeat`), and draws the war's own things over everything
+(`drawWarUnitMarks`, under the pennants): each column's formation as an
+outline round its fighters in its phase's colour (`WAR_PHASE_HUE`), dashed
+while it forms; its objective as a running arrow to the town it marches on
+(`drawWarArrow`); its supply as a faint thread home; its phase word and
+tactic under the pennant; a pulsing ring round a town under assault. Outside
+the lens the marks are drawn for columns at war at zoom 1.2 and above. The
+badge names the wars with swatches. A "War" group holds the button.
+
+**The tab (`refreshWarfare`, last link).** A header with the wars, columns
+and fighters in the field and a War-lens button; a card per war: the two
+sides with their strength as one bar, the aim and the years, fallen and
+wounded, who marches on what and the gates the plan waits on
+(`campaignReadiness`), each column with its phase, tactic, fighters, morale
+and supply bars and a Watch (camera to the column, lens on); the tensions;
+the wars that ended with `warOutcome`. Watch and the lens button are
+delegated on the pane.
+
+**The signal lenses (140).** Blood, fear and unrest were a straight ramp of
+value over a hundred, and on the year-58 world the strongest blood was four
+and the strongest fear seven: blank. `LENS_SIGNALS` paints on a log ramp
+(gain 1.5: two in a hundred at a third of the way, sixty at nine tenths)
+over a calm veil (`LENS_SIGNAL_CALM`), rings the strongest sites
+(`lensSignalSites`, read once per 32 ticks, named by the nearest town) and
+names them in the badge. Danger and pathogens the same.
+
+**The reshoot.** The first shot of the year-58 war (five columns of The
+Lake League on one gate of The Thorn Concord) showed three faults, mended in
+the round: a column's outline spanned half the map (twenty-five tiles at
+zoom 1.7) because its members were split between the assault and home, so
+the formation is the knot of fighters who stand together (`WAR_CORE_RADIUS`
+5, never wider than `WAR_FORMATION_MAX` 6.5) and the rest are hollow dots;
+three columns assaulting one gate printed three words over each other, so
+`drawWarLabels` merges the same word at one place into "3 columns
+assaulting" and stacks a different word below; the danger heat was a wall of
+red at half alpha, so it breathes from amber to red at a third at most. The
+mobile test asserts the knot (three fighters, one eighteen tiles off: core
+two, straggler one) and the merged word (two columns at one place: one
+label).
+
+**Measured.** The mobile test asserts the warfare button and a valid colour
+on every tile, the tab's header, a formation mark for a marching column
+under the lens, a whisper of fear at 0.33 and a shout at 0.72 over a
+visible calm veil, and the other four signals as sensitive. Debug:
+`ALIFE_WARVIEW_DEBUG` (counts, units, marks, heat, legend, html);
+`ALIFE_LENS_DEBUG.signalSites/.signalStyle`.
+
+**Still open: the strategy.** The columns do not wait for each other (two
+columns of one polity on one objective arrive apart) and a defender waits at
+home rather than meeting a column on the road. A rally (hold at a point
+within reach of the objective until the polity's other columns are within
+a few tiles) and an interception (a defending column marching to meet the
+attacker at the frontier) are the two rules that would make the war read
+as strategy; both change the world's course, so both want the launch sweep
+on both sizes, at six worlds at a time.
+
 ## The recent commits, newest first
 
 ```
+9384b77  The war seen: a warfare lens, formations and objectives on the map, a Warfare tab that reads the war; the signal lenses hear a whisper
 0663777  The political lenses are a map mode: veiled ground, bordered holdings, names, and a light on the borders
 247856b  A step is a walk over the time the walker waited for it, and the slow speeds reach the phone
 1967664  Every map lens paints, in one palette, with its edges drawn, and none is hidden
