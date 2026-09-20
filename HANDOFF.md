@@ -3144,9 +3144,142 @@ variety-7 64 then 64; variety-8 74 then 67: earlier 3, later 3, same 5,
 median the same, mean 0.7 earlier. The scatter of a changed war, not a
 slower road: no world lost its ship on either size.
 
+### 26. The launch site's own block and factory (2026-09-19/20; battery and phone only)
+
+The stall section 20 left open. Variety-14 on battery met the world's gate at
+63 and stood at it until 106: the site Tsuc'chiahim, a city of thirty-four
+that knew Starflight and had its launch tower, held "no completed factory"
+for forty-three years and "no completed skyline" for sixteen while the four
+other towns held the world's thirteen blocks and seven factories. The site
+probe at 72 read the site plainly: forty-four buildings standing, nine of
+them stockpiles and four walls, the store full of durable matter, the target
+"ascension", and not one plan open. The order probe read no open order there
+at all. The launch push (114) supplies the site's missing tower and factory
+every press, through `modernSupply`, which plans the building when none is
+open; the siting handed back nothing on the full site, so there was nothing
+to supply, and the make-room of section 19 covered a hall, a clinic and the
+launch tower only. The plot probe at 72 read the ground itself: 1,906 tiles
+within the labour reach of the site, 1,218 of them clear of any footprint and
+not one of those land a building may stand on (water, or ground marked too
+strongly to build), the base siting, the townscape's and the open ground's
+all handing back nothing, the site's own ground holding forty-six buildings
+and the world's 166 filling the rest; the site's siting was on a
+ninety-six-tick backoff (70) from its last refusal. The other four towns had
+what the site lacked, Vragud-an alone five blocks, four factories and a
+launch tower of its own, but only the site knew Starflight, since the effort
+teaches the craft to the place the ship leaves from.
+
+**The mend, and its first form.** The launch site makes room for its first
+block and its factory as it does for its launch tower (138, `roomWantedFor`):
+from the lesser buildings only, a monument, a totem, a shrine, a wall or a
+spare stockpile, never a block or the homes. Any other city keeps what it
+has, since the skyline the gate asks of the world is the skyline the ground
+allows (section 18). Both of the effort's paths to a building at the site,
+the research push (79) and the supply (114), make room when handed nothing.
+The first form of this pulled down the building nearest the hall and left the
+siting to find the spot, as section 19's launch tower had, and variety-14
+flew at 66 under it; but the probe of who launched read the ship leaving
+from Tsea-chiahim, a village of six with a tower, two blocks and a factory
+that had learnt Starflight from its polity, while the site had razed
+fourteen buildings in two years and planned nothing: a block's siting looks
+past the built rings (128) and never found the spot, and the town planned a
+stockpile on it instead. So the ground made is where the building stands
+(`roomSpotUsable`, `roomMade`): the building pulled down is one whose own
+spot the wanted building can take, clear of every other footprint and valid
+ground within the hall's walk; the spot is remembered on the town, the
+siting hands it back first once the rubble is off it, nothing else is pulled
+down while a room made waits (four years at the most), and when the
+building held nothing the plan is laid in the same push. The hall and the
+clinic of a second city, and the launch tower, take the same path now.
+
+**The third form.** The second form flew variety-14 at 71, and the probe of
+who launched read two ships that year, from Vragud-an and Tsea-chiahim, with
+the site still bare: two pull-downs for a block, none taken. The tick-by-tick
+trace of the spot (`roomtrace-probe`) read why: the totem's rubble was
+carried off in forty-eight ticks and, sixteen ticks later, the launch push
+planned a second launch tower on it, since its supply plans a tower whenever
+none is unfinished, standing or not, and the block's siting, on the
+ninety-six-tick backoff of 70, was never asked in between. So the room made
+is kept for the building it was made for (`roomMadeBlocks`): no other kind's
+siting is handed ground that overlaps it while it waits, and a site whose
+launch tower stands is supplied no second. That held the site's own plans
+off, and the next traces read other places taking the spot: at 59.9 a
+neighbouring city's tower block, laid on the site's cleared ground by the
+skyline push, which plans every city's blocks, ninety-six ticks after the
+rubble was carried off, and at 82 a neighbour's monument, the site having
+pulled down for its tower at 68, 72 and 76, once every four years as each
+room made expired untaken. The towns of a battery map stand close enough
+that one's siting rings reach another's ground. So a room made is kept from every place's siting,
+camps included. `FIELD_GATES.siteRoom` counts the pull-downs, `roomTaken`
+the plans laid on them and `roomKept` the plots refused for them.
+
+**The site that can launch.** A town that could launch today, its launch
+tower, its skyline and its works all standing, outranks one that must still
+make room for them as the launch site: four points, the craft's worth, so a
+ready town without the craft ties with a knowing town without the industry
+and the held site keeps. The score that chooses the site is 127's
+`manyHandsSiteScore`, which overrides 114's; the first draft of this put the
+rule in 114, where it was dead, and the site-score probe at 70 read every
+town at 114's numbers with the held site kept. A second draft gave two
+points each for the skyline and the works whether or not the tower stood,
+and the modern test caught it: its site, tower pulled down and people gone
+to the neighbour that held its industry, lost the site to that neighbour
+instead of raising its own. With the live score as it stands: Vragud-an,
+fourteen people with five blocks, four factories, a launch tower and
+Starflight, had scored the same thirty-four as the held site, a full city
+with neither, and was never chosen; now it outranks it. The labour test
+asserts the room-making and the modern test the site.
+
+**Variety-14 under it.** The world flies at 63, from the site itself, where
+round ten flew at 69 and round twelve at 106. The launch-record probe reads
+the site at the launch: thirty-two people, its launch tower, one block and
+one factory standing; three pull-downs, for the launch tower at 59, the
+block at 61 and the factory at 62; three plans laid on the rooms made and
+twelve other plots kept off them. The trace of the tower's room under the
+final form read the totem's rubble carried off in eight ticks and the tower
+standing on the spot within the year. Under the earlier forms the same
+world flew at 66 and 71 from other towns with the site bare, and at 87 with
+the site raising nothing at all; the mend is the third and fourth forms
+together, the room laid on and kept.
+
+**The sweep, both sizes, 22 of 22** (`scratchpad/sweep-run.sh site 6`:
+eleven seeds, forty presses, lean, six worlds at a time, the mend on the
+working tree over 0d21e49, against the strategy sweep of section 25 at that
+commit). Battery: every one of the eleven worlds bit-identical, ship year
+and people and press the same (causal-origin 57, ship-b 119, ship-c 74,
+variety-1 61, variety-2 64, variety-3 133, variety-4 77, variety-5 70,
+variety-6 96, variety-7 91, variety-8 76): the mend is dormant where the
+site has room, and none of these sites lacked it. Phone: ten the same
+(ship-b 65, ship-c 76, variety-1 60, variety-2 62, variety-3 66, variety-4
+84, variety-5 65, variety-6 80, variety-7 64 with one person fewer at the
+launch, variety-8 67) and causal-origin a year earlier, 73 to 72. No world
+lost its ship on either size. Variety-14 on battery, the world the mend is
+for, with the strategy of section 25 in the world: the stall the mend was built on no longer arises on
+that world's new course. Without the mend it flies at 71 from Tsuc'chiahim
+itself, the city of thirty-nine with its tower raised; with it, at 73 from
+Gre-vreku, a village of six with its tower, its block and its factory all
+standing, which the ready town's four points chose as the site while the
+city still lacked one of the three. Two years apart, the scatter of a
+changed war. The mend stands for the world where a full site is chosen and
+would otherwise stand at the gate for decades, as the labour test asserts
+and as the trace before the strategy read: 63 where it had been 106.
+
+**Thirty seeds of each size.** Not run again at low load: the thirty-seed
+sweeps of section 20 stand, the mend is dormant where a site has room, and
+the eleven-seed sweep above is bit-identical on battery.
+
+**Still open.** The room made is one spot at a time, so a site that lacks
+both a block and a factory makes them one after the other (variety-14 took
+three years for the tower, the block and the factory); a site whose lesser
+buildings are all homes and blocks has nothing to pull down and stands as
+before; and the site score's four points for a ready town are a tie-break,
+not a rule, so a knowing city with neither block nor factory can still be
+chosen over a ready village that lacks the craft.
+
 ## The recent commits, newest first
 
 ```
+5b2fb1f  The launch site makes room for its first block and its factory as for its launch tower
 85ea564  The columns of a polity rally within reach of the gate, and a defender meets the column on the road
 9384b77  The war seen: a warfare lens, formations and objectives on the map, a Warfare tab that reads the war; the signal lenses hear a whisper
 0663777  The political lenses are a map mode: veiled ground, bordered holdings, names, and a light on the borders
