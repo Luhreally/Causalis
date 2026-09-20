@@ -2846,9 +2846,70 @@ and trade in gold but no road lines; history is a gold haze at the annals'
 places. Those three could take the same treatment: a category, its edges,
 its legend.
 
+### 22. A step is a walk over the time the walker waited for it; the slow speeds reach the phone (2026-09-19)
+
+Asked for: slower speeds to watch at, and movement that is not choppy, with
+the lives' thinking read as fluidly as their feet.
+
+**Why it was choppy.** The clock runs a tick every hundred milliseconds at
+1× and every four hundred at ¼× (38, `runSimulationClock`, an accumulator
+of a hundred per tick). A figure eased toward its new tile on a fixed
+exponential curve that settled in about a fifth of a second whatever the
+speed (32d, `visualAnchor`), so at ¼× it darted for a fifth of a second and
+stood for the rest of the tick: choppy in exact proportion to how slowly the
+player chose to watch. And at lean detail the frame cap was fifty
+milliseconds at every speed, twenty frames a second on the phone. The motion
+probe (`motion-probe.cjs`) on battery causal-origin at year forty, four
+hundred ticks, sixty-nine people, read the other half: a person steps almost
+every tick (74 moves in a hundred ticks, 95% of them one tile), reverses 43
+steps in a hundred, and changes its behaviour word 28 times in a hundred
+ticks, weighing two needs and stepping toward each in turn. The six
+predators step once in nineteen ticks and reverse 14 in a hundred.
+
+**The walk.** A step is now a walk from where the figure was to where it is
+going, over the time since its last step (`MOTION_GLIDE_MIN` 90 ms to
+`MOTION_GLIDE_MAX` 4.5 s, a smoothstep), so it arrives as the next step
+lands and is never seen standing between; the crowd's shuffle on a tile
+still tracks moment to moment (the leg is keyed on the tile, not the
+offset), and a step across the map or at warp speed is still a jump. A
+walker shuttling between two tiles (the flip counter at two or more) aims
+between them instead of at the far one. The walk's pace is the speed
+against the sim's own (`e.pace`), so the walking pose holds at ¼× as at 1×;
+section 111's walking hysteresis reads the pace.
+
+**The speeds.** ⅛× joins the desktop's row and the clamp allows it (33); the
+phone's dock cycled 1×, 4×, 16× and 64× with no slow speed, and now cycles
+⅛×, ¼×, ½×, 1×, 4×, 16×, 64× (44, `MOBILE_SPEEDS`). At lean detail the
+frame cap is thirty-three milliseconds at 1× and below, fifty above (38).
+
+**Settled intent (141).** The inspector's Behavior and Why? lines flickered
+at the refresh rate between the two words a life weighed. The last dozen
+readings of the selected life are kept as it is drawn (`noteIntent`), the
+word that held most is shown with the reason given the last time it was
+read, and the tick's own word stands beside it in the muted voice only when
+it differs (`intentLabel`); the plain inspector's span and the field guide's
+explain button are both matched. The samples live beside the world; a
+paused world holds its reading; readings older than six seconds are dropped.
+
+**Measured.** The mobile test walks a person one tile after a wait of 960
+ms and reads the walk taking 960 ms, 0.195 of the way at 30% of it, 0.624 at
+60%, 0.999 at 100%, never backwards, and home again within the crowd's
+shuffle when the tile is restored; asserts the dock's speeds and the eighth;
+and feeds a life eight readings of "food" and three of "return" and reads
+"food (now return)" with "hunger at 60" in both the card and the summary.
+Steady feet (111) and figures tests hold.
+
+**Still open.** The reversals themselves, 43 in a hundred steps, are the
+world's: a life re-weighs its needs every tick and has no memory of the step
+it just took. Settling that (a commitment to a target for a few ticks unless
+danger or a better need by a margin) is a sim change that moves the baseline
+hash and wants the launch sweep on both sizes: a round of its own, and the
+one that would make the lives read as minds rather than as scales.
+
 ## The recent commits, newest first
 
 ```
+247856b  A step is a walk over the time the walker waited for it, and the slow speeds reach the phone
 1967664  Every map lens paints, in one palette, with its edges drawn, and none is hidden
 7c60ca7  The skyline floor is the ground the cities have, and the settler line is the world's own urban gate
 552d639  The sky is deep: the tiles breathe against an atmosphere of oxidant and gas, so a world that lives to the gate does not suffocate
