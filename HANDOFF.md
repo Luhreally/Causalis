@@ -3057,9 +3057,97 @@ attacker at the frontier) are the two rules that would make the war read
 as strategy; both change the world's course, so both want the launch sweep
 on both sizes, at six worlds at a time.
 
+### 25. The rally and the interception: strategy from two rules (2026-09-20)
+
+Asked for: strategy that emerges from the war (the second half of section
+24's request).
+
+**What the columns did not do.** The war probe (section 24) and the year-58
+shot: five columns of The Lake League on one gate of The Thorn Concord
+arrived apart, three assaulting while one still marched; a defender waited
+at home for a column it could see coming; two presses of twenty-five had
+two columns of one polity at war on one objective.
+
+**The rally (143, `warRallyHolds`).** An attacking column of a launched
+campaign within `RALLY_REACH` 9 tiles of its objective and past `RALLY_NEAR`
+3.5 holds where it stands while another column of its polity on the same
+objective (`warColumnsBehind`: two or more fighters, left home or not) is
+`RALLY_GAP` 5 tiles or more behind it and within `RALLY_FAR` 30 of the
+objective; it holds `RALLY_PATIENCE` 128 ticks at most and then goes on
+alone, and does not wait again for that objective (`unit.rally =
+{objectiveId, since, holding, waitingFor}`). In 42c's ladder "rallying" is
+decided before contact (a town's fields put a column in contact long before
+the hall: decided after contact the rule never fired on battery
+causal-origin), over a building contact only, never over an enemy formation
+or the town; `stalledTicks` is cleared, `resolveMilitaryContact` is skipped
+and the tactic blanked while it holds; the member branch holds each fighter
+at its own tile with the words "holding at the rally until the other
+columns come up to X".
+
+**The interception (143, `warInterceptTarget`, `militaryObjective` last
+link).** A defending column whose war has an enemy column within
+`INTERCEPT_REACH` 14 tiles of the town the base chose for it, nearer that
+town than its own home, and whose `militaryUnitStrength` is at least
+`INTERCEPT_ODDS` 0.9 of that column's, gets a road target: a point on the
+line from the town to the enemy, `INTERCEPT_OUT` 6 tiles out at most and
+half the distance at least, on passable ground (`campaignTilePassable`),
+`{id: -(1 + tile), road: true, name: "X road", townId}`; the town stays
+`objectiveSettlementId`. The point holds while the enemy has not moved three
+tiles (`unit.intercept`, cleared at peace). The phase is "intercepting" (42c
+ladder, `target.road`), "engaged" within 1.2 tiles of the point with its own
+detail; the member branch marches as for "marching" and skips the
+equipment-craft branch. A weaker column holds its wall. `INTERCEPT_REACH 0`
+or `RALLY_REACH 0` turns a rule off for an A/B (both `let`).
+
+**The view.** 142 colours rallying (hue 74) and intercepting (186); the tab
+row names what a column waits for and the road it goes to.
+
+**Seen (battery causal-origin, `strat-probe.cjs`).** As first written
+(decided after contact) the rules never fired and the probe's rows were
+bit-identical to the round before: a town's fields put a column in contact
+before it was nine tiles from the hall. Decided before contact: The Iron
+Concord launched on The Bark Concord's town at year 37.5 with four columns
+from four homes (8, 3, 4, 4 fighters); at 37.63 the column of eight held at
+8.7 tiles for the column behind it, the column of four held at 5.6 for two,
+the third came up and held at 4.2, and at 37.94 all four assaulted the gate
+together (rallies 3, holds 43, released 2). The defender's column of five,
+already at its fields, had its meeting point set five times and fought where
+it stood. The war ended at year 38 with no fallen. Two columns carried the
+same id (10): 42e dealt the roster's highest plus one, 41 from
+`W.nextMilitaryUnitId`, and 42e never moved the counter; both deal from the
+counter now.
+
+**Measured.** `tests/strategy-smoke.cjs` (`npm run test:strategy`, in the
+fast suite before the baseline: 111 ok now): on the small fixture world an
+enemy polity of the ledger (six lent fighters) with a near column seven
+tiles out and a far one fourteen, the town's column at the hall, a road
+found in whichever of eight directions has ground and no contact; asserts
+the hold, the far column not holding, patience, no hold within the gap, the
+road target four tiles out with the town kept as objective, the weaker
+column holding, the ladder's phases after one update, the cleared stall and
+the fighters' words. The baseline hash is unchanged (6bee0692): no war in
+the first eight years. Debug: `ALIFE_WARSTRAT_DEBUG` (counts, rallies,
+intercepts); `scratchpad/strat-probe.cjs <seed:size:cx> <untilYear>
+[fromYear]` logs the wars sixteen ticks at a time.
+
+**The sweep, both sizes, 22 of 22** (`scratchpad/sweep-run-war.sh war 6`:
+eleven seeds, forty presses, lean, six worlds at a time from a worktree at
+85ea564, against round twelve). Battery, ship year, round twelve then this:
+causal-origin 60 then 57; ship-b 121 then 119; ship-c 74 then 74; variety-1
+64 then 61; variety-2 62 then 64; variety-3 141 then 133; variety-4 80 then
+77; variety-5 67 then 70; variety-6 105 then 96; variety-7 86 then 91;
+variety-8 72 then 76: earlier 6, later 4, same 1, median two years earlier,
+mean 1.3 earlier. Phone: causal-origin 75 then 73; ship-b 63 then 65; ship-c
+83 then 76; variety-1 60 then 60; variety-2 59 then 62; variety-3 66 then
+66; variety-4 84 then 84; variety-5 65 then 65; variety-6 77 then 80;
+variety-7 64 then 64; variety-8 74 then 67: earlier 3, later 3, same 5,
+median the same, mean 0.7 earlier. The scatter of a changed war, not a
+slower road: no world lost its ship on either size.
+
 ## The recent commits, newest first
 
 ```
+85ea564  The columns of a polity rally within reach of the gate, and a defender meets the column on the road
 9384b77  The war seen: a warfare lens, formations and objectives on the map, a Warfare tab that reads the war; the signal lenses hear a whisper
 0663777  The political lenses are a map mode: veiled ground, bordered holdings, names, and a light on the borders
 247856b  A step is a walk over the time the walker waited for it, and the slow speeds reach the phone
