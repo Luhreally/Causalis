@@ -1,7 +1,8 @@
 // 121. THE LIVED-IN CITY — a bed has an address, a home has a household.
 // A resident used to choose the nearest shelter on every return, while the
 // renderer invented a different home. Keep one tenancy in the world instead.
-const HABITATION_TYPES = new Set(["shelter", "tenement", "tower"]);
+const HABITATION_TYPES = new Set(["shelter", "tenement", "tower"]),
+  HABITATION_FILL = Object.freeze({ tower: 0, tenement: 1, shelter: 2 });
 // How often a grown child left home, and how often there was nowhere to go.
 const HABITATION = { leftHome: 0, stayedHome: 0 };
 for (const type of ["tenement", "tower", "office"]) INTERIOR_BUILDING_TYPES.add(type);
@@ -65,8 +66,17 @@ function habitationFamilies(town, residents) {
 }
 function updateHabitationTown(town) {
   const residents = habitationResidents(town), living = new Set(residents),
+    // The blocks fill first. Homes were taken in the order they were built, so a
+    // household without an address went to the oldest cottage with room, and at
+    // the ship a world of a hundred and forty people lay in fifty-two homes with
+    // every tower holding a handful (HANDOFF section 27, the final sweep: beds
+    // slept in seven to eighteen in a hundred). A household keeps its address as
+    // before; one that has none, a grown child leaving home, a newcomer, a family
+    // bought out of its cottage, takes the tower with room, then the tenement,
+    // then the cottage, so the old families hold the cottages and the young rent
+    // the blocks, and the cottages the old leave empty are bought out (125).
     homes = W.buildings.filter((b) => b.placeKind === "settlement" && b.placeId === town.id && habitationBeds(b) > 0)
-      .sort((a, b) => a.id - b.id),
+      .sort((a, b) => (HABITATION_FILL[a.type] ?? 3) - (HABITATION_FILL[b.type] ?? 3) || a.id - b.id),
     byId = new Map(homes.map((b) => [b.id, b]));
   for (const b of homes) {
     b.tenancy ||= { ownerId: 0, residents: [], arrears: {}, decor: [], lastAccountsYear: -1 };

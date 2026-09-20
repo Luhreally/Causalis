@@ -31,6 +31,9 @@ const result = rt.get(`(() => {
   const coins = () => faction.treasury + Object.values(W.components.identity).reduce((n, ident) => n + (ident?.civicCoins || 0), 0);
   const beforeMatter = totalMatter(), beforeCoins = coins();
   const homes = updateHabitationTown(town); habitationAccounts(town, homes);
+  // The blocks fill first: households without an address take the tower before the cottage.
+  out.fill = [tower.tenancy.residents.length, house.tenancy.residents.length];
+  if (!(tower.tenancy.residents.length > 0) || house.tenancy.residents.length > 0) fail("the tower did not fill before the cottage: " + out.fill.join("/"));
   if (totalMatter() !== beforeMatter) fail("furnishing moved matter out of the audit");
   if (coins() !== beforeCoins) fail("wages or rents created coins");
   const allResidents = homes.flatMap((b) => b.tenancy.residents);

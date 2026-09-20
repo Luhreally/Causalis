@@ -33,11 +33,12 @@
 // times those factors and the floor always wins, so the world sat at thirty-
 // one to forty people with births rationed above thirty-one, and by year a
 // hundred and twenty two adults in three were past the fertile window. The
-// floor now follows the fields: four people for every finished farm over the
-// forty a foraging world holds (two at first; the constant below says why
-// four), and no lift at all while a town is in famine. On a standard map the
-// formula already exceeds this floor; it changes only the maps where the
-// floor was the cap.
+// floor now follows the fields: six people for every finished farm over the
+// forty a foraging world holds (two at first, then four; the constant below
+// says why six), never over the people the world keeps as people (12), and no
+// lift at all while a town is in famine. On a standard map the formula
+// already exceeds this floor; it changes only the maps where the floor was
+// the cap.
 const MANY_HANDS_FACE_PUSH = 3,
   MANY_HANDS_PEOPLE_FLOOR = 40,
   MANY_HANDS_ASIDE = Object.freeze(["skyline", "homes", "works", "road"]),
@@ -312,7 +313,16 @@ causalPushToward = function (target = causalTarget()) {
 // harvest itself and no floor at all, since the fields grow with the people;
 // and doubling the ground's own density instead cost 2.75 times on phone and
 // ran it at the two hundred and fifty the world keeps as people (12).
-const MANY_HANDS_PER_FARM = 4;
+//
+// Six a farm, the harvest itself, once the towers were asked to fill: at four
+// the world sat at 151 people and 157 at year sixty and at the ship its people
+// lay in a tenth to a fifth of the beds the modern gate had raised (HANDOFF
+// section 27). Six is the granary's own count, so the floor is the fields and
+// the fields grow with the people, bounded by the land a town can plant, by
+// the famine brake below, and by the two hundred and fifty the world keeps as
+// people, which the floor never passes: past it the newest are folded into
+// cohorts (12), and a phone world with the density doubled did just that.
+const MANY_HANDS_PER_FARM = 6;
 function manyHandsFarms() {
   let farms = 0;
   for (const b of W.buildings)
@@ -349,7 +359,8 @@ function manyHandsHungryShare() {
 }
 function manyHandsPeopleFloor() {
   if (manyHandsHungryShare() > MANY_HANDS_HUNGRY_SHARE) return MANY_HANDS_PEOPLE_FLOOR;
-  return MANY_HANDS_PEOPLE_FLOOR + MANY_HANDS_PER_FARM * manyHandsFarms();
+  const ceiling = typeof CAPS !== "undefined" && CAPS.person ? CAPS.person : Infinity;
+  return Math.min(ceiling, MANY_HANDS_PEOPLE_FLOOR + MANY_HANDS_PER_FARM * manyHandsFarms());
 }
 // And a hungry world does not grow at all. The formula's own craft lift took
 // battery causal-origin to a capacity of ninety-four once it knew waterworks,

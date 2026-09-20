@@ -28,13 +28,13 @@ const fixtureSource = String.raw`(() => {
   // ── The people floor follows the fields ──
   const farms = () => W.buildings.filter((b) => b.type === "farm" && b.complete && !b.ruined && b.placeKind === "settlement" && W.settlements.some((t) => t.id === b.placeId && !t.ruined)).length;
   out.floorBare = [hands.floor(), farms()];
-  if (hands.perFarm() !== 4) fail("the floor grants other than four a farm: " + hands.perFarm());
-  if (out.floorBare[0] !== 40 + 4 * out.floorBare[1]) fail("the floor is not forty and four a farm: " + out.floorBare.join(" with farms "));
+  if (hands.perFarm() !== 6) fail("the floor grants other than six a farm: " + hands.perFarm());
+  if (out.floorBare[0] !== Math.min(CAPS.person, 40 + 6 * out.floorBare[1])) fail("the floor is not forty and six a farm under the ceiling: " + out.floorBare.join(" with farms "));
   grant(s, "agriculture", "irrigation");
   if (hands.floor() !== out.floorBare[0]) fail("a craft alone lifted the floor: " + hands.floor());
   if (!complete(s, "farm")) fail("could not raise a farm");
   out.floorFarmed = [hands.floor(), farms()];
-  if (out.floorFarmed[0] !== 40 + 4 * out.floorFarmed[1] || out.floorFarmed[1] !== out.floorBare[1] + 1) fail("a finished farm did not lift the floor by four: " + out.floorBare.join("/") + " -> " + out.floorFarmed.join("/"));
+  if (out.floorFarmed[0] !== Math.min(CAPS.person, 40 + 6 * out.floorFarmed[1]) || out.floorFarmed[1] !== out.floorBare[1] + 1) fail("a finished farm did not lift the floor by six: " + out.floorBare.join("/") + " -> " + out.floorFarmed.join("/"));
   if (!(hands.capacity() >= out.floorFarmed[0])) fail("the capacity sits under the floor: " + hands.capacity() + " < " + out.floorFarmed[0]);
   // ── Nothing rises before the modern stages are sought ──
   grant(s, "masonry", "mechanization", "electricity");
