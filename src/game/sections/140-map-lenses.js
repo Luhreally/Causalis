@@ -50,7 +50,27 @@
 // tiles, the lowest fifth green and the highest fortieth white, so every
 // world wears the whole ramp. Both are read once a while and kept beside the
 // world, since reading a lens writes nothing to it.
-const LENS = { fills: 0, edges: 0, legend: 0, legendAt: 0 };
+//
+// And the political lenses are a map mode, not a tint. Asked for after the
+// first pass: vivid, animated, the quality of the grand-strategy games'
+// political maps. Under polities, blocs and cultures the land that no one
+// holds is veiled dark and the sea a little, and a holding is painted at
+// more than half strength, so the map reads as claims first and ground
+// second; the borders are thick, a dark line with a light line inside it;
+// each polity's name stands across its land in spaced capitals sized to its
+// holding, and its capital is ringed; a light runs along every border, a
+// front between two polities at war is a moving red-and-white line, and the
+// lens comes in with a dip when it is switched. The names and the motion are
+// drawn every frame over the cached terrain, from the edge list the cached
+// pass keeps, so the cost is a stroke of the borders and a few words; at
+// lean detail the light runs every other frame.
+const LENS = { fills: 0, edges: 0, legend: 0, legendAt: 0, labels: 0, shimmer: 0, fronts: 0, switchedAt: 0, frame: 0 };
+const LENS_EDGE_LIST = { world: null, key: "", name: "", segments: [], fronts: [], labels: [] };
+const LENS_VEIL_LAND = "rgba(8,14,20,0.38)",
+  LENS_VEIL_SEA = "rgba(8,14,20,0.16)",
+  LENS_FILL_ALPHA = 0.58,
+  LENS_SWITCH_MS = 320,
+  LENS_LABEL_MIN_TILES = 10;
 const LENS_RANGE = { world: null, key: "", temperature: null, bands: null };
 const LENS_GROUPS = Object.freeze([
   ["Land", ["elevation", "temperature", "moisture", "fertility", "fire", "season"]],
@@ -299,14 +319,14 @@ overlayStyle = function (name, i) {
   }
   if (name === "territory" || name === "alliances" || name === "culture") {
     const key = lensCategoryAt(name, i);
-    if (!key) return "transparent";
+    LENS.fills++;
+    if (!key) return lensSea(i) ? LENS_VEIL_SEA : LENS_VEIL_LAND;
     const strength =
         name === "culture"
           ? clamp((W.tiles.culture?.[i] || 0) / 650, 0, 1)
           : clamp((W.tiles.territory?.[i] || 0) / 800, 0, 1),
       alone = name === "alliances" && typeof blocSize === "function" && blocSize(W.tiles.owner[i]) < 2,
-      a = (0.28 + 0.16 * strength) * (alone ? 0.6 : 1) * (lensSea(i) ? 0.34 : 1);
-    LENS.fills++;
+      a = (LENS_FILL_ALPHA - 0.08 + 0.1 * strength) * (alone ? 0.6 : 1) * (lensSea(i) ? 0.34 : 1);
     return lensColourWithAlpha(lensCategoryColour(name, key), a);
   }
   return overlayStyleLensBase(name, i);
@@ -339,13 +359,24 @@ function lensStrokeEdge(a, b, colour, width, under) {
   ctx.stroke();
   LENS.edges++;
 }
+function lensLighter(colour) {
+  if (!colour) return "#fff";
+  const m = colour.match(/^hsla?\(\s*([0-9.]+)[ ,]+([0-9.]+)%[ ,]+([0-9.]+)%/);
+  return m ? hsl(+m[1], Math.min(100, +m[2] + 6), Math.min(92, +m[3] + 18)) : colour;
+}
+function lensAtWar(a, b) {
+  return !!(a && b && a !== b && typeof factionsAtWar === "function" && factionsAtWar(a, b));
+}
 function drawLensEdges(b, m) {
   const name = UI.overlay;
   if (!name || !W || lensCategoryAt(name, 0) === null) return 0;
   const contour = name === "elevation",
-    width = contour ? clamp(0.5 + m.tw * 0.03, 0.6, 1.4) : clamp(0.9 + m.tw * 0.06, 1.1, 3.2),
-    under = contour ? null : "rgba(6,12,18,0.72)",
+    width = contour ? clamp(0.5 + m.tw * 0.03, 0.6, 1.4) : clamp(1.4 + m.tw * 0.09, 1.6, 4.2),
+    under = contour ? null : "rgba(6,12,18,0.82)",
     contourColour = "rgba(20,28,36,0.5)",
+    keep = !contour,
+    segments = [],
+    fronts = [],
     polys = new Map(),
     polyOf = (x, y) => {
       const k = y * W.width + x;
@@ -387,16 +418,161 @@ function drawLensEdges(b, m) {
           const [cx, cy] = centre(poly),
             npoly = polyOf(nx, ny),
             [ncx, ncy] = centre(npoly),
-            a = lensEdgeInset(edge[0], edge[1], cx, cy, 0.12),
-            t = lensEdgeInset(edge[0], edge[1], ncx, ncy, 0.12);
+            a = lensEdgeInset(edge[0], edge[1], cx, cy, 0.14),
+            t = lensEdgeInset(edge[0], edge[1], ncx, ncy, 0.14);
           lensStrokeEdge(a[0], a[1], mine, width, under);
           lensStrokeEdge(t[0], t[1], theirs, width, under);
-        } else lensStrokeEdge(edge[0], edge[1], mine || theirs, width, under);
+          lensStrokeEdge(a[0], a[1], lensLighter(mine), width * 0.4, null);
+          lensStrokeEdge(t[0], t[1], lensLighter(theirs), width * 0.4, null);
+          if (keep && name !== "culture" && lensAtWar(W.tiles.owner?.[i], W.tiles.owner?.[idx(nx, ny)])) fronts.push(edge);
+        } else {
+          const colour = mine || theirs;
+          lensStrokeEdge(edge[0], edge[1], colour, width, under);
+          lensStrokeEdge(edge[0], edge[1], lensLighter(colour), width * 0.4, null);
+        }
+        if (keep) segments.push(edge);
         drawn++;
       }
     }
   ctx.restore();
+  if (keep) {
+    LENS_EDGE_LIST.world = W;
+    LENS_EDGE_LIST.name = name;
+    LENS_EDGE_LIST.key = `${name}:${b.x0}:${b.y0}:${b.x1}:${b.y1}:${m.w}:${m.h}:${UI.camera.zoom}`;
+    LENS_EDGE_LIST.segments = segments;
+    LENS_EDGE_LIST.fronts = fronts;
+    LENS_EDGE_LIST.labels = lensLabelsFor(name, m);
+  }
   if (drawn && performance.now() - LENS.legendAt > 1500) lensRefreshLegend();
+  return drawn;
+}
+// ── Names across the land, and the motion of the lens ────────────────────────
+// A polity's name stands at the middle of its holding, in spaced capitals
+// sized to the holding, with its capital ringed; the counting pass that feeds
+// the legend feeds this too.
+function lensLabelsFor(name, m) {
+  if (name !== "territory" && name !== "alliances" && name !== "culture") return [];
+  const sums = new Map();
+  for (let y = 0; y < W.height; y++)
+    for (let x = 0; x < W.width; x++) {
+      const i = y * W.width + x,
+        key = lensCategoryAt(name, i);
+      if (!key || lensSea(i)) continue;
+      let s = sums.get(key);
+      if (!s) sums.set(key, (s = { key, n: 0, sx: 0, sy: 0, left: Infinity, right: -Infinity }));
+      s.n++;
+      s.sx += x + 0.5;
+      s.sy += y + 0.5;
+      // The holding's own span on the screen, tile by tile, so the name fits it in every lens.
+      const at = proceduralProjectTile(x + 0.5, y + 0.5, m, false);
+      if (at.x < s.left) s.left = at.x;
+      if (at.x > s.right) s.right = at.x;
+    }
+  const labels = [];
+  for (const s of sums.values()) {
+    if (s.n < LENS_LABEL_MIN_TILES) continue;
+    const text = lensCategoryName(name, s.key);
+    if (!text) continue;
+    // The name fits the holding: its size is the holding's width on the screen over the name's length.
+    const at = proceduralProjectTile(s.sx / s.n, s.sy / s.n, m),
+      spanX = s.right - s.left + m.tw,
+      px = clamp(Math.round((spanX * 0.7) / (text.length * 0.78)), 11, 40),
+      f = name === "culture" ? null : W.factions.find((x) => x.id === s.key),
+      cap = f && typeof factionCapital === "function" ? factionCapital(f) : null;
+    labels.push({ key: s.key, text: text.toUpperCase(), x: clamp(at.x, px * text.length * 0.4, m.w - px * text.length * 0.4), y: clamp(at.y, px, m.h - px), px, tiles: s.n, colour: lensCategoryColour(name, s.key), capital: cap ? proceduralProjectTile(cap.x + 0.5, cap.y + 0.5, m) : null });
+  }
+  return labels.sort((a, b) => b.tiles - a.tiles).slice(0, 12);
+}
+function drawLensLabels(labels) {
+  if (!labels.length) return 0;
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+  let drawn = 0;
+  for (const l of labels) {
+    ctx.font = `600 ${l.px}px system-ui, sans-serif`;
+    if ("letterSpacing" in ctx) ctx.letterSpacing = `${Math.round(l.px * 0.18)}px`;
+    ctx.lineWidth = Math.max(2, l.px * 0.22);
+    ctx.strokeStyle = "rgba(4,8,12,0.78)";
+    ctx.strokeText(l.text, l.x, l.y);
+    ctx.fillStyle = lensLighter(l.colour);
+    ctx.fillText(l.text, l.x, l.y);
+    if (l.capital) {
+      const r = Math.max(3, l.px * 0.28);
+      ctx.lineWidth = Math.max(1.2, r * 0.35);
+      ctx.strokeStyle = "rgba(4,8,12,0.8)";
+      ctx.beginPath();
+      ctx.arc(l.capital.x, l.capital.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = lensLighter(l.colour);
+      ctx.lineWidth = Math.max(0.8, r * 0.18);
+      ctx.beginPath();
+      ctx.arc(l.capital.x, l.capital.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    drawn++;
+  }
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+  ctx.restore();
+  LENS.labels += drawn;
+  return drawn;
+}
+// The motion: a light running along the borders, a red-and-white line moving
+// along a front, and the dip when the lens is switched. Drawn every frame
+// from the cached pass's edge list; nothing here reads the tiles.
+function drawLensMotion(now, m) {
+  const name = UI.overlay;
+  if (!name || !W) return 0;
+  LENS.frame++;
+  let drawn = 0;
+  if (LENS_EDGE_LIST.world === W && LENS_EDGE_LIST.name === name && LENS_EDGE_LIST.segments.length) {
+    const lean = UI.quality === "low",
+      run = !lean || LENS.frame % 2 === 0;
+    ctx.save();
+    ctx.lineCap = "round";
+    if (run) {
+      ctx.strokeStyle = "rgba(255,250,235,0.34)";
+      ctx.lineWidth = clamp(0.8 + m.tw * 0.04, 0.9, 2.2);
+      ctx.setLineDash([9, 27]);
+      ctx.lineDashOffset = -((now / 26) % 36);
+      ctx.beginPath();
+      for (const [a, b] of LENS_EDGE_LIST.segments) {
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(b[0], b[1]);
+      }
+      ctx.stroke();
+      LENS.shimmer++;
+      drawn++;
+    }
+    if (LENS_EDGE_LIST.fronts.length) {
+      const w = clamp(2 + m.tw * 0.12, 2.4, 6);
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "rgba(240,235,225,0.92)";
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      for (const [a, b] of LENS_EDGE_LIST.fronts) {
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(b[0], b[1]);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(214,40,40,0.95)";
+      ctx.setLineDash([w * 2.2, w * 2.2]);
+      ctx.lineDashOffset = -((now / 40) % (w * 4.4));
+      ctx.stroke();
+      LENS.fronts++;
+      drawn++;
+    }
+    ctx.restore();
+    drawn += drawLensLabels(LENS_EDGE_LIST.labels);
+  }
+  const since = now - LENS.switchedAt;
+  if (LENS.switchedAt && since >= 0 && since < LENS_SWITCH_MS) {
+    const t = since / LENS_SWITCH_MS;
+    ctx.fillStyle = `rgba(2,6,10,${(0.42 * (1 - t) * (1 - t)).toFixed(3)})`;
+    ctx.fillRect(0, 0, m.w, m.h);
+    drawn++;
+  }
   return drawn;
 }
 // ── The legend in the map badge ──────────────────────────────────────────────
@@ -437,6 +613,7 @@ function lensRefreshLegend() {
 const setOverlayLensBase = setOverlay;
 setOverlay = function (name) {
   setOverlayLensBase(name);
+  LENS.switchedAt = UI.overlay ? performance.now() : 0;
   if (!DOM.mapOverlay) return;
   if (UI.overlay === "elevation")
     DOM.mapOverlay.textContent = "Elevation · the land's lowest fifth green to its highest fortieth white, four blues by depth, contours where the band changes";
@@ -478,6 +655,9 @@ window.ALIFE_LENS_DEBUG = Object.freeze({
   band: (i) => lensElevationBand(i),
   range: () => ({ bands: [...lensWorldRange().bands], temperature: [...lensWorldRange().temperature] }),
   legend: (name = UI.overlay) => lensLegendEntries(name),
+  labels: (name = UI.overlay) => lensLabelsFor(name, projectionMetrics()).map((l) => ({ key: l.key, text: l.text, tiles: l.tiles, px: l.px, capital: !!l.capital })),
+  motion: (now = performance.now()) => drawLensMotion(now, projectionMetrics()),
+  edgeList: () => ({ name: LENS_EDGE_LIST.name, segments: LENS_EDGE_LIST.segments.length, fronts: LENS_EDGE_LIST.fronts.length, labels: LENS_EDGE_LIST.labels.length }),
   edges: (name) => {
     const was = UI.overlay;
     UI.overlay = name;

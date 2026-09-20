@@ -668,6 +668,26 @@ if (factions) {
     assert.ok(lens.legend("territory").length >= 1, "the polity legend is empty");
   }
 }
+// The political lenses are a map mode (140): the land no one holds is veiled, a holding is painted
+// firmly, the edge pass keeps its segments for the motion pass, and the motion pass runs every frame.
+run('() => { UI.view = "top"; UI.overlay = "territory"; UI.camera.zoom = 1.4; UI.camera.x = W.width / 2; UI.camera.y = W.height / 2; }')();
+const unheld = sample.find((i) => !lens.category("territory", i));
+if (unheld !== undefined) {
+  const veil = lens.style("territory", unheld);
+  assert.ok(alphaOf(veil) >= 0.1, "the land no one holds is not veiled under the polity lens: " + veil);
+}
+if (factions) {
+  const owned = sample.filter((i) => lens.category("territory", i));
+  if (owned.length) {
+    assert.ok(alphaOf(lens.style("territory", owned[0])) >= 0.45, "a holding is not painted firmly: " + lens.style("territory", owned[0]));
+    lens.edges("territory");
+    const list = lens.edgeList();
+    assert.ok(list.segments > 0, "the edge pass kept no segments for the motion pass");
+    assert.ok(lens.motion(1234) > 0, "the motion pass drew nothing over a polity's borders");
+    lensReport.mapMode = { segments: list.segments, fronts: list.fronts, labels: list.labels };
+  }
+}
+run("() => { UI.overlay = null; }")();
 const grid = element("overlayGrid");
 assert.ok((grid.innerHTML.match(/overlay-group/g) || []).length >= 5, "the lenses are not grouped");
 assert.equal((grid.innerHTML.match(/overlay-btn/g) || []).length, lensIds.length, "not every lens has a button");

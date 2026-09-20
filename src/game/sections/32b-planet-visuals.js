@@ -2227,6 +2227,8 @@ function renderWorldProcedural(now) {
   }
   drawEntitiesProcedural(now, b);
   drawProceduralAtmosphere(now, m, v);
+  // The lens's names and motion ride over the world, every frame (140).
+  if (UI.overlay && typeof drawLensMotion === "function") drawLensMotion(now, m);
   drawSelection();
   drawBrushPreview();
   UI.lastRender = now;
