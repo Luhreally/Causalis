@@ -213,7 +213,10 @@ function visibleBounds() {
 function renderWorld(now) {
   if (!W) return;
   resizeCanvas();
-  if (UI.followId && W.components.position[UI.followId]) {
+  // The followed life is centred on what the player can see, not on the tile
+  // beneath it and not on the middle of a canvas a panel is covering (139).
+  if (typeof followCameraStep === "function") followCameraStep(now);
+  else if (UI.followId && W.components.position[UI.followId]) {
     const p = W.components.position[UI.followId];
     UI.camera.x = lerp(UI.camera.x, p.x, 0.16);
     UI.camera.y = lerp(UI.camera.y, p.y, 0.16);

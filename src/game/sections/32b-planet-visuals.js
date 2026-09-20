@@ -2137,7 +2137,10 @@ function renderWorldProcedural(now) {
   ACTIVE_RENDER_NOW = now;
   ACTIVE_REDUCED_MOTION = reducedMotionPreferred();
   updateCameraGlide(now);
-  if (UI.followId && W.components.position[UI.followId]) {
+  // The followed life is centred on what the player can see, not on the tile
+  // beneath it and not on the middle of a canvas a panel is covering (139).
+  if (typeof followCameraStep === "function") followCameraStep(now);
+  else if (UI.followId && W.components.position[UI.followId]) {
     const p = W.components.position[UI.followId],
       t = VISUAL_MOTION.get(UI.followId),
       fx = t && Number.isFinite(t.wx) ? t.wx : p.x + 0.5,

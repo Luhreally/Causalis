@@ -83,6 +83,8 @@ class Element {
     this.parts = new Map();
     this.clientWidth = id === "world" ? 430 : 300;
     this.clientHeight = id === "world" ? 816 : 120;
+    this.rectLeft = 0;
+    this.rectTop = 0;
     this.width = this.clientWidth;
     this.height = this.clientHeight;
     this.value = "";
@@ -96,9 +98,20 @@ class Element {
     return canvasContext;
   }
   getBoundingClientRect() {
-    return { left: 0, top: 0, width: this.clientWidth, height: this.clientHeight };
+    return {
+      left: this.rectLeft,
+      top: this.rectTop,
+      width: this.clientWidth,
+      height: this.clientHeight,
+    };
   }
   setRect(width, height) {
+    this.clientWidth = width;
+    this.clientHeight = height;
+  }
+  place(left, top, width, height) {
+    this.rectLeft = left;
+    this.rectTop = top;
     this.clientWidth = width;
     this.clientHeight = height;
   }
@@ -276,14 +289,21 @@ Object.assign(windowObject, sandbox, {
 });
 
 vm.createContext(sandbox);
-vm.runInContext(composeRuntime({ format: "script" }), sandbox, { filename: "causalis.mobile.js" });
+let mobileScript = composeRuntime({ format: "script" });
+const bridgeMarker = "\nreturn {boot};";
+assert.ok(mobileScript.includes(bridgeMarker), "closure bridge marker missing");
+mobileScript = mobileScript.replace(
+  bridgeMarker,
+  "\nglobalThis.__PROBE__={get:(n)=>eval(n)};" + bridgeMarker,
+);
+vm.runInContext(mobileScript, sandbox, { filename: "causalis.mobile.js" });
 
 const game = windowObject.ALIFE_DEBUG;
 const mobile = windowObject.ALIFE_MOBILE_DEBUG;
 assert.ok(game && mobile, "mobile and game debug surfaces initialize");
 const snapshot = (value) => JSON.parse(JSON.stringify(value));
 
-const report = { portrait: {}, gestures: {}, landscape: {}, desktop: {}, static: {} };
+const report = { portrait: {}, gestures: {}, landscape: {}, desktop: {}, follow: {}, static: {} };
 const htmlRoot = documentObject.documentElement;
 const canvas = element("world");
 const leftPanel = element("leftPanel");
@@ -480,6 +500,134 @@ report.desktop = {
   automaticLargeViewport: "desktop",
   explicitTouchOverride: "mobile",
 };
+
+// Following a life holds it in the middle of what the player can see, at any
+// screen size (139). The ground under a figure lifts it up the screen and the
+// middle of the canvas is that ground at sea level, so the oblique lens used
+// to draw a followed life tens of pixels above the middle; a cover over the
+// stage moved the middle again, and neither is a constant across devices.
+const run = (source) => sandbox.__PROBE__.get(`(${source})`);
+const follow = windowObject.ALIFE_FOLLOW_DEBUG;
+assert.ok(follow, "the follow surface initializes");
+const peopleBar = element("peopleBar");
+const followReport = {};
+
+const framesFollowing = (id, frames = 40) =>
+  run(`() => {
+    UI.followId = ${id};
+    let now = 5000;
+    for (let f = 0; f < ${frames}; f++) { now += 16; renderWorld(now); }
+    const t = VISUAL_MOTION.get(${id});
+    return t && t.s ? { x: t.s.x, y: t.s.y } : null;
+  }`)();
+
+const walker = run(`() => {
+  const people = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id));
+  if (!people.length) return 0;
+  // A person on high ground, where the lens lifts the figure furthest.
+  let pick = people[0], best = -1;
+  for (const id of people) {
+    const p = W.components.position[id], e = W.tiles.elevation[idx(p.x, p.y)];
+    if (e > best) { best = e; pick = id; }
+  }
+  UI.view = "oblique";
+  UI.camera.zoom = 2.6;
+  return pick;
+}`)();
+assert.ok(walker, "the probe world holds a person to follow");
+
+// A phone canvas with nothing over it: the figure lands on the middle.
+canvas.place(0, 116, 430, 816);
+peopleBar.place(0, 0, 0, 0);
+leftPanel.place(0, 0, 0, 0);
+rightPanel.place(0, 0, 0, 0);
+let centre = follow.centre();
+let drawn = framesFollowing(walker);
+assert.ok(drawn, "the followed life was drawn");
+assert.ok(
+  Math.hypot(drawn.x - centre.x, drawn.y - centre.y) < 2,
+  `a followed life is not centred on a phone: ${JSON.stringify([drawn, centre])}`,
+);
+followReport.phone = {
+  canvas: [430, 816],
+  offset: [+(drawn.x - centre.x).toFixed(2), +(drawn.y - centre.y).toFixed(2)],
+};
+
+// The people bar covers the foot of the stage, so the middle moves up by half
+// of it and the life is still whole above the bar.
+peopleBar.place(6, 116 + 816 - 102, 418, 96);
+const barCentre = follow.centre();
+assert.ok(
+  barCentre.y < 816 / 2 - 40,
+  `the people bar did not move the middle up: ${JSON.stringify(barCentre)}`,
+);
+drawn = framesFollowing(walker);
+assert.ok(
+  Math.hypot(drawn.x - barCentre.x, drawn.y - barCentre.y) < 2,
+  `a followed life is not centred above the people bar: ${JSON.stringify([drawn, barCentre])}`,
+);
+followReport.peopleBar = {
+  inset: follow.counts().inset.bottom,
+  centre: +barCentre.y.toFixed(1),
+  offset: [+(drawn.x - barCentre.x).toFixed(2), +(drawn.y - barCentre.y).toFixed(2)],
+};
+
+// A drawer over nearly the whole stage is no aim at all, so it is ignored and
+// the press that opened it closes it instead.
+rightPanel.place(430 - 396, 116, 396, 816);
+const drawerCentre = follow.centre();
+assert.ok(
+  Math.abs(drawerCentre.x - 430 / 2) < 1,
+  `a drawer over the stage was aimed around: ${JSON.stringify(drawerCentre)}`,
+);
+rightPanel.classList.add("open");
+mobile.apply("mobile");
+run(`() => focusLife(${walker}, { toggle: false })`)();
+assert.equal(
+  rightPanel.classList.contains("open"),
+  false,
+  "following a life left the drawer over it",
+);
+rightPanel.place(0, 0, 0, 0);
+followReport.drawer = { ignoredWhenWide: true, closedOnFocus: true };
+
+// The same life on a desktop canvas: centred there too, and the span of ground
+// the press opens is the same on both, which the zoom is not.
+const phoneZoom = run(`() => { UI.camera.zoom = 1; return followSpanZoom(); }`)();
+canvas.place(320, 64, 1180, 820);
+peopleBar.place(332, 64 + 820 - 108, 700, 96);
+const deskZoom = run(`() => { UI.camera.zoom = 1; return followSpanZoom(); }`)();
+const deskCentre = follow.centre();
+drawn = framesFollowing(walker);
+assert.ok(
+  Math.hypot(drawn.x - deskCentre.x, drawn.y - deskCentre.y) < 2,
+  `a followed life is not centred on a desktop: ${JSON.stringify([drawn, deskCentre])}`,
+);
+assert.ok(
+  deskZoom > phoneZoom * 1.2,
+  `the follow zoom did not scale with the screen: ${JSON.stringify([phoneZoom, deskZoom])}`,
+);
+const span = (zoom) =>
+  run(`() => { UI.camera.zoom = ${zoom}; const m = projectionMetrics(), r = focusViewportRect(m);
+    return Math.min((r.right - r.left) / m.tw, (r.bottom - r.top) / m.th); }`)();
+const deskSpan = span(deskZoom);
+canvas.place(0, 116, 430, 816);
+peopleBar.place(6, 116 + 816 - 102, 418, 96);
+const phoneSpan = span(phoneZoom);
+assert.ok(
+  Math.abs(deskSpan - phoneSpan) < 2,
+  `the span of ground differs by device: ${JSON.stringify([phoneSpan, deskSpan])}`,
+);
+followReport.span = {
+  phone: { zoom: +phoneZoom.toFixed(2), tiles: +phoneSpan.toFixed(1) },
+  desktop: { zoom: +deskZoom.toFixed(2), tiles: +deskSpan.toFixed(1) },
+};
+
+// Reading where to aim never touches the world.
+const isolation = windowObject.ALIFE_VISUAL_DEBUG.renderIsolation(9000);
+assert.equal(isolation.ok, true, `following changed the world: ${JSON.stringify(isolation)}`);
+run("() => { UI.followId = 0; }")();
+report.follow = followReport;
 
 // Static contract checks cover the CSS-only safe-area and landscape behavior.
 const root = path.resolve(__dirname, "..");

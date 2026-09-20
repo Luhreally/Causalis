@@ -480,7 +480,8 @@ function decorateExperienceInspector() {
   };
   if ($("#experienceFollow"))
     $("#experienceFollow").onclick = () => {
-      UI.followId = UI.followId === UI.selectedEntity ? 0 : UI.selectedEntity;
+      // The button used to set the followed id and leave the camera behind (139).
+      focusLife(UI.selectedEntity);
       refreshInspector();
     };
   if ($("#experiencePin"))

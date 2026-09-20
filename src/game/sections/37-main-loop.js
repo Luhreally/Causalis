@@ -217,17 +217,8 @@ function bindUI() {
       UI.chronicleFilter = fil.dataset.filter;
       refreshChronicle();
     } else if (fol) {
-      const id = Number(fol.dataset.follow);
-      UI.followId = UI.followId === id ? 0 : id;
-      if (UI.followId) {
-        const fp = W.components.position[id],
-          ft = VISUAL_MOTION.get(id);
-        if (fp) {
-          UI.camera.x = ft && Number.isFinite(ft.wx) ? ft.wx : fp.x + 0.5;
-          UI.camera.y = ft && Number.isFinite(ft.wy) ? ft.wy : fp.y + 0.5;
-          clampCamera();
-        }
-      }
+      // Both ways of following a life go through the one focus (139).
+      focusLife(Number(fol.dataset.follow));
       refreshInspector();
     } else if (fac) showFaction(Number(fac.dataset.faction));
     else if (set) selectEntity(Number(set.dataset.settlementEntity));

@@ -562,7 +562,7 @@ function handlePointerUp(e) {
       const hit = pickSceneTarget(p.x, p.y);
       if (hit) {
         if (UI.selectedEntity === hit.id && W.components.life[hit.id] && classifyAlive(hit.id)) {
-          UI.followId = UI.followId === hit.id ? 0 : hit.id;
+          focusLife(hit.id, { open: false });
           refreshInspector();
           toast(
             UI.followId

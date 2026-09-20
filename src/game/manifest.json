@@ -155,5 +155,6 @@
   "135-hinterland.js",
   "136-ferry.js",
   "137-field.js",
-  "138-field-gates.js"
+  "138-field-gates.js",
+  "139-follow.js"
 ]

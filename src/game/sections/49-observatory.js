@@ -380,9 +380,9 @@ function wireObservatory() {
       refreshPeopleBar(true);
     } else if (person) {
       const id = Number(person.dataset.people);
-      if (UI.selectedEntity === id) UI.followId = UI.followId === id ? 0 : id;
+      if (UI.selectedEntity === id) focusLife(id);
       else selectEntity(id);
-      focusHistoryTarget(id);
+      if (!UI.followId) focusHistoryTarget(id);
       refreshPeopleBar(true);
     } else if (legend) {
       const [kind, id] = String(legend.dataset.legend).split(":");
