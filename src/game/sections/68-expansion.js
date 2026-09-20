@@ -39,23 +39,30 @@ function settlerLine(world = W) {
   const local = typeof urbanGate === "function" ? urbanGate(world).local : SETTLER_MIN_POP;
   return Math.max(SETTLER_LINE_FLOOR, Math.min(SETTLER_MIN_POP, local + SETTLER_PARTY_MARGIN));
 }
-// A crowded town with a lean larder is a place of its own in the count, so its
-// settlers leave whatever the count says. At a place for every twenty-four
+// A crowded town in famine is a place of its own in the count, so its settlers
+// leave whatever the count says. At a place for every twenty-four
 // people (30e) the count held four places on battery variety-7 while Aran, a
 // village of forty-eight in a polity of its own, forty-four tiles from any fed
 // town, stood at three farms where it wanted eight, food under eight, its
 // settler urge at 0.68 with a site found and no room to go: it starved from
 // forty-seven people to fourteen over twenty years, and the world flew at 110
 // where it had flown at 91. At a place for every fourteen it had sent its
-// settlers at seventy people, which is the valve this keeps. Lean is the
-// granary's own reading (82); the line is the settlers' own (settlerLine); and
-// each such town opens one place, not a flood, since the places that stand are
-// counted against it.
-function leanCrowdedTowns() {
+// settlers at seventy people, which is the valve this keeps. Famine is the
+// granary's own reading (82: a larder under five, or two in five hungry), the
+// line the famine brake of 127 uses as well; the first cut read the lean line
+// instead (a larder under ten, or a quarter hungry) and opened places on fed
+// working towns, whose hungry share swings a fifth to a half from year to
+// year, so battery variety-4 spread into seven towns before year sixty and
+// stood at its gate past 189 where it had flown at 77. Aran's larder read
+// under two at fifty-six with a tenth of the village hungry, so the famine
+// line catches the starving village as early. The line of people is the
+// settlers' own (settlerLine); and each such town opens one place, not a
+// flood, since the places that stand are counted against it.
+function famineCrowdedTowns() {
   if (typeof foodOutlook !== "function") return 0;
   const line = settlerLine();
   return W.settlements.filter(
-    (s) => !s.ruined && s.knownProcesses && settlementPopulation(s) >= line && !!foodOutlook(s)?.lean,
+    (s) => !s.ruined && s.knownProcesses && settlementPopulation(s) >= line && !!foodOutlook(s)?.famine,
   ).length;
 }
 function placesAllowed() {
@@ -63,7 +70,7 @@ function placesAllowed() {
   // place than the crowd that makes one urban, or settlers keep leaving to
   // found the hamlets that stop any town becoming a city.
   const per = typeof placePeoplePerTown === "function" ? placePeoplePerTown() : 14;
-  return Math.max(4, Math.floor(biospherePopulation(KINDS.PERSON) / per)) + leanCrowdedTowns();
+  return Math.max(4, Math.floor(biospherePopulation(KINDS.PERSON) / per)) + famineCrowdedTowns();
 }
 function worldHasRoomForPlaces() {
   const places = W.settlements.filter((s) => !s.ruined).length + W.camps.filter((c) => c.active).length;
@@ -576,7 +583,7 @@ renderCampPage = function (id) {
 window.ALIFE_EXPANSION_DEBUG = Object.freeze({
   caps: () => ({ ...CAPS }),
   allowed: () => placesAllowed(),
-  leanCrowded: () => leanCrowdedTowns(),
+  famineCrowded: () => famineCrowdedTowns(),
   room: () => worldHasRoomForPlaces(),
   scale: (w, h) => ({ ...scaleCaps(w, h) }),
   site: (settlementId) => settlerSite(W.settlements.find((s) => s.id === settlementId)),
