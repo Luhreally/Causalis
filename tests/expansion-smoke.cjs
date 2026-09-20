@@ -40,6 +40,27 @@ const fixtureSource = String.raw`(() => {
   const l = W.components.life[expedition.members[0]];
   if (l?.behavior === "march" && l.behaviorReason !== "walking out to found a new camp") fail("settlers march for the wrong reason: " + l.behaviorReason);
   out.urge = ex.urge(settlement.id);
+  // ── A crowded town with a lean larder is a place of its own in the count ──
+  // The line is the settlers' own; the fixture's town is under it, so the line
+  // is lowered to one for the reading and put back. Lean is the granary's
+  // reading (82): a larder under ten or more than a quarter of the town hungry,
+  // and the fixture's ground forages too well for an empty store to read lean,
+  // so the town is made hungry instead.
+  {
+    const settlerLineBase = settlerLine, near = entityAtRadius(idx(settlement.x, settlement.y), 7, KINDS.PERSON).filter(classifyAlive),
+      hungers = new Map(near.map((id) => [id, W.components.life[id]?.hunger]));
+    settlerLine = () => 1;
+    const fedLean = !!foodOutlook(settlement)?.lean;
+    out.allowedFed = [ex.allowed(), ex.leanCrowded(), fedLean];
+    for (const id of near) if (W.components.life[id]) W.components.life[id].hunger = 95;
+    out.allowedLean = [ex.allowed(), ex.leanCrowded(), !!foodOutlook(settlement)?.lean];
+    if (!out.allowedLean[2]) fail("a hungry town does not read lean: " + JSON.stringify(foodOutlook(settlement)));
+    if (!fedLean && out.allowedLean[1] !== out.allowedFed[1] + 1) fail("a lean crowded town is not counted once: " + out.allowedFed.join("/") + " -> " + out.allowedLean.join("/"));
+    if (!fedLean && out.allowedLean[0] !== out.allowedFed[0] + 1) fail("a lean crowded town did not open exactly one place: " + out.allowedFed[0] + " -> " + out.allowedLean[0]);
+    settlerLine = settlerLineBase;
+    for (const [id, h] of hungers) if (W.components.life[id] && h != null) W.components.life[id].hunger = h;
+    if (!fedLean && ex.leanCrowded() !== out.allowedFed[1]) fail("the town was not put back: " + ex.leanCrowded());
+  }
   if (!(out.urge > 0 && out.urge < 1)) fail("urge out of range");
   // They arrive and raise a camp.
   const [tx, ty] = xy(expedition.target);
