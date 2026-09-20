@@ -1714,6 +1714,8 @@ function setMilitaryPhase(unit, phase, detail, target, war) {
         "screening",
         "withdrawing",
         "rerouting",
+        "rallying",
+        "intercepting",
       ].includes(phase)
         ? 2
         : 1,
@@ -1763,14 +1765,31 @@ function updateMilitaryMovement() {
     else unit.stalledTicks = 0;
     unit.lastObjectiveDistance = advance;
     unit.lastCentroid = { x: geometry.x, y: geometry.y, tick: W.tick };
+    // The rally (143): a column that waits within reach of the objective for the
+    // polity's other columns, over a field or a wall in reach but never over an
+    // enemy formation or the town itself; a wait is not a stall. On battery
+    // causal-origin the rule decided after contact never fired: a town's fields
+    // put a column in contact before it was nine tiles from the hall.
+    const rallyGeometry =
+        war && (!contact || contact.building) && geometry.members.length >= 2
+          ? unitGeometry(unit, objective)
+          : null,
+      rallying =
+        !!rallyGeometry &&
+        typeof warRallyHolds === "function" &&
+        warRallyHolds(unit, objective, rallyGeometry);
     let phase;
-    if (contact) phase = tactic.phase;
+    if (rallying) {
+      phase = "rallying";
+      unit.stalledTicks = 0;
+    } else if (contact) phase = tactic.phase;
     else if (!war) phase = geometry.distance > 4 ? "returning" : "guarding";
     else if (W.tick - unit.formedTick < 28 || geometry.members.length < 2) phase = "mustering";
     else if (geometry.spread > 5.5) phase = "forming";
-    else if (geometry.distance <= 2.4) phase = "engaged";
+    else if (geometry.distance <= (target.road ? 1.2 : 2.4)) phase = "engaged";
     else if ((unit.stalledTicks || 0) >= 160) phase = "withdrawing";
     else if ((unit.stalledTicks || 0) >= 48) phase = "rerouting";
+    else if (target.road) phase = "intercepting";
     else phase = "marching";
     if (phase === "withdrawing" && home) {
       target = home;
@@ -1786,11 +1805,11 @@ function updateMilitaryMovement() {
       unit.contactBuildingId = 0;
       unit.tactic = "";
     }
-    if (contact) {
+    if (contact && phase !== "rallying") {
       unit.contactKey = contact.key;
       unit.tactic = tactic.name;
-    }
-    const detail = contact
+    } else if (phase === "rallying") unit.tactic = "";
+    const detail = contact && phase !== "rallying"
       ? `${tactic.name} began ${contact.distance.toFixed(1)} tiles from ${contact.name}; ${geometry.members.length} fighters met ${tactic.enemies} nearby enemy people without waiting for the strategic objective tile`
       : phase === "mustering"
         ? `${geometry.members.length} members are gathering and drawing supplies at ${home?.name || "home"}`
@@ -1798,8 +1817,14 @@ function updateMilitaryMovement() {
           ? `the unit is closing a ${geometry.spread.toFixed(1)}-tile formation spread before advance`
           : phase === "marching"
             ? `the centroid is ${geometry.distance.toFixed(1)} tiles from ${target.name} and made ${Math.max(0, progress).toFixed(1)} tiles of measured progress`
+            : phase === "rallying"
+              ? `the column holds ${rallyGeometry.distance.toFixed(1)} tiles from ${objective.name} for the polity's other columns`
+              : phase === "intercepting"
+                ? `the column marches ${geometry.distance.toFixed(1)} tiles to stand across the ${target.name}`
             : phase === "engaged"
-              ? `the formation has reached the ${target.name} occupation zone`
+              ? target.road
+                ? `the column stands across the ${target.name}, waiting for the enemy`
+                : `the formation has reached the ${target.name} occupation zone`
               : phase === "rerouting"
                 ? `no measurable advance for ${unit.stalledTicks} ticks; members are testing alternate terrain steps`
                 : phase === "withdrawing"
@@ -1819,6 +1844,7 @@ function updateMilitaryMovement() {
       const equipmentWork = workState(id);
       if (
         !campaigning &&
+        phase !== "intercepting" &&
         equipmentWork.task === "craft" &&
         (EQUIPMENT_PURPOSES.has(equipmentWork.craftPurpose) ||
           ["war", "shield", "armor"].includes(equipmentWork.craftPurpose))
@@ -1841,7 +1867,14 @@ function updateMilitaryMovement() {
             `📯 drawing supplies and waiting for the unit to assemble`,
             idx(p.x, p.y),
           );
-      } else if (phase === "forming" || phase === "rerouting" || phase === "marching") {
+      } else if (phase === "rallying")
+        setWorkAction(
+          id,
+          "march",
+          `📯 holding at the rally until the other columns come up to ${objective.name}`,
+          idx(p.x, p.y),
+        );
+      else if (phase === "forming" || phase === "rerouting" || phase === "marching" || phase === "intercepting") {
         const waypoint = war && !contact ? campaignWaypoint(id, unit, target) : null;
         if (waypoint) {
           if (campaignColumnShouldHold(unit, waypoint, p, target))
@@ -1860,12 +1893,14 @@ function updateMilitaryMovement() {
                 ? `🥾 following a replotted route toward ${target.name}`
                 : `🥾 marching the column's route toward ${target.name}`,
             );
-        } else if (phase === "marching")
+        } else if (phase === "marching" || phase === "intercepting")
           moveWorkerToward(
             id,
             idx(target.x, target.y),
             "march",
-            `🥾 actively marching toward ${target.name}`,
+            phase === "intercepting"
+              ? `🥾 marching to meet the enemy on the ${target.name}`
+              : `🥾 actively marching toward ${target.name}`,
           );
         else {
           const centroidTile = idx(
@@ -1921,7 +1956,7 @@ function updateMilitaryMovement() {
         );
       else setWorkAction(id, "guard", `🛡️ ${detail}`, idx(target.x, target.y));
     }
-    if (contact) resolveMilitaryContact(unit, contact, war, tactic);
+    if (contact && phase !== "rallying") resolveMilitaryContact(unit, contact, war, tactic);
   }
 }
 

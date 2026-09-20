@@ -32,6 +32,8 @@ const WAR_LENS = "warfare",
     forming: 46,
     levy: 46,
     marching: 34,
+    rallying: 74,
+    intercepting: 186,
     rerouting: 28,
     engaged: 4,
     skirmishing: 8,
@@ -373,7 +375,7 @@ function warUnitRow(unit, war) {
     home = W.settlements.find((q) => q.id === unit.homeSettlementId),
     objective = unit.objectiveSettlementId ? W.settlements.find((q) => q.id === unit.objectiveSettlementId) : null,
     phase = unit.phase || "mustering";
-  return `<div class="war-unit"><span class="lens-swatch" style="--c:${esc(f?.color || "#888")}"></span><b style="color:${warPhaseColour(phase)}">${esc(phase)}</b>${unit.tactic ? ` <span class="muted">· ${esc(unit.tactic)}</span>` : ""} <span class="muted">· ${alive} fighter${alive === 1 ? "" : "s"}${home ? ` of ${esc(home.name)}` : ""}${objective && objective.id !== unit.homeSettlementId ? ` → ${esc(objective.name)}` : ""}</span><div class="row" style="gap:6px;margin-top:3px">${warBar(unit.morale ?? 0.5, "#9cd38c", "morale")}${warBar(unit.supply ?? 1, "#7fb0ff", "supply")}<button class="small" data-watch-unit="${unit.id}">Watch</button></div></div>`;
+  return `<div class="war-unit"><span class="lens-swatch" style="--c:${esc(f?.color || "#888")}"></span><b style="color:${warPhaseColour(phase)}">${esc(phase)}</b>${unit.tactic ? ` <span class="muted">· ${esc(unit.tactic)}</span>` : ""}${unit.rally?.holding ? ` <span class="muted">· waiting for ${unit.rally.waitingFor.length} column${unit.rally.waitingFor.length === 1 ? "" : "s"}</span>` : ""}${unit.intercept && objective ? ` <span class="muted">· to the ${esc(objective.name)} road</span>` : ""} <span class="muted">· ${alive} fighter${alive === 1 ? "" : "s"}${home ? ` of ${esc(home.name)}` : ""}${objective && objective.id !== unit.homeSettlementId ? ` → ${esc(objective.name)}` : ""}</span><div class="row" style="gap:6px;margin-top:3px">${warBar(unit.morale ?? 0.5, "#9cd38c", "morale")}${warBar(unit.supply ?? 1, "#7fb0ff", "supply")}<button class="small" data-watch-unit="${unit.id}">Watch</button></div></div>`;
 }
 function warCard(war) {
   const a = factionById(war.a),

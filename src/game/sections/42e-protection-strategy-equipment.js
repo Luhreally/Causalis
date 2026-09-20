@@ -1000,6 +1000,17 @@ function updateAttackPlan(war) {
   return plan;
 }
 
+// A column's id comes from the roster counter (41), never from the roster's
+// highest plus one: dealt that way here while 41 dealt from the counter, two
+// columns of two polities carried the same id on battery causal-origin at
+// year 37 (the war probe of HANDOFF section 25), and Watch, the contact keys
+// and the rally's list name a column by its id. The counter is moved past any
+// id an older save dealt the old way.
+function dealMilitaryUnitId() {
+  const id = Math.max(W.nextMilitaryUnitId || 1, Math.max(0, ...W.militaryUnits.map((u) => u.id || 0)) + 1);
+  W.nextMilitaryUnitId = id + 1;
+  return id;
+}
 function musterFactionForce(faction, home, size) {
   if (!faction) return null;
   const fieldable = [];
@@ -1017,7 +1028,7 @@ function musterFactionForce(faction, home, size) {
     .sort((x, y) => y.memberIds.length - x.memberIds.length || x.id - y.id)[0];
   if (!unit) {
     unit = {
-      id: Math.max(0, ...W.militaryUnits.map((u) => u.id || 0)) + 1,
+      id: dealMilitaryUnitId(),
       factionId: faction.id,
       homeSettlementId: home?.id || 0,
       memberIds: [],
@@ -1151,7 +1162,7 @@ function levyCampaignForce(war, plan, attacker, home) {
     .sort((x, y) => y.memberIds.length - x.memberIds.length || x.id - y.id)[0];
   if (!unit) {
     unit = {
-      id: Math.max(0, ...W.militaryUnits.map((u) => u.id || 0)) + 1,
+      id: dealMilitaryUnitId(),
       factionId: attacker.id,
       homeSettlementId: home?.id || 0,
       memberIds: [],
