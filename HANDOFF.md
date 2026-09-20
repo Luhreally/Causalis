@@ -2906,9 +2906,64 @@ danger or a better need by a margin) is a sim change that moves the baseline
 hash and wants the launch sweep on both sizes: a round of its own, and the
 one that would make the lives read as minds rather than as scales.
 
+### 23. The political lenses are a map mode: veiled ground, bordered holdings, names, a light on the borders (2026-09-19)
+
+Asked for after section 21's pass: the lenses vivid and animated, the
+quality of the grand-strategy games' political maps.
+
+**The mode (140).** Under polities, blocs and cultures the land no one
+holds is veiled dark (`LENS_VEIL_LAND`, alpha 0.38) and the sea a little
+(0.16), and a holding is painted at 0.5 to 0.6 by its hold
+(`LENS_FILL_ALPHA`), a third of that over deep water, so the map reads as
+claims first and ground second. The borders are thick, from 1.6 to 4.2
+pixels with the zoom, a dark line with a lighter line of the holding's
+colour inside it (`lensLighter`); where two polities meet each side's line
+is inset toward its own ground. Each polity's name stands across its land in
+spaced capitals with a dark stroke (`lensLabelsFor`, `drawLensLabels`),
+sized to fit the holding's width on the screen over the name's length (11 to
+40 pixels), placed at the holding's centroid and kept inside the canvas,
+with its capital ringed; a people's name the same under the culture lens; up
+to twelve names, the largest holdings first, none for a holding under ten
+tiles.
+
+**The motion.** A light runs along every border (a dashed stroke of the
+edge list with its dash offset moving with the clock); a front between two
+polities at war (`factionsAtWar` on the two sides of an edge) is a moving
+red-and-white line; and the lens comes in with a dip over 320 ms when it is
+switched (`LENS.switchedAt`, set in `setOverlay`). The edge pass, drawn
+inside the cached terrain frame, keeps its segments, fronts and labels
+(`LENS_EDGE_LIST`); `drawLensMotion(now, m)` is called by the renderer
+after the atmosphere and before the selection, every frame, and strokes
+them, so the motion costs one dashed stroke of the borders and a few words a
+frame; at lean detail the light runs every other frame. Nothing in the
+motion pass reads the tiles; nothing in the lens writes the world.
+
+**After.** `overlay-probe.cjs` on the year-58 world of six towns and two
+polities: every tile painted under the polity lens (veil or holding) where
+forty percent were bare; the holding at 0.6 at its heart; a hundred border
+segments kept for the motion pass; one name, THE IRON CONCORD over 1,356
+land tiles with its capital ringed; the motion pass drawing two layers a
+frame (the light and the names); no war that year, so no front. Screenshots
+of the year-14 world before and after are in the session scratchpad
+(`ovc-*.png` with the first sizing, `ove-*.png` fitted): the name sits
+inside its holding in the top-down and the isometric lens both.
+
+**Measured.** The mobile test asserts the land no one holds is veiled and a
+holding painted at 0.45 or more, that the edge pass keeps segments for the
+motion pass and the motion pass draws over them; the blocs test still reads
+two allies painted alike; the figures and steady tests hold. Debug:
+`ALIFE_LENS_DEBUG.labels(name)`, `.motion(now)`, `.edgeList()`.
+
+**Still open.** The names are straight; the grand-strategy maps curve them
+along the holding's long axis. The fronts want a war to be seen, and the
+probe world of year 58 had none. The scalar lenses (fertility, moisture and
+the rest) are still tints over the terrain; a smoothed field rather than a
+tile grid would read as the weather maps do.
+
 ## The recent commits, newest first
 
 ```
+0663777  The political lenses are a map mode: veiled ground, bordered holdings, names, and a light on the borders
 247856b  A step is a walk over the time the walker waited for it, and the slow speeds reach the phone
 1967664  Every map lens paints, in one palette, with its edges drawn, and none is hidden
 7c60ca7  The skyline floor is the ground the cities have, and the settler line is the world's own urban gate
