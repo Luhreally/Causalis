@@ -50,7 +50,7 @@
 // the next only when the last is cleared, and never a house, a field, a
 // workshop or a hall. FIELD_GATES counts the crossings the rule allowed a
 // person, the towns the effort passed over, and the buildings pulled down.
-const FIELD_GATES = { crossed: 0, passedOver: 0, pulledDown: 0 };
+const FIELD_GATES = { crossed: 0, passedOver: 0, pulledDown: 0, siteRoom: 0, roomTaken: 0, roomKept: 0 };
 function fieldAtMovementTile(x, y) {
   const b = typeof standingBuildingAtMovementTile === "function" ? standingBuildingAtMovementTile(x, y) : null;
   return b && b.type === "farm" ? b : null;
@@ -100,24 +100,121 @@ const MODERN_CITY_STAGE_TYPES = Object.freeze(["hall", "clinic", "shelter", "wor
 function roomSacrificesFor(type) {
   return type === "launch_tower" ? ROOM_SACRIFICE_FOR_TOWER : ROOM_SACRIFICE;
 }
+// The launch site's own block and factory. The ship needs a skyline and a
+// factory at the place it leaves from (110), and the launch push supplies
+// both there (114); but a full site's siting hands back nothing, and the push
+// had nothing to supply. Variety-14 on battery (HANDOFF section 20): the
+// world's gate was met at 63, and the site Tsuc'chiahim, a city of
+// thirty-four that knew Starflight and had raised its launch tower, stood
+// forty-three years with no factory and sixteen with no block while the four
+// other towns held the world's thirteen blocks and seven factories. The site
+// probe at 72 read forty-four buildings standing there, nine of them
+// stockpiles and four of them walls, and not one plan open; the world shrank
+// from seventy-four to forty-one waiting, and flew at 106 where it had flown
+// at 69. The launch site makes room for its first block and its factory as it
+// does for its launch tower, from the lesser buildings only: a monument, a
+// totem, a shrine, a wall or a spare stockpile, never a block or the homes.
+// Any other city keeps what it has; the skyline the gate asks of the world is
+// the skyline the ground allows.
+//
+// And the ground made is where the building stands. The first form of this
+// pulled down the building nearest the hall and left the siting to find the
+// spot; on variety-14 the block's siting looks past the built rings and never
+// did, the town planned a stockpile on the ground instead, and the site razed
+// fourteen buildings in two years for nothing while a village of six with a
+// tower, two blocks and a factory sent the ship. Now the building pulled down
+// is one whose own spot the wanted building can take, clear of every other
+// footprint and valid ground within the hall's walk; the spot is remembered
+// on the town as the room made, the siting hands it back first once the
+// rubble is carried off, and while a room made still waits nothing else is
+// pulled down, for four years at the most. And the room made is kept for the
+// building it was made for: the tick-by-tick trace of variety-14 at 63 read
+// the totem's rubble carried off in forty-eight ticks and, sixteen ticks
+// later, a second launch tower planned on the spot by the launch push, whose
+// supply plans a tower whenever none is unfinished, standing or not; the
+// block's room was gone and the block's siting had never been asked. No
+// other building's siting is handed ground that overlaps a room made while
+// it waits, and a site whose launch tower stands is not supplied a second.
+// Nor any other town's siting: the same trace with the room kept from the
+// site's own plans read, at 82, a neighbour's monument planned on the spot
+// the site had cleared for its launch tower, its rubble carried off and no
+// plan of the site's laid, the towns of a battery map standing close enough
+// that one's siting rings reach another's ground. A room made is kept from
+// every place's siting, camps included, for the building it was made for.
+const ROOM_WANTED_AT_SITE = new Set(["tower", "factory"]),
+  ROOM_MADE_WAIT = TICKS_PER_YEAR * 4;
+function roomWantedFor(town, type) {
+  if (ROOM_WANTED_FOR.has(type)) return true;
+  if (!ROOM_WANTED_AT_SITE.has(type) || !town?.knownProcesses) return false;
+  const site = typeof modernLaunchSite === "function" ? modernLaunchSite() : null;
+  return !!site && site === town;
+}
 function townRubbleLeft(town) {
   return W.buildings.some((b) => b.ruined && b.placeKind === "settlement" && b.placeId === town.id && ruinRubble(b) > 0);
 }
+// The spot a standing building leaves, as if it were gone: the wanted footprint clear of every other
+// building, ground a building may stand on, and within the hall's walk.
+function roomSpotUsable(town, type, b) {
+  const r = buildingSpatialRadius(type);
+  if (!developmentFootprintClear(b.x, b.y, r, b.id) || !buildingTerrainFootprintValid(type, b.x, b.y)) return false;
+  return typeof openGroundPlotReachable !== "function" || openGroundPlotReachable(town, b.x, b.y);
+}
+function roomMadeLive(town) {
+  const made = town?.roomMade;
+  return !!made && W.tick - made.tick <= ROOM_MADE_WAIT;
+}
+function roomMadePending(town) {
+  if (!town?.roomMade) return false;
+  if (roomMadeLive(town)) return true;
+  delete town.roomMade;
+  return false;
+}
 function makeRoomFor(town, type) {
-  if (!town?.knownProcesses || !ROOM_WANTED_FOR.has(type) || townRubbleLeft(town)) return false;
+  if (!town?.knownProcesses || !roomWantedFor(town, type) || roomMadePending(town) || townRubbleLeft(town)) return false;
   // A plan of the kind already open is room enough; this is for a town whose siting hands back nothing.
   if (W.buildings.some((b) => !b.ruined && !b.complete && b.placeKind === "settlement" && b.placeId === town.id && b.type === type)) return false;
   for (const kind of roomSacrificesFor(type)) {
-    const standing = completedBuildings(town, kind);
-    if (!standing.length || (kind === "stockpile" && standing.length < 2)) continue;
+    const standing = completedBuildings(town, kind).filter((b) => roomSpotUsable(town, type, b));
+    if (!standing.length || (kind === "stockpile" && completedBuildings(town, kind).length < 2)) continue;
     const b = standing.slice().sort((a, c) => dist2(a.x, a.y, town.x, town.y) - dist2(c.x, c.y, town.x, town.y) || a.id - c.id)[0];
     collapseBuilding(b, `pulled down to make room for the ${BUILDING_DEFS[type]?.name || type}`);
     queueRuinSalvage(town);
+    town.roomMade = { type, x: b.x, y: b.y, tick: W.tick };
     FIELD_GATES.pulledDown++;
+    if (ROOM_WANTED_AT_SITE.has(type)) FIELD_GATES.siteRoom++;
     return true;
   }
   return false;
 }
+// Whether a plot of one kind, for any place, would take a room made for another building.
+function roomMadeBlocks(place, type, x, y) {
+  const r = buildingSpatialRadius(type);
+  for (const town of W.settlements) {
+    if (town.ruined || !roomMadeLive(town)) continue;
+    const made = town.roomMade;
+    if (town === place && made.type === type) continue;
+    if (spatialFootprintsOverlap(x, y, r, made.x, made.y, buildingSpatialRadius(made.type))) return true;
+  }
+  return false;
+}
+// The siting hands back the room made first, once the rubble is off it, and hands no other kind a plot on it.
+const plannedBuildingTileRoomBase = plannedBuildingTile;
+plannedBuildingTile = function (place, type, ordinal) {
+  const made = place?.roomMade;
+  if (made && made.type === type) {
+    if (developmentFootprintClear(made.x, made.y, buildingSpatialRadius(type)) && buildingTerrainFootprintValid(type, made.x, made.y)) {
+      delete place.roomMade;
+      FIELD_GATES.roomTaken++;
+      return [made.x, made.y];
+    }
+  }
+  const plot = plannedBuildingTileRoomBase(place, type, ordinal);
+  if (plot && roomMadeBlocks(place, type, plot[0], plot[1])) {
+    FIELD_GATES.roomKept++;
+    return null;
+  }
+  return plot;
+};
 function fieldGatesPushCity(town, pushes) {
   let pushed = 0;
   for (const type of MODERN_CITY_STAGE_TYPES) {
@@ -130,17 +227,32 @@ function fieldGatesPushCity(town, pushes) {
 }
 // The effort's two paths to a launch tower both hand back nothing when the
 // site has no plot: the research push plans the facility a study wants (79)
-// and the launch push supplies the tower (114). Either way, the site makes room.
+// and the launch push supplies the tower (114). Either way, the site makes
+// room; and for its first block and its factory the same, which makeRoomFor
+// grants to the launch site alone.
+// When the building pulled down held nothing, its spot is clear at once and the plan is laid on it in
+// the same push, the siting's backoff (70) notwithstanding; otherwise the salvage carries the rubble
+// off and the next push's plan lands there.
+function roomMadeAfter(place, type, pushes) {
+  if (!(type === "launch_tower" || ROOM_WANTED_AT_SITE.has(type)) || !place?.knownProcesses) return false;
+  if (!makeRoomFor(place, type)) return false;
+  if (place.siteBackoff) delete place.siteBackoff[type];
+  const b = planBuilding(place, type, 9);
+  if (b && typeof modernSupplySite === "function") modernSupplySite(place, b, pushes || 1);
+  return true;
+}
 const causalPushBuildingFieldGatesBase = causalPushBuilding;
 causalPushBuilding = function (place, type, pushes) {
   const pushed = causalPushBuildingFieldGatesBase(place, type, pushes);
-  if (!pushed && type === "launch_tower" && place?.knownProcesses) return makeRoomFor(place, type);
+  if (!pushed) return roomMadeAfter(place, type, pushes);
   return pushed;
 };
 const modernSupplyFieldGatesBase = modernSupply;
 modernSupply = function (place, type, pushes) {
+  // A site whose launch tower stands is not supplied a second one.
+  if (type === "launch_tower" && place?.knownProcesses && completedBuildings(place, "launch_tower").length) return true;
   const supplied = modernSupplyFieldGatesBase(place, type, pushes);
-  if (!supplied && type === "launch_tower" && place?.knownProcesses) return makeRoomFor(place, type);
+  if (!supplied) return roomMadeAfter(place, type, pushes);
   return supplied;
 };
 const modernPushFieldGatesBase = modernPush;
@@ -385,6 +497,9 @@ window.ALIFE_FIELD_GATES_DEBUG = Object.freeze({
   blockRoom: () => modernBlockRoomEstimate(),
   corridorChecks: () => ROAD_CORRIDOR.checked,
   makeRoom: (placeId, type = "hall") => makeRoomFor(W.settlements.find((s) => s.id === placeId), type),
+  roomWanted: (placeId, type = "factory") => roomWantedFor(W.settlements.find((s) => s.id === placeId), type),
+  roomMade: (placeId) => W.settlements.find((s) => s.id === placeId)?.roomMade || null,
+  roomBlocks: (placeId, type, x, y) => roomMadeBlocks(W.settlements.find((s) => s.id === placeId), type, x, y),
   fieldAt: (x, y) => fieldAtMovementTile(x, y)?.id || 0,
   candidates: () => {
     const cities = modernCities();

@@ -167,6 +167,71 @@ const fixtureSource = String.raw`(() => {
   } else out.roomMade = "no monument could stand in the fixture";
   // The launch tower makes room too (138), and may take a block when nothing lesser stands.
   if (!ROOM_WANTED_FOR.has("launch_tower") || !roomSacrificesFor("launch_tower").includes("tower") || roomSacrificesFor("hall").includes("tower")) fail("the launch tower's room-making is wrong");
+  // The launch site makes room for its first block and its factory (138), from the lesser buildings only,
+  // and no other town does.
+  const siteHeld = W.causalLaunchSiteId, launchSite = modernLaunchSite();
+  out.siteRoom = launchSite ? { site: launchSite.name, factory: roomWantedFor(launchSite, "factory"), tower: roomWantedFor(launchSite, "tower"), office: roomWantedFor(launchSite, "office") } : "no site";
+  if (launchSite && (!out.siteRoom.factory || !out.siteRoom.tower || out.siteRoom.office)) fail("the launch site's room-making is wrong: " + JSON.stringify(out.siteRoom));
+  if (launchSite && launchSite !== town && roomWantedFor(town, "factory")) fail("a town that is not the launch site would pull down for a factory");
+  if (roomSacrificesFor("factory").includes("tower") || roomSacrificesFor("tower").includes("tenement") || roomSacrificesFor("tower").includes("tower")) fail("the site's room would take a block or the homes");
+  // The ground made is where the building stands (138): the building pulled down for the site's factory is one
+  // whose spot a factory can take, the spot is remembered as the room made, nothing else falls while it waits,
+  // and once the rubble is off it the factory's siting hands that spot back first.
+  const carryOff = (ruin) => { for (let sp = 0; sp < ruin.composition.length; sp++) { if (ruin.composition[sp]) { town.inventory[sp] = (town.inventory[sp] || 0) + ruin.composition[sp]; ruin.composition[sp] = 0; } } };
+  if (launchSite === town && monument && monument.ruined) carryOff(monument); // the hall block's rubble, carried into the store as the salvage would
+  if (launchSite === town && town.roomMade && town.roomMade.type === "hall") {
+    const madeAt = [town.roomMade.x, town.roomMade.y], hall = planBuilding(town, "hall", 9);
+    out.hallOnRoom = hall ? [hall.x, hall.y] : null;
+    if (!hall || hall.x !== madeAt[0] || hall.y !== madeAt[1] || town.roomMade) fail("the hall was not laid on the room made: " + JSON.stringify([out.hallOnRoom, madeAt]));
+  }
+  let spare = completedBuildings(town, "totem")[0] || null;
+  if (launchSite === town && !spare && !town.roomMade && !townRubbleLeft(town)) {
+    spare = planBuilding(town, "totem", 9);
+    if (spare) {
+      for (const [sp, n] of spare.requirements) { W.conservation.playerInput += n - (spare.composition[sp] || 0); spare.composition[sp] = n; }
+      spare.workDone = spare.workRequired;
+      refreshBuildingStage(spare);
+      if (!spare.complete) spare = null;
+    }
+  }
+  if (launchSite === town && spare && !town.roomMade && !townRubbleLeft(town)) {
+    const usable = roomSpotUsable(town, "factory", spare);
+    out.siteRoomMade = makeRoomFor(town, "factory");
+    out.siteRoomAt = town.roomMade ? [town.roomMade.x, town.roomMade.y, town.roomMade.type] : null;
+    out.siteSecondFall = makeRoomFor(town, "factory");
+    if (usable && (!out.siteRoomMade || !spare.ruined || !out.siteRoomAt || out.siteRoomAt[0] !== spare.x || out.siteRoomAt[2] !== "factory" || out.siteSecondFall)) fail("the site's room went wrong: " + JSON.stringify([usable, out.siteRoomMade, spare.ruined, out.siteRoomAt, out.siteSecondFall]));
+    if (!usable && out.siteRoomMade && spare.ruined) fail("a building whose spot the factory cannot take was pulled down");
+    if (out.siteRoomMade) {
+      // The room made is kept for the factory: another kind's plot on it is refused while it waits.
+      out.roomKeptFromShelter = roomMadeBlocks(town, "shelter", spare.x, spare.y);
+      out.roomOpenToFactory = roomMadeBlocks(town, "factory", spare.x, spare.y);
+      out.roomKeptBeside = roomMadeBlocks(town, "stockpile", spare.x + 1, spare.y);
+      out.roomKeptFromNeighbour = roomMadeBlocks(null, "monument", spare.x, spare.y);
+      if (!out.roomKeptFromShelter || out.roomOpenToFactory || !out.roomKeptBeside || !out.roomKeptFromNeighbour) fail("the room made is not kept for its building: " + JSON.stringify([out.roomKeptFromShelter, out.roomOpenToFactory, out.roomKeptBeside, out.roomKeptFromNeighbour]));
+      carryOff(spare);
+      const factory = planBuilding(town, "factory", 9);
+      out.factoryOnRoom = factory ? [factory.x, factory.y] : null;
+      if (!factory || factory.x !== spare.x || factory.y !== spare.y || town.roomMade) fail("the factory was not laid on the room made: " + JSON.stringify([out.factoryOnRoom, spare.x, spare.y, town.roomMade]));
+    }
+  } else out.siteRoomMade = "no spare building or the room is still pending in the fixture";
+  // A site whose launch tower stands is not supplied a second one (138).
+  let standingLaunch = completedBuildings(town, "launch_tower").length;
+  if (!standingLaunch && !town.roomMade) {
+    const tower = planBuilding(town, "launch_tower", 9);
+    if (tower) {
+      for (const [sp, n] of tower.requirements) { W.conservation.playerInput += n - (tower.composition[sp] || 0); tower.composition[sp] = n; }
+      tower.workDone = tower.workRequired;
+      refreshBuildingStage(tower);
+      standingLaunch = completedBuildings(town, "launch_tower").length;
+    }
+  }
+  if (standingLaunch) {
+    const plansBefore = W.buildings.filter((b) => !b.ruined && !b.complete && b.placeKind === "settlement" && b.placeId === town.id && b.type === "launch_tower").length;
+    out.secondLaunchTower = modernSupply(town, "launch_tower", 3);
+    const plansAfter = W.buildings.filter((b) => !b.ruined && !b.complete && b.placeKind === "settlement" && b.placeId === town.id && b.type === "launch_tower").length;
+    if (out.secondLaunchTower !== true || plansAfter !== plansBefore) fail("a site with a launch tower standing was supplied a second: " + JSON.stringify([out.secondLaunchTower, plansBefore, plansAfter]));
+  } else out.secondLaunchTower = "no launch tower stands in the fixture";
+  W.causalLaunchSiteId = siteHeld;
   // The road the ground allows (138): with one town there is nothing to join and the road is still wanted;
   // the corridor read is a function of the living towns and answers false for one town.
   const living = W.settlements.filter((s) => !s.ruined && s.knownProcesses).length;

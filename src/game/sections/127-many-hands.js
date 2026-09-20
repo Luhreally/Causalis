@@ -167,11 +167,30 @@ function manyHandsStudy(target) {
 // order together, less than a tower or the craft — so a city that has
 // emptied yields to one that has not, and a town that holds the tower is
 // still held whatever the other town's size, which is the rule 114 set.
+// And a town that could launch today, its launch tower, its skyline and its
+// works all standing (110), outranks one that must still make room for them:
+// four points, the craft's worth, so a ready town that lacks the craft ties
+// with a knowing one that lacks the industry and the held site keeps. On
+// battery variety-14 the held site, a full city with neither block nor
+// factory, stood at the gate from 63 while Vragud-an, fourteen people with
+// five blocks, four factories, a launch tower and Starflight, scored the
+// same 34 and was never chosen (HANDOFF section 26). A town whose blocks and
+// works stand but whose tower does not gets nothing for them: the modern
+// test's site, its tower pulled down and its people gone to a neighbour that
+// held its industry, must keep the site and raise its own.
+function manyHandsSiteReady(s) {
+  return (
+    completedBuildings(s, "launch_tower").length > 0 &&
+    typeof hasSkyline === "function" && hasSkyline(s) &&
+    typeof hasWorks === "function" && hasWorks(s)
+  );
+}
 function manyHandsSiteScore(s, local) {
   return (
     (cityStage(s) ? 16 : 0) +
     completedBuildings(s, "launch_tower").length * 8 +
     (s.knownProcesses.includes("starflight") ? 4 : 0) +
+    (manyHandsSiteReady(s) ? 4 : 0) +
     (settlementPopulation(s) >= local ? 3 : 0) +
     (modernGroundworkMissing(s).length ? 0 : 2) +
     ((s.stability || 0) >= 0.35 ? 1 : 0)
