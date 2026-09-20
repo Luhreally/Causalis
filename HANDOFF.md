@@ -108,7 +108,7 @@ npm run test:fast > log 2>&1
 bash $SCRATCH/suite-check.sh log 110
 ```
 
-The expected count is the number of `"ok": true` lines, currently **110**. It
+The expected count is the number of `"ok": true` lines, currently **111**. It
 changes only when you add a test file. A green suite is necessary and not
 sufficient — see "Pitfalls".
 
@@ -3276,9 +3276,163 @@ before; and the site score's four points for a ready town are a tie-break,
 not a rule, so a knowing city with neither block nor factory can still be
 chosen over a ready village that lacks the craft.
 
+### 27. Four a farm, and a place for every twenty-four (2026-09-20; battery and phone only)
+
+Asked for: "increase size to increase bed occupations and sheltered
+population", a class divide and the homeless allowed where they emerge, and
+no crazy slowdown.
+
+**What the beds were.** `scratchpad/housing-probe.cjs <seed> <size> <years>`
+reads the world's people, beds and housed every few years, and the sweep
+logs of section 26 carry each town's residents and beds at every press. At
+year sixty, lean, battery causal-origin held 80 people in 384 beds and phone
+89 in 444: one bed in five slept in. At the ship it is worse, because the
+beds come from the modern gate (114), which asks a skyline of sixteen blocks
+and more of a world whatever its people, and an apartment count beside it:
+Flinthollow at the ship held 49 people in 342 beds, Kizsh'zoumer 61 in 750.
+The people come from the fields floor of 127, forty and two for every
+finished farm, and the granary plans a farm for every six people (82), so
+the floor sat at a third of what the fields feed. The ground's own formula
+(23, tiles by density by food by crafts) reads 60 on battery and 105 on
+phone at year sixty, so the floor is the cap on both sizes.
+
+**The levers tried.** `scratchpad/pop-probe.cjs <seed> <size> <years>` with
+`DENSITY`, `PER_FARM`, `FLOOR` and `PER_TOWN` in the environment patches the
+constants in the composed script and reads people, capacity, floor, hungry
+share, farms, towns, beds, housed and the tick's cost every five years. Six
+worlds ticked at once each batch, so the tick costs compare within a batch
+and are inflated against a run alone. Causal-origin at year sixty:
+
+| lever | battery: people, towns, beds, housed, tick | phone: people, towns, beds, housed, tick |
+| --- | --- | --- |
+| base | 80, 5, 384, 80, 1.0 | 89, 6, 444, 89, 1.0 |
+| density 0.016, four a farm | 158, 9, 390, 153, 2.2 | 222, 13, 516, 218, 3.0 |
+| density 0.024, six a farm | 233, 10, 372, 212, 3.5 | 250 and 73 in cohorts, 14, 702, 241, 2.8 |
+| density 0.012, three a farm | 107, 7, 414, 107, 1.3 | 157, 8, 390, 149, 1.4 |
+| density 0.016, four a farm, a place per twenty-four | 162, 5, 324, 159, 1.7 | 240, 7, 450, 220, 2.75 |
+| four a farm | 152, 9, 324, 144, 1.7 | 167, 10, 432, 162, 1.4 |
+| **four a farm, a place per twenty-four** | **151, 5, 336, 137, 1.4** | **157, 6, 390, 156, 1.3** |
+
+The ground's density doubled runs phone at the two hundred and fifty the
+world keeps as people (12, `CAPS.person`), past which the youngest are
+folded into cohorts, and costs up to 2.75 times. Four a farm alone founds
+towns with the people it adds, nine and ten where there were five and six,
+each with its cottages, and costs 1.7. Four a farm with a place for every
+twenty-four people keeps the same five and six towns, fills the city to 67
+and 76 where it held 32 and 28, leaves fourteen seeking a bed on battery
+(Fenwatch, 25 people in 30 beds), and costs 1.4 and 1.3. That is the change.
+
+**The change.** `MANY_HANDS_PER_FARM` 2 to 4 (127): the floor under a
+farming world's people is forty and four a farm, still two thirds of what
+the granary's own count says the fields feed, and still not lifted while
+two in five townspeople are hungry. `PLACE_PEOPLE_PER_TOWN` 14 to 24 (30e):
+a world founds a place for every twenty-four people, the line a town must
+reach to send settlers (68), read through `placePeoplePerTown` as before,
+so the urban gate's own count still wins where it is larger. The comments
+in 68 and 127 that named the fourteen name the twenty-four. Debug:
+`ALIFE_MANY_HANDS_DEBUG.perFarm`. Test: `tests/many-hands-smoke.cjs`
+asserts forty and four a farm and that a finished farm lifts the floor by
+four. The hash stays 6bee0692: the floor acts once the people pass
+seventy-eight hundredths of it, thirty-one on a floor of forty, and the
+place count acts once the world holds fifty-six, and neither comes before
+year eight on battery causal-origin. The ground's density (23) is untouched,
+so the standard and larger maps, where the formula already exceeds the
+floor, change only by the place count.
+
+**The first sweep, and the village it starved** (`scratchpad/sweep-run-pop.sh
+pop 6`: eleven seeds, forty presses, lean, six worlds at a time from a
+worktree at 0cf7aa4, against the launch-site sweep of section 26). Battery,
+ship year, section 26 then this: causal-origin 57 then 54 with 140 people
+where there were 93; ship-b 119 then 137; ship-c 74 then 70; variety-1 61
+then 58; variety-2 64 then 56; variety-3 133 then 92; variety-4 77 then 80;
+variety-5 70 then 64; variety-6 96 then 129; variety-7 91 then 110;
+variety-8 76 then 70: earlier 7, later 4, median three years earlier, mean
+the same, no world lost. Phone, as far as it ran before the session ended
+(six of eleven, variety-3 cut at press eighteen, year 64, with no ship yet
+where section 26 flew at 66): causal-origin 72 then 62 with 158 people
+where there were 121; ship-b 65 then 59; ship-c 76 then 80; variety-1 60
+then 58; variety-2 62 then 62; variety-4 84 then 81. But three of the four
+later battery worlds starved a village: the famine toll over the run was 40
+on variety-7 where it had been 7, 32 on variety-4 where 8, 22 on variety-6
+where 9. `scratchpad/famine-probe.cjs variety-7 battery 56 84 4` read the
+village: Aran, forty-eight people in a polity of its own, forty-four tiles
+from any fed town, three farms where it wanted eight, food under eight,
+settler urge 0.68 with a site found, and no room to go, because eighty-two
+people over twenty-four allows four places and four stood (three towns and
+a camp). Its hungry share went 0.10, 0.64, 0.91 over eight years; relief
+had no donor (another polity), the hungry could not walk (the fed towns
+past the forty tiles of 82's walk), the world's famine brake fired at year
+sixty-four and stopped births while the village starved from forty-seven
+to fourteen. At a place for every fourteen it had sent its settlers at
+seventy people, which is how the count had taken the valve away.
+
+**The valve (68, `famineCrowdedTowns`, `placesAllowed`; 5de607d and
+3e015b4).** A town past the settlers' line that the granary reads as in
+famine (82: a larder under five, or two in five of the town hungry, the line
+127's brake uses) is a place of its own in the count, so its settlers leave
+whatever the count says; one place a town, since the places that stand are
+counted against it, and the effort's own rule stands over it as before
+(127: nothing founded once the modern stages are sought). The first cut
+read the lean line instead (a larder under ten, or a quarter hungry), and
+its sweep showed why not: the hungry share of a fed working town swings a
+fifth to a half from year to year, so on battery variety-4 the valve opened
+places before year forty, the world stood in six towns by fifty-five and
+seven by a hundred and thirty, no city raised a block, and at 189 it had
+not flown where it flew at 77 (and at 80 under the first form). That sweep
+was stopped at eleven battery worlds: causal-origin 55, ship-b 137, ship-c
+70, variety-1 58, variety-2 55, variety-3 97, variety-5 71, variety-6 119,
+variety-7 119, variety-8 76, variety-4 none by 189. Aran's larder read
+under two at fifty-six with a tenth of the village hungry, so the famine
+line catches the starving village as early. Debug:
+`ALIFE_EXPANSION_DEBUG.allowed`, `.famineCrowded`, `.room`. Test:
+`tests/expansion-smoke.cjs` lowers the settlers' line to one, makes the
+fixture's town hungry (its ground forages too well for an empty store to
+read famine) and asserts the town is counted once and opens exactly one
+place. The hash stays 6bee0692.
+
+**The sweep, both sizes** (`scratchpad/sweep-run-pop3.sh pop3 6`, launched
+by `launch-pop3.ps1` so a session's end cannot kill it: eleven seeds, forty
+presses, lean, six worlds at a time from a worktree at 3e015b4, against the
+launch-site sweep of section 26). Battery, ship year, section 26 then this,
+with the people at the ship: causal-origin 57 then 55 (93 then 140); ship-b
+119 then 137 (77 then 74); ship-c 74 then 69 (78 then 120); variety-1 61
+then 58 (82 then 128); variety-2 64 then 56 (81 then 157); variety-3 133
+then 97 (71 then 132); variety-4 77 then 83 (74 then 170); variety-5 70
+then 67 (79 then 142); variety-6 96 then 106 (102 then 201); variety-7 91
+then 121 (71 then 133); variety-8 76 then 76 (83 then 160): earlier 6,
+later 4, same 1, median two years earlier, mean the same, no world lost.
+Phone: causal-origin 72 then 62 (121 then 158); ship-b 65 then 61 (132
+then 146); ship-c 76 then 80 (127 then 95); variety-1 60 then 58 (135 then
+138); variety-2 62 then 65 (136 then 161); variety-3 66 then 67 (110 then
+131); variety-4 84 then 84 (85 then 95); variety-5 65 then 67 (137 then
+150); variety-6 80 then 73 (106 then 205); variety-7 64 then 61 (140 then 140); variety-8 67 then 73
+(148 then 141): earlier 5, later 5, same 1, median the same, mean a year
+earlier, no world lost. The famine tolls the first form raised are down where the
+valve acts: battery variety-4 at 2 where the first form had 32 and section
+26 had 8, variety-6 at 6 where 22 and 9, variety-7 at 11 where 40 and 7;
+the world's people at the ship are half again to twice what they were on
+battery and a tenth more on phone, two phone worlds fewer, in the same
+towns. The later worlds are
+the scatter of a changed course, not famine: ship-b's eighteen stand under
+every form of the round with the same seventy-four people, and variety-7's
+thirty come with 133 people fed.
+
+**Still open.** The beds are still the modern gate's: a skyline of sixteen
+blocks and more is asked of every world whatever its people, so at the ship
+a city of seventy stands in two hundred beds. The gate's skyline could
+follow the people (a block for every eighteen is already the rule for the
+extra blocks past the floor, `MODERN_TOWER_PER_PEOPLE`), but the floor of
+sixteen is the ship's road as swept; lowering it is the next lever if the
+towers are still too empty, and it needs the sweep. The tick's cost grows
+with the people, near enough one for one; the 250 ceiling stands as the
+guard.
+
 ## The recent commits, newest first
 
 ```
+3e015b4  The valve reads the granary's famine line, not its lean line
+5de607d  A crowded town with a lean larder is a place of its own in the count
+0cf7aa4  A farming world holds four people a farm, and founds a place for every twenty-four
 5b2fb1f  The launch site makes room for its first block and its factory as for its launch tower
 85ea564  The columns of a polity rally within reach of the gate, and a defender meets the column on the road
 9384b77  The war seen: a warfare lens, formations and objectives on the map, a Warfare tab that reads the war; the signal lenses hear a whisper
