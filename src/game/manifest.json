@@ -158,5 +158,6 @@
   "138-field-gates.js",
   "139-follow.js",
   "140-map-lenses.js",
-  "141-settled-intent.js"
+  "141-settled-intent.js",
+  "142-warfare-view.js"
 ]

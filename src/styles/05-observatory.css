@@ -277,6 +277,41 @@
 .campaign-requirement {
   padding: 4px 0;
 }
+.war-card h3 .lens-swatch {
+  margin-left: 0;
+}
+.war-strength {
+  display: flex;
+  height: 6px;
+  margin-top: 8px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #0b1418;
+}
+.war-strength span {
+  display: block;
+  height: 100%;
+}
+.war-unit {
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+.war-unit .lens-swatch {
+  margin-left: 0;
+}
+.war-bar {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: #0b1418;
+  overflow: hidden;
+  align-self: center;
+}
+.war-bar span {
+  display: block;
+  height: 100%;
+}
 
 .good-text {
   color: #9cd38c;

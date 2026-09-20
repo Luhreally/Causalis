@@ -687,10 +687,56 @@ if (factions) {
     lensReport.mapMode = { segments: list.segments, fronts: list.fronts, labels: list.labels };
   }
 }
+// The signal lenses read faint things (140): a whisper shows, a shout is a shout, and calm is a veil.
+const sig = lens.signalStyle("fear", 2), loud = lens.signalStyle("fear", 60), calm = lens.style("fear", 0);
+assert.ok(sig && sig.alpha >= 0.28, "a whisper of fear does not show: " + JSON.stringify(sig));
+assert.ok(loud && loud.alpha > sig.alpha + 0.2, "a shout of fear is not louder than a whisper: " + JSON.stringify([sig, loud]));
+assert.ok(typeof calm === "string" && alphaOf(calm) >= 0.1, "the fear lens is not visibly on when calm: " + calm);
+for (const id of ["blood", "unrest", "danger", "disease"]) assert.ok(lens.signalStyle(id, 5).alpha >= 0.3, `the ${id} lens is not sensitive`);
+lensReport.signals = { whisper: sig.alpha, shout: loud.alpha };
+// The war seen (142): a warfare lens in the panel that veils and tints, the tab that reads the war, and
+// the marks a column carries.
+const warview = windowObject.ALIFE_WARVIEW_DEBUG;
+assert.ok(warview, "the war view initializes");
 run("() => { UI.overlay = null; }")();
 const grid = element("overlayGrid");
-assert.ok((grid.innerHTML.match(/overlay-group/g) || []).length >= 5, "the lenses are not grouped");
-assert.equal((grid.innerHTML.match(/overlay-btn/g) || []).length, lensIds.length, "not every lens has a button");
+assert.ok((grid.innerHTML.match(/overlay-group/g) || []).length >= 6, "the lenses are not grouped");
+assert.equal((grid.innerHTML.match(/overlay-btn/g) || []).length, lensIds.length + 1, "not every lens has a button");
+assert.ok(grid.innerHTML.includes('data-overlay="warfare"'), "the warfare lens has no button");
+for (const i of sample) assert.ok(colourShape.test(lens.style("warfare", i)), "the warfare lens painted no colour at " + i);
+const warHtml = warview.html();
+assert.ok(/war(s)? · \d+ column/.test(warHtml), "the warfare tab does not read the war: " + warHtml.slice(0, 120));
+const marks = run(`() => {
+  const people = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.position[id]);
+  if (people.length < 5) return { skipped: "too few people" };
+  const town = W.settlements.find((s) => !s.ruined) || null,
+    column = (id, memberIds) => ({ id, factionId: town?.factionId || 1, homeSettlementId: town?.id || 0, memberIds, training: 0, supply: 0.8, morale: 0.6, objectiveSettlementId: 0, formedTick: W.tick, lastBattleTick: -1, phase: "marching", phaseDetail: "", phaseTick: W.tick, lastProgressTick: W.tick, stalledTicks: 0, active: true }),
+    // Two columns: one of three with a straggler eighteen tiles off, one of two at the same spot.
+    units = [column(910777, people.slice(0, 3)), column(910778, people.slice(3, 5))],
+    saved = people.slice(0, 5).map((id) => ({ id, x: W.components.position[id].x, y: W.components.position[id].y })),
+    p = W.components.position[people[0]],
+    ox = clamp(Math.round(p.x), 20, W.width - 2), oy = clamp(Math.round(p.y), 1, W.height - 2),
+    put = (id, x, y) => { W.components.position[id].x = x; W.components.position[id].y = y; };
+  put(people[0], ox, oy); put(people[1], ox + 1, oy); put(people[2], ox - 18, oy); put(people[3], ox, oy + 1); put(people[4], ox + 1, oy + 1);
+  W.militaryUnits = W.militaryUnits || [];
+  W.militaryUnits.push(...units);
+  const geometry = window.ALIFE_WARVIEW_DEBUG.geometry(910777);
+  UI.view = "top"; UI.overlay = "warfare"; UI.camera.zoom = 2; UI.camera.x = ox + 0.5; UI.camera.y = oy + 0.5;
+  const before = window.ALIFE_WARVIEW_DEBUG.counts();
+  renderWorld(31000);
+  const after = window.ALIFE_WARVIEW_DEBUG.counts();
+  W.militaryUnits = W.militaryUnits.filter((u) => !units.includes(u));
+  for (const s of saved) put(s.id, s.x, s.y);
+  UI.overlay = null;
+  return { geometry, outlines: after.outlines - before.outlines, banners: after.banners - before.banners, labels: after.labels - before.labels };
+}`)();
+if (!marks.skipped) {
+  assert.ok(marks.outlines >= 2 && marks.banners >= 2, "a column carries no formation mark under the war lens: " + JSON.stringify(marks));
+  const g = marks.geometry;
+  assert.ok(g && g.n === 3 && g.coreN === 2 && g.stragglers === 1 && g.spread <= 1, "the formation is not the knot of fighters who stand together: " + JSON.stringify(g));
+  assert.strictEqual(marks.labels, 1, "two columns marching at one place print two words, not one with a count: " + JSON.stringify(marks));
+}
+lensReport.war = marks;
 lensReport.contours = contours;
 report.lenses = lensReport;
 

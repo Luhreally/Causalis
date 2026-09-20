@@ -71,6 +71,102 @@ const LENS_VEIL_LAND = "rgba(8,14,20,0.38)",
   LENS_FILL_ALPHA = 0.58,
   LENS_SWITCH_MS = 320,
   LENS_LABEL_MIN_TILES = 10;
+// The signal lenses read faint things. Blood, fear and unrest were painted
+// on a straight ramp of their value over a hundred, and on the year-58 world
+// the strongest blood was four in a hundred and the strongest fear seven, so
+// the lenses were blank; asked for: detailed, sensitive, clear at any time.
+// A signal now paints on a log ramp, so a whisper of it shows and a shout is
+// still a shout, over a calm veil that says the lens is on even where there
+// is nothing, and the strongest sites are ringed and named in the badge: the
+// last deaths for blood, the fear's springs, the towns in unrest.
+const LENS_SIGNALS = Object.freeze({
+  // The gain sets the log ramp's ear: at 1.5 a signal of two in a hundred
+  // paints at a third of the way, sixty at nine tenths.
+  blood: { hue: [352, 345], sat: [78, 92], light: [52, 40], gain: 1.6 },
+  fear: { hue: [44, 8], sat: [88, 94], light: [58, 50], gain: 1.5 },
+  danger: { hue: [36, 2], sat: [88, 92], light: [58, 48], gain: 1.2 },
+  disease: { hue: [300, 280], sat: [60, 82], light: [62, 46], gain: 1.2 },
+  unrest: { hue: [36, 4], sat: [86, 90], light: [56, 50], gain: 1.5 },
+}),
+  LENS_SIGNAL_CALM = "rgba(8,14,20,0.14)",
+  LENS_SIGNAL_SITES = { world: null, name: "", at: 0, sites: [] };
+function lensSignalValue(name, i) {
+  if (name === "unrest") return typeof unrestMask === "function" ? clamp(unrestMask()[i] * 100, 0, 100) : 0;
+  return clamp(overlayValue(name, i), 0, 100);
+}
+function lensSignalStyle(name, i) {
+  const sig = LENS_SIGNALS[name],
+    v = lensSignalValue(name, i);
+  if (v <= 0.05) return LENS_SIGNAL_CALM;
+  const u = clamp(Math.log1p(v * sig.gain) / Math.log1p(100 * sig.gain), 0, 1),
+    h = sig.hue[0] + (sig.hue[1] - sig.hue[0]) * u,
+    s = sig.sat[0] + (sig.sat[1] - sig.sat[0]) * u,
+    l = sig.light[0] + (sig.light[1] - sig.light[0]) * u;
+  return hsl(h, s, l, 0.16 + 0.62 * u);
+}
+// The strongest sites of a signal, read once a second: the tiles that lead,
+// each named by the nearest town.
+function lensSignalSites(name, limit = 8) {
+  const key = `${name}:${Math.floor(W.tick / 32)}`;
+  if (LENS_SIGNAL_SITES.world === W && LENS_SIGNAL_SITES.name === key) return LENS_SIGNAL_SITES.sites;
+  const best = [];
+  for (let i = 0; i < W.tileCount; i++) {
+    const v = lensSignalValue(name, i);
+    if (v <= 1) continue;
+    if (best.length < limit) best.push({ i, v });
+    else if (v > best[best.length - 1].v) best[best.length - 1] = { i, v };
+    else continue;
+    best.sort((a, b) => b.v - a.v);
+  }
+  const sites = best.map((s) => {
+    const [x, y] = xy(s.i);
+    let town = null,
+      d = Infinity;
+    for (const q of W.settlements) {
+      if (q.ruined) continue;
+      const dd = dist2(q.x, q.y, x, y);
+      if (dd < d) {
+        d = dd;
+        town = q;
+      }
+    }
+    return { i: s.i, x, y, v: s.v, town: town?.name || "", near: d <= 64 };
+  });
+  LENS_SIGNAL_SITES.world = W;
+  LENS_SIGNAL_SITES.name = key;
+  LENS_SIGNAL_SITES.sites = sites;
+  return sites;
+}
+function drawLensSignalSites(now, m) {
+  const name = UI.overlay;
+  if (!LENS_SIGNALS[name]) return 0;
+  const sites = lensSignalSites(name),
+    sig = LENS_SIGNALS[name];
+  let drawn = 0;
+  ctx.save();
+  for (const s of sites) {
+    const p = proceduralProjectTile(s.x + 0.5, s.y + 0.5, m),
+      u = clamp(Math.log1p(s.v * sig.gain) / Math.log1p(100 * sig.gain), 0.2, 1),
+      r = m.tw * (1.2 + 1.6 * u) * (0.85 + 0.15 * Math.sin(now * 0.004 + s.i));
+    ctx.strokeStyle = hsl(sig.hue[1], sig.sat[1], 62, 0.85);
+    ctx.lineWidth = clamp(1 + m.tw * 0.05, 1.2, 3);
+    ctx.setLineDash([m.tw * 0.5, m.tw * 0.35]);
+    ctx.lineDashOffset = -((now / 40) % (m.tw * 0.85));
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, r, r * (UI.view === "top" ? 1 : m.th / m.tw), 0, 0, Math.PI * 2);
+    ctx.stroke();
+    drawn++;
+  }
+  ctx.restore();
+  return drawn;
+}
+function lensSignalLegendHTML(name) {
+  const def = OVERLAY_DEFS.find((d) => d[0] === name),
+    sites = lensSignalSites(name, 4),
+    label = def ? def[1] : titleCase(name);
+  if (!sites.length) return `${esc(label)} · calm everywhere`;
+  return `${esc(label)} · strongest ${sites.map((s) => `${Math.round(s.v)}${s.town ? ` ${s.near ? "at" : "near"} ${esc(s.town)}` : ""}`).join(", ")}`;
+}
 const LENS_RANGE = { world: null, key: "", temperature: null, bands: null };
 const LENS_GROUPS = Object.freeze([
   ["Land", ["elevation", "temperature", "moisture", "fertility", "fire", "season"]],
@@ -299,6 +395,10 @@ function lensCategoryName(name, key) {
 }
 const overlayStyleLensBase = overlayStyle;
 overlayStyle = function (name, i) {
+  if (LENS_SIGNALS[name]) {
+    LENS.fills++;
+    return lensSignalStyle(name, i);
+  }
   const ramp = LENS_RAMPS[name];
   if (ramp) {
     let t = clamp(overlayValue(name, i) / 100, 0, 1);
@@ -566,6 +666,7 @@ function drawLensMotion(now, m) {
     ctx.restore();
     drawn += drawLensLabels(LENS_EDGE_LIST.labels);
   }
+  if (LENS_SIGNALS[name]) drawn += drawLensSignalSites(now, m);
   const since = now - LENS.switchedAt;
   if (LENS.switchedAt && since >= 0 && since < LENS_SWITCH_MS) {
     const t = since / LENS_SWITCH_MS;
@@ -619,6 +720,7 @@ setOverlay = function (name) {
     DOM.mapOverlay.textContent = "Elevation · the land's lowest fifth green to its highest fortieth white, four blues by depth, contours where the band changes";
   else if (UI.overlay === "temperature") DOM.mapOverlay.textContent = "Temperature · this world's coldest ground blue to its warmest red, over land and sea";
   else if (UI.overlay === "moisture") DOM.mapOverlay.textContent = "Moisture · tan dry to blue wet";
+  else if (LENS_SIGNALS[UI.overlay]) DOM.mapOverlay.innerHTML = lensSignalLegendHTML(UI.overlay);
   lensRefreshLegend();
 };
 // ── The panel: every lens, in groups ─────────────────────────────────────────
@@ -656,6 +758,8 @@ window.ALIFE_LENS_DEBUG = Object.freeze({
   range: () => ({ bands: [...lensWorldRange().bands], temperature: [...lensWorldRange().temperature] }),
   legend: (name = UI.overlay) => lensLegendEntries(name),
   labels: (name = UI.overlay) => lensLabelsFor(name, projectionMetrics()).map((l) => ({ key: l.key, text: l.text, tiles: l.tiles, px: l.px, capital: !!l.capital })),
+  signalSites: (name = UI.overlay) => lensSignalSites(name),
+  signalStyle: (name, v) => { const sig = LENS_SIGNALS[name]; if (!sig) return null; const u = clamp(Math.log1p(v * sig.gain) / Math.log1p(100 * sig.gain), 0, 1); return { u: +u.toFixed(3), alpha: +(0.16 + 0.62 * u).toFixed(3) }; },
   motion: (now = performance.now()) => drawLensMotion(now, projectionMetrics()),
   edgeList: () => ({ name: LENS_EDGE_LIST.name, segments: LENS_EDGE_LIST.segments.length, fronts: LENS_EDGE_LIST.fronts.length, labels: LENS_EDGE_LIST.labels.length }),
   edges: (name) => {
