@@ -2779,9 +2779,77 @@ hall, a clinic and the launch tower, not the site's own factory or its first
 block; that, or a site that moves to the city with ground, is the next
 lever.
 
+### 21. The map lenses: every one paints, in one palette, with its edges drawn (2026-09-19)
+
+Asked for: the map lenses (the panel of that name: elevation, temperature,
+cultures, polities and borders, and the rest) "aren't displaying", and make
+them coherent and beautiful. Two things were true at once.
+
+**Most were hidden.** The simple controls that section 45 turns on by
+default (`compact-controls`) hid every lens but fertility, moisture,
+polities and population behind "All controls"
+(`08-player-experience.css`), so a fresh install offered four of
+twenty-six. The rule is gone; the tools stay compact and the lenses stand in
+five groups: Land, Life, Peoples, Works, Story.
+
+**The rest painted thinly.** Screenshots of a battery world at year fourteen
+in the top-down lens, and `overlay-probe.cjs` on a year-58 world with six
+towns, two polities and two peoples: elevation one colour, a white wash at
+mean alpha 0.29, no bands, no contours, the sea washed too; temperature one
+flat green over land and sea, twenty degrees falling mid-ramp; cultures one
+hue at alpha 0.04 at the edge of a town's reach; polities a blob fading to
+0.04 at the edge, its border a one-pixel stair drawn in the top-down lens
+only at the high render detail, so none on the default, and that same
+polity border drawn under every other lens; belief a flat grey at 0.12.
+
+**The mend (140, `overlayStyle` as the last link).** A scalar lens is a
+ramp of hue stops over its value with an alpha from a faint tint to a firm
+one; lenses that mean nothing at sea let it through at a third. Elevation is
+hypsometric: eight bands from lowland green to white at set shares of the
+land's tiles (the lowest fifth green, the highest fortieth white, so every
+world wears the whole ramp), four blues by depth at sea, and contour lines
+where the band changes. Temperature runs from this world's coldest ground to
+its warmest, read between the half-percentiles once every 256 ticks and
+kept beside the world. Polities, alliances and cultures fill by category at
+one legible alpha, a third of it over the sea, and draw their own edges in
+every lens and at every detail (`drawLensEdges`, called after the terrain
+of each lens in 32b): a dark line under a coloured one, two colours inset
+toward their own tiles where two meet, from the same tile polygons the tiles
+use, so the line sits on the tile's edge in the isometric and free lenses.
+Each people has a colour by the golden angle round its place in the roll.
+The map badge lists the polities, blocs or peoples with the most ground,
+each with a swatch, refreshed as the edges are redrawn. The plain map keeps
+its old high-detail polity border; a lens replaces it with its own.
+
+**After.** `overlay-probe.cjs` on the same year-58 world: territory at a
+mean alpha of 0.36 with no faint tiles (was 0.28 fading to 0.04); culture
+0.37 in its own colour (was 0.28 at hue 79); elevation in eight colours
+(was one) with 1,359 contour edges; temperature over the whole ramp;
+one hundred border edges for each categorical lens in each of the three
+views; the badge naming The Iron Concord and the Reed Ways. Screenshots of
+the year-14 world before and after are in the session scratchpad
+(`ov-*.png`, `ovb-*.png`).
+
+**Measured.** The mobile test asserts every lens paints a well-formed colour
+on every sampled tile; elevation, temperature and moisture cover the whole
+map; the elevation lens finds at least three bands and draws contours in all
+three lenses (1,997 edges top-down, 2,953 isometric and free on the phone
+probe world); a polity with ground has a legible fill, a border and a legend
+entry; the panel groups every lens with none missing; the simple controls'
+stylesheet no longer hides them; and rendering through a lens leaves the
+world's hash alone. Debug: `window.ALIFE_LENS_DEBUG` (counts, groups,
+style, category, band, range, legend, edges).
+
+**Still open.** The species lens colours by the dominant lineage in a
+spatial bin, a scatter rather than a range; routes paint traffic in brown
+and trade in gold but no road lines; history is a gold haze at the annals'
+places. Those three could take the same treatment: a category, its edges,
+its legend.
+
 ## The recent commits, newest first
 
 ```
+1967664  Every map lens paints, in one palette, with its edges drawn, and none is hidden
 7c60ca7  The skyline floor is the ground the cities have, and the settler line is the world's own urban gate
 552d639  The sky is deep: the tiles breathe against an atmosphere of oxidant and gas, so a world that lives to the gate does not suffocate
 89c37d1  A world whose towns have fallen founds again, and a city makes room for its launch tower
