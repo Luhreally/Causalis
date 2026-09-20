@@ -28,18 +28,19 @@ const fixtureSource = String.raw`(() => {
   // ── The people floor follows the fields ──
   const farms = () => W.buildings.filter((b) => b.type === "farm" && b.complete && !b.ruined && b.placeKind === "settlement" && W.settlements.some((t) => t.id === b.placeId && !t.ruined)).length;
   out.floorBare = [hands.floor(), farms()];
-  if (hands.perFarm() !== 6) fail("the floor grants other than six a farm: " + hands.perFarm());
-  const harvestFloor = (n) => Math.min(CAPS.person, Math.max(40, 6 * n));
-  if (out.floorBare[0] !== harvestFloor(out.floorBare[1])) fail("the floor is not the harvest or forty under the ceiling: " + out.floorBare.join(" with farms "));
+  if (hands.perFarm() !== 4 || hands.harvestPerFarm() !== 6) fail("the floor grants other than four a farm over the forty and a harvest of six: " + hands.perFarm() + "/" + hands.harvestPerFarm());
+  const harvestFloor = (n) => Math.min(CAPS.person, Math.max(40 + 4 * n, 6 * n));
+  if (out.floorBare[0] !== harvestFloor(out.floorBare[1])) fail("the floor is not four a farm over the forty or the harvest under the ceiling: " + out.floorBare.join(" with farms "));
   grant(s, "agriculture", "irrigation");
   if (hands.floor() !== out.floorBare[0]) fail("a craft alone lifted the floor: " + hands.floor());
   if (!complete(s, "farm")) fail("could not raise a farm");
   out.floorFarmed = [hands.floor(), farms()];
-  if (out.floorFarmed[0] !== harvestFloor(out.floorFarmed[1]) || out.floorFarmed[1] !== out.floorBare[1] + 1) fail("a finished farm did not follow the harvest floor: " + out.floorBare.join("/") + " -> " + out.floorFarmed.join("/"));
-  // Past seven fields the harvest is the floor: six a farm, no forty beside it.
+  if (out.floorFarmed[0] !== harvestFloor(out.floorFarmed[1]) || out.floorFarmed[1] !== out.floorBare[1] + 1) fail("a finished farm did not lift the floor by four: " + out.floorBare.join("/") + " -> " + out.floorFarmed.join("/"));
+  // Under the twentieth field the forty and four a farm still read more than the harvest; the formula holds either way.
   for (let n = 0; n < 9 && farms() < 8; n++) if (!complete(s, "farm")) break;
   out.floorHarvest = [hands.floor(), farms()];
-  if (out.floorHarvest[1] >= 7 && out.floorHarvest[0] !== Math.min(CAPS.person, 6 * out.floorHarvest[1])) fail("with the fields planted the floor is not six a farm: " + out.floorHarvest.join(" with farms "));
+  if (out.floorHarvest[0] !== harvestFloor(out.floorHarvest[1])) fail("with the fields planted the floor is off the formula: " + out.floorHarvest.join(" with farms "));
+  if (harvestFloor(20) !== 120 || harvestFloor(30) !== 180 || harvestFloor(19) !== 116) fail("the harvest does not take over at the twentieth field");
   if (!(hands.capacity() >= out.floorFarmed[0])) fail("the capacity sits under the floor: " + hands.capacity() + " < " + out.floorFarmed[0]);
   // ── Nothing rises before the modern stages are sought ──
   grant(s, "masonry", "mechanization", "electricity");

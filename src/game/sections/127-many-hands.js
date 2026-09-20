@@ -33,13 +33,13 @@
 // times those factors and the floor always wins, so the world sat at thirty-
 // one to forty people with births rationed above thirty-one, and by year a
 // hundred and twenty two adults in three were past the fertile window. The
-// floor now follows the fields: six people for every finished farm, the
-// harvest itself, or the forty a foraging world holds, whichever is more (two
-// a farm over the forty at first, then four; the constant below says why
-// six and why not over the forty), never over the people the world keeps as
-// people (12), and no lift at all while a town is in famine. On a standard
-// map the formula already exceeds this floor; it changes only the maps where
-// the floor was the cap.
+// floor now follows the fields: four people for every finished farm over the
+// forty a foraging world holds, or the harvest itself, six a farm, whichever
+// is more (two a farm over the forty at first; the constants below say why
+// four, why six, and why the harvest is not over the forty), never over the
+// people the world keeps as people (12), and no lift at all while a town is
+// in famine. On a standard map the formula already exceeds this floor; it
+// changes only the maps where the floor was the cap.
 const MANY_HANDS_FACE_PUSH = 3,
   MANY_HANDS_PEOPLE_FLOOR = 40,
   MANY_HANDS_ASIDE = Object.freeze(["skyline", "homes", "works", "road"]),
@@ -329,8 +329,15 @@ causalPushToward = function (target = causalTarget()) {
 // fields it had no land to add to, went hungry to the last person from year
 // 89 to 120 and the world flew at 235 where it had flown at 97 (HANDOFF
 // section 28). The forty is what a world holds before it farms; a farming
-// world holds what its fields feed.
-const MANY_HANDS_PER_FARM = 6;
+// world holds what its fields feed. But the harvest alone is under four a
+// farm over the forty until the twentieth field, and a world of ten fields
+// held sixty where it had held eighty: battery variety-7 stood at forty
+// people at year thirty-nine where it had stood at seventy-two, and flew at
+// 170 where it had flown at 121. So the floor is the greater of the two
+// readings, four a farm over the forty as section 27 swept it and the
+// harvest itself once that is more, from the twentieth field.
+const MANY_HANDS_PER_FARM = 4,
+  MANY_HANDS_HARVEST_PER_FARM = 6;
 function manyHandsFarms() {
   let farms = 0;
   for (const b of W.buildings)
@@ -368,7 +375,8 @@ function manyHandsHungryShare() {
 function manyHandsPeopleFloor() {
   if (manyHandsHungryShare() > MANY_HANDS_HUNGRY_SHARE) return MANY_HANDS_PEOPLE_FLOOR;
   const ceiling = typeof CAPS !== "undefined" && CAPS.person ? CAPS.person : Infinity;
-  return Math.min(ceiling, Math.max(MANY_HANDS_PEOPLE_FLOOR, MANY_HANDS_PER_FARM * manyHandsFarms()));
+  const farms = manyHandsFarms();
+  return Math.min(ceiling, Math.max(MANY_HANDS_PEOPLE_FLOOR + MANY_HANDS_PER_FARM * farms, MANY_HANDS_HARVEST_PER_FARM * farms));
 }
 // And a hungry world does not grow at all. The formula's own craft lift took
 // battery causal-origin to a capacity of ninety-four once it knew waterworks,
@@ -396,6 +404,7 @@ window.ALIFE_MANY_HANDS_DEBUG = Object.freeze({
   face: (buildingId) => manyHandsFace(W.buildings.find((b) => b.id === buildingId)),
   floor: () => manyHandsPeopleFloor(),
   perFarm: () => MANY_HANDS_PER_FARM,
+  harvestPerFarm: () => MANY_HANDS_HARVEST_PER_FARM,
   farms: () => manyHandsFarms(),
   hungry: () => +manyHandsHungryShare().toFixed(3),
   capacity: () => sustainableSexualCapacity(KINDS.PERSON),
