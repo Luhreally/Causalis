@@ -1860,6 +1860,7 @@ function drawTileProcedural(x, y) {
   if (
     UI.quality === "high" &&
     top &&
+    !UI.overlay &&
     W.tiles.owner[i] &&
     ((x < W.width - 1 && W.tiles.owner[i + 1] !== W.tiles.owner[i]) ||
       (y < W.height - 1 && W.tiles.owner[i + W.width] !== W.tiles.owner[i]))
@@ -1970,6 +1971,7 @@ function drawTopTileDetails(x, y, m, v) {
   if (W.tiles.fire[i] > 25) drawTileFlame(x, y, i, m);
   if (
     UI.quality === "high" &&
+    !UI.overlay &&
     W.tiles.owner[i] &&
     ((x < W.width - 1 && W.tiles.owner[i + 1] !== W.tiles.owner[i]) ||
       (y < W.height - 1 && W.tiles.owner[i + W.width] !== W.tiles.owner[i]))
@@ -2209,6 +2211,8 @@ function renderWorldProcedural(now) {
         for (let y = b.y0; y <= b.y1; y++)
           for (let x = b.x0; x <= b.x1; x++) drawTopTileDetails(x, y, m, v);
     } else drawProjectedTerrain(b, m);
+    // A lens draws its own edges over the terrain it tinted (140).
+    if (UI.overlay && typeof drawLensEdges === "function") drawLensEdges(b, m);
     if (terrainKey) {
       const canvas = cached?.canvas || document.createElement("canvas");
       if (canvas.width !== DOM.canvas.width || canvas.height !== DOM.canvas.height) {

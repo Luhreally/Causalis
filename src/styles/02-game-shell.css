@@ -214,6 +214,27 @@
   border-color: var(--cyan);
   background: #1e3437;
 }
+.overlay-group {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.overlay-group:first-child {
+  margin-top: 0;
+}
+.lens-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 3px 0 7px;
+  border-radius: 50%;
+  background: var(--c, #888);
+  box-shadow: 0 0 0 1px #0009;
+  vertical-align: middle;
+}
 .count-list {
   display: grid;
   grid-template-columns: 1fr auto;

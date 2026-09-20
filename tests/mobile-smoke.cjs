@@ -303,7 +303,7 @@ const mobile = windowObject.ALIFE_MOBILE_DEBUG;
 assert.ok(game && mobile, "mobile and game debug surfaces initialize");
 const snapshot = (value) => JSON.parse(JSON.stringify(value));
 
-const report = { portrait: {}, gestures: {}, landscape: {}, desktop: {}, follow: {}, static: {} };
+const report = { portrait: {}, gestures: {}, landscape: {}, desktop: {}, follow: {}, lenses: {}, static: {} };
 const htmlRoot = documentObject.documentElement;
 const canvas = element("world");
 const leftPanel = element("leftPanel");
@@ -623,7 +623,62 @@ followReport.span = {
   desktop: { zoom: +deskZoom.toFixed(2), tiles: +deskSpan.toFixed(1) },
 };
 
-// Reading where to aim never touches the world.
+// Every map lens paints, in one palette, with its edges drawn (140).
+const lens = windowObject.ALIFE_LENS_DEBUG;
+assert.ok(lens, "the lens surface initializes");
+const lensReport = {};
+const colourShape = /^(transparent|hsla?\([^)]*\)|rgba?\([^)]*\))$/;
+const alphaOf = (c) => {
+  if (c === "transparent") return 0;
+  const m = c.match(/\/\s*([0-9.]+)\s*\)$/) || c.match(/,\s*([0-9.]+)\s*\)$/);
+  return m ? parseFloat(m[1]) : 1;
+};
+const lensIds = run("() => OVERLAY_DEFS.map((d) => d[0])")();
+const tileCount = run("() => W.tileCount")();
+const sample = [];
+for (let i = 0; i < tileCount; i += Math.max(1, Math.floor(tileCount / 240))) sample.push(i);
+for (const id of lensIds) {
+  let visible = 0;
+  for (const i of sample) {
+    const c = lens.style(id, i);
+    assert.ok(typeof c === "string" && colourShape.test(c), `lens ${id} painted no colour at tile ${i}: ${c}`);
+    const a = alphaOf(c);
+    assert.ok(a >= 0 && a <= 1, `lens ${id} alpha out of range at tile ${i}: ${c}`);
+    if (a > 0.1) visible++;
+  }
+  lensReport[id] = +((100 * visible) / sample.length).toFixed(0);
+}
+assert.ok(lensReport.elevation >= 95, "the elevation lens does not paint the whole map: " + lensReport.elevation);
+assert.ok(lensReport.temperature >= 95, "the temperature lens does not paint the whole map: " + lensReport.temperature);
+assert.ok(lensReport.moisture >= 95, "the moisture lens does not paint the whole map: " + lensReport.moisture);
+const bands = new Set(sample.map((i) => lens.band(i)));
+assert.ok(bands.size >= 3, "the elevation lens found fewer than three bands: " + [...bands].join(","));
+const contours = {};
+for (const view of ["top", "iso", "oblique"]) {
+  run(`() => { UI.view = "${view}"; UI.camera.zoom = 1.4; UI.camera.x = W.width / 2; UI.camera.y = W.height / 2; }`)();
+  contours[view] = lens.edges("elevation");
+  assert.ok(contours[view] > 0, `no contour was drawn in the ${view} lens`);
+}
+const factions = run("() => W.factions.length")();
+if (factions) {
+  const owned = sample.filter((i) => lens.category("territory", i));
+  if (owned.length) {
+    assert.ok(alphaOf(lens.style("territory", owned[0])) >= 0.25, "a polity's ground is too faint to see");
+    assert.ok(lens.edges("territory") > 0, "a polity has ground and no border");
+    assert.ok(lens.legend("territory").length >= 1, "the polity legend is empty");
+  }
+}
+const grid = element("overlayGrid");
+assert.ok((grid.innerHTML.match(/overlay-group/g) || []).length >= 5, "the lenses are not grouped");
+assert.equal((grid.innerHTML.match(/overlay-btn/g) || []).length, lensIds.length, "not every lens has a button");
+lensReport.contours = contours;
+report.lenses = lensReport;
+
+// Reading where to aim, or through a lens, never touches the world.
+run('() => { UI.overlay = "territory"; }')();
+const lensIsolation = windowObject.ALIFE_VISUAL_DEBUG.renderIsolation(9500);
+assert.equal(lensIsolation.ok, true, `a lens changed the world: ${JSON.stringify(lensIsolation)}`);
+run("() => { UI.overlay = null; }")();
 const isolation = windowObject.ALIFE_VISUAL_DEBUG.renderIsolation(9000);
 assert.equal(isolation.ok, true, `following changed the world: ${JSON.stringify(isolation)}`);
 run("() => { UI.followId = 0; }")();
@@ -643,6 +698,9 @@ assert.match(css, /100dvh/);
 assert.match(css, /touch-action:\s*none/);
 assert.match(css, /min-height:\s*44px/);
 assert.match(css, /orientation:\s*landscape/);
+// The simple controls no longer hide the map lenses (140).
+const experienceCss = fs.readFileSync(path.join(root, "src/styles/08-player-experience.css"), "utf8");
+assert.ok(!/compact-controls\s+#overlayGrid/.test(experienceCss), "the simple controls still hide map lenses");
 report.static = {
   viewportFit: true,
   safeAreas: true,

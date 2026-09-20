@@ -141,13 +141,7 @@ body {
   ):not([data-tool="person"]):not([data-tool="heal"]):not(.active) {
   display: none;
 }
-.compact-controls
-  #overlayGrid
-  .overlay-btn:not([data-overlay="fertility"]):not([data-overlay="moisture"]):not(
-    [data-overlay="territory"]
-  ):not([data-overlay="population"]):not(.active) {
-  display: none;
-}
+/* The simple controls keep the tools compact; every map lens stays in reach (140). */
 .compact-controls .advanced-instrument {
   display: none;
 }

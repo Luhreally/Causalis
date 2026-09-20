@@ -156,5 +156,6 @@
   "136-ferry.js",
   "137-field.js",
   "138-field-gates.js",
-  "139-follow.js"
+  "139-follow.js",
+  "140-map-lenses.js"
 ]
