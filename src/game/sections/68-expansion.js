@@ -12,7 +12,8 @@ const SETTLER_COOLDOWN = TICKS_PER_YEAR * 4,
   // Settlers leave crowded towns, not villages: a town of twelve that sent four
   // away became a hamlet of eight beside a camp of four, and a world of such
   // hamlets never raised a city. Only a town of twenty-four or more sends them,
-  // and none while the world already holds a place for every fourteen people.
+  // and none while the world already holds a place for every twenty-four
+  // people (30e).
   // Twenty-four is the standard map's line; on a smaller map a city is smaller
   // (84, urbanGate), and a town that has to be twenty-four to send anyone
   // never sends on a battery map, where a city is ten: the thirty-seed
@@ -130,7 +131,7 @@ function settlerUrge(place) {
 }
 // Every founding path — settlers, voyages, refugees, wandering bands — passes
 // through createCamp; none founds while the world already holds a place for
-// every fourteen people, so the towns that stand keep their hands.
+// every twenty-four people (30e), so the towns that stand keep their hands.
 const createCampExpansionBase = createCamp;
 createCamp = function (tile, founderId, cause = 0) {
   if (W?.settlements && !worldHasRoomForPlaces()) return null;

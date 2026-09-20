@@ -33,10 +33,11 @@
 // times those factors and the floor always wins, so the world sat at thirty-
 // one to forty people with births rationed above thirty-one, and by year a
 // hundred and twenty two adults in three were past the fertile window. The
-// floor now follows the fields: two people for every finished farm over the
-// forty a foraging world holds, and no lift at all while a town is in famine.
-// On a standard map the formula already exceeds this floor; it changes only
-// the maps where the floor was the cap.
+// floor now follows the fields: four people for every finished farm over the
+// forty a foraging world holds (two at first; the constant below says why
+// four), and no lift at all while a town is in famine. On a standard map the
+// formula already exceeds this floor; it changes only the maps where the
+// floor was the cap.
 const MANY_HANDS_FACE_PUSH = 3,
   MANY_HANDS_PEOPLE_FLOOR = 40,
   MANY_HANDS_ASIDE = Object.freeze(["skyline", "homes", "works", "road"]),
@@ -215,8 +216,8 @@ modernLaunchSite = function () {
   return best;
 };
 // ── The effort keeps its people in its cities ────────────────────────────────
-// A world founds a place for every fourteen people it holds, and a town of
-// twenty-four sends settlers. On battery causal-origin that made five towns of
+// A world founds a place for every twenty-four people it holds (fourteen when
+// this was written, 30e), and a town of twenty-four sends settlers. On battery causal-origin that made five towns of
 // sixty-six people by year a hundred: the city that held the site went from
 // sixty-two to seven, and the hamlets it seeded held their people at half to
 // all hungry. Once the modern stages are sought, the concerted effort founds
@@ -297,7 +298,21 @@ causalPushToward = function (target = causalTarget()) {
 // famine, so a world that has outgrown its fields stops growing rather than
 // starving. Measured on the same world before any lift, thirteen farms kept
 // fifty-five to sixty people with nobody hungry.
-const MANY_HANDS_PER_FARM = 2;
+//
+// Two a farm held a third of what the fields feed: the granary plans one farm
+// for every six people (82), so a floor of two a farm sat well under the
+// harvest, and the skyline the modern gate asks of a world, sixteen blocks
+// and more whatever its people (114), stood for nobody. Measured at year
+// sixty, lean, six worlds ticking at once: battery causal-origin held 80
+// people in 384 beds and phone 89 in 444, one bed in five slept in. Four a
+// farm, with a place for every twenty-four people (30e): 151 in 336 and 157
+// in 390, two beds in five, in the same five and six towns, and the tick 1.4
+// and 1.3 times the base. Four a farm alone spread the same people over nine
+// and ten towns, each with its cottages, at 1.7 times. Six a farm is the
+// harvest itself and no floor at all, since the fields grow with the people;
+// and doubling the ground's own density instead cost 2.75 times on phone and
+// ran it at the two hundred and fifty the world keeps as people (12).
+const MANY_HANDS_PER_FARM = 4;
 function manyHandsFarms() {
   let farms = 0;
   for (const b of W.buildings)
@@ -361,6 +376,7 @@ window.ALIFE_MANY_HANDS_DEBUG = Object.freeze({
   study: (key = "skyline", pushes = 1) => manyHandsStudy({ key, pushes }),
   face: (buildingId) => manyHandsFace(W.buildings.find((b) => b.id === buildingId)),
   floor: () => manyHandsPeopleFloor(),
+  perFarm: () => MANY_HANDS_PER_FARM,
   farms: () => manyHandsFarms(),
   hungry: () => +manyHandsHungryShare().toFixed(3),
   capacity: () => sustainableSexualCapacity(KINDS.PERSON),

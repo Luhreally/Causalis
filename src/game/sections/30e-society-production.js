@@ -217,7 +217,7 @@ function placePeoplePerTown() {
   const urban = typeof urbanGate === "function" ? urbanGate().local : 0;
   return Math.max(PLACE_PEOPLE_PER_TOWN, urban);
 }
-const PLACE_PEOPLE_PER_TOWN = 14,
+const PLACE_PEOPLE_PER_TOWN = 24,
   PLACE_PEOPLE_NEARBY = 16;
 updateSettlements = function () {
   assignPartners();
@@ -254,6 +254,15 @@ updateSettlements = function () {
     // people across six to eight towns and almost none above eighteen, press
     // after press. The divisor is now whichever is larger, so a world never
     // spreads itself thinner than the size it calls a city.
+    //
+    // Twenty-four now, the line a town must reach to send settlers (68). At
+    // fourteen the people the fields floor of 127 added founded towns instead
+    // of filling the ones that stood: four a farm alone made nine towns on
+    // battery causal-origin and ten on phone by year sixty where there had
+    // been five and six, each with its own cottages, at 1.7 times the tick.
+    // At twenty-four the same people stay in the five and six, the city holds
+    // sixty-seven and seventy-six where it held thirty-two and twenty-eight,
+    // and the tick costs 1.4 and 1.3 times.
     placeCapacity = Math.max(4, Math.floor(biospherePopulation(KINDS.PERSON) / placePeoplePerTown()));
   for (const c of candidates.slice(0, 2)) {
     if (livePlaceCount >= placeCapacity) break;
