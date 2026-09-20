@@ -92,8 +92,10 @@ visualAnchor = function (id, p, m, now) {
         STEADY.flips++;
       }
     } else st.since = now;
-    // Walking holds until the walker has clearly stopped, and starts only when it clearly moves.
-    st.moving = st.moving ? live.speed > STEADY_MOVE_OFF : live.speed > STEADY_MOVE_ON;
+    // Walking holds until the walker has clearly stopped, and starts only when it clearly moves;
+    // the pace is the speed against the sim's own, so a walk at ¼× is still a walk (32d).
+    const pace = live.pace ?? live.speed;
+    st.moving = st.moving ? pace > STEADY_MOVE_OFF : pace > STEADY_MOVE_ON;
     live.moving = st.moving;
   }
   const facing = st.facing,

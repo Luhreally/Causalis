@@ -28,10 +28,11 @@ function setTool(tool) {
   DOM.canvas.style.cursor = tool === "inspect" ? "crosshair" : "cell";
 }
 function formatSpeed(speed) {
-  return speed === 0.25 ? "¼×" : speed === 0.5 ? "½×" : `${speed}×`;
+  return speed === 0.125 ? "⅛×" : speed === 0.25 ? "¼×" : speed === 0.5 ? "½×" : `${speed}×`;
 }
+// An eighth: a tick every eight tenths of a second, for watching one life.
 function setSpeed(speed) {
-  UI.speed = clamp(Number(speed) || 1, 0.25, 128);
+  UI.speed = clamp(Number(speed) || 1, 0.125, 128);
   $$(`[data-speed]`).forEach((b) =>
     b.classList.toggle("active", Number(b.dataset.speed) === UI.speed),
   );

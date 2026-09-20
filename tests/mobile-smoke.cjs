@@ -303,7 +303,7 @@ const mobile = windowObject.ALIFE_MOBILE_DEBUG;
 assert.ok(game && mobile, "mobile and game debug surfaces initialize");
 const snapshot = (value) => JSON.parse(JSON.stringify(value));
 
-const report = { portrait: {}, gestures: {}, landscape: {}, desktop: {}, follow: {}, lenses: {}, static: {} };
+const report = { portrait: {}, gestures: {}, landscape: {}, desktop: {}, follow: {}, lenses: {}, motion: {}, static: {} };
 const htmlRoot = documentObject.documentElement;
 const canvas = element("world");
 const leftPanel = element("leftPanel");
@@ -673,6 +673,70 @@ assert.ok((grid.innerHTML.match(/overlay-group/g) || []).length >= 5, "the lense
 assert.equal((grid.innerHTML.match(/overlay-btn/g) || []).length, lensIds.length, "not every lens has a button");
 lensReport.contours = contours;
 report.lenses = lensReport;
+
+// A step is a walk over the time the walker waited for it (32d), and the slow
+// speeds are on the phone's dock (44).
+const motionReport = {};
+assert.deepEqual(snapshot(run("() => MOBILE_SPEEDS")()), [0.125, 0.25, 0.5, 1, 4, 16, 64]);
+assert.equal(run("() => formatSpeed(0.125)")(), "⅛×");
+run("() => setSpeed(0.125)")();
+assert.equal(run("() => UI.speed")(), 0.125, "the speed does not go to an eighth");
+run("() => setSpeed(1)")();
+const stepper = run(`() => {
+  const people = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.position[id].x < W.width - 3);
+  return people.length ? people[0] : 0;
+}`)();
+if (stepper) {
+  // A priming step sets the walker's cadence; the measured step then takes as long as the wait before it.
+  const walk = run(`() => {
+    const id = ${stepper}, p = W.components.position[id], wasX = p.x;
+    UI.followId = 0; UI.view = "top"; UI.camera.zoom = 2; UI.camera.x = p.x + 0.5; UI.camera.y = p.y + 0.5;
+    let now = 20000;
+    for (let f = 0; f < 30; f++) { now += 16; renderWorld(now); }
+    p.x = wasX + 1;
+    for (let f = 0; f < 60; f++) { now += 16; renderWorld(now); }
+    const e = VISUAL_MOTION.get(id), x0 = e.x;
+    p.x = wasX + 2;
+    const at = [];
+    for (let f = 1; f <= 90; f++) { now += 16; renderWorld(now); if (f === 18 || f === 36 || f === 60 || f === 90) at.push(+(((e.x - x0) / ((e.legTx - x0) || 1))).toFixed(3)); }
+    const glide = e.glide;
+    p.x = wasX;
+    for (let f = 0; f < 400; f++) { now += 16; renderWorld(now); }
+    const home = VISUAL_MOTION.get(id);
+    return { glide, progress: at, settled: +Math.abs(home.x - (wasX + 0.5)).toFixed(3) };
+  }`)();
+  motionReport.walk = walk;
+  assert.ok(walk.glide >= 900 && walk.glide <= 1100, "the walk does not take the time the walker waited: " + walk.glide);
+  assert.ok(walk.progress[0] < 0.45, "the figure darted instead of walking: " + JSON.stringify(walk.progress));
+  assert.ok(walk.progress[3] > 0.97, "the figure never arrived: " + JSON.stringify(walk.progress));
+  assert.ok(walk.progress[0] <= walk.progress[1] && walk.progress[1] <= walk.progress[2], "the walk went backwards: " + JSON.stringify(walk.progress));
+  // Home is the tile, give or take the crowd's shuffle on it (32d, 111).
+  assert.ok(walk.settled < 0.45, "the figure did not walk home after the tile was restored: " + walk.settled);
+}
+// The inspector reads what a life is doing, not the tick (141): the word that held most of the recent
+// readings, with the tick's own word beside it when it differs.
+const intent = windowObject.ALIFE_INTENT_DEBUG;
+assert.ok(intent, "the intent surface initializes");
+if (stepper) {
+  const settled = run(`() => {
+    const id = ${stepper}, l = W.components.life[id], was = { behavior: l.behavior, reason: l.behaviorReason };
+    const D = window.ALIFE_INTENT_DEBUG;
+    let now = 40000;
+    for (let k = 0; k < 8; k++) { l.behavior = "food"; l.behaviorReason = "hunger at 60"; D.note(id, (now += 100)); }
+    for (let k = 0; k < 3; k++) { l.behavior = "return"; l.behaviorReason = "the hearth calls"; D.note(id, (now += 100)); }
+    const s = D.settled(id);
+    UI.selectedEntity = id;
+    const card = organismInspector(id), summary = selectionSummaryMarkup();
+    l.behavior = was.behavior; l.behaviorReason = was.reason;
+    UI.selectedEntity = 0;
+    return { word: s.word, current: s.current, reason: s.reason, held: +s.held.toFixed(2), cardSettled: card.includes('<b>food <span class="muted">(now return)</span></b>'), cardReason: card.includes('<b>hunger at 60</b>'), summarySettled: summary.includes('food <span class="muted">(now return)</span>') };
+  }`)();
+  motionReport.intent = settled;
+  assert.equal(settled.word, "food", "the settled intent is not the word that held: " + JSON.stringify(settled));
+  assert.equal(settled.current, "return");
+  assert.ok(settled.cardSettled && settled.cardReason && settled.summarySettled, "the inspector does not show the settled intent: " + JSON.stringify(settled));
+}
+report.motion = motionReport;
 
 // Reading where to aim, or through a lens, never touches the world.
 run('() => { UI.overlay = "territory"; }')();

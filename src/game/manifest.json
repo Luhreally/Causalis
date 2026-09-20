@@ -157,5 +157,6 @@
   "137-field.js",
   "138-field-gates.js",
   "139-follow.js",
-  "140-map-lenses.js"
+  "140-map-lenses.js",
+  "141-settled-intent.js"
 ]

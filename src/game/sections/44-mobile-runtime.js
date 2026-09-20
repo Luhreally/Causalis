@@ -3,7 +3,9 @@
 // Mobile presentation is a render/input lens. It never resizes an existing
 // world or changes the fixed-tick simulation order.
 // ═══════════════════════════════════════════════════════════════════════════
-const MOBILE_SPEEDS = Object.freeze([1, 4, 16, 64]);
+// The dock's one speed button cycles these; the slow ones were missing, and
+// the phone is where a life is watched (32d).
+const MOBILE_SPEEDS = Object.freeze([0.125, 0.25, 0.5, 1, 4, 16, 64]);
 const MOBILE_WORLD_DEFAULTS = Object.freeze({
   size: "phone",
   complexity: "lean",

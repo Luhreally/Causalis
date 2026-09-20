@@ -19,6 +19,23 @@ let VISUAL_MOTION = new Map(),
   ACTIVE_TILE_SHADE = null,
   ACTIVE_PREDATION_IDS = new Set();
 const CAMERA_GLIDE = { zoom: null, px: null, py: null, angle: null, cx: null, cy: null, last: 0 };
+// A step takes as long as the walker waited for it. The clock runs a tick
+// every hundred milliseconds at 1× and every four hundred at ¼× (38), and on
+// a lean world most lives think and step once in eight ticks (21,
+// simulationStrideForTier): a step every 0.8 seconds at 1×, every 3.2 at ¼×.
+// The anchor used to ease toward the new tile on a fixed curve, a fifth of a
+// second to settle whatever the speed, so at ¼× a figure darted for a fifth
+// of a second and stood for three: choppy in exact proportion to how slowly
+// the player chose to watch. Now a step is a walk from where the figure was
+// to where it is going, over the time since its last step, so it arrives as
+// the next step lands and is never seen standing between; the crowd's
+// shuffle on a tile still tracks moment to moment, and a step across the map
+// or at warp speed is still a jump. A walker shuttling between two tiles
+// aims between them instead. The walk's pace is measured against the sim's
+// speed (a tile a sim-second is a walk at any speed), so the walking pose
+// holds at ¼× as it does at 1×.
+const MOTION_GLIDE_MIN = 90,
+  MOTION_GLIDE_MAX = 4500;
 function worldDirToScreen(dx, dy, m) {
   if (UI.view === "top") return { x: dx * m.tw, y: dy * m.th };
   if (UI.view === "iso") return { x: ((dx - dy) * m.tw) / 2, y: ((dx + dy) * m.th) / 2 };
@@ -145,20 +162,42 @@ function visualAnchor(id, p, m, now) {
     e.pkey = e.tkey;
     e.tkey = tkey;
   }
-  const dx = tx - e.x,
-    dy = ty - e.y,
+  if (e.stepTile !== tkey) {
+    // A new tile to walk to: the leg begins where the figure stands and takes
+    // as long as it waited since the last leg began.
+    const since = e.stepAt == null ? MOTION_GLIDE_MIN : now - e.stepAt;
+    e.fromX = e.x;
+    e.fromY = e.y;
+    e.prevTx = e.stepTile === undefined ? tx : e.legTx;
+    e.prevTy = e.stepTile === undefined ? ty : e.legTy;
+    e.legTx = tx;
+    e.legTy = ty;
+    e.glide = clamp(since, MOTION_GLIDE_MIN, MOTION_GLIDE_MAX);
+    e.stepAt = now;
+    e.stepTile = tkey;
+  }
+  // A shuttling walker aims between the two tiles rather than at the far one.
+  const shuttle = (e.flip || 0) >= 2,
+    gx = shuttle ? (tx + (e.prevTx ?? tx)) / 2 : tx,
+    gy = shuttle ? (ty + (e.prevTy ?? ty)) / 2 : ty,
+    dx = gx - e.x,
+    dy = gy - e.y,
     d = Math.hypot(dx, dy);
   let step = 0;
   if (d > 3.4 || UI.speed >= 64) {
     step = Math.min(d, 0.6);
-    e.x = tx;
-    e.y = ty;
+    e.x = gx;
+    e.y = gy;
+    e.fromX = gx;
+    e.fromY = gy;
   } else if (d > 1e-4) {
-    const f =
-      (1 - Math.exp(-dt * (0.004 + 0.0009 * Math.min(UI.speed, 16)))) / (1 + (e.flip || 0) * 0.9);
-    e.x += dx * f;
-    e.y += dy * f;
-    step = d * f;
+    const u = e.glide > 0 ? clamp((now - e.stepAt) / e.glide, 0, 1) : 1,
+      s = u * u * (3 - 2 * u),
+      nx = e.fromX + (gx - e.fromX) * s,
+      ny = e.fromY + (gy - e.fromY) * s;
+    step = Math.hypot(nx - e.x, ny - e.y);
+    e.x = nx;
+    e.y = ny;
   }
   if (d > 0.06) {
     const target = Math.atan2(dy, dx),
@@ -166,8 +205,9 @@ function visualAnchor(id, p, m, now) {
     e.heading += turn * Math.min(1, dt * 0.012);
   }
   e.speed = lerp(e.speed, dt > 0 ? (step / dt) * 1000 : 0, 0.25);
+  e.pace = e.speed / clamp(UI.speed, 0.125, 1);
   e.gait += step * 6.2;
-  e.moving = e.speed > 0.55;
+  e.moving = e.pace > 0.55;
   const el = UI.view === "top" ? 0 : elevationAtSmooth(e.x, e.y),
     s = projectWithMetrics(e.x, e.y, el, m),
     dir = worldDirToScreen(Math.cos(e.heading), Math.sin(e.heading), m);

@@ -1047,7 +1047,9 @@ function mainLoop(now) {
           : UI.running && !interacting && UI.speed >= 16
             ? 50
             : UI.quality === "low"
-              ? 50
+              ? UI.speed <= 1
+                ? 33
+                : 50
               : UI.quality === "high"
                 ? 20
                 : 33;
