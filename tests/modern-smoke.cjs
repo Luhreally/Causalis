@@ -56,7 +56,10 @@ const fixtureSource = String.raw`(() => {
   if (!["cities", "current", "skyline", "works", "road", "hundred"].every((k) => out.stages.includes(k))) fail("the modern stages are incomplete: " + out.stages.join(","));
   // Denser skylines.
   out.towersWanted = modern.towers(s.id); out.officesWanted = modern.offices(s.id);
-  if (!(out.towersWanted >= 2)) fail("an electric city wants fewer than two towers");
+  if (!(out.towersWanted >= 1)) fail("an electric city wants no tower");
+  // Towers for the people, offices for the skyline: a tower while the beds are short, else an office if one can rise, else nothing.
+  out.skyline = [modern.skylineKind(s.id), modern.bedsAhead(s.id), settlementPopulation(s), s.knownProcesses.includes("computing") && placeHasFacility(s, "market")];
+  if (out.skyline[1] < out.skyline[2] + 18 ? out.skyline[0] !== "tower" : out.skyline[0] !== (out.skyline[3] ? "office" : null)) fail("the skyline's kind does not follow the beds: " + JSON.stringify(out.skyline));
   // Build the modern world: two more towns, current in three, skylines, works, a road, a hundred people.
   const b = raiseTown(s.x + 12, s.y - 6), c = raiseTown(s.x - 12, s.y + 8);
   if (!b || !c) { fail("could not raise the other towns"); return out; }

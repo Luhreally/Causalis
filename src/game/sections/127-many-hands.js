@@ -116,7 +116,12 @@ function manyHandsRaise(key, cities, pushes) {
   const each = Math.max(1, Math.ceil(left / able.length));
   let raised = 0;
   for (const city of able) {
-    const kind = key === "skyline" && city.knownProcesses.includes("computing") && placeHasFacility(city, "market") ? "office" : type;
+    // The skyline's kind is the modern world's own reading (114): a tower while
+    // the city's beds are short, an office once they are not, nothing while an
+    // office cannot yet be raised.
+    let kind = key === "skyline" ? (typeof modernSkylineKind === "function" ? modernSkylineKind(city) : type) : type;
+    if (!kind && key === "skyline" && !completedBuildings(city, "tower").length && !completedBuildings(city, "office").length) kind = "tower";
+    if (!kind) continue;
     raised += modernRaise(city, kind, each, pushes);
   }
   return raised;

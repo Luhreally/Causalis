@@ -141,6 +141,35 @@ const result = rt.get(`(() => {
   if (!(W.publicTransport?.journeys > 0) || p.x !== second.x || p.y !== second.y) fail("public route did not deliver its traveller");
   if (W.components.life[resident].transitLinkId) fail("arriving traveller remains aboard");
   out.journeys = W.publicTransport?.journeys || 0;
+  // ── The landlord's choice: a household years in arrears in a full block is put out for one with coin ──
+  {
+    // The resident's old tower lies in ruin from the test above, so a fresh block is raised for the reading.
+    const hab = window.ALIFE_HABITATION_DEBUG, fresh = make("tenement"), homesNow = updateHabitationTown(town),
+      block = homesNow.find((b) => b.id === fresh?.id && b.tenancy.residents.length >= 2) || homesNow.find((b) => b.type !== "shelter" && b.tenancy.residents.length >= 2);
+    if (!block) fail("no block with two households to test the landlord");
+    else {
+      const debtor = block.tenancy.residents[0], head = W.components.social[debtor].householdId,
+        outsider = W.activeIds.find((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.social[id] && W.components.social[id].homePlaceId !== town.id);
+      if (!outsider) fail("no outsider to seek a bed");
+      else {
+        const keptHousing = block.housing, keptHome = { ...W.components.social[outsider] };
+        block.housing = block.tenancy.residents.length;
+        Object.assign(W.components.social[outsider], { homePlaceKind: "settlement", homePlaceId: town.id, homeBuildingId: 0, householdId: outsider });
+        W.components.identity[outsider].civicCoins = (W.components.identity[outsider].civicCoins || 0) + 2;
+        block.tenancy.arrears[head] = 5;
+        const before = block.tenancy.residents.length, familiesBefore = hab.families().evictions;
+        out.evictions = hab.evict(town.id);
+        if (out.evictions !== 1 || hab.families().evictions !== familiesBefore + 1) fail("the landlord did not put out exactly one household: " + out.evictions);
+        if (W.components.social[debtor].homeBuildingId) fail("the debtor keeps the flat");
+        if (W.components.social[outsider].homeBuildingId !== block.id || !block.tenancy.residents.includes(outsider)) fail("the paying household did not move in");
+        if (block.tenancy.residents.length > before) fail("the block is over its beds after the exchange");
+        if (block.tenancy.arrears[head]) fail("the arrears followed the household out");
+        block.housing = keptHousing;
+        Object.assign(W.components.social[outsider], keptHome);
+        updateHabitationTown(town);
+      }
+    }
+  }
   return out;
 })()`);
 assert.deepEqual(Array.from(result.failures), [], JSON.stringify(result));

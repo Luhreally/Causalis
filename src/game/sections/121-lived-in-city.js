@@ -4,7 +4,7 @@
 const HABITATION_TYPES = new Set(["shelter", "tenement", "tower"]),
   HABITATION_FILL = Object.freeze({ tower: 0, tenement: 1, shelter: 2 });
 // How often a grown child left home, and how often there was nowhere to go.
-const HABITATION = { leftHome: 0, stayedHome: 0 };
+const HABITATION = { leftHome: 0, stayedHome: 0, evictions: 0, evicted: 0 };
 for (const type of ["tenement", "tower", "office"]) INTERIOR_BUILDING_TYPES.add(type);
 function habitationBeds(b) {
   return b && b.complete && !b.ruined && !b.abandoned && HABITATION_TYPES.has(b.type)
@@ -115,6 +115,54 @@ function updateHabitationTown(town) {
 function habitationPrice(b) {
   return habitationBeds(b) * 4;
 }
+// ── The landlord's choice ────────────────────────────────────────────────────
+// Rent was owed and never enforced: a household could sit twelve years in
+// arrears in a full block while another slept at the hearth with coin in hand.
+// Once a year, in a block with no bed to spare, the household deepest in
+// arrears at four years and more is put out for a household of the town that
+// has no address and a coin to pay with, one such exchange a block a year, and
+// only while someone is waiting: nobody is put out into an empty city, and a
+// cottage is a homestead, not a tenancy. The homeless this makes are the
+// town's own, counted as seeking a bed, sleeping at the hall or the hearth
+// until a block has room or their coin returns.
+const HABITATION_EVICT_ARREARS = 4;
+function habitationEvict(town, homes) {
+  const social = W.components.social,
+    residents = habitationResidents(town),
+    seeking = residents.filter((id) => !social[id].homeBuildingId),
+    payers = [...new Set(seeking.map((id) => social[id].householdId))]
+      .filter((h) => (W.components.identity[h]?.civicCoins || 0) >= 1)
+      .sort((a, b) => a - b);
+  if (!payers.length) return 0;
+  let evictions = 0;
+  for (const b of homes) {
+    if (!payers.length) break;
+    if (b.type === "shelter" || !b.tenancy || b.tenancy.residents.length < habitationBeds(b)) continue;
+    const debtors = Object.entries(b.tenancy.arrears)
+      .filter(([, n]) => n >= HABITATION_EVICT_ARREARS)
+      .sort((x, y) => y[1] - x[1] || +x[0] - +y[0]);
+    if (!debtors.length) continue;
+    const head = +debtors[0][0],
+      out = b.tenancy.residents.filter((id) => social[id]?.householdId === head);
+    if (!out.length) { delete b.tenancy.arrears[head]; continue; }
+    const payer = payers.shift(),
+      movers = seeking.filter((id) => social[id].householdId === payer);
+    for (const id of out) social[id].homeBuildingId = 0;
+    b.tenancy.residents = b.tenancy.residents.filter((id) => !out.includes(id));
+    delete b.tenancy.arrears[head];
+    for (const id of movers) {
+      if (b.tenancy.residents.length >= habitationBeds(b)) break;
+      social[id].homeBuildingId = b.id;
+      b.tenancy.residents.push(id);
+    }
+    HABITATION.evictions++;
+    HABITATION.evicted += out.length;
+    evictions++;
+  }
+  if (evictions && town.habitation)
+    town.habitation.housed = residents.filter((id) => social[id].homeBuildingId).length;
+  return evictions;
+}
 function habitationAccounts(town, homes) {
   const year = Math.floor(W.tick / TICKS_PER_YEAR), faction = polityOfPlace(town);
   if (town.habitationAccountsYear === year) return;
@@ -135,6 +183,10 @@ function habitationAccounts(town, homes) {
         else faction.treasury += paid;
         tenancy.arrears[id] = Math.min(12, due - paid);
       }
+    }
+    habitationEvict(town, homes);
+    for (const b of homes) {
+      const tenancy = b.tenancy;
       if (!tenancy.ownerId) {
         const asking = habitationPrice(b, town),
           buyer = tenancy.residents.find((id) => (W.components.identity[id]?.civicCoins || 0) >= asking);
@@ -347,5 +399,6 @@ window.ALIFE_HABITATION_DEBUG = Object.freeze({
   home: (id) => habitationHome(id)?.id || 0,
   homes: () => W.buildings.filter((b) => habitationBeds(b)).map((b) => ({ id: b.id, capacity: habitationBeds(b), ...b.tenancy })),
   families: () => ({ ...HABITATION }),
+  evict: (placeId) => { const s = W.settlements.find((x) => x.id === placeId); return s ? habitationEvict(s, W.buildings.filter((b) => b.placeKind === "settlement" && b.placeId === s.id && habitationBeds(b) > 0 && b.tenancy)) : 0; },
   spare: (placeId) => habitationSpareBeds(W.settlements.find((s) => s.id === placeId)),
 });

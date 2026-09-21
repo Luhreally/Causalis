@@ -29,7 +29,8 @@ const MODERN_CITIES = 2,
   MODERN_HOMES_FLOOR = 6,
   MODERN_WORKS_FLOOR = 1,
   MODERN_PEOPLE_MIN = 12,
-  MODERN_TOWER_PER_PEOPLE = 18,
+  MODERN_TOWER_PER_PEOPLE = 36,
+  MODERN_BEDS_AHEAD = 18,
   MODERN_OFFICE_PER_PEOPLE = 20,
   MODERN_ROAD_STONE = 48,
   MODERN_ROAD_PASSES = 4,
@@ -366,7 +367,16 @@ function modernPush(key, pushes) {
         for (const t of ["masonry", "mechanization", "electricity"]) if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
         continue;
       }
-      const type = city.knownProcesses.includes("computing") && placeHasFacility(city, "market") ? "office" : "tower";
+      const type = modernSkylineKind(city);
+      if (!type) {
+        // Beds enough and no office to raise: the city studies computing and
+        // keeps a market for the offices to come, and a city with no block at
+        // all raises its one tower, since a skyline is a block at least.
+        if (!city.knownProcesses.includes("computing")) causalPushResearch(city, "computing", pushes);
+        if (!placeHasFacility(city, "market")) causalPushBuilding(city, "market", pushes);
+        if (!completedBuildings(city, "tower").length && !completedBuildings(city, "office").length) left -= modernRaise(city, "tower", 1, pushes);
+        continue;
+      }
       left -= modernRaise(city, type, Math.min(each, left), pushes);
       // Builders who are hungry do not build: a lean city gets a field with its tower.
       if (typeof foodOutlook === "function" && foodOutlook(city)?.lean) causalPushBuilding(city, "farm", pushes);
@@ -587,10 +597,41 @@ function modernLaunchPush(key, pushes) {
   // what it lacks.
   return modernSupply(site, "launch_tower", pushes) ? "tower" : null;
 }
-// ── Denser skylines ──────────────────────────────────────────────────────────
+// ── Towers for the people, offices for the skyline ───────────────────────────
+// The downtown of sixteen blocks was raised as tower blocks whatever the beds
+// a city had, since an office wants Computing and a market and the skyline
+// stage comes before either: at the ship in the sweep of HANDOFF section 28 a
+// world held 800 to 1,300 beds for 95 to 230 people, and a city of 140 lay in
+// 880 beds. The effort raises a tower only while the city's beds, standing and
+// planned, are short of its people and the next household or two
+// (MODERN_BEDS_AHEAD); with beds enough it raises an office, which is a block
+// of the skyline nobody sleeps in, and a city that cannot yet raise one
+// studies computing and keeps a market until it can. The apartment blocks are
+// counted apart (modernHomesWanted) as before, so the downtown is still a
+// place people live. A city's own want for towers follows its beds the same
+// way: a tower for every thirty-six people, the people a tower holds, one at
+// least, where it was two at least and one for every eighteen, which asked
+// seventy-two beds of a city of twenty.
+function modernBedsAhead(city) {
+  let beds = 0;
+  for (const b of W.buildings)
+    if (!b.ruined && b.placeKind === "settlement" && b.placeId === city.id && (b.type === "tower" || b.type === "tenement" || b.type === "shelter"))
+      beds += b.housing || BUILDING_DEFS[b.type]?.housing || 0;
+  return beds;
+}
+function modernSkylineKind(city) {
+  if (!city?.knownProcesses) return null;
+  // A tower begun is finished first: a planned block carries its beds in the
+  // count below, so without this a city with one tower on the drawing board
+  // read as housed and the board never got its stone.
+  if (townHas(city, "tower", true)) return "tower";
+  if (modernBedsAhead(city) < settlementPopulation(city) + MODERN_BEDS_AHEAD) return "tower";
+  if (city.knownProcesses.includes("computing") && placeHasFacility(city, "market")) return "office";
+  return null;
+}
 const towersWantedModernBase = towersWanted;
 towersWanted = function (place) {
-  return Math.max(2, Math.floor(settlementPopulation(place) / MODERN_TOWER_PER_PEOPLE), towersWantedModernBase(place));
+  return Math.max(1, Math.floor(settlementPopulation(place) / MODERN_TOWER_PER_PEOPLE), towersWantedModernBase(place));
 };
 const officesWantedModernBase = officesWanted;
 officesWanted = function (place) {
@@ -832,6 +873,8 @@ function modernLaunchBlockers() {
 }
 window.ALIFE_MODERN_DEBUG = Object.freeze({
   launchBlockers: modernLaunchBlockers,
+  skylineKind: (placeId) => modernSkylineKind(W.settlements.find((s) => s.id === placeId)),
+  bedsAhead: (placeId) => modernBedsAhead(W.settlements.find((s) => s.id === placeId)),
   living: () => modernLivingPeople(),
   shortfall: () => modernShortfall(),
   stages: () => modernStages().map((s) => ({ key: s.key, label: s.label, done: s.done() })),
