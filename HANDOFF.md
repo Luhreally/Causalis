@@ -3427,9 +3427,153 @@ towers are still too empty, and it needs the sweep. The tick's cost grows
 with the people, near enough one for one; the 250 ceiling stands as the
 guard.
 
+### 28. The blocks fill first, and the floor is the harvest (2026-09-20; battery and phone only)
+
+Asked for: fuller towers, and how much more birth rate and population that
+takes.
+
+**How many it takes.** In the final sweep of section 27 a world at the ship
+held 800 to 1,250 beds for 95 to 205 people, seven to eighteen in a hundred
+slept in; the biggest city 30 to 90 people in 400 to 900 beds. Birth rate is
+not the limit: the people sit at the capacity (151 against 156 at year sixty
+on battery causal-origin), so the cap is the lever, and a person costs the
+same tick whatever the cap. Filling every bed wants six to eight times the
+people and about six times the tick, and passes the two hundred and fifty the
+world keeps as people (12, `CAPS.person`); half the beds, three to four times,
+and the ceiling would have to be raised. Chosen with the user: the blocks
+fill first, and the floor runs to the ceiling.
+
+**The blocks fill first (121, `HABITATION_FILL`).** Homes were taken in the
+order they were built, so a household without an address went to the oldest
+cottage with room and every tower held a handful. A household keeps its
+address as before; one that has none, a grown child leaving home, a
+newcomer, a family bought out of its cottage, takes the tower with room,
+then the tenement, then the cottage, so the old families hold the cottages
+and the young rent the blocks, and the cottages the old leave empty are
+bought out (125). Test: `tests/continuing-city-smoke.cjs` asserts the tower
+fills before the cottage (twelve to the tower, none to the cottage).
+
+**Six a farm, the harvest from the twentieth field (127; 49715c4, 1e1c13d and
+its mend).** The
+floor granted four a farm over the forty; six is the granary's own count
+(82), so the floor is the fields themselves, bounded by the land a town can
+plant, by the famine brake, and by the two hundred and fifty the world keeps
+as people, which `manyHandsPeopleFloor` never passes: past it the newest are
+folded into cohorts, and the phone world with the density doubled in section
+27 did just that. The first cut read forty *and* six a farm, and its sweep
+(`pop4`, stopped at eight battery worlds) showed the sum overshoots the
+fields: six worlds flew earlier than under section 27 with 120 to 220
+people (causal-origin 61 with 219, ship-b 88 with 183 where it had flown at
+137, ship-c 69, variety-1 55 with 204, variety-2 49 with 200, variety-5 64
+with 168), but variety-3's two towns ran to 192 people on twenty-five
+fields, seven and a half a farm, and Tranguwo, ninety-five people on nine
+fields it had no land to add to, went hungry to the last person from year
+89 to 120 (its food score read 55, which is fourteen a standing field, not
+a larder), the toll 211 where section 27 had 8, and the world flew at 235
+where it had at 97; variety-7's toll stood at 51 by year 98. The forty is
+what a world holds before it farms; a farming world holds what its fields
+feed, so the floor reads the greater of the two, not their sum: at twenty
+fields the readings agree, at thirty the floor is 180 where the sum read
+220 and section 27's four a farm read 160. Test: `tests/many-hands-smoke.cjs`
+plants the fixture's fields to eight and asserts the formula. The hash
+stays 6bee0692.
+
+**And not the harvest alone.** The sweep of 1e1c13d (`pop5`, stopped at
+eleven battery worlds) read the other error: the harvest alone is under
+four a farm over the forty until the twentieth field, so a world of ten
+fields held sixty where section 27 had it hold eighty. Battery variety-7
+stood at forty people at year thirty-nine where it had stood at
+seventy-two and flew at 170 where it had at 121; causal-origin 89 at
+thirty-three where 99, flying at 76 where 55; eight of eleven flew later,
+median four years (causal-origin 76, ship-b 98, ship-c 70, variety-1 61,
+variety-2 63, variety-3 139, variety-4 87, variety-5 70, variety-7 170,
+variety-8 76, variety-6 unfinished at 97). The floor now reads the greater
+of the two: four a farm over the forty, as section 27 swept it, and the
+harvest itself once that is more, from the twentieth field on
+(`MANY_HANDS_PER_FARM` 4, `MANY_HANDS_HARVEST_PER_FARM` 6): at twenty fields
+both read 120, at thirty the harvest reads 180 where four a farm read 160,
+at forty 240. Debug: `ALIFE_MANY_HANDS_DEBUG.harvestPerFarm`. The test
+asserts the takeover at the twentieth field.
+
+**Measured under forty and six a farm** (`scratchpad/tower-probe.cjs <seed>
+<size> <years> [every]`, which reads every kind of home: how many stand, how
+many are lived in, how many full, residents against beds; causal-origin,
+lean, eighty years, the deployed code against 49715c4, two worlds at a
+time): battery at year eighty 151 people then 241, at the ceiling from year
+fifty with nobody folded into a cohort, two of eight tenements lived in
+then seven of seven with 103 of 126 beds slept in, the cottages 27 of 34
+lived in then 31 of 47, buy-outs 8 then 7; phone 155 people then 245, four
+of fourteen tenements lived in then twelve of sixteen with 189 of 288 beds
+slept in (five full), the cottages emptying from 24 of 33 lived in to 11 of
+36 as the old die and their children take the blocks, buy-outs 13 then 17,
+the first tower standing at eighty with nobody in it yet. Hungry share
+never past a tenth on either. The tick at year sixty to eighty, four worlds
+running: battery 43 to 108 ms then 116 to 168, phone 46 to 66 then 96 to
+135, about half again for half again the people.
+
+**Measured under the harvest alone** (the same probe, 1e1c13d, two worlds
+running beside the sweep's six): battery at year eighty 167 people on
+twenty-eight fields, the floor 168, five of eleven tenements lived in with
+78 of 198 beds slept in and the cottages 16 of 34 lived in with 68 of 204
+beds, where the deployed code read 151 people, two of eight tenements and
+27 of 34 cottages; phone 204 people, the floor 240, ten of nineteen
+tenements lived in with 147 of 342 beds and the cottages 13 of 44 lived in
+with 49 of 264, where the deployed code read 155 people, four of fourteen
+tenements and 24 of 33 cottages. Nobody hungry past a hundredth, nobody
+folded into a cohort, buy-outs 10 and 19 where there were 8 and 13. The
+people sit under the sum's 241 and 245 by the sixty and forty the sum
+added, and the blocks still take the young: the cottages empty as their
+owners die.
+
+**Measured under the final floor** (the same probe, c76d80e, two worlds
+running beside the sweep's six): battery at year eighty 172 people on
+thirty fields, the floor 180, five of six tenements lived in with 69 of 108
+beds slept in and the cottages 19 of 38 lived in with 92 of 228, where the
+deployed code read 151 people, two of eight tenements and 27 of 34
+cottages; phone 228 people on forty-four fields, the floor at the ceiling,
+ten of fourteen tenements lived in, seven of them full, with 154 of 252
+beds, and the cottages 19 of 37 lived in with 70 of 222, where the deployed
+code read 155 people, four of fourteen tenements and 24 of 33 cottages.
+Nobody hungry past a twelfth, nobody folded into a cohort, buy-outs 8 and
+14 where there were 8 and 13.
+
+**The sweep, both sizes** (`scratchpad/sweep-run-pop6.sh pop6 6` by
+`launch-pop6.ps1`: eleven seeds, forty presses, lean, six worlds at a time
+from a worktree at c76d80e, against the final sweep of section 27).
+Battery, ship year, section 27 then this, with the people at the ship:
+causal-origin 55 then 54 (140 then 140); ship-b 137 then 169 (74 then
+102); ship-c 69 then 69 (120 then 123); variety-1 58 then 56 (128 then
+146); variety-2 56 then 54 (157 then 168); variety-3 97 then 93 (132 then
+120); variety-4 83 then 80 (170 then 164); variety-5 67 then 72 (142 then
+174); variety-6 106 then 121 (201 then 229); variety-7 121 then 121 (133
+then 121); variety-8 76 then 85 (160 then 214): earlier 5, later 4, same
+2, median the same, no world lost; the famine toll over the runs 47 where
+section 27 had 60. Phone: causal-origin 62 then 62 (158 then 190); ship-b
+61 then 59 (146 then 140); ship-c 80 then 83 (95 then 99); variety-1 58
+then 58 (138 then 143); variety-2 65 then 75 (161 then 215); variety-3 67
+then 66 (131 then 134); variety-4 84 then 84 (95 then 94); variety-5 67
+then 69 (150 then 214); variety-6 73 then 74 (205 then 222); variety-7 61 then 60 (140 then 146);
+variety-8 73 then 72 (141 then 145): earlier 4, later 4, same 3, median the same, no world lost; the toll 50 where section 27
+had 35. The people at the ship run to 229 on battery and 220 on phone
+where section 27's ran to 201 and 205, the later worlds are ship-b's
+scatter and three worlds a decade or less behind, and at the ship the beds
+slept in still stand at a tenth to a third of the beds that stand, since
+the modern gate's sixteen blocks are raised whatever the people.
+
+**Still open.** The modern gate's skyline floor of sixteen blocks is still
+asked of a world of two hundred; the towers the young fill are a third of
+those that stand. A skyline that follows the people (`MODERN_SKYLINE_FLOOR`
+lower, the eighteen-a-block rule carrying the rest) is the lever left, and
+it is the ship's road as swept. The tick grows with the people, one for one
+near enough; at the ceiling a phone world costs about half again what it did
+at four a farm.
+
 ## The recent commits, newest first
 
 ```
+c76d80e  The floor is four a farm over the forty, or the harvest once that is more
+1e1c13d  The floor under the people is the harvest or the forty, not the forty and the harvest
+49715c4  The blocks fill first, and the floor under the people is the harvest itself
 3e015b4  The valve reads the granary's famine line, not its lean line
 5de607d  A crowded town with a lean larder is a place of its own in the count
 0cf7aa4  A farming world holds four people a farm, and founds a place for every twenty-four
