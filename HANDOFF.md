@@ -3568,9 +3568,116 @@ it is the ship's road as swept. The tick grows with the people, one for one
 near enough; at the ceiling a phone world costs about half again what it did
 at four a farm.
 
+### 29. Towers for the people, offices for the skyline, and the landlord's choice (2026-09-20; battery and phone only)
+
+Asked for: not every bed, but most of them full, and a population where the
+town's own economics can be seen and the homeless are among it.
+
+**Why the beds stayed empty.** At the ship in section 28's sweep a world held
+800 to 1,300 beds for 95 to 230 people, seven to twenty in a hundred slept
+in. The downtown of sixteen blocks (section 20, d918c63) was raised as tower
+blocks whatever the beds a city had: an office wants Computing and a market
+(103), and the skyline stage comes before either, so the effort's choice
+between the two (114, 127) fell to the tower nearly every time, thirty-six
+beds a block. A city's own want for towers (114) was two at least and one
+for every eighteen people, seventy-two beds asked of a city of twenty. And
+nobody was ever put out of a home: rent was charged (121) and arrears
+capped at twelve, with no consequence, so a town with no bed to spare kept
+its debtors in and its newcomers at the hearth.
+
+**Towers for the people, offices for the skyline (114, `modernSkylineKind`,
+`modernBedsAhead`).** The effort raises a tower only while the city's beds,
+standing and planned (a planned block carries its housing from the plan),
+are short of its people and the next household or two (`MODERN_BEDS_AHEAD`
+18), and a tower begun is finished first, since a planned block carries its
+beds in that count and the first cut left a city with one tower on the
+drawing board reading as housed while the board never got its stone (the
+many-hands test caught it: the third push fed the tower nothing). The kind
+alone was not enough either: the second cut chose "tower" for a city with a
+tower begun and then planned the city's whole share of the skyline as
+towers on top of it, so its sweep's first six battery worlds held the same
+850 to 1,100 beds at the ship as section 28's (causal-origin 852 beds for
+139 people, 16 blocks). `modernSkylineRaise` now raises the towers begun
+and the towers the shortage needs, thirty-six beds a tower, and not one
+more, and the rest of the city's share as offices; with beds enough it
+raises an office, a block of the skyline nobody
+sleeps in, and a city that cannot yet raise one studies computing and keeps
+a market until it can, raising its one tower first if it has no block at
+all, since a skyline is a block at least. The apartment blocks are counted
+apart as before (`modernHomesWanted`), so the downtown is still a place
+people live. The city's own want for towers follows its beds the same way:
+a tower for every thirty-six people, one at least (`MODERN_TOWER_PER_PEOPLE`
+36), where it was two at least and one for every eighteen; 110's tower for
+every thirty still stands under it. 127's hands read the same kind, and
+raise nothing for a city that is neither short of beds nor able to raise an
+office. Debug: `ALIFE_MODERN_DEBUG.skylineKind`, `.bedsAhead`. Test:
+`tests/modern-smoke.cjs` asserts the kind follows the beds, and an electric
+city wants one tower where it asserted two.
+
+**The landlord's choice (121, `habitationEvict`).** Once a year, in a block
+with no bed to spare, the household deepest in arrears at four years and
+more (`HABITATION_EVICT_ARREARS`) is put out for a household of the town that
+has no address and a coin to pay with, one exchange a block a year, and
+only while someone is waiting: nobody is put out into an empty city, and a
+cottage is a homestead, not a tenancy. The homeless this makes are the
+town's own, counted as seeking a bed on the place page, at the hall or the
+hearth (95's return order) until a block has room or their coin returns.
+Rent and arrears run only where the polity uses coin, so a world without
+currency has no landlord. `HABITATION.evictions` and `.evicted`; debug
+`ALIFE_HABITATION_DEBUG.evict(placeId)`. Test: `tests/continuing-city-smoke.cjs`
+raises a fresh block, fills it, sets one household five years in arrears
+and an outsider with coin seeking a bed, and asserts the one exchange: the
+debtor out, the payer in, the block at its beds, the arrears gone.
+
+**Measured** (`scratchpad/tower-press-probe.cjs <seed> <size> <presses>`,
+which presses the Causal skip from year thirty and reads every kind of
+home, the blocks and offices, the people seeking a bed, the evictions and
+the people with coin; causal-origin, lean, the code of this commit): battery
+at the ship, year 57, 147 people, 16 blocks of which 10 are offices and 6
+towers, the towers holding 10 of their 216 beds a press after they rose,
+the 8 apartment blocks 80 of 144, the 27 cottages 48 of 162, 522 beds in
+all for 147 people where section 28's sweep had 852 for 139, two seeking a
+bed; phone at the ship, year 60, 192 people, 17 blocks of which 13 are
+offices and 4 towers, the towers 10 of 144, the 8 apartment blocks 93 of
+144, the 37 cottages 82 of 222, 510 beds for 192 where there were 954 for
+158. The empty beds are halved and the downtown stands at sixteen and
+seventeen, of glass. No eviction by the ship on either: rent runs only
+where the polity uses coin, which came at 53 on battery and 57 on phone,
+and two to thirteen people held a coin, so the landlord's choice is a
+matter for the decades after the ship. The cottages are the pool that
+remains, a third slept in, emptying as their owners die and the core is
+bought out.
+
+**The sweep, both sizes** (`scratchpad/sweep-run-pop8.sh pop8 6` by
+`launch-pop8.ps1`: eleven seeds, forty presses, lean, six worlds at a time
+from a worktree at 9faedb1, against the final sweep of section 28). Battery,
+ship year, section 28 then this, with the beds standing at the ship and the
+share slept in: causal-origin 54 then 57 (882 beds, 15 in a hundred, then
+522 and 26); ship-b 169 then 144 (912 and 7, then 240 and 25); ship-c 69
+then 68 (876 and 13, then 438 and 22); variety-1 56 then 55 (1,080 and 12,
+then 504 and 24); variety-2 54 then 55 (1,080 and 14, then 636 and 24);
+variety-3 93 then 97 (330 and 31, then 282 and 43); variety-4 80 then 79
+(330 and 32, then 336 and 32); variety-5 72 then 68 (1,212 and 13, then 552
+and 31); variety-6 121 then 129 (1,344 and 16, then 852 and 24); variety-7
+121 then 122 (330 and 30, then 276 and 36); variety-8 85 then 93 (1,020 and
+19, then 564 and 36): earlier 5, later 6, median a year later, mean the
+same, no world lost; the beds standing at the ship 5,202 across the eleven
+where there were 9,396, the blocks the same fourteen to twenty save
+variety-6's eight, the famine toll 76 where section 28 had 47 (variety-6
+17, variety-7 13, variety-4 11, variety-8 10), within the round's scatter
+(section 27's first form read 129, its final 60). Phone: causal-origin 62 then 60 (936 beds, 19 in a hundred slept in, then 474 and 39); ship-b 59 then 62 (984 and 13, then 432 and 32); ship-c 83 then 83 (828 and 10, then 390 and 22); variety-1 58 then 59 (1,020 and 12, then 408 and 33); variety-2 75 then 73 (978 and 21, then 552 and 33); variety-3 66 then 65 (906 and 12, then 390 and 27); variety-4 84 then 83 (1,086 and 7, then 516 and 15); variety-5 69 then 69 (1,116 and 15, then 588 and 29); variety-6 74 then 73 (1,080 and 19, then 762 and 29); variety-7 60 then 62 (798 and 16, then 378 and 36); variety-8 72 then 70 (870 and 6, then 228 and 25): earlier 6, later 3, same 2, median a year earlier, no world lost. The beds standing at the ship on phone are 5,118 across the eleven where there were 10,602, the blocks fourteen to twenty as before, and the famine toll 44 where section 28 had 50. Across both sizes the empty beds are halved, the share slept in a fifth to two fifths where it was a tenth to a fifth, and the ship years scatter as every round's have: eleven earlier, nine later, two the same, none lost.
+
+**Still open.** A world without coin has no landlord and its homeless come
+only from a shortage of beds. The evicted sleep at the hall or the hearth
+and are counted, not drawn: a lens or a bar for the homeless is a view
+change waiting to be asked for. The skyline of sixteen still stands on the
+smallest maps, of glass where it was of flats.
+
 ## The recent commits, newest first
 
 ```
+9faedb1  The skyline raises the towers the shortage needs and not one more
+1a17308  Towers for the people, offices for the skyline, and the landlord's choice
 c76d80e  The floor is four a farm over the forty, or the harvest once that is more
 1e1c13d  The floor under the people is the harvest or the forty, not the forty and the harvest
 49715c4  The blocks fill first, and the floor under the people is the harvest itself
