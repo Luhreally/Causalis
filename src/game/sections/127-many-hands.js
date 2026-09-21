@@ -113,16 +113,18 @@ function manyHandsRaise(key, cities, pushes) {
   // first in the list, and on battery causal-origin that was a city of five,
   // which held it unfinished for twenty-four years while the world starved.
   // A block over the count is a block, and the count is a floor.
-  const each = Math.max(1, Math.ceil(left / able.length));
+  const each = Math.max(1, Math.ceil(left / able.length)),
+    kind0 = (city) => (key === "skyline" && city.knownProcesses.includes("computing") && placeHasFacility(city, "market") ? "office" : type);
   let raised = 0;
   for (const city of able) {
     // The skyline's kind is the modern world's own reading (114): a tower while
     // the city's beds are short, an office once they are not, nothing while an
     // office cannot yet be raised.
-    let kind = key === "skyline" ? (typeof modernSkylineKind === "function" ? modernSkylineKind(city) : type) : type;
-    if (!kind && key === "skyline" && !completedBuildings(city, "tower").length && !completedBuildings(city, "office").length) kind = "tower";
-    if (!kind) continue;
-    raised += modernRaise(city, kind, each, pushes);
+    if (key === "skyline" && typeof modernSkylineRaise === "function") {
+      raised += modernSkylineRaise(city, Math.max(1, left), each, pushes);
+      continue;
+    }
+    raised += modernRaise(city, kind0(city), each, pushes);
   }
   return raised;
 }

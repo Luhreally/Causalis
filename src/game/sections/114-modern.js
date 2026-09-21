@@ -367,17 +367,7 @@ function modernPush(key, pushes) {
         for (const t of ["masonry", "mechanization", "electricity"]) if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
         continue;
       }
-      const type = modernSkylineKind(city);
-      if (!type) {
-        // Beds enough and no office to raise: the city studies computing and
-        // keeps a market for the offices to come, and a city with no block at
-        // all raises its one tower, since a skyline is a block at least.
-        if (!city.knownProcesses.includes("computing")) causalPushResearch(city, "computing", pushes);
-        if (!placeHasFacility(city, "market")) causalPushBuilding(city, "market", pushes);
-        if (!completedBuildings(city, "tower").length && !completedBuildings(city, "office").length) left -= modernRaise(city, "tower", 1, pushes);
-        continue;
-      }
-      left -= modernRaise(city, type, Math.min(each, left), pushes);
+      left -= modernSkylineRaise(city, left, each, pushes);
       // Builders who are hungry do not build: a lean city gets a field with its tower.
       if (typeof foodOutlook === "function" && foodOutlook(city)?.lean) causalPushBuilding(city, "farm", pushes);
     }
@@ -619,15 +609,43 @@ function modernBedsAhead(city) {
       beds += b.housing || BUILDING_DEFS[b.type]?.housing || 0;
   return beds;
 }
+function modernBedsShort(city) {
+  return Math.max(0, settlementPopulation(city) + MODERN_BEDS_AHEAD - modernBedsAhead(city));
+}
+function modernUnfinished(city, type) {
+  return W.buildings.filter((b) => !b.ruined && !b.complete && b.placeKind === "settlement" && b.placeId === city.id && b.type === type).length;
+}
 function modernSkylineKind(city) {
   if (!city?.knownProcesses) return null;
   // A tower begun is finished first: a planned block carries its beds in the
   // count below, so without this a city with one tower on the drawing board
   // read as housed and the board never got its stone.
-  if (townHas(city, "tower", true)) return "tower";
-  if (modernBedsAhead(city) < settlementPopulation(city) + MODERN_BEDS_AHEAD) return "tower";
+  if (modernUnfinished(city, "tower") > 0 || modernBedsShort(city) > 0) return "tower";
   if (city.knownProcesses.includes("computing") && placeHasFacility(city, "market")) return "office";
   return null;
+}
+// How many blocks of the skyline a city raises this press, and of which kind.
+// The kind alone was not enough: the first cut chose "tower" for a city with
+// a tower begun and then planned the city's whole share of the skyline as
+// towers on top of it, so at the ship the worlds held the same 850 to 1,100
+// beds as before (HANDOFF section 29). The towers raised are the towers begun
+// and the towers the shortage needs, thirty-six beds a tower, and not one
+// more; the rest of the city's share is offices, or the study of computing
+// and a market until an office can rise; and a city with no block at all
+// raises one tower, since a skyline is a block at least.
+function modernSkylineRaise(city, left, each, pushes) {
+  if (!city?.knownProcesses || left <= 0) return 0;
+  const towers = Math.max(modernUnfinished(city, "tower"), Math.ceil(modernBedsShort(city) / (BUILDING_DEFS.tower?.housing || 36)));
+  let raised = 0;
+  if (towers > 0) raised += modernRaise(city, "tower", Math.min(towers, left), pushes);
+  if (raised >= left) return raised;
+  if (city.knownProcesses.includes("computing") && placeHasFacility(city, "market"))
+    return raised + modernRaise(city, "office", Math.min(Math.max(1, each - raised), left - raised), pushes);
+  if (!city.knownProcesses.includes("computing")) causalPushResearch(city, "computing", pushes);
+  if (!placeHasFacility(city, "market")) causalPushBuilding(city, "market", pushes);
+  if (!raised && !completedBuildings(city, "tower").length && !completedBuildings(city, "office").length)
+    raised += modernRaise(city, "tower", 1, pushes);
+  return raised;
 }
 const towersWantedModernBase = towersWanted;
 towersWanted = function (place) {
@@ -875,6 +893,8 @@ window.ALIFE_MODERN_DEBUG = Object.freeze({
   launchBlockers: modernLaunchBlockers,
   skylineKind: (placeId) => modernSkylineKind(W.settlements.find((s) => s.id === placeId)),
   bedsAhead: (placeId) => modernBedsAhead(W.settlements.find((s) => s.id === placeId)),
+  bedsShort: (placeId) => modernBedsShort(W.settlements.find((s) => s.id === placeId)),
+  skylineRaise: (placeId, left = 1, each = 1, pushes = 1) => modernSkylineRaise(W.settlements.find((s) => s.id === placeId), left, each, pushes),
   living: () => modernLivingPeople(),
   shortfall: () => modernShortfall(),
   stages: () => modernStages().map((s) => ({ key: s.key, label: s.label, done: s.done() })),
