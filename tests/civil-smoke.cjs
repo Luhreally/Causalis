@@ -1,7 +1,7 @@
 // Civil smoke: a polity that knows governance adopts a law code from its
 // ideology; feuds cool faster under any code and the blood-price settles a
-// cooled one; under fines a robber returns what was taken and under
-// banishment a twice-caught robber is driven out; children learn their
+// cooled one; a robbery is a case that the court (154) tries: under fines the
+// food is restored and under banishment a twice-caught robber is driven out; children learn their
 // parents' best craft and lore from an archive; and specialist circles calm a
 // town and petition the polity when unrest climbs.
 const fs = require("node:fs");
@@ -54,34 +54,48 @@ const fixtureSource = String.raw`(() => {
   updateFeuds();
   out.feudEnd = feud.endReason || "";
   if (!feud.ended || !/blood-price/.test(feud.endReason)) fail("the blood-price did not settle the cooled feud: " + feud.endReason);
-  // ── Fines return what was taken ──
+  // ── A robbery is a case, and the court restores what was taken (154) ──
+  const J = window.ALIFE_JUSTICE_DEBUG;
+  const hall = completedBuildings(settlement, "hall")[0] || (() => { const h = planBuilding(settlement, "hall", 9); if (h) { h.complete = true; h.stage = 6; h.integrity = h.maxIntegrity; h.completedTick = W.tick; for (const [sp, n] of h.requirements || []) h.composition[sp] = n; } return h; })();
+  if (!hall) { fail("no hall for a court"); return out; }
   f.law.code = "fines";
+  f.stability = Math.max(f.stability || 0, 0.5);
   const pa = W.components.position[a], pb = W.components.position[b];
   pa.x = settlement.x; pa.y = settlement.y; pb.x = settlement.x; pb.y = settlement.y;
+  rebuildSpatialBins();
   const mouth = W.components.inventory[a].digestive, carried = W.components.inventory[b].materials;
   carried[C.ORGANIC] = 10; mouth[C.ORGANIC] = Math.min(mouth[C.ORGANIC], 100);
   const identA = W.components.identity[a];
   identA.crimes = 0;
-  const matterBefore = totalMatter();
   const robbery = robOfFood(a, b, 90);
-  out.fined = carried[C.ORGANIC];
   if (!robbery) fail("no robbery happened in the fixture");
-  else if (carried[C.ORGANIC] !== 10) fail("the fine did not return the food: " + carried[C.ORGANIC]);
+  const robberyCase = J.cases().filter((c) => c.offence === "robbery" && c.offender === a).at(-1);
+  if (!robberyCase) fail("the robbery opened no case");
+  const matterBefore = totalMatter();
+  J.hold(settlement.id);
+  out.fined = carried[C.ORGANIC];
   if (totalMatter() !== matterBefore) fail("the judgement created or destroyed matter");
-  const fineEvent = W.events.filter((e) => e.type === "JudgementEvent").at(-1);
-  if (!fineEvent || fineEvent.data?.banished) fail("no fine was judged"); else out.fineSentence = eventSentence(fineEvent);
+  const verdict = J.cases().find((c) => c.id === robberyCase?.id);
+  if (verdict?.status !== "convicted") fail("the court did not convict the robber: " + verdict?.status);
+  else if (!(carried[C.ORGANIC] >= 10)) fail("the court did not restore the food: " + carried[C.ORGANIC]);
+  const fineEvent = W.events.filter((e) => e.type === "VerdictEvent").at(-1);
+  if (!fineEvent) fail("no verdict was given"); else out.fineSentence = eventSentence(fineEvent);
   // ── Banishment drives out the twice-caught ──
   f.law.code = "exile";
   identA.crimes = 1;
   carried[C.ORGANIC] = 10;
   const second = robOfFood(a, b, 90);
+  J.hold(settlement.id);
   out.crimes = identA.crimes;
   const exiled = (W.civilOrders || []).find((o) => o.id === a && o.kind === "exile");
   if (!second) fail("no second robbery");
   else if (!exiled) fail("a twice-caught robber was not banished");
-  const banishEvent = W.events.filter((e) => e.type === "JudgementEvent").at(-1);
-  if (banishEvent?.data?.banished) out.banishSentence = eventSentence(banishEvent);
+  const banishEvent = W.events.filter((e) => e.type === "VerdictEvent").at(-1);
+  if (banishEvent) out.banishSentence = eventSentence(banishEvent);
   if (exiled && typeof clearCivilOrder === "function") clearCivilOrder(a);
+  W.components.social[a].factionId = f.id;
+  W.components.social[a].homePlaceKind = "settlement";
+  W.components.social[a].homePlaceId = settlement.id;
   // ── Children learn ──
   let child = people.find((id) => id !== a && id !== b && !isAdultPerson(id) && (W.components.identity[id].parents || []).some((p) => classifyAlive(p)));
   const teacher = b;
