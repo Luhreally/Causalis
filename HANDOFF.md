@@ -105,10 +105,10 @@ for deploying. Do all work in the clone:
 
 ```
 npm run test:fast > log 2>&1
-bash $SCRATCH/suite-check.sh log 113
+bash $SCRATCH/suite-check.sh log 115
 ```
 
-The expected count is the number of `"ok": true` lines, currently **113**. It
+The expected count is the number of `"ok": true` lines, currently **115**. It
 changes only when you add a test file. A green suite is necessary and not
 sufficient — see "Pitfalls".
 
@@ -3947,9 +3947,223 @@ or more short of a bed at some reading, this sweep four), and variety-8 had
 The baseline hash is `75fba1bc` (`tests/baseline-smoke.cjs`, with its history
 of 6bee0692 and the steps) and these lists are the baseline.
 
+### 35. The address, the crowd, and a society that talks, helps and judges (2026-09-23; battery and phone only)
+
+Asked for, in one message: where a townsperson lives in their inspector;
+the slow phone of section 31 (three frames and three ticks a second with the
+processor slowed four times) fixed; performance across the board; the
+social system, emotional state and emoji talk revamped; better cars, roads
+and streets for a city builder that runs itself; field medics and people
+helping each other; a more sophisticated law; and, sent mid-round, the
+industrial era's chain of crafts made sensible, its food far better, and a
+lot of people without bogging the world down, by an elegant method.
+
+**The address (148, a97e091).** The address was kept all along
+(social.homeBuildingId, dealt yearly by 121) and never shown. The person
+inspector opens a Home block: Flat 2, Tower block 212, Ironford (a click to
+the map), owned by the household, rented from a named landlord or let by the
+town, the rent and years behind under coin, the household under the roof,
+the beds slept in; a child reads its parent's roof, a townsperson with no
+bed sleeping rough, a camp member the camp, a person of no town wandering.
+The selection summary carries it in a line. `ALIFE_ADDRESS_DEBUG`; the
+mobile test's homes fixture asserts it.
+
+**Labour thrift (149, 2bcd2ea; plans once in sixteen, c820fdd).** The
+profile of the grown phone world put 44 in a hundred of the tick under civil
+labour, most of it the same answer asked by every worker in turn: every
+person labours every tick while a town makes a concerted effort, and the
+effort never lapses (towns keep no water), so labour runs four times as
+often as it was built for. Section 70 planned a town once a tick but only at
+the bottom of the chain; the eleven sections wrapping ensurePlacePlans after
+it ran on every call (13 in a hundred of the tick): now once a town in
+sixteen ticks. Every order ever raised is kept (only appended) and each
+worker filtered them all: now an index by town, laid again when a camp's
+orders pass to its town (createSettlement). A building by id and a field by
+building: indexes against the list, its length and the next id
+(`buildingById`, used by 30c's and 137's orderPriority and 30d's labour). A
+field's footprint and baselines were rebuilt on every lookup: kept while the
+farm stands and no sowing has laid new baselines. The mender of a damaged
+building sorted the town's hands for every worker: now only the nearer are
+weighed. The tool orders scanned every living thing four times a worker: now
+once. A predator at hand was searched for by every worker every tick: where
+no predator lives, not at all (a census kept against the living list and the
+next id). With the plans and the mender switched back by a text patch the
+late world's hash after six hundred ticks is ef450b5c with and without, so
+the rest is exact. `ALIFE_LABOUR_THRIFT_DEBUG`.
+
+**Townsfolk (150, ee91b4f; budget c820fdd).** The architecture for many
+people. An industrial town (mechanization) keeps a bounded cast of full
+lives (forty; twenty-eight in a lean world, the phone's; a world setting,
+never a device's, so a seed grows the same world everywhere) and its many
+as a ledger shaped like a wild cohort (12): a count, four age bands, the
+summed matter of its bodies, the sums of its genes. A child of two of its
+people past the budget is born into the ledger (createOffspring, with the
+matter its parents give); a town past its budget folds four a pass of its
+least significant grown people into it, those with no living partner
+first, keeping its eight most significant and never a voice, a soldier on
+campaign, a traveller under orders or one sworn to revenge (in a grown world
+63 of Ironford's 69 were marked notable by the chronicle, so the mark alone
+could not keep a life out; the folded keep their legend in
+W.historicalIdentities); a life folded past the world's cap goes to its
+town's ledger; when the cast falls under four fifths of the budget, one of
+the crowd is drawn out and walks into town (12's materializeCohort). One
+pass a town every thirty-two ticks whatever the count: it ages by band, eats
+from the stores above the seed kept back (24 food a member a year: the
+fields yield 36 a townsperson a year, scratchpad/ration-probe.cjs) and
+drinks from the wells about the town; what it eats goes to the streets (the
+energy breathed out there by respiration) for the muck to carry to the
+fields; it starves without; it bears children fed and housed (0.02 an adult
+a pass, within the beds its cast leaves); and its hands sow, tend and reap
+the fields (42d's own acts, no worker named; setWorkAction ignores id 0),
+carry the stores' materials to the sites, and quarry from the ground what
+the sites still want. A town's and the world's people count their ledgers;
+the world's matter and chemical energy count them (the audit 0 throughout).
+The place page says Townsfolk. `ALIFE_FOLK_DEBUG`. Measured on the grown
+phone world twelve years on: 292 people, 107 full lives and 185 in the
+crowds, Ironford twenty-eight and 165, all fed.
+
+**The machine farm (151, ee91b4f).** Of the industrial crafts, none reached
+the food: mechanization and combustion changed construction and freight,
+electricity the factories, and fertilizer, crop rotation and the breeding
+crafts only raised a harvest cap that a ripe field's six organic a tile
+never reached; chemistry counted as a water craft. Now mechanization,
+combustion (the tractor) and electricity (the pump) each give a field a
+growth update more a turn, and the breeding and rotation crafts one for each
+half again of harvest they promise; an update is a photosynthesis a tile, so
+the ground's water and nutrient bound it. Electricity's pumps water the
+fields (126). Fertilizer carts the streets' muck to the fields before the
+ship as behind it (134) and spreads the stores' salts on the poorest tiles.
+Chemistry is no water craft; railways need steam power. Herds still only
+eat (animal husbandry has no herd effect): the next lever for food.
+`ALIFE_MACHINE_FARM_DEBUG`. tests/townsfolk-smoke.cjs.
+
+**Conversation (152, 1571114).** Every person also carries a mood, stress,
+loneliness and standing, and a contentment lift decays over a year instead
+of being lost at the next pass. Of the pairs 42b weighs every sixteen ticks
+some talk: the one with more to say speaks of what weighs most on them
+(hunger, grief, love, family, work, weariness, news, a person they think
+well or ill of, a crime, the rent, their god, the town's grievances, fear,
+cheer, the weather) in two or three emoji; the listener answers from how
+they stand with the speaker. Company eases loneliness, comfort eases grief
+(ComfortEvent), a friend with food feeds the hungry (conserved), news is
+remembered, a word about a third person moves the listener's opinion by
+their trust (a crime told once to each who has not heard it, a subject not
+retold within a season), bitter rivals quarrel (53), moods pass between
+those who care. The bubble shows the exchange, the speaker's sentence then
+the listener's answer, each with a tail; the zoom is asked before the status
+bubble is worked out. Inspector: Mood and company. `ALIFE_TALK_DEBUG`.
+Grown phone world, three years: 4,357 conversations over fifteen topics,
+173 mourners comforted.
+
+**First aid (153, 8be514d).** The helper within twelve tiles is chosen as a
+person would be: a healer, the partner, kin and friends, the kindest; aid
+teaches the healer's craft (51's Healer, never granted before); the wounded
+who can walk go to their town's clinic, which dresses the wounds of those
+within two tiles every eight ticks with the town's medicine (conserved),
+its best healer attending (WoundsDressedEvent); a column at war names a
+field medic who stops the worst bleeding within ten tiles and sends a
+fighter too hurt to fight home; a hungry child is fed from a parent's pack.
+`ALIFE_AID_DEBUG`. Three years: 619 helpers, 404 of them kin or friends.
+
+**Justice (154, 66e88e3).** A theft, a robbery, a killing inside the
+community, a brawl come to blows and the eating of the dead are cases with
+witnesses (the waking within four tiles), who with the victim know it of the
+offender, and talk carries it. A town with a hall under a code holds court
+every sixty-four ticks on the evidence of those of the polity who know. The
+codes: the blood-price, fines and restitution, banishment (five years; a
+return is a new case), the cell of a written law (held in the hall, out of
+work), restitution and reconciliation; death for a killing under the
+harshest rule. The code follows the polity's ideology and is revised when
+they part. A hungry person short of desperate and not bold is deterred where
+the law's eye is. 99's instant judgement and 52's community banishment
+(where there is law) stand down. Faction page, place page (the court, its
+cell) and inspector (Before the law) say it. `ALIFE_JUSTICE_DEBUG`. Most of a
+grown world's cases are brawls (83 assaults and a killing in three years).
+
+**Streets (155, e111519; the crowd seen, 30b1093).** Households of a town
+whose polity knows combustion buy cars (24 coin, or 6 metal kept with the
+roads' matter), up to three in five; a worker with a car and work eight
+tiles off drives two tiles more a tick along the road, one when jammed, the
+town burning a fuel for every eight tiles. A lane or square of the town's
+plan worn by traffic is paved. A bus crosses a ferried link's water on the
+ferry, and the spatial bins are rebuilt only when a rider has moved. The
+crowd (150) is drawn walking the paved streets and, where it drives, its
+cars, from its count and never stored, in the angled lenses only on streets
+no building stands in front of. Worn lanes are paved only where the town
+knows road-building and only from stone beyond what its unfinished
+buildings want and a reserve of twenty-four (a7bbf8e; the first cut paved
+on masonry from any stone). `ALIFE_STREETS_DEBUG`.
+tests/society-life-smoke.cjs covers 152 to 155 with matter checked around
+every act (the fast suite counts 115).
+
+**What the phone gets now.** The production build in headless Chrome on a
+phone's screen (scratchpad/phone-frames.cjs; the Lean canvas 618 by 1,198).
+This machine at full speed: the year-sixty-nine world 24 frames a second
+and the full ten ticks at 1x (the round began at 18.6 and 9.4), 29 of 40 at
+4x; twelve years on, 292 people, 26 frames, ten ticks, 39 of 40 at 4x.
+Slowed four times: year sixty-nine 4.9 ticks a second (3.3 when the round
+began), year eighty-one 6.7. Node, the year-eighty-one world: 25.7 ms a
+tick. The tick is still the limit on a slow phone; what is left of it is
+spread over every full life's mind and labour, and the lever that remains is
+the cast's size, or the tick off the page's thread.
+
+**Tests moved by the world's new course.** Diplomacy's envoy stops short of
+the court in its first twenty ticks too; civil's robbery runs through the
+court (restitution takes from the gut as the old fine did); industry and
+skyline finish their fixture's projects before asking for a factory, a tower
+or an office (98 and 103 plan nothing beside six unfinished), and skyline
+hides homes as fallen rather than unfinished; solid reads a step off the
+water's edge as no cliff, as 96 does, and sets its walker down beside the
+facade rather than gliding it there.
+
+### 36. The sweep, both sizes (2026-09-23)
+
+The talk, aid and law of 152 to 155 act from the first years and the plans
+come once in sixteen ticks, so the round was swept
+(`scratchpad/sweep-run-pop11.sh pop11 6` by `launch-pop11.ps1`: eleven
+seeds, forty presses, lean, six worlds at a time, from a worktree at
+a7bbf8e, against section 34's pop9). Ship years, pop9 then this. Battery:
+causal-origin 50 then 50; ship-b 91 then 84; ship-c 66 then 67; variety-1 64 then 59; variety-2 65 then 66; variety-3 122 then 261; variety-4 70 then 73; variety-5 77 then 64; variety-6 122 then 78; variety-7 90 then 95; variety-8 69 then 73: earlier 4, later 6, the same 1, a year later at the median,
+no world lost. Phone: causal-origin 68 then 56; ship-b 60 then 75; ship-c 80 then 60; variety-1 58 then 65; variety-2 60 then 71; variety-3 59 then 61; variety-4 70 then 57; variety-5 71 then 71; variety-6 87 then 86; variety-7 68 then 66; variety-8 64 then 71: earlier 5, later 5, the same 1, the
+median unchanged, no world lost.
+
+Battery variety-3 is the land-poor seed, an island: its first town stands on
+sixty tiles of land among two hundred and twenty-nine of water within eight
+tiles. On this course of the world (the talk changes who stands where from
+the first years) its fields took the ground before its homes (eleven farms,
+two shelters, forty-four people in twelve beds at year thirty, no shelter
+sited anywhere in the town's ring or belt), and the town grew slowly for a
+century and a half before settlers founded the towns that launched at 261;
+the seed had launched at 97 (pop8) and 122 (pop9, with a famine). A section
+that let a crowded town's spare field go for homes (156) cleared the ground
+and still sited no home, and was not committed. The first sweep of the
+round (pop10, stopped at ten worlds) had it at 246 on the commit before the
+paving fix. The next lever is the land-poor town itself: denser homes before
+masonry, or the settler valve opening sooner where the ground runs out.
+
+The people at the ship in the sweep's rows are full lives only
+(modernLivingPeople); the crowds of 150 are not in them, and the press toll
+(the people fewer at a press's end than at its start) now counts lives
+folded into the crowds, so it is no longer a famine measure: battery 343 and phone 241 where
+pop9 had 150 and 35. The beds standing at the ship: battery 5,148, phone
+5,532 (pop9 5,946 and 5,238).
+
+The baseline hash is `05494c3d` (`tests/baseline-smoke.cjs`, with its
+history) and these lists are the baseline.
+
 ## The recent commits, newest first
 
 ```
+a7bbf8e  Streets are paved from spare stone, where the town knows road-building
+30b1093  The crowd keeps to the streets it can be seen on
+c820fdd  The crowd takes the town's many: a lean world keeps twenty-eight full lives a town, the watch at ease and the marked fold too, and plans come once in sixteen ticks
+e111519  Streets: households buy cars and drive to work, worn lanes are paved, and the crowd is seen
+66e88e3  Justice: an offence is a case with witnesses, a town with a hall holds court, and the sentence is carried out
+8be514d  First aid: the hurt are helped by those who care for them, the clinic dresses wounds, and a column has a medic
+1571114  Conversation: people carry a mood and talk, and what they say changes what they feel and know
+ee91b4f  Townsfolk: an industrial town keeps its many as a ledger, and the machine farm feeds them
+2bcd2ea  Labour thrift: a town's plans once in four ticks, its orders, buildings and fields looked up, and the mender found without weighing every hand
+a97e091  An address: the inspector says where a person lives, whose roof it is, and what is owed
 d000cc8  A field's small plants are drawn a field at a time, and a rosette has its seven leaves
 9adfd75  Thrift: the same answers, asked once
 8cac100  A watch at ease: in peace a unit's fighters are at their own work until they are called
