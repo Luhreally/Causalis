@@ -85,12 +85,165 @@ function cropQuadPoint(points, u, v) {
   return [lerp(topX, bottomX, v), lerp(topY, bottomY, v)];
 }
 
+// A plant too small to show its leaves is drawn with the rest of its field in
+// one path a colour (stems, leaves, fruit) where each plant was six to eight
+// draws of its own. Measured in the browser (scratchpad/phone-frames.cjs: the
+// production build in headless Chrome on a phone's screen, the Lean detail,
+// phone causal-origin at year sixty-nine with 194 people and 34 farms): a
+// frame issued about 93,000 canvas calls, the crops 20,000 of its 30,000
+// fills, strokes and shapes, and a frame took a tenth of a second on this
+// machine's graphics with the main thread idle half the time; a field is nine
+// tiles of three to seven plants, so a farm was some 450 draws, and on a phone
+// the plants stand two to four pixels high at the zooms a town is watched at.
+let CROP_DETAIL_SIZE = 5;
+const CROP_DRAWS = { full: 0, batched: 0, fields: 0, smallest: Infinity, largest: 0 };
+let CROP_TRACE = null;
+// The same plants as drawCultivatedCrop, shape for shape, gathered into a path
+// a colour: the shadows, the stems (and a reed's three, a fanleaf's fans),
+// the leaves (a rosette's four or seven, the others' two, each an ellipse
+// turned as the plant turns it), a reed's blooms, the fruit. Only the order
+// differs (every shadow, then every stem, and so on, where a plant was drawn
+// whole before the next) and the leaves' midribs are left out, a line of
+// under a pixel at these sizes.
+function drawCultivatedCropBatch(g, plants, size, profile, stage) {
+  const mature = stage === "ripe",
+    young = stage === "sown",
+    height = size * profile.height * (young ? 0.45 : mature ? 1.15 : 0.82),
+    width = size * profile.leafWidth,
+    form = profile.form,
+    TAU = Math.PI * 2,
+    leaf = (cx, cy, angle, reach, rx, ry) => {
+      const x = cx + reach * Math.sin(angle),
+        y = cy - reach * Math.cos(angle);
+      g.moveTo(x + rx * Math.cos(angle), y + rx * Math.sin(angle));
+      g.ellipse(x, y, rx, ry, angle, 0, TAU);
+    };
+  g.save();
+  g.lineCap = "round";
+  g.fillStyle = "rgba(0,0,0,.2)";
+  g.beginPath();
+  for (const [x, y] of plants) {
+    g.moveTo(x + width * 0.34, y + size * 0.05);
+    g.ellipse(x, y + size * 0.05, width * 0.34, size * 0.13, 0, 0, TAU);
+  }
+  g.fill();
+  if (form !== "rosette") {
+    g.strokeStyle = hsl(profile.stemHue, 55, mature ? 38 : 46, 0.96);
+    g.lineWidth = Math.max(1, size * 0.13);
+    g.beginPath();
+    for (const [x, y, variant] of plants) {
+      const sway = ((variant % 5) - 2) * size * 0.07;
+      if (form === "reed")
+        for (const offset of [-0.28, 0, 0.28]) {
+          g.moveTo(x + offset * width, y);
+          g.lineTo(x + offset * width + sway, y - height * (1 - Math.abs(offset) * 0.22));
+        }
+      else {
+        g.moveTo(x, y);
+        if (form === "fruiting-vine")
+          g.quadraticCurveTo(x + width * 0.7, y - height * 0.45, x + sway, y - height);
+        else g.lineTo(x + sway, y - height);
+        if (form === "fanleaf" && !young)
+          for (const fan of [-1, 0, 1]) {
+            g.moveTo(x + sway, y - height * 0.8);
+            g.lineTo(x + sway + fan * width * 0.55, y - height * 1.18);
+          }
+      }
+    }
+    g.stroke();
+  }
+  if (form !== "reed") {
+    g.fillStyle = hsl(profile.leafHue, 62, young ? 55 : 43, 0.96);
+    g.beginPath();
+    for (const [x, y, variant] of plants) {
+      const sway = ((variant % 5) - 2) * size * 0.07;
+      if (form === "rosette") {
+        const count = young ? 4 : 7;
+        for (let k = 0; k < count; k++)
+          leaf(x, y, ((TAU * k) / count + variant * 0.17) % TAU, width * 0.42, width * 0.22, width * 0.58);
+      } else
+        for (const side of [-1, 1])
+          leaf(
+            x + sway * 0.45,
+            y - height * (side < 0 ? 0.42 : 0.68),
+            side * (form === "fanleaf" ? 0.95 : 0.62),
+            width * 0.25,
+            width * 0.2,
+            width * 0.52,
+          );
+    }
+    g.fill();
+  }
+  if (form === "reed" && !young) {
+    g.fillStyle = hsl(profile.bloomHue, 64, mature ? 62 : 49, 0.96);
+    g.beginPath();
+    for (const [x, y, variant] of plants) {
+      const sway = ((variant % 5) - 2) * size * 0.07;
+      for (const offset of [-0.28, 0, 0.28]) {
+        const bx = x + offset * width + sway,
+          by = y - height * (1 - Math.abs(offset) * 0.22);
+        g.moveTo(bx + width * 0.13, by);
+        g.ellipse(bx, by, width * 0.13, height * 0.18, 0, 0, TAU);
+      }
+    }
+    g.fill();
+  }
+  if (form !== "rosette" && form !== "reed" && (mature || form === "bulb")) {
+    g.fillStyle = hsl(profile.bloomHue, 72, mature ? 58 : 48, 0.98);
+    const fruitRadius = Math.max(1.2, width * (form === "bulb" ? 0.34 : 0.2)),
+      fruits = mature && profile.fruitForm === "cluster" ? 3 : 1;
+    g.beginPath();
+    for (const [x, y, variant] of plants) {
+      const sway = ((variant % 5) - 2) * size * 0.07,
+        fruitY = y - (form === "bulb" ? height * 0.25 : height);
+      for (let fruit = 0; fruit < fruits; fruit++) {
+        const angle = ((fruit / 3) * TAU + variant * 0.31) % TAU,
+          fx = x + sway + (fruit ? Math.cos(angle) * fruitRadius * 0.72 : 0),
+          fy = fruitY + (fruit ? Math.sin(angle) * fruitRadius * 0.52 : 0);
+        if (profile.fruitForm === "pod") {
+          const rx = fruitRadius * 0.58;
+          g.moveTo(fx + rx * Math.cos(angle), fy + rx * Math.sin(angle));
+          g.ellipse(fx, fy, rx, fruitRadius * 1.25, angle, 0, TAU);
+        } else if (profile.fruitForm === "cone") {
+          g.moveTo(fx, fy - fruitRadius);
+          g.lineTo(fx + fruitRadius * 0.75, fy + fruitRadius);
+          g.lineTo(fx - fruitRadius * 0.75, fy + fruitRadius);
+          g.closePath();
+        } else {
+          g.moveTo(fx + fruitRadius, fy);
+          g.arc(fx, fy, fruitRadius, 0, TAU);
+        }
+      }
+    }
+    g.fill();
+  }
+  // The path is not part of the saved state: a later drawer that fills without
+  // beginning its own would paint the whole field's leaves again in its colour.
+  g.beginPath();
+  g.restore();
+  CROP_DRAWS.batched += plants.length;
+  CROP_DRAWS.fields++;
+}
+window.ALIFE_CROP_DEBUG = Object.freeze({
+  counts: () => ({ ...CROP_DRAWS }),
+  reset: () => Object.assign(CROP_DRAWS, { full: 0, batched: 0, fields: 0, smallest: Infinity, largest: 0 }),
+  detailSize: () => CROP_DETAIL_SIZE,
+  setDetailSize: (size) => (CROP_DETAIL_SIZE = Number(size)),
+  trace: (on = true) => { const out = CROP_TRACE; CROP_TRACE = on ? [] : null; return out; },
+  // Draws plants [x, y, variant] the one way or the other, for a side-by-side check.
+  sample: (g, plants, size, profile, stage, batched) =>
+    batched
+      ? drawCultivatedCropBatch(g, plants, size, profile, stage)
+      : plants.forEach(([x, y, variant]) => drawCultivatedCrop(g, x, y, size, profile, stage, variant)),
+});
+
 function drawCultivatedCrop(g, x, y, size, profile, stage, variant) {
   const mature = stage === "ripe",
     young = stage === "sown",
     height = size * profile.height * (young ? 0.45 : mature ? 1.15 : 0.82),
     width = size * profile.leafWidth,
     sway = ((variant % 5) - 2) * size * 0.07;
+  CROP_DRAWS.full++;
   g.save();
   g.translate(x, y);
   g.lineCap = "round";
@@ -104,7 +257,11 @@ function drawCultivatedCrop(g, x, y, size, profile, stage, variant) {
   if (profile.form === "rosette") {
     for (let leaf = 0; leaf < (young ? 4 : 7); leaf++) {
       g.save();
-      g.rotate((Math.PI * 2 * leaf) / (young ? 4 : 7) + variant * 0.17);
+      // The turn is taken within one circle: a crop's seed runs to billions, and
+      // the canvas turns in single precision, where an angle of a hundred million
+      // radians keeps nothing of a seventh of a circle, so every leaf of a rosette
+      // lay on the first and the rosette drew as one leaf.
+      g.rotate(((Math.PI * 2 * leaf) / (young ? 4 : 7) + variant * 0.17) % (Math.PI * 2));
       g.beginPath();
       g.ellipse(0, -width * 0.42, width * 0.22, width * 0.58, 0, 0, Math.PI * 2);
       g.fill();
@@ -173,7 +330,7 @@ function drawCultivatedCrop(g, x, y, size, profile, stage, variant) {
       const fruitY = profile.form === "bulb" ? -height * 0.25 : -height;
       const fruitRadius = Math.max(1.2, width * (profile.form === "bulb" ? 0.34 : 0.2));
       for (let fruit = 0; fruit < (mature && profile.fruitForm === "cluster" ? 3 : 1); fruit++) {
-        const angle = (fruit / 3) * Math.PI * 2 + variant * 0.31,
+        const angle = ((fruit / 3) * Math.PI * 2 + variant * 0.31) % (Math.PI * 2),
           fx = sway + (fruit ? Math.cos(angle) * fruitRadius * 0.72 : 0),
           fy = fruitY + (fruit ? Math.sin(angle) * fruitRadius * 0.52 : 0);
         g.beginPath();
@@ -231,38 +388,46 @@ drawBuildingSite = function (g, building, now, metrics) {
     lerp(points[a][0], points[b][0], t),
     lerp(points[a][1], points[b][1], t),
   ];
+  // The furrows, the specks of the soil and the channels are one path each (a
+  // path of many parts is one draw); the look is the same.
+  g.beginPath();
   for (const t of [0.08, 0.17, 0.29, 0.38, 0.5, 0.59, 0.71, 0.8, 0.92]) {
     const top = line(0, 1, t),
       bottom = line(3, 2, t);
-    g.beginPath();
     g.moveTo(top[0], top[1]);
     g.lineTo(bottom[0], bottom[1]);
-    g.stroke();
   }
+  g.stroke();
   if (building.complete) {
     g.fillStyle = hsl(profile?.soilHue ?? cropHue, 25, 40, 0.42);
+    const speckRadius = Math.max(0.5, radius * 0.008);
+    g.beginPath();
     for (let speck = 0; speck < 42; speck++) {
       const u = 0.04 + visualHash01(building.styleSeed + speck, 0x51af) * 0.92,
         v = 0.04 + visualHash01(building.styleSeed + speck, 0xa719) * 0.92,
         [x, y] = cropQuadPoint(points, u, v);
-      g.beginPath();
-      g.arc(x, y, Math.max(0.5, radius * 0.008), 0, Math.PI * 2);
-      g.fill();
+      g.moveTo(x + speckRadius, y);
+      g.arc(x, y, speckRadius, 0, Math.PI * 2);
     }
+    g.fill();
     g.strokeStyle = hsl(W.terrainGenome?.liquidHue || 195, 52, 52, 0.55);
     g.lineWidth = Math.max(1, radius * 0.032);
+    g.beginPath();
     for (const u of [1 / 3, 2 / 3]) {
       const top = cropQuadPoint(points, u, 0.03),
         bottom = cropQuadPoint(points, u, 0.97);
-      g.beginPath();
       g.moveTo(top[0], top[1]);
       g.lineTo(bottom[0], bottom[1]);
-      g.stroke();
     }
+    g.stroke();
   }
   if (building.complete && field && ["sown", "growing", "ripe"].includes(stage)) {
     const plantsPerTile = stage === "sown" ? 3 : stage === "growing" ? 5 : 7,
-      cropSize = Math.max(1.8, radius * 0.074 * profile.density);
+      cropSize = Math.max(1.8, radius * 0.074 * profile.density),
+      batch = cropSize < CROP_DETAIL_SIZE ? [] : null;
+    CROP_DRAWS.smallest = Math.min(CROP_DRAWS.smallest, cropSize);
+    if (CROP_TRACE) CROP_TRACE.push({ id: building.id, form: profile.form, fruit: profile.fruitForm, stage, size: +cropSize.toFixed(2), x: Math.round(screen.x), y: Math.round(screen.y) });
+    CROP_DRAWS.largest = Math.max(CROP_DRAWS.largest, cropSize);
     for (let tileRow = 0; tileRow < 3; tileRow++)
       for (let tileColumn = 0; tileColumn < 3; tileColumn++)
         for (let plant = 0; plant < plantsPerTile; plant++) {
@@ -284,8 +449,10 @@ drawBuildingSite = function (g, building, now, metrics) {
                 (visualHash01(profile.seed, variant) - 0.5) * 0.1) /
               3,
             [x, y] = cropQuadPoint(points, u, v);
-          drawCultivatedCrop(g, x, y, cropSize, profile, stage, variant);
+          if (batch) batch.push([x, y, variant]);
+          else drawCultivatedCrop(g, x, y, cropSize, profile, stage, variant);
         }
+    if (batch) drawCultivatedCropBatch(g, batch, cropSize, profile, stage);
   }
   if (!building.complete) {
     g.fillStyle = palette.accent;

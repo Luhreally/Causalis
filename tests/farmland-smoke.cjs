@@ -1,8 +1,9 @@
 // Farmland smoke: a town's fields are bounded on all four sides in the town's
 // manner, one in five is an orchard, a far field gets a shed, a town that
 // knows engines raises silos and one that knows combustion parks tractors, a
-// pasture shows its stock or its trough, a winter field lies under frost, and
-// none of it touches the world.
+// pasture shows its stock or its trough, a winter field lies under frost, far
+// crops are drawn a field at a time and near ones plant by plant, and none of it
+// touches the world.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
@@ -38,6 +39,18 @@ const fixtureSource = String.raw`(() => {
   if (!(out.counts.boundaries >= 4)) fail("the fields are not bounded: " + JSON.stringify(out.counts));
   if (!(out.counts.silos + out.counts.tractors >= 1)) fail("no silo or tractor on an engine town's fields: " + JSON.stringify(out.counts));
   if (!(out.counts.stock + out.counts.troughs >= 1)) fail("the pasture shows neither stock nor a trough: " + JSON.stringify(out.counts));
+  // The crops: a plant under the detail size is drawn with its field's others
+  // in a path a colour, one over it plant by plant; either way the world holds.
+  const crop = window.ALIFE_CROP_DEBUG, stages = ["sown", "growing", "ripe"];
+  farms.forEach((f, n) => { cultivatedField(f).stage = stages[n % 3]; });
+  crop.reset();
+  clean({ view: "top", quality: "low", zoom: 1.2, x: cx, y: cy, now: 5000 });
+  out.cropsFar = crop.counts();
+  if (!(out.cropsFar.batched > 0 && out.cropsFar.full === 0)) fail("far crops are not drawn in paths: " + JSON.stringify(out.cropsFar));
+  crop.reset();
+  clean({ view: "iso", quality: "high", zoom: 9, x: cx, y: cy, now: 5000 });
+  out.cropsNear = crop.counts();
+  if (!(out.cropsNear.full > 0 && out.cropsNear.largest >= crop.detailSize())) fail("near crops are not drawn plant by plant: " + JSON.stringify(out.cropsNear));
   // Lean quality draws none of it.
   farmland.reset();
   clean({ view: "iso", quality: "low", zoom: 2.6, x: cx, y: cy, now: 5000 });
