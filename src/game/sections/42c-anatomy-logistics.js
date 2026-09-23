@@ -587,7 +587,9 @@ canReproduce = function (id) {
 const organismHabitatStressWatercraftBase = organismHabitatStress;
 organismHabitatStress = function (id, tile) {
   const base = organismHabitatStressWatercraftBase(id, tile);
-  if (!hasNavigableWatercraft(id) || W.tiles.liquid[tile] <= WATER_DEPTH.WADE_LIMIT) return base;
+  // The dry test first: it is a lookup, and the boat test walks every artifact
+  // for each one carried, for every tile a step weighs (147); both are pure.
+  if (W.tiles.liquid[tile] <= WATER_DEPTH.WADE_LIMIT || !hasNavigableWatercraft(id)) return base;
   const floodPenalty = Math.max(0, W.tiles.liquid[tile] - 780) / 18;
   return Math.max(0, base - floodPenalty) + Math.min(2.5, W.tiles.fire[tile] / 300);
 };

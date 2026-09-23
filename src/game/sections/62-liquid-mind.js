@@ -56,6 +56,7 @@ function ltcFusedStepQ(stateQ, fQ, revQ, tauQ, dt) {
     denominator = LTC_Q * tau + dt * (LTC_Q * LTC_Q + fQ * tau);
   return clamp(Math.trunc(numerator / denominator), -LTC_Q, LTC_Q);
 }
+let LTC_NEXT_SCRATCH = new Int16Array(0);
 advanceLTC = function (id) {
   const g = W.components.genome[id],
     c = initCognition(id),
@@ -87,7 +88,10 @@ advanceLTC = function (id) {
   c.pendingReward = 0;
   c.lastUtility = utility;
   c.gate = resizedTyped(c.gate, Int16Array, LTC_HIDDEN);
-  const next = new Int16Array(LTC_HIDDEN);
+  // One scratch row for every mind: the step is copied into the state below,
+  // so a new array a creature every fourth tick was garbage and nothing else (147).
+  const next = LTC_NEXT_SCRATCH.length === LTC_HIDDEN ? LTC_NEXT_SCRATCH : (LTC_NEXT_SCRATCH = new Int16Array(LTC_HIDDEN));
+  next.fill(0);
   for (let h = 0; h < LTC_HIDDEN; h++) {
     let drive = g.controller.leak[h] * 2;
     for (let n = 0; n < LTC_INPUT_FAN; n++) {
