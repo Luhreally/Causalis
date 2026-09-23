@@ -14,7 +14,7 @@
 // has the shape of a cohort (a count, four age bands, the summed matter of
 // its bodies, the sums of its genes) and is held by its town. Its cost is one
 // pass a town every thirty-two ticks, whatever its count. The town keeps up
-// to forty full lives (FOLK_AGENTS), the people who are followed,
+// to forty full lives (FOLK_AGENTS; twenty-eight in a lean world), the people who are followed,
 // inspected, fall in love, go to war and are written into the chronicle; when
 // an industrial town (one that knows mechanization) already has as many, a
 // child born to two of its people is born into the ledger with the matter its
@@ -24,8 +24,8 @@
 // the ledger is drawn out as a life (12's materializeCohort) and walks into the
 // town: the named cast renews itself from the crowd. A town past its forty
 // folds four of its least noted grown people a pass into the ledger (never a
-// voice, a soldier, a traveller under orders or anyone the chronicle has
-// marked), so a grown industrial city of a hundred and twenty full lives is,
+// voice, a soldier on campaign, a traveller under orders, or the town's eight
+// most significant; a watch at ease is townsfolk like any other), so a grown industrial city of a hundred and twenty full lives is,
 // within a few years, forty lives and a crowd.
 //
 // The ledger lives: it ages by band (12's advanceCohortAges, the old dying
@@ -45,8 +45,14 @@
 // Counting: a town's people (25's settlementPopulation) include its ledger,
 // so it plans fields, homes and towers for them (82, 103, 121, 127); the
 // world's people (populationSummary) include every ledger.
-// The full lives a town keeps (a let only so the test can set it for a small town).
+// The full lives a town keeps (a let only so the test can set it for a small
+// town): forty, and twenty-eight in a lean world, the phone's, where every
+// full life is a larger share of a slower processor's tick.
 let FOLK_AGENTS = 40;
+const FOLK_AGENTS_LEAN = 28;
+function folkAgentBudget() {
+  return W?.config?.complexity === "lean" ? Math.min(FOLK_AGENTS, FOLK_AGENTS_LEAN) : FOLK_AGENTS;
+}
 const FOLK_EVERY = 32,
   FOLK_FOLD_PER_PASS = 4,
   FOLK_GATHER = 2,
@@ -160,7 +166,7 @@ function folkAddMember(folk, chemistry, genome, bin = 0) {
 const createOffspringFolkBase = createOffspring;
 createOffspring = function (kind, parents, tile) {
   const town = kind === KINDS.PERSON ? homeTownOf(parents[0]) || homeTownOf(parents[1]) : null;
-  if (!folkEra(town) || townAgentCount(town) < FOLK_AGENTS) return createOffspringFolkBase(kind, parents, tile);
+  if (!folkEra(town) || townAgentCount(town) < folkAgentBudget()) return createOffspringFolkBase(kind, parents, tile);
   const r = makeRng(hashParts(W.seedHash, W.tick, ...parents), "folk-birth"),
     g = genomeFrom(r, KINDS.PERSON, W.components.genome[parents[0]], W.components.genome[parents[1] || parents[0]]),
     chemistry = makeCohortBirthMatter(parents),
@@ -193,7 +199,7 @@ aggregateIntoCohort = function (id, reason = "density cap") {
     inventory = W.components.inventory[id],
     life = W.components.life[id],
     body = W.components.body[id];
-  if (!g || !ch || !life || !body || ident?.notable) return false;
+  if (!g || !ch || !life || !body || (ident?.notable && !FOLK_FOLDING)) return false;
   const folk = folkLedger(town, true),
     held = new Array(SPECIES_COUNT).fill(0);
   for (let sp = 0; sp < SPECIES_COUNT; sp++)
@@ -420,9 +426,16 @@ function folkGather(town, adults) {
   FOLK.gathered += got;
   return got;
 }
-// The least noted grown people of a town past its forty, folded into its ledger.
+// The least noted grown people of a town past its budget, folded into its
+// ledger. In a grown world most grown people have been marked by the
+// chronicle (a craft mastered, a title, a marriage: identity.notable), so the
+// mark alone does not keep a life out of the crowd; the town's eight most
+// significant do, and their stories stay in the legends as every folded
+// life's does (W.historicalIdentities).
+const FOLK_KEEP_NOTED = 8;
+let FOLK_FOLDING = false;
 function folkFoldExcess(town) {
-  const over = townAgentCount(town) - FOLK_AGENTS;
+  const over = townAgentCount(town) - folkAgentBudget();
   if (over <= 0) return 0;
   const voices = new Set(W.factions.map((f) => f.leaderId).filter(Boolean)),
     candidates = [];
@@ -431,14 +444,23 @@ function folkFoldExcess(town) {
     const soc = W.components.social[id],
       ident = W.components.identity[id];
     if (soc?.homePlaceKind !== "settlement" || soc.homePlaceId !== town.id) continue;
-    if (!isAdultPerson(id) || voices.has(id) || ident?.notable || soc.unitId || soc.revengeTargetId) continue;
+    const unit = soc.unitId ? (W.militaryUnits || []).find((u) => u.id === soc.unitId) : null;
+    if (!isAdultPerson(id) || voices.has(id) || soc.revengeTargetId || (unit && unitOnCampaign(unit))) continue;
     if (W.components.campaign?.[id] || W.civilOrders?.some((o) => o.id === id)) continue;
-    candidates.push([ident?.significance || 0, id]);
+    candidates.push([ident?.significance || 0, id, soc.partnerId && classifyAlive(soc.partnerId) ? 1 : 0]);
   }
+  // The town's most significant are kept; of the rest, those with no living
+  // partner go first (a partner left behind mourns one who did not die).
   candidates.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const foldable = candidates.slice(0, Math.max(0, candidates.length - FOLK_KEEP_NOTED)).sort((a, b) => a[2] - b[2] || a[0] - b[0] || a[1] - b[1]);
   let folded = 0;
-  for (const [, id] of candidates.slice(0, Math.min(over, FOLK_FOLD_PER_PASS)))
-    if (aggregateIntoCohort(id, "folded into the town's crowd")) folded++;
+  FOLK_FOLDING = true;
+  try {
+    for (const [, id] of foldable.slice(0, Math.min(over, FOLK_FOLD_PER_PASS)))
+      if (aggregateIntoCohort(id, "folded into the town's crowd")) folded++;
+  } finally {
+    FOLK_FOLDING = false;
+  }
   if (folded) rebuildSpatialBins();
   return folded;
 }
@@ -492,7 +514,7 @@ function folkPass(town) {
   }
   folkFoldExcess(town);
   // The named cast renews itself from the crowd.
-  if (folk.count && townAgentCount(town) < FOLK_AGENTS * FOLK_PROMOTE_BELOW) {
+  if (folk.count && townAgentCount(town) < folkAgentBudget() * FOLK_PROMOTE_BELOW) {
     const id = materializeCohort(folk);
     if (id) {
       const p = W.components.position[id],
@@ -516,7 +538,7 @@ function updateTownsfolk() {
   for (const town of W.settlements) {
     if (W.tick % FOLK_EVERY !== town.id % FOLK_EVERY) continue;
     let folk = folkLedger(town);
-    if (!folk && !town.ruined && folkEra(town) && townAgentCount(town) > FOLK_AGENTS) folk = folkLedger(town, true);
+    if (!folk && !town.ruined && folkEra(town) && townAgentCount(town) > folkAgentBudget()) folk = folkLedger(town, true);
     if (!folk) continue;
     if (town.ruined) {
       // A fallen town's crowd scatters into the wild's cohort of its region.
@@ -606,6 +628,6 @@ window.ALIFE_FOLK_DEBUG = Object.freeze({
   agents: (townId) => townAgentCount(W.settlements.find((s) => s.id === townId)),
   pass: (townId) => folkPass(W.settlements.find((s) => s.id === townId)),
   create: (townId) => !!folkLedger(W.settlements.find((s) => s.id === townId), true),
-  budget: (n) => (n === undefined ? FOLK_AGENTS : (FOLK_AGENTS = n)),
+  budget: (n) => (n === undefined ? folkAgentBudget() : (FOLK_AGENTS = n)),
   fold: (townId) => folkFoldExcess(W.settlements.find((s) => s.id === townId)),
 });

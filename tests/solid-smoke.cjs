@@ -84,7 +84,9 @@ const fixtureSource = String.raw`(() => {
       for (let y = Math.max(0, p.y - 3); y <= Math.min(W.height - 1, p.y + 3); y++) { const t = idx(wallX, y); if (!land(t)) continue; raised.push([t, elevation[t]]); elevation[t] = Math.min(1000, elevation[t] + solid.cliffStep + 80); }
       const detour = solid.path(i, { x: goalX, y: goalY }, 0, "land");
       out.detour = detour.length;
-      const crossesWall = detour.some((t, n) => n > 0 && Math.abs(elevation[t] - elevation[detour[n - 1]]) > solid.cliffStep);
+      // A step between the water's edge and the bank is no cliff (96's cliffBetween); the test reads it the same way.
+      const dry = (t) => W.tiles.liquid[t] <= WATER_DEPTH.SURFACE,
+        crossesWall = detour.some((t, n) => n > 0 && dry(t) && dry(detour[n - 1]) && Math.abs(elevation[t] - elevation[detour[n - 1]]) > solid.cliffStep);
       if (detour.length && crossesWall) fail("a civil path climbed the cliff");
       for (const [t, e] of raised) elevation[t] = e;
     }
@@ -109,6 +111,8 @@ const fixtureSource = String.raw`(() => {
   p.x = building.x + 1; p.y = building.y; p.regionId = regionId(p.x, p.y);
   const life = W.components.life[person], keepInside = life ? life.insideBuildingId : 0;
   if (life) life.insideBuildingId = 0;
+  // Set down beside the facade, not glided there from wherever the figure was last drawn.
+  if (typeof VISUAL_MOTION !== "undefined" && VISUAL_MOTION?.delete) VISUAL_MOTION.delete(person);
   window.ALIFE_VISUAL_DEBUG.renderOnly({ view: "top", quality: "high", zoom: 4, x: building.x, y: building.y, now: 6000 });
   const push = solid.push(p.x, p.y);
   out.push = push;

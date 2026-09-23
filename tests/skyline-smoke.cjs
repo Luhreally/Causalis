@@ -42,13 +42,15 @@ const fixtureSource = String.raw`(() => {
   settlement.stage = "urban";
   know("masonry", "mechanization", "chemistry", "electricity");
   const hidden = [];
-  for (const b of W.buildings) if (!b.ruined && b.complete && b.placeKind === "settlement" && b.placeId === settlement.id && (BUILDING_DEFS[b.type]?.housing || 0) > 0) { b.complete = false; hidden.push(b); }
+  // The town's homes are hidden (as fallen, not as unfinished, which would count
+  // as projects against 103's six) so that its beds run short.
+  for (const b of W.buildings) if (!b.ruined && b.complete && b.placeKind === "settlement" && b.placeId === settlement.id && (BUILDING_DEFS[b.type]?.housing || 0) > 0) { b.ruined = true; hidden.push(b); }
   out.wantsTower = sky.wantsTower(settlement.id);
   out.wantsTenement = cities.wants(settlement.id);
   if (!out.wantsTower) fail("an electric city short of beds wants no tower");
   if (out.wantsTenement) fail("an electric city still wants tenements");
   sky.plan(settlement.id);
-  for (const b of hidden) b.complete = true;
+  for (const b of hidden) b.ruined = false;
   const tower = planned("tower");
   if (!tower) { fail("no tower was planned"); return out; }
   if (BUILDING_DEFS.tower.housing !== 36) fail("a tower does not house thirty-six");
@@ -61,6 +63,8 @@ const fixtureSource = String.raw`(() => {
   out.wantsOffice = sky.wantsOffice(settlement.id);
   if (!out.wantsOffice) fail("a computing city with a market wants no office");
   const tempoBefore = researchTempoFactor(settlement);
+  // A city raising six buildings plans no more (103); the fixture's own projects are finished first.
+  for (const b of activeBuildings(settlement)) { b.complete = true; b.stage = 6; b.integrity = b.maxIntegrity; b.completedTick = W.tick; for (const [sp, n] of b.requirements || []) b.composition[sp] = n; }
   sky.plan(settlement.id);
   const office = planned("office");
   if (!office) { fail("no office was planned"); return out; }

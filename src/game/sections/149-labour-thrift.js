@@ -28,19 +28,21 @@
 //   twice a purpose for the claims on the town's tool orders.
 //
 // The orders, the buildings, the fields and the tool claims give the same
-// answers as before and are exact. The plans are made once a town a tick as
-// section 70 meant, so a plan that a worker's labour would have set off later
+// answers as before and are exact. The plans are made once a town in sixteen
+// ticks, so a plan that a worker's labour would have set off later
 // in the same tick waits for the next; and the mender is found by asking
 // only the hands nearer than the worker, so the rest are not weighed (their
 // hunger read, 10's derivedLife) that tick. Both move the hash; the launch
 // sweep of the round holds them.
 const LABOUR_THRIFT = { plans: 0, plansKept: 0, mendChecks: 0, orderIndexes: 0, buildingIndexes: 0, fieldIndexes: 0, fieldsKept: 0, toolScans: 0 };
-// ── The plans, once a town in four ticks ──────────────────────────────────
+// ── The plans, once a town in sixteen ticks ────────────────────────────────
 // A town's plans are the buildings it means to raise; they change with its
 // people, its crafts and its ground, over seasons and not ticks. Made once a
-// tick they still took 8 in a hundred of the tick; once in four, a plan set
-// off by a worker's labour or a craft learned waits three ticks at most.
-const LABOUR_PLAN_EVERY = 4,
+// tick they took 8 in a hundred of the tick; once in four, still 8 in a
+// hundred of a grown world's leaner tick (the site searches of 30a's
+// planBuilding); once in sixteen, a plan set off by a worker's labour or a
+// craft learned waits fifteen ticks at most, a sixteenth of a month.
+const LABOUR_PLAN_EVERY = 16,
   LABOUR_PLANNED = new WeakMap();
 const ensurePlacePlansLabourBase = ensurePlacePlans;
 ensurePlacePlans = function (place) {

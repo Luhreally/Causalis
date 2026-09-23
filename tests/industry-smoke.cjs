@@ -100,6 +100,9 @@ const fixtureSource = String.raw`(() => {
   know(settlement, "controlled_fire", "metalworking", "mechanization", "chemistry", "electricity");
   out.wantsFactory = ind.wants(settlement.id);
   if (!out.wantsFactory) fail("an electric town wants no factory");
+  // A town already raising six buildings waits to plan a factory (98); the
+  // fixture's own projects are finished first so the plan is the factory's.
+  for (const b of activeBuildings(settlement)) { b.complete = true; b.stage = 6; b.integrity = b.maxIntegrity; b.completedTick = W.tick; for (const [sp, n] of b.requirements || []) b.composition[sp] = n; }
   ind.plan(settlement.id);
   const factory = W.buildings.find((b) => !b.ruined && b.placeKind === "settlement" && b.placeId === settlement.id && b.type === "factory");
   if (!factory) { fail("no factory was planned"); return out; }
