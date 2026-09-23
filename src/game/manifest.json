@@ -160,5 +160,6 @@
   "140-map-lenses.js",
   "141-settled-intent.js",
   "142-warfare-view.js",
-  "143-war-strategy.js"
+  "143-war-strategy.js",
+  "144-homes-view.js"
 ]

@@ -701,7 +701,7 @@ assert.ok(warview, "the war view initializes");
 run("() => { UI.overlay = null; }")();
 const grid = element("overlayGrid");
 assert.ok((grid.innerHTML.match(/overlay-group/g) || []).length >= 6, "the lenses are not grouped");
-assert.equal((grid.innerHTML.match(/overlay-btn/g) || []).length, lensIds.length + 1, "not every lens has a button");
+assert.equal((grid.innerHTML.match(/overlay-btn/g) || []).length, lensIds.length + 2, "not every lens has a button");
 assert.ok(grid.innerHTML.includes('data-overlay="warfare"'), "the warfare lens has no button");
 for (const i of sample) assert.ok(colourShape.test(lens.style("warfare", i)), "the warfare lens painted no colour at " + i);
 const warHtml = warview.html();
@@ -737,6 +737,13 @@ if (!marks.skipped) {
   assert.strictEqual(marks.labels, 1, "two columns marching at one place print two words, not one with a count: " + JSON.stringify(marks));
 }
 lensReport.war = marks;
+// Homes seen (144): the housing lens in the Peoples group, a ring of tenure on every home, a ring
+// round each person with no bed, the count in the legend and at the head of the people bar.
+const homes = windowObject.ALIFE_HOMES_DEBUG;
+assert.ok(homes, "the homes view initializes");
+assert.ok(grid.innerHTML.includes('data-overlay="housing"'), "the housing lens has no button");
+assert.ok(grid.innerHTML.indexOf('data-overlay="housing"') > grid.innerHTML.indexOf('data-overlay="unrest"'), "the housing lens is not in the Peoples group after unrest");
+for (const i of sample) assert.ok(colourShape.test(lens.style("housing", i)), "the housing lens painted no colour at " + i);
 lensReport.contours = contours;
 report.lenses = lensReport;
 
@@ -828,6 +835,70 @@ assert.match(css, /100dvh/);
 assert.match(css, /touch-action:\s*none/);
 assert.match(css, /min-height:\s*44px/);
 assert.match(css, /orientation:\s*landscape/);
+// The homes of a town seen (144), on the civic scenario's town: this is the last world the test
+// builds, since the scenario raises a town the blocks above were not written against.
+windowObject.ALIFE_CONTROL_DEBUG.createCivicTestScenario();
+const tenure = run(`() => {
+  let town = W.settlements.find((s) => !s.ruined && s.knownProcesses);
+  if (!town) {
+    // A camp becomes a town once its shelter, store and hearth stand (30a); they are finished here.
+    const camp = W.camps.find((c) => c.active);
+    if (camp) {
+      for (const type of ["shelter", "stockpile", "hearth"])
+        if (!W.buildings.some((b) => b.placeKind === "camp" && b.placeId === camp.id && b.type === type)) planBuilding(camp, type, 9);
+      for (const b of W.buildings)
+        if (b.placeKind === "camp" && b.placeId === camp.id && !b.complete) {
+          b.complete = true; b.stage = 6; b.integrity = b.maxIntegrity; b.completedTick = W.tick;
+          for (const [sp, n] of b.requirements || []) b.composition[sp] = n;
+        }
+      createSettlement(camp.id);
+    }
+    town = W.settlements.find((s) => !s.ruined && s.knownProcesses);
+  }
+  // The one without a bed must have no parent under a roof, or it is sheltered as their child; the
+  // world's founders have no parents at all.
+  const alive = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.position[id]),
+    orphan = alive.find((id) => !(W.components.identity[id]?.parents || []).some((p) => classifyAlive(p))),
+    rest = alive.filter((id) => id !== orphan),
+    people = orphan ? [rest[0], rest[1], orphan, rest[2]].filter(Boolean) : [];
+  if (!town || people.length < 4) return { skipped: "no town or too few people: " + (town ? alive.length + " alive" : "no town") };
+  // Synthetic homes, dropped again at the end: one owned, one behind on the rent, one empty.
+  const home = (id, dx, residents, ownerId, arrears) => ({ id, placeKind: "settlement", placeId: town.id, type: "shelter", name: "Shelter", x: town.x + dx, y: town.y, complete: true, ruined: false, housing: 6,
+      tenancy: { ownerId, residents, arrears, decor: [], rent: 2 } }),
+    [a, b, c, d] = people,
+    kept = [a, b, c, d].map((id) => ({ id, social: { ...W.components.social[id] } })),
+    set = (id, buildingId) => Object.assign(W.components.social[id], { homePlaceKind: "settlement", homePlaceId: town.id, homeBuildingId: buildingId, householdId: id }),
+    fake = [home(990101, 1, [a], a, {}), home(990102, -1, [b], 0, { [b]: 5 }), home(990103, 2, [], 0, {})],
+    keptHab = town.habitation;
+  set(a, 990101); set(b, 990102); set(c, 0);
+  W.buildings.push(...fake);
+  town.habitation = town.habitation || { residents: 0, beds: 0, housed: 0, households: 0 };
+  const owned = window.ALIFE_HOMES_DEBUG.tenure(990101), behind = window.ALIFE_HOMES_DEBUG.tenure(990102), empty = window.ALIFE_HOMES_DEBUG.tenure(990103);
+  W.tick++;
+  const census = window.ALIFE_HOMES_DEBUG.census(), legend = window.ALIFE_HOMES_DEBUG.legend(), chip = window.ALIFE_HOMES_DEBUG.chip();
+  UI.view = "top"; UI.overlay = "housing"; UI.camera.zoom = 3; UI.camera.x = town.x + 0.5; UI.camera.y = town.y + 0.5;
+  const before = window.ALIFE_HOMES_DEBUG.counts();
+  window.ALIFE_HOMES_DEBUG.marks(1000);
+  const after = window.ALIFE_HOMES_DEBUG.counts(), page = renderPlacePage(town.id);
+  W.tick--;
+  W.buildings = W.buildings.filter((x) => !fake.includes(x));
+  for (const k of kept) Object.assign(W.components.social[k.id], k.social);
+  town.habitation = keptHab;
+  UI.overlay = null;
+  return { owned: owned.kind, behind: [behind.kind, behind.owed], empty: empty.kind, census, legend, chip, rings: after.rings - before.rings, rough: after.rough - before.rough, page: /Tenure/.test(page) && /behind on the rent/.test(page) };
+}`)();
+if (!tenure.skipped) {
+  assert.equal(tenure.owned, "owned", "a home its household owns does not read owned");
+  assert.ok(tenure.behind[0] === "arrears" && tenure.behind[1] === 2, "five coin owed on a rent of two is not two years behind: " + JSON.stringify(tenure.behind));
+  assert.equal(tenure.empty, "empty", "a home with nobody in it does not read empty");
+  assert.ok(tenure.census.rough >= 1 && tenure.census.tenure.arrears >= 1, "the census missed the person without a bed or the debt: " + JSON.stringify(tenure.census));
+  assert.ok(/behind on rent/.test(tenure.legend) && /without a bed/.test(tenure.legend), "the legend does not count the debt and the people without a bed: " + tenure.legend);
+  assert.ok(/data-homes-chip/.test(tenure.chip) && /no bed/.test(tenure.chip) && /⚠/.test(tenure.chip), "the people bar count is missing: " + tenure.chip);
+  assert.ok(tenure.rings >= 3 && tenure.rough >= 1, "the lens drew no ring on a home or round the person without a bed: " + JSON.stringify(tenure));
+  assert.ok(tenure.page, "the place page does not give the tenure of its homes");
+}
+assert.ok(!tenure.skipped, "the homes fixture found no town: " + tenure.skipped);
+report.homes = { owned: tenure.owned, behind: tenure.behind, rings: tenure.rings, rough: tenure.rough };
 // The simple controls no longer hide the map lenses (140).
 const experienceCss = fs.readFileSync(path.join(root, "src/styles/08-player-experience.css"), "utf8");
 assert.ok(!/compact-controls\s+#overlayGrid/.test(experienceCss), "the simple controls still hide map lenses");
