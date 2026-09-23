@@ -28,6 +28,19 @@ function ensureEras(world = W) {
   world.ascensions = world.ascensions || [];
   if (world.nextLeagueId == null) world.nextLeagueId = 1;
 }
+// A fresh world carries its ages from the first moment. They were made the
+// first time anything read them, and the first thing that read them on a new
+// expedition was the interface: entering the game wrote four fields into the
+// world (ages, leagues, ascensions, the next league's number), which the
+// experience test has read as inspection changing the simulation since it was
+// written. Made with the world, the reading writes nothing; the eight-year
+// hash is the same, since the first tick made them before.
+const createWorldErasBase = createWorld;
+createWorld = function (options) {
+  const world = createWorldErasBase(options);
+  ensureEras(world);
+  return world;
+};
 const restoreWorldErasBase = restoreWorldDefaults;
 restoreWorldDefaults = function () {
   restoreWorldErasBase();
