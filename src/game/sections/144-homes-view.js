@@ -38,16 +38,17 @@ function homesTenure(b) {
   const t = b?.tenancy,
     residents = (t?.residents || []).filter((id) => classifyAlive(id) && W.components.social[id]?.homeBuildingId === b.id),
     beds = habitationBeds(b);
-  // Arrears are kept in coin; a year's rent is what the home asked last (121
-  // keeps it on the tenancy), one coin where it asked nothing yet.
+  // Arrears are kept in coin; a year's rent is what the household was asked
+  // last (121 keeps it on the tenancy), one coin where it was asked nothing yet.
   const rent = Math.max(1, t?.rent || 1);
   let owed = 0,
     behind = 0;
   if (t?.arrears)
     for (const [head, coin] of Object.entries(t.arrears)) {
-      if (!(coin >= rent) || !residents.some((id) => W.components.social[id]?.householdId === +head)) continue;
+      const asked = typeof habitationRentOf === "function" ? habitationRentOf(t, +head) : rent;
+      if (!(coin >= asked) || !residents.some((id) => W.components.social[id]?.householdId === +head)) continue;
       behind++;
-      owed = Math.max(owed, Math.floor(coin / rent));
+      owed = Math.max(owed, Math.floor(coin / asked));
     }
   const kind = !residents.length
     ? "empty"

@@ -26,6 +26,8 @@ const result = rt.get(`(() => {
     Object.assign(W.components.social[id], { homePlaceKind: "settlement", homePlaceId: town.id, factionId: town.factionId });
     const inv = W.components.inventory[id].materials;
     inv[C.FIBER] += 4; inv[C.PIGMENT] += 4;
+    // A flat is let with a year's rent in hand (145); each holds a little.
+    W.components.identity[id].civicCoins = 6;
   }
   const faction = polityOfPlace(town); faction.treasury = 200;
   const coins = () => faction.treasury + Object.values(W.components.identity).reduce((n, ident) => n + (ident?.civicCoins || 0), 0);
@@ -35,7 +37,9 @@ const result = rt.get(`(() => {
   out.fill = [tower.tenancy.residents.length, house.tenancy.residents.length];
   if (!(tower.tenancy.residents.length > 0) || house.tenancy.residents.length > 0) fail("the tower did not fill before the cottage: " + out.fill.join("/"));
   if (totalMatter() !== beforeMatter) fail("furnishing moved matter out of the audit");
-  if (coins() !== beforeCoins) fail("wages or rents created coins");
+  // Rent moves coin between purses and the treasury; the only new coin is the wages struck (145).
+  out.wages = town.wages?.paid || 0;
+  if (coins() !== beforeCoins + out.wages) fail("rents created or lost coins: " + beforeCoins + " + " + out.wages + " -> " + coins());
   const allResidents = homes.flatMap((b) => b.tenancy.residents);
   if (new Set(allResidents).size !== allResidents.length) fail("one person rents two beds");
   for (const b of homes) if (b.tenancy.residents.length > habitationBeds(b)) fail("housing capacity exceeded");
@@ -166,6 +170,56 @@ const result = rt.get(`(() => {
         if (block.tenancy.arrears[head]) fail("the arrears followed the household out");
         block.housing = keptHousing;
         Object.assign(W.components.social[outsider], keptHome);
+        updateHabitationTown(town);
+      }
+    }
+  }
+  // ── Wages (145): paid for the time worked, half again for a master; the rent follows the pay ──
+  {
+    const wages = window.ALIFE_WAGES_DEBUG, hab = window.ALIFE_HABITATION_DEBUG;
+    const [worker, master] = habitationResidents(town);
+    if (!worker || !master) fail("no residents to pay");
+    else {
+      for (const id of [worker, master]) { W.components.identity[id].workSteps = 180; W.components.identity[id].wageCarry = 0; }
+      characterOf(master).skills.craft = 80;
+      characterOf(worker).skills = freshSkills();
+      const before = [worker, master].map((id) => W.components.identity[id].civicCoins || 0);
+      town.wagesYear = -1;
+      out.paid = wages.pay(town.id);
+      out.wage = [worker, master].map((id, n) => (W.components.identity[id].civicCoins || 0) - before[n]);
+      if (out.wage[0] !== 2 || out.wage[1] !== 3) fail("a hundred and eighty ticks worked is not two coin, or three for a master: " + out.wage.join("/"));
+      if (W.components.identity[worker].workSteps !== 0) fail("the ticks worked were not cleared with the pay");
+      // The rent follows the pay, by the bed: half the wage a head for each member under the roof.
+      const perHead = (town.wages?.paid || 0) / Math.max(1, town.wages?.residents || 1);
+      out.rent = [wages.rent(town.id, 1), wages.rent(town.id, 6)];
+      if (out.rent[0] !== Math.max(1, Math.round(0.5 * perHead)) || out.rent[1] !== Math.max(1, Math.round(0.5 * perHead * 6))) fail("the rent does not follow the pay by the bed: " + out.rent.join("/") + " at " + perHead.toFixed(2) + " a head");
+      // A let flat wants the first year's rent in hand; a cottage nobody owns is free.
+      const flat = W.buildings.find((x) => x.placeId === town.id && x.type !== "shelter" && habitationBeds(x) > 0 && !x.ruined),
+        penniless = W.activeIds.find((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && !(W.components.identity[id]?.civicCoins > 0));
+      if (flat && penniless) {
+        const keptCoin = W.components.identity[penniless].civicCoins;
+        out.lease = [habitationMayTake(town, flat, [penniless])];
+        W.components.identity[penniless].civicCoins = habitationRent(flat, town);
+        out.lease.push(habitationMayTake(town, flat, [penniless]));
+        W.components.identity[penniless].civicCoins = keptCoin;
+        if (out.lease[0] || !out.lease[1]) fail("a let flat does not ask the first year's rent in hand: " + out.lease.join("/"));
+      }
+      // Six years owed and not a coin in the household: out, with nobody waiting.
+      const block = W.buildings.find((x) => x.placeId === town.id && x.type !== "shelter" && !x.ruined && x.tenancy?.residents?.length),
+        debtor = block?.tenancy.residents[0];
+      if (block && debtor) {
+        const head = W.components.social[debtor].householdId, members = block.tenancy.residents.filter((id) => W.components.social[id].householdId === head),
+          kept = members.map((id) => W.components.identity[id].civicCoins || 0), rent = Math.max(1, block.tenancy.rent || 1),
+          seekers = habitationResidents(town).filter((id) => !W.components.social[id].homeBuildingId);
+        for (const id of seekers) W.components.identity[id].civicCoins = -(W.components.identity[id].civicCoins || 0) || 0;
+        for (const id of members) W.components.identity[id].civicCoins = 0;
+        block.tenancy.arrears[head] = 6 * rent;
+        const before2 = hab.families().evictions;
+        hab.evict(town.id);
+        out.hopeless = [hab.families().evictions - before2, !!W.components.social[debtor].homeBuildingId];
+        if (out.hopeless[0] < 1 || out.hopeless[1]) fail("a household six years behind with no coin was not put out: " + out.hopeless.join("/"));
+        members.forEach((id, n) => { W.components.identity[id].civicCoins = kept[n]; });
+        for (const id of seekers) W.components.identity[id].civicCoins = Math.abs(W.components.identity[id].civicCoins || 0);
         updateHabitationTown(town);
       }
     }

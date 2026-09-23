@@ -90,10 +90,13 @@ function updateHabitationTown(town) {
     const old = byId.get(W.components.social[group[0]]?.homeBuildingId),
       room = (b) => habitationBeds(b) - b.tenancy.residents.length;
     // Keep the address when it fits. Only split a household if no whole home
-    // can take it, and never count an imaginary bed in a full building.
-    const together = old && room(old) >= group.length ? old : homes.find((b) => room(b) >= group.length);
+    // can take it, and never count an imaginary bed in a full building. A home
+    // the household does not already hold must be one it may take (145: a let
+    // home wants the first year's rent in hand; a cottage nobody owns is free).
+    const mayTake = (b) => b === old || habitationMayTake(town, b, group),
+      together = old && room(old) >= group.length ? old : homes.find((b) => room(b) >= group.length && mayTake(b));
     for (const id of group) {
-      const b = together || homes.find((h) => room(h) > 0), social = W.components.social[id];
+      const b = together || homes.find((h) => room(h) > 0 && mayTake(h)), social = W.components.social[id];
       social.homeBuildingId = b?.id || 0;
       social.householdId = group[0];
       if (b) b.tenancy.residents.push(id);
@@ -115,6 +118,26 @@ function updateHabitationTown(town) {
 function habitationPrice(b) {
   return habitationBeds(b) * 4;
 }
+// What a household of so many pays a year to live in a home it does not own.
+// A coin here; the wages section prices it by the bed against what the town
+// earns (145).
+function habitationRent(b, town, members = 1) {
+  return 1;
+}
+// The rent a household was last asked, or the home's one-coin rent before.
+function habitationRentOf(tenancy, head) {
+  return Math.max(1, tenancy?.rents?.[head] || tenancy?.rent || 1);
+}
+// Whether a household without this address may take it. Any home, here; the
+// wages section asks a let home's rent in hand (145).
+function habitationMayTake(town, b, group) {
+  return true;
+}
+// Every coin a household holds between its members, the head's first.
+function habitationPurse(head, members) {
+  const ids = [head, ...members.filter((id) => id !== head)];
+  return ids.filter((id) => W.components.identity[id]);
+}
 // ── The landlord's choice ────────────────────────────────────────────────────
 // Rent was owed and never enforced: a household could sit twelve years in
 // arrears in a full block while another slept at the hearth with coin in hand.
@@ -125,27 +148,34 @@ function habitationPrice(b) {
 // cottage is a homestead, not a tenancy. The homeless this makes are the
 // town's own, counted as seeking a bed, sleeping at the hall or the hearth
 // until a block has room or their coin returns.
-const HABITATION_EVICT_ARREARS = 4;
+// Years of the home's rent (arrears are kept in coin): four with a household
+// waiting to take the flat, six with nobody waiting when the household in it
+// holds no coin at all, since a debt that deep is not going to be paid.
+const HABITATION_EVICT_ARREARS = 4,
+  HABITATION_HOPELESS_ARREARS = 6;
 function habitationEvict(town, homes) {
   const social = W.components.social,
     residents = habitationResidents(town),
     seeking = residents.filter((id) => !social[id].homeBuildingId),
+    purse = (h) => seeking.filter((id) => social[id].householdId === h).reduce((n, id) => n + Math.max(0, W.components.identity[id]?.civicCoins || 0), 0),
     payers = [...new Set(seeking.map((id) => social[id].householdId))]
-      .filter((h) => (W.components.identity[h]?.civicCoins || 0) >= 1)
+      .filter((h) => purse(h) >= 1)
       .sort((a, b) => a - b);
-  if (!payers.length) return 0;
   let evictions = 0;
   for (const b of homes) {
     if (!payers.length) break;
     if (b.type === "shelter" || !b.tenancy || b.tenancy.residents.length < habitationBeds(b)) continue;
+    const rent = Math.max(1, habitationRent(b, town, 1));
+    // The household let in must be able to pay the rent it is let in for.
+    if (!payers.some((h) => purse(h) >= rent)) continue;
     const debtors = Object.entries(b.tenancy.arrears)
-      .filter(([, n]) => n >= HABITATION_EVICT_ARREARS)
+      .filter(([h, n]) => n >= HABITATION_EVICT_ARREARS * habitationRentOf(b.tenancy, +h))
       .sort((x, y) => y[1] - x[1] || +x[0] - +y[0]);
     if (!debtors.length) continue;
     const head = +debtors[0][0],
       out = b.tenancy.residents.filter((id) => social[id]?.householdId === head);
     if (!out.length) { delete b.tenancy.arrears[head]; continue; }
-    const payer = payers.shift(),
+    const payer = payers.splice(payers.findIndex((h) => purse(h) >= rent), 1)[0],
       movers = seeking.filter((id) => social[id].householdId === payer);
     for (const id of out) social[id].homeBuildingId = 0;
     b.tenancy.residents = b.tenancy.residents.filter((id) => !out.includes(id));
@@ -157,6 +187,27 @@ function habitationEvict(town, homes) {
     }
     HABITATION.evictions++;
     HABITATION.evicted += out.length;
+    evictions++;
+  }
+  // Nobody waiting, and a household that holds nothing and owes six years: the
+  // landlord puts it out all the same, one a home a year, and the bed stands
+  // empty for the next household that can pay. A cottage its household owns
+  // is never let and never lost.
+  for (const b of homes) {
+    const t = b.tenancy;
+    if (!t || (b.type === "shelter" && (!t.ownerId || t.residents.includes(t.ownerId)))) continue;
+    const inside = (h) => t.residents.filter((id) => social[id]?.householdId === h),
+      hopeless = Object.entries(t.arrears)
+        .filter(([h, n]) => n >= HABITATION_HOPELESS_ARREARS * habitationRentOf(t, +h) && inside(+h).length && !inside(+h).some((id) => (W.components.identity[id]?.civicCoins || 0) > 0))
+        .sort((x, y) => y[1] - x[1] || +x[0] - +y[0])[0];
+    if (!hopeless) continue;
+    const head = +hopeless[0], out = inside(head);
+    for (const id of out) social[id].homeBuildingId = 0;
+    t.residents = t.residents.filter((id) => !out.includes(id));
+    delete t.arrears[head];
+    HABITATION.evictions++;
+    HABITATION.evicted += out.length;
+    HABITATION.hopeless = (HABITATION.hopeless || 0) + 1;
     evictions++;
   }
   if (evictions && town.habitation)
@@ -173,15 +224,26 @@ function habitationAccounts(town, homes) {
     for (const b of homes) {
       const tenancy = b.tenancy, owner = W.components.identity[tenancy.ownerId],
         heads = [...new Set(tenancy.residents.map((id) => W.components.social[id].householdId))];
+      tenancy.rents = {};
       for (const id of heads) {
         if (tenancy.residents.some((x) => x === tenancy.ownerId && W.components.social[x].householdId === id)) continue;
-        const identity = W.components.identity[id];
-        if (!identity) continue;
-        const due = 1 + (tenancy.arrears[id] || 0), paid = Math.min(due, Math.max(0, identity.civicCoins || 0));
-        identity.civicCoins = (identity.civicCoins || 0) - paid;
+        if (!W.components.identity[id]) continue;
+        // The household's purse, head first: a household of grown children
+        // whose father has stopped working pays from the children's wages.
+        const members = tenancy.residents.filter((x) => W.components.social[x]?.householdId === id),
+          rent = Math.max(1, habitationRent(b, town, members.length)),
+          due = rent + (tenancy.arrears[id] || 0);
+        tenancy.rents[id] = rent;
+        let paid = 0;
+        for (const m of habitationPurse(id, members)) {
+          const ident = W.components.identity[m], take = Math.min(due - paid, Math.max(0, ident.civicCoins || 0));
+          ident.civicCoins = (ident.civicCoins || 0) - take;
+          paid += take;
+          if (paid >= due) break;
+        }
         if (owner) owner.civicCoins = (owner.civicCoins || 0) + paid;
         else faction.treasury += paid;
-        tenancy.arrears[id] = Math.min(12, due - paid);
+        tenancy.arrears[id] = Math.min(12 * rent, due - paid);
       }
     }
     habitationEvict(town, homes);
