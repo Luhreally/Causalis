@@ -168,5 +168,6 @@
   "148-address.js",
   "149-labour-thrift.js",
   "150-townsfolk.js",
-  "151-machine-farm.js"
+  "151-machine-farm.js",
+  "152-conversation.js"
 ]

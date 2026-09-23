@@ -92,7 +92,9 @@ const fixtureSource = String.raw`(() => {
   const envoy = dip.send(A.id, B.id, "marriage");
   if (!envoy) { fail("no envoy could be sent"); return out; }
   if (!W.civilOrders.some((o) => o.id === envoy.personId && o.kind === "envoy")) fail("the envoy has no travel order");
-  for (let i = 0; i < 20; i++) simTick();
+  // The first steps stop short of the court too: where the capitals stand close, the envoy would
+  // otherwise arrive inside these twenty ticks and be answered by the court's own roll.
+  for (let i = 0; i < 20; i++) { const pe = W.components.position[envoy.personId]; if (!pe || Math.hypot(pe.x - homeB.x, pe.y - homeB.y) <= 6) break; simTick(); }
   out.roadLength = window.ALIFE_WAYFINDING_DEBUG.orderPath(envoy.personId)?.length || 0;
   if (!out.roadLength) fail("the envoy follows no found road");
   const envoyEvent = W.events.filter((e) => e.type === "EnvoyEvent").at(-1);
