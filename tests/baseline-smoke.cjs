@@ -15,14 +15,16 @@
 // the tile it last stepped from from the first tick, and the labour thrift of
 // 149 did (75fba1bc to 23b71d86, the sweep of its round), since a town's plans
 // are made once in four ticks and the mender of a building found without
-// weighing every hand.
+// weighing every hand, and the talk, aid, law and streets of 152 to 155 did
+// (23b71d86 to 9c3efbbb, the same sweep), since people talk, help and are
+// judged from the first years.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
 const harnessEnd = smokeSource.indexOf('if (process.env.SETTLEMENT_DEBUG === "1")');
 if (harnessEnd < 0) throw new Error("Unable to locate the shared smoke-test harness");
 
-const BASELINE_HASH = "23b71d86",
+const BASELINE_HASH = "9c3efbbb",
   BASELINE_YEARS = 8;
 
 const fixtureSource = String.raw`(() => {
