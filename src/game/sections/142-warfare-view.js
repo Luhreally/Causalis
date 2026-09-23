@@ -47,6 +47,7 @@ const WAR_LENS = "warfare",
     recovering: 190,
     returning: 160,
     guarding: 150,
+    "at ease": 140,
     inactive: 0,
   }),
   WAR_VEIL_LAND = "rgba(8,14,20,0.44)",
@@ -272,7 +273,8 @@ function drawWarUnitMarks(now, bounds, m, lens) {
   let drawn = 0;
   const labels = [];
   for (const unit of W.militaryUnits) {
-    if (!unit.active) continue;
+    // A watch at ease (42c) is its fighters at their own work: no formation to draw.
+    if (!unit.active || unit.phase === "at ease") continue;
     const war = warOf(unit.factionId);
     if (!lens && (!war || UI.camera.zoom < WAR_MARK_ZOOM)) continue;
     const g = warUnitGeometryVisible(unit, bounds);

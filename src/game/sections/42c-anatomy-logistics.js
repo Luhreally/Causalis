@@ -1731,6 +1731,18 @@ function setMilitaryPhase(unit, phase, detail, target, war) {
   unit.lastPhaseEventId = event.id;
 }
 
+// A watch at ease. In peace a unit read "returning" whenever the middle of its
+// fighters stood more than four tiles from the hall, and a town's watch works
+// its fields: the militia probe (scratchpad/militia-probe.cjs) read battery
+// causal-origin at year sixty with eight units of one fighter each and no war
+// anywhere, six of them "returning" from thirteen to forty tiles out, one for
+// ten and a half years, each fighter sent walking to the hall every fourth tick
+// ("withdraw") and walking back to its work between. A unit comes home from a
+// war and says so for MILITIA_HOMECOMING ticks; after that, or if it never
+// went, it is at ease, and its fighters are at their own work until they are
+// called. The watch is still there to be called: the muster (41) keeps it, and
+// a war turns it out.
+const MILITIA_HOMECOMING = TICKS_PER_YEAR;
 function updateMilitaryMovement() {
   if (W.tick % 4) return;
   for (const unit of W.militaryUnits.filter((candidate) => candidate.active)) {
@@ -1740,6 +1752,7 @@ function updateMilitaryMovement() {
       setMilitaryPhase(unit, "inactive", "no intact home or objective remains", null, war);
       continue;
     }
+    if (war) unit.lastWarTick = W.tick;
     const contact = war ? militaryContact(unit, war) : null,
       tactic = contact ? militaryTacticalAssessment(unit, contact) : null;
     let target = contact || objective,
@@ -1783,7 +1796,11 @@ function updateMilitaryMovement() {
       phase = "rallying";
       unit.stalledTicks = 0;
     } else if (contact) phase = tactic.phase;
-    else if (!war) phase = geometry.distance > 4 ? "returning" : "guarding";
+    else if (!war)
+      phase =
+        geometry.distance > 4 && W.tick - (unit.lastWarTick ?? -Infinity) < MILITIA_HOMECOMING
+          ? "returning"
+          : "at ease";
     else if (W.tick - unit.formedTick < 28 || geometry.members.length < 2) phase = "mustering";
     else if (geometry.spread > 5.5) phase = "forming";
     else if (geometry.distance <= (target.road ? 1.2 : 2.4)) phase = "engaged";
@@ -1833,9 +1850,13 @@ function updateMilitaryMovement() {
                     ? `the unit is returning to ${home?.name || target.name} without an active war objective`
                     : phase === "recovering"
                       ? `the withdrawn unit is resupplying at ${home?.name || target.name}`
-                      : `the unit is guarding ${target.name}`;
+                      : phase === "at ease"
+                        ? `the watch of ${home?.name || target.name} is at ease; its ${geometry.members.length} are at their own work until they are called`
+                        : `the unit is guarding ${target.name}`;
     setMilitaryPhase(unit, phase, detail, target, war);
-    for (const id of geometry.members) {
+    if (phase === "at ease") unit.stalledTicks = 0;
+    // At ease, nobody is ordered anywhere.
+    for (const id of phase === "at ease" ? [] : geometry.members) {
       const p = W.components.position[id];
       if (militiaSurvivalCrisis(id)) {
         clearStaleWork(id);
