@@ -20,8 +20,10 @@
 //   burns a fuel for every eight tiles its people drive (111's engine);
 //   a lane or square of the town's plan (92) worn by many feet and wheels (the
 //   traffic of 14 and 46) is paved though no two buildings flank it yet, six
-//   tiles a town a pass, a mineral each, where the town knows masonry or
-//   road-building;
+//   tiles a town a pass, a mineral each, where the town knows road-building,
+//   and only from stone beyond what its unfinished buildings still want and a
+//   reserve of twenty-four (a first cut paved on masonry from any stone, so a
+//   street could take the stone a home was waiting for);
 //   a bus crosses a ferried link's water on the ferry, and the bins are
 //   rebuilt only when someone aboard has moved;
 //   and the town's crowd (150) is seen: its people walking the paved streets
@@ -35,7 +37,8 @@ const CAR_PRICE = 24,
   DRIVE_JAM = 2400,
   DRIVE_FUEL_TILES = 8,
   WORN_TRAFFIC = 1500,
-  WORN_PAVE = 6;
+  WORN_PAVE = 6,
+  WORN_STONE_RESERVE = 24;
 function townDrives(town) {
   return !!town && !town.ruined && !!polityOf(town) && factionHasTech(polityOf(town).id, "combustion");
 }
@@ -132,9 +135,18 @@ function driveToWork() {
   if (moved) rebuildSpatialBins();
 }
 // ── Streets worn into being ─────────────────────────────────────────────────
+// Stone the town's unfinished buildings still want is not for streets.
+function spareMineral(town) {
+  let wanted = WORN_STONE_RESERVE;
+  for (const b of activeBuildings(town))
+    for (const [sp, n] of b.requirements || []) if (sp === C.MINERAL) wanted += Math.max(0, n - (b.composition?.[sp] || 0));
+  return Math.max(0, (town.inventory[C.MINERAL] || 0) - wanted);
+}
 function paveWornGround(town) {
   const known = town.knownProcesses || [];
-  if (!known.includes("masonry") && !known.includes("road_building")) return 0;
+  if (!known.includes("road_building")) return 0;
+  let spare = spareMineral(town);
+  if (spare < 1) return 0;
   const reach = (typeof townOuterRing === "function" ? townOuterRing(town) : 4) + 2,
     plan = townPlan(town),
     worn = [];
@@ -153,7 +165,8 @@ function paveWornGround(town) {
   worn.sort((a, b) => W.tiles.traffic[b] - W.tiles.traffic[a] || a - b);
   let paved = 0;
   for (const i of worn.slice(0, WORN_PAVE)) {
-    if ((town.inventory[C.MINERAL] || 0) < 1) break;
+    if (spare < 1) break;
+    spare--;
     town.inventory[C.MINERAL] -= 1;
     W.roads.matter[C.MINERAL] = (W.roads.matter[C.MINERAL] || 0) + 1;
     W.tiles.road[i] = ROAD_PAVED;

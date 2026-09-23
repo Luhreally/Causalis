@@ -155,7 +155,7 @@ const fixtureSource = String.raw`(() => {
   if (!(out.risk >= 0.5)) fail("the law's eye is not felt beside a court: " + out.risk);
   // ── Streets ──
   const S = window.ALIFE_STREETS_DEBUG;
-  for (const t of ["combustion", "masonry"]) if (!s.knownProcesses.includes(t)) s.knownProcesses.push(t);
+  for (const t of ["combustion", "masonry", "road_building"]) if (!s.knownProcesses.includes(t)) s.knownProcesses.push(t);
   out.drives = S.drives(s.id);
   if (out.drives) {
     s.inventory[C.METAL] = 60;
@@ -172,7 +172,8 @@ const fixtureSource = String.raw`(() => {
   }
   if (lane >= 0) {
     W.tiles.traffic[lane] = 5000;
-    s.inventory[C.MINERAL] = Math.max(s.inventory[C.MINERAL], 20);
+    // Paving takes only stone beyond what unfinished buildings want and a reserve (155).
+    s.inventory[C.MINERAL] = Math.max(s.inventory[C.MINERAL], 2000);
     conserved("a lane paved", () => S.pave(s.id));
     out.paved = W.tiles.road[lane];
     if (!out.paved) fail("a worn lane was not paved");
