@@ -299,7 +299,7 @@ const orderPriorityFieldBase = orderPriority;
 orderPriority = function (order, place, id) {
   const score = orderPriorityFieldBase(order, place, id);
   if (!order || order.type === "salvage" || !place?.knownProcesses || !shipHasLeft()) return score;
-  const b = W.buildings.find((x) => x.id === order.buildingId);
+  const b = buildingById(order.buildingId);
   if (!b || b.type !== "farm" || b.complete || b.ruined || W.tick - (b.createdTick || 0) < FIELD_WAIT || !fieldReachable(place, b)) return score;
   FIELD.first++;
   return score + FIELD_FIRST;

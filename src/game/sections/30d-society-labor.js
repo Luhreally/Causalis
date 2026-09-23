@@ -30,7 +30,7 @@ function performCivilLabor(id) {
   ensurePlacePlans(place);
   const order = selectWorkOrder(id, place);
   if (!order) return performStockpileLabor(id, place);
-  const b = W.buildings.find((x) => x.id === order.buildingId);
+  const b = buildingById(order.buildingId);
   if (!b) return false;
   if (order.type === "salvage") return performRuinSalvage(id, place, order, b);
   const missing = missingBuildingMaterial(b),

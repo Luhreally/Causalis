@@ -594,7 +594,7 @@ function performRuinSalvage(id, place, order, ruin) {
   return true;
 }
 function orderPriority(order, place, id) {
-  const b = W.buildings.find((x) => x.id === order.buildingId);
+  const b = buildingById(order.buildingId);
   if (!b) return -1e9;
   if (order.type === "salvage") {
     if (ruinRubble(b) <= 0) return -1e9;
