@@ -9,15 +9,17 @@
 // a limit: a rule that fires only in a grown town, past year eight, leaves the
 // hash as it is (the open-ground reach of 128 did), so the sweep, not this
 // hash, is the measurement; this catches what changes from generation on, as
-// the field gates of 138 did (7a2d4ecb to 6d96cf30, with the sweep rerun), and
-// the deep sky of 17 did (6d96cf30 to 6bee0692, the same).
+// the field gates of 138 did (7a2d4ecb to 6d96cf30, with the sweep rerun),
+// the deep sky of 17 did (6d96cf30 to 6bee0692, the same), and the steady
+// steps of 146 did (6bee0692 to 75fba1bc, the same), since every person keeps
+// the tile it last stepped from from the first tick.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
 const harnessEnd = smokeSource.indexOf('if (process.env.SETTLEMENT_DEBUG === "1")');
 if (harnessEnd < 0) throw new Error("Unable to locate the shared smoke-test harness");
 
-const BASELINE_HASH = "6bee0692",
+const BASELINE_HASH = "75fba1bc",
   BASELINE_YEARS = 8;
 
 const fixtureSource = String.raw`(() => {

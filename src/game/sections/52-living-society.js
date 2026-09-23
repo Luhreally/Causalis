@@ -56,9 +56,13 @@ function clearCivilOrder(id) {
 function civilOrderOf(id) {
   return (W.civilOrders || []).find((o) => o.id === id) || null;
 }
+// Arrival is within three tiles of the goal. At two, a caravan bound for a
+// town whose core was built solid circled at three until it was overdue,
+// flipping between two tiles on 99 steps in a hundred (146).
+const CIVIL_ARRIVAL_REACH = 3;
 function orderArrived(order) {
   const p = W.components.position[order.id];
-  return !!p && Math.max(Math.abs(p.x - order.x), Math.abs(p.y - order.y)) <= 2;
+  return !!p && Math.max(Math.abs(p.x - order.x), Math.abs(p.y - order.y)) <= CIVIL_ARRIVAL_REACH;
 }
 // War orders are rebuilt each cycle and drop anything they did not issue, so
 // civil orders are re-asserted after them.
@@ -184,7 +188,7 @@ function updateCaravans() {
     const goal = caravan.phase === "outbound" ? to : from,
       arrived = caravan.members.every((id) => {
         const p = W.components.position[id];
-        return Math.max(Math.abs(p.x - goal.x), Math.abs(p.y - goal.y)) <= 2;
+        return Math.max(Math.abs(p.x - goal.x), Math.abs(p.y - goal.y)) <= CIVIL_ARRIVAL_REACH;
       });
     if (!arrived) continue;
     if (caravan.phase === "outbound") {
