@@ -880,12 +880,20 @@ const tenure = run(`() => {
   const before = window.ALIFE_HOMES_DEBUG.counts();
   window.ALIFE_HOMES_DEBUG.marks(1000);
   const after = window.ALIFE_HOMES_DEBUG.counts(), page = renderPlacePage(town.id);
+  // Where each lives, in the inspector and the selection summary (148).
+  const A = window.ALIFE_ADDRESS_DEBUG, keptSelection = UI.selectedEntity;
+  UI.selectedEntity = a;
+  const address = { a: A.of(a), b: A.of(b), c: A.of(c), inspA: organismInspector(a), inspC: organismInspector(c), summary: selectionSummaryMarkup() };
+  UI.selectedEntity = keptSelection;
   W.tick--;
   W.buildings = W.buildings.filter((x) => !fake.includes(x));
   for (const k of kept) Object.assign(W.components.social[k.id], k.social);
   town.habitation = keptHab;
   UI.overlay = null;
-  return { owned: owned.kind, behind: [behind.kind, behind.owed], empty: empty.kind, census, legend, chip, rings: after.rings - before.rings, rough: after.rough - before.rough, page: /Tenure/.test(page) && /behind on the rent/.test(page) };
+  return { owned: owned.kind, behind: [behind.kind, behind.owed], empty: empty.kind, census, legend, chip, rings: after.rings - before.rings, rough: after.rough - before.rough, page: /Tenure/.test(page) && /behind on the rent/.test(page),
+    address: { a: [address.a?.state, address.a?.tenure, address.a?.number, address.a?.name], b: [address.b?.state, address.b?.tenure], c: address.c?.state,
+      inspA: /data-address="home"/.test(address.inspA) && /Cottage 990101/.test(address.inspA) && /owned by the household/.test(address.inspA),
+      inspC: /data-address="rough"/.test(address.inspC) && /Sleeping rough in/.test(address.inspC), summary: /data-address-line="home"/.test(address.summary) } };
 }`)();
 if (!tenure.skipped) {
   assert.equal(tenure.owned, "owned", "a home its household owns does not read owned");
@@ -896,6 +904,10 @@ if (!tenure.skipped) {
   assert.ok(/data-homes-chip/.test(tenure.chip) && /no bed/.test(tenure.chip) && /⚠/.test(tenure.chip), "the people bar count is missing: " + tenure.chip);
   assert.ok(tenure.rings >= 3 && tenure.rough >= 1, "the lens drew no ring on a home or round the person without a bed: " + JSON.stringify(tenure));
   assert.ok(tenure.page, "the place page does not give the tenure of its homes");
+  assert.deepEqual([...tenure.address.a], ["home", "owned", 990101, "Cottage"], "the inspector's address of an owner is wrong: " + JSON.stringify(tenure.address));
+  assert.deepEqual([...tenure.address.b], ["home", "municipal"], "a home with no owner is not let by the town: " + JSON.stringify(tenure.address));
+  assert.equal(tenure.address.c, "rough", "a townsperson with no bed does not read sleeping rough");
+  assert.ok(tenure.address.inspA && tenure.address.inspC && tenure.address.summary, "the inspector or the summary does not say where a person lives: " + JSON.stringify(tenure.address));
 }
 assert.ok(!tenure.skipped, "the homes fixture found no town: " + tenure.skipped);
 report.homes = { owned: tenure.owned, behind: tenure.behind, rings: tenure.rings, rough: tenure.rough };
