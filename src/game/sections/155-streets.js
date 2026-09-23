@@ -278,17 +278,25 @@ function crowdStreets(town) {
     CROWD_STREETS.tick = W.tick;
     CROWD_STREETS.byTown = new Map();
   }
-  let tiles = CROWD_STREETS.byTown.get(town.id);
+  // The crowd is painted over the town, so in the angled lenses it keeps to
+  // the streets no building stands in front of (a car on a street behind a
+  // house was drawn on its roof).
+  const key = `${town.id}:${UI.view === "top" ? "top" : "angled"}`;
+  let tiles = CROWD_STREETS.byTown.get(key);
   if (!tiles) {
     tiles = [];
-    const reach = 9;
+    const reach = 9,
+      angled = UI.view !== "top",
+      built = (x, y) => inside(x, y) && typeof standingBuildingAtMovementTile === "function" && !!standingBuildingAtMovementTile(x, y);
     for (let dy = -reach; dy <= reach; dy++)
       for (let dx = -reach; dx <= reach; dx++) {
         const x = town.x + dx,
           y = town.y + dy;
-        if (inside(x, y) && W.tiles.road[idx(x, y)] === ROAD_PAVED) tiles.push(idx(x, y));
+        if (!inside(x, y) || W.tiles.road[idx(x, y)] !== ROAD_PAVED) continue;
+        if (angled && (built(x + 1, y) || built(x, y + 1) || built(x + 1, y + 1))) continue;
+        tiles.push(idx(x, y));
       }
-    CROWD_STREETS.byTown.set(town.id, tiles);
+    CROWD_STREETS.byTown.set(key, tiles);
   }
   return tiles;
 }
