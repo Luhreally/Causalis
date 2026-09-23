@@ -105,10 +105,10 @@ for deploying. Do all work in the clone:
 
 ```
 npm run test:fast > log 2>&1
-bash $SCRATCH/suite-check.sh log 110
+bash $SCRATCH/suite-check.sh log 113
 ```
 
-The expected count is the number of `"ok": true` lines, currently **111**. It
+The expected count is the number of `"ok": true` lines, currently **113**. It
 changes only when you add a test file. A green suite is necessary and not
 sufficient — see "Pitfalls".
 
@@ -3673,9 +3673,290 @@ and are counted, not drawn: a lens or a bar for the homeless is a view
 change waiting to be asked for. The skyline of sixteen still stands on the
 smallest maps, of glass where it was of flats.
 
+### 30. Class seen and paid: the homes lens, wages, and rent by the bed (2026-09-22; battery and phone only)
+
+Asked for: a lens that colours the homes by owner, renter and arrears, marks
+the people sleeping rough and counts them in the people bar; and coin spread
+widely through wages, so rent, arrears and evictions start mid-game.
+
+**The lens (144, b5331c1).** "Homes and tenure", in the Peoples group after
+unrest. The ground is veiled; every home carries a ring in the colour of its
+tenure (green owned by the household in it, blue let by a landlord who lives
+elsewhere, violet let by the town, amber to red a year and more behind on
+the rent, a grey dashed ring empty) and a bar of the beds slept in, with the
+count when close. Each townsperson with no bed wears an amber ring that
+breathes; each grown person with no town while towns stand, a grey one. A
+child born since the year's dealing of addresses sleeps under a parent's
+roof and is not counted; a town not yet dealt its addresses counts only its
+people past its beds (a first cut read eleven without a bed on battery
+causal-origin at year twenty-five where two had none). The legend counts
+tenure, beds slept in and people without a bed about once a second; the
+people bar opens with a card of the same count that switches to the lens;
+the place page adds Tenure. `ALIFE_HOMES_DEBUG`. Screenshots in the dev
+build on battery causal-origin after fourteen presses: seventeen homes,
+eight owned, two let, seven empty, 59 of 102 beds, six without a bed, in
+the top-down, isometric and close views. A first cut lifted the ground a
+town had walked out of the veil, and a town's footfall covers most of a
+battery map by year sixteen.
+
+**Why coin never reached anyone.** Rent came with Coinage (121) and coin did
+not: a person held coin only when the polity hired hands at a civic site,
+its treasury past sixty. `scratchpad/coin-probe.cjs <seed> <size> <years>`
+without the Causal skip: no world had even learned writing by year thirty;
+Coinage came at fifty to sixty; and at seventy on battery variety-2, 94
+households, 79 of them behind on the rent, and not one person with a coin,
+so the landlord of 121 never acted.
+
+**Wages (145, fae9122).** `setWorkAction` is the one door every task goes
+through, so every tick a person of a coin town spends at a task is counted
+on its identity (only under coin: the baseline hash did not move for it),
+and once a year, before the rent, each is paid a coin for every ninety ticks
+worked (`WAGE_STEPS_PER_COIN`), half again for a master of any craft. The
+labour probe (`scratchpad/labour-probe.cjs`) between years fifty-five and
+fifty-eight on four worlds: grown townspeople work a median of 140 to 190
+ticks of the year's 256, the quietest tenth under 45, the old nearly as much
+as the young; skill alone (`scratchpad/work-probe.cjs`) was no measure, since
+a finished building grants its builders nothing. The coin is struck: the
+treasury is a number and not matter (89), and wages from it had emptied it
+when tried (121's own comment).
+
+**The rent follows the pay, by the bed.** A household's rent is half the wage
+the town paid a head the year before for each member under the roof, a coin
+at least (`habitationRent`, asked per household and kept on the tenancy as
+`rents`), taken from the household's purse, head first (`habitationPurse`).
+A let home is taken with the first year's rent in hand (`habitationMayTake`
+in the yearly dealing); a cottage nobody owns is a homestead and free. The
+landlord's line is four years of the household's rent with a paying
+household waiting, and six with nobody waiting when the household holds no
+coin at all (`HABITATION.hopeless`). The first cut asked four fifths of the
+median household's pay of everyone whatever the household's size, and a
+village of large households of earners asked twenty-six coin of all of it
+(variety-2 on phone, year eighty), eighteen households out in five years.
+
+**Measured** (coin probe, four worlds, no skip, to year ninety-five, rent by
+the bed): within five years of Coinage most grown people hold coin (108 of
+134 on battery causal-origin at sixty); by ninety-five a quarter hold 6 to 24
+coin, the middle 24 to 36, a tenth 60 to 72 and the richest 167 to 287;
+households put out over the forty years since Coinage: 5 on battery
+causal-origin, 14 on battery variety-2, 48 on phone causal-origin, 5 on
+phone variety-2; people sleeping rough at a reading, one to seven. Tests:
+continuing-city (two coin for 180 ticks, three for a master, rent by the
+bed, the lease rule, the hopeless eviction; coin conserved but for the
+struck wages) and mobile (the lens, on the civic scenario's town).
+
+**Still open.** Coin comes late: without the Causal skip Coinage takes fifty
+to sixty years, and with it the first ships leave at fifty-four to a hundred
+and forty, so on the fastest worlds the economy starts behind the ship.
+Savings pile up with nothing to spend them on but rent and flats; a sink
+(goods, food from the market) is the next lever if the rich should spend.
+
+### 31. The phone's frame: the same answers asked once, and a field drawn at a time (2026-09-22; battery and phone only)
+
+Asked for: check performance on the phone now that worlds hold half again
+to twice the people, and trim the heaviest per-person work.
+
+**Measured.** `scratchpad/perf-probe.cjs <seed> <size> <presses> <ticks>`
+grows a world with the Causal skip like the sweep, then times a thousand
+ticks and the lean frames; with `PROFILE=` and `PROFILE_RENDER=` it writes
+CPU profiles, and `prof-top.py` names each function's section from the
+composed runtime's line map (`runtime-sections.json`). Phone causal-origin at
+year sixty-nine: 194 people, 131 animals, 244 buildings, 799 living things;
+a thousand ticks cost 58 ms a tick on this desktop in Node,
+one core, and a lean frame about 20 ms of script (top-down, zoom 1.6; the
+harness draws to a stub canvas, so that is script alone). The profile of the
+ticks: the bonds of 53 (rivalContest, sharedBeloved, topAttraction) 16 in a
+hundred, the fields' counters of 42d 1.8, the spatial queries 7, the minds'
+step 10 with what it calls, each worker's check for a building to mend 5.
+Of the frame, the crops drawn tile by tile (drawCultivatedCrop) 12 in a
+hundred.
+
+**The trims (147, and one line each in 42c and 62; 9adfd75), all exact.** The bonds of
+53 asked, for every familiar pair every thirty-two ticks, who each is most
+drawn to (a walk over all their relationships), which town each stands in,
+which god each keeps and what each does best: 16 in a hundred of every
+tick. They are kept for the pass and dropped whenever the pass emits an
+event. The fields of 42d re-counted every field and herd on every field
+lookup (22 million lookups a thousand ticks); once a world is counted its
+counters are never behind. The boat test walked every artifact per carried
+item for every tile a step weighed; the dry test goes first. And the mind's
+step (62) keeps one scratch row. The world's hash after growth and a
+thousand ticks is the same with and without (f3ae3f3f); that is the test.
+
+**What the phone gets.** `scratchpad/phone-frames.cjs <save> <url> <throttle>
+<seconds> [speeds]` opens the production build (`vite preview` of
+dist/client) in headless Chrome on a phone's screen (412 by 915 at 2.6
+pixels a point, touch, so the interface is the phone's and the Lean canvas is
+618 by 1,198), imports a save through the archive's Import button, loads it
+and times the frames and the ticks at each speed; with the processor slowed
+by Chrome's own emulation it stands in for a slower phone. The save is the
+same phone causal-origin at year sixty-nine (`perf-probe.cjs ... save`). The
+page draws on this machine's graphics (ANGLE on the Intel UHD, checked by
+`gpu-check.cjs`). At full speed the frames were 7.8 a second at 1x and the
+clock kept 7.8 of its 10 ticks; paused, 9.1. The main thread stood idle
+four tenths of the time (the browser profile, `phone-profile.cjs` and
+`browser-prof-sum.py`) and a blank page ran at 90 to 130 frames, so the
+frame waited on its drawing: 93,000 canvas calls a frame, and of its 30,000
+fills, strokes and shapes the crops drew 20,000 (`who-draws.js` samples the
+callers). A field is nine tiles of three to seven plants and each plant was
+six to eight draws of its own, some 450 a farm, for plants two to four pixels
+high.
+
+**The crops (42e, d000cc8).** A plant under five pixels (`CROP_DETAIL_SIZE`) is drawn
+with the rest of its field in a path a colour, the shadows, the stems, the
+leaves, a reed's blooms and the fruit, shape for shape as the plant draws
+them, only in that order and without the leaves' midribs; the furrows, the
+specks of the soil and the channels are one path each at every size. The
+full and the path-drawn frames at zooms four and seven differ in under ninety
+pixels of 740,000. Checking it found a fault of long standing: a rosette's
+leaves and a pod's tilt are turned by the crop's seed, which runs to
+billions, and the canvas turns in single precision, so every leaf of a
+rosette lay on the first and rosettes drew as one leaf; the turn is now taken
+within a circle, and a rosette has its seven leaves (four when sown) at every
+size. `ALIFE_CROP_DEBUG` (counts, reset, detailSize, setDetailSize, trace,
+sample: the same plants either way on any canvas); the farmland test asserts
+far crops drawn a field at a time and near ones plant by plant.
+
+After: fills 10,800 a frame to 2,300, strokes 8,700 to 1,900; paused 19.9
+frames a second; at 1x 18.6 frames and 9.4 of the 10 ticks; at 4x 18.6
+frames and 18.7 ticks where it was 9.0 and 9.1. With the processor slowed
+four times (Chrome's emulation, a middling phone) the same world runs 3.3
+frames and 3.3 ticks a second at 1x and 12.2 frames paused, the main thread
+busy nine tenths of the time: there the tick is the limit, about 37 ms in the
+browser at full speed and four times that slowed.
+
+**Still open.** A grown world does not keep 1x on a slow phone: the tick
+is the limit there, and what remains of it is spread thin, spatial queries
+(nearbyIds, entitiesWithinRadius, 7 in a hundred), the minds' step (10
+inclusive), each worker's check for a building to mend (5, a sort of the
+town's workers per worker, which reads live hunger and so cannot be kept for
+the pass). None of them is exact to trim; each is a change of behaviour and
+wants its own round, or the tick moves off the page's thread. Of the frame's
+draws the rest are spread as thin: buildings' sites and footprints, the
+ecology's structures, trees, creatures, some thousand each.
+
+### 32. Steady steps and a watch at ease (2026-09-22; battery and phone only)
+
+Asked for: walking that does not look indecisive, and peacetime militias
+that do not sit "returning" for decades.
+
+**The steps (146, 548655e).** The walk was drawn smooth (32d, 111)
+and the steps themselves reversed: a life re-weighs its needs every tick and
+chooses its next tile greedily, with no memory of the one it came from. The
+flip probe (`scratchpad/flip-probe2.cjs`, battery causal-origin at year
+forty, four hundred ticks): 32,401 steps, 14,960 of them straight back onto
+the tile before, 46 in a hundred. Nearly half were civil marches stuck short
+of a goal they could not reach: a caravan two or three tiles from a town's
+centre, whose core is built solid, flipped on 3,608 of 3,647 steps; a
+feast-goer on 90 in a hundred, a fisher on 98, a walker to the horizon at an
+obstacle on 94. The rest were the walk to work (41 in a hundred), the fields
+and the work face, and the errands of need.
+
+Every person now remembers the tile it last stepped from for four ticks
+(`life.stepFrom`, `life.stepAt`, noted by a wrapper of the effect resolver).
+The needs of life score that tile down by forty (`STEP_BACK_PENALTY`), so
+standing still wins over going back unless every other way is worse by that
+much; fleeing, defending and hunting are left alone. A worker's step toward
+its work reads the tile as rough ground (`organismHabitatStress` +25 under
+the `STEP_WORKER` flag). A march that would step back takes another
+neighbour no farther from its goal, or holds (`campaignMarchStep`). And a
+civil order (a caravan, a feast, a catch, a settler, a migrant) arrives
+within three tiles of its goal, not two (`CIVIL_ARRIVAL_REACH`, 52), since
+the edge of a built core is arrival. The same probe on the new code: 37,888
+steps, 479 straight back, 1.3 in a hundred; the walk to work 1 in a hundred,
+the fields 1 to 2, and no caravan circling. Every person's memory is written
+from the first tick, so the baseline hash moved from 6bee0692 to 75fba1bc.
+`ALIFE_STEPS_DEBUG`; `tests/steps-smoke.cjs` (test:steps): the move is
+remembered, going back scores forty lower and fleeing does not, a march that
+would step back goes round and with the memory spent goes straight on, and a
+civil order arrives at three tiles and not at four.
+
+**The watch at ease (42c, 8cac100).** In peace a unit read "returning"
+whenever the middle of its fighters stood more than four tiles from the
+hall, and a town's watch works its fields. The militia probe
+(`scratchpad/militia-probe.cjs`, battery causal-origin at year sixty, no war
+anywhere): eight units of one fighter each, six "returning" from thirteen to
+forty tiles out, one of them for ten and a half years, each fighter ordered
+to walk to the hall every fourth tick and walking back to its work between.
+A unit comes home from a war and says so for a year (`MILITIA_HOMECOMING`,
+from `unit.lastWarTick`); after that, or if it never went, it is at ease:
+nobody is ordered anywhere, the phase says the watch is at its own work
+until it is called, and the stall count is cleared. The muster of 41 keeps
+the watch and a war turns it out as before. The war view (142) draws no
+formation for a watch at ease and gives the phase its hue. The same probe on
+the new code: every peacetime unit at ease, its fighters tending, crafting,
+sowing and travelling at their work. The boat test in the step's habitat
+stress (42c) now asks whether the tile is deep water before walking the
+artifacts for a boat (thrift, 31).
+
+### 33. The experience test back in the suite (2026-09-22)
+
+`tests/experience-smoke.cjs` had failed since before the last rounds with
+"Inspection or pinning changed the simulation", and so stood outside the
+fast suite. The inspect-diff probe (`scratchpad/inspect-diff.cjs`) hashed
+the world key by key across the test's three steps: entering the game wrote
+ages, leagues, ascensions and the next league's number; pinning and the
+selection summary wrote nothing. The eras section (69) made those four
+fields the first time anything read them, and on a new expedition the first
+reader was the interface (the current age, for the top bar). `createWorld`
+now makes them with the world (69, f757c46). Checked by a text patch before
+the change: the eight-year baseline stayed 6bee0692 (the first tick made
+them before), and entering the game leaves the world's hash as it was. The
+test passes in five seconds (the shell mounts, the journal has its five
+steps, presentation is read-only, the archive restores, matter balances)
+and runs in test:fast before the baseline; with test:steps the suite counts
+113.
+
+### 34. The sweep, both sizes (2026-09-22)
+
+The steps move the baseline, so the round was swept (`scratchpad/sweep-run-pop9.sh
+pop9 6` by `launch-pop9.ps1`: eleven seeds, forty presses, lean, six worlds at
+a time from a worktree at 9adfd75, against section 29's). The crops of 42e
+came after and draw only. Battery, ship year, section 29 then this, with the
+beds standing at the ship and the share slept in (both read by
+`scratchpad/sweep-beds.py`): causal-origin 57 then 50 (522 beds, 27 in a
+hundred, then 516 and 31); ship-b 144 then 91 (240 and 26, then 378 and 27);
+ship-c 68 then 66 (438 and 23, then 588 and 26); variety-1 55 then 64 (504
+and 24, then 480 and 32); variety-2 55 then 65 (636 and 25, then 690 and
+28); variety-3 97 then 122 (282 and 44, then 354 and 15); variety-4 79 then
+70 (336 and 33, then 474 and 34); variety-5 68 then 77 (552 and 31, then 732
+and 26); variety-6 129 then 122 (852 and 25, then 828 and 20); variety-7 122
+then 90 (276 and 37, then 420 and 23); variety-8 93 then 69 (564 and 36, then
+486 and 40): earlier 7, later 4, median seven years earlier, no world lost.
+The press toll (the people fewer at a press's end than at its start, 114) is
+150 where section 29 had 76, and 118 of it is two worlds whose towns read no
+hunger at the readings: variety-6 stood at 227 at year seventy-seven, thirty
+years sooner than before, and came down to 166 by its ship at 122, the old
+cradle's decline behind a long wait for the ship; variety-3, the land-poor
+seed, lost 49 between seventy-three and a hundred and nine. Nothing this
+round touches a birth. Phone: causal-origin 60 then 68 (474 and 39, then 714
+and 26); ship-b 62 then 60 (432 and 32, then 336 and 30); ship-c 83 then 80
+(390 and 23, then 642 and 25); variety-1 59 then 58 (408 and 34, then 390
+and 28); variety-2 73 then 60 (552 and 34, then 624 and 30); variety-3 65
+then 59 (390 and 28, then 324 and 31); variety-4 83 then 70 (516 and 16,
+then 576 and 30); variety-5 69 then 71 (588 and 29, then 342 and 14);
+variety-6 73 then 87 (762 and 30, then 630 and 30); variety-7 62 then 68
+(378 and 36, then 312 and 46); variety-8 70 then 64 (228 and 25, then 348
+and 13): earlier 7, later 4, median two years earlier, no world lost, the
+toll 35 where it was 44. Beds at the ship 5,946 on battery (5,202 before) and
+5,238 on phone (5,118). The two phone worlds with a seventh of their beds
+slept in are not the rent: variety-5's Tsig Nia held 95 people in 12 beds,
+a town grown without building its homes (section 29 had seven towns fifteen
+or more short of a bed at some reading, this sweep four), and variety-8 had
+55 of its 104 people outside any town.
+
+The baseline hash is `75fba1bc` (`tests/baseline-smoke.cjs`, with its history
+of 6bee0692 and the steps) and these lists are the baseline.
+
 ## The recent commits, newest first
 
 ```
+d000cc8  A field's small plants are drawn a field at a time, and a rosette has its seven leaves
+9adfd75  Thrift: the same answers, asked once
+8cac100  A watch at ease: in peace a unit's fighters are at their own work until they are called
+548655e  Steady steps: a person does not step straight back onto the tile it has just left
+f757c46  A fresh world carries its ages, so reading them writes nothing, and the experience test is back in the suite
+fae9122  Wages: the hands are paid for the time they work, and the rent follows the pay
+b5331c1  Homes seen: a lens of tenure, the people with no bed, and their count in the people bar
 9faedb1  The skyline raises the towers the shortage needs and not one more
 1a17308  Towers for the people, offices for the skyline, and the landlord's choice
 c76d80e  The floor is four a farm over the forty, or the harvest once that is more
