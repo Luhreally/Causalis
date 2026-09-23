@@ -166,5 +166,7 @@
   "146-steady-steps.js",
   "147-thrift.js",
   "148-address.js",
-  "149-labour-thrift.js"
+  "149-labour-thrift.js",
+  "150-townsfolk.js",
+  "151-machine-farm.js"
 ]
