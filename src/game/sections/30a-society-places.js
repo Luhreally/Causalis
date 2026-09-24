@@ -285,8 +285,17 @@ const TECH_EXTENSIONS = [];
 function techCatalog() {
   return [...TECH_BASE, ...ADVANCED_TECH_BASE, ...TECH_EXTENSIONS];
 }
+// A craft's definition by id, the first of that id in the catalogue as a find
+// over it gave; the index is laid again when a section adds to the tree.
+let TECH_BY_ID = null;
 function technologyDefinition(id) {
-  return techCatalog().find((t) => t.id === id);
+  const size = TECH_BASE.length + ADVANCED_TECH_BASE.length + TECH_EXTENSIONS.length;
+  if (!TECH_BY_ID || TECH_BY_ID.size !== size) {
+    const byId = new Map();
+    for (const t of techCatalog()) if (!byId.has(t.id)) byId.set(t.id, t);
+    TECH_BY_ID = { size, byId };
+  }
+  return TECH_BY_ID.byId.get(id);
 }
 function defaultCityManagement() {
   return {

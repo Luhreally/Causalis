@@ -149,8 +149,22 @@ function lastCauseForTile(i, types = null) {
   }
   return 0;
 }
+// The log is in id order: emitEvent appends the next id and compaction only
+// removes, so an event is found by halving, not by reading from the start
+// (152's talk asks for the news it retells hundreds of times a pass).
 function eventById(id) {
-  const live = W.events.find((e) => e.id === id);
+  const events = W.events;
+  let low = 0,
+    high = events.length - 1;
+  while (low <= high) {
+    const mid = (low + high) >> 1,
+      at = events[mid].id;
+    if (at === id) return events[mid];
+    if (at < id) low = mid + 1;
+    else high = mid - 1;
+  }
+  // A log read from an old save could be out of order; look the long way.
+  const live = events.find((e) => e.id === id);
   if (live) return live;
   const range = W.eventTombstones;
   if (!range || id < range.firstId || id > range.lastId) return undefined;
