@@ -201,3 +201,42 @@
   font: inherit;
   min-height: 44px;
 }
+
+/* The polities side by side (164). */
+.compare-wrap {
+  overflow-x: auto;
+  margin: 0 -2px 8px;
+}
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.compare-table th,
+.compare-table td {
+  padding: 6px 5px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+.compare-table th[scope="row"],
+.compare-table thead th:first-child {
+  text-align: left;
+  white-space: normal;
+}
+.compare-table th[scope="row"] small {
+  display: block;
+}
+.compare-table .link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.compare-table .link-button.active {
+  color: var(--gold);
+  text-decoration: underline;
+}
