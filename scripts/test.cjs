@@ -25,8 +25,12 @@ const { readSections } = require("./compose-runtime.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 // The root smoke test's modes. The fast ones run in every suite; the slow ones
-// only with --slow. Four slow modes failed when this was written (the default,
-// IMPLICIT, QUICK_VISUAL, CAUSAL_SKIP) and PROGRESSION ran past fifteen minutes.
+// only with --slow. Two slow modes fail, as they did on the tree the refactor
+// began from (f88dc70): the default ("weather cycles accumulated into an
+// unexplained long-term flood") and CAUSAL_SKIP ("skip diverged from ordinary
+// fixed-tick simulation"). QUICK_VISUAL passes alone and can fail under the
+// full slow suite's load (its camera checks are timed). PROGRESSION ran past
+// fifteen minutes.
 const MODES = {
   fast: ["CONFLICT_DEBUG", "SYSTEMS_DEBUG", "SAVE_DEBUG"],
   slow: [
@@ -100,8 +104,9 @@ function run(test, env) {
         // A test that says nothing has not passed: one whose promise never
         // settled exits 0 in silence (the skip once waited on a frame the
         // stand-in DOM never draws). The syntax check is the one that prints
-        // a sentence instead.
-        silent = !ok && !notOk && test.name !== "syntax";
+        // a sentence instead, and the root smoke test's modes report by their
+        // exit code and a report of their own.
+        silent = !ok && !notOk && test.name !== "syntax" && !test.name.startsWith("mode:");
       resolve({
         ...test,
         ms: Date.now() - started,
