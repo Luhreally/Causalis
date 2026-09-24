@@ -4393,6 +4393,11 @@ is given; it comes last in the manifest, so the order is unchanged.
   same codemod; its dry run names the ones that cannot
   (`node codemod-blocks.cjs <chain> <page> --dry --skip=<file>`).
   `npm run map` and `node scripts/who-overrides.cjs --most` list the rest.
+- Two slow smoke modes fail, as they did on f88dc70 with the same words: the
+  default mode's "weather cycles accumulated into an unexplained long-term
+  flood" and CAUSAL_SKIP's "skip diverged from ordinary fixed-tick
+  simulation" (`node scripts/test.cjs --slow mode:`). The second may be the
+  skip's concerted effort doing what it is for; read the test before the sim.
 
 ## The recent commits, newest first
 
