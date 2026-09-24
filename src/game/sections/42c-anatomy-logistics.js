@@ -2035,6 +2035,12 @@ eventSentence = function (event) {
     case "EquipmentCraftedEvent":
       return `🛠️ ${names[0]} made ${event.data.name}, an alien form with the real function of ${event.data.purpose}.`;
     case "MilitaryPhaseEvent":
+      // A campaign's launch and its emergency levy (42e) name a war, not a unit;
+      // told as a unit's phase they read "Unit undefined ... : undefined".
+      if (event.data.unitId == null && event.data.phase === "campaign launched")
+        return `📯 ${event.data.attacker || "A polity"} launched its campaign against ${event.data.defender || "its enemy"}${event.data.target ? `, marching on ${event.data.target}` : ""}.`;
+      if (event.data.unitId == null && event.data.phase === "levy")
+        return `📯 An emergency levy of ${names.length} ${names.length === 1 ? "fighter" : "fighters"} took the field when the muster fell short.`;
       return `${event.data.phase === "marching" ? "🥾" : event.data.phase === "mustering" ? "📯" : ["engaged", "skirmishing", "flanking", "volleying", "assaulting", "besieging", "raiding", "screening"].includes(event.data.phase) ? "⚔️" : "🛡️"} Unit ${event.data.unitId} changed from ${event.data.previous || "unformed"} to ${event.data.phase}: ${event.data.detail}.`;
     default:
       return eventSentenceAnatomyBase(event);

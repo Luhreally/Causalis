@@ -865,7 +865,11 @@ eventSentence = function (e) {
     case "EstrangementEvent":
       return `${d.a} and ${d.b} drifted apart.`;
     case "ReconciliationEvent":
-      return `${d.a} and ${d.b} set their rivalry aside.`;
+      // A community's reconciliation (42a) is filed under the same type with a
+      // name and no pair; that one is 42a's to tell, or it read "undefined and
+      // undefined set their rivalry aside".
+      if (d.a && d.b) return `${d.a} and ${d.b} set their rivalry aside.`;
+      return eventSentenceBondsBase(e);
     case "QuarrelEvent":
       return `${d.a} quarrelled with ${d.b} in ${d.place}${d.cause ? ` over ${d.cause}` : ""}${d.brawl ? ", and blows were struck" : ""}.`;
     case "FeudEvent":
