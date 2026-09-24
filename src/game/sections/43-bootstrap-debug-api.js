@@ -371,6 +371,7 @@ function debugSimsCameraProbe() {
       keys: new Set(UI.keys),
       pointerInside: UI.pointerInside,
       lastPointer: { ...UI.lastPointer },
+      lastPointerMoveAt: UI.lastPointerMoveAt,
       followId: UI.followId,
     },
     beforeHash = worldHash();
@@ -396,7 +397,10 @@ function debugSimsCameraProbe() {
   UI.cameraMotion = { x: 0, y: 0, orbit: 0, tilt: 0 };
   UI.pointerInside = true;
   const m = projectionMetrics();
+  // moved there just now, as a pointer would be: one parked at the edge for
+  // a second and a half no longer scrolls (33)
   UI.lastPointer = { x: m.w - 1, y: m.h / 2 };
+  UI.lastPointerMoveAt = performance.now();
   updateCameraKeys(180);
   const afterEdge = { ...UI.camera },
     result = {
@@ -412,6 +416,7 @@ function debugSimsCameraProbe() {
   UI.keys = saved.keys;
   UI.pointerInside = saved.pointerInside;
   UI.lastPointer = saved.lastPointer;
+  UI.lastPointerMoveAt = saved.lastPointerMoveAt;
   UI.followId = saved.followId;
   refreshCameraControls();
   return result;

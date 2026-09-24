@@ -518,9 +518,15 @@ async function causalSkipForward() {
   }
 }
 // The frozen debug surface from the bootstrap captured the old function values.
+// A skip is the ordinary tick with the concerted effort's push after every
+// 128th while the effort holds, and the effort released at the end: `effort`,
+// `push` and `release` let a test take the same road by hand.
 window.ALIFE_CAUSAL_SKIP_DEBUG = Object.freeze({
   plan: () => (W ? makeCausalSkipState() : null),
   run: (limit = 0) => runCausalSkipForDebug(limit),
+  effort: () => concertedIntensity(),
+  push: () => causalSkipIntervene(),
+  release: () => finishCausalPush(),
 });
 window.ALIFE_CAUSAL_PUSH_DEBUG = Object.freeze({
   target: () => (causalTarget() ? { ...causalTarget() } : null),

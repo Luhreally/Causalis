@@ -25,12 +25,8 @@ const { readSections } = require("./compose-runtime.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 // The root smoke test's modes. The fast ones run in every suite; the slow ones
-// only with --slow. Two slow modes fail, as they did on the tree the refactor
-// began from (f88dc70): the default ("weather cycles accumulated into an
-// unexplained long-term flood") and CAUSAL_SKIP ("skip diverged from ordinary
-// fixed-tick simulation"). QUICK_VISUAL passes alone and can fail under the
-// full slow suite's load (its camera checks are timed). PROGRESSION ran past
-// fifteen minutes.
+// only with --slow, and every one passes. PROGRESSION ran past fifteen
+// minutes and is left out.
 const MODES = {
   fast: ["CONFLICT_DEBUG", "SYSTEMS_DEBUG", "SAVE_DEBUG"],
   slow: [

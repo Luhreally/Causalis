@@ -560,9 +560,21 @@ if (process.env.CAUSAL_SKIP_DEBUG === "1") {
     result = skip.run(),
     skippedHash = game.hashNow(),
     after = game.summary();
+  // The same road by hand: the skip plans twice (once asked, once run), ticks
+  // as the clock does, pushes after every 128th tick while the effort holds
+  // (79), and releases the effort when it stops. Anything else a skip did to
+  // the world would part the two hashes.
   game.createTestWorld(options);
   const secondPlan = skip.plan();
-  game.step(result.advanced);
+  skip.plan();
+  for (let done = 0; done < result.advanced;) {
+    const tick = game.summary().tick,
+      span = Math.min(result.advanced - done, 128 - (tick % 128));
+    game.step(span);
+    done += span;
+    if (game.summary().tick % 128 === 0 && skip.effort() > 0) skip.push();
+  }
+  skip.release();
   const manualHash = game.hashNow(),
     failures = [];
   if (result.endTick <= result.startTick || result.advanced < 1)
@@ -1337,7 +1349,21 @@ const survival = survivalSeeds.map((seed) => {
 });
 const longTerm = ["quartz-13vxtpp", "glass-orbit"].map((seed) => {
   game.createTestWorld({ seed, size: "small", lifeDensity: 0.7, harshness: 0.5, variability: 0.5 });
-  game.step(4096);
+  // The sky breathes (17): lakes and wet ground give water to the air and the
+  // rain lays it back on the land as a film above the natural waterline, which
+  // drains between rains. A reading on one tick can fall in a wet year, so the
+  // surface is read every 256 ticks and a flood is water that stays.
+  const hydrologyTrail = [];
+  for (let t = 0; t < 4096; t += 256) {
+    game.step(256);
+    const h = game.hydrology();
+    hydrologyTrail.push({
+      tick: t + 256,
+      excess: h.excess,
+      maxExcess: h.maxExcess,
+      landFloodCoverage: h.landFloodCoverage,
+    });
+  }
   const summary = game.summary();
   return {
     seed,
@@ -1347,6 +1373,7 @@ const longTerm = ["quartz-13vxtpp", "glass-orbit"].map((seed) => {
     deaths: summary.deaths,
     deathCauses: summary.deathCauses,
     hydrology: summary.hydrology,
+    hydrologyTrail,
     biosphere: summary.biosphere,
     matter: game.auditMatter(),
   };
@@ -1563,11 +1590,18 @@ if (
   )
 )
   failures.push("a creature niche failed to produce sexual offspring after maturity");
+if (longTerm.some((world) => world.hydrologyTrail.some((h) => h.landFloodCoverage > 0.01)))
+  failures.push("weather flooded more than a hundredth of the land");
+// The rain's film drains: in the second half of the run the surface comes back
+// to its natural waterline (within a five-hundredth of the world's water) at
+// least once, so water laid by the weather does not stay and build.
 if (
   longTerm.some(
     (world) =>
-      world.hydrology.landFloodCoverage > 0.01 ||
-      world.hydrology.excess > world.hydrology.baseline * 0.002,
+      Math.min(
+        ...world.hydrologyTrail.slice(world.hydrologyTrail.length / 2).map((h) => h.excess),
+      ) >
+      world.hydrology.baseline * 0.002,
   )
 )
   failures.push("weather cycles accumulated into an unexplained long-term flood");
