@@ -530,8 +530,7 @@ chooseBehavior = function (id, tier) {
     l.behaviorReason = "feasting and dancing with the town";
 };
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-const eventSentenceFestivalsBase = eventSentence;
-eventSentence = function (e) {
+eventText(["FeastEvent", "SongEvent", "SongSpreadEvent", "MuralEvent"], function (e, next) {
   const d = e.data || {};
   switch (e.type) {
     case "FeastEvent":
@@ -545,9 +544,9 @@ eventSentence = function (e) {
     case "MuralEvent":
       return `${d.artist} painted the walls of the ${d.building} in ${d.place} with ${d.motif}.`;
     default:
-      return eventSentenceFestivalsBase(e);
+      return next(e);
   }
-};
+});
 // ── Legends ────────────────────────────────────────────────────────────────────
 function songRow(song, culture) {
   const composer = song.composerId ? lifeLink(song.composerId) : "";

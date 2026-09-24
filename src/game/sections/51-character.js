@@ -329,17 +329,16 @@ calendarSystem("wants", function () {
   if (W.tick % 128 === 40) updateWants();
 });
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-const eventSentenceCharacterBase = eventSentence;
-eventSentence = function (e) {
+eventText(["MasteryEvent", "AspirationEvent"], function (e, next) {
   switch (e.type) {
     case "MasteryEvent":
       return `${e.data.name} was recognised as ${e.data.title}.`;
     case "AspirationEvent":
       return `${e.data.name} ${e.data.text}.`;
     default:
-      return eventSentenceCharacterBase(e);
+      return next(e);
   }
-};
+});
 // ── Inspector and Legends ──────────────────────────────────────────────────────
 function characterCard(ident) {
   const traits = (ident.traits || [])

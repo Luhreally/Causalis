@@ -132,12 +132,11 @@ calendarSystem("wealth", function () {
   if (W?.settlements && W.tick % 256 === 40) updateWealth();
 });
 // ── Chronicle, Legends, map mode ───────────────────────────────────────────────
-const eventSentenceWealthBase = eventSentence;
-eventSentence = function (e) {
+eventText(["FortuneEvent"], function (e, next) {
   if (e.type === "FortuneEvent")
     return `${e.data?.name} became the richest in ${e.data?.place}, with ${e.data?.wealth} in goods.`;
-  return eventSentenceWealthBase(e);
-};
+  return next(e);
+});
 const renderLifePageWealthBase = renderLifePage;
 renderLifePage = function (id) {
   const html = renderLifePageWealthBase(id),

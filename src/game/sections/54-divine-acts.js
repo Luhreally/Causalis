@@ -472,8 +472,7 @@ applyTool = function (tile) {
   return ev;
 };
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-const eventSentenceDivineBase = eventSentence;
-eventSentence = function (e) {
+eventText(["ChosenEvent", "WhisperEvent", "SkySignEvent", "DivineTruceEvent", "DiscordEvent", "InterventionEvent"], function (e, next) {
   const d = e.data || {};
   switch (e.type) {
     case "ChosenEvent":
@@ -489,11 +488,11 @@ eventSentence = function (e) {
     case "InterventionEvent":
       return DIVINE_TOOLS.has(d.tool)
         ? `The god acted: ${d.label || d.tool} at ${locationName(e.location)}.`
-        : eventSentenceDivineBase(e);
+        : next(e);
     default:
-      return eventSentenceDivineBase(e);
+      return next(e);
   }
-};
+});
 // ── Drawing ────────────────────────────────────────────────────────────────────
 // Chosen ones carry a halo of orbiting sparks; whispers spiral up from a town;
 // a truce sends white rings out from both capitals and joins them with light;

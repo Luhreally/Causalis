@@ -41,12 +41,11 @@ startRoadLink = function (faction, a, b, kind) {
   FERRY.links++;
   return ferried;
 };
-const eventSentenceFerryBase = eventSentence;
-eventSentence = function (e) {
+eventText(["RoadEvent", "RailEvent"], function (e, next) {
   if ((e.type === "RoadEvent" || e.type === "RailEvent") && e.data?.ferried && e.data.a && e.data.b)
     return `A ${e.type === "RailEvent" ? "railway" : "road"} of ${e.data.tiles} tiles joined ${e.data.a} and ${e.data.b}, the crossing left to the boats.`;
-  return eventSentenceFerryBase(e);
-};
+  return next(e);
+});
 const roadEventForFerryBase = roadEventFor;
 roadEventFor = function (link, a, b) {
   const ev = roadEventForFerryBase(link, a, b);

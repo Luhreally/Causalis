@@ -242,12 +242,11 @@ drawBuildingExteriorDetails = function (g, b, now, m) {
   g.restore();
 };
 // ── Chronicle ─────────────────────────────────────────────────────────────────
-const eventSentenceIndustryBase = eventSentence;
-eventSentence = function (e) {
-  if (e.type !== "RailFreightEvent") return eventSentenceIndustryBase(e);
+eventText(["RailFreightEvent"], function (e, next) {
+  if (e.type !== "RailFreightEvent") return next(e);
   const d = e.data || {};
   return `The first train ran between ${d.a} and ${d.b}, carrying ${d.tonnage} measures of ${d.polity || "the polity"}'s stores.`;
-};
+});
 window.ALIFE_INDUSTRY_DEBUG = Object.freeze({
   rail: () => railFreight(),
   freight: () => INDUSTRY.railFreight,

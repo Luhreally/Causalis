@@ -323,8 +323,7 @@ tickSystem("statecraft", function () {
   if (W?.diplomacy) updateStatecraft();
 });
 // ── Chronicle, alerts, and the Relations table ────────────────────────────────
-const eventSentenceStatecraftBase = eventSentence;
-eventSentence = function (e) {
+eventText(["PactEvent", "TradeTreatyEvent", "EmbassyEvent", "AllianceTreatyEvent", "CoalitionEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "PactEvent") return `${d.a} and ${d.b} swore a pact of non-aggression for ${d.years} years.`;
   if (e.type === "TradeTreatyEvent") return `${d.a} and ${d.b} opened their markets to each other for ${d.years} years.`;
@@ -334,8 +333,8 @@ eventSentence = function (e) {
     const m = d.members || [];
     return `${m.length > 1 ? m.slice(0, -1).join(", ") + " and " + m.at(-1) : m[0]} joined in a coalition against ${d.against}.`;
   }
-  return eventSentenceStatecraftBase(e);
-};
+  return next(e);
+});
 const alertWorthyStatecraftBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyStatecraftBase(a) || a.type === "CoalitionEvent" || a.type === "AllianceTreatyEvent";

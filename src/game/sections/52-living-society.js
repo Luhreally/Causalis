@@ -867,8 +867,7 @@ calendarSystem("living society", function () {
   }
 });
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-const eventSentenceLivingSocietyBase = eventSentence;
-eventSentence = function (e) {
+eventText(["CaravanEvent", "TheftEvent", "ExileEvent", "CaptiveEvent", "CaptiveFreedEvent", "CaptiveIntegratedEvent", "MonumentRaisedEvent", "BeastOfLegendEvent"], function (e, next) {
   switch (e.type) {
     case "CaravanEvent":
       return `A caravan of ${e.data.travellers} from ${e.data.from} reached ${e.data.to} carrying ${e.data.cargo}.`;
@@ -887,9 +886,9 @@ eventSentence = function (e) {
     case "BeastOfLegendEvent":
       return `${e.data.name} grew into a beast of legend among the ${e.data.species}, with ${countNoun(e.data.kills, "kill")}.`;
     default:
-      return eventSentenceLivingSocietyBase(e);
+      return next(e);
   }
-};
+});
 window.ALIFE_SOCIETY_DEBUG = Object.freeze({
   caravan: (fromId, toId) => {
     const from = W.settlements.find((s) => s.id === fromId),

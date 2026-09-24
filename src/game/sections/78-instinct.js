@@ -413,15 +413,14 @@ chooseBehavior = function (id, tier) {
   return chooseBehaviorInstinctBase(id, tier);
 };
 // ── Chronicle, alerts, stories, the Mind card ──────────────────────────────────
-const eventSentenceInstinctBase = eventSentence;
-eventSentence = function (e) {
+eventText(["CannibalismEvent", "RobberyEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "CannibalismEvent")
     return `${d.name}, with hunger at ${d.hunger} and nothing else to eat, ate of the dead: ${d.corpse}.`;
   if (e.type === "RobberyEvent")
     return `${d.name}, starving, robbed ${d.victim} of ${d.taken} units of food.`;
-  return eventSentenceInstinctBase(e);
-};
+  return next(e);
+});
 const alertWorthyInstinctBase = alertWorthy;
 alertWorthy = function (a) {
   return (

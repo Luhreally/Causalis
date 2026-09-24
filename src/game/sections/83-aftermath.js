@@ -219,16 +219,15 @@ tickSystem("colonists", function () {
   if (W?.settlements && W.tick % 256 === 200) updateColonists();
 });
 // ── Chronicle ──────────────────────────────────────────────────────────────────
-const eventSentenceAftermathBase = eventSentence;
-eventSentence = function (e) {
+eventText(["SettlementResettledEvent", "RefugeesEvent", "ColonistsEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "SettlementResettledEvent")
     return `${d.name} rose on the ruins of ${d.ruin}${d.crafts ? `, and ${d.crafts} of the old crafts were found again in the rubble` : ""}.`;
   if (e.type === "RefugeesEvent") return `${d.count} survivors of ${d.from} walked to ${d.to}.`;
   if (e.type === "ColonistsEvent")
     return `${d.count} colonists left ${d.from} for thinly held ${d.to}${d.occupied ? ", newly taken" : ""}.`;
-  return eventSentenceAftermathBase(e);
-};
+  return next(e);
+});
 const alertWorthyAftermathBase = alertWorthy;
 alertWorthy = function (a) {
   return (

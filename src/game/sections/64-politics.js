@@ -429,8 +429,7 @@ calendarSystem("politics", function () {
   }
 });
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-const eventSentencePoliticsBase = eventSentence;
-eventSentence = function (e) {
+eventText(["UnrestEvent", "RebellionEvent", "CivilWarEvent", "CoupEvent"], function (e, next) {
   const d = e.data || {};
   switch (e.type) {
     case "UnrestEvent":
@@ -442,9 +441,9 @@ eventSentence = function (e) {
     case "CoupEvent":
       return `${d.claimant} seized the Voice of ${d.polity}${d.deposed ? `; ${d.deposed} was ${d.fate}` : ""}.`;
     default:
-      return eventSentencePoliticsBase(e);
+      return next(e);
   }
-};
+});
 // ── Legends and map mode ───────────────────────────────────────────────────────
 const renderFactionPagePoliticsBase = renderFactionPage;
 renderFactionPage = function (id) {

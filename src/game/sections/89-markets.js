@@ -208,12 +208,11 @@ tickSystem("markets", function () {
   }
 });
 // ── Chronicle and pages ───────────────────────────────────────────────────────
-const eventSentenceMarketsBase = eventSentence;
-eventSentence = function (e) {
+eventText(["PurchaseEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "PurchaseEvent") return `${d.to} bought ${d.amount} units of grain from ${d.from} for ${d.cost} coin.`;
-  return eventSentenceMarketsBase(e);
-};
+  return next(e);
+});
 const alertWorthyMarketsBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyMarketsBase(a) || (a.type === "PurchaseEvent" && (a.data?.amount || 0) >= 30);

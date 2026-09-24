@@ -154,8 +154,7 @@ calendarSystem("faith", function () {
   if (W.tick % 128 === 72) updateFaith();
 });
 // ── Chronicle and Legends ──────────────────────────────────────────────────────
-const eventSentenceFaithBase = eventSentence;
-eventSentence = function (e) {
+eventText(["SectEvent", "HolyWarEvent"], function (e, next) {
   const d = e.data || {};
   switch (e.type) {
     case "SectEvent":
@@ -165,9 +164,9 @@ eventSentence = function (e) {
         d.sameGod ? ", two readings of one god" : ""
       }.`;
     default:
-      return eventSentenceFaithBase(e);
+      return next(e);
   }
-};
+});
 const songTitleForFaithBase = songTitleFor;
 songTitleFor = function (event) {
   const d = event.data || {};

@@ -1948,8 +1948,7 @@ window.ALIFE_PROTECTION_STRATEGY_DEBUG = Object.freeze({
   },
 });
 
-const eventSentenceCollapseBase = eventSentence;
-eventSentence = function (e) {
+eventText(["BurialEvent", "SettlementDestroyedEvent", "FactionCollapsedEvent"], function (e, next) {
   if (e.type === "BurialEvent") {
     const names = e.subjects.map(entityName);
     return `${names[0] || "A villager"} laid ${names[1] || "one of the dead"} to rest in the grave field.`;
@@ -1958,5 +1957,5 @@ eventSentence = function (e) {
     return `${e.data.name} fell after ${e.data.yearsStood} year${e.data.yearsStood === 1 ? "" : "s"} — ${e.evidence[0]}; ${e.data.crafts ? `${e.data.crafts} craft${e.data.crafts === 1 ? "" : "s"} pass into ruin and memory` : "no lasting craft survived it"}.`;
   if (e.type === "FactionCollapsedEvent")
     return `The ${e.data?.name || "fallen"} civilization passed into history with the fall of ${e.data?.lastSettlement || "its last settlement"}.`;
-  return eventSentenceCollapseBase(e);
-};
+  return next(e);
+});

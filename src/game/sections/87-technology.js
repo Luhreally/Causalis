@@ -324,11 +324,10 @@ calendarSystem("milestones", function () {
   if (W?.settlements) checkMilestones();
 });
 // ── Chronicle, alerts, and the Technology page ───────────────────────────────
-const eventSentenceTreeBase = eventSentence;
-eventSentence = function (e) {
+eventText(["MilestoneEvent"], function (e, next) {
   if (e.type === "MilestoneEvent") return `${e.data?.label || "A milestone was passed"}.`;
-  return eventSentenceTreeBase(e);
-};
+  return next(e);
+});
 const alertWorthyTreeBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyTreeBase(a) || a.type === "MilestoneEvent";

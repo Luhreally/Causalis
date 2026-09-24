@@ -2019,8 +2019,7 @@ tickSystem("bodies and aftermath", function () {
   });
 });
 
-const eventSentenceAnatomyBase = eventSentence;
-eventSentence = function (event) {
+eventText(["LimbLostEvent", "FireSuppressedEvent", "WatercraftLaunchedEvent", "EquipmentCraftedEvent", "MilitaryPhaseEvent"], function (event, next) {
   const names = event.subjects.map(entityName),
     location = locationName(event.location);
   switch (event.type) {
@@ -2041,9 +2040,9 @@ eventSentence = function (event) {
         return `📯 An emergency levy of ${names.length} ${names.length === 1 ? "fighter" : "fighters"} took the field when the muster fell short.`;
       return `${event.data.phase === "marching" ? "🥾" : event.data.phase === "mustering" ? "📯" : ["engaged", "skirmishing", "flanking", "volleying", "assaulting", "besieging", "raiding", "screening"].includes(event.data.phase) ? "⚔️" : "🛡️"} Unit ${event.data.unitId} changed from ${event.data.previous || "unformed"} to ${event.data.phase}: ${event.data.detail}.`;
     default:
-      return eventSentenceAnatomyBase(event);
+      return next(event);
   }
-};
+});
 
 const organismInspectorAnatomyBase = organismInspector;
 organismInspector = function (id) {

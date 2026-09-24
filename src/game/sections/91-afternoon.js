@@ -324,8 +324,7 @@ alertWorthy = function (a) {
   return true;
 };
 // ── Chronicle and pages ───────────────────────────────────────────────────────
-const eventSentenceAfternoonBase = eventSentence;
-eventSentence = function (e) {
+eventText(["ClimateEvent", "ClimateEasedEvent", "IdeologyEvent", "StationEvent", "EpilogueEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "ClimateEvent") return `The sky over ${d.place || "the engine towns"} grew ${d.word} with industry.`;
   if (e.type === "ClimateEasedEvent") return `The sky cleared to ${d.word} as industry was tended.`;
@@ -333,8 +332,8 @@ eventSentence = function (e) {
   if (e.type === "StationEvent") return `${d.polity} raised an orbital station from ${d.place}, its ${d.count === 1 ? "first" : d.count === 2 ? "second" : "third"}.`;
   if (e.type === "EpilogueEvent")
     return `Year ${d.year}: ${d.people} people in ${d.towns} towns under ${d.polities} polit${d.polities === 1 ? "y" : "ies"}, ${d.colonies} colon${d.colonies === 1 ? "y" : "ies"} among the stars${d.leading ? `, ${d.leading} foremost as ${String(d.government).toLowerCase()}` : ""}.`;
-  return eventSentenceAfternoonBase(e);
-};
+  return next(e);
+});
 const renderFactionPageAfternoonBase = renderFactionPage;
 renderFactionPage = function (id) {
   const html = renderFactionPageAfternoonBase(id),

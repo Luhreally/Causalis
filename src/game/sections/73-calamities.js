@@ -125,8 +125,7 @@ unrestOf = function (place) {
   return unrestOfCalamityBase(place) + (place?.calamity || 0) * 0.25;
 };
 // ── Chronicle and Legends ──────────────────────────────────────────────────────
-const eventSentenceCalamityBase = eventSentence;
-eventSentence = function (e) {
+eventText(["CalamityEvent", "BlamedVoiceEvent"], function (e, next) {
   const d = e.data || {};
   switch (e.type) {
     case "CalamityEvent":
@@ -136,9 +135,9 @@ eventSentence = function (e) {
     case "BlamedVoiceEvent":
       return `The Voice of ${d.polity} was blamed for the ${d.kind} that struck ${d.place} and deposed.`;
     default:
-      return eventSentenceCalamityBase(e);
+      return next(e);
   }
-};
+});
 const songTitleForCalamityBase = songTitleFor;
 songTitleFor = function (event) {
   const d = event.data || {};

@@ -247,15 +247,14 @@ tickSystem("loans", function () {
   }
 });
 // ── Chronicle and Legends ─────────────────────────────────────────────────────
-const eventSentenceBlocsBase = eventSentence;
-eventSentence = function (e) {
+eventText(["LoanEvent", "RepaymentEvent", "DefaultEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "LoanEvent")
     return `${d.lender} lent ${d.principal} coin to ${d.borrower}, ${d.owed} to be repaid within ${d.years} years.`;
   if (e.type === "RepaymentEvent") return `${d.borrower} repaid its debt of ${d.owed} coin to ${d.lender}.`;
   if (e.type === "DefaultEvent") return `${d.borrower} defaulted on ${d.unpaid} coin owed to ${d.lender}.`;
-  return eventSentenceBlocsBase(e);
-};
+  return next(e);
+});
 const alertWorthyBlocsBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyBlocsBase(a) || a.type === "DefaultEvent";

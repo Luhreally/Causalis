@@ -852,8 +852,7 @@ calendarSystem("bonds", function () {
   if (W.tick % 128 === 40) updateFeuds();
 });
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-const eventSentenceBondsBase = eventSentence;
-eventSentence = function (e) {
+eventText(["FriendshipEvent", "RivalryEvent", "EstrangementEvent", "ReconciliationEvent", "QuarrelEvent", "FeudEvent", "FeudEndedEvent"], function (e, next) {
   const d = e.data || {};
   switch (e.type) {
     case "FriendshipEvent":
@@ -867,7 +866,7 @@ eventSentence = function (e) {
       // name and no pair; that one is 42a's to tell, or it read "undefined and
       // undefined set their rivalry aside".
       if (d.a && d.b) return `${d.a} and ${d.b} set their rivalry aside.`;
-      return eventSentenceBondsBase(e);
+      return next(e);
     case "QuarrelEvent":
       return `${d.a} quarrelled with ${d.b} in ${d.place}${d.cause ? ` over ${d.cause}` : ""}${d.brawl ? ", and blows were struck" : ""}.`;
     case "FeudEvent":
@@ -877,9 +876,9 @@ eventSentence = function (e) {
     case "FeudEndedEvent":
       return `The feud between the houses of ${d.houseA} and ${d.houseB} ended: ${d.reason}.`;
     default:
-      return eventSentenceBondsBase(e);
+      return next(e);
   }
-};
+});
 // ── Inspector and Legends ──────────────────────────────────────────────────────
 function bondNames(ids) {
   return (ids || [])

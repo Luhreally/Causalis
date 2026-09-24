@@ -196,16 +196,15 @@ endWar = function (war, a, b, reason) {
   leaguePeace(war, a, b);
 };
 // ── Chronicle, alerts, and the war page ───────────────────────────────────────
-const eventSentencePeaceBase = eventSentence;
-eventSentence = function (e) {
-  if (e.type !== "PeaceEvent") return eventSentencePeaceBase(e);
+eventText(["PeaceEvent"], function (e, next) {
+  if (e.type !== "PeaceEvent") return next(e);
   const d = e.data || {};
   if (d.outcome === "collapse") return `${d.a} and ${d.b} stopped fighting when one of them fell apart.`;
   if (d.outcome === "settled") return `${d.a} and ${d.b} made peace on the envoys' terms.`;
   if (d.conference) return `${d.a} and ${d.b} made peace at the league's table: ${d.terms}.`;
   if (d.winner) return `${d.winner} won the war for ${d.aim}: ${d.terms}.`;
   return `${d.a} and ${d.b} made peace, neither having won ${d.aim}: ${d.terms}.`;
-};
+});
 const alertWorthyPeaceBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyPeaceBase(a) || (a.type === "PeaceEvent" && a.data?.outcome !== "collapse");

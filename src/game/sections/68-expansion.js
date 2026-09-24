@@ -537,8 +537,7 @@ chooseBehavior = function (id, tier) {
     l.behaviorReason = "prospecting far afield for what the town lacks";
 };
 // ── Chronicle and Legends ──────────────────────────────────────────────────────
-const eventSentenceExpansionBase = eventSentence;
-eventSentence = function (e) {
+eventText(["ExpeditionEvent", "SettlersEvent", "ProspectingEvent", "ProspectorReturnedEvent", "SettlersTurnedBackEvent"], function (e, next) {
   const d = e.data || {};
   switch (e.type) {
     case "ExpeditionEvent":
@@ -552,9 +551,9 @@ eventSentence = function (e) {
     case "SettlersTurnedBackEvent":
       return `The settlers from ${d.place} turned back: ${d.reason}.`;
     default:
-      return eventSentenceExpansionBase(e);
+      return next(e);
   }
-};
+});
 function settledFromRow(entityId) {
   const camp = W.camps.find((c) => c.entityId === entityId && c.settledFrom),
     origin = camp ? W.settlements.find((s) => s.id === camp.settledFrom) : null;

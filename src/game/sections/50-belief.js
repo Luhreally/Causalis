@@ -553,8 +553,7 @@ updateSeasons = function () {
   }
 };
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-const eventSentenceBeliefBase = eventSentence;
-eventSentence = function (e) {
+eventText(["NamingEvent", "ProphecyEvent", "ProphecyFulfilledEvent", "RiteEvent", "SchismEvent", "OmenEvent"], function (e, next) {
   switch (e.type) {
     case "NamingEvent":
       return `${e.data.culture} named the power that moves their world: ${e.data.name}, ${e.data.gloss}, whom they read as ${e.data.lean === "portent" ? "a mystery" : e.data.lean}.`;
@@ -572,12 +571,12 @@ eventSentence = function (e) {
         god = culture ? godTitle(culture) : "";
       if (god)
         return `${e.data.name} read ${toolNoun(e.data.tool)} as ${e.data.reading} from ${god}.`;
-      return eventSentenceBeliefBase(e);
+      return next(e);
     }
     default:
-      return eventSentenceBeliefBase(e);
+      return next(e);
   }
-};
+});
 // ── Legends and map mode ───────────────────────────────────────────────────────
 function cultureBeliefExtras(c) {
   const b = c.belief;

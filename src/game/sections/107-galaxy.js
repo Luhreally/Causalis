@@ -351,8 +351,7 @@ restoreWorldDefaults = function () {
   if (W) ensureGalaxy(W);
 };
 // ── Chronicle ─────────────────────────────────────────────────────────────────
-const eventSentenceGalaxyBase = eventSentence;
-eventSentence = function (e) {
+eventText(["ColonyDiscoveryEvent", "ShipmentEvent", "ColonyHardshipEvent", "DaughterColonyEvent", "OnwardVoyageEvent", "ColonyIndependenceEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "ColonyDiscoveryEvent") return `${d.colony} worked out ${d.tech}${d.relayed ? ", and the finding was received at home by radio" : ""}.`;
   if (e.type === "ShipmentEvent") return `${d.colony} sent ${d.coin} coin of ore and rare matter home to ${d.polity}.`;
@@ -360,8 +359,8 @@ eventSentence = function (e) {
   if (e.type === "DaughterColonyEvent") return `Settlers from ${d.from} founded ${d.colony}, ${d.habitability} in the same system.`;
   if (e.type === "OnwardVoyageEvent") return `${d.ship} left ${d.from} for ${d.star}, ${d.years} years away.`;
   if (e.type === "ColonyIndependenceEvent") return `${d.colony} declared itself free of ${d.polity} with ${d.population} people.`;
-  return eventSentenceGalaxyBase(e);
-};
+  return next(e);
+});
 const alertWorthyGalaxyBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyGalaxyBase(a) || a.type === "DaughterColonyEvent" || a.type === "OnwardVoyageEvent" || a.type === "ColonyIndependenceEvent";

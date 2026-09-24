@@ -865,8 +865,7 @@ chooseBehavior = function (id, tier) {
   }
 };
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-const eventSentenceDiplomacyBase = eventSentence;
-eventSentence = function (e) {
+eventText(["EnvoyEvent", "EnvoyLostEvent", "TreatyEvent", "TreatyRefusedEvent", "VassalageEvent", "IndependenceEvent", "RoyalMarriageEvent", "SuccessionClaimEvent", "DynasticUnionEvent", "TributeEvent", "TributeDefaultEvent", "TreatyEndedEvent"], function (e, next) {
   const d = e.data || {};
   switch (e.type) {
     case "EnvoyEvent":
@@ -896,9 +895,9 @@ eventSentence = function (e) {
     case "TreatyEndedEvent":
       return `The ${d.kind === "vassal" ? "vassalage" : d.kind === "peace" ? "peace" : "tribute"} between ${d.a} and ${d.b} ended: ${d.reason}.`;
     default:
-      return eventSentenceDiplomacyBase(e);
+      return next(e);
   }
-};
+});
 // ── Legends ────────────────────────────────────────────────────────────────────
 function diplomacySection(f) {
   ensureDiplomacy();

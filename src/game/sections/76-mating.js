@@ -249,14 +249,13 @@ updateReproduction = function () {
   if (W?.components?.social) updateCouplings();
 };
 // ── Chronicle and story ────────────────────────────────────────────────────────
-const eventSentenceMatingBase = eventSentence;
-eventSentence = function (e) {
-  if (e.type !== "MatingEvent") return eventSentenceMatingBase(e);
+eventText(["MatingEvent"], function (e, next) {
+  if (e.type !== "MatingEvent") return next(e);
   const d = e.data || {};
   if (d.secret) return `${d.a} and ${d.b} lay together in secret in ${d.place}.`;
   if (d.partners) return `${d.a} and ${d.b}, partners, coupled in ${d.place}.`;
   return `${d.a} and ${d.b} coupled in ${d.place}, with no bond between them.`;
-};
+});
 function loversLine(id) {
   const soc = W.components.social[id],
     lovers = soc?.lovers ? Object.entries(soc.lovers) : [];

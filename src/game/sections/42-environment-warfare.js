@@ -525,8 +525,7 @@ function updateFamineChronicle() {
 tickSystem("famine chronicle", function () {
   if (W && W.tick % TICKS_PER_YEAR === 128) updateFamineChronicle();
 });
-const eventSentenceImplicitBase = eventSentence;
-eventSentence = function (e) {
+eventText(["FamineEvent", "ExchangeEvent", "InstitutionFormedEvent", "FactionSchismEvent", "MilitaryMusterEvent", "SettlementCapturedEvent"], function (e, next) {
   const f = e.factions.map((id) => W.factions.find((x) => x.id === id)?.name || `Faction ${id}`),
     names = e.subjects.map(entityName),
     loc = locationName(e.location);
@@ -542,8 +541,8 @@ eventSentence = function (e) {
     return `${f[0]} residents organized a supplied militia in ${loc}.`;
   if (e.type === "SettlementCapturedEvent")
     return `${f[0]} occupied ${e.data.name} after its defenders lost physical control.`;
-  return eventSentenceImplicitBase(e);
-};
+  return next(e);
+});
 function implicitSocietySummary() {
   if (!W) return null;
   initializeImplicitSociety();

@@ -662,8 +662,7 @@ calendarSystem("eras", function () {
   if (W.tick % 256 === 168) considerLaunches();
 });
 // ── Chronicle, songs, and Legends ──────────────────────────────────────────────
-const eventSentenceErasBase = eventSentence;
-eventSentence = function (e) {
+eventText(["AgeEvent", "LeagueFormedEvent", "LeagueJoinedEvent", "LeagueLeftEvent", "LeagueDissolvedEvent", "LeagueWarEvent", "AscensionEvent"], function (e, next) {
   const d = e.data || {};
   switch (e.type) {
     case "AgeEvent":
@@ -687,9 +686,9 @@ eventSentence = function (e) {
         d.first ? "the first ship" : "another ship"
       } left the world, carrying seed, record, and the names of its peoples.`;
     default:
-      return eventSentenceErasBase(e);
+      return next(e);
   }
-};
+});
 const songTitleForErasBase = songTitleFor;
 songTitleFor = function (event) {
   const d = event.data || {};

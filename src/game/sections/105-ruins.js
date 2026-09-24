@@ -375,8 +375,7 @@ drawBuildingSite = function (g, b, now, m) {
   return drawBuildingSiteGhostBase(g, b, now, m);
 };
 // ── Chronicle and Legends ────────────────────────────────────────────────────
-const eventSentenceGhostBase = eventSentence;
-eventSentence = function (e) {
+eventText(["GhostTownEvent", "TownReclaimedEvent", "RuinsClearedEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "GhostTownEvent")
     return `${d.standing} building${d.standing === 1 ? "" : "s"} of ${d.name} stood empty after its fall, a ghost town for the years to take.`;
@@ -384,8 +383,8 @@ eventSentence = function (e) {
     return `${d.name} took up ${d.count} standing building${d.count === 1 ? "" : "s"} of ${d.from || "a fallen town"}.`;
   if (e.type === "RuinsClearedEvent" && d.weathered)
     return `The last stones of the ${d.name || "ruin"}${d.place ? ` of ${d.place}` : ""} sank into the ground.`;
-  return eventSentenceGhostBase(e);
-};
+  return next(e);
+});
 const alertWorthyGhostBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyGhostBase(a) || a.type === "TownReclaimedEvent";

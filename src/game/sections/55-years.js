@@ -255,11 +255,10 @@ renderLegendPage = function (kind = UI.legend.kind, id = UI.legend.id) {
   if (kind === "years" && W) return renderYearsPage(Number(id) || 0);
   return renderLegendPageYearsBase(kind, id);
 };
-const eventSentenceYearsBase = eventSentence;
-eventSentence = function (e) {
+eventText(["YearEvent"], function (e, next) {
   if (e.type === "YearEvent") return `Year ${e.data?.year}: ${e.data?.text || "a quiet year"}`;
-  return eventSentenceYearsBase(e);
-};
+  return next(e);
+});
 // ── Wiring: chips and bars are plain buttons inside the Legends pane ───────────
 let YEARS_WIRED = false;
 function wireYears() {

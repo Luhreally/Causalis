@@ -222,8 +222,7 @@ tickSystem("civil society", function () {
   if (W.tick % 256 === 176) adoptLawCodes();
 });
 // ── Chronicle and Legends ─────────────────────────────────────────────────────
-const eventSentenceCivilBase = eventSentence;
-eventSentence = function (e) {
+eventText(["PetitionEvent", "LawEvent", "JudgementEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "PetitionEvent")
     return `The ${d.circle} petitioned ${d.polity} over unrest in ${d.place}, and was heard.`;
@@ -232,8 +231,8 @@ eventSentence = function (e) {
     return d.banished
       ? `${d.name} was banished from ${d.place} under ${d.polity}'s law of ${LAW_CODES[d.code] || d.code}.`
       : `${d.name} was made to return ${d.fine} units of food to ${d.victim} under ${d.polity}'s law.`;
-  return eventSentenceCivilBase(e);
-};
+  return next(e);
+});
 const alertWorthyCivilBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyCivilBase(a) || a.type === "LawEvent" || a.type === "PetitionEvent";

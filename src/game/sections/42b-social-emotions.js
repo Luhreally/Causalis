@@ -862,8 +862,7 @@ function drawEmotionGlyph(g, id, screen, radius, now, portrait = false) {
   g.restore();
 }
 
-const eventSentenceEmotionBase = eventSentence;
-eventSentence = function (event) {
+eventText(["LoveBondEvent", "BetrayalEvent", "CheatingDiscoveredEvent", "RelationshipBrokenEvent", "GriefEvent", "RevengeVowEvent", "RevengeAttemptEvent"], function (event, next) {
   const names = event.subjects.map(entityName),
     location = locationName(event.location);
   switch (event.type) {
@@ -882,9 +881,9 @@ eventSentence = function (event) {
     case "RevengeAttemptEvent":
       return `⚔️ ${names[0]} physically reached ${names[1]} and acted on a remembered vow of revenge.`;
     default:
-      return eventSentenceEmotionBase(event);
+      return next(event);
   }
-};
+});
 
 const organismInspectorEmotionBase = organismInspector;
 organismInspector = function (id) {

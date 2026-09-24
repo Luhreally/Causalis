@@ -225,8 +225,7 @@ calendarSystem("parentage", function () {
   if (W.tick % 256 === 56) updateParentage();
 });
 // ── Chronicle, story, houses ───────────────────────────────────────────────────
-const eventSentenceHeartBase = eventSentence;
-eventSentence = function (e) {
+eventText(["ParentageRevealedEvent", "BirthEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "ParentageRevealedEvent")
     return `${d.child}, raised as the child of ${d.bearer} and ${d.presumed}, was seen to be ${d.lover}'s: ${d.reason}.`;
@@ -236,8 +235,8 @@ eventSentence = function (e) {
     if (ident?.secretParentId && !ident.parentageRevealedTick && ident.parents?.length === 2)
       return `${entityName(child)} was born to ${entityName(ident.parents[0])} and ${entityName(ident.parents[1])}.`;
   }
-  return eventSentenceHeartBase(e);
-};
+  return next(e);
+});
 const personStoryHeartBase = personStory;
 personStory = function (id) {
   const html = personStoryHeartBase(id),

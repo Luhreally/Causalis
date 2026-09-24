@@ -183,8 +183,7 @@ unrestOf = function (place) {
   return unrestOfNavalBase(place) + (blockadeOf(place) ? 0.08 : 0);
 };
 // ── Chronicle, songs, Legends ──────────────────────────────────────────────────
-const eventSentenceNavalBase = eventSentence;
-eventSentence = function (e) {
+eventText(["SeaBattleEvent", "BlockadeEvent", "BlockadeLiftedEvent"], function (e, next) {
   const d = e.data || {};
   switch (e.type) {
     case "SeaBattleEvent":
@@ -194,9 +193,9 @@ eventSentence = function (e) {
     case "BlockadeLiftedEvent":
       return `The blockade of ${d.place} by ${d.by} was lifted: ${d.reason}.`;
     default:
-      return eventSentenceNavalBase(e);
+      return next(e);
   }
-};
+});
 const songTitleForNavalBase = songTitleFor;
 songTitleFor = function (event) {
   const d = event.data || {};

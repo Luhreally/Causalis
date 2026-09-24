@@ -1483,8 +1483,7 @@ tickSystem("fields and herds", function () {
   }
 });
 
-const eventSentenceAgricultureBase = eventSentence;
-eventSentence = function (event) {
+eventText(["CropSownEvent", "FieldMaturedEvent", "CropHarvestedEvent", "CropFailedEvent", "HerdFormedEvent", "HerdMovedEvent", "HerdBirthEvent", "HerdEnclosedEvent", "HerdFedEvent", "HerdEscapeEvent", "EnclosureAttackedEvent", "EnclosureBreachedEvent", "HerdTheftPreventedEvent", "HerdAnimalStolenEvent", "PredatorDefenseEvent"], function (event, next) {
   const names = event.subjects.map(entityName),
     location = locationName(event.location);
   switch (event.type) {
@@ -1519,9 +1518,9 @@ eventSentence = function (event) {
     case "PredatorDefenseEvent":
       return `🛡️ ${names[0]} intercepted ${names[1]} while it threatened ${names[2]} at ${location}; ${event.data.outcome || "combat followed"}.`;
     default:
-      return eventSentenceAgricultureBase(event);
+      return next(event);
   }
-};
+});
 
 const organismInspectorHerdBase = organismInspector;
 organismInspector = function (id) {

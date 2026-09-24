@@ -394,12 +394,11 @@ drawWorkerActivity = function (now, bounds) {
   }
 };
 // ── Chronicle ─────────────────────────────────────────────────────────────────
-const eventSentenceSteadyBase = eventSentence;
-eventSentence = function (e) {
+eventText(["RoadFreightEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "RoadFreightEvent") return `Trucks began to run between ${d.a} and ${d.b}${d.polity ? ` of ${d.polity}` : ""}, ${d.tonnage} measures the first year.`;
-  return eventSentenceSteadyBase(e);
-};
+  return next(e);
+});
 window.ALIFE_STEADY_DEBUG = Object.freeze({
   facing: (id) => STEADY_MOTION.get(id)?.facing ?? 0,
   heading: (id) => STEADY_MOTION.get(id)?.heading ?? null,

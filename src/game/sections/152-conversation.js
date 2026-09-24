@@ -463,11 +463,10 @@ organismInspector = function (id) {
     at = html.indexOf("<details");
   return at < 0 ? html + block : html.slice(0, at) + block + html.slice(at);
 };
-const eventSentenceTalkBase = eventSentence;
-eventSentence = function (e) {
+eventText(["ComfortEvent"], function (e, next) {
   if (e.type === "ComfortEvent") return `🤗 ${e.data?.a || "Someone"} sat with ${e.data?.b || "a mourner"} in their grief.`;
-  return eventSentenceTalkBase(e);
-};
+  return next(e);
+});
 window.ALIFE_TALK_DEBUG = Object.freeze({
   counts: () => JSON.parse(JSON.stringify(TALK)),
   state: (id) => ({ ...(talkState(id) || {}) }),

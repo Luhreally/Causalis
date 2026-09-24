@@ -255,11 +255,10 @@ function updateStreets() {
 tickSystem("townscape", function () {
   if (W?.settlements) updateStreets();
 });
-const eventSentenceTownBase = eventSentence;
-eventSentence = function (e) {
+eventText(["StreetsPavedEvent"], function (e, next) {
   if (e.type === "StreetsPavedEvent") return `${e.data?.place} paved its ${e.data?.pattern} streets.`;
-  return eventSentenceTownBase(e);
-};
+  return next(e);
+});
 const renderPlacePageTownBase = renderPlacePage;
 renderPlacePage = function (id) {
   const html = renderPlacePageTownBase(id),

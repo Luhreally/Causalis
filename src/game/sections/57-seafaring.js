@@ -508,8 +508,7 @@ chooseBehavior = function (id, tier) {
   }
 };
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-const eventSentenceSeaBase = eventSentence;
-eventSentence = function (e) {
+eventText(["CatchEvent", "VoyageEvent", "ColonyEvent", "VoyageLostEvent"], function (e, next) {
   const d = e.data || {};
   switch (e.type) {
     case "CatchEvent":
@@ -523,9 +522,9 @@ eventSentence = function (e) {
     case "VoyageLostEvent":
       return `The voyage from ${d.place} came to nothing: ${d.reason}.`;
     default:
-      return eventSentenceSeaBase(e);
+      return next(e);
   }
-};
+});
 // ── Legends ────────────────────────────────────────────────────────────────────
 const renderPlacePageSeaBase = renderPlacePage;
 renderPlacePage = function (id) {

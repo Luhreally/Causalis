@@ -227,8 +227,7 @@ unrestOf = function (place) {
   ).toFixed(3);
 };
 // ── Chronicle, Legends, inspector ──────────────────────────────────────────────
-const eventSentenceTraitsBase = eventSentence;
-eventSentence = function (e) {
+eventText(["TraitGainedEvent", "TraitLostEvent"], function (e, next) {
   const d = e.data || {};
   switch (e.type) {
     case "TraitGainedEvent":
@@ -236,9 +235,9 @@ eventSentence = function (e) {
     case "TraitLostEvent":
       return `${d.polity} were no longer called ${d.trait}.`;
     default:
-      return eventSentenceTraitsBase(e);
+      return next(e);
   }
-};
+});
 function traitTags(f) {
   return (f?.traits || [])
     .map((id) => `<span class="tag gold" title="${esc(TRAIT_GLOSS[id] || "")}">${esc(id)}</span>`)

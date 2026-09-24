@@ -1631,8 +1631,7 @@ tickSystem("conflict drama", function () {
   updateInternalConflict();
 });
 
-const eventSentenceConflictBase = eventSentence;
-eventSentence = function (event) {
+eventText(["CombatExchangeEvent", "InternalConflictEvent", "OccupationResistanceEvent", "OccupationViolenceEvent", "BuildingDamagedEvent", "BuildingRepairedEvent", "ReconciliationEvent", "InjuryEvent"], function (event, next) {
   const names = event.subjects.map(entityName),
     location = locationName(event.location),
     factions = event.factions.map(
@@ -1656,11 +1655,11 @@ eventSentence = function (event) {
     case "InjuryEvent":
       if (event.data?.wound)
         return `${names[1] || "An attacker"} inflicted ${event.data.wound} on ${names[0] || "a combatant"}'s ${event.data.bodyPart} in ${location}, spilling ${event.data.bloodLost || 0} blood mass.`;
-      return eventSentenceConflictBase(event);
+      return next(event);
     default:
-      return eventSentenceConflictBase(event);
+      return next(event);
   }
-};
+});
 
 const organismInspectorConflictBase = organismInspector;
 organismInspector = function (id) {

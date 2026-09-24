@@ -483,8 +483,7 @@ calendarSystem("living world", function () {
   }
 });
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-const eventSentenceLivingBase = eventSentence;
-eventSentence = function (e) {
+eventText(["SeasonEvent", "EruptionEvent", "EarthquakeEvent", "MeteorEvent", "SuccessionEvent", "OmenEvent"], function (e, next) {
   const loc = locationName(e.location);
   switch (e.type) {
     case "SeasonEvent":
@@ -500,9 +499,9 @@ eventSentence = function (e) {
     case "OmenEvent":
       return `${e.data.name} read ${e.data.tool} as ${e.data.reading}${e.data.culture ? ` under ${e.data.culture}` : ""}.`;
     default:
-      return eventSentenceLivingBase(e);
+      return next(e);
   }
-};
+});
 function countNoun(n, noun) {
   const count = n || 0;
   return `${count} ${noun}${count === 1 ? "" : "s"}`;

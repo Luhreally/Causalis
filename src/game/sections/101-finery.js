@@ -199,15 +199,14 @@ tickSystem("finery", function () {
   }
 });
 // ── Chronicle and Legends ─────────────────────────────────────────────────────
-const eventSentenceFineryBase = eventSentence;
-eventSentence = function (e) {
+eventText(["TitheEvent", "FineryEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "TitheEvent")
     return d.policy === "heavy" ? `${d.polity} raised a heavy tithe: ${d.reason}.` : `${d.polity} eased the tithe: ${d.reason}.`;
   if (e.type === "FineryEvent")
     return `${d.place} bought ${d.amount} of ${d.good} from ${d.seller} for its ${d.demand} well-off households.`;
-  return eventSentenceFineryBase(e);
-};
+  return next(e);
+});
 const renderFactionPageFineryBase = renderFactionPage;
 renderFactionPage = function (id) {
   const html = renderFactionPageFineryBase(id),

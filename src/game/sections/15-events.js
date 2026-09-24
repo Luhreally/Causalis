@@ -274,7 +274,24 @@ function locationName(i) {
     feature = featureNameAt(i);
   return `${(feature || biomeAt(i)).toLowerCase()} at ${x},${y}`;
 }
+// ── What an event says ──────────────────────────────────────────────────────
+// A section tells its own events: eventText(types, function (e, next) {...})
+// returns the sentence for an event of one of those types, or next(e) to leave
+// it to whoever told that type before (and last to the core sentences below).
+// The chronicle reads one sentence per event through eventSentence(e); a type
+// no section tells falls to the core. Tellers of a type are asked newest first.
+const EVENT_TEXT = new Map();
+function eventText(types, tell) {
+  for (const type of types) {
+    const before = EVENT_TEXT.get(type) || eventSentenceCore;
+    EVENT_TEXT.set(type, (e) => tell(e, before));
+  }
+}
 function eventSentence(e) {
+  const tell = EVENT_TEXT.get(e.type);
+  return tell ? tell(e) : eventSentenceCore(e);
+}
+function eventSentenceCore(e) {
   const names = e.subjects.map(entityName),
     loc = locationName(e.location),
     f = e.factions.map((id) => W.factions.find((x) => x.id === id)?.name || `Faction ${id}`);
@@ -349,8 +366,7 @@ function eventSentence(e) {
       return `${titleCase(e.type)} occurred in ${loc}.`;
   }
 }
-const eventSentenceSocietyBase = eventSentence;
-eventSentence = function (e) {
+eventText(["ConstructionStartedEvent", "BuildingCompletedEvent", "ToolCraftedEvent", "StageAdvanceEvent", "PolicyChangedEvent", "BuildingCollapsedEvent"], function (e, next) {
   const names = e.subjects.map(entityName),
     loc = locationName(e.location);
   switch (e.type) {
@@ -367,6 +383,6 @@ eventSentence = function (e) {
     case "BuildingCollapsedEvent":
       return `${e.data.name || "A structure"} collapsed in ${loc} after ${e.evidence[0] || "its integrity failed"}.`;
     default:
-      return eventSentenceSocietyBase(e);
+      return next(e);
   }
-};
+});

@@ -259,14 +259,13 @@ tickSystem("first aid", function () {
   if (W.tick % 4 === 3) fieldMedics();
   if (W.tick % 16 === 11) feedChildren();
 });
-const eventSentenceAidBase = eventSentence;
-eventSentence = function (e) {
+eventText(["WoundsDressedEvent"], function (e, next) {
   if (e.type === "WoundsDressedEvent") {
     const d = e.data || {};
     return `🩹 ${d.healer ? `${d.healer} dressed` : "The clinic dressed"} ${d.patient}'s wounds${d.medicine ? ` with medicine` : " by hand"}${d.place ? ` in ${d.place}` : ""}.`;
   }
-  return eventSentenceAidBase(e);
-};
+  return next(e);
+});
 window.ALIFE_AID_DEBUG = Object.freeze({
   counts: () => ({ ...AID }),
   bond: (helper, victim) => aidBond(helper, victim),

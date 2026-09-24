@@ -450,15 +450,14 @@ fertilityFactor = function (id, other) {
   return clamp(f, 0.1, 1.35);
 };
 // ── Chronicle and pages ────────────────────────────────────────────────────────
-const eventSentenceGranaryBase = eventSentence;
-eventSentence = function (e) {
+eventText(["ReliefEvent", "MigrationEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "ReliefEvent")
     return `${d.from} sent ${d.amount} units of food${d.water ? ` and ${d.water} of water` : ""} to ${d.to}, where ${d.hungry}% went hungry.`;
   if (e.type === "MigrationEvent" && d.count != null && d.from && d.to)
     return `${d.count} starving ${d.count === 1 ? "person" : "people"} left ${d.from} for the fed stores of ${d.to}.`;
-  return eventSentenceGranaryBase(e);
-};
+  return next(e);
+});
 const alertWorthyGranaryBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyGranaryBase(a) || a.type === "ReliefEvent";

@@ -435,8 +435,7 @@ tickSystem("justice", function () {
   if (W.tick % 256 === 180) reviseLawCodes();
 });
 // ── What it says ─────────────────────────────────────────────────────────────
-const eventSentenceJusticeBase = eventSentence;
-eventSentence = function (e) {
+eventText(["VerdictEvent", "LawEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "VerdictEvent")
     return d.verdict === "acquitted"
@@ -444,8 +443,8 @@ eventSentence = function (e) {
       : `⚖️ ${d.name} was convicted at ${d.place} of ${OFFENCE_WORD[d.offence] || d.offence} under ${LAW_CODE_NAMES[d.code] || d.code}: ${d.punishment || "judged"}.`;
   if (e.type === "LawEvent" && d.revised) return `⚖️ ${d.polity} revised its law from ${LAW_CODE_NAMES[d.from] || d.from} to ${d.law}.`;
   if (e.type === "LawEvent" && LAW_CODE_NAMES[d.code]) return `⚖️ ${d.polity} set down a law code: ${LAW_CODE_NAMES[d.code]}.`;
-  return eventSentenceJusticeBase(e);
-};
+  return next(e);
+});
 const alertWorthyJusticeBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyJusticeBase(a) || (a.type === "VerdictEvent" && (a.importance || 0) >= 3);

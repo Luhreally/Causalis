@@ -136,12 +136,11 @@ settlerUrge = function (place) {
   return urge;
 };
 // ── Chronicle and Legends ────────────────────────────────────────────────────
-const eventSentenceUrbanBase = eventSentence;
-eventSentence = function (e) {
+eventText(["UrbanMigrationEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "UrbanMigrationEvent") return `${d.count} people left ${d.villages || "the villages"} for ${d.hub}${d.polity ? ` of ${d.polity}` : ""}.`;
-  return eventSentenceUrbanBase(e);
-};
+  return next(e);
+});
 const alertWorthyUrbanBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyUrbanBase(a) || (a.type === "UrbanMigrationEvent" && a.importance >= 3);

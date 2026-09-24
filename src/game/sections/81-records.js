@@ -146,13 +146,12 @@ updateTechnology = function () {
   if (W.tick % RECORDS_CADENCE === 64) recoverRecordedKnowledge();
 };
 // ── Chronicle and pages ────────────────────────────────────────────────────────
-const eventSentenceRecordsBase = eventSentence;
-eventSentence = function (e) {
+eventText(["KnowledgeRecoveredEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "KnowledgeRecoveredEvent")
     return `${d.settlement} recovered ${d.name} from the records kept at ${d.archive}.`;
-  return eventSentenceRecordsBase(e);
-};
+  return next(e);
+});
 const renderFactionPageRecordsBase = renderFactionPage;
 renderFactionPage = function (id) {
   const html = renderFactionPageRecordsBase(id),

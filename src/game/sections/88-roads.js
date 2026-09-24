@@ -359,13 +359,12 @@ bestBarter = function (a, b) {
   return offer;
 };
 // ── Chronicle and pages ───────────────────────────────────────────────────────
-const eventSentenceRoadsBase = eventSentence;
-eventSentence = function (e) {
+eventText(["RoadEvent", "RailEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "RoadEvent") return `A paved road now joins ${d.a} and ${d.b}, ${d.tiles} tiles of graded stone.`;
   if (e.type === "RailEvent") return `Iron rails now run between ${d.a} and ${d.b}, ${d.tiles} tiles of track.`;
-  return eventSentenceRoadsBase(e);
-};
+  return next(e);
+});
 const alertWorthyRoadsBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyRoadsBase(a) || a.type === "RoadEvent" || a.type === "RailEvent";

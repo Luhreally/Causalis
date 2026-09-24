@@ -386,8 +386,7 @@ causalPushToward = function (target = causalTarget()) {
   return causalPushTowardOrbitBase(target);
 };
 // ── Chronicle and pages ────────────────────────────────────────────────────────
-const eventSentenceOrbitBase = eventSentence;
-eventSentence = function (e) {
+eventText(["StarChartedEvent", "ColonyFoundedEvent", "ColonyLostEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "StarChartedEvent")
     return `${d.town} charted ${d.star}, ${d.distance} light-years away, and read its prime world as ${d.habitability}.`;
@@ -395,8 +394,8 @@ eventSentence = function (e) {
     return `${d.colony} was founded under ${d.star} by the ship from ${d.from}${d.polity ? ` of ${d.polity}` : ""}, ${d.years} years after it left.`;
   if (e.type === "ColonyLostEvent")
     return `${d.colony} under ${d.star} fell silent with ${d.population} people.`;
-  return eventSentenceOrbitBase(e);
-};
+  return next(e);
+});
 const alertWorthyOrbitBase = alertWorthy;
 alertWorthy = function (a) {
   return (
