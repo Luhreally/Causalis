@@ -105,6 +105,67 @@ function neighborPracticesProcess(s, techId) {
       dist2(other.x, other.y, s.x, s.y) <= reach2,
   );
 }
+// Whom a town learns a craft from, and how much faster for it. The best
+// teacher sets the pace: the polity's archive (4), the ruins of those who came
+// before (3), a sister town of the same polity (3), a neighbour who practises it
+// (1.8), or the world's memory of a craft once known (1.8); none, and the town
+// works it out alone. Every craft some town has found is in that memory from
+// the day it is found, and the memory's pace used to stand in for the
+// polity's and the neighbour's, so a sister town learned what its own polity
+// practised no faster than a stranger to it. Null when no one teaches.
+const RESEARCH_TEACHERS = Object.freeze({
+  archive: Object.freeze({
+    pace: 4,
+    evidence: "the craft was learned from the records in the polity's archive",
+  }),
+  ruin: Object.freeze({
+    pace: 3,
+    evidence: "surviving practices were studied in the ruins of those who came before",
+  }),
+  sister: Object.freeze({
+    pace: 3,
+    evidence: "a sister town of the same polity already practised the process",
+  }),
+  neighbour: Object.freeze({
+    pace: 1.8,
+    evidence: "a neighboring people already practiced the process",
+  }),
+  memory: Object.freeze({
+    pace: 1.8,
+    evidence: "fragments of a fallen people's knowledge guided the work",
+  }),
+});
+function researchTeacher(
+  s,
+  techId,
+  recorded = typeof processRecorded === "function" && processRecorded(s, techId),
+) {
+  const legacy = (W.civilization?.legacyProcesses || []).includes(techId);
+  if (legacy && recorded) return RESEARCH_TEACHERS.archive;
+  if (
+    legacy &&
+    W.settlements.some(
+      (ruin) =>
+        ruin.ruined &&
+        ruin.knownProcesses?.includes(techId) &&
+        dist2(ruin.x, ruin.y, s.x, s.y) <= 196,
+    )
+  )
+    return RESEARCH_TEACHERS.ruin;
+  if (
+    s.factionId &&
+    W.settlements.some(
+      (other) =>
+        other !== s &&
+        !other.ruined &&
+        other.factionId === s.factionId &&
+        other.knownProcesses.includes(techId),
+    )
+  )
+    return RESEARCH_TEACHERS.sister;
+  if (neighborPracticesProcess(s, techId)) return RESEARCH_TEACHERS.neighbour;
+  return legacy ? RESEARCH_TEACHERS.memory : null;
+}
 function updateTechnology() {
   const catalog = techCatalog();
   for (const s of W.settlements) {
@@ -167,41 +228,9 @@ function updateTechnology() {
         (concertedIntensity() ? 3 * concertedIntensity() : 1);
     for (const entry of eligible) {
       const { tech, facility, base, obs, temperature } = entry,
-        legacy = (W.civilization?.legacyProcesses || []).includes(tech.id),
-        ruinMemory =
-          legacy &&
-          W.settlements.some(
-            (ruin) =>
-              ruin.ruined &&
-              ruin.knownProcesses?.includes(tech.id) &&
-              dist2(ruin.x, ruin.y, s.x, s.y) <= 196,
-          ),
-        neighborKnows = !legacy && neighborPracticesProcess(s, tech.id),
-        polityKnows =
-          !legacy &&
-          !!s.factionId &&
-          W.settlements.some(
-            (other) =>
-              other !== s &&
-              !other.ruined &&
-              other.factionId === s.factionId &&
-              other.knownProcesses.includes(tech.id),
-          ),
         recorded = typeof processRecorded === "function" && processRecorded(s, tech.id),
-        rate =
-          baseRate *
-          (legacy
-            ? recorded
-              ? 4
-              : ruinMemory
-                ? 3
-                : 1.8
-            : polityKnows
-              ? 3
-              : neighborKnows
-                ? 1.8
-                : 1) *
-          (entry === focus ? 1 : RESEARCH_SIDE_SHARE),
+        teacher = researchTeacher(s, tech.id, recorded),
+        rate = baseRate * (teacher?.pace || 1) * (entry === focus ? 1 : RESEARCH_SIDE_SHARE),
         threshold = researchThreshold(tech) * (recorded ? 0.5 : 1);
       s.researchProgress[tech.id] = (s.researchProgress[tech.id] || 0) + rate;
       if (s.researchProgress[tech.id] < threshold) continue;
@@ -231,13 +260,7 @@ function updateTechnology() {
             facility
               ? `${BUILDING_DEFS[facility]?.name || facility} supplied a real workspace`
               : "open-air observation supplied the workspace",
-            legacy
-              ? ruinMemory
-                ? "surviving practices were studied in the ruins of those who came before"
-                : "fragments of a fallen people's knowledge guided the work"
-              : neighborKnows
-                ? "a neighboring people already practiced the process"
-                : `knowledge priority ${knowledgePriority}/5`,
+            teacher?.evidence || `knowledge priority ${knowledgePriority}/5`,
           ],
           importance: 4,
           data: {
