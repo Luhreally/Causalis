@@ -1,9 +1,11 @@
 # Handoff
 
-> **Where to start (2026-09-14):** sections 9 and 10 below are current — every
-> measured world launches, the tools for reading the closure are in `scripts/`,
-> and the open problems are named there. `docs/CITY-CHECKPOINT.md` is the
-> September 9 checkpoint that preceded them and is kept as history.
+> **Where to start (2026-09-23):** "How the code is laid out" and "Working
+> rules" below are current as of the refactor of section 37: the tick and the
+> chronicle's sentences are registries, the suite runs in twenty seconds, and
+> `npm run oracle` says whether a change left the world alone. Sections 9 to 36
+> record the measured history of the balance work; `docs/CITY-CHECKPOINT.md`
+> is older still and kept as history.
 
 For an agent picking this up cold. Read this before touching anything. It is
 about how to work on Causalis without breaking it, and what is currently true
@@ -31,10 +33,21 @@ Three invariants hold everywhere and are not negotiable:
 `src/game/manifest.json`, into **one shared closure**. That has two
 consequences you must hold in your head:
 
-- Later sections extend earlier ones by **override chains**:
-  `const base = fn; fn = function (...) { ... base(...) ... }`. This is the
-  idiom for changing behaviour. Add a new section rather than editing an old
-  one where you can.
+- **Two things a section adds by registering, not by wrapping** (since
+  2026-09-23, section 37):
+  - a system of the tick: `tickSystem("granary", function () { ... })` runs
+    after the core tick, `calendarSystem("belief", function () { ... })` in the
+    calendar after the weather. They run in registration (manifest) order, and
+    that order is part of the world: swapping two moves the hash within 128
+    ticks. `npm run map` prints the tick in the order it runs.
+  - an event's sentence: `eventText(["RoadEvent"], function (e, next) { ... })`
+    returns the words, or `next(e)` to leave the event to whoever told that
+    type before. `npm run map -- --events Road` prints who tells a type.
+- Everything else is still extended by **override chains**:
+  `const base = fn; fn = function (...) { ... base(...) ... }`. Add a new
+  section rather than editing an old one where you can; where you do edit an
+  old one, it is usually to make it the single owner of a thing rather than a
+  base that later layers correct.
 - **Duplicate top-level identifiers silently override each other.** Two
   sections declaring the same `const` is a real bug that no test may catch.
   There is a `dupscan.cjs` in the scratchpad for this.
@@ -101,16 +114,41 @@ for deploying. Do all work in the clone:
 /c/Users/danie/Causalis-work/repo        branch: visuals
 ```
 
-**Run the fast suite before every commit and never edit source while it runs.**
+**Run the suite before every commit.**
 
 ```
-npm run test:fast > log 2>&1
-bash $SCRATCH/suite-check.sh log 115
+npm test                          # every tests/*-smoke.cjs, sixteen at a time, ~20 s
+node scripts/test.cjs roads       # only the tests whose names contain "roads"
+node scripts/test.cjs --slow      # and the long smoke modes (four fail, and did before)
 ```
 
-The expected count is the number of `"ok": true` lines, currently **115**. It
-changes only when you add a test file. A green suite is necessary and not
-sufficient — see "Pitfalls".
+A test is any `tests/*-smoke.cjs`, found by name; there is nothing to add to
+`package.json`. The runner reads the sections once at the start, so editing
+while it runs is safe now. A test passes when it exits 0, prints no
+`"ok": false`, and prints something: one that printed nothing (a promise that
+never settled) fails. A green suite is necessary and not sufficient — see
+"Pitfalls".
+
+**Say whether a change left the world alone.** A refactor, a speed-up or a
+change to what is drawn must leave the simulation bit for bit as it was:
+
+```
+npm run oracle -- --out $SCRATCH/golden.json      # before the change
+npm run oracle -- --compare $SCRATCH/golden.json  # after: "identical", or the differences
+```
+
+The oracle (ten seconds) records the baseline road's yearly hashes, both grown
+fixtures' hashes over 512 ticks, every event's sentence and category and the
+pages of a grown world. The baseline hash alone cannot see anything a grown
+town does. When only words or pages change, the hashes are the evidence the
+world did not.
+
+**A new section:** `npm run new:section -- 163-harbours "Harbours"` writes the
+file with a tick system, a sentence and a debug surface to fill in, places it
+in the manifest and writes a smoke test. Remember the world's state: a field
+a feature keeps in W is made when a world is made or loaded (a new world is
+given the restore defaults, 40), so a save continues exactly
+(`tests/continuation-smoke.cjs` checks that it does).
 
 **Deploy** by fast-forwarding the mirror and pushing:
 
@@ -143,9 +181,10 @@ presses), record the new lists in the handoff and the new hash in the test,
 in the same commit. A change that only renders, or only runs behind the
 ship, leaves the hash as it is.
 
-**Each change wants:** a numbered section or an override in one, a
-`window.ALIFE_*_DEBUG` entry, a `tests/*-smoke.cjs` assertion chained into
-`npm run test:fast`, and a README paragraph in the project's voice.
+**Each change wants:** a numbered section, or a registration or an override
+in one; a `window.ALIFE_*_DEBUG` entry; a `tests/*-smoke.cjs` (found by the
+runner); the oracle if it means to leave the world alone; and a README
+paragraph in the project's voice.
 
 ## Measuring
 
@@ -4150,6 +4189,94 @@ pop9 had 150 and 35. The beds standing at the ship: battery 5,148, phone
 
 The baseline hash is `05494c3d` (`tests/baseline-smoke.cjs`, with its
 history) and these lists are the baseline.
+
+### 37. The kernel: a tick of named systems, sentences by type, a suite in twenty seconds, and an oracle (2026-09-23)
+
+Asked for, in one message: the whole codebase refactored so that adding
+things is easier and it runs as efficiently as it can, keeping the
+architecture of numbered sections in one closure; and the game made real,
+with good UX and UI, a good observatory and a deep simulation. Five read-only
+surveys measured it first (architecture, speed, UI, the simulation's depth,
+the tests); their findings are in the memory file
+`causalis-refactor-assessment-2026-09.md`. What was done, in order, each
+step behind the oracle unless it says otherwise:
+
+**The suite and the oracle (b44294a).** `npm test` runs every
+`tests/*-smoke.cjs` sixteen at a time from one copy of the sections: 323 s
+became about 20. The test and probe sandboxes are ordinary global objects:
+a contextified sandbox answered every global lookup (Math, Array...) through
+a C++ interceptor, so ticks ran twice as slow as in a page and every profile
+taken before this blamed the wrong functions (hashParts 122 times, diffusePair
+232 times over). Real numbers: battery fixture 7.5 ms a tick, phone 16. The
+oracle records what the game does and says; CI runs formatting and the suite
+on every branch, and a deploy waits for it.
+
+**Three stalls (263857b).** The yearly world hash (nothing in the world reads
+it: 45-80 ms a year), the event log's compaction (80-108 ms, now about 22) and
+the building site search (up to 66 ms: a grid of footprints for each search).
+Phone fixture p99 82 to 45 ms, slowest tick 165 to 84. Bit-identical.
+
+**Two registries (becb5ae, 7185554).** The 36 layers of simTick and the 22 of
+updateWeatherCycle became 57 named systems in manifest order; the 52 layers
+of eventSentence became tellers keyed by type. A mechanical rewrite, each link
+registered with its body intact; bit-identical. `window.ALIFE_TICK_DEBUG`
+times each system (`profile(true)`, `report()`) and switches one off for a
+probe's A/B. Measured with it on the phone fixture: the core tick is 11.8 of
+15 ms and no registered system passes 0.7 ms, so the tick is spread over the
+labour and minds of every worker and there is no single cost left to remove
+(the eventById and technologyDefinition lookups of f655861 are inside the
+noise). The next speed lever is the labour itself (exact caches over the
+research tables and work orders, 50 per cent of the tick) or the tick off the
+page's thread: the tick touches no DOM, but the drawing reads W from 39
+sections that also simulate.
+
+**A save continues exactly (a9fec37).** A world loaded from its own save
+parted from its original within a tick: the load made the restore defaults a
+live world made only when first asked, and 149's plan timing and 155's fuel
+tally lived in maps beside W. A new world now gets the restore defaults when
+made; the timing is `place.labourPlannedTick`, the tally `town.drivenTiles`.
+`tests/continuation-smoke.cjs` holds it. The same defaults mean no page
+writes a new world any more (`tests/pages-read-only-smoke.cjs`). The hash
+moved (05494c3d to e8375dfd, recorded in the baseline test) and the road did
+not: the same events and people for twelve years on the road and 768 ticks on
+both fixtures (scratchpad `course-ab.cjs`, two checkouts side by side).
+
+**Dead code (6c40671).** A reach over the composite from the load-time code
+and the debug surfaces found 101 things nothing reaches, 2,758 lines: bodies
+later sections replaced without calling, the wrappers that led only to them,
+a duplicate updateMilitaryMovement hoisting had shadowed. Where a dead body
+was the declaration, its replacement is declared in its place.
+
+**Tools (ea8dd16).** `npm run new:section`, `npm run map`. Every source,
+script and test is prettier-formatted, and CI checks it.
+
+**The player's side.** Panels keep their place through the four rebuilds a
+second (156): sections opened by hand stay open, the scroll holds, no rebuild
+under a press; the specimen portrait is drawn (it shipped blank). A world
+fills the screen and the centre button shows all of it (157). From far off
+the map names its towns, not every notable person, and a war's label finds
+room (32d, 32h). Trends are a chart a measure with a scale and years (158).
+A Causal skip ends in a digest of what happened (159); the line under the
+button names the next stage and what it needs (160); the Inspect tab with
+nothing selected is the world now (161). The chronicle speaks plainly: places
+by their towns, the commonest events without the engine's words (15, 42a-d).
+On a phone, Go there and Watch close the drawer, the skip is in the dock.
+Small things: Regenerate asks, Help has the right keys, names in dialogs are
+links, the World tab no longer says spaceflight is excluded. The observatory
+reads from the keyboard. The expedition has four steps more (162).
+
+**Found and left for the balance work, because each changes the road:**
+`recoverRecordedKnowledge` (81) never runs (it waits for tick 64 of 256 inside
+a pass made only at multiples of 128); section 70's memos cover only the ten
+systems registered before it; town rations drain stored water, which holds the
+concerted effort at level 2 from the first decades (HANDOFF 1b), and five
+brakes fight the births it hastens; ~11 population counts and ~9 hunger lines
+disagree (a town can be judged in famine by its larder with no one hungry).
+
+**The oracle cannot see the Causal skip or the late road**: it runs 512 ticks
+of two fixtures and eight years of one world. A change to what the skip does,
+or to what fires in a grown world past those ticks, still wants the launch
+sweep on both sizes.
 
 ## The recent commits, newest first
 

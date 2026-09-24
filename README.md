@@ -6,12 +6,27 @@ Causalis is a deterministic artificial-life god game in which chemistry, ecology
 
 - `index.html` contains the accessible game shell.
 - `src/styles/` separates foundation, layout, dialogs, observatory, and mobile presentation.
-- `src/game/sections/` contains the simulation in explicit load order. The section manifest preserves the original closure and execution order without rewriting the engine during migration.
+- `src/game/sections/` contains the simulation in explicit load order, composed into one closure. A section adds a system to the tick with `tickSystem` or `calendarSystem` (16) and tells its events with `eventText` (15); `npm run map` lists both in the order they run, and `npm run new:section` starts a new section with its test.
 - `src/main.js` starts the game.
-- `tests/` covers determinism, conservation, cohorts, ecology, causal conflict/occupation, camera behavior, saves, construction, cognition, civilization progression, and the phone interface.
+- `tests/` covers determinism, conservation, cohorts, ecology, causal conflict/occupation, camera behavior, saves and their continuation, construction, cognition, civilization progression, and the phone interface. `npm test` runs them all in parallel in about twenty seconds; `npm run oracle` records and compares what the game does and says, for changes meant to leave the world alone.
 - `legacy/index.single-file.html` is the untouched pre-migration source for comparison.
 
 ## Player experience
+
+The observatory keeps its place. A section opened by hand stays open while the
+world runs, the panel keeps its scroll, and nothing is rebuilt under a press.
+With nothing selected, the Inspect tab is the world now: the year and its
+people, the stage the world is working toward and what it lacks, the wars
+under way, the towns going hungry and the latest notable events, each with a
+way to the map. Trends are a small chart for each measure, with its present
+value, its highest, its years and a reading under the pointer. The chronicle
+names a place by its town, "the mountain north of Stonespire", and says what
+happened as a person would say it. A Causal skip ends in a digest of the years
+it crossed, and between skips the line under the button names the next stage
+and what it still needs. A world opens filling the screen, and from far off
+the map names its towns. On a phone the skip is in the dock, and a press that
+turns to the world closes the drawer. The first expedition goes on past its
+save to a skip, the Legends, a lens and a whisper.
 
 A bed now has an address. Households keep their homes between visits, move out
 of ruins, and fit within the beds actually built. Later cities distinguish
