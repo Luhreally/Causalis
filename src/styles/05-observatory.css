@@ -521,3 +521,23 @@
   color: var(--dim);
   font-variant-numeric: tabular-nums;
 }
+
+/* The world now (161): the Inspect tab with nothing selected. */
+.world-now .now-next {
+  margin: 10px 0 2px;
+  line-height: 1.45;
+}
+.world-now .now-row {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+  gap: 8px;
+}
+.world-now .now-event {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  line-height: 1.45;
+}
+.world-now .now-hint {
+  display: block;
+  margin-top: 12px;
+}

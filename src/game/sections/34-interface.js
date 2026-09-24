@@ -263,7 +263,8 @@ function refreshInspector() {
     DOM.inspectPane.innerHTML = tileInspector(UI.selectedTile);
     return;
   }
-  DOM.inspectPane.innerHTML = `<div class="empty"><div style="font-size:24px;color:var(--gold);margin:16px">⌖</div>Choose a tile to inspect the common chemical substrate, nearby lives, materials, and causes.</div>`;
+  // Nothing selected: what is happening in the world (161).
+  DOM.inspectPane.innerHTML = worldNowHTML();
 }
 const tileInspectorCanonical = tileInspector;
 tileInspector = function (i) {
