@@ -52,8 +52,57 @@ const failures = [];
   if (peace.warsUnderPact) failures.push(`${peace.warsUnderPact} wars began under a pact`);
   if (pacted.some((p) => p > 105))
     failures.push(`a pacted pair's pressure stands at ${Math.max(...pacted)}, past the war line`);
-  if (hostileAtStart.length && !thawed) failures.push("no hostility faded in four years");
-  report({ peace, pactPressures: pacted.map((p) => Math.round(p)), thawed }, failures);
+  // Hostility fades by the rule, whatever the fixture's course: just after a
+  // diplomacy pass no pair outside a war or a truce stands hostile under
+  // forty. (Whether a pair's causes fall that low in four years is the
+  // world's business; the fixture's own hostile pairs are counted as thawed.)
+  while (rt.get("W.tick % 128") !== 1) tick();
+  const stale =
+    rt.get(`W.factions.flatMap((f) => Object.entries(f.relations || {}).filter(([id, r]) => {
+      const b = Number(id);
+      if (f.id >= b || r.status !== "hostile" || r.pressure >= 40) return false;
+      if (W.tick < (r.truceUntil || 0)) return false;
+      return !W.activeWars.some((w) => !w.ended && ((w.a === f.id && w.b === b) || (w.a === b && w.b === f.id)));
+    }).map(([id, r]) => [f.id, Number(id), Math.round(r.pressure)]))`);
+  if (!hostileAtStart.length) failures.push("the fixture has no hostile pair to watch");
+  // And the rule acts: one hostile pair outside war and truce, its causes read
+  // as nothing for a pass, comes out of that pass neutral (it stayed hostile
+  // before the rule).
+  const forced = rt.get(`(() => {
+    for (const f of W.factions) for (const [id, r] of Object.entries(f.relations || {})) {
+      const b = Number(id);
+      if (r.status !== "hostile" || W.tick < (r.truceUntil || 0)) continue;
+      if (W.activeWars.some((w) => !w.ended && ((w.a === f.id && w.b === b) || (w.a === b && w.b === f.id)))) continue;
+      const pair = [f.id, b], base = relationPressure;
+      relationPressure = function (x, y) {
+        const out = base(x, y);
+        return (x.id === pair[0] && y.id === pair[1]) || (x.id === pair[1] && y.id === pair[0]) ? { ...out, pressure: 0 } : out;
+      };
+      r.pressure = factionById(b).relations[f.id].pressure = 30;
+      globalThis.__forced = { pair, base };
+      return pair;
+    }
+    return null;
+  })()`);
+  if (forced) {
+    do tick();
+    while (rt.get("W.tick % 128") !== 1);
+    const status = rt.get(`factionById(${forced[0]}).relations[${forced[1]}].status`);
+    rt.get("(() => { relationPressure = __forced.base; return 1; })()");
+    if (status !== "neutral")
+      failures.push(`a hostile pair with nothing behind it stayed ${status}`);
+  }
+  if (stale.length) failures.push(`hostility outlived its cause: ${JSON.stringify(stale)}`);
+  report(
+    {
+      peace,
+      pactPressures: pacted.map((p) => Math.round(p)),
+      hostileAtStart: hostileAtStart.length,
+      thawed,
+      stale,
+    },
+    failures,
+  );
 })().catch((error) => {
   console.error(error);
   process.exit(1);

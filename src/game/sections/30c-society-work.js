@@ -450,7 +450,7 @@ function extractForWork(id, tile, sp) {
     mat = materialTrait(sp),
     bare = sp === C.ORGANIC || sp === C.SOLVENT || sp === C.NUTRIENT ? 2 : 1,
     bonus = tool ? Math.max(1, Math.floor(tool.quality / (14 + mat.hardness * 8))) : 0,
-    coordinated = concertedIntensity(),
+    coordinated = settledPace(),
     limit = (bare + bonus) * (coordinated ? 1 + coordinated : 1);
   if (sp === C.FIBER && available < 1 && resourceAmountAt(tile, C.ORGANIC) > 0) {
     executeProcess(
@@ -563,7 +563,7 @@ function performRuinSalvage(id, place, order, ruin) {
       0,
     );
   const inv = W.components.inventory[id].materials,
-    budget = concertedIntensity() ? 32 : 8;
+    budget = settledPace() ? 32 : 8;
   let moved = 0,
     lastSpecies = -1;
   for (let sp = 0; sp < ruin.composition.length && moved < budget; sp++) {

@@ -280,8 +280,8 @@ const worldHasRoomForPlacesManyHandsBase = worldHasRoomForPlaces;
 worldHasRoomForPlaces = function () {
   if (
     W?.civilization &&
-    typeof concertedIntensity === "function" &&
-    concertedIntensity() > 0 &&
+    typeof settledPace === "function" &&
+    settledPace() > 0 &&
     manyHandsModernSought()
   )
     return false;

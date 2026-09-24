@@ -73,7 +73,7 @@ function updateCivicProduction() {
         eventSink: s.importantEvents,
         recordEvent: W.tick % 128 === 0,
       };
-    if (concertedIntensity() > 0 && W.tick % 32 === 0) {
+    if (settledPace() > 0 && W.tick % 32 === 0) {
       const [cx, cy] = xy(ti);
       let room = placeStorageRemaining(s),
         foodMoved = 0,
@@ -171,12 +171,7 @@ function updateCivicProduction() {
       operateFacility(s, "kiln", "firing a rigid ceramic matrix", C.MINERAL)
     ) {
       s.productionTemperature = 560;
-      executeProcess(
-        "ceramic_firing",
-        inv,
-        concertedIntensity() ? 1 + concertedIntensity() : 1,
-        context,
-      );
+      executeProcess("ceramic_firing", inv, settledPace() ? 1 + settledPace() : 1, context);
     }
     if (
       s.knownProcesses.includes("drying") &&

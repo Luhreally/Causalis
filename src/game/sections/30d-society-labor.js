@@ -60,7 +60,7 @@ function performCivilLabor(id) {
       const amount = Math.min(
         inv[sp],
         missing.needed,
-        concertedIntensity() ? 32 : 8,
+        settledPace() ? 32 : 8,
         65535 - b.composition[sp],
       );
       inv[sp] -= amount;
@@ -189,7 +189,7 @@ function performCivilLabor(id) {
       Math.floor((W.components.cognition[id]?.state?.[4] || 0) / 700)) *
     // Engines and electricity quicken the work face (87).
     (typeof constructionTempoFactor === "function" ? constructionTempoFactor(place) : 1) *
-    (concertedIntensity() ? 4 + 2 * concertedIntensity() : 1);
+    (settledPace() ? 4 + 2 * settledPace() : 1);
   b.workDone = Math.min(b.workRequired, b.workDone + effort);
   if (buildTool) {
     buildTool.tool.wear = Math.min(buildTool.tool.durability, buildTool.tool.wear + 1);
@@ -419,7 +419,7 @@ function* updateCognitionAndLabor() {
   const ids = W.activeIds.slice().sort((a, b) => a - b),
     essential = new Set(),
     places = [...W.camps.filter((c) => c.active), ...W.settlements.filter((s) => !s.ruined)],
-    coordinatedLabor = concertedIntensity() > 0;
+    coordinatedLabor = settledPace() > 0;
   let paced = 0;
   for (const place of places) {
     if (!placeNeedsLabor(place)) continue;
@@ -441,7 +441,7 @@ function* updateCognitionAndLabor() {
       research = eligibleResearchMaterialNeeds(place).length,
       slots = Math.min(
         healthy.length,
-        concertedIntensity()
+        settledPace()
           ? healthy.length
           : Math.max(2, Math.ceil(healthy.length * (projects ? 0.55 : research ? 0.4 : 0.3))),
       );

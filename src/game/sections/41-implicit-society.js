@@ -506,20 +506,64 @@ function concertedIntensity() {
     ? 1 + (W.civilization.concertedEffortLevel || 0)
     : 0;
 }
-function updateConcertedEffortState() {
-  if (!W?.civilization) return 0;
+// ── The settled pace, and the effort that answers need ─────────────────────────
+// A settled people works at the pace the concerted effort's second level set:
+// every healthy hand at the work, loads of 32, building and hauling ten times
+// the lone worker's, inquiry nine, and a fed household's next child five times
+// sooner, braked by the granary (82) and the crowded city (120). That pace was
+// only ever reached by accident: the effort was called whenever a town's stored
+// water fell under eight a head, and no town stores water (its people drink
+// from the land), so from the first camp the call never lapsed, and the whole
+// game, to the ship, was balanced on it. It is the ordinary pace of a settled
+// world now, said as such; the effort is called by need that is real (a town
+// whose people are thirsty or whose stores are empty, a war, a band without a
+// home) or by the player's skip, and nothing that ran at the old pace changes.
+const SETTLED_PACE = 3;
+let settledPaceMemo = { world: null, tick: -1, pace: 0 };
+function settledPace() {
+  if (!W) return 0;
+  if (settledPaceMemo.world === W && settledPaceMemo.tick === W.tick) return settledPaceMemo.pace;
+  const effort = concertedIntensity(),
+    settled = W.settlements.some((s) => !s.ruined) || W.camps.some((c) => c.active);
+  settledPaceMemo = {
+    world: W,
+    tick: W.tick,
+    pace: settled ? Math.max(SETTLED_PACE, effort) : effort,
+  };
+  return settledPaceMemo.pace;
+}
+// People too thirsty to work (the labour gate's line, 30d) among a town's own.
+const CONCERTED_THIRST = 70;
+function thirstyShare(place) {
+  const residents = granaryResidents(place);
+  if (!residents.length) return 0;
+  let thirsty = 0;
+  for (const id of residents)
+    if ((W.components.life[id]?.thirst || 0) > CONCERTED_THIRST) thirsty++;
+  return thirsty / residents.length;
+}
+// What calls the effort now, strongest first, for the observatory: the skip,
+// a town in need, a war, a band with no home. Reads the world only.
+function concertedNeeds() {
   const living = W.settlements.filter((settlement) => !settlement.ruined),
     camps = W.camps.filter((camp) => camp.active),
-    people = biospherePopulation(KINDS.PERSON);
-  let level = 0;
-  if (!living.length && camps.length && people >= 4) level = 2;
+    needs = [];
+  if (!living.length && camps.length && biospherePopulation(KINDS.PERSON) >= 4)
+    needs.push({ level: 2, why: "band" });
   for (const settlement of living) {
-    if (settlementFood(settlement) < 8 || settlementWater(settlement) < 8)
-      level = Math.max(level, 2);
-    else if (settlementFood(settlement) < 16 || settlementWater(settlement) < 16)
-      level = Math.max(level, 1);
+    const food = settlementFood(settlement),
+      thirsty = thirstyShare(settlement);
+    if (food < 8 || thirsty > 0.4)
+      needs.push({ level: 2, why: food < 8 ? "hunger" : "thirst", place: settlement });
+    else if (food < 16 || thirsty > 0.15)
+      needs.push({ level: 1, why: food < 16 ? "hunger" : "thirst", place: settlement });
   }
-  if ((W.activeWars || []).some((war) => !war.ended)) level = Math.max(level, 1);
+  if ((W.activeWars || []).some((war) => !war.ended)) needs.push({ level: 1, why: "war" });
+  return needs.sort((a, b) => b.level - a.level);
+}
+function updateConcertedEffortState() {
+  if (!W?.civilization) return 0;
+  const level = concertedNeeds()[0]?.level || 0;
   if (level) {
     W.civilization.concertedEffortLevel = Math.max(level, W.civilization.concertedEffortLevel || 0);
     W.civilization.concertedEffortUntil = Math.max(

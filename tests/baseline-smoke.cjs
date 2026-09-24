@@ -24,13 +24,16 @@
 // e8375dfd) without moving the road: the same events and the same people on
 // this road for twelve years and on both launch fixtures for 768 ticks
 // (scratchpad course-ab.cjs), so the lists stand and no sweep was needed.
+// The settled pace (41, 2026-09-24) moved it (e8375dfd to cea09323): the
+// founding band works at the settled pace from its first camp rather than
+// from the first effort check at tick 128; the sweep of HANDOFF 39.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
 const harnessEnd = smokeSource.indexOf('if (process.env.SETTLEMENT_DEBUG === "1")');
 if (harnessEnd < 0) throw new Error("Unable to locate the shared smoke-test harness");
 
-const BASELINE_HASH = "e8375dfd",
+const BASELINE_HASH = "cea09323",
   BASELINE_YEARS = 8;
 
 const fixtureSource = String.raw`(() => {

@@ -339,7 +339,7 @@ function fieldBuild(id, place, b) {
   const effort =
     3 *
     (typeof constructionTempoFactor === "function" ? constructionTempoFactor(place) : 1) *
-    (concertedIntensity() ? 4 + 2 * concertedIntensity() : 1);
+    (settledPace() ? 4 + 2 * settledPace() : 1);
   b.workDone = Math.min(b.workRequired, b.workDone + effort);
   W.civicMetrics.constructionWork += effort;
   FIELD.built += effort;

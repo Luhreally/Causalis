@@ -26,10 +26,18 @@ const fixtureSource = String.raw`(() => {
   const gx = clamp(wp.x + 24, 1, W.width - 2), gy = clamp(wp.y, 1, W.height - 2);
   society.journey(walker, gx, gy);
   const startDist = Math.abs(wp.x - gx) + Math.abs(wp.y - gy);
-  for (let i = 0; i < 96; i++) simTick();
+  // The closest the walker comes: one who arrives (within three tiles) is done
+  // with the order and walks home to work, so where it stands at the end says
+  // nothing about the road.
+  let closest = startDist;
+  for (let i = 0; i < 96; i++) {
+    simTick();
+    const p = W.components.position[walker];
+    if (p) closest = Math.min(closest, Math.abs(p.x - gx) + Math.abs(p.y - gy));
+  }
   const after = W.components.position[walker];
-  out.journey = { start: startDist, after: after ? Math.abs(after.x - gx) + Math.abs(after.y - gy) : null, reason: W.components.life[walker]?.behaviorReason };
-  if (!after || out.journey.after >= startDist) fail("a civil order did not move the traveller toward its goal");
+  out.journey = { start: startDist, closest, after: after ? Math.abs(after.x - gx) + Math.abs(after.y - gy) : null, reason: W.components.life[walker]?.behaviorReason };
+  if (!after || closest >= startDist) fail("a civil order did not move the traveller toward its goal");
   // Monument: a calamity beside the town becomes a stone.
   living.erupt(idx(clamp(settlement.x + 4, 0, W.width - 1), clamp(settlement.y + 3, 0, W.height - 1)));
   const monument = society.planMonument(settlement.id);
