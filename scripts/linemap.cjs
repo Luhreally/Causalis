@@ -7,7 +7,12 @@
 //
 // node scripts/linemap.cjs 75379 [more lines...]
 // node some-test.cjs 2>&1 | node scripts/linemap.cjs
-const { composeRuntime, compositeLineMap, mapCompositeLine, sectionFrames } = require("./compose-runtime.cjs");
+const {
+  composeRuntime,
+  compositeLineMap,
+  mapCompositeLine,
+  sectionFrames,
+} = require("./compose-runtime.cjs");
 
 const runtime = composeRuntime({ format: "script" }),
   map = compositeLineMap(runtime),
@@ -16,7 +21,9 @@ if (args.length) {
   for (const arg of args) {
     const line = Number(arg),
       at = mapCompositeLine(line, map);
-    console.log(`${arg}  ->  ${at ? `${at.name}:${at.line}` : "outside every section (wrapper or injected fixture)"}`);
+    console.log(
+      `${arg}  ->  ${at ? `${at.name}:${at.line}` : "outside every section (wrapper or injected fixture)"}`,
+    );
   }
 } else {
   let text = "";

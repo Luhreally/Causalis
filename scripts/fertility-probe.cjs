@@ -24,7 +24,11 @@ rt.game.createTestWorld({ seed, size, complexity });
 const tick = rt.get("simTick");
 for (let i = 0; i < year * 30; i++) tick();
 for (let press = 1; press <= 40; press++) {
-  const row = JSON.parse(rt.get(`(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: r.stopReason, ships: (W.ascensions || []).length }); })()`));
+  const row = JSON.parse(
+    rt.get(
+      `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: r.stopReason, ships: (W.ascensions || []).length }); })()`,
+    ),
+  );
   console.log(JSON.stringify({ press, ...row }));
   if (row.ships || row.year >= target) break;
 }
@@ -85,10 +89,14 @@ const aYear = `(() => {
   const cradle1 = window.ALIFE_CRADLE_DEBUG.counts();
   return JSON.stringify({ born: (W.statistics.birthsByKind?.person || 0) - births0, couplings: (W.living?.couplings || 0) - couplings0, courted: cradle1.courted - cradle0.courted, roomPasses: cradle1.roomPasses - cradle0.roomPasses, widowed: cradle1.widowed - cradle0.widowed });
 })()`;
-rt.get(`(() => { for (let presses = 0; presses < 400 && Math.floor(W.tick / TICKS_PER_YEAR) < ${target}; presses++) { const state = makeCausalSkipState(); while (Math.floor(W.tick / TICKS_PER_YEAR) < ${target} && !state.done) causalSkipStep(state); } return 1; })()`);
+rt.get(
+  `(() => { for (let presses = 0; presses < 400 && Math.floor(W.tick / TICKS_PER_YEAR) < ${target}; presses++) { const state = makeCausalSkipState(); while (Math.floor(W.tick / TICKS_PER_YEAR) < ${target} && !state.done) causalSkipStep(state); } return 1; })()`,
+);
 for (let n = 0; n < years; n++) {
   const g = JSON.parse(rt.get(gates));
-  console.log(`y${g.year} people${g.people} gates${JSON.stringify(g.tally)} partners${JSON.stringify(g.partners)} partnerGates${JSON.stringify(g.partnerGates)} distances${JSON.stringify(g.distances)} homes${JSON.stringify(g.homes)} nights${JSON.stringify(g.nights)} pyramid${JSON.stringify(g.pyramid)}`);
+  console.log(
+    `y${g.year} people${g.people} gates${JSON.stringify(g.tally)} partners${JSON.stringify(g.partners)} partnerGates${JSON.stringify(g.partnerGates)} distances${JSON.stringify(g.distances)} homes${JSON.stringify(g.homes)} nights${JSON.stringify(g.nights)} pyramid${JSON.stringify(g.pyramid)}`,
+  );
   for (const r of g.rooms) console.log("   " + r);
   const y = JSON.parse(rt.get(aYear));
   console.log(`   next year: ${JSON.stringify(y)}`);

@@ -25,7 +25,11 @@ const tick = rt.get("simTick"),
 console.log(JSON.stringify({ seed, size, complexity, quiet, years, techId }));
 for (let i = 0; i < year * 30; i++) tick();
 for (let press = 1; press <= quiet; press++) {
-  const row = JSON.parse(rt.get(`(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: modernLivingPeople(), stop: r.stopReason }); })()`));
+  const row = JSON.parse(
+    rt.get(
+      `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: modernLivingPeople(), stop: r.stopReason }); })()`,
+    ),
+  );
   console.log(JSON.stringify({ press, ...row }));
 }
 const aYear = `(() => {
@@ -60,8 +64,12 @@ const aYear = `(() => {
 })()`;
 for (let n = 1; n <= years; n++) {
   const row = JSON.parse(rt.get(aYear));
-  console.log(`y${String(row.year).padStart(4)} ppl${String(row.people).padStart(3)} stage=${row.stage} stop=${row.stop} target=${row.target} short=${JSON.stringify(row.shortfall)}`);
+  console.log(
+    `y${String(row.year).padStart(4)} ppl${String(row.people).padStart(3)} stage=${row.stage} stop=${row.stop} target=${row.target} short=${JSON.stringify(row.shortfall)}`,
+  );
   for (const t of row.towns)
-    console.log(`     ${t.name.padEnd(10)} p${String(t.pop).padStart(3)}${t.lead ? " LEAD" : "     "} stab${t.stab} knows${t.knows} focus=${t.focus} step=${t.step} facility=${t.facility}:${t.has ? "has" : "NO"} site=${t.site} priorsMissing=${JSON.stringify(t.priorsMissing)} mats=${JSON.stringify(t.mats)} notes=${t.notes} hands${t.hands}/${t.near}`);
+    console.log(
+      `     ${t.name.padEnd(10)} p${String(t.pop).padStart(3)}${t.lead ? " LEAD" : "     "} stab${t.stab} knows${t.knows} focus=${t.focus} step=${t.step} facility=${t.facility}:${t.has ? "has" : "NO"} site=${t.site} priorsMissing=${JSON.stringify(t.priorsMissing)} mats=${JSON.stringify(t.mats)} notes=${t.notes} hands${t.hands}/${t.near}`,
+    );
   if (row.people < 6) break;
 }

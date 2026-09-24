@@ -15,13 +15,18 @@
 // node scripts/death-probe.cjs <seed:size:complexity> <presses>
 const { loadRuntime } = require("./runtime-probe.cjs");
 const rt = loadRuntime();
-const [seed = "variety-18", size = "battery", complexity = "lean"] = (process.argv[2] || "variety-18:battery:lean").split(":");
+const [seed = "variety-18", size = "battery", complexity = "lean"] = (
+  process.argv[2] || "variety-18:battery:lean"
+).split(":");
 const presses = Number(process.argv[3] || 40);
 rt.game.createTestWorld({ seed, size, complexity });
-const tick = rt.get("simTick"), year = rt.get("TICKS_PER_YEAR");
+const tick = rt.get("simTick"),
+  year = rt.get("TICKS_PER_YEAR");
 for (let i = 0; i < year * 30; i++) tick();
 console.log(JSON.stringify({ seed, size, complexity, presses }));
-rt.get(`globalThis.__death = { births: W.statistics.birthsByKind?.person || 0, floor: W.nextEventId }; 1`);
+rt.get(
+  `globalThis.__death = { births: W.statistics.birthsByKind?.person || 0, floor: W.nextEventId }; 1`,
+);
 for (let press = 1; press <= presses; press++) {
   const row = rt.get(`(() => {
     const state = makeCausalSkipState();

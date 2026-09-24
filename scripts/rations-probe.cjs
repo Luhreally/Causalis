@@ -20,8 +20,12 @@ const rt = loadRuntime(),
 const year = rt.get("TICKS_PER_YEAR");
 (async () => {
   if (fs.existsSync(source)) {
-    rt.sandbox.localStorage.setItem("causalis.save.launch", zlib.gunzipSync(fs.readFileSync(source)).toString("utf8"));
-    if (!(await rt.sandbox.window.ALIFE_SAVE_DEBUG.load("launch"))) throw new Error("fixture did not load");
+    rt.sandbox.localStorage.setItem(
+      "causalis.save.launch",
+      zlib.gunzipSync(fs.readFileSync(source)).toString("utf8"),
+    );
+    if (!(await rt.sandbox.window.ALIFE_SAVE_DEBUG.load("launch")))
+      throw new Error("fixture did not load");
   } else {
     rt.game.createTestWorld({ seed: source, size: "battery", complexity: "lean" });
     const tick = rt.get("simTick");
@@ -62,7 +66,15 @@ const year = rt.get("TICKS_PER_YEAR");
   for (let n = 0; n < years * 4; n++) {
     for (let i = 0; i < year / 4; i++) rt.get("simTick()");
     const r = JSON.parse(rt.get(sample));
-    if (r.gone) { console.log("town gone"); break; }
-    console.log(`y${r.year} q${n % 4} ${r.town.slice(0, 10)} pop${r.pop} members${r.members} home${r.home} elsewhere${r.elsewhere} noHome${r.noHome} resident${r.resident} indoors${r.indoors} night${r.night ? 1 : 0} store${r.store} energy${r.energy} | by distance [<=3,<=7,<=12,<=20,far] n=${JSON.stringify(r.dist)} hunger=${JSON.stringify(r.hunger)} | outlook ${JSON.stringify(r.outlook)} | tasks ${JSON.stringify(r.tasks)}`);
+    if (r.gone) {
+      console.log("town gone");
+      break;
+    }
+    console.log(
+      `y${r.year} q${n % 4} ${r.town.slice(0, 10)} pop${r.pop} members${r.members} home${r.home} elsewhere${r.elsewhere} noHome${r.noHome} resident${r.resident} indoors${r.indoors} night${r.night ? 1 : 0} store${r.store} energy${r.energy} | by distance [<=3,<=7,<=12,<=20,far] n=${JSON.stringify(r.dist)} hunger=${JSON.stringify(r.hunger)} | outlook ${JSON.stringify(r.outlook)} | tasks ${JSON.stringify(r.tasks)}`,
+    );
   }
-})().catch((e) => { console.error(e); process.exit(1); });
+})().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

@@ -90,7 +90,10 @@ const aYear = `(() => {
 for (let n = 1; n <= watch * 24; n++) {
   const row = JSON.parse(rt.get(aYear));
   const towns = row.towns
-    .map((t) => `${t.name} p${t.pop} f${t.food} s${t.store} h${t.hungry} w${t.wounded} i${t.infected} st${t.stability}`)
+    .map(
+      (t) =>
+        `${t.name} p${t.pop} f${t.food} s${t.store} h${t.hungry} w${t.wounded} i${t.infected} st${t.stability}`,
+    )
     .join(" | ");
   console.log(
     `y${String(row.year).padStart(4)} ppl${String(row.people).padStart(4)} born${String(row.born).padStart(3)} died${String(row.died).padStart(4)} wars${row.wars} :: ${row.deaths.join(", ")} :: ${towns}`,

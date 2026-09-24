@@ -19,8 +19,12 @@ const rt = loadRuntime(),
 const year = rt.get("TICKS_PER_YEAR");
 (async () => {
   if (fs.existsSync(source)) {
-    rt.sandbox.localStorage.setItem("causalis.save.launch", zlib.gunzipSync(fs.readFileSync(source)).toString("utf8"));
-    if (!(await rt.sandbox.window.ALIFE_SAVE_DEBUG.load("launch"))) throw new Error("fixture did not load");
+    rt.sandbox.localStorage.setItem(
+      "causalis.save.launch",
+      zlib.gunzipSync(fs.readFileSync(source)).toString("utf8"),
+    );
+    if (!(await rt.sandbox.window.ALIFE_SAVE_DEBUG.load("launch")))
+      throw new Error("fixture did not load");
   } else {
     rt.game.createTestWorld({ seed: source, size: "battery", complexity: "lean" });
     const tick = rt.get("simTick");
@@ -54,6 +58,12 @@ const year = rt.get("TICKS_PER_YEAR");
     if (n) for (let i = 0; i < year; i++) rt.get("simTick()");
     const r = JSON.parse(rt.get(sample));
     console.log("y" + r.year);
-    for (const t of r.rows) console.log(`  ${t.name.padEnd(10)} pop${String(t.pop).padStart(3)} farms${t.farms} reach${t.reach}\n     fields ${JSON.stringify(t.field)}\n     town   ${JSON.stringify(t.town)}\n     wild   ${JSON.stringify(t.wild)}`);
+    for (const t of r.rows)
+      console.log(
+        `  ${t.name.padEnd(10)} pop${String(t.pop).padStart(3)} farms${t.farms} reach${t.reach}\n     fields ${JSON.stringify(t.field)}\n     town   ${JSON.stringify(t.town)}\n     wild   ${JSON.stringify(t.wild)}`,
+      );
   }
-})().catch((e) => { console.error(e); process.exit(1); });
+})().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

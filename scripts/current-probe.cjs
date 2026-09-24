@@ -15,14 +15,20 @@
 // node scripts/current-probe.cjs <seed:size:complexity> <year>
 const { loadRuntime } = require("./runtime-probe.cjs");
 const rt = loadRuntime();
-const [seed = "variety-19", size = "battery", complexity = "lean"] = (process.argv[2] || "variety-19:battery:lean").split(":");
+const [seed = "variety-19", size = "battery", complexity = "lean"] = (
+  process.argv[2] || "variety-19:battery:lean"
+).split(":");
 const target = Number(process.argv[3] || 130);
 rt.game.createTestWorld({ seed, size, complexity });
-const tick = rt.get("simTick"), year = rt.get("TICKS_PER_YEAR");
+const tick = rt.get("simTick"),
+  year = rt.get("TICKS_PER_YEAR");
 for (let i = 0; i < year * 30; i++) tick();
 console.log(JSON.stringify({ seed, size, complexity, target }));
-rt.get(`(() => { for (let p = 0; p < 400 && Math.floor(W.tick / TICKS_PER_YEAR) < ${target}; p++) { const state = makeCausalSkipState(); while (Math.floor(W.tick / TICKS_PER_YEAR) < ${target} && !state.done) causalSkipStep(state); } return 1; })()`);
-console.log(rt.get(`(() => {
+rt.get(
+  `(() => { for (let p = 0; p < 400 && Math.floor(W.tick / TICKS_PER_YEAR) < ${target}; p++) { const state = makeCausalSkipState(); while (Math.floor(W.tick / TICKS_PER_YEAR) < ${target} && !state.done) causalSkipStep(state); } return 1; })()`,
+);
+console.log(
+  rt.get(`(() => {
   const spName = (sp) => W.definitions.species[sp]?.name || ("sp" + sp);
   const chain = [], seen = new Set();
   const walk = (id) => { if (seen.has(id)) return; seen.add(id); const t = technologyDefinition(id); if (!t) return; for (const p of t.prior || []) walk(p); chain.push(id); };
@@ -65,4 +71,5 @@ console.log(rt.get(`(() => {
   });
   const t = W.civilization?.concertedTarget;
   return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), chain, target: t ? { key: t.key, pushes: t.pushes, since: Math.floor((t.since || 0) / TICKS_PER_YEAR) } : null, shortfall: modernShortfall(), wants: { cities: modernCitiesWanted(), electric: modernElectricWanted() }, carried: typeof CAUSAL_CARRIED !== "undefined" ? CAUSAL_CARRIED.count : null, towns }, null, 0);
-})()`));
+})()`),
+);

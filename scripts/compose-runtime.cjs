@@ -35,7 +35,8 @@ function compositeLineMap(runtime = composeRuntime({ format: "script" })) {
   let open = null;
   for (let n = 0; n < lines.length; n++) {
     const line = lines[n];
-    if (line.startsWith("// #region ")) open = { name: line.slice("// #region ".length).trim(), start: n + 2, end: -1 };
+    if (line.startsWith("// #region "))
+      open = { name: line.slice("// #region ".length).trim(), start: n + 2, end: -1 };
     else if (line.startsWith("// #endregion ") && open) {
       open.end = n;
       map.push(open);
@@ -46,7 +47,8 @@ function compositeLineMap(runtime = composeRuntime({ format: "script" })) {
 }
 function mapCompositeLine(line, map = compositeLineMap()) {
   for (const section of map)
-    if (line >= section.start && line <= section.end) return { name: section.name, line: line - section.start + 1 };
+    if (line >= section.start && line <= section.end)
+      return { name: section.name, line: line - section.start + 1 };
   return null;
 }
 // Rewrite `index.inline.js:LINE:COL` frames in a stack to `section:line`.
@@ -58,4 +60,10 @@ function sectionFrames(text, runtime) {
   });
 }
 
-module.exports = { composeRuntime, readSections, compositeLineMap, mapCompositeLine, sectionFrames };
+module.exports = {
+  composeRuntime,
+  readSections,
+  compositeLineMap,
+  mapCompositeLine,
+  sectionFrames,
+};

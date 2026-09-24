@@ -32,7 +32,9 @@ for (let press = 1; press < watchFrom; press++) {
   const row = JSON.parse(rt.get(coarse));
   console.log(JSON.stringify({ press, minutes: at(), ...row }));
   if (row.delta !== 0) {
-    console.log(JSON.stringify({ note: "drifted before the watched press; rerun with a lower watchFrom" }));
+    console.log(
+      JSON.stringify({ note: "drifted before the watched press; rerun with a lower watchFrom" }),
+    );
     process.exit(0);
   }
 }

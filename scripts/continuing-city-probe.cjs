@@ -1,14 +1,28 @@
 // Generated-world measurement, with no fixture or granted technology.
 // node scripts/continuing-city-probe.cjs <seed> <size> <complexity> <presses>
 const { loadRuntime } = require("./runtime-probe.cjs");
-const rt = loadRuntime(), seed = process.argv[2] || "causal-origin";
-rt.game.createTestWorld({ seed, size: process.argv[3] || "battery", complexity: process.argv[4] || "lean" });
-const tick = rt.get("simTick"), year = rt.get("TICKS_PER_YEAR"), started = performance.now();
-console.log(JSON.stringify({ seed, size: process.argv[3] || "battery", complexity: process.argv[4] || "lean" }));
+const rt = loadRuntime(),
+  seed = process.argv[2] || "causal-origin";
+rt.game.createTestWorld({
+  seed,
+  size: process.argv[3] || "battery",
+  complexity: process.argv[4] || "lean",
+});
+const tick = rt.get("simTick"),
+  year = rt.get("TICKS_PER_YEAR"),
+  started = performance.now();
+console.log(
+  JSON.stringify({
+    seed,
+    size: process.argv[3] || "battery",
+    complexity: process.argv[4] || "lean",
+  }),
+);
 for (let i = 0; i < year * 30; i++) tick();
 let afterLaunch = 0;
 for (let press = 1; press <= +(process.argv[5] || 40); press++) {
-  const row = JSON.parse(rt.get(`(() => {
+  const row = JSON.parse(
+    rt.get(`(() => {
     const result = runCausalSkipForDebug(), towns = W.settlements.filter((s) => !s.ruined);
     return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: result.stopReason,
       milestone: result.milestone?.label || "", people: modernLivingPeople(), townPeople: modernPeople(),
@@ -22,8 +36,11 @@ for (let press = 1; press <= +(process.argv[5] || 40); press++) {
       wants: window.ALIFE_MODERN_DEBUG?.wants?.(),
       crafts: typeof CONTINUING_CRAFTS !== "undefined" ? CONTINUING_CRAFTS.filter(continuingKnows) : [],
     });
-  })()`));
-  console.log(JSON.stringify({ press, minutes: +((performance.now() - started) / 60000).toFixed(2), ...row }));
+  })()`),
+  );
+  console.log(
+    JSON.stringify({ press, minutes: +((performance.now() - started) / 60000).toFixed(2), ...row }),
+  );
   // Structural drift still stops everything: a sixteen-bit wrap is 65,536 and a
   // dropped overflow record is thousands, and a run past either is measuring a
   // world that is inventing matter. The diffuse rounding-scale drift of a unit

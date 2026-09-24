@@ -32,7 +32,13 @@ const year = rt.get("TICKS_PER_YEAR");
     rt.sandbox.localStorage.setItem("causalis.save.launch", archive);
     const loaded = await rt.sandbox.window.ALIFE_SAVE_DEBUG.load("launch");
     if (!loaded) throw new Error("fixture did not load");
-    console.log(JSON.stringify({ source, year: rt.get("Math.floor(W.tick / TICKS_PER_YEAR)"), people: rt.get("biospherePopulation(KINDS.PERSON)") }));
+    console.log(
+      JSON.stringify({
+        source,
+        year: rt.get("Math.floor(W.tick / TICKS_PER_YEAR)"),
+        people: rt.get("biospherePopulation(KINDS.PERSON)"),
+      }),
+    );
   } else {
     rt.game.createTestWorld({ seed: source, size, complexity });
     const tick = rt.get("simTick");
@@ -40,7 +46,11 @@ const year = rt.get("TICKS_PER_YEAR");
     console.log(JSON.stringify({ seed: source, size, complexity }));
   }
   for (let press = 1; press <= presses; press++) {
-    const row = JSON.parse(rt.get(`(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: biospherePopulation(KINDS.PERSON), stop: r.stopReason, ships: (W.ascensions || []).length }); })()`));
+    const row = JSON.parse(
+      rt.get(
+        `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: biospherePopulation(KINDS.PERSON), stop: r.stopReason, ships: (W.ascensions || []).length }); })()`,
+      ),
+    );
     console.log(JSON.stringify({ press, ...row }));
     if (row.ships) break;
   }
@@ -138,12 +148,21 @@ const year = rt.get("TICKS_PER_YEAR");
     const towns = Object.entries(townHouses).map(([n, h]) => n.slice(0, 8) + ":" + Object.values(h).sort((a, b) => b - a).join("/"));
     return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: alive.length, adults, window, ready, partnered, single, ages, agePartnered, partnerState, born: globalThis.__pb, cohort: globalThis.__cb, died: W.statistics.deaths - deaths0, refuse, why, towns, near, love, cap: sustainableSexualCapacity(KINDS.PERSON) });
   })()`;
-  const bars = [rt.get("LOVE_TRUST"), rt.get("LOVE_AFFECTION"), rt.get("LOVE_ATTRACTION")].join("/");
+  const bars = [rt.get("LOVE_TRUST"), rt.get("LOVE_AFFECTION"), rt.get("LOVE_ATTRACTION")].join(
+    "/",
+  );
   for (let n = 1; n <= years; n++) {
     const row = JSON.parse(rt.get(aYear));
-    console.log(`y${String(row.year).padStart(4)} ppl${String(row.people).padStart(3)} adults${row.adults} window${row.window} ready${row.ready} partnered${row.partnered}/${row.window} (${row.ages.young}y/${row.ages.mid}m/${row.ages.older}o partnered ${row.agePartnered.young}/${row.agePartnered.mid}/${row.agePartnered.older}) partners${JSON.stringify(row.partnerState)} born${row.born}+${row.cohort} died${row.died} cap${row.cap}`);
+    console.log(
+      `y${String(row.year).padStart(4)} ppl${String(row.people).padStart(3)} adults${row.adults} window${row.window} ready${row.ready} partnered${row.partnered}/${row.window} (${row.ages.young}y/${row.ages.mid}m/${row.ages.older}o partnered ${row.agePartnered.young}/${row.agePartnered.mid}/${row.agePartnered.older}) partners${JSON.stringify(row.partnerState)} born${row.born}+${row.cohort} died${row.died} cap${row.cap}`,
+    );
     console.log(`     refused${JSON.stringify(row.refuse)} ready-why${JSON.stringify(row.why)}`);
-    console.log(`     houses${JSON.stringify(row.towns)} single: nearest single of another house ${row.near.join(",")}; best love t/af/at (bars ${bars}): ${row.love.join(" ")}`);
+    console.log(
+      `     houses${JSON.stringify(row.towns)} single: nearest single of another house ${row.near.join(",")}; best love t/af/at (bars ${bars}): ${row.love.join(" ")}`,
+    );
     if (row.people < 6) break;
   }
-})().catch((e) => { console.error(e); process.exit(1); });
+})().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

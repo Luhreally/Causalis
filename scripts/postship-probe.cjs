@@ -17,10 +17,18 @@ const rt = loadRuntime(),
   presses = Number(process.argv[4] ?? 8);
 const year = rt.get("TICKS_PER_YEAR");
 (async () => {
-  rt.sandbox.localStorage.setItem("causalis.save.launch", zlib.gunzipSync(fs.readFileSync(source)).toString("utf8"));
-  if (!(await rt.sandbox.window.ALIFE_SAVE_DEBUG.load("launch"))) throw new Error("fixture did not load");
+  rt.sandbox.localStorage.setItem(
+    "causalis.save.launch",
+    zlib.gunzipSync(fs.readFileSync(source)).toString("utf8"),
+  );
+  if (!(await rt.sandbox.window.ALIFE_SAVE_DEBUG.load("launch")))
+    throw new Error("fixture did not load");
   for (let press = 1; press <= presses; press++) {
-    const row = JSON.parse(rt.get(`(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: r.stopReason, ships: (W.ascensions || []).length, shipHasLeft: shipHasLeft() }); })()`));
+    const row = JSON.parse(
+      rt.get(
+        `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: r.stopReason, ships: (W.ascensions || []).length, shipHasLeft: shipHasLeft() }); })()`,
+      ),
+    );
     console.log(JSON.stringify({ press, ...row }));
     if (row.ships) break;
   }
@@ -35,7 +43,12 @@ const year = rt.get("TICKS_PER_YEAR");
   })()`;
   for (let n = 0; n < years; n++) {
     const r = JSON.parse(rt.get(sample));
-    console.log(`y${r.year} ppl${r.people} born${r.born} muck${r.muck} courted${r.courted} roomPasses${r.roomPasses} widowed${r.widowed} relief${r.relief}`);
+    console.log(
+      `y${r.year} ppl${r.people} born${r.born} muck${r.muck} courted${r.courted} roomPasses${r.roomPasses} widowed${r.widowed} relief${r.relief}`,
+    );
     for (const t of r.towns) console.log("   " + t);
   }
-})().catch((e) => { console.error(e); process.exit(1); });
+})().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

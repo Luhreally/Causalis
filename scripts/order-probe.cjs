@@ -15,14 +15,21 @@
 // node scripts/order-probe.cjs <seed:size:complexity> <year> [placeName]
 const { loadRuntime } = require("./runtime-probe.cjs");
 const rt = loadRuntime();
-const [seed = "variety-2", size = "phone", complexity = "lean"] = (process.argv[2] || "variety-2:phone:lean").split(":");
-const target = Number(process.argv[3] || 95), placeName = process.argv[4] || "";
+const [seed = "variety-2", size = "phone", complexity = "lean"] = (
+  process.argv[2] || "variety-2:phone:lean"
+).split(":");
+const target = Number(process.argv[3] || 95),
+  placeName = process.argv[4] || "";
 rt.game.createTestWorld({ seed, size, complexity });
-const tick = rt.get("simTick"), year = rt.get("TICKS_PER_YEAR");
+const tick = rt.get("simTick"),
+  year = rt.get("TICKS_PER_YEAR");
 for (let i = 0; i < year * 30; i++) tick();
 console.log(JSON.stringify({ seed, size, complexity, target, placeName }));
-rt.get(`(() => { for (let p = 0; p < 400 && Math.floor(W.tick / TICKS_PER_YEAR) < ${target}; p++) { const state = makeCausalSkipState(); while (Math.floor(W.tick / TICKS_PER_YEAR) < ${target} && !state.done) causalSkipStep(state); } return 1; })()`);
-console.log(rt.get(`(() => {
+rt.get(
+  `(() => { for (let p = 0; p < 400 && Math.floor(W.tick / TICKS_PER_YEAR) < ${target}; p++) { const state = makeCausalSkipState(); while (Math.floor(W.tick / TICKS_PER_YEAR) < ${target} && !state.done) causalSkipStep(state); } return 1; })()`,
+);
+console.log(
+  rt.get(`(() => {
   const spName = (sp) => W.definitions.species[sp]?.name || ("sp" + sp);
   const wanted = ${JSON.stringify(placeName)};
   const place = (wanted ? W.settlements.find((s) => !s.ruined && s.name.startsWith(wanted)) : null) || modernLaunchSite() || W.settlements.find((s) => !s.ruined && s.knownProcesses);
@@ -40,4 +47,5 @@ console.log(rt.get(`(() => {
   }).sort((a, b) => (b.scores[0] || 0) - (a.scores[0] || 0));
   const picks = workers.map((id) => { const o = selectWorkOrder(id, place); const w = W.components.work?.[id]; return { id, order: o?.id || null, type: o ? W.buildings.find((x) => x.id === o.buildingId)?.type : null, task: w?.task, building: w?.buildingId || 0 }; });
   return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), place: place.name, pop: settlementPopulation(place), workers: workers.length, blockedSoFar: typeof LABOR_BLOCKED !== "undefined" ? LABOR_BLOCKED.count : null, orders, picks }, null, 0);
-})()`));
+})()`),
+);

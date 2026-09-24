@@ -20,7 +20,10 @@ const fixtures = ["launch-battery.json.gz", "launch-phone.json.gz"]
   .filter((file) => fs.existsSync(file));
 if (!fixtures.length) throw new Error("no launch fixtures under tests/fixtures");
 const archives = Object.fromEntries(
-  fixtures.map((file) => [path.basename(file), zlib.gunzipSync(fs.readFileSync(file)).toString("utf8")]),
+  fixtures.map((file) => [
+    path.basename(file),
+    zlib.gunzipSync(fs.readFileSync(file)).toString("utf8"),
+  ]),
 );
 
 const assertions = String.raw`

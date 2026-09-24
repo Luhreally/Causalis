@@ -37,25 +37,38 @@ const rt = loadRuntime(),
   presses = Number(process.argv[4] ?? 8);
 const year = rt.get("TICKS_PER_YEAR");
 const off = new Set((process.env.OFF || "").split(",").filter(Boolean));
-if (off.has("field")) rt.get("(() => { fieldSupplyAll = () => 0; fieldHandsFit = () => null; return 1; })()");
+if (off.has("field"))
+  rt.get("(() => { fieldSupplyAll = () => 0; fieldHandsFit = () => null; return 1; })()");
 if (off.has("draw")) rt.get("(() => { hearthDraw = () => 0; return 1; })()");
-if (off.has("cradle")) rt.get("(() => { cradleCourtship = () => 0; cradleRoom = () => null; return 1; })()");
+if (off.has("cradle"))
+  rt.get("(() => { cradleCourtship = () => 0; cradleRoom = () => null; return 1; })()");
 if (off.has("match")) rt.get("(() => { cradleMatch = () => false; return 1; })()");
-if (off.has("roomhunger")) rt.get("(() => { cradleFed = (outlook, hungry) => !!outlook && outlook.larder >= 10 && hungry <= 0.25; return 1; })()");
+if (off.has("roomhunger"))
+  rt.get(
+    "(() => { cradleFed = (outlook, hungry) => !!outlook && outlook.larder >= 10 && hungry <= 0.25; return 1; })()",
+  );
 if (off.has("reach2")) rt.get("(() => { cradleNightReach = () => 8; return 1; })()");
 if (off.has("reunite")) rt.get("(() => { cradleReunite = () => 0; return 1; })()");
 if (off.has("quota")) rt.get("(() => { hearthMealQuotaLeft = () => 65535; return 1; })()");
 if (off.has("breath")) rt.get("(() => { breatheSurfaceWater = () => 0; return 1; })()");
-if (off.has("turn")) rt.get("(() => { causalSkipIntervene = causalSkipInterveneTransitBase; return 1; })()");
+if (off.has("turn"))
+  rt.get("(() => { causalSkipIntervene = causalSkipInterveneTransitBase; return 1; })()");
 if (off.has("unload")) rt.get("(() => { hearthUnload = () => 0; return 1; })()");
 // The sky's forced weather is part of the launch road, so the switch is
 // gated behind the ship: before it the roll is as it was.
-if (off.has("sky")) rt.get("(() => { const b = strainedWeatherRoll; strainedWeatherRoll = (cycle) => (shipHasLeft() ? null : b(cycle)); return 1; })()");
+if (off.has("sky"))
+  rt.get(
+    "(() => { const b = strainedWeatherRoll; strainedWeatherRoll = (cycle) => (shipHasLeft() ? null : b(cycle)); return 1; })()",
+  );
 if (off.size) console.log(JSON.stringify({ off: [...off] }));
 (async () => {
   if (/\.gz$/.test(source)) {
-    rt.sandbox.localStorage.setItem("causalis.save.launch", zlib.gunzipSync(fs.readFileSync(source)).toString("utf8"));
-    if (!(await rt.sandbox.window.ALIFE_SAVE_DEBUG.load("launch"))) throw new Error("fixture did not load");
+    rt.sandbox.localStorage.setItem(
+      "causalis.save.launch",
+      zlib.gunzipSync(fs.readFileSync(source)).toString("utf8"),
+    );
+    if (!(await rt.sandbox.window.ALIFE_SAVE_DEBUG.load("launch")))
+      throw new Error("fixture did not load");
   } else {
     const [seed, size = "battery", complexity = "lean"] = source.split(":");
     rt.game.createTestWorld({ seed, size, complexity });
@@ -64,7 +77,11 @@ if (off.size) console.log(JSON.stringify({ off: [...off] }));
     console.log(JSON.stringify({ seed, size, complexity }));
   }
   for (let press = 1; press <= presses; press++) {
-    const row = JSON.parse(rt.get(`(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: r.stopReason, ships: (W.ascensions || []).length }); })()`));
+    const row = JSON.parse(
+      rt.get(
+        `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: r.stopReason, ships: (W.ascensions || []).length }); })()`,
+      ),
+    );
     console.log(JSON.stringify({ press, ...row }));
     if (row.ships) break;
   }
@@ -112,8 +129,13 @@ if (off.size) console.log(JSON.stringify({ off: [...off] }));
   })()`;
   for (let n = 0; n < years; n++) {
     const r = JSON.parse(rt.get(aYear));
-    console.log(`y${r.year} ${r.stop ? "STOP:" + r.stop : ""} ppl${r.people0}->${r.people} (towns ${r.townPeople}) born${r.born} deaths${r.deaths} ${JSON.stringify(r.causes)} cradle${JSON.stringify(r.cradle)} field${JSON.stringify(r.field)} ships[${r.ships}] colonies[${r.colonies}] relief${r.relief} muck${r.muck} sky${JSON.stringify(r.sky)} dry${r.dry} land${JSON.stringify(r.land)} fed${r.log.fed} farmPush${r.log.farmPush} target=${r.target} known[${r.known}] pushes${JSON.stringify(r.log.pushes)} supplied${JSON.stringify(r.log.supplied)}`);
+    console.log(
+      `y${r.year} ${r.stop ? "STOP:" + r.stop : ""} ppl${r.people0}->${r.people} (towns ${r.townPeople}) born${r.born} deaths${r.deaths} ${JSON.stringify(r.causes)} cradle${JSON.stringify(r.cradle)} field${JSON.stringify(r.field)} ships[${r.ships}] colonies[${r.colonies}] relief${r.relief} muck${r.muck} sky${JSON.stringify(r.sky)} dry${r.dry} land${JSON.stringify(r.land)} fed${r.log.fed} farmPush${r.log.farmPush} target=${r.target} known[${r.known}] pushes${JSON.stringify(r.log.pushes)} supplied${JSON.stringify(r.log.supplied)}`,
+    );
     for (const t of r.towns) console.log("   " + t);
     if (r.people < 6) break;
   }
-})().catch((e) => { console.error(e); process.exit(1); });
+})().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

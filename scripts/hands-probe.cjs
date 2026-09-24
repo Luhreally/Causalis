@@ -22,11 +22,16 @@ const tick = rt.get("simTick"),
 console.log(JSON.stringify({ seed, size, complexity, quiet }));
 for (let i = 0; i < year * 30; i++) tick();
 for (let press = 1; press <= quiet; press++) {
-  const row = JSON.parse(rt.get(`(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: modernLivingPeople(), stop: r.stopReason }); })()`));
+  const row = JSON.parse(
+    rt.get(
+      `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: modernLivingPeople(), stop: r.stopReason }); })()`,
+    ),
+  );
   console.log(JSON.stringify({ press, ...row }));
 }
 // A year inside the skip so the hands are under the concerted effort, then read.
-console.log(rt.get(`(() => {
+console.log(
+  rt.get(`(() => {
   const state = makeCausalSkipState(), stop = W.tick + ${year};
   while (W.tick < stop && !state.done) causalSkipStep(state);
   const site = modernLaunchSite(), out = { year: Math.floor(W.tick / TICKS_PER_YEAR), site: site?.name, pop: site ? settlementPopulation(site) : 0, blocks: [] };
@@ -56,4 +61,5 @@ console.log(rt.get(`(() => {
       sample: hands.slice(0, 4) });
   }
   return JSON.stringify(out, null, 1);
-})()`));
+})()`),
+);

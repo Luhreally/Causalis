@@ -46,7 +46,11 @@ function chainOf(name) {
         } else if (reassigns.test(line)) {
           const end = statementEnd(lines, n),
             body = lines.slice(n, end + 1).join("\n"),
-            called = aliases.filter((alias) => new RegExp(`(?<![\\w$.])${alias.replace(/[$]/g, "\\$")}\\s*(\\(|\\.call|\\.apply|\\))`).test(body));
+            called = aliases.filter((alias) =>
+              new RegExp(
+                `(?<![\\w$.])${alias.replace(/[$]/g, "\\$")}\\s*(\\(|\\.call|\\.apply|\\))`,
+              ).test(body),
+            );
           links.push({
             kind: called.length ? "wraps, calls " + called.join(", ") : "REPLACES (calls no base)",
             section,
@@ -72,9 +76,13 @@ function everyReassignedName() {
 }
 
 function print(chain) {
-  console.log(`${chain.name}: ${chain.links.length} link${chain.links.length === 1 ? "" : "s"}, ${chain.callSites} call site${chain.callSites === 1 ? "" : "s"}`);
+  console.log(
+    `${chain.name}: ${chain.links.length} link${chain.links.length === 1 ? "" : "s"}, ${chain.callSites} call site${chain.callSites === 1 ? "" : "s"}`,
+  );
   for (const link of chain.links)
-    console.log(`  ${link.section}:${String(link.line).padEnd(5)} ${link.kind}${link.span ? ` (${link.span} lines)` : ""}`);
+    console.log(
+      `  ${link.section}:${String(link.line).padEnd(5)} ${link.kind}${link.span ? ` (${link.span} lines)` : ""}`,
+    );
   if (!chain.links.length) console.log("  (never declared or assigned as a function)");
 }
 
@@ -90,14 +98,19 @@ if (args[0] === "--dead") {
       replacing = chain.links.filter((l) => l.kind.startsWith("REPLACES"));
     if (!replacing.length) continue;
     dead += replacing.length;
-    for (const link of replacing) console.log(`${name.padEnd(36)} ${link.section}:${link.line}  (${link.span} lines)`);
+    for (const link of replacing)
+      console.log(`${name.padEnd(36)} ${link.section}:${link.line}  (${link.span} lines)`);
   }
   console.log(`${dead} reassignment${dead === 1 ? "" : "s"} call no captured base`);
 } else if (args[0] === "--most") {
   const n = Number(args[1] || 12),
-    layers = (chain) => chain.links.filter((l) => l.kind.startsWith("wraps") || l.kind.startsWith("REPLACES")).length,
-    chains = everyReassignedName().map(chainOf).sort((a, b) => layers(b) - layers(a) || a.name.localeCompare(b.name));
-  for (const chain of chains.slice(0, n)) console.log(`${String(layers(chain)).padStart(3)} layers  ${chain.name}`);
+    layers = (chain) =>
+      chain.links.filter((l) => l.kind.startsWith("wraps") || l.kind.startsWith("REPLACES")).length,
+    chains = everyReassignedName()
+      .map(chainOf)
+      .sort((a, b) => layers(b) - layers(a) || a.name.localeCompare(b.name));
+  for (const chain of chains.slice(0, n))
+    console.log(`${String(layers(chain)).padStart(3)} layers  ${chain.name}`);
 } else {
   for (const name of args) {
     if (!identifier.test(name)) {

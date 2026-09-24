@@ -307,7 +307,16 @@ const mobile = windowObject.ALIFE_MOBILE_DEBUG;
 assert.ok(game && mobile, "mobile and game debug surfaces initialize");
 const snapshot = (value) => JSON.parse(JSON.stringify(value));
 
-const report = { portrait: {}, gestures: {}, landscape: {}, desktop: {}, follow: {}, lenses: {}, motion: {}, static: {} };
+const report = {
+  portrait: {},
+  gestures: {},
+  landscape: {},
+  desktop: {},
+  follow: {},
+  lenses: {},
+  motion: {},
+  static: {},
+};
 const htmlRoot = documentObject.documentElement;
 const canvas = element("world");
 const leftPanel = element("leftPanel");
@@ -645,21 +654,38 @@ for (const id of lensIds) {
   let visible = 0;
   for (const i of sample) {
     const c = lens.style(id, i);
-    assert.ok(typeof c === "string" && colourShape.test(c), `lens ${id} painted no colour at tile ${i}: ${c}`);
+    assert.ok(
+      typeof c === "string" && colourShape.test(c),
+      `lens ${id} painted no colour at tile ${i}: ${c}`,
+    );
     const a = alphaOf(c);
     assert.ok(a >= 0 && a <= 1, `lens ${id} alpha out of range at tile ${i}: ${c}`);
     if (a > 0.1) visible++;
   }
   lensReport[id] = +((100 * visible) / sample.length).toFixed(0);
 }
-assert.ok(lensReport.elevation >= 95, "the elevation lens does not paint the whole map: " + lensReport.elevation);
-assert.ok(lensReport.temperature >= 95, "the temperature lens does not paint the whole map: " + lensReport.temperature);
-assert.ok(lensReport.moisture >= 95, "the moisture lens does not paint the whole map: " + lensReport.moisture);
+assert.ok(
+  lensReport.elevation >= 95,
+  "the elevation lens does not paint the whole map: " + lensReport.elevation,
+);
+assert.ok(
+  lensReport.temperature >= 95,
+  "the temperature lens does not paint the whole map: " + lensReport.temperature,
+);
+assert.ok(
+  lensReport.moisture >= 95,
+  "the moisture lens does not paint the whole map: " + lensReport.moisture,
+);
 const bands = new Set(sample.map((i) => lens.band(i)));
-assert.ok(bands.size >= 3, "the elevation lens found fewer than three bands: " + [...bands].join(","));
+assert.ok(
+  bands.size >= 3,
+  "the elevation lens found fewer than three bands: " + [...bands].join(","),
+);
 const contours = {};
 for (const view of ["top", "iso", "oblique"]) {
-  run(`() => { UI.view = "${view}"; UI.camera.zoom = 1.4; UI.camera.x = W.width / 2; UI.camera.y = W.height / 2; }`)();
+  run(
+    `() => { UI.view = "${view}"; UI.camera.zoom = 1.4; UI.camera.x = W.width / 2; UI.camera.y = W.height / 2; }`,
+  )();
   contours[view] = lens.edges("elevation");
   assert.ok(contours[view] > 0, `no contour was drawn in the ${view} lens`);
 }
@@ -667,23 +693,34 @@ const factions = run("() => W.factions.length")();
 if (factions) {
   const owned = sample.filter((i) => lens.category("territory", i));
   if (owned.length) {
-    assert.ok(alphaOf(lens.style("territory", owned[0])) >= 0.25, "a polity's ground is too faint to see");
+    assert.ok(
+      alphaOf(lens.style("territory", owned[0])) >= 0.25,
+      "a polity's ground is too faint to see",
+    );
     assert.ok(lens.edges("territory") > 0, "a polity has ground and no border");
     assert.ok(lens.legend("territory").length >= 1, "the polity legend is empty");
   }
 }
 // The political lenses are a map mode (140): the land no one holds is veiled, a holding is painted
 // firmly, the edge pass keeps its segments for the motion pass, and the motion pass runs every frame.
-run('() => { UI.view = "top"; UI.overlay = "territory"; UI.camera.zoom = 1.4; UI.camera.x = W.width / 2; UI.camera.y = W.height / 2; }')();
+run(
+  '() => { UI.view = "top"; UI.overlay = "territory"; UI.camera.zoom = 1.4; UI.camera.x = W.width / 2; UI.camera.y = W.height / 2; }',
+)();
 const unheld = sample.find((i) => !lens.category("territory", i));
 if (unheld !== undefined) {
   const veil = lens.style("territory", unheld);
-  assert.ok(alphaOf(veil) >= 0.1, "the land no one holds is not veiled under the polity lens: " + veil);
+  assert.ok(
+    alphaOf(veil) >= 0.1,
+    "the land no one holds is not veiled under the polity lens: " + veil,
+  );
 }
 if (factions) {
   const owned = sample.filter((i) => lens.category("territory", i));
   if (owned.length) {
-    assert.ok(alphaOf(lens.style("territory", owned[0])) >= 0.45, "a holding is not painted firmly: " + lens.style("territory", owned[0]));
+    assert.ok(
+      alphaOf(lens.style("territory", owned[0])) >= 0.45,
+      "a holding is not painted firmly: " + lens.style("territory", owned[0]),
+    );
     lens.edges("territory");
     const list = lens.edgeList();
     assert.ok(list.segments > 0, "the edge pass kept no segments for the motion pass");
@@ -692,11 +729,20 @@ if (factions) {
   }
 }
 // The signal lenses read faint things (140): a whisper shows, a shout is a shout, and calm is a veil.
-const sig = lens.signalStyle("fear", 2), loud = lens.signalStyle("fear", 60), calm = lens.style("fear", 0);
+const sig = lens.signalStyle("fear", 2),
+  loud = lens.signalStyle("fear", 60),
+  calm = lens.style("fear", 0);
 assert.ok(sig && sig.alpha >= 0.28, "a whisper of fear does not show: " + JSON.stringify(sig));
-assert.ok(loud && loud.alpha > sig.alpha + 0.2, "a shout of fear is not louder than a whisper: " + JSON.stringify([sig, loud]));
-assert.ok(typeof calm === "string" && alphaOf(calm) >= 0.1, "the fear lens is not visibly on when calm: " + calm);
-for (const id of ["blood", "unrest", "danger", "disease"]) assert.ok(lens.signalStyle(id, 5).alpha >= 0.3, `the ${id} lens is not sensitive`);
+assert.ok(
+  loud && loud.alpha > sig.alpha + 0.2,
+  "a shout of fear is not louder than a whisper: " + JSON.stringify([sig, loud]),
+);
+assert.ok(
+  typeof calm === "string" && alphaOf(calm) >= 0.1,
+  "the fear lens is not visibly on when calm: " + calm,
+);
+for (const id of ["blood", "unrest", "danger", "disease"])
+  assert.ok(lens.signalStyle(id, 5).alpha >= 0.3, `the ${id} lens is not sensitive`);
 lensReport.signals = { whisper: sig.alpha, shout: loud.alpha };
 // The war seen (142): a warfare lens in the panel that veils and tints, the tab that reads the war, and
 // the marks a column carries.
@@ -705,11 +751,22 @@ assert.ok(warview, "the war view initializes");
 run("() => { UI.overlay = null; }")();
 const grid = element("overlayGrid");
 assert.ok((grid.innerHTML.match(/overlay-group/g) || []).length >= 6, "the lenses are not grouped");
-assert.equal((grid.innerHTML.match(/overlay-btn/g) || []).length, lensIds.length + 2, "not every lens has a button");
+assert.equal(
+  (grid.innerHTML.match(/overlay-btn/g) || []).length,
+  lensIds.length + 2,
+  "not every lens has a button",
+);
 assert.ok(grid.innerHTML.includes('data-overlay="warfare"'), "the warfare lens has no button");
-for (const i of sample) assert.ok(colourShape.test(lens.style("warfare", i)), "the warfare lens painted no colour at " + i);
+for (const i of sample)
+  assert.ok(
+    colourShape.test(lens.style("warfare", i)),
+    "the warfare lens painted no colour at " + i,
+  );
 const warHtml = warview.html();
-assert.ok(/war(s)? · \d+ column/.test(warHtml), "the warfare tab does not read the war: " + warHtml.slice(0, 120));
+assert.ok(
+  /war(s)? · \d+ column/.test(warHtml),
+  "the warfare tab does not read the war: " + warHtml.slice(0, 120),
+);
 const marks = run(`() => {
   const people = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.position[id]);
   if (people.length < 5) return { skipped: "too few people" };
@@ -735,10 +792,21 @@ const marks = run(`() => {
   return { geometry, outlines: after.outlines - before.outlines, banners: after.banners - before.banners, labels: after.labels - before.labels };
 }`)();
 if (!marks.skipped) {
-  assert.ok(marks.outlines >= 2 && marks.banners >= 2, "a column carries no formation mark under the war lens: " + JSON.stringify(marks));
+  assert.ok(
+    marks.outlines >= 2 && marks.banners >= 2,
+    "a column carries no formation mark under the war lens: " + JSON.stringify(marks),
+  );
   const g = marks.geometry;
-  assert.ok(g && g.n === 3 && g.coreN === 2 && g.stragglers === 1 && g.spread <= 1, "the formation is not the knot of fighters who stand together: " + JSON.stringify(g));
-  assert.strictEqual(marks.labels, 1, "two columns marching at one place print two words, not one with a count: " + JSON.stringify(marks));
+  assert.ok(
+    g && g.n === 3 && g.coreN === 2 && g.stragglers === 1 && g.spread <= 1,
+    "the formation is not the knot of fighters who stand together: " + JSON.stringify(g),
+  );
+  assert.strictEqual(
+    marks.labels,
+    1,
+    "two columns marching at one place print two words, not one with a count: " +
+      JSON.stringify(marks),
+  );
 }
 lensReport.war = marks;
 // Homes seen (144): the housing lens in the Peoples group, a ring of tenure on every home, a ring
@@ -746,8 +814,16 @@ lensReport.war = marks;
 const homes = windowObject.ALIFE_HOMES_DEBUG;
 assert.ok(homes, "the homes view initializes");
 assert.ok(grid.innerHTML.includes('data-overlay="housing"'), "the housing lens has no button");
-assert.ok(grid.innerHTML.indexOf('data-overlay="housing"') > grid.innerHTML.indexOf('data-overlay="unrest"'), "the housing lens is not in the Peoples group after unrest");
-for (const i of sample) assert.ok(colourShape.test(lens.style("housing", i)), "the housing lens painted no colour at " + i);
+assert.ok(
+  grid.innerHTML.indexOf('data-overlay="housing"') >
+    grid.innerHTML.indexOf('data-overlay="unrest"'),
+  "the housing lens is not in the Peoples group after unrest",
+);
+for (const i of sample)
+  assert.ok(
+    colourShape.test(lens.style("housing", i)),
+    "the housing lens painted no colour at " + i,
+  );
 lensReport.contours = contours;
 report.lenses = lensReport;
 
@@ -783,12 +859,24 @@ if (stepper) {
     return { glide, progress: at, settled: +Math.abs(home.x - (wasX + 0.5)).toFixed(3) };
   }`)();
   motionReport.walk = walk;
-  assert.ok(walk.glide >= 900 && walk.glide <= 1100, "the walk does not take the time the walker waited: " + walk.glide);
-  assert.ok(walk.progress[0] < 0.45, "the figure darted instead of walking: " + JSON.stringify(walk.progress));
+  assert.ok(
+    walk.glide >= 900 && walk.glide <= 1100,
+    "the walk does not take the time the walker waited: " + walk.glide,
+  );
+  assert.ok(
+    walk.progress[0] < 0.45,
+    "the figure darted instead of walking: " + JSON.stringify(walk.progress),
+  );
   assert.ok(walk.progress[3] > 0.97, "the figure never arrived: " + JSON.stringify(walk.progress));
-  assert.ok(walk.progress[0] <= walk.progress[1] && walk.progress[1] <= walk.progress[2], "the walk went backwards: " + JSON.stringify(walk.progress));
+  assert.ok(
+    walk.progress[0] <= walk.progress[1] && walk.progress[1] <= walk.progress[2],
+    "the walk went backwards: " + JSON.stringify(walk.progress),
+  );
   // Home is the tile, give or take the crowd's shuffle on it (32d, 111).
-  assert.ok(walk.settled < 0.45, "the figure did not walk home after the tile was restored: " + walk.settled);
+  assert.ok(
+    walk.settled < 0.45,
+    "the figure did not walk home after the tile was restored: " + walk.settled,
+  );
 }
 // The inspector reads what a life is doing, not the tick (141): the word that held most of the recent
 // readings, with the tick's own word beside it when it differs.
@@ -809,9 +897,16 @@ if (stepper) {
     return { word: s.word, current: s.current, reason: s.reason, held: +s.held.toFixed(2), cardSettled: card.includes('<b>food <span class="muted">(now return)</span></b>'), cardReason: card.includes('<b>hunger at 60</b>'), summarySettled: summary.includes('food <span class="muted">(now return)</span>') };
   }`)();
   motionReport.intent = settled;
-  assert.equal(settled.word, "food", "the settled intent is not the word that held: " + JSON.stringify(settled));
+  assert.equal(
+    settled.word,
+    "food",
+    "the settled intent is not the word that held: " + JSON.stringify(settled),
+  );
   assert.equal(settled.current, "return");
-  assert.ok(settled.cardSettled && settled.cardReason && settled.summarySettled, "the inspector does not show the settled intent: " + JSON.stringify(settled));
+  assert.ok(
+    settled.cardSettled && settled.cardReason && settled.summarySettled,
+    "the inspector does not show the settled intent: " + JSON.stringify(settled),
+  );
 }
 report.motion = motionReport;
 
@@ -901,23 +996,61 @@ const tenure = run(`() => {
 }`)();
 if (!tenure.skipped) {
   assert.equal(tenure.owned, "owned", "a home its household owns does not read owned");
-  assert.ok(tenure.behind[0] === "arrears" && tenure.behind[1] === 2, "five coin owed on a rent of two is not two years behind: " + JSON.stringify(tenure.behind));
+  assert.ok(
+    tenure.behind[0] === "arrears" && tenure.behind[1] === 2,
+    "five coin owed on a rent of two is not two years behind: " + JSON.stringify(tenure.behind),
+  );
   assert.equal(tenure.empty, "empty", "a home with nobody in it does not read empty");
-  assert.ok(tenure.census.rough >= 1 && tenure.census.tenure.arrears >= 1, "the census missed the person without a bed or the debt: " + JSON.stringify(tenure.census));
-  assert.ok(/behind on rent/.test(tenure.legend) && /without a bed/.test(tenure.legend), "the legend does not count the debt and the people without a bed: " + tenure.legend);
-  assert.ok(/data-homes-chip/.test(tenure.chip) && /no bed/.test(tenure.chip) && /⚠/.test(tenure.chip), "the people bar count is missing: " + tenure.chip);
-  assert.ok(tenure.rings >= 3 && tenure.rough >= 1, "the lens drew no ring on a home or round the person without a bed: " + JSON.stringify(tenure));
+  assert.ok(
+    tenure.census.rough >= 1 && tenure.census.tenure.arrears >= 1,
+    "the census missed the person without a bed or the debt: " + JSON.stringify(tenure.census),
+  );
+  assert.ok(
+    /behind on rent/.test(tenure.legend) && /without a bed/.test(tenure.legend),
+    "the legend does not count the debt and the people without a bed: " + tenure.legend,
+  );
+  assert.ok(
+    /data-homes-chip/.test(tenure.chip) && /no bed/.test(tenure.chip) && /⚠/.test(tenure.chip),
+    "the people bar count is missing: " + tenure.chip,
+  );
+  assert.ok(
+    tenure.rings >= 3 && tenure.rough >= 1,
+    "the lens drew no ring on a home or round the person without a bed: " + JSON.stringify(tenure),
+  );
   assert.ok(tenure.page, "the place page does not give the tenure of its homes");
-  assert.deepEqual([...tenure.address.a], ["home", "owned", 990101, "Cottage"], "the inspector's address of an owner is wrong: " + JSON.stringify(tenure.address));
-  assert.deepEqual([...tenure.address.b], ["home", "municipal"], "a home with no owner is not let by the town: " + JSON.stringify(tenure.address));
+  assert.deepEqual(
+    [...tenure.address.a],
+    ["home", "owned", 990101, "Cottage"],
+    "the inspector's address of an owner is wrong: " + JSON.stringify(tenure.address),
+  );
+  assert.deepEqual(
+    [...tenure.address.b],
+    ["home", "municipal"],
+    "a home with no owner is not let by the town: " + JSON.stringify(tenure.address),
+  );
   assert.equal(tenure.address.c, "rough", "a townsperson with no bed does not read sleeping rough");
-  assert.ok(tenure.address.inspA && tenure.address.inspC && tenure.address.summary, "the inspector or the summary does not say where a person lives: " + JSON.stringify(tenure.address));
+  assert.ok(
+    tenure.address.inspA && tenure.address.inspC && tenure.address.summary,
+    "the inspector or the summary does not say where a person lives: " +
+      JSON.stringify(tenure.address),
+  );
 }
 assert.ok(!tenure.skipped, "the homes fixture found no town: " + tenure.skipped);
-report.homes = { owned: tenure.owned, behind: tenure.behind, rings: tenure.rings, rough: tenure.rough };
+report.homes = {
+  owned: tenure.owned,
+  behind: tenure.behind,
+  rings: tenure.rings,
+  rough: tenure.rough,
+};
 // The simple controls no longer hide the map lenses (140).
-const experienceCss = fs.readFileSync(path.join(root, "src/styles/08-player-experience.css"), "utf8");
-assert.ok(!/compact-controls\s+#overlayGrid/.test(experienceCss), "the simple controls still hide map lenses");
+const experienceCss = fs.readFileSync(
+  path.join(root, "src/styles/08-player-experience.css"),
+  "utf8",
+);
+assert.ok(
+  !/compact-controls\s+#overlayGrid/.test(experienceCss),
+  "the simple controls still hide map lenses",
+);
 report.static = {
   viewportFit: true,
   safeAreas: true,

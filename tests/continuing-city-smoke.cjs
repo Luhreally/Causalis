@@ -233,7 +233,11 @@ for (const seed of ["causal-origin", "ship-b", "ship-c"]) {
   const design = rt.sandbox.window.ALIFE_DESIGN_DEBUG;
   const first = JSON.stringify([design.world(), design.car(100, 50)]);
   rt.game.createTestWorld({ seed, size: "battery", complexity: "lean" });
-  assert.equal(JSON.stringify([design.world(), design.car(100, 50)]), first, "same seed changed its design");
+  assert.equal(
+    JSON.stringify([design.world(), design.car(100, 50)]),
+    first,
+    "same seed changed its design",
+  );
   signatures.push(first);
 }
 assert.equal(new Set(signatures).size, 3, "different seeds share a design");

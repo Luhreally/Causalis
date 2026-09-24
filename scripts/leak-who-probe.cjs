@@ -25,7 +25,10 @@ const coarse = `(() => { const r = runCausalSkipForDebug(); return JSON.stringif
 for (let press = 1; press < watchFrom; press++) {
   const row = JSON.parse(rt.get(coarse));
   console.log(JSON.stringify({ press, ...row }));
-  if (row.delta !== 0) { console.log("drifted before the watched press"); process.exit(0); }
+  if (row.delta !== 0) {
+    console.log("drifted before the watched press");
+    process.exit(0);
+  }
 }
 const fine = `(() => {
   const spName = (sp) => W.definitions.species[sp]?.name || ("sp" + sp);
@@ -91,8 +94,13 @@ const fine = `(() => {
 })()`;
 const rows = JSON.parse(rt.get(fine));
 for (const r of rows) {
-  console.log(`tick ${r.tick} y${r.year} change ${r.change} LEAKED ${JSON.stringify(r.leaked)} tiles ${JSON.stringify(r.tiles)} reservoirs ${JSON.stringify(r.reservoirs)} cohorts ${JSON.stringify(r.cohorts)} roads ${JSON.stringify(r.roads)} events ${JSON.stringify(r.events)} born ${JSON.stringify(r.born)} gone ${JSON.stringify(r.gone)}`);
+  console.log(
+    `tick ${r.tick} y${r.year} change ${r.change} LEAKED ${JSON.stringify(r.leaked)} tiles ${JSON.stringify(r.tiles)} reservoirs ${JSON.stringify(r.reservoirs)} cohorts ${JSON.stringify(r.cohorts)} roads ${JSON.stringify(r.roads)} events ${JSON.stringify(r.events)} born ${JSON.stringify(r.born)} gone ${JSON.stringify(r.gone)}`,
+  );
   for (const g of r.gainers) console.log(`   GAIN ${JSON.stringify(g)}`);
-  for (const e of r.entities) console.log(`   ent ${e.id} kind${e.kind} @${e.at} ${e.task} "${e.why}" ${JSON.stringify(e.delta)}`);
+  for (const e of r.entities)
+    console.log(
+      `   ent ${e.id} kind${e.kind} @${e.at} ${e.task} "${e.why}" ${JSON.stringify(e.delta)}`,
+    );
   for (const p of r.places) console.log(`   ${p.k} ${JSON.stringify(p.delta)}`);
 }

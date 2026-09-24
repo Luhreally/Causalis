@@ -41,13 +41,23 @@ const ALLOWED = new Set(
 );
 
 function lintUndefined(runtime = composeRuntime({ format: "script" })) {
-  const ast = acorn.parse(runtime, { ecmaVersion: "latest", sourceType: "script", locations: true, ranges: true });
+  const ast = acorn.parse(runtime, {
+    ecmaVersion: "latest",
+    sourceType: "script",
+    locations: true,
+    ranges: true,
+  });
   // The identifiers that stand under a `typeof`: a `typeof x` never throws, so a
   // misspelling there is silent in a way a plain read is not.
   const underTypeof = new Set();
   (function walk(node) {
     if (!node || typeof node.type !== "string") return;
-    if (node.type === "UnaryExpression" && node.operator === "typeof" && node.argument?.type === "Identifier") underTypeof.add(node.argument.start);
+    if (
+      node.type === "UnaryExpression" &&
+      node.operator === "typeof" &&
+      node.argument?.type === "Identifier"
+    )
+      underTypeof.add(node.argument.start);
     for (const key of Object.keys(node)) {
       if (key === "loc" || key === "range" || key === "start" || key === "end") continue;
       const child = node[key];
@@ -66,11 +76,16 @@ function lintUndefined(runtime = composeRuntime({ format: "script" })) {
       entry = seen.get(name) || { name, count: 0, typeofCount: 0, where: [] };
     entry.count++;
     if (underTypeof.has(id.start)) entry.typeofCount++;
-    if (entry.where.length < 4) entry.where.push(where + (underTypeof.has(id.start) ? " (typeof)" : ""));
+    if (entry.where.length < 4)
+      entry.where.push(where + (underTypeof.has(id.start) ? " (typeof)" : ""));
     seen.set(name, entry);
   }
-  const findings = [...seen.values()].filter((e) => !ALLOWED.has(e.name)).sort((a, b) => a.name.localeCompare(b.name)),
-    allowed = [...seen.values()].filter((e) => ALLOWED.has(e.name)).sort((a, b) => b.count - a.count);
+  const findings = [...seen.values()]
+      .filter((e) => !ALLOWED.has(e.name))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    allowed = [...seen.values()]
+      .filter((e) => ALLOWED.has(e.name))
+      .sort((a, b) => b.count - a.count);
   return { findings, allowed, references: manager.globalScope.through.length };
 }
 
@@ -82,11 +97,18 @@ if (require.main === module) {
     for (const e of allowed) console.log(`  ${String(e.count).padStart(5)}  ${e.name}`);
   }
   if (findings.length) {
-    console.log(`${findings.length} undeclared name${findings.length === 1 ? "" : "s"} read by the runtime:`);
+    console.log(
+      `${findings.length} undeclared name${findings.length === 1 ? "" : "s"} read by the runtime:`,
+    );
     for (const e of findings)
-      console.log(`  ${e.name}  x${e.count}${e.typeofCount ? ` (${e.typeofCount} under typeof)` : ""}  at ${e.where.join(", ")}${e.count > e.where.length ? ", ..." : ""}`);
+      console.log(
+        `  ${e.name}  x${e.count}${e.typeofCount ? ` (${e.typeofCount} under typeof)` : ""}  at ${e.where.join(", ")}${e.count > e.where.length ? ", ..." : ""}`,
+      );
     process.exitCode = 1;
-  } else console.log(`Every one of ${references} free references in the composed runtime resolves to a declaration or an allowed global.`);
+  } else
+    console.log(
+      `Every one of ${references} free references in the composed runtime resolves to a declaration or an allowed global.`,
+    );
 }
 
 module.exports = { lintUndefined, ALLOWED };

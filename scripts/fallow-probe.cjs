@@ -25,11 +25,17 @@ rt.game.createTestWorld({ seed, size, complexity });
 const tick = rt.get("simTick");
 for (let i = 0; i < year * 30; i++) tick();
 for (let press = 1; press <= 40; press++) {
-  const row = JSON.parse(rt.get(`(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: r.stopReason, ships: (W.ascensions || []).length }); })()`));
+  const row = JSON.parse(
+    rt.get(
+      `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: r.stopReason, ships: (W.ascensions || []).length }); })()`,
+    ),
+  );
   console.log(JSON.stringify({ press, ...row }));
   if (row.ships || row.year >= target) break;
 }
-rt.get(`(() => { for (let presses = 0; presses < 400 && Math.floor(W.tick / TICKS_PER_YEAR) < ${target}; presses++) { const state = makeCausalSkipState(); while (Math.floor(W.tick / TICKS_PER_YEAR) < ${target} && !state.done) causalSkipStep(state); } return 1; })()`);
+rt.get(
+  `(() => { for (let presses = 0; presses < 400 && Math.floor(W.tick / TICKS_PER_YEAR) < ${target}; presses++) { const state = makeCausalSkipState(); while (Math.floor(W.tick / TICKS_PER_YEAR) < ${target} && !state.done) causalSkipStep(state); } return 1; })()`,
+);
 const report = `(() => {
   const towns = W.settlements.filter((s) => !s.ruined && s.knownProcesses);
   const book = {};

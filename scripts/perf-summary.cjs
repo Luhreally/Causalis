@@ -36,7 +36,13 @@ for (const [id, ms] of self) {
   const frame = node.callFrame,
     runtime = /causalis\.runtime\.js|index\.inline\.js/.test(frame.url || ""),
     at = runtime ? mapCompositeLine(frame.lineNumber + 1, map) : null,
-    section = at ? at.name : runtime ? "composite wrapper" : frame.url ? "node/" + frame.url.split(/[\\/]/).pop() : frame.functionName || "(program)",
+    section = at
+      ? at.name
+      : runtime
+        ? "composite wrapper"
+        : frame.url
+          ? "node/" + frame.url.split(/[\\/]/).pop()
+          : frame.functionName || "(program)",
     fn = `${frame.functionName || "(anonymous)"}  ${at ? `${at.name}:${at.line}` : section}`;
   bySection.set(section, (bySection.get(section) || 0) + ms);
   byFunction.set(fn, (byFunction.get(fn) || 0) + ms);
@@ -44,6 +50,12 @@ for (const [id, ms] of self) {
 const rows = (m, n) => [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
 console.log(`total sampled ${(total / 1000).toFixed(2)} s`);
 console.log("\nby section:");
-for (const [k, ms] of rows(bySection, top)) console.log(`  ${((100 * ms) / total).toFixed(1).padStart(5)}%  ${(ms / 1000).toFixed(2).padStart(6)} s  ${k}`);
+for (const [k, ms] of rows(bySection, top))
+  console.log(
+    `  ${((100 * ms) / total).toFixed(1).padStart(5)}%  ${(ms / 1000).toFixed(2).padStart(6)} s  ${k}`,
+  );
 console.log("\nby function (self time):");
-for (const [k, ms] of rows(byFunction, top)) console.log(`  ${((100 * ms) / total).toFixed(1).padStart(5)}%  ${(ms / 1000).toFixed(2).padStart(6)} s  ${k}`);
+for (const [k, ms] of rows(byFunction, top))
+  console.log(
+    `  ${((100 * ms) / total).toFixed(1).padStart(5)}%  ${(ms / 1000).toFixed(2).padStart(6)} s  ${k}`,
+  );

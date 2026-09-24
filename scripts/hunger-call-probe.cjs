@@ -24,7 +24,8 @@ const tick = rt.get("simTick"),
   year = rt.get("TICKS_PER_YEAR");
 console.log(JSON.stringify({ seed, size, complexity, presses }));
 for (let i = 0; i < year * 30; i++) tick();
-for (let press = 1; press <= presses; press++) rt.get(`(() => { runCausalSkipForDebug(); return "1"; })()`);
+for (let press = 1; press <= presses; press++)
+  rt.get(`(() => { runCausalSkipForDebug(); return "1"; })()`);
 
 const report = `(() => {
   const g = window.ALIFE_GRANARY_CALL_DEBUG,

@@ -23,7 +23,11 @@ const tick = rt.get("simTick"),
 console.log(JSON.stringify({ seed, size, complexity, quiet, years }));
 for (let i = 0; i < year * 30; i++) tick();
 for (let press = 1; press <= quiet; press++) {
-  const row = JSON.parse(rt.get(`(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: modernLivingPeople(), stop: r.stopReason }); })()`));
+  const row = JSON.parse(
+    rt.get(
+      `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: modernLivingPeople(), stop: r.stopReason }); })()`,
+    ),
+  );
   console.log(JSON.stringify({ press, ...row }));
 }
 
@@ -101,10 +105,14 @@ const aYear = `(() => {
 for (let n = 1; n <= years; n++) {
   const row = JSON.parse(rt.get(aYear));
   if (row.stateKeys) console.log("state keys: " + row.stateKeys.join(","));
-  console.log(`y${String(row.year).padStart(4)} ppl${String(row.people).padStart(3)} cap${row.cap} adults${row.adults} window${row.fertileWindow} ready${row.ready} why${JSON.stringify(row.why)} stage=${row.stage} stop=${row.stop} target=${row.target} short=${JSON.stringify(row.shortfall)} roads=${JSON.stringify(row.roads)}`);
+  console.log(
+    `y${String(row.year).padStart(4)} ppl${String(row.people).padStart(3)} cap${row.cap} adults${row.adults} window${row.fertileWindow} ready${row.ready} why${JSON.stringify(row.why)} stage=${row.stage} stop=${row.stop} target=${row.target} short=${JSON.stringify(row.shortfall)} roads=${JSON.stringify(row.roads)}`,
+  );
   console.log(`     pushes: ${row.pushes || "-"}
      supplies: ${row.supplies || "-"}`);
   for (const t of row.towns)
-    console.log(`     ${t.name.padEnd(10)} p${String(t.pop).padStart(3)} ${t.stage.slice(0, 7).padEnd(7)} city${t.city ? 1 : 0} knows${JSON.stringify(t.knows)} towersWanted${t.towersWanted} wants${t.wantsTower ? 1 : 0} active${t.active} stock${JSON.stringify(t.stock)} tasks${JSON.stringify(t.tasks)}\n       blocks ${t.blocks.join(" | ") || "-"}`);
+    console.log(
+      `     ${t.name.padEnd(10)} p${String(t.pop).padStart(3)} ${t.stage.slice(0, 7).padEnd(7)} city${t.city ? 1 : 0} knows${JSON.stringify(t.knows)} towersWanted${t.towersWanted} wants${t.wantsTower ? 1 : 0} active${t.active} stock${JSON.stringify(t.stock)} tasks${JSON.stringify(t.tasks)}\n       blocks ${t.blocks.join(" | ") || "-"}`,
+    );
   if (row.people < 6) break;
 }

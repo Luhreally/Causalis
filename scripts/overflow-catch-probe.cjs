@@ -48,13 +48,17 @@ for (let press = 1; press <= presses; press++) {
       hits: globalThis.__overflowHits.length });
   })()`),
   );
-  console.log(JSON.stringify({ press, minutes: +((performance.now() - started) / 60000).toFixed(2), ...row }));
+  console.log(
+    JSON.stringify({ press, minutes: +((performance.now() - started) / 60000).toFixed(2), ...row }),
+  );
   if (row.hits) {
     console.log(rt.get(`JSON.stringify(globalThis.__overflowHits, null, 1)`));
     break;
   }
   if (row.delta !== 0) {
-    console.log(JSON.stringify({ note: "drifted with no overflow drop recorded; the loss is elsewhere" }));
+    console.log(
+      JSON.stringify({ note: "drifted with no overflow drop recorded; the loss is elsewhere" }),
+    );
     break;
   }
 }

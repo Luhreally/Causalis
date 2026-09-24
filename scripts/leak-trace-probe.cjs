@@ -18,17 +18,34 @@ const rt = loadRuntime(),
   size = process.argv[3] || "phone",
   complexity = process.argv[4] || "lean",
   watchFrom = Number(process.argv[5] || 10),
-  watched = String(process.argv[6] || "17,28").split(",").map(Number);
+  watched = String(process.argv[6] || "17,28")
+    .split(",")
+    .map(Number);
 rt.game.createTestWorld({ seed, size, complexity });
 const tick = rt.get("simTick"),
   year = rt.get("TICKS_PER_YEAR");
-console.log(JSON.stringify({ seed, size, complexity, watchFrom, watched, names: rt.get(`JSON.stringify(Object.fromEntries(Object.entries(C).filter(([k, v]) => [${watched.join(",")}].includes(v))))`), common: rt.get("COMMON_CHEM") }));
+console.log(
+  JSON.stringify({
+    seed,
+    size,
+    complexity,
+    watchFrom,
+    watched,
+    names: rt.get(
+      `JSON.stringify(Object.fromEntries(Object.entries(C).filter(([k, v]) => [${watched.join(",")}].includes(v))))`,
+    ),
+    common: rt.get("COMMON_CHEM"),
+  }),
+);
 for (let i = 0; i < year * 30; i++) tick();
 const coarse = `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: r.stopReason, delta: auditMatter().delta }); })()`;
 for (let press = 1; press < watchFrom; press++) {
   const row = JSON.parse(rt.get(coarse));
   console.log(JSON.stringify({ press, ...row }));
-  if (row.delta !== 0) { console.log("drifted before the watched press"); process.exit(0); }
+  if (row.delta !== 0) {
+    console.log("drifted before the watched press");
+    process.exit(0);
+  }
 }
 rt.get(`(() => {
   globalThis.__trace = [];
@@ -62,5 +79,8 @@ const fine = `(() => {
 const rows = JSON.parse(rt.get(fine));
 for (const r of rows) {
   console.log(`tick ${r.tick} change ${r.change} calls ${r.calls.length}`);
-  for (const c of r.calls) console.log(`   ${c.fn} tile${c.tile ?? "-"} ent${c.entity ?? "-"} sp${c.sp} asked${c.asked} moved${c.moved} held ${c.before}->${c.after} <- ${c.frames.map((f) => (typeof f === "number" ? JSON.stringify(mapCompositeLine(f)) : f)).join(" < ")}`);
+  for (const c of r.calls)
+    console.log(
+      `   ${c.fn} tile${c.tile ?? "-"} ent${c.entity ?? "-"} sp${c.sp} asked${c.asked} moved${c.moved} held ${c.before}->${c.after} <- ${c.frames.map((f) => (typeof f === "number" ? JSON.stringify(mapCompositeLine(f)) : f)).join(" < ")}`,
+    );
 }

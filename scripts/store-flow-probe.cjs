@@ -19,10 +19,18 @@ const rt = loadRuntime(),
   presses = Number(process.argv[4] ?? 8);
 const year = rt.get("TICKS_PER_YEAR");
 (async () => {
-  rt.sandbox.localStorage.setItem("causalis.save.launch", zlib.gunzipSync(fs.readFileSync(source)).toString("utf8"));
-  if (!(await rt.sandbox.window.ALIFE_SAVE_DEBUG.load("launch"))) throw new Error("fixture did not load");
+  rt.sandbox.localStorage.setItem(
+    "causalis.save.launch",
+    zlib.gunzipSync(fs.readFileSync(source)).toString("utf8"),
+  );
+  if (!(await rt.sandbox.window.ALIFE_SAVE_DEBUG.load("launch")))
+    throw new Error("fixture did not load");
   for (let press = 1; press <= presses; press++) {
-    const row = JSON.parse(rt.get(`(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: r.stopReason, ships: (W.ascensions || []).length }); })()`));
+    const row = JSON.parse(
+      rt.get(
+        `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: r.stopReason, ships: (W.ascensions || []).length }); })()`,
+      ),
+    );
     console.log(JSON.stringify({ press, ...row }));
     if (row.ships) break;
   }
@@ -67,4 +75,7 @@ const year = rt.get("TICKS_PER_YEAR");
     console.log("y" + r.year + " bread(relief)+" + r.relief);
     for (const row of r.rows) console.log("   " + row);
   }
-})().catch((e) => { console.error(e); process.exit(1); });
+})().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

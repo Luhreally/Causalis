@@ -23,7 +23,10 @@ const coarse = `(() => { const r = runCausalSkipForDebug(); return JSON.stringif
 for (let press = 1; press < watchFrom; press++) {
   const row = JSON.parse(rt.get(coarse));
   console.log(JSON.stringify({ press, ...row }));
-  if (row.delta !== 0) { console.log("drifted before the watched press"); process.exit(0); }
+  if (row.delta !== 0) {
+    console.log("drifted before the watched press");
+    process.exit(0);
+  }
 }
 const fine = `(() => {
   const entTotal = () => { const m = new Map(); for (const id of W.activeIds) { const q = W.components.chemistry[id]?.q, inv = W.components.inventory[id]; if (!q) continue; let n = 0; for (let s = 0; s < SPECIES_COUNT; s++) n += (q[s] || 0) + (inv?.materials?.[s] || 0) + (inv?.digestive?.[s] || 0); m.set(id, n); } return m; };
@@ -55,6 +58,8 @@ const fine = `(() => {
 })()`;
 const rows = JSON.parse(rt.get(fine));
 for (const r of rows) {
-  console.log(`tick ${r.tick} change ${r.change} entities ${r.entSum} tiles ${r.tileSum} places ${r.placeSum} sum ${r.entSum + r.tileSum + r.placeSum} placesMoved ${JSON.stringify(r.placesMoved)}`);
+  console.log(
+    `tick ${r.tick} change ${r.change} entities ${r.entSum} tiles ${r.tileSum} places ${r.placeSum} sum ${r.entSum + r.tileSum + r.placeSum} placesMoved ${JSON.stringify(r.placesMoved)}`,
+  );
   for (const e of r.ents) console.log(`   ${JSON.stringify(e)}`);
 }

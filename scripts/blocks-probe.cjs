@@ -19,14 +19,20 @@
 // node scripts/blocks-probe.cjs <seed:size:complexity> <year>
 const { loadRuntime } = require("./runtime-probe.cjs");
 const rt = loadRuntime();
-const [seed = "variety-20", size = "battery", complexity = "lean"] = (process.argv[2] || "variety-20:battery:lean").split(":");
+const [seed = "variety-20", size = "battery", complexity = "lean"] = (
+  process.argv[2] || "variety-20:battery:lean"
+).split(":");
 const target = Number(process.argv[3] || 150);
 rt.game.createTestWorld({ seed, size, complexity });
-const tick = rt.get("simTick"), year = rt.get("TICKS_PER_YEAR");
+const tick = rt.get("simTick"),
+  year = rt.get("TICKS_PER_YEAR");
 for (let i = 0; i < year * 30; i++) tick();
 console.log(JSON.stringify({ seed, size, complexity, target }));
-rt.get(`(() => { for (let p = 0; p < 400 && Math.floor(W.tick / TICKS_PER_YEAR) < ${target}; p++) { const state = makeCausalSkipState(); while (Math.floor(W.tick / TICKS_PER_YEAR) < ${target} && !state.done) causalSkipStep(state); } return 1; })()`);
-console.log(rt.get(`(() => {
+rt.get(
+  `(() => { for (let p = 0; p < 400 && Math.floor(W.tick / TICKS_PER_YEAR) < ${target}; p++) { const state = makeCausalSkipState(); while (Math.floor(W.tick / TICKS_PER_YEAR) < ${target} && !state.done) causalSkipStep(state); } return 1; })()`,
+);
+console.log(
+  rt.get(`(() => {
   const spName = (sp) => W.definitions.species[sp]?.name || ("sp" + sp);
   const BLOCKS = ["tower", "office", "tenement", "factory"];
   const site = typeof modernLaunchSite === "function" ? modernLaunchSite() : null;
@@ -70,4 +76,5 @@ console.log(rt.get(`(() => {
   });
   const t = W.civilization?.concertedTarget;
   return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), target: t ? { key: t.key, pushes: t.pushes, since: Math.floor((t.since || 0) / TICKS_PER_YEAR) } : null, shortfall: modernShortfall(), wants: { skyline: modernSkylineWanted(), homes: modernHomesWanted(), works: modernWorksWanted(), cities: modernCitiesWanted() }, counts: { blocks: modernCount(["tower", "office"]), homes: modernCount(["tenement"]), works: modernCount(["factory"]), cities: modernCities().length }, towns }, null, 0);
-})()`));
+})()`),
+);

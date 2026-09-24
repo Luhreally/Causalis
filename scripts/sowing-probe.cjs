@@ -24,7 +24,11 @@ const tick = rt.get("simTick"),
 console.log(JSON.stringify({ seed, size, complexity, quiet, years }));
 for (let i = 0; i < year * 30; i++) tick();
 for (let press = 1; press <= quiet; press++) {
-  const row = JSON.parse(rt.get(`(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: modernLivingPeople(), stop: r.stopReason }); })()`));
+  const row = JSON.parse(
+    rt.get(
+      `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: modernLivingPeople(), stop: r.stopReason }); })()`,
+    ),
+  );
   console.log(JSON.stringify({ press, ...row }));
 }
 // Wrap the farm labour so every call is accounted for.
@@ -83,6 +87,9 @@ const aYear = `(() => {
 })()`;
 for (let n = 1; n <= years; n++) {
   const row = JSON.parse(rt.get(aYear));
-  if (row.gone) { console.log("no town"); break; }
+  if (row.gone) {
+    console.log("no town");
+    break;
+  }
   console.log(JSON.stringify(row));
 }

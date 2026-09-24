@@ -23,7 +23,11 @@ const tick = rt.get("simTick"),
   year = rt.get("TICKS_PER_YEAR");
 for (let i = 0; i < year * 30; i++) tick();
 for (let press = 1; press <= presses; press++) {
-  const row = JSON.parse(rt.get(`(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: modernLivingPeople(), stop: r.stopReason, milestone: r.milestone?.label || "", ships: (W.ascensions || []).length, shortfall: modernShortfall() }); })()`));
+  const row = JSON.parse(
+    rt.get(
+      `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: modernLivingPeople(), stop: r.stopReason, milestone: r.milestone?.label || "", ships: (W.ascensions || []).length, shortfall: modernShortfall() }); })()`,
+    ),
+  );
   console.log(JSON.stringify({ press, ...row }));
   if (row.ships) throw new Error("the ship already left; archive fewer presses");
 }
@@ -33,4 +37,6 @@ const archive = rt.get(`JSON.stringify(snapshot(), saveReplacer)`),
 const gz = zlib.gzipSync(Buffer.from(archive, "utf8"), { level: 9 });
 fs.mkdirSync(require("node:path").dirname(out), { recursive: true });
 fs.writeFileSync(out, gz);
-console.log(JSON.stringify({ out, tick: tickNow, hash, bytes: archive.length, gzipped: gz.length }));
+console.log(
+  JSON.stringify({ out, tick: tickNow, hash, bytes: archive.length, gzipped: gz.length }),
+);

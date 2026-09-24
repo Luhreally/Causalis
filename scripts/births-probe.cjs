@@ -24,7 +24,11 @@ const tick = rt.get("simTick"),
 console.log(JSON.stringify({ seed, size, complexity, presses, years }));
 for (let i = 0; i < year * 30; i++) tick();
 for (let press = 1; press <= presses; press++) {
-  const row = JSON.parse(rt.get(`(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: biospherePopulation(KINDS.PERSON), stop: r.stopReason }); })()`));
+  const row = JSON.parse(
+    rt.get(
+      `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: biospherePopulation(KINDS.PERSON), stop: r.stopReason }); })()`,
+    ),
+  );
   console.log(JSON.stringify({ press, ...row }));
 }
 rt.get(`(() => {
@@ -61,6 +65,8 @@ const aYear = `(() => {
 })()`;
 for (let n = 1; n <= years; n++) {
   const row = JSON.parse(rt.get(aYear));
-  console.log(`y${String(row.year).padStart(4)} people ${row.people0}->${row.people} living${row.living} inCohorts${row.personCohorts} concerted${row.concerted} statPerson${row.statPerson} offspring${row.offspring} cohortBirths${row.cohortBirths} materialised${row.materialised} made${JSON.stringify(row.made)}`);
+  console.log(
+    `y${String(row.year).padStart(4)} people ${row.people0}->${row.people} living${row.living} inCohorts${row.personCohorts} concerted${row.concerted} statPerson${row.statPerson} offspring${row.offspring} cohortBirths${row.cohortBirths} materialised${row.materialised} made${JSON.stringify(row.made)}`,
+  );
   console.log(`     birth events ${JSON.stringify(row.births)}`);
 }

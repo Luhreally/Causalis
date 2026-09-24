@@ -23,10 +23,15 @@ const tick = rt.get("simTick"),
 console.log(JSON.stringify({ seed, size, complexity, quiet, type }));
 for (let i = 0; i < year * 30; i++) tick();
 for (let press = 1; press <= quiet; press++) {
-  const row = JSON.parse(rt.get(`(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: modernLivingPeople(), stop: r.stopReason }); })()`));
+  const row = JSON.parse(
+    rt.get(
+      `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), people: modernLivingPeople(), stop: r.stopReason }); })()`,
+    ),
+  );
   console.log(JSON.stringify({ press, ...row }));
 }
-console.log(rt.get(`(() => {
+console.log(
+  rt.get(`(() => {
   const site = modernLaunchSite(), out = { year: Math.floor(W.tick / TICKS_PER_YEAR) };
   if (!site) return JSON.stringify({ ...out, noSite: true });
   const buildings = W.buildings.filter((b) => !b.ruined), kind = "settlement",
@@ -54,4 +59,5 @@ console.log(rt.get(`(() => {
     tiles: { offMap, plaza, lane, considered, footprintBusy, terrainBad, clear }, planned,
     fields: (W.fields || []).filter((f) => f.placeId === site.id).length,
     standing: mine.filter((b) => b.type === ${JSON.stringify(type)}).map((b) => (b.complete ? "done" : "s" + b.stage)) }, null, 1);
-})()`));
+})()`),
+);

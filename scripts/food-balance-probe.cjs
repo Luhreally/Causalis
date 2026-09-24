@@ -17,12 +17,17 @@ const rt = loadRuntime(),
   presses = Number(process.argv[5] || 24);
 // OFF=reach,hinter,adopt,mourn,seed,ferry,gated,draw,field,militia,provision,gutcap,ration turns the named later sections back to their
 // bases, for an A/B on the same seed.
-const off = new Set(String(process.env.OFF || "").split(",").filter(Boolean));
+const off = new Set(
+  String(process.env.OFF || "")
+    .split(",")
+    .filter(Boolean),
+);
 const resets = {
   reach: "homeRationPlace = homeRationPlaceHearthBase",
   hinter: "zoneTarget = zoneTargetHinterlandBase",
   adopt: "adoptInto = adoptIntoHinterlandBase",
-  mourn: "updateCouplings = updateCouplingsCradleBase, matingPartnerNear = matingPartnerNearCradleBase",
+  mourn:
+    "updateCouplings = updateCouplingsCradleBase, matingPartnerNear = matingPartnerNearCradleBase",
   seed: "hearthSpareFood = function (home, sp) { return home.inventory?.[sp] || 0; }",
   ferry: "startRoadLink = startRoadLinkFerryBase",
   gated: "shipHasLeft = function () { return false; }",
@@ -30,10 +35,14 @@ const resets = {
   field: "fieldSupplyAll = () => 0, fieldHandsFit = () => null",
   militia: "MILITIA_FULL_GUT = 65535, MILITIA_FULL_ENERGY = 65535, MILITIA_FULL_WATER = 65535",
   provision: "PROVISION_TOPS_UP = false",
-  gutcap: "GUT_FULL = { [C.ORGANIC]: 65535, [C.ENERGY]: 65535, [C.NUTRIENT]: 65535, [C.CATALYST]: 65535 }",
+  gutcap:
+    "GUT_FULL = { [C.ORGANIC]: 65535, [C.ENERGY]: 65535, [C.NUTRIENT]: 65535, [C.CATALYST]: 65535 }",
   ration: "rationCap = rationCapHearthBase",
 };
-for (const k of off) { if (!resets[k]) throw new Error("unknown OFF " + k); rt.get("(() => { " + resets[k] + "; return 1; })()"); }
+for (const k of off) {
+  if (!resets[k]) throw new Error("unknown OFF " + k);
+  rt.get("(() => { " + resets[k] + "; return 1; })()");
+}
 // MUCKFERT=15 lets a town whose fields average under that fertility cart muck before the ship (134).
 const muckFert = Number(process.env.MUCKFERT || 0);
 if (muckFert > 0) rt.get("(() => { MUCK_POOR_FIELDS = " + muckFert + "; return 1; })()");
@@ -72,6 +81,8 @@ const press = `(() => {
 })()`;
 for (let n = 1; n <= presses; n++) {
   const r = JSON.parse(rt.get(press));
-  console.log(`p${String(n).padStart(2)} y${String(r.year).padStart(3)} +${r.years}y ${String(r.stop).padEnd(9)} ppl${String(r.people0).padStart(3)}->${String(r.people).padStart(3)} farms${String(r.farms).padStart(2)} (${r.perFarm}/farm) harvest${String(r.harvest).padStart(5)} (${r.harvestPerFarmYear}/farm/yr) store${String(r.store).padStart(4)} hungry${r.hungry} born${r.born} deaths${r.deaths} ships${r.ships} stages${JSON.stringify(r.stages)} towns${JSON.stringify(r.towns)} ${r.milestone}`);
+  console.log(
+    `p${String(n).padStart(2)} y${String(r.year).padStart(3)} +${r.years}y ${String(r.stop).padEnd(9)} ppl${String(r.people0).padStart(3)}->${String(r.people).padStart(3)} farms${String(r.farms).padStart(2)} (${r.perFarm}/farm) harvest${String(r.harvest).padStart(5)} (${r.harvestPerFarmYear}/farm/yr) store${String(r.store).padStart(4)} hungry${r.hungry} born${r.born} deaths${r.deaths} ships${r.ships} stages${JSON.stringify(r.stages)} towns${JSON.stringify(r.towns)} ${r.milestone}`,
+  );
   if (r.people < 6) break;
 }

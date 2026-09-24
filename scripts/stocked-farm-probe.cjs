@@ -24,11 +24,17 @@ rt.game.createTestWorld({ seed, size, complexity });
 const tick = rt.get("simTick");
 for (let i = 0; i < year * 30; i++) tick();
 for (let press = 1; press <= 40; press++) {
-  const row = JSON.parse(rt.get(`(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: r.stopReason, ships: (W.ascensions || []).length }); })()`));
+  const row = JSON.parse(
+    rt.get(
+      `(() => { const r = runCausalSkipForDebug(); return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), stop: r.stopReason, ships: (W.ascensions || []).length }); })()`,
+    ),
+  );
   console.log(JSON.stringify({ press, ...row }));
   if (row.ships || row.year >= target) break;
 }
-rt.get(`(() => { for (let presses = 0; presses < 400 && Math.floor(W.tick / TICKS_PER_YEAR) < ${target}; presses++) { const state = makeCausalSkipState(); while (Math.floor(W.tick / TICKS_PER_YEAR) < ${target} && !state.done) causalSkipStep(state); } return 1; })()`);
+rt.get(
+  `(() => { for (let presses = 0; presses < 400 && Math.floor(W.tick / TICKS_PER_YEAR) < ${target}; presses++) { const state = makeCausalSkipState(); while (Math.floor(W.tick / TICKS_PER_YEAR) < ${target} && !state.done) causalSkipStep(state); } return 1; })()`,
+);
 const report = `(() => {
   const spName = Object.fromEntries(Object.entries(C).map(([k, v]) => [v, k]));
   const towns = W.settlements.filter((s) => !s.ruined && s.knownProcesses);
@@ -63,7 +69,24 @@ const report = `(() => {
   return JSON.stringify({ year: Math.floor(W.tick / TICKS_PER_YEAR), town: town.name, pop: settlementPopulation(town), at: [town.x, town.y], outlook: (({ larder, hungry, lean, famine }) => ({ larder: Math.round(larder), hungry: +hungry.toFixed(2), lean, famine }))(foodOutlook(town)), needsLabor: needs, concerted, buildTools: tools, unfinished, orders, people, touched, farmWork: work0 + "->" + work1 });
 })()`;
 const r = JSON.parse(rt.get(report));
-console.log(JSON.stringify({ year: r.year, town: r.town, pop: r.pop, at: r.at, outlook: r.outlook, needsLabor: r.needsLabor, concerted: r.concerted, buildTools: r.buildTools, farmWork: r.farmWork, touched: r.touched, error: r.error }));
-console.log("unfinished:"); for (const b of r.unfinished || []) console.log("   " + JSON.stringify(b));
-console.log("orders:"); for (const o of r.orders || []) console.log("   " + JSON.stringify(o));
-console.log("people:"); for (const p of r.people || []) console.log("   " + p);
+console.log(
+  JSON.stringify({
+    year: r.year,
+    town: r.town,
+    pop: r.pop,
+    at: r.at,
+    outlook: r.outlook,
+    needsLabor: r.needsLabor,
+    concerted: r.concerted,
+    buildTools: r.buildTools,
+    farmWork: r.farmWork,
+    touched: r.touched,
+    error: r.error,
+  }),
+);
+console.log("unfinished:");
+for (const b of r.unfinished || []) console.log("   " + JSON.stringify(b));
+console.log("orders:");
+for (const o of r.orders || []) console.log("   " + JSON.stringify(o));
+console.log("people:");
+for (const p of r.people || []) console.log("   " + p);

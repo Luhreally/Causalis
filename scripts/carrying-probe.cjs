@@ -82,8 +82,15 @@ for (let press = 1; press <= presses; press++) {
   const row = JSON.parse(rt.get(survey));
   for (const r of row.rows) all.push({ press, year: row.year, ...r });
   console.log(
-    JSON.stringify({ press, year: row.year, people: row.people, towns: row.rows.length,
-      harvests: harvest.harvests, harvested: harvest.moved, big: row.big }),
+    JSON.stringify({
+      press,
+      year: row.year,
+      people: row.people,
+      towns: row.rows.length,
+      harvests: harvest.harvests,
+      harvested: harvest.moved,
+      big: row.big,
+    }),
   );
 }
 

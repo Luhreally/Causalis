@@ -15,7 +15,8 @@ const path = require("node:path");
 const { loadRuntime } = require("./runtime-probe.cjs");
 
 const ticks = Number(process.argv[2] || 512),
-  fixture = process.argv[3] || path.join(__dirname, "..", "tests", "fixtures", "launch-battery.json.gz");
+  fixture =
+    process.argv[3] || path.join(__dirname, "..", "tests", "fixtures", "launch-battery.json.gz");
 const rt = loadRuntime(),
   archive = zlib.gunzipSync(fs.readFileSync(fixture)).toString("utf8");
 (async () => {
@@ -26,7 +27,14 @@ const rt = loadRuntime(),
     year = rt.get("TICKS_PER_YEAR"),
     people = () => rt.get("biospherePopulation(KINDS.PERSON)"),
     tickNow = () => rt.get("W.tick");
-  console.log(JSON.stringify({ fixture: path.basename(fixture), tick: tickNow(), year: Math.floor(tickNow() / year), people: people() }));
+  console.log(
+    JSON.stringify({
+      fixture: path.basename(fixture),
+      tick: tickNow(),
+      year: Math.floor(tickNow() / year),
+      people: people(),
+    }),
+  );
   // Warm the caches for a season before timing.
   for (let i = 0; i < 64; i++) tick();
   const buckets = [];
@@ -37,7 +45,8 @@ const rt = loadRuntime(),
     tick();
     const dt = performance.now() - t0;
     slowest = Math.max(slowest, dt);
-    buckets[Math.min(9, Math.floor(dt / 10))] = (buckets[Math.min(9, Math.floor(dt / 10))] || 0) + 1;
+    buckets[Math.min(9, Math.floor(dt / 10))] =
+      (buckets[Math.min(9, Math.floor(dt / 10))] || 0) + 1;
   }
   const elapsed = performance.now() - started;
   console.log(
