@@ -555,7 +555,10 @@ function updateExperienceNotice(now) {
       /War|Fire|Disaster|Famine|Death|Extinction/.test(latest.type) ? "warning" : "discovery",
     );
   }
-  node.hidden = !PLAYER_EXPERIENCE.notice || now > PLAYER_EXPERIENCE.noticeUntil;
+  // The alert cards (49) carry the same notable events with their Legends and
+  // Go; while they show, the notice stands aside rather than say it twice.
+  const alertsShowing = !!(UI.observatory?.alerts?.length && !UI.observatory.muted);
+  node.hidden = !PLAYER_EXPERIENCE.notice || now > PLAYER_EXPERIENCE.noticeUntil || alertsShowing;
 }
 function updatePlayerExperience(now = performance.now()) {
   if (!PLAYER_EXPERIENCE.ready || !W || DOM.game.classList.contains("hidden")) return;
