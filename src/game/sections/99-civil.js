@@ -35,7 +35,6 @@ const TEACH_CADENCE = 256,
   LAW_CALM = 0.05,
   LAW_COOLING = 0.9,
   WERGILD_HEAT = 1.2,
-  EXILE_CRIMES = 2,
   CIVIL = { taught: 0, petitions: 0, fines: 0, exiles: 0 };
 // ── Children learn ────────────────────────────────────────────────────────────
 function homeTownOf(id) {
@@ -121,12 +120,6 @@ function circlePetitions() {
   return heard;
 }
 // ── The law has a code ────────────────────────────────────────────────────────
-function chooseLawCode(f) {
-  const i = typeof ensureIdeology === "function" ? ensureIdeology(f) : null;
-  if (i && i.rule > 0.3) return "exile";
-  if (i && i.openness > 0.2) return "fines";
-  return "wergild";
-}
 function adoptLawCodes() {
   let adopted = 0;
   for (const f of W.factions) {
@@ -163,65 +156,6 @@ updateFeuds = function () {
       endFeud(feud, "a blood-price was paid under the law", 3);
   }
 };
-function judgeRobbery(robber, victim, ev) {
-  const p = W.components.position[robber],
-    place = p ? nearestSettlement(idx(p.x, p.y), 12) : null,
-    f = polityOf(place),
-    code = lawCodeOf(f);
-  if (!code) return null;
-  const ident = W.components.identity[robber],
-    name = ident?.generatedName || entityName(robber);
-  if (code === "fines") {
-    const mouth = W.components.inventory[robber]?.digestive,
-      carried = W.components.inventory[victim]?.materials,
-      fine =
-        mouth && carried
-          ? Math.min(ev.data?.taken || 0, mouth[C.ORGANIC], 65535 - carried[C.ORGANIC])
-          : 0;
-    if (fine < 1) return null;
-    mouth[C.ORGANIC] -= fine;
-    carried[C.ORGANIC] += fine;
-    CIVIL.fines++;
-    return emitEvent("JudgementEvent", {
-      subjects: [robber, victim],
-      location: idx(p.x, p.y),
-      factions: [f.id],
-      causes: [ev.id, f.law.eventId].filter(Boolean),
-      evidence: [`${fine} units of food returned`, LAW_CODES[code]],
-      importance: 2,
-      data: { name, victim: ev.data?.victim || "", place: place.name, polity: f.name, code, fine },
-    });
-  }
-  if (code === "exile") {
-    if ((ident?.crimes || 0) < EXILE_CRIMES || W.civilOrders?.some((o) => o.id === robber))
-      return null;
-    const away = farLandTile(place.x, place.y, 24, 36, robber);
-    if (!away) return null;
-    issueCivilOrder(robber, "exile", away[0], away[1]);
-    if (ident?.titles && !ident.titles.includes("Banished")) ident.titles.push("Banished");
-    CIVIL.exiles++;
-    return emitEvent("JudgementEvent", {
-      subjects: [robber, victim],
-      location: idx(p.x, p.y),
-      factions: [f.id],
-      causes: [ev.id, f.law.eventId].filter(Boolean),
-      evidence: [`${ident?.crimes || 0} crimes`, LAW_CODES[code]],
-      importance: 3,
-      data: {
-        name,
-        victim: ev.data?.victim || "",
-        place: place.name,
-        polity: f.name,
-        code,
-        banished: true,
-      },
-    });
-  }
-  // The blood-price: a payment softens the grievance without undoing the deed.
-  const rel = typeof relationshipState === "function" ? relationshipState(victim, robber) : null;
-  if (rel) rel.grievance = clamp((rel.grievance || 0) - 0.25, 0, 1);
-  return null;
-}
 const robOfFoodCivilBase = robOfFood;
 robOfFood = function (id, victim, hunger) {
   const ev = robOfFoodCivilBase(id, victim, hunger);

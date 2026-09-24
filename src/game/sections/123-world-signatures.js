@@ -122,7 +122,7 @@ buildingPalette = function (b) {
     accent: "#c4a16b",
   };
 };
-drawMotorCar = function (g, r, hue, now, still, truck, lit) {
+function drawMotorCar(g, r, hue, now, still, truck, lit) {
   const m = signatureCarModel(ACTIVE_VEHICLE_ID || 0, hue, truck),
     L = r * m.length,
     h = r * m.height,
@@ -206,18 +206,18 @@ drawMotorCar = function (g, r, hue, now, still, truck, lit) {
   g.fillStyle = "#d95042";
   g.fillRect(rear, -h * 0.75, L * 0.04, h * 0.22);
   g.restore();
-};
+}
 
 // Height follows the accommodation actually built, rather than swelling and
 // shrinking with today's population. Each site has its own facade and roof.
-blockStoreys = function (b) {
+function blockStoreys(b) {
   const r = visualHash01(b.id, 0xb10c);
   if (b.type === "office") return 9 + Math.floor(r * 12);
   return Math.max(
     2,
     Math.ceil((b.housing || BUILDING_DEFS[b.type]?.housing || 6) / (b.type === "tower" ? 4 : 6)),
   );
-};
+}
 function signatureBuildingModel(b) {
   const world = worldDesignSignature(),
     r = makeRng(hashParts(W.seedHash, "facade", b.placeId, b.id), "building");
@@ -230,7 +230,7 @@ function signatureBuildingModel(b) {
     storeys: blockStoreys(b),
   };
 }
-drawTowerBlock = function (g, b, s, r, p, now, detail) {
+function drawTowerBlock(g, b, s, r, p, now, detail) {
   const design = signatureBuildingModel(b),
     n = design.storeys,
     office = b.type === "office",
@@ -308,7 +308,7 @@ drawTowerBlock = function (g, b, s, r, p, now, detail) {
   g.restore();
   SKYLINE.blocksDrawn++;
   if (b.type === "tenement") CITIES.tenementsDrawn++;
-};
+}
 
 const signatureCreatureCache = new WeakMap();
 const drawCompletedBuildingSignatureBase = drawCompletedBuilding;

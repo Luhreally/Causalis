@@ -109,26 +109,6 @@ const C = Object.freeze({
   CORROSION: 30,
   RARE: 31,
 });
-const TILE_ARRAY_NAMES = Object.freeze([
-  "elevation",
-  "temperature",
-  "liquid",
-  "hydrologyBase",
-  "fire",
-  "danger",
-  "territory",
-  "culture",
-  "plantOrder",
-  "soilOrder",
-  "habitation",
-  "populationPressure",
-  "structureOrder",
-  "featureType",
-  "featureStrength",
-  "subsurfaceType",
-  "geothermal",
-  "slope",
-]);
 const TERRAIN_FEATURE = Object.freeze({
   NONE: 0,
   CANOPY: 1,
@@ -543,5 +523,4 @@ let frameTime = 0,
   accumulator = 0,
   lastAutosaveTick = 0,
   audioCtx = null,
-  ambientNode = null,
-  color = "";
+  ambientNode = null;

@@ -240,9 +240,6 @@ function tuneGenomeToHabitat(id, tile, strength = 0.5, stage = "multicellular", 
   derivedLife(id);
   return id;
 }
-function kindReproductionMode() {
-  return "paired";
-}
 function cloneGenome(g) {
   return {
     polymer: g.polymer,

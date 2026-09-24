@@ -203,15 +203,6 @@ function modernShortfall() {
 function polityOfPlace(place) {
   return place?.factionId ? W.factions.find((f) => f.id === place.factionId) || null : null;
 }
-// The polity of the largest living town. The causal lead town is not used here:
-// finding it asks each town's stage shortfall, which asks the orbital shortfall,
-// which would ask for the lead town again without end.
-function modernLeadPolity() {
-  const top = W.settlements
-    .filter((s) => !s.ruined && s.knownProcesses)
-    .sort((a, b) => settlementPopulation(b) - settlementPopulation(a) || a.id - b.id)[0];
-  return polityOfPlace(top);
-}
 // ── No ship leaves before the world is modern ────────────────────────────────
 const launchShipModernBase = launchShip;
 launchShip = function (place, force = false) {

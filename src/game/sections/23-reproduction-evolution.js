@@ -219,37 +219,3 @@ function makeCohortBirthMatter(parents) {
   }
   return chemistry;
 }
-function updateReproduction() {
-  const ids = W.activeIds
-      .filter(
-        (id) =>
-          [KINDS.HERBIVORE, KINDS.PREDATOR, KINDS.PERSON].includes(W.kind[id]) && canReproduce(id),
-      )
-      .sort((a, b) => a - b),
-    used = new Set();
-  for (const id of ids) {
-    if (used.has(id)) continue;
-    const kind = W.kind[id],
-      p = W.components.position[id],
-      mates = nearbyIds(
-        id,
-        2,
-        (o) => o > id && W.kind[o] === kind && canReproduce(o) && !used.has(o),
-      ),
-      mate = mates[0];
-    if (!mate) continue;
-    const capacity = activeCount(kind) < CAPS[kind],
-      parents = [id, mate],
-      tile = idx(p.x, p.y);
-    if (capacity) createOffspring(kind, parents, tile);
-    else {
-      const r = makeRng(hashParts(W.seedHash, W.tick, id, mate), "cohort-birth"),
-        g = genomeFrom(r, kind, W.components.genome[id], W.components.genome[mate]),
-        chem = makeCohortBirthMatter(parents);
-      addBirthToCohort(kind, p.regionId, parents, chem, g);
-      for (const par of parents) W.components.reproduction[par].cooldown = 240;
-    }
-    used.add(id);
-    used.add(mate);
-  }
-}

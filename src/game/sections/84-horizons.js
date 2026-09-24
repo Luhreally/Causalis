@@ -43,7 +43,7 @@ function metropolitan(s, buildings = completedBuildings(s)) {
     (!!s.factionId && factionNetworkPopulation(s) >= gate.network && buildings.length >= 8)
   );
 }
-settlementDevelopmentStage = function (s) {
+function settlementDevelopmentStage(s) {
   const buildings = completedBuildings(s),
     types = new Set(buildings.map((b) => b.type)),
     tech = new Set(s.knownProcesses);
@@ -64,7 +64,7 @@ settlementDevelopmentStage = function (s) {
   if (s.factionId && types.has("hall") && (tech.has("governance") || tech.has("writing")))
     return "civic";
   return "village";
-};
+}
 const settlementStageShortfallHorizonBase = settlementStageShortfall;
 settlementStageShortfall = function (s, target) {
   const missing = settlementStageShortfallHorizonBase(s, target).filter(
@@ -121,7 +121,7 @@ buildingRequirements = function (place, type) {
 function settlerMinimum() {
   return typeof settlerLine === "function" ? settlerLine() : 12;
 }
-considerProspecting = function () {
+function considerProspecting() {
   if (typeof eligibleResearchMaterialNeeds !== "function") return;
   const far = PROSPECT_MATERIALS(),
     minimum = Math.max(3, Math.round(6 * smallWorldFactor()));
@@ -138,7 +138,7 @@ considerProspecting = function () {
       if (far.includes(sp) && (place.inventory?.[sp] || 0) < short && launchProspector(place, sp))
         break;
   }
-};
+}
 // The buildings that gate a stage are worked with priority.
 const ensurePlacePlansHorizonBase = ensurePlacePlans;
 ensurePlacePlans = function (place) {

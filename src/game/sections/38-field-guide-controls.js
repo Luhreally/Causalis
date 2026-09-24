@@ -464,8 +464,7 @@ function organismPlainCard(id) {
       : "no current action";
   return `<div class="plain-card"><div class="eyebrow">In plain language</div><div class="plain-title">This is ${esc(role)}.</div><p>Right now it has ${esc(state)}. Current action: ${esc(action)}. Its alien anatomy is novel, but every need below maps to a familiar biological function.</p><div class="plain-actions">${guideTopicButton("behavior", "Explain behavior")}${guideTopicButton("cognition", "Explain its brain")}${guideTopicButton("health", "Explain health")}${guideTopicButton("heredity", "Genes and evolution")}</div></div>`;
 }
-const chemistryRowsHumanBase = chemistryRows;
-chemistryRows = function (q, limit = 10) {
+function chemistryRows(q, limit = 10) {
   const rows = [];
   for (let i = 0; i < q.length; i++) if (q[i] > 0) rows.push([i, q[i]]);
   rows.sort((a, b) => b[1] - a[1] || a[0] - b[0]);
@@ -480,7 +479,7 @@ chemistryRows = function (q, limit = 10) {
       })
       .join("") || `<div class="empty">No measurable inventory</div>`
   );
-};
+}
 const tileInspectorHumanBase = tileInspector;
 tileInspector = function (i) {
   let html = tileInspectorHumanBase(i),
@@ -769,7 +768,7 @@ function focusedCombatEvents(events) {
     }
   return chosen.slice(-6);
 }
-drawCombatEffects = function (now, bounds) {
+function drawCombatEffects(now, bounds) {
   const m = ACTIVE_RENDER_METRICS || projectionMetrics(),
     events = focusedCombatEvents(ACTIVE_COMBAT_STATE?.events || []),
     focus = new Set([UI.selectedEntity, UI.followId].filter(Boolean));
@@ -860,7 +859,7 @@ drawCombatEffects = function (now, bounds) {
   }
   ctx.restore();
   updateSceneFeed();
-};
+}
 const drawRealtimePredationClutterBase = drawRealtimePredation;
 drawRealtimePredation = function (now, bounds) {
   const valid = (UI.combatVisuals || []).filter(

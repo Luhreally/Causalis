@@ -816,7 +816,7 @@ drawCreatureGlyph = function (
   return r;
 };
 // ── Inventory, inspectors, and Legends ─────────────────────────────────────────
-personInventoryPanel = function (id) {
+function personInventoryPanel(id) {
   const inv = W.components.inventory[id];
   if (!inv) return "";
   const mats = [];
@@ -861,7 +861,7 @@ personInventoryPanel = function (id) {
   return `<details open><summary>Character inventory · ${artifacts.length} equipment item${artifacts.length === 1 ? "" : "s"}</summary><div><div class="subhead">All tools, weapons and armor</div><div class="muted" style="font-size:11px;margin-bottom:4px">Every intact carried item is automatically available to this character in work or combat.</div>${
     arts || `<span class="muted">bare-handed — no crafted equipment</span>`
   }<div class="subhead">Carried materials · ${fmt(sum(Array.from(inv.materials || [])))} mass</div><div class="row wrap" style="gap:5px">${matSlots || `<span class="muted">nothing carried</span>`}</div></div></details>`;
-};
+}
 // Chemistry lists keep whatever markup earlier sections gave them; a glyph is
 // slipped in front of each name.
 const chemistryRowsItemsBase = chemistryRows;

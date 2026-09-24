@@ -101,9 +101,6 @@ function characterOf(id) {
   if (!ident.skills) ident.skills = freshSkills();
   return ident;
 }
-function hasTrait(id, trait) {
-  return !!W.components.identity[id]?.traits?.includes(trait);
-}
 function personTile(id) {
   const p = W.components.position[id];
   return p ? idx(p.x, p.y) : -1;

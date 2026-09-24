@@ -486,8 +486,7 @@ function warEndedHTML() {
     })
     .join("")}`;
 }
-const refreshWarfareViewBase = refreshWarfare;
-refreshWarfare = function () {
+function refreshWarfare() {
   if (!W || !DOM.warfarePane) return;
   const active = (W.activeWars || []).filter((w) => !w.ended),
     units = (W.militaryUnits || []).filter((u) => u.active),
@@ -518,7 +517,7 @@ refreshWarfare = function () {
       }
     });
   }
-};
+}
 window.ALIFE_WARVIEW_DEBUG = Object.freeze({
   counts: () => ({ ...WARVIEW, sites: undefined }),
   units: () =>

@@ -18,8 +18,6 @@
 // alien forms keep their old drawing; on the Earth-like world every beast is a
 // quadruped. Rendering only reads.
 const FAUNA_MAX_LEGS = 4,
-  FAUNA_HERBIVORE_KINDS = Object.freeze(["deer", "boar", "goat", "bison", "hare", "horse"]),
-  FAUNA_PREDATOR_KINDS = Object.freeze(["wolf", "cat", "bear", "fox", "croc"]),
   FAUNA = { drawn: 0, herbivores: 0, predators: 0, kinds: {} },
   FAUNA_MODELS = new WeakMap();
 let ACTIVE_FAUNA = null;

@@ -29,7 +29,6 @@
 // only reads.
 const ZONING_SECTORS = 8,
   ZONING_ACTIVE_CAP = 6,
-  ZONING_REACH = 14,
   ZONING_DEMAND_FLOOR = 0.22,
   ZONING_REDEVELOP_YEARS = 4,
   ZONING = { planned: 0, redeveloped: 0, inQuarter: 0, nearQuarter: 0, outOfQuarter: 0 };

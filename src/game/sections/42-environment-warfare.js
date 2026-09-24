@@ -427,7 +427,7 @@ function attackerRangedTier(id) {
   }
   return tier;
 }
-combatEquipmentQuality = function (id) {
+function combatEquipmentQuality(id) {
   let best = 0;
   for (const eid of W.components.inventory[id]?.artifactIds || []) {
     const a = W.artifacts.find((x) => x.entityId === eid);
@@ -446,7 +446,7 @@ combatEquipmentQuality = function (id) {
     if (tier) best = Math.max(best, a.quality * wearFactor * tier);
   }
   return best;
-};
+}
 tickSystem("emergence and feature ecology", function () {
   if (W) {
     updateEmergence();

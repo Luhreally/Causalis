@@ -94,7 +94,7 @@ personMayEnterBuilding = function (id, building) {
     building?.type === "tenement" ? tenementAsShelter(building) : building,
   );
 };
-preferredReturnBuilding = function (id) {
+function preferredReturnBuilding(id) {
   if (W.kind[id] !== KINDS.PERSON) return nearestFriendlyPlace(id);
   const place = nearestFriendlyPlace(id),
     position = W.components.position[id];
@@ -111,7 +111,7 @@ preferredReturnBuilding = function (id) {
           left.id - right.id,
       )[0] || place
   );
-};
+}
 // ── Rendering: a block drawn in the family's style, taller and wider ──────────
 const drawCompletedBuildingCitiesBase = drawCompletedBuilding;
 drawCompletedBuilding = function (g, b, s, r, p, now, m) {

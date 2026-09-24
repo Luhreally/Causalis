@@ -21,7 +21,6 @@
 const HARVEST_BASE_INTERVAL = 64,
   HARVEST_MIN_INTERVAL = 16,
   HARVEST_TENDED_WINDOW = 96,
-  HARVEST_WATER_TECHS = Object.freeze(["irrigation", "waterworks", "chemistry"]),
   MIGRATION_REST = 768,
   MIGRATIONS_PER_YEAR_BASE = 2;
 function fieldTended(field) {
@@ -30,10 +29,6 @@ function fieldTended(field) {
     W.tick - (Number.isFinite(field.lastLaborTick) ? field.lastLaborTick : -1e9) <
       HARVEST_TENDED_WINDOW
   );
-}
-function harvestTechCount(place) {
-  const known = place?.knownProcesses || [];
-  return HARVEST_WATER_TECHS.filter((t) => known.includes(t)).length;
 }
 // One extent by right, one for the farmer's care, one for each water craft.
 function fieldGrowthExtent(place, field) {
@@ -48,7 +43,7 @@ function fieldGrowthInterval(place, field) {
 function harvestCapFactor(place) {
   return 1 + 0.25 * harvestTechCount(place);
 }
-updateCultivatedFields = function () {
+function updateCultivatedFields() {
   for (const building of W.buildings) {
     if (building.type !== "farm" || !building.complete || building.ruined) continue;
     const field = cultivatedField(building),
@@ -57,7 +52,7 @@ updateCultivatedFields = function () {
     if (W.tick - field.lastGrowthTick >= fieldGrowthInterval(place, field))
       updateCultivatedField(building, place, 0);
   }
-};
+}
 const transferTileCropToPlaceHarvestBase = transferTileCropToPlace;
 transferTileCropToPlace = function (place, tile, species, requested, reserve) {
   const scaled =
@@ -78,7 +73,7 @@ function fieldRipeTarget(place, field) {
   const tiles = field?.tiles?.length || 1;
   return Math.max(6, tiles * HARVEST_RIPE_PER_TILE);
 }
-updateCultivatedField = function (building, place, operatorId = 0) {
+function updateCultivatedField(building, place, operatorId = 0) {
   const field = cultivatedField(building);
   if (!field || !place || !["sown", "growing"].includes(field.stage)) return 0;
   const tiles = field.tiles?.length ? field.tiles : [field.tile],
@@ -167,11 +162,11 @@ updateCultivatedField = function (building, place, operatorId = 0) {
     if (place.importantEvents) place.importantEvents.push(ev.id);
   }
   return grew;
-};
+}
 // In famine one sowing's seed is kept back from the daily draw, not two: a
 // town that starved beside eighteen units of "seed" it could not yet sow now
 // eats nine of them and sows the rest; a merely lean town still keeps two.
-seedReserve = function (place) {
+function seedReserve(place) {
   if (!place?.knownProcesses || !W.fields) return 0;
   let fallow = 0,
     tiles = 9;
@@ -184,7 +179,7 @@ seedReserve = function (place) {
   // merely lean two are kept, so more fields go under seed together.
   const sowings = foodOutlook(place)?.famine ? 1 : 2;
   return Math.min(sowings, fallow) * tiles;
-};
+}
 // ── Hungry hands are wanted in the fields ────────────────────────────────────
 // The labour pool only called on people whose minds were set on work, so in a
 // hungry town, where every mind is set on food, the fields stood fallow and

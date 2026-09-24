@@ -401,14 +401,14 @@ function detailedCombatExchange(attacker, victim, context = {}) {
   return 2;
 }
 
-militaryStrike = function (attacker, victim, war, training = 0) {
+function militaryStrike(attacker, victim, war, training = 0) {
   return detailedCombatExchange(attacker, victim, {
     war,
     training,
     military: true,
     intensity: 1,
   });
-};
+}
 
 const militaryUnitStrengthConflictBase = militaryUnitStrength;
 militaryUnitStrength = function (unit) {
@@ -426,7 +426,7 @@ militaryUnitStrength = function (unit) {
   return base * clamp(1 + formation - impairment, 0.25, 1.45);
 };
 
-razeStrike = function (id, place, building, war) {
+function razeStrike(id, place, building, war) {
   const position = W.components.position[id];
   if (!position || !building || building.ruined || !building.complete) return 0;
   if (dist2(position.x, position.y, building.x, building.y) > 6.25) {
@@ -482,7 +482,7 @@ razeStrike = function (id, place, building, war) {
     building.id,
   );
   return damage;
-};
+}
 
 function settlementBuildingsByCondition(target) {
   const all = W.buildings.filter(
@@ -617,18 +617,6 @@ function captureSettlementCausally(target, attacker, defender, war, attackers) {
   return ev;
 }
 
-function factionFieldableFighters(faction) {
-  if (!faction) return 0;
-  let fighters = 0;
-  for (const id of W.activeIds) {
-    if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
-    if ((W.components.social[id]?.factionId || 0) !== faction.id) continue;
-    const locomotion =
-      typeof embodiedCapability === "function" ? embodiedCapability(id).locomotion : 1;
-    if (locomotion >= 0.42) fighters++;
-  }
-  return fighters;
-}
 function warCampaignRouteExists(attacker, defender) {
   const origins = W.settlements.filter((s) => !s.ruined && s.factionId === attacker.id),
     targets = W.settlements.filter((s) => !s.ruined && s.factionId === defender.id);
@@ -1308,9 +1296,9 @@ function resolveImplicitWarTurn(war, a, b) {
     endWar(war, a, b, "casualties, supply, morale, and control ended sustained operations");
 }
 
-resolveWarTurn = function (war, a, b) {
+function resolveWarTurn(war, a, b) {
   return resolveImplicitWarTurn(war, a, b);
-};
+}
 
 function conflictPlaceResidents(place, radius = 8) {
   return entityAtRadius(idx(place.x, place.y), radius, KINDS.PERSON).filter(classifyAlive);

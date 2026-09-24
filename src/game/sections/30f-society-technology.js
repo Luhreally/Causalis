@@ -77,94 +77,6 @@ function researchObservationEvidence(s, tech) {
   }
   return [];
 }
-updateTechnology = function () {
-  const catalog = techCatalog();
-  for (const s of W.settlements) {
-    if (s.ruined || settlementPopulation(s) < 1 || s.stability < 0.2) continue;
-    s.researchProgress = s.researchProgress || {};
-    for (const tech of catalog) {
-      if (
-        s.knownProcesses.includes(tech.id) ||
-        !(tech.prior || []).every((p) => s.knownProcesses.includes(p)) ||
-        !(tech.materials || []).every((m) => hasMaterial(s, m))
-      )
-        continue;
-      const facility = facilityForTechnology(tech.id);
-      if (facility && !placeHasFacility(s, facility)) continue;
-      const base = TECH_BASE.includes(tech),
-        obs = base
-          ? (tech.observed || []).map((t) => observedNear(s, t)).filter(Boolean)
-          : [s.importantEvents.at(-1) || W.lastEventByType.TechAdvanceEvent || 0];
-      if (base && !obs.length) continue;
-      if (base && !(tech.structures || []).every((req) => settlementHasStructure(s, req))) continue;
-      const temperature = base
-        ? settlementTemperatureCapacity(s, tech, obs)
-        : s.productionTemperature || 20;
-      if (base && temperature < (tech.heat || 0)) continue;
-      const faction = W.factions.find((f) => f.id === s.factionId),
-        inventive = faction?.ethos.inventive || 0.5,
-        pop = settlementPopulation(s),
-        knowledgePriority = s.management?.priorities?.knowledge || 2,
-        workers = entityAtRadius(idx(s.x, s.y), 8, KINDS.PERSON).filter(
-          (id) => workState(id).task === "craft" || W.components.cognition[id]?.dominant === "work",
-        ).length,
-        rate =
-          (pop * 0.18 + workers * 0.8 + knowledgePriority * 0.35) *
-          s.stability *
-          (0.65 + inventive) *
-          W.laws.technologyRate,
-        threshold = tech.threshold || 24 + (tech.prior?.length || 0) * 14;
-      s.researchProgress[tech.id] = (s.researchProgress[tech.id] || 0) + rate;
-      if (s.researchProgress[tech.id] < threshold) continue;
-      s.knownProcesses.push(tech.id);
-      s.observations.push(...obs);
-      const discoverer = entityAtRadius(idx(s.x, s.y), 8, KINDS.PERSON).sort(
-          (a, b) =>
-            (W.components.cognition[b]?.confidence || 0) +
-              phenotype(b).sense -
-              (W.components.cognition[a]?.confidence || 0) -
-              phenotype(a).sense || a - b,
-        )[0],
-        ev = emitEvent("TechAdvanceEvent", {
-          subjects: [discoverer, s.entityId].filter(Boolean),
-          location: idx(s.x, s.y),
-          factions: [s.factionId],
-          causes: obs,
-          evidence: [
-            `sustained research reached ${threshold.toFixed(0)} work units`,
-            `${(tech.materials || []).map((sp) => W.definitions.species[sp].name).join(" + ")} were available`,
-            facility
-              ? `${BUILDING_DEFS[facility]?.name || facility} supplied a real workspace`
-              : "open-air observation supplied the workspace",
-            `knowledge priority ${knowledgePriority}/5`,
-          ],
-          importance: 4,
-          data: {
-            name: tech.name,
-            process: tech.process || "civic engineering",
-            risk: tech.risk || "system complexity",
-            settlement: s.name,
-          },
-        });
-      s.importantEvents.push(ev.id);
-      W.technologies.push({
-        id: W.technologies.length + 1,
-        definitionId: tech.id,
-        settlementId: s.id,
-        discovererId: discoverer,
-        tick: W.tick,
-        eventId: ev.id,
-        temperature: Math.round(temperature),
-        structure: [facility].filter(Boolean),
-      });
-      if (discoverer) {
-        W.components.identity[discoverer].significance += 6;
-        remember(discoverer, ev.id, "discovery");
-      }
-      ensurePlacePlans(s);
-    }
-  }
-};
 function researchThreshold(tech) {
   return tech.threshold || 20 + (tech.prior?.length || 0) * 11;
 }
@@ -193,7 +105,7 @@ function neighborPracticesProcess(s, techId) {
       dist2(other.x, other.y, s.x, s.y) <= reach2,
   );
 }
-updateTechnology = function () {
+function updateTechnology() {
   const catalog = techCatalog();
   for (const s of W.settlements) {
     if (s.ruined || settlementPopulation(s) < 1 || s.stability < 0.2) continue;
@@ -353,7 +265,7 @@ updateTechnology = function () {
       ensurePlacePlans(s);
     }
   }
-};
+}
 function shareFactionKnowledge() {
   if (W.tick % 256) return;
   const catalog = techCatalog();
@@ -467,30 +379,6 @@ updateTechnology = function () {
     artifactSlots--;
   }
 };
-function settlementDevelopmentStage(s) {
-  const buildings = completedBuildings(s),
-    types = new Set(buildings.map((b) => b.type)),
-    tech = new Set(s.knownProcesses),
-    pop = settlementPopulation(s),
-    network = factionNetworkPopulation(s),
-    // The gates of history scale with the map (84): on a battery-saver world a
-    // town of ten is metropolitan, and `metropolitan` says so. This read the
-    // unscaled twenty-four regardless, so on a map the code itself says holds
-    // thirty to fifty people the modern stage asked for two cities of
-    // twenty-four and never got one — the world sat two gates short at
-    // year 118 with thirty-one people, hunger nought, and dwindled. Standard
-    // and larger worlds keep twenty-four, since the gate is twenty-four there.
-    metro =
-      typeof metropolitan === "function"
-        ? metropolitan(s, buildings)
-        : pop >= 24 || (!!s.factionId && network >= 32 && buildings.length >= 8);
-  if (tech.has("planetary_stewardship") && tech.has("mechanization") && types.has("waterworks"))
-    return "complex terrestrial";
-  if (metro && types.has("hall") && types.has("clinic") && buildings.length >= 8) return "urban";
-  if (s.factionId && types.has("hall") && (tech.has("governance") || tech.has("writing")))
-    return "civic";
-  return "village";
-}
 function factionNetworkPopulation(s) {
   if (!s?.factionId) return settlementPopulation(s);
   return W.settlements

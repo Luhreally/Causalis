@@ -17,17 +17,7 @@
 // logs, cracks and pebbles, reeds and pools, boulders and lichen, and snow
 // where the air is below freezing; tall cliff faces show strata. Rendering
 // only reads.
-const TREE_SPECIES = Object.freeze([
-    "broadleaf",
-    "conifer",
-    "palm",
-    "birch",
-    "willow",
-    "baobab",
-    "snag",
-    "shrub",
-  ]),
-  ALIEN_CANOPY_FORMS = Object.freeze(["spiral", "lantern", "coral"]),
+const ALIEN_CANOPY_FORMS = Object.freeze(["spiral", "lantern", "coral"]),
   GROVE_MARK_ZOOM = 1.3,
   GROVE_MARK_DENSITY = 0.34,
   GROVE_STRATA_ZOOM = 1.6,

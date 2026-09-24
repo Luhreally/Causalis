@@ -307,13 +307,13 @@ const AGES_LADDER = Object.freeze([
   { tier: 7, gloss: "Stewardship", techs: ["planetary_stewardship"] },
   { tier: 8, gloss: "Stars", techs: [] },
 ]);
-techTierOf = function (place) {
+function techTierOf(place) {
   let tier = 0;
   for (const age of AGES_LADDER)
     if (age.techs.some((t) => place.knownProcesses.includes(t))) tier = Math.max(tier, age.tier);
   return tier;
-};
-reachedTier = function () {
+}
+function reachedTier() {
   let tier = 0,
     leader = null;
   for (const s of W.settlements) {
@@ -329,8 +329,8 @@ reachedTier = function () {
     leader = W.settlements.find((s) => s.id === W.ascensions[0].settlementId) || leader;
   }
   return { tier, leader };
-};
-updateAges = function (silent = false) {
+}
+function updateAges(silent = false) {
   ensureEras();
   const { tier, leader } = reachedTier(),
     current = currentAge();
@@ -378,7 +378,7 @@ updateAges = function (silent = false) {
     last = age;
   }
   return last;
-};
+}
 // Archives written with the seven-rung ladder are re-tiered by their gloss.
 function retierAges(world = W) {
   if (!world?.ages) return 0;

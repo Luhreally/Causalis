@@ -149,17 +149,6 @@ function weightedFaunaPlan(fauna, r) {
   }
   return FAUNA_PLANS[FAUNA_PLANS.length - 1];
 }
-function creatureLimb(g, x, y, ex, ey, bend, phase) {
-  g.beginPath();
-  g.moveTo(x, y);
-  g.quadraticCurveTo(
-    (x + ex) / 2 + Math.cos(phase) * bend,
-    (y + ey) / 2 + Math.sin(phase) * bend,
-    ex,
-    ey,
-  );
-  g.stroke();
-}
 function creatureAppendageVisible(model, index) {
   return !(model.missingAppendageIndices || []).includes(index);
 }

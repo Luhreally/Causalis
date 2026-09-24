@@ -629,20 +629,6 @@ moveWorkerToward = function (id, tile, task, phase, material = -1, buildingId = 
   return result;
 };
 
-function equipmentProtection(id) {
-  let protection = 0;
-  for (const entityId of W.components.inventory[id]?.artifactIds || []) {
-    const artifact = W.artifacts.find((candidate) => candidate.entityId === entityId);
-    if (!isFunctionalTool(artifact)) continue;
-    const capabilities = artifact.tool.capabilities,
-      wear = 1 - artifact.tool.wear / Math.max(1, artifact.tool.durability);
-    if (capabilities.includes("armor")) protection += artifact.quality * wear * 0.34;
-    if (capabilities.includes("shield")) protection += artifact.quality * wear * 0.23;
-    if (capabilities.includes("helmet")) protection += artifact.quality * wear * 0.13;
-  }
-  return protection;
-}
-
 function primitiveWarForm(id, recipe) {
   const material = materialTrait(recipe.head),
     factionId = W.components.social[id]?.factionId || 0,
@@ -1245,43 +1231,6 @@ function performRescue(helper, victim) {
     }
   }
   return aided;
-}
-function updatePersonRescue() {
-  if (W.tick % 4 !== 2) return;
-  const people = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id)),
-    busyHelpers = new Set();
-  let rescues = 0;
-  for (const victim of people) {
-    if (rescues >= 6) break;
-    if (!personInDistress(victim)) continue;
-    const vp = W.components.position[victim];
-    if (!vp) continue;
-    const helper = people
-      .filter((id) => {
-        if (id === victim || busyHelpers.has(id)) return false;
-        const q = W.components.chemistry[id]?.q,
-          l = derivedLife(id),
-          p = W.components.position[id];
-        return (
-          p &&
-          q &&
-          !personInDistress(id) &&
-          l.hunger < 70 &&
-          l.thirst < 75 &&
-          q[C.ENERGY] > 150 &&
-          embodiedCapability(id).locomotion >= 0.42 &&
-          dist2(p.x, p.y, vp.x, vp.y) <= 100
-        );
-      })
-      .sort((a, b) => {
-        const pa = W.components.position[a],
-          pb = W.components.position[b];
-        return dist2(pa.x, pa.y, vp.x, vp.y) - dist2(pb.x, pb.y, vp.x, vp.y) || a - b;
-      })[0];
-    if (!helper) continue;
-    busyHelpers.add(helper);
-    if (performRescue(helper, victim)) rescues++;
-  }
 }
 function ensurePrimitiveEquipment() {
   if (W.tick % 4) return;

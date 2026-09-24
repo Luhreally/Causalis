@@ -118,7 +118,6 @@ const SPECIES_ROLES = Object.freeze([
   "corrosion product",
   "rare conductor",
 ]);
-const PHASES = Object.freeze(["solid", "liquid", "gas"]);
 const STRUCTURE_PATTERNS = Object.freeze([
   "loose sediment",
   "compact soil",

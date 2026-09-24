@@ -31,13 +31,6 @@ const sum = (a) => a.reduce((n, v) => n + v, 0),
 function hsl(h, s, l, a = 1) {
   return `hsla(${((h % 360) + 360) % 360},${s}%,${l}%,${a})`;
 }
-function darken(hex, amt) {
-  const n = parseInt(hex.slice(1), 16),
-    r = clamp((n >> 16) - amt, 0, 255),
-    g = clamp(((n >> 8) & 255) - amt, 0, 255),
-    b = clamp((n & 255) - amt, 0, 255);
-  return `rgb(${r},${g},${b})`;
-}
 function dist2(ax, ay, bx, by) {
   const x = ax - bx,
     y = ay - by;

@@ -57,7 +57,7 @@ function ltcFusedStepQ(stateQ, fQ, revQ, tauQ, dt) {
   return clamp(Math.trunc(numerator / denominator), -LTC_Q, LTC_Q);
 }
 let LTC_NEXT_SCRATCH = new Int16Array(0);
-advanceLTC = function (id) {
+function advanceLTC(id) {
   const g = W.components.genome[id],
     c = initCognition(id),
     inputs = cognitionInputs(id),
@@ -140,7 +140,7 @@ advanceLTC = function (id) {
   c.lastTick = W.tick;
   c.updates++;
   return c;
-};
+}
 // ── The Mind card ──────────────────────────────────────────────────────────────
 function mindCard(id) {
   const c = W.components.cognition?.[id],

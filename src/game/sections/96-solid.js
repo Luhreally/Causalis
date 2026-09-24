@@ -27,9 +27,9 @@ const CLIFF_STEP = 150, // elevation units a walker can climb in one step
   GROUNDWAYS = { segments: 0, tiles: 0, perTile: 0 };
 // ── The ground's ways, drawn once ─────────────────────────────────────────────
 // The tile pass no longer draws paths; the overlay below draws them all.
-drawWornPath = function () {
+function drawWornPath() {
   GROUNDWAYS.perTile++;
-};
+}
 function groundwayClass(i, road, traffic, liquid, trails) {
   const r = road ? road[i] : 0;
   if (r === ROAD_RAIL) return 3;
@@ -169,7 +169,6 @@ drawEntitiesProcedural = function (now, bounds) {
     );
   drawEntitiesSolidBase(now, bounds);
 };
-drawEntities = drawEntitiesProcedural;
 // ── Solid ground: cliffs and the deep ─────────────────────────────────────────
 function walkerKind(id) {
   const k = W.kind[id];
@@ -204,7 +203,7 @@ movementTileBlocked = function (id, x, y) {
 };
 // Civil paths route round cliffs: the corridor search of section 59 with the
 // step rule added between a tile and its parent.
-civilPathFind = function (seed, target, factionId = 0, mode = "land") {
+function civilPathFind(seed, target, factionId = 0, mode = "land") {
   if (!(seed >= 0) || !target) return [];
   const width = W.width,
     parent = new Int32Array(W.tileCount).fill(-1),
@@ -251,7 +250,7 @@ civilPathFind = function (seed, target, factionId = 0, mode = "land") {
     if (parent[tile] === tile) break;
   }
   return path.reverse();
-};
+}
 // ── Solid bodies: clear of facades, hidden behind faces ───────────────────────
 const FACADE_CACHE = { world: null, tick: -1, map: new Map() },
   FACADE_OPEN = new Set(["farm", "corral", "wall"]);

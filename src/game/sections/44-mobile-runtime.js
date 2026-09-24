@@ -158,7 +158,7 @@ function syncMobileDock() {
   syncMobilePanels();
 }
 
-installResponsivePanels = function () {
+function installResponsivePanels() {
   const leftButton = DOM.mobileLeftBtn,
     rightButton = DOM.mobileRightBtn;
   leftButton.onclick = () => setMobilePanel("left", leftButton);
@@ -195,7 +195,7 @@ installResponsivePanels = function () {
   window.addEventListener("orientationchange", reevaluate);
   window.visualViewport?.addEventListener("resize", resizeCanvas);
   syncMobileDock();
-};
+}
 
 function touchPoint(e) {
   const p = pointerPosition(e);
@@ -434,7 +434,7 @@ setTool = function (tool) {
   syncMobileDock();
 };
 
-resizeCanvas = function () {
+function resizeCanvas() {
   const c = DOM.canvas,
     cap = UI.mobileMode && UI.quality === "low" ? 1.5 : 2,
     dpr = Math.min(cap, Number(window.devicePixelRatio) || 1),
@@ -450,7 +450,7 @@ resizeCanvas = function () {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     c._dpr = dpr;
   }
-};
+}
 
 const runSimulationClockMobileBase = runSimulationClock;
 runSimulationClock = function (dt, budgetMs = null) {
@@ -466,7 +466,7 @@ runSimulationClock = function (dt, budgetMs = null) {
   return runSimulationClockMobileBase(dt, budgetMs ?? phoneBudget);
 };
 
-showNewWorld = function () {
+function showNewWorld() {
   const mobile = !!UI.mobileMode,
     defaultSize = mobile ? MOBILE_WORLD_DEFAULTS.size : "standard",
     defaultComplexity = mobile ? MOBILE_WORLD_DEFAULTS.complexity : "standard";
@@ -518,7 +518,7 @@ showNewWorld = function () {
     closeModal();
     performWorldCreation(opts);
   };
-};
+}
 
 const showSettingsMobileBase = showSettings;
 showSettings = function () {

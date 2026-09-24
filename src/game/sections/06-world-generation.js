@@ -712,60 +712,6 @@ function newTileColumns(n) {
     chemDelta: Array.from({ length: COMMON_CHEM }, () => new Int32Array(n)),
   };
 }
-function generateTileWorld(world) {
-  const { width: w, height: h, seedHash: s, laws, tiles: t } = world,
-    sea = 430;
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++) {
-      const i = y * w + x,
-        n = fbm(s, x / 43, y / 43),
-        ridge = Math.abs(noise2(s ^ 0x51f2, x / 19, y / 19) - 0.5),
-        basin = noise2(s ^ 0xaf31, x / 71, y / 71),
-        river = Math.abs(noise2(s ^ 0x9911, x / 31, y / 12) - 0.5);
-      let e = clamp(n * 820 + ridge * 250 - basin * 120, 40, 980);
-      t.elevation[i] = u16(e);
-      const water =
-        e < sea
-          ? u16((sea - e) * 12)
-          : river < 0.018 && e < 720
-            ? u16((0.018 - river) * 19000 + 180)
-            : 0;
-      t.liquid[i] = water;
-      const lat = Math.abs(y / (h - 1) - 0.5) * 2,
-        temp = 295 - lat * 185 - e * 0.11 + (noise2(s ^ 0x1837, x / 55, y / 55) - 0.5) * 70;
-      t.temperature[i] = i16(temp);
-      t.climateBase[i] = t.temperature[i];
-      const wet = clamp(
-        water ? 900 : 720 - (e - sea) * 0.75 + (noise2(s ^ 0x77a1, x / 22, y / 22) - 0.5) * 520,
-        60,
-        850,
-      );
-      t.chem[C.SOLVENT][i] = u16(water + wet);
-      t.chem[C.OXIDANT][i] = u16(620 + laws.oxidationPotential * 120);
-      t.chem[C.NUTRIENT][i] = u16(
-        (420 + noise2(s ^ 0x2281, x / 17, y / 17) * 950) * laws.resourceRichness,
-      );
-      t.chem[C.MINERAL][i] = u16(1500 + e * 3.2);
-      t.chem[C.ORE][i] = u16(
-        Math.max(0, (noise2(s ^ 0x4921, x / 13, y / 13) - 0.67) * 7500) * laws.resourceRichness,
-      );
-      t.chem[C.CATALYST][i] = u16(40 + noise2(s ^ 0x7719, x / 9, y / 9) * 180);
-      t.chem[C.TOXIN][i] = u16(Math.max(0, (noise2(s ^ 0x9953, x / 15, y / 15) - 0.82) * 1200));
-      t.chem[C.GAS][i] = u16(480 + noise2(s ^ 0x61c3, x / 47, y / 47) * 120);
-      t.soilOrder[i] = u16(e < sea ? 120 : 480 + wet * 0.35);
-      t.structureOrder[i] = u16(e < sea ? 250 : 520 + e * 0.28);
-      t.basePattern[i] = e < sea ? 15 : e > 830 ? 2 : wet > 650 ? 1 : 0;
-      const compat = clamp(1 - Math.abs(temp - 205) / 220, 0, 1),
-        plant =
-          e > sea - 15
-            ? u16(clamp((wet - 150) * compat * laws.plantEfficiency, 0, 900))
-            : u16(water < 700 ? wet * 0.15 : 0);
-      t.plantOrder[i] = plant;
-      t.chem[C.ORGANIC][i] = u16(plant * 1.9);
-      t.chem[C.ENERGY][i] = u16(plant * 1.4);
-      t.chem[C.FUEL][i] = u16(plant * 0.45);
-    }
-}
 function createWorld(options) {
   const [width, height] = SIZE_PRESETS[options.size] || SIZE_PRESETS.standard,
     seed = String(options.seed || "causal-origin").trim() || "causal-origin",
@@ -1421,7 +1367,7 @@ function fitExactOceanQuantile(raw, hist, rank, target, sea, seed) {
   }
   return { exact: true, count: target, adjusted: needed };
 }
-function generateProceduralTileWorld(world) {
+function generateTileWorld(world) {
   const { width: w, height: h, seedHash: s, laws, tiles: t } = world,
     n = w * h,
     g = (world.terrainGenome = makeTerrainGenome(world)),
@@ -1707,7 +1653,6 @@ function compileEcologicalStructures(world) {
   place(TERRAIN_FEATURE.DEPOSIT, Math.max(8, Math.round(11 * scale * density(6))), 6, 1);
   world.ecologicalStructures = { version: 1, centers, byType, signature: grammar.signature };
 }
-generateTileWorld = generateProceduralTileWorld;
 const restoreWorldTerrainDefaults = restoreWorldDefaults;
 restoreWorldDefaults = function () {
   restoreWorldTerrainDefaults();

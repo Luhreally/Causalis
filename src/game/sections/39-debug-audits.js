@@ -207,62 +207,6 @@ function debugCognitionAudit() {
     const g = W.components.genome[id]?.controller,
       c = W.components.cognition[id],
       checks = [
-        ["input", g?.input, Int16Array, 20, -2560, 2560],
-        ["rec", g?.rec, Int16Array, 10, -2560, 2560],
-        ["out", g?.out, Int16Array, 42, -2560, 2560],
-        ["tau", g?.tau, Uint16Array, 5, 768, 12288],
-        ["leak", g?.leak, Int16Array, 5, -2560, 2560],
-        ["state", c.state, Int16Array, 5, -LTC_Q, LTC_Q],
-        ["plastic", c.plastic, Int16Array, 42, -384, 384],
-        ["value", c.value, Int16Array, 14, -LTC_Q, LTC_Q],
-        ["output", c.output, Int16Array, 14, -LTC_Q, LTC_Q],
-      ];
-    mix(id);
-    for (const [name, array, T, length, min, max] of checks) {
-      if (!(array instanceof T) || array.length !== length) {
-        malformed.push(`${id}:${name}:shape`);
-        continue;
-      }
-      for (const value of array) {
-        if (value < min || value > max) malformed.push(`${id}:${name}:range:${value}`);
-        mix(value);
-      }
-    }
-    if (Array.from(c.state).some(Boolean)) nonzeroStates++;
-    if (Array.from(c.output).some(Boolean)) nonzeroOutputs++;
-    updates += c.updates || 0;
-    influences += c.influenceCount || 0;
-    mix(c.updates);
-    mix(c.influenceCount);
-    mix(c.lastReward);
-  }
-  return {
-    agents: ids.length,
-    updates,
-    influences,
-    nonzeroStates,
-    nonzeroOutputs,
-    malformed,
-    digest: (digest >>> 0).toString(16).padStart(8, "0"),
-  };
-}
-debugCognitionAudit = function () {
-  if (!W) return null;
-  const malformed = [],
-    ids = W.activeIds.filter((id) => W.components.cognition?.[id]).sort((a, b) => a - b);
-  let digest = 2166136261 >>> 0,
-    nonzeroStates = 0,
-    nonzeroOutputs = 0,
-    updates = 0,
-    influences = 0;
-  const mix = (value) => {
-    digest ^= (Number(value) || 0) & 0xffffffff;
-    digest = Math.imul(digest, 16777619) >>> 0;
-  };
-  for (const id of ids) {
-    const g = W.components.genome[id]?.controller,
-      c = W.components.cognition[id],
-      checks = [
         ["input", g?.input, Int16Array, LTC_HIDDEN * LTC_INPUT_FAN, -2560, 2560],
         ["rec", g?.rec, Int16Array, LTC_HIDDEN * LTC_REC_FAN, -2560, 2560],
         ["out", g?.out, Int16Array, LTC_ACTIONS.length * LTC_OUTPUT_FAN, -2560, 2560],
@@ -309,7 +253,7 @@ debugCognitionAudit = function () {
     malformed,
     digest: (digest >>> 0).toString(16).padStart(8, "0"),
   };
-};
+}
 function debugCivicAudit() {
   if (!W) return null;
   const failures = [];
@@ -696,27 +640,6 @@ function installClipboardFallback() {
     $("#seedFallback").select();
     $("#closeSeedFallback").onclick = closeModal;
   };
-}
-function installResponsivePanels() {
-  const leftBtn = document.getElementById("mobileLeftBtn"),
-    rightBtn = document.getElementById("mobileRightBtn"),
-    close = () => {
-      DOM.leftPanel.classList.remove("open");
-      DOM.rightPanel.classList.remove("open");
-    };
-  leftBtn.onclick = () => {
-    const open = DOM.leftPanel.classList.toggle("open");
-    DOM.rightPanel.classList.remove("open");
-    leftBtn.setAttribute("aria-expanded", String(open));
-  };
-  rightBtn.onclick = () => {
-    const open = DOM.rightPanel.classList.toggle("open");
-    DOM.leftPanel.classList.remove("open");
-    rightBtn.setAttribute("aria-expanded", String(open));
-  };
-  DOM.canvas.addEventListener("pointerdown", () => {
-    if (innerWidth <= 570) close();
-  });
 }
 function debugCreateWorld(options = {}) {
   UI.selectedTile = -1;

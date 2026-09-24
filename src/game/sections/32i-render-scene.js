@@ -391,7 +391,6 @@ drawEntitiesProcedural = function (now, bounds) {
   drawSiegeVisuals(now, bounds);
   drawCaptureVisuals(now, bounds);
 };
-drawEntities = drawEntitiesProcedural;
 
 let CIVIC_OVERLAY_CACHE = null;
 function civicOverlayIndex() {

@@ -120,19 +120,6 @@ ensurePlacePlans = function (place) {
   if (outlook.lean && place.management?.priorities)
     place.management.priorities.food = Math.max(place.management.priorities.food || 0, 4);
 };
-// Seed corn: enough food to sow the fallow fields is kept back from the daily
-// draw, so a hungry town does not eat the seed of next season's harvest.
-function seedReserve(place) {
-  if (!place?.knownProcesses || !W.fields) return 0;
-  let fallow = 0,
-    tiles = 9;
-  for (const f of W.fields)
-    if (f.placeKind === "settlement" && f.placeId === place.id && f.stage === "fallow") {
-      fallow++;
-      tiles = Math.max(tiles, f.tiles?.length || 9);
-    }
-  return Math.min(2, fallow) * tiles;
-}
 // Farms eat nutrient to be built and to be tended: the stores aim to hold it.
 const essentialStockTargetsGranaryBase = essentialStockTargets;
 essentialStockTargets = function (place) {

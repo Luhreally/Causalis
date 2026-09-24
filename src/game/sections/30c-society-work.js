@@ -615,20 +615,6 @@ function orderPriority(order, place, id) {
     b.id * 0.0001
   );
 }
-function selectWorkOrder(id, place) {
-  const kind = place.knownProcesses ? "settlement" : "camp",
-    orders = W.workOrders
-      .filter(
-        (o) =>
-          o.status === "open" &&
-          o.placeKind === kind &&
-          o.placeId === place.id &&
-          !(o.blockedUntil > W.tick),
-      )
-      .map((o) => ({ o, score: orderPriority(o, place, id) }))
-      .sort((a, b) => b.score - a.score || a.o.id - b.o.id);
-  return orders[0]?.o || null;
-}
 // The rare inputs a prospector or a caravan brings home: builders fetch these
 // from the town stores instead of hoping to find them on the ground nearby.
 const STORE_DRAWN_MATERIALS = [C.PIGMENT, C.INFO, C.ORE, C.CRYSTAL],
@@ -707,48 +693,6 @@ function functionalToolsAtPlace(place, purpose) {
           groundedToolTile(a) >= 0 &&
           dist2(place.x, place.y, ...xy(groundedToolTile(a))) <= 8 * 8)),
   );
-}
-function placeToolOrderForWorker(id, place) {
-  const workers = localPlaceWorkers(place),
-    kind = placeKindKey(place);
-  if (!workers.includes(id)) return "";
-  const claims = (purpose) =>
-    W.activeIds
-      .filter(
-        (pid) =>
-          W.kind[pid] === KINDS.PERSON &&
-          classifyAlive(pid) &&
-          workState(pid).toolOrderPurpose === purpose &&
-          workState(pid).toolOrderPlaceKind === kind &&
-          workState(pid).toolOrderPlaceId === place.id,
-      )
-      .sort((a, b) => a - b);
-  for (const purpose of ["cut", "mine"])
-    if (functionalToolsAtPlace(place, purpose).length)
-      for (const pid of claims(purpose)) {
-        const state = workState(pid);
-        state.toolOrderPurpose = "";
-        state.toolOrderRecipe = null;
-        state.toolOrderPlaceKind = "";
-        state.toolOrderPlaceId = 0;
-      }
-  for (const purpose of ["cut", "mine"]) {
-    if (functionalToolsAtPlace(place, purpose).length) continue;
-    const claimant = claims(purpose)[0];
-    if (claimant) return claimant === id ? purpose : "";
-    const available = workers.find((pid) => !workState(pid).toolOrderPurpose);
-    if (available === id) {
-      const w = workState(id),
-        a = makeArchitectureGenome(place);
-      w.toolOrderPurpose = purpose;
-      w.toolOrderRecipe = { purpose, head: a.rigid, binding: a.flexible };
-      w.toolOrderPlaceKind = kind;
-      w.toolOrderPlaceId = place.id;
-      return purpose;
-    }
-    if (available) return "";
-  }
-  return "";
 }
 function performPlaceToolmaking(id, place) {
   const w = workState(id),

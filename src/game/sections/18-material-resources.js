@@ -1,11 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // 18. MATERIAL AND RESOURCE SYSTEMS
 // ═══════════════════════════════════════════════════════════════════════════
-function constructionPotential(inv) {
-  const mat = inv[C.MINERAL] + inv[C.FIBER] * 0.8 + inv[C.METAL] * 1.8 + inv[C.CERAMIC] * 1.2,
-    tox = inv[C.TOXIN];
-  return Math.max(0, (mat - tox * 0.3) / 50);
-}
 function toolQuality(inv, structure = 500) {
   const metal = inv[C.METAL] * 1.8,
     crystal = inv[C.CRYSTAL] * 1.1,

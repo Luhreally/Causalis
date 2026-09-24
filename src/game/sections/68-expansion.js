@@ -503,23 +503,6 @@ function buildingMaterialWants(place) {
     }
   return wants;
 }
-function considerProspecting() {
-  if (typeof eligibleResearchMaterialNeeds !== "function") return;
-  const far = PROSPECT_MATERIALS();
-  for (const place of W.settlements) {
-    if (place.ruined || !place.knownProcesses || settlementPopulation(place) < 6) continue;
-    let sent = false;
-    for (const need of eligibleResearchMaterialNeeds(place))
-      if (launchProspector(place, need.sp)) {
-        sent = true;
-        break;
-      }
-    if (sent) continue;
-    for (const [sp, short] of buildingMaterialWants(place))
-      if (far.includes(sp) && (place.inventory?.[sp] || 0) < short && launchProspector(place, sp))
-        break;
-  }
-}
 // ── Tick hook and reasons ──────────────────────────────────────────────────────
 calendarSystem("expansion", function () {
   if (!W?.settlements || !W.camps) return;

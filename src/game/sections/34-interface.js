@@ -25,21 +25,6 @@ function refreshTabs(tab) {
   if (tab === "worldinfo") refreshWorldInfo();
   if (tab === "stats") refreshStats();
 }
-function chemistryRows(q, limit = 10) {
-  const rows = [];
-  for (let i = 0; i < q.length; i++) if (q[i] > 0) rows.push([i, q[i]]);
-  rows.sort((a, b) => b[1] - a[1]);
-  const max = rows[0]?.[1] || 1;
-  return (
-    rows
-      .slice(0, limit)
-      .map(
-        ([i, v]) =>
-          `<div class="chem-row"><span title="${esc(W.definitions.species[i].role)}">${esc(W.definitions.species[i].name)}</span><span class="chem-bar"><i style="width:${(v / max) * 100}%;background:${hsl(W.definitions.species[i].colorHue, 65, 55)}"></i></span><b class="mono">${fmt(v)}</b></div>`,
-      )
-      .join("") || `<div class="empty">No measurable inventory</div>`
-  );
-}
 function tileChemVector(i) {
   const q = new Uint16Array(SPECIES_COUNT);
   for (let s = 0; s < COMMON_CHEM; s++) q[s] = W.tiles.chem[s][i];
@@ -74,68 +59,6 @@ function entityRow(id) {
     l = W.components.life[id],
     k = W.kind[id];
   return `<div class="entity-row" data-entity="${id}"><div class="title"><b>${esc(ident?.generatedName || titleCase(k))}</b><span class="tag">#${id} ${titleCase(k)}</span></div><small>${l ? `Age ${l.age} · ${l.health?.toFixed?.(0) || 0}% health · ${esc(l.behavior || "still")}` : ident?.titles?.join(", ") || "persistent identity"}${ident?.notable ? " · Notable" : ""}</small></div>`;
-}
-function personInventoryPanel(id) {
-  const inv = W.components.inventory[id];
-  if (!inv) return "";
-  const mats = [];
-  if (inv.materials)
-    for (let sp = 0; sp < inv.materials.length; sp++)
-      if (inv.materials[sp] > 0) mats.push([sp, inv.materials[sp]]);
-  mats.sort((a, b) => b[1] - a[1] || a[0] - b[0]);
-  const slotCss =
-    "width:46px;height:46px;border-radius:6px;position:relative;display:flex;align-items:center;justify-content:center;box-sizing:border-box";
-  const matSlots = mats
-    .slice(0, 24)
-    .map(([sp, n]) => {
-      const d = W.definitions.species[sp];
-      return `<div title="${esc(d.name)} · ${n} units — ${esc(d.role || "material")}" style="${slotCss};background:${hsl(d.colorHue, 45, 20)};border:1px solid ${hsl(d.colorHue, 55, 42)}"><span style="font-size:9px;color:${hsl(d.colorHue, 70, 80)};text-align:center;line-height:1.05;overflow:hidden;max-height:30px;padding:0 2px">${esc(d.name.split(" ")[0].slice(0, 8))}</span><b style="position:absolute;right:3px;bottom:1px;font-size:10px;color:#ffe9b0">${n > 999 ? "999+" : n}</b></div>`;
-    })
-    .join("");
-  const artifacts = (inv.artifactIds || [])
-    .map((eid) => W.artifacts.find((a) => a.entityId === eid))
-    .filter(Boolean)
-    .sort((left, right) => {
-      const lc = equipmentDisplayCategory(left),
-        rc = equipmentDisplayCategory(right);
-      return (
-        lc.localeCompare(rc) ||
-        (left.name || "").localeCompare(right.name || "") ||
-        left.entityId - right.entityId
-      );
-    });
-  const arts = artifacts
-    .map((a) => {
-      const capabilities = a.tool?.capabilities || [],
-        wear = a.tool ? 1 - a.tool.wear / Math.max(1, a.tool.durability) : 1,
-        functional = !a.tool || a.tool.wear < a.tool.durability,
-        category = equipmentDisplayCategory(a),
-        war = capabilities.includes("war"),
-        hue = W.definitions.species[a.materialId]?.colorHue ?? 40,
-        glyph =
-          capabilities.includes("gun") || capabilities.includes("firearm")
-            ? "✸"
-            : capabilities.includes("bow") || capabilities.includes("crossbow")
-              ? "➶"
-              : capabilities.includes("shield")
-                ? "◈"
-                : capabilities.includes("armor") || capabilities.includes("helmet")
-                  ? "⬡"
-                  : war
-                    ? "⚔"
-                    : capabilities.includes("mine")
-                      ? "⛏"
-                      : capabilities.includes("cut")
-                        ? "🪓"
-                        : capabilities.includes("gather")
-                          ? "✤"
-                          : "🔨",
-        form = a.tool?.form || "carried artifact",
-        functions = capabilities.length ? capabilities.join(" / ") : "material artifact";
-      return `<div data-world-target="${a.entityId}" style="cursor:pointer;display:grid;grid-template-columns:46px minmax(0,1fr);gap:8px;padding:7px;margin:5px 0;border-radius:7px;background:${hsl(hue, 32, 14)};border:1px solid ${war ? "#e0645c" : hsl(hue, 45, 38)}"><div title="${esc(category)}" style="${slotCss};background:${hsl(hue, 40, 18)};border:1px solid ${hsl(hue, 55, 42)}"><span style="font-size:18px">${glyph}</span><i style="position:absolute;left:3px;right:3px;bottom:2px;height:3px;background:#0009;border-radius:2px"><i style="display:block;height:3px;border-radius:2px;width:${Math.round(clamp(wear, 0, 1) * 100)}%;background:${functional && wear > 0.5 ? "#8fc07a" : "#e0645c"}"></i></i></div><div style="min-width:0"><div class="row between"><b>${esc(a.name || form)}</b><span class="tag ${functional ? "" : "red"}">${functional ? "ready" : "broken"}</span></div><small class="gold">${esc(category)} · quality ${a.quality ?? 0} · ${Math.round(clamp(wear, 0, 1) * 100)}% condition</small><div class="muted" style="font-size:11px;margin-top:2px">${esc(form)} · ${esc(functions)}</div></div></div>`;
-    })
-    .join("");
-  return `<details open><summary>Character inventory · ${artifacts.length} equipment item${artifacts.length === 1 ? "" : "s"}</summary><div><div class="subhead">All tools, weapons and armor</div><div class="muted" style="font-size:11px;margin-bottom:4px">Every intact carried item is automatically available to this character in work or combat.</div>${arts || `<span class="muted">bare-handed — no crafted equipment</span>`}<div class="subhead">Carried materials · ${fmt(sum(Array.from(inv.materials || [])))} mass</div><div class="row wrap" style="gap:5px">${matSlots || `<span class="muted">nothing carried</span>`}</div></div></details>`;
 }
 
 function equipmentDisplayCategory(artifact) {

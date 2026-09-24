@@ -15,17 +15,3 @@ function removeEntity(id) {
   if (UI.followId === id) UI.followId = 0;
   if (UI.selectedEntity === id) UI.selectedEntity = 0;
 }
-function entitiesOf(kind, aliveOnly = false) {
-  const r = [];
-  for (const id of W.activeIds)
-    if (W.kind[id] === kind && (!aliveOnly || classifyAlive(id))) r.push(id);
-  return r;
-}
-function entityAtTile(i, kinds = null) {
-  const [x, y] = xy(i),
-    r = [];
-  for (const id of W.spatialBins[i] || []) {
-    if (!kinds || kinds.includes(W.kind[id])) r.push(id);
-  }
-  return r;
-}

@@ -511,8 +511,7 @@ ensureHerdEnclosure = function (herd, place) {
   return normalizeHerdEnclosure(herd, ensureHerdEnclosureSealedBase(herd, place));
 };
 
-const enclosureBlocksPredatorSealedBase = enclosureBlocksPredator;
-enclosureBlocksPredator = function (predatorId, animalId) {
+function enclosureBlocksPredator(predatorId, animalId) {
   const herd = herdForAnimal(animalId),
     enclosure = normalizeHerdEnclosure(herd, herdEnclosure(herd));
   if (
@@ -557,7 +556,7 @@ enclosureBlocksPredator = function (predatorId, animalId) {
     else herd.state = "predator stopped outside sealed enclosure";
   }
   return true;
-};
+}
 
 function pushPredatorsOutsideEnclosures() {
   let moved = false;
@@ -679,25 +678,6 @@ function personMayEnterBuilding(id, building) {
     return ["shelter", "hall", "clinic", "hearth"].includes(building.type);
   if (life?.behavior === "socialize") return ["hall", "hearth", "shelter"].includes(building.type);
   return false;
-}
-
-function preferredReturnBuilding(id) {
-  if (W.kind[id] !== KINDS.PERSON) return nearestFriendlyPlace(id);
-  const place = nearestFriendlyPlace(id),
-    position = W.components.position[id];
-  if (!place || !position) return place;
-  const priorities = { shelter: 0, clinic: 1, hall: 2, hearth: 3 };
-  return (
-    completedBuildings(place)
-      .filter((building) => Object.hasOwn(priorities, building.type))
-      .sort(
-        (left, right) =>
-          priorities[left.type] - priorities[right.type] ||
-          dist2(position.x, position.y, left.x, left.y) -
-            dist2(position.x, position.y, right.x, right.y) ||
-          left.id - right.id,
-      )[0] || place
-  );
 }
 
 function herdOwnsCorralTile(id, building) {
@@ -1441,61 +1421,6 @@ militaryObjective = function (unit) {
   return objective;
 };
 
-function requirementRow(requirement) {
-  const current = `${requirement.current}${requirement.unit || ""}`,
-    target = `${requirement.target}${requirement.unit || ""}`,
-    width = clamp(
-      (Number(requirement.current) / Math.max(0.001, Number(requirement.target))) * 100,
-      0,
-      100,
-    );
-  return `<div class="campaign-requirement"><div class="row between"><span>${esc(requirement.label)}</span><b class="${requirement.ready ? "good-text" : "gold"}">${requirement.ready ? "Ready" : `${current} / ${target}`}</b></div><div class="bar"><i style="width:${width}%;background:${requirement.ready ? "#79c989" : "#d9b56d"}"></i></div></div>`;
-}
-
-function campaignCard(war) {
-  const plan = war.attackPlan;
-  if (!plan)
-    return `<article class="card campaign-card"><div class="eyebrow">War #${war.id}</div><p class="muted">The simulation has not yet created an operational plan for this legacy war.</p></article>`;
-  const readiness = campaignReadiness(war, plan),
-    attacker = W.factions.find((faction) => faction.id === plan.attackerId),
-    defender = W.factions.find((faction) => faction.id === plan.defenderId),
-    target = readiness.target,
-    launched = !!plan.launchedTick,
-    until = Math.max(0, plan.plannedLaunchTick - W.tick),
-    timing = launched
-      ? `Launched at tick ${plan.launchedTick.toLocaleString()}`
-      : W.tick < plan.plannedLaunchTick
-        ? `Earliest launch in ${until.toLocaleString()} ticks`
-        : readiness.blockers.length
-          ? `Launch delayed by ${readiness.blockers.length} unmet gate${readiness.blockers.length === 1 ? "" : "s"}`
-          : "Launch order is being issued";
-  return `<article class="card campaign-card"><div class="row between"><div><div class="eyebrow">War #${war.id} · ${launched ? "active campaign" : "attack preparation"}</div><h3 style="margin:4px 0">${esc(attacker?.name || "Unknown attacker")} → ${esc(target?.name || defender?.name || "enemy territory")}</h3></div><span class="tag ${launched ? "red" : "gold"}">${Math.round(readiness.readiness * 100)}% ready</span></div><div class="campaign-timing">${esc(timing)}</div><div class="kv" style="margin-top:9px"><span>Defender</span><b>${esc(defender?.name || "unknown")}</b><span>Target</span><b>${esc(target?.name || "selecting a surviving objective")}</b><span>Why this war</span><b>${esc(plan.motive)}</b><span>How they plan to attack</span><b>${esc(plan.approach)}</b><span>Planned launch tick</span><b>${plan.plannedLaunchTick.toLocaleString()}</b><span>Latest acceptable window</span><b>${plan.latestLaunchTick.toLocaleString()}</b><span>Fielded units / fighters</span><b>${readiness.units.length} / ${readiness.members.length}</b><span>Casualties so far</span><b>${war.casualties || 0}</b></div><div class="subhead">Launch gates</div><div class="stack">${readiness.requirements.map(requirementRow).join("")}</div>${readiness.blockers.length ? `<div class="campaign-blockers"><b>Still needed:</b> ${esc(readiness.blockers.map((requirement) => requirement.label).join(" · "))}</div>` : `<div class="campaign-blockers ready"><b>All launch gates satisfied.</b> The force will depart when its planned window opens.</div>`}</article>`;
-}
-
-function refreshWarfare() {
-  if (!W || !DOM.warfarePane) return;
-  const active = W.activeWars.filter((war) => !war.ended),
-    ended = W.activeWars
-      .filter((war) => war.ended)
-      .slice(-6)
-      .reverse(),
-    tensions = W.factions
-      .flatMap((faction) =>
-        Object.entries(faction.relations || {})
-          .filter(
-            ([otherId, relation]) => faction.id < Number(otherId) && relation.status === "hostile",
-          )
-          .map(([otherId, relation]) => ({
-            faction,
-            other: W.factions.find((candidate) => candidate.id === Number(otherId)),
-            pressure: relation.pressure || 0,
-          })),
-      )
-      .sort((left, right) => right.pressure - left.pressure)
-      .slice(0, 5);
-  DOM.warfarePane.innerHTML = `<div class="eyebrow">Operational intelligence</div><h3 style="margin:5px 0">Army attack plans</h3><p class="muted">Launch dates are real simulation gates. Armies wait for people, supplies, training, equipment, health, and a reachable objective; after launch, their tactics respond to contact and structures.</p>${active.length ? active.map(campaignCard).join("") : `<div class="empty">No army is preparing an attack. Hostile pressure and defensive musters still appear below.</div>`}${tensions.length ? `<div class="subhead">Hostile pressure before war</div>${tensions.map((entry) => `<div class="faction-row"><div class="row between"><b>${esc(entry.faction.name)} ↔ ${esc(entry.other?.name || "unknown")}</b><span class="tag gold">${Math.round(entry.pressure)} pressure</span></div><small class="muted">War begins only if pressure exceeds the political threshold and both sides can field material military strength.</small></div>`).join("")}` : ""}${ended.length ? `<details><summary>Recently ended wars · ${ended.length}</summary>${ended.map((war) => `<div class="faction-row"><b>War #${war.id}</b><small class="muted">Ended tick ${war.ended.toLocaleString()} · ${war.wounded == null ? `${war.casualties || 0} dead · fought before the casualty reform` : `${war.casualties || 0} dead · ${war.wounded} wounded`} · ${war.contactTurns || 0} contact turns${war.endReason ? ` · ${esc(war.endReason)}` : ""}</small></div>`).join("")}</details>` : ""}`;
-}
-
 EQUIPMENT_PURPOSES.add("helmet");
 EQUIPMENT_PURPOSES.add("limb_armor");
 EQUIPMENT_PURPOSES.add("utility");
@@ -1857,7 +1782,7 @@ createPersonalTool = function (id, recipe) {
   return artifact;
 };
 
-equipmentProtection = function (id) {
+function equipmentProtection(id) {
   let protection = 0;
   for (const entityId of W.components.inventory[id]?.artifactIds || []) {
     const artifact = W.artifacts.find((candidate) => candidate.entityId === entityId);
@@ -1878,7 +1803,7 @@ equipmentProtection = function (id) {
     protection += artifact.quality * wear * Math.max(legacyWeight, profileWeight);
   }
   return protection;
-};
+}
 
 const ensurePrimitiveEquipmentDeepBase = ensurePrimitiveEquipment;
 ensurePrimitiveEquipment = function () {

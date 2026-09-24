@@ -237,7 +237,7 @@ function placePeoplePerTown() {
 }
 const PLACE_PEOPLE_PER_TOWN = 24,
   PLACE_PEOPLE_NEARBY = 16;
-updateSettlements = function () {
+function updateSettlements() {
   assignPartners();
   const candidates = [];
   for (const id of W.activeIds)
@@ -438,7 +438,7 @@ updateSettlements = function () {
       );
   }
   updateCivicProduction();
-};
+}
 const updateSettlementsVitalityBase = updateSettlements;
 updateSettlements = function () {
   updateSettlementsVitalityBase();

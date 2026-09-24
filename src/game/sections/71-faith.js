@@ -236,7 +236,7 @@ function faithBond(a, b) {
   if (warBetween(a, b)) return false;
   return (a.ethos?.spiritual || 0) >= 0.45 && (b.ethos?.spiritual || 0) >= 0.45;
 }
-leagueClusters = function () {
+function leagueClusters() {
   const living = livingPolities(),
     seen = new Set(),
     clusters = [];
@@ -257,7 +257,7 @@ leagueClusters = function () {
     if (members.length >= 3) clusters.push(members.sort((p, q) => p - q));
   }
   return clusters;
-};
+}
 window.ALIFE_FAITH_DEBUG = Object.freeze({
   faith: (factionId) => faithOf(W.factions.find((f) => f.id === factionId)),
   update: () => (updateFaith(), { sects: { ...W.faith.sects }, holyWars: W.faith.holyWars }),

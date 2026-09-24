@@ -164,7 +164,7 @@ createSettlement = function (...args) {
   ORDER_INDEX = { list: null, seen: 0, byPlace: new Map() };
   return out;
 };
-selectWorkOrder = function (id, place) {
+function selectWorkOrder(id, place) {
   const kind = place.knownProcesses ? "settlement" : "camp",
     orders = placeWorkOrders(kind, place.id)
       .filter(
@@ -177,7 +177,7 @@ selectWorkOrder = function (id, place) {
       .map((o) => ({ o, score: orderPriority(o, place, id) }))
       .sort((a, b) => b.score - a.score || a.o.id - b.o.id);
   return orders[0]?.o || null;
-};
+}
 // ── Who mends a damaged building ────────────────────────────────────────────
 // The nearest fit hand does (30d sorts the town's hands by distance for every
 // worker to see whether it is the one). The same answer is found by weighing
@@ -208,7 +208,7 @@ performBuildingMaintenance = function (id, place) {
 // ── Who makes the town's tools ──────────────────────────────────────────────
 // The same rule as 30c: one scan of the living for the town's claimants (the
 // work state is made for each as before), filtered by purpose as each is asked.
-placeToolOrderForWorker = function (id, place) {
+function placeToolOrderForWorker(id, place) {
   const workers = localPlaceWorkers(place),
     kind = placeKindKey(place);
   if (!workers.includes(id)) return "";
@@ -261,7 +261,7 @@ placeToolOrderForWorker = function (id, place) {
     if (available) return "";
   }
   return "";
-};
+}
 // ── A predator near the work ────────────────────────────────────────────────
 // Every worker asks every tick whether a predator is at hand (30c), a search of
 // seven tiles round it. Where no predator lives there is none at hand: the

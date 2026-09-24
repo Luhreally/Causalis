@@ -29,16 +29,33 @@ function mix32(x) {
   x = Math.imul(x, 0x846ca68b);
   return (x ^ (x >>> 16)) >>> 0;
 }
-function hashParts(...parts) {
+// A fold of FNV over the parts, mixed. Written over `arguments` rather than a
+// rest array, and counterRand unrolled, because both are asked hundreds of
+// thousands of times a tick and the arrays were garbage (70, 2026-09).
+function hashParts() {
   let h = 2166136261 >>> 0;
-  for (const p of parts) {
-    h ^= hashPart(p);
+  for (let i = 0; i < arguments.length; i++) {
+    h ^= hashPart(arguments[i]);
     h = Math.imul(h, 16777619);
   }
   return mix32(h);
 }
+// Bit for bit hashParts(seedHash, tag, tick, id, purpose, attempt) / 2^32.
 function counterRand(tag, tick = 0, id = 0, purpose = 0, attempt = 0) {
-  return hashParts(W ? W.seedHash : 0, tag, tick, id, purpose, attempt) / 4294967296;
+  let h = 2166136261 >>> 0;
+  h ^= hashPart(W ? W.seedHash : 0);
+  h = Math.imul(h, 16777619);
+  h ^= hashPart(tag);
+  h = Math.imul(h, 16777619);
+  h ^= hashPart(tick);
+  h = Math.imul(h, 16777619);
+  h ^= hashPart(id);
+  h = Math.imul(h, 16777619);
+  h ^= hashPart(purpose);
+  h = Math.imul(h, 16777619);
+  h ^= hashPart(attempt);
+  h = Math.imul(h, 16777619);
+  return mix32(h) / 4294967296;
 }
 function makeRng(seed, tag) {
   let state = hashParts(seed, tag) || 0x9e3779b9;
@@ -63,15 +80,6 @@ function makeRng(seed, tag) {
       state = v >>> 0;
     },
   };
-}
-function streamRand(name) {
-  let x = W.streams[name] >>> 0;
-  x ^= x << 13;
-  x ^= x >>> 17;
-  x ^= x << 5;
-  x >>>= 0;
-  W.streams[name] = x;
-  return x / 4294967296;
 }
 function noise2(seed, x, y) {
   let xi = Math.floor(x),

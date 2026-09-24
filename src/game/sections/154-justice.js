@@ -165,9 +165,9 @@ function lawCodeFor(f) {
   if (i && i.openness > 0.2) return "fines";
   return "wergild";
 }
-chooseLawCode = function (f) {
+function chooseLawCode(f) {
   return lawCodeFor(f);
-};
+}
 function reviseLawCodes() {
   for (const f of W.factions) {
     if (
@@ -527,9 +527,9 @@ stealFood = function (id, settlement, cause = 0) {
   return stealFoodJusticeBase(id, settlement, cause);
 };
 // The courts judge robbery now; the moment's judgement of 99 stands down.
-judgeRobbery = function () {
+function judgeRobbery() {
   return null;
-};
+}
 // The community's banishment of a thrice-caught thief, where there is no law.
 const updateExileJusticeBase = updateExile;
 updateExile = function () {

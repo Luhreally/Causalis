@@ -844,4 +844,3 @@ function drawEntitiesProcedural(now, b) {
   }
   drawEntityLabels(labels, v);
 }
-drawEntities = drawEntitiesProcedural;

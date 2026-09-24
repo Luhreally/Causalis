@@ -262,8 +262,7 @@ urbanPull = function (f, force = false) {
   return urbanPullGranaryBase(f, force);
 };
 // ── The hungry do not march ──────────────────────────────────────────────────
-const factionFieldableFightersGranaryBase = factionFieldableFighters;
-factionFieldableFighters = function (faction) {
+function factionFieldableFighters(faction) {
   if (!faction) return 0;
   let fighters = 0;
   for (const id of W.activeIds) {
@@ -277,7 +276,7 @@ factionFieldableFighters = function (faction) {
     if (locomotion >= 0.42) fighters++;
   }
   return fighters;
-};
+}
 // ── A person eats what they are carrying ─────────────────────────────────────
 // Foraging puts food straight in the gut; gathering puts it in a pocket, and
 // nothing ever moved it from the one to the other. So a field hand filled their

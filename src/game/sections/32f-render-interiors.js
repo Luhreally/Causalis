@@ -57,23 +57,6 @@ function householdGroups(residents) {
     .map((ids) => ids.sort((a, b) => a - b))
     .sort((a, b) => a[0] - b[0]);
 }
-function personFitsInterior(id, b, homeId) {
-  const life = W.components.life[id],
-    work = W.components.work?.[id],
-    behavior = life?.behavior || "",
-    activeWork = work && work.task !== "idle" && W.tick - work.handledTick <= 12;
-  if (life?.wounded || life?.infected) return b.type === "clinic" || b.id === homeId;
-  if (activeWork) {
-    if (work.buildingId === b.id) return true;
-    if (work.task === "craft") return ["workshop", "forge", "kiln", "archive"].includes(b.type);
-    if (work.task === "haul") return b.type === "stockpile";
-    return false;
-  }
-  if (behavior === "rest") return b.id === homeId || b.type === "hearth";
-  if (behavior === "socialize") return ["hall", "hearth", "shelter"].includes(b.type);
-  if (behavior === "food" || behavior === "water") return b.type === "hearth";
-  return b.id === homeId && peekDerivedLife(id).fatigue > 35;
-}
 function makeInteriorState(bounds) {
   const state = {
       visible: new Set(),

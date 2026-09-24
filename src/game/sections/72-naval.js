@@ -44,9 +44,6 @@ function navalStrength(f, docks) {
 function blockadeOf(place) {
   return (W.naval?.blockades || []).find((b) => b.active && b.placeId === place?.id) || null;
 }
-function blockadesBy(f) {
-  return (W.naval?.blockades || []).filter((b) => b.active && b.byFactionId === f.id);
-}
 function establishBlockade(winner, loser, dock, war, cause) {
   const place = W.settlements.find((s) => s.id === dock.placeId);
   if (!place) return null;

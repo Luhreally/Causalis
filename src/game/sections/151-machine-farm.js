@@ -55,10 +55,10 @@ updateCultivatedField = function (building, place, operatorId = 0) {
 };
 // Chemistry leaves the water crafts; the count 86 and 126 read is irrigation
 // and waterworks.
-harvestTechCount = function (place) {
+function harvestTechCount(place) {
   const known = place?.knownProcesses || [];
   return (known.includes("irrigation") ? 1 : 0) + (known.includes("waterworks") ? 1 : 0);
-};
+}
 // The pump waters what the bucket did not reach.
 const placeIrrigatesMachineBase = placeIrrigates;
 placeIrrigates = function (place) {

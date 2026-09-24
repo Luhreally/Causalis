@@ -16,54 +16,8 @@ const CIVIL_PATH_REFRESH = 384,
 function seaTilePassable(tile) {
   return W.tiles.liquid[tile] > WATER_DEPTH.SHALLOW && W.tiles.fire[tile] < 400;
 }
-// Breadth-first corridor from one tile to within reach of a target.
-function civilPathFind(seed, target, factionId = 0, mode = "land") {
-  if (!(seed >= 0) || !target) return [];
-  const width = W.width,
-    parent = new Int32Array(W.tileCount).fill(-1),
-    queue = [seed],
-    reach = mode === "sea" ? 2 : 3,
-    approach = (tile) =>
-      Math.max(Math.abs((tile % width) - target.x), Math.abs(((tile / width) | 0) - target.y)),
-    [sx, sy] = xy(seed),
-    nearShoreOf = (tile, x, y) =>
-      Math.max(Math.abs((tile % width) - x), Math.abs(((tile / width) | 0) - y)) <= 6 &&
-      campaignTilePassable(tile, factionId, false),
-    // A sea road may begin and end with a short walk to and from the shore.
-    passable =
-      mode === "sea"
-        ? (tile) =>
-            seaTilePassable(tile) ||
-            nearShoreOf(tile, sx, sy) ||
-            nearShoreOf(tile, target.x, target.y)
-        : (tile) => campaignTilePassable(tile, factionId, false);
-  parent[seed] = seed;
-  let best = -1,
-    bestApproach = Infinity,
-    explored = 0;
-  for (let cursor = 0; cursor < queue.length; cursor++) {
-    const current = queue[cursor],
-      d = approach(current);
-    if (d < bestApproach) {
-      bestApproach = d;
-      best = current;
-      if (d <= reach) break;
-    }
-    if (++explored > 24000) break;
-    for (const next of neighbors4(current)) {
-      if (parent[next] !== -1 || !passable(next)) continue;
-      parent[next] = current;
-      queue.push(next);
-    }
-  }
-  if (best < 0 || bestApproach > reach) return [];
-  const path = [];
-  for (let tile = best, guard = 0; guard <= W.tileCount; tile = parent[tile], guard++) {
-    path.push(tile);
-    if (parent[tile] === tile) break;
-  }
-  return path.reverse();
-}
+// Whether a corridor runs from one tile to within reach of a target (the
+// search is civilPathFind, 96).
 function civilReachable(fromTile, target, factionId = 0, mode = "land") {
   return civilPathFind(fromTile, target, factionId, mode).length > 0;
 }

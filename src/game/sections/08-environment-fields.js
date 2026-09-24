@@ -1,13 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // 8. ENVIRONMENTAL FIELDS
 // ═══════════════════════════════════════════════════════════════════════════
-function transferChem(from, to, species, amount) {
-  amount = Math.max(0, Math.min(amount, from[species] || 0, 65535 - (to[species] || 0))) | 0;
-  if (!amount) return 0;
-  from[species] -= amount;
-  to[species] = (to[species] || 0) + amount;
-  return amount;
-}
 function diffusePair(arr, a, b, rate, delta) {
   const d = arr[a] - arr[b],
     flow = Math.trunc(d * rate);

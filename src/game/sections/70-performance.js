@@ -60,33 +60,6 @@ seasonHemisphere = function (x, y) {
   if (cached === cached) return cached;
   return (cache.values[i] = seasonHemispherePerfBase(x, y));
 };
-// ── Random draws without an arguments array ────────────────────────────────────
-// Bit-for-bit the same as hashParts(seedHash, tag, tick, id, purpose, attempt).
-counterRand = function (tag, tick = 0, id = 0, purpose = 0, attempt = 0) {
-  let h = 2166136261 >>> 0;
-  h ^= hashPart(W ? W.seedHash : 0);
-  h = Math.imul(h, 16777619);
-  h ^= hashPart(tag);
-  h = Math.imul(h, 16777619);
-  h ^= hashPart(tick);
-  h = Math.imul(h, 16777619);
-  h ^= hashPart(id);
-  h = Math.imul(h, 16777619);
-  h ^= hashPart(purpose);
-  h = Math.imul(h, 16777619);
-  h ^= hashPart(attempt);
-  h = Math.imul(h, 16777619);
-  return mix32(h) / 4294967296;
-};
-// hashParts without a rest array; the same fold over the same parts.
-hashParts = function () {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < arguments.length; i++) {
-    h ^= hashPart(arguments[i]);
-    h = Math.imul(h, 16777619);
-  }
-  return mix32(h);
-};
 // ── Per-tick memos for reads that many systems repeat within one tick ─────────
 // Each memo lives for one tick of one world. Within a tick these answers can go
 // stale by at most the tick's own changes, which is what every caller already

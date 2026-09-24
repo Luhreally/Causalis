@@ -81,7 +81,7 @@ function fitToHelp(id) {
     task !== "fight"
   );
 }
-updatePersonRescue = function () {
+function updatePersonRescue() {
   if (W.tick % 4 !== 2) return;
   const people = W.activeIds.filter((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id)),
     busyHelpers = new Set();
@@ -114,7 +114,7 @@ updatePersonRescue = function () {
     if (best.skill >= 10) AID.healersHelped++;
     if (performRescue(best.id, victim)) rescues++;
   }
-};
+}
 // Aid given is the healer's craft learned.
 const emitEventAidBase = emitEvent;
 emitEvent = function (type, data = {}) {

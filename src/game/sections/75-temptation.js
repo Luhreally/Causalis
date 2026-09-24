@@ -51,7 +51,7 @@ function affairOpportunity(initiatorId, otherId) {
     0.9,
   );
 }
-maybeStartAffair = function (initiatorId, otherId, sharedKin) {
+function maybeStartAffair(initiatorId, otherId, sharedKin) {
   const initiator = ensureSocialEmotion(initiatorId),
     relationship = relationshipState(initiatorId, otherId),
     reciprocal = relationshipState(otherId, initiatorId);
@@ -80,7 +80,7 @@ maybeStartAffair = function (initiatorId, otherId, sharedKin) {
   if (opportunity < 0.35) return;
   if (counterRand("affair-opportunity", cycle, initiatorId, otherId) < opportunity * AFFAIR_CHANCE)
     startAffair(initiatorId, otherId);
-};
+}
 // Courtship becomes a partnership when the three measures are all good.
 const updateRelationshipPairTemptationBase = updateRelationshipPair;
 updateRelationshipPair = function (id, otherId) {

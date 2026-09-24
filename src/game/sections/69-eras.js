@@ -12,15 +12,6 @@
 // starflight, and one day send the first ship off the world, which begins the
 // Age of Stars and shows an ending screen the player can close and keep
 // watching past. Rendering only reads the world.
-const AGES = Object.freeze([
-  { tier: 0, gloss: "Stone", techs: [] },
-  { tier: 1, gloss: "Hearths", techs: ["controlled_fire"] },
-  { tier: 2, gloss: "Metal", techs: ["metalworking"] },
-  { tier: 3, gloss: "Letters", techs: ["writing", "governance"] },
-  { tier: 4, gloss: "Engines", techs: ["mechanization", "waterworks"] },
-  { tier: 5, gloss: "Stewardship", techs: ["planetary_stewardship"] },
-  { tier: 6, gloss: "Stars", techs: [] },
-]);
 function ensureEras(world = W) {
   if (!world) return;
   world.ages = world.ages || [];
@@ -63,79 +54,6 @@ function currentAge() {
   ensureEras();
   return W.ages.at(-1) || { tier: 0, gloss: "Stone", name: "", tick: 0 };
 }
-function techTierOf(place) {
-  let tier = 0;
-  for (const age of AGES)
-    if (age.techs.some((t) => place.knownProcesses.includes(t))) tier = Math.max(tier, age.tier);
-  return tier;
-}
-function reachedTier() {
-  let tier = 0,
-    leader = null;
-  for (const s of W.settlements) {
-    if (s.ruined || !s.knownProcesses) continue;
-    const t = techTierOf(s);
-    if (t > tier) {
-      tier = t;
-      leader = s;
-    }
-  }
-  if (W.ascensions?.length) {
-    tier = 6;
-    leader = W.settlements.find((s) => s.id === W.ascensions[0].settlementId) || leader;
-  }
-  return { tier, leader };
-}
-function updateAges(silent = false) {
-  ensureEras();
-  const { tier, leader } = reachedTier(),
-    current = currentAge();
-  if (tier <= current.tier) return null;
-  let last = null;
-  // Every age passed through is recorded, so the annals never skip one.
-  for (let t = current.tier + 1; t <= tier; t++) {
-    const def = AGES[t],
-      f = leader ? W.factions.find((x) => x.id === leader.factionId) : null,
-      age = {
-        tier: t,
-        gloss: def.gloss,
-        name: ageName(t),
-        tick: W.tick,
-        eventId: 0,
-        place: leader?.name || "",
-        factionId: f?.id || 0,
-      };
-    W.ages.push(age);
-    if (!silent) {
-      const ev = emitEvent("AgeEvent", {
-        subjects: leader ? [leader.entityId] : [],
-        location: leader ? idx(leader.x, leader.y) : -1,
-        factions: f ? [f.id] : [],
-        causes: [W.lastEventByType.AscensionEvent, W.lastEventByType.TechAdvanceEvent].filter(
-          Boolean,
-        ),
-        evidence:
-          t === 6
-            ? ["a ship left the world"]
-            : [
-                `${def.techs.map((x) => technologyDefinition(x)?.name || x).join(" or ")} was known`,
-              ],
-        importance: 5,
-        data: {
-          tier: t,
-          gloss: def.gloss,
-          name: age.name,
-          place: leader?.name || "",
-          polity: f?.name || "",
-          year: formatYear(),
-        },
-      });
-      age.eventId = ev.id;
-    }
-    last = age;
-  }
-  return last;
-}
 // ── Leagues ────────────────────────────────────────────────────────────────────
 function livingPolities() {
   return W.factions.filter((f) =>
@@ -144,31 +62,6 @@ function livingPolities() {
 }
 function alliedPair(a, b) {
   return !!(a.allies?.includes(b.id) && b.allies?.includes(a.id));
-}
-function leagueClusters() {
-  const living = livingPolities(),
-    byId = new Map(living.map((f) => [f.id, f])),
-    seen = new Set(),
-    clusters = [];
-  for (const f of living) {
-    if (seen.has(f.id)) continue;
-    const stack = [f],
-      members = [];
-    seen.add(f.id);
-    while (stack.length) {
-      const x = stack.pop();
-      members.push(x.id);
-      for (const id of x.allies || []) {
-        const y = byId.get(id);
-        if (y && !seen.has(id) && alliedPair(x, y)) {
-          seen.add(id);
-          stack.push(y);
-        }
-      }
-    }
-    if (members.length >= 3) clusters.push(members.sort((p, q) => p - q));
-  }
-  return clusters;
 }
 function polityNames(ids) {
   return ids.map((id) => W.factions.find((f) => f.id === id)?.name || "a lost polity");

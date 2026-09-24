@@ -101,56 +101,8 @@ function squareTilesAround(centerTile, radius) {
   return tiles;
 }
 
-function cultivatedPlotClear(tile, building, fieldId = 0) {
-  if (!Number.isInteger(tile) || tile < 0 || tile >= W.tileCount) return false;
-  const [x, y] = xy(tile);
-  if (Math.max(Math.abs(x - building.x), Math.abs(y - building.y)) < 2) return false;
-  return (
-    developmentFootprintClear(x, y, 1, building.id, fieldId) &&
-    W.tiles.liquid[tile] < 650 &&
-    W.tiles.fire[tile] < 120
-  );
-}
-
-function chooseCultivatedPlot(building, fieldId = 0) {
-  const rotation = Math.abs(building.styleSeed || building.id) % 8,
-    ringOffsets = [];
-  for (let ring = 2; ring <= 9; ring++)
-    for (let dy = -ring; dy <= ring; dy++)
-      for (let dx = -ring; dx <= ring; dx++)
-        if (Math.max(Math.abs(dx), Math.abs(dy)) === ring) ringOffsets.push([dx, dy]);
-  if (ringOffsets.length) {
-    const shift = rotation % ringOffsets.length;
-    ringOffsets.push(...ringOffsets.splice(0, shift));
-  }
-  for (const [dx, dy] of ringOffsets) {
-    const x = building.x + dx,
-      y = building.y + dy;
-    if (!inside(x, y)) continue;
-    const tile = idx(x, y);
-    if (cultivatedPlotClear(tile, building, fieldId)) return tile;
-  }
-  return null;
-}
-
 function fieldPlace(field) {
   return placeByRef(field.placeKind, field.placeId);
-}
-
-function transferPlaceMatterToTile(place, tile, requests) {
-  const moved = {};
-  for (const [species, requested] of requests) {
-    const amount = Math.min(
-      requested,
-      place.inventory?.[species] || 0,
-      Number.MAX_SAFE_INTEGER - tileMatterAmount(tile, species),
-    );
-    if (!amount) continue;
-    place.inventory[species] -= amount;
-    setTileMatterAmount(tile, species, tileMatterAmount(tile, species) + amount);
-    moved[species] = amount;
-  }
-  return moved;
 }
 
 function transferPlaceMatterToField(place, tiles, requests) {
@@ -263,83 +215,6 @@ function sowCultivatedField(workerId, field, place) {
     field.buildingId,
   );
   return true;
-}
-
-function updateCultivatedField(building, place, operatorId = 0) {
-  const field = cultivatedField(building);
-  if (!field || !place || !["sown", "growing"].includes(field.stage)) return 0;
-  const tiles = field.tiles?.length ? field.tiles : [field.tile],
-    viableTiles = tiles.filter((tile) => W.tiles.fire[tile] <= 90 && tileMoisture(tile) >= 8);
-  if (!viableTiles.length) {
-    const cause = W.events.findLast(
-        (event) =>
-          tiles.includes(event.location) &&
-          ["FireStartedEvent", "FireDisasterEvent", "DroughtEvent"].includes(event.type),
-      )?.id,
-      ev = emitEvent("CropFailedEvent", {
-        subjects: [operatorId, place.entityId].filter(Boolean),
-        location: field.tile,
-        factions: place.factionId ? [place.factionId] : [],
-        causes: [cause || field.causeEvent],
-        evidence: [
-          `all ${tiles.length} producer tiles fell below the moisture/fire viability threshold`,
-          "remaining crop matter stayed in the tile substrate for decay or later recovery",
-        ],
-        magnitude: field.growth,
-        importance: 2,
-        data: {
-          fieldId: field.id,
-          crop: field.cropName,
-          fire: Math.max(...tiles.map((tile) => W.tiles.fire[tile])),
-        },
-      });
-    field.stage = "fallow";
-    field.growth = 0;
-    field.causeEvent = ev.id;
-    for (const tile of tiles) {
-      const baseline = field.baselines?.find((candidate) => candidate.tile === tile);
-      if (baseline) W.tiles.plantOrder[tile] = u16(baseline.plantOrder);
-    }
-    if (place.importantEvents) place.importantEvents.push(ev.id);
-    return 0;
-  }
-  let grew = 0;
-  const photosynthesis = reactionById("photosynthesis");
-  for (const tile of viableTiles)
-    grew += executeProcess("photosynthesis", invTile(tile), 1, {
-      externalEnergy: photosynthesis?.externalEnergyRequirement || 0,
-      externalFlux: W.laws.solarFlux,
-      location: tile,
-    });
-  field.lastGrowthTick = W.tick;
-  if (!grew) return 0;
-  field.growth += grew;
-  field.stage = "growing";
-  for (const tile of viableTiles)
-    W.tiles.plantOrder[tile] = u16(
-      W.tiles.plantOrder[tile] + Math.max(1, Math.ceil((grew * 8) / viableTiles.length)),
-    );
-  field.cropChemistry = fieldChemistrySignature(field);
-  if (W.tick - field.sowTick >= 64 && field.growth >= Math.max(6, tiles.length)) {
-    field.stage = "ripe";
-    field.matureTick = W.tick;
-    const ev = emitEvent("FieldMaturedEvent", {
-      subjects: [operatorId, place.entityId].filter(Boolean),
-      location: field.tile,
-      factions: place.factionId ? [place.factionId] : [],
-      causes: [field.causeEvent],
-      evidence: [
-        `${field.growth} balanced photosynthesis extents accumulated across ${viableTiles.length}/${tiles.length} viable crop tiles`,
-        "solvent, nutrient, gas, and radiant energy produced harvestable organic matter",
-      ],
-      magnitude: field.growth,
-      importance: 1,
-      data: { fieldId: field.id, buildingId: field.buildingId, crop: field.cropName },
-    });
-    field.causeEvent = ev.id;
-    if (place.importantEvents) place.importantEvents.push(ev.id);
-  }
-  return grew;
 }
 
 function harvestCultivatedField(workerId, field, place) {
@@ -673,51 +548,6 @@ function markEnclosureBreach(herd, enclosure, attackerId, causeEvent) {
   herd.state = "material enclosure breached";
   herd.causeEvent = event.id;
   return event.id;
-}
-
-function enclosureBlocksPredator(predatorId, animalId) {
-  const herd = herdForAnimal(animalId),
-    enclosure = herdEnclosure(herd);
-  if (
-    !herd ||
-    !enclosure?.complete ||
-    enclosure.ruined ||
-    !animalInsideEnclosure(animalId, herd, enclosure)
-  )
-    return false;
-  const predator = W.components.position[predatorId];
-  if (!predator || animalInsideEnclosure(predatorId, herd, enclosure)) return false;
-  if (enclosure.integrity <= 0) return false;
-  const life = W.components.life[predatorId],
-    previous = life?.lastEnclosureAttackTick ?? -999;
-  if (W.tick - previous >= 5) {
-    life.lastEnclosureAttackTick = W.tick;
-    const event = emitEvent("EnclosureAttackedEvent", {
-        subjects: [predatorId, animalId, herd.herderId],
-        location: idx(enclosure.x, enclosure.y),
-        causes: [herd.causeEvent],
-        evidence: [
-          `${entityName(predatorId)} reached the enclosure perimeter but not the protected prey`,
-          `${enclosure.name} is made from ${enclosure.requirements.map(([species]) => W.definitions.species[species].name).join(" and ")}`,
-        ],
-        magnitude: 1,
-        importance: 1,
-        data: { herdId: herd.id, buildingId: enclosure.id, protectedId: animalId },
-      }),
-      force = 12 + phenotype(predatorId).size * 18 + phenotype(predatorId).aggression * 12,
-      damage = damageBuildingDirect(
-        enclosure,
-        force,
-        `${entityName(predatorId)} tore at the livestock enclosure`,
-        event.id,
-      );
-    event.magnitude = damage;
-    event.data.damage = damage;
-    event.data.remainingIntegrity = enclosure.integrity;
-    if (enclosure.ruined) markEnclosureBreach(herd, enclosure, predatorId, event.id);
-    else herd.state = "predator stopped at material enclosure";
-  }
-  return true;
 }
 
 const performHuntEnclosureBase = performHunt;
@@ -1411,17 +1241,6 @@ function updatePredatorDefense() {
       responses++;
       if (!classifyAlive(predatorId)) break;
     }
-  }
-}
-
-function updateCultivatedFields() {
-  for (const building of W.buildings.filter(
-    (candidate) => candidate.type === "farm" && candidate.complete && !candidate.ruined,
-  )) {
-    const field = cultivatedField(building),
-      place = buildingPlace(building);
-    if (!field || !place || !["sown", "growing"].includes(field.stage)) continue;
-    if (W.tick - field.lastGrowthTick >= 64) updateCultivatedField(building, place, 0);
   }
 }
 

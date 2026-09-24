@@ -24,8 +24,7 @@ createOffspring = function (kind, parents, tile) {
   byKind[kind] = (byKind[kind] || 0) + 1;
   return id;
 };
-const updatePairedReproduction = updateReproduction;
-updateReproduction = function () {
+function updateReproduction() {
   const ids = W.activeIds
       .filter(
         (id) =>
@@ -73,7 +72,7 @@ updateReproduction = function () {
     used.add(id);
     used.add(mate);
   }
-};
+}
 function remember(id, eventId, emotion = "observed") {
   const m = W.components.memory[id];
   if (!m) return;
@@ -124,23 +123,4 @@ function socialCohesionAt(i) {
       for (const id of W.spatialBins[idx(x, y)] || [])
         if (W.kind[id] === KINDS.PERSON) ids.push(id);
   return ids.length ? mean(ids.map((id) => phenotype(id).cooperation)) * W.laws.socialCohesion : 0;
-}
-function assignPartners() {
-  const people = W.activeIds.filter(
-    (id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && !W.components.social[id].partnerId,
-  );
-  for (const id of people) {
-    const near = nearbyIds(
-        id,
-        2,
-        (o) => W.kind[o] === KINDS.PERSON && !W.components.social[o].partnerId,
-      ),
-      mate = near.find((o) => (W.components.social[id].trust[o] || 0) > 0.48);
-    if (mate) {
-      W.components.social[id].partnerId = mate;
-      W.components.social[mate].partnerId = id;
-      addRelation(id, mate, "partner_of", 1);
-      addRelation(mate, id, "partner_of", 1);
-    }
-  }
 }

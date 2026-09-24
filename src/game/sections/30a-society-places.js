@@ -979,33 +979,6 @@ ruinSettlement = function (s, causes = [], evidence = "structural material faile
   recomputePlaceCapacity(s);
   return ev;
 };
-const resolveWarTurnBuildingsBase = resolveWarTurn;
-resolveWarTurn = function (war, a, b) {
-  const beforeCasualties = war.casualties,
-    beforeStability = new Map(
-      W.settlements.filter((s) => !s.ruined).map((s) => [s.id, s.stability]),
-    );
-  const result = resolveWarTurnBuildingsBase(war, a, b),
-    loss = Math.max(0, war.casualties - beforeCasualties);
-  if (loss) {
-    const target = W.settlements
-      .filter((s) => beforeStability.has(s.id))
-      .sort(
-        (x, y) =>
-          x.stability - beforeStability.get(x.id) - (y.stability - beforeStability.get(y.id)) ||
-          x.id - y.id,
-      )[0];
-    if (target && !target.ruined)
-      damageBuiltPlace(
-        target,
-        loss * 18,
-        "organized siege damage",
-        war.lastEventId || war.startEventId,
-        idx(target.x, target.y),
-      );
-  }
-  return result;
-};
 const updatePhysicalSubstrateBuildingsBase = updatePhysicalSubstrate;
 updatePhysicalSubstrate = function () {
   const row = W.tick % W.height,
@@ -1201,7 +1174,7 @@ totalChemicalEnergy = function () {
       total += (place.researchInventory?.[sp] || 0) * (energy[sp] || 0);
   return total;
 };
-createCamp = function (tile, founderId, cause = 0) {
+function createCamp(tile, founderId, cause = 0) {
   if (
     W.camps.filter((c) => c.active).length >= CAPS.camp ||
     campNear(tile, 5) ||
@@ -1266,7 +1239,7 @@ createCamp = function (tile, founderId, cause = 0) {
   planBuilding(camp, "stockpile", 5);
   planBuilding(camp, "shelter", 5);
   return camp;
-};
+}
 const createCampSocietyHomeBase = createCamp;
 createCamp = function (tile, founderId, cause = 0) {
   const social = W.components.social[founderId],
@@ -1294,7 +1267,7 @@ createCamp = function (tile, founderId, cause = 0) {
     }
   return camp;
 };
-createSettlement = function (campId, cause = 0) {
+function createSettlement(campId, cause = 0) {
   const camp = W.camps.find((c) => c.id === campId && c.active);
   if (!camp || W.settlements.filter((s) => !s.ruined).length >= CAPS.settlement) return null;
   const shelter = completedBuildings(camp, "shelter").length,
@@ -1371,7 +1344,7 @@ createSettlement = function (campId, cause = 0) {
   addRelation(s.founderId, s.entityId, "founded", 1, ev.id);
   ensurePlacePlans(s);
   return s;
-};
+}
 const createSettlementResearchBase = createSettlement;
 createSettlement = function (campId, cause = 0) {
   const camp = W.camps.find((c) => c.id === campId && c.active),

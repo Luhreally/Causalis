@@ -405,34 +405,6 @@ function discoverAffair(id, affair) {
   return ev;
 }
 
-function maybeStartAffair(initiatorId, otherId, sharedKin) {
-  const initiator = ensureSocialEmotion(initiatorId),
-    relationship = relationshipState(initiatorId, otherId),
-    reciprocal = relationshipState(otherId, initiatorId);
-  if (
-    !initiator?.partnerId ||
-    initiator.partnerId === otherId ||
-    sharedKin ||
-    affairBetween(initiatorId, otherId) ||
-    Math.min(relationship.attraction, reciprocal.attraction) <= 0.72 ||
-    Math.min(relationship.affection, reciprocal.affection) <= 0.56
-  )
-    return;
-  const bond = initiator.relationships?.[initiator.partnerId];
-  if (!bond) {
-    initiator.partnerId = 0;
-    return;
-  }
-  const opportunity = clamp(
-      (1 - bond.commitment) * 0.52 + relationship.attraction * 0.28 + initiator.aggression * 0.12,
-      0,
-      0.72,
-    ),
-    cycle = Math.floor(W.tick / 64);
-  if (counterRand("affair-opportunity", cycle, initiatorId, otherId) < opportunity * 0.018)
-    startAffair(initiatorId, otherId);
-}
-
 function updateRelationshipPair(id, otherId) {
   const a = ensureSocialEmotion(id),
     b = ensureSocialEmotion(otherId),
@@ -758,10 +730,9 @@ function updateSocialDrama(force = false) {
   }
 }
 
-const assignPartnersSocialBase = assignPartners;
-assignPartners = function () {
+function assignPartners() {
   if (W.tick % 16 === 0) updateSocialDrama(true);
-};
+}
 
 tickSystem("social drama", function () {
   if (W) updateSocialDrama();

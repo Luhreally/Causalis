@@ -449,7 +449,7 @@ runCausalSkipForDebug = function (limit = 0) {
   return result;
 };
 // ── The button: seek until the milestone, show the aim, allow a stop ───────────
-causalSkipForward = async function () {
+async function causalSkipForward() {
   if (!W) return;
   if (UI.causalSkipActive) {
     UI.causalSkipCancel = true;
@@ -515,7 +515,7 @@ causalSkipForward = async function () {
     DOM.causalSkipBtn.disabled = false;
     DOM.causalSkipBtn.textContent = "⏩ Causal skip";
   }
-};
+}
 // The frozen debug surface from the bootstrap captured the old function values.
 window.ALIFE_CAUSAL_SKIP_DEBUG = Object.freeze({
   plan: () => (W ? makeCausalSkipState() : null),
