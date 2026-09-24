@@ -9,7 +9,7 @@ new vm.Script(runtime, { filename: "causalis.runtime.js" });
 // runs as an ES module, where assigning to an undeclared function name aborts all
 // initialization before controls can bind. Catch that exact regression statically.
 const functionDeclarations = new Set(
-    [...runtime.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map((match) => match[1]),
+    [...runtime.matchAll(/\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(/g)].map((match) => match[1]),
   ),
   undeclaredOverrides = [
     ...new Set(

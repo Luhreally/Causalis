@@ -412,12 +412,15 @@ function facilityAssignment(id) {
   }
   return building;
 }
-function updateCognitionAndLabor() {
+// A generator, as the life pass is (20): it yields every TICK_SLICE places
+// and people.
+function* updateCognitionAndLabor() {
   initializeSocietyState(W);
   const ids = W.activeIds.slice().sort((a, b) => a - b),
     essential = new Set(),
     places = [...W.camps.filter((c) => c.active), ...W.settlements.filter((s) => !s.ruined)],
     coordinatedLabor = concertedIntensity() > 0;
+  let paced = 0;
   for (const place of places) {
     if (!placeNeedsLabor(place)) continue;
     const healthy = localPlaceWorkers(place)
@@ -443,8 +446,10 @@ function updateCognitionAndLabor() {
           : Math.max(2, Math.ceil(healthy.length * (projects ? 0.55 : research ? 0.4 : 0.3))),
       );
     for (const id of healthy.slice(0, slots)) essential.add(id);
+    if (++paced % TICK_SLICE === 0) yield;
   }
   for (const id of ids) {
+    if (++paced % TICK_SLICE === 0) yield;
     if (
       ![KINDS.HERBIVORE, KINDS.PREDATOR, KINDS.PERSON].includes(W.kind[id]) ||
       !classifyAlive(id) ||
@@ -527,8 +532,8 @@ function updateCognitionAndLabor() {
     }
 }
 const updateCognitionHomeBase = updateCognitionAndLabor;
-updateCognitionAndLabor = function () {
-  updateCognitionHomeBase();
+updateCognitionAndLabor = function* () {
+  yield* updateCognitionHomeBase();
   if (W.tick % 32) return;
   for (const camp of W.camps.filter((c) => c.active)) {
     const members = W.activeIds.filter(
@@ -618,9 +623,9 @@ runMetabolism = function (id, tier) {
   return runMetabolismEmergencyRationBase(id, tier);
 };
 const updateArtificialLifeSocietyBase = updateArtificialLife;
-updateArtificialLife = function () {
-  updateCognitionAndLabor();
-  updateArtificialLifeSocietyBase();
+updateArtificialLife = function* () {
+  yield* updateCognitionAndLabor();
+  yield* updateArtificialLifeSocietyBase();
 };
 function groundOwnedArtifacts(ownerId, position = null, artifactIds = null) {
   const p = position || W.components.position[ownerId],

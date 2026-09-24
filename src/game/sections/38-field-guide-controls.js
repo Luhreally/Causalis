@@ -1004,21 +1004,44 @@ function bindCameraUI() {
     UI.cameraMotion = { x: 0, y: 0, orbit: 0, tilt: 0 };
   });
 }
+// The world's share of a frame. When a tick ran whole, a frame's budget was a
+// floor, never a limit: a hundred-millisecond tick ran to its end in every
+// frame that began one. A tick in slices keeps to the budget, so the budget
+// follows the frame: the world may take about as long as the rest of the frame
+// (the drawing, the panels, the page) took, half that while the player drags
+// the view, never past CLOCK_SLICE_CAP ms (mainLoop sets it each frame). A
+// slow phone then runs at least the ticks it did and draws twice as often.
+const CLOCK_SLICE_CAP = 80;
+let clockSliceFloor = 0,
+  clockFrameRest = null,
+  clockLastSimMs = 0;
 function runSimulationClock(dt, budgetMs = null) {
-  if (!W || !UI.running || UI.clockInterrupted) return 0;
+  if (!W) return 0;
+  // A stopped clock ends the tick it was part-way through (16), as the whole
+  // tick used to run before anything could stop it.
+  if (!UI.running || UI.clockInterrupted) {
+    finishPendingTick();
+    return 0;
+  }
   accumulator += dt * UI.speed;
   const warp = UI.speed >= 128,
     fast = UI.speed >= 64,
-    budget = budgetMs ?? (warp ? 42 : fast ? 24 : UI.speed >= 16 ? 18 : 10),
+    budget = Math.max(
+      budgetMs ?? (warp ? 42 : fast ? 24 : UI.speed >= 16 ? 18 : 10),
+      clockSliceFloor,
+    ),
     started = performance.now(),
     maxSteps = warp ? 512 : fast ? 256 : UI.speed >= 16 ? 128 : 48;
   let steps = 0;
+  // A tick runs in slices until the frame's budget is spent (16) and goes on
+  // in the next frame, so one slow tick no longer holds the frame it began in.
   while (accumulator >= 100 && steps < maxSteps && UI.running && !UI.clockInterrupted) {
-    simTick();
+    if (!advanceTick(started + budget)) break;
     accumulator -= 100;
     steps++;
     if (performance.now() - started >= budget) break;
   }
+  if (UI.clockInterrupted) finishPendingTick();
   if (UI.clockInterrupted) accumulator = 0;
   else {
     const maxBacklog = maxSteps * 300;
@@ -1028,7 +1051,10 @@ function runSimulationClock(dt, budgetMs = null) {
 }
 function mainLoop(now) {
   if (!frameTime) frameTime = now;
-  const dt = Math.min(250, now - frameTime);
+  const interval = now - frameTime,
+    dt = Math.min(250, interval),
+    rest = Math.max(0, interval - clockLastSimMs);
+  clockFrameRest = clockFrameRest == null ? rest : clockFrameRest * 0.8 + rest * 0.2;
   frameTime = now;
   updateCameraKeys(dt);
   const interacting =
@@ -1037,9 +1063,13 @@ function mainLoop(now) {
     UI.followId ||
     CAMERA_GLIDE.zoom != null ||
     CAMERA_GLIDE.angle != null;
+  clockSliceFloor = Math.min(CLOCK_SLICE_CAP, clockFrameRest) * (interacting ? 0.5 : 1);
+  const simStarted = performance.now();
   runSimulationClock(dt, interacting ? 6 : null);
+  clockLastSimMs = performance.now() - simStarted;
+  clockSliceFloor = 0;
   if (W && !DOM.game.classList.contains("hidden")) {
-    const interval =
+    const renderInterval =
       UI.running && !interacting && UI.speed >= 128
         ? 160
         : UI.running && !interacting && UI.speed >= 64
@@ -1053,7 +1083,7 @@ function mainLoop(now) {
               : UI.quality === "high"
                 ? 20
                 : 33;
-    if (now - UI.lastRender >= interval) renderWorld(now);
+    if (now - UI.lastRender >= renderInterval) renderWorld(now);
     const refreshInterval =
       UI.speed >= 128 ? 1100 : UI.speed >= 64 ? 750 : UI.speed >= 16 ? 400 : 240;
     if (now - (UI.lastRefreshTime || 0) > refreshInterval) {

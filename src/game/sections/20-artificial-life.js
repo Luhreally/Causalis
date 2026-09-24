@@ -609,8 +609,11 @@ function updateBiosphereResilience() {
     recordEmergenceEvent(ev.id);
   }
 }
-function updateArtificialLife() {
+// A generator (16): every TICK_SLICE lives it yields, so a page can draw
+// part-way through a tick.
+function* updateArtificialLife() {
   const ids = W.activeIds.slice().sort((a, b) => a - b);
+  let lived = 0;
   for (const id of ids) {
     const k = W.kind[id];
     if (k !== KINDS.HERBIVORE && k !== KINDS.PREDATOR && k !== KINDS.PERSON) continue;
@@ -625,6 +628,7 @@ function updateArtificialLife() {
     if (forcedHealthUpdate && W.components.life[id])
       delete W.components.life[id].forceHealthUpdateTick;
     if (UI.clockInterrupted && UI.deathInterruptTick === W.tick) break;
+    if (++lived % TICK_SLICE === 0) yield;
   }
   resolveEffects();
 }

@@ -27,7 +27,7 @@ function statementEnd(lines, from) {
 
 function chainOf(name) {
   const escaped = name.replace(/[$]/g, "\\$"),
-    declares = new RegExp(`^(?:async\\s+)?function\\s+${escaped}\\s*\\(`),
+    declares = new RegExp(`^(?:async\\s+)?function\\s*\\*?\\s*${escaped}\\s*\\(`),
     reassigns = new RegExp(`^${escaped}\\s*=\\s*(?:async\\s+)?function\\b`),
     captures = new RegExp(`^(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*${escaped}\\s*;`),
     calls = new RegExp(`(?<![\\w$.])${escaped}\\s*\\(`),
