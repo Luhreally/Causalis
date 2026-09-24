@@ -560,7 +560,7 @@ function setCompactInstruments(compact) {
   DOM.game.classList.toggle("compact-controls", compact);
   const button = $("#instrumentMode");
   if (button) {
-    button.textContent = compact ? "All controls" : "Simple controls";
+    button.textContent = compact ? "More tools" : "Fewer tools";
     button.setAttribute("aria-pressed", String(!compact));
   }
   storeExperiencePreference("compact", compact);
@@ -581,9 +581,11 @@ function installPlayerExperience() {
     .querySelector(".side-head")
     .insertAdjacentHTML(
       "afterend",
-      '<div class="experience-toolbar"><button id="instrumentMode">All controls</button><button id="openFieldJournal">Journal</button><button id="openWatchlist">Watchlist</button></div>',
+      '<div class="experience-toolbar"><button id="instrumentMode">More tools</button><button id="openFieldJournal">Journal</button><button id="openWatchlist">Watchlist</button></div>',
     );
-  for (const anchor of [DOM.tiltRange, DOM.populationCounts])
+  // The camera (orbit, tilt, interiors) stays in the simple controls; the raw
+  // population counts are the one section kept for all controls.
+  for (const anchor of [DOM.populationCounts])
     anchor.closest(".section")?.classList.add("advanced-instrument");
   DOM.stage.insertAdjacentHTML(
     "beforeend",

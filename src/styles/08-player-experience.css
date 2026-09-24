@@ -134,11 +134,15 @@ body {
   border-color: var(--cyan);
   color: var(--cyan);
 }
+/* Simple controls keep the everyday tools and the divine acts (54), the heart
+   of a god game, which they used to hide with the other twenty. */
 .compact-controls
   #toolGrid
   .tool:not([data-tool="inspect"]):not([data-tool="rain"]):not([data-tool="ignite"]):not(
     [data-tool="plants"]
-  ):not([data-tool="person"]):not([data-tool="heal"]):not(.active) {
+  ):not([data-tool="person"]):not([data-tool="heal"]):not([data-tool="anoint"]):not(
+    [data-tool="whisper"]
+  ):not([data-tool="sign"]):not([data-tool="truce"]):not([data-tool="discord"]):not(.active) {
   display: none;
 }
 /* The simple controls keep the tools compact; every map lens stays in reach (140). */
