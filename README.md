@@ -38,6 +38,15 @@ its cause has gone. A town learns what its sister towns already practise at
 the polity's pace, and the chronicle names the teacher: the archive, a ruin,
 a sister town, a neighbour, or the world's memory of the craft.
 
+A settled people works at its own steady pace, and the concerted effort is
+called only by real need: a town whose people are too thirsty to work or
+whose stores are empty, a war, a band with no home, or the player's Causal
+skip. A new field is seeded from the wild growth on its own plot, so a hungry
+town is no longer left without fields, and a town hurries no child for a year
+after a lean season, so it grows no faster than its fields can feed. On a
+phone the world's tick is spread across frames, so a slow tick no longer
+freezes the screen.
+
 A bed now has an address. Households keep their homes between visits, move out
 of ruins, and fit within the beds actually built. Later cities distinguish
 partners and dependent children from grown children beginning households of

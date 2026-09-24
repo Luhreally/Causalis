@@ -1,10 +1,11 @@
 # Handoff
 
 > **Where to start (2026-09-23):** "How the code is laid out" and "Working
-> rules" below are current as of sections 37 and 38: the tick, the
+> rules" below are current as of sections 37 to 39: the tick, the
 > chronicle's sentences and the town and polity pages are registries, the
-> suite runs in twenty-five seconds, and `npm run oracle` says whether a change
-> left the world alone. Section 38 ends with what is open. Sections 9 to 36
+> tick runs in slices on the page, the suite runs in forty seconds (every slow
+> mode passes), and `npm run oracle` says whether a change left the world
+> alone. Section 39 ends with what is left to do. Sections 9 to 36
 > record the measured history of the balance work; `docs/CITY-CHECKPOINT.md`
 > is older still and kept as history.
 
@@ -4367,7 +4368,8 @@ otherwise, and the oracle reads every place and polity page the same to the
 byte. Justice (154) still wraps the polity page, because it reads the page it
 is given; it comes last in the manifest, so the order is unchanged.
 
-**What is open, in the order I would take it:**
+**What was open, in the order I would take it** (the first two and the last were
+taken up in section 39, which ends with what is left):
 
 - The effort and the births: the thirst trigger above, with research tempo
   and the birth brakes retuned together. It is the largest remaining
@@ -4399,9 +4401,180 @@ is given; it comes last in the manifest, so the order is unchanged.
   simulation" (`node scripts/test.cjs --slow mode:`). The second may be the
   skip's concerted effort doing what it is for; read the test before the sim.
 
+### 39. Nothing handed back open: the slow modes, the settled pace, fields before the ship, and a tick in slices (2026-09-24)
+
+Asked, after section 38 ended with a list of what was open: fix it, and hand
+nothing back with issues. The list's three heads were the concerted effort
+and the births, the tick off the page's thread, and two slow smoke modes that
+had failed since before the refactor. What was done, in order:
+
+**Every slow smoke mode passes (c3f369f).** Three tests asked the wrong
+question. The default mode read the surface water once, at tick 4096, against
+a line set before the sky breathed (17): rain now lays a film above the
+natural waterline that drains between rains (on glass-orbit 24 to 63 thousand
+in Rain and Storm years, 300 to 3,000 in clear ones, over 12,288 ticks, never
+a flooded land tile), and tick 4096 fell in a Rain year. It reads the surface
+every 256 ticks now; a flood is water that stays. CAUSAL_SKIP compared a skip
+with plain ticks, and a skip has pushed toward its aim after every 128th tick
+since section 79; the manual road now plans, ticks, pushes and releases as the
+skip does, and the hashes agree (a skip does nothing else). QUICK_VISUAL's
+edge-scroll probe put the pointer at the edge without moving it there, so it
+passed only in a process younger than a second and a half; it moves the
+pointer now. `node scripts/test.cjs --slow`: 125 of 125. The runner's rule
+that a silent test has not passed no longer applies to the root smoke test's
+modes, which report by exit code.
+
+**A tick in slices (92d3ac0).** The Web Worker was measured before it was
+built, and it would have been slower: the drawing and the panels read 9.6 of
+the phone world's 11.4 MB (a recording proxy over W round a render and a
+refresh; scratchpad `render-reads.cjs`), and a structured clone of W costs 64
+ms to unpack on the main thread against a 16 ms tick (`clone-cost.cjs`). A
+worker pays only once the entities live in shared typed arrays, which also
+needs cross-origin isolation that GitHub Pages cannot send. What a slow phone
+suffers is one tick holding a frame, so the tick is a generator of steps now
+(16): the calendar, the substrate, every life and every labourer in runs of
+sixteen (20, 30d), the slower passes, each tick system. `simTick` runs one to
+its end, the same world to the bit (the oracle read identical to the golden
+record); the page's clock runs slices until its frame's share is spent and
+draws in between. Between slices the tick's memos are off, and whatever would
+change the world, save it or step it ends the tick first (166: a click, a
+changed control or a sent form in the capture phase; a tool; a save or an
+export; a stopped clock; `stepTicks`; `simTick`). The clock's share follows
+the frame (38): about as long as the rest of the frame took, half while the
+view is dragged, never past 80 ms. A whole tick used to overrun any budget,
+so a budget was a floor; kept to exactly, the old budgets starved the world
+(1.2 ticks a second where the old clock ran 4.4, on the same loaded machine).
+`tests/sliced-clock-smoke.cjs` ticks the phone fixture a step at a time, drawn
+in two views with every panel refreshed and an inspector read between steps,
+and every tick ends the same to the bit as one ticked whole.
+
+Measured in headless Chrome at four times CPU throttle on a phone screen (the
+late 256-person world, Lean, scratchpad `phone-frames.cjs` against two
+`vite preview` builds, interleaved): at 1x the frames came about twice as
+often (3.7 to 3.9 a second against 1.9 to 2.5) and the worst frame fell from
+1.1 to 1.3 s to about 950 ms; at 16x 4.4 to 4.9 frames a second against 2.7
+to 4.3, the worst 370 to 590 ms against up to 2.4 s. Ticks a second held at
+16x (1.8 to 4.0 against 2.8 to 4.3) and fell by about a quarter at 1x (1.4 to
+2.0 against 2.0 to 2.6), where the 80 ms cap binds. At that throttle the
+frame is now the drawing's: the median frame stays 180 to 250 ms with the
+tick sliced. A few cadence passes cannot be sliced yet and still hold a frame
+when they fall: on a loaded desktop the settlement pass (up to 60 ms, every 32
+ticks), fields and herds (53, every 32), road freight (53, once a year), bonds
+(42, every 32); scratchpad `slowest-systems.cjs`, `step-probe.cjs`. Each is
+a chain whose wrappers act round its base, and bonds keeps a memo for its
+pass, so slicing them means pausing those memos too.
+
+**The settled pace (40db0ad).** The concerted effort (41) was
+on in every settled world from its first camp: it was called whenever a
+town's stored water fell under eight a head, and no town stores water. Its
+second level set the whole game's pace (every healthy hand at the work, loads
+of 32, building and hauling ten times the lone worker, inquiry nine, a fed
+household's next child five times sooner under the granary's brakes), and the
+game, to the ship, was balanced on it. That pace is the ordinary pace of a
+settled world now, said as such: `settledPace()`, which every consumer of the
+pace reads (21, 30c, 30d, 30e, 30f, 127, 137). The effort itself is called by
+need that is real: a town whose people are too thirsty to work (the share past
+the labour gate's line, 70: two in five for the highest level, one in seven
+for the first) or whose stores are empty, a war, a band with no home, or the
+player's skip; `concertedNeeds()` says which. Tried in section 38 the other
+way round, an honest trigger with nothing folded in, crafts at year sixty
+fell to a third. Folded: the grown fixtures keep their course for 1,024 ticks
+and one road for thirty years; two roads part in their first year, where the
+founding band worked at the settled pace from its first camp rather than from
+the first effort check at tick 128. Ordinary play (no skips, 120 years,
+`scripts/regression-200.cjs`) keeps its crafts and people on causal-origin,
+ship-b and variety-3. Sweep of the settled pace alone: battery 49 81 61 64
+64 - 66 67 85 85 70 (the island had met its last requirement at press 40 and
+not yet flown), phone 63 64 56 63 71 62 57 71 78 62 68.
+
+**Fields and births (fc111c7).** The ×5 haste was suspected
+of the famines of ordinary play first, and it was not the whole of it: in
+variety-3's lean decades only 5 to 15 in a hundred people stood at the
+hurried pace (scratchpad `overshoot-probe.cjs`). The island's second town
+starved because its fields were never built. Its two field sites stood at
+stage nought from year 17 to year 50 (`farm-probe.cjs`, `stuck-probe.cjs`,
+`worker-probe.cjs`): each lacked the seven organic its first crop is sown
+from, the town had none in store (the labour pool never draws the bread), and
+the gatherers sent for it were hungry and ate what they carried. Two changes
+in 137:
+
+- *A field site is seeded from its own plot.* Once a quarter-year a field
+  site lacking organic, in a town with a hand fit to work, takes it from the
+  growth on its three by three, a carry at a time; the matter moves from the
+  tiles into the site. `tests/field-plot-smoke.cjs`.
+- *Hungry hands build a lean town's waiting field before the ship too* (they
+  did only behind it): a resident at hunger 68 to 92 carries its common
+  material from the town's stores and works its face. `tests/waiting-field`
+  now asserts it.
+
+Each piece was A/B'd on the launch road; four were tried and taken out. A
+meal at home before labour, lifted before the ship, took the hungry off the
+granary's sowing and reaping and doubled a skip's famine on variety-1 (a
+second toll of 24). The waiting field first, lifted before the ship, held
+causal-origin seventeen years on its last two tower blocks (68; 51 without
+it). Re-siting and giving up plots trust the open-ground flood (128), which a
+crowded centre walls in, and left a town with no field planned for thirty
+years. Sowing a fallow field from its own growth slowed three of four worlds
+and did not help the island; done naively it also measured the ground's level
+after lifting the seed, so every harvest would have stripped the plot. A
+fifth was tried on the skip, and taken out: leading a press with the town
+whose shortfall the effort can close rather than the one a person short
+(ship-b's nine-person lead held a press for 23 years), but the big town's
+clinic then took 16 years to raise, and ship-b launched at 105 against 96.
+
+Fed better, towns grew past what their fields held: ship-b in plain play
+reached 189 people by year 100 and then starved (66 dead of hunger and 65
+eaten by year 120, against 11 and 9 on HEAD). The stores are full after a
+harvest and thin before the next, so a town living at the edge read a
+surplus every autumn and hurried the next generation into a lean spring. *A
+town remembers its last lean season* now (82): the granary writes down the
+tick it last read a town lean, hungry past a tenth, short of the haste line
+or in famine (every 32 ticks, `town.hardTick`), and no child there is
+hurried for a year after. `tests/granary-memory-smoke.cjs`. Plain play, 120
+years, five seeds (causal-origin, ship-b, ship-c, variety-1, variety-3),
+summed: hungry-by-decade 450 on HEAD, 293 now; eaten 88 and 78; starved 57
+and 50; ship-b 11 and 0 starved, ship-c 110 and 21 hungry; the crafts at year
+120 the same. 
+
+The launch sweep of the final tree (11 seeds x 2 sizes, 40 presses, lean;
+scratchpad `sweeps/final-*`), against HEAD before this section: every world
+launches; battery 49 81 69 68 55 109 81 69 76 78 63 (median 68 to 69, the mean
+without the island 68.6 to 68.9, the island 279 to 109), phone 61 65 59 66 71
+63 59 59 83 66 67 (median 66 to 65). Baseline e8375dfd to cea09323 (pace) to
+5e622ad8 (fields); the oracle's golden copy is re-recorded. `node
+scripts/test.cjs --slow`: 128 of 128.
+
+**What is left, in the order I would take it.** Nothing here is broken; these
+are the next levers, each with its measure.
+
+- The drawing is the phone's frame now: at four times throttle the median
+  frame stays 180 to 250 ms on the late world with the tick sliced. Render
+  cost (canvas calls per frame, `phone-frames.cjs` with OPS=1) is the lever.
+- Four cadence passes are not sliced: the settlement pass, fields and herds,
+  road freight, bonds (20 to 60 ms each on a loaded desktop, every 32 ticks or
+  once a year). Each is a chain; slicing one means a generator base, wrappers
+  that yield through it, and its pass memo (bonds' BOND_PASS) paused between
+  slices as PERF_TICKING is. Prove each with `sliced-clock-smoke`.
+- A Web Worker pays only once entities live in shared typed arrays, and that
+  needs cross-origin isolation GitHub Pages cannot send.
+- Ship-b on the battery is the slowest ordinary world (79 to 105 across this
+  section's trees): its presses stall on a lead town one person short, or on a
+  clinic that takes sixteen years in the bigger town; the lead rule tried
+  here was worse and is out.
+- From section 38, still as they were: exact labour caches, section 70's memo
+  window, war from what is at stake, knowledge carried by people, the display
+  chains that splice HTML by hand.
+
 ## The recent commits, newest first
 
 ```
+fc111c7  A field site is seeded from its own plot, hungry hands build it before the ship, and a town remembers its lean season
+40db0ad  The settled pace is the ordinary pace, and the concerted effort answers need
+92d3ac0  A tick runs in slices: a slow phone's tick no longer holds a frame
+c3f369f  Every slow smoke mode passes: the flood test reads the rain, the skip test takes the skip's road, the edge probe moves its pointer
+36724d3  Note the two slow modes that fail as they did before the refactor
+68a6112  The root smoke test's modes report by exit code, as they always did
+9e5a290  Record the rules that now act, the herd, whom a town learns from, and pages as blocks
 52e8363  A town learns what its polity practises at the polity's pace
 0695c51  The polity page is a list of blocks too: seventeen wrappers become registrations
 c3e92e5  The place page is a list of blocks, not twenty-eight wrappers splicing strings
