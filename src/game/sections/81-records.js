@@ -143,7 +143,10 @@ const updateTechnologyRecordsBase = updateTechnology;
 updateTechnology = function () {
   updateTechnologyRecordsBase();
   if (W.tick % RECORDS_CADENCE === 128) recordFactionKnowledge();
-  if (W.tick % RECORDS_CADENCE === 64) recoverRecordedKnowledge();
+  // updateTechnology runs only at multiples of 128, so a pass keyed to 64 of
+  // 256 never came: no town ever relearned a craft from its archive. It comes
+  // at the other half of the cycle from the recording.
+  if (W.tick % RECORDS_CADENCE === 0) recoverRecordedKnowledge();
 };
 // ── Chronicle and pages ────────────────────────────────────────────────────────
 eventText(["KnowledgeRecoveredEvent"], function (e, next) {

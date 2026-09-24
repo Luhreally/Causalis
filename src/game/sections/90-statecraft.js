@@ -152,7 +152,12 @@ relationPressure = function (a, b) {
     o = (opinionOf(a, b) + opinionOf(b, a)) / 2;
   p.opinion = o;
   p.pressure -= o * 0.4;
-  if (W.diplomacy && activeTreaty("pact", a, b)) p.pressure = Math.min(p.pressure, 50);
+  // A pact holds the pressure between two polities at fifty, under the line
+  // where relations turn hostile (58) and far under war (105). Capping the
+  // turn's pressure at fifty did not: pressure is carried from turn to turn
+  // (0.85 of the last, 28), so it settled near two hundred and wars began under
+  // pacts. A turn's share is capped so the carried pressure settles at fifty.
+  if (W.diplomacy && activeTreaty("pact", a, b)) p.pressure = Math.min(p.pressure, 50 * 0.15);
   return p;
 };
 // ── Treaties of statecraft ────────────────────────────────────────────────────

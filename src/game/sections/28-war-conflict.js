@@ -139,6 +139,12 @@ function updateDiplomacyAndWar() {
         rel.mobilizeSince = rev.mobilizeSince = 0;
         if (rel.status === "mobilizing") rel.status = rev.status = "hostile";
       }
+      // Hostility fades when what drove it has gone. It was lifted only by a
+      // truce's end or a pact, so two polities that fell out once stayed
+      // hostile for ever, and hostile refuses relief (82), trade (89) and
+      // barter (41) between them. Under forty, well below the line of 58 at
+      // which it began, it is neutral again.
+      if (rel.status === "hostile" && rel.pressure < 40) rel.status = rev.status = "neutral";
       if (
         rel.pressure > 105 &&
         Math.min(a.militaryStrength, b.militaryStrength) > 3 &&
