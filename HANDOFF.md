@@ -1,9 +1,10 @@
 # Handoff
 
 > **Where to start (2026-09-23):** "How the code is laid out" and "Working
-> rules" below are current as of the refactor of section 37: the tick and the
-> chronicle's sentences are registries, the suite runs in twenty seconds, and
-> `npm run oracle` says whether a change left the world alone. Sections 9 to 36
+> rules" below are current as of sections 37 and 38: the tick, the
+> chronicle's sentences and the town and polity pages are registries, the
+> suite runs in twenty-five seconds, and `npm run oracle` says whether a change
+> left the world alone. Section 38 ends with what is open. Sections 9 to 36
 > record the measured history of the balance work; `docs/CITY-CHECKPOINT.md`
 > is older still and kept as history.
 
@@ -33,8 +34,8 @@ Three invariants hold everywhere and are not negotiable:
 `src/game/manifest.json`, into **one shared closure**. That has two
 consequences you must hold in your head:
 
-- **Two things a section adds by registering, not by wrapping** (since
-  2026-09-23, section 37):
+- **Three things a section adds by registering, not by wrapping** (since
+  2026-09-23, sections 37 and 38):
   - a system of the tick: `tickSystem("granary", function () { ... })` runs
     after the core tick, `calendarSystem("belief", function () { ... })` in the
     calendar after the weather. They run in registration (manifest) order, and
@@ -43,6 +44,11 @@ consequences you must hold in your head:
   - an event's sentence: `eventText(["RoadEvent"], function (e, next) { ... })`
     returns the words, or `next(e)` to leave the event to whoever told that
     type before. `npm run map -- --events Road` prints who tells a type.
+  - a block of a town's or a polity's Legends page:
+    `pageBlock("place", '<div class="subhead">Chronicle</div>', function (id) { ... })`
+    returns the block's HTML or `""`; it is laid before the first match of the
+    anchor in the page as the blocks before it left it, or at the end when the
+    anchor is `null` or not found. Manifest order is the page's order.
 - Everything else is still extended by **override chains**:
   `const base = fn; fn = function (...) { ... base(...) ... }`. Add a new
   section rather than editing an old one where you can; where you do edit an
@@ -4278,9 +4284,154 @@ of two fixtures and eight years of one world. A change to what the skip does,
 or to what fires in a grown world past those ticks, still wants the launch
 sweep on both sizes.
 
+### 38. Rules that never acted, a herd that feeds, whom a town learns from, and pages as blocks (2026-09-23)
+
+The same request as section 37, carried on without stopping: after the kernel,
+the simulation made deeper where it was only shallow by accident, the
+observatory made easier to read, and the next chains made registries. Each
+change to the road was measured on the launch sweep (eleven seeds, battery and
+phone, forty presses, lean; scratchpad `sweep-run.sh <tag> <tree> 11` and
+`sweep-sum.sh <tag>`), against the sweep before it. The sweep of section 36,
+run on the refactored tree, reproduced all 22 of its launch years exactly.
+
+**Three rules that were meant to act and did not (4fb2fe3, test 345a74d).**
+A town's archive (81) was never read: recovery waited for tick 64 of 256
+inside a pass that runs only at multiples of 128. It now comes at the other
+half of the cycle from the recording, and on the grown fixtures eight passes
+in 2,048 ticks relearned five crafts (phone) and three (battery). A pact (90)
+capped a turn's war pressure at fifty, but pressure carries from turn to turn
+(0.85 of the last), so it settled near two hundred, past the war line of 105;
+both wars begun on the phone fixture in 2,048 ticks were begun under a pact.
+The share a turn adds is now capped so the carried pressure settles at fifty,
+and no war begins under a pact. "Hostile" (28) was lifted only by a truce's
+end or a pact, so polities that fell out once refused each other relief,
+trade and barter for ever; under forty pressure (it begins at 58) they are
+neutral again. `tests/peace-holds-smoke.cjs` fails on the old code. Sweep:
+every world launches, battery median 73 to 67, phone 66 to 65.
+
+**A herd feeds its town (fab97bf, section 163).** Herds (42d) ate from their
+town's stores and gave nothing back; by year forty on causal-origin the pens
+held six to twenty-seven grazers. Above the four a herd needs to breed, a
+town's herd now gives one animal a season (every 64 ticks) when the pen holds
+more than eight or the town is going lean. The oldest is slaughtered; four
+fifths of its flesh and stored energy go to the town's stores (about four
+hundred food) and the rest to the ground. Conserved (the audit holds at 0);
+`HerdSlaughteredEvent`, filed under settlements. Sweep: every world launches,
+battery median 67 to 68, phone 65 to 64.
+
+**Whom a town learns from (52e8363).** Every craft a town finds joins the
+world's memory (`legacyProcesses`) that day, and research asked "in the
+memory?" first. The memory's pace (1.8) therefore stood in for the polity's (3)
+and the neighbour's (1.8), both gated on "not in the memory", so polity
+teaching fired only for crafts that came by another road. A sister town
+learned no faster from its own capital than a stranger did. The answer is
+now `researchTeacher(s, techId)` in 30f: the best of the archive (4), a ruin
+near (3), a sister town (3), a neighbour (1.8) or the memory (1.8) sets the
+pace, and the discovery's evidence names that teacher rather than always
+"fragments of a fallen people's knowledge". On causal-origin 23 of 68
+discoveries in forty years are a sister town's teaching (scratchpad
+`teacher-probe.cjs`). Sweep, against the husbandry tree: every world
+launches; battery median 68 to 68 (49 79 68 53 66 279 75 62 85 84 65), phone
+64 to 66 (52 73 56 66 67 65 56 71 78 63 66); four earlier and five later on
+the battery, six and five on the phone: within the chaos. The tick costs the
+same (6.15 against 6.16 ms on the battery fixture). `tests/teachers-smoke.cjs`.
+
+**Tried and taken out: the effort judged by thirst.** The concerted effort
+(41) reads a town's stored water, which no town keeps, so every world sits at
+its highest level from its first years and births run five times as fast
+(HANDOFF 1b; memory `causalis-permanent-concerted-effort`). Judging water by
+the share of a town's people who are thirsty (over two in five for the
+highest level, one in seven for the first) made the trigger honest, and the
+world starved of inquiry. Ordinary play, no skips, 120 years: crafts at year
+60 fell from 57 to 18 on causal-origin, from about 15 to 4 on ship-b, and from
+18 to 3 on variety-3. Research, births and the brakes on births were all tuned
+with the effort always on. The trigger cannot be mended alone: it wants a
+retune of research tempo and the five birth brakes together, measured by
+`scripts/regression-200.cjs` as well as the launch sweep.
+
+**The player's side.** The living polities side by side (52af6a3, section
+164): a Legends page, from a card at the head of the index, sets them in a
+table of people, towns, crafts, arms, stability, wars and government, sorted
+by any column. The History tab opens on the world's years (d7ef98f, section
+165): each age a band from year 0 to now (ages begun in the same year share
+one), each war a red mark beneath, named under the pointer. One notable event
+is told once (d64179c): the world notice (45) waits while the alert cards (49)
+show, since they carry the same event with their Legends and Go.
+
+**Pages as blocks (c3e92e5, 0695c51).** Twenty-eight sections added to a
+town's page and seventeen to a polity's by capturing the render, calling it
+and splicing HTML before a heading they searched for. They are registrations
+now (`pageBlock`, see "How the code is laid out"). The rewrite was mechanical
+(scratchpad `codemod-blocks.cjs`), refusing any link that used the page's HTML
+otherwise, and the oracle reads every place and polity page the same to the
+byte. Justice (154) still wraps the polity page, because it reads the page it
+is given; it comes last in the manifest, so the order is unchanged.
+
+**What is open, in the order I would take it:**
+
+- The effort and the births: the thirst trigger above, with research tempo
+  and the birth brakes retuned together. It is the largest remaining
+  distortion in ordinary play.
+- The tick off the page's thread. The tick touches no DOM, but drawing reads
+  W from 39 sections that also simulate; a Web Worker that owns W and posts a
+  render snapshot is the structural fix for phones (15-17 ms a tick on the
+  phone fixture now).
+- Exact caches for labour, half the tick: the research tables and work
+  orders are rebuilt per worker. Every cache tried so far moved the hash; one
+  that does not must be proved with `course-ab.cjs` on both fixtures.
+- Section 70's memos cover only the ten tick systems registered before it
+  (`endTickMemoWindow`); widening the window moves the road.
+- War from what is at stake (land, water, a craft, a holy site) rather than
+  pressure alone; the rally and interception of section 25 already give it
+  somewhere to go.
+- Knowledge carried by people: crafts belong to towns, so a migrant or a
+  refugee brings nothing. `researchTeacher` is the place a carried craft
+  would teach from.
+- The remaining display chains: the person inspector (`organismInspector`,
+  12 layers), `renderLegendIndex` (11), `nonLifeInspector` (5) and
+  `renderCulturePage` (3). The links that only splice a block can take the
+  same codemod; its dry run names the ones that cannot
+  (`node codemod-blocks.cjs <chain> <page> --dry --skip=<file>`).
+  `npm run map` and `node scripts/who-overrides.cjs --most` list the rest.
+
 ## The recent commits, newest first
 
 ```
+52e8363  A town learns what its polity practises at the polity's pace
+0695c51  The polity page is a list of blocks too: seventeen wrappers become registrations
+c3e92e5  The place page is a list of blocks, not twenty-eight wrappers splicing strings
+fab97bf  A town's herd feeds it: slaughter from a crowded pen or in a lean season
+d7ef98f  The History tab opens on the world's years: the ages as bands, the wars as marks
+345a74d  A test that the archives are read, pacts hold and hostility fades
+4fb2fe3  Archives are read, pacts keep the peace, and hostility fades when its cause has gone
+d64179c  One notable event is told once: the world notice stands aside while the alert cards show
+52af6a3  The polities side by side: a Legends page that compares the living polities
+78fd05a  Record the kernel, the suite and the oracle, the saves that continue, and the observatory's pass
+708901b  The first expedition goes on past the save: a skip, the Legends, a lens and a whisper
+c31ab43  The observatory can be read from the keyboard, its tabs are tabs, and its smallest text is larger
+69813ae  With nothing selected, the Inspect tab says what is happening in the world
+bc5c4a5  On a phone, a press that shows the world shows it, and the Causal skip is in the dock
+c95d4a1  The chronicle in plain words: places by their towns, and the commonest events said simply
+effd8a2  The line under the Causal skip names the next stage and what it still needs
+f6d1a22  Simple controls keep the divine acts and the camera
+9b7dfb0  A skip ends in a digest of what happened, and a life folded into a crowd is not counted lost
+44b01be  Trends you can read: a chart for each measure, with its value, its scale and its years
+d771bbd  From far off the map names its towns, not every notable person, and a war's name finds room
+5f5bdc1  A world fills the screen when it opens, and the centre button shows all of it
+f42be14  Small things a player meets: a confirmed regenerate, the right keys, a death in years, live names in dialogs
+2d6c9be  Panels keep their place: a section opened by hand stays open while the world runs
+f655861  An event and a craft are looked up, not searched for
+ea8dd16  A new section is one command, and the registries can be read in order
+6c40671  Twenty-seven hundred lines that could never run are gone
+a9fec37  A save continues exactly as the world it was saved from, and no page writes the world
+552beae  The scripts and tests are formatted too, and CI checks the formatting
+a07bda3  Every section is formatted as prettier formats it
+7185554  An event is told by the sections that name its type, not by fifty-two wrappers
+becb5ae  The tick is a list of named systems, not thirty-six wrappers
+6620ec7  A reconciliation between towns and a campaign's launch are told, not "undefined"
+263857b  The three stalls go: no yearly world hash, events trimmed in one pass, and a site search reads a grid
+b44294a  The suite runs in parallel in twenty seconds, and an oracle says whether a refactor changed the game
+f88dc70  Record the address, the labour thrift, the townsfolk and the machine farm, talk, first aid, justice, streets, and the sweep on both sizes
 a7bbf8e  Streets are paved from spare stone, where the town knows road-building
 30b1093  The crowd keeps to the streets it can be seen on
 c820fdd  The crowd takes the town's many: a lean world keeps twenty-eight full lives a town, the watch at ease and the marked fold too, and plans come once in sixteen ticks

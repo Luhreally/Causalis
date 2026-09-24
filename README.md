@@ -26,7 +26,17 @@ it crossed, and between skips the line under the button names the next stage
 and what it still needs. A world opens filling the screen, and from far off
 the map names its towns. On a phone the skip is in the dock, and a press that
 turns to the world closes the drawer. The first expedition goes on past its
-save to a skip, the Legends, a lens and a whisper.
+save to a skip, the Legends, a lens and a whisper. The History tab opens on
+the world's years, the ages as bands from the first peoples to now and the
+wars as marks beneath them, and the Legends compare the living polities side
+by side, sorted by any column. A notable event is told once, on its alert card.
+
+The world's rules act as they say. A town's herd feeds it when the pen is
+crowded or the season lean. A polity's archive gives back the crafts its fallen
+towns knew. Two polities under a pact keep the peace, and a grudge fades once
+its cause has gone. A town learns what its sister towns already practise at
+the polity's pace, and the chronicle names the teacher: the archive, a ruin,
+a sister town, a neighbour, or the world's memory of the craft.
 
 A bed now has an address. Households keep their homes between visits, move out
 of ruins, and fit within the beds actually built. Later cities distinguish
