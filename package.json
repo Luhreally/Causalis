@@ -10,6 +10,8 @@
     "test": "node scripts/test.cjs",
     "test:smoke-default": "node smoke-test.cjs",
     "oracle": "node scripts/refactor-oracle.cjs",
+    "new:section": "node scripts/new-section.cjs",
+    "map": "node scripts/registry-map.cjs",
     "test:cohort": "node tests/cohort-smoke.cjs",
     "test:mobile": "node tests/mobile-smoke.cjs",
     "test:conflict": "node scripts/run-smoke-mode.cjs CONFLICT_DEBUG",
