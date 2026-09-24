@@ -517,18 +517,28 @@ function drawWarFronts(now, bounds) {
               ? "forces marching"
               : "mobilizing",
         label = `${fa.name} ⚔ ${fb.name} · ${phase}`;
-      const width = ctx.measureText(label).width;
-      WAR_LABEL_HITS.push({
-        x: front.x - width / 2 - 5,
-        y: front.y - 30,
-        w: width + 10,
-        h: 15,
-        id: fa.entityId,
-      });
+      const width = ctx.measureText(label).width,
+        // Kept inside the canvas: a front near the edge wrote half its name off it.
+        left = clamp(front.x - width / 2 - 5, 4, Math.max(4, DOM.canvas.clientWidth - width - 14)),
+        textX = left + width / 2 + 5,
+        taken = [...LABEL_HITS, ...WAR_LABEL_HITS],
+        // Above the front, or the nearest place a name is not already written.
+        dy =
+          [0, -17, 17, -34, 34].find(
+            (d) =>
+              !taken.some(
+                (r) =>
+                  left < r.x + r.w &&
+                  left + width + 10 > r.x &&
+                  front.y - 30 + d < r.y + r.h &&
+                  front.y - 15 + d > r.y,
+              ),
+          ) ?? 0;
+      WAR_LABEL_HITS.push({ x: left, y: front.y - 30 + dy, w: width + 10, h: 15, id: fa.entityId });
       ctx.fillStyle = "#071016dc";
-      ctx.fillRect(front.x - width / 2 - 5, front.y - 30, width + 10, 15);
+      ctx.fillRect(left, front.y - 30 + dy, width + 10, 15);
       ctx.fillStyle = "#f2d9a4";
-      ctx.fillText(label, front.x, front.y - 19);
+      ctx.fillText(label, textX, front.y - 19 + dy);
     }
   }
   ctx.restore();

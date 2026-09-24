@@ -786,7 +786,13 @@ function drawEntityLabels(labels, v) {
   ctx.font = `${px}px system-ui`;
   ctx.textAlign = "center";
   ctx.textBaseline = "bottom";
-  const order = labels.slice().sort((a, b) => (b.priority || 0) - (a.priority || 0) || a.y - b.y),
+  // Seen from far off (a tile under nine pixels), the map names its places and
+  // the life being followed; every notable person's name as well buried the
+  // towns under a pile of names, worst on a phone.
+  const overview = (ACTIVE_RENDER_METRICS || projectionMetrics()).tw < 9,
+    order = labels
+      .filter((l) => !overview || (l.priority || 0) >= 3)
+      .sort((a, b) => (b.priority || 0) - (a.priority || 0) || a.y - b.y),
     placed = [];
   let drawn = 0;
   for (const l of order) {
