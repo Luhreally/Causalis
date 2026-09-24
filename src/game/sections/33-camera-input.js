@@ -9,14 +9,14 @@ function setView(view) {
   $$(`[data-view]`).forEach((b) => b.classList.toggle("active", b.dataset.view === view));
   DOM.viewLabel.textContent =
     view === "top" ? "Top-down" : view === "iso" ? "Isometric" : "Free 3D";
-  DOM.mapLens.textContent = `${DOM.viewLabel.textContent} substrate`;
+  DOM.mapLens.textContent = `${DOM.viewLabel.textContent} view`;
   refreshCameraControls();
   refreshUI(true);
 }
 function setOverlay(name) {
   UI.overlay = UI.overlay === name ? null : name;
   $$(`.overlay-btn`).forEach((b) => b.classList.toggle("active", b.dataset.overlay === UI.overlay));
-  DOM.mapOverlay.textContent = UI.overlay ? `${titleCase(UI.overlay)} field` : "No overlay";
+  DOM.mapOverlay.textContent = UI.overlay ? `${titleCase(UI.overlay)} lens` : "No lens";
 }
 function setTool(tool) {
   UI.tool = tool;

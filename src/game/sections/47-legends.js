@@ -786,6 +786,18 @@ function wireLegends() {
       id === undefined ? null : kind === "species" || kind === "list" ? id : Number(id),
     );
   });
+  // A name in a dialog (the ending, a life's summary) opens its page too.
+  DOM.modalLayer?.addEventListener?.("click", (e) => {
+    const link = e.target.closest?.("[data-legend]");
+    if (!link) return;
+    const [kind, id] = String(link.dataset.legend).split(":");
+    e.stopPropagation();
+    closeModal();
+    openLegend(
+      kind,
+      id === undefined ? null : kind === "species" || kind === "list" ? id : Number(id),
+    );
+  });
   DOM.rightPanel.addEventListener("input", (e) => {
     const box = e.target.closest?.("[data-legend-search]");
     if (!box) return;
