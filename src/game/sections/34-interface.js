@@ -338,12 +338,7 @@ function mountCreaturePortrait(id) {
   }
   drawCreatureGlyph(g, id, { x: width * 0.5, y: height * 0.49 }, W.tick * 12, null, 34, true);
 }
-const refreshInspectorCanonical = refreshInspector;
-refreshInspector = function () {
-  refreshInspectorCanonical();
-  if (UI.selectedEntity && W.components.life[UI.selectedEntity])
-    mountCreaturePortrait(UI.selectedEntity);
-};
+// The specimen portrait is mounted after every other card (156).
 
 function eventTree(id, depth = 0, seen = new Set()) {
   const e = eventById(id);
