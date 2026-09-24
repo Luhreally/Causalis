@@ -128,7 +128,7 @@ function openLegend(kind, id = null) {
 }
 // ── Rendering helpers ──────────────────────────────────────────────────────────
 function legendLink(kind, id, label, cls = "") {
-  return `<span class="legend-link gold ${cls}" data-legend="${kind}:${id}">${esc(String(label))}</span>`;
+  return `<span class="legend-link gold ${cls}" role="link" tabindex="0" data-legend="${kind}:${id}">${esc(String(label))}</span>`;
 }
 function lifeLink(id) {
   if (!id) return "";

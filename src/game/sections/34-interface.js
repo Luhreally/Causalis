@@ -18,7 +18,10 @@ function selectEntity(id) {
 }
 function refreshTabs(tab) {
   UI.activeTab = tab;
-  $$(`.tab`).forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+  $$(`.tab`).forEach((b) => {
+    b.classList.toggle("active", b.dataset.tab === tab);
+    b.setAttribute?.("aria-selected", String(b.dataset.tab === tab));
+  });
   $$(`.tabpane`).forEach((p) => p.classList.toggle("active", p.id === `tab-${tab}`));
   if (tab === "chronicle") refreshChronicle();
   if (tab === "warfare") refreshWarfare();
@@ -164,7 +167,7 @@ function linkedEventSentence(e) {
     if (html.includes(nm))
       html = html.replace(
         nm,
-        `<span class="gold" ${t.attr} style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="Go to ${nm} in the world">${nm}</span>`,
+        `<span class="gold" role="link" tabindex="0" ${t.attr} style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="Go to ${nm} in the world">${nm}</span>`,
       );
   }
   return html;
@@ -178,7 +181,7 @@ function eventTargetChips(e) {
     if (!id || seen.has(id) || chips.length >= 5) return;
     seen.add(id);
     chips.push(
-      `<span class="tag ${cls}" data-world-target="${id}" data-world-tile="${tile}" style="cursor:pointer" title="Go to ${esc(label)} in the world">${esc(label)}</span>`,
+      `<span class="tag ${cls}" role="link" tabindex="0" data-world-target="${id}" data-world-tile="${tile}" style="cursor:pointer" title="Go to ${esc(label)} in the world">${esc(label)}</span>`,
     );
   };
   for (const id of (e.subjects || []).slice(0, 5))
@@ -205,7 +208,7 @@ function entityLink(id) {
   const nm = entityName(id);
   if (!nm) return "";
   if (!W.kind[id] && !W.historicalIdentities[id]) return esc(nm);
-  return `<span class="gold" data-world-target="${id}" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="Go to ${esc(nm)}">${esc(nm)}</span>`;
+  return `<span class="gold" role="link" tabindex="0" data-world-target="${id}" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="Go to ${esc(nm)}">${esc(nm)}</span>`;
 }
 function eventRow(e) {
   if (!e) return "";

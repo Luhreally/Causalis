@@ -64,7 +64,7 @@
   white-space: nowrap;
 }
 .top-stat small {
-  font-size: 8px;
+  font-size: 9px;
   line-height: 1.2;
   color: var(--muted);
   text-transform: uppercase;
@@ -134,7 +134,7 @@
   justify-content: space-between;
   align-items: center;
   color: #aabcbc;
-  font-size: 9px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.13em;
   font-weight: 800;
@@ -217,7 +217,7 @@
 .overlay-group {
   grid-column: 1 / -1;
   margin-top: 6px;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--muted);
@@ -382,7 +382,7 @@ input[type="checkbox"] {
   background: #0d141b;
   padding: 9px 2px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -442,7 +442,7 @@ input[type="checkbox"] {
   margin-bottom: 8px;
 }
 .filter-pill {
-  font-size: 9px;
+  font-size: 10.5px;
   padding: 4px 6px;
 }
 .filter-pill.active {
@@ -503,7 +503,7 @@ details > div {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
 }
 .legend i {
@@ -556,5 +556,5 @@ details > div {
   padding: 1px 4px;
   color: #c3d0d0;
   font-family: ui-monospace, monospace;
-  font-size: 9px;
+  font-size: 10px;
 }

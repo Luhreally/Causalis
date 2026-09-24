@@ -249,13 +249,13 @@ This is a complete single-file deterministic Artificial-Life god-game and emerge
         <div class="side-head">
           <b>Observatory</b><button class="iconbtn small" data-collapse="right">›</button>
         </div>
-        <div class="tabs">
-          <button class="tab active" data-tab="inspect">Inspect</button
-          ><button class="tab" data-tab="chronicle">History</button
-          ><button class="tab" data-tab="legends">Legends</button
-          ><button class="tab" data-tab="warfare">Warfare</button
-          ><button class="tab" data-tab="worldinfo">World</button
-          ><button class="tab" data-tab="stats">Trends</button>
+        <div class="tabs" role="tablist" aria-label="Observatory">
+          <button class="tab active" role="tab" aria-selected="true" data-tab="inspect">Inspect</button
+          ><button class="tab" role="tab" aria-selected="false" data-tab="chronicle">History</button
+          ><button class="tab" role="tab" aria-selected="false" data-tab="legends">Legends</button
+          ><button class="tab" role="tab" aria-selected="false" data-tab="warfare">Warfare</button
+          ><button class="tab" role="tab" aria-selected="false" data-tab="worldinfo">World</button
+          ><button class="tab" role="tab" aria-selected="false" data-tab="stats">Trends</button>
         </div>
         <div class="side-scroll grow">
           <div class="section-tools">
@@ -264,12 +264,12 @@ This is a complete single-file deterministic Artificial-Life god-game and emerge
               What am I seeing?
             </button>
           </div>
-          <section id="tab-inspect" class="tabpane active"></section>
-          <section id="tab-chronicle" class="tabpane"></section>
-          <section id="tab-legends" class="tabpane"></section>
-          <section id="tab-warfare" class="tabpane"></section>
-          <section id="tab-worldinfo" class="tabpane"></section>
-          <section id="tab-stats" class="tabpane">
+          <section id="tab-inspect" role="tabpanel" class="tabpane active"></section>
+          <section id="tab-chronicle" role="tabpanel" class="tabpane"></section>
+          <section id="tab-legends" role="tabpanel" class="tabpane"></section>
+          <section id="tab-warfare" role="tabpanel" class="tabpane"></section>
+          <section id="tab-worldinfo" role="tabpanel" class="tabpane"></section>
+          <section id="tab-stats" role="tabpanel" class="tabpane">
             <div id="statsBody"></div>
           </section>
         </div>

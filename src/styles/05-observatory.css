@@ -25,7 +25,7 @@
   display: block;
   margin-top: 5px;
   color: var(--dim);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.35;
 }
 .camera-controls {
@@ -64,7 +64,7 @@
 .camera-hint {
   display: block;
   margin-top: 5px;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.35;
   color: var(--dim);
 }
@@ -110,7 +110,7 @@
   padding: 6px 8px;
   border-bottom: 1px solid #263945;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }

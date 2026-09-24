@@ -97,6 +97,17 @@ function installPanelMemory() {
     },
     true,
   );
+  // A name, a place or an event written as a link answers Enter and Space as a
+  // link does, so the observatory can be read from the keyboard.
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const link = event.target?.closest?.(
+      '[role="link"][data-legend], [role="link"][data-world-target], [role="link"][data-event], [role="link"][data-world-goto]',
+    );
+    if (!link) return;
+    event.preventDefault();
+    link.click();
+  });
   panel.addEventListener("pointerdown", () => (PANEL_MEMORY.pressedUntil = Infinity));
   const release = () => (PANEL_MEMORY.pressedUntil = performance.now() + 300);
   window.addEventListener("pointerup", release);
