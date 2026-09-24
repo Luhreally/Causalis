@@ -332,11 +332,9 @@ refreshPeopleBar = function (force = false) {
   });
 };
 // ── The place page ───────────────────────────────────────────────────────────
-const renderPlacePageHomesBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageHomesBase(id),
-    town = W.settlements.find((s) => s.id === id);
-  if (!town?.habitation) return html;
+pageBlock("place", '<div class="subhead">Homes and households</div>', function (id) {
+  const town = W.settlements.find((s) => s.id === id);
+  if (!town?.habitation) return "";
   const c = { owned: 0, let: 0, municipal: 0, arrears: 0, empty: 0 };
   let behind = 0;
   for (const b of W.buildings) {
@@ -353,11 +351,10 @@ renderPlacePage = function (id) {
       `${c.arrears} with ${behind} household${behind === 1 ? "" : "s"} behind on the rent`,
     c.empty && `${c.empty} empty`,
   ].filter(Boolean);
-  if (!words.length) return html;
-  const row = `<div class="kv"><span>Tenure</span><b>${esc(words.join(" · "))}</b></div>`,
-    at = html.indexOf('<div class="subhead">Homes and households</div>');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+  if (!words.length) return "";
+  const row = `<div class="kv"><span>Tenure</span><b>${esc(words.join(" · "))}</b></div>`;
+  return row;
+});
 window.ALIFE_HOMES_DEBUG = Object.freeze({
   counts: () => ({ ...HOMES }),
   census: () => {

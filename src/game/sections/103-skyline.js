@@ -151,21 +151,18 @@ drawCompletedBuilding = function (g, b, s, r, p, now, m) {
   return drawCompletedBuildingSkylineBase(g, b, s, r, p, now, m);
 };
 // ── Legends ───────────────────────────────────────────────────────────────────
-const renderPlacePageSkylineBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageSkylineBase(id),
-    place = W.settlements.find((s) => s.id === id);
-  if (!place?.knownProcesses) return html;
+pageBlock("place", '<div class="subhead">', function (id) {
+  const place = W.settlements.find((s) => s.id === id);
+  if (!place?.knownProcesses) return "";
   const towers = completedBuildings(place, "tower").length,
     offices = completedBuildings(place, "office").length;
-  if (!towers && !offices) return html;
+  if (!towers && !offices) return "";
   const parts = [];
   if (towers) parts.push(`${towers} tower block${towers === 1 ? "" : "s"}`);
   if (offices) parts.push(`${offices} office tower${offices === 1 ? "" : "s"}`);
-  const row = `<div class="kv"><span>Skyline</span><b>${esc(parts.join(", "))}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+  const row = `<div class="kv"><span>Skyline</span><b>${esc(parts.join(", "))}</b></div>`;
+  return row;
+});
 window.ALIFE_SKYLINE_DEBUG = Object.freeze({
   structureScale: STRUCTURE_SCALE,
   size: (buildingId) => {

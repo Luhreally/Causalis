@@ -194,16 +194,13 @@ renderFactionPage = function (id) {
     at = html.indexOf('<div class="subhead">');
   return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
 };
-const renderPlacePageCivilBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageCivilBase(id),
-    place = W.settlements.find((s) => s.id === id),
+pageBlock("place", '<div class="subhead">', function (id) {
+  const place = W.settlements.find((s) => s.id === id),
     circles = townCircles(place);
-  if (!circles.length) return html;
-  const row = `<div class="kv"><span>Circles</span><b>${esc(circles.map((c) => c.name).join(", "))}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+  if (!circles.length) return "";
+  const row = `<div class="kv"><span>Circles</span><b>${esc(circles.map((c) => c.name).join(", "))}</b></div>`;
+  return row;
+});
 window.ALIFE_CIVIL_DEBUG = Object.freeze({
   codes: () => ({ ...LAW_CODES }),
   teach: () => teachChildren(),

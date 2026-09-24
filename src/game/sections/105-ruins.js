@@ -431,11 +431,9 @@ const alertWorthyGhostBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyGhostBase(a) || a.type === "TownReclaimedEvent";
 };
-const renderPlacePageGhostBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageGhostBase(id),
-    s = W.settlements.find((x) => x.id === id);
-  if (!s) return html;
+pageBlock("place", '<div class="subhead">', function (id) {
+  const s = W.settlements.find((x) => x.id === id);
+  if (!s) return "";
   const rows = [];
   if (s.ruined) {
     const standing = ghostBuildings(s.id).length,
@@ -451,11 +449,10 @@ renderPlacePage = function (id) {
     rows.push(
       `<div class="kv"><span>Reclaimed</span><b>${s.reclaimed.count} building${s.reclaimed.count === 1 ? "" : "s"} of ${esc(s.reclaimed.from || "a fallen town")}</b></div>`,
     );
-  if (!rows.length) return html;
-  const row = rows.join(""),
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+  if (!rows.length) return "";
+  const row = rows.join("");
+  return row;
+});
 window.ALIFE_RUINS_DEBUG = Object.freeze({
   standing: (placeId) => ghostBuildings(placeId).map((b) => b.id),
   rubble: (placeId) =>

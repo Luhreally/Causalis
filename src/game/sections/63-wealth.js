@@ -144,16 +144,13 @@ renderLifePage = function (id) {
   if (!ident?.standing) return html;
   return `${html}<div class="kv"><span>Standing</span><b>${esc(titleCase(ident.standing))} <span class="muted">· ${ident.wealth} in goods${ident.standingPlace ? ` · ${esc(ident.standingPlace)}` : ""}</span></b></div>`;
 };
-const renderPlacePageWealthBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageWealthBase(id),
-    s = W.settlements.find((x) => x.id === id);
-  if (!s || s.inequality == null) return html;
+pageBlock("place", '<div class="subhead">Chronicle</div>', function (id) {
+  const s = W.settlements.find((x) => x.id === id);
+  if (!s || s.inequality == null) return "";
   const richest = s.richestId && classifyAlive(s.richestId) ? lifeLink(s.richestId) : "",
-    block = `<div class="kv"><span>Inequality</span><b>${Math.round(s.inequality * 100)}%${richest ? ` · richest ${richest}` : ""}</b></div>`,
-    at = html.indexOf('<div class="subhead">Chronicle</div>');
-  return at < 0 ? html + block : html.slice(0, at) + block + html.slice(at);
-};
+    block = `<div class="kv"><span>Inequality</span><b>${Math.round(s.inequality * 100)}%${richest ? ` · richest ${richest}` : ""}</b></div>`;
+  return block;
+});
 function tileWealth(i) {
   let total = 0;
   for (const id of W.spatialBins[i] || [])

@@ -429,13 +429,11 @@ habitationPrice = function (b, town) {
   return Math.max(base, Math.round(base * dense * pressure * modern));
 };
 // ── What the town says about itself ──────────────────────────────────────────
-const renderPlacePageZoningBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageZoningBase(id),
-    town = W.settlements.find((s) => s.id === id);
-  if (!town?.knownProcesses || town.ruined) return html;
+pageBlock("place", null, function (id) {
+  const town = W.settlements.find((s) => s.id === id);
+  if (!town?.knownProcesses || town.ruined) return "";
   const demand = zoningDemand(town);
-  if (!demand) return html;
+  if (!demand) return "";
   const g = zoningGenome(town),
     core = zoningCore(town),
     bar = (v) => `${"█".repeat(Math.round(v * 10))}${"·".repeat(10 - Math.round(v * 10))}`,
@@ -450,7 +448,6 @@ renderPlacePage = function (id) {
     homesN = town.habitation?.homes ?? 0,
     share = town.habitation?.ownedShare;
   return (
-    html +
     `<div class="subhead">Zoning and demand</div>` +
     `<p>A core ${core} tiles across, works to the ${["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"][g.industry]}, shops to the ${["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"][g.commerce]}.</p>` +
     `<div class="kv"><span>Homes wanted</span><b>${bar(demand.residential)} ${Math.round(demand.residential * 100)}%</b>` +
@@ -461,7 +458,7 @@ renderPlacePage = function (id) {
       ? ""
       : `<p>${owned} of ${homesN} homes are owned by the household in them — ${Math.round(share * 100)}% owner-occupied; the rest rent from the polity.</p>`)
   );
-};
+});
 window.ALIFE_ZONING_DEBUG = Object.freeze({
   counts: () => ({ ...ZONING }),
   reset: () => {

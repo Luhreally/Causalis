@@ -199,17 +199,14 @@ songTitleFor = function (event) {
   if (event.type === "SeaBattleEvent") return { kind: "song", title: `The Boats Off ${d.place}` };
   return songTitleForNavalBase(event);
 };
-const renderPlacePageNavalBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageNavalBase(id),
-    s = W.settlements.find((x) => x.id === id),
+pageBlock("place", '<div class="subhead">Chronicle</div>', function (id) {
+  const s = W.settlements.find((x) => x.id === id),
     blockade = s ? blockadeOf(s) : null;
-  if (!blockade) return html;
+  if (!blockade) return "";
   const by = W.factions.find((f) => f.id === blockade.byFactionId),
-    row = `<div class="kv"><span>Blockaded</span><b>by ${by ? legendLink("faction", by.id, by.name) : "a lost polity"} since year ${formatYear(blockade.startedTick)}</b></div>`,
-    at = html.indexOf('<div class="subhead">Chronicle</div>');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+    row = `<div class="kv"><span>Blockaded</span><b>by ${by ? legendLink("faction", by.id, by.name) : "a lost polity"} since year ${formatYear(blockade.startedTick)}</b></div>`;
+  return row;
+});
 const renderWarPageNavalBase = renderWarPage;
 renderWarPage = function (id) {
   const html = renderWarPageNavalBase(id),

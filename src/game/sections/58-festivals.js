@@ -595,18 +595,15 @@ renderLifePage = function (id) {
       : ""
   }`;
 };
-const renderPlacePageFestivalsBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageFestivalsBase(id),
-    s = W.settlements.find((x) => x.id === id);
-  if (!s || !s.feasts) return html;
+pageBlock("place", '<div class="subhead">Chronicle</div>', function (id) {
+  const s = W.settlements.find((x) => x.id === id);
+  if (!s || !s.feasts) return "";
   const murals = W.buildings.filter(
       (b) => !b.ruined && b.placeKind === "settlement" && b.placeId === s.id && b.mural,
     ).length,
-    block = `<div class="subhead">Festivals</div><div class="kv"><span>Feasts held</span><b>${s.feasts}${s.lastFeastTick != null ? ` · last Year ${formatYear(s.lastFeastTick)}` : ""}</b><span>Murals</span><b>${murals || "none"}</b></div>`,
-    at = html.indexOf('<div class="subhead">Chronicle</div>');
-  return at < 0 ? html + block : html.slice(0, at) + block + html.slice(at);
-};
+    block = `<div class="subhead">Festivals</div><div class="kv"><span>Feasts held</span><b>${s.feasts}${s.lastFeastTick != null ? ` · last Year ${formatYear(s.lastFeastTick)}` : ""}</b><span>Murals</span><b>${murals || "none"}</b></div>`;
+  return block;
+});
 const renderLegendIndexFestivalsBase = renderLegendIndex;
 renderLegendIndex = function (query = "") {
   const html = renderLegendIndexFestivalsBase(query),

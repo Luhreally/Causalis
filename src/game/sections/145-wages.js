@@ -164,17 +164,14 @@ habitationAccounts = function (town, homes) {
   return habitationAccountsWagesBase(town, homes);
 };
 // ── What the town and the person say ─────────────────────────────────────────
-const renderPlacePageWagesBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageWagesBase(id),
-    town = W.settlements.find((s) => s.id === id),
+pageBlock("place", '<div class="subhead">Homes and households</div>', function (id) {
+  const town = W.settlements.find((s) => s.id === id),
     w = town?.wages;
-  if (!w) return html;
+  if (!w) return "";
   const perBed = wageRentPerBed(town),
-    row = `<div class="kv"><span>Wages</span><b>${w.paid} coin to ${w.earners} of ${w.residents} hands · a household earns ${w.householdMedian} at the middle, ${w.top} at the top, ${w.idleHouseholds} earn nothing · rent ${perBed.toFixed(1)} a bed a year, a coin at least</b></div>`,
-    at = html.indexOf('<div class="subhead">Homes and households</div>');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+    row = `<div class="kv"><span>Wages</span><b>${w.paid} coin to ${w.earners} of ${w.residents} hands · a household earns ${w.householdMedian} at the middle, ${w.top} at the top, ${w.idleHouseholds} earn nothing · rent ${perBed.toFixed(1)} a bed a year, a coin at least</b></div>`;
+  return row;
+});
 const renderLifePageWagesBase = renderLifePage;
 renderLifePage = function (id) {
   const html = renderLifePageWagesBase(id),

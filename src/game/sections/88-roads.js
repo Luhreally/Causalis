@@ -408,15 +408,12 @@ renderFactionPage = function (id) {
     at = html.indexOf('<div class="subhead">');
   return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
 };
-const renderPlacePageRoadsBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageRoadsBase(id);
+pageBlock("place", '<div class="subhead">', function (id) {
   const roads = roadSummaryFor((l) => l.a === id || l.b === id);
-  if (!roads.length) return html;
-  const row = `<div class="kv"><span>Roads</span><b>${roads.map(esc).join(", ")}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+  if (!roads.length) return "";
+  const row = `<div class="kv"><span>Roads</span><b>${roads.map(esc).join(", ")}</b></div>`;
+  return row;
+});
 // ── Rendering: stone bands, rails, carts, trucks, trains ─────────────────────
 function roadFactionHue(f) {
   if (!f) return 30;

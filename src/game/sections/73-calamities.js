@@ -150,15 +150,12 @@ songTitleFor = function (event) {
     return { kind: "tale", title: `How ${d.polity} Blamed Its Voice` };
   return songTitleForCalamityBase(event);
 };
-const renderPlacePageCalamityBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageCalamityBase(id),
-    s = W.settlements.find((x) => x.id === id);
-  if (!s || !(s.calamity > 0)) return html;
-  const row = `<div class="kv"><span>Calamity</span><b>${esc(s.calamityKind || "struck")} in year ${formatYear(s.calamityTick || 0)} · ${Math.round(s.calamity * 100)}% still felt</b></div>`,
-    at = html.indexOf('<div class="subhead">Chronicle</div>');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+pageBlock("place", '<div class="subhead">Chronicle</div>', function (id) {
+  const s = W.settlements.find((x) => x.id === id);
+  if (!s || !(s.calamity > 0)) return "";
+  const row = `<div class="kv"><span>Calamity</span><b>${esc(s.calamityKind || "struck")} in year ${formatYear(s.calamityTick || 0)} · ${Math.round(s.calamity * 100)}% still felt</b></div>`;
+  return row;
+});
 window.ALIFE_CALAMITY_DEBUG = Object.freeze({
   update: () => updateCalamities(),
   fade: () => fadeCalamities(),

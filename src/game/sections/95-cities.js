@@ -121,19 +121,16 @@ drawCompletedBuilding = function (g, b, s, r, p, now, m) {
 };
 if (typeof LIT_TYPES !== "undefined") LIT_TYPES.add("tenement");
 // ── Legends: beds and people ───────────────────────────────────────────────────
-const renderPlacePageCitiesBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageCitiesBase(id),
-    place = W.settlements.find((s) => s.id === id);
-  if (!place || !place.knownProcesses) return html;
+pageBlock("place", '<div class="subhead">', function (id) {
+  const place = W.settlements.find((s) => s.id === id);
+  if (!place || !place.knownProcesses) return "";
   const beds = housingCapacity(place),
     people = settlementPopulation(place),
     tenements = completedBuildings(place, "tenement").length,
     text = `${beds} beds for ${people} people${tenements ? `, ${tenements} tenement${tenements === 1 ? "" : "s"}` : ""}`,
-    row = `<div class="kv"><span>Housing</span><b>${esc(text)}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+    row = `<div class="kv"><span>Housing</span><b>${esc(text)}</b></div>`;
+  return row;
+});
 window.ALIFE_CITIES_DEBUG = Object.freeze({
   groundwork: STARFLIGHT_GROUNDWORK.slice(),
   city: (placeId) => cityStage(W.settlements.find((s) => s.id === placeId)),

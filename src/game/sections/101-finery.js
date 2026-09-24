@@ -231,13 +231,11 @@ renderFactionPage = function (id) {
     at = html.indexOf('<div class="subhead">');
   return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
 };
-const renderPlacePageFineryBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageFineryBase(id),
-    place = W.settlements.find((s) => s.id === id);
-  if (!place?.knownProcesses) return html;
+pageBlock("place", '<div class="subhead">', function (id) {
+  const place = W.settlements.find((s) => s.id === id);
+  if (!place?.knownProcesses) return "";
   const demand = fineryDemand(place);
-  if (!demand && !place.luxuryTick) return html;
+  if (!demand && !place.luxuryTick) return "";
   const good =
       place.luxuryGood != null
         ? typeof marketGoodName === "function"
@@ -245,10 +243,9 @@ renderPlacePage = function (id) {
           : "finery"
         : "",
     text = `${demand} well-off household${demand === 1 ? "" : "s"}${place.luxuryTick ? `; last bought ${good} in Year ${formatYear(place.luxuryTick)}` : ""}`,
-    row = `<div class="kv"><span>Finery</span><b>${esc(text)}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+    row = `<div class="kv"><span>Finery</span><b>${esc(text)}</b></div>`;
+  return row;
+});
 window.ALIFE_FINERY_DEBUG = Object.freeze({
   policy: (factionId) => tithePolicy(W.factions.find((f) => f.id === factionId)),
   needed: (factionId) => titheNeeded(W.factions.find((f) => f.id === factionId)),

@@ -232,19 +232,14 @@ drawWorkerActivity = function (now, bounds) {
     }
   }
 };
-const renderPlacePagePublicBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePagePublicBase(id),
-    routes = publicRoutes().filter((r) =>
-      W.roads?.links.some((l) => l.id === r.linkId && (l.a === id || l.b === id)),
-    );
-  return (
-    html +
-    (routes.length
-      ? `<div class="subhead">Public transport</div>${routes.map((r) => `<div class="kv"><span>${r.kind === "tram" ? "Tram" : "Bus"} · route ${r.linkId}</span><b>${r.suspended ? "service suspended" : `${r.passengers.length}/8 aboard · ${r.trips} trips`}</b></div>`).join("")}`
-      : "")
+pageBlock("place", null, function (id) {
+  const routes = publicRoutes().filter((r) =>
+    W.roads?.links.some((l) => l.id === r.linkId && (l.a === id || l.b === id)),
   );
-};
+  return routes.length
+    ? `<div class="subhead">Public transport</div>${routes.map((r) => `<div class="kv"><span>${r.kind === "tram" ? "Tram" : "Bus"} · route ${r.linkId}</span><b>${r.suspended ? "service suspended" : `${r.passengers.length}/8 aboard · ${r.trips} trips`}</b></div>`).join("")}`
+    : "";
+});
 window.ALIFE_PUBLIC_DEBUG = Object.freeze({
   routes: () => publicRoutes().map((r) => ({ ...r, passengers: r.passengers.slice() })),
   update: publicTransportPass,

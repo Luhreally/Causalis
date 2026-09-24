@@ -555,15 +555,12 @@ function settledFromRow(entityId) {
     ? `<div class="kv"><span>Settled from</span><b>${legendLink("place", origin.id, origin.name)}</b></div>`
     : "";
 }
-const renderPlacePageExpansionBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageExpansionBase(id),
-    s = W.settlements.find((x) => x.id === id),
+pageBlock("place", '<div class="subhead">Chronicle</div>', function (id) {
+  const s = W.settlements.find((x) => x.id === id),
     row = s ? settledFromRow(s.entityId) : "";
-  if (!row) return html;
-  const at = html.indexOf('<div class="subhead">Chronicle</div>');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+  if (!row) return "";
+  return row;
+});
 const renderCampPageExpansionBase = renderCampPage;
 renderCampPage = function (id) {
   const html = renderCampPageExpansionBase(id),

@@ -174,15 +174,12 @@ function fertilityWord(place) {
   if (food >= 6 && roof) return "thriving";
   return "steady";
 }
-const renderPlacePageMatingBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageMatingBase(id),
-    s = W.settlements.find((x) => x.id === id);
-  if (!s) return html;
-  const row = `<div class="kv"><span>Fertility</span><b>${fertilityWord(s)}</b></div>`,
-    at = html.indexOf('<div class="subhead">Chronicle</div>');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+pageBlock("place", '<div class="subhead">Chronicle</div>', function (id) {
+  const s = W.settlements.find((x) => x.id === id);
+  if (!s) return "";
+  const row = `<div class="kv"><span>Fertility</span><b>${fertilityWord(s)}</b></div>`;
+  return row;
+});
 // Animals keep the old adjacency; people are hidden from it and couple below.
 const canReproduceMatingBase = canReproduce;
 canReproduce = function (id) {

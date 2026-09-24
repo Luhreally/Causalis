@@ -526,21 +526,18 @@ eventText(["CatchEvent", "VoyageEvent", "ColonyEvent", "VoyageLostEvent"], funct
   }
 });
 // ── Legends ────────────────────────────────────────────────────────────────────
-const renderPlacePageSeaBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageSeaBase(id),
-    s = W.settlements.find((x) => x.id === id);
-  if (!s || !placeDock(s)) return html;
+pageBlock("place", '<div class="subhead">Chronicle</div>', function (id) {
+  const s = W.settlements.find((x) => x.id === id);
+  if (!s || !placeDock(s)) return "";
   ensureSea();
   const catches = legendEvents(
       (e) => e.type === "CatchEvent" && e.subjects?.includes(s.entityId),
     ).length,
     voyages = W.sea.voyages.filter((v) => v.from === s.id),
-    colonies = voyages.filter((v) => v.campId).length,
-    at = html.indexOf('<div class="subhead">Chronicle</div>');
+    colonies = voyages.filter((v) => v.campId).length;
   const block = `<div class="subhead">Harbour</div><div class="kv"><span>Boats</span><b>${placeSails(s) ? "seagoing" : "shore craft only"}</b><span>Catches of note</span><b>${catches}</b><span>Voyages</span><b>${voyages.length}${colonies ? ` · ${colonies} landed` : ""}</b></div>`;
-  return at < 0 ? html + block : html.slice(0, at) + block + html.slice(at);
-};
+  return block;
+});
 // ── Drawing ────────────────────────────────────────────────────────────────────
 // A dock runs a plank pier out over the water on piles, with a moored boat
 // that bobs, a hanging net, and gulls turning above it; fishers cast a line

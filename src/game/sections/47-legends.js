@@ -627,7 +627,33 @@ function renderCulturePage(id) {
     );
   return `${legendHero(c.name, ["People", `${factions.length} polities`])}<div class="kv"><span>Origin</span><b>${origin ? legendLink("place", origin.id, origin.name) : "lost"}</b><span>Valued substance</span><b>${esc(W.definitions.species[c.values?.substance]?.name || "unknown")}</b><span>Home biome</span><b>${esc(String(c.values?.environment || "unknown"))}</b><span>Communal</span><b>${Math.round((c.values?.communal || 0) * 100)}%</b><span>Drift</span><b>${Math.round((c.drift || 0) * 100)}%</b><span>Polities</span><b>${factions.map((f) => legendLink("faction", f.id, f.name)).join(", ") || "none"}</b><span>Places</span><b>${places.map((s) => legendLink("place", s.id, s.name)).join(", ") || "none"}</b></div>${typeof cultureLegendExtras === "function" ? cultureLegendExtras(c) : ""}<div class="subhead">Chronicle</div>${timelineRows(events)}`;
 }
+// ── Blocks a later section adds to a page ─────────────────────────────────────
+// pageBlock(page, anchor, render): render(id) returns the block's HTML (or ""
+// for none), which goes before the first occurrence of `anchor` in the page
+// (the Chronicle's heading, the first heading, a named heading), or at the end
+// when the anchor is null or not on the page. Blocks are laid in the order
+// they are registered, which is manifest order, each into the page as the
+// ones before it left it: the page a chain of wrappers once spliced together,
+// the same to the byte, now read as a list (npm run map shows the chains that
+// remain; the place page's blocks are these).
+const PAGE_BLOCKS = { place: [] };
+function pageBlock(page, anchor, render) {
+  if (!PAGE_BLOCKS[page]) throw new Error(`no page ${page} takes blocks`);
+  PAGE_BLOCKS[page].push({ anchor, render });
+}
+function composePageBlocks(page, id, html) {
+  for (const { anchor, render } of PAGE_BLOCKS[page]) {
+    const block = render(id);
+    if (!block) continue;
+    const at = anchor ? html.indexOf(anchor) : -1;
+    html = at < 0 ? html + block : html.slice(0, at) + block + html.slice(at);
+  }
+  return html;
+}
 function renderPlacePage(id) {
+  return composePageBlocks("place", id, renderPlacePageCore(id));
+}
+function renderPlacePageCore(id) {
   const s = W.settlements.find((x) => x.id === id);
   if (!s) return `<div class="empty">No place #${id} is recorded.</div>`;
   const f = s.factionId ? W.factions.find((x) => x.id === s.factionId) : null,

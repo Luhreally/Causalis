@@ -548,11 +548,9 @@ drawBuildingInterior = function (g, b, now, m, state) {
   g.fillText(`Floor ${floor + 1}/${floors} · ${onFloor.length} residents`, s.x, s.y - r * 1.03);
   g.restore();
 };
-const renderPlacePageHabitationBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageHabitationBase(id),
-    town = W.settlements.find((s) => s.id === id);
-  if (!town?.habitation) return html;
+pageBlock("place", null, function (id) {
+  const town = W.settlements.find((s) => s.id === id);
+  if (!town?.habitation) return "";
   const h = town.habitation,
     rows = W.buildings
       .filter((b) => b.placeId === id && habitationBeds(b) && b.tenancy)
@@ -561,11 +559,8 @@ renderPlacePage = function (id) {
           `<div class="kv"><span>${esc(b.name || BUILDING_DEFS[b.type]?.name || b.type)}</span><b>${b.tenancy.residents.length}/${habitationBeds(b)} beds · ${b.tenancy.ownerId ? esc(entityName(b.tenancy.ownerId)) : "municipal"} · ${b.tenancy.decor.length} furnishings</b></div>`,
       )
       .join("");
-  return (
-    html +
-    `<div class="subhead">Homes and households</div><p>${h.housed} housed; ${h.residents - h.housed} seeking a bed. ${h.households} households. Apartment rent: one coin per household per year when the polity uses currency.</p>${rows}`
-  );
-};
+  return `<div class="subhead">Homes and households</div><p>${h.housed} housed; ${h.residents - h.housed} seeking a bed. ${h.households} households. Apartment rent: one coin per household per year when the polity uses currency.</p>${rows}`;
+});
 const renderLifePageHabitationBase = renderLifePage;
 renderLifePage = function (id) {
   const html = renderLifePageHabitationBase(id),

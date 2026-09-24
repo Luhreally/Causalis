@@ -591,12 +591,10 @@ renderFactionPage = function (id) {
     `<div class="kv" data-justice="${f.law.code}"><span>Law</span><b>${esc(LAW_CODE_NAMES[f.law.code] || f.law.code)} · ${courts} court${courts === 1 ? "" : "s"} · ${year.length} case${year.length === 1 ? "" : "s"} this year, ${year.filter((c) => c.status === "convicted").length} convicted · ${cells} in the cells</b></div>`,
   );
 };
-const renderPlacePageJusticeBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageJusticeBase(id),
-    town = W.settlements.find((s) => s.id === id),
+pageBlock("place", '<div class="subhead">', function (id) {
+  const town = W.settlements.find((s) => s.id === id),
     court = town ? courtOf(town) : null;
-  if (!court) return html;
+  if (!court) return "";
   const cells = (W.justice?.jailed || []).filter((x) => x.townId === town.id),
     last = (W.justice?.cases || [])
       .filter((c) => c.court === town.id && c.status !== "open")
@@ -608,10 +606,9 @@ renderPlacePage = function (id) {
             .filter(Boolean)
             .join(", ")}`
         : ""
-    }${last ? ` · last: ${esc(entityName(last.offender))} ${last.status} of ${esc(OFFENCE_WORD[last.offence] || last.offence)}${last.punishment ? `, ${esc(last.punishment)}` : ""}` : ""}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+    }${last ? ` · last: ${esc(entityName(last.offender))} ${last.status} of ${esc(OFFENCE_WORD[last.offence] || last.offence)}${last.punishment ? `, ${esc(last.punishment)}` : ""}` : ""}</b></div>`;
+  return row;
+});
 const organismInspectorJusticeBase = organismInspector;
 organismInspector = function (id) {
   const html = organismInspectorJusticeBase(id);

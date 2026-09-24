@@ -644,23 +644,18 @@ function drawMonument(g, b, s, r, p, now, detail) {
     g.stroke();
   }
 }
-const renderPlacePageSocietyBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageSocietyBase(id),
-    monuments = W.buildings.filter(
-      (b) => b.type === "monument" && b.placeKind === "settlement" && b.placeId === id && !b.ruined,
-    );
-  if (!monuments.length) return html;
-  return (
-    html +
-    `<div class="subhead">Monuments</div><div class="legend-timeline">${monuments
-      .map((b) => {
-        const remembered = b.commemorates ? eventById(b.commemorates) : null;
-        return `<div class="legend-row" ${b.commemorates ? `data-legend="event:${b.commemorates}"` : ""}><span class="legend-year">${remembered ? `Y${remembered.year}` : "—"}</span><span>${esc(b.name)}${b.complete ? "" : " · being raised"}${remembered ? `<br><small class="muted">${esc(eventSentence(remembered))}</small>` : ""}</span></div>`;
-      })
-      .join("")}</div>`
+pageBlock("place", null, function (id) {
+  const monuments = W.buildings.filter(
+    (b) => b.type === "monument" && b.placeKind === "settlement" && b.placeId === id && !b.ruined,
   );
-};
+  if (!monuments.length) return "";
+  return `<div class="subhead">Monuments</div><div class="legend-timeline">${monuments
+    .map((b) => {
+      const remembered = b.commemorates ? eventById(b.commemorates) : null;
+      return `<div class="legend-row" ${b.commemorates ? `data-legend="event:${b.commemorates}"` : ""}><span class="legend-year">${remembered ? `Y${remembered.year}` : "—"}</span><span>${esc(b.name)}${b.complete ? "" : " · being raised"}${remembered ? `<br><small class="muted">${esc(eventSentence(remembered))}</small>` : ""}</span></div>`;
+    })
+    .join("")}</div>`;
+});
 // ── Wildlife lives ─────────────────────────────────────────────────────────────
 const chooseHerdPastureSocietyBase = chooseHerdPasture;
 chooseHerdPasture = function (place, herd) {

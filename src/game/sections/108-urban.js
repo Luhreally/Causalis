@@ -155,15 +155,12 @@ const alertWorthyUrbanBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyUrbanBase(a) || (a.type === "UrbanMigrationEvent" && a.importance >= 3);
 };
-const renderPlacePageUrbanBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageUrbanBase(id),
-    s = W.settlements.find((x) => x.id === id);
-  if (!s?.urbanIn) return html;
-  const row = `<div class="kv"><span>Drawn in</span><b>${s.urbanIn} ${s.urbanIn === 1 ? "person" : "people"} from the villages</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+pageBlock("place", '<div class="subhead">', function (id) {
+  const s = W.settlements.find((x) => x.id === id);
+  if (!s?.urbanIn) return "";
+  const row = `<div class="kv"><span>Drawn in</span><b>${s.urbanIn} ${s.urbanIn === 1 ? "person" : "people"} from the villages</b></div>`;
+  return row;
+});
 window.ALIFE_URBAN_DEBUG = Object.freeze({
   age: (factionId) => urbanAge(W.factions.find((f) => f.id === factionId)),
   hub: (factionId) => urbanHub(W.factions.find((f) => f.id === factionId))?.id || 0,

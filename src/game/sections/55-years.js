@@ -240,11 +240,9 @@ renderFactionPage = function (id) {
   const html = renderFactionPageYearsBase(id);
   return W.factions.some((f) => f.id === id) ? html + yearsLink("faction", id) : html;
 };
-const renderPlacePageYearsBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageYearsBase(id);
-  return W.settlements.some((s) => s.id === id) ? html + yearsLink("place", id) : html;
-};
+pageBlock("place", null, function (id) {
+  return W.settlements.some((s) => s.id === id) ? yearsLink("place", id) : "";
+});
 const renderCulturePageYearsBase = renderCulturePage;
 renderCulturePage = function (id) {
   const html = renderCulturePageYearsBase(id);

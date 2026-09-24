@@ -668,16 +668,13 @@ totalChemicalEnergy = function () {
   return total;
 };
 // ── What the town says ──────────────────────────────────────────────────────
-const renderPlacePageFolkBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageFolkBase(id),
-    town = W.settlements.find((s) => s.id === id),
+pageBlock("place", '<div class="subhead">', function (id) {
+  const town = W.settlements.find((s) => s.id === id),
     folk = town ? folkLedger(town) : null;
-  if (!folk?.count) return html;
-  const row = `<div class="kv" data-townsfolk="${folk.count}"><span>Townsfolk</span><b>${fmt(folk.count)} in the crowd besides the ${townAgentCount(town)} named · ${Math.round(folk.fed * 100)}% fed · ${fmt(folk.housed)} housed · ${fmt(folk.hands)} hands at the fields and sites · ${folk.born} born, ${folk.promoted} come forward</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+  if (!folk?.count) return "";
+  const row = `<div class="kv" data-townsfolk="${folk.count}"><span>Townsfolk</span><b>${fmt(folk.count)} in the crowd besides the ${townAgentCount(town)} named · ${Math.round(folk.fed * 100)}% fed · ${fmt(folk.housed)} housed · ${fmt(folk.hands)} hands at the fields and sites · ${folk.born} born, ${folk.promoted} come forward</b></div>`;
+  return row;
+});
 window.ALIFE_FOLK_DEBUG = Object.freeze({
   counts: () => ({ ...FOLK }),
   ledger: (townId) => {

@@ -341,20 +341,17 @@ renderFactionPage = function (id) {
     at = html.indexOf('<div class="subhead">');
   return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
 };
-const renderPlacePageMarketsBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageMarketsBase(id),
-    s = W.settlements.find((x) => x.id === id);
-  if (!s || !s.knownProcesses) return html;
+pageBlock("place", '<div class="subhead">', function (id) {
+  const s = W.settlements.find((x) => x.id === id);
+  if (!s || !s.knownProcesses) return "";
   const sp = townSpecialty(s),
     board = priceBoard(s, 3),
     fmt = (rows) => rows.map((r) => `${esc(marketGoodName(r.sp))} ${r.price}`).join(", "),
     rows = `<div class="kv"><span>Specialty</span><b>${sp === null ? "none" : esc(marketGoodName(sp))}</b></div><div class="kv"><span>Prices</span><b>${
       board.dear.length ? `dear: ${fmt(board.dear)}` : "nothing dear"
-    }${board.cheap.length ? ` · cheap: ${fmt(board.cheap)}` : ""}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + rows : html.slice(0, at) + rows + html.slice(at);
-};
+    }${board.cheap.length ? ` · cheap: ${fmt(board.cheap)}` : ""}</b></div>`;
+  return rows;
+});
 // ── The market stall ──────────────────────────────────────────────────────────
 function drawMarketStall(g, b, s, r, p, now, detail) {
   const hue = (b.id * 53) % 360,

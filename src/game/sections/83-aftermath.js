@@ -236,15 +236,12 @@ alertWorthy = function (a) {
     a.type === "RefugeesEvent"
   );
 };
-const renderPlacePageAftermathBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageAftermathBase(id),
-    s = W.settlements.find((x) => x.id === id);
-  if (!s?.resettledFrom) return html;
-  const row = `<div class="kv"><span>Raised on</span><b>the ruins of ${esc(s.resettledFrom)}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+pageBlock("place", '<div class="subhead">', function (id) {
+  const s = W.settlements.find((x) => x.id === id);
+  if (!s?.resettledFrom) return "";
+  const row = `<div class="kv"><span>Raised on</span><b>the ruins of ${esc(s.resettledFrom)}</b></div>`;
+  return row;
+});
 window.ALIFE_AFTERMATH_DEBUG = Object.freeze({
   ruinSite: (settlementId) => ruinSiteFor(W.settlements.find((s) => s.id === settlementId)),
   refuge: (settlementId) =>

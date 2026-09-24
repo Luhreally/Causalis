@@ -461,15 +461,12 @@ renderFactionPage = function (id) {
     at = html.indexOf('<div class="subhead">Diplomacy</div>');
   return at < 0 ? html + block : html.slice(0, at) + block + html.slice(at);
 };
-const renderPlacePagePoliticsBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePagePoliticsBase(id),
-    s = W.settlements.find((x) => x.id === id);
-  if (!s || s.unrest == null) return html;
-  const block = `<div class="kv"><span>Unrest</span><b>${Math.round(s.unrest * 100)}%${s.unrestHigh ? ` · high for ${s.unrestHigh} year${s.unrestHigh === 1 ? "" : "s"}` : ""}</b></div>`,
-    at = html.indexOf('<div class="subhead">Chronicle</div>');
-  return at < 0 ? html + block : html.slice(0, at) + block + html.slice(at);
-};
+pageBlock("place", '<div class="subhead">Chronicle</div>', function (id) {
+  const s = W.settlements.find((x) => x.id === id);
+  if (!s || s.unrest == null) return "";
+  const block = `<div class="kv"><span>Unrest</span><b>${Math.round(s.unrest * 100)}%${s.unrestHigh ? ` · high for ${s.unrestHigh} year${s.unrestHigh === 1 ? "" : "s"}` : ""}</b></div>`;
+  return block;
+});
 let UNREST_MASK = null,
   UNREST_MASK_TICK = -1,
   UNREST_MASK_WORLD = null;

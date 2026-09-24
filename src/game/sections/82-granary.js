@@ -458,16 +458,13 @@ function granaryWord(place) {
       ? "lean · rations stretched"
       : "provisioned";
 }
-const renderPlacePageGranaryBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageGranaryBase(id),
-    s = W.settlements.find((x) => x.id === id);
-  if (!s || s.ruined) return html;
+pageBlock("place", '<div class="subhead">', function (id) {
+  const s = W.settlements.find((x) => x.id === id);
+  if (!s || s.ruined) return "";
   const outlook = foodOutlook(s),
-    row = `<div class="kv"><span>Granaries</span><b>${granaryCount(s, "farm")} farm${granaryCount(s, "farm") === 1 ? "" : "s"} · ${granaryCount(s, "stockpile")} store${granaryCount(s, "stockpile") === 1 ? "" : "s"} for ${outlook.pop} · ${esc(granaryWord(s))}${s.lastReliefTick ? ` · relief in year ${Math.floor(s.lastReliefTick / TICKS_PER_YEAR)}` : ""}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+    row = `<div class="kv"><span>Granaries</span><b>${granaryCount(s, "farm")} farm${granaryCount(s, "farm") === 1 ? "" : "s"} · ${granaryCount(s, "stockpile")} store${granaryCount(s, "stockpile") === 1 ? "" : "s"} for ${outlook.pop} · ${esc(granaryWord(s))}${s.lastReliefTick ? ` · relief in year ${Math.floor(s.lastReliefTick / TICKS_PER_YEAR)}` : ""}</b></div>`;
+  return row;
+});
 window.ALIFE_GRANARY_DEBUG = Object.freeze({
   outlook: (settlementId) => foodOutlook(W.settlements.find((s) => s.id === settlementId)),
   ration: (settlementId) => rationCap(W.settlements.find((s) => s.id === settlementId)),

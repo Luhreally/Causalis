@@ -283,16 +283,13 @@ eventText(["StreetsPavedEvent"], function (e, next) {
     return `${e.data?.place} paved its ${e.data?.pattern} streets.`;
   return next(e);
 });
-const renderPlacePageTownBase = renderPlacePage;
-renderPlacePage = function (id) {
-  const html = renderPlacePageTownBase(id),
-    s = W.settlements.find((x) => x.id === id);
-  if (!s?.knownProcesses) return html;
+pageBlock("place", '<div class="subhead">', function (id) {
+  const s = W.settlements.find((x) => x.id === id);
+  if (!s?.knownProcesses) return "";
   const plan = townPlan(s),
-    row = `<div class="kv"><span>Townscape</span><b>${esc(plan.family)} forms · ${esc(plan.pattern)} streets${plan.paved ? ` · ${plan.pavedTiles} paved` : ""}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+    row = `<div class="kv"><span>Townscape</span><b>${esc(plan.family)} forms · ${esc(plan.pattern)} streets${plan.paved ? ` · ${plan.pavedTiles} paved` : ""}</b></div>`;
+  return row;
+});
 // ── The families of form ──────────────────────────────────────────────────────
 const familyCache = { world: null, frame: -1, byPlace: new Map() };
 function buildingFamily(b) {
