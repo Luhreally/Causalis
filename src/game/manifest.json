@@ -175,5 +175,6 @@
   "155-streets.js",
   "156-panel-memory.js",
   "157-camera-fit.js",
-  "158-trends.js"
+  "158-trends.js",
+  "159-skip-digest.js"
 ]

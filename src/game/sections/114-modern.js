@@ -903,6 +903,9 @@ const makeCausalSkipStateModernBase = makeCausalSkipState;
 makeCausalSkipState = function (limitOverride = 0) {
   const state = makeCausalSkipStateModernBase(limitOverride);
   state.startPeople = modernLivingPeople();
+  // Everyone, the towns' crowds (150) included, for what the player is told: a
+  // life folded into its town's crowd is not a life lost.
+  state.startPeopleAll = populationSummary().person || 0;
   if (!(limitOverride > 0)) state.limit = Math.min(state.limit, MODERN_SKIP_MAX_TICKS);
   const reached = ensureCausalReached();
   for (const stage of state.pending) if (reached.includes(stage.key)) stage.quiet = true;
@@ -917,6 +920,7 @@ causalSkipResult = function (state) {
   const out = causalSkipResultModernBase(state);
   out.startPeople = state.startPeople || 0;
   out.toll = Math.max(0, out.startPeople - modernLivingPeople());
+  out.tollAll = Math.max(0, (state.startPeopleAll || 0) - (populationSummary().person || 0));
   return out;
 };
 const causalSkipStepModernBase = causalSkipStep;

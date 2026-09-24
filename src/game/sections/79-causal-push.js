@@ -504,8 +504,9 @@ async function causalSkipForward() {
     // A later section may add a sentence of its own to the result (131 tells of
     // a ship under way); it is said after the toll.
     const told =
-      (result.toll > 0 ? `${message} ${result.toll} fewer people than when it began.` : message) +
-      (result.note ? ` ${result.note}` : "");
+      ((result.tollAll ?? result.toll) > 0
+        ? `${message} ${result.tollAll ?? result.toll} fewer people than when it began.`
+        : message) + (result.note ? ` ${result.note}` : "");
     DOM.causalSkipStatus.textContent = told;
     toast(told);
     return result;
