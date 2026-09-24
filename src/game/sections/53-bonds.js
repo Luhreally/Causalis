@@ -845,14 +845,12 @@ notifySocialDeath = function (victimId, causeEvent) {
   if (killer && W.kind[killer] === KINDS.PERSON) noteKilling(killer, victimId, causeEvent);
 };
 // ── Tick hook ──────────────────────────────────────────────────────────────────
-const updateWeatherCycleBondsBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleBondsBase();
+calendarSystem("bonds", function () {
   if (!W?.components?.social) return;
   ensureBonds(W);
   if (W.tick % 32 === 9) updateBonds();
   if (W.tick % 128 === 40) updateFeuds();
-};
+});
 // ── Chronicle sentences ────────────────────────────────────────────────────────
 const eventSentenceBondsBase = eventSentence;
 eventSentence = function (e) {

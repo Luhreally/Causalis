@@ -210,11 +210,9 @@ function updatePolityTraits() {
 function polityHasTrait(f, id) {
   return !!f?.traits?.includes(id);
 }
-const updateWeatherCycleTraitsBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleTraitsBase();
+calendarSystem("polity traits", function () {
   if (W?.factions && W.tick % 512 === 300) updatePolityTraits();
-};
+});
 // Traits tilt what unrest reads and what settlers dare.
 const unrestOfTraitsBase = unrestOf;
 unrestOf = function (place) {

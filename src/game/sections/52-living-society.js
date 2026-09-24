@@ -852,9 +852,7 @@ drawWorkerActivity = function (now, bounds) {
   }
 };
 // ── Tick hook ──────────────────────────────────────────────────────────────────
-const updateWeatherCycleSocietyBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleSocietyBase();
+calendarSystem("living society", function () {
   ensureSociety(W);
   if (W.tick % 8 === 4) updateCaravans();
   if (W.tick % 64 === 20) {
@@ -867,7 +865,7 @@ updateWeatherCycle = function () {
     updateCaptives();
     updateBeastsOfLegend();
   }
-};
+});
 // ── Chronicle sentences ────────────────────────────────────────────────────────
 const eventSentenceLivingSocietyBase = eventSentence;
 eventSentence = function (e) {

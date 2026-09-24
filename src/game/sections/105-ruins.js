@@ -181,11 +181,9 @@ function weatherRuins() {
   }
   return report;
 }
-const simTickGhostBase = simTick;
-simTick = function () {
-  simTickGhostBase();
+tickSystem("ruins", function () {
   if (W?.buildings && W.tick % 256 === RUINS_TICK) weatherRuins();
-};
+});
 // Planning a building over a ruin whose rubble is gone clears the ruin.
 function clearRuinsUnder(b) {
   if (!b) return 0;

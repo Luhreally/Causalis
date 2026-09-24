@@ -472,9 +472,7 @@ updateFactions = function () {
   }
 };
 // ── Tick hook ──────────────────────────────────────────────────────────────────
-const updateWeatherCycleLivingBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleLivingBase();
+calendarSystem("living world", function () {
   ensureLivingWorldColumns(W);
   updateSeasons();
   updateTraffic();
@@ -483,7 +481,7 @@ updateWeatherCycle = function () {
     updateSuccession();
     updateOmens();
   }
-};
+});
 // ── Chronicle sentences ────────────────────────────────────────────────────────
 const eventSentenceLivingBase = eventSentence;
 eventSentence = function (e) {

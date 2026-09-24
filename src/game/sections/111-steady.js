@@ -198,11 +198,9 @@ function roadFreight() {
   }
   return moved;
 }
-const simTickSteadyBase = simTick;
-simTick = function () {
-  simTickSteadyBase();
+tickSystem("road freight", function () {
   if (W?.roads && W.tick % 256 === ROAD_FREIGHT_TICK) roadFreight();
-};
+});
 // ── Cars drawn as cars, trucks as trucks, and a few parked by the hall ───────
 const vehicleForSteadyBase = vehicleFor;
 vehicleFor = function (id) {

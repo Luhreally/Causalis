@@ -342,11 +342,9 @@ function updateGalaxy() {
   }
   return report;
 }
-const simTickGalaxyBase = simTick;
-simTick = function () {
-  simTickGalaxyBase();
+tickSystem("galaxy", function () {
   if (W?.colonies?.length && W.tick % 256 === GALAXY_TICK) updateGalaxy();
-};
+});
 const restoreWorldGalaxyBase = restoreWorldDefaults;
 restoreWorldDefaults = function () {
   restoreWorldGalaxyBase();

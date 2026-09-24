@@ -365,11 +365,9 @@ function checkBranchMastery() {
     }
   }
 }
-const simTickBranchBase = simTick;
-simTick = function () {
-  simTickBranchBase();
+tickSystem("branch mastery", function () {
   if (W?.settlements && W.tick % 256 === BRANCH_MASTERY_TICK) checkBranchMastery();
-};
+});
 // ── The Technology page: the branches tier by tier ───────────────────────────
 const renderTechnologyPageBranchBase = renderTechnologyPage;
 renderTechnologyPage = function () {

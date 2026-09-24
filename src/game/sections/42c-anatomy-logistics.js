@@ -1999,9 +1999,7 @@ function updateEmbodiedRecovery() {
   }
 }
 
-const simTickAnatomyBase = simTick;
-simTick = function () {
-  simTickAnatomyBase();
+tickSystem("bodies and aftermath", function () {
   if (!W) return;
   updateFirefighting();
   updatePersonRescue();
@@ -2019,7 +2017,7 @@ simTick = function () {
       splatter.lifeTicks || fluidPersistenceTicks(splatter.tile, splatter.amount, splatter.severed);
     return W.tick - splatter.tick < lifeTicks;
   });
-};
+});
 
 const eventSentenceAnatomyBase = eventSentence;
 eventSentence = function (event) {

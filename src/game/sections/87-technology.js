@@ -320,11 +320,9 @@ function checkMilestones() {
       });
   }
 }
-const updateWeatherCycleTreeBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleTreeBase();
+calendarSystem("milestones", function () {
   if (W?.settlements) checkMilestones();
-};
+});
 // ── Chronicle, alerts, and the Technology page ───────────────────────────────
 const eventSentenceTreeBase = eventSentence;
 eventSentence = function (e) {

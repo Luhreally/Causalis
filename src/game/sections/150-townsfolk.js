@@ -568,11 +568,9 @@ function updateTownsfolk() {
   }
   FOLK.passes += passed;
 }
-const simTickFolkBase = simTick;
-simTick = function () {
-  simTickFolkBase();
+tickSystem("townsfolk", function () {
   if (W) updateTownsfolk();
-};
+});
 // No worker is named when the ledger's hands sow or reap (42d's acts take one
 // for the chronicle and the worker's action); an act with none sets no action.
 const setWorkActionFolkBase = setWorkAction;

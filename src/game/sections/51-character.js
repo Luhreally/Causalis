@@ -325,11 +325,9 @@ createOrganism = function (kind, x, y, rng, parents = [], sourceTile = -1, divin
   }
   return id;
 };
-const updateWeatherCycleCharacterBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleCharacterBase();
+calendarSystem("wants", function () {
   if (W.tick % 128 === 40) updateWants();
-};
+});
 // ── Chronicle sentences ────────────────────────────────────────────────────────
 const eventSentenceCharacterBase = eventSentence;
 eventSentence = function (e) {

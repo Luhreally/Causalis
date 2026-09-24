@@ -447,16 +447,14 @@ combatEquipmentQuality = function (id) {
   }
   return best;
 };
-const simTickEnvironmentBase = simTick;
-simTick = function () {
-  simTickEnvironmentBase();
+tickSystem("emergence and feature ecology", function () {
   if (W) {
     updateEmergence();
     updateFeatureEcology();
     updateArmament();
     updateDrowning();
   }
-};
+});
 const updateEmergentMilitiasMembershipBase = updateEmergentMilitias;
 updateEmergentMilitias = function () {
   const result = updateEmergentMilitiasMembershipBase();
@@ -473,12 +471,10 @@ updateFactions = function () {
   updateEmergentMilitias();
   return result;
 };
-const simTickImplicitBase = simTick;
-simTick = function () {
-  simTickImplicitBase();
+tickSystem("implicit society", function () {
   initializeImplicitSociety();
   updateMilitaryMovement();
-};
+});
 // Famine as recorded history: starvation deaths are tallied against the nearest community and
 // a year in which they exceed a share of the population becomes a single chronicle entry.
 const killEntityFamineBase = killEntity;
@@ -526,11 +522,9 @@ function updateFamineChronicle() {
   }
   for (const c of W.camps) c.hungerDeaths = 0;
 }
-const simTickFamineBase = simTick;
-simTick = function () {
-  simTickFamineBase();
+tickSystem("famine chronicle", function () {
   if (W && W.tick % TICKS_PER_YEAR === 128) updateFamineChronicle();
-};
+});
 const eventSentenceImplicitBase = eventSentence;
 eventSentence = function (e) {
   const f = e.factions.map((id) => W.factions.find((x) => x.id === id)?.name || `Faction ${id}`),

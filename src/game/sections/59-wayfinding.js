@@ -168,11 +168,9 @@ function sailCivilOrders() {
   }
   if (moved) rebuildSpatialBins();
 }
-const simTickWayBase = simTick;
-simTick = function () {
-  simTickWayBase();
+tickSystem("sailing orders", function () {
   if (W?.civilOrders?.length) sailCivilOrders();
-};
+});
 // No caravan sets out for a town no road reaches; when both towns sail and the
 // land gives no road, the caravan goes by sea.
 const spawnCaravanWayBase = spawnCaravan;

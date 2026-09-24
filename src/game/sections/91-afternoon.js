@@ -163,9 +163,7 @@ function strainedWeatherRoll(cycle = Math.floor(W.tick / 256)) {
   if (counterRand("strain-weather", cycle) >= chance) return null;
   return counterRand("strain-kind", cycle) < 0.5 ? "Drought" : "Heat Wave";
 }
-const updateWeatherCycleAfternoonBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleAfternoonBase();
+calendarSystem("climate strain", function () {
   if (!W?.settlements) return;
   if (W.tick % 256 === 1) {
     const forced = strainedWeatherRoll();
@@ -180,7 +178,7 @@ updateWeatherCycle = function () {
     raiseStations();
   }
   if (W.tick % EPILOGUE_DECADE === 0 && W.tick > 0) recordEpilogue();
-};
+});
 // ── Ways of rule ──────────────────────────────────────────────────────────────
 function ensureIdeology(f) {
   if (!f) return null;

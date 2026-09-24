@@ -301,11 +301,9 @@ function adoptResidents() {
   }
   return adopted;
 }
-const simTickHarvestBase = simTick;
-simTick = function () {
-  simTickHarvestBase();
+tickSystem("home pass", function () {
   if (W?.settlements && W.tick % HOME_PASS_CADENCE === HOME_PASS_OFFSET) adoptResidents();
-};
+});
 // ── Rest owed, and room for the harvest ──────────────────────────────────────
 // Fatigue rose a little every tick and fell only while a person chose to rest,
 // which the labour pool never let a working person do until fatigue passed the

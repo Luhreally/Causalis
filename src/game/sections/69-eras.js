@@ -654,15 +654,13 @@ function showEnding() {
   return true;
 }
 // ── Tick hook ──────────────────────────────────────────────────────────────────
-const updateWeatherCycleErasBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleErasBase();
+calendarSystem("eras", function () {
   if (!W?.settlements || !W.factions) return;
   ensureEras(W);
   if (W.tick % 128 === 100) updateAges();
   if (W.tick % 256 === 136) updateLeagues();
   if (W.tick % 256 === 168) considerLaunches();
-};
+});
 // ── Chronicle, songs, and Legends ──────────────────────────────────────────────
 const eventSentenceErasBase = eventSentence;
 eventSentence = function (e) {

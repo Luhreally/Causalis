@@ -274,11 +274,9 @@ function updateOrbit() {
     growColonies();
   }
 }
-const simTickOrbitBase = simTick;
-simTick = function () {
-  simTickOrbitBase();
+tickSystem("orbit", function () {
   if (W?.settlements) updateOrbit();
-};
+});
 const restoreWorldOrbitBase = restoreWorldDefaults;
 restoreWorldDefaults = function () {
   restoreWorldOrbitBase();

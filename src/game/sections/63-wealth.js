@@ -128,11 +128,9 @@ function personStandingLine(id) {
   return `Poor by the reckoning of ${esc(ident.standingPlace || "the town")}.`;
 }
 // ── Tick hook ──────────────────────────────────────────────────────────────────
-const updateWeatherCycleWealthBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleWealthBase();
+calendarSystem("wealth", function () {
   if (W?.settlements && W.tick % 256 === 40) updateWealth();
-};
+});
 // ── Chronicle, Legends, map mode ───────────────────────────────────────────────
 const eventSentenceWealthBase = eventSentence;
 eventSentence = function (e) {

@@ -130,11 +130,9 @@ function updateMuck() {
   for (const town of W.settlements)
     if (W.tick % MUCK_CADENCE === town.id % MUCK_CADENCE && (behind || muckExhausted(town))) muckTown(town);
 }
-const simTickMuckBase = simTick;
-simTick = function () {
-  simTickMuckBase();
+tickSystem("muck", function () {
   updateMuck();
-};
+});
 window.ALIFE_MUCK_DEBUG = Object.freeze({
   counts: () => ({ ...MUCK }),
   poorFields: (n) => (n === undefined ? MUCK_POOR_FIELDS : (MUCK_POOR_FIELDS = n)),

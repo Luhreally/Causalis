@@ -106,6 +106,9 @@ function updateWeatherCycle() {
       W.lastNaturalFireTick = W.tick;
     }
   }
+  // The rest of the calendar: seasons, belief, diplomacy, festivals, eras...,
+  // each registered by its section with calendarSystem() (16).
+  runTickSystems(TICK_SYSTEMS.calendar, 0, TICK_SYSTEMS.calendar.length);
 }
 function igniteTile(i, intensity = 300, cause = 0, origin = "combustion") {
   if (i < 0 || i >= W.tileCount) return false;

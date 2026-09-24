@@ -124,11 +124,9 @@ function updateUrban() {
   }
   return out;
 }
-const simTickUrbanBase = simTick;
-simTick = function () {
-  simTickUrbanBase();
+tickSystem("urban pull", function () {
   if (W?.settlements && W.tick % 256 === URBAN_TICK) updateUrban();
-};
+});
 // The great town keeps its people: it sends out half the settlers a village would.
 const settlerUrgeUrbanBase = settlerUrge;
 settlerUrge = function (place) {

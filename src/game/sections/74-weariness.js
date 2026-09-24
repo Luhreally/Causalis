@@ -103,12 +103,10 @@ function updateWeariness() {
       endWar(war, a, b, "the war petered out without a battle");
   }
 }
-const updateWeatherCycleWearinessBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleWearinessBase();
+calendarSystem("weariness", function () {
   if (!W?.factions || !W.activeWars) return;
   if (W.tick % 128 === 100) updateWeariness();
-};
+});
 const unrestOfWearinessBase = unrestOf;
 unrestOf = function (place) {
   const f = place?.factionId ? W.factions.find((x) => x.id === place.factionId) : null;

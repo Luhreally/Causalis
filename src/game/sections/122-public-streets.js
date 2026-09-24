@@ -66,8 +66,7 @@ function publicTransportPass() {
   }
   if (moved) rebuildSpatialBins();
 }
-const simTickPublicBase = simTick;
-simTick = function () { simTickPublicBase(); publicTransportPass(); };
+tickSystem("public transport", () => { publicTransportPass(); });
 const sceneEntityVisiblePublicBase = sceneEntityVisible;
 sceneEntityVisible = function (id, ...args) {
   if (W.components.life[id]?.transitLinkId) return false;

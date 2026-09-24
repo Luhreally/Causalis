@@ -220,12 +220,10 @@ function updateParentage() {
     if (ident?.secretParentId && !ident.parentageRevealedTick) revealParentage(id);
   }
 }
-const updateWeatherCycleHeartBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleHeartBase();
+calendarSystem("parentage", function () {
   if (!W?.components?.identity) return;
   if (W.tick % 256 === 56) updateParentage();
-};
+});
 // ── Chronicle, story, houses ───────────────────────────────────────────────────
 const eventSentenceHeartBase = eventSentence;
 eventSentence = function (e) {

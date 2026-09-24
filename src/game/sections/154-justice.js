@@ -427,15 +427,13 @@ updateExile = function () {
     for (const [s, v] of saved) s.stability = v;
   }
 };
-const simTickJusticeBase = simTick;
-simTick = function () {
-  simTickJusticeBase();
+tickSystem("justice", function () {
   if (!W?.settlements) return;
   keepCells();
   holdCourts();
   if (W.tick % 32 === 21) watchForReturned();
   if (W.tick % 256 === 180) reviseLawCodes();
-};
+});
 // ── What it says ─────────────────────────────────────────────────────────────
 const eventSentenceJusticeBase = eventSentence;
 eventSentence = function (e) {

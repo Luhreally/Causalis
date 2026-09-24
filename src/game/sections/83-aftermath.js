@@ -215,11 +215,9 @@ function updateColonists() {
   }
   return sent;
 }
-const simTickAftermathBase = simTick;
-simTick = function () {
-  simTickAftermathBase();
+tickSystem("colonists", function () {
   if (W?.settlements && W.tick % 256 === 200) updateColonists();
-};
+});
 // ── Chronicle ──────────────────────────────────────────────────────────────────
 const eventSentenceAftermathBase = eventSentence;
 eventSentence = function (e) {

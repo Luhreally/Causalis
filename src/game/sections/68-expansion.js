@@ -519,16 +519,14 @@ function considerProspecting() {
   }
 }
 // ── Tick hook and reasons ──────────────────────────────────────────────────────
-const updateWeatherCycleExpansionBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleExpansionBase();
+calendarSystem("expansion", function () {
   if (!W?.settlements || !W.camps) return;
   ensureExpansion(W);
   if (W.tick % 16 === 9) updateSettlers();
   if (W.tick % 256 === 232) considerSettlers();
   if (W.tick % 16 === 11) updateProspectors();
   if (W.tick % 256 === 24) considerProspecting();
-};
+});
 const chooseBehaviorExpansionBase = chooseBehavior;
 chooseBehavior = function (id, tier) {
   chooseBehaviorExpansionBase(id, tier);

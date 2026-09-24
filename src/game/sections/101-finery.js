@@ -191,15 +191,13 @@ function buyLuxuries() {
   }
   return bought;
 }
-const simTickFineryBase = simTick;
-simTick = function () {
-  simTickFineryBase();
+tickSystem("finery", function () {
   if (!W?.factions || !W.settlements) return;
   if (W.tick % FINERY_CADENCE === FINERY_OFFSET) {
     updateTithePolicies();
     buyLuxuries();
   }
-};
+});
 // ── Chronicle and Legends ─────────────────────────────────────────────────────
 const eventSentenceFineryBase = eventSentence;
 eventSentence = function (e) {

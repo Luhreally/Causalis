@@ -131,11 +131,9 @@ function recordYearTurn(year = formatYear() - 1) {
     data: { year, text, count: events.length },
   });
 }
-const updateWeatherCycleYearsBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleYearsBase();
+calendarSystem("year turn", function () {
   if (W?.annals && W.tick > 0 && W.tick % TICKS_PER_YEAR === 0) recordYearTurn(formatYear() - 1);
-};
+});
 // ── Rendering ──────────────────────────────────────────────────────────────────
 function yearsBars(events, selected, firstYear, lastYear) {
   const counts = new Map();

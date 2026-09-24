@@ -239,15 +239,13 @@ opinionTarget = function (a, b) {
   }
   return out;
 };
-const simTickBlocsBase = simTick;
-simTick = function () {
-  simTickBlocsBase();
+tickSystem("loans", function () {
   if (!W?.factions || !W.diplomacy) return;
   if (W.tick % LOAN_CADENCE === LOAN_OFFSET) {
     serviceLoans();
     seekLoans();
   }
-};
+});
 // ── Chronicle and Legends ─────────────────────────────────────────────────────
 const eventSentenceBlocsBase = eventSentence;
 eventSentence = function (e) {

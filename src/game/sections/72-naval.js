@@ -162,13 +162,11 @@ function updateNaval() {
       .filter((b) => b.active)
       .concat(W.naval.blockades.filter((b) => !b.active).slice(-12));
 }
-const updateWeatherCycleNavalBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleNavalBase();
+calendarSystem("naval", function () {
   if (!W?.activeWars || !W.buildings) return;
   ensureNaval(W);
   if (W.tick % 128 === 88) updateNaval();
-};
+});
 // ── What a blockade stops ──────────────────────────────────────────────────────
 const startFishingNavalBase = startFishing;
 startFishing = function (place) {

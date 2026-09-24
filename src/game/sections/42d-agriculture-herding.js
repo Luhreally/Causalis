@@ -1464,9 +1464,7 @@ function retirePermanentlyFloodedFarmSites() {
   }
 }
 
-const simTickAgricultureBase = simTick;
-simTick = function () {
-  simTickAgricultureBase();
+tickSystem("fields and herds", function () {
   if (!W) return;
   initializeAgricultureHerding();
   if (W.tick % 4 === 0) updatePredatorDefense();
@@ -1483,7 +1481,7 @@ simTick = function () {
     resolveEffects();
     rebuildSpatialBins();
   }
-};
+});
 
 const eventSentenceAgricultureBase = eventSentence;
 eventSentence = function (event) {

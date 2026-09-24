@@ -1623,15 +1623,13 @@ function updateOccupations() {
   }
 }
 
-const simTickConflictBase = simTick;
-simTick = function () {
-  simTickConflictBase();
+tickSystem("conflict drama", function () {
   if (!W) return;
   initializeConflictDrama();
   updatePersistentWounds();
   updateOccupations();
   updateInternalConflict();
-};
+});
 
 const eventSentenceConflictBase = eventSentence;
 eventSentence = function (event) {

@@ -15,17 +15,12 @@
 const SITE_BACKOFF = 96;
 // ── Building plans once per tick, and no site search while none can succeed ──
 // Memos live only inside a simulation tick; inspectors, tests, and debug calls
-// between ticks always see fresh values.
-let PERF_TICKING = false;
-const simTickPerfBase = simTick;
-simTick = function () {
-  PERF_TICKING = true;
-  try {
-    return simTickPerfBase();
-  } finally {
-    PERF_TICKING = false;
-  }
-};
+// between ticks always see fresh values (PERF_TICKING, 16).
+// The memos below hold while PERF_TICKING is on: for the core tick and the
+// systems registered before this section (40-59). The systems registered
+// after it (82 on) have run outside the window from the start; widening it
+// changes the world, and is to be measured, not done in passing.
+endTickMemoWindow();
 const ensurePlacePlansPerfBase = ensurePlacePlans;
 ensurePlacePlans = function (place) {
   if (!place || (PERF_TICKING && place.plansTick === W?.tick)) return;

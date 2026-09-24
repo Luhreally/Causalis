@@ -201,14 +201,12 @@ function updatePurchases() {
     hireHands(f);
   }
 }
-const simTickMarketsBase = simTick;
-simTick = function () {
-  simTickMarketsBase();
+tickSystem("markets", function () {
   if (W?.settlements) {
     updateTreasuries();
     updatePurchases();
   }
-};
+});
 // ── Chronicle and pages ───────────────────────────────────────────────────────
 const eventSentenceMarketsBase = eventSentence;
 eventSentence = function (e) {

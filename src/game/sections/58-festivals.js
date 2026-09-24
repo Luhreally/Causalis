@@ -515,15 +515,13 @@ function paintMural(place) {
   });
 }
 // ── Tick hook ──────────────────────────────────────────────────────────────────
-const updateWeatherCycleFestivalsBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleFestivalsBase();
+calendarSystem("festivals", function () {
   if (!W?.settlements || !W.cultures || !W.annals) return;
   ensureFestivals(W);
   if (W.tick % 32 === 14) updateFestivals();
   if (W.tick % 128 === 60) composeSongs();
   if (W.tick % 256 === 240) paintMurals();
-};
+});
 const chooseBehaviorFestivalsBase = chooseBehavior;
 chooseBehavior = function (id, tier) {
   chooseBehaviorFestivalsBase(id, tier);

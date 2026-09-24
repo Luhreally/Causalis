@@ -114,14 +114,12 @@ function updateCalamities() {
   scanCalamities();
   blameVoices();
 }
-const updateWeatherCycleCalamityBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleCalamityBase();
+calendarSystem("calamities", function () {
   if (!W?.settlements) return;
   ensureCalamities(W);
   if (W.tick % 64 === 20) updateCalamities();
   if (W.tick % 128 === 104) fadeCalamities();
-};
+});
 const unrestOfCalamityBase = unrestOf;
 unrestOf = function (place) {
   return unrestOfCalamityBase(place) + (place?.calamity || 0) * 0.25;

@@ -148,13 +148,11 @@ function updateFaith() {
   pressFaith();
   markHolyWars();
 }
-const updateWeatherCycleFaithBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleFaithBase();
+calendarSystem("faith", function () {
   if (!W?.factions || !W.cultures) return;
   ensureFaith(W);
   if (W.tick % 128 === 72) updateFaith();
-};
+});
 // ── Chronicle and Legends ──────────────────────────────────────────────────────
 const eventSentenceFaithBase = eventSentence;
 eventSentence = function (e) {

@@ -488,9 +488,7 @@ function considerVoyages() {
   }
 }
 // ── Tick hook ──────────────────────────────────────────────────────────────────
-const updateWeatherCycleSeaBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleSeaBase();
+calendarSystem("seafaring", function () {
   if (!W?.settlements || !W.buildings) return;
   ensureSea(W);
   if (W.tick % 16 === 6) {
@@ -499,7 +497,7 @@ updateWeatherCycle = function () {
   }
   if (W.tick % 64 === 44) for (const place of W.settlements) if (!place.ruined) startFishing(place);
   if (W.tick % 256 === 200) considerVoyages();
-};
+});
 const chooseBehaviorSeaBase = chooseBehavior;
 chooseBehavior = function (id, tier) {
   chooseBehaviorSeaBase(id, tier);

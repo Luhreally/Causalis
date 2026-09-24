@@ -294,12 +294,10 @@ hireHands = function (faction) {
   }
   return hired;
 };
-const simTickHabitationBase = simTick;
-simTick = function () {
-  simTickHabitationBase();
+tickSystem("habitation", function () {
   if (W.tick % 256 !== 96) return;
   for (const town of W.settlements) if (!town.ruined) habitationAccounts(town, updateHabitationTown(town));
-};
+});
 const preferredReturnBuildingHabitationBase = preferredReturnBuilding;
 preferredReturnBuilding = function (id) {
   return habitationHome(id) || preferredReturnBuildingHabitationBase(id);

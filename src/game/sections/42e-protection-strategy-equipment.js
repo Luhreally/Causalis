@@ -1909,15 +1909,13 @@ organismInspector = function (id) {
   return html;
 };
 
-const simTickPhysicalBuildingsBase = simTick;
-simTick = function () {
-  simTickPhysicalBuildingsBase();
+tickSystem("building occupancy", function () {
   if (!W) return;
   if (W.tick % 64 === 0) {
     reconcileBuildingOccupancy();
     rebuildSpatialBins();
   }
-};
+});
 
 const nonLifeInspectorDeepEquipmentBase = nonLifeInspector;
 nonLifeInspector = function (id) {

@@ -845,9 +845,7 @@ function updateDiplomacy() {
   enforceTreaties();
   considerProposals();
 }
-const updateWeatherCycleDiplomacyBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleDiplomacyBase();
+calendarSystem("diplomacy", function () {
   if (!W?.factions || !W.activeWars) return;
   ensureDiplomacy(W);
   if (W.tick % 16 === 12) {
@@ -856,7 +854,7 @@ updateWeatherCycle = function () {
   }
   if (W.tick % 128 === 96) updateDiplomacy();
   if (W.tick % TICKS_PER_YEAR === 128) payTributes();
-};
+});
 const chooseBehaviorDiplomacyBase = chooseBehavior;
 chooseBehavior = function (id, tier) {
   chooseBehaviorDiplomacyBase(id, tier);

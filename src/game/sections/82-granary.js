@@ -374,11 +374,9 @@ function updateGranaryFamine() {
     }
   if (W.tick % 8 === 4) updateMigrations();
 }
-const simTickGranaryBase = simTick;
-simTick = function () {
-  simTickGranaryBase();
+tickSystem("granary", function () {
   if (W && W.settlements) updateGranaryFamine();
-};
+});
 // ── Hungry, crowded towns send settlers sooner ─────────────────────────────────
 const settlerUrgeGranaryBase = settlerUrge;
 settlerUrge = function (place) {

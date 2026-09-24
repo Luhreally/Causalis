@@ -252,15 +252,13 @@ function feedChildren() {
     }
   }
 }
-const simTickAidBase = simTick;
-simTick = function () {
-  simTickAidBase();
+tickSystem("first aid", function () {
   if (!W?.settlements) return;
   if (W.tick % 8 === 5) clinicCare();
   if (W.tick % 16 === 7) sendToClinic();
   if (W.tick % 4 === 3) fieldMedics();
   if (W.tick % 16 === 11) feedChildren();
-};
+});
 const eventSentenceAidBase = eventSentence;
 eventSentence = function (e) {
   if (e.type === "WoundsDressedEvent") {

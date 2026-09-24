@@ -215,14 +215,12 @@ robOfFood = function (id, victim, hunger) {
   return ev;
 };
 // ── Tick hook ─────────────────────────────────────────────────────────────────
-const simTickCivilBase = simTick;
-simTick = function () {
-  simTickCivilBase();
+tickSystem("civil society", function () {
   if (!W?.settlements || !W.factions) return;
   if (W.tick % TEACH_CADENCE === TEACH_OFFSET) teachChildren();
   if (W.tick % 256 === 168) circlePetitions();
   if (W.tick % 256 === 176) adoptLawCodes();
-};
+});
 // ── Chronicle and Legends ─────────────────────────────────────────────────────
 const eventSentenceCivilBase = eventSentence;
 eventSentence = function (e) {

@@ -763,11 +763,9 @@ assignPartners = function () {
   if (W.tick % 16 === 0) updateSocialDrama(true);
 };
 
-const simTickSocialBase = simTick;
-simTick = function () {
-  simTickSocialBase();
+tickSystem("social drama", function () {
   if (W) updateSocialDrama();
-};
+});
 
 function agentEmojiState(id) {
   const social = W.components.social[id],

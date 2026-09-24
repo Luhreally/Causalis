@@ -147,13 +147,11 @@ ensurePlacePlans = function (place) {
   if (wantsFactory(place) && activeBuildings(place).length < 6)
     planBuilding(place, "factory", Math.max(3, place.management?.priorities?.materials || 3));
 };
-const simTickIndustryBase = simTick;
-simTick = function () {
-  simTickIndustryBase();
+tickSystem("industry", function () {
   if (!W?.settlements) return;
   if (W.tick % FACTORY_CADENCE === FACTORY_OFFSET) updateFactories();
   if (W.roads && W.tick % RAIL_CADENCE === RAIL_OFFSET) railFreight();
-};
+});
 // ── Knowledge travels ─────────────────────────────────────────────────────────
 const LINKED_CACHE = { world: null, tick: -1, map: new Map() };
 function linkedTowns(s) {

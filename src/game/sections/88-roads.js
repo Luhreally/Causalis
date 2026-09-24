@@ -340,14 +340,12 @@ function driveCivilOrders() {
   }
   if (moved) rebuildSpatialBins();
 }
-const simTickRoadsBase = simTick;
-simTick = function () {
-  simTickRoadsBase();
+tickSystem("roads", function () {
   if (W?.settlements) {
     updateRoads();
     if (W.civilOrders?.length) driveCivilOrders();
   }
-};
+});
 // Carts carry more than backs: barter widens between polities that both roll.
 const bestBarterRoadsBase = bestBarter;
 bestBarter = function (a, b) {

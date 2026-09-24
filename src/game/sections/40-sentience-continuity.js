@@ -517,13 +517,11 @@ function upliftWildSapience() {
   recordEmergenceEvent(ev.id);
   return uplifted;
 }
-const simTickSentienceBase = simTick;
-simTick = function () {
-  simTickSentienceBase();
+tickSystem("sentience", function () {
   ensureSentientContinuity();
   ensureParallelPeoples();
   upliftWildSapience();
-};
+});
 const huntTargetScoreSentienceBase = huntTargetScore;
 huntTargetScore = function (id, target) {
   let score = huntTargetScoreSentienceBase(id, target);

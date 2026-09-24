@@ -53,14 +53,12 @@ function updateHouses() {
       h.voices.push({ id: f.leaderId, factionId: f.id, from: W.tick });
   }
 }
-const updateWeatherCycleHousesBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleHousesBase();
+calendarSystem("houses", function () {
   if (W?.houses !== undefined || W?.activeIds) {
     ensureHouses(W);
     if (W.tick % 256 === 72) updateHouses();
   }
-};
+});
 // ── Reading a house ────────────────────────────────────────────────────────────
 function identityOf(id) {
   return W.components.identity[id] || W.historicalIdentities?.[id] || null;

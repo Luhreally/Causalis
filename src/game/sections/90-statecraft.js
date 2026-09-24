@@ -319,11 +319,9 @@ function updateStatecraft() {
   }
   if (W.tick % OPINION_CADENCE === OPINION_OFFSET + 8) considerCoalition();
 }
-const simTickStatecraftBase = simTick;
-simTick = function () {
-  simTickStatecraftBase();
+tickSystem("statecraft", function () {
   if (W?.diplomacy) updateStatecraft();
-};
+});
 // ── Chronicle, alerts, and the Relations table ────────────────────────────────
 const eventSentenceStatecraftBase = eventSentence;
 eventSentence = function (e) {

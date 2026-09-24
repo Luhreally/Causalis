@@ -252,11 +252,9 @@ function updateStreets() {
   if (W.tick % STREET_PASS_CADENCE !== STREET_PASS_OFFSET) return;
   for (const s of W.settlements) if (!s.ruined && s.knownProcesses) paveStreets(s);
 }
-const simTickTownBase = simTick;
-simTick = function () {
-  simTickTownBase();
+tickSystem("townscape", function () {
   if (W?.settlements) updateStreets();
-};
+});
 const eventSentenceTownBase = eventSentence;
 eventSentence = function (e) {
   if (e.type === "StreetsPavedEvent") return `${e.data?.place} paved its ${e.data?.pattern} streets.`;

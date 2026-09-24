@@ -106,9 +106,7 @@ function sidewalkTraffic(link) {
   for (const tile of link.path) total += W.tiles.traffic?.[tile] || 0;
   return Math.round(total / Math.max(1, link.path.length));
 }
-const simTickSidewalkBase = simTick;
-simTick = function () {
-  const out = simTickSidewalkBase();
+tickSystem("sidewalk count", function () {
   if (W && W.tick % 64 === 0) {
     const g = sidewalkGraph();
     let walked = 0;
@@ -119,8 +117,7 @@ simTick = function () {
     }
     SIDEWALK.walked = walked;
   }
-  return out;
-};
+});
 window.ALIFE_SIDEWALK_DEBUG = Object.freeze({
   counts: () => ({ ...SIDEWALK }),
   rebuild: () => {

@@ -534,16 +534,14 @@ function updateBelief() {
   }
   checkProphecies();
 }
-const updateWeatherCycleBeliefBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCycleBeliefBase();
+calendarSystem("belief", function () {
   if (W.tick % 128 === 100) updateBelief();
   if (W.tick % 1024 === 600) {
     ensureBeliefs();
     for (const c of W.cultures) retellMyths(c);
     checkSchisms();
   }
-};
+});
 // Rites follow the solstices the seasons already chronicle.
 const updateSeasonsBeliefBase = updateSeasons;
 updateSeasons = function () {

@@ -420,16 +420,14 @@ function considerUpheavals() {
   return null;
 }
 // ── Tick hook ──────────────────────────────────────────────────────────────────
-const updateWeatherCyclePoliticsBase = updateWeatherCycle;
-updateWeatherCycle = function () {
-  updateWeatherCyclePoliticsBase();
+calendarSystem("politics", function () {
   if (!W?.settlements || !W.factions) return;
   ensurePolitics(W);
   if (W.tick % 256 === 160) {
     updateUnrest();
     considerUpheavals();
   }
-};
+});
 // ── Chronicle sentences ────────────────────────────────────────────────────────
 const eventSentencePoliticsBase = eventSentence;
 eventSentence = function (e) {

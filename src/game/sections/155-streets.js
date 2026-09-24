@@ -269,9 +269,7 @@ publicTransportPass = function () {
   }
   if (moved) rebuildSpatialBins();
 };
-const simTickStreetsBase = simTick;
-simTick = function () {
-  simTickStreetsBase();
+tickSystem("streets", function () {
   if (!W?.settlements || !W.tiles?.road) return;
   driveToWork();
   for (const town of W.settlements) {
@@ -279,7 +277,7 @@ simTick = function () {
     if (W.tick % 128 === (town.id * 13) % 128) paveWornGround(town);
     if (W.tick % 256 === (town.id * 29 + 64) % 256) buyCars(town);
   }
-};
+});
 // ── The crowd seen ──────────────────────────────────────────────────────────
 // Drawn from the town's ledger count, never stored: a walker for every six of
 // the crowd, a car for every five of its households where the town drives,
