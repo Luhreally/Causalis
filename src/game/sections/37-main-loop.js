@@ -50,7 +50,6 @@ function cacheDom() {
     "tab-warfare",
     "tab-worldinfo",
     "tab-stats",
-    "statsChart",
     "modalLayer",
     "modalBox",
     "modalTitle",

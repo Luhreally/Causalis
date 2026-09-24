@@ -455,3 +455,69 @@
 .guide-empty {
   display: none !important;
 }
+
+/* Trends (158): one measure a chart, on its own scale, with its years. */
+.trend-grid {
+  display: grid;
+  gap: 8px;
+}
+.trend-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 9px 5px;
+  background: #0b131acc;
+}
+.trend-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--muted);
+}
+.trend-head b {
+  color: var(--ink);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.trend-plot {
+  display: block;
+  width: 100%;
+  height: 44px;
+  margin: 4px 0 2px;
+  cursor: crosshair;
+  overflow: visible;
+}
+.trend-line {
+  fill: none;
+  stroke: var(--cyan);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+}
+.trend-area {
+  fill: var(--cyan);
+  opacity: 0.1;
+}
+.trend-base {
+  stroke: var(--line2);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+.trend-guide {
+  stroke: var(--muted);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+.trend-dot {
+  fill: var(--ink);
+  stroke: var(--bg);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+.trend-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}

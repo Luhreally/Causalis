@@ -473,9 +473,8 @@ function averageTraits(kind) {
 }
 function refreshStats() {
   if (!W) return;
-  drawStatsChart();
   const traits = [KINDS.HERBIVORE, KINDS.PREDATOR, KINDS.PERSON].map((k) => [k, averageTraits(k)]);
-  DOM.statsBody.innerHTML = `<div class="legend" style="margin:7px 0"><span><i style="background:#72d7ca"></i>Population</span><span><i style="background:#79c989"></i>Food</span><span><i style="background:#e06e66"></i>Fire</span><span><i style="background:#a98bd6"></i>Disease</span><span><i style="background:#e4c36a"></i>Settlements</span><span><i style="background:#5fb6db"></i>Technology</span><span><i style="background:#d485bd"></i>Factions</span></div><div class="subhead">Average derived traits</div>${traits.map(([k, t]) => `<div class="card" style="margin-bottom:6px"><h4>${titleCase(k)} · ${t?.count || 0} total${t ? ` · ${t.detailed} detailed · ${t.cohort} cohort` : ""}</h4>${t ? `<div class="kv"><span>Speed</span><b>${t.speed.toFixed(2)}</b><span>Size</span><b>${t.size.toFixed(2)}</b><span>Senses</span><b>${t.sense.toFixed(2)}</b><span>Disease resistance</span><b>${pct(t.resist * 100)}</b><span>Sociality</span><b>${pct(t.social * 100)}</b></div>` : `<div class="muted">No living entities or cohorts</div>`}</div>`).join("")}<div class="subhead">Known species</div>${
+  DOM.statsBody.innerHTML = `<div class="subhead">Average derived traits</div>${traits.map(([k, t]) => `<div class="card" style="margin-bottom:6px"><h4>${titleCase(k)} · ${t?.count || 0} total${t ? ` · ${t.detailed} detailed · ${t.cohort} cohort` : ""}</h4>${t ? `<div class="kv"><span>Speed</span><b>${t.speed.toFixed(2)}</b><span>Size</span><b>${t.size.toFixed(2)}</b><span>Senses</span><b>${t.sense.toFixed(2)}</b><span>Disease resistance</span><b>${pct(t.resist * 100)}</b><span>Sociality</span><b>${pct(t.social * 100)}</b></div>` : `<div class="muted">No living entities or cohorts</div>`}</div>`).join("")}<div class="subhead">Known species</div>${
     Object.values(W.speciesRegistry)
       .map(
         (s) =>
@@ -486,45 +485,6 @@ function refreshStats() {
 }
 function factionRow(f) {
   return `<div class="faction-row" data-faction="${f.id}"><div class="row between"><b style="color:${f.color}">${esc(f.name)}</b><span class="tag">${f.population} lives</span></div><small class="muted">${f.settlementIds.length} settlements · cohesion ${pct(f.cohesion * 100)} · technology ${f.technologyLevel} · territory ${f.territorySize}</small></div>`;
-}
-function drawStatsChart() {
-  const c = DOM.statsChart,
-    g = c.getContext("2d"),
-    r = c.getBoundingClientRect(),
-    dpr = Math.min(2, devicePixelRatio || 1);
-  c.width = Math.max(1, Math.floor(r.width * dpr));
-  c.height = Math.max(1, Math.floor(128 * dpr));
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.fillStyle = "#080e13";
-  g.fillRect(0, 0, r.width, 128);
-  const h = W.statistics.history;
-  if (h.length < 2) return;
-  const series = [
-    ["population", "#72d7ca"],
-    ["food", "#79c989"],
-    ["fire", "#e06e66"],
-    ["disease", "#a98bd6"],
-    ["settlements", "#e4c36a"],
-    ["technology", "#5fb6db"],
-    ["factions", "#d485bd"],
-  ];
-  for (const [key, color] of series) {
-    const max = Math.max(1, ...h.map((v) => v[key]));
-    g.strokeStyle = color;
-    g.lineWidth = 1.5;
-    g.beginPath();
-    h.forEach((v, i) => {
-      const x = 5 + (i / (h.length - 1)) * (r.width - 10),
-        y = 121 - (v[key] / max) * 112;
-      i ? g.lineTo(x, y) : g.moveTo(x, y);
-    });
-    g.stroke();
-  }
-  g.strokeStyle = "#253541";
-  g.beginPath();
-  g.moveTo(4, 121);
-  g.lineTo(r.width - 4, 121);
-  g.stroke();
 }
 function refreshTopbar() {
   if (!W) return;
