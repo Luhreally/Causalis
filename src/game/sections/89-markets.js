@@ -332,15 +332,12 @@ renderLegendIndex = function (query = "") {
     card = `<div class="row between" style="margin-top:10px"><span class="subhead" style="margin:0">The economy</span></div><div class="legend-grid"><div class="legend-card" data-legend="economy:0"><b>Economy</b><small>${routes} road${routes === 1 ? "" : "s"} of trade · ${Math.round(coin)} coin · ${W.markets.purchases} purchase${W.markets.purchases === 1 ? "" : "s"}</small></div></div>`;
   return html + card;
 };
-const renderFactionPageMarketsBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageMarketsBase(id),
-    f = W.factions.find((x) => x.id === id);
-  if (!f || !polityCoins(f)) return html;
-  const row = `<div class="kv"><span>Treasury</span><b>${f.treasury} coin · ${factionMarkets(f)} market${factionMarkets(f) === 1 ? "" : "s"}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+pageBlock("faction", '<div class="subhead">', function (id) {
+  const f = W.factions.find((x) => x.id === id);
+  if (!f || !polityCoins(f)) return "";
+  const row = `<div class="kv"><span>Treasury</span><b>${f.treasury} coin · ${factionMarkets(f)} market${factionMarkets(f) === 1 ? "" : "s"}</b></div>`;
+  return row;
+});
 pageBlock("place", '<div class="subhead">', function (id) {
   const s = W.settlements.find((x) => x.id === id);
   if (!s || !s.knownProcesses) return "";

@@ -222,15 +222,12 @@ eventText(["TitheEvent", "FineryEvent"], function (e, next) {
     return `${d.place} bought ${d.amount} of ${d.good} from ${d.seller} for its ${d.demand} well-off households.`;
   return next(e);
 });
-const renderFactionPageFineryBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageFineryBase(id),
-    f = W.factions.find((x) => x.id === id);
-  if (!f || !polityCoins(f)) return html;
-  const row = `<div class="kv"><span>Tithe</span><b>${esc(tithePolicy(f) === "heavy" ? "heavy, and felt" : "light")}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+pageBlock("faction", '<div class="subhead">', function (id) {
+  const f = W.factions.find((x) => x.id === id);
+  if (!f || !polityCoins(f)) return "";
+  const row = `<div class="kv"><span>Tithe</span><b>${esc(tithePolicy(f) === "heavy" ? "heavy, and felt" : "light")}</b></div>`;
+  return row;
+});
 pageBlock("place", '<div class="subhead">', function (id) {
   const place = W.settlements.find((s) => s.id === id);
   if (!place?.knownProcesses) return "";

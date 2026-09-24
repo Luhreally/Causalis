@@ -470,16 +470,13 @@ renderLegendIndex = function (query = "") {
   if (!charted && !W.voyages.length) return html;
   return `${html}<div class="row between" style="margin-top:10px"><span class="subhead" style="margin:0">The stars</span></div><div class="legend-grid"><div class="legend-card" data-legend="stars:0"><b>The stars</b><small>${charted} charted · ${W.voyages.length} ship${W.voyages.length === 1 ? "" : "s"} · ${colonies} colon${colonies === 1 ? "y" : "ies"}</small></div></div>`;
 };
-const renderFactionPageOrbitBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageOrbitBase(id);
+pageBlock("faction", '<div class="subhead">', function (id) {
   ensureOrbit();
   const held = W.colonies.filter((c) => c.factionId === id && c.status === "founded");
-  if (!held.length) return html;
-  const row = `<div class="kv"><span>Worlds held</span><b>${held.map((c) => legendLink("colony", c.id, esc(c.name))).join(", ")}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+  if (!held.length) return "";
+  const row = `<div class="kv"><span>Worlds held</span><b>${held.map((c) => legendLink("colony", c.id, esc(c.name))).join(", ")}</b></div>`;
+  return row;
+});
 window.ALIFE_ORBIT_DEBUG = Object.freeze({
   stars: () => {
     ensureOrbit();

@@ -235,11 +235,9 @@ renderLegendIndex = function (query = "") {
 function yearsLink(kind, id) {
   return `<div class="row wrap" style="gap:6px;margin:8px 0"><button class="small" data-legend="years:${yearsScopeId(kind, id)}">Chronicle by year</button></div>`;
 }
-const renderFactionPageYearsBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageYearsBase(id);
-  return W.factions.some((f) => f.id === id) ? html + yearsLink("faction", id) : html;
-};
+pageBlock("faction", null, function (id) {
+  return W.factions.some((f) => f.id === id) ? yearsLink("faction", id) : "";
+});
 pageBlock("place", null, function (id) {
   return W.settlements.some((s) => s.id === id) ? yearsLink("place", id) : "";
 });

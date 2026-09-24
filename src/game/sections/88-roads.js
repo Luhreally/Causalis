@@ -399,15 +399,12 @@ function roadSummaryFor(filter) {
     name = (id) => W.settlements.find((s) => s.id === id)?.name || "a lost town";
   return links.map((l) => `${name(l.a)} – ${name(l.b)}${l.kind === "rail" ? " (rail)" : ""}`);
 }
-const renderFactionPageRoadsBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageRoadsBase(id);
+pageBlock("faction", '<div class="subhead">', function (id) {
   const roads = roadSummaryFor((l) => l.factionId === id);
-  if (!roads.length) return html;
-  const row = `<div class="kv"><span>Roads</span><b>${roads.map(esc).join(", ")}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+  if (!roads.length) return "";
+  const row = `<div class="kv"><span>Roads</span><b>${roads.map(esc).join(", ")}</b></div>`;
+  return row;
+});
 pageBlock("place", '<div class="subhead">', function (id) {
   const roads = roadSummaryFor((l) => l.a === id || l.b === id);
   if (!roads.length) return "";

@@ -422,17 +422,14 @@ eventText(
     return next(e);
   },
 );
-const renderFactionPageAfternoonBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageAfternoonBase(id),
-    f = W.factions.find((x) => x.id === id);
-  if (!f) return html;
+pageBlock("faction", '<div class="subhead">', function (id) {
+  const f = W.factions.find((x) => x.id === id);
+  if (!f) return "";
   ensureIdeology(f);
   const stations = stationCount(f.id),
-    row = `<div class="kv"><span>Rule</span><b>${esc(f.government || governmentName(f))} <span class="muted">${f.ideology.rule > 0.2 ? "the one" : f.ideology.rule < -0.2 ? "the many" : "the few"} · ${f.ideology.openness > 0.2 ? "open" : f.ideology.openness < -0.2 ? "closed" : "guarded"}</span>${stations ? ` · ${stations} orbital station${stations === 1 ? "" : "s"}` : ""}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+    row = `<div class="kv"><span>Rule</span><b>${esc(f.government || governmentName(f))} <span class="muted">${f.ideology.rule > 0.2 ? "the one" : f.ideology.rule < -0.2 ? "the many" : "the few"} · ${f.ideology.openness > 0.2 ? "open" : f.ideology.openness < -0.2 ? "closed" : "guarded"}</span>${stations ? ` · ${stations} orbital station${stations === 1 ? "" : "s"}` : ""}</b></div>`;
+  return row;
+});
 const renderAgesPageAfternoonBase = renderAgesPage;
 renderAgesPage = function () {
   const html = renderAgesPageAfternoonBase();

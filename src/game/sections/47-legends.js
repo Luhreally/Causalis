@@ -567,6 +567,9 @@ function renderLifePage(id) {
   }<span>Renown</span><b>${(ident.significance || 0).toFixed(1)}${ident.legendary ? " · legendary" : ident.notable ? " · notable" : ""}</b></div>${worldButtons(alive ? id : 0, death?.location ?? -1)}<div class="subhead">Chronicle</div>${timelineRows(events)}${relationsList(id)}`;
 }
 function renderFactionPage(id) {
+  return composePageBlocks("faction", id, renderFactionPageCore(id));
+}
+function renderFactionPageCore(id) {
   const f = W.factions.find((x) => x.id === id);
   if (!f) return `<div class="empty">No polity #${id} is recorded.</div>`;
   const culture = W.cultures.find((c) => c.id === f.cultureId),
@@ -635,8 +638,8 @@ function renderCulturePage(id) {
 // they are registered, which is manifest order, each into the page as the
 // ones before it left it: the page a chain of wrappers once spliced together,
 // the same to the byte, now read as a list (npm run map shows the chains that
-// remain; the place page's blocks are these).
-const PAGE_BLOCKS = { place: [] };
+// remain; the place and polity pages' blocks are these).
+const PAGE_BLOCKS = { place: [], faction: [] };
 function pageBlock(page, anchor, render) {
   if (!PAGE_BLOCKS[page]) throw new Error(`no page ${page} takes blocks`);
   PAGE_BLOCKS[page].push({ anchor, render });

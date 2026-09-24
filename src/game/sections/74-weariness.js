@@ -122,16 +122,13 @@ function wearinessWord(f) {
         ? "tired of fighting"
         : "";
 }
-const renderFactionPageWearinessBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageWearinessBase(id),
-    f = W.factions.find((x) => x.id === id),
+pageBlock("faction", '<div class="subhead">', function (id) {
+  const f = W.factions.find((x) => x.id === id),
     word = f ? wearinessWord(f) : "";
-  if (!word) return html;
-  const row = `<div class="kv"><span>War-weariness</span><b>${esc(word)} · ${Math.round(f.weariness * 100)}%</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+  if (!word) return "";
+  const row = `<div class="kv"><span>War-weariness</span><b>${esc(word)} · ${Math.round(f.weariness * 100)}%</b></div>`;
+  return row;
+});
 window.ALIFE_WEARINESS_DEBUG = Object.freeze({
   update: () => updateWeariness(),
   weariness: (factionId) => W.factions.find((f) => f.id === factionId)?.weariness ?? null,

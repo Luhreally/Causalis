@@ -243,15 +243,12 @@ function traitTags(f) {
     .map((id) => `<span class="tag gold" title="${esc(TRAIT_GLOSS[id] || "")}">${esc(id)}</span>`)
     .join("");
 }
-const renderFactionPageTraitsBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageTraitsBase(id),
-    f = W.factions.find((x) => x.id === id);
-  if (!f?.traits?.length) return html;
-  const at = html.indexOf('<div class="kv">');
+pageBlock("faction", '<div class="kv">', function (id) {
+  const f = W.factions.find((x) => x.id === id);
+  if (!f?.traits?.length) return "";
   const block = `<div class="row wrap" style="gap:4px;margin:0 0 8px">${traitTags(f)}</div>`;
-  return at < 0 ? html + block : html.slice(0, at) + block + html.slice(at);
-};
+  return block;
+});
 const nonLifeInspectorTraitsBase = nonLifeInspector;
 nonLifeInspector = function (id) {
   const html = nonLifeInspectorTraitsBase(id),

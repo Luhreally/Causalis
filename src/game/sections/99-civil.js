@@ -185,15 +185,12 @@ const alertWorthyCivilBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyCivilBase(a) || a.type === "LawEvent" || a.type === "PetitionEvent";
 };
-const renderFactionPageCivilBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageCivilBase(id),
-    f = W.factions.find((x) => x.id === id);
-  if (!f?.law) return html;
-  const row = `<div class="kv"><span>Law</span><b>${esc(LAW_CODES[f.law.code] || f.law.code)}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+pageBlock("faction", '<div class="subhead">', function (id) {
+  const f = W.factions.find((x) => x.id === id);
+  if (!f?.law) return "";
+  const row = `<div class="kv"><span>Law</span><b>${esc(LAW_CODES[f.law.code] || f.law.code)}</b></div>`;
+  return row;
+});
 pageBlock("place", '<div class="subhead">', function (id) {
   const place = W.settlements.find((s) => s.id === id),
     circles = townCircles(place);

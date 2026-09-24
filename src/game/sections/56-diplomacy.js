@@ -960,16 +960,11 @@ function diplomacySection(f) {
   }
   return `<div class="subhead">Diplomacy</div>${rows.length ? `<div class="kv">${rows.join("")}</div>` : `<div class="empty">No treaties, marriages, or envoys.</div>`}`;
 }
-const renderFactionPageDiplomacyBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageDiplomacyBase(id),
-    f = factionById(id);
-  if (!f) return html;
-  const at = html.indexOf('<div class="subhead">Voices</div>');
-  return at < 0
-    ? html + diplomacySection(f)
-    : html.slice(0, at) + diplomacySection(f) + html.slice(at);
-};
+pageBlock("faction", '<div class="subhead">Voices</div>', function (id) {
+  const f = factionById(id);
+  if (!f) return "";
+  return diplomacySection(f);
+});
 // ── Drawing ────────────────────────────────────────────────────────────────────
 // Envoys carry a swaying pennant; travelling spouses walk in a ring of petals;
 // tribute caravans shoulder gold-tinted bundles; a vassal capital flies its

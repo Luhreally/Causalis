@@ -180,17 +180,14 @@ function faithRow(f) {
     ? `<div class="kv"><span>Faith</span><b>${esc(faith.name.charAt(0).toUpperCase() + faith.name.slice(1))}</b></div>`
     : "";
 }
-const renderFactionPageFaithBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageFaithBase(id),
-    f = W.factions.find((x) => x.id === id),
+pageBlock("faction", '<div class="subhead">', function (id) {
+  const f = W.factions.find((x) => x.id === id),
     row = f ? faithRow(f) : "";
-  if (!row) return html;
+  if (!row) return "";
   const holy = W.activeWars.filter((w) => w.holy && (w.a === id || w.b === id)).length,
-    extra = holy ? `<div class="kv"><span>Holy wars</span><b>${holy}</b></div>` : "",
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row + extra : html.slice(0, at) + row + extra + html.slice(at);
-};
+    extra = holy ? `<div class="kv"><span>Holy wars</span><b>${holy}</b></div>` : "";
+  return row + extra;
+});
 const renderCulturePageFaithBase = renderCulturePage;
 renderCulturePage = function (id) {
   const html = renderCulturePageFaithBase(id),

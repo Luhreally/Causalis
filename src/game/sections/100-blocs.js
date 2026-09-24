@@ -276,11 +276,9 @@ const alertWorthyBlocsBase = alertWorthy;
 alertWorthy = function (a) {
   return alertWorthyBlocsBase(a) || a.type === "DefaultEvent";
 };
-const renderFactionPageBlocsBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageBlocsBase(id),
-    f = W.factions.find((x) => x.id === id);
-  if (!f) return html;
+pageBlock("faction", '<div class="subhead">', function (id) {
+  const f = W.factions.find((x) => x.id === id);
+  if (!f) return "";
   const loans = activeLoans(f).map((t) => {
       const other = factionById(t.a === f.id ? t.b : t.a),
         left = t.owed - t.paid;
@@ -296,10 +294,9 @@ renderFactionPage = function (id) {
       (loans.length
         ? `<div class="kv"><span>Loans</span><b>${esc(loans.join("; "))}</b></div>`
         : "");
-  if (!rows) return html;
-  const at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + rows : html.slice(0, at) + rows + html.slice(at);
-};
+  if (!rows) return "";
+  return rows;
+});
 window.ALIFE_BLOCS_DEBUG = Object.freeze({
   bloc: (factionId) => blocOf(factionId),
   leader: (factionId) => blocLeader(factionId)?.id || 0,

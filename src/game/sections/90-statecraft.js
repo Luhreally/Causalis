@@ -412,16 +412,13 @@ function relationsTable(f) {
     .join("");
   return rows ? `<div class="subhead">Relations</div>${rows}` : "";
 }
-const renderFactionPageStatecraftBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageStatecraftBase(id),
-    f = W.factions.find((x) => x.id === id);
-  if (!f || !W.diplomacy) return html;
+pageBlock("faction", '<div class="subhead">', function (id) {
+  const f = W.factions.find((x) => x.id === id);
+  if (!f || !W.diplomacy) return "";
   const table = relationsTable(f);
-  if (!table) return html;
-  const at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + table : html.slice(0, at) + table + html.slice(at);
-};
+  if (!table) return "";
+  return table;
+});
 window.ALIFE_STATECRAFT_DEBUG = Object.freeze({
   opinion: (aId, bId) => opinionOf(factionById(aId), factionById(bId)),
   reasons: (aId, bId) => opinionTarget(factionById(aId), factionById(bId)),

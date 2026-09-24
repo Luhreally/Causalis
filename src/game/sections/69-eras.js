@@ -693,16 +693,13 @@ renderLegendIndex = function (query = "") {
       : "";
   return `${html}${ageCard}${leagues}`;
 };
-const renderFactionPageErasBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageErasBase(id),
-    f = W.factions.find((x) => x.id === id),
+pageBlock("faction", '<div class="subhead">', function (id) {
+  const f = W.factions.find((x) => x.id === id),
     league = f ? leagueOf(f) : null;
-  if (!league) return html;
-  const row = `<div class="kv"><span>League</span><b>${legendLink("league", league.id, league.name)}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+  if (!league) return "";
+  const row = `<div class="kv"><span>League</span><b>${legendLink("league", league.id, league.name)}</b></div>`;
+  return row;
+});
 // ── Top bar and World tab ──────────────────────────────────────────────────────
 const refreshTopbarErasBase = refreshTopbar;
 refreshTopbar = function () {

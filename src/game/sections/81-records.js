@@ -155,16 +155,13 @@ eventText(["KnowledgeRecoveredEvent"], function (e, next) {
     return `${d.settlement} recovered ${d.name} from the records kept at ${d.archive}.`;
   return next(e);
 });
-const renderFactionPageRecordsBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageRecordsBase(id),
-    f = W.factions.find((x) => x.id === id);
-  if (!f?.records?.length) return html;
+pageBlock("faction", '<div class="subhead">', function (id) {
+  const f = W.factions.find((x) => x.id === id);
+  if (!f?.records?.length) return "";
   const archives = factionArchives(f),
-    row = `<div class="kv"><span>Records</span><b>${f.records.length} process${f.records.length === 1 ? "" : "es"} archived${archives.length ? ` at ${esc(archives.map((s) => s.name).join(", "))}` : " · no archive stands to keep them"}</b></div>`,
-    at = html.indexOf('<div class="subhead">');
-  return at < 0 ? html + row : html.slice(0, at) + row + html.slice(at);
-};
+    row = `<div class="kv"><span>Records</span><b>${f.records.length} process${f.records.length === 1 ? "" : "es"} archived${archives.length ? ` at ${esc(archives.map((s) => s.name).join(", "))}` : " · no archive stands to keep them"}</b></div>`;
+  return row;
+});
 window.ALIFE_RECORDS_DEBUG = Object.freeze({
   records: (factionId) => (W.factions.find((f) => f.id === factionId)?.records || []).slice(),
   archives: (factionId) =>

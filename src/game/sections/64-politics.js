@@ -445,22 +445,19 @@ eventText(["UnrestEvent", "RebellionEvent", "CivilWarEvent", "CoupEvent"], funct
   }
 });
 // ── Legends and map mode ───────────────────────────────────────────────────────
-const renderFactionPagePoliticsBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPagePoliticsBase(id),
-    f = W.factions.find((x) => x.id === id);
-  if (!f) return html;
+pageBlock("faction", '<div class="subhead">Diplomacy</div>', function (id) {
+  const f = W.factions.find((x) => x.id === id);
+  if (!f) return "";
   const towns = W.settlements.filter((s) => !s.ruined && s.factionId === f.id && s.unrest != null);
-  if (!towns.length) return html;
+  if (!towns.length) return "";
   const worst = towns.slice().sort((a, b) => b.unrest - a.unrest)[0],
     mean = towns.reduce((s, t) => s + t.unrest, 0) / towns.length,
     parent = f.parentFactionId ? W.factions.find((x) => x.id === f.parentFactionId) : null,
     block = `<div class="kv"><span>Unrest</span><b>${Math.round(mean * 100)}%${worst.unrest > UNREST_THRESHOLD ? ` · ${legendLink("place", worst.id, worst.name)} restless` : ""}</b>${
       parent ? `<span>Broke from</span><b>${legendLink("faction", parent.id, parent.name)}</b>` : ""
-    }</div>`,
-    at = html.indexOf('<div class="subhead">Diplomacy</div>');
-  return at < 0 ? html + block : html.slice(0, at) + block + html.slice(at);
-};
+    }</div>`;
+  return block;
+});
 pageBlock("place", '<div class="subhead">Chronicle</div>', function (id) {
   const s = W.settlements.find((x) => x.id === id);
   if (!s || s.unrest == null) return "";

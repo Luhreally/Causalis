@@ -227,12 +227,10 @@ renderLegendList = function (what, query = "") {
       : `<div class="empty">None recorded.</div>`
   }`;
 };
-const renderFactionPageHousesBase = renderFactionPage;
-renderFactionPage = function (id) {
-  const html = renderFactionPageHousesBase(id),
-    f = W.factions.find((x) => x.id === id),
+pageBlock("faction", '<div class="subhead">Voices</div>', function (id) {
+  const f = W.factions.find((x) => x.id === id),
     h = f ? rulingHouse(f) : null;
-  if (!f || !h) return html;
+  if (!f || !h) return "";
   const dynasty = dynastyOf(h),
     held = h.voices.filter((v) => v.factionId === f.id).length,
     block = `<div class="kv"><span>Ruling house</span><b>${legendLink("house", h.id, `House of ${h.name || h.id}`)}${
@@ -241,10 +239,9 @@ renderFactionPage = function (id) {
         : held > 1
           ? ` <span class="muted">· ${held} Voices</span>`
           : ""
-    }</b></div>`,
-    at = html.indexOf('<div class="subhead">Voices</div>');
-  return at < 0 ? html + block : html.slice(0, at) + block + html.slice(at);
-};
+    }</b></div>`;
+  return block;
+});
 const renderLifePageHousesBase = renderLifePage;
 renderLifePage = function (id) {
   const html = renderLifePageHousesBase(id),
