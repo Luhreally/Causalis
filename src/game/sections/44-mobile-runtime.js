@@ -259,7 +259,11 @@ function updateTouchPinch() {
     aTravel = Math.hypot(aDx, aDy),
     bTravel = Math.hypot(bDx, bDy),
     coherence = aTravel > 0 && bTravel > 0 ? (aDx * bDx + aDy * bDy) / (aTravel * bTravel) : -1;
-  UI.camera.zoom = clamp((TOUCH_GESTURE.zoom * distance) / TOUCH_GESTURE.distance, 0.16, 80);
+  UI.camera.zoom = clamp(
+    (TOUCH_GESTURE.zoom * distance) / TOUCH_GESTURE.distance,
+    typeof minCameraZoom === "function" ? minCameraZoom() : 0.16,
+    80,
+  );
   if ((aTravel > 5 && bTravel > 5 && coherence > 0.55) || TOUCH_GESTURE.orbiting) {
     TOUCH_GESTURE.orbiting = true;
     orbitCamera(centerDx * 0.0065, -centerDy * 0.0048);

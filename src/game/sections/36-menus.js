@@ -72,6 +72,7 @@ function performWorldCreation(opts) {
         CAMERA_GLIDE.cx = null;
         CAMERA_GLIDE.cy = null;
         UI.cameraMotion = { x: 0, y: 0, orbit: 0, tilt: 0 };
+        UI.cameraFitPending = true;
         UI.view = "top";
         UI.overlay = null;
         UI.tool = "inspect";

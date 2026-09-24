@@ -456,6 +456,7 @@ window.ALIFE_VISUAL_DEBUG = Object.freeze({
     UI.camera.x = options.x ?? W.width / 2;
     UI.camera.y = options.y ?? W.height / 2;
     UI.camera.zoom = options.zoom ?? 1;
+    UI.cameraFitPending = false;
     UI.camera.angle = options.angle ?? cameraAngle();
     UI.camera.tilt = options.tilt ?? cameraTilt();
     UI.camera.cutaway = options.cutaway ?? !!UI.camera.cutaway;

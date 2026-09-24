@@ -606,6 +606,7 @@ async function loadWorld(slot) {
       worldHash();
     }
     Object.assign(UI, uiPatch);
+    UI.cameraFitPending = true;
     UI.selectedTile = -1;
     UI.selectedEntity = 0;
     UI.selectedEvent = 0;
