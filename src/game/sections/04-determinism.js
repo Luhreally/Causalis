@@ -106,6 +106,9 @@ const WORLD_HASH_SKIP = new Set(["hash", "spatialBins", "tempDelta", "chemDelta"
   WORLD_HASH_KEY_CACHE = new Map(),
   WORLD_HASH_F64 = new Float64Array(1),
   WORLD_HASH_U32 = new Uint32Array(WORLD_HASH_F64.buffer);
+// The tick the hash in W.hash was taken at; the top bar takes a fresh one when
+// the clock stops rather than trusting a stale one.
+let WORLD_HASH_TICK = -1;
 function worldHashKey(key) {
   let value = WORLD_HASH_KEY_CACHE.get(key);
   if (value === undefined) {
@@ -221,5 +224,6 @@ function worldHash() {
   }
   walk(W);
   W.hash = (h >>> 0).toString(16).padStart(8, "0");
+  WORLD_HASH_TICK = W.tick;
   return W.hash;
 }

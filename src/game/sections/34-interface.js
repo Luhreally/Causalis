@@ -614,7 +614,15 @@ function refreshTopbar() {
   DOM.topTime.textContent = `Tick ${W.tick.toLocaleString()} · Year ${formatYear()}${seasonLabel()}`;
   DOM.topEpoch.textContent = epochName();
   DOM.topWeather.textContent = W.weather.name;
-  DOM.topHash.textContent = W.hash;
+  // The fingerprint for comparing two runs. It walks all of W, so it is taken
+  // when the clock stops; while the world runs the last one shows, dimmed.
+  if (!UI.running && WORLD_HASH_TICK !== W.tick) worldHash();
+  const hashFresh = WORLD_HASH_TICK === W.tick;
+  DOM.topHash.textContent = W.hash || "--------";
+  DOM.topHash.classList.toggle("stale", !hashFresh);
+  DOM.topHash.title = hashFresh
+    ? "World hash at this tick: the same seed and the same acts give the same hash"
+    : `World hash at tick ${WORLD_HASH_TICK.toLocaleString()}; pause to take it now`;
   DOM.topStatus.innerHTML = `<span class="dot"></span>${UI.running ? "Running" : "Paused"} · ${formatSpeed(UI.speed)}${UI.running && UI.speed >= 64 ? " · fast-forward" : ""}`;
   DOM.topStatus.classList.toggle("paused", !UI.running);
 }

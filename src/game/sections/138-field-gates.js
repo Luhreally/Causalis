@@ -215,6 +215,13 @@ plannedBuildingTile = function (place, type, ordinal) {
   }
   return plot;
 };
+// The whole search, every section's say in it included, reads one grid of the
+// world's footprints (30a's withFootprintIndex) instead of every building for
+// every plot it tries.
+const plannedBuildingTileIndexedBase = plannedBuildingTile;
+plannedBuildingTile = function (place, type, ordinal) {
+  return withFootprintIndex(() => plannedBuildingTileIndexedBase(place, type, ordinal));
+};
 function fieldGatesPushCity(town, pushes) {
   let pushed = 0;
   for (const type of MODERN_CITY_STAGE_TYPES) {

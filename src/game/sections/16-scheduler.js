@@ -37,7 +37,9 @@ function simTick() {
   commitDerivedCaches();
   if (W.tick % 1024 === 0) updateLongEpoch();
   if (W.tick % autosaveCadence() === 0) queueAutosave();
-  if (W.tick % TICKS_PER_YEAR === 0) worldHash();
+  // No yearly world hash here: nothing in the world reads it, and walking all
+  // of W was the year tick's stall (45-80 ms on a grown world, 38 of it in the
+  // social store). Saves, loads and the top bar take their own.
   rebuildSpatialBins();
 }
 function stepTicks(n) {

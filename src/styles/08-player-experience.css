@@ -148,6 +148,10 @@ body {
 .compact-controls .top-stat:has(#topHash) {
   display: none;
 }
+/* A hash taken at an earlier tick: the world has moved on since. */
+#topHash.stale {
+  opacity: 0.5;
+}
 .instrument-details {
   border-top: 1px solid var(--line);
   padding: 12px 0;

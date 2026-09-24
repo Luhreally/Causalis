@@ -375,6 +375,65 @@ function buildingSpatialRadius(type) {
 function spatialFootprintsOverlap(ax, ay, ar, bx, by, br) {
   return Math.max(Math.abs(ax - bx), Math.abs(ay - by)) < ar + br;
 }
+// A site is chosen by trying plots one at a time, and every try checked every
+// building and field in the world: one search on a grown phone world asked
+// 4,007 times of 241 buildings (19-66 ms in one tick). Nothing is built,
+// cleared or moved while a search runs, so a search lays the footprints in a
+// grid of four-tile cells once (withFootprintIndex, opened round the whole of
+// plannedBuildingTile in 138) and each try reads only the cells within reach.
+// The answer is the one the full scan gives; the grid is dropped when the
+// search ends.
+const FOOTPRINT_CELL = 4;
+let FOOTPRINT_INDEX = null;
+function buildFootprintIndex() {
+  const cols = Math.ceil(W.width / FOOTPRINT_CELL) + 1,
+    rows = Math.ceil(W.height / FOOTPRINT_CELL) + 1,
+    cells = new Array(cols * rows);
+  let reach = 1;
+  const put = (x, y, record) => {
+    const col = clamp(Math.floor(x / FOOTPRINT_CELL), 0, cols - 1),
+      row = clamp(Math.floor(y / FOOTPRINT_CELL), 0, rows - 1);
+    (cells[row * cols + col] ||= []).push(record);
+  };
+  for (const building of W.buildings || []) {
+    if (building.ruined && sum(Array.from(building.composition || [])) <= 0) continue;
+    const r = buildingSpatialRadius(building.type);
+    reach = Math.max(reach, r);
+    put(building.x, building.y, { building: true, id: building.id, x: building.x, y: building.y, r });
+  }
+  for (const field of W.fields || []) {
+    if (!Number.isInteger(field.tile)) continue;
+    const [fieldX, fieldY] = xy(field.tile);
+    put(fieldX, fieldY, { building: false, id: field.id, x: fieldX, y: fieldY, r: 1 });
+  }
+  return { world: W, cols, rows, cells, reach };
+}
+function withFootprintIndex(search) {
+  if (FOOTPRINT_INDEX && FOOTPRINT_INDEX.world === W) return search();
+  FOOTPRINT_INDEX = buildFootprintIndex();
+  try {
+    return search();
+  } finally {
+    FOOTPRINT_INDEX = null;
+  }
+}
+function footprintIndexClear(index, x, y, radius, ignoreBuildingId, ignoreFieldId) {
+  const reach = radius + index.reach,
+    col0 = clamp(Math.floor((x - reach) / FOOTPRINT_CELL), 0, index.cols - 1),
+    col1 = clamp(Math.floor((x + reach) / FOOTPRINT_CELL), 0, index.cols - 1),
+    row0 = clamp(Math.floor((y - reach) / FOOTPRINT_CELL), 0, index.rows - 1),
+    row1 = clamp(Math.floor((y + reach) / FOOTPRINT_CELL), 0, index.rows - 1);
+  for (let row = row0; row <= row1; row++)
+    for (let col = col0; col <= col1; col++) {
+      const cell = index.cells[row * index.cols + col];
+      if (!cell) continue;
+      for (const o of cell) {
+        if (o.building ? o.id === ignoreBuildingId : o.id === ignoreFieldId) continue;
+        if (spatialFootprintsOverlap(x, y, radius, o.x, o.y, o.r)) return false;
+      }
+    }
+  return true;
+}
 function developmentFootprintClear(x, y, radius, ignoreBuildingId = 0, ignoreFieldId = 0) {
   if (
     !inside(x, y) ||
@@ -384,6 +443,9 @@ function developmentFootprintClear(x, y, radius, ignoreBuildingId = 0, ignoreFie
     y + radius >= W.height
   )
     return false;
+  const index = FOOTPRINT_INDEX;
+  if (index && index.world === W && Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(radius))
+    return footprintIndexClear(index, x, y, radius, ignoreBuildingId, ignoreFieldId);
   for (const building of W.buildings || []) {
     if (
       building.id === ignoreBuildingId ||
