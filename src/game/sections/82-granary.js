@@ -364,6 +364,14 @@ function updateGranaryFamine() {
 tickSystem("granary", function () {
   if (W && W.settlements) updateGranaryFamine();
 });
+tickSystem("granary memory", function () {
+  if (!W?.settlements || W.tick % 32 !== 20) return;
+  for (const town of W.settlements) {
+    if (town.ruined || !town.knownProcesses) continue;
+    const outlook = foodOutlook(town);
+    if (outlook && (outlook.famine || granaryHard(outlook))) town.hardTick = W.tick;
+  }
+});
 // ── Hungry, crowded towns send settlers sooner ─────────────────────────────────
 const settlerUrgeGranaryBase = settlerUrge;
 settlerUrge = function (place) {
@@ -401,7 +409,18 @@ launchSettlers = function (place, force = false) {
 // reading is taken once a tick per town, not once per person.
 const HASTE_FOOD = LEAN_FOOD * 2,
   HASTE_HUNGRY = 0.1,
-  HASTE_FAMINE = 0.6;
+  HASTE_FAMINE = 0.6,
+  HASTE_MEMORY = TICKS_PER_YEAR;
+// A town remembers its last lean season, and hurries no child for a year after
+// it. The stores are full after a harvest and thin before the next, so a town
+// living at the edge of what its fields give read a surplus every autumn and
+// hurried the next generation into a lean spring: on battery ship-b, in plain
+// play, the towns grew to 189 by year 100 and then starved, 65 of them eaten
+// by their neighbours by year 120. A town whose fields feed it with room to
+// spare goes a whole year without a lean day and keeps the concerted pace.
+function granaryHard(outlook) {
+  return outlook.lean || outlook.food < HASTE_FOOD || outlook.hungry > HASTE_HUNGRY;
+}
 let hasteCache = { world: null, tick: -1, values: new Map() };
 function granaryBirthPace(town) {
   if (!town || town.ruined) return null;
@@ -412,7 +431,8 @@ function granaryBirthPace(town) {
   let pace = null;
   if (outlook) {
     if (outlook.famine) pace = HASTE_FAMINE;
-    else if (outlook.lean || outlook.food < HASTE_FOOD || outlook.hungry > HASTE_HUNGRY) pace = 1;
+    else if (granaryHard(outlook)) pace = 1;
+    else if (W.tick - (town.hardTick ?? -Infinity) < HASTE_MEMORY) pace = 1;
   }
   hasteCache.values.set(town.id, pace);
   return pace;

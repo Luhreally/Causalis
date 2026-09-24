@@ -26,14 +26,17 @@
 // (scratchpad course-ab.cjs), so the lists stand and no sweep was needed.
 // The settled pace (41, 2026-09-24) moved it (e8375dfd to cea09323): the
 // founding band works at the settled pace from its first camp rather than
-// from the first effort check at tick 128; the sweep of HANDOFF 39.
+// from the first effort check at tick 128; the sweep of HANDOFF 39. A field
+// site seeded from its own plot and hungry hands at a lean town's waiting
+// field before the ship (137) moved it again (cea09323 to 5e622ad8), with
+// the same sweep.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
 const harnessEnd = smokeSource.indexOf('if (process.env.SETTLEMENT_DEBUG === "1")');
 if (harnessEnd < 0) throw new Error("Unable to locate the shared smoke-test harness");
 
-const BASELINE_HASH = "cea09323",
+const BASELINE_HASH = "5e622ad8",
   BASELINE_YEARS = 8;
 
 const fixtureSource = String.raw`(() => {

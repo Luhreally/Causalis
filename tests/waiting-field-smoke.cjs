@@ -5,10 +5,9 @@
 // player's input, and a farm planned this year is left to the builders; a
 // resident at hunger eighty beside a lean town's stocked farm raises it when
 // there is nothing to eat and is sent to eat when there is, and one at the
-// hall draws the farm's water from the town's own stores; before
-// the ship the same hands stand aside as they always did; the waiting farm's
-// order outranks a tower block's behind the ship and not before, and a farm
-// planned this year is not raised; a farm the town cannot walk to is neither
+// hall draws the farm's water from the town's own stores, before the ship as
+// behind it; the waiting farm's order outranks a tower block's behind the ship
+// and not before, and a farm planned this year is not raised; a farm the town cannot walk to is neither
 // first nor built by hungry hands nor sited again behind the ship, and two
 // years planned it falls to rubble; the effort sows a lean town's long-fallow
 // field behind the ship and not before, and tends it again when the press has
@@ -144,15 +143,15 @@ const fixtureSource = String.raw`(() => {
   out.drawn = inv[C.SOLVENT];
   if (!out.draw) fail("hungry hands did not draw the farm's water from the stores");
   if (out.drawn !== 8 || s.inventory[C.SOLVENT] !== 8) fail("the water did not move from the stores to the hands: hands " + out.drawn + " store " + s.inventory[C.SOLVENT]);
-  // Before the ship the same hands stand aside as they always did.
+  // Before the ship the same hands work the same field (137, before the ship too).
   W.ascensions.pop();
   W.tick += 2;
   derivedLife(id);
   out.fitBeforeShip = !!field.fit(id);
-  if (out.fitBeforeShip) fail("hungry hands were fit for the farm before any ship had left");
+  if (!out.fitBeforeShip) fail("hungry hands were not fit for the waiting farm before the ship");
   clearStaleWork(id);
   out.labourBeforeShip = performCivilLabor(id);
-  if (out.labourBeforeShip) fail("hungry hands laboured before any ship had left: " + JSON.stringify(W.components.work?.[id]?.phase));
+  if (!out.labourBeforeShip) fail("hungry hands stood aside from the waiting farm before the ship");
   // A plot the town cannot walk to: no first place, no hungry hands, and, two years planned, given up for rubble;
   // and a farm sited behind the ship on such ground is sited again on open ground or not at all.
   {

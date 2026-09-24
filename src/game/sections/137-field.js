@@ -235,7 +235,7 @@ causalSkipStep = function (state) {
 };
 // ── Hungry hands build it ────────────────────────────────────────────────────
 function fieldHandsFit(id) {
-  if (W.kind[id] !== KINDS.PERSON || !shipHasLeft()) return null;
+  if (W.kind[id] !== KINDS.PERSON) return null;
   const life = W.components.life[id],
     q = W.components.chemistry[id]?.q;
   if (
@@ -429,4 +429,97 @@ window.ALIFE_FIELD_DEBUG = Object.freeze({
     return fit ? fieldBuild(id, fit.place, fit.b) : false;
   },
   counts: () => ({ ...FIELD }),
+});
+// ── Before the ship too ──────────────────────────────────────────────────────
+// One of the rules above is a town's own doing, hungry hands at the face of a
+// waiting field, written behind the ship and held there so the road to it
+// would not move while it was measured. The road needed it as much: in plain
+// play on battery variety-3 the island's second town, Pridtreid, planned two
+// fields at year seventeen and at year fifty they stood at stage nought, no
+// harvest in thirty years, two in five of its people hungry and then four in
+// five, the town falling from twenty-five to ten while its sister across the
+// water ate. It holds from the first town now.
+//
+// The rest still wait for the ship or the press. What the effort gives (its
+// supply and its sowing) is the player's input. The waiting field first puts a
+// farm two years planned above every other order of its town, the skyline's
+// too: tried before the ship it was not what the island's fields lacked, and
+// with it battery causal-origin waited seventeen years on its last two tower
+// blocks (ship at 68; 51 without it). A meal at home before labour
+// took the hungry off the granary's sowing and reaping before the ship: on
+// battery variety-1 a skip's famine that took thirty-two went on to take
+// twenty-four more, and none with it held back. Re-siting a plot and giving one
+// up trust the open-ground flood (128), which starts at the hall and stops at
+// standing buildings, so a crowded centre can wall it in and call every plot
+// unreachable: before the ship that left variety-3's other town with no field
+// planned at all for thirty years.
+//
+// And a field site is seeded from its own plot. Every field asks for seven or
+// so of organic stuff, the seed of its first crop, and nothing else a town
+// builds from is its food: a hungry town has none in store (the labour pool
+// never draws the bread, 30d), and the gatherers sent for it are the hungry,
+// who eat what they carry before they reach the plot. Pridtreid's fields
+// lacked their seven for thirty years with the wild growth standing on the
+// plot itself. Once a quarter-year a field site that lacks organic stuff, in a
+// town with a hand fit to work, takes it from the growth on its own ground
+// (its three by three), up to a carry at a time: the plot is cleared and its
+// growth kept for seed. The matter moves from the tiles into the site. Battery
+// variety-3 sends its ship at year 187 (279 before; the settled pace alone
+// sent none in forty presses). Sowing a fallow field from its own growth was
+// tried beside it and taken out: it slowed three of four worlds and did not
+// help the island.
+const FIELD_PLOT_CADENCE = 64;
+function fieldSeedFromPlot(place, b) {
+  const wanted = (b.requirements || []).find(([sp]) => sp === C.ORGANIC),
+    lacking = wanted ? wanted[1] - (b.composition[C.ORGANIC] || 0) : 0;
+  if (lacking <= 0) return 0;
+  const hands = granaryResidents(place).some((id) => {
+    const life = W.components.life[id];
+    return life && life.hunger <= FIELD_HANDS_HUNGER && life.thirst <= 80;
+  });
+  if (!hands) return 0;
+  let want = Math.min(lacking, FIELD_CARRY, 65535 - (b.composition[C.ORGANIC] || 0)),
+    taken = 0;
+  for (let dy = -1; dy <= 1 && want > 0; dy++)
+    for (let dx = -1; dx <= 1 && want > 0; dx++) {
+      const x = b.x + dx,
+        y = b.y + dy;
+      if (x < 0 || y < 0 || x >= W.width || y >= W.height) continue;
+      const tile = idx(x, y),
+        growth = resourceAmountAt(tile, C.ORGANIC),
+        take = Math.min(growth, want);
+      if (take <= 0) continue;
+      setTileMatterAmount(tile, C.ORGANIC, growth - take);
+      b.composition[C.ORGANIC] += take;
+      taken += take;
+      want -= take;
+    }
+  if (taken) {
+    refreshBuildingStage(b);
+    FIELD.seeded = (FIELD.seeded || 0) + taken;
+  }
+  return taken;
+}
+tickSystem("field plots", function () {
+  if (W.tick % FIELD_PLOT_CADENCE !== 16) return;
+  for (const place of W.settlements) {
+    if (place.ruined || !place.knownProcesses) continue;
+    for (const b of W.buildings)
+      if (
+        !b.ruined &&
+        !b.complete &&
+        b.type === "farm" &&
+        b.placeKind === "settlement" &&
+        b.placeId === place.id
+      )
+        fieldSeedFromPlot(place, b);
+  }
+});
+window.ALIFE_FIELD_PLOT_DEBUG = Object.freeze({
+  seed: (townId, buildingId) =>
+    fieldSeedFromPlot(
+      W.settlements.find((s) => s.id === townId),
+      W.buildings.find((b) => b.id === buildingId),
+    ),
+  counts: () => ({ seeded: FIELD.seeded || 0 }),
 });
