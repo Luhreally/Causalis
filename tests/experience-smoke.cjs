@@ -91,7 +91,22 @@ const fixture = async function () {
     PLAYER_EXPERIENCE.guide.step === 5 && PLAYER_EXPERIENCE.pins.includes(person),
     "Journal or pins did not persist",
   );
-  report.journalSteps = 5;
+  // The second chapter (162): a skip, the Legends, a lens, a whisper.
+  // The skip yields a frame between chunks; the stand-in DOM never draws one.
+  const priorFrame = globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame = (callback) => setTimeout(() => callback(performance.now()), 0);
+  const skipped = await causalSkipForward();
+  globalThis.requestAnimationFrame = priorFrame;
+  check(
+    skipped && PLAYER_EXPERIENCE.guide.step === 6,
+    "A Causal skip did not progress the journal",
+  );
+  refreshTabs("legends");
+  check(PLAYER_EXPERIENCE.guide.step === 7, "Opening the Legends did not progress the journal");
+  setOverlay("territory");
+  check(PLAYER_EXPERIENCE.guide.step === 8, "Choosing a lens did not progress the journal");
+  setOverlay("territory");
+  report.journalSteps = EXPEDITION_STEPS.length;
   report.impactRecorded = true;
   report.archiveRestored = true;
   report.matter = auditMatter();

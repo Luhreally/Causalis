@@ -96,13 +96,18 @@ function run(test, env) {
     child.on("close", (code, signal) => {
       clearTimeout(timer);
       const ok = (output.match(/"ok": true/g) || []).length,
-        notOk = (output.match(/"ok": false/g) || []).length;
+        notOk = (output.match(/"ok": false/g) || []).length,
+        // A test that says nothing has not passed: one whose promise never
+        // settled exits 0 in silence (the skip once waited on a frame the
+        // stand-in DOM never draws). The syntax check is the one that prints
+        // a sentence instead.
+        silent = !ok && !notOk && test.name !== "syntax";
       resolve({
         ...test,
         ms: Date.now() - started,
         ok,
-        passed: code === 0 && !notOk && !signal,
-        code: signal ? `killed (${signal})` : code,
+        passed: code === 0 && !notOk && !signal && !silent,
+        code: signal ? `killed (${signal})` : silent ? "0, but printed no result" : code,
         output,
       });
     });

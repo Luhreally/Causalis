@@ -39,10 +39,27 @@ const EXPEDITION_STEPS = [
     "Your intervention is recorded. Compare the water before and after, then trace its place in history.",
     "Read your impact",
   ],
+  ["Keep this world", "Save your expedition so you can return to it.", "Save expedition"],
+  // What the saved world can do next (162): the skip, the legends, a lens, a god's word.
   [
-    "Keep this world",
-    "Save your expedition so you can return. After this, the world is yours to explore.",
-    "Save expedition",
+    "Carry it forward",
+    "The Causal skip runs the world to its next milestone (a craft, a town, an age) and tells you what happened on the way. Press it once.",
+    "Causal skip",
+  ],
+  [
+    "Read its legends",
+    "Every life, town and war is remembered. Open the Legends to read this world's history, and follow any name you find.",
+    "Open the Legends",
+  ],
+  [
+    "Look through a lens",
+    "A map lens shows what the eye cannot: who holds the land, where it is fertile, who has no roof. Choose one from Map lenses.",
+    "Show who holds the land",
+  ],
+  [
+    "Speak as a god",
+    "Divine acts touch minds, not matter. Whisper to a town the next craft it could learn: choose Whisper knowledge, then click a town.",
+    "Choose Whisper knowledge",
   ],
 ];
 function experiencePreference(name, fallback) {
@@ -91,7 +108,10 @@ function showFirstExpedition() {
     "Your first expedition",
     '<div class="expedition-chooser"><div class="eyebrow">A living world, ready to explore</div>' +
       "<h3>Follow a life. Change its world.</h3><p>Start with people, grazers, and hunters already present. A short field journal will help you inspect a life, move time, bring rain, and trace what changed.</p>" +
-      '<div class="expedition-facts"><span>5 guided steps</span><span>Pause at any time</span><span>Free exploration afterwards</span></div>' +
+      '<div class="expedition-facts"><span>' +
+      EXPEDITION_STEPS.length +
+      " guided steps</span>" +
+      "<span>Pause at any time</span><span>Free exploration afterwards</span></div>" +
       '<label class="check"><input id="expeditionAudio" type="checkbox"' +
       (loadSettings().audio ? " checked" : "") +
       "> Enable ambient sound and action cues</label>" +
@@ -141,7 +161,7 @@ function resetExperienceWorld() {
   const stored = experiencePreference("guide:" + experienceWorldKey(), null);
   PLAYER_EXPERIENCE.guide = W.config.expedition
     ? {
-        step: Math.min(5, Math.max(0, Math.floor(Number(stored?.step) || 0))),
+        step: Math.min(EXPEDITION_STEPS.length, Math.max(0, Math.floor(Number(stored?.step) || 0))),
         startTick: W.tick,
         minimized: !!stored?.minimized,
         suspended: !!stored?.suspended,
@@ -291,7 +311,16 @@ function journalAction() {
     toast("Click or tap a patch of land to bring rain.");
   } else if (guide.step === 3) showImpactRecord();
   else if (guide.step === 4) saveExpedition();
-  else {
+  else if (guide.step === 5) causalSkipForward();
+  else if (guide.step === 6) {
+    refreshTabs("legends");
+    showPanelOnPhone("right");
+  } else if (guide.step === 7) setOverlay("territory");
+  else if (guide.step === 8) {
+    setTool("whisper");
+    if (UI.mobileMode) closeMobilePanels();
+    toast("Click or tap a town to whisper the next craft it could learn.");
+  } else {
     guide.minimized = true;
     persistGuide();
     refreshFieldJournal(true);
@@ -315,7 +344,9 @@ function refreshFieldJournal(force = false) {
   el.classList.toggle("journal-mini", guide.minimized);
   el.innerHTML =
     '<div class="journal-top"><span>Field journal · ' +
-    (guide.step >= 5 ? "Complete" : guide.step + 1 + " / 5") +
+    (guide.step >= EXPEDITION_STEPS.length
+      ? "Complete"
+      : guide.step + 1 + " / " + EXPEDITION_STEPS.length) +
     '</span><button id="journalMinimize" aria-label="' +
     (guide.minimized ? "Expand" : "Minimize") +
     ' field journal">' +
@@ -334,7 +365,9 @@ function refreshFieldJournal(force = false) {
     '</p><div class="experience-actions"><button id="journalAction" class="primary">' +
     row[2] +
     "</button>" +
-    (guide.step < 5 ? '<button id="journalSkip">Explore freely</button>' : "") +
+    (guide.step < EXPEDITION_STEPS.length
+      ? '<button id="journalSkip">Explore freely</button>'
+      : "") +
     "</div></div>";
   $("#journalMinimize").onclick = () => {
     guide.minimized = !guide.minimized;
