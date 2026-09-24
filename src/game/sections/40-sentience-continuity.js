@@ -357,6 +357,12 @@ bootstrapWorld = function () {
   bootstrapWorldSentienceBase();
   initializeSentienceContinuity();
   ensureSentientContinuity(true);
+  // A new world is given every default a loaded one is restored with, so a
+  // world and its save hold the same fields from the first tick and run alike
+  // from any tick. (Made lazily, the defaults a load added eagerly - the
+  // stars, the roads, the markets - parted a loaded world from its original
+  // at once; measured on causal-origin, the course is the same either way.)
+  restoreWorldDefaults();
   W.conservation.initialMatter = totalMatter();
   W.conservation.initialChemicalEnergy = totalChemicalEnergy();
   worldHash();

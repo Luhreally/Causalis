@@ -499,6 +499,11 @@ const EVENT_CATEGORY = Object.freeze({
   ReliefEvent: "settlements",
   MigrationEvent: "people",
   ChemistryEvent: "ecology",
+  // Care and the law (14, 152-154) were filed under ecology for want of a line here.
+  HealingEvent: "people",
+  ComfortEvent: "people",
+  WoundsDressedEvent: "people",
+  VerdictEvent: "conflict",
 });
 const DOM = {};
 let W = null;

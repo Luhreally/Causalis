@@ -51,17 +51,20 @@ const LABOUR_THRIFT = {
 // hundred of a grown world's leaner tick (the site searches of 30a's
 // planBuilding); once in sixteen, a plan set off by a worker's labour or a
 // craft learned waits fifteen ticks at most, a sixteenth of a month.
-const LABOUR_PLAN_EVERY = 16,
-  LABOUR_PLANNED = new WeakMap();
+// The tick a place last planned is kept on the place, so a saved world plans
+// when the world it was saved from would have (held in a map beside W, a
+// loaded world planned every town at once and parted from its original in
+// one tick).
+const LABOUR_PLAN_EVERY = 16;
 const ensurePlacePlansLabourBase = ensurePlacePlans;
 ensurePlacePlans = function (place) {
   if (place && PERF_TICKING && W) {
-    const last = LABOUR_PLANNED.get(place);
+    const last = place.labourPlannedTick;
     if (last !== undefined && last <= W.tick && W.tick - last < LABOUR_PLAN_EVERY) {
       LABOUR_THRIFT.plansKept++;
       return;
     }
-    LABOUR_PLANNED.set(place, W.tick);
+    place.labourPlannedTick = W.tick;
   }
   LABOUR_THRIFT.plans++;
   return ensurePlacePlansLabourBase(place);

@@ -18,14 +18,19 @@
 // weighing every hand, and the talk, aid, law and streets of 152 to 155 did
 // (23b71d86 to 9c3efbbb, the same sweep), since people talk, help and are
 // judged from the first years, and plans made once in sixteen ticks (149)
-// moved it again (9c3efbbb to 05494c3d, the same sweep).
+// moved it again (9c3efbbb to 05494c3d, the same sweep). A new world given
+// the defaults a loaded one is restored with, and the plans' timing and the
+// cars' fuel tally kept in W (2026-09-23), moved it once more (05494c3d to
+// e8375dfd) without moving the road: the same events and the same people on
+// this road for twelve years and on both launch fixtures for 768 ticks
+// (scratchpad course-ab.cjs), so the lists stand and no sweep was needed.
 const fs = require("node:fs");
 
 const smokeSource = fs.readFileSync(require.resolve("./smoke-test.cjs"), "utf8");
 const harnessEnd = smokeSource.indexOf('if (process.env.SETTLEMENT_DEBUG === "1")');
 if (harnessEnd < 0) throw new Error("Unable to locate the shared smoke-test harness");
 
-const BASELINE_HASH = "05494c3d",
+const BASELINE_HASH = "e8375dfd",
   BASELINE_YEARS = 8;
 
 const fixtureSource = String.raw`(() => {

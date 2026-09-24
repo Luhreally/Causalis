@@ -105,7 +105,8 @@ moveWorkerToward = function (id, tile, task, phase, ...rest) {
   }
   return out;
 };
-const DRIVEN = new Map();
+// The tiles a town has driven since it last burned a fuel are kept on the town
+// (town.drivenTiles), so a saved world burns its fuel where its original would.
 function driveToWork() {
   let moved = false;
   for (const id of W.activeIds) {
@@ -138,11 +139,11 @@ function driveToWork() {
     moved = true;
     STREETS.drives++;
     STREETS.tilesDriven += driven;
-    const tally = (DRIVEN.get(town) || 0) + driven;
+    const tally = (town.drivenTiles || 0) + driven;
     if (tally >= DRIVE_FUEL_TILES && burnTruckFuel(town, 1)) {
       STREETS.fuelBurned++;
-      DRIVEN.set(town, tally - DRIVE_FUEL_TILES);
-    } else DRIVEN.set(town, Math.min(tally, DRIVE_FUEL_TILES));
+      town.drivenTiles = tally - DRIVE_FUEL_TILES;
+    } else town.drivenTiles = Math.min(tally, DRIVE_FUEL_TILES);
   }
   if (moved) rebuildSpatialBins();
 }
