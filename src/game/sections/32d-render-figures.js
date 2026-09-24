@@ -434,6 +434,7 @@ function focusHistoryTarget(id, tile = -1) {
       CAMERA_GLIDE.py = null;
     }
     refreshCameraControls();
+    revealWorldOnPhone();
   }
   if (id && (W.kind[id] || W.historicalIdentities[id])) selectEntity(id);
   else if (tx >= 0) selectTile(tx);

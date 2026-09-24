@@ -925,10 +925,7 @@ const root = path.resolve(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const css = fs.readFileSync(path.join(root, "src/styles/07-mobile.css"), "utf8");
 assert.match(html, /viewport-fit=cover/);
-assert.equal(
-  (html.match(/id="dock(?:Tools|ZoomOut|Pause|ZoomIn|Speed|Inspect)Btn"/g) || []).length,
-  6,
-);
+assert.equal((html.match(/id="dock(?:Tools|Skip|Pause|Speed|Inspect)Btn"/g) || []).length, 5);
 assert.match(css, /safe-area-inset-(?:top|right|bottom|left)/);
 assert.match(css, /100dvh/);
 assert.match(css, /touch-action:\s*none/);

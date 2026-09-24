@@ -516,6 +516,7 @@ function updateExperienceNotice(now) {
       if (latest.location >= 0) focusExperienceTile(latest.location);
       UI.selectedEvent = latest.id;
       refreshTabs("chronicle");
+      showPanelOnPhone("right");
     };
     playExperienceCue(
       /War|Fire|Disaster|Famine|Death|Extinction/.test(latest.type) ? "warning" : "discovery",

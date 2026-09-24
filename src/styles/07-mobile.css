@@ -100,10 +100,13 @@ html.mobile-mode .map-badge span:last-child {
 html.mobile-mode #tooltip {
   display: none !important;
 }
+/* Toasts pass above the people bar, not over the alert cards, which hold the
+   top of the stage below the lens badge (10). */
 html.mobile-mode .toast-stack {
   left: max(8px, var(--safe-left));
   right: max(8px, var(--safe-right));
-  top: 44px;
+  top: auto;
+  bottom: 118px;
   transform: none;
 }
 html.mobile-mode .toast {

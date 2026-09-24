@@ -513,6 +513,7 @@ function refreshWarfare() {
             CAMERA_GLIDE.px = null;
             CAMERA_GLIDE.py = null;
           }
+          revealWorldOnPhone();
         }
       }
     });

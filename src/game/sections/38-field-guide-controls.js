@@ -954,6 +954,7 @@ bindUI = function () {
     if (ev) {
       UI.selectedEvent = Number(ev.dataset.event);
       refreshTabs("chronicle");
+      showPanelOnPhone("right");
       return;
     }
     handleGuideAction(e);

@@ -79,9 +79,9 @@ cacheDom = function () {
     "panelScrim",
     "mobileDock",
     "dockToolsBtn",
-    "dockZoomOutBtn",
+    "dockSkipBtn",
+    "dockSkipLabel",
     "dockPauseBtn",
-    "dockZoomInBtn",
     "dockSpeedBtn",
     "dockSpeedValue",
     "dockToolLabel",
@@ -124,6 +124,17 @@ function syncMobilePanels() {
       }
     }
 }
+// A press that turns the camera to something in the world closes the drawer it
+// came from, which would cover it; one that opens a tab of a closed drawer
+// opens the drawer, or the press seemed to do nothing.
+function revealWorldOnPhone() {
+  if (UI.mobileMode) closeMobilePanels();
+}
+function showPanelOnPhone(side) {
+  if (!UI.mobileMode) return;
+  const panel = side === "left" ? DOM.leftPanel : DOM.rightPanel;
+  if (panel && !panel.classList.contains("open")) setMobilePanel(side);
+}
 function closeMobilePanels(restoreFocus = false) {
   DOM.leftPanel?.classList.remove("open");
   DOM.rightPanel?.classList.remove("open");
@@ -152,6 +163,7 @@ function syncMobileDock() {
   if (pauseLabel) pauseLabel.textContent = UI.running ? "Pause" : "Play";
   DOM.dockPauseBtn.setAttribute("aria-label", UI.running ? "Pause simulation" : "Play simulation");
   if (DOM.dockSpeedValue) DOM.dockSpeedValue.textContent = formatSpeed(UI.speed);
+  if (DOM.dockSkipLabel) DOM.dockSkipLabel.textContent = UI.causalSkipActive ? "Stop" : "Skip";
   if (DOM.dockToolLabel)
     DOM.dockToolLabel.textContent =
       TOOL_DEFS.find((x) => x[0] === UI.tool)?.[1] || titleCase(UI.tool);
@@ -166,8 +178,9 @@ function installResponsivePanels() {
   DOM.dockToolsBtn.onclick = () => setMobilePanel("left", DOM.dockToolsBtn);
   DOM.dockInspectBtn.onclick = () => setMobilePanel("right", DOM.dockInspectBtn);
   DOM.dockPauseBtn.onclick = () => togglePause();
-  DOM.dockZoomOutBtn.onclick = () => zoomCamera(1 / 1.45);
-  DOM.dockZoomInBtn.onclick = () => zoomCamera(1.45);
+  // The Causal skip, the way a world is carried forward, has its place in the
+  // dock; zoom is a pinch, and the tools drawer keeps its buttons (157).
+  DOM.dockSkipBtn.onclick = () => causalSkipForward();
   DOM.dockSpeedBtn.onclick = () => {
     const current = MOBILE_SPEEDS.indexOf(UI.speed),
       next = MOBILE_SPEEDS[(current + 1 + MOBILE_SPEEDS.length) % MOBILE_SPEEDS.length];
