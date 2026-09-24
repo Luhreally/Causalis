@@ -280,6 +280,50 @@ function entityName(id) {
     `Entity ${id}`
   );
 }
+// Where an event happened, as a sentence says it: the town it happened in, or
+// the ground and where it lies from the nearest town ("the mountain north of
+// Flinthollow"), where the chronicle used to give tile numbers ("mountain at
+// 28,11"). Only sentences use it; text the world keeps (a worker's action, an
+// event's recorded place, a myth) still takes locationName, so the world is
+// the same either way.
+const PLACE_COMPASS = [
+  "east",
+  "south-east",
+  "south",
+  "south-west",
+  "west",
+  "north-west",
+  "north",
+  "north-east",
+];
+function placeWords(i) {
+  if (!W || !(i >= 0)) return "the wider world";
+  const here = nearestSettlement(i, 3);
+  if (here) return here.name;
+  const [x, y] = xy(i),
+    ground = String(featureNameAt(i) || biomeAt(i)).toLowerCase(),
+    town = nearestSettlement(i, 24);
+  if (!town) return `the ${ground} far from any town`;
+  const dx = x - town.x,
+    dy = y - town.y;
+  if (dx * dx + dy * dy <= 36) return `the ${ground} just outside ${town.name}`;
+  const way = PLACE_COMPASS[(Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8];
+  return `the ${ground} ${way} of ${town.name}`;
+}
+// A death's recorded cause in words: the body's accounts become what they mean.
+function deathCauseWords(cause) {
+  const c = String(cause || "");
+  if (c === "accumulated repair failure") return "old age";
+  if (c === "chemical energy depletion") return "hunger";
+  if (c === "structural failure") return "their injuries";
+  const wound = c.match(/^(\w+(?: and \w+)?) trauma to the (.+) caused structural failure$/);
+  if (wound) return `${wound[1]} wounds to the ${wound[2]}`;
+  return c;
+}
+// A made thing's purpose, from its key ("limb_armor") to words.
+function purposeWords(purpose) {
+  return String(purpose || "work").replace(/_/g, " ");
+}
 function locationName(i) {
   if (i < 0) return "the wider world";
   const s = nearestSettlement(i, 3);
@@ -307,7 +351,7 @@ function eventSentence(e) {
 }
 function eventSentenceCore(e) {
   const names = e.subjects.map(entityName),
-    loc = locationName(e.location),
+    loc = placeWords(e.location),
     f = e.factions.map((id) => W.factions.find((x) => x.id === id)?.name || `Faction ${id}`);
   switch (e.type) {
     case "AbiogenesisEvent":
@@ -317,7 +361,7 @@ function eventSentenceCore(e) {
     case "BirthEvent":
       return `${names[0] || "An organism"} was born in ${loc}.`;
     case "DeathEvent":
-      return `${names[0] || fmt(e.magnitude) + " lives"} died in ${loc}${e.evidence[0] ? ` from ${e.evidence[0]}` : ""}.`;
+      return `${names[0] || fmt(e.magnitude) + " lives"} died in ${loc}${e.evidence[0] ? ` of ${deathCauseWords(e.evidence[0])}` : ""}.`;
     case "KillEvent":
       return `${names[0]} killed ${names[1]} in ${loc}.`;
     case "InjuryEvent":
@@ -335,9 +379,9 @@ function eventSentenceCore(e) {
     case "DroughtEvent":
       return `Drought concentrated dissolved compounds across ${loc}.`;
     case "MigrationEvent":
-      return `${names[0] || fmt(e.magnitude) + " lives"} migrated from chemical scarcity toward ${loc}.`;
+      return `${names[0] || fmt(e.magnitude) + " lives"} moved on toward ${loc}, looking for food.`;
     case "MutationEvent":
-      return `${names[0] || "A lineage"} inherited a changed information polymer in ${loc}.`;
+      return `${names[0] || "A lineage"} was born with a mutation in ${loc}.`;
     case "AdaptationEvent":
       return `The ${e.data.species || "local"} lineage adapted to ${e.evidence[0] || "its chemical environment"}.`;
     case "SpeciesDivergenceEvent":
@@ -363,7 +407,7 @@ function eventSentenceCore(e) {
     case "WarEndedEvent":
       return `${f[0]} and ${f[1]} ended their war after ${e.evidence[0] || "exhaustion"}.`;
     case "TechAdvanceEvent":
-      return `${names[0] || e.data.settlement || "A settlement"} made ${e.data.name} reproducible from local matter.`;
+      return `${names[0] || e.data.settlement || "A settlement"} learned ${e.data.name}.`;
     case "ArtifactCreatedEvent":
       return `${names[0]} created ${e.data.name} from ${e.data.material}.`;
     case "NotableFigureEvent":
@@ -391,14 +435,14 @@ eventText(
   ],
   function (e, next) {
     const names = e.subjects.map(entityName),
-      loc = locationName(e.location);
+      loc = placeWords(e.location);
     switch (e.type) {
       case "ConstructionStartedEvent":
-        return `${names[0] || e.data.place || "A community"} marked a ${e.data.name || "structure"} blueprint in ${loc}; its matter still had to be gathered.`;
+        return `${names[0] || e.data.place || "A community"} laid out a ${e.data.name || "building"} in ${loc}; its materials were still to be gathered.`;
       case "BuildingCompletedEvent":
-        return `${e.data.place || names[0] || "A community"} completed ${e.data.name || "a structure"} through delivered material and visible labor.`;
+        return `${e.data.place || names[0] || "A community"} finished building ${e.data.name ? `its ${String(e.data.name).toLowerCase()}` : "a building"}.`;
       case "ToolCraftedEvent":
-        return `${names[0] || "A worker"} crafted ${e.data.name || "a functional tool"} for ${e.data.purpose || "work"} from local compounds.`;
+        return `${names[0] || "A worker"} made ${e.data.name || "a tool"} for ${purposeWords(e.data.purpose)}.`;
       case "StageAdvanceEvent":
         return `Life advanced from ${titleCase(e.data.prior || "an earlier stage")} to ${titleCase(e.data.stage || e.data.name || "a new stage")}.`;
       case "PolicyChangedEvent":

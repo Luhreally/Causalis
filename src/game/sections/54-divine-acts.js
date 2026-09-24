@@ -496,7 +496,7 @@ eventText(
         return `Discord was sown between ${d.a} and ${d.b}.`;
       case "InterventionEvent":
         return DIVINE_TOOLS.has(d.tool)
-          ? `The god acted: ${d.label || d.tool} at ${locationName(e.location)}.`
+          ? `The god acted: ${d.label || d.tool} in ${placeWords(e.location)}.`
           : next(e);
       default:
         return next(e);

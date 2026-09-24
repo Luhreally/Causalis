@@ -372,7 +372,7 @@ ${section(
         "event",
         e.id,
         titleCase(e.type.replace("Event", "")),
-        `Year ${e.year} · ${locationName(e.location)}`,
+        `Year ${e.year} · ${placeWords(e.location)}`,
       ),
     ),
   calamities.length,
@@ -490,7 +490,7 @@ function renderLegendList(what, query = "") {
           "event",
           e.id,
           titleCase(e.type.replace("Event", "")),
-          `Year ${e.year} · ${locationName(e.location)}`,
+          `Year ${e.year} · ${placeWords(e.location)}`,
         ),
       );
   return `<input class="legend-search" data-legend-search type="search" placeholder="Search ${esc(title.toLowerCase())}…" value="${esc(query)}"><div class="subhead">${esc(title)} · ${rows.length}</div>${
@@ -723,7 +723,7 @@ function renderEventPage(id) {
   const consequences = legendEvents((x) => (x.causes || []).includes(id))
     .slice(-12)
     .reverse();
-  return `${legendHero(titleCase(e.type.replace("Event", "")), [`Year ${e.year}`, titleCase(e.category), `importance ${e.importance}`])}<p style="line-height:1.55;margin:4px 0 8px">${esc(eventSentence(e))}</p><div class="kv"><span>Subjects</span><b>${linkList(e.subjects)}</b><span>Polities</span><b>${(e.factions || []).map(factionLink).filter(Boolean).join(", ") || "none"}</b><span>Where</span><b>${e.location >= 0 ? esc(locationName(e.location)) : "the wider world"}</b>${e.evidence?.length ? `<span>Evidence</span><b>${esc(e.evidence.join("; "))}</b>` : ""}</div>${worldButtons(0, e.location)}<div class="subhead">Causes</div>${e.causes?.length ? e.causes.map((c) => eventTree(c)).join("") || `<div class="empty">Causes have passed out of memory.</div>` : `<div class="empty">No recorded cause.</div>`}<div class="subhead">Consequences</div>${timelineRows(consequences)}`;
+  return `${legendHero(titleCase(e.type.replace("Event", "")), [`Year ${e.year}`, titleCase(e.category), `importance ${e.importance}`])}<p style="line-height:1.55;margin:4px 0 8px">${esc(eventSentence(e))}</p><div class="kv"><span>Subjects</span><b>${linkList(e.subjects)}</b><span>Polities</span><b>${(e.factions || []).map(factionLink).filter(Boolean).join(", ") || "none"}</b><span>Where</span><b>${e.location >= 0 ? esc(placeWords(e.location)) : "the wider world"}</b>${e.evidence?.length ? `<span>Evidence</span><b>${esc(e.evidence.join("; "))}</b>` : ""}</div>${worldButtons(0, e.location)}<div class="subhead">Causes</div>${e.causes?.length ? e.causes.map((c) => eventTree(c)).join("") || `<div class="empty">Causes have passed out of memory.</div>` : `<div class="empty">No recorded cause.</div>`}<div class="subhead">Consequences</div>${timelineRows(consequences)}`;
 }
 function renderLegendPage(kind = UI.legend.kind, id = UI.legend.id) {
   if (!W) return `<div class="empty">No world.</div>`;

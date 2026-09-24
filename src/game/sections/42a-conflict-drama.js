@@ -1641,7 +1641,7 @@ eventText(
   ],
   function (event, next) {
     const names = event.subjects.map(entityName),
-      location = locationName(event.location),
+      location = placeWords(event.location),
       factions = event.factions.map(
         (id) => W.factions.find((faction) => faction.id === id)?.name || `Faction ${id}`,
       );
@@ -1655,11 +1655,11 @@ eventText(
       case "OccupationViolenceEvent":
         return `Occupation violence altered ${event.data.name || location} through a recorded physical act.`;
       case "BuildingDamagedEvent":
-        return `${event.data.name || "A structure"} took ${fmt(event.magnitude)} measured damage in ${location}; it remained standing unless its integrity reached zero.`;
+        return `${event.data.name || "A building"} took ${fmt(event.magnitude)} damage in ${location}.`;
       case "BuildingRepairedEvent":
-        return `${event.data.name || "A structure"} was restored in ${location} through measured labor after its recorded damage.`;
+        return `${event.data.name || "A building"} was repaired in ${location}.`;
       case "ReconciliationEvent":
-        return `${event.data.name || names[0] || "A community"} reduced conflict through stability, coexistence, and changing allegiance.`;
+        return `Strife in ${event.data.name || names[0] || "a community"} eased.`;
       case "InjuryEvent":
         if (event.data?.wound)
           return `${names[1] || "An attacker"} inflicted ${event.data.wound} on ${names[0] || "a combatant"}'s ${event.data.bodyPart} in ${location}, spilling ${event.data.bloodLost || 0} blood mass.`;

@@ -1976,6 +1976,7 @@ tickSystem("bodies and aftermath", function () {
 
 eventText(
   [
+    "RescueEvent",
     "LimbLostEvent",
     "FireSuppressedEvent",
     "WatercraftLaunchedEvent",
@@ -1984,16 +1985,20 @@ eventText(
   ],
   function (event, next) {
     const names = event.subjects.map(entityName),
-      location = locationName(event.location);
+      location = placeWords(event.location);
     switch (event.type) {
+      case "RescueEvent":
+        // Filed by the rescue (updatePersonRescue) with no sentence of its own,
+        // it read "RescueEvent occurred in ...".
+        return `🤝 ${names[0] || "Someone"} came to the aid of ${names[1] || "a person in need"} in ${location}.`;
       case "LimbLostEvent":
-        return `🩸 ${names[0]} lost ${event.data.part} to ${event.data.wound} in ${location}; locomotion or manipulation changed permanently.`;
+        return `🩸 ${names[0]} lost their ${event.data.part} to ${String(event.data.wound || "a wound").replace(/ trauma$/, " wounds")} in ${location}.`;
       case "FireSuppressedEvent":
-        return `🪣 ${names[0]} used ${event.data.bucket} and ${event.data.water} solvent mass to reduce fire from ${event.data.before} to ${event.data.after} in ${location}.`;
+        return `🪣 ${names[0]} fought a fire in ${location} with ${event.data.bucket}.`;
       case "WatercraftLaunchedEvent":
         return `⛵ ${names[0]} completed ${event.data.name}, a material vessel able to traverse deep water.`;
       case "EquipmentCraftedEvent":
-        return `🛠️ ${names[0]} made ${event.data.name}, an alien form with the real function of ${event.data.purpose}.`;
+        return `🛠️ ${names[0]} made ${event.data.name} (${purposeWords(event.data.purpose)}).`;
       case "MilitaryPhaseEvent":
         // A campaign's launch and its emergency levy (42e) name a war, not a unit;
         // told as a unit's phase they read "Unit undefined ... : undefined".
@@ -2001,6 +2006,14 @@ eventText(
           return `📯 ${event.data.attacker || "A polity"} launched its campaign against ${event.data.defender || "its enemy"}${event.data.target ? `, marching on ${event.data.target}` : ""}.`;
         if (event.data.unitId == null && event.data.phase === "levy")
           return `📯 An emergency levy of ${names.length} ${names.length === 1 ? "fighter" : "fighters"} took the field when the muster fell short.`;
+        // A unit's own account of itself reads best alone; the phase names are
+        // for when there is none.
+        if (event.data.detail && event.data.unitId != null)
+          return `${["engaged", "skirmishing", "flanking", "volleying", "assaulting", "besieging", "raiding"].includes(event.data.phase) ? "⚔️" : event.data.phase === "marching" ? "🥾" : "🛡️"} ${String(event.data.detail).charAt(0).toUpperCase()}${String(
+            event.data.detail,
+          )
+            .slice(1)
+            .replace(/its 1 are/, "its one fighter is")}.`;
         return `${event.data.phase === "marching" ? "🥾" : event.data.phase === "mustering" ? "📯" : ["engaged", "skirmishing", "flanking", "volleying", "assaulting", "besieging", "raiding", "screening"].includes(event.data.phase) ? "⚔️" : "🛡️"} Unit ${event.data.unitId} changed from ${event.data.previous || "unformed"} to ${event.data.phase}: ${event.data.detail}.`;
       default:
         return next(event);

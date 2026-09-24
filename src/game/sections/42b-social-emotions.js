@@ -845,7 +845,7 @@ eventText(
   ],
   function (event, next) {
     const names = event.subjects.map(entityName),
-      location = locationName(event.location);
+      location = placeWords(event.location);
     switch (event.type) {
       case "LoveBondEvent":
         return `💞 ${names[0]} and ${names[1]} formed a reciprocal bond after repeated trust and affection in ${location}.`;

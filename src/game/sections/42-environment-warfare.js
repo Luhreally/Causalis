@@ -537,7 +537,7 @@ eventText(
   function (e, next) {
     const f = e.factions.map((id) => W.factions.find((x) => x.id === id)?.name || `Faction ${id}`),
       names = e.subjects.map(entityName),
-      loc = locationName(e.location);
+      loc = placeWords(e.location);
     if (e.type === "FamineEvent")
       return `Famine struck ${e.data.name || loc}: ${e.data.deaths} starved in a single year${e.data.famineYears > 1 ? `, the ${e.data.famineYears === 2 ? "second" : `${e.data.famineYears}th`} such year` : ""}.`;
     if (e.type === "ExchangeEvent")

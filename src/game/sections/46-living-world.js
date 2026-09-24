@@ -493,7 +493,7 @@ eventText(
     "OmenEvent",
   ],
   function (e, next) {
-    const loc = locationName(e.location);
+    const loc = placeWords(e.location);
     switch (e.type) {
       case "SeasonEvent":
         return `${e.data.season} came: the axial tilt swung the year's temperature by ${(e.data.amplitude / 5).toFixed(0)} degrees.`;
