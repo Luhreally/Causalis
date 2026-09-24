@@ -316,6 +316,7 @@ function deathCauseWords(cause) {
   if (c === "accumulated repair failure") return "old age";
   if (c === "chemical energy depletion") return "hunger";
   if (c === "structural failure") return "their injuries";
+  if (c === "slaughtered for food") return "slaughter, for its town's food";
   const wound = c.match(/^(\w+(?: and \w+)?) trauma to the (.+) caused structural failure$/);
   if (wound) return `${wound[1]} wounds to the ${wound[2]}`;
   return c;

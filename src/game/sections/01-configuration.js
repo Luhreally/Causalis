@@ -484,6 +484,7 @@ const EVENT_CATEGORY = Object.freeze({
   ComfortEvent: "people",
   WoundsDressedEvent: "people",
   VerdictEvent: "conflict",
+  HerdSlaughteredEvent: "settlements",
 });
 const DOM = {};
 let W = null;
