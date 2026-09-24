@@ -165,9 +165,13 @@ function buyFinery(buyer, faction) {
   if (typeof setEmotionImpulse === "function")
     for (const id of townResidents(buyer)) {
       const standing = W.components.identity[id]?.standing;
-      if (standing === "rich" || standing === "prosperous") setEmotionImpulse(id, { contentment: 0.05 });
+      if (standing === "rich" || standing === "prosperous")
+        setEmotionImpulse(id, { contentment: 0.05 });
     }
-  const good = typeof marketGoodName === "function" ? marketGoodName(sp) : W.definitions.species[sp]?.name || "finery",
+  const good =
+      typeof marketGoodName === "function"
+        ? marketGoodName(sp)
+        : W.definitions.species[sp]?.name || "finery",
     ev = emitEvent("FineryEvent", {
       subjects: [buyer.entityId, seller.entityId],
       location: idx(buyer.x, buyer.y),
@@ -175,7 +179,15 @@ function buyFinery(buyer, faction) {
       causes: [W.lastEventByType.WealthEvent, W.lastEventByType.MarketEvent].filter(Boolean),
       evidence: [`${moved} of ${good} at ${price} coin apiece`, `${demand} well-off households`],
       importance: buyer.luxuryEventId ? 1 : 2,
-      data: { place: buyer.name, seller: seller.name, polity: faction.name, good, amount: moved, cost, demand },
+      data: {
+        place: buyer.name,
+        seller: seller.name,
+        polity: faction.name,
+        good,
+        amount: moved,
+        cost,
+        demand,
+      },
     });
   if (!buyer.luxuryEventId) buyer.luxuryEventId = ev.id;
   return ev;
@@ -185,7 +197,8 @@ function buyLuxuries() {
   for (const f of W.factions) {
     if (f.stability <= 0 || !polityCoins(f)) continue;
     for (const s of W.settlements) {
-      if (s.ruined || s.factionId !== f.id || W.tick - (s.luxuryTick ?? -1e9) < FINERY_CADENCE) continue;
+      if (s.ruined || s.factionId !== f.id || W.tick - (s.luxuryTick ?? -1e9) < FINERY_CADENCE)
+        continue;
       if (buyFinery(s, f)) bought++;
     }
   }
@@ -202,7 +215,9 @@ tickSystem("finery", function () {
 eventText(["TitheEvent", "FineryEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "TitheEvent")
-    return d.policy === "heavy" ? `${d.polity} raised a heavy tithe: ${d.reason}.` : `${d.polity} eased the tithe: ${d.reason}.`;
+    return d.policy === "heavy"
+      ? `${d.polity} raised a heavy tithe: ${d.reason}.`
+      : `${d.polity} eased the tithe: ${d.reason}.`;
   if (e.type === "FineryEvent")
     return `${d.place} bought ${d.amount} of ${d.good} from ${d.seller} for its ${d.demand} well-off households.`;
   return next(e);
@@ -223,7 +238,12 @@ renderPlacePage = function (id) {
   if (!place?.knownProcesses) return html;
   const demand = fineryDemand(place);
   if (!demand && !place.luxuryTick) return html;
-  const good = place.luxuryGood != null ? (typeof marketGoodName === "function" ? marketGoodName(place.luxuryGood) : "finery") : "",
+  const good =
+      place.luxuryGood != null
+        ? typeof marketGoodName === "function"
+          ? marketGoodName(place.luxuryGood)
+          : "finery"
+        : "",
     text = `${demand} well-off household${demand === 1 ? "" : "s"}${place.luxuryTick ? `; last bought ${good} in Year ${formatYear(place.luxuryTick)}` : ""}`,
     row = `<div class="kv"><span>Finery</span><b>${esc(text)}</b></div>`,
     at = html.indexOf('<div class="subhead">');
@@ -233,7 +253,12 @@ window.ALIFE_FINERY_DEBUG = Object.freeze({
   policy: (factionId) => tithePolicy(W.factions.find((f) => f.id === factionId)),
   needed: (factionId) => titheNeeded(W.factions.find((f) => f.id === factionId)),
   update: () => updateTithePolicies(),
-  set: (factionId, policy) => !!setTithePolicy(W.factions.find((f) => f.id === factionId), policy, "set for the test"),
+  set: (factionId, policy) =>
+    !!setTithePolicy(
+      W.factions.find((f) => f.id === factionId),
+      policy,
+      "set for the test",
+    ),
   strain: (placeId) => titheStrain(W.settlements.find((s) => s.id === placeId)),
   relief: (placeId) => reliefEase(W.settlements.find((s) => s.id === placeId)),
   demand: (placeId) => fineryDemand(W.settlements.find((s) => s.id === placeId)),

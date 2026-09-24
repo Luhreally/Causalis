@@ -17,18 +17,40 @@
 // visible figure and skipped at Lean quality or far zoom.
 const PRESENCE_SCALE = Object.freeze({ person: 1.35, herbivore: 1.45, predator: 1.4 }),
   PRESENCE_DOT = 3.4,
-  PRESENCE_TOOL_TASKS = new Set(["cut", "mine", "build", "craft", "sow", "tend", "harvest", "haul", "gather", "raze", "hunt", "operate", "firefight"]),
+  PRESENCE_TOOL_TASKS = new Set([
+    "cut",
+    "mine",
+    "build",
+    "craft",
+    "sow",
+    "tend",
+    "harvest",
+    "haul",
+    "gather",
+    "raze",
+    "hunt",
+    "operate",
+    "firefight",
+  ]),
   PRESENCE = { scaled: 0, tools: 0, hair: 0, torches: 0 };
 let ACTIVE_PRESENCE = null;
 function presenceKind(id) {
   const k = W.kind[id];
-  return k === KINDS.PERSON ? "person" : k === KINDS.HERBIVORE ? "herbivore" : k === KINDS.PREDATOR ? "predator" : "";
+  return k === KINDS.PERSON
+    ? "person"
+    : k === KINDS.HERBIVORE
+      ? "herbivore"
+      : k === KINDS.PREDATOR
+        ? "predator"
+        : "";
 }
 function presenceRadius(id, kind, motion) {
   const ph = peekPhenotype(id),
     m = ACTIVE_RENDER_METRICS || projectionMetrics(),
     crowd = motion?.crowd > 1 ? 1 / (1 + 0.1 * Math.min(motion.crowd - 1, 4)) : 1;
-  return Math.max(2.2, m.tw * (0.05 + 0.042 * clamp(ph.size, 0.35, 1.8))) * crowd * PRESENCE_SCALE[kind];
+  return (
+    Math.max(2.2, m.tw * (0.05 + 0.042 * clamp(ph.size, 0.35, 1.8))) * crowd * PRESENCE_SCALE[kind]
+  );
 }
 function presenceTask(id) {
   const w = W.components.work?.[id];
@@ -43,14 +65,24 @@ function presenceTorch(id) {
   const life = W.components.life[id],
     p = W.components.position[id];
   if (!life || !p || life.insideBuildingId || !nightAt(p.x, p.y)) return "";
-  const place = typeof nearestSettlement === "function" ? nearestSettlement(idx(p.x, p.y), 12) : null,
+  const place =
+      typeof nearestSettlement === "function" ? nearestSettlement(idx(p.x, p.y), 12) : null,
     known = place?.knownProcesses || [];
   if (known.includes("electricity")) return "lantern";
   if (known.includes("controlled_fire")) return "torch";
   return "";
 }
 const drawCreatureGlyphPresenceBase = drawCreatureGlyph;
-drawCreatureGlyph = function (g, id, s, now, fac = null, scaleOverride = 0, portrait = false, motion = null) {
+drawCreatureGlyph = function (
+  g,
+  id,
+  s,
+  now,
+  fac = null,
+  scaleOverride = 0,
+  portrait = false,
+  motion = null,
+) {
   const kind = presenceKind(id);
   if (!kind || portrait || scaleOverride || W.kind[id] === KINDS.CORPSE || !classifyAlive(id))
     return drawCreatureGlyphPresenceBase(g, id, s, now, fac, scaleOverride, portrait, motion);
@@ -61,22 +93,36 @@ drawCreatureGlyph = function (g, id, s, now, fac = null, scaleOverride = 0, port
   }
   ACTIVE_PRESENCE =
     kind === "person" && scaleOverride
-      ? { id, task: presenceTask(id), torch: presenceTorch(id), campaign: !!W.components.campaign?.[id], now }
+      ? {
+          id,
+          task: presenceTask(id),
+          torch: presenceTorch(id),
+          campaign: !!W.components.campaign?.[id],
+          now,
+        }
       : null;
   try {
     const out = drawCreatureGlyphPresenceBase(g, id, s, now, fac, scaleOverride, portrait, motion);
-    if (ACTIVE_PRESENCE?.torch && scaleOverride) drawTorchGlow(g, s, scaleOverride, ACTIVE_PRESENCE.torch, now);
+    if (ACTIVE_PRESENCE?.torch && scaleOverride)
+      drawTorchGlow(g, s, scaleOverride, ACTIVE_PRESENCE.torch, now);
     return out;
   } finally {
     ACTIVE_PRESENCE = null;
   }
 };
 function drawTorchGlow(g, s, r, kind, now) {
-  const flicker = ACTIVE_REDUCED_MOTION ? 1 : kind === "torch" ? 0.75 + 0.25 * Math.sin(now * 0.017 + s.x) : 0.95,
+  const flicker = ACTIVE_REDUCED_MOTION
+      ? 1
+      : kind === "torch"
+        ? 0.75 + 0.25 * Math.sin(now * 0.017 + s.x)
+        : 0.95,
     x = s.x + r * 0.7,
     y = s.y - r * 0.9,
     glow = g.createRadialGradient(x, y, 0, x, y, r * 1.6);
-  glow.addColorStop(0, kind === "torch" ? `rgba(255,170,70,${0.55 * flicker})` : `rgba(255,230,160,${0.5 * flicker})`);
+  glow.addColorStop(
+    0,
+    kind === "torch" ? `rgba(255,170,70,${0.55 * flicker})` : `rgba(255,230,160,${0.5 * flicker})`,
+  );
   glow.addColorStop(1, "rgba(0,0,0,0)");
   g.save();
   g.globalCompositeOperation = "lighter";
@@ -96,7 +142,13 @@ function drawHeldTool(g, task, hue, campaign) {
   g.lineCap = "round";
   g.strokeStyle = hsl(30, 35, 30);
   g.lineWidth = 0.09;
-  if (task === "cut" || task === "mine" || task === "build" || task === "craft" || task === "operate") {
+  if (
+    task === "cut" ||
+    task === "mine" ||
+    task === "build" ||
+    task === "craft" ||
+    task === "operate"
+  ) {
     // A handle rising from the raised hand, with a head that names the tool.
     g.beginPath();
     g.moveTo(0.5, 0.35);
@@ -183,7 +235,8 @@ drawUprightPerson = function (g, m, phase, detail, colors) {
   const fig = typeof ACTIVE_FIGURE !== "undefined" ? ACTIVE_FIGURE : null,
     pres = ACTIVE_PRESENCE,
     form = m.personForm || "biped";
-  if (!fig || !pres || detail === 0 || form === "quadruped") return drawUprightPersonPresenceBase(g, m, phase, detail, colors);
+  if (!fig || !pres || detail === 0 || form === "quadruped")
+    return drawUprightPersonPresenceBase(g, m, phase, detail, colors);
   const pose = fig.pose,
     walking = pose === "walk",
     standing = pose === "stand",
@@ -218,7 +271,8 @@ drawUprightPerson = function (g, m, phase, detail, colors) {
   }
   if (detail > 0 && pres.task && pose !== "sleep" && pose !== "sit")
     drawHeldTool(g, pres.task, colors.dress?.hue ?? m.secondaryHue, pres.campaign);
-  else if (detail > 0 && pres.campaign && pose === "fight") drawHeldTool(g, "raze", colors.dress?.hue ?? m.secondaryHue, true);
+  else if (detail > 0 && pres.campaign && pose === "fight")
+    drawHeldTool(g, "raze", colors.dress?.hue ?? m.secondaryHue, true);
   g.restore();
   g.restore();
   return head;

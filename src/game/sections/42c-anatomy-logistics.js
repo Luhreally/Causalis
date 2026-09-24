@@ -1828,33 +1828,34 @@ function updateMilitaryMovement() {
       unit.contactKey = contact.key;
       unit.tactic = tactic.name;
     } else if (phase === "rallying") unit.tactic = "";
-    const detail = contact && phase !== "rallying"
-      ? `${tactic.name} began ${contact.distance.toFixed(1)} tiles from ${contact.name}; ${geometry.members.length} fighters met ${tactic.enemies} nearby enemy people without waiting for the strategic objective tile`
-      : phase === "mustering"
-        ? `${geometry.members.length} members are gathering and drawing supplies at ${home?.name || "home"}`
-        : phase === "forming"
-          ? `the unit is closing a ${geometry.spread.toFixed(1)}-tile formation spread before advance`
-          : phase === "marching"
-            ? `the centroid is ${geometry.distance.toFixed(1)} tiles from ${target.name} and made ${Math.max(0, progress).toFixed(1)} tiles of measured progress`
-            : phase === "rallying"
-              ? `the column holds ${rallyGeometry.distance.toFixed(1)} tiles from ${objective.name} for the polity's other columns`
-              : phase === "intercepting"
-                ? `the column marches ${geometry.distance.toFixed(1)} tiles to stand across the ${target.name}`
-            : phase === "engaged"
-              ? target.road
-                ? `the column stands across the ${target.name}, waiting for the enemy`
-                : `the formation has reached the ${target.name} occupation zone`
-              : phase === "rerouting"
-                ? `no measurable advance for ${unit.stalledTicks} ticks; members are testing alternate terrain steps`
-                : phase === "withdrawing"
-                  ? `no viable route produced progress for ${unit.stalledTicks} ticks; the unit is returning to ${home?.name || "home"}`
-                  : phase === "returning"
-                    ? `the unit is returning to ${home?.name || target.name} without an active war objective`
-                    : phase === "recovering"
-                      ? `the withdrawn unit is resupplying at ${home?.name || target.name}`
-                      : phase === "at ease"
-                        ? `the watch of ${home?.name || target.name} is at ease; its ${geometry.members.length} are at their own work until they are called`
-                        : `the unit is guarding ${target.name}`;
+    const detail =
+      contact && phase !== "rallying"
+        ? `${tactic.name} began ${contact.distance.toFixed(1)} tiles from ${contact.name}; ${geometry.members.length} fighters met ${tactic.enemies} nearby enemy people without waiting for the strategic objective tile`
+        : phase === "mustering"
+          ? `${geometry.members.length} members are gathering and drawing supplies at ${home?.name || "home"}`
+          : phase === "forming"
+            ? `the unit is closing a ${geometry.spread.toFixed(1)}-tile formation spread before advance`
+            : phase === "marching"
+              ? `the centroid is ${geometry.distance.toFixed(1)} tiles from ${target.name} and made ${Math.max(0, progress).toFixed(1)} tiles of measured progress`
+              : phase === "rallying"
+                ? `the column holds ${rallyGeometry.distance.toFixed(1)} tiles from ${objective.name} for the polity's other columns`
+                : phase === "intercepting"
+                  ? `the column marches ${geometry.distance.toFixed(1)} tiles to stand across the ${target.name}`
+                  : phase === "engaged"
+                    ? target.road
+                      ? `the column stands across the ${target.name}, waiting for the enemy`
+                      : `the formation has reached the ${target.name} occupation zone`
+                    : phase === "rerouting"
+                      ? `no measurable advance for ${unit.stalledTicks} ticks; members are testing alternate terrain steps`
+                      : phase === "withdrawing"
+                        ? `no viable route produced progress for ${unit.stalledTicks} ticks; the unit is returning to ${home?.name || "home"}`
+                        : phase === "returning"
+                          ? `the unit is returning to ${home?.name || target.name} without an active war objective`
+                          : phase === "recovering"
+                            ? `the withdrawn unit is resupplying at ${home?.name || target.name}`
+                            : phase === "at ease"
+                              ? `the watch of ${home?.name || target.name} is at ease; its ${geometry.members.length} are at their own work until they are called`
+                              : `the unit is guarding ${target.name}`;
     setMilitaryPhase(unit, phase, detail, target, war);
     if (phase === "at ease") unit.stalledTicks = 0;
     // At ease, nobody is ordered anywhere.
@@ -1897,7 +1898,12 @@ function updateMilitaryMovement() {
           `📯 holding at the rally until the other columns come up to ${objective.name}`,
           idx(p.x, p.y),
         );
-      else if (phase === "forming" || phase === "rerouting" || phase === "marching" || phase === "intercepting") {
+      else if (
+        phase === "forming" ||
+        phase === "rerouting" ||
+        phase === "marching" ||
+        phase === "intercepting"
+      ) {
         const waypoint = war && !contact ? campaignWaypoint(id, unit, target) : null;
         if (waypoint) {
           if (campaignColumnShouldHold(unit, waypoint, p, target))
@@ -2019,30 +2025,39 @@ tickSystem("bodies and aftermath", function () {
   });
 });
 
-eventText(["LimbLostEvent", "FireSuppressedEvent", "WatercraftLaunchedEvent", "EquipmentCraftedEvent", "MilitaryPhaseEvent"], function (event, next) {
-  const names = event.subjects.map(entityName),
-    location = locationName(event.location);
-  switch (event.type) {
-    case "LimbLostEvent":
-      return `🩸 ${names[0]} lost ${event.data.part} to ${event.data.wound} in ${location}; locomotion or manipulation changed permanently.`;
-    case "FireSuppressedEvent":
-      return `🪣 ${names[0]} used ${event.data.bucket} and ${event.data.water} solvent mass to reduce fire from ${event.data.before} to ${event.data.after} in ${location}.`;
-    case "WatercraftLaunchedEvent":
-      return `⛵ ${names[0]} completed ${event.data.name}, a material vessel able to traverse deep water.`;
-    case "EquipmentCraftedEvent":
-      return `🛠️ ${names[0]} made ${event.data.name}, an alien form with the real function of ${event.data.purpose}.`;
-    case "MilitaryPhaseEvent":
-      // A campaign's launch and its emergency levy (42e) name a war, not a unit;
-      // told as a unit's phase they read "Unit undefined ... : undefined".
-      if (event.data.unitId == null && event.data.phase === "campaign launched")
-        return `📯 ${event.data.attacker || "A polity"} launched its campaign against ${event.data.defender || "its enemy"}${event.data.target ? `, marching on ${event.data.target}` : ""}.`;
-      if (event.data.unitId == null && event.data.phase === "levy")
-        return `📯 An emergency levy of ${names.length} ${names.length === 1 ? "fighter" : "fighters"} took the field when the muster fell short.`;
-      return `${event.data.phase === "marching" ? "🥾" : event.data.phase === "mustering" ? "📯" : ["engaged", "skirmishing", "flanking", "volleying", "assaulting", "besieging", "raiding", "screening"].includes(event.data.phase) ? "⚔️" : "🛡️"} Unit ${event.data.unitId} changed from ${event.data.previous || "unformed"} to ${event.data.phase}: ${event.data.detail}.`;
-    default:
-      return next(event);
-  }
-});
+eventText(
+  [
+    "LimbLostEvent",
+    "FireSuppressedEvent",
+    "WatercraftLaunchedEvent",
+    "EquipmentCraftedEvent",
+    "MilitaryPhaseEvent",
+  ],
+  function (event, next) {
+    const names = event.subjects.map(entityName),
+      location = locationName(event.location);
+    switch (event.type) {
+      case "LimbLostEvent":
+        return `🩸 ${names[0]} lost ${event.data.part} to ${event.data.wound} in ${location}; locomotion or manipulation changed permanently.`;
+      case "FireSuppressedEvent":
+        return `🪣 ${names[0]} used ${event.data.bucket} and ${event.data.water} solvent mass to reduce fire from ${event.data.before} to ${event.data.after} in ${location}.`;
+      case "WatercraftLaunchedEvent":
+        return `⛵ ${names[0]} completed ${event.data.name}, a material vessel able to traverse deep water.`;
+      case "EquipmentCraftedEvent":
+        return `🛠️ ${names[0]} made ${event.data.name}, an alien form with the real function of ${event.data.purpose}.`;
+      case "MilitaryPhaseEvent":
+        // A campaign's launch and its emergency levy (42e) name a war, not a unit;
+        // told as a unit's phase they read "Unit undefined ... : undefined".
+        if (event.data.unitId == null && event.data.phase === "campaign launched")
+          return `📯 ${event.data.attacker || "A polity"} launched its campaign against ${event.data.defender || "its enemy"}${event.data.target ? `, marching on ${event.data.target}` : ""}.`;
+        if (event.data.unitId == null && event.data.phase === "levy")
+          return `📯 An emergency levy of ${names.length} ${names.length === 1 ? "fighter" : "fighters"} took the field when the muster fell short.`;
+        return `${event.data.phase === "marching" ? "🥾" : event.data.phase === "mustering" ? "📯" : ["engaged", "skirmishing", "flanking", "volleying", "assaulting", "besieging", "raiding", "screening"].includes(event.data.phase) ? "⚔️" : "🛡️"} Unit ${event.data.unitId} changed from ${event.data.previous || "unformed"} to ${event.data.phase}: ${event.data.detail}.`;
+      default:
+        return next(event);
+    }
+  },
+);
 
 const organismInspectorAnatomyBase = organismInspector;
 organismInspector = function (id) {

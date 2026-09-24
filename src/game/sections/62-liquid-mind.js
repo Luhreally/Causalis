@@ -90,7 +90,10 @@ advanceLTC = function (id) {
   c.gate = resizedTyped(c.gate, Int16Array, LTC_HIDDEN);
   // One scratch row for every mind: the step is copied into the state below,
   // so a new array a creature every fourth tick was garbage and nothing else (147).
-  const next = LTC_NEXT_SCRATCH.length === LTC_HIDDEN ? LTC_NEXT_SCRATCH : (LTC_NEXT_SCRATCH = new Int16Array(LTC_HIDDEN));
+  const next =
+    LTC_NEXT_SCRATCH.length === LTC_HIDDEN
+      ? LTC_NEXT_SCRATCH
+      : (LTC_NEXT_SCRATCH = new Int16Array(LTC_HIDDEN));
   next.fill(0);
   for (let h = 0; h < LTC_HIDDEN; h++) {
     let drive = g.controller.leak[h] * 2;

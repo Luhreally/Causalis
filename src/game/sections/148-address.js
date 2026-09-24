@@ -11,10 +11,16 @@
 // with the home a click away on the map; and a person with no bed says so,
 // sleeping rough in a town or wandering with none. The selection summary
 // carries the same in a line. Nothing here writes the world.
-const ADDRESS_HOME_NAMES = Object.freeze({ shelter: "Cottage", tenement: "Tenement", tower: "Tower block" });
+const ADDRESS_HOME_NAMES = Object.freeze({
+  shelter: "Cottage",
+  tenement: "Tenement",
+  tower: "Tower block",
+});
 function addressTown(id) {
   const soc = W.components.social[id];
-  return soc?.homePlaceKind === "settlement" ? W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined) || null : null;
+  return soc?.homePlaceKind === "settlement"
+    ? W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined) || null
+    : null;
 }
 // The home, or for a child born since the year's dealing the roof of the
 // household or a parent it sleeps under (144 counts it sheltered the same way).
@@ -43,16 +49,23 @@ function addressOf(id) {
   const t = home.tenancy || {},
     who = via || id,
     head = W.components.social[who]?.householdId || who,
-    residents = (t.residents || []).filter((r) => classifyAlive(r) && W.components.social[r]?.homeBuildingId === home.id),
-    households = [...new Set(residents.map((r) => W.components.social[r]?.householdId || r))].sort((a, b) => a - b),
+    residents = (t.residents || []).filter(
+      (r) => classifyAlive(r) && W.components.social[r]?.homeBuildingId === home.id,
+    ),
+    households = [...new Set(residents.map((r) => W.components.social[r]?.householdId || r))].sort(
+      (a, b) => a - b,
+    ),
     flat = home.type === "shelter" ? 0 : Math.max(1, households.indexOf(head) + 1),
-    household = residents.filter((r) => r !== id && (W.components.social[r]?.householdId || r) === head),
+    household = residents.filter(
+      (r) => r !== id && (W.components.social[r]?.householdId || r) === head,
+    ),
     homeTown = W.settlements.find((s) => s.id === home.placeId) || town,
     faction = W.factions.find((f) => f.id === homeTown?.factionId),
     coin = !!faction && polityCoins(faction),
     rent = habitationRentOf(t, head),
     owedCoin = Math.max(0, t.arrears?.[head] || 0),
-    ownerHere = !!t.ownerId && (t.ownerId === head || household.includes(t.ownerId) || t.ownerId === id),
+    ownerHere =
+      !!t.ownerId && (t.ownerId === head || household.includes(t.ownerId) || t.ownerId === id),
     tenure = ownerHere ? "owned" : t.ownerId ? "let" : "municipal";
   return {
     state: "home",
@@ -85,7 +98,8 @@ function addressLine(a) {
 }
 function addressTenureText(a) {
   if (a.tenure === "owned") return "owned by the household";
-  if (a.tenure === "let") return `rented from ${entityLink(a.ownerId) || esc(entityName(a.ownerId) || "a landlord")}`;
+  if (a.tenure === "let")
+    return `rented from ${entityLink(a.ownerId) || esc(entityName(a.ownerId) || "a landlord")}`;
   return "let by the town";
 }
 function addressBlockHTML(id) {

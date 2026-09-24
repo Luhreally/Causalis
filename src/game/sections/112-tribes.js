@@ -21,7 +21,20 @@ const TRIBAL_CIVIC_TECHS = Object.freeze(["masonry", "writing", "governance"]),
   TRIBAL_TOTEM_PEOPLE = 6,
   TRIBAL_TOTEM_CALM = 0.02,
   TRIBAL_ACTIVE_CAP = 4,
-  TRIBES = { tents: 0, roundhouses: 0, firepits: 0, pits: 0, racks: 0, workgrounds: 0, palisades: 0, kilns: 0, totems: 0, props: 0, feathers: 0, firstWorld: null };
+  TRIBES = {
+    tents: 0,
+    roundhouses: 0,
+    firepits: 0,
+    pits: 0,
+    racks: 0,
+    workgrounds: 0,
+    palisades: 0,
+    kilns: 0,
+    totems: 0,
+    props: 0,
+    feathers: 0,
+    firstWorld: null,
+  };
 if (typeof FAMILY_SPECIAL !== "undefined") FAMILY_SPECIAL.add("totem");
 if (typeof CIVIC_TYPES !== "undefined") CIVIC_TYPES.add("totem");
 function tribalEra(place) {
@@ -33,7 +46,10 @@ function placeKnows(place, tech) {
   return !!place?.knownProcesses?.includes(tech);
 }
 function earthlikeWorld() {
-  return !!(ACTIVE_PLANET_VISUAL || makePlanetVisualGenome()).earthlike || (typeof canonicalPlanetSeed === "function" && !!canonicalPlanetSeed(W.seed));
+  return (
+    !!(ACTIVE_PLANET_VISUAL || makePlanetVisualGenome()).earthlike ||
+    (typeof canonicalPlanetSeed === "function" && !!canonicalPlanetSeed(W.seed))
+  );
 }
 function tribalBuilding(b) {
   const place = buildingPlace(b);
@@ -210,7 +226,12 @@ function drawFirePit(g, b, s, r, now, detail) {
       g.fillStyle = col;
       g.beginPath();
       g.moveTo(s.x + hw * (dx - 0.14), cy);
-      g.quadraticCurveTo(s.x + hw * (dx - 0.2), cy - h * 0.35 * scale, s.x + hw * dx, cy - h * 0.62 * scale);
+      g.quadraticCurveTo(
+        s.x + hw * (dx - 0.2),
+        cy - h * 0.35 * scale,
+        s.x + hw * dx,
+        cy - h * 0.62 * scale,
+      );
       g.quadraticCurveTo(s.x + hw * (dx + 0.2), cy - h * 0.35 * scale, s.x + hw * (dx + 0.14), cy);
       g.closePath();
       g.fill();
@@ -250,7 +271,8 @@ function drawDryingRack(g, b, x, baseY, r, detail) {
   g.stroke();
   if (detail) {
     g.fillStyle = tribalTone(b, hsl(8, 50, 36));
-    for (let n = -1; n <= 1; n++) g.fillRect(x + n * r * 0.22 - r * 0.05, baseY - r * 0.68, r * 0.1, r * 0.28);
+    for (let n = -1; n <= 1; n++)
+      g.fillRect(x + n * r * 0.22 - r * 0.05, baseY - r * 0.68, r * 0.1, r * 0.28);
   }
   TRIBES.racks++;
 }
@@ -395,9 +417,15 @@ function drawPitKiln(g, b, s, r, now, detail) {
   if (detail && !b.abandoned && !ACTIVE_REDUCED_MOTION) {
     g.fillStyle = "rgba(200,200,210,0.35)";
     for (let k = 0; k < 3; k++) {
-      const t = ((now * 0.0006 + k * 0.33 + b.id * 0.1) % 1 + 1) % 1;
+      const t = (((now * 0.0006 + k * 0.33 + b.id * 0.1) % 1) + 1) % 1;
       g.beginPath();
-      g.arc(s.x + Math.sin(t * 6 + k) * hw * 0.12, baseY - h * (0.7 + t * 0.7), r * (0.06 + t * 0.1), 0, Math.PI * 2);
+      g.arc(
+        s.x + Math.sin(t * 6 + k) * hw * 0.12,
+        baseY - h * (0.7 + t * 0.7),
+        r * (0.06 + t * 0.1),
+        0,
+        Math.PI * 2,
+      );
       g.fill();
     }
   }
@@ -475,7 +503,9 @@ drawCompletedBuilding = function (g, b, s, r, p, now, m) {
   const place = buildingPlace(b);
   switch (b.type) {
     case "shelter":
-      return placeKnows(place, "agriculture") ? drawRoundhouse(g, b, s, r, now, detail) : drawTent(g, b, s, r, now, detail);
+      return placeKnows(place, "agriculture")
+        ? drawRoundhouse(g, b, s, r, now, detail)
+        : drawTent(g, b, s, r, now, detail);
     case "hearth":
       return drawFirePit(g, b, s, r, now, detail);
     case "stockpile":
@@ -503,7 +533,15 @@ function waterTileNear(x, y, reach = 2) {
 const drawBuildingExteriorDetailsTribesBase = drawBuildingExteriorDetails;
 drawBuildingExteriorDetails = function (g, b, now, m) {
   drawBuildingExteriorDetailsTribesBase(g, b, now, m);
-  if (b.type !== "hearth" || !b.complete || b.ruined || b.abandoned || UI.quality === "low" || UI.camera.zoom < 1.6) return;
+  if (
+    b.type !== "hearth" ||
+    !b.complete ||
+    b.ruined ||
+    b.abandoned ||
+    UI.quality === "low" ||
+    UI.camera.zoom < 1.6
+  )
+    return;
   if (!tribalBuilding(b)) return;
   const r = buildingScreenSize(b, m),
     side = visualHash01(b.id, 0x6a3) < 0.5 ? -1 : 1,
@@ -565,14 +603,20 @@ drawUprightPerson = function (g, m, phase, detail, colors) {
 };
 // ── The Spirit post: planned by the tribes, calming the settlement ───────────
 function tribalPeople(place) {
-  return place.knownProcesses ? settlementPopulation(place) : entityAtRadius(idx(place.x, place.y), 6, KINDS.PERSON).filter(classifyAlive).length;
+  return place.knownProcesses
+    ? settlementPopulation(place)
+    : entityAtRadius(idx(place.x, place.y), 6, KINDS.PERSON).filter(classifyAlive).length;
 }
 function wantsTotem(place) {
   if (!place || place.ruined || place.active === false || !tribalEra(place)) return false;
-  const fire = place.knownProcesses ? place.knownProcesses.includes("controlled_fire") : completedBuildings(place, "hearth").length > 0;
+  const fire = place.knownProcesses
+    ? place.knownProcesses.includes("controlled_fire")
+    : completedBuildings(place, "hearth").length > 0;
   if (!fire || tribalPeople(place) < TRIBAL_TOTEM_PEOPLE) return false;
   const kind = place.knownProcesses ? "settlement" : "camp";
-  return !W.buildings.some((b) => !b.ruined && b.placeKind === kind && b.placeId === place.id && b.type === "totem");
+  return !W.buildings.some(
+    (b) => !b.ruined && b.placeKind === kind && b.placeId === place.id && b.type === "totem",
+  );
 }
 const ensurePlacePlansTribesBase = ensurePlacePlans;
 ensurePlacePlans = function (place) {
@@ -580,20 +624,30 @@ ensurePlacePlans = function (place) {
   if (!place || place.ruined || place.active === false) return;
   if (wantsTotem(place) && activeBuildings(place).length < TRIBAL_ACTIVE_CAP)
     planBuilding(place, "totem", Math.max(2, place.management?.priorities?.governance || 2));
-  if (TRIBES.firstWorld !== W && typeof recordMilestone === "function" && completedBuildings(place, "totem").length) {
+  if (
+    TRIBES.firstWorld !== W &&
+    typeof recordMilestone === "function" &&
+    completedBuildings(place, "totem").length
+  ) {
     TRIBES.firstWorld = W;
-    recordMilestone("first-totem", "the first spirit post", place, { evidence: `${tribalPeople(place)} people gathered round the fire of ${place.name}` });
+    recordMilestone("first-totem", "the first spirit post", place, {
+      evidence: `${tribalPeople(place)} people gathered round the fire of ${place.name}`,
+    });
   }
 };
 const unrestOfTribesBase = unrestOf;
 unrestOf = function (place) {
   const base = unrestOfTribesBase(place);
-  return place?.knownProcesses && completedBuildings(place, "totem").length ? Math.max(0, base - TRIBAL_TOTEM_CALM) : base;
+  return place?.knownProcesses && completedBuildings(place, "totem").length
+    ? Math.max(0, base - TRIBAL_TOTEM_CALM)
+    : base;
 };
 window.ALIFE_TRIBES_DEBUG = Object.freeze({
-  era: (placeId, camp = false) => tribalEra((camp ? W.camps : W.settlements).find((x) => x.id === placeId)),
+  era: (placeId, camp = false) =>
+    tribalEra((camp ? W.camps : W.settlements).find((x) => x.id === placeId)),
   tribal: (buildingId) => tribalBuilding(W.buildings.find((b) => b.id === buildingId) || {}),
-  wantsTotem: (placeId, camp = false) => wantsTotem((camp ? W.camps : W.settlements).find((x) => x.id === placeId)),
+  wantsTotem: (placeId, camp = false) =>
+    wantsTotem((camp ? W.camps : W.settlements).find((x) => x.id === placeId)),
   counts: () => ({ ...TRIBES, firstWorld: undefined }),
   reset: () => {
     for (const k of Object.keys(TRIBES)) if (k !== "firstWorld") TRIBES[k] = 0;

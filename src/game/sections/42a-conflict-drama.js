@@ -849,12 +849,21 @@ function provisionCampaigner(id, unit) {
     [C.ENERGY, 24],
     [C.NUTRIENT, 10],
   ]) {
-    const amount = Math.min(topsUp ? Math.max(0, limit - digestive[species]) : limit, home.inventory[species] || 0, 65535 - digestive[species]);
+    const amount = Math.min(
+      topsUp ? Math.max(0, limit - digestive[species]) : limit,
+      home.inventory[species] || 0,
+      65535 - digestive[species],
+    );
     home.inventory[species] -= amount;
     digestive[species] += amount;
     moved += amount;
   }
-  const water = Math.min(topsUp ? Math.max(0, 560 - body[C.SOLVENT]) : 60, 60, home.inventory[C.SOLVENT] || 0, 65535 - body[C.SOLVENT]);
+  const water = Math.min(
+    topsUp ? Math.max(0, 560 - body[C.SOLVENT]) : 60,
+    60,
+    home.inventory[C.SOLVENT] || 0,
+    65535 - body[C.SOLVENT],
+  );
   home.inventory[C.SOLVENT] -= water;
   body[C.SOLVENT] += water;
   return moved + water;
@@ -1631,35 +1640,47 @@ tickSystem("conflict drama", function () {
   updateInternalConflict();
 });
 
-eventText(["CombatExchangeEvent", "InternalConflictEvent", "OccupationResistanceEvent", "OccupationViolenceEvent", "BuildingDamagedEvent", "BuildingRepairedEvent", "ReconciliationEvent", "InjuryEvent"], function (event, next) {
-  const names = event.subjects.map(entityName),
-    location = locationName(event.location),
-    factions = event.factions.map(
-      (id) => W.factions.find((faction) => faction.id === id)?.name || `Faction ${id}`,
-    );
-  switch (event.type) {
-    case "CombatExchangeEvent":
-      return `${names[0] || "A combatant"} used ${event.data.tactic || "a strike"} against ${names[1] || "an opponent"}'s ${event.data.defense || "defense"} in ${location}; the exchange ${event.data.outcome === "evaded" ? "was evaded" : `hit the ${event.data.bodyPart || "body"}`}.`;
-    case "InternalConflictEvent":
-      return `Accumulated grievance inside ${event.data.name || location} brought ${names[0]} into violence with ${names[1]}.`;
-    case "OccupationResistanceEvent":
-      return `${names[0]} resisted the occupation of ${event.data.name || location}, confronting ${names[1]}.`;
-    case "OccupationViolenceEvent":
-      return `Occupation violence altered ${event.data.name || location} through a recorded physical act.`;
-    case "BuildingDamagedEvent":
-      return `${event.data.name || "A structure"} took ${fmt(event.magnitude)} measured damage in ${location}; it remained standing unless its integrity reached zero.`;
-    case "BuildingRepairedEvent":
-      return `${event.data.name || "A structure"} was restored in ${location} through measured labor after its recorded damage.`;
-    case "ReconciliationEvent":
-      return `${event.data.name || names[0] || "A community"} reduced conflict through stability, coexistence, and changing allegiance.`;
-    case "InjuryEvent":
-      if (event.data?.wound)
-        return `${names[1] || "An attacker"} inflicted ${event.data.wound} on ${names[0] || "a combatant"}'s ${event.data.bodyPart} in ${location}, spilling ${event.data.bloodLost || 0} blood mass.`;
-      return next(event);
-    default:
-      return next(event);
-  }
-});
+eventText(
+  [
+    "CombatExchangeEvent",
+    "InternalConflictEvent",
+    "OccupationResistanceEvent",
+    "OccupationViolenceEvent",
+    "BuildingDamagedEvent",
+    "BuildingRepairedEvent",
+    "ReconciliationEvent",
+    "InjuryEvent",
+  ],
+  function (event, next) {
+    const names = event.subjects.map(entityName),
+      location = locationName(event.location),
+      factions = event.factions.map(
+        (id) => W.factions.find((faction) => faction.id === id)?.name || `Faction ${id}`,
+      );
+    switch (event.type) {
+      case "CombatExchangeEvent":
+        return `${names[0] || "A combatant"} used ${event.data.tactic || "a strike"} against ${names[1] || "an opponent"}'s ${event.data.defense || "defense"} in ${location}; the exchange ${event.data.outcome === "evaded" ? "was evaded" : `hit the ${event.data.bodyPart || "body"}`}.`;
+      case "InternalConflictEvent":
+        return `Accumulated grievance inside ${event.data.name || location} brought ${names[0]} into violence with ${names[1]}.`;
+      case "OccupationResistanceEvent":
+        return `${names[0]} resisted the occupation of ${event.data.name || location}, confronting ${names[1]}.`;
+      case "OccupationViolenceEvent":
+        return `Occupation violence altered ${event.data.name || location} through a recorded physical act.`;
+      case "BuildingDamagedEvent":
+        return `${event.data.name || "A structure"} took ${fmt(event.magnitude)} measured damage in ${location}; it remained standing unless its integrity reached zero.`;
+      case "BuildingRepairedEvent":
+        return `${event.data.name || "A structure"} was restored in ${location} through measured labor after its recorded damage.`;
+      case "ReconciliationEvent":
+        return `${event.data.name || names[0] || "A community"} reduced conflict through stability, coexistence, and changing allegiance.`;
+      case "InjuryEvent":
+        if (event.data?.wound)
+          return `${names[1] || "An attacker"} inflicted ${event.data.wound} on ${names[0] || "a combatant"}'s ${event.data.bodyPart} in ${location}, spilling ${event.data.bloodLost || 0} blood mass.`;
+        return next(event);
+      default:
+        return next(event);
+    }
+  },
+);
 
 const organismInspectorConflictBase = organismInspector;
 organismInspector = function (id) {

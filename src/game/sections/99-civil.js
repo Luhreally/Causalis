@@ -108,7 +108,10 @@ function circlePetitions() {
       location: idx(place.x, place.y),
       factions: [f.id],
       causes: [W.lastEventByType.UnrestEvent, circles[0].causeEvent].filter(Boolean),
-      evidence: [`${circles.length} circle${circles.length === 1 ? "" : "s"} spoke`, `unrest ${place.unrest.toFixed(2)}`],
+      evidence: [
+        `${circles.length} circle${circles.length === 1 ? "" : "s"} spoke`,
+        `unrest ${place.unrest.toFixed(2)}`,
+      ],
       importance: 3,
       data: { place: place.name, polity: f.name, circle: circles[0].name, circles: circles.length },
     });
@@ -171,7 +174,10 @@ function judgeRobbery(robber, victim, ev) {
   if (code === "fines") {
     const mouth = W.components.inventory[robber]?.digestive,
       carried = W.components.inventory[victim]?.materials,
-      fine = mouth && carried ? Math.min(ev.data?.taken || 0, mouth[C.ORGANIC], 65535 - carried[C.ORGANIC]) : 0;
+      fine =
+        mouth && carried
+          ? Math.min(ev.data?.taken || 0, mouth[C.ORGANIC], 65535 - carried[C.ORGANIC])
+          : 0;
     if (fine < 1) return null;
     mouth[C.ORGANIC] -= fine;
     carried[C.ORGANIC] += fine;
@@ -187,7 +193,8 @@ function judgeRobbery(robber, victim, ev) {
     });
   }
   if (code === "exile") {
-    if ((ident?.crimes || 0) < EXILE_CRIMES || W.civilOrders?.some((o) => o.id === robber)) return null;
+    if ((ident?.crimes || 0) < EXILE_CRIMES || W.civilOrders?.some((o) => o.id === robber))
+      return null;
     const away = farLandTile(place.x, place.y, 24, 36, robber);
     if (!away) return null;
     issueCivilOrder(robber, "exile", away[0], away[1]);
@@ -200,7 +207,14 @@ function judgeRobbery(robber, victim, ev) {
       causes: [ev.id, f.law.eventId].filter(Boolean),
       evidence: [`${ident?.crimes || 0} crimes`, LAW_CODES[code]],
       importance: 3,
-      data: { name, victim: ev.data?.victim || "", place: place.name, polity: f.name, code, banished: true },
+      data: {
+        name,
+        victim: ev.data?.victim || "",
+        place: place.name,
+        polity: f.name,
+        code,
+        banished: true,
+      },
     });
   }
   // The blood-price: a payment softens the grievance without undoing the deed.

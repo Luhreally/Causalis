@@ -34,7 +34,15 @@ const MODERN_CITIES = 2,
   MODERN_OFFICE_PER_PEOPLE = 20,
   MODERN_ROAD_STONE = 48,
   MODERN_ROAD_PASSES = 4,
-  MODERN_STAGE_KEYS = Object.freeze(["cities", "current", "skyline", "homes", "works", "road", "hundred"]),
+  MODERN_STAGE_KEYS = Object.freeze([
+    "cities",
+    "current",
+    "skyline",
+    "homes",
+    "works",
+    "road",
+    "hundred",
+  ]),
   MODERN_LAUNCH_KEYS = new Set(["starflight", "tower", "ascension"]),
   MODERN = { hedgerows: 0, hay: 0, scarecrows: 0, windmills: 0 };
 // Fixtures that test the ship itself may waive the modern world; play never does.
@@ -219,13 +227,37 @@ orbitalShortfall = function () {
 // ── The Causal skip builds the modern world first ────────────────────────────
 function modernStages() {
   return [
-    { key: "cities", label: `${modernCitiesWanted()} cities at the urban stage`, done: () => modernCities().length >= modernCitiesWanted() },
-    { key: "current", label: `current in ${modernElectricWanted()} towns`, done: () => modernElectricTowns() >= modernElectricWanted() },
-    { key: "skyline", label: `${modernSkylineWanted()} tower blocks or offices`, done: () => modernCount(["tower", "office"]) >= modernSkylineWanted() },
-    { key: "homes", label: `${modernHomesWanted()} apartment blocks`, done: () => modernCount(["tenement"]) >= modernHomesWanted() },
-    { key: "works", label: `${modernWorksWanted()} working factories`, done: () => modernCount(["factory"]) >= modernWorksWanted() },
+    {
+      key: "cities",
+      label: `${modernCitiesWanted()} cities at the urban stage`,
+      done: () => modernCities().length >= modernCitiesWanted(),
+    },
+    {
+      key: "current",
+      label: `current in ${modernElectricWanted()} towns`,
+      done: () => modernElectricTowns() >= modernElectricWanted(),
+    },
+    {
+      key: "skyline",
+      label: `${modernSkylineWanted()} tower blocks or offices`,
+      done: () => modernCount(["tower", "office"]) >= modernSkylineWanted(),
+    },
+    {
+      key: "homes",
+      label: `${modernHomesWanted()} apartment blocks`,
+      done: () => modernCount(["tenement"]) >= modernHomesWanted(),
+    },
+    {
+      key: "works",
+      label: `${modernWorksWanted()} working factories`,
+      done: () => modernCount(["factory"]) >= modernWorksWanted(),
+    },
     { key: "road", label: "a paved road or rail between two towns", done: () => modernLink() },
-    { key: "hundred", label: `${modernPeopleWanted()} people living in towns`, done: () => modernPeople() >= modernPeopleWanted() },
+    {
+      key: "hundred",
+      label: `${modernPeopleWanted()} people living in towns`,
+      done: () => modernPeople() >= modernPeopleWanted(),
+    },
   ];
 }
 const causalSkipMicroStagesModernBase = causalSkipMicroStages;
@@ -262,8 +294,14 @@ causalSkipMicroStages = function () {
 // work face once the push has gone on a while, as the older pushes do.
 function modernSite(place, type) {
   return (
-    W.buildings.find((b) => !b.ruined && !b.complete && b.placeKind === "settlement" && b.placeId === place.id && b.type === type) ||
-    planBuilding(place, type, 9)
+    W.buildings.find(
+      (b) =>
+        !b.ruined &&
+        !b.complete &&
+        b.placeKind === "settlement" &&
+        b.placeId === place.id &&
+        b.type === type,
+    ) || planBuilding(place, type, 9)
   );
 }
 function modernSupply(place, type, pushes) {
@@ -333,12 +371,15 @@ function modernSupplySite(place, b, pushes) {
 }
 // The pushes raise buildings and crafts; they never force births.
 function modernPush(key, pushes) {
-  const towns = worldTowns().sort((a, b) => settlementPopulation(b) - settlementPopulation(a) || a.id - b.id),
+  const towns = worldTowns().sort(
+      (a, b) => settlementPopulation(b) - settlementPopulation(a) || a.id - b.id,
+    ),
     cities = modernCities();
   if (!towns.length) return null;
   if (key === "cities") {
     const town = towns.find((s) => !cities.includes(s)) || towns[1] || towns[0];
-    for (const type of ["hall", "clinic", "shelter", "workshop", "farm"]) if (!completedBuildings(town, type).length) causalPushBuilding(town, type, pushes);
+    for (const type of ["hall", "clinic", "shelter", "workshop", "farm"])
+      if (!completedBuildings(town, type).length) causalPushBuilding(town, type, pushes);
     if (completedBuildings(town).length < 8) causalPushBuilding(town, "shelter", pushes);
     return "cities";
   }
@@ -355,7 +396,15 @@ function modernPush(key, pushes) {
     return "current";
   }
   if (key === "skyline") {
-    const list = (cities.length ? cities : towns).slice().sort((a, b) => completedBuildings(a, "tower").length + completedBuildings(a, "office").length - completedBuildings(b, "tower").length - completedBuildings(b, "office").length || a.id - b.id),
+    const list = (cities.length ? cities : towns)
+        .slice()
+        .sort(
+          (a, b) =>
+            completedBuildings(a, "tower").length +
+              completedBuildings(a, "office").length -
+              completedBuildings(b, "tower").length -
+              completedBuildings(b, "office").length || a.id - b.id,
+        ),
       want = Math.max(1, modernSkylineWanted() - modernCount(["tower", "office"]));
     // Every block the skyline still wants is raised at once, shared across the
     // cities, and every city works on all of its unfinished blocks at once.
@@ -363,19 +412,29 @@ function modernPush(key, pushes) {
     const each = Math.max(1, Math.ceil(want / Math.max(1, list.length)));
     for (const city of list) {
       if (left <= 0) break;
-      if (!["electricity", "mechanization", "masonry"].every((t) => city.knownProcesses.includes(t))) {
-        for (const t of ["masonry", "mechanization", "electricity"]) if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
+      if (
+        !["electricity", "mechanization", "masonry"].every((t) => city.knownProcesses.includes(t))
+      ) {
+        for (const t of ["masonry", "mechanization", "electricity"])
+          if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
         continue;
       }
       left -= modernSkylineRaise(city, left, each, pushes);
       // Builders who are hungry do not build: a lean city gets a field with its tower.
-      if (typeof foodOutlook === "function" && foodOutlook(city)?.lean) causalPushBuilding(city, "farm", pushes);
+      if (typeof foodOutlook === "function" && foodOutlook(city)?.lean)
+        causalPushBuilding(city, "farm", pushes);
     }
     return "skyline";
   }
   if (key === "homes") {
     // Apartment blocks go up beside the towers, shared across the cities.
-    const list = (cities.length ? cities : towns).slice().sort((a, b) => completedBuildings(a, "tenement").length - completedBuildings(b, "tenement").length || a.id - b.id);
+    const list = (cities.length ? cities : towns)
+      .slice()
+      .sort(
+        (a, b) =>
+          completedBuildings(a, "tenement").length - completedBuildings(b, "tenement").length ||
+          a.id - b.id,
+      );
     let leftHomes = Math.max(1, modernHomesWanted() - modernCount(["tenement"]));
     const eachHomes = Math.max(1, Math.ceil(leftHomes / Math.max(1, list.length)));
     for (const city of list) {
@@ -389,14 +448,21 @@ function modernPush(key, pushes) {
     return "homes";
   }
   if (key === "works") {
-    const list = (cities.length ? cities : towns).slice().sort((a, b) => completedBuildings(a, "factory").length - completedBuildings(b, "factory").length || a.id - b.id),
+    const list = (cities.length ? cities : towns)
+        .slice()
+        .sort(
+          (a, b) =>
+            completedBuildings(a, "factory").length - completedBuildings(b, "factory").length ||
+            a.id - b.id,
+        ),
       want = Math.max(1, modernWorksWanted() - modernCount(["factory"]));
     let leftWorks = want;
     const eachWorks = Math.max(1, Math.ceil(want / Math.max(1, list.length)));
     for (const city of list) {
       if (leftWorks <= 0) break;
       if (!["electricity", "mechanization"].every((t) => city.knownProcesses.includes(t))) {
-        for (const t of ["mechanization", "electricity"]) if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
+        for (const t of ["mechanization", "electricity"])
+          if (!city.knownProcesses.includes(t)) causalPushResearch(city, t, pushes);
         continue;
       }
       leftWorks -= modernRaise(city, "factory", Math.min(eachWorks, leftWorks), pushes);
@@ -410,7 +476,10 @@ function modernPush(key, pushes) {
     // can pay: a link of forty-three tiles stood at three for want of two
     // stone. The effort brings the stone as well as the hands, and lays four
     // passes where it laid one.
-    const paver = W.factions.find((f) => f.stability > 0 && factionHasTech(f.id, "road_building") && polityTownsOf(f).length >= 2);
+    const paver = W.factions.find(
+      (f) =>
+        f.stability > 0 && factionHasTech(f.id, "road_building") && polityTownsOf(f).length >= 2,
+    );
     if (paver && typeof roadPassFor === "function") {
       for (const town of polityTownsOf(paver)) {
         const want = MODERN_ROAD_STONE - (town.inventory[C.MINERAL] || 0);
@@ -605,7 +674,12 @@ function modernLaunchPush(key, pushes) {
 function modernBedsAhead(city) {
   let beds = 0;
   for (const b of W.buildings)
-    if (!b.ruined && b.placeKind === "settlement" && b.placeId === city.id && (b.type === "tower" || b.type === "tenement" || b.type === "shelter"))
+    if (
+      !b.ruined &&
+      b.placeKind === "settlement" &&
+      b.placeId === city.id &&
+      (b.type === "tower" || b.type === "tenement" || b.type === "shelter")
+    )
       beds += b.housing || BUILDING_DEFS[b.type]?.housing || 0;
   return beds;
 }
@@ -613,7 +687,14 @@ function modernBedsShort(city) {
   return Math.max(0, settlementPopulation(city) + MODERN_BEDS_AHEAD - modernBedsAhead(city));
 }
 function modernUnfinished(city, type) {
-  return W.buildings.filter((b) => !b.ruined && !b.complete && b.placeKind === "settlement" && b.placeId === city.id && b.type === type).length;
+  return W.buildings.filter(
+    (b) =>
+      !b.ruined &&
+      !b.complete &&
+      b.placeKind === "settlement" &&
+      b.placeId === city.id &&
+      b.type === type,
+  ).length;
 }
 function modernSkylineKind(city) {
   if (!city?.knownProcesses) return null;
@@ -621,7 +702,8 @@ function modernSkylineKind(city) {
   // count below, so without this a city with one tower on the drawing board
   // read as housed and the board never got its stone.
   if (modernUnfinished(city, "tower") > 0 || modernBedsShort(city) > 0) return "tower";
-  if (city.knownProcesses.includes("computing") && placeHasFacility(city, "market")) return "office";
+  if (city.knownProcesses.includes("computing") && placeHasFacility(city, "market"))
+    return "office";
   return null;
 }
 // How many blocks of the skyline a city raises this press, and of which kind.
@@ -635,25 +717,42 @@ function modernSkylineKind(city) {
 // raises one tower, since a skyline is a block at least.
 function modernSkylineRaise(city, left, each, pushes) {
   if (!city?.knownProcesses || left <= 0) return 0;
-  const towers = Math.max(modernUnfinished(city, "tower"), Math.ceil(modernBedsShort(city) / (BUILDING_DEFS.tower?.housing || 36)));
+  const towers = Math.max(
+    modernUnfinished(city, "tower"),
+    Math.ceil(modernBedsShort(city) / (BUILDING_DEFS.tower?.housing || 36)),
+  );
   let raised = 0;
   if (towers > 0) raised += modernRaise(city, "tower", Math.min(towers, left), pushes);
   if (raised >= left) return raised;
   if (city.knownProcesses.includes("computing") && placeHasFacility(city, "market"))
-    return raised + modernRaise(city, "office", Math.min(Math.max(1, each - raised), left - raised), pushes);
+    return (
+      raised +
+      modernRaise(city, "office", Math.min(Math.max(1, each - raised), left - raised), pushes)
+    );
   if (!city.knownProcesses.includes("computing")) causalPushResearch(city, "computing", pushes);
   if (!placeHasFacility(city, "market")) causalPushBuilding(city, "market", pushes);
-  if (!raised && !completedBuildings(city, "tower").length && !completedBuildings(city, "office").length)
+  if (
+    !raised &&
+    !completedBuildings(city, "tower").length &&
+    !completedBuildings(city, "office").length
+  )
     raised += modernRaise(city, "tower", 1, pushes);
   return raised;
 }
 const towersWantedModernBase = towersWanted;
 towersWanted = function (place) {
-  return Math.max(1, Math.floor(settlementPopulation(place) / MODERN_TOWER_PER_PEOPLE), towersWantedModernBase(place));
+  return Math.max(
+    1,
+    Math.floor(settlementPopulation(place) / MODERN_TOWER_PER_PEOPLE),
+    towersWantedModernBase(place),
+  );
 };
 const officesWantedModernBase = officesWanted;
 officesWanted = function (place) {
-  return Math.max(Math.floor(settlementPopulation(place) / MODERN_OFFICE_PER_PEOPLE), officesWantedModernBase(place));
+  return Math.max(
+    Math.floor(settlementPopulation(place) / MODERN_OFFICE_PER_PEOPLE),
+    officesWantedModernBase(place),
+  );
 };
 // ── Countryside: hedgerows, hay, scarecrows, windmills ───────────────────────
 function drawWindmill(g, s, r, now, still) {
@@ -695,7 +794,16 @@ function drawWindmill(g, s, r, now, still) {
 const drawBuildingSiteModernBase = drawBuildingSite;
 drawBuildingSite = function (g, b, now, m) {
   drawBuildingSiteModernBase(g, b, now, m);
-  if (b.type !== "farm" || !b.complete || b.ruined || b.abandoned || b.placeKind !== "settlement" || UI.quality === "low" || UI.camera.zoom < 1.4) return;
+  if (
+    b.type !== "farm" ||
+    !b.complete ||
+    b.ruined ||
+    b.abandoned ||
+    b.placeKind !== "settlement" ||
+    UI.quality === "low" ||
+    UI.camera.zoom < 1.4
+  )
+    return;
   const place = buildingPlace(b);
   if (!place) return;
   const s = proceduralProjectTile(b.x + 0.5, b.y + 0.5, m),
@@ -721,7 +829,13 @@ drawBuildingSite = function (g, b, now, m) {
     g.lineWidth = 1;
     for (let k = 0; k < 3; k++) {
       g.beginPath();
-      g.arc(s.x - r * 0.5 + k * r * 0.45, s.y + r * 0.25 - (k % 2) * r * 0.12, Math.max(1.2, r * 0.13), 0, Math.PI * 2);
+      g.arc(
+        s.x - r * 0.5 + k * r * 0.45,
+        s.y + r * 0.25 - (k % 2) * r * 0.12,
+        Math.max(1.2, r * 0.13),
+        0,
+        Math.PI * 2,
+      );
       g.fill();
       g.stroke();
     }
@@ -873,7 +987,8 @@ function modernLaunchBlockers() {
           ).length
         : 0,
     shortfall = modernShortfall();
-  if (!site.knownProcesses.includes("starflight")) blockers.push("the site does not know starflight");
+  if (!site.knownProcesses.includes("starflight"))
+    blockers.push("the site does not know starflight");
   if (stability < 0.35) blockers.push("stability " + stability + " below 0.35");
   if (!isCity) blockers.push("the site is not a city");
   if (!towers) blockers.push("the site has no completed launch tower");
@@ -882,9 +997,17 @@ function modernLaunchBlockers() {
   if (recent) blockers.push("a ship already left here this generation");
   if (shortfall.length) blockers.push("world shortfall: " + shortfall.join("; "));
   return {
-    site: { id: site.id, name: site.name, pop: settlementPopulation(site), stage: site.stage || null },
+    site: {
+      id: site.id,
+      name: site.name,
+      pop: settlementPopulation(site),
+      stage: site.stage || null,
+    },
     sticky: W.causalLaunchSiteId,
-    isCity, stability, towers, recent,
+    isCity,
+    stability,
+    towers,
+    recent,
     knows: site.knownProcesses.includes("starflight"),
     blockers,
   };
@@ -894,12 +1017,23 @@ window.ALIFE_MODERN_DEBUG = Object.freeze({
   skylineKind: (placeId) => modernSkylineKind(W.settlements.find((s) => s.id === placeId)),
   bedsAhead: (placeId) => modernBedsAhead(W.settlements.find((s) => s.id === placeId)),
   bedsShort: (placeId) => modernBedsShort(W.settlements.find((s) => s.id === placeId)),
-  skylineRaise: (placeId, left = 1, each = 1, pushes = 1) => modernSkylineRaise(W.settlements.find((s) => s.id === placeId), left, each, pushes),
+  skylineRaise: (placeId, left = 1, each = 1, pushes = 1) =>
+    modernSkylineRaise(
+      W.settlements.find((s) => s.id === placeId),
+      left,
+      each,
+      pushes,
+    ),
   living: () => modernLivingPeople(),
   shortfall: () => modernShortfall(),
   stages: () => modernStages().map((s) => ({ key: s.key, label: s.label, done: s.done() })),
   push: (key, pushes = 1) => modernPush(key, pushes),
-  supply: (placeId, type, pushes = 1) => modernSupply(W.settlements.find((s) => s.id === placeId), type, pushes),
+  supply: (placeId, type, pushes = 1) =>
+    modernSupply(
+      W.settlements.find((s) => s.id === placeId),
+      type,
+      pushes,
+    ),
   towers: (placeId) => towersWanted(W.settlements.find((s) => s.id === placeId)),
   offices: (placeId) => officesWanted(W.settlements.find((s) => s.id === placeId)),
   counts: () => ({ ...MODERN }),

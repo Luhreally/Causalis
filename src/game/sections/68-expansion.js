@@ -62,7 +62,8 @@ function famineCrowdedTowns() {
   if (typeof foodOutlook !== "function") return 0;
   const line = settlerLine();
   return W.settlements.filter(
-    (s) => !s.ruined && s.knownProcesses && settlementPopulation(s) >= line && !!foodOutlook(s)?.famine,
+    (s) =>
+      !s.ruined && s.knownProcesses && settlementPopulation(s) >= line && !!foodOutlook(s)?.famine,
   ).length;
 }
 function placesAllowed() {
@@ -73,7 +74,8 @@ function placesAllowed() {
   return Math.max(4, Math.floor(biospherePopulation(KINDS.PERSON) / per)) + famineCrowdedTowns();
 }
 function worldHasRoomForPlaces() {
-  const places = W.settlements.filter((s) => !s.ruined).length + W.camps.filter((c) => c.active).length;
+  const places =
+    W.settlements.filter((s) => !s.ruined).length + W.camps.filter((c) => c.active).length;
   return places < placesAllowed();
 }
 function ensureExpansion(world = W) {
@@ -537,23 +539,32 @@ chooseBehavior = function (id, tier) {
     l.behaviorReason = "prospecting far afield for what the town lacks";
 };
 // ── Chronicle and Legends ──────────────────────────────────────────────────────
-eventText(["ExpeditionEvent", "SettlersEvent", "ProspectingEvent", "ProspectorReturnedEvent", "SettlersTurnedBackEvent"], function (e, next) {
-  const d = e.data || {};
-  switch (e.type) {
-    case "ExpeditionEvent":
-      return `${d.settlers} settlers left ${d.place} for free land ${d.distance} tiles to the ${d.direction}.`;
-    case "SettlersEvent":
-      return `Settlers from ${d.place} raised the camp of ${d.camp}${d.direction ? ` to the ${d.direction}` : ""}.`;
-    case "ProspectingEvent":
-      return `A prospector left ${d.place} for ${d.material}${d.tech ? ` to study ${d.tech}` : ""}, ${d.distance} tiles to the ${d.direction}.`;
-    case "ProspectorReturnedEvent":
-      return `A prospector brought ${d.amount} units of ${d.material} home to ${d.place}${d.tech ? ` for ${d.tech}` : ""}.`;
-    case "SettlersTurnedBackEvent":
-      return `The settlers from ${d.place} turned back: ${d.reason}.`;
-    default:
-      return next(e);
-  }
-});
+eventText(
+  [
+    "ExpeditionEvent",
+    "SettlersEvent",
+    "ProspectingEvent",
+    "ProspectorReturnedEvent",
+    "SettlersTurnedBackEvent",
+  ],
+  function (e, next) {
+    const d = e.data || {};
+    switch (e.type) {
+      case "ExpeditionEvent":
+        return `${d.settlers} settlers left ${d.place} for free land ${d.distance} tiles to the ${d.direction}.`;
+      case "SettlersEvent":
+        return `Settlers from ${d.place} raised the camp of ${d.camp}${d.direction ? ` to the ${d.direction}` : ""}.`;
+      case "ProspectingEvent":
+        return `A prospector left ${d.place} for ${d.material}${d.tech ? ` to study ${d.tech}` : ""}, ${d.distance} tiles to the ${d.direction}.`;
+      case "ProspectorReturnedEvent":
+        return `A prospector brought ${d.amount} units of ${d.material} home to ${d.place}${d.tech ? ` for ${d.tech}` : ""}.`;
+      case "SettlersTurnedBackEvent":
+        return `The settlers from ${d.place} turned back: ${d.reason}.`;
+      default:
+        return next(e);
+    }
+  },
+);
 function settledFromRow(entityId) {
   const camp = W.camps.find((c) => c.entityId === entityId && c.settledFrom),
     origin = camp ? W.settlements.find((s) => s.id === camp.settledFrom) : null;

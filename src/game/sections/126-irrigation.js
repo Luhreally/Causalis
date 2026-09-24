@@ -92,7 +92,12 @@ function irrigateField(place, field) {
           give = takeTileMatter(
             src.tile,
             C.SOLVENT,
-            Math.min(need, IRRIGATION_SIP, irrigationSpare(src.tile), 65535 - W.tiles.chem[C.SOLVENT][tile]),
+            Math.min(
+              need,
+              IRRIGATION_SIP,
+              irrigationSpare(src.tile),
+              65535 - W.tiles.chem[C.SOLVENT][tile],
+            ),
           );
         if (give <= 0) continue;
         giveTileMatter(tile, C.SOLVENT, give);
@@ -115,7 +120,9 @@ function irrigateField(place, field) {
 // uses to quicken growth, so the craft that makes a field drink faster is the
 // craft that lets its people carry water to it.
 function placeIrrigates(place) {
-  return !!place?.knownProcesses && typeof harvestTechCount === "function" && harvestTechCount(place) > 0;
+  return (
+    !!place?.knownProcesses && typeof harvestTechCount === "function" && harvestTechCount(place) > 0
+  );
 }
 function irrigationPass() {
   IRRIGATION.passes++;
@@ -148,7 +155,14 @@ window.ALIFE_IRRIGATION_DEBUG = Object.freeze({
   // A town's fields, each with its dry tile count and the water within reach.
   fields: (placeId) =>
     W.buildings
-      .filter((b) => b.type === "farm" && b.complete && !b.ruined && b.placeKind === "settlement" && b.placeId === placeId)
+      .filter(
+        (b) =>
+          b.type === "farm" &&
+          b.complete &&
+          !b.ruined &&
+          b.placeKind === "settlement" &&
+          b.placeId === placeId,
+      )
       .map((b) => {
         const f = cultivatedField(b),
           tiles = f?.tiles?.length ? f.tiles : f ? [f.tile] : [];

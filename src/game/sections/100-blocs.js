@@ -50,7 +50,8 @@ function computeBlocs() {
     };
   for (const f of living) for (const id of f.allies || []) union(f.id, id);
   for (const l of W.leagues || [])
-    if (!l.dissolvedTick) for (let i = 1; i < l.members.length; i++) union(l.members[0], l.members[i]);
+    if (!l.dissolvedTick)
+      for (let i = 1; i < l.members.length; i++) union(l.members[0], l.members[i]);
   const groups = new Map();
   for (const f of living) {
     const root = find(f.id);
@@ -119,9 +120,12 @@ function seekLoans() {
   if (!W.diplomacy) return 0;
   if (typeof ensureMarkets === "function") ensureMarkets(W);
   let made = 0;
-  const living = W.factions.filter((f) => f.stability > 0 && polityCoins(f)).sort((a, b) => a.id - b.id);
+  const living = W.factions
+    .filter((f) => f.stability > 0 && polityCoins(f))
+    .sort((a, b) => a.id - b.id);
   for (const borrower of living) {
-    if (borrower.treasury >= LOAN_NEED || activeLoans(borrower).some((t) => t.b === borrower.id)) continue;
+    if (borrower.treasury >= LOAN_NEED || activeLoans(borrower).some((t) => t.b === borrower.id))
+      continue;
     if (W.tick - (borrower.defaultedTick || -1e9) < DEBT_MEMORY) continue;
     const principal = loanNeed(borrower),
       lender = living
@@ -133,7 +137,12 @@ function seekLoans() {
             factionsHaveContact(a, borrower) &&
             opinionOf(a, borrower) >= LOAN_OPINION,
         )
-        .sort((x, y) => opinionOf(y, borrower) - opinionOf(x, borrower) || y.treasury - x.treasury || x.id - y.id)[0];
+        .sort(
+          (x, y) =>
+            opinionOf(y, borrower) - opinionOf(x, borrower) ||
+            y.treasury - x.treasury ||
+            x.id - y.id,
+        )[0];
     if (!lender) continue;
     lender.treasury = round1(lender.treasury - principal);
     borrower.treasury = round1(borrower.treasury + principal);
@@ -159,7 +168,13 @@ function seekLoans() {
       causes: [W.lastEventByType.TreatyEvent, W.lastEventByType.EmbassyEvent].filter(Boolean),
       evidence: [`${principal} coin lent`, `${treaty.owed} owed within ${LOAN_TERM_YEARS} years`],
       importance: 3,
-      data: { lender: lender.name, borrower: borrower.name, principal, owed: treaty.owed, years: LOAN_TERM_YEARS },
+      data: {
+        lender: lender.name,
+        borrower: borrower.name,
+        principal,
+        owed: treaty.owed,
+        years: LOAN_TERM_YEARS,
+      },
     }).id;
     made++;
   }
@@ -251,8 +266,10 @@ eventText(["LoanEvent", "RepaymentEvent", "DefaultEvent"], function (e, next) {
   const d = e.data || {};
   if (e.type === "LoanEvent")
     return `${d.lender} lent ${d.principal} coin to ${d.borrower}, ${d.owed} to be repaid within ${d.years} years.`;
-  if (e.type === "RepaymentEvent") return `${d.borrower} repaid its debt of ${d.owed} coin to ${d.lender}.`;
-  if (e.type === "DefaultEvent") return `${d.borrower} defaulted on ${d.unpaid} coin owed to ${d.lender}.`;
+  if (e.type === "RepaymentEvent")
+    return `${d.borrower} repaid its debt of ${d.owed} coin to ${d.lender}.`;
+  if (e.type === "DefaultEvent")
+    return `${d.borrower} defaulted on ${d.unpaid} coin owed to ${d.lender}.`;
   return next(e);
 });
 const alertWorthyBlocsBase = alertWorthy;
@@ -273,8 +290,12 @@ renderFactionPage = function (id) {
     }),
     bloc = blocSize(f.id) >= 2 ? blocLeader(f.id) : null,
     rows =
-      (bloc ? `<div class="kv"><span>Bloc</span><b>${esc(`${blocSize(f.id)} polities standing with ${bloc.name}`)}</b></div>` : "") +
-      (loans.length ? `<div class="kv"><span>Loans</span><b>${esc(loans.join("; "))}</b></div>` : "");
+      (bloc
+        ? `<div class="kv"><span>Bloc</span><b>${esc(`${blocSize(f.id)} polities standing with ${bloc.name}`)}</b></div>`
+        : "") +
+      (loans.length
+        ? `<div class="kv"><span>Loans</span><b>${esc(loans.join("; "))}</b></div>`
+        : "");
   if (!rows) return html;
   const at = html.indexOf('<div class="subhead">');
   return at < 0 ? html + rows : html.slice(0, at) + rows + html.slice(at);
@@ -286,5 +307,6 @@ window.ALIFE_BLOCS_DEBUG = Object.freeze({
   style: (i) => overlayStyle("alliances", i),
   seek: () => seekLoans(),
   service: () => serviceLoans(),
-  loans: (factionId) => activeLoans(W.factions.find((f) => f.id === factionId) || { id: 0 }).map((t) => ({ ...t })),
+  loans: (factionId) =>
+    activeLoans(W.factions.find((f) => f.id === factionId) || { id: 0 }).map((t) => ({ ...t })),
 });

@@ -42,7 +42,10 @@ function daylightAt(tick = W.tick, hemisphere = 1) {
 }
 function hemisphereAt(x, y) {
   if (typeof seasonHemisphere !== "function" || !W) return 1;
-  return seasonHemisphere(clamp(Math.round(x), 0, W.width - 1), clamp(Math.round(y), 0, W.height - 1));
+  return seasonHemisphere(
+    clamp(Math.round(x), 0, W.width - 1),
+    clamp(Math.round(y), 0, W.height - 1),
+  );
 }
 function cameraHemisphere() {
   return W ? hemisphereAt(UI.camera.x, UI.camera.y) : 1;
@@ -116,7 +119,9 @@ function sleepScore(id, k, p, l, which, place = null) {
 function sleepRecoveryFactor(id) {
   const p = W.components.position[id],
     k = W.kind[id];
-  return (k === KINDS.PERSON || k === KINDS.HERBIVORE) && p && nightAt(p.x, p.y) ? SLEEP_RECOVERY : 1;
+  return (k === KINDS.PERSON || k === KINDS.HERBIVORE) && p && nightAt(p.x, p.y)
+    ? SLEEP_RECOVERY
+    : 1;
 }
 // Fire near a sleeper is the one thing that keeps hands up at night.
 function nightShiftAllowed(id) {
@@ -138,7 +143,17 @@ workerReadyForLabor = function (id) {
   return nightShiftAllowed(id);
 };
 // ── Night lights ──────────────────────────────────────────────────────────────
-const LIT_TYPES = new Set(["hall", "archive", "shelter", "clinic", "workshop", "market", "forge", "kiln", "hearth"]),
+const LIT_TYPES = new Set([
+    "hall",
+    "archive",
+    "shelter",
+    "clinic",
+    "workshop",
+    "market",
+    "forge",
+    "kiln",
+    "hearth",
+  ]),
   WARM_TYPES = new Set(["hearth", "kiln", "forge"]);
 const litTownCache = { world: null, tick: -1, byPlace: new Map() };
 function townLighting(b) {
@@ -150,7 +165,8 @@ function townLighting(b) {
   const key = `${b.placeKind}:${b.placeId}`;
   let lit = litTownCache.byPlace.get(key);
   if (lit === undefined) {
-    const place = b.placeKind === "settlement" ? W.settlements.find((s) => s.id === b.placeId) : null,
+    const place =
+        b.placeKind === "settlement" ? W.settlements.find((s) => s.id === b.placeId) : null,
       k = place?.knownProcesses || [];
     lit = k.includes("electricity") ? "electric" : k.includes("controlled_fire") ? "fire" : "dark";
     litTownCache.byPlace.set(key, lit);
@@ -164,14 +180,43 @@ function drawNightLights(now, m, bounds, night) {
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   for (const b of W.buildings) {
-    if (!b.complete || b.ruined || b.x < bounds.x0 - 1 || b.x > bounds.x1 + 1 || b.y < bounds.y0 - 1 || b.y > bounds.y1 + 1) continue;
+    if (
+      !b.complete ||
+      b.ruined ||
+      b.x < bounds.x0 - 1 ||
+      b.x > bounds.x1 + 1 ||
+      b.y < bounds.y0 - 1 ||
+      b.y > bounds.y1 + 1
+    )
+      continue;
     const lit = townLighting(b),
       warm = WARM_TYPES.has(b.type);
-    if (lit === "dark" || (lit === "fire" && !warm) || (lit === "electric" && !LIT_TYPES.has(b.type))) continue;
+    if (
+      lit === "dark" ||
+      (lit === "fire" && !warm) ||
+      (lit === "electric" && !LIT_TYPES.has(b.type))
+    )
+      continue;
     const s = proceduralProjectTile(b.x + 0.5, b.y + 0.5, m),
-      flicker = still ? 1 : warm ? 0.8 + 0.2 * Math.sin(now * 0.011 + b.id) : 0.94 + 0.06 * Math.sin(now * 0.004 + b.id),
-      glow = ctx.createRadialGradient(s.x, s.y - r * 0.3, 0, s.x, s.y - r * 0.3, r * (warm ? 1.4 : 1.1));
-    glow.addColorStop(0, warm ? `rgba(255,150,60,${0.42 * night * flicker})` : `rgba(255,214,140,${0.36 * night * flicker})`);
+      flicker = still
+        ? 1
+        : warm
+          ? 0.8 + 0.2 * Math.sin(now * 0.011 + b.id)
+          : 0.94 + 0.06 * Math.sin(now * 0.004 + b.id),
+      glow = ctx.createRadialGradient(
+        s.x,
+        s.y - r * 0.3,
+        0,
+        s.x,
+        s.y - r * 0.3,
+        r * (warm ? 1.4 : 1.1),
+      );
+    glow.addColorStop(
+      0,
+      warm
+        ? `rgba(255,150,60,${0.42 * night * flicker})`
+        : `rgba(255,214,140,${0.36 * night * flicker})`,
+    );
     glow.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = glow;
     ctx.fillRect(s.x - r * 1.4, s.y - r * 1.7, r * 2.8, r * 2.8);
@@ -182,8 +227,14 @@ function drawNightLights(now, m, bounds, night) {
     const lamps = new Set();
     for (const b of W.buildings) {
       if (!b.complete || b.ruined || townLighting(b) !== "electric") continue;
-      if (b.x < bounds.x0 - 2 || b.x > bounds.x1 + 2 || b.y < bounds.y0 - 2 || b.y > bounds.y1 + 2) continue;
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      if (b.x < bounds.x0 - 2 || b.x > bounds.x1 + 2 || b.y < bounds.y0 - 2 || b.y > bounds.y1 + 2)
+        continue;
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
         const x = b.x + dx,
           y = b.y + dy;
         if (!inside(x, y)) continue;
@@ -227,7 +278,8 @@ drawProceduralAtmosphere = function (now, m, v) {
   }
   ctx.fillStyle = `rgba(8,14,40,${NIGHT_ALPHA_MAX * night})`;
   ctx.fillRect(0, 0, m.w, m.h);
-  if (UI.quality !== "low" && UI.camera.zoom >= 0.9 && night > 0.15) drawNightLights(now, m, visibleBounds(), night);
+  if (UI.quality !== "low" && UI.camera.zoom >= 0.9 && night > 0.15)
+    drawNightLights(now, m, visibleBounds(), night);
 };
 // The Time panel names the hour beside the season.
 const seasonLabelDaylightBase = seasonLabel;

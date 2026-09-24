@@ -390,7 +390,10 @@ function desperateAct(id, override = null) {
           W.tick - (W.components.life[o]?.lastRobbedTick || -99999) >= VICTIM_REST &&
           // `isKin` never existed, so the guard was always false and a robber
           // robbed his own kin; `sameKin` (76) compares the kin groups.
-          !(typeof sameKin === "function" && sameKin(W.components.social[id], W.components.social[o])) &&
+          !(
+            typeof sameKin === "function" &&
+            sameKin(W.components.social[id], W.components.social[o])
+          ) &&
           mine > personStrength(o) * (1 + restraint * 0.5) &&
           (bold || hunger >= 88),
       )

@@ -20,13 +20,38 @@ const TECH_ERAS = Object.freeze([
   {
     key: "stone",
     name: "The first crafts",
-    techs: ["controlled_fire", "drying", "tools", "storage", "agriculture", "ceramics", "fortification", "navigation"],
+    techs: [
+      "controlled_fire",
+      "drying",
+      "tools",
+      "storage",
+      "agriculture",
+      "ceramics",
+      "fortification",
+      "navigation",
+    ],
   },
-  { key: "metal", name: "Metal and medicine", techs: ["metalworking", "medicine", "irrigation", "masonry", "wheel"] },
+  {
+    key: "metal",
+    name: "Metal and medicine",
+    techs: ["metalworking", "medicine", "irrigation", "masonry", "wheel"],
+  },
   {
     key: "letters",
     name: "Letters and law",
-    techs: ["writing", "governance", "logistics", "mathematics", "currency", "road_building", "public_works", "sanitation", "optics", "printing", "astronomy"],
+    techs: [
+      "writing",
+      "governance",
+      "logistics",
+      "mathematics",
+      "currency",
+      "road_building",
+      "public_works",
+      "sanitation",
+      "optics",
+      "printing",
+      "astronomy",
+    ],
   },
   {
     key: "engines",
@@ -34,26 +59,162 @@ const TECH_ERAS = Object.freeze([
     techs: ["waterworks", "mechanization", "chemistry", "germ_theory", "railways", "combustion"],
   },
   { key: "electricity", name: "Electricity and the wire", techs: ["electricity", "radio"] },
-  { key: "information", name: "Information", techs: ["computing", "fusion", "ecological_engineering"] },
-  { key: "beyond", name: "Stewardship and the stars", techs: ["planetary_stewardship", "starflight", "satellites"] },
+  {
+    key: "information",
+    name: "Information",
+    techs: ["computing", "fusion", "ecological_engineering"],
+  },
+  {
+    key: "beyond",
+    name: "Stewardship and the stars",
+    techs: ["planetary_stewardship", "starflight", "satellites"],
+  },
 ]);
 const TECH_EXTENDED_DEFS = Object.freeze([
-  { id: "wheel", name: "The Wheel", materials: [C.FIBER, C.MINERAL], prior: ["tools", "ceramics"], threshold: 40, facility: "workshop", process: "a turned axle bearing a load" },
-  { id: "road_building", name: "Paved Roads", materials: [C.MINERAL, C.FIBER], prior: ["masonry", "logistics"], threshold: 50, facility: "hall", process: "a graded bed of stone between towns" },
-  { id: "currency", name: "Coinage", materials: [C.METAL, C.PIGMENT], prior: ["metalworking", "writing"], threshold: 52, facility: "forge", process: "struck metal standing for any good" },
-  { id: "mathematics", name: "Mathematics", materials: [C.INFO, C.PIGMENT], prior: ["writing"], threshold: 48, facility: "archive", process: "number and proof kept on the page" },
-  { id: "printing", name: "Printing", materials: [C.INFO, C.METAL], prior: ["writing", "metalworking"], threshold: 58, facility: "archive", process: "movable type pressing a page in moments" },
-  { id: "optics", name: "Lenses", materials: [C.CRYSTAL, C.MINERAL], prior: ["ceramics", "mathematics"], threshold: 56, facility: "workshop", process: "ground crystal bending light to a point" },
-  { id: "chemistry", name: "Industrial Chemistry", materials: [C.CATALYST, C.SOLVENT], prior: ["metalworking", "medicine"], threshold: 64, facility: "forge", process: "reactions run at scale for yield" },
-  { id: "germ_theory", name: "Germ Theory", materials: [C.CATALYST, C.ORGANIC], prior: ["medicine", "optics"], threshold: 62, facility: "clinic", process: "the living cause of infection seen and named" },
-  { id: "electricity", name: "Electricity", materials: [C.METAL, C.CATALYST], prior: ["mechanization", "chemistry"], threshold: 70, facility: "forge", process: "current drawn along a wire to do work" },
-  { id: "combustion", name: "Combustion Engines", materials: [C.METAL, C.FUEL], prior: ["mechanization", "chemistry"], threshold: 68, facility: "forge", process: "fuel burned inside a cylinder to drive a wheel" },
-  { id: "railways", name: "Railways", materials: [C.METAL, C.FUEL], prior: ["mechanization", "road_building"], threshold: 66, facility: "forge", process: "iron rails carrying an engine and its train" },
-  { id: "radio", name: "Radio", materials: [C.METAL, C.CRYSTAL], prior: ["electricity", "mathematics"], threshold: 66, facility: "archive", process: "a voice carried over the horizon without wire" },
-  { id: "computing", name: "Computing", materials: [C.CRYSTAL, C.METAL], prior: ["electricity", "mathematics", "printing"], threshold: 78, facility: "archive", process: "reckoning done by a machine faster than thought" },
-  { id: "satellites", name: "Satellites", materials: [C.METAL, C.FUEL], prior: ["starflight", "radio"], threshold: 82, facility: "observatory", process: "an eye set in orbit above the weather" },
-  { id: "fusion", name: "Fusion Power", materials: [C.CATALYST, C.METAL], prior: ["computing", "chemistry"], threshold: 88, facility: "forge", process: "light nuclei joined for their binding energy" },
-  { id: "ecological_engineering", name: "Ecological Engineering", materials: [C.CATALYST, C.INFO], prior: ["planetary_stewardship", "chemistry"], threshold: 76, facility: "hall", process: "a biosphere tended as a whole" },
+  {
+    id: "wheel",
+    name: "The Wheel",
+    materials: [C.FIBER, C.MINERAL],
+    prior: ["tools", "ceramics"],
+    threshold: 40,
+    facility: "workshop",
+    process: "a turned axle bearing a load",
+  },
+  {
+    id: "road_building",
+    name: "Paved Roads",
+    materials: [C.MINERAL, C.FIBER],
+    prior: ["masonry", "logistics"],
+    threshold: 50,
+    facility: "hall",
+    process: "a graded bed of stone between towns",
+  },
+  {
+    id: "currency",
+    name: "Coinage",
+    materials: [C.METAL, C.PIGMENT],
+    prior: ["metalworking", "writing"],
+    threshold: 52,
+    facility: "forge",
+    process: "struck metal standing for any good",
+  },
+  {
+    id: "mathematics",
+    name: "Mathematics",
+    materials: [C.INFO, C.PIGMENT],
+    prior: ["writing"],
+    threshold: 48,
+    facility: "archive",
+    process: "number and proof kept on the page",
+  },
+  {
+    id: "printing",
+    name: "Printing",
+    materials: [C.INFO, C.METAL],
+    prior: ["writing", "metalworking"],
+    threshold: 58,
+    facility: "archive",
+    process: "movable type pressing a page in moments",
+  },
+  {
+    id: "optics",
+    name: "Lenses",
+    materials: [C.CRYSTAL, C.MINERAL],
+    prior: ["ceramics", "mathematics"],
+    threshold: 56,
+    facility: "workshop",
+    process: "ground crystal bending light to a point",
+  },
+  {
+    id: "chemistry",
+    name: "Industrial Chemistry",
+    materials: [C.CATALYST, C.SOLVENT],
+    prior: ["metalworking", "medicine"],
+    threshold: 64,
+    facility: "forge",
+    process: "reactions run at scale for yield",
+  },
+  {
+    id: "germ_theory",
+    name: "Germ Theory",
+    materials: [C.CATALYST, C.ORGANIC],
+    prior: ["medicine", "optics"],
+    threshold: 62,
+    facility: "clinic",
+    process: "the living cause of infection seen and named",
+  },
+  {
+    id: "electricity",
+    name: "Electricity",
+    materials: [C.METAL, C.CATALYST],
+    prior: ["mechanization", "chemistry"],
+    threshold: 70,
+    facility: "forge",
+    process: "current drawn along a wire to do work",
+  },
+  {
+    id: "combustion",
+    name: "Combustion Engines",
+    materials: [C.METAL, C.FUEL],
+    prior: ["mechanization", "chemistry"],
+    threshold: 68,
+    facility: "forge",
+    process: "fuel burned inside a cylinder to drive a wheel",
+  },
+  {
+    id: "railways",
+    name: "Railways",
+    materials: [C.METAL, C.FUEL],
+    prior: ["mechanization", "road_building"],
+    threshold: 66,
+    facility: "forge",
+    process: "iron rails carrying an engine and its train",
+  },
+  {
+    id: "radio",
+    name: "Radio",
+    materials: [C.METAL, C.CRYSTAL],
+    prior: ["electricity", "mathematics"],
+    threshold: 66,
+    facility: "archive",
+    process: "a voice carried over the horizon without wire",
+  },
+  {
+    id: "computing",
+    name: "Computing",
+    materials: [C.CRYSTAL, C.METAL],
+    prior: ["electricity", "mathematics", "printing"],
+    threshold: 78,
+    facility: "archive",
+    process: "reckoning done by a machine faster than thought",
+  },
+  {
+    id: "satellites",
+    name: "Satellites",
+    materials: [C.METAL, C.FUEL],
+    prior: ["starflight", "radio"],
+    threshold: 82,
+    facility: "observatory",
+    process: "an eye set in orbit above the weather",
+  },
+  {
+    id: "fusion",
+    name: "Fusion Power",
+    materials: [C.CATALYST, C.METAL],
+    prior: ["computing", "chemistry"],
+    threshold: 88,
+    facility: "forge",
+    process: "light nuclei joined for their binding energy",
+  },
+  {
+    id: "ecological_engineering",
+    name: "Ecological Engineering",
+    materials: [C.CATALYST, C.INFO],
+    prior: ["planetary_stewardship", "chemistry"],
+    threshold: 76,
+    facility: "hall",
+    process: "a biosphere tended as a whole",
+  },
 ]);
 for (const def of TECH_EXTENDED_DEFS)
   if (!TECH_EXTENSIONS.some((t) => t.id === def.id)) TECH_EXTENSIONS.push(def);
@@ -312,12 +473,17 @@ function checkMilestones() {
     if (era.key === "stone") continue;
     const first = towns.find((s) => era.techs.some((t) => knowsTech(s, t)));
     if (first)
-      recordMilestone(`era-${era.key}`, `${first.name} opened the era of ${era.name.toLowerCase()}`, first, {
-        evidence: era.techs
-          .filter((t) => knowsTech(first, t))
-          .map((t) => technologyDefinition(t)?.name || t)
-          .join(", "),
-      });
+      recordMilestone(
+        `era-${era.key}`,
+        `${first.name} opened the era of ${era.name.toLowerCase()}`,
+        first,
+        {
+          evidence: era.techs
+            .filter((t) => knowsTech(first, t))
+            .map((t) => technologyDefinition(t)?.name || t)
+            .join(", "),
+        },
+      );
   }
 }
 calendarSystem("milestones", function () {
@@ -390,7 +556,8 @@ function renderTechnologyPage() {
       .slice(-12)
       .reverse()
       .map(
-        (m) => `<div class="kv"><span>${esc(m.label)}</span><b>year ${formatYear(m.tick)}</b></div>`,
+        (m) =>
+          `<div class="kv"><span>${esc(m.label)}</span><b>year ${formatYear(m.tick)}</b></div>`,
       )
       .join("");
   return `${legendHero("The tree of knowledge", [
@@ -427,7 +594,10 @@ window.ALIFE_TECH_DEBUG = Object.freeze({
     constructionTempoFactor(W.settlements.find((s) => s.id === settlementId)),
   hygiene: (id) => hygieneFactor(id),
   recorded: (settlementId, techId) =>
-    processRecorded(W.settlements.find((s) => s.id === settlementId), techId),
+    processRecorded(
+      W.settlements.find((s) => s.id === settlementId),
+      techId,
+    ),
   retier: () => retierAges(W),
   milestone: (key, label, settlementId = 0) =>
     recordMilestone(key, label, W.settlements.find((s) => s.id === settlementId) || null),

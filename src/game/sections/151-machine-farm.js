@@ -33,7 +33,8 @@ const MACHINE_FARM = { extra: 0, salt: 0, muckTowns: 0, pumped: 0 },
 function machineFarmExtra(place) {
   const known = place?.knownProcesses || [];
   let extra = 0;
-  for (const tech of ["mechanization", "combustion", "electricity"]) if (known.includes(tech)) extra++;
+  for (const tech of ["mechanization", "combustion", "electricity"])
+    if (known.includes(tech)) extra++;
   const promised = typeof branchEffects === "function" ? branchEffects(place).harvest || 1 : 1;
   extra += Math.max(0, Math.floor((promised - 1) / 0.5));
   return Math.min(MACHINE_EXTRA_CAP, extra);
@@ -72,7 +73,11 @@ updateMuck = function () {
   updateMuckMachineBase();
   if (!W?.settlements || shipHasLeft()) return;
   for (const town of W.settlements)
-    if (W.tick % MUCK_CADENCE === town.id % MUCK_CADENCE && fertilizerTown(town) && !muckExhausted(town)) {
+    if (
+      W.tick % MUCK_CADENCE === town.id % MUCK_CADENCE &&
+      fertilizerTown(town) &&
+      !muckExhausted(town)
+    ) {
       if (muckTown(town)) MACHINE_FARM.muckTowns++;
       spreadFertilizer(town);
     }
@@ -110,5 +115,8 @@ window.ALIFE_MACHINE_FARM_DEBUG = Object.freeze({
   counts: () => ({ ...MACHINE_FARM }),
   extra: (placeId) => machineFarmExtra(W.settlements.find((s) => s.id === placeId)),
   fertilize: (placeId) => spreadFertilizer(W.settlements.find((s) => s.id === placeId)),
-  railwaysNeed: () => techCatalog().find((t) => t.id === "railways")?.prior?.slice() || [],
+  railwaysNeed: () =>
+    techCatalog()
+      .find((t) => t.id === "railways")
+      ?.prior?.slice() || [],
 });

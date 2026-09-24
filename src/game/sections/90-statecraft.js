@@ -40,7 +40,12 @@ const OPINION_CADENCE = 256,
 function ensureStatecraft(world = W) {
   if (!world) return null;
   ensureDiplomacy(world);
-  world.statecraft = world.statecraft || { version: 1, coalitions: 0, hegemonId: 0, lastCoalitionTick: -1e9 };
+  world.statecraft = world.statecraft || {
+    version: 1,
+    coalitions: 0,
+    hegemonId: 0,
+    lastCoalitionTick: -1e9,
+  };
   return world.statecraft;
 }
 const restoreWorldDefaultsStatecraftBase = restoreWorldDefaults;
@@ -86,9 +91,11 @@ function opinionTarget(a, b) {
   if (warBetween(a, b)) add("a war under way", -35);
   else if (recentWarBetween(a, b)) add("a war remembered", -20);
   const tribute = activeTreaty("tribute", a, b);
-  if (tribute) add(tribute.a === a.id ? "tribute paid" : "tribute received", tribute.a === a.id ? -12 : 6);
+  if (tribute)
+    add(tribute.a === a.id ? "tribute paid" : "tribute received", tribute.a === a.id ? -12 : 6);
   const vassal = activeTreaty("vassal", a, b);
-  if (vassal) add(vassal.a === a.id ? "a yoke borne" : "a vassal held", vassal.a === a.id ? -10 : 6);
+  if (vassal)
+    add(vassal.a === a.id ? "a yoke borne" : "a vassal held", vassal.a === a.id ? -10 : 6);
   if (
     (W.diplomacy.marriages || []).some(
       (m) =>
@@ -108,12 +115,20 @@ function opinionTarget(a, b) {
   if (embassy)
     add(
       "an embassy at the court",
-      Math.min(EMBASSY_WARMTH_CAP, EMBASSY_WARMTH_PER_YEAR * Math.floor((W.tick - embassy.startedTick) / TICKS_PER_YEAR) + 3),
+      Math.min(
+        EMBASSY_WARMTH_CAP,
+        EMBASSY_WARMTH_PER_YEAR * Math.floor((W.tick - embassy.startedTick) / TICKS_PER_YEAR) + 3,
+      ),
     );
-  if (typeof ideologyDistance === "function") add("ways of rule apart", -Math.round(ideologyDistance(a, b) * 20));
+  if (typeof ideologyDistance === "function")
+    add("ways of rule apart", -Math.round(ideologyDistance(a, b) * 20));
   const hegemon = hegemonOf();
   if (hegemon && hegemon === b) add("fear of a hegemon", -15);
-  const target = clamp(reasons.reduce((n, r) => n + r.value, 0), -100, 100);
+  const target = clamp(
+    reasons.reduce((n, r) => n + r.value, 0),
+    -100,
+    100,
+  );
   reasons.sort((x, y) => Math.abs(y.value) - Math.abs(x.value));
   return { target, reasons };
 }
@@ -125,7 +140,9 @@ function updateOpinions() {
       if (a === b || !factionsHaveContact(a, b)) continue;
       const rel = relationOf(a, b),
         { target } = opinionTarget(a, b);
-      rel.opinion = Math.round(((rel.opinion || 0) + (target - (rel.opinion || 0)) * OPINION_INERTIA) * 10) / 10;
+      rel.opinion =
+        Math.round(((rel.opinion || 0) + (target - (rel.opinion || 0)) * OPINION_INERTIA) * 10) /
+        10;
     }
 }
 // Opinion bears on war pressure; a pact caps it.
@@ -239,10 +256,24 @@ considerProposals = function () {
         rel = relationOf(f, g),
         war = warBetween(f, g);
       let kind = null;
-      if (!war && o >= 30 && !(typeof alliedPair === "function" && alliedPair(f, g)) && !activeTreaty("alliance", f, g)) kind = "alliance";
-      else if (!war && o >= 10 && !activeTreaty("trade", f, g) && ((f.ethos?.mercantile || 0) > 0.5 || (g.ethos?.mercantile || 0) > 0.5)) kind = "trade";
-      else if (!war && (rel.pressure || 0) > 40 && !activeTreaty("pact", f, g) && o > -30) kind = "pact";
-      else if (!war && o >= 0 && !activeTreaty("embassy", f, g) && factionHasTech(f.id, "writing")) kind = "embassy";
+      if (
+        !war &&
+        o >= 30 &&
+        !(typeof alliedPair === "function" && alliedPair(f, g)) &&
+        !activeTreaty("alliance", f, g)
+      )
+        kind = "alliance";
+      else if (
+        !war &&
+        o >= 10 &&
+        !activeTreaty("trade", f, g) &&
+        ((f.ethos?.mercantile || 0) > 0.5 || (g.ethos?.mercantile || 0) > 0.5)
+      )
+        kind = "trade";
+      else if (!war && (rel.pressure || 0) > 40 && !activeTreaty("pact", f, g) && o > -30)
+        kind = "pact";
+      else if (!war && o >= 0 && !activeTreaty("embassy", f, g) && factionHasTech(f.id, "writing"))
+        kind = "embassy";
       if (!kind) continue;
       const score = (kind === "pact" ? 3 : kind === "alliance" ? 2 : 1) * 10 + o;
       if (score > bestScore) {
@@ -256,7 +287,8 @@ considerProposals = function () {
 // Pacts and open markets run their term; embassies and alliances stand.
 function expireStatecraftTreaties() {
   for (const t of W.diplomacy.treaties)
-    if (t.active && STATECRAFT_TERMS[t.kind] && t.until && W.tick >= t.until) endTreaty(t, "the term ran out", 2);
+    if (t.active && STATECRAFT_TERMS[t.kind] && t.until && W.tick >= t.until)
+      endTreaty(t, "the term ran out", 2);
 }
 // ── Coalitions against a hegemon ──────────────────────────────────────────────
 function considerCoalition() {
@@ -265,7 +297,12 @@ function considerCoalition() {
   state.hegemonId = hegemon?.id || 0;
   if (!hegemon || W.tick - state.lastCoalitionTick < COALITION_REST) return null;
   const others = W.factions.filter(
-    (f) => f !== hegemon && f.stability > 0 && f.leaderId && factionsHaveContact(f, hegemon) && opinionOf(f, hegemon) <= -10,
+    (f) =>
+      f !== hegemon &&
+      f.stability > 0 &&
+      f.leaderId &&
+      factionsHaveContact(f, hegemon) &&
+      opinionOf(f, hegemon) <= -10,
   );
   if (others.length < 2) return null;
   const members = [];
@@ -292,7 +329,9 @@ function considerCoalition() {
     location: capital ? idx(capital.x, capital.y) : -1,
     factions: [...members.map((f) => f.id), hegemon.id],
     causes: [league.eventId].filter(Boolean),
-    evidence: [`${hegemon.name} held ${Math.round(powerShares().share(hegemon) * 100)}% of all power`],
+    evidence: [
+      `${hegemon.name} held ${Math.round(powerShares().share(hegemon) * 100)}% of all power`,
+    ],
     importance: 4,
     data: { members: members.map((f) => f.name), against: hegemon.name, league: league.name },
   });
@@ -323,21 +362,28 @@ tickSystem("statecraft", function () {
   if (W?.diplomacy) updateStatecraft();
 });
 // ── Chronicle, alerts, and the Relations table ────────────────────────────────
-eventText(["PactEvent", "TradeTreatyEvent", "EmbassyEvent", "AllianceTreatyEvent", "CoalitionEvent"], function (e, next) {
-  const d = e.data || {};
-  if (e.type === "PactEvent") return `${d.a} and ${d.b} swore a pact of non-aggression for ${d.years} years.`;
-  if (e.type === "TradeTreatyEvent") return `${d.a} and ${d.b} opened their markets to each other for ${d.years} years.`;
-  if (e.type === "EmbassyEvent") return `${d.a} set an embassy at the court of ${d.b}.`;
-  if (e.type === "AllianceTreatyEvent") return `${d.a} and ${d.b} bound themselves in alliance.`;
-  if (e.type === "CoalitionEvent") {
-    const m = d.members || [];
-    return `${m.length > 1 ? m.slice(0, -1).join(", ") + " and " + m.at(-1) : m[0]} joined in a coalition against ${d.against}.`;
-  }
-  return next(e);
-});
+eventText(
+  ["PactEvent", "TradeTreatyEvent", "EmbassyEvent", "AllianceTreatyEvent", "CoalitionEvent"],
+  function (e, next) {
+    const d = e.data || {};
+    if (e.type === "PactEvent")
+      return `${d.a} and ${d.b} swore a pact of non-aggression for ${d.years} years.`;
+    if (e.type === "TradeTreatyEvent")
+      return `${d.a} and ${d.b} opened their markets to each other for ${d.years} years.`;
+    if (e.type === "EmbassyEvent") return `${d.a} set an embassy at the court of ${d.b}.`;
+    if (e.type === "AllianceTreatyEvent") return `${d.a} and ${d.b} bound themselves in alliance.`;
+    if (e.type === "CoalitionEvent") {
+      const m = d.members || [];
+      return `${m.length > 1 ? m.slice(0, -1).join(", ") + " and " + m.at(-1) : m[0]} joined in a coalition against ${d.against}.`;
+    }
+    return next(e);
+  },
+);
 const alertWorthyStatecraftBase = alertWorthy;
 alertWorthy = function (a) {
-  return alertWorthyStatecraftBase(a) || a.type === "CoalitionEvent" || a.type === "AllianceTreatyEvent";
+  return (
+    alertWorthyStatecraftBase(a) || a.type === "CoalitionEvent" || a.type === "AllianceTreatyEvent"
+  );
 };
 function relationsTable(f) {
   const rows = W.factions
@@ -348,7 +394,12 @@ function relationsTable(f) {
         { reasons } = opinionTarget(f, g),
         top = reasons[0] ? ` <span class="muted">${esc(reasons[0].label)}</span>` : "",
         treaties = W.diplomacy.treaties
-          .filter((t) => t.active && STATECRAFT_TERMS[t.kind] && ((t.a === f.id && t.b === g.id) || (t.a === g.id && t.b === f.id)))
+          .filter(
+            (t) =>
+              t.active &&
+              STATECRAFT_TERMS[t.kind] &&
+              ((t.a === f.id && t.b === g.id) || (t.a === g.id && t.b === f.id)),
+          )
           .map((t) => t.kind)
           .join(", ");
       return `<div class="kv"><span>${legendLink("faction", g.id, esc(g.name))}${top}</span><b>${esc(rel.status || "neutral")} · ${opinionWord(o)} (${Math.round(o)})${treaties ? ` · ${esc(treaties)}` : ""}</b></div>`;
@@ -385,7 +436,10 @@ window.ALIFE_STATECRAFT_DEBUG = Object.freeze({
   // Bind a treaty without an envoy, for fixtures and probes.
   bind: (kind, aId, bId) => makeStatecraftTreaty(kind, factionById(aId), factionById(bId)),
   accept: (kind, aId, bId, force = null) =>
-    resolveEnvoy({ id: W.diplomacy.nextId++, from: aId, to: bId, proposal: kind, personId: 0, eventId: 0 }, force),
+    resolveEnvoy(
+      { id: W.diplomacy.nextId++, from: aId, to: bId, proposal: kind, personId: 0, eventId: 0 },
+      force,
+    ),
   expire: () => expireStatecraftTreaties(),
   hegemon: () => hegemonOf()?.name || null,
   coalition: () => {

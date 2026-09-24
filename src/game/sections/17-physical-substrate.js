@@ -236,7 +236,12 @@ const BREATH_LAKE_RATE = 0.01,
   BREATH_LAND_FLOOR = 50,
   BREATH_LAND_STEP = 10;
 function breatheSurfaceWater(i, weather) {
-  if (weather === "Rain" || weather === "Heavy Rain" || weather === "Storm" || weather === "Drought")
+  if (
+    weather === "Rain" ||
+    weather === "Heavy Rain" ||
+    weather === "Storm" ||
+    weather === "Drought"
+  )
     return 0;
   const t = W.tiles;
   if (t.temperature[i] < 0) return 0;
@@ -357,13 +362,17 @@ function ensureSky(world = W) {
       ox += world.tiles.chem[C.OXIDANT][i];
       gas += world.tiles.chem[C.GAS][i];
     }
-    world.skyBaseline = { oxidant: Math.round(ox / Math.max(1, n)), gas: Math.round(gas / Math.max(1, n)) };
+    world.skyBaseline = {
+      oxidant: Math.round(ox / Math.max(1, n)),
+      gas: Math.round(gas / Math.max(1, n)),
+    };
   }
   if (typeof world.reservoirs.atmosphericOxidant !== "number") {
     world.reservoirs.atmosphericOxidant = n * SKY_DEPTH_OXIDANT;
     world.reservoirs.atmosphericGas = n * SKY_DEPTH_GAS;
     // A world saved before the sky was deep is given its sky: the world's own matter, not the player's.
-    if (world.conservation) world.conservation.initialMatter += n * (SKY_DEPTH_OXIDANT + SKY_DEPTH_GAS);
+    if (world.conservation)
+      world.conservation.initialMatter += n * (SKY_DEPTH_OXIDANT + SKY_DEPTH_GAS);
   }
 }
 function breatheSky(i) {
@@ -513,7 +522,11 @@ function updatePhysicalSubstrate() {
   }
 }
 window.ALIFE_SKY_DEBUG = Object.freeze({
-  reservoirs: () => ({ oxidant: W.reservoirs?.atmosphericOxidant, gas: W.reservoirs?.atmosphericGas, baseline: W.skyBaseline ? { ...W.skyBaseline } : null }),
+  reservoirs: () => ({
+    oxidant: W.reservoirs?.atmosphericOxidant,
+    gas: W.reservoirs?.atmosphericGas,
+    baseline: W.skyBaseline ? { ...W.skyBaseline } : null,
+  }),
   flows: () => ({ ...SKY }),
   depth: { oxidant: SKY_DEPTH_OXIDANT, gas: SKY_DEPTH_GAS, rate: SKY_RATE, slack: SKY_SLACK },
 });

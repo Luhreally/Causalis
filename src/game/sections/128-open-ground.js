@@ -67,7 +67,8 @@ function openGroundReachable(place) {
         if (!dx && !dy) continue;
         const nx = x + dx,
           ny = y + dy;
-        if (!inside(nx, ny) || Math.max(Math.abs(nx - place.x), Math.abs(ny - place.y)) > reach) continue;
+        if (!inside(nx, ny) || Math.max(Math.abs(nx - place.x), Math.abs(ny - place.y)) > reach)
+          continue;
         const next = idx(nx, ny);
         if (seen.has(next)) continue;
         if (liquid[next] > WATER_DEPTH.WADE_LIMIT) continue;
@@ -76,7 +77,10 @@ function openGroundReachable(place) {
         // is never one, so a plot beside a lane is reached from the lane. A
         // field is crossed, as a person crosses it (138): six fields round a
         // town's centre had made its walkable ground two tiles.
-        const standing = typeof standingBuildingAtMovementTile === "function" ? standingBuildingAtMovementTile(nx, ny) : null;
+        const standing =
+          typeof standingBuildingAtMovementTile === "function"
+            ? standingBuildingAtMovementTile(nx, ny)
+            : null;
         if (standing && standing.type !== "farm") continue;
         seen.add(next);
         queue.push(next);
@@ -106,10 +110,17 @@ function openGroundPlot(place, type) {
         const x = place.x + dx,
           y = place.y + dy;
         if (x < 1 || y < 1 || x >= W.width - 1 || y >= W.height - 1) continue;
-        if (!developmentFootprintClear(x, y, footprint) || !buildingTerrainFootprintValid(type, x, y)) continue;
-        if (dist2(place.x, place.y, x, y) > OPEN_GROUND_WORK_REACH * OPEN_GROUND_WORK_REACH) continue;
+        if (
+          !developmentFootprintClear(x, y, footprint) ||
+          !buildingTerrainFootprintValid(type, x, y)
+        )
+          continue;
+        if (dist2(place.x, place.y, x, y) > OPEN_GROUND_WORK_REACH * OPEN_GROUND_WORK_REACH)
+          continue;
         if (!openGroundPlotReachable(place, x, y)) continue;
-        const score = (hashParts(W.seedHash, "site", place.id, x, y) % 7) * 0.05 - (Math.abs(dx) + Math.abs(dy)) * 0.01;
+        const score =
+          (hashParts(W.seedHash, "site", place.id, x, y) % 7) * 0.05 -
+          (Math.abs(dx) + Math.abs(dy)) * 0.01;
         if (score > bestScore) {
           bestScore = score;
           best = [x, y];
@@ -189,8 +200,11 @@ function openGroundResite(place) {
   if (!place?.knownProcesses || !W) return 0;
   let moved = 0;
   for (const b of W.buildings) {
-    if (b.placeKind !== "settlement" || b.placeId !== place.id || !openGroundFarPlan(place, b)) continue;
-    const ordinal = W.buildings.filter((x) => !x.ruined && x.placeKind === "settlement" && x.placeId === place.id).length,
+    if (b.placeKind !== "settlement" || b.placeId !== place.id || !openGroundFarPlan(place, b))
+      continue;
+    const ordinal = W.buildings.filter(
+        (x) => !x.ruined && x.placeKind === "settlement" && x.placeId === place.id,
+      ).length,
       plot = plannedBuildingTile(place, b.type, ordinal);
     if (
       !plot ||
@@ -211,14 +225,24 @@ function openGroundResite(place) {
 const ensurePlacePlansOpenGroundBase = ensurePlacePlans;
 ensurePlacePlans = function (place) {
   ensurePlacePlansOpenGroundBase(place);
-  if (place?.knownProcesses && W && (W.tick + place.id) % OPEN_GROUND_RESITE_EVERY === 0) openGroundResite(place);
+  if (place?.knownProcesses && W && (W.tick + place.id) % OPEN_GROUND_RESITE_EVERY === 0)
+    openGroundResite(place);
 };
 window.ALIFE_OPEN_GROUND_DEBUG = Object.freeze({
   workReach: OPEN_GROUND_WORK_REACH,
   resited: () => ({ ...OPEN_GROUND }),
   resite: (placeId) => openGroundResite(W.settlements.find((s) => s.id === placeId)),
-  plot: (placeId, type = "launch_tower") => openGroundPlot(W.settlements.find((s) => s.id === placeId), type),
-  reachable: (placeId, x, y) => openGroundPlotReachable(W.settlements.find((s) => s.id === placeId), x, y),
+  plot: (placeId, type = "launch_tower") =>
+    openGroundPlot(
+      W.settlements.find((s) => s.id === placeId),
+      type,
+    ),
+  reachable: (placeId, x, y) =>
+    openGroundPlotReachable(
+      W.settlements.find((s) => s.id === placeId),
+      x,
+      y,
+    ),
   flooded: (placeId) => openGroundReachable(W.settlements.find((s) => s.id === placeId)).size,
   reach: OPEN_GROUND_REACH,
 });

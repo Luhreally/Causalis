@@ -19,7 +19,16 @@ const FARMLAND_ORCHARD_SHARE = 0.2,
   FARMLAND_SILO_SHARE = 0.34,
   FARMLAND_TRACTOR_SHARE = 0.34,
   FARMLAND_MIN_ZOOM = 1.4,
-  FARMLAND = { boundaries: 0, orchards: 0, sheds: 0, silos: 0, tractors: 0, frost: 0, stock: 0, troughs: 0 };
+  FARMLAND = {
+    boundaries: 0,
+    orchards: 0,
+    sheds: 0,
+    silos: 0,
+    tractors: 0,
+    frost: 0,
+    stock: 0,
+    troughs: 0,
+  };
 // The boundary a town keeps round its fields, from its family and materials.
 function farmlandBoundaryStyle(place) {
   if (!place) return "hedge";
@@ -96,7 +105,13 @@ function drawFieldBoundary(g, b, place, points, r, p) {
     for (let side = 0; side < 4; side++) {
       const from = points[side],
         to = points[(side + 1) % 4],
-        spans = side === gateSide ? [[0, 0.36], [0.64, 1]] : [[0, 1]];
+        spans =
+          side === gateSide
+            ? [
+                [0, 0.36],
+                [0.64, 1],
+              ]
+            : [[0, 1]];
       for (const [a, c] of spans) {
         g.beginPath();
         g.moveTo(lerp(from[0], to[0], a), lerp(from[1], to[1], a) - r * 0.1);
@@ -132,7 +147,8 @@ function drawOrchard(g, points, r, season, seed) {
       g.lineTo(x, y - size * 1.1);
       g.stroke();
       if (bare) continue;
-      g.fillStyle = season.fall > 0.4 ? hsl(30 + (row + col) * 6, 62, 48) : hsl(108, 40, 32 + (row + col) * 2);
+      g.fillStyle =
+        season.fall > 0.4 ? hsl(30 + (row + col) * 6, 62, 48) : hsl(108, 40, 32 + (row + col) * 2);
       g.beginPath();
       g.arc(x, y - size * 1.4, size, 0, Math.PI * 2);
       g.fill();
@@ -215,7 +231,11 @@ function drawPasture(g, b, points, r, p) {
     head = herd ? Math.min(6, (herd.animalIds || herd.memberIds || []).length || 0) : 0;
   if (head > 0) {
     for (let n = 0; n < head; n++) {
-      const [x, y] = cropQuadPoint(points, 0.2 + visualHash01(b.id + n, 0x88) * 0.6, 0.2 + visualHash01(b.id + n, 0x99) * 0.6);
+      const [x, y] = cropQuadPoint(
+        points,
+        0.2 + visualHash01(b.id + n, 0x88) * 0.6,
+        0.2 + visualHash01(b.id + n, 0x99) * 0.6,
+      );
       g.fillStyle = hsl(30 + n * 7, 25, 40 + (n % 2) * 18);
       g.beginPath();
       g.ellipse(x, y - r * 0.06, r * 0.1, r * 0.065, 0, 0, Math.PI * 2);
@@ -250,7 +270,15 @@ function drawPasture(g, b, points, r, p) {
 const drawBuildingSiteFarmlandBase = drawBuildingSite;
 drawBuildingSite = function (g, b, now, m) {
   drawBuildingSiteFarmlandBase(g, b, now, m);
-  if (!b.complete || b.ruined || b.abandoned || b.placeKind !== "settlement" || UI.quality === "low" || UI.camera.zoom < FARMLAND_MIN_ZOOM) return;
+  if (
+    !b.complete ||
+    b.ruined ||
+    b.abandoned ||
+    b.placeKind !== "settlement" ||
+    UI.quality === "low" ||
+    UI.camera.zoom < FARMLAND_MIN_ZOOM
+  )
+    return;
   if (b.type !== "farm" && b.type !== "corral") return;
   const place = buildingPlace(b);
   if (!place) return;
@@ -277,7 +305,8 @@ drawBuildingSite = function (g, b, now, m) {
     g.fill();
     FARMLAND.frost++;
   }
-  if (h1 < FARMLAND_ORCHARD_SHARE && place.knownProcesses.includes("agriculture")) drawOrchard(g, points, r, season, b.styleSeed || b.id);
+  if (h1 < FARMLAND_ORCHARD_SHARE && place.knownProcesses.includes("agriculture"))
+    drawOrchard(g, points, r, season, b.styleSeed || b.id);
   drawFieldBoundary(g, b, place, points, r, p);
   if (far && h2 < 0.5) {
     const [x, y] = cropQuadPoint(points, 0.9, 0.1);
@@ -287,7 +316,11 @@ drawBuildingSite = function (g, b, now, m) {
     const [x, y] = cropQuadPoint(points, 0.1, 0.12);
     drawSilo(g, x, y, r, p);
   }
-  if (place.knownProcesses.includes("combustion") && h2 >= 0.5 && h2 < 0.5 + FARMLAND_TRACTOR_SHARE) {
+  if (
+    place.knownProcesses.includes("combustion") &&
+    h2 >= 0.5 &&
+    h2 < 0.5 + FARMLAND_TRACTOR_SHARE
+  ) {
     const [x, y] = cropQuadPoint(points, 0.82, 0.88),
       f = place.factionId ? W.factions.find((c) => c.id === place.factionId) : null,
       hueMatch = String(f?.color || "").match(/hsl\(\s*(-?[\d.]+)/i);

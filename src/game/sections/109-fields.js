@@ -17,7 +17,9 @@ const FIELDS_HALL_POP = 24,
   FIELDS_SHELTER_CAP = 8,
   FIELDS_ACTIVE_CAP = 6;
 function fieldsCount(place, type) {
-  return W.buildings.filter((b) => !b.ruined && b.placeKind === "settlement" && b.placeId === place.id && b.type === type).length;
+  return W.buildings.filter(
+    (b) => !b.ruined && b.placeKind === "settlement" && b.placeId === place.id && b.type === type,
+  ).length;
 }
 // A town of two dozen that knows letters keeps a hall.
 const ensurePlacePlansFieldsBase = ensurePlacePlans;
@@ -51,22 +53,34 @@ planBuilding = function (place, type, priority = 3) {
 const wantsTenementFieldsBase = wantsTenement;
 wantsTenement = function (place) {
   if (wantsTenementFieldsBase(place)) return true;
-  if (!place?.knownProcesses || place.ruined || !place.knownProcesses.includes("masonry")) return false;
+  if (!place?.knownProcesses || place.ruined || !place.knownProcesses.includes("masonry"))
+    return false;
   if (place.knownProcesses.includes("electricity")) return false;
   const pop = settlementPopulation(place);
   if (pop < FIELDS_TENEMENT_POP || housingCapacity(place) >= pop) return false;
-  return !W.buildings.some((b) => !b.ruined && b.placeKind === "settlement" && b.placeId === place.id && b.type === "tenement" && !b.complete);
+  return !W.buildings.some(
+    (b) =>
+      !b.ruined &&
+      b.placeKind === "settlement" &&
+      b.placeId === place.id &&
+      b.type === "tenement" &&
+      !b.complete,
+  );
 };
 window.ALIFE_FIELDS_DEBUG = Object.freeze({
   desiredFarms: (placeId) => {
     const s = W.settlements.find((x) => x.id === placeId);
-    return s ? clamp(Math.ceil(settlementPopulation(s) / GRANARY_PEOPLE_PER_FARM), 1, GRANARY_MAX_FARMS) : 0;
+    return s
+      ? clamp(Math.ceil(settlementPopulation(s) / GRANARY_PEOPLE_PER_FARM), 1, GRANARY_MAX_FARMS)
+      : 0;
   },
   farms: (placeId) => fieldsCount(W.settlements.find((x) => x.id === placeId) || { id: 0 }, "farm"),
   maxFarms: () => GRANARY_MAX_FARMS,
   shelterCap: () => FIELDS_SHELTER_CAP,
   wantsHall: (placeId) => {
     const s = W.settlements.find((x) => x.id === placeId);
-    return !!s && s.knownProcesses.includes("writing") && settlementPopulation(s) >= FIELDS_HALL_POP;
+    return (
+      !!s && s.knownProcesses.includes("writing") && settlementPopulation(s) >= FIELDS_HALL_POP
+    );
   },
 });

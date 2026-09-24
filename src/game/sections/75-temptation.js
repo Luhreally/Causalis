@@ -101,29 +101,28 @@ updateRelationshipPair = function (id, otherId) {
     formLoveBond(id, otherId);
 };
 // ── Chronicle ──────────────────────────────────────────────────────────────────
-eventText(["LoveBondEvent", "BetrayalEvent", "CheatingDiscoveredEvent", "RelationshipBrokenEvent"], function (e, next) {
-  const names = (e.subjects || []).map((id) => entityName(id));
-  switch (e.type) {
-    case "LoveBondEvent":
-      return names.length >= 2
-        ? `${names[0]} and ${names[1]} became partners.`
-        : next(e);
-    case "BetrayalEvent":
-      return names.length >= 3
-        ? `${names[0]} began an affair with ${names[1]} behind ${names[2]}'s back.`
-        : next(e);
-    case "CheatingDiscoveredEvent":
-      return names.length >= 3
-        ? `${names[2]} caught ${names[0]} with ${names[1]}.`
-        : next(e);
-    case "RelationshipBrokenEvent":
-      return names.length >= 2
-        ? `${names[0]} and ${names[1]} parted${e.data?.reason ? `: ${e.data.reason}` : ""}.`
-        : next(e);
-    default:
-      return next(e);
-  }
-});
+eventText(
+  ["LoveBondEvent", "BetrayalEvent", "CheatingDiscoveredEvent", "RelationshipBrokenEvent"],
+  function (e, next) {
+    const names = (e.subjects || []).map((id) => entityName(id));
+    switch (e.type) {
+      case "LoveBondEvent":
+        return names.length >= 2 ? `${names[0]} and ${names[1]} became partners.` : next(e);
+      case "BetrayalEvent":
+        return names.length >= 3
+          ? `${names[0]} began an affair with ${names[1]} behind ${names[2]}'s back.`
+          : next(e);
+      case "CheatingDiscoveredEvent":
+        return names.length >= 3 ? `${names[2]} caught ${names[0]} with ${names[1]}.` : next(e);
+      case "RelationshipBrokenEvent":
+        return names.length >= 2
+          ? `${names[0]} and ${names[1]} parted${e.data?.reason ? `: ${e.data.reason}` : ""}.`
+          : next(e);
+      default:
+        return next(e);
+    }
+  },
+);
 window.ALIFE_TEMPTATION_DEBUG = Object.freeze({
   opportunity: (a, b) => affairOpportunity(a, b),
   away: (id) => partnerAway(id),

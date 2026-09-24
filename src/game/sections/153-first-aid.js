@@ -45,7 +45,9 @@ const AID_REACH = 12,
   MEDIC_REACH = 10,
   CHILD_MEAL = 6;
 function openWoundsOf(id) {
-  return (W.components.life[id]?.wounds || []).filter((w) => !w.healedTick && !w.treated && ((w.bleed || 0) > 0 || (w.severity || 0) > 0.2));
+  return (W.components.life[id]?.wounds || []).filter(
+    (w) => !w.healedTick && !w.treated && ((w.bleed || 0) > 0 || (w.severity || 0) > 0.2),
+  );
 }
 function healSkill(id) {
   return W.components.identity[id]?.skills?.heal || 0;
@@ -54,15 +56,30 @@ function healSkill(id) {
 function aidBond(helper, victim) {
   const soc = W.components.social[victim],
     r = soc?.relationships?.[helper],
-    kin = (W.components.identity[victim]?.parents || []).includes(helper) || (W.components.identity[helper]?.parents || []).includes(victim);
-  return (soc?.partnerId === helper ? 1 : 0) + (kin ? 0.8 : 0) + (r ? (r.affection || 0) * 0.6 + (r.trust || 0) * 0.3 : 0);
+    kin =
+      (W.components.identity[victim]?.parents || []).includes(helper) ||
+      (W.components.identity[helper]?.parents || []).includes(victim);
+  return (
+    (soc?.partnerId === helper ? 1 : 0) +
+    (kin ? 0.8 : 0) +
+    (r ? (r.affection || 0) * 0.6 + (r.trust || 0) * 0.3 : 0)
+  );
 }
 function fitToHelp(id) {
   const q = W.components.chemistry[id]?.q,
     l = derivedLife(id),
     p = W.components.position[id],
     task = W.components.work?.[id]?.task;
-  return !!(p && q && !personInDistress(id) && l.hunger < 70 && l.thirst < 75 && q[C.ENERGY] > 150 && embodiedCapability(id).locomotion >= 0.42 && task !== "fight");
+  return !!(
+    p &&
+    q &&
+    !personInDistress(id) &&
+    l.hunger < 70 &&
+    l.thirst < 75 &&
+    q[C.ENERGY] > 150 &&
+    embodiedCapability(id).locomotion >= 0.42 &&
+    task !== "fight"
+  );
 }
 updatePersonRescue = function () {
   if (W.tick % 4 !== 2) return;
@@ -75,7 +92,11 @@ updatePersonRescue = function () {
     const vp = W.components.position[victim];
     if (!vp) continue;
     let best = null;
-    for (const id of nearbyIds(victim, AID_REACH, (o) => W.kind[o] === KINDS.PERSON && classifyAlive(o))) {
+    for (const id of nearbyIds(
+      victim,
+      AID_REACH,
+      (o) => W.kind[o] === KINDS.PERSON && classifyAlive(o),
+    )) {
       if (busyHelpers.has(id) || !fitToHelp(id)) continue;
       const p = W.components.position[id],
         d = Math.sqrt(dist2(p.x, p.y, vp.x, vp.y)),
@@ -83,7 +104,8 @@ updatePersonRescue = function () {
         bond = aidBond(id, victim),
         kind = phenotype(id).cooperation || 0.5,
         score = skill / 25 + bond * 1.5 + kind - d * 0.12;
-      if (!best || score > best.score || (score === best.score && id < best.id)) best = { id, score, skill, bond };
+      if (!best || score > best.score || (score === best.score && id < best.id))
+        best = { id, score, skill, bond };
     }
     if (!best) continue;
     busyHelpers.add(best.id);
@@ -97,9 +119,14 @@ updatePersonRescue = function () {
 const emitEventAidBase = emitEvent;
 emitEvent = function (type, data = {}) {
   const ev = emitEventAidBase(type, data);
-  if ((type === "RescueEvent" || type === "WoundsDressedEvent") && W?.kind && typeof grantSkill === "function") {
+  if (
+    (type === "RescueEvent" || type === "WoundsDressedEvent") &&
+    W?.kind &&
+    typeof grantSkill === "function"
+  ) {
     const helper = ev.subjects?.[0];
-    if (helper && W.kind[helper] === KINDS.PERSON) grantSkill(helper, "heal", type === "RescueEvent" ? 3 : 2, ev.id);
+    if (helper && W.kind[helper] === KINDS.PERSON)
+      grantSkill(helper, "heal", type === "RescueEvent" ? 3 : 2, ev.id);
   }
   return ev;
 };
@@ -112,7 +139,8 @@ function dressWounds(patient, town, healer = 0) {
   if (!wounds.length) return 0;
   const vq = W.components.chemistry[patient]?.q,
     life = W.components.life[patient],
-    medicine = town?.knownProcesses?.includes("medicine") && (town.inventory[C.MEDICINE] || 0) > 0 && vq;
+    medicine =
+      town?.knownProcesses?.includes("medicine") && (town.inventory[C.MEDICINE] || 0) > 0 && vq;
   if (medicine) {
     town.inventory[C.MEDICINE] -= 1;
     vq[C.MEDICINE] = u16(vq[C.MEDICINE] + 1);
@@ -133,8 +161,15 @@ function dressWounds(patient, town, healer = 0) {
       subjects: [healer, patient].filter(Boolean),
       location: p ? idx(p.x, p.y) : -1,
       importance: 1,
-      evidence: [`${dressed} wound${dressed === 1 ? "" : "s"} dressed${medicine ? ` with medicine from ${town.name}` : " by hand"}`],
-      data: { patient: entityName(patient), healer: healer ? entityName(healer) : "", place: town?.name || "", medicine: !!medicine },
+      evidence: [
+        `${dressed} wound${dressed === 1 ? "" : "s"} dressed${medicine ? ` with medicine from ${town.name}` : " by hand"}`,
+      ],
+      data: {
+        patient: entityName(patient),
+        healer: healer ? entityName(healer) : "",
+        place: town?.name || "",
+        medicine: !!medicine,
+      },
     });
   }
   return dressed;
@@ -167,7 +202,13 @@ function sendToClinic() {
   for (const id of W.activeIds) {
     if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
     const wounds = openWoundsOf(id);
-    if (!wounds.length || W.components.work?.[id]?.task === "fight" || civilOrderOf(id) || W.components.campaign?.[id]) continue;
+    if (
+      !wounds.length ||
+      W.components.work?.[id]?.task === "fight" ||
+      civilOrderOf(id) ||
+      W.components.campaign?.[id]
+    )
+      continue;
     if (embodiedCapability(id).locomotion < 0.3) continue;
     const town = homeTownOf(id),
       clinic = townClinic(town),
@@ -181,7 +222,9 @@ function sendToClinic() {
 }
 // ── The field medic ─────────────────────────────────────────────────────────
 function unitMedic(unit) {
-  const members = (unit.memberIds || []).filter((id) => classifyAlive(id) && W.kind[id] === KINDS.PERSON);
+  const members = (unit.memberIds || []).filter(
+    (id) => classifyAlive(id) && W.kind[id] === KINDS.PERSON,
+  );
   if (unit.medicId && members.includes(unit.medicId)) return unit.medicId;
   let best = 0,
     score = -1;
@@ -205,26 +248,47 @@ function fieldMedics() {
       mp = medic ? W.components.position[medic] : null;
     if (!mp || personInDistress(medic)) continue;
     let worst = null;
-    for (const id of nearbyIds(medic, MEDIC_REACH, (o) => W.kind[o] === KINDS.PERSON && classifyAlive(o))) {
+    for (const id of nearbyIds(
+      medic,
+      MEDIC_REACH,
+      (o) => W.kind[o] === KINDS.PERSON && classifyAlive(o),
+    )) {
       if (W.components.social[id]?.factionId !== unit.factionId) continue;
       const open = openWoundsOf(id);
       if (!open.length) continue;
       const bleed = open.reduce((n, w) => n + (w.bleed || 0), 0);
-      if (!worst || bleed > worst.bleed || (bleed === worst.bleed && id < worst.id)) worst = { id, bleed };
+      if (!worst || bleed > worst.bleed || (bleed === worst.bleed && id < worst.id))
+        worst = { id, bleed };
     }
     if (!worst) continue;
     const wp = W.components.position[worst.id];
     if (dist2(mp.x, mp.y, wp.x, wp.y) > 2) {
-      moveWorkerToward(medic, idx(wp.x, wp.y), "heal", `🩹 running to ${entityName(worst.id)}, wounded in the column`);
+      moveWorkerToward(
+        medic,
+        idx(wp.x, wp.y),
+        "heal",
+        `🩹 running to ${entityName(worst.id)}, wounded in the column`,
+      );
       continue;
     }
     const home = homeTownOf(worst.id);
     AID.fieldDressed += dressWounds(worst.id, home, medic);
-    setWorkAction(medic, "heal", `🩹 dressing ${entityName(worst.id)}'s wounds in the field`, idx(wp.x, wp.y));
+    setWorkAction(
+      medic,
+      "heal",
+      `🩹 dressing ${entityName(worst.id)}'s wounds in the field`,
+      idx(wp.x, wp.y),
+    );
     const life = derivedLife(worst.id);
     if (life.health < 25 && home && !civilOrderOf(worst.id)) {
       const clinic = townClinic(home);
-      issueCivilOrder(worst.id, "convalesce", clinic ? clinic.x : home.x, clinic ? clinic.y : home.y, { placeId: home.id });
+      issueCivilOrder(
+        worst.id,
+        "convalesce",
+        clinic ? clinic.x : home.x,
+        clinic ? clinic.y : home.y,
+        { placeId: home.id },
+      );
       AID.sentHome++;
     }
   }
@@ -237,7 +301,9 @@ function feedChildren() {
       gut = W.components.inventory[id]?.digestive;
     if (!gut || (life.hunger || 0) < 60) continue;
     const soc = W.components.social[id],
-      carers = [...(W.components.identity[id]?.parents || []), soc?.householdId].filter((c, i, a) => c && c !== id && a.indexOf(c) === i && classifyAlive(c));
+      carers = [...(W.components.identity[id]?.parents || []), soc?.householdId].filter(
+        (c, i, a) => c && c !== id && a.indexOf(c) === i && classifyAlive(c),
+      );
     for (const carer of carers) {
       const inv = W.components.inventory[carer],
         cp = W.components.position[carer],
@@ -269,10 +335,16 @@ eventText(["WoundsDressedEvent"], function (e, next) {
 window.ALIFE_AID_DEBUG = Object.freeze({
   counts: () => ({ ...AID }),
   bond: (helper, victim) => aidBond(helper, victim),
-  dress: (patient, townId, healer = 0) => dressWounds(patient, W.settlements.find((s) => s.id === townId), healer),
+  dress: (patient, townId, healer = 0) =>
+    dressWounds(
+      patient,
+      W.settlements.find((s) => s.id === townId),
+      healer,
+    ),
   clinicCare: () => clinicCare(),
   sendToClinic: () => sendToClinic(),
   medics: () => fieldMedics(),
-  medicOf: (unitId) => unitMedic((W.militaryUnits || []).find((u) => u.id === unitId) || { memberIds: [] }),
+  medicOf: (unitId) =>
+    unitMedic((W.militaryUnits || []).find((u) => u.id === unitId) || { memberIds: [] }),
   feedChildren: () => feedChildren(),
 });

@@ -862,28 +862,39 @@ function drawEmotionGlyph(g, id, screen, radius, now, portrait = false) {
   g.restore();
 }
 
-eventText(["LoveBondEvent", "BetrayalEvent", "CheatingDiscoveredEvent", "RelationshipBrokenEvent", "GriefEvent", "RevengeVowEvent", "RevengeAttemptEvent"], function (event, next) {
-  const names = event.subjects.map(entityName),
-    location = locationName(event.location);
-  switch (event.type) {
-    case "LoveBondEvent":
-      return `💞 ${names[0]} and ${names[1]} formed a reciprocal bond after repeated trust and affection in ${location}.`;
-    case "BetrayalEvent":
-      return `💞 ${names[0]} began a concealed bond with ${names[1]} while committed to ${names[2]}; it remained unknown until observed.`;
-    case "CheatingDiscoveredEvent":
-      return `💔 ${names[0]} discovered ${names[1]}'s betrayal with ${names[2]}, creating remembered anger, jealousy, and grief.`;
-    case "RelationshipBrokenEvent":
-      return `💔 ${names[0]} and ${names[1]}'s reciprocal partnership ended because ${event.data.reason || "commitment failed"}.`;
-    case "GriefEvent":
-      return `😢 ${fmt(event.magnitude)} bonded survivor${event.magnitude === 1 ? "" : "s"} grieved ${names[0]} in ${location}.`;
-    case "RevengeVowEvent":
-      return `😤 ${names[0]} fixed on ${names[1]} as responsible for ${names[2]}'s death.`;
-    case "RevengeAttemptEvent":
-      return `⚔️ ${names[0]} physically reached ${names[1]} and acted on a remembered vow of revenge.`;
-    default:
-      return next(event);
-  }
-});
+eventText(
+  [
+    "LoveBondEvent",
+    "BetrayalEvent",
+    "CheatingDiscoveredEvent",
+    "RelationshipBrokenEvent",
+    "GriefEvent",
+    "RevengeVowEvent",
+    "RevengeAttemptEvent",
+  ],
+  function (event, next) {
+    const names = event.subjects.map(entityName),
+      location = locationName(event.location);
+    switch (event.type) {
+      case "LoveBondEvent":
+        return `💞 ${names[0]} and ${names[1]} formed a reciprocal bond after repeated trust and affection in ${location}.`;
+      case "BetrayalEvent":
+        return `💞 ${names[0]} began a concealed bond with ${names[1]} while committed to ${names[2]}; it remained unknown until observed.`;
+      case "CheatingDiscoveredEvent":
+        return `💔 ${names[0]} discovered ${names[1]}'s betrayal with ${names[2]}, creating remembered anger, jealousy, and grief.`;
+      case "RelationshipBrokenEvent":
+        return `💔 ${names[0]} and ${names[1]}'s reciprocal partnership ended because ${event.data.reason || "commitment failed"}.`;
+      case "GriefEvent":
+        return `😢 ${fmt(event.magnitude)} bonded survivor${event.magnitude === 1 ? "" : "s"} grieved ${names[0]} in ${location}.`;
+      case "RevengeVowEvent":
+        return `😤 ${names[0]} fixed on ${names[1]} as responsible for ${names[2]}'s death.`;
+      case "RevengeAttemptEvent":
+        return `⚔️ ${names[0]} physically reached ${names[1]} and acted on a remembered vow of revenge.`;
+      default:
+        return next(event);
+    }
+  },
+);
 
 const organismInspectorEmotionBase = organismInspector;
 organismInspector = function (id) {

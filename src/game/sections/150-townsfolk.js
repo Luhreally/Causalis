@@ -128,20 +128,36 @@ function folkCount(town) {
   return W?.townsfolk?.[String(town?.id)]?.count || 0;
 }
 function allTownsfolk() {
-  return W?.townsfolk ? Object.keys(W.townsfolk).sort((a, b) => a - b).map((k) => W.townsfolk[k]) : [];
+  return W?.townsfolk
+    ? Object.keys(W.townsfolk)
+        .sort((a, b) => a - b)
+        .map((k) => W.townsfolk[k])
+    : [];
 }
 // The full lives whose home is each town, counted once a tick.
 let FOLK_AGENT_COUNT = { world: null, tick: -1, length: -1, next: -1, byTown: null };
 function townAgentCount(town) {
   const c = FOLK_AGENT_COUNT;
-  if (c.world !== W || c.tick !== W.tick || c.length !== W.activeIds.length || c.next !== W.nextEntityId) {
+  if (
+    c.world !== W ||
+    c.tick !== W.tick ||
+    c.length !== W.activeIds.length ||
+    c.next !== W.nextEntityId
+  ) {
     const byTown = new Map();
     for (const id of W.activeIds) {
       if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
       const soc = W.components.social[id];
-      if (soc?.homePlaceKind === "settlement") byTown.set(soc.homePlaceId, (byTown.get(soc.homePlaceId) || 0) + 1);
+      if (soc?.homePlaceKind === "settlement")
+        byTown.set(soc.homePlaceId, (byTown.get(soc.homePlaceId) || 0) + 1);
     }
-    FOLK_AGENT_COUNT = { world: W, tick: W.tick, length: W.activeIds.length, next: W.nextEntityId, byTown };
+    FOLK_AGENT_COUNT = {
+      world: W,
+      tick: W.tick,
+      length: W.activeIds.length,
+      next: W.nextEntityId,
+      byTown,
+    };
   }
   return FOLK_AGENT_COUNT.byTown.get(town.id) || 0;
 }
@@ -166,9 +182,15 @@ function folkAddMember(folk, chemistry, genome, bin = 0) {
 const createOffspringFolkBase = createOffspring;
 createOffspring = function (kind, parents, tile) {
   const town = kind === KINDS.PERSON ? homeTownOf(parents[0]) || homeTownOf(parents[1]) : null;
-  if (!folkEra(town) || townAgentCount(town) < folkAgentBudget()) return createOffspringFolkBase(kind, parents, tile);
+  if (!folkEra(town) || townAgentCount(town) < folkAgentBudget())
+    return createOffspringFolkBase(kind, parents, tile);
   const r = makeRng(hashParts(W.seedHash, W.tick, ...parents), "folk-birth"),
-    g = genomeFrom(r, KINDS.PERSON, W.components.genome[parents[0]], W.components.genome[parents[1] || parents[0]]),
+    g = genomeFrom(
+      r,
+      KINDS.PERSON,
+      W.components.genome[parents[0]],
+      W.components.genome[parents[1] || parents[0]],
+    ),
     chemistry = makeCohortBirthMatter(parents),
     folk = folkLedger(town, true);
   folkAddMember(folk, chemistry, g, 0);
@@ -185,7 +207,10 @@ createOffspring = function (kind, parents, tile) {
   for (const parent of parents)
     if (W.components.reproduction[parent])
       W.components.reproduction[parent].cooldown =
-        recovery.birthRecovery + Math.floor(counterRand("sexual-recovery", W.tick, parent, 0) * recovery.birthRecoverySpread);
+        recovery.birthRecovery +
+        Math.floor(
+          counterRand("sexual-recovery", W.tick, parent, 0) * recovery.birthRecoverySpread,
+        );
   return 0;
 };
 // ── Folded into the ledger past the world's cap ─────────────────────────────
@@ -257,7 +282,8 @@ function folkEat(town, folk, need) {
     }
     if (energy) {
       const breathed = Math.ceil(energy / sewers.length);
-      for (const tile of sewers) executeProcess("respiration", invTile(tile), breathed, { location: tile });
+      for (const tile of sewers)
+        executeProcess("respiration", invTile(tile), breathed, { location: tile });
     }
   } else {
     town.inventory[C.ORGANIC] += organic;
@@ -293,11 +319,16 @@ function folkDrink(town, folk, need) {
 // A body for a child of the ledger, from the stores' food and the wells' water.
 function folkBirthBody(town) {
   const reserve = typeof seedReserve === "function" ? seedReserve(town) : 0;
-  if ((town.inventory[C.ORGANIC] || 0) - reserve < FOLK_BODY[0][1] || (town.inventory[C.ENERGY] || 0) < FOLK_BODY[1][1])
+  if (
+    (town.inventory[C.ORGANIC] || 0) - reserve < FOLK_BODY[0][1] ||
+    (town.inventory[C.ENERGY] || 0) < FOLK_BODY[1][1]
+  )
     return null;
   const chemistry = new Array(SPECIES_COUNT).fill(0);
   let water = 0;
-  const wells = folkSewerTiles(town).sort((a, b) => tileMatterAmount(b, C.SOLVENT) - tileMatterAmount(a, C.SOLVENT) || a - b);
+  const wells = folkSewerTiles(town).sort(
+    (a, b) => tileMatterAmount(b, C.SOLVENT) - tileMatterAmount(a, C.SOLVENT) || a - b,
+  );
   for (const tile of wells) {
     if (water >= FOLK_BODY[2][1]) break;
     const spare = Math.max(0, tileMatterAmount(tile, C.SOLVENT) - 40);
@@ -362,7 +393,8 @@ function folkLabour(town, folk, adults) {
     const missing = missingBuildingMaterial(b);
     if (!missing) continue;
     const sp = missing.sp,
-      reserve = typeof researchMaterialReserve === "function" ? researchMaterialReserve(town, sp) : 0,
+      reserve =
+        typeof researchMaterialReserve === "function" ? researchMaterialReserve(town, sp) : 0,
       stocked = Math.max(0, (town.inventory[sp] || 0) - reserve),
       amount = Math.min(haul, missing.needed, stocked, 65535 - (b.composition[sp] || 0));
     if (amount <= 0) continue;
@@ -399,7 +431,8 @@ function folkGather(town, adults) {
           y = town.y + dy;
         if (!inside(x, y)) continue;
         const i = idx(x, y);
-        if (W.tiles.liquid[i] > 900 || W.tiles.fire[i] > 350 || workResourceAmount(i, sp) < 2) continue;
+        if (W.tiles.liquid[i] > 900 || W.tiles.fire[i] > 350 || workResourceAmount(i, sp) < 2)
+          continue;
         tiles.push(i);
       }
     tiles.sort((a, b) => workResourceAmount(b, sp) - workResourceAmount(a, sp) || a - b);
@@ -408,15 +441,21 @@ function folkGather(town, adults) {
       if (want <= 0) break;
       let available = resourceAmountAt(tile, sp);
       if (sp === C.FIBER && available < 1 && resourceAmountAt(tile, C.ORGANIC) > 0) {
-        executeProcess("fiber_curing", invTile(tile), Math.min(want, resourceAmountAt(tile, C.ORGANIC)));
+        executeProcess(
+          "fiber_curing",
+          invTile(tile),
+          Math.min(want, resourceAmountAt(tile, C.ORGANIC)),
+        );
         available = resourceAmountAt(tile, sp);
       }
       const amount = Math.min(available, want, 65535 - (town.inventory[sp] || 0));
       if (amount < 1) continue;
       setTileMatterAmount(tile, sp, available - amount);
       town.inventory[sp] += amount;
-      if (sp === C.ORGANIC || sp === C.FIBER || sp === C.FUEL) W.tiles.plantOrder[tile] = u16(W.tiles.plantOrder[tile] - amount * 2);
-      if (W.tiles.featureStrength?.[tile]) W.tiles.featureStrength[tile] = u16(W.tiles.featureStrength[tile] - amount);
+      if (sp === C.ORGANIC || sp === C.FIBER || sp === C.FUEL)
+        W.tiles.plantOrder[tile] = u16(W.tiles.plantOrder[tile] - amount * 2);
+      if (W.tiles.featureStrength?.[tile])
+        W.tiles.featureStrength[tile] = u16(W.tiles.featureStrength[tile] - amount);
       W.civicMetrics.gathered = (W.civicMetrics.gathered || 0) + amount;
       want -= amount;
       budget -= amount;
@@ -445,14 +484,26 @@ function folkFoldExcess(town) {
       ident = W.components.identity[id];
     if (soc?.homePlaceKind !== "settlement" || soc.homePlaceId !== town.id) continue;
     const unit = soc.unitId ? (W.militaryUnits || []).find((u) => u.id === soc.unitId) : null;
-    if (!isAdultPerson(id) || voices.has(id) || soc.revengeTargetId || (unit && unitOnCampaign(unit))) continue;
+    if (
+      !isAdultPerson(id) ||
+      voices.has(id) ||
+      soc.revengeTargetId ||
+      (unit && unitOnCampaign(unit))
+    )
+      continue;
     if (W.components.campaign?.[id] || W.civilOrders?.some((o) => o.id === id)) continue;
-    candidates.push([ident?.significance || 0, id, soc.partnerId && classifyAlive(soc.partnerId) ? 1 : 0]);
+    candidates.push([
+      ident?.significance || 0,
+      id,
+      soc.partnerId && classifyAlive(soc.partnerId) ? 1 : 0,
+    ]);
   }
   // The town's most significant are kept; of the rest, those with no living
   // partner go first (a partner left behind mourns one who did not die).
   candidates.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const foldable = candidates.slice(0, Math.max(0, candidates.length - FOLK_KEEP_NOTED)).sort((a, b) => a[2] - b[2] || a[0] - b[0] || a[1] - b[1]);
+  const foldable = candidates
+    .slice(0, Math.max(0, candidates.length - FOLK_KEEP_NOTED))
+    .sort((a, b) => a[2] - b[2] || a[0] - b[0] || a[1] - b[1]);
   let folded = 0;
   FOLK_FOLDING = true;
   try {
@@ -474,7 +525,9 @@ function folkPass(town) {
   if (folk.count) advanceCohortAges(folk, tile);
   if (folk.count) {
     const adults = folk.ageBins[1] + folk.ageBins[2],
-      need = (adults + folk.ageBins[3]) * FOLK_MEAL + Math.ceil(folk.ageBins[0] * FOLK_MEAL * FOLK_CHILD_MEAL),
+      need =
+        (adults + folk.ageBins[3]) * FOLK_MEAL +
+        Math.ceil(folk.ageBins[0] * FOLK_MEAL * FOLK_CHILD_MEAL),
       eaten = folkEat(town, folk, need),
       drunk = folkDrink(town, folk, folk.count * FOLK_DRINK);
     folk.fed = need ? +(eaten / need).toFixed(3) : 1;
@@ -492,7 +545,10 @@ function folkPass(town) {
     folk.housed = Math.min(folk.count, free);
     if (folk.count && kept >= 0.8 && folk.count < free * FOLK_ROOM) {
       const progress = folk.reproductionRemainder + adults * FOLK_BIRTH_RATE * kept * folk.health,
-        wanted = Math.min(Math.floor(progress), Math.max(0, Math.floor(free * FOLK_ROOM) - folk.count));
+        wanted = Math.min(
+          Math.floor(progress),
+          Math.max(0, Math.floor(free * FOLK_ROOM) - folk.count),
+        );
       folk.reproductionRemainder = clamp(progress - Math.floor(progress), 0, 0.999999999);
       let births = 0;
       for (let n = 0; n < wanted; n++) {
@@ -506,7 +562,13 @@ function folkPass(town) {
       if (births) {
         folk.born += births;
         FOLK.born += births;
-        recordCohortBirths(folk, births, tile, [], "the town's crowd bore children of its stores' food and its wells' water");
+        recordCohortBirths(
+          folk,
+          births,
+          tile,
+          [],
+          "the town's crowd bore children of its stores' food and its wells' water",
+        );
       }
     }
     folkLabour(town, folk, adults);
@@ -538,7 +600,8 @@ function updateTownsfolk() {
   for (const town of W.settlements) {
     if (W.tick % FOLK_EVERY !== town.id % FOLK_EVERY) continue;
     let folk = folkLedger(town);
-    if (!folk && !town.ruined && folkEra(town) && townAgentCount(town) > folkAgentBudget()) folk = folkLedger(town, true);
+    if (!folk && !town.ruined && folkEra(town) && townAgentCount(town) > folkAgentBudget())
+      folk = folkLedger(town, true);
     if (!folk) continue;
     if (town.ruined) {
       // A fallen town's crowd scatters into the wild's cohort of its region.
@@ -600,7 +663,8 @@ totalChemicalEnergy = function () {
   let total = totalChemicalEnergyFolkBase();
   const energy = W.definitions.species.map((s) => s.freeEnergy);
   for (const folk of allTownsfolk())
-    for (let sp = 0; sp < SPECIES_COUNT; sp++) total += (folk.chemistryTotals[sp] || 0) * energy[sp];
+    for (let sp = 0; sp < SPECIES_COUNT; sp++)
+      total += (folk.chemistryTotals[sp] || 0) * energy[sp];
   return total;
 };
 // ── What the town says ──────────────────────────────────────────────────────
@@ -625,7 +689,11 @@ window.ALIFE_FOLK_DEBUG = Object.freeze({
   era: (townId) => folkEra(W.settlements.find((s) => s.id === townId)),
   agents: (townId) => townAgentCount(W.settlements.find((s) => s.id === townId)),
   pass: (townId) => folkPass(W.settlements.find((s) => s.id === townId)),
-  create: (townId) => !!folkLedger(W.settlements.find((s) => s.id === townId), true),
+  create: (townId) =>
+    !!folkLedger(
+      W.settlements.find((s) => s.id === townId),
+      true,
+    ),
   budget: (n) => (n === undefined ? folkAgentBudget() : (FOLK_AGENTS = n)),
   fold: (townId) => folkFoldExcess(W.settlements.find((s) => s.id === townId)),
 });

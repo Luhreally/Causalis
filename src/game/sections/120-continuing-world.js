@@ -33,7 +33,8 @@ concertedBirthHaste = function (id, life) {
 // made the overshoot worse. Only cities in famine receive the larger ration.
 const modernFeedContinuingBase = modernFeedTheEffort;
 modernFeedTheEffort = function (pushes) {
-  const towns = worldTowns(), before = new Map(towns.map((s) => [s.id, s.inventory[C.ORGANIC] || 0]));
+  const towns = worldTowns(),
+    before = new Map(towns.map((s) => [s.id, s.inventory[C.ORGANIC] || 0]));
   modernFeedContinuingBase(pushes);
   for (const s of towns) {
     if (!cityStage(s)) continue;
@@ -53,23 +54,40 @@ modernFeedTheEffort = function (pushes) {
 // The ship is a beginning. These are actual crafts with materials, facilities,
 // prerequisites and effects, not a second progress counter beside the science.
 const CONTINUING_CRAFTS = Object.freeze([
-  "refrigeration", "hydroponics", "antibiotics", "global_networks",
-  "composites", "gene_therapy", "artificial_minds",
+  "refrigeration",
+  "hydroponics",
+  "antibiotics",
+  "global_networks",
+  "composites",
+  "gene_therapy",
+  "artificial_minds",
   ...BRANCH_ALL_DEFS.filter((d) => d.id.startsWith("frontier_")).map((d) => d.id),
 ]);
 function continuingKnows(id) {
-  return W.settlements.some((s) => !s.ruined && s.knownProcesses.includes(id)) ||
-    (W.colonies || []).some((c) => (c.knownProcesses || []).includes(id));
+  return (
+    W.settlements.some((s) => !s.ruined && s.knownProcesses.includes(id)) ||
+    (W.colonies || []).some((c) => (c.knownProcesses || []).includes(id))
+  );
 }
-function continuingResearchTown(id, towns = W.settlements.filter((s) => !s.ruined && s.knownProcesses)) {
+function continuingResearchTown(
+  id,
+  towns = W.settlements.filter((s) => !s.ruined && s.knownProcesses),
+) {
   const depth = (s, tech, seen = new Set()) => {
     if (s.knownProcesses.includes(tech) || seen.has(tech)) return 0;
     seen.add(tech);
     return 1 + (technologyDefinition(tech)?.prior || []).reduce((n, p) => n + depth(s, p, seen), 0);
   };
-  return towns
-    .map((s) => ({ s, missing: depth(s, id) }))
-    .sort((a, b) => a.missing - b.missing || b.s.knownProcesses.length - a.s.knownProcesses.length || a.s.id - b.s.id)[0]?.s || null;
+  return (
+    towns
+      .map((s) => ({ s, missing: depth(s, id) }))
+      .sort(
+        (a, b) =>
+          a.missing - b.missing ||
+          b.s.knownProcesses.length - a.s.knownProcesses.length ||
+          a.s.id - b.s.id,
+      )[0]?.s || null
+  );
 }
 // ── The effort tends the sky ────────────────────────────────────────────────
 // Industry lays a strain on the sky (91) that forces droughts and heat waves,
@@ -99,11 +117,20 @@ function continuingResearchTown(id, towns = W.settlements.filter((s) => !s.ruine
 // sky climbed back to the cap on causal-origin by year 94. (Leading only from
 // "heavy", one, let ship-c's first twelve-year press chase refrigeration while
 // its sky climbed from 0.96 to 1.73.)
-const CONTINUING_SKY_CRAFTS = Object.freeze(["planetary_stewardship", "ecological_engineering", "fusion"]),
+const CONTINUING_SKY_CRAFTS = Object.freeze([
+    "planetary_stewardship",
+    "ecological_engineering",
+    "fusion",
+  ]),
   CONTINUING_STRAINING = Object.freeze(["mechanization", "combustion", "electricity"]);
 function continuingStrainingTowns() {
   if (typeof industrialTowns === "function") return industrialTowns();
-  return W.settlements.filter((s) => !s.ruined && s.knownProcesses && CONTINUING_STRAINING.some((t) => s.knownProcesses.includes(t)));
+  return W.settlements.filter(
+    (s) =>
+      !s.ruined &&
+      s.knownProcesses &&
+      CONTINUING_STRAINING.some((t) => s.knownProcesses.includes(t)),
+  );
 }
 function continuingSkyStrained() {
   return (W.afternoon?.strain || 0) >= (typeof STRAIN_FORCING === "number" ? STRAIN_FORCING : 0.3);
@@ -111,10 +138,16 @@ function continuingSkyStrained() {
 function continuingSkyDone(id) {
   const towns = continuingStrainingTowns();
   if (towns.length && towns.every((s) => s.knownProcesses.includes(id))) return true;
-  return (W.afternoon?.strain || 0) < (typeof STRAIN_EASED === "number" ? STRAIN_EASED : 0.5) && continuingKnows(id);
+  return (
+    (W.afternoon?.strain || 0) < (typeof STRAIN_EASED === "number" ? STRAIN_EASED : 0.5) &&
+    continuingKnows(id)
+  );
 }
 function continuingSkyTown(id) {
-  return continuingResearchTown(id, continuingStrainingTowns().filter((s) => !s.knownProcesses.includes(id)));
+  return continuingResearchTown(
+    id,
+    continuingStrainingTowns().filter((s) => !s.knownProcesses.includes(id)),
+  );
 }
 // The straining town that lacks a sky craft another town knows, holds its
 // priors and its facility, and is taught it: knowledge moves, matter does not.
@@ -124,7 +157,12 @@ function continuingTeachSky(id) {
   if (!tech || !source) return null;
   const facility = typeof facilityForTechnology === "function" ? facilityForTechnology(id) : null,
     target = continuingStrainingTowns()
-      .filter((s) => !s.knownProcesses.includes(id) && (tech.prior || []).every((p) => s.knownProcesses.includes(p)) && (!facility || placeHasFacility(s, facility)))
+      .filter(
+        (s) =>
+          !s.knownProcesses.includes(id) &&
+          (tech.prior || []).every((p) => s.knownProcesses.includes(p)) &&
+          (!facility || placeHasFacility(s, facility)),
+      )
       .sort((a, b) => settlementPopulation(b) - settlementPopulation(a) || a.id - b.id)[0];
   if (!target) return null;
   target.knownProcesses.push(id);
@@ -135,9 +173,20 @@ function continuingTeachSky(id) {
     location: idx(target.x, target.y),
     factions: [target.factionId].filter(Boolean),
     causes: [source.importantEvents?.at(-1) || W.lastEventByType.TechAdvanceEvent || 0],
-    evidence: [`${source.name} carried its ${tech.name} to ${target.name} under the concerted effort`, facility ? `${BUILDING_DEFS[facility].name} reproduced the process locally` : "local practitioners reproduced the process", "knowledge moved; matter did not"],
+    evidence: [
+      `${source.name} carried its ${tech.name} to ${target.name} under the concerted effort`,
+      facility
+        ? `${BUILDING_DEFS[facility].name} reproduced the process locally`
+        : "local practitioners reproduced the process",
+      "knowledge moved; matter did not",
+    ],
     importance: 3,
-    data: { name: tech.name, process: tech.process || "recorded civic practice", settlement: target.name, source: source.name },
+    data: {
+      name: tech.name,
+      process: tech.process || "recorded civic practice",
+      settlement: target.name,
+      source: source.name,
+    },
   });
   return target;
 }
@@ -145,20 +194,28 @@ const causalSkipMicroStagesContinuingBase = causalSkipMicroStages;
 causalSkipMicroStages = function () {
   const stages = causalSkipMicroStagesContinuingBase();
   if (!continuingKnows("starflight")) return stages;
-  const crafts = continuingSkyStrained() ? [...CONTINUING_SKY_CRAFTS, ...CONTINUING_CRAFTS] : [...CONTINUING_CRAFTS, ...CONTINUING_SKY_CRAFTS],
+  const crafts = continuingSkyStrained()
+      ? [...CONTINUING_SKY_CRAFTS, ...CONTINUING_CRAFTS]
+      : [...CONTINUING_CRAFTS, ...CONTINUING_SKY_CRAFTS],
     inquiry = crafts.map((id) => ({
-      key: `inquiry:${id}`, label: technologyDefinition(id)?.name || id,
-      done: () => (CONTINUING_SKY_CRAFTS.includes(id) ? continuingSkyDone(id) : continuingKnows(id)),
+      key: `inquiry:${id}`,
+      label: technologyDefinition(id)?.name || id,
+      done: () =>
+        CONTINUING_SKY_CRAFTS.includes(id) ? continuingSkyDone(id) : continuingKnows(id),
     }));
   // An expedition's transit years are time for research at home. Retain the
   // colony milestone as well, so arriving still brings news.
   const at = stages.findIndex((s) => s.key === "colony");
-  return at < 0 ? [...stages, ...inquiry] : [...stages.slice(0, at), ...inquiry, ...stages.slice(at)];
+  return at < 0
+    ? [...stages, ...inquiry]
+    : [...stages.slice(0, at), ...inquiry, ...stages.slice(at)];
 };
 const causalPushTowardContinuingBase = causalPushToward;
 causalPushToward = function (target = causalTarget()) {
   if (!target?.key?.startsWith("inquiry:")) return causalPushTowardContinuingBase(target);
-  const id = target.key.slice(8), sky = CONTINUING_SKY_CRAFTS.includes(id), place = sky ? continuingSkyTown(id) : continuingResearchTown(id);
+  const id = target.key.slice(8),
+    sky = CONTINUING_SKY_CRAFTS.includes(id),
+    place = sky ? continuingSkyTown(id) : continuingResearchTown(id);
   if (!(sky || CONTINUING_CRAFTS.includes(id)) || !place) return null;
   target.pushes = (target.pushes || 0) + 1;
   if (sky) CONTINUING.skyPushes = (CONTINUING.skyPushes || 0) + 1;
@@ -173,6 +230,19 @@ causalPushToward = function (target = causalTarget()) {
 window.ALIFE_CONTINUING_DEBUG = Object.freeze({
   birthLimit: (id) => continuingBirthLimit(id),
   counts: () => ({ ...CONTINUING }),
-  crafts: () => [...CONTINUING_CRAFTS, ...CONTINUING_SKY_CRAFTS].map((id) => ({ id, known: continuingKnows(id), town: continuingResearchTown(id)?.id || 0 })),
-  sky: () => ({ strained: continuingSkyStrained(), straining: continuingStrainingTowns().map((s) => s.name), crafts: CONTINUING_SKY_CRAFTS.map((id) => ({ id, done: continuingSkyDone(id), town: continuingSkyTown(id)?.name || null })) }),
+  crafts: () =>
+    [...CONTINUING_CRAFTS, ...CONTINUING_SKY_CRAFTS].map((id) => ({
+      id,
+      known: continuingKnows(id),
+      town: continuingResearchTown(id)?.id || 0,
+    })),
+  sky: () => ({
+    strained: continuingSkyStrained(),
+    straining: continuingStrainingTowns().map((s) => s.name),
+    crafts: CONTINUING_SKY_CRAFTS.map((id) => ({
+      id,
+      done: continuingSkyDone(id),
+      town: continuingSkyTown(id)?.name || null,
+    })),
+  }),
 });

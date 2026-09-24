@@ -662,33 +662,44 @@ calendarSystem("eras", function () {
   if (W.tick % 256 === 168) considerLaunches();
 });
 // ── Chronicle, songs, and Legends ──────────────────────────────────────────────
-eventText(["AgeEvent", "LeagueFormedEvent", "LeagueJoinedEvent", "LeagueLeftEvent", "LeagueDissolvedEvent", "LeagueWarEvent", "AscensionEvent"], function (e, next) {
-  const d = e.data || {};
-  switch (e.type) {
-    case "AgeEvent":
-      return d.tier === 6
-        ? `The Age of Stars began when the first ship left the world from ${d.place || "a lost town"}${d.name ? `; the first tongue calls it ${d.name}` : ""}.`
-        : `The Age of ${d.gloss} began${d.name ? `, called ${d.name} in the first tongue` : ""}${
-            d.place ? `; ${d.place}${d.polity ? ` of ${d.polity}` : ""} led the way` : ""
-          }.`;
-    case "LeagueFormedEvent":
-      return `${(d.members || []).join(", ")} swore the ${d.name}, a league of ${d.count} polities.`;
-    case "LeagueJoinedEvent":
-      return `${d.polity} joined the ${d.name}.`;
-    case "LeagueLeftEvent":
-      return `${d.polity} left the ${d.name}.`;
-    case "LeagueDissolvedEvent":
-      return `The ${d.name} dissolved after ${d.years} year${d.years === 1 ? "" : "s"}.`;
-    case "LeagueWarEvent":
-      return `${d.polity} honoured the ${d.name} and went to war with ${d.enemy} beside ${d.ally}.`;
-    case "AscensionEvent":
-      return `From the launch tower of ${d.place}${d.polity ? ` of ${d.polity}` : ""}, ${
-        d.first ? "the first ship" : "another ship"
-      } left the world, carrying seed, record, and the names of its peoples.`;
-    default:
-      return next(e);
-  }
-});
+eventText(
+  [
+    "AgeEvent",
+    "LeagueFormedEvent",
+    "LeagueJoinedEvent",
+    "LeagueLeftEvent",
+    "LeagueDissolvedEvent",
+    "LeagueWarEvent",
+    "AscensionEvent",
+  ],
+  function (e, next) {
+    const d = e.data || {};
+    switch (e.type) {
+      case "AgeEvent":
+        return d.tier === 6
+          ? `The Age of Stars began when the first ship left the world from ${d.place || "a lost town"}${d.name ? `; the first tongue calls it ${d.name}` : ""}.`
+          : `The Age of ${d.gloss} began${d.name ? `, called ${d.name} in the first tongue` : ""}${
+              d.place ? `; ${d.place}${d.polity ? ` of ${d.polity}` : ""} led the way` : ""
+            }.`;
+      case "LeagueFormedEvent":
+        return `${(d.members || []).join(", ")} swore the ${d.name}, a league of ${d.count} polities.`;
+      case "LeagueJoinedEvent":
+        return `${d.polity} joined the ${d.name}.`;
+      case "LeagueLeftEvent":
+        return `${d.polity} left the ${d.name}.`;
+      case "LeagueDissolvedEvent":
+        return `The ${d.name} dissolved after ${d.years} year${d.years === 1 ? "" : "s"}.`;
+      case "LeagueWarEvent":
+        return `${d.polity} honoured the ${d.name} and went to war with ${d.enemy} beside ${d.ally}.`;
+      case "AscensionEvent":
+        return `From the launch tower of ${d.place}${d.polity ? ` of ${d.polity}` : ""}, ${
+          d.first ? "the first ship" : "another ship"
+        } left the world, carrying seed, record, and the names of its peoples.`;
+      default:
+        return next(e);
+    }
+  },
+);
 const songTitleForErasBase = songTitleFor;
 songTitleFor = function (event) {
   const d = event.data || {};

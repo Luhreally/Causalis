@@ -18,15 +18,34 @@
 // smelting reaction, and every packet is booked like any other.
 const FOUNDRY_PRODUCTS = [C.METAL, C.CATALYST, C.CERAMIC],
   FOUNDRY_RECIPES = [
-    { sp: C.METAL, process: "smelting", facilities: ["factory", "forge"], craft: "metalworking", heat: 760, feed: C.ORE, feedstock: [C.ORE, C.FUEL], verb: "smelting" },
-    { sp: C.CERAMIC, process: "ceramic_firing", facilities: ["kiln"], craft: "ceramics", heat: 560, feed: C.MINERAL, feedstock: [C.MINERAL, C.FUEL], verb: "firing" },
+    {
+      sp: C.METAL,
+      process: "smelting",
+      facilities: ["factory", "forge"],
+      craft: "metalworking",
+      heat: 760,
+      feed: C.ORE,
+      feedstock: [C.ORE, C.FUEL],
+      verb: "smelting",
+    },
+    {
+      sp: C.CERAMIC,
+      process: "ceramic_firing",
+      facilities: ["kiln"],
+      craft: "ceramics",
+      heat: 560,
+      feed: C.MINERAL,
+      feedstock: [C.MINERAL, C.FUEL],
+      verb: "firing",
+    },
   ],
   FOUNDRY_PERIOD = 8,
   FOUNDRY_RUNS = 3,
   FOUNDRY_CARRY = 6,
   FOUNDRY_FEED_TARGET = 16,
   FOUNDRY = { smelted: 0, fired: 0, dug: 0, hauled: 0, runs: 0 };
-for (const sp of FOUNDRY_PRODUCTS) if (!STORE_DRAWN_MATERIALS.includes(sp)) STORE_DRAWN_MATERIALS.push(sp);
+for (const sp of FOUNDRY_PRODUCTS)
+  if (!STORE_DRAWN_MATERIALS.includes(sp)) STORE_DRAWN_MATERIALS.push(sp);
 function foundryRecipe(sp) {
   return FOUNDRY_RECIPES.find((r) => r.sp === sp) || null;
 }
@@ -61,7 +80,11 @@ function constructionFeedstock(place, sp) {
   return recipe.feedstock.filter((feed) => (place.inventory[feed] || 0) < FOUNDRY_FEED_TARGET);
 }
 function foundrySiteWanting(place, sp) {
-  return activeBuildings(place).find((b) => (b.requirements || []).some(([s, n]) => s === sp && n > (b.composition?.[s] || 0))) || null;
+  return (
+    activeBuildings(place).find((b) =>
+      (b.requirements || []).some(([s, n]) => s === sp && n > (b.composition?.[s] || 0)),
+    ) || null
+  );
 }
 // ── The forge and the kiln work for the sites ────────────────────────────────
 function runFoundry(place, sp) {
@@ -73,21 +96,31 @@ function runFoundry(place, sp) {
     rx = facility ? reactionById(recipe.process) : null;
   if (!rx) return 0;
   const inv = place.inventory,
-    extent = Math.min(FOUNDRY_RUNS, Math.ceil(short / 2), ...rx.reactants.map(([s, n]) => Math.floor((inv[s] || 0) / n)));
+    extent = Math.min(
+      FOUNDRY_RUNS,
+      Math.ceil(short / 2),
+      ...rx.reactants.map(([s, n]) => Math.floor((inv[s] || 0) / n)),
+    );
   if (extent <= 0) return 0;
   const site = foundrySiteWanting(place, sp),
-    operator = operateFacility(place, facility, `${recipe.verb} ${W.definitions.species[sp].name} for the ${site?.name || "works"}`, recipe.feed);
+    operator = operateFacility(
+      place,
+      facility,
+      `${recipe.verb} ${W.definitions.species[sp].name} for the ${site?.name || "works"}`,
+      recipe.feed,
+    );
   if (!operator) return 0;
   const base = invSettlement(place),
     furnace = { ...base, temperature: () => Math.max(base.temperature(), recipe.heat) },
-    made = executeProcess(recipe.process, furnace, extent, {
-      location: idx(place.x, place.y),
-      subjects: [operator.id, place.entityId].filter(Boolean),
-      factions: place.factionId ? [place.factionId] : [],
-      causes: [site?.causeEvent || place.importantEvents?.at(-1) || 0],
-      eventSink: place.importantEvents,
-      recordEvent: false,
-    }) || 0;
+    made =
+      executeProcess(recipe.process, furnace, extent, {
+        location: idx(place.x, place.y),
+        subjects: [operator.id, place.entityId].filter(Boolean),
+        factions: place.factionId ? [place.factionId] : [],
+        causes: [site?.causeEvent || place.importantEvents?.at(-1) || 0],
+        eventSink: place.importantEvents,
+        recordEvent: false,
+      }) || 0;
   if (made) {
     FOUNDRY.runs++;
     if (sp === C.METAL) FOUNDRY.smelted += made;
@@ -135,10 +168,26 @@ function foundryLabor(id, place) {
       tool = toolForPurpose(id, purpose),
       name = W.definitions.species[sp].name;
     if (idx(p.x, p.y) !== source)
-      return moveWorkerToward(id, source, purpose === "cut" ? "cut" : "mine", `seeking ${name} to smelt for the ${b.name}`, sp, b.id, tool?.entityId || 0);
+      return moveWorkerToward(
+        id,
+        source,
+        purpose === "cut" ? "cut" : "mine",
+        `seeking ${name} to smelt for the ${b.name}`,
+        sp,
+        b.id,
+        tool?.entityId || 0,
+      );
     if (extractForWork(id, source, sp)) {
       FOUNDRY.dug++;
-      setWorkAction(id, purpose, `digging ${name} to smelt for the ${b.name}`, source, sp, b.id, tool?.entityId || 0);
+      setWorkAction(
+        id,
+        purpose,
+        `digging ${name} to smelt for the ${b.name}`,
+        source,
+        sp,
+        b.id,
+        tool?.entityId || 0,
+      );
       return true;
     }
   }

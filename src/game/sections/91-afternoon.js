@@ -94,16 +94,26 @@ function skyTended() {
   return true;
 }
 function industrialTown(s) {
-  return !!s && !s.ruined && !!s.knownProcesses && STRAIN_ENGINE_CRAFTS.some((t) => s.knownProcesses.includes(t)) && completedBuildings(s, "factory").length > 0;
+  return (
+    !!s &&
+    !s.ruined &&
+    !!s.knownProcesses &&
+    STRAIN_ENGINE_CRAFTS.some((t) => s.knownProcesses.includes(t)) &&
+    completedBuildings(s, "factory").length > 0
+  );
 }
 function industrialTowns() {
   return (W?.settlements || []).filter(industrialTown);
 }
 function strainLedgerTowns() {
-  return skyTended() ? industrialTowns() : (W?.settlements || []).filter((s) => !s.ruined && s.knownProcesses);
+  return skyTended()
+    ? industrialTowns()
+    : (W?.settlements || []).filter((s) => !s.ruined && s.knownProcesses);
 }
 function strainLeadTowns() {
-  return skyTended() ? industrialTowns() : W.settlements.filter((s) => !s.ruined && s.knownProcesses?.includes("mechanization"));
+  return skyTended()
+    ? industrialTowns()
+    : W.settlements.filter((s) => !s.ruined && s.knownProcesses?.includes("mechanization"));
 }
 function industrialStrainDelta() {
   const easeEcology = skyTended() ? STRAIN_EASE_ECOLOGY_TENDED : STRAIN_EASE_ECOLOGY;
@@ -112,21 +122,32 @@ function industrialStrainDelta() {
     const k = s.knownProcesses;
     if (k.includes("mechanization")) delta += STRAIN_PER_ENGINE_TOWN;
     if (k.includes("combustion")) delta += STRAIN_PER_COMBUSTION_TOWN;
-    if (k.includes("electricity")) delta += k.includes("fusion") ? STRAIN_PER_ELECTRIC_TOWN - STRAIN_FUSION_RELIEF : STRAIN_PER_ELECTRIC_TOWN;
+    if (k.includes("electricity"))
+      delta += k.includes("fusion")
+        ? STRAIN_PER_ELECTRIC_TOWN - STRAIN_FUSION_RELIEF
+        : STRAIN_PER_ELECTRIC_TOWN;
     if (k.includes("planetary_stewardship")) delta -= STRAIN_EASE_STEWARDSHIP;
     if (k.includes("ecological_engineering")) delta -= easeEcology;
   }
   return delta;
 }
 function strainWord(strain) {
-  return strain >= 2 ? "choking" : strain >= STRAIN_HEAVY ? "heavy" : strain >= STRAIN_EASED ? "hazed" : "clear";
+  return strain >= 2
+    ? "choking"
+    : strain >= STRAIN_HEAVY
+      ? "heavy"
+      : strain >= STRAIN_EASED
+        ? "hazed"
+        : "clear";
 }
 function updateClimateStrain() {
   const a = ensureAfternoon(W),
     before = a.strain;
   a.strain = clamp(a.strain * STRAIN_DECAY + industrialStrainDelta(), 0, STRAIN_MAX);
   a.peakStrain = Math.max(a.peakStrain, a.strain);
-  const lead = strainLeadTowns().sort((x, y) => settlementPopulation(y) - settlementPopulation(x))[0];
+  const lead = strainLeadTowns().sort(
+    (x, y) => settlementPopulation(y) - settlementPopulation(x),
+  )[0];
   if (!a.heavy && a.strain >= STRAIN_HEAVY) {
     a.heavy = true;
     const ev = emitEvent("ClimateEvent", {
@@ -134,11 +155,17 @@ function updateClimateStrain() {
       location: lead ? idx(lead.x, lead.y) : -1,
       factions: lead?.factionId ? [lead.factionId] : [],
       causes: [W.lastEventByType.TechAdvanceEvent].filter(Boolean),
-      evidence: [`strain ${a.strain.toFixed(2)} on the sky`, `${strainLeadTowns().length} engine towns`],
+      evidence: [
+        `strain ${a.strain.toFixed(2)} on the sky`,
+        `${strainLeadTowns().length} engine towns`,
+      ],
       importance: 4,
       data: { strain: +a.strain.toFixed(2), word: strainWord(a.strain), place: lead?.name || "" },
     });
-    if (typeof recordMilestone === "function") recordMilestone("climate-strain", "The sky grew heavy with industry", lead || null, { evidence: `strain ${a.strain.toFixed(2)}` });
+    if (typeof recordMilestone === "function")
+      recordMilestone("climate-strain", "The sky grew heavy with industry", lead || null, {
+        evidence: `strain ${a.strain.toFixed(2)}`,
+      });
     return ev;
   }
   if (a.heavy && a.strain < STRAIN_EASED) {
@@ -168,7 +195,11 @@ calendarSystem("climate strain", function () {
   if (W.tick % 256 === 1) {
     const forced = strainedWeatherRoll();
     if (forced && W.weather?.name !== forced) {
-      setWeather(forced, 0.8 + Math.min(1, W.afternoon.strain) * 0.4, W.lastEventByType.ClimateEvent || 0);
+      setWeather(
+        forced,
+        0.8 + Math.min(1, W.afternoon.strain) * 0.4,
+        W.lastEventByType.ClimateEvent || 0,
+      );
       W.afternoon.droughts++;
     }
   }
@@ -184,9 +215,15 @@ function ensureIdeology(f) {
   if (!f) return null;
   if (!f.ideology) {
     f.ideology = {
-      rule: clamp(((f.ethos?.hierarchical ?? 0.5) - 0.5) * 1.4 + (counterRand("ideology-rule", f.id) - 0.5) * 0.3, -1, 1),
+      rule: clamp(
+        ((f.ethos?.hierarchical ?? 0.5) - 0.5) * 1.4 +
+          (counterRand("ideology-rule", f.id) - 0.5) * 0.3,
+        -1,
+        1,
+      ),
       openness: clamp(
-        ((f.ethos?.mercantile ?? 0.5) + (f.ethos?.inventive ?? 0.5) - 1) * 0.9 + (counterRand("ideology-open", f.id) - 0.5) * 0.3,
+        ((f.ethos?.mercantile ?? 0.5) + (f.ethos?.inventive ?? 0.5) - 1) * 0.9 +
+          (counterRand("ideology-open", f.id) - 0.5) * 0.3,
         -1,
         1,
       ),
@@ -197,10 +234,27 @@ function ensureIdeology(f) {
 }
 function governmentName(f) {
   const i = f.ideology,
-    tech = (t) => W.settlements.some((s) => !s.ruined && s.factionId === f.id && s.knownProcesses?.includes(t));
-  if (i.rule > 0.4) return i.openness > 0.3 ? (tech("computing") ? "Technocracy" : "Crowned republic") : i.openness < -0.3 ? "Autocracy" : "Monarchy";
-  if (i.rule < -0.4) return i.openness > 0.3 ? "Open republic" : i.openness < -0.3 ? "Closed commune" : "Council of the many";
-  return i.openness > 0.3 ? "Merchant oligarchy" : i.openness < -0.3 ? "Closed oligarchy" : "Assembly of houses";
+    tech = (t) =>
+      W.settlements.some((s) => !s.ruined && s.factionId === f.id && s.knownProcesses?.includes(t));
+  if (i.rule > 0.4)
+    return i.openness > 0.3
+      ? tech("computing")
+        ? "Technocracy"
+        : "Crowned republic"
+      : i.openness < -0.3
+        ? "Autocracy"
+        : "Monarchy";
+  if (i.rule < -0.4)
+    return i.openness > 0.3
+      ? "Open republic"
+      : i.openness < -0.3
+        ? "Closed commune"
+        : "Council of the many";
+  return i.openness > 0.3
+    ? "Merchant oligarchy"
+    : i.openness < -0.3
+      ? "Closed oligarchy"
+      : "Assembly of houses";
 }
 function ideologyDistance(a, b) {
   const x = ensureIdeology(a),
@@ -217,10 +271,18 @@ function driftIdeologies() {
       wars = (W.activeWars || []).filter((w) => !w.ended && (w.a === f.id || w.b === f.id)).length,
       trade = Object.values(f.relations || {}).reduce((n, r) => n + (r.trade || 0), 0),
       recentUpheaval = (W.events || []).some(
-        (e) => ["CivilWarEvent", "CoupEvent", "SecessionEvent"].includes(e.type) && e.factions?.includes(f.id) && W.tick - e.tick < TICKS_PER_YEAR,
+        (e) =>
+          ["CivilWarEvent", "CoupEvent", "SecessionEvent"].includes(e.type) &&
+          e.factions?.includes(f.id) &&
+          W.tick - e.tick < TICKS_PER_YEAR,
       );
     let dRule = wars > 0 ? 0.04 : -0.02,
-      dOpen = (knows("writing") ? 0.02 : 0) + (knows("printing") ? 0.03 : 0) + (knows("radio") ? 0.02 : 0) + Math.min(0.04, trade * 0.004) - (wars > 1 ? 0.03 : 0);
+      dOpen =
+        (knows("writing") ? 0.02 : 0) +
+        (knows("printing") ? 0.03 : 0) +
+        (knows("radio") ? 0.02 : 0) +
+        Math.min(0.04, trade * 0.004) -
+        (wars > 1 ? 0.03 : 0);
     if (recentUpheaval) dRule -= Math.sign(i.rule) * 0.3;
     i.rule = clamp(i.rule + dRule, -1, 1);
     i.openness = clamp(i.openness + dOpen, -1, 1);
@@ -231,7 +293,9 @@ function driftIdeologies() {
           subjects: [f.entityId],
           location: capital ? idx(capital.x, capital.y) : -1,
           factions: [f.id],
-          causes: [W.lastEventByType.CivilWarEvent, W.lastEventByType.SuccessionEvent].filter(Boolean),
+          causes: [W.lastEventByType.CivilWarEvent, W.lastEventByType.SuccessionEvent].filter(
+            Boolean,
+          ),
           evidence: [`rule ${i.rule.toFixed(2)}, openness ${i.openness.toFixed(2)}`],
           importance: 3,
           data: { polity: f.name, from: f.government, to: name },
@@ -251,7 +315,9 @@ function raiseStations() {
   for (const f of W.factions) {
     if (!(f.stability > 0) || stationCount(f.id) >= STATION_MAX) continue;
     if (!factionHasTech(f.id, "satellites")) continue;
-    const tower = W.settlements.find((s) => !s.ruined && s.factionId === f.id && completedBuildings(s, "launch_tower").length);
+    const tower = W.settlements.find(
+      (s) => !s.ruined && s.factionId === f.id && completedBuildings(s, "launch_tower").length,
+    );
     if (!tower) continue;
     const last = a.stationLast?.[f.id] ?? -1e9;
     if (W.tick - last < TICKS_PER_YEAR * STATION_YEARS) continue;
@@ -263,13 +329,18 @@ function raiseStations() {
         subjects: [tower.entityId, f.entityId],
         location: idx(tower.x, tower.y),
         factions: [f.id],
-        causes: [W.lastEventByType.TechAdvanceEvent, W.lastEventByType.AscensionEvent].filter(Boolean),
+        causes: [W.lastEventByType.TechAdvanceEvent, W.lastEventByType.AscensionEvent].filter(
+          Boolean,
+        ),
         evidence: [`${a.stations[f.id]} station${a.stations[f.id] === 1 ? "" : "s"} in orbit`],
         importance: 4,
         data: { polity: f.name, place: tower.name, count: a.stations[f.id] },
       }),
     );
-    if (typeof recordMilestone === "function") recordMilestone("first-station", `${f.name} raised the first orbital station`, tower, { evidence: "an eye and a workshop above the sky" });
+    if (typeof recordMilestone === "function")
+      recordMilestone("first-station", `${f.name} raised the first orbital station`, tower, {
+        evidence: "an eye and a workshop above the sky",
+      });
   }
   return out;
 }
@@ -309,8 +380,12 @@ function recordEpilogue() {
     subjects: lead ? [lead.entityId] : [],
     location: -1,
     factions: lead ? [lead.id] : [],
-    causes: [W.lastEventByType.ColonyFoundedEvent, W.lastEventByType.AscensionEvent].filter(Boolean),
-    evidence: [`${entry.people} people, ${entry.towns} towns, ${entry.polities} polities, ${entry.colonies} colonies`],
+    causes: [W.lastEventByType.ColonyFoundedEvent, W.lastEventByType.AscensionEvent].filter(
+      Boolean,
+    ),
+    evidence: [
+      `${entry.people} people, ${entry.towns} towns, ${entry.polities} polities, ${entry.colonies} colonies`,
+    ],
     importance: 3,
     data: entry,
   });
@@ -319,21 +394,34 @@ function recordEpilogue() {
 const alertWorthyAfternoonBase = alertWorthy;
 alertWorthy = function (a) {
   const base = alertWorthyAfternoonBase(a);
-  if (!base) return a.type === "ClimateEvent" || a.type === "ClimateEasedEvent" || a.type === "StationEvent" || a.type === "EpilogueEvent";
+  if (!base)
+    return (
+      a.type === "ClimateEvent" ||
+      a.type === "ClimateEasedEvent" ||
+      a.type === "StationEvent" ||
+      a.type === "EpilogueEvent"
+    );
   if (epilogueActive() && (a.importance || 0) < 4 && a.type !== "MilestoneEvent") return false;
   return true;
 };
 // ── Chronicle and pages ───────────────────────────────────────────────────────
-eventText(["ClimateEvent", "ClimateEasedEvent", "IdeologyEvent", "StationEvent", "EpilogueEvent"], function (e, next) {
-  const d = e.data || {};
-  if (e.type === "ClimateEvent") return `The sky over ${d.place || "the engine towns"} grew ${d.word} with industry.`;
-  if (e.type === "ClimateEasedEvent") return `The sky cleared to ${d.word} as industry was tended.`;
-  if (e.type === "IdeologyEvent") return `${d.polity} passed from ${(d.from || "its old way").toLowerCase()} to ${(d.to || "a new way").toLowerCase()}.`;
-  if (e.type === "StationEvent") return `${d.polity} raised an orbital station from ${d.place}, its ${d.count === 1 ? "first" : d.count === 2 ? "second" : "third"}.`;
-  if (e.type === "EpilogueEvent")
-    return `Year ${d.year}: ${d.people} people in ${d.towns} towns under ${d.polities} polit${d.polities === 1 ? "y" : "ies"}, ${d.colonies} colon${d.colonies === 1 ? "y" : "ies"} among the stars${d.leading ? `, ${d.leading} foremost as ${String(d.government).toLowerCase()}` : ""}.`;
-  return next(e);
-});
+eventText(
+  ["ClimateEvent", "ClimateEasedEvent", "IdeologyEvent", "StationEvent", "EpilogueEvent"],
+  function (e, next) {
+    const d = e.data || {};
+    if (e.type === "ClimateEvent")
+      return `The sky over ${d.place || "the engine towns"} grew ${d.word} with industry.`;
+    if (e.type === "ClimateEasedEvent")
+      return `The sky cleared to ${d.word} as industry was tended.`;
+    if (e.type === "IdeologyEvent")
+      return `${d.polity} passed from ${(d.from || "its old way").toLowerCase()} to ${(d.to || "a new way").toLowerCase()}.`;
+    if (e.type === "StationEvent")
+      return `${d.polity} raised an orbital station from ${d.place}, its ${d.count === 1 ? "first" : d.count === 2 ? "second" : "third"}.`;
+    if (e.type === "EpilogueEvent")
+      return `Year ${d.year}: ${d.people} people in ${d.towns} towns under ${d.polities} polit${d.polities === 1 ? "y" : "ies"}, ${d.colonies} colon${d.colonies === 1 ? "y" : "ies"} among the stars${d.leading ? `, ${d.leading} foremost as ${String(d.government).toLowerCase()}` : ""}.`;
+    return next(e);
+  },
+);
 const renderFactionPageAfternoonBase = renderFactionPage;
 renderFactionPage = function (id) {
   const html = renderFactionPageAfternoonBase(id),
@@ -355,7 +443,10 @@ renderAgesPage = function () {
       ? `<div class="subhead">The long afternoon</div>${a.epilogue
           .slice()
           .reverse()
-          .map((e) => `<div class="kv"><span>year ${e.year}</span><b>${e.people} people · ${e.towns} towns · ${e.polities} polities · ${e.colonies} colonies${e.stations ? ` · ${e.stations} stations` : ""} · sky ${strainWord(e.strain)}</b></div>`)
+          .map(
+            (e) =>
+              `<div class="kv"><span>year ${e.year}</span><b>${e.people} people · ${e.towns} towns · ${e.polities} polities · ${e.colonies} colonies${e.stations ? ` · ${e.stations} stations` : ""} · sky ${strainWord(e.strain)}</b></div>`,
+          )
           .join("")}`
       : "";
   return html + sky + epilogue;
@@ -366,11 +457,15 @@ refreshWorldInfo = function () {
   if (!W || !DOM?.worldPane) return;
   ensureAfternoon(W);
   const a = W.afternoon,
-    engines = W.settlements.filter((s) => !s.ruined && s.knownProcesses?.includes("mechanization")).length;
+    engines = W.settlements.filter(
+      (s) => !s.ruined && s.knownProcesses?.includes("mechanization"),
+    ).length;
   if (!engines && !a.strain && !a.epilogue.length) return;
   const card = `<div class="subhead">The sky</div><div class="card"><div class="row between"><b>${esc(strainWord(a.strain).replace(/^./, (c) => c.toUpperCase()))} sky</b><span class="tag mono">strain ${a.strain.toFixed(2)}</span></div><small class="muted">${engines} engine town${engines === 1 ? "" : "s"} · ${a.droughts} strained season${a.droughts === 1 ? "" : "s"}${a.epilogue.length ? ` · epilogue, ${a.epilogue.length} decade${a.epilogue.length === 1 ? "" : "s"} kept` : ""}</small></div>`,
     anchor = `<div class="subhead">Chemistry viability`;
-  DOM.worldPane.innerHTML = DOM.worldPane.innerHTML.includes(anchor) ? DOM.worldPane.innerHTML.replace(anchor, card + anchor) : DOM.worldPane.innerHTML + card;
+  DOM.worldPane.innerHTML = DOM.worldPane.innerHTML.includes(anchor)
+    ? DOM.worldPane.innerHTML.replace(anchor, card + anchor)
+    : DOM.worldPane.innerHTML + card;
 };
 // ── The look of the late ages ─────────────────────────────────────────────────
 // At close zoom, towns that know Electricity show warm window lights on their
@@ -387,7 +482,8 @@ function lateAgeCrafts(b) {
   const key = `${b.placeKind}:${b.placeId}`;
   let crafts = lateAgeTownCache.byPlace.get(key);
   if (!crafts) {
-    const place = b.placeKind === "settlement" ? W.settlements.find((s) => s.id === b.placeId) : null,
+    const place =
+        b.placeKind === "settlement" ? W.settlements.find((s) => s.id === b.placeId) : null,
       k = place?.knownProcesses || [];
     crafts = { electricity: k.includes("electricity"), radio: k.includes("radio") };
     lateAgeTownCache.byPlace.set(key, crafts);
@@ -403,7 +499,12 @@ drawBuildingExteriorDetails = function (g, b, now, m) {
   const s = proceduralProjectTile(b.x + 0.5, b.y + 0.5, m),
     r = buildingScreenSize(b, m);
   g.save();
-  if (crafts.electricity && ["hall", "archive", "shelter", "clinic", "workshop", "market", "tenement", "factory"].includes(b.type)) {
+  if (
+    crafts.electricity &&
+    ["hall", "archive", "shelter", "clinic", "workshop", "market", "tenement", "factory"].includes(
+      b.type,
+    )
+  ) {
     const flicker = ACTIVE_REDUCED_MOTION ? 1 : 0.85 + 0.15 * Math.sin(now * 0.003 + b.id);
     g.fillStyle = hsl(42, 90, 70, 0.75 * flicker);
     const w = Math.max(1.2, r * 0.14),
@@ -436,7 +537,11 @@ window.ALIFE_AFTERNOON_DEBUG = Object.freeze({
   word: (s) => strainWord(s),
   ideology: (factionId) => ({ ...ensureIdeology(W.factions.find((f) => f.id === factionId)) }),
   government: (factionId) => governmentName(W.factions.find((f) => f.id === factionId)),
-  distance: (aId, bId) => ideologyDistance(W.factions.find((f) => f.id === aId), W.factions.find((f) => f.id === bId)),
+  distance: (aId, bId) =>
+    ideologyDistance(
+      W.factions.find((f) => f.id === aId),
+      W.factions.find((f) => f.id === bId),
+    ),
   drift: () => driftIdeologies(),
   stations: (factionId) => stationCount(factionId),
   raise: () => raiseStations(),

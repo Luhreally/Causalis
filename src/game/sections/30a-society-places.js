@@ -110,10 +110,38 @@ const BUILDING_DEFS = Object.freeze({
     priority: "materials",
   },
   shelter: { name: "Shelter", work: 64, housing: 6, storage: 30, defense: 3, priority: "shelter" },
-  tenement: { name: "Tenement", work: 168, housing: 18, storage: 40, defense: 3, priority: "shelter" },
-  factory: { name: "Factory", work: 220, housing: 0, storage: 200, defense: 3, priority: "materials" },
-  tower: { name: "Tower block", work: 360, housing: 36, storage: 60, defense: 3, priority: "shelter" },
-  office: { name: "Office tower", work: 420, housing: 0, storage: 200, defense: 3, priority: "knowledge" },
+  tenement: {
+    name: "Tenement",
+    work: 168,
+    housing: 18,
+    storage: 40,
+    defense: 3,
+    priority: "shelter",
+  },
+  factory: {
+    name: "Factory",
+    work: 220,
+    housing: 0,
+    storage: 200,
+    defense: 3,
+    priority: "materials",
+  },
+  tower: {
+    name: "Tower block",
+    work: 360,
+    housing: 36,
+    storage: 60,
+    defense: 3,
+    priority: "shelter",
+  },
+  office: {
+    name: "Office tower",
+    work: 420,
+    housing: 0,
+    storage: 200,
+    defense: 3,
+    priority: "knowledge",
+  },
   hearth: { name: "Hearth", work: 42, housing: 0, storage: 20, defense: 1, priority: "food" },
   workshop: {
     name: "Tool workshop",
@@ -187,7 +215,14 @@ const BUILDING_DEFS = Object.freeze({
     defense: 8,
     priority: "governance",
   },
-  totem: { name: "Spirit post", work: 48, housing: 0, storage: 0, defense: 1, priority: "governance" },
+  totem: {
+    name: "Spirit post",
+    work: 48,
+    housing: 0,
+    storage: 0,
+    defense: 1,
+    priority: "governance",
+  },
   shrine: {
     name: "Shrine",
     work: 70,
@@ -399,7 +434,13 @@ function buildFootprintIndex() {
     if (building.ruined && sum(Array.from(building.composition || [])) <= 0) continue;
     const r = buildingSpatialRadius(building.type);
     reach = Math.max(reach, r);
-    put(building.x, building.y, { building: true, id: building.id, x: building.x, y: building.y, r });
+    put(building.x, building.y, {
+      building: true,
+      id: building.id,
+      x: building.x,
+      y: building.y,
+      r,
+    });
   }
   for (const field of W.fields || []) {
     if (!Number.isInteger(field.tile)) continue;
@@ -444,7 +485,13 @@ function developmentFootprintClear(x, y, radius, ignoreBuildingId = 0, ignoreFie
   )
     return false;
   const index = FOOTPRINT_INDEX;
-  if (index && index.world === W && Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(radius))
+  if (
+    index &&
+    index.world === W &&
+    Number.isFinite(x) &&
+    Number.isFinite(y) &&
+    Number.isFinite(radius)
+  )
     return footprintIndexClear(index, x, y, radius, ignoreBuildingId, ignoreFieldId);
   for (const building of W.buildings || []) {
     if (

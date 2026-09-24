@@ -160,7 +160,14 @@ function drawCultivatedCropBatch(g, plants, size, profile, stage) {
       if (form === "rosette") {
         const count = young ? 4 : 7;
         for (let k = 0; k < count; k++)
-          leaf(x, y, ((TAU * k) / count + variant * 0.17) % TAU, width * 0.42, width * 0.22, width * 0.58);
+          leaf(
+            x,
+            y,
+            ((TAU * k) / count + variant * 0.17) % TAU,
+            width * 0.42,
+            width * 0.22,
+            width * 0.58,
+          );
       } else
         for (const side of [-1, 1])
           leaf(
@@ -226,15 +233,22 @@ function drawCultivatedCropBatch(g, plants, size, profile, stage) {
 }
 window.ALIFE_CROP_DEBUG = Object.freeze({
   counts: () => ({ ...CROP_DRAWS }),
-  reset: () => Object.assign(CROP_DRAWS, { full: 0, batched: 0, fields: 0, smallest: Infinity, largest: 0 }),
+  reset: () =>
+    Object.assign(CROP_DRAWS, { full: 0, batched: 0, fields: 0, smallest: Infinity, largest: 0 }),
   detailSize: () => CROP_DETAIL_SIZE,
   setDetailSize: (size) => (CROP_DETAIL_SIZE = Number(size)),
-  trace: (on = true) => { const out = CROP_TRACE; CROP_TRACE = on ? [] : null; return out; },
+  trace: (on = true) => {
+    const out = CROP_TRACE;
+    CROP_TRACE = on ? [] : null;
+    return out;
+  },
   // Draws plants [x, y, variant] the one way or the other, for a side-by-side check.
   sample: (g, plants, size, profile, stage, batched) =>
     batched
       ? drawCultivatedCropBatch(g, plants, size, profile, stage)
-      : plants.forEach(([x, y, variant]) => drawCultivatedCrop(g, x, y, size, profile, stage, variant)),
+      : plants.forEach(([x, y, variant]) =>
+          drawCultivatedCrop(g, x, y, size, profile, stage, variant),
+        ),
 });
 
 function drawCultivatedCrop(g, x, y, size, profile, stage, variant) {
@@ -426,7 +440,16 @@ drawBuildingSite = function (g, building, now, metrics) {
       cropSize = Math.max(1.8, radius * 0.074 * profile.density),
       batch = cropSize < CROP_DETAIL_SIZE ? [] : null;
     CROP_DRAWS.smallest = Math.min(CROP_DRAWS.smallest, cropSize);
-    if (CROP_TRACE) CROP_TRACE.push({ id: building.id, form: profile.form, fruit: profile.fruitForm, stage, size: +cropSize.toFixed(2), x: Math.round(screen.x), y: Math.round(screen.y) });
+    if (CROP_TRACE)
+      CROP_TRACE.push({
+        id: building.id,
+        form: profile.form,
+        fruit: profile.fruitForm,
+        stage,
+        size: +cropSize.toFixed(2),
+        x: Math.round(screen.x),
+        y: Math.round(screen.y),
+      });
     CROP_DRAWS.largest = Math.max(CROP_DRAWS.largest, cropSize);
     for (let tileRow = 0; tileRow < 3; tileRow++)
       for (let tileColumn = 0; tileColumn < 3; tileColumn++)
@@ -1174,7 +1197,10 @@ function updateAttackPlan(war) {
 // and the rally's list name a column by its id. The counter is moved past any
 // id an older save dealt the old way.
 function dealMilitaryUnitId() {
-  const id = Math.max(W.nextMilitaryUnitId || 1, Math.max(0, ...W.militaryUnits.map((u) => u.id || 0)) + 1);
+  const id = Math.max(
+    W.nextMilitaryUnitId || 1,
+    Math.max(0, ...W.militaryUnits.map((u) => u.id || 0)) + 1,
+  );
   W.nextMilitaryUnitId = id + 1;
   return id;
 }

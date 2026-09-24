@@ -65,7 +65,8 @@ resolveEffects = function () {
 const directionScoreStepsBase = directionScore;
 directionScore = function (id, dx, dy, goal) {
   const score = directionScoreStepsBase(id, dx, dy, goal);
-  if (!(dx || dy) || score <= -1e8 || W.kind[id] !== KINDS.PERSON || STEP_FREE_GOALS.has(goal)) return score;
+  if (!(dx || dy) || score <= -1e8 || W.kind[id] !== KINDS.PERSON || STEP_FREE_GOALS.has(goal))
+    return score;
   const back = stepBackTile(id);
   if (back < 0) return score;
   const p = W.components.position[id];
@@ -84,7 +85,8 @@ organismHabitatStress = function (id, tile) {
 const moveWorkerTowardStepsBase = moveWorkerToward;
 moveWorkerToward = function (id, tile, ...rest) {
   // A worker whose work lies on the tile it left goes back to it.
-  if (W.kind[id] !== KINDS.PERSON || tile === stepBackTile(id)) return moveWorkerTowardStepsBase(id, tile, ...rest);
+  if (W.kind[id] !== KINDS.PERSON || tile === stepBackTile(id))
+    return moveWorkerTowardStepsBase(id, tile, ...rest);
   const was = STEP_WORKER;
   STEP_WORKER = id;
   try {
@@ -103,7 +105,8 @@ campaignMarchStep = function (id) {
   if (back < 0 || idx(p.x + step[0], p.y + step[1]) !== back) return step;
   const order = W.components.campaign?.[id];
   if (!order) return step;
-  const sails = typeof factionHasTech === "function" && factionHasTech(order.factionId, "navigation"),
+  const sails =
+      typeof factionHasTech === "function" && factionHasTech(order.factionId, "navigation"),
     here = Math.max(Math.abs(order.x - p.x), Math.abs(order.y - p.y));
   let best = null,
     bestD = Infinity;
@@ -113,7 +116,12 @@ campaignMarchStep = function (id) {
       y = p.y + dy;
     if (!inside(x, y)) continue;
     const i = idx(x, y);
-    if (i === back || (!sails && W.tiles.liquid[i] > WATER_DEPTH.WADE_LIMIT) || W.tiles.fire[i] >= 400) continue;
+    if (
+      i === back ||
+      (!sails && W.tiles.liquid[i] > WATER_DEPTH.WADE_LIMIT) ||
+      W.tiles.fire[i] >= 400
+    )
+      continue;
     if (typeof movementTileBlocked === "function" && movementTileBlocked(id, x, y)) continue;
     if (Math.max(Math.abs(order.x - x), Math.abs(order.y - y)) > here) continue;
     const d = dist2(x, y, order.x, order.y);

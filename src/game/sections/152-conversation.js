@@ -94,13 +94,22 @@ function talkState(id) {
   return e;
 }
 function moodWord(mood) {
-  return mood > 0.45 ? "cheerful" : mood > 0.15 ? "content" : mood > -0.15 ? "steady" : mood > -0.45 ? "low" : "despairing";
+  return mood > 0.45
+    ? "cheerful"
+    : mood > 0.15
+      ? "content"
+      : mood > -0.15
+        ? "steady"
+        : mood > -0.45
+          ? "low"
+          : "despairing";
 }
 // ── The slow state, read with the measured emotion every sixteen ticks ───────
 const setEmotionImpulseTalkBase = setEmotionImpulse;
 setEmotionImpulse = function (id, values, causeEvent = 0, glyph = "") {
   const e = talkState(id);
-  if (e && Number.isFinite(values?.contentment) && values.contentment > 0) e.uplift = clamp(e.uplift + values.contentment, 0, 0.6);
+  if (e && Number.isFinite(values?.contentment) && values.contentment > 0)
+    e.uplift = clamp(e.uplift + values.contentment, 0, 0.6);
   return setEmotionImpulseTalkBase(id, values, causeEvent, glyph);
 };
 function talkStress(id, e) {
@@ -111,7 +120,10 @@ function talkStress(id, e) {
   const tile = idx(p.x, p.y),
     needs = clamp(((life.hunger || 0) + (life.thirst || 0) + (life.fatigue || 0)) / 300, 0, 1),
     danger = clamp(W.tiles.danger[tile] / 1100 + W.tiles.fire[tile] / 900, 0, 1),
-    home = soc?.homePlaceKind === "settlement" ? W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined) : null,
+    home =
+      soc?.homePlaceKind === "settlement"
+        ? W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined)
+        : null,
     head = soc?.householdId || id,
     roof = home ? habitationHome(id) : null,
     owed = roof?.tenancy?.arrears?.[head] || 0,
@@ -129,8 +141,20 @@ updateMeasuredEmotion = function (id) {
   e.standing = +(e.standing + (0.5 - e.standing) * 0.01).toFixed(4);
   e.contentment = clamp(e.contentment + e.uplift, 0, 1);
   e.stress = +(e.stress * 0.8 + talkStress(id, e) * 0.2).toFixed(4);
-  e.loneliness = +clamp(e.loneliness + (W.tick - e.lastTalkTick > TALK_LONELY_AFTER ? 0.025 : -0.01), 0, 1).toFixed(4);
-  const target = clamp((e.contentment - 0.5) * 1.6 - e.stress * 0.5 - e.loneliness * 0.35 - e.sadness * 0.4 + (e.standing - 0.5) * 0.3, -1, 1);
+  e.loneliness = +clamp(
+    e.loneliness + (W.tick - e.lastTalkTick > TALK_LONELY_AFTER ? 0.025 : -0.01),
+    0,
+    1,
+  ).toFixed(4);
+  const target = clamp(
+    (e.contentment - 0.5) * 1.6 -
+      e.stress * 0.5 -
+      e.loneliness * 0.35 -
+      e.sadness * 0.4 +
+      (e.standing - 0.5) * 0.3,
+    -1,
+    1,
+  );
   e.mood = +(e.mood + (target - e.mood) * MOOD_RATE).toFixed(4);
 };
 // ── Who talks, and of what ───────────────────────────────────────────────────
@@ -152,10 +176,22 @@ function talkSubject(id, listener) {
     if (other === listener || !r || (r.familiarity || 0) < 0.25 || !peekAlive(other)) continue;
     // A crime is worth telling only to one who has not heard as much of it.
     const theirs = W.components.social[listener]?.relationships?.[other]?.heardCrimes || 0,
-      crime = (W.components.identity[other]?.crimes || 0) > 0 && (r.heardCrimes || 0) > theirs && W.tick - (r.crimeToldTick ?? -1e9) >= TALK_RETELL,
-      opinion = (r.trust || 0) + (r.affection || 0) * 0.5 - (r.grievance || 0) * 1.4 - (r.rivalry || 0) * 0.6 - (crime ? 0.6 : 0),
-      weight = W.tick - (r.gossipToldTick ?? -1e9) < TALK_RETELL ? 0 : Math.max(0, Math.abs(opinion - 0.4) - 0.3) + (crime ? 0.4 : 0);
-    if (!best || weight > best.weight || (weight === best.weight && other < best.id)) best = { id: other, opinion, crime, weight };
+      crime =
+        (W.components.identity[other]?.crimes || 0) > 0 &&
+        (r.heardCrimes || 0) > theirs &&
+        W.tick - (r.crimeToldTick ?? -1e9) >= TALK_RETELL,
+      opinion =
+        (r.trust || 0) +
+        (r.affection || 0) * 0.5 -
+        (r.grievance || 0) * 1.4 -
+        (r.rivalry || 0) * 0.6 -
+        (crime ? 0.6 : 0),
+      weight =
+        W.tick - (r.gossipToldTick ?? -1e9) < TALK_RETELL
+          ? 0
+          : Math.max(0, Math.abs(opinion - 0.4) - 0.3) + (crime ? 0.4 : 0);
+    if (!best || weight > best.weight || (weight === best.weight && other < best.id))
+      best = { id: other, opinion, crime, weight };
   }
   return best && best.weight > 0.2 ? best : null;
 }
@@ -179,25 +215,61 @@ function talkTopic(id, listener) {
     rel = relationshipState(id, listener),
     candidates = [];
   const add = (key, weight, extra = {}) => {
-    if (weight > 0) candidates.push({ key, weight: weight + (hashParts(W.seedHash, "talk-topic", W.tick, id, key) % 100) / 1000, ...extra });
+    if (weight > 0)
+      candidates.push({
+        key,
+        weight: weight + (hashParts(W.seedHash, "talk-topic", W.tick, id, key) % 100) / 1000,
+        ...extra,
+      });
   };
   add("hunger", (life.hunger || 0) > 62 ? ((life.hunger - 55) / 45) * 1.2 : 0);
   add("grief", e.sadness > 0.3 ? e.sadness * 1.3 : 0);
-  add("love", soc.partnerId === listener || (rel?.attraction || 0) > 0.5 ? 0.35 + (rel?.affection || 0) * 0.6 : 0);
+  add(
+    "love",
+    soc.partnerId === listener || (rel?.attraction || 0) > 0.5
+      ? 0.35 + (rel?.affection || 0) * 0.6
+      : 0,
+  );
   add("tired", (life.fatigue || 0) > 70 ? (life.fatigue - 60) / 50 : 0);
-  if (work?.task && work.task !== "idle") add("work", 0.34, { glyph: FUNCTION_EMOJI[work.task] || "🔨" });
+  if (work?.task && work.task !== "idle")
+    add("work", 0.34, { glyph: FUNCTION_EMOJI[work.task] || "🔨" });
   const news = talkNews(id, listener);
-  if (news) add("news", 0.45 + (news.importance || 0) * 0.08, { eventId: news.id, glyph: news.category === "war" ? "⚔️" : news.category === "disasters" ? "🔥" : news.category === "technology" ? "💡" : "📣" });
+  if (news)
+    add("news", 0.45 + (news.importance || 0) * 0.08, {
+      eventId: news.id,
+      glyph:
+        news.category === "war"
+          ? "⚔️"
+          : news.category === "disasters"
+            ? "🔥"
+            : news.category === "technology"
+              ? "💡"
+              : "📣",
+    });
   const subject = talkSubject(id, listener);
-  if (subject) add(subject.crime ? "crime" : subject.opinion > 0.4 ? "praise" : "gossip", 0.15 + subject.weight * 0.4, { subject: subject.id, opinion: subject.opinion });
-  const kin = (W.components.identity[id]?.children || []).filter((c) => peekAlive(c)).length + (soc.partnerId && soc.partnerId !== listener && peekAlive(soc.partnerId) ? 1 : 0);
+  if (subject)
+    add(
+      subject.crime ? "crime" : subject.opinion > 0.4 ? "praise" : "gossip",
+      0.15 + subject.weight * 0.4,
+      { subject: subject.id, opinion: subject.opinion },
+    );
+  const kin =
+    (W.components.identity[id]?.children || []).filter((c) => peekAlive(c)).length +
+    (soc.partnerId && soc.partnerId !== listener && peekAlive(soc.partnerId) ? 1 : 0);
   add("family", kin ? 0.22 + Math.min(0.15, kin * 0.04) : 0);
-  const home = soc?.homePlaceKind === "settlement" ? W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined) : null,
+  const home =
+      soc?.homePlaceKind === "settlement"
+        ? W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined)
+        : null,
     roof = home ? habitationHome(id) : null,
     owed = roof?.tenancy?.arrears?.[soc.householdId || id] || 0;
   add("rent", owed > 0 ? 0.5 + Math.min(0.5, owed / 20) : 0);
   const faith = personFaithKey(id);
-  add("faith", faith && (W.components.identity[id]?.traits || []).includes("devout") ? 0.4 : faith ? 0.12 : 0, { faith });
+  add(
+    "faith",
+    faith && (W.components.identity[id]?.traits || []).includes("devout") ? 0.4 : faith ? 0.12 : 0,
+    { faith },
+  );
   add("unrest", (home?.unrest || 0) > 0.3 ? home.unrest : 0);
   add("fear", e.fear > 0.35 ? e.fear : 0);
   add("joy", e.mood > 0.35 || e.uplift > 0.15 ? 0.3 + e.mood * 0.4 : 0);
@@ -209,7 +281,11 @@ function talkTopic(id, listener) {
 function talkReply(speaker, listener, topic) {
   const r = relationshipState(listener, speaker),
     le = talkState(listener),
-    warm = (r?.trust || 0) * 0.6 + (r?.affection || 0) * 0.8 - (r?.grievance || 0) - (r?.rivalry || 0) * 0.7,
+    warm =
+      (r?.trust || 0) * 0.6 +
+      (r?.affection || 0) * 0.8 -
+      (r?.grievance || 0) -
+      (r?.rivalry || 0) * 0.7,
     kind = W.components.genome[listener] ? phenotype(listener).cooperation || 0.5 : 0.5;
   switch (topic.key) {
     case "hunger": {
@@ -234,7 +310,11 @@ function talkReply(speaker, listener, topic) {
       return agree || warm > 0.5 ? "agree" : "argue";
     }
     case "faith":
-      return topic.faith && topic.faith === personFaithKey(listener) ? "pray" : warm > 0.4 ? "agree" : "dismiss";
+      return topic.faith && topic.faith === personFaithKey(listener)
+        ? "pray"
+        : warm > 0.4
+          ? "agree"
+          : "dismiss";
     case "unrest":
       return (le.stress || 0) > 0.3 || warm > 0.4 ? "solidarity" : "dismiss";
     case "fear":
@@ -261,7 +341,11 @@ function shareFood(giver, taker) {
   if (!inv || !gut) return 0;
   let moved = 0;
   for (const store of [inv.materials, inv.digestive]) {
-    const amount = Math.min(8 - moved, Math.max(0, (store[C.ORGANIC] || 0) - (store === inv.digestive ? 6 : 0)), 65535 - gut[C.ORGANIC]);
+    const amount = Math.min(
+      8 - moved,
+      Math.max(0, (store[C.ORGANIC] || 0) - (store === inv.digestive ? 6 : 0)),
+      65535 - gut[C.ORGANIC],
+    );
     if (amount > 0) {
       store[C.ORGANIC] -= amount;
       gut[C.ORGANIC] += amount;
@@ -290,7 +374,17 @@ function converse(speaker, listener) {
   le.loneliness = clamp(le.loneliness - 0.15, 0, 1);
   nudgeRel(speaker, listener, { familiarity: 0.02 });
   nudgeRel(listener, speaker, { familiarity: 0.02 });
-  const warmReply = ["agree", "comfort", "share", "laugh", "pray", "solidarity", "reassure", "shy", "surprise"].includes(reply);
+  const warmReply = [
+    "agree",
+    "comfort",
+    "share",
+    "laugh",
+    "pray",
+    "solidarity",
+    "reassure",
+    "shy",
+    "surprise",
+  ].includes(reply);
   if (warmReply) {
     nudgeRel(speaker, listener, { trust: 0.02, affection: 0.01 });
     nudgeRel(listener, speaker, { trust: 0.01 });
@@ -318,7 +412,10 @@ function converse(speaker, listener) {
         subjects: [listener, speaker],
         location: p ? idx(p.x, p.y) : -1,
         importance: 1,
-        evidence: [`${entityName(listener)} sat with ${entityName(speaker)} in their grief`, `sadness ${se.sadness.toFixed(2)}`],
+        evidence: [
+          `${entityName(listener)} sat with ${entityName(speaker)} in their grief`,
+          `sadness ${se.sadness.toFixed(2)}`,
+        ],
         data: { a: entityName(listener), b: entityName(speaker) },
       });
     }
@@ -326,11 +423,21 @@ function converse(speaker, listener) {
     remember(listener, topic.eventId, "heard");
     TALK.news++;
     outcome = "news passed on";
-  } else if (["praise", "gossip", "crime"].includes(topic.key) && topic.subject && reply === "agree") {
+  } else if (
+    ["praise", "gossip", "crime"].includes(topic.key) &&
+    topic.subject &&
+    reply === "agree"
+  ) {
     const trust = relationshipState(listener, speaker)?.trust || 0.3,
       toward = topic.opinion > 0.4 ? 1 : -1,
       weight = 0.05 + trust * 0.1;
-    nudgeRel(listener, topic.subject, toward > 0 ? { trust: weight, familiarity: 0.02 } : { trust: -weight, grievance: weight * 0.6, familiarity: 0.02 });
+    nudgeRel(
+      listener,
+      topic.subject,
+      toward > 0
+        ? { trust: weight, familiarity: 0.02 }
+        : { trust: -weight, grievance: weight * 0.6, familiarity: 0.02 },
+    );
     if (topic.key === "crime") {
       const r = relationshipState(listener, topic.subject),
         mine = relationshipState(speaker, topic.subject);
@@ -341,13 +448,18 @@ function converse(speaker, listener) {
     if (told) told.gossipToldTick = W.tick;
     // What is said of a person is their standing: a word of praise lifts it, an ill word lowers it.
     const subjectState = talkState(topic.subject);
-    if (subjectState) subjectState.standing = +clamp(subjectState.standing + toward * 0.02, 0, 1).toFixed(4);
+    if (subjectState)
+      subjectState.standing = +clamp(subjectState.standing + toward * 0.02, 0, 1).toFixed(4);
     TALK.gossip++;
     outcome = toward > 0 ? "praise spread" : "ill word spread";
   } else if (reply === "argue") {
     const ar = relationshipState(speaker, listener),
       br = relationshipState(listener, speaker);
-    if ((ar?.rivalry || 0) + (br?.rivalry || 0) > TALK_QUARREL_RIVALRY && typeof quarrel === "function" && W.tick - (ar.quarrelTick || -1e9) > 256) {
+    if (
+      (ar?.rivalry || 0) + (br?.rivalry || 0) > TALK_QUARREL_RIVALRY &&
+      typeof quarrel === "function" &&
+      W.tick - (ar.quarrelTick || -1e9) > 256
+    ) {
       quarrel(speaker, listener, ar, br);
       TALK.quarrels++;
       outcome = "quarrel";
@@ -357,17 +469,54 @@ function converse(speaker, listener) {
     se.uplift = clamp(se.uplift + 0.03, 0, 0.6);
   }
   // Moods pass between people who care for one another.
-  const care = clamp((relationshipState(listener, speaker)?.affection || 0) + (relationshipState(listener, speaker)?.trust || 0) * 0.5, 0, 1) * 0.08;
+  const care =
+    clamp(
+      (relationshipState(listener, speaker)?.affection || 0) +
+        (relationshipState(listener, speaker)?.trust || 0) * 0.5,
+      0,
+      1,
+    ) * 0.08;
   if (care > 0) {
     const pull = (se.mood - le.mood) * care;
     le.mood = +clamp(le.mood + pull, -1, 1).toFixed(4);
     se.mood = +clamp(se.mood - pull * 0.5, -1, 1).toFixed(4);
   }
-  const glyphs = topic.key === "work" ? [topic.glyph || "🔨", "💪"] : topic.key === "news" ? [topic.glyph || "📣", "❗"] : TALK_TOPICS[topic.key].glyphs;
-  const said = { world: W, tick: W.tick, speaker, listener, topic: topic.key, say: glyphs.join(""), reply: TALK_REPLIES[reply], replyKey: reply, outcome };
-  W.components.social[speaker].lastTalk = { tick: W.tick, with: listener, topic: topic.key, say: said.say, reply: said.reply, outcome };
-  W.components.social[listener].lastTalk = { tick: W.tick, with: speaker, topic: topic.key, heard: said.say, reply: said.reply, outcome };
-  UI.speech = (UI.speech || []).filter((s) => s.world === W && W.tick - s.tick < TALK_SPEECH_TICKS + TALK_REPLY_DELAY).concat(said);
+  const glyphs =
+    topic.key === "work"
+      ? [topic.glyph || "🔨", "💪"]
+      : topic.key === "news"
+        ? [topic.glyph || "📣", "❗"]
+        : TALK_TOPICS[topic.key].glyphs;
+  const said = {
+    world: W,
+    tick: W.tick,
+    speaker,
+    listener,
+    topic: topic.key,
+    say: glyphs.join(""),
+    reply: TALK_REPLIES[reply],
+    replyKey: reply,
+    outcome,
+  };
+  W.components.social[speaker].lastTalk = {
+    tick: W.tick,
+    with: listener,
+    topic: topic.key,
+    say: said.say,
+    reply: said.reply,
+    outcome,
+  };
+  W.components.social[listener].lastTalk = {
+    tick: W.tick,
+    with: speaker,
+    topic: topic.key,
+    heard: said.say,
+    reply: said.reply,
+    outcome,
+  };
+  UI.speech = (UI.speech || [])
+    .filter((s) => s.world === W && W.tick - s.tick < TALK_SPEECH_TICKS + TALK_REPLY_DELAY)
+    .concat(said);
   UI.speechIndex = null;
   return said;
 }
@@ -380,7 +529,12 @@ updateRelationshipPair = function (id, otherId) {
   if (!canTalk(id) || !canTalk(otherId)) return out;
   const urge = (x) => {
       const e = talkState(x);
-      return e.loneliness + e.sadness * 0.5 + e.stress * 0.3 + (W.components.genome[x] ? phenotype(x).social || 0 : 0) * 0.5;
+      return (
+        e.loneliness +
+        e.sadness * 0.5 +
+        e.stress * 0.3 +
+        (W.components.genome[x] ? phenotype(x).social || 0 : 0) * 0.5
+      );
     },
     speaker = urge(id) >= urge(otherId) ? id : otherId;
   converse(speaker, speaker === id ? otherId : id);
@@ -398,8 +552,15 @@ function speechFor(id) {
       if (s.world !== W) continue;
       const age = W.tick - s.tick;
       if (age < 0 || age > TALK_SPEECH_TICKS + TALK_REPLY_DELAY) continue;
-      if (age <= TALK_SPEECH_TICKS) map.set(s.speaker, { text: s.say, other: s.listener, role: "say", age });
-      if (age >= TALK_REPLY_DELAY) map.set(s.listener, { text: s.reply, other: s.speaker, role: "reply", age: age - TALK_REPLY_DELAY });
+      if (age <= TALK_SPEECH_TICKS)
+        map.set(s.speaker, { text: s.say, other: s.listener, role: "say", age });
+      if (age >= TALK_REPLY_DELAY)
+        map.set(s.listener, {
+          text: s.reply,
+          other: s.speaker,
+          role: "reply",
+          age: age - TALK_REPLY_DELAY,
+        });
     }
     UI.speechIndex = { world: W, tick: W.tick, map };
   }
@@ -412,7 +573,9 @@ drawEmotionGlyph = function (g, id, screen, radius, now, portrait = false) {
   if (!speech) {
     if (UI.camera.zoom < 1.5) {
       const task = W.components.work?.[id]?.task,
-        burst = (UI.emotionVisuals || []).some((item) => item.world === W && item.id === id && W.tick - item.tick < 80);
+        burst = (UI.emotionVisuals || []).some(
+          (item) => item.world === W && item.id === id && W.tick - item.tick < 80,
+        );
       if (!burst && !["fight", "firefight", "fill_bucket"].includes(task)) return;
     }
     return drawEmotionGlyphTalkBase(g, id, screen, radius, now, portrait);
@@ -464,7 +627,8 @@ organismInspector = function (id) {
   return at < 0 ? html + block : html.slice(0, at) + block + html.slice(at);
 };
 eventText(["ComfortEvent"], function (e, next) {
-  if (e.type === "ComfortEvent") return `🤗 ${e.data?.a || "Someone"} sat with ${e.data?.b || "a mourner"} in their grief.`;
+  if (e.type === "ComfortEvent")
+    return `🤗 ${e.data?.a || "Someone"} sat with ${e.data?.b || "a mourner"} in their grief.`;
   return next(e);
 });
 window.ALIFE_TALK_DEBUG = Object.freeze({

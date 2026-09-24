@@ -12,7 +12,18 @@
 // moving store to store while the coin changes hands, and coin hires hands at
 // a civic work face. A Legends page lays out the treasuries, the busiest roads,
 // the price boards, the specialties, and the purchases. Rendering only reads.
-const MARKET_KEY_GOODS = () => [C.ORGANIC, C.SOLVENT, C.FUEL, C.MINERAL, C.ORE, C.METAL, C.PIGMENT, C.INFO, C.CATALYST, C.CRYSTAL],
+const MARKET_KEY_GOODS = () => [
+    C.ORGANIC,
+    C.SOLVENT,
+    C.FUEL,
+    C.MINERAL,
+    C.ORE,
+    C.METAL,
+    C.PIGMENT,
+    C.INFO,
+    C.CATALYST,
+    C.CRYSTAL,
+  ],
   MARKET_DEAR = 2,
   MARKET_CHEAP = 0.5,
   MARKET_TAX_PER_EXCHANGE = 0.5,
@@ -26,7 +37,13 @@ const MARKET_KEY_GOODS = () => [C.ORGANIC, C.SOLVENT, C.FUEL, C.MINERAL, C.ORE, 
   WORKS_HIRE_EFFORT = 6;
 function ensureMarkets(world = W) {
   if (!world) return null;
-  world.markets = world.markets || { version: 1, year: -1, exchangeSeen: {}, purchases: 0, hires: 0 };
+  world.markets = world.markets || {
+    version: 1,
+    year: -1,
+    exchangeSeen: {},
+    purchases: 0,
+    hires: 0,
+  };
   world.markets.exchangeSeen = world.markets.exchangeSeen || {};
   for (const f of world.factions || []) if (!Number.isFinite(f.treasury)) f.treasury = 0;
   return world.markets;
@@ -64,7 +81,9 @@ function polityCoins(f) {
   return !!f && factionHasTech(f.id, "currency");
 }
 function factionMarkets(f) {
-  return W.settlements.filter((s) => !s.ruined && s.factionId === f.id && placeHasFacility(s, "market")).length;
+  return W.settlements.filter(
+    (s) => !s.ruined && s.factionId === f.id && placeHasFacility(s, "market"),
+  ).length;
 }
 // ── Markets: barter carries more where a market stands ──────────────────────
 const bestBarterMarketsBase = bestBarter;
@@ -83,7 +102,10 @@ ensurePlacePlans = function (place) {
   ensurePlacePlansMarketsBase(place);
   if (!place?.knownProcesses || place.ruined || !place.factionId) return;
   if (!factionHasTech(place.factionId, "currency") || settlementPopulation(place) < 10) return;
-  const has = W.buildings.some((b) => !b.ruined && b.placeKind === "settlement" && b.placeId === place.id && b.type === "market");
+  const has = W.buildings.some(
+    (b) =>
+      !b.ruined && b.placeKind === "settlement" && b.placeId === place.id && b.type === "market",
+  );
   if (!has) planBuilding(place, "market", place.management?.priorities?.trade || 3);
 };
 // ── Treasuries: a tithe of the year's exchanges, and market custom ────────────
@@ -177,7 +199,12 @@ function hireHands(faction) {
   let hired = 0;
   for (const b of W.buildings) {
     if (b.ruined || b.complete || b.placeKind !== "settlement") continue;
-    if (typeof HORIZON_CIVIC_TYPES !== "undefined" && !HORIZON_CIVIC_TYPES.has(b.type) && b.type !== "market") continue;
+    if (
+      typeof HORIZON_CIVIC_TYPES !== "undefined" &&
+      !HORIZON_CIVIC_TYPES.has(b.type) &&
+      b.type !== "market"
+    )
+      continue;
     const place = W.settlements.find((s) => s.id === b.placeId);
     if (!place || place.ruined || place.factionId !== faction.id) continue;
     if (faction.treasury < WORKS_TREASURY_FLOOR) break;
@@ -210,7 +237,8 @@ tickSystem("markets", function () {
 // ── Chronicle and pages ───────────────────────────────────────────────────────
 eventText(["PurchaseEvent"], function (e, next) {
   const d = e.data || {};
-  if (e.type === "PurchaseEvent") return `${d.to} bought ${d.amount} units of grain from ${d.from} for ${d.cost} coin.`;
+  if (e.type === "PurchaseEvent")
+    return `${d.to} bought ${d.amount} units of grain from ${d.from} for ${d.cost} coin.`;
   return next(e);
 });
 const alertWorthyMarketsBase = alertWorthy;
@@ -222,10 +250,20 @@ function marketGoodName(sp) {
 }
 function priceBoard(place, limit = 4) {
   const rows = MARKET_KEY_GOODS()
-    .filter((sp) => (place.inventory?.[sp] || 0) > 0 || (new Map(essentialStockTargets(place)).get(sp) || 0) > 0)
+    .filter(
+      (sp) =>
+        (place.inventory?.[sp] || 0) > 0 ||
+        (new Map(essentialStockTargets(place)).get(sp) || 0) > 0,
+    )
     .map((sp) => ({ sp, price: priceOf(place, sp) }));
-  const dear = rows.filter((r) => r.price >= MARKET_DEAR).sort((a, b) => b.price - a.price).slice(0, limit),
-    cheap = rows.filter((r) => r.price <= MARKET_CHEAP).sort((a, b) => a.price - b.price).slice(0, limit);
+  const dear = rows
+      .filter((r) => r.price >= MARKET_DEAR)
+      .sort((a, b) => b.price - a.price)
+      .slice(0, limit),
+    cheap = rows
+      .filter((r) => r.price <= MARKET_CHEAP)
+      .sort((a, b) => a.price - b.price)
+      .slice(0, limit);
   return { dear, cheap };
 }
 function renderEconomyPage() {
@@ -234,16 +272,24 @@ function renderEconomyPage() {
     treasuries = living
       .filter((f) => polityCoins(f))
       .sort((a, b) => b.treasury - a.treasury)
-      .map((f) => `<div class="kv"><span>${legendLink("faction", f.id, esc(f.name))}</span><b>${f.treasury} coin · ${factionMarkets(f)} market${factionMarkets(f) === 1 ? "" : "s"}</b></div>`)
+      .map(
+        (f) =>
+          `<div class="kv"><span>${legendLink("faction", f.id, esc(f.name))}</span><b>${f.treasury} coin · ${factionMarkets(f)} market${factionMarkets(f) === 1 ? "" : "s"}</b></div>`,
+      )
       .join(""),
     name = (id) => W.settlements.find((s) => s.id === id)?.name || "a lost town",
     routes = (W.tradeRoutes || [])
       .filter((r) => r.trips > 0)
       .sort((a, b) => b.trips - a.trips || b.volume - a.volume)
       .slice(0, 6)
-      .map((r) => `<div class="kv"><span>${esc(name(r.a))} – ${esc(name(r.b))} <span class="muted">${esc(r.mode)}</span></span><b>${r.trips} trips · ${Math.round(r.volume)} units</b></div>`)
+      .map(
+        (r) =>
+          `<div class="kv"><span>${esc(name(r.a))} – ${esc(name(r.b))} <span class="muted">${esc(r.mode)}</span></span><b>${r.trips} trips · ${Math.round(r.volume)} units</b></div>`,
+      )
       .join(""),
-    towns = W.settlements.filter((s) => !s.ruined && s.knownProcesses).sort((a, b) => settlementPopulation(b) - settlementPopulation(a)),
+    towns = W.settlements
+      .filter((s) => !s.ruined && s.knownProcesses)
+      .sort((a, b) => settlementPopulation(b) - settlementPopulation(a)),
     boards = towns
       .slice(0, 4)
       .map((s) => {
@@ -256,9 +302,15 @@ function renderEconomyPage() {
       .map((s) => ({ s, sp: townSpecialty(s) }))
       .filter((x) => x.sp !== null)
       .slice(0, 8)
-      .map((x) => `<div class="kv"><span>${legendLink("place", x.s.id, esc(x.s.name))}</span><b>${esc(marketGoodName(x.sp))}</b></div>`)
+      .map(
+        (x) =>
+          `<div class="kv"><span>${legendLink("place", x.s.id, esc(x.s.name))}</span><b>${esc(marketGoodName(x.sp))}</b></div>`,
+      )
       .join(""),
-    purchases = timelineRows(legendEvents((e) => e.type === "PurchaseEvent"), 8);
+    purchases = timelineRows(
+      legendEvents((e) => e.type === "PurchaseEvent"),
+      8,
+    );
   return `${legendHero("The economy", [`${(W.tradeRoutes || []).filter((r) => r.trips > 0).length} roads of trade`, `${W.markets.purchases} purchases`])}<div class="subhead">Treasuries</div>${
     treasuries || `<div class="empty">No polity strikes coin yet.</div>`
   }<div class="subhead">Busiest roads</div>${routes || `<div class="empty">No caravan has gone between towns.</div>`}<div class="subhead">Price boards</div>${
@@ -342,7 +394,11 @@ drawCompletedBuilding = function (g, b, s, r, p, now, m) {
   return drawCompletedBuildingMarketsBase(g, b, s, r, p, now, m);
 };
 window.ALIFE_MARKET_DEBUG = Object.freeze({
-  price: (placeId, sp) => priceOf(W.settlements.find((s) => s.id === placeId), sp),
+  price: (placeId, sp) =>
+    priceOf(
+      W.settlements.find((s) => s.id === placeId),
+      sp,
+    ),
   word: (price) => priceWord(price),
   specialty: (placeId) => townSpecialty(W.settlements.find((s) => s.id === placeId)),
   tax: (factionId) => collectTaxes(W.factions.find((f) => f.id === factionId)),
@@ -352,13 +408,22 @@ window.ALIFE_MARKET_DEBUG = Object.freeze({
   },
   buy: (placeId, force = true) => {
     const s = W.settlements.find((x) => x.id === placeId);
-    return s ? buyGrain(s, W.factions.find((f) => f.id === s.factionId), force) : null;
+    return s
+      ? buyGrain(
+          s,
+          W.factions.find((f) => f.id === s.factionId),
+          force,
+        )
+      : null;
   },
   hire: (factionId) => hireHands(W.factions.find((f) => f.id === factionId)),
   plan: (placeId) => {
     const s = W.settlements.find((x) => x.id === placeId);
     if (s) ensurePlacePlans(s);
-    return W.buildings.some((b) => !b.ruined && b.placeKind === "settlement" && b.placeId === placeId && b.type === "market");
+    return W.buildings.some(
+      (b) =>
+        !b.ruined && b.placeKind === "settlement" && b.placeId === placeId && b.type === "market",
+    );
   },
   page: () => renderEconomyPage(),
 });

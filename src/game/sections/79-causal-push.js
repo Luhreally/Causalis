@@ -118,7 +118,10 @@ function causalCarryCraft(place, step, facility) {
   );
   if (!source) return false;
   const tech = typeof technologyDefinition === "function" ? technologyDefinition(step.id) : null,
-    hall = typeof BUILDING_DEFS !== "undefined" && BUILDING_DEFS[facility]?.name ? BUILDING_DEFS[facility].name : facility;
+    hall =
+      typeof BUILDING_DEFS !== "undefined" && BUILDING_DEFS[facility]?.name
+        ? BUILDING_DEFS[facility].name
+        : facility;
   place.knownProcesses.push(step.id);
   place.researchProgress = place.researchProgress || {};
   place.researchProgress[step.id] = researchThreshold(step);

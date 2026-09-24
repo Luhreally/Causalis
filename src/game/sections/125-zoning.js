@@ -167,7 +167,9 @@ function zoningDemand(place) {
       ? housing.beds
       : W.buildings.reduce(
           (n, b) =>
-            b.placeKind === "settlement" && b.placeId === place.id && typeof habitationBeds === "function"
+            b.placeKind === "settlement" &&
+            b.placeId === place.id &&
+            typeof habitationBeds === "function"
               ? n + habitationBeds(b)
               : n,
           0,
@@ -257,11 +259,7 @@ ensurePlacePlans = function (place) {
     type = zoningWantedType(place, demand);
   if (!type || !BUILDING_DEFS[type]) return;
   // A market belongs on the square, so it waits for the square to have a hall.
-  if (
-    (type === "market" || type === "office") &&
-    !completedBuildings(place, "hall").length
-  )
-    return;
+  if ((type === "market" || type === "office") && !completedBuildings(place, "hall").length) return;
   if (planBuilding(place, type, 4)) ZONING.planned++;
 };
 // ── Where it goes ────────────────────────────────────────────────────────────
@@ -342,7 +340,10 @@ function zoningRedevelop(town) {
   if (!town?.knownProcesses || town.ruined) return null;
   if (typeof cityKnows === "function" && !cityKnows(town, "masonry")) return null;
   const year = Math.floor(W.tick / TICKS_PER_YEAR);
-  if (town.zoningRedevelopedYear != null && year - town.zoningRedevelopedYear < ZONING_REDEVELOP_YEARS)
+  if (
+    town.zoningRedevelopedYear != null &&
+    year - town.zoningRedevelopedYear < ZONING_REDEVELOP_YEARS
+  )
     return null;
   const demand = zoningDemand(town);
   if (!demand) return null;
@@ -372,9 +373,7 @@ function zoningRedevelop(town) {
   // down before the first is cleared has two ruins and one pair of hands, and
   // its salvagers walk to the nearer of them instead of the one that mattered.
   if (
-    W.workOrders.some(
-      (o) => o.status === "open" && o.type === "salvage" && o.placeId === town.id,
-    )
+    W.workOrders.some((o) => o.status === "open" && o.type === "salvage" && o.placeId === town.id)
   )
     return null;
   const spare = typeof habitationSpareBeds === "function" ? habitationSpareBeds(town) : 0;
@@ -511,8 +510,11 @@ window.ALIFE_ZONING_DEBUG = Object.freeze({
     const s = W.settlements.find((p) => p.id === placeId);
     if (!s) return null;
     const local = typeof urbanGate === "function" ? urbanGate().local : 18;
-    return { pop: settlementPopulation(s), needs: Math.max(12, Math.round(local * 0.75)),
-      spare: typeof habitationSpareBeds === "function" ? habitationSpareBeds(s) : 0 };
+    return {
+      pop: settlementPopulation(s),
+      needs: Math.max(12, Math.round(local * 0.75)),
+      spare: typeof habitationSpareBeds === "function" ? habitationSpareBeds(s) : 0,
+    };
   },
   redevelop: (placeId) => {
     const s = W.settlements.find((p) => p.id === placeId);

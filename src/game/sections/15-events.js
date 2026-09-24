@@ -366,23 +366,33 @@ function eventSentenceCore(e) {
       return `${titleCase(e.type)} occurred in ${loc}.`;
   }
 }
-eventText(["ConstructionStartedEvent", "BuildingCompletedEvent", "ToolCraftedEvent", "StageAdvanceEvent", "PolicyChangedEvent", "BuildingCollapsedEvent"], function (e, next) {
-  const names = e.subjects.map(entityName),
-    loc = locationName(e.location);
-  switch (e.type) {
-    case "ConstructionStartedEvent":
-      return `${names[0] || e.data.place || "A community"} marked a ${e.data.name || "structure"} blueprint in ${loc}; its matter still had to be gathered.`;
-    case "BuildingCompletedEvent":
-      return `${e.data.place || names[0] || "A community"} completed ${e.data.name || "a structure"} through delivered material and visible labor.`;
-    case "ToolCraftedEvent":
-      return `${names[0] || "A worker"} crafted ${e.data.name || "a functional tool"} for ${e.data.purpose || "work"} from local compounds.`;
-    case "StageAdvanceEvent":
-      return `Life advanced from ${titleCase(e.data.prior || "an earlier stage")} to ${titleCase(e.data.stage || e.data.name || "a new stage")}.`;
-    case "PolicyChangedEvent":
-      return `${e.data.place || names[0] || "A community"} adopted the directive “${e.data.name || e.evidence[0]}”.`;
-    case "BuildingCollapsedEvent":
-      return `${e.data.name || "A structure"} collapsed in ${loc} after ${e.evidence[0] || "its integrity failed"}.`;
-    default:
-      return next(e);
-  }
-});
+eventText(
+  [
+    "ConstructionStartedEvent",
+    "BuildingCompletedEvent",
+    "ToolCraftedEvent",
+    "StageAdvanceEvent",
+    "PolicyChangedEvent",
+    "BuildingCollapsedEvent",
+  ],
+  function (e, next) {
+    const names = e.subjects.map(entityName),
+      loc = locationName(e.location);
+    switch (e.type) {
+      case "ConstructionStartedEvent":
+        return `${names[0] || e.data.place || "A community"} marked a ${e.data.name || "structure"} blueprint in ${loc}; its matter still had to be gathered.`;
+      case "BuildingCompletedEvent":
+        return `${e.data.place || names[0] || "A community"} completed ${e.data.name || "a structure"} through delivered material and visible labor.`;
+      case "ToolCraftedEvent":
+        return `${names[0] || "A worker"} crafted ${e.data.name || "a functional tool"} for ${e.data.purpose || "work"} from local compounds.`;
+      case "StageAdvanceEvent":
+        return `Life advanced from ${titleCase(e.data.prior || "an earlier stage")} to ${titleCase(e.data.stage || e.data.name || "a new stage")}.`;
+      case "PolicyChangedEvent":
+        return `${e.data.place || names[0] || "A community"} adopted the directive “${e.data.name || e.evidence[0]}”.`;
+      case "BuildingCollapsedEvent":
+        return `${e.data.name || "A structure"} collapsed in ${loc} after ${e.evidence[0] || "its integrity failed"}.`;
+      default:
+        return next(e);
+    }
+  },
+);

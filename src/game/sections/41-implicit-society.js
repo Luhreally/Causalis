@@ -824,7 +824,11 @@ function updateEmergentMilitias() {
       for (const id of unit.memberIds) {
         const inv = W.components.inventory[id],
           body = W.components.chemistry[id].q,
-          food = Math.min(5, home.inventory[C.ORGANIC], Math.max(0, gutCap - inv.digestive[C.ORGANIC])),
+          food = Math.min(
+            5,
+            home.inventory[C.ORGANIC],
+            Math.max(0, gutCap - inv.digestive[C.ORGANIC]),
+          ),
           energy = Math.min(5, home.inventory[C.ENERGY], Math.max(0, energyCap - body[C.ENERGY])),
           water = Math.min(8, home.inventory[C.SOLVENT], Math.max(0, waterCap - body[C.SOLVENT]));
         home.inventory[C.ORGANIC] -= food;
@@ -833,7 +837,11 @@ function updateEmergentMilitias() {
         body[C.ENERGY] += energy;
         home.inventory[C.SOLVENT] -= water;
         body[C.SOLVENT] += water;
-        const full = capped && inv.digestive[C.ORGANIC] >= MILITIA_FULL_GUT && body[C.ENERGY] >= MILITIA_FULL_ENERGY && body[C.SOLVENT] >= MILITIA_FULL_WATER;
+        const full =
+          capped &&
+          inv.digestive[C.ORGANIC] >= MILITIA_FULL_GUT &&
+          body[C.ENERGY] >= MILITIA_FULL_ENERGY &&
+          body[C.SOLVENT] >= MILITIA_FULL_WATER;
         supplied += full ? 9 : food + energy + water;
       }
       unit.supply = clamp(

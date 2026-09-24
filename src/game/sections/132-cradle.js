@@ -97,7 +97,8 @@ function cradleMournTheDead() {
 }
 // ── Courtship (behind the ship) ─────────────────────────────────────────────
 function cradleCourtship() {
-  if (typeof updateRelationshipPair !== "function" || typeof socialChemistry !== "function") return 0;
+  if (typeof updateRelationshipPair !== "function" || typeof socialChemistry !== "function")
+    return 0;
   const byTown = new Map();
   for (const id of W.activeIds) {
     if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
@@ -144,9 +145,14 @@ function cradleMatch(a, b) {
     sb = W.components.social[b],
     ra = sa?.relationships?.[b],
     rb = sb?.relationships?.[a];
-  if (!ra || !rb || sa.partnerId || sb.partnerId || typeof formLoveBond !== "function") return false;
+  if (!ra || !rb || sa.partnerId || sb.partnerId || typeof formLoveBond !== "function")
+    return false;
   ra.courted = (ra.courted || 0) + 1;
-  if (ra.courted < CRADLE_MATCH_COURTINGS || Math.min(ra.attraction, rb.attraction) < CRADLE_MATCH_ATTRACTION) return false;
+  if (
+    ra.courted < CRADLE_MATCH_COURTINGS ||
+    Math.min(ra.attraction, rb.attraction) < CRADLE_MATCH_ATTRACTION
+  )
+    return false;
   // A match is made with years ahead of it: the fertility probe read two of
   // every eleven partners already past the window the year after the match.
   for (const id of [a, b]) {
@@ -174,7 +180,12 @@ function cradleReunite() {
     if (!partner || partner < id || !classifyAlive(partner)) continue;
     const other = W.components.social[partner];
     if (!other || other.partnerId !== id) continue;
-    if (soc.homePlaceKind !== "settlement" || other.homePlaceKind !== "settlement" || soc.homePlaceId === other.homePlaceId) continue;
+    if (
+      soc.homePlaceKind !== "settlement" ||
+      other.homePlaceKind !== "settlement" ||
+      soc.homePlaceId === other.homePlaceId
+    )
+      continue;
     if (W.components.campaign?.[partner] || W.components.campaign?.[id]) continue;
     const home = W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined);
     if (!home) continue;
@@ -204,8 +215,14 @@ updateCouplings = function () {
 // Within the town: a couple sleeps in the houses of a town whose reach (133)
 // runs to twenty-four tiles, and eight tiles between two beds is common.
 function cradleNightReach(soc) {
-  const home = soc?.homePlaceKind === "settlement" ? W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined) : null;
-  return Math.max(CRADLE_HOME_RADIUS, home && typeof hearthReach === "function" ? hearthReach(home) : 0);
+  const home =
+    soc?.homePlaceKind === "settlement"
+      ? W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined)
+      : null;
+  return Math.max(
+    CRADLE_HOME_RADIUS,
+    home && typeof hearthReach === "function" ? hearthReach(home) : 0,
+  );
 }
 function cradleSameHome(a, b) {
   return !!(
@@ -261,7 +278,8 @@ function cradleMembers() {
   return members;
 }
 function cradleRoom(town) {
-  if (!town || town.ruined || !town.knownProcesses || typeof foodOutlook !== "function") return null;
+  if (!town || town.ruined || !town.knownProcesses || typeof foodOutlook !== "function")
+    return null;
   const members = cradleMembers();
   if (cradleRoomCache.values.has(town.id)) return cradleRoomCache.values.get(town.id);
   const m = members.get(town.id) || { people: 0, hungry: 0 },
@@ -284,7 +302,12 @@ function cradleRoom(town) {
 }
 const reproductionDensityAllowsCradleBase = reproductionDensityAllows;
 reproductionDensityAllows = function (id, kind) {
-  if (kind === KINDS.PERSON && W?.settlements && shipHasLeft() && cradleRoom(cradleTownOf(id))?.room) {
+  if (
+    kind === KINDS.PERSON &&
+    W?.settlements &&
+    shipHasLeft() &&
+    cradleRoom(cradleTownOf(id))?.room
+  ) {
     CRADLE.roomPasses++;
     return true;
   }

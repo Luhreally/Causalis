@@ -24,12 +24,28 @@
 // its lists, and the count is skipped until a world is loaded or made. The
 // world's hash over the grown phone world and a thousand ticks is the same
 // with and without this section; that is the test of it.
-const THRIFT = { bondPasses: 0, attraction: 0, town: 0, faith: 0, skill: 0, cleared: 0, fieldCounts: 0, fieldSkips: 0 };
+const THRIFT = {
+  bondPasses: 0,
+  attraction: 0,
+  town: 0,
+  faith: 0,
+  skill: 0,
+  cleared: 0,
+  fieldCounts: 0,
+  fieldSkips: 0,
+};
 let BOND_PASS = null;
 const updateBondsThriftBase = updateBonds;
 updateBonds = function () {
   const outer = BOND_PASS;
-  BOND_PASS = { world: W, tick: W?.tick, attraction: new Map(), town: new Map(), faith: new Map(), skill: new Map() };
+  BOND_PASS = {
+    world: W,
+    tick: W?.tick,
+    attraction: new Map(),
+    town: new Map(),
+    faith: new Map(),
+    skill: new Map(),
+  };
   THRIFT.bondPasses++;
   try {
     return updateBondsThriftBase();

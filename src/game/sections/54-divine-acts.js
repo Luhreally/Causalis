@@ -472,27 +472,37 @@ applyTool = function (tile) {
   return ev;
 };
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-eventText(["ChosenEvent", "WhisperEvent", "SkySignEvent", "DivineTruceEvent", "DiscordEvent", "InterventionEvent"], function (e, next) {
-  const d = e.data || {};
-  switch (e.type) {
-    case "ChosenEvent":
-      return `${d.name} was marked as Chosen of ${d.god}${d.culture ? ` before the ${d.culture}` : ""}.`;
-    case "WhisperEvent":
-      return `${d.settlement} woke knowing ${d.name}${d.hearer ? `; ${d.hearer} heard it first` : ""}.`;
-    case "SkySignEvent":
-      return `${String(d.sign || "a sign").replace(/^./, (c) => c.toUpperCase())} appeared in the sky${d.towns?.length ? ` over ${d.towns.slice(0, 3).join(", ")}` : ""}.`;
-    case "DivineTruceEvent":
-      return `${d.a} and ${d.b} were bound to a truce${d.war ? " and their war ended" : ""}.`;
-    case "DiscordEvent":
-      return `Discord was sown between ${d.a} and ${d.b}.`;
-    case "InterventionEvent":
-      return DIVINE_TOOLS.has(d.tool)
-        ? `The god acted: ${d.label || d.tool} at ${locationName(e.location)}.`
-        : next(e);
-    default:
-      return next(e);
-  }
-});
+eventText(
+  [
+    "ChosenEvent",
+    "WhisperEvent",
+    "SkySignEvent",
+    "DivineTruceEvent",
+    "DiscordEvent",
+    "InterventionEvent",
+  ],
+  function (e, next) {
+    const d = e.data || {};
+    switch (e.type) {
+      case "ChosenEvent":
+        return `${d.name} was marked as Chosen of ${d.god}${d.culture ? ` before the ${d.culture}` : ""}.`;
+      case "WhisperEvent":
+        return `${d.settlement} woke knowing ${d.name}${d.hearer ? `; ${d.hearer} heard it first` : ""}.`;
+      case "SkySignEvent":
+        return `${String(d.sign || "a sign").replace(/^./, (c) => c.toUpperCase())} appeared in the sky${d.towns?.length ? ` over ${d.towns.slice(0, 3).join(", ")}` : ""}.`;
+      case "DivineTruceEvent":
+        return `${d.a} and ${d.b} were bound to a truce${d.war ? " and their war ended" : ""}.`;
+      case "DiscordEvent":
+        return `Discord was sown between ${d.a} and ${d.b}.`;
+      case "InterventionEvent":
+        return DIVINE_TOOLS.has(d.tool)
+          ? `The god acted: ${d.label || d.tool} at ${locationName(e.location)}.`
+          : next(e);
+      default:
+        return next(e);
+    }
+  },
+);
 // ── Drawing ────────────────────────────────────────────────────────────────────
 // Chosen ones carry a halo of orbiting sparks; whispers spiral up from a town;
 // a truce sends white rings out from both capitals and joins them with light;

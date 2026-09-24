@@ -26,7 +26,16 @@ const GRANARY_CALL_HUNGER = 52,
   GRANARY_CALL_NEAR = 8,
   GRANARY_CALL_REACH = 48,
   GRANARY_CALL_GROUND = 3,
-  GRANARY_CALL = { steps: 0, arrivals: 0, homeMeals: 0, homeDrinks: 0, pullsHeld: 0, packMeals: 0, toppedMeals: 0, foreignMeals: 0 };
+  GRANARY_CALL = {
+    steps: 0,
+    arrivals: 0,
+    homeMeals: 0,
+    homeDrinks: 0,
+    pullsHeld: 0,
+    packMeals: 0,
+    toppedMeals: 0,
+    foreignMeals: 0,
+  };
 // Whether a store can feed the town standing on it. This used to be twelve
 // units, flat, however many mouths there were — so a town of sixty with
 // twenty-four units in its granary counted as fed, and its people were told
@@ -79,7 +88,8 @@ function granaryCallPlace(id) {
     for (const s of W.settlements) {
       if (s.ruined || !fed(s)) continue;
       if (!desperate && faction && s.factionId && s.factionId !== faction) continue;
-      if (typeof personIsHostileVisitor === "function" && personIsHostileVisitor(id, s.factionId)) continue;
+      if (typeof personIsHostileVisitor === "function" && personIsHostileVisitor(id, s.factionId))
+        continue;
       const d = dist2(p.x, p.y, s.x, s.y);
       if (d < bestD) {
         bestD = d;
@@ -137,9 +147,19 @@ function homeRationPlace(id, sp = C.ORGANIC) {
     p = W.components.position[id];
   if (!soc || !p) return null;
   const near = GRANARY_CALL_NEAR * GRANARY_CALL_NEAR,
-    hostile = (s) => typeof personIsHostileVisitor === "function" && personIsHostileVisitor(id, s.factionId),
-    home = soc.homePlaceKind === "settlement" ? W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined) : null;
-  if (home && dist2(p.x, p.y, home.x, home.y) <= near && !hostile(home) && (home.inventory?.[sp] || 0) > 0) return home;
+    hostile = (s) =>
+      typeof personIsHostileVisitor === "function" && personIsHostileVisitor(id, s.factionId),
+    home =
+      soc.homePlaceKind === "settlement"
+        ? W.settlements.find((s) => s.id === soc.homePlaceId && !s.ruined)
+        : null;
+  if (
+    home &&
+    dist2(p.x, p.y, home.x, home.y) <= near &&
+    !hostile(home) &&
+    (home.inventory?.[sp] || 0) > 0
+  )
+    return home;
   let best = null,
     bestD = near + 1;
   for (const s of W.settlements) {
@@ -148,8 +168,14 @@ function homeRationPlace(id, sp = C.ORGANIC) {
     if (d > near || d >= bestD || hostile(s)) continue;
     // The same peaceful granary that calls a starving visitor must feed them
     // on arrival. Previously the walk crossed a border but the meal could not.
-    if (soc.factionId && s.factionId && s.factionId !== soc.factionId && s !== home &&
-      (W.components.life[id]?.hunger || 0) < GRANARY_CALL_DESPERATE) continue;
+    if (
+      soc.factionId &&
+      s.factionId &&
+      s.factionId !== soc.factionId &&
+      s !== home &&
+      (W.components.life[id]?.hunger || 0) < GRANARY_CALL_DESPERATE
+    )
+      continue;
     best = s;
     bestD = d;
   }
@@ -159,7 +185,12 @@ const performFeedingGranaryBase = performFeeding;
 performFeeding = function (id, tile, stride = 1) {
   const person = W.kind[id] === KINDS.PERSON,
     digestive = W.components.inventory[id]?.digestive,
-    meal = [[C.ORGANIC, 18], [C.ENERGY, 10], [C.NUTRIENT, 8], [C.CATALYST, 2]],
+    meal = [
+      [C.ORGANIC, 18],
+      [C.ENERGY, 10],
+      [C.NUTRIENT, 8],
+      [C.CATALYST, 2],
+    ],
     before = person ? meal.map(([sp]) => digestive[sp]) : null,
     ate = performFeedingGranaryBase(id, tile, stride);
   if (!person) return ate;
@@ -181,7 +212,8 @@ performFeeding = function (id, tile, stride = 1) {
     moved += amount;
   }
   if (!moved) return ate;
-  W.components.life[id].behaviorReason = `ate rations at home in ${home.name}, whatever flag flies there`;
+  W.components.life[id].behaviorReason =
+    `ate rations at home in ${home.name}, whatever flag flies there`;
   GRANARY_CALL.homeMeals++;
   if (ate) GRANARY_CALL.toppedMeals++;
   // `arrivals` was declared with the other counters and never once written to,
@@ -238,8 +270,10 @@ factionFieldableFighters = function (faction) {
     if (W.kind[id] !== KINDS.PERSON || !classifyAlive(id)) continue;
     if ((W.components.social[id]?.factionId || 0) !== faction.id) continue;
     const l = W.components.life[id];
-    if (!l || l.hunger > GRANARY_CALL_MARCH_HUNGER || l.thirst > GRANARY_CALL_MARCH_HUNGER) continue;
-    const locomotion = typeof embodiedCapability === "function" ? embodiedCapability(id).locomotion : 1;
+    if (!l || l.hunger > GRANARY_CALL_MARCH_HUNGER || l.thirst > GRANARY_CALL_MARCH_HUNGER)
+      continue;
+    const locomotion =
+      typeof embodiedCapability === "function" ? embodiedCapability(id).locomotion : 1;
     if (locomotion >= 0.42) fighters++;
   }
   return fighters;
@@ -285,9 +319,17 @@ window.ALIFE_GRANARY_CALL_DEBUG = Object.freeze({
   place: (id) => granaryCallPlace(id)?.id || 0,
   feeds: (placeId) => {
     const s = W.settlements.find((x) => x.id === placeId);
-    return s ? { feeds: granaryStoreFeeds(s), stock: s.inventory[C.ORGANIC] || 0,
-      mouths: s.habitation?.residents || 0,
-      needs: Math.max(GRANARY_CALL_STOCK, Math.ceil((s.habitation?.residents || 0) * GRANARY_CALL_PER_HEAD)) } : null;
+    return s
+      ? {
+          feeds: granaryStoreFeeds(s),
+          stock: s.inventory[C.ORGANIC] || 0,
+          mouths: s.habitation?.residents || 0,
+          needs: Math.max(
+            GRANARY_CALL_STOCK,
+            Math.ceil((s.habitation?.residents || 0) * GRANARY_CALL_PER_HEAD),
+          ),
+        }
+      : null;
   },
   step: (id) => {
     const place = granaryCallPlace(id);

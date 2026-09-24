@@ -317,7 +317,8 @@ function updateSettlements() {
       c.active = false;
       // What the camp held goes back to the ground it stood on; a column past
       // its cap keeps the rest on record instead of clamping it away.
-      for (let sp = 0; sp < SPECIES_COUNT; sp++) giveTileMatter(ti, sp, c.inventory[sp] + c.structure.composition[sp]);
+      for (let sp = 0; sp < SPECIES_COUNT; sp++)
+        giveTileMatter(ti, sp, c.inventory[sp] + c.structure.composition[sp]);
       emitEvent("CampAbandonedEvent", {
         subjects: [c.entityId],
         location: ti,
@@ -342,9 +343,17 @@ function updateSettlements() {
       if (s.factionId) W.components.social[id].factionId = s.factionId;
     }
     // The store's own cap bounds the take, so nothing is clamped away.
-    const harvest = takeTileMatter(ti, C.ORGANIC, Math.min(Math.max(0, people.length * 2), 65535 - s.inventory[C.ORGANIC]));
+    const harvest = takeTileMatter(
+      ti,
+      C.ORGANIC,
+      Math.min(Math.max(0, people.length * 2), 65535 - s.inventory[C.ORGANIC]),
+    );
     s.inventory[C.ORGANIC] += harvest;
-    const water = takeTileMatter(ti, C.SOLVENT, Math.min(people.length * 2 + 2, 65535 - s.inventory[C.SOLVENT]));
+    const water = takeTileMatter(
+      ti,
+      C.SOLVENT,
+      Math.min(people.length * 2 + 2, 65535 - s.inventory[C.SOLVENT]),
+    );
     s.inventory[C.SOLVENT] += water;
     const rawPop = settlementPopulation(s),
       safePop = Math.max(1, rawPop);

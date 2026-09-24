@@ -483,25 +483,35 @@ calendarSystem("living world", function () {
   }
 });
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-eventText(["SeasonEvent", "EruptionEvent", "EarthquakeEvent", "MeteorEvent", "SuccessionEvent", "OmenEvent"], function (e, next) {
-  const loc = locationName(e.location);
-  switch (e.type) {
-    case "SeasonEvent":
-      return `${e.data.season} came: the axial tilt swung the year's temperature by ${(e.data.amplitude / 5).toFixed(0)} degrees.`;
-    case "EruptionEvent":
-      return `A vent erupted near ${loc}: rock became ash, the ground burned, and ${countNoun(e.data.buildingsDamaged, "building")} ${e.data.buildingsDamaged === 1 ? "was" : "were"} damaged.`;
-    case "EarthquakeEvent":
-      return `An earthquake of magnitude ${e.data.magnitude} shook ${loc}, damaging ${countNoun(e.data.buildingsDamaged, "building")}.`;
-    case "MeteorEvent":
-      return `A falling star struck near ${loc}, cratering the ground, igniting it, and leaving ore in the rock.`;
-    case "SuccessionEvent":
-      return `${e.data.name} chose its ${ordinalWord(e.data.ordinal)} Voice${e.data.hereditary ? " from the line of the last" : " by trust and dominance"}.`;
-    case "OmenEvent":
-      return `${e.data.name} read ${e.data.tool} as ${e.data.reading}${e.data.culture ? ` under ${e.data.culture}` : ""}.`;
-    default:
-      return next(e);
-  }
-});
+eventText(
+  [
+    "SeasonEvent",
+    "EruptionEvent",
+    "EarthquakeEvent",
+    "MeteorEvent",
+    "SuccessionEvent",
+    "OmenEvent",
+  ],
+  function (e, next) {
+    const loc = locationName(e.location);
+    switch (e.type) {
+      case "SeasonEvent":
+        return `${e.data.season} came: the axial tilt swung the year's temperature by ${(e.data.amplitude / 5).toFixed(0)} degrees.`;
+      case "EruptionEvent":
+        return `A vent erupted near ${loc}: rock became ash, the ground burned, and ${countNoun(e.data.buildingsDamaged, "building")} ${e.data.buildingsDamaged === 1 ? "was" : "were"} damaged.`;
+      case "EarthquakeEvent":
+        return `An earthquake of magnitude ${e.data.magnitude} shook ${loc}, damaging ${countNoun(e.data.buildingsDamaged, "building")}.`;
+      case "MeteorEvent":
+        return `A falling star struck near ${loc}, cratering the ground, igniting it, and leaving ore in the rock.`;
+      case "SuccessionEvent":
+        return `${e.data.name} chose its ${ordinalWord(e.data.ordinal)} Voice${e.data.hereditary ? " from the line of the last" : " by trust and dominance"}.`;
+      case "OmenEvent":
+        return `${e.data.name} read ${e.data.tool} as ${e.data.reading}${e.data.culture ? ` under ${e.data.culture}` : ""}.`;
+      default:
+        return next(e);
+    }
+  },
+);
 function countNoun(n, noun) {
   const count = n || 0;
   return `${count} ${noun}${count === 1 ? "" : "s"}`;

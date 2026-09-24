@@ -34,7 +34,16 @@
 // only the hands nearer than the worker, so the rest are not weighed (their
 // hunger read, 10's derivedLife) that tick. Both move the hash; the launch
 // sweep of the round holds them.
-const LABOUR_THRIFT = { plans: 0, plansKept: 0, mendChecks: 0, orderIndexes: 0, buildingIndexes: 0, fieldIndexes: 0, fieldsKept: 0, toolScans: 0 };
+const LABOUR_THRIFT = {
+  plans: 0,
+  plansKept: 0,
+  mendChecks: 0,
+  orderIndexes: 0,
+  buildingIndexes: 0,
+  fieldIndexes: 0,
+  fieldsKept: 0,
+  toolScans: 0,
+};
 // ── The plans, once a town in sixteen ticks ────────────────────────────────
 // A town's plans are the buildings it means to raise; they change with its
 // people, its crafts and its ground, over seasons and not ticks. Made once a
@@ -111,8 +120,17 @@ cultivatedField = function (building) {
     }
   }
   const out = cultivatedFieldLabourBase(building);
-  if (out && building && out.baselines?.every((b) => b.organic != null && b.energy != null && b.plantOrder != null))
-    FIELD_SHAPE.set(out, { x: building.x, y: building.y, tiles: out.tiles, baselines: out.baselines });
+  if (
+    out &&
+    building &&
+    out.baselines?.every((b) => b.organic != null && b.energy != null && b.plantOrder != null)
+  )
+    FIELD_SHAPE.set(out, {
+      x: building.x,
+      y: building.y,
+      tiles: out.tiles,
+      baselines: out.baselines,
+    });
   return out;
 };
 // ── The work orders of one town ─────────────────────────────────────────────
@@ -207,7 +225,11 @@ placeToolOrderForWorker = function (id, place) {
     }
     return pool.filter((pid) => {
       const state = workState(pid);
-      return state.toolOrderPurpose === purpose && state.toolOrderPlaceKind === kind && state.toolOrderPlaceId === place.id;
+      return (
+        state.toolOrderPurpose === purpose &&
+        state.toolOrderPlaceKind === kind &&
+        state.toolOrderPlaceId === place.id
+      );
     });
   };
   for (const purpose of ["cut", "mine"])

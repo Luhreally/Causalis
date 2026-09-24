@@ -65,9 +65,18 @@ function manyHandsFace(b) {
 }
 const causalPushBuildingManyHandsBase = causalPushBuilding;
 causalPushBuilding = function (place, type, pushes) {
-  if (!place || pushes < MANY_HANDS_FACE_PUSH) return causalPushBuildingManyHandsBase(place, type, pushes);
+  if (!place || pushes < MANY_HANDS_FACE_PUSH)
+    return causalPushBuildingManyHandsBase(place, type, pushes);
   const kind = place.knownProcesses ? "settlement" : "camp",
-    site = () => W.buildings.find((b) => !b.ruined && !b.complete && b.placeKind === kind && b.placeId === place.id && b.type === type);
+    site = () =>
+      W.buildings.find(
+        (b) =>
+          !b.ruined &&
+          !b.complete &&
+          b.placeKind === kind &&
+          b.placeId === place.id &&
+          b.type === type,
+      );
   // The face first, so the push that follows finds the common material short
   // rather than feeding the store a rare one that is already placed.
   const before = site();
@@ -88,7 +97,10 @@ function manyHandsKnows(place, ...techs) {
 // The modern stages are sought only past the terrestrial ages; before that a
 // tower is not an objective anyone holds.
 function manyHandsModernSought() {
-  return typeof causalSkipMicroStages === "function" && causalSkipMicroStages().some((s) => s.key === "skyline");
+  return (
+    typeof causalSkipMicroStages === "function" &&
+    causalSkipMicroStages().some((s) => s.key === "skyline")
+  );
 }
 function manyHandsRaise(key, cities, pushes) {
   if (key === "road") {
@@ -105,7 +117,12 @@ function manyHandsRaise(key, cities, pushes) {
     );
   if (!able.length) return 0;
   const count = key === "skyline" ? modernCount(["tower", "office"]) : modernCount([type]),
-    wanted = key === "skyline" ? modernSkylineWanted() : key === "homes" ? modernHomesWanted() : modernWorksWanted();
+    wanted =
+      key === "skyline"
+        ? modernSkylineWanted()
+        : key === "homes"
+          ? modernHomesWanted()
+          : modernWorksWanted();
   let left = Math.max(0, wanted - count);
   if (!left) return 0;
   // Every able city works on at least one block, whatever the count still
@@ -114,7 +131,12 @@ function manyHandsRaise(key, cities, pushes) {
   // which held it unfinished for twenty-four years while the world starved.
   // A block over the count is a block, and the count is a floor.
   const each = Math.max(1, Math.ceil(left / able.length)),
-    kind0 = (city) => (key === "skyline" && city.knownProcesses.includes("computing") && placeHasFacility(city, "market") ? "office" : type);
+    kind0 = (city) =>
+      key === "skyline" &&
+      city.knownProcesses.includes("computing") &&
+      placeHasFacility(city, "market")
+        ? "office"
+        : type;
   let raised = 0;
   for (const city of able) {
     // The skyline's kind is the modern world's own reading (114): a tower while
@@ -138,14 +160,30 @@ function manyHandsRaise(key, cities, pushes) {
 // site's next step toward Starflight, Computing, stood at no notes for want of
 // a crystal sample nobody was pushed to bring. Research stages keep their own
 // objective; the studies here only run under a building.
-const MANY_HANDS_BUILDING = Object.freeze(["cities", "skyline", "homes", "works", "road", "hundred"]);
+const MANY_HANDS_BUILDING = Object.freeze([
+  "cities",
+  "skyline",
+  "homes",
+  "works",
+  "road",
+  "hundred",
+]);
 function manyHandsStudy(target) {
-  if (!target || !MANY_HANDS_BUILDING.includes(target.key) || typeof modernLaunchSite !== "function") return 0;
+  if (
+    !target ||
+    !MANY_HANDS_BUILDING.includes(target.key) ||
+    typeof modernLaunchSite !== "function"
+  )
+    return 0;
   const site = modernLaunchSite();
   if (!site) return 0;
   const pushes = target.pushes || 0,
     groundwork = modernGroundworkMissing(site),
-    missing = groundwork.length ? groundwork : site.knownProcesses.includes("starflight") ? [] : ["starflight"];
+    missing = groundwork.length
+      ? groundwork
+      : site.knownProcesses.includes("starflight")
+        ? []
+        : ["starflight"];
   if (!missing.length) return 0;
   const f = W.factions.find((x) => x.id === site.factionId) || null;
   let n = 1,
@@ -158,7 +196,8 @@ function manyHandsStudy(target) {
       pushed++;
     }
   }
-  for (let k = missing.length - 1; k >= 0; k--) if (causalPushResearch(site, missing[k], pushes)) pushed++;
+  for (let k = missing.length - 1; k >= 0; k--)
+    if (causalPushResearch(site, missing[k], pushes)) pushed++;
   if (pushed) MANY_HANDS.studied += pushed;
   return pushed;
 }
@@ -191,8 +230,10 @@ function manyHandsStudy(target) {
 function manyHandsSiteReady(s) {
   return (
     completedBuildings(s, "launch_tower").length > 0 &&
-    typeof hasSkyline === "function" && hasSkyline(s) &&
-    typeof hasWorks === "function" && hasWorks(s)
+    typeof hasSkyline === "function" &&
+    hasSkyline(s) &&
+    typeof hasWorks === "function" &&
+    hasWorks(s)
   );
 }
 function manyHandsSiteScore(s, local) {
@@ -216,7 +257,10 @@ modernLaunchSite = function () {
     score = (s) => manyHandsSiteScore(s, local),
     best = towns
       .slice()
-      .sort((a, b) => score(b) - score(a) || settlementPopulation(b) - settlementPopulation(a) || a.id - b.id)[0];
+      .sort(
+        (a, b) =>
+          score(b) - score(a) || settlementPopulation(b) - settlementPopulation(a) || a.id - b.id,
+      )[0];
   if (typeof ensureCausalReached === "function") ensureCausalReached();
   const held = towns.find((t) => t.id === W.causalLaunchSiteId);
   if (held && score(held) >= score(best)) return held;
@@ -383,7 +427,13 @@ function manyHandsPeopleFloor() {
   if (manyHandsHungryShare() > MANY_HANDS_HUNGRY_SHARE) return MANY_HANDS_PEOPLE_FLOOR;
   const ceiling = typeof CAPS !== "undefined" && CAPS.person ? CAPS.person : Infinity;
   const farms = manyHandsFarms();
-  return Math.min(ceiling, Math.max(MANY_HANDS_PEOPLE_FLOOR + MANY_HANDS_PER_FARM * farms, MANY_HANDS_HARVEST_PER_FARM * farms));
+  return Math.min(
+    ceiling,
+    Math.max(
+      MANY_HANDS_PEOPLE_FLOOR + MANY_HANDS_PER_FARM * farms,
+      MANY_HANDS_HARVEST_PER_FARM * farms,
+    ),
+  );
 }
 // And a hungry world does not grow at all. The formula's own craft lift took
 // battery causal-origin to a capacity of ninety-four once it knew waterworks,
@@ -398,7 +448,10 @@ sustainableSexualCapacity = function (kind) {
   const base = sustainableSexualCapacityManyHandsBase(kind);
   if (kind !== KINDS.PERSON || !W?.settlements) return base;
   if (manyHandsHungryShare() > MANY_HANDS_HUNGRY_SHARE)
-    return Math.min(base, Math.max(1, Math.floor(biospherePopulation(KINDS.PERSON) * MANY_HANDS_FAMINE_BRAKE)));
+    return Math.min(
+      base,
+      Math.max(1, Math.floor(biospherePopulation(KINDS.PERSON) * MANY_HANDS_FAMINE_BRAKE)),
+    );
   return Math.max(base, manyHandsPeopleFloor());
 };
 window.ALIFE_MANY_HANDS_DEBUG = Object.freeze({

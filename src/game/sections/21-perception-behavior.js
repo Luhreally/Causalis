@@ -164,7 +164,11 @@ function runMetabolism(id, tier) {
       const nx = pos.x + dx,
         ny = pos.y + dy;
       if (nx < 0 || ny < 0 || nx >= W.width || ny >= W.height) continue;
-      const drawn = takeTileMatter(ny * W.width + nx, C.OXIDANT, Math.min(shortfall, 65535 - ch.q[C.OXIDANT]));
+      const drawn = takeTileMatter(
+        ny * W.width + nx,
+        C.OXIDANT,
+        Math.min(shortfall, 65535 - ch.q[C.OXIDANT]),
+      );
       if (!drawn) continue;
       ch.q[C.OXIDANT] += drawn;
       shortfall -= drawn;

@@ -525,24 +525,34 @@ function updateFamineChronicle() {
 tickSystem("famine chronicle", function () {
   if (W && W.tick % TICKS_PER_YEAR === 128) updateFamineChronicle();
 });
-eventText(["FamineEvent", "ExchangeEvent", "InstitutionFormedEvent", "FactionSchismEvent", "MilitaryMusterEvent", "SettlementCapturedEvent"], function (e, next) {
-  const f = e.factions.map((id) => W.factions.find((x) => x.id === id)?.name || `Faction ${id}`),
-    names = e.subjects.map(entityName),
-    loc = locationName(e.location);
-  if (e.type === "FamineEvent")
-    return `Famine struck ${e.data.name || loc}: ${e.data.deaths} starved in a single year${e.data.famineYears > 1 ? `, the ${e.data.famineYears === 2 ? "second" : `${e.data.famineYears}th`} such year` : ""}.`;
-  if (e.type === "ExchangeEvent")
-    return `${names[0]} and ${names[1]} completed a conserved material exchange in ${loc}.`;
-  if (e.type === "InstitutionFormedEvent")
-    return `${e.data.name} emerged from repeated behavior in ${loc}.`;
-  if (e.type === "FactionSchismEvent")
-    return `${f[1]} separated from ${f[0]} after coordination and material interests diverged.`;
-  if (e.type === "MilitaryMusterEvent")
-    return `${f[0]} residents organized a supplied militia in ${loc}.`;
-  if (e.type === "SettlementCapturedEvent")
-    return `${f[0]} occupied ${e.data.name} after its defenders lost physical control.`;
-  return next(e);
-});
+eventText(
+  [
+    "FamineEvent",
+    "ExchangeEvent",
+    "InstitutionFormedEvent",
+    "FactionSchismEvent",
+    "MilitaryMusterEvent",
+    "SettlementCapturedEvent",
+  ],
+  function (e, next) {
+    const f = e.factions.map((id) => W.factions.find((x) => x.id === id)?.name || `Faction ${id}`),
+      names = e.subjects.map(entityName),
+      loc = locationName(e.location);
+    if (e.type === "FamineEvent")
+      return `Famine struck ${e.data.name || loc}: ${e.data.deaths} starved in a single year${e.data.famineYears > 1 ? `, the ${e.data.famineYears === 2 ? "second" : `${e.data.famineYears}th`} such year` : ""}.`;
+    if (e.type === "ExchangeEvent")
+      return `${names[0]} and ${names[1]} completed a conserved material exchange in ${loc}.`;
+    if (e.type === "InstitutionFormedEvent")
+      return `${e.data.name} emerged from repeated behavior in ${loc}.`;
+    if (e.type === "FactionSchismEvent")
+      return `${f[1]} separated from ${f[0]} after coordination and material interests diverged.`;
+    if (e.type === "MilitaryMusterEvent")
+      return `${f[0]} residents organized a supplied militia in ${loc}.`;
+    if (e.type === "SettlementCapturedEvent")
+      return `${f[0]} occupied ${e.data.name} after its defenders lost physical control.`;
+    return next(e);
+  },
+);
 function implicitSocietySummary() {
   if (!W) return null;
   initializeImplicitSociety();

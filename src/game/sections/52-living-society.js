@@ -867,28 +867,40 @@ calendarSystem("living society", function () {
   }
 });
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-eventText(["CaravanEvent", "TheftEvent", "ExileEvent", "CaptiveEvent", "CaptiveFreedEvent", "CaptiveIntegratedEvent", "MonumentRaisedEvent", "BeastOfLegendEvent"], function (e, next) {
-  switch (e.type) {
-    case "CaravanEvent":
-      return `A caravan of ${e.data.travellers} from ${e.data.from} reached ${e.data.to} carrying ${e.data.cargo}.`;
-    case "TheftEvent":
-      return `${e.data.name} stole ${e.data.taken} units of food from ${e.data.place}${e.data.crimes > 1 ? ` (${e.data.crimes} thefts now)` : ""}.`;
-    case "ExileEvent":
-      return `${e.data.name} was exiled from ${e.data.place}.`;
-    case "CaptiveEvent":
-      return `${e.data.name} was taken captive by ${e.data.captor}.`;
-    case "CaptiveFreedEvent":
-      return `${e.data.name} was freed by ${e.data.captor} and set out for home.`;
-    case "CaptiveIntegratedEvent":
-      return `${e.data.name}, long a captive, became one of ${e.data.captor}.`;
-    case "MonumentRaisedEvent":
-      return `${e.data.place} raised the ${e.data.name}.`;
-    case "BeastOfLegendEvent":
-      return `${e.data.name} grew into a beast of legend among the ${e.data.species}, with ${countNoun(e.data.kills, "kill")}.`;
-    default:
-      return next(e);
-  }
-});
+eventText(
+  [
+    "CaravanEvent",
+    "TheftEvent",
+    "ExileEvent",
+    "CaptiveEvent",
+    "CaptiveFreedEvent",
+    "CaptiveIntegratedEvent",
+    "MonumentRaisedEvent",
+    "BeastOfLegendEvent",
+  ],
+  function (e, next) {
+    switch (e.type) {
+      case "CaravanEvent":
+        return `A caravan of ${e.data.travellers} from ${e.data.from} reached ${e.data.to} carrying ${e.data.cargo}.`;
+      case "TheftEvent":
+        return `${e.data.name} stole ${e.data.taken} units of food from ${e.data.place}${e.data.crimes > 1 ? ` (${e.data.crimes} thefts now)` : ""}.`;
+      case "ExileEvent":
+        return `${e.data.name} was exiled from ${e.data.place}.`;
+      case "CaptiveEvent":
+        return `${e.data.name} was taken captive by ${e.data.captor}.`;
+      case "CaptiveFreedEvent":
+        return `${e.data.name} was freed by ${e.data.captor} and set out for home.`;
+      case "CaptiveIntegratedEvent":
+        return `${e.data.name}, long a captive, became one of ${e.data.captor}.`;
+      case "MonumentRaisedEvent":
+        return `${e.data.place} raised the ${e.data.name}.`;
+      case "BeastOfLegendEvent":
+        return `${e.data.name} grew into a beast of legend among the ${e.data.species}, with ${countNoun(e.data.kills, "kill")}.`;
+      default:
+        return next(e);
+    }
+  },
+);
 window.ALIFE_SOCIETY_DEBUG = Object.freeze({
   caravan: (fromId, toId) => {
     const from = W.settlements.find((s) => s.id === fromId),

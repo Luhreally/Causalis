@@ -59,7 +59,11 @@ setWorkAction = function (id, task, ...rest) {
     const w = W.components.work?.[id];
     if (!w || w.handledTick !== W.tick) {
       const soc = W.components.social[id];
-      if (soc?.factionId && soc.homePlaceKind === "settlement" && wagePolities().has(soc.factionId)) {
+      if (
+        soc?.factionId &&
+        soc.homePlaceKind === "settlement" &&
+        wagePolities().has(soc.factionId)
+      ) {
         const ident = W.components.identity[id];
         if (ident) {
           ident.workSteps = (ident.workSteps || 0) + 1;
@@ -109,7 +113,16 @@ function payWages(town) {
   }
   const incomes = [...byHousehold.values()].sort((a, b) => a - b),
     median = incomes.length ? incomes[Math.floor(incomes.length / 2)] : 0;
-  town.wages = { year, paid, earners, residents: residents.length, households: incomes.length, householdMedian: median, idleHouseholds: incomes.filter((v) => v === 0).length, top: incomes.at(-1) || 0 };
+  town.wages = {
+    year,
+    paid,
+    earners,
+    residents: residents.length,
+    households: incomes.length,
+    householdMedian: median,
+    idleHouseholds: incomes.filter((v) => v === 0).length,
+    top: incomes.at(-1) || 0,
+  };
   W.markets = W.markets || {};
   W.markets.minted = (W.markets.minted || 0) + paid;
   WAGES.paid += paid;
@@ -139,7 +152,10 @@ habitationMayTake = function (town, b, group) {
   const t = b.tenancy;
   if (b.type === "shelter" && !t?.ownerId) return true;
   if (t?.ownerId && group.includes(t.ownerId)) return true;
-  const purse = group.reduce((n, id) => n + Math.max(0, W.components.identity[id]?.civicCoins || 0), 0);
+  const purse = group.reduce(
+    (n, id) => n + Math.max(0, W.components.identity[id]?.civicCoins || 0),
+    0,
+  );
   return purse >= Math.max(1, habitationRent(b, town, group.length));
 };
 const habitationAccountsWagesBase = habitationAccounts;
@@ -164,14 +180,22 @@ renderLifePage = function (id) {
   const html = renderLifePageWagesBase(id),
     ident = W.components.identity[id];
   if (ident?.wageLast == null) return html;
-  return html + `<div class="kv"><span>Last year's wage</span><b>${ident.wageLast} coin${wageRate(id) > 1.05 ? ` · paid ${Math.round((wageRate(id) - 1) * 100)}% over for skill` : ""}</b></div>`;
+  return (
+    html +
+    `<div class="kv"><span>Last year's wage</span><b>${ident.wageLast} coin${wageRate(id) > 1.05 ? ` · paid ${Math.round((wageRate(id) - 1) * 100)}% over for skill` : ""}</b></div>`
+  );
 };
 window.ALIFE_WAGES_DEBUG = Object.freeze({
   counts: () => ({ ...WAGES }),
   polities: () => [...wagePolities()],
   pay: (placeId) => payWages(W.settlements.find((s) => s.id === placeId)),
   rate: (id) => wageRate(id),
-  rent: (placeId, members = 1) => habitationRent(null, W.settlements.find((s) => s.id === placeId), members),
+  rent: (placeId, members = 1) =>
+    habitationRent(
+      null,
+      W.settlements.find((s) => s.id === placeId),
+      members,
+    ),
   perBed: (placeId) => wageRentPerBed(W.settlements.find((s) => s.id === placeId)),
   town: (placeId) => ({ ...(W.settlements.find((s) => s.id === placeId)?.wages || {}) }),
   stepsPerCoin: () => WAGE_STEPS_PER_COIN,

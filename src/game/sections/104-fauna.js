@@ -83,7 +83,16 @@ creatureModel = function (id) {
   return side;
 };
 const drawCreatureGlyphFaunaBase = drawCreatureGlyph;
-drawCreatureGlyph = function (g, id, s, now, fac = null, scaleOverride = 0, portrait = false, motion = null) {
+drawCreatureGlyph = function (
+  g,
+  id,
+  s,
+  now,
+  fac = null,
+  scaleOverride = 0,
+  portrait = false,
+  motion = null,
+) {
   const role = faunaRoleOf(id);
   if (!role) return drawCreatureGlyphFaunaBase(g, id, s, now, fac, scaleOverride, portrait, motion);
   const life = W.components.life[id],
@@ -163,9 +172,19 @@ function drawFauna(g, m, phase, detail, colors) {
     if (!creatureAppendageVisible(m, n)) return;
     g.strokeStyle = leg.far ? dark : secondary;
     g.fillStyle = g.strokeStyle;
-    const width = kind === "bear" || kind === "bison" ? 0.17 : pred ? 0.13 : kind === "hare" ? 0.09 : 0.1,
+    const width =
+        kind === "bear" || kind === "bison" ? 0.17 : pred ? 0.13 : kind === "hare" ? 0.09 : 0.1,
       kick = kind === "hare" && n >= 2 ? stride * 1.6 : stride;
-    creatureLimbStyled(g, m, leg.x, legTop, leg.x + kick * leg.sign + leg.splay, footY - (a.moving ? Math.abs(stride) * 0.25 : 0), width, phase + n);
+    creatureLimbStyled(
+      g,
+      m,
+      leg.x,
+      legTop,
+      leg.x + kick * leg.sign + leg.splay,
+      footY - (a.moving ? Math.abs(stride) * 0.25 : 0),
+      width,
+      phase + n,
+    );
   });
   // Tail by kind.
   g.strokeStyle = primary;
@@ -177,7 +196,12 @@ function drawFauna(g, m, phase, detail, colors) {
   if (build.tail === "bushy" || build.tail === "brush") {
     g.lineWidth = build.tail === "brush" ? 0.3 : 0.24;
     g.moveTo(tailX, tailY);
-    g.quadraticCurveTo(-rx * 1.3, bodyY - ry * 0.5 + swing, -rx * 1.6, bodyY - ry * 0.9 + swing * 2);
+    g.quadraticCurveTo(
+      -rx * 1.3,
+      bodyY - ry * 0.5 + swing,
+      -rx * 1.6,
+      bodyY - ry * 0.9 + swing * 2,
+    );
     g.stroke();
     if (build.tail === "brush") {
       g.fillStyle = pale;
@@ -195,7 +219,12 @@ function drawFauna(g, m, phase, detail, colors) {
     for (let k = -1; k <= 1; k++) {
       g.beginPath();
       g.moveTo(tailX, tailY);
-      g.quadraticCurveTo(-rx * 1.2 + swing, bodyY + ry * 0.4 + k * 0.1, -rx * 1.25 + swing * 2 + k * 0.08, bodyY + ry * 1.6);
+      g.quadraticCurveTo(
+        -rx * 1.2 + swing,
+        bodyY + ry * 0.4 + k * 0.1,
+        -rx * 1.25 + swing * 2 + k * 0.08,
+        bodyY + ry * 1.6,
+      );
       g.stroke();
     }
   } else if (build.tail === "taper") {
@@ -254,7 +283,13 @@ function drawFauna(g, m, phase, detail, colors) {
       for (let n = 0; n < 5; n++) {
         const t = (n + 0.5) / 5;
         g.beginPath();
-        g.arc(-rx * 0.75 + rx * 1.5 * t, bodyY - ry * 0.35 + (n % 2) * ry * 0.4, ry * (pattern === "rings" ? 0.16 : 0.12), 0, Math.PI * 2);
+        g.arc(
+          -rx * 0.75 + rx * 1.5 * t,
+          bodyY - ry * 0.35 + (n % 2) * ry * 0.4,
+          ry * (pattern === "rings" ? 0.16 : 0.12),
+          0,
+          Math.PI * 2,
+        );
         g.fill();
       }
     } else if (pattern === "bands" || pattern === "veins") {
@@ -285,7 +320,8 @@ function drawFauna(g, m, phase, detail, colors) {
     hx = rx * (kind === "croc" ? 1.55 : 1.05 + neck * 0.12),
     hy = kind === "croc" ? bodyY : bodyY - ry * 0.4 - neck * 0.55,
     hr = (pred ? 0.3 : 0.26) * bulk * (kind === "hare" ? 0.85 : 1),
-    muzzle = kind === "croc" ? 2.4 : pred ? 1.75 : kind === "horse" ? 1.7 : kind === "boar" ? 1.5 : 1.45;
+    muzzle =
+      kind === "croc" ? 2.4 : pred ? 1.75 : kind === "horse" ? 1.7 : kind === "boar" ? 1.5 : 1.45;
   g.strokeStyle = primary;
   g.lineWidth = (pred ? 0.34 : 0.24) * bulk * (kind === "horse" ? 0.9 : kind === "bison" ? 1.4 : 1);
   g.beginPath();
@@ -309,7 +345,15 @@ function drawFauna(g, m, phase, detail, colors) {
   g.strokeStyle = outline;
   g.lineWidth = 0.1;
   g.beginPath();
-  g.ellipse(hx, hy, hr * (kind === "croc" ? 1.4 : 1.15), hr * (kind === "croc" ? 0.55 : 0.8), pred ? 0.1 : -0.2, 0, Math.PI * 2);
+  g.ellipse(
+    hx,
+    hy,
+    hr * (kind === "croc" ? 1.4 : 1.15),
+    hr * (kind === "croc" ? 0.55 : 0.8),
+    pred ? 0.1 : -0.2,
+    0,
+    Math.PI * 2,
+  );
   g.fill();
   g.stroke();
   // Muzzle or snout.
@@ -352,12 +396,25 @@ function drawFauna(g, m, phase, detail, colors) {
   // Ears by kind.
   g.fillStyle = secondary;
   if (build.ears !== "none") {
-    const long = build.ears === "ears" ? 2.6 : build.ears === "long" ? 1.35 : build.ears === "point" ? 1.3 : 0.95,
+    const long =
+        build.ears === "ears"
+          ? 2.6
+          : build.ears === "long"
+            ? 1.35
+            : build.ears === "point"
+              ? 1.3
+              : 0.95,
       round = build.ears === "round" || build.ears === "small";
     for (const side of [-0.45, 0.15]) {
       g.beginPath();
       if (round) {
-        g.arc(hx + hr * (side + 0.2), hy - hr * 0.7, hr * (build.ears === "round" ? 0.32 : 0.22), 0, Math.PI * 2);
+        g.arc(
+          hx + hr * (side + 0.2),
+          hy - hr * 0.7,
+          hr * (build.ears === "round" ? 0.32 : 0.22),
+          0,
+          Math.PI * 2,
+        );
       } else {
         g.moveTo(hx + hr * side, hy - hr * 0.55);
         g.lineTo(hx + hr * (side + 0.05), hy - hr * long);
@@ -375,7 +432,12 @@ function drawFauna(g, m, phase, detail, colors) {
       for (const side of [-0.2, 0.25]) {
         g.beginPath();
         g.moveTo(hx + hr * side, hy - hr * 0.7);
-        g.quadraticCurveTo(hx + hr * (side - 0.5), hy - hr * 1.6, hx + hr * (side - 0.9), hy - hr * (kind === "bison" ? 1.2 : 1.9));
+        g.quadraticCurveTo(
+          hx + hr * (side - 0.5),
+          hy - hr * 1.6,
+          hx + hr * (side - 0.9),
+          hy - hr * (kind === "bison" ? 1.2 : 1.9),
+        );
         g.stroke();
       }
     } else if (kind === "deer" && m.faunaOrnament && m.faunaOrnament !== "none") {
@@ -419,7 +481,18 @@ drawUprightPerson = function (g, m, phase, detail, colors) {
 window.ALIFE_FAUNA_DEBUG = Object.freeze({
   model: (id) => {
     const m = creatureModel(id);
-    return m ? { topology: m.topology, personForm: m.personForm, sideView: !!m.sideView, role: m.faunaRole || null, kind: m.faunaKind || null, appendages: m.appendages, pattern: m.faunaPattern || m.pattern, label: m.label } : null;
+    return m
+      ? {
+          topology: m.topology,
+          personForm: m.personForm,
+          sideView: !!m.sideView,
+          role: m.faunaRole || null,
+          kind: m.faunaKind || null,
+          appendages: m.appendages,
+          pattern: m.faunaPattern || m.pattern,
+          label: m.label,
+        }
+      : null;
   },
   kinds: () => {
     const out = {};

@@ -25,7 +25,16 @@
 // fighters, morale and supply, and a Watch that puts the camera on it and
 // the lens on the map; then the tensions and the wars that ended, with how.
 // The view reads the world and writes only the camera and the lens.
-const WARVIEW = { banners: 0, outlines: 0, arrows: 0, rings: 0, heat: 0, labels: 0, cards: 0, sites: { at: 0, world: null, list: [] } };
+const WARVIEW = {
+  banners: 0,
+  outlines: 0,
+  arrows: 0,
+  rings: 0,
+  heat: 0,
+  labels: 0,
+  cards: 0,
+  sites: { at: 0, world: null, list: [] },
+};
 const WAR_LENS = "warfare",
   WAR_PHASE_HUE = Object.freeze({
     mustering: 46,
@@ -74,7 +83,11 @@ function warUnitGeometryVisible(unit, bounds) {
     if (!peekAlive(id)) continue;
     const p = W.components.position[id];
     if (!p) continue;
-    if (bounds && (p.x < bounds.x0 - 3 || p.x > bounds.x1 + 3 || p.y < bounds.y0 - 3 || p.y > bounds.y1 + 3)) continue;
+    if (
+      bounds &&
+      (p.x < bounds.x0 - 3 || p.x > bounds.x1 + 3 || p.y < bounds.y0 - 3 || p.y > bounds.y1 + 3)
+    )
+      continue;
     pts.push(p);
   }
   if (!pts.length) return null;
@@ -103,7 +116,16 @@ function warUnitGeometryVisible(unit, bounds) {
   cx /= core.length;
   cy /= core.length;
   for (const p of core) spread = Math.max(spread, Math.hypot(p.x - cx, p.y - cy));
-  return { x: cx + 0.5, y: cy + 0.5, n: pts.length, coreN: core.length, spread, pts, core, stragglers };
+  return {
+    x: cx + 0.5,
+    y: cy + 0.5,
+    n: pts.length,
+    coreN: core.length,
+    spread,
+    pts,
+    core,
+    stragglers,
+  };
 }
 // A tactic's short word for the map; the tab keeps the full name.
 function warTacticShort(tactic) {
@@ -126,7 +148,9 @@ function drawWarLabels(labels) {
     placed = [];
   labels.sort((a, b) => a.y - b.y || a.x - b.x);
   for (const label of labels) {
-    const same = placed.find((q) => q.word === label.word && Math.abs(q.x - label.x) < 60 && Math.abs(q.y0 - label.y) < 40);
+    const same = placed.find(
+      (q) => q.word === label.word && Math.abs(q.x - label.x) < 60 && Math.abs(q.y0 - label.y) < 40,
+    );
     if (same) {
       same.count++;
       continue;
@@ -174,7 +198,10 @@ overlayStyle = function (name, i) {
   if (name !== WAR_LENS) return overlayStyleWarBase(name, i);
   const owner = W.tiles.owner?.[i] || 0;
   if (!owner) return lensSea(i) ? WAR_VEIL_SEA : WAR_VEIL_LAND;
-  return lensColourWithAlpha(lensCategoryColour("territory", owner), WAR_HOLDING_ALPHA * (lensSea(i) ? 0.4 : 1));
+  return lensColourWithAlpha(
+    lensCategoryColour("territory", owner),
+    WAR_HOLDING_ALPHA * (lensSea(i) ? 0.4 : 1),
+  );
 };
 const overlayLegendColorWarBase = overlayLegendColor;
 overlayLegendColor = function (id) {
@@ -193,7 +220,8 @@ setOverlay = function (name) {
 };
 function warLensLegendHTML() {
   const wars = (W.activeWars || []).filter((w) => !w.ended);
-  if (!wars.length) return "Warfare · no war is being fought; the danger field and every column still show";
+  if (!wars.length)
+    return "Warfare · no war is being fought; the danger field and every column still show";
   return (
     "Warfare · " +
     wars
@@ -285,7 +313,10 @@ function drawWarUnitMarks(now, bounds, m, lens) {
       phase = unit.phase || "mustering",
       phaseColour = warPhaseColour(phase);
     // The formation: an outline round the fighters, in the phase's colour.
-    const rx = g.coreN < 2 ? m.tw * 0.9 : clamp((g.spread + 0.8) * m.tw, m.tw * 0.9, m.tw * WAR_FORMATION_MAX),
+    const rx =
+        g.coreN < 2
+          ? m.tw * 0.9
+          : clamp((g.spread + 0.8) * m.tw, m.tw * 0.9, m.tw * WAR_FORMATION_MAX),
       ry = rx * (UI.view === "top" ? 1 : m.th / m.tw),
       forming = phase === "mustering" || phase === "forming" || phase === "levy";
     ctx.save();
@@ -308,10 +339,18 @@ function drawWarUnitMarks(now, bounds, m, lens) {
     ctx.restore();
     WARVIEW.outlines++;
     // The objective: a running arrow to the town the column marches on; the supply, a thread home.
-    const objective = unit.objectiveSettlementId ? W.settlements.find((q) => q.id === unit.objectiveSettlementId && !q.ruined) : null,
+    const objective = unit.objectiveSettlementId
+        ? W.settlements.find((q) => q.id === unit.objectiveSettlementId && !q.ruined)
+        : null,
       home = W.settlements.find((q) => q.id === unit.homeSettlementId && !q.ruined);
     if (objective && war && objective.id !== unit.homeSettlementId) {
-      drawWarArrow(s, proceduralProjectTile(objective.x + 0.5, objective.y + 0.5, m), colour, now, m);
+      drawWarArrow(
+        s,
+        proceduralProjectTile(objective.x + 0.5, objective.y + 0.5, m),
+        colour,
+        now,
+        m,
+      );
       if (lens && home) {
         const hs = proceduralProjectTile(home.x + 0.5, home.y + 0.5, m);
         ctx.save();
@@ -332,7 +371,9 @@ function drawWarUnitMarks(now, bounds, m, lens) {
       labels.push({ x: s.x, y: s.y + ry + 2, word, colour: phaseColour });
     }
     // A town under assault is ringed, and the ring breathes.
-    const contact = unit.contactPlaceId ? W.settlements.find((q) => q.id === unit.contactPlaceId && !q.ruined) : null;
+    const contact = unit.contactPlaceId
+      ? W.settlements.find((q) => q.id === unit.contactPlaceId && !q.ruined)
+      : null;
     if (contact && ["assaulting", "besieging", "raiding", "engaged"].includes(phase)) {
       const cs = proceduralProjectTile(contact.x + 0.5, contact.y + 0.5, m),
         r = m.tw * (2.2 + 0.25 * Math.sin(now * 0.004 + unit.id));
@@ -375,7 +416,9 @@ function warUnitRow(unit, war) {
   const f = factionById(unit.factionId),
     alive = unit.memberIds.filter((id) => peekAlive(id)).length,
     home = W.settlements.find((q) => q.id === unit.homeSettlementId),
-    objective = unit.objectiveSettlementId ? W.settlements.find((q) => q.id === unit.objectiveSettlementId) : null,
+    objective = unit.objectiveSettlementId
+      ? W.settlements.find((q) => q.id === unit.objectiveSettlementId)
+      : null,
     phase = unit.phase || "mustering";
   return `<div class="war-unit"><span class="lens-swatch" style="--c:${esc(f?.color || "#888")}"></span><b style="color:${warPhaseColour(phase)}">${esc(phase)}</b>${unit.tactic ? ` <span class="muted">· ${esc(unit.tactic)}</span>` : ""}${unit.rally?.holding ? ` <span class="muted">· waiting for ${unit.rally.waitingFor.length} column${unit.rally.waitingFor.length === 1 ? "" : "s"}</span>` : ""}${unit.intercept && objective ? ` <span class="muted">· to the ${esc(objective.name)} road</span>` : ""} <span class="muted">· ${alive} fighter${alive === 1 ? "" : "s"}${home ? ` of ${esc(home.name)}` : ""}${objective && objective.id !== unit.homeSettlementId ? ` → ${esc(objective.name)}` : ""}</span><div class="row" style="gap:6px;margin-top:3px">${warBar(unit.morale ?? 0.5, "#9cd38c", "morale")}${warBar(unit.supply ?? 1, "#7fb0ff", "supply")}<button class="small" data-watch-unit="${unit.id}">Watch</button></div></div>`;
 }
@@ -385,7 +428,9 @@ function warCard(war) {
     plan = war.attackPlan,
     attacker = plan ? factionById(plan.attackerId) : null,
     target = plan ? W.settlements.find((q) => q.id === plan.targetSettlementId) : null,
-    units = (W.militaryUnits || []).filter((u) => u.active && (u.factionId === war.a || u.factionId === war.b)),
+    units = (W.militaryUnits || []).filter(
+      (u) => u.active && (u.factionId === war.a || u.factionId === war.b),
+    ),
     years = Math.max(0, Math.floor((W.tick - war.started) / TICKS_PER_YEAR)),
     goal = typeof ensureWarAim === "function" ? war.goal || warAim(war) : war.goal || "",
     sa = a?.militaryStrength || 0,
@@ -393,11 +438,14 @@ function warCard(war) {
     total = sa + sb || 1;
   let status = "";
   if (plan) {
-    if (plan.launchedTick) status = `Launched ${Math.max(0, Math.floor((W.tick - plan.launchedTick) / TICKS_PER_YEAR))} years ago`;
+    if (plan.launchedTick)
+      status = `Launched ${Math.max(0, Math.floor((W.tick - plan.launchedTick) / TICKS_PER_YEAR))} years ago`;
     else if (typeof campaignReadiness === "function") {
       const r = campaignReadiness(war, plan),
         gates = (r.blockers || []).map((x) => x.label).slice(0, 3);
-      status = gates.length ? `Preparing · waiting on ${gates.map(esc).join(", ")}` : "Preparing · the order is being issued";
+      status = gates.length
+        ? `Preparing · waiting on ${gates.map(esc).join(", ")}`
+        : "Preparing · the order is being issued";
     }
   }
   WARVIEW.cards++;
@@ -407,8 +455,14 @@ function warTensionsHTML() {
   const tensions = W.factions
     .flatMap((faction) =>
       Object.entries(faction.relations || {})
-        .filter(([otherId, relation]) => faction.id < Number(otherId) && relation.status === "hostile")
-        .map(([otherId, relation]) => ({ faction, other: factionById(Number(otherId)), pressure: relation.pressure || 0 })),
+        .filter(
+          ([otherId, relation]) => faction.id < Number(otherId) && relation.status === "hostile",
+        )
+        .map(([otherId, relation]) => ({
+          faction,
+          other: factionById(Number(otherId)),
+          pressure: relation.pressure || 0,
+        })),
     )
     .filter((t) => t.other)
     .sort((l, r) => r.pressure - l.pressure)
@@ -417,7 +471,10 @@ function warTensionsHTML() {
   return `<div class="subhead">Tensions</div>${tensions.map((t) => `<div class="war-unit"><span class="lens-swatch" style="--c:${esc(t.faction.color)}"></span>${esc(t.faction.name)} <span class="muted">and</span> <span class="lens-swatch" style="--c:${esc(t.other.color)}"></span>${esc(t.other.name)} <span class="muted">· pressure ${Math.round(t.pressure)}</span></div>`).join("")}`;
 }
 function warEndedHTML() {
-  const ended = (W.activeWars || []).filter((w) => w.ended).slice(-6).reverse();
+  const ended = (W.activeWars || [])
+    .filter((w) => w.ended)
+    .slice(-6)
+    .reverse();
   if (!ended.length) return "";
   return `<div class="subhead">Wars that ended</div>${ended
     .map((w) => {
@@ -464,12 +521,31 @@ refreshWarfare = function () {
 };
 window.ALIFE_WARVIEW_DEBUG = Object.freeze({
   counts: () => ({ ...WARVIEW, sites: undefined }),
-  units: () => (W.militaryUnits || []).filter((u) => u.active).map((u) => ({ id: u.id, phase: u.phase, tactic: u.tactic || "", n: u.memberIds.filter((id) => peekAlive(id)).length, objective: u.objectiveSettlementId, home: u.homeSettlementId })),
+  units: () =>
+    (W.militaryUnits || [])
+      .filter((u) => u.active)
+      .map((u) => ({
+        id: u.id,
+        phase: u.phase,
+        tactic: u.tactic || "",
+        n: u.memberIds.filter((id) => peekAlive(id)).length,
+        objective: u.objectiveSettlementId,
+        home: u.homeSettlementId,
+      })),
   marks: (now = 1234) => drawWarUnitMarks(now, visibleBounds(), projectionMetrics(), true),
   geometry: (id) => {
     const unit = (W.militaryUnits || []).find((u) => u.id === id),
       g = unit && warUnitGeometryVisible(unit, null);
-    return g ? { n: g.n, coreN: g.coreN, stragglers: g.stragglers.length, spread: +g.spread.toFixed(2), x: +g.x.toFixed(2), y: +g.y.toFixed(2) } : null;
+    return g
+      ? {
+          n: g.n,
+          coreN: g.coreN,
+          stragglers: g.stragglers.length,
+          spread: +g.spread.toFixed(2),
+          x: +g.x.toFixed(2),
+          y: +g.y.toFixed(2),
+        }
+      : null;
   },
   heat: (now = 1234) => drawWarHeat(now, projectionMetrics(), visibleBounds()),
   legend: () => warLensLegendHTML(),

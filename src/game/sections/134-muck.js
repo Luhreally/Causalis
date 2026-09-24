@@ -73,7 +73,10 @@ function muckTown(town) {
   for (const field of poor) {
     if (budget <= 0 || s >= sources.length) break;
     // Enough to lift this field to the target, in nutrient, drawn from the richest tiles.
-    const want = Math.min(budget, Math.max(1, Math.ceil(((MUCK_TARGET_FERTILITY - tileFertility(field)) * 10) / 0.48)));
+    const want = Math.min(
+      budget,
+      Math.max(1, Math.ceil(((MUCK_TARGET_FERTILITY - tileFertility(field)) * 10) / 0.48)),
+    );
     let got = 0;
     while (got < want && s < sources.length) {
       const src = sources[s],
@@ -128,7 +131,8 @@ function updateMuck() {
   if (!W?.settlements) return;
   const behind = shipHasLeft();
   for (const town of W.settlements)
-    if (W.tick % MUCK_CADENCE === town.id % MUCK_CADENCE && (behind || muckExhausted(town))) muckTown(town);
+    if (W.tick % MUCK_CADENCE === town.id % MUCK_CADENCE && (behind || muckExhausted(town)))
+      muckTown(town);
 }
 tickSystem("muck", function () {
   updateMuck();
@@ -142,6 +146,11 @@ window.ALIFE_MUCK_DEBUG = Object.freeze({
   fields: (townId) => {
     const town = W.settlements.find((s) => s.id === townId),
       tiles = town ? muckFields(town) : [];
-    return tiles.map((t) => ({ tile: t, nutrient: W.tiles.chem[C.NUTRIENT][t], waste: W.tiles.chem[C.WASTE][t], fertility: +tileFertility(t).toFixed(1) }));
+    return tiles.map((t) => ({
+      tile: t,
+      nutrient: W.tiles.chem[C.NUTRIENT][t],
+      waste: W.tiles.chem[C.WASTE][t],
+      fertility: +tileFertility(t).toFixed(1),
+    }));
   },
 });

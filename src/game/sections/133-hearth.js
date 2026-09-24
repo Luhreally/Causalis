@@ -30,7 +30,15 @@
 const HEARTH_REACH_MIN = 8,
   HEARTH_REACH_MAX = 24,
   HEARTH_REACH_MARGIN = 2;
-const HEARTH = { homeMeals: 0, seedKept: 0, drawn: 0, seedHidden: 0, herdKept: 0, quotaKept: 0, unloaded: 0 };
+const HEARTH = {
+  homeMeals: 0,
+  seedKept: 0,
+  drawn: 0,
+  seedHidden: 0,
+  herdKept: 0,
+  quotaKept: 0,
+  unloaded: 0,
+};
 let hearthReachCache = { world: null, tick: -1, values: new Map() };
 function hearthReach(town) {
   if (!town || town.ruined) return HEARTH_REACH_MIN;
@@ -93,7 +101,8 @@ homeRationPlace = function (id, sp = C.ORGANIC) {
 let hearthResidentsCache = { world: null, tick: -1, values: new Map() };
 const granaryResidentsHearthBase = granaryResidents;
 granaryResidents = function (place) {
-  if (!place || place.ruined || !place.knownProcesses || !shipHasLeft()) return granaryResidentsHearthBase(place);
+  if (!place || place.ruined || !place.knownProcesses || !shipHasLeft())
+    return granaryResidentsHearthBase(place);
   if (hearthResidentsCache.world !== W || hearthResidentsCache.tick !== W.tick)
     hearthResidentsCache = { world: W, tick: W.tick, values: new Map() };
   const cached = hearthResidentsCache.values.get(place.id);
@@ -135,12 +144,21 @@ function hearthDraw(s) {
       // The base draw refuses a member under another flag as a hostile visitor; the
       // hungry-town probe found two of Flintholl's twelve at hunger ninety-eight six
       // tiles from a store of a hundred and fifty, refused so for years.
-      refused = typeof personIsHostileVisitor === "function" && !!s.factionId && personIsHostileVisitor(id, s.factionId);
+      refused =
+        typeof personIsHostileVisitor === "function" &&
+        !!s.factionId &&
+        personIsHostileVisitor(id, s.factionId);
     if (dist2(p.x, p.y, s.x, s.y) <= near2 && !refused) continue;
-    if (soc && s.factionId && soc.factionId !== s.factionId && !soc.unitId) soc.factionId = s.factionId;
+    if (soc && s.factionId && soc.factionId !== s.factionId && !soc.unitId)
+      soc.factionId = s.factionId;
     const digestive = W.components.inventory[id]?.digestive;
     if (!digestive) continue;
-    const food = Math.min(cap, Math.max(0, HEARTH_DRAW_FILL - digestive[C.ORGANIC]), Math.max(0, (s.inventory[C.ORGANIC] || 0) - seed), 65535 - digestive[C.ORGANIC]);
+    const food = Math.min(
+      cap,
+      Math.max(0, HEARTH_DRAW_FILL - digestive[C.ORGANIC]),
+      Math.max(0, (s.inventory[C.ORGANIC] || 0) - seed),
+      65535 - digestive[C.ORGANIC],
+    );
     if (food <= 0) continue;
     s.inventory[C.ORGANIC] -= food;
     digestive[C.ORGANIC] += food;
@@ -174,9 +192,14 @@ const HEARTH_RATION_FULL = 18;
 const rationCapHearthBase = rationCap;
 rationCap = function (place) {
   const base = rationCapHearthBase(place);
-  if (!place?.knownProcesses || place.ruined || base >= HEARTH_RATION_FULL || !shipHasLeft()) return base;
+  if (!place?.knownProcesses || place.ruined || base >= HEARTH_RATION_FULL || !shipHasLeft())
+    return base;
   const residents = Math.max(1, granaryResidents(place).length),
-    spare = Math.max(0, (place.inventory[C.ORGANIC] || 0) - (typeof seedReserve === "function" ? seedReserve(place) : 0));
+    spare = Math.max(
+      0,
+      (place.inventory[C.ORGANIC] || 0) -
+        (typeof seedReserve === "function" ? seedReserve(place) : 0),
+    );
   return Math.max(base, Math.min(HEARTH_RATION_FULL, Math.floor(spare / residents)));
 };
 // ── The seed is kept from every mouth (behind the ship) ─────────────────────
@@ -224,13 +247,22 @@ let hearthHiding = null;
 // `fn` eats, and put it back after; `fn`'s take from the place is booked to
 // the eater's day.
 function hearthHideAbove(place, visible, id, fn) {
-  if (!place || place.ruined || !place.knownProcesses || !shipHasLeft() || typeof seedReserve !== "function" || hearthHiding === place) return fn();
+  if (
+    !place ||
+    place.ruined ||
+    !place.knownProcesses ||
+    !shipHasLeft() ||
+    typeof seedReserve !== "function" ||
+    hearthHiding === place
+  )
+    return fn();
   const held = place.inventory[C.ORGANIC] || 0,
     spare = Math.max(0, held - seedReserve(place)),
     shown = Math.max(0, Math.min(visible, spare)),
     hidden = held - shown;
   if (hidden <= 0 && shown === held) {
-    const before = held, out = fn();
+    const before = held,
+      out = fn();
     hearthMealTaken(id, before - (place.inventory[C.ORGANIC] || 0));
     return out;
   }
@@ -253,11 +285,16 @@ function hearthHideSeed(place, fn) {
 }
 const performFeedingHearthBase = performFeeding;
 performFeeding = function (id, tile, stride = 1) {
-  if (W.kind[id] !== KINDS.PERSON || !shipHasLeft()) return performFeedingHearthBase(id, tile, stride);
+  if (W.kind[id] !== KINDS.PERSON || !shipHasLeft())
+    return performFeedingHearthBase(id, tile, stride);
   const near = typeof nearestFriendlyPlace === "function" ? nearestFriendlyPlace(id) : null,
     home = typeof homeRationPlace === "function" ? homeRationPlace(id) : null,
     left = hearthMealQuotaLeft(id);
-  return hearthHideAbove(near?.knownProcesses ? near : null, left, id, () => hearthHideAbove(home && home !== near ? home : null, hearthMealQuotaLeft(id), id, () => performFeedingHearthBase(id, tile, stride)));
+  return hearthHideAbove(near?.knownProcesses ? near : null, left, id, () =>
+    hearthHideAbove(home && home !== near ? home : null, hearthMealQuotaLeft(id), id, () =>
+      performFeedingHearthBase(id, tile, stride),
+    ),
+  );
 };
 // ── A hoard comes home to the hall (behind the ship) ─────────────────────────
 // Before the ship a fighter drew a full ration at every order, and a guard at
@@ -285,7 +322,10 @@ function hearthUnload(id) {
   if (!home?.knownProcesses || !p) return 0;
   const reach = hearthReach(home);
   if (dist2(p.x, p.y, home.x, home.y) > reach * reach) return 0;
-  const moved = Math.min(gut[C.ORGANIC] - HEARTH_HOARD_KEEP, 65535 - (home.inventory[C.ORGANIC] || 0));
+  const moved = Math.min(
+    gut[C.ORGANIC] - HEARTH_HOARD_KEEP,
+    65535 - (home.inventory[C.ORGANIC] || 0),
+  );
   if (moved <= 0) return 0;
   gut[C.ORGANIC] -= moved;
   home.inventory[C.ORGANIC] = (home.inventory[C.ORGANIC] || 0) + moved;
@@ -295,9 +335,16 @@ function hearthUnload(id) {
 const runMetabolismHearthBase = runMetabolism;
 runMetabolism = function (id, tier) {
   if (W.kind[id] === KINDS.PERSON && shipHasLeft()) hearthUnload(id);
-  if (W.kind[id] !== KINDS.PERSON || !shipHasLeft() || (W.components.chemistry[id]?.q[C.ENERGY] ?? 99) >= 18) return runMetabolismHearthBase(id, tier);
+  if (
+    W.kind[id] !== KINDS.PERSON ||
+    !shipHasLeft() ||
+    (W.components.chemistry[id]?.q[C.ENERGY] ?? 99) >= 18
+  )
+    return runMetabolismHearthBase(id, tier);
   const place = typeof nearestFriendlyPlace === "function" ? nearestFriendlyPlace(id) : null;
-  return hearthHideAbove(place?.knownProcesses ? place : null, hearthMealQuotaLeft(id), id, () => runMetabolismHearthBase(id, tier));
+  return hearthHideAbove(place?.knownProcesses ? place : null, hearthMealQuotaLeft(id), id, () =>
+    runMetabolismHearthBase(id, tier),
+  );
 };
 // ── The herd does not eat the bread of a hungry town (behind the ship) ──────
 // Every eight ticks each animal of an enclosed herd is topped up to eighteen
@@ -311,9 +358,16 @@ runMetabolism = function (id, tier) {
 const feedEnclosedHerdHearthBase = typeof feedEnclosedHerd === "function" ? feedEnclosedHerd : null;
 if (feedEnclosedHerdHearthBase)
   feedEnclosedHerd = function (herd, place, enclosure) {
-    if (!place?.knownProcesses || place.ruined || !shipHasLeft() || typeof foodOutlook !== "function") return feedEnclosedHerdHearthBase(herd, place, enclosure);
+    if (
+      !place?.knownProcesses ||
+      place.ruined ||
+      !shipHasLeft() ||
+      typeof foodOutlook !== "function"
+    )
+      return feedEnclosedHerdHearthBase(herd, place, enclosure);
     const outlook = foodOutlook(place);
-    if (!outlook || !(outlook.lean || outlook.famine)) return feedEnclosedHerdHearthBase(herd, place, enclosure);
+    if (!outlook || !(outlook.lean || outlook.famine))
+      return feedEnclosedHerdHearthBase(herd, place, enclosure);
     const held = place.inventory[C.ORGANIC] || 0;
     place.inventory[C.ORGANIC] = 0;
     try {
@@ -327,7 +381,11 @@ window.ALIFE_HEARTH_DEBUG = Object.freeze({
   reach: (townId) => hearthReach(W.settlements.find((s) => s.id === townId)),
   residents: (townId) => granaryResidents(W.settlements.find((s) => s.id === townId)).length,
   draw: (townId) => hearthDraw(W.settlements.find((s) => s.id === townId)),
-  hideSeed: (townId, fn) => hearthHideSeed(W.settlements.find((s) => s.id === townId), fn),
+  hideSeed: (townId, fn) =>
+    hearthHideSeed(
+      W.settlements.find((s) => s.id === townId),
+      fn,
+    ),
   quotaLeft: (id) => hearthMealQuotaLeft(id),
   unload: (id) => hearthUnload(id),
   counts: () => ({ ...HEARTH }),

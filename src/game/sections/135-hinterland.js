@@ -27,7 +27,11 @@ const HINTERLAND_RING_MIN = 7,
 const HINTERLAND = { widened: 0, refused: 0 };
 function hinterlandFieldCap(place, buildings) {
   if (!place?.knownProcesses || typeof townOuterRing !== "function") return HINTERLAND_RING_MIN;
-  return clamp(townOuterRing(place, buildings) + HINTERLAND_RING_MARGIN, HINTERLAND_RING_MIN, HINTERLAND_RING_MAX);
+  return clamp(
+    townOuterRing(place, buildings) + HINTERLAND_RING_MARGIN,
+    HINTERLAND_RING_MIN,
+    HINTERLAND_RING_MAX,
+  );
 }
 const zoneTargetHinterlandBase = zoneTarget;
 zoneTarget = function (zone, place, plan, buildings) {
@@ -46,13 +50,19 @@ zoneTarget = function (zone, place, plan, buildings) {
 function hinterlandParentLivesIn(id, place) {
   for (const parent of W.components.identity[id]?.parents || []) {
     const ps = W.components.social[parent];
-    if (ps?.homePlaceKind === "settlement" && ps.homePlaceId === place.id && classifyAlive(parent)) return true;
+    if (ps?.homePlaceKind === "settlement" && ps.homePlaceId === place.id && classifyAlive(parent))
+      return true;
   }
   return false;
 }
 const adoptIntoHinterlandBase = adoptInto;
 adoptInto = function (id, soc, kind, place) {
-  if (kind === "settlement" && place?.knownProcesses && typeof foodOutlook === "function" && !hinterlandParentLivesIn(id, place)) {
+  if (
+    kind === "settlement" &&
+    place?.knownProcesses &&
+    typeof foodOutlook === "function" &&
+    !hinterlandParentLivesIn(id, place)
+  ) {
     const outlook = foodOutlook(place);
     if (outlook?.famine) {
       HINTERLAND.refused++;
@@ -66,6 +76,13 @@ window.ALIFE_HINTERLAND_DEBUG = Object.freeze({
   fieldCap: (townId) => hinterlandFieldCap(W.settlements.find((s) => s.id === townId)),
   farmRing: (townId) => {
     const s = W.settlements.find((x) => x.id === townId);
-    return s ? zoneTarget("farm", s, typeof townPlan === "function" ? townPlan(s) : {}, typeof townBuildings === "function" ? townBuildings(s) : []) : null;
+    return s
+      ? zoneTarget(
+          "farm",
+          s,
+          typeof townPlan === "function" ? townPlan(s) : {},
+          typeof townBuildings === "function" ? townBuildings(s) : [],
+        )
+      : null;
   },
 });

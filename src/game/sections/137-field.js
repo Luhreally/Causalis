@@ -65,15 +65,36 @@ const FIELD_WAIT = TICKS_PER_YEAR * 2,
   FIELD_SOW_REST = 64,
   FIELD_SOW_PER_PUSH = 2,
   FIELD_MEAL_HUNGER = 70,
-  FIELD = { supplied: 0, drawn: 0, carried: 0, built: 0, hands: 0, first: 0, givenUp: 0, resited: 0, sown: 0, tended: 0, sentToEat: 0 };
+  FIELD = {
+    supplied: 0,
+    drawn: 0,
+    carried: 0,
+    built: 0,
+    hands: 0,
+    first: 0,
+    givenUp: 0,
+    resited: 0,
+    sown: 0,
+    tended: 0,
+    sentToEat: 0,
+  };
 function fieldCommon(sp) {
-  return sp >= 0 && !(typeof STORE_DRAWN_MATERIALS !== "undefined" && STORE_DRAWN_MATERIALS.includes(sp));
+  return (
+    sp >= 0 && !(typeof STORE_DRAWN_MATERIALS !== "undefined" && STORE_DRAWN_MATERIALS.includes(sp))
+  );
 }
 function fieldUnfinished(place) {
   if (!place?.knownProcesses || place.ruined) return null;
   return (
     W.buildings
-      .filter((b) => !b.ruined && !b.complete && b.placeKind === "settlement" && b.placeId === place.id && b.type === "farm")
+      .filter(
+        (b) =>
+          !b.ruined &&
+          !b.complete &&
+          b.placeKind === "settlement" &&
+          b.placeId === place.id &&
+          b.type === "farm",
+      )
       .sort((a, b) => (a.createdTick || 0) - (b.createdTick || 0) || a.id - b.id)[0] || null
   );
 }
@@ -100,7 +121,14 @@ function fieldGiveUp(place) {
 const plannedBuildingTileFieldBase = plannedBuildingTile;
 plannedBuildingTile = function (place, type, ordinal) {
   const plot = plannedBuildingTileFieldBase(place, type, ordinal);
-  if (type !== "farm" || !plot || !place?.knownProcesses || !shipHasLeft() || typeof openGroundPlotReachable !== "function") return plot;
+  if (
+    type !== "farm" ||
+    !plot ||
+    !place?.knownProcesses ||
+    !shipHasLeft() ||
+    typeof openGroundPlotReachable !== "function"
+  )
+    return plot;
   if (openGroundPlotReachable(place, plot[0], plot[1])) return plot;
   const open = typeof openGroundPlot === "function" ? openGroundPlot(place, "farm") : null;
   if (open) FIELD.resited++;
@@ -129,20 +157,39 @@ function fieldSupply(place) {
 }
 // ── The effort sows the fallow field ─────────────────────────────────────────
 function fieldSow(place) {
-  if (!place?.knownProcesses || place.ruined || !shipHasLeft() || typeof sowCultivatedField !== "function" || typeof cultivatedField !== "function") return 0;
+  if (
+    !place?.knownProcesses ||
+    place.ruined ||
+    !shipHasLeft() ||
+    typeof sowCultivatedField !== "function" ||
+    typeof cultivatedField !== "function"
+  )
+    return 0;
   const outlook = foodOutlook(place);
   if (!outlook || !(outlook.lean || outlook.famine)) return 0;
-  const sower = W.activeIds.find((id) => W.kind[id] === KINDS.PERSON && classifyAlive(id) && W.components.social[id]?.homePlaceKind === "settlement" && W.components.social[id].homePlaceId === place.id && W.components.position[id]);
+  const sower = W.activeIds.find(
+    (id) =>
+      W.kind[id] === KINDS.PERSON &&
+      classifyAlive(id) &&
+      W.components.social[id]?.homePlaceKind === "settlement" &&
+      W.components.social[id].homePlaceId === place.id &&
+      W.components.position[id],
+  );
   if (sower === undefined) return 0;
   let sown = 0;
   for (const b of completedBuildings(place, "farm")) {
     if (sown >= FIELD_SOW_PER_PUSH) break;
     const field = cultivatedField(b);
-    if (!field || field.stage !== "fallow" || W.tick - (field.lastLaborTick || 0) < FIELD_SOW_REST) continue;
+    if (!field || field.stage !== "fallow" || W.tick - (field.lastLaborTick || 0) < FIELD_SOW_REST)
+      continue;
     const tiles = field.tiles?.length ? field.tiles : [field.tile],
       n = tiles.length;
     let given = 0;
-    for (const [sp, amount] of [[C.ORGANIC, n], [C.NUTRIENT, n], [C.SOLVENT, n * 2]]) {
+    for (const [sp, amount] of [
+      [C.ORGANIC, n],
+      [C.NUTRIENT, n],
+      [C.SOLVENT, n * 2],
+    ]) {
       const add = Math.min(amount, 65535 - (place.inventory[sp] || 0));
       place.inventory[sp] = (place.inventory[sp] || 0) + add;
       given += add;
@@ -191,7 +238,15 @@ function fieldHandsFit(id) {
   if (W.kind[id] !== KINDS.PERSON || !shipHasLeft()) return null;
   const life = W.components.life[id],
     q = W.components.chemistry[id]?.q;
-  if (!life || !q || life.hunger <= 68 || life.hunger > FIELD_HANDS_HUNGER || life.thirst > 80 || q[C.ENERGY] < 20) return null;
+  if (
+    !life ||
+    !q ||
+    life.hunger <= 68 ||
+    life.hunger > FIELD_HANDS_HUNGER ||
+    life.thirst > 80 ||
+    q[C.ENERGY] < 20
+  )
+    return null;
   const place = nearestFriendlyPlace(id);
   if (!place?.knownProcesses) return null;
   const b = fieldUnfinished(place);
@@ -213,8 +268,22 @@ function fieldBuild(id, place, b) {
     if (!inv || !fieldCommon(sp)) return false;
     const name = W.definitions.species[sp].name;
     if (inv[sp] > 0) {
-      if (dist2(p.x, p.y, b.x, b.y) > 2) return moveWorkerToward(id, site, "haul", `hungry hands carrying ${name} to ${b.name}`, sp, b.id, 0);
-      const amount = Math.min(inv[sp], missing.needed, FIELD_CARRY, 65535 - (b.composition[sp] || 0));
+      if (dist2(p.x, p.y, b.x, b.y) > 2)
+        return moveWorkerToward(
+          id,
+          site,
+          "haul",
+          `hungry hands carrying ${name} to ${b.name}`,
+          sp,
+          b.id,
+          0,
+        );
+      const amount = Math.min(
+        inv[sp],
+        missing.needed,
+        FIELD_CARRY,
+        65535 - (b.composition[sp] || 0),
+      );
       if (amount <= 0) return false;
       inv[sp] -= amount;
       b.composition[sp] += amount;
@@ -228,19 +297,45 @@ function fieldBuild(id, place, b) {
     const stocked = sp === C.ORGANIC ? 0 : place.inventory[sp] || 0;
     if (stocked > 0) {
       const store = idx(place.x, place.y);
-      if (dist2(p.x, p.y, place.x, place.y) > 4) return moveWorkerToward(id, store, "haul", `fetching ${name} from the stores of ${place.name} for the ${b.name}`, sp, b.id, 0);
+      if (dist2(p.x, p.y, place.x, place.y) > 4)
+        return moveWorkerToward(
+          id,
+          store,
+          "haul",
+          `fetching ${name} from the stores of ${place.name} for the ${b.name}`,
+          sp,
+          b.id,
+          0,
+        );
       const amount = Math.min(stocked, missing.needed, FIELD_CARRY, 65535 - inv[sp]);
       if (amount <= 0) return false;
       place.inventory[sp] -= amount;
       inv[sp] += amount;
       FIELD.drawn += amount;
-      setWorkAction(id, "haul", `drew ${amount} ${name} from the stores for the ${b.name}`, store, sp, b.id, 0);
+      setWorkAction(
+        id,
+        "haul",
+        `drew ${amount} ${name} from the stores for the ${b.name}`,
+        store,
+        sp,
+        b.id,
+        0,
+      );
       return true;
     }
     // Hungry hands do not go gathering: the ground is the fed hands' and the effort's to find.
     return false;
   }
-  if (dist2(p.x, p.y, b.x, b.y) > 2) return moveWorkerToward(id, site, "build", `hungry hands moving to the ${b.name} work face`, -1, b.id, 0);
+  if (dist2(p.x, p.y, b.x, b.y) > 2)
+    return moveWorkerToward(
+      id,
+      site,
+      "build",
+      `hungry hands moving to the ${b.name} work face`,
+      -1,
+      b.id,
+      0,
+    );
   const effort =
     3 *
     (typeof constructionTempoFactor === "function" ? constructionTempoFactor(place) : 1) *
@@ -256,14 +351,16 @@ function fieldBuild(id, place, b) {
 // to work; the granary's fields, and now the unfinished farm.
 // A meal to be had at home comes before any labour for the hungry.
 function fieldMealFirst(id) {
-  if (W.kind[id] !== KINDS.PERSON || !shipHasLeft() || typeof homeRationPlace !== "function") return false;
+  if (W.kind[id] !== KINDS.PERSON || !shipHasLeft() || typeof homeRationPlace !== "function")
+    return false;
   const life = W.components.life[id];
   if (!life || life.hunger <= FIELD_MEAL_HUNGER) return false;
   if (!homeRationPlace(id)) return false;
   FIELD.sentToEat++;
   return true;
 }
-const hungryHandsWantedFieldBase = typeof hungryHandsWanted === "function" ? hungryHandsWanted : () => false;
+const hungryHandsWantedFieldBase =
+  typeof hungryHandsWanted === "function" ? hungryHandsWanted : () => false;
 hungryHandsWanted = function (id, place) {
   if (fieldMealFirst(id)) return false;
   if (hungryHandsWantedFieldBase(id, place)) return true;
@@ -300,7 +397,15 @@ orderPriority = function (order, place, id) {
   const score = orderPriorityFieldBase(order, place, id);
   if (!order || order.type === "salvage" || !place?.knownProcesses || !shipHasLeft()) return score;
   const b = buildingById(order.buildingId);
-  if (!b || b.type !== "farm" || b.complete || b.ruined || W.tick - (b.createdTick || 0) < FIELD_WAIT || !fieldReachable(place, b)) return score;
+  if (
+    !b ||
+    b.type !== "farm" ||
+    b.complete ||
+    b.ruined ||
+    W.tick - (b.createdTick || 0) < FIELD_WAIT ||
+    !fieldReachable(place, b)
+  )
+    return score;
   FIELD.first++;
   return score + FIELD_FIRST;
 };
@@ -309,7 +414,11 @@ window.ALIFE_FIELD_DEBUG = Object.freeze({
   waiting: (townId) => fieldWaiting(W.settlements.find((s) => s.id === townId)),
   supply: (townId) => fieldSupply(W.settlements.find((s) => s.id === townId)),
   supplyAll: () => fieldSupplyAll(),
-  reachable: (townId) => { const s = W.settlements.find((x) => x.id === townId), b = fieldUnfinished(s); return b ? fieldReachable(s, b) : null; },
+  reachable: (townId) => {
+    const s = W.settlements.find((x) => x.id === townId),
+      b = fieldUnfinished(s);
+    return b ? fieldReachable(s, b) : null;
+  },
   giveUp: (townId) => fieldGiveUp(W.settlements.find((s) => s.id === townId)),
   sow: (townId) => fieldSow(W.settlements.find((s) => s.id === townId)),
   tend: () => fieldTend(),

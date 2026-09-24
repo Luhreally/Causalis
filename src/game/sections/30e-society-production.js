@@ -84,7 +84,12 @@ function updateCivicProduction() {
             food = takeTileMatter(
               i,
               C.ORGANIC,
-              Math.min(4, Math.max(0, 24 - foodMoved), Math.max(0, room), 65535 - s.inventory[C.ORGANIC]),
+              Math.min(
+                4,
+                Math.max(0, 24 - foodMoved),
+                Math.max(0, room),
+                65535 - s.inventory[C.ORGANIC],
+              ),
             );
           if (food > 0) {
             s.inventory[C.ORGANIC] += food;
@@ -94,7 +99,12 @@ function updateCivicProduction() {
           const water = takeTileMatter(
             i,
             C.SOLVENT,
-            Math.min(6, Math.max(0, 32 - waterMoved), Math.max(0, room), 65535 - s.inventory[C.SOLVENT]),
+            Math.min(
+              6,
+              Math.max(0, 32 - waterMoved),
+              Math.max(0, room),
+              65535 - s.inventory[C.SOLVENT],
+            ),
           );
           if (water > 0) {
             s.inventory[C.SOLVENT] += water;
@@ -103,11 +113,19 @@ function updateCivicProduction() {
           }
         }
     }
-    if (placeHasFacility(s, "hearth") && s.inventory[C.FUEL] > 2 + smeltingFuelFloor(s) && W.tick % 64 === 0) {
+    if (
+      placeHasFacility(s, "hearth") &&
+      s.inventory[C.FUEL] > 2 + smeltingFuelFloor(s) &&
+      W.tick % 64 === 0
+    ) {
       const operator = operateFacility(s, "hearth", "tending a bounded combustion bed", C.FUEL);
       if (operator) {
         const room = placeStorageRemaining(s),
-          oxidant = takeTileMatter(ti, C.OXIDANT, Math.min(3, room, 65535 - s.inventory[C.OXIDANT]));
+          oxidant = takeTileMatter(
+            ti,
+            C.OXIDANT,
+            Math.min(3, room, 65535 - s.inventory[C.OXIDANT]),
+          );
         s.inventory[C.OXIDANT] += oxidant;
         s.productionTemperature = Math.max(s.productionTemperature || 20, 420);
         if (s.knownProcesses.includes("controlled_fire"))
@@ -263,7 +281,10 @@ updateSettlements = function () {
     // At twenty-four the same people stay in the five and six, the city holds
     // sixty-seven and seventy-six where it held thirty-two and twenty-eight,
     // and the tick costs 1.4 and 1.3 times.
-    placeCapacity = Math.max(4, Math.floor(biospherePopulation(KINDS.PERSON) / placePeoplePerTown()));
+    placeCapacity = Math.max(
+      4,
+      Math.floor(biospherePopulation(KINDS.PERSON) / placePeoplePerTown()),
+    );
   for (const c of candidates.slice(0, 2)) {
     if (livePlaceCount >= placeCapacity) break;
     const [ccx, ccy] = xy(c.tile),

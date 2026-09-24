@@ -42,7 +42,12 @@ function ensureRoads(world = W) {
   if (!world?.tiles) return null;
   if (!world.tiles.road || world.tiles.road.length !== world.tileCount)
     world.tiles.road = new Uint8Array(world.tileCount);
-  world.roads = world.roads || { version: 1, matter: new Uint32Array(SPECIES_COUNT), links: [], nextId: 1 };
+  world.roads = world.roads || {
+    version: 1,
+    matter: new Uint32Array(SPECIES_COUNT),
+    links: [],
+    nextId: 1,
+  };
   if (!(world.roads.matter instanceof Uint32Array) || world.roads.matter.length !== SPECIES_COUNT) {
     const m = new Uint32Array(SPECIES_COUNT),
       old = world.roads.matter || [];
@@ -70,7 +75,8 @@ totalChemicalEnergy = function () {
   let total = totalChemicalEnergyRoadsBase();
   if (W?.roads?.matter) {
     const energy = W.definitions.species.map((s) => s.freeEnergy);
-    for (let sp = 0; sp < SPECIES_COUNT; sp++) total += (W.roads.matter[sp] || 0) * (energy[sp] || 0);
+    for (let sp = 0; sp < SPECIES_COUNT; sp++)
+      total += (W.roads.matter[sp] || 0) * (energy[sp] || 0);
   }
   return total;
 };
@@ -87,7 +93,9 @@ function roadLinkBetween(aId, bId, kind) {
 function tradeTripsBetween(a, b) {
   const lo = Math.min(a.id, b.id),
     hi = Math.max(a.id, b.id);
-  return (W.tradeRoutes || []).filter((r) => r.a === lo && r.b === hi).reduce((n, r) => n + r.trips, 0);
+  return (W.tradeRoutes || [])
+    .filter((r) => r.a === lo && r.b === hi)
+    .reduce((n, r) => n + r.trips, 0);
 }
 // ── Laying the road ───────────────────────────────────────────────────────────
 // The pair a polity joins next: the most travelled unlinked pair within reach,
@@ -141,12 +149,20 @@ function roadEventFor(link, a, b) {
         `${Math.round((W.tick - link.startedTick) / TICKS_PER_YEAR)} years in the laying`,
       ],
       importance: 3,
-      data: { a: a.name, b: b.name, tiles: link.path.length, kind: link.kind, polity: faction?.name || "" },
+      data: {
+        a: a.name,
+        b: b.name,
+        tiles: link.path.length,
+        kind: link.kind,
+        polity: faction?.name || "",
+      },
     });
   if (typeof recordMilestone === "function")
     recordMilestone(
       rail ? "first-rail" : "first-road",
-      rail ? `The first railway ran between ${a.name} and ${b.name}` : `The first paved road joined ${a.name} and ${b.name}`,
+      rail
+        ? `The first railway ran between ${a.name} and ${b.name}`
+        : `The first paved road joined ${a.name} and ${b.name}`,
       a,
       { evidence: `${link.path.length} tiles` },
     );
@@ -193,7 +209,9 @@ function roadPassFor(faction, force = false, only = null) {
   if (towns.length < 2) return { road: 0, rail: 0 };
   const out = { road: 0, rail: 0 };
   if ((force || factionHasTech(faction.id, "road_building")) && only !== "rail") {
-    let link = W.roads.links.find((l) => l.factionId === faction.id && l.kind === "road" && !l.complete && !l.abandoned);
+    let link = W.roads.links.find(
+      (l) => l.factionId === faction.id && l.kind === "road" && !l.complete && !l.abandoned,
+    );
     if (!link) {
       const pair = chooseRoadPair(towns, "road", ROAD_LINK_REACH);
       if (pair) link = startRoadLink(faction, pair[0], pair[1], "road");
@@ -201,9 +219,14 @@ function roadPassFor(faction, force = false, only = null) {
     if (link) out.road = paveLink(link);
   }
   if ((force || factionHasTech(faction.id, "railways")) && only !== "road") {
-    let link = W.roads.links.find((l) => l.factionId === faction.id && l.kind === "rail" && !l.complete && !l.abandoned);
+    let link = W.roads.links.find(
+      (l) => l.factionId === faction.id && l.kind === "rail" && !l.complete && !l.abandoned,
+    );
     if (!link) {
-      const largest = towns.slice().sort((p, q) => settlementPopulation(q) - settlementPopulation(p)).slice(0, 4),
+      const largest = towns
+          .slice()
+          .sort((p, q) => settlementPopulation(q) - settlementPopulation(p))
+          .slice(0, 4),
         pair = chooseRoadPair(largest, "rail", RAIL_LINK_REACH);
       if (pair) link = startRoadLink(faction, pair[0], pair[1], "rail");
     }
@@ -361,8 +384,10 @@ bestBarter = function (a, b) {
 // ── Chronicle and pages ───────────────────────────────────────────────────────
 eventText(["RoadEvent", "RailEvent"], function (e, next) {
   const d = e.data || {};
-  if (e.type === "RoadEvent") return `A paved road now joins ${d.a} and ${d.b}, ${d.tiles} tiles of graded stone.`;
-  if (e.type === "RailEvent") return `Iron rails now run between ${d.a} and ${d.b}, ${d.tiles} tiles of track.`;
+  if (e.type === "RoadEvent")
+    return `A paved road now joins ${d.a} and ${d.b}, ${d.tiles} tiles of graded stone.`;
+  if (e.type === "RailEvent")
+    return `Iron rails now run between ${d.a} and ${d.b}, ${d.tiles} tiles of track.`;
   return next(e);
 });
 const alertWorthyRoadsBase = alertWorthy;
@@ -516,7 +541,7 @@ function drawTrain(link, now, m, bounds, still) {
   const path = link.path,
     n = path.length;
   if (n < 4) return;
-  const t = still ? 0.5 : ((now * 0.00003 + link.id * 0.37) % 1 + 1) % 1,
+  const t = still ? 0.5 : (((now * 0.00003 + link.id * 0.37) % 1) + 1) % 1,
     head = Math.max(2, Math.floor(t * (n - 1)));
   const [hx, hy] = xy(path[head]);
   if (hx < bounds.x0 - 2 || hx > bounds.x1 + 2 || hy < bounds.y0 - 2 || hy > bounds.y1 + 2) return;
@@ -533,7 +558,12 @@ function drawTrain(link, now, m, bounds, still) {
     ctx.strokeStyle = "#1e1a17";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.rect(s.x - r * 0.75, s.y - r * (isEngine ? 0.95 : 0.7), r * 1.5, r * (isEngine ? 0.75 : 0.5));
+    ctx.rect(
+      s.x - r * 0.75,
+      s.y - r * (isEngine ? 0.95 : 0.7),
+      r * 1.5,
+      r * (isEngine ? 0.75 : 0.5),
+    );
     ctx.fill();
     ctx.stroke();
     if (isEngine) {
@@ -542,9 +572,15 @@ function drawTrain(link, now, m, bounds, still) {
       if (!still && UI.quality === "high") {
         ctx.fillStyle = hsl(0, 0, 85, 0.35);
         for (let q = 0; q < 3; q++) {
-          const life = ((now * 0.002 + q * 0.33 + link.id) % 1 + 1) % 1;
+          const life = (((now * 0.002 + q * 0.33 + link.id) % 1) + 1) % 1;
           ctx.beginPath();
-          ctx.arc(s.x + r * 0.37 + life * r * 0.6, s.y - r * 1.4 - life * r * 0.9, r * (0.12 + life * 0.22), 0, Math.PI * 2);
+          ctx.arc(
+            s.x + r * 0.37 + life * r * 0.6,
+            s.y - r * 1.4 - life * r * 0.9,
+            r * (0.12 + life * 0.22),
+            0,
+            Math.PI * 2,
+          );
           ctx.fill();
         }
       }
@@ -562,7 +598,14 @@ drawWorkerActivity = function (now, bounds) {
     for (const order of W.civilOrders || []) {
       if (order.sea || !VEHICLE_ORDERS.has(order.kind)) continue;
       const p = W.components.position[order.id];
-      if (!p || p.x < bounds.x0 - 1 || p.x > bounds.x1 + 1 || p.y < bounds.y0 - 1 || p.y > bounds.y1 + 1) continue;
+      if (
+        !p ||
+        p.x < bounds.x0 - 1 ||
+        p.x > bounds.x1 + 1 ||
+        p.y < bounds.y0 - 1 ||
+        p.y > bounds.y1 + 1
+      )
+        continue;
       if (W.components.life[order.id]?.insideBuildingId) continue;
       const kind = vehicleFor(order.id);
       if (!kind) continue;
@@ -641,9 +684,21 @@ window.ALIFE_ROADS_DEBUG = Object.freeze({
           sign = toB <= toA ? 1 : -1,
           j = f.i + sign,
           next = f.link.path[j];
-        return { i: f.i, n, sign, toA, toB, nextLevel: next === undefined ? null : roadLevel(next), nextFire: next === undefined ? null : W.tiles.fire[next], nextBlocked: next === undefined ? null : movementTileBlocked(id, ...xy(next)), nextLiquid: next === undefined ? null : W.tiles.liquid[next] };
+        return {
+          i: f.i,
+          n,
+          sign,
+          toA,
+          toB,
+          nextLevel: next === undefined ? null : roadLevel(next),
+          nextFire: next === undefined ? null : W.tiles.fire[next],
+          nextBlocked: next === undefined ? null : movementTileBlocked(id, ...xy(next)),
+          nextLiquid: next === undefined ? null : W.tiles.liquid[next],
+        };
       })(),
-      neighbours: DIRS.slice(0, 8).map(([dx, dy]) => (inside(p.x + dx, p.y + dy) ? roadLevel(idx(p.x + dx, p.y + dy)) : -1)),
+      neighbours: DIRS.slice(0, 8).map(([dx, dy]) =>
+        inside(p.x + dx, p.y + dy) ? roadLevel(idx(p.x + dx, p.y + dy)) : -1,
+      ),
     };
   },
   steps: { cart: CART_STEPS, motor: MOTOR_STEPS, rail: RAIL_STEPS },

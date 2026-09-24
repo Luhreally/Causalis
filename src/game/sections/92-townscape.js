@@ -16,7 +16,15 @@
 // them, and a town that knows masonry paves them with mineral from its stores
 // into the road ledger. Rendering reads the plan and the family and draws each
 // form; it writes nothing.
-const TOWN_FAMILIES = Object.freeze(["earthen", "hive", "spire", "stilt", "burrow", "lattice", "tessellated"]),
+const TOWN_FAMILIES = Object.freeze([
+    "earthen",
+    "hive",
+    "spire",
+    "stilt",
+    "burrow",
+    "lattice",
+    "tessellated",
+  ]),
   FAMILY_PATTERN = Object.freeze({
     earthen: "gridded",
     hive: "radial",
@@ -93,7 +101,8 @@ function isLaneTile(place, plan, x, y) {
     return ring % s === 0 || u === 0 || v === 0 || Math.abs(u) === Math.abs(v);
   }
   if (plan.pattern === "linear") return mod(v, s) === 0;
-  if (plan.pattern === "hex") return mod(v, s) === 0 || mod(u + Math.floor(Math.abs(v) / s), 4) === 0;
+  if (plan.pattern === "hex")
+    return mod(v, s) === 0 || mod(u + Math.floor(Math.abs(v) / s), 4) === 0;
   return false;
 }
 function townBuildings(place) {
@@ -107,7 +116,8 @@ const TOWN_RING_CAP = 8,
 function townOuterRing(place, buildings = townBuildings(place)) {
   let ring = 3;
   for (const b of buildings) {
-    if (b.type === "farm" || b.type === "corral" || b.type === "wall" || b.type === "dock") continue;
+    if (b.type === "farm" || b.type === "corral" || b.type === "wall" || b.type === "dock")
+      continue;
     const d = Math.max(Math.abs(b.x - place.x), Math.abs(b.y - place.y));
     if (d <= TOWN_RING_CAP + 1) ring = Math.max(ring, Math.min(TOWN_RING_CAP, d));
   }
@@ -168,10 +178,12 @@ plannedBuildingTile = function (place, type, ordinal) {
       }
       if (zone === "dwelling" || zone === "industry" || zone === "civic")
         for (const b of buildings)
-          if (zoneOf(b.type) === zone && Math.max(Math.abs(b.x - x), Math.abs(b.y - y)) <= 2) score += 1.2;
+          if (zoneOf(b.type) === zone && Math.max(Math.abs(b.x - x), Math.abs(b.y - y)) <= 2)
+            score += 1.2;
       if (zone === "farm" || zone === "belt")
         for (const b of buildings)
-          if (b.type === "farm" && Math.max(Math.abs(b.x - x), Math.abs(b.y - y)) <= 3) score += zone === "belt" ? 2 : 0.6;
+          if (b.type === "farm" && Math.max(Math.abs(b.x - x), Math.abs(b.y - y)) <= 3)
+            score += zone === "belt" ? 2 : 0.6;
       // The town's quarters, when a later section has drawn them (125): a
       // preference on top of the ring targets, never a veto, so a plot is
       // always found even where the quarter it wanted is full.
@@ -181,7 +193,10 @@ plannedBuildingTile = function (place, type, ordinal) {
     }
   candidates.sort((a, b) => b.score - a.score || a.y - b.y || a.x - b.x);
   for (const c of candidates)
-    if (developmentFootprintClear(c.x, c.y, footprint) && buildingTerrainFootprintValid(type, c.x, c.y))
+    if (
+      developmentFootprintClear(c.x, c.y, footprint) &&
+      buildingTerrainFootprintValid(type, c.x, c.y)
+    )
       return [c.x, c.y];
   return plannedBuildingTileTownBase(place, type, ordinal);
 };
@@ -196,7 +211,9 @@ ensurePlacePlans = function (place) {
     outer = townOuterRing(place, buildings);
   if (settlementPopulation(place) < FARMSTEAD_POP || farms.length < FARMSTEAD_FARMS) return;
   const farmsteads = buildings.filter(
-    (b) => b.type === "shelter" && Math.max(Math.abs(b.x - place.x), Math.abs(b.y - place.y)) >= outer + 1,
+    (b) =>
+      b.type === "shelter" &&
+      Math.max(Math.abs(b.x - place.x), Math.abs(b.y - place.y)) >= outer + 1,
   ).length;
   if (farmsteads >= Math.floor(farms.length / 3)) return;
   if (buildings.some((b) => b.type === "shelter" && !b.complete)) return;
@@ -208,7 +225,8 @@ ensurePlacePlans = function (place) {
 function paveStreets(place) {
   const plan = townPlan(place),
     buildings = townBuildings(place).filter((b) => b.complete);
-  if (!place.knownProcesses.includes("masonry") && !place.knownProcesses.includes("road_building")) return 0;
+  if (!place.knownProcesses.includes("masonry") && !place.knownProcesses.includes("road_building"))
+    return 0;
   if (typeof ensureRoads !== "function") return 0;
   ensureRoads();
   const outer = townOuterRing(place, buildings),
@@ -223,7 +241,8 @@ function paveStreets(place) {
       if (road[tile] || W.tiles.liquid[tile] > 140) continue;
       if (!isPlazaTile(place, plan, x, y) && !isLaneTile(place, plan, x, y)) continue;
       let neighbours = 0;
-      for (const b of buildings) if (Math.max(Math.abs(b.x - x), Math.abs(b.y - y)) <= 1) neighbours++;
+      for (const b of buildings)
+        if (Math.max(Math.abs(b.x - x), Math.abs(b.y - y)) <= 1) neighbours++;
       if (neighbours < 2) continue;
       if ((place.inventory[C.MINERAL] || 0) < STREET_COST) return laid;
       place.inventory[C.MINERAL] -= STREET_COST;
@@ -238,13 +257,17 @@ function paveStreets(place) {
       subjects: [place.entityId],
       location: idx(place.x, place.y),
       factions: place.factionId ? [place.factionId] : [],
-      causes: [W.lastEventByType.TechAdvanceEvent, W.lastEventByType.BuildingCompletedEvent].filter(Boolean),
+      causes: [W.lastEventByType.TechAdvanceEvent, W.lastEventByType.BuildingCompletedEvent].filter(
+        Boolean,
+      ),
       evidence: [`${plan.pattern} streets`, `${buildings.length} buildings stand`],
       importance: 3,
       data: { place: place.name, pattern: plan.pattern, family: plan.family },
     });
     if (typeof recordMilestone === "function")
-      recordMilestone("first-streets", `${place.name} paved its streets`, place, { evidence: `${plan.pattern} streets` });
+      recordMilestone("first-streets", `${place.name} paved its streets`, place, {
+        evidence: `${plan.pattern} streets`,
+      });
   }
   return laid;
 }
@@ -256,7 +279,8 @@ tickSystem("townscape", function () {
   if (W?.settlements) updateStreets();
 });
 eventText(["StreetsPavedEvent"], function (e, next) {
-  if (e.type === "StreetsPavedEvent") return `${e.data?.place} paved its ${e.data?.pattern} streets.`;
+  if (e.type === "StreetsPavedEvent")
+    return `${e.data?.place} paved its ${e.data?.pattern} streets.`;
   return next(e);
 });
 const renderPlacePageTownBase = renderPlacePage;
@@ -281,13 +305,33 @@ function buildingFamily(b) {
   }
   let f = familyCache.byPlace.get(key);
   if (!f) {
-    const place = b.placeKind === "settlement" ? W.settlements.find((s) => s.id === b.placeId) : W.camps.find((c) => c.id === b.placeId);
-    f = place?.plan?.family && FAMILY_PATTERN[place.plan.family] ? place.plan.family : place ? townFamilyFor(place) : "earthen";
+    const place =
+      b.placeKind === "settlement"
+        ? W.settlements.find((s) => s.id === b.placeId)
+        : W.camps.find((c) => c.id === b.placeId);
+    f =
+      place?.plan?.family && FAMILY_PATTERN[place.plan.family]
+        ? place.plan.family
+        : place
+          ? townFamilyFor(place)
+          : "earthen";
     familyCache.byPlace.set(key, f);
   }
   return f;
 }
-const FAMILY_SPECIAL = new Set(["wall", "stockpile", "waterworks", "shrine", "monument", "dock", "observatory", "launch_tower", "market", "corral", "farm"]);
+const FAMILY_SPECIAL = new Set([
+  "wall",
+  "stockpile",
+  "waterworks",
+  "shrine",
+  "monument",
+  "dock",
+  "observatory",
+  "launch_tower",
+  "market",
+  "corral",
+  "farm",
+]);
 function townIsUrban(b) {
   if (b.placeKind !== "settlement") return false;
   const s = W.settlements.find((x) => x.id === b.placeId);
@@ -303,7 +347,18 @@ function facadeGeometry(s, r, tall, wide) {
 function drawEarthen(g, b, s, r, p, now, detail) {
   const type = b.type,
     urban = townIsUrban(b),
-    tall = type === "hall" ? 1.35 : type === "archive" ? 1.9 : type === "clinic" ? 1.1 : type === "hearth" ? 0.45 : urban && type === "shelter" ? 1.15 : 1,
+    tall =
+      type === "hall"
+        ? 1.35
+        : type === "archive"
+          ? 1.9
+          : type === "clinic"
+            ? 1.1
+            : type === "hearth"
+              ? 0.45
+              : urban && type === "shelter"
+                ? 1.15
+                : 1,
     wide = type === "hall" ? 1.25 : urban && type === "shelter" ? 1.3 : 1,
     { hw, h, baseY, topY, facade } = facadeGeometry(s, r, tall, wide),
     brick = hsl(14, 42, 44),
@@ -342,7 +397,8 @@ function drawEarthen(g, b, s, r, p, now, detail) {
     for (let c = 0; c < cols; c++) g.fillRect(facade.x + ww * (2 * c + 1), topY + h * 0.22, ww, wh);
     g.fillStyle = brickDark;
     g.fillRect(s.x - ww * 0.45, baseY - h * 0.38, ww * 0.9, h * 0.38);
-    if (urban && type === "shelter") g.fillRect(facade.x + ww * 0.8, baseY - h * 0.38, ww * 0.9, h * 0.38);
+    if (urban && type === "shelter")
+      g.fillRect(facade.x + ww * 0.8, baseY - h * 0.38, ww * 0.9, h * 0.38);
   }
   // Roofs: pitched slate with a chimney; a dome and lantern on the hall; a clock tower on the archive.
   g.fillStyle = slate;
@@ -430,7 +486,13 @@ function drawHive(g, b, s, r, p, now, detail) {
     for (let n = 0; n < pores; n++) {
       const a = Math.PI * (0.25 + (0.5 * (n + 0.5)) / pores);
       g.beginPath();
-      g.arc(s.x + Math.cos(a) * hw * 0.55, baseY - Math.sin(a) * h * 0.55, Math.max(1, r * 0.09), 0, Math.PI * 2);
+      g.arc(
+        s.x + Math.cos(a) * hw * 0.55,
+        baseY - Math.sin(a) * h * 0.55,
+        Math.max(1, r * 0.09),
+        0,
+        Math.PI * 2,
+      );
       g.fill();
     }
   }
@@ -628,7 +690,12 @@ function drawTessellated(g, b, s, r, p, now, detail) {
     g.fill();
   }
   const h = tiers * step + r * 0.2;
-  drawBuildingFunctionMarks(g, b, s, r, p, now, detail, { hw: rad * 0.87, h, baseY, topY: baseY - h });
+  drawBuildingFunctionMarks(g, b, s, r, p, now, detail, {
+    hw: rad * 0.87,
+    h,
+    baseY,
+    topY: baseY - h,
+  });
 }
 const drawCompletedBuildingTownBase = drawCompletedBuilding;
 drawCompletedBuilding = function (g, b, s, r, p, now, m) {

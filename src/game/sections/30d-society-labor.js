@@ -695,7 +695,12 @@ function personIsHostileVisitor(id, factionId) {
 // the store-drain probe read a famine town's day of bread taken in one tick
 // by two such eaters while ten went without; at two meals' worth four eaters
 // still took the day in two ticks. `let`, for a probe's A/B (OFF=gutcap).
-let GUT_FULL = Object.freeze({ [C.ORGANIC]: 24, [C.ENERGY]: 12, [C.NUTRIENT]: 10, [C.CATALYST]: 3 });
+let GUT_FULL = Object.freeze({
+  [C.ORGANIC]: 24,
+  [C.ENERGY]: 12,
+  [C.NUTRIENT]: 10,
+  [C.CATALYST]: 3,
+});
 // The room left in a gut for a meal: to GUT_FULL behind the ship, to the
 // sixteen-bit ceiling before it, as it always was (see 41 for why).
 function gutRoom(sp, digestive) {
@@ -723,7 +728,12 @@ performFeeding = function (id, tile, stride = 1) {
     [C.NUTRIENT, 8],
     [C.CATALYST, 2],
   ]) {
-    const amount = Math.min(limit * stride, place.inventory[sp] || 0, gutRoom(sp, digestive), 65535 - digestive[sp]);
+    const amount = Math.min(
+      limit * stride,
+      place.inventory[sp] || 0,
+      gutRoom(sp, digestive),
+      65535 - digestive[sp],
+    );
     place.inventory[sp] -= amount;
     digestive[sp] += amount;
     moved += amount;

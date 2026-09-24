@@ -24,15 +24,25 @@
 // skip chooses to stop, and two sentences of its report, differ.
 const TRANSIT_PRESS_TICKS = TICKS_PER_YEAR * 12;
 function transitUnderWay() {
-  return (W?.voyages || []).filter((v) => v.status === "under way").sort((a, b) => a.arriveTick - b.arriveTick)[0] || null;
+  return (
+    (W?.voyages || [])
+      .filter((v) => v.status === "under way")
+      .sort((a, b) => a.arriveTick - b.arriveTick)[0] || null
+  );
 }
 function transitSentence(voyage) {
   if (!voyage) return "";
-  const perLightYear = typeof ORBIT_TICKS_PER_LIGHTYEAR === "number" ? ORBIT_TICKS_PER_LIGHTYEAR : TICKS_PER_YEAR * 2,
+  const perLightYear =
+      typeof ORBIT_TICKS_PER_LIGHTYEAR === "number"
+        ? ORBIT_TICKS_PER_LIGHTYEAR
+        : TICKS_PER_YEAR * 2,
     total = Math.max(1, voyage.arriveTick - voyage.departTick),
     left = Math.max(0, voyage.arriveTick - W.tick),
     lightYearsOut = ((total - left) / perLightYear).toFixed(1),
-    arrival = typeof formatYear === "function" ? formatYear(voyage.arriveTick) : String(Math.floor(voyage.arriveTick / TICKS_PER_YEAR));
+    arrival =
+      typeof formatYear === "function"
+        ? formatYear(voyage.arriveTick)
+        : String(Math.floor(voyage.arriveTick / TICKS_PER_YEAR));
   if (!left) return `${voyage.name} has reached ${voyage.starName}.`;
   return `${voyage.name} is ${lightYearsOut} light-years out, bound for ${voyage.starName}; it arrives in year ${arrival}.`;
 }
@@ -41,8 +51,13 @@ makeCausalSkipState = function (limitOverride = 0) {
   const state = makeCausalSkipStateTransitBase(limitOverride),
     voyage = transitUnderWay();
   if (!voyage || !state.pending?.some((s) => s.key === "colony")) return state;
-  for (const stage of state.pending) if (String(stage.key).startsWith("inquiry:")) stage.quiet = true;
-  if (!(limitOverride > 0)) state.limit = Math.min(Math.max(state.limit, voyage.arriveTick - W.tick + 16), TRANSIT_PRESS_TICKS);
+  for (const stage of state.pending)
+    if (String(stage.key).startsWith("inquiry:")) stage.quiet = true;
+  if (!(limitOverride > 0))
+    state.limit = Math.min(
+      Math.max(state.limit, voyage.arriveTick - W.tick + 16),
+      TRANSIT_PRESS_TICKS,
+    );
   state.transit = voyage.id;
   return state;
 };

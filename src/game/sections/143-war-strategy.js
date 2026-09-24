@@ -133,11 +133,27 @@ function warInterceptTarget(unit, war, town) {
       unit.intercept = null;
       return null;
     }
-    point = unit.intercept = { enemyId: best.enemy.id, townId: town.id, enemyX: best.g.x, enemyY: best.g.y, x, y, since: W.tick };
+    point = unit.intercept = {
+      enemyId: best.enemy.id,
+      townId: town.id,
+      enemyX: best.g.x,
+      enemyY: best.g.y,
+      x,
+      y,
+      since: W.tick,
+    };
     WARSTRAT.intercepts++;
   }
   // A negative id, one per tile, so the route cache (42a) replots when the point moves.
-  return { id: -(1 + idx(point.x, point.y)), x: point.x, y: point.y, name: `${town.name} road`, road: true, townId: town.id, factionId: town.factionId };
+  return {
+    id: -(1 + idx(point.x, point.y)),
+    x: point.x,
+    y: point.y,
+    name: `${town.name} road`,
+    road: true,
+    townId: town.id,
+    factionId: town.factionId,
+  };
 }
 const militaryObjectiveStrategyBase = militaryObjective;
 militaryObjective = function (unit) {
@@ -151,6 +167,17 @@ militaryObjective = function (unit) {
 };
 window.ALIFE_WARSTRAT_DEBUG = Object.freeze({
   counts: () => ({ ...WARSTRAT }),
-  rallies: () => (W.militaryUnits || []).filter((u) => u.active && u.rally?.holding).map((u) => ({ id: u.id, objective: u.rally.objectiveId, since: u.rally.since, waitingFor: u.rally.waitingFor })),
-  intercepts: () => (W.militaryUnits || []).filter((u) => u.active && u.intercept).map((u) => ({ id: u.id, ...u.intercept })),
+  rallies: () =>
+    (W.militaryUnits || [])
+      .filter((u) => u.active && u.rally?.holding)
+      .map((u) => ({
+        id: u.id,
+        objective: u.rally.objectiveId,
+        since: u.rally.since,
+        waitingFor: u.rally.waitingFor,
+      })),
+  intercepts: () =>
+    (W.militaryUnits || [])
+      .filter((u) => u.active && u.intercept)
+      .map((u) => ({ id: u.id, ...u.intercept })),
 });

@@ -50,16 +50,27 @@
 // the next only when the last is cleared, and never a house, a field, a
 // workshop or a hall. FIELD_GATES counts the crossings the rule allowed a
 // person, the towns the effort passed over, and the buildings pulled down.
-const FIELD_GATES = { crossed: 0, passedOver: 0, pulledDown: 0, siteRoom: 0, roomTaken: 0, roomKept: 0 };
+const FIELD_GATES = {
+  crossed: 0,
+  passedOver: 0,
+  pulledDown: 0,
+  siteRoom: 0,
+  roomTaken: 0,
+  roomKept: 0,
+};
 function fieldAtMovementTile(x, y) {
-  const b = typeof standingBuildingAtMovementTile === "function" ? standingBuildingAtMovementTile(x, y) : null;
+  const b =
+    typeof standingBuildingAtMovementTile === "function"
+      ? standingBuildingAtMovementTile(x, y)
+      : null;
   return b && b.type === "farm" ? b : null;
 }
 const movementTileBlockedFieldGatesBase = movementTileBlocked;
 movementTileBlocked = function (id, x, y) {
   if (W.kind[id] === KINDS.PERSON && fieldAtMovementTile(x, y)) {
     const p = W.components.position[id];
-    if (typeof terrainStepBlocked === "function" && p && terrainStepBlocked(id, p.x, p.y, x, y)) return true;
+    if (typeof terrainStepBlocked === "function" && p && terrainStepBlocked(id, p.x, p.y, x, y))
+      return true;
     FIELD_GATES.crossed++;
     return false;
   }
@@ -150,13 +161,19 @@ function roomWantedFor(town, type) {
   return !!site && site === town;
 }
 function townRubbleLeft(town) {
-  return W.buildings.some((b) => b.ruined && b.placeKind === "settlement" && b.placeId === town.id && ruinRubble(b) > 0);
+  return W.buildings.some(
+    (b) => b.ruined && b.placeKind === "settlement" && b.placeId === town.id && ruinRubble(b) > 0,
+  );
 }
 // The spot a standing building leaves, as if it were gone: the wanted footprint clear of every other
 // building, ground a building may stand on, and within the hall's walk.
 function roomSpotUsable(town, type, b) {
   const r = buildingSpatialRadius(type);
-  if (!developmentFootprintClear(b.x, b.y, r, b.id) || !buildingTerrainFootprintValid(type, b.x, b.y)) return false;
+  if (
+    !developmentFootprintClear(b.x, b.y, r, b.id) ||
+    !buildingTerrainFootprintValid(type, b.x, b.y)
+  )
+    return false;
   return typeof openGroundPlotReachable !== "function" || openGroundPlotReachable(town, b.x, b.y);
 }
 function roomMadeLive(town) {
@@ -170,13 +187,34 @@ function roomMadePending(town) {
   return false;
 }
 function makeRoomFor(town, type) {
-  if (!town?.knownProcesses || !roomWantedFor(town, type) || roomMadePending(town) || townRubbleLeft(town)) return false;
+  if (
+    !town?.knownProcesses ||
+    !roomWantedFor(town, type) ||
+    roomMadePending(town) ||
+    townRubbleLeft(town)
+  )
+    return false;
   // A plan of the kind already open is room enough; this is for a town whose siting hands back nothing.
-  if (W.buildings.some((b) => !b.ruined && !b.complete && b.placeKind === "settlement" && b.placeId === town.id && b.type === type)) return false;
+  if (
+    W.buildings.some(
+      (b) =>
+        !b.ruined &&
+        !b.complete &&
+        b.placeKind === "settlement" &&
+        b.placeId === town.id &&
+        b.type === type,
+    )
+  )
+    return false;
   for (const kind of roomSacrificesFor(type)) {
     const standing = completedBuildings(town, kind).filter((b) => roomSpotUsable(town, type, b));
-    if (!standing.length || (kind === "stockpile" && completedBuildings(town, kind).length < 2)) continue;
-    const b = standing.slice().sort((a, c) => dist2(a.x, a.y, town.x, town.y) - dist2(c.x, c.y, town.x, town.y) || a.id - c.id)[0];
+    if (!standing.length || (kind === "stockpile" && completedBuildings(town, kind).length < 2))
+      continue;
+    const b = standing
+      .slice()
+      .sort(
+        (a, c) => dist2(a.x, a.y, town.x, town.y) - dist2(c.x, c.y, town.x, town.y) || a.id - c.id,
+      )[0];
     collapseBuilding(b, `pulled down to make room for the ${BUILDING_DEFS[type]?.name || type}`);
     queueRuinSalvage(town);
     town.roomMade = { type, x: b.x, y: b.y, tick: W.tick };
@@ -193,7 +231,8 @@ function roomMadeBlocks(place, type, x, y) {
     if (town.ruined || !roomMadeLive(town)) continue;
     const made = town.roomMade;
     if (town === place && made.type === type) continue;
-    if (spatialFootprintsOverlap(x, y, r, made.x, made.y, buildingSpatialRadius(made.type))) return true;
+    if (spatialFootprintsOverlap(x, y, r, made.x, made.y, buildingSpatialRadius(made.type)))
+      return true;
   }
   return false;
 }
@@ -202,7 +241,10 @@ const plannedBuildingTileRoomBase = plannedBuildingTile;
 plannedBuildingTile = function (place, type, ordinal) {
   const made = place?.roomMade;
   if (made && made.type === type) {
-    if (developmentFootprintClear(made.x, made.y, buildingSpatialRadius(type)) && buildingTerrainFootprintValid(type, made.x, made.y)) {
+    if (
+      developmentFootprintClear(made.x, made.y, buildingSpatialRadius(type)) &&
+      buildingTerrainFootprintValid(type, made.x, made.y)
+    ) {
       delete place.roomMade;
       FIELD_GATES.roomTaken++;
       return [made.x, made.y];
@@ -241,7 +283,8 @@ function fieldGatesPushCity(town, pushes) {
 // the same push, the siting's backoff (70) notwithstanding; otherwise the salvage carries the rubble
 // off and the next push's plan lands there.
 function roomMadeAfter(place, type, pushes) {
-  if (!(type === "launch_tower" || ROOM_WANTED_AT_SITE.has(type)) || !place?.knownProcesses) return false;
+  if (!(type === "launch_tower" || ROOM_WANTED_AT_SITE.has(type)) || !place?.knownProcesses)
+    return false;
   if (!makeRoomFor(place, type)) return false;
   if (place.siteBackoff) delete place.siteBackoff[type];
   const b = planBuilding(place, type, 9);
@@ -257,7 +300,12 @@ causalPushBuilding = function (place, type, pushes) {
 const modernSupplyFieldGatesBase = modernSupply;
 modernSupply = function (place, type, pushes) {
   // A site whose launch tower stands is not supplied a second one.
-  if (type === "launch_tower" && place?.knownProcesses && completedBuildings(place, "launch_tower").length) return true;
+  if (
+    type === "launch_tower" &&
+    place?.knownProcesses &&
+    completedBuildings(place, "launch_tower").length
+  )
+    return true;
   const supplied = modernSupplyFieldGatesBase(place, type, pushes);
   if (!supplied) return roomMadeAfter(place, type, pushes);
   return supplied;
@@ -265,7 +313,9 @@ modernSupply = function (place, type, pushes) {
 const modernPushFieldGatesBase = modernPush;
 modernPush = function (key, pushes) {
   if (key !== "cities") return modernPushFieldGatesBase(key, pushes);
-  const towns = worldTowns().sort((a, b) => settlementPopulation(b) - settlementPopulation(a) || a.id - b.id),
+  const towns = worldTowns().sort(
+      (a, b) => settlementPopulation(b) - settlementPopulation(a) || a.id - b.id,
+    ),
     cities = modernCities(),
     candidates = towns.filter((s) => !cities.includes(s));
   if (!towns.length) return null;
@@ -388,7 +438,9 @@ function modernCityRoomFor(type) {
   if (type in BLOCK_ROOM.kinds) return BLOCK_ROOM.kinds[type];
   let found = false;
   for (const city of modernCities()) {
-    const ordinal = W.buildings.filter((b) => !b.ruined && b.placeKind === "settlement" && b.placeId === city.id).length;
+    const ordinal = W.buildings.filter(
+      (b) => !b.ruined && b.placeKind === "settlement" && b.placeId === city.id,
+    ).length;
     if (plannedBuildingTile(city, type, ordinal)) {
       found = true;
       break;
@@ -399,7 +451,8 @@ function modernCityRoomFor(type) {
 }
 function modernPlannedCount(types) {
   let n = 0;
-  for (const b of W.buildings) if (!b.ruined && !b.complete && b.placeKind === "settlement" && types.includes(b.type)) n++;
+  for (const b of W.buildings)
+    if (!b.ruined && !b.complete && b.placeKind === "settlement" && types.includes(b.type)) n++;
   return n;
 }
 // The floor itself is the ground. Section 18 bounded the skyline only when no
@@ -435,8 +488,13 @@ function modernBlockRoomEstimate() {
           y = city.y + dy;
         if (x < 1 || y < 1 || x >= W.width - 1 || y >= W.height - 1) continue;
         if (dx * dx + dy * dy > reach * reach) continue;
-        if (!developmentFootprintClear(x, y, footprint) || !buildingTerrainFootprintValid("tower", x, y)) continue;
-        if (typeof openGroundPlotReachable === "function" && !openGroundPlotReachable(city, x, y)) continue;
+        if (
+          !developmentFootprintClear(x, y, footprint) ||
+          !buildingTerrainFootprintValid("tower", x, y)
+        )
+          continue;
+        if (typeof openGroundPlotReachable === "function" && !openGroundPlotReachable(city, x, y))
+          continue;
         tiles++;
       }
   }
@@ -491,7 +549,12 @@ function worldTownsFallen() {
 const worldHasRoomForPlacesFieldGatesBase = worldHasRoomForPlaces;
 worldHasRoomForPlaces = function () {
   if (worldHasRoomForPlacesFieldGatesBase()) return true;
-  if (!W?.settlements || typeof worldHasRoomForPlacesManyHandsBase !== "function" || !worldTownsFallen()) return false;
+  if (
+    !W?.settlements ||
+    typeof worldHasRoomForPlacesManyHandsBase !== "function" ||
+    !worldTownsFallen()
+  )
+    return false;
   const room = worldHasRoomForPlacesManyHandsBase();
   if (room) FIELD_GATES.refounded = (FIELD_GATES.refounded || 0) + 1;
   return room;
@@ -503,10 +566,24 @@ window.ALIFE_FIELD_GATES_DEBUG = Object.freeze({
   roomFor: (type) => modernCityRoomFor(type),
   blockRoom: () => modernBlockRoomEstimate(),
   corridorChecks: () => ROAD_CORRIDOR.checked,
-  makeRoom: (placeId, type = "hall") => makeRoomFor(W.settlements.find((s) => s.id === placeId), type),
-  roomWanted: (placeId, type = "factory") => roomWantedFor(W.settlements.find((s) => s.id === placeId), type),
+  makeRoom: (placeId, type = "hall") =>
+    makeRoomFor(
+      W.settlements.find((s) => s.id === placeId),
+      type,
+    ),
+  roomWanted: (placeId, type = "factory") =>
+    roomWantedFor(
+      W.settlements.find((s) => s.id === placeId),
+      type,
+    ),
   roomMade: (placeId) => W.settlements.find((s) => s.id === placeId)?.roomMade || null,
-  roomBlocks: (placeId, type, x, y) => roomMadeBlocks(W.settlements.find((s) => s.id === placeId), type, x, y),
+  roomBlocks: (placeId, type, x, y) =>
+    roomMadeBlocks(
+      W.settlements.find((s) => s.id === placeId),
+      type,
+      x,
+      y,
+    ),
   fieldAt: (x, y) => fieldAtMovementTile(x, y)?.id || 0,
   candidates: () => {
     const cities = modernCities();

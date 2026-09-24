@@ -70,7 +70,9 @@ function intentLabel(id, fallback = "Observing its surroundings") {
   const s = settledIntent(id);
   if (!s) return fallback;
   const word = s.word || fallback;
-  return s.current && s.current !== s.word ? `${word} <span class="muted">(now ${esc(s.current)})</span>` : esc(word);
+  return s.current && s.current !== s.word
+    ? `${word} <span class="muted">(now ${esc(s.current)})</span>`
+    : esc(word);
 }
 const organismInspectorIntentBase = organismInspector;
 organismInspector = function (id) {
@@ -81,8 +83,14 @@ organismInspector = function (id) {
   const s = settledIntent(id);
   // The label is a span in the plain inspector and an explain button under the field guide (38).
   return html
-    .replace(/(Behavior<\/(?:span|button)>)<b>[^<]*<\/b>/, `$1<b>${s.word ? intentLabel(id) : "none"}</b>`)
-    .replace(/(Why\?<\/(?:span|button)>)<b>[^<]*<\/b>/, `$1<b>${esc(s.reason || l.behaviorReason || "no active need")}</b>`);
+    .replace(
+      /(Behavior<\/(?:span|button)>)<b>[^<]*<\/b>/,
+      `$1<b>${s.word ? intentLabel(id) : "none"}</b>`,
+    )
+    .replace(
+      /(Why\?<\/(?:span|button)>)<b>[^<]*<\/b>/,
+      `$1<b>${esc(s.reason || l.behaviorReason || "no active need")}</b>`,
+    );
 };
 const selectionSummaryIntentBase = selectionSummaryMarkup;
 selectionSummaryMarkup = function () {

@@ -12,7 +12,17 @@
 // are drawn small. Portraits in the people bar show the same dress. Rendering
 // only reads; the figure is a way of seeing the components.
 const FIGURE_KNEEL_TASKS = new Set(["sow", "tend", "harvest"]),
-  FIGURE_WORK_TASKS = new Set(["haul", "gather", "mine", "cut", "fill_bucket", "craft", "build", "operate", "firefight"]),
+  FIGURE_WORK_TASKS = new Set([
+    "haul",
+    "gather",
+    "mine",
+    "cut",
+    "fill_bucket",
+    "craft",
+    "build",
+    "operate",
+    "firefight",
+  ]),
   FIGURE_RECENT = 12;
 let ACTIVE_FIGURE = null,
   FIGURES_DRAWN = 0,
@@ -29,7 +39,13 @@ function homeEraOf(id) {
   let era = figureEraCache.byPlace.get(soc.homePlaceId);
   if (!era) {
     const k = W.settlements.find((s) => s.id === soc.homePlaceId)?.knownProcesses || [];
-    era = k.includes("electricity") ? "electric" : k.includes("mechanization") ? "engines" : k.includes("writing") ? "letters" : "stone";
+    era = k.includes("electricity")
+      ? "electric"
+      : k.includes("mechanization")
+        ? "engines"
+        : k.includes("writing")
+          ? "letters"
+          : "stone";
     figureEraCache.byPlace.set(soc.homePlaceId, era);
   }
   return era;
@@ -37,10 +53,21 @@ function homeEraOf(id) {
 function figurePose(id, motion) {
   const life = W.components.life[id],
     w = W.components.work?.[id],
-    task = w && w.task !== "idle" && W.tick - (Number.isFinite(w.handledTick) ? w.handledTick : -1e9) <= FIGURE_RECENT ? w.task : "",
+    task =
+      w &&
+      w.task !== "idle" &&
+      W.tick - (Number.isFinite(w.handledTick) ? w.handledTick : -1e9) <= FIGURE_RECENT
+        ? w.task
+        : "",
     campaign = W.components.campaign?.[id];
   if (FIGURE_KNEEL_TASKS.has(task)) return "kneel";
-  if (task === "raze" || campaign?.role === "attack" || life?.behavior === "defend" || life?.behavior === "hunt") return "fight";
+  if (
+    task === "raze" ||
+    campaign?.role === "attack" ||
+    life?.behavior === "defend" ||
+    life?.behavior === "hunt"
+  )
+    return "fight";
   if (life?.behavior === "rest" && typeof nightAt === "function") {
     const p = W.components.position[id];
     if (p && nightAt(p.x, p.y)) return "sleep";
@@ -73,8 +100,18 @@ function figureRadius(id, motion) {
   return Math.max(2.2, m.tw * (0.05 + 0.042 * clamp(ph.size, 0.35, 1.8))) * crowd;
 }
 const drawCreatureGlyphFiguresBase = drawCreatureGlyph;
-drawCreatureGlyph = function (g, id, s, now, fac = null, scaleOverride = 0, portrait = false, motion = null) {
-  ACTIVE_FIGURE = W.kind[id] === KINDS.PERSON && W.components.life[id] ? figureState(id, motion, portrait) : null;
+drawCreatureGlyph = function (
+  g,
+  id,
+  s,
+  now,
+  fac = null,
+  scaleOverride = 0,
+  portrait = false,
+  motion = null,
+) {
+  ACTIVE_FIGURE =
+    W.kind[id] === KINDS.PERSON && W.components.life[id] ? figureState(id, motion, portrait) : null;
   if (ACTIVE_FIGURE) {
     FIGURE_CALLS++;
     if (!portrait && !scaleOverride && UI.quality !== "low") {
@@ -92,11 +129,17 @@ const drawUprightPersonFiguresBase = drawUprightPerson;
 drawUprightPerson = function (g, m, phase, detail, colors) {
   const fig = ACTIVE_FIGURE,
     form = m.personForm || "biped";
-  if (!fig || detail === 0 || form === "quadruped") return drawUprightPersonFiguresBase(g, m, phase, detail, colors);
+  if (!fig || detail === 0 || form === "quadruped")
+    return drawUprightPersonFiguresBase(g, m, phase, detail, colors);
   FIGURES_DRAWN++;
   const { primary, secondary, accent, outline, dress } = colors,
     pose = fig.pose,
-    swing = pose === "walk" ? 0.2 : pose === "stand" || pose === "sit" || pose === "kneel" || pose === "sleep" ? 0.02 : 0.1,
+    swing =
+      pose === "walk"
+        ? 0.2
+        : pose === "stand" || pose === "sit" || pose === "kneel" || pose === "sleep"
+          ? 0.02
+          : 0.1,
     wave = Math.sin(phase) * swing,
     torsoW = form === "broad" ? 0.56 : form === "tall" ? 0.38 : 0.46,
     torsoH = form === "tall" ? 0.86 : form === "broad" ? 0.64 : 0.73,
@@ -109,7 +152,15 @@ drawUprightPerson = function (g, m, phase, detail, colors) {
   if (dressed && (dress.style === "cloak" || fig.era === "letters")) {
     g.fillStyle = hsl(dress.hue, 45, 32, 0.85);
     g.beginPath();
-    g.ellipse(0, 0.32, torsoW * 1.35, torsoH * (pose === "sit" || pose === "kneel" ? 0.8 : pose === "sleep" ? 0.62 : 1.05), 0, 0, Math.PI * 2);
+    g.ellipse(
+      0,
+      0.32,
+      torsoW * 1.35,
+      torsoH * (pose === "sit" || pose === "kneel" ? 0.8 : pose === "sleep" ? 0.62 : 1.05),
+      0,
+      0,
+      Math.PI * 2,
+    );
     g.fill();
     if (fig.era === "letters" && detail > 1) {
       g.strokeStyle = hsl(dress.hue, 60, 60, 0.9);
@@ -125,34 +176,50 @@ drawUprightPerson = function (g, m, phase, detail, colors) {
   // Arms.
   const shoulder = -0.05;
   if (creatureAppendageVisible(m, 0)) {
-    if (pose === "kneel") creatureLimbStyled(g, m, -torsoW * 0.4, shoulder, -0.6, 0.62, 0.12, phase);
-    else if (pose === "work") creatureLimbStyled(g, m, -torsoW * 0.4, shoulder, -0.5, -0.38, 0.12, phase);
-    else if (pose === "fight") creatureLimbStyled(g, m, -torsoW * 0.4, shoulder, -0.72, -0.78, 0.12, phase);
-    else if (pose === "sit") creatureLimbStyled(g, m, -torsoW * 0.4, shoulder, -0.55, 0.55, 0.12, phase);
-    else if (pose === "sleep") creatureLimbStyled(g, m, -torsoW * 0.4, shoulder + 0.2, -0.5, 0.3, 0.12, phase);
+    if (pose === "kneel")
+      creatureLimbStyled(g, m, -torsoW * 0.4, shoulder, -0.6, 0.62, 0.12, phase);
+    else if (pose === "work")
+      creatureLimbStyled(g, m, -torsoW * 0.4, shoulder, -0.5, -0.38, 0.12, phase);
+    else if (pose === "fight")
+      creatureLimbStyled(g, m, -torsoW * 0.4, shoulder, -0.72, -0.78, 0.12, phase);
+    else if (pose === "sit")
+      creatureLimbStyled(g, m, -torsoW * 0.4, shoulder, -0.55, 0.55, 0.12, phase);
+    else if (pose === "sleep")
+      creatureLimbStyled(g, m, -torsoW * 0.4, shoulder + 0.2, -0.5, 0.3, 0.12, phase);
     else creatureLimbStyled(g, m, -torsoW * 0.4, shoulder, -0.68, 0.5 + wave, 0.12, phase);
   }
   if (creatureAppendageVisible(m, 1)) {
-    if (pose === "kneel") creatureLimbStyled(g, m, torsoW * 0.4, shoulder, 0.6, 0.62, 0.12, phase + 2);
-    else if (pose === "work") creatureLimbStyled(g, m, torsoW * 0.4, shoulder, 0.5, -0.38, 0.12, phase + 2);
-    else if (pose === "sleep") creatureLimbStyled(g, m, torsoW * 0.4, shoulder + 0.2, 0.5, 0.3, 0.12, phase + 2);
+    if (pose === "kneel")
+      creatureLimbStyled(g, m, torsoW * 0.4, shoulder, 0.6, 0.62, 0.12, phase + 2);
+    else if (pose === "work")
+      creatureLimbStyled(g, m, torsoW * 0.4, shoulder, 0.5, -0.38, 0.12, phase + 2);
+    else if (pose === "sleep")
+      creatureLimbStyled(g, m, torsoW * 0.4, shoulder + 0.2, 0.5, 0.3, 0.12, phase + 2);
     else creatureLimbStyled(g, m, torsoW * 0.4, shoulder, 0.68, 0.5 - wave, 0.12, phase + 2);
   }
   // Legs.
   g.lineWidth = 0.1;
   if (pose === "kneel") {
-    if (creatureAppendageVisible(m, 2)) creatureLimbStyled(g, m, -0.2, 0.55, -0.66, 0.9, 0.1, phase + 1);
-    if (creatureAppendageVisible(m, 3)) creatureLimbStyled(g, m, 0.2, 0.55, 0.66, 0.9, 0.1, phase + 3);
+    if (creatureAppendageVisible(m, 2))
+      creatureLimbStyled(g, m, -0.2, 0.55, -0.66, 0.9, 0.1, phase + 1);
+    if (creatureAppendageVisible(m, 3))
+      creatureLimbStyled(g, m, 0.2, 0.55, 0.66, 0.9, 0.1, phase + 3);
   } else if (pose === "sit") {
-    if (creatureAppendageVisible(m, 2)) creatureLimbStyled(g, m, -0.2, 0.6, -0.9, 0.78, 0.1, phase + 1);
-    if (creatureAppendageVisible(m, 3)) creatureLimbStyled(g, m, 0.2, 0.6, 0.9, 0.78, 0.1, phase + 3);
+    if (creatureAppendageVisible(m, 2))
+      creatureLimbStyled(g, m, -0.2, 0.6, -0.9, 0.78, 0.1, phase + 1);
+    if (creatureAppendageVisible(m, 3))
+      creatureLimbStyled(g, m, 0.2, 0.6, 0.9, 0.78, 0.1, phase + 3);
   } else if (pose === "sleep") {
     // Curled on the ground: legs drawn in under the body.
-    if (creatureAppendageVisible(m, 2)) creatureLimbStyled(g, m, -0.2, 0.62, -0.72, 0.62, 0.1, phase + 1);
-    if (creatureAppendageVisible(m, 3)) creatureLimbStyled(g, m, 0.2, 0.62, 0.72, 0.62, 0.1, phase + 3);
+    if (creatureAppendageVisible(m, 2))
+      creatureLimbStyled(g, m, -0.2, 0.62, -0.72, 0.62, 0.1, phase + 1);
+    if (creatureAppendageVisible(m, 3))
+      creatureLimbStyled(g, m, 0.2, 0.62, 0.72, 0.62, 0.1, phase + 3);
   } else {
-    if (creatureAppendageVisible(m, 2)) creatureLimbStyled(g, m, -0.2, 0.55, -0.48 - wave * 1.6, legLen, 0.1, phase + 1);
-    if (creatureAppendageVisible(m, 3)) creatureLimbStyled(g, m, 0.2, 0.55, 0.48 + wave * 1.6, legLen, 0.1, phase + 3);
+    if (creatureAppendageVisible(m, 2))
+      creatureLimbStyled(g, m, -0.2, 0.55, -0.48 - wave * 1.6, legLen, 0.1, phase + 1);
+    if (creatureAppendageVisible(m, 3))
+      creatureLimbStyled(g, m, 0.2, 0.55, 0.48 + wave * 1.6, legLen, 0.1, phase + 3);
     if (form === "tripod") creatureLimbStyled(g, m, 0, 0.6, 0, legLen + 0.05, 0.06, phase + 2);
   }
   // Torso.

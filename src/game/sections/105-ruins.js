@@ -29,11 +29,18 @@ let RUINING_PLACE = null,
   ACTIVE_GHOST = null;
 function ghostBuildings(placeId) {
   return W.buildings.filter(
-    (b) => b.abandoned && !b.ruined && b.complete && b.placeKind === "settlement" && b.placeId === placeId,
+    (b) =>
+      b.abandoned &&
+      !b.ruined &&
+      b.complete &&
+      b.placeKind === "settlement" &&
+      b.placeId === placeId,
   );
 }
 function rubbleOf(placeId) {
-  return W.buildings.filter((b) => b.ruined && !b.cleared && b.placeKind === "settlement" && b.placeId === placeId);
+  return W.buildings.filter(
+    (b) => b.ruined && !b.cleared && b.placeKind === "settlement" && b.placeId === placeId,
+  );
 }
 // What a building is mostly made of: the compound it holds the most of.
 function buildingMainMaterial(b) {
@@ -60,8 +67,11 @@ function abandonBuilding(b) {
   if (!b || b.ruined || !b.complete || b.abandoned) return false;
   b.abandoned = true;
   b.abandonedTick = W.tick;
-  for (const o of W.workOrders) if (o.buildingId === b.id && o.status !== "complete" && o.status !== "done") o.status = "cancelled";
-  for (const id of W.activeIds) if (W.components.work?.[id]?.buildingId === b.id) clearStaleWork(id);
+  for (const o of W.workOrders)
+    if (o.buildingId === b.id && o.status !== "complete" && o.status !== "done")
+      o.status = "cancelled";
+  for (const id of W.activeIds)
+    if (W.components.work?.[id]?.buildingId === b.id) clearStaleWork(id);
   return true;
 }
 const collapseBuildingGhostBase = collapseBuilding;
@@ -77,7 +87,10 @@ collapseBuilding = function (b, evidence, causeEvent = 0) {
     abandonBuilding(b);
     return null;
   }
-  const ev = evidence === undefined ? collapseBuildingGhostBase(b, undefined, causeEvent) : collapseBuildingGhostBase(b, evidence, causeEvent);
+  const ev =
+    evidence === undefined
+      ? collapseBuildingGhostBase(b, undefined, causeEvent)
+      : collapseBuildingGhostBase(b, evidence, causeEvent);
   if (ev && b) {
     b.rubbleAtCollapse = ruinRubble(b);
     if (b.abandoned) {
@@ -132,11 +145,18 @@ function weatherRuins() {
   const report = { fell: 0, weathered: 0, cleared: 0, salvage: 0 };
   for (const b of W.buildings) {
     if (b.abandoned && !b.ruined && b.complete) {
-      const step = Math.max(1, Math.ceil(Math.max(1, b.maxIntegrity) / Math.max(1, ghostLifeYears(b))));
+      const step = Math.max(
+        1,
+        Math.ceil(Math.max(1, b.maxIntegrity) / Math.max(1, ghostLifeYears(b))),
+      );
       b.integrity = u16(Math.max(0, b.integrity - step));
       if (b.integrity < 1) {
         const place = buildingPlace(b);
-        collapseBuilding(b, `years of weather and no hand to mend it${place ? `, empty since the fall of ${place.name}` : ""}`, 0);
+        collapseBuilding(
+          b,
+          `years of weather and no hand to mend it${place ? `, empty since the fall of ${place.name}` : ""}`,
+          0,
+        );
         report.fell++;
       }
       continue;
@@ -170,7 +190,13 @@ function weatherRuins() {
           "the ground it stood on is open again",
         ],
         importance: 1,
-        data: { type: b.type, placeId: place?.id || 0, name: b.name, place: place?.name, weathered: true },
+        data: {
+          type: b.type,
+          placeId: place?.id || 0,
+          name: b.name,
+          place: place?.name,
+          weathered: true,
+        },
       });
     }
   }
@@ -213,7 +239,14 @@ createSettlement = function (campId, cause = 0) {
   const taken = [],
     from = new Set();
   for (const b of W.buildings) {
-    if (!b.abandoned || b.ruined || !b.complete || b.placeKind !== "settlement" || b.placeId === s.id) continue;
+    if (
+      !b.abandoned ||
+      b.ruined ||
+      !b.complete ||
+      b.placeKind !== "settlement" ||
+      b.placeId === s.id
+    )
+      continue;
     if (dist2(b.x, b.y, s.x, s.y) > GHOST_RECLAIM_REACH * GHOST_RECLAIM_REACH) continue;
     const old = W.settlements.find((x) => x.id === b.placeId);
     if (old && !old.ruined) continue;
@@ -226,7 +259,8 @@ createSettlement = function (campId, cause = 0) {
   }
   if (!taken.length) return s;
   recomputePlaceCapacity(s);
-  if (typeof invalidateDevelopmentMovementCache === "function") invalidateDevelopmentMovementCache();
+  if (typeof invalidateDevelopmentMovementCache === "function")
+    invalidateDevelopmentMovementCache();
   const names = [...from].sort().join(", ");
   s.reclaimed = { count: taken.length, from: names };
   const ev = emitEvent("TownReclaimedEvent", {
@@ -285,7 +319,7 @@ function drawGhostVeil(g, b, s, r, detail) {
     g.lineCap = "round";
     const cracks = 1 + Math.round(wear * 2);
     for (let n = 0; n < cracks; n++) {
-      const x0 = s.x - hw * 0.6 + (visualHash01(b.styleSeed ^ 0x51, n) * 1.2 * hw),
+      const x0 = s.x - hw * 0.6 + visualHash01(b.styleSeed ^ 0x51, n) * 1.2 * hw,
         y0 = top + (bottom - top) * (0.15 + visualHash01(b.styleSeed ^ 0x77, n) * 0.25),
         len = (bottom - top) * (0.25 + 0.35 * wear);
       g.beginPath();
@@ -343,7 +377,15 @@ function drawWeatheredRubble(g, b, now, m, frac) {
     hue = W.terrainGenome?.baseHue || 35,
     stones = Math.max(1, Math.round(7 * frac));
   g.save();
-  drawBuildingFootprint(g, s, r, UI.view, hsl(hue, 10, 18, 0.72 * frac), hsl(hue, 12, 36, 0.4 + 0.6 * frac), false);
+  drawBuildingFootprint(
+    g,
+    s,
+    r,
+    UI.view,
+    hsl(hue, 10, 18, 0.72 * frac),
+    hsl(hue, 12, 36, 0.4 + 0.6 * frac),
+    false,
+  );
   g.fillStyle = hsl(hue + 75, 30, 30, 0.28 * (1 - frac));
   g.beginPath();
   g.ellipse(s.x, s.y, r * 0.8, r * 0.42, 0, 0, Math.PI * 2);
@@ -398,7 +440,9 @@ renderPlacePage = function (id) {
   if (s.ruined) {
     const standing = ghostBuildings(s.id).length,
       rubble = rubbleOf(s.id).length,
-      cleared = W.buildings.filter((b) => b.cleared && b.placeKind === "settlement" && b.placeId === s.id).length;
+      cleared = W.buildings.filter(
+        (b) => b.cleared && b.placeKind === "settlement" && b.placeId === s.id,
+      ).length;
     rows.push(
       `<div class="kv"><span>Ruins</span><b>${standing} standing empty · ${rubble} in rubble · ${cleared} cleared</b></div>`,
     );
@@ -414,11 +458,21 @@ renderPlacePage = function (id) {
 };
 window.ALIFE_RUINS_DEBUG = Object.freeze({
   standing: (placeId) => ghostBuildings(placeId).map((b) => b.id),
-  rubble: (placeId) => rubbleOf(placeId).map((b) => ({ id: b.id, left: ruinRubble(b), at: b.rubbleAtCollapse || 0 })),
-  cleared: (placeId) => W.buildings.filter((b) => b.cleared && b.placeKind === "settlement" && b.placeId === placeId).length,
+  rubble: (placeId) =>
+    rubbleOf(placeId).map((b) => ({ id: b.id, left: ruinRubble(b), at: b.rubbleAtCollapse || 0 })),
+  cleared: (placeId) =>
+    W.buildings.filter((b) => b.cleared && b.placeKind === "settlement" && b.placeId === placeId)
+      .length,
   life: (buildingId) => ghostLifeYears(W.buildings.find((b) => b.id === buildingId)),
-  material: (buildingId) => W.definitions.species[buildingMainMaterial(W.buildings.find((b) => b.id === buildingId) || {})]?.name || null,
-  fall: (placeId, why = "struck down from above") => ruinSettlement(W.settlements.find((s) => s.id === placeId), [], why),
+  material: (buildingId) =>
+    W.definitions.species[buildingMainMaterial(W.buildings.find((b) => b.id === buildingId) || {})]
+      ?.name || null,
+  fall: (placeId, why = "struck down from above") =>
+    ruinSettlement(
+      W.settlements.find((s) => s.id === placeId),
+      [],
+      why,
+    ),
   wear: (buildingId) => buildingWear(W.buildings.find((b) => b.id === buildingId) || {}),
   weather: (years = 1) => {
     let r = null;

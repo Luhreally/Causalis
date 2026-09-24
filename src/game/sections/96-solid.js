@@ -113,12 +113,26 @@ function drawGroundways(m, v, bounds) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   if (trails)
-    strokeGroundways(m, lists[1], lone[1], hsl(v.mineralHue, 24, 16, 0.3), Math.max(1, tw * 0.22), tw * 0.2);
+    strokeGroundways(
+      m,
+      lists[1],
+      lone[1],
+      hsl(v.mineralHue, 24, 16, 0.3),
+      Math.max(1, tw * 0.22),
+      tw * 0.2,
+    );
   if (roads) {
     const w = Math.max(1.2, tw * 0.3);
     strokeGroundways(m, lists[2], lone[2], hsl(36, 14, 34, 0.85), w * 1.35, tw * 0.3);
     strokeGroundways(m, lists[2], lone[2], hsl(40, 18, 66, 0.92), w, tw * 0.3);
-    strokeGroundways(m, lists[3], lone[3], hsl(30, 12, 22, 0.9), Math.max(1.2, tw * 0.16), tw * 0.3);
+    strokeGroundways(
+      m,
+      lists[3],
+      lone[3],
+      hsl(30, 12, 22, 0.9),
+      Math.max(1.2, tw * 0.16),
+      tw * 0.3,
+    );
     if (zoom > 2 && lists[3].length) {
       // Ties across the track.
       ctx.strokeStyle = hsl(28, 30, 32, 0.9);
@@ -173,7 +187,11 @@ function terrainStepBlocked(id, fromX, fromY, toX, toY) {
     from = idx(fromX, fromY),
     liquid = W.tiles.liquid;
   // Herds and hunters do not swim into the deep; one already there may leave it.
-  if (W.kind[id] !== KINDS.PERSON && liquid[to] > WATER_DEPTH.DEEP && liquid[from] <= WATER_DEPTH.DEEP)
+  if (
+    W.kind[id] !== KINDS.PERSON &&
+    liquid[to] > WATER_DEPTH.DEEP &&
+    liquid[from] <= WATER_DEPTH.DEEP
+  )
     return true;
   if (Math.max(Math.abs(toX - fromX), Math.abs(toY - fromY)) !== 1) return false;
   return cliffBetween(from, to);
@@ -247,7 +265,10 @@ function facadePush(x, y) {
   let push = FACADE_CACHE.map.get(key);
   if (push !== undefined) return push;
   push = null;
-  if (typeof standingBuildingAtMovementTile === "function" && !standingBuildingAtMovementTile(x, y)) {
+  if (
+    typeof standingBuildingAtMovementTile === "function" &&
+    !standingBuildingAtMovementTile(x, y)
+  ) {
     let dx = 0,
       dy = 0;
     for (const [ox, oy] of [
@@ -302,8 +323,7 @@ function frontOffsets(m) {
 // The height in pixels of the face a step of this size is drawn with (32b).
 function faceDropPx(step) {
   const zoom = UI.camera.zoom,
-    scale =
-      UI.view === "iso" ? 0.013 * zoom : 0.018 * zoom * (1.12 - cameraTilt() * 0.35),
+    scale = UI.view === "iso" ? 0.013 * zoom : 0.018 * zoom * (1.12 - cameraTilt() * 0.35),
     maxDrop = Math.max(14, zoom * 3.2);
   return clamp(step * scale, 0, maxDrop);
 }

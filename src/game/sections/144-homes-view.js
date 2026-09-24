@@ -36,7 +36,9 @@ let HOMES_CENSUS = { world: null, tick: -1, value: null };
 // owner lives in it, and the most years any household under it owes.
 function homesTenure(b) {
   const t = b?.tenancy,
-    residents = (t?.residents || []).filter((id) => classifyAlive(id) && W.components.social[id]?.homeBuildingId === b.id),
+    residents = (t?.residents || []).filter(
+      (id) => classifyAlive(id) && W.components.social[id]?.homeBuildingId === b.id,
+    ),
     beds = habitationBeds(b);
   // Arrears are kept in coin; a year's rent is what the household was asked
   // last (121 keeps it on the tenancy), one coin where it was asked nothing yet.
@@ -46,7 +48,11 @@ function homesTenure(b) {
   if (t?.arrears)
     for (const [head, coin] of Object.entries(t.arrears)) {
       const asked = typeof habitationRentOf === "function" ? habitationRentOf(t, +head) : rent;
-      if (!(coin >= asked) || !residents.some((id) => W.components.social[id]?.householdId === +head)) continue;
+      if (
+        !(coin >= asked) ||
+        !residents.some((id) => W.components.social[id]?.householdId === +head)
+      )
+        continue;
       behind++;
       owed = Math.max(owed, Math.floor(coin / asked));
     }
@@ -70,12 +76,15 @@ function homesSheltered(id) {
   if (isAdultPerson(id)) return false;
   const soc = W.components.social[id];
   if (soc?.householdId && soc.householdId !== id && habitationHome(soc.householdId)) return true;
-  return (W.components.identity[id]?.parents || []).some((p) => classifyAlive(p) && habitationHome(p));
+  return (W.components.identity[id]?.parents || []).some(
+    (p) => classifyAlive(p) && habitationHome(p),
+  );
 }
 // Every home and every person without a bed, counted once a tick.
 function homesCensus() {
   if (!W) return null;
-  if (HOMES_CENSUS.world === W && HOMES_CENSUS.tick === W.tick && HOMES_CENSUS.value) return HOMES_CENSUS.value;
+  if (HOMES_CENSUS.world === W && HOMES_CENSUS.tick === W.tick && HOMES_CENSUS.value)
+    return HOMES_CENSUS.value;
   const tenure = { owned: 0, let: 0, municipal: 0, arrears: 0, empty: 0 },
     homes = [],
     rough = [],
@@ -142,18 +151,22 @@ overlayLegendColor = function (id) {
 const buildControlsHomesBase = buildControls;
 buildControls = function () {
   buildControlsHomesBase();
-  if (!DOM.overlayGrid || DOM.overlayGrid.innerHTML.includes(`data-overlay="${HOMES_LENS}"`)) return;
+  if (!DOM.overlayGrid || DOM.overlayGrid.innerHTML.includes(`data-overlay="${HOMES_LENS}"`))
+    return;
   const button = `<button class="overlay-btn" data-overlay="${HOMES_LENS}"><span class="dot" style="color:${overlayLegendColor(HOMES_LENS)}"></span> Homes and tenure</button>`,
     html = DOM.overlayGrid.innerHTML,
     at = html.indexOf('data-overlay="unrest"'),
     end = at >= 0 ? html.indexOf("</button>", at) : -1;
-  DOM.overlayGrid.innerHTML = end >= 0 ? html.slice(0, end + 9) + button + html.slice(end + 9) : html + button;
+  DOM.overlayGrid.innerHTML =
+    end >= 0 ? html.slice(0, end + 9) + button + html.slice(end + 9) : html + button;
 };
 function homesLegendHTML() {
   const c = homesCensus();
   if (!c || !c.homes.length) return "Homes and tenure · no town has raised a home yet";
   const sw = (kind, n, word) =>
-    n ? `<span class="lens-swatch" style="--c:${homesColour(kind, 1, kind === "arrears" ? 2 : 0)}"></span>${n} ${word}` : "";
+    n
+      ? `<span class="lens-swatch" style="--c:${homesColour(kind, 1, kind === "arrears" ? 2 : 0)}"></span>${n} ${word}`
+      : "";
   const parts = [
     sw("owned", c.tenure.owned, "owned"),
     sw("let", c.tenure.let, "let"),
@@ -181,7 +194,15 @@ function drawHomesMarks(now, m, bounds) {
   let drawn = 0;
   ctx.save();
   for (const { b, t } of c.homes) {
-    if (!b.complete || b.ruined || b.x < bounds.x0 - 1 || b.x > bounds.x1 + 1 || b.y < bounds.y0 - 1 || b.y > bounds.y1 + 1) continue;
+    if (
+      !b.complete ||
+      b.ruined ||
+      b.x < bounds.x0 - 1 ||
+      b.x > bounds.x1 + 1 ||
+      b.y < bounds.y0 - 1 ||
+      b.y > bounds.y1 + 1
+    )
+      continue;
     const s = proceduralProjectTile(b.x + 0.5, b.y + 0.5, m),
       r = buildingScreenSize(b, m),
       rx = r * (b.type === "shelter" ? 0.95 : 1.1),
@@ -196,8 +217,10 @@ function drawHomesMarks(now, m, bounds) {
     ctx.stroke();
     ctx.lineWidth = line;
     ctx.setLineDash(t.kind === "empty" ? [line * 2.5, line * 2] : []);
-    ctx.fillStyle = t.kind === "empty" ? "rgba(200,206,214,0.08)" : homesColour(t.kind, 0.3, t.owed);
-    ctx.strokeStyle = t.kind === "empty" ? "rgba(214,220,228,0.95)" : homesColour(t.kind, 0.95, t.owed);
+    ctx.fillStyle =
+      t.kind === "empty" ? "rgba(200,206,214,0.08)" : homesColour(t.kind, 0.3, t.owed);
+    ctx.strokeStyle =
+      t.kind === "empty" ? "rgba(214,220,228,0.95)" : homesColour(t.kind, 0.95, t.owed);
     ctx.fill();
     ctx.stroke();
     HOMES.rings++;
@@ -232,7 +255,8 @@ function drawHomesMarks(now, m, bounds) {
   ctx.setLineDash([]);
   const mark = (id, hue, sat) => {
     const p = W.components.position[id];
-    if (!p || p.x < bounds.x0 || p.x > bounds.x1 || p.y < bounds.y0 || p.y > bounds.y1) return false;
+    if (!p || p.x < bounds.x0 || p.x > bounds.x1 || p.y < bounds.y0 || p.y > bounds.y1)
+      return false;
     const a = followAnchorWorld(id),
       q = proceduralProjectTile(a.x, a.y, m),
       r = rr * (0.92 + 0.08 * pulse);
@@ -289,7 +313,9 @@ let HOMES_WIRED = false;
 const refreshPeopleBarHomesBase = refreshPeopleBar;
 refreshPeopleBar = function (force = false) {
   const c = W ? homesCensus() : null,
-    key = c ? `${c.rough.length}:${c.behind}:${c.homes.length ? 1 : 0}:${UI.overlay === HOMES_LENS ? 1 : 0}` : "";
+    key = c
+      ? `${c.rough.length}:${c.behind}:${c.homes.length ? 1 : 0}:${UI.overlay === HOMES_LENS ? 1 : 0}`
+      : "";
   if (key !== UI.observatory?.homesKey) {
     if (UI.observatory) UI.observatory.homesKey = key;
     force = true;
@@ -323,7 +349,8 @@ renderPlacePage = function (id) {
     c.owned && `${c.owned} owned by the household`,
     c.let && `${c.let} let by a landlord`,
     c.municipal && `${c.municipal} let by the town`,
-    c.arrears && `${c.arrears} with ${behind} household${behind === 1 ? "" : "s"} behind on the rent`,
+    c.arrears &&
+      `${c.arrears} with ${behind} household${behind === 1 ? "" : "s"} behind on the rent`,
     c.empty && `${c.empty} empty`,
   ].filter(Boolean);
   if (!words.length) return html;
@@ -335,7 +362,17 @@ window.ALIFE_HOMES_DEBUG = Object.freeze({
   counts: () => ({ ...HOMES }),
   census: () => {
     const c = homesCensus();
-    return c ? { tenure: { ...c.tenure }, homes: c.homes.length, rough: c.rough.length, wanderers: c.wanderers.length, behind: c.behind, beds: c.beds, slept: c.slept } : null;
+    return c
+      ? {
+          tenure: { ...c.tenure },
+          homes: c.homes.length,
+          rough: c.rough.length,
+          wanderers: c.wanderers.length,
+          behind: c.behind,
+          beds: c.beds,
+          slept: c.slept,
+        }
+      : null;
   },
   tenure: (buildingId) => {
     const b = W.buildings.find((x) => x.id === buildingId);
@@ -348,7 +385,14 @@ window.ALIFE_HOMES_DEBUG = Object.freeze({
   towns: () =>
     W.settlements
       .filter((s) => !s.ruined && s.knownProcesses)
-      .map((s) => ({ id: s.id, name: s.name, x: s.x, y: s.y, people: settlementPopulation(s), dealt: !!s.habitation }))
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        x: s.x,
+        y: s.y,
+        people: settlementPopulation(s),
+        dealt: !!s.habitation,
+      }))
       .sort((a, b) => b.people - a.people || a.id - b.id),
   year: () => Math.floor(W.tick / TICKS_PER_YEAR),
 });

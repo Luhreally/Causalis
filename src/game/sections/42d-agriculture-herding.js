@@ -1483,44 +1483,63 @@ tickSystem("fields and herds", function () {
   }
 });
 
-eventText(["CropSownEvent", "FieldMaturedEvent", "CropHarvestedEvent", "CropFailedEvent", "HerdFormedEvent", "HerdMovedEvent", "HerdBirthEvent", "HerdEnclosedEvent", "HerdFedEvent", "HerdEscapeEvent", "EnclosureAttackedEvent", "EnclosureBreachedEvent", "HerdTheftPreventedEvent", "HerdAnimalStolenEvent", "PredatorDefenseEvent"], function (event, next) {
-  const names = event.subjects.map(entityName),
-    location = locationName(event.location);
-  switch (event.type) {
-    case "CropSownEvent":
-      return `🌱 ${names[0]} sowed ${event.data.magnitude || event.magnitude} conserved matter into ${event.data.crop} at ${location}.`;
-    case "FieldMaturedEvent":
-      return `🌾 A cultivated ${event.data.crop} field matured through measured photosynthesis at ${location}.`;
-    case "CropHarvestedEvent":
-      return `🧺 ${names[0]} harvested ${event.magnitude} actual matter from ${event.data.crop} at ${location}.`;
-    case "CropFailedEvent":
-      return `🥀 ${event.data.crop} failed at ${location}; fire or water loss destroyed its organized growth without deleting its matter.`;
-    case "HerdFormedEvent":
-      return `🐑 ${names[0]} gathered ${event.magnitude} individually simulated prey animals into herd ${event.data.herdId}.`;
-    case "HerdMovedEvent":
-      return `🐾 Herd ${event.data.herdId} walked to a safer, richer pasture at ${location}.`;
-    case "HerdBirthEvent":
-      return `🐣 ${names[0]} was born from physically present herd parents and joined herd ${event.data.herdId}.`;
-    case "HerdEnclosedEvent":
-      return `🔒 ${names[0]} secured herd ${event.data.herdId} inside a completed material enclosure at ${location}.`;
-    case "HerdFedEvent":
-      return `🌿 ${names[0]} moved ${event.magnitude} conserved food matter into enclosed herd ${event.data.herdId}.`;
-    case "HerdEscapeEvent":
-      return `🐾 ${names[0]} escaped herd ${event.data.herdId} through a physically damaged enclosure at ${location}.`;
-    case "EnclosureAttackedEvent":
-      return `🦷 ${names[0]} attacked the material enclosure protecting ${names[1]} at ${location}, causing ${event.data.damage || 0} structural damage.`;
-    case "EnclosureBreachedEvent":
-      return `⚠️ ${names[0]} breached herd ${event.data.herdId}'s enclosure at ${location}; containment and access protection were physically lost.`;
-    case "HerdTheftPreventedEvent":
-      return `🔐 ${names[0]} tried to take ${names[2]} but herd ${event.data.herdId}'s closed enclosure blocked the theft.`;
-    case "HerdAnimalStolenEvent":
-      return `🐑 ${names[0]} removed ${names[1]} through a prior breach in herd ${event.data.herdId}'s enclosure.`;
-    case "PredatorDefenseEvent":
-      return `🛡️ ${names[0]} intercepted ${names[1]} while it threatened ${names[2]} at ${location}; ${event.data.outcome || "combat followed"}.`;
-    default:
-      return next(event);
-  }
-});
+eventText(
+  [
+    "CropSownEvent",
+    "FieldMaturedEvent",
+    "CropHarvestedEvent",
+    "CropFailedEvent",
+    "HerdFormedEvent",
+    "HerdMovedEvent",
+    "HerdBirthEvent",
+    "HerdEnclosedEvent",
+    "HerdFedEvent",
+    "HerdEscapeEvent",
+    "EnclosureAttackedEvent",
+    "EnclosureBreachedEvent",
+    "HerdTheftPreventedEvent",
+    "HerdAnimalStolenEvent",
+    "PredatorDefenseEvent",
+  ],
+  function (event, next) {
+    const names = event.subjects.map(entityName),
+      location = locationName(event.location);
+    switch (event.type) {
+      case "CropSownEvent":
+        return `🌱 ${names[0]} sowed ${event.data.magnitude || event.magnitude} conserved matter into ${event.data.crop} at ${location}.`;
+      case "FieldMaturedEvent":
+        return `🌾 A cultivated ${event.data.crop} field matured through measured photosynthesis at ${location}.`;
+      case "CropHarvestedEvent":
+        return `🧺 ${names[0]} harvested ${event.magnitude} actual matter from ${event.data.crop} at ${location}.`;
+      case "CropFailedEvent":
+        return `🥀 ${event.data.crop} failed at ${location}; fire or water loss destroyed its organized growth without deleting its matter.`;
+      case "HerdFormedEvent":
+        return `🐑 ${names[0]} gathered ${event.magnitude} individually simulated prey animals into herd ${event.data.herdId}.`;
+      case "HerdMovedEvent":
+        return `🐾 Herd ${event.data.herdId} walked to a safer, richer pasture at ${location}.`;
+      case "HerdBirthEvent":
+        return `🐣 ${names[0]} was born from physically present herd parents and joined herd ${event.data.herdId}.`;
+      case "HerdEnclosedEvent":
+        return `🔒 ${names[0]} secured herd ${event.data.herdId} inside a completed material enclosure at ${location}.`;
+      case "HerdFedEvent":
+        return `🌿 ${names[0]} moved ${event.magnitude} conserved food matter into enclosed herd ${event.data.herdId}.`;
+      case "HerdEscapeEvent":
+        return `🐾 ${names[0]} escaped herd ${event.data.herdId} through a physically damaged enclosure at ${location}.`;
+      case "EnclosureAttackedEvent":
+        return `🦷 ${names[0]} attacked the material enclosure protecting ${names[1]} at ${location}, causing ${event.data.damage || 0} structural damage.`;
+      case "EnclosureBreachedEvent":
+        return `⚠️ ${names[0]} breached herd ${event.data.herdId}'s enclosure at ${location}; containment and access protection were physically lost.`;
+      case "HerdTheftPreventedEvent":
+        return `🔐 ${names[0]} tried to take ${names[2]} but herd ${event.data.herdId}'s closed enclosure blocked the theft.`;
+      case "HerdAnimalStolenEvent":
+        return `🐑 ${names[0]} removed ${names[1]} through a prior breach in herd ${event.data.herdId}'s enclosure.`;
+      case "PredatorDefenseEvent":
+        return `🛡️ ${names[0]} intercepted ${names[1]} while it threatened ${names[2]} at ${location}; ${event.data.outcome || "combat followed"}.`;
+      default:
+        return next(event);
+    }
+  },
+);
 
 const organismInspectorHerdBase = organismInspector;
 organismInspector = function (id) {

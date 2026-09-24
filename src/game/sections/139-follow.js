@@ -100,13 +100,13 @@ function focusViewportRect(m = projectionMetrics()) {
     const gx = Math.max(12, m.w * 0.04),
       gy = Math.max(12, m.h * 0.04),
       bites = [
-      ["left", x1 - rect.left, x0 <= rect.left + gx],
-      ["right", rect.right - x0, x1 >= rect.right - gx],
-      ["top", y1 - rect.top, y0 <= rect.top + gy],
-      ["bottom", rect.bottom - y0, y1 >= rect.bottom - gy],
-    ]
-      .filter(([, bite, touches]) => touches && bite > 0)
-      .sort((a, b) => a[1] - b[1]);
+        ["left", x1 - rect.left, x0 <= rect.left + gx],
+        ["right", rect.right - x0, x1 >= rect.right - gx],
+        ["top", y1 - rect.top, y0 <= rect.top + gy],
+        ["bottom", rect.bottom - y0, y1 >= rect.bottom - gy],
+      ]
+        .filter(([, bite, touches]) => touches && bite > 0)
+        .sort((a, b) => a[1] - b[1]);
     if (!bites.length) continue;
     const [edge, bite] = bites[0],
       next = { ...rect };

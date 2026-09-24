@@ -865,39 +865,55 @@ chooseBehavior = function (id, tier) {
   }
 };
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-eventText(["EnvoyEvent", "EnvoyLostEvent", "TreatyEvent", "TreatyRefusedEvent", "VassalageEvent", "IndependenceEvent", "RoyalMarriageEvent", "SuccessionClaimEvent", "DynasticUnionEvent", "TributeEvent", "TributeDefaultEvent", "TreatyEndedEvent"], function (e, next) {
-  const d = e.data || {};
-  switch (e.type) {
-    case "EnvoyEvent":
-      return `${d.name} set out from ${d.from} to ${d.to} bearing terms of ${d.terms}.`;
-    case "EnvoyLostEvent":
-      return `${d.name}, envoy of ${d.from}, never reached ${d.to}.`;
-    case "TreatyEvent":
-      return d.kind === "tribute"
-        ? `${d.a} agreed to pay ${d.b} ${d.amount} measures of food each year for ${d.years} years${d.war ? ", and the war ended" : ""}.`
-        : `${d.a} and ${d.b} made peace${d.envoy ? ` through ${d.envoy}'s embassy` : ""}.`;
-    case "TreatyRefusedEvent":
-      return `${d.to} refused ${d.from}'s offer of ${d.terms}.`;
-    case "VassalageEvent":
-      return `${d.a} bent the knee to ${d.b} and became its vassal.`;
-    case "IndependenceEvent":
-      return `${d.a} threw off the overlordship of ${d.b}.`;
-    case "RoyalMarriageEvent":
-      return `${d.a} of ${d.from} was wed to ${d.b} of ${d.to}, joining the houses of two polities.`;
-    case "SuccessionClaimEvent":
-      return `${d.a} claimed a voice in the succession of ${d.b} through ${d.claimant}, against ${d.leader}.`;
-    case "DynasticUnionEvent":
-      return `${d.leader}, of the blood of both ${d.a} and ${d.b}, took the Voice of ${d.b}; the polities are bound as one house.`;
-    case "TributeEvent":
-      return `${d.a} sent ${d.amount} measures of food to ${d.b} in tribute.`;
-    case "TributeDefaultEvent":
-      return `${d.a} failed to pay its tribute to ${d.b}${d.defaults > 1 ? " again" : ""}.`;
-    case "TreatyEndedEvent":
-      return `The ${d.kind === "vassal" ? "vassalage" : d.kind === "peace" ? "peace" : "tribute"} between ${d.a} and ${d.b} ended: ${d.reason}.`;
-    default:
-      return next(e);
-  }
-});
+eventText(
+  [
+    "EnvoyEvent",
+    "EnvoyLostEvent",
+    "TreatyEvent",
+    "TreatyRefusedEvent",
+    "VassalageEvent",
+    "IndependenceEvent",
+    "RoyalMarriageEvent",
+    "SuccessionClaimEvent",
+    "DynasticUnionEvent",
+    "TributeEvent",
+    "TributeDefaultEvent",
+    "TreatyEndedEvent",
+  ],
+  function (e, next) {
+    const d = e.data || {};
+    switch (e.type) {
+      case "EnvoyEvent":
+        return `${d.name} set out from ${d.from} to ${d.to} bearing terms of ${d.terms}.`;
+      case "EnvoyLostEvent":
+        return `${d.name}, envoy of ${d.from}, never reached ${d.to}.`;
+      case "TreatyEvent":
+        return d.kind === "tribute"
+          ? `${d.a} agreed to pay ${d.b} ${d.amount} measures of food each year for ${d.years} years${d.war ? ", and the war ended" : ""}.`
+          : `${d.a} and ${d.b} made peace${d.envoy ? ` through ${d.envoy}'s embassy` : ""}.`;
+      case "TreatyRefusedEvent":
+        return `${d.to} refused ${d.from}'s offer of ${d.terms}.`;
+      case "VassalageEvent":
+        return `${d.a} bent the knee to ${d.b} and became its vassal.`;
+      case "IndependenceEvent":
+        return `${d.a} threw off the overlordship of ${d.b}.`;
+      case "RoyalMarriageEvent":
+        return `${d.a} of ${d.from} was wed to ${d.b} of ${d.to}, joining the houses of two polities.`;
+      case "SuccessionClaimEvent":
+        return `${d.a} claimed a voice in the succession of ${d.b} through ${d.claimant}, against ${d.leader}.`;
+      case "DynasticUnionEvent":
+        return `${d.leader}, of the blood of both ${d.a} and ${d.b}, took the Voice of ${d.b}; the polities are bound as one house.`;
+      case "TributeEvent":
+        return `${d.a} sent ${d.amount} measures of food to ${d.b} in tribute.`;
+      case "TributeDefaultEvent":
+        return `${d.a} failed to pay its tribute to ${d.b}${d.defaults > 1 ? " again" : ""}.`;
+      case "TreatyEndedEvent":
+        return `The ${d.kind === "vassal" ? "vassalage" : d.kind === "peace" ? "peace" : "tribute"} between ${d.a} and ${d.b} ended: ${d.reason}.`;
+      default:
+        return next(e);
+    }
+  },
+);
 // ── Legends ────────────────────────────────────────────────────────────────────
 function diplomacySection(f) {
   ensureDiplomacy();

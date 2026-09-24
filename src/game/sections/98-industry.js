@@ -97,11 +97,16 @@ function factoryFurnace(place) {
 }
 function runFactory(place, factory) {
   const inv = factoryFurnace(place),
-    runs = Math.round(FACTORY_RUNS * (knowsTech(place, "fusion") ? 1.5 : 1) * (typeof factoryTempoFactor === "function" ? factoryTempoFactor(place) : 1)),
+    runs = Math.round(
+      FACTORY_RUNS *
+        (knowsTech(place, "fusion") ? 1.5 : 1) *
+        (typeof factoryTempoFactor === "function" ? factoryTempoFactor(place) : 1),
+    ),
     q = place.inventory;
   let made = 0;
   for (let n = 0; n < runs; n++) {
-    if ((q[C.ORE] || 0) >= 2 && (q[C.FUEL] || 0) >= 2 && executeProcess("smelting", inv, 1)) made += 2;
+    if ((q[C.ORE] || 0) >= 2 && (q[C.FUEL] || 0) >= 2 && executeProcess("smelting", inv, 1))
+      made += 2;
     else if (
       (q[C.MINERAL] || 0) > FACTORY_MINERAL_FLOOR &&
       (q[C.FUEL] || 0) >= 1 &&
@@ -137,7 +142,8 @@ function wantsFactory(place) {
   if (!place?.knownProcesses || place.ruined) return false;
   if (!knowsTech(place, "electricity") || !knowsTech(place, "mechanization")) return false;
   return !W.buildings.some(
-    (b) => !b.ruined && b.placeKind === "settlement" && b.placeId === place.id && b.type === "factory",
+    (b) =>
+      !b.ruined && b.placeKind === "settlement" && b.placeId === place.id && b.type === "factory",
   );
 }
 const ensurePlacePlansIndustryBase = ensurePlacePlans;
@@ -178,7 +184,8 @@ function linkedTowns(s) {
       if (!t.active || t.kind !== "embassy") continue;
       const other = t.a === s.factionId ? t.b : t.b === s.factionId ? t.a : 0;
       if (!other) continue;
-      for (const town of W.settlements) if (!town.ruined && town.factionId === other) out.add(town.id);
+      for (const town of W.settlements)
+        if (!town.ruined && town.factionId === other) out.add(town.id);
     }
   out.delete(s.id);
   ids = [...out];
@@ -202,7 +209,8 @@ processRecorded = function (place, techId) {
     const other = t.a === place.factionId ? t.b : t.b === place.factionId ? t.a : 0;
     if (!other) continue;
     const towns = W.settlements.filter((s) => !s.ruined && s.factionId === other);
-    if (towns.some((s) => knowsTech(s, "printing")) && towns.some((s) => knowsTech(s, techId))) return true;
+    if (towns.some((s) => knowsTech(s, "printing")) && towns.some((s) => knowsTech(s, techId)))
+      return true;
   }
   return false;
 };
@@ -215,7 +223,14 @@ drawCompletedBuilding = function (g, b, s, r, p, now, m) {
 const drawBuildingExteriorDetailsIndustryBase = drawBuildingExteriorDetails;
 drawBuildingExteriorDetails = function (g, b, now, m) {
   drawBuildingExteriorDetailsIndustryBase(g, b, now, m);
-  if (b.type !== "factory" || !b.complete || b.ruined || UI.quality === "low" || UI.camera.zoom < 1.4) return;
+  if (
+    b.type !== "factory" ||
+    !b.complete ||
+    b.ruined ||
+    UI.quality === "low" ||
+    UI.camera.zoom < 1.4
+  )
+    return;
   const s = proceduralProjectTile(b.x + 0.5, b.y + 0.5, m),
     r = buildingScreenSize(b, m),
     cx = s.x + r * 0.55,
@@ -229,7 +244,7 @@ drawBuildingExteriorDetails = function (g, b, now, m) {
   if (working) {
     const still = ACTIVE_REDUCED_MOTION;
     for (let i = 0; i < 3; i++) {
-      const t = still ? (i + 1) / 3 : ((now * 0.0006 + i / 3 + b.id * 0.17) % 1),
+      const t = still ? (i + 1) / 3 : (now * 0.0006 + i / 3 + b.id * 0.17) % 1,
         px = cx + Math.sin(t * 5 + i) * r * 0.12 * t,
         py = top - t * r * 0.9,
         pr = Math.max(1, r * (0.08 + t * 0.14));

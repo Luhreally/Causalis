@@ -553,30 +553,40 @@ updateSeasons = function () {
   }
 };
 // ── Chronicle sentences ────────────────────────────────────────────────────────
-eventText(["NamingEvent", "ProphecyEvent", "ProphecyFulfilledEvent", "RiteEvent", "SchismEvent", "OmenEvent"], function (e, next) {
-  switch (e.type) {
-    case "NamingEvent":
-      return `${e.data.culture} named the power that moves their world: ${e.data.name}, ${e.data.gloss}, whom they read as ${e.data.lean === "portent" ? "a mystery" : e.data.lean}.`;
-    case "ProphecyEvent":
-      return `${entityName(e.subjects?.[0] || 0)} rose as Speaker of ${e.data.god || "the god"} among ${e.data.culture} and foretold ${e.data.foretold}.`;
-    case "ProphecyFulfilledEvent":
-      return `What the Speaker foretold came to pass: ${e.data.foretold} fell upon ${e.data.culture}.`;
-    case "RiteEvent":
-      return `${e.data.name} held rites to ${e.data.god || "the unnamed"} and offered ${e.data.offering} units of stored matter.`;
-    case "SchismEvent":
-      return `${e.data.name} broke from ${e.data.culture} over the meaning of ${e.data.god || "the god"} and became ${e.data.child}.`;
-    case "OmenEvent": {
-      const f = W.factions.find((x) => x.id === e.factions?.[0]),
-        culture = f ? W.cultures.find((c) => c.id === f.cultureId) : null,
-        god = culture ? godTitle(culture) : "";
-      if (god)
-        return `${e.data.name} read ${toolNoun(e.data.tool)} as ${e.data.reading} from ${god}.`;
-      return next(e);
+eventText(
+  [
+    "NamingEvent",
+    "ProphecyEvent",
+    "ProphecyFulfilledEvent",
+    "RiteEvent",
+    "SchismEvent",
+    "OmenEvent",
+  ],
+  function (e, next) {
+    switch (e.type) {
+      case "NamingEvent":
+        return `${e.data.culture} named the power that moves their world: ${e.data.name}, ${e.data.gloss}, whom they read as ${e.data.lean === "portent" ? "a mystery" : e.data.lean}.`;
+      case "ProphecyEvent":
+        return `${entityName(e.subjects?.[0] || 0)} rose as Speaker of ${e.data.god || "the god"} among ${e.data.culture} and foretold ${e.data.foretold}.`;
+      case "ProphecyFulfilledEvent":
+        return `What the Speaker foretold came to pass: ${e.data.foretold} fell upon ${e.data.culture}.`;
+      case "RiteEvent":
+        return `${e.data.name} held rites to ${e.data.god || "the unnamed"} and offered ${e.data.offering} units of stored matter.`;
+      case "SchismEvent":
+        return `${e.data.name} broke from ${e.data.culture} over the meaning of ${e.data.god || "the god"} and became ${e.data.child}.`;
+      case "OmenEvent": {
+        const f = W.factions.find((x) => x.id === e.factions?.[0]),
+          culture = f ? W.cultures.find((c) => c.id === f.cultureId) : null,
+          god = culture ? godTitle(culture) : "";
+        if (god)
+          return `${e.data.name} read ${toolNoun(e.data.tool)} as ${e.data.reading} from ${god}.`;
+        return next(e);
+      }
+      default:
+        return next(e);
     }
-    default:
-      return next(e);
-  }
-});
+  },
+);
 // ── Legends and map mode ───────────────────────────────────────────────────────
 function cultureBeliefExtras(c) {
   const b = c.belief;

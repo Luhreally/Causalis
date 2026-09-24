@@ -39,14 +39,23 @@ function cityKnows(place, ...techs) {
 }
 function townHas(place, type, incomplete = false) {
   return W.buildings.some(
-    (b) => !b.ruined && b.placeKind === "settlement" && b.placeId === place.id && b.type === type && (incomplete ? !b.complete : true),
+    (b) =>
+      !b.ruined &&
+      b.placeKind === "settlement" &&
+      b.placeId === place.id &&
+      b.type === type &&
+      (incomplete ? !b.complete : true),
   );
 }
 function wantsTower(place) {
   if (!place?.knownProcesses || place.ruined) return false;
   if (typeof cityStage !== "function" || !cityStage(place)) return false;
   if (!cityKnows(place, "electricity", "mechanization", "masonry")) return false;
-  if (typeof housingCapacity !== "function" || housingCapacity(place) >= settlementPopulation(place)) return false;
+  if (
+    typeof housingCapacity !== "function" ||
+    housingCapacity(place) >= settlementPopulation(place)
+  )
+    return false;
   return !townHas(place, "tower", true) && !townHas(place, "tenement", true);
 }
 // A computing city wants an office for every thirty people, and one at least.
@@ -56,7 +65,8 @@ function officesWanted(place) {
 function wantsOffice(place) {
   if (!place?.knownProcesses || place.ruined) return false;
   if (typeof cityStage !== "function" || !cityStage(place)) return false;
-  if (!cityKnows(place, "computing", "electricity") || !placeHasFacility(place, "market")) return false;
+  if (!cityKnows(place, "computing", "electricity") || !placeHasFacility(place, "market"))
+    return false;
   if (townHas(place, "office", true)) return false;
   return completedBuildings(place, "office").length < officesWanted(place);
 }
@@ -72,11 +82,15 @@ ensurePlacePlans = function (place) {
   if (typeof recordMilestone === "function") {
     if (SKYLINE.firstTowerWorld !== W && completedBuildings(place, "tower").length) {
       SKYLINE.firstTowerWorld = W;
-      recordMilestone("first-tower", "the first tower block", place, { evidence: `${TOWER_HOUSING} homes stacked in ${place.name}` });
+      recordMilestone("first-tower", "the first tower block", place, {
+        evidence: `${TOWER_HOUSING} homes stacked in ${place.name}`,
+      });
     }
     if (SKYLINE.firstOfficeWorld !== W && completedBuildings(place, "office").length) {
       SKYLINE.firstOfficeWorld = W;
-      recordMilestone("first-office", "the first office tower", place, { evidence: `glass over the market of ${place.name}` });
+      recordMilestone("first-office", "the first office tower", place, {
+        evidence: `glass over the market of ${place.name}`,
+      });
     }
   }
 };
@@ -93,7 +107,8 @@ collectTaxes = function (f) {
   const coin = collectTaxesSkylineBase(f);
   let custom = 0;
   for (const s of W.settlements)
-    if (!s.ruined && s.factionId === f.id) custom += completedBuildings(s, "office").length * OFFICE_CUSTOM;
+    if (!s.ruined && s.factionId === f.id)
+      custom += completedBuildings(s, "office").length * OFFICE_CUSTOM;
   if (custom && polityCoins(f)) f.treasury = Math.round((f.treasury + custom) * 10) / 10;
   return coin + custom;
 };
@@ -103,7 +118,10 @@ function towerAsShelter(building) {
 }
 const personMayEnterBuildingSkylineBase = personMayEnterBuilding;
 personMayEnterBuilding = function (id, building) {
-  return personMayEnterBuildingSkylineBase(id, building?.type === "tower" ? towerAsShelter(building) : building);
+  return personMayEnterBuildingSkylineBase(
+    id,
+    building?.type === "tower" ? towerAsShelter(building) : building,
+  );
 };
 const preferredReturnBuildingSkylineBase = preferredReturnBuilding;
 preferredReturnBuilding = function (id) {
@@ -114,9 +132,16 @@ preferredReturnBuilding = function (id) {
   const towers = completedBuildings(place, "tower");
   if (!towers.length) return preferredReturnBuildingSkylineBase(id);
   const other = preferredReturnBuildingSkylineBase(id),
-    tower = towers.sort((l, r) => dist2(position.x, position.y, l.x, l.y) - dist2(position.x, position.y, r.x, r.y) || l.id - r.id)[0];
+    tower = towers.sort(
+      (l, r) =>
+        dist2(position.x, position.y, l.x, l.y) - dist2(position.x, position.y, r.x, r.y) ||
+        l.id - r.id,
+    )[0];
   if (!other || other === place || !["shelter", "tenement"].includes(other.type)) return tower;
-  return dist2(position.x, position.y, tower.x, tower.y) <= dist2(position.x, position.y, other.x, other.y) ? tower : other;
+  return dist2(position.x, position.y, tower.x, tower.y) <=
+    dist2(position.x, position.y, other.x, other.y)
+    ? tower
+    : other;
 };
 // ── Rendering: blocks of storeys, glass for offices, lit at night ─────────────
 function blockStoreys(b) {
@@ -173,7 +198,12 @@ function drawTowerBlock(g, b, s, r, p, now, detail) {
       }
     // Ground floor: a doorway; offices a glass lobby.
     g.fillStyle = office ? hsl(205, 40, 40) : concreteDark;
-    g.fillRect(s.x - ww * (office ? 1.6 : 0.55), baseY - storeyH * 0.7, ww * (office ? 3.2 : 1.1), storeyH * 0.7);
+    g.fillRect(
+      s.x - ww * (office ? 1.6 : 0.55),
+      baseY - storeyH * 0.7,
+      ww * (office ? 3.2 : 1.1),
+      storeyH * 0.7,
+    );
     // Roof: plant and aerials on an office, a parapet on a tower.
     g.fillStyle = concreteDark;
     if (office) {
@@ -231,7 +261,16 @@ window.ALIFE_SKYLINE_DEBUG = Object.freeze({
   raise: (placeId, type = "tower") => {
     const s = W.settlements.find((x) => x.id === placeId);
     if (!s || !BUILDING_DEFS[type]) return null;
-    const b = planBuilding(s, type, 9) || W.buildings.find((x) => !x.ruined && x.placeKind === "settlement" && x.placeId === s.id && x.type === type && !x.complete);
+    const b =
+      planBuilding(s, type, 9) ||
+      W.buildings.find(
+        (x) =>
+          !x.ruined &&
+          x.placeKind === "settlement" &&
+          x.placeId === s.id &&
+          x.type === type &&
+          !x.complete,
+      );
     if (!b) return null;
     b.complete = true;
     b.stage = 6;

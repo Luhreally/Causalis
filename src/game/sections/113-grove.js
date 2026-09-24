@@ -17,7 +17,16 @@
 // logs, cracks and pebbles, reeds and pools, boulders and lichen, and snow
 // where the air is below freezing; tall cliff faces show strata. Rendering
 // only reads.
-const TREE_SPECIES = Object.freeze(["broadleaf", "conifer", "palm", "birch", "willow", "baobab", "snag", "shrub"]),
+const TREE_SPECIES = Object.freeze([
+    "broadleaf",
+    "conifer",
+    "palm",
+    "birch",
+    "willow",
+    "baobab",
+    "snag",
+    "shrub",
+  ]),
   ALIEN_CANOPY_FORMS = Object.freeze(["spiral", "lantern", "coral"]),
   GROVE_MARK_ZOOM = 1.3,
   GROVE_MARK_DENSITY = 0.34,
@@ -56,9 +65,15 @@ function treeSpeciesAt(i) {
 }
 // The turn of the leaves: full in the fall, bare in deep cold where it freezes.
 function groveSeason(x, y) {
-  if (typeof seasonPhase !== "function" || typeof seasonGenome !== "function" || !seasonGenome()?.amplitude) return { fall: 0, bare: 0 };
+  if (
+    typeof seasonPhase !== "function" ||
+    typeof seasonGenome !== "function" ||
+    !seasonGenome()?.amplitude
+  )
+    return { fall: 0, bare: 0 };
   let phase = seasonPhase();
-  if (typeof seasonHemisphere === "function" && seasonHemisphere(x, y) < 0) phase = (phase + 0.5) % 1;
+  if (typeof seasonHemisphere === "function" && seasonHemisphere(x, y) < 0)
+    phase = (phase + 0.5) % 1;
   const fall = clamp(1 - Math.abs(phase - 0.5) / 0.14, 0, 1),
     winter = clamp(1 - Math.abs(phase - 0.75) / 0.14, 0, 1),
     freezing = W.tiles.temperature[idx(x, y)] / 10 < 4;
@@ -102,7 +117,12 @@ function drawTreeSpecies(g, species, p, r, h, v, i, sway, season, detail) {
     crown = hsl(leaf.hue, 58, leaf.light, 0.96),
     crownLit = hsl(leaf.hue + 12, 62, leaf.light + 14, 0.95),
     crownDark = hsl(leaf.hue - 8, 52, leaf.light - 9, 0.96),
-    bark = species === "birch" ? hsl(40, 12, 78) : species === "snag" ? hsl(30, 10, 52) : hsl(v.mineralHue, 38, species === "baobab" ? 44 : 28),
+    bark =
+      species === "birch"
+        ? hsl(40, 12, 78)
+        : species === "snag"
+          ? hsl(30, 10, 52)
+          : hsl(v.mineralHue, 38, species === "baobab" ? 44 : 28),
     barkDark = species === "birch" ? hsl(40, 10, 40) : hsl(v.mineralHue, 40, 18),
     L = ACTIVE_LIGHT_SCREEN || { x: -0.6, y: -0.4 },
     lean = (visualHash01(i, 0x2b7) - 0.5) * r * 0.5 + sway * 0.4;
@@ -112,7 +132,15 @@ function drawTreeSpecies(g, species, p, r, h, v, i, sway, season, detail) {
     for (let n = 0; n < 3; n++) {
       g.fillStyle = n === 1 ? crownLit : crown;
       g.beginPath();
-      g.ellipse(p.x + (n - 1) * r * 0.5 + sway * 0.3, p.y - r * 0.2 - (n % 2) * r * 0.15, r * 0.55, r * 0.38, 0, 0, Math.PI * 2);
+      g.ellipse(
+        p.x + (n - 1) * r * 0.5 + sway * 0.3,
+        p.y - r * 0.2 - (n % 2) * r * 0.15,
+        r * 0.55,
+        r * 0.38,
+        0,
+        0,
+        Math.PI * 2,
+      );
       g.fill();
     }
     g.restore();
@@ -249,7 +277,12 @@ function drawTreeSpecies(g, species, p, r, h, v, i, sway, season, detail) {
     for (let n = -3; n <= 3; n++) {
       g.beginPath();
       g.moveTo(cx + n * r * 0.25, cy + r * 0.1);
-      g.quadraticCurveTo(cx + n * r * 0.38 + sway * 0.4, cy + h * 0.25, cx + n * r * 0.3 + sway * 0.6, cy + h * 0.5);
+      g.quadraticCurveTo(
+        cx + n * r * 0.38 + sway * 0.4,
+        cy + h * 0.25,
+        cx + n * r * 0.3 + sway * 0.6,
+        cy + h * 0.5,
+      );
       g.stroke();
     }
     g.restore();
@@ -264,12 +297,28 @@ function drawTreeSpecies(g, species, p, r, h, v, i, sway, season, detail) {
       lit = ox * L.x + oy * L.y < 0;
     g.fillStyle = lit ? crownLit : n % 2 ? crown : crownDark;
     g.beginPath();
-    g.ellipse(cx + ox, cy + oy, r * (species === "birch" ? 0.55 : 0.72), r * (species === "birch" ? 0.42 : 0.56), 0, 0, Math.PI * 2);
+    g.ellipse(
+      cx + ox,
+      cy + oy,
+      r * (species === "birch" ? 0.55 : 0.72),
+      r * (species === "birch" ? 0.42 : 0.56),
+      0,
+      0,
+      Math.PI * 2,
+    );
     g.fill();
   }
   g.fillStyle = crownLit;
   g.beginPath();
-  g.ellipse(cx - L.x * r * 0.25, cy - Math.abs(L.y) * r * 0.3 - r * 0.15, r * 0.5, r * 0.32, 0, 0, Math.PI * 2);
+  g.ellipse(
+    cx - L.x * r * 0.25,
+    cy - Math.abs(L.y) * r * 0.3 - r * 0.15,
+    r * 0.5,
+    r * 0.32,
+    0,
+    0,
+    Math.PI * 2,
+  );
   g.fill();
   g.restore();
 }
@@ -341,12 +390,16 @@ drawEcologicalStructure = function (x, y, i, p, m, v, inst = null) {
     if (!plain) return drawEcologicalStructureGroveBase(x, y, i, p, m, v, inst);
     const at = inst ? { x: p.x + inst.dx, y: p.y + inst.dy } : p,
       strength = (W.tiles.featureStrength[i] || 500) / 1000,
-      scale = (spec.scale || 1) * (inst ? inst.s : 1) * (0.82 + visualHash01(i, 0x77 + (inst ? Math.round(inst.s * 100) : 0)) * 0.36),
+      scale =
+        (spec.scale || 1) *
+        (inst ? inst.s : 1) *
+        (0.82 + visualHash01(i, 0x77 + (inst ? Math.round(inst.s * 100) : 0)) * 0.36),
       r = Math.max(3, m.tw * (0.2 + strength * 0.44)) * scale,
       h = Math.max(5, featureVerticalUnit(m) * (0.7 + strength * 2.4)) * scale,
       sway = windSwayAt(v, x, y) * r * 0.45,
       detail = UI.camera.zoom > 2.2 && UI.quality !== "low" ? 2 : 1;
-    if (UI.view !== "top" && UI.camera.zoom < 0.55) return drawEcologicalStructureGroveBase(x, y, i, p, m, v, inst);
+    if (UI.view !== "top" && UI.camera.zoom < 0.55)
+      return drawEcologicalStructureGroveBase(x, y, i, p, m, v, inst);
     if (UI.view !== "top") {
       ctx.fillStyle = "rgba(0,0,0,.28)";
       ctx.beginPath();
@@ -360,12 +413,24 @@ drawEcologicalStructure = function (x, y, i, p, m, v, inst = null) {
     }
     const pick = visualHash01(i, 0xa11e);
     if (pick < 0.5) return drawEcologicalStructureGroveBase(x, y, i, p, m, v, inst);
-    drawAlienCanopy(ctx, ALIEN_CANOPY_FORMS[Math.floor((pick - 0.5) * 2 * ALIEN_CANOPY_FORMS.length) % ALIEN_CANOPY_FORMS.length], at, r, h, v.floraHue + (spec.hueShift || 0), visualHash01(i, 0xb731) * Math.PI * 2, sway);
+    drawAlienCanopy(
+      ctx,
+      ALIEN_CANOPY_FORMS[
+        Math.floor((pick - 0.5) * 2 * ALIEN_CANOPY_FORMS.length) % ALIEN_CANOPY_FORMS.length
+      ],
+      at,
+      r,
+      h,
+      v.floraHue + (spec.hueShift || 0),
+      visualHash01(i, 0xb731) * Math.PI * 2,
+      sway,
+    );
     GROVE.alien++;
     return;
   }
   if (type === TERRAIN_FEATURE.HIGHLAND && spec.form !== "mesa" && spec.form !== "arch") {
-    if (UI.view !== "top" && UI.camera.zoom < 0.55) return drawEcologicalStructureGroveBase(x, y, i, p, m, v, inst);
+    if (UI.view !== "top" && UI.camera.zoom < 0.55)
+      return drawEcologicalStructureGroveBase(x, y, i, p, m, v, inst);
     drawCrag(x, y, i, p, m, v, spec, inst);
     return;
   }
@@ -377,7 +442,9 @@ function drawCrag(x, y, i, p, m, v, spec, inst) {
     strength = (W.tiles.featureStrength[i] || 500) / 1000,
     scale = (spec.scale || 1) * (inst ? inst.s : 1),
     r = Math.max(3, m.tw * (0.2 + strength * 0.44) * scale),
-    h = Math.max(5, featureVerticalUnit(m) * (0.7 + strength * 2.4) * scale) * (spec.form === "blade" ? 1.2 : 1),
+    h =
+      Math.max(5, featureVerticalUnit(m) * (0.7 + strength * 2.4) * scale) *
+      (spec.form === "blade" ? 1.2 : 1),
     hue = v.mineralHue + (spec.hueShift || 0),
     L = ACTIVE_LIGHT_SCREEN || { x: -0.6, y: -0.4 },
     litLeft = L.x < 0,
@@ -463,7 +530,15 @@ function drawCrag(x, y, i, p, m, v, spec, inst) {
     g.fillStyle = hsl(hue, 18, 40, 0.8);
     for (let n = 0; n < 4; n++) {
       g.beginPath();
-      g.ellipse(at.x + (visualHash01(i, 0xe0 + n) - 0.5) * r * 2.2, at.y + r * (0.36 + visualHash01(i, 0xf0 + n) * 0.16), r * 0.09, r * 0.05, 0, 0, Math.PI * 2);
+      g.ellipse(
+        at.x + (visualHash01(i, 0xe0 + n) - 0.5) * r * 2.2,
+        at.y + r * (0.36 + visualHash01(i, 0xf0 + n) * 0.16),
+        r * 0.09,
+        r * 0.05,
+        0,
+        0,
+        Math.PI * 2,
+      );
       g.fill();
     }
   }
@@ -536,7 +611,15 @@ function drawGroundMark(x, y, i, p, m, v, biome, seed) {
       g.fillStyle = hsl(v.mineralHue, 22, 46, 0.85);
       for (let n = 0; n < 3; n++) {
         g.beginPath();
-        g.ellipse(cx + (n - 1) * r * 0.6, cy + (n % 2) * r * 0.25, r * 0.22, r * 0.14, 0, 0, Math.PI * 2);
+        g.ellipse(
+          cx + (n - 1) * r * 0.6,
+          cy + (n % 2) * r * 0.25,
+          r * 0.22,
+          r * 0.14,
+          0,
+          0,
+          Math.PI * 2,
+        );
         g.fill();
       }
     }
@@ -570,7 +653,15 @@ function drawGroundMark(x, y, i, p, m, v, biome, seed) {
     g.fill();
     g.fillStyle = hsl(v.mineralHue + 10, 18, 58, 0.9);
     g.beginPath();
-    g.ellipse(cx + L.x * r * 0.25, cy + L.y * r * 0.2 - r * 0.1, r * 0.4, r * 0.24, 0, 0, Math.PI * 2);
+    g.ellipse(
+      cx + L.x * r * 0.25,
+      cy + L.y * r * 0.2 - r * 0.1,
+      r * 0.4,
+      r * 0.24,
+      0,
+      0,
+      Math.PI * 2,
+    );
     g.fill();
     if (seed > 0.2) {
       g.fillStyle = hsl(v.floraHue + 40, 40, 55, 0.7);
@@ -605,7 +696,10 @@ drawTileProcedural = function (x, y) {
     i = idx(x, y),
     e = W.tiles.elevation[i];
   if (W.tiles.liquid[i] > 140) return;
-  const elevationScale = UI.view === "iso" ? 0.013 * UI.camera.zoom : 0.018 * UI.camera.zoom * (1.12 - cameraTilt() * 0.35),
+  const elevationScale =
+      UI.view === "iso"
+        ? 0.013 * UI.camera.zoom
+        : 0.018 * UI.camera.zoom * (1.12 - cameraTilt() * 0.35),
     maxDrop = Math.max(14, UI.camera.zoom * 3.2),
     faces = [
       { elevation: x < W.width - 1 ? W.tiles.elevation[i + 1] : e, a: 1, b: 2 },
@@ -640,11 +734,14 @@ window.ALIFE_GROVE_DEBUG = Object.freeze({
   species: (i) => treeSpeciesAt(i),
   speciesCounts: () => {
     const out = {};
-    for (let i = 0; i < W.tileCount; i++) if (W.tiles.featureType?.[i] === TERRAIN_FEATURE.CANOPY) out[treeSpeciesAt(i)] = (out[treeSpeciesAt(i)] || 0) + 1;
+    for (let i = 0; i < W.tileCount; i++)
+      if (W.tiles.featureType?.[i] === TERRAIN_FEATURE.CANOPY)
+        out[treeSpeciesAt(i)] = (out[treeSpeciesAt(i)] || 0) + 1;
     return out;
   },
   season: (x, y) => groveSeason(x, y),
-  leaf: (species, x, y, i) => leafTone(ACTIVE_PLANET_VISUAL || makePlanetVisualGenome(), species, groveSeason(x, y), i),
+  leaf: (species, x, y, i) =>
+    leafTone(ACTIVE_PLANET_VISUAL || makePlanetVisualGenome(), species, groveSeason(x, y), i),
   counts: () => ({ ...GROVE }),
   reset: () => {
     for (const k of Object.keys(GROVE)) GROVE[k] = 0;

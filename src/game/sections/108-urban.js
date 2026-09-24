@@ -56,7 +56,11 @@ function urbanHub(f) {
     return site;
   return (
     towns
-      .map((s) => ({ s, pop: settlementPopulation(s), hall: completedBuildings(s, "hall").length > 0 ? 1 : 0 }))
+      .map((s) => ({
+        s,
+        pop: settlementPopulation(s),
+        hall: completedBuildings(s, "hall").length > 0 ? 1 : 0,
+      }))
       .filter((x) => x.pop >= URBAN_MIN_HUB)
       .sort((a, b) => b.hall - a.hall || b.pop - a.pop || a.s.id - b.s.id)[0]?.s || null
   );
@@ -91,10 +95,15 @@ function urbanPull(f, force = false) {
     const pop = settlementPopulation(village),
       take = Math.min(URBAN_PER_VILLAGE, room - movers.length, pop - URBAN_VILLAGE_FLOOR);
     if (take <= 0) continue;
-    if (typeof civilReachable === "function" && !civilReachable(from, { x: village.x, y: village.y }, f.id)) continue;
+    if (
+      typeof civilReachable === "function" &&
+      !civilReachable(from, { x: village.x, y: village.y }, f.id)
+    )
+      continue;
     const people = typeof caravanCandidates === "function" ? caravanCandidates(village, take) : [];
     if (!people.length) continue;
-    for (const id of people) issueCivilOrder(id, "migrate", hub.x, hub.y, { placeId: hub.id, fromPlaceId: village.id });
+    for (const id of people)
+      issueCivilOrder(id, "migrate", hub.x, hub.y, { placeId: hub.id, fromPlaceId: village.id });
     village.lastUrbanTick = W.tick;
     movers.push(...people);
     villages.push(village.name);
@@ -138,7 +147,8 @@ settlerUrge = function (place) {
 // ── Chronicle and Legends ────────────────────────────────────────────────────
 eventText(["UrbanMigrationEvent"], function (e, next) {
   const d = e.data || {};
-  if (e.type === "UrbanMigrationEvent") return `${d.count} people left ${d.villages || "the villages"} for ${d.hub}${d.polity ? ` of ${d.polity}` : ""}.`;
+  if (e.type === "UrbanMigrationEvent")
+    return `${d.count} people left ${d.villages || "the villages"} for ${d.hub}${d.polity ? ` of ${d.polity}` : ""}.`;
   return next(e);
 });
 const alertWorthyUrbanBase = alertWorthy;
@@ -158,6 +168,10 @@ window.ALIFE_URBAN_DEBUG = Object.freeze({
   age: (factionId) => urbanAge(W.factions.find((f) => f.id === factionId)),
   hub: (factionId) => urbanHub(W.factions.find((f) => f.id === factionId))?.id || 0,
   room: (placeId) => hubRoom(W.settlements.find((s) => s.id === placeId)),
-  pull: (factionId, force = false) => urbanPull(W.factions.find((f) => f.id === factionId), force),
+  pull: (factionId, force = false) =>
+    urbanPull(
+      W.factions.find((f) => f.id === factionId),
+      force,
+    ),
   tick: () => updateUrban(),
 });

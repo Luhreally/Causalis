@@ -72,7 +72,13 @@ visualAnchor = function (id, p, m, now) {
   const live = VISUAL_MOTION.get(id) || e;
   let st = STEADY_MOTION.get(id);
   if (!st) {
-    st = { heading: live.heading, facing: steadyFacingWanted(e.screenHeading), since: now, moving: e.moving, frame: -1 };
+    st = {
+      heading: live.heading,
+      facing: steadyFacingWanted(e.screenHeading),
+      since: now,
+      moving: e.moving,
+      frame: -1,
+    };
     STEADY_MOTION.set(id, st);
   }
   if (st.frame !== now) {
@@ -146,7 +152,11 @@ function burnTruckFuel(place, loads) {
   for (let n = 0; n < loads; n++) {
     let ok = false;
     for (let attempt = 0; attempt < 6 && !ok; attempt++)
-      ok = executeProcess("combustion", engine, 1, { location: tile, subjects: [place.entityId * 7 + attempt] }) > 0;
+      ok =
+        executeProcess("combustion", engine, 1, {
+          location: tile,
+          subjects: [place.entityId * 7 + attempt],
+        }) > 0;
     if (!ok) break;
     burned++;
   }
@@ -172,7 +182,12 @@ function roadFreight() {
         const offer = bestInternalTransfer(from, to);
         if (!offer) break;
         if (!burnTruckFuel(from, 1)) break;
-        const amount = transferSettlementMatter(from, to, offer.sp, Math.min(offer.amount * ROAD_FREIGHT_FACTOR, materialSurplus(from, offer.sp)));
+        const amount = transferSettlementMatter(
+          from,
+          to,
+          offer.sp,
+          Math.min(offer.amount * ROAD_FREIGHT_FACTOR, materialSurplus(from, offer.sp)),
+        );
         if (!amount) break;
         recordExchange(from, to, "road", offer.sp, amount);
         tonnage += amount;
@@ -189,7 +204,11 @@ function roadFreight() {
           location: idx(a.x, a.y),
           factions: faction ? [faction.id] : [],
           causes: [link.completedEventId || 0].filter(Boolean),
-          evidence: [`${tonnage} measures carried by truck in ${loads} load${loads === 1 ? "" : "s"}`, `${a.name} and ${b.name}`, "fuel burned for every load"],
+          evidence: [
+            `${tonnage} measures carried by truck in ${loads} load${loads === 1 ? "" : "s"}`,
+            `${a.name} and ${b.name}`,
+            "fuel burned for every load",
+          ],
           importance: 3,
           data: { a: a.name, b: b.name, polity: faction?.name || "", tonnage },
         }).id;
@@ -345,7 +364,12 @@ function parkedCarsOf(place) {
       const n = 1 + (visualHash01(b.id, 0x7a11) < 0.5 ? 1 : 0);
       for (let k = 0; k < n; k++) {
         const side = visualHash01(b.id * 7 + k, 0x2c9) < 0.5 ? -1 : 1;
-        spots.push({ x: b.x + 0.5 + side * 0.85, y: b.y + 1.15 + k * 0.32, hue: visualHash01(b.id * 13 + k, 0x51) * 360, facing: side });
+        spots.push({
+          x: b.x + 0.5 + side * 0.85,
+          y: b.y + 1.15 + k * 0.32,
+          hue: visualHash01(b.id * 13 + k, 0x51) * 360,
+          facing: side,
+        });
       }
       if (spots.length >= 4) return spots;
     }
@@ -380,8 +404,15 @@ drawWorkerActivity = function (now, bounds) {
     lit = typeof nightStrength === "function" && nightStrength() > 0.3,
     r = clamp(m.tw * 0.26, 3, 34);
   for (const place of W.settlements) {
-    if (place.ruined || !place.factionId || !factionHasTech(place.factionId, "combustion")) continue;
-    if (place.x < bounds.x0 - 4 || place.x > bounds.x1 + 4 || place.y < bounds.y0 - 4 || place.y > bounds.y1 + 4) continue;
+    if (place.ruined || !place.factionId || !factionHasTech(place.factionId, "combustion"))
+      continue;
+    if (
+      place.x < bounds.x0 - 4 ||
+      place.x > bounds.x1 + 4 ||
+      place.y < bounds.y0 - 4 ||
+      place.y > bounds.y1 + 4
+    )
+      continue;
     for (const spot of parkedCarsOf(place)) {
       const s = proceduralProjectTile(spot.x, spot.y, m);
       ctx.save();
@@ -396,7 +427,8 @@ drawWorkerActivity = function (now, bounds) {
 // ── Chronicle ─────────────────────────────────────────────────────────────────
 eventText(["RoadFreightEvent"], function (e, next) {
   const d = e.data || {};
-  if (e.type === "RoadFreightEvent") return `Trucks began to run between ${d.a} and ${d.b}${d.polity ? ` of ${d.polity}` : ""}, ${d.tonnage} measures the first year.`;
+  if (e.type === "RoadFreightEvent")
+    return `Trucks began to run between ${d.a} and ${d.b}${d.polity ? ` of ${d.polity}` : ""}, ${d.tonnage} measures the first year.`;
   return next(e);
 });
 window.ALIFE_STEADY_DEBUG = Object.freeze({

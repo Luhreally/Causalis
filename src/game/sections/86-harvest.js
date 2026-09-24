@@ -25,7 +25,11 @@ const HARVEST_BASE_INTERVAL = 64,
   MIGRATION_REST = 768,
   MIGRATIONS_PER_YEAR_BASE = 2;
 function fieldTended(field) {
-  return !!field && W.tick - (Number.isFinite(field.lastLaborTick) ? field.lastLaborTick : -1e9) < HARVEST_TENDED_WINDOW;
+  return (
+    !!field &&
+    W.tick - (Number.isFinite(field.lastLaborTick) ? field.lastLaborTick : -1e9) <
+      HARVEST_TENDED_WINDOW
+  );
 }
 function harvestTechCount(place) {
   const known = place?.knownProcesses || [];
@@ -36,7 +40,10 @@ function fieldGrowthExtent(place, field) {
   return 1 + (fieldTended(field) ? 1 : 0) + harvestTechCount(place);
 }
 function fieldGrowthInterval(place, field) {
-  return Math.max(HARVEST_MIN_INTERVAL, Math.round(HARVEST_BASE_INTERVAL / fieldGrowthExtent(place, field)));
+  return Math.max(
+    HARVEST_MIN_INTERVAL,
+    Math.round(HARVEST_BASE_INTERVAL / fieldGrowthExtent(place, field)),
+  );
 }
 function harvestCapFactor(place) {
   return 1 + 0.25 * harvestTechCount(place);
@@ -53,7 +60,8 @@ updateCultivatedFields = function () {
 };
 const transferTileCropToPlaceHarvestBase = transferTileCropToPlace;
 transferTileCropToPlace = function (place, tile, species, requested, reserve) {
-  const scaled = species === C.ORGANIC ? Math.round(requested * harvestCapFactor(place)) : requested;
+  const scaled =
+    species === C.ORGANIC ? Math.round(requested * harvestCapFactor(place)) : requested;
   return transferTileCropToPlaceHarvestBase(place, tile, species, scaled, reserve);
 };
 // ── A field ripens when there is a crop to take, not at the first green ───────
@@ -232,7 +240,8 @@ function homePlaceValid(soc) {
   if (!soc?.homePlaceKind || !soc.homePlaceId) return false;
   if (soc.homePlaceKind === "settlement")
     return W.settlements.some((s) => s.id === soc.homePlaceId && !s.ruined);
-  if (soc.homePlaceKind === "camp") return W.camps.some((c) => c.id === soc.homePlaceId && c.active);
+  if (soc.homePlaceKind === "camp")
+    return W.camps.some((c) => c.id === soc.homePlaceId && c.active);
   return false;
 }
 function adoptInto(id, soc, kind, place) {
@@ -253,7 +262,11 @@ function adoptResidents() {
     let done = false;
     for (const parent of ident?.parents || []) {
       const ps = W.components.social[parent];
-      if (ps && homePlaceValid(ps) && (!soc.factionId || !ps.factionId || soc.factionId === ps.factionId)) {
+      if (
+        ps &&
+        homePlaceValid(ps) &&
+        (!soc.factionId || !ps.factionId || soc.factionId === ps.factionId)
+      ) {
         const place =
           ps.homePlaceKind === "settlement"
             ? W.settlements.find((s) => s.id === ps.homePlaceId)
@@ -369,11 +382,14 @@ caravanCandidates = function (place, count) {
     const life = W.components.life[id],
       social = W.components.social[id];
     if (!classifyAlive(id) || !life || voices.has(id) || !freeForCivilDuty(id)) continue;
-    if (social?.factionId !== place.factionId || life.hunger > LEAN_DUTY_HUNGER || life.wounded) continue;
+    if (social?.factionId !== place.factionId || life.hunger > LEAN_DUTY_HUNGER || life.wounded)
+      continue;
     if (life.age < (W.components.body[id]?.maxAge || 19200) * 0.2) continue;
     extra.push(id);
   }
-  extra.sort((a, b) => (W.components.life[a].hunger || 0) - (W.components.life[b].hunger || 0) || a - b);
+  extra.sort(
+    (a, b) => (W.components.life[a].hunger || 0) - (W.components.life[b].hunger || 0) || a - b,
+  );
   return out.concat(extra.slice(0, count - out.length));
 };
 // ── Measured migration ────────────────────────────────────────────────────────
@@ -405,7 +421,11 @@ function migrationBudget() {
 function migrationGate(town) {
   ensureHarvestState(W);
   if (!town) return "no town";
-  if (W.tick - (Number.isFinite(town.lastMigrationTick) ? town.lastMigrationTick : -1e9) < MIGRATION_REST) return "rested";
+  if (
+    W.tick - (Number.isFinite(town.lastMigrationTick) ? town.lastMigrationTick : -1e9) <
+    MIGRATION_REST
+  )
+    return "rested";
   if (migrationLedger().count >= migrationBudget()) return "budget";
   return null;
 }
@@ -433,7 +453,10 @@ window.ALIFE_HARVEST_DEBUG = Object.freeze({
     const b = W.buildings.find((x) => x.id === buildingId);
     return b ? fieldTended(cultivatedField(b)) : false;
   },
-  cap: (placeId) => harvestCapFactor(W.settlements.find((s) => s.id === placeId) || W.camps.find((c) => c.id === placeId)),
+  cap: (placeId) =>
+    harvestCapFactor(
+      W.settlements.find((s) => s.id === placeId) || W.camps.find((c) => c.id === placeId),
+    ),
   gate: (townId) => migrationGate(W.settlements.find((s) => s.id === townId)),
   budget: () => migrationBudget(),
   ledger: () => ({ ...migrationLedger() }),

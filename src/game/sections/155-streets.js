@@ -28,7 +28,15 @@
 //   rebuilt only when someone aboard has moved;
 //   and the town's crowd (150) is seen: its people walking the paved streets
 //   and, where it drives, its cars, drawn from its count and never stored.
-const STREETS = { carsBought: 0, drives: 0, tilesDriven: 0, fuelBurned: 0, jams: 0, paved: 0, ferried: 0 };
+const STREETS = {
+  carsBought: 0,
+  drives: 0,
+  tilesDriven: 0,
+  fuelBurned: 0,
+  jams: 0,
+  paved: 0,
+  ferried: 0,
+};
 const CAR_PRICE = 24,
   CAR_METAL = 6,
   CAR_SHARE = 0.6,
@@ -40,7 +48,9 @@ const CAR_PRICE = 24,
   WORN_PAVE = 6,
   WORN_STONE_RESERVE = 24;
 function townDrives(town) {
-  return !!town && !town.ruined && !!polityOf(town) && factionHasTech(polityOf(town).id, "combustion");
+  return (
+    !!town && !town.ruined && !!polityOf(town) && factionHasTech(polityOf(town).id, "combustion")
+  );
 }
 function householdCar(id) {
   const head = W.components.social[id]?.householdId || id;
@@ -89,7 +99,8 @@ moveWorkerToward = function (id, tile, task, phase, ...rest) {
     p = W.components.position[id];
   if (life && p && tile >= 0 && householdCar(id)) {
     const [tx, ty] = xy(tile);
-    if (Math.max(Math.abs(tx - p.x), Math.abs(ty - p.y)) >= DRIVE_MIN && townDrives(homeTownOf(id))) life.drive = { x: tx, y: ty, tick: W.tick };
+    if (Math.max(Math.abs(tx - p.x), Math.abs(ty - p.y)) >= DRIVE_MIN && townDrives(homeTownOf(id)))
+      life.drive = { x: tx, y: ty, tick: W.tick };
     else if (life.drive) delete life.drive;
   }
   return out;
@@ -100,7 +111,8 @@ function driveToWork() {
   for (const id of W.activeIds) {
     if (W.kind[id] !== KINDS.PERSON) continue;
     const life = W.components.life[id];
-    if (!life?.drive || life.drive.tick !== W.tick || life.insideBuildingId || !classifyAlive(id)) continue;
+    if (!life?.drive || life.drive.tick !== W.tick || life.insideBuildingId || !classifyAlive(id))
+      continue;
     const p = W.components.position[id];
     if (!p || !roadLevel(idx(p.x, p.y))) continue;
     const town = homeTownOf(id);
@@ -139,7 +151,8 @@ function driveToWork() {
 function spareMineral(town) {
   let wanted = WORN_STONE_RESERVE;
   for (const b of activeBuildings(town))
-    for (const [sp, n] of b.requirements || []) if (sp === C.MINERAL) wanted += Math.max(0, n - (b.composition?.[sp] || 0));
+    for (const [sp, n] of b.requirements || [])
+      if (sp === C.MINERAL) wanted += Math.max(0, n - (b.composition?.[sp] || 0));
   return Math.max(0, (town.inventory[C.MINERAL] || 0) - wanted);
 }
 function paveWornGround(town) {
@@ -156,10 +169,16 @@ function paveWornGround(town) {
         y = town.y + dy;
       if (!inside(x, y)) continue;
       const i = idx(x, y);
-      if (W.tiles.road[i] || (W.tiles.traffic?.[i] || 0) < WORN_TRAFFIC || W.tiles.liquid[i] > WATER_DEPTH.WADE_LIMIT) continue;
+      if (
+        W.tiles.road[i] ||
+        (W.tiles.traffic?.[i] || 0) < WORN_TRAFFIC ||
+        W.tiles.liquid[i] > WATER_DEPTH.WADE_LIMIT
+      )
+        continue;
       // Only the town's own lanes and squares (92's plan), which nothing is ever built on.
       if (!isLaneTile(town, plan, x, y) && !isPlazaTile(town, plan, x, y)) continue;
-      if (typeof developmentFootprintClear === "function" && !developmentFootprintClear(x, y, 0)) continue;
+      if (typeof developmentFootprintClear === "function" && !developmentFootprintClear(x, y, 0))
+        continue;
       worn.push(i);
     }
   worn.sort((a, b) => W.tiles.traffic[b] - W.tiles.traffic[a] || a - b);
@@ -181,16 +200,36 @@ publicTransportPass = function () {
   const transport = W.publicTransport;
   if (W.tick % 256 === 112) {
     for (const link of W.roads?.links || []) {
-      if (!link.complete || link.path.length < 3 || transport.routes.some((r) => r.linkId === link.id)) continue;
+      if (
+        !link.complete ||
+        link.path.length < 3 ||
+        transport.routes.some((r) => r.linkId === link.id)
+      )
+        continue;
       const a = W.settlements.find((s) => s.id === link.a && !s.ruined),
         b = W.settlements.find((s) => s.id === link.b && !s.ruined);
-      if (!a || !b || !cityStage(a) || !cityStage(b) || !atPeaceForRelief(polityOfPlace(a), polityOfPlace(b))) continue;
+      if (
+        !a ||
+        !b ||
+        !cityStage(a) ||
+        !cityStage(b) ||
+        !atPeaceForRelief(polityOfPlace(a), polityOfPlace(b))
+      )
+        continue;
       const rail = link.kind === "rail",
         needed = rail ? "railways" : "combustion";
       if (!knowsTech(a, needed) || (a.inventory[C.METAL] || 0) < 16) continue;
       a.inventory[C.METAL] -= 16;
       W.roads.matter[C.METAL] += 16;
-      transport.routes.push({ linkId: link.id, at: 0, direction: 1, wait: 8, passengers: [], trips: 0, kind: rail ? "tram" : "bus" });
+      transport.routes.push({
+        linkId: link.id,
+        at: 0,
+        direction: 1,
+        wait: 8,
+        passengers: [],
+        trips: 0,
+        kind: rail ? "tram" : "bus",
+      });
     }
   }
   let moved = false;
@@ -199,7 +238,8 @@ publicTransportPass = function () {
       a = W.settlements.find((s) => s.id === link?.a && !s.ruined),
       b = W.settlements.find((s) => s.id === link?.b && !s.ruined);
     if (!link?.complete || !a || !b || !atPeaceForRelief(polityOfPlace(a), polityOfPlace(b))) {
-      for (const id of route.passengers) if (W.components.life[id]) W.components.life[id].transitLinkId = 0;
+      for (const id of route.passengers)
+        if (W.components.life[id]) W.components.life[id].transitLinkId = 0;
       route.passengers = [];
       route.suspended = true;
       continue;
@@ -298,7 +338,10 @@ function crowdStreets(town) {
     tiles = [];
     const reach = 9,
       angled = UI.view !== "top",
-      built = (x, y) => inside(x, y) && typeof standingBuildingAtMovementTile === "function" && !!standingBuildingAtMovementTile(x, y);
+      built = (x, y) =>
+        inside(x, y) &&
+        typeof standingBuildingAtMovementTile === "function" &&
+        !!standingBuildingAtMovementTile(x, y);
     for (let dy = -reach; dy <= reach; dy++)
       for (let dx = -reach; dx <= reach; dx++) {
         const x = town.x + dx,
@@ -341,7 +384,14 @@ drawWorkerActivity = function (now, bounds) {
     capCars = lean ? 6 : 24,
     r = clamp(m.tw * 0.18, 2, 18);
   for (const town of W.settlements) {
-    if (town.ruined || town.x < bounds.x0 - 10 || town.x > bounds.x1 + 10 || town.y < bounds.y0 - 10 || town.y > bounds.y1 + 10) continue;
+    if (
+      town.ruined ||
+      town.x < bounds.x0 - 10 ||
+      town.x > bounds.x1 + 10 ||
+      town.y < bounds.y0 - 10 ||
+      town.y > bounds.y1 + 10
+    )
+      continue;
     const count = folkCount(town);
     if (count < 6) continue;
     const tiles = crowdStreets(town);

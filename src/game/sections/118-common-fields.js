@@ -24,17 +24,39 @@ function commonFieldCandidates(workerId, own) {
   const out = [],
     seed = own.inventory?.[C.ORGANIC] || 0;
   for (const b of W.buildings) {
-    if (b.type !== "farm" || !b.complete || b.ruined || b.placeKind !== "settlement" || b.placeId === own.id) continue;
+    if (
+      b.type !== "farm" ||
+      !b.complete ||
+      b.ruined ||
+      b.placeKind !== "settlement" ||
+      b.placeId === own.id
+    )
+      continue;
     const d = Math.max(Math.abs(b.x - p.x), Math.abs(b.y - p.y));
     if (d > COMMON_FIELD_REACH) continue;
     const town = W.settlements.find((s) => s.id === b.placeId);
-    if (town && !town.ruined && town.factionId && soc?.factionId && town.factionId !== soc.factionId && typeof personIsHostileVisitor === "function" && personIsHostileVisitor(workerId, town.factionId)) continue;
+    if (
+      town &&
+      !town.ruined &&
+      town.factionId &&
+      soc?.factionId &&
+      town.factionId !== soc.factionId &&
+      typeof personIsHostileVisitor === "function" &&
+      personIsHostileVisitor(workerId, town.factionId)
+    )
+      continue;
     const field = cultivatedField(b);
     if (!field) continue;
     // A fallen town's standing farm is reaped, never sown.
     if (b.abandoned && field.stage !== "ripe") continue;
-    if (field.stage === "ripe" && W.tick >= (field.harvestBlockedUntil || 0)) out.push({ b, field, rank: 0, d });
-    else if (field.stage === "fallow" && W.tick - (field.lastLaborTick || 0) >= COMMON_FIELD_REST && seed >= (field.tiles?.length || 9) * COMMON_FIELD_SOW_SPARE) out.push({ b, field, rank: 1, d });
+    if (field.stage === "ripe" && W.tick >= (field.harvestBlockedUntil || 0))
+      out.push({ b, field, rank: 0, d });
+    else if (
+      field.stage === "fallow" &&
+      W.tick - (field.lastLaborTick || 0) >= COMMON_FIELD_REST &&
+      seed >= (field.tiles?.length || 9) * COMMON_FIELD_SOW_SPARE
+    )
+      out.push({ b, field, rank: 1, d });
   }
   return out.sort((a, c) => a.rank - c.rank || a.d - c.d || a.b.id - c.b.id);
 }
@@ -52,27 +74,43 @@ performFarmLabor = function (workerId) {
   const ripe = pick.field.stage === "ripe";
   if (Math.max(Math.abs(p.x - access.x), Math.abs(p.y - access.y)) > 0) {
     COMMON_FIELDS.walks++;
-    return moveWorkerToward(workerId, idx(access.x, access.y), ripe ? "harvest" : "sow", `${ripe ? "🧺 going to reap" : "🌱 going to sow"} a neighbour's ${pick.b.name}`, C.ORGANIC, pick.b.id);
+    return moveWorkerToward(
+      workerId,
+      idx(access.x, access.y),
+      ripe ? "harvest" : "sow",
+      `${ripe ? "🧺 going to reap" : "🌱 going to sow"} a neighbour's ${pick.b.name}`,
+      C.ORGANIC,
+      pick.b.id,
+    );
   }
   if (ripe) {
     const ok = harvestCultivatedField(workerId, pick.field, own);
     if (ok) {
       COMMON_FIELDS.reaped++;
-      W.components.life[workerId].behaviorReason = `reaped a neighbour's ${pick.b.name} and carried the crop to ${own.name}`;
+      W.components.life[workerId].behaviorReason =
+        `reaped a neighbour's ${pick.b.name} and carried the crop to ${own.name}`;
     }
     return ok;
   }
   const ok = sowCultivatedField(workerId, pick.field, own);
   if (ok) {
     COMMON_FIELDS.sown++;
-    W.components.life[workerId].behaviorReason = `sowed a neighbour's ${pick.b.name} from the seed of ${own.name}`;
+    W.components.life[workerId].behaviorReason =
+      `sowed a neighbour's ${pick.b.name} from the seed of ${own.name}`;
   }
   return ok;
 };
 window.ALIFE_COMMON_FIELDS_DEBUG = Object.freeze({
   candidates: (id) => {
     const own = nearestFriendlyPlace(id);
-    return own?.knownProcesses ? commonFieldCandidates(id, own).map((c) => ({ building: c.b.id, town: c.b.placeId, stage: c.field.stage, d: c.d })) : [];
+    return own?.knownProcesses
+      ? commonFieldCandidates(id, own).map((c) => ({
+          building: c.b.id,
+          town: c.b.placeId,
+          stage: c.field.stage,
+          d: c.d,
+        }))
+      : [];
   },
   work: (id) => performFarmLabor(id),
   counts: () => ({ ...COMMON_FIELDS }),

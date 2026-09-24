@@ -37,9 +37,15 @@ const GROVE_SEED_STRENGTH = 400,
   LIVING_GROVE = { saplings: 0, withered: 0, diebacks: 0, fruitDrawn: 0, brambles: 0 };
 // ── Seasons of fruit ─────────────────────────────────────────────────────────
 function fruitSeasonAt(x, y) {
-  if (typeof seasonPhase !== "function" || typeof seasonGenome !== "function" || !seasonGenome()?.amplitude) return 0.5;
+  if (
+    typeof seasonPhase !== "function" ||
+    typeof seasonGenome !== "function" ||
+    !seasonGenome()?.amplitude
+  )
+    return 0.5;
   let phase = seasonPhase();
-  if (typeof seasonHemisphere === "function" && seasonHemisphere(x, y) < 0) phase = (phase + 0.5) % 1;
+  if (typeof seasonHemisphere === "function" && seasonHemisphere(x, y) < 0)
+    phase = (phase + 0.5) % 1;
   return clamp(1 - Math.abs(phase - FRUIT_PEAK) / FRUIT_WIDTH, 0, 1);
 }
 function brambleAt(i) {
@@ -55,7 +61,10 @@ function fruitAt(i) {
     x = i % W.width,
     y = (i / W.width) | 0;
   if (t.featureType?.[i] === TERRAIN_FEATURE.CANOPY) {
-    const v = typeof ACTIVE_PLANET_VISUAL !== "undefined" && ACTIVE_PLANET_VISUAL ? ACTIVE_PLANET_VISUAL : null;
+    const v =
+      typeof ACTIVE_PLANET_VISUAL !== "undefined" && ACTIVE_PLANET_VISUAL
+        ? ACTIVE_PLANET_VISUAL
+        : null;
     if (v && !v.earthlike) return 0;
     const share = FRUIT_SPECIES[treeSpeciesAt(i)] || 0;
     if (!share) return 0;
@@ -69,7 +78,11 @@ tileFood = function (i, metabolism = "grazer") {
   const v = tileFoodGroveBase(i, metabolism);
   if (metabolism === "predator" || !W?.tiles?.featureType) return v;
   const t = W.tiles;
-  if (t.featureType[i] !== TERRAIN_FEATURE.CANOPY && !(t.plantOrder[i] >= 300 && t.plantOrder[i] <= 650)) return v;
+  if (
+    t.featureType[i] !== TERRAIN_FEATURE.CANOPY &&
+    !(t.plantOrder[i] >= 300 && t.plantOrder[i] <= 650)
+  )
+    return v;
   const f = fruitAt(i);
   return f > 0 ? Math.min(100, v + f * FRUIT_FOOD) : v;
 };
@@ -81,7 +94,8 @@ function groveOpenGround(n) {
   if ((t.habitation?.[n] || 0) > 220 || t.road?.[n]) return false;
   const x = n % W.width,
     y = (n / W.width) | 0;
-  if (typeof standingBuildingAtMovementTile === "function" && standingBuildingAtMovementTile(x, y)) return false;
+  if (typeof standingBuildingAtMovementTile === "function" && standingBuildingAtMovementTile(x, y))
+    return false;
   return true;
 }
 function groveNeighbours(i) {
@@ -100,7 +114,8 @@ function groveNeighbours(i) {
 // One tree drops its seed: true when a sapling took root.
 function groveSeedFrom(i, roll = null) {
   const t = W.tiles;
-  if (t.featureType[i] !== TERRAIN_FEATURE.CANOPY || t.featureStrength[i] < GROVE_SEED_STRENGTH) return false;
+  if (t.featureType[i] !== TERRAIN_FEATURE.CANOPY || t.featureStrength[i] < GROVE_SEED_STRENGTH)
+    return false;
   const ns = groveNeighbours(i),
     shade = ns.filter((n) => t.featureType[n] === TERRAIN_FEATURE.CANOPY).length / 8,
     year = Math.floor(W.tick / TICKS_PER_YEAR);
@@ -166,12 +181,24 @@ updateFeatureEcology = function () {
 const treeSpeciesAtGroveBase = treeSpeciesAt;
 treeSpeciesAt = function (i) {
   const t = W.tiles;
-  if (t.featureType?.[i] === TERRAIN_FEATURE.CANOPY && t.featureStrength[i] < 120 && t.featureStrength[i] > 0 && tileMoisture(i) < 12) return "snag";
+  if (
+    t.featureType?.[i] === TERRAIN_FEATURE.CANOPY &&
+    t.featureStrength[i] < 120 &&
+    t.featureStrength[i] > 0 &&
+    tileMoisture(i) < 12
+  )
+    return "snag";
   return treeSpeciesAtGroveBase(i);
 };
 // ── Fruit on the crown, berries in the grass ─────────────────────────────────
 function fruitTone(species) {
-  return species === "palm" ? hsl(28, 80, 50) : species === "baobab" ? hsl(70, 60, 55) : species === "shrub" ? hsl(285, 55, 42) : hsl(4, 75, 52);
+  return species === "palm"
+    ? hsl(28, 80, 50)
+    : species === "baobab"
+      ? hsl(70, 60, 55)
+      : species === "shrub"
+        ? hsl(285, 55, 42)
+        : hsl(4, 75, 52);
 }
 const drawTreeSpeciesGroveBase = drawTreeSpecies;
 drawTreeSpecies = function (g, species, p, r, h, v, i, sway, season, detail) {
@@ -229,14 +256,28 @@ drawTileMotifs = function (x, y, i, p, m, v) {
   g.fillStyle = hsl(v.floraHue - 10, 42, 30, 0.92);
   for (let k = 0; k < 3; k++) {
     g.beginPath();
-    g.ellipse(cx + (k - 1) * r * 0.55, cy - (k % 2) * r * 0.25, r * 0.55, r * 0.38, 0, 0, Math.PI * 2);
+    g.ellipse(
+      cx + (k - 1) * r * 0.55,
+      cy - (k % 2) * r * 0.25,
+      r * 0.55,
+      r * 0.38,
+      0,
+      0,
+      Math.PI * 2,
+    );
     g.fill();
   }
   if (f > 0.15) {
     g.fillStyle = fruitTone("shrub");
     for (let k = 0; k < 3; k++) {
       g.beginPath();
-      g.arc(cx + (visualHash01(i, 0xc0 + k) - 0.5) * r * 1.4, cy - r * 0.2 - visualHash01(i, 0xd0 + k) * r * 0.4, Math.max(0.7, r * 0.14), 0, Math.PI * 2);
+      g.arc(
+        cx + (visualHash01(i, 0xc0 + k) - 0.5) * r * 1.4,
+        cy - r * 0.2 - visualHash01(i, 0xd0 + k) * r * 0.4,
+        Math.max(0.7, r * 0.14),
+        0,
+        Math.PI * 2,
+      );
       g.fill();
     }
   }
