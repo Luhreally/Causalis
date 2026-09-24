@@ -182,8 +182,17 @@ const sandbox = {
   },
 };
 Object.assign(windowObject, sandbox);
-vm.createContext(sandbox);
-vm.runInContext(script, sandbox, { filename: "index.inline.js" });
+// An uncontextified global is an ordinary object, as in a browser. A
+// contextified sandbox answers every global lookup (Math, Array, Number...)
+// through a C++ interceptor, which made ticks twice as slow as in a page and
+// profiles blame the wrong functions; the world hash is the same either way.
+// CAUSALIS_VM_CONTEXTIFY=1 brings the old sandbox back.
+function vmContext(globals) {
+  if (process.env.CAUSALIS_VM_CONTEXTIFY === "1") return vm.createContext(globals);
+  return Object.assign(vm.createContext(vm.constants.DONT_CONTEXTIFY), globals);
+}
+const context = vmContext(sandbox);
+vm.runInContext(script, context, { filename: "index.inline.js" });
 
 const game = sandbox.window.ALIFE_DEBUG;
 const visuals = sandbox.window.ALIFE_VISUAL_DEBUG;

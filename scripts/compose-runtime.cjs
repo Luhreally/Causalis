@@ -5,6 +5,10 @@ const projectRoot = path.resolve(__dirname, "..");
 const gameRoot = path.join(projectRoot, "src", "game");
 
 function readSections() {
+  // scripts/test.cjs reads the sections once and hands every test the copy, so
+  // an edit made while the suite runs reaches none of it.
+  if (process.env.CAUSALIS_SECTIONS_SNAPSHOT)
+    return JSON.parse(fs.readFileSync(process.env.CAUSALIS_SECTIONS_SNAPSHOT, "utf8"));
   const manifest = JSON.parse(fs.readFileSync(path.join(gameRoot, "manifest.json"), "utf8"));
   return manifest.map((name) => ({
     name,

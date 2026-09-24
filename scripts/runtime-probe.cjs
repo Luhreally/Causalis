@@ -63,8 +63,19 @@ function makeSandbox() {
     drawOps,
   };
   Object.assign(windowObject, sandbox);
-  vm.createContext(sandbox);
-  return { sandbox, getElement, drawOps };
+  // A contextified sandbox answers every global lookup the runtime makes (Math,
+  // Array, Number...) through a C++ interceptor: 213-270 ns where a browser
+  // takes 1-6, so ticks ran twice as slow as in a page and profiles blamed the
+  // wrong functions (hashParts 122x, diffusePair 232x). An uncontextified
+  // global is an ordinary object, as in a browser. The world hash is the same
+  // either way; CAUSALIS_VM_CONTEXTIFY=1 brings the old sandbox back.
+  if (process.env.CAUSALIS_VM_CONTEXTIFY === "1") {
+    vm.createContext(sandbox);
+    return { sandbox, getElement, drawOps };
+  }
+  const context = vm.createContext(vm.constants.DONT_CONTEXTIFY);
+  Object.assign(context, sandbox);
+  return { sandbox: context, getElement, drawOps };
 }
 // transform: optional (script) => script for splicing hooks.
 function loadRuntime({ transform, bridge = true } = {}) {

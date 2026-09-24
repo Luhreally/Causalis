@@ -171,12 +171,12 @@ const harness = smokeSource
       ");",
   )
   .replace(
-    "vm.createContext(sandbox);",
+    "const context = vmContext(sandbox);",
     `Element.prototype.insertAdjacentHTML = function (position, html) { this.innerHTML += html; };
 Element.prototype.focus = function () { document.activeElement = this; };
 document.addEventListener = function () {};
 getElement("firstJourneyBtn").dataset.experience = "journey";
-vm.createContext(sandbox);`,
+const context = vmContext(sandbox);`,
   );
 new Function(
   "require",

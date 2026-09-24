@@ -288,7 +288,11 @@ Object.assign(windowObject, sandbox, {
   visualViewport: windowObject.visualViewport,
 });
 
-vm.createContext(sandbox);
+// An ordinary global object, as in a browser (see smoke-test.cjs).
+const context =
+  process.env.CAUSALIS_VM_CONTEXTIFY === "1"
+    ? vm.createContext(sandbox)
+    : Object.assign(vm.createContext(vm.constants.DONT_CONTEXTIFY), sandbox);
 let mobileScript = composeRuntime({ format: "script" });
 const bridgeMarker = "\nreturn {boot};";
 assert.ok(mobileScript.includes(bridgeMarker), "closure bridge marker missing");
@@ -296,7 +300,7 @@ mobileScript = mobileScript.replace(
   bridgeMarker,
   "\nglobalThis.__PROBE__={get:(n)=>eval(n)};" + bridgeMarker,
 );
-vm.runInContext(mobileScript, sandbox, { filename: "causalis.mobile.js" });
+vm.runInContext(mobileScript, context, { filename: "causalis.mobile.js" });
 
 const game = windowObject.ALIFE_DEBUG;
 const mobile = windowObject.ALIFE_MOBILE_DEBUG;
@@ -506,7 +510,7 @@ report.desktop = {
 // middle of the canvas is that ground at sea level, so the oblique lens used
 // to draw a followed life tens of pixels above the middle; a cover over the
 // stage moved the middle again, and neither is a constant across devices.
-const run = (source) => sandbox.__PROBE__.get(`(${source})`);
+const run = (source) => context.__PROBE__.get(`(${source})`);
 const follow = windowObject.ALIFE_FOLLOW_DEBUG;
 assert.ok(follow, "the follow surface initializes");
 const peopleBar = element("peopleBar");
