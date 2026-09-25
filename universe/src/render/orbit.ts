@@ -21,7 +21,7 @@ export class OrbitRig {
   pitch: number;
   distance: number;
   readonly target = new pc.Vec3(0, 0, 0);
-  private readonly options: OrbitOptions;
+  private options: OrbitOptions;
   private readonly pointers = new Map<
     number,
     { x: number; y: number; startX: number; startY: number }
@@ -96,6 +96,16 @@ export class OrbitRig {
       this.idle = 0;
     });
     stage.onUpdate((dt) => this.update(stage, dt));
+  }
+
+  /** Move to another scale: new limits, a new target and distance, zoom state reset. */
+  configure(options: Partial<OrbitOptions> & { target?: [number, number, number] }): void {
+    this.options = { ...this.options, ...options };
+    if (options.distance !== undefined) this.distance = options.distance;
+    if (options.pitch !== undefined) this.pitch = options.pitch;
+    if (options.target) this.target.set(options.target[0], options.target[1], options.target[2]);
+    this.userZoomed = false;
+    this.idle = 0;
   }
 
   private spread(): number {

@@ -26,7 +26,8 @@ if (!base) throw new Error("the preview server did not start");
 type AppState = { mode: string; t: number; drawn: number };
 type Exposed = {
   mode: string;
-  client?: { status: { t: number } | null };
+  client?: { status: { t: number } | null; query<T>(q: { type: string }): Promise<T> };
+  descend?: (cell: number) => void;
   drawn?: () => number;
   select?: (cell: number) => void;
   bench?: { fps: number; frameMs: number; instances: number; tier: string };
@@ -106,6 +107,30 @@ for (const engine of engines) {
       if (shotsAt && !query.includes("inline")) {
         mkdirSync(shotsAt, { recursive: true });
         await page.screenshot({ path: join(shotsAt, `${engine}-${name}.png`) });
+      }
+      if (name === "earth") {
+        // Down into the region around a copper deposit, then a tile's inspector.
+        await page.evaluate(async () => {
+          const c = (globalThis as { causalis?: Exposed }).causalis!;
+          const deposits = await c.client!.query<{ kind: string; cell: number }[]>({
+            type: "deposits",
+          });
+          c.descend!(deposits.find((d) => d.kind === "copper")!.cell);
+        });
+        await waitFor(
+          `${label} region`,
+          () => state(page),
+          (s) => s.drawn === 128 * 128,
+        );
+        await page.evaluate(() =>
+          (globalThis as { causalis?: Exposed }).causalis?.select?.(64 * 128 + 64),
+        );
+        await page.waitForSelector(".panel:not([hidden]) .inspector:not([hidden]) .fact", {
+          timeout: 10000,
+        });
+        console.log(`${(label + " region").padEnd(24)} ${later.mode.padEnd(9)} 16384 tiles drawn`);
+        if (shotsAt && !query.includes("inline"))
+          await page.screenshot({ path: join(shotsAt, `${engine}-region.png`) });
       }
       await page.close();
     }

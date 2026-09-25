@@ -4,14 +4,24 @@
 // instancing benchmark instead.
 import "./styles.css";
 import { HostClient, inlinePair, workerPort } from "../bridge/index.ts";
-import { GlobeScene, OrbitRig, SandboxScene, Stage, runBench } from "../render/index.ts";
-import { PlanetPanel, SandboxPanel } from "../ui/index.ts";
+import {
+  GlobeScene,
+  OrbitRig,
+  RegionScene,
+  SandboxScene,
+  Stage,
+  runBench,
+} from "../render/index.ts";
+import { PlanetPanel, RegionPanel, SandboxPanel } from "../ui/index.ts";
 import {
   cellAt,
   cellCenter,
   globeColors,
+  regionColors,
+  regionHeights,
   sandboxSpec,
   type Lens,
+  type RegionLens,
   type SandboxSpec,
 } from "../view/index.ts";
 import { deviceTier } from "./tier.ts";
@@ -34,6 +44,8 @@ type Exposed = {
   /** How much is drawn: figures in the sandbox, painted cells on a globe. */
   drawn?: () => number;
   select?: (cell: number) => void;
+  /** Go down from the globe to the region around a cell. */
+  descend?: (cell: number) => void;
   bench?: unknown;
   /** The PlayCanvas stage, for debugging tools. */
   stage?: Stage;
@@ -146,15 +158,20 @@ async function runPlanetPage(): Promise<void> {
   const { canvas, hud } = page(),
     tier = deviceTier(),
     stage = new Stage(canvas, tier, SPACE),
-    globe = new GlobeScene(stage);
+    globe = new GlobeScene(stage),
+    region = new RegionScene(stage);
   const { client, mode } = await connect();
-  let painted = 0;
+  let painted = 0,
+    scale: "globe" | "region" = "globe";
   Object.assign(exposed, { client, mode, seed, universe, drawn: () => painted, stage });
   await client.start(universe, seed);
   client.setInterest({ view: "globe", focus: null });
-  let lens: Lens = "terrain";
-  const panel = new PlanetPanel(hud, client, lens);
-  const paint = () => {
+  let lens: Lens = "terrain",
+    regionLens: RegionLens = "land";
+  const planetPanel = new PlanetPanel(hud, client, lens),
+    regionPanel = new RegionPanel(hud, client);
+
+  const paintGlobe = () => {
     const frame = client.latestFrame("globe");
     if (!frame) return;
     if (!globe.built)
@@ -166,33 +183,110 @@ async function runPlanetPage(): Promise<void> {
     globe.paint(colors);
     painted = colors.length / 4;
   };
-  panel.onLens = (l) => {
+  const paintRegion = () => {
+    const frame = client.latestFrame("region");
+    if (!frame || scale !== "region") return;
+    const meta = frame.meta as {
+      ref: string;
+      center: number;
+      size: number;
+      tileKm: number;
+      lat: number;
+      lon: number;
+    };
+    if (region.key !== meta.ref) {
+      region.build(meta.ref, meta.size, meta.tileKm, regionHeights(frame));
+      regionPanel.show(meta.center, meta.lat, meta.lon, meta.size * meta.tileKm);
+    }
+    const colors = regionColors(frame, regionLens);
+    region.paint(colors);
+    painted = colors.length / 4;
+  };
+  planetPanel.onLens = (l) => {
     lens = l;
-    paint();
+    paintGlobe();
   };
-  const select = (cell: number | null) => {
-    globe.mark(cell);
-    void panel.select(cell);
+  regionPanel.onLens = (l) => {
+    regionLens = l;
+    paintRegion();
   };
-  panel.onClose = () => globe.mark(null);
-  exposed.select = (cell: number) => select(cell);
+
   const aspect = () => Math.max(0.3, innerWidth / Math.max(1, innerHeight));
-  const fit = () => (aspect() < 1 ? 3.1 / aspect() : 3.3);
+  const globeFit = () => (aspect() < 1 ? 3.1 / aspect() : 3.3);
+  const regionFit = () => (aspect() < 1 ? 120 / aspect() : 130);
+  const selectCell = (cell: number | null) => {
+    globe.mark(cell);
+    void planetPanel.select(cell);
+  };
+  const selectTile = (tile: number | null) => {
+    region.mark(tile);
+    void regionPanel.select(tile);
+  };
   const rig = new OrbitRig(stage, canvas, {
-    distance: fit(),
+    distance: globeFit(),
     minDistance: 1.35,
     maxDistance: 12,
     pitch: -18,
     minPitch: -80,
     maxPitch: 80,
     drift: 4,
-    onTap: (x, y) => select(globe.pick(x, y)),
+    onTap: (x, y) =>
+      scale === "globe" ? selectCell(globe.pick(x, y)) : selectTile(region.pick(x, y)),
   });
+
+  // Down to a region, and back up to the world: the camera, the scene, the panel
+  // and the host's interest all move together.
+  const toRegion = (cell: number) => {
+    scale = "region";
+    globe.visible = false;
+    region.visible = true;
+    planetPanel.visible = false;
+    regionPanel.visible = true;
+    rig.configure({
+      distance: regionFit(),
+      minDistance: 12,
+      maxDistance: 260,
+      pitch: -48,
+      minPitch: -85,
+      maxPitch: -12,
+      drift: 1.5,
+      target: [0, 0, 0],
+    });
+    client.setInterest({ view: "region", focus: `cell:0:${cell}` });
+    paintRegion();
+  };
+  const toGlobe = () => {
+    scale = "globe";
+    region.visible = false;
+    globe.visible = true;
+    regionPanel.visible = false;
+    planetPanel.visible = true;
+    rig.configure({
+      distance: globeFit(),
+      minDistance: 1.35,
+      maxDistance: 12,
+      pitch: -18,
+      minPitch: -80,
+      maxPitch: 80,
+      drift: 4,
+      target: [0, 0, 0],
+    });
+    client.setInterest({ view: "globe", focus: null });
+    paintGlobe();
+  };
+  planetPanel.onCloser = (cell) => toRegion(cell);
+  planetPanel.onClose = () => globe.mark(null);
+  regionPanel.onBack = () => toGlobe();
+  regionPanel.onClose = () => region.mark(null);
+  exposed.select = (n: number) => (scale === "globe" ? selectCell(n) : selectTile(n));
+  exposed.descend = (cell: number) => toRegion(cell);
+
   addEventListener("resize", () => {
-    if (!rig.userZoomed) rig.distance = fit();
+    if (!rig.userZoomed) rig.distance = scale === "globe" ? globeFit() : regionFit();
   });
   client.onFrame((frame) => {
-    if (frame.view === "globe") paint();
+    if (frame.view === "globe") paintGlobe();
+    else if (frame.view === "region") paintRegion();
   });
 }
 

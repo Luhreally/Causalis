@@ -23,3 +23,11 @@ export {
   globeRadius,
   type Lens,
 } from "./globe.ts";
+export {
+  REGION_LENSES,
+  REGION_LENS_NAMES,
+  REGION_RELIEF,
+  regionColors,
+  regionHeights,
+  type RegionLens,
+} from "./region.ts";

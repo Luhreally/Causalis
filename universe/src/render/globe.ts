@@ -59,6 +59,11 @@ export class GlobeScene {
     this.positions = positions;
   }
 
+  set visible(on: boolean) {
+    if (this.entity) this.entity.enabled = on;
+    if (!on) this.marker.enabled = false;
+  }
+
   get built(): boolean {
     return this.grid !== null;
   }

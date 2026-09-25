@@ -33,3 +33,4 @@ export {
   type Plate,
   type Tectonics,
 } from "./plates.ts";
+export { REGION, WATER, refineRegion, regionRef, type Region } from "./region.ts";

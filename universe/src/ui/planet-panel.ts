@@ -44,6 +44,7 @@ function latLon(lat: number, lon: number): string {
 }
 
 export class PlanetPanel {
+  readonly element = el("div", "panel");
   private readonly client: HostClient;
   private readonly why: WhyTree;
   private readonly lensButtons = new Map<Lens, HTMLButtonElement>();
@@ -52,9 +53,11 @@ export class PlanetPanel {
   private readonly title = el("h2");
   private readonly facts = el("div", "facts");
   private readonly whyBox = el("div", "why");
+  private readonly closer = el("button", "act", "Look closer");
   private selected: number | null = null;
   onLens: (lens: Lens) => void = () => {};
   onClose: () => void = () => {};
+  onCloser: (cell: number) => void = () => {};
 
   constructor(root: HTMLElement, client: HostClient, lens: Lens) {
     this.client = client;
@@ -69,22 +72,27 @@ export class PlanetPanel {
       this.lensButtons.set(l, b);
     }
     bar.append(lenses);
-    root.append(bar);
+    this.element.append(bar);
     const close = el("button", "close", "×");
     close.setAttribute("aria-label", "Close");
     close.onclick = () => {
       this.select(null);
       this.onClose();
     };
+    this.closer.onclick = () => {
+      if (this.selected !== null) this.onCloser(this.selected);
+    };
     this.inspector.append(
       close,
       this.title,
       this.facts,
+      this.closer,
       el("h3", undefined, "Why is it like this?"),
       this.whyBox,
     );
     this.inspector.hidden = true;
-    root.append(
+    root.append(this.element);
+    this.element.append(
       this.inspector,
       el(
         "p",
@@ -100,6 +108,10 @@ export class PlanetPanel {
     const s = await this.client.query<Summary>({ type: "planet.summary" });
     const p = s.planet;
     this.world.textContent = `A ${s.star.spectral} star, ${s.star.ageGyr.toFixed(1)} billion years old · a world of ${p.mass.toFixed(2)} Earth masses, ${p.meanTemperature.toFixed(0)} °C on average, a ${Math.round(p.yearDays)}-day year · ${p.plates} plates, ${s.deposits} ore bodies`;
+  }
+
+  set visible(on: boolean) {
+    this.element.hidden = !on;
   }
 
   private setLens(lens: Lens): void {
@@ -133,6 +145,7 @@ export class PlanetPanel {
         : "",
     ].filter(Boolean);
     this.facts.replaceChildren(...rows.map((r) => el("div", "fact", r)));
+    this.closer.hidden = !high;
     void this.why.show(p.deposit?.ref ?? p.ref, this.whyBox);
   }
 }
