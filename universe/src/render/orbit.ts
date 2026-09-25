@@ -108,6 +108,16 @@ export class OrbitRig {
     this.idle = 0;
   }
 
+  /** Turn to face a direction from the target (for a globe: a place by its latitude and longitude). */
+  face(latDeg: number, lonDeg: number): void {
+    this.yaw = lonDeg;
+    this.pitch = Math.max(
+      this.options.minPitch ?? -85,
+      Math.min(this.options.maxPitch ?? -8, -latDeg),
+    );
+    this.idle = 0;
+  }
+
   private spread(): number {
     const ps = [...this.pointers.values()];
     return ps.length < 2 ? 0 : Math.hypot(ps[0]!.x - ps[1]!.x, ps[0]!.y - ps[1]!.y);

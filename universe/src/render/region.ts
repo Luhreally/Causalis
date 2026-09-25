@@ -2,7 +2,7 @@
 // coloured per tile by the lens, under a translucent sea at height zero, with a
 // marker on the picked tile.
 import * as pc from "playcanvas";
-import { cylinderMesh } from "./batch.ts";
+import { InstancedBatch, cylinderMesh } from "./batch.ts";
 import { flatMaterial, type Stage } from "./stage.ts";
 
 export class RegionScene {
@@ -13,6 +13,8 @@ export class RegionScene {
   private tileKm = 1;
   private heights: Float32Array | null = null;
   private readonly marker: pc.Entity;
+  private huts: InstancedBatch | null = null;
+  private villageTiles: number[] = [];
   key: string | null = null;
 
   constructor(stage: Stage) {
@@ -35,6 +37,8 @@ export class RegionScene {
 
   build(key: string, size: number, tileKm: number, heights: Float32Array): void {
     for (const child of [...this.root.children]) if (child !== this.marker) child.destroy();
+    this.huts = null;
+    this.villageTiles = [];
     const n = size * size,
       positions = new Float32Array(n * 3),
       half = ((size - 1) * tileKm) / 2;
@@ -117,6 +121,83 @@ export class RegionScene {
       if (py <= Math.max(0, this.heights[j * this.size + i]!)) return j * this.size + i;
     }
     return null;
+  }
+
+  /** Where a tile's ground is, in the scene. */
+  groundAt(tile: number): pc.Vec3 | null {
+    if (!this.heights) return null;
+    const half = ((this.size - 1) * this.tileKm) / 2;
+    return new pc.Vec3(
+      (tile % this.size) * this.tileKm - half,
+      Math.max(0, this.heights[tile]!),
+      Math.floor(tile / this.size) * this.tileKm - half,
+    );
+  }
+
+  /** Villages as clusters of huts: more huts for more people. */
+  setVillages(villages: readonly { tile: number; population: number }[]): void {
+    if (!this.heights) return;
+    this.huts ??= new InstancedBatch(
+      this.stage,
+      cylinderMesh(this.stage, 0.3, 0.42, 4),
+      [0.9, 0.76, 0.55],
+      2048,
+    );
+    this.villageTiles = villages.map((v) => v.tile);
+    const places: [number, number, number, number][] = [];
+    for (const v of villages) {
+      const at = this.groundAt(v.tile)!,
+        huts = Math.max(1, Math.min(24, Math.round(Math.sqrt(v.population) / 1.6)));
+      for (let k = 0; k < huts; k++) {
+        const a = k * 2.399963,
+          r = 0.62 * Math.sqrt(k + 0.5);
+        places.push([at.x + r * Math.cos(a), at.y + 0.21, at.z + r * Math.sin(a), a]);
+      }
+    }
+    this.huts.set(places.length, (i, out) => {
+      const [x, y, z, a] = places[i]!;
+      out[0] = x;
+      out[1] = y;
+      out[2] = z;
+      out[3] = out[5] = 1;
+      out[4] = 1;
+      out[6] = a;
+    });
+  }
+
+  /** Screen positions (CSS pixels) of tiles, for labels; null when behind the camera. */
+  screenOf(tiles: readonly number[]): ({ x: number; y: number } | null)[] {
+    const cam = this.stage.camera.camera!,
+      out: ({ x: number; y: number } | null)[] = [];
+    for (const tile of tiles) {
+      const at = this.groundAt(tile);
+      if (!at) {
+        out.push(null);
+        continue;
+      }
+      at.y += 0.9;
+      const screen = cam.worldToScreen(at);
+      out.push(screen.z > 0 ? { x: screen.x, y: screen.y } : null);
+    }
+    return out;
+  }
+
+  /** The village tile nearest a tile, within `reach` tiles. */
+  villageNear(tile: number, reach = 3): number | null {
+    const i = tile % this.size,
+      j = Math.floor(tile / this.size);
+    let best: number | null = null,
+      bestD = reach * reach + 1;
+    for (const v of this.villageTiles) {
+      const di = (v % this.size) - i,
+        dj = Math.floor(v / this.size) - j,
+        d = di * di + dj * dj;
+      if (d < bestD) {
+        bestD = d;
+        best = v;
+      }
+    }
+    return best;
   }
 
   mark(tile: number | null): void {

@@ -3,7 +3,7 @@
 // leave history alone must leave every chain unchanged; a change meant to alter
 // it rewrites the golden file on purpose (node tools/oracle.ts --write).
 import { YEAR, type World } from "../../src/kernel/index.ts";
-import { makePlanetWorld, makeToyWorld } from "../../src/sim/index.ts";
+import { makePlanetWorld, makePopulationWorld, makeToyWorld } from "../../src/sim/index.ts";
 import { seedFromText } from "../../src/kernel/index.ts";
 
 export type Fixture = { readonly name: string; readonly years: number; readonly make: () => World };
@@ -13,6 +13,11 @@ export const FIXTURES: readonly Fixture[] = [
   { name: "toy/beta", years: 30, make: () => makeToyWorld("beta") },
   { name: "earth/first-light", years: 2, make: () => makePlanetWorld(seedFromText("first light")) },
   { name: "earth/kestrel", years: 2, make: () => makePlanetWorld(seedFromText("kestrel")) },
+  {
+    name: "people/first-light",
+    years: 60,
+    make: () => makePopulationWorld(seedFromText("first light")),
+  },
 ];
 
 export type FixtureRecord = {

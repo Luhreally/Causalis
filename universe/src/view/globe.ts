@@ -4,11 +4,20 @@
 import type { FrameMessage } from "../bridge/index.ts";
 import type { Rgb } from "./sandbox.ts";
 
-export const LENSES = ["terrain", "height", "temperature", "rain", "plates", "resources"] as const;
+export const LENSES = [
+  "terrain",
+  "people",
+  "height",
+  "temperature",
+  "rain",
+  "plates",
+  "resources",
+] as const;
 export type Lens = (typeof LENSES)[number];
 
 export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   terrain: "Land",
+  people: "People",
   height: "Height",
   temperature: "Warmth",
   rain: "Rain",
@@ -115,8 +124,22 @@ function hue(h: number, s: number, v: number): Rgb {
   }
 }
 
-/** Per-cell RGBA (0–255) for a globe frame under a lens. */
-export function globeColors(frame: FrameMessage, lens: Lens): Uint8Array {
+const PEOPLE: readonly Stop[] = [
+  [0, [0.95, 0.8, 0.45]],
+  [0.5, [0.95, 0.55, 0.25]],
+  [2, [0.85, 0.25, 0.2]],
+  [8, [0.55, 0.1, 0.25]],
+];
+
+/**
+ * Per-cell RGBA (0–255) for a globe frame under a lens. `people` (cell → people
+ * per 100 km²) feeds the people lens.
+ */
+export function globeColors(
+  frame: FrameMessage,
+  lens: Lens,
+  people?: ReadonlyMap<number, number>,
+): Uint8Array {
   const a = frame.arrays,
     elevation = a.elevation!,
     n = elevation.length,
@@ -156,6 +179,18 @@ export function globeColors(frame: FrameMessage, lens: Lens): Uint8Array {
         const p = a.plate![c]!,
           continental = meta.plates[p]?.continental ?? false;
         col = hue((p * 0.61803398875) % 1, continental ? 0.45 : 0.7, sea ? 0.55 : 0.9);
+        break;
+      }
+      case "people": {
+        const density = people?.get(c);
+        if (density !== undefined && density > 0) col = ramp(PEOPLE, density);
+        else {
+          const base = sea ? ramp(DEPTH, e) : BIOME_COLORS[biome]!,
+            grey = (base[0] + base[1] + base[2]) / 3;
+          col = sea
+            ? [base[0] * 0.7, base[1] * 0.7, base[2] * 0.75]
+            : [grey * 0.65, grey * 0.65, grey * 0.6];
+        }
         break;
       }
       case "resources": {

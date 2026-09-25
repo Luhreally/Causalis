@@ -53,7 +53,8 @@ export const OCC = {
 } as const;
 
 /** Food a worker of each occupation brings in a year when land allows (dependents: none). */
-export const PRODUCTIVITY: readonly number[] = [0, 1.35, 2.6, 1.9, 0, 0, 0];
+// A worker must feed their dependents too: about 1.6 people in a young society.
+export const PRODUCTIVITY: readonly number[] = [0, 2.0, 3.2, 2.4, 0, 0, 0];
 
 /** Width in years of each age band (the last is treated as ten years wide). */
 export function bandWidth(band: number, life: LifeHistory = HUMANLIKE): number {

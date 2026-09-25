@@ -100,6 +100,23 @@ export class RegionPanel {
     for (const [l, b] of this.lensButtons) b.classList.toggle("on", l === lens);
   }
 
+  /** Show a village: its name, its people, its founding, and why it is there. */
+  async selectVillage(ref: string): Promise<void> {
+    this.selected = -1;
+    this.inspector.hidden = false;
+    const v = await this.client.query<{ name: string; population: number; founded: number }>({
+      type: "settlement",
+      args: { ref },
+    });
+    if (this.selected !== -1) return;
+    this.title.textContent = v.name;
+    this.facts.replaceChildren(
+      el("div", "fact", `A village of ${v.population.toLocaleString()}`),
+      el("div", "fact", `Founded in year ${v.founded}`),
+    );
+    void this.why.show(ref, this.whyBox);
+  }
+
   async select(tile: number | null): Promise<void> {
     this.selected = tile;
     this.inspector.hidden = tile === null;

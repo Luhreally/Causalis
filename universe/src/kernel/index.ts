@@ -43,7 +43,9 @@ export {
 export {
   Permutation,
   apportion,
+  drawWithoutReplacement,
   gaussian,
+  multinomial,
   poisson,
   selectLowest,
   toUnit,

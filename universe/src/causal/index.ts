@@ -3,6 +3,7 @@
 // history as later milestones add them.
 // May import: kernel, rules, gen, sim. See README.md and docs/architecture/universe-architecture.md.
 export { isGenerated } from "./generated.ts";
+import "./population.ts";
 export {
   edges,
   registerExplainer,

@@ -223,3 +223,26 @@ button:disabled {
 .failure p {
   color: var(--muted);
 }
+.world-line {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none !important;
+  overflow: hidden;
+}
+.label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(10, 12, 18, 0.62);
+  color: var(--ink);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}

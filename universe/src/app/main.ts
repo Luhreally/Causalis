@@ -12,7 +12,13 @@ import {
   Stage,
   runBench,
 } from "../render/index.ts";
-import { PlanetPanel, RegionPanel, SandboxPanel } from "../ui/index.ts";
+import {
+  LabelLayer,
+  PlanetPanel,
+  RegionPanel,
+  SandboxPanel,
+  type PeopleEntry,
+} from "../ui/index.ts";
 import {
   cellAt,
   cellCenter,
@@ -27,6 +33,7 @@ import {
 import { deviceTier } from "./tier.ts";
 
 const DAY = 86_400;
+const YEAR = 365 * DAY;
 const SKY = [0.09, 0.1, 0.13] as const;
 const SPACE = [0.02, 0.025, 0.045] as const;
 
@@ -35,6 +42,7 @@ const seed = params.get("seed") ?? "first light";
 const inline = params.has("inline");
 const bench = Number(params.get("bench") ?? 0);
 const universe = params.get("universe") ?? "earth";
+const startYear = Number(params.get("year") ?? 0);
 
 type Exposed = {
   client?: HostClient;
@@ -46,6 +54,8 @@ type Exposed = {
   select?: (cell: number) => void;
   /** Go down from the globe to the region around a cell. */
   descend?: (cell: number) => void;
+  /** How many villages the region on screen shows. */
+  villages?: () => number;
   bench?: unknown;
   /** Why the page could not start, if it could not ("webgl" when 3D is unavailable). */
   error?: string;
@@ -156,6 +166,8 @@ async function runSandboxPage(): Promise<void> {
   });
 }
 
+type Village = { ref: string; name: string; tile: number; population: number; founded: number };
+
 async function runPlanetPage(): Promise<void> {
   const { canvas, hud } = page(),
     tier = deviceTier(),
@@ -167,11 +179,20 @@ async function runPlanetPage(): Promise<void> {
     scale: "globe" | "region" = "globe";
   Object.assign(exposed, { client, mode, seed, universe, drawn: () => painted, stage });
   await client.start(universe, seed);
+  // ?year=N starts the world N years on (it runs there first; history is the same).
+  if (startYear > 0) await client.advance(startYear * YEAR);
   client.setInterest({ view: "globe", focus: null });
+  const speed = YEAR;
+  client.setSpeed(speed);
   let lens: Lens = "terrain",
-    regionLens: RegionLens = "land";
-  const planetPanel = new PlanetPanel(hud, client, lens),
-    regionPanel = new RegionPanel(hud, client);
+    regionLens: RegionLens = "land",
+    density = new Map<number, number>(),
+    villages: Village[] = [],
+    regionCell = -1,
+    stopVillages: (() => void) | null = null;
+  const planetPanel = new PlanetPanel(hud, client, lens, speed),
+    regionPanel = new RegionPanel(hud, client),
+    labels = new LabelLayer(hud);
 
   const paintGlobe = () => {
     const frame = client.latestFrame("globe");
@@ -181,7 +202,7 @@ async function runPlanetPage(): Promise<void> {
         (frame.meta as { frequency: number }).frequency,
         frame.arrays.elevation as Float32Array,
       );
-    const colors = globeColors(frame, lens);
+    const colors = globeColors(frame, lens, density);
     globe.paint(colors);
     painted = colors.length / 4;
   };
@@ -199,6 +220,7 @@ async function runPlanetPage(): Promise<void> {
     if (region.key !== meta.ref) {
       region.build(meta.ref, meta.size, meta.tileKm, regionHeights(frame));
       regionPanel.show(meta.center, meta.lat, meta.lon, meta.size * meta.tileKm);
+      region.setVillages(villages);
     }
     const colors = regionColors(frame, regionLens);
     region.paint(colors);
@@ -212,6 +234,11 @@ async function runPlanetPage(): Promise<void> {
     regionLens = l;
     paintRegion();
   };
+  client.subscribe<PeopleEntry[]>({ type: "people.map" }, 1000, (entries) => {
+    planetPanel.people(entries);
+    density = new Map(entries.map((e) => [e.cell, e.density]));
+    if (lens === "people" && scale === "globe") paintGlobe();
+  });
 
   const aspect = () => Math.max(0.3, innerWidth / Math.max(1, innerHeight));
   const globeFit = () => (aspect() < 1 ? 3.1 / aspect() : 3.3);
@@ -222,7 +249,12 @@ async function runPlanetPage(): Promise<void> {
   };
   const selectTile = (tile: number | null) => {
     region.mark(tile);
-    void regionPanel.select(tile);
+    const village = tile === null ? null : region.villageNear(tile);
+    const hit = village === null ? undefined : villages.find((v) => v.tile === village);
+    if (hit) {
+      region.mark(hit.tile);
+      void regionPanel.selectVillage(hit.ref);
+    } else void regionPanel.select(tile);
   };
   const rig = new OrbitRig(stage, canvas, {
     distance: globeFit(),
@@ -231,15 +263,16 @@ async function runPlanetPage(): Promise<void> {
     pitch: -18,
     minPitch: -80,
     maxPitch: 80,
-    drift: 4,
+    drift: 1.5,
     onTap: (x, y) =>
       scale === "globe" ? selectCell(globe.pick(x, y)) : selectTile(region.pick(x, y)),
   });
 
-  // Down to a region, and back up to the world: the camera, the scene, the panel
-  // and the host's interest all move together.
+  // Down to a region, and back up to the world: the camera, the scene, the panel,
+  // the labels and the host's interest all move together.
   const toRegion = (cell: number) => {
     scale = "region";
+    regionCell = cell;
     globe.visible = false;
     region.visible = true;
     planetPanel.visible = false;
@@ -255,10 +288,26 @@ async function runPlanetPage(): Promise<void> {
       target: [0, 0, 0],
     });
     client.setInterest({ view: "region", focus: `cell:0:${cell}` });
+    villages = [];
+    stopVillages?.();
+    stopVillages = client.subscribe<Village[]>(
+      { type: "settlements", args: { cell } },
+      1000,
+      (list) => {
+        if (regionCell !== cell) return;
+        villages = list;
+        region.setVillages(list);
+      },
+    );
     paintRegion();
   };
   const toGlobe = () => {
     scale = "globe";
+    regionCell = -1;
+    stopVillages?.();
+    stopVillages = null;
+    villages = [];
+    labels.clear();
     region.visible = false;
     globe.visible = true;
     regionPanel.visible = false;
@@ -267,10 +316,9 @@ async function runPlanetPage(): Promise<void> {
       distance: globeFit(),
       minDistance: 1.35,
       maxDistance: 12,
-      pitch: -18,
       minPitch: -80,
       maxPitch: 80,
-      drift: 4,
+      drift: 1.5,
       target: [0, 0, 0],
     });
     client.setInterest({ view: "globe", focus: null });
@@ -282,10 +330,34 @@ async function runPlanetPage(): Promise<void> {
   regionPanel.onClose = () => region.mark(null);
   exposed.select = (n: number) => (scale === "globe" ? selectCell(n) : selectTile(n));
   exposed.descend = (cell: number) => toRegion(cell);
+  exposed.villages = () => villages.length;
 
+  stage.onUpdate(() => {
+    if (scale !== "region" || !villages.length) return;
+    const at = region.screenOf(villages.map((v) => v.tile));
+    labels.update(
+      villages.map((v, i) => ({
+        key: v.ref,
+        text: v.name,
+        at: at[i] ?? null,
+        priority: v.population,
+      })),
+    );
+  });
   addEventListener("resize", () => {
     if (!rig.userZoomed) rig.distance = scale === "globe" ? globeFit() : regionFit();
   });
+  // Open facing the people (the most peopled province), not wherever the camera starts.
+  void (async () => {
+    const map = await client.query<PeopleEntry[]>({ type: "people.map" });
+    const most = [...map].sort((a, b) => b.people - a.people)[0];
+    if (!most) return;
+    const place = await client.query<{ lat: number; lon: number }>({
+      type: "cell",
+      args: { cell: most.cell },
+    });
+    rig.face(place.lat, place.lon);
+  })();
   client.onFrame((frame) => {
     if (frame.view === "globe") paintGlobe();
     else if (frame.view === "region") paintRegion();

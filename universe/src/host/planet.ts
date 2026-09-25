@@ -1,7 +1,8 @@
 // The planet universes: "earth" (the earthlike prior) and "alien" (the open prior).
 // The globe view's frame carries the planet's fields once — they do not change
 // until people change them — and the page colours them by whichever lens is on.
-import { makePlanetWorld, homePlanet } from "../sim/index.ts";
+import { capacity, homePlanet, makePopulationWorld, populationContext } from "../sim/index.ts";
+import { OCCUPATIONS } from "../rules/index.ts";
 import {
   BIOME_NAMES,
   BOUNDARY,
@@ -115,6 +116,28 @@ function tile(g: HomeWorld, center: number, t: number) {
   };
 }
 
+function province(world: World, cell: number) {
+  const ctx = populationContext(world),
+    p = ctx.provinces.get(cell);
+  if (!p) return null;
+  return {
+    cell,
+    ref: p.ref,
+    people: p.total(),
+    byOccupation: OCCUPATIONS.map((name, o) => ({ name, count: p.occupation(o) })).filter(
+      (x) => x.count > 0,
+    ),
+    fed: p.fed,
+    food: p.food,
+    farming: p.knowsCultivation,
+    settledYear: p.settledYear,
+    arrival: p.arrival,
+    cultivation: p.cultivation,
+    villages: ctx.settlements.inProvince(cell).length,
+    years: ctx.history.yearsOf(cell).slice(-12),
+  };
+}
+
 function summary(g: HomeWorld) {
   const s = g.star,
     p = g.planet;
@@ -170,9 +193,9 @@ function cell(g: HomeWorld, c: number) {
 function planetUniverse(name: string, prior: Prior): Universe {
   return {
     name,
-    version: `${name}-1`,
+    version: `${name}-2`,
     defaultView: "globe",
-    build: (seed) => makePlanetWorld(seed, { prior }),
+    build: (seed) => makePopulationWorld(seed, { prior }),
     frames: {
       globe: (world) => globeFrame(world),
       region: (world, interest) => regionFrame(world, interest.focus),
@@ -183,6 +206,41 @@ function planetUniverse(name: string, prior: Prior): Universe {
       tile: (world, args) => {
         const a = args as { center: number; tile: number };
         return tile(homePlanet(world).generated, a.center, a.tile);
+      },
+      "people.map": (world) => {
+        const g = homePlanet(world).generated;
+        return populationContext(world)
+          .provinces.all()
+          .map((p) => ({
+            cell: p.cell,
+            people: p.total(),
+            density: (100 * p.total()) / Math.max(1, capacity(g, p.cell).areaKm2),
+            farming: p.knowsCultivation,
+          }));
+      },
+      province: (world, args) => province(world, (args as { cell: number }).cell),
+      settlements: (world, args) =>
+        populationContext(world)
+          .settlements.inProvince((args as { cell: number }).cell)
+          .map((s) => ({
+            ref: s.ref,
+            name: s.name,
+            tile: s.tile,
+            population: s.population,
+            founded: s.founded,
+          })),
+      settlement: (world, args) => {
+        const s = populationContext(world).settlements.get((args as { ref: string }).ref as Ref);
+        if (!s) throw new Error(`no settlement ${(args as { ref: string }).ref}`);
+        return {
+          ref: s.ref,
+          name: s.name,
+          cell: s.cell,
+          tile: s.tile,
+          population: s.population,
+          founded: s.founded,
+          event: s.event,
+        };
       },
       deposits: (world) =>
         homePlanet(world).generated.deposits.map((d) => ({

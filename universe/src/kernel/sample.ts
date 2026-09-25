@@ -139,6 +139,121 @@ export class Permutation {
   }
 }
 
+/**
+ * How n independent chances fall among categories with probabilities ∝ weights.
+ * `uniform(i)` is the caller's i-th keyed uniform. Use this, not apportion, for
+ * anything that should be random: apportion rounds by proportion, so a single
+ * birth split 49:51 would always be a boy.
+ */
+export function multinomial(
+  n: number,
+  weights: readonly number[],
+  uniform: (i: number) => number,
+): number[] {
+  const out = new Array<number>(weights.length).fill(0);
+  let total = 0;
+  for (const w of weights) if (w > 0) total += w;
+  if (n <= 0 || !(total > 0)) return out;
+  if (n <= 4096) {
+    for (let i = 0; i < n; i++) {
+      let target = uniform(i) * total,
+        k = 0;
+      for (; k < weights.length - 1; k++) {
+        const w = weights[k]! > 0 ? weights[k]! : 0;
+        if (target < w) break;
+        target -= w;
+      }
+      while (k > 0 && !(weights[k]! > 0)) k--;
+      out[k] = out[k]! + 1;
+    }
+    return out;
+  }
+  // Large n: conditional binomials, each by its normal approximation.
+  let remaining = n,
+    left = total;
+  for (let k = 0; k < weights.length; k++) {
+    const w = weights[k]! > 0 ? weights[k]! : 0;
+    if (k === weights.length - 1 || left <= 0) {
+      out[k] = remaining;
+      break;
+    }
+    const p = w / left,
+      mean = remaining * p,
+      sd = sqrt(remaining * p * (1 - p)),
+      x = Math.max(
+        0,
+        Math.min(remaining, Math.round(mean + sd * gaussian(uniform(2 * k), uniform(2 * k + 1)))),
+      );
+    out[k] = x;
+    remaining -= x;
+    left -= w;
+  }
+  return out;
+}
+
+/**
+ * n items taken one at a time, without replacement, from pools of the given sizes
+ * (who of a crowd sets out, who of a trade leaves it). Never takes more than a pool
+ * holds; takes everyone when n reaches the total.
+ */
+export function drawWithoutReplacement(
+  n: number,
+  pools: readonly number[],
+  uniform: (i: number) => number,
+): number[] {
+  const left = pools.map((p) => Math.max(0, p)),
+    out = new Array<number>(pools.length).fill(0);
+  let total = left.reduce((a, b) => a + b, 0);
+  const take = Math.min(n, total);
+  if (take <= 0) return out;
+  if (take === total) return left;
+  if (take <= 4096) {
+    for (let i = 0; i < take; i++) {
+      let target = Math.floor(uniform(i) * total),
+        k = 0;
+      while (target >= left[k]!) target -= left[k++]!;
+      left[k] = left[k]! - 1;
+      out[k] = out[k]! + 1;
+      total--;
+    }
+    return out;
+  }
+  // Large n: hypergeometric draws by their normal approximation, then fixed up to the exact total.
+  let remaining = take,
+    pool = total;
+  for (let k = 0; k < pools.length && remaining > 0; k++) {
+    const size = left[k]!;
+    if (k === pools.length - 1) {
+      out[k] = Math.min(size, remaining);
+      remaining -= out[k]!;
+      break;
+    }
+    const p = size / pool,
+      mean = remaining * p,
+      sd = sqrt(
+        Math.max(0, remaining * p * (1 - p) * ((pool - remaining) / Math.max(1, pool - 1))),
+      ),
+      x = Math.max(
+        0,
+        Math.min(
+          size,
+          remaining,
+          Math.round(mean + sd * gaussian(uniform(2 * k), uniform(2 * k + 1))),
+        ),
+      );
+    out[k] = x;
+    remaining -= x;
+    pool -= size;
+  }
+  for (let k = 0; remaining > 0 && k < pools.length; k++) {
+    const room = left[k]! - out[k]!,
+      add = Math.min(room, remaining);
+    out[k] = out[k]! + add;
+    remaining -= add;
+  }
+  return out;
+}
+
 /** A standard normal variate from two uniforms in [0, 1) (Box–Muller). */
 export function gaussian(u1: number, u2: number): number {
   return sqrt(-2 * log(1 - u1)) * cos(TAU * u2);

@@ -22,3 +22,23 @@ export {
   makePlanetWorld,
   type PlanetWorldOptions,
 } from "./planet/store.ts";
+export { COLS, Province, ROWS, capacity, row, type Capacity } from "./population/model.ts";
+export {
+  HistoryStore,
+  PopulationStore,
+  SETTLEMENT,
+  SettlementStore,
+  type Flow,
+  type Settlement,
+  type YearSummary,
+} from "./population/stores.ts";
+export {
+  POPULATION_EVENTS,
+  VILLAGE_SIZE,
+  installPopulation,
+  occupationTargets,
+  populationContext,
+  support,
+  type PopulationContext,
+} from "./population/systems.ts";
+export { FIRST_PEOPLE, chooseHome, makePopulationWorld } from "./population/world.ts";
