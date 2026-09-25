@@ -375,6 +375,11 @@ only from the exact operations, verified by golden vectors. A lint rule
 forbids the native ones in `kernel/gen/sim/causal`. The renderer may use
 native `Math` freely.
 
+*Measured 2026-09-25 (milestone 2):* 240,000 native `Math` results (sin, cos,
+tan, exp, log, atan, pow, cbrt, sinh, tanh, expm1, log1p) compared with Node's:
+Chromium 153 differed on 21,179, WebKit 26.6 on 26,646 and Firefox 155 on
+11,694. The 2,031 `dmath` golden vectors are identical on all four.
+
 Other determinism traps the lint and code review must catch:
 
 - `Array.prototype.sort` without a comparator (sorts as strings) or with an

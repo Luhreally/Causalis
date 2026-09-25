@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit -p .",
     "lint": "node tools/lint.ts",
     "test": "node --test \"tests/**/*.test.ts\"",
-    "check": "npm run typecheck && npm run lint && npm test"
+    "check": "npm run typecheck && npm run lint && npm test",
+    "golden": "node tools/golden.ts",
+    "engines": "node tools/engines.ts"
   },
   "dependencies": {
     "playcanvas": "^2.22.4"
@@ -19,6 +21,7 @@
   "devDependencies": {
     "@types/node": "^24.13.6",
     "oxc-parser": "^0.151.0",
+    "playwright": "^1.63.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.1"
   }
