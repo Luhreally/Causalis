@@ -34,3 +34,4 @@ export {
   type Tectonics,
 } from "./plates.ts";
 export { REGION, WATER, refineRegion, regionRef, type Region } from "./region.ts";
+export { placeName } from "./names.ts";

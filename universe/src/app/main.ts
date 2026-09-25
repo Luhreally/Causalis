@@ -47,6 +47,8 @@ type Exposed = {
   /** Go down from the globe to the region around a cell. */
   descend?: (cell: number) => void;
   bench?: unknown;
+  /** Why the page could not start, if it could not ("webgl" when 3D is unavailable). */
+  error?: string;
   /** The PlayCanvas stage, for debugging tools. */
   stage?: Stage;
 };
@@ -296,4 +298,20 @@ async function main(): Promise<void> {
   return runPlanetPage();
 }
 
-void main();
+main().catch((error: Error) => {
+  // A browser that cannot draw in 3D (WebGL off or missing) is told so plainly.
+  const webgl = /webgl/i.test(error.message);
+  exposed.error = webgl ? "webgl" : error.message;
+  const app = document.getElementById("app")!;
+  app.innerHTML = "";
+  const box = document.createElement("div");
+  box.className = "failure";
+  const title = document.createElement("h1");
+  title.textContent = "Causalis Universe";
+  const text = document.createElement("p");
+  text.textContent = webgl
+    ? "This browser cannot draw in 3D (WebGL is turned off or missing), so the universe cannot be shown here."
+    : `Something went wrong while starting: ${error.message}`;
+  box.append(title, text);
+  app.append(box);
+});

@@ -214,3 +214,12 @@ button:disabled {
     display: none;
   }
 }
+.failure {
+  max-width: 36rem;
+  margin: 20vh auto 0;
+  padding: 0 16px;
+  line-height: 1.5;
+}
+.failure p {
+  color: var(--muted);
+}

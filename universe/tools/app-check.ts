@@ -56,7 +56,10 @@ async function waitFor<T>(
   }
 }
 
-const problems: string[] = [];
+const problems: string[] = [],
+  warnings: string[] = [];
+
+class NoWebGL extends Error {}
 for (const engine of engines) {
   // CI machines have no GPU: Chromium needs its software GL allowed, Firefox its
   // WebGL forced on (software rendering is slow, but draws the same scene).
@@ -99,7 +102,11 @@ for (const engine of engines) {
         () => state(page),
         (s) => s.drawn > 0,
         process.env.CI ? 60000 : 20000,
-      ).catch((error: Error) => {
+      ).catch(async (error: Error) => {
+        const said = await page.evaluate(
+          () => (globalThis as { causalis?: { error?: string } }).causalis?.error,
+        );
+        if (said === "webgl") throw new NoWebGL(label);
         throw new Error(
           `${error.message}${errors.length ? ` (page said: ${errors.slice(0, 3).join(" | ")})` : ""}`,
         );
@@ -169,12 +176,20 @@ for (const engine of engines) {
     );
     await page.close();
   } catch (error) {
-    problems.push(`${engine}: ${(error as Error).message}`);
+    // A page that says it has no WebGL is a warning: the same pages are checked on
+    // machines with a GPU.
+    if (error instanceof NoWebGL)
+      warnings.push(
+        `${error.message}: this browser has no WebGL here, so its pages were not drawn`,
+      );
+    else problems.push(`${engine}: ${(error as Error).message}`);
   } finally {
     await browser.close();
   }
 }
 await server.close();
+for (const w of warnings)
+  console.log(process.env.GITHUB_ACTIONS ? `::warning title=app-check::${w}` : `warning: ${w}`);
 if (problems.length) {
   // In CI, each problem is an annotation (readable without the job's log).
   for (const p of problems)
