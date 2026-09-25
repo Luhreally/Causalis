@@ -18,7 +18,7 @@ import {
   cellRef,
   makeToyWorld,
   type ToyPopulation,
-} from "../fixtures/toy.ts";
+} from "../../src/sim/index.ts";
 
 const PING = defineEventType("test.ping", 1);
 const BIG = defineEventType("test.big", 5);

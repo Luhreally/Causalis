@@ -16,7 +16,7 @@ import {
   type Seed,
   type StateStore,
 } from "../../src/kernel/index.ts";
-import { makeToyWorld } from "../fixtures/toy.ts";
+import { makeToyWorld } from "../../src/sim/index.ts";
 
 const build = (seed: Seed) => makeToyWorld(seed.text);
 const VERSION = "test";

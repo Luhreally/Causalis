@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DAY, MONTH, Scheduler, YEAR, type SimTime } from "../../src/kernel/index.ts";
-import { makeToyWorld, type ToyPopulation } from "../fixtures/toy.ts";
+import { makeToyWorld, type ToyPopulation } from "../../src/sim/index.ts";
 
 const chainOf = (w: ReturnType<typeof makeToyWorld>) => w.checkpoints().map((c) => c.chain);
 

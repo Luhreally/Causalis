@@ -53,3 +53,5 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium webkit firefox
       - run: npm run engines
+      - run: npm run build
+      - run: npm run app-check

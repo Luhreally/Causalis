@@ -1,8 +1,9 @@
-// A toy world that exercises the kernel the way real domains will: integer
+// The sandbox: a toy world that exercises the kernel the way real domains will: integer
 // populations moved by compute-then-commit flows, a float market updated daily
 // with deterministic math, and floods on the agenda that reschedule themselves.
 // It knows no planets or people; it exists so the scheduler, the tables, the hash
-// chain, saves and replay can be proven before any content depends on them.
+// chain, saves, replay, the worker boundary and the renderer can be proven before
+// any content depends on them (Phase 0). Phase 1's planet replaces it in the app.
 import {
   CountDeltas,
   CountTable,
@@ -25,7 +26,7 @@ import {
   type StateStore,
   type SystemSpec,
   type TableState,
-} from "../../src/kernel/index.ts";
+} from "../../kernel/index.ts";
 
 export const CELLS = 16;
 export const CLASSES = 3;

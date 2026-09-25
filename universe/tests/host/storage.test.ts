@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, loadWorld, rulesetId, saveWorld, type Seed } from "../../src/kernel/index.ts";
 import { MemoryByteStore, SaveSlots, decodeSave, encodeSave } from "../../src/host/index.ts";
-import { makeToyWorld } from "../fixtures/toy.ts";
+import { makeToyWorld } from "../../src/sim/index.ts";
 
 const build = (seed: Seed) => makeToyWorld(seed.text);
 

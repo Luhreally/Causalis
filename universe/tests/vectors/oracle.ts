@@ -3,7 +3,7 @@
 // leave history alone must leave every chain unchanged; a change meant to alter
 // it rewrites the golden file on purpose (node tools/oracle.ts --write).
 import { YEAR, type World } from "../../src/kernel/index.ts";
-import { makeToyWorld } from "../fixtures/toy.ts";
+import { makeToyWorld } from "../../src/sim/index.ts";
 
 export type Fixture = { readonly name: string; readonly years: number; readonly make: () => World };
 
