@@ -93,11 +93,17 @@ for (const engine of engines) {
       });
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(`${base}${query}`);
+      // Software GL on a CI machine is slow: allow a minute for the first frame.
       const first = await waitFor(
         `${label} to start and draw`,
         () => state(page),
         (s) => s.drawn > 0,
-      );
+        process.env.CI ? 60000 : 20000,
+      ).catch((error: Error) => {
+        throw new Error(
+          `${error.message}${errors.length ? ` (page said: ${errors.slice(0, 3).join(" | ")})` : ""}`,
+        );
+      });
       const later = moves
         ? await waitFor(
             `${label} time to advance`,
