@@ -108,16 +108,14 @@ const BUILTIN_QUERIES: Record<string, QueryHandler> = {
   "events.recent": (world, args) => {
     const n = Math.min((args as { n?: number } | undefined)?.n ?? 20, 200),
       all = world.events.all();
-    return all
-      .slice(-n)
-      .map((e) => ({
-        id: e.id,
-        t: e.t,
-        type: e.type,
-        importance: e.importance,
-        place: e.place,
-        causes: e.causes.map((c) => c.ref),
-      }));
+    return all.slice(-n).map((e) => ({
+      id: e.id,
+      t: e.t,
+      type: e.type,
+      importance: e.importance,
+      place: e.place,
+      causes: e.causes.map((c) => c.ref),
+    }));
   },
   checkpoints: (world) => world.checkpoints().map((c) => ({ t: c.t, chain: c.chain })),
   hashes: (world) => world.domainHashes(),
