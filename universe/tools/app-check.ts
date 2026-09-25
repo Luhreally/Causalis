@@ -58,7 +58,23 @@ async function waitFor<T>(
 
 const problems: string[] = [];
 for (const engine of engines) {
-  const browser = await ENGINES[engine]!.launch();
+  // CI machines have no GPU: Chromium needs its software GL allowed, Firefox its
+  // WebGL forced on (software rendering is slow, but draws the same scene).
+  const linux = process.platform === "linux";
+  const browser = await ENGINES[engine]!.launch({
+    ...(engine === "chromium" && linux
+      ? {
+          args: [
+            "--enable-unsafe-swiftshader",
+            "--use-angle=swiftshader",
+            "--ignore-gpu-blocklist",
+          ],
+        }
+      : {}),
+    ...(engine === "firefox"
+      ? { firefoxUserPrefs: { "webgl.force-enabled": true, "webgl.disabled": false } }
+      : {}),
+  });
   try {
     // The Earth globe (static until people arrive) and the sandbox (where time must move),
     // each in a worker and in-thread.
@@ -154,6 +170,8 @@ for (const engine of engines) {
 }
 await server.close();
 if (problems.length) {
-  for (const p of problems) console.log(p);
+  // In CI, each problem is an annotation (readable without the job's log).
+  for (const p of problems)
+    console.log(process.env.GITHUB_ACTIONS ? `::error title=app-check::${p}` : p);
   process.exitCode = 1;
 } else console.log(`the app runs in ${engines.join(", ")}`);
