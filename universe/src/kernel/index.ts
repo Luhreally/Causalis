@@ -1,4 +1,5 @@
-// kernel: references, keyed randomness, deterministic math, time, hashing.
+// kernel: references, keyed randomness, deterministic math, time, hashing, the
+// scheduler, dense tables and the world container with its checkpoint chain.
 // May import nothing. See README.md and docs/architecture/universe-architecture.md §4–§7.
 export { TWO32, TWO53, f64Hex, hexF64, hi32, lo32 } from "./bits.ts";
 export { Hasher, finish, hashString, mix, mixFloat, mixInt } from "./hash.ts";
@@ -45,6 +46,7 @@ export {
   DAY,
   HOUR,
   MINUTE,
+  MONTH,
   SECOND,
   TIME_ZERO,
   WEEK,
@@ -56,3 +58,6 @@ export {
   type DeepTime,
   type SimTime,
 } from "./time.ts";
+export { Scheduler, type AgendaHandler, type AgendaItem, type SystemSpec } from "./schedule.ts";
+export { CountDeltas, CountTable, FieldTable } from "./table.ts";
+export { World, type Checkpoint, type StateStore, type WorldOptions } from "./world.ts";

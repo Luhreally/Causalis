@@ -15,6 +15,8 @@ export const HOUR = 3_600;
 export const DAY = 86_400;
 export const WEEK = 7 * DAY;
 export const YEAR = 365 * DAY;
+/** A standard month: a twelfth of a standard year (2,628,000 s). */
+export const MONTH = YEAR / 12;
 
 export const TIME_ZERO = 0 as SimTime;
 

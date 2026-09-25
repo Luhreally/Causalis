@@ -78,6 +78,35 @@ export class Hasher {
   bool(v: boolean): this {
     return this.word(v ? 1 : 0);
   }
+  /**
+   * Any plain JSON-like value, canonically: object keys in sorted order, numbers by
+   * their bits, each kind tagged. Never hash JSON.stringify output (its key order is
+   * the order the object was built in).
+   */
+  value(v: unknown): this {
+    if (v === null || v === undefined) return this.word(0);
+    switch (typeof v) {
+      case "boolean":
+        return this.word(1).bool(v);
+      case "number":
+        return this.word(2).float(v);
+      case "string":
+        return this.word(3).string(v);
+      case "object": {
+        if (Array.isArray(v)) {
+          this.word(4).int(v.length);
+          for (const item of v) this.value(item);
+          return this;
+        }
+        const keys = Object.keys(v).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+        this.word(5).int(keys.length);
+        for (const k of keys) this.string(k).value((v as Record<string, unknown>)[k]);
+        return this;
+      }
+      default:
+        throw new Error(`cannot hash a ${typeof v}`);
+    }
+  }
   /** The two 32-bit lanes of the fingerprint. */
   lanes(): [number, number] {
     return [finish(this.a, this.n), finish(this.b ^ 0x27d4eb2f, this.n)];

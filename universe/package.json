@@ -13,7 +13,8 @@
     "test": "node --test \"tests/**/*.test.ts\"",
     "check": "npm run typecheck && npm run lint && npm test",
     "golden": "node tools/golden.ts",
-    "engines": "node tools/engines.ts"
+    "engines": "node tools/engines.ts",
+    "oracle": "node tools/oracle.ts"
   },
   "dependencies": {
     "playcanvas": "^2.22.4"

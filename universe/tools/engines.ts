@@ -62,8 +62,12 @@ const golden = JSON.parse(
   readFileSync(new URL("../tests/golden/kernel.json", import.meta.url), "utf8"),
 ) as SuiteResult;
 const node = run();
-const problems = compare("node", node, { kernel: golden });
-console.log(`node       kernel ${node.kernel?.digest}`);
+const problems = compare("node", { kernel: node.kernel! }, { kernel: golden });
+console.log(
+  `node       ${Object.entries(node)
+    .map(([k, v]) => `${k} ${v.digest}`)
+    .join("  ")}`,
+);
 const code = await bundle();
 for (const engine of engines) {
   const browser = await ENGINES[engine]!.launch();
@@ -72,7 +76,11 @@ for (const engine of engines) {
     await page.setContent("<!doctype html><title>vectors</title>");
     await page.addScriptTag({ content: code });
     const result = (await page.evaluate("CausalisVectors.run()")) as Record<string, SuiteResult>;
-    console.log(`${engine.padEnd(10)} kernel ${result.kernel?.digest}  (${browser.version()})`);
+    console.log(
+      `${engine.padEnd(10)} ${Object.entries(result)
+        .map(([k, v]) => `${k} ${v.digest}`)
+        .join("  ")}  (${browser.version()})`,
+    );
     problems.push(...compare(engine, result, node));
   } finally {
     await browser.close();
