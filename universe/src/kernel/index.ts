@@ -61,3 +61,27 @@ export {
 export { Scheduler, type AgendaHandler, type AgendaItem, type SystemSpec } from "./schedule.ts";
 export { CountDeltas, CountTable, FieldTable } from "./table.ts";
 export { World, type Checkpoint, type StateStore, type WorldOptions } from "./world.ts";
+export { CommandLog, type Command, type CommandSpec } from "./command.ts";
+export {
+  COMMAND,
+  DECISION,
+  DecisionLog,
+  EVENT,
+  EventLog,
+  MAX_CAUSES,
+  MAX_FACTORS,
+  MAX_SUBJECTS,
+  defineEventType,
+  eventType,
+  type CauseRef,
+  type CauseRole,
+  type DecisionRecord,
+  type DecisionTombstone,
+  type EmitSpec,
+  type EventTypeSpec,
+  type Factor,
+  type HistoryEvent,
+  type RetentionOptions,
+  type Summary,
+  type Tombstone,
+} from "./history.ts";
