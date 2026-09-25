@@ -5,7 +5,8 @@
 // updated in place, and an opened why-tree stays open.
 import type { HostClient, Status } from "../bridge/index.ts";
 import { CLASS_COLORS, CLASS_NAMES } from "../view/index.ts";
-import { claimWords, eventWords, roleWords, speedWords, when } from "./words.ts";
+import { WhyTree, el } from "./why.ts";
+import { eventWords, speedWords, when } from "./words.ts";
 
 const DAY = 86_400;
 const YEAR = 365 * DAY;
@@ -20,31 +21,13 @@ type Cell = {
   recent: { id: string; t: number; type: string }[];
 };
 
-type WhyNode = {
-  ref: string;
-  claim: string;
-  basis: string;
-  t: number | null;
-  causes: { ref: string; role: string; weight: number; node: WhyNode | null }[];
-};
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className?: string,
-  text?: string,
-): HTMLElementTagNameMap[K] {
-  const e = document.createElement(tag);
-  if (className) e.className = className;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
-
 function rgb(c: readonly [number, number, number]): string {
   return `rgb(${c.map((v) => Math.round(v * 255)).join(",")})`;
 }
 
 export class SandboxPanel {
   private readonly client: HostClient;
+  private readonly why: WhyTree;
   private readonly clock = el("span", "clock");
   private readonly speedButtons: HTMLButtonElement[] = [];
   private readonly inspector = el("section", "inspector");
@@ -61,6 +44,7 @@ export class SandboxPanel {
 
   constructor(root: HTMLElement, client: HostClient, initialSpeed: number) {
     this.client = client;
+    this.why = new WhyTree(client);
     const bar = el("header", "bar");
     bar.append(el("strong", "brand", "Causalis Universe"), this.clock);
     const speeds = el("div", "speeds");
@@ -153,44 +137,9 @@ export class SandboxPanel {
     const subject = v.lastFlood ?? v.recent.at(-1)?.id ?? null;
     if (subject && subject !== this.whyFor) {
       this.whyFor = subject;
-      void this.renderWhy(subject, this.whyBox);
+      void this.why.show(subject, this.whyBox);
     } else if (!subject)
       this.whyBox.replaceChildren(el("p", "muted", "No flood has reached this cell yet."));
-  }
-
-  /** An expandable why-tree: each cause opens one level deeper on request. */
-  private async renderWhy(ref: string, into: HTMLElement): Promise<void> {
-    const node = await this.client.query<WhyNode>({ type: "why", args: { ref, depth: 1 } });
-    into.replaceChildren(this.whyNode(node));
-  }
-
-  private whyNode(node: WhyNode): HTMLElement {
-    const box = el("div", "why-node"),
-      claim = el("div", `claim basis-${node.basis}`, claimWords(node.claim, node.ref));
-    box.append(claim);
-    if (node.causes.length) {
-      const list = el("ul");
-      for (const c of node.causes) {
-        const item = el("li"),
-          open = el("button", "cause", `${roleWords(c.role)} ▸`);
-        open.onclick = async () => {
-          open.disabled = true;
-          const child = await this.client.query<WhyNode>({
-            type: "why",
-            args: { ref: c.ref, depth: 1 },
-          });
-          open.remove();
-          item.append(el("span", "role", roleWords(c.role)), this.whyNode(child));
-        };
-        item.append(open);
-        list.append(item);
-      }
-      box.append(list);
-    } else if (node.basis === "command")
-      box.append(el("p", "muted", "A deliberate act, not caused by anything in the world."));
-    else if (node.basis === "generated")
-      box.append(el("p", "muted", "Part of how this universe was made from its seed."));
-    return box;
   }
 
   private async blessSelected(): Promise<void> {

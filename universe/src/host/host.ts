@@ -29,7 +29,12 @@ import {
 } from "../bridge/index.ts";
 import { SaveSlots, decodeSave, encodeSave, type ByteStore } from "./storage.ts";
 
-export type FramePayload = { readonly meta: unknown; readonly arrays: Record<string, FrameArray> };
+/** A frame's content. A `key` equal to the last frame sent for the view means nothing changed: it is not sent again. */
+export type FramePayload = {
+  readonly meta: unknown;
+  readonly arrays: Record<string, FrameArray>;
+  readonly key?: string;
+};
 export type FrameBuilder = (world: World, interest: Interest) => FramePayload;
 export type QueryHandler = (world: World, args: unknown) => unknown;
 
@@ -139,6 +144,7 @@ export class SimHost {
   private lastFrame = -Infinity;
   private lastStatus = -Infinity;
   private frameSeq = 0;
+  private lastFrameKey: string | null = null;
   private achievedWindow: { at: number; t: number }[] = [];
   private stepMs = 0;
   private busy = false;
@@ -188,6 +194,9 @@ export class SimHost {
   }
 
   private setWorld(universe: Universe, world: World, lineage?: SaveDocument["lineage"]): void {
+    // A new kind of universe starts on its own view; a loaded save keeps the one on screen.
+    if (!this.interest || this.universe?.name !== universe.name)
+      this.interest = { view: universe.defaultView, focus: null };
     this.universe = universe;
     this.world = world;
     this.lineage = lineage;
@@ -195,7 +204,7 @@ export class SimHost {
     this.stepsTarget = -1;
     this.simTarget = world.now;
     this.achievedWindow = [];
-    this.interest ??= { view: universe.defaultView, focus: null };
+    this.lastFrameKey = null;
   }
 
   /** Finish the moment in progress, if any (queries, commands and saves need a whole moment). */
@@ -227,6 +236,7 @@ export class SimHost {
         case "interest":
           this.interest = m.interest;
           this.lastFrame = -Infinity;
+          this.lastFrameKey = null;
           return;
         case "unsubscribe":
           this.subscriptions.delete(m.id);
@@ -324,6 +334,10 @@ export class SimHost {
       build = this.universe!.frames[interest.view];
     if (!build) return;
     const payload = build(world, interest);
+    this.lastFrame = now;
+    const key = payload.key ? `${interest.view}|${payload.key}` : null;
+    if (key && key === this.lastFrameKey) return;
+    this.lastFrameKey = key;
     const frame: FrameMessage = {
       kind: "frame",
       view: interest.view,

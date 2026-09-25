@@ -108,3 +108,6 @@ export {
   type SaveDocument,
   type StoreChunk,
 } from "./save.ts";
+export { MinHeap } from "./heap.ts";
+export { fbm3, noise3 } from "./noise.ts";
+export { forNeighbours, nearestCell, sphereGrid, type SphereGrid } from "./sphere.ts";

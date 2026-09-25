@@ -8,6 +8,11 @@ export type OrbitOptions = {
   readonly minDistance: number;
   readonly maxDistance: number;
   readonly pitch: number;
+  /** Pitch limits in degrees (defaults: looking down at a table, -85 to -8). */
+  readonly minPitch?: number;
+  readonly maxPitch?: number;
+  /** Degrees per second the camera drifts when left alone. */
+  readonly drift?: number;
   readonly onTap: (x: number, y: number) => void;
 };
 
@@ -59,7 +64,10 @@ export class OrbitRig {
       p.y = e.clientY;
       if (this.pointers.size === 1) {
         this.yaw -= dx * 0.3;
-        this.pitch = Math.max(-85, Math.min(-8, this.pitch - dy * 0.25));
+        this.pitch = Math.max(
+          this.options.minPitch ?? -85,
+          Math.min(this.options.maxPitch ?? -8, this.pitch - dy * 0.25),
+        );
       } else if (this.pointers.size === 2) {
         const spread = this.spread();
         if (this.pinch > 0) this.zoom(this.pinch / spread);
@@ -105,7 +113,7 @@ export class OrbitRig {
 
   private update(stage: Stage, dt: number): void {
     this.idle += dt;
-    if (this.idle > 4 && this.pointers.size === 0) this.yaw += dt * 2.5;
+    if (this.idle > 4 && this.pointers.size === 0) this.yaw += dt * (this.options.drift ?? 2.5);
     const yaw = (this.yaw * Math.PI) / 180,
       pitch = (this.pitch * Math.PI) / 180,
       d = this.distance;

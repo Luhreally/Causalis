@@ -23,11 +23,11 @@ const server = await preview({
 const base = server.resolvedUrls?.local[0];
 if (!base) throw new Error("the preview server did not start");
 
-type AppState = { mode: string; t: number; figures: number };
+type AppState = { mode: string; t: number; drawn: number };
 type Exposed = {
   mode: string;
   client?: { status: { t: number } | null };
-  figures?: () => number;
+  drawn?: () => number;
   select?: (cell: number) => void;
   bench?: { fps: number; frameMs: number; instances: number; tier: string };
 };
@@ -35,7 +35,7 @@ async function state(page: Page): Promise<AppState | null> {
   return page.evaluate(() => {
     const c = (globalThis as { causalis?: Exposed }).causalis;
     return c && c.client?.status
-      ? { mode: c.mode, t: c.client.status.t, figures: c.figures?.() ?? 0 }
+      ? { mode: c.mode, t: c.client.status.t, drawn: c.drawn?.() ?? 0 }
       : null;
   });
 }
@@ -59,8 +59,16 @@ const problems: string[] = [];
 for (const engine of engines) {
   const browser = await ENGINES[engine]!.launch();
   try {
-    for (const query of ["", "?inline"]) {
-      const label = `${engine}${query}`,
+    // The Earth globe (static until people arrive) and the sandbox (where time must move),
+    // each in a worker and in-thread.
+    const cases = [
+      { query: "", name: "earth", moves: false, pick: 20000 },
+      { query: "?inline", name: "earth", moves: false, pick: 20000 },
+      { query: "?universe=sandbox", name: "sandbox", moves: true, pick: 3 },
+      { query: "?universe=sandbox&inline", name: "sandbox", moves: true, pick: 3 },
+    ];
+    for (const { query, name, moves, pick } of cases) {
+      const label = `${engine} ${name}${query.includes("inline") ? " inline" : ""}`,
         page = await browser.newPage({ viewport: { width: 390, height: 844 } }),
         errors: string[] = [];
       page.on("console", (m) => {
@@ -69,38 +77,35 @@ for (const engine of engines) {
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(`${base}${query}`);
       const first = await waitFor(
-        `${label} to start`,
+        `${label} to start and draw`,
         () => state(page),
-        (s) => s.t > 0,
+        (s) => s.drawn > 0,
       );
-      const later = await waitFor(
-        `${label} time to advance`,
-        () => state(page),
-        (s) => s.t > first.t,
-        10000,
+      const later = moves
+        ? await waitFor(
+            `${label} time to advance`,
+            () => state(page),
+            (s) => s.t > first.t,
+            10000,
+          )
+        : first;
+      // Open the inspector on a place and wait for its facts and its why-tree.
+      await page.evaluate(
+        (cell) => (globalThis as { causalis?: Exposed }).causalis?.select?.(cell),
+        pick,
       );
-      await waitFor(
-        `${label} to draw its crowds`,
-        () => state(page),
-        (s) => s.figures > 0,
-      );
-      // Open the inspector on a cell and wait for its why-tree.
-      await page.evaluate(() => (globalThis as { causalis?: Exposed }).causalis?.select?.(3));
       await page.waitForSelector(".inspector:not([hidden]) .fact", { timeout: 10000 });
-      const expected = query ? "in-thread" : "worker";
+      await page.waitForSelector(".inspector:not([hidden]) .why .claim", { timeout: 10000 });
+      const expected = query.includes("inline") ? "in-thread" : "worker";
       if (later.mode !== expected)
         problems.push(`${label}: ran ${later.mode}, expected ${expected}`);
       if (errors.length) problems.push(`${label}: ${errors.join(" | ")}`);
-      const drawn = (await state(page))?.figures ?? 0;
       console.log(
-        `${label.padEnd(18)} ${later.mode.padEnd(9)} t ${first.t} → ${later.t}, ${drawn} figures  (${browser.version()})`,
+        `${label.padEnd(24)} ${later.mode.padEnd(9)} t ${first.t} → ${later.t}, ${later.drawn} drawn  (${browser.version()})`,
       );
-      if (shotsAt && !query) {
+      if (shotsAt && !query.includes("inline")) {
         mkdirSync(shotsAt, { recursive: true });
-        await page.screenshot({ path: join(shotsAt, `${engine}.png`) });
-        await page.setViewportSize({ width: 1280, height: 800 });
-        await new Promise((r) => setTimeout(r, 1500));
-        await page.screenshot({ path: join(shotsAt, `${engine}-desktop.png`) });
+        await page.screenshot({ path: join(shotsAt, `${engine}-${name}.png`) });
       }
       await page.close();
     }

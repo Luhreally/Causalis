@@ -15,3 +15,11 @@ export {
   type Rgb,
   type SandboxSpec,
 } from "./sandbox.ts";
+export {
+  DEPOSIT_COLORS,
+  LENSES,
+  LENS_NAMES,
+  globeColors,
+  globeRadius,
+  type Lens,
+} from "./globe.ts";

@@ -1,6 +1,8 @@
-// causal: the Causal Field above the simulation — the explainer (why) now; the
-// observer ledger, resolvers and macro history as later milestones add them.
+// causal: the Causal Field above the simulation — the explainer (why) and the
+// explanations of generated facts now; the observer ledger, resolvers and macro
+// history as later milestones add them.
 // May import: kernel, rules, gen, sim. See README.md and docs/architecture/universe-architecture.md.
+export { isGenerated } from "./generated.ts";
 export {
   edges,
   registerExplainer,

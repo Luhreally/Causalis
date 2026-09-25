@@ -86,6 +86,12 @@ button:disabled {
 .speeds {
   display: flex;
   gap: 4px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.speeds button {
+  flex: none;
 }
 .speed.on {
   border-color: var(--accent);

@@ -12,6 +12,7 @@ export {
   type Universe,
   type WhyNode,
 } from "./host.ts";
+export { ALIEN, EARTH } from "./planet.ts";
 export { SANDBOX } from "./sandbox.ts";
 export {
   IndexedDbByteStore,

@@ -1,3 +1,4 @@
-// rules: Data tables and their schemas: commodities, principles, body-plan primitives, design components, institution slots, event types and text templates, balance constants, generation priors (earthlike, open).
-// May import: kernel. See README.md and docs/architecture/universe-architecture.md.
-export {};
+// rules: data tables and their schemas — generation priors now; commodities,
+// principles, body-plan primitives and the rest as later milestones need them.
+// May import: kernel. See README.md and docs/architecture §34.
+export { EARTHLIKE, OPEN, PRIORS, type Prior, type Range } from "./priors.ts";
