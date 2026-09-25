@@ -1,40 +1,210 @@
 :root {
-  --bg: #f6f4ef;
-  --ink: #1d1f24;
-  --muted: #5b6070;
-  --accent: #2f5fb3;
+  --bg: #16181f;
+  --panel: rgba(22, 24, 31, 0.86);
+  --ink: #e9eaf0;
+  --muted: #9ba1b3;
+  --line: rgba(255, 255, 255, 0.12);
+  --accent: #8fb0ff;
+  --act: #e5b45a;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
   font-family:
     system-ui,
     -apple-system,
     "Segoe UI",
     sans-serif;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #111318;
-    --ink: #e8e9ee;
-    --muted: #9aa0b2;
-    --accent: #8fb0ff;
-  }
+  color-scheme: dark;
 }
 html,
 body {
   margin: 0;
+  height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--ink);
+  -webkit-text-size-adjust: 100%;
 }
 #app {
-  max-width: 44rem;
-  margin: 0 auto;
-  padding: 3rem 1rem;
-  line-height: 1.55;
+  position: fixed;
+  inset: 0;
 }
-a {
+#world {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+#hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+#hud > * {
+  pointer-events: auto;
+}
+button {
+  font: inherit;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  min-height: 34px;
+}
+button:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+button:disabled {
+  opacity: 0.5;
+}
+.bar {
+  position: absolute;
+  top: calc(8px + var(--safe-top));
+  left: 8px;
+  right: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.brand {
+  font-weight: 650;
+}
+.clock {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex: 1 1 12rem;
+}
+.speeds {
+  display: flex;
+  gap: 4px;
+}
+.speed.on {
+  border-color: var(--accent);
   color: var(--accent);
 }
-.lede {
-  font-size: 1.15rem;
-}
-.status {
+.hint {
+  position: absolute;
+  bottom: calc(10px + var(--safe-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--panel);
   color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  pointer-events: none !important;
+}
+.inspector {
+  position: absolute;
+  right: 8px;
+  top: calc(72px + var(--safe-top));
+  width: min(22rem, calc(100% - 16px));
+  max-height: calc(100% - 96px - var(--safe-top) - var(--safe-bottom));
+  overflow: auto;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  line-height: 1.45;
+}
+.inspector h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+}
+.inspector h3 {
+  margin: 14px 0 6px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.close {
+  float: right;
+  min-height: 30px;
+  padding: 2px 10px;
+}
+.fact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.act {
+  margin-top: 10px;
+  width: 100%;
+  border-color: var(--act);
+  color: var(--act);
+}
+.note,
+.muted {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.history {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.92rem;
+}
+.why ul {
+  list-style: none;
+  margin: 4px 0 0;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+.why li {
+  margin: 6px 0;
+}
+.claim {
+  font-size: 0.95rem;
+}
+.basis-command {
+  color: var(--act);
+}
+.basis-generated {
+  color: var(--accent);
+}
+.basis-forgotten {
+  color: var(--muted);
+  font-style: italic;
+}
+.role {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.cause {
+  min-height: 28px;
+  padding: 2px 8px;
+  font-size: 0.85rem;
+}
+@media (max-width: 640px) {
+  .inspector {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    top: auto;
+    bottom: calc(8px + var(--safe-bottom));
+    max-height: 55%;
+  }
+  .hint {
+    display: none;
+  }
 }
