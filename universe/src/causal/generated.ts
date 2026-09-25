@@ -105,6 +105,17 @@ registerExplainer(SURFACE_CELL.code, (world, ref) => {
   );
 });
 
+/** A surface cell in words: "the temperate forest at 39.7°S 102.3°E". */
+export function landWords(world: World, place: Ref | null): string {
+  if (!place || kindCodeOf(place) !== SURFACE_CELL.code || !hasPlanet(world)) return "the land";
+  const g = homePlanet(world).generated,
+    c = parseRef(place).b;
+  if (c >= g.grid.count) return "the land";
+  const lat = g.grid.lat[c]!,
+    lon = g.grid.lon[c]!;
+  return `the ${BIOME_NAMES[g.climate.biome[c]!]} at ${deg(lat)}${lat >= 0 ? "N" : "S"} ${deg(lon)}${lon >= 0 ? "E" : "W"}`;
+}
+
 /** Whether a ref names a generated thing this module explains. */
 export function isGenerated(ref: Ref): boolean {
   return [STAR.code, PLANET.code, PLATE.code, DEPOSIT.code, SURFACE_CELL.code].includes(

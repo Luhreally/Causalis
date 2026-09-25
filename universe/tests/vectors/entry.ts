@@ -1,10 +1,13 @@
 // What tools/engines.ts runs inside each browser: every golden suite, by name.
-// The kernel's vectors, and the oracle fixtures' checkpoint chains.
+// The kernel's vectors, the oracle fixtures' checkpoint chains, refined regions, and
+// the people an observer meets (their lives are drawn with the same keyed streams).
 import { kernelDigest, kernelVectors } from "./kernel.ts";
 import { FIXTURES, recordFixture } from "./oracle.ts";
-import { Hasher, seedFromText } from "../../src/kernel/index.ts";
+import { Hasher, YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTHLIKE } from "../../src/rules/index.ts";
 import { generateHomeWorld, refineRegion } from "../../src/gen/index.ts";
+import { makePopulationWorld, populationContext } from "../../src/sim/index.ts";
+import { deepen, meetHousehold, observer } from "../../src/causal/index.ts";
 
 export type SuiteResult = { digest: string; vectors: [string, string][] };
 
@@ -47,6 +50,30 @@ function regionVectors(): [string, string][] {
 }
 suites.regions = () => {
   const vectors = regionVectors();
+  return { digest: kernelDigest(vectors), vectors };
+};
+
+/** Families met in a grown world, and each member's life told in full. */
+function observerVectors(): [string, string][] {
+  const world = makePopulationWorld(seedFromText("first light")),
+    out: [string, string][] = [];
+  world.runTo(240 * YEAR);
+  const villages = populationContext(world).settlements.all();
+  for (let i = 0; i < 8; i++) {
+    const v = villages[(i * 5) % villages.length]!,
+      hh = meetHousehold(world, v.cell, v.ref);
+    for (const r of hh.members) {
+      const p = deepen(world, observer(world).person(r)!);
+      out.push([`${hh.ref} ${r}`, new Hasher().value(p).hex()]);
+    }
+  }
+  const ledger = new Hasher();
+  observer(world).hashInto(ledger);
+  out.push(["ledger", ledger.hex()]);
+  return out;
+}
+suites.observer = () => {
+  const vectors = observerVectors();
   return { digest: kernelDigest(vectors), vectors };
 };
 

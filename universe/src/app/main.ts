@@ -193,6 +193,7 @@ async function runPlanetPage(): Promise<void> {
   const planetPanel = new PlanetPanel(hud, client, lens, speed),
     regionPanel = new RegionPanel(hud, client),
     labels = new LabelLayer(hud);
+  labels.blockers = [regionPanel.inspector];
 
   const paintGlobe = () => {
     const frame = client.latestFrame("globe");

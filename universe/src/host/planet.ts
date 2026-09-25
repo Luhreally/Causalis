@@ -15,7 +15,9 @@ import {
 } from "../gen/index.ts";
 import { EARTHLIKE, OPEN, type Prior } from "../rules/index.ts";
 import { parseRef, type Ref, type World } from "../kernel/index.ts";
+import { observer } from "../causal/index.ts";
 import type { Universe } from "./host.ts";
+import { OBSERVE_QUERIES } from "./observe.ts";
 
 const BOUNDARY_WORDS = ["none", "converging", "spreading", "sliding"];
 
@@ -193,9 +195,13 @@ function cell(g: HomeWorld, c: number) {
 function planetUniverse(name: string, prior: Prior): Universe {
   return {
     name,
-    version: `${name}-2`,
+    version: `${name}-3`,
     defaultView: "globe",
-    build: (seed) => makePopulationWorld(seed, { prior }),
+    build: (seed) => {
+      const world = makePopulationWorld(seed, { prior });
+      observer(world);
+      return world;
+    },
     frames: {
       globe: (world) => globeFrame(world),
       region: (world, interest) => regionFrame(world, interest.focus),
@@ -242,6 +248,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
           event: s.event,
         };
       },
+      ...OBSERVE_QUERIES,
       deposits: (world) =>
         homePlanet(world).generated.deposits.map((d) => ({
           ref: d.ref,

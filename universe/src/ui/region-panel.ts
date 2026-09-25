@@ -1,7 +1,9 @@
 // The observatory over a region: where it is on the world, its lenses, and an
-// inspector for a tile — ground, weather, water, soil, ore — with its why.
+// inspector for a tile — ground, weather, water, soil, ore — or a village and the
+// people met there, each with its why.
 import type { HostClient } from "../bridge/index.ts";
 import { REGION_LENSES, REGION_LENS_NAMES, type RegionLens } from "../view/index.ts";
+import { PeopleView } from "./people.ts";
 import { WhyTree, el } from "./why.ts";
 
 type TileFacts = {
@@ -34,12 +36,17 @@ export class RegionPanel {
   private readonly why: WhyTree;
   private readonly where = el("span", "clock");
   private readonly lensButtons = new Map<RegionLens, HTMLButtonElement>();
-  private readonly inspector = el("section", "inspector");
+  readonly inspector = el("section", "inspector");
   private readonly title = el("h2");
   private readonly facts = el("div", "facts");
+  private readonly body = el("div");
+  private readonly whyTitle = el("h3", undefined, "Why is it like this?");
   private readonly whyBox = el("div", "why");
+  private readonly people: PeopleView;
   private center = 0;
-  private selected: number | null = null;
+  /** Bumped on every change of what is shown, so late answers are dropped. */
+  private view = 0;
+  private village: { ref: string; cell: number; name: string } | null = null;
   onBack: () => void = () => {};
   onLens: (lens: RegionLens) => void = () => {};
   onClose: () => void = () => {};
@@ -47,6 +54,12 @@ export class RegionPanel {
   constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
     this.why = new WhyTree(client);
+    this.people = new PeopleView(client);
+    this.people.onPerson = (ref) => void this.selectPerson(ref);
+    this.people.onWhy = (ref) => {
+      void this.why.show(ref, this.whyBox);
+      this.whyTitle.scrollIntoView({ block: "start", behavior: "smooth" });
+    };
     const bar = el("header", "bar"),
       back = el("button", "speed", "‹ The world");
     back.onclick = () => this.onBack();
@@ -68,13 +81,7 @@ export class RegionPanel {
       this.select(null);
       this.onClose();
     };
-    this.inspector.append(
-      close,
-      this.title,
-      this.facts,
-      el("h3", undefined, "Why is it like this?"),
-      this.whyBox,
-    );
+    this.inspector.append(close, this.title, this.facts, this.body, this.whyTitle, this.whyBox);
     this.inspector.hidden = true;
     this.element.append(
       bar,
@@ -100,32 +107,60 @@ export class RegionPanel {
     for (const [l, b] of this.lensButtons) b.classList.toggle("on", l === lens);
   }
 
-  /** Show a village: its name, its people, its founding, and why it is there. */
+  /** Show a village: its name, its people, its founding, the families met, and why it is there. */
   async selectVillage(ref: string): Promise<void> {
-    this.selected = -1;
+    const view = ++this.view;
     this.inspector.hidden = false;
-    const v = await this.client.query<{ name: string; population: number; founded: number }>({
-      type: "settlement",
-      args: { ref },
-    });
-    if (this.selected !== -1) return;
+    const v = await this.client.query<{
+      name: string;
+      cell: number;
+      population: number;
+      founded: number;
+    }>({ type: "settlement", args: { ref } });
+    if (this.view !== view) return;
+    this.village = { ref, cell: v.cell, name: v.name };
     this.title.textContent = v.name;
     this.facts.replaceChildren(
       el("div", "fact", `A village of ${v.population.toLocaleString()}`),
       el("div", "fact", `Founded in year ${v.founded}`),
     );
+    const families = el("div");
+    this.body.replaceChildren(el("h3", undefined, "Families you have met"), families);
+    this.whyTitle.textContent = "Why is it here?";
+    void this.people.village(families, v.cell, ref);
+    void this.why.show(ref, this.whyBox);
+  }
+
+  /** Show a person met: their page, and why they are who and where they are. */
+  async selectPerson(ref: string): Promise<void> {
+    const view = ++this.view,
+      village = this.village;
+    this.inspector.hidden = false;
+    this.title.textContent = "…";
+    const back = el("button", "back", `‹ ${village ? village.name : "Back"}`);
+    back.onclick = () => (village ? void this.selectVillage(village.ref) : this.select(null));
+    this.facts.replaceChildren(back);
+    const page = el("div");
+    this.body.replaceChildren(page);
+    const p = await this.people.person(page, ref);
+    if (this.view !== view) return;
+    this.title.textContent = p.name;
+    this.whyTitle.textContent = `Why is ${p.name.split(" ")[0]} who they are?`;
+    this.inspector.scrollTop = 0;
     void this.why.show(ref, this.whyBox);
   }
 
   async select(tile: number | null): Promise<void> {
-    this.selected = tile;
+    const view = ++this.view;
     this.inspector.hidden = tile === null;
     if (tile === null) return;
     const f = await this.client.query<TileFacts>({
       type: "tile",
       args: { center: this.center, tile },
     });
-    if (this.selected !== tile) return;
+    if (this.view !== view) return;
+    this.body.replaceChildren();
+    this.whyTitle.textContent = "Why is it like this?";
     this.title.textContent = f.sea
       ? "The sea"
       : f.water

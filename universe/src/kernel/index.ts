@@ -66,6 +66,7 @@ export {
   periodIndex,
   simTime,
   yearOf,
+  yearOfMoment,
   type DeepTime,
   type SimTime,
 } from "./time.ts";

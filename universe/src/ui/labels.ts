@@ -16,6 +16,8 @@ const WIDTH_PER_CHAR = 7,
 export class LabelLayer {
   private readonly root = el("div", "labels");
   private readonly pool = new Map<string, HTMLSpanElement>();
+  /** Panels over the scene: a label that would fall under one is hidden. */
+  blockers: HTMLElement[] = [];
 
   constructor(parent: HTMLElement) {
     parent.prepend(this.root);
@@ -24,6 +26,15 @@ export class LabelLayer {
   update(labels: readonly Label[]): void {
     const seen = new Set<string>(),
       placed: { x0: number; x1: number; y0: number; y1: number }[] = [];
+    const origin = this.root.getBoundingClientRect();
+    for (const b of this.blockers)
+      for (const r of b.getClientRects())
+        placed.push({
+          x0: r.left - origin.left,
+          x1: r.right - origin.left,
+          y0: r.top - origin.top,
+          y1: r.bottom - origin.top,
+        });
     const order = [...labels].sort(
       (a, b) => (b.priority ?? 0) - (a.priority ?? 0) || (a.key < b.key ? -1 : 1),
     );

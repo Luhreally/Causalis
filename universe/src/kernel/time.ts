@@ -20,6 +20,11 @@ export const MONTH = YEAR / 12;
 
 export const TIME_ZERO = 0 as SimTime;
 
+/** The year a moment belongs to: yearly work done at the turn of year y+1 is of year y. */
+export function yearOfMoment(t: number): number {
+  return t > 0 ? Math.floor((t - 1) / YEAR) : 0;
+}
+
 export function simTime(seconds: number): SimTime {
   if (!Number.isSafeInteger(seconds) || seconds < 0)
     throw new Error(`SimTime must be a non-negative safe integer, got ${seconds}`);

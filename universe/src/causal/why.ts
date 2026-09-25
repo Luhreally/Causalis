@@ -9,13 +9,15 @@
 //  - forgotten: an event that aged out of the log; its tombstone says what and where;
 //  - unknown: nothing records why.
 //
-// Domains teach it their kinds with registerExplainer.
+// Domains teach it their kinds with registerExplainer, and say their events and
+// decisions in words with registerEventWords and registerDecisionWords.
 import {
   COMMAND,
   DECISION,
   EVENT,
   kindByCode,
   kindCodeOf,
+  yearOfMoment,
   type CauseRef,
   type Ref,
   type World,
@@ -44,13 +46,56 @@ export function registerExplainer(kindCode: string, explainer: Explainer): void 
   EXPLAINERS.set(kindCode, explainer);
 }
 
+/** What an event says of itself; `data` is null once it has been forgotten. */
+export type EventFacts = {
+  readonly type: string;
+  readonly t: number;
+  readonly place: Ref | null;
+  readonly subjects: readonly Ref[];
+  readonly data: unknown;
+};
+export type EventWords = (world: World, e: EventFacts) => string;
+export type DecisionFacts = {
+  readonly rule: string;
+  readonly t: number;
+  readonly subject: Ref;
+  readonly outcome: unknown;
+};
+export type DecisionWords = (world: World, d: DecisionFacts) => string;
+
+const EVENT_WORDS = new Map<string, EventWords>();
+const EVENT_KEEPERS: ((world: World, ref: Ref) => EventFacts | null)[] = [];
+const DECISION_WORDS = new Map<string, DecisionWords>();
+
+/** Say an event type in words. */
+export function registerEventWords(type: string, words: EventWords): void {
+  if (EVENT_WORDS.has(type)) throw new Error(`event ${type} already has words`);
+  EVENT_WORDS.set(type, words);
+}
+
+/** Something outside history that keeps copies of events history may forget. */
+export function registerEventKeeper(keeper: (world: World, ref: Ref) => EventFacts | null): void {
+  EVENT_KEEPERS.push(keeper);
+}
+
+/** Say a decision rule in words (the factors follow). */
+export function registerDecisionWords(rule: string, words: DecisionWords): void {
+  if (DECISION_WORDS.has(rule)) throw new Error(`decision ${rule} already has words`);
+  DECISION_WORDS.set(rule, words);
+}
+
 /** Edges for a list of causes, each expanding lazily. */
 export function edges(world: World, causes: readonly CauseRef[]): ExplanationEdge[] {
   return causes.map((cause) => ({ cause, next: () => why(world, cause.ref) }));
 }
 
-function describeEvent(type: string, place: Ref | null, t: number): string {
-  return `${type}${place ? ` at ${place}` : ""} (t=${t})`;
+function describeEvent(world: World, e: EventFacts): string {
+  const words = EVENT_WORDS.get(e.type);
+  return words ? words(world, e) : `${e.type}${e.place ? ` at ${e.place}` : ""} (t=${e.t})`;
+}
+
+function describeDecision(world: World, d: DecisionFacts): string | null {
+  return DECISION_WORDS.get(d.rule)?.(world, d) ?? null;
 }
 
 function explainEvent(world: World, ref: Ref): Explanation {
@@ -58,17 +103,26 @@ function explainEvent(world: World, ref: Ref): Explanation {
   if (e) {
     return {
       ref,
-      claim: describeEvent(e.type, e.place, e.t),
+      claim: describeEvent(world, e),
       basis: "recorded",
       t: e.t,
       causes: edges(world, e.causes),
     };
   }
   const tomb = world.events.tombstone(ref);
+  const kept = tomb ? EVENT_KEEPERS.map((k) => k(world, ref)).find((f) => f) : null;
+  if (tomb && kept)
+    return {
+      ref,
+      claim: `${describeEvent(world, kept)}; history has forgotten it, but those who lived it remember`,
+      basis: "forgotten",
+      t: tomb.t,
+      causes: [],
+    };
   if (tomb)
     return {
       ref,
-      claim: `${describeEvent(tomb.type, tomb.place, tomb.t)}, since forgotten`,
+      claim: `${describeEvent(world, { ...tomb, data: null })}, since forgotten`,
       basis: "forgotten",
       t: tomb.t,
       causes: [],
@@ -83,7 +137,7 @@ function explainDecision(world: World, ref: Ref): Explanation {
     if (tomb)
       return {
         ref,
-        claim: `${tomb.rule} for ${tomb.subject} (t=${tomb.t}), since forgotten`,
+        claim: `${describeDecision(world, { ...tomb, outcome: null }) ?? `${tomb.rule} for ${tomb.subject} (t=${tomb.t})`}, since forgotten`,
         basis: "forgotten",
         t: tomb.t,
         causes: [],
@@ -93,9 +147,13 @@ function explainDecision(world: World, ref: Ref): Explanation {
   const factors = d.factors
     .map((f) => `${f.name} ${f.contribution >= 0 ? "+" : ""}${f.contribution.toFixed(2)}`)
     .join(", ");
+  const words = describeDecision(world, d),
+    weighed = `score ${d.score.toFixed(2)} against ${d.threshold.toFixed(2)}`;
   return {
     ref,
-    claim: `${d.rule} for ${d.subject}: score ${d.score.toFixed(2)} against ${d.threshold.toFixed(2)} (${factors})`,
+    claim: words
+      ? `${words}, in year ${yearOfMoment(d.t)} (${factors}; ${weighed})`
+      : `${d.rule} for ${d.subject}: ${weighed} (${factors})`,
     basis: "recorded",
     t: d.t,
     causes: edges(world, world.decisions.causesOf(ref)),

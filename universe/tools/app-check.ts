@@ -28,6 +28,7 @@ type Exposed = {
   mode: string;
   client?: { status: { t: number } | null; query<T>(q: { type: string }): Promise<T> };
   descend?: (cell: number) => void;
+  villages?: () => number;
   drawn?: () => number;
   select?: (cell: number) => void;
   bench?: { fps: number; frameMs: number; instances: number; tier: string };
@@ -79,11 +80,11 @@ for (const engine of engines) {
       : {}),
   });
   try {
-    // The Earth globe (static until people arrive) and the sandbox (where time must move),
-    // each in a worker and in-thread.
+    // The Earth globe 240 years on, when there are villages to meet people in, and the
+    // sandbox (where time must move), each in a worker and in-thread.
     const cases = [
-      { query: "", name: "earth", moves: false, pick: 20000 },
-      { query: "?inline", name: "earth", moves: false, pick: 20000 },
+      { query: "?year=240", name: "earth", moves: false, pick: 20000 },
+      { query: "?year=240&inline", name: "earth", moves: false, pick: 20000 },
       { query: "?universe=sandbox", name: "sandbox", moves: true, pick: 3 },
       { query: "?universe=sandbox&inline", name: "sandbox", moves: true, pick: 3 },
     ];
@@ -160,6 +161,70 @@ for (const engine of engines) {
         console.log(`${(label + " region").padEnd(24)} ${later.mode.padEnd(9)} 16384 tiles drawn`);
         if (shotsAt && !query.includes("inline"))
           await page.screenshot({ path: join(shotsAt, `${engine}-region.png`) });
+
+        // Down to the most peopled province's first village: meet a family, open a person.
+        const village = await page.evaluate(async () => {
+          const c = (globalThis as { causalis?: Exposed }).causalis!;
+          const map = await c.client!.query<{ cell: number; people: number }[]>({
+            type: "people.map",
+          });
+          for (const p of [...map].sort((a, b) => b.people - a.people || a.cell - b.cell)) {
+            const vs = await c.client!.query<{ tile: number; name: string }[]>({
+              type: "settlements",
+              args: { cell: p.cell },
+            } as { type: string });
+            if (vs.length) {
+              c.descend!(p.cell);
+              return vs[0]!;
+            }
+          }
+          return null;
+        });
+        if (!village) problems.push(`${label}: no village 240 years on`);
+        else {
+          await waitFor(
+            `${label} villages`,
+            () =>
+              page.evaluate(
+                () => (globalThis as { causalis?: Exposed }).causalis?.villages?.() ?? null,
+              ),
+            (n) => n > 0,
+          );
+          await page.evaluate(
+            (tile) => (globalThis as { causalis?: Exposed }).causalis?.select?.(tile),
+            village.tile,
+          );
+          await page.waitForSelector(
+            ".panel:not([hidden]) .inspector:not([hidden]) .act:not([disabled])",
+            {
+              timeout: 10000,
+            },
+          );
+          await page.click(".panel:not([hidden]) .inspector .act");
+          await page.waitForSelector(".panel:not([hidden]) .inspector .family .person", {
+            timeout: 10000,
+          });
+          if (shotsAt && !query.includes("inline"))
+            await page.screenshot({ path: join(shotsAt, `${engine}-village.png`) });
+          await page.click(".panel:not([hidden]) .inspector .family .person");
+          await page.waitForFunction(
+            () => {
+              const panel = document.querySelector(".panel:not([hidden]) .inspector");
+              const title = panel?.querySelector("h2")?.textContent ?? "…";
+              return title !== "…" && title.includes(" ") && !!panel?.querySelector(".why .claim");
+            },
+            undefined,
+            { timeout: 10000 },
+          );
+          const who = await page.evaluate(
+            () => document.querySelector(".panel:not([hidden]) .inspector h2")?.textContent ?? "",
+          );
+          console.log(
+            `${(label + " people").padEnd(24)} ${later.mode.padEnd(9)} met ${who} of ${village.name}`,
+          );
+          if (shotsAt && !query.includes("inline"))
+            await page.screenshot({ path: join(shotsAt, `${engine}-person.png`) });
+        }
       }
       await page.close();
     }

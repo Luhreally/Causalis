@@ -58,3 +58,24 @@ export function placeName(culture: number, key: number): string {
   name += pick(ENDINGS, h);
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
+
+const FEMININE = ["a", "e", "i", "ia", "ea", "wen", "ys", "et"];
+const MASCULINE = ["", "n", "r", "l", "th", "d", "k", "s", "m"];
+
+/** A given name in a culture's sound; `sex` 0 takes a feminine ending, 1 a masculine one. */
+export function personName(culture: number, key: number, sex: number): string {
+  const vowels = VOWELS.filter((_, i) => (finish(mix(culture ^ 0x5a5a, i), 1) & 3) !== 0),
+    onsets = ONSETS.filter((_, i) => (finish(mix(culture, i), 1) & 3) !== 0);
+  let h = finish(mix(mix(culture ^ 0x3c3c, key), sex), 2);
+  const syllables = 1 + (h % 2);
+  let name = "";
+  for (let s = 0; s < syllables; s++) {
+    h = finish(mix(h, s), 3);
+    name +=
+      pick(onsets.length ? onsets : ONSETS, h) + pick(vowels.length ? vowels : VOWELS, h >>> 8);
+  }
+  h = finish(mix(h, 0x99), 4);
+  name += pick(sex === 0 ? FEMININE : MASCULINE, h);
+  if (name.length < 3) name += pick(sex === 0 ? FEMININE : MASCULINE, h >>> 8) || "an";
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}

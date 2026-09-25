@@ -17,6 +17,11 @@ export interface StateStore {
   readonly name: string;
   /** The version of what save() returns; bump it with a migration (defineMigration). Default 1. */
   readonly schema?: number;
+  /**
+   * An observer's store (what the player has looked at, docs/architecture §14): saved
+   * with the world but never part of its hash, because looking must not change history.
+   */
+  readonly observational?: boolean;
   hashInto(h: Hasher): void;
   save(): unknown;
   load(state: unknown): void;
@@ -190,6 +195,7 @@ export class World {
   domainHashes(): [string, string][] {
     const byDomain = new Map<string, Hasher>();
     for (const name of this.storeNames()) {
+      if (this.stores.get(name)!.observational) continue;
       const domain = name.split(".")[0]!;
       let h = byDomain.get(domain);
       if (!h) byDomain.set(domain, (h = new Hasher()));

@@ -79,10 +79,11 @@ test("a village explains itself back to the first people", () => {
   const village = longCtx.settlements.all()[0]!;
   const founding = why(long, village.event);
   assert.equal(founding.basis, "recorded");
+  assert.match(founding.claim, new RegExp(`^${village.name} was founded in the `));
   const decision = founding.causes[0]!.next();
-  assert.match(decision.claim, /settlement\.found/);
+  assert.match(decision.claim, /chose a site for a village, in year \d+ \(.*good ground and water/);
   const farming = decision.causes.find((c) => c.cause.ref.startsWith("ev:"))!.next();
-  assert.match(farming.claim, /knowledge\.cultivation/);
+  assert.match(farming.claim, /^(The first fields were sown|Farming came to) /);
   const path = spine(long, village.event);
   assert.ok(path.length >= 4, `path ${path.map((e) => e.ref).join(" ← ")}`);
 });
@@ -91,7 +92,8 @@ test("a migration explains itself through its decision", () => {
   const flow = longCtx.history.flows()[0]!,
     node = why(long, flow.event as Ref);
   const decision = node.causes[0]!.next();
-  assert.match(decision.claim, /population\.migrate/);
+  assert.match(decision.claim, /chose to move on, in year \d+ \(/);
+  assert.match(node.claim, /set out from the .* for the /);
   assert.ok(
     decision.causes.some((c) => c.cause.role === "enabler"),
     "better land beckoned",
