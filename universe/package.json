@@ -1,0 +1,25 @@
+{
+  "name": "causalis-universe",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Causalis Universe: a deterministic, observatory-first, multi-scale causal universe.",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "typecheck": "tsc --noEmit -p .",
+    "lint": "node tools/lint.ts",
+    "test": "node --test \"tests/**/*.test.ts\"",
+    "check": "npm run typecheck && npm run lint && npm test"
+  },
+  "dependencies": {
+    "playcanvas": "^2.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "oxc-parser": "^0.151.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  }
+}

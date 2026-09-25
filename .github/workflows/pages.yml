@@ -32,6 +32,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - run: npm ci
+        working-directory: universe
+      - run: npm run build
+        working-directory: universe
+      - run: cp -r universe/dist dist/client/universe
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

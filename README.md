@@ -4,6 +4,7 @@ Causalis is a deterministic artificial-life god game in which chemistry, ecology
 
 ## Project layout
 
+- `universe/` is **Causalis Universe**, the multi-scale successor built beside this game (see `universe/README.md` and `docs/architecture/universe-architecture.md`). This game, Causalis Classic, is frozen as of 2026-09-25.
 - `index.html` contains the accessible game shell.
 - `src/styles/` separates foundation, layout, dialogs, observatory, and mobile presentation.
 - `src/game/sections/` contains the simulation in explicit load order, composed into one closure. A section adds a system to the tick with `tickSystem` or `calendarSystem` (16) and tells its events with `eventText` (15); `npm run map` lists both in the order they run, and `npm run new:section` starts a new section with its test.
