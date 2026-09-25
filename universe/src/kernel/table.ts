@@ -2,7 +2,11 @@
 // numbers in one typed array. CountTable holds integers (people, goods, ships —
 // counted things are integers and are conserved); FieldTable holds floats
 // (prices, rates, temperatures). Both hash and save themselves.
+import { decodeFloat64s, encodeFloat64s } from "./bits.ts";
 import type { Hasher } from "./hash.ts";
+
+/** A table as saved: its shape and its numbers as exact little-endian base64. */
+export type TableState = { readonly rows: number; readonly cols: number; readonly data: string };
 
 function checkShape(rows: number, cols: number): void {
   if (!Number.isInteger(rows) || rows < 0 || !Number.isInteger(cols) || cols < 1)
@@ -48,15 +52,15 @@ abstract class Table {
     h.int(this.rows).int(this.cols);
     for (let i = 0; i < this.data.length; i++) h.float(this.data[i]!);
   }
-  save(): { rows: number; cols: number; data: number[] } {
-    return { rows: this.rows, cols: this.cols, data: Array.from(this.data) };
+  save(): TableState {
+    return { rows: this.rows, cols: this.cols, data: encodeFloat64s(this.data) };
   }
-  load(state: { rows: number; cols: number; data: readonly number[] }): void {
+  load(state: TableState): void {
     if (state.rows !== this.rows || state.cols !== this.cols)
       throw new Error(
         `table shape ${state.rows} × ${state.cols} does not match ${this.rows} × ${this.cols}`,
       );
-    this.data.set(state.data);
+    this.data.set(decodeFloat64s(state.data));
   }
 }
 

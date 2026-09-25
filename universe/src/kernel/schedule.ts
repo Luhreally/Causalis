@@ -101,6 +101,11 @@ export class Scheduler {
     return this.systems.map((s) => s.key);
   }
 
+  /** Every agenda type with a handler, in order. */
+  handlerTypes(): string[] {
+    return [...this.handlers.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  }
+
   addHandler(handler: AgendaHandler): void {
     if (!KEY_PATTERN.test(handler.key))
       throw new Error(`order key ${handler.key} must look like "070.floods"`);

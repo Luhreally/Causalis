@@ -70,6 +70,11 @@ export function eventType(type: string): EventTypeSpec | undefined {
   return EVENT_TYPES.get(type);
 }
 
+/** Every declared event type, in type order (part of the ruleset's identity). */
+export function eventTypes(): EventTypeSpec[] {
+  return [...EVENT_TYPES.values()].sort((a, b) => (a.type < b.type ? -1 : a.type > b.type ? 1 : 0));
+}
+
 function checkImportance(i: number): void {
   if (!Number.isInteger(i) || i < 0 || i > 7)
     throw new Error(`importance ${i} must be an integer 0–7`);

@@ -47,6 +47,45 @@ export function hexF64(hex: string): number {
   return fromWords(parseInt(hex.slice(0, 8), 16), parseInt(hex.slice(8, 16), 16));
 }
 
+const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const B64_INDEX = new Map<string, number>([...B64].map((c, i) => [c, i]));
+
+/** Float64s as base64 of their little-endian bytes: exact, compact, the same on every platform. */
+export function encodeFloat64s(values: Float64Array): string {
+  const bytes = new Uint8Array(values.length * 8),
+    view = new DataView(bytes.buffer);
+  for (let i = 0; i < values.length; i++) view.setFloat64(i * 8, values[i]!, true);
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i]!,
+      b = i + 1 < bytes.length ? bytes[i + 1]! : 0,
+      c = i + 2 < bytes.length ? bytes[i + 2]! : 0;
+    out += B64[a >> 2]! + B64[((a & 3) << 4) | (b >> 4)]!;
+    out += i + 1 < bytes.length ? B64[((b & 15) << 2) | (c >> 6)]! : "=";
+    out += i + 2 < bytes.length ? B64[c & 63]! : "=";
+  }
+  return out;
+}
+
+/** The float64s that encodeFloat64s wrote. */
+export function decodeFloat64s(text: string): Float64Array {
+  const clean = text.replace(/=+$/, ""),
+    bytes = new Uint8Array(Math.floor((clean.length * 3) / 4));
+  let o = 0;
+  for (let i = 0; i < clean.length; i += 4) {
+    const n = [0, 1, 2, 3].map((k) => B64_INDEX.get(clean[i + k] ?? "A") ?? 0);
+    const triple = (n[0]! << 18) | (n[1]! << 12) | (n[2]! << 6) | n[3]!;
+    if (o < bytes.length) bytes[o++] = (triple >> 16) & 255;
+    if (o < bytes.length) bytes[o++] = (triple >> 8) & 255;
+    if (o < bytes.length) bytes[o++] = triple & 255;
+  }
+  if (bytes.length % 8 !== 0) throw new Error("float64 data has a partial value");
+  const view = new DataView(bytes.buffer),
+    out = new Float64Array(bytes.length / 8);
+  for (let i = 0; i < out.length; i++) out[i] = view.getFloat64(i * 8, true);
+  return out;
+}
+
 /** Low 32 bits of an integer (two's complement for negatives), as an unsigned value. */
 export function lo32(n: number): number {
   return (n - Math.floor(n / TWO32) * TWO32) >>> 0;

@@ -67,8 +67,10 @@ export class Hasher {
   int(n: number): this {
     return this.word(lo32(n)).word(hi32(n));
   }
+  /** A float by its bits; −0 hashes as 0 and every NaN alike, as saved JSON would have them. */
   float(x: number): this {
-    return this.word(lowWord(x)).word(highWord(x));
+    const v = x === 0 ? 0 : x !== x ? NaN : x;
+    return this.word(lowWord(v)).word(highWord(v));
   }
   string(text: string): this {
     for (let i = 0; i < text.length; i += 2)

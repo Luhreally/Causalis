@@ -24,6 +24,7 @@ import {
   type Ref,
   type StateStore,
   type SystemSpec,
+  type TableState,
 } from "../../src/kernel/index.ts";
 
 export const CELLS = 16;
@@ -47,8 +48,6 @@ export function cellRef(cell: number): Ref {
 export function floodplainRef(cell: number): Ref {
   return structuralRef(FLOODPLAIN, null, cell);
 }
-
-type TableState = { rows: number; cols: number; data: number[] };
 
 export class ToyPopulation implements StateStore {
   readonly name = "toy.population";

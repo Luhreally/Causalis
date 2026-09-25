@@ -44,6 +44,11 @@ export class CommandLog {
     return this.specs.get(type);
   }
 
+  /** Every command type this world accepts, in order. */
+  types(): string[] {
+    return [...this.specs.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  }
+
   /** Validate and record a command for moment t; returns it (the caller schedules it). */
   record(type: string, args: unknown, t: number): Command {
     const spec = this.specs.get(type);

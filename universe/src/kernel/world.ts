@@ -15,6 +15,8 @@ import { YEAR, type SimTime } from "./time.ts";
 export interface StateStore {
   /** Unique, dotted: "population.cells". The first word is its domain in the hash chain. */
   readonly name: string;
+  /** The version of what save() returns; bump it with a migration (defineMigration). Default 1. */
+  readonly schema?: number;
   hashInto(h: Hasher): void;
   save(): unknown;
   load(state: unknown): void;
@@ -224,6 +226,12 @@ export class World {
 
   checkpoints(): readonly Checkpoint[] {
     return this.chain;
+  }
+
+  /** Put back a saved checkpoint chain (loading only). */
+  restoreCheckpoints(chain: readonly Checkpoint[]): void {
+    this.chain.length = 0;
+    for (const c of chain) this.chain.push({ ...c });
   }
 
   /** Advance the world to a time (all at once). */
