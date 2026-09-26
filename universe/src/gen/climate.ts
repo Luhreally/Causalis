@@ -24,6 +24,8 @@ export const BIOME = {
   tropicalDryForest: 13,
   tropicalRainforest: 14,
   alpine: 15,
+  /** Sealed halls on another world (Phase 5 M52): no wild, farmed under roofs. */
+  halls: 16,
 } as const;
 export type Biome = (typeof BIOME)[keyof typeof BIOME];
 export const BIOME_NAMES: readonly string[] = [
@@ -43,6 +45,7 @@ export const BIOME_NAMES: readonly string[] = [
   "tropical dry forest",
   "tropical rainforest",
   "alpine",
+  "sealed halls",
 ];
 
 export type Climate = {

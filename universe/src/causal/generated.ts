@@ -12,16 +12,19 @@ import {
   BIOME_NAMES,
   BOUNDARY,
   DEPOSIT,
+  MOON,
   PLANET,
   PLATE,
   STAR,
   SURFACE_CELL,
   SPOT,
   isProvinceWorld,
+  offworldSite,
   ageRef,
   cellRef,
   pastLatitude,
   surfaceCopper,
+  type SystemBody,
 } from "../gen/index.ts";
 import { homePlanet } from "../sim/index.ts";
 import { edges, registerExplainer, type Explanation } from "./why.ts";
@@ -52,7 +55,13 @@ registerExplainer(STAR.code, (world, ref) => {
 
 registerExplainer(PLANET.code, (world, ref) => {
   if (!hasPlanet(world)) return null;
-  const { planet: p, star } = homePlanet(world).generated;
+  const { planet: p, star, system } = homePlanet(world).generated,
+    ordinal = parseRef(ref).b;
+  // The star's other worlds: what they are, and why, from the laws that made them.
+  if (ordinal > 0) {
+    const b = system.bodies.find((x) => x.ref === ref);
+    return b ? otherBody(world, b) : null;
+  }
   return generated(
     ref,
     `A world of ${p.mass.toFixed(2)} Earth masses (gravity ${p.gravity.toFixed(2)} g) ${p.orbitAu.toFixed(2)} AU from its star, a year of ${Math.round(p.yearDays)} days and a day of ${p.dayHours.toFixed(1)} hours, tilted ${p.tilt.toFixed(1)}°`,
@@ -247,11 +256,39 @@ registerExplainer(SURFACE_CELL.code, (world, ref) => {
   );
 });
 
-/** A surface cell in words: "the temperate forest at 39.7°S 102.3°E". */
+/** Another body of the star's system: its kind, orbit and ground, and why. */
+function otherBody(world: World, b: SystemBody): Explanation {
+  const g = homePlanet(world).generated,
+    kind =
+      b.kind === "moon"
+        ? "A moon"
+        : b.kind === "giant"
+          ? "A giant of gas"
+          : b.kind === "ice giant"
+            ? "A giant of ice"
+            : "A world of rock";
+  return generated(
+    b.ref,
+    `${kind}, ${b.designation}: ${b.gravity.toFixed(2)} g, ${Math.round(b.temperature)} °C, ${b.air === "none" ? "airless" : `${b.air} air`}${b.water === "none" ? "" : b.water === "ice" ? ", its water ice" : ", with seas"} — ${b.because.join("; ")}`,
+    edges(world, [
+      { ref: (b.kind === "moon" ? b.orbit.around : g.star.ref) as Ref, role: "enabler", weight: 1 },
+    ]),
+  );
+}
+
+registerExplainer(MOON.code, (world, ref) => {
+  if (!hasPlanet(world)) return null;
+  const b = homePlanet(world).generated.system.bodies.find((x) => x.ref === ref);
+  return b ? otherBody(world, b) : null;
+});
+
+/** A surface cell in words: "the temperate forest at 39.7°S 102.3°E"; halls on another body by it. */
 export function landWords(world: World, place: Ref | null): string {
   if (!place || kindCodeOf(place) !== SURFACE_CELL.code || !hasPlanet(world)) return "the land";
   const g = homePlanet(world).generated,
-    c = parseRef(place).b;
+    c = parseRef(place).b,
+    site = offworldSite(g, c);
+  if (site) return `the halls on ${g.system.bodies[site.body]!.designation}`;
   if (c >= g.grid.count) return "the land";
   const lat = g.grid.lat[c]!,
     lon = g.grid.lon[c]!;
@@ -260,7 +297,7 @@ export function landWords(world: World, place: Ref | null): string {
 
 /** Whether a ref names a generated thing this module explains. */
 export function isGenerated(ref: Ref): boolean {
-  return [STAR.code, PLANET.code, PLATE.code, DEPOSIT.code, SURFACE_CELL.code].includes(
+  return [STAR.code, PLANET.code, MOON.code, PLATE.code, DEPOSIT.code, SURFACE_CELL.code].includes(
     kindCodeOf(ref),
   );
 }

@@ -57,6 +57,7 @@ export {
   SPECIES,
   DEPOSIT,
   HOME,
+  MOON,
   PLANET,
   PLATE,
   STAR,
@@ -67,6 +68,7 @@ export {
   spotRef,
   cellRef,
   depositRef,
+  moonRef,
   planetRef,
   plateRef,
   starRef,
@@ -93,8 +95,12 @@ export {
   type Tongue,
 } from "./names.ts";
 export {
+  HALL_AREA,
   PROVINCE_FREQUENCY,
+  SITES_PER_BODY,
   isProvinceWorld,
+  offworldSite,
   provinceWorld,
+  type OffworldSite,
   type ProvinceWorld,
 } from "./provinces.ts";

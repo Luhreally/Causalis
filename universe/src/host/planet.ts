@@ -43,6 +43,7 @@ import {
   DEPOSIT_KINDS,
   WATER,
   cellRef,
+  offworldSite,
   refineRegion,
   tongueLikeness,
   tongueName,
@@ -635,8 +636,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
         const g = homePlanet(world).generated,
           medium = g.life.people?.body.medium ?? "land",
           markets = marketsOf(world);
+        // The lands of the home world (lands on other bodies are shown with the sky).
         return populationContext(world)
           .provinces.all()
+          .filter((p) => !offworldSite(g, p.cell))
           .map((p) => {
             const m = markets.get(p.cell),
               last = m?.years.at(-1);

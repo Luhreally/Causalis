@@ -31,6 +31,7 @@ import {
   placeName,
   tongueName,
   isProvinceWorld,
+  offworldSite,
   refineRegion,
   type HomeWorld,
   type Region,
@@ -60,6 +61,7 @@ import {
   PRODUCTIVITY,
   SEXES,
   TOOL_GAIN,
+  habitability,
   type Affordances,
   type LifeHistory,
   type Medium,
@@ -124,6 +126,26 @@ export function roundKeyed(x: number, u: number): number {
 /** The year a moment ending at t belongs to. */
 function yearOfMoment(t: number): number {
   return Math.floor((t - 1) / YEAR);
+}
+
+/**
+ * The share of a land's work that goes to keeping its halls alive: none on the home
+ * world; on another body, by what its ground lacks against the people's body (rules/
+ * habitat.ts: a yearly upkeep a settler, as hands taken from the fields).
+ */
+const HALLS = new Map<string, number>();
+export function hallsShare(ctx: PopulationContext, cell: number): number {
+  const site = offworldSite(ctx.generated, cell);
+  if (!site) return 0;
+  const key = `${ctx.generated.digest}:${cell}`;
+  let share = HALLS.get(key);
+  if (share === undefined) {
+    const g = ctx.generated,
+      body = g.system.bodies[site.body]!,
+      need = habitability(body, g.life.people?.body ?? null, g.system.bodies[0]!.gravity).upkeep;
+    HALLS.set(key, (share = Math.min(0.9, need / (need + 6))));
+  }
+  return share;
 }
 
 /** The food a land's people eat a month, in units: each by their body's appetite, the young by theirs. */
@@ -300,8 +322,9 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       rain = p.rain / 1000,
       tools = (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000),
       // A body gathers, sows and herds in proportion to what it eats (a giant's day's
-      // grazing is a giant's meal), so a worker feeds as many as an upright ape's does.
-      gathers = ctx.life.appetite,
+      // grazing is a giant's meal), so a worker feeds as many as an upright ape's does —
+      // less the share of every hand that keeps another world's halls alive.
+      gathers = ctx.life.appetite * (1 - hallsShare(ctx, p.cell)),
       pots = m.potteryCover / 1000,
       // What the land's people know: better fields, flocks and hunting, stores that keep.
       lore = loreOf(world),
@@ -1155,6 +1178,16 @@ const SITE_BLOCKS = new Map<string, SiteBlocks>();
 function siteBlocks(ctx: PopulationContext, cell: number): SiteBlocks {
   const key = `${ctx.generated.digest}:${cell}`;
   let blocks = SITE_BLOCKS.get(key);
+  // Halls on another world have no ground of villages to choose among.
+  if (!blocks && offworldSite(ctx.generated, cell))
+    SITE_BLOCKS.set(
+      key,
+      (blocks = {
+        tiles: new Uint16Array(0),
+        scores: new Float32Array(0),
+        order: new Uint16Array(0),
+      }),
+    );
   if (!blocks) {
     if (SITE_BLOCKS.size > 20_000) SITE_BLOCKS.clear();
     const g = ctx.generated,

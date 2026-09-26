@@ -7,13 +7,33 @@
 // (their land's, where land is most of it), its deposits theirs, the beasts and grasses
 // that live in any of them live in it. The fine world stays with it, for the globe the
 // observer looks at and for the regions drawn around a province's centre.
-import { Hasher, sphereGrid } from "../kernel/index.ts";
+import { Hasher, sphereGrid, type SphereGrid } from "../kernel/index.ts";
+import { BIOME } from "./climate.ts";
 import type { HomeWorld } from "./homeworld.ts";
 import type { Deposit } from "./deposits.ts";
 import { BOUNDARY } from "./plates.ts";
 
 /** The province grid's frequency: 4,002 provinces over the whole planet. */
 export const PROVINCE_FREQUENCY = 20;
+
+/**
+ * A land on another body of the system (Phase 5 M52): sealed halls a colony may be set
+ * in. Offworld lands follow the planet's provinces in every per-land array (their data
+ * the halls' inside: warm, watered, farmed under roofs, no wild), are neighbours only of
+ * the other sites on their own body, and lie far from the planet's sphere.
+ */
+export type OffworldSite = {
+  /** The body's index in the star's system. */
+  readonly body: number;
+  /** Its place among its body's sites. */
+  readonly site: number;
+  /** The halls' floor, km². */
+  readonly area: number;
+};
+
+/** Sites a colony may be set in on each body with ground, and the halls each holds (km²). */
+export const SITES_PER_BODY = 3;
+export const HALL_AREA = 2000;
 
 export type ProvinceWorld = HomeWorld & {
   /** The world as generated, on its fine grid. */
@@ -25,7 +45,15 @@ export type ProvinceWorld = HomeWorld & {
   /** Each province's fine cells, in CSR form. */
   readonly childOffsets: Int32Array;
   readonly children: Int32Array;
+  /** Lands on the system's other bodies, after the planet's own (cells base, base + 1, …). */
+  readonly offworld: { readonly base: number; readonly sites: readonly OffworldSite[] };
 };
+
+/** The offworld site a land is, or null for a land of the planet. */
+export function offworldSite(w: HomeWorld, cell: number): OffworldSite | null {
+  if (!isProvinceWorld(w) || cell < w.offworld.base) return null;
+  return w.offworld.sites[cell - w.offworld.base] ?? null;
+}
 
 export function isProvinceWorld(w: HomeWorld): w is ProvinceWorld {
   return "fine" in w;
@@ -33,8 +61,16 @@ export function isProvinceWorld(w: HomeWorld): w is ProvinceWorld {
 
 /** The world as its people live on it: the fine world gathered into provinces. */
 export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): ProvinceWorld {
-  const grid = sphereGrid(frequency),
-    n = grid.count,
+  const sphere = sphereGrid(frequency),
+    n = sphere.count,
+    // The system's bodies with ground to build on, three sites each.
+    sites: OffworldSite[] = [];
+  for (const b of fine.system.bodies)
+    if (b.kind === "rocky" || b.kind === "moon")
+      for (let s = 0; s < SITES_PER_BODY; s++)
+        sites.push({ body: b.index, site: s, area: HALL_AREA });
+  const N = n + sites.length,
+    grid = withSites(sphere, sites, fine.planet.radius),
     f = fine.grid,
     P = grid.positions,
     FP = f.positions;
@@ -61,9 +97,9 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
     }
     provinceOf[c] = near;
   }
-  const childOffsets = new Int32Array(n + 1);
+  const childOffsets = new Int32Array(N + 1);
   for (let c = 0; c < f.count; c++) childOffsets[provinceOf[c]! + 1]!++;
-  for (let p = 0; p < n; p++) childOffsets[p + 1] = childOffsets[p + 1]! + childOffsets[p]!;
+  for (let p = 0; p < N; p++) childOffsets[p + 1] = childOffsets[p + 1]! + childOffsets[p]!;
   const children = new Int32Array(f.count),
     fill = childOffsets.slice(0, n);
   for (let c = 0; c < f.count; c++) children[fill[provinceOf[c]!]!++] = c;
@@ -71,30 +107,30 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
   const t = fine.tectonics,
     cl = fine.climate,
     wa = fine.water,
-    elevation = new Float32Array(n),
-    temperature = new Float32Array(n),
-    seasonality = new Float32Array(n),
-    precipitation = new Float32Array(n),
-    biome = new Uint8Array(n),
-    plate = new Uint8Array(n),
-    crust = new Uint8Array(n),
-    boundary = new Uint8Array(n),
-    across = new Int16Array(n).fill(-1),
-    toBoundary = new Uint8Array(n).fill(255),
-    river = new Uint8Array(n),
-    lake = new Uint8Array(n),
-    discharge = new Float32Array(n),
-    filled = new Float32Array(n),
-    flowTo = new Int32Array(n).fill(-1),
-    coal = new Float32Array(n),
-    oil = new Float32Array(n),
-    coalAge = new Uint8Array(n).fill(255),
-    oilAge = new Uint8Array(n).fill(255),
-    present = new Uint32Array(2 * n),
-    herdBeast = new Int16Array(n).fill(-1),
-    seedGrass = new Int16Array(n).fill(-1),
-    diversity = new Uint8Array(n),
-    centre = new Int32Array(n);
+    elevation = new Float32Array(N),
+    temperature = new Float32Array(N),
+    seasonality = new Float32Array(N),
+    precipitation = new Float32Array(N),
+    biome = new Uint8Array(N),
+    plate = new Uint8Array(N),
+    crust = new Uint8Array(N),
+    boundary = new Uint8Array(N),
+    across = new Int16Array(N).fill(-1),
+    toBoundary = new Uint8Array(N).fill(255),
+    river = new Uint8Array(N),
+    lake = new Uint8Array(N),
+    discharge = new Float32Array(N),
+    filled = new Float32Array(N),
+    flowTo = new Int32Array(N).fill(-1),
+    coal = new Float32Array(N),
+    oil = new Float32Array(N),
+    coalAge = new Uint8Array(N).fill(255),
+    oilAge = new Uint8Array(N).fill(255),
+    present = new Uint32Array(2 * N),
+    herdBeast = new Int16Array(N).fill(-1),
+    seedGrass = new Int16Array(N).fill(-1),
+    diversity = new Uint8Array(N),
+    centre = new Int32Array(N).fill(-1);
   const life = fine.life,
     deep = fine.deep;
   for (let p = 0; p < n; p++) {
@@ -211,8 +247,16 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
     centre[p] = best;
   }
 
+  // The offworld halls inside: warm, watered, farmed, no wild; ground, not sea.
+  for (let p = n; p < N; p++) {
+    elevation[p] = 200;
+    temperature[p] = 18;
+    precipitation[p] = 800;
+    biome[p] = BIOME.halls;
+    crust[p] = 1;
+  }
   // Steps inland, reckoned between provinces.
-  const inland = new Uint8Array(n).fill(255),
+  const inland = new Uint8Array(N).fill(255),
     queue: number[] = [];
   for (let p = 0; p < n; p++)
     if (elevation[p]! <= 0) {
@@ -264,7 +308,46 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
     centre,
     childOffsets,
     children,
+    offworld: { base: n, sites },
   };
+}
+
+/**
+ * The province grid with the offworld sites after the planet's cells: each site a
+ * neighbour of the others on its body, far off the sphere, its halls' floor its area.
+ * The planet's own cells and count are as they were.
+ */
+function withSites(g: SphereGrid, sites: readonly OffworldSite[], radius: number): SphereGrid {
+  const n = g.count,
+    N = n + sites.length,
+    positions = new Float64Array(3 * N),
+    areas = new Float64Array(N),
+    lat = new Float64Array(N),
+    lon = new Float64Array(N),
+    offsets = new Int32Array(N + 1),
+    links: number[] = [];
+  positions.set(g.positions);
+  areas.set(g.areas);
+  lat.set(g.lat);
+  lon.set(g.lon);
+  offsets.set(g.offsets);
+  const rKm = 6371 * radius;
+  for (let i = 0; i < sites.length; i++) {
+    const c = n + i,
+      s = sites[i]!;
+    // Far from the planet (a hundred radii out, by body), so nothing there is near home.
+    positions[3 * c] = 100 + s.body;
+    positions[3 * c + 1] = 100;
+    positions[3 * c + 2] = 100 + s.site;
+    areas[c] = s.area / (rKm * rKm);
+    for (let j = 0; j < sites.length; j++)
+      if (j !== i && sites[j]!.body === s.body) links.push(n + j);
+    offsets[c + 1] = g.neighbours.length + links.length;
+  }
+  const neighbours = new Int32Array(g.neighbours.length + links.length);
+  neighbours.set(g.neighbours);
+  neighbours.set(links, g.neighbours.length);
+  return { ...g, positions, areas, lat, lon, offsets, neighbours };
 }
 
 /** The key with the greatest weight (ties to the lowest key). */

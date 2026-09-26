@@ -3,7 +3,7 @@
 // with a province's food store and what it knows. A province is a planet cell;
 // it becomes simulated (A0 → A1) the first time people arrive.
 import { CountTable, type Hasher, type Ref } from "../../kernel/index.ts";
-import { BIOME, cellRef, isProvinceWorld, type HomeWorld } from "../../gen/index.ts";
+import { BIOME, cellRef, isProvinceWorld, offworldSite, type HomeWorld } from "../../gen/index.ts";
 import { BANDS, OCCUPATIONS, SEXES, type Medium } from "../../rules/index.ts";
 
 export const ROWS = SEXES * BANDS;
@@ -41,10 +41,16 @@ const SEA_ARABLE: readonly number[] = [0, 0, 0.25];
 
 /** People a square kilometre of early farmland feeds. */
 export const FARM_YIELD = 40;
+/** How much of a hall's floor is field under its roof, against open farmland's best. */
+export const HALL_FARM = 0.35;
 /** People a square kilometre of pasture feeds through its herds. */
 export const HERD_YIELD = 6;
 
 export function capacity(w: HomeWorld, cell: number, medium: Medium = "land"): Capacity {
+  // Halls on another world are farmed under their roofs alone: no wild, no pasture.
+  const site = offworldSite(w, cell);
+  if (site)
+    return { forage: 0, farm: site.area * HALL_FARM * FARM_YIELD, pasture: 0, areaKm2: site.area };
   // A province feeds what its fine cells feed.
   if (isProvinceWorld(w)) {
     let forage = 0,
