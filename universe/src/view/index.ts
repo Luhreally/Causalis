@@ -42,3 +42,11 @@ export {
   type HouseLook,
   type Moment,
 } from "./village.ts";
+
+export {
+  figureOf,
+  type Figure,
+  type FigureBody,
+  type FigurePart,
+  type PartShape,
+} from "./figure.ts";

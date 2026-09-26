@@ -246,6 +246,10 @@ export type HouseLook = {
   /** The roof's rise over half the house's width (0 for flat). */
   readonly rise: number;
   readonly tent: boolean;
+  /** How tall its walls are against a common house's; how far off the ground it stands; no roof at all. */
+  readonly height: number;
+  readonly raised: number;
+  readonly open: boolean;
 };
 
 const WALL: Readonly<Record<string, Rgb>> = {
@@ -255,6 +259,9 @@ const WALL: Readonly<Record<string, Rgb>> = {
   mudbrick: [0.76, 0.6, 0.42],
   brick: [0.66, 0.34, 0.26],
   stone: [0.62, 0.62, 0.6],
+  "reef-walls": [0.86, 0.56, 0.52],
+  "shell-walls": [0.9, 0.87, 0.78],
+  burrow: [0.52, 0.41, 0.3],
 };
 const ROOF: Readonly<Record<string, Rgb>> = {
   thatch: [0.62, 0.52, 0.3],
@@ -262,20 +269,37 @@ const ROOF: Readonly<Record<string, Rgb>> = {
   flat: [0.7, 0.56, 0.4],
   tile: [0.6, 0.26, 0.18],
   vault: [0.66, 0.64, 0.6],
+  "kelp-canopy": [0.28, 0.44, 0.26],
+  mound: [0.46, 0.37, 0.27],
+  open: [0.86, 0.56, 0.52],
 };
 
 export function houseLook(house: VillagePlan["house"]): HouseLook {
   const tent = house.walls === "tent",
-    round = tent || house.form === "round",
-    long = house.form === "long",
-    court = house.form === "court";
+    form = house.form,
+    // Round: huts, tents, towers, hives, nests and warrens; long: long houses and great halls.
+    round = tent || ["round", "shell-tower", "hive", "nest", "warren"].includes(form),
+    long = form === "long" || form === "great-hall",
+    court = form === "court",
+    domed = form === "hive" || house.roof === "mound";
   return {
     wall: WALL[house.walls] ?? WALL.wattle!,
     roof: tent ? WALL.tent! : (ROOF[house.roof] ?? ROOF.thatch!),
     round,
     tent,
-    length: long ? 1.15 : court ? 0.9 : 0.7,
-    width: long ? 0.5 : court ? 0.9 : 0.55,
-    rise: Math.tan((house.pitch * Math.PI) / 180),
+    length: form === "great-hall" ? 1.7 : long ? 1.15 : court ? 0.9 : form === "warren" ? 1.1 : 0.7,
+    width: form === "great-hall" ? 1 : long ? 0.5 : court ? 0.9 : form === "warren" ? 1.1 : 0.55,
+    // A dome rises high over its walls; a flat roof not at all.
+    rise: domed ? 1.4 : Math.tan((house.pitch * Math.PI) / 180),
+    height:
+      form === "shell-tower"
+        ? 3
+        : form === "great-hall"
+          ? 1.8
+          : form === "warren" || house.walls === "burrow"
+            ? 0.4
+            : 1,
+    raised: form === "nest" || form === "tree-house" ? 0.5 : 0,
+    open: house.roof === "open",
   };
 }

@@ -213,6 +213,20 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       water:
         waterWay === null ? null : { x: 700 * Math.cos(waterWay), z: 700 * Math.sin(waterWay) },
       house: houseOf(village.cell),
+      body: (() => {
+        const b = ctx.generated.life.people?.body;
+        return b
+          ? {
+              clade: b.clade,
+              medium: b.medium,
+              symmetry: b.symmetry,
+              manipulators: b.manipulators,
+              limbs: b.limbs,
+              skin: b.skin,
+              size: b.size,
+            }
+          : null;
+      })(),
       // A city's road runs along its axis; a village's out toward the far fields.
       road: city
         ? { x: 1100 * Math.cos(city.axis), z: 1100 * Math.sin(city.axis) }

@@ -2284,6 +2284,21 @@ crawlers' realms fight with claws and their own scales, burrowers with mandibles
 their own shells, giants with tusks and trunks, the sea people with grasping arms,
 swimming; the apes' hosts are unchanged.
 
+42, as built: the village plan carries the people's body, and `figureOf` (a pure view
+function) makes it a figure of a few upright parts that the microscope instances part by
+part, per colour group: upright apes one standing body as ever; a mantle over a ring of
+eight arms for the many-armed swimmers; a low shell on six legs with mandibles for
+burrowers; a flat shell on legs with a claw either side for shore-walkers; a long low
+body on four legs with a tail for crawlers; an egg of a body on two long legs for
+striders; a great body on four legs with a hanging trunk for giants (drawn bigger by the
+cube root of their weight); a standing body with arms for climbers. The house look
+follows the new designs: shell towers three times as tall, warrens and burrows low and
+wide, hives and mounds domed, nests and tree platforms raised, great halls long, reef
+houses open to the water above. A sea people's village lies on the blue of the sea
+floor, its warrens under kelp. (Entering a village now hides the globe whichever way
+the view came.) Vehicles are not yet drawn: their design kind comes with the ships and
+spacecraft of Phase 5.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

@@ -51,4 +51,14 @@ export type VillagePlan = {
     occupation: number;
     child: boolean;
   }[];
+  /** Their body, as the figure needs it (null: upright apes, as ever). */
+  readonly body: {
+    readonly clade: string;
+    readonly medium: "land" | "shore" | "water";
+    readonly symmetry: "bilateral" | "radial";
+    readonly manipulators: string;
+    readonly limbs: number;
+    readonly skin: string;
+    readonly size: number;
+  } | null;
 };

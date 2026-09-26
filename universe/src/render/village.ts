@@ -5,7 +5,16 @@
 // so a phone can see them. Instanced throughout: a village is a handful of draw calls.
 import * as pc from "playcanvas";
 import type { VillagePlan } from "../bridge/index.ts";
-import { biomeColor, houseLook, momentOf, personGroup, type Moment } from "../view/index.ts";
+import {
+  biomeColor,
+  figureOf,
+  houseLook,
+  momentOf,
+  personGroup,
+  type Figure,
+  type Moment,
+  type PartShape,
+} from "../view/index.ts";
 import { InstancedBatch, capsuleMesh, coneMesh, cylinderMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
@@ -44,7 +53,8 @@ export class VillageScene {
   private readonly root = new pc.Entity("village");
   private plan: VillagePlan | null = null;
   private fields: InstancedBatch | null = null;
-  private people: InstancedBatch[] = [];
+  private people: InstancedBatch[][] = [];
+  private figure: Figure = figureOf(null);
   private moments: Moment[] = [];
   private readonly marker: pc.Entity;
   private marked: number | null = null;
@@ -176,7 +186,8 @@ export class VillageScene {
         look.wall[1] + (1 - look.wall[1]) * 0.4,
         look.wall[2] + (1 - look.wall[2]) * 0.4,
       ],
-      wallHigh = look.tent ? 0.06 : look.length > 0.85 && look.width > 0.85 ? 0.36 : 0.44,
+      wallHigh =
+        (look.tent ? 0.06 : look.length > 0.85 && look.width > 0.85 ? 0.36 : 0.44) * look.height,
       flat = look.rise < 0.1,
       roofHigh = look.tent ? 0.75 : flat ? 0.08 : Math.min(0.6, look.rise * look.width * 0.5),
       roofMesh = flat ? box : coneMesh(s, Math.SQRT1_2, 1, sides),
@@ -187,7 +198,8 @@ export class VillageScene {
       batch.set(list.length, (i, out) => {
         const h = list[i]!;
         out[0] = h.x * M;
-        out[1] = wallHigh / 2;
+        // Nests and platforms stand off the ground.
+        out[1] = look.raised + wallHigh / 2;
         out[2] = h.z * M;
         out[3] = look.length;
         out[4] = wallHigh;
@@ -202,10 +214,11 @@ export class VillageScene {
       plan.homes.filter((h) => h.household),
       watched,
     );
-    roofs.set(plan.homes.length, (i, out) => {
+    // A house open to the water above has no roof.
+    roofs.set(look.open ? 0 : plan.homes.length, (i, out) => {
       const h = plan.homes[i]!;
       out[0] = h.x * M;
-      out[1] = wallHigh + roofHigh / 2;
+      out[1] = look.raised + wallHigh + roofHigh / 2;
       out[2] = h.z * M;
       // The eaves overhang the walls a little (a flat roof sits on them).
       out[3] = look.length * (flat ? 1.02 : 1.15);
@@ -230,10 +243,26 @@ export class VillageScene {
       out[5] = plan.market ? 1.1 : 0.25;
       out[6] = Math.PI / 4;
     });
-    // People: drawn three times their size, so a phone can see them.
-    const body = capsuleMesh(s, 0.11, 0.55);
-    this.people = GROUP_COLORS.map(
-      (c) => new InstancedBatch(s, body, c, Math.max(1, plan.people.length), this.root),
+    // People: drawn three times their size, so a phone can see them — as their body is
+    // built (one figure for a people, part by part, each part a batch per colour group).
+    this.figure = figureOf(plan.body);
+    const meshes: Record<PartShape, pc.Mesh> = {
+      capsule: capsuleMesh(s, 0.11, 0.55),
+      box: cylinderMesh(s, Math.SQRT1_2, 1, 4),
+      cylinder: cylinderMesh(s, 0.5, 1, 8),
+      cone: coneMesh(s, 0.5, 1, 8),
+    };
+    this.people = GROUP_COLORS.map((c) =>
+      this.figure.parts.map(
+        (part) =>
+          new InstancedBatch(
+            s,
+            meshes[part.shape],
+            part.tone ? [c[0] * 0.7, c[1] * 0.7, c[2] * 0.7] : c,
+            Math.max(1, plan.people.length),
+            this.root,
+          ),
+      ),
     );
     this.moments = [];
   }
@@ -244,19 +273,28 @@ export class VillageScene {
     if (!plan) return;
     this.fields?.recolor(fieldColor(t));
     this.moments = plan.people.map((_, i) => momentOf(plan, i, t));
-    this.people.forEach((batch, gi) => {
+    const parts = this.figure.parts;
+    this.people.forEach((batches, gi) => {
       const members = plan.people
         .map((p, i) => ({ p, i }))
         .filter(({ p, i }) => personGroup(p) === gi && !this.moments[i]!.hidden);
-      batch.set(members.length, (k, out) => {
-        const { p, i } = members[k]!,
-          m = this.moments[i]!,
-          size = p.child ? 0.7 : 1;
-        out[0] = m.x * M;
-        out[1] = 0.28 * size;
-        out[2] = m.z * M;
-        out[3] = out[4] = out[5] = size;
-        out[6] = m.yaw;
+      batches.forEach((batch, pi) => {
+        const part = parts[pi]!;
+        batch.set(members.length, (k, out) => {
+          const { p, i } = members[k]!,
+            m = this.moments[i]!,
+            size = (p.child ? 0.7 : 1) * this.figure.scale,
+            c = Math.cos(m.yaw),
+            sn = Math.sin(m.yaw);
+          // The part's place about the figure's middle, turned to the way it faces.
+          out[0] = m.x * M + (part.x * c + part.z * sn) * size;
+          out[1] = part.y * size;
+          out[2] = m.z * M + (-part.x * sn + part.z * c) * size;
+          out[3] = part.sx * size;
+          out[4] = part.sy * size;
+          out[5] = part.sz * size;
+          out[6] = m.yaw + (part.shape === "box" ? Math.PI / 4 : 0);
+        });
       });
     });
     if (this.marked !== null) {

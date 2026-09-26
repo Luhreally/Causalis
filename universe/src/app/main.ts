@@ -412,6 +412,8 @@ async function runPlanetPage(): Promise<void> {
   const toVillage = async (ref: string) => {
     scale = "village";
     labels.clear();
+    // Whichever way it came (a region, or straight from the globe), only the village shows.
+    globe.visible = false;
     region.visible = false;
     regionPanel.visible = false;
     watched = null;
