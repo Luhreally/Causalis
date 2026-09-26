@@ -14,7 +14,7 @@ import {
 import { ALIEN } from "../../src/host/planet.ts";
 import { adults, lifeOf, populationContext } from "../../src/sim/index.ts";
 
-test("a people's life table is the upright apes' stretched to its span, renewing itself at their pace for its span", () => {
+test("a people's life table is the upright apes' stretched to its span, growing at plenty no faster than they do", () => {
   const cond = { warmth: 18, rain: 800, gravity: 1, ocean: 0.7 },
     apes = growthOf(HUMANLIKE);
   assert.equal(lifeHistoryOf(CLADES.find((c) => c.id === "ape")!.body), HUMANLIKE);
@@ -24,8 +24,9 @@ test("a people's life table is the upright apes' stretched to its span, renewing
       k = body.span / 70,
       g = growthOf(life);
     // However many young at a birth, the first years take their share, so a people grows
-    // about as the apes do for a life as long (faster for a shorter one).
-    assert.ok(Math.abs(g - apes / k) < 0.1 * (apes / k), `${clade.id}: ${g} against ${apes / k}`);
+    // at the chronicle's pace, the apes' (a long life with few young, a little slower).
+    assert.ok(g <= 1.02 * apes, `${clade.id}: ${g} against ${apes}`);
+    if (k <= 1) assert.ok(Math.abs(g - apes) < 0.05 * apes, `${clade.id}: ${g} against ${apes}`);
     assert.equal(life.adulthood, Math.max(1, Math.round(15 * k)));
     // A body eats by its size (to the three-quarters), half as much with cold blood.
     assert.ok(

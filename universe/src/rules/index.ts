@@ -61,6 +61,7 @@ export {
   SEXES,
   bandOf,
   deathWithin,
+  riskUnder,
   diedInBirthYear,
   growthOf,
   bandWidth,

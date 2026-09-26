@@ -2313,6 +2313,42 @@ In the microscope each people walks at its own pace (apes 1.25 m/s; striders 2, 
 1.4, giants 1, crawlers 0.9, shelled bodies 0.75), so its day's walks take as long, and
 the old keep near home from sixty-two in an ape's seventy years, as late in any span.
 
+44, as built (in part): `tools/diversity.ts` (`npm run diversity`; `[seeds] [years]
+[--out file] [--lanes n]`) runs open-prior worlds, each in its own process, and says of
+each what came of it — the people's body and medium, how many they grew to, the order
+they found things in, their houses, their hosts' arms, the first power they came to (and
+whether without fuel), and an outcome in a word (lifeless, died out, foragers, farmers,
+realms, industry) — then the spread across them all. Its first passes found three
+defects, mended here:
+
+- Seventeen of the first hundred open worlds raise no people at all, and building one
+  threw (the app too, opened on such a seed). Such a world is now a world to watch: its
+  seas, weather and wild with no one in it; its time turns and its globe is drawn (the
+  app check opens one in every engine).
+- Short-lived peoples outbred the chronicle into billions (a shore people 1.8 billion by
+  year 300, against Earth's 10 million). Two causes: each people was set to grow at the
+  apes' pace times seventy over its span, and hunger, cold, plague and medicine
+  multiplied the yearly chance of death — herb-lore at seven-tenths turned a spawning
+  people's 99.2 per cent loss of its young into 69, thirty-nine times the survivors. Now
+  every people at plenty grows at the apes' pace, and conditions scale the hazard
+  (`riskUnder`: the chance of living the year raised to the power, the same as before
+  for a small chance). Short-lived worlds grow about twice over a century, as Earth
+  does; Earth's own history moved slightly (the oracle re-recorded) and stays within
+  every band, the Phase 3 gate passing.
+- Peoples of worlds where no grass bears seed never farmed. Where none grows, gardens
+  of the land's own roots and fruit are found (at a quarter of the grain's chance, as
+  taro, yam and manioc were tended), and the god's inspiration grants them. Those who
+  still never farm live on worlds of tundra alone, where nothing can be sown.
+
+Over three centuries, a hundred worlds: 17 lifeless, 19 foragers (all on frozen worlds),
+64 with realms; eight clades and three media among the peoples; 79 distinct orders of
+their first eight finds; eight house forms (warrens, tree houses, hives, long houses,
+great halls, courts, nests, round huts) and seven arms (spears, claws, tusks, grasping
+arms, mandibles, axes, swords); the most people any world holds 193 million, the median
+1.8 million. The nine-century report, where industry would show, is still to run: twelve
+lanes at 1.5 GB each ran the machine out of memory, and the tool now allows 3.5 GB a
+world (or `--lanes n`).
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

@@ -86,7 +86,7 @@ test("the first people begin where the upright apes arose, and say why", () => {
   assert.ok(kinds.includes("spec"), kinds.join(" ← "));
 });
 
-test("sowing is first found only where a wild grain grows, herding only where a beast can be tamed", () => {
+test("sowing is first found where a wild grain grows, or in gardens where none does; herding only where a beast can be tamed", () => {
   for (const name of ["moss", "first light"]) {
     const world = makePopulationWorld(seedFromText(name), { start: "spread" });
     world.runTo(120 * YEAR);
@@ -94,12 +94,12 @@ test("sowing is first found only where a wild grain grows, herding only where a 
     const cell = (place: string | null) => Number(place!.split(":")[2]);
     for (const e of world.events.all()) {
       if (e.type === POPULATION_EVENTS.cultivation.type) {
-        assert.ok(life.seedGrass[cell(e.place)]! >= 0, "a wild grain grows there");
         const d = world.decisions.get(e.causes[0]!.ref as Ref)!;
-        assert.ok(
-          d.factors.some((f) => f.source?.ref.startsWith("spec:")),
-          "and the decision says which",
-        );
+        if (life.seedGrass[cell(e.place)]! >= 0)
+          // A wild grain grows there, and the decision says which.
+          assert.ok(d.factors.some((f) => f.source?.ref.startsWith("spec:")));
+        // Where none does, the land's own roots and fruit were tended.
+        else assert.ok(d.factors.some((f) => f.name === "roots and fruit to tend"));
       }
       if (e.type === POPULATION_EVENTS.herding.type) {
         assert.ok(life.herdBeast[cell(e.place)]! >= 0, "a beast that can be tamed lives there");

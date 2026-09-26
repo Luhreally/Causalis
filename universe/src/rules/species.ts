@@ -83,6 +83,17 @@ export function deathWithin(p: number, months: number): number {
   return 1 - dmath.pow(1 - Math.min(0.999, p), months / 12);
 }
 
+/**
+ * A yearly chance of death under conditions that make death m times as pressing (hunger,
+ * cold, plague; herb-lore and medicine below one): m scales the hazard, so the chance of
+ * living the year is raised to the m-th power. For a small chance this is m times it;
+ * a chance near certainty — a spawning people's young — is neither pushed past it nor,
+ * by a little medicine, turned into near-certain survival.
+ */
+export function riskUnder(p: number, m: number): number {
+  return 1 - dmath.pow(1 - Math.min(0.999, p), m);
+}
+
 /** The band an age falls in, by a life history's bands. */
 export function bandOf(age: number, life: LifeHistory = HUMANLIKE): number {
   let b = 0;
@@ -94,7 +105,9 @@ export function bandOf(age: number, life: LifeHistory = HUMANLIKE): number {
  * A people's life table from its body: the upright apes' table stretched to the body's
  * span (bands, coming of age and yearly rates alike); fertility by its fecundity, with
  * the young's first years the more perilous as more are born, so that a people at
- * plenty still about renews itself at the apes' pace for its span; appetite by its
+ * plenty grows at the chronicle's pace, the apes', whatever its span (a short life
+ * bears more and loses more of its young; it does not outbreed the chronicle — a
+ * pace doubled for a half-long life compounds over centuries into billions); appetite by its
  * size (three-quarters of a power, as life's metabolism scales) and halved for cold
  * blood. The canonical upright ape's is Earth's table itself.
  */
@@ -107,7 +120,7 @@ export function lifeHistoryOf(body: BodyPlan): LifeHistory {
   for (const b of HUMANLIKE.bands)
     bands.push(Math.max(bands.length ? bands.at(-1)! + 1 : 0, Math.round(b * k)));
   // The first years as perilous as they must be for the people to grow at the apes'
-  // pace for a life as long: solved on the simulation's own reckoning (`growthOf`).
+  // pace: solved on the simulation's own reckoning (`growthOf`).
   const shaped = (infant: number): LifeHistory => ({
       name: body.clade,
       bands,
@@ -119,7 +132,7 @@ export function lifeHistoryOf(body: BodyPlan): LifeHistory {
       // Born many at a time, the young are born small: they eat the less.
       young: Math.min(1, 1 / Math.max(1, f)),
     }),
-    target = apesGrowth() / k;
+    target = apesGrowth();
   let lo = Math.min(0.95, HUMANLIKE.mortality[0]! / k),
     hi = 0.995;
   if (growthOf(shaped(lo)) <= target) return shaped(lo);

@@ -49,6 +49,7 @@ import {
   bandWidth,
   deathWithin,
   diedInBirthYear,
+  riskUnder,
   FEMALE,
   FOODS,
   G,
@@ -447,7 +448,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
           ? Math.min(
               births,
               roundKeyed(
-                births * diedInBirthYear(life.mortality[0]! * mortality),
+                births * diedInBirthYear(riskUnder(life.mortality[0]!, mortality)),
                 world.rng.real(DEATHS, key, t, 1, 0),
               ),
             )
@@ -471,7 +472,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
           const dead = Math.min(
             n,
             roundKeyed(
-              n * deathWithin(life.mortality[b]! * mortality, months),
+              n * deathWithin(riskUnder(life.mortality[b]!, mortality), months),
               world.rng.real(DEATHS, key, t, 0, row(s, b) * COLS + o),
             ),
           );
@@ -487,7 +488,8 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
           blessed = a.blessedUntil !== undefined && year < a.blessedUntil;
         if (
           !blessed &&
-          world.rng.real(HAND_VITAL, a.id, t, 0) < deathWithin(life.mortality[band]! * mortality, 1)
+          world.rng.real(HAND_VITAL, a.id, t, 0) <
+            deathWithin(riskUnder(life.mortality[band]!, mortality), 1)
         ) {
           d.add(row(a.sex, band), a.occupation, -1);
           history.addDeaths(p.cell, year, band, 1);
@@ -900,6 +902,9 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
   }
 }
 
+/** How much less readily gardens of roots and fruit are found than a wild grain is sown. */
+export const GARDENS = 0.25;
+
 /**
  * Cultivation, yearly: found under pressure on good land where a grass with seed
  * heavy enough to sow grows wild, or learned from neighbours. Herding likewise: found
@@ -925,15 +930,22 @@ export function knowledgeYear(ctx: PopulationContext, t: SimTime): void {
       continue;
     }
     if (year - p.settledYear < 15) continue;
-    // Only where a grass with seed heavy enough to sow grows wild can sowing be found —
-    // or, for a people of the water, where the shelf holds beds of weed and shell to tend.
+    // Sowing is found where a grass with seed heavy enough to sow grows wild; for a people
+    // of the water, where the shelf holds beds of weed and shell to tend; and where
+    // neither, in gardens of the land's own roots and fruit (as taro, yam and manioc were
+    // first tended), less readily.
     const grass = g.life.seedGrass[p.cell]!,
-      beds = ctx.medium !== "land" && g.tectonics.elevation[p.cell]! <= 0;
-    if (grass < 0 && !beds) continue;
+      beds = ctx.medium !== "land" && g.tectonics.elevation[p.cell]! <= 0,
+      garden = grass < 0 && !beds;
     const c = provinceCapacity(ctx, p.cell),
       soil = dmath.clamp(c.farm / Math.max(1, c.areaKm2 * 12), 0, 1),
       crowd = mouths(p, ctx.life) / Math.max(1, c.forage),
-      chance = 0.004 * soil * (1 + 6 * Math.max(0, crowd - 0.6)) * (p.lastFamine ? 1.5 : 1);
+      chance =
+        0.004 *
+        soil *
+        (1 + 6 * Math.max(0, crowd - 0.6)) *
+        (p.lastFamine ? 1.5 : 1) *
+        (garden ? GARDENS : 1);
     if (world.rng.chance(chance, KNOW, key, t, 0))
       learned.push({ p, from: null, chance, crowd, soil });
   }
@@ -972,23 +984,30 @@ export function knowledgeYear(ctx: PopulationContext, t: SimTime): void {
             contribution: 0.1,
             source: p.arrival ? { ref: p.arrival, role: "enabler", weight: 1 } : null,
           },
-          g.life.seedGrass[p.cell]! >= 0
+          g.life.seedGrass[p.cell]! < 0 && g.tectonics.elevation[p.cell]! > 0
             ? {
-                name: "a wild grain to sow",
-                value: g.life.species[g.life.seedGrass[p.cell]!]!.seed,
-                contribution: 0.5,
-                source: {
-                  ref: g.life.species[g.life.seedGrass[p.cell]!]!.ref as Ref,
-                  role: "enabler",
-                  weight: 1,
-                },
-              }
-            : {
-                name: "beds of weed and shell to tend",
-                value: 1,
-                contribution: 0.5,
+                name: "roots and fruit to tend",
+                value: soil,
+                contribution: 0.5 * GARDENS,
                 source: { ref: cellRef(0, p.cell), role: "enabler", weight: 1 },
-              },
+              }
+            : g.life.seedGrass[p.cell]! >= 0
+              ? {
+                  name: "a wild grain to sow",
+                  value: g.life.species[g.life.seedGrass[p.cell]!]!.seed,
+                  contribution: 0.5,
+                  source: {
+                    ref: g.life.species[g.life.seedGrass[p.cell]!]!.ref as Ref,
+                    role: "enabler",
+                    weight: 1,
+                  },
+                }
+              : {
+                  name: "beds of weed and shell to tend",
+                  value: 1,
+                  contribution: 0.5,
+                  source: { ref: cellRef(0, p.cell), role: "enabler", weight: 1 },
+                },
         ],
       });
       p.cultivation = world.events.emit({

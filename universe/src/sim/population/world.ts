@@ -24,7 +24,12 @@ import { installEcology } from "../ecology/ecology.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
 import { Province, capacity, livable, row } from "./model.ts";
 import { HistoryStore, PopulationStore, SettlementStore } from "./stores.ts";
-import { POPULATION_EVENTS, installPopulation, populationContext } from "./systems.ts";
+import {
+  POPULATION_EVENTS,
+  installPopulation,
+  populationContext,
+  provinceCapacity,
+} from "./systems.ts";
 
 /** A population pyramid for a young people: shares of each age band. */
 const PYRAMID = [0.16, 0.13, 0.12, 0.1, 0.17, 0.13, 0.09, 0.05, 0.03, 0.02];
@@ -156,8 +161,9 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     homePlanet(world).generated.grid.count,
     (cell) => (provinces.get(cell)?.total() ?? 0) > 0,
     (cell, event) => {
-      // The next way of life the land allows: sowing where a wild grain grows near,
-      // herding where a beast that can be tamed lives near, then smelting.
+      // The next way of life the land allows: sowing where a wild grain grows near (or a
+      // garden where the soil holds one), herding where a beast that can be tamed lives
+      // near, then smelting.
       const p = provinces.get(cell)!,
         life = homePlanet(world).generated.life,
         grid = homePlanet(world).generated.grid,
@@ -167,7 +173,10 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
             if (of[grid.neighbours[k]!]! >= 0) return true;
           return false;
         };
-      if (!p.knowsCultivation && near(life.seedGrass)) {
+      if (
+        !p.knowsCultivation &&
+        (near(life.seedGrass) || provinceCapacity(populationContext(world), cell).farm > 0)
+      ) {
         p.knowsCultivation = true;
         p.cultivation = event;
         return "cultivation";
@@ -198,8 +207,15 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installLanguages(world, () => populationContext(world));
   installAir(world, () => populationContext(world));
 
-  const g = homePlanet(world).generated,
-    home = chooseHome(g),
+  const g = homePlanet(world).generated;
+  if (!g.life.people) {
+    // No lineage rose to thought here: a world to watch — its seas, its weather, its wild
+    // — with no one in it.
+    const culture = world.register(new CultureStore());
+    world.addPinner(() => culture.pinned());
+    return world;
+  }
+  const home = chooseHome(g),
     medium = g.life.people?.body.medium ?? "land",
     cap = capacity(g, home, medium),
     apes = g.life.species[g.life.people!.species]!,

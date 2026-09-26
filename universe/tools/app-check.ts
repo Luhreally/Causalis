@@ -90,6 +90,15 @@ for (const engine of engines) {
       { query: "?year=120&inline", name: "earth", moves: false, pick: 20000 },
       { query: "?universe=sandbox", name: "sandbox", moves: true, pick: 3 },
       { query: "?universe=sandbox&inline", name: "sandbox", moves: true, pick: 3 },
+      // Open worlds: a sea people's, and one where no people rose at all.
+      { query: "?universe=alien&seed=alien%2055&year=40", name: "sea", moves: false, pick: 20000 },
+      {
+        query: "?universe=alien&seed=alien%200&year=40",
+        name: "lifeless",
+        // With no one to reckon, its years turn at once: time must still move.
+        moves: true,
+        pick: 20000,
+      },
     ];
     for (const { query, name, moves, pick } of cases) {
       const label = `${engine} ${name}${query.includes("inline") ? " inline" : ""}`,

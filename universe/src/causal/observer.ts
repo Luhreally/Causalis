@@ -22,7 +22,7 @@ import {
 } from "../kernel/index.ts";
 import type { Watch } from "./watch.ts";
 import { cellRef, cradleTongue, tongueName, tonguePersonName } from "../gen/index.ts";
-import { BANDS, FEMALE, MALE, bandOf, bandWidth } from "../rules/index.ts";
+import { BANDS, FEMALE, MALE, bandOf, bandWidth, riskUnder } from "../rules/index.ts";
 import {
   COLS,
   cultureOf,
@@ -477,7 +477,7 @@ function followLife(
       band = bandOfAge(Math.max(0, age), world),
       summary = ctx.history.yearsOf(person.cell).find((s) => s.year === y),
       stress = summary ? 1 + 2.5 * (1 - summary.fed / 1000) : 1,
-      q = lifeOf(world).mortality[band]! * stress;
+      q = riskUnder(lifeOf(world).mortality[band]!, stress);
     if (
       world.rng.real(LIFE, person.seq, y, 0) < q &&
       ledger.claim(deathKey(person.cell, y, band), ctx.history.deathsIn(person.cell, y, band))
