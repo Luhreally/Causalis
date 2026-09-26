@@ -29,6 +29,7 @@ export { governmentWords } from "./polity.ts";
 import "./belief.ts";
 export { principleName } from "./lore.ts";
 export { standingWords } from "./diplomacy.ts";
+import "./war.ts";
 export { priceWords } from "./economy.ts";
 export {
   edges,

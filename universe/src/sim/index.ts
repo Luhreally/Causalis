@@ -158,3 +158,14 @@ export {
   type Relation,
   type Term,
 } from "./diplomacy/diplomacy.ts";
+export {
+  WAR,
+  WAR_EVENTS,
+  WarStore,
+  installWar,
+  strengthOf,
+  warYear,
+  warsOf,
+  type Battle,
+  type War,
+} from "./war/war.ts";

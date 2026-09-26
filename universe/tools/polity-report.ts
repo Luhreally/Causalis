@@ -4,6 +4,7 @@
 import { YEAR, seedFromText } from "../src/kernel/index.ts";
 import {
   RIVALRY,
+  warsOf,
   beliefOf,
   diplomacyOf,
   governmentKey,
@@ -37,7 +38,7 @@ for (let y = every; y <= years; y += every) {
 }
 const counts = new Map<string, number>();
 for (const e of world.events.all())
-  if (e.type.startsWith("polity.")) counts.set(e.type, (counts.get(e.type) ?? 0) + 1);
+  if (/^(polity|war)\./.test(e.type)) counts.set(e.type, (counts.get(e.type) ?? 0) + 1);
 console.log(`\nevents: ${[...counts].map(([k, v]) => `${k} ${v}`).join(", ")}`);
 const faiths = beliefOf(world);
 console.log(
@@ -55,4 +56,8 @@ for (const r of [...relations].sort((x, y) => x.opinion - y.opinion).slice(0, 3)
   console.log(
     `  ${byName(r.a)} / ${byName(r.b)}: ${r.opinion.toFixed(2)} — ${r.terms.map((x) => `${x.name} ${x.value.toFixed(2)}`).join(", ")}`,
   );
+const wars = warsOf(world).all();
+console.log(
+  `wars: ${wars.length}; battles ${wars.reduce((s, w) => s + w.battles.length, 0)}; fallen ${wars.reduce((s, w) => s + w.fallen[0] + w.fallen[1], 0)}; lands taken ${wars.reduce((s, w) => s + w.battles.filter((b) => b.won).length, 0)}`,
+);
 console.log(`governments seen: ${[...new Set(realms.all().map(governmentKey))].join("; ")}`);

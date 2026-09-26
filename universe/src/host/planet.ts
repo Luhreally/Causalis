@@ -9,6 +9,7 @@ import {
   beliefOf,
   cultureOf,
   diplomacyOf,
+  warsOf,
   handOf,
   relationRef,
   loreOf,
@@ -311,6 +312,17 @@ function realmOf(world: World, cell: number) {
     since: p.ruler.since,
     grievance: grievance.level,
     cause: grievance.cause,
+    wars: warsOf(world)
+      .fighting(p.ref)
+      .map((w) => {
+        const other = realms.get(w.attacker === p.ref ? w.defender : w.attacker)!;
+        return {
+          ref: w.ref,
+          name: realmName(other),
+          since: w.declared,
+          attacking: w.attacker === p.ref,
+        };
+      }),
     neighbours: diplomacyOf(world)
       .of(p.ref)
       .map((r) => {
