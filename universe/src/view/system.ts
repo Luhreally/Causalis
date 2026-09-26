@@ -3,7 +3,7 @@
 // the home world's (so the small inner worlds and the far giants share one screen);
 // moons are set just beyond their planet, in the direction they truly lie; sizes by the
 // fifth root of the radius. Units are scene units on the plane y = 0.
-import { orbitXY, toOrbit } from "../rules/index.ts";
+import { orbitXY, routeTo, toOrbit } from "../rules/index.ts";
 import type { SystemPlan, SystemPlanBody } from "../bridge/index.ts";
 
 export type Rgb = readonly [number, number, number];
@@ -112,4 +112,13 @@ export function bodyFacts(b: SystemPlanBody, star: SystemPlan["star"]): string[]
           `to orbit from its ground: ${toOrbit(b).total.toFixed(1)} km/s (${toOrbit(b).orbit.toFixed(1)} of orbit, the rest lost to its pull${b.pressure > 0.01 ? " and air" : ""})`,
         ]),
   ];
+}
+
+/** The way to a body from the home world's orbit, in words (null for the home world and the giants). */
+export function routeWords(plan: SystemPlan, index: number, starMass: number): string | null {
+  const b = plan.bodies[index]!;
+  if (index === 0 || b.kind === "giant" || b.kind === "ice giant") return null;
+  const r = routeTo(plan.bodies, index, starMass),
+    days = r.days >= 730 ? `${(r.days / 365.25).toFixed(1)} years` : `${Math.round(r.days)} days`;
+  return `from the home world's orbit to its ground: ${r.speed.toFixed(1)} km/s (${r.depart.toFixed(1)} to leave, ${r.arrive.toFixed(1)} to arrive, ${r.land.toFixed(1)} to land), ${days} on the way${r.window ? `; the way opens every ${Math.round(r.window)} days` : ""}`;
 }

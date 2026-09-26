@@ -58,6 +58,7 @@ export {
   bodyFacts,
   bodySize,
   orbitRings,
+  routeWords,
   systemExtent,
   systemSpec,
   type SystemSpot,

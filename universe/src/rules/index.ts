@@ -103,12 +103,23 @@ export {
   type Realization,
   type Role,
 } from "./designs.ts";
-export { AU_KM, eccentricAnomaly, orbitXY, type Elements } from "./orbits.ts";
+export {
+  AU_KM,
+  eccentricAnomaly,
+  hohmann,
+  landing,
+  orbitXY,
+  routeTo,
+  type Bodylike,
+  type Elements,
+  type Route,
+} from "./orbits.ts";
 export {
   FRAMES,
   LEAST_FRACTION,
   PROPULSION,
   costPerTonne,
+  delivered,
   launcherFor,
   payloadFraction,
   toOrbit,
@@ -117,3 +128,4 @@ export {
   type Launcher,
   type Propulsion,
 } from "./launch.ts";
+export { MOST_UPKEEP, habitability, type Ground, type Habitability, type Need } from "./habitat.ts";

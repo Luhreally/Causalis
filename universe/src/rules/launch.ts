@@ -168,3 +168,20 @@ export function launcherFor(knows: (id: string) => boolean, speed: number): Laun
   }
   return best;
 }
+
+/**
+ * What it costs to set a tonne down on another body: lifted to orbit by the cheapest
+ * launcher, then carried by a ship staged for the route's speed (the rocket equation
+ * again, from orbit). Null: no drive the people know can make the crossing worth it.
+ */
+export function delivered(
+  knows: (id: string) => boolean,
+  toOrbitSpeed: number,
+  routeSpeed: number,
+): { lift: Launcher; ship: Launcher; cost: number } | null {
+  const lift = launcherFor(knows, toOrbitSpeed),
+    ship = launcherFor(knows, routeSpeed);
+  if (!lift || !ship) return null;
+  // Every tonne set down took 1/fraction tonnes lifted to orbit, and the ship's own cost.
+  return { lift, ship, cost: lift.cost / ship.fraction + ship.cost };
+}

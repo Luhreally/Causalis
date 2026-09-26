@@ -2425,6 +2425,31 @@ system view (a month a second, the star's page listing its worlds, a page for ea
 with its orbit, ground and why; distances drawn by their square root so the scorched
 world and the ice giants share a phone screen). The systems are part of the engines'
 agreement vectors.
+
+47–51, as built: nine principles past power (electronics, rocketry, guidance, orbital
+flight, life support, stations, transfer flight, habitats, the nuclear drive), reached by
+the land's electricity or the sea's (`needsMet`: a need "a|b" is met by either).
+`rules/launch.ts`: the speed to orbit from a world's pull, radius and air (9.4 km/s from
+the home world; 13.5 from a 1.6 g world); the rocket equation over one to four stages;
+engines — powder (2.2 km/s of exhaust), oil (3.1), water parted by current (4.3, a
+people of the water's own), the atom (8.5) — and frames; the cheapest launcher a people's
+knowledge allows, or none that lifts a two-hundredth of its mass (a heavy world's first
+engines cannot reach orbit at any price). `sim/space` (M49): a realm whose seat knows
+orbital flight sends up its first satellite, crew and station when its machines bear the
+cost (the physics' price times 600 machines, from the realm's lands) and it has reason (a
+rival there first, a war); each first an event whose why names the world's pull and the
+engine. On the Earth seed: orbital flight found in year 1021, the first satellites in
+1044, the first crew in 1076, the first station in 1145, habitats found in 1175.
+`rules/orbits.ts` (M50): Hohmann transfers about the star or the home world, the burns to
+leave and enter low orbits (with each world's pull), landing (aided by air), synodic
+windows — the great moon 5.4 km/s and five days away, always open; the red world 3.7 km/s
+to leave, 274 days, a window every 800 days; `delivered` prices a tonne set down on
+another body (oil engines reach the great moon, not the giants' moons). Each body's page
+shows its speed to orbit and its way from the home world. `rules/habitat.ts` (M51): a
+body against the colonists' own body — air made, pressure halls or hulls, heating or
+cooling by how the body bears cold and heat, burial against radiation, water melted,
+flooded vaults for a people of the water, a pull too weak or strong — each a yearly
+upkeep in machines a settler; past ten, not settled.
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

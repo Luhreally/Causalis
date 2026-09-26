@@ -2,7 +2,7 @@
 // light and age, and its worlds and their moons listed — and a page for each body, its
 // orbit and its ground, and why it is so.
 import type { SystemPlan } from "../bridge/index.ts";
-import { bodyFacts } from "../view/index.ts";
+import { bodyFacts, routeWords } from "../view/index.ts";
 import { el } from "./why.ts";
 
 const KIND_WORDS: Readonly<Record<string, string>> = {
@@ -106,7 +106,12 @@ export class SystemPanel {
       this.onSelect(null);
     };
     this.title.textContent = `${b.designation}: ${KIND_WORDS[b.kind]}`;
-    this.facts.replaceChildren(star, ...bodyFacts(b, plan.star).map((f) => el("div", "fact", f)));
+    const way = routeWords(plan, index, plan.star.mass);
+    this.facts.replaceChildren(
+      star,
+      ...bodyFacts(b, plan.star).map((f) => el("div", "fact", f)),
+      ...(way ? [el("div", "fact", way)] : []),
+    );
     const moons = plan.bodies.map((m, i) => ({ m, i })).filter(({ m }) => m.around === index);
     this.more.replaceChildren(
       el("h3", undefined, "Why is it like this?"),
