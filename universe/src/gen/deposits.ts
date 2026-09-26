@@ -1,9 +1,9 @@
 // Mineral deposits (docs/architecture §24). Each kind forms where its process
 // would put it — copper and gold over subduction zones, tin in collision belts,
-// iron in the old hearts of continents, coal in wet lowland basins, oil under
-// the shelves where rivers drop their silt, salt in dry hollows — and records
-// that process and the plates behind it, so the explainer can walk from a mine
-// back to the geology that made it.
+// iron in the old hearts of continents, salt in dry hollows; coal and oil where
+// deep time buried swamp forests and shallow-sea plankton (gen/deeptime.ts) — and
+// records that process, the plates behind it and, for coal and oil, the age that
+// laid it down, so the explainer can walk from a mine back to what made it.
 import {
   defineStream,
   dmath,
@@ -15,6 +15,7 @@ import {
 import { BOUNDARY, type Tectonics } from "./plates.ts";
 import type { Climate } from "./climate.ts";
 import type { Hydrology } from "./hydrology.ts";
+import type { DeepTime } from "./deeptime.ts";
 import { depositRef } from "./kinds.ts";
 
 const DEPOSITS = defineStream("gen.deposits");
@@ -28,7 +29,7 @@ export type Process =
   | "collision granites"
   | "banded iron of an ancient craton"
   | "buried swamp forests"
-  | "marine sediments under a delta"
+  | "plankton buried under a shallow sea"
   | "evaporites in a closed basin";
 
 export type Deposit = {
@@ -58,6 +59,7 @@ export function makeDeposits(
   climate: Climate,
   water: Hydrology,
   elevation: Float32Array,
+  deep: DeepTime,
 ): Deposit[] {
   const land = (c: number) => elevation[c]! > 0,
     across = (c: number) => t.across[c]!,
@@ -105,29 +107,18 @@ export function makeDeposits(
       weight: (c) => (land(c) && t.crust[c] && d(c) >= 6 ? Math.min(d(c), 14) / 14 : 0),
     },
     {
+      // Coal lies under land now where deep time buried swamp forests.
       kind: "coal",
       count: 14,
       process: "buried swamp forests",
-      weight: (c) =>
-        land(c) &&
-        t.crust[c] &&
-        elevation[c]! < 600 &&
-        climate.precipitation[c]! > 900 &&
-        climate.temperature[c]! > 2
-          ? Math.min(2, climate.precipitation[c]! / 1200)
-          : 0,
+      weight: (c) => (land(c) && deep.coal[c]! > 0 ? Math.min(2, deep.coal[c]!) : 0),
     },
     {
+      // Oil, under land or a shelf, where it buried the plankton of warm shallow seas.
       kind: "oil",
       count: 12,
-      process: "marine sediments under a delta",
-      weight: (c) => {
-        if (elevation[c]! > 150 || elevation[c]! < -250 || !t.crust[c]) return 0;
-        let silt = water.discharge[c]!;
-        for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++)
-          silt = Math.max(silt, water.discharge[grid.neighbours[k]!]!);
-        return silt > 0 ? dmath.log1p(silt / 1e3) : 0;
-      },
+      process: "plankton buried under a shallow sea",
+      weight: (c) => (elevation[c]! > -250 && deep.oil[c]! > 0 ? Math.min(2, deep.oil[c]!) : 0),
     },
     {
       kind: "salt",
@@ -173,6 +164,9 @@ export function makeDeposits(
           toBoundary: d(cell),
           elevation: Math.round(elevation[cell]!),
           rain: Math.round(climate.precipitation[cell]!),
+          // The age that laid down coal or oil (see gen/deeptime.ts).
+          ...(rule.kind === "coal" ? { age: deep.coalAge[cell]! } : {}),
+          ...(rule.kind === "oil" ? { age: deep.oilAge[cell]! } : {}),
         },
       });
     }

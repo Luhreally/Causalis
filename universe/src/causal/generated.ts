@@ -5,6 +5,8 @@
 // "generated" — the last links of any chain that reaches down to geology.
 import { kindCodeOf, parseRef, type Ref, type World } from "../kernel/index.ts";
 import {
+  AGE,
+  AGES,
   BIOME_NAMES,
   BOUNDARY,
   DEPOSIT,
@@ -12,7 +14,9 @@ import {
   PLATE,
   STAR,
   SURFACE_CELL,
+  ageRef,
   cellRef,
+  pastLatitude,
   surfaceCopper,
 } from "../gen/index.ts";
 import { homePlanet } from "../sim/index.ts";
@@ -71,6 +75,21 @@ registerExplainer(DEPOSIT.code, (world, ref) => {
     d = g.deposits[parseRef(ref).b];
   if (!d) return null;
   const [own, other] = d.plates;
+  // Coal and oil: the age that buried them, and where this land lay then.
+  const age = typeof d.detail.age === "number" && d.detail.age < 255 ? d.detail.age : null;
+  if (age !== null) {
+    const a = g.deep.ages[age]!,
+      lat = pastLatitude(g.grid, g.tectonics, d.cell, (a.from + a.to) / 2);
+    return generated(
+      ref,
+      `${d.richness} units of ${d.kind}, laid down by ${d.process} in the ${ordinal(age + 1)} age, ${a.from}–${a.to} million years ago, when this land lay at ${deg(lat)}${lat >= 0 ? "N" : "S"}`,
+      edges(world, [
+        { ref: ageRef(0, age), role: "trigger", weight: 0.6 },
+        { ref: g.tectonics.plates[own!]!.ref as Ref, role: "enabler", weight: 0.3 },
+        { ref: cellRef(0, d.cell), role: "constraint", weight: 0.1 },
+      ]),
+    );
+  }
   const causes = [
     ...(other !== undefined
       ? [{ ref: g.tectonics.plates[other]!.ref as Ref, role: "trigger" as const, weight: 0.5 }]
@@ -86,6 +105,51 @@ registerExplainer(DEPOSIT.code, (world, ref) => {
     ref,
     `${d.richness} units of ${d.kind}, laid down by ${d.process}`,
     edges(world, causes),
+  );
+});
+
+const ORDINALS = [
+  "first",
+  "second",
+  "third",
+  "fourth",
+  "fifth",
+  "sixth",
+  "seventh",
+  "eighth",
+  "ninth",
+  "tenth",
+  "eleventh",
+  "twelfth",
+  "thirteenth",
+  "fourteenth",
+  "fifteenth",
+  "sixteenth",
+];
+function ordinal(n: number): string {
+  return ORDINALS[n - 1] ?? `${n}th`;
+}
+
+const AGE_WORDS: Readonly<Record<string, string>> = {
+  quiet: "a quiet age",
+  hothouse: "a hothouse",
+  icehouse: "an icehouse, the poles under ice",
+  "great volcanism": "an age of great volcanism, floods of lava pouring out",
+  impact: "an age in which a great stone fell from the sky",
+};
+
+registerExplainer(AGE.code, (world, ref) => {
+  if (!hasPlanet(world)) return null;
+  const g = homePlanet(world).generated,
+    a = g.deep.ages[parseRef(ref).b];
+  if (!a) return null;
+  const warmer =
+      a.warmth >= 0 ? `${a.warmth.toFixed(1)} °C warmer` : `${(-a.warmth).toFixed(1)} °C colder`,
+    seas = a.seaLevel >= 0 ? `${a.seaLevel} m higher` : `${-a.seaLevel} m lower`;
+  return generated(
+    ref,
+    `The ${ordinal(a.index + 1)} of the world's ${AGES} ages, ${a.from}–${a.to} million years ago: ${AGE_WORDS[a.kind]}, ${warmer} than now, the seas ${seas}${a.forests ? "; forests grew on the land" : "; nothing yet grew on the land"}`,
+    edges(world, [{ ref: g.planet.ref as Ref, role: "enabler", weight: 1 }]),
   );
 });
 

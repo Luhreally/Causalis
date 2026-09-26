@@ -100,7 +100,7 @@ export function refineRegion(w: HomeWorld, center: number, size = 128, tileKm = 
     ny = oz * ex - ox * ez,
     nz = -oy * ex;
   const spacing = 1.15 * Math.sqrt((4 * Math.PI) / g.count),
-    noiseSeed = hashString(`region ${w.digest}`);
+    noiseSeed = hashString(`region ${w.ground}`);
 
   const elevation = new Float32Array(n),
     temperature = new Float32Array(n),

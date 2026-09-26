@@ -10,6 +10,7 @@ import { HUMANLIKE, roofPitch } from "../rules/index.ts";
 import {
   BLOCKS,
   BLOCK_M,
+  USE,
   agentName,
   blockAt,
   citiesOf,
@@ -83,10 +84,33 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
           household: null,
         });
     });
+    // A young city with few housing blocks yet builds on its open ground, nearest
+    // the middle first — never on its temple, markets or workshops.
+    const wanted = Math.min(count, WATCHED_FAMILIES * 2 + 4),
+      open = city.uses
+        .map((use, k) => ({ use, k, at: blockAt(k % BLOCKS, Math.floor(k / BLOCKS)) }))
+        .filter((b) => b.use === USE.open)
+        .sort(
+          (a, b) =>
+            a.at.x * a.at.x + a.at.z * a.at.z - (b.at.x * b.at.x + b.at.z * b.at.z) || a.k - b.k,
+        );
+    for (const b of open)
+      for (let h = 0; h < 3 && homes.length < wanted; h++)
+        homes.push({
+          x: b.at.x + (u(seed, 7000 + b.k * 8 + h) - 0.5) * BLOCK_M * 0.8,
+          z: b.at.z + (u(seed, 9000 + b.k * 8 + h) - 0.5) * BLOCK_M * 0.8,
+          yaw: city.axis + (h % 2 ? Math.PI / 2 : 0),
+          household: null,
+        });
   }
-  // A village's homes circle its square; a young city with few housing blocks yet
-  // keeps homes around its square too, until every family has one.
-  const wanted = city ? Math.min(count, WATCHED_FAMILIES * 2 + 4) : count;
+  // (A city with no ground left to build on at all houses its people just outside its grid.)
+  for (let k = 0; city && homes.length < 4; k++) {
+    const a = phase + k * 2.399963,
+      rad = (BLOCKS * BLOCK_M) / 2 + 30;
+    homes.push({ x: rad * Math.cos(a), z: rad * Math.sin(a), yaw: a, household: null });
+  }
+  // A village's homes circle its square.
+  const wanted = city ? 0 : count;
   for (let k = 0; homes.length < wanted && k < 400; k++) {
     const a = phase + k * 2.399963,
       rad = 16 + 8.5 * Math.sqrt(k);

@@ -1969,6 +1969,53 @@ them) or a sim rule — never by looking.
     distinct government compositions. Run by `npm run gate:2`
     (tools/phase2-gate.ts, one process per seed) and in CI.
 
+Phase 2 closed at `6fc5186`; two pieces of its milestones that had been thinned
+when first built followed: interest groups with sourced demands (the tithe and
+war declarations read them) and the design grammar v1 (houses and hosts
+realized from principles and materials; hosts' performance is what armies
+fight with).
+
+### I.3 Phase 3 milestones (planned 2026-09-26, after the Phase 2 gate)
+
+26. **Deep time**: the planet's history in ages — sea level, warmth,
+    glaciations, great volcanism and impacts — with every cell's past latitude
+    from its plate's rotation; swamp forests on warm, wet, low land and plankton
+    in warm shallow seas, buried in subsiding basins, are where coal and oil lie
+    now; each deposit cites the age that made it.
+27. **The biosphere and its clades**: clade radiations and extinctions tied to
+    the ages' events; the present biosphere as guilds per cell (producers,
+    grazers, browsers, predators) and the species that fill them; the
+    intelligent species' emergence (where, when and why there) sets the cradle;
+    domesticable herd beasts and seed grasses set where herding and sowing can
+    be found.
+28. **Ecology with human impact**: guild stocks per peopled land with growth and
+    coupling; hunting, herding, clearing for fields and fuel draw them down;
+    megafauna losses, deforestation and worn soils enter history as causes.
+29. **The whole planet peopled**: prehistory spreads bands over every reachable
+    continent (land bridges, coastal and island crossings), ≈ 1,000 peopled
+    lands within the chronicle's first centuries; the globe, the chronicle and
+    the inspector hold up at that scale.
+30. **Macro-history paging**: lands far from the observer's interest step
+    coarsely with the same expected flows and refine when looked at; a year of
+    the whole planet within budget on the phone proxy; history storage bounded.
+31. **Many peoples, many states**: language and culture families across
+    continents; empires held by writing, clerks and roads; sea routes and
+    overseas contact; war and diplomacy across seas.
+32. **Energy and industry**: principles toward coal mining, the steam engine,
+    factories, railways, electricity and oil, each needing its resource from
+    deep time; capabilities (power per person, process heat); machines and
+    factories through the design grammar; an industrial economy.
+33. **Pollution and a changing climate**: burning puts carbon in the air; a
+    planet-wide warming shifts temperature and rain; smoke harms health; each
+    with its causes in history.
+34. **Calibration**: bands on the Earth seed for when sowing, the first states,
+    writing, iron and industry arrive and how many people the planet holds;
+    a report tool and tuning within the bands.
+35. **Phase 3 gate**: on the Earth seed, agriculture, states and industry
+    within their bands; coal and oil only where the biosphere's history buried
+    biomass; the north-star test on the Earth seed; a year of the whole planet
+    within budget.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

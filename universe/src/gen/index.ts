@@ -20,12 +20,25 @@ export {
 } from "./homeworld.ts";
 export { makeHydrology, type Hydrology } from "./hydrology.ts";
 export {
+  AGES,
+  AGE_KINDS,
+  AGE_MY,
+  makeDeepTime,
+  pastLatitude,
+  pastPosition,
+  type Age,
+  type AgeKind,
+  type DeepTime,
+} from "./deeptime.ts";
+export {
+  AGE,
   DEPOSIT,
   HOME,
   PLANET,
   PLATE,
   STAR,
   SURFACE_CELL,
+  ageRef,
   cellRef,
   depositRef,
   planetRef,

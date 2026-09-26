@@ -18,6 +18,7 @@ import { makePlanet, makeStar, type Planet, type Star } from "./bodies.ts";
 import { makeClimate, type Climate } from "./climate.ts";
 import { makeDeposits, type Deposit } from "./deposits.ts";
 import { makeHydrology, type Hydrology } from "./hydrology.ts";
+import { makeDeepTime, type DeepTime } from "./deeptime.ts";
 import { BOUNDARY, makeTectonics, type Tectonics } from "./plates.ts";
 
 export type HomeWorld = {
@@ -29,7 +30,15 @@ export type HomeWorld = {
   readonly climate: Climate;
   readonly water: Hydrology;
   readonly deposits: readonly Deposit[];
+  /** The planet's deep past: its ages, and the carbon they buried. */
+  readonly deep: DeepTime;
   readonly digest: string;
+  /**
+   * The digest of the ground alone — the star, the planet, its plates and relief. What
+   * is keyed on it (surface ores, the terrain of regions) stays put when later layers
+   * of generation (deep time, the biosphere) are added or change.
+   */
+  readonly ground: string;
 };
 
 /** The planet grid's usual frequency: 40,962 cells (about 110 km apart on an Earth-sized world). */
@@ -52,15 +61,20 @@ export function generateHomeWorld(
     tectonics = makeTectonics(grid, rng, planet),
     climate = makeClimate(grid, planet, tectonics.elevation),
     water = makeHydrology(grid, tectonics.elevation, climate.precipitation),
-    deposits = makeDeposits(grid, rng, tectonics, climate, water, tectonics.elevation);
+    deep = makeDeepTime(grid, rng, planet, tectonics),
+    deposits = makeDeposits(grid, rng, tectonics, climate, water, tectonics.elevation, deep);
   const h = new Hasher().string(prior.name).int(frequency).value(star).value(planet);
   for (const p of tectonics.plates) h.value(p);
   hashArray(h, tectonics.plate);
   hashArray(h, tectonics.elevation);
+  const ground = h.hex();
   hashArray(h, climate.temperature);
   hashArray(h, climate.precipitation);
   hashArray(h, climate.biome);
   hashArray(h, water.discharge);
+  for (const a of deep.ages) h.value(a);
+  hashArray(h, deep.coal);
+  hashArray(h, deep.oil);
   for (const d of deposits) h.value(d);
   return {
     prior: prior.name,
@@ -71,7 +85,9 @@ export function generateHomeWorld(
     climate,
     water,
     deposits,
+    deep,
     digest: h.hex(),
+    ground,
   };
 }
 
@@ -88,7 +104,7 @@ export function surfaceCopper(w: HomeWorld, cell: number): boolean {
   const belt = t.boundary[cell] === BOUNDARY.convergent && t.toBoundary[cell]! <= 6,
     high = e > 900;
   if (!belt && !high) return false;
-  const u = finish(mix(hashString(`surface copper ${w.digest}`), cell), 11) / 4294967296;
+  const u = finish(mix(hashString(`surface copper ${w.ground}`), cell), 11) / 4294967296;
   return u < (belt ? 0.3 : 0.15);
 }
 
@@ -104,7 +120,7 @@ export function surfaceOre(w: HomeWorld, cell: number, kind: string): boolean {
   const t = w.tectonics,
     e = t.elevation[cell]!;
   if (e <= 0) return false;
-  const u = finish(mix(hashString(`surface ${kind} ${w.digest}`), cell), 11) / 4294967296,
+  const u = finish(mix(hashString(`surface ${kind} ${w.ground}`), cell), 11) / 4294967296,
     rain = w.climate.precipitation[cell]!,
     coast = (() => {
       for (let k = w.grid.offsets[cell]!; k < w.grid.offsets[cell + 1]!; k++)

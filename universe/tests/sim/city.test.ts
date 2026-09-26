@@ -67,7 +67,7 @@ test("towns grow into cities, and paving reshapes them, answering to the road's 
   }
 });
 
-test("the microscope over a city shows its quarters, with its homes in the housing blocks", () => {
+test("the microscope over a city shows its quarters, its homes in its housing blocks or on open ground, never on a temple, market or workshop", () => {
   const world = EARTH.build(seedFromText("first light"));
   world.runTo(320 * YEAR);
   const city = citiesOf(world).all()[0]!,
@@ -81,7 +81,7 @@ test("the microscope over a city shows its quarters, with its homes in the housi
       j = Math.round(h.z / BLOCK_M + (BLOCKS - 1) / 2),
       use = plan.districts.uses[j * BLOCKS + i];
     assert.ok(
-      use === USE.houses || use === USE.crowded,
+      use === USE.houses || use === USE.crowded || use === USE.open,
       `a home at ${h.x.toFixed(0)},${h.z.toFixed(0)} is in ${use}`,
     );
   }

@@ -104,14 +104,17 @@ test("people turn to the work that is worth most", () => {
 });
 
 test("metalworking is found where copper lies, and its why reaches the land, the plate and the star", () => {
-  const found = world.events.all().find((e) => e.type === ECONOMY_EVENTS.metalworking.type);
+  // Across the land the app begins with (the cradle alone may have no copper within reach).
+  const land = makePopulationWorld(seedFromText("first light"), { start: "spread" });
+  land.runTo(300 * YEAR);
+  const found = land.events.all().find((e) => e.type === ECONOMY_EVENTS.metalworking.type);
   assert.ok(found, "someone learned to smelt copper");
-  const decision = why(world, found.id).causes[0]!.next();
+  const decision = why(land, found.id).causes[0]!.next();
   assert.match(decision.claim, /worked out how to smelt copper, in year \d+ \(.*copper/);
-  const kinds = spine(world, found.id).map((e) => e.ref.split(":")[0]);
+  const kinds = spine(land, found.id).map((e) => e.ref.split(":")[0]);
   assert.deepEqual(kinds.slice(-3), ["plate", "plnt", "star"], kinds.join(" ← "));
   assert.ok(kinds.includes("cell") || kinds.includes("depo"), "through the ore");
-  const tools = markets
+  const tools = marketsOf(land)
     .all()
     .filter((m) => m.metalworking && m.years.some((y) => y.ledger[L.made]![5]! > 0));
   assert.ok(tools.length > 0, "copper was smelted");
