@@ -37,6 +37,7 @@ import {
 } from "../../gen/index.ts";
 import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
 import { ecologyOf, living, wildsOf } from "../ecology/ecology.ts";
+import { peopleLife } from "./life.ts";
 import { airOf, heatYield, rainShift, smokeIn } from "../climate/air.ts";
 import { powerOf } from "../economy/systems.ts";
 import { HAND_VITAL, bandOfAge, handOf, newbornSex } from "../hand/hand.ts";
@@ -49,7 +50,7 @@ import {
   FOODS,
   G,
   GOODS,
-  HUMANLIKE,
+  type LifeHistory,
   MALE,
   OCC,
   MACHINE_GAIN,
@@ -120,11 +121,12 @@ function yearOfMoment(t: number): number {
   return Math.floor((t - 1) / YEAR);
 }
 
-export function adults(p: Province): number {
+/** A land's grown people, by its people's life table. */
+export function adults(p: Province, life: LifeHistory): number {
   let n = 0;
   for (let s = 0; s < SEXES; s++)
     for (let b = 0; b < BANDS; b++)
-      if (HUMANLIKE.bands[b]! >= HUMANLIKE.adulthood) n += p.counts.rowSum(row(s, b));
+      if (life.bands[b]! >= life.adulthood) n += p.counts.rowSum(row(s, b));
   return n;
 }
 
@@ -175,6 +177,8 @@ export function support(cap: Capacity, knows: boolean, herds = true): number {
 export type PopulationContext = {
   readonly world: World;
   readonly generated: HomeWorld;
+  /** The people's life table, from their body. */
+  readonly life: LifeHistory;
   readonly provinces: PopulationStore;
   readonly settlements: SettlementStore;
   readonly history: HistoryStore;
@@ -185,6 +189,7 @@ export function populationContext(world: World): PopulationContext {
   return {
     world,
     generated: homePlanet(world).generated,
+    life: peopleLife(homePlanet(world).generated),
     provinces: world.store<PopulationStore>("population.provinces"),
     settlements: world.store<SettlementStore>("population.settlements"),
     history: world.store<HistoryStore>("population.history"),
@@ -268,6 +273,9 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       key = refHash(p.ref),
       rain = p.rain / 1000,
       tools = (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000),
+      // A body gathers, sows and herds in proportion to what it eats (a giant's day's
+      // grazing is a giant's meal), so a worker feeds as many as an upright ape's does.
+      gathers = ctx.life.appetite,
       pots = m.potteryCover / 1000,
       // What the land's people know: better fields, flocks and hunting, stores that keep.
       lore = loreOf(world),
@@ -281,7 +289,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
     const harvest: [number, number][] = [
       [
         G.wild,
-        saturate(c.forage, p.occupation(OCC.forager), PRODUCTIVITY[OCC.forager]!) *
+        saturate(c.forage, p.occupation(OCC.forager), PRODUCTIVITY[OCC.forager]! * gathers) *
           rain *
           wilds *
           alive.wild,
@@ -289,7 +297,11 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       [
         G.grain,
         p.knowsCultivation
-          ? saturate(c.farm, p.occupation(OCC.farmer), PRODUCTIVITY[OCC.farmer]! * tools) *
+          ? saturate(
+              c.farm,
+              p.occupation(OCC.farmer),
+              PRODUCTIVITY[OCC.farmer]! * tools * gathers,
+            ) *
             rain *
             fields *
             alive.soil
@@ -297,7 +309,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       ],
       [
         G.meat,
-        saturate(c.pasture, p.occupation(OCC.herder), PRODUCTIVITY[OCC.herder]! * tools) *
+        saturate(c.pasture, p.occupation(OCC.herder), PRODUCTIVITY[OCC.herder]! * tools * gathers) *
           (0.5 + 0.5 * rain) *
           flocks,
       ],
@@ -316,7 +328,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
           ),
         ),
       );
-    const need = p.total();
+    // What they eat: their people by the appetite of their body (an upright ape's, one unit a month).
+    const need = Math.round(p.total() * ctx.life.appetite);
     let eaten = 0;
     for (const g of FOODS) eaten += m.take("used", g, need - eaten);
     let over = m.food(FOODS) - need * (12 + 12 * pots + stored);
@@ -360,7 +373,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
 export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
   const { world, history } = ctx,
     year = yearOfMoment(t),
-    life = HUMANLIKE;
+    life = ctx.life;
   const markets = marketsOf(world),
     acts = actsOf(world),
     first = periodIndex(t, MONTH) % 12 === 1;
@@ -389,7 +402,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       d = new CountDeltas(p.counts),
       key = refHash(p.ref),
       // Under the hand, a village's people are born and die one by one; the rest by rates.
-      windowed = handOf(world).composition(p.cell, year),
+      windowed = handOf(world).composition(p.cell, year, ctx.life),
       rest = (r: number, o: number) =>
         p.counts.get(r, o) - (windowed ? windowed[r * COLS + o]! : 0);
     let expected = 0;
@@ -443,7 +456,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
     if (w) {
       const living: typeof w.agents = [];
       for (const a of w.agents) {
-        const band = bandOfAge(year - a.birthYear),
+        const band = bandOfAge(year - a.birthYear, life),
           blessed = a.blessedUntil !== undefined && year < a.blessedUntil;
         if (
           !blessed &&
@@ -522,7 +535,7 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
 /** Ageing and coming of age, yearly. */
 export function ageYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
-    life = HUMANLIKE;
+    life = ctx.life;
   for (const p of ctx.provinces.all()) {
     const d = new CountDeltas(p.counts),
       key = refHash(p.ref),
@@ -533,7 +546,7 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
         marketsOf(world).wagesOf(p.cell),
       ),
       year = yearOfMoment(t),
-      windowed = handOf(world).composition(p.cell, year);
+      windowed = handOf(world).composition(p.cell, year, ctx.life);
     for (let s = 0; s < SEXES; s++)
       for (let b = 0; b < BANDS - 1; b++) {
         const comingOfAge = life.bands[b + 1]! === life.adulthood;
@@ -542,7 +555,10 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
           if (!n) continue;
           const movers = Math.min(
             n,
-            roundKeyed(n / bandWidth(b), world.rng.real(AGEING, key, t, 0, row(s, b) * COLS + o)),
+            roundKeyed(
+              n / bandWidth(b, life),
+              world.rng.real(AGEING, key, t, 0, row(s, b) * COLS + o),
+            ),
           );
           if (!movers) continue;
           d.add(row(s, b), o, -movers);
@@ -557,8 +573,8 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
     const w = windowed ? handOf(world).over(p.cell) : null;
     if (w)
       for (const a of w.agents) {
-        const was = bandOfAge(year - a.birthYear),
-          now = bandOfAge(year + 1 - a.birthYear);
+        const was = bandOfAge(year - a.birthYear, life),
+          now = bandOfAge(year + 1 - a.birthYear, life);
         if (now === was) continue;
         d.add(row(a.sex, was), a.occupation, -1);
         if (a.occupation === OCC.dependent && life.bands[now]! >= life.adulthood)
@@ -574,13 +590,13 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx;
   for (const p of ctx.provinces.all()) {
     // The hand's people keep the work they took up: only the rest change theirs.
-    const windowed = handOf(world).composition(p.cell, Math.floor(t / YEAR)),
+    const windowed = handOf(world).composition(p.cell, Math.floor(t / YEAR), ctx.life),
       rest = (r: number, o: number) =>
         p.counts.get(r, o) - (windowed ? windowed[r * COLS + o]! : 0);
-    let grown = adults(p);
+    let grown = adults(p, ctx.life);
     if (windowed)
       for (let r = 0; r < ROWS; r++)
-        if (HUMANLIKE.bands[r % BANDS]! >= HUMANLIKE.adulthood)
+        if (ctx.life.bands[r % BANDS]! >= ctx.life.adulthood)
           for (let o = 0; o < COLS; o++) grown -= windowed[r * COLS + o]!;
     if (!grown) continue;
     const key = refHash(p.ref),
@@ -599,7 +615,7 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
     const adultRows: number[] = [];
     for (let s = 0; s < SEXES; s++)
       for (let b = 0; b < BANDS; b++)
-        if (HUMANLIKE.bands[b]! >= HUMANLIKE.adulthood) {
+        if (ctx.life.bands[b]! >= ctx.life.adulthood) {
           adultRows.push(row(s, b));
           for (let o = 1; o < COLS; o++) current[o] = current[o]! + rest(row(s, b), o);
         }
@@ -667,25 +683,28 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
     year = yearOfMoment(t),
     planned: PlannedFlow[] = [];
   const peopled = (cell: number) => ctx.provinces.get(cell);
+  // What the land feeds is in food; a people's mouths are their numbers by their appetite.
+  const appetite = ctx.life.appetite;
   for (const p of ctx.provinces.all()) {
     const pop = p.total();
     if (pop < 20) continue;
-    const c = living(provinceCapacity(ctx, p.cell), wildsOf(ctx, p.cell)),
+    const mouths = pop * appetite,
+      c = living(provinceCapacity(ctx, p.cell), wildsOf(ctx, p.cell)),
       here = support(c, p.knowsCultivation, p.herding !== null),
       hunger = 1 - p.leanest / 1000,
-      crowd = Math.max(0, pop / Math.max(1, here) - 0.85),
+      crowd = Math.max(0, mouths / Math.max(1, here) - 0.85),
       // Young foraging bands bud off into empty land long before hunger drives them, once
       // their land holds a quarter of what the wild can feed. (Farmers spreading across
       // continents waits on the whole planet peopled and paged: milestones 29–30.)
       budding = p.knowsCultivation
         ? 0
-        : Math.min(0.3, Math.max(0, pop / Math.max(1, c.forage) - 0.25)),
+        : Math.min(0.3, Math.max(0, mouths / Math.max(1, c.forage) - 0.25)),
       pushed = 0.6 * hunger + crowd,
       pressure = pushed + budding;
     if (pressure < 0.05) continue;
     // Budding goes only to empty land; those pushed by hunger or crowding go anywhere better.
     const buddingOnly = pushed < 0.05;
-    const perHere = here / pop;
+    const perHere = here / mouths;
     const options: { cell: number; attraction: number }[] = [];
     for (let k = g.grid.offsets[p.cell]!; k < g.grid.offsets[p.cell + 1]!; k++) {
       const m = g.grid.neighbours[k]!;
@@ -695,8 +714,8 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
           p.knowsCultivation,
           p.herding !== null,
         ),
-        others = peopled(m)?.total() ?? 0,
-        attraction = there / (others + 1) - perHere;
+        others = (peopled(m)?.total() ?? 0) * appetite,
+        attraction = there / (others + appetite) - perHere;
       if (attraction > 0.05 && there > 20 && (!buddingOnly || !peopled(m)))
         options.push({ cell: m, attraction });
     }
@@ -705,7 +724,7 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
       b.attraction !== a.attraction ? b.attraction - a.attraction : a.cell - b.cell,
     );
     // Those under the hand stay: movers come from the rest.
-    const windowed = handOf(world).composition(p.cell, Math.floor(t / YEAR)),
+    const windowed = handOf(world).composition(p.cell, Math.floor(t / YEAR), ctx.life),
       held = windowed ? windowed.reduce((a, b) => a + b, 0) : 0;
     const key = refHash(p.ref),
       movers = Math.min(pop - held, Math.floor(pop * Math.min(0.06, pressure * 0.08)));
@@ -1149,7 +1168,7 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
     if (!p.knowsCultivation) continue;
     const pop = p.total(),
       foragers = p.occupation(OCC.forager),
-      grown = Math.max(1, adults(p)),
+      grown = Math.max(1, adults(p, ctx.life)),
       settled = Math.round(pop * (1 - foragers / grown)),
       trades = p.occupation(OCC.crafter) + p.occupation(OCC.trader) + p.occupation(OCC.leader),
       villages = ctx.settlements.inProvince(p.cell),

@@ -25,7 +25,12 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { BANDS, G, HUMANLIKE, MALE, hostPower } from "../../rules/index.ts";
+import { BANDS, G, MALE, hostPower, type LifeHistory } from "../../rules/index.ts";
+
+/** Whether an age band fights: the grown, before the last third of life (fifteen to fifty, for upright apes). */
+function fighting(life: LifeHistory, band: number): boolean {
+  return life.bands[band]! >= life.adulthood && life.bands[band]! < life.bands[7]!;
+}
 import { designsOf, hostFor } from "../design/design.ts";
 import { COLS, row } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
@@ -183,8 +188,7 @@ export function strengthOf(ctx: PopulationContext, p: Polity): number {
     const prov = ctx.provinces.get(c);
     if (!prov) continue;
     for (let b = 0; b < BANDS; b++)
-      if (HUMANLIKE.bands[b]! >= 15 && HUMANLIKE.bands[b]! < 50)
-        men += prov.counts.rowSum(row(MALE, b));
+      if (fighting(ctx.life, b)) men += prov.counts.rowSum(row(MALE, b));
   }
   return men * share * arms;
 }
@@ -246,11 +250,11 @@ function fall(ctx: PopulationContext, cell: number, n: number, t: SimTime, key: 
   const prov = ctx.provinces.get(cell);
   if (!prov || n <= 0) return 0;
   const year = yearOfMoment(t),
-    windowed = handOf(ctx.world).composition(cell, year),
+    windowed = handOf(ctx.world).composition(cell, year, ctx.life),
     rows: number[] = [],
     counts: number[] = [];
   for (let b = 0; b < BANDS; b++)
-    if (HUMANLIKE.bands[b]! >= 15 && HUMANLIKE.bands[b]! < 50)
+    if (fighting(ctx.life, b))
       for (let o = 1; o < COLS; o++) {
         const r = row(MALE, b);
         rows.push(r * COLS + o);

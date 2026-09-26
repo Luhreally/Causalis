@@ -16,7 +16,8 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { BANDS, HUMANLIKE, SEXES, bandWidth } from "../../rules/index.ts";
+import { BANDS, SEXES, bandOf, bandWidth, type LifeHistory } from "../../rules/index.ts";
+import { lifeOf } from "../population/life.ts";
 import { COLS, ROWS, row } from "../population/model.ts";
 import type { PopulationStore, SettlementStore } from "../population/stores.ts";
 
@@ -52,10 +53,8 @@ export type Window = {
 };
 
 /** Which age band an age falls in. */
-export function bandOfAge(age: number): number {
-  let b = 0;
-  while (b + 1 < BANDS && HUMANLIKE.bands[b + 1]! <= age) b++;
-  return b;
+export function bandOfAge(age: number, life: LifeHistory): number {
+  return bandOf(age, life);
 }
 
 export class HandStore implements StateStore {
@@ -67,13 +66,13 @@ export class HandStore implements StateStore {
     return this.resting && this.resting.cell === cell ? this.resting : null;
   }
 
-  /** The window's people as counts (row × occupation) in a given year. */
-  composition(cell: number, year: number): number[] | null {
+  /** The window's people as counts (row × occupation) in a given year, by their life table. */
+  composition(cell: number, year: number, life: LifeHistory): number[] | null {
     const w = this.over(cell);
     if (!w) return null;
     const out = new Array<number>(ROWS * COLS).fill(0);
     for (const a of w.agents) {
-      const i = row(a.sex, bandOfAge(year - a.birthYear)) * COLS + a.occupation;
+      const i = row(a.sex, bandOfAge(year - a.birthYear, life)) * COLS + a.occupation;
       out[i] = out[i]! + 1;
     }
     return out;
@@ -124,7 +123,8 @@ export function installHand(world: World): HandStore {
     apply: (command, t) => {
       const v = settlements().get((command.args as { village: Ref }).village)!,
         p = provinces().get(v.cell)!,
-        year = Math.floor(t / YEAR);
+        year = Math.floor(t / YEAR),
+        life = lifeOf(world);
       const event = world.events.emit({
         type: HAND_EVENTS.laid.type,
         subjects: [v.ref],
@@ -146,8 +146,8 @@ export function installHand(world: World): HandStore {
         for (let j = 0; j < k; j++) {
           const id = agents.length,
             age =
-              HUMANLIKE.bands[band]! +
-              Math.floor(world.rng.real(COLLAPSE, v.cell, t, 1, id) * bandWidth(band));
+              life.bands[band]! +
+              Math.floor(world.rng.real(COLLAPSE, v.cell, t, 1, id) * bandWidth(band, life));
           agents.push({ id, sex, birthYear: year - age, occupation: o });
         }
       });

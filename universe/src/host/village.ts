@@ -6,19 +6,20 @@
 // people's day is drawn from this plan by the view, and nothing flows back.
 import { finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
 import { WATER } from "../gen/index.ts";
-import { HUMANLIKE, roofPitch } from "../rules/index.ts";
+import { roofPitch } from "../rules/index.ts";
 import {
-  BLOCKS,
-  BLOCK_M,
-  USE,
   agentName,
+  BLOCK_M,
   blockAt,
+  BLOCKS,
   citiesOf,
   designsOf,
-  houseFor,
   handOf,
+  houseFor,
+  lifeOf,
   populationContext,
   regionOf,
+  USE,
 } from "../sim/index.ts";
 import { meetHousehold, observer, settleAll } from "../causal/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
@@ -156,7 +157,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
           home,
           age: now - a.birthYear,
           occupation: a.occupation,
-          child: now - a.birthYear < HUMANLIKE.adulthood,
+          child: now - a.birthYear < lifeOf(world).adulthood,
         });
       });
     return planOf(people);
@@ -174,7 +175,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
         home,
         age: now - p.birthYear,
         occupation: p.occupation,
-        child: now - p.birthYear < HUMANLIKE.adulthood,
+        child: now - p.birthYear < lifeOf(world).adulthood,
       });
     }
   });

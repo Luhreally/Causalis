@@ -5,8 +5,7 @@
 // recorded or generated, never guessed or forgotten. Used by the north-star test and
 // the Phase 3 gate.
 import { finish, mix, type Ref, type World } from "../kernel/index.ts";
-import { HUMANLIKE } from "../rules/index.ts";
-import { populationContext } from "../sim/index.ts";
+import { lifeOf, populationContext } from "../sim/index.ts";
 import { resolvePerson } from "./biography.ts";
 import { meetHousehold, type Person } from "./observer.ts";
 import { why, type Explanation } from "./why.ts";
@@ -106,7 +105,7 @@ export function northStar(world: World, now: number, count = 16): NorthStar {
     if (!members.length) continue;
     const p = resolvePerson(world, members[draw(members.length)]!, 4);
     // A citizen of a grown people: someone grown, with something to remember.
-    if (!p.alive || now - p.birthYear < HUMANLIKE.adulthood || !p.memories?.length) continue;
+    if (!p.alive || now - p.birthYear < lifeOf(world).adulthood || !p.memories?.length) continue;
     const walks = p.memories
       .map((m) => bestWalk(world, m.ref))
       .filter((w): w is Walk => !!w)

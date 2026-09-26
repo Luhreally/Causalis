@@ -57,7 +57,9 @@ export {
   OCCUPATIONS,
   PRODUCTIVITY,
   SEXES,
+  bandOf,
   bandWidth,
+  lifeHistoryOf,
   type LifeHistory,
   type Occupation,
 } from "./species.ts";

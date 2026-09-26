@@ -16,12 +16,13 @@ import {
   type World,
 } from "../kernel/index.ts";
 import { cellRef } from "../gen/index.ts";
-import { HUMANLIKE, OCC } from "../rules/index.ts";
+import { OCC } from "../rules/index.ts";
 import {
   ECONOMY_EVENTS,
-  POPULATION_EVENTS,
+  lifeOf,
   marketsOf,
   politiesOf,
+  POPULATION_EVENTS,
   populationContext,
 } from "../sim/index.ts";
 import { MEMORY, catchUp, observer, type LifeEvent, type Memory, type Person } from "./observer.ts";
@@ -192,7 +193,7 @@ export function deepen(world: World, person: Person): Person {
   // farming came took it up when it did; everyone else took up their work as they
   // came of age — a craft for what the market wanted made, trading for the road
   // their goods went down, farming for the fields their people had learned to sow.
-  const grownAt = person.birthYear + HUMANLIKE.adulthood,
+  const grownAt = person.birthYear + lifeOf(world).adulthood,
     homeAt = residence(person, grownAt),
     province = ctx.provinces.get(homeAt);
   if (person.occupation === OCC.farmer) {

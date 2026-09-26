@@ -24,7 +24,7 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { tongueLikeness, tongueName, tonguePersonName } from "../../gen/index.ts";
-import { FOODS, G, HUMANLIKE, OCC } from "../../rules/index.ts";
+import { FOODS, G, OCC } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf, type Ways } from "../culture/culture.ts";
@@ -553,7 +553,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       if (!prov || !m || !ways) continue;
       // The tithe: a share of the year's grain, never below three months of their food.
       const made = m.years.at(-1)?.ledger[0]?.[G.grain] ?? 0,
-        spare = Math.max(0, m.food(FOODS) - prov.total() * 3),
+        spare = Math.max(0, m.food(FOODS) - prov.total() * ctx.life.appetite * 3),
         tithe = Math.min(m.stock[G.grain]!, Math.floor(Math.min(spare, made * p.tribute)));
       if (tithe > 0) seatMarket.move("in", G.grain, m.move("out", G.grain, tithe));
       const before = store.discontent(c),
@@ -614,8 +614,8 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
   // 5. Rulers age and die; rule passes by the realm's rule, and sometimes breaks it.
   for (const p of store.living()) {
     const age = year - p.ruler.born,
-      band = bandOfAge(age);
-    if (!(world.rng.real(RULE, p.seat, t, 20) < HUMANLIKE.mortality[band]!)) continue;
+      band = bandOfAge(age, ctx.life);
+    if (!(world.rng.real(RULE, p.seat, t, 20) < ctx.life.mortality[band]!)) continue;
     // Rule by birth passes to kin. At a death a realm's farthest lands may break away
     // together — the likelier the farther they lie from the seat and the more aggrieved
     // they are (rule by birth, fought over by kin, breaks more often).

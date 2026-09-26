@@ -3,7 +3,8 @@
 // gathered — whose choice is itself a recorded decision the explainer can open.
 import { World, YEAR, apportion, hashString, type Ref, type Seed } from "../../kernel/index.ts";
 import { BIOME, cellRef, type HomeWorld } from "../../gen/index.ts";
-import { FEMALE, G, HUMANLIKE, MALE, OCC } from "../../rules/index.ts";
+import { FEMALE, G, MALE, OCC, type LifeHistory } from "../../rules/index.ts";
+import { peopleLife } from "./life.ts";
 import { MarketStore } from "../economy/market.ts";
 import { installEconomy } from "../economy/systems.ts";
 import { installActs } from "../acts/acts.ts";
@@ -80,10 +81,10 @@ export const SPREAD = {
 } as const;
 
 /** Set a province's people: a young people's pyramid, the grown foraging. */
-function people(p: Province, n: number): void {
+function people(p: Province, n: number, life: LifeHistory): void {
   apportion(n, PYRAMID).forEach((k, b) => {
     const [women, men] = apportion(k, [1, 1]);
-    const occupation = HUMANLIKE.bands[b]! >= HUMANLIKE.adulthood ? OCC.forager : OCC.dependent;
+    const occupation = life.bands[b]! >= life.adulthood ? OCC.forager : OCC.dependent;
     p.counts.set(row(FEMALE, b), occupation, women!);
     p.counts.set(row(MALE, b), occupation, men!);
   });
@@ -193,7 +194,9 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     cap = capacity(g, home),
     apes = g.life.species[g.life.people!.species]!,
     grass = g.life.seedGrass[home]!,
-    first = Math.max(FIRST_PEOPLE, Math.round(CRADLE_FULLNESS * cap.forage));
+    // As many as the wild feeds, by the appetite of their bodies.
+    appetite = peopleLife(g).appetite,
+    first = Math.max(FIRST_PEOPLE, Math.round((CRADLE_FULLNESS * cap.forage) / appetite));
   const decision = world.decisions.record({
     rule: "people.origin",
     subject: g.planet.ref as Ref,
@@ -241,7 +244,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   const cradle = cradleWays(home, hashString(`culture ${seed.text}`), origin);
   culture.set(cradle);
   if (options.start !== "spread") {
-    people(provinces.add(new Province(home, 0, origin)), first);
+    people(provinces.add(new Province(home, 0, origin)), first, peopleLife(g));
     foundLanguages(world, [[home, home]], origin);
     // They bring half a year's food.
     markets.of(home).move("carriedIn", G.wild, first * 6);
@@ -250,7 +253,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   // The ages before the chronicle: bands spread from the cradle across the land.
   const lands = landAround(g, home, SPREAD.rings),
     sizes = lands.map(([c]) =>
-      Math.max(SPREAD.least, Math.round(capacity(g, c).forage * SPREAD.density)),
+      Math.max(SPREAD.least, Math.round((capacity(g, c).forage * SPREAD.density) / appetite)),
     );
   const spread = world.events.emit({
     type: POPULATION_EVENTS.spread.type,
@@ -260,7 +263,11 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   });
   const ring = new Map(lands.map(([cell, r]) => [cell, r]));
   lands.forEach(([cell, r, from], i) => {
-    people(provinces.add(new Province(cell, 0, cell === home ? origin : spread)), sizes[i]!);
+    people(
+      provinces.add(new Province(cell, 0, cell === home ? origin : spread)),
+      sizes[i]!,
+      peopleLife(g),
+    );
     markets.of(cell).move("carriedIn", G.wild, sizes[i]! * 6);
     // Each land's ways and speech drifted from those of the land its bands came from, the
     // more the further they went: kin peoples live near each other, and speak alike.

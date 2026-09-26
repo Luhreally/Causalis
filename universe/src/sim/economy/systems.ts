@@ -333,7 +333,7 @@ function makeAndUse(
   m.powerCover = fuel > 0 ? Math.round((1000 * burned) / fuel) : 0;
   firsts(ctx, p, m);
   // Food wanted over the year: a month's for everyone, twelve times.
-  for (const g of FOODS) want[g] = want[g]! + (pop * 12) / FOODS.length;
+  for (const g of FOODS) want[g] = want[g]! + (pop * ctx.life.appetite * 12) / FOODS.length;
 }
 
 /**
@@ -469,7 +469,9 @@ function trade(
         margin = d.price[g]! - s.price[g]! - e.cost * GOODS[g]!.bulk;
       if (margin <= 0) continue;
       const people = ctx.provinces.get(s.cell)!.total(),
-        keep = GOODS[g]!.food ? people * FOOD_RESERVE_MONTHS : (wanted.get(s.cell)?.[g] ?? 0),
+        keep = GOODS[g]!.food
+          ? people * ctx.life.appetite * FOOD_RESERVE_MONTHS
+          : (wanted.get(s.cell)?.[g] ?? 0),
         spare = s.stock[g]! - keep;
       if (spare <= 0) continue;
       const count = Math.floor(spare * 0.25 * Math.min(1, (2 * margin) / d.price[g]!));
@@ -613,8 +615,8 @@ function relief(
 }
 
 /** Prices move toward what this year's shortage or glut would make them. */
-function reprice(p: Province, m: Market, want: readonly number[]): void {
-  const pop = p.total();
+function reprice(p: Province, m: Market, want: readonly number[], appetite: number): void {
+  const pop = p.total() * appetite;
   // Foods stand in for one another: one scarcity for all three.
   let eaten = 0,
     kept = 0;
@@ -638,21 +640,22 @@ function wages(ctx: PopulationContext, p: Province, m: Market): void {
   const c = provinceCapacity(ctx, p.cell),
     rain = p.rain / 1000,
     tools = (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000),
+    gathers = ctx.life.appetite,
     margin = (capacity: number, workers: number, productivity: number) =>
       capacity > 0 ? 12 * productivity * dmath.exp((-workers * productivity) / capacity) : 0;
   const w = m.wage;
   w[OCC.forager] =
-    margin(c.forage, p.occupation(OCC.forager), PRODUCTIVITY[OCC.forager]!) *
+    margin(c.forage, p.occupation(OCC.forager), PRODUCTIVITY[OCC.forager]! * gathers) *
       rain *
       m.price[G.wild]! +
     FORAGER_HIDES * m.price[G.hides]!;
   w[OCC.farmer] = p.knowsCultivation
-    ? margin(c.farm, p.occupation(OCC.farmer), PRODUCTIVITY[OCC.farmer]! * tools) *
+    ? margin(c.farm, p.occupation(OCC.farmer), PRODUCTIVITY[OCC.farmer]! * tools * gathers) *
       rain *
       m.price[G.grain]!
     : 0;
   w[OCC.herder] =
-    margin(c.pasture, p.occupation(OCC.herder), PRODUCTIVITY[OCC.herder]! * tools) *
+    margin(c.pasture, p.occupation(OCC.herder), PRODUCTIVITY[OCC.herder]! * tools * gathers) *
     (0.5 + 0.5 * rain) *
     (m.price[G.meat]! +
       HERD_GOODS.woolPerMeat * m.price[G.wool]! +
@@ -684,7 +687,7 @@ export function economyYear(ctx: PopulationContext, t: SimTime): void {
   relief(ctx, markets, flows, t);
   for (const p of provinces) {
     const m = markets.of(p.cell);
-    reprice(p, m, wanted.get(p.cell)!);
+    reprice(p, m, wanted.get(p.cell)!, ctx.life.appetite);
     wages(ctx, p, m);
   }
 }

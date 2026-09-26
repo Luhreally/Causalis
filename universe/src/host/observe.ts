@@ -3,8 +3,8 @@
 // they remember and what kind of person it made them. Meeting someone writes only to
 // the observer ledger, which history never reads, so looking never changes history.
 import { YEAR, type Ref, type World } from "../kernel/index.ts";
-import { HUMANLIKE } from "../rules/index.ts";
-import { populationContext } from "../sim/index.ts";
+
+import { lifeOf, populationContext } from "../sim/index.ts";
 import {
   LIFE_WORDS,
   MEMORY_WORDS,
@@ -54,7 +54,7 @@ function brief(world: World, p: Person) {
     role: p.role,
     sex: p.sex === 0 ? "woman" : "man",
     age,
-    grownUp: age >= HUMANLIKE.adulthood,
+    grownUp: age >= lifeOf(world).adulthood,
     occupation: OCCUPATION_WORDS[p.occupation] ?? "",
     alive: p.alive,
     diedYear: p.diedYear,

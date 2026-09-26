@@ -34,6 +34,7 @@ export {
   type YearSummary,
 } from "./population/stores.ts";
 export {
+  adults,
   POPULATION_EVENTS,
   VILLAGE_SIZE,
   installPopulation,
@@ -119,6 +120,7 @@ export {
   languagesYear,
   type Language,
 } from "./culture/languages.ts";
+export { lifeOf, peopleLife } from "./population/life.ts";
 export { MOST_SEA_STEPS, SEA_STEPS, seaRange, seaReach, seaSteps } from "./economy/sea.ts";
 export {
   AIR_EVENTS,

@@ -2205,6 +2205,20 @@ on land and in water, fecundity by clutch and bearing. The people's why tells wh
 they arose, why their clade rose there, and their body (`life.people`, which replaces
 `life.apes`). Across forty open worlds six clades rose; nine had no land for a cradle.
 
+37, as built: `lifeHistoryOf(body)` (`rules/species.ts`) stretches the upright apes'
+table to the body's span — bands, coming of age and yearly rates alike — multiplies
+fertility by the body's fecundity and makes the first years the more perilous in
+proportion (solved under the model's own ageing, so a people renews itself as the apes
+do for a life as long: burrowers of 33 years grow twice as fast), and sets appetite by
+size to the three-quarters, halved for cold blood. A worker gathers, sows and herds in
+proportion to its appetite (a giant's day's grazing is a giant's meal), and the first
+bands are as many as the wild feeds by their appetite. The table lives on the
+population context (`ctx.life`, `lifeOf(world)`); births, deaths, ageing, coming of
+age, work, the host, rulers' deaths, households, biographies and the microscope all
+read it, and food needs are mouths, not heads. The canonical ape's derivation is
+Earth's table itself: the Earth seed's history is bit-identical. Open worlds of six
+clades each keep a living, growing people.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

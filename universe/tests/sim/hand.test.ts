@@ -57,7 +57,7 @@ test("while the hand rests, its people are born and die one by one, inside the c
     born += now.filter((a) => !before.has(a.id)).length;
     died += [...before].filter((id) => !now.some((a) => a.id === id)).length;
     // The window's people are always among the counted.
-    const within = hand.composition(HOME, year)!,
+    const within = hand.composition(HOME, year, ctx.life)!,
       p = ctx.provinces.get(HOME)!;
     for (let r = 0; r < ROWS; r++)
       for (let o = 0; o < COLS; o++)

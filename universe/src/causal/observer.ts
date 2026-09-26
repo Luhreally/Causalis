@@ -22,12 +22,13 @@ import {
 } from "../kernel/index.ts";
 import type { Watch } from "./watch.ts";
 import { cellRef, cradleTongue, tongueName, tonguePersonName } from "../gen/index.ts";
-import { BANDS, FEMALE, HUMANLIKE, MALE, bandWidth } from "../rules/index.ts";
+import { BANDS, FEMALE, MALE, bandOf, bandWidth } from "../rules/index.ts";
 import {
   COLS,
   cultureOf,
-  row,
+  lifeOf,
   populationContext,
+  row,
   type Flow,
   type PopulationContext,
 } from "../sim/index.ts";
@@ -223,10 +224,8 @@ const birthKey = (cell: number, year: number) => `b:${cell}:${year}`;
 const deathKey = (cell: number, year: number, band: number) => `d:${cell}:${year}:${band}`;
 const flowKey = (i: number) => `f:${i}`;
 
-function bandOfAge(age: number): number {
-  let b = 0;
-  while (b + 1 < BANDS && HUMANLIKE.bands[b + 1]! <= age) b++;
-  return b;
+function bandOfAge(age: number, world: World): number {
+  return bandOf(age, lifeOf(world));
 }
 
 /** A keyed coin: true with probability p (n distinguishes the questions asked). */
@@ -338,8 +337,8 @@ export function meetHousehold(world: World, cell: number, village: Ref | null): 
     const pseq = ++ledger.seq,
       sex = r < BANDS ? FEMALE : MALE,
       band = r % BANDS,
-      lo = HUMANLIKE.bands[band]!,
-      width = bandWidth(band);
+      lo = lifeOf(world).bands[band]!,
+      width = bandWidth(band, lifeOf(world));
     let age = lo + Math.floor(world.rng.real(COLLAPSE, pseq, now, 3) * width);
     if (ageLimit)
       age = Math.max(
@@ -398,18 +397,18 @@ export function meetHousehold(world: World, cell: number, village: Ref | null): 
     const c = pick(adults(bands, [other]), 1);
     if (c) add(c[0], c[1], "spouse", [headAge - 8, headAge + 8]);
   }
-  // Children, as many as the head's age suggests; each at least fifteen years younger.
+  // Children, as many as the head's age suggests; each younger by at least an age of coming of age.
   const expected = [0, 0, 0, 0, 1.3, 2.4, 2.1, 0.9, 0.2, 0][headBand]!;
   let children = 0;
   for (let k = 0; k < 8 && children < 7; k++) if (chance(expected / 8, 10 + k)) children++;
   for (let k = 0; k < children; k++) {
     const cells: [number, number][] = [];
     for (let b = 0; b <= 3; b++)
-      if (HUMANLIKE.bands[b]! <= headAge - 15)
+      if (lifeOf(world).bands[b]! <= headAge - lifeOf(world).adulthood)
         for (const s of [FEMALE, MALE])
           for (let o = b < 3 ? 0 : 1; o < (b < 3 ? 1 : COLS); o++) cells.push([row(s, b), o]);
     const c = pick(cells, 20 + k);
-    if (c) add(c[0], c[1], "child", [0, headAge - 15]);
+    if (c) add(c[0], c[1], "child", [0, headAge - lifeOf(world).adulthood]);
   }
   // Sometimes an elder: a parent of the head.
   if (headBand <= 6 && chance(0.22, 30)) {
@@ -448,10 +447,10 @@ function followLife(
     hh = ledger.household(person.household)!;
   for (let y = person.resolvedTo; y < now && person.alive; y++) {
     const age = y - person.birthYear,
-      band = bandOfAge(Math.max(0, age)),
+      band = bandOfAge(Math.max(0, age), world),
       summary = ctx.history.yearsOf(person.cell).find((s) => s.year === y),
       stress = summary ? 1 + 2.5 * (1 - summary.fed / 1000) : 1,
-      q = HUMANLIKE.mortality[band]! * stress;
+      q = lifeOf(world).mortality[band]! * stress;
     if (
       world.rng.real(LIFE, person.seq, y, 0) < q &&
       ledger.claim(deathKey(person.cell, y, band), ctx.history.deathsIn(person.cell, y, band))
@@ -498,14 +497,14 @@ export function settleAll(world: World): void {
     person.claimKey = null;
     if (!person.alive) continue;
     const p = ctx.provinces.get(person.cell),
-      band = bandOfAge(now - person.birthYear),
+      band = bandOfAge(now - person.birthYear, world),
       r = row(person.sex, band);
     if (!p) {
       person.alive = false;
       person.diedYear = now - 1;
       continue;
     }
-    const grownUp = HUMANLIKE.bands[band]! >= HUMANLIKE.adulthood;
+    const grownUp = lifeOf(world).bands[band]! >= lifeOf(world).adulthood;
     const order = [person.occupation, ...Array.from({ length: COLS }, (_, o) => o)].filter(
       (o, i, a) => a.indexOf(o) === i && (o === 0) === !grownUp,
     );

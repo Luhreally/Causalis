@@ -193,12 +193,13 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
       take =
         1 -
         dmath.exp(
-          -(p.occupation(OCC.forager) * PRODUCTIVITY[OCC.forager]!) /
+          -(p.occupation(OCC.forager) * PRODUCTIVITY[OCC.forager]! * ctx.life.appetite) /
             Math.max(1, c.forage * w.wild),
         ),
       farmed = Math.min(
         1,
-        (p.occupation(OCC.farmer) * PRODUCTIVITY[OCC.farmer]!) / Math.max(1, c.farm),
+        (p.occupation(OCC.farmer) * PRODUCTIVITY[OCC.farmer]! * ctx.life.appetite) /
+          Math.max(1, c.farm),
       ),
       rest = (lore.get(p.cell, "rotation") ? 0.6 : 0) + (lore.get(p.cell, "manuring") ? 0.4 : 0);
     stepWilds(w, take, farmed, rest);
