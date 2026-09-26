@@ -50,7 +50,7 @@ test("every market's year balances exactly: what was kept, made, brought, used, 
       years++;
     }
   }
-  assert.ok(years > 500, `${years} market-years checked`);
+  assert.ok(years > 100, `${years} market-years checked`);
 });
 
 test("what one market sends another receives, and what migrants carry out they carry in", () => {

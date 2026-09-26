@@ -394,7 +394,13 @@ function relief(
     const incoming = flows.filter((f) => f.to === p.cell && GOODS[f.good]!.food),
       food = incoming.reduce((s, f) => s + f.count, 0);
     if (food < Math.max(20, p.total())) continue;
-    const sources = [...new Set(incoming.map((f) => f.from))].sort((a, b) => a - b);
+    // The neighbours who sent the most (three at most name the event).
+    const sent = new Map<number, number>();
+    for (const f of incoming) sent.set(f.from, (sent.get(f.from) ?? 0) + f.count);
+    const sources = [...sent.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+      .slice(0, 3)
+      .map(([cell]) => cell);
     const causes: CauseRef[] = [{ ref: famine.id, role: "pressure", weight: 0.6 }];
     for (const s of sources) {
       const road = markets.route(s, p.cell);
@@ -405,7 +411,7 @@ function relief(
       subjects: [p.ref, ...sources.map((s) => cellRef(0, s))],
       place: p.ref,
       causes,
-      data: { food, from: sources.length },
+      data: { food, from: sent.size },
     });
     m.reliefFor = famine.id;
   }

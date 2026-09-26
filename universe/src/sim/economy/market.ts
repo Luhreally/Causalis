@@ -5,7 +5,7 @@
 // to a stock goes through the ledger, so a year always balances.
 import { Hasher, defineKind, makeRef, type Ref, type StateStore } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { GOODS, OCCUPATIONS } from "../../rules/index.ts";
+import { G, GOODS, OCCUPATIONS } from "../../rules/index.ts";
 
 export const GOOD_COUNT = GOODS.length;
 
@@ -37,8 +37,13 @@ export type MarketYear = {
   readonly ledger: readonly (readonly number[])[];
 };
 
-/** How many years of each market's past are kept. */
-export const MARKET_YEARS = 150;
+/** How many years of each market's full books are kept (the explainer reads the last). */
+export const MARKET_YEARS = 20;
+/** A market's prices through the years, for the charts: every year for this long, then every tenth. */
+export const PRICE_YEARS = 100;
+
+/** What food and tools cost against their usual worth, in a year (thousandths). */
+export type PricePoint = { readonly year: number; readonly food: number; readonly tools: number };
 
 export class Market {
   readonly cell: number;
@@ -62,6 +67,8 @@ export class Market {
   /** The famine the latest relief answered, so one famine brings one relief. */
   reliefFor: Ref | null = null;
   years: MarketYear[] = [];
+  /** Prices through the years, thinned with age. */
+  series: PricePoint[] = [];
   /** Every closed year folded in as it closed, so a checkpoint need not hash them all again. */
   yearsDigest = "";
 
@@ -105,6 +112,11 @@ export class Market {
     this.years.push(line);
     this.yearsDigest = new Hasher().string(this.yearsDigest).value(line).hex();
     if (this.years.length > MARKET_YEARS) this.years.splice(0, this.years.length - MARKET_YEARS);
+    const ratio = (g: number) => Math.round((1000 * this.price[g]!) / GOODS[g]!.value);
+    this.series.push({ year, food: ratio(G.grain), tools: ratio(G.tools) });
+    // Older than a century, keep one year in ten.
+    const old = this.series.length - PRICE_YEARS - 1;
+    if (old >= 0 && this.series[old]!.year % 10 !== 0) this.series.splice(old, 1);
     this.ledger.fill(0);
     this.opening.splice(0, GOOD_COUNT, ...this.stock);
   }
@@ -119,7 +131,8 @@ export class Market {
       .float(this.tradeMargin)
       .string(this.metalworking ?? "")
       .string(this.reliefFor ?? "")
-      .string(this.yearsDigest);
+      .string(this.yearsDigest)
+      .int(this.series.length);
   }
 
   save(): unknown {
@@ -138,6 +151,7 @@ export class Market {
       reliefFor: this.reliefFor,
       years: this.years,
       yearsDigest: this.yearsDigest,
+      series: this.series,
     };
   }
 
@@ -159,6 +173,7 @@ export class Market {
     m.reliefFor = s.reliefFor as Ref | null;
     m.years = s.years as MarketYear[];
     m.yearsDigest = s.yearsDigest as string;
+    m.series = s.series as PricePoint[];
     return m;
   }
 }

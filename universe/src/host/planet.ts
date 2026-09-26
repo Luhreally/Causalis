@@ -10,6 +10,8 @@ import {
   marketGoodRef,
   marketsOf,
   populationContext,
+  regionOf,
+  regionReady,
 } from "../sim/index.ts";
 import { FOODS, G, GOODS, OCCUPATIONS } from "../rules/index.ts";
 import {
@@ -207,10 +209,10 @@ function provinceHistory(world: World, cell: number) {
       population: y.population,
       fed: y.fed / 10,
     })),
-    prices: (m?.years ?? []).map((y) => ({
+    prices: (m?.series ?? []).map((y) => ({
       year: y.year,
-      food: y.price[G.grain]! / GOODS[G.grain]!.value,
-      tools: y.price[G.tools]! / GOODS[G.tools]!.value,
+      food: y.food / 1000,
+      tools: y.tools / 1000,
     })),
   };
 }
@@ -296,10 +298,26 @@ function cell(g: HomeWorld, c: number) {
 function planetUniverse(name: string, prior: Prior): Universe {
   return {
     name,
-    version: `${name}-3`,
+    version: `${name}-4`,
     defaultView: "globe",
+    // A farming land with no village yet will found one soon: refine its region early.
+    idle: (world) => {
+      const ctx = populationContext(world),
+        next = ctx.provinces
+          .all()
+          .find(
+            (p) =>
+              p.knowsCultivation &&
+              !ctx.settlements.inProvince(p.cell).length &&
+              !regionReady(ctx, p.cell),
+          );
+      if (!next) return false;
+      regionOf(ctx, next.cell);
+      return true;
+    },
     build: (seed) => {
-      const world = makePopulationWorld(seed, { prior });
+      // The chronicle opens after a generated prehistory: bands across the land.
+      const world = makePopulationWorld(seed, { prior, start: "spread" });
       observer(world);
       return world;
     },

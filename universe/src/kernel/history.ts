@@ -2,7 +2,7 @@
 // causes that link them. Causes are recorded at the point of decision, by the
 // system that made it — never guessed afterwards from "the latest event of that
 // type" (Classic's habit, which made its why-trees lie).
-import type { Hasher } from "./hash.ts";
+import { Hasher } from "./hash.ts";
 import { compareRefs, defineKind, kindCodeOf, isRef, type Minter, type Ref } from "./ref.ts";
 import { YEAR, type SimTime } from "./time.ts";
 
@@ -132,6 +132,12 @@ export class EventLog {
   private readonly index = new Map<string, HistoryEvent>();
   private tombstones: Tombstone[] = [];
   private readonly tombIndex = new Map<string, Tombstone>();
+  /**
+   * Every change the log has seen — each event as it was emitted, each rise in
+   * importance, each forgetting — folded in as it happened, so a checkpoint hashes
+   * the log in constant time however long history grows.
+   */
+  private digest = "";
   private folded = new Map<string, Summary>();
   private readonly minter: Minter;
   private readonly clock: () => SimTime;
@@ -164,13 +170,28 @@ export class EventLog {
     };
     this.events.push(event);
     this.index.set(id, event);
+    const h = new Hasher()
+      .string(this.digest)
+      .string(id)
+      .int(event.t)
+      .string(event.type)
+      .int(importance)
+      .string(event.place ?? "");
+    h.int(event.subjects.length);
+    for (const s of event.subjects) h.string(s);
+    hashCauses(h, event.causes);
+    h.value(event.data);
     // Hindsight: an important event lends significance to the events it cites.
     if (importance >= 3)
       for (const c of causes) {
         const cited = this.index.get(c.ref);
-        if (cited && (c.role === "trigger" || c.role === "pressure" || c.role === "agent"))
-          cited.importance = Math.max(cited.importance, importance - 2);
+        if (cited && (c.role === "trigger" || c.role === "pressure" || c.role === "agent")) {
+          const raised = Math.max(cited.importance, importance - 2);
+          if (raised !== cited.importance) h.string(cited.id).int(raised);
+          cited.importance = raised;
+        }
       }
+    this.digest = h.hex();
     return id;
   }
 
@@ -204,6 +225,7 @@ export class EventLog {
       }
       forgotten++;
       this.index.delete(e.id);
+      this.digest = new Hasher().string(this.digest).string("forget").string(e.id).hex();
       const tomb: Tombstone = {
         id: e.id,
         t: e.t,
@@ -225,29 +247,27 @@ export class EventLog {
   }
 
   hashInto(h: Hasher): void {
-    h.int(this.events.length);
-    for (const e of this.events) {
-      h.string(e.id)
-        .int(e.t)
-        .string(e.type)
-        .int(e.importance)
-        .string(e.place ?? "");
-      h.int(e.subjects.length);
-      for (const s of e.subjects) h.string(s);
-      hashCauses(h, e.causes);
-      h.value(e.data);
-    }
-    h.int(this.tombstones.length);
-    for (const t of this.tombstones) h.string(t.id).int(t.t).string(t.type);
-    for (const s of this.summaries()) h.string(s.place).int(s.decade).value(s.counts);
+    // The summaries are folded from forgotten events, which the digest already holds.
+    h.string(this.digest).int(this.events.length).int(this.tombstones.length);
   }
 
   save(): unknown {
-    return { events: this.events, tombstones: this.tombstones, summaries: this.summaries() };
+    return {
+      events: this.events,
+      tombstones: this.tombstones,
+      summaries: this.summaries(),
+      digest: this.digest,
+    };
   }
 
   load(state: unknown): void {
-    const s = state as { events: HistoryEvent[]; tombstones: Tombstone[]; summaries: Summary[] };
+    const s = state as {
+      events: HistoryEvent[];
+      tombstones: Tombstone[];
+      summaries: Summary[];
+      digest: string;
+    };
+    this.digest = s.digest;
     this.events = s.events.map((e) => ({ ...e }));
     this.index.clear();
     for (const e of this.events) this.index.set(e.id, e);
@@ -299,6 +319,8 @@ export class DecisionLog {
   private records: DecisionRecord[] = [];
   private readonly index = new Map<string, DecisionRecord>();
   private tombstones: DecisionTombstone[] = [];
+  /** Every record and every forgetting, folded in as it happened (see EventLog). */
+  private digest = "";
   private readonly tombIndex = new Map<string, DecisionTombstone>();
   private readonly minter: Minter;
   private readonly clock: () => SimTime;
@@ -340,6 +362,22 @@ export class DecisionLog {
     };
     this.records.push(rec);
     this.index.set(id, rec);
+    const h = new Hasher()
+      .string(this.digest)
+      .string(id)
+      .int(rec.t)
+      .string(rec.rule)
+      .string(rec.subject)
+      .value(rec.outcome)
+      .float(rec.score)
+      .float(rec.threshold);
+    h.int(rec.factors.length);
+    for (const f of rec.factors) {
+      h.string(f.name).float(f.value).float(f.contribution);
+      if (f.source) hashCauses(h, [f.source]);
+      else h.int(0);
+    }
+    this.digest = h.hex();
     return id;
   }
 
@@ -386,6 +424,7 @@ export class DecisionLog {
       }
       forgotten++;
       this.index.delete(r.id);
+      this.digest = new Hasher().string(this.digest).string("forget").string(r.id).hex();
       const tomb: DecisionTombstone = { id: r.id, t: r.t, rule: r.rule, subject: r.subject };
       this.tombstones.push(tomb);
       this.tombIndex.set(r.id, tomb);
@@ -395,32 +434,20 @@ export class DecisionLog {
   }
 
   hashInto(h: Hasher): void {
-    h.int(this.records.length);
-    for (const r of this.records) {
-      h.string(r.id)
-        .int(r.t)
-        .string(r.rule)
-        .string(r.subject)
-        .value(r.outcome)
-        .float(r.score)
-        .float(r.threshold);
-      h.int(r.factors.length);
-      for (const f of r.factors) {
-        h.string(f.name).float(f.value).float(f.contribution);
-        if (f.source) hashCauses(h, [f.source]);
-        else h.int(0);
-      }
-    }
-    h.int(this.tombstones.length);
-    for (const t of this.tombstones) h.string(t.id).int(t.t).string(t.rule).string(t.subject);
+    h.string(this.digest).int(this.records.length).int(this.tombstones.length);
   }
 
   save(): unknown {
-    return { records: this.records, tombstones: this.tombstones };
+    return { records: this.records, tombstones: this.tombstones, digest: this.digest };
   }
 
   load(state: unknown): void {
-    const s = state as { records: DecisionRecord[]; tombstones: DecisionTombstone[] };
+    const s = state as {
+      records: DecisionRecord[];
+      tombstones: DecisionTombstone[];
+      digest: string;
+    };
+    this.digest = s.digest;
     this.records = [...s.records];
     this.index.clear();
     for (const r of this.records) this.index.set(r.id, r);

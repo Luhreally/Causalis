@@ -46,6 +46,11 @@ export type Universe = {
   readonly build: (seed: Seed) => World;
   readonly frames: Readonly<Record<string, FrameBuilder>>;
   readonly queries: Readonly<Record<string, QueryHandler>>;
+  /**
+   * Work that can be done early in spare time without changing anything the world
+   * will do (warming pure caches); returns whether it found any. Optional.
+   */
+  readonly idle?: (world: World) => boolean;
   /** The view shown before the page says otherwise. */
   readonly defaultView: string;
 };
@@ -431,6 +436,9 @@ export class SimHost {
           }
         }
       }
+      // Time to spare: do early what the world will need, so it need not pause for it.
+      if (this.universe?.idle && clock() < start + this.options.budgetMs / 2)
+        this.universe.idle(world);
       this.finishMoment();
       this.stepMs = clock() - start;
       const now = clock();

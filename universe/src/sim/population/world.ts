@@ -50,7 +50,61 @@ export function chooseHome(g: HomeWorld, world: World): number {
  */
 export const PEOPLED_RETENTION = { window: 20 * YEAR, chronicle: 3 } as const;
 
-export function makePopulationWorld(seed: Seed, options: PlanetWorldOptions = {}): World {
+export type PopulationWorldOptions = PlanetWorldOptions & {
+  /**
+   * Where the chronicle opens: "cradle", the first people in one province (Phase 1's
+   * slice); or "spread", after a generated prehistory in which foraging bands have
+   * spread across the land around the cradle (docs/architecture §7: prehistory is
+   * generated, not ticked).
+   */
+  readonly start?: "cradle" | "spread";
+};
+
+/** The generated prehistory: how far the bands have spread, and how thinly. */
+export const SPREAD = {
+  /** Steps across the land from the cradle. */
+  rings: 4,
+  /** Of what a province's wild food could feed, the share its bands number. */
+  density: 0.05,
+  /** The fewest people a band's province holds. */
+  least: 20,
+} as const;
+
+/** Set a province's people: a young people's pyramid, the grown foraging. */
+function people(p: Province, n: number): void {
+  apportion(n, PYRAMID).forEach((k, b) => {
+    const [women, men] = apportion(k, [1, 1]);
+    const occupation = HUMANLIKE.bands[b]! >= HUMANLIKE.adulthood ? OCC.forager : OCC.dependent;
+    p.counts.set(row(FEMALE, b), occupation, women!);
+    p.counts.set(row(MALE, b), occupation, men!);
+  });
+}
+
+/** The habitable land within `rings` steps of a cell, nearest first (ties by cell). */
+function landAround(g: HomeWorld, from: number, rings: number): number[] {
+  const dist = new Map<number, number>([[from, 0]]),
+    queue = [from];
+  for (let i = 0; i < queue.length; i++) {
+    const c = queue[i]!,
+      d = dist.get(c)!;
+    if (d >= rings) continue;
+    const next: number[] = [];
+    for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
+      const n = g.grid.neighbours[k]!;
+      if (dist.has(n) || g.tectonics.elevation[n]! <= 0) continue;
+      const biome = g.climate.biome[n]!;
+      if (biome === BIOME.ice || biome === BIOME.alpine || capacity(g, n).forage <= 0) continue;
+      next.push(n);
+    }
+    for (const n of next.sort((a, b) => a - b)) {
+      dist.set(n, d + 1);
+      queue.push(n);
+    }
+  }
+  return queue;
+}
+
+export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions = {}): World {
   const world = makePlanetWorld(seed, { retention: PEOPLED_RETENTION, ...options });
   const provinces = world.register(new PopulationStore()),
     history = world.register(new HistoryStore());
@@ -119,15 +173,26 @@ export function makePopulationWorld(seed: Seed, options: PlanetWorldOptions = {}
     causes: [{ ref: decision, role: "trigger", weight: 1 }],
     data: { people: FIRST_PEOPLE },
   });
-  const p = provinces.add(new Province(home, 0, origin));
-  const byBand = apportion(FIRST_PEOPLE, PYRAMID);
-  byBand.forEach((n, b) => {
-    const [women, men] = apportion(n, [1, 1]);
-    const occupation = HUMANLIKE.bands[b]! >= HUMANLIKE.adulthood ? OCC.forager : OCC.dependent;
-    p.counts.set(row(FEMALE, b), occupation, women!);
-    p.counts.set(row(MALE, b), occupation, men!);
+  if (options.start !== "spread") {
+    people(provinces.add(new Province(home, 0, origin)), FIRST_PEOPLE);
+    // They bring half a year's food.
+    markets.of(home).move("carriedIn", G.wild, FIRST_PEOPLE * 6);
+    return world;
+  }
+  // The ages before the chronicle: bands spread from the cradle across the land.
+  const lands = landAround(g, home, SPREAD.rings),
+    sizes = lands.map((c) =>
+      Math.max(SPREAD.least, Math.round(capacity(g, c).forage * SPREAD.density)),
+    );
+  const spread = world.events.emit({
+    type: POPULATION_EVENTS.spread.type,
+    place: cellRef(0, home),
+    causes: [{ ref: origin, role: "trigger", weight: 1 }],
+    data: { provinces: lands.length, people: sizes.reduce((a, b) => a + b, 0) },
   });
-  // They bring half a year's food.
-  markets.of(home).move("carriedIn", G.wild, FIRST_PEOPLE * 6);
+  lands.forEach((cell, i) => {
+    people(provinces.add(new Province(cell, 0, cell === home ? origin : spread)), sizes[i]!);
+    markets.of(cell).move("carriedIn", G.wild, sizes[i]! * 6);
+  });
   return world;
 }

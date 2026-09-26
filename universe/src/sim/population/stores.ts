@@ -1,7 +1,7 @@
 // The population's stores: the provinces (counts and food), the settlements, and
 // the macro history — the birth, death and migration ledgers every later
 // resolution of a person is conditioned on (docs/architecture §14–15).
-import { defineKind, type Hasher, type Ref, type StateStore } from "../../kernel/index.ts";
+import { Hasher, defineKind, type Ref, type StateStore } from "../../kernel/index.ts";
 import { BANDS, OCCUPATIONS } from "../../rules/index.ts";
 import { Province } from "./model.ts";
 
@@ -140,6 +140,9 @@ export class HistoryStore implements StateStore {
   private readonly deaths = new Map<number, number[]>();
   private flowList: Flow[] = [];
   private readonly years = new Map<number, YearSummary[]>();
+  private digest = "";
+  private sealedYear = -1;
+  private sealedFlows = 0;
 
   addBirths(cell: number, year: number, n: number): void {
     if (!n) return;
@@ -197,13 +200,42 @@ export class HistoryStore implements StateStore {
     return this.flowList.flatMap((f) => [f.decision, f.event]);
   }
 
+  /**
+   * Close a year: its lines — births, deaths, the year's summary, the moves — are
+   * folded into the digest, never to change again, so a checkpoint hashes only the
+   * year still open, however long history grows.
+   */
+  seal(year: number): void {
+    const cells = [
+      ...new Set([...this.births.keys(), ...this.deaths.keys(), ...this.years.keys()]),
+    ].sort((a, b) => a - b);
+    const h = new Hasher().string(this.digest).int(year);
+    for (const c of cells) {
+      h.int(c).int(this.births.get(c)?.[year] ?? 0);
+      const d = this.deaths.get(c);
+      for (let b = 0; b < BANDS; b++) h.int(d?.[year * BANDS + b] ?? 0);
+      const line = this.years.get(c)?.at(-1);
+      if (line && line.year === year) h.value(line);
+      else h.int(-1);
+    }
+    for (; this.sealedFlows < this.flowList.length; this.sealedFlows++)
+      h.value(this.flowList[this.sealedFlows]);
+    this.digest = h.hex();
+    this.sealedYear = year;
+  }
+
   hashInto(h: Hasher): void {
-    const cells = (m: Map<number, unknown>) => [...m.keys()].sort((a, b) => a - b);
-    for (const c of cells(this.births)) h.int(c).value(this.births.get(c));
-    for (const c of cells(this.deaths)) h.int(c).value(this.deaths.get(c));
-    h.int(this.flowList.length);
-    for (const f of this.flowList) h.value(f);
-    for (const c of cells(this.years)) h.int(c).value(this.years.get(c));
+    h.string(this.digest).int(this.sealedYear).int(this.sealedFlows);
+    // The year still open.
+    const open = this.sealedYear + 1,
+      cells = [...new Set([...this.births.keys(), ...this.deaths.keys()])].sort((a, b) => a - b);
+    for (const c of cells) {
+      const born = this.births.get(c),
+        dead = this.deaths.get(c);
+      for (let y = open; y < (born?.length ?? 0); y++) h.int(c).int(y).int(born![y]!);
+      for (let i = open * BANDS; i < (dead?.length ?? 0); i++) h.int(c).int(i).int(dead![i]!);
+    }
+    for (let i = this.sealedFlows; i < this.flowList.length; i++) h.value(this.flowList[i]);
   }
 
   save(): unknown {
@@ -214,6 +246,9 @@ export class HistoryStore implements StateStore {
       deaths: obj(this.deaths),
       flows: this.flowList,
       years: obj(this.years),
+      digest: this.digest,
+      sealedYear: this.sealedYear,
+      sealedFlows: this.sealedFlows,
     };
   }
 
@@ -223,7 +258,13 @@ export class HistoryStore implements StateStore {
       deaths: [number, number[]][];
       flows: Flow[];
       years: [number, YearSummary[]][];
+      digest: string;
+      sealedYear: number;
+      sealedFlows: number;
     };
+    this.digest = s.digest;
+    this.sealedYear = s.sealedYear;
+    this.sealedFlows = s.sealedFlows;
     this.births.clear();
     this.deaths.clear();
     this.years.clear();

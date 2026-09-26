@@ -1,85 +1,127 @@
-// node tools/slice.ts [years] [throttle] [inline] — the Phase 1 slice on a phone-floor proxy:
-// the built app in Chromium with its CPU slowed (4× by default, about a mid-range
-// phone), running the world as fast as it will go to the given year (300 by
-// default). Reports how many years a second the worker simulates, the slowest
-// stretch, and how smooth the page stayed (its frame times), while the globe and
-// its panels are live. Run `npm run build` first. Headless Chromium draws with
-// software GL here, so its frame times are an upper bound on a real phone's.
-// Chromium's throttle slows the page's own thread, not its workers: "inline" runs
-// the simulation on that thread too, so its rate is the slowed rate.
+// node tools/slice.ts [years] [throttle] — the app's world on a phone-floor proxy:
+// Chromium with its CPU slowed (4× by default, about a mid-range phone).
+//
+// 1. The simulation alone: the world bundled into a blank, slowed tab and run year
+//    by year to the given year (300 by default). Every year must take under a
+//    second — the world's own pace is a year a second — or the check fails.
+// 2. The page: the built app with the simulation in its worker, run as fast as it
+//    will go to the same year, reporting how smooth the page stayed. Headless
+//    Chromium draws with software GL, so its frame times are an upper bound on a
+//    phone's (whose GPU draws), and its throttle slows the page, not the worker.
+//
+// Run `npm run build` first.
+import { fileURLToPath } from "node:url";
+import { build, preview } from "vite";
 import { chromium } from "playwright";
-import { preview } from "vite";
 
-const [yearsArg = "300", throttleArg = "4", mode = "worker"] = process.argv.slice(2);
+const [yearsArg = "300", throttleArg = "4"] = process.argv.slice(2);
 const years = Number(yearsArg),
   throttle = Number(throttleArg),
   YEAR = 365 * 86_400;
+const root = fileURLToPath(new URL("..", import.meta.url));
 
-const server = await preview({ logLevel: "silent", preview: { port: 4190, strictPort: false } });
-const base = server.resolvedUrls?.local[0];
-if (!base) throw new Error("the preview server did not start");
+async function bundle(): Promise<string> {
+  const result = await build({
+    configFile: false,
+    root,
+    logLevel: "silent",
+    build: {
+      write: false,
+      minify: false,
+      lib: { entry: "tools/slice-entry.ts", formats: ["iife"], name: "CausalisSlice" },
+    },
+  });
+  const outputs = Array.isArray(result) ? result : [result];
+  for (const out of outputs)
+    if ("output" in out)
+      for (const chunk of out.output) if (chunk.type === "chunk") return chunk.code;
+  throw new Error("the slice bundle produced no code");
+}
+
 // CI machines have no GPU: Chromium needs its software GL allowed (as in the app check).
 const browser = await chromium.launch(
   process.platform === "linux"
     ? { args: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--ignore-gpu-blocklist"] }
     : {},
 );
+let failed = false;
 try {
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle });
-  await page.goto(`${base}${mode === "inline" ? "?inline" : ""}`);
-  await page.waitForFunction(() => ((globalThis as any).causalis?.drawn?.() ?? 0) > 0, undefined, {
-    timeout: 120_000,
-  });
-  // Frame times from the page itself, and the fastest the world will go.
-  await page.evaluate((fast) => {
-    const g = globalThis as any;
-    g.frames = [];
-    let last = performance.now();
-    const tick = (now: number) => {
-      g.frames.push(now - last);
-      last = now;
-      requestAnimationFrame(tick);
+  // 1. The simulation alone, slowed.
+  {
+    const page = await browser.newPage(),
+      cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle });
+    await page.setContent("<!doctype html><title>slice</title>");
+    await page.addScriptTag({ content: await bundle() });
+    const r = (await page.evaluate(`CausalisSlice.run(${years})`)) as {
+      perYear: number[];
+      built: number;
     };
-    requestAnimationFrame(tick);
-    g.causalis.client.setSpeed(fast);
-  }, 1000 * YEAR);
-  const start = Date.now(),
-    samples: { wall: number; year: number }[] = [];
-  for (;;) {
-    await new Promise((r) => setTimeout(r, 1000));
-    const t = await page.evaluate(() => (globalThis as any).causalis.client.status?.t ?? 0);
-    samples.push({ wall: (Date.now() - start) / 1000, year: t / YEAR });
-    if (t / YEAR >= years || Date.now() - start > 600_000) break;
-  }
-  const frames = (await page.evaluate(() => (globalThis as any).frames as number[]))
-      .slice(5)
-      .sort((a, b) => a - b),
-    pct = (q: number) => frames[Math.min(frames.length - 1, Math.floor(q * frames.length))] ?? 0;
-  const last = samples.at(-1)!,
-    rates = samples
-      .slice(1)
-      .map((s, i) => (s.year - samples[i]!.year) / (s.wall - samples[i]!.wall)),
-    slowest = Math.min(...rates);
-  console.log(
-    `phone-floor proxy (${throttle}× CPU, ${mode === "inline" ? "simulated on the slowed thread" : "simulated in a worker"}): ${last.year.toFixed(0)} years in ${last.wall.toFixed(0)} s — ${(last.year / last.wall).toFixed(1)} years a second on average, the slowest second ${slowest.toFixed(1)}`,
-  );
-  console.log(
-    `page frames while it ran: median ${pct(0.5).toFixed(0)} ms, 95th percentile ${pct(0.95).toFixed(0)} ms, worst ${pct(1).toFixed(0)} ms (${frames.length} frames)`,
-  );
-  if (last.year < years) {
-    console.log(`::error::the slice did not reach year ${years} in time`);
-    process.exitCode = 1;
-  }
-  // The world's own pace is a year a second: the phone floor must keep up with it everywhere.
-  if (slowest < 1) {
+    const total = r.perYear.reduce((a, b) => a + b, 0),
+      worst = Math.max(...r.perYear),
+      at = r.perYear.indexOf(worst) + 1,
+      sorted = [...r.perYear].sort((a, b) => a - b),
+      p95 = sorted[Math.floor(0.95 * sorted.length)]!;
     console.log(
-      `::error::the slowest second simulated ${slowest.toFixed(2)} years, under the world's pace`,
+      `the world at ${throttle}× slower: built in ${r.built.toFixed(0)} ms; ${years} years in ${(total / 1000).toFixed(1)} s — a year takes ${(total / years).toFixed(0)} ms on average, 95th percentile ${p95.toFixed(0)} ms, slowest ${worst.toFixed(0)} ms (year ${at})`,
     );
-    process.exitCode = 1;
+    if (worst >= 1000) {
+      console.log(
+        `::error::year ${at} took ${worst.toFixed(0)} ms, over the world's pace of a year a second`,
+      );
+      failed = true;
+    }
+    await page.close();
+  }
+  // 2. The page, with the world in its worker.
+  {
+    const server = await preview({
+      logLevel: "silent",
+      preview: { port: 4190, strictPort: false },
+    });
+    const base = server.resolvedUrls?.local[0];
+    if (!base) throw new Error("the preview server did not start");
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } }),
+      cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle });
+    await page.goto(base);
+    await page.waitForFunction(
+      () => ((globalThis as any).causalis?.drawn?.() ?? 0) > 0,
+      undefined,
+      { timeout: 120_000 },
+    );
+    await page.evaluate((fast) => {
+      const g = globalThis as any;
+      g.frames = [];
+      let last = performance.now();
+      const tick = (now: number) => {
+        g.frames.push(now - last);
+        last = now;
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      g.causalis.client.setSpeed(fast);
+    }, 1000 * YEAR);
+    const start = Date.now();
+    let year = 0;
+    while (year < years && Date.now() - start < 600_000) {
+      await new Promise((r) => setTimeout(r, 1000));
+      year = (await page.evaluate(() => (globalThis as any).causalis.client.status?.t ?? 0)) / YEAR;
+    }
+    const frames = (await page.evaluate(() => (globalThis as any).frames as number[]))
+        .slice(5)
+        .sort((a, b) => a - b),
+      pct = (q: number) => frames[Math.min(frames.length - 1, Math.floor(q * frames.length))] ?? 0;
+    console.log(
+      `the page at ${throttle}× slower, the world in its worker: year ${year.toFixed(0)} in ${((Date.now() - start) / 1000).toFixed(0)} s; frames median ${pct(0.5).toFixed(0)} ms, 95th percentile ${pct(0.95).toFixed(0)} ms, worst ${pct(1).toFixed(0)} ms`,
+    );
+    if (year < years) {
+      console.log(`::error::the page's world did not reach year ${years} in time`);
+      failed = true;
+    }
+    await server.close();
   }
 } finally {
   await browser.close();
-  await server.close();
 }
+if (failed) process.exitCode = 1;

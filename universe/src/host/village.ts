@@ -14,6 +14,8 @@ import type { VillagePlan } from "../bridge/index.ts";
 
 /** Families the microscope watches in a village: a presentation budget, not a rule. */
 export const WATCHED_FAMILIES = 10;
+/** Under the hand, at most this many of the village's people are drawn (all of them live). */
+export const DRAWN_UNDER_HAND = 400;
 
 const u = (seed: number, n: number) => finish(mix(seed, n), 13) / 4294967296;
 
@@ -88,18 +90,22 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
     hand = handOf(world).resting;
   if (hand && hand.village === ref) {
     // Under the hand, everyone in the village is someone: the hand's own people, five to a home.
-    hand.agents.forEach((a, k) => {
-      const home = Math.min(homes.length - 1, Math.floor(k / 5));
-      homes[home]!.household = `home:${home}`;
-      people.push({
-        ref: `agent:${a.id}`,
-        name: `${personName(ctx.culture, a.id, a.sex)} of ${v.name}`,
-        home,
-        age: now - a.birthYear,
-        occupation: a.occupation,
-        child: now - a.birthYear < HUMANLIKE.adulthood,
+    // Every k-th, so the sample is spread through the village's people.
+    const every = Math.max(1, Math.ceil(hand.agents.length / DRAWN_UNDER_HAND));
+    hand.agents
+      .filter((_, i) => i % every === 0)
+      .forEach((a, k) => {
+        const home = Math.min(homes.length - 1, Math.floor(k / 5));
+        homes[home]!.household = `home:${home}`;
+        people.push({
+          ref: `agent:${a.id}`,
+          name: `${personName(ctx.culture, a.id, a.sex)} of ${v.name}`,
+          home,
+          age: now - a.birthYear,
+          occupation: a.occupation,
+          child: now - a.birthYear < HUMANLIKE.adulthood,
+        });
       });
-    });
     return planOf(people);
   }
   watched.forEach((hh, k) => {

@@ -93,6 +93,11 @@ registerEventWords(
   (world, e) =>
     `The first people, ${people(num(e.data, "people"), "a band")}, began in ${landWords(world, e.place)}`,
 );
+registerEventWords(E.spread.type, (world, e) => {
+  const lands = num(e.data, "provinces"),
+    folk = num(e.data, "people");
+  return `In the ages before the chronicle, the people spread from ${landWords(world, e.place)} across ${lands === null ? "the land" : `${count(lands)} lands`}${folk === null ? "" : `, ${count(folk)} of them in wandering bands`}`;
+});
 registerEventWords(E.drought.type, (world, e) => {
   const rain = num(e.data, "rain");
   return `A dry year in ${landWords(world, e.place)}, year ${yearOfMoment(e.t)}${rain === null ? "" : `: ${Math.round(rain / 10)}% of the usual rain`}`;

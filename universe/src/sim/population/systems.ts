@@ -62,6 +62,7 @@ import {
 
 export const POPULATION_EVENTS = {
   origin: defineEventType("people.origin", 7),
+  spread: defineEventType("people.spread", 6),
   drought: defineEventType("weather.drought", 3),
   famine: defineEventType("people.famine", 4),
   migration: defineEventType("people.migration", 2),
@@ -178,6 +179,11 @@ export function provinceCapacity(ctx: PopulationContext, cell: number): Capacity
   return c;
 }
 const REGIONS = new Map<string, Region>();
+/** Whether a province's region is refined already (regions are pure: refining early changes nothing). */
+export function regionReady(ctx: PopulationContext, cell: number): boolean {
+  return REGIONS.has(`${ctx.generated.digest}:${cell}`);
+}
+
 export function regionOf(ctx: PopulationContext, cell: number): Region {
   const key = `${ctx.generated.digest}:${cell}`;
   let r = REGIONS.get(key);
@@ -817,7 +823,8 @@ function chooseSite(
     bestScore = -Infinity;
   for (let tile = 0; tile < size * size; tile++) {
     const base = scores[tile]!;
-    if (base < 0) continue;
+    // The keyed nudge adds at most 0.02: a site that cannot win needs no draw.
+    if (base < 0 || base + 0.02 <= bestScore) continue;
     const score = base + 0.02 * ctx.world.rng.real(SITES, tile, t, cell);
     // Only a site that would be the best so far needs its neighbours checked.
     if (score <= bestScore) continue;
@@ -1009,6 +1016,7 @@ export function ledgerYear(ctx: PopulationContext, t: SimTime): void {
     });
     p.leanest = 1000;
   }
+  ctx.history.seal(year);
 }
 
 /** Register the population's systems on a world, in their order. */

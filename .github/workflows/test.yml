@@ -58,6 +58,7 @@ jobs:
       - run: npm run app-check
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
-      - run: npm run slice -- 300 4 inline
+      # CI runners are about half as fast as the reference machine: 2× here is its 4×.
+      - run: npm run slice -- 300 2
         env:
           LIBGL_ALWAYS_SOFTWARE: 1

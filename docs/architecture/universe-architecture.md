@@ -1938,6 +1938,36 @@ them) or a sim rule — never by looking.
 15. **Slice gate**: 200 years on the phone floor within budgets; save,
     continue and replay bit-exact on three engines. End of Phase 1.
 
+### I.2 Phase 2 milestones (planned 2026-09-25, after the slice gate)
+
+16. **Peopling the land**: foraging bands bud off into empty land long before
+    hunger drives them (the wave of advance), farming spreads by learning and by
+    farmers' own moves; dozens of provinces within the chronicle's first
+    centuries; the per-year cost stays flat per province.
+17. **Culture and language**: culture vectors per province that drift and
+    diverge with distance and isolation; a phonology per culture so names drift
+    apart; the explainer says why two peoples differ.
+18. **Polities v1**: chiefdoms gather provinces around market towns; institution
+    compositions (who leads, who counsels, what law) and interest groups with
+    sourced demands; splits and successions as decisions.
+19. **Belief**: belief systems that read the world — disasters, plenty, the
+    god's acts as omens — found cults, reform, and are blamed.
+20. **Technology v1**: ~60 principles, knowledge that diffuses along roads and
+    kin, realizations through the design grammar (tools, weapons, buildings).
+21. **Diplomacy**: opinion between polities from sourced causes (borders,
+    trade, faith, grievance), pacts and their breaking.
+22. **Conflict v1**: forces from people and technology, war decisions whose
+    factors reach economy and geography, engagements, supply, occupation,
+    rebellion, peace.
+23. **Cities**: the district grid with land use; a rail-like realization that
+    reshapes a city's districts.
+24. **Acts and watches**: the divine-act grammar at person and place scale,
+    omens the belief system reads; observer watches and alerts; hindsight
+    importance in history retention.
+25. **Phase 2 gate**: 500 years on 11 seeds — polities form, split and fight
+    wars whose why-chains reach economic and geographic facts; four or more
+    distinct government compositions.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |
