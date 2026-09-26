@@ -1966,7 +1966,8 @@ them) or a sim rule — never by looking.
     importance in history retention.
 25. **Phase 2 gate**: 500 years on 11 seeds — polities form, split and fight
     wars whose why-chains reach economic and geographic facts; four or more
-    distinct government compositions.
+    distinct government compositions. Run by `npm run gate:2`
+    (tools/phase2-gate.ts, one process per seed) and in CI.
 
 ### J. Allocation of ~100k lines
 

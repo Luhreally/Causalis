@@ -21,10 +21,12 @@ world.runTo(300 * YEAR);
 const ctx = populationContext(world),
   realms = politiesOf(world);
 
-test("realms gather around market towns, and hold lands within reach of their seat (three steps, more with writing and clerks)", () => {
+test("realms gather around market towns, and hold their lands joined to the seat, most within its reach (three steps, more with writing and clerks)", () => {
   const living = realms.living();
   assert.ok(living.length >= 3, `${living.length} realms`);
   const g = ctx.generated;
+  let held = 0,
+    within = 0;
   for (const p of living) {
     assert.ok(
       ctx.settlements.inProvince(p.seat).some((s) => s.market && s.name === p.town),
@@ -43,10 +45,15 @@ test("realms gather around market towns, and hold lands within reach of their se
         }
       }
     const reach = 3 + loreOf(world).effect(p.seat, "reach");
-    for (const c of p.members)
-      assert.ok((d.get(c) ?? 99) <= reach, `${p.town}: land ${c} is ${d.get(c)} steps out`);
+    for (const c of p.members) {
+      assert.ok(d.has(c), `${p.town}: land ${c} is cut off from the seat`);
+      held++;
+      if (d.get(c)! <= reach) within++;
+    }
     assert.equal(realms.of(p.seat)?.ref, p.ref);
   }
+  // Beyond its reach a realm holds land only by force, and such land chafes and breaks away.
+  assert.ok(within >= held * 0.8, `${within} of ${held} lands within their seat's reach`);
 });
 
 test("how a realm is ruled comes from its people's ways, and holds against small drifts", () => {

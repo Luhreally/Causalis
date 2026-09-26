@@ -25,12 +25,12 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { BANDS, HUMANLIKE, MALE } from "../../rules/index.ts";
+import { BANDS, G, HUMANLIKE, MALE } from "../../rules/index.ts";
 import { COLS, row } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
-import type { MarketStore } from "../economy/market.ts";
+import { marketGoodRef, type MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
-import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
+import { cutOff, endRealm, politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { loreOf } from "../lore/lore.ts";
 import { RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
 import { handOf } from "../hand/hand.ts";
@@ -69,6 +69,8 @@ export type War = {
 };
 
 const DECLARE = defineStream("war.declare");
+/** Years after a peace before a realm is as ready for war as it was. */
+const WEARY_YEARS = 25;
 const FIGHT = defineStream("war.fight");
 
 export class WarStore implements StateStore {
@@ -161,16 +163,24 @@ export function strengthOf(ctx: PopulationContext, p: Polity): number {
 /** The border lands of `b` next to `a`, richest in food first. */
 function frontier(ctx: PopulationContext, a: Polity, b: Polity): number[] {
   const g = ctx.generated,
-    markets = ctx.world.store<MarketStore>("economy.markets"),
     out = new Set<number>();
   for (const c of a.members)
     for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
       const n = g.grid.neighbours[k]!;
       if (b.members.includes(n) && n !== b.seat) out.add(n);
     }
-  const food = (c: number) =>
-    markets.get(c)?.stock.reduce((s, v, i) => (i < 3 ? s + v : s), 0) ?? 0;
-  return [...out].sort((x, y) => food(y) - food(x) || x - y);
+  // The seat itself is fought for only once nothing else of the realm stands before it.
+  if (!out.size && b.members.includes(b.seat))
+    for (const c of a.members)
+      for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++)
+        if (g.grid.neighbours[k] === b.seat) out.add(b.seat);
+  return [...out].sort((x, y) => stores(ctx, y) - stores(ctx, x) || x - y);
+}
+
+/** A land's food in store (its grain, pulses and roots): what a coveting realm wants of it. */
+function stores(ctx: PopulationContext, cell: number): number {
+  const markets = ctx.world.store<MarketStore>("economy.markets");
+  return markets.get(cell)?.stock.reduce((s, v, i) => (i < 3 ? s + v : s), 0) ?? 0;
 }
 
 /** Lose `n` grown men of a land to battle: drawn from its counts (never the hand's own), written as deaths. */
@@ -215,6 +225,12 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     year = yearOfMoment(t);
 
   // 1. Declarations: rivals, and realms who covet a neighbour's stores in a famine.
+  // A realm fresh from war is slow to go to war again: its fallen are still mourned.
+  const lastPeace = new Map<string, War>();
+  for (const w of wars.all())
+    if (w.ended !== null && w.peace)
+      for (const side of [w.attacker, w.defender])
+        if ((lastPeace.get(side)?.ended ?? -1) < w.ended) lastPeace.set(side, w);
   for (const r of diplomacy.all()) {
     if (wars.between(r.a, r.b)) continue;
     const a0 = realms.get(r.a)!,
@@ -230,10 +246,11 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     if (prize === undefined) continue;
     const valour = culture.get(attacker.seat)?.traits[WAY.valour] ?? 0.5,
       hatred = Math.max(0, -r.opinion - (covets ? 0 : -RIVALRY)),
-      chance = Math.min(
-        0.5,
-        (hatred * 0.6 + (covets ? 0.15 : 0)) * Math.min(2, ratio) * (0.5 + valour),
-      );
+      last = lastPeace.get(attacker.ref),
+      rested = last ? Math.min(1, (year - last.ended!) / WEARY_YEARS) : 1,
+      chance =
+        Math.min(0.5, (hatred * 0.45 + (covets ? 0.15 : 0)) * Math.min(2, ratio) * (0.5 + valour)) *
+        rested;
     if (
       chance <= 0 ||
       !(world.rng.real(DECLARE, Number(attacker.ref.split(":")[2]), t, 0) < chance)
@@ -243,7 +260,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       {
         name: "their rivalry",
         value: r.opinion,
-        contribution: hatred,
+        contribution: Math.max(0, -r.opinion),
         source: { ref: relationRef(r.a, r.b), role: "pressure", weight: 1 },
       },
       {
@@ -260,6 +277,31 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         source: null,
       },
     ];
+    // The rivalry's own reasons, as they stood — so the war's why holds when the realms are gone.
+    for (const term of r.terms
+      .filter((x) => x.value < 0 && x.source && !/covets their stores/.test(x.name))
+      .sort((x, y) => x.value - y.value || (x.name < y.name ? -1 : 1))
+      .slice(0, 2))
+      factors.push({
+        name: term.name,
+        value: term.value,
+        contribution: -term.value,
+        source: { ref: term.source!, role: "pressure", weight: 1 },
+      });
+    // The land wanted is the one with the fullest stores.
+    factors.push({
+      name: "the stores of the land they want",
+      value: stores(ctx, prize),
+      contribution: 0.3,
+      source: { ref: marketGoodRef(prize, G.grain), role: "enabler", weight: 1 },
+    });
+    if (last && rested < 1)
+      factors.push({
+        name: "the years since their last war",
+        value: year - last.ended!,
+        contribution: rested - 1,
+        source: { ref: last.peace!, role: "constraint", weight: 1 },
+      });
     if (covets?.source)
       factors.push({
         name: "hunger",
@@ -354,7 +396,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     });
     w.battles.push({ year, land, won, fallen: [fa, fb], event: battle });
     if (won) {
-      world.events.emit({
+      const taken = world.events.emit({
         type: WAR_EVENTS.taken.type,
         subjects: [a.ref, b.ref],
         place: cellRef(0, land),
@@ -365,6 +407,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       realms.join(a, land);
       // A land taken by force resents its taker.
       realms.setDiscontent(land, { level: 1, cause: battle });
+      // A realm whose seat is taken falls; else what the taken land joined to its seat is cut off.
+      if (land === b.seat) endRealm(ctx, b, t, { ref: battle, role: "trigger", weight: 1 });
+      else cutOff(ctx, b, taken);
     }
     // 3. Peace: weariness — the fallen against their people — or the prize won.
     const peopleA = a.members.reduce((s, c) => s + (ctx.provinces.get(c)?.total() ?? 0), 0),
@@ -412,7 +457,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       })();
       if (!touches || !(world.rng.real(FIGHT, c, t, 7) < 0.1 * d.level)) continue;
       const causes: CauseRef[] = d.cause ? [{ ref: d.cause, role: "pressure", weight: 1 }] : [];
-      world.events.emit({
+      const rose = world.events.emit({
         type: WAR_EVENTS.rebellion.type,
         subjects: [p.ref, home.ref],
         place: cellRef(0, c),
@@ -422,6 +467,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       realms.leave(p, c);
       realms.join(home, c);
       realms.setDiscontent(c, { level: 0.2, cause: d.cause });
+      cutOff(ctx, p, rose);
     }
 }
 

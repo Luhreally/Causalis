@@ -37,6 +37,8 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run build
+      # The Phase 2 gate: eleven seeds, five hundred years each, every seed in its own process.
+      - run: npm run gate:2
 
   universe-engines:
     runs-on: ubuntu-latest

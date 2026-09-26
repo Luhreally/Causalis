@@ -248,10 +248,18 @@ export function realmName(p: { leadership: number; town: string }): string {
 
 /** Steps over peopled land from the seat to every member (members only). */
 function reach(ctx: PopulationContext, p: Polity): Map<number, number> {
+  return stepsFrom(ctx, p.seat, new Set(p.members));
+}
+
+/** How many steps each of `lands` lies from `seat`, going only through `lands`. */
+function stepsFrom(
+  ctx: PopulationContext,
+  seat: number,
+  members: Set<number>,
+): Map<number, number> {
   const g = ctx.generated,
-    members = new Set(p.members),
-    d = new Map([[p.seat, 0]]),
-    queue = [p.seat];
+    d = new Map([[seat, 0]]),
+    queue = [seat];
   for (let i = 0; i < queue.length; i++) {
     const c = queue[i]!;
     for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
@@ -443,7 +451,9 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
   for (const p of store.living()) {
     const seatMarket = markets.of(p.seat),
       seatWays = culture.get(p.seat)!,
-      steps = reach(ctx, p);
+      steps = reach(ctx, p),
+      // How far the seat can rule from: three steps, and further with writing and clerks.
+      rules = 3 + loreOf(world).effect(p.seat, "reach");
     for (const c of p.members) {
       if (c === p.seat) continue;
       const prov = ctx.provinces.get(c),
@@ -468,6 +478,8 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           (famine ? (sacred ? 0.8 : 0.5) : 0) +
           p.tribute * 0.8 +
           0.02 * far +
+          // A land held beyond the seat's reach is ruled by force alone, and chafes.
+          0.08 * Math.max(0, far - rules) +
           0.3 * foreign * foreign;
       store.setDiscontent(c, { level, cause: famine ?? before.cause });
     }
@@ -496,7 +508,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           { name: "tribute", value: p.tribute, contribution: p.tribute * 1.5, source: null },
         ],
       });
-      world.events.emit({
+      const seceded = world.events.emit({
         type: POLITY_EVENTS.seceded.type,
         subjects: [p.ref, prov.ref],
         place: prov.ref,
@@ -504,6 +516,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
         data: { name: realmName(p) },
       });
       store.leave(p, c);
+      cutOff(ctx, p, seceded);
     }
   }
 
@@ -512,12 +525,21 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
     const age = year - p.ruler.born,
       band = bandOfAge(age);
     if (!(world.rng.real(RULE, p.seat, t, 20) < HUMANLIKE.mortality[band]!)) continue;
+    // Rule by birth passes to kin. At a death a realm's farthest lands may break away
+    // together — the likelier the farther they lie from the seat and the more aggrieved
+    // they are (rule by birth, fought over by kin, breaks more often).
     const ways = culture.get(p.seat)!,
       old = p.ruler,
-      // Rule by birth passes to kin; a realm with far, discontented lands may break at a death.
+      steps = p.members.length > 3 ? reach(ctx, p) : null,
+      far = steps ? Math.max(...p.members.map((c) => steps.get(c) ?? 0)) : 0,
+      edge = steps ? p.members.filter((c) => (steps.get(c) ?? far) >= Math.max(1, far)) : [],
+      unrest = edge.length
+        ? edge.reduce((s, c) => s + store.discontent(c).level, 0) / edge.length
+        : 0,
       crisis =
-        p.members.length > 3 &&
-        world.rng.real(RULE, p.seat, t, 21) < (p.succession === 0 ? 0.12 : 0.05);
+        !!steps &&
+        world.rng.real(RULE, p.seat, t, 21) <
+          (p.succession === 0 ? 0.08 : 0.03) + 0.25 * unrest + 0.02 * Math.max(0, far - 2);
     const event = world.events.emit({
       type: POLITY_EVENTS.succession.type,
       subjects: [p.ref],
@@ -533,20 +555,61 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       event,
       p.succession === 0 ? old.name.split(" ").slice(1).join(" ") : null,
     );
-    if (crisis) {
-      // The lands farthest from the seat break away together.
-      const steps = reach(ctx, p),
-        far = Math.max(...p.members.map((c) => steps.get(c) ?? 0));
-      const leaving = p.members.filter((c) => (steps.get(c) ?? far) >= Math.max(1, far));
-      if (leaving.length && leaving.length < p.members.length) {
-        world.events.emit({
-          type: POLITY_EVENTS.split.type,
-          subjects: [p.ref],
-          place: ctx.provinces.get(p.seat)!.ref,
-          causes: [{ ref: event, role: "trigger", weight: 1 }],
-          data: { name: realmName(p), lands: leaving.length },
+    if (crisis && edge.length && edge.length < p.members.length) {
+      // The lands farthest from the seat break away together, and their grievance is why.
+      const aggrieved = [...edge].sort(
+          (x, y) => store.discontent(y).level - store.discontent(x).level || x - y,
+        )[0]!,
+        grievance = store.discontent(aggrieved).cause;
+      const split = world.events.emit({
+        type: POLITY_EVENTS.split.type,
+        subjects: [p.ref],
+        place: ctx.provinces.get(p.seat)!.ref,
+        causes: [
+          { ref: event, role: "trigger", weight: 0.6 },
+          ...(grievance ? [{ ref: grievance, role: "pressure" as const, weight: 0.4 }] : []),
+        ],
+        data: { name: realmName(p), lands: edge.length },
+      });
+      for (const c of edge) store.leave(p, c);
+      // Where a market town lies among them, they raise their own realm there under a
+      // rival claimant; else each goes its own way.
+      const town = edge
+        .flatMap((c) => ctx.settlements.inProvince(c).filter((s) => s.market))
+        .sort((x, y) => y.population - x.population || (x.ref < y.ref ? -1 : 1))[0];
+      const seatWays = town ? culture.get(town.cell) : undefined;
+      if (town && seatWays) {
+        const inst = institutionsOf(
+            seatWays,
+            undefined,
+            loreOf(world).effect(town.cell, "writing") > 0,
+          ),
+          ref = world.minter.mint(POLITY),
+          name = realmName({ ...inst, town: town.name }),
+          formed = world.events.emit({
+            type: POLITY_EVENTS.formed.type,
+            subjects: [ref, town.ref],
+            place: ctx.provinces.get(town.cell)!.ref,
+            causes: [{ ref: split, role: "trigger", weight: 1 }],
+            data: { name },
+          });
+        store.add({
+          ref,
+          town: town.name,
+          seat: town.cell,
+          founded: year,
+          event: formed,
+          members: [],
+          ...inst,
+          ruler: crown(world, seatWays, town.cell, t, formed, null),
+          tribute: 0.05,
+          ended: null,
         });
-        for (const c of leaving) store.leave(p, c);
+        // It holds what it can reach from its new seat; the rest go their own way.
+        const theirs = stepsFrom(ctx, town.cell, new Set(edge)),
+          limit = 3 + loreOf(world).effect(town.cell, "reach");
+        for (const c of edge)
+          if ((theirs.get(c) ?? limit + 1) <= limit) store.join(store.get(ref)!, c);
       }
     }
   }
@@ -585,16 +648,56 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
   // 7. A realm whose seat is empty, or which has lost every land, ends.
   for (const p of store.living()) {
     if (pop(p.seat) > 0 && p.members.includes(p.seat)) continue;
+    endRealm(ctx, p, t, { ref: p.event, role: "enabler", weight: 1 });
+  }
+}
+
+/** Lands no longer joined to their seat through the realm's own (the lands between were lost to `cause`) go their own way. */
+export function cutOff(ctx: PopulationContext, p: Polity, cause: Ref): void {
+  const world = ctx.world,
+    store = politiesOf(world),
+    linked = reach(ctx, p);
+  for (const c of [...p.members]) {
+    if (linked.has(c)) continue;
+    const prov = ctx.provinces.get(c)!;
+    const decision = world.decisions.record({
+      rule: "polity.secede",
+      subject: prov.ref,
+      outcome: { from: p.ref },
+      score: 1,
+      threshold: 0,
+      factors: [
+        {
+          name: "cut off from the seat",
+          value: 1,
+          contribution: 1,
+          source: { ref: cause, role: "trigger", weight: 1 },
+        },
+      ],
+    });
     world.events.emit({
-      type: POLITY_EVENTS.ended.type,
-      subjects: [p.ref],
-      place: ctx.provinces.get(p.seat)?.ref ?? null,
-      causes: [{ ref: p.event, role: "enabler", weight: 1 }],
+      type: POLITY_EVENTS.seceded.type,
+      subjects: [p.ref, prov.ref],
+      place: prov.ref,
+      causes: [{ ref: decision, role: "trigger", weight: 1 }],
       data: { name: realmName(p) },
     });
-    for (const c of [...p.members]) store.leave(p, c);
-    p.ended = year;
+    store.leave(p, c);
   }
+}
+
+/** A realm ends: its lands go free, and history records why. */
+export function endRealm(ctx: PopulationContext, p: Polity, t: SimTime, cause: CauseRef): void {
+  const store = politiesOf(ctx.world);
+  ctx.world.events.emit({
+    type: POLITY_EVENTS.ended.type,
+    subjects: [p.ref],
+    place: ctx.provinces.get(p.seat)?.ref ?? null,
+    causes: [cause],
+    data: { name: realmName(p) },
+  });
+  for (const c of [...p.members]) store.leave(p, c);
+  p.ended = yearOfMoment(t);
 }
 
 /** Teach a peopled world its realms. */

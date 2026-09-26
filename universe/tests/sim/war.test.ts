@@ -2,7 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
 import {
+  POLITY_EVENTS,
   WAR_EVENTS,
+  diplomacyOf,
   makePopulationWorld,
   politiesOf,
   populationContext,
@@ -98,4 +100,63 @@ test("a land belongs to one realm at most, and wars end in peace or with a realm
       );
   const taken = world.events.all().filter((e) => e.type === WAR_EVENTS.taken.type);
   assert.ok(taken.length >= 1, "some land changed hands");
+});
+
+test("a realm whose seat is taken falls, and history says in which battle", () => {
+  const fallen = world.events
+    .all()
+    .filter(
+      (e) =>
+        e.type === POLITY_EVENTS.ended.type &&
+        world.events.get(e.causes[0]!.ref as Ref)?.type === WAR_EVENTS.battle.type,
+    );
+  assert.ok(fallen.length >= 1, "some realm fell to conquest");
+  for (const e of fallen) {
+    const realm = politiesOf(world).get(e.subjects[0]!)!;
+    assert.notEqual(realm.ended, null);
+    assert.equal(realm.members.length, 0, "its lands went free");
+  }
+});
+
+test("at a death, a realm's far lands break away under a rival claimant, joined to its new seat", () => {
+  const raised = world.events
+    .all()
+    .filter(
+      (e) =>
+        e.type === POLITY_EVENTS.formed.type &&
+        world.events.get(e.causes[0]!.ref as Ref)?.type === POLITY_EVENTS.split.type,
+    );
+  assert.ok(raised.length >= 1, "some realm was raised by a split");
+  for (const e of raised) {
+    const split = world.events.get(e.causes[0]!.ref as Ref)!;
+    assert.equal(
+      world.events.get(split.causes[0]!.ref as Ref)?.type,
+      POLITY_EVENTS.succession.type,
+    );
+  }
+});
+
+test("a realm fresh from war is slow to go to war again, and says so", () => {
+  let cited = 0;
+  for (const w of wars) {
+    const d = world.decisions.get(world.events.get(w.event)!.causes[0]!.ref as Ref)!,
+      weary = d.factors.find((f) => f.name === "the years since their last war");
+    if (!weary) continue;
+    cited++;
+    assert.ok(weary.value < 25, `${weary.value} years since`);
+    assert.equal(world.events.get(weary.source!.ref as Ref)?.type, WAR_EVENTS.peace.type);
+  }
+  assert.ok(cited >= 1, "some war was declared by a realm not long at peace");
+});
+
+test("a devout realm under the sacred law holds a rival faith at its border an affront", () => {
+  const zeal = diplomacyOf(world)
+    .all()
+    .flatMap((r) => r.terms.filter((t) => t.name.startsWith("the zeal of")).map((t) => ({ r, t })));
+  assert.ok(zeal.length >= 1, "some realm's zeal sours a regard");
+  for (const { t } of zeal) {
+    assert.ok(t.value < 0 && t.value >= -0.25);
+    // Its source is how the zealots' seat came to its faith: founded there, or taken up.
+    assert.match(world.events.get(t.source!)?.type ?? "", /^belief\.(founded|converted|schism)$/);
+  }
 });

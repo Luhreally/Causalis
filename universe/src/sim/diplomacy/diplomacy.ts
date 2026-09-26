@@ -23,7 +23,7 @@ import { tongueLikeness } from "../../gen/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
-import { POLITY_EVENTS, politiesOf, realmName, type Polity } from "../polity/polity.ts";
+import { LAW, POLITY_EVENTS, politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { beliefOf } from "../belief/belief.ts";
 
 export const RELATION = defineKind("rel", "two realms' regard", "structural");
@@ -55,6 +55,12 @@ export type Relation = {
   terms: Term[];
   pact: Ref | null;
 };
+
+const SACRED = LAW.indexOf("the sacred");
+
+/** A remembered wrong fades by half every thirty years, and is forgotten below this. */
+const FORGOTTEN = 0.02;
+const faded = (m: Memory, year: number) => m.value * dmath.pow(0.5, (year - m.year) / 30);
 
 /** Above this, realms swear a pact; below zero it breaks; below the negative, they are rivals. */
 export const PACT = 0.4;
@@ -93,15 +99,28 @@ export class DiplomacyStore implements StateStore {
     this.memories.set(key, [...(this.memories.get(key) ?? []), m]);
   }
 
-  /** What two realms remember of each other, faded to now. */
+  /**
+   * What two realms remember of each other, faded to now: each kind of wrong once, at
+   * its strongest — a second war renews the bitterness of the first, it does not double it.
+   */
   remembered(a: Ref, b: Ref, year: number): Term[] {
-    return (this.memories.get(pairKey(a, b)) ?? [])
-      .map((m) => ({
-        name: m.name,
-        value: m.value * dmath.pow(0.5, (year - m.year) / 30),
-        source: m.source,
-      }))
-      .filter((t) => Math.abs(t.value) > 0.02);
+    const strongest = new Map<string, Term>();
+    for (const m of this.memories.get(pairKey(a, b)) ?? []) {
+      const t = { name: m.name, value: faded(m, year), source: m.source },
+        held = strongest.get(m.name);
+      if (Math.abs(t.value) > FORGOTTEN && (!held || Math.abs(t.value) > Math.abs(held.value)))
+        strongest.set(m.name, t);
+    }
+    return [...strongest.values()];
+  }
+
+  /** Let go of what has faded past remembering. */
+  forget(year: number): void {
+    for (const [key, ms] of [...this.memories.entries()]) {
+      const kept = ms.filter((m) => Math.abs(faded(m, year)) > FORGOTTEN);
+      if (kept.length) this.memories.set(key, kept);
+      else this.memories.delete(key);
+    }
   }
 
   pinned(): Ref[] {
@@ -154,6 +173,7 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
     faiths = beliefOf(world),
     markets = world.store<MarketStore>("economy.markets"),
     year = yearOfMoment(t);
+  store.forget(year);
 
   // Lands taken: a land that left one realm and joined another this year is remembered by the one it left.
   const start = Math.max(0, t - YEAR),
@@ -207,8 +227,22 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
       terms: Term[] = [];
     if (fa.faith && fa.faith === fb.faith)
       terms.push({ name: "a shared faith", value: 0.3, source: fa.event });
-    else if (fa.faith && fb.faith)
+    else if (fa.faith && fb.faith) {
       terms.push({ name: "rival faiths", value: -0.2, source: fb.event ?? fa.event });
+      // A devout realm ruled by the sacred law holds a rival faith at its border an affront.
+      const zealot = [a, b]
+        .map((p) => ({
+          p,
+          zeal: p.law === SACRED ? (culture.get(p.seat)!.traits[WAY.piety]! - 0.55) * 2 : 0,
+        }))
+        .sort((x, y) => y.zeal - x.zeal || (x.p.ref < y.p.ref ? -1 : 1))[0]!;
+      if (zealot.zeal > 0)
+        terms.push({
+          name: `the zeal of ${realmName(zealot.p)}`,
+          value: -Math.min(0.25, zealot.zeal),
+          source: faiths.of(zealot.p.seat).event ?? null,
+        });
+    }
     const like = tongueLikeness(wa.tongue, wb.tongue);
     terms.push({
       name: like >= 0.75 ? "alike speech" : "strange speech",

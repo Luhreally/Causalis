@@ -16,7 +16,8 @@
     "engines": "node tools/engines.ts",
     "oracle": "node tools/oracle.ts",
     "app-check": "node tools/app-check.ts",
-    "slice": "node tools/slice.ts"
+    "slice": "node tools/slice.ts",
+    "gate:2": "node tools/phase2-gate.ts 500"
   },
   "dependencies": {
     "playcanvas": "^2.22.4"
