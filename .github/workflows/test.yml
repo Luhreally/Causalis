@@ -39,6 +39,10 @@ jobs:
       - run: npm run build
       # The Phase 2 gate: eleven seeds, five hundred years each, every seed in its own process.
       - run: npm run gate:2
+      # The Phase 3 gate: the Earth seed nine centuries — its turning points and numbers in
+      # their bands, fuel only where deep time buried it, the north star on the industrial
+      # planet, every year within budget and the save within bounds.
+      - run: npm run gate:3
 
   universe-engines:
     runs-on: ubuntu-latest

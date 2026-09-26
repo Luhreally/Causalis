@@ -43,15 +43,16 @@ test("following a land tells what matters there, once, and changes nothing", () 
   const told = [];
   for (let year = 101; year <= 260; year++) {
     watched.runTo(year * YEAR);
-    told.push(...tidings(watched));
+    // Each piece of news as it is told (history may later let an ordinary one go).
+    for (const t of tidings(watched)) {
+      const e = watched.events.get(t.ref)!;
+      assert.equal(e.place, LAND, "news of the land followed");
+      assert.ok(e.importance >= 4 || e.type === "belief.converted", `${e.type} matters`);
+      assert.ok(e.t > 100 * YEAR, "only news from after it was followed");
+      told.push(t);
+    }
   }
   assert.ok(told.length >= 5, `${told.length} tidings`);
-  for (const t of told) {
-    const e = watched.events.get(t.ref)!;
-    assert.equal(e.place, LAND, "news of the land followed");
-    assert.ok(e.importance >= 4 || e.type === "belief.converted", `${e.type} matters`);
-    assert.ok(e.t > 100 * YEAR, "only news from after it was followed");
-  }
   assert.equal(new Set(told.map((t) => t.ref)).size, told.length, "each told once");
   assert.deepEqual(tidings(watched), [], "nothing new until time passes");
   quiet.runTo(260 * YEAR);

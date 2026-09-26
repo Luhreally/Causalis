@@ -3,6 +3,14 @@
 // resolvers (meet a household, follow a life, tell a biography).
 // May import: kernel, rules, gen, sim. See README.md and docs/architecture/universe-architecture.md.
 export { TRAITS, deepen, residence, resolvePerson } from "./biography.ts";
+export {
+  bestWalk,
+  domainOf,
+  hopImportance,
+  northStar,
+  type NorthStar,
+  type Walk,
+} from "./north-star.ts";
 export { isGenerated, landWords } from "./generated.ts";
 export {
   HOUSEHOLD,

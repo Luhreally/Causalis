@@ -18,7 +18,8 @@
     "app-check": "node tools/app-check.ts",
     "slice": "node tools/slice.ts",
     "gate:2": "node tools/phase2-gate.ts 500",
-    "calibrate": "node tools/calibration.ts 900"
+    "calibrate": "node tools/calibration.ts 900",
+    "gate:3": "node tools/phase3-gate.ts 900"
   },
   "dependencies": {
     "playcanvas": "^2.22.4"

@@ -2132,6 +2132,23 @@ from a quarter to two and a quarter kilowatts, about replacement at industry's l
 deaths — without which the industrial boom overshot into a ninth-century collapse.
 The warmth of the chronicle comes mostly from clearing, peaking near 0.7 °C.
 
+35, as built: `npm run gate:3` (`tools/phase3-gate.ts`, in CI) runs the Earth seed
+nine centuries and fails unless every turning point and number stands in its band;
+every first mine and well lies on a seam deep time buried and cites its field or age
+(231 of them); sixteen grown citizens met at year 900 each walk from a memory across
+four or more domains to the star with every hop that mattered on the record (the walk
+is `src/causal/north-star.ts`, shared with the north-star test); no year of the whole
+planet takes over 0.6 s at full speed (1.2 s on CI; the phone proxy holds its own
+budget); and the save stays under 16 MB. What the gate found and was mended: a famine
+without a dry year cited only its land — it now cites the farming that let a people
+outgrow their land, and worn soil, thinned game or a drier sky where they pressed;
+the peopled world kept every event of weight 3 or more for ever, so history grew with
+every dry year — the chronicle is now weight 4 and all it cites, ordinary events stay
+while young or held by a store, and the tombstones of what was forgotten stay two
+centuries (the summaries keep their count). The save at year 900 is 14 MB (5 MB at
+300), bounded by the living-memory windows and growing with how busy the world is, not
+with its age. **Phase 3 closed.**
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

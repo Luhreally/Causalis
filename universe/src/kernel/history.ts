@@ -118,6 +118,11 @@ export type RetentionOptions = {
   readonly window: number;
   /** Events at or above this importance are kept for ever (the chronicle). */
   readonly chronicle: number;
+  /**
+   * How long the tombstone of a forgotten event or decision stays, in seconds after it
+   * happened (for ever when absent): the summaries still count it by place and decade.
+   */
+  readonly tombstones?: number;
 };
 
 /**
@@ -244,6 +249,18 @@ export class EventLog {
     }
     this.events = survivors;
     return forgotten;
+  }
+
+  /** Let go the tombstones of events that happened before `before` (their summaries stay); returns how many. */
+  dropTombstones(before: number): number {
+    // (Tombstones are laid as things are forgotten, not in the order they happened.)
+    const kept = this.tombstones.filter((t) => t.t >= before),
+      n = this.tombstones.length - kept.length;
+    if (!n) return 0;
+    for (const t of this.tombstones) if (t.t < before) this.tombIndex.delete(t.id);
+    this.tombstones = kept;
+    this.digest = new Hasher().string(this.digest).string("drop").int(before).int(n).hex();
+    return n;
   }
 
   hashInto(h: Hasher): void {
@@ -431,6 +448,18 @@ export class DecisionLog {
     }
     this.records = survivors;
     return forgotten;
+  }
+
+  /** Let go the tombstones of decisions made before `before`; returns how many. */
+  dropTombstones(before: number): number {
+    // (Tombstones are laid as things are forgotten, not in the order they happened.)
+    const kept = this.tombstones.filter((t) => t.t >= before),
+      n = this.tombstones.length - kept.length;
+    if (!n) return 0;
+    for (const t of this.tombstones) if (t.t < before) this.tombIndex.delete(t.id);
+    this.tombstones = kept;
+    this.digest = new Hasher().string(this.digest).string("drop").int(before).int(n).hex();
+    return n;
   }
 
   hashInto(h: Hasher): void {

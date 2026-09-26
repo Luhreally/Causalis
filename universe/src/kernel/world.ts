@@ -182,6 +182,11 @@ export class World {
     // ...and what the other stores hold on to, for as long as they do.
     for (const pins of this.pinners) walk(pins(), kept);
     const young = (t: number) => now - t < this.retention.window;
+    // Tombstones of what was forgotten long ago go too (the summaries keep the count).
+    if (this.retention.tombstones !== undefined) {
+      this.events.dropTombstones(now - this.retention.tombstones);
+      this.decisions.dropTombstones(now - this.retention.tombstones);
+    }
     return {
       events: this.events.sweep((e) => forever.has(e.id) || kept.has(e.id) || young(e.t)),
       decisions: this.decisions.sweep((d) => forever.has(d.id) || kept.has(d.id) || young(d.t)),

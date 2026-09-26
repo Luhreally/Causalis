@@ -43,11 +43,19 @@ export function chooseHome(g: HomeWorld): number {
 }
 
 /**
- * What a peopled world's history keeps: everything for twenty years, and for ever
- * whatever mattered enough to be remembered (a dry year, a road opened, a move),
- * so the chains the people's memories start down never break.
+ * What a peopled world's history keeps: everything for twenty years; for ever, the
+ * chronicle (what mattered enough to be told: a famine, a war, a town founded) and all
+ * it cites, whatever its own weight; and what the stores still hold — the roads, the
+ * lore, each land's belief and ways, the moves within living memory, and every memory
+ * of anyone met. An ordinary dry year no famine followed is let go, so history grows
+ * with what mattered, not with every year.
  */
-export const PEOPLED_RETENTION = { window: 20 * YEAR, chronicle: 3 } as const;
+export const PEOPLED_RETENTION = {
+  window: 20 * YEAR,
+  chronicle: 4,
+  // The tombstones of what was forgotten, for two centuries.
+  tombstones: 200 * YEAR,
+} as const;
 
 export type PopulationWorldOptions = PlanetWorldOptions & {
   /**

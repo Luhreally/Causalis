@@ -36,7 +36,7 @@ import {
   type Region,
 } from "../../gen/index.ts";
 import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
-import { living, wildsOf } from "../ecology/ecology.ts";
+import { ecologyOf, living, wildsOf } from "../ecology/ecology.ts";
 import { airOf, heatYield, rainShift, smokeIn } from "../climate/air.ts";
 import { powerOf } from "../economy/systems.ts";
 import { HAND_VITAL, bandOfAge, handOf, newbornSex } from "../hand/hand.ts";
@@ -329,11 +329,21 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
     // hungry, and that is told as the grievance and the prices it brings, not as famine.
     if (p.fed < FAMINE && need >= 20 && month - p.famineMonth > 12) {
       const causes: CauseRef[] = [];
-      const recentDrought = p.lastDrought ? world.events.get(p.lastDrought) : undefined;
-      if (recentDrought && t - recentDrought.t < 2 * YEAR)
-        causes.push({ ref: recentDrought.id, role: "trigger", weight: 0.6 });
+      const recentDrought = p.lastDrought ? world.events.get(p.lastDrought) : undefined,
+        dry = recentDrought && t - recentDrought.t < 2 * YEAR;
+      if (dry) causes.push({ ref: recentDrought.id, role: "trigger", weight: 0.6 });
       if (act && act.sign < 0) causes.push({ ref: act.event, role: "agent", weight: 0.8 });
-      causes.push({ ref: p.ref, role: "constraint", weight: recentDrought ? 0.4 : 1 });
+      // What else pressed the land: its soil worn, its game thinned, its rain moved by the warming.
+      const stocks = ecologyOf(world).get(p.cell),
+        drier = airOf(world).shiftOf(p.cell);
+      if (stocks?.worn) causes.push({ ref: stocks.worn, role: "pressure", weight: 0.2 });
+      else if (stocks?.thinned) causes.push({ ref: stocks.thinned, role: "pressure", weight: 0.2 });
+      if (drier && rainShift(ctx, p.cell) < 1)
+        causes.push({ ref: drier, role: "pressure", weight: 0.2 });
+      // Without a dry year, they had grown to more than their land gives: the fields that
+      // let them grow so many, and the land itself.
+      if (!dry && p.cultivation) causes.push({ ref: p.cultivation, role: "enabler", weight: 0.3 });
+      causes.push({ ref: p.ref, role: "constraint", weight: dry ? 0.4 : 0.5 });
       p.lastFamine = world.events.emit({
         type: POPULATION_EVENTS.famine.type,
         importance: p.fed < 600 ? 5 : 4,
