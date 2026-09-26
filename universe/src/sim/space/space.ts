@@ -140,7 +140,7 @@ export function spaceOf(world: World): SpaceStore {
 }
 
 /** A realm's machines: what its lands hold in store. */
-function machinesOf(ctx: PopulationContext, p: Polity): number {
+export function machinesOfRealm(ctx: PopulationContext, p: Polity): number {
   const markets = marketsOf(ctx.world);
   let n = 0;
   for (const c of p.members) n += markets.get(c)?.stock[G.machines] ?? 0;
@@ -148,7 +148,7 @@ function machinesOf(ctx: PopulationContext, p: Polity): number {
 }
 
 /** Spend machines from a realm's lands, the richest first, until the cost is met. */
-function spend(ctx: PopulationContext, p: Polity, cost: number): void {
+export function spendMachines(ctx: PopulationContext, p: Polity, cost: number): void {
   const markets = marketsOf(ctx.world),
     lands = [...p.members].sort(
       (a, b) =>
@@ -232,7 +232,7 @@ export function spaceYear(ctx: PopulationContext, t: SimTime): void {
     const tonnes =
         next === "satellite" ? SATELLITE_TONNES : next === "crew" ? CREW_TONNES : STATION_TONNES,
       cost = launcher.cost * tonnes * MACHINES_PER_COST,
-      machines = machinesOf(ctx, p);
+      machines = machinesOfRealm(ctx, p);
     if (machines * PROGRAM_SHARE < cost) continue;
     // Its reasons: a rival already in the sky, a war, and its rulers' will.
     const reasons: Factor[] = [],
@@ -260,7 +260,7 @@ export function spaceYear(ctx: PopulationContext, t: SimTime): void {
       )
     )
       continue;
-    spend(ctx, p, cost);
+    spendMachines(ctx, p, cost);
     const known = lore.get(
       seat,
       next === "satellite" ? "orbital-flight" : next === "crew" ? "life-support" : "stations",
@@ -323,7 +323,8 @@ export function prospects(ctx: PopulationContext, p: Polity): Prospect[] {
     const cell = g.offworld.base + i;
     if (ctx.provinces.get(cell)?.total()) return;
     // One settled site on a body at a time is where a colony begins; its others fill from it.
-    if (site.site > 0) return;
+    // (The sites kept for ships to other stars are not the home system's.)
+    if (site.site > 0 || site.body < 0) return;
     const body = bodies[site.body]!,
       h = habitability(body, g.life.people?.body ?? null, home.gravity);
     if (!h.livable) return;
@@ -363,7 +364,7 @@ function colonyYear(ctx: PopulationContext, t: SimTime): void {
       .sort((a, b) => b.total() - a.total() || a.cell - b.cell)[0];
     if (!origin || origin.total() < COLONISTS * 5) continue;
     const seat = origin;
-    const machines = machinesOf(ctx, p),
+    const machines = machinesOfRealm(ctx, p),
       choice = prospects(ctx, p).find((x) => x.cost <= machines * COLONY_SHARE);
     if (!choice) continue;
     // A reason to go: a rival already there, crowding at home, and the rulers' will.
@@ -391,6 +392,100 @@ function colonyYear(ctx: PopulationContext, t: SimTime): void {
   }
 }
 
+/**
+ * Settlers set down in a new land (a colony's halls, or a ship): grown people of the
+ * sending land from each band and work as they are, their move recorded as a migration,
+ * carrying every principle the realm's seat knows, sowing, their share of their land's
+ * goods and a year of food, its ways and tongue as they left; a land of the realm.
+ */
+export function settle(
+  ctx: PopulationContext,
+  p: Polity,
+  seat: Province,
+  cell: number,
+  decision: Ref,
+  event: Ref,
+  year: number,
+): void {
+  const { world, history } = ctx,
+    lore = loreOf(world);
+  // The settlers: grown people of the seat, drawn from each band and work as they are.
+  const moved = new Array<number>(ROWS * COLS).fill(0),
+    byOccupation = new Array<number>(COLS).fill(0);
+  let pool = 0;
+  for (let r = 0; r < ROWS; r++) {
+    const band = r % BANDS;
+    if (ctx.life.bands[band]! < ctx.life.adulthood || band > 6) continue;
+    for (let o = 0; o < COLS; o++) pool += seat.counts.get(r, o);
+  }
+  let left = COLONISTS;
+  for (let r = 0; r < ROWS && left > 0; r++) {
+    const band = r % BANDS;
+    if (ctx.life.bands[band]! < ctx.life.adulthood || band > 6) continue;
+    for (let o = 0; o < COLS && left > 0; o++) {
+      const n = Math.min(
+        left,
+        seat.counts.get(r, o),
+        Math.ceil((seat.counts.get(r, o) * COLONISTS) / pool),
+      );
+      if (n <= 0) continue;
+      moved[r * COLS + o] = n;
+      byOccupation[o] = byOccupation[o]! + n;
+      left -= n;
+    }
+  }
+  const settlers = COLONISTS - left,
+    colony = ctx.provinces.add(new Province(cell, year, event));
+  moved.forEach((n, i) => {
+    if (!n) return;
+    const r = Math.floor(i / COLS),
+      o = i % COLS;
+    seat.counts.add(r, o, -n);
+    colony.counts.add(r, o, n);
+  });
+  history.addFlow({
+    from: seat.cell,
+    to: cell,
+    year,
+    count: settlers,
+    byOccupation,
+    decision,
+    event,
+  });
+  world.events.emit({
+    type: POPULATION_EVENTS.peopled.type,
+    place: colony.ref,
+    causes: [{ ref: event, role: "trigger", weight: 1 }],
+    data: { people: settlers },
+  });
+  // They carry what they know: sowing, and every principle the seat knows.
+  colony.knowsCultivation = true;
+  colony.cultivation = seat.cultivation;
+  colony.herding = seat.herding;
+  for (const [id, k] of lore.of(p.seat)) lore.learn(cell, id, k, principle(id));
+  // A year of food and their share of the seat's goods.
+  const markets = marketsOf(world),
+    from = markets.of(seat.cell),
+    to = markets.of(cell),
+    people = Math.max(1, seat.total() + settlers);
+  for (let good = 0; good < GOODS.length; good++)
+    to.move(
+      "carriedIn",
+      good,
+      from.move("carriedOut", good, Math.floor((from.stock[good]! * settlers) / people)),
+    );
+  to.move("carriedIn", G.grain, settlers * 12);
+  if (from.metalworking) to.metalworking = from.metalworking;
+  // Their ways and tongue, the seat's as they left it (the far world's ways drift from there).
+  const culture = cultureOf(world),
+    ways = culture.get(seat.cell);
+  if (ways) culture.set(driftedWays(world, ways, cell, 1, event));
+  const langs = languagesOf(world),
+    spoken = langs.of(seat.cell);
+  if (spoken) langs.speak(cell, spoken.index, event);
+  politiesOf(world).join(p, cell);
+}
+
 /** Set a colony down: settlers, their share of the seat's goods, its knowledge and ways, a place in the realm. */
 function found(
   ctx: PopulationContext,
@@ -405,9 +500,8 @@ function found(
   const { world, history } = ctx,
     store = spaceOf(world),
     lore = loreOf(world),
-    g = ctx.generated,
     habitsKnown = lore.get(p.seat, "habitats");
-  spend(ctx, p, choice.cost);
+  spendMachines(ctx, p, choice.cost);
   const decision = world.decisions.record({
     rule: "space.colony",
     subject: p.ref,
@@ -448,90 +542,21 @@ function found(
     causes,
     data: { realm: p.town, body: choice.body.designation, settlers: COLONISTS, year },
   });
-  // The settlers: grown people of the seat, drawn from each band and work as they are.
-  const moved = new Array<number>(ROWS * COLS).fill(0),
-    byOccupation = new Array<number>(COLS).fill(0);
-  let pool = 0;
-  for (let r = 0; r < ROWS; r++) {
-    const band = r % BANDS;
-    if (ctx.life.bands[band]! < ctx.life.adulthood || band > 6) continue;
-    for (let o = 0; o < COLS; o++) pool += seat.counts.get(r, o);
-  }
-  let left = COLONISTS;
-  for (let r = 0; r < ROWS && left > 0; r++) {
-    const band = r % BANDS;
-    if (ctx.life.bands[band]! < ctx.life.adulthood || band > 6) continue;
-    for (let o = 0; o < COLS && left > 0; o++) {
-      const n = Math.min(
-        left,
-        seat.counts.get(r, o),
-        Math.ceil((seat.counts.get(r, o) * COLONISTS) / pool),
-      );
-      if (n <= 0) continue;
-      moved[r * COLS + o] = n;
-      byOccupation[o] = byOccupation[o]! + n;
-      left -= n;
-    }
-  }
-  const settlers = COLONISTS - left,
-    colony = ctx.provinces.add(new Province(choice.cell, year, event));
-  moved.forEach((n, i) => {
-    if (!n) return;
-    const r = Math.floor(i / COLS),
-      o = i % COLS;
-    seat.counts.add(r, o, -n);
-    colony.counts.add(r, o, n);
-  });
-  history.addFlow({
-    from: seat.cell,
-    to: choice.cell,
-    year,
-    count: settlers,
-    byOccupation,
-    decision,
-    event,
-  });
-  world.events.emit({
-    type: POPULATION_EVENTS.peopled.type,
-    place: colony.ref,
-    causes: [{ ref: event, role: "trigger", weight: 1 }],
-    data: { people: settlers },
-  });
-  // They carry what they know: sowing, and every principle the seat knows.
-  colony.knowsCultivation = true;
-  colony.cultivation = seat.cultivation;
-  colony.herding = seat.herding;
-  for (const [id, k] of lore.of(p.seat)) lore.learn(choice.cell, id, k, principle(id));
-  // A year of food and their share of the seat's goods.
-  const markets = marketsOf(world),
-    from = markets.of(seat.cell),
-    to = markets.of(choice.cell),
-    people = Math.max(1, seat.total() + settlers);
-  for (let good = 0; good < GOODS.length; good++)
-    to.move(
-      "carriedIn",
-      good,
-      from.move("carriedOut", good, Math.floor((from.stock[good]! * settlers) / people)),
-    );
-  to.move("carriedIn", G.grain, settlers * 12);
-  if (from.metalworking) to.metalworking = from.metalworking;
-  // Their ways and tongue, the seat's as they left it (the far world's ways drift from there).
-  const culture = cultureOf(world),
-    ways = culture.get(seat.cell);
-  if (ways) culture.set(driftedWays(world, ways, choice.cell, 1, event));
-  const langs = languagesOf(world),
-    spoken = langs.of(seat.cell);
-  if (spoken) langs.speak(choice.cell, spoken.index, event);
-  // A land of the realm.
-  politiesOf(world).join(p, choice.cell);
+  settle(ctx, p, seat, choice.cell, decision, event, year);
   store.program(p.ref).colonies.push({ cell: choice.cell, event, year });
   if (!store.first.colony) store.first.colony = event;
-  void g;
 }
 
 export function installSpace(world: World, ctx: () => PopulationContext): SpaceStore {
   const store = world.register(new SpaceStore());
   world.addPinner(() => store.pinned());
   world.system({ key: "197.space.year", every: YEAR, run: (t) => spaceYear(ctx(), t) });
+  installVoyages(world, ctx);
+  installContact(world, ctx);
+  installStarWars(world, ctx);
   return store;
 }
+
+import { installVoyages } from "./voyages.ts";
+import { installContact } from "./contact.ts";
+import { installStarWars } from "./starwar.ts";

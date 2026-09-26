@@ -72,7 +72,7 @@ const draw = (rng: Rng, r: Range, subject: number, n: number) =>
   rng.range(r[0], r[1], SYSTEM, subject, 0, 0, n);
 
 /** Radius from mass: rock, ice giants, and gas giants (whose size hardly grows with mass). */
-function radiusOf(kind: BodyKind, mass: number): number {
+export function radiusOf(kind: BodyKind, mass: number): number {
   if (kind === "giant") return 11.2 * dmath.pow(mass / 318, 0.05);
   if (kind === "ice giant") return dmath.pow(mass, 0.48);
   return dmath.pow(mass, 0.27);
@@ -102,8 +102,8 @@ function numeral(n: number): string {
  * much air its volatiles make, the greenhouse warming of that air, its water and its
  * radiation.
  */
-function surface(
-  star: Star,
+export function surface(
+  star: Pick<Star, "luminosity">,
   kind: BodyKind,
   au: number,
   mass: number,
@@ -391,4 +391,79 @@ export function positionAt(system: StarSystem, index: number, t: number): { x: n
     at = positionAt(system, parent, t),
     k = 1000 / AU_KM;
   return { x: at.x + x * k, y: at.y + y * k };
+}
+
+const STARS = defineStream("gen.stars");
+
+/** A planet of another star (Phase 6 M56): its orbit, bulk and ground. */
+export type ForeignPlanet = Pick<
+  SystemBody,
+  | "kind"
+  | "mass"
+  | "radius"
+  | "gravity"
+  | "escape"
+  | "temperature"
+  | "pressure"
+  | "air"
+  | "water"
+  | "radiation"
+> & {
+  /** Its place outward from its star, and its orbit (AU). */
+  readonly index: number;
+  readonly a: number;
+};
+
+/**
+ * Another star's planets, drawn when first needed on a stream keyed by the star (the
+ * sector and the star's place in it): spaced outward from the middle of its habitable
+ * zone, rock inside its frost line, giants beyond. A dead star (a white dwarf) keeps
+ * no worlds worth the name.
+ */
+export function foreignPlanets(
+  rng: Rng,
+  star: {
+    readonly sector: number;
+    readonly k: number;
+    readonly luminosity: number;
+    readonly remnant: boolean;
+  },
+): ForeignPlanet[] {
+  if (star.remnant) return [];
+  const key = star.sector * 64 + star.k,
+    u = (subject: number, n: number) => rng.real(STARS, subject, key, 0, n),
+    frost = 2.7 * Math.sqrt(star.luminosity),
+    zone = Math.sqrt(star.luminosity / 0.8),
+    count = 1 + Math.floor(7 * u(0, 0)),
+    out: ForeignPlanet[] = [];
+  // The innermost orbit, somewhere inside the zone; each next one farther out.
+  let a = zone * (0.25 + 0.9 * u(0, 1));
+  for (let i = 0; i < count; i++) {
+    if (i > 0) a *= 1.4 + 0.8 * u(i + 1, 0);
+    const kind: BodyKind = a < frost ? "rocky" : a < 3.5 * frost ? "giant" : "ice giant",
+      mass =
+        kind === "rocky"
+          ? 0.03 + 2.5 * u(i + 1, 1)
+          : kind === "giant"
+            ? 40 + 860 * u(i + 1, 1)
+            : 8 + 22 * u(i + 1, 1),
+      radius = radiusOf(kind, mass),
+      volatiles = dmath.pow(u(i + 1, 2), 3),
+      g = surface(star, kind, a, mass, radius, volatiles);
+    out.push({
+      index: i,
+      a,
+      kind,
+      mass,
+      radius,
+      gravity: mass / (radius * radius),
+      escape: 11.19 * Math.sqrt(mass / radius),
+      temperature: g.temperature,
+      pressure: g.pressure,
+      air: g.air,
+      water: g.water,
+      radiation: g.radiation,
+    });
+  }
+  return out;
 }

@@ -4,10 +4,12 @@
 // See README.md and docs/architecture §24, §27.
 export { makePlanet, makeStar, type Planet, type Star } from "./bodies.ts";
 export {
+  foreignPlanets,
   makeSystem,
   positionAt,
   type Air,
   type BodyKind,
+  type ForeignPlanet,
   type Orbit,
   type StarSystem,
   type SystemBody,
@@ -98,9 +100,30 @@ export {
   HALL_AREA,
   PROVINCE_FREQUENCY,
   SITES_PER_BODY,
+  STAR_SITES,
   isProvinceWorld,
   offworldSite,
   provinceWorld,
   type OffworldSite,
   type ProvinceWorld,
 } from "./provinces.ts";
+export {
+  CLUSTER_LY,
+  LOCAL_DENSITY,
+  SECTOR_LY,
+  clusterStars,
+  densityAt,
+  imfMass,
+  makeGalaxy,
+  sectorId,
+  sectorStars,
+  type Galaxy,
+  type GalaxyStar,
+} from "./galaxy.ts";
+export {
+  CIVILIZATION,
+  HOME_PACE,
+  MOST_CIVILIZATIONS,
+  civilizationsOf,
+  type Civilization,
+} from "./civilizations.ts";

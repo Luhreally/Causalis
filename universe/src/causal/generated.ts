@@ -12,6 +12,7 @@ import {
   BIOME_NAMES,
   BOUNDARY,
   DEPOSIT,
+  CIVILIZATION,
   MOON,
   PLANET,
   PLATE,
@@ -26,7 +27,7 @@ import {
   surfaceCopper,
   type SystemBody,
 } from "../gen/index.ts";
-import { homePlanet } from "../sim/index.ts";
+import { civilizationsNear, clusterOf, homePlanet, starSitesOf } from "../sim/index.ts";
 import { edges, registerExplainer, type Explanation } from "./why.ts";
 
 const BOUNDARY_WORDS = ["", "converging", "spreading", "sliding"];
@@ -45,6 +46,18 @@ function generated(ref: Ref, claim: string, causes: Explanation["causes"]): Expl
 
 registerExplainer(STAR.code, (world, ref) => {
   if (!hasPlanet(world)) return null;
+  // Another star of the cluster: what it is and how far.
+  if (ref !== homePlanet(world).generated.star.ref) {
+    const o = clusterOf(world).find((x) => x.ref === ref);
+    if (!o) return null;
+    return generated(
+      ref,
+      o.remnant
+        ? `A white dwarf ${o.distance.toFixed(1)} light-years from home: a star that burned out, ${o.mass.toFixed(2)} of the Sun's mass left`
+        : `A ${o.spectral} star ${o.distance.toFixed(1)} light-years from home, of ${o.mass.toFixed(2)} suns, ${o.ageGyr.toFixed(1)} billion years old, shining ${o.luminosity < 0.01 ? o.luminosity.toExponential(1) : o.luminosity.toFixed(2)} times as bright as the Sun`,
+      [],
+    );
+  }
   const s = homePlanet(world).generated.star;
   return generated(
     ref,
@@ -276,6 +289,17 @@ function otherBody(world: World, b: SystemBody): Explanation {
   );
 }
 
+registerExplainer(CIVILIZATION.code, (world, ref) => {
+  if (!hasPlanet(world)) return null;
+  const c = civilizationsNear(world).find((x) => x.ref === ref);
+  if (!c) return null;
+  return generated(
+    ref,
+    `A people of ${c.clade}s on a world of seas ${c.distance.toFixed(1)} light-years from home (${c.gravity.toFixed(2)} g): their chronicle began ${c.offset < 0 ? `${-c.offset} years before ours` : `in our year ${c.offset}`}, and they came to electronics in our year ${c.electronics}`,
+    edges(world, [{ ref: c.star, role: "enabler", weight: 1 }]),
+  );
+});
+
 registerExplainer(MOON.code, (world, ref) => {
   if (!hasPlanet(world)) return null;
   const b = homePlanet(world).generated.system.bodies.find((x) => x.ref === ref);
@@ -288,6 +312,14 @@ export function landWords(world: World, place: Ref | null): string {
   const g = homePlanet(world).generated,
     c = parseRef(place).b,
     site = offworldSite(g, c);
+  if (site && site.body < 0) {
+    const ship = starSitesOf(world)?.get(c);
+    return ship
+      ? ship.arrived
+        ? `the halls on a world of ${ship.star}, ${ship.distance.toFixed(1)} light-years out`
+        : `the ship bound for ${ship.star}`
+      : "a ship";
+  }
   if (site) return `the halls on ${g.system.bodies[site.body]!.designation}`;
   if (c >= g.grid.count) return "the land";
   const lat = g.grid.lat[c]!,
@@ -297,9 +329,15 @@ export function landWords(world: World, place: Ref | null): string {
 
 /** Whether a ref names a generated thing this module explains. */
 export function isGenerated(ref: Ref): boolean {
-  return [STAR.code, PLANET.code, MOON.code, PLATE.code, DEPOSIT.code, SURFACE_CELL.code].includes(
-    kindCodeOf(ref),
-  );
+  return [
+    STAR.code,
+    PLANET.code,
+    MOON.code,
+    CIVILIZATION.code,
+    PLATE.code,
+    DEPOSIT.code,
+    SURFACE_CELL.code,
+  ].includes(kindCodeOf(ref));
 }
 
 function cap(t: string): string {

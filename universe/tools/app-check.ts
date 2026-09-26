@@ -33,6 +33,8 @@ type Exposed = {
   watching?: () => number;
   sky?: () => void;
   skyBodies?: () => number;
+  stars?: () => void;
+  starCount?: () => number;
   drawn?: () => number;
   select?: (cell: number) => void;
   bench?: { fps: number; frameMs: number; instances: number; tier: string };
@@ -409,6 +411,23 @@ for (const engine of engines) {
         if (shotsAt) {
           await new Promise((r) => setTimeout(r, 1500));
           await page.screenshot({ path: join(shotsAt, `${engine}-sky.png`) });
+        }
+        // Out again, to the stars around.
+        await page.evaluate(() => (globalThis as { causalis?: Exposed }).causalis?.stars?.());
+        const stars = await waitFor(
+          `${label} the stars`,
+          () =>
+            page.evaluate(
+              () => (globalThis as { causalis?: Exposed }).causalis?.starCount?.() ?? null,
+            ),
+          (n) => n > 500,
+        );
+        console.log(
+          `${(label + " stars").padEnd(24)} ${later.mode.padEnd(9)} ${stars} stars within reach`,
+        );
+        if (shotsAt) {
+          await new Promise((r) => setTimeout(r, 1500));
+          await page.screenshot({ path: join(shotsAt, `${engine}-stars.png`) });
         }
       }
       await page.close();

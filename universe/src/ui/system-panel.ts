@@ -24,6 +24,7 @@ export class SystemPanel {
   private readonly facts = el("div", "facts");
   private readonly more = el("div");
   private readonly why: WhyTree;
+  private readonly client: HostClient;
   private plan: SystemPlan | null = null;
   private sky: SkyState = { programs: [], colonies: [] };
   /** What the page shows: the star (null), a body, or a colony's land. */
@@ -33,13 +34,18 @@ export class SystemPanel {
   };
   onBack: () => void = () => {};
   onSelect: (index: number | null) => void = () => {};
+  /** Out to the stars around. */
+  onStars: () => void = () => {};
 
   constructor(root: HTMLElement, client: HostClient) {
     this.why = new WhyTree(client);
+    this.client = client;
     const bar = el("header", "bar"),
       back = el("button", "speed", "‹ The world");
     back.onclick = () => this.onBack();
-    bar.append(back, this.where);
+    const stars = el("button", "speed", "The stars ›");
+    stars.onclick = () => this.onStars();
+    bar.append(back, this.where, stars);
     const close = el("button", "close", "×");
     close.setAttribute("aria-label", "Close");
     close.onclick = () => {
@@ -100,6 +106,10 @@ export class SystemPanel {
       );
       const flying = this.sky.programs;
       this.more.replaceChildren(
+        ...this.acts("Your hand on the star", [
+          ["Make it flare (3 years)", "act.flare", { star: s.ref, sign: -1, years: 3 }],
+          ["Calm it (3 years)", "act.flare", { star: s.ref, sign: 1, years: 3 }],
+        ]),
         ...(flying.length
           ? [
               el("h3", undefined, "In the sky"),
@@ -156,6 +166,12 @@ export class SystemPanel {
         (c) => c.body === index || plan.bodies[c.body]!.around === index,
       );
     this.more.replaceChildren(
+      ...(index === 0
+        ? this.acts("Your hand on the world", [
+            ["Warm it (50 years)", "act.warm", { sign: 1, years: 50 }],
+            ["Cool it (50 years)", "act.warm", { sign: -1, years: 50 }],
+          ])
+        : []),
       ...(halls.length
         ? [
             el("h3", undefined, "Its halls"),
@@ -190,6 +206,25 @@ export class SystemPanel {
           ]
         : []),
     );
+  }
+
+  /** Buttons for great acts, each a logged command; the answer said beneath them. */
+  private acts(title: string, list: readonly [string, string, unknown][]): HTMLElement[] {
+    const note = el("p", "note"),
+      row = el("div", "speeds");
+    for (const [label, type, args] of list) {
+      const b = el("button", "act", label);
+      b.onclick = async () => {
+        try {
+          await this.client.command(type, args);
+          note.textContent = "Done: it is in the chronicle, and its why is yours.";
+        } catch (error) {
+          note.textContent = (error as Error).message;
+        }
+      };
+      row.append(b);
+    }
+    return [el("h3", undefined, title), row, note];
   }
 
   /** A colony's page: its people, how they fare, who rules them, and why they are there. */

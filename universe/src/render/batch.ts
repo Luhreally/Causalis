@@ -13,10 +13,17 @@ export class InstancedBatch {
   private readonly entity: pc.Entity;
   private count = 0;
 
-  constructor(stage: Stage, mesh: pc.Mesh, color: Rgb, capacity: number, parent?: pc.Entity) {
+  constructor(
+    stage: Stage,
+    mesh: pc.Mesh,
+    color: Rgb,
+    capacity: number,
+    parent?: pc.Entity,
+    material?: pc.Material,
+  ) {
     this.capacity = capacity;
     this.matrices = new Float32Array(capacity * 16);
-    this.instance = new pc.MeshInstance(mesh, flatMaterial(color));
+    this.instance = new pc.MeshInstance(mesh, material ?? flatMaterial(color));
     const format = pc.VertexFormat.getDefaultInstancingFormat(stage.device);
     this.buffer = new pc.VertexBuffer(stage.device, format, capacity, {
       usage: pc.BUFFER_DYNAMIC,

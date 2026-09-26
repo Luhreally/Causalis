@@ -129,3 +129,13 @@ export {
   type Propulsion,
 } from "./launch.ts";
 export { MOST_UPKEEP, habitability, type Ground, type Habitability, type Need } from "./habitat.ts";
+export {
+  LIGHT_KMS,
+  STAR_DRIVES,
+  STAR_MASS_RATIO,
+  crossingYears,
+  cruise,
+  longestCrossing,
+  starDriveFor,
+  type StarDrive,
+} from "./starships.ts";

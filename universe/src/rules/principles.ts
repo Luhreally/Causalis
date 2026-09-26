@@ -636,6 +636,40 @@ const TREE: readonly Principle[] = [
     { crafters: 1 },
     {},
   ),
+  // Between the stars (Phase 6 M57): drives that reach a hundredth of light's speed and
+  // more, and ships that keep a crew alive — asleep or born on the way — for the crossing.
+  P(
+    "fusion-drive",
+    "the fusing of light atoms as a drive",
+    ["nuclear-drive", "stations"],
+    0.002,
+    { crafters: 1, leaders: 0.3 },
+    {},
+  ),
+  P(
+    "long-sleep",
+    "keeping a crew asleep for years",
+    ["life-support", "medicine"],
+    0.002,
+    { crafters: 0.5, leaders: 0.3 },
+    { health: 0.03 },
+  ),
+  P(
+    "beamed-sails",
+    "sails driven by beams of light",
+    ["fusion-drive", "electronics"],
+    0.0015,
+    { crafters: 1, traders: 0.3 },
+    {},
+  ),
+  P(
+    "antimatter-drive",
+    "the annihilation of matter as a drive",
+    ["fusion-drive", "mathematics"],
+    0.001,
+    { crafters: 1, leaders: 0.3 },
+    {},
+  ),
 ];
 
 /**

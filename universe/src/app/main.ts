@@ -11,6 +11,7 @@ import {
   SandboxScene,
   Stage,
   SystemScene,
+  ClusterScene,
   VillageScene,
   runBench,
 } from "../render/index.ts";
@@ -21,10 +22,11 @@ import {
   RegionPanel,
   SandboxPanel,
   SystemPanel,
+  ClusterPanel,
   VillagePanel,
   type PeopleEntry,
 } from "../ui/index.ts";
-import type { SkyState, SystemPlan, VillagePlan } from "../bridge/index.ts";
+import type { ClusterPlan, SkyState, SystemPlan, VillagePlan } from "../bridge/index.ts";
 import {
   cellAt,
   cellCenter,
@@ -33,6 +35,7 @@ import {
   regionHeights,
   sandboxSpec,
   skyMarks,
+  voyageMarks,
   systemExtent,
   systemSpec,
   type Lens,
@@ -85,6 +88,9 @@ type Exposed = {
   /** Out to the home star's system; how many of its bodies are shown. */
   sky?: () => void;
   skyBodies?: () => number;
+  /** Out to the stars around; how many are shown. */
+  stars?: () => void;
+  starCount?: () => number;
   bench?: unknown;
   /** Why the page could not start, if it could not ("webgl" when 3D is unavailable). */
   error?: string;
@@ -204,10 +210,12 @@ async function runPlanetPage(): Promise<void> {
     globe = new GlobeScene(stage),
     region = new RegionScene(stage),
     village = new VillageScene(stage),
-    skyScene = new SystemScene(stage);
+    skyScene = new SystemScene(stage),
+    starScene = new ClusterScene(stage);
   const { client, mode } = await connect();
   let painted = 0,
-    scale: "globe" | "region" | "village" | "system" = "globe",
+    scale: "globe" | "region" | "village" | "system" | "cluster" = "globe",
+    clusterPlan: ClusterPlan | null = null,
     systemPlan: SystemPlan | null = null;
   Object.assign(exposed, { client, mode, seed, universe, drawn: () => painted, stage });
   await client.start(universe, seed);
@@ -339,7 +347,9 @@ async function runPlanetPage(): Promise<void> {
           ? selectTile(region.pick(x, y))
           : scale === "system"
             ? selectBody(skyScene.pick(x, y))
-            : selectPerson(village.pick(x, y)),
+            : scale === "cluster"
+              ? selectStar(starScene.pick(x, y))
+              : selectPerson(village.pick(x, y)),
   });
 
   // Down to a region, and back up to the world: the camera, the scene, the panel,
@@ -385,6 +395,8 @@ async function runPlanetPage(): Promise<void> {
     region.visible = false;
     skyScene.visible = false;
     systemPanel.visible = false;
+    starScene.visible = false;
+    clusterPanel.visible = false;
     globe.visible = true;
     regionPanel.visible = false;
     planetPanel.visible = true;
@@ -425,6 +437,7 @@ async function runPlanetPage(): Promise<void> {
     stopSky = client.subscribe<SkyState>({ type: "space.state" }, 1000, (s) => {
       sky = s;
       systemPanel.update(s);
+      clusterPanel.update(s);
     });
     systemPanel.visible = true;
     client.setSpeed(SKY_SPEED);
@@ -441,6 +454,44 @@ async function runPlanetPage(): Promise<void> {
     });
   };
   planetPanel.onSky = () => void toSystem();
+  // Out to the stars around, and back to the star's system.
+  const clusterPanel = new ClusterPanel(hud, client);
+  const selectStar = (i: number | null) => {
+    starScene.mark(i, clusterPlan);
+    void clusterPanel.select(i);
+  };
+  const toCluster = async () => {
+    scale = "cluster";
+    skyScene.visible = false;
+    systemPanel.visible = false;
+    if (!clusterPlan) {
+      clusterPlan = await client.query<ClusterPlan>({ type: "galaxy.cluster" });
+      starScene.build(clusterPlan);
+    }
+    clusterPanel.show(clusterPlan);
+    starScene.mark(null, clusterPlan);
+    starScene.visible = true;
+    clusterPanel.visible = true;
+    rig.configure({
+      distance: (clusterPlan.radius * 0.3 * 2.8) / Math.min(1, aspect()),
+      minDistance: 1,
+      maxDistance: 200,
+      pitch: -30,
+      minPitch: -89,
+      maxPitch: 60,
+      drift: 1,
+      target: [0, 0, 0],
+    });
+  };
+  systemPanel.onStars = () => void toCluster();
+  clusterPanel.onSelect = (i) => starScene.mark(i, clusterPlan);
+  clusterPanel.onBack = () => {
+    starScene.visible = false;
+    clusterPanel.visible = false;
+    void toSystem();
+  };
+  exposed.stars = () => void toCluster();
+  exposed.starCount = () => (scale === "cluster" && clusterPlan ? clusterPlan.stars.length : 0);
   systemPanel.onSelect = (i) => skyScene.mark(i);
   systemPanel.onBack = () => {
     stopSky?.();
@@ -450,6 +501,10 @@ async function runPlanetPage(): Promise<void> {
   };
   exposed.sky = () => void toSystem();
   exposed.skyBodies = () => (scale === "system" && systemPlan ? systemPlan.bodies.length : 0);
+  stage.onUpdate(() => {
+    if (scale === "cluster" && clusterPlan)
+      starScene.voyages(voyageMarks(clusterPlan, sky, now() / YEAR));
+  });
   stage.onUpdate(() => {
     if (scale !== "system" || !systemPlan) return;
     const t = now(),

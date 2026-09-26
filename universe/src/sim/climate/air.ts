@@ -20,6 +20,8 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { G } from "../../rules/index.ts";
+import { planetRef } from "../../gen/index.ts";
+import { divineWarming } from "../acts/great.ts";
 import { provinceCapacity, type PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { ecologyOf } from "../ecology/ecology.ts";
@@ -150,7 +152,11 @@ export function airOf(world: World): AirStore {
 
 /** How much warmer the world is than before the engines, in degrees. */
 export function warmingOf(world: World): number {
-  return world.hasStore("climate.air") ? airOf(world).air.warming : 0;
+  // The engines' warming, and the god's if a great act warms (or cools) the world.
+  return (
+    (world.hasStore("climate.air") ? airOf(world).air.warming : 0) +
+    divineWarming(world, planetRef(0))
+  );
 }
 
 /**

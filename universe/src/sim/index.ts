@@ -56,6 +56,8 @@ export {
   regionOf,
   regionReady,
   prepareSites,
+  hallsShare,
+  spaceSteps,
   sitesReady,
   support,
   type PopulationContext,
@@ -286,3 +288,45 @@ export {
   spaceYear,
   type Program,
 } from "./space/space.ts";
+export { StarSiteStore, lightSteps, starSitesOf, type StarSite } from "./space/stars.ts";
+export {
+  ABOARD,
+  STARSHIP_MACHINES,
+  VOYAGE_EVENTS,
+  VOYAGE_GAP,
+  clusterOf,
+  installVoyages,
+  voyageTarget,
+  voyageYear,
+  worldsOf,
+} from "./space/voyages.ts";
+export {
+  CONTACT_EVENTS,
+  ContactStore,
+  civilizationsNear,
+  contactYear,
+  contactsOf,
+  installContact,
+  type Contact,
+} from "./space/contact.ts";
+export {
+  FLEET_MACHINES,
+  STARWAR,
+  STARWAR_EVENTS,
+  STARWAR_PACE,
+  StarWarStore,
+  installStarWars,
+  starWarYear,
+  starWarsOf,
+  type StarWar,
+} from "./space/starwar.ts";
+export {
+  GREAT_ACT_EVENTS,
+  GREAT_ACT_STRENGTH,
+  GreatActStore,
+  divineWarming,
+  greatActsOf,
+  installGreatActs,
+  starHazard,
+  type GreatAct,
+} from "./acts/great.ts";

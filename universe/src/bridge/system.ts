@@ -63,4 +63,54 @@ export type SkyState = {
     readonly founded: number;
     readonly event: string | null;
   }[];
+  /** Ships to other stars, and the halls they founded there (Phase 6 M58–M59). */
+  readonly ships?: readonly {
+    readonly cell: number;
+    readonly star: string;
+    readonly distance: number;
+    readonly departed: number;
+    readonly arrives: number;
+    readonly arrived: boolean;
+    readonly people: number;
+    readonly realm: string | null;
+    readonly voyage: string;
+  }[];
+};
+
+/** The stars within the cluster's reach of home (Phase 6 M56), each where it lies. */
+export type ClusterStar = {
+  readonly ref: string;
+  /** Light-years from home: in the disk's plane (x, y) and above it (z). */
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly distance: number;
+  readonly spectral: string;
+  readonly mass: number;
+  readonly luminosity: number;
+  readonly temperature: number;
+  readonly ageGyr: number;
+  readonly remnant: boolean;
+  /** Its worlds, and how many of them hold seas. */
+  readonly planets: number;
+  readonly seas: number;
+};
+
+export type ClusterPlan = {
+  readonly radius: number;
+  readonly stars: readonly ClusterStar[];
+};
+
+/** One star's page: the star and its worlds. */
+export type StarPage = ClusterStar & {
+  readonly worlds: readonly {
+    readonly kind: string;
+    readonly a: number;
+    readonly mass: number;
+    readonly gravity: number;
+    readonly temperature: number;
+    readonly pressure: number;
+    readonly air: string;
+    readonly water: string;
+  }[];
 };

@@ -2491,6 +2491,89 @@ is kept while a ruler, a split or a grievance cites it (a change of ruler at a f
 land's seat is still its news), and living memory runs as long as the people's oldest
 can live (`livingMemory`: the apes' 120 years exactly): alien 55's save from 19.2 MB to
 13.2, Earth's history kept a little lighter, its dynamics unchanged.
+### I.6 Phase 6 milestones (planned 2026-09-26, during the Phase 5 gate)
+
+Phase 6's "done when" (Part VII): within about two thousand game years of its first
+launch, a run from a single world reaches interstellar colonies, at least one lag-driven
+secession, contact with another civilization, and an interstellar war whose `why` chain
+reaches back to planetary facts; within the save and heap budgets; and at galaxy scale
+time runs at centuries per minute on the phone floor. Travel is sublight; word travels at
+the speed of light; nothing is under the hand out there.
+
+56. **The galaxy and the cluster**: galaxy parameters from the seed (disk, arms, bulge);
+    sectors with stars by keyed draws (a star is `gen(seed, sector, k)`, untouched stars
+    cost nothing); the playable cluster of the few thousand systems within some fifty
+    light-years of home, each star's own system generated when first needed (the same
+    generator as the home system's, under the open prior); the galaxy and cluster views.
+57. **Drives for the dark between stars**: principles past the nuclear drive — fusion
+    (a hundredth of light's speed), beamed sails, antimatter (a quarter) — and starships
+    through the design grammar: a cruise speed from the rocket equation at the drive's
+    exhaust, a crew asleep or born on the way; which stars a realm can reach in a life.
+58. **Voyages on the star graph**: a realm with a drive and a reason sends a ship to the
+    nearest system with a body its people can live on; the ship is a record in flight
+    for decades; word of it travels back at light's speed; arrival is an event whose why
+    reaches the drive, the distance and the home world.
+59. **Colonies among the stars**: the arrival founds a colony on the target system's
+    body, a land of the ordinary kind (offworld sites taken, as the ship arrives, from a
+    pool the province world keeps for other stars' bodies; the site's body read from that
+    star's generated system); the colony's people, knowledge, ways and tongue as in M52.
+60. **The lag of light**: a realm's reach over its star-holdings counts years of light;
+    orders are years old when they arrive; grievance, divergence and secession follow the
+    ordinary rules with the lag as their distance; a colony twelve light-years out hears
+    its capital twelve years late.
+61. **Other civilizations**: the cluster's other peopled worlds, from their own deep time
+    (their stars' ages, their planets' biospheres); each an aggregate civilization at A1
+    (people, knowledge, realms, drives) advancing by the same laws in aggregate, never a
+    second full planet sim; their signals leave them at light's speed once they have
+    electronics.
+62. **Contact**: a people hears another's signals, or a ship arrives in an inhabited
+    system; first contact as an event whose why reaches both worlds; relations on the star
+    graph by the diplomacy rules (reputation, pacts, rivalry), each side knowing the other
+    only as its light-old news.
+63. **Interstellar polities and trade**: holdings across stars as realms of the ordinary
+    kind; trade in what is worth carrying across light-years — knowledge, rare goods,
+    people; tribute that takes decades to arrive.
+64. **Interstellar war**: fleets through the design grammar, campaigns of decades on the
+    star graph, sailing on intelligence years old and arriving to what has changed; each
+    system's industry its own defence; war aims that outlive the governments that set
+    them — the one conflict kernel on its third graph.
+65. **Phase 6 gate**: from the Earth seed, within two thousand years of first launch:
+    interstellar colonies, a lag-driven secession, contact, an interstellar war whose why
+    reaches planetary facts; budgets hold; galaxy-scale time at centuries a minute on the
+    phone floor; divine acts at planet and star-system scale.
+
+56–64, as built (a first pass; the gate's numbers follow when it has run): `gen/galaxy.ts`
+— the galaxy's disk, arms and home from the seed; ten-light-year sectors whose stars are
+drawn where they lie (a keyed Poisson of the density there; masses by the two-law initial
+mass function; the dead as white dwarfs), home still `star:0:0`; the cluster of some two
+thousand stars within fifty light-years (the Earth seed's: 2,047, three in four red
+dwarfs, the nearest at 2.9 light-years) and each star's worlds drawn on their own stream
+(7,562 about the Earth seed's cluster, 421 with seas). The observatory: "The stars" from
+the system view — the cluster in 3-D, a page for the stars and one for each star with its
+worlds. `rules/starships.ts`: drives for the dark between stars (fusion at about a
+twentieth of light's speed, beamed sails, antimatter near a third), the crossing's years,
+and the longest crossing a people will ask of its own (a sleeping crew's, or a lifetime).
+Voyages (`sim/space/voyages.ts`, `stars.ts`): a realm with a station, habitats and a drive
+sends a ship to the nearest star with a world its people could live on; the ship is a
+land of the ordinary kind (one of 36 sites the province world keeps), its people living
+aboard for the crossing, then halls on that world; ruled across light-years (`lightSteps`)
+it hears its capital years late, and the ordinary rules of grievance and secession follow.
+Other civilizations (`gen/civilizations.ts`): a few of the cluster's worlds with seas bear
+peoples of their own (the Earth seed's cluster: six, thirty to fifty light-years out),
+followed in aggregate — their chronicle's start and pace against ours, when they came to
+electronics, orbit (later on a heavier world) and the stars. Contact (`contact.ts`): their
+signals, once they have electronics, reach home at light's speed and are heard by a realm
+that can listen; the why reaches their world. War between the stars (`starwar.ts`): a
+realm with a star drive and a cause — a colony among the stars broken away, or another
+starfaring people heard — declares on news years old; its fleet sails for decades and
+fights on arrival; the declaration's why cites the realm's own reach into the sky (and so
+the home world's pull) and the hearing of the other people. Great acts (`acts/great.ts`):
+the god warms or cools a whole world for up to a century (the climate reads it as
+warming), or makes a star flare or calm (every land under its light finds death likelier
+or rarer). Gates: `npm run gate:5` (Earth to 1400 with a light and a heavy sea world; CI
+runs Earth to its first satellite) and `npm run gate:6` (Earth two thousand years past its
+first launch).
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

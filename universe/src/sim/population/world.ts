@@ -8,6 +8,8 @@ import { peopleLife } from "./life.ts";
 import { MarketStore } from "../economy/market.ts";
 import { installEconomy } from "../economy/systems.ts";
 import { installActs } from "../acts/acts.ts";
+import { installGreatActs } from "../acts/great.ts";
+import { clusterOf } from "../space/voyages.ts";
 import { installHand } from "../hand/hand.ts";
 import { CultureStore, cradleWays, driftedWays } from "../culture/culture.ts";
 import { foundLanguages, installLanguages } from "../culture/languages.ts";
@@ -195,6 +197,13 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     },
   );
 
+  // The great acts: on the whole world, and on its star or another within reach.
+  installGreatActs(
+    world,
+    homePlanet(world).generated.planet.ref as Ref,
+    (ref) =>
+      ref === homePlanet(world).generated.star.ref || clusterOf(world).some((s) => s.ref === ref),
+  );
   installHand(world);
   installPolities(world, () => populationContext(world));
   installBelief(world, () => populationContext(world));

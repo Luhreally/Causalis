@@ -23,7 +23,7 @@ export const PROVINCE_FREQUENCY = 20;
  * the other sites on their own body, and lie far from the planet's sphere.
  */
 export type OffworldSite = {
-  /** The body's index in the star's system. */
+  /** The body's index in the star's system (-1: a site kept for a ship and another star's world). */
   readonly body: number;
   /** Its place among its body's sites. */
   readonly site: number;
@@ -34,6 +34,11 @@ export type OffworldSite = {
 /** Sites a colony may be set in on each body with ground, and the halls each holds (km²). */
 export const SITES_PER_BODY = 3;
 export const HALL_AREA = 2000;
+/**
+ * Lands kept for the ships that leave for other stars and the colonies they found there
+ * (Phase 6 M59): which star and world each is set by the voyage, when it sails.
+ */
+export const STAR_SITES = 36;
 
 export type ProvinceWorld = HomeWorld & {
   /** The world as generated, on its fine grid. */
@@ -69,6 +74,7 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
     if (b.kind === "rocky" || b.kind === "moon")
       for (let s = 0; s < SITES_PER_BODY; s++)
         sites.push({ body: b.index, site: s, area: HALL_AREA });
+  for (let s = 0; s < STAR_SITES; s++) sites.push({ body: -1, site: s, area: HALL_AREA });
   const N = n + sites.length,
     grid = withSites(sphere, sites, fine.planet.radius),
     f = fine.grid,
@@ -341,7 +347,8 @@ function withSites(g: SphereGrid, sites: readonly OffworldSite[], radius: number
     positions[3 * c + 2] = 100 + s.site;
     areas[c] = s.area / (rKm * rKm);
     for (let j = 0; j < sites.length; j++)
-      if (j !== i && sites[j]!.body === s.body) links.push(n + j);
+      // Sites on one body are neighbours; a ship's or another star's site stands alone.
+      if (j !== i && s.body >= 0 && sites[j]!.body === s.body) links.push(n + j);
     offsets[c + 1] = g.neighbours.length + links.length;
   }
   const neighbours = new Int32Array(g.neighbours.length + links.length);

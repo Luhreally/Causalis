@@ -63,6 +63,25 @@ jobs:
       # locally: npm run gate:4.
       - run: npm run gate:4 -- --ci
 
+  universe-sky:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: universe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: universe/package-lock.json
+      - run: npm ci
+      # The Phase 5 gate's CI check: the Earth seed into its space age, its first satellite
+      # in its band and its why naming the world's pull and the engine, within budget. The
+      # full gate (colonies diverging, a heavy world and a light one) runs locally:
+      # npm run gate:5.
+      - run: npm run gate:5 -- --ci
+
   universe-engines:
     runs-on: ubuntu-latest
     defaults:

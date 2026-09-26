@@ -68,6 +68,8 @@ import {
   type Medium,
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
+import { lightSteps, starSitesOf } from "../space/stars.ts";
+import { starHazard } from "../acts/great.ts";
 import { capacity, COLS, livable, Province, row, ROWS, type Capacity } from "./model.ts";
 import {
   HistoryStore,
@@ -139,6 +141,11 @@ const HALLS = new Map<string, number>();
 export function hallsShare(ctx: PopulationContext, cell: number): number {
   const site = offworldSite(ctx.generated, cell);
   if (!site) return 0;
+  // A ship's land: its share aboard while it sails, on the world it came to after.
+  if (site.body < 0) {
+    const s = starSitesOf(ctx.world)?.get(cell);
+    return s ? (s.arrived ? s.there : s.aboard) : 0;
+  }
   const key = `${ctx.generated.digest}:${cell}`;
   let share = HALLS.get(key);
   if (share === undefined) {
@@ -162,6 +169,13 @@ export function spaceSteps(ctx: PopulationContext, a: number, b: number): number
     sa = offworldSite(g, a),
     sb = offworldSite(g, b);
   if (!sa && !sb) return null;
+  // A ship's land, or another star's: its lag is the light-years to that star.
+  if ((sa && sa.body < 0) || (sb && sb.body < 0)) {
+    const stars = starSitesOf(ctx.world),
+      far = (site: typeof sa, cell: number) =>
+        site && site.body < 0 ? (stars?.get(cell)?.distance ?? 0) : 0;
+    return lightSteps(Math.max(far(sa, a), far(sb, b)));
+  }
   if (sa && sb && sa.body === sb.body) return null;
   const key = `${g.digest}:${sa?.body ?? 0}:${sb?.body ?? 0}`;
   if (CROSSINGS.has(key)) return CROSSINGS.get(key)!;
@@ -451,6 +465,20 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
   }
 }
 
+/**
+ * What a star's flare or calm (a great act) lays on a land under its light: a land of
+ * another body of the home system is under the home star; a ship's or a colony's among
+ * the stars, under the star it sailed for. The home world's own lands are sheltered by
+ * its air and its field (1).
+ */
+function underStar(ctx: PopulationContext, cell: number): number {
+  const site = offworldSite(ctx.generated, cell);
+  if (!site) return 1;
+  const star =
+    site.body >= 0 ? (ctx.generated.star.ref as Ref) : starSitesOf(ctx.world)?.get(cell)?.star;
+  return star ? starHazard(ctx.world, star).factor : 1;
+}
+
 /** Births and deaths, monthly. */
 export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
   const { world, history } = ctx,
@@ -480,7 +508,13 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       healed = 1 - Math.min(0.3, loreOf(world).effect(p.cell, "health")),
       // Where much is burned among few, smoke fouls the air.
       smoke = 1 + 0.3 * smokeIn(ctx, p.cell),
-      mortality = (1 + 2.5 * (1 - fed)) * (1 + 0.25 * cold * bare) * sickness * healed * smoke,
+      mortality =
+        (1 + 2.5 * (1 - fed)) *
+        (1 + 0.25 * cold * bare) *
+        sickness *
+        healed *
+        smoke *
+        underStar(ctx, p.cell),
       d = new CountDeltas(p.counts),
       key = refHash(p.ref),
       // Under the hand, a village's people are born and die one by one; the rest by rates.

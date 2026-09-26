@@ -65,3 +65,11 @@ export {
   type SkyMarks,
   type SystemSpot,
 } from "./system.ts";
+export {
+  LY_SCALE,
+  clusterSpec,
+  clusterWords,
+  starColor,
+  voyageMarks,
+  type Rgb3,
+} from "./cluster.ts";

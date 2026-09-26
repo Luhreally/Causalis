@@ -35,6 +35,7 @@ import {
   prepareSites,
   sitesReady,
   spaceOf,
+  starSitesOf,
 } from "../sim/index.ts";
 import { FOODS, G, GOODS, OCCUPATIONS, designWords } from "../rules/index.ts";
 import {
@@ -44,7 +45,12 @@ import {
   DEPOSIT_KINDS,
   WATER,
   cellRef,
+  CLUSTER_LY,
+  clusterStars,
+  foreignPlanets,
+  makeGalaxy,
   offworldSite,
+  type GalaxyStar,
   refineRegion,
   tongueLikeness,
   tongueName,
@@ -56,6 +62,7 @@ import {
 } from "../gen/index.ts";
 import { EARTHLIKE, OPEN, type Prior } from "../rules/index.ts";
 import {
+  Rng,
   YEAR,
   finish,
   hashString,
@@ -78,7 +85,7 @@ import {
   waysWords,
   why,
 } from "../causal/index.ts";
-import type { SkyState, SystemPlan } from "../bridge/index.ts";
+import type { ClusterPlan, ClusterStar, SkyState, StarPage, SystemPlan } from "../bridge/index.ts";
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 import { villagePlan } from "./village.ts";
@@ -587,6 +594,31 @@ function planetUniverse(name: string, prior: Prior): Universe {
     },
     queries: {
       "planet.summary": (world) => summary(homePlanet(world).generated.fine),
+      /** The stars within the cluster's reach of home. */
+      "galaxy.cluster": (world): ClusterPlan => {
+        const rng = new Rng(world.seed);
+        return { radius: CLUSTER_LY, stars: clusterOf(world).map((s) => clusterStar(s, rng)) };
+      },
+      /** One star of the cluster, and its worlds. */
+      "galaxy.star": (world, args): StarPage => {
+        const ref = (args as { ref: string }).ref,
+          star = clusterOf(world).find((s) => s.ref === ref);
+        if (!star) throw new Error(`no star ${ref} in the cluster`);
+        const rng = new Rng(world.seed);
+        return {
+          ...clusterStar(star, rng),
+          worlds: foreignPlanets(rng, star).map((p) => ({
+            kind: p.kind,
+            a: p.a,
+            mass: p.mass,
+            gravity: p.gravity,
+            temperature: p.temperature,
+            pressure: p.pressure,
+            air: p.air,
+            water: p.water,
+          })),
+        };
+      },
       /** Who has reached the sky, and the colonies on the system's bodies. */
       "space.state": (world): SkyState => {
         const g = homePlanet(world).generated,
@@ -616,7 +648,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
             })),
           colonies: ctx.provinces
             .all()
-            .filter((p) => offworldSite(g, p.cell) && p.total() > 0)
+            .filter((p) => (offworldSite(g, p.cell)?.body ?? -1) >= 0 && p.total() > 0)
             .map((p) => {
               const site = offworldSite(g, p.cell)!,
                 f = founders.get(p.cell);
@@ -632,6 +664,17 @@ function planetUniverse(name: string, prior: Prior): Universe {
                 event: f?.event ?? p.arrival,
               };
             }),
+          ships: (starSitesOf(world)?.all() ?? []).map(([cell, s]) => ({
+            cell,
+            star: s.star,
+            distance: s.distance,
+            departed: s.departed,
+            arrives: s.arrives,
+            arrived: s.arrived !== null,
+            people: ctx.provinces.get(cell)?.total() ?? 0,
+            realm: named(realms.of(cell)?.ref ?? null),
+            voyage: s.voyage,
+          })),
         };
       },
       /** The home star's system: the star, and every planet and moon with its orbit and ground. */
@@ -820,6 +863,38 @@ function planetUniverse(name: string, prior: Prior): Universe {
           richness: d.richness,
         })),
     },
+  };
+}
+
+/** The cluster's stars for a world (a pure function of its seed, kept while the world is the same). */
+const CLUSTERS = new Map<string, GalaxyStar[]>();
+function clusterOf(world: World): GalaxyStar[] {
+  const key = world.seed.text;
+  let stars = CLUSTERS.get(key);
+  if (!stars) {
+    if (CLUSTERS.size > 8) CLUSTERS.clear();
+    const rng = new Rng(world.seed);
+    CLUSTERS.set(key, (stars = clusterStars(rng, makeGalaxy(rng))));
+  }
+  return stars;
+}
+
+function clusterStar(s: GalaxyStar, rng: Rng): ClusterStar {
+  const worlds = foreignPlanets(rng, s);
+  return {
+    ref: s.ref,
+    x: s.x,
+    y: s.y,
+    z: s.z,
+    distance: s.distance,
+    spectral: s.spectral,
+    mass: s.mass,
+    luminosity: s.luminosity,
+    temperature: s.temperature,
+    ageGyr: s.ageGyr,
+    remnant: s.remnant,
+    planets: worlds.length,
+    seas: worlds.filter((w) => w.water === "seas").length,
   };
 }
 

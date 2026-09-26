@@ -82,7 +82,23 @@ else
     `  another road to power               ${road.seed}: ${road.clade} of the ${road.medium}, ${road.industry!.by} in year ${road.industry!.year}`,
   );
 
-// 3. No one outbreeds the chronicle; 4. budgets, scaled by the world's lands.
+// 3. No one outbreeds the chronicle; 4. budgets, scaled by the world's lands. Worlds run
+// side by side slow one another (a quarter of the machine each, sharing its memory), so a
+// world whose slowest year is over its bound is run again alone, and judged by that.
+const over = peopled.filter((x) => x.slowest > YEAR_MS * Math.max(1, x.lands / EARTH_LANDS));
+if (over.length) {
+  console.log(`  ${over.length} worlds over their year's bound side by side; each again, alone`);
+  const alone = await surveyAll(
+    over.map((x) => x.seed),
+    years,
+    1,
+  );
+  for (const a of alone) {
+    const i = peopled.findIndex((x) => x.seed === a.seed);
+    console.log(`    ${a.seed}: ${peopled[i]!.slowest} ms side by side, ${a.slowest} ms alone`);
+    peopled[i] = a;
+  }
+}
 for (const x of peopled) {
   const centuries = x.years / 100,
     growth = x.first > 0 && centuries > 0 ? (x.peak / x.first) ** (1 / centuries) : 1;
