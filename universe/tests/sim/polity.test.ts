@@ -51,6 +51,7 @@ test("how a realm is ruled comes from its people's ways, and holds against small
   const ways = (set: Partial<Record<(typeof WAY_TRAITS)[number], number>>): Ways => ({
     cell: 0,
     traits: WAY_TRAITS.map((t) => set[t] ?? 0.5),
+    base: WAY_TRAITS.map(() => 0.5),
     tongue: { onsets: 1, vowels: 1, codas: 1, endings: 1, seed: 1 },
     nudges: [],
     from: null,

@@ -28,6 +28,7 @@ import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf, type Ways } from "../culture/culture.ts";
 import { bandOfAge } from "../hand/hand.ts";
+import type { BeliefStore } from "../belief/belief.ts";
 
 export const POLITY = defineKind("pol", "realm", "minted");
 
@@ -413,6 +414,9 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
   store.fadeGrievance(0.75);
 
   // 3. Tribute to the seat, and the discontent it and hard years breed.
+  const faiths = world.storeNames().includes("belief.faiths")
+    ? world.store<BeliefStore>("belief.faiths")
+    : null;
   for (const p of store.living()) {
     const seatMarket = markets.of(p.seat),
       seatWays = culture.get(p.seat)!,
@@ -432,9 +436,16 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
         famine = recent(world, prov.lastFamine, t),
         far = steps.get(c) ?? 3,
         foreign = 1 - tongueLikeness(ways.tongue, seatWays.tongue);
-      // Grievance settles low in good years (it fades each year) and spikes with famine.
-      const level =
-        before.level + (famine ? 0.5 : 0) + p.tribute * 0.8 + 0.02 * far + 0.3 * foreign * foreign;
+      // Grievance settles low in good years (it fades each year) and spikes with famine —
+      // the more so under a priest-king of their own faith, whose favour has failed them.
+      const shared = faiths?.of(c).faith ?? null,
+        sacred = p.leadership === 3 && shared !== null && shared === faiths?.of(p.seat).faith,
+        level =
+          before.level +
+          (famine ? (sacred ? 0.8 : 0.5) : 0) +
+          p.tribute * 0.8 +
+          0.02 * far +
+          0.3 * foreign * foreign;
       store.setDiscontent(c, { level, cause: famine ?? before.cause });
     }
   }

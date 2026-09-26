@@ -60,6 +60,7 @@ type ProvinceFacts = {
   folk: string;
   ways: { ref: string; words: string[]; kept: number; sounds: string[] } | null;
   realm: RealmFacts;
+  faith: FaithFacts;
 } | null;
 
 type ProvinceHistory = {
@@ -85,7 +86,17 @@ export type PeopleEntry = {
   tongue: readonly [number, number, number] | null;
   /** Their realm's colour, if they belong to one. */
   realm: readonly [number, number, number] | null;
+  /** Their faith's colour, if they hold one beyond the old beliefs. */
+  faith: readonly [number, number, number] | null;
 };
+
+type FaithFacts = {
+  ref: string;
+  name: string;
+  deity: string;
+  since: number;
+  event: string | null;
+} | null;
 
 type RealmFacts = {
   ref: string;
@@ -379,7 +390,7 @@ export class PlanetPanel {
         .map(([text, ref]) => (ref ? this.whyLine(text, ref) : el("div", "fact", text))),
     );
     this.showRealm(folk ? folk.realm : null, !!folk);
-    this.showWays(folk?.ways ?? null);
+    this.showWays(folk?.ways ?? null, folk?.faith ?? null);
     this.showMarket(market);
     this.showPast(folk ? past : null);
     if (folk) void this.hand.show(this.handBox, cell);
@@ -435,6 +446,7 @@ export class PlanetPanel {
   /** A people's ways and speech, each opening why. */
   private showWays(
     w: { ref: string; words: string[]; kept: number; sounds: string[] } | null,
+    faith: FaithFacts,
   ): void {
     if (!w) {
       this.waysBox.replaceChildren();
@@ -453,6 +465,12 @@ export class PlanetPanel {
         "fact muted",
         `Their speech gives names like ${w.sounds.join(", ")}; it keeps ${w.kept}% of the first people's sounds`,
       ),
+      faith
+        ? this.whyLine(
+            `They worship ${faith.deity}, as ${faith.name} (since year ${faith.since})`,
+            faith.event ?? faith.ref,
+          )
+        : el("div", "fact muted", "They keep the old beliefs of their kin"),
     );
   }
 

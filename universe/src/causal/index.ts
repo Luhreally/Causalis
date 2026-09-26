@@ -26,6 +26,7 @@ import "./economy.ts";
 import "./acts.ts";
 export { WAYS, WAY_WORDS, kept, waysRef, waysWords } from "./culture.ts";
 export { governmentWords } from "./polity.ts";
+import "./belief.ts";
 export { priceWords } from "./economy.ts";
 export {
   edges,

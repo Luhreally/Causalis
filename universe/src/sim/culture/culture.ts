@@ -49,6 +49,11 @@ export type Nudge = {
 export type Ways = {
   readonly cell: number;
   traits: number[];
+  /**
+   * The ways a people return to when nothing pushes them: what they had when the
+   * chronicle opened, or brought when they came. Lasting changes (a faith) move it.
+   */
+  base: number[];
   tongue: Tongue;
   /** The strongest pushes, strongest first. */
   nudges: Nudge[];
@@ -134,7 +139,12 @@ export class CultureStore implements StateStore {
   load(state: unknown): void {
     this.map.clear();
     for (const w of (state as { ways: Ways[] }).ways)
-      this.map.set(w.cell, { ...w, traits: [...w.traits], nudges: [...w.nudges] });
+      this.map.set(w.cell, {
+        ...w,
+        traits: [...w.traits],
+        base: [...w.base],
+        nudges: [...w.nudges],
+      });
   }
 }
 
@@ -147,6 +157,7 @@ export function cradleWays(cell: number, culture: number, from: Ref | null): Way
   return {
     cell,
     traits: WAY_TRAITS.map(() => 0.5),
+    base: WAY_TRAITS.map(() => 0.5),
     tongue: cradleTongue(culture),
     nudges: [],
     from,
@@ -177,7 +188,7 @@ export function driftedWays(
   let tongue = cradle.tongue;
   for (let k = 0; k < steps * 2; k++)
     tongue = shiftTongue(tongue, world.rng.real(SPEECH, cell, 0, 1, k));
-  return { cell, traits, tongue, nudges: [], from };
+  return { cell, traits, base: [...traits], tongue, nudges: [], from };
 }
 
 function push(w: Ways, nudge: Nudge): void {
@@ -203,6 +214,7 @@ export function cultureYear(ctx: PopulationContext, t: SimTime): void {
     store.set({
       cell: p.cell,
       traits: [...base.traits],
+      base: [...base.traits],
       tongue: base.tongue,
       nudges: [],
       from: p.arrival,
@@ -235,11 +247,11 @@ export function cultureYear(ctx: PopulationContext, t: SimTime): void {
     const traits = w.traits.map((v, i) => {
       const pull = total ? near.reduce((s, x) => s + x.w.traits[i]! * x.weight, 0) / total - v : 0,
         wander =
-          0.004 *
+          0.006 *
           gaussian(world.rng.real(DRIFT, p.cell, t, 1, i), world.rng.real(DRIFT, p.cell, t, 2, i));
-      // What is not pushed again fades: ways relax slowly back toward the middle.
-      const relax = 0.015 * (0.5 - v);
-      return dmath.clamp(v + 0.03 * pull + relax + wander, 0.02, 0.98);
+      // What is not pushed again fades: ways relax slowly back toward the people's own.
+      const relax = 0.02 * (w.base[i]! - v);
+      return dmath.clamp(v + 0.01 * pull + relax + wander, 0.02, 0.98);
     });
     let tongue = w.tongue;
     if (world.rng.real(SPEECH, p.cell, t, 1) < 1 / 30)

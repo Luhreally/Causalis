@@ -209,6 +209,7 @@ async function runPlanetPage(): Promise<void> {
     foodPrices = new Map<number, number>(),
     tongues = new Map<number, readonly [number, number, number]>(),
     realms = new Map<number, readonly [number, number, number]>(),
+    faiths = new Map<number, readonly [number, number, number]>(),
     villages: Village[] = [],
     regionCell = -1,
     stopVillages: (() => void) | null = null;
@@ -230,7 +231,7 @@ async function runPlanetPage(): Promise<void> {
       frame,
       lens,
       lens === "food" ? foodPrices : density,
-      lens === "realms" ? realms : tongues,
+      lens === "realms" ? realms : lens === "faiths" ? faiths : tongues,
     );
     globe.paint(colors);
     painted = colors.length / 4;
@@ -270,7 +271,7 @@ async function runPlanetPage(): Promise<void> {
   planetPanel.onLens = (l) => {
     lens = l;
     paintGlobe();
-    if (["people", "food", "tongues", "realms"].includes(l)) void faceThePeople(true);
+    if (["people", "food", "tongues", "realms", "faiths"].includes(l)) void faceThePeople(true);
   };
   regionPanel.onLens = (l) => {
     regionLens = l;
@@ -282,7 +283,9 @@ async function runPlanetPage(): Promise<void> {
     foodPrices = new Map(entries.map((e) => [e.cell, e.food]));
     tongues = new Map(entries.flatMap((e) => (e.tongue ? [[e.cell, e.tongue] as const] : [])));
     realms = new Map(entries.flatMap((e) => (e.realm ? [[e.cell, e.realm] as const] : [])));
-    if (["people", "food", "tongues", "realms"].includes(lens) && scale === "globe") paintGlobe();
+    faiths = new Map(entries.flatMap((e) => (e.faith ? [[e.cell, e.faith] as const] : [])));
+    if (["people", "food", "tongues", "realms", "faiths"].includes(lens) && scale === "globe")
+      paintGlobe();
   });
 
   const aspect = () => Math.max(0.3, innerWidth / Math.max(1, innerHeight));

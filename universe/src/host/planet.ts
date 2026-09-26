@@ -4,7 +4,9 @@
 import {
   capacity,
   homePlanet,
+  DEITIES,
   actsOf,
+  beliefOf,
   cultureOf,
   handOf,
   politiesOf,
@@ -174,6 +176,7 @@ function province(world: World, cell: number) {
     folk: folkRef(cell),
     ways: waysOf(world, cell),
     realm: realmOf(world, cell),
+    faith: faithOf(world, cell),
     years: ctx.history.yearsOf(cell).slice(-12),
   };
 }
@@ -266,6 +269,21 @@ function chronicle(world: World, limit: number) {
       .sort((a, b) => a[0] - b[0])
       .map(([year, people]) => ({ year, people })),
   };
+}
+
+/** What a land believes, as the inspector shows it. */
+function faithOf(world: World, cell: number) {
+  const store = beliefOf(world),
+    b = store.of(cell),
+    f = b.faith ? store.get(b.faith) : undefined;
+  return f
+    ? { ref: f.ref, name: f.name, deity: DEITIES[f.tenet], since: b.since, event: b.event }
+    : null;
+}
+
+/** A faith as a colour, keyed by its ref (the old beliefs are left uncoloured). */
+function faithColor(ref: string): [number, number, number] {
+  return realmColor(`${ref}:faith`);
 }
 
 /** The realm a land belongs to, as the inspector shows it. */
@@ -432,6 +450,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
               density: (100 * p.total()) / Math.max(1, capacity(g, p.cell).areaKm2),
               farming: p.knowsCultivation,
               food: m ? m.price[G.grain]! / GOODS[G.grain]!.value : 1,
+              faith: (() => {
+                const b = beliefOf(world).of(p.cell);
+                return b.faith ? faithColor(b.faith) : null;
+              })(),
               realm: (() => {
                 const r = politiesOf(world).of(p.cell);
                 return r ? realmColor(r.ref) : null;

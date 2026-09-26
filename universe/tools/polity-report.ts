@@ -3,6 +3,7 @@
 // rules, how discontented their lands, and what befell them.
 import { YEAR, seedFromText } from "../src/kernel/index.ts";
 import {
+  beliefOf,
   governmentKey,
   makePopulationWorld,
   politiesOf,
@@ -36,4 +37,11 @@ const counts = new Map<string, number>();
 for (const e of world.events.all())
   if (e.type.startsWith("polity.")) counts.set(e.type, (counts.get(e.type) ?? 0) + 1);
 console.log(`\nevents: ${[...counts].map(([k, v]) => `${k} ${v}`).join(", ")}`);
+const faiths = beliefOf(world);
+console.log(
+  `faiths: ${faiths
+    .all()
+    .map((f) => `${f.name} (${f.tenet}, ${faiths.lands(f.ref).length} lands)`)
+    .join("; ")}`,
+);
 console.log(`governments seen: ${[...new Set(realms.all().map(governmentKey))].join("; ")}`);

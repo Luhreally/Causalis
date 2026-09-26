@@ -121,3 +121,16 @@ export {
   type Polity,
   type Ruler,
 } from "./polity/polity.ts";
+export {
+  BELIEF_EVENTS,
+  BeliefStore,
+  DEITIES,
+  FAITH,
+  TENETS,
+  beliefOf,
+  beliefYear,
+  installBelief,
+  type Belief,
+  type Faith,
+  type Tenet,
+} from "./belief/belief.ts";
