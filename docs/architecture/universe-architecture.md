@@ -1614,6 +1614,23 @@ Line counts are cumulative estimates for the Universe app's game code
 - **Proves**: lazy materialization with conservation and provenance works,
   the microscope can sit on top of aggregates without changing them, and the
   god's acts are ordinary causes.
+- **At the gate (measured 2026-09-25, milestones 11–15):** every "done when"
+  holds as a test. The reference slice ("first light", 300 years: farming,
+  villages, trade, metalworking, a market town) runs in about 0.75 s in Node
+  (budget 6 s; slowest year 47 ms, when a province's first village refines its
+  region), saves in 0.15 MB compressed (bar 3 MB), and on a 4×-slowed CPU with the
+  simulation on the page's own thread still simulates 49 years a second on
+  average and never under 10 (the world's pace is one); in a worker the page
+  keeps 17 ms median frames under software GL. A grown citizen's memory walks
+  across at least four domains to the star (`tests/causal/north-star.test.ts`);
+  conservation holds over 1,000 random click orders; a century of watching
+  leaves the hash chain unchanged; laying and lifting the hand is exact; a
+  withheld rain shows in the why of the famines it causes; the slice with acts,
+  the hand and a save continued through text is bit-exact on V8,
+  JavaScriptCore and SpiderMonkey (`npm run engines`, suite "slice"); pure runs
+  are unchanged by every feature added (only a new store's domain joins the
+  checkpoint). Not yet measured: a real iPhone (`/universe/?bench=5000`,
+  rotation) — the proxy stands in until then.
 
 ### Phase 2 — Regional civilization (≈ 45k)
 

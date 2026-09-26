@@ -15,7 +15,8 @@
     "golden": "node tools/golden.ts",
     "engines": "node tools/engines.ts",
     "oracle": "node tools/oracle.ts",
-    "app-check": "node tools/app-check.ts"
+    "app-check": "node tools/app-check.ts",
+    "slice": "node tools/slice.ts"
   },
   "dependencies": {
     "playcanvas": "^2.22.4"

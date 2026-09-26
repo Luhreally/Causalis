@@ -58,11 +58,22 @@ function compare(
   return problems;
 }
 
+/** Checks a suite states about itself (a "no" is a failure even if every engine says it). */
+function selfChecks(engine: string, result: Record<string, SuiteResult>): string[] {
+  const problems: string[] = [];
+  for (const [label, value] of result.slice?.vectors ?? [])
+    if (value === "no") problems.push(`${engine}: the slice does not hold — ${label}`);
+  return problems;
+}
+
 const golden = JSON.parse(
   readFileSync(new URL("../tests/golden/kernel.json", import.meta.url), "utf8"),
 ) as SuiteResult;
 const node = run();
-const problems = compare("node", { kernel: node.kernel! }, { kernel: golden });
+const problems = [
+  ...compare("node", { kernel: node.kernel! }, { kernel: golden }),
+  ...selfChecks("node", node),
+];
 console.log(
   `node       ${Object.entries(node)
     .map(([k, v]) => `${k} ${v.digest}`)
@@ -81,7 +92,7 @@ for (const engine of engines) {
         .map(([k, v]) => `${k} ${v.digest}`)
         .join("  ")}  (${browser.version()})`,
     );
-    problems.push(...compare(engine, result, node));
+    problems.push(...compare(engine, result, node), ...selfChecks(engine, result));
   } finally {
     await browser.close();
   }

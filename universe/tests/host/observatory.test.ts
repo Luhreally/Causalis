@@ -52,7 +52,7 @@ test("the people of a province explain themselves, back to the first people and 
   assert.equal(facts.folk, folkRef(30210));
 });
 
-test("watching a village meets its families through the observer and never changes history", () => {
+test("a century of watching a village meets its families through the observer and never changes history", () => {
   const quiet = EARTH.build(seedFromText("first light")),
     busy = EARTH.build(seedFromText("first light"));
   quiet.runTo(240 * YEAR);
@@ -62,11 +62,14 @@ test("watching a village meets its families through the observer and never chang
   const first = EARTH.queries["village.plan"]!(busy, { ref }) as Plan;
   assert.ok(first.people.length >= 10, `${first.people.length} watched`);
   assert.ok(first.people.every((p) => first.homes[p.home]!.household !== null));
-  for (let year = 241; year <= 250; year++) {
+  for (let year = 241; year <= 340; year++) {
     quiet.runTo(year * YEAR);
     busy.runTo(year * YEAR);
     const again = EARTH.queries["village.plan"]!(busy, { ref }) as Plan;
     assert.ok(again.people.length <= first.people.length + 60);
+    // And look closer at someone each decade: their whole life, told.
+    if (year % 10 === 0 && again.people[0])
+      EARTH.queries["observe.person"]!(busy, { ref: again.people[0].ref });
   }
   assert.deepEqual(
     busy.checkpoints().map((c) => c.chain),

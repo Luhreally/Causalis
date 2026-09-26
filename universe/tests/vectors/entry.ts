@@ -3,7 +3,15 @@
 // the people an observer meets (their lives are drawn with the same keyed streams).
 import { kernelDigest, kernelVectors } from "./kernel.ts";
 import { FIXTURES, recordFixture } from "./oracle.ts";
-import { Hasher, YEAR, seedFromText } from "../../src/kernel/index.ts";
+import {
+  Hasher,
+  YEAR,
+  loadWorld,
+  rulesetId,
+  saveWorld,
+  seedFromText,
+  verifyByReplay,
+} from "../../src/kernel/index.ts";
 import { EARTHLIKE } from "../../src/rules/index.ts";
 import { generateHomeWorld, refineRegion } from "../../src/gen/index.ts";
 import { makePopulationWorld, populationContext } from "../../src/sim/index.ts";
@@ -74,6 +82,46 @@ function observerVectors(): [string, string][] {
 }
 suites.observer = () => {
   const vectors = observerVectors();
+  return { digest: kernelDigest(vectors), vectors };
+};
+
+/**
+ * The Phase 1 slice (docs/architecture Part VII): a peopled world with the god's
+ * acts and the hand laid, saved through text, loaded, the hand lifted in both, run
+ * on — every checkpoint's chain, whether the loaded copy continued as the unbroken
+ * run did, and whether the save replays from its commands.
+ */
+function sliceVectors(): [string, string][] {
+  const build = () => makePopulationWorld(seedFromText("first light")),
+    home = 30210,
+    world = build();
+  world.runTo(120 * YEAR);
+  world.submit("act.rain", { cell: home, sign: -1, years: 3 });
+  world.runTo(200 * YEAR);
+  world.submit("act.harvest", { cell: home, sign: 1, years: 5 });
+  world.runTo(240 * YEAR);
+  world.submit("hand.lay", {
+    village: populationContext(world).settlements.inProvince(home)[0]!.ref,
+  });
+  world.runTo(260 * YEAR);
+  const ruleset = rulesetId(world, "slice"),
+    doc = saveWorld(world, ruleset),
+    loaded = loadWorld(JSON.parse(JSON.stringify(doc)), build, ruleset).world;
+  world.submit("hand.lift", {});
+  loaded.submit("hand.lift", {});
+  world.runTo(280 * YEAR);
+  loaded.runTo(280 * YEAR);
+  const chain = world.checkpoints().map((c) => c.chain),
+    again = loaded.checkpoints().map((c) => c.chain);
+  const out: [string, string][] = chain
+    .map((c, i) => [`slice year ${i + 1}`, c] as [string, string])
+    .filter((_, i) => (i + 1) % 10 === 0);
+  out.push(["continues as the unbroken run", again.join() === chain.join() ? "yes" : "no"]);
+  out.push(["replays from its commands", verifyByReplay(doc, build).ok ? "yes" : "no"]);
+  return out;
+}
+suites.slice = () => {
+  const vectors = sliceVectors();
   return { digest: kernelDigest(vectors), vectors };
 };
 

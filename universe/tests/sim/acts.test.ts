@@ -128,3 +128,24 @@ test("history before an act is the pure run's; after it, a fork that replays and
   loaded.runTo(140 * YEAR);
   assert.deepEqual(chain(loaded), chain(acted), "a loaded save continues as the unbroken run");
 });
+
+test("a drought sent by the god's hand shows up in the why of the famine it causes", () => {
+  // Foragers live from what the land gives in the year: five years without rain starve them.
+  const world = build();
+  world.runTo(120 * YEAR);
+  const act = world.submit("act.rain", { cell: HOME, sign: -1, years: 5 });
+  world.runTo(126 * YEAR);
+  const famines = world.events
+    .all()
+    .filter(
+      (e) =>
+        e.type === POPULATION_EVENTS.famine.type && e.place === `cell:0:${HOME}` && e.t > act.t,
+    );
+  assert.ok(famines.length >= 3, `${famines.length} famines`);
+  for (const f of famines) {
+    const path = spine(world, f.id);
+    assert.equal(world.events.get(path[1]!.ref as Ref)?.type, POPULATION_EVENTS.drought.type);
+    assert.equal(world.events.get(path[2]!.ref as Ref)?.type, ACT_EVENTS.rain.type);
+    assert.equal(path[3]!.ref, act.id, "the famine ← the dry year ← your withholding of the rain");
+  }
+});
