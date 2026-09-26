@@ -283,30 +283,39 @@ export function realmName(p: { leadership: number; town: string }): string {
   return `the ${REALM_WORDS[p.leadership]} of ${p.town}`;
 }
 
-/** Steps over peopled land from the seat to every member (members only). */
+/** Steps from the seat to every member, over the realm's own land and the sea its ships have crossed. */
 function reach(ctx: PopulationContext, p: Polity): Map<number, number> {
   return stepsFrom(ctx, p.seat, new Set(p.members));
 }
 
-/** How many steps each of `lands` lies from `seat`, going only through `lands`. */
+/** A crossing of the sea is as far to rule over as two steps by land. */
+export const SEA_CROSSING = 2;
+
+/**
+ * How many steps each of `lands` lies from `seat`, going only through `lands`: a step
+ * to a neighbour by land, or SEA_CROSSING to a land its ships trade with.
+ */
 function stepsFrom(
   ctx: PopulationContext,
   seat: number,
   members: Set<number>,
 ): Map<number, number> {
   const g = ctx.generated,
+    markets = ctx.world.store<MarketStore>("economy.markets"),
     d = new Map([[seat, 0]]),
-    queue = [seat];
-  for (let i = 0; i < queue.length; i++) {
-    const c = queue[i]!;
-    for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
-      const n = g.grid.neighbours[k]!;
-      if (!d.has(n) && members.has(n)) {
-        d.set(n, d.get(c)! + 1);
-        queue.push(n);
-      }
+    levels: number[][] = [[seat]];
+  const visit = (n: number, far: number) => {
+    if (!members.has(n) || (d.get(n) ?? Infinity) <= far) return;
+    d.set(n, far);
+    (levels[far] ??= []).push(n);
+  };
+  for (let far = 0; far < levels.length; far++)
+    for (const c of levels[far] ?? []) {
+      if (d.get(c) !== far) continue;
+      for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++)
+        visit(g.grid.neighbours[k]!, far + 1);
+      for (const n of markets.seaPartners(c)) visit(n, far + SEA_CROSSING);
     }
-  }
   return d;
 }
 
@@ -426,12 +435,16 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
     const mine = culture.get(q.cell);
     if (!mine) continue;
     let best: (typeof joins)[number] | null = null;
-    for (let k = g.grid.offsets[q.cell]!; k < g.grid.offsets[q.cell + 1]!; k++) {
-      const n = g.grid.neighbours[k]!,
-        p = store.of(n);
+    // Neighbours by land, and lands its ships trade with across the sea.
+    const near: [number, number][] = [];
+    for (let k = g.grid.offsets[q.cell]!; k < g.grid.offsets[q.cell + 1]!; k++)
+      near.push([g.grid.neighbours[k]!, 1]);
+    for (const n of markets.seaPartners(q.cell)) near.push([n, SEA_CROSSING]);
+    for (const [n, step] of near) {
+      const p = store.of(n);
       if (!p || p.ended !== null) continue;
-      // A realm reaches three steps from its seat, and further with writing and clerks.
-      if ((reach(ctx, p).get(n) ?? 99) >= 3 + loreOf(world).effect(p.seat, "reach")) continue;
+      // A realm reaches three steps from its seat, and further with writing, clerks and roads.
+      if ((reach(ctx, p).get(n) ?? 99) + step > 3 + loreOf(world).effect(p.seat, "reach")) continue;
       const theirs = culture.get(p.seat)!,
         like = tongueLikeness(mine.tongue, theirs.tongue),
         road = !!markets.route(q.cell, n),
@@ -532,7 +545,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
     const seatMarket = markets.of(p.seat),
       seatWays = culture.get(p.seat)!,
       steps = reach(ctx, p),
-      // How far the seat can rule from: three steps, and further with writing and clerks.
+      // How far the seat can rule from: three steps, and further with writing, clerks and roads.
       rules = 3 + loreOf(world).effect(p.seat, "reach");
     for (const c of p.members) {
       if (c === p.seat) continue;

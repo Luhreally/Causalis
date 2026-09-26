@@ -9,6 +9,7 @@ import { installEconomy } from "../economy/systems.ts";
 import { installActs } from "../acts/acts.ts";
 import { installHand } from "../hand/hand.ts";
 import { CultureStore, cradleWays, driftedWays } from "../culture/culture.ts";
+import { foundLanguages, installLanguages } from "../culture/languages.ts";
 import { installPolities } from "../polity/polity.ts";
 import { installBelief } from "../belief/belief.ts";
 import { installLore } from "../lore/lore.ts";
@@ -85,8 +86,10 @@ function people(p: Province, n: number): void {
  * each one's distance: over land, and across a single province of sea to land beyond
  * (bands crossing a strait along the coast), which counts as two steps.
  */
-function landAround(g: HomeWorld, from: number, rings: number): [number, number][] {
+/** Every land the bands reached from `from`: its cell, its steps away, and the land they came from. */
+function landAround(g: HomeWorld, from: number, rings: number): [number, number, number][] {
   const dist = new Map<number, number>([[from, 0]]),
+    parent = new Map<number, number>([[from, from]]),
     queue = [from],
     habitable = (n: number) => {
       if (g.tectonics.elevation[n]! <= 0) return false;
@@ -111,10 +114,11 @@ function landAround(g: HomeWorld, from: number, rings: number): [number, number]
     for (const [n, far] of next.sort((a, b) => a[0] - b[0] || a[1] - b[1]))
       if (!dist.has(n) && far <= rings) {
         dist.set(n, far);
+        parent.set(n, c);
         queue.push(n);
       }
   }
-  return queue.map((c) => [c, dist.get(c)!]);
+  return queue.map((c) => [c, dist.get(c)!, parent.get(c)!]);
 }
 
 export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions = {}): World {
@@ -172,6 +176,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installLocalActs(world, () => populationContext(world));
   installDesigns(world, () => populationContext(world));
   installEcology(world, () => populationContext(world));
+  installLanguages(world, () => populationContext(world));
 
   const g = homePlanet(world).generated,
     home = chooseHome(g),
@@ -227,6 +232,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   culture.set(cradle);
   if (options.start !== "spread") {
     people(provinces.add(new Province(home, 0, origin)), first);
+    foundLanguages(world, [[home, home]], origin);
     // They bring half a year's food.
     markets.of(home).move("carriedIn", G.wild, first * 6);
     return world;
@@ -242,11 +248,21 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     causes: [{ ref: origin, role: "trigger", weight: 1 }],
     data: { provinces: lands.length, people: sizes.reduce((a, b) => a + b, 0) },
   });
-  lands.forEach(([cell, ring], i) => {
+  const ring = new Map(lands.map(([cell, r]) => [cell, r]));
+  lands.forEach(([cell, r, from], i) => {
     people(provinces.add(new Province(cell, 0, cell === home ? origin : spread)), sizes[i]!);
     markets.of(cell).move("carriedIn", G.wild, sizes[i]! * 6);
-    // The further the bands went, the further their ways and their speech drifted.
-    if (cell !== home) culture.set(driftedWays(world, cradle, cell, ring * SPREAD.stride, spread));
+    // Each land's ways and speech drifted from those of the land its bands came from, the
+    // more the further they went: kin peoples live near each other, and speak alike.
+    if (cell !== home)
+      culture.set(
+        driftedWays(world, culture.get(from)!, cell, (r - ring.get(from)!) * SPREAD.stride, spread),
+      );
   });
+  foundLanguages(
+    world,
+    lands.map(([cell, , from]) => [cell, from]),
+    spread,
+  );
   return world;
 }

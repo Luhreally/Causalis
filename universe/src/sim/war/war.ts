@@ -192,19 +192,48 @@ export function strengthOf(ctx: PopulationContext, p: Polity): number {
 /** The border lands of `b` next to `a`, richest in food first. */
 function frontier(ctx: PopulationContext, a: Polity, b: Polity): number[] {
   const g = ctx.generated,
+    markets = ctx.world.store<MarketStore>("economy.markets"),
+    // A realm with ships fights for lands across the sea its traders have reached.
+    sails = loreOf(ctx.world).effect(a.seat, "ships") > 0,
+    theirs = new Set(b.members),
     out = new Set<number>();
+  const near = (c: number, take: (n: number) => void) => {
+    for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) take(g.grid.neighbours[k]!);
+    if (sails) for (const n of markets.seaPartners(c)) take(n);
+  };
   for (const c of a.members)
-    for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
-      const n = g.grid.neighbours[k]!;
-      if (b.members.includes(n) && n !== b.seat) out.add(n);
-    }
+    near(c, (n) => {
+      if (theirs.has(n) && n !== b.seat) out.add(n);
+    });
   // The seat itself is fought for only once nothing else of the realm stands before it.
-  if (!out.size && b.members.includes(b.seat))
+  if (!out.size && theirs.has(b.seat))
     for (const c of a.members)
-      for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++)
-        if (g.grid.neighbours[k] === b.seat) out.add(b.seat);
+      near(c, (n) => {
+        if (n === b.seat) out.add(n);
+      });
   return [...out].sort((x, y) => stores(ctx, y) - stores(ctx, x) || x - y);
 }
+
+/** Whether a realm reaches a land only across the sea (none of its lands borders it). */
+function overseas(ctx: PopulationContext, a: Polity, land: number): boolean {
+  const g = ctx.generated;
+  for (let k = g.grid.offsets[land]!; k < g.grid.offsets[land + 1]!; k++)
+    if (a.members.includes(g.grid.neighbours[k]!)) return false;
+  return true;
+}
+
+/** The finest ship-craft a land knows: the event it was learned in. */
+function shipCraft(ctx: PopulationContext, cell: number): Ref | null {
+  const lore = loreOf(ctx.world);
+  for (const id of ["astronomy", "shipbuilding", "sailing"]) {
+    const k = lore.get(cell, id);
+    if (k) return k.event;
+  }
+  return null;
+}
+
+/** A host landing from the sea fights at this share of its strength. */
+const LANDING = 0.6;
 
 /** A land's food in store (its grain, pulses and roots): what a coveting realm wants of it. */
 function stores(ctx: PopulationContext, cell: number): number {
@@ -363,6 +392,15 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         contribution: rested - 1,
         source: { ref: last.peace!, role: "constraint", weight: 1 },
       });
+    // A land across the sea is fought for only with ships to carry the host.
+    const ships = overseas(ctx, attacker, prize) ? shipCraft(ctx, attacker.seat) : null;
+    if (ships)
+      factors.push({
+        name: "ships to carry the host",
+        value: 1,
+        contribution: 0.25,
+        source: { ref: ships, role: "enabler", weight: 1 },
+      });
     if (covets?.source)
       factors.push({
         name: "hunger",
@@ -440,7 +478,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         strengthOf(ctx, a) *
         (1 / (1 + 0.15 * far)) *
         (hungry ? 0.7 : 1) *
-        (1 + 0.3 * lore.effect(a.seat, "sieges")),
+        (1 + 0.3 * lore.effect(a.seat, "sieges")) *
+        (overseas(ctx, a, land) ? LANDING : 1),
       hills = g.tectonics.elevation[land]! > 600 ? 1.3 : 1,
       river = g.water.river[land] ? 1.1 : 1,
       walls = 1 + 0.25 * lore.effect(land, "walls"),

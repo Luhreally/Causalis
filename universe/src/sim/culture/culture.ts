@@ -172,8 +172,9 @@ export function cradleWays(cell: number, culture: number, from: Ref | null): Way
 }
 
 /**
- * Ways that have drifted for `steps` generations of the prehistory away from the
- * cradle's: traits wander, sounds are lost and gained. Keyed by the land.
+ * Ways that have drifted for `steps` generations of the prehistory away from those
+ * of the people who came (`cradle`): traits wander, sounds are lost and gained. Keyed
+ * by the land.
  */
 export function driftedWays(
   world: World,

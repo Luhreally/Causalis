@@ -166,6 +166,24 @@ for (const engine of engines) {
         );
         if (shotsAt && !query.includes("inline"))
           await page.screenshot({ path: join(shotsAt, `${engine}-market.png`) });
+        // Their language, and the globe coloured by languages (hues by family).
+        await page.waitForFunction(
+          () =>
+            [...document.querySelectorAll(".panel:not([hidden]) .inspector .line")].some((x) =>
+              x.textContent?.startsWith("They speak "),
+            ),
+          undefined,
+          { timeout: 10000 },
+        );
+        await page.evaluate(() =>
+          [...document.querySelectorAll<HTMLButtonElement>("button")]
+            .find((b) => b.textContent === "Tongues")
+            ?.click(),
+        );
+        if (shotsAt && !query.includes("inline")) {
+          await new Promise((r) => setTimeout(r, 1500));
+          await page.screenshot({ path: join(shotsAt, `${engine}-tongues.png`) });
+        }
         // The god's hand: withhold the rain here, confirm, and see the act listed.
         await page.waitForSelector(".panel:not([hidden]) .tool", { timeout: 10000 });
         await page.evaluate(() =>

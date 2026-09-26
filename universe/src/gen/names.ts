@@ -138,6 +138,29 @@ export function tongueName(t: Tongue, key: number): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+/** How a people name their speech, after its stem: "Kurnic", "Bregrish". */
+const SPEECH_ENDINGS = ["ic", "ish", "an", "ese", "i", "ian", "ar", "en"];
+
+/** A language's name in its own tongue: a stem of one or two syllables and a speech ending. */
+export function languageName(t: Tongue, key: number): string {
+  const onsets = chosen(ONSETS, t.onsets),
+    vowels = chosen(VOWELS, t.vowels),
+    codas = chosen(CODAS, t.codas).filter((c) => c.length > 0);
+  let h = finish(mix(mix(t.seed ^ 0x1a2b, key), 0x5eec), 2);
+  const two = h % 3 === 0;
+  let stem = "";
+  // A second syllable only after a short first, so names stay short enough to say.
+  for (let s = 0; s < 2 && (s === 0 || (two && stem.length <= 2)); s++) {
+    h = finish(mix(h, s), 3);
+    stem += pick(onsets, h) + pick(vowels, h >>> 8);
+  }
+  h = finish(mix(h, 0x61), 4);
+  // A stem that ends in a vowel takes a consonant before the ending, where the tongue has one.
+  if (codas.length) stem += pick(codas, h >>> 4);
+  const name = stem + pick(SPEECH_ENDINGS, h >>> 12);
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 /** A person's given name in a tongue. */
 export function tonguePersonName(t: Tongue, key: number, sex: number): string {
   const vowels = chosen(VOWELS, t.vowels),
@@ -178,16 +201,48 @@ export function borrowSound(t: Tongue, from: Tongue, u: number): Tongue {
   return next ? { ...t, [field]: next } : t;
 }
 
+/**
+ * The speech many lands share: each sound kept where those who have it outweigh those
+ * who do not (weights, say, by people), named by `seed`. A part never empties.
+ */
+export function commonTongue(
+  tongues: readonly Tongue[],
+  weights: readonly number[],
+  seed: number,
+): Tongue {
+  const total = weights.reduce((a, b) => a + b, 0),
+    out = { onsets: 0, vowels: 0, codas: 0, endings: 0, seed };
+  FIELDS.forEach((field, f) => {
+    let mask = 0;
+    for (let i = 0; i < PARTS[f]!; i++) {
+      let have = 0;
+      tongues.forEach((t, k) => {
+        if ((t[field] >>> i) & 1) have += weights[k]!;
+      });
+      if (2 * have > total) mask |= 1 << i;
+    }
+    out[field] = mask || tongues[0]![field];
+  });
+  return out;
+}
+
 /** How alike two tongues sound: the share of sounds they agree on (1 = the same). */
 export function tongueLikeness(a: Tongue, b: Tongue): number {
-  let same = 0,
-    all = 0;
-  FIELDS.forEach((field, f) => {
-    for (let i = 0; i < PARTS[f]!; i++) {
-      all++;
-      if (((a[field] ^ b[field]) >>> i) & 1) continue;
-      same++;
-    }
-  });
-  return same / all;
+  const differ =
+    bits((a.onsets ^ b.onsets) & MASKS[0]!) +
+    bits((a.vowels ^ b.vowels) & MASKS[1]!) +
+    bits((a.codas ^ b.codas) & MASKS[2]!) +
+    bits((a.endings ^ b.endings) & MASKS[3]!);
+  return (SOUNDS - differ) / SOUNDS;
+}
+
+/** Each part's sounds as a mask, and how many sounds there are in all. */
+const MASKS = PARTS.map((n) => (n >= 32 ? -1 : (1 << n) - 1)),
+  SOUNDS = PARTS.reduce((s, n) => s + n, 0);
+
+/** How many bits of a 32-bit word are set. */
+function bits(v: number): number {
+  v = v - ((v >>> 1) & 0x55555555);
+  v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
+  return (Math.imul((v + (v >>> 4)) & 0x0f0f0f0f, 0x01010101) >>> 24) & 0xff;
 }

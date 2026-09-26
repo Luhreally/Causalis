@@ -63,7 +63,7 @@ type ProvinceFacts = {
   villages: number;
   /** The people of the province, as a ref for why. */
   folk: string;
-  ways: { ref: string; words: string[]; kept: number; sounds: string[] } | null;
+  ways: Ways | null;
   realm: RealmFacts;
   faith: FaithFacts;
   house: { words: string; ref: string } | null;
@@ -110,6 +110,23 @@ export type PeopleEntry = {
   realm: readonly [number, number, number] | null;
   /** Their faith's colour, if they hold one beyond the old beliefs. */
   faith: readonly [number, number, number] | null;
+};
+
+/** A people's ways and speech (the host's waysOf). */
+type Ways = {
+  ref: string;
+  words: string[];
+  kept: number;
+  sounds: string[];
+  language: {
+    ref: string;
+    name: string;
+    family: string;
+    first: boolean;
+    dead: boolean;
+    like: number;
+    took: { event: string; year: number } | null;
+  } | null;
 };
 
 type FaithFacts = {
@@ -576,22 +593,35 @@ export class PlanetPanel {
   }
 
   /** A people's ways and speech, each opening why. */
-  private showWays(
-    w: { ref: string; words: string[]; kept: number; sounds: string[] } | null,
-    faith: FaithFacts,
-  ): void {
+  private showWays(w: Ways | null, faith: FaithFacts): void {
     if (!w) {
       this.waysBox.replaceChildren();
       return;
     }
     const list = (words: string[]) =>
       words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
+    const l = w.language;
     this.waysBox.replaceChildren(
       el("h3", undefined, "Their ways"),
       this.whyLine(
         w.words.length ? `They ${list(w.words)}` : "They keep to the middle of every way",
         w.ref,
       ),
+      ...(l
+        ? [
+            this.whyLine(
+              `They speak ${l.name}, ${l.first ? "first of its family of tongues" : `of the ${l.family} tongues`}${l.dead ? " (no longer spoken elsewhere)" : ""}`,
+              l.ref,
+            ),
+            l.took
+              ? this.whyLine(`They took it up in year ${l.took.year}`, l.took.event)
+              : el(
+                  "div",
+                  "fact muted",
+                  `Their speech is ${l.like} parts in a hundred like the common ${l.name}`,
+                ),
+          ]
+        : []),
       el(
         "div",
         "fact muted",

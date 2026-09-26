@@ -246,7 +246,7 @@ export const PRINCIPLES: readonly Principle[] = [
     ["masonry", "currency"],
     0.01,
     { leaders: 1, traders: 0.5 },
-    { haul: 0.25 },
+    { haul: 0.25, reach: 1 },
   ),
   P(
     "bridges",

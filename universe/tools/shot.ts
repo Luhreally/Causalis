@@ -1,15 +1,19 @@
 // node tools/shot.ts <out.png> [query] [width height] [engine] [--resize WxH] [--pixels]
+//   [--wait ms] [--click text]...
 // A screenshot of the built app (npm run build first), for looking at what a change
 // did. --resize changes the viewport after load; --pixels reads four pixels from
-// inside a rendered frame (antialiasing must be off: add ?tier=phone).
+// inside a rendered frame (antialiasing must be off: add ?tier=phone); --wait waits
+// longer before looking (a world run on a century takes a while); --click presses the
+// button with that text (a lens, a speed), in order.
 import { preview } from "vite";
 import { chromium, firefox, webkit, type Page } from "playwright";
 import { fileURLToPath } from "node:url";
 
 const argv = process.argv.slice(2);
-const positional = argv.filter(
-  (a, i) => !a.startsWith("--") && !argv[i - 1]?.startsWith("--resize"),
-);
+const valued = new Set(["--resize", "--wait", "--click"]);
+const positional = argv.filter((a, i) => !a.startsWith("--") && !valued.has(argv[i - 1] ?? ""));
+const clicks = argv.flatMap((a, i) => (a === "--click" && argv[i + 1] ? [argv[i + 1]!] : []));
+const waitMs = argv.includes("--wait") ? Number(argv[argv.indexOf("--wait") + 1]) : 4000;
 const [out, query = "", w = "1280", h = "800", engine = "chromium"] = positional;
 if (!out) throw new Error("usage: node tools/shot.ts out.png [query] [width height] [engine]");
 const resizeArg = argv.includes("--resize") ? argv[argv.indexOf("--resize") + 1] : undefined;
@@ -61,7 +65,17 @@ const page = await browser.newPage({ viewport: { width: Number(w), height: Numbe
 page.on("console", (m) => console.log(`[${m.type()}] ${m.text()}`));
 page.on("pageerror", (e) => console.log(`[pageerror] ${e.message}`));
 await page.goto(`${base}${query}`);
-await new Promise((r) => setTimeout(r, 4000));
+await new Promise((r) => setTimeout(r, waitMs));
+for (const text of clicks) {
+  await page.evaluate(
+    (t) =>
+      [...document.querySelectorAll<HTMLButtonElement>("button")]
+        .find((b) => b.textContent === t)
+        ?.click(),
+    text,
+  );
+  await new Promise((r) => setTimeout(r, 1500));
+}
 if (resizeArg) {
   const [rw, rh] = resizeArg.split("x").map(Number);
   await page.setViewportSize({ width: rw!, height: rh! });

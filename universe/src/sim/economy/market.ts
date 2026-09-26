@@ -191,6 +191,9 @@ export class MarketStore implements StateStore {
   private readonly map = new Map<number, Market>();
   /** Routes that have carried goods, by "a:b" (a < b): the event that opened each. */
   private readonly routes = new Map<string, Ref>();
+  /** Those of them that cross the sea, and each land's partners across it (in cell order). */
+  private readonly sea = new Set<string>();
+  private readonly partners = new Map<number, number[]>();
   /** Last year's trade, in canonical order. */
   flows: TradeFlow[] = [];
 
@@ -213,8 +216,34 @@ export class MarketStore implements StateStore {
     return this.routes.get(a < b ? `${a}:${b}` : `${b}:${a}`);
   }
 
-  openRoute(a: number, b: number, event: Ref): void {
-    this.routes.set(a < b ? `${a}:${b}` : `${b}:${a}`, event);
+  openRoute(a: number, b: number, event: Ref, bySea = false): void {
+    const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+    this.routes.set(key, event);
+    if (bySea) this.crossing(key);
+  }
+
+  private crossing(key: string): void {
+    this.sea.add(key);
+    const [a, b] = key.split(":").map(Number) as [number, number];
+    for (const [x, y] of [
+      [a, b],
+      [b, a],
+    ] as const) {
+      const list = this.partners.get(x) ?? [];
+      if (!list.includes(y)) list.push(y);
+      list.sort((u, v) => u - v);
+      this.partners.set(x, list);
+    }
+  }
+
+  /** Whether the road between two lands crosses the sea. */
+  bySea(a: number, b: number): boolean {
+    return this.sea.has(a < b ? `${a}:${b}` : `${b}:${a}`);
+  }
+
+  /** The lands a land's ships have reached across the sea. */
+  seaPartners(cell: number): readonly number[] {
+    return this.partners.get(cell) ?? [];
   }
 
   allRoutes(): [string, Ref][] {
@@ -238,19 +267,27 @@ export class MarketStore implements StateStore {
     const all = this.all();
     h.int(all.length);
     for (const m of all) m.hashInto(h);
-    h.value(this.allRoutes()).value(this.flows);
+    h.value(this.allRoutes())
+      .value(this.flows)
+      .value([...this.sea].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0)));
   }
 
   save(): unknown {
     return {
       markets: this.all().map((m) => m.save()),
       routes: this.allRoutes(),
+      sea: [...this.sea].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0)),
       flows: this.flows,
     };
   }
 
   load(state: unknown): void {
-    const s = state as { markets: unknown[]; routes: [string, Ref][]; flows: TradeFlow[] };
+    const s = state as {
+      markets: unknown[];
+      routes: [string, Ref][];
+      sea?: string[];
+      flows: TradeFlow[];
+    };
     this.map.clear();
     for (const m of s.markets) {
       const market = Market.load(m);
@@ -258,6 +295,9 @@ export class MarketStore implements StateStore {
     }
     this.routes.clear();
     for (const [k, v] of s.routes) this.routes.set(k, v);
+    this.sea.clear();
+    this.partners.clear();
+    for (const k of s.sea ?? []) this.crossing(k);
     this.flows = s.flows;
   }
 }

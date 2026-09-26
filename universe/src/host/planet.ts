@@ -14,6 +14,8 @@ import {
   USES,
   citiesOf,
   cultureOf,
+  LANGUAGE_EVENTS,
+  languagesOf,
   diplomacyOf,
   warsOf,
   handOf,
@@ -38,6 +40,7 @@ import {
   WATER,
   cellRef,
   refineRegion,
+  tongueLikeness,
   tongueName,
   type HomeWorld,
   type Region,
@@ -404,13 +407,47 @@ function realmColor(ref: string): [number, number, number] {
 function waysOf(world: World, cell: number) {
   const w = cultureOf(world).get(cell);
   if (!w) return null;
+  const store = languagesOf(world),
+    l = store.of(cell),
+    since = store.since(cell),
+    shifted = since ? world.events.get(since) : undefined;
   return {
     ref: waysRef(cell),
     words: waysWords(w),
     kept: kept(w.tongue, populationContext(world).culture),
     // Names as their speech would give them.
     sounds: [7001, 7002, 7003].map((k) => tongueName(w.tongue, k)),
+    language: l
+      ? {
+          ref: l.ref,
+          name: l.name,
+          family: store.familyName(l),
+          first: l.family === l.index,
+          dead: l.died !== null,
+          // How like the language's common speech theirs is, in parts of a hundred.
+          like: Math.round(100 * tongueLikeness(w.tongue, l.standard)),
+          // When they took it up in place of another (the event), if they did.
+          took:
+            shifted?.type === LANGUAGE_EVENTS.shifted.type
+              ? { event: shifted.id, year: yearOfMoment(shifted.t) }
+              : null,
+        }
+      : null,
   };
+}
+
+/** A language as a colour: its family's hue, each language of the family a shade of it. */
+function languageColor(family: number, index: number): [number, number, number] {
+  const hue = (family * 0.61803398875 + 0.13) % 1,
+    v = finish(mix(0x1a96, index), 3) / 4294967296,
+    light = 0.4 + 0.24 * v,
+    sat = 0.5 + 0.35 * ((v * 7) % 1);
+  const a = sat * Math.min(light, 1 - light),
+    f = (n: number) => {
+      const k = (n + hue * 12) % 12;
+      return light - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    };
+  return [f(0), f(8), f(4)];
 }
 
 /** A tongue as a colour: alike tongues, alike colours (each sound pulls the hue its own way). */
@@ -551,6 +588,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
                 return r ? realmColor(r.ref) : null;
               })(),
               tongue: (() => {
+                const l = languagesOf(world).of(p.cell);
+                if (l) return languageColor(l.family, l.index);
                 const w = cultureOf(world).get(p.cell);
                 return w ? tongueColor(w.tongue) : null;
               })(),

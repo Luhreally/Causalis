@@ -107,12 +107,26 @@ export {
   type WayTrait,
 } from "./culture/culture.ts";
 export {
+  APART,
+  LANGUAGE,
+  LANGUAGE_EVENTS,
+  LanguageStore,
+  NEARER,
+  foundLanguages,
+  installLanguages,
+  languagesOf,
+  languagesYear,
+  type Language,
+} from "./culture/languages.ts";
+export { MOST_SEA_STEPS, SEA_STEPS, seaReach, seaSteps } from "./economy/sea.ts";
+export {
   LAW,
   LEADERSHIP,
   POLITY,
   POLITY_EVENTS,
   PolityStore,
   REALM_WORDS,
+  SEA_CROSSING,
   SUCCESSION,
   governmentKey,
   institutionsOf,

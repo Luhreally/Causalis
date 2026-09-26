@@ -49,6 +49,7 @@ import {
   type PopulationContext,
 } from "../population/systems.ts";
 import { GOOD_COUNT, type Market, type MarketStore, type TradeFlow } from "./market.ts";
+import { kmBetween, seaReach, seaSteps } from "./sea.ts";
 
 const SPREADING = purpose("spread");
 const HERDS = defineStream("econ.herds");
@@ -58,6 +59,7 @@ const METAL = defineStream("econ.metal");
 
 export const ECONOMY_EVENTS = {
   route: defineEventType("trade.route-opened", 3),
+  seaRoute: defineEventType("trade.sea-route", 4),
   relief: defineEventType("trade.relief", 4),
   metalworking: defineEventType("knowledge.metalworking", 6),
   metalworkingSpread: defineEventType("knowledge.metalworking-spread", 3),
@@ -65,6 +67,11 @@ export const ECONOMY_EVENTS = {
 
 /** What carrying a unit of grain a hundred kilometres over flat ground costs, in grain. */
 export const HAUL_PER_100KM = 0.08;
+/** By ship: a quarter of that a hundred kilometres, and loading and landing as sixty over land. */
+const SAIL_PER_100KM = 0.02,
+  LANDING = 0.05;
+/** The coasts across the sea each land's ships trade with at most, nearest first. */
+const SEA_PARTNERS = 4;
 /** A province keeps this many months of its people's food before it sells any. */
 const FOOD_RESERVE_MONTHS = 3;
 /** How far toward where supply and demand would put it a price moves in a year. */
@@ -269,9 +276,9 @@ function makeAndUse(
   for (const g of FOODS) want[g] = want[g]! + (pop * 12) / FOODS.length;
 }
 
-type Edge = { a: number; b: number; cost: number };
+type Edge = { a: number; b: number; cost: number; sea: boolean };
 
-/** The roads between peopled neighbours, in canonical order, with what a unit of grain costs to carry. */
+/** The roads between peopled neighbours (and coasts that ships reach), in canonical order, with what a unit of grain costs to carry. */
 function edges(ctx: PopulationContext): Edge[] {
   const lore = loreOf(ctx.world),
     g = ctx.generated,
@@ -292,13 +299,43 @@ function edges(ctx: PopulationContext): Edge[] {
         river = g.water.river[a] && g.water.river[b] ? 0.6 : 1;
       // Beasts, wheels, carts, roads and bridges make carrying cheaper (the better-equipped end sets it).
       const eased = 1 - Math.min(0.7, Math.max(lore.effect(a, "haul"), lore.effect(b, "haul")));
-      out.push({ a, b, cost: HAUL_PER_100KM * (km / 100) * (1 + climb / 800) * river * eased });
+      out.push({
+        a,
+        b,
+        cost: HAUL_PER_100KM * (km / 100) * (1 + climb / 800) * river * eased,
+        sea: false,
+      });
     }
+  }
+  // Across the sea, where either land's ships reach: the nearest few coasts of each.
+  const across = new Set<string>();
+  for (const p of ctx.provinces.all()) {
+    if (!p.total() || !lore.effect(p.cell, "ships")) continue;
+    const a = p.cell;
+    let taken = 0;
+    for (const [b, steps] of seaReach(g, a)) {
+      if (taken >= SEA_PARTNERS) break;
+      if (steps > seaSteps(lore, a, b) || !ctx.provinces.get(b)?.total()) continue;
+      taken++;
+      across.add(a < b ? `${a}:${b}` : `${b}:${a}`);
+    }
+  }
+  for (const key of across) {
+    const [a, b] = key.split(":").map(Number) as [number, number],
+      km = kmBetween(g, a, b);
+    out.push({ a, b, cost: SAIL_PER_100KM * (km / 100) + LANDING, sea: true });
   }
   return out.sort((x, y) => x.a - y.a || x.b - y.b);
 }
 
-type Plan = { from: number; to: number; good: number; count: number; margin: number };
+type Plan = {
+  from: number;
+  to: number;
+  good: number;
+  count: number;
+  margin: number;
+  sea: boolean;
+};
 
 /** Trade: planned from the year's opening prices and what is left over, then made. */
 function trade(
@@ -320,7 +357,7 @@ function trade(
         spare = s.stock[g]! - keep;
       if (spare <= 0) continue;
       const count = Math.floor(spare * 0.25 * Math.min(1, (2 * margin) / d.price[g]!));
-      if (count > 0) plans.push({ from: s.cell, to: d.cell, good: g, count, margin });
+      if (count > 0) plans.push({ from: s.cell, to: d.cell, good: g, count, margin, sea: e.sea });
     }
   }
   // Each province's carriers can move only so much.
@@ -383,6 +420,15 @@ function openRoute(
       source: null,
     },
   ];
+  // Across the sea, the ship-craft that carried them there.
+  const ships = pl.sea ? shipCraft(ctx, pl.from, pl.to) : null;
+  if (ships)
+    factors.push({
+      name: "ships to carry them",
+      value: 1,
+      contribution: 0.5,
+      source: { ref: ships, role: "enabler", weight: 1 },
+    });
   const decision = world.decisions.record({
     rule: "trade.open",
     subject: from.ref,
@@ -392,13 +438,24 @@ function openRoute(
     factors,
   });
   const event = world.events.emit({
-    type: ECONOMY_EVENTS.route.type,
+    type: pl.sea ? ECONOMY_EVENTS.seaRoute.type : ECONOMY_EVENTS.route.type,
     subjects: [from.ref, to.ref],
     place: from.ref,
     causes: [{ ref: decision, role: "trigger", weight: 1 }],
     data: { good: GOODS[pl.good]!.id, count: n },
   });
-  markets.openRoute(pl.from, pl.to, event);
+  markets.openRoute(pl.from, pl.to, event, pl.sea);
+}
+
+/** The finest ship-craft either of two lands knows: the event it was learned in. */
+function shipCraft(ctx: PopulationContext, a: number, b: number): Ref | null {
+  const lore = loreOf(ctx.world);
+  for (const id of ["astronomy", "shipbuilding", "sailing"])
+    for (const c of [a, b]) {
+      const k = lore.get(c, id);
+      if (k) return k.event;
+    }
+  return null;
 }
 
 /** Where food came in while a famine was on, trade answered it: once per famine. */

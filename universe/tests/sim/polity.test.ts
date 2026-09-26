@@ -4,6 +4,7 @@ import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
 import {
   LEDGER,
   POLITY_EVENTS,
+  SEA_CROSSING,
   WAY,
   WAY_TRAITS,
   institutionsOf,
@@ -21,7 +22,7 @@ world.runTo(300 * YEAR);
 const ctx = populationContext(world),
   realms = politiesOf(world);
 
-test("realms gather around market towns, and hold their lands joined to the seat, most within its reach (three steps, more with writing and clerks)", () => {
+test("realms gather around market towns, and hold their lands joined to the seat (by land or by ship), most within its reach (three steps, more with writing, clerks and roads)", () => {
   const living = realms.living();
   assert.ok(living.length >= 3, `${living.length} realms`);
   const g = ctx.generated;
@@ -32,18 +33,25 @@ test("realms gather around market towns, and hold their lands joined to the seat
       ctx.settlements.inProvince(p.seat).some((s) => s.market && s.name === p.town),
       "ruled from a market town",
     );
-    // Every member reachable from the seat through members, in at most three steps.
+    // Every member reachable from the seat through members: a step to a neighbour by
+    // land, two across the sea to a land its ships trade with.
     const members = new Set(p.members),
-      d = new Map([[p.seat, 0]]),
-      queue = [p.seat];
-    for (let i = 0; i < queue.length; i++)
-      for (let k = g.grid.offsets[queue[i]!]!; k < g.grid.offsets[queue[i]! + 1]!; k++) {
-        const n = g.grid.neighbours[k]!;
-        if (members.has(n) && !d.has(n)) {
-          d.set(n, d.get(queue[i]!)! + 1);
-          queue.push(n);
-        }
+      markets = marketsOf(world),
+      d = new Map([[p.seat, 0]]);
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const [c, far] of [...d]) {
+        const next: [number, number][] = [];
+        for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++)
+          next.push([g.grid.neighbours[k]!, far + 1]);
+        for (const n of markets.seaPartners(c)) next.push([n, far + SEA_CROSSING]);
+        for (const [n, to] of next)
+          if (members.has(n) && to < (d.get(n) ?? Infinity)) {
+            d.set(n, to);
+            changed = true;
+          }
       }
+    }
     const reach = 3 + loreOf(world).effect(p.seat, "reach");
     for (const c of p.members) {
       assert.ok(d.has(c), `${p.town}: land ${c} is cut off from the seat`);

@@ -2055,6 +2055,29 @@ movers) are drawn whole as binomials instead of one by one; settlements fold the
 unchanging facts into a digest. A year costs 0.43 s on average and 0.72 s at the
 99th percentile on the phone proxy, with some ten million people by year 300.
 
+31, as built: the bands' ways and speech drift along the paths they took (each land's
+from the land its bands came from), so kin peoples live near each other and speak
+alike (`sim/culture/languages.ts`). At the opening a land speaks the language whose
+standard its speech is most like (72 in a hundred or more), else a daughter language
+of its own; the first people's daughters begin families (18 on the Earth seed, some
+105 languages). Through the chronicle a language's standard is the speech its lands
+share, weighted by their people; a land drifted below 62 in a hundred goes over to a
+nearer neighbouring language or becomes a language of its own (a decision: how far
+it drifted, the distance, a road to its kin, a realm between), taking like
+neighbours with it; a land goes over to the speech most of its neighbours speak
+when theirs is nearer its own; a land ruled from a seat of another speech takes it
+up in time, the sooner with roads and writing, keeping a few of its old sounds; a
+language no one speaks dies; families meeting for the first time meet in history.
+Ships open the sea (`sim/economy/sea.ts`): sails cross two provinces of sea, planked
+ships four, the stars' courses eight; coasts in reach trade (a quarter of the land
+haul, plus landing), each first voyage an event citing the craft that made it;
+diplomacy meets across the sea through that trade; realms rule across it (a
+crossing counts as two steps) and fight for lands their traders have reached,
+landing at six-tenths of their strength; paved roads, like writing and clerks, let a
+seat rule a step further. The tongues lens colours lands by language, hues by
+family. A year costs 0.43 s on average and 0.68 s at the 99th percentile on the
+phone proxy.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

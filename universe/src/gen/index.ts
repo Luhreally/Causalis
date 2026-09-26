@@ -69,7 +69,9 @@ export {
 export { REGION, WATER, refineRegion, regionRef, type Region } from "./region.ts";
 export {
   borrowSound,
+  commonTongue,
   cradleTongue,
+  languageName,
   personName,
   placeName,
   shiftTongue,
