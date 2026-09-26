@@ -251,7 +251,12 @@ export function hostFor(
 /** What a land's crafts are done in and driven by, now: none until it knows mills or engines. */
 export function worksFor(ctx: PopulationContext, cell: number): Part[] | null {
   const p = ctx.provinces.get(cell)!;
-  if (!knows(ctx, cell, "mills") && !knows(ctx, cell, "steam-engine")) return null;
+  if (
+    !knows(ctx, cell, "mills") &&
+    !knows(ctx, cell, "steam-engine") &&
+    !knows(ctx, cell, "current-mills")
+  )
+    return null;
   const markets = ctx.world.store<MarketStore>("economy.markets"),
     m = markets.get(cell),
     at = landMaterials(ctx, cell),
@@ -261,7 +266,7 @@ export function worksFor(ctx: PopulationContext, cell: number): Part[] | null {
   if (fuel(G.coal, "coal")) at.add("coal");
   if (fuel(G.oil, "oil")) at.add("oil");
   if (knows(ctx, cell, "iron")) at.add("iron");
-  if (knows(ctx, cell, "steel")) at.add("steel");
+  if (knows(ctx, cell, "steel") || knows(ctx, cell, "refined-metals")) at.add("steel");
   const crafts = p.occupation(OCC.crafter) / Math.max(1, p.total()),
     wealth = Math.min(0.4, (p.occupation(OCC.trader) / Math.max(1, p.total())) * 4);
   const doctrine: Doctrine = {

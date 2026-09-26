@@ -106,6 +106,9 @@ function oreFor(ctx: PopulationContext, cell: number, kind: string): Ore | null 
       if (d) return { ref: d.ref as Ref, cell: c, richness: d.richness, reach };
       if (kind === "copper" && surfaceCopper(g, c))
         return { ref: cellRef(0, c), cell: c, richness: 0, reach };
+      // The vents' chimneys, to a people of the water, are their copper.
+      if (kind === "copper" && ctx.medium === "water" && surfaceOre(g, c, "vent"))
+        return { ref: cellRef(0, c), cell: c, richness: 0, reach };
       return null;
     };
   const own = at(cell, 1);
@@ -191,7 +194,8 @@ function makeAndUse(
   const lore = loreOf(world),
     // Works with engines: how much of the crafts they do, and the machines their workers use.
     industry = Math.min(1.5, lore.effect(p.cell, "industry")),
-    machines = !!lore.get(p.cell, "steam-engine");
+    // Machines are wanted by a people who know engines: steam's, or the tides'.
+    machines = !!lore.get(p.cell, "steam-engine") || !!lore.get(p.cell, "current-mills");
   const wants: [number, number, "toolCover" | "clothingCover" | "potteryCover" | "machineCover"][] =
     [
       [
@@ -325,14 +329,17 @@ function makeAndUse(
     want[G.coal] = want[G.coal]! + heat;
   }
   // The engines of its works burn coal, else oil: what they get is what they can drive.
-  const fuel = Math.round(crafters * industry * WANTS.fuelPerCrafter);
+  // What the tides, the currents and the earth's heat give them needs no fuel.
+  const engines = Math.round(crafters * industry * WANTS.fuelPerCrafter),
+    free = Math.round(engines * Math.min(1, 0.5 * lore.effect(p.cell, "renewable"))),
+    fuel = engines - free;
   let burned = 0;
   for (const g of FUELS) {
     burned += m.take("used", g, fuel - burned);
     want[g] = want[g]! + (g === FUELS[0] ? fuel : 0);
   }
   m.burned = burned;
-  m.powerCover = fuel > 0 ? Math.round((1000 * burned) / fuel) : 0;
+  m.powerCover = engines > 0 ? Math.round((1000 * (burned + free)) / engines) : 0;
   firsts(ctx, p, m);
   // Food wanted over the year: a month's for everyone, twelve times.
   for (const g of FOODS) want[g] = want[g]! + (mouths(p, ctx.life) * 12) / FOODS.length;
@@ -372,7 +379,7 @@ function firsts(ctx: PopulationContext, p: Province, m: Market): void {
       road = markets.flows.find((f) => f.to === p.cell && f.good === G.coal);
     m.works = tell(
       ECONOMY_EVENTS.works.type,
-      "factories",
+      lore.get(p.cell, "factories") ? "factories" : "sea-works",
       m.mine ?? (road ? (markets.route(road.from, road.to) ?? null) : null),
       { machines: m.line("made", G.machines) },
     );
@@ -704,7 +711,8 @@ export function metalYear(ctx: PopulationContext, t: SimTime): void {
     if (!m || m.metalworking) continue;
     const key = refHash(p.ref),
       crafters = p.occupation(OCC.crafter);
-    const ore = oreFor(ctx, p.cell, "copper");
+    // Smelting wants fire: a people without it comes to metal another way (the vents' lore).
+    const ore = ctx.affords.fire ? oreFor(ctx, p.cell, "copper") : null;
     if (ore && crafters >= 5) {
       const chance = 0.015 * Math.min(1, crafters / 25) * ore.reach;
       if (world.rng.chance(chance, METAL, key, t, 0)) {

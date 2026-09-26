@@ -2241,6 +2241,22 @@ simulation's own yearly reckoning (`growthOf`), so every people grows at the ape
 for its span; the young of a fecund body eat a share of an adult's (`young`, food in
 `mouths`). Earth's apes moved by a hair (the Earth seed stays in every band).
 
+39, as built: a principle says what it asks of a body (`BodyNeeds`: fire; the media it
+serves) and a people's lore opens only what its body allows (`affordsPrinciple`) — no
+kilns, smelting or burned fuel without fire; no wheels, sails, ploughs, bows, milk herds
+or tanned hides in the water. The sea has its own road, closed to the land: metal from
+the vents (hot springs where plates meet or a plume rises, their chimneys crusted with
+metal — to a people of the water, its copper and its metalworking), vessels of shell,
+reefs grown into walls, riding the currents, parting and refining metals with currents,
+mills turned by the tides, works driven by currents, the vents' heat and electricity
+under the sea. Power from tides, currents and vents is `renewable`: it drives works
+without fuel. Machines are made in current-driven works from tools alone, and the works
+grammar gains tide turbines and vent engines. On alien 55 the shelf people come to vent
+metal, shell and reefs in their first century and to electrochemistry in their second,
+never to bronze, the wheel or the sail; taught the sea's road, they make machines with
+no fuel burned, and the why of their first machines cites their works. Earth's apes are
+untouched.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

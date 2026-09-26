@@ -142,6 +142,13 @@ export const RECIPES: readonly Recipe[] = [
     output: [G.machines, 4],
     needs: { knowledge: "factories" },
   },
+  {
+    id: "current-machines",
+    name: "machines made in works the currents drive",
+    inputs: [[G.tools, 2]],
+    output: [G.machines, 3],
+    needs: { knowledge: "sea-works" },
+  },
 ];
 
 /**

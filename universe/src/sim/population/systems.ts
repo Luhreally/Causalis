@@ -37,7 +37,7 @@ import {
 } from "../../gen/index.ts";
 import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
 import { ecologyOf, living, wildsOf } from "../ecology/ecology.ts";
-import { peopleLife } from "./life.ts";
+import { peopleAffords, peopleLife } from "./life.ts";
 import { airOf, heatYield, rainShift, smokeIn } from "../climate/air.ts";
 import { powerOf } from "../economy/systems.ts";
 import { HAND_VITAL, bandOfAge, handOf, newbornSex } from "../hand/hand.ts";
@@ -59,6 +59,7 @@ import {
   PRODUCTIVITY,
   SEXES,
   TOOL_GAIN,
+  type Affordances,
   type LifeHistory,
   type Medium,
 } from "../../rules/index.ts";
@@ -186,9 +187,10 @@ export function support(cap: Capacity, knows: boolean, herds = true): number {
 export type PopulationContext = {
   readonly world: World;
   readonly generated: HomeWorld;
-  /** The people's life table, from their body; and the medium they live in. */
+  /** The people's life table, from their body; the medium they live in; what their body can do. */
   readonly life: LifeHistory;
   readonly medium: Medium;
+  readonly affords: Affordances;
   readonly provinces: PopulationStore;
   readonly settlements: SettlementStore;
   readonly history: HistoryStore;
@@ -201,6 +203,7 @@ export function populationContext(world: World): PopulationContext {
     generated: homePlanet(world).generated,
     life: peopleLife(homePlanet(world).generated),
     medium: homePlanet(world).generated.life.people?.body.medium ?? "land",
+    affords: peopleAffords(homePlanet(world).generated),
     provinces: world.store<PopulationStore>("population.provinces"),
     settlements: world.store<SettlementStore>("population.settlements"),
     history: world.store<HistoryStore>("population.history"),

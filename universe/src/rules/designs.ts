@@ -427,6 +427,22 @@ export const REALIZATIONS: readonly Realization[] = [
     (m) => ({ output: 0.9, cost: 0.2 + MATERIAL[m].cost }),
   ),
   R(
+    "current-turbines",
+    "drive",
+    ["current-mills"],
+    ["steel", "iron", "stone", "earth"],
+    () => "turned by turbines the tides drive",
+    () => ({ output: 0.8, cost: 0.2 }),
+  ),
+  R(
+    "vent-engines",
+    "drive",
+    ["vent-heat"],
+    ["steel", "iron", "stone", "earth"],
+    () => "driven by the heat of the vents",
+    () => ({ output: 0.85, cost: 0.2 }),
+  ),
+  R(
     "oil-engine",
     "drive",
     ["engines"],

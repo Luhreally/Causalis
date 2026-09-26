@@ -28,6 +28,7 @@ import {
   OCC,
   PRINCIPLES,
   PRINCIPLE_INDEX,
+  affordsPrinciple,
   type Effect,
   type Principle,
 } from "../../rules/index.ts";
@@ -165,8 +166,13 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
   for (const prov of ctx.provinces.all()) {
     if (!prov.total()) continue;
     const cell = prov.cell,
+      // Only what their body allows: no kilns without fire, no wheels in the water.
       open = PRINCIPLES.filter(
-        (p) => p.rate > 0 && !store.get(cell, p.id) && p.needs.every((n) => knows(ctx, cell, n)),
+        (p) =>
+          p.rate > 0 &&
+          affordsPrinciple(p, ctx.medium, ctx.affords.fire) &&
+          !store.get(cell, p.id) &&
+          p.needs.every((n) => knows(ctx, cell, n)),
       );
     if (!open.length) continue;
     // Finding: the first principle whose drivers carry it, in the tree's order.
@@ -289,6 +295,8 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
       data: { principle: plan.p.id },
     });
     store.learn(plan.cell, plan.p.id, { year, event }, plan.p);
+    // Metal from the vents is a people of the water's metalworking.
+    if (plan.p.id === "vent-working") markets.of(plan.cell).metalworking ??= event;
   }
 }
 

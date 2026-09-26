@@ -135,6 +135,14 @@ export const SEAM = { coal: 12, oil: 12 } as const;
 export function surfaceOre(w: HomeWorld, cell: number, kind: string): boolean {
   if (kind === "copper") return surfaceCopper(w, cell);
   if (kind === "coal") return w.tectonics.elevation[cell]! > 0 && w.deep.coal[cell]! >= SEAM.coal;
+  // Hot springs of the sea floor, where plates meet or part or a plume rises: their
+  // chimneys are crusted with the metals the water brings up.
+  if (kind === "vent") {
+    const t = w.tectonics;
+    if (t.elevation[cell]! > 0) return false;
+    const near = t.boundary[cell] !== BOUNDARY.none || t.toBoundary[cell]! <= 2;
+    return near || t.hotspots.includes(cell);
+  }
   if (kind === "oil") return w.deep.oil[cell]! >= SEAM.oil;
   const t = w.tectonics,
     e = t.elevation[cell]!;

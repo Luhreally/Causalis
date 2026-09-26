@@ -3,7 +3,14 @@
 // world (a pure function of it, never saved).
 import type { World } from "../../kernel/index.ts";
 import type { HomeWorld } from "../../gen/index.ts";
-import { HUMANLIKE, lifeHistoryOf, type LifeHistory } from "../../rules/index.ts";
+import {
+  CLADES,
+  HUMANLIKE,
+  affordancesOf,
+  lifeHistoryOf,
+  type Affordances,
+  type LifeHistory,
+} from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 
 const LIVES = new Map<string, LifeHistory>();
@@ -17,6 +24,19 @@ export function peopleLife(g: HomeWorld): LifeHistory {
     LIVES.set(g.digest, life);
   }
   return life;
+}
+
+const AFFORDS = new Map<string, Affordances>();
+
+/** What a generated world's people's body can do (an upright ape's where it has none). */
+export function peopleAffords(g: HomeWorld): Affordances {
+  let a = AFFORDS.get(g.digest);
+  if (!a) {
+    a = affordancesOf(g.life.people?.body ?? CLADES.find((c) => c.id === "ape")!.body);
+    if (AFFORDS.size > 64) AFFORDS.clear();
+    AFFORDS.set(g.digest, a);
+  }
+  return a;
 }
 
 /** The life table of a world's people. */

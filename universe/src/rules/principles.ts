@@ -5,6 +5,8 @@
 // for systems still to come (war, buildings) and are recorded now so the tree is
 // whole. Two roots are known by the older systems: cultivation and metalworking.
 
+import type { Medium } from "./bodies.ts";
+
 /** What a principle changes, as keyed amounts (added to a land's totals). */
 export const EFFECTS = [
   /** Fields give this much more. */
@@ -46,6 +48,8 @@ export const EFFECTS = [
   "power",
   /** How much of their crafts is done in works with engines, fed by fuel. */
   "industry",
+  /** How much of that power comes from the tides, currents and the earth's heat, without fuel. */
+  "renewable",
 ] as const;
 export type Effect = (typeof EFFECTS)[number];
 
@@ -68,6 +72,14 @@ export type Drivers = {
   readonly ore?: string;
 };
 
+/** What a body must be able to do for a principle to be open to its people (Phase 4 M39). */
+export type BodyNeeds = {
+  /** It wants fire: kilns, smelting, burning fuel. */
+  readonly fire?: boolean;
+  /** Only a people of these media can use it (wheels and sails are for the land and shore; the vents for the sea). */
+  readonly media?: readonly Medium[];
+};
+
 export type Principle = {
   readonly id: string;
   readonly name: string;
@@ -76,7 +88,14 @@ export type Principle = {
   readonly rate: number;
   readonly drivers: Drivers;
   readonly effects: Partial<Record<Effect, number>>;
+  readonly body?: BodyNeeds;
 };
+
+/** Whether a body can come to know a principle at all. */
+export function affordsPrinciple(p: Principle, medium: Medium, fire: boolean): boolean {
+  if (p.body?.fire && !fire) return false;
+  return !p.body?.media || p.body.media.includes(medium);
+}
 
 const P = (
   id: string,
@@ -85,9 +104,10 @@ const P = (
   rate: number,
   drivers: Drivers,
   effects: Partial<Record<Effect, number>>,
-): Principle => ({ id, name, needs, rate, drivers, effects });
+  body?: BodyNeeds,
+): Principle => ({ id, name, needs, rate, drivers, effects, ...(body ? { body } : {}) });
 
-export const PRINCIPLES: readonly Principle[] = [
+const TREE: readonly Principle[] = [
   // The roots, known by the older systems.
   P("cultivation", "sowing and reaping", [], 0, {}, {}),
   P("metalworking", "smelting copper", [], 0, {}, {}),
@@ -439,7 +459,143 @@ export const PRINCIPLES: readonly Principle[] = [
     { crafters: 1, traders: 0.5 },
     { power: 1, haul: 0.2 },
   ),
+  // The sea's own road (Phase 4 M39): for a people of the water, who have no fire — metal
+  // from the vents, parted and refined by currents; power from the tides and the vents' heat.
+  P(
+    "vent-working",
+    "metal from the vents",
+    [],
+    0.012,
+    { crafters: 1, ore: "vent" },
+    { tools: 0.3 },
+    { media: ["water"] },
+  ),
+  P(
+    "shell-craft",
+    "vessels of shell",
+    ["cultivation"],
+    0.02,
+    { crafters: 1 },
+    { pottery: 0.5, storage: 3, keeping: 0.1 },
+    { media: ["water"] },
+  ),
+  P(
+    "current-reading",
+    "riding the currents",
+    ["calendar"],
+    0.01,
+    { traders: 1 },
+    { ships: 1, haul: 0.2, carrying: 0.2 },
+    { media: ["water"] },
+  ),
+  P(
+    "reef-building",
+    "reefs grown into walls",
+    ["cultivation"],
+    0.012,
+    { crafters: 1, town: 1 },
+    { building: 1, walls: 1 },
+    { media: ["water"] },
+  ),
+  P(
+    "electrochemistry",
+    "parting metals with currents",
+    ["vent-working", "writing"],
+    0.008,
+    { crafters: 1 },
+    { tools: 0.4, arms: 1, armour: 1 },
+    { media: ["water"] },
+  ),
+  P(
+    "refined-metals",
+    "metals refined by current",
+    ["electrochemistry", "mathematics"],
+    0.006,
+    { crafters: 1 },
+    { tools: 0.5, arms: 1, armour: 1 },
+    { media: ["water"] },
+  ),
+  P(
+    "current-mills",
+    "mills turned by the tides",
+    ["refined-metals", "mathematics"],
+    0.005,
+    { crafters: 1, traders: 0.3 },
+    { power: 1, industry: 0.4, renewable: 1 },
+    { media: ["water"] },
+  ),
+  P(
+    "sea-works",
+    "works driven by currents",
+    ["current-mills", "banking"],
+    0.006,
+    { crafters: 1, traders: 0.5, town: 1 },
+    { industry: 0.7 },
+    { media: ["water"] },
+  ),
+  P(
+    "vent-heat",
+    "power from the vents' heat",
+    ["sea-works"],
+    0.005,
+    { crafters: 1, ore: "vent" },
+    { power: 1, industry: 0.3, renewable: 1 },
+    { media: ["water"] },
+  ),
+  P(
+    "sea-electricity",
+    "electricity under the sea",
+    ["current-mills", "philosophy"],
+    0.004,
+    { crafters: 1, leaders: 0.5 },
+    { power: 1, industry: 0.5, renewable: 1 },
+    { media: ["water"] },
+  ),
 ];
+
+/**
+ * What each of the land's principles asks of a body (Phase 4 M39): fire for kilns,
+ * smelting and burning fuel; the land or the shore for what rolls, sails, is ridden,
+ * ploughed, paved or hunted with the bow.
+ */
+const ASKS: Readonly<Record<string, BodyNeeds>> = {
+  "pottery-wheel": { fire: true },
+  bronze: { fire: true },
+  iron: { fire: true },
+  steel: { fire: true },
+  glass: { fire: true },
+  "coal-mining": { fire: true, media: ["land", "shore"] },
+  "steam-engine": { fire: true },
+  "oil-drilling": { fire: true },
+  engines: { fire: true },
+  factories: { fire: true },
+  electricity: { fire: true },
+  dairying: { media: ["land", "shore"] },
+  tanning: { media: ["land", "shore"] },
+  draught: { media: ["land", "shore"] },
+  plough: { media: ["land", "shore"] },
+  irrigation: { media: ["land", "shore"] },
+  terracing: { media: ["land", "shore"] },
+  riding: { media: ["land", "shore"] },
+  wheel: { media: ["land", "shore"] },
+  cart: { media: ["land", "shore"] },
+  chariots: { media: ["land", "shore"] },
+  cavalry: { media: ["land", "shore"] },
+  sailing: { media: ["land", "shore"] },
+  shipbuilding: { media: ["land", "shore"] },
+  steamships: { media: ["land", "shore"] },
+  roads: { media: ["land", "shore"] },
+  bridges: { media: ["land", "shore"] },
+  railways: { media: ["land", "shore"] },
+  archery: { media: ["land", "shore"] },
+  fishing: { media: ["land", "shore"] },
+  mills: { media: ["land", "shore"] },
+  aqueducts: { media: ["land", "shore"] },
+};
+
+export const PRINCIPLES: readonly Principle[] = TREE.map((p) =>
+  ASKS[p.id] ? { ...p, body: ASKS[p.id] } : p,
+);
 
 export const PRINCIPLE_INDEX: ReadonlyMap<string, number> = new Map(
   PRINCIPLES.map((p, i) => [p.id, i]),
