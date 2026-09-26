@@ -31,6 +31,7 @@ import { FOODS, G, GOODS, OCCUPATIONS, designWords } from "../rules/index.ts";
 import {
   BIOME_NAMES,
   BOUNDARY,
+  livingIn,
   DEPOSIT_KINDS,
   WATER,
   cellRef,
@@ -188,6 +189,11 @@ function province(world: World, cell: number) {
     ways: waysOf(world, cell),
     realm: realmOf(world, cell),
     faith: faithOf(world, cell),
+    // What lives wild there: the lineages that can be tamed or sown first.
+    wild: livingIn(homePlanet(world).generated.life, cell)
+      .sort((a, b) => Number(b.tame) - Number(a.tame) || (a.name < b.name ? -1 : 1))
+      .map((s) => ({ name: s.name, ref: s.ref, tame: s.tame, niche: s.niche })),
+    herding: p.herding,
     // How they build, with the design that explains it (once one has been realized).
     house: (() => {
       const d = designsOf(world).of(p.ref);

@@ -20,6 +20,16 @@ export {
 } from "./homeworld.ts";
 export { makeHydrology, type Hydrology } from "./hydrology.ts";
 export {
+  MAX_SPECIES,
+  NICHES,
+  livingIn,
+  lives,
+  makeBiosphere,
+  type Biosphere,
+  type Niche,
+  type Species,
+} from "./biosphere.ts";
+export {
   AGES,
   AGE_KINDS,
   AGE_MY,
@@ -32,6 +42,7 @@ export {
 } from "./deeptime.ts";
 export {
   AGE,
+  SPECIES,
   DEPOSIT,
   HOME,
   PLANET,
@@ -39,6 +50,7 @@ export {
   STAR,
   SURFACE_CELL,
   ageRef,
+  speciesRef,
   cellRef,
   depositRef,
   planetRef,

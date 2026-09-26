@@ -10,9 +10,10 @@ import {
   type World,
 } from "../../src/kernel/index.ts";
 import { COLS, ROWS, handOf, makePopulationWorld, populationContext } from "../../src/sim/index.ts";
+import { cradleCell } from "../cradle.ts";
 
 const seed = seedFromText("first light"),
-  HOME = 30210;
+  HOME = cradleCell("first light");
 const build = () => makePopulationWorld(seed);
 
 function firstVillage(world: World) {

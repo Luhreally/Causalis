@@ -16,6 +16,10 @@ import {
   provinceCapacity,
 } from "../../src/sim/index.ts";
 import { spine, why } from "../../src/causal/index.ts";
+import { cradleCell } from "../cradle.ts";
+
+/** Where the first people of "first light" began. */
+const CRADLE = cradleCell("first light");
 
 const world = makePopulationWorld(seedFromText("first light"));
 world.runTo(300 * YEAR);
@@ -86,7 +90,7 @@ test("prices stay near what goods are usually worth", () => {
 });
 
 test("people turn to the work that is worth most", () => {
-  const p = ctx.provinces.get(30210)!,
+  const p = ctx.provinces.get(CRADLE)!,
     cap = provinceCapacity(ctx, p.cell),
     base = occupationTargets(p, cap, 3),
     wages = new Array<number>(7).fill(10);
@@ -103,18 +107,24 @@ test("people turn to the work that is worth most", () => {
   assert.equal(crafty[OCC.leader], base[OCC.leader], "leaders are not a market's to set");
 });
 
+/** A land the app begins with (bands across the land), grown `years`: the cradle alone may lack copper or a famine to relieve. */
+function land(seed: string, years: number) {
+  const w = makePopulationWorld(seedFromText(seed), { start: "spread" });
+  w.runTo(years * YEAR);
+  return w;
+}
+
 test("metalworking is found where copper lies, and its why reaches the land, the plate and the star", () => {
-  // Across the land the app begins with (the cradle alone may have no copper within reach).
-  const land = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-  land.runTo(300 * YEAR);
-  const found = land.events.all().find((e) => e.type === ECONOMY_EVENTS.metalworking.type);
+  // Amber's lands hold copper near their people.
+  const grown = land("amber", 40),
+    found = grown.events.all().find((e) => e.type === ECONOMY_EVENTS.metalworking.type);
   assert.ok(found, "someone learned to smelt copper");
-  const decision = why(land, found.id).causes[0]!.next();
+  const decision = why(grown, found.id).causes[0]!.next();
   assert.match(decision.claim, /worked out how to smelt copper, in year \d+ \(.*copper/);
-  const kinds = spine(land, found.id).map((e) => e.ref.split(":")[0]);
+  const kinds = spine(grown, found.id).map((e) => e.ref.split(":")[0]);
   assert.deepEqual(kinds.slice(-3), ["plate", "plnt", "star"], kinds.join(" ← "));
   assert.ok(kinds.includes("cell") || kinds.includes("depo"), "through the ore");
-  const tools = marketsOf(land)
+  const tools = marketsOf(grown)
     .all()
     .filter((m) => m.metalworking && m.years.some((y) => y.ledger[L.made]![5]! > 0));
   assert.ok(tools.length > 0, "copper was smelted");
@@ -133,17 +143,19 @@ test("a market town gathers the crafts and trade of its land, and grows past a v
 });
 
 test("trade answers a famine, and says so", () => {
-  const relief = world.events.all().find((e) => e.type === ECONOMY_EVENTS.relief.type);
+  // Famine strikes first light's foragers while their farming neighbours have food to send.
+  const grown = land("first light", 60),
+    relief = grown.events.all().find((e) => e.type === ECONOMY_EVENTS.relief.type);
   assert.ok(relief, "food came to a famine");
-  const node = why(world, relief.id);
+  const node = why(grown, relief.id);
   assert.match(node.claim, /^Food came to the .* while famine was on/);
-  const kinds = node.causes.map((c) => world.events.get(c.cause.ref)?.type);
+  const kinds = node.causes.map((c) => grown.events.get(c.cause.ref)?.type);
   assert.ok(kinds.includes(POPULATION_EVENTS.famine.type), "the famine");
   assert.ok(kinds.includes(ECONOMY_EVENTS.route.type), "the road the food came down");
 });
 
 test("a price explains itself: the year's numbers, then what lies behind them", () => {
-  const node = why(world, marketGoodRef(30210, 0) as Ref);
+  const node = why(world, marketGoodRef(CRADLE, 0) as Ref);
   assert.equal(node.basis, "recorded");
   assert.match(
     node.claim,
@@ -153,6 +165,6 @@ test("a price explains itself: the year's numbers, then what lies behind them", 
     node.causes.some((c) => c.cause.ref.startsWith("cell:")),
     "the land it grows on",
   );
-  const path = spine(world, marketGoodRef(30210, 0) as Ref).map((e) => e.ref.split(":")[0]);
+  const path = spine(world, marketGoodRef(CRADLE, 0) as Ref).map((e) => e.ref.split(":")[0]);
   assert.equal(path.at(-1), "star");
 });

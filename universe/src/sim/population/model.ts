@@ -66,6 +66,8 @@ export class Province {
   /** The lowest month's `fed` over the last year. */
   leanest = 1000;
   knowsCultivation = false;
+  /** The event through which this province came to keep herds (tamed or learned), if it has. */
+  herding: Ref | null = null;
   /** The event through which this province came to know cultivation. */
   cultivation: Ref | null = null;
   /** The year the first people came. */
@@ -97,6 +99,7 @@ export class Province {
     this.counts.hashInto(h);
     h.int(this.rain).int(this.fed).int(this.leanest).bool(this.knowsCultivation);
     h.string(this.cultivation ?? "")
+      .string(this.herding ?? "")
       .int(this.settledYear)
       .string(this.arrival ?? "");
     h.string(this.lastFamine ?? "")
@@ -113,6 +116,7 @@ export class Province {
       leanest: this.leanest,
       knowsCultivation: this.knowsCultivation,
       cultivation: this.cultivation,
+      herding: this.herding,
       settledYear: this.settledYear,
       arrival: this.arrival,
       lastFamine: this.lastFamine,
@@ -130,6 +134,7 @@ export class Province {
     p.leanest = s.leanest as number;
     p.knowsCultivation = s.knowsCultivation as boolean;
     p.cultivation = s.cultivation as Ref | null;
+    p.herding = (s.herding as Ref | null | undefined) ?? null;
     p.lastFamine = s.lastFamine as Ref | null;
     p.lastDrought = s.lastDrought as Ref | null;
     p.famineMonth = s.famineMonth as number;

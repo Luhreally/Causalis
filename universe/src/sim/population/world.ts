@@ -1,15 +1,7 @@
 // A world with people (Phase 1): the home planet, and a first people in the
 // province that suits them best — warm enough, watered, rich in what can be
 // gathered — whose choice is itself a recorded decision the explainer can open.
-import {
-  World,
-  YEAR,
-  apportion,
-  defineStream,
-  hashString,
-  type Ref,
-  type Seed,
-} from "../../kernel/index.ts";
+import { World, YEAR, apportion, hashString, type Ref, type Seed } from "../../kernel/index.ts";
 import { BIOME, cellRef, type HomeWorld } from "../../gen/index.ts";
 import { FEMALE, G, HUMANLIKE, MALE, OCC } from "../../rules/index.ts";
 import { MarketStore } from "../economy/market.ts";
@@ -30,34 +22,21 @@ import { Province, capacity, row } from "./model.ts";
 import { HistoryStore, PopulationStore, SettlementStore } from "./stores.ts";
 import { POPULATION_EVENTS, installPopulation, populationContext } from "./systems.ts";
 
-const ORIGIN = defineStream("pop.origin");
-
 /** A population pyramid for a young people: shares of each age band. */
 const PYRAMID = [0.16, 0.13, 0.12, 0.1, 0.17, 0.13, 0.09, 0.05, 0.03, 0.02];
 
+/** The fewest the first people can be. */
 export const FIRST_PEOPLE = 240;
+/**
+ * When the chronicle opens on the cradle, its people have lived there for ages and
+ * filled close to half of what its wild feeds.
+ */
+export const CRADLE_FULLNESS = 0.45;
 
-/** The province the first people live in: the best place to gather food, warm and watered. */
-export function chooseHome(g: HomeWorld, world: World): number {
-  let best = -1,
-    bestScore = -Infinity;
-  for (let c = 0; c < g.grid.count; c++) {
-    if (g.tectonics.elevation[c]! <= 0) continue;
-    const t = g.climate.temperature[c]!,
-      biome = g.climate.biome[c]!;
-    if (biome === BIOME.ice || biome === BIOME.alpine) continue;
-    const cap = capacity(g, c),
-      perKm = cap.forage / Math.max(1, cap.areaKm2),
-      mild = t > 8 && t < 26 ? 1 : 0.35,
-      river = g.water.river[c] ? 1.5 : 1,
-      score = perKm * mild * river * (1 + 0.05 * world.rng.real(ORIGIN, c));
-    if (score > bestScore) {
-      bestScore = score;
-      best = c;
-    }
-  }
-  if (best < 0) throw new Error("no land fit for people on this world");
-  return best;
+/** The province the first people live in: where the upright apes arose (gen/biosphere.ts). */
+export function chooseHome(g: HomeWorld): number {
+  if (!g.life.apes) throw new Error("no land fit for people on this world");
+  return g.life.apes.cell;
 }
 
 /**
@@ -137,11 +116,25 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     homePlanet(world).generated.grid.count,
     (cell) => (provinces.get(cell)?.total() ?? 0) > 0,
     (cell, event) => {
-      const p = provinces.get(cell)!;
-      if (!p.knowsCultivation) {
+      // The next way of life the land allows: sowing where a wild grain grows near,
+      // herding where a beast that can be tamed lives near, then smelting.
+      const p = provinces.get(cell)!,
+        life = homePlanet(world).generated.life,
+        grid = homePlanet(world).generated.grid,
+        near = (of: Int16Array) => {
+          if (of[cell]! >= 0) return true;
+          for (let k = grid.offsets[cell]!; k < grid.offsets[cell + 1]!; k++)
+            if (of[grid.neighbours[k]!]! >= 0) return true;
+          return false;
+        };
+      if (!p.knowsCultivation && near(life.seedGrass)) {
         p.knowsCultivation = true;
         p.cultivation = event;
         return "cultivation";
+      }
+      if (p.knowsCultivation && !p.herding && near(life.herdBeast)) {
+        p.herding = event;
+        return "herding";
       }
       const m = markets.of(cell);
       if (!m.metalworking) {
@@ -163,8 +156,11 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installDesigns(world, () => populationContext(world));
 
   const g = homePlanet(world).generated,
-    home = chooseHome(g, world),
-    cap = capacity(g, home);
+    home = chooseHome(g),
+    cap = capacity(g, home),
+    apes = g.life.species[g.life.apes!.species]!,
+    grass = g.life.seedGrass[home]!,
+    first = Math.max(FIRST_PEOPLE, Math.round(CRADLE_FULLNESS * cap.forage));
   const decision = world.decisions.record({
     rule: "people.origin",
     subject: g.planet.ref as Ref,
@@ -173,21 +169,30 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     threshold: 0,
     factors: [
       {
-        name: "food to gather",
-        value: cap.forage,
+        name: "where the upright apes arose",
+        value: 1,
         contribution: 1,
+        source: { ref: apes.ref as Ref, role: "trigger", weight: 1 },
+      },
+      {
+        name: "beasts to hunt",
+        value: g.life.diversity[home]!,
+        contribution: 0.5,
         source: { ref: cellRef(0, home), role: "enabler", weight: 1 },
+      },
+      {
+        name: "wild grain to gather",
+        value: grass >= 0 ? g.life.species[grass]!.seed : 0,
+        contribution: grass >= 0 ? 0.4 : 0,
+        source:
+          grass >= 0
+            ? { ref: g.life.species[grass]!.ref as Ref, role: "enabler", weight: 1 }
+            : null,
       },
       {
         name: "fresh water",
         value: g.water.river[home] ?? 0,
         contribution: g.water.river[home] ? 0.5 : 0,
-        source: null,
-      },
-      {
-        name: "a mild climate",
-        value: g.climate.temperature[home]!,
-        contribution: 0.3,
         source: null,
       },
     ],
@@ -196,16 +201,16 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     type: POPULATION_EVENTS.origin.type,
     place: cellRef(0, home),
     causes: [{ ref: decision, role: "trigger", weight: 1 }],
-    data: { people: FIRST_PEOPLE },
+    data: { people: first },
   });
   const culture = world.register(new CultureStore());
   world.addPinner(() => culture.pinned());
   const cradle = cradleWays(home, hashString(`culture ${seed.text}`), origin);
   culture.set(cradle);
   if (options.start !== "spread") {
-    people(provinces.add(new Province(home, 0, origin)), FIRST_PEOPLE);
+    people(provinces.add(new Province(home, 0, origin)), first);
     // They bring half a year's food.
-    markets.of(home).move("carriedIn", G.wild, FIRST_PEOPLE * 6);
+    markets.of(home).move("carriedIn", G.wild, first * 6);
     return world;
   }
   // The ages before the chronicle: bands spread from the cradle across the land.

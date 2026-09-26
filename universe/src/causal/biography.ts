@@ -34,6 +34,8 @@ const SALIENCE: Readonly<Record<string, number>> = {
   famine: 4,
   cultivation: 3,
   "farming-came": 3,
+  "herds-tamed": 3,
+  "herding-came": 2.5,
   founded: 2,
   drought: 2,
   "took-up-farming": 2,
@@ -138,6 +140,8 @@ export function deepen(world: World, person: Person): Person {
       else if (e.type === POPULATION_EVENTS.drought.type) add(y, "drought", e.id);
       else if (e.type === POPULATION_EVENTS.cultivation.type) add(y, "cultivation", e.id);
       else if (e.type === POPULATION_EVENTS.cultivationSpread.type) add(y, "farming-came", e.id);
+      else if (e.type === POPULATION_EVENTS.herding.type) add(y, "herds-tamed", e.id);
+      else if (e.type === POPULATION_EVENTS.herdingSpread.type) add(y, "herding-came", e.id);
       else if (e.type === ECONOMY_EVENTS.relief.type) add(y, "food-came", e.id);
       else if (
         e.type === ECONOMY_EVENTS.metalworking.type ||

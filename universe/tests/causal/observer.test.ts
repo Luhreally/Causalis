@@ -119,8 +119,9 @@ test("a life, once told, stays told; its future is drawn from the ledgers", () =
 });
 
 test("a memory leads back through a migration to the land and the planet it happened on", () => {
-  // Grown to just after this world's great moves (years 190–221), while those who made them live.
-  const world = grown(240),
+  // Grown to just after this world's great moves (its first seventy years, as its bands bud
+  // off from the cradle), while those who made them live.
+  const world = grown(75),
     ctx = populationContext(world);
   // Meet families in provinces people moved into, until someone remembers setting out.
   let remembered: { person: Person; memory: Ref } | null = null;

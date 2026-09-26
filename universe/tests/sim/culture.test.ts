@@ -10,9 +10,10 @@ import {
   populationContext,
 } from "../../src/sim/index.ts";
 import { waysRef, why } from "../../src/causal/index.ts";
+import { cradleCell } from "../cradle.ts";
 
 const seed = seedFromText("first light"),
-  HOME = 30210;
+  HOME = cradleCell("first light");
 
 /** Steps over peopled land from a cell to every other. */
 function steps(world: ReturnType<typeof makePopulationWorld>, from: number): Map<number, number> {
@@ -74,11 +75,12 @@ test("after centuries, neighbours still speak alike and far lands apart", () => 
 });
 
 test("famine teaches thrift, and the people's ways say which famine", () => {
+  // In the cradle's foraging years, when a failed rain means hunger.
   const world = makePopulationWorld(seed);
-  world.runTo(120 * YEAR);
+  world.runTo(10 * YEAR);
   const before = cultureOf(world).get(HOME)!.traits[WAY.thrift]!;
   world.submit("act.rain", { cell: HOME, sign: -1, years: 5 });
-  world.runTo(127 * YEAR);
+  world.runTo(17 * YEAR);
   const w = cultureOf(world).get(HOME)!;
   assert.ok(
     w.traits[WAY.thrift]! > before + 0.05,

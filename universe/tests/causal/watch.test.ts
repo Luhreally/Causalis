@@ -18,9 +18,10 @@ import {
   tidings,
   watches,
 } from "../../src/causal/index.ts";
+import { cradleCell } from "../cradle.ts";
 
 const seed = seedFromText("first light"),
-  HOME = 30210;
+  HOME = cradleCell("first light");
 const build = () => {
   const w = makePopulationWorld(seed);
   observer(w);

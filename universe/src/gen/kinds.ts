@@ -10,6 +10,7 @@ export const PLATE = defineKind("plate", "tectonic plate", "structural");
 export const SURFACE_CELL = defineKind("cell", "place on a planet", "structural");
 export const DEPOSIT = defineKind("depo", "mineral deposit", "structural");
 export const AGE = defineKind("age", "age of a world's deep past", "structural");
+export const SPECIES = defineKind("spec", "lineage of living things", "structural");
 
 export const HOME = 0;
 
@@ -31,4 +32,8 @@ export function depositRef(planet: number, deposit: number): Ref {
 
 export function ageRef(planet: number, age: number): Ref {
   return makeRef(AGE, planet, age);
+}
+
+export function speciesRef(planet: number, species: number): Ref {
+  return makeRef(SPECIES, planet, species);
 }

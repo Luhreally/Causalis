@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { folkRef, spine, why } from "../../src/causal/index.ts";
+import { cradleCell } from "../cradle.ts";
+
+/** Where the first people of "first light" began. */
+const CRADLE = cradleCell("first light");
 
 const world = EARTH.build(seedFromText("first light"));
 world.runTo(260 * YEAR);
@@ -18,7 +22,7 @@ type Chronicle = {
 };
 
 test("a province's years come back in order, one line a year, for the charts", () => {
-  const h = ask<History>("province.history", { cell: 30210 });
+  const h = ask<History>("province.history", { cell: CRADLE });
   assert.equal(h.years.length, 260);
   h.years.forEach((y, i) => assert.equal(y.year, i));
   assert.ok(h.years.every((y) => y.population > 0 && y.fed >= 0 && y.fed <= 100));
@@ -40,16 +44,16 @@ test("the chronicle is newest first, in words, and adds up the world's people by
 });
 
 test("the people of a province explain themselves, back to the first people and the land", () => {
-  const node = why(world, folkRef(30210));
+  const node = why(world, folkRef(CRADLE));
   assert.equal(node.basis, "recorded");
   assert.match(
     node.claim,
     /^[\d,]+ people live in the .*, peopled since year 0; in the last ten years [\d,]+ were born and [\d,]+ died/,
   );
-  const kinds = spine(world, folkRef(30210)).map((e) => e.ref.split(":")[0]);
+  const kinds = spine(world, folkRef(CRADLE)).map((e) => e.ref.split(":")[0]);
   assert.equal(kinds.at(-1), "star", kinds.join(" ← "));
-  const facts = ask<{ folk: Ref }>("province", { cell: 30210 });
-  assert.equal(facts.folk, folkRef(30210));
+  const facts = ask<{ folk: Ref }>("province", { cell: CRADLE });
+  assert.equal(facts.folk, folkRef(CRADLE));
 });
 
 test("a century of watching a village meets its families through the observer and never changes history", () => {
@@ -57,7 +61,7 @@ test("a century of watching a village meets its families through the observer an
     busy = EARTH.build(seedFromText("first light"));
   quiet.runTo(240 * YEAR);
   busy.runTo(240 * YEAR);
-  const ref = (EARTH.queries.settlements!(busy, { cell: 30210 }) as { ref: string }[])[0]!.ref;
+  const ref = (EARTH.queries.settlements!(busy, { cell: CRADLE }) as { ref: string }[])[0]!.ref;
   type Plan = { people: { ref: string; home: number }[]; homes: { household: string | null }[] };
   const first = EARTH.queries["village.plan"]!(busy, { ref }) as Plan;
   assert.ok(first.people.length >= 10, `${first.people.length} watched`);

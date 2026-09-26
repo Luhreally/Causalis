@@ -14,7 +14,7 @@ import {
 } from "../../src/kernel/index.ts";
 import { EARTHLIKE } from "../../src/rules/index.ts";
 import { generateHomeWorld, refineRegion } from "../../src/gen/index.ts";
-import { makePopulationWorld, populationContext } from "../../src/sim/index.ts";
+import { homePlanet, makePopulationWorld, populationContext } from "../../src/sim/index.ts";
 import { deepen, meetHousehold, observer } from "../../src/causal/index.ts";
 
 export type SuiteResult = { digest: string; vectors: [string, string][] };
@@ -93,8 +93,9 @@ suites.observer = () => {
  */
 function sliceVectors(): [string, string][] {
   const build = () => makePopulationWorld(seedFromText("first light")),
-    home = 30210,
-    world = build();
+    world = build(),
+    // Where the first people began: where the upright apes arose.
+    home = homePlanet(world).generated.life.apes!.cell;
   world.runTo(120 * YEAR);
   world.submit("act.rain", { cell: home, sign: -1, years: 3 });
   world.runTo(200 * YEAR);

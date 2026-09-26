@@ -12,7 +12,8 @@ import {
 } from "../../src/sim/index.ts";
 import { why, type Explanation } from "../../src/causal/index.ts";
 
-const world = makePopulationWorld(seedFromText("kestrel"), { start: "spread" });
+// Juniper's many realms fight often, holy wars among them.
+const world = makePopulationWorld(seedFromText("juniper"), { start: "spread" });
 world.runTo(400 * YEAR);
 const ctx = populationContext(world),
   wars = warsOf(world).all();

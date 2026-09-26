@@ -43,7 +43,8 @@ test("a paved road draws a city's markets and workshops along it", () => {
 });
 
 test("towns grow into cities, and paving reshapes them, answering to the road's learning", () => {
-  const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
+  // Amber's peoples tame beasts to draw carts, and so come to pave their roads.
+  const world = makePopulationWorld(seedFromText("amber"), { start: "spread" });
   world.runTo(420 * YEAR);
   const cities = citiesOf(world).all(),
     paved = cities.filter((c) => c.paved),

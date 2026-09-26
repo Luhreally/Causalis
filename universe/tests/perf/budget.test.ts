@@ -13,6 +13,10 @@ import { makePopulationWorld } from "../../src/sim/index.ts";
 import { observer } from "../../src/causal/index.ts";
 import type { World } from "../../src/kernel/index.ts";
 import { frameTransfer } from "../../src/bridge/index.ts";
+import { cradleCell } from "../cradle.ts";
+
+/** Where the first people of "first light" began. */
+const CRADLE = cradleCell("first light");
 
 type Budget = {
   /** The whole 300 years, built and run. */
@@ -53,13 +57,14 @@ function withinBudget(world: World, budget: Budget, label: string): void {
   const globe = EARTH.frames.globe!(world, { view: "globe", focus: null });
   assert.ok(bytes(globe) < budget.globeBytes, `${label}: a globe frame is ${bytes(globe)} bytes`);
   assert.ok(frameTransfer(globe as never).length > 0, "its arrays travel without copying");
-  const region = EARTH.frames.region!(world, { view: "region", focus: "cell:0:30210" });
+  const region = EARTH.frames.region!(world, { view: "region", focus: `cell:0:${CRADLE}` });
   assert.ok(
     bytes(region) < budget.regionBytes,
     `${label}: a region frame is ${bytes(region)} bytes`,
   );
 
-  const village = (EARTH.queries.settlements!(world, { cell: 30210 }) as { ref: string }[])[0]!.ref;
+  const village = (EARTH.queries.settlements!(world, { cell: CRADLE }) as { ref: string }[])[0]!
+    .ref;
   world.submit("hand.lay", { village });
   world.runTo(301 * YEAR);
   const plan = JSON.stringify(EARTH.queries["village.plan"]!(world, { ref: village }));

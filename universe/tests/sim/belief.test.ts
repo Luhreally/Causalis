@@ -10,6 +10,10 @@ import {
   marketsOf,
 } from "../../src/sim/index.ts";
 import { spine, why } from "../../src/causal/index.ts";
+import { cradleCell } from "../cradle.ts";
+
+/** Where the first people of "first light" began. */
+const CRADLE = cradleCell("first light");
 
 const OMENS = new Set([
   "act.rain",
@@ -82,9 +86,9 @@ test("held for generations, a faith deepens a people's devotion", () => {
 test("the god's act is an omen: a devout people struck by it may found a faith in its power", () => {
   const cradle = makePopulationWorld(seedFromText("first light"));
   cradle.runTo(60 * YEAR);
-  cultureOf(cradle).get(30210)!.traits[WAY.piety] = 0.95;
+  cultureOf(cradle).get(CRADLE)!.traits[WAY.piety] = 0.95;
   for (let y = 60; y < 66; y++) {
-    cradle.submit("act.harvest", { cell: 30210, sign: 1, years: 1 });
+    cradle.submit("act.harvest", { cell: CRADLE, sign: 1, years: 1 });
     cradle.runTo((y + 1) * YEAR);
   }
   const f = beliefOf(cradle)

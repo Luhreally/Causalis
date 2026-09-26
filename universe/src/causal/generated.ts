@@ -7,6 +7,7 @@ import { kindCodeOf, parseRef, type Ref, type World } from "../kernel/index.ts";
 import {
   AGE,
   AGES,
+  SPECIES,
   BIOME_NAMES,
   BOUNDARY,
   DEPOSIT,
@@ -150,6 +151,55 @@ registerExplainer(AGE.code, (world, ref) => {
     ref,
     `The ${ordinal(a.index + 1)} of the world's ${AGES} ages, ${a.from}–${a.to} million years ago: ${AGE_WORDS[a.kind]}, ${warmer} than now, the seas ${seas}${a.forests ? "; forests grew on the land" : "; nothing yet grew on the land"}`,
     edges(world, [{ ref: g.planet.ref as Ref, role: "enabler", weight: 1 }]),
+  );
+});
+
+registerExplainer(SPECIES.code, (world, ref) => {
+  if (!hasPlanet(world)) return null;
+  const g = homePlanet(world).generated,
+    s = g.life.species[parseRef(ref).b];
+  if (!s) return null;
+  if (s.niche === "upright ape") {
+    const c = s.origin;
+    return generated(
+      ref,
+      `The upright apes, the people: they arose in the last age at ${deg(g.grid.lat[c]!)}${g.grid.lat[c]! >= 0 ? "N" : "S"}, where ${g.life.diversity[c]} kinds of beast lived${g.life.seedGrass[c]! >= 0 ? ` and the ${g.life.species[g.life.seedGrass[c]!]!.name} grew wild` : ""}${g.water.river[c] ? ", by a river" : ""}`,
+      edges(world, [
+        { ref: cellRef(0, c), role: "enabler", weight: 0.6 },
+        { ref: ageRef(0, s.arose), role: "enabler", weight: 0.4 },
+      ]),
+    );
+  }
+  let range = 0,
+    land = 0;
+  for (let c = 0; c < g.grid.count; c++)
+    if (g.tectonics.elevation[c]! > 0) {
+      land++;
+      if (
+        s.died === null &&
+        ((g.life.present[2 * c + (s.index >> 5)]! >>> (s.index & 31)) & 1) === 1
+      )
+        range++;
+    }
+  const body =
+    s.niche === "seed grass"
+      ? `a grass${s.seed > 0.45 ? " whose seed is heavy enough to sow" : " of light seed"}`
+      : `a ${s.niche} of ${s.size} kg${s.herd > 0.5 ? ", living in herds" : ""}${s.docility > 0.4 ? ", docile" : ", wild-tempered"}${s.wool ? ", woolly" : ""}${s.tame ? ": a beast that can be tamed" : ""}`;
+  const life =
+    s.died === null
+      ? `it ranges over ${Math.max(1, Math.round((100 * range) / Math.max(1, land)))}% of the land`
+      : `it died out in the ${ordinal(s.died + 1)} age`;
+  return generated(
+    ref,
+    `The ${s.name}: ${body}; it arose in the ${ordinal(s.arose + 1)} age, and ${life}`,
+    edges(world, [
+      {
+        ref: ageRef(0, s.died ?? s.arose),
+        role: s.died === null ? "enabler" : "trigger",
+        weight: 0.7,
+      },
+      { ref: cellRef(0, s.origin), role: "enabler", weight: 0.3 },
+    ]),
   );
 });
 

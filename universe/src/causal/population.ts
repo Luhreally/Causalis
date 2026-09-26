@@ -54,6 +54,7 @@ registerExplainer(FOLK.code, (world, ref) => {
   const causes: CauseRef[] = [];
   if (p.arrival) causes.push({ ref: p.arrival, role: "trigger", weight: 0.4 });
   if (p.cultivation) causes.push({ ref: p.cultivation, role: "enabler", weight: 0.3 });
+  if (p.herding) causes.push({ ref: p.herding, role: "enabler", weight: 0.2 });
   const famine = p.lastFamine ? world.events.get(p.lastFamine) : undefined;
   if (famine && world.now - famine.t < 10 * YEAR)
     causes.push({ ref: famine.id, role: "constraint", weight: 0.2 });
@@ -125,6 +126,14 @@ registerEventWords(E.cultivationSpread.type, (world, e) => {
   const from = e.subjects[1] ?? null;
   return `Farming came to ${landWords(world, e.place)}${from ? ` from ${landWords(world, from)}` : ""}, year ${yearOfMoment(e.t)}`;
 });
+registerEventWords(E.herding.type, (world, e) => {
+  const beast = (e.data as Data)?.beast;
+  return `In ${landWords(world, e.place)} the ${typeof beast === "string" ? beast : "wild herds"} were tamed and first kept in herds, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(E.herdingSpread.type, (world, e) => {
+  const from = e.subjects[1] ?? null;
+  return `Herding came to ${landWords(world, e.place)}${from ? ` from ${landWords(world, from)}` : ""}, year ${yearOfMoment(e.t)}`;
+});
 registerEventWords(E.founded.type, (world, e) => {
   const name = (e.data as Data)?.name;
   return `${typeof name === "string" ? name : "A village"} was founded in ${landWords(world, e.place)}, year ${yearOfMoment(e.t)}`;
@@ -141,6 +150,10 @@ registerDecisionWords(
 registerDecisionWords(
   "knowledge.cultivation",
   (world, d) => `The people of ${landWords(world, d.subject)} began to sow`,
+);
+registerDecisionWords(
+  "knowledge.herding",
+  (world, d) => `The people of ${landWords(world, d.subject)} tamed a beast to keep`,
 );
 registerDecisionWords(
   "settlement.found",

@@ -86,7 +86,8 @@ test("a host is armed with what its people know and its lands hold", () => {
   for (const p of steel) assert.ok(realization(p.id).materials.includes(p.material));
 });
 
-const world = EARTH.build(seedFromText("first light"));
+// Amber's land runs from desert to rainforest, and some of its realms have metal near.
+const world = EARTH.build(seedFromText("amber"));
 world.runTo(420 * YEAR);
 const ctx = populationContext(world),
   designs = designsOf(world);

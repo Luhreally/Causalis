@@ -63,6 +63,8 @@ type ProvinceFacts = {
   realm: RealmFacts;
   faith: FaithFacts;
   house: { words: string; ref: string } | null;
+  wild: { name: string; ref: string; tame: boolean; niche: string }[];
+  herding: string | null;
   lore: { id: string; name: string; year: number; event: string }[];
 } | null;
 
@@ -379,6 +381,25 @@ export class PlanetPanel {
         folk?.arrival ?? null,
       ],
       [folk?.house ? sentenceOf(`they build ${folk.house.words}`) : "", folk?.house?.ref ?? null],
+      [folk?.herding ? "They keep herds" : "", folk?.herding ?? null],
+      // What lives wild here: what can be tamed or sown opens its why.
+      ...(folk?.wild ?? [])
+        .filter((s) => s.tame)
+        .slice(0, 2)
+        .map((s): [string, string | null] => [
+          `The ${s.name} lives wild here: ${s.niche === "seed grass" ? "its seed can be sown" : "it can be tamed"}`,
+          s.ref,
+        ]),
+      [
+        folk?.wild.some((s) => !s.tame)
+          ? `Wild here: ${folk.wild
+              .filter((s) => !s.tame)
+              .slice(0, 5)
+              .map((s) => s.name)
+              .join(", ")}`
+          : "",
+        null,
+      ],
       [latLon(p.lat, p.lon), null],
       [
         high

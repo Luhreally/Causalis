@@ -15,7 +15,7 @@ for (const name of ["first light", "kestrel", "amber"]) {
       ctx = populationContext(world),
       all = ctx.provinces.all(),
       g = ctx.generated;
-    assert.ok(all.length >= 40, `${all.length} lands peopled`);
+    assert.ok(all.length >= 30, `${all.length} lands peopled`);
     // Every peopled land is reached from the cradle over land in at most SPREAD.rings steps.
     const home = world.events.all().find((e) => e.type === POPULATION_EVENTS.origin.type)!.place!,
       origin = Number(home.split(":")[2]),

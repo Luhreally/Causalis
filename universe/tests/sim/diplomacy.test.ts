@@ -13,7 +13,8 @@ import {
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
 
-const world = makePopulationWorld(seedFromText("kestrel"), { start: "spread" });
+// Juniper's land stays divided among many realms, who meet at borders and down roads.
+const world = makePopulationWorld(seedFromText("juniper"), { start: "spread" });
 world.runTo(400 * YEAR);
 const ctx = populationContext(world),
   realms = politiesOf(world),

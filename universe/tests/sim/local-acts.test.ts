@@ -22,9 +22,10 @@ import {
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
+import { cradleCell } from "../cradle.ts";
 
 const seed = seedFromText("first light"),
-  HOME = 30210;
+  HOME = cradleCell("first light");
 const build = () => makePopulationWorld(seed);
 const domain = (w: World, name: string) => w.domainHashes().find(([d]) => d === name)?.[1];
 const chain = (w: World) => w.checkpoints().map((c) => c.chain);
@@ -61,7 +62,10 @@ test("a shrine is a sign the devout read; raising one twice is refused", () => {
   world.runTo(240 * YEAR + 1);
   assert.ok(populationContext(world).settlements.get(v.ref)!.shrine, "the shrine stands");
   assert.throws(() => world.submit("act.shrine", { village: v.ref }), /already stands/);
-  assert.throws(() => world.submit("act.fire", { village: v.ref }), /only a city burns/);
+  const village = populationContext(world)
+    .settlements.inProvince(HOME)
+    .find((s) => !citiesOf(world).get(s.ref))!;
+  assert.throws(() => world.submit("act.fire", { village: village.ref }), /only a city burns/);
   assert.throws(() => world.submit("act.shrine", { village: "town:0:999999" }), /no village/);
 });
 

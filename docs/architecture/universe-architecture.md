@@ -2016,6 +2016,12 @@ fight with).
     biomass; the north-star test on the Earth seed; a year of the whole planet
     within budget.
 
+Order, as built: 26 and 27 first; then 29 and 30 before 28. Once the cradle is
+where the people arose and taming and sowing wait on what lives there, a peopled
+area of four steps around a tropical cradle rarely reaches copper-bearing
+mountains or herd beasts, so the whole planet peopled (and paged, to stay within
+budget) comes before the ecology.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

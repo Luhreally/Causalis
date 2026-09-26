@@ -17,9 +17,10 @@ import {
   populationContext,
 } from "../../src/sim/index.ts";
 import { spine, why } from "../../src/causal/index.ts";
+import { cradleCell } from "../cradle.ts";
 
 const seed = seedFromText("first light"),
-  HOME = 30210;
+  HOME = cradleCell("first light");
 const build = () => makePopulationWorld(seed);
 
 test("withheld rain brings dry years that answer, through why, to the god's act", () => {
@@ -45,7 +46,7 @@ test("withheld rain brings dry years that answer, through why, to the god's act"
     assert.equal(path.at(-1)!.basis, "command");
     assert.match(
       path.at(-1)!.claim,
-      /^Your act: you withheld the rain over the steppe at .* for 3 years, year 250/,
+      /^Your act: you withheld the rain over the .+ at .* for 3 years, year 250/,
     );
   }
   // And whatever famine followed says so too.
@@ -131,10 +132,11 @@ test("history before an act is the pure run's; after it, a fork that replays and
 
 test("a drought sent by the god's hand shows up in the why of the famine it causes", () => {
   // Foragers live from what the land gives in the year: five years without rain starve them.
+  // (The cradle's people forage for their first decades, before they learn to sow.)
   const world = build();
-  world.runTo(120 * YEAR);
+  world.runTo(10 * YEAR);
   const act = world.submit("act.rain", { cell: HOME, sign: -1, years: 5 });
-  world.runTo(126 * YEAR);
+  world.runTo(16 * YEAR);
   const famines = world.events
     .all()
     .filter(

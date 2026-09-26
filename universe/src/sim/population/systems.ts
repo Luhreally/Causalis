@@ -72,6 +72,8 @@ export const POPULATION_EVENTS = {
   peopled: defineEventType("province.peopled", 4),
   cultivation: defineEventType("knowledge.cultivation", 6),
   cultivationSpread: defineEventType("knowledge.cultivation-spread", 3),
+  herding: defineEventType("knowledge.herding", 6),
+  herdingSpread: defineEventType("knowledge.herding-spread", 3),
   founded: defineEventType("settlement.founded", 4),
   market: defineEventType("settlement.market", 5),
 };
@@ -127,9 +129,12 @@ export function occupationTargets(
 ): number[] {
   const t = new Array<number>(COLS).fill(0);
   if (p.knowsCultivation) {
-    t[OCC.farmer] = 0.7;
+    // Herds only where beasts have been tamed (or the taming learned) and there is pasture;
+    // else those hands farm.
+    const herds = cap.pasture > 0 && p.herding ? 0.07 : 0;
+    t[OCC.farmer] = 0.77 - herds;
     t[OCC.forager] = 0.1;
-    t[OCC.herder] = cap.pasture > 0 ? 0.07 : 0;
+    t[OCC.herder] = herds;
     t[OCC.crafter] = 0.06;
     t[OCC.trader] = villages >= 2 ? 0.04 : 0;
     t[OCC.leader] = 0.03;
@@ -151,9 +156,9 @@ export function occupationTargets(
   return t;
 }
 
-/** What a province can feed in a year (person-years) with the ways it knows. */
-export function support(cap: Capacity, knows: boolean): number {
-  return knows ? cap.forage * 0.3 + cap.farm + cap.pasture * 0.5 : cap.forage;
+/** What a province can feed in a year (person-years) with the ways it knows (its pasture only if it keeps herds). */
+export function support(cap: Capacity, knows: boolean, herds = true): number {
+  return knows ? cap.forage * 0.3 + cap.farm + (herds ? cap.pasture * 0.5 : 0) : cap.forage;
 }
 
 export type PopulationContext = {
@@ -573,20 +578,30 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
     const pop = p.total();
     if (pop < 20) continue;
     const c = provinceCapacity(ctx, p.cell),
-      here = support(c, p.knowsCultivation),
+      here = support(c, p.knowsCultivation, p.herding !== null),
       hunger = 1 - p.leanest / 1000,
       crowd = Math.max(0, pop / Math.max(1, here) - 0.85),
-      pressure = 0.6 * hunger + crowd;
+      // Young foraging bands bud off into empty land long before hunger drives them, once
+      // their land holds a quarter of what the wild can feed. (Farmers spreading across
+      // continents waits on the whole planet peopled and paged: milestones 29–30.)
+      budding = p.knowsCultivation
+        ? 0
+        : Math.min(0.3, Math.max(0, pop / Math.max(1, c.forage) - 0.25)),
+      pushed = 0.6 * hunger + crowd,
+      pressure = pushed + budding;
     if (pressure < 0.05) continue;
+    // Budding goes only to empty land; those pushed by hunger or crowding go anywhere better.
+    const buddingOnly = pushed < 0.05;
     const perHere = here / pop;
     const options: { cell: number; attraction: number }[] = [];
     for (let k = g.grid.offsets[p.cell]!; k < g.grid.offsets[p.cell + 1]!; k++) {
       const m = g.grid.neighbours[k]!;
       if (g.tectonics.elevation[m]! <= 0) continue;
-      const there = support(provinceCapacity(ctx, m), p.knowsCultivation),
+      const there = support(provinceCapacity(ctx, m), p.knowsCultivation, p.herding !== null),
         others = peopled(m)?.total() ?? 0,
         attraction = there / (others + 1) - perHere;
-      if (attraction > 0.05 && there > 20) options.push({ cell: m, attraction });
+      if (attraction > 0.05 && there > 20 && (!buddingOnly || !peopled(m)))
+        options.push({ cell: m, attraction });
     }
     if (!options.length) continue;
     options.sort((a, b) =>
@@ -642,6 +657,12 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
           },
           { name: "crowding", value: crowd, contribution: crowd, source: null },
           {
+            name: "young bands seeking their own grounds",
+            value: budding,
+            contribution: budding,
+            source: null,
+          },
+          {
             name: "a dry year",
             value: 1 - p.rain / 1000,
             contribution: Math.max(0, 0.3 * (1 - p.rain / 1000)),
@@ -693,6 +714,7 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
       dest.knowsCultivation = true;
       dest.cultivation = f.from.cultivation;
     }
+    if (f.from.herding && !dest.herding) dest.herding = f.from.herding;
     const markets = marketsOf(world),
       from = markets.of(f.from.cell),
       to = markets.of(f.to),
@@ -725,8 +747,13 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
   }
 }
 
-/** Cultivation, yearly: found under pressure on good land, or learned from neighbours. */
+/**
+ * Cultivation, yearly: found under pressure on good land where a grass with seed
+ * heavy enough to sow grows wild, or learned from neighbours. Herding likewise: found
+ * where a beast that can be tamed lives, or learned.
+ */
 export function knowledgeYear(ctx: PopulationContext, t: SimTime): void {
+  herdingYear(ctx, t);
   const { world, generated: g } = ctx,
     year = yearOfMoment(t),
     learned: { p: Province; from: Province | null; chance: number; crowd: number; soil: number }[] =
@@ -745,6 +772,9 @@ export function knowledgeYear(ctx: PopulationContext, t: SimTime): void {
       continue;
     }
     if (year - p.settledYear < 15) continue;
+    // Only where a grass with seed heavy enough to sow grows wild can sowing be found.
+    const grass = g.life.seedGrass[p.cell]!;
+    if (grass < 0) continue;
     const c = provinceCapacity(ctx, p.cell),
       soil = dmath.clamp(c.farm / Math.max(1, c.areaKm2 * 12), 0, 1),
       crowd = p.total() / Math.max(1, c.forage),
@@ -787,6 +817,16 @@ export function knowledgeYear(ctx: PopulationContext, t: SimTime): void {
             contribution: 0.1,
             source: p.arrival ? { ref: p.arrival, role: "enabler", weight: 1 } : null,
           },
+          {
+            name: "a wild grain to sow",
+            value: g.life.species[g.life.seedGrass[p.cell]!]!.seed,
+            contribution: 0.5,
+            source: {
+              ref: g.life.species[g.life.seedGrass[p.cell]!]!.ref as Ref,
+              role: "enabler",
+              weight: 1,
+            },
+          },
         ],
       });
       p.cultivation = world.events.emit({
@@ -796,6 +836,71 @@ export function knowledgeYear(ctx: PopulationContext, t: SimTime): void {
       });
     }
     p.knowsCultivation = true;
+  }
+}
+
+/** Herding, yearly: found by a settled people where a beast that can be tamed lives, or learned from neighbours. */
+function herdingYear(ctx: PopulationContext, t: SimTime): void {
+  const { world, generated: g } = ctx,
+    year = yearOfMoment(t),
+    made: { p: Province; from: Province | null; beast: number; chance: number }[] = [];
+  for (const p of ctx.provinces.all()) {
+    if (p.herding || !p.knowsCultivation || p.total() < 10) continue;
+    const key = refHash(p.ref);
+    const teachers: Province[] = [];
+    for (let k = g.grid.offsets[p.cell]!; k < g.grid.offsets[p.cell + 1]!; k++) {
+      const n = ctx.provinces.get(g.grid.neighbours[k]!);
+      if (n?.herding) teachers.push(n);
+    }
+    if (teachers.length) {
+      if (world.rng.chance(Math.min(0.5, 0.1 * teachers.length), KNOW, key, t, 3))
+        made.push({ p, from: teachers[0]!, beast: -1, chance: 0 });
+      continue;
+    }
+    const beast = g.life.herdBeast[p.cell]!;
+    if (beast < 0) continue;
+    const s = g.life.species[beast]!,
+      chance = 0.006 * (0.5 + s.docility) * (0.5 + s.growth);
+    if (world.rng.chance(chance, KNOW, key, t, 2)) made.push({ p, from: null, beast, chance });
+  }
+  for (const { p, from, beast, chance } of made) {
+    if (from) {
+      p.herding = world.events.emit({
+        type: POPULATION_EVENTS.herdingSpread.type,
+        subjects: [p.ref, from.ref],
+        place: p.ref,
+        causes: [{ ref: from.herding!, role: "enabler", weight: 1 }],
+      });
+      continue;
+    }
+    const s = g.life.species[beast]!;
+    const decision = world.decisions.record({
+      rule: "knowledge.herding",
+      subject: p.ref,
+      outcome: { beast: s.name },
+      score: chance,
+      threshold: 0,
+      factors: [
+        {
+          name: "a beast that can be tamed",
+          value: s.docility,
+          contribution: 1,
+          source: { ref: s.ref as Ref, role: "enabler", weight: 1 },
+        },
+        {
+          name: "a settled people",
+          value: year - p.settledYear,
+          contribution: 0.3,
+          source: p.cultivation ? { ref: p.cultivation, role: "enabler", weight: 1 } : null,
+        },
+      ],
+    });
+    p.herding = world.events.emit({
+      type: POPULATION_EVENTS.herding.type,
+      place: p.ref,
+      causes: [{ ref: decision, role: "trigger", weight: 1 }],
+      data: { beast: s.name },
+    });
   }
 }
 

@@ -19,6 +19,7 @@ import { makeClimate, type Climate } from "./climate.ts";
 import { makeDeposits, type Deposit } from "./deposits.ts";
 import { makeHydrology, type Hydrology } from "./hydrology.ts";
 import { makeDeepTime, type DeepTime } from "./deeptime.ts";
+import { makeBiosphere, type Biosphere } from "./biosphere.ts";
 import { BOUNDARY, makeTectonics, type Tectonics } from "./plates.ts";
 
 export type HomeWorld = {
@@ -32,6 +33,8 @@ export type HomeWorld = {
   readonly deposits: readonly Deposit[];
   /** The planet's deep past: its ages, and the carbon they buried. */
   readonly deep: DeepTime;
+  /** Life's lineages over those ages, the living world they left, and where the people arose. */
+  readonly life: Biosphere;
   readonly digest: string;
   /**
    * The digest of the ground alone — the star, the planet, its plates and relief. What
@@ -62,6 +65,7 @@ export function generateHomeWorld(
     climate = makeClimate(grid, planet, tectonics.elevation),
     water = makeHydrology(grid, tectonics.elevation, climate.precipitation),
     deep = makeDeepTime(grid, rng, planet, tectonics),
+    life = makeBiosphere(grid, rng, climate, water, tectonics.elevation, deep),
     deposits = makeDeposits(grid, rng, tectonics, climate, water, tectonics.elevation, deep);
   const h = new Hasher().string(prior.name).int(frequency).value(star).value(planet);
   for (const p of tectonics.plates) h.value(p);
@@ -75,6 +79,8 @@ export function generateHomeWorld(
   for (const a of deep.ages) h.value(a);
   hashArray(h, deep.coal);
   hashArray(h, deep.oil);
+  for (const s of life.species) h.value(s);
+  hashArray(h, life.present);
   for (const d of deposits) h.value(d);
   return {
     prior: prior.name,
@@ -86,6 +92,7 @@ export function generateHomeWorld(
     water,
     deposits,
     deep,
+    life,
     digest: h.hex(),
     ground,
   };
