@@ -26,6 +26,7 @@ import {
   makePopulationWorld,
   marketGoodRef,
   marketsOf,
+  powerOf,
   populationContext,
   regionOf,
   prepareSites,
@@ -214,6 +215,22 @@ function province(world: World, cell: number) {
         cleared: w.cleared,
         worn: w.worn,
         lost: w.lost.map((i) => ({ name: g.life.species[i]!.name, ref: g.life.species[i]!.ref })),
+      };
+    })(),
+    // Their works and power: what drives their crafts, the fuel and machines they make.
+    industry: (() => {
+      const m = marketsOf(world).get(cell),
+        last = m?.years.at(-1)?.ledger[0],
+        d = designsOf(world).worksOf(p.ref);
+      return {
+        power: powerOf(ctx, cell),
+        works: d ? { words: designWords(d.parts), ref: d.ref } : null,
+        coal: last?.[G.coal] ?? 0,
+        oil: last?.[G.oil] ?? 0,
+        machines: last?.[G.machines] ?? 0,
+        mine: m?.mine ?? null,
+        well: m?.well ?? null,
+        factory: m?.works ?? null,
       };
     })(),
     // How they build, with the design that explains it (once one has been realized).

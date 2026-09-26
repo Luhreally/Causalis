@@ -75,6 +75,7 @@ export {
   economyYear,
   installEconomy,
   metalYear,
+  powerOf,
 } from "./economy/systems.ts";
 export {
   ACT_EVENTS,
@@ -118,7 +119,7 @@ export {
   languagesYear,
   type Language,
 } from "./culture/languages.ts";
-export { MOST_SEA_STEPS, SEA_STEPS, seaReach, seaSteps } from "./economy/sea.ts";
+export { MOST_SEA_STEPS, SEA_STEPS, seaRange, seaReach, seaSteps } from "./economy/sea.ts";
 export {
   LAW,
   LEADERSHIP,
@@ -217,6 +218,7 @@ export {
   DESIGN_EVENTS,
   DesignStore,
   designsOf,
+  worksFor,
   hostFor,
   houseFor,
   installDesigns,

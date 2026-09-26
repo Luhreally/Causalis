@@ -67,6 +67,16 @@ type ProvinceFacts = {
   realm: RealmFacts;
   faith: FaithFacts;
   house: { words: string; ref: string } | null;
+  industry: {
+    power: number;
+    works: { words: string; ref: string } | null;
+    coal: number;
+    oil: number;
+    machines: number;
+    mine: string | null;
+    well: string | null;
+    factory: string | null;
+  };
   wild: { name: string; ref: string; tame: boolean; niche: string }[];
   herding: string | null;
   ecology: {
@@ -165,6 +175,30 @@ function ecologyRows(e: NonNullable<ProvinceFacts>["ecology"]): [string, string 
   if (e.soil < 0.9)
     rows.push([`Its soils are worn to ${pct(e.soil)} in a hundred of their strength`, e.worn]);
   for (const l of e.lost) rows.push([`The ${l.name} was hunted out here`, l.ref]);
+  return rows;
+}
+
+/** A land's works and power in lines: what drives its crafts, the fuel and machines it makes. */
+function industryRows(i: NonNullable<ProvinceFacts>["industry"]): [string, string | null][] {
+  const rows: [string, string | null][] = [];
+  if (i.works) rows.push([sentenceOf(`their crafts are done in ${i.works.words}`), i.works.ref]);
+  if (i.mine)
+    rows.push([
+      `They dig coal${i.coal ? `: ${i.coal.toLocaleString()} loads last year` : ""}`,
+      i.mine,
+    ]);
+  if (i.well)
+    rows.push([
+      `They draw oil${i.oil ? `: ${i.oil.toLocaleString()} barrels last year` : ""}`,
+      i.well,
+    ]);
+  if (i.factory)
+    rows.push([
+      `Their works make machines${i.machines ? `: ${i.machines.toLocaleString()} last year` : ""}`,
+      i.factory,
+    ]);
+  // Power beyond their own strength, their beasts' and their mills'.
+  if (i.power > 0.21) rows.push([`${i.power.toFixed(1)} kilowatts of power a person`, null]);
   return rows;
 }
 
@@ -436,6 +470,8 @@ export class PlanetPanel {
       ],
       [folk?.house ? sentenceOf(`they build ${folk.house.words}`) : "", folk?.house?.ref ?? null],
       [folk?.herding ? "They keep herds" : "", folk?.herding ?? null],
+      // Their works, fuel and machines, once they have them.
+      ...(folk ? industryRows(folk.industry) : []),
       // Their living world, where it has turned: game, forest and soil against what they were.
       ...(folk ? ecologyRows(folk.ecology) : []),
       // What lives wild here: what can be tamed or sown opens its why.

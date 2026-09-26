@@ -58,6 +58,15 @@ export class Market {
   toolCover = 0;
   clothingCover = 0;
   potteryCover = 0;
+  /** Of machines its workers wear out, and of fuel its engines would burn (Phase 3 M32). */
+  machineCover = 0;
+  powerCover = 0;
+  /** Fuel its engines burned last year (units of coal and oil), for its power. */
+  burned = 0;
+  /** Its first coal dug, first oil drawn and first machines made: the events. */
+  mine: Ref | null = null;
+  well: Ref | null = null;
+  works: Ref | null = null;
   /** What a year of each occupation's work was worth last year, in grain. */
   readonly wage = new Array<number>(OCCUPATIONS.length).fill(0);
   /** What the province's carriers earned moving goods last year, in grain. */
@@ -128,6 +137,12 @@ export class Market {
     h.int(this.toolCover)
       .int(this.clothingCover)
       .int(this.potteryCover)
+      .int(this.machineCover)
+      .int(this.powerCover)
+      .int(this.burned)
+      .string(this.mine ?? "")
+      .string(this.well ?? "")
+      .string(this.works ?? "")
       .float(this.tradeMargin)
       .string(this.metalworking ?? "")
       .string(this.reliefFor ?? "")
@@ -145,6 +160,12 @@ export class Market {
       toolCover: this.toolCover,
       clothingCover: this.clothingCover,
       potteryCover: this.potteryCover,
+      machineCover: this.machineCover,
+      powerCover: this.powerCover,
+      burned: this.burned,
+      mine: this.mine,
+      well: this.well,
+      works: this.works,
       wage: this.wage,
       tradeMargin: this.tradeMargin,
       metalworking: this.metalworking,
@@ -158,16 +179,30 @@ export class Market {
   static load(state: unknown): Market {
     const s = state as ReturnType<Market["save"]> & Record<string, unknown>;
     const m = new Market(s.cell as number);
-    const fill = (into: number[], from: unknown) =>
-      into.splice(0, into.length, ...(from as number[]));
+    // A save from before goods were added holds fewer: those it lacks start empty (at
+    // their usual price), and its ledger's lines are laid out by the goods it had.
+    const had = (s.stock as number[]).length,
+      fill = (into: number[], from: unknown) => {
+        const v = from as number[];
+        for (let i = 0; i < v.length && i < into.length; i++) into[i] = v[i]!;
+      };
     fill(m.stock, s.stock);
     fill(m.price, s.price);
-    fill(m.ledger, s.ledger);
     fill(m.opening, s.opening);
     fill(m.wage, s.wage);
+    const ledger = s.ledger as number[];
+    for (let l = 0; l < LEDGER.length; l++)
+      for (let g = 0; g < had && g < GOOD_COUNT; g++)
+        m.ledger[l * GOOD_COUNT + g] = ledger[l * had + g]!;
     m.toolCover = s.toolCover as number;
     m.clothingCover = s.clothingCover as number;
     m.potteryCover = s.potteryCover as number;
+    m.machineCover = (s.machineCover as number | undefined) ?? 0;
+    m.powerCover = (s.powerCover as number | undefined) ?? 0;
+    m.burned = (s.burned as number | undefined) ?? 0;
+    m.mine = (s.mine as Ref | null | undefined) ?? null;
+    m.well = (s.well as Ref | null | undefined) ?? null;
+    m.works = (s.works as Ref | null | undefined) ?? null;
     m.tradeMargin = s.tradeMargin as number;
     m.metalworking = s.metalworking as Ref | null;
     m.reliefFor = s.reliefFor as Ref | null;
@@ -253,7 +288,8 @@ export class MarketStore implements StateStore {
   /** What history must keep for the markets to explain themselves: roads opened, crafts learned. */
   pinned(): Ref[] {
     const refs = this.allRoutes().map(([, r]) => r);
-    for (const m of this.all()) if (m.metalworking) refs.push(m.metalworking);
+    for (const m of this.all())
+      for (const r of [m.metalworking, m.mine, m.well, m.works]) if (r) refs.push(r);
     return refs;
   }
 

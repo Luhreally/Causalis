@@ -42,6 +42,10 @@ export const EFFECTS = [
   "ships",
   /** For cities (M23): building in stone, building high, water brought. */
   "building",
+  /** Engines a people can drive (Phase 3 M32): steam, then electricity, then the oil engine. */
+  "power",
+  /** How much of their crafts is done in works with engines, fed by fuel. */
+  "industry",
 ] as const;
 export type Effect = (typeof EFFECTS)[number];
 
@@ -375,6 +379,65 @@ export const PRINCIPLES: readonly Principle[] = [
     0.006,
     { leaders: 1, herders: 1 },
     { mounts: 1, arms: 1 },
+  ),
+  // Power and industry (Phase 3 M32): each fuel only where deep time buried it.
+  P("coal-mining", "digging coal", ["iron"], 0.008, { crafters: 1, ore: "coal" }, {}),
+  P(
+    "clockwork",
+    "gears and clocks",
+    ["mathematics", "iron"],
+    0.006,
+    { crafters: 1, traders: 0.3 },
+    {},
+  ),
+  P(
+    "steam-engine",
+    "the steam engine",
+    ["coal-mining", "steel", "clockwork"],
+    0.005,
+    { crafters: 1, ore: "coal" },
+    { power: 1, industry: 0.3 },
+  ),
+  P(
+    "factories",
+    "the factory",
+    ["steam-engine", "banking"],
+    0.006,
+    { crafters: 1, traders: 0.5, town: 1 },
+    { industry: 0.7 },
+  ),
+  P(
+    "railways",
+    "railways",
+    ["steam-engine", "roads"],
+    0.006,
+    { traders: 1, leaders: 0.5 },
+    { haul: 0.3, carrying: 0.3, reach: 1 },
+  ),
+  P(
+    "steamships",
+    "steamships",
+    ["steam-engine", "shipbuilding"],
+    0.006,
+    { traders: 1, coast: true },
+    { ships: 1, carrying: 0.2 },
+  ),
+  P(
+    "electricity",
+    "electricity",
+    ["factories", "philosophy"],
+    0.004,
+    { crafters: 1, leaders: 0.5 },
+    { power: 1, industry: 0.5 },
+  ),
+  P("oil-drilling", "drilling for oil", ["steam-engine"], 0.005, { crafters: 1, ore: "oil" }, {}),
+  P(
+    "engines",
+    "the engine that burns oil",
+    ["oil-drilling", "factories"],
+    0.004,
+    { crafters: 1, traders: 0.5 },
+    { power: 1, haul: 0.2 },
   ),
 ];
 

@@ -20,9 +20,11 @@ import {
 } from "../../kernel/index.ts";
 import { BIOME, cellRef, surfaceOre } from "../../gen/index.ts";
 import {
+  G,
   HOST_ROLES,
   HOUSE_ROLES,
   OCC,
+  WORKS_ROLES,
   compose,
   designWords,
   realization,
@@ -42,11 +44,12 @@ export const DESIGN = defineKind("dsgn", "design", "minted");
 export const DESIGN_EVENTS = {
   house: defineEventType("design.house", 3),
   host: defineEventType("design.host", 4),
+  works: defineEventType("design.works", 3),
 };
 
 export type Design = {
   readonly ref: Ref;
-  readonly kind: "house" | "host";
+  readonly kind: "house" | "host" | "works";
   /** The land (for a house) or the realm (for a host) it belongs to. */
   readonly owner: Ref;
   readonly parts: readonly Part[];
@@ -68,12 +71,17 @@ export class DesignStore implements StateStore {
     const ref = this.current.get(owner);
     return ref ? this.all.get(ref) : undefined;
   }
+  /** The works a land's crafts are done in, now. */
+  worksOf(owner: Ref): Design | undefined {
+    const ref = this.current.get(`works|${owner}`);
+    return ref ? this.all.get(ref) : undefined;
+  }
   /** Every design folded in as it is realized (designs never change once made). */
   private digest = "";
 
   set(d: Design): void {
     this.all.set(d.ref, d);
-    this.current.set(d.owner, d.ref);
+    this.current.set(d.kind === "works" ? `works|${d.owner}` : d.owner, d.ref);
     this.digest = new Hasher().string(this.digest).value(d).hex();
   }
   list(): Design[] {
@@ -240,6 +248,35 @@ export function hostFor(
   };
 }
 
+/** What a land's crafts are done in and driven by, now: none until it knows mills or engines. */
+export function worksFor(ctx: PopulationContext, cell: number): Part[] | null {
+  const p = ctx.provinces.get(cell)!;
+  if (!knows(ctx, cell, "mills") && !knows(ctx, cell, "steam-engine")) return null;
+  const markets = ctx.world.store<MarketStore>("economy.markets"),
+    m = markets.get(cell),
+    at = landMaterials(ctx, cell),
+    // Fuel is at hand where the land digs or draws it, or has it in store.
+    fuel = (g: number, seam: "coal" | "oil") =>
+      (m?.stock[g] ?? 0) > 0 || surfaceOre(ctx.generated, cell, seam);
+  if (fuel(G.coal, "coal")) at.add("coal");
+  if (fuel(G.oil, "oil")) at.add("oil");
+  if (knows(ctx, cell, "iron")) at.add("iron");
+  if (knows(ctx, cell, "steel")) at.add("steel");
+  const crafts = p.occupation(OCC.crafter) / Math.max(1, p.total()),
+    wealth = Math.min(0.4, (p.occupation(OCC.trader) / Math.max(1, p.total())) * 4);
+  const doctrine: Doctrine = {
+    output: 0.6 + 4 * crafts,
+    lasting: 0.2 + wealth,
+    cost: 0.6 - wealth,
+  };
+  return compose(
+    WORKS_ROLES,
+    (id) => knows(ctx, cell, id),
+    (x) => at.has(x),
+    doctrine,
+  );
+}
+
 const same = (a: readonly Part[], b: readonly Part[]) =>
   a.length === b.length &&
   a.every((x, i) => x.id === b[i]!.id && x.material === b[i]!.material && x.role === b[i]!.role);
@@ -284,6 +321,26 @@ export function designYear(ctx: PopulationContext, t: SimTime): void {
         data: { words: designWords(parts) },
       });
     store.set({ ref, kind: "house", owner: p.ref, parts, since: year, event });
+  }
+  // The works of lands that know mills or engines.
+  for (const p of ctx.provinces.all()) {
+    if (!p.total()) continue;
+    const parts = worksFor(ctx, p.cell);
+    if (!parts) continue;
+    const before = store.worksOf(p.ref);
+    if (before && same(before.parts, parts)) continue;
+    const ref = mint(),
+      event = world.events.emit({
+        type: DESIGN_EVENTS.works.type,
+        subjects: [ref],
+        place: p.ref,
+        causes: [
+          { ref: p.ref, role: "constraint", weight: 0.3 },
+          ...principlesOf(ctx, p.cell, parts),
+        ],
+        data: { words: designWords(parts) },
+      });
+    store.set({ ref, kind: "works", owner: p.ref, parts, since: year, event });
   }
   for (const realm of politiesOf(world).living()) {
     const { parts, ores } = hostFor(ctx, realm),

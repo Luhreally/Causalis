@@ -1,6 +1,7 @@
 // The sea (Phase 3 M31): which coasts a people's ships can reach. Sails carry them two
 // provinces of sea out (a few hundred kilometres: from island to island, along a
-// gulf); planked ships four; the stars' courses eight, across a narrow ocean. The
+// gulf); planked ships four; the stars' courses eight, across a narrow ocean;
+// steamships sixteen, across the wide ones (M32). The
 // reach over the sea is the planet's own shape, kept, never saved; what a people
 // know sets how much of it they use.
 import { dmath } from "../../kernel/index.ts";
@@ -8,13 +9,17 @@ import type { HomeWorld } from "../../gen/index.ts";
 import type { LoreStore } from "../lore/lore.ts";
 
 /** Sea provinces a people's ships can cross, by how many of the ship-crafts they know. */
-export const SEA_STEPS: readonly number[] = [0, 2, 4, 8];
+export const SEA_STEPS: readonly number[] = [0, 2, 4, 8, 16];
 export const MOST_SEA_STEPS = SEA_STEPS[SEA_STEPS.length - 1]!;
+
+/** How far over the sea a land's ships carry. */
+export function seaRange(lore: LoreStore, cell: number): number {
+  return SEA_STEPS[Math.min(SEA_STEPS.length - 1, Math.floor(lore.effect(cell, "ships")))]!;
+}
 
 /** How far over the sea the ships of either of two lands carry. */
 export function seaSteps(lore: LoreStore, a: number, b: number): number {
-  const ships = Math.max(lore.effect(a, "ships"), lore.effect(b, "ships"));
-  return SEA_STEPS[Math.min(SEA_STEPS.length - 1, Math.floor(ships))]!;
+  return Math.max(seaRange(lore, a), seaRange(lore, b));
 }
 
 const REACH = new Map<string, readonly (readonly [number, number])[]>();

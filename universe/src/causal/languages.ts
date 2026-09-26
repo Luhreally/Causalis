@@ -1,8 +1,9 @@
-// Languages and the sea in words (docs/architecture §19, §13; Phase 3 M31): a
-// language, its family and where it arose — and why: the speech it grew from, the
-// distance and the rule that parted them; a land going over to its neighbours' or its
-// rulers' speech; a language no one speaks; peoples of two families meeting; the first
-// ships between two coasts.
+// Languages, the sea and industry in words (docs/architecture §19, §13; Phase 3
+// M31–M32): a language, its family and where it arose — and why: the speech it grew
+// from, the distance and the rule that parted them; a land going over to its
+// neighbours' or its rulers' speech; a language no one speaks; peoples of two
+// families meeting; the first ships between two coasts; a land's first coal, oil and
+// machines, and the knowledge and the buried past behind them.
 import { yearOfMoment, type CauseRef, type Ref } from "../kernel/index.ts";
 import { cellRef } from "../gen/index.ts";
 import { ECONOMY_EVENTS, LANGUAGE, LANGUAGE_EVENTS, languagesOf } from "../sim/index.ts";
@@ -74,6 +75,19 @@ registerEventWords(ECONOMY_EVENTS.seaRoute.type, (world, e) => {
   const to = (e.subjects[1] ?? null) as Ref | null;
   return `Ships first sailed from ${landWords(world, e.place)} to ${landWords(world, to)}, ${year(e.t)}`;
 });
+// Industry: a land's first coal, first oil and first machines.
+registerEventWords(ECONOMY_EVENTS.mine.type, (world, e) => {
+  const n = num(e.data, "coal");
+  return `Coal was first dug in ${landWords(world, e.place)}${n ? `, ${count(n)} loads in the first year` : ""}, ${year(e.t)}`;
+});
+registerEventWords(
+  ECONOMY_EVENTS.well.type,
+  (world, e) => `Oil was first drawn from the ground of ${landWords(world, e.place)}, ${year(e.t)}`,
+);
+registerEventWords(
+  ECONOMY_EVENTS.works.type,
+  (world, e) => `The works of ${landWords(world, e.place)} first made machines, ${year(e.t)}`,
+);
 registerDecisionWords(
   "language.arise",
   (world, d) => `The speech of ${landWords(world, d.subject)} grew apart from its own`,

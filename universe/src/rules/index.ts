@@ -2,13 +2,18 @@
 // principles, body-plan primitives and the rest as later milestones need them.
 // May import: kernel. See README.md and docs/architecture §34.
 export {
+  ENGINE_GAIN,
   FOODS,
   FORAGER_HIDES,
+  FUELS,
   G,
+  GLUT_YEARS,
   GOODS,
   HERD_GOODS,
   HOME_MADE,
+  MACHINE_GAIN,
   PORTERAGE_PER_PERSON,
+  POWER,
   RECIPES,
   TOOL_GAIN,
   TOOL_USERS,
@@ -45,6 +50,8 @@ export {
   HOST_ROLES,
   HOUSE_AXES,
   HOUSE_ROLES,
+  WORKS_AXES,
+  WORKS_ROLES,
   MATERIAL,
   MATERIALS,
   REALIZATIONS,

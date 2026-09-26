@@ -50,6 +50,7 @@ import {
   HUMANLIKE,
   MALE,
   OCC,
+  MACHINE_GAIN,
   TOOL_GAIN,
   PRODUCTIVITY,
   SEXES,
@@ -264,7 +265,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       alive = wildsOf(ctx, p.cell),
       key = refHash(p.ref),
       rain = p.rain / 1000,
-      tools = 1 + (TOOL_GAIN * m.toolCover) / 1000,
+      tools = (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000),
       pots = m.potteryCover / 1000,
       // What the land's people know: better fields, flocks and hunting, stores that keep.
       lore = loreOf(world),

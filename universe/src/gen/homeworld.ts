@@ -17,6 +17,7 @@ import type { Prior } from "../rules/index.ts";
 import { makePlanet, makeStar, type Planet, type Star } from "./bodies.ts";
 import { makeClimate, type Climate } from "./climate.ts";
 import { makeDeposits, type Deposit } from "./deposits.ts";
+import { ageRef } from "./kinds.ts";
 import { makeHydrology, type Hydrology } from "./hydrology.ts";
 import { makeDeepTime, type DeepTime } from "./deeptime.ts";
 import { makeBiosphere, type Biosphere } from "./biosphere.ts";
@@ -115,15 +116,21 @@ export function surfaceCopper(w: HomeWorld, cell: number): boolean {
   return u < (belt ? 0.3 : 0.15);
 }
 
+/** Buried carbon enough for a seam of coal, or a field of oil, worth working (the deep past's units). */
+export const SEAM = { coal: 12, oil: 12 } as const;
+
 /**
  * Ores at or near the surface, by kind: small showings a first people can work,
  * too small to count among the world's deposits. Copper is surfaceCopper's rule;
  * tin shows where granites of old collisions are worn open; iron as bog iron in
- * wet lowlands and in hills; salt in dry basins and along coasts. Pure functions
- * of the generated world.
+ * wet lowlands and in hills; salt in dry basins and along coasts; coal and oil
+ * wherever the deep past buried enough of its swamp forests and plankton. Pure
+ * functions of the generated world.
  */
 export function surfaceOre(w: HomeWorld, cell: number, kind: string): boolean {
   if (kind === "copper") return surfaceCopper(w, cell);
+  if (kind === "coal") return w.tectonics.elevation[cell]! > 0 && w.deep.coal[cell]! >= SEAM.coal;
+  if (kind === "oil") return w.deep.oil[cell]! >= SEAM.oil;
   const t = w.tectonics,
     e = t.elevation[cell]!;
   if (e <= 0) return false;
@@ -144,4 +151,16 @@ export function surfaceOre(w: HomeWorld, cell: number, kind: string): boolean {
     default:
       return false;
   }
+}
+
+/**
+ * What laid down a land's coal or oil, to cite: the world's named field there if there is
+ * one, else the age that buried it (null where there is none to work).
+ */
+export function seamRef(w: HomeWorld, cell: number, kind: "coal" | "oil"): string | null {
+  const field = w.deposits.find((d) => d.cell === cell && d.kind === kind);
+  if (field) return field.ref;
+  if (!surfaceOre(w, cell, kind)) return null;
+  const age = kind === "coal" ? w.deep.coalAge[cell]! : w.deep.oilAge[cell]!;
+  return age === 255 ? null : ageRef(0, age);
 }

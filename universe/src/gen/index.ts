@@ -14,6 +14,8 @@ export {
 export {
   PLANET_FREQUENCY,
   generateHomeWorld,
+  SEAM,
+  seamRef,
   surfaceCopper,
   surfaceOre,
   type HomeWorld,

@@ -14,7 +14,9 @@ registerExplainer(DESIGN.code, (world, ref) => {
   const whose =
     d.kind === "house"
       ? `In ${landWords(world, d.owner)} people build ${designWords(d.parts)}`
-      : `${cap(realmName(politiesOf(world).get(d.owner) ?? { leadership: 0, town: "a realm" }))} fights with ${designWords(d.parts)}`;
+      : d.kind === "works"
+        ? `In ${landWords(world, d.owner)} the crafts are done in ${designWords(d.parts)}`
+        : `${cap(realmName(politiesOf(world).get(d.owner) ?? { leadership: 0, town: "a realm" }))} fights with ${designWords(d.parts)}`;
   const causes: CauseRef[] = [{ ref: d.event, role: "trigger", weight: 1 }];
   return {
     ref,
@@ -33,6 +35,11 @@ registerEventWords(
   DESIGN_EVENTS.house.type,
   (world, e) =>
     `In ${landWords(world, e.place)} people began to build ${words(e.data)}, year ${yearOfMoment(e.t)}`,
+);
+registerEventWords(
+  DESIGN_EVENTS.works.type,
+  (world, e) =>
+    `In ${landWords(world, e.place)} the crafts came to be done in ${words(e.data)}, year ${yearOfMoment(e.t)}`,
 );
 registerEventWords(DESIGN_EVENTS.host.type, (world, e) => {
   const realm = politiesOf(world).get(e.subjects[1]!);

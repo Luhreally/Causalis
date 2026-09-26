@@ -22,7 +22,7 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { cellRef, surfaceOre, tongueLikeness } from "../../gen/index.ts";
+import { cellRef, seamRef, surfaceOre, tongueLikeness } from "../../gen/index.ts";
 import {
   EFFECTS,
   OCC,
@@ -218,7 +218,14 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           name: `${d.ore} within reach`,
           value: ore === cell ? 1 : 0.5,
           contribution: 0.5,
-          source: { ref: cellRef(0, ore), role: "enabler", weight: 1 },
+          // Coal and oil cite what laid them down: the field, or the age that buried it.
+          source: {
+            ref:
+              ((d.ore === "coal" || d.ore === "oil") && (seamRef(g, ore, d.ore) as Ref | null)) ||
+              cellRef(0, ore),
+            role: "enabler",
+            weight: 1,
+          },
         });
       found = { cell, p, found: true, factors: factors.slice(0, 6), causes: [] };
       break;

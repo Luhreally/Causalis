@@ -2078,6 +2078,26 @@ seat rule a step further. The tongues lens colours lands by language, hues by
 family. A year costs 0.43 s on average and 0.68 s at the 99th percentile on the
 phone proxy.
 
+32, as built: coal lies wherever deep time buried enough swamp forest, oil enough
+plankton (`SEAM`, `seamRef` in `gen/homeworld.ts`: a named field, else the age that
+laid it). Nine principles follow iron and steel: digging coal (found only near a
+seam), gears and clocks, the steam engine, the factory, railways, steamships (the sea
+crossed sixteen provinces out), electricity, drilling for oil (only near a field) and
+the oil engine; `power` and `industry` are their effects. Coal, oil and machines are
+goods: coal is dug and oil drawn from a land's own seam, machines made in works from
+tools and coal; where it is cold, those who know coal burn it for warmth; a land's
+works burn fuel in proportion to its crafters and its industry, and what they get
+drives them (up to two and a half times the crafts); machines, worn like tools, raise
+what farmers, herders and crafters make by half. Fuel and machines are made only
+while the stock is under three years of their use. A land's first coal, oil and
+machines are events whose why walks back to the knowledge and to the age that buried
+the fuel. Power per person (their own strength, beasts, mills, and each unit of fuel
+burned) is a fact of every land. The design grammar gains the works a land's crafts
+are done in and what drives them (workshops worked by hand to steel-framed halls run
+by electric motors). Industry arrives only as the lore reaches steel and banking —
+after the chronicle's fifth century on the Earth seed; M34 calibrates when. A year
+costs 0.45 s on average and 0.79 s at the 99th percentile on the phone proxy.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

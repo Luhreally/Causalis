@@ -5,7 +5,8 @@
 // warmth with its mass), and a doctrine — weights over the performance axes, drawn
 // from the people's land and ways — picks each role's component greedily, with no
 // search. v1 builds two kinds: the house a land's people live in, and the host a
-// realm goes to war with.
+// realm goes to war with; Phase 3 adds a third, the works a land's crafts are done in
+// and what drives them.
 
 export const MATERIALS = [
   "wood",
@@ -20,6 +21,9 @@ export const MATERIALS = [
   "bronze",
   "iron",
   "steel",
+  /** Fuels, at hand where a land digs or draws them, or has them in store. */
+  "coal",
+  "oil",
 ] as const;
 export type Material = (typeof MATERIALS)[number];
 
@@ -41,6 +45,8 @@ export const MATERIAL: Readonly<
   bronze: { edge: 0.7, guard: 0.5, mass: 0, lasting: 0.7, cost: 0.8 },
   iron: { edge: 0.8, guard: 0.6, mass: 0, lasting: 0.75, cost: 0.5 },
   steel: { edge: 1, guard: 0.8, mass: 0, lasting: 0.9, cost: 0.7 },
+  coal: { edge: 0, guard: 0, mass: 0, lasting: 0, cost: 0.2 },
+  oil: { edge: 0, guard: 0, mass: 0, lasting: 0, cost: 0.3 },
 };
 
 export const HOST_AXES = ["shock", "reach", "range", "protection", "mobility", "cost"] as const;
@@ -53,12 +59,16 @@ export const HOUSE_AXES = [
   "mobile",
   "cost",
 ] as const;
-export type Axis = (typeof HOST_AXES)[number] | (typeof HOUSE_AXES)[number];
+export const WORKS_AXES = ["output", "lasting", "cost"] as const;
+export type Axis =
+  (typeof HOST_AXES)[number] | (typeof HOUSE_AXES)[number] | (typeof WORKS_AXES)[number];
 export type Performance = Partial<Record<Axis, number>>;
 
 export const HOST_ROLES = ["arm", "guard", "mount"] as const;
 export const HOUSE_ROLES = ["walls", "roof", "form"] as const;
-export type Role = (typeof HOST_ROLES)[number] | (typeof HOUSE_ROLES)[number];
+export const WORKS_ROLES = ["hall", "drive"] as const;
+export type Role =
+  (typeof HOST_ROLES)[number] | (typeof HOUSE_ROLES)[number] | (typeof WORKS_ROLES)[number];
 
 export type Realization = {
   readonly id: string;
@@ -339,6 +349,91 @@ export const REALIZATIONS: readonly Realization[] = [
     () => "built around courtyards",
     () => ({ room: 0.6, cool: 0.5, cost: 0.3 }),
   ),
+  // The works: the hall the crafts are done in, and what drives them.
+  R(
+    "workshop",
+    "hall",
+    [],
+    ["wood", "mud", "fired clay", "stone"],
+    (m) => `workshops of ${m === "fired clay" ? "brick" : m}`,
+    (m) => ({
+      output: 0.1,
+      lasting: MATERIAL[m].lasting * 0.5,
+      cost: 0.05 + 0.1 * MATERIAL[m].cost,
+    }),
+  ),
+  R(
+    "mill-house",
+    "hall",
+    ["mills"],
+    ["wood", "stone"],
+    (m) => `mill-houses of ${m}`,
+    (m) => ({
+      output: 0.25,
+      lasting: MATERIAL[m].lasting * 0.6,
+      cost: 0.1 + 0.15 * MATERIAL[m].cost,
+    }),
+  ),
+  R(
+    "factory",
+    "hall",
+    ["factories"],
+    ["fired clay", "stone", "iron"],
+    (m) => `${m === "fired clay" ? "brick" : m} factories with tall chimneys`,
+    (m) => ({
+      output: 0.5,
+      lasting: MATERIAL[m].lasting * 0.8,
+      cost: 0.2 + 0.2 * MATERIAL[m].cost,
+    }),
+  ),
+  R(
+    "steel-hall",
+    "hall",
+    ["electricity", "steel"],
+    ["steel"],
+    () => "steel-framed works halls",
+    () => ({ output: 0.7, lasting: 0.8, cost: 0.35 }),
+  ),
+  R(
+    "hands",
+    "drive",
+    [],
+    ["wood"],
+    () => "worked by hand",
+    () => ({ output: 0.1, cost: 0 }),
+  ),
+  R(
+    "wheel-and-sail",
+    "drive",
+    ["mills"],
+    ["wood"],
+    () => "driven by wind and water",
+    () => ({ output: 0.3, cost: 0.1 }),
+  ),
+  R(
+    "steam",
+    "drive",
+    ["steam-engine"],
+    ["coal"],
+    () => "driven by steam engines fired with coal",
+    (m) => ({ output: 0.7, cost: 0.15 + MATERIAL[m].cost }),
+  ),
+  R(
+    "electric",
+    "drive",
+    ["electricity"],
+    ["coal", "oil"],
+    (m) => `run by electric motors, their power raised with ${m}`,
+    (m) => ({ output: 0.9, cost: 0.2 + MATERIAL[m].cost }),
+  ),
+  R(
+    "oil-engine",
+    "drive",
+    ["engines"],
+    ["oil"],
+    () => "driven by engines that burn oil",
+    (m) => ({ output: 0.8, cost: 0.15 + MATERIAL[m].cost }),
+  ),
 ];
 
 /** Weights over the performance axes: what a people want of what they build. */
@@ -419,6 +514,7 @@ export function designWords(parts: readonly Part[]): string {
     const guard = parts.find((p) => p.role === "guard");
     return `${say("arm")}${guard && guard.id !== "bare" ? ` and ${say("guard")}` : ""}, ${say("mount")}`;
   }
+  if (parts.some((p) => p.role === "hall")) return `${say("hall")}, ${say("drive")}`;
   if (parts.some((p) => p.id === "tent")) return "tents of hide";
   const form = say("form");
   return `houses of ${say("walls")} with ${say("roof")}${form === "round" ? ", round" : form === "long" ? ", long" : form ? `, ${form}` : ""}`;

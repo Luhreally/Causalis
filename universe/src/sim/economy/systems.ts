@@ -21,16 +21,21 @@ import {
   type SimTime,
   type World,
 } from "../../kernel/index.ts";
-import { cellRef, surfaceCopper } from "../../gen/index.ts";
+import { cellRef, seamRef, surfaceCopper, surfaceOre } from "../../gen/index.ts";
 import { loreOf } from "../lore/lore.ts";
 import {
+  ENGINE_GAIN,
   FOODS,
   FORAGER_HIDES,
+  FUELS,
   G,
   GOODS,
   HERD_GOODS,
   HOME_MADE,
+  GLUT_YEARS,
+  MACHINE_GAIN,
   OCC,
+  POWER,
   PORTERAGE_PER_PERSON,
   PRODUCTIVITY,
   RECIPES,
@@ -49,7 +54,7 @@ import {
   type PopulationContext,
 } from "../population/systems.ts";
 import { GOOD_COUNT, type Market, type MarketStore, type TradeFlow } from "./market.ts";
-import { kmBetween, seaReach, seaSteps } from "./sea.ts";
+import { kmBetween, seaRange, seaReach } from "./sea.ts";
 
 const SPREADING = purpose("spread");
 const HERDS = defineStream("econ.herds");
@@ -60,6 +65,9 @@ const METAL = defineStream("econ.metal");
 export const ECONOMY_EVENTS = {
   route: defineEventType("trade.route-opened", 3),
   seaRoute: defineEventType("trade.sea-route", 4),
+  mine: defineEventType("industry.mine", 4),
+  well: defineEventType("industry.well", 4),
+  works: defineEventType("industry.works", 5),
   relief: defineEventType("trade.relief", 4),
   metalworking: defineEventType("knowledge.metalworking", 6),
   metalworkingSpread: defineEventType("knowledge.metalworking-spread", 3),
@@ -111,8 +119,11 @@ function oreFor(ctx: PopulationContext, cell: number, kind: string): Ore | null 
 }
 
 function canMake(ctx: PopulationContext, p: Province, m: Market, r: Recipe): boolean {
-  if (r.needs?.knowledge === "metalworking" && !m.metalworking) return false;
+  const know = r.needs?.knowledge;
+  if (know === "metalworking" && !m.metalworking) return false;
+  if (know && know !== "metalworking" && !loreOf(ctx.world).get(p.cell, know)) return false;
   if (r.needs?.deposit && !oreFor(ctx, p.cell, r.needs.deposit)) return false;
+  if (r.needs?.seam && !surfaceOre(ctx.generated, p.cell, r.needs.seam)) return false;
   if (r.clay && !ctx.generated.water.river[p.cell] && !ctx.generated.water.lake[p.cell])
     return false;
   return true;
@@ -175,23 +186,35 @@ function makeAndUse(
 
   // What wears out in a year: tools by those who work with them, clothing and pots by everyone.
   const users = TOOL_USERS.reduce((s, o) => s + p.occupation(o), 0);
-  const wants: [number, number, "toolCover" | "clothingCover" | "potteryCover"][] = [
+  const lore = loreOf(world),
+    // Works with engines: how much of the crafts they do, and the machines their workers use.
+    industry = Math.min(1.5, lore.effect(p.cell, "industry")),
+    machines = !!lore.get(p.cell, "steam-engine");
+  const wants: [number, number, "toolCover" | "clothingCover" | "potteryCover" | "machineCover"][] =
     [
-      G.tools,
-      roundKeyed(users * WANTS.toolsPerWorker, world.rng.real(WEAR, key, t, G.tools)),
-      "toolCover",
-    ],
-    [
-      G.clothing,
-      roundKeyed(pop * WANTS.clothingPerPerson, world.rng.real(WEAR, key, t, G.clothing)),
-      "clothingCover",
-    ],
-    [
-      G.pottery,
-      roundKeyed(pop * WANTS.potteryPerPerson, world.rng.real(WEAR, key, t, G.pottery)),
-      "potteryCover",
-    ],
-  ];
+      [
+        G.tools,
+        roundKeyed(users * WANTS.toolsPerWorker, world.rng.real(WEAR, key, t, G.tools)),
+        "toolCover",
+      ],
+      [
+        G.clothing,
+        roundKeyed(pop * WANTS.clothingPerPerson, world.rng.real(WEAR, key, t, G.clothing)),
+        "clothingCover",
+      ],
+      [
+        G.pottery,
+        roundKeyed(pop * WANTS.potteryPerPerson, world.rng.real(WEAR, key, t, G.pottery)),
+        "potteryCover",
+      ],
+      [
+        G.machines,
+        machines
+          ? roundKeyed(users * WANTS.machinesPerWorker, world.rng.real(WEAR, key, t, G.machines))
+          : 0,
+        "machineCover",
+      ],
+    ];
   const needOf = (g: number) => wants.find((w) => w[0] === g)?.[1] ?? 0;
 
   // Households make part of what they need themselves, if they have what it takes.
@@ -207,21 +230,34 @@ function makeAndUse(
     m.move("made", out, Math.floor(years * per));
   }
 
-  // What the land knows makes its crafters more skilled at what they make.
-  const lore = loreOf(world),
+  // What the land knows makes its crafters more skilled at what they make; engines fed
+  // with fuel and machines to work with make them more so.
+  const powered =
+      (1 + (ENGINE_GAIN * industry * m.powerCover) / 1000) *
+      (1 + (MACHINE_GAIN * m.machineCover) / 1000),
     skill = (g: number) =>
-      1 +
-      (g === G.tools
-        ? lore.effect(p.cell, "tools")
-        : g === G.clothing
-          ? lore.effect(p.cell, "clothing")
-          : g === G.pottery
-            ? lore.effect(p.cell, "pottery")
-            : 0);
+      powered *
+      (1 +
+        (g === G.tools
+          ? lore.effect(p.cell, "tools")
+          : g === G.clothing
+            ? lore.effect(p.cell, "clothing")
+            : g === G.pottery
+              ? lore.effect(p.cell, "pottery")
+              : 0));
 
   // Crafters go where their work is worth most; what lacks inputs sends them to what needs none.
+  // Fuel and machines are made only while there is use for them: up to GLUT_YEARS of
+  // what the land burned, wore out and sold last year.
+  const last = m.years.at(-1)?.ledger,
+    room = (g: number) =>
+      FUELS.includes(g) || g === G.machines
+        ? GLUT_YEARS * ((last?.[1]?.[g] ?? 0) + (last?.[3]?.[g] ?? 0) + 1) - m.stock[g]!
+        : Infinity;
   const crafters = p.occupation(OCC.crafter),
-    open = RECIPES.map((r, i) => ({ r, i })).filter(({ r }) => canMake(ctx, p, m, r));
+    open = RECIPES.map((r, i) => ({ r, i })).filter(
+      ({ r }) => canMake(ctx, p, m, r) && room(r.output[0]) > 0,
+    );
   if (crafters > 0 && open.length) {
     const weights = open.map(({ r }) => {
       const w = Math.max(0, worth(m, r));
@@ -236,14 +272,19 @@ function makeAndUse(
     let spare = 0;
     open.forEach(({ r }, k) => {
       for (const [g, per] of r.inputs) want[g] = want[g]! + alloc[k]! * per;
-      const limit = inputLimit(m, r);
+      const reach = r.needs?.deposit ? oreFor(ctx, p.cell, r.needs.deposit)!.reach : 1,
+        each = r.output[1] * reach * skill(r.output[0]),
+        limit = Math.min(inputLimit(m, r), Math.ceil(room(r.output[0]) / Math.max(1e-9, each)));
       if (alloc[k]! > limit) {
         spare += alloc[k]! - limit;
         alloc[k] = limit;
       }
     });
     if (spare) {
-      const free = open.map(({ r }, k) => (r.inputs.length ? 0 : Math.max(0, weights[k]!) + 1e-9));
+      // To what needs no inputs, and has room for more.
+      const free = open.map(({ r }, k) =>
+        r.inputs.length || room(r.output[0]) !== Infinity ? 0 : Math.max(0, weights[k]!) + 1e-9,
+      );
       if (free.some((w) => w > 0))
         apportion(
           spare,
@@ -270,10 +311,83 @@ function makeAndUse(
   for (const [g, need, cover] of wants) {
     const had = m.take("used", g, need);
     want[g] = want[g]! + need;
-    m[cover] = need > 0 ? Math.round((1000 * had) / need) : 1000;
+    m[cover] = need > 0 ? Math.round((1000 * had) / need) : g === G.machines ? 0 : 1000;
   }
+  // Where it is cold, those who know coal burn it for warmth.
+  const cold = Math.min(1, Math.max(0, (12 - ctx.generated.climate.temperature[p.cell]!) / 12)),
+    heat = lore.get(p.cell, "coal-mining")
+      ? roundKeyed(pop * cold * WANTS.heatPerPerson, world.rng.real(WEAR, key, t, 90))
+      : 0;
+  if (heat) {
+    m.take("used", G.coal, heat);
+    want[G.coal] = want[G.coal]! + heat;
+  }
+  // The engines of its works burn coal, else oil: what they get is what they can drive.
+  const fuel = Math.round(crafters * industry * WANTS.fuelPerCrafter);
+  let burned = 0;
+  for (const g of FUELS) {
+    burned += m.take("used", g, fuel - burned);
+    want[g] = want[g]! + (g === FUELS[0] ? fuel : 0);
+  }
+  m.burned = burned;
+  m.powerCover = fuel > 0 ? Math.round((1000 * burned) / fuel) : 0;
+  firsts(ctx, p, m);
   // Food wanted over the year: a month's for everyone, twelve times.
   for (const g of FOODS) want[g] = want[g]! + (pop * 12) / FOODS.length;
+}
+
+/**
+ * A land's first coal dug, first oil drawn and first machines made, told once each: the
+ * knowledge that let them, and what the deep past laid down there (or the road the coal
+ * came down).
+ */
+function firsts(ctx: PopulationContext, p: Province, m: Market): void {
+  const { world, generated: g } = ctx,
+    lore = loreOf(world);
+  const tell = (
+    type: string,
+    knowledge: string,
+    enabler: Ref | null,
+    data: Record<string, unknown>,
+  ): Ref => {
+    const causes: CauseRef[] = [];
+    const k = lore.get(p.cell, knowledge);
+    if (k) causes.push({ ref: k.event, role: "trigger", weight: 0.6 });
+    if (enabler) causes.push({ ref: enabler, role: "enabler", weight: 0.4 });
+    return world.events.emit({ type, place: p.ref, causes, data });
+  };
+  if (!m.mine && m.line("made", G.coal) > 0)
+    m.mine = tell(ECONOMY_EVENTS.mine.type, "coal-mining", seamRef(g, p.cell, "coal") as Ref, {
+      coal: m.line("made", G.coal),
+    });
+  if (!m.well && m.line("made", G.oil) > 0)
+    m.well = tell(ECONOMY_EVENTS.well.type, "oil-drilling", seamRef(g, p.cell, "oil") as Ref, {
+      oil: m.line("made", G.oil),
+    });
+  if (!m.works && m.line("made", G.machines) > 0) {
+    // The coal its works burned: its own mine's, or what a road brought in.
+    const markets = marketsOf(world),
+      road = markets.flows.find((f) => f.to === p.cell && f.good === G.coal);
+    m.works = tell(
+      ECONOMY_EVENTS.works.type,
+      "factories",
+      m.mine ?? (road ? (markets.route(road.from, road.to) ?? null) : null),
+      { machines: m.line("made", G.machines) },
+    );
+  }
+}
+
+/** A land's power, in kilowatts a person: its people's own strength, its beasts' and mills', and what its engines burned last year. */
+export function powerOf(ctx: PopulationContext, cell: number): number {
+  const lore = loreOf(ctx.world),
+    m = marketsOf(ctx.world).get(cell),
+    people = Math.max(1, ctx.provinces.get(cell)?.total() ?? 0);
+  return (
+    POWER.muscle +
+    (lore.get(cell, "draught") ? POWER.beasts : 0) +
+    (lore.get(cell, "mills") ? POWER.mills : 0) +
+    ((m?.burned ?? 0) * POWER.perFuel) / people
+  );
 }
 
 type Edge = { a: number; b: number; cost: number; sea: boolean };
@@ -311,11 +425,13 @@ function edges(ctx: PopulationContext): Edge[] {
   const across = new Set<string>();
   for (const p of ctx.provinces.all()) {
     if (!p.total() || !lore.effect(p.cell, "ships")) continue;
-    const a = p.cell;
+    // Each land's own ships: the pair is joined if either's reach the other.
+    const a = p.cell,
+      range = seaRange(lore, a);
     let taken = 0;
     for (const [b, steps] of seaReach(g, a)) {
-      if (taken >= SEA_PARTNERS) break;
-      if (steps > seaSteps(lore, a, b) || !ctx.provinces.get(b)?.total()) continue;
+      if (taken >= SEA_PARTNERS || steps > range) break;
+      if (!ctx.provinces.get(b)?.total()) continue;
       taken++;
       across.add(a < b ? `${a}:${b}` : `${b}:${a}`);
     }
@@ -521,7 +637,7 @@ function reprice(p: Province, m: Market, want: readonly number[]): void {
 function wages(ctx: PopulationContext, p: Province, m: Market): void {
   const c = provinceCapacity(ctx, p.cell),
     rain = p.rain / 1000,
-    tools = 1 + (TOOL_GAIN * m.toolCover) / 1000,
+    tools = (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000),
     margin = (capacity: number, workers: number, productivity: number) =>
       capacity > 0 ? 12 * productivity * dmath.exp((-workers * productivity) / capacity) : 0;
   const w = m.wage;
