@@ -103,3 +103,21 @@ export {
   type Ways,
   type WayTrait,
 } from "./culture/culture.ts";
+export {
+  LAW,
+  LEADERSHIP,
+  POLITY,
+  POLITY_EVENTS,
+  PolityStore,
+  REALM_WORDS,
+  SUCCESSION,
+  governmentKey,
+  institutionsOf,
+  installPolities,
+  politiesOf,
+  polityYear,
+  realmName,
+  type Discontent,
+  type Polity,
+  type Ruler,
+} from "./polity/polity.ts";

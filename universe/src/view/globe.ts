@@ -9,6 +9,7 @@ export const LENSES = [
   "people",
   "food",
   "tongues",
+  "realms",
   "height",
   "temperature",
   "rain",
@@ -22,6 +23,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   people: "People",
   food: "Food",
   tongues: "Tongues",
+  realms: "Realms",
   height: "Height",
   temperature: "Warmth",
   rain: "Rain",
@@ -200,6 +202,7 @@ export function globeColors(
         col = hue((p * 0.61803398875) % 1, continental ? 0.45 : 0.7, sea ? 0.55 : 0.9);
         break;
       }
+      case "realms":
       case "tongues": {
         const tongue = colors?.get(c);
         if (tongue) col = tongue;

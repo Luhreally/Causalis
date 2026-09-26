@@ -17,7 +17,13 @@ import {
 } from "../kernel/index.ts";
 import { cellRef } from "../gen/index.ts";
 import { HUMANLIKE, OCC } from "../rules/index.ts";
-import { ECONOMY_EVENTS, POPULATION_EVENTS, marketsOf, populationContext } from "../sim/index.ts";
+import {
+  ECONOMY_EVENTS,
+  POPULATION_EVENTS,
+  marketsOf,
+  politiesOf,
+  populationContext,
+} from "../sim/index.ts";
 import { MEMORY, catchUp, observer, type LifeEvent, type Memory, type Person } from "./observer.ts";
 
 const CHARACTER = defineStream("observe.character");
@@ -40,6 +46,7 @@ const SALIENCE: Readonly<Record<string, number>> = {
   "took-up-herding": 2,
   "kept-old-ways": 2,
   "chosen-to-lead": 3,
+  "took-up-leading": 2.5,
   plague: 4.5,
   "died-plague": 5,
   healing: 3,
@@ -205,10 +212,15 @@ export function deepen(world: World, person: Person): Person {
     province?.cultivation
   )
     add(grownAt, "kept-old-ways", province.cultivation);
-  else if (person.occupation === OCC.leader && person.village) {
-    // Leaders are chosen from those who have lived a while among their people.
+  else if (person.occupation === OCC.leader) {
+    // Leaders come of age into the service of their realm (or their village), and
+    // are chosen to lead once they have lived a while among their people.
+    const realm = politiesOf(world).of(homeAt);
+    if (grownAt >= 0 && grownAt <= to)
+      add(grownAt, "took-up-leading", realm?.ref ?? person.village ?? cellRef(0, homeAt));
     const chosenAt = person.birthYear + 30;
-    if (chosenAt >= 0 && chosenAt <= to) add(chosenAt, "chosen-to-lead", person.village);
+    if (person.village && chosenAt >= 0 && chosenAt <= to)
+      add(chosenAt, "chosen-to-lead", person.village);
   }
   life.sort((a, b) => a.year - b.year || (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0));
   // Memories: the most striking of what they lived through — what they saw young

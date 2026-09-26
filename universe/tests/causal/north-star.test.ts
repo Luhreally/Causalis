@@ -23,6 +23,7 @@ function domainOf(world: World, ref: string): string {
   if (kind === "memo" || kind === "prsn" || kind === "hhold") return "observer";
   if (["star", "plnt", "plate", "cell", "depo"].includes(kind)) return "planet";
   if (kind === "mkt") return "economy";
+  if (kind === "pol") return "realm";
   if (kind === "town") return "people";
   const type =
     kind === "ev"
@@ -31,6 +32,7 @@ function domainOf(world: World, ref: string): string {
         ? (world.decisions.get(ref as Ref)?.rule ?? "")
         : "";
   if (/^trade/.test(type)) return "economy";
+  if (/^polity/.test(type)) return "realm";
   if (/^knowledge/.test(type)) return "knowledge";
   if (/^weather/.test(type)) return "weather";
   return "people";

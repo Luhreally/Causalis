@@ -153,7 +153,11 @@ for (const engine of engines) {
           () =>
             [...document.querySelectorAll(".panel:not([hidden]) .inspector h3")].some(
               (h) => h.textContent === "Their market",
-            ) && document.querySelectorAll(".panel:not([hidden]) .inspector .line").length > 3,
+            ) &&
+            [...document.querySelectorAll(".panel:not([hidden]) .inspector h3")].some(
+              (h) => h.textContent === "Their rulers",
+            ) &&
+            document.querySelectorAll(".panel:not([hidden]) .inspector .line").length > 3,
           undefined,
           { timeout: 10000 },
         );

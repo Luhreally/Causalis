@@ -63,7 +63,7 @@ const KEPT_NUDGES = 6;
 export const PUSHES: Readonly<Record<string, readonly (readonly [WayTrait, number])[]>> = {
   "people.famine": [
     ["thrift", 0.04],
-    ["piety", 0.02],
+    ["piety", 0.015],
     ["openness", -0.01],
   ],
   "trade.relief": [
@@ -86,7 +86,7 @@ export const PUSHES: Readonly<Record<string, readonly (readonly [WayTrait, numbe
   "knowledge.metalworking": [["tradition", -0.03]],
   "knowledge.metalworking-spread": [["tradition", -0.01]],
   "province.peopled": [["openness", 0.02]],
-  "weather.drought": [["piety", 0.01]],
+  "weather.drought": [["piety", 0.005]],
   "act.rain": [["piety", 0.06]],
   "act.harvest": [["piety", 0.06]],
   "act.plague": [["piety", 0.08]],
@@ -237,7 +237,9 @@ export function cultureYear(ctx: PopulationContext, t: SimTime): void {
         wander =
           0.004 *
           gaussian(world.rng.real(DRIFT, p.cell, t, 1, i), world.rng.real(DRIFT, p.cell, t, 2, i));
-      return dmath.clamp(v + 0.03 * pull + wander, 0.02, 0.98);
+      // What is not pushed again fades: ways relax slowly back toward the middle.
+      const relax = 0.015 * (0.5 - v);
+      return dmath.clamp(v + 0.03 * pull + relax + wander, 0.02, 0.98);
     });
     let tongue = w.tongue;
     if (world.rng.real(SPEECH, p.cell, t, 1) < 1 / 30)

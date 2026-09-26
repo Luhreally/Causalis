@@ -25,6 +25,7 @@ export { FOLK, folkRef } from "./population.ts";
 import "./economy.ts";
 import "./acts.ts";
 export { WAYS, WAY_WORDS, kept, waysRef, waysWords } from "./culture.ts";
+export { governmentWords } from "./polity.ts";
 export { priceWords } from "./economy.ts";
 export {
   edges,

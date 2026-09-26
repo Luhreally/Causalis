@@ -7,6 +7,8 @@ import {
   actsOf,
   cultureOf,
   handOf,
+  politiesOf,
+  realmName,
   makePopulationWorld,
   marketGoodRef,
   marketsOf,
@@ -28,9 +30,18 @@ import {
   type Tongue,
 } from "../gen/index.ts";
 import { EARTHLIKE, OPEN, type Prior } from "../rules/index.ts";
-import { finish, mix, parseRef, yearOfMoment, type Ref, type World } from "../kernel/index.ts";
+import {
+  finish,
+  hashString,
+  mix,
+  parseRef,
+  yearOfMoment,
+  type Ref,
+  type World,
+} from "../kernel/index.ts";
 import {
   folkRef,
+  governmentWords,
   kept,
   landWords,
   observer,
@@ -162,6 +173,7 @@ function province(world: World, cell: number) {
     villages: ctx.settlements.inProvince(cell).length,
     folk: folkRef(cell),
     ways: waysOf(world, cell),
+    realm: realmOf(world, cell),
     years: ctx.history.yearsOf(cell).slice(-12),
   };
 }
@@ -254,6 +266,33 @@ function chronicle(world: World, limit: number) {
       .sort((a, b) => a[0] - b[0])
       .map(([year, people]) => ({ year, people })),
   };
+}
+
+/** The realm a land belongs to, as the inspector shows it. */
+function realmOf(world: World, cell: number) {
+  const realms = politiesOf(world),
+    p = realms.of(cell);
+  if (!p) return null;
+  const grievance = realms.discontent(cell);
+  return {
+    ref: p.ref,
+    name: realmName(p),
+    lands: p.members.length,
+    seat: p.seat === cell,
+    government: governmentWords(p),
+    ruler: p.ruler.name,
+    since: p.ruler.since,
+    grievance: grievance.level,
+    cause: grievance.cause,
+  };
+}
+
+/** A realm as a colour: its own hue, keyed by its ref. */
+function realmColor(ref: string): [number, number, number] {
+  const h = finish(mix(0x2ea1, hashString(ref)), 7) / 4294967296,
+    k = (n: number) => (n + h * 6) % 6,
+    f = (n: number) => 0.62 - 0.32 * Math.max(-1, Math.min(k(n), 4 - k(n), 1));
+  return [f(5), f(3), f(1)];
 }
 
 /** A people's ways and speech, for the inspector. */
@@ -393,6 +432,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
               density: (100 * p.total()) / Math.max(1, capacity(g, p.cell).areaKm2),
               farming: p.knowsCultivation,
               food: m ? m.price[G.grain]! / GOODS[G.grain]!.value : 1,
+              realm: (() => {
+                const r = politiesOf(world).of(p.cell);
+                return r ? realmColor(r.ref) : null;
+              })(),
               tongue: (() => {
                 const w = cultureOf(world).get(p.cell);
                 return w ? tongueColor(w.tongue) : null;

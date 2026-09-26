@@ -59,6 +59,7 @@ type ProvinceFacts = {
   /** The people of the province, as a ref for why. */
   folk: string;
   ways: { ref: string; words: string[]; kept: number; sounds: string[] } | null;
+  realm: RealmFacts;
 } | null;
 
 type ProvinceHistory = {
@@ -82,7 +83,21 @@ export type PeopleEntry = {
   trade: number;
   /** Their speech as a colour: alike tongues, alike colours. */
   tongue: readonly [number, number, number] | null;
+  /** Their realm's colour, if they belong to one. */
+  realm: readonly [number, number, number] | null;
 };
+
+type RealmFacts = {
+  ref: string;
+  name: string;
+  lands: number;
+  seat: boolean;
+  government: string;
+  ruler: string;
+  since: number;
+  grievance: number;
+  cause: string | null;
+} | null;
 
 /** A province's market, as the host reports it. */
 export type MarketFacts = {
@@ -136,6 +151,7 @@ export class PlanetPanel {
   private readonly whyBox = el("div", "why");
   private readonly marketBox = el("div");
   private readonly waysBox = el("div");
+  private readonly realmBox = el("div");
   private readonly pastBox = el("div");
   private readonly handBox = el("div");
   private readonly hand: HandView;
@@ -194,6 +210,7 @@ export class PlanetPanel {
       this.title,
       this.facts,
       this.closer,
+      this.realmBox,
       this.waysBox,
       this.marketBox,
       this.handBox,
@@ -361,6 +378,7 @@ export class PlanetPanel {
         .filter(([text]) => text)
         .map(([text, ref]) => (ref ? this.whyLine(text, ref) : el("div", "fact", text))),
     );
+    this.showRealm(folk ? folk.realm : null, !!folk);
     this.showWays(folk?.ways ?? null);
     this.showMarket(market);
     this.showPast(folk ? past : null);
@@ -374,6 +392,44 @@ export class PlanetPanel {
     const b = el("button", "line", text);
     b.onclick = () => void this.why.show(ref, this.whyBox);
     return b;
+  }
+
+  /** Their realm: its name, how it is ruled, who rules, and how they feel about it. */
+  private showRealm(r: RealmFacts, peopled: boolean): void {
+    if (!peopled) {
+      this.realmBox.replaceChildren();
+      return;
+    }
+    if (!r) {
+      this.realmBox.replaceChildren(
+        el("h3", undefined, "Their rulers"),
+        el("div", "fact muted", "They belong to no realm: their villages rule themselves."),
+      );
+      return;
+    }
+    const mood =
+      r.grievance > 0.8
+        ? "restless"
+        : r.grievance > 0.45
+          ? "grudging"
+          : r.grievance > 0.2
+            ? "settled"
+            : "content";
+    const parts = [
+      el("h3", undefined, "Their rulers"),
+      this.whyLine(
+        `${r.seat ? "The seat of" : "Part of"} ${r.name} (${r.lands} land${r.lands === 1 ? "" : "s"}): ${r.government}`,
+        r.ref,
+      ),
+      el("div", "fact", `Ruled by ${r.ruler} since year ${r.since}`),
+    ];
+    if (!r.seat)
+      parts.push(
+        r.cause
+          ? this.whyLine(`They are ${mood} under its rule`, r.cause)
+          : el("div", "fact muted", `They are ${mood} under its rule`),
+      );
+    this.realmBox.replaceChildren(...parts);
   }
 
   /** A people's ways and speech, each opening why. */
@@ -435,6 +491,7 @@ export class PlanetPanel {
     this.pastBox.replaceChildren();
     this.handBox.replaceChildren();
     this.waysBox.replaceChildren();
+    this.realmBox.replaceChildren();
     this.facts.replaceChildren(el("p", "muted", "…"));
     const c = await this.client.query<Chronicle>({ type: "chronicle", args: { limit: 60 } });
     if (this.title.textContent !== "Chronicle") return;

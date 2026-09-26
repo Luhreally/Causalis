@@ -17,10 +17,11 @@ import { installEconomy } from "../economy/systems.ts";
 import { installActs } from "../acts/acts.ts";
 import { installHand } from "../hand/hand.ts";
 import { CultureStore, cradleWays, driftedWays } from "../culture/culture.ts";
+import { installPolities } from "../polity/polity.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
 import { Province, capacity, row } from "./model.ts";
 import { HistoryStore, PopulationStore, SettlementStore } from "./stores.ts";
-import { POPULATION_EVENTS, installPopulation } from "./systems.ts";
+import { POPULATION_EVENTS, installPopulation, populationContext } from "./systems.ts";
 
 const ORIGIN = defineStream("pop.origin");
 
@@ -145,6 +146,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   );
 
   installHand(world);
+  installPolities(world, () => populationContext(world));
 
   const g = homePlanet(world).generated,
     home = chooseHome(g, world),
