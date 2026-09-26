@@ -30,6 +30,7 @@ import "./belief.ts";
 export { principleName } from "./lore.ts";
 export { standingWords } from "./diplomacy.ts";
 import "./war.ts";
+import "./city.ts";
 export { priceWords } from "./economy.ts";
 export {
   edges,

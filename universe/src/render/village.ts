@@ -12,6 +12,16 @@ import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 const M = 0.1; // units per metre
 const YEAR = 365 * 86_400;
 
+/** A city's quarters by use: open, houses, crowded houses, markets, workshops, the temple. */
+const QUARTER_COLORS: readonly Rgb[] = [
+  [0, 0, 0],
+  [0.74, 0.62, 0.46],
+  [0.6, 0.47, 0.36],
+  [0.88, 0.76, 0.4],
+  [0.5, 0.5, 0.54],
+  [0.9, 0.88, 0.82],
+];
+
 /** Fields through the year: bare, sprouting, green, ripe, stubble. */
 function fieldColor(t: number): Rgb {
   const d = (t % YEAR) / YEAR;
@@ -82,24 +92,60 @@ export class VillageScene {
       0.012,
     );
     if (plan.water) disc(22, [0.2, 0.4, 0.6], plan.water.x * M, plan.water.z * M, 0.014);
-    // The road out, and the square.
+    // The road out (through a city, both ways; paved stone once it is paved), and the square.
+    const quarters = plan.districts,
+      paved = !!quarters?.paved;
     const road = new InstancedBatch(
       s,
       cylinderMesh(s, Math.SQRT1_2, 1, 4),
-      [0.62, 0.55, 0.42],
+      paved ? [0.72, 0.7, 0.64] : [0.62, 0.55, 0.42],
       1,
       this.root,
     );
     const len = Math.hypot(plan.road.x, plan.road.z) * M;
     road.set(1, (_, out) => {
-      out[0] = (plan.road.x * M) / 2;
+      out[0] = quarters ? 0 : (plan.road.x * M) / 2;
       out[1] = 0.015;
-      out[2] = (plan.road.z * M) / 2;
-      out[3] = 0.5;
+      out[2] = quarters ? 0 : (plan.road.z * M) / 2;
+      out[3] = paved ? 1.4 : 0.5;
       out[4] = 0.02;
-      out[5] = len;
-      out[6] = Math.atan2(plan.road.x, plan.road.z) + Math.PI / 4 - Math.PI / 4;
+      out[5] = quarters ? 2 * len : len;
+      out[6] = Math.atan2(plan.road.x, plan.road.z);
     });
+    // A city's quarters: each block's ground coloured by its use, and a hall at its heart.
+    if (quarters) {
+      const patch = cylinderMesh(s, Math.SQRT1_2, 1, 4),
+        side = quarters.blockM * M * 0.94;
+      QUARTER_COLORS.forEach((color, use) => {
+        if (!use) return;
+        const blocks = quarters.uses.map((u, k) => ({ u, k })).filter((b) => b.u === use);
+        if (!blocks.length) return;
+        const batch = new InstancedBatch(s, patch, color, blocks.length, this.root);
+        batch.set(blocks.length, (i, out) => {
+          const k = blocks[i]!.k,
+            half = (quarters.blocks - 1) / 2;
+          out[0] = ((k % quarters.blocks) - half) * quarters.blockM * M;
+          out[1] = 0.012;
+          out[2] = (Math.floor(k / quarters.blocks) - half) * quarters.blockM * M;
+          out[3] = out[5] = side;
+          out[4] = 0.01;
+          out[6] = Math.PI / 4;
+        });
+      });
+      const temple = quarters.uses.indexOf(5);
+      if (temple >= 0) {
+        const hall = new InstancedBatch(s, patch, [0.92, 0.9, 0.84], 1, this.root),
+          half = (quarters.blocks - 1) / 2;
+        hall.set(1, (_, out) => {
+          out[0] = ((temple % quarters.blocks) - half) * quarters.blockM * M;
+          out[1] = 0.6;
+          out[2] = (Math.floor(temple / quarters.blocks) - half) * quarters.blockM * M;
+          out[3] = out[5] = 4.2;
+          out[4] = 1.2;
+          out[6] = Math.PI / 4;
+        });
+      }
+    }
     disc(2.2, [0.66, 0.6, 0.48], 0, 0, 0.016);
     this.fields = new InstancedBatch(
       s,

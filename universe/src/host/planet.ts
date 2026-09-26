@@ -7,6 +7,8 @@ import {
   DEITIES,
   actsOf,
   beliefOf,
+  USES,
+  citiesOf,
   cultureOf,
   diplomacyOf,
   warsOf,
@@ -558,6 +560,15 @@ function planetUniverse(name: string, prior: Prior): Universe {
           founded: s.founded,
           event: s.event,
           market: s.market,
+          city: (() => {
+            const c = citiesOf(world).get(s.ref);
+            if (!c) return null;
+            const quarters = USES.map((name, use) => ({
+              name,
+              blocks: c.uses.filter((u) => u === use).length,
+            })).filter((q) => q.blocks && q.name !== "open");
+            return { founded: c.founded, event: c.event, paved: c.paved, quarters };
+          })(),
         };
       },
       ...OBSERVE_QUERIES,

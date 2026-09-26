@@ -119,6 +119,12 @@ export class RegionPanel {
       population: number;
       founded: number;
       market: string | null;
+      city: {
+        founded: number;
+        event: string;
+        paved: string | null;
+        quarters: { name: string; blocks: number }[];
+      } | null;
     }>({ type: "settlement", args: { ref } });
     if (this.view !== view) return;
     this.village = { ref, cell: v.cell, name: v.name };
@@ -133,6 +139,25 @@ export class RegionPanel {
       ),
       el("div", "fact", `Founded in year ${v.founded}`),
     );
+    if (v.city) {
+      const quarters = v.city.quarters.map((q) => `${q.blocks} of ${q.name}`).join(", "),
+        line = (text: string, why: string) => {
+          const b = el("button", "line", text);
+          b.onclick = () => void this.why.show(why, this.whyBox);
+          return b;
+        };
+      this.facts.append(
+        line(`A city since year ${v.city.founded}: its quarters are ${quarters}`, v.city.event),
+        ...(v.city.paved
+          ? [
+              line(
+                "A paved road runs through it, and its markets and workshops have moved along it",
+                v.city.paved,
+              ),
+            ]
+          : []),
+      );
+    }
     const families = el("div"),
       watch = el("button", "act", "Watch their day"),
       hand = el("div");

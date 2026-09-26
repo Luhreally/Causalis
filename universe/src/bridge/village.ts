@@ -20,6 +20,17 @@ export type VillagePlan = {
   readonly water: { x: number; z: number } | null;
   /** Where the road out leads, at the edge of what is shown. */
   readonly road: { x: number; z: number };
+  /**
+   * A city's quarters, if it is one: blocks of `blockM` metres, `blocks` to a side,
+   * each put to a use (0 open, 1 houses, 2 crowded houses, 3 market, 4 workshops,
+   * 5 temple), and whether the road through it is paved.
+   */
+  readonly districts: {
+    readonly blocks: number;
+    readonly blockM: number;
+    readonly uses: readonly number[];
+    readonly paved: boolean;
+  } | null;
   readonly people: readonly {
     ref: string;
     name: string;

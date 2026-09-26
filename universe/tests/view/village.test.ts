@@ -13,6 +13,7 @@ const plan: VillagePlan = {
   population: 60,
   market: true,
   hand: false,
+  districts: null,
   biome: 8,
   seed: 3,
   homes: [

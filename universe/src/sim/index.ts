@@ -169,3 +169,18 @@ export {
   type Battle,
   type War,
 } from "./war/war.ts";
+export {
+  BLOCKS,
+  BLOCK_M,
+  CITY_EVENTS,
+  CITY_SIZE,
+  CityStore,
+  USE,
+  USES,
+  blockAt,
+  citiesOf,
+  cityYear,
+  installCities,
+  layout,
+  type City,
+} from "./city/city.ts";

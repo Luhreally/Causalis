@@ -7,7 +7,16 @@
 import { finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
 import { WATER } from "../gen/index.ts";
 import { HUMANLIKE } from "../rules/index.ts";
-import { cultureOf, handOf, populationContext, regionOf } from "../sim/index.ts";
+import {
+  BLOCKS,
+  BLOCK_M,
+  blockAt,
+  citiesOf,
+  cultureOf,
+  handOf,
+  populationContext,
+  regionOf,
+} from "../sim/index.ts";
 import { cradleTongue, tonguePersonName } from "../gen/index.ts";
 import { meetHousehold, observer, settleAll } from "../causal/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
@@ -55,11 +64,29 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
     pastureWay = best.at(-1)?.angle ?? Math.PI,
     waterWay = ways.find((w) => w.water)?.angle ?? null;
 
-  // Homes for everyone, the watched among them; five to a home.
-  const homes: { x: number; z: number; yaw: number; household: string | null }[] = [],
+  // Homes for everyone, the watched among them; five to a home. A city's homes stand
+  // in its housing quarters; a village's around its square.
+  const city = citiesOf(world).get(ref),
+    homes: { x: number; z: number; yaw: number; household: string | null }[] = [],
     count = Math.max(4, Math.min(160, Math.ceil(v.population / 5))),
     phase = u(seed, 1) * 2 * Math.PI;
-  for (let k = 0; k < count; k++) {
+  if (city) {
+    const perBlock = [0, 3, 6, 0, 0, 0];
+    city.uses.forEach((use, k) => {
+      const at = blockAt(k % BLOCKS, Math.floor(k / BLOCKS));
+      for (let h = 0; h < perBlock[use]! && homes.length < 160; h++)
+        homes.push({
+          x: at.x + (u(seed, 3000 + k * 8 + h) - 0.5) * BLOCK_M * 0.8,
+          z: at.z + (u(seed, 5000 + k * 8 + h) - 0.5) * BLOCK_M * 0.8,
+          yaw: city.axis + (h % 2 ? Math.PI / 2 : 0),
+          household: null,
+        });
+    });
+  }
+  // A village's homes circle its square; a young city with few housing blocks yet
+  // keeps homes around its square too, until every family has one.
+  const wanted = city ? Math.min(count, WATCHED_FAMILIES * 2 + 4) : count;
+  for (let k = 0; homes.length < wanted && k < 400; k++) {
     const a = phase + k * 2.399963,
       rad = 16 + 8.5 * Math.sqrt(k);
     homes.push({
@@ -71,7 +98,8 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
   }
   // Fields in a fan toward the good ground, beyond the homes.
   const fields: { x: number; z: number; w: number; d: number; yaw: number }[] = [],
-    edge = 16 + 8.5 * Math.sqrt(count) + 30,
+    // Fields begin beyond the homes (beyond a city's quarters).
+    edge = city ? (BLOCKS * BLOCK_M) / 2 + 60 : 16 + 8.5 * Math.sqrt(count) + 30,
     fieldCount = Math.max(6, Math.min(90, Math.round(count * 0.7)));
   for (let k = 0; k < fieldCount; k++) {
     const ring = Math.floor(k / 12),
@@ -144,10 +172,16 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       wild: 900,
       water:
         waterWay === null ? null : { x: 700 * Math.cos(waterWay), z: 700 * Math.sin(waterWay) },
-      road: {
-        x: 1100 * Math.cos(fieldWay + Math.PI * 0.75),
-        z: 1100 * Math.sin(fieldWay + Math.PI * 0.75),
-      },
+      // A city's road runs along its axis; a village's out toward the far fields.
+      road: city
+        ? { x: 1100 * Math.cos(city.axis), z: 1100 * Math.sin(city.axis) }
+        : {
+            x: 1100 * Math.cos(fieldWay + Math.PI * 0.75),
+            z: 1100 * Math.sin(fieldWay + Math.PI * 0.75),
+          },
+      districts: city
+        ? { blocks: BLOCKS, blockM: BLOCK_M, uses: city.uses, paved: !!city.paved }
+        : null,
       people,
     };
   }
