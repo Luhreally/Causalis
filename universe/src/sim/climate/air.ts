@@ -33,12 +33,20 @@ export const AIR_EVENTS = {
 
 /** Carbon in the air before anyone burned or cleared, in parts per million. */
 export const FIRST_CARBON = 280;
-/** Carbon a unit of coal or oil burned puts in the air (ppm): millions of units a year raise it by a part or two. */
-export const CARBON_PER_FUEL = 4e-7;
+/**
+ * Carbon a unit of coal or oil burned puts in the air (ppm). A unit drives four
+ * kilowatts for a year; Earth's some sixteen terawatts put five parts a year into its
+ * air before land and sea take half back, about 3e-10 a kilowatt-year.
+ */
+export const CARBON_PER_FUEL = 2.4e-9;
 /** Carbon a square kilometre of forest cleared puts in the air (ppm); regrowing takes it back. */
 export const CARBON_PER_FOREST_KM2 = 5e-6;
-/** The share of the carbon over the old measure the land and sea take back each year. */
-const SINK = 0.005;
+/**
+ * The share of the carbon over the old measure the land and sea take back each year: the
+ * seas' upper waters take up a slow release within decades (a pulse fades by half in
+ * some thirty-five years).
+ */
+const SINK = 0.02;
 /** Degrees the world would warm, in the end, for each doubling of its carbon. */
 export const SENSITIVITY = 3;
 /** The share of the way to that warming the world goes in a year (the seas are slow to warm). */
@@ -142,7 +150,7 @@ export function airOf(world: World): AirStore {
 
 /** How much warmer the world is than before the engines, in degrees. */
 export function warmingOf(world: World): number {
-  return world.storeNames().includes("climate.air") ? airOf(world).air.warming : 0;
+  return world.hasStore("climate.air") ? airOf(world).air.warming : 0;
 }
 
 /**
@@ -228,18 +236,19 @@ export function airYear(ctx: PopulationContext, t: SimTime): void {
   const toward = SENSITIVITY * dmath.log2(air.carbon / FIRST_CARBON);
   air.warming += WARMING_PACE * (toward - air.warming);
 
-  // Each half degree is told, with the lands that burned and cleared most behind it.
-  const most = (list: { cell: number; carbon: number }[]) =>
-    [...list].sort((a, b) => b.carbon - a.carbon || a.cell - b.cell).slice(0, 3);
+  // Each half degree is told, with the lands that burned (three) and cleared (two) most
+  // behind it, and the warming before (six causes, the most an event holds).
+  const most = (list: { cell: number; carbon: number }[], n: number) =>
+    [...list].sort((a, b) => b.carbon - a.carbon || a.cell - b.cell).slice(0, n);
   if (air.warming >= (air.told + 1) * TOLD_EVERY) {
     air.told = Math.floor(air.warming / TOLD_EVERY);
     const causes: CauseRef[] = [];
-    for (const b of most(burners)) {
+    for (const b of most(burners, 3)) {
       const m = markets.get(b.cell)!,
         cause = m.works ?? m.mine ?? m.well;
       if (cause) causes.push({ ref: cause, role: "pressure", weight: 0.25 });
     }
-    for (const c of most(clearers)) {
+    for (const c of most(clearers, 2)) {
       const cause = ecology.get(c.cell)?.cleared;
       if (cause) causes.push({ ref: cause, role: "pressure", weight: 0.1 });
     }

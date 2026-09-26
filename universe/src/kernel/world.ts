@@ -120,6 +120,11 @@ export class World {
     return s as S;
   }
 
+  /** Whether a store of this name is registered (cheap: for checks on the hot path). */
+  hasStore(name: string): boolean {
+    return this.stores.has(name);
+  }
+
   storeNames(): string[] {
     return [...this.stores.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   }

@@ -4,6 +4,7 @@ import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index
 import { cellRef, surfaceOre } from "../../src/gen/index.ts";
 import {
   AIR_EVENTS,
+  CARBON_PER_FUEL,
   FIRST_CARBON,
   LORE_EVENTS,
   POPULATION_EVENTS,
@@ -18,7 +19,7 @@ import {
   smokeIn,
   warmingOf,
 } from "../../src/sim/index.ts";
-import { principle } from "../../src/rules/index.ts";
+import { G, principle } from "../../src/rules/index.ts";
 import { why } from "../../src/causal/index.ts";
 
 const CHAIN = [
@@ -50,7 +51,8 @@ function teach(world: World, cell: number, ids: string[]): void {
 }
 
 // First light a century and a half on: its forty most peopled lands over coal learn the
-// way to the factory, and the air is given a century's worth of others' smoke besides.
+// way to the factory; then, for forty years, the air is given the smoke of a world of
+// engines besides (a steady twelve parts in a million a year).
 const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
 world.runTo(150 * YEAR);
 const ctx = populationContext(world),
@@ -61,15 +63,30 @@ const ctx = populationContext(world),
     .sort((a, b) => b.total() - a.total() || a.cell - b.cell)
     .slice(0, 40);
 for (const p of industrial) teach(world, p.cell, CHAIN);
-const before = airOf(world).air.carbon;
 world.runTo(160 * YEAR);
-const burnedBy160 = airOf(world).air.carbon - before;
-airOf(world).air.carbon += 250;
-world.runTo(200 * YEAR);
+const burnedLastYear = airOf(world).air.burned,
+  burnedAt160 = burnedLastYear,
+  fuelAt160 = marketsOf(world)
+    .all()
+    .reduce((s, m) => {
+      // The air reckons at its year's turn, before the markets close theirs: the year before.
+      const used = m.years.at(-2)?.ledger[1];
+      return s + (used ? used[G.coal]! + used[G.oil]! : 0);
+    }, 0);
+for (let y = 161; y <= 200; y++) {
+  airOf(world).air.carbon += 12;
+  world.runTo(y * YEAR);
+}
 const told = (type: string) => world.events.all().filter((e) => e.type === type);
 
 test("burning and clearing put carbon in the air, and the world warms toward what it holds", () => {
-  assert.ok(burnedBy160 > 0.5, `${burnedBy160.toFixed(2)} ppm from a decade of engines`);
+  // Forty lands' engines for a decade: what they burned last year is in the air, a
+  // little carbon (the land and sea take back more of the clearing's than that).
+  assert.ok(burnedLastYear > 0 && burnedLastYear === burnedAt160, "burning adds carbon");
+  assert.ok(
+    Math.abs(burnedAt160 - fuelAt160 * CARBON_PER_FUEL) < 1e-12,
+    `${burnedAt160} against ${fuelAt160 * CARBON_PER_FUEL}`,
+  );
   const air = airOf(world).air;
   assert.ok(air.carbon > FIRST_CARBON + 150, `${air.carbon} ppm`);
   // Warming lags what the carbon would hold in the end, but heads there.

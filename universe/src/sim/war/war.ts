@@ -327,7 +327,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       holy = pressure(voices, "war", defender.ref),
       swayed = (1 - 0.7 * Math.min(1, 2 * peace.total)) * (1 + Math.min(1, 2 * holy.total)),
       chance =
-        Math.min(0.5, (hatred * 0.25 + (covets ? 0.15 : 0)) * Math.min(2, ratio) * (0.5 + valour)) *
+        Math.min(0.5, (hatred * 0.12 + (covets ? 0.08 : 0)) * Math.min(2, ratio) * (0.5 + valour)) *
         rested *
         swayed;
     if (

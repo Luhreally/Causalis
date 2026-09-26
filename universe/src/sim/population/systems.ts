@@ -38,6 +38,7 @@ import {
 import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
 import { living, wildsOf } from "../ecology/ecology.ts";
 import { airOf, heatYield, rainShift, smokeIn } from "../climate/air.ts";
+import { powerOf } from "../economy/systems.ts";
 import { HAND_VITAL, bandOfAge, handOf, newbornSex } from "../hand/hand.ts";
 import { cultureOf, cultureYear } from "../culture/culture.ts";
 import { loreOf } from "../lore/lore.ts";
@@ -323,7 +324,10 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
     const fed = need > 0 ? eaten / need : 1;
     p.fed = Math.round(fed * 1000);
     p.leanest = Math.min(p.leanest, p.fed);
-    if (p.fed < 800 && need >= 20 && month - p.famineMonth > 12) {
+    // A famine is a month with less than seven-tenths of the food a land needs: a people
+    // living at the edge of what their land gives (a lean month or two most years) is
+    // hungry, and that is told as the grievance and the prices it brings, not as famine.
+    if (p.fed < FAMINE && need >= 20 && month - p.famineMonth > 12) {
       const causes: CauseRef[] = [];
       const recentDrought = p.lastDrought ? world.events.get(p.lastDrought) : undefined;
       if (recentDrought && t - recentDrought.t < 2 * YEAR)
@@ -362,7 +366,8 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       months = quiet ? 12 : 1;
     if (quiet) p.paged = year;
     const fed = p.fed / 1000,
-      fertility = fed * fed,
+      // A people grown wealthy with power have fewer children (the demographic transition).
+      fertility = fed * fed * transition(ctx, p.cell),
       // In cold lands, those without warm clothing die more easily.
       cold = dmath.clamp((10 - ctx.generated.climate.temperature[p.cell]!) / 10, 0, 1),
       bare = 1 - (markets.get(p.cell)?.clothingCover ?? 1000) / 1000,
@@ -455,6 +460,22 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
     d.commit(p.counts);
   }
 }
+
+/**
+ * How much of its old fertility a people keep as power makes them wealthy: all of it
+ * below a quarter of a kilowatt a person, down to TRANSITION less at two and a quarter
+ * and beyond — fewer children born, as fewer die and each costs more to raise.
+ */
+export function transition(ctx: PopulationContext, cell: number): number {
+  const power = powerOf(ctx, cell);
+  return 1 - TRANSITION * Math.min(1, Math.max(0, (power - 0.25) / 2));
+}
+// At the full transition a people about replace themselves: some five children a woman
+// fall to three and a half, as industry's lower deaths let two in three of them grow up.
+const TRANSITION = 0.33;
+
+/** Below this share of the food it needs (in thousandths), a land's month is a famine. */
+export const FAMINE = 700;
 
 /** Weather, yearly: each province's rain for the coming year; a dry one is a drought. */
 export function weatherYear(ctx: PopulationContext, t: SimTime): void {

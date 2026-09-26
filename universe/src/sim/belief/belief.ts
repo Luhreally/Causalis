@@ -258,7 +258,7 @@ export function beliefYear(ctx: PopulationContext, t: SimTime): void {
 
   // 2. Faiths spread to neighbours who speak alike: planned from the year's opening, then made.
   const converts: { cell: number; faith: Ref; via: number; chance: number }[] = [];
-  const realms = world.storeNames().includes("polity.states") ? politiesOf(world) : null;
+  const realms = world.hasStore("polity.states") ? politiesOf(world) : null;
   for (const p of ctx.provinces.all()) {
     if (founded.has(p.cell) || !p.total()) continue;
     const mine = culture.get(p.cell),

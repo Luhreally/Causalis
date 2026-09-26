@@ -538,9 +538,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
     }
 
   // 3. Tribute to the seat, and the discontent it and hard years breed.
-  const faiths = world.storeNames().includes("belief.faiths")
-    ? world.store<BeliefStore>("belief.faiths")
-    : null;
+  const faiths = world.hasStore("belief.faiths") ? world.store<BeliefStore>("belief.faiths") : null;
   for (const p of store.living()) {
     const seatMarket = markets.of(p.seat),
       seatWays = culture.get(p.seat)!,

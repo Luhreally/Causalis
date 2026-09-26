@@ -2101,18 +2101,36 @@ costs 0.45 s on average and 0.79 s at the 99th percentile on the phone proxy.
 33, as built: the air (`sim/climate/air.ts`) holds carbon, 280 parts in a million
 before anyone burned or cleared. Each year every land's burned coal and oil (last
 year's ledger) and every land's cleared forest (from the ecology, regrowth taking
-some back) add to it, and the land and sea take back half a percent of what is over
-the old measure. The world warms toward three degrees for each doubling, a
-twenty-fifth of the way each year. Rain moves with the warming (the subtropics and
+some back) add to it, and the land and sea take back two percent a year of what is
+over the old measure (a slow release is mostly taken up within decades). The world
+warms toward three degrees for each doubling, a twenty-fifth of the way each year. Rain moves with the warming (the subtropics and
 dry lands drier, the high latitudes and wet lands wetter, 6% a degree), hot fields
 yield 5% less a degree and cold ones 3% more; smoke from the fuel a land burns for
 each person (over three years) raises its deaths by up to three-tenths. Each half
 degree is an event citing the lands that burned and cleared most (their works, mines
 and clearings); a land whose rain has moved a tenth, and a land whose air grew foul,
 are events citing the warming and the works; a drought in a land grown drier cites
-the drying. Clearing alone adds some 6 ppm by the third century (0.07 °C); forty
-industrial lands a decade of engines add about 2 ppm. The bar shows the warming and
-the carbon once there is any; the inspector shows a land's smoke and its rain moved.
+the drying. A unit of fuel (four kilowatts for a year) puts 2.4e-9 parts in a million
+in the air, Earth's rate; clearing some 5e-6 a square kilometre. The bar shows the
+warming and the carbon once there is any; the inspector shows a land's smoke and its
+rain moved.
+
+34, as built: `npm run calibrate` (`tools/calibration.ts`, bands in
+`tools/calibration-bands.ts`) runs the Earth seed nine centuries and reports the year
+each turning point first comes and, each century, people, realms, wars, tongues,
+famines, secessions and the air, each against its band. On the Earth seed: sowing in
+year 16, the first realm (a chiefdom) in 20, writing 76, iron 266, coal dug (for
+warmth) 315, the steam engine 665, the first factory 760, electricity 828; 10.6
+million people at year 300, 141 million at 600, some 900 million at 900; about 50
+realms standing at 500, five wars a realm a century (most a season's campaign for one
+land), a hundred tongues. The tuning it took: the carbon of fuel set to Earth's rate
+and the sink to decades (a runaway to thousands of ppm had followed); war declared
+half as readily; a famine is a month under seven-tenths fed (a people at the edge of
+their land's yield is hungry most years, not starving); and the demographic
+transition — a people's fertility falls by up to a third as power per person rises
+from a quarter to two and a quarter kilowatts, about replacement at industry's lower
+deaths — without which the industrial boom overshot into a ninth-century collapse.
+The warmth of the chronicle comes mostly from clearing, peaking near 0.7 °C.
 
 ### J. Allocation of ~100k lines
 

@@ -134,7 +134,7 @@ export function interestsOf(ctx: PopulationContext, p: Polity, t: SimTime): Inte
       const q = realms.of(g.grid.neighbours[k]!);
       if (q && q !== p && q.ended === null) neighbours.add(q);
     }
-  const atWar = world.storeNames().includes("war.wars")
+  const atWar = world.hasStore("war.wars")
     ? world
         .store<WarStore>("war.wars")
         .all()
