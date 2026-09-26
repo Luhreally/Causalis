@@ -61,6 +61,8 @@ export type Settlement = {
   readonly decision: Ref;
   readonly event: Ref;
   population: number;
+  /** The event that made it its province's market town, if it is one. */
+  market: Ref | null;
 };
 
 export class SettlementStore implements StateStore {
@@ -94,7 +96,8 @@ export class SettlementStore implements StateStore {
         .int(s.founded)
         .string(s.decision)
         .string(s.event)
-        .int(s.population);
+        .int(s.population)
+        .string(s.market ?? "");
   }
 
   save(): unknown {

@@ -116,12 +116,19 @@ export class RegionPanel {
       cell: number;
       population: number;
       founded: number;
+      market: string | null;
     }>({ type: "settlement", args: { ref } });
     if (this.view !== view) return;
     this.village = { ref, cell: v.cell, name: v.name };
     this.title.textContent = v.name;
     this.facts.replaceChildren(
-      el("div", "fact", `A village of ${v.population.toLocaleString()}`),
+      el(
+        "div",
+        "fact",
+        v.market
+          ? `The market town of its land, ${v.population.toLocaleString()} people`
+          : `A village of ${v.population.toLocaleString()}`,
+      ),
       el("div", "fact", `Founded in year ${v.founded}`),
     );
     const families = el("div");

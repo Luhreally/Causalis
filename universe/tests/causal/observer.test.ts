@@ -98,7 +98,12 @@ test("a life, once told, stays told; its future is drawn from the ledgers", () =
     met = meetMany(world, 60, "forward");
   const before = met.slice(0, 20).map((p) => {
     deepen(world, p);
-    return JSON.stringify({ birth: p.birthYear, cell: p.birthCell, moves: p.moves, memories: p.memories });
+    return JSON.stringify({
+      birth: p.birthYear,
+      cell: p.birthCell,
+      moves: p.moves,
+      memories: p.memories,
+    });
   });
   world.runTo(300 * YEAR);
   met.slice(0, 20).forEach((p, i) => {
@@ -143,7 +148,10 @@ test("a memory leads back through a migration to the land and the planet it happ
   const path = spine(world, remembered.memory),
     kinds = path.map((e) => e.ref.split(":")[0]);
   assert.equal(kinds[0], "memo");
-  assert.ok(kinds.includes("ev") && kinds.includes("dec"), `through the migration and its decision: ${kinds.join(" ← ")}`);
+  assert.ok(
+    kinds.includes("ev") && kinds.includes("dec"),
+    `through the migration and its decision: ${kinds.join(" ← ")}`,
+  );
   assert.equal(kinds.at(-1), "star", `down to the star: ${kinds.join(" ← ")}`);
   assert.ok(new Set(kinds).size >= 5, "across the observer, the people and the planet");
 });

@@ -1,8 +1,15 @@
 // The planet universes: "earth" (the earthlike prior) and "alien" (the open prior).
 // The globe view's frame carries the planet's fields once — they do not change
 // until people change them — and the page colours them by whichever lens is on.
-import { capacity, homePlanet, makePopulationWorld, populationContext } from "../sim/index.ts";
-import { OCCUPATIONS } from "../rules/index.ts";
+import {
+  capacity,
+  homePlanet,
+  makePopulationWorld,
+  marketGoodRef,
+  marketsOf,
+  populationContext,
+} from "../sim/index.ts";
+import { FOODS, G, GOODS, OCCUPATIONS } from "../rules/index.ts";
 import {
   BIOME_NAMES,
   BOUNDARY,
@@ -15,7 +22,7 @@ import {
 } from "../gen/index.ts";
 import { EARTHLIKE, OPEN, type Prior } from "../rules/index.ts";
 import { parseRef, type Ref, type World } from "../kernel/index.ts";
-import { observer } from "../causal/index.ts";
+import { landWords, observer, priceWords } from "../causal/index.ts";
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 
@@ -130,13 +137,57 @@ function province(world: World, cell: number) {
       (x) => x.count > 0,
     ),
     fed: p.fed,
-    food: p.food,
+    food: marketsOf(world).get(cell)?.food(FOODS) ?? 0,
     farming: p.knowsCultivation,
     settledYear: p.settledYear,
     arrival: p.arrival,
     cultivation: p.cultivation,
     villages: ctx.settlements.inProvince(cell).length,
     years: ctx.history.yearsOf(cell).slice(-12),
+  };
+}
+
+/** A province's market: each good's price, stock and year, with the ref that explains it. */
+function market(world: World, cell: number) {
+  const ctx = populationContext(world),
+    markets = marketsOf(world),
+    m = markets.get(cell),
+    p = ctx.provinces.get(cell);
+  if (!m || !p) return null;
+  const last = m.years.at(-1),
+    line = (l: number, g: number) => last?.ledger[l]![g] ?? 0,
+    town = ctx.settlements.inProvince(cell).find((s) => s.market);
+  return {
+    cell,
+    year: last?.year ?? null,
+    goods: GOODS.map((g, i) => ({
+      id: g.id,
+      name: g.name,
+      ref: marketGoodRef(cell, i),
+      ratio: m.price[i]! / g.value,
+      words: priceWords(m.price[i]! / g.value),
+      stock: m.stock[i]!,
+      made: line(0, i),
+      used: line(1, i),
+      into: line(2, i),
+      out: line(3, i),
+    })).filter((g) => g.stock > 0 || g.made > 0 || g.used > 0 || g.into > 0),
+    foodMonths: p.total() ? m.food(FOODS) / p.total() : 0,
+    cover: {
+      tools: m.toolCover / 10,
+      clothing: m.clothingCover / 10,
+      pottery: m.potteryCover / 10,
+    },
+    metalworking: m.metalworking,
+    town: town ? { ref: town.ref, name: town.name, population: town.population } : null,
+    trade: markets.flows
+      .filter((f) => f.from === cell || f.to === cell)
+      .map((f) => ({
+        good: GOODS[f.good]!.name,
+        count: f.count,
+        out: f.from === cell,
+        with: landWords(world, cellRef(0, f.from === cell ? f.to : f.from)),
+      })),
   };
 }
 
@@ -214,16 +265,27 @@ function planetUniverse(name: string, prior: Prior): Universe {
         return tile(homePlanet(world).generated, a.center, a.tile);
       },
       "people.map": (world) => {
-        const g = homePlanet(world).generated;
+        const g = homePlanet(world).generated,
+          markets = marketsOf(world);
         return populationContext(world)
           .provinces.all()
-          .map((p) => ({
-            cell: p.cell,
-            people: p.total(),
-            density: (100 * p.total()) / Math.max(1, capacity(g, p.cell).areaKm2),
-            farming: p.knowsCultivation,
-          }));
+          .map((p) => {
+            const m = markets.get(p.cell),
+              last = m?.years.at(-1);
+            return {
+              cell: p.cell,
+              people: p.total(),
+              density: (100 * p.total()) / Math.max(1, capacity(g, p.cell).areaKm2),
+              farming: p.knowsCultivation,
+              food: m ? m.price[G.grain]! / GOODS[G.grain]!.value : 1,
+              trade: last
+                ? last.ledger[2]!.reduce((a, b) => a + b, 0) +
+                  last.ledger[3]!.reduce((a, b) => a + b, 0)
+                : 0,
+            };
+          });
       },
+      market: (world, args) => market(world, (args as { cell: number }).cell),
       province: (world, args) => province(world, (args as { cell: number }).cell),
       settlements: (world, args) =>
         populationContext(world)
@@ -246,6 +308,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
           population: s.population,
           founded: s.founded,
           event: s.event,
+          market: s.market,
         };
       },
       ...OBSERVE_QUERIES,

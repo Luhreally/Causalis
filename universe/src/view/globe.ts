@@ -7,6 +7,7 @@ import type { Rgb } from "./sandbox.ts";
 export const LENSES = [
   "terrain",
   "people",
+  "food",
   "height",
   "temperature",
   "rain",
@@ -18,6 +19,7 @@ export type Lens = (typeof LENSES)[number];
 export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   terrain: "Land",
   people: "People",
+  food: "Food",
   height: "Height",
   temperature: "Warmth",
   rain: "Rain",
@@ -131,14 +133,23 @@ const PEOPLE: readonly Stop[] = [
   [8, [0.55, 0.1, 0.25]],
 ];
 
+// What food costs against its usual worth: cheap is green, dear is red.
+const FOOD: readonly Stop[] = [
+  [0.4, [0.3, 0.72, 0.4]],
+  [1, [0.95, 0.85, 0.4]],
+  [1.6, [0.92, 0.45, 0.22]],
+  [2.5, [0.75, 0.12, 0.18]],
+];
+
 /**
- * Per-cell RGBA (0–255) for a globe frame under a lens. `people` (cell → people
- * per 100 km²) feeds the people lens.
+ * Per-cell RGBA (0–255) for a globe frame under a lens. `values` feeds the lenses
+ * that show the people: for "people", people per 100 km²; for "food", what food
+ * costs against its usual worth.
  */
 export function globeColors(
   frame: FrameMessage,
   lens: Lens,
-  people?: ReadonlyMap<number, number>,
+  values?: ReadonlyMap<number, number>,
 ): Uint8Array {
   const a = frame.arrays,
     elevation = a.elevation!,
@@ -181,9 +192,10 @@ export function globeColors(
         col = hue((p * 0.61803398875) % 1, continental ? 0.45 : 0.7, sea ? 0.55 : 0.9);
         break;
       }
-      case "people": {
-        const density = people?.get(c);
-        if (density !== undefined && density > 0) col = ramp(PEOPLE, density);
+      case "people":
+      case "food": {
+        const v = values?.get(c);
+        if (v !== undefined && v > 0) col = ramp(lens === "people" ? PEOPLE : FOOD, v);
         else {
           const base = sea ? ramp(DEPTH, e) : BIOME_COLORS[biome]!,
             grey = (base[0] + base[1] + base[2]) / 3;

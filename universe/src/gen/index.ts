@@ -11,7 +11,7 @@ export {
   type DepositKind,
   type Process,
 } from "./deposits.ts";
-export { PLANET_FREQUENCY, generateHomeWorld, type HomeWorld } from "./homeworld.ts";
+export { PLANET_FREQUENCY, generateHomeWorld, surfaceCopper, type HomeWorld } from "./homeworld.ts";
 export { makeHydrology, type Hydrology } from "./hydrology.ts";
 export {
   DEPOSIT,

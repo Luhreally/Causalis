@@ -3,13 +3,22 @@
 // architecture §24, the A0 tier). Nothing here is saved: it is regenerated from
 // the seed, and its digest — part of every checkpoint — proves that every engine
 // regenerated the same world.
-import { Hasher, Rng, sphereGrid, type Seed, type SphereGrid } from "../kernel/index.ts";
+import {
+  Hasher,
+  Rng,
+  finish,
+  hashString,
+  mix,
+  sphereGrid,
+  type Seed,
+  type SphereGrid,
+} from "../kernel/index.ts";
 import type { Prior } from "../rules/index.ts";
 import { makePlanet, makeStar, type Planet, type Star } from "./bodies.ts";
 import { makeClimate, type Climate } from "./climate.ts";
 import { makeDeposits, type Deposit } from "./deposits.ts";
 import { makeHydrology, type Hydrology } from "./hydrology.ts";
-import { makeTectonics, type Tectonics } from "./plates.ts";
+import { BOUNDARY, makeTectonics, type Tectonics } from "./plates.ts";
 
 export type HomeWorld = {
   readonly prior: string;
@@ -64,4 +73,21 @@ export function generateHomeWorld(
     deposits,
     digest: h.hex(),
   };
+}
+
+/**
+ * Copper ores at the surface — green malachite and native copper where old
+ * mountain belts and high ground are worn open. Too small to count among the
+ * world's deposits, but enough for a first people's smiths. A pure function of
+ * the generated world, so it needs no storing.
+ */
+export function surfaceCopper(w: HomeWorld, cell: number): boolean {
+  const t = w.tectonics,
+    e = t.elevation[cell]!;
+  if (e <= 0) return false;
+  const belt = t.boundary[cell] === BOUNDARY.convergent && t.toBoundary[cell]! <= 6,
+    high = e > 900;
+  if (!belt && !high) return false;
+  const u = finish(mix(hashString(`surface copper ${w.digest}`), cell), 11) / 4294967296;
+  return u < (belt ? 0.3 : 0.15);
 }

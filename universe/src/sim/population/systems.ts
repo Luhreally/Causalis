@@ -32,12 +32,17 @@ import {
   type HomeWorld,
   type Region,
 } from "../../gen/index.ts";
+import { MarketStore } from "../economy/market.ts";
 import {
   BANDS,
   FEMALE,
+  FOODS,
+  G,
+  GOODS,
   HUMANLIKE,
   MALE,
   OCC,
+  TOOL_GAIN,
   PRODUCTIVITY,
   SEXES,
   bandWidth,
@@ -61,6 +66,7 @@ export const POPULATION_EVENTS = {
   cultivation: defineEventType("knowledge.cultivation", 6),
   cultivationSpread: defineEventType("knowledge.cultivation-spread", 3),
   founded: defineEventType("settlement.founded", 4),
+  market: defineEventType("settlement.market", 5),
 };
 
 const BIRTHS = defineStream("pop.births");
@@ -78,7 +84,7 @@ export const VILLAGE_SIZE = 250;
 export const MIN_GROUP = 10;
 
 /** x rounded down or up by a keyed coin, so the expectation is exact. */
-function roundKeyed(x: number, u: number): number {
+export function roundKeyed(x: number, u: number): number {
   const whole = Math.floor(x);
   return whole + (u < x - whole ? 1 : 0);
 }
@@ -88,7 +94,7 @@ function yearOfMoment(t: number): number {
   return Math.floor((t - 1) / YEAR);
 }
 
-function adults(p: Province): number {
+export function adults(p: Province): number {
   let n = 0;
   for (let s = 0; s < SEXES; s++)
     for (let b = 0; b < BANDS; b++)
@@ -96,8 +102,16 @@ function adults(p: Province): number {
   return n;
 }
 
-/** The shares of adults each occupation should have, as the society stands. */
-export function occupationTargets(p: Province, cap: Capacity, villages: number): number[] {
+/**
+ * The shares of adults each occupation should have, as the society stands, leaning
+ * toward the work that was worth most last year (docs/architecture §20: jobs).
+ */
+export function occupationTargets(
+  p: Province,
+  cap: Capacity,
+  villages: number,
+  wages: readonly number[] | null = null,
+): number[] {
   const t = new Array<number>(COLS).fill(0);
   if (p.knowsCultivation) {
     t[OCC.farmer] = 0.7;
@@ -111,6 +125,16 @@ export function occupationTargets(p: Province, cap: Capacity, villages: number):
     t[OCC.crafter] = 0.03;
     t[OCC.leader] = 0.03;
   }
+  if (!wages) return t;
+  const flexible = [OCC.forager, OCC.farmer, OCC.herder, OCC.crafter, OCC.trader].filter(
+      (o) => t[o]! > 0,
+    ),
+    share = flexible.reduce((s, o) => s + t[o]!, 0),
+    mean = flexible.reduce((s, o) => s + t[o]! * wages[o]!, 0) / Math.max(1e-9, share);
+  if (mean <= 0) return t;
+  for (const o of flexible) t[o] = t[o]! * dmath.clamp(wages[o]! / mean, 0.4, 2.5);
+  const after = flexible.reduce((s, o) => s + t[o]!, 0);
+  for (const o of flexible) t[o] = (t[o]! * share) / after;
   return t;
 }
 
@@ -141,7 +165,7 @@ export function populationContext(world: World): PopulationContext {
 
 // Capacities and regions are pure functions of the generated world: kept, never saved.
 const CAPACITIES = new Map<string, Capacity>();
-function cap(ctx: PopulationContext, cell: number): Capacity {
+export function provinceCapacity(ctx: PopulationContext, cell: number): Capacity {
   const key = `${ctx.generated.digest}:${cell}`;
   let c = CAPACITIES.get(key);
   if (!c) {
@@ -151,7 +175,7 @@ function cap(ctx: PopulationContext, cell: number): Capacity {
   return c;
 }
 const REGIONS = new Map<string, Region>();
-function regionOf(ctx: PopulationContext, cell: number): Region {
+export function regionOf(ctx: PopulationContext, cell: number): Region {
   const key = `${ctx.generated.digest}:${cell}`;
   let r = REGIONS.get(key);
   if (!r) {
@@ -161,34 +185,67 @@ function regionOf(ctx: PopulationContext, cell: number): Region {
   return r;
 }
 
-function saturate(capacityYear: number, workers: number, productivity: number): number {
+export function saturate(capacityYear: number, workers: number, productivity: number): number {
   if (capacityYear <= 0 || workers <= 0) return 0;
   return capacityYear * (1 - dmath.exp((-workers * productivity) / capacityYear));
 }
 
-/** Food, monthly: what the land gives against what the people eat. */
+/** The markets that hold every province's goods (docs/architecture §20). */
+export function marketsOf(world: World): MarketStore {
+  return world.store<MarketStore>("economy.markets");
+}
+
+/**
+ * Food, monthly: what the land gives goes into the province's stores; stores spoil
+ * a little (less in pots); people eat what spoils soonest first; what is beyond
+ * what can be kept is lost.
+ */
 export function foodMonth(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
-    month = periodIndex(t, MONTH);
+    month = periodIndex(t, MONTH),
+    markets = marketsOf(world);
   for (const p of ctx.provinces.all()) {
-    const c = cap(ctx, p.cell),
+    const m = markets.of(p.cell),
+      c = provinceCapacity(ctx, p.cell),
+      key = refHash(p.ref),
       rain = p.rain / 1000,
-      wild = saturate(c.forage, p.occupation(OCC.forager), PRODUCTIVITY[OCC.forager]!) * rain,
-      fields = p.knowsCultivation
-        ? saturate(c.farm, p.occupation(OCC.farmer), PRODUCTIVITY[OCC.farmer]!) * rain
-        : 0,
-      herds =
-        saturate(c.pasture, p.occupation(OCC.herder), PRODUCTIVITY[OCC.herder]!) *
-        (0.5 + 0.5 * rain);
+      tools = 1 + (TOOL_GAIN * m.toolCover) / 1000,
+      pots = m.potteryCover / 1000;
     // Yearly food in person-years is this month's food in person-months.
-    const produced = roundKeyed(
-        wild + fields + herds,
-        world.rng.real(BIRTHS, refHash(p.ref), t, purpose("harvest")),
-      ),
-      need = p.total(),
-      have = p.food + produced,
-      fed = need > 0 ? Math.min(1, have / need) : 1;
-    p.food = Math.min(Math.max(0, have - need), need * 12);
+    const harvest: [number, number][] = [
+      [G.wild, saturate(c.forage, p.occupation(OCC.forager), PRODUCTIVITY[OCC.forager]!) * rain],
+      [
+        G.grain,
+        p.knowsCultivation
+          ? saturate(c.farm, p.occupation(OCC.farmer), PRODUCTIVITY[OCC.farmer]! * tools) * rain
+          : 0,
+      ],
+      [
+        G.meat,
+        saturate(c.pasture, p.occupation(OCC.herder), PRODUCTIVITY[OCC.herder]! * tools) *
+          (0.5 + 0.5 * rain),
+      ],
+    ];
+    for (const [g, x] of harvest)
+      m.move("made", g, roundKeyed(x, world.rng.real(BIRTHS, key, t, purpose("harvest"), g)));
+    for (const g of FOODS)
+      m.move(
+        "spoiled",
+        g,
+        Math.min(
+          m.stock[g]!,
+          roundKeyed(
+            m.stock[g]! * GOODS[g]!.spoil * (1 - 0.5 * pots),
+            world.rng.real(BIRTHS, key, t, purpose("spoil"), g),
+          ),
+        ),
+      );
+    const need = p.total();
+    let eaten = 0;
+    for (const g of FOODS) eaten += m.take("used", g, need - eaten);
+    let over = m.food(FOODS) - need * (12 + 12 * pots);
+    for (const g of FOODS) if (over > 0) over -= m.take("spoiled", g, Math.ceil(over));
+    const fed = need > 0 ? eaten / need : 1;
     p.fed = Math.round(fed * 1000);
     p.leanest = Math.min(p.leanest, p.fed);
     if (p.fed < 800 && need >= 20 && month - p.famineMonth > 12) {
@@ -214,10 +271,14 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
   const { world, history } = ctx,
     year = yearOfMoment(t),
     life = HUMANLIKE;
+  const markets = marketsOf(world);
   for (const p of ctx.provinces.all()) {
     const fed = p.fed / 1000,
       fertility = fed * fed,
-      mortality = 1 + 2.5 * (1 - fed),
+      // In cold lands, those without warm clothing die more easily.
+      cold = dmath.clamp((10 - ctx.generated.climate.temperature[p.cell]!) / 10, 0, 1),
+      bare = 1 - (markets.get(p.cell)?.clothingCover ?? 1000) / 1000,
+      mortality = (1 + 2.5 * (1 - fed)) * (1 + 0.25 * cold * bare),
       d = new CountDeltas(p.counts),
       key = refHash(p.ref);
     let expected = 0;
@@ -278,7 +339,12 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
   for (const p of ctx.provinces.all()) {
     const d = new CountDeltas(p.counts),
       key = refHash(p.ref),
-      targets = occupationTargets(p, cap(ctx, p.cell), ctx.settlements.inProvince(p.cell).length);
+      targets = occupationTargets(
+        p,
+        provinceCapacity(ctx, p.cell),
+        ctx.settlements.inProvince(p.cell).length,
+        marketsOf(world).wagesOf(p.cell),
+      );
     for (let s = 0; s < SEXES; s++)
       for (let b = 0; b < BANDS - 1; b++) {
         const comingOfAge = life.bands[b + 1]! === life.adulthood;
@@ -309,7 +375,12 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
     const grown = adults(p);
     if (!grown) continue;
     const key = refHash(p.ref),
-      targets = occupationTargets(p, cap(ctx, p.cell), ctx.settlements.inProvince(p.cell).length);
+      targets = occupationTargets(
+        p,
+        provinceCapacity(ctx, p.cell),
+        ctx.settlements.inProvince(p.cell).length,
+        marketsOf(world).wagesOf(p.cell),
+      );
     const desired = apportion(
       grown,
       targets,
@@ -390,7 +461,7 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
   for (const p of ctx.provinces.all()) {
     const pop = p.total();
     if (pop < 20) continue;
-    const c = cap(ctx, p.cell),
+    const c = provinceCapacity(ctx, p.cell),
       here = support(c, p.knowsCultivation),
       hunger = 1 - p.leanest / 1000,
       crowd = Math.max(0, pop / Math.max(1, here) - 0.85),
@@ -401,7 +472,7 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
     for (let k = g.grid.offsets[p.cell]!; k < g.grid.offsets[p.cell + 1]!; k++) {
       const m = g.grid.neighbours[k]!;
       if (g.tectonics.elevation[m]! <= 0) continue;
-      const there = support(cap(ctx, m), p.knowsCultivation),
+      const there = support(provinceCapacity(ctx, m), p.knowsCultivation),
         others = peopled(m)?.total() ?? 0,
         attraction = there / (others + 1) - perHere;
       if (attraction > 0.05 && there > 20) options.push({ cell: m, attraction });
@@ -495,7 +566,6 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
     let dest = ctx.provinces.get(f.to);
     if (!dest) {
       dest = ctx.provinces.add(new Province(f.to, year, event));
-      dest.food = f.count * 3;
       world.events.emit({
         type: POPULATION_EVENTS.peopled.type,
         place: dest.ref,
@@ -503,11 +573,22 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
         data: { people: f.count },
       });
     }
-    // Migrants carry what they know.
+    // Migrants carry what they know, and their share of what their people have.
     if (f.from.knowsCultivation && !dest.knowsCultivation) {
       dest.knowsCultivation = true;
       dest.cultivation = f.from.cultivation;
     }
+    const markets = marketsOf(world),
+      from = markets.of(f.from.cell),
+      to = markets.of(f.to),
+      people = Math.max(1, f.from.total());
+    for (let g = 0; g < GOODS.length; g++)
+      to.move(
+        "carriedIn",
+        g,
+        from.move("carriedOut", g, Math.floor((from.stock[g]! * f.count) / people)),
+      );
+    if (from.metalworking && !to.metalworking) to.metalworking = from.metalworking;
     const byOccupation = new Array<number>(COLS).fill(0);
     f.moved.forEach((m, i) => {
       if (!m) return;
@@ -549,7 +630,7 @@ export function knowledgeYear(ctx: PopulationContext, t: SimTime): void {
       continue;
     }
     if (year - p.settledYear < 15) continue;
-    const c = cap(ctx, p.cell),
+    const c = provinceCapacity(ctx, p.cell),
       soil = dmath.clamp(c.farm / Math.max(1, c.areaKm2 * 12), 0, 1),
       crowd = p.total() / Math.max(1, c.forage),
       chance = 0.004 * soil * (1 + 6 * Math.max(0, crowd - 0.6)) * (p.lastFamine ? 1.5 : 1);
@@ -626,6 +707,22 @@ function siteScore(r: Region, t: number): number {
   return n ? soil / n + water : 0;
 }
 
+// Each region's site scores, once: a pure function of the generated region.
+const SITE_SCORES = new Map<string, Float32Array>();
+function siteScores(ctx: PopulationContext, r: Region, cell: number): Float32Array {
+  const key = `${ctx.generated.digest}:${cell}`;
+  let scores = SITE_SCORES.get(key);
+  if (!scores) {
+    if (SITE_SCORES.size >= 64) SITE_SCORES.delete(SITE_SCORES.keys().next().value!);
+    scores = new Float32Array(r.size * r.size).fill(-1);
+    for (let tile = 0; tile < scores.length; tile++)
+      if (r.water[tile] === WATER.land && r.parent[tile] === cell && r.fertility[tile]! >= 0.2)
+        scores[tile] = siteScore(r, tile);
+    SITE_SCORES.set(key, scores);
+  }
+  return scores;
+}
+
 function chooseSite(
   ctx: PopulationContext,
   cell: number,
@@ -633,12 +730,16 @@ function chooseSite(
   t: SimTime,
 ): { tile: number; score: number } | null {
   const r = regionOf(ctx, cell),
-    size = r.size;
+    size = r.size,
+    scores = siteScores(ctx, r, cell);
   let best = -1,
     bestScore = -Infinity;
   for (let tile = 0; tile < size * size; tile++) {
-    if (r.water[tile] !== WATER.land || r.parent[tile] !== cell || r.fertility[tile]! < 0.2)
-      continue;
+    const base = scores[tile]!;
+    if (base < 0) continue;
+    const score = base + 0.02 * ctx.world.rng.real(SITES, tile, t, cell);
+    // Only a site that would be the best so far needs its neighbours checked.
+    if (score <= bestScore) continue;
     const i = tile % size,
       j = Math.floor(tile / size);
     // Keep six kilometres from every other village.
@@ -650,16 +751,18 @@ function chooseSite(
       })
     )
       continue;
-    const score = siteScore(r, tile) + 0.02 * ctx.world.rng.real(SITES, tile, t, cell);
-    if (score > bestScore) {
-      bestScore = score;
-      best = tile;
-    }
+    bestScore = score;
+    best = tile;
   }
   return best < 0 ? null : { tile: best, score: bestScore };
 }
 
-/** Villages, yearly: farmers found new ones as they outgrow the old; people are shared among them. */
+/**
+ * Villages, yearly: farmers found new ones as they outgrow the old; people are
+ * shared among them. Once a province has crafts and trade, its best-placed village
+ * becomes its market town, where the crafters, traders and leaders live with their
+ * families — so it grows with the work there is, past the size of a village.
+ */
 export function settleYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     year = yearOfMoment(t);
@@ -669,8 +772,13 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
       foragers = p.occupation(OCC.forager),
       grown = Math.max(1, adults(p)),
       settled = Math.round(pop * (1 - foragers / grown)),
+      trades = p.occupation(OCC.crafter) + p.occupation(OCC.trader) + p.occupation(OCC.leader),
       villages = ctx.settlements.inProvince(p.cell),
-      needed = Math.ceil(settled / VILLAGE_SIZE);
+      town = villages.find((v) => v.market),
+      townsfolk = town
+        ? Math.min(settled, Math.round((settled * trades) / Math.max(1, grown - foragers)))
+        : 0,
+      needed = Math.ceil((settled - townsfolk) / VILLAGE_SIZE);
     for (let n = 0; villages.length < needed && n < 3; n++) {
       const site = chooseSite(ctx, p.cell, villages, t);
       if (!site) break;
@@ -715,20 +823,85 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
         decision,
         event,
         population: 0,
+        market: null,
       });
       villages.push(s);
     }
-    // The settled people live in the villages, the better sites drawing more.
+    if (!town && villages.length >= 2 && trades >= 12) chooseMarketTown(ctx, p, villages, t);
+    // The settled people live in the villages, the better sites drawing more; the
+    // market town's trades live there.
     if (villages.length) {
-      const r = regionOf(ctx, p.cell);
+      const r = regionOf(ctx, p.cell),
+        market = villages.find((v) => v.market),
+        inTown = market ? townsfolk : 0;
       const share = apportion(
-        settled,
+        settled - inTown,
         villages.map((v) => 0.2 + siteScore(r, v.tile)),
         villages.map((v) => world.rng.u32(SITES, refHash(v.ref), t, 9)),
       );
-      villages.forEach((v, i) => (v.population = share[i]!));
+      villages.forEach((v, i) => (v.population = share[i]! + (v === market ? inTown : 0)));
     }
   }
+}
+
+/** A province's market town: the village best placed for its people to come to. */
+function chooseMarketTown(
+  ctx: PopulationContext,
+  p: Province,
+  villages: readonly Settlement[],
+  t: SimTime,
+): void {
+  const { world } = ctx,
+    r = regionOf(ctx, p.cell),
+    g = ctx.generated,
+    // The middle of the province is easiest to reach from all of it.
+    reach = (v: Settlement) => {
+      const i = v.tile % r.size,
+        j = Math.floor(v.tile / r.size),
+        dx = (i - r.size / 2) / r.size,
+        dy = (j - r.size / 2) / r.size;
+      return 1 - dmath.sqrt(dx * dx + dy * dy);
+    },
+    score = (v: Settlement) => siteScore(r, v.tile) + 0.5 * reach(v);
+  const town = [...villages].sort(
+    (a, b) => score(b) - score(a) || a.founded - b.founded || (a.ref < b.ref ? -1 : 1),
+  )[0]!;
+  const trades = p.occupation(OCC.crafter) + p.occupation(OCC.trader);
+  const decision = world.decisions.record({
+    rule: "settlement.market",
+    subject: p.ref,
+    outcome: { town: town.ref },
+    score: score(town),
+    threshold: 0,
+    factors: [
+      {
+        name: "good ground and water",
+        value: siteScore(r, town.tile),
+        contribution: siteScore(r, town.tile),
+        source: { ref: town.event, role: "enabler", weight: 1 },
+      },
+      { name: "easy to reach", value: reach(town), contribution: 0.5 * reach(town), source: null },
+      {
+        name: "crafts and trade",
+        value: trades,
+        contribution: 0.2,
+        source: p.cultivation ? { ref: p.cultivation, role: "enabler", weight: 1 } : null,
+      },
+      {
+        name: "a river",
+        value: g.water.river[p.cell] ?? 0,
+        contribution: g.water.river[p.cell] ? 0.1 : 0,
+        source: null,
+      },
+    ],
+  });
+  town.market = world.events.emit({
+    type: POPULATION_EVENTS.market.type,
+    subjects: [town.ref],
+    place: p.ref,
+    causes: [{ ref: decision, role: "trigger", weight: 1 }],
+    data: { name: town.name },
+  });
 }
 
 /** The ledger's yearly line for each province; the lean-month memory starts again. */

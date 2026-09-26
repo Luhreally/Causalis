@@ -187,6 +187,7 @@ async function runPlanetPage(): Promise<void> {
   let lens: Lens = "terrain",
     regionLens: RegionLens = "land",
     density = new Map<number, number>(),
+    foodPrices = new Map<number, number>(),
     villages: Village[] = [],
     regionCell = -1,
     stopVillages: (() => void) | null = null;
@@ -203,7 +204,7 @@ async function runPlanetPage(): Promise<void> {
         (frame.meta as { frequency: number }).frequency,
         frame.arrays.elevation as Float32Array,
       );
-    const colors = globeColors(frame, lens, density);
+    const colors = globeColors(frame, lens, lens === "food" ? foodPrices : density);
     globe.paint(colors);
     painted = colors.length / 4;
   };
@@ -227,9 +228,22 @@ async function runPlanetPage(): Promise<void> {
     region.paint(colors);
     painted = colors.length / 4;
   };
+  /** Turn to the most peopled province; closer, for the lenses that show the people. */
+  async function faceThePeople(closer: boolean): Promise<void> {
+    const map = await client.query<PeopleEntry[]>({ type: "people.map" });
+    const most = [...map].sort((a, b) => b.people - a.people || a.cell - b.cell)[0];
+    if (!most || scale !== "globe") return;
+    const place = await client.query<{ lat: number; lon: number }>({
+      type: "cell",
+      args: { cell: most.cell },
+    });
+    rig.face(place.lat, place.lon);
+    if (closer && !rig.userZoomed) rig.distance = Math.min(rig.distance, 2);
+  }
   planetPanel.onLens = (l) => {
     lens = l;
     paintGlobe();
+    if (l === "people" || l === "food") void faceThePeople(true);
   };
   regionPanel.onLens = (l) => {
     regionLens = l;
@@ -238,7 +252,8 @@ async function runPlanetPage(): Promise<void> {
   client.subscribe<PeopleEntry[]>({ type: "people.map" }, 1000, (entries) => {
     planetPanel.people(entries);
     density = new Map(entries.map((e) => [e.cell, e.density]));
-    if (lens === "people" && scale === "globe") paintGlobe();
+    foodPrices = new Map(entries.map((e) => [e.cell, e.food]));
+    if ((lens === "people" || lens === "food") && scale === "globe") paintGlobe();
   });
 
   const aspect = () => Math.max(0.3, innerWidth / Math.max(1, innerHeight));
@@ -349,16 +364,7 @@ async function runPlanetPage(): Promise<void> {
     if (!rig.userZoomed) rig.distance = scale === "globe" ? globeFit() : regionFit();
   });
   // Open facing the people (the most peopled province), not wherever the camera starts.
-  void (async () => {
-    const map = await client.query<PeopleEntry[]>({ type: "people.map" });
-    const most = [...map].sort((a, b) => b.people - a.people)[0];
-    if (!most) return;
-    const place = await client.query<{ lat: number; lon: number }>({
-      type: "cell",
-      args: { cell: most.cell },
-    });
-    rig.face(place.lat, place.lon);
-  })();
+  void faceThePeople(false);
   client.onFrame((frame) => {
     if (frame.view === "globe") paintGlobe();
     else if (frame.view === "region") paintRegion();

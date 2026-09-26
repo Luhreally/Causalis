@@ -22,6 +22,8 @@ export {
 } from "./observer.ts";
 export { isObserved } from "./people.ts";
 import "./population.ts";
+import "./economy.ts";
+export { priceWords } from "./economy.ts";
 export {
   edges,
   registerDecisionWords,

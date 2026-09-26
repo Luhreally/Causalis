@@ -139,6 +139,24 @@ for (const engine of engines) {
         await page.screenshot({ path: join(shotsAt, `${engine}-${name}.png`) });
       }
       if (name === "earth") {
+        // The most peopled province's inspector shows its market.
+        await page.evaluate(async () => {
+          const c = (globalThis as { causalis?: Exposed }).causalis!;
+          const map = await c.client!.query<{ cell: number; people: number }[]>({
+            type: "people.map",
+          });
+          c.select!([...map].sort((a, b) => b.people - a.people || a.cell - b.cell)[0]!.cell);
+        });
+        await page.waitForFunction(
+          () =>
+            [...document.querySelectorAll(".panel:not([hidden]) .inspector h3")].some(
+              (h) => h.textContent === "Their market",
+            ) && document.querySelectorAll(".panel:not([hidden]) .inspector .line").length > 3,
+          undefined,
+          { timeout: 10000 },
+        );
+        if (shotsAt && !query.includes("inline"))
+          await page.screenshot({ path: join(shotsAt, `${engine}-market.png`) });
         // Down into the region around a copper deposit, then a tile's inspector.
         await page.evaluate(async () => {
           const c = (globalThis as { causalis?: Exposed }).causalis!;

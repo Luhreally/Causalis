@@ -3,7 +3,9 @@
 // gathered — whose choice is itself a recorded decision the explainer can open.
 import { World, apportion, defineStream, type Ref, type Seed } from "../../kernel/index.ts";
 import { BIOME, cellRef, type HomeWorld } from "../../gen/index.ts";
-import { FEMALE, HUMANLIKE, MALE, OCC } from "../../rules/index.ts";
+import { FEMALE, G, HUMANLIKE, MALE, OCC } from "../../rules/index.ts";
+import { MarketStore } from "../economy/market.ts";
+import { installEconomy } from "../economy/systems.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
 import { Province, capacity, row } from "./model.ts";
 import { HistoryStore, PopulationStore, SettlementStore } from "./stores.ts";
@@ -44,8 +46,11 @@ export function makePopulationWorld(seed: Seed, options: PlanetWorldOptions = {}
   const provinces = world.register(new PopulationStore()),
     history = world.register(new HistoryStore());
   world.register(new SettlementStore());
+  const markets = world.register(new MarketStore());
+  world.addPinner(() => markets.pinned());
   world.addPinner(() => history.pinned());
   installPopulation(world);
+  installEconomy(world);
 
   const g = homePlanet(world).generated,
     home = chooseHome(g, world),
@@ -91,6 +96,7 @@ export function makePopulationWorld(seed: Seed, options: PlanetWorldOptions = {}
     p.counts.set(row(FEMALE, b), occupation, women!);
     p.counts.set(row(MALE, b), occupation, men!);
   });
-  p.food = FIRST_PEOPLE * 6;
+  // They bring half a year's food.
+  markets.of(home).move("carriedIn", G.wild, FIRST_PEOPLE * 6);
   return world;
 }

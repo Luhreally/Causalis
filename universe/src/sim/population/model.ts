@@ -59,8 +59,6 @@ export class Province {
   readonly cell: number;
   readonly ref: Ref;
   readonly counts = new CountTable(ROWS, COLS);
-  /** Stored food, in person-months. */
-  food = 0;
   /** This year's rain against the usual, in thousandths. */
   rain = 1000;
   /** Last month's food against need, in thousandths (1000 = enough). */
@@ -97,7 +95,7 @@ export class Province {
   hashInto(h: Hasher): void {
     h.int(this.cell);
     this.counts.hashInto(h);
-    h.int(this.food).int(this.rain).int(this.fed).int(this.leanest).bool(this.knowsCultivation);
+    h.int(this.rain).int(this.fed).int(this.leanest).bool(this.knowsCultivation);
     h.string(this.cultivation ?? "")
       .int(this.settledYear)
       .string(this.arrival ?? "");
@@ -110,7 +108,6 @@ export class Province {
     return {
       cell: this.cell,
       counts: this.counts.save(),
-      food: this.food,
       rain: this.rain,
       fed: this.fed,
       leanest: this.leanest,
@@ -128,7 +125,6 @@ export class Province {
     const s = state as ReturnType<Province["save"]> & Record<string, unknown>;
     const p = new Province(s.cell as number, s.settledYear as number, s.arrival as Ref | null);
     p.counts.load(s.counts as never);
-    p.food = s.food as number;
     p.rain = s.rain as number;
     p.fed = s.fed as number;
     p.leanest = s.leanest as number;

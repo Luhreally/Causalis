@@ -13,6 +13,7 @@ import {
   STAR,
   SURFACE_CELL,
   cellRef,
+  surfaceCopper,
 } from "../gen/index.ts";
 import { homePlanet } from "../sim/index.ts";
 import { edges, registerExplainer, type Explanation } from "./why.ts";
@@ -98,7 +99,7 @@ registerExplainer(SURFACE_CELL.code, (world, ref) => {
     near = b !== BOUNDARY.none && g.tectonics.toBoundary[c]! <= 3;
   return generated(
     ref,
-    `${BIOME_NAMES[g.climate.biome[c]!]} at ${deg(g.grid.lat[c]!)}${g.grid.lat[c]! >= 0 ? "N" : "S"} ${deg(g.grid.lon[c]!)}${g.grid.lon[c]! >= 0 ? "E" : "W"}: ${Math.round(e)} m ${e >= 0 ? "above" : "below"} the sea, ${g.climate.temperature[c]!.toFixed(0)} °C, ${Math.round(g.climate.precipitation[c]!)} mm of rain a year${near ? `, near a ${BOUNDARY_WORDS[b]} plate boundary` : ""}`,
+    `${BIOME_NAMES[g.climate.biome[c]!]} at ${deg(g.grid.lat[c]!)}${g.grid.lat[c]! >= 0 ? "N" : "S"} ${deg(g.grid.lon[c]!)}${g.grid.lon[c]! >= 0 ? "E" : "W"}: ${Math.round(e)} m ${e >= 0 ? "above" : "below"} the sea, ${g.climate.temperature[c]!.toFixed(0)} °C, ${Math.round(g.climate.precipitation[c]!)} mm of rain a year${near ? `, near a ${BOUNDARY_WORDS[b]} plate boundary` : ""}${surfaceCopper(g, c) ? "; copper ores lie at the surface" : ""}`,
     edges(world, [
       { ref: g.tectonics.plates[g.tectonics.plate[c]!]!.ref as Ref, role: "enabler", weight: 1 },
     ]),

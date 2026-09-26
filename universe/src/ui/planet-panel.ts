@@ -56,7 +56,39 @@ type ProvinceFacts = {
   villages: number;
 } | null;
 
-export type PeopleEntry = { cell: number; people: number; density: number; farming: boolean };
+export type PeopleEntry = {
+  cell: number;
+  people: number;
+  density: number;
+  farming: boolean;
+  /** What food costs against its usual worth. */
+  food: number;
+  /** Goods in and out last year. */
+  trade: number;
+};
+
+/** A province's market, as the host reports it. */
+export type MarketFacts = {
+  cell: number;
+  year: number | null;
+  goods: {
+    id: string;
+    name: string;
+    ref: string;
+    ratio: number;
+    words: string;
+    stock: number;
+    made: number;
+    used: number;
+    into: number;
+    out: number;
+  }[];
+  foodMonths: number;
+  cover: { tools: number; clothing: number; pottery: number };
+  metalworking: string | null;
+  town: { ref: string; name: string; population: number } | null;
+  trade: { good: string; count: number; out: boolean; with: string }[];
+};
 
 function latLon(lat: number, lon: number): string {
   return `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? "N" : "S"}, ${Math.abs(lon).toFixed(1)}°${lon >= 0 ? "E" : "W"}`;
@@ -84,6 +116,7 @@ export class PlanetPanel {
   private readonly title = el("h2");
   private readonly facts = el("div", "facts");
   private readonly whyBox = el("div", "why");
+  private readonly marketBox = el("div");
   private readonly closer = el("button", "act", "Look closer");
   private selected: number | null = null;
   private description = "";
@@ -130,6 +163,7 @@ export class PlanetPanel {
       this.title,
       this.facts,
       this.closer,
+      this.marketBox,
       el("h3", undefined, "Why is it like this?"),
       this.whyBox,
     );
@@ -178,6 +212,59 @@ export class PlanetPanel {
     for (const [l, b] of this.lensButtons) b.classList.toggle("on", l === lens);
   }
 
+  /** The market: how well off the people are for what they need, and each good's price with its why. */
+  private showMarket(m: MarketFacts | null): void {
+    if (!m || m.year === null) {
+      this.marketBox.replaceChildren();
+      return;
+    }
+    const open = (text: string, ref: string) => {
+      const b = el("button", "line", text);
+      b.onclick = () => void this.why.show(ref, this.whyBox);
+      return b;
+    };
+    const parts: HTMLElement[] = [el("h3", undefined, "Their market")];
+    parts.push(
+      el(
+        "div",
+        "fact",
+        `Food for ${Math.round(m.foodMonths)} months in store; tools for ${Math.round(m.cover.tools)}% of those who need them, clothing for ${Math.round(m.cover.clothing)}%, pots for ${Math.round(m.cover.pottery)}%`,
+      ),
+    );
+    if (m.town)
+      parts.push(
+        open(
+          `${m.town.name} is their market town (${m.town.population.toLocaleString()} people)`,
+          m.town.ref,
+        ),
+      );
+    if (m.metalworking) parts.push(open("They smelt and work copper", m.metalworking));
+    for (const g of m.goods) {
+      const moved = [
+        g.into ? `${g.into.toLocaleString()} in` : "",
+        g.out ? `${g.out.toLocaleString()} out` : "",
+      ]
+        .filter(Boolean)
+        .join(", ");
+      parts.push(
+        open(
+          `${g.name[0]!.toUpperCase()}${g.name.slice(1)}: ${g.words} · ${g.made.toLocaleString()} made in year ${m.year}${moved ? ` · ${moved}` : ""}`,
+          g.ref,
+        ),
+      );
+    }
+    const trade = [...m.trade].sort((a, b) => b.count - a.count).slice(0, 4);
+    for (const f of trade)
+      parts.push(
+        el(
+          "div",
+          "fact muted",
+          `${f.out ? "Sent" : "Received"} ${f.count.toLocaleString()} ${f.good} ${f.out ? "to" : "from"} ${f.with}`,
+        ),
+      );
+    this.marketBox.replaceChildren(...parts);
+  }
+
   private markSpeed(speed: number): void {
     PLANET_SPEEDS.forEach((s, i) => this.speedButtons[i]!.classList.toggle("on", s === speed));
   }
@@ -186,9 +273,10 @@ export class PlanetPanel {
     this.selected = cell;
     this.inspector.hidden = cell === null;
     if (cell === null) return;
-    const [p, folk] = await Promise.all([
+    const [p, folk, market] = await Promise.all([
       this.client.query<Place>({ type: "cell", args: { cell } }),
       this.client.query<ProvinceFacts>({ type: "province", args: { cell } }),
+      this.client.query<MarketFacts | null>({ type: "market", args: { cell } }),
     ]);
     if (this.selected !== cell) return;
     const high = p.elevation >= 0;
@@ -215,6 +303,7 @@ export class PlanetPanel {
         : "",
     ].filter(Boolean);
     this.facts.replaceChildren(...rows.map((r) => el("div", "fact", r)));
+    this.showMarket(market);
     this.closer.hidden = !high;
     void this.why.show(folk?.arrival ?? p.deposit?.ref ?? p.ref, this.whyBox);
   }

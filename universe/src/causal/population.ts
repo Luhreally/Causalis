@@ -14,10 +14,15 @@ registerExplainer(SETTLEMENT.code, (world: World, ref) => {
   if (!s) return null;
   return {
     ref,
-    claim: `${s.name}, a village of ${s.population}, founded in year ${s.founded}`,
+    claim: s.market
+      ? `${s.name}, the market town of its land, ${s.population} people, founded in year ${s.founded}`
+      : `${s.name}, a village of ${s.population}, founded in year ${s.founded}`,
     basis: "recorded",
     t: null,
-    causes: edges(world, [{ ref: s.event, role: "trigger", weight: 1 }]),
+    causes: edges(world, [
+      { ref: s.event, role: "trigger", weight: s.market ? 0.6 : 1 },
+      ...(s.market ? [{ ref: s.market, role: "enabler" as const, weight: 0.4 }] : []),
+    ]),
   };
 });
 

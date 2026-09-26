@@ -37,8 +37,29 @@ export {
   VILLAGE_SIZE,
   installPopulation,
   occupationTargets,
+  marketsOf,
   populationContext,
+  provinceCapacity,
   support,
   type PopulationContext,
 } from "./population/systems.ts";
 export { FIRST_PEOPLE, chooseHome, makePopulationWorld } from "./population/world.ts";
+export {
+  GOOD_COUNT,
+  LEDGER,
+  MARKET_GOOD,
+  MARKET_YEARS,
+  Market,
+  MarketStore,
+  marketGoodRef,
+  type LedgerLine,
+  type MarketYear,
+  type TradeFlow,
+} from "./economy/market.ts";
+export {
+  ECONOMY_EVENTS,
+  HAUL_PER_100KM,
+  economyYear,
+  installEconomy,
+  metalYear,
+} from "./economy/systems.ts";

@@ -266,6 +266,8 @@ export class SimHost {
           this.dropSteps();
           if (m.to > world.now) world.runTo(m.to);
           this.simTarget = world.now;
+          // A jump is not the clock's pace: measure the pace afresh from here.
+          this.achievedWindow = [];
           this.reply(m.id, { t: world.now });
           return;
         }

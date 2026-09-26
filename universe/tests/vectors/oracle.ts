@@ -14,8 +14,9 @@ export const FIXTURES: readonly Fixture[] = [
   { name: "earth/first-light", years: 2, make: () => makePlanetWorld(seedFromText("first light")) },
   { name: "earth/kestrel", years: 2, make: () => makePlanetWorld(seedFromText("kestrel")) },
   {
+    // Long enough for farming, villages, trade, metalworking and a market town.
     name: "people/first-light",
-    years: 60,
+    years: 300,
     make: () => makePopulationWorld(seedFromText("first light")),
   },
 ];
