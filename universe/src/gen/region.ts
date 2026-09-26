@@ -43,6 +43,45 @@ const BASE_FERTILITY: readonly number[] = [
   0, 0, 0, 0, 0, 0.15, 0.35, 0.1, 0.85, 0.8, 0.6, 0.1, 0.55, 0.6, 0.45, 0.08,
 ];
 
+// Working space reused from one refinement to the next (every part is reset before
+// use, so a region never depends on the one before it): refining is frequent in a
+// peopled world, and fresh megabytes each time keep the collector busy.
+type Scratch = {
+  n: number;
+  blendCell: Int32Array;
+  blendWeight: Float64Array;
+  base: Float64Array;
+  detail: Float64Array;
+  seaTemperature: Float64Array;
+  rainfall: Float64Array;
+  flowTo: Int32Array;
+  done: Uint8Array;
+};
+let scratch: Scratch | null = null;
+function scratchFor(n: number, width: number): Scratch {
+  if (!scratch || scratch.n !== n)
+    scratch = {
+      n,
+      blendCell: new Int32Array(n * width),
+      blendWeight: new Float64Array(n * width),
+      base: new Float64Array(n),
+      detail: new Float64Array(n),
+      seaTemperature: new Float64Array(n),
+      rainfall: new Float64Array(n),
+      flowTo: new Int32Array(n),
+      done: new Uint8Array(n),
+    };
+  scratch.blendCell.fill(-1);
+  scratch.blendWeight.fill(0);
+  scratch.base.fill(0);
+  scratch.detail.fill(0);
+  scratch.seaTemperature.fill(0);
+  scratch.rainfall.fill(0);
+  scratch.flowTo.fill(-1);
+  scratch.done.fill(0);
+  return scratch;
+}
+
 export function refineRegion(w: HomeWorld, center: number, size = 128, tileKm = 0.8): Region {
   const g = w.grid,
     n = size * size,
@@ -69,12 +108,10 @@ export function refineRegion(w: HomeWorld, center: number, size = 128, tileKm = 
     parent = new Int32Array(n);
   // Each tile's blend: up to seven parent cells and their weights.
   const MAXW = 7,
-    blendCell = new Int32Array(n * MAXW).fill(-1),
-    blendWeight = new Float64Array(n * MAXW),
-    base = new Float64Array(n),
-    detail = new Float64Array(n),
-    seaTemperature = new Float64Array(n),
-    rainfall = new Float64Array(n);
+    { blendCell, blendWeight, base, detail, seaTemperature, rainfall, flowTo, done } = scratchFor(
+      n,
+      MAXW,
+    );
   let near = center;
   for (let j = 0; j < size; j++)
     for (let i = 0; i < size; i++) {
@@ -195,9 +232,7 @@ export function refineRegion(w: HomeWorld, center: number, size = 128, tileKm = 
   // Water: the sea, then a priority flood from the sea and the map's edges.
   const water = new Uint8Array(n),
     discharge = new Float32Array(n),
-    flowTo = new Int32Array(n).fill(-1),
     filled = Float32Array.from(elevation),
-    done = new Uint8Array(n),
     order: number[] = [],
     heap = new MinHeap();
   for (let t = 0; t < n; t++) {
