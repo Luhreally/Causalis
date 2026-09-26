@@ -40,6 +40,7 @@ export {
   marketsOf,
   populationContext,
   provinceCapacity,
+  regionOf,
   support,
   type PopulationContext,
 } from "./population/systems.ts";

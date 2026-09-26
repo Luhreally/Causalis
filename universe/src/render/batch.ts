@@ -13,7 +13,7 @@ export class InstancedBatch {
   private readonly entity: pc.Entity;
   private count = 0;
 
-  constructor(stage: Stage, mesh: pc.Mesh, color: Rgb, capacity: number) {
+  constructor(stage: Stage, mesh: pc.Mesh, color: Rgb, capacity: number, parent?: pc.Entity) {
     this.capacity = capacity;
     this.matrices = new Float32Array(capacity * 16);
     this.instance = new pc.MeshInstance(mesh, flatMaterial(color));
@@ -26,7 +26,14 @@ export class InstancedBatch {
     this.instance.instancingCount = 0;
     this.entity = new pc.Entity("batch");
     this.entity.addComponent("render", { meshInstances: [this.instance] });
-    stage.root.addChild(this.entity);
+    (parent ?? stage.root).addChild(this.entity);
+  }
+
+  /** Change the colour of every instance. */
+  recolor(color: Rgb): void {
+    const m = this.instance.material as pc.StandardMaterial;
+    m.diffuse.set(color[0], color[1], color[2]);
+    m.update();
   }
 
   /**

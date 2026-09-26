@@ -18,6 +18,7 @@ export {
 export {
   DEPOSIT_COLORS,
   LENSES,
+  biomeColor,
   LENS_NAMES,
   globeColors,
   globeRadius,
@@ -31,3 +32,11 @@ export {
   regionHeights,
   type RegionLens,
 } from "./region.ts";
+export {
+  ACTIVITY,
+  ACTIVITY_WORDS,
+  momentOf,
+  personGroup,
+  type Activity,
+  type Moment,
+} from "./village.ts";

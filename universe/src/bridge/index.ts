@@ -14,3 +14,4 @@ export {
   type ToMain,
 } from "./protocol.ts";
 export { inlinePair, workerPort } from "./transport.ts";
+export type { VillagePlan } from "./village.ts";

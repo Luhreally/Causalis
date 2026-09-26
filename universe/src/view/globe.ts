@@ -141,6 +141,11 @@ const FOOD: readonly Stop[] = [
   [2.5, [0.75, 0.12, 0.18]],
 ];
 
+/** A biome's colour on the land lens. */
+export function biomeColor(biome: number): Rgb {
+  return BIOME_COLORS[biome] ?? [0.5, 0.6, 0.35];
+}
+
 /**
  * Per-cell RGBA (0–255) for a globe frame under a lens. `values` feeds the lenses
  * that show the people: for "people", people per 100 km²; for "food", what food

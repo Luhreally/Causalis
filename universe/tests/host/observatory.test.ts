@@ -51,3 +51,26 @@ test("the people of a province explain themselves, back to the first people and 
   const facts = ask<{ folk: Ref }>("province", { cell: 30210 });
   assert.equal(facts.folk, folkRef(30210));
 });
+
+test("watching a village meets its families through the observer and never changes history", () => {
+  const quiet = EARTH.build(seedFromText("first light")),
+    busy = EARTH.build(seedFromText("first light"));
+  quiet.runTo(240 * YEAR);
+  busy.runTo(240 * YEAR);
+  const ref = (EARTH.queries.settlements!(busy, { cell: 30210 }) as { ref: string }[])[0]!.ref;
+  type Plan = { people: { ref: string; home: number }[]; homes: { household: string | null }[] };
+  const first = EARTH.queries["village.plan"]!(busy, { ref }) as Plan;
+  assert.ok(first.people.length >= 10, `${first.people.length} watched`);
+  assert.ok(first.people.every((p) => first.homes[p.home]!.household !== null));
+  for (let year = 241; year <= 250; year++) {
+    quiet.runTo(year * YEAR);
+    busy.runTo(year * YEAR);
+    const again = EARTH.queries["village.plan"]!(busy, { ref }) as Plan;
+    assert.ok(again.people.length <= first.people.length + 60);
+  }
+  assert.deepEqual(
+    busy.checkpoints().map((c) => c.chain),
+    quiet.checkpoints().map((c) => c.chain),
+    "the watched village's history is the unwatched one's",
+  );
+});

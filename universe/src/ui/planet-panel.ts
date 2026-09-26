@@ -137,6 +137,8 @@ export class PlanetPanel {
   private readonly hand: HandView;
   private readonly closer = el("button", "act", "Look closer");
   private selected: number | null = null;
+  /** The speed chosen for the world (the microscope keeps its own). */
+  speed: number;
   private description = "";
   onLens: (lens: Lens) => void = () => {};
   onClose: () => void = () => {};
@@ -144,6 +146,7 @@ export class PlanetPanel {
 
   constructor(root: HTMLElement, client: HostClient, lens: Lens, speed: number) {
     this.client = client;
+    this.speed = speed;
     this.why = new WhyTree(client);
     this.hand = new HandView(client);
     this.hand.onWhy = (ref) => void this.why.show(ref, this.whyBox);
@@ -156,6 +159,7 @@ export class PlanetPanel {
       b.onclick = () => {
         client.setSpeed(s);
         this.markSpeed(s);
+        this.speed = s;
       };
       speeds.append(b);
       this.speedButtons.push(b);

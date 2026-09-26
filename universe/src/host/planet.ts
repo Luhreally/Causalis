@@ -26,6 +26,7 @@ import { parseRef, yearOfMoment, type Ref, type World } from "../kernel/index.ts
 import { folkRef, landWords, observer, priceWords, why } from "../causal/index.ts";
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
+import { villagePlan } from "./village.ts";
 
 const BOUNDARY_WORDS = ["none", "converging", "spreading", "sliding"];
 
@@ -336,6 +337,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
       market: (world, args) => market(world, (args as { cell: number }).cell),
       "province.history": (world, args) => provinceHistory(world, (args as { cell: number }).cell),
       chronicle: (world, args) => chronicle(world, (args as { limit?: number }).limit ?? 60),
+      "village.plan": (world, args) => villagePlan(world, (args as { ref: string }).ref as Ref),
       /** The god's acts on a province, newest first, each with the event that records it. */
       acts: (world, args) => {
         const cell = (args as { cell: number }).cell;

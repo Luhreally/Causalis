@@ -48,6 +48,8 @@ export class RegionPanel {
   private view = 0;
   private village: { ref: string; cell: number; name: string } | null = null;
   onBack: () => void = () => {};
+  /** Watch a village through the microscope. */
+  onWatch: (ref: string) => void = () => {};
   onLens: (lens: RegionLens) => void = () => {};
   onClose: () => void = () => {};
 
@@ -131,8 +133,10 @@ export class RegionPanel {
       ),
       el("div", "fact", `Founded in year ${v.founded}`),
     );
-    const families = el("div");
-    this.body.replaceChildren(el("h3", undefined, "Families you have met"), families);
+    const families = el("div"),
+      watch = el("button", "act", "Watch their day");
+    watch.onclick = () => this.onWatch(ref);
+    this.body.replaceChildren(watch, el("h3", undefined, "Families you have met"), families);
     this.whyTitle.textContent = "Why is it here?";
     void this.people.village(families, v.cell, ref);
     void this.why.show(ref, this.whyBox);

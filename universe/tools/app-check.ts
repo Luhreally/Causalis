@@ -29,6 +29,8 @@ type Exposed = {
   client?: { status: { t: number } | null; query<T>(q: { type: string }): Promise<T> };
   descend?: (cell: number) => void;
   villages?: () => number;
+  watch?: (ref: string) => void;
+  watching?: () => number;
   drawn?: () => number;
   select?: (cell: number) => void;
   bench?: { fps: number; frameMs: number; instances: number; tier: string };
@@ -224,7 +226,7 @@ for (const engine of engines) {
             type: "people.map",
           });
           for (const p of [...map].sort((a, b) => b.people - a.people || a.cell - b.cell)) {
-            const vs = await c.client!.query<{ tile: number; name: string }[]>({
+            const vs = await c.client!.query<{ tile: number; name: string; ref: string }[]>({
               type: "settlements",
               args: { cell: p.cell },
             } as { type: string });
@@ -249,13 +251,11 @@ for (const engine of engines) {
             (tile) => (globalThis as { causalis?: Exposed }).causalis?.select?.(tile),
             village.tile,
           );
-          await page.waitForSelector(
-            ".panel:not([hidden]) .inspector:not([hidden]) .act:not([disabled])",
-            {
-              timeout: 10000,
-            },
-          );
-          await page.click(".panel:not([hidden]) .inspector .act");
+          const meet = page.locator(".panel:not([hidden]) .inspector:not([hidden]) .act", {
+            hasText: "Meet a family",
+          });
+          await meet.waitFor({ timeout: 10000 });
+          await meet.click();
           await page.waitForSelector(".panel:not([hidden]) .inspector .family .person", {
             timeout: 10000,
           });
@@ -279,6 +279,27 @@ for (const engine of engines) {
           );
           if (shotsAt && !query.includes("inline"))
             await page.screenshot({ path: join(shotsAt, `${engine}-person.png`) });
+
+          // Through the microscope: the village's day, with its watched families.
+          await page.evaluate(
+            (ref) => (globalThis as { causalis?: Exposed }).causalis?.watch?.(ref),
+            village.ref,
+          );
+          const watched = await waitFor(
+            `${label} watching`,
+            () =>
+              page.evaluate(
+                () => (globalThis as { causalis?: Exposed }).causalis?.watching?.() ?? null,
+              ),
+            (n) => n > 0,
+          );
+          console.log(
+            `${(label + " watch").padEnd(24)} ${later.mode.padEnd(9)} ${watched} people of ${village.name} watched`,
+          );
+          if (shotsAt && !query.includes("inline")) {
+            await new Promise((r) => setTimeout(r, 1500));
+            await page.screenshot({ path: join(shotsAt, `${engine}-watch.png`) });
+          }
         }
       }
       await page.close();

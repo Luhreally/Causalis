@@ -1,0 +1,29 @@
+// The microscope's plan of a village, as the host sends it (docs/architecture §9,
+// watch mode): what the view needs to draw a village's day. Positions are metres
+// from the village's middle.
+export type VillagePlan = {
+  readonly ref: string;
+  readonly name: string;
+  readonly population: number;
+  readonly market: boolean;
+  /** The biome the village stands in (gen's code), for the ground's colour. */
+  readonly biome: number;
+  readonly seed: number;
+  /** Positions in metres from the village's middle; `household` for the watched homes. */
+  readonly homes: readonly { x: number; z: number; yaw: number; household: string | null }[];
+  readonly fields: readonly { x: number; z: number; w: number; d: number; yaw: number }[];
+  readonly pasture: { x: number; z: number; r: number };
+  /** How far out the wild begins. */
+  readonly wild: number;
+  readonly water: { x: number; z: number } | null;
+  /** Where the road out leads, at the edge of what is shown. */
+  readonly road: { x: number; z: number };
+  readonly people: readonly {
+    ref: string;
+    name: string;
+    home: number;
+    age: number;
+    occupation: number;
+    child: boolean;
+  }[];
+};

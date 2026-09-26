@@ -7,4 +7,5 @@ export { GlobeScene } from "./globe.ts";
 export { OrbitRig, type OrbitOptions } from "./orbit.ts";
 export { RegionScene } from "./region.ts";
 export { SandboxScene } from "./sandbox.ts";
+export { VillageScene } from "./village.ts";
 export { Stage, flatMaterial, type DeviceTier, type Rgb } from "./stage.ts";

@@ -10,6 +10,7 @@ import {
   RegionScene,
   SandboxScene,
   Stage,
+  VillageScene,
   runBench,
 } from "../render/index.ts";
 import {
@@ -17,8 +18,10 @@ import {
   PlanetPanel,
   RegionPanel,
   SandboxPanel,
+  VillagePanel,
   type PeopleEntry,
 } from "../ui/index.ts";
+import type { VillagePlan } from "../bridge/index.ts";
 import {
   cellAt,
   cellCenter,
@@ -33,6 +36,8 @@ import {
 import { deviceTier } from "./tier.ts";
 
 const DAY = 86_400;
+/** Watching a village starts at an hour a second: a day goes by in 24 seconds. */
+const WATCH_DEFAULT = 3600;
 const YEAR = 365 * DAY;
 const SKY = [0.09, 0.1, 0.13] as const;
 const SPACE = [0.02, 0.025, 0.045] as const;
@@ -56,6 +61,9 @@ type Exposed = {
   descend?: (cell: number) => void;
   /** How many villages the region on screen shows. */
   villages?: () => number;
+  /** Watch a village through the microscope; how many people are watched. */
+  watch?: (ref: string) => void;
+  watching?: () => number;
   bench?: unknown;
   /** Why the page could not start, if it could not ("webgl" when 3D is unavailable). */
   error?: string;
@@ -173,10 +181,11 @@ async function runPlanetPage(): Promise<void> {
     tier = deviceTier(),
     stage = new Stage(canvas, tier, SPACE),
     globe = new GlobeScene(stage),
-    region = new RegionScene(stage);
+    region = new RegionScene(stage),
+    village = new VillageScene(stage);
   const { client, mode } = await connect();
   let painted = 0,
-    scale: "globe" | "region" = "globe";
+    scale: "globe" | "region" | "village" = "globe";
   Object.assign(exposed, { client, mode, seed, universe, drawn: () => painted, stage });
   await client.start(universe, seed);
   // ?year=N starts the world N years on (it runs there first; history is the same).
@@ -193,8 +202,9 @@ async function runPlanetPage(): Promise<void> {
     stopVillages: (() => void) | null = null;
   const planetPanel = new PlanetPanel(hud, client, lens, speed),
     regionPanel = new RegionPanel(hud, client),
+    villagePanel = new VillagePanel(hud, client),
     labels = new LabelLayer(hud);
-  labels.blockers = [regionPanel.inspector];
+  labels.blockers = [regionPanel.inspector, villagePanel.inspector];
 
   const paintGlobe = () => {
     const frame = client.latestFrame("globe");
@@ -281,7 +291,11 @@ async function runPlanetPage(): Promise<void> {
     maxPitch: 80,
     drift: 1.5,
     onTap: (x, y) =>
-      scale === "globe" ? selectCell(globe.pick(x, y)) : selectTile(region.pick(x, y)),
+      scale === "globe"
+        ? selectCell(globe.pick(x, y))
+        : scale === "region"
+          ? selectTile(region.pick(x, y))
+          : selectPerson(village.pick(x, y)),
   });
 
   // Down to a region, and back up to the world: the camera, the scene, the panel,
@@ -342,6 +356,89 @@ async function runPlanetPage(): Promise<void> {
   };
   planetPanel.onCloser = (cell) => toRegion(cell);
   planetPanel.onClose = () => globe.mark(null);
+  // Down into a village to watch its day, and back up to its land. Watching is
+  // looking: the plan is read from the host, the day is drawn by the view, and
+  // nothing is sent back but the speed.
+  let plan: VillagePlan | null = null,
+    planYear = -1,
+    watched: number | null = null,
+    clock = { t: 0, wall: 0, speed: 0 },
+    shown = 0;
+  client.onStatus((s) => (clock = { t: s.t, wall: performance.now(), speed: s.speed }));
+  /** The sim time now, carried forward smoothly between the host's reports. */
+  const now = () => {
+    const ahead = Math.min(1, (performance.now() - clock.wall) / 1000) * clock.speed;
+    shown = Math.max(shown, clock.t + ahead);
+    return Math.min(shown, clock.t + clock.speed);
+  };
+  const loadPlan = async (ref: string) => {
+    // Asked once a year: the year is marked before the answer comes.
+    planYear = Math.floor(clock.t / YEAR);
+    plan = await client.query<VillagePlan>({ type: "village.plan", args: { ref } });
+    village.build(plan);
+    villagePanel.show(plan.name, WATCH_DEFAULT);
+  };
+  const toVillage = async (ref: string) => {
+    scale = "village";
+    labels.clear();
+    region.visible = false;
+    regionPanel.visible = false;
+    watched = null;
+    village.mark(null);
+    shown = 0;
+    await loadPlan(ref);
+    village.visible = true;
+    villagePanel.visible = true;
+    client.setSpeed(WATCH_DEFAULT);
+    rig.configure({
+      distance: 26,
+      minDistance: 3,
+      maxDistance: 140,
+      pitch: -38,
+      minPitch: -85,
+      maxPitch: -8,
+      drift: 0.8,
+      target: [0, 0, 0],
+    });
+  };
+  const selectPerson = (i: number | null) => {
+    watched = i;
+    village.mark(i);
+    if (i !== null && plan) void villagePanel.showPerson(plan.people[i]!.ref);
+  };
+  regionPanel.onWatch = (ref) => void toVillage(ref);
+  villagePanel.onSpeed = (s) => client.setSpeed(s);
+  villagePanel.onClose = () => selectPerson(null);
+  villagePanel.onBack = () => {
+    village.visible = false;
+    villagePanel.visible = false;
+    plan = null;
+    client.setSpeed(planetPanel.speed);
+    toRegion(regionCell);
+  };
+  stage.onUpdate(() => {
+    if (scale !== "village" || !plan) return;
+    const t = now();
+    village.update(t);
+    villagePanel.tick(t);
+    if (watched !== null) villagePanel.moment(village.momentAt(watched));
+    // The years turn: re-read the plan, so those who died are gone.
+    if (Math.floor(clock.t / YEAR) !== planYear) void loadPlan(plan.ref);
+    const names = new Map(
+      plan.people.map((p) => [plan!.homes[p.home]!.household, p.name.split(" ").at(-1)!]),
+    );
+    labels.update(
+      village.homesOnScreen().map((h) => ({
+        key: h.household,
+        text: names.get(h.household) ?? "",
+        at: h.at,
+        priority: 1,
+      })),
+    );
+  });
+  exposed.watch = (ref: string) => void toVillage(ref);
+  exposed.watching = () => (scale === "village" && plan ? plan.people.length : 0);
+
   regionPanel.onBack = () => toGlobe();
   regionPanel.onClose = () => region.mark(null);
   exposed.select = (n: number) => (scale === "globe" ? selectCell(n) : selectTile(n));
