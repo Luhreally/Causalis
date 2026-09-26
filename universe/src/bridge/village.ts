@@ -60,5 +60,7 @@ export type VillagePlan = {
     readonly limbs: number;
     readonly skin: string;
     readonly size: number;
+    /** How long they live, years: their old age comes as late. */
+    readonly span: number;
   } | null;
 };

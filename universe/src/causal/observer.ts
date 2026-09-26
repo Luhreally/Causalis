@@ -26,6 +26,7 @@ import { BANDS, FEMALE, MALE, bandOf, bandWidth } from "../rules/index.ts";
 import {
   COLS,
   cultureOf,
+  homePlanet,
   lifeOf,
   populationContext,
   row,
@@ -47,7 +48,7 @@ export type Move = {
   readonly flow: number;
   readonly event: Ref;
 };
-export type Role = "head" | "spouse" | "child" | "elder";
+export type Role = "head" | "spouse" | "child" | "elder" | "kin";
 
 /** A copy of an event as the observer met it, kept even if history later forgets it. */
 export type Remembered = {
@@ -384,6 +385,21 @@ export function meetHousehold(world: World, cell: number, village: Ref | null): 
       for (const b of bands) for (let o = 1; o < COLS; o++) out.push([row(s, b), o]);
     return out;
   };
+  // How the people's bodies live at home (for upright apes, every factor is one): their
+  // span stretches the years between kin; how they bear young sets how many children a
+  // home keeps — spawners raise few, clutch-layers more; spawners seldom pair; a people
+  // who live as one keep kin under their roof.
+  const body = homePlanet(world).generated.life.people?.body,
+    k = (body?.span ?? 70) / 70,
+    pairs = body?.bearing === "spawn" ? 0.1 : 0.78,
+    brood = !body
+      ? 1
+      : body.bearing === "live"
+        ? Math.min(2, body.young)
+        : body.bearing === "eggs"
+          ? Math.min(2.5, 1 + body.young / 8)
+          : 0.3,
+    kin = body && body.social >= 0.9 ? Math.round(body.social * 3) : 0;
   // The head of the household: a grown person of working age.
   const headCell = pick(adults([4, 5, 6, 7, 8], [FEMALE, MALE]), 0);
   if (!headCell) throw new Error("no one in the counts is left to meet here");
@@ -391,16 +407,16 @@ export function meetHousehold(world: World, cell: number, village: Ref | null): 
   const headBand = headCell[0] % BANDS,
     headAge = now - head.birthYear;
   // A spouse, most of the time, of the other sex and about the same age.
-  if (chance(0.78, 0)) {
+  if (chance(pairs, 0)) {
     const other = head.sex === FEMALE ? MALE : FEMALE,
       bands = [headBand - 1, headBand, headBand + 1].filter((b) => b >= 3 && b < BANDS);
     const c = pick(adults(bands, [other]), 1);
-    if (c) add(c[0], c[1], "spouse", [headAge - 8, headAge + 8]);
+    if (c) add(c[0], c[1], "spouse", [headAge - 8 * k, headAge + 8 * k]);
   }
   // Children, as many as the head's age suggests; each younger by at least an age of coming of age.
-  const expected = [0, 0, 0, 0, 1.3, 2.4, 2.1, 0.9, 0.2, 0][headBand]!;
+  const expected = [0, 0, 0, 0, 1.3, 2.4, 2.1, 0.9, 0.2, 0][headBand]! * brood;
   let children = 0;
-  for (let k = 0; k < 8 && children < 7; k++) if (chance(expected / 8, 10 + k)) children++;
+  for (let n = 0; n < 8 && children < 7; n++) if (chance(expected / 8, 10 + n)) children++;
   for (let k = 0; k < children; k++) {
     const cells: [number, number][] = [];
     for (let b = 0; b <= 3; b++)
@@ -419,7 +435,18 @@ export function meetHousehold(world: World, cell: number, village: Ref | null): 
       ),
       31,
     );
-    if (c) add(c[0], c[1], "elder", [headAge + 16, headAge + 45]);
+    if (c) add(c[0], c[1], "elder", [headAge + 16 * k, headAge + 45 * k]);
+  }
+  // A people who live as one keep the head's grown kin at home.
+  for (let n = 0; n < kin; n++) {
+    const c = pick(
+      adults(
+        [headBand - 1, headBand, headBand + 1].filter((b) => b >= 3 && b < BANDS),
+        [FEMALE, MALE],
+      ),
+      40 + n,
+    );
+    if (c) add(c[0], c[1], "kin", [headAge - 10 * k, headAge + 10 * k]);
   }
   const household: Household = {
     ref: hhRef,

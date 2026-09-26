@@ -8,6 +8,7 @@
 import { finish, hashString, mix } from "../kernel/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 import { OCC } from "../rules/index.ts";
+import { paceOf } from "./figure.ts";
 
 export const ACTIVITY = {
   asleep: 0,
@@ -46,8 +47,7 @@ export type Moment = {
 };
 
 const DAY = 86_400,
-  HOUR = 3_600,
-  WALK = 1.25;
+  HOUR = 3_600;
 
 const unit = (h: number) => (h >>> 0) / 4294967296;
 
@@ -74,7 +74,9 @@ function workplace(
       ? { x: 6 * Math.cos(angle), z: 6 * Math.sin(angle) }
       : { x: home.x + 8 * Math.cos(angle), z: home.z + 8 * Math.sin(angle) };
   }
-  if (p.age >= 62) return { x: home.x + 3 * Math.cos(angle), z: home.z + 3 * Math.sin(angle) };
+  // The old keep near home: from sixty-two for upright apes, as late in any people's span.
+  if (p.age >= (62 * (plan.body?.span ?? 70)) / 70)
+    return { x: home.x + 3 * Math.cos(angle), z: home.z + 3 * Math.sin(angle) };
   switch (p.occupation) {
     case OCC.farmer: {
       const f = plan.fields[Math.floor(draw(3) * plan.fields.length)] ?? {
@@ -109,12 +111,14 @@ function workplace(
   }
 }
 
-function walkTime(a: Point, b: Point): number {
-  return Math.hypot(b.x - a.x, b.z - a.z) / WALK;
+/** How long a walk takes at a people's own pace. */
+function walkTime(a: Point, b: Point, pace: number): number {
+  return Math.hypot(b.x - a.x, b.z - a.z) / pace;
 }
 
 /** A person's day as legs: [from, to) in seconds of the day, where, and doing what. */
 function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
+  const pace = paceOf(plan.body);
   const p = plan.people[index]!,
     draw = dayDraw(p.ref, day),
     home = plan.homes[p.home]!,
@@ -132,7 +136,7 @@ function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
     if (to > from) legs.push({ from, to, at: where, next: null, activity });
   };
   const go = (from: number, a: Point, b: Point) => {
-    const to = from + walkTime(a, b);
+    const to = from + walkTime(a, b, pace);
     legs.push({ from, to, at: a, next: b, activity: ACTIVITY.walking });
     return to;
   };
@@ -146,7 +150,7 @@ function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
     t = go(19.5 * HOUR, square, at);
   } else {
     const doing = p.child ? ACTIVITY.playing : ACTIVITY.working,
-      far = walkTime(at, work) > 0.6 * HOUR;
+      far = walkTime(at, work, pace) > 0.6 * HOUR;
     t = go(t, at, work);
     // Those who work near home come back to eat at noon; the rest eat where they are.
     if (far) {
@@ -178,7 +182,7 @@ function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
 // A day's legs, kept while the day lasts: the same person's same day is the same.
 const DAYS = new Map<string, Leg[]>();
 function legsOf(plan: VillagePlan, index: number, day: number): Leg[] {
-  const key = `${plan.ref}|${plan.people[index]!.ref}|${plan.people[index]!.home}|${day}`;
+  const key = `${plan.ref}|${plan.seed}|${paceOf(plan.body)}|${plan.people[index]!.ref}|${plan.people[index]!.home}|${day}`;
   let legs = DAYS.get(key);
   if (!legs) {
     if (DAYS.size > 4000) DAYS.clear();

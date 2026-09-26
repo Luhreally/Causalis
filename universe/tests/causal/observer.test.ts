@@ -1,7 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
-import { makePopulationWorld, populationContext } from "../../src/sim/index.ts";
+import { homePlanet, makePopulationWorld, populationContext } from "../../src/sim/index.ts";
+import { generateHomeWorld } from "../../src/gen/index.ts";
+import { OPEN, type BodyPlan as Body } from "../../src/rules/index.ts";
+import { ALIEN } from "../../src/host/planet.ts";
 import {
   deepen,
   meetHousehold,
@@ -156,4 +159,60 @@ test("a memory leads back through a migration to the land and the planet it happ
   );
   assert.equal(kinds.at(-1), "star", `down to the star: ${kinds.join(" ← ")}`);
   assert.ok(new Set(kinds).size >= 5, "across the observer, the people and the planet");
+});
+
+test("a household is as its people's bodies keep one: spawners raise few, clutch-layers many, those who live as one keep kin", () => {
+  /** The first open world for each kind of people, found in one pass. */
+  const kinds = {
+      spawn: (b: Body) => b.bearing === "spawn",
+      clutch: (b: Body) => b.bearing === "eggs" && b.young >= 6 && b.social < 0.9,
+      hive: (b: Body) => b.social >= 0.9,
+    },
+    found = new Map<keyof typeof kinds, string>();
+  for (let i = 0; i < 60 && found.size < 3; i++) {
+    const b = generateHomeWorld(seedFromText(`alien ${i}`), OPEN).life.people?.body;
+    for (const k of Object.keys(kinds) as (keyof typeof kinds)[])
+      if (b && !found.has(k) && kinds[k](b)) found.set(k, `alien ${i}`);
+  }
+  const worldOf = (k: keyof typeof kinds) => {
+    const name = found.get(k);
+    if (!name) throw new Error(`no ${k} people in sixty worlds`);
+    return ALIEN.build(seedFromText(name));
+  };
+  /** Children and kin per household, over forty met in the fullest provinces. */
+  const homes = (world: World) => {
+    world.runTo(40 * YEAR);
+    const ps = [...populationContext(world).provinces.all()]
+      .sort((a, b) => b.total() - a.total())
+      .slice(0, 20);
+    let met = 0,
+      children = 0,
+      kin = 0;
+    for (let k = 0; met < 40 && k < 120; k++) {
+      try {
+        const hh = meetHousehold(world, ps[k % ps.length]!.cell, null);
+        met++;
+        for (const r of hh.members) {
+          const role = observer(world).person(r)!.role;
+          if (role === "child") children++;
+          if (role === "kin") kin++;
+        }
+      } catch {
+        // A province whose people have all been met.
+      }
+    }
+    assert.equal(met, 40);
+    return { children: children / met, kin: kin / met };
+  };
+  const earth = grown(0);
+  assert.equal(homePlanet(earth).generated.life.people?.body.clade, "ape");
+  const apes = homes(earth);
+  assert.equal(apes.kin, 0, "apes keep no kin beyond elders");
+  const spawners = homes(worldOf("spawn")),
+    layers = homes(worldOf("clutch")),
+    hive = homes(worldOf("hive"));
+  assert.ok(spawners.children < 0.6 * apes.children, `${spawners.children} vs ${apes.children}`);
+  assert.ok(layers.children > 1.4 * apes.children, `${layers.children} vs ${apes.children}`);
+  assert.ok(hive.kin >= 2, `kin ${hive.kin}`);
+  assert.equal(spawners.kin + layers.kin, 0);
 });

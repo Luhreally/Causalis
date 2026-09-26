@@ -44,6 +44,7 @@ const ROLE_WORDS: Readonly<Record<string, string>> = {
   spouse: "",
   child: "child",
   elder: "elder",
+  kin: "kin",
 };
 
 /** "Lian, 44, farmer" — or "Lian, died in year 230" */

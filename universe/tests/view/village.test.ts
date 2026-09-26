@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { VillagePlan } from "../../src/bridge/index.ts";
-import { OCC } from "../../src/rules/index.ts";
-import { ACTIVITY, momentOf } from "../../src/view/index.ts";
+import { ACTIVITY, momentOf, paceOf } from "../../src/view/index.ts";
+import { CLADES, OCC, bodyOf } from "../../src/rules/index.ts";
 
 const DAY = 86_400,
   HOUR = 3_600;
@@ -88,4 +88,50 @@ test("hunger rises between meals and tiredness through the day; the same moment 
   assert.ok(before.hunger > morning.hunger);
   assert.ok(before.tiredness > morning.tiredness);
   assert.deepEqual(momentOf(plan, 3, 12345678), momentOf(plan, 3, 12345678));
+});
+
+const bodyOfClade = (id: string) =>
+  bodyOf(
+    CLADES.find((c) => c.id === id)!,
+    { warmth: 18, rain: 800, gravity: 1, ocean: 0.7 },
+    [0.5, 0.5, 0.5],
+  );
+
+test("each people goes at its own pace: striders stride, shelled bodies creep, and their day's walks take as long", () => {
+  const body = (id: string) =>
+    bodyOf(
+      CLADES.find((c) => c.id === id)!,
+      { warmth: 18, rain: 800, gravity: 1, ocean: 0.7 },
+      [0.5, 0.5, 0.5],
+    );
+  assert.equal(paceOf(null), 1.25);
+  assert.equal(paceOf(body("ape")), 1.25);
+  assert.ok(paceOf(body("strider")) > paceOf(body("ape")));
+  assert.ok(paceOf(body("burrower")) < paceOf(body("ape")));
+  // The farmer's walk out to the fields: a slow people arrives later.
+  const out = (p: VillagePlan) => {
+    for (let s = 5 * HOUR; s < 12 * HOUR; s += 30)
+      if (momentOf(p, 0, workday * DAY + s).activity === ACTIVITY.working) return s;
+    return Infinity;
+  };
+  // (Spans held at an ape's, so the same farmer is of working age in each.)
+  const slow = { ...plan, body: { ...body("burrower"), span: 70 } },
+    fast = { ...plan, body: { ...body("strider"), span: 70 } };
+  assert.ok(
+    out(slow) > out(plan) && out(plan) > out(fast),
+    `${out(slow)} ${out(plan)} ${out(fast)}`,
+  );
+});
+
+test("the old keep near home as late in life as their people's span allows", () => {
+  const short = { ...plan, body: { ...bodyOfClade("ape"), clade: "crawler", span: 30 } },
+    // Di, seventy, keeps near home among upright apes; Cy, forty, is old among a people of thirty years.
+    at = (p: VillagePlan, i: number) => {
+      const m = momentOf(p, i, workday * DAY + 10 * HOUR),
+        home = p.homes[p.people[i]!.home]!;
+      return Math.hypot(m.x - home.x, m.z - home.z);
+    };
+  assert.ok(at(plan, 3) < 10, "an old ape at home");
+  assert.ok(at(plan, 2) > 10, "a crafter of forty at the square");
+  assert.ok(at(short, 2) < 10, "forty is old in a thirty-year span");
 });

@@ -224,6 +224,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
               limbs: b.limbs,
               skin: b.skin,
               size: b.size,
+              span: b.span,
             }
           : null;
       })(),

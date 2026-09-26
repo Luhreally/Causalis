@@ -15,6 +15,7 @@ export type FigureBody = {
   readonly limbs: number;
   readonly skin: string;
   readonly size: number;
+  readonly span?: number;
 };
 
 export type PartShape = "capsule" | "box" | "cylinder" | "cone";
@@ -150,4 +151,18 @@ export function figureOf(b: FigureBody | null): Figure {
     ],
     scale,
   };
+}
+
+/**
+ * How fast a people goes about its day, metres a second: an upright ape's easy walk;
+ * long-legged striders faster, giants and low shelled bodies slower, swimmers gliding.
+ */
+export function paceOf(b: FigureBody | null): number {
+  if (!b || b.clade === "ape") return 1.25;
+  if (b.medium === "water") return 1.4;
+  if (b.skin === "feathers") return 2;
+  if (b.manipulators === "trunk") return 1;
+  if (b.skin === "shell") return 0.75;
+  if (b.skin === "scales") return 0.9;
+  return 1.15;
 }

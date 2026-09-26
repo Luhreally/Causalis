@@ -2299,6 +2299,20 @@ floor, its warrens under kelp. (Entering a village now hides the globe whichever
 the view came.) Vehicles are not yet drawn: their design kind comes with the ships and
 spacecraft of Phase 5.
 
+43, as built: the hand and the microscope were already reckoned by each people's life
+table (its bands, adulthood, fertility and monthly deaths); what was left of the ape
+were the households the observer meets and the pace and old age of the microscope.
+Households now follow the body, every factor exactly one for upright apes (Earth's
+households, the golden vectors and the oracle unchanged): the years between spouses,
+parents and elders stretch with the span; spawners seldom pair (one in ten) and raise
+few (0.3 of an ape's children), live-bearers of twins and clutch-layers more (by their
+young at a birth, up to two and two and a half times); a people who live as one (social
+0.9 and above) keep two or three grown kin under the head's roof, a new role. Over sixty
+homes at year 120: apes 3.7 to a home, spawners 1.8, clutch-layers 5, hives 6 to 8.
+In the microscope each people walks at its own pace (apes 1.25 m/s; striders 2, swimmers
+1.4, giants 1, crawlers 0.9, shelled bodies 0.75), so its day's walks take as long, and
+the old keep near home from sixty-two in an ape's seventy years, as late in any span.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

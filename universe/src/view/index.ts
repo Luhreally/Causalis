@@ -45,6 +45,7 @@ export {
 
 export {
   figureOf,
+  paceOf,
   type Figure,
   type FigureBody,
   type FigurePart,
