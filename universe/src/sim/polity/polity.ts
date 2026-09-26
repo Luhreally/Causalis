@@ -29,6 +29,7 @@ import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf, type Ways } from "../culture/culture.ts";
 import { bandOfAge } from "../hand/hand.ts";
 import type { BeliefStore } from "../belief/belief.ts";
+import type { LoreStore } from "../lore/lore.ts";
 
 export const POLITY = defineKind("pol", "realm", "minted");
 
@@ -173,6 +174,11 @@ export class PolityStore implements StateStore {
   }
 }
 
+/** The lore store, read without importing the lore module (which reads realms). */
+function loreOf(world: World): LoreStore {
+  return world.store<LoreStore>("lore.known");
+}
+
 export function politiesOf(world: World): PolityStore {
   return world.store<PolityStore>("polity.states");
 }
@@ -188,7 +194,7 @@ const SLACK = 0.05;
  * Given the institutions a realm has, they hold unless the ways have moved clearly
  * past what gave them (by SLACK), so a realm does not reform at every flicker.
  */
-export function institutionsOf(w: Ways, current?: Institutions): Institutions {
+export function institutionsOf(w: Ways, current?: Institutions, canWrite = true): Institutions {
   const t = w.traits,
     // A threshold eased in favour of what is.
     over = (trait: number, at: number, keeps: boolean) => t[trait]! > at - (keeps ? SLACK : 0),
@@ -206,9 +212,10 @@ export function institutionsOf(w: Ways, current?: Institutions): Institutions {
       : over(WAY.openness, 0.5, current?.succession === 1)
         ? 1
         : 2,
+    // Decree is written law: without writing, what is not sacred is custom.
     law = over(WAY.piety, 0.58, current?.law === 2)
       ? 2
-      : over(WAY.tradition, 0.5, current?.law === 0)
+      : over(WAY.tradition, 0.5, current?.law === 0) || !canWrite
         ? 0
         : 1;
   return { leadership, succession, law };
@@ -290,7 +297,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       pull = Math.max(0, rank - 0.45) * 2 + Math.min(1, leaders / 60);
     const chance = 0.04 * pull;
     if (!(world.rng.real(FORM, p.cell, t, 0) < chance)) continue;
-    const inst = institutionsOf(ways);
+    const inst = institutionsOf(ways, undefined, loreOf(world).effect(p.cell, "writing") > 0);
     const decision = world.decisions.record({
       rule: "polity.form",
       subject: p.ref,
@@ -363,7 +370,8 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       const n = g.grid.neighbours[k]!,
         p = store.of(n);
       if (!p || p.ended !== null) continue;
-      if ((reach(ctx, p).get(n) ?? 99) >= 3) continue; // a realm reaches three steps from its seat
+      // A realm reaches three steps from its seat, and further with writing and clerks.
+      if ((reach(ctx, p).get(n) ?? 99) >= 3 + loreOf(world).effect(p.seat, "reach")) continue;
       const theirs = culture.get(p.seat)!,
         like = tongueLikeness(mine.tongue, theirs.tongue),
         road = !!markets.route(q.cell, n),
@@ -532,7 +540,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
   if (year % 10 === 0)
     for (const p of store.living()) {
       const ways = culture.get(p.seat)!,
-        want = institutionsOf(ways, p);
+        want = institutionsOf(ways, p, loreOf(world).effect(p.seat, "writing") > 0);
       if (
         want.leadership === p.leadership &&
         want.succession === p.succession &&

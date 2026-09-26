@@ -134,3 +134,14 @@ export {
   type Faith,
   type Tenet,
 } from "./belief/belief.ts";
+export {
+  LEARNING,
+  LORE_EVENTS,
+  LORE_PACE,
+  LoreStore,
+  installLore,
+  knows,
+  loreOf,
+  loreYear,
+  type Known,
+} from "./lore/lore.ts";

@@ -61,6 +61,7 @@ type ProvinceFacts = {
   ways: { ref: string; words: string[]; kept: number; sounds: string[] } | null;
   realm: RealmFacts;
   faith: FaithFacts;
+  lore: { id: string; name: string; year: number; event: string }[];
 } | null;
 
 type ProvinceHistory = {
@@ -163,6 +164,7 @@ export class PlanetPanel {
   private readonly marketBox = el("div");
   private readonly waysBox = el("div");
   private readonly realmBox = el("div");
+  private readonly loreBox = el("div");
   private readonly pastBox = el("div");
   private readonly handBox = el("div");
   private readonly hand: HandView;
@@ -223,6 +225,7 @@ export class PlanetPanel {
       this.closer,
       this.realmBox,
       this.waysBox,
+      this.loreBox,
       this.marketBox,
       this.handBox,
       this.pastBox,
@@ -391,6 +394,7 @@ export class PlanetPanel {
     );
     this.showRealm(folk ? folk.realm : null, !!folk);
     this.showWays(folk?.ways ?? null, folk?.faith ?? null);
+    this.showLore(folk?.lore ?? null);
     this.showMarket(market);
     this.showPast(folk ? past : null);
     if (folk) void this.hand.show(this.handBox, cell);
@@ -403,6 +407,29 @@ export class PlanetPanel {
     const b = el("button", "line", text);
     b.onclick = () => void this.why.show(ref, this.whyBox);
     return b;
+  }
+
+  /** What they know, newest first; each opens how they came to know it. */
+  private showLore(lore: { name: string; year: number; event: string }[] | null): void {
+    if (!lore) {
+      this.loreBox.replaceChildren();
+      return;
+    }
+    const shown = lore.slice(0, 6);
+    this.loreBox.replaceChildren(
+      el("h3", undefined, "What they know"),
+      ...(shown.length
+        ? shown.map((k) =>
+            this.whyLine(
+              `${k.name[0]!.toUpperCase()}${k.name.slice(1)}, since year ${k.year}`,
+              k.event,
+            ),
+          )
+        : [el("div", "fact muted", "Nothing beyond the ways of their fathers yet")]),
+      ...(lore.length > shown.length
+        ? [el("div", "fact muted", `and ${lore.length - shown.length} more they knew before`)]
+        : []),
+    );
   }
 
   /** Their realm: its name, how it is ruled, who rules, and how they feel about it. */
@@ -510,6 +537,7 @@ export class PlanetPanel {
     this.handBox.replaceChildren();
     this.waysBox.replaceChildren();
     this.realmBox.replaceChildren();
+    this.loreBox.replaceChildren();
     this.facts.replaceChildren(el("p", "muted", "…"));
     const c = await this.client.query<Chronicle>({ type: "chronicle", args: { limit: 60 } });
     if (this.title.textContent !== "Chronicle") return;

@@ -9,6 +9,7 @@ import {
   beliefOf,
   cultureOf,
   handOf,
+  loreOf,
   politiesOf,
   realmName,
   makePopulationWorld,
@@ -44,6 +45,7 @@ import {
 import {
   folkRef,
   governmentWords,
+  principleName,
   kept,
   landWords,
   observer,
@@ -177,6 +179,10 @@ function province(world: World, cell: number) {
     ways: waysOf(world, cell),
     realm: realmOf(world, cell),
     faith: faithOf(world, cell),
+    lore: loreOf(world)
+      .of(cell)
+      .reverse()
+      .map(([id, k]) => ({ id, name: principleName(id), year: k.year, event: k.event })),
     years: ctx.history.yearsOf(cell).slice(-12),
   };
 }

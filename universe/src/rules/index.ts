@@ -19,6 +19,15 @@ export {
 } from "./goods.ts";
 export { EARTHLIKE, OPEN, PRIORS, type Prior, type Range } from "./priors.ts";
 export {
+  EFFECTS,
+  PRINCIPLES,
+  PRINCIPLE_INDEX,
+  principle,
+  type Drivers,
+  type Effect,
+  type Principle,
+} from "./principles.ts";
+export {
   BANDS,
   FEMALE,
   HUMANLIKE,

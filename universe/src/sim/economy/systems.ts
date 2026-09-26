@@ -22,6 +22,7 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef, surfaceCopper } from "../../gen/index.ts";
+import { loreOf } from "../lore/lore.ts";
 import {
   FOODS,
   FORAGER_HIDES,
@@ -198,6 +199,18 @@ function makeAndUse(
     m.move("made", out, Math.floor(years * per));
   }
 
+  // What the land knows makes its crafters more skilled at what they make.
+  const lore = loreOf(world),
+    skill = (g: number) =>
+      1 +
+      (g === G.tools
+        ? lore.effect(p.cell, "tools")
+        : g === G.clothing
+          ? lore.effect(p.cell, "clothing")
+          : g === G.pottery
+            ? lore.effect(p.cell, "pottery")
+            : 0);
+
   // Crafters go where their work is worth most; what lacks inputs sends them to what needs none.
   const crafters = p.occupation(OCC.crafter),
     open = RECIPES.map((r, i) => ({ r, i })).filter(({ r }) => canMake(ctx, p, m, r));
@@ -238,7 +251,10 @@ function makeAndUse(
       m.move(
         "made",
         r.output[0],
-        roundKeyed(n * r.output[1] * reach, world.rng.real(CRAFT, key, t, 2, i)),
+        roundKeyed(
+          n * r.output[1] * reach * skill(r.output[0]),
+          world.rng.real(CRAFT, key, t, 2, i),
+        ),
       );
     });
   }
@@ -256,7 +272,8 @@ type Edge = { a: number; b: number; cost: number };
 
 /** The roads between peopled neighbours, in canonical order, with what a unit of grain costs to carry. */
 function edges(ctx: PopulationContext): Edge[] {
-  const g = ctx.generated,
+  const lore = loreOf(ctx.world),
+    g = ctx.generated,
     radiusKm = 6371 * g.planet.radius,
     out: Edge[] = [];
   for (const p of ctx.provinces.all()) {
@@ -272,7 +289,9 @@ function edges(ctx: PopulationContext): Edge[] {
         km = dmath.sqrt(dx * dx + dy * dy + dz * dz) * radiusKm,
         climb = Math.abs(g.tectonics.elevation[a]! - g.tectonics.elevation[b]!),
         river = g.water.river[a] && g.water.river[b] ? 0.6 : 1;
-      out.push({ a, b, cost: HAUL_PER_100KM * (km / 100) * (1 + climb / 800) * river });
+      // Beasts, wheels, carts, roads and bridges make carrying cheaper (the better-equipped end sets it).
+      const eased = 1 - Math.min(0.7, Math.max(lore.effect(a, "haul"), lore.effect(b, "haul")));
+      out.push({ a, b, cost: HAUL_PER_100KM * (km / 100) * (1 + climb / 800) * river * eased });
     }
   }
   return out.sort((x, y) => x.a - y.a || x.b - y.b);
@@ -309,7 +328,9 @@ function trade(
     load.set(pl.from, (load.get(pl.from) ?? 0) + pl.count * GOODS[pl.good]!.bulk);
   for (const pl of plans) {
     const p = ctx.provinces.get(pl.from)!,
-      capacity = TRADER_CAPACITY * p.occupation(OCC.trader) + PORTERAGE_PER_PERSON * p.total(),
+      capacity =
+        (TRADER_CAPACITY * p.occupation(OCC.trader) + PORTERAGE_PER_PERSON * p.total()) *
+        (1 + loreOf(ctx.world).effect(pl.from, "carrying")),
       carried = load.get(pl.from)!;
     if (carried > capacity) pl.count = Math.floor((pl.count * capacity) / carried);
   }

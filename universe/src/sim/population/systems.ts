@@ -37,6 +37,7 @@ import {
 import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
 import { HAND_VITAL, bandOfAge, handOf, newbornSex } from "../hand/hand.ts";
 import { cultureOf, cultureYear } from "../culture/culture.ts";
+import { loreOf } from "../lore/lore.ts";
 import { MarketStore } from "../economy/market.ts";
 import {
   BANDS,
@@ -231,20 +232,33 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       key = refHash(p.ref),
       rain = p.rain / 1000,
       tools = 1 + (TOOL_GAIN * m.toolCover) / 1000,
-      pots = m.potteryCover / 1000;
+      pots = m.potteryCover / 1000,
+      // What the land's people know: better fields, flocks and hunting, stores that keep.
+      lore = loreOf(world),
+      fields = 1 + lore.effect(p.cell, "farmYield"),
+      flocks = 1 + lore.effect(p.cell, "herdYield"),
+      wilds = 1 + lore.effect(p.cell, "forageYield"),
+      keeping = Math.min(0.8, lore.effect(p.cell, "keeping")),
+      stored = lore.effect(p.cell, "storage");
     // Yearly food in person-years is this month's food in person-months.
     const harvest: [number, number][] = [
-      [G.wild, saturate(c.forage, p.occupation(OCC.forager), PRODUCTIVITY[OCC.forager]!) * rain],
+      [
+        G.wild,
+        saturate(c.forage, p.occupation(OCC.forager), PRODUCTIVITY[OCC.forager]!) * rain * wilds,
+      ],
       [
         G.grain,
         p.knowsCultivation
-          ? saturate(c.farm, p.occupation(OCC.farmer), PRODUCTIVITY[OCC.farmer]! * tools) * rain
+          ? saturate(c.farm, p.occupation(OCC.farmer), PRODUCTIVITY[OCC.farmer]! * tools) *
+            rain *
+            fields
           : 0,
       ],
       [
         G.meat,
         saturate(c.pasture, p.occupation(OCC.herder), PRODUCTIVITY[OCC.herder]! * tools) *
-          (0.5 + 0.5 * rain),
+          (0.5 + 0.5 * rain) *
+          flocks,
       ],
     ];
     for (const [g, x] of harvest)
@@ -260,7 +274,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         Math.min(
           m.stock[g]!,
           roundKeyed(
-            m.stock[g]! * GOODS[g]!.spoil * (1 - 0.5 * pots),
+            m.stock[g]! * GOODS[g]!.spoil * (1 - 0.5 * pots) * (1 - keeping),
             world.rng.real(BIRTHS, key, t, purpose("spoil"), g),
           ),
         ),
@@ -268,7 +282,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
     const need = p.total();
     let eaten = 0;
     for (const g of FOODS) eaten += m.take("used", g, need - eaten);
-    let over = m.food(FOODS) - need * (12 + 12 * pots);
+    let over = m.food(FOODS) - need * (12 + 12 * pots + stored);
     for (const g of FOODS) if (over > 0) over -= m.take("spoiled", g, Math.ceil(over));
     const fed = need > 0 ? eaten / need : 1;
     p.fed = Math.round(fed * 1000);
@@ -308,7 +322,9 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       // In cold lands, those without warm clothing die more easily.
       cold = dmath.clamp((10 - ctx.generated.climate.temperature[p.cell]!) / 10, 0, 1),
       bare = 1 - (markets.get(p.cell)?.clothingCover ?? 1000) / 1000,
-      mortality = (1 + 2.5 * (1 - fed)) * (1 + 0.25 * cold * bare) * sickness,
+      // Herb-lore and medicine: fewer die.
+      healed = 1 - Math.min(0.3, loreOf(world).effect(p.cell, "health")),
+      mortality = (1 + 2.5 * (1 - fed)) * (1 + 0.25 * cold * bare) * sickness * healed,
       d = new CountDeltas(p.counts),
       key = refHash(p.ref),
       // Under the hand, a village's people are born and die one by one; the rest by rates.

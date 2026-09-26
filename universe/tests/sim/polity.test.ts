@@ -7,6 +7,7 @@ import {
   WAY,
   WAY_TRAITS,
   institutionsOf,
+  loreOf,
   makePopulationWorld,
   marketsOf,
   politiesOf,
@@ -20,7 +21,7 @@ world.runTo(300 * YEAR);
 const ctx = populationContext(world),
   realms = politiesOf(world);
 
-test("realms gather around market towns, and hold lands within three steps of their seat", () => {
+test("realms gather around market towns, and hold lands within reach of their seat (three steps, more with writing and clerks)", () => {
   const living = realms.living();
   assert.ok(living.length >= 3, `${living.length} realms`);
   const g = ctx.generated;
@@ -41,8 +42,9 @@ test("realms gather around market towns, and hold lands within three steps of th
           queue.push(n);
         }
       }
+    const reach = 3 + loreOf(world).effect(p.seat, "reach");
     for (const c of p.members)
-      assert.ok((d.get(c) ?? 99) <= 3, `${p.town}: land ${c} is ${d.get(c)} steps out`);
+      assert.ok((d.get(c) ?? 99) <= reach, `${p.town}: land ${c} is ${d.get(c)} steps out`);
     assert.equal(realms.of(p.seat)?.ref, p.ref);
   }
 });

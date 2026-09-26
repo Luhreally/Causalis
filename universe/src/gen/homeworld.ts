@@ -91,3 +91,34 @@ export function surfaceCopper(w: HomeWorld, cell: number): boolean {
   const u = finish(mix(hashString(`surface copper ${w.digest}`), cell), 11) / 4294967296;
   return u < (belt ? 0.3 : 0.15);
 }
+
+/**
+ * Ores at or near the surface, by kind: small showings a first people can work,
+ * too small to count among the world's deposits. Copper is surfaceCopper's rule;
+ * tin shows where granites of old collisions are worn open; iron as bog iron in
+ * wet lowlands and in hills; salt in dry basins and along coasts. Pure functions
+ * of the generated world.
+ */
+export function surfaceOre(w: HomeWorld, cell: number, kind: string): boolean {
+  if (kind === "copper") return surfaceCopper(w, cell);
+  const t = w.tectonics,
+    e = t.elevation[cell]!;
+  if (e <= 0) return false;
+  const u = finish(mix(hashString(`surface ${kind} ${w.digest}`), cell), 11) / 4294967296,
+    rain = w.climate.precipitation[cell]!,
+    coast = (() => {
+      for (let k = w.grid.offsets[cell]!; k < w.grid.offsets[cell + 1]!; k++)
+        if (t.elevation[w.grid.neighbours[k]!]! <= 0) return true;
+      return false;
+    })();
+  switch (kind) {
+    case "tin":
+      return t.boundary[cell] === BOUNDARY.convergent && t.toBoundary[cell]! <= 5 && u < 0.18;
+    case "iron":
+      return (rain > 700 && e < 400 && u < 0.4) || (e > 700 && u < 0.3);
+    case "salt":
+      return (rain < 350 && u < 0.35) || (coast && u < 0.25);
+    default:
+      return false;
+  }
+}
