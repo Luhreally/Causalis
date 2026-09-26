@@ -15,6 +15,7 @@ import {
 } from "../render/index.ts";
 import {
   LabelLayer,
+  Tidings,
   PlanetPanel,
   RegionPanel,
   SandboxPanel,
@@ -216,7 +217,9 @@ async function runPlanetPage(): Promise<void> {
   const planetPanel = new PlanetPanel(hud, client, lens, speed),
     regionPanel = new RegionPanel(hud, client),
     villagePanel = new VillagePanel(hud, client),
-    labels = new LabelLayer(hud);
+    labels = new LabelLayer(hud),
+    tidings = new Tidings(hud, client);
+  planetPanel.tidings = regionPanel.tidings = villagePanel.tidings = tidings;
   labels.blockers = [regionPanel.inspector, villagePanel.inspector];
 
   const paintGlobe = () => {
@@ -430,7 +433,8 @@ async function runPlanetPage(): Promise<void> {
     if (i === null || !plan) return;
     const p = plan.people[i]!;
     if (p.ref.startsWith("agent:"))
-      villagePanel.showAgent(
+      void villagePanel.showAgent(
+        Number(p.ref.slice("agent:".length)),
         p.name,
         p.age,
         p.child ? "a child" : (WORK_WORDS[p.occupation] ?? "at work"),

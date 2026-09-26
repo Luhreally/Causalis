@@ -97,6 +97,13 @@ export const PUSHES: Readonly<Record<string, readonly (readonly [WayTrait, numbe
   "act.plague": [["piety", 0.08]],
   "act.inspire": [["piety", 0.05]],
   "hand.laid": [["piety", 0.1]],
+  "act.shrine": [["piety", 0.08]],
+  "act.fire": [["piety", 0.06]],
+  "act.spring": [["piety", 0.04]],
+  "act.inspire-one": [
+    ["piety", 0.03],
+    ["tradition", -0.02],
+  ],
 };
 
 const DRIFT = defineStream("culture.drift");

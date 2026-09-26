@@ -6,6 +6,7 @@ import {
   homePlanet,
   DEITIES,
   actsOf,
+  agentName,
   beliefOf,
   USES,
   citiesOf,
@@ -520,6 +521,25 @@ function planetUniverse(name: string, prior: Prior): Universe {
           event: w.event,
         };
       },
+      /** One of the people under the hand: who they are, whether blessed, and what they are remembered for. */
+      agent: (world, args) => {
+        const w = handOf(world).resting,
+          id = (args as { id: number }).id,
+          a = w?.agents.find((x) => x.id === id);
+        if (!w || !a) return null;
+        const ctx = populationContext(world),
+          year = yearOfMoment(world.now);
+        return {
+          id,
+          name: agentName(ctx, a, ctx.settlements.get(w.village)!),
+          age: year - a.birthYear,
+          blessedUntil:
+            a.blessedUntil !== undefined && a.blessedUntil > year ? a.blessedUntil : null,
+          deeds: (w.notables ?? [])
+            .filter((n) => n.agent === id)
+            .map((n) => ({ event: n.deed, claim: why(world, n.deed).claim })),
+        };
+      },
       /** The god's acts on a province, newest first, each with the event that records it. */
       acts: (world, args) => {
         const cell = (args as { cell: number }).cell;
@@ -560,6 +580,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
           founded: s.founded,
           event: s.event,
           market: s.market,
+          shrine: s.shrine ?? null,
+          spring: s.spring ?? null,
           city: (() => {
             const c = citiesOf(world).get(s.ref);
             if (!c) return null;

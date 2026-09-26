@@ -184,3 +184,4 @@ export {
   layout,
   type City,
 } from "./city/city.ts";
+export { LOCAL_ACT_EVENTS, agentName, installLocalActs } from "./acts/local.ts";

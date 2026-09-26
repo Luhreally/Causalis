@@ -36,6 +36,9 @@ export const LIFE_WORDS: Readonly<Record<string, string>> = {
   "good-years": "Saw years of plenty",
   rains: "Saw the rains come in abundance",
   inspired: "Saw their people learn something new, as if by inspiration",
+  shrine: "Saw a shrine rise in their land, by the god's own hand",
+  fire: "Saw the city burn",
+  spring: "Saw a spring well up from dry ground",
 };
 /** What a memory is of, in words. */
 export const MEMORY_WORDS: Readonly<Record<string, string>> = {
@@ -63,6 +66,9 @@ export const MEMORY_WORDS: Readonly<Record<string, string>> = {
   "good-years": "the years of plenty",
   rains: "the great rains",
   inspired: "the inspiration that came to their people",
+  shrine: "the shrine rising",
+  fire: "the great fire",
+  spring: "the spring welling up",
 };
 
 function hasPeople(world: World): boolean {

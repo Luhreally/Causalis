@@ -5,6 +5,7 @@
 import type { HostClient } from "../bridge/index.ts";
 import { ACTIVITY_WORDS, type Moment } from "../view/index.ts";
 import { PeopleView } from "./people.ts";
+import type { Tidings } from "./tidings.ts";
 import { WhyTree, el } from "./why.ts";
 
 /** Speeds for watching a day go by: paused, ten minutes, an hour, a day a second. */
@@ -48,6 +49,8 @@ export class VillagePanel {
   onBack: () => void = () => {};
   onSpeed: (speed: number) => void = () => {};
   onClose: () => void = () => {};
+  /** News of what the observer follows, and the toggles that follow things. */
+  tidings: Tidings | null = null;
 
   constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
@@ -122,20 +125,84 @@ export class VillagePanel {
       : "You are watching: nothing here changes what happens. Tap someone to look closer.";
   }
 
-  /** One of the hand's people: who they are, as the hand knows them. */
-  showAgent(name: string, age: number, work: string): void {
-    ++this.view;
+  /** One of the hand's people: who they are, what they are remembered for, and what the god may do for them. */
+  async showAgent(id: number, name: string, age: number, work: string): Promise<void> {
+    const view = ++this.view;
     this.inspector.hidden = false;
     this.who.textContent = name;
+    const about = el(
+      "p",
+      "muted",
+      "One of the people your hand rests on: they live and die as themselves while it rests here.",
+    );
+    this.page.replaceChildren(el("div", "fact", `${age}, ${work}`), about);
+    this.whyBox.replaceChildren();
+    const a = await this.client.query<{
+      blessedUntil: number | null;
+      deeds: { event: string; claim: string }[];
+    } | null>({ type: "agent", args: { id } });
+    if (this.view !== view) return;
+    if (!a) {
+      this.page.replaceChildren(el("div", "fact muted", "They are no longer among the living."));
+      return;
+    }
+    const tools = el("div", "tools"),
+      note = el("p", "note"),
+      parts: HTMLElement[] = [];
+    note.hidden = true;
+    for (const d of a.deeds) {
+      const b = el("button", "line act-line", d.claim);
+      b.onclick = () => void this.why.show(d.event, this.whyBox);
+      parts.push(b);
+    }
+    const tool = (label: string, type: string, effect: string) => {
+      const b = el("button", "tool", label);
+      b.onclick = async () => {
+        if (b.dataset.sure !== "yes") {
+          for (const o of tools.children) {
+            const other = o as HTMLButtonElement;
+            other.dataset.sure = "";
+            other.textContent = other.dataset.label!;
+          }
+          b.dataset.sure = "yes";
+          b.textContent = `${label} — confirm`;
+          note.hidden = false;
+          note.textContent = `${effect} History will remember it was your hand.`;
+          return;
+        }
+        b.disabled = true;
+        try {
+          await this.client.command(type, { agent: id });
+          void this.showAgent(id, name, age, work);
+        } catch (error) {
+          note.textContent = (error as Error).message;
+          b.disabled = false;
+        }
+      };
+      b.dataset.label = label;
+      tools.append(b);
+    };
+    tool(
+      "Inspire them",
+      "act.inspire-one",
+      `${name.split(" ")[0]} will come upon the next thing their land could know, and be remembered for it.`,
+    );
+    if (a.blessedUntil === null)
+      tool(
+        "Bless them",
+        "act.bless-one",
+        `${name.split(" ")[0]} will be spared death for twenty years, while your hand rests here.`,
+      );
+    else
+      parts.push(el("div", "fact act-line", `Blessed: spared death until year ${a.blessedUntil}`));
     this.page.replaceChildren(
       el("div", "fact", `${age}, ${work}`),
-      el(
-        "p",
-        "muted",
-        "One of the people your hand rests on: they live and die as themselves while it rests here.",
-      ),
+      about,
+      ...parts,
+      el("h3", undefined, "Your hand on them"),
+      tools,
+      note,
     );
-    this.whyBox.replaceChildren();
   }
 
   async showPerson(ref: string): Promise<void> {
@@ -144,6 +211,7 @@ export class VillagePanel {
     this.who.textContent = "…";
     const p = await this.people.person(this.page, ref);
     if (this.view !== view) return;
+    if (this.tidings) this.page.prepend(this.tidings.follow(ref, "their life"));
     this.who.textContent = p.name;
     void this.why.show(ref, this.whyBox);
   }

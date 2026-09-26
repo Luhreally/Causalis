@@ -8,3 +8,4 @@ export { RegionPanel } from "./region-panel.ts";
 export { VillagePanel, WATCH_SPEEDS, clockWords } from "./village-panel.ts";
 export { WhyTree, el, type WhyNode } from "./why.ts";
 export { claimWords, eventWords, roleWords, speedWords, when } from "./words.ts";
+export { Tidings, type Tiding } from "./tidings.ts";

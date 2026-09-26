@@ -20,6 +20,7 @@ import {
   type StateStore,
   type World,
 } from "../kernel/index.ts";
+import type { Watch } from "./watch.ts";
 import { cellRef, cradleTongue, tongueName, tonguePersonName } from "../gen/index.ts";
 import { BANDS, FEMALE, HUMANLIKE, MALE, bandWidth } from "../rules/index.ts";
 import {
@@ -94,6 +95,8 @@ export type Person = {
   claimKey: string | null;
   depth: number;
   life?: LifeEvent[];
+  /** The year their life was last told to. */
+  lifeTo?: number;
   memories?: Memory[];
   traits?: Record<string, number>;
 };
@@ -118,6 +121,8 @@ export class ObserverLedger implements StateStore {
   readonly households = new Map<number, Household>();
   private readonly claims = new Map<string, number>();
   readonly remembered = new Map<string, Remembered>();
+  /** What the observer follows (lands, villages, realms, people met), by ref. */
+  readonly watches = new Map<string, Watch>();
 
   claimed(key: string): number {
     return this.claims.get(key) ?? 0;
@@ -152,6 +157,10 @@ export class ObserverLedger implements StateStore {
   allHouseholds(): Household[] {
     return [...this.households.values()].sort((a, b) => a.seq - b.seq);
   }
+  /** Everything followed, in the order it was taken up. */
+  allWatches(): Watch[] {
+    return [...this.watches.values()].sort((a, b) => a.since - b.since || (a.ref < b.ref ? -1 : 1));
+  }
   /** How many of a village's people have been met and live there still. */
   claimedIn(village: Ref): number {
     return this.claimed(villageKey(village));
@@ -164,6 +173,7 @@ export class ObserverLedger implements StateStore {
       .value([...this.households.values()])
       .value(this.allClaims());
     h.value([...this.remembered.values()]);
+    if (this.watches.size) h.value(this.allWatches());
   }
   save(): unknown {
     return {
@@ -173,6 +183,7 @@ export class ObserverLedger implements StateStore {
       households: [...this.households.values()],
       claims: this.allClaims(),
       remembered: [...this.remembered.values()],
+      watches: this.allWatches(),
     };
   }
   load(state: unknown): void {
@@ -183,6 +194,7 @@ export class ObserverLedger implements StateStore {
       households: Household[];
       claims: [string, number][];
       remembered: Remembered[];
+      watches?: Watch[];
     };
     this.seq = s.seq;
     this.settledAt = s.settledAt;
@@ -194,6 +206,8 @@ export class ObserverLedger implements StateStore {
     for (const h of s.households) this.households.set(h.seq, { ...h, members: [...h.members] });
     for (const [k, v] of s.claims) this.claims.set(k, v);
     for (const r of s.remembered) this.remembered.set(r.id, r);
+    this.watches.clear();
+    for (const w of s.watches ?? []) this.watches.set(w.ref, { ...w });
   }
 }
 

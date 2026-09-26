@@ -10,14 +10,13 @@ import { HUMANLIKE } from "../rules/index.ts";
 import {
   BLOCKS,
   BLOCK_M,
+  agentName,
   blockAt,
   citiesOf,
-  cultureOf,
   handOf,
   populationContext,
   regionOf,
 } from "../sim/index.ts";
-import { cradleTongue, tonguePersonName } from "../gen/index.ts";
 import { meetHousehold, observer, settleAll } from "../causal/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 
@@ -115,8 +114,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
   }
   const watched = known().sort((a, b) => a.seq - b.seq),
     people: VillagePlan["people"][number][] = [],
-    hand = handOf(world).resting,
-    tongue = cultureOf(world).get(v.cell)?.tongue ?? cradleTongue(ctx.culture);
+    hand = handOf(world).resting;
   if (hand && hand.village === ref) {
     // Under the hand, everyone in the village is someone: the hand's own people, five to a home.
     // Every k-th, so the sample is spread through the village's people.
@@ -128,7 +126,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
         homes[home]!.household = `home:${home}`;
         people.push({
           ref: `agent:${a.id}`,
-          name: `${tonguePersonName(tongue, a.id, a.sex)} of ${v.name}`,
+          name: agentName(ctx, a, v),
           home,
           age: now - a.birthYear,
           occupation: a.occupation,

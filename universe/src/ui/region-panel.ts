@@ -4,6 +4,7 @@
 import type { HostClient } from "../bridge/index.ts";
 import { REGION_LENSES, REGION_LENS_NAMES, type RegionLens } from "../view/index.ts";
 import { PeopleView } from "./people.ts";
+import type { Tidings } from "./tidings.ts";
 import { WhyTree, el } from "./why.ts";
 
 type TileFacts = {
@@ -52,6 +53,8 @@ export class RegionPanel {
   onWatch: (ref: string) => void = () => {};
   onLens: (lens: RegionLens) => void = () => {};
   onClose: () => void = () => {};
+  /** News of what the observer follows, and the toggles that follow things. */
+  tidings: Tidings | null = null;
 
   constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
@@ -119,6 +122,8 @@ export class RegionPanel {
       population: number;
       founded: number;
       market: string | null;
+      shrine: string | null;
+      spring: string | null;
       city: {
         founded: number;
         event: string;
@@ -160,13 +165,95 @@ export class RegionPanel {
     }
     const families = el("div"),
       watch = el("button", "act", "Watch their day"),
-      hand = el("div");
+      hand = el("div"),
+      acts = el("div");
     watch.onclick = () => this.onWatch(ref);
-    this.body.replaceChildren(watch, hand, el("h3", undefined, "Families you have met"), families);
+    if (this.tidings) this.facts.append(this.tidings.follow(ref, "this village"));
+    this.body.replaceChildren(
+      watch,
+      hand,
+      acts,
+      el("h3", undefined, "Families you have met"),
+      families,
+    );
     void this.showHand(hand, ref, v.name);
+    this.showPlaceActs(acts, ref, v.name, v.shrine, v.spring, !!v.city);
     this.whyTitle.textContent = "Why is it here?";
     void this.people.village(families, v.cell, ref);
     void this.why.show(ref, this.whyBox);
+  }
+
+  /** The god's acts on this place — a shrine, a spring, fire on a city — each only when confirmed. */
+  private showPlaceActs(
+    into: HTMLElement,
+    ref: string,
+    name: string,
+    shrine: string | null,
+    spring: string | null,
+    city: boolean,
+  ): void {
+    const tools = el("div", "tools"),
+      note = el("p", "note"),
+      done: HTMLElement[] = [];
+    note.hidden = true;
+    const tool = (label: string, sure: string, type: string, effect: string) => {
+      const b = el("button", "tool", label);
+      b.onclick = async () => {
+        if (b.dataset.sure !== "yes") {
+          for (const other of tools.children) {
+            const o = other as HTMLButtonElement;
+            if (o !== b && o.dataset.sure === "yes") {
+              o.dataset.sure = "";
+              o.textContent = o.dataset.label!;
+            }
+          }
+          b.dataset.sure = "yes";
+          b.textContent = sure;
+          note.hidden = false;
+          note.textContent = `${effect} What follows is theirs, and history will remember it was your hand.`;
+          return;
+        }
+        b.disabled = true;
+        try {
+          await this.client.command(type, { village: ref });
+          void this.selectVillage(ref);
+        } catch (error) {
+          note.textContent = (error as Error).message;
+          b.disabled = false;
+        }
+      };
+      b.dataset.label = label;
+      tools.append(b);
+    };
+    const line = (text: string, why: string) => {
+      const b = el("button", "line act-line", text);
+      b.onclick = () => void this.why.show(why, this.whyBox);
+      done.push(b);
+    };
+    if (shrine) line("A shrine you raised stands here", shrine);
+    else
+      tool(
+        "Raise a shrine",
+        "Raise it — confirm",
+        "act.shrine",
+        `A shrine will rise in ${name}: the devout will read it as a sign.`,
+      );
+    if (spring) line("A spring you opened rises here", spring);
+    else
+      tool(
+        "Open a spring",
+        "Open it — confirm",
+        "act.spring",
+        `Water will well up at ${name}, and those who settle the land will be drawn to it.`,
+      );
+    if (city)
+      tool(
+        "Send fire",
+        "Send it — confirm",
+        "act.fire",
+        `Fire will sweep ${name}: a fifth of its quarters will burn, and some of its people die.`,
+      );
+    into.replaceChildren(el("h3", undefined, "Your hand on this place"), tools, note, ...done);
   }
 
   /** The god's hand on this village: lay it here, or lift it, each only when confirmed. */
@@ -238,6 +325,7 @@ export class RegionPanel {
     this.body.replaceChildren(page);
     const p = await this.people.person(page, ref);
     if (this.view !== view) return;
+    if (this.tidings) page.prepend(this.tidings.follow(ref, "their life"));
     this.title.textContent = p.name;
     this.whyTitle.textContent = `Why is ${p.name.split(" ")[0]} who they are?`;
     this.inspector.scrollTop = 0;

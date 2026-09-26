@@ -6,6 +6,7 @@ import type { HostClient, Status } from "../bridge/index.ts";
 import { LENSES, LENS_NAMES, type Lens } from "../view/index.ts";
 import { lineChart } from "./chart.ts";
 import { HandView } from "./hand.ts";
+import type { Tidings } from "./tidings.ts";
 import { WhyTree, el } from "./why.ts";
 import { speedWords, when } from "./words.ts";
 
@@ -178,6 +179,9 @@ export class PlanetPanel {
   onLens: (lens: Lens) => void = () => {};
   onClose: () => void = () => {};
   onCloser: (cell: number) => void = () => {};
+
+  /** News of what the observer follows, and the toggles that follow things. */
+  tidings: Tidings | null = null;
 
   constructor(root: HTMLElement, client: HostClient, lens: Lens, speed: number) {
     this.client = client;
@@ -393,6 +397,7 @@ export class PlanetPanel {
       ...rows
         .filter(([text]) => text)
         .map(([text, ref]) => (ref ? this.whyLine(text, ref) : el("div", "fact", text))),
+      ...(folk && this.tidings ? [this.tidings.follow(p.ref, "this land")] : []),
     );
     this.showRealm(folk ? folk.realm : null, !!folk);
     this.showWays(folk?.ways ?? null, folk?.faith ?? null);
@@ -462,6 +467,7 @@ export class PlanetPanel {
         r.ref,
       ),
       el("div", "fact", `Ruled by ${r.ruler} since year ${r.since}`),
+      ...(this.tidings ? [this.tidings.follow(r.ref, "this realm")] : []),
     ];
     if (!r.seat)
       parts.push(

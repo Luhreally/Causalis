@@ -63,6 +63,9 @@ export type Settlement = {
   population: number;
   /** The event that made it its province's market town, if it is one. */
   market: Ref | null;
+  /** A shrine the god raised there, and a spring the god opened (the events). */
+  shrine?: Ref | null;
+  spring?: Ref | null;
 };
 
 export class SettlementStore implements StateStore {
@@ -88,7 +91,7 @@ export class SettlementStore implements StateStore {
 
   hashInto(h: Hasher): void {
     h.int(this.list.length);
-    for (const s of this.list)
+    for (const s of this.list) {
       h.string(s.ref)
         .string(s.name)
         .int(s.cell)
@@ -98,6 +101,9 @@ export class SettlementStore implements StateStore {
         .string(s.event)
         .int(s.population)
         .string(s.market ?? "");
+      // Only villages the god touched carry more (untouched worlds hash as they always have).
+      if (s.shrine || s.spring) h.string(s.shrine ?? "").string(s.spring ?? "");
+    }
   }
 
   save(): unknown {

@@ -181,6 +181,20 @@ for (const engine of engines) {
         );
         if (shotsAt && !query.includes("inline"))
           await page.screenshot({ path: join(shotsAt, `${engine}-hand.png`) });
+        // Follow the land: the toggle holds, and news of it comes as the years pass.
+        await page.click(".panel:not([hidden]) .inspector .follow");
+        await page.waitForFunction(
+          () =>
+            document.querySelector(".panel:not([hidden]) .inspector .follow")?.textContent ===
+            "Following this land ✓",
+          undefined,
+          { timeout: 10000 },
+        );
+        await page.waitForSelector(".tidings .tiding .tiding-claim", { timeout: 30000 });
+        const news = await page.evaluate(
+          () => document.querySelector(".tidings .tiding .tiding-claim")?.textContent ?? "",
+        );
+        console.log(`${(label + " tidings").padEnd(24)} ${later.mode.padEnd(9)} ${news}`);
         // Its years as charts, and the chronicle of the world.
         await page.waitForSelector(".panel:not([hidden]) .inspector .chart svg", {
           timeout: 10000,
@@ -255,6 +269,22 @@ for (const engine of engines) {
             (tile) => (globalThis as { causalis?: Exposed }).causalis?.select?.(tile),
             village.tile,
           );
+          // A shrine raised by the god's hand: confirmed, then listed with its why.
+          const shrine = page.locator(".panel:not([hidden]) .inspector:not([hidden]) .tool", {
+            hasText: "Raise a shrine",
+          });
+          await shrine.waitFor({ timeout: 10000 });
+          await shrine.click();
+          await page
+            .locator(".panel:not([hidden]) .inspector:not([hidden]) .tool", {
+              hasText: "Raise it — confirm",
+            })
+            .click();
+          await page
+            .locator(".panel:not([hidden]) .inspector:not([hidden]) .line", {
+              hasText: "A shrine you raised stands here",
+            })
+            .waitFor({ timeout: 10000 });
           const meet = page.locator(".panel:not([hidden]) .inspector:not([hidden]) .act", {
             hasText: "Meet a family",
           });

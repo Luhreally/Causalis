@@ -43,6 +43,7 @@ export const TENETS = [
   "teaching",
   "presence",
   "hunger",
+  "fire",
 ] as const;
 export type Tenet = (typeof TENETS)[number];
 
@@ -55,6 +56,7 @@ export const DEITIES: Readonly<Record<Tenet, string>> = {
   teaching: "the teacher",
   presence: "the one who walks among us",
   hunger: "the hungry god",
+  fire: "the one who sends fire",
 };
 
 export type Faith = {
@@ -90,6 +92,16 @@ function omenOf(type: string, data: unknown): { tenet: Tenet; strength: number }
       return { tenet: "teaching", strength: 1 };
     case "hand.laid":
       return { tenet: "presence", strength: 1.2 };
+    case "act.shrine":
+      return { tenet: "presence", strength: 1 };
+    case "act.fire":
+      return { tenet: "fire", strength: 1 };
+    case "act.spring":
+      return { tenet: "plenty", strength: 1 };
+    case "act.inspire-one":
+      return { tenet: "teaching", strength: 1 };
+    case "act.bless-one":
+      return { tenet: "healing", strength: 0.8 };
     case "people.famine":
       return { tenet: "hunger", strength: 0.25 };
     case "weather.drought":
@@ -190,6 +202,7 @@ function faithName(tenet: Tenet, word: string): string {
     teaching: "Learners",
     presence: "Witnesses",
     hunger: "Hungerers",
+    fire: "Keepers of the Flame",
   };
   return `the ${calling[tenet]} of ${word}`;
 }

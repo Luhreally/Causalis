@@ -34,6 +34,8 @@ export type Agent = {
   readonly sex: number;
   readonly birthYear: number;
   occupation: number;
+  /** Spared death until this year, by the god's blessing. */
+  blessedUntil?: number;
 };
 
 export type Window = {
@@ -45,6 +47,8 @@ export type Window = {
   agents: Agent[];
   /** The next agent's id: newborns take it. */
   next: number;
+  /** Those the god touched, and the deed each is remembered for. */
+  notables?: { readonly agent: number; readonly deed: Ref }[];
 };
 
 /** Which age band an age falls in. */
@@ -76,7 +80,10 @@ export class HandStore implements StateStore {
   }
 
   pinned(): Ref[] {
-    return this.resting ? [this.resting.event] : [];
+    // The window, and the deeds of those the god touched while it rests.
+    return this.resting
+      ? [this.resting.event, ...(this.resting.notables ?? []).map((n) => n.deed)]
+      : [];
   }
 
   hashInto(h: Hasher): void {

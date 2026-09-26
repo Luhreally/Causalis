@@ -366,8 +366,12 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
     if (w) {
       const living: typeof w.agents = [];
       for (const a of w.agents) {
-        const band = bandOfAge(year - a.birthYear);
-        if (world.rng.real(HAND_VITAL, a.id, t, 0) < (life.mortality[band]! * mortality) / 12) {
+        const band = bandOfAge(year - a.birthYear),
+          blessed = a.blessedUntil !== undefined && year < a.blessedUntil;
+        if (
+          !blessed &&
+          world.rng.real(HAND_VITAL, a.id, t, 0) < (life.mortality[band]! * mortality) / 12
+        ) {
           d.add(row(a.sex, band), a.occupation, -1);
           history.addDeaths(p.cell, year, band, 1);
           continue;
@@ -962,7 +966,8 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
       const share = free.length
         ? apportion(
             settled - inHand - inTown,
-            free.map((v) => 0.2 + siteScore(r, v.tile)),
+            // A spring the god opened draws people to its village.
+            free.map((v) => 0.2 + siteScore(r, v.tile) + (v.spring ? 0.6 : 0)),
             free.map((v) => world.rng.u32(SITES, refHash(v.ref), t, 9)),
           )
         : [];

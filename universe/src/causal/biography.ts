@@ -54,7 +54,21 @@ const SALIENCE: Readonly<Record<string, number>> = {
   "good-years": 2,
   rains: 2,
   inspired: 3.5,
+  shrine: 3,
+  fire: 4.5,
+  spring: 2.5,
 };
+
+/** Life events read off the person's work and place now, recomputed whenever their life is. */
+const DERIVED = new Set([
+  "took-up-farming",
+  "took-up-craft",
+  "took-up-trade",
+  "took-up-herding",
+  "kept-old-ways",
+  "took-up-leading",
+  "chosen-to-lead",
+]);
 
 export const TRAITS = ["boldness", "warmth", "thrift", "curiosity", "patience"] as const;
 
@@ -68,12 +82,16 @@ export function residence(person: Person, year: number): number {
 /** Resolve a person to their biography (D4). Idempotent: a life, once told, stays told. */
 export function deepen(world: World, person: Person): Person {
   catchUp(world, person);
-  if (person.depth >= 4 && person.life) return person;
+  const now = Math.floor(world.now / YEAR),
+    to = person.alive ? now : (person.diedYear ?? now);
+  if (person.depth >= 4 && person.life && person.lifeTo === to) return person;
+  // A life already told is carried on from where it was told to (its last year again,
+  // since a death can change how that year is remembered): history may have forgotten
+  // what they lived through before then, but they have not.
   const ctx = populationContext(world),
     ledger = observer(world),
-    now = Math.floor(world.now / YEAR),
-    from = Math.max(0, person.birthYear),
-    to = person.alive ? now : (person.diedYear ?? now);
+    told = person.life && person.lifeTo !== undefined ? person.lifeTo : null,
+    from = told !== null ? Math.max(0, person.birthYear, told) : Math.max(0, person.birthYear);
   // Index the history by place, once.
   const byPlace = new Map<
     string,
@@ -98,7 +116,8 @@ export function deepen(world: World, person: Person): Person {
         data: e.data,
       });
   };
-  const life: LifeEvent[] = [];
+  const life: LifeEvent[] =
+    told !== null ? person.life!.filter((l) => l.year < from && !DERIVED.has(l.kind)) : [];
   const add = (year: number, kind: string, event: Ref | null) => {
     life.push({ year, age: year - person.birthYear, kind, event });
     if (event) remember(event);
@@ -145,7 +164,9 @@ export function deepen(world: World, person: Person): Person {
                 ? "rains"
                 : kind === "inspire"
                   ? "inspired"
-                  : null;
+                  : kind === "shrine" || kind === "fire" || kind === "spring"
+                    ? kind
+                    : null;
         if (lived) add(y, lived, e.id);
       } else if (e.type === POPULATION_EVENTS.founded.type) {
         const village = (e.data as { name?: string } | null)?.name;
@@ -266,6 +287,7 @@ export function deepen(world: World, person: Person): Person {
   if (life.some((l) => l.kind === "cultivation" || l.kind === "farming-came"))
     traits.curiosity = Math.min(1, traits.curiosity! + 0.1);
   person.life = life;
+  person.lifeTo = to;
   person.memories = memories;
   person.traits = traits;
   person.depth = 4;

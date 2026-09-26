@@ -14,7 +14,10 @@ import {
   meetHousehold,
   observer,
   resolvePerson,
+  setWatch,
   settleAll,
+  tidings,
+  watches,
   type Household,
   type Person,
 } from "../causal/index.ts";
@@ -137,4 +140,13 @@ export const OBSERVE_QUERIES: Readonly<Record<string, QueryHandler>> = {
     };
   },
   "observe.person": (world, args) => personPage(world, (args as { ref: string }).ref as Ref),
+  /** Follow something (a land, a village, a realm, a person met), or stop; answers what is followed. */
+  "observe.watch": (world, args) => {
+    const a = args as { ref: string; on: boolean };
+    setWatch(world, a.ref as Ref, a.on);
+    return watches(world);
+  },
+  "observe.watches": (world) => watches(world),
+  /** What has happened to what is followed since last told. */
+  "observe.tidings": (world) => tidings(world),
 };
