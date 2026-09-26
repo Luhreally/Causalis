@@ -121,6 +121,22 @@ export {
 } from "./culture/languages.ts";
 export { MOST_SEA_STEPS, SEA_STEPS, seaRange, seaReach, seaSteps } from "./economy/sea.ts";
 export {
+  AIR_EVENTS,
+  AirStore,
+  CARBON_PER_FOREST_KM2,
+  CARBON_PER_FUEL,
+  FIRST_CARBON,
+  SENSITIVITY,
+  airOf,
+  airYear,
+  heatYield,
+  installAir,
+  rainShift,
+  smokeIn,
+  warmingOf,
+  type Air,
+} from "./climate/air.ts";
+export {
   LAW,
   LEADERSHIP,
   POLITY,

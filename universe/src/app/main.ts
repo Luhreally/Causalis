@@ -280,6 +280,11 @@ async function runPlanetPage(): Promise<void> {
     regionLens = l;
     paintRegion();
   };
+  client.subscribe<{ carbon: number; warming: number; warmer: string | null }>(
+    { type: "planet.air" },
+    5000,
+    (air) => planetPanel.air(air),
+  );
   client.subscribe<PeopleEntry[]>({ type: "people.map" }, 1000, (entries) => {
     planetPanel.people(entries);
     density = new Map(entries.map((e) => [e.cell, e.density]));

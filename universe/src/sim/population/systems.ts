@@ -37,6 +37,7 @@ import {
 } from "../../gen/index.ts";
 import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
 import { living, wildsOf } from "../ecology/ecology.ts";
+import { airOf, heatYield, rainShift, smokeIn } from "../climate/air.ts";
 import { HAND_VITAL, bandOfAge, handOf, newbornSex } from "../hand/hand.ts";
 import { cultureOf, cultureYear } from "../culture/culture.ts";
 import { loreOf } from "../lore/lore.ts";
@@ -269,7 +270,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       pots = m.potteryCover / 1000,
       // What the land's people know: better fields, flocks and hunting, stores that keep.
       lore = loreOf(world),
-      fields = 1 + lore.effect(p.cell, "farmYield"),
+      // Hot fields yield less as the world warms; cold ones a little more.
+      fields = (1 + lore.effect(p.cell, "farmYield")) * heatYield(ctx, p.cell),
       flocks = 1 + lore.effect(p.cell, "herdYield"),
       wilds = 1 + lore.effect(p.cell, "forageYield"),
       keeping = Math.min(0.8, lore.effect(p.cell, "keeping")),
@@ -366,7 +368,9 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       bare = 1 - (markets.get(p.cell)?.clothingCover ?? 1000) / 1000,
       // Herb-lore and medicine: fewer die.
       healed = 1 - Math.min(0.3, loreOf(world).effect(p.cell, "health")),
-      mortality = (1 + 2.5 * (1 - fed)) * (1 + 0.25 * cold * bare) * sickness * healed,
+      // Where much is burned among few, smoke fouls the air.
+      smoke = 1 + 0.3 * smokeIn(ctx, p.cell),
+      mortality = (1 + 2.5 * (1 - fed)) * (1 + 0.25 * cold * bare) * sickness * healed * smoke,
       d = new CountDeltas(p.counts),
       key = refHash(p.ref),
       // Under the hand, a village's people are born and die one by one; the rest by rates.
@@ -461,12 +465,17 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
     const act = acts.at(p.cell, "rain", t),
       key = refHash(p.ref),
       g = gaussian(world.rng.real(RAIN, key, t, 0), world.rng.real(RAIN, key, t, 1)),
-      natural = dmath.clamp(1 + 0.22 * g, 0.35, 1.6),
+      // The warming moves a land's rain (drier or wetter), and the year's weather about it.
+      moved = rainShift(ctx, p.cell),
+      natural = dmath.clamp(moved * (1 + 0.22 * g), 0.35, 1.6),
       rain = act ? natural * (1 + act.sign * ACT_STRENGTH.rain) : natural;
     p.rain = Math.round(rain * 1000);
     if (rain < 0.72) {
       const causes: CauseRef[] = [];
       if (act && act.sign < 0) causes.push({ ref: act.event, role: "agent", weight: 0.8 });
+      // A land the warming has dried has its droughts the oftener.
+      const drier = moved < 1 ? airOf(world).shiftOf(p.cell) : null;
+      if (drier) causes.push({ ref: drier, role: "pressure", weight: 0.3 });
       causes.push({ ref: p.ref, role: "constraint", weight: act && act.sign < 0 ? 0.2 : 1 });
       p.lastDrought = world.events.emit({
         type: POPULATION_EVENTS.drought.type,

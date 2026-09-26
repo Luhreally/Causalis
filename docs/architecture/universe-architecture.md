@@ -2098,6 +2098,22 @@ by electric motors). Industry arrives only as the lore reaches steel and banking
 after the chronicle's fifth century on the Earth seed; M34 calibrates when. A year
 costs 0.45 s on average and 0.79 s at the 99th percentile on the phone proxy.
 
+33, as built: the air (`sim/climate/air.ts`) holds carbon, 280 parts in a million
+before anyone burned or cleared. Each year every land's burned coal and oil (last
+year's ledger) and every land's cleared forest (from the ecology, regrowth taking
+some back) add to it, and the land and sea take back half a percent of what is over
+the old measure. The world warms toward three degrees for each doubling, a
+twenty-fifth of the way each year. Rain moves with the warming (the subtropics and
+dry lands drier, the high latitudes and wet lands wetter, 6% a degree), hot fields
+yield 5% less a degree and cold ones 3% more; smoke from the fuel a land burns for
+each person (over three years) raises its deaths by up to three-tenths. Each half
+degree is an event citing the lands that burned and cleared most (their works, mines
+and clearings); a land whose rain has moved a tenth, and a land whose air grew foul,
+are events citing the warming and the works; a drought in a land grown drier cites
+the drying. Clearing alone adds some 6 ppm by the third century (0.07 °C); forty
+industrial lands a decade of engines add about 2 ppm. The bar shows the warming and
+the carbon once there is any; the inspector shows a land's smoke and its rain moved.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

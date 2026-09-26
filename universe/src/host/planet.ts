@@ -25,8 +25,11 @@ import {
   realmName,
   makePopulationWorld,
   marketGoodRef,
+  airOf,
   marketsOf,
   powerOf,
+  rainShift,
+  smokeIn,
   populationContext,
   regionOf,
   prepareSites,
@@ -231,6 +234,11 @@ function province(world: World, cell: number) {
         mine: m?.mine ?? null,
         well: m?.well ?? null,
         factory: m?.works ?? null,
+        // The smoke in their air, and how the warming has moved their rain.
+        smoke: smokeIn(ctx, cell),
+        smoked: airOf(world).smokeOf(cell),
+        rain: rainShift(ctx, cell),
+        shifted: airOf(world).shiftOf(cell),
       };
     })(),
     // How they build, with the design that explains it (once one has been realized).
@@ -575,6 +583,11 @@ function planetUniverse(name: string, prior: Prior): Universe {
     },
     queries: {
       "planet.summary": (world) => summary(homePlanet(world).generated.fine),
+      /** The air: its carbon, how much warmer the world is, and the event of the latest warming. */
+      "planet.air": (world) => {
+        const a = airOf(world).air;
+        return { carbon: a.carbon, warming: a.warming, warmer: a.lastWarmer };
+      },
       cell: (world, args) => cell(homePlanet(world).generated, (args as { cell: number }).cell),
       tile: (world, args) => {
         const a = args as { center: number; tile: number };

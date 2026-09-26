@@ -76,6 +76,10 @@ type ProvinceFacts = {
     mine: string | null;
     well: string | null;
     factory: string | null;
+    smoke: number;
+    smoked: string | null;
+    rain: number;
+    shifted: string | null;
   };
   wild: { name: string; ref: string; tame: boolean; niche: string }[];
   herding: string | null;
@@ -199,6 +203,13 @@ function industryRows(i: NonNullable<ProvinceFacts>["industry"]): [string, strin
     ]);
   // Power beyond their own strength, their beasts' and their mills'.
   if (i.power > 0.21) rows.push([`${i.power.toFixed(1)} kilowatts of power a person`, null]);
+  if (i.smoked && i.smoke > 0.05)
+    rows.push([`Smoke fouls their air: ${Math.round(i.smoke * 100)} in a hundred`, i.smoked]);
+  if (i.shifted && Math.abs(i.rain - 1) >= 0.05)
+    rows.push([
+      `The warming has made them ${i.rain < 1 ? "drier" : "wetter"}: their rain ${Math.round(i.rain * 100)} in a hundred of what it was`,
+      i.shifted,
+    ]);
   return rows;
 }
 
@@ -362,7 +373,23 @@ export class PlanetPanel {
   people(entries: readonly PeopleEntry[]): void {
     const people = entries.reduce((s, e) => s + e.people, 0),
       farming = entries.filter((e) => e.farming).length;
-    this.worldText.textContent = `${this.description} · ${people.toLocaleString()} people in ${entries.length} province${entries.length === 1 ? "" : "s"}${farming ? `, ${farming} farming` : ""}`;
+    this.peopleText = ` · ${people.toLocaleString()} people in ${entries.length} province${entries.length === 1 ? "" : "s"}${farming ? `, ${farming} farming` : ""}`;
+    this.showWorld();
+  }
+
+  /** The air, once the world has warmed: how much, and the carbon behind it. */
+  air(a: { carbon: number; warming: number; warmer: string | null }): void {
+    this.airText =
+      a.warming >= 0.05
+        ? ` · ${a.warming.toFixed(1)} °C warmer than before the engines, the air holding ${Math.round(a.carbon)} parts in a million of carbon`
+        : "";
+    this.showWorld();
+  }
+
+  private peopleText = "";
+  private airText = "";
+  private showWorld(): void {
+    this.worldText.textContent = `${this.description}${this.peopleText}${this.airText}`;
   }
 
   set visible(on: boolean) {
