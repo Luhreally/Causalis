@@ -35,8 +35,10 @@ export {
 export {
   ACTIVITY,
   ACTIVITY_WORDS,
+  houseLook,
   momentOf,
   personGroup,
   type Activity,
+  type HouseLook,
   type Moment,
 } from "./village.ts";

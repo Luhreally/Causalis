@@ -62,6 +62,7 @@ type ProvinceFacts = {
   ways: { ref: string; words: string[]; kept: number; sounds: string[] } | null;
   realm: RealmFacts;
   faith: FaithFacts;
+  house: { words: string; ref: string } | null;
   lore: { id: string; name: string; year: number; event: string }[];
 } | null;
 
@@ -111,6 +112,7 @@ type RealmFacts = {
   grievance: number;
   cause: string | null;
   tithe: number;
+  host: { words: string; ref: string } | null;
   interests: { group: string; sway: number; want: string | null; source: string | null }[];
   neighbours: { ref: string; name: string; standing: string; opinion: number }[];
   wars: { ref: string; name: string; since: number; attacking: boolean }[];
@@ -376,6 +378,7 @@ export class PlanetPanel {
           : "",
         folk?.arrival ?? null,
       ],
+      [folk?.house ? sentenceOf(`they build ${folk.house.words}`) : "", folk?.house?.ref ?? null],
       [latLon(p.lat, p.lon), null],
       [
         high
@@ -475,6 +478,9 @@ export class PlanetPanel {
       ),
       el("div", "fact", `Ruled by ${r.ruler} since year ${r.since}`),
       el("div", "fact", `Its seat takes ${r.tithe} parts in a hundred of the grain`),
+      ...(r.host
+        ? [this.whyLine(sentenceOf(`its host fights with ${r.host.words}`), r.host.ref)]
+        : []),
       ...(this.tidings ? [this.tidings.follow(r.ref, "this realm")] : []),
     ];
     if (!r.seat)

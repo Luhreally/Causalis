@@ -25,7 +25,8 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { BANDS, G, HUMANLIKE, MALE } from "../../rules/index.ts";
+import { BANDS, G, HUMANLIKE, MALE, hostPower } from "../../rules/index.ts";
+import { designsOf, hostFor } from "../design/design.ts";
 import { COLS, row } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { marketGoodRef, type MarketStore } from "../economy/market.ts";
@@ -145,11 +146,8 @@ export function strengthOf(ctx: PopulationContext, p: Polity): number {
       0.04 +
       0.1 * valour +
       0.03 * lore.effect(p.seat, "arms") * (lore.get(p.seat, "standing-army") ? 1 : 0),
-    arms =
-      1 +
-      0.25 * lore.effect(p.seat, "arms") +
-      0.15 * lore.effect(p.seat, "armour") +
-      0.2 * lore.effect(p.seat, "mounts");
+    // What its host fights with: its design (realized now, if the realm is newer than it).
+    arms = hostPower(designsOf(ctx.world).of(p.ref)?.parts ?? hostFor(ctx, p).parts);
   let men = 0;
   for (const c of p.members) {
     const prov = ctx.provinces.get(c);

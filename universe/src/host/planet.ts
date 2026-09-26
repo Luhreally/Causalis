@@ -7,6 +7,7 @@ import {
   DEITIES,
   actsOf,
   agentName,
+  designsOf,
   interestsOf,
   beliefOf,
   USES,
@@ -26,7 +27,7 @@ import {
   regionOf,
   regionReady,
 } from "../sim/index.ts";
-import { FOODS, G, GOODS, OCCUPATIONS } from "../rules/index.ts";
+import { FOODS, G, GOODS, OCCUPATIONS, designWords } from "../rules/index.ts";
 import {
   BIOME_NAMES,
   BOUNDARY,
@@ -187,6 +188,11 @@ function province(world: World, cell: number) {
     ways: waysOf(world, cell),
     realm: realmOf(world, cell),
     faith: faithOf(world, cell),
+    // How they build, with the design that explains it (once one has been realized).
+    house: (() => {
+      const d = designsOf(world).of(p.ref);
+      return d ? { words: designWords(d.parts), ref: d.ref } : null;
+    })(),
     lore: loreOf(world)
       .of(cell)
       .reverse()
@@ -317,6 +323,11 @@ function realmOf(world: World, cell: number) {
     grievance: grievance.level,
     cause: grievance.cause,
     tithe: Math.round(p.tribute * 100),
+    // What its host fights with.
+    host: (() => {
+      const d = designsOf(world).of(p.ref);
+      return d ? { words: designWords(d.parts), ref: d.ref } : null;
+    })(),
     // Who holds sway, and what each most wants (with what it rests on).
     interests: interestsOf(populationContext(world), p, world.now)
       .filter((i) => i.sway >= 0.01)

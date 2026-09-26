@@ -24,6 +24,7 @@ import { installDiplomacy } from "../diplomacy/diplomacy.ts";
 import { installWar } from "../war/war.ts";
 import { installCities } from "../city/city.ts";
 import { installLocalActs } from "../acts/local.ts";
+import { installDesigns } from "../design/design.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
 import { Province, capacity, row } from "./model.ts";
 import { HistoryStore, PopulationStore, SettlementStore } from "./stores.ts";
@@ -159,6 +160,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installWar(world, () => populationContext(world));
   installCities(world, () => populationContext(world));
   installLocalActs(world, () => populationContext(world));
+  installDesigns(world, () => populationContext(world));
 
   const g = homePlanet(world).generated,
     home = chooseHome(g, world),

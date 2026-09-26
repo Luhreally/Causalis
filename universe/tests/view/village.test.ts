@@ -27,6 +27,7 @@ const plan: VillagePlan = {
   pasture: { x: -550, z: 0, r: 150 },
   wild: 900,
   water: null,
+  house: { walls: "wattle", roof: "thatch", form: "long", pitch: 45, design: null },
   road: { x: 0, z: 1100 },
   people: [
     { ref: "prsn:0:1", name: "Ana Test", home: 0, age: 34, occupation: OCC.farmer, child: false },

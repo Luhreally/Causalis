@@ -18,6 +18,18 @@ export type VillagePlan = {
   /** How far out the wild begins. */
   readonly wild: number;
   readonly water: { x: number; z: number } | null;
+  /**
+   * How its houses are built (the land's design): walls, roof and shape by
+   * realization id ("mudbrick", "flat", "court"), the roof's pitch in degrees, and
+   * the design's ref for its why.
+   */
+  readonly house: {
+    readonly walls: string;
+    readonly roof: string;
+    readonly form: string;
+    readonly pitch: number;
+    readonly design: string | null;
+  };
   /** Where the road out leads, at the edge of what is shown. */
   readonly road: { x: number; z: number };
   /**

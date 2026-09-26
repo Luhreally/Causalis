@@ -94,6 +94,14 @@ export function capsuleMesh(stage: Stage, radius: number, height: number): pc.Me
   return pc.Mesh.fromGeometry(stage.device, new pc.CapsuleGeometry({ radius, height, sides: 8 }));
 }
 
+/** A cone (a pyramid, with few sides): for pitched roofs, round roofs and tents. */
+export function coneMesh(stage: Stage, radius: number, height: number, sides: number): pc.Mesh {
+  return pc.Mesh.fromGeometry(
+    stage.device,
+    new pc.ConeGeometry({ baseRadius: radius, peakRadius: 0, height, capSegments: sides }),
+  );
+}
+
 export function cylinderMesh(stage: Stage, radius: number, height: number, sides = 24): pc.Mesh {
   return pc.Mesh.fromGeometry(
     stage.device,

@@ -6,13 +6,15 @@
 // people's day is drawn from this plan by the view, and nothing flows back.
 import { finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
 import { WATER } from "../gen/index.ts";
-import { HUMANLIKE } from "../rules/index.ts";
+import { HUMANLIKE, roofPitch } from "../rules/index.ts";
 import {
   BLOCKS,
   BLOCK_M,
   agentName,
   blockAt,
   citiesOf,
+  designsOf,
+  houseFor,
   handOf,
   populationContext,
   regionOf,
@@ -154,6 +156,21 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
   });
   return planOf(people);
 
+  /** The land's house design (realized now if the land has none yet). */
+  function houseOf(cell: number): VillagePlan["house"] {
+    const design = designsOf(world).of(ctx.provinces.get(cell)!.ref),
+      parts = design?.parts ?? houseFor(ctx, cell),
+      part = (role: string) => parts.find((p) => p.role === role)?.id ?? "",
+      roof = part("roof");
+    return {
+      walls: part("walls"),
+      roof,
+      form: part("form"),
+      pitch: roofPitch(roof, ctx.generated.climate.precipitation[cell]!),
+      design: design?.ref ?? null,
+    };
+  }
+
   function planOf(people: VillagePlan["people"][number][]): VillagePlan {
     const village = v!;
     return {
@@ -170,6 +187,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       wild: 900,
       water:
         waterWay === null ? null : { x: 700 * Math.cos(waterWay), z: 700 * Math.sin(waterWay) },
+      house: houseOf(village.cell),
       // A city's road runs along its axis; a village's out toward the far fields.
       road: city
         ? { x: 1100 * Math.cos(city.axis), z: 1100 * Math.sin(city.axis) }

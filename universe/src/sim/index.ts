@@ -194,3 +194,14 @@ export {
   type Group,
   type Interest,
 } from "./polity/interests.ts";
+export {
+  DESIGN,
+  DESIGN_EVENTS,
+  DesignStore,
+  designsOf,
+  hostFor,
+  houseFor,
+  installDesigns,
+  landMaterials,
+  type Design,
+} from "./design/design.ts";

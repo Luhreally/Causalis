@@ -231,3 +231,51 @@ export function personGroup(p: VillagePlan["people"][number]): number {
   if (p.occupation === OCC.crafter || p.occupation === OCC.trader) return 1;
   return 0;
 }
+
+type Rgb = readonly [number, number, number];
+
+/** How a house looks, from its design: wall and roof colours, its shape, and its roof's rise. */
+export type HouseLook = {
+  readonly wall: Rgb;
+  readonly roof: Rgb;
+  /** Round huts and tents are drawn round; the rest four-square. */
+  readonly round: boolean;
+  /** Long houses are drawn long; courtyard houses wide and low-walled. */
+  readonly length: number;
+  readonly width: number;
+  /** The roof's rise over half the house's width (0 for flat). */
+  readonly rise: number;
+  readonly tent: boolean;
+};
+
+const WALL: Readonly<Record<string, Rgb>> = {
+  tent: [0.62, 0.52, 0.4],
+  wattle: [0.72, 0.64, 0.5],
+  timber: [0.5, 0.36, 0.24],
+  mudbrick: [0.76, 0.6, 0.42],
+  brick: [0.66, 0.34, 0.26],
+  stone: [0.62, 0.62, 0.6],
+};
+const ROOF: Readonly<Record<string, Rgb>> = {
+  thatch: [0.62, 0.52, 0.3],
+  turf: [0.3, 0.42, 0.22],
+  flat: [0.7, 0.56, 0.4],
+  tile: [0.6, 0.26, 0.18],
+  vault: [0.66, 0.64, 0.6],
+};
+
+export function houseLook(house: VillagePlan["house"]): HouseLook {
+  const tent = house.walls === "tent",
+    round = tent || house.form === "round",
+    long = house.form === "long",
+    court = house.form === "court";
+  return {
+    wall: WALL[house.walls] ?? WALL.wattle!,
+    roof: tent ? WALL.tent! : (ROOF[house.roof] ?? ROOF.thatch!),
+    round,
+    tent,
+    length: long ? 1.15 : court ? 0.9 : 0.7,
+    width: long ? 0.5 : court ? 0.9 : 0.55,
+    rise: Math.tan((house.pitch * Math.PI) / 180),
+  };
+}

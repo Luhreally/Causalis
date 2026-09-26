@@ -5,8 +5,8 @@
 // so a phone can see them. Instanced throughout: a village is a handful of draw calls.
 import * as pc from "playcanvas";
 import type { VillagePlan } from "../bridge/index.ts";
-import { biomeColor, momentOf, personGroup, type Moment } from "../view/index.ts";
-import { InstancedBatch, capsuleMesh, cylinderMesh } from "./batch.ts";
+import { biomeColor, houseLook, momentOf, personGroup, type Moment } from "../view/index.ts";
+import { InstancedBatch, capsuleMesh, coneMesh, cylinderMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
@@ -164,20 +164,34 @@ export class VillageScene {
       out[5] = f.d * M;
       out[6] = f.yaw + Math.PI / 4;
     });
-    // Homes: walls and roofs; the watched homes lighter.
-    const box = cylinderMesh(s, Math.SQRT1_2, 1, 4),
-      walls = new InstancedBatch(s, box, [0.72, 0.62, 0.48], plan.homes.length, this.root),
-      watched = new InstancedBatch(s, box, [0.9, 0.84, 0.7], plan.homes.length, this.root),
-      roofs = new InstancedBatch(s, box, [0.45, 0.28, 0.2], plan.homes.length, this.root);
+    // Homes, as the land builds them (its design): walls of its material, four-square
+    // or round, long or wide; roofs pitched to the rain, flat, or conical; tents whole
+    // cones of hide. The watched homes lighter.
+    const look = houseLook(plan.house),
+      sides = look.round ? 8 : 4,
+      box = cylinderMesh(s, Math.SQRT1_2, 1, 4),
+      shell = look.round ? cylinderMesh(s, Math.SQRT1_2, 1, sides) : box,
+      lighter: [number, number, number] = [
+        look.wall[0] + (1 - look.wall[0]) * 0.4,
+        look.wall[1] + (1 - look.wall[1]) * 0.4,
+        look.wall[2] + (1 - look.wall[2]) * 0.4,
+      ],
+      wallHigh = look.tent ? 0.06 : look.length > 0.85 && look.width > 0.85 ? 0.36 : 0.44,
+      flat = look.rise < 0.1,
+      roofHigh = look.tent ? 0.75 : flat ? 0.08 : Math.min(0.6, look.rise * look.width * 0.5),
+      roofMesh = flat ? box : coneMesh(s, Math.SQRT1_2, 1, sides),
+      walls = new InstancedBatch(s, shell, [...look.wall], plan.homes.length, this.root),
+      watched = new InstancedBatch(s, shell, lighter, plan.homes.length, this.root),
+      roofs = new InstancedBatch(s, roofMesh, [...look.roof], plan.homes.length, this.root);
     const place = (list: VillagePlan["homes"][number][], batch: InstancedBatch) =>
       batch.set(list.length, (i, out) => {
         const h = list[i]!;
         out[0] = h.x * M;
-        out[1] = 0.22;
+        out[1] = wallHigh / 2;
         out[2] = h.z * M;
-        out[3] = 0.7;
-        out[4] = 0.44;
-        out[5] = 0.55;
+        out[3] = look.length;
+        out[4] = wallHigh;
+        out[5] = look.width;
         out[6] = h.yaw + Math.PI / 4;
       });
     place(
@@ -191,11 +205,12 @@ export class VillageScene {
     roofs.set(plan.homes.length, (i, out) => {
       const h = plan.homes[i]!;
       out[0] = h.x * M;
-      out[1] = 0.5;
+      out[1] = wallHigh + roofHigh / 2;
       out[2] = h.z * M;
-      out[3] = 0.8;
-      out[4] = 0.14;
-      out[5] = 0.65;
+      // The eaves overhang the walls a little (a flat roof sits on them).
+      out[3] = look.length * (flat ? 1.02 : 1.15);
+      out[4] = roofHigh;
+      out[5] = look.width * (flat ? 1.02 : 1.15);
       out[6] = h.yaw + Math.PI / 4;
     });
     // The market hall, or the well in the square.
