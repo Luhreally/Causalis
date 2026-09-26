@@ -15,6 +15,8 @@ import {
   PLATE,
   STAR,
   SURFACE_CELL,
+  SPOT,
+  isProvinceWorld,
   ageRef,
   cellRef,
   pastLatitude,
@@ -159,8 +161,10 @@ registerExplainer(SPECIES.code, (world, ref) => {
   const g = homePlanet(world).generated,
     s = g.life.species[parseRef(ref).b];
   if (!s) return null;
+  // Where it arose: a spot of the fine world; the province that holds it.
+  const origin = isProvinceWorld(g) ? g.provinceOf[s.origin]! : s.origin;
   if (s.niche === "upright ape") {
-    const c = s.origin;
+    const c = origin;
     return generated(
       ref,
       `The upright apes, the people: they arose in the last age at ${deg(g.grid.lat[c]!)}${g.grid.lat[c]! >= 0 ? "N" : "S"}, where ${g.life.diversity[c]} kinds of beast lived${g.life.seedGrass[c]! >= 0 ? ` and the ${g.life.species[g.life.seedGrass[c]!]!.name} grew wild` : ""}${g.water.river[c] ? ", by a river" : ""}`,
@@ -198,7 +202,27 @@ registerExplainer(SPECIES.code, (world, ref) => {
         role: s.died === null ? "enabler" : "trigger",
         weight: 0.7,
       },
-      { ref: cellRef(0, s.origin), role: "enabler", weight: 0.3 },
+      { ref: cellRef(0, origin), role: "enabler", weight: 0.3 },
+    ]),
+  );
+});
+
+// A spot of the fine grid: its own ground, and the province it is part of.
+registerExplainer(SPOT.code, (world, ref) => {
+  if (!hasPlanet(world)) return null;
+  const pw = homePlanet(world).generated,
+    g = pw.fine,
+    c = parseRef(ref).b;
+  if (c >= g.grid.count) return null;
+  const e = g.tectonics.elevation[c]!,
+    b = g.tectonics.boundary[c]!,
+    near = b !== BOUNDARY.none && g.tectonics.toBoundary[c]! <= 3;
+  return generated(
+    ref,
+    `${BIOME_NAMES[g.climate.biome[c]!]} at ${deg(g.grid.lat[c]!)}${g.grid.lat[c]! >= 0 ? "N" : "S"} ${deg(g.grid.lon[c]!)}${g.grid.lon[c]! >= 0 ? "E" : "W"}: ${Math.round(e)} m ${e >= 0 ? "above" : "below"} the sea, ${g.climate.temperature[c]!.toFixed(0)} °C, ${Math.round(g.climate.precipitation[c]!)} mm of rain a year${near ? `, near a ${BOUNDARY_WORDS[b]} plate boundary` : ""}`,
+    edges(world, [
+      { ref: g.tectonics.plates[g.tectonics.plate[c]!]!.ref as Ref, role: "enabler", weight: 0.7 },
+      { ref: cellRef(0, pw.provinceOf[c]!), role: "constraint", weight: 0.3 },
     ]),
   );
 });

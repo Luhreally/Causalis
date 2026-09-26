@@ -8,6 +8,7 @@ import {
   cultureOf,
   makePopulationWorld,
   populationContext,
+  SPREAD,
 } from "../../src/sim/index.ts";
 import { waysRef, why } from "../../src/causal/index.ts";
 import { cradleCell } from "../cradle.ts";
@@ -41,12 +42,16 @@ test("the further the bands went before the chronicle, the further their speech 
     d = steps(world, HOME),
     byRing = new Map<number, number[]>();
   for (const w of cultureOf(world).all()) {
-    const ring = d.get(w.cell)!;
+    // (Lands the bands reached across the sea are not counted in steps over land.)
+    const ring = d.get(w.cell);
+    if (ring === undefined) continue;
     byRing.set(ring, [...(byRing.get(ring) ?? []), tongueLikeness(w.tongue, cradle)]);
   }
   const mean = (r: number) => byRing.get(r)!.reduce((a, b) => a + b, 0) / byRing.get(r)!.length;
   assert.equal(mean(0), 1, "the cradle speaks as the first people did");
-  assert.ok(mean(1) > mean(4), `near ${mean(1).toFixed(2)}, far ${mean(4).toFixed(2)}`);
+  // The nearest ring against the farthest the bands reached.
+  const far = Math.max(...byRing.keys());
+  assert.ok(mean(1) > mean(far), `near ${mean(1).toFixed(2)}, far ${mean(far).toFixed(2)}`);
 });
 
 test("after centuries, neighbours still speak alike and far lands apart", () => {
@@ -102,8 +107,9 @@ test("the god's acts deepen devotion where they fall", () => {
 });
 
 test("a land newly peopled takes the ways of those who came", () => {
+  // Within living memory of the moves that peopled the cradle's neighbours.
   const world = makePopulationWorld(seed);
-  world.runTo(240 * YEAR);
+  world.runTo(100 * YEAR);
   const ctx = populationContext(world),
     culture = cultureOf(world);
   const settled = ctx.provinces.all().filter((p) => p.settledYear > 0);

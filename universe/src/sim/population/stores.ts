@@ -10,6 +10,8 @@ export const SETTLEMENT = defineKind("town", "settlement", "minted");
 export class PopulationStore implements StateStore {
   readonly name = "population.provinces";
   private readonly map = new Map<number, Province>();
+  /** The provinces in cell order, kept until one is added. */
+  private sorted: Province[] | null = null;
 
   get(cell: number): Province | undefined {
     return this.map.get(cell);
@@ -18,12 +20,13 @@ export class PopulationStore implements StateStore {
   add(p: Province): Province {
     if (this.map.has(p.cell)) throw new Error(`province ${p.cell} is already peopled`);
     this.map.set(p.cell, p);
+    this.sorted = null;
     return p;
   }
 
   /** Every peopled province, in cell order (the order every system visits them). */
-  all(): Province[] {
-    return [...this.map.values()].sort((a, b) => a.cell - b.cell);
+  all(): readonly Province[] {
+    return (this.sorted ??= [...this.map.values()].sort((a, b) => a.cell - b.cell));
   }
 
   total(): number {
@@ -44,6 +47,7 @@ export class PopulationStore implements StateStore {
 
   load(state: unknown): void {
     this.map.clear();
+    this.sorted = null;
     for (const s of (state as { provinces: unknown[] }).provinces) {
       const p = Province.load(s);
       this.map.set(p.cell, p);
@@ -71,22 +75,34 @@ export type Settlement = {
 export class SettlementStore implements StateStore {
   readonly name = "population.settlements";
   private list: Settlement[] = [];
+  /** The same settlements by province (in founding order) and by ref. */
+  private readonly byCell = new Map<number, Settlement[]>();
+  private readonly byRef = new Map<string, Settlement>();
 
   add(s: Settlement): Settlement {
     this.list.push(s);
+    this.index(s);
     return s;
+  }
+
+  private index(s: Settlement): void {
+    const here = this.byCell.get(s.cell);
+    if (here) here.push(s);
+    else this.byCell.set(s.cell, [s]);
+    this.byRef.set(s.ref, s);
   }
 
   all(): readonly Settlement[] {
     return this.list;
   }
 
+  /** A province's settlements, in the order they were founded (a copy: the caller may add to it). */
   inProvince(cell: number): Settlement[] {
-    return this.list.filter((s) => s.cell === cell);
+    return [...(this.byCell.get(cell) ?? [])];
   }
 
   get(ref: Ref): Settlement | undefined {
-    return this.list.find((s) => s.ref === ref);
+    return this.byRef.get(ref);
   }
 
   hashInto(h: Hasher): void {
@@ -112,6 +128,9 @@ export class SettlementStore implements StateStore {
 
   load(state: unknown): void {
     this.list = (state as { settlements: Settlement[] }).settlements.map((s) => ({ ...s }));
+    this.byCell.clear();
+    this.byRef.clear();
+    for (const s of this.list) this.index(s);
   }
 }
 
@@ -140,6 +159,14 @@ export type YearSummary = {
  * The macro history (docs/architecture §15): births by province and year, deaths
  * by province, year and age band, every migration, and each province's year.
  */
+/**
+ * Births, deaths and moves are kept for living memory — as long as anyone alive could
+ * have been born, died or moved — then let go (they are folded into the digest already).
+ * A year's summary is kept every year for a century, then one year in ten.
+ */
+export const LIVING_MEMORY = 120;
+const SUMMARY_YEARS = 100;
+
 export class HistoryStore implements StateStore {
   readonly name = "population.history";
   private readonly births = new Map<number, number[]>();
@@ -149,20 +176,25 @@ export class HistoryStore implements StateStore {
   private digest = "";
   private sealedYear = -1;
   private sealedFlows = 0;
+  /** The first year births and deaths are still held for; how many moves have been let go. */
+  private firstYear = 0;
+  private flowBase = 0;
 
   addBirths(cell: number, year: number, n: number): void {
-    if (!n) return;
+    const at = year - this.firstYear;
+    if (!n || at < 0) return;
     const a = this.births.get(cell) ?? [];
-    while (a.length <= year) a.push(0);
-    a[year] = a[year]! + n;
+    while (a.length <= at) a.push(0);
+    a[at] = a[at]! + n;
     this.births.set(cell, a);
   }
 
   addDeaths(cell: number, year: number, band: number, n: number): void {
-    if (!n) return;
+    const at = year - this.firstYear;
+    if (!n || at < 0) return;
     const a = this.deaths.get(cell) ?? [];
-    while (a.length < (year + 1) * BANDS) a.push(0);
-    a[year * BANDS + band] = a[year * BANDS + band]! + n;
+    while (a.length < (at + 1) * BANDS) a.push(0);
+    a[at * BANDS + band] = a[at * BANDS + band]! + n;
     this.deaths.set(cell, a);
   }
 
@@ -177,20 +209,32 @@ export class HistoryStore implements StateStore {
   }
 
   birthsIn(cell: number, year: number): number {
-    return this.births.get(cell)?.[year] ?? 0;
+    return year < this.firstYear ? 0 : (this.births.get(cell)?.[year - this.firstYear] ?? 0);
   }
 
   deathsIn(cell: number, year: number, band?: number): number {
     const a = this.deaths.get(cell);
-    if (!a) return 0;
-    if (band !== undefined) return a[year * BANDS + band] ?? 0;
+    if (!a || year < this.firstYear) return 0;
+    const at = year - this.firstYear;
+    if (band !== undefined) return a[at * BANDS + band] ?? 0;
     let n = 0;
-    for (let b = 0; b < BANDS; b++) n += a[year * BANDS + b] ?? 0;
+    for (let b = 0; b < BANDS; b++) n += a[at * BANDS + b] ?? 0;
     return n;
   }
 
+  /** The moves still held (within living memory); the first is move number `flowOffset`. */
   flows(): readonly Flow[] {
     return this.flowList;
+  }
+
+  /** How many moves have been let go: move number i is flows()[i - flowOffset]. */
+  get flowOffset(): number {
+    return this.flowBase;
+  }
+
+  /** Move number i (numbered from the first ever), if it is still held. */
+  flowAt(i: number): Flow | undefined {
+    return this.flowList[i - this.flowBase];
   }
 
   flowsInto(cell: number): Flow[] {
@@ -215,11 +259,12 @@ export class HistoryStore implements StateStore {
     const cells = [
       ...new Set([...this.births.keys(), ...this.deaths.keys(), ...this.years.keys()]),
     ].sort((a, b) => a - b);
-    const h = new Hasher().string(this.digest).int(year);
+    const h = new Hasher().string(this.digest).int(year),
+      at = year - this.firstYear;
     for (const c of cells) {
-      h.int(c).int(this.births.get(c)?.[year] ?? 0);
+      h.int(c).int(this.births.get(c)?.[at] ?? 0);
       const d = this.deaths.get(c);
-      for (let b = 0; b < BANDS; b++) h.int(d?.[year * BANDS + b] ?? 0);
+      for (let b = 0; b < BANDS; b++) h.int(d?.[at * BANDS + b] ?? 0);
       const line = this.years.get(c)?.at(-1);
       if (line && line.year === year) h.value(line);
       else h.int(-1);
@@ -228,18 +273,43 @@ export class HistoryStore implements StateStore {
       h.value(this.flowList[this.sealedFlows]);
     this.digest = h.hex();
     this.sealedYear = year;
+    // Past living memory, a decade at a time: let the oldest births, deaths and moves go,
+    // and thin the summaries of the years beyond a century to one in ten.
+    if (year - this.firstYear >= LIVING_MEMORY + 10) {
+      const drop = 10;
+      for (const a of this.births.values()) a.splice(0, drop);
+      for (const a of this.deaths.values()) a.splice(0, drop * BANDS);
+      this.firstYear += drop;
+      let gone = 0;
+      while (gone < this.flowList.length && this.flowList[gone]!.year < this.firstYear) gone++;
+      this.flowList.splice(0, gone);
+      this.flowBase += gone;
+      this.sealedFlows -= gone;
+      for (const [c, lines] of this.years)
+        this.years.set(
+          c,
+          lines.filter((s) => s.year >= year - SUMMARY_YEARS || s.year % 10 === 0),
+        );
+    }
   }
 
   hashInto(h: Hasher): void {
     h.string(this.digest).int(this.sealedYear).int(this.sealedFlows);
     // The year still open.
     const open = this.sealedYear + 1,
+      first = this.firstYear,
       cells = [...new Set([...this.births.keys(), ...this.deaths.keys()])].sort((a, b) => a - b);
     for (const c of cells) {
       const born = this.births.get(c),
         dead = this.deaths.get(c);
-      for (let y = open; y < (born?.length ?? 0); y++) h.int(c).int(y).int(born![y]!);
-      for (let i = open * BANDS; i < (dead?.length ?? 0); i++) h.int(c).int(i).int(dead![i]!);
+      for (let y = open; y < first + (born?.length ?? 0); y++)
+        h.int(c)
+          .int(y)
+          .int(born![y - first]!);
+      for (let i = open * BANDS; i < first * BANDS + (dead?.length ?? 0); i++)
+        h.int(c)
+          .int(i)
+          .int(dead![i - first * BANDS]!);
     }
     for (let i = this.sealedFlows; i < this.flowList.length; i++) h.value(this.flowList[i]);
   }
@@ -255,6 +325,8 @@ export class HistoryStore implements StateStore {
       digest: this.digest,
       sealedYear: this.sealedYear,
       sealedFlows: this.sealedFlows,
+      firstYear: this.firstYear,
+      flowBase: this.flowBase,
     };
   }
 
@@ -267,10 +339,14 @@ export class HistoryStore implements StateStore {
       digest: string;
       sealedYear: number;
       sealedFlows: number;
+      firstYear?: number;
+      flowBase?: number;
     };
     this.digest = s.digest;
     this.sealedYear = s.sealedYear;
     this.sealedFlows = s.sealedFlows;
+    this.firstYear = s.firstYear ?? 0;
+    this.flowBase = s.flowBase ?? 0;
     this.births.clear();
     this.deaths.clear();
     this.years.clear();

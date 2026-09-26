@@ -171,7 +171,9 @@ export function globeColors(
   for (let c = 0; c < n; c++) {
     const e = elevation[c]!,
       sea = e <= 0,
-      biome = a.biome![c]!;
+      biome = a.biome![c]!,
+      // People's facts are their province's: each land cell shows its province's.
+      province = sea ? -1 : a.province ? a.province[c]! : c;
     let col: Rgb;
     switch (lens) {
       case "terrain":
@@ -207,7 +209,7 @@ export function globeColors(
       case "realms":
       case "faiths":
       case "tongues": {
-        const tongue = colors?.get(c);
+        const tongue = colors?.get(province);
         if (tongue) col = tongue;
         else {
           const base = sea ? ramp(DEPTH, e) : BIOME_COLORS[biome]!,
@@ -220,7 +222,7 @@ export function globeColors(
       }
       case "people":
       case "food": {
-        const v = values?.get(c);
+        const v = values?.get(province);
         if (v !== undefined && v > 0) col = ramp(lens === "people" ? PEOPLE : FOOD, v);
         else {
           const base = sea ? ramp(DEPTH, e) : BIOME_COLORS[biome]!,

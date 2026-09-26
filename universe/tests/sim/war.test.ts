@@ -2,8 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
 import {
+  LIVING_MEMORY,
   POLITY_EVENTS,
   WAR_EVENTS,
+  WEARY_YEARS,
   diplomacyOf,
   makePopulationWorld,
   politiesOf,
@@ -68,9 +70,11 @@ test("a war's why reaches the economy and the ground it was fought over", () => 
 });
 
 test("the fallen are written into the ledgers of deaths", () => {
+  // (Within living memory: older deaths are let go from the ledgers.)
   let battles = 0;
   for (const w of wars)
     for (const b of w.battles) {
+      if (b.year < 400 - LIVING_MEMORY) continue;
       battles++;
       assert.ok(
         ctx.history.deathsIn(b.land, b.year) >= b.fallen[1],
@@ -144,7 +148,7 @@ test("a realm fresh from war is slow to go to war again, and says so", () => {
       weary = d.factors.find((f) => f.name === "the years since their last war");
     if (!weary) continue;
     cited++;
-    assert.ok(weary.value < 25, `${weary.value} years since`);
+    assert.ok(weary.value < WEARY_YEARS, `${weary.value} years since`);
     assert.equal(world.events.get(weary.source!.ref as Ref)?.type, WAR_EVENTS.peace.type);
   }
   assert.ok(cited >= 1, "some war was declared by a realm not long at peace");

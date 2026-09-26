@@ -29,7 +29,7 @@ function assertWithinHistory(world: World): void {
     else if (kind === "v") limit = ctx.settlements.get(`${a}:${b}:${c}` as Ref)!.population;
     else if (kind === "b") limit = ctx.history.birthsIn(Number(a), Number(b));
     else if (kind === "d") limit = ctx.history.deathsIn(Number(a), Number(b), Number(c));
-    else if (kind === "f") limit = ctx.history.flows()[Number(a)]!.count;
+    else if (kind === "f") limit = ctx.history.flowAt(Number(a))!.count;
     else throw new Error(`unknown claim ${key}`);
     assert.ok(n <= limit, `${key}: ${n} claimed of ${limit}`);
   }
@@ -119,18 +119,19 @@ test("a life, once told, stays told; its future is drawn from the ledgers", () =
 });
 
 test("a memory leads back through a migration to the land and the planet it happened on", () => {
-  // Grown to just after this world's great moves (its first seventy years, as its bands bud
-  // off from the cradle), while those who made them live.
-  const world = grown(75),
+  // Grown to just after this world's great moves (its first decades, as its bands bud off
+  // from the cradle), while those who made them live.
+  const world = grown(40),
     ctx = populationContext(world);
-  // Meet families in provinces people moved into, until someone remembers setting out.
+  // Meet families among the people of lands people moved into (before any village stands
+  // there), until someone remembers setting out.
   let remembered: { person: Person; memory: Ref } | null = null;
-  const moved = ctx.settlements.all().filter((s) => ctx.provinces.get(s.cell)!.settledYear > 0);
+  const moved = ctx.provinces.all().filter((p) => p.settledYear > 0);
   for (let i = 0; i < 300 && !remembered; i++) {
-    const v = moved[i % moved.length]!;
+    const p = moved[i % moved.length]!;
     let hh;
     try {
-      hh = meetHousehold(world, v.cell, v.ref);
+      hh = meetHousehold(world, p.cell, null);
     } catch {
       continue;
     }

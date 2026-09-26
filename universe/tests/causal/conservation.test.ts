@@ -29,7 +29,7 @@ function assertConserved(world: World, label: string): void {
       assert.equal(n, holders, `${label}: ${key} claims ${n}, held by ${holders}`);
     } else if (kind === "b") limit = ctx.history.birthsIn(Number(a), Number(b));
     else if (kind === "d") limit = ctx.history.deathsIn(Number(a), Number(b), Number(c));
-    else if (kind === "f") limit = ctx.history.flows()[Number(a)]!.count;
+    else if (kind === "f") limit = ctx.history.flowAt(Number(a))!.count;
     else throw new Error(`unknown claim ${key}`);
     assert.ok(n <= limit, `${label}: ${key}: ${n} claimed of ${limit}`);
   }

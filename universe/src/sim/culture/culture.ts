@@ -182,18 +182,19 @@ export function driftedWays(
   steps: number,
   from: Ref | null,
 ): Ways {
+  // Ways wander as a walk does (by the root of the distance); speech shifts at every step.
   const traits = cradle.traits.map((v, i) =>
     dmath.clamp(
       v +
-        steps *
-          0.035 *
+        0.07 *
+          dmath.sqrt(steps) *
           gaussian(world.rng.real(DRIFT, cell, 0, 1, i), world.rng.real(DRIFT, cell, 0, 2, i)),
       0.05,
       0.95,
     ),
   );
   let tongue = cradle.tongue;
-  for (let k = 0; k < steps * 2; k++)
+  for (let k = 0; k < Math.round(steps * 2); k++)
     tongue = shiftTongue(tongue, world.rng.real(SPEECH, cell, 0, 1, k));
   return { cell, traits, base: [...traits], tongue, nudges: [], from };
 }

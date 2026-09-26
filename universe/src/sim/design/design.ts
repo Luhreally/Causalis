@@ -12,7 +12,7 @@ import {
   defineKind,
   yearOfMoment,
   type CauseRef,
-  type Hasher,
+  Hasher,
   type Ref,
   type SimTime,
   type StateStore,
@@ -67,9 +67,13 @@ export class DesignStore implements StateStore {
     const ref = this.current.get(owner);
     return ref ? this.all.get(ref) : undefined;
   }
+  /** Every design folded in as it is realized (designs never change once made). */
+  private digest = "";
+
   set(d: Design): void {
     this.all.set(d.ref, d);
     this.current.set(d.owner, d.ref);
+    this.digest = new Hasher().string(this.digest).value(d).hex();
   }
   list(): Design[] {
     return [...this.all.values()].sort((a, b) => (a.ref < b.ref ? -1 : 1));
@@ -78,17 +82,19 @@ export class DesignStore implements StateStore {
     return [...this.current.values()].map((r) => this.all.get(r)!.event);
   }
   hashInto(h: Hasher): void {
-    h.value(this.list());
+    h.string(this.digest);
     h.value([...this.current.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)));
   }
   save(): unknown {
     return {
       designs: this.list(),
       current: [...this.current.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)),
+      digest: this.digest,
     };
   }
   load(state: unknown): void {
-    const s = state as { designs: Design[]; current: [string, Ref][] };
+    const s = state as { designs: Design[]; current: [string, Ref][]; digest?: string };
+    this.digest = s.digest ?? "";
     this.all.clear();
     this.current.clear();
     for (const d of s.designs) this.all.set(d.ref, { ...d, parts: [...d.parts] });

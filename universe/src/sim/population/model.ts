@@ -3,7 +3,7 @@
 // with a province's food store and what it knows. A province is a planet cell;
 // it becomes simulated (A0 → A1) the first time people arrive.
 import { CountTable, type Hasher, type Ref } from "../../kernel/index.ts";
-import { BIOME, cellRef, type HomeWorld } from "../../gen/index.ts";
+import { BIOME, cellRef, isProvinceWorld, type HomeWorld } from "../../gen/index.ts";
 import { BANDS, OCCUPATIONS, SEXES } from "../../rules/index.ts";
 
 export const ROWS = SEXES * BANDS;
@@ -37,6 +37,21 @@ export const FARM_YIELD = 40;
 export const HERD_YIELD = 6;
 
 export function capacity(w: HomeWorld, cell: number): Capacity {
+  // A province feeds what its fine cells feed.
+  if (isProvinceWorld(w)) {
+    let forage = 0,
+      farm = 0,
+      pasture = 0,
+      areaKm2 = 0;
+    for (let k = w.childOffsets[cell]!; k < w.childOffsets[cell + 1]!; k++) {
+      const c = capacity(w.fine, w.children[k]!);
+      forage += c.forage;
+      farm += c.farm;
+      pasture += c.pasture;
+      areaKm2 += c.areaKm2;
+    }
+    return { forage, farm, pasture, areaKm2 };
+  }
   const radiusKm = 6371 * w.planet.radius,
     areaKm2 = w.grid.areas[cell]! * radiusKm * radiusKm,
     biome = w.climate.biome[cell]!,
@@ -68,6 +83,8 @@ export class Province {
   knowsCultivation = false;
   /** The event through which this province came to keep herds (tamed or learned), if it has. */
   herding: Ref | null = null;
+  /** The year its births and deaths were last reckoned whole, in one step (a quiet band's land). */
+  paged = -1;
   /** The event through which this province came to know cultivation. */
   cultivation: Ref | null = null;
   /** The year the first people came. */
@@ -100,6 +117,7 @@ export class Province {
     h.int(this.rain).int(this.fed).int(this.leanest).bool(this.knowsCultivation);
     h.string(this.cultivation ?? "")
       .string(this.herding ?? "")
+      .int(this.paged)
       .int(this.settledYear)
       .string(this.arrival ?? "");
     h.string(this.lastFamine ?? "")
@@ -117,6 +135,7 @@ export class Province {
       knowsCultivation: this.knowsCultivation,
       cultivation: this.cultivation,
       herding: this.herding,
+      paged: this.paged,
       settledYear: this.settledYear,
       arrival: this.arrival,
       lastFamine: this.lastFamine,
@@ -135,6 +154,7 @@ export class Province {
     p.knowsCultivation = s.knowsCultivation as boolean;
     p.cultivation = s.cultivation as Ref | null;
     p.herding = (s.herding as Ref | null | undefined) ?? null;
+    p.paged = (s.paged as number | undefined) ?? -1;
     p.lastFamine = s.lastFamine as Ref | null;
     p.lastDrought = s.lastDrought as Ref | null;
     p.famineMonth = s.famineMonth as number;

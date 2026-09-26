@@ -25,6 +25,7 @@ export {
 export { COLS, Province, ROWS, capacity, row, type Capacity } from "./population/model.ts";
 export {
   HistoryStore,
+  LIVING_MEMORY,
   PopulationStore,
   SETTLEMENT,
   SettlementStore,
@@ -42,6 +43,8 @@ export {
   provinceCapacity,
   regionOf,
   regionReady,
+  prepareSites,
+  sitesReady,
   support,
   type PopulationContext,
 } from "./population/systems.ts";
@@ -161,6 +164,7 @@ export {
 export {
   WAR,
   WAR_EVENTS,
+  WEARY_YEARS,
   WarStore,
   installWar,
   strengthOf,

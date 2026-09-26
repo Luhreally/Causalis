@@ -241,11 +241,12 @@ function populationIn(ctx: PopulationContext, cell: number, year: number): numbe
 }
 
 function flowsIndexed(ctx: PopulationContext): Map<string, number[]> {
-  const byKey = new Map<string, number[]>();
+  const byKey = new Map<string, number[]>(),
+    base = ctx.history.flowOffset;
   ctx.history.flows().forEach((f, i) => {
     for (const key of [`in:${f.to}:${f.year}`, `out:${f.from}:${f.year}`]) {
       const a = byKey.get(key) ?? [];
-      a.push(i);
+      a.push(base + i);
       byKey.set(key, a);
     }
   });
@@ -262,11 +263,10 @@ function resolvePast(
   chance: Chance,
   index: Map<string, number[]>,
 ): void {
-  const flows = ctx.history.flows();
   let cell = person.cell;
   const moves: Move[] = [];
   const takeFlow = (i: number) => {
-    const f = flows[i]!;
+    const f = ctx.history.flowAt(i)!;
     if (!ledger.claim(flowKey(i), f.count)) return false;
     moves.unshift({ year: f.year, from: f.from, to: f.to, flow: i, event: f.event });
     cell = f.from;
@@ -282,7 +282,7 @@ function resolvePast(
     }
     const pop = populationIn(ctx, cell, y);
     for (const i of into) {
-      const room = flows[i]!.count - ledger.claimed(flowKey(i));
+      const room = ctx.history.flowAt(i)!.count - ledger.claimed(flowKey(i));
       if (room > 0 && chance(Math.min(1, room / pop), y * 64 + (i % 64)) && takeFlow(i)) break;
     }
   }
@@ -445,7 +445,6 @@ function followLife(
   index: Map<string, number[]>,
 ): void {
   const now = Math.floor(world.now / YEAR),
-    flows = ctx.history.flows(),
     hh = ledger.household(person.household)!;
   for (let y = person.resolvedTo; y < now && person.alive; y++) {
     const age = y - person.birthYear,
@@ -465,7 +464,7 @@ function followLife(
     const out = index.get(`out:${person.cell}:${y}`) ?? [],
       pop = populationIn(ctx, person.cell, y);
     for (const i of out) {
-      const f = flows[i]!;
+      const f = ctx.history.flowAt(i)!;
       if (
         world.rng.real(LIFE, hh.seq, y, 1 + (i % 64)) < f.count / pop &&
         ledger.claim(flowKey(i), f.count)

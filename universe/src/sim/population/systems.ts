@@ -30,6 +30,7 @@ import {
   cellRef,
   placeName,
   tongueName,
+  isProvinceWorld,
   refineRegion,
   type HomeWorld,
   type Region,
@@ -89,14 +90,20 @@ const SITES = defineStream("pop.sites");
 
 /** A village holds about this many people before another is founded. */
 export const VILLAGE_SIZE = 250;
+/** The most villages a land holds: beyond them its settled people live in larger ones. */
+export const MOST_VILLAGES = 48;
 /**
  * How many lands may found their first village in one year, world-wide, in the
  * order of the lands; the rest wait a year. Each first village surveys its land's
  * region, and this keeps a year's work even when farming sweeps a continent.
  */
-export const FIRST_VILLAGES_A_YEAR = 3;
+export const FIRST_VILLAGES_A_YEAR = 50;
 /** The fewest people who set out together. */
 export const MIN_GROUP = 10;
+// The draws' purposes, named once.
+const HARVEST = purpose("harvest"),
+  SPOIL = purpose("spoil"),
+  SEX = purpose("sex");
 
 /** x rounded down or up by a keyed coin, so the expectation is exact. */
 export function roundKeyed(x: number, u: number): number {
@@ -193,6 +200,16 @@ export function provinceCapacity(ctx: PopulationContext, cell: number): Capacity
   return c;
 }
 const REGIONS = new Map<string, Region>();
+/** A province's region: tiles to a side, and their size (it spans most of a province). */
+export const REGION_SIZE = 128;
+export const PROVINCE_TILE_KM = 2.4;
+
+/** The province a region's tile lies in. */
+export function provinceOfTile(ctx: PopulationContext, r: Region, tile: number): number {
+  const g = ctx.generated,
+    parent = r.parent[tile]!;
+  return isProvinceWorld(g) ? g.provinceOf[parent]! : parent;
+}
 /** Whether a province's region is refined already (regions are pure: refining early changes nothing). */
 export function regionReady(ctx: PopulationContext, cell: number): boolean {
   return REGIONS.has(`${ctx.generated.digest}:${cell}`);
@@ -203,7 +220,14 @@ export function regionOf(ctx: PopulationContext, cell: number): Region {
   let r = REGIONS.get(key);
   if (!r) {
     if (REGIONS.size >= 64) REGIONS.delete(REGIONS.keys().next().value!);
-    REGIONS.set(key, (r = refineRegion(ctx.generated, cell)));
+    // A province's region is drawn around its centre, on the fine world, wide enough to hold most of it.
+    const g = ctx.generated;
+    REGIONS.set(
+      key,
+      (r = isProvinceWorld(g)
+        ? refineRegion(g.fine, g.centre[cell]!, REGION_SIZE, PROVINCE_TILE_KM)
+        : refineRegion(g, cell)),
+    );
   }
   return r;
 }
@@ -267,11 +291,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       ],
     ];
     for (const [g, x] of harvest)
-      m.move(
-        "made",
-        g,
-        roundKeyed(x * gift, world.rng.real(BIRTHS, key, t, purpose("harvest"), g)),
-      );
+      m.move("made", g, roundKeyed(x * gift, world.rng.real(BIRTHS, key, t, HARVEST, g)));
     for (const g of FOODS)
       m.move(
         "spoiled",
@@ -280,7 +300,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
           m.stock[g]!,
           roundKeyed(
             m.stock[g]! * GOODS[g]!.spoil * (1 - 0.5 * pots) * (1 - keeping),
-            world.rng.real(BIRTHS, key, t, purpose("spoil"), g),
+            world.rng.real(BIRTHS, key, t, SPOIL, g),
           ),
         ),
       );
@@ -317,11 +337,19 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
     year = yearOfMoment(t),
     life = HUMANLIKE;
   const markets = marketsOf(world),
-    acts = actsOf(world);
+    acts = actsOf(world),
+    first = periodIndex(t, MONTH) % 12 === 1;
   for (const p of ctx.provinces.all()) {
+    // A quiet land — fed, untouched by plague, not under the hand — is reckoned once a
+    // year, in the year's first month, at the year's rates (macro-history paging: by the
+    // land's own state, never by where anyone looks).
+    if (p.paged === year) continue;
     // A plague sent makes deaths likelier; healing, rarer.
     const act = acts.at(p.cell, "plague", t),
       sickness = !act ? 1 : act.sign < 0 ? 1 + ACT_STRENGTH.plague : 1 - ACT_STRENGTH.healing;
+    const quiet = first && !act && p.fed >= 1000 && !handOf(world).over(p.cell),
+      months = quiet ? 12 : 1;
+    if (quiet) p.paged = year;
     const fed = p.fed / 1000,
       fertility = fed * fed,
       // In cold lands, those without warm clothing die more easily.
@@ -342,14 +370,30 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       if (windowed) for (let o = 0; o < COLS; o++) women -= windowed[row(FEMALE, b) * COLS + o]!;
       expected += women * life.fertility[b]!;
     }
-    const births = roundKeyed((expected * fertility) / 12, world.rng.real(BIRTHS, key, t));
+    const births = roundKeyed((expected * fertility * months) / 12, world.rng.real(BIRTHS, key, t));
     if (births) {
       const [girls, boys] = multinomial(births, [0.488, 0.512], (i) =>
-        world.rng.real(BIRTHS, key, t, purpose("sex"), i),
+        world.rng.real(BIRTHS, key, t, SEX, i),
       );
-      d.add(row(FEMALE, 0), OCC.dependent, girls!);
-      d.add(row(MALE, 0), OCC.dependent, boys!);
+      // Reckoned a whole year at once, the year's newborns have lived half of it on average.
+      const infants = quiet
+          ? Math.min(
+              births,
+              roundKeyed(
+                (births * life.mortality[0]! * mortality) / 2,
+                world.rng.real(DEATHS, key, t, 1, 0),
+              ),
+            )
+          : 0,
+        [lostGirls] = infants
+          ? multinomial(infants, [girls! / births, boys! / births], (i) =>
+              world.rng.real(DEATHS, key, t, 2, i),
+            )
+          : [0];
+      d.add(row(FEMALE, 0), OCC.dependent, girls! - lostGirls!);
+      d.add(row(MALE, 0), OCC.dependent, boys! - (infants - lostGirls!));
       history.addBirths(p.cell, year, births);
+      if (infants) history.addDeaths(p.cell, year, 0, infants);
     }
     for (let s = 0; s < SEXES; s++)
       for (let b = 0; b < BANDS; b++)
@@ -359,7 +403,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
           const dead = Math.min(
             n,
             roundKeyed(
-              (n * life.mortality[b]! * mortality) / 12,
+              (n * life.mortality[b]! * mortality * months) / 12,
               world.rng.real(DEATHS, key, t, 0, row(s, b) * COLS + o),
             ),
           );
@@ -927,20 +971,68 @@ function siteScore(r: Region, t: number): number {
   return n ? soil / n + water : 0;
 }
 
-// Each region's site scores, once: a pure function of the generated region.
-const SITE_SCORES = new Map<string, Float32Array>();
-function siteScores(ctx: PopulationContext, r: Region, cell: number): Float32Array {
+// Where villages can stand, per land, once: a small region of 16×16 blocks (each the
+// size of 8×8 tiles of the land's full region, about 19 km across), each block's site
+// score read from it; a village stands at its block's middle tile. A pure function of
+// the generated world, kept for good: the simulation never needs a land's full region
+// (that is drawn only for the observer).
+const BLOCK = 8,
+  SITE_SIDE = REGION_SIZE / BLOCK;
+type SiteBlocks = {
+  /** Each block's best buildable tile (0xffff: none), and its score. */
+  readonly tiles: Uint16Array;
+  readonly scores: Float32Array;
+  /** The blocks with a tile, best first (ties by tile). */
+  readonly order: Uint16Array;
+};
+const SITE_BLOCKS = new Map<string, SiteBlocks>();
+function siteBlocks(ctx: PopulationContext, cell: number): SiteBlocks {
   const key = `${ctx.generated.digest}:${cell}`;
-  let scores = SITE_SCORES.get(key);
-  if (!scores) {
-    if (SITE_SCORES.size >= 64) SITE_SCORES.delete(SITE_SCORES.keys().next().value!);
-    scores = new Float32Array(r.size * r.size).fill(-1);
-    for (let tile = 0; tile < scores.length; tile++)
-      if (r.water[tile] === WATER.land && r.parent[tile] === cell && r.fertility[tile]! >= 0.2)
-        scores[tile] = siteScore(r, tile);
-    SITE_SCORES.set(key, scores);
+  let blocks = SITE_BLOCKS.get(key);
+  if (!blocks) {
+    if (SITE_BLOCKS.size > 20_000) SITE_BLOCKS.clear();
+    const g = ctx.generated,
+      r = isProvinceWorld(g)
+        ? refineRegion(g.fine, g.centre[cell]!, SITE_SIDE, PROVINCE_TILE_KM * BLOCK)
+        : refineRegion(g, cell, SITE_SIDE, 0.8 * BLOCK),
+      side = SITE_SIDE,
+      tiles = new Uint16Array(side * side).fill(0xffff),
+      scores = new Float32Array(side * side).fill(-1);
+    for (let b = 0; b < side * side; b++) {
+      if (r.water[b] !== WATER.land || provinceOfTile(ctx, r, b) !== cell || r.fertility[b]! < 0.2)
+        continue;
+      scores[b] = Math.fround(siteScore(r, b));
+      // The village stands at its block's middle tile of the land's full region.
+      const i = (b % side) * BLOCK + BLOCK / 2,
+        j = Math.floor(b / side) * BLOCK + BLOCK / 2;
+      tiles[b] = j * REGION_SIZE + i;
+    }
+    const order = Uint16Array.from(
+      [...tiles.keys()]
+        .filter((b) => tiles[b] !== 0xffff)
+        .sort((a, b) => scores[b]! - scores[a]! || tiles[a]! - tiles[b]!),
+    );
+    SITE_BLOCKS.set(key, (blocks = { tiles, scores, order }));
   }
-  return scores;
+  return blocks;
+}
+
+/** A village's site score: its block's. */
+function siteOf(ctx: PopulationContext, v: Settlement): number {
+  const size = REGION_SIZE,
+    b =
+      Math.floor(Math.floor(v.tile / size) / BLOCK) * SITE_SIDE +
+      Math.floor((v.tile % size) / BLOCK);
+  return Math.max(0, siteBlocks(ctx, v.cell).scores[b]!);
+}
+
+/** Whether a land's village sites are known already (they are pure: knowing them early changes nothing). */
+export function sitesReady(ctx: PopulationContext, cell: number): boolean {
+  return SITE_BLOCKS.has(`${ctx.generated.digest}:${cell}`);
+}
+/** Work out a land's village sites ahead of need. */
+export function prepareSites(ctx: PopulationContext, cell: number): void {
+  siteBlocks(ctx, cell);
 }
 
 function chooseSite(
@@ -949,21 +1041,27 @@ function chooseSite(
   taken: readonly Settlement[],
   t: SimTime,
 ): { tile: number; score: number } | null {
-  const r = regionOf(ctx, cell),
-    size = r.size,
-    scores = siteScores(ctx, r, cell);
+  // A land whose region had no room for another village has none while its villages are the same.
+  const full = `${ctx.generated.digest}:${cell}:${taken.length}`;
+  if (FULL.has(full)) return null;
+  const { tiles, scores, order } = siteBlocks(ctx, cell),
+    size = REGION_SIZE;
+  // The best-scoring block's site far enough from every village, its score nudged by a
+  // keyed draw (ties to the lower tile). Blocks are visited best first, so once none
+  // left could beat the best even with the whole nudge, none need be drawn.
   let best = -1,
     bestScore = -Infinity;
-  for (let tile = 0; tile < size * size; tile++) {
-    const base = scores[tile]!;
-    // The keyed nudge adds at most 0.02: a site that cannot win needs no draw.
-    if (base < 0 || base + 0.02 <= bestScore) continue;
+  for (const b of order) {
+    const tile = tiles[b]!,
+      base = scores[b]!;
+    // The keyed nudge adds less than 0.02: a site that cannot win needs no draw.
+    if (base + 0.02 <= bestScore) break;
     const score = base + 0.02 * ctx.world.rng.real(SITES, tile, t, cell);
     // Only a site that would be the best so far needs its neighbours checked.
-    if (score <= bestScore) continue;
+    if (score < bestScore || (score === bestScore && tile > best)) continue;
     const i = tile % size,
       j = Math.floor(tile / size);
-    // Keep six kilometres from every other village.
+    // Keep eighteen kilometres from every other village.
     if (
       taken.some((s) => {
         const di = (s.tile % size) - i,
@@ -975,8 +1073,14 @@ function chooseSite(
     bestScore = score;
     best = tile;
   }
-  return best < 0 ? null : { tile: best, score: bestScore };
+  if (best < 0) {
+    if (FULL.size > 100_000) FULL.clear();
+    FULL.add(full);
+    return null;
+  }
+  return { tile: best, score: bestScore };
 }
+const FULL = new Set<string>();
 
 /**
  * Villages, yearly: farmers found new ones as they outgrow the old; people are
@@ -1000,7 +1104,7 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
       townsfolk = town
         ? Math.min(settled, Math.round((settled * trades) / Math.max(1, grown - foragers)))
         : 0,
-      needed = Math.ceil((settled - townsfolk) / VILLAGE_SIZE);
+      needed = Math.min(MOST_VILLAGES, Math.ceil((settled - townsfolk) / VILLAGE_SIZE));
     // A land's first village waits its turn: only so many a year across the world.
     if (!villages.length && needed > 0 && firsts++ >= FIRST_VILLAGES_A_YEAR) continue;
     for (let n = 0; villages.length < needed && n < 3; n++) {
@@ -1064,7 +1168,6 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
       const hand = handOf(world).over(p.cell),
         held = hand ? villages.find((v) => v.ref === hand.village) : undefined,
         free = held ? villages.filter((v) => v !== held) : villages,
-        r = regionOf(ctx, p.cell),
         market = free.find((v) => v.market),
         inHand = held ? Math.min(settled, hand!.agents.length) : 0,
         inTown = market ? Math.min(townsfolk, settled - inHand) : 0;
@@ -1072,7 +1175,7 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
         ? apportion(
             settled - inHand - inTown,
             // A spring the god opened draws people to its village.
-            free.map((v) => 0.2 + siteScore(r, v.tile) + (v.spring ? 0.6 : 0)),
+            free.map((v) => 0.2 + siteOf(ctx, v) + (v.spring ? 0.6 : 0)),
             free.map((v) => world.rng.u32(SITES, refHash(v.ref), t, 9)),
           )
         : [];
@@ -1090,17 +1193,17 @@ function chooseMarketTown(
   t: SimTime,
 ): void {
   const { world } = ctx,
-    r = regionOf(ctx, p.cell),
+    size = REGION_SIZE,
     g = ctx.generated,
     // The middle of the province is easiest to reach from all of it.
     reach = (v: Settlement) => {
-      const i = v.tile % r.size,
-        j = Math.floor(v.tile / r.size),
-        dx = (i - r.size / 2) / r.size,
-        dy = (j - r.size / 2) / r.size;
+      const i = v.tile % size,
+        j = Math.floor(v.tile / size),
+        dx = (i - size / 2) / size,
+        dy = (j - size / 2) / size;
       return 1 - dmath.sqrt(dx * dx + dy * dy);
     },
-    score = (v: Settlement) => siteScore(r, v.tile) + 0.5 * reach(v);
+    score = (v: Settlement) => siteOf(ctx, v) + 0.5 * reach(v);
   const town = [...villages].sort(
     (a, b) => score(b) - score(a) || a.founded - b.founded || (a.ref < b.ref ? -1 : 1),
   )[0]!;
@@ -1114,8 +1217,8 @@ function chooseMarketTown(
     factors: [
       {
         name: "good ground and water",
-        value: siteScore(r, town.tile),
-        contribution: siteScore(r, town.tile),
+        value: siteOf(ctx, town),
+        contribution: siteOf(ctx, town),
         source: { ref: town.event, role: "enabler", weight: 1 },
       },
       { name: "easy to reach", value: reach(town), contribution: 0.5 * reach(town), source: null },

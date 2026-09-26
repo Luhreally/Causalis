@@ -38,7 +38,7 @@ export type MarketYear = {
 };
 
 /** How many years of each market's full books are kept (the explainer reads the last). */
-export const MARKET_YEARS = 20;
+export const MARKET_YEARS = 5;
 /** A market's prices through the years, for the charts: every year for this long, then every tenth. */
 export const PRICE_YEARS = 100;
 

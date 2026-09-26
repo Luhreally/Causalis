@@ -18,7 +18,7 @@ import {
   yearOfMoment,
   type CauseRef,
   type Factor,
-  type Hasher,
+  Hasher,
   type Ref,
   type SimTime,
   type StateStore,
@@ -72,15 +72,35 @@ export type War = {
 
 const DECLARE = defineStream("war.declare");
 /** Years after a peace before a realm is as ready for war as it was. */
-const WEARY_YEARS = 25;
+export const WEARY_YEARS = 30;
 const FIGHT = defineStream("war.fight");
 
 export class WarStore implements StateStore {
   readonly name = "war.wars";
   private list: War[] = [];
+  /** The same wars by ref. */
+  private readonly byRef = new Map<string, War>();
+  /** Wars that ended are folded into a digest once, at the end of their year, and not hashed again. */
+  private digest = "";
+  private readonly sealed = new Set<string>();
+
+  /** Fold the wars that have ended into the digest (in ref order): they will not change again. */
+  seal(): void {
+    const ended = this.list
+      .filter((w) => w.ended !== null && !this.sealed.has(w.ref))
+      .sort((a, b) => (a.ref < b.ref ? -1 : 1));
+    if (!ended.length) return;
+    const h = new Hasher().string(this.digest);
+    for (const w of ended) {
+      h.value(w);
+      this.sealed.add(w.ref);
+    }
+    this.digest = h.hex();
+  }
 
   add(w: War): void {
     this.list.push(w);
+    this.byRef.set(w.ref, w);
   }
 
   all(): readonly War[] {
@@ -88,7 +108,7 @@ export class WarStore implements StateStore {
   }
 
   get(ref: Ref): War | undefined {
-    return this.list.find((w) => w.ref === ref);
+    return this.byRef.get(ref);
   }
 
   /** The wars a realm is fighting now. */
@@ -117,11 +137,15 @@ export class WarStore implements StateStore {
   }
 
   hashInto(h: Hasher): void {
-    h.value(this.list);
+    h.string(this.digest).value(this.list.filter((w) => !this.sealed.has(w.ref)));
   }
 
   save(): unknown {
-    return { wars: this.list };
+    return {
+      wars: this.list,
+      digest: this.digest,
+      sealed: [...this.sealed].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+    };
   }
 
   load(state: unknown): void {
@@ -130,6 +154,12 @@ export class WarStore implements StateStore {
       battles: [...w.battles],
       fallen: [...w.fallen] as [number, number],
     }));
+    this.byRef.clear();
+    for (const w of this.list) this.byRef.set(w.ref, w);
+    const t = state as { digest?: string; sealed?: string[] };
+    this.digest = t.digest ?? "";
+    this.sealed.clear();
+    for (const r of t.sealed ?? []) this.sealed.add(r);
   }
 }
 
@@ -213,6 +243,8 @@ function fall(ctx: PopulationContext, cell: number, n: number, t: SimTime, key: 
   return take;
 }
 
+const pairKey = (a: Ref, b: Ref) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+
 /** The year's wars: declarations, a battle in each war, rebellions, peace. */
 export function warYear(ctx: PopulationContext, t: SimTime): void {
   const { world, generated: g } = ctx,
@@ -225,19 +257,31 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
 
   // 1. Declarations: rivals, and realms who covet a neighbour's stores in a famine.
   // A realm fresh from war is slow to go to war again: its fallen are still mourned.
-  const lastPeace = new Map<string, War>();
-  for (const w of wars.all())
-    if (w.ended !== null && w.peace)
+  const lastPeace = new Map<string, War>(),
+    fighting = new Set<string>();
+  for (const w of wars.all()) {
+    if (w.ended === null) fighting.add(pairKey(w.attacker, w.defender));
+    else if (w.peace)
       for (const side of [w.attacker, w.defender])
         if ((lastPeace.get(side)?.ended ?? -1) < w.ended) lastPeace.set(side, w);
+  }
+  // Each realm's strength, reckoned once this year.
+  const strengths = new Map<string, number>(),
+    strength = (p: Polity) => {
+      let s = strengths.get(p.ref);
+      if (s === undefined) strengths.set(p.ref, (s = strengthOf(ctx, p)));
+      return s;
+    };
   for (const r of diplomacy.all()) {
-    if (wars.between(r.a, r.b)) continue;
+    if (fighting.has(pairKey(r.a, r.b))) continue;
+    const covets = r.terms.find((x) => /covets their stores/.test(x.name));
+    // Without hatred or hunger there is no will to war, whatever else holds.
+    if (!covets && -r.opinion - -RIVALRY <= 0) continue;
     const a0 = realms.get(r.a)!,
       b0 = realms.get(r.b)!;
     // The one who resents more, or hungers, attacks: the stronger of the two by default.
-    const covets = r.terms.find((x) => /covets their stores/.test(x.name)),
-      hungry = covets ? (covets.name.startsWith(realmName(a0)) ? a0 : b0) : null,
-      [sa, sb] = [strengthOf(ctx, a0), strengthOf(ctx, b0)],
+    const hungry = covets ? (covets.name.startsWith(realmName(a0)) ? a0 : b0) : null,
+      [sa, sb] = [strength(a0), strength(b0)],
       attacker = hungry ?? (sa >= sb ? a0 : b0),
       defender = attacker === a0 ? b0 : a0,
       ratio = (attacker === a0 ? sa : sb) / Math.max(1, attacker === a0 ? sb : sa);
@@ -254,7 +298,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       holy = pressure(voices, "war", defender.ref),
       swayed = (1 - 0.7 * Math.min(1, 2 * peace.total)) * (1 + Math.min(1, 2 * holy.total)),
       chance =
-        Math.min(0.5, (hatred * 0.45 + (covets ? 0.15 : 0)) * Math.min(2, ratio) * (0.5 + valour)) *
+        Math.min(0.5, (hatred * 0.25 + (covets ? 0.15 : 0)) * Math.min(2, ratio) * (0.5 + valour)) *
         rested *
         swayed;
     if (
@@ -367,7 +411,15 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     }
     const land = frontier(ctx, a, b)[0];
     if (land === undefined) {
+      // No land left between them to fight over: the war ends, and history says so.
       w.ended = year;
+      w.peace = world.events.emit({
+        type: WAR_EVENTS.peace.type,
+        subjects: [w.ref, a.ref, b.ref],
+        place: ctx.provinces.get(a.seat)?.ref ?? null,
+        causes: [{ ref: w.event, role: "trigger", weight: 1 }],
+        data: { a: realmName(a), b: realmName(b), years: year - w.declared, won: false },
+      });
       continue;
     }
     const key = Number(w.ref.split(":")[2]),
@@ -392,8 +444,10 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       hills = g.tectonics.elevation[land]! > 600 ? 1.3 : 1,
       river = g.water.river[land] ? 1.1 : 1,
       walls = 1 + 0.25 * lore.effect(land, "walls"),
-      // Those who hold the land know its ground, and every village is a stronghold.
-      defend = strengthOf(ctx, b) * 1.5 * hills * river * walls,
+      // Those who hold the land know its ground, and every village is a stronghold; at
+      // its seat the whole realm stands.
+      seat = land === b.seat,
+      defend = strengthOf(ctx, b) * 1.5 * (seat ? 2 : 1) * hills * river * walls,
       odds = attack / Math.max(1, attack + defend),
       won = world.rng.real(FIGHT, key, t, 0) < odds;
     // The fallen: a share of the smaller host, more on the losing side.
@@ -412,7 +466,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       data: { a: realmName(a), b: realmName(b), won, fallen: fa + fb },
     });
     w.battles.push({ year, land, won, fallen: [fa, fb], event: battle });
-    if (won) {
+    // A seat is not taken in a day: the first victory there lays a siege, the second takes it.
+    const besieged = seat && won && !w.battles.slice(0, -1).some((x) => x.land === land && x.won);
+    if (won && !besieged) {
       const taken = world.events.emit({
         type: WAR_EVENTS.taken.type,
         subjects: [a.ref, b.ref],
@@ -424,9 +480,18 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       realms.join(a, land);
       // A land taken by force resents its taker.
       realms.setDiscontent(land, { level: 1, cause: battle });
-      // A realm whose seat is taken falls; else what the taken land joined to its seat is cut off.
-      if (land === b.seat) endRealm(ctx, b, t, { ref: battle, role: "trigger", weight: 1 });
-      else cutOff(ctx, b, taken);
+      // A realm whose seat is taken falls, and its lands pass to its conqueror, aggrieved
+      // (those not joined to the conqueror's own go their own way); else what the taken
+      // land joined to its seat is cut off.
+      if (land === b.seat) {
+        for (const c of [...b.members]) {
+          realms.leave(b, c);
+          realms.join(a, c);
+          realms.setDiscontent(c, { level: 0.6, cause: battle });
+        }
+        endRealm(ctx, b, t, { ref: battle, role: "trigger", weight: 1 });
+        cutOff(ctx, a, taken);
+      } else cutOff(ctx, b, taken);
     }
     // 3. Peace: weariness — the fallen against their people — or the prize won.
     const peopleA = a.members.reduce((s, c) => s + (ctx.provinces.get(c)?.total() ?? 0), 0),
@@ -486,6 +551,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       realms.setDiscontent(c, { level: 0.2, cause: d.cause });
       cutOff(ctx, p, rose);
     }
+  // The wars that ended this year will not change again: fold them into the digest.
+  wars.seal();
 }
 
 /** Teach a peopled world its wars. */

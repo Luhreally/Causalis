@@ -266,7 +266,7 @@ async function runPlanetPage(): Promise<void> {
     if (!most || scale !== "globe") return;
     const place = await client.query<{ lat: number; lon: number }>({
       type: "cell",
-      args: { cell: most.cell },
+      args: { cell: most.centre },
     });
     rig.face(place.lat, place.lon);
     if (closer && !rig.userZoomed) rig.distance = Math.min(rig.distance, 2);

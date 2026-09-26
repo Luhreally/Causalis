@@ -10,7 +10,13 @@ import {
   type Seed,
 } from "../../src/kernel/index.ts";
 import { OCC } from "../../src/rules/index.ts";
-import { POPULATION_EVENTS, makePopulationWorld, populationContext } from "../../src/sim/index.ts";
+import {
+  POPULATION_EVENTS,
+  makePopulationWorld,
+  populationContext,
+  provinceCapacity,
+  support,
+} from "../../src/sim/index.ts";
 import { spine, why } from "../../src/causal/index.ts";
 
 const build = (seed: Seed) => makePopulationWorld(seed);
@@ -61,9 +67,16 @@ test("births are girls and boys in about equal numbers", () => {
 test("a people grows, spreads, learns to farm and founds villages", () => {
   const total = longCtx.provinces.total(),
     provinces = longCtx.provinces.all();
-  assert.ok(total > 1000 && total < 100_000, `people ${total}`);
+  // Grown, and never past what the lands can feed with the ways they know.
+  const feeds = provinces.reduce(
+    (s, p) =>
+      s + support(provinceCapacity(longCtx, p.cell), p.knowsCultivation, p.herding !== null),
+    0,
+  );
+  assert.ok(total > 1000 && total < feeds, `people ${total} of ${Math.round(feeds)}`);
   assert.ok(provinces.length >= 3, `provinces ${provinces.length}`);
-  assert.ok(longCtx.history.flows().length > 3, "migrations");
+  // Every move ever made: those let go from living memory and those still held.
+  assert.ok(longCtx.history.flowOffset + longCtx.history.flows().length > 3, "migrations");
   const types = new Set(long.events.all().map((e) => e.type));
   assert.ok(types.has(POPULATION_EVENTS.cultivation.type), "cultivation discovered");
   assert.ok(longCtx.settlements.all().length > 5, "villages");
@@ -89,8 +102,11 @@ test("a village explains itself back to the first people", () => {
 });
 
 test("a migration explains itself through its decision", () => {
-  const flow = longCtx.history.flows()[0]!,
-    node = why(long, flow.event as Ref);
+  // While it is within living memory.
+  const early = makePopulationWorld(seedFromText("first light"));
+  early.runTo(40 * YEAR);
+  const flow = populationContext(early).history.flows()[0]!,
+    node = why(early, flow.event as Ref);
   const decision = node.causes[0]!.next();
   assert.match(decision.claim, /chose to move on, in year \d+ \(/);
   assert.match(node.claim, /set out from the .* for the /);

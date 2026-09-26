@@ -11,17 +11,28 @@ import {
   type Seed,
   type StateStore,
 } from "../../kernel/index.ts";
-import { generateHomeWorld, PLANET_FREQUENCY, type HomeWorld } from "../../gen/index.ts";
+import {
+  generateHomeWorld,
+  PLANET_FREQUENCY,
+  PROVINCE_FREQUENCY,
+  provinceWorld,
+  type ProvinceWorld,
+} from "../../gen/index.ts";
 import { PRIORS, type Prior } from "../../rules/index.ts";
 
 export class HomePlanet implements StateStore {
   readonly name = "planet.home";
-  readonly generated: HomeWorld;
+  /** The planet as its people live on it: provinces, each gathering the fine cells nearest it (`.fine` is the world as generated). */
+  readonly generated: ProvinceWorld;
   readonly prior: Prior;
 
   constructor(seed: Seed, prior: Prior, frequency = PLANET_FREQUENCY) {
     this.prior = prior;
-    this.generated = generateHomeWorld(seed, prior, frequency);
+    this.generated = provinceWorld(
+      generateHomeWorld(seed, prior, frequency),
+      // About a tenth as many provinces as fine cells (fewer on a coarse test world).
+      Math.max(2, Math.min(PROVINCE_FREQUENCY, Math.round(frequency / 3.2))),
+    );
   }
 
   hashInto(h: Hasher): void {

@@ -317,8 +317,9 @@ export function refineRegion(w: HomeWorld, center: number, size = 128, tileKm = 
       down = flowTo[t]!;
     if (down >= 0) discharge[down] = discharge[down]! + discharge[t]!;
   }
-  // A river where the flow gathers a few hundred square kilometres' rain.
-  const riverFlow = 350 * 1000 * 0.6;
+  // A river where the flow gathers a few hundred square kilometres' rain — and, on a map
+  // of large tiles, the rain of many tiles, not just its own.
+  const riverFlow = Math.max(350, 30 * tileKm * tileKm) * 1000 * 0.6;
   // A hollow holds a lake only where a real flow fills it and it is deep enough to
   // outlast the erosion that drains small dips.
   for (const t of order) {

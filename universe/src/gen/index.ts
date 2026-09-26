@@ -49,8 +49,10 @@ export {
   PLATE,
   STAR,
   SURFACE_CELL,
+  SPOT,
   ageRef,
   speciesRef,
+  spotRef,
   cellRef,
   depositRef,
   planetRef,
@@ -76,3 +78,9 @@ export {
   tonguePersonName,
   type Tongue,
 } from "./names.ts";
+export {
+  PROVINCE_FREQUENCY,
+  isProvinceWorld,
+  provinceWorld,
+  type ProvinceWorld,
+} from "./provinces.ts";

@@ -17,7 +17,7 @@ import {
   yearOfMoment,
   type CauseRef,
   type Factor,
-  type Hasher,
+  Hasher,
   type Ref,
   type SimTime,
   type StateStore,
@@ -93,12 +93,32 @@ const RULE = defineStream("polity.rule");
 export class PolityStore implements StateStore {
   readonly name = "polity.states";
   private list: Polity[] = [];
+  /** The same realms by ref. */
+  private readonly byRef = new Map<string, Polity>();
   private readonly member = new Map<number, Ref>();
   private readonly grievance = new Map<number, Discontent>();
   private readonly former = new Map<number, Ref>();
+  /** Realms that ended are folded into a digest once, the year after, and not hashed again. */
+  private digest = "";
+  private readonly sealed = new Set<string>();
+
+  /** Fold the realms that have ended into the digest (in ref order): they will not change again. */
+  seal(): void {
+    const ended = this.list
+      .filter((p) => p.ended !== null && !this.sealed.has(p.ref))
+      .sort((a, b) => (a.ref < b.ref ? -1 : 1));
+    if (!ended.length) return;
+    const h = new Hasher().string(this.digest);
+    for (const p of ended) {
+      h.value(p);
+      this.sealed.add(p.ref);
+    }
+    this.digest = h.hex();
+  }
 
   add(p: Polity): void {
     this.list.push(p);
+    this.byRef.set(p.ref, p);
     for (const c of p.members) this.member.set(c, p.ref);
   }
 
@@ -111,7 +131,7 @@ export class PolityStore implements StateStore {
   }
 
   get(ref: Ref): Polity | undefined {
-    return this.list.find((p) => p.ref === ref);
+    return this.byRef.get(ref);
   }
 
   /** The realm a land belongs to, if any. */
@@ -164,7 +184,7 @@ export class PolityStore implements StateStore {
   }
 
   hashInto(h: Hasher): void {
-    h.value(this.list);
+    h.string(this.digest).value(this.list.filter((p) => !this.sealed.has(p.ref)));
     h.value([...this.grievance.entries()].sort((a, b) => a[0] - b[0]));
     h.value([...this.former.entries()].sort((a, b) => a[0] - b[0]));
   }
@@ -174,6 +194,8 @@ export class PolityStore implements StateStore {
       polities: this.list,
       grievance: [...this.grievance.entries()].sort((a, b) => a[0] - b[0]),
       former: [...this.former.entries()].sort((a, b) => a[0] - b[0]),
+      digest: this.digest,
+      sealed: [...this.sealed].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
     };
   }
 
@@ -182,12 +204,19 @@ export class PolityStore implements StateStore {
       polities: Polity[];
       grievance: [number, Discontent][];
       former: [number, Ref][];
+      digest?: string;
+      sealed?: string[];
     };
+    this.digest = s.digest ?? "";
+    this.sealed.clear();
+    for (const r of s.sealed ?? []) this.sealed.add(r);
     this.list = [];
+    this.byRef.clear();
     this.member.clear();
     for (const p of s.polities) {
       const copy = { ...p, members: [...p.members] };
       this.list.push(copy);
+      this.byRef.set(copy.ref, copy);
       if (copy.ended === null) for (const c of copy.members) this.member.set(c, copy.ref);
     }
     this.grievance.clear();
@@ -326,7 +355,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
     const rank = ways.traits[WAY.hierarchy]!,
       leaders = p.occupation(OCC.leader),
       pull = Math.max(0, rank - 0.45) * 2 + Math.min(1, leaders / 60);
-    const chance = 0.04 * pull;
+    const chance = 0.02 * pull;
     if (!(world.rng.real(FORM, p.cell, t, 0) < chance)) continue;
     const inst = institutionsOf(ways, undefined, loreOf(world).effect(p.cell, "writing") > 0);
     const decision = world.decisions.record({
@@ -701,6 +730,8 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
     if (pop(p.seat) > 0 && p.members.includes(p.seat)) continue;
     endRealm(ctx, p, t, { ref: p.event, role: "enabler", weight: 1 });
   }
+  // The realms that have ended will not change again: fold them into the digest.
+  store.seal();
 }
 
 /** Lands no longer joined to their seat through the realm's own (the lands between were lost to `cause`) go their own way. */

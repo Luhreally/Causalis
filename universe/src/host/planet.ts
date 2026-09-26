@@ -25,7 +25,8 @@ import {
   marketsOf,
   populationContext,
   regionOf,
-  regionReady,
+  prepareSites,
+  sitesReady,
 } from "../sim/index.ts";
 import { FOODS, G, GOODS, OCCUPATIONS, designWords } from "../rules/index.ts";
 import {
@@ -40,6 +41,8 @@ import {
   type HomeWorld,
   type Region,
   type Tongue,
+  spotRef,
+  type ProvinceWorld,
 } from "../gen/index.ts";
 import { EARTHLIKE, OPEN, type Prior } from "../rules/index.ts";
 import {
@@ -71,7 +74,9 @@ import { villagePlan } from "./village.ts";
 const BOUNDARY_WORDS = ["none", "converging", "spreading", "sliding"];
 
 function globeFrame(world: World) {
-  const g = homePlanet(world).generated,
+  // The globe shows the world as generated (the fine grid); each cell carries its province.
+  const pw = homePlanet(world).generated,
+    g = pw.fine,
     n = g.grid.count,
     deposit = new Int16Array(n).fill(-1);
   for (const d of g.deposits) deposit[d.cell] = DEPOSIT_KINDS.indexOf(d.kind);
@@ -92,28 +97,25 @@ function globeFrame(world: World) {
       river: Uint8Array.from(g.water.river),
       lake: Uint8Array.from(g.water.lake),
       deposit: Uint8Array.from(deposit, (v) => (v < 0 ? 255 : v)),
+      province: Int32Array.from(pw.provinceOf),
     },
   };
 }
 
-// Regions are pure functions of the world and a cell: kept for re-use, never saved.
-const REGIONS = new Map<string, Region>();
-function region(g: HomeWorld, center: number): Region {
-  if (!Number.isInteger(center) || center < 0 || center >= g.grid.count)
-    throw new Error(`no place ${center}`);
-  const key = `${g.digest}:${center}`;
-  let r = REGIONS.get(key);
-  if (!r) {
-    if (REGIONS.size >= 4) REGIONS.delete(REGIONS.keys().next().value!);
-    REGIONS.set(key, (r = refineRegion(g, center)));
-  }
-  return r;
+/** A province's region: the same one its villages are sited on (a pure function of the world). */
+function region(world: World, province: number): Region {
+  const g = homePlanet(world).generated;
+  if (!Number.isInteger(province) || province < 0 || province >= g.grid.count)
+    throw new Error(`no province ${province}`);
+  return regionOf(populationContext(world), province);
 }
 
 function regionFrame(world: World, focus: string | null) {
-  const g = homePlanet(world).generated,
+  const pw = homePlanet(world).generated,
+    g = pw.fine,
     center = focus ? parseRef(focus as Ref).b : 0,
-    r = region(g, center),
+    r = region(world, center),
+    middle = pw.centre[center]!,
     deposit = new Uint8Array(r.size * r.size).fill(255);
   for (const d of r.deposits) deposit[d.tile] = DEPOSIT_KINDS.indexOf(g.deposits[d.deposit]!.kind);
   return {
@@ -123,8 +125,8 @@ function regionFrame(world: World, focus: string | null) {
       center,
       size: r.size,
       tileKm: r.tileKm,
-      lat: (g.grid.lat[center]! * 180) / Math.PI,
-      lon: (g.grid.lon[center]! * 180) / Math.PI,
+      lat: (g.grid.lat[middle]! * 180) / Math.PI,
+      lon: (g.grid.lon[middle]! * 180) / Math.PI,
     },
     arrays: {
       elevation: Float32Array.from(r.elevation),
@@ -138,8 +140,9 @@ function regionFrame(world: World, focus: string | null) {
 
 const WATER_WORDS = ["", "the sea", "a river", "a lake"];
 
-function tile(g: HomeWorld, center: number, t: number) {
-  const r = region(g, center);
+function tile(world: World, center: number, t: number) {
+  const g = homePlanet(world).generated.fine,
+    r = region(world, center);
   if (!Number.isInteger(t) || t < 0 || t >= r.size * r.size) throw new Error(`no tile ${t}`);
   const d = r.deposits.find((x) => x.tile === t),
     deposit = d ? g.deposits[d.deposit]! : null;
@@ -154,7 +157,7 @@ function tile(g: HomeWorld, center: number, t: number) {
     biome: BIOME_NAMES[r.biome[t]!],
     water: WATER_WORDS[r.water[t]!],
     fertility: r.fertility[t]!,
-    parent: cellRef(0, r.parent[t]!),
+    parent: spotRef(0, r.parent[t]!),
     deposit: deposit
       ? {
           ref: deposit.ref,
@@ -444,14 +447,17 @@ function summary(g: HomeWorld) {
   };
 }
 
-function cell(g: HomeWorld, c: number) {
+/** A spot of the fine grid the observer picked on the globe, and the province it is part of. */
+function cell(pw: ProvinceWorld, c: number) {
+  const g = pw.fine;
   if (!Number.isInteger(c) || c < 0 || c >= g.grid.count) throw new Error(`no place ${c}`);
   const t = g.tectonics,
     plate = t.plates[t.plate[c]!]!,
     d = g.deposits.find((x) => x.cell === c);
   return {
     cell: c,
-    ref: cellRef(0, c),
+    province: pw.provinceOf[c]!,
+    ref: spotRef(0, c),
     lat: (g.grid.lat[c]! * 180) / Math.PI,
     lon: (g.grid.lon[c]! * 180) / Math.PI,
     elevation: t.elevation[c]!,
@@ -472,7 +478,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
     name,
     version: `${name}-4`,
     defaultView: "globe",
-    // A farming land with no village yet will found one soon: refine its region early.
+    // A farming land with no village yet will found one soon: work out its village sites early.
     idle: (world) => {
       const ctx = populationContext(world),
         next = ctx.provinces
@@ -481,10 +487,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
             (p) =>
               p.knowsCultivation &&
               !ctx.settlements.inProvince(p.cell).length &&
-              !regionReady(ctx, p.cell),
+              !sitesReady(ctx, p.cell),
           );
       if (!next) return false;
-      regionOf(ctx, next.cell);
+      prepareSites(ctx, next.cell);
       return true;
     },
     build: (seed) => {
@@ -498,11 +504,11 @@ function planetUniverse(name: string, prior: Prior): Universe {
       region: (world, interest) => regionFrame(world, interest.focus),
     },
     queries: {
-      "planet.summary": (world) => summary(homePlanet(world).generated),
+      "planet.summary": (world) => summary(homePlanet(world).generated.fine),
       cell: (world, args) => cell(homePlanet(world).generated, (args as { cell: number }).cell),
       tile: (world, args) => {
         const a = args as { center: number; tile: number };
-        return tile(homePlanet(world).generated, a.center, a.tile);
+        return tile(world, a.center, a.tile);
       },
       "people.map": (world) => {
         const g = homePlanet(world).generated,
@@ -514,6 +520,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
               last = m?.years.at(-1);
             return {
               cell: p.cell,
+              // The spot at its middle, to turn the globe to it or pick it.
+              centre: g.centre[p.cell]!,
               people: p.total(),
               density: (100 * p.total()) / Math.max(1, capacity(g, p.cell).areaKm2),
               farming: p.knowsCultivation,
@@ -626,11 +634,13 @@ function planetUniverse(name: string, prior: Prior): Universe {
         };
       },
       ...OBSERVE_QUERIES,
+      // The world's deposits where they lie on the globe (fine cells), each with its province.
       deposits: (world) =>
-        homePlanet(world).generated.deposits.map((d) => ({
+        homePlanet(world).generated.fine.deposits.map((d) => ({
           ref: d.ref,
           kind: d.kind,
           cell: d.cell,
+          province: homePlanet(world).generated.provinceOf[d.cell]!,
           richness: d.richness,
         })),
     },

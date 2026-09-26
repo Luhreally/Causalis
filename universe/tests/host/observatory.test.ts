@@ -23,8 +23,14 @@ type Chronicle = {
 
 test("a province's years come back in order, one line a year, for the charts", () => {
   const h = ask<History>("province.history", { cell: CRADLE });
-  assert.equal(h.years.length, 260);
-  h.years.forEach((y, i) => assert.equal(y.year, i));
+  // Every year for the last century; one year in ten before that.
+  const recent = h.years.filter((y) => y.year >= 160),
+    older = h.years.filter((y) => y.year < 160);
+  recent.forEach((y, i) => assert.equal(y.year, 160 + i));
+  assert.equal(recent.length, 100);
+  // (Thinned a decade at a time: the decade just before the century is whole still.)
+  assert.ok(h.years.filter((y) => y.year < 150).every((y) => y.year % 10 === 0));
+  assert.ok(older.length >= 15);
   assert.ok(h.years.every((y) => y.population > 0 && y.fed >= 0 && y.fed <= 100));
   assert.ok(h.prices.length >= 100 && h.prices.every((p) => p.food > 0 && p.tools > 0));
 });
@@ -37,7 +43,16 @@ test("the chronicle is newest first, in words, and adds up the world's people by
     assert.ok(e.importance >= 4);
     assert.doesNotMatch(e.claim, /\(t=\d+\)|^[a-z]+\.[a-z-]+ /, `said in words: ${e.claim}`);
   }
-  assert.equal(c.population.length, 260);
+  // The world's people every year for a century, one year in ten before that.
+  const years = c.population.map((y) => y.year);
+  for (let i = 1; i < years.length; i++) assert.ok(years[i]! > years[i - 1]!);
+  assert.equal(years.at(-1), 259);
+  assert.deepEqual(
+    years.filter((y) => y >= 160),
+    Array.from({ length: 100 }, (_, k) => 160 + k),
+  );
+  assert.ok(years.filter((y) => y < 150).every((y) => y % 10 === 0));
+  assert.ok(years.length >= 115);
   const last = c.population.at(-1)!,
     map = ask<{ people: number }[]>("people.map");
   assert.ok(Math.abs(last.people - map.reduce((s, p) => s + p.people, 0)) < last.people * 0.05);

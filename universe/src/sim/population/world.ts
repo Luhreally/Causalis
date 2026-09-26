@@ -58,8 +58,10 @@ export type PopulationWorldOptions = PlanetWorldOptions & {
 
 /** The generated prehistory: how far the bands have spread, and how thinly. */
 export const SPREAD = {
-  /** Steps across the land from the cradle. */
-  rings: 4,
+  /** Steps across the land from the cradle (between provinces): as far as land reaches. */
+  rings: 1000,
+  /** A step between provinces, in the steps of the fine grid their ways drift by. */
+  stride: 3.2,
   /** Of what a province's wild food could feed, the share its bands number. */
   density: 0.05,
   /** The fewest people a band's province holds. */
@@ -77,25 +79,39 @@ function people(p: Province, n: number): void {
 }
 
 /** The habitable land within `rings` steps of a cell, nearest first (ties by cell), with each one's distance. */
+/**
+ * The habitable land within `rings` steps of a cell, nearest first (ties by cell), with
+ * each one's distance: over land, and across a single province of sea to land beyond
+ * (bands crossing a strait along the coast), which counts as two steps.
+ */
 function landAround(g: HomeWorld, from: number, rings: number): [number, number][] {
   const dist = new Map<number, number>([[from, 0]]),
-    queue = [from];
+    queue = [from],
+    habitable = (n: number) => {
+      if (g.tectonics.elevation[n]! <= 0) return false;
+      const biome = g.climate.biome[n]!;
+      return biome !== BIOME.ice && biome !== BIOME.alpine && capacity(g, n).forage > 0;
+    };
   for (let i = 0; i < queue.length; i++) {
     const c = queue[i]!,
       d = dist.get(c)!;
     if (d >= rings) continue;
-    const next: number[] = [];
+    const next: [number, number][] = [];
     for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
       const n = g.grid.neighbours[k]!;
-      if (dist.has(n) || g.tectonics.elevation[n]! <= 0) continue;
-      const biome = g.climate.biome[n]!;
-      if (biome === BIOME.ice || biome === BIOME.alpine || capacity(g, n).forage <= 0) continue;
-      next.push(n);
+      if (dist.has(n)) continue;
+      if (habitable(n)) next.push([n, d + 1]);
+      else if (g.tectonics.elevation[n]! <= 0)
+        for (let j = g.grid.offsets[n]!; j < g.grid.offsets[n + 1]!; j++) {
+          const m = g.grid.neighbours[j]!;
+          if (!dist.has(m) && habitable(m)) next.push([m, d + 2]);
+        }
     }
-    for (const n of next.sort((a, b) => a - b)) {
-      dist.set(n, d + 1);
-      queue.push(n);
-    }
+    for (const [n, far] of next.sort((a, b) => a[0] - b[0] || a[1] - b[1]))
+      if (!dist.has(n) && far <= rings) {
+        dist.set(n, far);
+        queue.push(n);
+      }
   }
   return queue.map((c) => [c, dist.get(c)!]);
 }
@@ -228,7 +244,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     people(provinces.add(new Province(cell, 0, cell === home ? origin : spread)), sizes[i]!);
     markets.of(cell).move("carriedIn", G.wild, sizes[i]! * 6);
     // The further the bands went, the further their ways and their speech drifted.
-    if (cell !== home) culture.set(driftedWays(world, cradle, cell, ring, spread));
+    if (cell !== home) culture.set(driftedWays(world, cradle, cell, ring * SPREAD.stride, spread));
   });
   return world;
 }

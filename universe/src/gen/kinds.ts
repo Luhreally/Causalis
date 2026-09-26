@@ -8,6 +8,8 @@ export const STAR = defineKind("star", "star", "structural");
 export const PLANET = defineKind("plnt", "planet", "structural");
 export const PLATE = defineKind("plate", "tectonic plate", "structural");
 export const SURFACE_CELL = defineKind("cell", "place on a planet", "structural");
+/** A cell of the fine grid the world is generated on (a province gathers several). */
+export const SPOT = defineKind("spot", "spot on a planet's fine grid", "structural");
 export const DEPOSIT = defineKind("depo", "mineral deposit", "structural");
 export const AGE = defineKind("age", "age of a world's deep past", "structural");
 export const SPECIES = defineKind("spec", "lineage of living things", "structural");
@@ -36,4 +38,8 @@ export function ageRef(planet: number, age: number): Ref {
 
 export function speciesRef(planet: number, species: number): Ref {
   return makeRef(SPECIES, planet, species);
+}
+
+export function spotRef(planet: number, cell: number): Ref {
+  return makeRef(SPOT, planet, cell);
 }

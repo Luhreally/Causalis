@@ -50,6 +50,7 @@ import {
 } from "../population/systems.ts";
 import { GOOD_COUNT, type Market, type MarketStore, type TradeFlow } from "./market.ts";
 
+const SPREADING = purpose("spread");
 const HERDS = defineStream("econ.herds");
 const CRAFT = defineStream("econ.craft");
 const WEAR = defineStream("econ.wear");
@@ -539,7 +540,7 @@ export function metalYear(ctx: PopulationContext, t: SimTime): void {
       const n = g.grid.neighbours[k]!,
         other = markets.get(n);
       if (!other?.metalworking || !markets.route(p.cell, n)) continue;
-      if (world.rng.chance(0.08, METAL, key, t, purpose("spread"), n)) {
+      if (world.rng.chance(0.08, METAL, key, t, SPREADING, n)) {
         learned.push({ p, from: other, chance: 0.08 });
         break;
       }

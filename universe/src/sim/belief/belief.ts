@@ -129,8 +129,12 @@ export class BeliefStore implements StateStore {
     this.splits.set(ref, year);
   }
 
+  /** The same faiths by ref. */
+  private readonly byRef = new Map<string, Faith>();
+
   add(f: Faith): void {
     this.list.push(f);
+    this.byRef.set(f.ref, f);
   }
 
   all(): readonly Faith[] {
@@ -138,7 +142,7 @@ export class BeliefStore implements StateStore {
   }
 
   get(ref: Ref): Faith | undefined {
-    return this.list.find((f) => f.ref === ref);
+    return this.byRef.get(ref);
   }
 
   /** What a land believes (the old beliefs of their kin when no faith has come to them). */
@@ -181,6 +185,8 @@ export class BeliefStore implements StateStore {
   load(state: unknown): void {
     const s = state as { faiths: Faith[]; held: [number, Belief][]; splits: [string, number][] };
     this.list = [...s.faiths];
+    this.byRef.clear();
+    for (const f of this.list) this.byRef.set(f.ref, f);
     this.held.clear();
     for (const [c, b] of s.held) this.held.set(c, { ...b });
     this.splits.clear();

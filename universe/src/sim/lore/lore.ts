@@ -23,7 +23,17 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef, surfaceOre, tongueLikeness } from "../../gen/index.ts";
-import { EFFECTS, OCC, PRINCIPLES, type Effect, type Principle } from "../../rules/index.ts";
+import {
+  EFFECTS,
+  OCC,
+  PRINCIPLES,
+  PRINCIPLE_INDEX,
+  type Effect,
+  type Principle,
+} from "../../rules/index.ts";
+
+/** Each effect's place in a land's totals. */
+const EFFECT_INDEX: ReadonlyMap<string, number> = new Map(EFFECTS.map((e, i) => [e, i]));
 import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { cultureOf } from "../culture/culture.ts";
@@ -75,7 +85,7 @@ export class LoreStore implements StateStore {
 
   /** A land's total of an effect. */
   effect(cell: number, e: Effect): number {
-    return this.totals.get(cell)?.[EFFECTS.indexOf(e)] ?? 0;
+    return this.totals.get(cell)?.[EFFECT_INDEX.get(e)!] ?? 0;
   }
 
   pinned(): Ref[] {
@@ -117,7 +127,17 @@ export function knows(ctx: PopulationContext, cell: number, id: string): boolean
 }
 
 /** The land within two steps that holds an ore, if any: own land first. */
+// Which land within two steps holds an ore: a pure function of the generated world, kept.
+const ORE_NEAR = new Map<string, number | null>();
 function oreNear(ctx: PopulationContext, cell: number, kind: string): number | null {
+  const key = `${ctx.generated.digest}:${cell}:${kind}`;
+  if (ORE_NEAR.has(key)) return ORE_NEAR.get(key)!;
+  if (ORE_NEAR.size > 100_000) ORE_NEAR.clear();
+  const found = findOreNear(ctx, cell, kind);
+  ORE_NEAR.set(key, found);
+  return found;
+}
+function findOreNear(ctx: PopulationContext, cell: number, kind: string): number | null {
   const g = ctx.generated,
     has = (c: number) =>
       ctx.generated.deposits.some((d) => d.cell === c && d.kind === kind) || surfaceOre(g, c, kind);
@@ -189,7 +209,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
       ];
       const drive = terms.reduce((s, [, w, v]) => s + w * v, 0),
         chance = p.rate * (0.2 + drive) * LORE_PACE;
-      if (!(world.rng.real(FIND, cell, t, PRINCIPLES.indexOf(p)) < chance)) continue;
+      if (!(world.rng.real(FIND, cell, t, PRINCIPLE_INDEX.get(p.id)!) < chance)) continue;
       const factors: Factor[] = terms
         .filter(([, w, v]) => w * v > 0)
         .map(([name, w, v, source]) => ({ name, value: v, contribution: w * v, source }));
@@ -213,6 +233,8 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     for (let k = g.grid.offsets[cell]!; k < g.grid.offsets[cell + 1]!; k++) {
       const n = g.grid.neighbours[k]!;
       if (!ctx.provinces.get(n)?.total()) continue;
+      // Only a neighbour who knows something this land does not can teach it.
+      if (!open.some((p) => store.get(n, p.id))) continue;
       const theirs = culture.get(n),
         like = mine && theirs ? tongueLikeness(mine.tongue, theirs.tongue) : 0.5,
         road = markets.route(cell, n) ? 2 : 1,

@@ -1,7 +1,8 @@
 // Life histories and occupations (docs/architecture §15, §17). Phase 1 knows one
 // species, human-like; Phase 4's biology grammar derives these numbers from a
 // body plan instead. Rates are yearly and pre-modern: a total fertility near five,
-// three children in ten dying before five, few living past seventy.
+// nearly half dying before fifteen, a life of some twenty-eight years on average, few
+// living past seventy — at plenty, a people grows about a quarter of a hundredth a year.
 
 export type LifeHistory = {
   readonly name: string;
@@ -21,7 +22,7 @@ export const HUMANLIKE: LifeHistory = {
   name: "humanlike",
   bands: [0, 5, 10, 15, 20, 30, 40, 50, 60, 70],
   fertility: [0, 0, 0, 0.1, 0.22, 0.18, 0.06, 0, 0, 0],
-  mortality: [0.07, 0.012, 0.007, 0.009, 0.012, 0.015, 0.02, 0.035, 0.07, 0.16],
+  mortality: [0.125, 0.015, 0.008, 0.01, 0.014, 0.018, 0.024, 0.04, 0.075, 0.16],
   adulthood: 15,
   appetite: 1,
 };

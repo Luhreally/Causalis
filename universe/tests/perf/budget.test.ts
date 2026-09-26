@@ -93,13 +93,15 @@ test("the Phase 1 slice (the cradle, 300 years) runs, saves and shows within its
 });
 
 test("the app's world (bands across the land, 300 years) runs, saves and shows within its budgets", () => {
-  // Measured: 4.2 s, slowest year 116 ms, save 0.75 MB; 500 years saves 1.7 MB.
+  // The whole reachable planet (some 550 provinces). Measured: 24 s, slowest year 0.19 s,
+  // save 5.2 MB; in the browser at 4× slower, a year averages 0.38 s and its 99th
+  // percentile 0.65 s (npm run slice). The budgets leave room for a busy machine.
   withinBudget(
     EARTH.build(seedFromText("first light")),
     {
-      runMs: 15_000,
-      yearMs: 500,
-      saveBytes: 3_000_000,
+      runMs: 120_000,
+      yearMs: 1_000,
+      saveBytes: 8_000_000,
       globeBytes: 2_000_000,
       regionBytes: 1_500_000,
       planBytes: 400_000,

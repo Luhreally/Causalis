@@ -82,11 +82,12 @@ for (const engine of engines) {
       : {}),
   });
   try {
-    // The Earth globe 240 years on, when there are villages to meet people in, and the
+    // The Earth globe a century on, when there are villages to meet people in, and the
     // sandbox (where time must move), each in a worker and in-thread.
     const cases = [
-      { query: "?year=240", name: "earth", moves: false, pick: 20000 },
-      { query: "?year=240&inline", name: "earth", moves: false, pick: 20000 },
+      // A century on, the planet has villages, market towns and realms to look at.
+      { query: "?year=120", name: "earth", moves: false, pick: 20000 },
+      { query: "?year=120&inline", name: "earth", moves: false, pick: 20000 },
       { query: "?universe=sandbox", name: "sandbox", moves: true, pick: 3 },
       { query: "?universe=sandbox&inline", name: "sandbox", moves: true, pick: 3 },
     ];
@@ -99,12 +100,13 @@ for (const engine of engines) {
       });
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(`${base}${query}`);
-      // Software GL on a CI machine is slow: allow a minute for the first frame.
+      // The world is run a century on before its first frame (the whole planet), and
+      // software GL on a CI machine is slow: allow for both.
       const first = await waitFor(
         `${label} to start and draw`,
         () => state(page),
         (s) => s.drawn > 0,
-        process.env.CI ? 60000 : 20000,
+        process.env.CI ? 180000 : 90000,
       ).catch(async (error: Error) => {
         const said = await page.evaluate(
           () => (globalThis as { causalis?: { error?: string } }).causalis?.error,
@@ -144,10 +146,11 @@ for (const engine of engines) {
         // The most peopled province's inspector shows its market.
         await page.evaluate(async () => {
           const c = (globalThis as { causalis?: Exposed }).causalis!;
-          const map = await c.client!.query<{ cell: number; people: number }[]>({
+          const map = await c.client!.query<{ cell: number; centre: number; people: number }[]>({
             type: "people.map",
           });
-          c.select!([...map].sort((a, b) => b.people - a.people || a.cell - b.cell)[0]!.cell);
+          // Pick the spot at the middle of the most peopled province.
+          c.select!([...map].sort((a, b) => b.people - a.people || a.cell - b.cell)[0]!.centre);
         });
         await page.waitForFunction(
           () =>
@@ -217,10 +220,10 @@ for (const engine of engines) {
         // Down into the region around a copper deposit, then a tile's inspector.
         await page.evaluate(async () => {
           const c = (globalThis as { causalis?: Exposed }).causalis!;
-          const deposits = await c.client!.query<{ kind: string; cell: number }[]>({
+          const deposits = await c.client!.query<{ kind: string; province: number }[]>({
             type: "deposits",
           });
-          c.descend!(deposits.find((d) => d.kind === "copper")!.cell);
+          c.descend!(deposits.find((d) => d.kind === "copper")!.province);
         });
         await waitFor(
           `${label} region`,
@@ -255,7 +258,7 @@ for (const engine of engines) {
           }
           return null;
         });
-        if (!village) problems.push(`${label}: no village 240 years on`);
+        if (!village) problems.push(`${label}: no village a century on`);
         else {
           await waitFor(
             `${label} villages`,

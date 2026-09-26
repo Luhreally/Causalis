@@ -114,7 +114,7 @@ export function layout(
   axis: number,
   paved: boolean,
   river: boolean,
-): number[] {
+): readonly number[] {
   const n = BLOCKS * BLOCKS,
     ux = dmath.cos(axis),
     uz = dmath.sin(axis);
@@ -125,37 +125,45 @@ export function layout(
       along = Math.abs(-uz * x + ux * z) / BLOCK_M;
     return 1 / (1 + 0.35 * middle) + road / (1 + along);
   };
-  const order = (road: number) =>
-    Array.from({ length: n }, (_, k) => k).sort((a, b) => worth(b, road) - worth(a, road) || a - b);
-  const uses = new Array<number>(n).fill(USE.open),
-    built = Math.min(n, Math.ceil(people / 110)),
+  const built = Math.min(n, Math.ceil(people / 110)),
     markets = Math.max(1, Math.min(8, Math.ceil(traders / 25))),
     workshops = Math.max(1, Math.min(14, Math.ceil(crafters / 35))),
-    crowded = Math.max(0, Math.min(20, Math.floor((people - CITY_SIZE) / 400)));
+    crowded = Math.max(0, Math.min(20, Math.floor((people - CITY_SIZE) / 400))),
+    // The same counts on the same road always ask the same layout: kept, not redone.
+    key = `${built}|${markets}|${workshops}|${crowded}|${axis}|${paved}|${river}`,
+    kept = LAYOUTS.get(key);
+  if (kept) return kept;
+  const order = (road: number) => {
+    const w = Array.from({ length: n }, (_, k) => worth(k, road));
+    return Array.from({ length: n }, (_, k) => k).sort((a, b) => w[b]! - w[a]! || a - b);
+  };
+  const uses = new Array<number>(n).fill(USE.open),
+    count = new Array<number>(USES.length).fill(0);
   // The temple or hall takes the very middle; markets the best of the rest, by the road's pull.
   const middle = order(0),
     byRoad = order(paved ? 2.4 : 0.5),
     free = new Set(Array.from({ length: n }, (_, k) => k));
   const take = (k: number, use: number) => {
     uses[k] = use;
+    count[use]!++;
     free.delete(k);
   };
   take(middle[0]!, USE.temple);
-  for (const k of byRoad)
-    if (free.has(k) && uses.filter((u) => u === USE.market).length < markets) take(k, USE.market);
+  for (const k of byRoad) if (free.has(k) && count[USE.market]! < markets) take(k, USE.market);
   // Workshops keep off the middle (their noise and smoke), along the road or the river.
   const edgeRoad = byRoad.filter((k) => {
     const { x, z } = blockAt(k % BLOCKS, Math.floor(k / BLOCKS));
     return x * x + z * z > 2.25 * BLOCK_M * BLOCK_M || river;
   });
   for (const k of edgeRoad)
-    if (free.has(k) && uses.filter((u) => u === USE.workshops).length < workshops)
-      take(k, USE.workshops);
-  for (const k of byRoad)
-    if (free.has(k) && uses.filter((u) => u === USE.crowded).length < crowded) take(k, USE.crowded);
+    if (free.has(k) && count[USE.workshops]! < workshops) take(k, USE.workshops);
+  for (const k of byRoad) if (free.has(k) && count[USE.crowded]! < crowded) take(k, USE.crowded);
   for (const k of middle) if (free.has(k) && n - free.size < built) take(k, USE.houses);
+  if (LAYOUTS.size > 20_000) LAYOUTS.clear();
+  LAYOUTS.set(key, uses);
   return uses;
 }
+const LAYOUTS = new Map<string, number[]>();
 
 /** The city's heading: toward the neighbour it trades with most (east when it trades with none). */
 function headingOf(ctx: PopulationContext, cell: number): number {

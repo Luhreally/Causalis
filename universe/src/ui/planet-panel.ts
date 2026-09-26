@@ -34,6 +34,8 @@ type Summary = {
 
 type Place = {
   cell: number;
+  /** The province the picked spot is part of: its people, market and realm are that province's. */
+  province: number;
   ref: string;
   lat: number;
   lon: number;
@@ -50,6 +52,8 @@ type Place = {
 };
 
 type ProvinceFacts = {
+  /** The province's own ref (a land to follow). */
+  ref: string;
   people: number;
   byOccupation: { name: string; count: number }[];
   fed: number;
@@ -79,7 +83,10 @@ type Chronicle = {
 };
 
 export type PeopleEntry = {
+  /** The province. */
   cell: number;
+  /** The spot at its middle (a fine cell of the globe). */
+  centre: number;
   people: number;
   density: number;
   farming: boolean;
@@ -184,6 +191,8 @@ export class PlanetPanel {
   private readonly hand: HandView;
   private readonly closer = el("button", "act", "Look closer");
   private selected: number | null = null;
+  /** The picked spot's province. */
+  private province: number | null = null;
   /** The speed chosen for the world (the microscope keeps its own). */
   speed: number;
   private description = "";
@@ -233,7 +242,7 @@ export class PlanetPanel {
       this.onClose();
     };
     this.closer.onclick = () => {
-      if (this.selected !== null) this.onCloser(this.selected);
+      if (this.province !== null) this.onCloser(this.province);
     };
     this.inspector.append(
       close,
@@ -355,11 +364,15 @@ export class PlanetPanel {
     this.selected = cell;
     this.inspector.hidden = cell === null;
     if (cell === null) return;
-    const [p, folk, market, past] = await Promise.all([
-      this.client.query<Place>({ type: "cell", args: { cell } }),
-      this.client.query<ProvinceFacts>({ type: "province", args: { cell } }),
-      this.client.query<MarketFacts | null>({ type: "market", args: { cell } }),
-      this.client.query<ProvinceHistory>({ type: "province.history", args: { cell } }),
+    // The spot picked, then its province's people, market and years.
+    const p = await this.client.query<Place>({ type: "cell", args: { cell } });
+    if (this.selected !== cell) return;
+    const province = p.province;
+    this.province = province;
+    const [folk, market, past] = await Promise.all([
+      this.client.query<ProvinceFacts>({ type: "province", args: { cell: province } }),
+      this.client.query<MarketFacts | null>({ type: "market", args: { cell: province } }),
+      this.client.query<ProvinceHistory>({ type: "province.history", args: { cell: province } }),
     ]);
     if (this.selected !== cell) return;
     const high = p.elevation >= 0;
@@ -428,14 +441,14 @@ export class PlanetPanel {
       ...rows
         .filter(([text]) => text)
         .map(([text, ref]) => (ref ? this.whyLine(text, ref) : el("div", "fact", text))),
-      ...(folk && this.tidings ? [this.tidings.follow(p.ref, "this land")] : []),
+      ...(folk && this.tidings ? [this.tidings.follow(folk.ref, "this land")] : []),
     );
     this.showRealm(folk ? folk.realm : null, !!folk);
     this.showWays(folk?.ways ?? null, folk?.faith ?? null);
     this.showLore(folk?.lore ?? null);
     this.showMarket(market);
     this.showPast(folk ? past : null);
-    if (folk) void this.hand.show(this.handBox, cell);
+    if (folk) void this.hand.show(this.handBox, province);
     else this.handBox.replaceChildren();
     this.closer.hidden = !high;
     void this.why.show(folk?.folk ?? p.deposit?.ref ?? p.ref, this.whyBox);
@@ -595,6 +608,7 @@ export class PlanetPanel {
   /** The chronicle: what history holds as mattering most, newest first, each with its why. */
   async showChronicle(): Promise<void> {
     this.selected = null;
+    this.province = null;
     this.inspector.hidden = false;
     this.title.textContent = "Chronicle";
     this.closer.hidden = true;

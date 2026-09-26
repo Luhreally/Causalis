@@ -2022,6 +2022,20 @@ area of four steps around a tropical cradle rarely reaches copper-bearing
 mountains or herd beasts, so the whole planet peopled (and paged, to stay within
 budget) comes before the ecology.
 
+29–30, as built: people live in provinces of a frequency-20 grid (4,002 over the
+planet, ~1,200 on land), each gathering the fine cells nearest it
+(`gen/provinces.ts`); the simulation runs on that province world unchanged, the
+globe and regions on the fine one. The chronicle opens with bands over every land
+joined to the cradle (and across a single province of sea), some 550 lands on the
+Earth seed. Paging is by a land's own state, never by where anyone looks: a quiet
+land's births and deaths are reckoned once a year. Villages are sited on a small
+per-land site map, so the simulation never refines a full region. History is held
+for living memory (120 years of births, deaths and moves; summaries yearly for a
+century, then one year in ten); ended wars and realms and every design are folded
+into rolling digests. The life table was recalibrated to pre-modern rates (about
+0.3% a year at plenty). A year of the planet costs 0.38 s on average and 0.65 s at
+the 99th percentile on the phone proxy (4× slower).
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

@@ -74,9 +74,11 @@ export class World {
     this.events = this.register(new EventLog(this.minter, clock));
     this.decisions = this.register(new DecisionLog(this.minter, clock));
     this.commands = this.register(new CommandLog(this.minter));
+    // Forgetting is reckoned once a decade: an ordinary event nothing keeps goes once it
+    // is older than the window, at the next reckoning.
     this.scheduler.addSystem({
       key: "990.history.compact",
-      every: YEAR,
+      every: 10 * YEAR,
       run: (t) => {
         this.compactHistory(t);
       },
