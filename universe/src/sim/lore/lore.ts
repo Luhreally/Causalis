@@ -29,6 +29,7 @@ import {
   PRINCIPLES,
   PRINCIPLE_INDEX,
   affordsPrinciple,
+  needsMet,
   type Effect,
   type Principle,
 } from "../../rules/index.ts";
@@ -172,7 +173,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           p.rate > 0 &&
           affordsPrinciple(p, ctx.medium, ctx.affords.fire) &&
           !store.get(cell, p.id) &&
-          p.needs.every((n) => knows(ctx, cell, n)),
+          needsMet(p, (n) => knows(ctx, cell, n)),
       );
     if (!open.length) continue;
     // Finding: the first principle whose drivers carry it, in the tree's order.

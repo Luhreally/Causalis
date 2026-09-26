@@ -12,6 +12,7 @@ import { installHand } from "../hand/hand.ts";
 import { CultureStore, cradleWays, driftedWays } from "../culture/culture.ts";
 import { foundLanguages, installLanguages } from "../culture/languages.ts";
 import { installAir } from "../climate/air.ts";
+import { installSpace } from "../space/space.ts";
 import { installPolities } from "../polity/polity.ts";
 import { installBelief } from "../belief/belief.ts";
 import { installLore } from "../lore/lore.ts";
@@ -206,6 +207,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installEcology(world, () => populationContext(world));
   installLanguages(world, () => populationContext(world));
   installAir(world, () => populationContext(world));
+  installSpace(world, () => populationContext(world));
 
   const g = homePlanet(world).generated;
   if (!g.life.people) {

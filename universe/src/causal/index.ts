@@ -43,6 +43,7 @@ import "./design.ts";
 import "./ecology.ts";
 import "./languages.ts";
 import "./climate.ts";
+import "./space.ts";
 export { priceWords } from "./economy.ts";
 export { canWatch, label, setWatch, tidings, watches, type Tiding, type Watch } from "./watch.ts";
 export {

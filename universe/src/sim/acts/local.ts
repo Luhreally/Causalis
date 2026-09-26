@@ -7,7 +7,7 @@
 // spared death for twenty years). Each is a logged command whose event cites it;
 // what follows is the simulation's own.
 import { defineEventType, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
-import { BANDS, PRINCIPLES } from "../../rules/index.ts";
+import { BANDS, PRINCIPLES, needsMet } from "../../rules/index.ts";
 import { cradleTongue, tonguePersonName } from "../../gen/index.ts";
 import { COLS } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
@@ -140,7 +140,7 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
         year = yearOfMoment(t),
         // What their land could come to know next.
         next = PRINCIPLES.find(
-          (p) => p.rate > 0 && !lore.get(w.cell, p.id) && p.needs.every((n) => knows(c, w.cell, n)),
+          (p) => p.rate > 0 && !lore.get(w.cell, p.id) && needsMet(p, (n) => knows(c, w.cell, n)),
         );
       const event = world.events.emit({
         type: LOCAL_ACT_EVENTS.inspireOne.type,

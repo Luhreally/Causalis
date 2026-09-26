@@ -21,7 +21,8 @@ test("the tree of principles is whole: every need exists, and nothing needs itse
     assert.ok(!visiting.has(id), `${id} does not need itself`);
     if (done.has(id)) return;
     visiting.add(id);
-    for (const n of principle(id).needs) visit(n);
+    // A need "a|b" is met by either: each must exist.
+    for (const n of principle(id).needs) for (const alt of n.split("|")) visit(alt);
     visiting.delete(id);
     done.add(id);
   };

@@ -91,6 +91,17 @@ export type Principle = {
   readonly body?: BodyNeeds;
 };
 
+/**
+ * Whether what a land knows meets a principle's needs: every need, where a need written
+ * "a|b" is met by either (the sky is reached by the land's road or the sea's).
+ */
+export function needsMet(
+  p: { readonly needs: readonly string[] },
+  knows: (id: string) => boolean,
+): boolean {
+  return p.needs.every((n) => (n.includes("|") ? n.split("|").some(knows) : knows(n)));
+}
+
 /** Whether a body can come to know a principle at all. */
 export function affordsPrinciple(p: Principle, medium: Medium, fire: boolean): boolean {
   if (p.body?.fire && !fire) return false;
@@ -550,6 +561,80 @@ const TREE: readonly Principle[] = [
     { crafters: 1, leaders: 0.5 },
     { power: 1, industry: 0.5, renewable: 1 },
     { media: ["water"] },
+  ),
+  // The sky (Phase 5 M47): past power, the road to orbit and to the other worlds — by the
+  // land's electricity or the sea's; a need written "a|b" is met by either.
+  P(
+    "electronics",
+    "valves and wires that reckon",
+    ["electricity|sea-electricity", "mathematics"],
+    0.006,
+    { crafters: 1, traders: 0.3 },
+    { learning: 0.3 },
+  ),
+  P(
+    "rocketry",
+    "the rocket",
+    ["electricity|sea-electricity", "astronomy"],
+    0.005,
+    { crafters: 1, leaders: 0.3 },
+    { arms: 1 },
+  ),
+  P(
+    "guidance",
+    "machines that steer",
+    ["electronics", "clockwork|current-reading"],
+    0.005,
+    { crafters: 1 },
+    {},
+  ),
+  P(
+    "orbital-flight",
+    "flight to orbit",
+    ["rocketry", "guidance"],
+    0.004,
+    { crafters: 1, leaders: 0.5 },
+    {},
+  ),
+  P(
+    "life-support",
+    "air and water made in closed halls",
+    ["orbital-flight", "medicine"],
+    0.004,
+    { crafters: 1 },
+    { health: 0.05 },
+  ),
+  P(
+    "stations",
+    "halls in orbit",
+    ["life-support", "factories|sea-works"],
+    0.004,
+    { crafters: 1, leaders: 0.3 },
+    {},
+  ),
+  P(
+    "transfer-flight",
+    "flight between worlds",
+    ["orbital-flight", "mathematics"],
+    0.004,
+    { crafters: 1, traders: 0.3 },
+    {},
+  ),
+  P(
+    "habitats",
+    "halls on other worlds",
+    ["life-support", "transfer-flight"],
+    0.003,
+    { crafters: 1, leaders: 0.3 },
+    {},
+  ),
+  P(
+    "nuclear-drive",
+    "the atom's fire as a drive",
+    ["electronics", "transfer-flight"],
+    0.003,
+    { crafters: 1 },
+    {},
   ),
 ];
 

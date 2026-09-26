@@ -3,7 +3,7 @@
 // the home world's (so the small inner worlds and the far giants share one screen);
 // moons are set just beyond their planet, in the direction they truly lie; sizes by the
 // fifth root of the radius. Units are scene units on the plane y = 0.
-import { orbitXY } from "../rules/index.ts";
+import { orbitXY, toOrbit } from "../rules/index.ts";
 import type { SystemPlan, SystemPlanBody } from "../bridge/index.ts";
 
 export type Rgb = readonly [number, number, number];
@@ -106,5 +106,10 @@ export function bodyFacts(b: SystemPlanBody, star: SystemPlan["star"]): string[]
     b.kind === "giant" || b.kind === "ice giant"
       ? "its belts of radiation deadly"
       : `radiation ${b.radiation < 1.5 ? "about as at home" : `${Math.round(b.radiation)} times the home world's`}`,
+    ...(b.kind === "giant" || b.kind === "ice giant"
+      ? []
+      : [
+          `to orbit from its ground: ${toOrbit(b).total.toFixed(1)} km/s (${toOrbit(b).orbit.toFixed(1)} of orbit, the rest lost to its pull${b.pressure > 0.01 ? " and air" : ""})`,
+        ]),
   ];
 }

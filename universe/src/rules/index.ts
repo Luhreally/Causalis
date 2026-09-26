@@ -52,6 +52,7 @@ export {
   PRINCIPLES,
   PRINCIPLE_INDEX,
   affordsPrinciple,
+  needsMet,
   principle,
   type BodyNeeds,
   type Drivers,
@@ -103,3 +104,16 @@ export {
   type Role,
 } from "./designs.ts";
 export { AU_KM, eccentricAnomaly, orbitXY, type Elements } from "./orbits.ts";
+export {
+  FRAMES,
+  LEAST_FRACTION,
+  PROPULSION,
+  costPerTonne,
+  launcherFor,
+  payloadFraction,
+  toOrbit,
+  type Frame,
+  type LaunchWorld,
+  type Launcher,
+  type Propulsion,
+} from "./launch.ts";

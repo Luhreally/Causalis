@@ -265,3 +265,18 @@ export {
   wildsOf,
   type Wilds,
 } from "./ecology/ecology.ts";
+export {
+  CREW_TONNES,
+  FLIGHT_PACE,
+  MACHINES_PER_COST,
+  PROGRAM_SHARE,
+  SATELLITE_TONNES,
+  SPACE_EVENTS,
+  STATION_TONNES,
+  SpaceStore,
+  installSpace,
+  launcherOfRealm,
+  spaceOf,
+  spaceYear,
+  type Program,
+} from "./space/space.ts";
