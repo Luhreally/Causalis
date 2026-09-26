@@ -37,20 +37,27 @@ function reach(w: World, ref: string, depth = 9): Set<string> {
   return seen;
 }
 
-test("realms go to war, by decisions that cite their rivalry and the land they want", () => {
+test("realms go to war, by decisions that cite their rivalry or hunger and the land they want", () => {
   assert.ok(wars.length >= 3, `${wars.length} wars`);
+  let rivals = 0;
   for (const w of wars.slice(0, 10)) {
     const d = world.decisions.get(world.events.get(w.event)!.causes[0]!.ref as Ref)!;
     assert.equal(d.rule, "war.declare");
+    // A war of hatred cites the rivalry; a war of hunger (between realms with no ill will)
+    // cites the famine that drove it.
+    const rivalry = d.factors.some((f) => f.source?.ref.startsWith("rel:")),
+      hunger = d.factors.find((f) => f.name === "hunger");
     assert.ok(
-      d.factors.some((f) => f.source?.ref.startsWith("rel:")),
-      "the rivalry",
+      rivalry || (hunger && world.events.get(hunger.source!.ref as Ref)),
+      "the rivalry or hunger",
     );
+    if (rivalry) rivals++;
     assert.ok(
       d.factors.some((f) => f.source?.ref === `cell:0:${w.prize}`),
       "the land they want",
     );
   }
+  assert.ok(rivals >= 5, `${rivals} wars of rivalry`);
 });
 
 test("a war's why reaches the economy and the ground it was fought over", () => {

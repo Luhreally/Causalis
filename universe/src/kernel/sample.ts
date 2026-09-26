@@ -139,11 +139,42 @@ export class Permutation {
   }
 }
 
+/** Chances counted one by one up to this many; beyond it, a count drawn whole. */
+const ONE_BY_ONE = 32;
+/** The uniforms each step of a whole draw may use (its trials, its Poisson or its normal). */
+const STRIDE = 256;
+
+/**
+ * How many of m chances at p come up, from the caller's uniforms at `base` onward: by
+ * the normal approximation when the count varies enough for it to hold (a variance of
+ * nine or more); as a Poisson count of the rare outcome when one outcome is rare (one in
+ * twenty or less); otherwise (a few score chances at most) one by one.
+ */
+function binomial(m: number, p: number, uniform: (i: number) => number, base: number): number {
+  if (m <= 0 || !(p > 0)) return 0;
+  if (p >= 1) return m;
+  const variance = m * p * (1 - p);
+  if (m <= ONE_BY_ONE || (variance < 9 && Math.min(p, 1 - p) > 0.05)) {
+    let x = 0;
+    for (let j = 0; j < m; j++) if (uniform(base + j) < p) x++;
+    return x;
+  }
+  if (variance >= 9)
+    return Math.max(
+      0,
+      Math.min(m, Math.round(m * p + sqrt(variance) * gaussian(uniform(base), uniform(base + 1)))),
+    );
+  const rare = (j: number) => uniform(base + j);
+  return p < 0.5 ? Math.min(m, poisson(m * p, rare)) : m - Math.min(m, poisson(m * (1 - p), rare));
+}
+
 /**
  * How n independent chances fall among categories with probabilities ∝ weights.
  * `uniform(i)` is the caller's i-th keyed uniform. Use this, not apportion, for
  * anything that should be random: apportion rounds by proportion, so a single
- * birth split 49:51 would always be a boy.
+ * birth split 49:51 would always be a boy. A few chances are drawn one by one; more,
+ * as a binomial count per category given those before it — as cheap for a million as
+ * for a hundred.
  */
 export function multinomial(
   n: number,
@@ -154,7 +185,7 @@ export function multinomial(
   let total = 0;
   for (const w of weights) if (w > 0) total += w;
   if (n <= 0 || !(total > 0)) return out;
-  if (n <= 4096) {
+  if (n <= ONE_BY_ONE) {
     for (let i = 0; i < n; i++) {
       let target = uniform(i) * total,
         k = 0;
@@ -168,22 +199,18 @@ export function multinomial(
     }
     return out;
   }
-  // Large n: conditional binomials, each by its normal approximation.
+  // Conditional binomials: each category's count, given the chances left and the weight left.
   let remaining = n,
-    left = total;
-  for (let k = 0; k < weights.length; k++) {
+    left = total,
+    last = weights.length - 1;
+  while (last > 0 && !(weights[last]! > 0)) last--;
+  for (let k = 0; k <= last && remaining > 0; k++) {
     const w = weights[k]! > 0 ? weights[k]! : 0;
-    if (k === weights.length - 1 || left <= 0) {
+    if (k === last) {
       out[k] = remaining;
       break;
     }
-    const p = w / left,
-      mean = remaining * p,
-      sd = sqrt(remaining * p * (1 - p)),
-      x = Math.max(
-        0,
-        Math.min(remaining, Math.round(mean + sd * gaussian(uniform(2 * k), uniform(2 * k + 1)))),
-      );
+    const x = binomial(remaining, w / left, uniform, k * STRIDE);
     out[k] = x;
     remaining -= x;
     left -= w;
@@ -207,7 +234,7 @@ export function drawWithoutReplacement(
   const take = Math.min(n, total);
   if (take <= 0) return out;
   if (take === total) return left;
-  if (take <= 4096) {
+  if (take <= ONE_BY_ONE) {
     for (let i = 0; i < take; i++) {
       let target = Math.floor(uniform(i) * total),
         k = 0;
@@ -218,7 +245,8 @@ export function drawWithoutReplacement(
     }
     return out;
   }
-  // Large n: hypergeometric draws by their normal approximation, then fixed up to the exact total.
+  // More: each pool's share by the hypergeometric's normal approximation where it varies
+  // enough, else as a binomial of the rare outcome; then fixed up to the exact total.
   let remaining = take,
     pool = total;
   for (let k = 0; k < pools.length && remaining > 0; k++) {
@@ -228,17 +256,19 @@ export function drawWithoutReplacement(
       remaining -= out[k]!;
       break;
     }
-    const p = size / pool,
-      mean = remaining * p,
-      sd = sqrt(
-        Math.max(0, remaining * p * (1 - p) * ((pool - remaining) / Math.max(1, pool - 1))),
-      ),
+    const p = pool > 0 ? size / pool : 0,
+      variance = remaining * p * (1 - p) * ((pool - remaining) / Math.max(1, pool - 1)),
       x = Math.max(
         0,
         Math.min(
           size,
           remaining,
-          Math.round(mean + sd * gaussian(uniform(2 * k), uniform(2 * k + 1))),
+          variance >= 9
+            ? Math.round(
+                remaining * p +
+                  sqrt(variance) * gaussian(uniform(k * STRIDE), uniform(k * STRIDE + 1)),
+              )
+            : binomial(remaining, p, uniform, k * STRIDE),
         ),
       );
     out[k] = x;

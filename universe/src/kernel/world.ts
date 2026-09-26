@@ -57,6 +57,14 @@ export class World {
   private readonly pinners: (() => Iterable<Ref>)[] = [];
   private readonly stores = new Map<string, StateStore>();
   private readonly chain: Checkpoint[] = [];
+  /**
+   * What the chronicle keeps for ever. A chronicle event is never forgotten, nor anything
+   * it reaches, and no event or decision changes what it cites — so this only grows, and
+   * each reckoning walks only from what joined the chronicle since the last. A cache of
+   * history, not part of it: a loaded world starts it afresh.
+   */
+  private readonly forever = new Set<string>();
+  private foreverChronicle = -1;
 
   constructor(seed: Seed, options: WorldOptions = {}) {
     this.seed = seed;
@@ -138,25 +146,40 @@ export class World {
    * or one long chain of ordinary causes would keep all of history.
    */
   compactHistory(now: number): { events: number; decisions: number } {
-    const kept = new Set<string>(),
-      stack: Ref[] = [];
-    const reach = (ref: Ref) => {
-      if (kept.has(ref) || !(this.events.get(ref) || this.decisions.get(ref))) return;
-      kept.add(ref);
-      stack.push(ref);
-    };
-    for (const e of this.events.all()) if (e.importance >= this.retention.chronicle) reach(e.id);
-    for (const pins of this.pinners) for (const ref of pins()) reach(ref);
-    while (stack.length) {
-      const ref = stack.pop()!,
-        e = this.events.get(ref);
-      if (e) for (const c of e.causes) reach(c.ref);
-      else for (const cited of this.decisions.cited(ref)) reach(cited);
+    const forever = this.forever,
+      kept = new Set<string>();
+    if (this.foreverChronicle !== this.retention.chronicle) {
+      forever.clear();
+      this.foreverChronicle = this.retention.chronicle;
     }
+    // Everything `roots` reaches that is not already kept for ever, into `into`.
+    const walk = (roots: Iterable<Ref>, into: Set<string>) => {
+      const stack: Ref[] = [];
+      const reach = (ref: Ref) => {
+        if (into.has(ref) || forever.has(ref) || !(this.events.get(ref) || this.decisions.get(ref)))
+          return;
+        into.add(ref);
+        stack.push(ref);
+      };
+      for (const ref of roots) reach(ref);
+      while (stack.length) {
+        const ref = stack.pop()!,
+          e = this.events.get(ref);
+        if (e) for (const c of e.causes) reach(c.ref);
+        else for (const cited of this.decisions.cited(ref)) reach(cited);
+      }
+    };
+    // The chronicle (an event joins it when it happens, or later when hindsight raises it)...
+    const joined: Ref[] = [];
+    for (const e of this.events.all())
+      if (e.importance >= this.retention.chronicle && !forever.has(e.id)) joined.push(e.id);
+    walk(joined, forever);
+    // ...and what the other stores hold on to, for as long as they do.
+    for (const pins of this.pinners) walk(pins(), kept);
     const young = (t: number) => now - t < this.retention.window;
     return {
-      events: this.events.sweep((e) => kept.has(e.id) || young(e.t)),
-      decisions: this.decisions.sweep((d) => kept.has(d.id) || young(d.t)),
+      events: this.events.sweep((e) => forever.has(e.id) || kept.has(e.id) || young(e.t)),
+      decisions: this.decisions.sweep((d) => forever.has(d.id) || kept.has(d.id) || young(d.t)),
     };
   }
 

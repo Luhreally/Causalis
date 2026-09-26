@@ -5,6 +5,8 @@ import {
   Rng,
   apportion,
   defineStream,
+  drawWithoutReplacement,
+  multinomial,
   poisson,
   seedFromText,
   selectLowest,
@@ -91,4 +93,73 @@ test("poisson has the right mean for small and large lambda", () => {
     poisson(0, () => 0.5),
     0,
   );
+});
+
+/** Mean and variance of each category over many keyed trials. */
+function moments(draw: (trial: number) => number[], trials: number, k: number) {
+  const sum = new Array<number>(k).fill(0),
+    sq = new Array<number>(k).fill(0);
+  for (let i = 0; i < trials; i++) {
+    const x = draw(i);
+    for (let c = 0; c < k; c++) {
+      sum[c]! += x[c]!;
+      sq[c]! += x[c]! * x[c]!;
+    }
+  }
+  return sum.map((s, c) => ({ mean: s / trials, variance: sq[c]! / trials - (s / trials) ** 2 }));
+}
+
+test("a multinomial sums exactly and has the binomial's mean and spread, for any count", () => {
+  // Few chances (one by one), many with a middling share (normal), many with a rare one (Poisson).
+  const weights = [0.5, 0.3, 0.195, 0.005];
+  for (const n of [7, 32, 33, 400, 5000, 1_000_000]) {
+    const draw = (i: number) => multinomial(n, weights, (j) => rng.real(S, i, n, 7, j));
+    for (let i = 0; i < 50; i++)
+      assert.equal(
+        draw(i).reduce((a, b) => a + b, 0),
+        n,
+      );
+    const m = moments(draw, 3000, weights.length);
+    weights.forEach((w, c) => {
+      const mean = n * w,
+        variance = n * w * (1 - w);
+      assert.ok(
+        Math.abs(m[c]!.mean - mean) < 0.1 * Math.sqrt(variance) + 0.02,
+        `n ${n}, share ${w}: mean ${m[c]!.mean} not ${mean}`,
+      );
+      assert.ok(
+        Math.abs(m[c]!.variance / variance - 1) < 0.1 + 2 / Math.sqrt(3000 * variance),
+        `n ${n}, share ${w}: variance ${m[c]!.variance} not ${variance}`,
+      );
+    });
+  }
+  // Categories that cannot come up never do.
+  assert.deepEqual(
+    multinomial(500, [0, 1, 0, 3, 0], (j) => rng.real(S, 1, 2, 3, j)).map((x, c) => (x ? c : -1)),
+    [-1, 1, -1, 3, -1],
+  );
+});
+
+test("drawing without replacement takes exactly n, never more than a pool holds", () => {
+  const pools = [5000, 20, 3, 0, 1200, 40_000];
+  for (const n of [10, 33, 900, 30_000, 46_223, 46_300]) {
+    const draw = (i: number) => drawWithoutReplacement(n, pools, (j) => rng.real(S, i, n, 8, j));
+    for (let i = 0; i < 200; i++) {
+      const x = draw(i);
+      assert.equal(
+        x.reduce((a, b) => a + b, 0),
+        Math.min(n, 46_223),
+      );
+      x.forEach((v, k) => assert.ok(v >= 0 && v <= pools[k]!, `pool ${k}: ${v}`));
+    }
+    const total = 46_223,
+      m = moments(draw, 2000, pools.length);
+    pools.forEach((size, k) => {
+      const mean = (Math.min(n, total) * size) / total;
+      assert.ok(
+        Math.abs(m[k]!.mean - mean) < 0.05 * mean + 0.2,
+        `n ${n}, pool ${size}: mean ${m[k]!.mean} not ${mean}`,
+      );
+    });
+  }
 });

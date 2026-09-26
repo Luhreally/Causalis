@@ -69,6 +69,16 @@ type ProvinceFacts = {
   house: { words: string; ref: string } | null;
   wild: { name: string; ref: string; tame: boolean; niche: string }[];
   herding: string | null;
+  ecology: {
+    wild: number;
+    forest: number;
+    soil: number;
+    firstForest: number;
+    thinned: string | null;
+    cleared: string | null;
+    worn: string | null;
+    lost: { name: string; ref: string }[];
+  };
   lore: { id: string; name: string; year: number; event: string }[];
 } | null;
 
@@ -126,6 +136,20 @@ type RealmFacts = {
   neighbours: { ref: string; name: string; standing: string; opinion: number }[];
   wars: { ref: string; name: string; since: number; attacking: boolean }[];
 } | null;
+
+/** A land's living world in lines, where it has turned for the worse. */
+function ecologyRows(e: NonNullable<ProvinceFacts>["ecology"]): [string, string | null][] {
+  const pct = (x: number) => Math.round(x * 100);
+  const rows: [string, string | null][] = [];
+  if (e.wild < 0.7)
+    rows.push([`Game is scarce: ${pct(e.wild)} in a hundred of what it was`, e.thinned]);
+  if (e.firstForest > 0.2 && e.forest < 0.8)
+    rows.push([`${pct(e.forest)} in a hundred of its forest still stands`, e.cleared]);
+  if (e.soil < 0.9)
+    rows.push([`Its soils are worn to ${pct(e.soil)} in a hundred of their strength`, e.worn]);
+  for (const l of e.lost) rows.push([`The ${l.name} was hunted out here`, l.ref]);
+  return rows;
+}
 
 /** "farmers want lighter tribute" → "Farmers want lighter tribute". */
 function sentenceOf(text: string): string {
@@ -395,6 +419,8 @@ export class PlanetPanel {
       ],
       [folk?.house ? sentenceOf(`they build ${folk.house.words}`) : "", folk?.house?.ref ?? null],
       [folk?.herding ? "They keep herds" : "", folk?.herding ?? null],
+      // Their living world, where it has turned: game, forest and soil against what they were.
+      ...(folk ? ecologyRows(folk.ecology) : []),
       // What lives wild here: what can be tamed or sown opens its why.
       ...(folk?.wild ?? [])
         .filter((s) => s.tame)

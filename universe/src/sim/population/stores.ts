@@ -78,11 +78,27 @@ export class SettlementStore implements StateStore {
   /** The same settlements by province (in founding order) and by ref. */
   private readonly byCell = new Map<number, Settlement[]>();
   private readonly byRef = new Map<string, Settlement>();
+  /** What never changes of each settlement (where and when it was founded, and why), folded in as it was. */
+  private founding = "";
 
   add(s: Settlement): Settlement {
     this.list.push(s);
     this.index(s);
+    this.fold(s);
     return s;
+  }
+
+  private fold(s: Settlement): void {
+    this.founding = new Hasher()
+      .string(this.founding)
+      .string(s.ref)
+      .string(s.name)
+      .int(s.cell)
+      .int(s.tile)
+      .int(s.founded)
+      .string(s.decision)
+      .string(s.event)
+      .hex();
   }
 
   private index(s: Settlement): void {
@@ -106,18 +122,10 @@ export class SettlementStore implements StateStore {
   }
 
   hashInto(h: Hasher): void {
-    h.int(this.list.length);
+    // The foundings by their fold; then what changes, settlement by settlement.
+    h.string(this.founding).int(this.list.length);
     for (const s of this.list) {
-      h.string(s.ref)
-        .string(s.name)
-        .int(s.cell)
-        .int(s.tile)
-        .int(s.founded)
-        .string(s.decision)
-        .string(s.event)
-        .int(s.population)
-        .string(s.market ?? "");
-      // Only villages the god touched carry more (untouched worlds hash as they always have).
+      h.int(s.population).string(s.market ?? "");
       if (s.shrine || s.spring) h.string(s.shrine ?? "").string(s.spring ?? "");
     }
   }
@@ -130,7 +138,11 @@ export class SettlementStore implements StateStore {
     this.list = (state as { settlements: Settlement[] }).settlements.map((s) => ({ ...s }));
     this.byCell.clear();
     this.byRef.clear();
-    for (const s of this.list) this.index(s);
+    this.founding = "";
+    for (const s of this.list) {
+      this.index(s);
+      this.fold(s);
+    }
   }
 }
 

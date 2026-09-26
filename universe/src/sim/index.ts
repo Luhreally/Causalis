@@ -209,3 +209,15 @@ export {
   landMaterials,
   type Design,
 } from "./design/design.ts";
+export {
+  ECOLOGY_EVENTS,
+  EcologyStore,
+  ecologyOf,
+  ecologyYear,
+  firstForest,
+  installEcology,
+  living,
+  stepWilds,
+  wildsOf,
+  type Wilds,
+} from "./ecology/ecology.ts";

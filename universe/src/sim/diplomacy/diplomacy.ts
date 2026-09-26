@@ -327,6 +327,6 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
 export function installDiplomacy(world: World, ctx: () => PopulationContext): DiplomacyStore {
   const store = world.register(new DiplomacyStore());
   world.addPinner(() => store.pinned());
-  world.system({ key: "180.diplomacy.year", every: YEAR, run: (t) => diplomacyYear(ctx(), t) });
+  world.system({ key: "186.diplomacy.year", every: YEAR, run: (t) => diplomacyYear(ctx(), t) });
   return store;
 }

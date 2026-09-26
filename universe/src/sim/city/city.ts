@@ -133,9 +133,17 @@ export function layout(
     key = `${built}|${markets}|${workshops}|${crowded}|${axis}|${paved}|${river}`,
     kept = LAYOUTS.get(key);
   if (kept) return kept;
+  // The blocks by worth, best first: the same for every city on the same heading.
   const order = (road: number) => {
-    const w = Array.from({ length: n }, (_, k) => worth(k, road));
-    return Array.from({ length: n }, (_, k) => k).sort((a, b) => w[b]! - w[a]! || a - b);
+    const at = `${axis}|${road}`;
+    let o = ORDERS.get(at);
+    if (!o) {
+      const w = Array.from({ length: n }, (_, k) => worth(k, road));
+      o = Array.from({ length: n }, (_, k) => k).sort((a, b) => w[b]! - w[a]! || a - b);
+      if (ORDERS.size > 4_000) ORDERS.clear();
+      ORDERS.set(at, o);
+    }
+    return o;
   };
   const uses = new Array<number>(n).fill(USE.open),
     count = new Array<number>(USES.length).fill(0);
@@ -163,7 +171,8 @@ export function layout(
   LAYOUTS.set(key, uses);
   return uses;
 }
-const LAYOUTS = new Map<string, number[]>();
+const LAYOUTS = new Map<string, number[]>(),
+  ORDERS = new Map<string, readonly number[]>();
 
 /** The city's heading: toward the neighbour it trades with most (east when it trades with none). */
 function headingOf(ctx: PopulationContext, cell: number): number {

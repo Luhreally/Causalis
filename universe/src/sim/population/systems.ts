@@ -36,6 +36,7 @@ import {
   type Region,
 } from "../../gen/index.ts";
 import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
+import { living, wildsOf } from "../ecology/ecology.ts";
 import { HAND_VITAL, bandOfAge, handOf, newbornSex } from "../hand/hand.ts";
 import { cultureOf, cultureYear } from "../culture/culture.ts";
 import { loreOf } from "../lore/lore.ts";
@@ -258,6 +259,9 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       gift = act ? 1 + act.sign * ACT_STRENGTH.harvest : 1;
     const m = markets.of(p.cell),
       c = provinceCapacity(ctx, p.cell),
+      // The land gives as its living world stands: less game where the wild is thin,
+      // less grain from worn soil, for the same work.
+      alive = wildsOf(ctx, p.cell),
       key = refHash(p.ref),
       rain = p.rain / 1000,
       tools = 1 + (TOOL_GAIN * m.toolCover) / 1000,
@@ -273,14 +277,18 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
     const harvest: [number, number][] = [
       [
         G.wild,
-        saturate(c.forage, p.occupation(OCC.forager), PRODUCTIVITY[OCC.forager]!) * rain * wilds,
+        saturate(c.forage, p.occupation(OCC.forager), PRODUCTIVITY[OCC.forager]!) *
+          rain *
+          wilds *
+          alive.wild,
       ],
       [
         G.grain,
         p.knowsCultivation
           ? saturate(c.farm, p.occupation(OCC.farmer), PRODUCTIVITY[OCC.farmer]! * tools) *
             rain *
-            fields
+            fields *
+            alive.soil
           : 0,
       ],
       [
@@ -621,7 +629,7 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
   for (const p of ctx.provinces.all()) {
     const pop = p.total();
     if (pop < 20) continue;
-    const c = provinceCapacity(ctx, p.cell),
+    const c = living(provinceCapacity(ctx, p.cell), wildsOf(ctx, p.cell)),
       here = support(c, p.knowsCultivation, p.herding !== null),
       hunger = 1 - p.leanest / 1000,
       crowd = Math.max(0, pop / Math.max(1, here) - 0.85),
@@ -641,7 +649,11 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
     for (let k = g.grid.offsets[p.cell]!; k < g.grid.offsets[p.cell + 1]!; k++) {
       const m = g.grid.neighbours[k]!;
       if (g.tectonics.elevation[m]! <= 0) continue;
-      const there = support(provinceCapacity(ctx, m), p.knowsCultivation, p.herding !== null),
+      const there = support(
+          living(provinceCapacity(ctx, m), wildsOf(ctx, m)),
+          p.knowsCultivation,
+          p.herding !== null,
+        ),
         others = peopled(m)?.total() ?? 0,
         attraction = there / (others + 1) - perHere;
       if (attraction > 0.05 && there > 20 && (!buddingOnly || !peopled(m)))

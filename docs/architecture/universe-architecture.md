@@ -2036,6 +2036,25 @@ into rolling digests. The life table was recalibrated to pre-modern rates (about
 0.3% a year at plenty). A year of the planet costs 0.38 s on average and 0.65 s at
 the 99th percentile on the phone proxy (4× slower).
 
+28, as built: each peopled land keeps three living stocks against what they were
+before anyone took from them (`sim/ecology/ecology.ts`): the wild (game and wild
+food), the forest (against the land's first cover) and the soil. Foragers taking
+more than three-fifths of what the wild yields thin it; fields take the wild's
+ground and clear the forest at once; farming wears the soil unless fields are
+rested in turn or dunged; each heals as the pressure eases. The year's forage is
+scaled by the wild and its grain by the soil, migration weighs lands as they stand,
+and a land stripped of its forest has no wood to build with. Wild thinned, forest
+cleared and soil worn enter history once (again only after recovery), citing the
+knowledge that brought the pressure; a land hunted at over a third of its wild's
+yield loses its great beasts, each loss an event of its own. With time compressed as
+the chronicle compresses it, the life table grows about 0.75% a year at plenty.
+Keeping the planet within budget as it fills: history's compaction walks only what
+joined the chronicle since the last reckoning (what the chronicle reaches is kept
+for ever, so that set only grows); large random counts (births, comings of age,
+movers) are drawn whole as binomials instead of one by one; settlements fold their
+unchanging facts into a digest. A year costs 0.43 s on average and 0.72 s at the
+99th percentile on the phone proxy, with some ten million people by year 300.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

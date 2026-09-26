@@ -35,6 +35,7 @@ import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { knows, loreOf } from "../lore/lore.ts";
 import { politiesOf, type Polity } from "../polity/polity.ts";
+import { wildsOf } from "../ecology/ecology.ts";
 
 export const DESIGN = defineKind("dsgn", "design", "minted");
 
@@ -123,7 +124,12 @@ export function landMaterials(ctx: PopulationContext, cell: number): Set<Materia
     out = new Set<Material>(["earth", "hide"]);
   if (rain < 900 && warm >= 6) out.add("mud");
   if (rain >= 350 && warm < 10) out.add("sod");
-  if (FOREST.has(g.climate.biome[cell]!) || (rain >= 500 && warm >= -2)) out.add("wood");
+  // Wood where trees grow — and still stand: a land whose forest is cleared has little.
+  if (
+    (FOREST.has(g.climate.biome[cell]!) || (rain >= 500 && warm >= -2)) &&
+    wildsOf(ctx, cell).forest > 0.25
+  )
+    out.add("wood");
   if (rain >= 250 || wet) out.add("reed");
   if (g.tectonics.elevation[cell]! > 450) out.add("stone");
   if (wet || rain >= 500) out.add("fired clay");

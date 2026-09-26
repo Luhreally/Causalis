@@ -8,6 +8,7 @@ import {
   actsOf,
   agentName,
   designsOf,
+  wildsOf,
   interestsOf,
   beliefOf,
   USES,
@@ -197,6 +198,21 @@ function province(world: World, cell: number) {
       .sort((a, b) => Number(b.tame) - Number(a.tame) || (a.name < b.name ? -1 : 1))
       .map((s) => ({ name: s.name, ref: s.ref, tame: s.tame, niche: s.niche })),
     herding: p.herding,
+    // Its living world: the wild, the forest and the soil against what they were.
+    ecology: (() => {
+      const w = wildsOf(ctx, cell),
+        g = homePlanet(world).generated;
+      return {
+        wild: w.wild,
+        forest: w.forest,
+        soil: w.soil,
+        firstForest: w.firstForest,
+        thinned: w.thinned,
+        cleared: w.cleared,
+        worn: w.worn,
+        lost: w.lost.map((i) => ({ name: g.life.species[i]!.name, ref: g.life.species[i]!.ref })),
+      };
+    })(),
     // How they build, with the design that explains it (once one has been realized).
     house: (() => {
       const d = designsOf(world).of(p.ref);
