@@ -8,6 +8,8 @@
 // realm goes to war with; Phase 3 adds a third, the works a land's crafts are done in
 // and what drives them.
 
+import type { BodyPlan } from "./bodies.ts";
+
 export const MATERIALS = [
   "wood",
   "reed",
@@ -24,6 +26,10 @@ export const MATERIALS = [
   /** Fuels, at hand where a land digs or draws them, or has them in store. */
   "coal",
   "oil",
+  /** The sea's (Phase 4 M40): coral of warm reefs, shell, kelp of cooler shelves. */
+  "coral",
+  "shell",
+  "kelp",
 ] as const;
 export type Material = (typeof MATERIALS)[number];
 
@@ -47,6 +53,9 @@ export const MATERIAL: Readonly<
   steel: { edge: 1, guard: 0.8, mass: 0, lasting: 0.9, cost: 0.7 },
   coal: { edge: 0, guard: 0, mass: 0, lasting: 0, cost: 0.2 },
   oil: { edge: 0, guard: 0, mass: 0, lasting: 0, cost: 0.3 },
+  coral: { edge: 0.2, guard: 0.3, mass: 0.8, lasting: 0.9, cost: 0.2 },
+  shell: { edge: 0.35, guard: 0.45, mass: 0.5, lasting: 0.7, cost: 0.1 },
+  kelp: { edge: 0, guard: 0.05, mass: 0.2, lasting: 0.2, cost: 0.03 },
 };
 
 export const HOST_AXES = ["shock", "reach", "range", "protection", "mobility", "cost"] as const;
@@ -57,6 +66,9 @@ export const HOUSE_AXES = [
   "lasting",
   "room",
   "mobile",
+  /** Living many together; living up off the ground (Phase 4 M40). */
+  "together",
+  "high",
   "cost",
 ] as const;
 export const WORKS_AXES = ["output", "lasting", "cost"] as const;
@@ -75,6 +87,8 @@ export type Realization = {
   readonly role: Role;
   /** Principles all of which must be known. */
   readonly needs: readonly string[];
+  /** The bodies it is for (diggers burrow, the feathered nest; absent: any). */
+  readonly fits?: (b: BodyPlan) => boolean;
   /** What it may be made of (the doctrine's best of those at hand is used). */
   readonly materials: readonly Material[];
   /** Its words, made of a material: "bronze swords". */
@@ -90,7 +104,18 @@ const R = (
   materials: Material[],
   words: (m: Material) => string,
   does: (m: Material) => Performance,
-): Realization => ({ id, role, needs, materials, words, does });
+  fits?: (b: BodyPlan) => boolean,
+): Realization => ({ id, role, needs, materials, words, does, ...(fits ? { fits } : {}) });
+
+/** Bodies that dig; that live as a hive; the feathered; four-handed climbers; giants; the sea's. */
+const digs = (b: BodyPlan) =>
+    b.medium !== "water" && (b.manipulators === "claws" || b.manipulators === "mandibles"),
+  hive = (b: BodyPlan) => b.social >= 0.9 && b.size < 100 && b.medium !== "water",
+  feathered = (b: BodyPlan) => b.skin === "feathers",
+  climbs = (b: BodyPlan) => b.manipulators === "hands" && b.limbs >= 4 && b.medium === "land",
+  giant = (b: BodyPlan) => b.size >= 300,
+  sea = (b: BodyPlan) => b.medium === "water",
+  seaOrShore = (b: BodyPlan) => b.medium !== "land";
 
 export const REALIZATIONS: readonly Realization[] = [
   // The host: what it strikes with, what guards it, what carries it.
@@ -285,6 +310,33 @@ export const REALIZATIONS: readonly Realization[] = [
     () => ({ warmth: 0.7, cool: 0.8, lasting: 0.95, room: 0.7, cost: 0.5 }),
   ),
   R(
+    "reef-walls",
+    "walls",
+    ["reef-building"],
+    ["coral"],
+    () => "reefs grown into walls",
+    () => ({ warmth: 0.3, cool: 0.5, lasting: 0.95, room: 0.7, cost: 0.15 }),
+    sea,
+  ),
+  R(
+    "shell-walls",
+    "walls",
+    [],
+    ["shell"],
+    () => "walls of stacked shell",
+    () => ({ warmth: 0.4, cool: 0.5, lasting: 0.6, room: 0.5, cost: 0.08 }),
+    seaOrShore,
+  ),
+  R(
+    "burrow",
+    "walls",
+    [],
+    ["earth"],
+    () => "burrows dug in the earth",
+    () => ({ warmth: 0.7, cool: 0.8, lasting: 0.6, room: 0.4, cost: 0.03 }),
+    digs,
+  ),
+  R(
     "thatch",
     "roof",
     [],
@@ -326,6 +378,33 @@ export const REALIZATIONS: readonly Realization[] = [
     () => ({ lasting: 0.95, cool: 0.6, shedding: 0.5, room: 0.3, cost: 0.45 }),
   ),
   R(
+    "kelp-canopy",
+    "roof",
+    [],
+    ["kelp"],
+    () => "canopies of woven kelp",
+    () => ({ warmth: 0.15, lasting: 0.2, cost: 0.03 }),
+    sea,
+  ),
+  R(
+    "open",
+    "roof",
+    [],
+    ["coral", "shell", "earth"],
+    () => "open to the water above",
+    () => ({ room: 0.1, cost: 0 }),
+    sea,
+  ),
+  R(
+    "mound",
+    "roof",
+    [],
+    ["earth"],
+    () => "mounds of earth over them",
+    () => ({ shedding: 0.7, warmth: 0.6, lasting: 0.6, cost: 0.03 }),
+    digs,
+  ),
+  R(
     "round",
     "form",
     [],
@@ -349,12 +428,66 @@ export const REALIZATIONS: readonly Realization[] = [
     () => "built around courtyards",
     () => ({ room: 0.6, cool: 0.5, cost: 0.3 }),
   ),
+  R(
+    "warren",
+    "form",
+    [],
+    ["coral", "shell", "earth"],
+    () => "warrens of many chambers",
+    () => ({ room: 0.5, together: 0.9, warmth: 0.2, cost: 0.05 }),
+    (b) => sea(b) || digs(b),
+  ),
+  R(
+    "shell-tower",
+    "form",
+    ["reef-building"],
+    ["coral", "shell"],
+    () => "towers rising toward the light",
+    () => ({ room: 0.7, high: 0.8, together: 0.5, cost: 0.3 }),
+    sea,
+  ),
+  R(
+    "hive",
+    "form",
+    ["cultivation"],
+    ["earth", "mud"],
+    () => "great hives of a thousand cells",
+    () => ({ room: 0.6, together: 1, warmth: 0.4, cost: 0.15 }),
+    hive,
+  ),
+  R(
+    "nest",
+    "form",
+    [],
+    ["reed", "wood"],
+    () => "raised nests",
+    () => ({ room: 0.35, high: 0.6, warmth: 0.3, cost: 0.05 }),
+    feathered,
+  ),
+  R(
+    "tree-house",
+    "form",
+    [],
+    ["wood"],
+    () => "on platforms in the trees",
+    () => ({ room: 0.4, high: 1, cool: 0.3, cost: 0.06 }),
+    climbs,
+  ),
+  R(
+    "great-hall",
+    "form",
+    ["cultivation"],
+    ["wood", "stone", "mud", "fired clay"],
+    () => "great halls with high doors",
+    () => ({ room: 1, together: 0.5, cost: 0.35 }),
+    giant,
+  ),
   // The works: the hall the crafts are done in, and what drives them.
   R(
     "workshop",
     "hall",
     [],
-    ["wood", "mud", "fired clay", "stone"],
+    ["wood", "mud", "fired clay", "stone", "coral", "shell"],
     (m) => `workshops of ${m === "fired clay" ? "brick" : m}`,
     (m) => ({
       output: 0.1,
@@ -475,12 +608,15 @@ export function compose(
   knows: (principle: string) => boolean,
   has: (m: Material) => boolean,
   doctrine: Doctrine,
+  body?: BodyPlan,
 ): Part[] {
   const parts: Part[] = [];
   for (const role of roles) {
     let best: { part: Part; value: number } | null = null;
     for (const r of REALIZATIONS) {
       if (r.role !== role || !r.needs.every(knows)) continue;
+      // A realization for particular bodies is for those alone.
+      if (r.fits && !(body && r.fits(body))) continue;
       for (const m of r.materials) {
         if (!has(m)) continue;
         const value = worth(r.does(m), doctrine);
@@ -532,8 +668,9 @@ export function designWords(parts: readonly Part[]): string {
   }
   if (parts.some((p) => p.role === "hall")) return `${say("hall")}, ${say("drive")}`;
   if (parts.some((p) => p.id === "tent")) return "tents of hide";
-  const form = say("form");
-  return `houses of ${say("walls")} with ${say("roof")}${form === "round" ? ", round" : form === "long" ? ", long" : form ? `, ${form}` : ""}`;
+  const form = say("form"),
+    roof = parts.find((x) => x.role === "roof");
+  return `houses of ${say("walls")}${roof?.id === "open" ? ", open to the water above" : roof ? ` with ${say("roof")}` : ""}${form === "round" ? ", round" : form === "long" ? ", long" : form ? `, ${form}` : ""}`;
 }
 
 /** How steep a roof is, in degrees, by its kind and the rain it sheds. */

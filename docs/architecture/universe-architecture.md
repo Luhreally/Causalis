@@ -2257,6 +2257,20 @@ never to bronze, the wheel or the sail; taught the sea's road, they make machine
 no fuel burned, and the why of their first machines cites their works. Earth's apes are
 untouched.
 
+40, as built: the design grammar gains the sea's materials (coral of warm reefs, shell,
+kelp of cooler shelves), two house axes (living together; living up off the ground) and
+realizations for particular bodies (`fits`): reefs grown into walls, stacked shell,
+kelp canopies, houses open to the water above, warrens and shell towers for a people of
+the water; burrows under mounds of earth for diggers; hives for small bodies that live
+as one; raised nests for the feathered; platforms in the trees for four-handed climbers;
+great halls with high doors for giants. A place gives its people what its medium gives
+(`landMaterials`: the shelf's for a sea people, the land's and the tide's for a shore
+people), and the house doctrine reads the body — cold blood seeks warmth, a warm coat
+shade, a big body room, a social one company, a climber height; under the water no rain
+is shed nor sun shaded. On their worlds the sea people live in shell warrens under kelp,
+crawlers and shore-walkers in burrows, burrowers in hives, giants in great halls; the
+apes' houses are unchanged.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

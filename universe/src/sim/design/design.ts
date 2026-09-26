@@ -10,6 +10,7 @@ import {
   YEAR,
   defineEventType,
   defineKind,
+  dmath,
   yearOfMoment,
   type CauseRef,
   Hasher,
@@ -123,8 +124,25 @@ const FOREST: ReadonlySet<number> = new Set([
   BIOME.tropicalRainforest,
 ]);
 
-/** What a land gives to build with. */
+/** What a place gives its people to build with: the land's, or the shelf's for a people of the water. */
 export function landMaterials(ctx: PopulationContext, cell: number): Set<Material> {
+  if (ctx.medium === "water") return seaMaterials(ctx, cell);
+  const out = landGives(ctx, cell);
+  // A people of the shore have the tide's gifts besides.
+  if (ctx.medium === "shore") for (const m of seaMaterials(ctx, cell)) out.add(m);
+  return out;
+}
+
+/** The shelf's: shell and the rock of the sea floor everywhere, its mud; coral where the sea is warm, kelp where it is cooler. */
+function seaMaterials(ctx: PopulationContext, cell: number): Set<Material> {
+  const warm = ctx.generated.climate.temperature[cell]!,
+    out = new Set<Material>(["shell", "stone", "earth"]);
+  if (warm >= 18) out.add("coral");
+  if (warm < 22) out.add("kelp");
+  return out;
+}
+
+function landGives(ctx: PopulationContext, cell: number): Set<Material> {
   const g = ctx.generated,
     rain = g.climate.precipitation[cell]!,
     warm = g.climate.temperature[cell]!,
@@ -164,13 +182,28 @@ export function houseFor(ctx: PopulationContext, cell: number): Part[] {
     town = ctx.settlements.inProvince(cell).some((s) => s.market),
     wealth = Math.min(0.4, trade * 4 + (town ? 0.15 : 0)),
     at = landMaterials(ctx, cell);
+  // What their body asks of a house: cold blood seeks warmth, a warm coat shade; a big
+  // body room; a people who live as one, together; climbers and the feathered, height.
+  // Under the water no rain is shed and no sun is shaded.
+  const body = ctx.generated.life.people?.body,
+    blood = body && !body.warm ? 1.4 : body?.skin === "fur" || body?.skin === "feathers" ? 0.6 : 1,
+    coat = body?.skin === "fur" ? 1.3 : body?.skin === "scales" || body?.skin === "shell" ? 0.6 : 1,
+    wet = ctx.medium === "water" ? 0 : 1,
+    size = body ? dmath.cbrt(body.size / 60) : 1;
   const doctrine: Doctrine = {
-    warmth: Math.max(0, (14 - warm) / 10),
-    cool: Math.max(0, (warm - 12) / 8) * (rain < 900 ? 1 : 0.4),
-    shedding: rain / 1000,
+    warmth: Math.max(0, (14 - warm) / 10) * blood,
+    cool: Math.max(0, (warm - 12) / 8) * (rain < 900 ? 1 : 0.4) * coat * wet,
+    shedding: (rain / 1000) * wet,
     lasting: 0.3 + wealth,
-    room: 0.3 + 0.2 * (1 - roaming),
+    room: (0.3 + 0.2 * (1 - roaming)) * size,
     mobile: roaming > 0.5 ? 1.2 * roaming : 0,
+    together: body?.social ?? 0.8,
+    high:
+      body?.manipulators === "hands" && (body?.limbs ?? 2) >= 4
+        ? 1
+        : body?.skin === "feathers"
+          ? 0.5
+          : 0,
     cost: 0.7 - wealth,
   };
   return compose(
@@ -178,6 +211,7 @@ export function houseFor(ctx: PopulationContext, cell: number): Part[] {
     (id) => knows(ctx, cell, id),
     (m) => at.has(m),
     doctrine,
+    body,
   );
 }
 
@@ -243,7 +277,13 @@ export function hostFor(
     cost: 0.6 - 0.5 * wealth,
   };
   return {
-    parts: compose(HOST_ROLES, seatKnows, (m) => at.has(m), doctrine),
+    parts: compose(
+      HOST_ROLES,
+      seatKnows,
+      (m) => at.has(m),
+      doctrine,
+      ctx.generated.life.people?.body,
+    ),
     ores,
   };
 }
@@ -279,6 +319,7 @@ export function worksFor(ctx: PopulationContext, cell: number): Part[] | null {
     (id) => knows(ctx, cell, id),
     (x) => at.has(x),
     doctrine,
+    ctx.generated.life.people?.body,
   );
 }
 
