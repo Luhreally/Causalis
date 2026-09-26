@@ -24,7 +24,7 @@ import {
   VillagePanel,
   type PeopleEntry,
 } from "../ui/index.ts";
-import type { SystemPlan, VillagePlan } from "../bridge/index.ts";
+import type { SkyState, SystemPlan, VillagePlan } from "../bridge/index.ts";
 import {
   cellAt,
   cellCenter,
@@ -32,6 +32,7 @@ import {
   regionColors,
   regionHeights,
   sandboxSpec,
+  skyMarks,
   systemExtent,
   systemSpec,
   type Lens,
@@ -203,7 +204,7 @@ async function runPlanetPage(): Promise<void> {
     globe = new GlobeScene(stage),
     region = new RegionScene(stage),
     village = new VillageScene(stage),
-    sky = new SystemScene(stage);
+    skyScene = new SystemScene(stage);
   const { client, mode } = await connect();
   let painted = 0,
     scale: "globe" | "region" | "village" | "system" = "globe",
@@ -337,7 +338,7 @@ async function runPlanetPage(): Promise<void> {
         : scale === "region"
           ? selectTile(region.pick(x, y))
           : scale === "system"
-            ? selectBody(sky.pick(x, y))
+            ? selectBody(skyScene.pick(x, y))
             : selectPerson(village.pick(x, y)),
   });
 
@@ -382,7 +383,7 @@ async function runPlanetPage(): Promise<void> {
     villages = [];
     labels.clear();
     region.visible = false;
-    sky.visible = false;
+    skyScene.visible = false;
     systemPanel.visible = false;
     globe.visible = true;
     regionPanel.visible = false;
@@ -401,9 +402,11 @@ async function runPlanetPage(): Promise<void> {
   };
   planetPanel.onCloser = (cell) => toRegion(cell);
   // Out to the star's system, and back to the world: the worlds go round a month a second.
-  const systemPanel = new SystemPanel(hud);
+  const systemPanel = new SystemPanel(hud, client);
+  let sky: SkyState = { programs: [], colonies: [] },
+    stopSky: (() => void) | null = null;
   const selectBody = (i: number | null) => {
-    sky.mark(i);
+    skyScene.mark(i);
     systemPanel.select(i);
   };
   const toSystem = async () => {
@@ -413,11 +416,16 @@ async function runPlanetPage(): Promise<void> {
     planetPanel.visible = false;
     if (!systemPlan) {
       systemPlan = await client.query<SystemPlan>({ type: "planet.system" });
-      sky.build(systemPlan);
+      skyScene.build(systemPlan);
     }
     systemPanel.show(systemPlan);
-    sky.mark(null);
-    sky.visible = true;
+    skyScene.mark(null);
+    skyScene.visible = true;
+    stopSky?.();
+    stopSky = client.subscribe<SkyState>({ type: "space.state" }, 1000, (s) => {
+      sky = s;
+      systemPanel.update(s);
+    });
     systemPanel.visible = true;
     client.setSpeed(SKY_SPEED);
     rig.configure({
@@ -433,15 +441,21 @@ async function runPlanetPage(): Promise<void> {
     });
   };
   planetPanel.onSky = () => void toSystem();
-  systemPanel.onSelect = (i) => sky.mark(i);
+  systemPanel.onSelect = (i) => skyScene.mark(i);
   systemPanel.onBack = () => {
+    stopSky?.();
+    stopSky = null;
     client.setSpeed(planetPanel.speed);
     toGlobe();
   };
   exposed.sky = () => void toSystem();
   exposed.skyBodies = () => (scale === "system" && systemPlan ? systemPlan.bodies.length : 0);
   stage.onUpdate(() => {
-    if (scale === "system" && systemPlan) sky.update(systemSpec(systemPlan, now()));
+    if (scale !== "system" || !systemPlan) return;
+    const t = now(),
+      spots = systemSpec(systemPlan, t);
+    skyScene.update(spots);
+    skyScene.marks(skyMarks(sky, spots, t));
   });
   planetPanel.onClose = () => globe.mark(null);
   // Down into a village to watch its day, and back up to its land. Watching is

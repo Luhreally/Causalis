@@ -47,7 +47,10 @@ test("following a land tells what matters there, once, and changes nothing", () 
     for (const t of tidings(watched)) {
       const e = watched.events.get(t.ref)!;
       assert.equal(e.place, LAND, "news of the land followed");
-      assert.ok(e.importance >= 4 || e.type === "belief.converted", `${e.type} matters`);
+      assert.ok(
+        e.importance >= 4 || e.type === "belief.converted" || e.type === "polity.succession",
+        `${e.type} matters`,
+      );
       assert.ok(e.t > 100 * YEAR, "only news from after it was followed");
       told.push(t);
     }

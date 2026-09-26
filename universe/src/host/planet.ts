@@ -34,6 +34,7 @@ import {
   regionOf,
   prepareSites,
   sitesReady,
+  spaceOf,
 } from "../sim/index.ts";
 import { FOODS, G, GOODS, OCCUPATIONS, designWords } from "../rules/index.ts";
 import {
@@ -55,6 +56,7 @@ import {
 } from "../gen/index.ts";
 import { EARTHLIKE, OPEN, type Prior } from "../rules/index.ts";
 import {
+  YEAR,
   finish,
   hashString,
   mix,
@@ -76,7 +78,7 @@ import {
   waysWords,
   why,
 } from "../causal/index.ts";
-import type { SystemPlan } from "../bridge/index.ts";
+import type { SkyState, SystemPlan } from "../bridge/index.ts";
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 import { villagePlan } from "./village.ts";
@@ -585,6 +587,53 @@ function planetUniverse(name: string, prior: Prior): Universe {
     },
     queries: {
       "planet.summary": (world) => summary(homePlanet(world).generated.fine),
+      /** Who has reached the sky, and the colonies on the system's bodies. */
+      "space.state": (world): SkyState => {
+        const g = homePlanet(world).generated,
+          ctx = populationContext(world),
+          realms = politiesOf(world),
+          space = spaceOf(world),
+          year = (e: Ref | null) => (e ? Math.floor((world.events.get(e)?.t ?? 0) / YEAR) : null),
+          founders = new Map<number, { realm: Ref; event: Ref; year: number }>();
+        for (const p of space.all())
+          for (const c of p.colonies)
+            founders.set(c.cell, { realm: p.realm, event: c.event, year: c.year });
+        const named = (ref: Ref | null) => {
+          const r = ref ? realms.get(ref) : undefined;
+          return r ? r.town : null;
+        };
+        return {
+          programs: space
+            .all()
+            .filter((p) => p.satellite)
+            .map((p) => ({
+              realm: p.realm,
+              name: named(p.realm) ?? "a fallen realm",
+              satellite: year(p.satellite),
+              crew: year(p.crew),
+              station: year(p.station),
+              colonies: p.colonies.length,
+            })),
+          colonies: ctx.provinces
+            .all()
+            .filter((p) => offworldSite(g, p.cell) && p.total() > 0)
+            .map((p) => {
+              const site = offworldSite(g, p.cell)!,
+                f = founders.get(p.cell);
+              return {
+                cell: p.cell,
+                body: site.body,
+                site: site.site,
+                people: p.total(),
+                fed: p.fed,
+                realm: named(realms.of(p.cell)?.ref ?? null),
+                founder: named(f?.realm ?? null),
+                founded: f?.year ?? p.settledYear,
+                event: f?.event ?? p.arrival,
+              };
+            }),
+        };
+      },
       /** The home star's system: the star, and every planet and moon with its orbit and ground. */
       "planet.system": (world): SystemPlan => {
         const g = homePlanet(world).generated,

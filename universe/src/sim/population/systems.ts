@@ -74,6 +74,7 @@ import {
   PopulationStore,
   SETTLEMENT,
   SettlementStore,
+  livingMemory,
   type Settlement,
 } from "./stores.ts";
 
@@ -1489,7 +1490,7 @@ export function ledgerYear(ctx: PopulationContext, t: SimTime): void {
     });
     p.leanest = 1000;
   }
-  ctx.history.seal(year);
+  ctx.history.seal(year, livingMemory(ctx.life));
 }
 
 /** Register the population's systems on a world, in their order. */

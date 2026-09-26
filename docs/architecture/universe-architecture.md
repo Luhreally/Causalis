@@ -2471,6 +2471,26 @@ from home the colony hears the seat's ways faintly (1 / steps). The ordinary rul
 the rest: on the Earth seed the first colony comes in year 1229 on the great moon, and
 by 1400 a dozen colonies on the moons and the red world, the far ones broken away by
 grievance or at a ruler's death, the great moon's lasting longest.
+
+54, as built: the observatory follows the sky. `space.state` (host) gives each realm's
+firsts and every colony — its body and site, people, hunger, who rules it and who founded
+it, and its founding event. The system view rings each settled body, and draws the
+satellites and stations of the realms about the home world; the star's page lists who is
+in the sky and when they got there, a body's page its halls (and its moons'), and a
+colony's page its people, how they fare, who rules them, and the why of its founding.
+On the Earth seed at year 1260 the page shows a dozen realms in the sky, satellites from
+1045, crews and stations, and the first colonies.
+
+The Phase 4 gate, run on all hundred worlds for nine centuries, found the budgets short
+where the diversity held: its timings were taken on a loaded machine (alien 55's slowest
+year, alone, is 316 ms against its bound of 627), but some saves were over. A people of
+short lives kept every ruler's succession for ever (each cited the one before: 61,620 on
+alien 55 against Earth's 2,351) and a hundred and twenty years of births, deaths and moves
+though none of its living were born so long ago. Now a succession stands on its realm and
+is kept while a ruler, a split or a grievance cites it (a change of ruler at a followed
+land's seat is still its news), and living memory runs as long as the people's oldest
+can live (`livingMemory`: the apes' 120 years exactly): alien 55's save from 19.2 MB to
+13.2, Earth's history kept a little lighter, its dynamics unchanged.
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

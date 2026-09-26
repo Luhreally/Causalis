@@ -39,7 +39,9 @@ export const POLITY_EVENTS = {
   formed: defineEventType("polity.formed", 6),
   joined: defineEventType("polity.joined", 3),
   seceded: defineEventType("polity.seceded", 5),
-  succession: defineEventType("polity.succession", 4),
+  // An ordinary succession is the realm's own story, kept while a ruler, a split or a
+  // grievance cites it; the chronicle keeps the crises.
+  succession: defineEventType("polity.succession", 3),
   split: defineEventType("polity.split", 6),
   reformed: defineEventType("polity.reformed", 5),
   ended: defineEventType("polity.ended", 5),
@@ -646,7 +648,10 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       type: POLITY_EVENTS.succession.type,
       subjects: [p.ref],
       place: ctx.provinces.get(p.seat)!.ref,
-      causes: [{ ref: old.event, role: "enabler", weight: 1 }],
+      // Rule passes within the realm (its founding is why there is a throne to pass): each
+      // succession stands on the realm, not on the one before, so a long line of ordinary
+      // reigns is not kept whole for ever.
+      causes: [{ ref: p.event, role: "enabler", weight: 1 }],
       data: { name: realmName(p), old: old.name, age },
     });
     p.ruler = crown(

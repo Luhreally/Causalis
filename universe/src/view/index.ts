@@ -59,7 +59,9 @@ export {
   bodySize,
   orbitRings,
   routeWords,
+  skyMarks,
   systemExtent,
   systemSpec,
+  type SkyMarks,
   type SystemSpot,
 } from "./system.ts";

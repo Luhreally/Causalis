@@ -20,6 +20,7 @@ import {
   type Polity,
 } from "../../src/sim/index.ts";
 import { landWords, why } from "../../src/causal/index.ts";
+import type { SkyState } from "../../src/bridge/index.ts";
 
 const ROAD = [
   "mathematics",
@@ -83,6 +84,12 @@ test("a realm with a station and the knowledge of habitats sets its settlers dow
   );
   assert.match(why(world, body.ref).claim, new RegExp(body.designation));
   assert.match(landWords(world, land.ref), /the halls on/);
+  // The observatory reads it with the sky: whose it is, how many, since when, and why.
+  const state = EARTH.queries["space.state"]!(world, {}) as SkyState,
+    seen = state.colonies.find((x) => x.cell === c.cell)!;
+  assert.ok(seen && seen.people === land.total() && seen.event === c.event);
+  assert.equal(seen.realm, realm.town);
+  assert.ok(state.programs.some((p) => p.realm === realm.ref && p.colonies === 1));
   // It lives: fed, and still there decades on.
   world.runTo((y + 40) * YEAR);
   assert.ok(land.total() > 0.8 * COLONISTS, `${land.total()} forty years on`);

@@ -2,7 +2,7 @@
 // the macro history — the birth, death and migration ledgers every later
 // resolution of a person is conditioned on (docs/architecture §14–15).
 import { Hasher, defineKind, type Ref, type StateStore } from "../../kernel/index.ts";
-import { BANDS, OCCUPATIONS } from "../../rules/index.ts";
+import { BANDS, HUMANLIKE, OCCUPATIONS, type LifeHistory } from "../../rules/index.ts";
 import { Province } from "./model.ts";
 
 export const SETTLEMENT = defineKind("town", "settlement", "minted");
@@ -177,6 +177,16 @@ export type YearSummary = {
  * A year's summary is kept every year for a century, then one year in ten.
  */
 export const LIVING_MEMORY = 120;
+
+/**
+ * How long a people's living memory runs: the upright apes' LIVING_MEMORY, as long for a
+ * people as their oldest can live against the apes' oldest (a people of thirty years
+ * remembers no births a century gone: none of its living was born then).
+ */
+export function livingMemory(life: LifeHistory): number {
+  const oldest = (l: LifeHistory) => l.bands.at(-1)! + l.oldest;
+  return Math.max(20, Math.round((LIVING_MEMORY * oldest(life)) / oldest(HUMANLIKE)));
+}
 const SUMMARY_YEARS = 100;
 
 export class HistoryStore implements StateStore {
@@ -267,7 +277,7 @@ export class HistoryStore implements StateStore {
    * folded into the digest, never to change again, so a checkpoint hashes only the
    * year still open, however long history grows.
    */
-  seal(year: number): void {
+  seal(year: number, memory = LIVING_MEMORY): void {
     const cells = [
       ...new Set([...this.births.keys(), ...this.deaths.keys(), ...this.years.keys()]),
     ].sort((a, b) => a - b);
@@ -287,7 +297,7 @@ export class HistoryStore implements StateStore {
     this.sealedYear = year;
     // Past living memory, a decade at a time: let the oldest births, deaths and moves go,
     // and thin the summaries of the years beyond a century to one in ten.
-    if (year - this.firstYear >= LIVING_MEMORY + 10) {
+    if (year - this.firstYear >= memory + 10) {
       const drop = 10;
       for (const a of this.births.values()) a.splice(0, drop);
       for (const a of this.deaths.values()) a.splice(0, drop * BANDS);

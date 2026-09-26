@@ -4,7 +4,7 @@
 // moons are set just beyond their planet, in the direction they truly lie; sizes by the
 // fifth root of the radius. Units are scene units on the plane y = 0.
 import { orbitXY, routeTo, toOrbit } from "../rules/index.ts";
-import type { SystemPlan, SystemPlanBody } from "../bridge/index.ts";
+import type { SkyState, SystemPlan, SystemPlanBody } from "../bridge/index.ts";
 
 export type Rgb = readonly [number, number, number];
 
@@ -121,4 +121,32 @@ export function routeWords(plan: SystemPlan, index: number, starMass: number): s
   const r = routeTo(plan.bodies, index, starMass),
     days = r.days >= 730 ? `${(r.days / 365.25).toFixed(1)} years` : `${Math.round(r.days)} days`;
   return `from the home world's orbit to its ground: ${r.speed.toFixed(1)} km/s (${r.depart.toFixed(1)} to leave, ${r.arrive.toFixed(1)} to arrive, ${r.land.toFixed(1)} to land), ${days} on the way${r.window ? `; the way opens every ${Math.round(r.window)} days` : ""}`;
+}
+
+export type SkyMarks = {
+  /** A ring about each body with halls on it. */
+  readonly rings: readonly { readonly x: number; readonly z: number; readonly r: number }[];
+  /** Satellites about the home world (one for each realm that has sent one up), and stations. */
+  readonly satellites: readonly { readonly x: number; readonly z: number }[];
+  readonly stations: readonly { readonly x: number; readonly z: number }[];
+};
+
+/** Where the marks of flight and settlement are drawn at sim time t. */
+export function skyMarks(sky: SkyState, spots: readonly SystemSpot[], t: number): SkyMarks {
+  const bodies = [...new Set(sky.colonies.map((c) => c.body))].sort((a, b) => a - b),
+    home = spots[0]!,
+    around = (i: number, n: number, r: number, period: number) => {
+      const a = (2 * Math.PI * i) / Math.max(1, n) + (2 * Math.PI * t) / (86_400 * period);
+      return { x: home.x + r * Math.cos(a), z: home.z + r * Math.sin(a) };
+    },
+    satellites = sky.programs.filter((p) => p.satellite !== null),
+    stations = sky.programs.filter((p) => p.station !== null);
+  return {
+    rings: bodies.map((b) => {
+      const s = spots[b]!;
+      return { x: s.x, z: s.z, r: s.size * 1.6 + 0.08 };
+    }),
+    satellites: satellites.map((_, i) => around(i, satellites.length, home.size + 0.1, 0.07)),
+    stations: stations.map((_, i) => around(i, stations.length, home.size + 0.16, 0.12)),
+  };
 }

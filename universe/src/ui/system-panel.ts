@@ -1,9 +1,10 @@
-// The observatory over the home star's system (Phase 5 M46): the star's page — its
-// light and age, and its worlds and their moons listed — and a page for each body, its
-// orbit and its ground, and why it is so.
-import type { SystemPlan } from "../bridge/index.ts";
+// The observatory over the home star's system (Phase 5 M46, M54): the star's page — its
+// light and age, who has reached the sky, and its worlds and their moons listed — a page
+// for each body, its orbit and its ground, why it is so and the halls set down on it, and
+// a page for each colony, with the why of its founding.
+import type { HostClient, SkyState, SystemPlan } from "../bridge/index.ts";
 import { bodyFacts, routeWords } from "../view/index.ts";
-import { el } from "./why.ts";
+import { WhyTree, el } from "./why.ts";
 
 const KIND_WORDS: Readonly<Record<string, string>> = {
   home: "the home world",
@@ -13,6 +14,8 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
   moon: "a moon",
 };
 
+type Colony = SkyState["colonies"][number];
+
 export class SystemPanel {
   readonly element = el("div", "panel");
   private readonly where = el("span", "clock");
@@ -20,11 +23,19 @@ export class SystemPanel {
   private readonly title = el("h2");
   private readonly facts = el("div", "facts");
   private readonly more = el("div");
+  private readonly why: WhyTree;
   private plan: SystemPlan | null = null;
+  private sky: SkyState = { programs: [], colonies: [] };
+  /** What the page shows: the star (null), a body, or a colony's land. */
+  private page:
+    { kind: "star" } | { kind: "body"; index: number } | { kind: "colony"; cell: number } = {
+    kind: "star",
+  };
   onBack: () => void = () => {};
   onSelect: (index: number | null) => void = () => {};
 
-  constructor(root: HTMLElement) {
+  constructor(root: HTMLElement, client: HostClient) {
+    this.why = new WhyTree(client);
     const bar = el("header", "bar"),
       back = el("button", "speed", "‹ The world");
     back.onclick = () => this.onBack();
@@ -56,12 +67,22 @@ export class SystemPanel {
     this.select(null);
   }
 
+  /** The sky as it stands: who flies, and the colonies (the open page is redrawn, unless it is a colony's why). */
+  update(sky: SkyState): void {
+    const changed = JSON.stringify(sky) !== JSON.stringify(this.sky);
+    this.sky = sky;
+    if (!changed || this.inspector.hidden) return;
+    if (this.page.kind === "star") this.select(null);
+    else if (this.page.kind === "body") this.select(this.page.index);
+  }
+
   /** Open a body's page, or (null) the star's. */
   select(index: number | null): void {
     const plan = this.plan;
     if (!plan) return;
     this.inspector.hidden = false;
     if (index === null) {
+      this.page = { kind: "star" };
       const s = plan.star;
       this.title.textContent = `A ${s.spectral} star`;
       this.facts.replaceChildren(
@@ -77,7 +98,20 @@ export class SystemPanel {
           `its frost line ${plan.frostLine.toFixed(1)} AU out: rock inside it, ice and gas beyond`,
         ),
       );
+      const flying = this.sky.programs;
       this.more.replaceChildren(
+        ...(flying.length
+          ? [
+              el("h3", undefined, "In the sky"),
+              ...flying.map((p) =>
+                el(
+                  "div",
+                  "fact",
+                  `${p.name}: a satellite in ${p.satellite}${p.crew !== null ? `, a crew in ${p.crew}` : ""}${p.station !== null ? `, a station in ${p.station}` : ""}${p.colonies ? `, ${p.colonies} colon${p.colonies > 1 ? "ies" : "y"}` : ""}`,
+                ),
+              ),
+            ]
+          : []),
         el("h3", undefined, "Its worlds, outward"),
         ...plan.bodies
           .map((b, i) => ({ b, i }))
@@ -85,10 +119,13 @@ export class SystemPanel {
           .sort((x, y) => x.b.a - y.b.a)
           .map(({ b, i }) => {
             const moons = plan.bodies.filter((m) => m.around === i).length,
+              settled = this.sky.colonies.filter(
+                (c) => c.body === i || plan.bodies[c.body]!.around === i,
+              ).length,
               line = el(
                 "button",
                 "line",
-                `${b.designation} — ${KIND_WORDS[b.kind]}${moons ? `, ${moons} moon${moons > 1 ? "s" : ""}` : ""}`,
+                `${b.designation} — ${KIND_WORDS[b.kind]}${moons ? `, ${moons} moon${moons > 1 ? "s" : ""}` : ""}${settled ? ` · ${settled} settled` : ""}`,
               );
             line.onclick = () => {
               this.select(i);
@@ -99,6 +136,7 @@ export class SystemPanel {
       );
       return;
     }
+    this.page = { kind: "body", index };
     const b = plan.bodies[index]!,
       star = el("button", "back", "‹ The star");
     star.onclick = () => {
@@ -112,15 +150,37 @@ export class SystemPanel {
       ...bodyFacts(b, plan.star).map((f) => el("div", "fact", f)),
       ...(way ? [el("div", "fact", way)] : []),
     );
-    const moons = plan.bodies.map((m, i) => ({ m, i })).filter(({ m }) => m.around === index);
+    const moons = plan.bodies.map((m, i) => ({ m, i })).filter(({ m }) => m.around === index),
+      // Its own halls, and those on its moons.
+      halls = this.sky.colonies.filter(
+        (c) => c.body === index || plan.bodies[c.body]!.around === index,
+      );
     this.more.replaceChildren(
+      ...(halls.length
+        ? [
+            el("h3", undefined, "Its halls"),
+            ...halls.map((c) => {
+              const line = el(
+                "button",
+                "line",
+                `${c.body === index ? "" : `on ${plan.bodies[c.body]!.designation}: `}${c.people.toLocaleString("en")} people, since ${c.founded}${c.realm ? ` — of ${c.realm}` : " — their own"}`,
+              );
+              line.onclick = () => this.showColony(c);
+              return line;
+            }),
+          ]
+        : []),
       el("h3", undefined, "Why is it like this?"),
       ...b.because.map((w) => el("div", "fact", w)),
       ...(moons.length
         ? [
             el("h3", undefined, "Its moons"),
             ...moons.map(({ m, i }) => {
-              const line = el("button", "line", `${m.designation} — ${bodyFacts(m, plan.star)[2]}`);
+              const line = el(
+                "button",
+                "line",
+                `${m.designation} — ${bodyFacts(m, plan.star)[2]}${this.sky.colonies.some((c) => c.body === i) ? " · settled" : ""}`,
+              );
               line.onclick = () => {
                 this.select(i);
                 this.onSelect(i);
@@ -130,5 +190,38 @@ export class SystemPanel {
           ]
         : []),
     );
+  }
+
+  /** A colony's page: its people, how they fare, who rules them, and why they are there. */
+  private showColony(c: Colony): void {
+    const plan = this.plan;
+    if (!plan) return;
+    this.page = { kind: "colony", cell: c.cell };
+    const body = plan.bodies[c.body]!,
+      back = el("button", "back", `‹ ${body.designation}`);
+    back.onclick = () => {
+      this.select(c.body);
+      this.onSelect(c.body);
+    };
+    this.title.textContent = `The halls on ${body.designation}`;
+    this.facts.replaceChildren(
+      back,
+      el("div", "fact", `${c.people.toLocaleString("en")} people`),
+      el(
+        "div",
+        "fact",
+        c.fed >= 1000 ? "fed" : `hungry: ${Math.round(c.fed / 10)} in a hundred of what they need`,
+      ),
+      el(
+        "div",
+        "fact",
+        c.realm
+          ? `ruled by ${c.realm}${c.founder && c.founder !== c.realm ? `; founded by ${c.founder}` : ""}`
+          : `their own${c.founder ? `; founded by ${c.founder} in ${c.founded}` : ""}`,
+      ),
+    );
+    const whyBox = el("div", "why");
+    this.more.replaceChildren(el("h3", undefined, "Why are they there?"), whyBox);
+    if (c.event) void this.why.show(c.event, whyBox);
   }
 }

@@ -3,7 +3,7 @@
 // plan; each frame only moves the bodies to where the view says they are.
 import * as pc from "playcanvas";
 import type { SystemPlan } from "../bridge/index.ts";
-import { STAR_SIZE, orbitRings, type SystemSpot } from "../view/index.ts";
+import { STAR_SIZE, orbitRings, type SkyMarks, type SystemSpot } from "../view/index.ts";
 import { flatMaterial, type Stage } from "./stage.ts";
 
 export class SystemScene {
@@ -13,6 +13,11 @@ export class SystemScene {
   private spots: SystemSpot[] = [];
   private readonly marker: pc.Entity;
   private marked: number | null = null;
+  private readonly colonyRings: pc.Entity[] = [];
+  private readonly satellites: pc.Entity[] = [];
+  private readonly stations: pc.Entity[] = [];
+  private readonly ringMesh: pc.Mesh;
+  private readonly dotMesh: pc.Mesh;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -27,6 +32,11 @@ export class SystemScene {
     }
     ring.setPositions(points);
     ring.update(pc.PRIMITIVE_LINES);
+    this.ringMesh = ring;
+    this.dotMesh = pc.Mesh.fromGeometry(
+      stage.device,
+      new pc.SphereGeometry({ radius: 1, latitudeBands: 6, longitudeBands: 8 }),
+    );
     this.marker.addComponent("render", {
       meshInstances: [new pc.MeshInstance(ring, glow([1, 1, 1]))],
     });
@@ -38,6 +48,9 @@ export class SystemScene {
   /** Build the star, a sphere for every body and the planets' rings. */
   build(plan: SystemPlan): void {
     for (const e of [...this.root.children]) if (e !== this.marker) e.destroy();
+    this.colonyRings.length = 0;
+    this.satellites.length = 0;
+    this.stations.length = 0;
     this.bodies = [];
     const sphere = pc.Mesh.fromGeometry(
       this.stage.device,
@@ -128,6 +141,43 @@ export class SystemScene {
       }
     }
     return best;
+  }
+
+  /** Draw the marks of flight and settlement: rings about settled bodies, satellites and stations about home. */
+  marks(m: SkyMarks): void {
+    const pools: [pc.Entity[], number, () => pc.Entity][] = [
+      [this.colonyRings, m.rings.length, () => this.ringEntity([0.4, 1, 0.5])],
+      [this.satellites, m.satellites.length, () => this.dotEntity([0.9, 0.9, 1], 0.035)],
+      [this.stations, m.stations.length, () => this.dotEntity([1, 0.85, 0.4], 0.055)],
+    ];
+    for (const [pool, n, make] of pools) {
+      while (pool.length < n) {
+        const e = make();
+        this.root.addChild(e);
+        pool.push(e);
+      }
+      pool.forEach((e, i) => (e.enabled = i < n));
+    }
+    m.rings.forEach((r, i) => {
+      const e = this.colonyRings[i]!;
+      e.setLocalPosition(r.x, 0, r.z);
+      e.setLocalScale(r.r, r.r, r.r);
+    });
+    m.satellites.forEach((p, i) => this.satellites[i]!.setLocalPosition(p.x, 0, p.z));
+    m.stations.forEach((p, i) => this.stations[i]!.setLocalPosition(p.x, 0, p.z));
+  }
+
+  private ringEntity(color: readonly [number, number, number]): pc.Entity {
+    const e = new pc.Entity("halls ring");
+    e.addComponent("render", { meshInstances: [new pc.MeshInstance(this.ringMesh, glow(color))] });
+    return e;
+  }
+
+  private dotEntity(color: readonly [number, number, number], size: number): pc.Entity {
+    const e = new pc.Entity("craft");
+    e.addComponent("render", { meshInstances: [new pc.MeshInstance(this.dotMesh, glow(color))] });
+    e.setLocalScale(size, size, size);
+    return e;
   }
 
   /** Ring a body (or clear the ring). */

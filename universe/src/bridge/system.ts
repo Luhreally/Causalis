@@ -38,3 +38,29 @@ export type SystemPlan = {
   readonly frostLine: number;
   readonly bodies: readonly SystemPlanBody[];
 };
+
+/** Who has reached the sky, and the colonies set down on the system's bodies (Phase 5 M54). */
+export type SkyState = {
+  readonly programs: readonly {
+    readonly realm: string;
+    readonly name: string;
+    readonly satellite: number | null;
+    readonly crew: number | null;
+    readonly station: number | null;
+    readonly colonies: number;
+  }[];
+  readonly colonies: readonly {
+    readonly cell: number;
+    /** The body's index in the system plan, and which of its sites. */
+    readonly body: number;
+    readonly site: number;
+    readonly people: number;
+    /** Last month's food against need, thousandths. */
+    readonly fed: number;
+    /** The realm that rules it now (null: none), and the one that founded it. */
+    readonly realm: string | null;
+    readonly founder: string | null;
+    readonly founded: number;
+    readonly event: string | null;
+  }[];
+};

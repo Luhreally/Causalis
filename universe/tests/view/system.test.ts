@@ -2,11 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
-import type { SystemPlan } from "../../src/bridge/index.ts";
+import type { SkyState, SystemPlan } from "../../src/bridge/index.ts";
 import {
   HOME_DISTANCE,
   bodyFacts,
   orbitRings,
+  skyMarks,
   systemExtent,
   systemSpec,
 } from "../../src/view/index.ts";
@@ -46,4 +47,35 @@ test("the system is drawn to fit: the home world at its distance, moons by their
   }
   const rings = orbitRings(plan);
   assert.equal(rings.length, plan.bodies.filter((b) => b.around < 0).length);
+});
+
+test("the marks of flight and settlement: a ring on each settled body, satellites and stations about home", () => {
+  const spots = systemSpec(plan, 0),
+    moon = plan.bodies.findIndex((b) => b.kind === "moon" && b.around === 0),
+    sky: SkyState = {
+      programs: [
+        { realm: "pol:0:1", name: "A", satellite: 1000, crew: 1050, station: 1100, colonies: 1 },
+        { realm: "pol:0:2", name: "B", satellite: 1010, crew: null, station: null, colonies: 0 },
+      ],
+      colonies: [
+        {
+          cell: 4011,
+          body: moon,
+          site: 0,
+          people: 500,
+          fed: 1000,
+          realm: "A",
+          founder: "A",
+          founded: 1200,
+          event: null,
+        },
+      ],
+    },
+    m = skyMarks(sky, spots, 5e8);
+  assert.equal(m.rings.length, 1);
+  assert.ok(Math.hypot(m.rings[0]!.x - spots[moon]!.x, m.rings[0]!.z - spots[moon]!.z) < 1e-9);
+  assert.equal(m.satellites.length, 2);
+  assert.equal(m.stations.length, 1);
+  for (const s of [...m.satellites, ...m.stations])
+    assert.ok(Math.hypot(s.x - spots[0]!.x, s.z - spots[0]!.z) < 1, "about the home world");
 });

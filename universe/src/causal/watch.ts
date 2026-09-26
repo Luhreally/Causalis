@@ -123,14 +123,17 @@ export function tidings(world: World): Tiding[] {
       continue;
     }
     // A land's news happens in it (a land long settled does not count its new villages; a
-    // change of faith is news); a village's names it; a realm's names it and matters.
+    // change of faith, or of ruler at a seat, is news); a village's names it; a realm's
+    // names it and matters.
     const settled =
       kind === SURFACE_CELL.code &&
       ctx.settlements.inProvince(parseRef(w.ref).b).length > SETTLED_LAND;
     const news = (e: HistoryEvent) =>
       kind === SURFACE_CELL.code
         ? e.place === w.ref &&
-          (e.importance >= NEWS || e.type === "belief.converted") &&
+          (e.importance >= NEWS ||
+            e.type === "belief.converted" ||
+            e.type === "polity.succession") &&
           !(settled && e.type === "settlement.founded")
         : e.subjects.includes(w.ref) && (kind === SETTLEMENT.code || e.importance >= NEWS);
     const hits: HistoryEvent[] = [];

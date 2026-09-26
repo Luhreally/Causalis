@@ -15,4 +15,4 @@ export {
 } from "./protocol.ts";
 export { inlinePair, workerPort } from "./transport.ts";
 export type { VillagePlan } from "./village.ts";
-export type { SystemPlan, SystemPlanBody } from "./system.ts";
+export type { SkyState, SystemPlan, SystemPlanBody } from "./system.ts";

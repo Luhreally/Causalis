@@ -35,6 +35,7 @@ export {
 export {
   HistoryStore,
   LIVING_MEMORY,
+  livingMemory,
   PopulationStore,
   SETTLEMENT,
   SettlementStore,
