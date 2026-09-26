@@ -45,8 +45,14 @@ function run(seed: string, years: number): Promise<SkySurvey> {
 
 const t0 = performance.now(),
   problems: string[] = [],
-  results = await Promise.all(RUNS.map(([s, y]) => run(s, y))),
-  bySeed = new Map(results.map((r) => [r.seed, r]));
+  // One world at a time: each judged alone on the machine, as the phone would run it.
+  results: SkySurvey[] = [],
+  bySeed = new Map<string, SkySurvey>();
+for (const [seed, y] of RUNS) {
+  const r = await run(seed, y);
+  results.push(r);
+  bySeed.set(r.seed, r);
+}
 
 for (const r of results) {
   const sat = r.satellite;
