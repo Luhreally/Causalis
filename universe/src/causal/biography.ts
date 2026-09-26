@@ -40,6 +40,13 @@ const SALIENCE: Readonly<Record<string, number>> = {
   "took-up-herding": 2,
   "kept-old-ways": 2,
   "chosen-to-lead": 3,
+  plague: 4.5,
+  "died-plague": 5,
+  healing: 3,
+  blight: 3.5,
+  "good-years": 2,
+  rains: 2,
+  inspired: 3.5,
 };
 
 export const TRAITS = ["boldness", "warmth", "thrift", "curiosity", "patience"] as const;
@@ -112,7 +119,28 @@ export function deepen(world: World, person: Person): Person {
       )
         add(y, "metal-came", e.id);
       else if (e.type === POPULATION_EVENTS.market.type) add(y, "market-town", e.id);
-      else if (e.type === POPULATION_EVENTS.founded.type) {
+      else if (e.type.startsWith("act.")) {
+        // The god's acts, as the people lived them.
+        const sign = (e.data as { sign?: number } | null)?.sign ?? 1,
+          kind = e.type.slice(4);
+        const lived =
+          kind === "plague"
+            ? sign < 0
+              ? person.diedYear !== null && person.diedYear - y <= 1
+                ? "died-plague"
+                : "plague"
+              : "healing"
+            : kind === "harvest"
+              ? sign < 0
+                ? "blight"
+                : "good-years"
+              : kind === "rain" && sign > 0
+                ? "rains"
+                : kind === "inspire"
+                  ? "inspired"
+                  : null;
+        if (lived) add(y, lived, e.id);
+      } else if (e.type === POPULATION_EVENTS.founded.type) {
         const village = (e.data as { name?: string } | null)?.name;
         const own = person.village && ctx.settlements.get(person.village)?.event === e.id;
         if (own) add(y, "founded", e.id);

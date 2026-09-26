@@ -254,6 +254,28 @@ button:disabled {
 .chart {
   margin: 8px 0 12px;
 }
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tool {
+  border-color: var(--act);
+  color: var(--act);
+  font-size: 0.9rem;
+}
+.confirm {
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid var(--act);
+  border-radius: 10px;
+}
+.confirm .note {
+  margin: 0 0 8px;
+}
+.act-line {
+  color: var(--act);
+}
 /* A button that reads as a word in a line of text. */
 .link {
   min-height: 0;

@@ -23,6 +23,7 @@ export {
 export { LIFE_WORDS, MEMORY_WORDS, isObserved } from "./people.ts";
 export { FOLK, folkRef } from "./population.ts";
 import "./economy.ts";
+import "./acts.ts";
 export { priceWords } from "./economy.ts";
 export {
   edges,

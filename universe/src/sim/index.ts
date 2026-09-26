@@ -63,3 +63,13 @@ export {
   installEconomy,
   metalYear,
 } from "./economy/systems.ts";
+export {
+  ACT_EVENTS,
+  ACT_KINDS,
+  ACT_STRENGTH,
+  ActStore,
+  actsOf,
+  type Act,
+  type ActArgs,
+  type ActKind,
+} from "./acts/acts.ts";

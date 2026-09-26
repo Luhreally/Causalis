@@ -4,6 +4,7 @@
 import {
   capacity,
   homePlanet,
+  actsOf,
   makePopulationWorld,
   marketGoodRef,
   marketsOf,
@@ -335,6 +336,23 @@ function planetUniverse(name: string, prior: Prior): Universe {
       market: (world, args) => market(world, (args as { cell: number }).cell),
       "province.history": (world, args) => provinceHistory(world, (args as { cell: number }).cell),
       chronicle: (world, args) => chronicle(world, (args as { limit?: number }).limit ?? 60),
+      /** The god's acts on a province, newest first, each with the event that records it. */
+      acts: (world, args) => {
+        const cell = (args as { cell: number }).cell;
+        return actsOf(world)
+          .all()
+          .filter((a) => a.cell === cell)
+          .map((a) => ({
+            kind: a.kind,
+            sign: a.sign,
+            event: a.event,
+            from: yearOfMoment(a.from),
+            until: yearOfMoment(a.until),
+            active: a.from <= world.now && world.now < a.until,
+            claim: why(world, a.event).claim,
+          }))
+          .reverse();
+      },
       province: (world, args) => province(world, (args as { cell: number }).cell),
       settlements: (world, args) =>
         populationContext(world)

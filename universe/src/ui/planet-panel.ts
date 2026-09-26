@@ -5,6 +5,7 @@
 import type { HostClient, Status } from "../bridge/index.ts";
 import { LENSES, LENS_NAMES, type Lens } from "../view/index.ts";
 import { lineChart } from "./chart.ts";
+import { HandView } from "./hand.ts";
 import { WhyTree, el } from "./why.ts";
 import { speedWords, when } from "./words.ts";
 
@@ -132,6 +133,8 @@ export class PlanetPanel {
   private readonly whyBox = el("div", "why");
   private readonly marketBox = el("div");
   private readonly pastBox = el("div");
+  private readonly handBox = el("div");
+  private readonly hand: HandView;
   private readonly closer = el("button", "act", "Look closer");
   private selected: number | null = null;
   private description = "";
@@ -142,6 +145,8 @@ export class PlanetPanel {
   constructor(root: HTMLElement, client: HostClient, lens: Lens, speed: number) {
     this.client = client;
     this.why = new WhyTree(client);
+    this.hand = new HandView(client);
+    this.hand.onWhy = (ref) => void this.why.show(ref, this.whyBox);
     const bar = el("header", "bar");
     bar.append(el("strong", "brand", "Causalis Universe"), this.clock);
     const speeds = el("div", "speeds");
@@ -182,6 +187,7 @@ export class PlanetPanel {
       this.facts,
       this.closer,
       this.marketBox,
+      this.handBox,
       this.pastBox,
       el("h3", undefined, "Why is it like this?"),
       this.whyBox,
@@ -348,6 +354,8 @@ export class PlanetPanel {
     );
     this.showMarket(market);
     this.showPast(folk ? past : null);
+    if (folk) void this.hand.show(this.handBox, cell);
+    else this.handBox.replaceChildren();
     this.closer.hidden = !high;
     void this.why.show(folk?.folk ?? p.deposit?.ref ?? p.ref, this.whyBox);
   }
@@ -391,6 +399,7 @@ export class PlanetPanel {
     this.closer.hidden = true;
     this.marketBox.replaceChildren();
     this.pastBox.replaceChildren();
+    this.handBox.replaceChildren();
     this.facts.replaceChildren(el("p", "muted", "…"));
     const c = await this.client.query<Chronicle>({ type: "chronicle", args: { limit: 60 } });
     if (this.title.textContent !== "Chronicle") return;

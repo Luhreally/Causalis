@@ -248,6 +248,10 @@ export class SimHost {
         case "command": {
           this.dropSteps();
           const c = world.submit(m.type, m.args);
+          // Carry the world to the command's own moment, so it has taken hold when the
+          // reply arrives, even while time is paused.
+          world.runTo(c.t);
+          this.simTarget = Math.max(this.simTarget, world.now);
           this.reply(m.id, { id: c.id, t: c.t });
           return;
         }

@@ -6,6 +6,7 @@ import { BIOME, cellRef, type HomeWorld } from "../../gen/index.ts";
 import { FEMALE, G, HUMANLIKE, MALE, OCC } from "../../rules/index.ts";
 import { MarketStore } from "../economy/market.ts";
 import { installEconomy } from "../economy/systems.ts";
+import { installActs } from "../acts/acts.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
 import { Province, capacity, row } from "./model.ts";
 import { HistoryStore, PopulationStore, SettlementStore } from "./stores.ts";
@@ -58,6 +59,26 @@ export function makePopulationWorld(seed: Seed, options: PlanetWorldOptions = {}
   world.addPinner(() => history.pinned());
   installPopulation(world);
   installEconomy(world);
+  // The god's acts on provinces; inspiration grants the next way of life a people lacks.
+  installActs(
+    world,
+    homePlanet(world).generated.grid.count,
+    (cell) => (provinces.get(cell)?.total() ?? 0) > 0,
+    (cell, event) => {
+      const p = provinces.get(cell)!;
+      if (!p.knowsCultivation) {
+        p.knowsCultivation = true;
+        p.cultivation = event;
+        return "cultivation";
+      }
+      const m = markets.of(cell);
+      if (!m.metalworking) {
+        m.metalworking = event;
+        return "metalworking";
+      }
+      return null;
+    },
+  );
 
   const g = homePlanet(world).generated,
     home = chooseHome(g, world),

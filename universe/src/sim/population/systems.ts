@@ -32,6 +32,7 @@ import {
   type HomeWorld,
   type Region,
 } from "../../gen/index.ts";
+import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
 import { MarketStore } from "../economy/market.ts";
 import {
   BANDS,
@@ -203,8 +204,12 @@ export function marketsOf(world: World): MarketStore {
 export function foodMonth(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     month = periodIndex(t, MONTH),
-    markets = marketsOf(world);
+    markets = marketsOf(world),
+    acts = actsOf(world);
   for (const p of ctx.provinces.all()) {
+    // A blessed harvest is richer, a blighted one poorer.
+    const act = acts.at(p.cell, "harvest", t),
+      gift = act ? 1 + act.sign * ACT_STRENGTH.harvest : 1;
     const m = markets.of(p.cell),
       c = provinceCapacity(ctx, p.cell),
       key = refHash(p.ref),
@@ -227,7 +232,11 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       ],
     ];
     for (const [g, x] of harvest)
-      m.move("made", g, roundKeyed(x, world.rng.real(BIRTHS, key, t, purpose("harvest"), g)));
+      m.move(
+        "made",
+        g,
+        roundKeyed(x * gift, world.rng.real(BIRTHS, key, t, purpose("harvest"), g)),
+      );
     for (const g of FOODS)
       m.move(
         "spoiled",
@@ -253,6 +262,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       const recentDrought = p.lastDrought ? world.events.get(p.lastDrought) : undefined;
       if (recentDrought && t - recentDrought.t < 2 * YEAR)
         causes.push({ ref: recentDrought.id, role: "trigger", weight: 0.6 });
+      if (act && act.sign < 0) causes.push({ ref: act.event, role: "agent", weight: 0.8 });
       causes.push({ ref: p.ref, role: "constraint", weight: recentDrought ? 0.4 : 1 });
       p.lastFamine = world.events.emit({
         type: POPULATION_EVENTS.famine.type,
@@ -271,14 +281,18 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
   const { world, history } = ctx,
     year = yearOfMoment(t),
     life = HUMANLIKE;
-  const markets = marketsOf(world);
+  const markets = marketsOf(world),
+    acts = actsOf(world);
   for (const p of ctx.provinces.all()) {
+    // A plague sent makes deaths likelier; healing, rarer.
+    const act = acts.at(p.cell, "plague", t),
+      sickness = !act ? 1 : act.sign < 0 ? 1 + ACT_STRENGTH.plague : 1 - ACT_STRENGTH.healing;
     const fed = p.fed / 1000,
       fertility = fed * fed,
       // In cold lands, those without warm clothing die more easily.
       cold = dmath.clamp((10 - ctx.generated.climate.temperature[p.cell]!) / 10, 0, 1),
       bare = 1 - (markets.get(p.cell)?.clothingCover ?? 1000) / 1000,
-      mortality = (1 + 2.5 * (1 - fed)) * (1 + 0.25 * cold * bare),
+      mortality = (1 + 2.5 * (1 - fed)) * (1 + 0.25 * cold * bare) * sickness,
       d = new CountDeltas(p.counts),
       key = refHash(p.ref);
     let expected = 0;
@@ -315,20 +329,28 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
 
 /** Weather, yearly: each province's rain for the coming year; a dry one is a drought. */
 export function weatherYear(ctx: PopulationContext, t: SimTime): void {
-  const { world } = ctx;
+  const { world } = ctx,
+    acts = actsOf(world);
   for (const p of ctx.provinces.all()) {
-    const key = refHash(p.ref),
+    // Rain withheld or sent by the god's hand moves the year's rain.
+    const act = acts.at(p.cell, "rain", t),
+      key = refHash(p.ref),
       g = gaussian(world.rng.real(RAIN, key, t, 0), world.rng.real(RAIN, key, t, 1)),
-      rain = dmath.clamp(1 + 0.22 * g, 0.35, 1.6);
+      natural = dmath.clamp(1 + 0.22 * g, 0.35, 1.6),
+      rain = act ? natural * (1 + act.sign * ACT_STRENGTH.rain) : natural;
     p.rain = Math.round(rain * 1000);
-    if (rain < 0.72)
+    if (rain < 0.72) {
+      const causes: CauseRef[] = [];
+      if (act && act.sign < 0) causes.push({ ref: act.event, role: "agent", weight: 0.8 });
+      causes.push({ ref: p.ref, role: "constraint", weight: act && act.sign < 0 ? 0.2 : 1 });
       p.lastDrought = world.events.emit({
         type: POPULATION_EVENTS.drought.type,
         importance: rain < 0.55 ? 4 : 3,
         place: p.ref,
-        causes: [{ ref: p.ref, role: "constraint", weight: 1 }],
+        causes,
         data: { rain: p.rain },
       });
+    }
   }
 }
 

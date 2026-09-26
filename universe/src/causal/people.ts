@@ -28,6 +28,13 @@ export const LIFE_WORDS: Readonly<Record<string, string>> = {
   "took-up-herding": "Took up herding",
   "kept-old-ways": "Kept to gathering, though their people farmed",
   "chosen-to-lead": "Was chosen to lead their village",
+  plague: "Lived through the plague",
+  "died-plague": "Fell sick in the plague",
+  healing: "Saw the sick healed",
+  blight: "Saw the harvest blighted",
+  "good-years": "Saw years of plenty",
+  rains: "Saw the rains come in abundance",
+  inspired: "Saw their people learn something new, as if by inspiration",
 };
 /** What a memory is of, in words. */
 export const MEMORY_WORDS: Readonly<Record<string, string>> = {
@@ -47,6 +54,13 @@ export const MEMORY_WORDS: Readonly<Record<string, string>> = {
   "took-up-herding": "their first flock",
   "kept-old-ways": "keeping to the old ways of gathering",
   "chosen-to-lead": "being chosen to lead",
+  plague: "the plague",
+  "died-plague": "the sickness",
+  healing: "the sick being healed",
+  blight: "the blighted harvest",
+  "good-years": "the years of plenty",
+  rains: "the great rains",
+  inspired: "the inspiration that came to their people",
 };
 
 function hasPeople(world: World): boolean {

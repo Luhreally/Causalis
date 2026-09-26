@@ -157,6 +157,24 @@ for (const engine of engines) {
         );
         if (shotsAt && !query.includes("inline"))
           await page.screenshot({ path: join(shotsAt, `${engine}-market.png`) });
+        // The god's hand: withhold the rain here, confirm, and see the act listed.
+        await page.waitForSelector(".panel:not([hidden]) .tool", { timeout: 10000 });
+        await page.evaluate(() =>
+          [...document.querySelectorAll<HTMLButtonElement>(".panel:not([hidden]) .tool")]
+            .find((b) => b.textContent === "Withhold the rain")!
+            .click(),
+        );
+        await page.click(".panel:not([hidden]) .confirm .act");
+        await page.waitForFunction(
+          () =>
+            [...document.querySelectorAll(".panel:not([hidden]) .inspector .line")].some((l) =>
+              /^By your hand: you withheld the rain/.test(l.textContent ?? ""),
+            ),
+          undefined,
+          { timeout: 10000 },
+        );
+        if (shotsAt && !query.includes("inline"))
+          await page.screenshot({ path: join(shotsAt, `${engine}-hand.png`) });
         // Its years as charts, and the chronicle of the world.
         await page.waitForSelector(".panel:not([hidden]) .inspector .chart svg", {
           timeout: 10000,

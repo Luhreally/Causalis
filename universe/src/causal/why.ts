@@ -66,6 +66,14 @@ export type DecisionWords = (world: World, d: DecisionFacts) => string;
 const EVENT_WORDS = new Map<string, EventWords>();
 const EVENT_KEEPERS: ((world: World, ref: Ref) => EventFacts | null)[] = [];
 const DECISION_WORDS = new Map<string, DecisionWords>();
+export type CommandWords = (world: World, c: { type: string; t: number; args: unknown }) => string;
+const COMMAND_WORDS = new Map<string, CommandWords>();
+
+/** Say a god's act in words. */
+export function registerCommandWords(type: string, words: CommandWords): void {
+  if (COMMAND_WORDS.has(type)) throw new Error(`command ${type} already has words`);
+  COMMAND_WORDS.set(type, words);
+}
 
 /** Say an event type in words. */
 export function registerEventWords(type: string, words: EventWords): void {
@@ -170,7 +178,14 @@ function explainCommand(world: World, ref: Ref): Explanation {
       t: null,
       causes: [],
     };
-  return { ref, claim: `the god's act ${c.type} (t=${c.t})`, basis: "command", t: c.t, causes: [] };
+  const words = COMMAND_WORDS.get(c.type)?.(world, c);
+  return {
+    ref,
+    claim: words ?? `the god's act ${c.type} (t=${c.t})`,
+    basis: "command",
+    t: c.t,
+    causes: [],
+  };
 }
 
 /** Why is this so? Always answers; the basis says how much is known. */
