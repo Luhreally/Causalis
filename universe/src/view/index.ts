@@ -51,3 +51,14 @@ export {
   type FigurePart,
   type PartShape,
 } from "./figure.ts";
+export {
+  HOME_DISTANCE,
+  STAR_SIZE,
+  bodyColor,
+  bodyFacts,
+  bodySize,
+  orbitRings,
+  systemExtent,
+  systemSpec,
+  type SystemSpot,
+} from "./system.ts";

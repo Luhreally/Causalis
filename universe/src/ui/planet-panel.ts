@@ -285,6 +285,8 @@ export class PlanetPanel {
   onLens: (lens: Lens) => void = () => {};
   onClose: () => void = () => {};
   onCloser: (cell: number) => void = () => {};
+  /** Out to the home star's system. */
+  onSky: () => void = () => {};
 
   /** News of what the observer follows, and the toggles that follow things. */
   tidings: Tidings | null = null;
@@ -318,7 +320,9 @@ export class PlanetPanel {
     }
     const chronicle = el("button", "link", "Chronicle");
     chronicle.onclick = () => void this.showChronicle();
-    this.world.append(this.worldText, " · ", chronicle);
+    const sky = el("button", "link", "The sky");
+    sky.onclick = () => this.onSky();
+    this.world.append(this.worldText, " · ", chronicle, " · ", sky);
     bar.append(speeds, this.world, lenses);
     this.element.append(bar);
     const close = el("button", "close", "×");

@@ -2349,6 +2349,82 @@ arms, mandibles, axes, swords); the most people any world holds 193 million, the
 lanes at 1.5 GB each ran the machine out of memory, and the tool now allows 3.5 GB a
 world (or `--lanes n`).
 
+### I.5 Phase 5 milestones (planned 2026-09-26, after the Phase 4 gate)
+
+Phase 5's "done when" (Part VII): a civilization reaches orbit at a time set by its
+gravity well and propulsion, colonizes a second body, and that colony diverges
+culturally and politically through the ordinary rules. The chronicle runs past its
+ninth century for this; Earth's bands up to 900 years stay as they are, and the
+home world's history is untouched by the sky being there (the system is generated,
+not ticked, until someone flies).
+
+46. **The star system**: the home star's other planets and moons from the seed and
+    the prior — rocky worlds inside the frost line, giants and ice giants beyond it,
+    moons about them and about the home world — each with its orbit (Kepler elements),
+    mass, radius, surface gravity, escape speed, air (pressure and kind), temperature,
+    water (none, ice, seas) and radiation, by textbook relations, every fact
+    explainable; analytic positions at any time. Earthlike prior: a system like the
+    Sun's (a large moon, a small cold red world, a hot shrouded one, giants). The
+    observatory's system view: orbits and bodies moving, a page for each body.
+47. **The sky's principles**: the tree past power — rocketry, guidance, orbital flight,
+    life support, stations, transfer flight, habitats, and the nuclear drive — each
+    with what it needs of the body and the medium (a people of the water reaches
+    rocketry by electrochemistry: propellant parted from the sea).
+48. **Launch economics from physics**: speed to orbit from the home world's gravity,
+    radius and air; the rocket equation with the propulsion's exhaust speed gives the
+    payload fraction and the cost of a tonne to orbit; heavy worlds fly later or not
+    until a better drive; launchers through the design grammar (stages, propulsion,
+    structure, payload).
+49. **First orbit**: a realm launches when it knows orbital flight, has the industry
+    and the wealth for the cost the physics sets, and a reason (rivalry, prestige,
+    knowledge); the first satellite and the first crew, each an event whose why
+    reaches the gravity well, the propulsion and the realm; stations as records with
+    designs.
+50. **The orbital graph**: Hohmann transfers (speed and time) between bodies, launch
+    windows from synodic periods, all analytic; which bodies a realm can reach with
+    the drive it has; the same edges carry ships, goods, people and fleets.
+51. **Habitability and life support**: each body against the colonists' own body —
+    gravity, pressure, temperature, radiation, air and medium (a people of the water
+    needs seas or ice to melt) — gives what a colony must build to live there and at
+    what cost; domes, pressurized halls and flooded vaults through the design grammar.
+52. **Colonies**: a realm founds a colony on a body it can reach and afford; the colony
+    is a land of the ordinary kind on another world — its people counted, fed, born
+    and dying by the same rules, its market, ways, tongue and faith carried from home
+    and drifting — so no second population model; migration between worlds as flows
+    with ship capacity and cost.
+53. **Divergence and independence**: the colony's ways drift (distance and the lag of
+    word from home weigh as a sea does), its interest groups follow its own economy,
+    and the ordinary rules of grievance and secession make it a realm of its own when
+    they do; trade and war on the orbital graph by the same kernels.
+54. **Watching the sky**: the observatory follows it all — the system view with ships
+    in flight and colonies marked, launch and colony pages, the why of a colony's
+    independence back to the home world's gravity and the colony's own ground; the
+    microscope on a colony's halls.
+55. **Phase 5 gate**: on the Earth seed and on open worlds, a realm reaches orbit at a
+    time its gravity and drive explain, a second body is colonized, and the colony
+    diverges in ways and politics through the ordinary rules; heavier worlds reach
+    orbit later; budgets hold with more than one world peopled.
+
+46, as built: `gen/system.ts` makes the home star's other planets and moons on a
+stream of its own (`gen.system`), so the home world and its history are untouched (the
+oracle unchanged). The Earthlike prior's template gives a Sun-like family — a small
+scorched world (126 °C, a trace of air), a shrouded one (460 °C under 74 bar), the home
+world third with one great moon (a month round, airless, 53 times the home world's
+radiation), a small cold red world (−62 °C, 0.03 bar, ice), two gas giants and two of
+ice with their moons; the open prior draws inner and outer worlds spaced outward from the
+home world, rock inside the frost line (2.7 AU × √L), gas giants just beyond it, ice
+giants farther. Each body's numbers come from textbook laws: Kepler's third for its
+year, gravity and escape speed from mass and radius, an air held only if the escape
+speed is six times the air's thermal speed at its warmth, its pressure the weight of its
+volatiles' column (their square times the square of the pull), about 33° of greenhouse
+warmth a bar (less than in step), seas or ice by warmth and air, radiation by the light
+received and the air above; every body carries its reasons in words. `rules/orbits.ts`
+holds Kepler's equation for all layers (gen places bodies, the view draws them, M50's
+transfers will read it). The observatory: "The sky" on the world's bar opens the
+system view (a month a second, the star's page listing its worlds, a page for each body
+with its orbit, ground and why; distances drawn by their square root so the scorched
+world and the ice giants share a phone screen). The systems are part of the engines'
+agreement vectors.
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

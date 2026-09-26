@@ -31,6 +31,8 @@ type Exposed = {
   villages?: () => number;
   watch?: (ref: string) => void;
   watching?: () => number;
+  sky?: () => void;
+  skyBodies?: () => number;
   drawn?: () => number;
   select?: (cell: number) => void;
   bench?: { fps: number; frameMs: number; instances: number; tier: string };
@@ -388,6 +390,25 @@ for (const engine of engines) {
             await new Promise((r) => setTimeout(r, 1500));
             await page.screenshot({ path: join(shotsAt, `${engine}-hand-village.png`) });
           }
+        }
+      }
+      if (name === "sea") {
+        // Out to the star's system: its worlds and moons drawn, going round.
+        await page.evaluate(() => (globalThis as { causalis?: Exposed }).causalis?.sky?.());
+        const bodies = await waitFor(
+          `${label} the sky`,
+          () =>
+            page.evaluate(
+              () => (globalThis as { causalis?: Exposed }).causalis?.skyBodies?.() ?? null,
+            ),
+          (n) => n > 3,
+        );
+        console.log(
+          `${(label + " sky").padEnd(24)} ${later.mode.padEnd(9)} ${bodies} bodies of the star's system`,
+        );
+        if (shotsAt) {
+          await new Promise((r) => setTimeout(r, 1500));
+          await page.screenshot({ path: join(shotsAt, `${engine}-sky.png`) });
         }
       }
       await page.close();

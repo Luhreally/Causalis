@@ -15,6 +15,7 @@ import {
 } from "../kernel/index.ts";
 import type { Prior } from "../rules/index.ts";
 import { makePlanet, makeStar, type Planet, type Star } from "./bodies.ts";
+import { makeSystem, type StarSystem } from "./system.ts";
 import { makeClimate, type Climate } from "./climate.ts";
 import { makeDeposits, type Deposit } from "./deposits.ts";
 import { ageRef } from "./kinds.ts";
@@ -27,6 +28,8 @@ export type HomeWorld = {
   readonly prior: string;
   readonly star: Star;
   readonly planet: Planet;
+  /** The star's other planets and the moons (not in the digest: the home world's history is untouched by them). */
+  readonly system: StarSystem;
   readonly grid: SphereGrid;
   readonly tectonics: Tectonics;
   readonly climate: Climate;
@@ -62,6 +65,8 @@ export function generateHomeWorld(
     grid = sphereGrid(frequency),
     star = makeStar(rng, prior),
     planet = makePlanet(rng, prior, star),
+    // The rest of the star's system, on its own stream (the home world is untouched by it).
+    system = makeSystem(rng, prior, star, planet),
     tectonics = makeTectonics(grid, rng, planet),
     climate = makeClimate(grid, planet, tectonics.elevation),
     water = makeHydrology(grid, tectonics.elevation, climate.precipitation),
@@ -92,6 +97,7 @@ export function generateHomeWorld(
     prior: prior.name,
     star,
     planet,
+    system,
     grid,
     tectonics,
     climate,

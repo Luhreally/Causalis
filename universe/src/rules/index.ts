@@ -22,7 +22,15 @@ export {
   type Good,
   type Recipe,
 } from "./goods.ts";
-export { EARTHLIKE, OPEN, PRIORS, type Prior, type Range } from "./priors.ts";
+export {
+  EARTHLIKE,
+  OPEN,
+  PRIORS,
+  type Prior,
+  type Range,
+  type SystemPrior,
+  type TemplateBody,
+} from "./priors.ts";
 export {
   CLADES,
   affordancesOf,
@@ -94,3 +102,4 @@ export {
   type Realization,
   type Role,
 } from "./designs.ts";
+export { AU_KM, eccentricAnomaly, orbitXY, type Elements } from "./orbits.ts";

@@ -10,6 +10,7 @@ import {
   RegionScene,
   SandboxScene,
   Stage,
+  SystemScene,
   VillageScene,
   runBench,
 } from "../render/index.ts";
@@ -19,10 +20,11 @@ import {
   PlanetPanel,
   RegionPanel,
   SandboxPanel,
+  SystemPanel,
   VillagePanel,
   type PeopleEntry,
 } from "../ui/index.ts";
-import type { VillagePlan } from "../bridge/index.ts";
+import type { SystemPlan, VillagePlan } from "../bridge/index.ts";
 import {
   cellAt,
   cellCenter,
@@ -30,6 +32,8 @@ import {
   regionColors,
   regionHeights,
   sandboxSpec,
+  systemExtent,
+  systemSpec,
   type Lens,
   type RegionLens,
   type SandboxSpec,
@@ -37,6 +41,8 @@ import {
 import { deviceTier } from "./tier.ts";
 
 const DAY = 86_400;
+/** How fast time runs while the star's system is shown: a month a second, so the worlds can be watched going round. */
+const SKY_SPEED = 30 * DAY;
 /** What the hand's people do, in words. */
 const WORK_WORDS = [
   "a child",
@@ -75,6 +81,9 @@ type Exposed = {
   /** Watch a village through the microscope; how many people are watched. */
   watch?: (ref: string) => void;
   watching?: () => number;
+  /** Out to the home star's system; how many of its bodies are shown. */
+  sky?: () => void;
+  skyBodies?: () => number;
   bench?: unknown;
   /** Why the page could not start, if it could not ("webgl" when 3D is unavailable). */
   error?: string;
@@ -193,10 +202,12 @@ async function runPlanetPage(): Promise<void> {
     stage = new Stage(canvas, tier, SPACE),
     globe = new GlobeScene(stage),
     region = new RegionScene(stage),
-    village = new VillageScene(stage);
+    village = new VillageScene(stage),
+    sky = new SystemScene(stage);
   const { client, mode } = await connect();
   let painted = 0,
-    scale: "globe" | "region" | "village" = "globe";
+    scale: "globe" | "region" | "village" | "system" = "globe",
+    systemPlan: SystemPlan | null = null;
   Object.assign(exposed, { client, mode, seed, universe, drawn: () => painted, stage });
   await client.start(universe, seed);
   // ?year=N starts the world N years on (it runs there first; history is the same).
@@ -325,7 +336,9 @@ async function runPlanetPage(): Promise<void> {
         ? selectCell(globe.pick(x, y))
         : scale === "region"
           ? selectTile(region.pick(x, y))
-          : selectPerson(village.pick(x, y)),
+          : scale === "system"
+            ? selectBody(sky.pick(x, y))
+            : selectPerson(village.pick(x, y)),
   });
 
   // Down to a region, and back up to the world: the camera, the scene, the panel,
@@ -369,6 +382,8 @@ async function runPlanetPage(): Promise<void> {
     villages = [];
     labels.clear();
     region.visible = false;
+    sky.visible = false;
+    systemPanel.visible = false;
     globe.visible = true;
     regionPanel.visible = false;
     planetPanel.visible = true;
@@ -385,6 +400,49 @@ async function runPlanetPage(): Promise<void> {
     paintGlobe();
   };
   planetPanel.onCloser = (cell) => toRegion(cell);
+  // Out to the star's system, and back to the world: the worlds go round a month a second.
+  const systemPanel = new SystemPanel(hud);
+  const selectBody = (i: number | null) => {
+    sky.mark(i);
+    systemPanel.select(i);
+  };
+  const toSystem = async () => {
+    scale = "system";
+    labels.clear();
+    globe.visible = false;
+    planetPanel.visible = false;
+    if (!systemPlan) {
+      systemPlan = await client.query<SystemPlan>({ type: "planet.system" });
+      sky.build(systemPlan);
+    }
+    systemPanel.show(systemPlan);
+    sky.mark(null);
+    sky.visible = true;
+    systemPanel.visible = true;
+    client.setSpeed(SKY_SPEED);
+    rig.configure({
+      // The whole system in view: its farthest orbit across the screen's narrow side.
+      distance: (systemExtent(systemPlan) * 2.9) / Math.min(1, aspect()),
+      minDistance: 2,
+      maxDistance: 400,
+      pitch: -60,
+      minPitch: -89,
+      maxPitch: -10,
+      drift: 0.6,
+      target: [0, 0, 0],
+    });
+  };
+  planetPanel.onSky = () => void toSystem();
+  systemPanel.onSelect = (i) => sky.mark(i);
+  systemPanel.onBack = () => {
+    client.setSpeed(planetPanel.speed);
+    toGlobe();
+  };
+  exposed.sky = () => void toSystem();
+  exposed.skyBodies = () => (scale === "system" && systemPlan ? systemPlan.bodies.length : 0);
+  stage.onUpdate(() => {
+    if (scale === "system" && systemPlan) sky.update(systemSpec(systemPlan, now()));
+  });
   planetPanel.onClose = () => globe.mark(null);
   // Down into a village to watch its day, and back up to its land. Watching is
   // looking: the plan is read from the host, the day is drawn by the view, and

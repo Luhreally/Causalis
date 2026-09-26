@@ -75,6 +75,7 @@ import {
   waysWords,
   why,
 } from "../causal/index.ts";
+import type { SystemPlan } from "../bridge/index.ts";
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 import { villagePlan } from "./village.ts";
@@ -583,6 +584,43 @@ function planetUniverse(name: string, prior: Prior): Universe {
     },
     queries: {
       "planet.summary": (world) => summary(homePlanet(world).generated.fine),
+      /** The home star's system: the star, and every planet and moon with its orbit and ground. */
+      "planet.system": (world): SystemPlan => {
+        const g = homePlanet(world).generated,
+          bodies = g.system.bodies;
+        return {
+          star: {
+            ref: g.star.ref,
+            spectral: g.star.spectral,
+            mass: g.star.mass,
+            luminosity: g.star.luminosity,
+            temperature: g.star.temperature,
+            ageGyr: g.star.ageGyr,
+          },
+          frostLine: g.system.frostLine,
+          bodies: bodies.map((b) => ({
+            ref: b.ref,
+            designation: b.designation,
+            kind: b.kind,
+            around: bodies.findIndex((p) => p.ref === b.orbit.around),
+            a: b.orbit.a,
+            e: b.orbit.e,
+            periapsis: b.orbit.periapsis,
+            phase: b.orbit.phase,
+            periodDays: b.orbit.periodDays,
+            mass: b.mass,
+            radius: b.radius,
+            gravity: b.gravity,
+            escape: b.escape,
+            temperature: b.temperature,
+            pressure: b.pressure,
+            air: b.air,
+            water: b.water,
+            radiation: b.radiation,
+            because: b.because,
+          })),
+        };
+      },
       /** The air: its carbon, how much warmer the world is, and the event of the latest warming. */
       "planet.air": (world) => {
         const a = airOf(world).air;

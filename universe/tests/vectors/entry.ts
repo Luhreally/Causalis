@@ -12,8 +12,8 @@ import {
   seedFromText,
   verifyByReplay,
 } from "../../src/kernel/index.ts";
-import { EARTHLIKE } from "../../src/rules/index.ts";
-import { generateHomeWorld, refineRegion } from "../../src/gen/index.ts";
+import { EARTHLIKE, OPEN } from "../../src/rules/index.ts";
+import { generateHomeWorld, positionAt, refineRegion } from "../../src/gen/index.ts";
 import { homePlanet, makePopulationWorld, populationContext } from "../../src/sim/index.ts";
 import { deepen, meetHousehold, observer } from "../../src/causal/index.ts";
 
@@ -56,8 +56,27 @@ function regionVectors(): [string, string][] {
   }
   return out;
 }
+/** The star's systems (Phase 5 M46): every body, and where each is at a few times. */
+function systemVectors(): [string, string][] {
+  const out: [string, string][] = [];
+  for (const [name, prior] of [
+    ["first light", EARTHLIKE],
+    ["alien 55", OPEN],
+  ] as const) {
+    const sys = generateHomeWorld(seedFromText(name), prior).system;
+    sys.bodies.forEach((b, i) => {
+      const h = new Hasher().value(b);
+      for (const t of [0, 3.1e7, 9.46e9]) {
+        const p = positionAt(sys, i, t);
+        h.float(p.x).float(p.y);
+      }
+      out.push([`system ${name} ${b.designation}`, h.hex()]);
+    });
+  }
+  return out;
+}
 suites.regions = () => {
-  const vectors = regionVectors();
+  const vectors = [...regionVectors(), ...systemVectors()];
   return { digest: kernelDigest(vectors), vectors };
 };
 

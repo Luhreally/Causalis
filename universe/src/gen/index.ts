@@ -3,6 +3,16 @@
 // languages as later milestones add them. May import: kernel, rules.
 // See README.md and docs/architecture §24, §27.
 export { makePlanet, makeStar, type Planet, type Star } from "./bodies.ts";
+export {
+  makeSystem,
+  positionAt,
+  type Air,
+  type BodyKind,
+  type Orbit,
+  type StarSystem,
+  type SystemBody,
+  type Water,
+} from "./system.ts";
 export { BIOME, BIOME_NAMES, classify, makeClimate, type Biome, type Climate } from "./climate.ts";
 export {
   DEPOSIT_KINDS,

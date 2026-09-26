@@ -240,6 +240,7 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
     prior: fine.prior,
     star: fine.star,
     planet: fine.planet,
+    system: fine.system,
     grid,
     tectonics: {
       plates: t.plates,

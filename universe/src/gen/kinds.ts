@@ -6,6 +6,7 @@ import { defineKind, makeRef, type Ref } from "../kernel/index.ts";
 
 export const STAR = defineKind("star", "star", "structural");
 export const PLANET = defineKind("plnt", "planet", "structural");
+export const MOON = defineKind("moon", "moon", "structural");
 export const PLATE = defineKind("plate", "tectonic plate", "structural");
 export const SURFACE_CELL = defineKind("cell", "place on a planet", "structural");
 /** A cell of the fine grid the world is generated on (a province gathers several). */
@@ -21,6 +22,10 @@ export function starRef(ordinal: number): Ref {
 }
 export function planetRef(ordinal: number): Ref {
   return makeRef(PLANET, 0, ordinal);
+}
+/** The j-th moon of the planet with this ordinal. */
+export function moonRef(planet: number, j: number): Ref {
+  return makeRef(MOON, planet, j);
 }
 export function plateRef(planet: number, plate: number): Ref {
   return makeRef(PLATE, planet, plate);
