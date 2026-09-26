@@ -7,6 +7,7 @@ import {
   DEITIES,
   actsOf,
   agentName,
+  interestsOf,
   beliefOf,
   USES,
   citiesOf,
@@ -315,6 +316,20 @@ function realmOf(world: World, cell: number) {
     since: p.ruler.since,
     grievance: grievance.level,
     cause: grievance.cause,
+    tithe: Math.round(p.tribute * 100),
+    // Who holds sway, and what each most wants (with what it rests on).
+    interests: interestsOf(populationContext(world), p, world.now)
+      .filter((i) => i.sway >= 0.01)
+      .sort((a, b) => b.sway - a.sway)
+      .map((i) => {
+        const top = [...i.demands].sort((a, b) => b.strength - a.strength)[0];
+        return {
+          group: i.group,
+          sway: i.sway,
+          want: top ? top.name : null,
+          source: top?.source ?? null,
+        };
+      }),
     wars: warsOf(world)
       .fighting(p.ref)
       .map((w) => {

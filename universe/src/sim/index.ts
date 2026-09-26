@@ -185,3 +185,12 @@ export {
   type City,
 } from "./city/city.ts";
 export { LOCAL_ACT_EVENTS, agentName, installLocalActs } from "./acts/local.ts";
+export {
+  GROUPS,
+  interestsOf,
+  pressure,
+  swayOf,
+  type Demand,
+  type Group,
+  type Interest,
+} from "./polity/interests.ts";

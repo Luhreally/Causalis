@@ -82,6 +82,13 @@ registerEventWords(
   (_, e) => `${cap(realm(e.data))} came to an end, ${year(e.t)}`,
 );
 
+registerEventWords(POLITY_EVENTS.tithe.type, (_, e) => {
+  const d = e.data as { from?: number; to?: number } | null,
+    from = d?.from ?? 0,
+    to = d?.to ?? 0;
+  return `${cap(realm(e.data))} ${to > from ? "raised" : "eased"} its tithe from ${from} to ${to} parts in a hundred of the grain, ${year(e.t)}`;
+});
+
 registerDecisionWords("polity.form", (world, d) => {
   const lead = text(d.outcome, "leadership");
   return `The people of ${landWords(world, d.subject)} gathered under ${lead ? `a ${lead}` : "one rule"}`;
@@ -90,6 +97,10 @@ registerDecisionWords(
   "polity.join",
   (world, d) => `${cap(landWords(world, d.subject))} chose to join a realm`,
 );
+registerDecisionWords("polity.tithe", (world, d) => {
+  const p = politiesOf(world).get(d.subject);
+  return `The seat of ${p ? realmName(p) : "a realm"} weighed what its people wanted of the tithe`;
+});
 registerDecisionWords(
   "polity.secede",
   (world, d) => `${cap(landWords(world, d.subject))} chose to break away`,

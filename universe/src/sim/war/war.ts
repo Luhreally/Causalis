@@ -31,6 +31,7 @@ import type { PopulationContext } from "../population/systems.ts";
 import { marketGoodRef, type MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { cutOff, endRealm, politiesOf, realmName, type Polity } from "../polity/polity.ts";
+import { interestsOf, pressure } from "../polity/interests.ts";
 import { loreOf } from "../lore/lore.ts";
 import { RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
 import { handOf } from "../hand/hand.ts";
@@ -248,9 +249,16 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       hatred = Math.max(0, -r.opinion - (covets ? 0 : -RIVALRY)),
       last = lastPeace.get(attacker.ref),
       rested = last ? Math.min(1, (year - last.ended!) / WEARY_YEARS) : 1,
+      // Its people's voices: traders who want peace with those they trade with hold it
+      // back; a temple that wants war on unbelievers urges it on.
+      voices = interestsOf(ctx, attacker, t),
+      peace = pressure(voices, "peace", defender.ref),
+      holy = pressure(voices, "war", defender.ref),
+      swayed = (1 - 0.7 * Math.min(1, 2 * peace.total)) * (1 + Math.min(1, 2 * holy.total)),
       chance =
         Math.min(0.5, (hatred * 0.45 + (covets ? 0.15 : 0)) * Math.min(2, ratio) * (0.5 + valour)) *
-        rested;
+        rested *
+        swayed;
     if (
       chance <= 0 ||
       !(world.rng.real(DECLARE, Number(attacker.ref.split(":")[2]), t, 0) < chance)
@@ -288,6 +296,17 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         contribution: -term.value,
         source: { ref: term.source!, role: "pressure", weight: 1 },
       });
+    for (const [voice, role, sign] of [
+      [peace, "constraint", -1],
+      [holy, "pressure", 1],
+    ] as const)
+      if (voice.strongest)
+        factors.push({
+          name: voice.strongest.name,
+          value: voice.total,
+          contribution: sign * Math.min(1, 2 * voice.total),
+          source: voice.strongest.source ? { ref: voice.strongest.source, role, weight: 1 } : null,
+        });
     // The land wanted is the one with the fullest stores.
     factors.push({
       name: "the stores of the land they want",

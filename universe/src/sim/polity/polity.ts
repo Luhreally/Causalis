@@ -16,6 +16,7 @@ import {
   defineStream,
   yearOfMoment,
   type CauseRef,
+  type Factor,
   type Hasher,
   type Ref,
   type SimTime,
@@ -30,6 +31,7 @@ import { WAY, cultureOf, type Ways } from "../culture/culture.ts";
 import { bandOfAge } from "../hand/hand.ts";
 import type { BeliefStore } from "../belief/belief.ts";
 import type { LoreStore } from "../lore/lore.ts";
+import { interestsOf, pressure } from "./interests.ts";
 
 export const POLITY = defineKind("pol", "realm", "minted");
 
@@ -41,6 +43,7 @@ export const POLITY_EVENTS = {
   split: defineEventType("polity.split", 6),
   reformed: defineEventType("polity.reformed", 5),
   ended: defineEventType("polity.ended", 5),
+  tithe: defineEventType("polity.tithe", 3),
 };
 
 /** Who leads. */
@@ -75,6 +78,8 @@ export type Polity = {
   ruler: Ruler;
   /** The share of each member's grain sent to the seat each year. */
   tribute: number;
+  /** The event of its last change, if it has changed. */
+  tithed?: Ref;
   ended: number | null;
 };
 
@@ -150,7 +155,10 @@ export class PolityStore implements StateStore {
 
   pinned(): Ref[] {
     const refs: Ref[] = [];
-    for (const p of this.list) refs.push(p.event, p.ruler.event);
+    for (const p of this.list) {
+      refs.push(p.event, p.ruler.event);
+      if (p.tithed) refs.push(p.tithed);
+    }
     for (const d of this.grievance.values()) if (d.cause) refs.push(d.cause);
     return refs;
   }
@@ -443,6 +451,49 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
 
   // Grievance fades everywhere, in a realm or out of one.
   store.fadeGrievance(0.75);
+
+  // The tithe, reconsidered every five years: the seat weighs what its people want — the
+  // court and the temple more of it, those who work the land less — and sets it there.
+  if (year % 5 === 0)
+    for (const p of store.living()) {
+      const interests = interestsOf(ctx, p, t),
+        up = pressure(interests, "more tribute"),
+        down = pressure(interests, "lighter tribute"),
+        now = Math.round(p.tribute * 100),
+        want = Math.round(
+          100 * Math.min(0.15, Math.max(0.02, 0.05 + 0.2 * (up.total - down.total))),
+        );
+      // Only a real shift in what they want moves it (two parts in a hundred, or more).
+      if (Math.abs(want - now) < 2) continue;
+      const factors: Factor[] = interests
+        .flatMap((i) =>
+          i.demands
+            .filter((d) => d.want === "more tribute" || d.want === "lighter tribute")
+            .map((d) => ({ d, weight: i.sway * d.strength })),
+        )
+        .map(({ d, weight }) => ({
+          name: d.name,
+          value: d.strength,
+          contribution: d.want === "more tribute" ? weight : -weight,
+          source: d.source ? { ref: d.source, role: "pressure" as const, weight: 1 } : null,
+        }));
+      const decision = world.decisions.record({
+        rule: "polity.tithe",
+        subject: p.ref,
+        outcome: { from: now, to: want },
+        score: up.total - down.total,
+        threshold: 0,
+        factors,
+      });
+      p.tithed = world.events.emit({
+        type: POLITY_EVENTS.tithe.type,
+        subjects: [p.ref],
+        place: ctx.provinces.get(p.seat)?.ref ?? null,
+        causes: [{ ref: decision, role: "trigger", weight: 1 }],
+        data: { name: realmName(p), from: now, to: want },
+      });
+      p.tribute = want / 100;
+    }
 
   // 3. Tribute to the seat, and the discontent it and hard years breed.
   const faiths = world.storeNames().includes("belief.faiths")

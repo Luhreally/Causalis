@@ -110,9 +110,16 @@ type RealmFacts = {
   since: number;
   grievance: number;
   cause: string | null;
+  tithe: number;
+  interests: { group: string; sway: number; want: string | null; source: string | null }[];
   neighbours: { ref: string; name: string; standing: string; opinion: number }[];
   wars: { ref: string; name: string; since: number; attacking: boolean }[];
 } | null;
+
+/** "farmers want lighter tribute" → "Farmers want lighter tribute". */
+function sentenceOf(text: string): string {
+  return text ? text[0]!.toUpperCase() + text.slice(1) : text;
+}
 
 /** A province's market, as the host reports it. */
 export type MarketFacts = {
@@ -467,6 +474,7 @@ export class PlanetPanel {
         r.ref,
       ),
       el("div", "fact", `Ruled by ${r.ruler} since year ${r.since}`),
+      el("div", "fact", `Its seat takes ${r.tithe} parts in a hundred of the grain`),
       ...(this.tidings ? [this.tidings.follow(r.ref, "this realm")] : []),
     ];
     if (!r.seat)
@@ -474,6 +482,20 @@ export class PlanetPanel {
         r.cause
           ? this.whyLine(`They are ${mood} under its rule`, r.cause)
           : el("div", "fact muted", `They are ${mood} under its rule`),
+      );
+    // Who holds sway, and what each most wants: the line opens what the want rests on.
+    parts.push(
+      el(
+        "div",
+        "fact muted",
+        `Who holds sway: ${r.interests.map((i) => `${i.group} ${Math.round(i.sway * 100)}%`).join(", ")}`,
+      ),
+    );
+    for (const i of r.interests.filter((x) => x.want && x.sway >= 0.08).slice(0, 4))
+      parts.push(
+        i.source
+          ? this.whyLine(sentenceOf(i.want!), i.source)
+          : el("div", "fact", sentenceOf(i.want!)),
       );
     for (const w of r.wars)
       parts.push(
