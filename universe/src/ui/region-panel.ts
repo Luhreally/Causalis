@@ -134,12 +134,70 @@ export class RegionPanel {
       el("div", "fact", `Founded in year ${v.founded}`),
     );
     const families = el("div"),
-      watch = el("button", "act", "Watch their day");
+      watch = el("button", "act", "Watch their day"),
+      hand = el("div");
     watch.onclick = () => this.onWatch(ref);
-    this.body.replaceChildren(watch, el("h3", undefined, "Families you have met"), families);
+    this.body.replaceChildren(watch, hand, el("h3", undefined, "Families you have met"), families);
+    void this.showHand(hand, ref, v.name);
     this.whyTitle.textContent = "Why is it here?";
     void this.people.village(families, v.cell, ref);
     void this.why.show(ref, this.whyBox);
+  }
+
+  /** The god's hand on this village: lay it here, or lift it, each only when confirmed. */
+  private async showHand(into: HTMLElement, ref: string, name: string): Promise<void> {
+    const hand = await this.client.query<{
+      village: string;
+      name: string;
+      people: number;
+      since: number;
+    } | null>({
+      type: "hand",
+    });
+    const two = (label: string, sure: string, type: string, args: unknown, note: string) => {
+      const b = el("button", "tool", label);
+      b.onclick = async () => {
+        if (b.dataset.sure !== "yes") {
+          b.dataset.sure = "yes";
+          b.textContent = sure;
+          into.append(el("p", "note", note));
+          return;
+        }
+        b.disabled = true;
+        await this.client.command(type, args);
+        void this.selectVillage(ref);
+      };
+      return b;
+    };
+    if (hand && hand.village === ref)
+      into.replaceChildren(
+        el(
+          "div",
+          "fact act-line",
+          `Your hand has rested here since year ${hand.since}: its ${hand.people} people live as themselves.`,
+        ),
+        two(
+          "Lift your hand",
+          "Lift it — they go back to being counted",
+          "hand.lift",
+          {},
+          "Nothing is undone: what happened under your hand stays history.",
+        ),
+      );
+    else if (hand)
+      into.replaceChildren(
+        el("p", "muted", `Your hand rests on ${hand.name}; lift it there to lay it here.`),
+      );
+    else
+      into.replaceChildren(
+        two(
+          "Lay your hand here",
+          `Lay it on ${name} — confirm`,
+          "hand.lay",
+          { village: ref },
+          `Every one of ${name}'s people will be someone, born and dying one by one, until you lift your hand. It is an act, and history will remember it.`,
+        ),
+      );
   }
 
   /** Show a person met: their page, and why they are who and where they are. */

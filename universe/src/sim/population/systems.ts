@@ -18,6 +18,7 @@ import {
   periodIndex,
   purpose,
   refHash,
+  weightedIndex,
   type CauseRef,
   type Factor,
   type Ref,
@@ -33,6 +34,7 @@ import {
   type Region,
 } from "../../gen/index.ts";
 import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
+import { HAND_VITAL, bandOfAge, handOf, newbornSex } from "../hand/hand.ts";
 import { MarketStore } from "../economy/market.ts";
 import {
   BANDS,
@@ -294,10 +296,17 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       bare = 1 - (markets.get(p.cell)?.clothingCover ?? 1000) / 1000,
       mortality = (1 + 2.5 * (1 - fed)) * (1 + 0.25 * cold * bare) * sickness,
       d = new CountDeltas(p.counts),
-      key = refHash(p.ref);
+      key = refHash(p.ref),
+      // Under the hand, a village's people are born and die one by one; the rest by rates.
+      windowed = handOf(world).composition(p.cell, year),
+      rest = (r: number, o: number) =>
+        p.counts.get(r, o) - (windowed ? windowed[r * COLS + o]! : 0);
     let expected = 0;
-    for (let b = 0; b < BANDS; b++)
-      expected += p.counts.rowSum(row(FEMALE, b)) * life.fertility[b]!;
+    for (let b = 0; b < BANDS; b++) {
+      let women = p.counts.rowSum(row(FEMALE, b));
+      if (windowed) for (let o = 0; o < COLS; o++) women -= windowed[row(FEMALE, b) * COLS + o]!;
+      expected += women * life.fertility[b]!;
+    }
     const births = roundKeyed((expected * fertility) / 12, world.rng.real(BIRTHS, key, t));
     if (births) {
       const [girls, boys] = multinomial(births, [0.488, 0.512], (i) =>
@@ -310,7 +319,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
     for (let s = 0; s < SEXES; s++)
       for (let b = 0; b < BANDS; b++)
         for (let o = 0; o < COLS; o++) {
-          const n = p.counts.get(row(s, b), o);
+          const n = rest(row(s, b), o);
           if (!n) continue;
           const dead = Math.min(
             n,
@@ -323,6 +332,30 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
           d.add(row(s, b), o, -dead);
           history.addDeaths(p.cell, year, b, dead);
         }
+    const w = windowed ? handOf(world).over(p.cell) : null;
+    if (w) {
+      const living: typeof w.agents = [];
+      for (const a of w.agents) {
+        const band = bandOfAge(year - a.birthYear);
+        if (world.rng.real(HAND_VITAL, a.id, t, 0) < (life.mortality[band]! * mortality) / 12) {
+          d.add(row(a.sex, band), a.occupation, -1);
+          history.addDeaths(p.cell, year, band, 1);
+          continue;
+        }
+        living.push(a);
+        if (
+          a.sex === FEMALE &&
+          world.rng.real(HAND_VITAL, a.id, t, 1) < (life.fertility[band]! * fertility) / 12
+        ) {
+          const id = w.next++,
+            sex = newbornSex(world.rng.real(HAND_VITAL, id, t, 2));
+          living.push({ id, sex, birthYear: year, occupation: OCC.dependent });
+          d.add(row(sex, 0), OCC.dependent, 1);
+          history.addBirths(p.cell, year, 1);
+        }
+      }
+      w.agents = living;
+    }
     d.commit(p.counts);
   }
 }
@@ -366,12 +399,14 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
         provinceCapacity(ctx, p.cell),
         ctx.settlements.inProvince(p.cell).length,
         marketsOf(world).wagesOf(p.cell),
-      );
+      ),
+      year = yearOfMoment(t),
+      windowed = handOf(world).composition(p.cell, year);
     for (let s = 0; s < SEXES; s++)
       for (let b = 0; b < BANDS - 1; b++) {
         const comingOfAge = life.bands[b + 1]! === life.adulthood;
         for (let o = 0; o < COLS; o++) {
-          const n = p.counts.get(row(s, b), o);
+          const n = p.counts.get(row(s, b), o) - (windowed ? windowed[row(s, b) * COLS + o]! : 0);
           if (!n) continue;
           const movers = Math.min(
             n,
@@ -386,6 +421,18 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
           } else d.add(row(s, b + 1), o, movers);
         }
       }
+    // Under the hand, each ages by their own years, and takes up work as they come of age.
+    const w = windowed ? handOf(world).over(p.cell) : null;
+    if (w)
+      for (const a of w.agents) {
+        const was = bandOfAge(year - a.birthYear),
+          now = bandOfAge(year + 1 - a.birthYear);
+        if (now === was) continue;
+        d.add(row(a.sex, was), a.occupation, -1);
+        if (a.occupation === OCC.dependent && life.bands[now]! >= life.adulthood)
+          a.occupation = weightedIndex(targets, world.rng.real(HAND_VITAL, a.id, t, 3));
+        d.add(row(a.sex, now), a.occupation, 1);
+      }
     d.commit(p.counts);
   }
 }
@@ -394,7 +441,15 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
 export function workYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx;
   for (const p of ctx.provinces.all()) {
-    const grown = adults(p);
+    // The hand's people keep the work they took up: only the rest change theirs.
+    const windowed = handOf(world).composition(p.cell, Math.floor(t / YEAR)),
+      rest = (r: number, o: number) =>
+        p.counts.get(r, o) - (windowed ? windowed[r * COLS + o]! : 0);
+    let grown = adults(p);
+    if (windowed)
+      for (let r = 0; r < ROWS; r++)
+        if (HUMANLIKE.bands[r % BANDS]! >= HUMANLIKE.adulthood)
+          for (let o = 0; o < COLS; o++) grown -= windowed[r * COLS + o]!;
     if (!grown) continue;
     const key = refHash(p.ref),
       targets = occupationTargets(
@@ -414,7 +469,7 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
       for (let b = 0; b < BANDS; b++)
         if (HUMANLIKE.bands[b]! >= HUMANLIKE.adulthood) {
           adultRows.push(row(s, b));
-          for (let o = 1; o < COLS; o++) current[o] = current[o]! + p.counts.get(row(s, b), o);
+          for (let o = 1; o < COLS; o++) current[o] = current[o]! + rest(row(s, b), o);
         }
     const surplus = current.map((c, o) => (o === 0 ? 0 : Math.max(0, c - desired[o]!))),
       deficit = current.map((c, o) => (o === 0 ? 0 : Math.max(0, desired[o]! - c))),
@@ -440,7 +495,7 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
       if (!n) return;
       const byRow = drawWithoutReplacement(
         n,
-        adultRows.map((r) => p.counts.get(r, o)),
+        adultRows.map((r) => rest(r, o)),
         (i) => world.rng.real(WORK, key, t, 3 + o, i),
       );
       byRow.forEach((m, i) => {
@@ -503,8 +558,11 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
     options.sort((a, b) =>
       b.attraction !== a.attraction ? b.attraction - a.attraction : a.cell - b.cell,
     );
+    // Those under the hand stay: movers come from the rest.
+    const windowed = handOf(world).composition(p.cell, Math.floor(t / YEAR)),
+      held = windowed ? windowed.reduce((a, b) => a + b, 0) : 0;
     const key = refHash(p.ref),
-      movers = Math.floor(pop * Math.min(0.06, pressure * 0.08));
+      movers = Math.min(pop - held, Math.floor(pop * Math.min(0.06, pressure * 0.08)));
     if (movers < MIN_GROUP) continue;
     // A band that sets out is at least MIN_GROUP strong: a small exodus goes one way.
     const best = options.slice(0, Math.max(1, Math.min(3, Math.floor(movers / MIN_GROUP))));
@@ -517,7 +575,8 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
     const cells = ROWS * COLS,
       counts = new Array<number>(cells);
     for (let r = 0; r < ROWS; r++)
-      for (let o = 0; o < COLS; o++) counts[r * COLS + o] = p.counts.get(r, o);
+      for (let o = 0; o < COLS; o++)
+        counts[r * COLS + o] = p.counts.get(r, o) - (windowed ? windowed[r * COLS + o]! : 0);
     const everyone = drawWithoutReplacement(movers, counts, (i) =>
       world.rng.real(MOVES, key, t, 1, i),
     );
@@ -855,15 +914,23 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
     // The settled people live in the villages, the better sites drawing more; the
     // market town's trades live there.
     if (villages.length) {
-      const r = regionOf(ctx, p.cell),
-        market = villages.find((v) => v.market),
-        inTown = market ? townsfolk : 0;
-      const share = apportion(
-        settled - inTown,
-        villages.map((v) => 0.2 + siteScore(r, v.tile)),
-        villages.map((v) => world.rng.u32(SITES, refHash(v.ref), t, 9)),
-      );
-      villages.forEach((v, i) => (v.population = share[i]! + (v === market ? inTown : 0)));
+      // A village under the hand holds exactly its people; the others share the rest.
+      const hand = handOf(world).over(p.cell),
+        held = hand ? villages.find((v) => v.ref === hand.village) : undefined,
+        free = held ? villages.filter((v) => v !== held) : villages,
+        r = regionOf(ctx, p.cell),
+        market = free.find((v) => v.market),
+        inHand = held ? Math.min(settled, hand!.agents.length) : 0,
+        inTown = market ? Math.min(townsfolk, settled - inHand) : 0;
+      const share = free.length
+        ? apportion(
+            settled - inHand - inTown,
+            free.map((v) => 0.2 + siteScore(r, v.tile)),
+            free.map((v) => world.rng.u32(SITES, refHash(v.ref), t, 9)),
+          )
+        : [];
+      free.forEach((v, i) => (v.population = share[i]! + (v === market ? inTown : 0)));
+      if (held) held.population = hand!.agents.length;
     }
   }
 }

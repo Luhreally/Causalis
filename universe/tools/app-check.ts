@@ -300,6 +300,30 @@ for (const engine of engines) {
             await new Promise((r) => setTimeout(r, 1500));
             await page.screenshot({ path: join(shotsAt, `${engine}-watch.png`) });
           }
+
+          // The hand: laid on the village, everyone there is someone, one by one.
+          await page.evaluate(async (ref) => {
+            const c = (globalThis as { causalis?: Exposed }).causalis!;
+            await (
+              c.client as unknown as { command(t: string, a: unknown): Promise<unknown> }
+            ).command("hand.lay", { village: ref });
+            c.watch!(ref);
+          }, village.ref);
+          const held = await waitFor(
+            `${label} the hand`,
+            () =>
+              page.evaluate(
+                () => (globalThis as { causalis?: Exposed }).causalis?.watching?.() ?? null,
+              ),
+            (n) => n > watched,
+          );
+          console.log(
+            `${(label + " hand").padEnd(24)} ${later.mode.padEnd(9)} ${held} people of ${village.name} under the hand`,
+          );
+          if (shotsAt && !query.includes("inline")) {
+            await new Promise((r) => setTimeout(r, 1500));
+            await page.screenshot({ path: join(shotsAt, `${engine}-hand-village.png`) });
+          }
         }
       }
       await page.close();

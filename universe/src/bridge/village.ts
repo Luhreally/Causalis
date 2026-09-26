@@ -6,6 +6,8 @@ export type VillagePlan = {
   readonly name: string;
   readonly population: number;
   readonly market: boolean;
+  /** Whether the god's hand rests here: then everyone shown is one of the hand's people. */
+  readonly hand: boolean;
   /** The biome the village stands in (gen's code), for the ground's colour. */
   readonly biome: number;
   readonly seed: number;

@@ -36,6 +36,16 @@ import {
 import { deviceTier } from "./tier.ts";
 
 const DAY = 86_400;
+/** What the hand's people do, in words. */
+const WORK_WORDS = [
+  "a child",
+  "a forager",
+  "a farmer",
+  "a herder",
+  "a crafter",
+  "a trader",
+  "a leader",
+];
 /** Watching a village starts at an hour a second: a day goes by in 24 seconds. */
 const WATCH_DEFAULT = 3600;
 const YEAR = 365 * DAY;
@@ -377,6 +387,7 @@ async function runPlanetPage(): Promise<void> {
     plan = await client.query<VillagePlan>({ type: "village.plan", args: { ref } });
     village.build(plan);
     villagePanel.show(plan.name, WATCH_DEFAULT);
+    villagePanel.hand = plan.hand;
   };
   const toVillage = async (ref: string) => {
     scale = "village";
@@ -404,7 +415,15 @@ async function runPlanetPage(): Promise<void> {
   const selectPerson = (i: number | null) => {
     watched = i;
     village.mark(i);
-    if (i !== null && plan) void villagePanel.showPerson(plan.people[i]!.ref);
+    if (i === null || !plan) return;
+    const p = plan.people[i]!;
+    if (p.ref.startsWith("agent:"))
+      villagePanel.showAgent(
+        p.name,
+        p.age,
+        p.child ? "a child" : (WORK_WORDS[p.occupation] ?? "at work"),
+      );
+    else void villagePanel.showPerson(p.ref);
   };
   regionPanel.onWatch = (ref) => void toVillage(ref);
   villagePanel.onSpeed = (s) => client.setSpeed(s);
@@ -424,6 +443,11 @@ async function runPlanetPage(): Promise<void> {
     if (watched !== null) villagePanel.moment(village.momentAt(watched));
     // The years turn: re-read the plan, so those who died are gone.
     if (Math.floor(clock.t / YEAR) !== planYear) void loadPlan(plan.ref);
+    // Families met are named over their homes; under the hand, the village is its own name.
+    if (plan.hand) {
+      labels.update([]);
+      return;
+    }
     const names = new Map(
       plan.people.map((p) => [plan!.homes[p.home]!.household, p.name.split(" ").at(-1)!]),
     );

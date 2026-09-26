@@ -12,6 +12,7 @@ const plan: VillagePlan = {
   name: "Testford",
   population: 60,
   market: true,
+  hand: false,
   biome: 8,
   seed: 3,
   homes: [

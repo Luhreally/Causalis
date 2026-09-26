@@ -44,6 +44,7 @@ export class VillagePanel {
   private readonly page = el("div");
   private readonly whyBox = el("div", "why");
   private view = 0;
+  private readonly hint = el("p", "hint");
   onBack: () => void = () => {};
   onSpeed: (speed: number) => void = () => {};
   onClose: () => void = () => {};
@@ -84,15 +85,8 @@ export class VillagePanel {
       this.whyBox,
     );
     this.inspector.hidden = true;
-    this.element.append(
-      bar,
-      this.inspector,
-      el(
-        "p",
-        "hint",
-        "You are watching: nothing here changes what happens. Tap someone to look closer.",
-      ),
-    );
+    this.element.append(bar, this.inspector, this.hint);
+    this.hand = false;
     root.append(this.element);
     this.visible = false;
   }
@@ -119,6 +113,29 @@ export class VillagePanel {
   moment(m: Moment | null): void {
     if (!m) return;
     this.now.textContent = `Now ${ACTIVITY_WORDS[m.activity]}; ${needWords(m)}`;
+  }
+
+  /** Whether the hand rests on the village watched: then its people are the hand's. */
+  set hand(on: boolean) {
+    this.hint.textContent = on
+      ? "Your hand rests here: these people live as themselves, and what befalls them is history."
+      : "You are watching: nothing here changes what happens. Tap someone to look closer.";
+  }
+
+  /** One of the hand's people: who they are, as the hand knows them. */
+  showAgent(name: string, age: number, work: string): void {
+    ++this.view;
+    this.inspector.hidden = false;
+    this.who.textContent = name;
+    this.page.replaceChildren(
+      el("div", "fact", `${age}, ${work}`),
+      el(
+        "p",
+        "muted",
+        "One of the people your hand rests on: they live and die as themselves while it rests here.",
+      ),
+    );
+    this.whyBox.replaceChildren();
   }
 
   async showPerson(ref: string): Promise<void> {

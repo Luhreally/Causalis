@@ -175,11 +175,23 @@ function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
   return legs;
 }
 
+// A day's legs, kept while the day lasts: the same person's same day is the same.
+const DAYS = new Map<string, Leg[]>();
+function legsOf(plan: VillagePlan, index: number, day: number): Leg[] {
+  const key = `${plan.ref}|${plan.people[index]!.ref}|${plan.people[index]!.home}|${day}`;
+  let legs = DAYS.get(key);
+  if (!legs) {
+    if (DAYS.size > 4000) DAYS.clear();
+    DAYS.set(key, (legs = dayOf(plan, index, day)));
+  }
+  return legs;
+}
+
 /** Where a watched person is at sim time t, and how they fare. */
 export function momentOf(plan: VillagePlan, index: number, t: number): Moment {
   const day = Math.floor(t / DAY),
     s = t - day * DAY,
-    legs = dayOf(plan, index, day);
+    legs = legsOf(plan, index, day);
   const leg = legs.find((l) => s >= l.from && s < l.to) ?? legs[legs.length - 1]!;
   let x = leg.at.x,
     z = leg.at.z,

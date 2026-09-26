@@ -74,3 +74,12 @@ export {
   type ActArgs,
   type ActKind,
 } from "./acts/acts.ts";
+export {
+  HAND_EVENTS,
+  HandStore,
+  bandOfAge,
+  handOf,
+  installHand,
+  type Agent,
+  type Window,
+} from "./hand/hand.ts";

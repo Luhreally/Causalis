@@ -7,7 +7,8 @@
 import { finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
 import { WATER } from "../gen/index.ts";
 import { HUMANLIKE } from "../rules/index.ts";
-import { populationContext, regionOf } from "../sim/index.ts";
+import { handOf, populationContext, regionOf } from "../sim/index.ts";
+import { personName } from "../gen/index.ts";
 import { meetHousehold, observer, settleAll } from "../causal/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 
@@ -83,7 +84,24 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
     });
   }
   const watched = known().sort((a, b) => a.seq - b.seq),
-    people: VillagePlan["people"][number][] = [];
+    people: VillagePlan["people"][number][] = [],
+    hand = handOf(world).resting;
+  if (hand && hand.village === ref) {
+    // Under the hand, everyone in the village is someone: the hand's own people, five to a home.
+    hand.agents.forEach((a, k) => {
+      const home = Math.min(homes.length - 1, Math.floor(k / 5));
+      homes[home]!.household = `home:${home}`;
+      people.push({
+        ref: `agent:${a.id}`,
+        name: `${personName(ctx.culture, a.id, a.sex)} of ${v.name}`,
+        home,
+        age: now - a.birthYear,
+        occupation: a.occupation,
+        child: now - a.birthYear < HUMANLIKE.adulthood,
+      });
+    });
+    return planOf(people);
+  }
   watched.forEach((hh, k) => {
     // The watched live toward the middle, where the microscope looks.
     const home = Math.min(homes.length - 1, k * 2 + (k % 2));
@@ -101,22 +119,29 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       });
     }
   });
-  return {
-    ref,
-    name: v.name,
-    population: v.population,
-    market: v.market !== null,
-    biome: r.biome[v.tile]!,
-    seed,
-    homes,
-    fields,
-    pasture: { x: 560 * Math.cos(pastureWay), z: 560 * Math.sin(pastureWay), r: 150 },
-    wild: 900,
-    water: waterWay === null ? null : { x: 700 * Math.cos(waterWay), z: 700 * Math.sin(waterWay) },
-    road: {
-      x: 1100 * Math.cos(fieldWay + Math.PI * 0.75),
-      z: 1100 * Math.sin(fieldWay + Math.PI * 0.75),
-    },
-    people,
-  };
+  return planOf(people);
+
+  function planOf(people: VillagePlan["people"][number][]): VillagePlan {
+    const village = v!;
+    return {
+      ref,
+      hand: !!hand && hand.village === ref,
+      name: village.name,
+      population: village.population,
+      market: village.market !== null,
+      biome: r.biome[village.tile]!,
+      seed,
+      homes,
+      fields,
+      pasture: { x: 560 * Math.cos(pastureWay), z: 560 * Math.sin(pastureWay), r: 150 },
+      wild: 900,
+      water:
+        waterWay === null ? null : { x: 700 * Math.cos(waterWay), z: 700 * Math.sin(waterWay) },
+      road: {
+        x: 1100 * Math.cos(fieldWay + Math.PI * 0.75),
+        z: 1100 * Math.sin(fieldWay + Math.PI * 0.75),
+      },
+      people,
+    };
+  }
 }

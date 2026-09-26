@@ -7,6 +7,7 @@ import { FEMALE, G, HUMANLIKE, MALE, OCC } from "../../rules/index.ts";
 import { MarketStore } from "../economy/market.ts";
 import { installEconomy } from "../economy/systems.ts";
 import { installActs } from "../acts/acts.ts";
+import { installHand } from "../hand/hand.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
 import { Province, capacity, row } from "./model.ts";
 import { HistoryStore, PopulationStore, SettlementStore } from "./stores.ts";
@@ -79,6 +80,8 @@ export function makePopulationWorld(seed: Seed, options: PlanetWorldOptions = {}
       return null;
     },
   );
+
+  installHand(world);
 
   const g = homePlanet(world).generated,
     home = chooseHome(g, world),

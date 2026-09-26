@@ -5,6 +5,7 @@ import {
   capacity,
   homePlanet,
   actsOf,
+  handOf,
   makePopulationWorld,
   marketGoodRef,
   marketsOf,
@@ -338,6 +339,18 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "province.history": (world, args) => provinceHistory(world, (args as { cell: number }).cell),
       chronicle: (world, args) => chronicle(world, (args as { limit?: number }).limit ?? 60),
       "village.plan": (world, args) => villagePlan(world, (args as { ref: string }).ref as Ref),
+      /** Where the god's hand rests, if anywhere. */
+      hand: (world) => {
+        const w = handOf(world).resting;
+        if (!w) return null;
+        return {
+          village: w.village,
+          name: populationContext(world).settlements.get(w.village)?.name ?? "",
+          people: w.agents.length,
+          since: yearOfMoment(w.laid),
+          event: w.event,
+        };
+      },
       /** The god's acts on a province, newest first, each with the event that records it. */
       acts: (world, args) => {
         const cell = (args as { cell: number }).cell;
