@@ -43,11 +43,13 @@ import {
   TOOL_USERS,
   TRADER_CAPACITY,
   WANTS,
+  type LifeHistory,
   type Recipe,
 } from "../../rules/index.ts";
 import type { Province } from "../population/model.ts";
 import {
   marketsOf,
+  mouths,
   populationContext,
   provinceCapacity,
   roundKeyed,
@@ -333,7 +335,7 @@ function makeAndUse(
   m.powerCover = fuel > 0 ? Math.round((1000 * burned) / fuel) : 0;
   firsts(ctx, p, m);
   // Food wanted over the year: a month's for everyone, twelve times.
-  for (const g of FOODS) want[g] = want[g]! + (pop * ctx.life.appetite * 12) / FOODS.length;
+  for (const g of FOODS) want[g] = want[g]! + (mouths(p, ctx.life) * 12) / FOODS.length;
 }
 
 /**
@@ -470,7 +472,7 @@ function trade(
       if (margin <= 0) continue;
       const people = ctx.provinces.get(s.cell)!.total(),
         keep = GOODS[g]!.food
-          ? people * ctx.life.appetite * FOOD_RESERVE_MONTHS
+          ? mouths(ctx.provinces.get(s.cell)!, ctx.life) * FOOD_RESERVE_MONTHS
           : (wanted.get(s.cell)?.[g] ?? 0),
         spare = s.stock[g]! - keep;
       if (spare <= 0) continue;
@@ -615,8 +617,8 @@ function relief(
 }
 
 /** Prices move toward what this year's shortage or glut would make them. */
-function reprice(p: Province, m: Market, want: readonly number[], appetite: number): void {
-  const pop = p.total() * appetite;
+function reprice(p: Province, m: Market, want: readonly number[], life: LifeHistory): void {
+  const pop = mouths(p, life);
   // Foods stand in for one another: one scarcity for all three.
   let eaten = 0,
     kept = 0;
@@ -687,7 +689,7 @@ export function economyYear(ctx: PopulationContext, t: SimTime): void {
   relief(ctx, markets, flows, t);
   for (const p of provinces) {
     const m = markets.of(p.cell);
-    reprice(p, m, wanted.get(p.cell)!, ctx.life.appetite);
+    reprice(p, m, wanted.get(p.cell)!, ctx.life);
     wages(ctx, p, m);
   }
 }

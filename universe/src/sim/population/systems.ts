@@ -46,21 +46,24 @@ import { loreOf } from "../lore/lore.ts";
 import { MarketStore } from "../economy/market.ts";
 import {
   BANDS,
+  bandWidth,
+  deathWithin,
+  diedInBirthYear,
   FEMALE,
   FOODS,
   G,
   GOODS,
-  type LifeHistory,
+  MACHINE_GAIN,
   MALE,
   OCC,
-  MACHINE_GAIN,
-  TOOL_GAIN,
   PRODUCTIVITY,
   SEXES,
-  bandWidth,
+  TOOL_GAIN,
+  type LifeHistory,
+  type Medium,
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
-import { COLS, Province, ROWS, capacity, row, type Capacity } from "./model.ts";
+import { capacity, COLS, livable, Province, row, ROWS, type Capacity } from "./model.ts";
 import {
   HistoryStore,
   PopulationStore,
@@ -121,6 +124,12 @@ function yearOfMoment(t: number): number {
   return Math.floor((t - 1) / YEAR);
 }
 
+/** The food a land's people eat a month, in units: each by their body's appetite, the young by theirs. */
+export function mouths(p: Province, life: LifeHistory): number {
+  const young = p.counts.rowSum(row(FEMALE, 0)) + p.counts.rowSum(row(MALE, 0));
+  return (p.total() - young * (1 - life.young)) * life.appetite;
+}
+
 /** A land's grown people, by its people's life table. */
 export function adults(p: Province, life: LifeHistory): number {
   let n = 0;
@@ -177,8 +186,9 @@ export function support(cap: Capacity, knows: boolean, herds = true): number {
 export type PopulationContext = {
   readonly world: World;
   readonly generated: HomeWorld;
-  /** The people's life table, from their body. */
+  /** The people's life table, from their body; and the medium they live in. */
   readonly life: LifeHistory;
+  readonly medium: Medium;
   readonly provinces: PopulationStore;
   readonly settlements: SettlementStore;
   readonly history: HistoryStore;
@@ -190,6 +200,7 @@ export function populationContext(world: World): PopulationContext {
     world,
     generated: homePlanet(world).generated,
     life: peopleLife(homePlanet(world).generated),
+    medium: homePlanet(world).generated.life.people?.body.medium ?? "land",
     provinces: world.store<PopulationStore>("population.provinces"),
     settlements: world.store<SettlementStore>("population.settlements"),
     history: world.store<HistoryStore>("population.history"),
@@ -200,13 +211,24 @@ export function populationContext(world: World): PopulationContext {
 // Capacities and regions are pure functions of the generated world: kept, never saved.
 const CAPACITIES = new Map<string, Capacity>();
 export function provinceCapacity(ctx: PopulationContext, cell: number): Capacity {
-  const key = `${ctx.generated.digest}:${cell}`;
+  const key = `${ctx.generated.digest}:${ctx.medium}:${cell}`;
   let c = CAPACITIES.get(key);
   if (!c) {
     if (CAPACITIES.size > 50_000) CAPACITIES.clear();
-    CAPACITIES.set(key, (c = capacity(ctx.generated, cell)));
+    CAPACITIES.set(key, (c = capacity(ctx.generated, cell, ctx.medium)));
   }
   return c;
+}
+const LIVABLE = new Map<string, boolean>();
+/** Whether the people can live in a place (a pure function of the generated world: kept, never saved). */
+export function livableFor(ctx: PopulationContext, cell: number): boolean {
+  const key = `${ctx.generated.digest}:${ctx.medium}:${cell}`;
+  let ok = LIVABLE.get(key);
+  if (ok === undefined) {
+    if (LIVABLE.size > 50_000) LIVABLE.clear();
+    LIVABLE.set(key, (ok = livable(ctx.generated, cell, ctx.medium)));
+  }
+  return ok;
 }
 const REGIONS = new Map<string, Region>();
 /** A province's region: tiles to a side, and their size (it spans most of a province). */
@@ -329,7 +351,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         ),
       );
     // What they eat: their people by the appetite of their body (an upright ape's, one unit a month).
-    const need = Math.round(p.total() * ctx.life.appetite);
+    const need = Math.round(mouths(p, ctx.life));
     let eaten = 0;
     for (const g of FOODS) eaten += m.take("used", g, need - eaten);
     let over = m.food(FOODS) - need * (12 + 12 * pots + stored);
@@ -416,18 +438,20 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       const [girls, boys] = multinomial(births, [0.488, 0.512], (i) =>
         world.rng.real(BIRTHS, key, t, SEX, i),
       );
-      // Reckoned a whole year at once, the year's newborns have lived half of it on average.
+      // Reckoned a whole year at once, the year's newborns were born through it: those of them
+      // who died within it, by the first years' chance spread over the year.
       const infants = quiet
           ? Math.min(
               births,
               roundKeyed(
-                (births * life.mortality[0]! * mortality) / 2,
+                births * diedInBirthYear(life.mortality[0]! * mortality),
                 world.rng.real(DEATHS, key, t, 1, 0),
               ),
             )
           : 0,
+        // Who of the newborns they were: drawn from the girls and boys born, never more of either.
         [lostGirls] = infants
-          ? multinomial(infants, [girls! / births, boys! / births], (i) =>
+          ? drawWithoutReplacement(infants, [girls!, boys!], (i) =>
               world.rng.real(DEATHS, key, t, 2, i),
             )
           : [0];
@@ -444,7 +468,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
           const dead = Math.min(
             n,
             roundKeyed(
-              (n * life.mortality[b]! * mortality * months) / 12,
+              n * deathWithin(life.mortality[b]! * mortality, months),
               world.rng.real(DEATHS, key, t, 0, row(s, b) * COLS + o),
             ),
           );
@@ -460,7 +484,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
           blessed = a.blessedUntil !== undefined && year < a.blessedUntil;
         if (
           !blessed &&
-          world.rng.real(HAND_VITAL, a.id, t, 0) < (life.mortality[band]! * mortality) / 12
+          world.rng.real(HAND_VITAL, a.id, t, 0) < deathWithin(life.mortality[band]! * mortality, 1)
         ) {
           d.add(row(a.sex, band), a.occupation, -1);
           history.addDeaths(p.cell, year, band, 1);
@@ -688,27 +712,37 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
   for (const p of ctx.provinces.all()) {
     const pop = p.total();
     if (pop < 20) continue;
-    const mouths = pop * appetite,
+    const eating = mouths(p, ctx.life),
       c = living(provinceCapacity(ctx, p.cell), wildsOf(ctx, p.cell)),
       here = support(c, p.knowsCultivation, p.herding !== null),
       hunger = 1 - p.leanest / 1000,
-      crowd = Math.max(0, mouths / Math.max(1, here) - 0.85),
+      crowd = Math.max(0, eating / Math.max(1, here) - 0.85),
       // Young foraging bands bud off into empty land long before hunger drives them, once
       // their land holds a quarter of what the wild can feed. (Farmers spreading across
       // continents waits on the whole planet peopled and paged: milestones 29–30.)
       budding = p.knowsCultivation
         ? 0
-        : Math.min(0.3, Math.max(0, mouths / Math.max(1, c.forage) - 0.25)),
+        : Math.min(0.3, Math.max(0, eating / Math.max(1, c.forage) - 0.25)),
       pushed = 0.6 * hunger + crowd,
       pressure = pushed + budding;
     if (pressure < 0.05) continue;
     // Budding goes only to empty land; those pushed by hunger or crowding go anywhere better.
     const buddingOnly = pushed < 0.05;
-    const perHere = here / mouths;
+    const perHere = here / eating;
     const options: { cell: number; attraction: number }[] = [];
+    // Their neighbours — and, for a people of the water, the shelves a reach of barren
+    // deep sea away (as far as a people of the land crosses a strait).
+    const reach: number[] = [];
     for (let k = g.grid.offsets[p.cell]!; k < g.grid.offsets[p.cell + 1]!; k++) {
       const m = g.grid.neighbours[k]!;
-      if (g.tectonics.elevation[m]! <= 0) continue;
+      if (livableFor(ctx, m)) reach.push(m);
+      else if (ctx.medium === "water")
+        for (let j = g.grid.offsets[m]!; j < g.grid.offsets[m + 1]!; j++) {
+          const far = g.grid.neighbours[j]!;
+          if (far !== p.cell && !reach.includes(far) && livableFor(ctx, far)) reach.push(far);
+        }
+    }
+    for (const m of reach) {
       const there = support(
           living(provinceCapacity(ctx, m), wildsOf(ctx, m)),
           p.knowsCultivation,
@@ -888,12 +922,14 @@ export function knowledgeYear(ctx: PopulationContext, t: SimTime): void {
       continue;
     }
     if (year - p.settledYear < 15) continue;
-    // Only where a grass with seed heavy enough to sow grows wild can sowing be found.
-    const grass = g.life.seedGrass[p.cell]!;
-    if (grass < 0) continue;
+    // Only where a grass with seed heavy enough to sow grows wild can sowing be found —
+    // or, for a people of the water, where the shelf holds beds of weed and shell to tend.
+    const grass = g.life.seedGrass[p.cell]!,
+      beds = ctx.medium !== "land" && g.tectonics.elevation[p.cell]! <= 0;
+    if (grass < 0 && !beds) continue;
     const c = provinceCapacity(ctx, p.cell),
       soil = dmath.clamp(c.farm / Math.max(1, c.areaKm2 * 12), 0, 1),
-      crowd = p.total() / Math.max(1, c.forage),
+      crowd = mouths(p, ctx.life) / Math.max(1, c.forage),
       chance = 0.004 * soil * (1 + 6 * Math.max(0, crowd - 0.6)) * (p.lastFamine ? 1.5 : 1);
     if (world.rng.chance(chance, KNOW, key, t, 0))
       learned.push({ p, from: null, chance, crowd, soil });
@@ -933,16 +969,23 @@ export function knowledgeYear(ctx: PopulationContext, t: SimTime): void {
             contribution: 0.1,
             source: p.arrival ? { ref: p.arrival, role: "enabler", weight: 1 } : null,
           },
-          {
-            name: "a wild grain to sow",
-            value: g.life.species[g.life.seedGrass[p.cell]!]!.seed,
-            contribution: 0.5,
-            source: {
-              ref: g.life.species[g.life.seedGrass[p.cell]!]!.ref as Ref,
-              role: "enabler",
-              weight: 1,
-            },
-          },
+          g.life.seedGrass[p.cell]! >= 0
+            ? {
+                name: "a wild grain to sow",
+                value: g.life.species[g.life.seedGrass[p.cell]!]!.seed,
+                contribution: 0.5,
+                source: {
+                  ref: g.life.species[g.life.seedGrass[p.cell]!]!.ref as Ref,
+                  role: "enabler",
+                  weight: 1,
+                },
+              }
+            : {
+                name: "beds of weed and shell to tend",
+                value: 1,
+                contribution: 0.5,
+                source: { ref: cellRef(0, p.cell), role: "enabler", weight: 1 },
+              },
         ],
       });
       p.cultivation = world.events.emit({
@@ -1020,6 +1063,35 @@ function herdingYear(ctx: PopulationContext, t: SimTime): void {
   }
 }
 
+/** Where a people of a medium can raise a village: good land; the shallows; the tide's edge. */
+function buildable(medium: Medium, r: Region, t: number): boolean {
+  if (medium === "water") return r.water[t] === WATER.sea && r.elevation[t]! >= -SHALLOWS;
+  if (r.water[t] !== WATER.land || r.fertility[t]! < 0.2) return false;
+  return medium === "land" || near(r, t, (u) => r.water[u] === WATER.sea);
+}
+/** The deepest water a people of the water raise their villages in, metres. */
+const SHALLOWS = 120;
+
+/** Whether any tile within two of `t` is as asked. */
+function near(r: Region, t: number, is: (u: number) => boolean): boolean {
+  const size = r.size,
+    i = t % size,
+    j = Math.floor(t / size);
+  for (let dj = -2; dj <= 2; dj++)
+    for (let di = -2; di <= 2; di++) {
+      const a = i + di,
+        b = j + dj;
+      if (a >= 0 && b >= 0 && a < size && b < size && is(b * size + a)) return true;
+    }
+  return false;
+}
+
+/** A village site in the shallows: the shallower and the nearer the shore, the better (the reefs are there). */
+function reefScore(r: Region, t: number): number {
+  const shallow = 1 - Math.min(1, -r.elevation[t]! / SHALLOWS);
+  return 0.6 * shallow + (near(r, t, (u) => r.water[u] === WATER.land) ? 0.4 : 0);
+}
+
 function siteScore(r: Region, t: number): number {
   const size = r.size,
     i = t % size,
@@ -1071,9 +1143,8 @@ function siteBlocks(ctx: PopulationContext, cell: number): SiteBlocks {
       tiles = new Uint16Array(side * side).fill(0xffff),
       scores = new Float32Array(side * side).fill(-1);
     for (let b = 0; b < side * side; b++) {
-      if (r.water[b] !== WATER.land || provinceOfTile(ctx, r, b) !== cell || r.fertility[b]! < 0.2)
-        continue;
-      scores[b] = Math.fround(siteScore(r, b));
+      if (provinceOfTile(ctx, r, b) !== cell || !buildable(ctx.medium, r, b)) continue;
+      scores[b] = Math.fround(ctx.medium === "water" ? reefScore(r, b) : siteScore(r, b));
       // The village stands at its block's middle tile of the land's full region.
       const i = (b % side) * BLOCK + BLOCK / 2,
         j = Math.floor(b / side) * BLOCK + BLOCK / 2;

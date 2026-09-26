@@ -22,6 +22,8 @@ export type LifeHistory = {
   readonly appetite: number;
   /** How wide the last, open-ended band is taken to be, in years. */
   readonly oldest: number;
+  /** What the young of the first band eat, against the grown (the smaller the more are born). */
+  readonly young: number;
 };
 
 export const HUMANLIKE: LifeHistory = {
@@ -32,6 +34,7 @@ export const HUMANLIKE: LifeHistory = {
   adulthood: 15,
   appetite: 1,
   oldest: 10,
+  young: 1,
 };
 
 export const BANDS = HUMANLIKE.bands.length;
@@ -71,6 +74,15 @@ export function bandWidth(band: number, life: LifeHistory = HUMANLIKE): number {
   return hi === undefined ? life.oldest : hi - lo;
 }
 
+/**
+ * The chance of dying within `months` for one whose chance within a year is `p` (a
+ * yearly chance compounds over the months, not adds: at a chance of four in five a
+ * year, a month's is one in eight, not one in fifteen).
+ */
+export function deathWithin(p: number, months: number): number {
+  return 1 - dmath.pow(1 - Math.min(0.999, p), months / 12);
+}
+
 /** The band an age falls in, by a life history's bands. */
 export function bandOf(age: number, life: LifeHistory = HUMANLIKE): number {
   let b = 0;
@@ -94,22 +106,70 @@ export function lifeHistoryOf(body: BodyPlan): LifeHistory {
     bands: number[] = [];
   for (const b of HUMANLIKE.bands)
     bands.push(Math.max(bands.length ? bands.at(-1)! + 1 : 0, Math.round(b * k)));
-  // The first years: the apes' share surviving them, divided among f times the young.
-  // (Survivors leave a band a width-th a year, so a year's survival q gives a share
-  // (q / w) / (1 − q (1 − 1/w)) through it; solved for q.)
-  const through = (q: number, w: number) => q / w / (1 - q * (1 - 1 / w)),
-    w0 = bands[1]! - bands[0]!,
-    target = through(1 - HUMANLIKE.mortality[0]!, 5) / Math.max(1, f),
-    infant = 1 - target / (1 / w0 + target * (1 - 1 / w0));
-  return {
-    name: body.clade,
-    bands,
-    fertility: HUMANLIKE.fertility.map((x) => (x * f) / k),
-    mortality: HUMANLIKE.mortality.map((x, i) =>
-      i === 0 ? (f > 1 ? infant : x / k) : Math.min(0.95, x / k),
-    ),
-    adulthood: Math.max(1, Math.round(HUMANLIKE.adulthood * k)),
-    appetite: dmath.pow(body.size / 60, 0.75) * (body.warm ? 1 : 0.5),
-    oldest: Math.max(1, Math.round(10 * k)),
-  };
+  // The first years as perilous as they must be for the people to grow at the apes'
+  // pace for a life as long: solved on the simulation's own reckoning (`growthOf`).
+  const shaped = (infant: number): LifeHistory => ({
+      name: body.clade,
+      bands,
+      fertility: HUMANLIKE.fertility.map((x) => (x * f) / k),
+      mortality: HUMANLIKE.mortality.map((x, i) => (i === 0 ? infant : Math.min(0.95, x / k))),
+      adulthood: Math.max(1, Math.round(HUMANLIKE.adulthood * k)),
+      appetite: dmath.pow(body.size / 60, 0.75) * (body.warm ? 1 : 0.5),
+      oldest: Math.max(1, Math.round(10 * k)),
+      // Born many at a time, the young are born small: they eat the less.
+      young: Math.min(1, 1 / Math.max(1, f)),
+    }),
+    target = apesGrowth() / k;
+  let lo = Math.min(0.95, HUMANLIKE.mortality[0]! / k),
+    hi = 0.995;
+  if (growthOf(shaped(lo)) <= target) return shaped(lo);
+  for (let n = 0; n < 40; n++) {
+    const mid = (lo + hi) / 2;
+    if (growthOf(shaped(mid)) > target) lo = mid;
+    else hi = mid;
+  }
+  return shaped((lo + hi) / 2);
+}
+
+/**
+ * How fast a people grows a year at plenty, reckoned as the simulation reckons a land
+ * at plenty: once a year, the year's births at once (those of them who die within it
+ * as the first years' chance spread over the year says), every band's deaths at its
+ * yearly chance, and a width-th of each band growing into the next at the year's end.
+ */
+export function growthOf(life: LifeHistory, years = 300): number {
+  const bands = life.bands.length,
+    newborn = 1 - diedInBirthYear(life.mortality[0]!);
+  let n = new Array<number>(bands).fill(0),
+    at = 1;
+  n[3] = 1000;
+  for (let y = 0; y < years; y++) {
+    let births = 0;
+    for (let b = 0; b < bands; b++) births += n[b]! * life.fertility[b]!;
+    n = n.map((x, b) => x * (1 - Math.min(1, life.mortality[b]!)));
+    n[0] = n[0]! + births * 0.488 * newborn;
+    const moved = n.map((x, b) => (b < bands - 1 ? x / bandWidth(b, life) : 0));
+    for (let b = 0; b < bands; b++) {
+      n[b] = n[b]! - moved[b]!;
+      if (b + 1 < bands) n[b + 1] = n[b + 1]! + moved[b]!;
+    }
+    // Keep the numbers in range (only the growth matters).
+    const total = n.reduce((a, x) => a + x, 0);
+    if (y >= years - 100) at *= total / 1000;
+    n = n.map((x) => (x * 1000) / total);
+  }
+  return dmath.log(at) / 100;
+}
+
+let APES = NaN;
+/** The upright apes' growth at plenty, reckoned once. */
+function apesGrowth(): number {
+  if (APES !== APES) APES = growthOf(HUMANLIKE);
+  return APES;
+}
+
+/** Of the young born through a year reckoned at once, the share who die within it (births spread over the year). */
+export function diedInBirthYear(p: number): number {
+  const q = Math.min(0.999, p);
+  return q > 0 ? 1 - q / -dmath.log(1 - q) : 0;
 }

@@ -2219,6 +2219,28 @@ read it, and food needs are mouths, not heads. The canonical ape's derivation is
 Earth's table itself: the Earth seed's history is bit-identical. Open worlds of six
 clades each keep a living, growing people.
 
+38, as built: a people lives in its body's medium. Capacity takes the medium
+(`capacity(w, cell, medium)`): the warm shallow shelf feeds a people of the water as
+richly as a tropical forest (its farms are beds of weed and shell), the open ocean not
+at all; a people of the shore lives on coasts, land and shelf both; `livable` says
+where each can live. The prehistory spreads a people over its own medium (a land people
+crosses a strait, a people of the water a reach of barren sea or a neck of land), the
+first bands are as many as the wild feeds by their appetite, migration goes to places
+of the medium (a people of the water swims a reach of deep sea to the next shelf), and
+villages rise where the medium allows — good land; the shallows, the shallower and
+nearer the shore the better; the tide's edge. A people of the water comes to sowing by
+the beds of its shelf, not by a wild grain. The biosphere finds a cradle for each medium
+(mild land; a warm reef shelf by a coast; warm coast) and weighs each clade by its own
+medium's cradle, so sea and shore peoples rise on open worlds (on alien 55, a shelf
+people of 3.4 million sows its beds and raises 6,000 villages in its first fifty years).
+Making strange bodies live honestly took three fixes to the life table's reckoning, each
+visible only for them: a year's chance of dying compounds over the months
+(`deathWithin`); the young born through a year reckoned at once die by the chance spread
+over the year (`diedInBirthYear`); and the first years' peril is solved against the
+simulation's own yearly reckoning (`growthOf`), so every people grows at the apes' pace
+for its span; the young of a fecund body eat a share of an adult's (`young`, food in
+`mouths`). Earth's apes moved by a hair (the Earth seed stays in every band).
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

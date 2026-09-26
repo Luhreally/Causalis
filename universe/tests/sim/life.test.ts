@@ -6,7 +6,7 @@ import {
   CLADES,
   HUMANLIKE,
   OPEN,
-  bandWidth,
+  growthOf,
   bodyOf,
   lifeHistoryOf,
   type LifeHistory,
@@ -14,39 +14,18 @@ import {
 import { ALIEN } from "../../src/host/planet.ts";
 import { adults, lifeOf, populationContext } from "../../src/sim/index.ts";
 
-/** A people's growth a year at plenty, by projecting its women year on year. */
-function growth(life: LifeHistory): number {
-  const B = life.bands.length;
-  let n = new Array<number>(B).fill(0);
-  n[3] = 1000;
-  let at500 = 0;
-  for (let y = 0; y < 600; y++) {
-    const births = n.reduce((s, x, b) => s + x * life.fertility[b]!, 0) * 0.488,
-      next = n.map((x, b) => x * (1 - life.mortality[b]!)),
-      moved = next.map((x, b) => (b < B - 1 ? x / bandWidth(b, life) : 0));
-    for (let b = 0; b < B; b++) {
-      next[b] = next[b]! - moved[b]!;
-      if (b + 1 < B) next[b + 1] = next[b + 1]! + moved[b]!;
-    }
-    next[0] = next[0]! + births;
-    n = next;
-    if (y === 499) at500 = n.reduce((a, b) => a + b, 0);
-  }
-  return Math.log(n.reduce((a, b) => a + b, 0) / at500) / 100;
-}
-
 test("a people's life table is the upright apes' stretched to its span, renewing itself at their pace for its span", () => {
   const cond = { warmth: 18, rain: 800, gravity: 1, ocean: 0.7 },
-    apes = growth(HUMANLIKE);
+    apes = growthOf(HUMANLIKE);
   assert.equal(lifeHistoryOf(CLADES.find((c) => c.id === "ape")!.body), HUMANLIKE);
   for (const clade of CLADES) {
     const body = bodyOf(clade, cond, [0.5, 0.5, 0.5]),
       life = lifeHistoryOf(body),
       k = body.span / 70,
-      g = growth(life);
+      g = growthOf(life);
     // However many young at a birth, the first years take their share, so a people grows
     // about as the apes do for a life as long (faster for a shorter one).
-    assert.ok(Math.abs(g - apes / k) < 0.35 * (apes / k), `${clade.id}: ${g} against ${apes / k}`);
+    assert.ok(Math.abs(g - apes / k) < 0.1 * (apes / k), `${clade.id}: ${g} against ${apes / k}`);
     assert.equal(life.adulthood, Math.max(1, Math.round(15 * k)));
     // A body eats by its size (to the three-quarters), half as much with cold blood.
     assert.ok(

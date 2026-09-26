@@ -595,6 +595,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
       },
       "people.map": (world) => {
         const g = homePlanet(world).generated,
+          medium = g.life.people?.body.medium ?? "land",
           markets = marketsOf(world);
         return populationContext(world)
           .provinces.all()
@@ -606,7 +607,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
               // The spot at its middle, to turn the globe to it or pick it.
               centre: g.centre[p.cell]!,
               people: p.total(),
-              density: (100 * p.total()) / Math.max(1, capacity(g, p.cell).areaKm2),
+              density: (100 * p.total()) / Math.max(1, capacity(g, p.cell, medium).areaKm2),
               farming: p.knowsCultivation,
               food: m ? m.price[G.grain]! / GOODS[G.grain]!.value : 1,
               faith: (() => {

@@ -11,7 +11,14 @@
 // grasses bear seed heavy enough to sow: where they live, herding and sowing can be
 // found; elsewhere they must be learned.
 import { defineStream, weightedKey, type Rng, type SphereGrid } from "../kernel/index.ts";
-import { CLADES, bodyOf, type BodyPlan, type Clade, type Medium } from "../rules/index.ts";
+import {
+  CLADES,
+  bodyOf,
+  type BodyPlan,
+  type Clade,
+  type Conditions,
+  type Medium,
+} from "../rules/index.ts";
 import { BIOME, type Climate } from "./climate.ts";
 import type { Hydrology } from "./hydrology.ts";
 import { AGES, type DeepTime } from "./deeptime.ts";
@@ -81,8 +88,8 @@ export type Biosphere = {
   } | null;
 };
 
-/** The media a people can live in, as far as the simulation reaches (M38 opens the sea). */
-export const LIVABLE: readonly Medium[] = ["land"];
+/** The media a people can live in: land, the shore, and the shallow seas (M38). */
+export const LIVABLE: readonly Medium[] = ["land", "shore", "water"];
 
 /**
  * The clade that rises to thought on a world: the upright apes under the Earthlike prior
@@ -91,18 +98,19 @@ export const LIVABLE: readonly Medium[] = ["land"];
  */
 export function riseOf(
   prior: string,
-  conditions: { warmth: number; rain: number; gravity: number; ocean: number },
+  conditions: (medium: Medium) => Conditions | null,
   u: (i: number) => number,
-): Clade {
-  if (prior === "earthlike") return CLADES.find((c) => c.id === "ape")!;
+): Clade | null {
+  if (prior === "earthlike") return conditions("land") ? CLADES.find((c) => c.id === "ape")! : null;
   let best: Clade | null = null,
     key = Infinity;
   CLADES.forEach((c, i) => {
-    if (!LIVABLE.includes(c.body.medium)) return;
-    const k = weightedKey(u(i), c.fit(conditions));
+    const at = LIVABLE.includes(c.body.medium) ? conditions(c.body.medium) : null;
+    if (!at) return;
+    const k = weightedKey(u(i), c.fit(at));
     if (k < key) [best, key] = [c, k];
   });
-  return best ?? CLADES.find((c) => c.id === "ape")!;
+  return best;
 }
 
 /** Whether a living lineage is found in a cell. */
@@ -401,21 +409,61 @@ export function makeBiosphere(
       apesAt = c;
     }
   }
-  if (apesAt < 0) return { species, present, herdBeast, seedGrass, diversity, people: null };
-  const conditions = {
-      warmth: climate.temperature[apesAt]!,
-      rain: climate.precipitation[apesAt]!,
-      gravity: world.gravity,
-      ocean: world.ocean,
-    },
-    clade = riseOf(world.prior, conditions, (i) => rng.real(BIO, apesAt, 0, 101, i)),
+  // A people of the water arise on a warm reef shelf by a coast; one of the shore on warm
+  // land where such a shelf meets it.
+  const shelfBy = (c: number) => {
+    let reef = 0;
+    for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++)
+      if (climate.biome[grid.neighbours[k]!] === BIOME.shelf) reef++;
+    return reef;
+  };
+  const coastOf = (c: number) => {
+    for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++)
+      if (land(grid.neighbours[k]!) !== land(c)) return true;
+    return false;
+  };
+  let seaAt = -1,
+    seaScore = -Infinity,
+    shoreAt = -1,
+    shoreScore = -Infinity;
+  for (let c = 0; c < n; c++) {
+    const t = climate.temperature[c]!,
+      mild = t > 14 && t < 30 ? 1 : t > 4 ? 0.4 : 0;
+    if (!mild || !coastOf(c)) continue;
+    const u = 1 + 0.05 * rng.real(BIO, c, 0, 98);
+    if (climate.biome[c] === BIOME.shelf) {
+      const score = mild * (1 + shelfBy(c)) * u;
+      if (score > seaScore) [seaAt, seaScore] = [c, score];
+    } else if (land(c) && shelfBy(c) > 0 && climate.biome[c] !== BIOME.ice) {
+      const score = mild * (1 + shelfBy(c) + diversity[c]!) * u;
+      if (score > shoreScore) [shoreAt, shoreScore] = [c, score];
+    }
+  }
+  const cradleOf: Record<Medium, number> = { land: apesAt, water: seaAt, shore: shoreAt };
+  const conditionsIn = (medium: Medium): Conditions | null => {
+    const c = cradleOf[medium];
+    return c < 0
+      ? null
+      : {
+          warmth: climate.temperature[c]!,
+          rain: climate.precipitation[c]!,
+          gravity: world.gravity,
+          ocean: world.ocean,
+        };
+  };
+  const clade = riseOf(world.prior, conditionsIn, (i) =>
+    rng.real(BIO, Math.max(0, apesAt), 0, 101, i),
+  );
+  if (!clade) return { species, present, herdBeast, seedGrass, diversity, people: null };
+  const home = cradleOf[clade.body.medium],
+    conditions = conditionsIn(clade.body.medium)!,
     body =
       world.prior === "earthlike"
         ? { ...clade.body }
         : bodyOf(
             clade,
             conditions,
-            [0, 1, 2].map((i) => rng.real(BIO, apesAt, 0, 102, i)),
+            [0, 1, 2].map((i) => rng.real(BIO, home, 0, 102, i)),
           );
   const apes: Species = {
     index: species.length,
@@ -424,8 +472,8 @@ export function makeBiosphere(
     niche: "upright ape",
     arose: AGES - 1,
     died: null,
-    origin: apesAt,
-    warm: Math.round(climate.temperature[apesAt]!),
+    origin: home,
+    warm: Math.round(climate.temperature[home]!),
     tolerance: 30,
     rainMin: 0,
     rainMax: 10000,
@@ -445,6 +493,6 @@ export function makeBiosphere(
     herdBeast,
     seedGrass,
     diversity,
-    people: { species: apes.index, cell: apesAt, body, because: clade.because(conditions) },
+    people: { species: apes.index, cell: home, body, because: clade.because(conditions) },
   };
 }

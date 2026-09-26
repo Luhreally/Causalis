@@ -3,7 +3,7 @@
 // gathered — whose choice is itself a recorded decision the explainer can open.
 import { World, YEAR, apportion, hashString, type Ref, type Seed } from "../../kernel/index.ts";
 import { BIOME, cellRef, type HomeWorld } from "../../gen/index.ts";
-import { FEMALE, G, MALE, OCC, type LifeHistory } from "../../rules/index.ts";
+import { FEMALE, G, MALE, OCC, type LifeHistory, type Medium } from "../../rules/index.ts";
 import { peopleLife } from "./life.ts";
 import { MarketStore } from "../economy/market.ts";
 import { installEconomy } from "../economy/systems.ts";
@@ -22,7 +22,7 @@ import { installLocalActs } from "../acts/local.ts";
 import { installDesigns } from "../design/design.ts";
 import { installEcology } from "../ecology/ecology.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
-import { Province, capacity, row } from "./model.ts";
+import { Province, capacity, livable, row } from "./model.ts";
 import { HistoryStore, PopulationStore, SettlementStore } from "./stores.ts";
 import { POPULATION_EVENTS, installPopulation, populationContext } from "./systems.ts";
 
@@ -96,16 +96,25 @@ function people(p: Province, n: number, life: LifeHistory): void {
  * each one's distance: over land, and across a single province of sea to land beyond
  * (bands crossing a strait along the coast), which counts as two steps.
  */
-/** Every land the bands reached from `from`: its cell, its steps away, and the land they came from. */
-function landAround(g: HomeWorld, from: number, rings: number): [number, number, number][] {
+/**
+ * Every place the bands reached from `from` in their own medium (land, shore or the
+ * shallow seas): its cell, its steps away, and the place they came from. They cross one
+ * strait of the other medium (water for a land people, land for a people of the water)
+ * as two steps.
+ */
+function landAround(
+  g: HomeWorld,
+  from: number,
+  rings: number,
+  medium: Medium,
+): [number, number, number][] {
   const dist = new Map<number, number>([[from, 0]]),
     parent = new Map<number, number>([[from, from]]),
     queue = [from],
-    habitable = (n: number) => {
-      if (g.tectonics.elevation[n]! <= 0) return false;
-      const biome = g.climate.biome[n]!;
-      return biome !== BIOME.ice && biome !== BIOME.alpine && capacity(g, n).forage > 0;
-    };
+    habitable = (n: number) => livable(g, n, medium),
+    // A land people crosses a strait of water; a people of the water swims a reach of
+    // barren deep sea or goes round a neck of land; one of the shore, either.
+    crossable = (n: number) => medium !== "land" || g.tectonics.elevation[n]! <= 0;
   for (let i = 0; i < queue.length; i++) {
     const c = queue[i]!,
       d = dist.get(c)!;
@@ -115,7 +124,7 @@ function landAround(g: HomeWorld, from: number, rings: number): [number, number,
       const n = g.grid.neighbours[k]!;
       if (dist.has(n)) continue;
       if (habitable(n)) next.push([n, d + 1]);
-      else if (g.tectonics.elevation[n]! <= 0)
+      else if (crossable(n))
         for (let j = g.grid.offsets[n]!; j < g.grid.offsets[n + 1]!; j++) {
           const m = g.grid.neighbours[j]!;
           if (!dist.has(m) && habitable(m)) next.push([m, d + 2]);
@@ -191,7 +200,8 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
 
   const g = homePlanet(world).generated,
     home = chooseHome(g),
-    cap = capacity(g, home),
+    medium = g.life.people?.body.medium ?? "land",
+    cap = capacity(g, home, medium),
     apes = g.life.species[g.life.people!.species]!,
     grass = g.life.seedGrass[home]!,
     // As many as the wild feeds, by the appetite of their bodies.
@@ -251,9 +261,12 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     return world;
   }
   // The ages before the chronicle: bands spread from the cradle across the land.
-  const lands = landAround(g, home, SPREAD.rings),
+  const lands = landAround(g, home, SPREAD.rings, medium),
     sizes = lands.map(([c]) =>
-      Math.max(SPREAD.least, Math.round((capacity(g, c).forage * SPREAD.density) / appetite)),
+      Math.max(
+        SPREAD.least,
+        Math.round((capacity(g, c, medium).forage * SPREAD.density) / appetite),
+      ),
     );
   const spread = world.events.emit({
     type: POPULATION_EVENTS.spread.type,

@@ -4,6 +4,7 @@ import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import {
   POPULATION_EVENTS,
   SPREAD,
+  homePlanet,
   makePopulationWorld,
   populationContext,
 } from "../../src/sim/index.ts";
@@ -55,8 +56,23 @@ test("farming is found and spreads across the peopled land; villages follow", ()
     ctx = populationContext(world);
   world.runTo(100 * YEAR);
   const all = ctx.provinces.all(),
-    farming = all.filter((p) => p.knowsCultivation);
-  assert.ok(farming.length >= 0.8 * all.length, `${farming.length} of ${all.length} farm`);
+    farming = all.filter((p) => p.knowsCultivation),
+    g = homePlanet(world).generated;
+  assert.ok(farming.length >= 0.6 * all.length, `${farming.length} of ${all.length} farm`);
+  // Sowing spreads over the land that joins its finders: after decades, hardly a land that
+  // borders farmers has not learned it (lands across the sea must find it again).
+  const bordering = all.filter(
+    (p) =>
+      !p.knowsCultivation &&
+      p.total() >= 10 &&
+      [...g.grid.neighbours.subarray(g.grid.offsets[p.cell]!, g.grid.offsets[p.cell + 1]!)].some(
+        (n) => ctx.provinces.get(n)?.knowsCultivation,
+      ),
+  );
+  assert.ok(
+    bordering.length <= 0.05 * all.length,
+    `${bordering.length} lands beside farmers do not farm`,
+  );
   const found = world.events.all().filter((e) => e.type === POPULATION_EVENTS.cultivation.type),
     learned = world.events.all().filter((e) => e.type === POPULATION_EVENTS.cultivationSpread.type);
   assert.ok(

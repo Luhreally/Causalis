@@ -22,7 +22,16 @@ export {
   makePlanetWorld,
   type PlanetWorldOptions,
 } from "./planet/store.ts";
-export { COLS, Province, ROWS, capacity, row, type Capacity } from "./population/model.ts";
+export {
+  COLS,
+  Province,
+  ROWS,
+  capacity,
+  coastal,
+  livable,
+  row,
+  type Capacity,
+} from "./population/model.ts";
 export {
   HistoryStore,
   LIVING_MEMORY,
@@ -35,6 +44,7 @@ export {
 } from "./population/stores.ts";
 export {
   adults,
+  mouths,
   POPULATION_EVENTS,
   VILLAGE_SIZE,
   installPopulation,

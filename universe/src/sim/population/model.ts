@@ -4,7 +4,7 @@
 // it becomes simulated (A0 → A1) the first time people arrive.
 import { CountTable, type Hasher, type Ref } from "../../kernel/index.ts";
 import { BIOME, cellRef, isProvinceWorld, type HomeWorld } from "../../gen/index.ts";
-import { BANDS, OCCUPATIONS, SEXES } from "../../rules/index.ts";
+import { BANDS, OCCUPATIONS, SEXES, type Medium } from "../../rules/index.ts";
 
 export const ROWS = SEXES * BANDS;
 export const COLS = OCCUPATIONS.length;
@@ -31,12 +31,20 @@ const ARABLE: readonly number[] = [
 const PASTURE: readonly number[] = [
   0, 0, 0, 0, 0, 0.3, 0.1, 0.2, 0.6, 0.2, 0.1, 0.1, 0.5, 0.25, 0.05, 0.2,
 ];
+/**
+ * What the sea gives a people of the water, a square kilometre, by biome: the shallow
+ * shelf is as rich as a tropical forest (reefs, kelp, shellfish beds), the open ocean
+ * gives them nothing to live on; its farms are beds and pens sown and tended.
+ */
+const SEA_FORAGE: readonly number[] = [0, 0, 0.35];
+const SEA_ARABLE: readonly number[] = [0, 0, 0.25];
+
 /** People a square kilometre of early farmland feeds. */
 export const FARM_YIELD = 40;
 /** People a square kilometre of pasture feeds through its herds. */
 export const HERD_YIELD = 6;
 
-export function capacity(w: HomeWorld, cell: number): Capacity {
+export function capacity(w: HomeWorld, cell: number, medium: Medium = "land"): Capacity {
   // A province feeds what its fine cells feed.
   if (isProvinceWorld(w)) {
     let forage = 0,
@@ -44,7 +52,7 @@ export function capacity(w: HomeWorld, cell: number): Capacity {
       pasture = 0,
       areaKm2 = 0;
     for (let k = w.childOffsets[cell]!; k < w.childOffsets[cell + 1]!; k++) {
-      const c = capacity(w.fine, w.children[k]!);
+      const c = capacity(w.fine, w.children[k]!, medium);
       forage += c.forage;
       farm += c.farm;
       pasture += c.pasture;
@@ -54,8 +62,49 @@ export function capacity(w: HomeWorld, cell: number): Capacity {
   }
   const radiusKm = 6371 * w.planet.radius,
     areaKm2 = w.grid.areas[cell]! * radiusKm * radiusKm,
-    biome = w.climate.biome[cell]!,
-    river = w.water.river[cell] === 1,
+    biome = w.climate.biome[cell]!;
+  // A people of the water lives on the shelf; one of the shore where land and shelf meet.
+  if (medium === "water") return sea(w, cell, areaKm2, 1);
+  if (medium === "shore") {
+    if (!coastal(w, cell)) return { forage: 0, farm: 0, pasture: 0, areaKm2 };
+    if (w.tectonics.elevation[cell]! <= 0) return sea(w, cell, areaKm2, 0.5);
+  }
+  return land(w, cell, areaKm2, biome);
+}
+
+/** What a shelf gives a people of the water: the warmer the more (the coldest seas a third as much). */
+function sea(w: HomeWorld, cell: number, areaKm2: number, share: number): Capacity {
+  const biome = w.climate.biome[cell]!,
+    warm = Math.min(1, Math.max(0.3, 0.3 + (0.7 * w.climate.temperature[cell]!) / 18)),
+    k = areaKm2 * warm * share;
+  return {
+    forage: k * (SEA_FORAGE[biome] ?? 0),
+    farm: k * (SEA_ARABLE[biome] ?? 0) * FARM_YIELD,
+    pasture: 0,
+    areaKm2,
+  };
+}
+
+/** Whether a cell lies where land and sea meet (a neighbour of the other kind). */
+export function coastal(w: HomeWorld, cell: number): boolean {
+  const up = w.tectonics.elevation[cell]! > 0;
+  for (let k = w.grid.offsets[cell]!; k < w.grid.offsets[cell + 1]!; k++)
+    if (w.tectonics.elevation[w.grid.neighbours[k]!]! > 0 !== up) return true;
+  return false;
+}
+
+/** Whether a people of a medium can live in a cell at all (and it is not ice or bare rock). */
+export function livable(w: HomeWorld, cell: number, medium: Medium): boolean {
+  if (medium === "land") {
+    if (w.tectonics.elevation[cell]! <= 0) return false;
+    const biome = w.climate.biome[cell]!;
+    if (biome === BIOME.ice || biome === BIOME.alpine) return false;
+  }
+  return capacity(w, cell, medium).forage > 0;
+}
+
+function land(w: HomeWorld, cell: number, areaKm2: number, biome: number): Capacity {
+  const river = w.water.river[cell] === 1,
     // A river greens a dry valley and waters its fields.
     wet = river
       ? biome === BIOME.hotDesert || biome === BIOME.coldDesert || biome === BIOME.steppe
