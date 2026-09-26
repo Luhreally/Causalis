@@ -8,7 +8,9 @@ import {
   actsOf,
   beliefOf,
   cultureOf,
+  diplomacyOf,
   handOf,
+  relationRef,
   loreOf,
   politiesOf,
   realmName,
@@ -46,6 +48,7 @@ import {
   folkRef,
   governmentWords,
   principleName,
+  standingWords,
   kept,
   landWords,
   observer,
@@ -308,6 +311,18 @@ function realmOf(world: World, cell: number) {
     since: p.ruler.since,
     grievance: grievance.level,
     cause: grievance.cause,
+    neighbours: diplomacyOf(world)
+      .of(p.ref)
+      .map((r) => {
+        const other = realms.get(r.a === p.ref ? r.b : r.a)!;
+        return {
+          ref: relationRef(r.a, r.b),
+          name: realmName(other),
+          standing: standingWords(r.opinion, !!r.pact),
+          opinion: r.opinion,
+        };
+      })
+      .sort((x, y) => y.opinion - x.opinion),
   };
 }
 

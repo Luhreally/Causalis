@@ -20,6 +20,7 @@ import { CultureStore, cradleWays, driftedWays } from "../culture/culture.ts";
 import { installPolities } from "../polity/polity.ts";
 import { installBelief } from "../belief/belief.ts";
 import { installLore } from "../lore/lore.ts";
+import { installDiplomacy } from "../diplomacy/diplomacy.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
 import { Province, capacity, row } from "./model.ts";
 import { HistoryStore, PopulationStore, SettlementStore } from "./stores.ts";
@@ -151,6 +152,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installPolities(world, () => populationContext(world));
   installBelief(world, () => populationContext(world));
   installLore(world, () => populationContext(world));
+  installDiplomacy(world, () => populationContext(world));
 
   const g = homePlanet(world).generated,
     home = chooseHome(g, world),

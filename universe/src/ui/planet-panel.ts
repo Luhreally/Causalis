@@ -109,6 +109,7 @@ type RealmFacts = {
   since: number;
   grievance: number;
   cause: string | null;
+  neighbours: { ref: string; name: string; standing: string; opinion: number }[];
 } | null;
 
 /** A province's market, as the host reports it. */
@@ -467,6 +468,8 @@ export class PlanetPanel {
           ? this.whyLine(`They are ${mood} under its rule`, r.cause)
           : el("div", "fact muted", `They are ${mood} under its rule`),
       );
+    for (const n of r.neighbours.slice(0, 5))
+      parts.push(this.whyLine(`With ${n.name}: ${n.standing}`, n.ref));
     this.realmBox.replaceChildren(...parts);
   }
 

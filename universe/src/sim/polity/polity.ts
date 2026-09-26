@@ -90,6 +90,7 @@ export class PolityStore implements StateStore {
   private list: Polity[] = [];
   private readonly member = new Map<number, Ref>();
   private readonly grievance = new Map<number, Discontent>();
+  private readonly former = new Map<number, Ref>();
 
   add(p: Polity): void {
     this.list.push(p);
@@ -123,6 +124,12 @@ export class PolityStore implements StateStore {
   leave(p: Polity, cell: number): void {
     p.members = p.members.filter((c) => c !== cell);
     this.member.delete(cell);
+    this.former.set(cell, p.ref);
+  }
+
+  /** The realm a land last left, if any. */
+  formerly(cell: number): Ref | null {
+    return this.former.get(cell) ?? null;
   }
 
   fadeGrievance(keep: number): void {
@@ -151,17 +158,23 @@ export class PolityStore implements StateStore {
   hashInto(h: Hasher): void {
     h.value(this.list);
     h.value([...this.grievance.entries()].sort((a, b) => a[0] - b[0]));
+    h.value([...this.former.entries()].sort((a, b) => a[0] - b[0]));
   }
 
   save(): unknown {
     return {
       polities: this.list,
       grievance: [...this.grievance.entries()].sort((a, b) => a[0] - b[0]),
+      former: [...this.former.entries()].sort((a, b) => a[0] - b[0]),
     };
   }
 
   load(state: unknown): void {
-    const s = state as { polities: Polity[]; grievance: [number, Discontent][] };
+    const s = state as {
+      polities: Polity[];
+      grievance: [number, Discontent][];
+      former: [number, Ref][];
+    };
     this.list = [];
     this.member.clear();
     for (const p of s.polities) {
@@ -171,6 +184,8 @@ export class PolityStore implements StateStore {
     }
     this.grievance.clear();
     for (const [c, d] of s.grievance) this.grievance.set(c, { ...d });
+    this.former.clear();
+    for (const [c, r] of s.former) this.former.set(c, r);
   }
 }
 
@@ -413,7 +428,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       subjects: [j.p.ref, ctx.provinces.get(j.cell)!.ref],
       place: ctx.provinces.get(j.cell)!.ref,
       causes: [{ ref: decision, role: "trigger", weight: 1 }],
-      data: { name: realmName(j.p) },
+      data: { name: realmName(j.p), from: store.formerly(j.cell) },
     });
     store.join(j.p, j.cell);
   }

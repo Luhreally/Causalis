@@ -145,3 +145,16 @@ export {
   loreYear,
   type Known,
 } from "./lore/lore.ts";
+export {
+  DIPLOMACY_EVENTS,
+  DiplomacyStore,
+  PACT,
+  RELATION,
+  RIVALRY,
+  diplomacyOf,
+  diplomacyYear,
+  installDiplomacy,
+  relationRef,
+  type Relation,
+  type Term,
+} from "./diplomacy/diplomacy.ts";

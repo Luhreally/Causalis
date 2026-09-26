@@ -3,7 +3,9 @@
 // rules, how discontented their lands, and what befell them.
 import { YEAR, seedFromText } from "../src/kernel/index.ts";
 import {
+  RIVALRY,
   beliefOf,
+  diplomacyOf,
   governmentKey,
   makePopulationWorld,
   politiesOf,
@@ -44,4 +46,13 @@ console.log(
     .map((f) => `${f.name} (${f.tenet}, ${faiths.lands(f.ref).length} lands)`)
     .join("; ")}`,
 );
+const relations = diplomacyOf(world).all(),
+  byName = (r: string) => realmName(realms.get(r as never)!);
+console.log(
+  `relations: ${relations.length}; pacts ${relations.filter((r) => r.pact).length}; rivals ${relations.filter((r) => r.opinion < RIVALRY).length}`,
+);
+for (const r of [...relations].sort((x, y) => x.opinion - y.opinion).slice(0, 3))
+  console.log(
+    `  ${byName(r.a)} / ${byName(r.b)}: ${r.opinion.toFixed(2)} — ${r.terms.map((x) => `${x.name} ${x.value.toFixed(2)}`).join(", ")}`,
+  );
 console.log(`governments seen: ${[...new Set(realms.all().map(governmentKey))].join("; ")}`);

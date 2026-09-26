@@ -28,6 +28,7 @@ export { WAYS, WAY_WORDS, kept, waysRef, waysWords } from "./culture.ts";
 export { governmentWords } from "./polity.ts";
 import "./belief.ts";
 export { principleName } from "./lore.ts";
+export { standingWords } from "./diplomacy.ts";
 export { priceWords } from "./economy.ts";
 export {
   edges,
