@@ -20,8 +20,8 @@ export {
   type Person,
   type Role,
 } from "./observer.ts";
-export { isObserved } from "./people.ts";
-import "./population.ts";
+export { LIFE_WORDS, MEMORY_WORDS, isObserved } from "./people.ts";
+export { FOLK, folkRef } from "./population.ts";
 import "./economy.ts";
 export { priceWords } from "./economy.ts";
 export {

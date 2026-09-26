@@ -4,7 +4,13 @@
 // drowned coast), of which there are none yet. The generation digest is part of
 // the planet domain's hash, so every checkpoint proves that every engine
 // regenerated the same world.
-import { World, type Hasher, type Seed, type StateStore } from "../../kernel/index.ts";
+import {
+  World,
+  type Hasher,
+  type RetentionOptions,
+  type Seed,
+  type StateStore,
+} from "../../kernel/index.ts";
 import { generateHomeWorld, PLANET_FREQUENCY, type HomeWorld } from "../../gen/index.ts";
 import { PRIORS, type Prior } from "../../rules/index.ts";
 
@@ -37,11 +43,16 @@ export class HomePlanet implements StateStore {
   }
 }
 
-export type PlanetWorldOptions = { readonly prior?: Prior; readonly frequency?: number };
+export type PlanetWorldOptions = {
+  readonly prior?: Prior;
+  readonly frequency?: number;
+  /** What history keeps (docs/architecture §32). */
+  readonly retention?: RetentionOptions;
+};
 
 /** A world holding only its home planet (Phase 1 builds people and places on it). */
 export function makePlanetWorld(seed: Seed, options: PlanetWorldOptions = {}): World {
-  const world = new World(seed);
+  const world = new World(seed, options.retention ? { retention: options.retention } : {});
   world.register(new HomePlanet(seed, options.prior ?? PRIORS.earthlike!, options.frequency));
   return world;
 }

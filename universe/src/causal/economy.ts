@@ -14,6 +14,7 @@ import {
   populationContext,
 } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
+import { count } from "./words.ts";
 import { edges, registerDecisionWords, registerEventWords, registerExplainer } from "./why.ts";
 
 /** "cheap", "dear": a price against a good's usual worth. */
@@ -23,17 +24,6 @@ export function priceWords(ratio: number): string {
   if (ratio <= 1.25) return "at its usual worth";
   if (ratio <= 2) return "dear";
   return "very dear";
-}
-
-/** 12,345 */
-function count(n: number): string {
-  const digits = String(Math.abs(Math.round(n)));
-  let out = "";
-  for (let i = 0; i < digits.length; i++) {
-    if (i && (digits.length - i) % 3 === 0) out += ",";
-    out += digits[i];
-  }
-  return n < 0 ? `-${out}` : out;
 }
 
 registerExplainer(MARKET_GOOD.code, (world, ref) => {
@@ -48,7 +38,7 @@ registerExplainer(MARKET_GOOD.code, (world, ref) => {
     ratio = m.price[good]! / g.value,
     land = landWords(world, cellRef(0, cell));
   const parts = [
-    `${g.name[0]!.toUpperCase()}${g.name.slice(1)} in ${land} is ${priceWords(ratio)} (${ratio.toFixed(2)} of its usual worth)`,
+    `${g.name[0]!.toUpperCase()}${g.name.slice(1)} in ${land} ${g.name.endsWith("s") ? "are" : "is"} ${priceWords(ratio)} (${ratio.toFixed(2)} of ${g.name.endsWith("s") ? "their" : "its"} usual worth)`,
   ];
   if (last) {
     parts.push(`in year ${last.year} ${count(line(0))} was made and ${count(line(1))} used`);

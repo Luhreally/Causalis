@@ -21,8 +21,8 @@ import {
   type Region,
 } from "../gen/index.ts";
 import { EARTHLIKE, OPEN, type Prior } from "../rules/index.ts";
-import { parseRef, type Ref, type World } from "../kernel/index.ts";
-import { landWords, observer, priceWords } from "../causal/index.ts";
+import { parseRef, yearOfMoment, type Ref, type World } from "../kernel/index.ts";
+import { folkRef, landWords, observer, priceWords, why } from "../causal/index.ts";
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 
@@ -143,6 +143,7 @@ function province(world: World, cell: number) {
     arrival: p.arrival,
     cultivation: p.cultivation,
     villages: ctx.settlements.inProvince(cell).length,
+    folk: folkRef(cell),
     years: ctx.history.yearsOf(cell).slice(-12),
   };
 }
@@ -188,6 +189,52 @@ function market(world: World, cell: number) {
         out: f.from === cell,
         with: landWords(world, cellRef(0, f.from === cell ? f.to : f.from)),
       })),
+  };
+}
+
+/** A province's years, for charts: its people, how well they ate, what food and tools cost. */
+function provinceHistory(world: World, cell: number) {
+  const ctx = populationContext(world),
+    m = marketsOf(world).get(cell);
+  return {
+    cell,
+    people: folkRef(cell),
+    years: ctx.history.yearsOf(cell).map((y) => ({
+      year: y.year,
+      population: y.population,
+      fed: y.fed / 10,
+    })),
+    prices: (m?.years ?? []).map((y) => ({
+      year: y.year,
+      food: y.price[G.grain]! / GOODS[G.grain]!.value,
+      tools: y.price[G.tools]! / GOODS[G.tools]!.value,
+    })),
+  };
+}
+
+/** What history holds as mattering most, newest first, in words, with the world's people by year. */
+function chronicle(world: World, limit: number) {
+  const ctx = populationContext(world),
+    byYear = new Map<number, number>();
+  for (const p of ctx.provinces.all())
+    for (const y of ctx.history.yearsOf(p.cell))
+      byYear.set(y.year, (byYear.get(y.year) ?? 0) + y.population);
+  const events = world.events
+    .all()
+    .filter((e) => e.importance >= 4)
+    .slice(-limit)
+    .reverse()
+    .map((e) => ({
+      ref: e.id,
+      year: yearOfMoment(e.t),
+      importance: e.importance,
+      claim: why(world, e.id).claim,
+    }));
+  return {
+    events,
+    population: [...byYear.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([year, people]) => ({ year, people })),
   };
 }
 
@@ -286,6 +333,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
           });
       },
       market: (world, args) => market(world, (args as { cell: number }).cell),
+      "province.history": (world, args) => provinceHistory(world, (args as { cell: number }).cell),
+      chronicle: (world, args) => chronicle(world, (args as { limit?: number }).limit ?? 60),
       province: (world, args) => province(world, (args as { cell: number }).cell),
       settlements: (world, args) =>
         populationContext(world)

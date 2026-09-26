@@ -349,7 +349,10 @@ function openRoute(
       name: `${GOODS[pl.good]!.name} dearer there`,
       value: to.price[pl.good]! - from.price[pl.good]!,
       contribution: pl.margin,
-      source: want ? { ref: want, role: "pressure", weight: 1 } : null,
+      // A famine or dry year there, or else the land that could not give it.
+      source: want
+        ? { ref: want, role: "pressure", weight: 1 }
+        : { ref: to.ref, role: "constraint", weight: 1 },
     },
     {
       name: "carriers",

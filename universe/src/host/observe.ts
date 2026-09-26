@@ -6,6 +6,8 @@ import { YEAR, type Ref, type World } from "../kernel/index.ts";
 import { HUMANLIKE } from "../rules/index.ts";
 import { populationContext } from "../sim/index.ts";
 import {
+  LIFE_WORDS,
+  MEMORY_WORDS,
   TRAITS,
   deepen,
   landWords,
@@ -19,24 +21,6 @@ import {
 import type { QueryHandler } from "./host.ts";
 
 const OCCUPATION_WORDS = ["child", "forager", "farmer", "herder", "crafter", "trader", "leader"];
-const LIFE_WORDS: Readonly<Record<string, string>> = {
-  famine: "Lived through a famine",
-  drought: "Lived through a dry year",
-  cultivation: "Saw the first fields sown",
-  "farming-came": "Saw farming come to the land",
-  founded: "Saw the village founded",
-  moved: "Set out for new land",
-  "took-up-farming": "Took up farming",
-};
-const MEMORY_WORDS: Readonly<Record<string, string>> = {
-  famine: "the famine",
-  drought: "the dry year",
-  cultivation: "the first fields being sown",
-  "farming-came": "farming coming to the land",
-  founded: "the founding of the village",
-  moved: "setting out for new land",
-  "took-up-farming": "taking up farming",
-};
 /** Each trait said low / middling / high. */
 const TRAIT_WORDS: Readonly<Record<string, readonly [string, string, string]>> = {
   boldness: ["cautious", "steady", "bold"],

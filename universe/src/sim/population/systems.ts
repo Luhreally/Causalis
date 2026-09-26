@@ -809,6 +809,8 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
         name = placeName(ctx.culture, ctx.settlements.all().length + 1);
       const event = world.events.emit({
         type: POPULATION_EVENTS.founded.type,
+        // A province's first village is part of the chronicle; the rest of history.
+        importance: villages.length === 0 ? 4 : 3,
         subjects: [ref],
         place: p.ref,
         causes: [{ ref: decision, role: "trigger", weight: 1 }],

@@ -1,7 +1,7 @@
 // A world with people (Phase 1): the home planet, and a first people in the
 // province that suits them best — warm enough, watered, rich in what can be
 // gathered — whose choice is itself a recorded decision the explainer can open.
-import { World, apportion, defineStream, type Ref, type Seed } from "../../kernel/index.ts";
+import { World, YEAR, apportion, defineStream, type Ref, type Seed } from "../../kernel/index.ts";
 import { BIOME, cellRef, type HomeWorld } from "../../gen/index.ts";
 import { FEMALE, G, HUMANLIKE, MALE, OCC } from "../../rules/index.ts";
 import { MarketStore } from "../economy/market.ts";
@@ -41,8 +41,15 @@ export function chooseHome(g: HomeWorld, world: World): number {
   return best;
 }
 
+/**
+ * What a peopled world's history keeps: everything for twenty years, and for ever
+ * whatever mattered enough to be remembered (a dry year, a road opened, a move),
+ * so the chains the people's memories start down never break.
+ */
+export const PEOPLED_RETENTION = { window: 20 * YEAR, chronicle: 3 } as const;
+
 export function makePopulationWorld(seed: Seed, options: PlanetWorldOptions = {}): World {
-  const world = makePlanetWorld(seed, options);
+  const world = makePlanetWorld(seed, { retention: PEOPLED_RETENTION, ...options });
   const provinces = world.register(new PopulationStore()),
     history = world.register(new HistoryStore());
   world.register(new SettlementStore());

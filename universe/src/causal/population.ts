@@ -2,11 +2,64 @@
 // decision that founded it (whose factors reach the farming that filled it and the
 // ground that drew it). Its events and decisions are said in words, naming the land
 // by what it is and where.
-import { yearOfMoment, type World } from "../kernel/index.ts";
-import { POPULATION_EVENTS, SETTLEMENT, type SettlementStore } from "../sim/index.ts";
+import {
+  YEAR,
+  defineKind,
+  makeRef,
+  parseRef,
+  yearOfMoment,
+  type CauseRef,
+  type Ref,
+  type World,
+} from "../kernel/index.ts";
+import {
+  POPULATION_EVENTS,
+  SETTLEMENT,
+  populationContext,
+  type SettlementStore,
+} from "../sim/index.ts";
 import { cellRef } from "../gen/index.ts";
 import { landWords } from "./generated.ts";
+import { count } from "./words.ts";
 import { edges, registerDecisionWords, registerEventWords, registerExplainer } from "./why.ts";
+
+/** The people of a province, as one: why they are as many as they are, and as they are. */
+export const FOLK = defineKind("folk", "the people of a province", "structural");
+export function folkRef(cell: number): Ref {
+  return makeRef(FOLK, 0, cell);
+}
+
+registerExplainer(FOLK.code, (world, ref) => {
+  if (!world.storeNames().includes("population.provinces")) return null;
+  const cell = parseRef(ref).b,
+    ctx = populationContext(world),
+    p = ctx.provinces.get(cell);
+  if (!p) return null;
+  const now = yearOfMoment(world.now),
+    decade = (fn: (y: number) => number) => {
+      let n = 0;
+      for (let y = now - 10; y < now; y++) if (y >= 0) n += fn(y);
+      return n;
+    },
+    born = decade((y) => ctx.history.birthsIn(cell, y)),
+    died = decade((y) => ctx.history.deathsIn(cell, y)),
+    flows = ctx.history.flows().filter((f) => f.year >= now - 10),
+    came = flows.filter((f) => f.to === cell).reduce((s, f) => s + f.count, 0),
+    left = flows.filter((f) => f.from === cell).reduce((s, f) => s + f.count, 0);
+  const parts = [
+    `${count(p.total())} people live in ${landWords(world, p.ref)}, peopled since year ${p.settledYear}`,
+    `in the last ten years ${count(born)} were born and ${count(died)} died`,
+  ];
+  if (came || left) parts.push(`${count(came)} came and ${count(left)} left`);
+  const causes: CauseRef[] = [];
+  if (p.arrival) causes.push({ ref: p.arrival, role: "trigger", weight: 0.4 });
+  if (p.cultivation) causes.push({ ref: p.cultivation, role: "enabler", weight: 0.3 });
+  const famine = p.lastFamine ? world.events.get(p.lastFamine) : undefined;
+  if (famine && world.now - famine.t < 10 * YEAR)
+    causes.push({ ref: famine.id, role: "constraint", weight: 0.2 });
+  causes.push({ ref: p.ref, role: "constraint", weight: 0.1 });
+  return { ref, claim: parts.join("; "), basis: "recorded", t: null, causes: edges(world, causes) };
+});
 
 registerExplainer(SETTLEMENT.code, (world: World, ref) => {
   if (!world.storeNames().includes("population.settlements")) return null;
@@ -15,8 +68,8 @@ registerExplainer(SETTLEMENT.code, (world: World, ref) => {
   return {
     ref,
     claim: s.market
-      ? `${s.name}, the market town of its land, ${s.population} people, founded in year ${s.founded}`
-      : `${s.name}, a village of ${s.population}, founded in year ${s.founded}`,
+      ? `${s.name}, the market town of its land, ${count(s.population)} people, founded in year ${s.founded}`
+      : `${s.name}, a village of ${count(s.population)}, founded in year ${s.founded}`,
     basis: "recorded",
     t: null,
     causes: edges(world, [

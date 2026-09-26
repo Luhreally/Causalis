@@ -157,6 +157,25 @@ for (const engine of engines) {
         );
         if (shotsAt && !query.includes("inline"))
           await page.screenshot({ path: join(shotsAt, `${engine}-market.png`) });
+        // Its years as charts, and the chronicle of the world.
+        await page.waitForSelector(".panel:not([hidden]) .inspector .chart svg", {
+          timeout: 10000,
+        });
+        await page.evaluate(() =>
+          [...document.querySelectorAll<HTMLButtonElement>(".panel:not([hidden]) .link")]
+            .find((b) => b.textContent === "Chronicle")!
+            .click(),
+        );
+        await page.waitForFunction(
+          () =>
+            document.querySelector(".panel:not([hidden]) .inspector h2")?.textContent ===
+              "Chronicle" &&
+            document.querySelectorAll(".panel:not([hidden]) .inspector .facts .line").length >= 3,
+          undefined,
+          { timeout: 10000 },
+        );
+        if (shotsAt && !query.includes("inline"))
+          await page.screenshot({ path: join(shotsAt, `${engine}-chronicle.png`) });
         // Down into the region around a copper deposit, then a tile's inspector.
         await page.evaluate(async () => {
           const c = (globalThis as { causalis?: Exposed }).causalis!;

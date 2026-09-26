@@ -10,7 +10,27 @@ import { HOUSEHOLD, MEMORY, PERSON, observer, settleAll } from "./observer.ts";
 import { edges, registerEventKeeper, registerExplainer } from "./why.ts";
 
 const OCCUPATION_WORDS = ["child", "forager", "farmer", "herder", "crafter", "trader", "leader"];
-const MEMORY_WORDS: Readonly<Record<string, string>> = {
+/** A life's events, in words for a list of them. */
+export const LIFE_WORDS: Readonly<Record<string, string>> = {
+  famine: "Lived through a famine",
+  drought: "Lived through a dry year",
+  cultivation: "Saw the first fields sown",
+  "farming-came": "Saw farming come to the land",
+  founded: "Saw the village founded",
+  moved: "Set out for new land",
+  "took-up-farming": "Took up farming",
+  "food-came": "Saw food come from neighbours in a famine",
+  "metal-came": "Saw copper tools come to the land",
+  "market-town": "Saw the market town grow up",
+  "road-opened": "Saw the first traders come down a new road",
+  "took-up-craft": "Took up a craft",
+  "took-up-trade": "Took up trading",
+  "took-up-herding": "Took up herding",
+  "kept-old-ways": "Kept to gathering, though their people farmed",
+  "chosen-to-lead": "Was chosen to lead their village",
+};
+/** What a memory is of, in words. */
+export const MEMORY_WORDS: Readonly<Record<string, string>> = {
   famine: "the famine",
   drought: "the dry year",
   cultivation: "the first fields being sown",
@@ -18,6 +38,15 @@ const MEMORY_WORDS: Readonly<Record<string, string>> = {
   founded: "the founding of the village",
   moved: "setting out for new land",
   "took-up-farming": "taking up farming",
+  "food-came": "the food that came in the famine",
+  "metal-came": "the first copper tools",
+  "market-town": "the market town growing up",
+  "road-opened": "the first traders coming down the road",
+  "took-up-craft": "learning their craft",
+  "took-up-trade": "their first journey with goods",
+  "took-up-herding": "their first flock",
+  "kept-old-ways": "keeping to the old ways of gathering",
+  "chosen-to-lead": "being chosen to lead",
 };
 
 function hasPeople(world: World): boolean {

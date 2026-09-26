@@ -251,6 +251,66 @@ button:disabled {
   margin-bottom: 6px;
   font-size: 0.9rem;
 }
+.chart {
+  margin: 8px 0 12px;
+}
+/* A button that reads as a word in a line of text. */
+.link {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  /* A finger-sized target without moving the words around it. */
+  padding: 10px 6px;
+  margin: -10px -6px;
+}
+.link:hover {
+  background: none;
+  color: var(--ink);
+}
+.chart figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.chart figcaption strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.chart svg {
+  display: block;
+  width: 100%;
+  height: 64px;
+  margin-top: 4px;
+}
+.chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.chart-area {
+  fill: var(--accent);
+  opacity: 0.14;
+}
+.chart-guide {
+  stroke: var(--muted);
+  stroke-dasharray: 4 4;
+  opacity: 0.6;
+  vector-effect: non-scaling-stroke;
+}
+.chart .axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
 @media (max-width: 640px) {
   .inspector {
     left: 8px;

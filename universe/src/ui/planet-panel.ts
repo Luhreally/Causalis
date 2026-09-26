@@ -4,6 +4,7 @@
 // where every fact can be asked "why?".
 import type { HostClient, Status } from "../bridge/index.ts";
 import { LENSES, LENS_NAMES, type Lens } from "../view/index.ts";
+import { lineChart } from "./chart.ts";
 import { WhyTree, el } from "./why.ts";
 import { speedWords, when } from "./words.ts";
 
@@ -54,7 +55,19 @@ type ProvinceFacts = {
   settledYear: number;
   arrival: string | null;
   villages: number;
+  /** The people of the province, as a ref for why. */
+  folk: string;
 } | null;
+
+type ProvinceHistory = {
+  years: { year: number; population: number; fed: number }[];
+  prices: { year: number; food: number; tools: number }[];
+};
+
+type Chronicle = {
+  events: { ref: string; year: number; importance: number; claim: string }[];
+  population: { year: number; people: number }[];
+};
 
 export type PeopleEntry = {
   cell: number;
@@ -112,11 +125,13 @@ export class PlanetPanel {
   private readonly speedButtons: HTMLButtonElement[] = [];
   private readonly clock = el("span", "clock");
   private readonly world = el("p", "world-line");
+  private readonly worldText = el("span");
   private readonly inspector = el("section", "inspector");
   private readonly title = el("h2");
   private readonly facts = el("div", "facts");
   private readonly whyBox = el("div", "why");
   private readonly marketBox = el("div");
+  private readonly pastBox = el("div");
   private readonly closer = el("button", "act", "Look closer");
   private selected: number | null = null;
   private description = "";
@@ -147,6 +162,9 @@ export class PlanetPanel {
       lenses.append(b);
       this.lensButtons.set(l, b);
     }
+    const chronicle = el("button", "link", "Chronicle");
+    chronicle.onclick = () => void this.showChronicle();
+    this.world.append(this.worldText, " · ", chronicle);
     bar.append(speeds, this.world, lenses);
     this.element.append(bar);
     const close = el("button", "close", "×");
@@ -164,6 +182,7 @@ export class PlanetPanel {
       this.facts,
       this.closer,
       this.marketBox,
+      this.pastBox,
       el("h3", undefined, "Why is it like this?"),
       this.whyBox,
     );
@@ -189,14 +208,14 @@ export class PlanetPanel {
     const s = await this.client.query<Summary>({ type: "planet.summary" });
     const p = s.planet;
     this.description = `A ${s.star.spectral} star · a world of ${p.mass.toFixed(2)} Earth masses, ${p.meanTemperature.toFixed(0)} °C on average, a ${Math.round(p.yearDays)}-day year`;
-    this.world.textContent = this.description;
+    this.worldText.textContent = this.description;
   }
 
   /** The people line under the bar, from the host's people map. */
   people(entries: readonly PeopleEntry[]): void {
     const people = entries.reduce((s, e) => s + e.people, 0),
       farming = entries.filter((e) => e.farming).length;
-    this.world.textContent = `${this.description} · ${people.toLocaleString()} people in ${entries.length} province${entries.length === 1 ? "" : "s"}${farming ? `, ${farming} farming` : ""}`;
+    this.worldText.textContent = `${this.description} · ${people.toLocaleString()} people in ${entries.length} province${entries.length === 1 ? "" : "s"}${farming ? `, ${farming} farming` : ""}`;
   }
 
   set visible(on: boolean) {
@@ -273,38 +292,117 @@ export class PlanetPanel {
     this.selected = cell;
     this.inspector.hidden = cell === null;
     if (cell === null) return;
-    const [p, folk, market] = await Promise.all([
+    const [p, folk, market, past] = await Promise.all([
       this.client.query<Place>({ type: "cell", args: { cell } }),
       this.client.query<ProvinceFacts>({ type: "province", args: { cell } }),
       this.client.query<MarketFacts | null>({ type: "market", args: { cell } }),
+      this.client.query<ProvinceHistory>({ type: "province.history", args: { cell } }),
     ]);
     if (this.selected !== cell) return;
     const high = p.elevation >= 0;
     this.title.textContent = p.biome[0]!.toUpperCase() + p.biome.slice(1);
-    const rows = [
-      folk
-        ? `${folk.people.toLocaleString()} people: ${folk.byOccupation
-            .map((o) => `${o.count.toLocaleString()} ${OCCUPATION_WORDS[o.name] ?? o.name}`)
-            .join(", ")}`
-        : "",
-      folk
-        ? `Peopled since year ${folk.settledYear}${folk.farming ? `; they farm, in ${folk.villages} village${folk.villages === 1 ? "" : "s"}` : "; they gather what the land gives"}`
-        : "",
-      latLon(p.lat, p.lon),
-      high
-        ? `${Math.round(p.elevation).toLocaleString()} m above the sea`
-        : `${Math.round(-p.elevation).toLocaleString()} m under the sea`,
-      `${p.temperature.toFixed(0)} °C on average, swinging ±${p.seasonality.toFixed(0)} °C with the seasons`,
-      high ? `${Math.round(p.precipitation).toLocaleString()} mm of rain a year` : "",
-      p.lake ? "A lake lies here." : p.river ? "A river runs through." : "",
-      `On a ${p.plate.continental ? "continental" : "oceanic"} plate${p.boundary !== "none" ? `, near a ${p.boundary} boundary` : ""}`,
-      p.deposit
-        ? `${p.deposit.richness.toLocaleString()} units of ${p.deposit.kind} (${p.deposit.process})`
-        : "",
-    ].filter(Boolean);
-    this.facts.replaceChildren(...rows.map((r) => el("div", "fact", r)));
+    // Every line that stands for something opens its why.
+    const rows: [string, string | null][] = [
+      [
+        folk
+          ? `${folk.people.toLocaleString()} people: ${folk.byOccupation
+              .map((o) => `${o.count.toLocaleString()} ${OCCUPATION_WORDS[o.name] ?? o.name}`)
+              .join(", ")}`
+          : "",
+        folk?.folk ?? null,
+      ],
+      [
+        folk
+          ? `Peopled since year ${folk.settledYear}${folk.farming ? `; they farm, in ${folk.villages} village${folk.villages === 1 ? "" : "s"}` : "; they gather what the land gives"}`
+          : "",
+        folk?.arrival ?? null,
+      ],
+      [latLon(p.lat, p.lon), null],
+      [
+        high
+          ? `${Math.round(p.elevation).toLocaleString()} m above the sea`
+          : `${Math.round(-p.elevation).toLocaleString()} m under the sea`,
+        p.ref,
+      ],
+      [
+        `${p.temperature.toFixed(0)} °C on average, swinging ±${p.seasonality.toFixed(0)} °C with the seasons`,
+        p.ref,
+      ],
+      [high ? `${Math.round(p.precipitation).toLocaleString()} mm of rain a year` : "", p.ref],
+      [p.lake ? "A lake lies here." : p.river ? "A river runs through." : "", p.ref],
+      [
+        `On a ${p.plate.continental ? "continental" : "oceanic"} plate${p.boundary !== "none" ? `, near a ${p.boundary} boundary` : ""}`,
+        p.plate.ref,
+      ],
+      [
+        p.deposit
+          ? `${p.deposit.richness.toLocaleString()} units of ${p.deposit.kind} (${p.deposit.process})`
+          : "",
+        p.deposit?.ref ?? null,
+      ],
+    ];
+    this.facts.replaceChildren(
+      ...rows
+        .filter(([text]) => text)
+        .map(([text, ref]) => (ref ? this.whyLine(text, ref) : el("div", "fact", text))),
+    );
     this.showMarket(market);
+    this.showPast(folk ? past : null);
     this.closer.hidden = !high;
-    void this.why.show(folk?.arrival ?? p.deposit?.ref ?? p.ref, this.whyBox);
+    void this.why.show(folk?.folk ?? p.deposit?.ref ?? p.ref, this.whyBox);
+  }
+
+  private whyLine(text: string, ref: string): HTMLElement {
+    const b = el("button", "line", text);
+    b.onclick = () => void this.why.show(ref, this.whyBox);
+    return b;
+  }
+
+  /** A province over the years: how many, how well fed, what food cost. */
+  private showPast(past: ProvinceHistory | null): void {
+    if (!past || past.years.length < 2) {
+      this.pastBox.replaceChildren();
+      return;
+    }
+    const percent = (y: number) => `${Math.round(y)}%`,
+      times = (y: number) => `${y.toFixed(2)}×`;
+    this.pastBox.replaceChildren(
+      el("h3", undefined, "Over the years"),
+      lineChart(
+        past.years.map((y) => ({ x: y.year, y: y.population })),
+        { label: "People", zero: true },
+      ),
+      lineChart(
+        past.years.map((y) => ({ x: y.year, y: y.fed })),
+        { label: "Fed in the leanest month", format: percent, zero: true, guide: 100 },
+      ),
+      lineChart(
+        past.prices.map((y) => ({ x: y.year, y: y.food })),
+        { label: "Food, against its usual worth", format: times, guide: 1 },
+      ),
+    );
+  }
+
+  /** The chronicle: what history holds as mattering most, newest first, each with its why. */
+  async showChronicle(): Promise<void> {
+    this.selected = null;
+    this.inspector.hidden = false;
+    this.title.textContent = "Chronicle";
+    this.closer.hidden = true;
+    this.marketBox.replaceChildren();
+    this.pastBox.replaceChildren();
+    this.facts.replaceChildren(el("p", "muted", "…"));
+    const c = await this.client.query<Chronicle>({ type: "chronicle", args: { limit: 60 } });
+    if (this.title.textContent !== "Chronicle") return;
+    this.facts.replaceChildren(
+      lineChart(
+        c.population.map((y) => ({ x: y.year, y: y.people })),
+        { label: "People on the world", zero: true },
+      ),
+      ...(c.events.length
+        ? c.events.map((e) => this.whyLine(e.claim, e.ref))
+        : [el("p", "muted", "Nothing has happened yet that history keeps.")]),
+    );
+    this.whyBox.replaceChildren(el("p", "muted", "Tap an event to see why it happened."));
   }
 }
