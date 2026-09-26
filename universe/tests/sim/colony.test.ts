@@ -7,6 +7,8 @@ import { EARTH } from "../../src/host/planet.ts";
 import {
   COLONISTS,
   SPACE_EVENTS,
+  WAY,
+  cultureOf,
   homePlanet,
   languagesOf,
   loreOf,
@@ -85,4 +87,36 @@ test("a realm with a station and the knowledge of habitats sets its settlers dow
   world.runTo((y + 40) * YEAR);
   assert.ok(land.total() > 0.8 * COLONISTS, `${land.total()} forty years on`);
   assert.ok(land.fed >= 800, `fed ${land.fed}`);
+});
+
+test("colonies drift from home by the ordinary rules: the halls press their ways, and far ones go their own way", () => {
+  const { world, realm } = readied();
+  marketsOf(world).of(realm.seat).move("made", G.machines, 200_000_000);
+  const g = homePlanet(world).generated,
+    culture = cultureOf(world),
+    realms = politiesOf(world),
+    left: Ref[] = [];
+  for (let y = 81; y <= 300; y++) {
+    world.runTo(y * YEAR);
+    for (const e of world.events.all())
+      if (
+        e.t > (y - 1) * YEAR &&
+        (e.type === "polity.seceded" || e.type === "polity.split") &&
+        e.subjects.some((s) => offworldSite(g, Number(s.split(":")[2] ?? -1)))
+      )
+        left.push(e.id);
+  }
+  const colonies = spaceOf(world).of(realm.ref)!.colonies;
+  assert.ok(colonies.length >= 2, `${colonies.length} colonies`);
+  // Culturally: the halls' life has pressed the first colony's ways past what its settlers brought.
+  const pressed = culture.get(colonies[0]!.cell)!;
+  assert.ok(pressed.traits[WAY.kinship]! > pressed.base[WAY.kinship]!, "kin count for more");
+  assert.ok(pressed.traits[WAY.thrift]! > pressed.base[WAY.thrift]!, "thrift counts for more");
+  const first = culture.get(colonies[0]!.cell)!,
+    seat = culture.get(realm.seat)!,
+    apart = Math.sqrt(first.traits.reduce((s, v, i) => s + (v - seat.traits[i]!) ** 2, 0));
+  assert.ok(apart > 0.2, `ways ${apart} from the seat's`);
+  // Politically: some colony is no longer ruled from home.
+  const free = colonies.filter((c) => realms.of(c.cell)?.ref !== realm.ref);
+  assert.ok(free.length >= 1, "a colony gone its own way");
 });

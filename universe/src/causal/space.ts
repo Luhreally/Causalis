@@ -20,3 +20,8 @@ for (const [kind, what] of [
     const d = (e.data ?? {}) as Flight;
     return `The realm of ${d.realm ?? "a people"} ${what}${d.speed ? `, gaining the ${d.speed} km/s their world asks` : ""} on ${engineWords(d.engine)}${d.stages ? ` in ${d.stages} stage${d.stages > 1 ? "s" : ""}` : ""}, year ${yearOfMoment(e.t)}`;
   });
+
+registerEventWords(SPACE_EVENTS.colony.type, (_world, e) => {
+  const d = (e.data ?? {}) as { realm?: string; body?: string; settlers?: number };
+  return `The realm of ${d.realm ?? "a people"} set ${d.settlers ?? "its first"} settlers down in sealed halls on ${d.body ?? "another world"}, year ${yearOfMoment(e.t)}`;
+});

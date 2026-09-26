@@ -19,8 +19,15 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { borrowSound, cradleTongue, shiftTongue, type Tongue } from "../../gen/index.ts";
-import type { PopulationContext } from "../population/systems.ts";
+import {
+  borrowSound,
+  cradleTongue,
+  offworldSite,
+  shiftTongue,
+  type Tongue,
+} from "../../gen/index.ts";
+import { spaceSteps, type PopulationContext } from "../population/systems.ts";
+import { politiesOf } from "../polity/polity.ts";
 import type { MarketStore } from "../economy/market.ts";
 
 export const WAY_TRAITS = [
@@ -65,6 +72,14 @@ export type Ways = {
 const KEPT_NUDGES = 6;
 
 /** What pushes a people's ways, by the type of event that happened among them. */
+/** What a year in sealed halls on another body pushes (Phase 5 M53). */
+export const HALLS_PUSH: readonly (readonly [WayTrait, number])[] = [
+  ["kinship", 0.004],
+  ["thrift", 0.004],
+  ["tradition", -0.004],
+  ["openness", -0.002],
+];
+
 export const PUSHES: Readonly<Record<string, readonly (readonly [WayTrait, number])[]>> = {
   "people.famine": [
     ["thrift", 0.04],
@@ -241,6 +256,14 @@ export function cultureYear(ctx: PopulationContext, t: SimTime): void {
     if (!w) continue;
     for (const [trait, amount] of pushes) push(w, { event: e.id, year, trait: WAY[trait], amount });
   }
+  // Life in sealed halls on another body presses on a people's ways every year: kin and
+  // thrift keep everyone alive, and the old home's ways fit the new world ill.
+  for (const p of provinces) {
+    if (!p.arrival || !offworldSite(g, p.cell) || !p.total()) continue;
+    const w = store.get(p.cell)!;
+    for (const [trait, amount] of HALLS_PUSH)
+      push(w, { event: p.arrival, year, trait: WAY[trait], amount });
+  }
   // Drift and contact, planned from the year's opening ways, then made.
   const plans = new Map<number, { traits: number[]; tongue: Tongue }>();
   for (const p of provinces) {
@@ -251,6 +274,14 @@ export function cultureYear(ctx: PopulationContext, t: SimTime): void {
         other = store.get(n);
       if (!other || !ctx.provinces.get(n)?.total()) continue;
       near.push({ w: other, weight: 1 + (markets.route(p.cell, n) ? 1.5 : 0) });
+    }
+    // A land on another body still hears from its realm's seat while it is ruled from
+    // there: word from home pulls its ways, the less the farther the crossing.
+    if (offworldSite(g, p.cell)) {
+      const realm = politiesOf(world).of(p.cell),
+        steps = realm && realm.seat !== p.cell ? spaceSteps(ctx, realm.seat, p.cell) : null,
+        home = realm ? store.get(realm.seat) : undefined;
+      if (steps !== null && home) near.push({ w: home, weight: 1 / steps });
     }
     const total = near.reduce((s, x) => s + x.weight, 0);
     const traits = w.traits.map((v, i) => {

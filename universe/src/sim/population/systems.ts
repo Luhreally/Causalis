@@ -62,6 +62,7 @@ import {
   SEXES,
   TOOL_GAIN,
   habitability,
+  routeTo,
   type Affordances,
   type LifeHistory,
   type Medium,
@@ -146,6 +147,37 @@ export function hallsShare(ctx: PopulationContext, cell: number): number {
     HALLS.set(key, (share = Math.min(0.9, need / (need + 6))));
   }
   return share;
+}
+
+/**
+ * How far apart two lands on different bodies are to rule and to hear from, in steps as a
+ * land's are reckoned (Phase 5 M53): a crossing of space counts by how long it takes —
+ * the home world's moon about a step away, the red world some four, the giants' moons
+ * six or more. Null for two lands of one body.
+ */
+const CROSSINGS = new Map<string, number | null>();
+export function spaceSteps(ctx: PopulationContext, a: number, b: number): number | null {
+  const g = ctx.generated,
+    sa = offworldSite(g, a),
+    sb = offworldSite(g, b);
+  if (!sa && !sb) return null;
+  if (sa && sb && sa.body === sb.body) return null;
+  const key = `${g.digest}:${sa?.body ?? 0}:${sb?.body ?? 0}`;
+  if (CROSSINGS.has(key)) return CROSSINGS.get(key)!;
+  const bodies = g.system.bodies,
+    list = bodies.map((x) => ({
+      around: bodies.findIndex((y) => y.ref === x.orbit.around),
+      a: x.orbit.a,
+      periodDays: x.orbit.periodDays,
+      mass: x.mass,
+      radius: x.radius,
+      pressure: x.pressure,
+    })),
+    days = (site: typeof sa) => (site ? routeTo(list, site.body, g.star.mass).days : 0),
+    far = Math.max(days(sa), days(sb)),
+    steps = 1 + Math.round(dmath.log2(1 + far / 30));
+  CROSSINGS.set(key, steps);
+  return steps;
 }
 
 /** The food a land's people eat a month, in units: each by their body's appetite, the young by theirs. */

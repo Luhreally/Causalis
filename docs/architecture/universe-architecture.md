@@ -2450,6 +2450,27 @@ body against the colonists' own body — air made, pressure halls or hulls, heat
 cooling by how the body bears cold and heat, burial against radiation, water melted,
 flooded vaults for a people of the water, a pull too weak or strong — each a yearly
 upkeep in machines a settler; past ten, not settled.
+
+52–53, as built: colonies are lands of the ordinary kind (no second population model).
+The province world holds three sites of sealed halls on every body with ground, after the
+planet's own lands — each per-land array's tail holds the halls' inside (warm, watered,
+the "sealed halls" biome, farmed under roofs, no wild), the sites neighbours only of their
+body's others, far off the sphere; the planet's loops and count are untouched (Earth's
+history unchanged). A share of every settler's work keeps the halls alive (the habitat
+upkeep as hands taken from the fields). A realm with a station that knows habitats and
+transfer flight sets five hundred settlers from its most crowded land down on the
+cheapest body its people can live on and its drive can reach, paid in machines: the flow
+recorded as a migration (the observer's conservation holds), the land in the realm,
+carrying the seat's knowledge, its land's ways, tongue, goods and a year of food; its why
+names the body and the way. Across space a realm's reach counts the crossing by how long
+it takes (`spaceSteps`: the home world's moon a step, the red world four, the giants'
+moons six to ten), so a colony is not cut off by the next secession at home; word comes
+late, so grievance rises by the crossing; the halls press their people's ways each year
+(kin and thrift up, tradition and openness down, citing the founding), and while ruled
+from home the colony hears the seat's ways faintly (1 / steps). The ordinary rules do
+the rest: on the Earth seed the first colony comes in year 1229 on the great moon, and
+by 1400 a dozen colonies on the moons and the red world, the far ones broken away by
+grievance or at a ruler's death, the great moon's lasting longest.
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

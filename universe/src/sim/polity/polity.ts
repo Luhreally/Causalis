@@ -25,7 +25,7 @@ import {
 } from "../../kernel/index.ts";
 import { tongueLikeness, tongueName, tonguePersonName } from "../../gen/index.ts";
 import { FOODS, G, OCC } from "../../rules/index.ts";
-import { mouths, type PopulationContext } from "../population/systems.ts";
+import { mouths, spaceSteps, type PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf, type Ways } from "../culture/culture.ts";
 import { bandOfAge } from "../hand/hand.ts";
@@ -309,6 +309,11 @@ function stepsFrom(
     d.set(n, far);
     (levels[far] ??= []).push(n);
   };
+  // Lands on other bodies are reached from the seat across space, as far as the crossing takes.
+  for (const m of members) {
+    const crossing = spaceSteps(ctx, seat, m);
+    if (crossing !== null) visit(m, crossing);
+  }
   for (let far = 0; far < levels.length; far++)
     for (const c of levels[far] ?? []) {
       if (d.get(c) !== far) continue;
@@ -559,7 +564,9 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       const before = store.discontent(c),
         famine = recent(world, prov.lastFamine, t),
         far = steps.get(c) ?? 3,
-        foreign = 1 - tongueLikeness(ways.tongue, seatWays.tongue);
+        foreign = 1 - tongueLikeness(ways.tongue, seatWays.tongue),
+        // Ruled across space, word comes late: orders a crossing old, help a crossing away.
+        crossing = spaceSteps(ctx, p.seat, c) ?? 0;
       // Grievance settles low in good years (it fades each year) and spikes with famine —
       // the more so under a priest-king of their own faith, whose favour has failed them.
       const shared = faiths?.of(c).faith ?? null,
@@ -571,8 +578,12 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           0.02 * far +
           // A land held beyond the seat's reach is ruled by force alone, and chafes.
           0.08 * Math.max(0, far - rules) +
-          0.3 * foreign * foreign;
-      store.setDiscontent(c, { level, cause: famine ?? before.cause });
+          0.3 * foreign * foreign +
+          0.02 * crossing;
+      store.setDiscontent(c, {
+        level,
+        cause: famine ?? (crossing && prov.arrival ? prov.arrival : before.cause),
+      });
     }
   }
 
