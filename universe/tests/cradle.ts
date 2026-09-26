@@ -5,5 +5,5 @@ import { generateHomeWorld, provinceWorld } from "../src/gen/index.ts";
 import { EARTHLIKE } from "../src/rules/index.ts";
 
 export function cradleCell(seed: string): number {
-  return provinceWorld(generateHomeWorld(seedFromText(seed), EARTHLIKE)).life.apes!.cell;
+  return provinceWorld(generateHomeWorld(seedFromText(seed), EARTHLIKE)).life.people!.cell;
 }

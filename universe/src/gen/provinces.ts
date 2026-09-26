@@ -235,7 +235,7 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
     cell: provinceOf[d.cell]!,
     detail: { ...d.detail, spot: d.cell },
   }));
-  const apes = life.apes ? { species: life.apes.species, cell: provinceOf[life.apes.cell]! } : null;
+  const people = life.people ? { ...life.people, cell: provinceOf[life.people.cell]! } : null;
   return {
     prior: fine.prior,
     star: fine.star,
@@ -255,7 +255,7 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
     water: { flowTo, discharge, river, lake, filled },
     deposits,
     deep: { ages: deep.ages, coal, oil, coalAge, oilAge },
-    life: { species: life.species, present, herdBeast, seedGrass, diversity, apes },
+    life: { species: life.species, present, herdBeast, seedGrass, diversity, people },
     digest: new Hasher().string(fine.digest).string("provinces").int(frequency).hex(),
     ground: fine.ground,
     fine,

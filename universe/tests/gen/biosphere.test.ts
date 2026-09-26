@@ -77,10 +77,10 @@ test("the first people begin where the upright apes arose, and say why", () => {
   const world = makePopulationWorld(seedFromText("first light")),
     life = homePlanet(world).generated.life,
     origin = world.events.all().find((e) => e.type === POPULATION_EVENTS.origin.type)!;
-  assert.equal(origin.place, `cell:0:${life.apes!.cell}`);
+  assert.equal(origin.place, `cell:0:${life.people!.cell}`);
   const d = world.decisions.get(origin.causes[0]!.ref as Ref)!;
-  assert.ok(d.factors.some((f) => f.source?.ref === speciesRef(0, life.apes!.species)));
-  const apes = why(world, speciesRef(0, life.apes!.species));
+  assert.ok(d.factors.some((f) => f.source?.ref === speciesRef(0, life.people!.species)));
+  const apes = why(world, speciesRef(0, life.people!.species));
   assert.match(apes.claim, /^The upright apes, the people: they arose in the last age/);
   const kinds = spine(world, origin.id).map((e) => e.ref.split(":")[0]);
   assert.ok(kinds.includes("spec"), kinds.join(" ← "));

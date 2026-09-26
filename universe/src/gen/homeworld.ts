@@ -66,7 +66,11 @@ export function generateHomeWorld(
     climate = makeClimate(grid, planet, tectonics.elevation),
     water = makeHydrology(grid, tectonics.elevation, climate.precipitation),
     deep = makeDeepTime(grid, rng, planet, tectonics),
-    life = makeBiosphere(grid, rng, climate, water, tectonics.elevation, deep),
+    life = makeBiosphere(grid, rng, climate, water, tectonics.elevation, deep, {
+      prior: prior.name,
+      gravity: planet.gravity,
+      ocean: planet.oceanFraction,
+    }),
     deposits = makeDeposits(grid, rng, tectonics, climate, water, tectonics.elevation, deep);
   const h = new Hasher().string(prior.name).int(frequency).value(star).value(planet);
   for (const p of tectonics.plates) h.value(p);
@@ -81,6 +85,7 @@ export function generateHomeWorld(
   hashArray(h, deep.coal);
   hashArray(h, deep.oil);
   for (const s of life.species) h.value(s);
+  if (life.people) h.value(life.people.body);
   hashArray(h, life.present);
   for (const d of deposits) h.value(d);
   return {

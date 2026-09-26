@@ -77,7 +77,7 @@ test("a land's harvest is what its soil still gives; its wood, what its forest s
   };
   const whole = twin(),
     worn = twin(),
-    home = homePlanet(worn).generated.life.apes!.cell,
+    home = homePlanet(worn).generated.life.people!.cell,
     ctx = populationContext(worn);
   // Wear the cradle's soil to half, and let a month go by in both.
   ecologyOf(worn).set({ ...wildsOf(ctx, home), soil: 0.5 });

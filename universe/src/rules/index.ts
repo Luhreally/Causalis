@@ -24,6 +24,22 @@ export {
 } from "./goods.ts";
 export { EARTHLIKE, OPEN, PRIORS, type Prior, type Range } from "./priors.ts";
 export {
+  CLADES,
+  affordancesOf,
+  bodyOf,
+  bodyWords,
+  type Affordances,
+  type Bearing,
+  type BodyPlan,
+  type Clade,
+  type Conditions,
+  type Diet,
+  type Manipulator,
+  type Medium,
+  type Sense,
+  type Skin,
+} from "./bodies.ts";
+export {
   EFFECTS,
   PRINCIPLES,
   PRINCIPLE_INDEX,

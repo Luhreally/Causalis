@@ -95,7 +95,7 @@ function sliceVectors(): [string, string][] {
   const build = () => makePopulationWorld(seedFromText("first light")),
     world = build(),
     // Where the first people began: where the upright apes arose.
-    home = homePlanet(world).generated.life.apes!.cell;
+    home = homePlanet(world).generated.life.people!.cell;
   world.runTo(120 * YEAR);
   world.submit("act.rain", { cell: home, sign: -1, years: 3 });
   world.runTo(200 * YEAR);

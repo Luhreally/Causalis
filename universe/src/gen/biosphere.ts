@@ -11,6 +11,7 @@
 // grasses bear seed heavy enough to sow: where they live, herding and sowing can be
 // found; elsewhere they must be learned.
 import { defineStream, weightedKey, type Rng, type SphereGrid } from "../kernel/index.ts";
+import { CLADES, bodyOf, type BodyPlan, type Clade, type Medium } from "../rules/index.ts";
 import { BIOME, type Climate } from "./climate.ts";
 import type { Hydrology } from "./hydrology.ts";
 import { AGES, type DeepTime } from "./deeptime.ts";
@@ -68,9 +69,41 @@ export type Biosphere = {
   readonly seedGrass: Int16Array;
   /** Per cell, how many kinds of beast live there. */
   readonly diversity: Uint8Array;
-  /** The upright apes: the lineage, and where they arose (null on a world with no land for them). */
-  readonly apes: { readonly species: number; readonly cell: number } | null;
+  /**
+   * The people: the lineage that rose to thought, where it arose, its body, and the
+   * clade it came of and why that clade (null on a world with no place for any).
+   */
+  readonly people: {
+    readonly species: number;
+    readonly cell: number;
+    readonly body: BodyPlan;
+    readonly because: string;
+  } | null;
 };
+
+/** The media a people can live in, as far as the simulation reaches (M38 opens the sea). */
+export const LIVABLE: readonly Medium[] = ["land"];
+
+/**
+ * The clade that rises to thought on a world: the upright apes under the Earthlike prior
+ * (Earth's own); otherwise, of the clades whose medium a people can live in, the one the
+ * world's conditions favour, with chance.
+ */
+export function riseOf(
+  prior: string,
+  conditions: { warmth: number; rain: number; gravity: number; ocean: number },
+  u: (i: number) => number,
+): Clade {
+  if (prior === "earthlike") return CLADES.find((c) => c.id === "ape")!;
+  let best: Clade | null = null,
+    key = Infinity;
+  CLADES.forEach((c, i) => {
+    if (!LIVABLE.includes(c.body.medium)) return;
+    const k = weightedKey(u(i), c.fit(conditions));
+    if (k < key) [best, key] = [c, k];
+  });
+  return best ?? CLADES.find((c) => c.id === "ape")!;
+}
 
 /** Whether a living lineage is found in a cell. */
 export function lives(b: Biosphere, cell: number, species: number): boolean {
@@ -152,6 +185,11 @@ export function makeBiosphere(
   water: Hydrology,
   elevation: Float32Array,
   deep: DeepTime,
+  world: { readonly prior: string; readonly gravity: number; readonly ocean: number } = {
+    prior: "earthlike",
+    gravity: 1,
+    ocean: 0.7,
+  },
 ): Biosphere {
   const n = grid.count,
     land = (c: number) => elevation[c]! > 0,
@@ -331,8 +369,9 @@ export function makeBiosphere(
     herdBeast[c] = beast;
     seedGrass[c] = grass;
   }
-  // Last, the upright apes: where the most kinds of beast live, and grasses whose seed
-  // can be gathered, on warm, watered land.
+  // Last, the people: where the most kinds of beast live, and grasses whose seed can be
+  // gathered, on warm, watered land; the clade that rises there is the one the world
+  // favours (under the Earthlike prior, always the upright apes).
   let apesAt = -1,
     apesScore = -Infinity;
   // Open country and woodland edge first; on a world without any, whatever land is green.
@@ -362,11 +401,26 @@ export function makeBiosphere(
       apesAt = c;
     }
   }
-  if (apesAt < 0) return { species, present, herdBeast, seedGrass, diversity, apes: null };
+  if (apesAt < 0) return { species, present, herdBeast, seedGrass, diversity, people: null };
+  const conditions = {
+      warmth: climate.temperature[apesAt]!,
+      rain: climate.precipitation[apesAt]!,
+      gravity: world.gravity,
+      ocean: world.ocean,
+    },
+    clade = riseOf(world.prior, conditions, (i) => rng.real(BIO, apesAt, 0, 101, i)),
+    body =
+      world.prior === "earthlike"
+        ? { ...clade.body }
+        : bodyOf(
+            clade,
+            conditions,
+            [0, 1, 2].map((i) => rng.real(BIO, apesAt, 0, 102, i)),
+          );
   const apes: Species = {
     index: species.length,
     ref: speciesRef(0, species.length),
-    name: "upright apes",
+    name: body.name,
     niche: "upright ape",
     arose: AGES - 1,
     died: null,
@@ -375,7 +429,7 @@ export function makeBiosphere(
     tolerance: 30,
     rainMin: 0,
     rainMax: 10000,
-    size: 60,
+    size: body.size,
     herd: 0.8,
     docility: 0.4,
     growth: 0.1,
@@ -391,6 +445,6 @@ export function makeBiosphere(
     herdBeast,
     seedGrass,
     diversity,
-    apes: { species: apes.index, cell: apesAt },
+    people: { species: apes.index, cell: apesAt, body, because: clade.because(conditions) },
   };
 }

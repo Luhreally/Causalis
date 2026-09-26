@@ -36,10 +36,10 @@ export const FIRST_PEOPLE = 240;
  */
 export const CRADLE_FULLNESS = 0.45;
 
-/** The province the first people live in: where the upright apes arose (gen/biosphere.ts). */
+/** The province the first people live in: where their lineage rose to thought (gen/biosphere.ts). */
 export function chooseHome(g: HomeWorld): number {
-  if (!g.life.apes) throw new Error("no land fit for people on this world");
-  return g.life.apes.cell;
+  if (!g.life.people) throw new Error("no land fit for people on this world");
+  return g.life.people.cell;
 }
 
 /**
@@ -191,7 +191,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   const g = homePlanet(world).generated,
     home = chooseHome(g),
     cap = capacity(g, home),
-    apes = g.life.species[g.life.apes!.species]!,
+    apes = g.life.species[g.life.people!.species]!,
     grass = g.life.seedGrass[home]!,
     first = Math.max(FIRST_PEOPLE, Math.round(CRADLE_FULLNESS * cap.forage));
   const decision = world.decisions.record({
@@ -202,7 +202,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     threshold: 0,
     factors: [
       {
-        name: "where the upright apes arose",
+        name: `where the ${apes.name} arose`,
         value: 1,
         contribution: 1,
         source: { ref: apes.ref as Ref, role: "trigger", weight: 1 },

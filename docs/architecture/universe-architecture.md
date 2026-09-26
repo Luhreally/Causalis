@@ -2149,6 +2149,62 @@ centuries (the summaries keep their count). The save at year 900 is 14 MB (5 MB 
 300), bounded by the living-memory windows and growing with how busy the world is, not
 with its age. **Phase 3 closed.**
 
+### I.4 Phase 4 milestones (planned 2026-09-26, after the Phase 3 gate)
+
+Phase 4's "done when" (Part VII): across 100 open-prior seeds the diversity tests
+show mechanically distinct outcomes — body plans to settlement form to invention
+order to military composition — and a non-bilateral, non-land species reaches
+industry by a different path. The Earth seed keeps its calibration throughout: the
+upright ape's derivations must give back the numbers Phase 3 tuned.
+
+36. **The body-plan grammar**: the lineage that rises to thought is any of the
+    biosphere's, not only an upright ape — its medium (land, shore or water), its
+    symmetry, size, manipulators, senses, skin, metabolism, diet, how it bears young,
+    its span of life and its sociality, each drawn from its lineage and its cradle and
+    explained by them; an affordance vector derived by laws (dexterity, strength,
+    endurance, whether it can kindle fire, sight, cold and heat tolerance, speed on
+    land and in water).
+37. **Life history from the body**: the life table (bands, fertility, mortality,
+    coming of age, appetite) derived from size, bearing and span; the upright ape's
+    derivation is today's humanlike table; every system reads the people's own.
+38. **Habitat and needs by species**: where a people can live (land, shore, shallow
+    sea) and what it eats by its diet; the province world holds sea provinces for a
+    people of the water; capacity, migration and settlement over its own medium.
+39. **Technology by biology and materials**: principles gain the affordances they
+    need and the realizations a body allows — a people without fire comes to metal
+    another way (the aquatic-metallurgy case: vents, shells, electrochemistry), so
+    invention order follows the body and the medium.
+40. **Settlement form from the body**: houses, works and cities through the design
+    grammar with roles and materials of the people's medium (reefs grown, burrows,
+    nests, towers) and a doctrine from their body.
+41. **Military composition from the body**: hosts from the body's own weapons and
+    guards and what can be tamed in its medium; war's strength follows.
+42. **Procedural creature, building and vehicle specs**: the body plan as a visual
+    spec at every level of detail (the crowd's figures, the microscope's), buildings
+    and vehicles from their design parts; the renderer draws any people.
+43. **A species-generic active window**: the hand and the microscope for any body
+    plan (households, lifespans, childhood, movement).
+44. **Diversity tests**: a hundred open-prior seeds — their peoples' body plans,
+    settlement forms, invention orders and hosts compared; a report tool.
+45. **Phase 4 gate**: distinct outcomes across a hundred seeds; a non-bilateral,
+    non-land people reaching industry by another path; the Earth seed within its
+    bands; budgets hold.
+
+36, as built: `rules/bodies.ts` holds eight clades — upright apes, feathered
+striders, scaled crawlers, six-limbed burrowers, trunked giants, shaggy climbers,
+many-armed swimmers, shelled shore-walkers — each a body (medium, symmetry, size,
+manipulators and how many, senses, skin, blood, diet, bearing, young, span, social)
+and a fit to a world's cradle warmth and rain, pull and seas, with its reason in
+words. Under the Earthlike prior the people are always the upright apes, Earth's own
+numbers; on an open world the clade the world favours rises (a keyed draw weighted by
+fit, among the media a people can yet live in — land until M38), its body grown by
+the world's pull (heavier worlds, smaller bodies) and chance. Affordances follow by
+laws (`affordancesOf`): handling, strength by size, endurance by blood, fire only out
+of the water and with handling enough, sight, cold and heat by skin and blood, speed
+on land and in water, fecundity by clutch and bearing. The people's why tells where
+they arose, why their clade rose there, and their body (`life.people`, which replaces
+`life.apes`). Across forty open worlds six clades rose; nine had no land for a cradle.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

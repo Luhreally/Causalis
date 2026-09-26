@@ -3,6 +3,7 @@
 // the planet's crust broke into; the planet orbits its star; the star is how this
 // universe began. Each is answered from the generated world itself, on the basis
 // "generated" — the last links of any chain that reaches down to geology.
+import { bodyWords } from "../rules/index.ts";
 import { kindCodeOf, parseRef, type Ref, type World } from "../kernel/index.ts";
 import {
   AGE,
@@ -164,10 +165,12 @@ registerExplainer(SPECIES.code, (world, ref) => {
   // Where it arose: a spot of the fine world; the province that holds it.
   const origin = isProvinceWorld(g) ? g.provinceOf[s.origin]! : s.origin;
   if (s.niche === "upright ape") {
-    const c = origin;
+    // The people: where they arose, and the body their clade grew into there, and why.
+    const c = origin,
+      people = g.life.people;
     return generated(
       ref,
-      `The upright apes, the people: they arose in the last age at ${deg(g.grid.lat[c]!)}${g.grid.lat[c]! >= 0 ? "N" : "S"}, where ${g.life.diversity[c]} kinds of beast lived${g.life.seedGrass[c]! >= 0 ? ` and the ${g.life.species[g.life.seedGrass[c]!]!.name} grew wild` : ""}${g.water.river[c] ? ", by a river" : ""}`,
+      `The ${s.name}, the people: they arose in the last age at ${deg(g.grid.lat[c]!)}${g.grid.lat[c]! >= 0 ? "N" : "S"}, where ${g.life.diversity[c]} kinds of beast lived${g.life.seedGrass[c]! >= 0 ? ` and the ${g.life.species[g.life.seedGrass[c]!]!.name} grew wild` : ""}${g.water.river[c] ? ", by a river" : ""}${people ? ` — ${people.because}. ${cap(bodyWords(people.body))}` : ""}`,
       edges(world, [
         { ref: cellRef(0, c), role: "enabler", weight: 0.6 },
         { ref: ageRef(0, s.arose), role: "enabler", weight: 0.4 },
@@ -260,4 +263,8 @@ export function isGenerated(ref: Ref): boolean {
   return [STAR.code, PLANET.code, PLATE.code, DEPOSIT.code, SURFACE_CELL.code].includes(
     kindCodeOf(ref),
   );
+}
+
+function cap(t: string): string {
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
