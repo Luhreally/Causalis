@@ -1,13 +1,22 @@
 // A world with people (Phase 1): the home planet, and a first people in the
 // province that suits them best — warm enough, watered, rich in what can be
 // gathered — whose choice is itself a recorded decision the explainer can open.
-import { World, YEAR, apportion, defineStream, type Ref, type Seed } from "../../kernel/index.ts";
+import {
+  World,
+  YEAR,
+  apportion,
+  defineStream,
+  hashString,
+  type Ref,
+  type Seed,
+} from "../../kernel/index.ts";
 import { BIOME, cellRef, type HomeWorld } from "../../gen/index.ts";
 import { FEMALE, G, HUMANLIKE, MALE, OCC } from "../../rules/index.ts";
 import { MarketStore } from "../economy/market.ts";
 import { installEconomy } from "../economy/systems.ts";
 import { installActs } from "../acts/acts.ts";
 import { installHand } from "../hand/hand.ts";
+import { CultureStore, cradleWays, driftedWays } from "../culture/culture.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
 import { Province, capacity, row } from "./model.ts";
 import { HistoryStore, PopulationStore, SettlementStore } from "./stores.ts";
@@ -80,8 +89,8 @@ function people(p: Province, n: number): void {
   });
 }
 
-/** The habitable land within `rings` steps of a cell, nearest first (ties by cell). */
-function landAround(g: HomeWorld, from: number, rings: number): number[] {
+/** The habitable land within `rings` steps of a cell, nearest first (ties by cell), with each one's distance. */
+function landAround(g: HomeWorld, from: number, rings: number): [number, number][] {
   const dist = new Map<number, number>([[from, 0]]),
     queue = [from];
   for (let i = 0; i < queue.length; i++) {
@@ -101,7 +110,7 @@ function landAround(g: HomeWorld, from: number, rings: number): number[] {
       queue.push(n);
     }
   }
-  return queue;
+  return queue.map((c) => [c, dist.get(c)!]);
 }
 
 export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions = {}): World {
@@ -173,6 +182,10 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     causes: [{ ref: decision, role: "trigger", weight: 1 }],
     data: { people: FIRST_PEOPLE },
   });
+  const culture = world.register(new CultureStore());
+  world.addPinner(() => culture.pinned());
+  const cradle = cradleWays(home, hashString(`culture ${seed.text}`), origin);
+  culture.set(cradle);
   if (options.start !== "spread") {
     people(provinces.add(new Province(home, 0, origin)), FIRST_PEOPLE);
     // They bring half a year's food.
@@ -181,7 +194,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   }
   // The ages before the chronicle: bands spread from the cradle across the land.
   const lands = landAround(g, home, SPREAD.rings),
-    sizes = lands.map((c) =>
+    sizes = lands.map(([c]) =>
       Math.max(SPREAD.least, Math.round(capacity(g, c).forage * SPREAD.density)),
     );
   const spread = world.events.emit({
@@ -190,9 +203,11 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     causes: [{ ref: origin, role: "trigger", weight: 1 }],
     data: { provinces: lands.length, people: sizes.reduce((a, b) => a + b, 0) },
   });
-  lands.forEach((cell, i) => {
+  lands.forEach(([cell, ring], i) => {
     people(provinces.add(new Province(cell, 0, cell === home ? origin : spread)), sizes[i]!);
     markets.of(cell).move("carriedIn", G.wild, sizes[i]! * 6);
+    // The further the bands went, the further their ways and their speech drifted.
+    if (cell !== home) culture.set(driftedWays(world, cradle, cell, ring, spread));
   });
   return world;
 }

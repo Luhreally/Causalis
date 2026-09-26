@@ -34,4 +34,14 @@ export {
   type Tectonics,
 } from "./plates.ts";
 export { REGION, WATER, refineRegion, regionRef, type Region } from "./region.ts";
-export { personName, placeName } from "./names.ts";
+export {
+  borrowSound,
+  cradleTongue,
+  personName,
+  placeName,
+  shiftTongue,
+  tongueLikeness,
+  tongueName,
+  tonguePersonName,
+  type Tongue,
+} from "./names.ts";

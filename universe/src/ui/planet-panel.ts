@@ -58,6 +58,7 @@ type ProvinceFacts = {
   villages: number;
   /** The people of the province, as a ref for why. */
   folk: string;
+  ways: { ref: string; words: string[]; kept: number; sounds: string[] } | null;
 } | null;
 
 type ProvinceHistory = {
@@ -79,6 +80,8 @@ export type PeopleEntry = {
   food: number;
   /** Goods in and out last year. */
   trade: number;
+  /** Their speech as a colour: alike tongues, alike colours. */
+  tongue: readonly [number, number, number] | null;
 };
 
 /** A province's market, as the host reports it. */
@@ -132,6 +135,7 @@ export class PlanetPanel {
   private readonly facts = el("div", "facts");
   private readonly whyBox = el("div", "why");
   private readonly marketBox = el("div");
+  private readonly waysBox = el("div");
   private readonly pastBox = el("div");
   private readonly handBox = el("div");
   private readonly hand: HandView;
@@ -190,6 +194,7 @@ export class PlanetPanel {
       this.title,
       this.facts,
       this.closer,
+      this.waysBox,
       this.marketBox,
       this.handBox,
       this.pastBox,
@@ -356,6 +361,7 @@ export class PlanetPanel {
         .filter(([text]) => text)
         .map(([text, ref]) => (ref ? this.whyLine(text, ref) : el("div", "fact", text))),
     );
+    this.showWays(folk?.ways ?? null);
     this.showMarket(market);
     this.showPast(folk ? past : null);
     if (folk) void this.hand.show(this.handBox, cell);
@@ -368,6 +374,30 @@ export class PlanetPanel {
     const b = el("button", "line", text);
     b.onclick = () => void this.why.show(ref, this.whyBox);
     return b;
+  }
+
+  /** A people's ways and speech, each opening why. */
+  private showWays(
+    w: { ref: string; words: string[]; kept: number; sounds: string[] } | null,
+  ): void {
+    if (!w) {
+      this.waysBox.replaceChildren();
+      return;
+    }
+    const list = (words: string[]) =>
+      words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
+    this.waysBox.replaceChildren(
+      el("h3", undefined, "Their ways"),
+      this.whyLine(
+        w.words.length ? `They ${list(w.words)}` : "They keep to the middle of every way",
+        w.ref,
+      ),
+      el(
+        "div",
+        "fact muted",
+        `Their speech gives names like ${w.sounds.join(", ")}; it keeps ${w.kept}% of the first people's sounds`,
+      ),
+    );
   }
 
   /** A province over the years: how many, how well fed, what food cost. */
@@ -404,6 +434,7 @@ export class PlanetPanel {
     this.marketBox.replaceChildren();
     this.pastBox.replaceChildren();
     this.handBox.replaceChildren();
+    this.waysBox.replaceChildren();
     this.facts.replaceChildren(el("p", "muted", "…"));
     const c = await this.client.query<Chronicle>({ type: "chronicle", args: { limit: 60 } });
     if (this.title.textContent !== "Chronicle") return;

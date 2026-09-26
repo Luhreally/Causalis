@@ -24,6 +24,7 @@ export { LIFE_WORDS, MEMORY_WORDS, isObserved } from "./people.ts";
 export { FOLK, folkRef } from "./population.ts";
 import "./economy.ts";
 import "./acts.ts";
+export { WAYS, WAY_WORDS, kept, waysRef, waysWords } from "./culture.ts";
 export { priceWords } from "./economy.ts";
 export {
   edges,

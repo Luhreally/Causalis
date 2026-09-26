@@ -5,6 +5,7 @@ import {
   capacity,
   homePlanet,
   actsOf,
+  cultureOf,
   handOf,
   makePopulationWorld,
   marketGoodRef,
@@ -21,12 +22,23 @@ import {
   WATER,
   cellRef,
   refineRegion,
+  tongueName,
   type HomeWorld,
   type Region,
+  type Tongue,
 } from "../gen/index.ts";
 import { EARTHLIKE, OPEN, type Prior } from "../rules/index.ts";
-import { parseRef, yearOfMoment, type Ref, type World } from "../kernel/index.ts";
-import { folkRef, landWords, observer, priceWords, why } from "../causal/index.ts";
+import { finish, mix, parseRef, yearOfMoment, type Ref, type World } from "../kernel/index.ts";
+import {
+  folkRef,
+  kept,
+  landWords,
+  observer,
+  priceWords,
+  waysRef,
+  waysWords,
+  why,
+} from "../causal/index.ts";
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 import { villagePlan } from "./village.ts";
@@ -149,6 +161,7 @@ function province(world: World, cell: number) {
     cultivation: p.cultivation,
     villages: ctx.settlements.inProvince(cell).length,
     folk: folkRef(cell),
+    ways: waysOf(world, cell),
     years: ctx.history.yearsOf(cell).slice(-12),
   };
 }
@@ -241,6 +254,40 @@ function chronicle(world: World, limit: number) {
       .sort((a, b) => a[0] - b[0])
       .map(([year, people]) => ({ year, people })),
   };
+}
+
+/** A people's ways and speech, for the inspector. */
+function waysOf(world: World, cell: number) {
+  const w = cultureOf(world).get(cell);
+  if (!w) return null;
+  return {
+    ref: waysRef(cell),
+    words: waysWords(w),
+    kept: kept(w.tongue, populationContext(world).culture),
+    // Names as their speech would give them.
+    sounds: [7001, 7002, 7003].map((k) => tongueName(w.tongue, k)),
+  };
+}
+
+/** A tongue as a colour: alike tongues, alike colours (each sound pulls the hue its own way). */
+function tongueColor(t: Tongue): [number, number, number] {
+  const fields = [t.onsets, t.vowels, t.codas, t.endings],
+    c: [number, number, number] = [0, 0, 0];
+  let bits = 0;
+  fields.forEach((mask, f) => {
+    for (let i = 0; i < 24; i++)
+      if ((mask >>> i) & 1) {
+        bits++;
+        const h = finish(mix(0x7a11 + f, i), 5);
+        c[0] += h & 0xff;
+        c[1] += (h >>> 8) & 0xff;
+        c[2] += (h >>> 16) & 0xff;
+      }
+  });
+  // Spread the averages away from grey so neighbouring tongues read apart.
+  return c.map((v) =>
+    Math.max(0, Math.min(1, 0.5 + ((v / Math.max(1, bits) - 127.5) / 127.5) * 4)),
+  ) as [number, number, number];
 }
 
 function summary(g: HomeWorld) {
@@ -346,6 +393,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
               density: (100 * p.total()) / Math.max(1, capacity(g, p.cell).areaKm2),
               farming: p.knowsCultivation,
               food: m ? m.price[G.grain]! / GOODS[G.grain]!.value : 1,
+              tongue: (() => {
+                const w = cultureOf(world).get(p.cell);
+                return w ? tongueColor(w.tongue) : null;
+              })(),
               trade: last
                 ? last.ledger[2]!.reduce((a, b) => a + b, 0) +
                   last.ledger[3]!.reduce((a, b) => a + b, 0)

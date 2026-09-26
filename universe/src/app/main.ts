@@ -207,6 +207,7 @@ async function runPlanetPage(): Promise<void> {
     regionLens: RegionLens = "land",
     density = new Map<number, number>(),
     foodPrices = new Map<number, number>(),
+    tongues = new Map<number, readonly [number, number, number]>(),
     villages: Village[] = [],
     regionCell = -1,
     stopVillages: (() => void) | null = null;
@@ -224,7 +225,7 @@ async function runPlanetPage(): Promise<void> {
         (frame.meta as { frequency: number }).frequency,
         frame.arrays.elevation as Float32Array,
       );
-    const colors = globeColors(frame, lens, lens === "food" ? foodPrices : density);
+    const colors = globeColors(frame, lens, lens === "food" ? foodPrices : density, tongues);
     globe.paint(colors);
     painted = colors.length / 4;
   };
@@ -263,7 +264,7 @@ async function runPlanetPage(): Promise<void> {
   planetPanel.onLens = (l) => {
     lens = l;
     paintGlobe();
-    if (l === "people" || l === "food") void faceThePeople(true);
+    if (l === "people" || l === "food" || l === "tongues") void faceThePeople(true);
   };
   regionPanel.onLens = (l) => {
     regionLens = l;
@@ -273,7 +274,9 @@ async function runPlanetPage(): Promise<void> {
     planetPanel.people(entries);
     density = new Map(entries.map((e) => [e.cell, e.density]));
     foodPrices = new Map(entries.map((e) => [e.cell, e.food]));
-    if ((lens === "people" || lens === "food") && scale === "globe") paintGlobe();
+    tongues = new Map(entries.flatMap((e) => (e.tongue ? [[e.cell, e.tongue] as const] : [])));
+    if ((lens === "people" || lens === "food" || lens === "tongues") && scale === "globe")
+      paintGlobe();
   });
 
   const aspect = () => Math.max(0.3, innerWidth / Math.max(1, innerHeight));

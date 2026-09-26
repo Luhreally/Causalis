@@ -8,6 +8,7 @@ export const LENSES = [
   "terrain",
   "people",
   "food",
+  "tongues",
   "height",
   "temperature",
   "rain",
@@ -20,6 +21,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   terrain: "Land",
   people: "People",
   food: "Food",
+  tongues: "Tongues",
   height: "Height",
   temperature: "Warmth",
   rain: "Rain",
@@ -155,6 +157,7 @@ export function globeColors(
   frame: FrameMessage,
   lens: Lens,
   values?: ReadonlyMap<number, number>,
+  colors?: ReadonlyMap<number, Rgb>,
 ): Uint8Array {
   const a = frame.arrays,
     elevation = a.elevation!,
@@ -195,6 +198,18 @@ export function globeColors(
         const p = a.plate![c]!,
           continental = meta.plates[p]?.continental ?? false;
         col = hue((p * 0.61803398875) % 1, continental ? 0.45 : 0.7, sea ? 0.55 : 0.9);
+        break;
+      }
+      case "tongues": {
+        const tongue = colors?.get(c);
+        if (tongue) col = tongue;
+        else {
+          const base = sea ? ramp(DEPTH, e) : BIOME_COLORS[biome]!,
+            grey = (base[0] + base[1] + base[2]) / 3;
+          col = sea
+            ? [base[0] * 0.7, base[1] * 0.7, base[2] * 0.75]
+            : [grey * 0.65, grey * 0.65, grey * 0.6];
+        }
         break;
       }
       case "people":

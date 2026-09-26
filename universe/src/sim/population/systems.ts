@@ -29,12 +29,14 @@ import {
   WATER,
   cellRef,
   placeName,
+  tongueName,
   refineRegion,
   type HomeWorld,
   type Region,
 } from "../../gen/index.ts";
 import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
 import { HAND_VITAL, bandOfAge, handOf, newbornSex } from "../hand/hand.ts";
+import { cultureOf, cultureYear } from "../culture/culture.ts";
 import { MarketStore } from "../economy/market.ts";
 import {
   BANDS,
@@ -84,6 +86,12 @@ const SITES = defineStream("pop.sites");
 
 /** A village holds about this many people before another is founded. */
 export const VILLAGE_SIZE = 250;
+/**
+ * How many lands may found their first village in one year, world-wide, in the
+ * order of the lands; the rest wait a year. Each first village surveys its land's
+ * region, and this keeps a year's work even when farming sweeps a continent.
+ */
+export const FIRST_VILLAGES_A_YEAR = 3;
 /** The fewest people who set out together. */
 export const MIN_GROUP = 10;
 
@@ -854,6 +862,7 @@ function chooseSite(
 export function settleYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     year = yearOfMoment(t);
+  let firsts = 0;
   for (const p of ctx.provinces.all()) {
     if (!p.knowsCultivation) continue;
     const pop = p.total(),
@@ -867,6 +876,8 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
         ? Math.min(settled, Math.round((settled * trades) / Math.max(1, grown - foragers)))
         : 0,
       needed = Math.ceil((settled - townsfolk) / VILLAGE_SIZE);
+    // A land's first village waits its turn: only so many a year across the world.
+    if (!villages.length && needed > 0 && firsts++ >= FIRST_VILLAGES_A_YEAR) continue;
     for (let n = 0; villages.length < needed && n < 3; n++) {
       const site = chooseSite(ctx, p.cell, villages, t);
       if (!site) break;
@@ -894,7 +905,10 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
         ],
       });
       const ref = world.minter.mint(SETTLEMENT),
-        name = placeName(ctx.culture, ctx.settlements.all().length + 1);
+        // Named in the tongue of the land.
+        tongue = cultureOf(world).get(p.cell)?.tongue,
+        index = ctx.settlements.all().length + 1,
+        name = tongue ? tongueName(tongue, index) : placeName(ctx.culture, index);
       const event = world.events.emit({
         type: POPULATION_EVENTS.founded.type,
         // A province's first village is part of the chronicle; the rest of history.
@@ -1034,5 +1048,6 @@ export function installPopulation(world: World): void {
     every: YEAR,
     run: (t) => knowledgeYear(ctx(), t),
   });
+  world.system({ key: "160.culture.ways", every: YEAR, run: (t) => cultureYear(ctx(), t) });
   world.system({ key: "900.population.ledger", every: YEAR, run: (t) => ledgerYear(ctx(), t) });
 }

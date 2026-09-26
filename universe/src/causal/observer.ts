@@ -20,9 +20,16 @@ import {
   type StateStore,
   type World,
 } from "../kernel/index.ts";
-import { cellRef, personName, placeName } from "../gen/index.ts";
+import { cellRef, cradleTongue, tongueName, tonguePersonName } from "../gen/index.ts";
 import { BANDS, FEMALE, HUMANLIKE, MALE, bandWidth } from "../rules/index.ts";
-import { COLS, row, populationContext, type Flow, type PopulationContext } from "../sim/index.ts";
+import {
+  COLS,
+  cultureOf,
+  row,
+  populationContext,
+  type Flow,
+  type PopulationContext,
+} from "../sim/index.ts";
 
 export const PERSON = defineKind("prsn", "person", "structural");
 export const HOUSEHOLD = defineKind("hhold", "household", "structural");
@@ -305,8 +312,9 @@ export function meetHousehold(world: World, cell: number, village: Ref | null): 
     }
     return cells[cells.length - 1]!;
   };
-  const culture = ctx.culture,
-    surname = placeName(culture ^ 0xf00d, seq);
+  // Names in the tongue of the land they live in.
+  const tongue = cultureOf(world).get(cell)?.tongue ?? cradleTongue(ctx.culture),
+    surname = tongueName({ ...tongue, seed: tongue.seed ^ 0xf00d }, seq);
   const hhRef = makeRef(HOUSEHOLD, 0, seq),
     members: Person[] = [],
     index = flowsIndexed(ctx);
@@ -328,7 +336,7 @@ export function meetHousehold(world: World, cell: number, village: Ref | null): 
       ref: makeRef(PERSON, 0, pseq),
       seq: pseq,
       household: hhRef,
-      name: personName(culture, pseq, sex === FEMALE ? 0 : 1),
+      name: tonguePersonName(tongue, pseq, sex === FEMALE ? 0 : 1),
       surname,
       sex,
       birthYear: now - age,

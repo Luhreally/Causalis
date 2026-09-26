@@ -92,3 +92,14 @@ export {
   type Agent,
   type Window,
 } from "./hand/hand.ts";
+export {
+  CultureStore,
+  PUSHES,
+  WAY,
+  WAY_TRAITS,
+  cultureOf,
+  cultureYear,
+  type Nudge,
+  type Ways,
+  type WayTrait,
+} from "./culture/culture.ts";
