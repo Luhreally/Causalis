@@ -266,7 +266,13 @@ export function hostFor(
     ores.iron = iron;
     if (seatKnows("steel")) ores.steel = iron;
   }
-  const at = new Set<Material>(["wood", "reed", "hide", "stone"]);
+  // What a host can be made of where its people live, and their own bodies.
+  const at = new Set<Material>(
+    ctx.medium === "water"
+      ? ["shell", "stone", "coral", "body"]
+      : ["wood", "reed", "hide", "stone", "body"],
+  );
+  if (ctx.medium === "shore") at.add("shell");
   for (const m of Object.keys(ores) as Material[]) at.add(m);
   const doctrine: Doctrine = {
     shock: 0.6 + valour,

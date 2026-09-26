@@ -182,7 +182,11 @@ export function strengthOf(ctx: PopulationContext, p: Polity): number {
       0.1 * valour +
       0.03 * lore.effect(p.seat, "arms") * (lore.get(p.seat, "standing-army") ? 1 : 0),
     // What its host fights with: its design (realized now, if the realm is newer than it).
-    arms = hostPower(designsOf(ctx.world).of(p.ref)?.parts ?? hostFor(ctx, p).parts);
+    // What its host fights with: its design (realized now, if the realm is newer than it),
+    // borne by bodies as strong as they are.
+    arms =
+      hostPower(designsOf(ctx.world).of(p.ref)?.parts ?? hostFor(ctx, p).parts) *
+      ctx.affords.strength;
   let men = 0;
   for (const c of p.members) {
     const prov = ctx.provinces.get(c);

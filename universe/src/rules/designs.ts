@@ -8,7 +8,7 @@
 // realm goes to war with; Phase 3 adds a third, the works a land's crafts are done in
 // and what drives them.
 
-import type { BodyPlan } from "./bodies.ts";
+import { affordancesOf, type BodyPlan } from "./bodies.ts";
 
 export const MATERIALS = [
   "wood",
@@ -30,6 +30,8 @@ export const MATERIALS = [
   "coral",
   "shell",
   "kelp",
+  /** A body's own: its claws, its shell (Phase 4 M41). */
+  "body",
 ] as const;
 export type Material = (typeof MATERIALS)[number];
 
@@ -56,6 +58,7 @@ export const MATERIAL: Readonly<
   coral: { edge: 0.2, guard: 0.3, mass: 0.8, lasting: 0.9, cost: 0.2 },
   shell: { edge: 0.35, guard: 0.45, mass: 0.5, lasting: 0.7, cost: 0.1 },
   kelp: { edge: 0, guard: 0.05, mass: 0.2, lasting: 0.2, cost: 0.03 },
+  body: { edge: 0, guard: 0, mass: 0, lasting: 1, cost: 0 },
 };
 
 export const HOST_AXES = ["shock", "reach", "range", "protection", "mobility", "cost"] as const;
@@ -87,8 +90,10 @@ export type Realization = {
   readonly role: Role;
   /** Principles all of which must be known. */
   readonly needs: readonly string[];
-  /** The bodies it is for (diggers burrow, the feathered nest; absent: any). */
+  /** The bodies it is for alone (diggers burrow, the feathered nest; absent: any). */
   readonly fits?: (b: BodyPlan) => boolean;
+  /** What it asks of any body that would use it (a grip for a spear; to be small enough to ride). */
+  readonly asks?: (b: BodyPlan) => boolean;
   /** What it may be made of (the doctrine's best of those at hand is used). */
   readonly materials: readonly Material[];
   /** Its words, made of a material: "bronze swords". */
@@ -105,7 +110,17 @@ const R = (
   words: (m: Material) => string,
   does: (m: Material) => Performance,
   fits?: (b: BodyPlan) => boolean,
-): Realization => ({ id, role, needs, materials, words, does, ...(fits ? { fits } : {}) });
+  asks?: (b: BodyPlan) => boolean,
+): Realization => ({
+  id,
+  role,
+  needs,
+  materials,
+  words,
+  does,
+  ...(fits ? { fits } : {}),
+  ...(asks ? { asks } : {}),
+});
 
 /** Bodies that dig; that live as a hive; the feathered; four-handed climbers; giants; the sea's. */
 const digs = (b: BodyPlan) =>
@@ -115,7 +130,10 @@ const digs = (b: BodyPlan) =>
   climbs = (b: BodyPlan) => b.manipulators === "hands" && b.limbs >= 4 && b.medium === "land",
   giant = (b: BodyPlan) => b.size >= 300,
   sea = (b: BodyPlan) => b.medium === "water",
-  seaOrShore = (b: BodyPlan) => b.medium !== "land";
+  seaOrShore = (b: BodyPlan) => b.medium !== "land",
+  // Axes and swords want hands (or arms) deft enough to wield them; a spear, a grip.
+  wields = (b: BodyPlan) => affordancesOf(b).dexterity >= 0.6,
+  grips = (b: BodyPlan) => affordancesOf(b).dexterity >= 0.5;
 
 export const REALIZATIONS: readonly Realization[] = [
   // The host: what it strikes with, what guards it, what carries it.
@@ -138,6 +156,8 @@ export const REALIZATIONS: readonly Realization[] = [
       reach: 0.6,
       cost: 0.05 + 0.2 * MATERIAL[m].cost,
     }),
+    undefined,
+    grips,
   ),
   R(
     "axe",
@@ -150,6 +170,8 @@ export const REALIZATIONS: readonly Realization[] = [
       reach: 0.3,
       cost: 0.1 + 0.3 * MATERIAL[m].cost,
     }),
+    undefined,
+    wields,
   ),
   R(
     "sword",
@@ -162,6 +184,8 @@ export const REALIZATIONS: readonly Realization[] = [
       reach: 0.35,
       cost: 0.2 + 0.4 * MATERIAL[m].cost,
     }),
+    undefined,
+    wields,
   ),
   R(
     "bow",
@@ -178,6 +202,88 @@ export const REALIZATIONS: readonly Realization[] = [
     ["hide"],
     () => "bows of horn and sinew",
     () => ({ shock: 0.2, range: 0.8, cost: 0.2 }),
+  ),
+  // A body's own weapons and guard, and the host of a people of the water.
+  R(
+    "claws",
+    "arm",
+    [],
+    ["body"],
+    () => "claws",
+    () => ({ shock: 0.55, reach: 0.1, cost: 0 }),
+    (b) => b.manipulators === "claws",
+  ),
+  R(
+    "mandibles",
+    "arm",
+    [],
+    ["body"],
+    () => "mandibles",
+    () => ({ shock: 0.55, reach: 0.05, cost: 0 }),
+    (b) => b.manipulators === "mandibles",
+  ),
+  R(
+    "tusks",
+    "arm",
+    [],
+    ["body"],
+    () => "tusks and trunks",
+    () => ({ shock: 0.7, reach: 0.25, cost: 0 }),
+    (b) => b.manipulators === "trunk",
+  ),
+  R(
+    "grapple",
+    "arm",
+    [],
+    ["body"],
+    () => "grasping arms",
+    () => ({ shock: 0.45, reach: 0.35, cost: 0 }),
+    (b) => b.manipulators === "tentacles",
+  ),
+  R(
+    "shell-darts",
+    "arm",
+    ["shell-craft"],
+    ["shell"],
+    () => "darts of shell",
+    () => ({ shock: 0.15, range: 0.45, cost: 0.05 }),
+    (b) => b.medium === "water",
+  ),
+  R(
+    "own-shell",
+    "guard",
+    [],
+    ["body"],
+    () => "their own shells",
+    () => ({ protection: 0.6, cost: 0 }),
+    (b) => b.skin === "shell",
+  ),
+  R(
+    "own-scales",
+    "guard",
+    [],
+    ["body"],
+    () => "their own scales",
+    () => ({ protection: 0.35, cost: 0 }),
+    (b) => b.skin === "scales",
+  ),
+  R(
+    "shell-plates",
+    "guard",
+    ["shell-craft"],
+    ["shell"],
+    () => "plates of shell",
+    () => ({ protection: 0.45, cost: 0.1 }),
+    (b) => b.medium !== "land",
+  ),
+  R(
+    "swimming",
+    "mount",
+    [],
+    ["body"],
+    () => "swimming",
+    () => ({ mobility: 0.6 }),
+    (b) => b.medium === "water",
   ),
   R(
     "bare",
@@ -234,6 +340,8 @@ export const REALIZATIONS: readonly Realization[] = [
     ["hide"],
     () => "on foot",
     () => ({ mobility: 0.2 }),
+    undefined,
+    (b) => b.medium !== "water",
   ),
   R(
     "chariot",
@@ -242,6 +350,8 @@ export const REALIZATIONS: readonly Realization[] = [
     ["wood"],
     () => "in chariots",
     () => ({ mobility: 0.55, shock: 0.15, cost: 0.35 }),
+    undefined,
+    (b) => b.size < 300,
   ),
   R(
     "horse",
@@ -250,6 +360,8 @@ export const REALIZATIONS: readonly Realization[] = [
     ["hide"],
     () => "on horseback",
     () => ({ mobility: 0.75, shock: 0.08, cost: 0.3 }),
+    undefined,
+    (b) => b.size < 300,
   ),
   R(
     "cavalry",
@@ -258,6 +370,8 @@ export const REALIZATIONS: readonly Realization[] = [
     ["hide"],
     () => "as horsemen in ranks",
     () => ({ mobility: 0.8, shock: 0.2, cost: 0.35 }),
+    undefined,
+    (b) => b.size < 300,
   ),
 
   // The house: its walls, its roof, its shape.
@@ -615,8 +729,10 @@ export function compose(
     let best: { part: Part; value: number } | null = null;
     for (const r of REALIZATIONS) {
       if (r.role !== role || !r.needs.every(knows)) continue;
-      // A realization for particular bodies is for those alone.
+      // A realization for particular bodies is for those alone; one that asks something
+      // of a body is for the bodies that can.
       if (r.fits && !(body && r.fits(body))) continue;
+      if (r.asks && body && !r.asks(body)) continue;
       for (const m of r.materials) {
         if (!has(m)) continue;
         const value = worth(r.does(m), doctrine);

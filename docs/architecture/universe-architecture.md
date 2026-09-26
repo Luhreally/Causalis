@@ -2271,6 +2271,19 @@ is shed nor sun shaded. On their worlds the sea people live in shell warrens und
 crawlers and shore-walkers in burrows, burrowers in hives, giants in great halls; the
 apes' houses are unchanged.
 
+41, as built: a host is made of what its people's bodies are and can wield. The grammar
+has the body's own weapons and guard (a `body` material always at hand): claws,
+mandibles, tusks and trunks, grasping arms; a shell or scales that are their own armour;
+and for a people of the water, darts and plates of shell and a host that swims. A
+realization is either for particular bodies alone (`fits`) or asks something of any body
+that would use it (`asks`): a spear a grip, an axe or sword a deft hand, a horse or
+chariot a body small enough to carry. A host's materials are its medium's (shell, stone
+and coral under the sea), and its strength is borne by bodies as strong as they are
+(war's strength times the body's strength: a giant's host weighs many apes'). Clawed
+crawlers' realms fight with claws and their own scales, burrowers with mandibles and
+their own shells, giants with tusks and trunks, the sea people with grasping arms,
+swimming; the apes' hosts are unchanged.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |
