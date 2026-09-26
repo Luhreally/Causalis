@@ -20,6 +20,7 @@
     "gate:2": "node tools/phase2-gate.ts 500",
     "calibrate": "node tools/calibration.ts 900",
     "gate:3": "node tools/phase3-gate.ts 900",
+    "gate:4": "node tools/phase4-gate.ts",
     "diversity": "node tools/diversity.ts 100 900"
   },
   "dependencies": {

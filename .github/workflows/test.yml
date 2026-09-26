@@ -44,6 +44,25 @@ jobs:
       # planet, every year within budget and the save within bounds.
       - run: npm run gate:3
 
+  universe-diversity:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: universe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: universe/package-lock.json
+      - run: npm ci
+      # The Phase 4 gate's CI check: thirty open-prior worlds for a century and a half
+      # (bodies, media, invention orders, houses, arms, growth, budgets), and a sea people
+      # coming to power by the tides. The full gate (a hundred worlds, nine centuries) runs
+      # locally: npm run gate:4.
+      - run: npm run gate:4 -- --ci
+
   universe-engines:
     runs-on: ubuntu-latest
     defaults:

@@ -9,7 +9,8 @@
 import { fork } from "node:child_process";
 import { availableParallelism, freemem } from "node:os";
 import { writeFileSync } from "node:fs";
-import { YEAR, seedFromText } from "../src/kernel/index.ts";
+import { gzipSync } from "node:zlib";
+import { YEAR, rulesetId, saveWorld, seedFromText } from "../src/kernel/index.ts";
 import { ALIEN } from "../src/host/planet.ts";
 import { PRINCIPLES } from "../src/rules/index.ts";
 import {
@@ -31,7 +32,8 @@ export type Survey = {
   readonly bearing: string | null;
   readonly span: number;
   readonly years: number;
-  /** The most people the world held, and how many at the end (0: they died out). */
+  /** How many the chronicle opened on, the most the world held, and how many at the end (0: they died out). */
+  readonly first: number;
   readonly peak: number;
   readonly people: number;
   readonly lands: number;
@@ -55,6 +57,10 @@ export type Survey = {
   /** What came of them, in a word. */
   readonly outcome: Outcome;
   readonly ms: number;
+  /** The slowest year and the 99th percentile of years, ms; the save, compressed, bytes. */
+  readonly slowest: number;
+  readonly p99: number;
+  readonly save: number;
   /** The process's memory at the end, MB. */
   readonly mb: number;
 };
@@ -76,20 +82,34 @@ const POWER = new Map(
 
 const tally = (into: Record<string, number>, key: string) => (into[key] = (into[key] ?? 0) + 1);
 
-/** Run one open-prior world for some years and say what came of it. */
-export function survey(seed: string, years: number): Survey {
+/** How many people a world holds now. */
+function peopleOf(world: ReturnType<typeof ALIEN.build>): number {
+  let n = 0;
+  for (const p of populationContext(world).provinces.all()) n += p.total();
+  return n;
+}
+
+/**
+ * Run one open-prior world for some years and say what came of it (or only until its
+ * people first come to power, with `untilPower`).
+ */
+export function survey(seed: string, years: number, untilPower = false): Survey {
   const t0 = performance.now(),
     world = ALIEN.build(seedFromText(seed)),
     body = homePlanet(world).generated.life.people?.body ?? null,
     order: [string, number][] = [],
-    seen = new Set<string>();
-  let peak = 0,
-    people = 0,
+    seen = new Set<string>(),
+    first = peopleOf(world),
+    times: number[] = [];
+  let peak = first,
+    people = first,
     industry: Survey["industry"] = null,
     y = 0;
-  while (y < years) {
+  while (y < years && !(untilPower && industry)) {
     y++;
+    const before = performance.now();
     world.runTo(y * YEAR);
+    times.push(performance.now() - before);
     const events = world.events.all(),
       start = (y - 1) * YEAR;
     const found: string[] = [];
@@ -108,12 +128,14 @@ export function survey(seed: string, years: number): Survey {
           industry = { by: what, year: y, fuelless: POWER.get(what)! };
       }
     if (y % 10 === 0 || y === years) {
-      people = 0;
-      for (const p of populationContext(world).provinces.all()) people += p.total();
+      people = peopleOf(world);
       peak = Math.max(peak, people);
       if (!people) break;
     }
   }
+  people = peopleOf(world);
+  const sorted = [...times].sort((a, b) => a - b),
+    save = gzipSync(JSON.stringify(saveWorld(world, rulesetId(world, "diversity")))).length;
   const ctx = populationContext(world),
     designs = designsOf(world),
     houses: Record<string, number> = {},
@@ -140,6 +162,7 @@ export function survey(seed: string, years: number): Survey {
     bearing: body?.bearing ?? null,
     span: body?.span ?? 0,
     years: y,
+    first,
     peak,
     people,
     lands,
@@ -164,6 +187,9 @@ export function survey(seed: string, years: number): Survey {
               ? "farmers"
               : "foragers",
     ms: Math.round(performance.now() - t0),
+    slowest: Math.round(sorted.at(-1) ?? 0),
+    p99: Math.round(sorted[Math.floor(sorted.length * 0.99)] ?? 0),
+    save,
     mb: Math.round(process.memoryUsage().rss / 1e6),
   };
 }
@@ -211,6 +237,7 @@ export function surveyAll(
   seeds: readonly string[],
   years: number,
   most?: number,
+  untilPower = false,
 ): Promise<Survey[]> {
   const out = new Map<string, Survey>(),
     queue = [...seeds],
@@ -221,28 +248,43 @@ export function surveyAll(
       1,
       Math.min(seeds.length, availableParallelism() - 2, most ?? Math.floor(freemem() / 3.5e9)),
     );
+  // A world is begun only while five gigabytes are free: the largest grow to six or seven
+  // by their ninth century, and the others already running keep growing.
+  const room = (): Promise<void> =>
+    freemem() > 5e9
+      ? Promise.resolve()
+      : new Promise((r) => setTimeout(() => room().then(r), 5000));
   const lane = (): Promise<void> =>
-    new Promise((done, fail) => {
-      const next = queue.shift();
-      if (next === undefined) return done();
-      const child = fork(import.meta.filename, ["--one", next, String(years)], {
-        stdio: ["ignore", "pipe", "inherit", "ipc"],
-      });
-      let text = "";
-      child.stdout!.on("data", (d) => (text += d));
-      child.on("exit", (code) => {
-        if (code !== 0) return fail(new Error(`${next} failed (${code})`));
-        out.set(next, JSON.parse(text) as Survey);
-        lane().then(done, fail);
-      });
-    });
+    room().then(
+      () =>
+        new Promise((done, fail) => {
+          const next = queue.shift();
+          if (next === undefined) return done();
+          const child = fork(
+            import.meta.filename,
+            ["--one", next, String(years), ...(untilPower ? ["--until-power"] : [])],
+            {
+              stdio: ["ignore", "pipe", "inherit", "ipc"],
+            },
+          );
+          let text = "";
+          child.stdout!.on("data", (d) => (text += d));
+          child.on("exit", (code) => {
+            if (code !== 0) return fail(new Error(`${next} failed (${code})`));
+            out.set(next, JSON.parse(text) as Survey);
+            lane().then(done, fail);
+          });
+        }),
+    );
   return Promise.all(Array.from({ length: lanes }, lane)).then(() => seeds.map((s) => out.get(s)!));
 }
 
 if (import.meta.main) {
   const args = process.argv.slice(2);
   if (args[0] === "--one") {
-    process.stdout.write(JSON.stringify(survey(args[1]!, Number(args[2]))));
+    process.stdout.write(
+      JSON.stringify(survey(args[1]!, Number(args[2]), args.includes("--until-power"))),
+    );
   } else {
     const at = args.indexOf("--out"),
       file = at >= 0 ? args[at + 1] : undefined,
