@@ -561,6 +561,7 @@ body[data-scale="ground"][data-daylight="night"] {
   padding: 0;
   font: inherit;
   color: var(--accent);
+  text-decoration: none;
   text-shadow: none;
   background: none;
   border: 0;
@@ -612,7 +613,12 @@ body[data-scale="ground"][data-daylight="night"] {
 .table tr.row:nth-child(even) td {
   background: rgba(20, 40, 100, 0.22);
 }
+/* (A row that opens its page is still a table's row, not a list's entry.) */
 .table tr.entry {
+  display: table-row;
+  width: auto;
+  margin: 0;
+  padding: 0;
   cursor: pointer;
 }
 .table tr.entry:hover td {
@@ -764,6 +770,15 @@ body.paging .panel:not(.page-panel) .inspector {
 }
 .world-line .link {
   padding: 0 2px;
+}
+/* (Its words ellipsed within the bar, not run past it.) */
+.world-line {
+  min-width: 0;
+  max-width: 100%;
+}
+/* A wide page's tables keep each cell on a line (the table scrolls if it must). */
+.page-window.wide .table td {
+  white-space: nowrap;
 }
 /* The map modes: glossy tiles, one lit; their legend beside them. */
 .mapmodes {
@@ -932,4 +947,207 @@ body.paging .panel:not(.page-panel) .inspector {
     justify-content: center;
     font-size: 1.05rem;
   }
+}
+
+/*
+ * The world's own pages (Phase 10 M96b): its chronicle and its ledger open wide, as a grand
+ * strategy game's ledger does, with charts of several lines, bars side by side and timelines.
+ */
+@media (min-width: 641px) {
+  .page-window.wide {
+    width: min(58rem, calc(100% - 16px));
+  }
+  /* Below the scale's bar, however many lines it wraps to. */
+  .page-panel .page-window {
+    top: calc(var(--bar-bottom, 72px) + 8px);
+    max-height: calc(100% - var(--bar-bottom, 72px) - 16px - var(--safe-bottom));
+  }
+}
+/* Several lines on one chart: a taller plot, faint quarters, a key of names and values. */
+.chart-lines svg {
+  height: 120px;
+  background: linear-gradient(180deg, rgba(4, 12, 34, 0.55), rgba(8, 20, 52, 0.35));
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  touch-action: pan-y;
+}
+.chart-grid {
+  stroke: var(--line);
+  stroke-dasharray: 2 4;
+  vector-effect: non-scaling-stroke;
+}
+.chart-series {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.6));
+}
+.chart-cursor {
+  stroke: #fff;
+  stroke-opacity: 0.55;
+  vector-effect: non-scaling-stroke;
+}
+.chart-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: 4px;
+  font-size: 0.8rem;
+}
+.chart-key .key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.chart-key .swatch,
+.bars .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+.chart-key .key-value {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.chart-readout {
+  min-height: 1.2em;
+  font-size: 0.76rem;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+/* Small charts side by side, each on its own scale. */
+.charts-apart {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0 14px;
+}
+.charts-apart .chart {
+  margin: 4px 0 8px;
+}
+/* Bars side by side: a name, a glossy bar in the thing's colour, its amount. */
+.bars {
+  display: grid;
+  gap: 3px;
+}
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(6rem, 34%) 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+.bar-row.entry {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.bar-row.entry:hover .bar-track {
+  border-color: var(--accent);
+}
+.bar-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bar-track {
+  height: 14px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: rgba(4, 10, 30, 0.6);
+  overflow: hidden;
+}
+.bar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(180deg, #bdf6ff 0%, #6fe7ff 55%, #2a8fb3 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.bar-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  text-align: right;
+  min-width: 4.5rem;
+}
+/* Timelines: a name, then its years as a bar over the scale of the years. */
+.timeline {
+  display: grid;
+  gap: 2px;
+}
+.timeline-row,
+.timeline-axis {
+  display: grid;
+  grid-template-columns: minmax(6rem, 30%) 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+.timeline-row.entry {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.timeline-row.entry:hover .timeline-track {
+  background: rgba(40, 90, 200, 0.28);
+}
+.timeline-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.timeline-track {
+  position: relative;
+  height: 16px;
+  border-bottom: 1px dotted var(--line);
+}
+.timeline-bar {
+  --bar: #6fe7ff;
+  position: absolute;
+  top: 2px;
+  height: 12px;
+  border-radius: 3px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bar) 55%, white) 0%,
+    var(--bar) 55%,
+    color-mix(in srgb, var(--bar) 70%, black) 100%
+  );
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+/* Still lasting: it runs on to now, fading at its end. */
+.timeline-bar.lasting {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  mask-image: linear-gradient(90deg, #000 85%, rgba(0, 0, 0, 0.45));
+}
+.timeline-words {
+  position: absolute;
+  top: 2px;
+  font-size: 0.66rem;
+  line-height: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.timeline-marks {
+  position: relative;
+  height: 1.1em;
+}
+.timeline-mark {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 0.66rem;
+  color: var(--muted);
+}
+/* "Show all" under a long table. */
+.show-all {
+  margin-top: 6px;
+  min-height: 26px;
+  font-size: 0.78rem;
 }

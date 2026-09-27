@@ -12,9 +12,12 @@ import { designPage, faithPage, goodPage, languagePage } from "./culture.ts";
 import { agePage, depositPageModel, lineagePage, platePageModel } from "./life.ts";
 import { bodyPage, civilizationPage, foreignWorldPage, starPageModel } from "./sky.ts";
 import { actPage, decisionPage, eventPage, unknownPage } from "./history.ts";
+import { chroniclePage, ledgerPage } from "./world.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
 function build(world: World, ref: string, tab: string | null): PageModel {
+  if (ref === "world:chronicle") return chroniclePage(world, tab ?? undefined);
+  if (ref === "world:ledger") return ledgerPage(world, tab ?? undefined);
   if (ref.startsWith("gstar:")) return starPageModel(world, ref);
   if (ref.includes("/")) return foreignWorldPage(world, ref);
   if (ref.startsWith("agent:")) return agentPage(world, ref);
@@ -105,7 +108,10 @@ function tidy(page: PageModel): PageModel {
           !(b.type === "list" && !b.items.length && !b.more) &&
           !(b.type === "table" && !b.rows.length) &&
           !(b.type === "facts" && !b.rows.length) &&
-          !(b.type === "chart" && b.points.length < 2),
+          !(b.type === "chart" && b.points.length < 2) &&
+          !(b.type === "lines" && !b.series.some((x) => x.points.length > 1)) &&
+          !(b.type === "bars" && !b.bars.length) &&
+          !(b.type === "timeline" && !b.rows.length),
       ),
     }))
     .filter((t) => t.blocks.some((b) => b.type !== "tool"));

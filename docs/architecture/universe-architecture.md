@@ -3428,6 +3428,68 @@ and lenses don't have enough Paradox games influence").
 - **The page window** opens at the left on a desk, as the genre opens its windows, leaving
   the lower right to the map modes.
 
+96b, as built. The chronicle and a ledger are pages of the page window like any other
+(host/inspect/world.ts: `world:chronicle`, `world:ledger`, with `#tab`), opened from the
+top bar's 📜 and 📊. The world's pages open wide, and are read again every ten seconds, not
+every two (a page may say how often: `every`).
+
+- **The chronicle's tabs.**
+  - Story: each age told in a few words, with what began in it and how the world's people
+    grew; the people over the years; the turning points (the first of each great kind of
+    thing); and the latest great events.
+  - Ages: a timeline of them, and a table comparing them (years, people, towns, realms,
+    wars, battles, faiths, what was found).
+  - Firsts: what emerged, where and when first, how soon another followed, and how far it
+    reaches now (every principle, sowing, herds, smelting, towns, cities, markets, realms,
+    faiths, tongues, wars, battles, roads, mines, works, and the sky's firsts). A chart
+    shows how far the great findings spread, land by land.
+  - Centuries: side by side, and small charts of each century's towns, battles, findings
+    and famines.
+  - Records: the most peopled and widest realms, the oldest and longest-lived, the
+    bloodiest and longest wars, the most fought-over and hungriest lands, the largest and
+    oldest towns, the widest faith, the most spoken and oldest tongues, the greatest beast.
+  - Lives: timelines of the realms (the greatest standing and the longest-lived fallen),
+    the bloodiest wars, the widest faiths and the most spoken tongues.
+  - Events.
+- **An age** is the first land's to reach it *in its turn*. A land comes into the age of
+  metal once it farms and smelts, into industry once it has metal and an engine, and so on.
+  Ages reached in the same year are one ("of farming and metal"). A mark reached before
+  its age's turn is told, as when smelting came before sowing. Each land's years come from
+  its own events, including the ones forgotten into the decade summaries, then from what
+  it knows, then from the event it holds its knowing by.
+- **Counting what happened.** Every count uses both the events kept and those forgotten
+  into the per-decade summaries, which are exact per kind, so a count covers all of
+  history and not only what is remembered.
+- **The ledger's tabs**:
+  - realms: bars by people, a table, their people over the years, the fallen;
+  - knowledge: each realm's age, how much of what is found it knows, and its newest
+    finding;
+  - towns: the 250 largest;
+  - wars: the 250 newest, and the bloodiest as bars;
+  - faiths: those held, and how many are gone;
+  - tongues;
+  - life: every lineage by its reach;
+  - the sky's race: each realm's satellite, crew, station and colonies.
+- **New blocks** for any page:
+  - `lines`: several things on one chart, a key of names that open their pages, and under
+    the pointer the year and each value; or `apart`, small charts side by side when their
+    sizes are far apart;
+  - `bars`: things side by side in their own colours;
+  - `timeline`: things from beginning to end over the years, with centuries marked.
+- **Tables** keep their sorting as the page is read again, and show sixty rows before
+  "show all".
+
+Found and mended on the way:
+- A table's rows that open a page were styled as a list's entries (a block each), so every
+  table's body stood apart from its header. They are table rows again.
+- Names in a page's words were buttons, which cannot wrap with the words: a long claim sat
+  on lines of its own. They are links now.
+- The page window stood over the top bar's second line; it stands below whichever bar
+  shows, however many lines it wraps to.
+- A page said an event's year by its moment's (a year's close counted as the next year)
+  while its words said the year it closed: "Year 400: … year 399". Both count as the
+  explainer does now, and a line that starts with its year leaves the claim's year off.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

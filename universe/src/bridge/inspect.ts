@@ -75,6 +75,49 @@ export type Block =
       readonly points: readonly { readonly x: number; readonly y: number }[];
       readonly unit?: "people" | "share" | "price" | "count";
     }
+  /** Several things' numbers on one chart through the years, each its own colour, its name a link. */
+  | {
+      readonly type: "lines";
+      readonly title: string;
+      readonly series: readonly {
+        readonly name: string;
+        readonly ref?: string;
+        readonly color: Rgb;
+        readonly points: readonly { readonly x: number; readonly y: number }[];
+      }[];
+      readonly unit?: "people" | "share" | "price" | "count";
+      /** Each line on a small chart of its own scale, side by side (their sizes far apart). */
+      readonly apart?: boolean;
+    }
+  /** Things side by side as bars: each its name (a link), its amount, its colour. */
+  | {
+      readonly type: "bars";
+      readonly title: string;
+      readonly bars: readonly {
+        readonly label: Line;
+        readonly ref?: string;
+        readonly value: number;
+        readonly color?: Rgb;
+      }[];
+      readonly unit?: "people" | "share" | "price" | "count";
+    }
+  /** Things through the years: each a bar from its beginning to its end (or on to now). */
+  | {
+      readonly type: "timeline";
+      readonly title: string;
+      readonly from: number;
+      readonly to: number;
+      readonly rows: readonly {
+        readonly label: Line;
+        readonly ref?: string;
+        readonly from: number;
+        /** Its end, or null while it lasts. */
+        readonly to: number | null;
+        readonly color?: Rgb;
+        /** A word on it (its lands, its fallen). */
+        readonly words?: string;
+      }[];
+    }
   | { readonly type: "why"; readonly title?: string; readonly ref: string }
   /** The page's picture large, with what it is made of named (a lineage's anatomy). */
   | { readonly type: "anatomy"; readonly title?: string }
@@ -170,6 +213,9 @@ export type PageKind =
   | "decision"
   | "act"
   | "agent"
+  /** The world's own: its chronicle, its ledger. */
+  | "chronicle"
+  | "ledger"
   | "unknown";
 
 export type PageModel = {
@@ -191,6 +237,8 @@ export type PageModel = {
   readonly followable: boolean;
   /** The world's year it was read in. */
   readonly year: number;
+  /** How often (ms) it is worth reading again as the world runs, when not the usual. */
+  readonly every?: number;
 };
 
 /**

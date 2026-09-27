@@ -116,11 +116,6 @@ type ProvinceHistory = {
   prices: { year: number; food: number; tools: number }[];
 };
 
-type Chronicle = {
-  events: { ref: string; year: number; importance: number; claim: string }[];
-  population: { year: number; people: number }[];
-};
-
 /** The world's headline numbers (the host's "world.stats"). */
 export type WorldStats = {
   year: number;
@@ -420,8 +415,11 @@ export class PlanetPanel {
       b.title = word;
       return b;
     };
-    const chronicle = menuButton("📜", "Chronicle");
-    chronicle.onclick = () => void this.showChronicle();
+    // The world's chronicle and its ledger, pages of the page window (Phase 10 M96b).
+    const chronicle = menuButton("📜", "Chronicle"),
+      ledger = menuButton("📊", "Ledger");
+    chronicle.onclick = () => this.onChronicle();
+    ledger.onclick = () => this.onLedger();
     const sky = menuButton("☀️", "The sky");
     sky.onclick = () => this.onSky();
     const keep = menuButton("💾", "Save"),
@@ -439,7 +437,7 @@ export class PlanetPanel {
     // Its words on a line of their own (one line on a desk; a phone leaves them out), then its menu.
     this.worldText.className = "world-about";
     const menu = el("span", "world-menu");
-    menu.append(chronicle, sky, origin, keep, back, help, settings, said);
+    menu.append(chronicle, ledger, sky, origin, keep, back, help, settings, said);
     this.world.append(this.worldText, menu);
     bar.append(speeds, this.statsStrip, this.world);
     this.element.append(bar);
@@ -960,10 +958,11 @@ export class PlanetPanel {
     );
   }
 
-  /** The chronicle: what history holds as mattering most, newest first, each with its why. */
-  /** Clear the inspector for a page of the world's own (the chronicle, the saves). */
-  /** Told when a page of the world's own (its chronicle, saves, settings) opens here. */
+  /** Told when a page of the world's own (its saves, its settings) opens here. */
   onWorldPage: () => void = () => {};
+  /** Asked for the world's chronicle, and its ledger (the page window shows them). */
+  onChronicle: () => void = () => {};
+  onLedger: () => void = () => {};
 
   private worldPage(title: string): void {
     this.onWorldPage();
@@ -1082,21 +1081,5 @@ export class PlanetPanel {
         "Only the drawing changes: the world's history is the same at every setting.",
       ),
     );
-  }
-
-  async showChronicle(): Promise<void> {
-    this.worldPage("Chronicle");
-    const c = await this.client.query<Chronicle>({ type: "chronicle", args: { limit: 60 } });
-    if (this.title.textContent !== "Chronicle") return;
-    this.facts.replaceChildren(
-      lineChart(
-        c.population.map((y) => ({ x: y.year, y: y.people })),
-        { label: "People on the world", zero: true },
-      ),
-      ...(c.events.length
-        ? c.events.map((e) => this.whyLine(e.claim, e.ref))
-        : [el("p", "muted", "Nothing has happened yet that history keeps.")]),
-    );
-    this.whyBox.replaceChildren(el("p", "muted", "Tap an event to see why it happened."));
   }
 }

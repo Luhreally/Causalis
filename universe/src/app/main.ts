@@ -382,11 +382,29 @@ async function runPlanetPage(): Promise<void> {
   pageWindow.tidings = tidings;
   // (The world's own pages — its chronicle, saves, settings — open in its panel instead.)
   planetPanel.onWorldPage = () => pageWindow.close();
+  // The world's chronicle and its ledger (Phase 10 M96b): pages of the window like any other.
+  planetPanel.onChronicle = () => void pageWindow.open("world:chronicle");
+  planetPanel.onLedger = () => void pageWindow.open("world:ledger");
   // While a page is open the scales' own windows stand aside (their sheets would cover it).
   pageWindow.onOpen = (page) => {
     document.body.classList.add("paging");
+    markBarBottom();
     pointAt(page);
   };
+  // The page window stands below whichever scale's bar shows (its lines wrap as it narrows):
+  // read as a page opens and twice a second (a resize observer on the bars trips WebKit's
+  // loop check as the scales' panels come and go).
+  const markBarBottom = () => {
+    const bar = [...document.querySelectorAll<HTMLElement>(".panel > header.bar")].find(
+        (b) => b.offsetParent !== null,
+      ),
+      y = `${bar ? Math.round(bar.getBoundingClientRect().bottom) : 64}px`;
+    if (document.documentElement.style.getPropertyValue("--bar-bottom") !== y)
+      document.documentElement.style.setProperty("--bar-bottom", y);
+  };
+  setInterval(() => {
+    if (pageWindow.visible) markBarBottom();
+  }, 500);
   pageWindow.onClose = () => document.body.classList.remove("paging");
   exposed.open = (ref: string) => pageWindow.open(ref);
   exposed.pageOpen = () => pageWindow.current;

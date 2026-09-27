@@ -1,6 +1,6 @@
 // The pages' words (Phase 10 M91): names as links, numbers in words, and a thing's own
 // history — the events that name it, newest first, each a link to its page.
-import { YEAR, isRef, type Ref, type World } from "../../kernel/index.ts";
+import { YEAR, isRef, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import { why } from "../../causal/index.ts";
 import type { Item, Line, Part, Span, Stat } from "../../bridge/index.ts";
 
@@ -30,9 +30,14 @@ export function yearNow(world: World): number {
   return Math.floor(world.now / YEAR);
 }
 
-/** The year of a moment. */
+/** The year of a moment (as the explainer counts it: a moment closing a year is of that year). */
 export function yearAt(t: number): number {
-  return Math.floor(t / YEAR);
+  return yearOfMoment(t);
+}
+
+/** An event's words without the year they end on (a line that says its year first). */
+export function bare(claim: string): string {
+  return claim.replace(/,? (?:in )?year -?\d+$/, "");
 }
 
 /** What a ref is, in the explainer's words (every ref has some). */
@@ -82,7 +87,7 @@ export function eventsAbout(world: World, refs: readonly string[], most = 24, le
     if (e.importance < least) continue;
     if (!(e.place && wanted.has(e.place)) && !e.subjects.some((s) => wanted.has(s))) continue;
     const year = yearAt(e.t);
-    out.push({ line: [`Year ${year}: `, { text: why(world, e.id).claim, ref: e.id }], year });
+    out.push({ line: [`Year ${year}: `, { text: bare(why(world, e.id).claim), ref: e.id }], year });
   }
   return out;
 }
@@ -95,7 +100,7 @@ export function eventsCiting(world: World, ref: string, most = 12): Item[] {
     const e = all[i]!;
     if (!e.causes.some((c) => c.ref === ref)) continue;
     const year = yearAt(e.t);
-    out.push({ line: [`Year ${year}: `, { text: why(world, e.id).claim, ref: e.id }], year });
+    out.push({ line: [`Year ${year}: `, { text: bare(why(world, e.id).claim), ref: e.id }], year });
   }
   return out;
 }

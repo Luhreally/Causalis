@@ -242,16 +242,35 @@ for (const engine of engines) {
             .find((b) => b.textContent?.includes("Chronicle"))!
             .click(),
         );
+        // The chronicle opens in the page window: its ages told, its firsts compared.
         await page.waitForFunction(
           () =>
-            document.querySelector(".panel:not([hidden]) .inspector h2")?.textContent ===
-              "Chronicle" &&
-            document.querySelectorAll(".panel:not([hidden]) .inspector .facts .line").length >= 3,
+            document.querySelector(".page-window .page-title")?.textContent === "The Chronicle" &&
+            document.querySelectorAll(".page-window .block-text p").length >= 2,
+          undefined,
+          { timeout: 20000 },
+        );
+        await page.click(".page-window .tab:has-text('Firsts')");
+        await page.waitForFunction(
+          () => document.querySelectorAll(".page-window .table tr.entry").length >= 3,
           undefined,
           { timeout: 10000 },
         );
         if (shotsAt && !query.includes("inline"))
           await page.screenshot({ path: join(shotsAt, `${engine}-chronicle.png`) });
+        // And the ledger: the realms side by side.
+        await page.evaluate(() =>
+          [...document.querySelectorAll<HTMLButtonElement>(".panel:not([hidden]) .link")]
+            .find((b) => b.textContent?.includes("Ledger"))!
+            .click(),
+        );
+        await page.waitForFunction(
+          () =>
+            document.querySelector(".page-window .page-title")?.textContent === "The Ledger" &&
+            document.querySelectorAll(".page-window .bar-row").length >= 1,
+          undefined,
+          { timeout: 20000 },
+        );
         // Down into the region around a copper deposit, then a tile's inspector.
         await page.evaluate(async () => {
           const c = (globalThis as { causalis?: Exposed }).causalis!;

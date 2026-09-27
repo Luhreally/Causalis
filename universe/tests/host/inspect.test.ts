@@ -65,6 +65,17 @@ function linksOf(p: PageModel): string[] {
           r.cells.forEach(line);
         }
       if (b.type === "why") out.push(b.ref);
+      if (b.type === "lines") for (const x of b.series) if (x.ref) out.push(x.ref);
+      if (b.type === "bars")
+        for (const x of b.bars) {
+          line(x.label);
+          if (x.ref) out.push(x.ref);
+        }
+      if (b.type === "timeline")
+        for (const x of b.rows) {
+          line(x.label);
+          if (x.ref) out.push(x.ref);
+        }
     }
   return out;
 }
@@ -200,4 +211,68 @@ test("a ref to nothing still answers, with what is known of it", () => {
   assert.equal(p.kind, "unknown");
   assert.equal(p.title, "Gone from the world");
   assert.ok(p.tabs[0]!.blocks.length > 0);
+});
+
+test("the world's chronicle tells its ages in turn and compares what emerged; its ledger compares its realms", () => {
+  const before = JSON.stringify(world.domainHashes()),
+    c = page("world:chronicle"),
+    l = page("world:ledger");
+  assert.equal(c.kind, "chronicle");
+  assert.equal(l.kind, "ledger");
+  for (const id of ["story", "ages", "firsts", "centuries", "records", "lives", "events"])
+    assert.ok(
+      c.tabs.some((t) => t.id === id),
+      `the chronicle has its ${id}`,
+    );
+  const blocks = (p: PageModel, tab: string) => p.tabs.find((t) => t.id === tab)!.blocks as Block[];
+  // The ages come in turn, the foragers' first: none begins before the one it follows.
+  const ages = blocks(c, "ages").find((b) => b.type === "timeline")!;
+  assert.ok(ages.type === "timeline" && ages.rows.length >= 2, "the world has passed an age");
+  if (ages.type === "timeline") {
+    assert.match(String(ages.rows[0]!.label[0]), /foragers/);
+    for (let i = 1; i < ages.rows.length; i++)
+      assert.ok(
+        ages.rows[i]!.from > ages.rows[i - 1]!.from,
+        "each age begins after the one before",
+      );
+  }
+  // What emerged, first to last: sowing, a town, a realm among them.
+  const firsts = blocks(c, "firsts").find((b) => b.type === "table")!;
+  assert.ok(firsts.type === "table");
+  if (firsts.type === "table") {
+    const years = firsts.rows.map((r) => r.keys![1] as number);
+    assert.deepEqual(
+      years,
+      [...years].sort((a, b) => a - b),
+      "firsts are in the order they came",
+    );
+    const what = firsts.rows.map((r) => String(r.cells[0]![0]));
+    for (const w of ["Sowing", "A town", "A realm"])
+      assert.ok(
+        what.some((x) => x.includes(w)),
+        `${w} is among the firsts`,
+      );
+  }
+  // The ledger lists every realm standing, the greatest first.
+  const realms = blocks(l, "realms").find((b) => b.type === "table")!,
+    standing = politiesOf(world)
+      .all()
+      .filter((r) => r.ended === null);
+  assert.ok(realms.type === "table" && realms.rows.length === standing.length);
+  if (realms.type === "table") {
+    const at = realms.columns.indexOf("People"),
+      people = realms.rows.map((r) => r.keys![at] as number);
+    assert.deepEqual(
+      people,
+      [...people].sort((a, b) => b - a),
+    );
+  }
+  // A tab asked for is the one it opens on.
+  assert.equal(page("world:ledger#wars").tab, "wars");
+  // Every name in them opens a page (a sample of them), and reading them changes nothing.
+  const links = [...new Set([...linksOf(c), ...linksOf(l)])].filter((x) => !x.startsWith("world:"));
+  assert.ok(links.length > 100, `they name many things (${links.length})`);
+  for (const ref of links.filter((_, i) => i % Math.ceil(links.length / 120) === 0))
+    assert.notEqual(page(ref).kind, "unknown", `${ref} opens a page`);
+  assert.equal(JSON.stringify(world.domainHashes()), before, "history is as it was");
 });

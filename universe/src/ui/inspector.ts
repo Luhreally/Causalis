@@ -22,13 +22,15 @@ import type {
 } from "../bridge/index.ts";
 import { el, WhyTree } from "./why.ts";
 import { folder } from "./window.ts";
-import { lineChart } from "./chart.ts";
+import { barsChart, lineChart, linesChart, timelineChart } from "./chart.ts";
 import type { Tidings } from "./tidings.ts";
 import { drawTool } from "./tools.ts";
 import { drawAnatomy, drawPortrait, moves } from "./portrait.ts";
 
 /** How often an open page is read again while the world runs (ms). */
 const REFRESH_MS = 2000;
+/** The rows a table shows before "show all". */
+const TABLE_ROWS = 60;
 /** How many pages back the history reaches. */
 const HISTORY = 64;
 /** What following a thing is said as, by its kind. */
@@ -82,6 +84,9 @@ export class PageWindow {
   private openStat: string | null = null;
   /** The blocks drawn, by their tab and place, with what each said (to keep what is unchanged). */
   private blocks = new Map<string, { same: string; element: HTMLElement }>();
+  /** Each table's sorting and whether it shows every row, kept as the page is read again. */
+  private sorts = new Map<string, { by: number; down: boolean; all: boolean }>();
+  private readAt = 0;
   private pressing = false;
   tidings: Tidings | null = null;
   /** Go to where a thing is to be seen. */
@@ -189,6 +194,7 @@ export class PageWindow {
     }
     const page = await this.client.query<PageModel>({ type: "page", args: { ref } });
     if (token !== this.token) return;
+    this.readAt = performance.now();
     this.draw(page, fresh);
     if (fresh) this.onOpen(page);
   }
@@ -197,8 +203,11 @@ export class PageWindow {
   private async follow(): Promise<void> {
     const ref = this.current;
     if (!ref || this.pressing || document.visibilityState !== "visible") return;
+    // (A page of the whole world is read again less often: it reads everything.)
+    if (performance.now() - this.readAt < (this.page?.every ?? REFRESH_MS) - 100) return;
     const token = this.token,
       page = await this.client.query<PageModel>({ type: "page", args: { ref } });
+    this.readAt = performance.now();
     if (token !== this.token || this.pressing || this.current !== ref) return;
     if (JSON.stringify({ ...page, year: 0 }) === this.seen) return;
     this.draw(page, false);
@@ -213,7 +222,10 @@ export class PageWindow {
       this.opened = new Set();
       this.openStat = null;
       this.blocks = new Map();
+      this.sorts = new Map();
     }
+    // (The world's own pages — its chronicle, its ledger — open wide, as a ledger does.)
+    this.inspector.classList.toggle("wide", page.kind === "chronicle" || page.kind === "ledger");
     if (!page.tabs.some((t) => t.id === this.tab)) this.tab = page.tabs[0]?.id ?? "";
     this.icon.textContent = page.icon;
     this.name.textContent = page.title;
@@ -376,9 +388,12 @@ export class PageWindow {
     return box;
   }
 
+  /** A name that opens its page: a link in the line's words, wrapping with them. */
   private link(text: string, ref: string): HTMLElement {
-    const a = el("button", "ref-link", text);
+    const a = el("a", "ref-link", text);
+    a.href = `#${ref}`;
     a.onclick = (e) => {
+      e.preventDefault();
       e.stopPropagation();
       void this.open(ref);
     };
@@ -404,7 +419,65 @@ export class PageWindow {
         if (b.more) box.append(el("p", "muted more", `and ${b.more.toLocaleString("en-US")} more`));
         break;
       case "table":
-        box.append(this.table(b.columns, b.rows));
+        box.append(this.table(b.columns, b.rows, key));
+        break;
+      case "lines":
+        // (Lines of far different sizes: each its own small chart, side by side.)
+        if (b.apart) {
+          const grid = el("div", "charts-apart");
+          for (const s of b.series)
+            grid.append(
+              lineChart(s.points, {
+                label: s.name,
+                format: unitFormat(b.unit),
+                zero: b.unit === "people" || b.unit === "count",
+                color: s.color,
+              }),
+            );
+          box.append(grid);
+          break;
+        }
+        box.append(
+          linesChart(b.series, {
+            label: b.title,
+            format: unitFormat(b.unit),
+            zero: b.unit === "people" || b.unit === "count",
+            key: (s) => {
+              const ref = b.series.find((x) => x.name === s.name)?.ref;
+              return ref ? this.link(s.name, ref) : el("span", "key-name", s.name);
+            },
+          }),
+        );
+        if (title) title.remove();
+        break;
+      case "bars":
+        box.append(
+          barsChart(
+            b.bars.map((x) => ({
+              label: this.line(x.label),
+              value: x.value,
+              ...(x.color ? { color: x.color } : {}),
+              ...(x.ref ? { open: () => void this.open(x.ref!) } : {}),
+            })),
+            unitFormat(b.unit),
+          ),
+        );
+        break;
+      case "timeline":
+        box.append(
+          timelineChart(
+            b.rows.map((r) => ({
+              label: this.line(r.label),
+              from: r.from,
+              to: r.to,
+              ...(r.color ? { color: r.color } : {}),
+              ...(r.words ? { words: r.words } : {}),
+              ...(r.ref ? { open: () => void this.open(r.ref!) } : {}),
+            })),
+            b.from,
+            b.to,
+          ),
+        );
         break;
       case "chart":
         box.append(
@@ -490,14 +563,19 @@ export class PageWindow {
     return row;
   }
 
-  /** A table whose columns sort at a tap (a second tap the other way). */
-  private table(columns: readonly string[], rows: readonly Row[]): HTMLElement {
+  /**
+   * A table whose columns sort at a tap (a second tap the other way), its first rows shown
+   * and the rest at "show all" — both kept as the page is read again.
+   */
+  private table(columns: readonly string[], rows: readonly Row[], key: string): HTMLElement {
     const box = el("div", "table-wrap"),
       table = el("table", "table"),
       head = el("tr"),
-      body = el("tbody");
-    let by = -1,
-      down = true;
+      body = el("tbody"),
+      state = this.sorts.get(key) ?? { by: -1, down: true, all: false },
+      more = el("button", "show-all");
+    this.sorts.set(key, state);
+    let { by, down } = state;
     const fill = () => {
       const order = [...rows];
       if (by >= 0)
@@ -515,8 +593,11 @@ export class PageWindow {
                   : 0;
           return down ? -c : c;
         });
+      const shown = state.all ? order : order.slice(0, TABLE_ROWS);
+      more.hidden = shown.length === order.length;
+      more.textContent = `Show all ${order.length.toLocaleString("en-US")}`;
       body.replaceChildren(
-        ...order.map((r) => {
+        ...shown.map((r) => {
           const tr = el("tr", r.ref ? "row entry" : "row");
           for (const c of r.cells) {
             const td = el("td");
@@ -540,19 +621,27 @@ export class PageWindow {
           by = i;
           down = true;
         }
+        state.by = by;
+        state.down = down;
         for (const x of head.querySelectorAll(".sort")) x.classList.remove("on", "up");
         b.classList.add("on");
         b.classList.toggle("up", !down);
         fill();
       };
+      if (by === i) b.classList.add("on");
+      if (by === i && !down) b.classList.add("up");
       th.append(b);
       head.append(th);
     });
     const thead = el("thead");
     thead.append(head);
     table.append(thead, body);
+    more.onclick = () => {
+      state.all = true;
+      fill();
+    };
     fill();
-    box.append(table);
+    box.append(table, more);
     return box;
   }
 }
