@@ -31,6 +31,9 @@ export class GlobeScene {
   private colors: Uint8Array | null = null;
   private readonly sea: pc.Entity;
   private readonly halo: pc.Entity;
+  private readonly clouds: pc.Entity;
+  /** Whether the clouds are wanted (the Land lens: they would hide what other lenses paint). */
+  private cloudy = true;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -60,6 +63,24 @@ export class GlobeScene {
     // The air: a glow about the rim, a camera-facing disc behind the globe's middle.
     this.halo = billboard(stage, glowMaterial(stage, HALO), 1.32, stage.root);
     this.halo.enabled = false;
+    // Clouds: a shell a little above the land, drifting slowly (a look, not the weather).
+    this.clouds = new pc.Entity("clouds");
+    this.clouds.addComponent("render", {
+      meshInstances: [
+        new pc.MeshInstance(
+          pc.Mesh.fromGeometry(
+            stage.device,
+            new pc.SphereGeometry({ radius: 1.018, latitudeBands: 32, longitudeBands: 64 }),
+          ),
+          cloudMaterial(stage),
+        ),
+      ],
+    });
+    this.clouds.enabled = false;
+    stage.root.addChild(this.clouds);
+    stage.onUpdate((dt) => {
+      if (this.clouds.enabled) this.clouds.rotateLocal(0, dt * 0.6, 0);
+    });
     this.marker = new pc.Entity("marker");
     this.marker.addComponent("render", {
       meshInstances: [
@@ -142,11 +163,19 @@ export class GlobeScene {
     this.positions = positions;
     this.corners = corners;
     this.sea.enabled = this.halo.enabled = true;
+    this.clouds.enabled = this.cloudy;
+  }
+
+  /** Show the clouds or not (they are for the Land lens). */
+  set weather(on: boolean) {
+    this.cloudy = on;
+    this.clouds.enabled = on && !!this.entity?.enabled;
   }
 
   set visible(on: boolean) {
     if (this.entity) this.entity.enabled = on;
     this.sea.enabled = this.halo.enabled = on && this.entity !== null;
+    this.clouds.enabled = on && this.entity !== null && this.cloudy;
     if (!on) this.marker.enabled = false;
   }
 
@@ -206,4 +235,63 @@ export class GlobeScene {
     if (axis.length() > 1e-6) q.setFromAxisAngle(axis.normalize(), (angle * 180) / Math.PI);
     this.marker.setLocalRotation(q);
   }
+}
+
+/**
+ * Soft white clouds on a clear sky, painted once on a canvas (equirectangular): puffs
+ * gathered in bands, as the era's globes wore them. A look only, from its own hash.
+ */
+function cloudMaterial(stage: Stage): pc.StandardMaterial {
+  const w = 512,
+    h = 256,
+    canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const g = canvas.getContext("2d")!;
+  let seed = 0x2f6b3a1d;
+  const rand = () => {
+    seed = Math.imul(seed ^ (seed >>> 15), 0x2c1b3c6d) >>> 0;
+    seed = (seed ^ (seed >>> 12)) >>> 0;
+    return seed / 4294967296;
+  };
+  for (let k = 0; k < 140; k++) {
+    // More at the stormy middle latitudes, few at the equator's calm and the poles.
+    const lat = (rand() - 0.5) * Math.PI * 0.9,
+      band = Math.abs(Math.sin(2 * lat)),
+      x = rand() * w,
+      y = h / 2 - (lat / Math.PI) * h;
+    if (rand() > 0.2 + 0.8 * band) continue;
+    const r = 3 + rand() * 8,
+      puffs = 3 + Math.floor(rand() * 5);
+    for (let p = 0; p < puffs; p++) {
+      const px = x + (rand() - 0.5) * r * 3,
+        py = y + (rand() - 0.5) * r,
+        pr = r * (0.5 + rand() * 0.6);
+      for (const dx of [0, -w, w]) {
+        const grad = g.createRadialGradient(px + dx, py, 0, px + dx, py, pr);
+        grad.addColorStop(0, "rgba(255,255,255,0.7)");
+        grad.addColorStop(1, "rgba(255,255,255,0)");
+        g.fillStyle = grad;
+        g.fillRect(px + dx - pr, py - pr, pr * 2, pr * 2);
+      }
+    }
+  }
+  const texture = new pc.Texture(stage.device, {
+    width: w,
+    height: h,
+    format: pc.PIXELFORMAT_RGBA8,
+    mipmaps: true,
+  });
+  texture.setSource(canvas);
+  const m = new pc.StandardMaterial();
+  m.diffuse = new pc.Color(1, 1, 1);
+  m.diffuseMap = texture;
+  m.opacityMap = texture;
+  m.opacityMapChannel = "a";
+  m.opacity = 0.65;
+  m.blendType = pc.BLEND_NORMAL;
+  m.depthWrite = false;
+  m.specular = new pc.Color(0, 0, 0);
+  m.update();
+  return m;
 }

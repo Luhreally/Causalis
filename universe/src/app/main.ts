@@ -294,6 +294,8 @@ async function runPlanetPage(): Promise<void> {
       lens === "realms" ? realms : lens === "faiths" ? faiths : tongues,
     );
     globe.paint(colors);
+    // Clouds over the land as it is; none over what a lens paints.
+    globe.weather = lens === "terrain";
     painted = colors.length / 4;
   };
   const paintRegion = () => {
