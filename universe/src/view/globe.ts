@@ -2,6 +2,7 @@
 // frame's fields coloured by a lens. Pure — a lens switch needs no round trip to
 // the host, and the same frame always gives the same colours.
 import type { FrameMessage } from "../bridge/index.ts";
+import type { SphereGrid } from "../kernel/index.ts";
 import type { Rgb } from "./sandbox.ts";
 
 export const LENSES = [
@@ -18,6 +19,8 @@ export const LENSES = [
   "plates",
   "resources",
   "life",
+  "diplomacy",
+  "war",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -35,7 +38,55 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   plates: "Plates",
   resources: "Ores",
   life: "Life",
+  diplomacy: "Diplomacy",
+  war: "War",
 };
+
+/** Each map mode's icon, for the map modes' bar (Phase 10 M96). */
+export const LENS_ICONS: Readonly<Record<Lens, string>> = {
+  terrain: "🗺️",
+  people: "👥",
+  food: "🌾",
+  trade: "💰",
+  tongues: "🗣️",
+  realms: "👑",
+  faiths: "✨",
+  height: "⛰️",
+  temperature: "🌡️",
+  rain: "🌧️",
+  plates: "🧩",
+  resources: "⛏️",
+  life: "🦌",
+  diplomacy: "🤝",
+  war: "⚔️",
+};
+
+/** How every land stands toward the realm the diplomacy lens is of, in its colours. */
+export const STANDING_COLORS: Readonly<Record<string, Rgb>> = {
+  self: [1, 0.8, 0.22],
+  pact: [0.18, 0.72, 0.3],
+  friendly: [0.58, 0.86, 0.5],
+  neutral: [0.64, 0.62, 0.56],
+  rival: [0.96, 0.56, 0.2],
+  war: [0.86, 0.1, 0.12],
+};
+/** Where the wars are, in the war lens's colours. */
+export const WAR_COLORS: Readonly<Record<string, Rgb>> = {
+  attacker: [0.86, 0.2, 0.14],
+  defender: [0.22, 0.42, 0.9],
+  prize: [1, 0.86, 0.22],
+  taken: [0.62, 0.12, 0.52],
+};
+
+/** What a map mode's colours say: a ramp from low to high, or a key of colours and words. */
+export type Legend =
+  | {
+      readonly kind: "ramp";
+      readonly stops: readonly Rgb[];
+      readonly low: string;
+      readonly high: string;
+    }
+  | { readonly kind: "keys"; readonly keys: readonly (readonly [Rgb, string])[] };
 
 // Biome colours, in the order of gen's BIOME codes: the bright, saturated earth of an
 // early-2000s game (art track A1) — blue seas, green woods, sandy deserts, white ice.
@@ -180,6 +231,7 @@ export function globeColors(
   lens: Lens,
   values?: ReadonlyMap<number, number>,
   colors?: ReadonlyMap<number, Rgb>,
+  grid?: SphereGrid,
 ): Uint8Array {
   const a = frame.arrays,
     elevation = a.elevation!,
@@ -226,7 +278,9 @@ export function globeColors(
       }
       case "realms":
       case "faiths":
-      case "tongues": {
+      case "tongues":
+      case "diplomacy":
+      case "war": {
         const tongue = colors?.get(province);
         if (tongue) col = tongue;
         else {
@@ -278,7 +332,136 @@ export function globeColors(
     out[c * 4 + 2] = Math.round(Math.max(0, Math.min(1, col[2])) * 255);
     out[c * 4 + 3] = 255;
   }
+  if (grid && colors && BORDERED.has(lens)) borders(out, frame, colors, grid);
   return out;
+}
+
+/** The map modes whose lands are drawn with their borders. */
+const BORDERED: ReadonlySet<Lens> = new Set(["realms", "faiths", "tongues", "diplomacy", "war"]);
+
+/**
+ * A grand strategy map's borders: where a land meets another of a different colour (another
+ * realm, faith, tongue) its edge is drawn dark; where it meets another land of the same, a
+ * faint line; the sea's shore needs none.
+ */
+function borders(
+  out: Uint8Array,
+  frame: FrameMessage,
+  colors: ReadonlyMap<number, Rgb>,
+  grid: SphereGrid,
+): void {
+  const province = frame.arrays.province as Int32Array | undefined,
+    elevation = frame.arrays.elevation!;
+  if (!province) return;
+  const n = elevation.length,
+    shade = new Float32Array(n).fill(1);
+  for (let c = 0; c < n; c++) {
+    if (elevation[c]! <= 0) continue;
+    const p = province[c]!,
+      mine = colors.get(p);
+    let k = 1;
+    for (let j = grid.offsets[c]!; j < grid.offsets[c + 1]!; j++) {
+      const m = grid.neighbours[j]!;
+      if (elevation[m]! <= 0) continue;
+      const q = province[m]!;
+      if (q === p) continue;
+      const theirs = colors.get(q);
+      k = Math.min(
+        k,
+        theirs === mine || (theirs && mine && theirs.every((v, i) => v === mine[i])) ? 0.84 : 0.42,
+      );
+    }
+    shade[c] = k;
+  }
+  for (let c = 0; c < n; c++) {
+    const k = shade[c]!;
+    if (k === 1) continue;
+    out[c * 4] = Math.round(out[c * 4]! * k);
+    out[c * 4 + 1] = Math.round(out[c * 4 + 1]! * k);
+    out[c * 4 + 2] = Math.round(out[c * 4 + 2]! * k + (1 - k) * 18);
+  }
+}
+
+/** What a map mode's colours say, for its legend. */
+export function lensLegend(lens: Lens): Legend {
+  const stops = (list: readonly Stop[]) => list.map(([, c]) => c);
+  switch (lens) {
+    case "people":
+      return { kind: "ramp", stops: stops(PEOPLE), low: "few", high: "crowded" };
+    case "food":
+      return { kind: "ramp", stops: stops(FOOD), low: "cheap", high: "dear" };
+    case "trade":
+      return { kind: "ramp", stops: stops(TRADE), low: "a trickle", high: "a great market" };
+    case "height":
+      return { kind: "ramp", stops: stops(HEIGHT), low: "lowland", high: "peaks" };
+    case "temperature":
+      return { kind: "ramp", stops: stops(WARMTH), low: "-40 °C", high: "30 °C" };
+    case "rain":
+      return { kind: "ramp", stops: stops(RAIN), low: "desert", high: "3 m a year" };
+    case "life":
+      return { kind: "ramp", stops: LIFE.map(([, c]) => c), low: "few kinds", high: "many" };
+    case "diplomacy":
+      return {
+        kind: "keys",
+        keys: [
+          [STANDING_COLORS.self!, "the realm"],
+          [STANDING_COLORS.pact!, "sworn"],
+          [STANDING_COLORS.friendly!, "friendly"],
+          [STANDING_COLORS.neutral!, "neutral"],
+          [STANDING_COLORS.rival!, "rivals"],
+          [STANDING_COLORS.war!, "at war"],
+        ],
+      };
+    case "war":
+      return {
+        kind: "keys",
+        keys: [
+          [WAR_COLORS.attacker!, "attacking"],
+          [WAR_COLORS.defender!, "defending"],
+          [WAR_COLORS.prize!, "fought for"],
+          [WAR_COLORS.taken!, "lately taken"],
+        ],
+      };
+    case "realms":
+      return {
+        kind: "keys",
+        keys: [[[0.6, 0.6, 0.55], "each realm its colour, its name across its lands"]],
+      };
+    case "faiths":
+      return { kind: "keys", keys: [[[0.6, 0.6, 0.55], "each faith its colour"]] };
+    case "tongues":
+      return {
+        kind: "keys",
+        keys: [[[0.6, 0.6, 0.55], "each tongue a shade of its family's hue"]],
+      };
+    case "resources":
+      return {
+        kind: "keys",
+        keys: DEPOSIT_COLORS.map(
+          (c, i) =>
+            [c, ["copper", "gold", "tin", "iron", "coal", "oil", "salt"][i] ?? "ore"] as const,
+        ),
+      };
+    case "plates":
+      return {
+        kind: "keys",
+        keys: [
+          [[0.8, 0.6, 0.4], "continental plates"],
+          [[0.3, 0.5, 0.8], "ocean plates"],
+        ],
+      };
+    default:
+      return {
+        kind: "keys",
+        keys: [
+          [[0.24, 0.58, 0.2], "woods"],
+          [[0.8, 0.76, 0.38], "grassland"],
+          [[0.97, 0.82, 0.46], "desert"],
+          [[0.97, 0.98, 1], "ice"],
+          [[0.05, 0.22, 0.6], "sea"],
+        ],
+      };
+  }
 }
 
 /**

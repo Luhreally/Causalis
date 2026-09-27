@@ -18,10 +18,15 @@ export {
 export {
   DEPOSIT_COLORS,
   LENSES,
+  LENS_ICONS,
+  STANDING_COLORS,
+  WAR_COLORS,
   biomeColor,
   LENS_NAMES,
   globeColors,
   globeRadius,
+  lensLegend,
+  type Legend,
   type Lens,
 } from "./globe.ts";
 export {
@@ -180,3 +185,4 @@ export {
   type GalaxyPoints,
 } from "./galaxy.ts";
 export { EYES, GROUP_COLORS, SKIN, clothes } from "./dress.ts";
+export { nameShape, namesThatFit, withinName, type LaidName, type NameShape } from "./mapnames.ts";

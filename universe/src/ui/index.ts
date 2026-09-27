@@ -3,7 +3,7 @@
 // See README.md and docs/architecture §31.
 export { SPEEDS, SandboxPanel } from "./panel.ts";
 export { LabelLayer, type Label } from "./labels.ts";
-export { PLANET_SPEEDS, PlanetPanel, type PeopleEntry } from "./planet-panel.ts";
+export { PLANET_SPEEDS, PlanetPanel, type PeopleEntry, type WorldStats } from "./planet-panel.ts";
 export { RegionPanel } from "./region-panel.ts";
 export { SystemPanel } from "./system-panel.ts";
 export { WorldPanel } from "./world-panel.ts";
@@ -15,3 +15,5 @@ export { claimWords, eventWords, roleWords, speedWords, when } from "./words.ts"
 export { Tidings, type Tiding } from "./tidings.ts";
 export { GuidedWalk, type WalkCue } from "./walk.ts";
 export { PageWindow } from "./inspector.ts";
+export { MapLabels, type MapName } from "./maplabels.ts";
+export { MapModes } from "./mapmodes.ts";

@@ -239,7 +239,7 @@ for (const engine of engines) {
         });
         await page.evaluate(() =>
           [...document.querySelectorAll<HTMLButtonElement>(".panel:not([hidden]) .link")]
-            .find((b) => b.textContent === "Chronicle")!
+            .find((b) => b.textContent?.includes("Chronicle"))!
             .click(),
         );
         await page.waitForFunction(

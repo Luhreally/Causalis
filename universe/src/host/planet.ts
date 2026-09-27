@@ -109,6 +109,7 @@ import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 import { PAGE_QUERIES } from "./pages.ts";
 import { pageOf, placeOf } from "./inspect/index.ts";
+import { MAP_QUERIES } from "./map.ts";
 import { realmColor } from "./colors.ts";
 import { villagePlan } from "./village.ts";
 import { worldGlobe } from "./worlds.ts";
@@ -1076,6 +1077,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // Every thing's page, and where it is to be seen (Phase 10 M91). (Called through, not
       // spread: the pages read this module's builders, so they load after it.)
       page: (world, args) => pageOf(world, (args as { ref: string }).ref),
+      // The political map's names, the diplomacy and war lenses, the top bar's numbers (M96).
+      ...MAP_QUERIES,
       place: (world, args) => placeOf(world, (args as { ref: string }).ref),
       // The world's deposits where they lie on the globe (fine cells), each with its province.
       deposits: (world) =>

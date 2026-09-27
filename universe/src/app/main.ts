@@ -37,8 +37,12 @@ import {
   WorldPanel,
   GalaxyPanel,
   GuidedWalk,
+  MapLabels,
+  MapModes,
   PageWindow,
+  type MapName,
   type PeopleEntry,
+  type WorldStats,
 } from "../ui/index.ts";
 import type {
   ClusterPlan,
@@ -53,6 +57,7 @@ import type {
   WarsMap,
 } from "../bridge/index.ts";
 import { sphereGrid } from "../kernel/index.ts";
+
 import {
   cellAt,
   cellCenter,
@@ -70,10 +75,23 @@ import {
   worldColors,
   lyFromHome,
   homeOf,
+  nameShape,
+  namesThatFit,
+  withinName,
+  STANDING_COLORS,
+  WAR_COLORS,
   type Lens,
+  type NameShape,
   type RegionLens,
   type SandboxSpec,
 } from "../view/index.ts";
+
+/** A point along a name's line: `d` radians from its centre, on the unit sphere. */
+function rim(s: NameShape, d: number): { x: number; y: number; z: number } {
+  const c = Math.cos(d),
+    n = Math.sin(d);
+  return { x: s.x * c + s.ax * n, y: s.y * c + s.ay * n, z: s.z * c + s.az * n };
+}
 import { deviceTier } from "./tier.ts";
 
 const DAY = 86_400;
@@ -349,7 +367,7 @@ async function runPlanetPage(): Promise<void> {
     villages: Village[] = [],
     regionCell = -1,
     stopVillages: (() => void) | null = null;
-  const planetPanel = new PlanetPanel(hud, client, lens, speed),
+  const planetPanel = new PlanetPanel(hud, client, speed),
     regionPanel = new RegionPanel(hud, client),
     villagePanel = new VillagePanel(hud, client),
     labels = new LabelLayer(hud),
@@ -463,7 +481,17 @@ async function runPlanetPage(): Promise<void> {
       frame,
       lens,
       lens === "food" ? foodPrices : lens === "trade" ? trade : density,
-      lens === "realms" ? realms : lens === "faiths" ? faiths : tongues,
+      lens === "realms"
+        ? realms
+        : lens === "faiths"
+          ? faiths
+          : lens === "diplomacy"
+            ? standings
+            : lens === "war"
+              ? fronts
+              : tongues,
+      // (Borders between realms, faiths, tongues: a grand strategy map's.)
+      sphereGrid((frame.meta as { frequency: number }).frequency),
     );
     globe.paint(colors);
     // Clouds over the land as it is; none over what a lens paints.
@@ -509,10 +537,178 @@ async function runPlanetPage(): Promise<void> {
   planetPanel.onLens = (l) => {
     walk.saw("lens");
     lens = l;
+    mapModes.lens = l;
+    mapModes.say(null);
+    if (l === "diplomacy") void readStandings();
+    if (l === "war") void readFronts();
     paintGlobe();
     if (["people", "food", "trade", "tongues", "realms", "faiths"].includes(l))
       void faceThePeople(true);
   };
+  // The map modes' bar (Phase 10 M96), in the world's top bar (floating on a desk).
+  const mapModes = new MapModes(lens);
+  planetPanel.bar.append(mapModes.element);
+  mapModes.onLens = (l) => planetPanel.onLens(l);
+  // The diplomacy lens is of a realm: the one a page open is of (or its land's), else the
+  // most peopled; the war lens shows the wars' sides, what they fight for, what was taken.
+  let standings = new Map<number, readonly [number, number, number]>(),
+    fronts = new Map<number, readonly [number, number, number]>(),
+    focusRealm: string | null = null;
+  const readStandings = async () => {
+    const open = pageWindow.current,
+      focus = open?.startsWith("pol:")
+        ? open
+        : open?.startsWith("cell:")
+          ? (
+              (
+                await client.query<{
+                  stats: { label: string; value: (string | { ref: string })[] }[];
+                }>({
+                  type: "page",
+                  args: { ref: open },
+                })
+              ).stats
+                .find((x) => x.label === "Realm")
+                ?.value.find((v) => typeof v !== "string") as { ref: string } | undefined
+            )?.ref
+          : null;
+    if (focus) focusRealm = focus;
+    if (!focusRealm) {
+      const rs = await client.query<{ ref: string; people: number }[]>({ type: "realms.map" });
+      focusRealm = [...rs].sort((a, b) => b.people - a.people)[0]?.ref ?? null;
+    }
+    if (!focusRealm) return;
+    const d = await client.query<{ name: string | null; lands: [number, string][] }>({
+      type: "diplomacy.map",
+      args: { realm: focusRealm },
+    });
+    standings = new Map(
+      d.lands.map(([c, k]) => [c, STANDING_COLORS[k] ?? STANDING_COLORS.neutral!]),
+    );
+    mapModes.say(d.name ? `as ${d.name} sees them` : null);
+    if (lens === "diplomacy") paintGlobe();
+  };
+  const readFronts = async () => {
+    const w = await client.query<{ lands: [number, string][] }>({ type: "war.lens" });
+    fronts = new Map(w.lands.map(([c, k]) => [c, WAR_COLORS[k] ?? WAR_COLORS.attacker!]));
+    mapModes.say(w.lands.length ? null : "no war is being fought");
+    if (lens === "war") paintGlobe();
+  };
+  setInterval(() => {
+    if (scale !== "globe") return;
+    if (lens === "diplomacy") void readStandings();
+    if (lens === "war") void readFronts();
+  }, 3000);
+  // The top bar's numbers.
+  client.subscribe<WorldStats>({ type: "world.stats" }, 2000, (st) => planetPanel.stats(st));
+  // Realms' names written across their lands on the political map, and a star at each seat.
+  const mapNames = new MapLabels(hud);
+  let realmNames: {
+    ref: string;
+    text: string;
+    lands: number;
+    shape: NameShape;
+    seat: { x: number; y: number; z: number } | null;
+  }[] = [];
+  const readNames = async () => {
+    const frame = client.latestFrame("globe");
+    if (!frame) return;
+    const grid = sphereGrid((frame.meta as { frequency: number }).frequency),
+      rs = await client.query<{ ref: string; short: string; spots: number[]; seat: number }[]>({
+        type: "realms.map",
+      });
+    realmNames = rs.flatMap((r) => {
+      const shape = nameShape(r.spots, grid);
+      if (!shape) return [];
+      const p = grid.positions,
+        seat =
+          r.seat >= 0 && r.spots.length > 1
+            ? { x: p[r.seat * 3]!, y: p[r.seat * 3 + 1]!, z: p[r.seat * 3 + 2]! }
+            : null;
+      return [{ ref: r.ref, text: r.short.toUpperCase(), lands: r.spots.length, shape, seat }];
+    });
+  };
+  const NAMED: readonly Lens[] = ["realms", "diplomacy", "war"];
+  setInterval(() => {
+    if (scale === "globe" && NAMED.includes(lens)) void readNames();
+  }, 5000);
+  let namesAt = 0;
+  stage.onUpdate(() => {
+    if (scale !== "globe" || !NAMED.includes(lens)) {
+      if (namesAt) {
+        mapNames.clear();
+        namesAt = 0;
+      }
+      return;
+    }
+    if (!realmNames.length) {
+      if (!namesAt) void readNames();
+      namesAt = 1;
+      return;
+    }
+    // (Laid out a dozen times a second: they move with the globe, not with each frame.)
+    const t = performance.now();
+    if (t - namesAt < 80) return;
+    namesAt = t;
+    const points = realmNames.flatMap((r) => {
+      const s = r.shape;
+      return [
+        { x: s.x, y: s.y, z: s.z },
+        rim(s, s.half),
+        rim(s, -s.half),
+        ...(r.seat ? [r.seat] : [{ x: s.x, y: s.y, z: s.z }]),
+      ];
+    });
+    const at = globe.screenOf(points),
+      names: MapName[] = [],
+      laid: { name: MapName; seat: MapName | null; lands: number }[] = [];
+    realmNames.forEach((r, i) => {
+      const c = at[i * 4]!,
+        a = at[i * 4 + 1]!,
+        b = at[i * 4 + 2]!,
+        seat = at[i * 4 + 3]!;
+      if (c.facing < 0.25) return;
+      const len = Math.hypot(b.x - a.x, b.y - a.y),
+        size = Math.min(44, len / (r.text.length * 0.95 + 1));
+      let angle = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+      if (angle > 90) angle -= 180;
+      if (angle < -90) angle += 180;
+      const alpha = Math.min(1, (c.facing - 0.25) / 0.3);
+      if (size < 8) return;
+      laid.push({
+        lands: r.lands,
+        name: { key: r.ref, text: r.text, x: c.x, y: c.y, angle, size, alpha },
+        seat:
+          r.seat && seat.facing > 0.25
+            ? {
+                key: `${r.ref} seat`,
+                text: "★",
+                x: seat.x,
+                y: seat.y,
+                angle: 0,
+                size: Math.max(10, Math.min(18, size * 0.7)),
+                alpha,
+                seat: true,
+              }
+            : null,
+      });
+    });
+    // (The largest first; one that would cross another is left out, as such maps do.)
+    const fits = namesThatFit(
+      laid.map((l) => ({ ...l.name, chars: l.name.text.length, rank: l.lands })),
+    );
+    laid.forEach((l, i) => {
+      const k = fits[i]!;
+      if (k) names.push({ ...l.name, size: l.name.size * k });
+    });
+    // A seat's star, where it does not sit on a name's letters.
+    const written = names.map((n) => ({ ...n, chars: n.text.length }));
+    laid.forEach((l, i) => {
+      const s = l.seat;
+      if (s && fits[i] && !written.some((n) => withinName(n, s.x, s.y))) names.push(s);
+    });
+    mapNames.update(names);
+  });
   regionPanel.onLens = (l) => {
     regionLens = l;
     paintRegion();

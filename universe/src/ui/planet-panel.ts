@@ -3,7 +3,7 @@
 // any place — its ground, weather, plate and ores, and the people living there —
 // where every fact can be asked "why?".
 import type { HostClient, SaveMeta, Status } from "../bridge/index.ts";
-import { LENSES, LENS_NAMES, type Lens } from "../view/index.ts";
+import type { Lens } from "../view/index.ts";
 import { lineChart } from "./chart.ts";
 import { HandView } from "./hand.ts";
 import { buildPage, type Page, type PageKind, type PageLinks } from "./pages.ts";
@@ -119,6 +119,21 @@ type ProvinceHistory = {
 type Chronicle = {
   events: { ref: string; year: number; importance: number; claim: string }[];
   population: { year: number; people: number }[];
+};
+
+/** The world's headline numbers (the host's "world.stats"). */
+export type WorldStats = {
+  year: number;
+  people: number;
+  lands: number;
+  towns: number;
+  cities: number;
+  realms: number;
+  wars: number;
+  faiths: number;
+  tongues: number;
+  hungry: number;
+  colonies: number;
 };
 
 export type PeopleEntry = {
@@ -311,10 +326,11 @@ export class PlanetPanel {
   readonly element = el("div", "panel");
   private readonly client: HostClient;
   private readonly why: WhyTree;
-  private readonly lensButtons = new Map<Lens, HTMLButtonElement>();
   private readonly speedButtons: HTMLButtonElement[] = [];
   private readonly clock = el("span", "clock");
   private readonly world = el("p", "world-line");
+  /** The world's headline numbers, a grand strategy game's top bar (Phase 10 M96). */
+  private readonly statsStrip = el("div", "world-stats");
   private readonly worldText = el("span");
   private readonly inspector = el("section", "inspector");
   private readonly title = el("h2");
@@ -377,7 +393,7 @@ export class PlanetPanel {
   /** News of what the observer follows, and the toggles that follow things. */
   tidings: Tidings | null = null;
 
-  constructor(root: HTMLElement, client: HostClient, lens: Lens, speed: number) {
+  constructor(root: HTMLElement, client: HostClient, speed: number) {
     this.client = client;
     this.speed = speed;
     this.why = new WhyTree(client);
@@ -397,48 +413,35 @@ export class PlanetPanel {
       speeds.append(b);
       this.speedButtons.push(b);
     }
-    const lenses = el("div", "speeds");
-    for (const l of LENSES) {
-      const b = el("button", "speed", LENS_NAMES[l]);
-      b.onclick = () => this.setLens(l);
-      lenses.append(b);
-      this.lensButtons.set(l, b);
-    }
-    const chronicle = el("button", "link", "Chronicle");
+    // The menu: an icon and a word each (a phone shows the icons).
+    const menuButton = (icon: string, word: string) => {
+      const b = el("button", "link");
+      b.append(el("span", "menu-icon", icon), el("span", "word", word));
+      b.title = word;
+      return b;
+    };
+    const chronicle = menuButton("📜", "Chronicle");
     chronicle.onclick = () => void this.showChronicle();
-    const sky = el("button", "link", "The sky");
+    const sky = menuButton("☀️", "The sky");
     sky.onclick = () => this.onSky();
-    const keep = el("button", "link", "Save"),
-      back = el("button", "link", "Saves"),
+    const keep = menuButton("💾", "Save"),
+      back = menuButton("📂", "Saves"),
       said = el("span", "muted");
     keep.onclick = async () => (said.textContent = ` ${await this.onSave()}`);
     back.onclick = () => void this.showSaves();
-    const help = el("button", "link", "Help"),
-      settings = el("button", "link", "Settings"),
+    const help = menuButton("❓", "Help"),
+      settings = menuButton("⚙️", "Settings"),
       // The world's own beginning, from the galaxy's birth to its first people (M89).
-      origin = el("button", "link", "Its beginning");
+      origin = menuButton("🌱", "Its beginning");
     origin.onclick = () => this.onGenesis();
     help.onclick = () => this.onHelp();
     settings.onclick = () => void this.showSettings();
-    this.world.append(
-      this.worldText,
-      " · ",
-      chronicle,
-      " · ",
-      sky,
-      " · ",
-      origin,
-      " · ",
-      keep,
-      " · ",
-      back,
-      " · ",
-      help,
-      " · ",
-      settings,
-      said,
-    );
-    bar.append(speeds, this.world, lenses);
+    // Its words on a line of their own (one line on a desk; a phone leaves them out), then its menu.
+    this.worldText.className = "world-about";
+    const menu = el("span", "world-menu");
+    menu.append(chronicle, sky, origin, keep, back, help, settings, said);
+    this.world.append(this.worldText, menu);
+    bar.append(speeds, this.statsStrip, this.world);
     this.element.append(bar);
     const close = el("button", "close", "×");
     close.setAttribute("aria-label", "Close");
@@ -476,7 +479,6 @@ export class PlanetPanel {
         "Tap the world to look at a place. Drag to turn it, pinch or scroll to zoom.",
       ),
     );
-    this.markLens(lens);
     this.markSpeed(speed);
     client.onStatus((s: Status) => {
       this.clock.textContent = `${when(s.t)} · ${s.speed === 0 ? "paused" : speedWords(Math.max(0, s.achieved))}`;
@@ -492,6 +494,36 @@ export class PlanetPanel {
   }
 
   /** The people line under the bar, from the host's people map. */
+  /** The world's headline numbers, each with its icon and its words on hover. */
+  stats(s: WorldStats): void {
+    const big = (n: number) =>
+        n >= 1e9
+          ? `${(n / 1e9).toFixed(1)}B`
+          : n >= 1e6
+            ? `${(n / 1e6).toFixed(1)}M`
+            : n >= 1e4
+              ? `${Math.round(n / 1e3)}k`
+              : n.toLocaleString("en-US"),
+      chip = (icon: string, value: string, title: string, cls = "") => {
+        const c = el("span", `stat-chip ${cls}`.trim());
+        c.title = title;
+        c.append(el("span", "chip-icon", icon), el("span", "chip-value", value));
+        return c;
+      };
+    this.statsStrip.replaceChildren(
+      chip("👥", big(s.people), `${s.people.toLocaleString("en-US")} people in ${s.lands} lands`),
+      chip("🏘️", big(s.towns), `${s.towns} towns, ${s.cities} of them cities`),
+      chip("👑", String(s.realms), `${s.realms} realms`),
+      chip("⚔️", String(s.wars), `${s.wars} wars being fought`, s.wars ? "hot" : ""),
+      chip("✨", String(s.faiths), `${s.faiths} faiths held`),
+      chip("🗣️", String(s.tongues), `${s.tongues} tongues spoken`),
+      ...(s.hungry ? [chip("🍞", String(s.hungry), `${s.hungry} lands going hungry`, "hot")] : []),
+      ...(s.colonies
+        ? [chip("🏛️", String(s.colonies), `${s.colonies} halls beyond the world`)]
+        : []),
+    );
+  }
+
   people(entries: readonly PeopleEntry[]): void {
     const people = entries.reduce((s, e) => s + e.people, 0),
       farming = entries.filter((e) => e.farming).length;
@@ -516,15 +548,6 @@ export class PlanetPanel {
 
   set visible(on: boolean) {
     this.element.hidden = !on;
-  }
-
-  private setLens(lens: Lens): void {
-    this.markLens(lens);
-    this.onLens(lens);
-  }
-
-  private markLens(lens: Lens): void {
-    for (const [l, b] of this.lensButtons) b.classList.toggle("on", l === lens);
   }
 
   /** The market: how well off the people are for what they need, and each good's price with its why. */

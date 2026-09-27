@@ -3401,6 +3401,33 @@ Found and mended on the way:
 - CI's Phase 8 world check read the page window's empty panel as "the panel open"; the
   window's panel hides with it.
 
+96, the first part, as built (brought forward at the user's asking: "the visual style and ui
+and lenses don't have enough Paradox games influence").
+
+- **The political map.** On the political map modes (realms, diplomacy, war) each realm's
+  name is written across its lands in spaced capitals (view/mapnames.ts nameShape;
+  ui/maplabels.ts). The name runs along the long axis of its lands' spread over the
+  sphere's face and is as long as they are, turned to stay upright. The greatest realms'
+  names come first; one that would cross another is tried at three quarters and half its
+  size, then left out (namesThatFit). A gold star marks each seat, unless it would sit on a
+  name's letters.
+- **Borders.** A land beside another realm's (or faith's, or tongue's) is drawn dark at its
+  edge; one beside another land of its own realm, faintly.
+- **Map modes.** A bar of glossy tiles with icons (ui/mapmodes.ts), floating at the lower
+  right on a desk and a row in the top bar on a phone, with each mode's legend: a ramp from
+  low to high, or its colours and their words. Two new modes:
+  - Diplomacy: every land as one realm sees it (its own, sworn, friendly, neutral, rivals,
+    at war), of the realm a page open is of, else the most peopled.
+  - War: the lands of realms attacking and defending, what they fight for, what was lately
+    taken.
+- **The top bar.** The date in a lit display, the speeds as one segmented control, and a
+  strip of the world's numbers ("world.stats": its people, towns and cities, realms, wars,
+  faiths, tongues, hungry lands, halls beyond it), each with its icon and its words on
+  hover. The menu is icons and words (icons alone on a phone), and the world's description
+  is on one line (left out on a phone).
+- **The page window** opens at the left on a desk, as the genre opens its windows, leaving
+  the lower right to the map modes.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

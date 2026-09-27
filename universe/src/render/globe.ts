@@ -234,6 +234,34 @@ export class GlobeScene {
     return nearestCell(this.grid, from.x + dx * s, from.y + dy * s, from.z + dz * s);
   }
 
+  /**
+   * Where points just over the globe's face (unit directions) fall on the screen (CSS
+   * pixels), and how squarely each faces the eye (1 face on, 0 at the rim, less: behind).
+   */
+  screenOf(
+    points: readonly { x: number; y: number; z: number }[],
+    lift = 1.02,
+  ): {
+    x: number;
+    y: number;
+    facing: number;
+  }[] {
+    const cam = this.stage.camera,
+      eye = cam.getPosition(),
+      el = Math.hypot(eye.x, eye.y, eye.z) || 1,
+      at = new pc.Vec3(),
+      out = new pc.Vec3();
+    return points.map((p) => {
+      at.set(p.x * lift, p.y * lift, p.z * lift);
+      cam.camera!.worldToScreen(at, out);
+      return {
+        x: out.x,
+        y: out.y,
+        facing: (p.x * eye.x + p.y * eye.y + p.z * eye.z) / el,
+      };
+    });
+  }
+
   /** Mark a place (or clear the mark). */
   mark(cell: number | null): void {
     this.marker.enabled = cell !== null && this.positions !== null;
