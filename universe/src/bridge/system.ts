@@ -63,6 +63,19 @@ export type SkyState = {
     readonly founded: number;
     readonly event: string | null;
   }[];
+  /**
+   * Fleets of war between the stars (M87): the realm that sent it and its enemy, the star it
+   * sails for, when it sailed and arrives, and how its battle went (null: not yet fought).
+   */
+  readonly fleets?: readonly {
+    readonly realm: string;
+    readonly enemy: string;
+    readonly star: string | null;
+    readonly sailed: number;
+    readonly arrives: number;
+    readonly won: boolean | null;
+    readonly event: string;
+  }[];
   /** Ships to other stars, and the halls they founded there (Phase 6 M58–M59). */
   readonly ships?: readonly {
     readonly cell: number;

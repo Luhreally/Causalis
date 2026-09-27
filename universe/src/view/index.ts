@@ -51,6 +51,17 @@ export {
   type Tree,
 } from "./village.ts";
 export { STRIDES, bobOf, limbPitch } from "./motion.ts";
+export {
+  BATTLE_ROUND,
+  MARCH,
+  battleOf,
+  warPaths,
+  warTokens,
+  type Soldier,
+  type WarPath,
+  type WarPaths,
+  type WarToken,
+} from "./war.ts";
 
 export {
   HAIRS,

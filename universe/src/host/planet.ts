@@ -37,6 +37,8 @@ import {
   sitesReady,
   spaceOf,
   starSitesOf,
+  starWarsOf,
+  civilizationsNear,
 } from "../sim/index.ts";
 import { FOODS, G, GOODS, OCCUPATIONS, designWords } from "../rules/index.ts";
 import {
@@ -86,10 +88,18 @@ import {
   waysWords,
   why,
 } from "../causal/index.ts";
-import type { ClusterPlan, ClusterStar, SkyState, StarPage, SystemPlan } from "../bridge/index.ts";
+import type {
+  ClusterPlan,
+  ClusterStar,
+  SkyState,
+  StarPage,
+  SystemPlan,
+  WarsMap,
+} from "../bridge/index.ts";
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 import { PAGE_QUERIES } from "./pages.ts";
+import { realmColor } from "./colors.ts";
 import { villagePlan } from "./village.ts";
 import { worldGlobe } from "./worlds.ts";
 import { foreignGlobe, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
@@ -485,12 +495,6 @@ function realmOf(world: World, cell: number) {
 }
 
 /** A realm as a colour: its own hue, keyed by its ref. */
-function realmColor(ref: string): [number, number, number] {
-  const h = finish(mix(0x2ea1, hashString(ref)), 7) / 4294967296,
-    k = (n: number) => (n + h * 6) % 6,
-    f = (n: number) => 0.62 - 0.32 * Math.max(-1, Math.min(k(n), 4 - k(n), 1));
-  return [f(5), f(3), f(1)];
-}
 
 /** A people's ways and speech, for the inspector. */
 function waysOf(world: World, cell: number) {
@@ -706,6 +710,26 @@ function planetUniverse(name: string, prior: Prior): Universe {
                 event: f?.event ?? p.arrival,
               };
             }),
+          fleets: (() => {
+            // Where each enemy lies: another people's star, or the star of a colony broken away.
+            const civs = new Map(civilizationsNear(world).map((c) => [c.ref as string, c.star])),
+              colonies = new Map<string, string>();
+            for (const [cell, s] of starSitesOf(world)?.all() ?? []) {
+              const holder = realms.of(cell);
+              if (holder) colonies.set(holder.ref, s.star);
+            }
+            return starWarsOf(world)
+              .all()
+              .map((w) => ({
+                realm: named(w.realm) ?? w.realm,
+                enemy: named(w.enemy) ?? w.enemy,
+                star: civs.get(w.enemy) ?? colonies.get(w.enemy) ?? null,
+                sailed: w.sailed,
+                arrives: w.arrives,
+                won: w.won,
+                event: w.event,
+              }));
+          })(),
           ships: (starSitesOf(world)?.all() ?? []).map(([cell, s]) => ({
             cell,
             star: s.star,
@@ -773,6 +797,71 @@ function planetUniverse(name: string, prior: Prior): Universe {
       tile: (world, args) => {
         const a = args as { center: number; tile: number };
         return tile(world, a.center, a.tile);
+      },
+      // The wars of the year on the globe (M87): each side in its colour, where its host
+      // marches from and for, and the battles fought lately.
+      "wars.map": (world): WarsMap => {
+        const pw = homePlanet(world).generated,
+          grid = pw.fine.grid,
+          realms = politiesOf(world),
+          year = Math.floor(world.now / (365 * 86_400)),
+          spot = (cell: number) => pw.centre[cell] ?? -1,
+          near = (a: number, b: number) => {
+            const p = grid.positions;
+            return (
+              p[a * 3]! * p[b * 3]! + p[a * 3 + 1]! * p[b * 3 + 1]! + p[a * 3 + 2]! * p[b * 3 + 2]!
+            );
+          },
+          side = (ref: Ref) => {
+            const r = realms.get(ref)!;
+            return { ref, name: realmName(r), color: realmColor(ref) };
+          };
+        const wars = warsOf(world)
+          .all()
+          .filter(
+            (w) =>
+              (w.ended === null || w.ended >= year - 1) &&
+              realms.get(w.attacker) &&
+              realms.get(w.defender),
+          )
+          .flatMap((w) => {
+            const to = spot(w.prize);
+            if (to < 0) return [];
+            // The host sets out from the attacker's land nearest what it wants.
+            let from = -1,
+              best = -Infinity;
+            for (const m of realms.get(w.attacker)!.members) {
+              const s = spot(m);
+              if (s < 0 || m === w.prize) continue;
+              const k = near(s, to);
+              if (k > best) {
+                best = k;
+                from = s;
+              }
+            }
+            if (from < 0) return [];
+            return [
+              {
+                ref: w.ref,
+                attacker: side(w.attacker),
+                defender: side(w.defender),
+                from,
+                to,
+                declared: w.declared,
+                ended: w.ended,
+                battles: w.battles
+                  .filter((b) => b.year >= year - 2)
+                  .map((b) => ({
+                    spot: spot(b.land),
+                    year: b.year,
+                    won: b.won,
+                    fallen: b.fallen[0] + b.fallen[1],
+                    event: b.event,
+                  })),
+              },
+            ];
+          });
+        return { year, wars };
       },
       "people.map": (world) => {
         const g = homePlanet(world).generated,

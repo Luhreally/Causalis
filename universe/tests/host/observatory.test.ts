@@ -4,6 +4,7 @@ import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { folkRef, spine, why } from "../../src/causal/index.ts";
 import { cradleCell } from "../cradle.ts";
+import { homePlanet as homePlanetOf, warsOf } from "../../src/sim/index.ts";
 
 /** Where the first people of "first light" began. */
 const CRADLE = cradleCell("first light");
@@ -11,6 +12,7 @@ const CRADLE = cradleCell("first light");
 const world = EARTH.build(seedFromText("first light"));
 world.runTo(260 * YEAR);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
+const warsOfWorld = (w: typeof world) => warsOf(w).all();
 
 type History = {
   years: { year: number; population: number; fed: number }[];
@@ -343,5 +345,50 @@ test("a village's plan says how it lives now: fed, growing, at war or not, its g
   }
   assert.ok(grown >= 1, "some village grows and builds");
   assert.ok(warring >= 0);
+  assert.equal(JSON.stringify(world.domainHashes()), before, "asking changes nothing");
+});
+
+test("the wars of the year come to the globe as history fights them, and a village sees a battle fought in its land", () => {
+  const before = JSON.stringify(world.domainHashes());
+  type Map = {
+    year: number;
+    wars: {
+      from: number;
+      to: number;
+      attacker: { color: number[] };
+      defender: { color: number[] };
+      ended: number | null;
+      battles: { spot: number; year: number; fallen: number; event: string }[];
+    }[];
+  };
+  const map = ask<Map>("wars.map");
+  assert.equal(map.year, 260);
+  assert.ok(map.wars.length >= 1, "wars are fought in the year 260");
+  const fine = homePlanetOf(world).generated.fine.grid.count;
+  for (const w of map.wars) {
+    assert.ok(w.from >= 0 && w.from < fine && w.to >= 0 && w.to < fine && w.from !== w.to);
+    for (const c of [...w.attacker.color, ...w.defender.color]) assert.ok(c >= 0 && c <= 1);
+    assert.ok(w.ended === null || w.ended >= map.year - 1);
+    for (const b of w.battles) {
+      assert.ok(b.year >= map.year - 2 && b.fallen >= 0);
+      assert.ok(world.events.get(b.event as Ref), "a battle history holds");
+    }
+  }
+  // A village in a land fought over this year or last sees its battle.
+  const battles = warsOfWorld(world).flatMap((w) =>
+    w.battles.filter((b) => b.year >= map.year - 1).map((b) => ({ land: b.land, event: b.event })),
+  );
+  let seen = 0;
+  for (const b of battles.slice(0, 6)) {
+    const v = (EARTH.queries.settlements!(world, { cell: b.land }) as { ref: string }[])[0];
+    if (!v) continue;
+    const plan = EARTH.queries["village.plan"]!(world, { ref: v.ref }) as {
+      life: { battle: { event: string; fallen: number } | null; talk: string[] };
+    };
+    assert.ok(plan.life.battle, "the village sees the battle");
+    assert.ok(plan.life.talk.includes("war"));
+    seen++;
+  }
+  assert.ok(battles.length === 0 || seen > 0);
   assert.equal(JSON.stringify(world.domainHashes()), before, "asking changes nothing");
 });

@@ -7,6 +7,7 @@ import "./y2k.css";
 import { HostClient, inlinePair, workerPort } from "../bridge/index.ts";
 import {
   GlobeScene,
+  GlobeWars,
   OrbitRig,
   RegionScene,
   SandboxScene,
@@ -46,7 +47,9 @@ import type {
   WorldGlobe,
   GalaxyPlan,
   StarPage,
+  WarsMap,
 } from "../bridge/index.ts";
+import { sphereGrid } from "../kernel/index.ts";
 import {
   cellAt,
   cellCenter,
@@ -55,6 +58,7 @@ import {
   regionHeights,
   regionTrees,
   SIGNS,
+  warPaths,
   sandboxSpec,
   skyMarks,
   voyageMarks,
@@ -151,6 +155,10 @@ type Exposed = {
   visiting?: () => number;
   /** Everyone carrying something in the village watched: where and what. */
   carriersNow?: () => { x: number; z: number; carry: string }[];
+  /** The marks of war drawn on the globe now (for the look tools). */
+  warsDrawn?: () => number;
+  /** Turn the globe to a spot of its fine grid, from so far off (for the look tools). */
+  faceSpot?: (spot: number, distance?: number) => void;
   /** Everyone in sight now, and what they are at (for the look tools). */
   peopleNow?: () => { name: string; x: number; z: number; activity: number; task: string | null }[];
   /** What the people in view are saying now, in signs (for the look tools). */
@@ -492,6 +500,40 @@ async function runPlanetPage(): Promise<void> {
     )
       paintGlobe();
   });
+
+  // The year's wars on the globe (M87): hosts marching toward what they want, ships where
+  // their way crosses the sea, clashes where history fought.
+  const globeWars = new GlobeWars(stage, stage.root);
+  let warsKey = "";
+  client.subscribe<WarsMap>({ type: "wars.map" }, 2000, (map) => {
+    const frame = client.latestFrame("globe"),
+      key = JSON.stringify(map);
+    if (!frame || key === warsKey) return;
+    warsKey = key;
+    globeWars.set(
+      warPaths(
+        map,
+        sphereGrid((frame.meta as { frequency: number }).frequency),
+        frame.arrays.elevation as Float32Array,
+      ),
+    );
+  });
+  stage.onUpdate(() => {
+    globeWars.root.enabled = scale === "globe";
+    if (scale === "globe") globeWars.update(performance.now() / 1000);
+  });
+  exposed.warsDrawn = () => (scale === "globe" ? globeWars.drawn : 0);
+  exposed.faceSpot = (spot: number, distance?: number) => {
+    const frame = client.latestFrame("globe");
+    if (!frame) return;
+    const p = sphereGrid((frame.meta as { frequency: number }).frequency).positions;
+    rig.yaw = (Math.atan2(p[spot * 3]!, p[spot * 3 + 2]!) * 180) / Math.PI;
+    rig.pitch = (-Math.asin(p[spot * 3 + 1]!) * 180) / Math.PI;
+    if (distance) {
+      rig.userZoomed = true;
+      rig.distance = distance;
+    }
+  };
 
   const aspect = () => Math.max(0.3, innerWidth / Math.max(1, innerHeight));
   const globeFit = () => (aspect() < 1 ? 3.1 / aspect() : 3.3);

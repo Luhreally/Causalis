@@ -9,6 +9,7 @@ import {
   ACTIVITY,
   HAIRS,
   biomeColor,
+  battleOf,
   bobOf,
   figureOf,
   hairOf,
@@ -38,6 +39,8 @@ import { WorkLayer, type Carrier } from "./work.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
+/** How many a side a village's battle draws, by the setting's detail. */
+const SOLDIERS = [6, 10, 14, 20];
 const YEAR = 365 * 86_400;
 
 /** A city's quarters by use: open, houses, crowded houses, markets, workshops, the temple. */
@@ -123,6 +126,10 @@ export class VillageScene {
   private fields: InstancedBatch | null = null;
   /** Each group's batch for each part of the figure (null: a part drawn by the person's hair). */
   private people: (InstancedBatch | null)[][] = [];
+  /** A battle's two hosts (M87): each side's batch for each part of the figure, and their spears. */
+  private soldiers: InstancedBatch[][] = [];
+  private spears: InstancedBatch | null = null;
+  private soldiersEach = 0;
   /** For each part of hair, a batch per hair colour (M79). */
   private hair: (InstancedBatch[] | null)[] = [];
   /** Windows, lit from dusk to dawn (their material's glow set by the hour). */
@@ -585,6 +592,36 @@ export class VillageScene {
           )
         : null,
     );
+    // A battle in its land this year or last (M87): the two hosts, each in its realm's
+    // colour, spears in hand — as many a side as the setting draws.
+    const battle = plan.life?.battle;
+    this.soldiersEach = battle ? (SOLDIERS[s.quality.detail] ?? 10) : 0;
+    this.soldiers = battle
+      ? [battle.attacker.color, battle.defender.color].map((c) => {
+          const body: Rgb = [c[0], c[1], c[2]],
+            legs: Rgb = [c[0] * 0.5, c[1] * 0.5, c[2] * 0.5];
+          return this.figure.parts.map((part) =>
+            this.batch(
+              s,
+              meshes[part.shape],
+              part.tone === 2
+                ? SKIN
+                : part.tone === 4
+                  ? EYES
+                  : part.tone === 3
+                    ? HAIRS[1]!
+                    : part.tone
+                      ? legs
+                      : body,
+              this.soldiersEach,
+              this.root,
+            ),
+          );
+        })
+      : [];
+    this.spears = battle
+      ? this.batch(s, meshes.box, [0.52, 0.38, 0.24], this.soldiersEach * 2, this.root)
+      : null;
     // Homes built more finely (M79): windows lit at night, chimneys, porches, fences.
     this.windows = null;
     this.lit = -1;
@@ -733,6 +770,75 @@ export class VillageScene {
         batch.set(wearers.length, (k, out) => place(out, wearers[k]!.p, wearers[k]!.i, pi));
       });
     });
+    // The battle, if its land was fought over: closing, fighting, falling, falling back.
+    if (this.soldiers.length) {
+      const troops = battleOf(plan, this.soldiersEach, clock),
+        size = this.figure.scale;
+      /** A part of a soldier's figure now (lying on their back, if fallen). */
+      const soldierPart = (out: number[], k: number, pi: number, side: number) => {
+        const q = troops[side * this.soldiersEach + k]!,
+          part = parts[pi]!,
+          c = Math.cos(q.yaw),
+          sn = Math.sin(q.yaw),
+          walking = q.doing === "advance" || q.doing === "fall back",
+          pitch =
+            q.doing === "fallen"
+              ? 0
+              : limbPitch(
+                  part,
+                  walking ? null : k % 2 ? "drill" : "brawl",
+                  walking,
+                  clock * (walking ? 1.4 : 1),
+                  k + side * 31,
+                ),
+          hinge = part.pivot ?? 0,
+          px = part.x;
+        let py = part.y + hinge - hinge * Math.cos(pitch),
+          pz = part.z - hinge * Math.sin(pitch),
+          pp = pitch;
+        if (q.doing === "fallen") {
+          // On their back: what stood up lies back along the ground.
+          const up = py;
+          py = 0.06 + pz;
+          pz = -up;
+          pp = pitch - Math.PI / 2;
+        }
+        out[0] = q.x * M + (px * c + pz * sn) * size;
+        out[1] = py * size;
+        out[2] = q.z * M + (-px * sn + pz * c) * size;
+        out[3] = part.sx * size;
+        out[4] = part.sy * size;
+        out[5] = part.sz * size;
+        out[6] = q.yaw;
+        out[7] = pp;
+      };
+      this.soldiers.forEach((batches, side) =>
+        batches.forEach((batch, pi) =>
+          batch.set(this.soldiersEach, (k, out) => soldierPart(out, k, pi, side)),
+        ),
+      );
+      // Their spears: held upright on the march, thrust in the fight, dropped by the fallen.
+      this.spears?.set(troops.length, (i, out) => {
+        const q = troops[i]!,
+          c = Math.cos(q.yaw),
+          sn = Math.sin(q.yaw),
+          fallen = q.doing === "fallen",
+          thrust =
+            q.doing === "fight"
+              ? -0.5 - 0.7 * Math.abs(Math.sin(clock * 2 * Math.PI * 0.8 + i * 1.7))
+              : -0.25,
+          across = 0.13,
+          ahead = fallen ? -0.35 : 0.05;
+        out[0] = q.x * M + (across * c + ahead * sn) * size;
+        out[1] = (fallen ? 0.03 : 0.36) * size;
+        out[2] = q.z * M + (-across * sn + ahead * c) * size;
+        out[3] = 0.018 * size;
+        out[4] = 0.8 * size;
+        out[5] = 0.018 * size;
+        out[6] = q.yaw;
+        out[7] = fallen ? -Math.PI / 2 : thrust;
+      });
+    }
     // What they carry, where they go with it.
     let n = 0;
     plan.people.forEach((p, i) => {

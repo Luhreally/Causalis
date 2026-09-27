@@ -3076,6 +3076,25 @@ so its first drawing does not stall a frame on entering a village. The Phase 4 g
 sea people (alien 65) comes to power on current mills in year 954 since the web of eating
 changed its history; its CI run goes to 1200 years (it stops at power).
 
+87, as built. The wars history records are seen at every scale. On the globe (host "wars.map",
+view/war.ts, render/wars.ts): each war still fought sends its host from the attacker's land
+nearest what it wants toward it — a banner-bearer and three behind, little soldiers with
+heads under their realm's flag, taking ship (a hull and a sail) wherever the way crosses sea,
+the way sampled once a year over the fine grid (walked neighbour to neighbour) at the
+ground's height — the defenders' standards stand at what they hold, and where a battle was
+fought this year or the last two, crossed blades over a flare that pulses, the larger the
+more fell, dimmer as the years pass; tokens stand upright on the globe (InstancedBatch
+setBasis: up and ahead per instance). In a village whose land history fought over this year
+or last (the plan's life.battle, from the war's own battle record), the two hosts come on in
+their realms' colours — the attackers by the road, the defenders out past the homes — close,
+fight at the line with spear and fist, fall (as large a share as fell, the beaten two in
+three of them, lying on their backs with their spears dropped), and the beaten fall back; the
+round plays over by the screen's clock, never among the homes, and the villagers talk of
+war. Between the stars: each fleet of war crosses the chart from home toward its enemy's star
+(another people's, or a colony broken away) as a red wedge of three, and the star its battle
+was fought at is ringed in fire for thirty years. The globe turns to any spot for the look
+tools (faceSpot).
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

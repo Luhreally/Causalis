@@ -46,6 +46,18 @@ export type VillageLife = {
   } | null;
   readonly mourning: readonly string[];
   readonly newborn: readonly string[];
+  /**
+   * A battle fought in its land this year or last (M87), as history fought it: each side's
+   * name and colour, whether the attacker won, how many fell, and the battle's event.
+   */
+  readonly battle?: {
+    readonly attacker: { readonly name: string; readonly color: readonly [number, number, number] };
+    readonly defender: { readonly name: string; readonly color: readonly [number, number, number] };
+    readonly won: boolean;
+    readonly fallen: number;
+    readonly year: number;
+    readonly event: string;
+  } | null;
 };
 
 export type VillagePlan = {

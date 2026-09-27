@@ -93,6 +93,66 @@ export class InstancedBatch {
     this.instance.instancingCount = n;
   }
 
+  /**
+   * Replace the instances, each stood on its own up and turned to its own ahead (a mark on
+   * a globe): `place(i, out)` writes [x, y, z, sx, sy, sz, upx, upy, upz, aheadx, aheady,
+   * aheadz]; its x runs across, its y up, its z ahead.
+   */
+  setBasis(count: number, place: (i: number, out: number[]) => void): void {
+    const n = Math.min(count, this.capacity),
+      t = [0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1],
+      m = this.matrices;
+    for (let i = 0; i < n; i++) {
+      place(i, t);
+      const [x, y, z, sx, sy, sz, ux, uy, uz, ax, ay, az] = t as [
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+      ];
+      // Ahead, square to up; across, square to both.
+      const d = ax * ux + ay * uy + az * uz;
+      let fx = ax - d * ux,
+        fy = ay - d * uy,
+        fz = az - d * uz;
+      const fl = Math.hypot(fx, fy, fz) || 1;
+      fx /= fl;
+      fy /= fl;
+      fz /= fl;
+      const rx = uy * fz - uz * fy,
+        ry = uz * fx - ux * fz,
+        rz = ux * fy - uy * fx,
+        o = i * 16;
+      m[o] = rx * sx;
+      m[o + 1] = ry * sx;
+      m[o + 2] = rz * sx;
+      m[o + 3] = 0;
+      m[o + 4] = ux * sy;
+      m[o + 5] = uy * sy;
+      m[o + 6] = uz * sy;
+      m[o + 7] = 0;
+      m[o + 8] = fx * sz;
+      m[o + 9] = fy * sz;
+      m[o + 10] = fz * sz;
+      m[o + 11] = 0;
+      m[o + 12] = x;
+      m[o + 13] = y;
+      m[o + 14] = z;
+      m[o + 15] = 1;
+    }
+    this.count = n;
+    this.buffer.setData(this.matrices);
+    this.instance.instancingCount = n;
+  }
+
   get size(): number {
     return this.count;
   }

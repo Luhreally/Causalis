@@ -18,6 +18,8 @@ export class ClusterScene {
   private readonly ringMesh: pc.Mesh;
   private readonly ships: pc.Entity[] = [];
   private readonly rings: pc.Entity[] = [];
+  private readonly fleets: pc.Entity[] = [];
+  private readonly battles: pc.Entity[] = [];
   /** Each star's glow, a disc turned to the camera every frame, one batch per colour. */
   private glows: {
     batch: InstancedBatch;
@@ -159,10 +161,15 @@ export class ClusterScene {
   voyages(m: {
     readonly ships: readonly { x: number; y: number; z: number }[];
     readonly rings: readonly { x: number; y: number; z: number }[];
+    readonly fleets?: readonly { x: number; y: number; z: number }[];
+    readonly battles?: readonly { x: number; y: number; z: number }[];
   }): void {
     for (const [pool, list, make] of [
       [this.ships, m.ships, () => this.dot([0.6, 1, 0.7], 0.09)],
       [this.rings, m.rings, () => this.ringAt([0.4, 1, 0.5])],
+      // War between the stars (M87): fleets red, the stars fought over ringed in fire.
+      [this.fleets, m.fleets ?? [], () => this.dot([1, 0.32, 0.22], 0.07)],
+      [this.battles, m.battles ?? [], () => this.ringAt([1, 0.6, 0.15])],
     ] as const) {
       while (pool.length < list.length) {
         const e = make();

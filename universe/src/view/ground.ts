@@ -15,8 +15,18 @@ export type Ground = {
   readonly homesReach: number;
 };
 
-/** A village's solid ground, from its plan (metres). */
+const GROUNDS = new WeakMap<VillagePlan, Ground>();
+
+/** A village's solid ground, from its plan (metres; kept while the plan stands). */
 export function villageGround(plan: VillagePlan): Ground {
+  const known = GROUNDS.get(plan);
+  if (known) return known;
+  const g = groundOf(plan);
+  GROUNDS.set(plan, g);
+  return g;
+}
+
+function groundOf(plan: VillagePlan): Ground {
   const look = houseLook(plan.house),
     // (A house's drawn measures are tenths of its metres; its roof overhangs its walls.)
     half = 5 * 1.15 * Math.hypot(look.length, look.width),

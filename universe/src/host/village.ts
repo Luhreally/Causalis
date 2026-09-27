@@ -23,6 +23,7 @@ import {
   marketsOf,
   politiesOf,
   populationContext,
+  realmName,
   regionOf,
   USE,
   warsOf,
@@ -30,6 +31,7 @@ import {
 } from "../sim/index.ts";
 import { meetHousehold, observer, settleAll } from "../causal/index.ts";
 import { LAKE_R, WATER_OUT, type VillageLife, type VillagePlan } from "../bridge/index.ts";
+import { realmColor } from "./colors.ts";
 
 /** Families the microscope watches in a village: a presentation budget, not a rule. */
 export const WATCHED_FAMILIES = 10;
@@ -290,7 +292,24 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
               progress: Math.max(0.12, population / 5 - Math.floor(population / 5)),
             }
           : null;
-    return { fed, growing, war, unrest, faith, talk, site, mourning, newborn };
+    // A battle fought in its land this year or last, as history fought it.
+    let battle: VillageLife["battle"] = null;
+    for (const w of warsOf(world).all()) {
+      const b = w.battles.findLast((x) => x.land === cell && x.year >= now - 1),
+        a = realms.get(w.attacker),
+        d = realms.get(w.defender);
+      if (!b || !a || !d || (battle && battle.year > b.year)) continue;
+      battle = {
+        attacker: { name: realmName(a), color: realmColor(w.attacker) },
+        defender: { name: realmName(d), color: realmColor(w.defender) },
+        won: b.won,
+        fallen: b.fallen[0] + b.fallen[1],
+        year: b.year,
+        event: b.event,
+      };
+    }
+    if (battle && !talk.includes("war")) talk.unshift("war");
+    return { fed, growing, war, unrest, faith, talk, site, mourning, newborn, battle };
   }
 
   /**
