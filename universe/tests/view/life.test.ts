@@ -3,8 +3,11 @@ import assert from "node:assert/strict";
 import type { VillageLife, VillagePlan } from "../../src/bridge/index.ts";
 import {
   ACTIVITY,
+  BODY_R,
   SIGNS,
+  clearOf,
   figureOf,
+  keepApart,
   limbPitch,
   momentOf,
   sayOf,
@@ -178,10 +181,7 @@ test("no one walks through a home or into the water", () => {
     everyone(growing, workday * DAY + s).forEach((m, i) => {
       if (m.hidden) return;
       for (const h of ground.homes)
-        assert.ok(
-          Math.hypot(m.x - h.x, m.z - h.z) >= h.r + reach - 1e-6,
-          `${growing.people[i]!.name} in a home at ${s}`,
-        );
+        assert.ok(clearOf(h, m) >= reach - 1e-6, `${growing.people[i]!.name} in a home at ${s}`);
       assert.ok(
         Math.hypot(m.x - ground.lake!.x, m.z - ground.lake!.z) >= ground.lake!.r + reach - 1e-6,
       );
@@ -197,6 +197,47 @@ test("no one walks through a home or into the water", () => {
       last = m;
     }
   }
+});
+
+test("no one stands in anyone else: each steps aside, and never into a wall", () => {
+  const busy = village({
+      ...quiet,
+      growing: true,
+      war: true,
+      site: { x: 30, z: 30, yaw: 0, progress: 0.4 },
+    }),
+    ground = villageGround(busy),
+    gap = 2 * BODY_R;
+  const knotted = (now: Moment[]) => {
+    const live = now.filter((m) => !m.hidden);
+    let n = 0;
+    for (let a = 0; a < live.length; a++)
+      for (let b = a + 1; b < live.length; b++)
+        if (Math.hypot(live[a]!.x - live[b]!.x, live[a]!.z - live[b]!.z) < gap - 1e-6) n++;
+    return n;
+  };
+  let knots = 0;
+  for (let s = 0; s < DAY; s += 120) {
+    const now = everyone(busy, workday * DAY + s),
+      again = everyone(busy, workday * DAY + s);
+    knots += knotted(now);
+    keepApart(busy, now);
+    assert.equal(knotted(now), 0, `people in one another at ${s}`);
+    for (const m of now) {
+      if (m.hidden) continue;
+      for (const h of ground.homes) assert.ok(clearOf(h, m) >= 1.2 - 1e-6, `in a home at ${s}`);
+    }
+    // The same moments always settle the same way.
+    keepApart(busy, again);
+    assert.deepEqual(again, now);
+  }
+  assert.ok(knots > 0, "the day brings people together (so the stepping aside is tried)");
+  // What stands fixed (a battle's soldiers) is stood clear of the whole way.
+  const now = everyone(plan, workday * DAY + 12 * HOUR),
+    who = now.findIndex((m) => !m.hidden),
+    soldier = { x: now[who]!.x, z: now[who]!.z };
+  keepApart(plan, now, [soldier]);
+  assert.ok(Math.hypot(now[who]!.x - soldier.x, now[who]!.z - soldier.z) >= gap - 1e-6);
 });
 
 test("what they say is what their own year has brought, the most pressing most often", () => {

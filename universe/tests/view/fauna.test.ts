@@ -7,6 +7,7 @@ import {
   MOST_OF_TONE,
   MOST_PARTS,
   beastsAt,
+  clearOf,
   birdsAt,
   buildBody,
   coatOf,
@@ -390,8 +391,7 @@ test("the beasts move smoothly by the screen's clock, and the same moment always
       assert.ok(
         Math.hypot(q.x - ground.lake!.x, q.z - ground.lake!.z) >= ground.lake!.r + reach - 1e-6,
       );
-      for (const h of ground.homes)
-        assert.ok(Math.hypot(q.x - h.x, q.z - h.z) >= h.r + reach - 1e-6);
+      for (const h of ground.homes) assert.ok(clearOf(h, q) >= reach - 1e-6);
     }
     let from = 0;
     for (const h of f.herds) {

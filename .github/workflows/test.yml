@@ -111,6 +111,13 @@ jobs:
       - run: npm run gate:8 -- --no-budgets
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 9 gate: every beast a body of its own in a web of eating, a village's day
+      # seen (its people kept out of its walls), its wars drawn, one zoom from a person to
+      # the galaxy and back, and the genesis played through to where to begin. Its hand-over
+      # timing needs a GPU; it runs locally: npm run gate:9.
+      - run: npm run gate:9 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

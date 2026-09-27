@@ -37,9 +37,11 @@ export {
 export {
   ACTIVITY,
   ACTIVITY_WORDS,
+  BODY_R,
   SIGNS,
   TASKS,
   houseLook,
+  keepApart,
   momentOf,
   personGroup,
   sayOf,
@@ -124,7 +126,7 @@ export {
   type FishNow,
   type Traffic,
 } from "./fauna.ts";
-export { dryAt, keepOut, villageGround, type Ground, type Solid } from "./ground.ts";
+export { clearOf, dryAt, keepOut, villageGround, type Ground, type Solid } from "./ground.ts";
 export {
   BEAST_SCALE,
   MOST_OF_TONE,

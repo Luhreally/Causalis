@@ -14,7 +14,7 @@ import { finish, hashString, mix } from "../kernel/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 import { OCC } from "../rules/index.ts";
 import { paceOf } from "./figure.ts";
-import { keepOut, route, villageGround, type Ground } from "./ground.ts";
+import { clearOf, keepOut, route, villageGround, type Ground } from "./ground.ts";
 import type { Carry } from "./work.ts";
 
 export const ACTIVITY = {
@@ -440,7 +440,7 @@ export function momentOf(plan: VillagePlan, index: number, t: number): Moment {
 /** The nearest place to `p` clear of every wall (itself, if it is), a few steps about it. */
 function clearSpot(ground: Ground, p: Point): Point {
   const clear = (q: Point) =>
-    ground.homes.every((h) => Math.hypot(q.x - h.x, q.z - h.z) >= h.r + PERSON_REACH) &&
+    ground.homes.every((h) => clearOf(h, q) >= PERSON_REACH) &&
     (!ground.lake ||
       Math.hypot(q.x - ground.lake.x, q.z - ground.lake.z) >= ground.lake.r + PERSON_REACH);
   if (clear(p)) return p;
@@ -498,7 +498,7 @@ function doorstep(ground: Ground, home: Point, way: number, out: number): Point 
   for (let k = 0; k < 12; k++) {
     const a = way + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.55,
       p = { x: home.x + out * Math.cos(a), z: home.z + out * Math.sin(a) };
-    if (ground.homes.every((h) => Math.hypot(p.x - h.x, p.z - h.z) >= h.r + PERSON_REACH)) return p;
+    if (ground.homes.every((h) => clearOf(h, p) >= PERSON_REACH)) return p;
   }
   return { x: home.x + out * Math.cos(way), z: home.z + out * Math.sin(way) };
 }
@@ -522,6 +522,107 @@ function groundFor(plan: VillagePlan): Ground {
     GROUNDS.set(plan, g);
   }
   return g;
+}
+
+/** Half a body's breadth: two people's middles come no nearer than twice it (metres). */
+export const BODY_R = 0.35;
+
+/**
+ * Keep the people in sight out of one another, in place (M90): where two would stand nearer
+ * than a body's breadth, each steps half the way apart — out of the way of what stands fixed
+ * (`fixed`: a battle's soldiers) the whole way — and none steps into a wall. Each step is
+ * taken at once, so a knot of three or four standing on one spot settles in a few passes;
+ * the same moments always settle the same way.
+ */
+export function keepApart(
+  plan: VillagePlan,
+  moments: Moment[],
+  fixed: readonly { readonly x: number; readonly z: number }[] = [],
+): void {
+  const ground = groundFor(plan),
+    gap = 2 * BODY_R,
+    // (Each steps a little past the breadth, so a knot settles without creeping.)
+    want = gap * 1.06,
+    live: number[] = [];
+  moments.forEach((m, i) => {
+    if (!m.hidden) live.push(i);
+  });
+  if (live.length + fixed.length < 2) return;
+  // (Found by the cell of the ground each stands in, a body's breadth across.)
+  const cellOf = (x: number, z: number) =>
+    (Math.floor(x / gap) + 32768) * 65536 + (Math.floor(z / gap) + 32768);
+  const pinned = new Map<number, number[]>();
+  fixed.forEach((f, k) => {
+    const key = cellOf(f.x, f.z),
+      list = pinned.get(key);
+    if (list) list.push(k);
+    else pinned.set(key, [k]);
+  });
+  const moved = new Uint8Array(moments.length);
+  /** Step person `i` by (dx, dz). */
+  const step = (i: number, dx: number, dz: number) => {
+    const m = moments[i]!;
+    m.x += dx;
+    m.z += dz;
+    moved[i] = 1;
+  };
+  /**
+   * The way from a to b, unit long; for two on one spot, a way keyed by the pair, so a knot
+   * standing on one spot opens out every way rather than along a line.
+   */
+  const wayOf = (ax: number, az: number, d: number, key: number): [number, number] =>
+    d < 1e-6 ? [Math.cos(key * 2.399963), Math.sin(key * 2.399963)] : [ax / d, az / d];
+  for (let pass = 0; pass < 20; pass++) {
+    const cells = new Map<number, number[]>();
+    for (const i of live) {
+      const m = moments[i]!,
+        key = cellOf(m.x, m.z),
+        list = cells.get(key);
+      if (list) list.push(i);
+      else cells.set(key, [i]);
+    }
+    let any = false;
+    for (const i of live) {
+      const m = moments[i]!,
+        cx = Math.floor(m.x / gap),
+        cz = Math.floor(m.z / gap);
+      for (let ox = -1; ox <= 1; ox++)
+        for (let oz = -1; oz <= 1; oz++) {
+          const key = (cx + ox + 32768) * 65536 + (cz + oz + 32768);
+          // Another person: each steps half the way (each pair once, the lower first).
+          for (const j of cells.get(key) ?? []) {
+            if (j <= i) continue;
+            const o = moments[j]!,
+              ax = o.x - m.x,
+              az = o.z - m.z,
+              d = Math.hypot(ax, az);
+            if (d >= gap) continue;
+            const half = (want - d) / 2,
+              [ux, uz] = wayOf(ax, az, d, i * 31 + j);
+            step(i, -ux * half, -uz * half);
+            step(j, ux * half, uz * half);
+            any = true;
+          }
+          // What stands fixed: the whole way out of it.
+          for (const k of pinned.get(key) ?? []) {
+            const f = fixed[k]!,
+              ax = m.x - f.x,
+              az = m.z - f.z,
+              d = Math.hypot(ax, az);
+            if (d >= gap) continue;
+            const [ux, uz] = wayOf(ax, az, d, i * 31 + k + 7);
+            step(i, ux * (want - d), uz * (want - d));
+            any = true;
+          }
+        }
+    }
+    for (const i of live)
+      if (moved[i]) {
+        moved[i] = 0;
+        keepOut(ground, moments[i]!, PERSON_REACH);
+      }
+    if (!any) return;
+  }
 }
 
 /**

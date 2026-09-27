@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LAKE_R, type VillagePlan } from "../../src/bridge/index.ts";
-import { dryAt, villageGround, keepOut } from "../../src/view/index.ts";
+import { clearOf, dryAt, villageGround, keepOut } from "../../src/view/index.ts";
 
 const plan: VillagePlan = {
   ref: "town:0:9",
@@ -38,7 +38,7 @@ test("the ground's water and homes are solid: a walker is kept out, to the neare
   // In a home: out of its walls.
   const q = { x: 31, z: 1 };
   keepOut(ground, q, 2);
-  assert.ok(Math.hypot(q.x - 30, q.z) >= ground.homes[0]!.r + 2 - 1e-9);
+  assert.ok(clearOf(ground.homes[0]!, q) >= 2 - 1e-9);
   // Clear ground is left alone.
   const c = { x: 200, z: 200 };
   keepOut(ground, c, 3);

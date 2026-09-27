@@ -13,6 +13,7 @@ import {
   bobOf,
   figureOf,
   hairOf,
+  keepApart,
   homeDetail,
   lamplight,
   houseLook,
@@ -187,6 +188,7 @@ export class VillageScene {
         child.destroy();
     this.stacks = [];
     this.plan = plan;
+    this.aside = new Float64Array(0);
     this.key = plan.ref;
     const s = this.stage,
       disc = (r: number, color: Rgb, x = 0, z = 0, y = 0) => {
@@ -707,6 +709,36 @@ export class VillageScene {
   /** The beasts' clock held at this screen time, if held (for the look tools); null runs it. */
   heldFauna: number | null = null;
 
+  /** How far each person has stepped aside to keep out of the others (metres, x and z by turns). */
+  private aside = new Float64Array(0);
+  private asideClock = 0;
+
+  /**
+   * No one stands in anyone else, nor in a soldier (view/village.ts keepApart): each steps
+   * aside over a moment rather than at once, so a knot loosens — one come out of a door into
+   * another's place — without a jump.
+   */
+  private stepAside(
+    plan: VillagePlan,
+    troops: readonly { readonly x: number; readonly z: number }[],
+    clock: number,
+  ): void {
+    const now = this.moments,
+      apart = now.map((m) => ({ ...m }));
+    keepApart(plan, apart, troops);
+    const fresh = this.aside.length !== 2 * now.length,
+      k = fresh ? 1 : 1 - Math.exp(-Math.max(0, clock - this.asideClock) * 8);
+    if (fresh) this.aside = new Float64Array(2 * now.length);
+    this.asideClock = clock;
+    const a = this.aside;
+    now.forEach((m, i) => {
+      a[2 * i] = a[2 * i]! + (apart[i]!.x - m.x - a[2 * i]!) * k;
+      a[2 * i + 1] = a[2 * i + 1]! + (apart[i]!.z - m.z - a[2 * i + 1]!) * k;
+      m.x += a[2 * i]!;
+      m.z += a[2 * i + 1]!;
+    });
+  }
+
   /** Put everyone where they are at time t. */
   update(t: number): void {
     const plan = this.plan;
@@ -723,10 +755,13 @@ export class VillageScene {
     // (The beasts move by the screen's clock: a look, at any speed the world runs.)
     const screen = this.heldFauna ?? performance.now() / 1000;
     this.fauna.update(screen);
-    this.moments = plan.people.map((_, i) => momentOf(plan, i, t));
     const parts = this.figure.parts,
       // Strides and the motions of work: by the screen's clock, each person a little out of step.
-      clock = performance.now() / 1000;
+      clock = performance.now() / 1000,
+      // The battle, if its land was fought over (its soldiers stand where they stand).
+      troops = this.soldiers.length ? battleOf(plan, this.soldiersEach, clock) : [];
+    this.moments = plan.people.map((_, i) => momentOf(plan, i, t));
+    this.stepAside(plan, troops, clock);
     /** A part of person i's figure, where it is now. */
     const place = (out: number[], p: VillagePlan["people"][number], i: number, pi: number) => {
       const part = parts[pi]!,
@@ -772,8 +807,7 @@ export class VillageScene {
     });
     // The battle, if its land was fought over: closing, fighting, falling, falling back.
     if (this.soldiers.length) {
-      const troops = battleOf(plan, this.soldiersEach, clock),
-        size = this.figure.scale;
+      const size = this.figure.scale;
       /** A part of a soldier's figure now (lying on their back, if fallen). */
       const soldierPart = (out: number[], k: number, pi: number, side: number) => {
         const q = troops[side * this.soldiersEach + k]!,

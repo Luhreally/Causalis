@@ -3135,6 +3135,43 @@ fields, three, seven or twelve centuries on — the world's own page at that yea
 shown is the world's own generation (the host's "genesis" query: its ages, every lineage with
 its body, arising and death, and its people).
 
+90, as built. The Phase 9 gate (`npm run gate:9`, tools/phase9-gate.ts) passes. Bodies: 25
+makes of body among the living beasts of six worlds (the Earth seed and five open worlds),
+every living beast a body, no two lineages of a world sharing a name, no open world's beast
+named as Earth's, and every world's web of more than one level. The web's turns on the Earth
+seed by year 700, each with its why: waters fished down in 300 lands, grain eaten in 69,
+hunters driven out in 362. A day in the most peopled land's town at year 700: seven kinds of
+work and play, twelve different signs said, no step inside a wall, and no one standing in
+anyone else. The wars of year 700
+on the globe: five wars, 22 marks marching or standing, and six battles seen in the villages
+fought over. One zoom on Chromium: ten hand-overs from a person to the galaxy and back, the
+longest frame 60 ms (240 ms at the phone floor's pace, against a budget of 1000). The ladder
+is walked as a viewer walks it, zoomed near the far edge before each step out, where the
+next scale is readied. The genesis: all ten stages to five places to begin, and begun at the
+first people. Found and mended at the gate:
+
+- People stood inside the ends of long houses, four steps in a day, because the walls were
+  circles and a long house is long. A home is now a capsule: a core along its length,
+  rounded at its ends (view/ground.ts). Walkers are pushed out to the nearest point of the
+  wall, and routes turn beside the core.
+- People walked through one another. Only a herd's beasts had kept apart, and a family
+  stood on one spot at its doorstep. Now no two people stand nearer than a body's breadth
+  (0.7 m; view/village.ts keepApart). Each steps half the way apart, and out of a battle's
+  soldiers the whole way. Each step is taken at once, and a pair on one spot parts along a
+  way keyed by the pair, so six drillers on one spot open out in a few passes, not along a
+  line. No one steps into a wall, and the same moments always settle the same way. The
+  renderer eases each person to their place over an eighth of a second. Measured in the
+  four most peopled towns at year 700: 440, 315, 411 and 1075 pairs standing in one another
+  over a day before, none after, at 0.02–0.06 ms a frame. At the watch's pace, the largest
+  extra step in a frame fell from 60 cm (stepping aside at once) to 7 cm (eased).
+- Timing hand-overs on this machine's integrated GPU was mostly timing the GPU. Headless
+  Chromium there stalls a frame for up to half a second every few seconds, whatever it
+  draws. In the land: 6 stalls in 20 s with everything drawn, 7 with nothing drawn, 1 with
+  drawing stopped. The busier village never stalled, and the discrete GPU never stalled at
+  any scale. The gate times on the discrete GPU now.
+
+CI runs the gate's checks untimed (`--ci`) beside Phases 7 and 8. **Phase 9 closes.**
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

@@ -6,6 +6,7 @@ import {
   BATTLE_ROUND,
   MARCH,
   battleOf,
+  clearOf,
   villageGround,
   voyageMarks,
   warPaths,
@@ -185,8 +186,7 @@ test("a battle in a village's land: the hosts close from the road and the homes,
   // Never in a home.
   const ground = villageGround(village);
   for (let k = 0; k < 1; k += 0.05)
-    for (const q of at(k))
-      for (const h of ground.homes) assert.ok(Math.hypot(q.x - h.x, q.z - h.z) >= h.r + 1.2 - 1e-6);
+    for (const q of at(k)) for (const h of ground.homes) assert.ok(clearOf(h, q) >= 1.2 - 1e-6);
   // A village whose land saw no battle has none.
   assert.equal(
     battleOf({ ...village, life: { ...village.life!, battle: null } }, each, 3).length,
