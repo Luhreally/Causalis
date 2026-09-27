@@ -3249,6 +3249,13 @@ The design is §31's, now built whole.
     - the galaxy: its stars.
 
     A tooltip shows on hover.
+93b. **Portraits and pointing** (added at the user's asking). Every page shows its thing:
+    - a lineage's body in 3D from its plan, with its anatomy labelled (legs, wings, fins,
+      covering, size, what it eats);
+    - a person's figure in their clothes, tools and hair;
+    - a town's skyline, a world's globe, a star's light, a realm's flag.
+
+    What was tapped is lit in the scene.
 94. **Go to anything**. A page's place is travelled to: the camera flies within a scale and
     fades across scales, through as many as it takes. It can follow what moves: a person, a
     herd, a host, a ship.
@@ -3272,6 +3279,13 @@ The design is §31's, now built whole.
     - A ledger: sortable tables of realms, lands, towns, wars, peoples, faiths, tongues,
       lineages, colonies, stars and fleets.
     - Search.
+96b. **The chronicle compared** (added at the user's asking: "the chronicle should contain
+    more, and more comparative stuff to compare what emerged").
+    - The world's history told by era.
+    - Its firsts: what emerged, where and when, and who followed and how fast (farming,
+      towns, metals, writing, faiths, realms, flight).
+    - Comparisons side by side: realms, peoples, faiths, tongues and lineages, with their
+      numbers over time.
 97. **Numbers explained**. Tooltips break a number into what makes it: a land's food, its
     growth, grievance, a realm's strength, a price, a war's odds. They are nested, and each
     part is a link. A book of concepts (what a grievance, a levy, the web of eating are) is
@@ -3330,6 +3344,30 @@ The mends:
 After: at every speed no one moves more than 1.5 m in a frame and nothing jumps. The
 beasts, birds, fish, soldiers and marchers were measured over minutes of their loops: the
 most anything moved in a frame was 0.28 m.
+
+92, as built. One window for every page (ui/inspector.ts): Y2K chrome over a grand strategy
+game's window.
+- Its title bar holds back and forward through all that was looked at, the thing's icon
+  and name (a realm's or faith's colour down its edge), taller (on a phone), fold and close.
+- Under it: "⌖ Go to", follow, what the thing is doing now (a person watched), and its
+  headline numbers as chips. A chip with parts or a why opens them beneath.
+- Then the tabs, and the tab's blocks:
+  - facts, each with a "?" for its why and parts;
+  - lists and sortable tables whose rows open their pages;
+  - charts;
+  - why trees whose claims open their own pages;
+  - the tools, moved out of the scales' panels into ui/tools.ts (the god's acts on a land and
+    a place, the hand laid and lifted, a family met, the acts on one under the hand).
+- It reads its page again every two seconds as the world runs, and keeps every block that
+  says the same as it stands. (App-check caught a shrine's confirmation lost to a redraw
+  between its two taps; a tool that acts is then drawn anew.)
+
+Picks open pages: a land from the globe, a town or the ground in a land, a person or a beast
+in a village, a world in the sky, a star among the stars. The scales' own windows stand aside
+while a page is open. "Go to" travels to a page's place from any scale under one fade:
+through the world to a land, a village (and the person there), the sky and a world of it,
+the stars about us, the galaxy, or another star's world. The journey (all 19 steps) and
+app-check (three engines, worker and in-thread) walk it now.
 
 ### J. Allocation of ~100k lines
 

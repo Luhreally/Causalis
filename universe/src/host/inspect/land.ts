@@ -133,6 +133,11 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     if (p?.faith) rows.push(stat("Faith", [faithLink(world, p.faith.ref)], { why: p.faith.event }));
     if (p?.ways?.language)
       rows.push(stat("Tongue", [languageLink(world, p.ways.language.ref)], { why: waysRef(cell) }));
+    if (!p)
+      rows.push(
+        stat("People", site ? "no one lives here now" : "no one lives here"),
+        ...(place?.biome ? [stat("Ground", place.biome)] : []),
+      );
     const blocks: Block[] = [{ type: "facts", rows }];
     if (towns.length)
       blocks.push({
@@ -157,6 +162,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
       });
     }
     if (p) blocks.push({ type: "why", title: "How they came to be here", ref: folkRef(cell) });
+    else if (spot !== null)
+      blocks.push({ type: "why", title: "What it is", ref: spotRef(0, spot) });
     blocks.push({ type: "tool", tool: "acts.land", args: { cell } });
     tabs.push({ id: "overview", name: "Overview", blocks });
   }

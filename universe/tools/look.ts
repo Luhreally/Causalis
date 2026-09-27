@@ -39,19 +39,20 @@ const map = await page.evaluate(() =>
 );
 const top = [...map].sort((a, b) => b.people - a.people)[0]!;
 await page.evaluate((cell) => (globalThis as { causalis?: C }).causalis!.select!(cell), top.centre);
-await page.waitForSelector(".panel:not([hidden]) .inspector .why .claim");
+await page.waitForSelector(".page-window .why .claim");
 await page.waitForTimeout(800);
 await page.screenshot({ path: join(dir, "land.png") });
-const wild = page
-  .locator(".panel:not([hidden]) .inspector .page-line", {
-    hasText: /lives wild|The seat of|Part of/,
-  })
-  .first();
-if (await wild.count()) {
-  await wild.click();
-  await page.waitForSelector(".panel:not([hidden]) .inspector .page .back");
-  await page.waitForTimeout(800);
-  await page.screenshot({ path: join(dir, "page.png") });
+// A lineage of its living world, on its own page.
+const life = page.locator(".page-window .tab", { hasText: "Life" }).first();
+if (await life.count()) {
+  await life.click();
+  const wild = page.locator(".page-window .line.entry").first();
+  if (await wild.count()) {
+    await wild.click();
+    await page.waitForSelector(".page-window .why .claim");
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: join(dir, "page.png") });
+  }
 }
 await page.click(".panel:not([hidden]) .world-line button:has-text('Saves')");
 await page.waitForTimeout(800);

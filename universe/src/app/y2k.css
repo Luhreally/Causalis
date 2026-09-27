@@ -347,3 +347,323 @@ body[data-scale="ground"][data-daylight="night"] {
   border-left-color: #6ff0cf;
   background: rgba(40, 180, 150, 0.22);
 }
+
+/*
+ * The inspector (Phase 10 M92): one window for every thing's page. A grand strategy game's
+ * window in the era's chrome — back and forward in its title bar, the thing's headline
+ * numbers as bevelled chips, its tabs as glossy tabs, every name a link.
+ */
+@media (min-width: 641px) {
+  .page-window {
+    width: min(27rem, calc(100% - 16px));
+  }
+}
+/* Its title bar: back and forward, the icon and name, the window's boxes — one row. */
+.page-window h2 {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 6px 5px 6px;
+  min-height: 1.4em;
+}
+.page-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+.page-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.page-boxes {
+  display: flex;
+  gap: 3px;
+  flex: none;
+}
+.page-window h2 button {
+  float: none;
+  position: static;
+  margin: 0;
+  min-height: 26px;
+  min-width: 26px;
+  padding: 0 7px;
+  font-size: 0.78rem;
+  line-height: 1;
+}
+.page-window h2 .nav-back,
+.page-window h2 .nav-forward {
+  font-size: 0.66rem;
+}
+.page-window h2 button:disabled {
+  opacity: 0.45;
+}
+.page-sub {
+  color: var(--muted);
+  font-size: 0.86rem;
+  margin: -4px 0 8px;
+}
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.page-actions:empty {
+  display: none;
+}
+.go-to {
+  color: #032b24;
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+  min-height: 30px;
+  padding: 2px 10px;
+  font-weight: 700;
+}
+/* The headline numbers: bevelled chips; one that opens what makes it has a mark. */
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 4.4rem;
+  padding: 4px 8px;
+  text-align: left;
+  color: var(--ink);
+  text-shadow: none;
+  background: linear-gradient(180deg, rgba(40, 70, 150, 0.55), rgba(8, 16, 44, 0.75));
+  border: 1px solid;
+  border-color: var(--chrome-mid) var(--chrome-lo) var(--chrome-lo) var(--chrome-mid);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  cursor: default;
+}
+.stat.more {
+  cursor: pointer;
+}
+.stat.more .stat-label::after {
+  content: " ▾";
+  color: var(--accent);
+}
+.stat.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 8px rgba(111, 231, 255, 0.45);
+}
+.stat:hover {
+  background: linear-gradient(180deg, rgba(60, 100, 200, 0.6), rgba(12, 24, 64, 0.8));
+}
+.stat-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.stat-value {
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+.stat-detail,
+.fact-more {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  background: rgba(4, 10, 30, 0.55);
+  border: 1px solid var(--chrome-lo);
+  border-radius: 4px;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 20, 0.6);
+}
+.stat-detail h3 {
+  margin-top: 0;
+}
+.part {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0;
+  border-bottom: 1px dotted var(--line);
+}
+.part-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--act);
+}
+/* Tabs: glossy, the open one lit and joined to the page. */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 2px 0 10px;
+  padding-bottom: 0;
+  border-bottom: 2px solid var(--chrome-mid);
+}
+.tab {
+  min-height: 28px;
+  padding: 3px 10px;
+  font-size: 0.8rem;
+  border-radius: 6px 6px 0 0;
+  margin-bottom: -2px;
+}
+.tab.on {
+  color: #032b24;
+  border-color: #0b7a62 #0b7a62 transparent;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+  font-weight: 700;
+}
+.page-body .block {
+  margin-bottom: 10px;
+}
+.page-body .facts .fact,
+.page-body .fact {
+  display: grid;
+  grid-template-columns: minmax(6rem, 38%) 1fr auto;
+  gap: 6px;
+  align-items: baseline;
+  padding: 3px 0;
+  border-bottom: 1px dotted var(--line);
+}
+.fact-label {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+.ask {
+  min-height: 22px;
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.ask.on {
+  color: #032b24;
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+}
+.entry {
+  display: block;
+  width: 100%;
+  margin: 2px 0;
+  padding: 4px 8px;
+  text-align: left;
+  font-size: 0.9rem;
+}
+.line.entry {
+  cursor: pointer;
+}
+/* A name: a link to its page. */
+.ref-link {
+  display: inline;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-shadow: none;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+.ref-link:hover {
+  color: #fff;
+  text-decoration: underline;
+  background: none;
+}
+.open-ref {
+  min-height: 0;
+  margin-left: 6px;
+  padding: 0 6px;
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+/* A table: its columns sort at a tap. */
+.table-wrap {
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+.table th {
+  padding: 0 2px 4px;
+  text-align: left;
+}
+.table .sort {
+  min-height: 22px;
+  padding: 0 6px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+.table .sort.on::after {
+  content: " ▼";
+}
+.table .sort.on.up::after {
+  content: " ▲";
+}
+.table td {
+  padding: 3px 6px;
+  border-bottom: 1px dotted var(--line);
+}
+.table tr.row:nth-child(even) td {
+  background: rgba(20, 40, 100, 0.22);
+}
+.table tr.entry {
+  cursor: pointer;
+}
+.table tr.entry:hover td {
+  background: rgba(40, 90, 200, 0.35);
+}
+.more {
+  margin: 4px 0 0;
+}
+/* On a phone the page is a sheet; a tap on ⤢ grows it tall. */
+@media (max-width: 640px) {
+  .page-window.tall {
+    max-height: calc(100% - 128px - var(--safe-top) - var(--safe-bottom));
+  }
+}
+@media (min-width: 641px) {
+  .page-window .tall {
+    display: none;
+  }
+}
+
+/* While a page is open, the scales' own windows stand aside; the page stands over them. */
+body.paging .panel:not(.page-panel) .inspector {
+  display: none !important;
+}
+.page-panel .inspector {
+  z-index: 2;
+}
+.page-live {
+  margin: -4px 0 8px;
+  padding: 3px 8px;
+  font-size: 0.84rem;
+  color: var(--act);
+  background: rgba(4, 10, 30, 0.5);
+  border-left: 3px solid var(--act);
+}
+
+/* Follow, on a page: a glossy button like the others, lit while followed. */
+.page-actions .follow {
+  margin: 0;
+  min-height: 30px;
+  padding: 2px 10px;
+  color: #0b1636;
+}
+.page-actions .follow.on {
+  color: #032b24;
+}
+.page-body .facts .fact,
+.page-body .fact {
+  grid-template-columns: minmax(5.5rem, 36%) minmax(0, 1fr) auto;
+}
+.fact-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

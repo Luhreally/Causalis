@@ -124,7 +124,12 @@ export class VillagePanel {
   /** What the person looked at is doing now, and what they carry (and what it is made of). */
   moment(m: Moment | null): void {
     if (!m) return;
-    this.now.textContent = `Now ${ACTIVITY_WORDS[m.activity]}; ${needWords(m)}${m.carry ? `; carrying ${carryWords(m.carry, this.works.era, this.works.what)}` : ""}`;
+    this.now.textContent = this.nowWords(m);
+  }
+
+  /** What someone is doing now, in words: "Now at work; fed and rested; carrying a hoe". */
+  nowWords(m: Moment): string {
+    return `Now ${ACTIVITY_WORDS[m.activity]}; ${needWords(m)}${m.carry ? `; carrying ${carryWords(m.carry, this.works.era, this.works.what)}` : ""}`;
   }
 
   /** Whether the hand rests on the village watched: then its people are the hand's. */

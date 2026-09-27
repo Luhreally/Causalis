@@ -939,7 +939,11 @@ export class PlanetPanel {
 
   /** The chronicle: what history holds as mattering most, newest first, each with its why. */
   /** Clear the inspector for a page of the world's own (the chronicle, the saves). */
+  /** Told when a page of the world's own (its chronicle, saves, settings) opens here. */
+  onWorldPage: () => void = () => {};
+
   private worldPage(title: string): void {
+    this.onWorldPage();
     this.closePages();
     this.selected = null;
     this.province = null;

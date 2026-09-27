@@ -63,44 +63,56 @@ const query = <T>(type: string, a?: unknown) =>
       }),
     [type, a] as const,
   ) as Promise<T>;
-const inspector = ".panel:not([hidden]) .inspector:not([hidden])";
-/** Click the first line or button in the open inspector whose text matches, and read the why that opens. */
-async function whyOf(text: RegExp): Promise<string> {
-  const line = page.locator(`${inspector} button, ${inspector} .fact`, { hasText: text }).first();
-  await line.waitFor({ timeout: 15000 });
-  await line.click();
-  const claim = page.locator(`${inspector} .why .claim`).first();
-  await claim.waitFor({ timeout: 15000 });
-  return (await claim.textContent()) ?? "";
-}
+// Every thing's page opens in one window (Phase 10 M92); the sky's scales keep their own.
+const win = ".page-window";
 const heading = async (text: string) =>
-  page.locator(`${inspector} h3`, { hasText: text }).first().waitFor({ timeout: 15000 });
-/** Open the page a line stands for, and wait for it: its title, then its first fact. */
-async function openPage(text: RegExp, title?: RegExp): Promise<string> {
-  const line = page.locator(`${inspector} .page-line`, { hasText: text }).first();
-  await line.waitFor({ timeout: 15000 });
-  await line.click();
-  await page.locator(`${inspector} .page .back`).first().waitFor({ timeout: 15000 });
-  const h2 = page.locator(`${inspector} h2`).first();
-  if (title)
-    await page.waitForFunction(
-      ([sel, re]) =>
-        new RegExp(re as string).test(document.querySelector(sel as string)?.textContent ?? ""),
-      [`${inspector} h2`, title.source] as const,
-      { timeout: 15000 },
-    );
-  return (await h2.textContent()) ?? "";
+  page
+    .locator(".panel:not([hidden]) .inspector:not([hidden]) h3", { hasText: text })
+    .first()
+    .waitFor({ timeout: 15000 });
+/** The title of the page open, once it has one (not the "…" of one still being read). */
+async function title(not?: string): Promise<string> {
+  await page.waitForFunction(
+    ([sel, not]) => {
+      const t = document.querySelector(sel as string)?.textContent ?? "";
+      return !!t && t !== "…" && t !== not;
+    },
+    [`${win} .page-title`, not ?? ""] as const,
+    { timeout: 15000 },
+  );
+  return (await page.locator(`${win} .page-title`).first().textContent()) ?? "";
 }
-/** The why the inspector shows once it has more than `n` claims open. */
+/** Open a tab of the page open. */
+async function tab(name: string): Promise<void> {
+  const t = page.locator(`${win} .tab`, { hasText: name }).first();
+  await t.waitFor({ timeout: 15000 });
+  await t.click();
+}
+/** Open the first entry of the tab open whose words match, and wait for its page. */
+async function openEntry(text: RegExp): Promise<string> {
+  const before = (await page.locator(`${win} .page-title`).first().textContent()) ?? "";
+  const entry = page.locator(`${win} .line.entry`, { hasText: text }).first();
+  await entry.waitFor({ timeout: 15000 });
+  await entry.click();
+  return title(before);
+}
+/** Open the first name on the page whose words match, and wait for its page. */
+async function openLink(text: RegExp): Promise<string> {
+  const before = (await page.locator(`${win} .page-title`).first().textContent()) ?? "";
+  const link = page.locator(`${win} .ref-link`, { hasText: text }).first();
+  await link.waitFor({ timeout: 15000 });
+  await link.click();
+  return title(before);
+}
+/** The whys the page shows once it has more than `n` claims. */
 async function claims(n: number): Promise<string[]> {
   await page.waitForFunction(
     ([sel, n]) => document.querySelectorAll(sel as string).length > (n as number),
-    [`${inspector} .why .claim`, n] as const,
+    [`${win} .why .claim`, n] as const,
     { timeout: 15000 },
   );
-  return page.locator(`${inspector} .why .claim`).allTextContents();
+  return page.locator(`${win} .why .claim`).allTextContents();
 }
-
 if (shots) mkdirSync(shots, { recursive: true });
 
 // Part one: an open world, three centuries on.
@@ -139,26 +151,30 @@ for (const p of byPeople.slice(0, 40)) {
 }
 await step("examine its ecosystem and species", async () => {
   await call("select", peopled.centre);
-  // (A lineage that lives wild there, or one that hunts there: M77 names the hunters so.)
-  const name = await openPage(/lives wild here|hunts here/);
-  await heading("What it is to the people");
-  const facts = await page.locator(`${inspector} .page .fact`).allTextContents();
+  await title();
+  // (A lineage that lives there: the land's page, its living world.)
+  await tab("Life");
+  const name = await openEntry(/./);
+  const facts = await page.locator(`${win} .fact`).allTextContents();
   return `${name}: ${facts.slice(0, 2).join("; ")} — ${(await claims(0))[0]}`;
 });
 await step("a civilization", async () => {
   await call("select", peopled.centre);
-  await heading("Their rulers");
-  const name = await openPage(/^(The seat of|Part of)/);
-  await heading("Its rulers");
-  return `${name}: ${(await claims(0))[0]}`;
+  await title();
+  await tab("Realm");
+  const name = await openLink(/^the /);
+  const said = (await claims(0))[0];
+  await tab("Rulers");
+  const rulers = await page.locator(`${win} .line.entry`).count();
+  return `${name}: ${said}; ${rulers} rulers remembered`;
 });
 await step("its technology", async () => {
-  await heading("What they know, in the order");
-  const known = page.locator(`${inspector} .page .line`, { hasText: /^Year \d+:/ });
+  await tab("Lore");
+  const known = page.locator(`${win} .line.entry`, { hasText: /year \d+/ });
   const n = await known.count();
   if (!n) throw new Error("the realm knows nothing yet");
-  await known.first().click();
-  return `${n} things known, in order; the first: ${(await claims(0))[0]}`;
+  await openEntry(/year \d+/);
+  return `${n} things known, in order; the newest: ${(await claims(0))[0]}`;
 });
 let village: { ref: string; tile: number; name: string } | null = null;
 await step("a city", async () => {
@@ -179,32 +195,24 @@ await step("a city", async () => {
     { timeout: 30000 },
   );
   await call("select", village.tile);
-  // Its name, once the inspector has it.
-  await page.waitForFunction(
-    (sel) => /\w/.test(document.querySelector(sel)?.textContent ?? ""),
-    `${inspector} h2`,
-    { timeout: 15000 },
-  );
-  return (await page.locator(`${inspector} h2`).first().textContent()) ?? "";
+  return title();
 });
 await step("an unimportant citizen", async () => {
-  await page.locator(`${inspector} .act`, { hasText: "Meet a family" }).click();
-  await page.waitForSelector(`${inspector} .family .person`, { timeout: 15000 });
-  await page.click(`${inspector} .family .person`);
-  await page.locator(`${inspector} .why .claim`).first().waitFor({ timeout: 15000 });
-  // Their name, once their life has been told.
-  await page.waitForFunction(
-    (sel) => !/^[.…\s]*$/.test(document.querySelector(sel)?.textContent ?? ""),
-    `${inspector} h2`,
-    { timeout: 30000 },
-  );
-  return (await page.locator(`${inspector} h2`).first().textContent()) ?? "";
+  // A family of the town met: its household's page, then one of them.
+  await tab("Families");
+  const before = await title();
+  await page.locator(`${win} .act`, { hasText: "Meet a family" }).click();
+  await title(before);
+  const who = await openEntry(/./);
+  await claims(0);
+  return who;
 });
 await step("a formative memory", async () => {
-  const memory = page.locator(`${inspector} .memory, ${inspector} .life button`).first();
-  await memory.waitFor({ timeout: 15000 });
-  await memory.click();
-  return (await page.locator(`${inspector} .why .claim`).first().textContent()) ?? "";
+  // What they remember; or, if nothing yet, what their life has brought.
+  const tabs = await page.locator(`${win} .tab`).allTextContents();
+  await tab(tabs.includes("Memories") ? "Memories" : "Life");
+  await openEntry(/./);
+  return (await claims(0))[0] ?? "";
 });
 async function chronicled(types: string[]): Promise<string> {
   const c = await query<{ events?: { type: string; ref: string }[] }>("chronicle", {
@@ -227,28 +235,41 @@ await step("deposit", async () => {
     .click()
     .catch(() => {});
   await call("select", deposits[0]!.cell);
-  const name = await openPage(/units of/);
+  await title();
+  // What lies in the land's ground.
+  await tab("Land");
+  const name = await openEntry(/./);
   return `${name}: ${(await claims(0))[0]}`;
 });
 await step("geology", async () => {
-  const plate = await openPage(/^It lies on a/, /plate/);
+  const plate = await openLink(/plate/);
   const said = (await claims(0))[0];
-  await openPage(/deep past/, /deep past/);
-  const ages = await page.locator(`${inspector} .page .line`).count();
+  // The ages of the deep past, from the deposit's own (or the first of them).
+  await page.locator(`${win} .nav-back`).click();
+  await title(plate);
+  const age = page.locator(`${win} .ref-link`, { hasText: /deep past/ });
+  if (await age.count()) await openLink(/deep past/);
+  else await call("open", "age:0:0");
+  await title(plate);
+  const ages = await page.locator(`${win} .line.entry`, { hasText: /million years ago/ }).count();
   if (!ages) throw new Error("no ages of the deep past");
   return `${plate}: ${said}; ${ages} ages of the deep past`;
 });
 await step("back out", async () => {
-  // Back through the pages, one at a time, to the land's own facts.
-  for (let i = 0; i < 6; i++) {
-    const back = page.locator(`${inspector} .page .back`).first();
-    if (!(await back.count()) || !(await back.isVisible())) break;
+  // Back through the pages, one at a time, to the land's own.
+  for (let i = 0; i < 12; i++) {
+    const back = page.locator(`${win} .nav-back`).first();
+    if (await back.isDisabled()) break;
+    const was = (await page.locator(`${win} .page-title`).first().textContent()) ?? "";
     await back.click();
-    await page.waitForTimeout(400);
+    await title(was);
+    if (/'s land$|^The .* at /.test((await page.locator(`${win} .page-title`).textContent()) ?? ""))
+      break;
   }
-  if (!(await page.locator(`${inspector} .facts`).first().isVisible()))
+  const t = (await page.locator(`${win} .page-title`).first().textContent()) ?? "";
+  if (!(await page.locator(`${win} .fact`).first().isVisible()))
     throw new Error("the land's own page did not come back");
-  return `back to ${(await page.locator(`${inspector} h2`).first().textContent()) ?? ""}`;
+  return `back to ${t}`;
 });
 await page.close();
 

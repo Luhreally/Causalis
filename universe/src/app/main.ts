@@ -37,6 +37,7 @@ import {
   WorldPanel,
   GalaxyPanel,
   GuidedWalk,
+  PageWindow,
   type PeopleEntry,
 } from "../ui/index.ts";
 import type {
@@ -46,6 +47,7 @@ import type {
   VillagePlan,
   WorldGlobe,
   GalaxyPlan,
+  Place,
   StarPage,
   WarsMap,
 } from "../bridge/index.ts";
@@ -163,6 +165,11 @@ type Exposed = {
   faceSpot?: (spot: number, distance?: number) => void;
   /** Zoom on through to the next scale in or out, and which scale is shown (M88, for the look tools). */
   zoomThrough?: (way: "in" | "out") => Promise<void>;
+  /** Open a thing's page (Phase 10 M92), and the page open now. */
+  open?: (ref: string) => Promise<void>;
+  pageOpen?: () => string | null;
+  /** Go to where a thing is to be seen. */
+  goTo?: (ref: string) => Promise<void>;
   scale?: () => string;
   /** Everyone in sight now, and what they are at (for the look tools). */
   peopleNow?: () => {
@@ -347,8 +354,18 @@ async function runPlanetPage(): Promise<void> {
     labels = new LabelLayer(hud),
     // What the people in view are saying, in signs over their heads (M86).
     bubbles = new LabelLayer(hud, "bubble"),
-    tidings = new Tidings(hud, client);
+    tidings = new Tidings(hud, client),
+    // Every thing's page, in one window (Phase 10 M92).
+    pageWindow = new PageWindow(hud, client);
   planetPanel.tidings = regionPanel.tidings = villagePanel.tidings = tidings;
+  pageWindow.tidings = tidings;
+  // (The world's own pages — its chronicle, saves, settings — open in its panel instead.)
+  planetPanel.onWorldPage = () => pageWindow.close();
+  // While a page is open the scales' own windows stand aside (their sheets would cover it).
+  pageWindow.onOpen = () => document.body.classList.add("paging");
+  pageWindow.onClose = () => document.body.classList.remove("paging");
+  exposed.open = (ref: string) => pageWindow.open(ref);
+  exposed.pageOpen = () => pageWindow.current;
   // The guided walk: on a first visit (not for a machine driving the page, unless asked
   // with ?walk), and again from Help.
   const walk = new GuidedWalk(planetPanel.bar);
@@ -359,6 +376,7 @@ async function runPlanetPage(): Promise<void> {
     walk.start();
   planetPanel.onHelp = () => walk.start();
   planetPanel.onAsked = () => walk.saw("why");
+  pageWindow.onAsked = () => walk.saw("why");
   exposed.walk = () => walk.current;
   // Quality (M76): the viewer's choice, kept in this browser, or Auto — from the device's
   // kind, stepping down while frames drag (and up where a display runs faster than 60).
@@ -413,7 +431,7 @@ async function runPlanetPage(): Promise<void> {
   planetPanel.qualityNow = () => ({ choice, name: stage.quality.name, fps });
   exposed.quality = () => stage.quality.name;
   exposed.setQuality = (c: string) => setChoice(c as QualityName | "auto");
-  labels.blockers = [regionPanel.inspector, villagePanel.inspector];
+  labels.blockers = [regionPanel.inspector, villagePanel.inspector, pageWindow.inspector];
   bubbles.blockers = labels.blockers;
   // The signs' font, readied before any village is entered: its first drawing is slow (a
   // colour font loaded and its glyphs drawn), and would otherwise stall a frame there.
@@ -542,10 +560,21 @@ async function runPlanetPage(): Promise<void> {
   const aspect = () => Math.max(0.3, innerWidth / Math.max(1, innerHeight));
   const globeFit = () => (aspect() < 1 ? 3.1 / aspect() : 3.3);
   const regionFit = () => (aspect() < 1 ? 120 / aspect() : 130);
+  // A land touched on the globe: its page (a spot of the sea, the spot's own).
   const selectCell = (cell: number | null) => {
-    if (cell !== null) walk.saw("land");
     globe.mark(cell);
-    void planetPanel.select(cell);
+    if (cell === null) {
+      pageWindow.close();
+      return;
+    }
+    walk.saw("land");
+    const frame = client.latestFrame("globe"),
+      province = (frame?.arrays.province as Int32Array | undefined)?.[cell] ?? -1;
+    if (province >= 0) {
+      // (Its region readied, so "go to" and zooming in draw at once.)
+      void client.query({ type: "region.prepare", args: { cell: province } }).catch(() => {});
+      void pageWindow.open(`cell:0:${province}`);
+    } else void pageWindow.open(`spot:0:${cell}`);
   };
   const selectTile = (tile: number | null) => {
     region.mark(tile);
@@ -553,8 +582,20 @@ async function runPlanetPage(): Promise<void> {
     const hit = village === null ? undefined : villages.find((v) => v.tile === village);
     if (hit) {
       region.mark(hit.tile);
-      void regionPanel.selectVillage(hit.ref);
-    } else void regionPanel.select(tile);
+      void pageWindow.open(hit.ref);
+      return;
+    }
+    if (tile === null) {
+      pageWindow.close();
+      return;
+    }
+    // The ground there: what lies in it, or the land's own page.
+    void client
+      .query<{ deposit: { ref: string } | null }>({
+        type: "tile",
+        args: { center: regionCell, tile },
+      })
+      .then((t) => pageWindow.open(t.deposit ? t.deposit.ref : `cell:0:${regionCell}`));
   };
   const rig = new OrbitRig(stage, canvas, {
     distance: globeFit(),
@@ -589,7 +630,10 @@ async function runPlanetPage(): Promise<void> {
       coveredAt = now;
       const h = Math.max(1, innerHeight),
         bar = hud.querySelector<HTMLElement>(".panel:not([hidden]) .bar"),
-        sheet = hud.querySelector<HTMLElement>(".panel:not([hidden]) .inspector:not([hidden])"),
+        // (A page open stands over the scales' own windows.)
+        sheet =
+          hud.querySelector<HTMLElement>(".page-panel .inspector:not([hidden])") ??
+          hud.querySelector<HTMLElement>(".panel:not([hidden]) .inspector:not([hidden])"),
         s = sheet?.getBoundingClientRect(),
         // A sheet across the foot of the screen (a phone's), not a column at its side.
         across = !!s && s.width > innerWidth * 0.8 && s.bottom > h - 40;
@@ -674,7 +718,12 @@ async function runPlanetPage(): Promise<void> {
     stopSky: (() => void) | null = null;
   const selectBody = (i: number | null) => {
     skyScene.mark(i);
-    systemPanel.select(i);
+    const b = i === null ? undefined : systemPlan?.bodies[i];
+    if (b) void pageWindow.open(b.ref);
+    else {
+      pageWindow.close();
+      systemPanel.select(null);
+    }
   };
   const toSystem = async () => {
     scale = "system";
@@ -780,7 +829,12 @@ async function runPlanetPage(): Promise<void> {
   const clusterPanel = new ClusterPanel(hud, client);
   const selectStar = (i: number | null) => {
     starScene.mark(i, clusterPlan);
-    void clusterPanel.select(i);
+    const s = i === null ? undefined : clusterPlan?.stars[i];
+    if (s) void pageWindow.open(s.ref);
+    else {
+      pageWindow.close();
+      void clusterPanel.select(null);
+    }
   };
   const toCluster = async () => {
     scale = "cluster";
@@ -1284,23 +1338,19 @@ async function runPlanetPage(): Promise<void> {
     const i = village.pick(x, y);
     if (i !== null) return selectPerson(i);
     const beast = village.pickBeast(x, y);
-    if (!beast) return selectPerson(null);
+    if (!beast) {
+      selectPerson(null);
+      pageWindow.close();
+      return;
+    }
     selectPerson(null);
-    villagePanel.showBeast(beast);
+    void pageWindow.open(beast.ref).then(() => pageWindow.setLive(`Now ${beast.doing}`));
   };
   const selectPerson = (i: number | null) => {
     watched = i;
     village.mark(i);
     if (i === null || !plan) return;
-    const p = plan.people[i]!;
-    if (p.ref.startsWith("agent:"))
-      void villagePanel.showAgent(
-        Number(p.ref.slice("agent:".length)),
-        p.name,
-        p.age,
-        p.child ? "a child" : (WORK_WORDS[p.occupation] ?? "at work"),
-      );
-    else void villagePanel.showPerson(p.ref);
+    void pageWindow.open(plan.people[i]!.ref);
   };
   regionPanel.onWatch = (ref) => void toVillage(ref);
   villagePanel.onSpeed = (s) => client.setSpeed(s);
@@ -1318,7 +1368,13 @@ async function runPlanetPage(): Promise<void> {
     stage.daylight((t % DAY) / DAY);
     village.update(t);
     villagePanel.tick(t);
-    if (watched !== null) villagePanel.moment(village.momentAt(watched));
+    if (watched !== null) {
+      villagePanel.moment(village.momentAt(watched));
+      // (What they are doing now, on their page.)
+      const m = village.momentAt(watched),
+        p = plan.people[watched];
+      if (m && p && pageWindow.current === p.ref) pageWindow.setLive(villagePanel.nowWords(m));
+    }
     // The years turn: re-read the plan, so those who died are gone.
     if (Math.floor(clock.t / YEAR) !== planYear) void loadPlan(plan.ref);
     if (signs) bubbles.update(village.bubbles());
@@ -1350,6 +1406,95 @@ async function runPlanetPage(): Promise<void> {
   exposed.bubblesNow = () => (scale === "village" ? village.bubbles() : []);
   exposed.peopleNow = () => (scale === "village" ? village.peopleNow() : []);
   exposed.rig = rig;
+
+  // Going to anything (Phase 10 M92): a page's place, from whatever scale is up — the scale
+  // left as its own way back would leave it, the world's clock given back, and the way
+  // there taken under one fade (through the world, which every scale opens from).
+  const leaveScale = () => {
+    if (scale === "village") {
+      village.visible = false;
+      villagePanel.visible = false;
+      plan = null;
+      watched = null;
+      client.setSpeed(planetPanel.speed);
+    } else if (
+      scale === "system" ||
+      scale === "cluster" ||
+      scale === "galaxy" ||
+      scale === "world"
+    ) {
+      stopSky?.();
+      stopSky = null;
+      client.setSpeed(planetPanel.speed);
+      galaxyScene.visible = false;
+      galaxyPanel.visible = false;
+      worldScene.visible = false;
+      worldPanel.visible = false;
+    }
+  };
+  const goTo = async (place: Place) => {
+    walk.saw("scale");
+    const town =
+      place.scale === "village"
+        ? await client.query<{ cell: number }>({ type: "settlement", args: { ref: place.town } })
+        : null;
+    const star =
+      place.scale === "world"
+        ? await client.query<StarPage>({ type: "galaxy.star", args: { ref: place.star } })
+        : null;
+    await fadeOver(async () => {
+      leaveScale();
+      if (scale !== "globe") toGlobe();
+      switch (place.scale) {
+        case "globe":
+          faceSpot(place.spot, 2.2);
+          globe.mark(place.spot);
+          return;
+        case "region":
+          await ready("the land", () => toRegion(place.cell));
+          if (place.tile !== undefined) region.mark(place.tile);
+          return;
+        case "village": {
+          regionCell = town!.cell;
+          await ready("the village", () => toVillage(place.town));
+          const who = place.person;
+          if (who && plan) {
+            const i = plan.people.findIndex((p) => p.ref === who);
+            if (i >= 0) {
+              watched = i;
+              village.mark(i);
+            }
+          }
+          return;
+        }
+        case "system":
+          await ready("the sky", () => toSystem(), true);
+          if (place.body !== undefined) skyScene.mark(place.body);
+          return;
+        case "body":
+          await ready("the sky", () => toSystem(), true);
+          await toWorld(place.index);
+          return;
+        case "cluster": {
+          await ready("the stars about us", () => toCluster(), true);
+          const i = clusterPlan?.stars.findIndex((x) => x.ref === place.star) ?? -1;
+          if (i >= 0) starScene.mark(i, clusterPlan);
+          return;
+        }
+        case "galaxy":
+          await ready("the galaxy", () => toGalaxy(), true);
+          return;
+        case "world":
+          await toForeignWorld(star!, place.index, "cluster");
+          return;
+      }
+    });
+  };
+  pageWindow.onGoTo = (place) => void goTo(place);
+  exposed.goTo = async (ref: string) => {
+    const place = await client.query<Place | null>({ type: "place", args: { ref } });
+    if (place) await goTo(place);
+  };
 
   regionPanel.onBack = () => toGlobe();
   regionPanel.onClose = () => region.mark(null);

@@ -14,3 +14,4 @@ export { WhyTree, el, type WhyNode } from "./why.ts";
 export { claimWords, eventWords, roleWords, speedWords, when } from "./words.ts";
 export { Tidings, type Tiding } from "./tidings.ts";
 export { GuidedWalk, type WalkCue } from "./walk.ts";
+export { PageWindow } from "./inspector.ts";

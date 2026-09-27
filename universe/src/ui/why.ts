@@ -32,6 +32,8 @@ const BASIS_NOTES: Record<string, string> = {
 
 export class WhyTree {
   private readonly client: HostClient;
+  /** Open a claim's own page (Phase 10 M92): each claim of the tree is then a link. */
+  onOpen: ((ref: string) => void) | null = null;
   constructor(client: HostClient) {
     this.client = client;
   }
@@ -44,8 +46,18 @@ export class WhyTree {
   }
 
   private node(node: WhyNode): HTMLElement {
-    const box = el("div", "why-node");
-    box.append(el("div", `claim basis-${node.basis}`, claimWords(node.claim, node.ref)));
+    const box = el("div", "why-node"),
+      claim = el("div", `claim basis-${node.basis}`, claimWords(node.claim, node.ref));
+    if (this.onOpen) {
+      // (Every claim is a thing of its own: its page opens from here.)
+      const open = el("button", "open-ref", "›"),
+        onOpen = this.onOpen;
+      open.title = "Open its page";
+      open.setAttribute("aria-label", "Open its page");
+      open.onclick = () => onOpen(node.ref);
+      claim.append(open);
+    }
+    box.append(claim);
     if (node.causes.length) {
       const list = el("ul");
       for (const c of node.causes) {

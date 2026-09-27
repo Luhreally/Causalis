@@ -166,25 +166,27 @@ for (const engine of engines) {
           // Pick the spot at the middle of the most peopled province.
           c.select!([...map].sort((a, b) => b.people - a.people || a.cell - b.cell)[0]!.centre);
         });
+        // Its page (Phase 10 M92): its market and its realm, each a tab of its own.
         await page.waitForFunction(
-          () =>
-            [...document.querySelectorAll(".panel:not([hidden]) .inspector h3")].some(
-              (h) => h.textContent === "Their market",
-            ) &&
-            [...document.querySelectorAll(".panel:not([hidden]) .inspector h3")].some(
-              (h) => h.textContent === "Their rulers",
-            ) &&
-            document.querySelectorAll(".panel:not([hidden]) .inspector .line").length > 3,
+          () => {
+            const tabs = [...document.querySelectorAll(".page-window .tab")].map(
+              (t) => t.textContent,
+            );
+            return tabs.includes("Economy") && tabs.includes("Realm");
+          },
           undefined,
           { timeout: 10000 },
         );
+        await page.click(".page-window .tab:has-text('Economy')");
+        await page.waitForSelector(".page-window .table .entry", { timeout: 10000 });
         if (shotsAt && !query.includes("inline"))
           await page.screenshot({ path: join(shotsAt, `${engine}-market.png`) });
         // Their language, and the globe coloured by languages (hues by family).
+        await page.click(".page-window .tab:has-text('People')");
         await page.waitForFunction(
           () =>
-            [...document.querySelectorAll(".panel:not([hidden]) .inspector .line")].some((x) =>
-              x.textContent?.startsWith("They speak "),
+            [...document.querySelectorAll(".page-window .fact-label")].some(
+              (x) => x.textContent === "Tongue",
             ),
           undefined,
           { timeout: 10000 },
@@ -199,16 +201,17 @@ for (const engine of engines) {
           await page.screenshot({ path: join(shotsAt, `${engine}-tongues.png`) });
         }
         // The god's hand: withhold the rain here, confirm, and see the act listed.
-        await page.waitForSelector(".panel:not([hidden]) .tool", { timeout: 10000 });
+        await page.click(".page-window .tab:has-text('Overview')");
+        await page.waitForSelector(".page-window .tool", { timeout: 10000 });
         await page.evaluate(() =>
-          [...document.querySelectorAll<HTMLButtonElement>(".panel:not([hidden]) .tool")]
+          [...document.querySelectorAll<HTMLButtonElement>(".page-window .tool")]
             .find((b) => b.textContent === "Withhold the rain")!
             .click(),
         );
-        await page.click(".panel:not([hidden]) .confirm .act");
+        await page.click(".page-window .confirm .act");
         await page.waitForFunction(
           () =>
-            [...document.querySelectorAll(".panel:not([hidden]) .inspector .line")].some((l) =>
+            [...document.querySelectorAll(".page-window .line")].some((l) =>
               /^By your hand: you withheld the rain/.test(l.textContent ?? ""),
             ),
           undefined,
@@ -217,11 +220,10 @@ for (const engine of engines) {
         if (shotsAt && !query.includes("inline"))
           await page.screenshot({ path: join(shotsAt, `${engine}-hand.png`) });
         // Follow the land: the toggle holds, and news of it comes as the years pass.
-        await page.click(".panel:not([hidden]) .inspector .follow");
+        await page.click(".page-window .follow");
         await page.waitForFunction(
           () =>
-            document.querySelector(".panel:not([hidden]) .inspector .follow")?.textContent ===
-            "Following this land ✓",
+            document.querySelector(".page-window .follow")?.textContent === "Following this land ✓",
           undefined,
           { timeout: 10000 },
         );
@@ -231,7 +233,8 @@ for (const engine of engines) {
         );
         console.log(`${(label + " tidings").padEnd(24)} ${later.mode.padEnd(9)} ${news}`);
         // Its years as charts, and the chronicle of the world.
-        await page.waitForSelector(".panel:not([hidden]) .inspector .chart svg", {
+        await page.click(".page-window .tab:has-text('People')");
+        await page.waitForSelector(".page-window .chart svg", {
           timeout: 10000,
         });
         await page.evaluate(() =>
@@ -305,43 +308,54 @@ for (const engine of engines) {
             village.tile,
           );
           // A shrine raised by the god's hand: confirmed, then listed with its why.
-          const shrine = page.locator(".panel:not([hidden]) .inspector:not([hidden]) .tool", {
+          const shrine = page.locator(".page-window .tool", {
             hasText: "Raise a shrine",
           });
           await shrine.waitFor({ timeout: 10000 });
           await shrine.click();
           await page
-            .locator(".panel:not([hidden]) .inspector:not([hidden]) .tool", {
-              hasText: "Raise it — confirm",
+            .locator(".page-window .tool", {
+              hasText: "Raise a shrine — confirm",
             })
             .click();
           await page
-            .locator(".panel:not([hidden]) .inspector:not([hidden]) .line", {
+            .locator(".page-window .line", {
               hasText: "A shrine you raised stands here",
             })
             .waitFor({ timeout: 10000 });
-          const meet = page.locator(".panel:not([hidden]) .inspector:not([hidden]) .act", {
+          // A family met (the town's Families): its household's page, then one of them.
+          await page.click(".page-window .tab:has-text('Families')");
+          const meet = page.locator(".page-window .act", {
             hasText: "Meet a family",
           });
           await meet.waitFor({ timeout: 10000 });
           await meet.click();
-          await page.waitForSelector(".panel:not([hidden]) .inspector .family .person", {
-            timeout: 10000,
-          });
+          await page.waitForFunction(
+            () =>
+              / household$/.test(
+                document.querySelector(".page-window .page-title")?.textContent ?? "",
+              ),
+            undefined,
+            { timeout: 10000 },
+          );
           if (shotsAt && !query.includes("inline"))
             await page.screenshot({ path: join(shotsAt, `${engine}-village.png`) });
-          await page.click(".panel:not([hidden]) .inspector .family .person");
+          await page.click(".page-window .line.entry");
           await page.waitForFunction(
             () => {
-              const panel = document.querySelector(".panel:not([hidden]) .inspector");
-              const title = panel?.querySelector("h2")?.textContent ?? "…";
-              return title !== "…" && title.includes(" ") && !!panel?.querySelector(".why .claim");
+              const title = document.querySelector(".page-window .page-title")?.textContent ?? "…";
+              return (
+                title !== "…" &&
+                !/household$/.test(title) &&
+                title.includes(" ") &&
+                !!document.querySelector(".page-window .why .claim")
+              );
             },
             undefined,
             { timeout: 10000 },
           );
           const who = await page.evaluate(
-            () => document.querySelector(".panel:not([hidden]) .inspector h2")?.textContent ?? "",
+            () => document.querySelector(".page-window .page-title")?.textContent ?? "",
           );
           console.log(
             `${(label + " people").padEnd(24)} ${later.mode.padEnd(9)} met ${who} of ${village.name}`,
