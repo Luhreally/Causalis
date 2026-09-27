@@ -7,9 +7,10 @@
 // connected to where they arose, as far as the climate suits them: so continents
 // differ in what lives on them. Last of all, where the most kinds of beast lived on
 // warm, watered land, the upright apes arose — the people — and that is the cradle.
-// Some grazers are docile, herd-living and quick to grow, and can be tamed; some
-// grasses bear seed heavy enough to sow: where they live, herding and sowing can be
-// found; elsewhere they must be learned.
+// Some grazers are docile, herd-living and quick to grow, and can be tamed (under the
+// Earthlike prior, always one in the people's own country); some grasses bear seed heavy
+// enough to sow: where they live, herding and sowing can be found; elsewhere they must
+// be learned. The hunters range wherever their game lives on land they can cross.
 import { defineStream, weightedKey, type Rng, type SphereGrid } from "../kernel/index.ts";
 import {
   CLADES,
@@ -409,6 +410,79 @@ export function makeBiosphere(
       apesAt = c;
     }
   }
+  // Earth's own (the Earthlike prior): its first farmers found beasts to tame in their own
+  // country — the land nearest the cradle, a twentieth of the world — as Earth's found
+  // their sheep, goats and cattle. If no grazer there can be tamed, the herd-living one
+  // found nearest the cradle can; if none lives there at all, one arose nearby in the
+  // last age. (The cradle stands as the wild beasts chose it.)
+  if (world.prior === "earthlike" && apesAt >= 0) {
+    const seen = new Uint8Array(n),
+      near = [apesAt];
+    seen[apesAt] = 1;
+    for (let h = 0; h < near.length; h++)
+      for (let k = grid.offsets[near[h]!]!; k < grid.offsets[near[h]! + 1]!; k++) {
+        const m = grid.neighbours[k]!;
+        if (!seen[m] && land(m)) {
+          seen[m] = 1;
+          near.push(m);
+        }
+      }
+    const grazing = (c: number, tame: boolean) =>
+      species.find(
+        (s) =>
+          s.niche === "grazer" &&
+          s.died === null &&
+          (tame ? s.tame : s.size >= 25 && s.size <= 900) &&
+          lives({ present } as Biosphere, c, s.index),
+      );
+    const country = near.slice(0, Math.ceil(n / 20));
+    let herd: Species | undefined;
+    if (!country.some((c) => grazing(c, true))) {
+      for (const c of country) if ((herd = grazing(c, false))) break;
+      if (herd) species[herd.index] = herd = { ...herd, tame: true };
+      else if (species.length < MAX_SPECIES - 1) {
+        const origin = near.find((c) => HABITAT.grazer.includes(climate.biome[c]!));
+        if (origin !== undefined) {
+          const u = (m: number) => rng.real(BIO, AGES, 200 + m, 0),
+            warm = climate.temperature[origin]!,
+            rain = climate.precipitation[origin]!,
+            size = 40 + 200 * u(0),
+            wool = warm < 14 && u(4) < 0.5;
+          let name = nameOf("grazer", warm, rain, size, wool, u(6));
+          for (let turn = 1; turn < COLOURS.length && species.some((x) => x.name === name); turn++)
+            name = nameOf("grazer", warm, rain, size, wool, (u(6) + turn / COLOURS.length) % 1);
+          for (let q = 0; q < KINDS.length && species.some((x) => x.name === name); q++)
+            name = `${KINDS[q]} ${nameOf("grazer", warm, rain, size, wool, u(6))}`;
+          herd = {
+            index: species.length,
+            ref: speciesRef(0, species.length),
+            name,
+            niche: "grazer",
+            arose: AGES - 1,
+            died: null,
+            origin,
+            warm: Math.round(warm),
+            tolerance: 8 + Math.round(8 * u(7)),
+            rainMin: Math.round(rain * 0.4),
+            rainMax: Math.round(rain * 2.2 + 100),
+            size: Math.round(size),
+            herd: Math.round((0.6 + 0.4 * u(1)) * 100) / 100,
+            docility: Math.round((0.5 + 0.4 * u(2)) * 100) / 100,
+            growth: Math.round((0.4 + 0.5 * u(3)) * 100) / 100,
+            wool,
+            seed: 0,
+            tame: true,
+          };
+          species.push(herd);
+          spread(herd);
+        }
+      }
+    }
+    if (herd)
+      for (let c = 0; c < n; c++)
+        if (herdBeast[c]! < 0 && lives({ present } as Biosphere, c, herd.index))
+          herdBeast[c] = herd.index;
+  }
   // A people of the water arise on a warm reef shelf by a coast; one of the shore on warm
   // land where such a shelf meets it.
   const shelfBy = (c: number) => {
@@ -437,6 +511,53 @@ export function makeBiosphere(
     } else if (land(c) && shelfBy(c) > 0 && climate.biome[c] !== BIOME.ice) {
       const score = mild * (1 + shelfBy(c) + diversity[c]!) * u;
       if (score > shoreScore) [shoreAt, shoreScore] = [c, score];
+    }
+  }
+  // The hunters follow their prey (Phase 8 M77): beyond the country that suits them best,
+  // a hunting lineage crosses the land joined to its own, within a wider warmth than it
+  // thrives at, and lives wherever its game lives there — so most lands with game have
+  // their hunters, and a land no hunter can reach has none. (Reckoned after the cradle,
+  // which the beasts chose where they first lived, and leaving the count of kinds as it was.)
+  const preyMask = new Uint32Array(2);
+  for (const s of species)
+    if (
+      s.died === null &&
+      (s.niche === "grazer" || s.niche === "browser" || s.niche === "great beast")
+    )
+      preyMask[s.index >> 5] = (preyMask[s.index >> 5]! | (1 << (s.index & 31))) >>> 0;
+  const hasPrey = (c: number) =>
+    ((present[2 * c]! & preyMask[0]!) | (present[2 * c + 1]! & preyMask[1]!)) !== 0;
+  for (const s of species) {
+    if (s.died !== null || s.niche !== "hunter") continue;
+    const roams = (c: number) =>
+        land(c) &&
+        climate.biome[c] !== BIOME.ice &&
+        Math.abs(climate.temperature[c]! - s.warm) <= s.tolerance + 14,
+      bit = 1 << (s.index & 31),
+      word = s.index >> 5,
+      seen = new Uint8Array(n),
+      queue: number[] = [];
+    for (let c = 0; c < n; c++)
+      if ((present[2 * c + word]! & bit) !== 0) {
+        seen[c] = 1;
+        queue.push(c);
+      }
+    // (A lineage whose best country held no cell of its own starts where it arose.)
+    if (!queue.length && roams(s.origin)) {
+      seen[s.origin] = 1;
+      queue.push(s.origin);
+    }
+    for (let h = 0; h < queue.length; h++) {
+      const c = queue[h]!;
+      // (Passing through where there is no game; living where there is.)
+      if (hasPrey(c)) present[2 * c + word] = (present[2 * c + word]! | bit) >>> 0;
+      for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++) {
+        const m = grid.neighbours[k]!;
+        if (!seen[m] && roams(m)) {
+          seen[m] = 1;
+          queue.push(m);
+        }
+      }
     }
   }
   const cradleOf: Record<Medium, number> = { land: apesAt, water: seaAt, shore: shoreAt };

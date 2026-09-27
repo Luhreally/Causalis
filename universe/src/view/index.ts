@@ -48,6 +48,30 @@ export {
 } from "./village.ts";
 
 export {
+  BEAST_KINDS,
+  BEAST_SCALE,
+  MOST_PARTS,
+  beastsAt,
+  birdsAt,
+  bodyOf,
+  coatOf,
+  doingOf,
+  faunaOf,
+  fishAt,
+  kindOf,
+  posed,
+  type BeastKind,
+  type BeastNow,
+  type BeastPart,
+  type BirdNow,
+  type Body as BeastBody,
+  type Coat,
+  type Fauna,
+  type FaunaSpecies,
+  type FishNow,
+  type Pose,
+} from "./fauna.ts";
+export {
   figureOf,
   paceOf,
   type Figure,

@@ -2,11 +2,12 @@
 // families met there — meeting more if few are known, which is the observer's own
 // act and never history's — and where their village stands: its homes, its
 // fields toward the better ground, its pasture, the wild beyond, the square or the
-// market at its heart, the road out. Everything here is looked at, not lived: the
+// market at its heart, the road out — and what lives about it: the land's wild beasts,
+// its hunters and its flocks (Phase 8 M77). Everything here is looked at, not lived: the
 // people's day is drawn from this plan by the view, and nothing flows back.
 import { finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
-import { WATER } from "../gen/index.ts";
-import { roofPitch } from "../rules/index.ts";
+import { WATER, livingIn, type Species } from "../gen/index.ts";
+import { OCC, roofPitch } from "../rules/index.ts";
 import {
   agentName,
   BLOCK_M,
@@ -22,6 +23,7 @@ import {
   populationContext,
   regionOf,
   USE,
+  wildsOf,
 } from "../sim/index.ts";
 import { meetHousehold, observer, settleAll } from "../causal/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
@@ -66,7 +68,13 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
   }
   const best = [...ways].sort((a, b) => b.soil - a.soil || a.angle - b.angle),
     fieldWay = best[0]?.angle ?? 0,
-    pastureWay = best.at(-1)?.angle ?? Math.PI,
+    // (A village's road leaves between the fields and the poorer ground; the flocks keep off it.)
+    roadWay = fieldWay + Math.PI * 0.75,
+    apart = (a: number, b: number) =>
+      Math.abs(((((a - b) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI),
+    poorWay = best.at(-1)?.angle ?? Math.PI,
+    turn = apart(poorWay + 0.9, fieldWay) > apart(poorWay - 0.9, fieldWay) ? 0.9 : -0.9,
+    pastureWay = apart(poorWay, roadWay) < 0.7 ? poorWay + turn : poorWay,
     waterWay = ways.find((w) => w.water)?.angle ?? null;
 
   // Homes for everyone, the watched among them; five to a home. A city's homes stand
@@ -141,6 +149,16 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       yaw: a,
     });
   }
+  // The pasture lies toward the poorer ground, near the homes where that is clear of the
+  // fields' fan (else just past them); the wild begins beyond the last fields.
+  const outer = fields.reduce(
+      (m, f) => Math.max(m, Math.hypot(f.x, f.z) + Math.max(f.w, f.d) / 2),
+      edge,
+    ),
+    across = apart(pastureWay, fieldWay),
+    pastureR = 90,
+    pastureAt = across > 1.9 ? edge + pastureR + 20 : outer + pastureR + 15,
+    wildAt = Math.round(outer + 60);
   const watched = known().sort((a, b) => a.seq - b.seq),
     people: VillagePlan["people"][number][] = [],
     hand = handOf(world).resting;
@@ -183,6 +201,71 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
   });
   return planOf(people);
 
+  /**
+   * What lives about the village: the land's wild lineages (not those hunted or driven out
+   * of it) with how much of each stands — its game against what it was, its hunters against
+   * as many as the game kept — its flocks and how many of the village keep them, and
+   * whether its hunters raid them.
+   */
+  function faunaOf(cell: number, population: number): NonNullable<VillagePlan["fauna"]> {
+    const g = ctx.generated,
+      w = wildsOf(ctx, cell),
+      land = ctx.provinces.get(cell),
+      wild = livingIn(g.life, cell)
+        .filter(
+          (s) =>
+            !w.lost.includes(s.index) &&
+            (s.niche === "grazer" ||
+              s.niche === "browser" ||
+              s.niche === "great beast" ||
+              s.niche === "hunter"),
+        )
+        .map((s) => ({
+          ref: s.ref,
+          name: s.name,
+          niche: s.niche,
+          size: s.size,
+          wool: s.wool,
+          stock: s.niche === "hunter" ? w.hunters : w.wild,
+        })),
+      pop = land?.total() ?? 0,
+      herders = land && pop > 0 ? land.occupation(OCC.herder) / pop : 0,
+      beast = land?.herding && herders > 0 ? flockBeast(cell, land.herding) : null;
+    return {
+      wild,
+      flock: beast
+        ? {
+            ref: beast.ref,
+            name: beast.name,
+            size: beast.size,
+            wool: beast.wool,
+            herders: Math.max(1, Math.round(population * herders)),
+          }
+        : null,
+      raided: !!w.flocksTaken,
+    };
+  }
+
+  /**
+   * The beast a land's flocks are of: its own that can be tamed, else the one its herding
+   * was first found with, followed back through the lands that taught it (else, if that
+   * history is forgotten, the first living beast the world could tame).
+   */
+  function flockBeast(cell: number, herding: Ref): Species | null {
+    const life = ctx.generated.life,
+      own = life.herdBeast[cell] ?? -1;
+    if (own >= 0) return life.species[own]!;
+    let ref: Ref | null = herding;
+    for (let hops = 0; ref && hops < 64; hops++) {
+      const e = world.events.get(ref);
+      if (!e) break;
+      const beast = (e.data as { beast?: unknown } | null)?.beast;
+      if (typeof beast === "string") return life.species.find((s) => s.name === beast) ?? null;
+      ref = (e.causes[0]?.ref as Ref | undefined) ?? null;
+    }
+    return life.species.find((s) => s.tame && s.niche === "grazer" && s.died === null) ?? null;
+  }
+
   /** The land's house design (realized now if the land has none yet). */
   function houseOf(cell: number): VillagePlan["house"] {
     const design = designsOf(world).of(ctx.provinces.get(cell)!.ref),
@@ -210,11 +293,16 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       seed,
       homes,
       fields,
-      pasture: { x: 560 * Math.cos(pastureWay), z: 560 * Math.sin(pastureWay), r: 150 },
-      wild: 900,
+      pasture: {
+        x: pastureAt * Math.cos(pastureWay),
+        z: pastureAt * Math.sin(pastureWay),
+        r: pastureR,
+      },
+      wild: wildAt,
       water:
         waterWay === null ? null : { x: 700 * Math.cos(waterWay), z: 700 * Math.sin(waterWay) },
       house: houseOf(village.cell),
+      fauna: faunaOf(village.cell, village.population),
       era: (() => {
         // (Sowing is the land's own knowing; smelting shows in its market too.)
         const lore = loreOf(world),
@@ -248,10 +336,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       // A city's road runs along its axis; a village's out toward the far fields.
       road: city
         ? { x: 1100 * Math.cos(city.axis), z: 1100 * Math.sin(city.axis) }
-        : {
-            x: 1100 * Math.cos(fieldWay + Math.PI * 0.75),
-            z: 1100 * Math.sin(fieldWay + Math.PI * 0.75),
-          },
+        : { x: 1100 * Math.cos(roadWay), z: 1100 * Math.sin(roadWay) },
       districts: city
         ? { blocks: BLOCKS, blockM: BLOCK_M, uses: city.uses, paved: !!city.paved }
         : null,

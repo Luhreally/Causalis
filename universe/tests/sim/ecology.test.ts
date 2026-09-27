@@ -27,6 +27,9 @@ const fresh = (): Wilds => ({
   thinned: null,
   cleared: null,
   worn: null,
+  hunter: 0,
+  hunters: 1,
+  flocksTaken: null,
 });
 
 test("pressed hard, the living world gives way; let be, it heals", () => {
@@ -48,6 +51,52 @@ test("pressed hard, the living world gives way; let be, it heals", () => {
   // Let be, the forest comes back slowly.
   for (let y = 0; y < 20; y++) stepWilds(farmed, 0, 0, 0);
   assert.ok(farmed.forest > 0.2 && farmed.forest < 0.8, `regrown ${farmed.forest.toFixed(2)}`);
+});
+
+test("the hunters follow their game, fall under a people who guard their flocks, and come back when let be", () => {
+  // As the game is thinned, so are its hunters.
+  const thinned = fresh();
+  for (let y = 0; y < 40; y++) stepWilds(thinned, 0.95, 0, 0);
+  assert.ok(
+    thinned.hunters < thinned.wild + 0.1 && thinned.hunters < 0.6,
+    `hunters ${thinned.hunters.toFixed(2)}`,
+  );
+  // A people who keep and guard flocks drive them down, well below what the game would keep.
+  const guarded = fresh();
+  for (let y = 0; y < 40; y++) stepWilds(guarded, 0, 0, 0, 0.3);
+  assert.ok(guarded.hunters < 0.5, `guarded ${guarded.hunters.toFixed(2)}`);
+  // Left be, with the game there, they return toward as many as it keeps.
+  for (let y = 0; y < 80; y++) stepWilds(guarded, 0, 0, 0, 0);
+  assert.ok(guarded.hunters > 0.85, `returned ${guarded.hunters.toFixed(2)}`);
+  // A land with no hunting lineage keeps none.
+  const bare = { ...fresh(), hunter: -1, hunters: 0 };
+  for (let y = 0; y < 20; y++) stepWilds(bare, 0, 0, 0, 0);
+  assert.equal(bare.hunters, 0);
+});
+
+test("the default world's lands keep their hunters, and where herders guard their flocks the hunters are driven out or take flocks, and say which", () => {
+  const world = makePopulationWorld(seedFromText("first light"));
+  world.runTo(250 * YEAR);
+  const ctx = populationContext(world),
+    life = homePlanet(world).generated.life,
+    lands = ctx.provinces.all().filter((p) => p.total() > 0),
+    withHunters = lands.filter((p) => wildsOf(ctx, p.cell).hunter >= 0);
+  assert.ok(
+    withHunters.length > lands.length / 4,
+    `${withHunters.length} of ${lands.length} lands have hunters`,
+  );
+  const told = world.events
+    .all()
+    .filter(
+      (e) =>
+        e.type === ECOLOGY_EVENTS.huntersGone.type || e.type === ECOLOGY_EVENTS.flocksTaken.type,
+    );
+  assert.ok(told.length > 0, "hunters driven out or flocks taken somewhere");
+  for (const e of told.slice(0, 5)) {
+    const s = life.species.find((x) => x.ref === e.subjects[0]);
+    assert.equal(s?.niche, "hunter", "a hunting lineage");
+    assert.match(why(world, e.id).claim, new RegExp(s!.name));
+  }
 });
 
 test("the great beasts are hunted out of a foraging land, and history says which and why", () => {

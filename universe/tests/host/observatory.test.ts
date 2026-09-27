@@ -103,6 +103,52 @@ test("a century of watching a village meets its families through the observer an
   );
 });
 
+test("a village's plan says what lives about it: the land's game and hunters as they stand, and its flocks", () => {
+  const before = JSON.stringify(world.domainHashes());
+  const ref = (EARTH.queries.settlements!(world, { cell: CRADLE }) as { ref: string }[])[0]!.ref;
+  type Plan = {
+    pasture: { x: number; z: number; r: number };
+    road: { x: number; z: number };
+    wild: number;
+    fields: { x: number; z: number }[];
+    fauna: {
+      wild: { name: string; niche: string; stock: number; size: number }[];
+      flock: { name: string; herders: number } | null;
+      raided: boolean;
+    };
+  };
+  const plan = EARTH.queries["village.plan"]!(world, { ref }) as Plan,
+    folk = ask<{
+      herding: string | null;
+      wild: { name: string; tame: boolean; niche: string }[];
+      ecology: {
+        wild: number;
+        hunters: { name: string; stock: number } | null;
+        flocksTaken: string | null;
+      };
+    }>("province", { cell: CRADLE });
+  // Its game and its hunters, each as much of it as the land's living world still holds.
+  const game = plan.fauna.wild.filter((s) => s.niche !== "hunter"),
+    hunters = plan.fauna.wild.filter((s) => s.niche === "hunter");
+  assert.ok(game.length >= 1, "game lives about the cradle's village");
+  assert.ok(hunters.length >= 1, "and the hunters that live on it");
+  for (const s of game) assert.equal(s.stock, folk.ecology.wild);
+  assert.equal(hunters[0]!.name, folk.ecology.hunters!.name);
+  assert.equal(hunters[0]!.stock, folk.ecology.hunters!.stock);
+  // Its flocks, where the land keeps them: of a beast that can be tamed, kept by its herders.
+  assert.equal(!!plan.fauna.flock, !!folk.herding);
+  if (plan.fauna.flock) assert.ok(plan.fauna.flock.herders >= 1);
+  assert.equal(plan.fauna.raided, !!folk.ecology.flocksTaken);
+  // The flocks graze off the road, and the wild begins past the fields.
+  const angle = (p: { x: number; z: number }) => Math.atan2(p.z, p.x),
+    apart = Math.abs(
+      ((angle(plan.pasture) - angle(plan.road) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI,
+    );
+  assert.ok(apart > 0.5, `the pasture ${apart.toFixed(2)} rad off the road`);
+  for (const f of plan.fields) assert.ok(Math.hypot(f.x, f.z) < plan.wild);
+  assert.equal(JSON.stringify(world.domainHashes()), before, "looking changes nothing");
+});
+
 test("a lineage, a realm, a deposit, a plate and the deep ages each have a page, and asking changes nothing", () => {
   const before = JSON.stringify(world.domainHashes());
   type Folk = { wild: { ref: string }[]; realm: { ref: string } | null };

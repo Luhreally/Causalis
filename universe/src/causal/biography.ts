@@ -230,7 +230,8 @@ export function deepen(world: World, person: Person): Person {
       town?.ref ?? (crafter ? metal : (road?.id ?? null)) ?? cellRef(0, homeAt),
     );
   } else if (person.occupation === OCC.herder && grownAt >= 0 && grownAt <= to)
-    add(grownAt, "took-up-herding", cellRef(0, homeAt));
+    // (Herding is learned where the land's people keep herds: the taming, as it came to them.)
+    add(grownAt, "took-up-herding", province?.herding ?? cellRef(0, homeAt));
   else if (
     person.occupation === OCC.forager &&
     grownAt >= 0 &&

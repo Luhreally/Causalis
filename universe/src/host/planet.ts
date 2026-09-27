@@ -217,7 +217,13 @@ function province(world: World, cell: number) {
     // or sown first.
     wild: livingIn(homePlanet(world).generated.life, cell)
       .filter((s) => !wildsOf(ctx, cell).lost.includes(s.index))
-      .sort((a, b) => Number(b.tame) - Number(a.tame) || (a.name < b.name ? -1 : 1))
+      .sort(
+        (a, b) =>
+          Number(b.tame) - Number(a.tame) ||
+          // (And its hunters before the rest.)
+          Number(b.niche === "hunter") - Number(a.niche === "hunter") ||
+          (a.name < b.name ? -1 : 1),
+      )
       .map((s) => ({ name: s.name, ref: s.ref, tame: s.tame, niche: s.niche })),
     herding: p.herding,
     // Its living world: the wild, the forest and the soil against what they were.
@@ -232,7 +238,22 @@ function province(world: World, cell: number) {
         thinned: w.thinned,
         cleared: w.cleared,
         worn: w.worn,
-        lost: w.lost.map((i) => ({ name: g.life.species[i]!.name, ref: g.life.species[i]!.ref })),
+        lost: w.lost.map((i) => ({
+          name: g.life.species[i]!.name,
+          ref: g.life.species[i]!.ref,
+          niche: g.life.species[i]!.niche,
+        })),
+        // Its hunters (M77): the lineage, how many against what the game once kept, and
+        // whether they take from the flocks.
+        hunters:
+          w.hunter >= 0 && !w.lost.includes(w.hunter)
+            ? {
+                name: g.life.species[w.hunter]!.name,
+                ref: g.life.species[w.hunter]!.ref,
+                stock: w.hunters,
+              }
+            : null,
+        flocksTaken: w.flocksTaken,
       };
     })(),
     // Their works and power: what drives their crafts, the fuel and machines they make.

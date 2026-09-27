@@ -100,6 +100,8 @@ registerExplainer(PERSON.code, (world, ref) => {
   const province = ctx.provinces.get(person.cell);
   if (person.occupation === OCC.farmer && province?.cultivation)
     causes.push({ ref: province.cultivation, role: "enabler", weight: 0.2 });
+  if (person.occupation === OCC.herder && province?.herding)
+    causes.push({ ref: province.herding, role: "enabler", weight: 0.2 });
   if (!last && person.bornBeforeChronicle && province?.arrival)
     causes.push({ ref: province.arrival, role: "enabler", weight: 0.5 });
   const where = village ? `of ${village.name}` : "of the open country";

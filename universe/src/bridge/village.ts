@@ -57,6 +57,30 @@ export type VillagePlan = {
    * coats, the modern world in bright colours. Absent: farmers.
    */
   readonly era?: "forage" | "farm" | "metal" | "industry" | "modern";
+  /**
+   * What lives about it (Phase 8 M77): the land's wild lineages, each with how much of it
+   * still stands against what the land first held (its hunters, against as many as the
+   * game kept); its flocks and how many of the village keep them; and whether the land's
+   * hunters raid the flocks. Absent: nothing drawn.
+   */
+  readonly fauna?: {
+    readonly wild: readonly {
+      readonly ref: string;
+      readonly name: string;
+      readonly niche: string;
+      readonly size: number;
+      readonly wool: boolean;
+      readonly stock: number;
+    }[];
+    readonly flock: {
+      readonly ref: string;
+      readonly name: string;
+      readonly size: number;
+      readonly wool: boolean;
+      readonly herders: number;
+    } | null;
+    readonly raided: boolean;
+  };
   /** Their body, as the figure needs it (null: upright apes, as ever). */
   readonly body: {
     readonly clade: string;

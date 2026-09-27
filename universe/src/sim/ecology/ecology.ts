@@ -5,6 +5,10 @@
 // from the forest; farming wears the soil unless the land rests its fields in turn or
 // dungs them. Each regrows toward its first state as the pressure eases. Where the wild
 // runs thin the great beasts are hunted out; where the forest is gone, wood is scarce.
+// Beside the game stand its hunters (Phase 8 M77): the land's own hunting lineage, as
+// many as its game can keep — fewer as the game is thinned, fewer still under a people
+// who hunt them and guard their flocks from them, and driven out where they press hard;
+// where they are about, they take a share of the flocks.
 // What each stock stands at feeds the year's food, and each turn is history.
 import {
   YEAR,
@@ -30,6 +34,8 @@ const HUNT = defineStream("ecology.hunt");
 export const ECOLOGY_EVENTS = {
   thinned: defineEventType("ecology.wild-thinned", 3),
   huntedOut: defineEventType("ecology.hunted-out", 4),
+  huntersGone: defineEventType("ecology.hunters-gone", 4),
+  flocksTaken: defineEventType("ecology.flocks-taken", 3),
   cleared: defineEventType("ecology.forest-cleared", 3),
   worn: defineEventType("ecology.soil-worn", 3),
 };
@@ -45,6 +51,11 @@ export type Wilds = {
   readonly firstForest: number;
   /** The lineages hunted out of it (species indices). */
   lost: number[];
+  /** The land's hunting lineage (a species index, -1 none), and its hunters against as many as its untouched game kept. */
+  readonly hunter: number;
+  hunters: number;
+  /** The event of the flocks' losses to the hunters turning heavy (null once they ease). */
+  flocksTaken: Ref | null;
   /** The events of each stock's last turn for the worse (null once it has recovered). */
   thinned: Ref | null;
   cleared: Ref | null;
@@ -67,7 +78,7 @@ export class EcologyStore implements StateStore {
   pinned(): Ref[] {
     const refs: Ref[] = [];
     for (const w of this.map.values())
-      for (const r of [w.thinned, w.cleared, w.worn]) if (r) refs.push(r);
+      for (const r of [w.thinned, w.cleared, w.worn, w.flocksTaken]) if (r) refs.push(r);
     return refs;
   }
   hashInto(h: Hasher): void {
@@ -79,14 +90,25 @@ export class EcologyStore implements StateStore {
         .value(w.lost)
         .string(w.thinned ?? "")
         .string(w.cleared ?? "")
-        .string(w.worn ?? "");
+        .string(w.worn ?? "")
+        .int(w.hunter)
+        .float(w.hunters)
+        .string(w.flocksTaken ?? "");
   }
   save(): unknown {
     return { lands: this.all() };
   }
   load(state: unknown): void {
     this.map.clear();
-    for (const w of (state as { lands: Wilds[] }).lands) this.set({ ...w, lost: [...w.lost] });
+    for (const w of (state as { lands: Wilds[] }).lands)
+      this.set({
+        ...w,
+        lost: [...w.lost],
+        // (A save from before the hunters knew none.)
+        hunter: w.hunter ?? -1,
+        hunters: w.hunters ?? 0,
+        flocksTaken: w.flocksTaken ?? null,
+      });
   }
 }
 
@@ -117,22 +139,36 @@ export function firstForest(g: HomeWorld, cell: number): number {
   return land > 0 ? forest / land : 0;
 }
 
+/** The land's hunting lineage: the first of the hunters that live there (-1 none). */
+export function hunterOf(g: HomeWorld, cell: number): number {
+  for (const s of g.life.species)
+    if (s.niche === "hunter" && s.died === null && lives(g.life, cell, s.index)) return s.index;
+  return -1;
+}
+
 /** How a land's living world stands (as it was at first where no one has touched it). */
 export function wildsOf(ctx: PopulationContext, cell: number): Wilds {
-  return (
-    ecologyOf(ctx.world).get(cell) ?? {
-      cell,
-      wild: 1,
-      forest: 1,
-      soil: 1,
-      firstForest: firstForest(ctx.generated, cell),
-      lost: [],
-      thinned: null,
-      cleared: null,
-      worn: null,
-    }
-  );
+  const known = ecologyOf(ctx.world).get(cell);
+  if (known) return known;
+  const hunter = offworldSite(ctx.generated, cell) ? -1 : hunterOf(ctx.generated, cell);
+  return {
+    cell,
+    wild: 1,
+    forest: 1,
+    soil: 1,
+    firstForest: firstForest(ctx.generated, cell),
+    lost: [],
+    thinned: null,
+    cleared: null,
+    worn: null,
+    hunter,
+    hunters: hunter >= 0 ? 1 : 0,
+    flocksTaken: null,
+  };
 }
+
+/** The share of a land's flocks its hunters take in a year, at their full number. */
+export const FLOCK_LOSS = 0.08;
 
 /** What a land feeds as its living world stands: the wild's food by the wild, fields by the soil. */
 export function living(c: Capacity, w: Wilds): Capacity {
@@ -151,7 +187,14 @@ const WILD_REGROWTH = 0.08,
  * the fields unless they are rested in turn or dunged (`rest`, 0..1), and heals where
  * they lie fallow.
  */
-export function stepWilds(w: Wilds, take: number, farmed: number, rest: number): void {
+export function stepWilds(
+  w: Wilds,
+  take: number,
+  farmed: number,
+  rest: number,
+  /** The share of the land's people who keep flocks (and guard them). */
+  herding = 0,
+): void {
   // A people living close to what the wild yields (taking more than three-fifths of it)
   // thin it, the more the harder they press; a wild pressed less grows back toward what
   // it was.
@@ -173,6 +216,21 @@ export function stepWilds(w: Wilds, take: number, farmed: number, rest: number):
       w.soil - 0.01 * farmed * (1 - Math.min(1, rest)) + SOIL_HEALING * (1 - w.soil) * (1 - farmed),
     ),
   );
+  // The hunters follow their game — toward as many as the wild keeps, a few wandering in
+  // where the game is there — and fall under a people who hunt them and guard their flocks.
+  if (w.hunter >= 0 && !w.lost.includes(w.hunter)) {
+    const guard = Math.min(1, take + 2 * herding);
+    w.hunters = Math.max(
+      0,
+      Math.min(
+        1.2,
+        w.hunters +
+          0.3 * w.hunters * (w.wild - w.hunters) +
+          0.02 * (w.wild - w.hunters) -
+          0.35 * guard * w.hunters,
+      ),
+    );
+  }
 }
 
 /** The ecology's year: each stock drawn on and healing; its turns for the worse told. */
@@ -202,8 +260,10 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
         (p.occupation(OCC.farmer) * PRODUCTIVITY[OCC.farmer]! * ctx.life.appetite) /
           Math.max(1, c.farm),
       ),
-      rest = (lore.get(p.cell, "rotation") ? 0.6 : 0) + (lore.get(p.cell, "manuring") ? 0.4 : 0);
-    stepWilds(w, take, farmed, rest);
+      rest = (lore.get(p.cell, "rotation") ? 0.6 : 0) + (lore.get(p.cell, "manuring") ? 0.4 : 0),
+      herders = p.occupation(OCC.herder),
+      herding = herders / pop;
+    stepWilds(w, take, farmed, rest, herding);
     store.set(w);
 
     // Their turns for the worse, told once (and again only after they recover).
@@ -243,6 +303,31 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
         data: { soil: Math.round(w.soil * 100) },
       });
     else if (w.soil > 0.9 && w.worn) w.worn = null;
+    // Hunters pressed below a tithe of their number leave the land to its people.
+    if (w.hunter >= 0 && !w.lost.includes(w.hunter) && w.hunters < 0.08) {
+      const s = g.life.species[w.hunter]!;
+      w.lost = [...w.lost, s.index].sort((a, b) => a - b);
+      w.hunters = 0;
+      world.events.emit({
+        type: ECOLOGY_EVENTS.huntersGone.type,
+        subjects: [s.ref as Ref],
+        place: p.ref,
+        causes: causes(herders > 0 ? p.herding : w.thinned, s.ref as Ref),
+        data: { beast: s.name, year },
+      });
+    }
+    // Where they are many among the flocks, the herders' losses are told.
+    const losses = FLOCK_LOSS * w.hunters;
+    if (herders > 0 && losses >= 0.05 && !w.flocksTaken && w.hunter >= 0) {
+      const s = g.life.species[w.hunter]!;
+      w.flocksTaken = world.events.emit({
+        type: ECOLOGY_EVENTS.flocksTaken.type,
+        subjects: [s.ref as Ref],
+        place: p.ref,
+        causes: causes(s.ref as Ref, p.herding),
+        data: { beast: s.name, share: Math.round(losses * 100) },
+      });
+    } else if (losses < 0.025 && w.flocksTaken) w.flocksTaken = null;
     // The great beasts breed so slowly that steady hunting takes them long before food runs
     // short: a land hunted at over a third of what its wild yields loses them, year by year.
     if (take > 0.35)

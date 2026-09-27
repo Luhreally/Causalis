@@ -26,6 +26,7 @@ import {
   cylinderMesh,
   gableMesh,
 } from "./batch.ts";
+import { FaunaLayer, type PickedBeast } from "./fauna.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
@@ -101,6 +102,8 @@ export class VillageScene {
   private moments: Moment[] = [];
   private readonly marker: pc.Entity;
   private marked: number | null = null;
+  /** What lives about the village: its herds, hunters, flocks, birds and fish (M77). */
+  private readonly fauna: FaunaLayer;
   key: string | null = null;
 
   constructor(stage: Stage) {
@@ -114,6 +117,7 @@ export class VillageScene {
     });
     this.marker.enabled = false;
     this.root.addChild(this.marker);
+    this.fauna = new FaunaLayer(stage, this.root);
     this.root.enabled = false;
   }
 
@@ -134,7 +138,8 @@ export class VillageScene {
     // (Batches first: an entity destroyed does not free the instance buffer it was given.)
     for (const b of this.batches) b.destroy();
     this.batches = [];
-    for (const child of [...this.root.children]) if (child !== this.marker) child.destroy();
+    for (const child of [...this.root.children])
+      if (child !== this.marker && child !== this.fauna.root) child.destroy();
     this.plan = plan;
     this.key = plan.ref;
     const s = this.stage,
@@ -469,6 +474,8 @@ export class VillageScene {
       );
     });
     this.moments = [];
+    // Beasts about it, as many as the setting draws; birds and fish where small motions are drawn.
+    this.fauna.build(plan, s.quality.wildlife, s.quality.detail, s.quality.motion);
   }
 
   /** Put everyone where they are at time t. */
@@ -476,6 +483,8 @@ export class VillageScene {
     const plan = this.plan;
     if (!plan) return;
     this.fields?.recolor(fieldColor(t));
+    // (The beasts move by the screen's clock: a look, at any speed the world runs.)
+    this.fauna.update(performance.now() / 1000);
     this.moments = plan.people.map((_, i) => momentOf(plan, i, t));
     const parts = this.figure.parts,
       // The swing of a stride: by the screen's clock, each person a little out of step.
@@ -540,6 +549,21 @@ export class VillageScene {
       }
     });
     return best;
+  }
+
+  /** Every beast about the village now (for the look tools). */
+  faunaNow(): ReturnType<FaunaLayer["now"]> {
+    return this.fauna.now();
+  }
+
+  /** How many beasts, birds and fish are drawn now. */
+  get beastsDrawn(): number {
+    return this.fauna.drawn;
+  }
+
+  /** The beast nearest a screen point, if no one is: its lineage and what it is doing. */
+  pickBeast(x: number, y: number): PickedBeast | null {
+    return this.fauna.pick(x, y);
   }
 
   mark(index: number | null): void {

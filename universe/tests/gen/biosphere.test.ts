@@ -52,12 +52,14 @@ test("the living range over the land joined to where they arose, as far as their
         if (!lives(life, c, s.index)) continue;
         cells++;
         assert.ok(w.tectonics.elevation[c]! > 0, "on land");
+        // (Hunters range wider, after their game: in a wider warmth, whatever the rain.)
+        const hunter = s.niche === "hunter";
         assert.ok(
-          Math.abs(w.climate.temperature[c]! - s.warm) <= s.tolerance,
+          Math.abs(w.climate.temperature[c]! - s.warm) <= s.tolerance + (hunter ? 14 : 0),
           `${s.name}'s warmth`,
         );
         const rain = w.climate.precipitation[c]!;
-        assert.ok(rain >= s.rainMin && rain <= s.rainMax, `${s.name}'s rain`);
+        if (!hunter) assert.ok(rain >= s.rainMin && rain <= s.rainMax, `${s.name}'s rain`);
       }
       assert.ok(cells >= 0);
     }
@@ -109,6 +111,31 @@ test("sowing is first found where a wild grain grows, or in gardens where none d
     const herded = world.events.all().some((e) => e.type === POPULATION_EVENTS.herding.type),
       tameAnywhere = life.species.some((s) => s.tame && s.niche === "grazer" && s.died === null);
     if (!tameAnywhere) assert.ok(!herded, `${name}: no beast to tame, so no herds`);
-    if (name === "moss") assert.ok(herded, "moss's people tame its beasts");
+    // (Under the Earthlike prior every people has a beast of its own country to tame.)
+    assert.ok(herded, `${name}'s people tame its beasts`);
+  }
+});
+
+test("under the Earthlike prior, the people's own country holds a beast that can be tamed", () => {
+  for (const { name, w } of worlds) {
+    const life = w.life,
+      n = w.grid.count,
+      cradle = life.people!.cell,
+      seen = new Uint8Array(n),
+      near = [cradle];
+    seen[cradle] = 1;
+    // The land nearest the cradle (a tenth of the world, walking).
+    for (let h = 0; h < near.length && near.length < n / 10; h++)
+      for (let k = w.grid.offsets[near[h]!]!; k < w.grid.offsets[near[h]! + 1]!; k++) {
+        const m = w.grid.neighbours[k]!;
+        if (!seen[m] && w.tectonics.elevation[m]! > 0) {
+          seen[m] = 1;
+          near.push(m);
+        }
+      }
+    const beast = near.map((c) => life.herdBeast[c]!).find((b) => b >= 0);
+    assert.ok(beast !== undefined, `${name}: a beast to tame near the cradle`);
+    const s = life.species[beast]!;
+    assert.ok(s.tame && s.niche === "grazer" && s.died === null, `${name}: ${s.name}`);
   }
 });

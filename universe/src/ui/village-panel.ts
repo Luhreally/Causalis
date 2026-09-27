@@ -207,6 +207,24 @@ export class VillagePanel {
     );
   }
 
+  /** A beast looked at: its lineage, what it is doing now, and its lineage's why. */
+  showBeast(b: { ref: string; name: string; doing: string; flock: boolean }): void {
+    this.view++;
+    this.inspector.hidden = false;
+    this.who.textContent = `The ${b.name}`;
+    this.now.textContent = `Now ${b.doing}`;
+    this.page.replaceChildren(
+      el(
+        "p",
+        "fact",
+        b.flock
+          ? "Of the village's flocks: tamed from the wild, and kept for their meat, milk and hides."
+          : "Wild: its lineage lives on this land, as the world's deep past spread it.",
+      ),
+    );
+    void this.why.show(b.ref, this.whyBox);
+  }
+
   async showPerson(ref: string): Promise<void> {
     const view = ++this.view;
     this.inspector.hidden = false;

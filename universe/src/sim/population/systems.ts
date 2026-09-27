@@ -37,7 +37,7 @@ import {
   type Region,
 } from "../../gen/index.ts";
 import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
-import { ecologyOf, living, wildsOf } from "../ecology/ecology.ts";
+import { FLOCK_LOSS, ecologyOf, living, wildsOf } from "../ecology/ecology.ts";
 import { peopleAffords, peopleLife } from "./life.ts";
 import { airOf, heatYield, rainShift, smokeIn } from "../climate/air.ts";
 import { powerOf } from "../economy/systems.ts";
@@ -407,7 +407,9 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         G.meat,
         saturate(c.pasture, p.occupation(OCC.herder), PRODUCTIVITY[OCC.herder]! * tools * gathers) *
           (0.5 + 0.5 * rain) *
-          flocks,
+          flocks *
+          // (Less what the land's hunters take of the flocks.)
+          (1 - FLOCK_LOSS * alive.hunters),
       ],
     ];
     for (const [g, x] of harvest)

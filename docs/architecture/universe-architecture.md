@@ -2810,6 +2810,44 @@ worker could start a second loop; and an old event kept only shallowly was not w
 again when hindsight raised it (a world saved and loaded could keep a history the running
 one did not — a test holds them the same).
 
+77, as built. *The hunters.* Hunters ranged only where they first arose (the default world
+had its hunters on 24 of 650 lands with game): a hunting lineage now crosses the land joined
+to its own within a wider warmth (its tolerance and 14 °C) and lives wherever game lives
+there (495 of 650). Each land keeps its hunting lineage and a stock of them beside its game:
+they grow toward as many as the wild keeps, a few wander in where the game is, and they
+fall under a people who hunt them and guard their flocks (the guard is the hunting take and
+twice the herders' share); pressed below a tithe they are driven out (`ecology.hunters-gone`)
+and while they are many among the flocks they take a share of them — 8 in a hundred a year
+at their full number, off the herders' meat — told once as `ecology.flocks-taken` (eased,
+it may be told again). *Beasts to tame.* The default world had no beast that could be tamed
+anywhere: its tame grazers had died in the ages' great deaths, so its people never kept
+herds. Under the Earthlike prior, as its apes always rise, its people's own country (the
+land nearest the cradle, a twentieth of the world) holds one: the herd-living grazer nearest
+the cradle can be tamed, or, where none lives there, one arose there in the last age; eight
+Earthlike seeds out of eight now herd within their first century (first light: 352 lands by
+year 100). A herder's memory of taking up the work now leads to the taming as it came to
+their land (it had led to the bare land), and a herder's why names the herding, as a
+farmer's names the sowing. The oracle moved (the planet and ecology domains); calibration
+is unmoved (every milestone year the same as before; the late famines of the eighth and
+ninth centuries are older than this and stand as they were). *The wild seen.* A village's
+plan says what lives about it — each lineage with how much of it stands, its flocks and
+their herders, and whether its hunters raid them — and the microscope draws it, box-built
+and as much larger than life as its people: grazers in herds and browsers at the wood's
+edge between the homes and the wild's edge (brought in from 900 m to just past the fields),
+great beasts in their few, the flocks in a pasture kept off the road, birds wheeling on
+beating wings, fish leaping. Fifteen kinds of beast by the word each lineage is named for
+(sheep, goat, ox, buffalo, horse, camel, deer, elk, tapir, tusker, woolly giant, sloth, cat,
+bear, wolf), coats by its colour word (spots and stripes where it is spotted or brindled),
+built more finely at each setting (muzzles, tails and horns; hooves, manes and markings;
+ears). A band of hunters prowls, creeps up crouching, runs at its herd — or at the flocks,
+where the land's hunters raid them — and rests; the herd lifts its heads, bunches, flees in
+a cloud of dust and drifts back to its grazing. It all moves by the screen's clock, a pure
+function of the plan and the moment, so it looks the same at any speed and never touches
+what happens; a tap on a beast tells its lineage, what it is doing and its why, and the
+land's page names its hunters, how few they are and what they take. Each lineage is three
+instanced batches whatever its number; every setting holds sixty frames in a village with
+the CPU slowed four times (30, 91, 150 and 208 animals from Low to Ultra).
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

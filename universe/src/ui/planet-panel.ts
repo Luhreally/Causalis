@@ -96,7 +96,9 @@ type ProvinceFacts = {
     thinned: string | null;
     cleared: string | null;
     worn: string | null;
-    lost: { name: string; ref: string }[];
+    lost: { name: string; ref: string; niche: string }[];
+    hunters: { name: string; ref: string; stock: number } | null;
+    flocksTaken: string | null;
   };
   lore: { id: string; name: string; year: number; event: string }[];
 } | null;
@@ -183,7 +185,21 @@ function ecologyRows(e: NonNullable<ProvinceFacts>["ecology"]): [string, string 
     rows.push([`${pct(e.forest)} in a hundred of its forest still stands`, e.cleared]);
   if (e.soil < 0.9)
     rows.push([`Its soils are worn to ${pct(e.soil)} in a hundred of their strength`, e.worn]);
-  for (const l of e.lost) rows.push([`The ${l.name} was hunted out here`, l.ref]);
+  for (const l of e.lost)
+    rows.push([
+      l.niche === "hunter"
+        ? `The ${l.name} were driven out of here`
+        : `The ${l.name} was hunted out here`,
+      l.ref,
+    ]);
+  // Its hunters, where they are thinned, and what they take from the flocks.
+  if (e.hunters && e.hunters.stock < 0.6)
+    rows.push([
+      `The ${e.hunters.name} are few here: ${pct(Math.min(1, e.hunters.stock))} in a hundred of what the game once kept`,
+      e.hunters.ref,
+    ]);
+  if (e.hunters && e.flocksTaken)
+    rows.push([`The ${e.hunters.name} take from the flocks here`, e.flocksTaken]);
   return rows;
 }
 
@@ -590,7 +606,7 @@ export class PlanetPanel {
         .filter((s) => !s.tame)
         .slice(0, 5)
         .map((s): [string, string | null, PageKind] => [
-          `The ${s.name} lives wild here`,
+          s.niche === "hunter" ? `The ${s.name} hunts here` : `The ${s.name} lives wild here`,
           s.ref,
           "species",
         ]),

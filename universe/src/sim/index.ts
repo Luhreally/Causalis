@@ -259,9 +259,11 @@ export {
 export {
   ECOLOGY_EVENTS,
   EcologyStore,
+  FLOCK_LOSS,
   ecologyOf,
   ecologyYear,
   firstForest,
+  hunterOf,
   installEcology,
   living,
   stepWilds,

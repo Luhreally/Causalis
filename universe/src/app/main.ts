@@ -104,12 +104,18 @@ type Exposed = {
   bench?: unknown;
   /** The guided walk's step (from 0), or -1 when it is not showing. */
   walk?: () => number;
-  /** The quality the world is drawn at now. */
+  /** The quality the world is drawn at now, and a choice of it (as the settings make it). */
   quality?: () => string;
+  setQuality?: (choice: string) => void;
   /** Why the page could not start, if it could not ("webgl" when 3D is unavailable). */
   error?: string;
   /** The PlayCanvas stage, for debugging tools. */
   stage?: Stage;
+  /** Beasts, birds and fish drawn about the village watched (0 elsewhere), and each beast now. */
+  beasts?: () => number;
+  faunaNow?: () => { name: string; niche: string; x: number; z: number; doing: string }[];
+  /** The camera's rig, for the look tools. */
+  rig?: OrbitRig;
 };
 const exposed: Exposed = {};
 (globalThis as { causalis?: Exposed }).causalis = exposed;
@@ -336,6 +342,7 @@ async function runPlanetPage(): Promise<void> {
   planetPanel.onQualityChoice = (c) => setChoice(c);
   planetPanel.qualityNow = () => ({ choice, name: stage.quality.name, fps });
   exposed.quality = () => stage.quality.name;
+  exposed.setQuality = (c: string) => setChoice(c as QualityName | "auto");
   labels.blockers = [regionPanel.inspector, villagePanel.inspector];
 
   const paintGlobe = () => {
@@ -458,7 +465,7 @@ async function runPlanetPage(): Promise<void> {
             ? selectBody(skyScene.pick(x, y))
             : scale === "cluster"
               ? selectStar(starScene.pick(x, y))
-              : selectPerson(village.pick(x, y)),
+              : tapVillage(x, y),
   });
   // Framed between the bar of whichever scale is up and, on a phone, the sheet open below
   // (read a few times a second, not each frame).
@@ -768,6 +775,15 @@ async function runPlanetPage(): Promise<void> {
     // (And its haze starts as far off.)
     if (plan?.districts) stage.backdrop("ground", 110, true);
   };
+  // A tap in the village: someone, else a beast (its lineage and what it is doing), else no one.
+  const tapVillage = (x: number, y: number) => {
+    const i = village.pick(x, y);
+    if (i !== null) return selectPerson(i);
+    const beast = village.pickBeast(x, y);
+    if (!beast) return selectPerson(null);
+    selectPerson(null);
+    villagePanel.showBeast(beast);
+  };
   const selectPerson = (i: number | null) => {
     watched = i;
     village.mark(i);
@@ -820,6 +836,9 @@ async function runPlanetPage(): Promise<void> {
   });
   exposed.watch = (ref: string) => void toVillage(ref);
   exposed.watching = () => (scale === "village" && plan ? plan.people.length : 0);
+  exposed.beasts = () => (scale === "village" ? village.beastsDrawn : 0);
+  exposed.faunaNow = () => (scale === "village" ? village.faunaNow() : []);
+  exposed.rig = rig;
 
   regionPanel.onBack = () => toGlobe();
   regionPanel.onClose = () => region.mark(null);

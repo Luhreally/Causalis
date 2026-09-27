@@ -20,6 +20,15 @@ registerEventWords(ECOLOGY_EVENTS.huntedOut.type, (world, e) => {
   const beast = (e.data as { beast?: unknown } | null)?.beast;
   return `The last ${typeof beast === "string" ? beast : "great beasts"} of ${landWords(world, e.place)} were hunted out, ${year(e.t)}`;
 });
+registerEventWords(ECOLOGY_EVENTS.huntersGone.type, (world, e) => {
+  const beast = (e.data as { beast?: unknown } | null)?.beast;
+  return `The ${typeof beast === "string" ? beast : "hunters"} were driven out of ${landWords(world, e.place)}, ${year(e.t)}`;
+});
+registerEventWords(ECOLOGY_EVENTS.flocksTaken.type, (world, e) => {
+  const beast = (e.data as { beast?: unknown } | null)?.beast,
+    share = num(e.data, "share");
+  return `The ${typeof beast === "string" ? beast : "hunters"} of ${landWords(world, e.place)} took ${share === null ? "many" : `${share} in a hundred`} of its flocks a year, ${year(e.t)}`;
+});
 registerEventWords(ECOLOGY_EVENTS.cleared.type, (world, e) => {
   const left = num(e.data, "forest");
   return `The forests of ${landWords(world, e.place)} were cleared for fields${left === null ? "" : `: ${left} parts in a hundred still stand`}, ${year(e.t)}`;
