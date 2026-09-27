@@ -17,6 +17,21 @@ npm run check        # typecheck + architecture lints + tests
 npm run build        # dist/, served at /Causalis/universe/ on GitHub Pages
 ```
 
+The checks beyond the tests (each tool's header says more):
+
+```
+npm run golden       # kernel vectors against tests/golden (-- --write to re-record)
+npm run oracle       # checkpoint chains of the fixtures (-- --write after a meant change)
+npm run engines      # the same in Node, Chromium, WebKit and Firefox
+npm run app-check    # the built app in three browsers (worker and in-thread)
+npm run slice        # the world on a phone-floor proxy (a slowed Chromium tab)
+npm run calibrate    # the Earth seed's turning points against their bands
+npm run gate:2 … gate:7   # each phase's gate; gate:7 walks the brief's journey at a
+                          # phone's size and holds the phone's budgets
+node tools/journey.ts     # the journey alone, step by step
+node tools/look.ts <dir> [year]   # the look at a phone's size: every scale, as screenshots
+```
+
 Tests and tools are TypeScript run directly by Node 24 (type stripping), so
 code uses only erasable syntax (no enums, namespaces or parameter properties)
 and relative imports name their `.ts` file.

@@ -4,7 +4,7 @@
 // flat and coloured by the most of its three tiles, under a glossy sea.
 import * as pc from "playcanvas";
 import type { RegionTree } from "../view/index.ts";
-import { InstancedBatch, coneMesh, cylinderMesh } from "./batch.ts";
+import { InstancedBatch, coneMesh, cylinderMesh, gableMesh } from "./batch.ts";
 import { flatMaterial, type Stage } from "./stage.ts";
 
 export class RegionScene {
@@ -338,6 +338,8 @@ export function regionMaterials(
     { material: flatMaterial([1, 1, 1], 0.8), mesh: shape },
     { material: flatMaterial([1, 1, 1]), mesh: shape },
     { material: flatMaterial([1, 1, 1]), instanced: true, mesh: shape },
+    // (A gable roof's vertices differ: its shader too.)
+    { material: flatMaterial([1, 1, 1]), instanced: true, mesh: gableMesh(stage) },
   ];
 }
 

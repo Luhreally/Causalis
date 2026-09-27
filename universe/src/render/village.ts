@@ -18,7 +18,14 @@ import {
   type Moment,
   type PartShape,
 } from "../view/index.ts";
-import { InstancedBatch, capsuleMesh, coneMesh, cylinderMesh } from "./batch.ts";
+import {
+  InstancedBatch,
+  boxMesh,
+  capsuleMesh,
+  coneMesh,
+  cylinderMesh,
+  gableMesh,
+} from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
@@ -114,8 +121,19 @@ export class VillageScene {
     this.root.enabled = on;
   }
 
+  /** Every batch the village is built of, so a rebuild frees their buffers too. */
+  private batches: InstancedBatch[] = [];
+  private batch(...args: ConstructorParameters<typeof InstancedBatch>): InstancedBatch {
+    const b = new InstancedBatch(...args);
+    this.batches.push(b);
+    return b;
+  }
+
   /** Lay out a village from its plan. */
   build(plan: VillagePlan): void {
+    // (Batches first: an entity destroyed does not free the instance buffer it was given.)
+    for (const b of this.batches) b.destroy();
+    this.batches = [];
     for (const child of [...this.root.children]) if (child !== this.marker) child.destroy();
     this.plan = plan;
     this.key = plan.ref;
@@ -141,9 +159,9 @@ export class VillageScene {
     // The road out (through a city, both ways; paved stone once it is paved), and the square.
     const quarters = plan.districts,
       paved = !!quarters?.paved;
-    const road = new InstancedBatch(
+    const road = this.batch(
       s,
-      cylinderMesh(s, Math.SQRT1_2, 1, 4),
+      boxMesh(s),
       paved ? [0.72, 0.7, 0.64] : [0.62, 0.55, 0.42],
       1,
       this.root,
@@ -160,13 +178,13 @@ export class VillageScene {
     });
     // A city's quarters: each block's ground coloured by its use, and a hall at its heart.
     if (quarters) {
-      const patch = cylinderMesh(s, Math.SQRT1_2, 1, 4),
+      const patch = boxMesh(s),
         side = quarters.blockM * M * 0.94;
       QUARTER_COLORS.forEach((color, use) => {
         if (!use) return;
         const blocks = quarters.uses.map((u, k) => ({ u, k })).filter((b) => b.u === use);
         if (!blocks.length) return;
-        const batch = new InstancedBatch(s, patch, color, blocks.length, this.root);
+        const batch = this.batch(s, patch, color, blocks.length, this.root);
         batch.set(blocks.length, (i, out) => {
           const k = blocks[i]!.k,
             half = (quarters.blocks - 1) / 2;
@@ -175,7 +193,7 @@ export class VillageScene {
           out[2] = (Math.floor(k / quarters.blocks) - half) * quarters.blockM * M;
           out[3] = out[5] = side;
           out[4] = 0.01;
-          out[6] = Math.PI / 4;
+          out[6] = 0;
         });
       });
       // What each quarter holds (art track A3): markets their stalls under striped awnings,
@@ -193,7 +211,7 @@ export class VillageScene {
           color: Rgb,
         ) => {
           if (!list.length) return;
-          new InstancedBatch(s, patch, color, list.length, this.root).set(list.length, (i, out) => {
+          this.batch(s, patch, color, list.length, this.root).set(list.length, (i, out) => {
             const p = list[i]!;
             out[0] = p.x;
             out[1] = p.y;
@@ -201,7 +219,7 @@ export class VillageScene {
             out[3] = p.w;
             out[4] = p.h;
             out[5] = p.d;
-            out[6] = Math.PI / 4;
+            out[6] = 0;
           });
         };
       const stalls: { x: number; y: number; z: number; w: number; h: number; d: number }[] = [],
@@ -250,13 +268,7 @@ export class VillageScene {
       pieces(crowns, [0.98, 0.8, 0.25]);
     }
     disc(2.2, [0.66, 0.6, 0.48], 0, 0, 0.016);
-    this.fields = new InstancedBatch(
-      s,
-      cylinderMesh(s, Math.SQRT1_2, 1, 4),
-      fieldColor(0),
-      plan.fields.length,
-      this.root,
-    );
+    this.fields = this.batch(s, boxMesh(s), fieldColor(0), plan.fields.length, this.root);
     this.fields.set(plan.fields.length, (i, out) => {
       const f = plan.fields[i]!;
       out[0] = f.x * M;
@@ -265,14 +277,14 @@ export class VillageScene {
       out[3] = f.w * M;
       out[4] = 0.02;
       out[5] = f.d * M;
-      out[6] = f.yaw + Math.PI / 4;
+      out[6] = f.yaw;
     });
     // Homes, as the land builds them (its design): walls of its material, four-square
     // or round, long or wide; roofs pitched to the rain, flat, or conical; tents whole
     // cones of hide. The watched homes lighter.
     const look = houseLook(plan.house),
       sides = look.round ? 8 : 4,
-      box = cylinderMesh(s, Math.SQRT1_2, 1, 4),
+      box = boxMesh(s),
       shell = look.round ? cylinderMesh(s, Math.SQRT1_2, 1, sides) : box,
       lighter: [number, number, number] = [
         look.wall[0] + (1 - look.wall[0]) * 0.4,
@@ -283,10 +295,11 @@ export class VillageScene {
         (look.tent ? 0.06 : look.length > 0.85 && look.width > 0.85 ? 0.36 : 0.44) * look.height,
       flat = look.rise < 0.1,
       roofHigh = look.tent ? 0.75 : flat ? 0.08 : Math.min(0.6, look.rise * look.width * 0.5),
-      roofMesh = flat ? box : coneMesh(s, Math.SQRT1_2, 1, sides),
-      walls = new InstancedBatch(s, shell, [...look.wall], plan.homes.length, this.root),
-      watched = new InstancedBatch(s, shell, lighter, plan.homes.length, this.root),
-      roofs = new InstancedBatch(s, roofMesh, [...look.roof], plan.homes.length, this.root);
+      // Square homes wear a gable along their length; round ones a cone.
+      roofMesh = flat ? box : look.round ? coneMesh(s, Math.SQRT1_2, 1, sides) : gableMesh(s),
+      walls = this.batch(s, shell, [...look.wall], plan.homes.length, this.root),
+      watched = this.batch(s, shell, lighter, plan.homes.length, this.root),
+      roofs = this.batch(s, roofMesh, [...look.roof], plan.homes.length, this.root);
     // In a city's crowded quarters homes stand two storeys high.
     const storeys = (h: VillagePlan["homes"][number]) => {
         const q = plan.districts;
@@ -306,7 +319,7 @@ export class VillageScene {
           out[3] = look.length;
           out[4] = high;
           out[5] = look.width;
-          out[6] = h.yaw + Math.PI / 4;
+          out[6] = h.yaw;
         });
     place(
       plan.homes.filter((h) => !h.household),
@@ -326,11 +339,11 @@ export class VillageScene {
       out[3] = look.length * (flat ? 1.02 : 1.15);
       out[4] = roofHigh;
       out[5] = look.width * (flat ? 1.02 : 1.15);
-      out[6] = h.yaw + Math.PI / 4;
+      out[6] = h.yaw;
     });
     // Trees about the village, as its land grows them: dark cones of pine, round crowns,
     // palms, low scrub — facets in a handful of batches.
-    const trees = treesOf(plan),
+    const trees = treesOf(plan, s.quality.villageTrees),
       byKind = (k: Tree["kind"]) => trees.filter((t) => t.kind === k),
       trunk = cylinderMesh(s, 0.5, 1, 5),
       crown = pc.Mesh.fromGeometry(
@@ -349,7 +362,7 @@ export class VillageScene {
         h: (t: Tree) => number,
       ) => {
         if (!list.length) return;
-        new InstancedBatch(s, mesh, color, list.length, this.root).set(list.length, (i, out) => {
+        this.batch(s, mesh, color, list.length, this.root).set(list.length, (i, out) => {
           const t = list[i]!;
           out[0] = t.x * M;
           out[1] = y(t);
@@ -402,7 +415,7 @@ export class VillageScene {
     );
     // A door on each home, facing out from its front.
     if (!look.tent && !look.open) {
-      const door = new InstancedBatch(s, box, [0.2, 0.12, 0.08], plan.homes.length, this.root),
+      const door = this.batch(s, box, [0.2, 0.12, 0.08], plan.homes.length, this.root),
         doorHigh = Math.min(wallHigh * 0.7, 0.26);
       door.set(plan.homes.length, (i, out) => {
         const h = plan.homes[i]!,
@@ -413,11 +426,11 @@ export class VillageScene {
         out[3] = 0.13;
         out[4] = doorHigh;
         out[5] = 0.02;
-        out[6] = h.yaw + Math.PI / 4;
+        out[6] = h.yaw;
       });
     }
     // The market hall, or the well in the square.
-    const hall = new InstancedBatch(
+    const hall = this.batch(
       s,
       box,
       plan.market ? [0.62, 0.42, 0.3] : [0.5, 0.5, 0.55],
@@ -431,29 +444,28 @@ export class VillageScene {
       out[3] = plan.market ? 1.8 : 0.25;
       out[4] = plan.market ? 0.7 : 0.12;
       out[5] = plan.market ? 1.1 : 0.25;
-      out[6] = Math.PI / 4;
+      out[6] = 0;
     });
     // People: drawn three times their size, so a phone can see them — as their body is
     // built (one figure for a people, part by part, each part a batch per colour group).
     this.figure = figureOf(plan.body);
     const meshes: Record<PartShape, pc.Mesh> = {
       capsule: capsuleMesh(s, 0.11, 0.55),
-      box: cylinderMesh(s, Math.SQRT1_2, 1, 4),
+      box: boxMesh(s),
       cylinder: cylinderMesh(s, 0.5, 1, 8),
       cone: coneMesh(s, 0.5, 1, 8),
     };
     // Each part a batch per group, dressed as the land's era dresses them.
     this.people = GROUP_COLORS.map((_, gi) => {
       const wear = clothes(plan.era, gi);
-      return this.figure.parts.map(
-        (part) =>
-          new InstancedBatch(
-            s,
-            meshes[part.shape],
-            part.tone === 2 ? SKIN : part.tone ? wear.legs : wear.body,
-            Math.max(1, plan.people.length),
-            this.root,
-          ),
+      return this.figure.parts.map((part) =>
+        this.batch(
+          s,
+          meshes[part.shape],
+          part.tone === 2 ? SKIN : part.tone ? wear.legs : wear.body,
+          Math.max(1, plan.people.length),
+          this.root,
+        ),
       );
     });
     this.moments = [];
@@ -495,7 +507,7 @@ export class VillageScene {
           out[3] = part.sx * size;
           out[4] = part.sy * size;
           out[5] = part.sz * size;
-          out[6] = m.yaw + (part.shape === "box" ? Math.PI / 4 : 0);
+          out[6] = m.yaw;
           out[7] = pitch;
         });
       });

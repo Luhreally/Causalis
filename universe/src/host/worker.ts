@@ -36,14 +36,23 @@ const host = new SimHost(port, UNIVERSES, {
   ...(storage ? { storage } : {}),
 });
 
-let timer: ReturnType<typeof setTimeout> | null = null;
+// One loop at a time: a message during a pump waits for it (the pump reads the inbox
+// again next turn); a message during the loop's sleep wakes it at once.
+let timer: ReturnType<typeof setTimeout> | null = null,
+  running = false;
 function wake(): void {
-  if (timer !== null) return;
+  if (running) return;
+  if (timer !== null) clearTimeout(timer);
   timer = setTimeout(loop, 0);
 }
 async function loop(): Promise<void> {
   timer = null;
-  await host.pump();
+  running = true;
+  try {
+    await host.pump();
+  } finally {
+    running = false;
+  }
   timer = setTimeout(loop, host.idle ? 50 : 4);
 }
 wake();

@@ -78,6 +78,27 @@ test("a plague sent brings deaths, recorded in the ledgers of those years", () =
   );
 });
 
+test("a plague laid late in a year presses on its own months alone, not on the months before it", () => {
+  const MONTH = YEAR / 12,
+    quiet = build(),
+    early = build(),
+    late = build();
+  for (const w of [quiet, early, late]) w.runTo(250 * YEAR);
+  early.submit("act.plague", { cell: HOME, sign: -1, years: 1 });
+  late.runTo(250 * YEAR + 9 * MONTH);
+  late.submit("act.plague", { cell: HOME, sign: -1, years: 1 });
+  for (const w of [quiet, early, late]) w.runTo(251 * YEAR);
+  const deaths = (w: typeof quiet) => populationContext(w).history.deathsIn(HOME, 250),
+    extraEarly = deaths(early) - deaths(quiet),
+    extraLate = deaths(late) - deaths(quiet);
+  // Three months of plague against twelve: about a quarter of the deaths it adds.
+  assert.ok(extraEarly > 0 && extraLate > 0, `${extraEarly}, ${extraLate}`);
+  assert.ok(
+    extraLate / extraEarly > 0.1 && extraLate / extraEarly < 0.45,
+    `a late plague added ${extraLate} deaths against an early one's ${extraEarly}`,
+  );
+});
+
 test("inspiration grants the next way of life a people lacks, and it answers to the act", () => {
   const world = build();
   world.runTo(60 * YEAR);

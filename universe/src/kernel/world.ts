@@ -64,6 +64,12 @@ export class World {
    * history, not part of it: a loaded world starts it afresh.
    */
   private readonly forever = new Set<string>();
+  /**
+   * Of those, the old events kept only as the direct cause of something (their own causes
+   * not walked, as they had faded): if hindsight later raises one, it is walked again as
+   * the chronicle's own — as a world loaded then would walk it.
+   */
+  private readonly shallow = new Set<string>();
   private foreverChronicle = -1;
   /** When the kept history was last reckoned by age (its rebuild's time), or -1. */
   private agedAt = -1;
@@ -158,6 +164,7 @@ export class World {
       aging = this.retention.aging;
     if (this.foreverChronicle !== this.retention.chronicle) {
       forever.clear();
+      this.shallow.clear();
       this.foreverChronicle = this.retention.chronicle;
     }
     // The chronicle thins with age, reckoned afresh on a fixed schedule: an event is kept
@@ -165,6 +172,7 @@ export class World {
     const reckoned = aging ? Math.floor(now / aging.every) * aging.every : -1;
     if (aging && reckoned !== this.agedAt) {
       forever.clear();
+      this.shallow.clear();
       this.agedAt = reckoned;
     }
     const needs = (t: number) => {
@@ -192,6 +200,7 @@ export class World {
         const faded = e ? old(e.t) && e.importance < needs(e.t) : fadedParent;
         if (fadedParent && (e ? faded : old(d!.t))) return;
         into.add(ref);
+        if (e && faded && into === forever) this.shallow.add(ref);
         stack.push([ref, faded]);
       };
       for (const ref of roots) reach(ref, false);
@@ -204,6 +213,13 @@ export class World {
     };
     // The chronicle (an event joins it when it happens, or later when hindsight raises it)...
     const joined: Ref[] = [];
+    // (One kept shallowly and since raised is walked afresh, from itself.)
+    for (const ref of [...this.shallow]) {
+      const e = this.events.get(ref as Ref);
+      if (!e || e.importance < needs(e.t)) continue;
+      this.shallow.delete(ref);
+      forever.delete(ref);
+    }
     for (const e of this.events.all())
       if (e.importance >= needs(e.t) && !forever.has(e.id)) joined.push(e.id);
     walk(joined, forever);

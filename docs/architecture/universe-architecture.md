@@ -2742,6 +2742,74 @@ off, its haze as far. CI walks the journey (universe-journey). The economy's len
 land by the goods it moved in and out in its last year, on a log scale from a trickle to a
 great market; lands without trade are greyed.
 
+### I.8 Phase 8 milestones (planned 2026-09-27, at the user's asking)
+
+The user, on their iPhone 15 Plus: "graphic and processing settings where the higher,
+more depth version shows more animations and details and deeper procedural gen in
+models, tools, chemistry, characters and buildings, neighbouring planets, and me being
+able to go on the full galaxy and click and view another planet in depth, and the
+creatures should mine and carry stuff and you can see it all … targeting the best for
+an iPhone 15 Plus … and there's no predators and prey and everything that should be in
+the default world." Phase 8's "done when": the world shows what it holds — wildlife
+hunting and fleeing, herds in their pastures, people carrying what they work, miners at
+their mines — at a depth each device can hold; any world of the galaxy can be visited
+in depth; and none of it moves the history (detail is presentation and the microscope's
+shadow only; the invariants of §2 hold, and the oracle is unmoved by any setting).
+
+76. **Quality you choose**: a settings window (Low, Balanced, High, Ultra, and Auto, which
+    starts from the device and steps up or down by the frames it holds) setting the
+    drawing's budgets — pixels, shadows, clouds and glows, how many figures and animals,
+    how finely bodies, homes, tools and trees are built — and the microscope's depth (how
+    many families are met). The iPhone 15 Plus's default is the highest that holds sixty
+    frames; the rest follows from it.
+77. **Predators and prey**: the living world's hunters as a stock beside their game in
+    each land (they rise with the game and fall without it, take a share of the wild and
+    of the herds, and are driven out by a people who hunt them), with events and whys;
+    and the wild itself seen — herds of grazers on the open land, browsers in the woods,
+    great beasts, hunters stalking and running down their prey, fish in the waters, birds
+    in the air — a watched shadow drawn from the land's own lineages and stocks.
+78. **Work you can see**: people carry what they work — tools out, sheaves, sacks, fish,
+    ore and goods back; miners at a land's mine (a headframe, a cart, a pit or a well by
+    its age); carriers and pack beasts on the road; herds in their pastures; smoke from
+    hearths and works.
+79. **Deeper making**: bodies, homes, tools and trees built more finely as the setting
+    allows — faces and hands, windows and chimneys, porches and fences by era; tools by
+    what they are for and what they are made of; materials with their own sheen (the
+    metals bright, the woods matte), and what each is made of told (bronze of copper and
+    tin, steel of iron and carbon).
+80. **The whole galaxy**: a scale beyond the cluster — the galaxy's disk, its arms and its
+    bulge drawn from the galaxy's generator, the home cluster within it; any star of it
+    opened (its worlds, on demand from its place) — scenery, as §M keeps it, but scenery
+    that can be looked at closely.
+81. **Worlds in depth**: any world — the home system's planets and moons, another star's
+    worlds, another people's home — generated whole on demand from what is known of it
+    (its mass, orbit, warmth, air and seas): its plates, relief, climate, waters, deep
+    ages and (where its conditions allow) its life and lineages, seen as a globe with its
+    lenses and pages; a gas giant's banded clouds; where another people lives, their
+    presence. Pure and cached: looking at a world never makes it part of history.
+82. **Phase 8 gate**: every setting holds its budgets on the phone floor; the default
+    world shows predators and prey, herds, work and carrying; a world of another star is
+    visited and its life examined; the oracle is the same at every setting.
+
+76, as built: Settings (from the world's line) offers Auto, Low, Balanced, High and Ultra.
+Each sets the drawing's budgets — pixel ratio, the sun's shadows over a village (and their
+map), clouds and glows, figures, the region's and a village's trees, wild beasts to come,
+how finely things are built — and the microscope's depth (the families met: 5, 8, 10, 14).
+Auto starts a phone at High and a desktop at Ultra and steps down while the slower frames
+of a window run past 22 ms (a display past sixty frames may step it up again); a machine
+driving the page draws at High, fixed. The choice is kept in the browser. A review of the
+session's changes found nine faults, all mended: going back from a page left the land's
+inspector blank; a plague or the hand laid late in a stretch of months pressed on the
+whole stretch (the month's full pressure — hunger, sickness, a star's flare — is now summed
+month by month, and the hand's people die over the stretch too); the village leaked its
+instance buffers on every rebuild; folded windows unfolded as the sky redrew them; the
+observatory's polls held back the host's background work; a land's region was readied
+before its facts; the "boxes" were four-sided cylinders turned a quarter, so everything
+not square was a rhombus — boxes are boxes now, and square homes wear gable roofs; the
+worker could start a second loop; and an old event kept only shallowly was not walked
+again when hindsight raised it (a world saved and loaded could keep a history the running
+one did not — a test holds them the same).
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

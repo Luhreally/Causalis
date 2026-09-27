@@ -58,7 +58,7 @@ export class ClusterScene {
       if (!this.root.enabled || !this.glows.length) return;
       cam.copy(stage.camera.getPosition());
       for (const g of this.glows)
-        g.batch.set(g.stars.length, (i, out) => {
+        g.batch.set(stage.quality.glows ? g.stars.length : 0, (i, out) => {
           const s = g.stars[i]!,
             dx = cam.x - s.x,
             dy = cam.y - s.y,

@@ -133,6 +133,8 @@ const BUILTIN_QUERIES: Record<string, QueryHandler> = {
 
 /** How long after the page asks for anything the host's background work waits, ms. */
 const ASKING_MS = 1500;
+/** Queries the page sends on a timer (news of what is followed), not in answer to the viewer. */
+const POLLS: ReadonlySet<string> = new Set(["observe.tidings", "observe.watches"]);
 
 export class SimHost {
   private readonly port: Port<ToHost, ToMain>;
@@ -425,7 +427,9 @@ export class SimHost {
         dt = Math.max(0, start - this.lastPump) / 1000;
       this.lastPump = start;
       this.finishMoment();
-      if (this.inbox.length) this.lastAsked = start;
+      // (The observatory's regular polls for news are not the viewer asking.)
+      if (this.inbox.some((m) => !(m.kind === "query" && POLLS.has(m.query.type))))
+        this.lastAsked = start;
       while (this.inbox.length) await this.handle(this.inbox.shift()!);
       const world = this.world;
       if (!world) return;

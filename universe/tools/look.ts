@@ -56,6 +56,9 @@ if (await wild.count()) {
 await page.click(".panel:not([hidden]) .world-line button:has-text('Saves')");
 await page.waitForTimeout(800);
 await page.screenshot({ path: join(dir, "saves.png") });
+await page.click(".panel:not([hidden]) .world-line button:has-text('Settings')");
+await page.waitForTimeout(1500);
+await page.screenshot({ path: join(dir, "settings.png") });
 // Out to the star's worlds and the stars around, and back.
 await page.evaluate(() => (globalThis as { causalis?: C }).causalis!.sky!());
 await page.waitForFunction(

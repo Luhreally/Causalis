@@ -5,6 +5,13 @@ export { InstancedBatch, capsuleMesh, cylinderMesh } from "./batch.ts";
 export { runBench, type BenchResult } from "./bench.ts";
 export { GlobeScene } from "./globe.ts";
 export { OrbitRig, type OrbitOptions } from "./orbit.ts";
+export {
+  AutoQuality,
+  QUALITIES,
+  QUALITY_NAMES,
+  type Quality,
+  type QualityName,
+} from "./quality.ts";
 export { RegionScene, regionMaterials } from "./region.ts";
 export { SandboxScene } from "./sandbox.ts";
 export { SystemScene } from "./system.ts";

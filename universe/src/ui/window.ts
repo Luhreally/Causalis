@@ -13,7 +13,14 @@ export function folder(inspector: HTMLElement, title: HTMLElement): HTMLButtonEl
   };
   set(false);
   b.onclick = () => set(!inspector.classList.contains("folded"));
-  new MutationObserver(() => set(false)).observe(title, {
+  // Unfolded by something new to show — a title that says something else — not by the
+  // same page drawn again (the sky's pages redraw as its worlds turn).
+  let shown = title.textContent;
+  new MutationObserver(() => {
+    if (title.textContent === shown) return;
+    shown = title.textContent;
+    set(false);
+  }).observe(title, {
     childList: true,
     characterData: true,
     subtree: true,

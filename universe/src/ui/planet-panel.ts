@@ -12,6 +12,9 @@ import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
 import { speedWords, when } from "./words.ts";
 
+/** A quality the viewer may choose (the render module's names, or Auto). */
+type QualityChoice = "auto" | "low" | "balanced" | "high" | "ultra";
+
 const DAY = 86_400;
 const YEAR = 365 * DAY;
 /** Paused, a month, a year and ten years to the second. */
@@ -283,6 +286,8 @@ export class PlanetPanel {
   private landTitle = "";
   private landWhy = "";
   private landHidden: boolean[] = [];
+  /** Whether the land's own parts are put away under a page (and its state kept to restore). */
+  private onPage = false;
   private readonly links: PageLinks = {
     why: (text, ref) => this.whyLine(text, ref),
     page: (text, kind, ref) => this.pageLine(text, kind, ref),
@@ -300,6 +305,13 @@ export class PlanetPanel {
   onAsked: () => void = () => {};
   /** Help: the guided walk again. */
   onHelp: () => void = () => {};
+  /** Quality: the viewer's choice, and what is drawn now (the setting and the frames). */
+  onQualityChoice: (c: QualityChoice) => void = () => {};
+  qualityNow: () => { choice: QualityChoice; name: string; fps: number } = () => ({
+    choice: "auto",
+    name: "high",
+    fps: 0,
+  });
   /** The bar at the top, where the guided walk shows. */
   readonly bar = el("header", "bar");
   onClose: () => void = () => {};
@@ -353,8 +365,10 @@ export class PlanetPanel {
       said = el("span", "muted");
     keep.onclick = async () => (said.textContent = ` ${await this.onSave()}`);
     back.onclick = () => void this.showSaves();
-    const help = el("button", "link", "Help");
+    const help = el("button", "link", "Help"),
+      settings = el("button", "link", "Settings");
     help.onclick = () => this.onHelp();
+    settings.onclick = () => void this.showSettings();
     this.world.append(
       this.worldText,
       " · ",
@@ -367,6 +381,8 @@ export class PlanetPanel {
       back,
       " · ",
       help,
+      " · ",
+      settings,
       said,
     );
     bar.append(speeds, this.world, lenses);
@@ -525,14 +541,15 @@ export class PlanetPanel {
     if (this.selected !== cell) return;
     const province = p.province;
     this.province = province;
-    // A land looked at may be looked closer at: its region readied meanwhile.
-    if (p.elevation >= 0)
-      void this.client.query({ type: "region.prepare", args: { cell: province } }).catch(() => {});
     const [folk, market, past] = await Promise.all([
       this.client.query<ProvinceFacts>({ type: "province", args: { cell: province } }),
       this.client.query<MarketFacts | null>({ type: "market", args: { cell: province } }),
       this.client.query<ProvinceHistory>({ type: "province.history", args: { cell: province } }),
     ]);
+    // A land looked at may be looked closer at: its region readied meanwhile (after its
+    // facts, which must not wait behind it).
+    if (p.elevation >= 0)
+      void this.client.query({ type: "region.prepare", args: { cell: province } }).catch(() => {});
     if (this.selected !== cell) return;
     const high = p.elevation >= 0;
     this.title.textContent = p.biome[0]!.toUpperCase() + p.biome.slice(1);
@@ -651,15 +668,18 @@ export class PlanetPanel {
   }
 
   /** Open a page over the land, keeping the way back. */
-  private async openPage(kind: PageKind, ref: string): Promise<void> {
+  private async openPage(kind: PageKind, ref: string, back = false): Promise<void> {
     const token = ++this.pageToken,
       page = await buildPage(this.client, kind, ref, this.links);
     if (token !== this.pageToken) return;
-    if (!this.pages.length) {
+    // The land's state is kept once, when the first page covers it.
+    if (!this.onPage) {
       this.landTitle = this.title.textContent ?? "";
       this.landHidden = this.landParts.map((e) => e.hidden === true);
+      this.onPage = true;
     }
-    this.pages.push({ kind, ref, title: page.title });
+    // Going back re-shows the page below without stacking it again.
+    if (!back) this.pages.push({ kind, ref, title: page.title });
     this.showPage(page);
   }
 
@@ -678,17 +698,18 @@ export class PlanetPanel {
   /** Back one page, or to the land. */
   private async backPage(): Promise<void> {
     this.pages.pop();
-    const top = this.pages.pop();
-    if (top) return this.openPage(top.kind, top.ref);
+    const below = this.pages.at(-1);
+    if (below) return this.openPage(below.kind, below.ref, true);
     this.closePages();
     if (this.landWhy) void this.why.show(this.landWhy, this.whyBox);
   }
 
   private closePages(): void {
     this.pageToken++;
-    if (this.pages.length) {
+    if (this.onPage) {
       this.landParts.forEach((e, i) => (e.hidden = this.landHidden[i] ?? false));
       this.title.textContent = this.landTitle;
+      this.onPage = false;
     }
     this.pages = [];
     this.pageBox.hidden = true;
@@ -938,6 +959,48 @@ export class PlanetPanel {
       pick,
       open,
       said,
+    );
+  }
+
+  /** Settings: how finely the world is drawn (the history is the same at every one). */
+  showSettings(): void {
+    this.worldPage("Settings");
+    const WORDS: Record<QualityChoice, string> = {
+        auto: "Auto — as fine as this device holds smoothly, stepping down if it drags",
+        low: "Low — the plainest drawing, for old or tired devices",
+        balanced: "Balanced — clouds and glows, fewer trees and beasts",
+        high: "High — shadows, finer bodies and homes, the full woods",
+        ultra: "Ultra — the finest: every tree and beast, the sharpest pixels",
+      },
+      rate = el("p", "muted"),
+      list = el("div");
+    const draw = () => {
+      const now = this.qualityNow();
+      rate.textContent = `Drawn at ${now.name[0]!.toUpperCase()}${now.name.slice(1)} · ${now.fps ? `${now.fps} frames a second` : "measuring…"}`;
+      list.replaceChildren(
+        ...(["auto", "low", "balanced", "high", "ultra"] as const).map((c) => {
+          const b = el("button", `line${now.choice === c ? " chosen" : ""}`, WORDS[c]);
+          b.onclick = () => {
+            this.onQualityChoice(c);
+            draw();
+          };
+          return b;
+        }),
+      );
+    };
+    draw();
+    // The frame rate, kept up while the page is open.
+    const tick = setInterval(() => {
+      if (this.title.textContent !== "Settings") clearInterval(tick);
+      else draw();
+    }, 1000);
+    this.facts.replaceChildren(el("h3", undefined, "Quality"), list, rate);
+    this.whyBox.replaceChildren(
+      el(
+        "p",
+        "muted",
+        "Only the drawing changes: the world's history is the same at every setting.",
+      ),
     );
   }
 

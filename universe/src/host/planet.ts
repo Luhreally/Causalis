@@ -777,7 +777,14 @@ function planetUniverse(name: string, prior: Prior): Universe {
         const a = (args ?? {}) as { limit?: number; types?: string[] };
         return chronicle(world, a.limit ?? 60, a.types);
       },
-      "village.plan": (world, args) => villagePlan(world, (args as { ref: string }).ref as Ref),
+      "village.plan": (world, args) => {
+        const a = args as { ref: string; families?: number };
+        return villagePlan(
+          world,
+          a.ref as Ref,
+          a.families ? Math.max(1, Math.min(16, Math.round(a.families))) : undefined,
+        );
+      },
       /** Ready a land's region before it is asked for (a pure cache: the world is untouched). */
       "region.prepare": (world, args) => {
         region(world, (args as { cell: number }).cell);

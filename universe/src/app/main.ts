@@ -14,8 +14,12 @@ import {
   SystemScene,
   ClusterScene,
   VillageScene,
+  AutoQuality,
+  QUALITIES,
+  QUALITY_NAMES,
   regionMaterials,
   runBench,
+  type QualityName,
 } from "../render/index.ts";
 import {
   LabelLayer,
@@ -100,6 +104,8 @@ type Exposed = {
   bench?: unknown;
   /** The guided walk's step (from 0), or -1 when it is not showing. */
   walk?: () => number;
+  /** The quality the world is drawn at now. */
+  quality?: () => string;
   /** Why the page could not start, if it could not ("webgl" when 3D is unavailable). */
   error?: string;
   /** The PlayCanvas stage, for debugging tools. */
@@ -278,6 +284,58 @@ async function runPlanetPage(): Promise<void> {
   planetPanel.onHelp = () => walk.start();
   planetPanel.onAsked = () => walk.saw("why");
   exposed.walk = () => walk.current;
+  // Quality (M76): the viewer's choice, kept in this browser, or Auto — from the device's
+  // kind, stepping down while frames drag (and up where a display runs faster than 60).
+  const QUALITY_KEY = "causalis.quality",
+    readChoice = (): QualityName | "auto" => {
+      try {
+        const v = localStorage.getItem(QUALITY_KEY);
+        // (A machine driving the page — tests, tools — draws at High, fixed, so what it
+        // measures does not move under it.)
+        const fallback = (navigator as { webdriver?: boolean }).webdriver ? "high" : "auto";
+        return v && (v === "auto" || (QUALITY_NAMES as readonly string[]).includes(v))
+          ? (v as QualityName | "auto")
+          : fallback;
+      } catch {
+        return "auto";
+      }
+    };
+  let choice = readChoice(),
+    auto: AutoQuality | null = null,
+    fps = 0,
+    frames: number[] = [];
+  const setChoice = (c: QualityName | "auto") => {
+    choice = c;
+    try {
+      localStorage.setItem(QUALITY_KEY, c);
+    } catch {
+      // Nothing to keep it in: it holds for this visit.
+    }
+    const start: QualityName = c === "auto" ? (tier.name === "phone" ? "high" : "ultra") : c;
+    auto = c === "auto" ? new AutoQuality(start, "ultra") : null;
+    stage.setQuality(QUALITIES[start]);
+  };
+  setChoice(choice);
+  stage.onUpdate((dt) => {
+    // (A hitch — a tab come back, a world being made — is not the device's pace.)
+    if (dt <= 0 || dt > 0.25 || !painted) return;
+    frames.push(dt);
+    if (frames.length >= 60) {
+      fps = Math.round(frames.length / frames.reduce((a, b) => a + b, 0));
+      frames = [];
+    }
+    const next = auto?.frame(dt * 1000);
+    if (next) stage.setQuality(QUALITIES[next]);
+  });
+  stage.onQuality((q) => {
+    if (scale === "globe") paintGlobe();
+    const frame = client.latestFrame("region");
+    if (scale === "region" && frame) region.plantTrees(regionTrees(frame, q.regionTrees));
+    if (scale === "village" && plan) village.build(plan);
+  });
+  planetPanel.onQualityChoice = (c) => setChoice(c);
+  planetPanel.qualityNow = () => ({ choice, name: stage.quality.name, fps });
+  exposed.quality = () => stage.quality.name;
   labels.blockers = [regionPanel.inspector, villagePanel.inspector];
 
   const paintGlobe = () => {
@@ -296,7 +354,7 @@ async function runPlanetPage(): Promise<void> {
     );
     globe.paint(colors);
     // Clouds over the land as it is; none over what a lens paints.
-    globe.weather = lens === "terrain";
+    globe.weather = lens === "terrain" && stage.quality.clouds;
     painted = colors.length / 4;
   };
   const paintRegion = () => {
@@ -317,7 +375,7 @@ async function runPlanetPage(): Promise<void> {
       performance.measure("region.build", { start: t0 });
       regionPanel.show(meta.center, meta.lat, meta.lon, meta.size * meta.tileKm);
       region.setVillages(villages);
-      region.plantTrees(regionTrees(frame));
+      region.plantTrees(regionTrees(frame, stage.quality.regionTrees));
     }
     const colors = regionColors(frame, regionLens);
     region.paint(colors);
@@ -671,7 +729,10 @@ async function runPlanetPage(): Promise<void> {
   const loadPlan = async (ref: string) => {
     // Asked once a year: the year is marked before the answer comes.
     planYear = Math.floor(clock.t / YEAR);
-    plan = await client.query<VillagePlan>({ type: "village.plan", args: { ref } });
+    plan = await client.query<VillagePlan>({
+      type: "village.plan",
+      args: { ref, families: stage.quality.families },
+    });
     const t0 = performance.now();
     village.build(plan);
     performance.measure("village.build", { start: t0 });
@@ -680,7 +741,7 @@ async function runPlanetPage(): Promise<void> {
   };
   const toVillage = async (ref: string) => {
     scale = "village";
-    stage.backdrop("ground", 40);
+    stage.backdrop("ground", 40, true);
     labels.clear();
     // Whichever way it came (a region, or straight from the globe), only the village shows.
     globe.visible = false;
@@ -705,7 +766,7 @@ async function runPlanetPage(): Promise<void> {
       target: [0, 0, 0],
     });
     // (And its haze starts as far off.)
-    if (plan?.districts) stage.backdrop("ground", 110);
+    if (plan?.districts) stage.backdrop("ground", 110, true);
   };
   const selectPerson = (i: number | null) => {
     watched = i;

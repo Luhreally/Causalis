@@ -346,9 +346,10 @@ const TREE_KINDS = ["conifer", "broadleaf", "palm", "shrub"] as const;
  * standing in the ring beyond its homes and fields, clear of the fields, the road, the
  * pasture and the water. A pure function of the plan (the same village, the same trees).
  */
-export function treesOf(plan: VillagePlan): Tree[] {
+export function treesOf(plan: VillagePlan, share = 1): Tree[] {
   const woods = WOODS[plan.biome] ?? [0, 0, 0, 0],
-    total = woods.reduce((a, b) => a + b, 0);
+    // (A setting may draw fewer or more of them: `share` of the land's count.)
+    total = Math.round(woods.reduce((a, b) => a + b, 0) * share);
   if (!total) return [];
   // From just past the homes out (the fields are kept clear of trees one by one).
   let reach = 40;

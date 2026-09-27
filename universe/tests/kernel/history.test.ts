@@ -26,6 +26,7 @@ import {
 const MIDDLING = defineEventType("test.middling", 3);
 const PING = defineEventType("test.ping", 1);
 const BIG = defineEventType("test.big", 5);
+const GREAT = defineEventType("test.great", 6);
 
 registerExplainer(FLOODPLAIN.code, (_world, ref) => ({
   ref,
@@ -269,4 +270,37 @@ test("ancestry fades with age: an old small event is kept only as a direct cause
   const kept = chain(whole);
   whole.runTo(100 * YEAR);
   assert.ok(kept.every((r) => whole.events.get(r)));
+});
+
+test("an old event raised by hindsight is kept whole, as a world loaded then would keep it", () => {
+  const aged = {
+    window: 5 * YEAR,
+    chronicle: 3,
+    aging: { every: 20 * YEAR, steps: [{ after: 30 * YEAR, chronicle: 4 }] },
+  };
+  let pinned: Ref | null = null;
+  const build = (seed: { text: string }) => {
+    const w = makeToyWorld(seed.text);
+    w.retention = aged;
+    // A store that holds the oldest event until year 70, then lets it go.
+    w.addPinner(() => (pinned && w.now < 70 * YEAR ? [pinned] : []));
+    return w;
+  };
+  const run = build({ text: "hindsight" });
+  run.runTo(5 * YEAR);
+  const a = run.events.emit({ type: MIDDLING.type }),
+    e = run.events.emit({ type: MIDDLING.type, causes: [{ ref: a, role: "enabler", weight: 1 }] });
+  run.events.emit({ type: BIG.type, causes: [{ ref: e, role: "enabler", weight: 1 }] });
+  pinned = a;
+  run.runTo(60 * YEAR);
+  // Hindsight: something great, set off by the old event, raises it.
+  run.events.emit({ type: GREAT.type, causes: [{ ref: e, role: "trigger", weight: 1 }] });
+  run.runTo(61 * YEAR);
+  const ruleset = rulesetId(run, "test"),
+    doc = JSON.parse(JSON.stringify(saveWorld(run, ruleset))) as ReturnType<typeof saveWorld>,
+    { world: loaded } = loadWorld(doc, (seed) => build(seed), ruleset);
+  run.runTo(100 * YEAR);
+  loaded.runTo(100 * YEAR);
+  assert.ok(run.events.get(a), "the raised event's own cause stays");
+  assert.deepEqual(loaded.domainHashes(), run.domainHashes());
 });

@@ -341,3 +341,9 @@ body[data-scale="ground"][data-daylight="night"] {
     max-height: 46%;
   }
 }
+
+/* The setting chosen, lit like a chosen button. */
+.line.chosen {
+  border-left-color: #6ff0cf;
+  background: rgba(40, 180, 150, 0.22);
+}

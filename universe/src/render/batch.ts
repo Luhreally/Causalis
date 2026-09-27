@@ -121,3 +121,69 @@ export function cylinderMesh(stage: Stage, radius: number, height: number, sides
     new pc.CylinderGeometry({ radius, height, capSegments: sides }),
   );
 }
+
+/** A box a unit each way about its middle, its faces square to its axes. */
+export function boxMesh(stage: Stage): pc.Mesh {
+  return pc.Mesh.fromGeometry(
+    stage.device,
+    new pc.BoxGeometry({ halfExtents: new pc.Vec3(0.5, 0.5, 0.5) }),
+  );
+}
+
+/**
+ * A gable roof a unit each way about its middle: two slopes meeting at a ridge along x,
+ * a triangle at each end. Faceted: each face lit by its own normal.
+ */
+export function gableMesh(stage: Stage): pc.Mesh {
+  const faces: (readonly [number, number, number])[][] = [
+    // The slopes (+z, −z) and the ends (−x, +x), each outward.
+    [
+      [-0.5, -0.5, 0.5],
+      [0.5, -0.5, 0.5],
+      [0.5, 0.5, 0],
+      [-0.5, 0.5, 0],
+    ],
+    [
+      [0.5, -0.5, -0.5],
+      [-0.5, -0.5, -0.5],
+      [-0.5, 0.5, 0],
+      [0.5, 0.5, 0],
+    ],
+    [
+      [-0.5, -0.5, -0.5],
+      [-0.5, -0.5, 0.5],
+      [-0.5, 0.5, 0],
+    ],
+    [
+      [0.5, -0.5, 0.5],
+      [0.5, -0.5, -0.5],
+      [0.5, 0.5, 0],
+    ],
+  ];
+  const positions: number[] = [],
+    normals: number[] = [],
+    indices: number[] = [];
+  for (const f of faces) {
+    const [a, b, c] = f as [(typeof f)[0], (typeof f)[0], (typeof f)[0]],
+      u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
+      v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]],
+      n = [
+        u[1]! * v[2]! - u[2]! * v[1]!,
+        u[2]! * v[0]! - u[0]! * v[2]!,
+        u[0]! * v[1]! - u[1]! * v[0]!,
+      ],
+      len = Math.hypot(n[0]!, n[1]!, n[2]!) || 1,
+      base = positions.length / 3;
+    for (const p of f) {
+      positions.push(p[0], p[1], p[2]);
+      normals.push(n[0]! / len, n[1]! / len, n[2]! / len);
+    }
+    for (let k = 1; k + 1 < f.length; k++) indices.push(base, base + k, base + k + 1);
+  }
+  const mesh = new pc.Mesh(stage.device);
+  mesh.setPositions(positions);
+  mesh.setNormals(normals);
+  mesh.setIndices(indices);
+  mesh.update();
+  return mesh;
+}

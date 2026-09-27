@@ -237,7 +237,18 @@ await step("geology", async () => {
   if (!ages) throw new Error("no ages of the deep past");
   return `${plate}: ${said}; ${ages} ages of the deep past`;
 });
-await step("back out", async () => "the world again");
+await step("back out", async () => {
+  // Back through the pages, one at a time, to the land's own facts.
+  for (let i = 0; i < 6; i++) {
+    const back = page.locator(`${inspector} .page .back`).first();
+    if (!(await back.count()) || !(await back.isVisible())) break;
+    await back.click();
+    await page.waitForTimeout(400);
+  }
+  if (!(await page.locator(`${inspector} .facts`).first().isVisible()))
+    throw new Error("the land's own page did not come back");
+  return `back to ${(await page.locator(`${inspector} h2`).first().textContent()) ?? ""}`;
+});
 await page.close();
 
 // Part two: the Earth seed in its space age.

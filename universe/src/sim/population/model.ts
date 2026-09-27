@@ -148,6 +148,8 @@ export class Province {
   vitalMonths = 0;
   vitalShort = 0;
   vitalFed2 = 0;
+  /** The months' summed pressure on life (hunger × plague or healing × a star's flare), thousandths. */
+  vitalPressure = 0;
   /** The event through which this province came to know cultivation. */
   cultivation: Ref | null = null;
   /** The year the first people came. */
@@ -183,6 +185,7 @@ export class Province {
       .int(this.vitalMonths)
       .int(this.vitalShort)
       .int(this.vitalFed2)
+      .int(this.vitalPressure)
       .int(this.settledYear)
       .string(this.arrival ?? "");
     h.string(this.lastFamine ?? "")
@@ -203,6 +206,7 @@ export class Province {
       vitalMonths: this.vitalMonths,
       vitalShort: this.vitalShort,
       vitalFed2: this.vitalFed2,
+      vitalPressure: this.vitalPressure,
       settledYear: this.settledYear,
       arrival: this.arrival,
       lastFamine: this.lastFamine,
@@ -224,6 +228,7 @@ export class Province {
     p.vitalMonths = (s.vitalMonths as number | undefined) ?? 0;
     p.vitalShort = (s.vitalShort as number | undefined) ?? 0;
     p.vitalFed2 = (s.vitalFed2 as number | undefined) ?? 0;
+    p.vitalPressure = (s.vitalPressure as number | undefined) ?? 0;
     p.lastFamine = s.lastFamine as Ref | null;
     p.lastDrought = s.lastDrought as Ref | null;
     p.famineMonth = s.famineMonth as number;

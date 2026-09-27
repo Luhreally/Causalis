@@ -3,6 +3,7 @@
 // there is no Editor project. The device tier sets presentation budgets (pixel
 // ratio, antialiasing); it never touches the simulation.
 import * as pc from "playcanvas";
+import { QUALITIES, type Quality } from "./quality.ts";
 
 export type DeviceTier = {
   readonly name: "phone" | "desktop";
@@ -27,6 +28,12 @@ export class Stage {
    */
   private sunFollows = true;
   private readonly onResize = () => this.app.resizeCanvas();
+  /** How finely the world is drawn (Phase 8 M76): set by the app, read by the scenes. */
+  quality: Quality = QUALITIES.high;
+  private readonly qualityListeners = new Set<(q: Quality) => void>();
+  /** Whether the scale shown is on the ground and wants the sun's shadows, and how far. */
+  private shadowsWanted = false;
+  private shadowReach = 60;
 
   constructor(canvas: HTMLCanvasElement, tier: DeviceTier, sky: Rgb) {
     this.app = new pc.Application(canvas, {
@@ -90,7 +97,35 @@ export class Stage {
    * space a starfield and clear air; on the ground a sky, with haze toward the horizon
    * from `reach` (a scene's usual viewing distance) on.
    */
-  backdrop(kind: "space" | "ground", reach = 100): void {
+  /** Draw at a quality: its pixels and shadows now, and the scenes told. */
+  setQuality(q: Quality): void {
+    this.quality = q;
+    this.device.maxPixelRatio = Math.min(globalThis.devicePixelRatio || 1, q.pixelRatio);
+    this.app.resizeCanvas();
+    this.applyShadows();
+    for (const f of this.qualityListeners) f(q);
+  }
+
+  onQuality(fn: (q: Quality) => void): () => void {
+    this.qualityListeners.add(fn);
+    return () => this.qualityListeners.delete(fn);
+  }
+
+  private applyShadows(): void {
+    const light = this.sun.light!,
+      on = this.shadowsWanted && this.quality.shadows;
+    light.castShadows = on;
+    if (!on) return;
+    light.shadowResolution = this.quality.shadowResolution;
+    light.shadowDistance = this.shadowReach;
+    light.shadowBias = 0.25;
+    light.normalOffsetBias = 0.05;
+  }
+
+  backdrop(kind: "space" | "ground", reach = 100, shadows = false): void {
+    this.shadowsWanted = kind === "ground" && shadows;
+    this.shadowReach = Math.max(30, reach * 1.6);
+    this.applyShadows();
     document.body.dataset.scale = kind;
     delete document.body.dataset.daylight;
     this.app.scene.ambientLight = new pc.Color(0.34, 0.38, 0.5);

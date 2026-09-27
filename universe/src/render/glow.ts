@@ -49,21 +49,20 @@ export function billboard(
   radius: number,
   parent: pc.Entity,
 ): pc.Entity {
-  const e = new pc.Entity("glow");
-  e.addComponent("render", {
-    meshInstances: [
-      new pc.MeshInstance(
-        pc.Mesh.fromGeometry(
-          stage.device,
-          new pc.PlaneGeometry({ halfExtents: new pc.Vec2(radius, radius) }),
-        ),
-        material,
+  const e = new pc.Entity("glow"),
+    mi = new pc.MeshInstance(
+      pc.Mesh.fromGeometry(
+        stage.device,
+        new pc.PlaneGeometry({ halfExtents: new pc.Vec2(radius, radius) }),
       ),
-    ],
-  });
+      material,
+    );
+  e.addComponent("render", { meshInstances: [mi] });
   parent.addChild(e);
   stage.onUpdate(() => {
     if (!e.enabled) return;
+    // (Drawn only where the setting allows glows.)
+    mi.visible = stage.quality.glows;
     // The disc's face (its +y) turned to the camera.
     e.lookAt(stage.camera.getPosition());
     e.rotateLocal(-90, 0, 0);

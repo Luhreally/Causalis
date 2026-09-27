@@ -498,19 +498,27 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
     yearEnd = month % 12 === 0,
     quarterEnd = month % 3 === 0;
   for (const p of ctx.provinces.all()) {
-    p.vitalMonths++;
-    p.vitalShort += 1000 - p.fed;
-    p.vitalFed2 += p.fed * p.fed;
     // A plague sent makes deaths likelier; healing, rarer.
     const act = acts.at(p.cell, "plague", t),
       sickness = !act ? 1 : act.sign < 0 ? 1 + ACT_STRENGTH.plague : 1 - ACT_STRENGTH.healing;
+    // The month counted: its hunger and fertility, and the whole of what pressed on its
+    // people this month (hunger, a plague or healing, a star's flare over halls under it) —
+    // what changes from month to month is summed month by month, so a plague laid late in
+    // a stretch presses on its own months alone.
+    p.vitalMonths++;
+    p.vitalShort += 1000 - p.fed;
+    p.vitalFed2 += p.fed * p.fed;
+    p.vitalPressure += Math.round(
+      1000 * (1 + 2.5 * ((1000 - p.fed) / 1000)) * sickness * underStar(ctx, p.cell),
+    );
     const held = !!act || !!handOf(world).over(p.cell);
     if (!held && !yearEnd && !(quarterEnd && p.vitalShort > 0)) continue;
     const months = p.vitalMonths,
-      // The months' mean shortfall of food, and their fertility summed (by fed squared).
-      short = p.vitalShort / months / 1000,
+      // The months' mean pressure (a stretch counted before its pressure was, from an older
+      // save, as pressing no more than usual), and their fertility summed (by fed squared).
+      pressure = (p.vitalPressure || months * 1000) / months / 1000,
       fedSquared = p.vitalFed2 / 1_000_000;
-    p.vitalMonths = p.vitalShort = p.vitalFed2 = 0;
+    p.vitalMonths = p.vitalShort = p.vitalFed2 = p.vitalPressure = 0;
     // A people grown wealthy with power have fewer children (the demographic transition).
     const fertility = fedSquared * transition(ctx, p.cell),
       // In cold lands, those without warm clothing die more easily.
@@ -520,13 +528,8 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       healed = 1 - Math.min(0.3, loreOf(world).effect(p.cell, "health")),
       // Where much is burned among few, smoke fouls the air.
       smoke = 1 + 0.3 * smokeIn(ctx, p.cell),
-      mortality =
-        (1 + 2.5 * short) *
-        (1 + 0.25 * cold * bare) *
-        sickness *
-        healed *
-        smoke *
-        underStar(ctx, p.cell),
+      // (What changes slowly — the cold, clothing, medicine, smoke — as it stands now.)
+      mortality = pressure * (1 + 0.25 * cold * bare) * healed * smoke,
       d = new CountDeltas(p.counts),
       key = refHash(p.ref),
       // Under the hand, a village's people are born and die one by one; the rest by rates.
@@ -586,10 +589,11 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       for (const a of w.agents) {
         const band = bandOfAge(year - a.birthYear, life),
           blessed = a.blessedUntil !== undefined && year < a.blessedUntil;
+        // (Over the months reckoned: the first month under the hand closes a stretch.)
         if (
           !blessed &&
           world.rng.real(HAND_VITAL, a.id, t, 0) <
-            deathWithin(riskUnder(life.mortality[band]!, mortality), 1)
+            deathWithin(riskUnder(life.mortality[band]!, mortality), months)
         ) {
           d.add(row(a.sex, band), a.occupation, -1);
           history.addDeaths(p.cell, year, band, 1);
