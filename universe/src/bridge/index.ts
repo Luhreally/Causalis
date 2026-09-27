@@ -26,6 +26,20 @@ export type { WorldGlobe } from "./worlds.ts";
 export type { WarsMap } from "./wars.ts";
 export type { GenesisPlan } from "./genesis.ts";
 export type { DepositPage, PlatePage, RealmPage, SpeciesPage } from "./pages.ts";
+export {
+  splitPageRef,
+  type Block,
+  type Item,
+  type Line,
+  type PageKind,
+  type PageModel,
+  type Part,
+  type Place,
+  type Row,
+  type Span,
+  type Stat,
+  type Tab,
+} from "./inspect.ts";
 export type {
   ClusterPlan,
   ClusterStar,

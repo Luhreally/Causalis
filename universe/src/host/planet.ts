@@ -108,6 +108,7 @@ import type {
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 import { PAGE_QUERIES } from "./pages.ts";
+import { pageOf, placeOf } from "./inspect/index.ts";
 import { realmColor } from "./colors.ts";
 import { villagePlan } from "./village.ts";
 import { worldGlobe } from "./worlds.ts";
@@ -146,7 +147,7 @@ function globeFrame(world: World) {
 }
 
 /** A province's region: the same one its villages are sited on (a pure function of the world). */
-function region(world: World, province: number): Region {
+export function region(world: World, province: number): Region {
   const g = homePlanet(world).generated;
   if (!Number.isInteger(province) || province < 0 || province >= g.grid.count)
     throw new Error(`no province ${province}`);
@@ -183,7 +184,7 @@ function regionFrame(world: World, focus: string | null) {
 
 const WATER_WORDS = ["", "the sea", "a river", "a lake"];
 
-function tile(world: World, center: number, t: number) {
+export function tile(world: World, center: number, t: number) {
   const g = homePlanet(world).generated.fine,
     r = region(world, center);
   if (!Number.isInteger(t) || t < 0 || t >= r.size * r.size) throw new Error(`no tile ${t}`);
@@ -213,7 +214,7 @@ function tile(world: World, center: number, t: number) {
   };
 }
 
-function province(world: World, cell: number) {
+export function province(world: World, cell: number) {
   const ctx = populationContext(world),
     p = ctx.provinces.get(cell);
   if (!p) return null;
@@ -336,7 +337,7 @@ function province(world: World, cell: number) {
 }
 
 /** A province's market: each good's price, stock and year, with the ref that explains it. */
-function market(world: World, cell: number) {
+export function market(world: World, cell: number) {
   const ctx = populationContext(world),
     markets = marketsOf(world),
     m = markets.get(cell),
@@ -380,7 +381,7 @@ function market(world: World, cell: number) {
 }
 
 /** A province's years, for charts: its people, how well they ate, what food and tools cost. */
-function provinceHistory(world: World, cell: number) {
+export function provinceHistory(world: World, cell: number) {
   const ctx = populationContext(world),
     m = marketsOf(world).get(cell);
   return {
@@ -400,7 +401,7 @@ function provinceHistory(world: World, cell: number) {
 }
 
 /** What history holds as mattering most, newest first, in words, with the world's people by year. */
-function chronicle(world: World, limit: number, types?: readonly string[]) {
+export function chronicle(world: World, limit: number, types?: readonly string[]) {
   const ctx = populationContext(world),
     byYear = new Map<number, number>();
   for (const p of ctx.provinces.all())
@@ -428,7 +429,7 @@ function chronicle(world: World, limit: number, types?: readonly string[]) {
 }
 
 /** What a land believes, as the inspector shows it. */
-function faithOf(world: World, cell: number) {
+export function faithOf(world: World, cell: number) {
   const store = beliefOf(world),
     b = store.of(cell),
     f = b.faith ? store.get(b.faith) : undefined;
@@ -438,12 +439,12 @@ function faithOf(world: World, cell: number) {
 }
 
 /** A faith as a colour, keyed by its ref (the old beliefs are left uncoloured). */
-function faithColor(ref: string): [number, number, number] {
+export function faithColor(ref: string): [number, number, number] {
   return realmColor(`${ref}:faith`);
 }
 
 /** The realm a land belongs to, as the inspector shows it. */
-function realmOf(world: World, cell: number) {
+export function realmOf(world: World, cell: number) {
   const realms = politiesOf(world),
     p = realms.of(cell);
   if (!p) return null;
@@ -506,7 +507,7 @@ function realmOf(world: World, cell: number) {
 /** A realm as a colour: its own hue, keyed by its ref. */
 
 /** A people's ways and speech, for the inspector. */
-function waysOf(world: World, cell: number) {
+export function waysOf(world: World, cell: number) {
   const w = cultureOf(world).get(cell);
   if (!w) return null;
   const store = languagesOf(world),
@@ -539,7 +540,7 @@ function waysOf(world: World, cell: number) {
 }
 
 /** A language as a colour: its family's hue, each language of the family a shade of it. */
-function languageColor(family: number, index: number): [number, number, number] {
+export function languageColor(family: number, index: number): [number, number, number] {
   const hue = (family * 0.61803398875 + 0.13) % 1,
     v = finish(mix(0x1a96, index), 3) / 4294967296,
     light = 0.4 + 0.24 * v,
@@ -573,7 +574,7 @@ function tongueColor(t: Tongue): [number, number, number] {
   ) as [number, number, number];
 }
 
-function summary(g: HomeWorld) {
+export function summary(g: HomeWorld) {
   const s = g.star,
     p = g.planet;
   return {
@@ -603,7 +604,7 @@ function summary(g: HomeWorld) {
 }
 
 /** A spot of the fine grid the observer picked on the globe, and the province it is part of. */
-function cell(pw: ProvinceWorld, c: number) {
+export function cell(pw: ProvinceWorld, c: number) {
   const g = pw.fine;
   if (!Number.isInteger(c) || c < 0 || c >= g.grid.count) throw new Error(`no place ${c}`);
   const t = g.tectonics,
@@ -625,6 +626,33 @@ function cell(pw: ProvinceWorld, c: number) {
     river: g.water.river[c] === 1,
     lake: g.water.lake[c] === 1,
     deposit: d ? { ref: d.ref, kind: d.kind, richness: d.richness, process: d.process } : null,
+  };
+}
+
+/** A town: its people, founding, market, the god's shrine and spring, and its city's quarters. */
+export function settlementFacts(world: World, ref: string) {
+  const s = populationContext(world).settlements.get(ref as Ref);
+  if (!s) throw new Error(`no settlement ${ref}`);
+  return {
+    ref: s.ref,
+    name: s.name,
+    cell: s.cell,
+    tile: s.tile,
+    population: s.population,
+    founded: s.founded,
+    event: s.event,
+    market: s.market,
+    shrine: s.shrine ?? null,
+    spring: s.spring ?? null,
+    city: (() => {
+      const c = citiesOf(world).get(s.ref);
+      if (!c) return null;
+      const quarters = USES.map((name, use) => ({
+        name,
+        blocks: c.uses.filter((u) => u === use).length,
+      })).filter((q) => q.blocks && q.name !== "open");
+      return { founded: c.founded, event: c.event, paved: c.paved, quarters };
+    })(),
   };
 }
 
@@ -1042,33 +1070,13 @@ function planetUniverse(name: string, prior: Prior): Universe {
             population: s.population,
             founded: s.founded,
           })),
-      settlement: (world, args) => {
-        const s = populationContext(world).settlements.get((args as { ref: string }).ref as Ref);
-        if (!s) throw new Error(`no settlement ${(args as { ref: string }).ref}`);
-        return {
-          ref: s.ref,
-          name: s.name,
-          cell: s.cell,
-          tile: s.tile,
-          population: s.population,
-          founded: s.founded,
-          event: s.event,
-          market: s.market,
-          shrine: s.shrine ?? null,
-          spring: s.spring ?? null,
-          city: (() => {
-            const c = citiesOf(world).get(s.ref);
-            if (!c) return null;
-            const quarters = USES.map((name, use) => ({
-              name,
-              blocks: c.uses.filter((u) => u === use).length,
-            })).filter((q) => q.blocks && q.name !== "open");
-            return { founded: c.founded, event: c.event, paved: c.paved, quarters };
-          })(),
-        };
-      },
+      settlement: (world, args) => settlementFacts(world, (args as { ref: string }).ref),
       ...OBSERVE_QUERIES,
       ...PAGE_QUERIES,
+      // Every thing's page, and where it is to be seen (Phase 10 M91). (Called through, not
+      // spread: the pages read this module's builders, so they load after it.)
+      page: (world, args) => pageOf(world, (args as { ref: string }).ref),
+      place: (world, args) => placeOf(world, (args as { ref: string }).ref),
       // The world's deposits where they lie on the globe (fine cells), each with its province.
       deposits: (world) =>
         homePlanet(world).generated.fine.deposits.map((d) => ({
@@ -1084,7 +1092,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
 
 /** The cluster's stars for a world (a pure function of its seed, kept while the world is the same). */
 const CLUSTERS = new Map<string, GalaxyStar[]>();
-function clusterOf(world: World): GalaxyStar[] {
+export function clusterOf(world: World): GalaxyStar[] {
   const key = world.seed.text;
   let stars = CLUSTERS.get(key);
   if (!stars) {
@@ -1095,7 +1103,7 @@ function clusterOf(world: World): GalaxyStar[] {
   return stars;
 }
 
-function clusterStar(s: GalaxyStar, rng: Rng): ClusterStar {
+export function clusterStar(s: GalaxyStar, rng: Rng): ClusterStar {
   const worlds = foreignPlanets(rng, s);
   return {
     ref: s.ref,

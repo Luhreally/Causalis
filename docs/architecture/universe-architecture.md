@@ -3192,6 +3192,119 @@ are mended:
 Now entering takes 96 ms at High and 95 ms at Ultra (384 and 380 ms at the phone floor's
 pace), and watching gives a p90 of 23 ms at High and 26 ms at Ultra. **Phase 9 closes.**
 
+### I.10 Phase 10 milestones (planned 2026-09-27, at the user's asking)
+
+The user: "zoom should go both ways too — if I see the war visualization out on the planet
+view I should be able to zoom in and see it in greater detail in the close town view … zoom
+should work both ways, not just for wars; the war was an example … I want Paradox (Europa,
+etc.) level UX and UI, mixed with this Y2K style … make sure everything is inspectable: I
+should be able to click on stuff, and it can take me to it, and it can have its own UI
+screen with its every detail, and it can explain … please improve the UX, the
+inspectability and detail … also add a free roam camera."
+
+Phase 10's "done when":
+- Everything drawn at every scale is a thing with a page, reached by a click or a search.
+  The page has every detail, every name in it is a link, and every number is explained.
+  "Go to it" travels there across scales.
+- What is seen at one scale is what is zoomed into at the next, both ways.
+- The chrome is a grand strategy game's in the Y2K look: a top bar, an outliner, alerts, map
+  modes, a ledger, search, and tooltips that break numbers down. It works on a phone as on a
+  desk.
+- The camera can fly free.
+
+The design is §31's, now built whole.
+
+91. **Every thing a page** (host). One `page {ref}` query answers for every kind of ref. The
+    kinds are:
+    - the land and the people: a land, a spot, a town, a household, a person, a memory, a
+      people and their ways;
+    - realms and wars: a realm, two realms' regard, a war, a battle, a host in the field
+      (a war's side), a war between the stars;
+    - culture and goods: a faith, a tongue, a design, a market's good;
+    - the living world and the ground: a lineage, a deposit, a plate, an age;
+    - the sky: a star near or far, a planet, a moon, a colony, another star's people and
+      its world;
+    - history: an event, a decision, an act.
+
+    Each page model has:
+    - a title and an icon;
+    - its place (where to go to see it);
+    - its headline numbers, each with its why and, where it has parts, its breakdown;
+    - tabs of blocks: facts, lists, tables, charts and why trees, every name in them a link.
+
+    Pages are built read-only from the world (looking never changes history), and tested by
+    crawling every link out from the home world.
+92. **The inspector** (UI). One window for every page: Y2K chrome over a Paradox window.
+    - It has an icon and title bar, back and forward through everything looked at, "go to",
+      follow and pin, headline numbers and tabs.
+    - On a phone it is a sheet (peek, half, full); on a desk, a side window.
+    - The why trees' claims and causes are links.
+    - The scales' own inspectors give way to it.
+93. **Pick everything**. Every drawn thing carries its ref and can be picked:
+    - the globe: its hosts, ships, standards and battles, and its towns (drawn now);
+    - the land: its villages, hosts and battles;
+    - a village: its homes, fields, works, rising walls, soldiers, beasts, birds and fish;
+    - the sky: its star, worlds, moons, halls and stations;
+    - the stars about it: their fleets and battles;
+    - the galaxy: its stars.
+
+    A tooltip shows on hover.
+94. **Go to anything**. A page's place is travelled to: the camera flies within a scale and
+    fades across scales, through as many as it takes. It can follow what moves: a person, a
+    herd, a host, a ship.
+95. **Seamless both ways**. Zooming goes toward the pointer, and through an edge into what is
+    under it (the land, the town, the world, the star), centred on it. What is seen at one
+    scale is seen at the next:
+    - towns on the globe and in the land;
+    - hosts marching and battles in the land, and past a town;
+    - ships at sea;
+    - halls from orbit;
+    - a star's own system from the stars about it;
+    - lenses the same on the globe and in the land.
+96. **The chrome**.
+    - A top bar at every scale: the date and speed, the world's headline numbers with their
+      breakdowns, alerts, search, the outliner, map modes, the ledger and the camera.
+    - The outliner: what is followed and pinned, by kind, each a link.
+    - Alerts: a followed realm at war, a followed land starving, a followed life ended, the
+      world's firsts.
+    - A message log.
+    - Map modes with legends, at every scale that has them.
+    - A ledger: sortable tables of realms, lands, towns, wars, peoples, faiths, tongues,
+      lineages, colonies, stars and fleets.
+    - Search.
+97. **Numbers explained**. Tooltips break a number into what makes it: a land's food, its
+    growth, grievance, a realm's strength, a price, a war's odds. They are nested, and each
+    part is a link. A book of concepts (what a grievance, a levy, the web of eating are) is
+    linked from the pages.
+98. **Free roam**. A camera that flies:
+    - on a desk, with keys and mouse; on a phone, with a thumbstick and a drag;
+    - kept above the ground and out of walls;
+    - walking among the people in a village;
+    - going through the scales by height, as zooming does.
+99. **Phase 10 gate**.
+
+91, as built. One `page {ref}` query answers for every kind of thing (host/inspect/): a land,
+a colony's halls or a ship, a spot, a region, a people and their ways, a town, a household, a
+person, a memory, one under the hand, a realm, two realms' regard, a war (and each of its
+hosts, as `war:…#attacker`), a battle, a war among the stars, a faith, a tongue, a design, a
+market's good, a lineage, a deposit, a plate, an age, the home star, a star of the cluster
+or far out, a world or moon, another star's world, another star's people, an event, a
+decision and an act.
+
+Each page is a model (bridge/inspect.ts) the UI draws as it is:
+- an icon, a title and a line under it;
+- its colour (a realm's, a faith's);
+- its place, where "go to it" goes;
+- headline numbers, each with the ref whose why explains it and, where it has parts, its
+  breakdown;
+- tabs of blocks (facts, lists, sortable tables, charts, why trees, and the tools: the
+  god's acts, meeting a family, the hand), every name in them a link.
+
+A thing that no longer stands still answers with what is known of it, and empty lists and
+tabs are left out. A land is named for its first town. Crawled from the home world at year
+260: 700 pages, every link led to a page, and history was the same after as before (the
+observer ledger aside, as ever). At year 400, 1,500 pages took 2.2 s, about 1.5 ms a page.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |
