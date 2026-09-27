@@ -3,7 +3,8 @@
 // marker on the picked tile. The look (art track A4): low-poly facets, each triangle
 // flat and coloured by the most of its three tiles, under a glossy sea.
 import * as pc from "playcanvas";
-import { InstancedBatch, cylinderMesh } from "./batch.ts";
+import type { RegionTree } from "../view/index.ts";
+import { InstancedBatch, coneMesh, cylinderMesh } from "./batch.ts";
 import { flatMaterial, type Stage } from "./stage.ts";
 
 export class RegionScene {
@@ -18,6 +19,7 @@ export class RegionScene {
   private heights: Float32Array | null = null;
   private readonly marker: pc.Entity;
   private huts: InstancedBatch | null = null;
+  private woods: InstancedBatch[] = [];
   private villageTiles: number[] = [];
   key: string | null = null;
 
@@ -40,8 +42,12 @@ export class RegionScene {
   }
 
   build(key: string, size: number, tileKm: number, heights: Float32Array): void {
+    // (Batches first: their instance buffers go with them.)
+    this.huts?.destroy();
+    for (const b of this.woods) b.destroy();
     for (const child of [...this.root.children]) if (child !== this.marker) child.destroy();
     this.huts = null;
+    this.woods = [];
     this.villageTiles = [];
     const n = size * size,
       positions = new Float32Array(n * 3),
@@ -184,14 +190,64 @@ export class RegionScene {
     );
   }
 
+  /** The region's woods: a low-poly crown for each tree, on the ground where it stands. */
+  plantTrees(trees: readonly RegionTree[]): void {
+    for (const b of this.woods) b.destroy();
+    this.woods = [];
+    if (!this.heights || !trees.length) return;
+    const s = this.stage,
+      half = ((this.size - 1) * this.tileKm) / 2,
+      kinds = [
+        {
+          kind: "conifer",
+          mesh: coneMesh(s, 0.5, 1, 6),
+          color: [0.06, 0.4, 0.22] as const,
+          w: 0.5,
+          h: 1.05,
+        },
+        {
+          kind: "broadleaf",
+          mesh: pc.Mesh.fromGeometry(
+            s.device,
+            new pc.SphereGeometry({ radius: 0.5, latitudeBands: 3, longitudeBands: 6 }),
+          ),
+          color: [0.16, 0.56, 0.18] as const,
+          w: 0.65,
+          h: 0.55,
+        },
+      ];
+    for (const k of kinds) {
+      const list = trees.filter((t) => t.kind === k.kind);
+      if (!list.length) continue;
+      const batch = new InstancedBatch(s, k.mesh, [...k.color], list.length, this.root);
+      batch.set(list.length, (i, out) => {
+        const t = list[i]!,
+          x = t.tile % this.size,
+          z = Math.floor(t.tile / this.size);
+        out[0] = (x + t.dx) * this.tileKm - half;
+        // Sized to the tiles (a tree half a tile across reads as woods at this height).
+        const w = k.w * t.size * this.tileKm,
+          h = k.h * t.size * this.tileKm;
+        out[1] = Math.max(0, this.heights![t.tile]!) + h / 2;
+        out[2] = (z + t.dz) * this.tileKm - half;
+        out[3] = out[5] = w;
+        out[4] = h;
+        out[6] = t.dx * 6;
+      });
+      this.woods.push(batch);
+    }
+  }
+
   /** Villages as clusters of huts: more huts for more people. */
   setVillages(villages: readonly { tile: number; population: number }[]): void {
     if (!this.heights) return;
+    // (Within the region, so they go and come with it.)
     this.huts ??= new InstancedBatch(
       this.stage,
       cylinderMesh(this.stage, 0.3, 0.42, 4),
       [0.9, 0.76, 0.55],
       2048,
+      this.root,
     );
     this.villageTiles = villages.map((v) => v.tile);
     const places: [number, number, number, number][] = [];

@@ -2730,6 +2730,12 @@ and a ship between the stars ran its works on coal, then on wind and water (seal
 now burn no coal or oil, and have a drive of their own: electric motors on the atom's
 power, when they know habitats and the atom).
 
+More of the look: a region's woods — on each land tile, by how wooded its biome is, a
+low-poly crown (pines in the north and the hills, round crowns elsewhere), thinned alike
+to a cap of four thousand, sized to the tiles; the stars of the cluster glow in their own
+light; on a phone the subject is framed between the bar and the sheet, and the sheet keeps
+to the lower part of the screen.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

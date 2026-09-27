@@ -36,6 +36,7 @@ import {
   globeColors,
   regionColors,
   regionHeights,
+  regionTrees,
   sandboxSpec,
   skyMarks,
   voyageMarks,
@@ -313,6 +314,7 @@ async function runPlanetPage(): Promise<void> {
       performance.measure("region.build", { start: t0 });
       regionPanel.show(meta.center, meta.lat, meta.lon, meta.size * meta.tileKm);
       region.setVillages(villages);
+      region.plantTrees(regionTrees(frame));
     }
     const colors = regionColors(frame, regionLens);
     region.paint(colors);

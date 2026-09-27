@@ -30,6 +30,8 @@ export {
   REGION_RELIEF,
   regionColors,
   regionHeights,
+  regionTrees,
+  type RegionTree,
   type RegionLens,
 } from "./region.ts";
 export {
