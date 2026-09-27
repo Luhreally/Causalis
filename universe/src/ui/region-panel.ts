@@ -6,6 +6,7 @@ import { REGION_LENSES, REGION_LENS_NAMES, type RegionLens } from "../view/index
 import { PeopleView } from "./people.ts";
 import type { Tidings } from "./tidings.ts";
 import { WhyTree, el } from "./why.ts";
+import { folder } from "./window.ts";
 
 type TileFacts = {
   tile: number;
@@ -86,7 +87,15 @@ export class RegionPanel {
       this.select(null);
       this.onClose();
     };
-    this.inspector.append(close, this.title, this.facts, this.body, this.whyTitle, this.whyBox);
+    this.inspector.append(
+      close,
+      folder(this.inspector, this.title),
+      this.title,
+      this.facts,
+      this.body,
+      this.whyTitle,
+      this.whyBox,
+    );
     this.inspector.hidden = true;
     this.element.append(
       bar,

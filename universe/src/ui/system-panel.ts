@@ -5,6 +5,7 @@
 import type { HostClient, SkyState, SystemPlan } from "../bridge/index.ts";
 import { bodyFacts, routeWords } from "../view/index.ts";
 import { WhyTree, el } from "./why.ts";
+import { folder } from "./window.ts";
 
 const KIND_WORDS: Readonly<Record<string, string>> = {
   home: "the home world",
@@ -52,7 +53,13 @@ export class SystemPanel {
       this.inspector.hidden = true;
       this.onSelect(null);
     };
-    this.inspector.append(close, this.title, this.facts, this.more);
+    this.inspector.append(
+      close,
+      folder(this.inspector, this.title),
+      this.title,
+      this.facts,
+      this.more,
+    );
     this.element.append(
       bar,
       this.inspector,

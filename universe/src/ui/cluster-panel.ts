@@ -4,6 +4,7 @@
 import type { ClusterPlan, HostClient, SkyState, StarPage } from "../bridge/index.ts";
 import { clusterWords } from "../view/index.ts";
 import { WhyTree, el } from "./why.ts";
+import { folder } from "./window.ts";
 
 export class ClusterPanel {
   readonly element = el("div", "panel");
@@ -35,7 +36,13 @@ export class ClusterPanel {
       this.inspector.hidden = true;
       this.onSelect(null);
     };
-    this.inspector.append(close, this.title, this.facts, this.more);
+    this.inspector.append(
+      close,
+      folder(this.inspector, this.title),
+      this.title,
+      this.facts,
+      this.more,
+    );
     this.element.append(
       bar,
       this.inspector,

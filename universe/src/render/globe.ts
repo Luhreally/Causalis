@@ -7,7 +7,17 @@ import * as pc from "playcanvas";
 import { nearestCell, sphereGrid, type SphereGrid } from "../kernel/index.ts";
 import { globeRadius } from "../view/index.ts";
 import { cylinderMesh } from "./batch.ts";
+import { billboard, glowMaterial, type GlowStops } from "./glow.ts";
 import { flatMaterial, type Stage } from "./stage.ts";
+
+/** The rim of air: clear in the middle (the globe hides it), a blue ring at the edge, fading out. */
+const HALO: GlowStops = [
+  [0, "rgba(0,0,0,0)"],
+  [0.68, "rgba(0,0,0,0)"],
+  [0.757, "rgba(120,210,255,0.85)"],
+  [0.84, "rgba(60,120,255,0.35)"],
+  [1, "rgba(20,40,120,0)"],
+];
 
 export class GlobeScene {
   private readonly stage: Stage;
@@ -48,26 +58,8 @@ export class GlobeScene {
     this.sea.enabled = false;
     stage.root.addChild(this.sea);
     // The air: a glow about the rim, a camera-facing disc behind the globe's middle.
-    this.halo = new pc.Entity("halo");
-    this.halo.addComponent("render", {
-      meshInstances: [
-        new pc.MeshInstance(
-          pc.Mesh.fromGeometry(
-            stage.device,
-            new pc.PlaneGeometry({ halfExtents: new pc.Vec2(1.32, 1.32) }),
-          ),
-          haloMaterial(stage),
-        ),
-      ],
-    });
+    this.halo = billboard(stage, glowMaterial(stage, HALO), 1.32, stage.root);
     this.halo.enabled = false;
-    stage.root.addChild(this.halo);
-    stage.onUpdate(() => {
-      if (!this.halo.enabled) return;
-      // The disc's face (its +y) turned to the camera.
-      this.halo.lookAt(stage.camera.getPosition());
-      this.halo.rotateLocal(-90, 0, 0);
-    });
     this.marker = new pc.Entity("marker");
     this.marker.addComponent("render", {
       meshInstances: [
@@ -214,41 +206,4 @@ export class GlobeScene {
     if (axis.length() > 1e-6) q.setFromAxisAngle(axis.normalize(), (angle * 180) / Math.PI);
     this.marker.setLocalRotation(q);
   }
-}
-
-/** A soft ring of light, clear in the middle (the globe hides it) and fading outward. */
-function haloMaterial(stage: Stage): pc.StandardMaterial {
-  const size = 256,
-    canvas = document.createElement("canvas");
-  canvas.width = canvas.height = size;
-  const g = canvas.getContext("2d")!,
-    r = size / 2,
-    rim = 1 / 1.32,
-    grad = g.createRadialGradient(r, r, 0, r, r, r);
-  grad.addColorStop(0, "rgba(0,0,0,0)");
-  grad.addColorStop(rim * 0.9, "rgba(0,0,0,0)");
-  grad.addColorStop(rim, "rgba(120,210,255,0.85)");
-  grad.addColorStop(rim + (1 - rim) * 0.35, "rgba(60,120,255,0.35)");
-  grad.addColorStop(1, "rgba(20,40,120,0)");
-  g.fillStyle = grad;
-  g.fillRect(0, 0, size, size);
-  const texture = new pc.Texture(stage.device, {
-    width: size,
-    height: size,
-    format: pc.PIXELFORMAT_RGBA8,
-    mipmaps: true,
-  });
-  texture.setSource(canvas);
-  const m = new pc.StandardMaterial();
-  m.useLighting = false;
-  m.diffuse = new pc.Color(0, 0, 0);
-  m.emissive = new pc.Color(1, 1, 1);
-  m.emissiveMap = texture;
-  m.opacityMap = texture;
-  m.opacityMapChannel = "a";
-  m.blendType = pc.BLEND_ADDITIVEALPHA;
-  m.depthWrite = false;
-  m.cull = pc.CULLFACE_NONE;
-  m.update();
-  return m;
 }

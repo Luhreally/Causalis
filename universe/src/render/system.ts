@@ -4,6 +4,7 @@
 import * as pc from "playcanvas";
 import type { SystemPlan } from "../bridge/index.ts";
 import { STAR_SIZE, orbitRings, type SkyMarks, type SystemSpot } from "../view/index.ts";
+import { billboard, glowMaterial } from "./glow.ts";
 import { flatMaterial, type Stage } from "./stage.ts";
 
 export class SystemScene {
@@ -70,6 +71,20 @@ export class SystemScene {
     star.addComponent("render", { meshInstances: [new pc.MeshInstance(sphere, glow(hue))] });
     star.setLocalScale(STAR_SIZE, STAR_SIZE, STAR_SIZE);
     this.root.addChild(star);
+    // Its corona: a white-hot heart in the star's own hue, fading far out.
+    const css = (k: number, a: number) =>
+      `rgba(${Math.round(255 * hue[0] * k)},${Math.round(255 * hue[1] * k)},${Math.round(255 * hue[2] * k)},${a})`;
+    billboard(
+      this.stage,
+      glowMaterial(this.stage, [
+        [0, "rgba(255,255,255,1)"],
+        [0.12, css(1, 0.9)],
+        [0.35, css(0.9, 0.35)],
+        [1, css(0.6, 0)],
+      ]),
+      STAR_SIZE * 7,
+      this.root,
+    );
     for (const b of plan.bodies) {
       const e = new pc.Entity(b.designation);
       e.addComponent("render", {
@@ -92,7 +107,7 @@ export class SystemScene {
     mesh.update(pc.PRIMITIVE_LINES);
     const rings = new pc.Entity("orbits");
     rings.addComponent("render", {
-      meshInstances: [new pc.MeshInstance(mesh, glow([0.35, 0.4, 0.5]))],
+      meshInstances: [new pc.MeshInstance(mesh, glow([0.25, 0.62, 0.85]))],
     });
     this.root.addChild(rings);
     this.spots = [];

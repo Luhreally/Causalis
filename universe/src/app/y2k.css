@@ -316,3 +316,20 @@ body[data-scale="ground"][data-daylight="night"] {
     149px 149px,
     100% 100%;
 }
+
+/* A window's fold: beside the close box; folded, only the title bar is left. */
+.inspector .fold {
+  float: right;
+  position: relative;
+  z-index: 1;
+  min-height: 28px;
+  margin: -8px 6px 0 0;
+  padding: 0 10px;
+  font-weight: 700;
+}
+.inspector.folded > :not(h2):not(.close):not(.fold) {
+  display: none !important;
+}
+.inspector.folded {
+  padding-bottom: 0;
+}

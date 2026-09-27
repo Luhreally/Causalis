@@ -7,6 +7,7 @@ import { ACTIVITY_WORDS, type Moment } from "../view/index.ts";
 import { PeopleView } from "./people.ts";
 import type { Tidings } from "./tidings.ts";
 import { WhyTree, el } from "./why.ts";
+import { folder } from "./window.ts";
 
 /** Speeds for watching a day go by: paused, ten minutes, an hour, a day a second. */
 export const WATCH_SPEEDS = [0, 600, 3600, 86_400] as const;
@@ -81,6 +82,7 @@ export class VillagePanel {
     };
     this.inspector.append(
       close,
+      folder(this.inspector, this.who),
       this.who,
       this.now,
       this.page,

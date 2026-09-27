@@ -2712,7 +2712,11 @@ waits while the viewer is asking. First frames now (WebKit, this machine): a lan
 a village 47, the star's worlds 37, the stars 30; the heap after three centuries seen at
 every scale, 148 MB. The Phase 7 gate passes: the journey's nineteen steps, each with its
 why, within the budgets; and the Phase 5 and 6 gates pass after the reckoning fix (the
-3100-year save 15.5 MB, time at some 139 years a minute on the phone floor).
+3100-year save 15.5 MB, time at some 139 years a minute on the phone floor). On a phone's
+screen: every window can be folded to its title bar (the fold beside the close box; it
+unfolds when given something new), and the camera frames its subject below the bar that
+covers the top of the screen; a star wears a corona and the orbits the HUD's cyan (one
+glow module draws the globe's rim of air and the star's light).
 
 ### J. Allocation of ~100k lines
 

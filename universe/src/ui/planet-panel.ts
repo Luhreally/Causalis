@@ -9,6 +9,7 @@ import { HandView } from "./hand.ts";
 import { buildPage, type Page, type PageKind, type PageLinks } from "./pages.ts";
 import type { Tidings } from "./tidings.ts";
 import { WhyTree, el } from "./why.ts";
+import { folder } from "./window.ts";
 import { speedWords, when } from "./words.ts";
 
 const DAY = 86_400;
@@ -381,6 +382,7 @@ export class PlanetPanel {
     };
     this.inspector.append(
       close,
+      folder(this.inspector, this.title),
       this.title,
       this.facts,
       this.pageBox,

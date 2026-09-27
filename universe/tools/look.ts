@@ -55,6 +55,33 @@ if (await wild.count()) {
 await page.click(".panel:not([hidden]) .world-line button:has-text('Saves')");
 await page.waitForTimeout(800);
 await page.screenshot({ path: join(dir, "saves.png") });
+// Out to the star's worlds and the stars around, and back.
+await page.evaluate(() => (globalThis as { causalis?: C }).causalis!.sky!());
+await page.waitForFunction(
+  () => (((globalThis as { causalis?: C }).causalis?.skyBodies?.() as number) ?? 0) > 0,
+  undefined,
+  { timeout: 60000 },
+);
+await page.waitForTimeout(1500);
+await page.screenshot({ path: join(dir, "system.png") });
+// Its window folded: the worlds behind it.
+await page.click(".panel:not([hidden]) .inspector:not([hidden]) .fold");
+await page.waitForTimeout(600);
+await page.screenshot({ path: join(dir, "system-folded.png") });
+await page.evaluate(() => (globalThis as { causalis?: C }).causalis!.stars!());
+await page.waitForFunction(
+  () => (((globalThis as { causalis?: C }).causalis?.starCount?.() as number) ?? 0) > 0,
+  undefined,
+  { timeout: 60000 },
+);
+await page.waitForTimeout(1500);
+await page.screenshot({ path: join(dir, "stars.png") });
+await page.goto(`${base}?universe=earth&year=${process.argv[3] ?? 200}`);
+await page.waitForFunction(
+  () => ((globalThis as { causalis?: C }).causalis?.drawn?.() as number) > 0,
+  undefined,
+  { timeout: 600000 },
+);
 // Down to the land, and into a village.
 await page.evaluate((cell) => (globalThis as { causalis?: C }).causalis!.descend!(cell), top.cell);
 await page.waitForFunction(

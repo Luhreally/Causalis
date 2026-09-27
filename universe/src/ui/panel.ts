@@ -6,6 +6,7 @@
 import type { HostClient, Status } from "../bridge/index.ts";
 import { CLASS_COLORS, CLASS_NAMES } from "../view/index.ts";
 import { WhyTree, el } from "./why.ts";
+import { folder } from "./window.ts";
 import { eventWords, speedWords, when } from "./words.ts";
 
 const DAY = 86_400;
@@ -67,6 +68,7 @@ export class SandboxPanel {
     this.bless.onclick = () => void this.blessSelected();
     this.inspector.append(
       close,
+      folder(this.inspector, this.title),
       this.title,
       this.facts,
       this.bless,

@@ -29,6 +29,11 @@ export class OrbitRig {
   private pinch = 0;
   /** True once the viewer has zoomed by hand; fitting then leaves the distance alone. */
   userZoomed = false;
+  /**
+   * The share of the screen's height covered from the top (a bar of buttons): the subject
+   * is framed in the rest, as a phone's screen is mostly bar and sheet.
+   */
+  covered: () => number = () => 0;
   private idle = 0;
   private readonly element: HTMLElement;
   private readonly listeners: [string, (e: Event) => void][] = [];
@@ -143,6 +148,13 @@ export class OrbitRig {
       this.target.z + d * Math.cos(pitch) * Math.cos(yaw),
     );
     stage.camera.lookAt(this.target);
+    // Framed below what covers the top: the camera lifted, looking on, so the subject sits
+    // in the middle of what is left (the camera itself moves, so picking stays true).
+    const covered = Math.min(0.6, Math.max(0, this.covered()));
+    if (covered > 0) {
+      const half = Math.tan(((stage.camera.camera!.fov / 2) * Math.PI) / 180) * d;
+      stage.camera.translateLocal(0, half * covered, 0);
+    }
   }
 
   destroy(): void {

@@ -392,6 +392,18 @@ async function runPlanetPage(): Promise<void> {
               ? selectStar(starScene.pick(x, y))
               : selectPerson(village.pick(x, y)),
   });
+  // Framed below the bar of whichever scale is up (read a few times a second, not each frame).
+  let covered = 0,
+    coveredAt = -Infinity;
+  rig.covered = () => {
+    const now = performance.now();
+    if (now - coveredAt > 250) {
+      coveredAt = now;
+      const bar = hud.querySelector<HTMLElement>(".panel:not([hidden]) .bar");
+      covered = bar ? bar.getBoundingClientRect().bottom / Math.max(1, innerHeight) : 0;
+    }
+    return covered;
+  };
 
   // Down to a region, and back up to the world: the camera, the scene, the panel,
   // the labels and the host's interest all move together.
