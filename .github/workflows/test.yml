@@ -82,6 +82,29 @@ jobs:
       # npm run gate:5.
       - run: npm run gate:5 -- --ci
 
+  universe-journey:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: universe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: universe/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps webkit
+      - run: npm run build
+      # The Phase 7 gate's journey: the brief's journey walked at a phone's size in WebKit,
+      # every step answered with its why (to the Earth seed's year 1300, its first war
+      # between the stars fought). The phone's budgets need a GPU; they run locally:
+      # npm run gate:7.
+      - run: npm run gate:7 -- --sky-year 1300 --no-budgets
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
+
   universe-engines:
     runs-on: ubuntu-latest
     defaults:
