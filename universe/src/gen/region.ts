@@ -82,6 +82,41 @@ function scratchFor(n: number, width: number): Scratch {
   return scratch;
 }
 
+/**
+ * Where a region's tile lies on the globe (a unit direction), by the same tangent frame its
+ * region is drawn on (refineRegion's): for what the land shows to be shown on the globe too.
+ */
+export function regionPoint(
+  w: HomeWorld,
+  center: number,
+  size: number,
+  tileKm: number,
+  tile: number,
+): [number, number, number] {
+  const R = EARTH_RADIUS_KM * w.planet.radius,
+    P = w.grid.positions,
+    ox = P[center * 3]!,
+    oy = P[center * 3 + 1]!,
+    oz = P[center * 3 + 2]!;
+  let ex = oz,
+    ez = -ox;
+  const el = Math.sqrt(ex * ex + ez * ez) || 1;
+  ex /= el;
+  ez /= el;
+  const nx = oy * ez,
+    ny = oz * ex - ox * ez,
+    nz = -oy * ex,
+    i = tile % size,
+    j = Math.floor(tile / size),
+    x = (i - (size - 1) / 2) * tileKm,
+    y = ((size - 1) / 2 - j) * tileKm,
+    px = ox + (x / R) * ex + (y / R) * nx,
+    py = oy + (y / R) * ny,
+    pz = oz + (x / R) * ez + (y / R) * nz,
+    pl = Math.sqrt(px * px + py * py + pz * pz);
+  return [px / pl, py / pl, pz / pl];
+}
+
 export function refineRegion(w: HomeWorld, center: number, size = 128, tileKm = 0.8): Region {
   const g = w.grid,
     n = size * size,

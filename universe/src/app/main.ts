@@ -7,13 +7,16 @@ import "./y2k.css";
 import { HostClient, inlinePair, workerPort } from "../bridge/index.ts";
 import {
   GlobeScene,
+  GlobeTowns,
   GlobeWars,
   OrbitRig,
   RegionScene,
+  RegionWars,
   SandboxScene,
   Stage,
   SystemScene,
   ClusterScene,
+  VILLAGE_METRE,
   GalaxyScene,
   galaxyMaterial,
   skyMaterials,
@@ -23,6 +26,7 @@ import {
   QUALITY_NAMES,
   regionMaterials,
   runBench,
+  type GlobeTown,
   type QualityName,
 } from "../render/index.ts";
 import {
@@ -56,7 +60,7 @@ import type {
   StarPage,
   WarsMap,
 } from "../bridge/index.ts";
-import { sphereGrid } from "../kernel/index.ts";
+import { nearestCell, sphereGrid } from "../kernel/index.ts";
 
 import {
   cellAt,
@@ -66,6 +70,8 @@ import {
   regionHeights,
   regionTrees,
   SIGNS,
+  battleFront,
+  landWars,
   warPaths,
   sandboxSpec,
   skyMarks,
@@ -180,6 +186,10 @@ type Exposed = {
   carriersNow?: () => { x: number; z: number; carry: string }[];
   /** The marks of war drawn on the globe now (for the look tools). */
   warsDrawn?: () => number;
+  /** The hosts and battles a land's map shows of the wars (M95), and whether the wars are known. */
+  landWars?: () => { marches: number; battles: number; known: boolean };
+  spotOnScreen?: (spot: number) => { x: number; y: number } | null;
+  faceBattle?: () => boolean;
   /** Turn the globe to a spot of its fine grid, from so far off (for the look tools). */
   faceSpot?: (spot: number, distance?: number) => void;
   /** Zoom on through to the next scale in or out, and which scale is shown (M88, for the look tools). */
@@ -535,11 +545,30 @@ async function runPlanetPage(): Promise<void> {
       regionPanel.show(meta.center, meta.lat, meta.lon, meta.size * meta.tileKm);
       region.setVillages(villages);
       region.plantTrees(regionTrees(frame, stage.quality.regionTrees));
+      showLandWars();
+      // Come down from the globe onto a spot of it: that spot in the middle (M95).
+      const parent = frame.arrays.parent as Int32Array | undefined;
+      if (arriveAt !== null && parent) {
+        let x = 0,
+          z = 0,
+          n = 0;
+        const half = ((meta.size - 1) * meta.tileKm) / 2;
+        for (let t = 0; t < parent.length; t++)
+          if (parent[t] === arriveAt) {
+            x += (t % meta.size) * meta.tileKm - half;
+            z += Math.floor(t / meta.size) * meta.tileKm - half;
+            n++;
+          }
+        if (n) rig.target.set(x / n, region.heightAt(x / n, z / n), z / n);
+      }
+      arriveAt = null;
     }
     const colors = regionColors(frame, regionLens);
     region.paint(colors);
     painted = colors.length / 4;
   };
+  /** The spot of the globe a zoom went down into, to stand in the middle of its land's map. */
+  let arriveAt: number | null = null;
   /** Turn to the most peopled province; closer, for the lenses that show the people. */
   async function faceThePeople(closer: boolean): Promise<void> {
     const map = await client.query<PeopleEntry[]>({ type: "people.map" });
@@ -757,12 +786,15 @@ async function runPlanetPage(): Promise<void> {
   // The year's wars on the globe (M87): hosts marching toward what they want, ships where
   // their way crosses the sea, clashes where history fought.
   const globeWars = new GlobeWars(stage, stage.root);
-  let warsKey = "";
+  let warsKey = "",
+    warsNow: WarsMap | null = null;
   client.subscribe<WarsMap>({ type: "wars.map" }, 2000, (map) => {
     const frame = client.latestFrame("globe"),
       key = JSON.stringify(map);
     if (!frame || key === warsKey) return;
     warsKey = key;
+    warsNow = map;
+    showLandWars();
     globeWars.set(
       warPaths(
         map,
@@ -774,8 +806,97 @@ async function runPlanetPage(): Promise<void> {
   stage.onUpdate(() => {
     globeWars.root.enabled = scale === "globe";
     if (scale === "globe") globeWars.update(performance.now() / 1000);
+    regionWars.visible = scale === "region";
+    if (scale === "region") regionWars.update(performance.now() / 1000);
   });
-  exposed.warsDrawn = () => (scale === "globe" ? globeWars.drawn : 0);
+  exposed.warsDrawn = () =>
+    scale === "globe" ? globeWars.drawn : scale === "region" ? regionWars.drawn : 0;
+  exposed.landWars = () => ({ ...regionWars.shown, known: warsNow !== null });
+  // Where a spot of the globe is on the screen (for the look tools: to zoom at a thing).
+  exposed.spotOnScreen = (spot: number) => {
+    const frame = client.latestFrame("globe");
+    if (!frame || scale !== "globe") return null;
+    const p = sphereGrid((frame.meta as { frequency: number }).frequency).positions,
+      [at] = globe.screenOf([{ x: p[spot * 3]!, y: p[spot * 3 + 1]!, z: p[spot * 3 + 2]! }]);
+    return at && at.facing > 0 ? { x: at.x, y: at.y } : null;
+  };
+  // The same wars seen closer in a land (Phase 10 M95): its hosts coming in for what they
+  // want or going out to the front, its defenders, its battles of this year and last.
+  const regionWars = new RegionWars(stage);
+  const showLandWars = () => {
+    const frame = client.latestFrame("region"),
+      globeFrame = client.latestFrame("globe"),
+      parent = frame?.arrays.parent as Int32Array | undefined;
+    if (
+      !frame ||
+      !globeFrame ||
+      !warsNow ||
+      !parent ||
+      region.key !== (frame.meta as { ref: string }).ref
+    ) {
+      regionWars.set(null, () => 0);
+      return;
+    }
+    const meta = frame.meta as { size: number; tileKm: number };
+    regionWars.set(
+      landWars(
+        warsNow,
+        parent,
+        meta.size,
+        meta.tileKm,
+        sphereGrid((globeFrame.meta as { frequency: number }).frequency),
+      ),
+      (x, z) => region.heightAt(x, z),
+    );
+  };
+  // The world's towns on the globe (M95): what is zoomed into is there before it, and named
+  // as the view closes in.
+  const globeTowns = new GlobeTowns(stage);
+  let townsShown: GlobeTown[] = [],
+    townsAt = -Infinity;
+  const readTowns = async () => {
+    townsAt = performance.now();
+    const frame = client.latestFrame("globe");
+    if (!frame) return;
+    townsShown = await client.query<GlobeTown[]>({ type: "towns.map" });
+    globeTowns.set(
+      townsShown,
+      sphereGrid((frame.meta as { frequency: number }).frequency),
+      frame.arrays.elevation as Float32Array,
+    );
+  };
+  let townsNamed = false;
+  stage.onUpdate(() => {
+    globeTowns.visible = scale === "globe";
+    if (scale !== "globe") return;
+    // (Read again every half-minute while near enough to be seen.)
+    if (rig.distance < 2.6 && performance.now() - townsAt > 30_000) void readTowns();
+    globeTowns.update(rig.distance);
+    const named = globeTowns.named(stage.camera.camera!, rig.distance);
+    if (named.length || townsNamed)
+      labels.update(
+        named.map((n) => ({
+          key: n.town.ref,
+          text: n.town.city ? `🏙️ ${n.town.name}` : n.town.name,
+          at: { x: n.x, y: n.y },
+          priority: n.town.people,
+        })),
+      );
+    townsNamed = named.length > 0;
+  });
+  /** The town drawn nearest a point of the screen on the globe, within a finger's reach. */
+  const townAt = (x: number, y: number): GlobeTown | null => {
+    let best: GlobeTown | null = null,
+      bestD = 24;
+    for (const n of globeTowns.named(stage.camera.camera!, rig.distance)) {
+      const d = Math.hypot(n.x - x, n.y - y);
+      if (d < bestD) {
+        bestD = d;
+        best = n.town;
+      }
+    }
+    return best;
+  };
 
   const aspect = () => Math.max(0.3, innerWidth / Math.max(1, innerHeight));
   const globeFit = () => (aspect() < 1 ? 3.1 / aspect() : 3.3);
@@ -795,6 +916,18 @@ async function runPlanetPage(): Promise<void> {
       void client.query({ type: "region.prepare", args: { cell: province } }).catch(() => {});
       void pageWindow.open(`cell:0:${province}`);
     } else void pageWindow.open(`spot:0:${cell}`);
+  };
+  const tapGlobe = (x: number, y: number) => {
+    const town = townAt(x, y);
+    if (town) {
+      globe.mark(null);
+      void pageWindow.open(town.ref);
+    } else selectCell(globe.pick(x, y));
+  };
+  const tapRegion = (x: number, y: number) => {
+    const war = regionWars.pick(x, y);
+    if (war) void pageWindow.open(war);
+    else selectTile(region.pick(x, y));
   };
   const selectTile = (tile: number | null) => {
     region.mark(tile);
@@ -827,9 +960,9 @@ async function runPlanetPage(): Promise<void> {
     drift: 1.5,
     onTap: (x, y) =>
       scale === "globe"
-        ? selectCell(globe.pick(x, y))
+        ? tapGlobe(x, y)
         : scale === "region"
-          ? selectTile(region.pick(x, y))
+          ? tapRegion(x, y)
           : scale === "system"
             ? selectBody(skyScene.pick(x, y))
             : scale === "cluster"
@@ -839,6 +972,56 @@ async function runPlanetPage(): Promise<void> {
                 : scale === "galaxy"
                   ? tapGalaxy(x, y)
                   : tapVillage(x, y),
+  });
+  // A zoom goes toward what is under the pointer (Phase 10 M95): the globe turns it to the
+  // middle; a flat scene (a land, a village, a sky, the stars, the galaxy) slides it there.
+  type Point = { x: number; y: number; z: number };
+  const onPlane = (x: number, y: number, h = 0): Point | null => {
+    const cam = stage.camera.camera!,
+      from = cam.screenToWorld(x, y, cam.nearClip),
+      to = cam.screenToWorld(x, y, cam.farClip),
+      dy = to.y - from.y;
+    if (Math.abs(dy) < 1e-9) return null;
+    const k = (h - from.y) / dy;
+    return k < 0 || k > 1
+      ? null
+      : { x: from.x + (to.x - from.x) * k, y: h, z: from.z + (to.z - from.z) * k };
+  };
+  const onGlobe = (x: number, y: number): Point | null => {
+    const cam = stage.camera.camera!,
+      from = cam.screenToWorld(x, y, cam.nearClip),
+      to = cam.screenToWorld(x, y, cam.farClip),
+      dx = to.x - from.x,
+      dy = to.y - from.y,
+      dz = to.z - from.z,
+      a = dx * dx + dy * dy + dz * dz,
+      b = 2 * (from.x * dx + from.y * dy + from.z * dz),
+      c = from.x * from.x + from.y * from.y + from.z * from.z - 1.01 * 1.01,
+      disc = b * b - 4 * a * c;
+    if (disc < 0) return null;
+    const k = (-b - Math.sqrt(disc)) / (2 * a);
+    return { x: from.x + dx * k, y: from.y + dy * k, z: from.z + dz * k };
+  };
+  rig.anchor = (x, y) =>
+    scale === "globe" || scale === "world"
+      ? onGlobe(x, y)
+      : scale === "region"
+        ? region.pointAt(x, y)
+        : onPlane(x, y);
+  stage.onUpdate(() => {
+    rig.round = scale === "globe" || scale === "world";
+    const regionFrame = scale === "region" ? client.latestFrame("region") : null,
+      half = regionFrame
+        ? (((regionFrame.meta as { size: number }).size - 1) *
+            (regionFrame.meta as { tileKm: number }).tileKm) /
+          2
+        : 0;
+    rig.bounds =
+      scale === "region"
+        ? { x: 0, z: 0, reach: half * 0.85 }
+        : scale === "village"
+          ? { x: 0, z: 0, reach: (plan?.districts ? 600 : 300) * VILLAGE_METRE }
+          : null;
   });
   // Framed between the bar of whichever scale is up and, on a phone, the sheet open below
   // (read a few times a second, not each frame).
@@ -1321,13 +1504,14 @@ async function runPlanetPage(): Promise<void> {
       globe: "the sky",
       system: "the stars about us",
       cluster: "the galaxy",
+      world: "where you came from",
     },
     IN_TO: Partial<Record<string, string>> = {
       galaxy: "the stars about us",
-      cluster: "our sky",
-      system: "the world",
-      globe: "the land",
-      region: "the village",
+      cluster: "the star under the pointer",
+      system: "the world under the pointer",
+      globe: "the land under the pointer",
+      region: "the village nearest the pointer",
     };
   stage.onUpdate(() => {
     const edge = rig.edge,
@@ -1349,6 +1533,17 @@ async function runPlanetPage(): Promise<void> {
     if (k >= 1) followHome = false;
   });
   let through = false;
+  /** A village's view turned on its battle, the line where the hosts meet (M95). */
+  const faceBattle = (): boolean => {
+    const front = scale === "village" && plan ? battleFront(plan) : null;
+    if (!front) return false;
+    rig.target.set(front.x * VILLAGE_METRE, 0, front.z * VILLAGE_METRE);
+    rig.userZoomed = true;
+    // (Near enough to see each soldier: some ninety metres off.)
+    rig.distance = 9;
+    return true;
+  };
+  exposed.faceBattle = faceBattle;
   const zoomThrough = async (way: "in" | "out") => {
     followHome = false;
     if (way === "out") {
@@ -1361,7 +1556,11 @@ async function runPlanetPage(): Promise<void> {
         rig.userZoomed = true;
         rig.distance = 18;
       } else if (scale === "region") {
-        const spot = centres.get(regionCell);
+        // Facing the spot the land's map was looked at, not only its middle.
+        const frame = client.latestFrame("region"),
+          parent = frame?.arrays.parent as Int32Array | undefined,
+          looked = parent?.[region.tileAt(rig.target.x, rig.target.z)],
+          spot = looked ?? centres.get(regionCell);
         await fadeOver(() => toGlobe());
         if (spot !== undefined) faceSpot(spot, 1.6);
       } else if (scale === "globe") {
@@ -1374,6 +1573,8 @@ async function runPlanetPage(): Promise<void> {
         await fadeOver(() => ready("the stars about us", () => toCluster(), true));
         rig.userZoomed = true;
         rig.distance = 20;
+      } else if (scale === "world") {
+        await fadeOver(() => worldPanel.onBack());
       } else if (scale === "cluster") {
         await fadeOver(() => ready("the galaxy", () => toGalaxy(), true));
         if (galaxyPlan) {
@@ -1398,6 +1599,14 @@ async function runPlanetPage(): Promise<void> {
       rig.userZoomed = true;
       rig.distance = 150;
     } else if (scale === "cluster") {
+      // Into the star under the pointer: another's, its world seen whole; our own, our sky.
+      const i = rig.pointer ? starScene.pick(rig.pointer.x, rig.pointer.y) : null,
+        star = i === null ? undefined : clusterPlan?.stars[i];
+      if (star && star.distance > 0 && star.planets > 0) {
+        const page = await client.query<StarPage>({ type: "galaxy.star", args: { ref: star.ref } });
+        await fadeOver(() => ready("its world", () => toForeignWorld(page, 0, "cluster"), true));
+        return;
+      }
       await fadeOver(() =>
         ready(
           "our sky",
@@ -1412,6 +1621,14 @@ async function runPlanetPage(): Promise<void> {
       rig.userZoomed = true;
       rig.distance = 260;
     } else if (scale === "system") {
+      // Into the world under the pointer: another of the system, seen whole; else our own.
+      const i = rig.pointer ? skyScene.pick(rig.pointer.x, rig.pointer.y) : null;
+      if (i !== null && i > 0 && systemPlan?.bodies[i]) {
+        worldFrom = "system";
+        worldPanel.backTo = "The sky";
+        await fadeOver(() => ready("that world", () => toWorld(i), true));
+        return;
+      }
       await fadeOver(() => {
         stopSky?.();
         stopSky = null;
@@ -1421,33 +1638,53 @@ async function runPlanetPage(): Promise<void> {
       rig.userZoomed = true;
       rig.distance = 10;
     } else if (scale === "globe") {
-      // Down to the land under the middle of the screen (the sea has none).
+      // Down into the land under the pointer (else the middle of the screen; the sea has
+      // none), that spot of it in the middle.
       const frame = client.latestFrame("globe"),
-        spot = globe.pick(innerWidth / 2, innerHeight / 2),
+        at = rig.aimed,
+        len = at ? Math.hypot(at.x, at.y, at.z) || 1 : 1,
+        spot = !frame
+          ? null
+          : at
+            ? nearestCell(
+                sphereGrid((frame.meta as { frequency: number }).frequency),
+                at.x / len,
+                at.y / len,
+                at.z / len,
+              )
+            : globe.pick(innerWidth / 2, innerHeight / 2),
         cell =
           spot === null || !frame
             ? null
             : ((frame.arrays.province as Int32Array | undefined)?.[spot] ?? null);
       if (cell === null || cell < 0 || !density.has(cell)) return;
+      arriveAt = spot;
       await fadeOver(() => ready("the land", () => toRegion(cell)));
       rig.userZoomed = true;
-      rig.distance = 220;
+      rig.distance = 150;
     } else if (scale === "region") {
-      // Into the village nearest the middle of the screen.
-      const on = region.screenOf(villages.map((v) => v.tile));
+      // Into the village nearest the pointer (else the middle of the screen).
+      const aim = rig.pointer ?? { x: innerWidth / 2, y: innerHeight / 2 },
+        on = region.screenOf(villages.map((v) => v.tile));
       let best = -1,
         bestD = Infinity;
       on.forEach((p, i) => {
         if (!p) return;
-        const d = Math.hypot(p.x - innerWidth / 2, p.y - innerHeight / 2);
+        const d = Math.hypot(p.x - aim.x, p.y - aim.y);
         if (d < bestD) {
           bestD = d;
           best = i;
         }
       });
       if (best < 0) return;
-      const ref = villages[best]!.ref;
+      const ref = villages[best]!.ref,
+        // (Zoomed in on a battle: its village's view faces the fight.)
+        war = regionWars.pick(aim.x, aim.y, 160);
       await fadeOver(() => ready("the village", () => toVillage(ref)));
+      if (war?.startsWith("ev:")) faceBattle();
+    } else if (scale === "world") {
+      // (A world seen whole goes in no further: a world of people is its globe, the home one.)
+      return;
     }
   };
   rig.onBeyond = (way) => {
@@ -1530,6 +1767,7 @@ async function runPlanetPage(): Promise<void> {
     bubbles.clear();
     // Whichever way it came (a region, or straight from the globe), only the village shows.
     globe.visible = false;
+    planetPanel.visible = false;
     region.visible = false;
     regionPanel.visible = false;
     watched = null;
@@ -1759,14 +1997,16 @@ async function runPlanetPage(): Promise<void> {
   stage.onUpdate(() => {
     if (scale !== "region" || !villages.length) return;
     const at = region.screenOf(villages.map((v) => v.tile));
-    labels.update(
-      villages.map((v, i) => ({
+    labels.update([
+      ...villages.map((v, i) => ({
         key: v.ref,
         text: v.name,
         at: at[i] ?? null,
         priority: v.population,
       })),
-    );
+      // Its hosts and battles, named over the towns about them (M95).
+      ...regionWars.labels(),
+    ]);
   });
   addEventListener("resize", () => {
     if (!rig.userZoomed) rig.distance = scale === "globe" ? globeFit() : regionFit();

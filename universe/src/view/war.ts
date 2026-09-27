@@ -287,3 +287,167 @@ export function battleOf(plan: VillagePlan, each: number, s: number): Soldier[] 
     }
   return out;
 }
+
+/**
+ * Where a village's battle is fought (the middle of the line where the hosts meet), for the
+ * view to face it — a battle zoomed into from its land is seen closer (M95). Null: none.
+ */
+export function battleFront(plan: VillagePlan): { x: number; z: number } | null {
+  if (!plan.life?.battle) return null;
+  const way = Math.atan2(plan.road.z, plan.road.x),
+    front = villageGround(plan).homesReach + 40;
+  return { x: Math.cos(way) * front, z: Math.sin(way) * front };
+}
+
+// —— Wars in a land's map (Phase 10 M95) ——————————————————————————————————————————
+
+type Flat = { readonly x: number; readonly z: number };
+
+/**
+ * What a land's map shows of the wars the globe shows (so a war zoomed into is the war seen
+ * closer): each host crossing the land (in from its edge toward what it wants there, or out
+ * from its land toward the front), the defenders standing at what they hold, and each battle
+ * fought in the land lately (as long as the globe shows it) — where, how many fell, who won.
+ */
+export type LandWars = {
+  readonly colors: readonly (readonly [number, number, number])[];
+  /** A host's way across the map (km, x east and z south), and whether defenders hold its end. */
+  readonly marches: readonly {
+    readonly ref: string;
+    readonly from: Flat;
+    readonly to: Flat;
+    readonly side: number;
+    readonly foe: number;
+    readonly held: boolean;
+    /** Whose host it is, and against whom. */
+    readonly name: string;
+  }[];
+  readonly battles: readonly {
+    readonly event: string;
+    /** "Sairis upon Nirouv, year 400". */
+    readonly name: string;
+    readonly at: Flat;
+    /** 0 … 1: the more fell, the larger. */
+    readonly size: number;
+    /** Years since (0: this year). */
+    readonly age: number;
+    readonly side: number;
+    readonly foe: number;
+    readonly won: boolean;
+  }[];
+};
+
+/**
+ * The wars in a land's map: `parent` is each tile's spot of the globe's grid (the land's
+ * map is `size` tiles a side, `tileKm` each). A spot of the map stands at the middle of its
+ * tiles; a spot beyond it, at the map's edge the way it lies (by the map's own frame: east
+ * and north at its middle, as the land's map is drawn).
+ */
+export function landWars(
+  map: WarsMap,
+  parent: Int32Array,
+  size: number,
+  tileKm: number,
+  grid: SphereGrid,
+): LandWars {
+  const half = ((size - 1) * tileKm) / 2,
+    sums = new Map<number, { x: number; z: number; n: number }>();
+  for (let t = 0; t < parent.length; t++) {
+    const s = parent[t]!,
+      k = sums.get(s) ?? { x: 0, z: 0, n: 0 };
+    k.x += (t % size) * tileKm - half;
+    k.z += Math.floor(t / size) * tileKm - half;
+    k.n++;
+    sums.set(s, k);
+  }
+  const here = (spot: number): Flat | null => {
+    const k = sums.get(spot);
+    return k ? { x: k.x / k.n, z: k.z / k.n } : null;
+  };
+  // The map's frame at its middle: east about the pole, north across it.
+  const p = grid.positions,
+    mid = parent[Math.floor(size / 2) * size + Math.floor(size / 2)]!,
+    ox = p[mid * 3]!,
+    oy = p[mid * 3 + 1]!,
+    oz = p[mid * 3 + 2]!,
+    el = Math.hypot(oz, ox) || 1,
+    ex = oz / el,
+    ez = -ox / el,
+    nx = oy * ez,
+    ny = oz * ex - ox * ez,
+    nz = -oy * ex;
+  /** Where the way toward a spot beyond the map leaves it (at its edge, a little in). */
+  const edgeToward = (spot: number, from: Flat): Flat => {
+    const dx = p[spot * 3]! - ox,
+      dy = p[spot * 3 + 1]! - oy,
+      dz = p[spot * 3 + 2]! - oz,
+      east = dx * ex + dz * ez,
+      south = -(dx * nx + dy * ny + dz * nz),
+      l = Math.hypot(east, south) || 1,
+      ux = east / l,
+      uz = south / l,
+      reach = half * 0.92,
+      // From its start, out along the way until the edge of the square.
+      tx = ux > 0 ? (reach - from.x) / ux : ux < 0 ? (-reach - from.x) / ux : Infinity,
+      tz = uz > 0 ? (reach - from.z) / uz : uz < 0 ? (-reach - from.z) / uz : Infinity,
+      t = Math.max(0, Math.min(tx, tz));
+    return { x: from.x + ux * t, z: from.z + uz * t };
+  };
+  const colors: [number, number, number][] = [],
+    colorOf = (c: readonly [number, number, number]) => {
+      const i = colors.findIndex((k) => k[0] === c[0] && k[1] === c[1] && k[2] === c[2]);
+      if (i >= 0) return i;
+      colors.push([c[0], c[1], c[2]]);
+      return colors.length - 1;
+    },
+    marches: LandWars["marches"][number][] = [],
+    battles: LandWars["battles"][number][] = [];
+  for (const w of map.wars) {
+    const side = colorOf(w.attacker.color),
+      foe = colorOf(w.defender.color),
+      prize = here(w.to),
+      home = here(w.from),
+      name = `${w.attacker.name}'s host upon ${w.defender.name}`;
+    if (w.ended === null) {
+      // What it wants is here: its host comes in from the way it sets out, to the defenders.
+      if (prize)
+        marches.push({
+          ref: w.ref,
+          from: home ?? edgeToward(w.from, prize),
+          to: prize,
+          side,
+          foe,
+          held: true,
+          name,
+        });
+      // It sets out from here: its host goes out toward the front.
+      else if (home)
+        marches.push({
+          ref: w.ref,
+          from: home,
+          to: edgeToward(w.to, home),
+          side,
+          foe,
+          held: false,
+          name,
+        });
+    }
+    for (const b of w.battles) {
+      const at = b.spot >= 0 ? here(b.spot) : null,
+        age = map.year - b.year;
+      // (As long as the globe shows its burst: this year and the two before.)
+      if (!at || age > 2) continue;
+      battles.push({
+        event: b.event,
+        name: `A battle of ${w.attacker.name} upon ${w.defender.name}, year ${b.year}`,
+        at,
+        size: Math.min(1, Math.log10(1 + b.fallen) / 4),
+        age: Math.max(0, age),
+        side,
+        foe,
+        won: b.won,
+      });
+    }
+  }
+  return { colors, marches, battles };
+}

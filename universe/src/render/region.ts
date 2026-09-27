@@ -180,6 +180,29 @@ export class RegionScene {
     return null;
   }
 
+  /** The ground's height (above the sea) at a point of the scene, by its nearest tile. */
+  heightAt(x: number, z: number): number {
+    if (!this.heights) return 0;
+    const half = ((this.size - 1) * this.tileKm) / 2,
+      i = Math.max(0, Math.min(this.size - 1, Math.round((x + half) / this.tileKm))),
+      j = Math.max(0, Math.min(this.size - 1, Math.round((z + half) / this.tileKm)));
+    return Math.max(0, this.heights[j * this.size + i]!);
+  }
+
+  /** The ground under a screen point (by the tile it falls on), for zooming toward it. */
+  pointAt(x: number, y: number): pc.Vec3 | null {
+    const t = this.pick(x, y);
+    return t === null ? null : this.groundAt(t);
+  }
+
+  /** The tile at a point of the scene. */
+  tileAt(x: number, z: number): number {
+    const half = ((this.size - 1) * this.tileKm) / 2,
+      i = Math.max(0, Math.min(this.size - 1, Math.round((x + half) / this.tileKm))),
+      j = Math.max(0, Math.min(this.size - 1, Math.round((z + half) / this.tileKm)));
+    return j * this.size + i;
+  }
+
   /** Where a tile's ground is, in the scene. */
   groundAt(tile: number): pc.Vec3 | null {
     if (!this.heights) return null;

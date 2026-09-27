@@ -34,3 +34,51 @@ export function zoomStep(
   }
   return { distance: Math.max(lo, Math.min(hi, want)), beyond: 0, way: s.way, through: null };
 }
+
+type Point = { readonly x: number; readonly y: number; readonly z: number };
+
+/**
+ * A flat scene's target, slid as the view zooms by `k` (the new distance over the old) so
+ * that what is under the pointer stays about where it was: toward it closing in, away from
+ * it drawing back — kept within `bounds` of the scene's middle, if it has them.
+ */
+export function towardOnFlat(
+  target: Point,
+  at: Point,
+  k: number,
+  bounds: { readonly x: number; readonly z: number; readonly reach: number } | null,
+): { x: number; z: number } {
+  let x = target.x + (at.x - target.x) * (1 - k),
+    z = target.z + (at.z - target.z) * (1 - k);
+  if (bounds) {
+    const dx = x - bounds.x,
+      dz = z - bounds.z,
+      d = Math.hypot(dx, dz);
+    if (d > bounds.reach) {
+      x = bounds.x + (dx / d) * bounds.reach;
+      z = bounds.z + (dz / d) * bounds.reach;
+    }
+  }
+  return { x, z };
+}
+
+/**
+ * A globe's view (its turn and tilt, in degrees), turned as the view closes in by `k` so
+ * that the point under the pointer comes toward the middle; drawing back leaves it facing
+ * as it was (the globe is let go of, not pushed away).
+ */
+export function towardOnGlobe(
+  yaw: number,
+  pitch: number,
+  at: Point,
+  k: number,
+): { yaw: number; pitch: number } {
+  if (k >= 1) return { yaw, pitch };
+  const len = Math.hypot(at.x, at.y, at.z) || 1,
+    toYaw = (Math.atan2(at.x, at.z) * 180) / Math.PI,
+    toPitch = (-Math.asin(Math.max(-1, Math.min(1, at.y / len))) * 180) / Math.PI,
+    // (The short way round.)
+    turn = ((((toYaw - yaw) % 360) + 540) % 360) - 180,
+    s = 1 - k;
+  return { yaw: yaw + turn * s, pitch: pitch + (toPitch - pitch) * s };
+}

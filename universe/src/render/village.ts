@@ -47,6 +47,8 @@ import { WorkLayer, type Carrier } from "./work.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
+/** A village scene's units per metre (its plans are in metres). */
+export const VILLAGE_METRE = M;
 /** How many a side a village's battle draws, by the setting's detail. */
 const SOLDIERS = [6, 10, 14, 20];
 const YEAR = 365 * 86_400;

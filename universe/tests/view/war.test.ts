@@ -7,6 +7,7 @@ import {
   MARCH,
   battleOf,
   clearOf,
+  landWars,
   villageGround,
   voyageMarks,
   warPaths,
@@ -243,4 +244,48 @@ test("a fleet of war crosses between the stars, and its star is ringed in fire w
   );
   assert.equal(after.fleets.length, 0);
   assert.equal(after.battles.length, 1);
+});
+
+test("a land's map shows the wars the globe shows: hosts coming in for what they want, going out to the front, and its battles", () => {
+  // A land at the equator facing +z: its middle spot, and a strip of another spot to its east.
+  const mid = cellNear(0, 0, 1),
+    east = cellNear(0.2, 0, 0.98),
+    size = 8,
+    parent = Int32Array.from({ length: size * size }, (_, t) => (t % size >= 6 ? east : mid)),
+    west = cellNear(-0.9, 0, 0.44),
+    far = cellNear(0.9, 0, 0.44);
+  assert.notEqual(mid, east);
+  const wars: WarsMap = {
+    year: 300,
+    wars: [
+      // Its host comes from far in the west for the eastern strip; fought there this year.
+      {
+        ...map(west, east).wars[0]!,
+        battles: [
+          { spot: east, year: 300, won: true, fallen: 4000, event: "evt:0:1" },
+          { spot: west, year: 300, won: false, fallen: 50, event: "evt:0:2" },
+          { spot: mid, year: 297, won: true, fallen: 900, event: "evt:0:3" },
+        ],
+      },
+      // Another sets out from the land's middle for the far east.
+      { ...map(mid, far).wars[0]!, ref: "war:0:2", battles: [] },
+      // A war ended long ago shows nothing.
+      { ...map(west, mid, 250).wars[0]!, ref: "war:0:3", battles: [] },
+    ],
+  };
+  const land = landWars(wars, parent, size, 1, grid),
+    half = (size - 1) / 2;
+  assert.equal(land.marches.length, 2, "the two wars still fought cross it");
+  const coming = land.marches.find((m) => m.ref === "war:0:1")!,
+    going = land.marches.find((m) => m.ref === "war:0:2")!;
+  assert.ok(coming.held, "defenders hold what the host comes for");
+  assert.ok(coming.to.x > 2, `it comes for the eastern strip (${coming.to.x.toFixed(1)})`);
+  assert.ok(coming.from.x < -half * 0.8, `in from the western edge (${coming.from.x.toFixed(1)})`);
+  assert.ok(!going.held);
+  assert.ok(going.to.x > half * 0.8, `out to the eastern edge (${going.to.x.toFixed(1)})`);
+  // Its battles: only the one fought in it lately, the larger the more fell.
+  assert.equal(land.battles.length, 1);
+  assert.equal(land.battles[0]!.event, "evt:0:1");
+  assert.ok(land.battles[0]!.size > 0.8 && land.battles[0]!.won);
+  assert.ok(land.battles[0]!.at.x > 2);
 });

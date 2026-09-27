@@ -276,3 +276,34 @@ test("the world's chronicle tells its ages in turn and compares what emerged; it
     assert.notEqual(page(ref).kind, "unknown", `${ref} opens a page`);
   assert.equal(JSON.stringify(world.domainHashes()), before, "history is as it was");
 });
+
+test("a town stands on the globe where its land's map puts it: what is seen there is zoomed into", () => {
+  const g = homePlanet(world).generated,
+    towns =
+      ask<{ ref: string; cell: number; at: [number, number, number]; people: number }[]>(
+        "towns.map",
+      );
+  assert.ok(towns.length > 10, "the world's towns are on its map");
+  assert.ok(
+    towns.every((t, i) => i === 0 || towns[i - 1]!.people >= t.people),
+    "the largest first",
+  );
+  if (!isProvinceWorld(g)) return;
+  const grid = g.fine.grid,
+    p = grid.positions;
+  for (const t of towns.slice(0, 12)) {
+    const s = populationContext(world).settlements.get(t.ref as Ref)!;
+    // The spot nearest where it stands is its tile's spot on the land's map.
+    let best = -1,
+      bestDot = -2;
+    for (let c = 0; c < grid.count; c++) {
+      const d = p[c * 3]! * t.at[0] + p[c * 3 + 1]! * t.at[1] + p[c * 3 + 2]! * t.at[2];
+      if (d > bestDot) {
+        bestDot = d;
+        best = c;
+      }
+    }
+    const region = ask<{ parent: number }>("tile", { center: s.cell, tile: s.tile });
+    assert.equal(`spot:0:${best}`, region.parent, `${s.name} stands on its tile's spot`);
+  }
+});

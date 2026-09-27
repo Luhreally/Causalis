@@ -1,8 +1,9 @@
 // The political map's data (Phase 10 M96): every realm with its colour, its lands' middles
 // and its seat, for its name to be written across them; how every land stands toward one
-// realm (the diplomacy lens); where the wars are (the war lens); and the world's headline
-// numbers for the top bar. Pure reads of the world as it stands.
-import { offworldSite } from "../gen/index.ts";
+// realm (the diplomacy lens); where the wars are (the war lens); the world's headline
+// numbers for the top bar; and its towns where they stand on the globe (M95), so what is
+// seen of them there is what is zoomed into. Pure reads of the world as it stands.
+import { isProvinceWorld, offworldSite, regionPoint } from "../gen/index.ts";
 import {
   beliefOf,
   citiesOf,
@@ -11,7 +12,9 @@ import {
   languagesOf,
   politiesOf,
   populationContext,
+  PROVINCE_TILE_KM,
   realmName,
+  REGION_SIZE,
   warsOf,
   WAR_EVENTS,
 } from "../sim/index.ts";
@@ -137,10 +140,46 @@ export function worldStats(world: World) {
   };
 }
 
+/**
+ * The world's largest towns where they stand on the globe (unit directions), the largest
+ * first: each its name, people, whether a city, and its realm's colour.
+ */
+export function townsMap(world: World, most = 400) {
+  const pw = homePlanet(world).generated,
+    ctx = populationContext(world),
+    realms = politiesOf(world),
+    cities = citiesOf(world);
+  if (!isProvinceWorld(pw)) return [];
+  return [...ctx.settlements.all()]
+    .filter((t) => t.population > 0 && !offworldSite(pw, t.cell))
+    .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))
+    .slice(0, most)
+    .map((t) => {
+      const [x, y, z] = regionPoint(
+          pw.fine,
+          pw.centre[t.cell]!,
+          REGION_SIZE,
+          PROVINCE_TILE_KM,
+          t.tile,
+        ),
+        realm = realms.of(t.cell);
+      return {
+        ref: t.ref,
+        name: t.name,
+        cell: t.cell,
+        people: t.population,
+        city: !!cities.get(t.ref),
+        at: [x, y, z] as [number, number, number],
+        color: realm ? realmColor(realm.ref) : null,
+      };
+    });
+}
+
 export const MAP_QUERIES = {
   "realms.map": (world: World) => realmsMap(world),
   "diplomacy.map": (world: World, args: unknown) =>
     diplomacyMap(world, (args as { realm: string }).realm),
   "war.lens": (world: World) => warLens(world),
   "world.stats": (world: World) => worldStats(world),
+  "towns.map": (world: World) => townsMap(world),
 };

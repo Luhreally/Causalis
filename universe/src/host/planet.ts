@@ -179,6 +179,8 @@ function regionFrame(world: World, focus: string | null) {
       water: Uint8Array.from(r.water),
       fertility: Uint8Array.from(r.fertility, (f) => Math.round(f * 255)),
       deposit,
+      // Each tile's spot of the globe's grid: what the globe shows there is shown here too (M95).
+      parent: Int32Array.from(r.parent),
     },
   };
 }

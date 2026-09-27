@@ -60,7 +60,7 @@ export {
 } from "./village.ts";
 export { STRIDES, bobOf, limbPitch } from "./motion.ts";
 export { BLINK, DASH, FAR, SMOOTH, present, type Presence } from "./presence.ts";
-export { BEYOND, zoomStep, type ZoomState } from "./zoom.ts";
+export { BEYOND, towardOnFlat, towardOnGlobe, zoomStep, type ZoomState } from "./zoom.ts";
 export {
   DAWN,
   DAWN_WORDS,
@@ -77,9 +77,12 @@ export {
 export {
   BATTLE_ROUND,
   MARCH,
+  battleFront,
   battleOf,
+  landWars,
   warPaths,
   warTokens,
+  type LandWars,
   type Soldier,
   type WarPath,
   type WarPaths,

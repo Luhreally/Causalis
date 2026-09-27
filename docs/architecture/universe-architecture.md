@@ -3490,6 +3490,42 @@ Found and mended on the way:
   while its words said the year it closed: "Year 400: … year 399". Both count as the
   explainer does now, and a line that starts with its year leaves the claim's year off.
 
+95, the first part, as built (at the user's asking: "zoom should go both ways… if I see the
+war on the planet view I should be able to zoom in and see it in greater detail in the close
+town view"; "not just for wars, the war was an example").
+
+- **Toward the pointer.** A wheel or a pinch zooms toward what is under it (render/orbit.ts
+  anchor; view/zoom.ts towardOnFlat, towardOnGlobe). A flat scene (a land, a village, a
+  sky, the stars, the galaxy) slides its target so the point stays under the pointer, held
+  within the scene's reach. The globe turns the point toward the middle as the view closes
+  in, and leaves the globe as it faces when drawing back.
+- **Through into what is there.** Pushed on past the nearest view, the zoom goes into what
+  is under the pointer, not the screen's middle:
+  - the globe: the land under the pointer, with that spot of it in the middle (the land's
+    frame now sends each tile's spot of the globe, `parent`);
+  - a land: the village nearest the pointer, turned on its battle if one was zoomed at;
+  - a sky: the world under the pointer, seen whole;
+  - the stars: the star under the pointer, its world seen whole (our own: our sky).
+  Drawn back out, a land faces the spot it was looked at from the globe, and a world seen
+  whole returns where it was come to from.
+- **What is seen at one scale is seen at the next.**
+  - Towns on the globe (render/towns.ts; host "towns.map", gen regionPoint): the 400
+    largest where their land's map puts them, huts as many as they are large and a city's
+    tower. They grow in as the view closes on the globe and are named, the largest first; a
+    tap on one opens its page.
+  - Wars in a land (view/war.ts landWars; render/regionwars.ts). The globe's hosts seen
+    closer: a column under its realm's colours coming in from the map's edge toward what it
+    wants, or going out toward the front; the defenders in a block at what they hold; each
+    battle the globe still shows as two lines face to face, with blades and a flare. Each
+    is named, and a tap opens the war's or the battle's page.
+  - Zoomed in on a land's battle, the village's view faces the fight (view/war.ts
+    battleFront): the hosts closing on the road, as history fought it.
+
+Found and mended on the way:
+- "Go to" a town straight from the globe left the globe's bar over the village's.
+- Prettier run from the app's folder formats the golden files, which the root's ignore
+  list keeps from it. Run it from the root, or on named files.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |
