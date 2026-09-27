@@ -333,3 +333,11 @@ body[data-scale="ground"][data-daylight="night"] {
 .inspector.folded {
   padding-bottom: 0;
 }
+
+/* On a phone the sheet keeps to the lower part of the screen (it scrolls within), leaving
+   the world between it and the bar. */
+@media (max-width: 640px) {
+  .inspector {
+    max-height: 46%;
+  }
+}

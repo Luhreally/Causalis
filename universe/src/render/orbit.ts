@@ -30,10 +30,11 @@ export class OrbitRig {
   /** True once the viewer has zoomed by hand; fitting then leaves the distance alone. */
   userZoomed = false;
   /**
-   * The share of the screen's height covered from the top (a bar of buttons): the subject
-   * is framed in the rest, as a phone's screen is mostly bar and sheet.
+   * The shares of the screen's height covered from the top (a bar of buttons) and from the
+   * bottom (a sheet): the subject is framed in the band between, as a phone's screen is
+   * mostly bar and sheet.
    */
-  covered: () => number = () => 0;
+  covered: () => { top: number; bottom: number } = () => ({ top: 0, bottom: 0 });
   private idle = 0;
   private readonly element: HTMLElement;
   private readonly listeners: [string, (e: Event) => void][] = [];
@@ -150,10 +151,11 @@ export class OrbitRig {
     stage.camera.lookAt(this.target);
     // Framed below what covers the top: the camera lifted, looking on, so the subject sits
     // in the middle of what is left (the camera itself moves, so picking stays true).
-    const covered = Math.min(0.6, Math.max(0, this.covered()));
-    if (covered > 0) {
+    const c = this.covered(),
+      shift = Math.max(-0.6, Math.min(0.6, c.top - c.bottom));
+    if (shift) {
       const half = Math.tan(((stage.camera.camera!.fov / 2) * Math.PI) / 180) * d;
-      stage.camera.translateLocal(0, half * covered, 0);
+      stage.camera.translateLocal(0, half * shift, 0);
     }
   }
 

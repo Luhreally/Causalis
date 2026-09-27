@@ -392,15 +392,24 @@ async function runPlanetPage(): Promise<void> {
               ? selectStar(starScene.pick(x, y))
               : selectPerson(village.pick(x, y)),
   });
-  // Framed below the bar of whichever scale is up (read a few times a second, not each frame).
-  let covered = 0,
+  // Framed between the bar of whichever scale is up and, on a phone, the sheet open below
+  // (read a few times a second, not each frame).
+  let covered = { top: 0, bottom: 0 },
     coveredAt = -Infinity;
   rig.covered = () => {
     const now = performance.now();
     if (now - coveredAt > 250) {
       coveredAt = now;
-      const bar = hud.querySelector<HTMLElement>(".panel:not([hidden]) .bar");
-      covered = bar ? bar.getBoundingClientRect().bottom / Math.max(1, innerHeight) : 0;
+      const h = Math.max(1, innerHeight),
+        bar = hud.querySelector<HTMLElement>(".panel:not([hidden]) .bar"),
+        sheet = hud.querySelector<HTMLElement>(".panel:not([hidden]) .inspector:not([hidden])"),
+        s = sheet?.getBoundingClientRect(),
+        // A sheet across the foot of the screen (a phone's), not a column at its side.
+        across = !!s && s.width > innerWidth * 0.8 && s.bottom > h - 40;
+      covered = {
+        top: bar ? bar.getBoundingClientRect().bottom / h : 0,
+        bottom: across ? (h - s!.top) / h : 0,
+      };
     }
     return covered;
   };

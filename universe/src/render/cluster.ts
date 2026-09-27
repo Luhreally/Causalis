@@ -5,6 +5,7 @@ import * as pc from "playcanvas";
 import type { ClusterPlan } from "../bridge/index.ts";
 import { LY_SCALE, clusterSpec } from "../view/index.ts";
 import { InstancedBatch } from "./batch.ts";
+import { glowMaterial } from "./glow.ts";
 import type { Stage } from "./stage.ts";
 
 export class ClusterScene {
@@ -17,6 +18,12 @@ export class ClusterScene {
   private readonly ringMesh: pc.Mesh;
   private readonly ships: pc.Entity[] = [];
   private readonly rings: pc.Entity[] = [];
+  /** Each star's glow, a disc turned to the camera every frame, one batch per colour. */
+  private glows: {
+    batch: InstancedBatch;
+    stars: readonly { x: number; y: number; z: number; size: number }[];
+  }[] = [];
+  private readonly disc: pc.Mesh;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -42,11 +49,37 @@ export class ClusterScene {
     this.marker.enabled = false;
     this.root.addChild(this.marker);
     this.root.enabled = false;
+    this.disc = pc.Mesh.fromGeometry(
+      stage.device,
+      new pc.PlaneGeometry({ halfExtents: new pc.Vec2(1, 1) }),
+    );
+    const cam = new pc.Vec3();
+    stage.onUpdate(() => {
+      if (!this.root.enabled || !this.glows.length) return;
+      cam.copy(stage.camera.getPosition());
+      for (const g of this.glows)
+        g.batch.set(g.stars.length, (i, out) => {
+          const s = g.stars[i]!,
+            dx = cam.x - s.x,
+            dy = cam.y - s.y,
+            dz = cam.z - s.z,
+            len = Math.hypot(dx, dy, dz) || 1;
+          out[0] = s.x;
+          out[1] = s.y;
+          out[2] = s.z;
+          out[3] = out[4] = out[5] = s.size * 5;
+          // The disc's face (+y) turned to the camera: tipped, then turned.
+          out[6] = Math.atan2(dx, dz);
+          out[7] = Math.acos(Math.max(-1, Math.min(1, dy / len)));
+        });
+    });
   }
 
   build(plan: ClusterPlan): void {
     for (const b of this.batches) b.destroy();
+    for (const g of this.glows) g.batch.destroy();
     this.batches = [];
+    this.glows = [];
     this.points = [];
     for (const group of clusterSpec(plan)) {
       const batch = new InstancedBatch(
@@ -67,6 +100,23 @@ export class ClusterScene {
       });
       this.batches.push(batch);
       for (const s of group.stars) this.points.push(s);
+      // Its glow in its own light.
+      const [r, gr, b] = group.color.map((c) => Math.round(255 * c));
+      this.glows.push({
+        batch: new InstancedBatch(
+          this.stage,
+          this.disc,
+          group.color,
+          group.stars.length,
+          this.root,
+          glowMaterial(this.stage, [
+            [0, `rgba(${r},${gr},${b},0.9)`],
+            [0.25, `rgba(${r},${gr},${b},0.35)`],
+            [1, `rgba(${r},${gr},${b},0)`],
+          ]),
+        ),
+        stars: group.stars,
+      });
     }
     // Home: the brightest mark, at the middle.
     const home = new InstancedBatch(
