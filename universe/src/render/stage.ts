@@ -226,18 +226,20 @@ export class Stage {
     this.camera.addChild(holder);
     holder.setLocalPosition(0, 0, -1);
     holder.setLocalScale(1e-4, 1e-4, 1e-4);
-    // (The sun cast its shadows exactly as over a village, so the very shaders it will
-    // want are the ones made; then as the scale shown wants them again.)
+    // Drawn first as the scales without shadows draw (the globe, a land, the sky), then —
+    // if asked — with the sun casting its shadows exactly as over a village: each is its
+    // own shader, and both are wanted. Then the sun as the scale shown wants it again.
     const wanted = this.shadowsWanted,
       reach = this.shadowReach;
-    if (shadows) {
-      this.shadowsWanted = true;
-      this.shadowReach = 64;
-      this.applyShadows();
-    }
     let frames = 0;
     const off = this.onUpdate(() => {
-      if (++frames < 3) return;
+      frames++;
+      if (shadows && frames === 3) {
+        this.shadowsWanted = true;
+        this.shadowReach = 64;
+        this.applyShadows();
+      }
+      if (frames < (shadows ? 6 : 3)) return;
       off();
       holder.destroy();
       for (const b of buffers) b.destroy();

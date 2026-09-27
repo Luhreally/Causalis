@@ -16,6 +16,7 @@ export {
 } from "./protocol.ts";
 export { inlinePair, workerPort } from "./transport.ts";
 export type { VillagePlan } from "./village.ts";
+export type { WorldGlobe } from "./worlds.ts";
 export type { DepositPage, PlatePage, RealmPage, SpeciesPage } from "./pages.ts";
 export type {
   ClusterPlan,
@@ -24,4 +25,5 @@ export type {
   StarPage,
   SystemPlan,
   SystemPlanBody,
+  GalaxyPlan,
 } from "./system.ts";

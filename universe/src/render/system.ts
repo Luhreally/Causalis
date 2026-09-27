@@ -202,6 +202,24 @@ export class SystemScene {
   }
 }
 
+/**
+ * The sky's self-lit shaders, for warming at the start: on a line's bare corners (the
+ * orbits, the rings) and on a sphere's (the star, the stars around) — each makes its own.
+ */
+export function skyMaterials(stage: Stage): { material: pc.Material; mesh: pc.Mesh }[] {
+  const line = new pc.Mesh(stage.device);
+  line.setPositions([0, 0, 0, 1, 0, 0]);
+  line.update(pc.PRIMITIVE_LINES);
+  const ball = pc.Mesh.fromGeometry(
+    stage.device,
+    new pc.SphereGeometry({ radius: 1, latitudeBands: 4, longitudeBands: 6 }),
+  );
+  return [
+    { material: glow([1, 1, 1]), mesh: line },
+    { material: glow([1, 1, 1]), mesh: ball },
+  ];
+}
+
 /** A material that shines by itself (the star, the rings): unlit, its own colour. */
 function glow(color: readonly [number, number, number]): pc.StandardMaterial {
   const m = new pc.StandardMaterial();

@@ -14,7 +14,8 @@ export {
 } from "./quality.ts";
 export { RegionScene, regionMaterials } from "./region.ts";
 export { SandboxScene } from "./sandbox.ts";
-export { SystemScene } from "./system.ts";
+export { SystemScene, skyMaterials } from "./system.ts";
 export { ClusterScene } from "./cluster.ts";
+export { GalaxyScene, galaxyMaterial } from "./galaxy.ts";
 export { VillageScene } from "./village.ts";
 export { Stage, flatMaterial, type DeviceTier, type Rgb } from "./stage.ts";

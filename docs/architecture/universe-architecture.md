@@ -2890,6 +2890,53 @@ The species pages (after M77) say each lineage's place among the living: what a 
 hunts and in how many lands they meet, what hunts a grazer, and where a hunter takes from
 the people's flocks.
 
+80, as built. Out from the stars around, "The galaxy ›": the galaxy drawn from its own
+numbers — a bulge of old yellow stars, a thin disk thinning outward by its scale length,
+young blue stars crowding its spiral arms — as one mesh of glowing specks (6,000 at Low to
+50,000 at Ultra, one draw call, its shader warmed at the start), home ringed. A tap anywhere
+finds the real stars there, drawn from the galaxy's own sectors as the cluster's are (the
+brightest dozen, named in plain words: a red dwarf, a yellow star, a white dwarf); each
+star's page lists its worlds, and any of them can be gone to (81). A sector's id reads back
+only within some five thousand light-years of home (its coding runs out), so a star found
+farther out carries its sector's cube in its name. Scenery that can be looked at closely:
+nothing here enters history (a test holds every domain unchanged).
+
+81, as built. Any world — the home star's other planets and moons ("Go to" on a world's
+page in the sky), or any world of any star — is made whole on demand from what is known of
+it: plates and relief from its mass, a climate from its warmth, tilt and day, craters where
+no thick air wore them away (sixty on the airless, twenty under a thin air), seas where its
+water lies liquid, ice in its lowlands and about its poles (the caps wider the colder it
+is), a giant's banded clouds (warm creams and browns, cold blues) and its storm; bare
+ground coloured by its warmth and air — scorched grey-brown rock, baked yellow under a
+crushing air, rust and ochre, a moon's greys — lighter on the heights and darker in its
+craters' floors; a glow about the rim only where there is air enough to glow, clouds only
+where the air carries them. A world with seas about a star old enough is alive, its lands
+green by warmth and rain (forest, grass, desert, taiga, tundra); where one of the cluster's
+other peoples arose, its page says who they are, when they come (or came) to electronics,
+to orbit and to the stars, and whether home has heard them, and once they have electronics
+their cities' lights show along their coasts. Tap the ground: its cover, warmth and height
+there. Keyed on the home world's digest and the body, so the same body is always the same
+world; made in 35–85 ms on a coarser grid (10,242 cells), a few kept at once; looking never
+touches history.
+
+82, as built: `npm run gate:8` (tools/phase8-gate.ts), at an iPhone 15 Plus's size. Every
+setting holds the phone floor: entering a village makes no frame longer than 244 ms on the
+floor (WebKit; Low 244, Balanced 164, High 228, Ultra 240), and watching one with the CPU
+slowed four times its slower frames (p90) stay at 19–20 ms at Low, Balanced and High and
+29 ms at Ultra (32, 93, 153 and 211 animals) — measured on this machine's own integrated GPU (Chromium over ANGLE and
+Direct3D 11, weaker than the phone's), since headless Chromium otherwise draws in software
+and a slowed CPU then slows its "GPU" too (171 ms at High, which says nothing of a phone).
+The default world shows what it holds: hunters on all 415 of its peopled lands with game at
+year 300, a village's flock in its pasture with hunters about, a land digging ore, a hunt run
+within two minutes of watching, 23 people carrying at a morning hour. Another people's world
+is visited, alive and its people told. And the history is the same at every setting: 121
+checkpoints of a world run in the page at Low and at Ultra match. Mended on the way: the
+start-up warming drew only with the village's shadows, so every shadowless scale compiled its
+shaders on first entry — a land's first frame 155–250 ms, the sky's up to 449 ms; it now
+draws both ways (a land 94 ms, the sky 63 ms in WebKit), and the sky's self-lit shaders
+(lines and spheres) are warmed too. CI runs the gate's world checks (`--no-budgets`) beside
+the journey; its budgets need a GPU and run locally. **Phase 8 closes.**
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

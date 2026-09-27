@@ -37,6 +37,8 @@ export class SystemPanel {
   onSelect: (index: number | null) => void = () => {};
   /** Out to the stars around. */
   onStars: () => void = () => {};
+  /** Down to a world of the system, to see it whole (M81). */
+  onVisit: (index: number) => void = () => {};
 
   constructor(root: HTMLElement, client: HostClient) {
     this.why = new WhyTree(client);
@@ -162,8 +164,15 @@ export class SystemPanel {
     };
     this.title.textContent = `${b.designation}: ${KIND_WORDS[b.kind]}`;
     const way = routeWords(plan, index, plan.star.mass);
+    const visit = el(
+      "button",
+      "act",
+      index === 0 ? "‹ Back to the world" : `Go to ${b.designation} ›`,
+    );
+    visit.onclick = () => (index === 0 ? this.onBack() : this.onVisit(index));
     this.facts.replaceChildren(
       star,
+      visit,
       ...bodyFacts(b, plan.star).map((f) => el("div", "fact", f)),
       ...(way ? [el("div", "fact", way)] : []),
     );

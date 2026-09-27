@@ -90,6 +90,8 @@ import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 import { PAGE_QUERIES } from "./pages.ts";
 import { villagePlan } from "./village.ts";
+import { worldGlobe } from "./worlds.ts";
+import { foreignGlobe, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
 
 const BOUNDARY_WORDS = ["none", "converging", "spreading", "sliding"];
 
@@ -626,25 +628,13 @@ function planetUniverse(name: string, prior: Prior): Universe {
         const rng = new Rng(world.seed);
         return { radius: CLUSTER_LY, stars: clusterOf(world).map((s) => clusterStar(s, rng)) };
       },
-      /** One star of the cluster, and its worlds. */
-      "galaxy.star": (world, args): StarPage => {
-        const ref = (args as { ref: string }).ref,
-          star = clusterOf(world).find((s) => s.ref === ref);
-        if (!star) throw new Error(`no star ${ref} in the cluster`);
-        const rng = new Rng(world.seed);
-        return {
-          ...clusterStar(star, rng),
-          worlds: foreignPlanets(rng, star).map((p) => ({
-            kind: p.kind,
-            a: p.a,
-            mass: p.mass,
-            gravity: p.gravity,
-            temperature: p.temperature,
-            pressure: p.pressure,
-            air: p.air,
-            water: p.water,
-          })),
-        };
+      /** Any star of the galaxy (the cluster's or beyond), and its worlds. */
+      "galaxy.star": (world, args): StarPage => starPage(world, (args as { ref: string }).ref),
+      /** The galaxy's shape, and the stars about a spot of it (M80). */
+      "galaxy.plan": (world) => galaxyPlan(world),
+      "galaxy.near": (world, args) => {
+        const a = args as { x: number; y: number };
+        return starsNear(world, a.x, a.y);
       },
       /** Who has reached the sky, and the colonies on the system's bodies. */
       "space.state": (world): SkyState => {
@@ -706,6 +696,14 @@ function planetUniverse(name: string, prior: Prior): Universe {
         };
       },
       /** The home star's system: the star, and every planet and moon with its orbit and ground. */
+      // A body of the star's system made whole, to look at in depth (M81).
+      "world.globe": (world, args) => {
+        // A world of the home star's (by its ref), or of another star's (its place outward).
+        const a = args as { ref?: string; star?: string; index?: number };
+        return a.star !== undefined
+          ? foreignGlobe(world, a.star, a.index ?? 0)
+          : worldGlobe(world, a.ref ?? "");
+      },
       "planet.system": (world): SystemPlan => {
         const g = homePlanet(world).generated,
           bodies = g.system.bodies;

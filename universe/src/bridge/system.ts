@@ -101,6 +101,16 @@ export type ClusterPlan = {
   readonly stars: readonly ClusterStar[];
 };
 
+/** The galaxy's shape (M80): its disk's radius and scale length, its arms and their pitch, where home lies (ly, radians). */
+export type GalaxyPlan = {
+  readonly radius: number;
+  readonly scale: number;
+  readonly arms: number;
+  readonly pitch: number;
+  readonly homeRadius: number;
+  readonly homeAngle: number;
+};
+
 /** One star's page: the star and its worlds. */
 export type StarPage = ClusterStar & {
   readonly worlds: readonly {

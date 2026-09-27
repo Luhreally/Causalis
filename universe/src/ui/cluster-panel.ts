@@ -2,7 +2,7 @@
 // many of each kind, the nearest — and a page for each star: its kind, distance, light
 // and age, and its worlds.
 import type { ClusterPlan, HostClient, SkyState, StarPage } from "../bridge/index.ts";
-import { clusterWords } from "../view/index.ts";
+import { clusterWords, starWords } from "../view/index.ts";
 import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
 
@@ -22,6 +22,9 @@ export class ClusterPanel {
   private view = 0;
   onBack: () => void = () => {};
   onSelect: (index: number | null) => void = () => {};
+  /** Out to the whole galaxy (M80), and down to a star's world, seen whole (M81). */
+  onGalaxy: () => void = () => {};
+  onVisit: (star: StarPage, index: number) => void = () => {};
 
   constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
@@ -29,7 +32,9 @@ export class ClusterPanel {
     const bar = el("header", "bar"),
       back = el("button", "speed", "‹ The star's system");
     back.onclick = () => this.onBack();
-    bar.append(back, this.where);
+    const galaxy = el("button", "speed", "The galaxy ›");
+    galaxy.onclick = () => this.onGalaxy();
+    bar.append(back, this.where, galaxy);
     const close = el("button", "close", "×");
     close.setAttribute("aria-label", "Close");
     close.onclick = () => {
@@ -116,8 +121,8 @@ export class ClusterPanel {
       return;
     }
     const s = plan.stars[index]!;
-    this.title.textContent =
-      s.spectral === "white dwarf" ? "A white dwarf" : `A ${s.spectral} star`;
+    const kind = starWords(s);
+    this.title.textContent = `${kind[0]!.toUpperCase()}${kind.slice(1)} (${s.spectral})`;
     const back = el("button", "back", "‹ The stars");
     back.onclick = () => {
       void this.select(null);
@@ -176,13 +181,15 @@ export class ClusterPanel {
       acts,
       note,
       el("h3", undefined, page.worlds.length ? "Its worlds, outward" : "No worlds about it"),
-      ...page.worlds.map((w) =>
-        el(
-          "div",
-          "fact",
-          `${w.a.toFixed(2)} AU: ${w.kind === "rocky" ? "a world of rock" : w.kind === "giant" ? "a gas giant" : "an ice giant"}, ${w.gravity.toFixed(2)} g, ${Math.round(w.temperature)} °C, ${w.air === "none" ? "airless" : `${w.air} air`}${w.water === "seas" ? ", seas" : w.water === "ice" ? ", ice" : ""}`,
-        ),
-      ),
+      ...page.worlds.map((w, i) => {
+        const line = el(
+          "button",
+          "line",
+          `Go to ${String.fromCharCode(98 + i)} — ${w.a.toFixed(2)} AU: ${w.kind === "rocky" ? "a world of rock" : w.kind === "giant" ? "a gas giant" : "an ice giant"}, ${w.gravity.toFixed(2)} g, ${Math.round(w.temperature)} °C, ${w.air === "none" ? "airless" : `${w.air} air`}${w.water === "seas" ? ", seas" : w.water === "ice" ? ", ice" : ""} ›`,
+        );
+        line.onclick = () => this.onVisit(page, i);
+        return line;
+      }),
     );
     if (here[0]) void this.why.show(here[0].voyage, whyBox);
   }

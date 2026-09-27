@@ -13,6 +13,9 @@ import {
   Stage,
   SystemScene,
   ClusterScene,
+  GalaxyScene,
+  galaxyMaterial,
+  skyMaterials,
   VillageScene,
   AutoQuality,
   QUALITIES,
@@ -30,10 +33,20 @@ import {
   SystemPanel,
   ClusterPanel,
   VillagePanel,
+  WorldPanel,
+  GalaxyPanel,
   GuidedWalk,
   type PeopleEntry,
 } from "../ui/index.ts";
-import type { ClusterPlan, SkyState, SystemPlan, VillagePlan } from "../bridge/index.ts";
+import type {
+  ClusterPlan,
+  SkyState,
+  SystemPlan,
+  VillagePlan,
+  WorldGlobe,
+  GalaxyPlan,
+  StarPage,
+} from "../bridge/index.ts";
 import {
   cellAt,
   cellCenter,
@@ -46,6 +59,9 @@ import {
   voyageMarks,
   systemExtent,
   systemSpec,
+  worldColors,
+  lyFromHome,
+  homeOf,
   type Lens,
   type RegionLens,
   type SandboxSpec,
@@ -114,6 +130,15 @@ type Exposed = {
   /** Beasts, birds and fish drawn about the village watched (0 elsewhere), and each beast now. */
   beasts?: () => number;
   faunaNow?: () => { name: string; niche: string; x: number; z: number; doing: string }[];
+  /** Down to another star's world (its star's ref, its place outward). */
+  visitForeign?: (ref: string, index: number) => Promise<void>;
+  /** Out to the galaxy, how many of its stars are drawn, and a tap on it (screen px). */
+  galaxy?: () => void;
+  galaxyStars?: () => number;
+  tapGalaxy?: (x: number, y: number) => void;
+  /** Down to a world of the system (by its index), and which world is seen now (-1 none). */
+  visit?: (index: number) => void;
+  visiting?: () => number;
   /** Everyone carrying something in the village watched: where and what. */
   carriersNow?: () => { x: number; z: number; carry: string }[];
   /** The camera's rig, for the look tools. */
@@ -245,15 +270,21 @@ async function runPlanetPage(): Promise<void> {
     region = new RegionScene(stage),
     village = new VillageScene(stage),
     skyScene = new SystemScene(stage),
-    starScene = new ClusterScene(stage);
+    starScene = new ClusterScene(stage),
+    // Another world of the system, seen whole (M81); the whole galaxy (M80).
+    worldScene = new GlobeScene(stage),
+    galaxyScene = new GalaxyScene(stage);
   stage.backdrop("space");
   // While the world is made, the shaders of the scales below are readied, so the first
   // "Look closer" draws at once.
   // (With the sun casting shadows: a village drawn at High casts them from its first frame.)
-  stage.warm(regionMaterials(stage), true);
+  stage.warm(
+    [...regionMaterials(stage), ...skyMaterials(stage), { material: galaxyMaterial() }],
+    true,
+  );
   const { client, mode } = await connect();
   let painted = 0,
-    scale: "globe" | "region" | "village" | "system" | "cluster" = "globe",
+    scale: "globe" | "region" | "village" | "system" | "cluster" | "world" | "galaxy" = "globe",
     clusterPlan: ClusterPlan | null = null,
     systemPlan: SystemPlan | null = null;
   Object.assign(exposed, { client, mode, seed, universe, drawn: () => painted, stage });
@@ -468,7 +499,11 @@ async function runPlanetPage(): Promise<void> {
             ? selectBody(skyScene.pick(x, y))
             : scale === "cluster"
               ? selectStar(starScene.pick(x, y))
-              : tapVillage(x, y),
+              : scale === "world"
+                ? seen && worldPanel.cell(seen, worldScene.pick(x, y))
+                : scale === "galaxy"
+                  ? tapGalaxy(x, y)
+                  : tapVillage(x, y),
   });
   // Framed between the bar of whichever scale is up and, on a phone, the sheet open below
   // (read a few times a second, not each frame).
@@ -670,6 +705,8 @@ async function runPlanetPage(): Promise<void> {
   const toCluster = async () => {
     scale = "cluster";
     stage.backdrop("space");
+    globe.visible = false;
+    planetPanel.visible = false;
     skyScene.visible = false;
     systemPanel.visible = false;
     if (!clusterPlan) {
@@ -701,6 +738,163 @@ async function runPlanetPage(): Promise<void> {
   exposed.stars = () => void toCluster();
   exposed.starCount = () => (scale === "cluster" && clusterPlan ? clusterPlan.stars.length : 0);
   systemPanel.onSelect = (i) => skyScene.mark(i);
+  // Down to a world of the system: made whole on the host (a moment), painted, turned.
+  const worldPanel = new WorldPanel(hud);
+  let seen: WorldGlobe | null = null,
+    seenAt = -1;
+  const toWorld = async (index: number) => {
+    if (!systemPlan) return;
+    const body = systemPlan.bodies[index]!,
+      w = await client.query<WorldGlobe>({ type: "world.globe", args: { ref: body.ref } });
+    scale = "world";
+    seen = w;
+    seenAt = index;
+    skyScene.visible = false;
+    systemPanel.visible = false;
+    showWorld(w);
+    worldPanel.show(systemPlan, index, w, sky);
+    worldPanel.visible = true;
+  };
+  /** A world made whole, drawn and turned to (every other scale and its panel put away). */
+  const showWorld = (w: WorldGlobe) => {
+    globe.visible = false;
+    planetPanel.visible = false;
+    region.visible = false;
+    regionPanel.visible = false;
+    village.visible = false;
+    villagePanel.visible = false;
+    skyScene.visible = false;
+    systemPanel.visible = false;
+    worldScene.build(w.frequency, w.elevation);
+    // (A glow about the rim where there is air enough to glow; clouds where it carries them —
+    // a giant's bands are its clouds.)
+    const airy = w.air !== "none" && w.air !== "trace",
+      giant = w.kind === "giant" || w.kind === "ice giant";
+    worldScene.features(
+      w.water === "seas",
+      airy,
+      stage.quality.clouds &&
+        !giant &&
+        (w.air === "thick" || w.air === "crushing" || w.air === "breathable"),
+    );
+    worldScene.paint(worldColors(w, Math.floor(now() / YEAR)));
+    worldScene.visible = true;
+    rig.configure({
+      distance: globeFit(),
+      minDistance: 1.35,
+      maxDistance: 12,
+      pitch: -18,
+      minPitch: -80,
+      maxPitch: 80,
+      drift: 1.5,
+      target: [0, 0, 0],
+    });
+  };
+  systemPanel.onVisit = (i) => {
+    worldFrom = "system";
+    worldPanel.backTo = "The sky";
+    void toWorld(i);
+  };
+  // Where a world seen whole was come to from: back leads there.
+  let worldFrom: "system" | "cluster" | "galaxy" = "system";
+  worldPanel.onBack = () => {
+    worldScene.visible = false;
+    worldPanel.visible = false;
+    seen = null;
+    if (worldFrom === "galaxy") void toGalaxy();
+    else if (worldFrom === "cluster") void toCluster();
+    else void toSystem();
+  };
+  /** Another star's world, made whole and shown. */
+  const toForeignWorld = async (star: StarPage, index: number, from: "cluster" | "galaxy") => {
+    const w = await client.query<WorldGlobe>({
+      type: "world.globe",
+      args: { star: star.ref, index },
+    });
+    scale = "world";
+    seen = w;
+    seenAt = index;
+    worldFrom = from;
+    starScene.visible = false;
+    clusterPanel.visible = false;
+    galaxyScene.visible = false;
+    galaxyPanel.visible = false;
+    showWorld(w);
+    worldPanel.backTo = from === "galaxy" ? "The galaxy" : "The stars around";
+    worldPanel.showForeign(star, index, w, Math.floor(now() / YEAR));
+    worldPanel.visible = true;
+  };
+  // Out to the whole galaxy: its disk drawn from its own numbers, tapped for the stars there.
+  const galaxyPanel = new GalaxyPanel(hud, client);
+  let galaxyPlan: GalaxyPlan | null = null,
+    galaxyDrawn = "";
+  const GALAXY_STARS = { low: 6000, balanced: 15000, high: 30000, ultra: 50000 } as const;
+  const toGalaxy = async () => {
+    galaxyPlan ??= await client.query<GalaxyPlan>({ type: "galaxy.plan" });
+    scale = "galaxy";
+    stage.backdrop("space");
+    globe.visible = false;
+    planetPanel.visible = false;
+    starScene.visible = false;
+    clusterPanel.visible = false;
+    skyScene.visible = false;
+    systemPanel.visible = false;
+    if (galaxyDrawn !== stage.quality.name) {
+      galaxyScene.build(galaxyPlan, GALAXY_STARS[stage.quality.name]);
+      galaxyDrawn = stage.quality.name;
+    }
+    galaxyScene.mark(null);
+    galaxyScene.visible = true;
+    galaxyPanel.show(galaxyPlan);
+    galaxyPanel.visible = true;
+    const R = galaxyPlan.radius / 1000;
+    rig.configure({
+      distance: (R * 2.3) / Math.min(1, aspect()),
+      minDistance: 2,
+      maxDistance: R * 6,
+      pitch: -55,
+      minPitch: -89,
+      maxPitch: -5,
+      drift: 0.4,
+      target: [0, 0, 0],
+    });
+  };
+  const tapGalaxy = (x: number, y: number) => {
+    if (!galaxyPlan) return;
+    const at = galaxyScene.pick(x, y);
+    if (!at) return;
+    galaxyScene.mark(at, galaxyPlan.radius / 1000 / 40);
+    const from = lyFromHome(galaxyPlan, at.x, at.z);
+    void galaxyPanel.near(from.x, from.y);
+  };
+  galaxyPanel.onStar = (s) => {
+    if (!galaxyPlan || !s) return;
+    const home = homeOf(galaxyPlan);
+    galaxyScene.mark(
+      { x: home.x + s.x / 1000, z: home.z + s.y / 1000 },
+      galaxyPlan.radius / 1000 / 80,
+    );
+  };
+  galaxyPanel.onVisit = (star, i) => void toForeignWorld(star, i, "galaxy");
+  galaxyPanel.onBack = () => {
+    galaxyScene.visible = false;
+    galaxyPanel.visible = false;
+    void toCluster();
+  };
+  clusterPanel.onGalaxy = () => void toGalaxy();
+  clusterPanel.onVisit = (star, i) => void toForeignWorld(star, i, "cluster");
+  exposed.galaxy = () => void toGalaxy();
+  exposed.visitForeign = async (ref: string, index: number) =>
+    toForeignWorld(
+      await client.query<StarPage>({ type: "galaxy.star", args: { ref } }),
+      index,
+      "cluster",
+    );
+  exposed.galaxyStars = () =>
+    scale === "galaxy" && galaxyPlan ? GALAXY_STARS[stage.quality.name] : 0;
+  exposed.tapGalaxy = tapGalaxy;
+  exposed.visit = (i: number) => void toWorld(i);
+  exposed.visiting = () => (scale === "world" && seen ? seenAt : -1);
   systemPanel.onBack = () => {
     stopSky?.();
     stopSky = null;

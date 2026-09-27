@@ -34,6 +34,9 @@ export class GlobeScene {
   private readonly clouds: pc.Entity;
   /** Whether the clouds are wanted (the Land lens: they would hide what other lenses paint). */
   private cloudy = true;
+  /** Whether the world has seas to shine, and an air to glow about its rim (M81: not every world does). */
+  private seas = true;
+  private air = true;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -162,8 +165,20 @@ export class GlobeScene {
     this.mesh = mesh;
     this.positions = positions;
     this.corners = corners;
-    this.sea.enabled = this.halo.enabled = true;
+    this.sea.enabled = this.seas;
+    this.halo.enabled = this.air;
     this.clouds.enabled = this.cloudy;
+  }
+
+  /** What the world has about it: seas, an air (its glow), clouds. */
+  features(seas: boolean, air: boolean, clouds: boolean): void {
+    this.seas = seas;
+    this.air = air;
+    this.cloudy = clouds;
+    const on = !!this.entity?.enabled;
+    this.sea.enabled = on && seas;
+    this.halo.enabled = on && air;
+    this.clouds.enabled = on && clouds;
   }
 
   /** Show the clouds or not (they are for the Land lens). */
@@ -174,7 +189,8 @@ export class GlobeScene {
 
   set visible(on: boolean) {
     if (this.entity) this.entity.enabled = on;
-    this.sea.enabled = this.halo.enabled = on && this.entity !== null;
+    this.sea.enabled = on && this.entity !== null && this.seas;
+    this.halo.enabled = on && this.entity !== null && this.air;
     this.clouds.enabled = on && this.entity !== null && this.cloudy;
     if (!on) this.marker.enabled = false;
   }

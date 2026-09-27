@@ -98,10 +98,17 @@ jobs:
       - run: npx playwright install --with-deps webkit
       - run: npm run build
       # The Phase 7 gate's journey: the brief's journey walked at a phone's size in WebKit,
-      # every step answered with its why (to the Earth seed's year 1300, its first war
+      # every step answered with its why (to the Earth seed's year 1450, its first war
       # between the stars fought). The phone's budgets need a GPU; they run locally:
       # npm run gate:7.
       - run: npm run gate:7 -- --sky-year 1450 --no-budgets
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 8 gate's world: hunters and their game, a hunt run, a village's flock,
+      # people carrying, a mine, another people's world visited, and the same history at
+      # every setting. Its per-setting budgets run locally: npm run gate:8.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run gate:8 -- --no-budgets
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
 

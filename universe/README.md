@@ -26,8 +26,11 @@ npm run engines      # the same in Node, Chromium, WebKit and Firefox
 npm run app-check    # the built app in three browsers (worker and in-thread)
 npm run slice        # the world on a phone-floor proxy (a slowed Chromium tab)
 npm run calibrate    # the Earth seed's turning points against their bands
-npm run gate:2 … gate:7   # each phase's gate; gate:7 walks the brief's journey at a
-                          # phone's size and holds the phone's budgets
+npm run gate:2 … gate:8   # each phase's gate; gate:7 walks the brief's journey at a
+                          # phone's size and holds the phone's budgets; gate:8 holds every
+                          # setting to the phone floor and shows the default world's
+                          # hunts, flocks, carrying and mines, another people's world, and
+                          # the same history at every setting
 node tools/journey.ts     # the journey alone, step by step
 node tools/look.ts <dir> [year]   # the look at a phone's size: every scale, as screenshots
 ```

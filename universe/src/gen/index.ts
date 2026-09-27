@@ -127,3 +127,4 @@ export {
   civilizationsOf,
   type Civilization,
 } from "./civilizations.ts";
+export { COVER, WORLD_FREQUENCY, otherWorld, type OtherWorld } from "./worlds.ts";

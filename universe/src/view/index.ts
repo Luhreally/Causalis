@@ -133,3 +133,12 @@ export {
   voyageMarks,
   type Rgb3,
 } from "./cluster.ts";
+export { bandsOf, groundOf, worldColors } from "./worlds.ts";
+export {
+  GALAXY_LY,
+  galaxyPoints,
+  homeOf,
+  lyFromHome,
+  starWords,
+  type GalaxyPoints,
+} from "./galaxy.ts";

@@ -6,6 +6,8 @@ export { LabelLayer, type Label } from "./labels.ts";
 export { PLANET_SPEEDS, PlanetPanel, type PeopleEntry } from "./planet-panel.ts";
 export { RegionPanel } from "./region-panel.ts";
 export { SystemPanel } from "./system-panel.ts";
+export { WorldPanel } from "./world-panel.ts";
+export { GalaxyPanel } from "./galaxy-panel.ts";
 export { ClusterPanel } from "./cluster-panel.ts";
 export { VillagePanel, WATCH_SPEEDS, clockWords } from "./village-panel.ts";
 export { WhyTree, el, type WhyNode } from "./why.ts";
