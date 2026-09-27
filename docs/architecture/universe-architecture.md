@@ -3305,6 +3305,32 @@ tabs are left out. A land is named for its first town. Crawled from the home wor
 260: 700 pages, every link led to a page, and history was the same after as before (the
 observer ledger aside, as ever). At year 400, 1,500 pages took 2.2 s, about 1.5 ms a page.
 
+Smooth movement (2026-09-27, at the user's asking: "movement and animations is not smooth
+enough, sometimes they just teleport"). Measured in a village, frame by frame:
+- people jumped 3–5 m a frame at the default 1 hour a second (133 jumps over 2 m in five
+  seconds), and up to 748 m a frame at 1 day a second, popping in and out of their homes;
+- the village battle's soldiers snapped 30 m back to their lines each time the round began
+  again;
+- the globe's marchers snapped from the front back to their start every ten seconds;
+- a road's pack beasts stepped 6 m across the road at each end of it.
+
+The mends:
+- People are drawn through a presence (view/presence.ts). It is a critically damped spring
+  toward where their day has them, never faster than a dash (90 m a second) and kept out
+  of the walls. They face the way they go, and their stride has its own clock, quicker with
+  their pace.
+- A gap longer than 45 m, and a door, are blinks: shrunk away in a sixth of a second where
+  they stood, and grown where they are.
+- Each limb eases toward its pose: a stride begun or ended, or a task taken up, is a turn of
+  the arm.
+- The battle's round and the marchers' march end and begin in a blink too (a size carried
+  with each soldier and token).
+- A road's travellers turn about on a half circle.
+
+After: at every speed no one moves more than 1.5 m in a frame and nothing jumps. The
+beasts, birds, fish, soldiers and marchers were measured over minutes of their loops: the
+most anything moved in a frame was 0.28 m.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

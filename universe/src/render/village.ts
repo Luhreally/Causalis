@@ -14,6 +14,9 @@ import {
   figureOf,
   hairOf,
   keepApart,
+  present,
+  villageSolids,
+  type Presence,
   homeDetail,
   lamplight,
   houseLook,
@@ -188,7 +191,13 @@ export class VillageScene {
         child.destroy();
     this.stacks = [];
     this.plan = plan;
-    this.aside = new Float64Array(0);
+    // (A new village's people are drawn afresh; the same village's, carried on.)
+    if (this.presenceOf !== plan.ref) {
+      this.presence.clear();
+      this.limbs.clear();
+      this.presenceClock = null;
+      this.presenceOf = plan.ref;
+    }
     this.key = plan.ref;
     const s = this.stage,
       disc = (r: number, color: Rgb, x = 0, z = 0, y = 0) => {
@@ -709,35 +718,17 @@ export class VillageScene {
   /** The beasts' clock held at this screen time, if held (for the look tools); null runs it. */
   heldFauna: number | null = null;
 
-  /** How far each person has stepped aside to keep out of the others (metres, x and z by turns). */
-  private aside = new Float64Array(0);
-  private asideClock = 0;
-
-  /**
-   * No one stands in anyone else, nor in a soldier (view/village.ts keepApart): each steps
-   * aside over a moment rather than at once, so a knot loosens — one come out of a door into
-   * another's place — without a jump.
-   */
-  private stepAside(
-    plan: VillagePlan,
-    troops: readonly { readonly x: number; readonly z: number }[],
-    clock: number,
-  ): void {
-    const now = this.moments,
-      apart = now.map((m) => ({ ...m }));
-    keepApart(plan, apart, troops);
-    const fresh = this.aside.length !== 2 * now.length,
-      k = fresh ? 1 : 1 - Math.exp(-Math.max(0, clock - this.asideClock) * 8);
-    if (fresh) this.aside = new Float64Array(2 * now.length);
-    this.asideClock = clock;
-    const a = this.aside;
-    now.forEach((m, i) => {
-      a[2 * i] = a[2 * i]! + (apart[i]!.x - m.x - a[2 * i]!) * k;
-      a[2 * i + 1] = a[2 * i + 1]! + (apart[i]!.z - m.z - a[2 * i + 1]!) * k;
-      m.x += a[2 * i]!;
-      m.z += a[2 * i + 1]!;
-    });
-  }
+  /** What is drawn of each person, carried smoothly from frame to frame (view/presence.ts). */
+  private readonly presence = new Map<string, Presence>();
+  private presenceClock: number | null = null;
+  private presenceOf = "";
+  /** Each person's drawn size now (0 gone … 1 whole), and their stride's own clock. */
+  private sizes: number[] = [];
+  private strides: number[] = [];
+  /** Each person's limbs as last drawn (a pitch a part, by their ref): eased toward each new pose. */
+  private readonly limbs = new Map<string, Float32Array>();
+  /** Each soldier's limbs as last drawn (a pitch a part, by their place in the ranks). */
+  private soldierLimbs = new Float32Array(0);
 
   /** Put everyone where they are at time t. */
   update(t: number): void {
@@ -760,17 +751,50 @@ export class VillageScene {
       clock = performance.now() / 1000,
       // The battle, if its land was fought over (its soldiers stand where they stand).
       troops = this.soldiers.length ? battleOf(plan, this.soldiersEach, clock) : [];
-    this.moments = plan.people.map((_, i) => momentOf(plan, i, t));
-    this.stepAside(plan, troops, clock);
+    const targets = plan.people.map((_, i) => momentOf(plan, i, t));
+    // No one stands in anyone else, nor in a soldier; and no one jumps: each is carried to
+    // where their day has them, however fast the world runs.
+    keepApart(plan, targets, troops);
+    const dt = this.presenceClock === null ? 0 : clock - this.presenceClock;
+    this.presenceClock = clock;
+    const drawn = present(
+      this.presence,
+      plan.people.map((p) => p.ref),
+      targets,
+      dt,
+      villageSolids(plan),
+    );
+    this.moments = drawn.map((d) => d.moment);
+    this.sizes = drawn.map((d) => d.size);
+    this.strides = drawn.map((d) => d.stride);
+    // Each limb eased toward its pose now: a stride begun or ended, a task taken up, is a
+    // turn of the arm, not a jump of it.
+    const ease = dt > 0 ? 1 - Math.exp(-Math.min(0.1, dt) / 0.08) : 1,
+      pitches = plan.people.map((p, i) => {
+        const m = this.moments[i]!;
+        let drawnPitch = this.limbs.get(p.ref);
+        if (!drawnPitch || drawnPitch.length !== parts.length) {
+          drawnPitch = new Float32Array(parts.length).fill(Number.NaN);
+          this.limbs.set(p.ref, drawnPitch);
+        }
+        if (m.hidden) return drawnPitch;
+        const walking = m.activity === ACTIVITY.walking;
+        parts.forEach((part, pi) => {
+          const aim = limbPitch(part, m.task, walking, walking ? this.strides[i]! : clock, i),
+            was = drawnPitch[pi]!;
+          drawnPitch[pi] = Number.isNaN(was) ? aim : was + (aim - was) * ease;
+        });
+        return drawnPitch;
+      });
     /** A part of person i's figure, where it is now. */
     const place = (out: number[], p: VillagePlan["people"][number], i: number, pi: number) => {
       const part = parts[pi]!,
         m = this.moments[i]!,
-        size = (p.child ? 0.7 : 1) * this.figure.scale,
+        size = (p.child ? 0.7 : 1) * this.figure.scale * (this.sizes[i] ?? 1),
         c = Math.cos(m.yaw),
         sn = Math.sin(m.yaw),
         // A limb swings about its hinge: in the stride, or in the work at hand.
-        pitch = limbPitch(part, m.task, m.activity === ACTIVITY.walking, clock, i),
+        pitch = pitches[i]![pi]!,
         hinge = part.pivot ?? 0,
         dy = hinge - hinge * Math.cos(pitch),
         dz = -hinge * Math.sin(pitch),
@@ -807,15 +831,17 @@ export class VillageScene {
     });
     // The battle, if its land was fought over: closing, fighting, falling, falling back.
     if (this.soldiers.length) {
-      const size = this.figure.scale;
+      if (this.soldierLimbs.length !== 2 * this.soldiersEach * parts.length)
+        this.soldierLimbs = new Float32Array(2 * this.soldiersEach * parts.length).fill(Number.NaN);
       /** A part of a soldier's figure now (lying on their back, if fallen). */
       const soldierPart = (out: number[], k: number, pi: number, side: number) => {
         const q = troops[side * this.soldiersEach + k]!,
+          size = this.figure.scale * q.size,
           part = parts[pi]!,
           c = Math.cos(q.yaw),
           sn = Math.sin(q.yaw),
           walking = q.doing === "advance" || q.doing === "fall back",
-          pitch =
+          aim =
             q.doing === "fallen"
               ? 0
               : limbPitch(
@@ -825,8 +851,13 @@ export class VillageScene {
                   clock * (walking ? 1.4 : 1),
                   k + side * 31,
                 ),
+          // (Eased, as the villagers' are: from the march to the fight is a turn of the arm.)
+          slot = ((side * this.soldiersEach + k) * parts.length + pi) | 0,
+          was = this.soldierLimbs[slot]!,
+          pitch = Number.isNaN(was) ? aim : was + (aim - was) * ease,
           hinge = part.pivot ?? 0,
           px = part.x;
+        this.soldierLimbs[slot] = pitch;
         let py = part.y + hinge - hinge * Math.cos(pitch),
           pz = part.z - hinge * Math.sin(pitch),
           pp = pitch;
@@ -854,6 +885,7 @@ export class VillageScene {
       // Their spears: held upright on the march, thrust in the fight, dropped by the fallen.
       this.spears?.set(troops.length, (i, out) => {
         const q = troops[i]!,
+          size = this.figure.scale * q.size,
           c = Math.cos(q.yaw),
           sn = Math.sin(q.yaw),
           fallen = q.doing === "fallen",
@@ -884,7 +916,7 @@ export class VillageScene {
       c.z = m.z * M;
       c.yaw = m.yaw;
       c.carry = m.carry;
-      c.size = (p.child ? 0.7 : 1) * this.figure.scale;
+      c.size = (p.child ? 0.7 : 1) * this.figure.scale * (this.sizes[i] ?? 1);
       n++;
     });
     this.carriers.length = n;
@@ -920,13 +952,29 @@ export class VillageScene {
   }
 
   /** Everyone in sight now: where (metres), doing what, at what (for the look tools). */
-  peopleNow(): { name: string; x: number; z: number; activity: number; task: string | null }[] {
+  peopleNow(): {
+    name: string;
+    x: number;
+    z: number;
+    activity: number;
+    task: string | null;
+    size: number;
+  }[] {
     const plan = this.plan;
     if (!plan) return [];
     return this.moments.flatMap((m, i) =>
       m.hidden
         ? []
-        : [{ name: plan.people[i]!.name, x: m.x, z: m.z, activity: m.activity, task: m.task }],
+        : [
+            {
+              name: plan.people[i]!.name,
+              x: m.x,
+              z: m.z,
+              activity: m.activity,
+              task: m.task,
+              size: this.sizes[i] ?? 1,
+            },
+          ],
     );
   }
 

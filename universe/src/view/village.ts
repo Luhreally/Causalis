@@ -524,6 +524,11 @@ function groundFor(plan: VillagePlan): Ground {
   return g;
 }
 
+/** A village's solid ground for its people: its homes, its water and its rising walls. */
+export function villageSolids(plan: VillagePlan): Ground {
+  return groundFor(plan);
+}
+
 /** Half a body's breadth: two people's middles come no nearer than twice it (metres). */
 export const BODY_R = 0.35;
 

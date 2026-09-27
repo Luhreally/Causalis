@@ -64,18 +64,28 @@ export class GlobeWars {
     const tokens = warTokens(paths, s).slice(0, MOST),
       walkers = tokens.filter((t) => !t.ship),
       ships = tokens.filter((t) => t.ship),
+      // (A token shrinks toward the ground as its march ends, and grows as it begins.)
       lift = (t: WarToken, h: number): V => ({
-        x: t.at.x + t.up.x * h,
-        y: t.at.y + t.up.y * h,
-        z: t.at.z + t.up.z * h,
+        x: t.at.x + t.up.x * h * t.size,
+        y: t.at.y + t.up.y * h * t.size,
+        z: t.at.z + t.up.z * h * t.size,
       }),
-      stand = (out: number[], at: V, up: V, ahead: V, sx: number, sy: number, sz: number) => {
+      stand = (
+        out: number[],
+        at: V,
+        up: V,
+        ahead: V,
+        sx: number,
+        sy: number,
+        sz: number,
+        k = 1,
+      ) => {
         out[0] = at.x;
         out[1] = at.y;
         out[2] = at.z;
-        out[3] = sx;
-        out[4] = sy;
-        out[5] = sz;
+        out[3] = sx * k;
+        out[4] = sy * k;
+        out[5] = sz * k;
         out[6] = up.x;
         out[7] = up.y;
         out[8] = up.z;
@@ -87,29 +97,38 @@ export class GlobeWars {
     this.bodies.setBasis(walkers.length, (i, out) => {
       const t = walkers[i]!,
         h = t.lead ? 0.022 : 0.014;
-      stand(out, lift(t, h / 2), t.up, t.ahead, t.lead ? 0.016 : 0.01, h, t.lead ? 0.01 : 0.008);
+      stand(
+        out,
+        lift(t, h / 2),
+        t.up,
+        t.ahead,
+        t.lead ? 0.016 : 0.01,
+        h,
+        t.lead ? 0.01 : 0.008,
+        t.size,
+      );
     });
     // (A head on each, so a token reads as one who marches.)
     this.heads.setBasis(walkers.length, (i, out) => {
       const t = walkers[i]!,
         h = t.lead ? 0.022 : 0.014,
         r = t.lead ? 0.011 : 0.008;
-      stand(out, lift(t, h + r / 2), t.up, t.ahead, r, r, r);
+      stand(out, lift(t, h + r / 2), t.up, t.ahead, r, r, r, t.size);
     });
     this.hulls.setBasis(ships.length, (i, out) => {
       const t = ships[i]!;
-      stand(out, lift(t, 0.003), t.up, t.ahead, 0.011, 0.006, 0.028);
+      stand(out, lift(t, 0.003), t.up, t.ahead, 0.011, 0.006, 0.028, t.size);
     });
     this.sails.setBasis(ships.length, (i, out) => {
       const t = ships[i]!;
-      stand(out, lift(t, 0.016), t.up, t.ahead, 0.002, 0.02, 0.016);
+      stand(out, lift(t, 0.016), t.up, t.ahead, 0.002, 0.02, 0.016, t.size);
     });
     // The banners: a pole and a flag in its side's colour, over the lead of each column
     // and over every ship.
     const bearers = tokens.filter((t) => t.lead || t.ship);
     this.poles.setBasis(bearers.length, (i, out) => {
       const t = bearers[i]!;
-      stand(out, lift(t, 0.03), t.up, t.ahead, 0.0022, 0.05, 0.0022);
+      stand(out, lift(t, 0.03), t.up, t.ahead, 0.0022, 0.05, 0.0022, t.size);
     });
     this.flags.forEach((batch, side) => {
       const mine = bearers.filter((t) => t.side === side);
@@ -125,6 +144,7 @@ export class GlobeWars {
           0.002,
           0.014,
           0.024,
+          t.size,
         );
       });
     });

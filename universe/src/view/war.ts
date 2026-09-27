@@ -126,6 +126,8 @@ export type WarToken = {
   readonly ship: boolean;
   /** The banner-bearer at the column's head (or a defender's standard). */
   readonly lead: boolean;
+  /** How much of it is drawn (0 … 1): a march ends and begins again in a blink, not a jump. */
+  readonly size: number;
 };
 
 /** How long a host's march from its land to the front takes on the screen (seconds). */
@@ -148,8 +150,11 @@ export function warTokens(w: WarPaths, s: number): WarToken[] {
         sea: path.sea[q < 0.5 ? i : i + 1]!,
       };
     };
-    // The column marches out, and stops short of the front; then marches again.
-    const lead = ((s / MARCH + n * 0.37) % 1) * 0.9;
+    // The column marches out, and stops short of the front; then marches again (shrunk away
+    // at the front and grown at the start, so none jumps back).
+    const cycle = (s / MARCH + n * 0.37) % 1,
+      lead = cycle * 0.9,
+      size = loopSize(cycle, 0.06, 0.08);
     for (let k = 0; k < 4; k++) {
       const m = lead - k * 0.035;
       if (m < 0) break;
@@ -161,6 +166,8 @@ export function warTokens(w: WarPaths, s: number): WarToken[] {
         side: path.side,
         ship: p.sea,
         lead: k === 0,
+        // (Each behind the lead grows in as it sets out.)
+        size: Math.min(size, loopSize(m / 0.9, 0.06, 0)),
       });
     }
     // The defenders stand at what they hold, facing the way the host comes.
@@ -175,10 +182,18 @@ export function warTokens(w: WarPaths, s: number): WarToken[] {
         side: path.foe,
         ship: d.sea,
         lead: k === 0,
+        size: 1,
       });
     }
   });
   return out;
+}
+
+/** A loop's drawn size at its phase (0 … 1): grown over `grow` of it, shrunk over the last `shrink`. */
+function loopSize(phase: number, grow: number, shrink: number): number {
+  const k =
+    phase < grow ? phase / grow : shrink > 0 && phase > 1 - shrink ? (1 - phase) / shrink : 1;
+  return k * k * (3 - 2 * k);
 }
 
 function norm(v: Vec): Vec {
@@ -196,6 +211,8 @@ export type Soldier = {
   /** 0 the attackers, 1 the defenders. */
   side: 0 | 1;
   doing: "advance" | "fight" | "fallen" | "fall back";
+  /** How much of them is drawn (0 … 1): the round begins and ends in a blink, not a jump. */
+  readonly size: number;
 };
 
 /** How long a battle's round plays on the screen (seconds). */
@@ -266,7 +283,7 @@ export function battleOf(plan: VillagePlan, each: number, s: number): Soldier[] 
       const toward = side === 0 ? way + Math.PI : way,
         yaw =
           Math.atan2(Math.cos(toward), Math.sin(toward)) + (doing === "fall back" ? Math.PI : 0);
-      out.push({ x: p.x, z: p.z, yaw, side, doing });
+      out.push({ x: p.x, z: p.z, yaw, side, doing, size: loopSize(phase, 0.04, 0.06) });
     }
   return out;
 }

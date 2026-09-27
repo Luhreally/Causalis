@@ -303,6 +303,9 @@ export type Road = {
  * Where the k-th of the road's traffic is now (metres), which way it faces, and whether it
  * is going out: from the square to the edge of what is shown and back, keeping to its side.
  */
+/** A road traveller keeps this far off the road's middle, and turns about on a half circle as wide (metres). */
+const TURN_R = 3;
+
 export function travellerAt(
   road: Road,
   k: number,
@@ -315,16 +318,42 @@ export function travellerAt(
     uz = road.to.z / len,
     key = hashString(`${road.ref} road ${k}`),
     reach = Math.max(10, len * 0.9 - 20),
-    period = ((2 * reach) / pace) * (0.9 + 0.2 * ((finish(mix(key, 1), 5) >>> 0) / 4294967296)),
-    t = (s / period + (finish(mix(key, 2), 5) >>> 0) / 4294967296) % 1,
-    out = t < 0.5,
-    along = 20 + reach * (out ? t * 2 : 2 - t * 2),
-    side = out ? 3 : -3;
+    // Out on one side of the road, about on a half circle, back on the other, about again.
+    turn = Math.PI * TURN_R,
+    track = 2 * reach + 2 * turn,
+    period = (track / pace) * (0.9 + 0.2 * ((finish(mix(key, 1), 5) >>> 0) / 4294967296)),
+    d = ((s / period + (finish(mix(key, 2), 5) >>> 0) / 4294967296) % 1) * track;
+  let along: number, side: number, ha: number, hs: number;
+  if (d < reach) {
+    along = 20 + d;
+    side = TURN_R;
+    ha = 1;
+    hs = 0;
+  } else if (d < reach + turn) {
+    const a = (d - reach) / TURN_R;
+    along = 20 + reach + TURN_R * Math.sin(a);
+    side = TURN_R * Math.cos(a);
+    ha = Math.cos(a);
+    hs = -Math.sin(a);
+  } else if (d < 2 * reach + turn) {
+    along = 20 + reach - (d - reach - turn);
+    side = -TURN_R;
+    ha = -1;
+    hs = 0;
+  } else {
+    const a = (d - 2 * reach - turn) / TURN_R;
+    along = 20 - TURN_R * Math.sin(a);
+    side = -TURN_R * Math.cos(a);
+    ha = -Math.cos(a);
+    hs = Math.sin(a);
+  }
+  const hx = ux * ha - uz * hs,
+    hz = uz * ha + ux * hs;
   return {
     x: ux * along - uz * side,
     z: uz * along + ux * side,
-    yaw: Math.atan2(out ? ux : -ux, out ? uz : -uz),
-    out,
+    yaw: Math.atan2(hx, hz),
+    out: d < reach + turn / 2 || d >= 2 * reach + 1.5 * turn,
   };
 }
 

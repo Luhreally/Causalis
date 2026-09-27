@@ -43,6 +43,7 @@ export {
   houseLook,
   keepApart,
   momentOf,
+  villageSolids,
   personGroup,
   sayOf,
   treesOf,
@@ -53,6 +54,7 @@ export {
   type Tree,
 } from "./village.ts";
 export { STRIDES, bobOf, limbPitch } from "./motion.ts";
+export { BLINK, DASH, FAR, SMOOTH, present, type Presence } from "./presence.ts";
 export { BEYOND, zoomStep, type ZoomState } from "./zoom.ts";
 export {
   DAWN,

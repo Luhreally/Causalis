@@ -165,7 +165,14 @@ type Exposed = {
   zoomThrough?: (way: "in" | "out") => Promise<void>;
   scale?: () => string;
   /** Everyone in sight now, and what they are at (for the look tools). */
-  peopleNow?: () => { name: string; x: number; z: number; activity: number; task: string | null }[];
+  peopleNow?: () => {
+    name: string;
+    x: number;
+    z: number;
+    activity: number;
+    task: string | null;
+    size: number;
+  }[];
   /** What the people in view are saying now, in signs (for the look tools). */
   bubblesNow?: () => { key: string; text: string; at: { x: number; y: number } | null }[];
   /** The camera's rig, for the look tools. */
