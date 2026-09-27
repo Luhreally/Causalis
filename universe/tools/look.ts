@@ -1,5 +1,6 @@
 // node tools/look.ts <dir> [year] — the look at a phone's size (the art track's eye): the welcome, the globe
-// with the guided walk, a land, a page, the saves, a region and a village, as screenshots in <dir>.
+// with the guided walk, a land, a page, the saves, the star's worlds and the stars, a region, a
+// village and a city (when there is one), as screenshots in <dir>.
 // (npm run build first.)
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -108,6 +109,30 @@ if (vs[0]) {
   );
   await page.waitForTimeout(2500);
   await page.screenshot({ path: join(dir, "village.png") });
+}
+// A city, if the world has one yet: its quarters from further off.
+const city = await page.evaluate(async () => {
+  const c = (globalThis as { causalis?: C }).causalis!;
+  const map = await c.client!.query<{ cell: number; people: number }[]>({ type: "people.map" });
+  for (const land of [...map].sort((a, b) => b.people - a.people).slice(0, 60)) {
+    const vs = await c.client!.query<{ ref: string }[]>({
+      type: "settlements",
+      args: { cell: land.cell },
+    });
+    for (const v of vs) {
+      const s = await c.client!.query<{ city: unknown }>({
+        type: "settlement",
+        args: { ref: v.ref },
+      });
+      if (s.city) return v.ref;
+    }
+  }
+  return null;
+});
+if (city) {
+  await page.evaluate((ref) => (globalThis as { causalis?: C }).causalis!.watch!(ref), city);
+  await page.waitForTimeout(3000);
+  await page.screenshot({ path: join(dir, "city.png") });
 }
 await browser.close();
 await server.close();

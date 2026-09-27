@@ -2734,7 +2734,11 @@ More of the look: a region's woods — on each land tile, by how wooded its biom
 low-poly crown (pines in the north and the hills, round crowns elsewhere), thinned alike
 to a cap of four thousand, sized to the tiles; the stars of the cluster glow in their own
 light; on a phone the subject is framed between the bar and the sheet, and the sheet keeps
-to the lower part of the screen.
+to the lower part of the screen. The globe wears clouds under the Land lens (none over what
+another lens paints). A city's quarters hold what they are for: markets their stalls
+under striped awnings, workshops their sheds and chimneys, the temple a stepped pile with
+a gilded crown, the crowded quarters homes two storeys high; a city is seen from further
+off, its haze as far. CI walks the journey (universe-journey).
 
 ### J. Allocation of ~100k lines
 

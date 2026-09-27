@@ -178,19 +178,76 @@ export class VillageScene {
           out[6] = Math.PI / 4;
         });
       });
-      const temple = quarters.uses.indexOf(5);
-      if (temple >= 0) {
-        const hall = new InstancedBatch(s, patch, [0.92, 0.9, 0.84], 1, this.root),
-          half = (quarters.blocks - 1) / 2;
-        hall.set(1, (_, out) => {
-          out[0] = ((temple % quarters.blocks) - half) * quarters.blockM * M;
-          out[1] = 0.6;
-          out[2] = (Math.floor(temple / quarters.blocks) - half) * quarters.blockM * M;
-          out[3] = out[5] = 4.2;
-          out[4] = 1.2;
-          out[6] = Math.PI / 4;
-        });
+      // What each quarter holds (art track A3): markets their stalls under striped awnings,
+      // workshops their sheds and chimneys, the temple a stepped pile with a gilded crown.
+      const half = (quarters.blocks - 1) / 2,
+        centre = (k: number) => ({
+          x: ((k % quarters.blocks) - half) * quarters.blockM * M,
+          z: (Math.floor(k / quarters.blocks) - half) * quarters.blockM * M,
+        }),
+        blocksOf = (use: number) =>
+          quarters.uses.map((u, k) => ({ u, k })).filter((b) => b.u === use),
+        span = quarters.blockM * M,
+        pieces = (
+          list: { x: number; y: number; z: number; w: number; h: number; d: number }[],
+          color: Rgb,
+        ) => {
+          if (!list.length) return;
+          new InstancedBatch(s, patch, color, list.length, this.root).set(list.length, (i, out) => {
+            const p = list[i]!;
+            out[0] = p.x;
+            out[1] = p.y;
+            out[2] = p.z;
+            out[3] = p.w;
+            out[4] = p.h;
+            out[5] = p.d;
+            out[6] = Math.PI / 4;
+          });
+        };
+      const stalls: { x: number; y: number; z: number; w: number; h: number; d: number }[] = [],
+        awnings: (typeof stalls)[] = [[], [], [], []];
+      for (const { k } of blocksOf(3)) {
+        const c = centre(k);
+        for (let a = 0; a < 3; a++)
+          for (let b = 0; b < 3; b++) {
+            const x = c.x + (a - 1) * span * 0.28,
+              z = c.z + (b - 1) * span * 0.28;
+            stalls.push({ x, y: 0.35, z, w: 1.4, h: 0.7, d: 1.1 });
+            awnings[(k + a * 3 + b) % 4]!.push({ x, y: 0.78, z, w: 1.7, h: 0.12, d: 1.4 });
+          }
       }
+      pieces(stalls, [0.62, 0.46, 0.3]);
+      const AWNINGS: readonly Rgb[] = [
+        [0.9, 0.22, 0.2],
+        [0.98, 0.8, 0.2],
+        [0.2, 0.45, 0.9],
+        [0.25, 0.7, 0.35],
+      ];
+      awnings.forEach((list, i) => pieces(list, AWNINGS[i]!));
+      const sheds: typeof stalls = [],
+        chimneys: typeof stalls = [];
+      for (const { k } of blocksOf(4)) {
+        const c = centre(k);
+        for (const a of [-1, 1]) {
+          const x = c.x + a * span * 0.22;
+          sheds.push({ x, y: 0.9, z: c.z, w: span * 0.34, h: 1.8, d: span * 0.5 });
+          chimneys.push({ x: x + span * 0.1, y: 2, z: c.z - span * 0.16, w: 0.55, h: 4, d: 0.55 });
+        }
+      }
+      pieces(sheds, [0.5, 0.48, 0.46]);
+      pieces(chimneys, [0.62, 0.26, 0.2]);
+      const tiers: typeof stalls = [],
+        crowns: typeof stalls = [];
+      for (const { k } of blocksOf(5)) {
+        const c = centre(k),
+          base = span * 0.6;
+        [1, 0.72, 0.46].forEach((f, n) =>
+          tiers.push({ x: c.x, y: 0.7 + n * 1.4, z: c.z, w: base * f, h: 1.4, d: base * f }),
+        );
+        crowns.push({ x: c.x, y: 4.9, z: c.z, w: base * 0.2, h: 1.2, d: base * 0.2 });
+      }
+      pieces(tiers, [0.94, 0.92, 0.86]);
+      pieces(crowns, [0.98, 0.8, 0.25]);
     }
     disc(2.2, [0.66, 0.6, 0.48], 0, 0, 0.016);
     this.fields = new InstancedBatch(
@@ -230,18 +287,27 @@ export class VillageScene {
       walls = new InstancedBatch(s, shell, [...look.wall], plan.homes.length, this.root),
       watched = new InstancedBatch(s, shell, lighter, plan.homes.length, this.root),
       roofs = new InstancedBatch(s, roofMesh, [...look.roof], plan.homes.length, this.root);
-    const place = (list: VillagePlan["homes"][number][], batch: InstancedBatch) =>
-      batch.set(list.length, (i, out) => {
-        const h = list[i]!;
-        out[0] = h.x * M;
-        // Nests and platforms stand off the ground.
-        out[1] = look.raised + wallHigh / 2;
-        out[2] = h.z * M;
-        out[3] = look.length;
-        out[4] = wallHigh;
-        out[5] = look.width;
-        out[6] = h.yaw + Math.PI / 4;
-      });
+    // In a city's crowded quarters homes stand two storeys high.
+    const storeys = (h: VillagePlan["homes"][number]) => {
+        const q = plan.districts;
+        if (!q) return 1;
+        const i = Math.round(h.x / q.blockM + (q.blocks - 1) / 2),
+          j = Math.round(h.z / q.blockM + (q.blocks - 1) / 2);
+        return q.uses[j * q.blocks + i] === 2 ? 2 : 1;
+      },
+      place = (list: VillagePlan["homes"][number][], batch: InstancedBatch) =>
+        batch.set(list.length, (i, out) => {
+          const h = list[i]!,
+            high = wallHigh * storeys(h);
+          out[0] = h.x * M;
+          // Nests and platforms stand off the ground.
+          out[1] = look.raised + high / 2;
+          out[2] = h.z * M;
+          out[3] = look.length;
+          out[4] = high;
+          out[5] = look.width;
+          out[6] = h.yaw + Math.PI / 4;
+        });
     place(
       plan.homes.filter((h) => !h.household),
       walls,
@@ -254,7 +320,7 @@ export class VillageScene {
     roofs.set(look.open ? 0 : plan.homes.length, (i, out) => {
       const h = plan.homes[i]!;
       out[0] = h.x * M;
-      out[1] = look.raised + wallHigh + roofHigh / 2;
+      out[1] = look.raised + wallHigh * storeys(h) + roofHigh / 2;
       out[2] = h.z * M;
       // The eaves overhang the walls a little (a flat roof sits on them).
       out[3] = look.length * (flat ? 1.02 : 1.15);

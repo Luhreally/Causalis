@@ -688,7 +688,8 @@ async function runPlanetPage(): Promise<void> {
     villagePanel.visible = true;
     client.setSpeed(WATCH_DEFAULT);
     rig.configure({
-      distance: 26,
+      // A city is seen from further off: most of its quarters in view.
+      distance: plan?.districts ? 78 : 26,
       minDistance: 3,
       maxDistance: 140,
       pitch: -38,
@@ -697,6 +698,8 @@ async function runPlanetPage(): Promise<void> {
       drift: 0.8,
       target: [0, 0, 0],
     });
+    // (And its haze starts as far off.)
+    if (plan?.districts) stage.backdrop("ground", 110);
   };
   const selectPerson = (i: number | null) => {
     watched = i;
