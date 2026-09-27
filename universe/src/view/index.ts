@@ -37,15 +37,20 @@ export {
 export {
   ACTIVITY,
   ACTIVITY_WORDS,
+  SIGNS,
+  TASKS,
   houseLook,
   momentOf,
   personGroup,
+  sayOf,
   treesOf,
   type Activity,
   type HouseLook,
   type Moment,
+  type Task,
   type Tree,
 } from "./village.ts";
+export { STRIDES, bobOf, limbPitch } from "./motion.ts";
 
 export {
   HAIRS,

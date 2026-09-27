@@ -22,6 +22,8 @@ export const CARRIES = [
   "pack",
   "staff",
   "water",
+  "beam",
+  "spear",
 ] as const;
 export type Carry = (typeof CARRIES)[number];
 
@@ -139,6 +141,12 @@ const ITEMS: Readonly<Record<Carry, readonly ItemPart[]>> = {
   water: [
     P("water", 0.13, 0.15, 0.02, 0.06, 0.06, 0.06),
     P("wood", 0.13, 0.19, 0.02, 0.07, 0.01, 0.07),
+  ],
+  // A beam over the shoulder, along the way they go; a spear held upright.
+  beam: [P("wood", 0.1, 0.5, 0.02, 0.045, 0.045, 0.72)],
+  spear: [
+    P("wood", 0.12, 0.34, 0.06, 0.018, 0.74, 0.018),
+    P("head", 0.12, 0.74, 0.06, 0.03, 0.07, 0.012),
   ],
 };
 

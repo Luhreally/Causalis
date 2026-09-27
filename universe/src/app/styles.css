@@ -361,6 +361,36 @@ button:disabled {
   color: var(--muted);
   font-size: 0.85rem;
 }
+/* What the people in view are saying (M86): a sign in a speech bubble over each head. */
+.bubbles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none !important;
+}
+.bubble {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 2px 5px;
+  font-size: 1.05rem;
+  line-height: 1.15;
+  background: #fffffff2;
+  border: 1px solid #25345e;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px #0006;
+  white-space: nowrap;
+}
+.bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  margin-left: -5px;
+  border: 5px solid transparent;
+  border-top-color: #25345e;
+  border-bottom: 0;
+}
 .labels {
   position: absolute;
   inset: 0;

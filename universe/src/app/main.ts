@@ -54,6 +54,7 @@ import {
   regionColors,
   regionHeights,
   regionTrees,
+  SIGNS,
   sandboxSpec,
   skyMarks,
   voyageMarks,
@@ -150,6 +151,10 @@ type Exposed = {
   visiting?: () => number;
   /** Everyone carrying something in the village watched: where and what. */
   carriersNow?: () => { x: number; z: number; carry: string }[];
+  /** Everyone in sight now, and what they are at (for the look tools). */
+  peopleNow?: () => { name: string; x: number; z: number; activity: number; task: string | null }[];
+  /** What the people in view are saying now, in signs (for the look tools). */
+  bubblesNow?: () => { key: string; text: string; at: { x: number; y: number } | null }[];
   /** The camera's rig, for the look tools. */
   rig?: OrbitRig;
 };
@@ -320,6 +325,8 @@ async function runPlanetPage(): Promise<void> {
     regionPanel = new RegionPanel(hud, client),
     villagePanel = new VillagePanel(hud, client),
     labels = new LabelLayer(hud),
+    // What the people in view are saying, in signs over their heads (M86).
+    bubbles = new LabelLayer(hud, "bubble"),
     tidings = new Tidings(hud, client);
   planetPanel.tidings = regionPanel.tidings = villagePanel.tidings = tidings;
   // The guided walk: on a first visit (not for a machine driving the page, unless asked
@@ -387,6 +394,18 @@ async function runPlanetPage(): Promise<void> {
   exposed.quality = () => stage.quality.name;
   exposed.setQuality = (c: string) => setChoice(c as QualityName | "auto");
   labels.blockers = [regionPanel.inspector, villagePanel.inspector];
+  bubbles.blockers = labels.blockers;
+  // The signs' font, readied before any village is entered: its first drawing is slow (a
+  // colour font loaded and its glyphs drawn), and would otherwise stall a frame there.
+  {
+    const warm = document.createElement("span");
+    warm.className = "bubble";
+    warm.textContent = Object.values(SIGNS).join("");
+    warm.style.opacity = "0.01";
+    warm.style.pointerEvents = "none";
+    hud.append(warm);
+    setTimeout(() => warm.remove(), 4000);
+  }
 
   const paintGlobe = () => {
     const frame = client.latestFrame("globe");
@@ -578,6 +597,7 @@ async function runPlanetPage(): Promise<void> {
     stopVillages = null;
     villages = [];
     labels.clear();
+    bubbles.clear();
     region.visible = false;
     skyScene.visible = false;
     systemPanel.visible = false;
@@ -614,6 +634,7 @@ async function runPlanetPage(): Promise<void> {
     scale = "system";
     stage.backdrop("space");
     labels.clear();
+    bubbles.clear();
     globe.visible = false;
     planetPanel.visible = false;
     if (!systemPlan) {
@@ -959,6 +980,7 @@ async function runPlanetPage(): Promise<void> {
     scale = "village";
     stage.backdrop("ground", 40, true);
     labels.clear();
+    bubbles.clear();
     // Whichever way it came (a region, or straight from the globe), only the village shows.
     globe.visible = false;
     region.visible = false;
@@ -1026,6 +1048,7 @@ async function runPlanetPage(): Promise<void> {
     if (watched !== null) villagePanel.moment(village.momentAt(watched));
     // The years turn: re-read the plan, so those who died are gone.
     if (Math.floor(clock.t / YEAR) !== planYear) void loadPlan(plan.ref);
+    bubbles.update(village.bubbles());
     // Families met are named over their homes; under the hand, the village is its own name.
     if (plan.hand) {
       labels.update([]);
@@ -1051,6 +1074,8 @@ async function runPlanetPage(): Promise<void> {
     village.heldFauna = s;
   };
   exposed.carriersNow = () => (scale === "village" ? village.carriersNow() : []);
+  exposed.bubblesNow = () => (scale === "village" ? village.bubbles() : []);
+  exposed.peopleNow = () => (scale === "village" ? village.peopleNow() : []);
   exposed.rig = rig;
 
   regionPanel.onBack = () => toGlobe();

@@ -5,10 +5,16 @@
 // keyed variation for each person and day, so the same moment always looks the
 // same, the picture moves smoothly at any speed, and watching can never touch
 // what happens (the plan is re-read as the years turn, so the dead leave it).
+// And what each is at (Phase 9 M86): the fields hoed, sown and reaped by the season, the
+// next home built as the village grows, the young drilling in ranks while their realm is
+// at war, rings of talk in the square — hot words and a brawl where grievance runs high —
+// and what each says, in signs, of what the village's own year has brought. Walkers go
+// round the homes and the water, never through them.
 import { finish, hashString, mix } from "../kernel/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 import { OCC } from "../rules/index.ts";
 import { paceOf } from "./figure.ts";
+import { keepOut, route, villageGround, type Ground } from "./ground.ts";
 import type { Carry } from "./work.ts";
 
 export const ACTIVITY = {
@@ -34,12 +40,37 @@ export const ACTIVITY_WORDS: readonly string[] = [
   "with the others in the square",
 ];
 
+/**
+ * What a person is at (M86): the tools' work of each trade by its season, building, the
+ * herd, the gathering, the net, the pick, the hammer, the market's haggling, talk, play,
+ * drill and brawl.
+ */
+export const TASKS = [
+  "hoe",
+  "sow",
+  "reap",
+  "herd",
+  "gather",
+  "fish",
+  "dig",
+  "hammer",
+  "build",
+  "haggle",
+  "talk",
+  "play",
+  "drill",
+  "brawl",
+] as const;
+export type Task = (typeof TASKS)[number];
+
 export type Moment = {
   x: number;
   z: number;
   /** Which way they face, in radians. */
   yaw: number;
   activity: Activity;
+  /** What they are at, where they are at something (M86). */
+  task: Task | null;
   /** Out of sight (asleep indoors). */
   hidden: boolean;
   /** 0 fed … 1 hungry; 0 rested … 1 worn out. */
@@ -62,10 +93,13 @@ type Leg = {
   next: Point | null;
   activity: Activity;
   carry: Carry | null;
+  task: Task | null;
+  /** Which way they face while they stay (toward a ring's middle, a rank's front). */
+  face: number | null;
 };
 
-/** Where a person works, and what they carry there and back. */
-type Work = Point & { to: Carry | null; back: Carry | null };
+/** Where a person works, what they carry there and back, and what they are at there. */
+type Work = Point & { to: Carry | null; back: Carry | null; task: Task | null };
 
 /** A keyed stream for one person on one day. */
 function dayDraw(ref: string, day: number): (n: number) => number {
@@ -73,8 +107,17 @@ function dayDraw(ref: string, day: number): (n: number) => number {
   return (n) => unit(finish(mix(base, n), 17));
 }
 
-/** The share of the year gone (0 … 1) when the fields are ripe and reaped. */
+/** The share of the year gone (0 … 1) when the fields are ripe and reaped; when they are sown. */
 const HARVEST: readonly [number, number] = [0.6, 0.78];
+const SOWING: readonly [number, number] = [0.18, 0.34];
+
+/** The square's rings of talk: how many, and how far out from its middle each stands. */
+const RINGS = 4,
+  RING_OUT = 7,
+  RING_R = 2.6;
+
+/** The gap between the ranks and the files of those who drill. */
+const DRILL_GAP = 3;
 
 /**
  * Where a person works, by their trade, and what they carry there and back (M78): a
@@ -90,21 +133,50 @@ function workplace(
 ): Work {
   const home = plan.homes[p.home]!,
     angle = draw(1) * 2 * Math.PI,
-    at = (x: number, z: number, to: Carry | null = null, back: Carry | null = to): Work => ({
-      x,
-      z,
+    ground = groundFor(plan),
+    // (Where they stand to work is clear of every wall.)
+    at = (
+      x: number,
+      z: number,
+      to: Carry | null = null,
+      back: Carry | null = to,
+      task: Task | null = null,
+    ): Work => ({ ...clearSpot(ground, { x, z }), to, back, task }),
+    // Beside their own home: a doorstep's way out, on a side clear of the walls.
+    nearHome = (
+      out: number,
+      to: Carry | null = null,
+      back: Carry | null = to,
+      task: Task | null = null,
+    ): Work => ({
+      ...doorstep(
+        ground,
+        home,
+        angle,
+        Math.max(out, (ground.homes[p.home]?.r ?? 5) + PERSON_REACH + 0.8),
+      ),
       to,
       back,
+      task,
     });
   if (p.child) {
     // Children play near home, or in the square on some days (and bring water from its well).
     return draw(2) < 0.4
-      ? at(6 * Math.cos(angle), 6 * Math.sin(angle), null, plan.market ? null : "water")
-      : at(home.x + 8 * Math.cos(angle), home.z + 8 * Math.sin(angle));
+      ? at(6 * Math.cos(angle), 6 * Math.sin(angle), null, plan.market ? null : "water", "play")
+      : nearHome(8, null, null, "play");
   }
   // The old keep near home: from sixty-two for upright apes, as late in any people's span.
-  if (p.age >= (62 * (plan.body?.span ?? 70)) / 70)
-    return at(home.x + 3 * Math.cos(angle), home.z + 3 * Math.sin(angle));
+  if (p.age >= (62 * (plan.body?.span ?? 70)) / 70) return nearHome(3);
+  // As the village grows, its crafters (and a farmer or two between sowing and harvest)
+  // build its next home: out with a beam, round the rising walls.
+  const site = plan.life?.site;
+  if (
+    site &&
+    (p.occupation === OCC.crafter ? draw(14) < 0.6 : p.occupation === OCC.farmer && draw(14) < 0.12)
+  ) {
+    const round = draw(15) * 2 * Math.PI;
+    return at(site.x + 9 * Math.cos(round), site.z + 9 * Math.sin(round), "beam", null, "build");
+  }
   switch (p.occupation) {
     case OCC.farmer: {
       const f = plan.fields[Math.floor(draw(3) * plan.fields.length)] ?? {
@@ -121,6 +193,7 @@ function workplace(
         f.z + (draw(5) - 0.5) * f.d * 0.7,
         "tool",
         reaping ? "sheaf" : "tool",
+        reaping ? "reap" : season >= SOWING[0] && season < SOWING[1] ? "sow" : "hoe",
       );
     }
     case OCC.herder:
@@ -128,6 +201,8 @@ function workplace(
         plan.pasture.x + plan.pasture.r * 0.8 * (draw(4) - 0.5) * 2,
         plan.pasture.z + plan.pasture.r * 0.8 * (draw(5) - 0.5) * 2,
         "staff",
+        "staff",
+        "herd",
       );
     case OCC.forager: {
       // By the water, some fish from its shore; the rest gather in the wild.
@@ -135,30 +210,37 @@ function workplace(
         const d = Math.hypot(plan.water.x, plan.water.z) || 1,
           shore = d - 205,
           a = Math.atan2(plan.water.z, plan.water.x) + (draw(4) - 0.5) * 0.5;
-        return at(shore * Math.cos(a), shore * Math.sin(a), "staff", "fish");
+        return at(shore * Math.cos(a), shore * Math.sin(a), "staff", "fish", "fish");
       }
       const r = plan.wild + draw(4) * 250;
-      return at(r * Math.cos(angle), r * Math.sin(angle), "basket");
+      return at(r * Math.cos(angle), r * Math.sin(angle), "basket", "basket", "gather");
     }
     case OCC.trader:
       // Some days out along the road; others at the market.
       return draw(6) < 0.45
         ? at(plan.road.x * 0.9, plan.road.z * 0.9, "pack")
-        : at(10 * Math.cos(angle), 10 * Math.sin(angle), null, "sack");
+        : at(10 * Math.cos(angle), 10 * Math.sin(angle), null, "sack", "haggle");
     case OCC.crafter: {
       // In a land that digs, half its crafters dig: their picks out, what they dig back.
       const mine = plan.works?.mine;
       if (mine && draw(12) < 0.5)
-        return at(mine.x + (draw(4) - 0.5) * 20, mine.z + (draw(5) - 0.5) * 20, "tool", "ore");
+        return at(
+          mine.x + (draw(4) - 0.5) * 20,
+          mine.z + (draw(5) - 0.5) * 20,
+          "tool",
+          "ore",
+          "dig",
+        );
       return at(
         14 + 6 * Math.cos(angle),
         -10 + 6 * Math.sin(angle),
         null,
         draw(13) < 0.5 ? "sack" : null,
+        "hammer",
       );
     }
     case OCC.leader:
-      return at(4 * Math.cos(angle), 4 * Math.sin(angle));
+      return at(4 * Math.cos(angle), 4 * Math.sin(angle), null, null, "talk");
     default:
       return at(home.x + 5 * Math.cos(angle), home.z + 5 * Math.sin(angle));
   }
@@ -175,15 +257,38 @@ function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
   const p = plan.people[index]!,
     draw = dayDraw(p.ref, day),
     home = plan.homes[p.home]!,
-    // At home means at the doorstep, where they can be seen: outside the walls.
-    door = home.yaw + (draw(20) - 0.5) * 1.2,
-    at: Point = { x: home.x + 7 * Math.cos(door), z: home.z + 7 * Math.sin(door) },
+    ground = groundFor(plan),
+    // At home means at the doorstep, where they can be seen: outside the walls (on a side
+    // clear of the neighbours' too).
+    doorOut = Math.max(7, (ground.homes[p.home]?.r ?? 5) + PERSON_REACH + 0.8),
+    at = doorstep(ground, home, home.yaw + (draw(20) - 0.5) * 1.2, doorOut),
     work = workplace(plan, p, draw, day),
     // One day in seven is a day of rest, on a day kept by the village.
     rest = (day + (plan.seed % 7)) % 7 === 0,
     rise = (5.5 + draw(7) * 1.5) * HOUR,
     bed = (21 + draw(8) * 1.5) * HOUR,
-    square: Point = { x: (draw(9) - 0.5) * 16, z: (draw(10) - 0.5) * 16 },
+    // In the square, a place in one of its rings of talk, facing the ring's middle.
+    ring = Math.floor(draw(9) * RINGS),
+    ringAt = {
+      x: RING_OUT * Math.cos((ring / RINGS) * 2 * Math.PI + 0.4),
+      z: RING_OUT * Math.sin((ring / RINGS) * 2 * Math.PI + 0.4),
+    },
+    life = plan.life,
+    // Where grievance runs high, two of the first ring come to blows, face to face.
+    brawls = !!life && life.unrest > 0.35 && ring === 0 && draw(18) < life.unrest,
+    // (Eight places to a ring, a body's breadth apart.)
+    seat = brawls ? (draw(19) < 0.5 ? 0 : Math.PI) : (Math.floor(draw(10) * 8) / 8) * 2 * Math.PI,
+    near = brawls ? 0.9 : RING_R,
+    square: Point = { x: ringAt.x + near * Math.cos(seat), z: ringAt.z + near * Math.sin(seat) },
+    toRing = Math.atan2(ringAt.x - square.x, ringAt.z - square.z),
+    // While their realm is at war, the young drill in ranks of an evening, spears in hand.
+    drills = !!life?.war && !p.child && p.age >= 16 && p.age < 45 && !(rest && draw(16) < 0.5),
+    slot = Math.floor(draw(17) * 16),
+    field = drillField(plan),
+    rank: Point = {
+      x: field.x + ((slot & 3) - 1.5) * DRILL_GAP,
+      z: field.z + ((slot >> 2) - 1.5) * DRILL_GAP,
+    },
     legs: Leg[] = [];
   const stay = (
     from: number,
@@ -191,22 +296,57 @@ function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
     where: Point,
     activity: Activity,
     carry: Carry | null = null,
+    task: Task | null = null,
+    face: number | null = null,
   ) => {
-    if (to > from) legs.push({ from, to, at: where, next: null, activity, carry });
+    if (to > from) legs.push({ from, to, at: where, next: null, activity, carry, task, face });
   };
+  // A walk goes round the homes, the water and the rising walls, turning beside each.
   const go = (from: number, a: Point, b: Point, carry: Carry | null = null) => {
-    const to = from + walkTime(a, b, pace);
-    legs.push({ from, to, at: a, next: b, activity: ACTIVITY.walking, carry });
-    return to;
+    const way = route(ground, a, b, PERSON_REACH);
+    let t = from;
+    for (let k = 0; k + 1 < way.length; k++) {
+      const p = way[k]!,
+        q = way[k + 1]!,
+        to = t + walkTime(p, q, pace);
+      legs.push({
+        from: t,
+        to,
+        at: p,
+        next: q,
+        activity: ACTIVITY.walking,
+        carry,
+        task: null,
+        face: null,
+      });
+      t = to;
+    }
+    return t;
+  };
+  /** An evening in the square: talk in the rings (or blows), or the drill while at war. */
+  const evening = (t: number, until: number): number => {
+    if (drills) {
+      t = go(t, at, rank, "spear");
+      stay(t, until, rank, ACTIVITY.gathering, "spear", "drill", 0);
+      return go(until, rank, at, "spear");
+    }
+    t = go(t, at, square);
+    stay(t, until, square, ACTIVITY.gathering, null, brawls ? "brawl" : "talk", toRing);
+    return go(until, square, at);
   };
   stay(0, rise, at, ACTIVITY.asleep);
   stay(rise, rise + 0.75 * HOUR, at, ACTIVITY.eating);
   let t = rise + 0.75 * HOUR;
   if (rest || p.age >= 62) {
-    stay(t, 17 * HOUR, at, p.child ? ACTIVITY.playing : ACTIVITY.resting);
-    t = go(17 * HOUR, at, square);
-    stay(t, 19.5 * HOUR, square, ACTIVITY.gathering);
-    t = go(19.5 * HOUR, square, at);
+    stay(
+      t,
+      17 * HOUR,
+      at,
+      p.child ? ACTIVITY.playing : ACTIVITY.resting,
+      null,
+      p.child ? "play" : null,
+    );
+    t = evening(17 * HOUR, 19.5 * HOUR);
   } else {
     const doing = p.child ? ACTIVITY.playing : ACTIVITY.working,
       far = walkTime(at, work, pace) > 0.6 * HOUR;
@@ -214,24 +354,20 @@ function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
     t = go(t, at, work, work.to);
     // Those who work near home come back to eat at noon; the rest eat where they are.
     if (far) {
-      stay(t, 12 * HOUR, work, doing, work.to);
+      stay(t, 12 * HOUR, work, doing, work.to, work.task);
       stay(12 * HOUR, 12.75 * HOUR, work, ACTIVITY.eating);
-      stay(12.75 * HOUR, 17.25 * HOUR, work, doing, work.to);
+      stay(12.75 * HOUR, 17.25 * HOUR, work, doing, work.to, work.task);
       t = go(17.25 * HOUR, work, at, work.back);
     } else {
-      stay(t, 12 * HOUR, work, doing, work.to);
+      stay(t, 12 * HOUR, work, doing, work.to, work.task);
       t = go(12 * HOUR, work, at, work.back);
       stay(t, t + 0.75 * HOUR, at, ACTIVITY.eating);
       t = go(t + 0.75 * HOUR, at, work, work.to);
-      stay(t, 17.5 * HOUR, work, doing, work.to);
+      stay(t, 17.5 * HOUR, work, doing, work.to, work.task);
       t = go(17.5 * HOUR, work, at, work.back);
     }
-    // Some evenings in the square.
-    if (draw(11) < 0.3 && t < 19 * HOUR) {
-      t = go(t, at, square);
-      stay(t, 20 * HOUR, square, ACTIVITY.gathering);
-      t = go(20 * HOUR, square, at);
-    }
+    // Some evenings in the square (every evening, for those who drill).
+    if ((drills || draw(11) < 0.3) && t < 19 * HOUR) t = evening(t, 20 * HOUR);
   }
   stay(t, Math.max(t, bed - 0.5 * HOUR), at, ACTIVITY.eating);
   stay(Math.max(t, bed - 0.5 * HOUR), bed, at, ACTIVITY.home);
@@ -239,14 +375,17 @@ function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
   return legs;
 }
 
-// A day's legs, kept while the day lasts: the same person's same day is the same.
-const DAYS = new Map<string, Leg[]>();
+// A day's legs, kept while the day lasts: the same person's same day is the same (for
+// the plan as it stands: a plan re-read as the years turn keeps its own).
+const DAYS = new WeakMap<VillagePlan, Map<string, Leg[]>>();
 function legsOf(plan: VillagePlan, index: number, day: number): Leg[] {
-  const key = `${plan.ref}|${plan.seed}|${paceOf(plan.body)}|${plan.people[index]!.ref}|${plan.people[index]!.home}|${day}`;
-  let legs = DAYS.get(key);
+  let days = DAYS.get(plan);
+  if (!days) DAYS.set(plan, (days = new Map()));
+  const key = `${plan.people[index]!.ref}|${day}`;
+  let legs = days.get(key);
   if (!legs) {
-    if (DAYS.size > 4000) DAYS.clear();
-    DAYS.set(key, (legs = dayOf(plan, index, day)));
+    if (days.size > 4000) days.clear();
+    days.set(key, (legs = dayOf(plan, index, day)));
   }
   return legs;
 }
@@ -259,7 +398,7 @@ export function momentOf(plan: VillagePlan, index: number, t: number): Moment {
   const leg = legs.find((l) => s >= l.from && s < l.to) ?? legs[legs.length - 1]!;
   let x = leg.at.x,
     z = leg.at.z,
-    yaw = 0;
+    yaw = leg.face ?? 0;
   if (leg.next) {
     const k = (s - leg.from) / Math.max(1, leg.to - leg.from);
     x += (leg.next.x - leg.at.x) * k;
@@ -271,7 +410,15 @@ export function momentOf(plan: VillagePlan, index: number, t: number): Moment {
     x += Math.sin(w) * (leg.activity === ACTIVITY.playing ? 3 : 1.5);
     z += Math.cos(w * 0.7) * (leg.activity === ACTIVITY.playing ? 3 : 1.5);
     yaw = w;
+    // A builder faces the walls going up.
+    const site = plan.life?.site;
+    if (leg.task === "build" && site) yaw = Math.atan2(site.x - x, site.z - z);
   }
+  // Round the homes, the water and the rising walls, never through them.
+  const at = { x, z };
+  keepOut(groundFor(plan), at, PERSON_REACH);
+  x = at.x;
+  z = at.z;
   // Hunger rises between meals; tiredness through the waking day.
   const meals = legs.filter((l) => l.activity === ACTIVITY.eating && l.to <= s),
     lastMeal = meals.length ? meals[meals.length - 1]!.to : -6 * HOUR,
@@ -281,12 +428,176 @@ export function momentOf(plan: VillagePlan, index: number, t: number): Moment {
     z,
     yaw,
     activity: leg.activity,
+    task: leg.task,
     hidden: leg.activity === ACTIVITY.asleep,
     carry: leg.carry,
     hunger: Math.max(0, Math.min(1, (s - lastMeal) / (7 * HOUR))),
     tiredness:
       leg.activity === ACTIVITY.asleep ? 0 : Math.max(0, Math.min(1, (s - woke) / (16 * HOUR))),
   };
+}
+
+/** The nearest place to `p` clear of every wall (itself, if it is), a few steps about it. */
+function clearSpot(ground: Ground, p: Point): Point {
+  const clear = (q: Point) =>
+    ground.homes.every((h) => Math.hypot(q.x - h.x, q.z - h.z) >= h.r + PERSON_REACH) &&
+    (!ground.lake ||
+      Math.hypot(q.x - ground.lake.x, q.z - ground.lake.z) >= ground.lake.r + PERSON_REACH);
+  if (clear(p)) return p;
+  for (let r = 2; r <= 12; r += 2)
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * 2 * Math.PI,
+        q = { x: p.x + r * Math.cos(a), z: p.z + r * Math.sin(a) };
+      if (clear(q)) return q;
+    }
+  const q = { ...p };
+  keepOut(ground, q, PERSON_REACH);
+  return q;
+}
+
+// Where the young drill while their realm is at war: open ground just past the homes, off
+// the fields, the pasture, the road and the water.
+const FIELDS = new WeakMap<VillagePlan, Point>();
+function drillField(plan: VillagePlan): Point {
+  let f = FIELDS.get(plan);
+  if (!f) {
+    const ground = groundFor(plan),
+      out = ground.homesReach + 22,
+      apart = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))),
+      fx = plan.fields.reduce((a, q) => a + q.x, 0),
+      fz = plan.fields.reduce((a, q) => a + q.z, 0),
+      fieldWay = plan.fields.length ? Math.atan2(fz, fx) : Math.PI,
+      roadWay = Math.atan2(plan.road.z, plan.road.x);
+    let best = { x: out, z: 0 },
+      bestScore = -Infinity;
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * 2 * Math.PI,
+        q = { x: out * Math.cos(a), z: out * Math.sin(a) },
+        score =
+          Math.min(apart(a, fieldWay), 1.5) +
+          Math.min(apart(a, roadWay), 1) +
+          Math.min(
+            1,
+            Math.hypot(q.x - plan.pasture.x, q.z - plan.pasture.z) / (plan.pasture.r + 60),
+          ) +
+          (ground.lake && Math.hypot(q.x - ground.lake.x, q.z - ground.lake.z) < ground.lake.r + 40
+            ? -10
+            : 0);
+      if (score > bestScore) {
+        bestScore = score;
+        best = q;
+      }
+    }
+    FIELDS.set(plan, (f = clearSpot(ground, best)));
+  }
+  return f;
+}
+
+/** A doorstep `out` metres from a home toward `way`, turned to the first side clear of every wall. */
+function doorstep(ground: Ground, home: Point, way: number, out: number): Point {
+  for (let k = 0; k < 12; k++) {
+    const a = way + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.55,
+      p = { x: home.x + out * Math.cos(a), z: home.z + out * Math.sin(a) };
+    if (ground.homes.every((h) => Math.hypot(p.x - h.x, p.z - h.z) >= h.r + PERSON_REACH)) return p;
+  }
+  return { x: home.x + out * Math.cos(way), z: home.z + out * Math.sin(way) };
+}
+
+/** How far a person keeps off a wall (metres: half a figure's breadth as drawn, and a step). */
+const PERSON_REACH = 1.2;
+
+// A village's solid ground for its people: its homes, its water, and its rising walls.
+const GROUNDS = new WeakMap<VillagePlan, Ground>();
+function groundFor(plan: VillagePlan): Ground {
+  let g = GROUNDS.get(plan);
+  if (!g) {
+    const base = villageGround(plan),
+      site = plan.life?.site;
+    g = site ? { ...base, homes: [...base.homes, { x: site.x, z: site.z, r: 5.5 }] } : base;
+    if (site)
+      g = {
+        ...g,
+        homesReach: Math.max(g.homesReach, Math.hypot(site.x, site.z) + 5.5),
+      };
+    GROUNDS.set(plan, g);
+  }
+  return g;
+}
+
+/**
+ * The signs a village's talk and work are shown in (M86): each topic its year brings, and
+ * what each task and want looks like said aloud.
+ */
+export const SIGNS: Readonly<Record<string, string>> = {
+  hunger: "🍞",
+  war: "⚔️",
+  unrest: "😠",
+  grief: "😢",
+  flocks: "🐺",
+  pests: "🐀",
+  fish: "🐟",
+  game: "🦌",
+  plenty: "🦌",
+  drought: "☀️",
+  rain: "🌧️",
+  baby: "👶",
+  learning: "💡",
+  building: "🔨",
+  faith: "🙏",
+  trade: "💰",
+  weather: "🌤️",
+  food: "🍲",
+  gossip: "💬",
+  laugh: "😄",
+  love: "❤️",
+  tired: "😴",
+  build: "🔨",
+  reap: "🌾",
+  sow: "🌱",
+  dig: "⛏️",
+  drill: "⚔️",
+  brawl: "💢",
+  play: "😄",
+  herd: "🐑",
+  haggle: "💰",
+};
+
+/**
+ * What a person says now, as a sign (or null): the rings of talk turn over what the
+ * village's own year has brought, the most pressing most often — hunger, war, grievance, a
+ * death, the hunters at the flocks, the grain eaten, a newborn, what was learned; at work,
+ * now and then, what they are at; the hungry and the worn out say so. By the screen's
+ * clock (`s`, seconds), each person speaking in their turn, a few seconds at a time.
+ */
+export function sayOf(plan: VillagePlan, index: number, m: Moment, s: number): string | null {
+  if (m.hidden) return null;
+  const p = plan.people[index]!,
+    key = hashString(p.ref),
+    beat = Math.floor(s / 2.6 + (key % 97) / 13),
+    turn = unit(finish(mix(key, beat), 29)),
+    life = plan.life,
+    home = plan.homes[p.home]?.household ?? null;
+  // (A third of the time, in turns of a few seconds.)
+  if (turn > 0.34) return null;
+  const pick = unit(finish(mix(key, beat + 7919), 31));
+  if (m.task === "talk") {
+    if (home && life?.mourning.includes(home) && pick < 0.4) return SIGNS.grief!;
+    if (home && life?.newborn.includes(home) && pick < 0.4) return SIGNS.baby!;
+    const talk = life?.talk ?? ["weather", "food", "gossip"],
+      // The most pressing topics most often.
+      topic = talk[Math.floor(pick * pick * talk.length)] ?? "gossip";
+    return SIGNS[topic] ?? SIGNS.gossip!;
+  }
+  if (m.task === "brawl") return pick < 0.5 ? SIGNS.brawl! : SIGNS.unrest!;
+  if (m.task === "drill") return pick < 0.3 ? SIGNS.drill! : null;
+  if (m.task === "play") return pick < 0.5 ? SIGNS.play! : null;
+  if (m.activity === ACTIVITY.walking) {
+    if (m.hunger > 0.85) return SIGNS.hunger!;
+    if (m.tiredness > 0.9) return SIGNS.tired!;
+    return null;
+  }
+  if (m.task && pick < 0.35) return SIGNS[m.task] ?? null;
+  return null;
 }
 
 /** People by what they do: those who work the land, the makers and carriers, the leaders, the young. */

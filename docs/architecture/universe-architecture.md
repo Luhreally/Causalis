@@ -3045,6 +3045,37 @@ mended on the way: a shared mesh destroyed with the last batch of a layer that r
 (the year turning, a setting changed) crashed the frame in its shadow pass — shared meshes
 are now held (render/batch.ts keptMesh). The oracle moved in the planet domain alone.
 
+86, as built. What a village's people do is seen, and comes from the world's own state.
+The host gives each village's plan how it lives now (host/village.ts lifeNow): how well its
+land was fed and whether it grows, its realm at war, its grievance against its rulers (held
+at one near revolt), its faith, what it talks of — the pressing first (hunger, war,
+grievance, a death, the hunters at the flocks, the grain eaten, the fish few, drought, a
+newborn, what was learned, the building, the faith, the market) and small talk last — the
+next home rising where the next would stand, as far built as the families it will house have
+come, and the watched households mourning or with a newborn. Each person is at something
+(view/village.ts tasks): the fields sown in spring, hoed through the summer and reaped at
+harvest; crafters (and a farmer or two) out with beams to the rising walls; the pick at the
+mine, the hammer at the workshop, the rod by the water, the basket in the wild, the herd, the
+market's haggling; the evening in rings of talk about the square, each facing its ring's
+middle — where grievance runs high, two of the first ring come to blows — and, while the realm
+is at war, the young drilling in ranks with spears on open ground past the homes. Each task
+moves the limbs its own way (view/motion.ts: the hoe raised in both hands and brought down,
+the sickle swept low, seed cast by one hand, the hammer's blows, the spear thrust with a step,
+fists and a shuffle, hands in talk). What each says is shown in a sign over their head (a
+second label layer): the rings turn over the village's own topics, the most pressing most
+often, a mourning family's grief and a newborn's household among them; at work, now and then,
+what they are at; the hungry and the worn out say so. The site is drawn: its footing, its
+walls rising, the scaffold and planks about them, the timber waiting, its roof going on at
+the last. Bodies keep to the ground: every walk goes round the homes, the water and the rising
+walls, turning beside each (view/ground.ts route), every place a person stands still is
+clear of every wall, doorsteps turn to a clear side, and the push out of a wall is repeated
+where homes stand so close that out of one is into the next. Found and mended: a person's
+days were kept by names a re-read plan shares, so a plan re-read with a new site or a war kept
+the old days; they are kept by the plan now. The signs' colour font is readied at the start,
+so its first drawing does not stall a frame on entering a village. The Phase 4 gate's named
+sea people (alien 65) comes to power on current mills in year 954 since the web of eating
+changed its history; its CI run goes to 1200 years (it stops at power).
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

@@ -23,6 +23,31 @@ export type BeastPlan = {
   readonly warm: boolean;
 };
 
+/**
+ * How a village lives now (Phase 9 M86), for what its people are seen doing and saying:
+ * how well its land was fed last year (0 … 1) and whether its people grow in number; its
+ * realm at war (its young drill in the square); its people's grievance against their
+ * rulers (0 … 1: hot words, a brawl); its faith; what it talks of, most pressing first
+ * (keys the view gives signs); the next home rising as it grows (where, and how far built);
+ * the watched households mourning a death this year, and those with a newborn.
+ */
+export type VillageLife = {
+  readonly fed: number;
+  readonly growing: boolean;
+  readonly war: boolean;
+  readonly unrest: number;
+  readonly faith: string | null;
+  readonly talk: readonly string[];
+  readonly site: {
+    readonly x: number;
+    readonly z: number;
+    readonly yaw: number;
+    readonly progress: number;
+  } | null;
+  readonly mourning: readonly string[];
+  readonly newborn: readonly string[];
+};
+
 export type VillagePlan = {
   readonly ref: string;
   readonly name: string;
@@ -79,6 +104,8 @@ export type VillagePlan = {
    * coats, the modern world in bright colours. Absent: farmers.
    */
   readonly era?: "forage" | "farm" | "metal" | "industry" | "modern";
+  /** How it lives now (M86). Absent: a quiet day. */
+  readonly life?: VillageLife;
   /**
    * What lives about it (Phase 8 M77): the land's wild lineages, each with how much of it
    * still stands against what the land first held (its hunters, against as many as the

@@ -9,13 +9,16 @@ import {
   ACTIVITY,
   HAIRS,
   biomeColor,
+  bobOf,
   figureOf,
   hairOf,
   homeDetail,
   lamplight,
   houseLook,
+  limbPitch,
   momentOf,
   personGroup,
+  sayOf,
   treesOf,
   type Figure,
   type Tree,
@@ -112,9 +115,6 @@ function glowWindows(m: pc.StandardMaterial, glow: number): void {
   m.emissive = new pc.Color(1 * g, 0.78 * g, 0.4 * g);
   m.update();
 }
-
-/** Strides a second of a walking figure, on the screen's clock (a look, not the world's). */
-const STRIDES = 1.6;
 
 export class VillageScene {
   private readonly stage: Stage;
@@ -387,6 +387,67 @@ export class VillageScene {
       out[5] = look.width * (flat ? 1.02 : 1.15);
       out[6] = h.yaw;
     });
+    // The next home rising (M86): its footing, its walls as far built as the families it
+    // will house have come, the scaffold about them, the timber waiting, and its roof going
+    // on at the last.
+    const site = plan.life?.site;
+    if (site && !look.tent) {
+      const L = look.length,
+        Wd = look.width,
+        high = wallHigh * Math.min(1, site.progress / 0.8),
+        thin = 0.045,
+        c = Math.cos(site.yaw),
+        sn = Math.sin(site.yaw),
+        put = (
+          batch: InstancedBatch,
+          list: readonly (readonly [number, number, number, number, number, number])[],
+        ) =>
+          batch.set(list.length, (i, out) => {
+            const [dx, y, dz, sx, sy, sz] = list[i]!;
+            out[0] = site.x * M + dx * c + dz * sn;
+            out[1] = y;
+            out[2] = site.z * M - dx * sn + dz * c;
+            out[3] = sx;
+            out[4] = sy;
+            out[5] = sz;
+            out[6] = site.yaw;
+          });
+      put(this.batch(s, box, [0.62, 0.6, 0.56], 1, this.root), [
+        [0, 0.012, 0, L * 1.08, 0.024, Wd * 1.08],
+      ]);
+      put(this.batch(s, box, [...look.wall], 4, this.root), [
+        [0, 0.024 + high / 2, Wd / 2 - thin / 2, L, high, thin],
+        [0, 0.024 + high / 2, -Wd / 2 + thin / 2, L, high, thin],
+        [L / 2 - thin / 2, 0.024 + high / 2, 0, thin, high, Wd],
+        [-L / 2 + thin / 2, 0.024 + high / 2, 0, thin, high, Wd],
+      ]);
+      const pole = high + 0.16,
+        out = 0.07;
+      put(this.batch(s, box, [0.52, 0.36, 0.2], 9, this.root), [
+        // Poles at the corners, planks along the long sides, and the timber waiting.
+        [L / 2 + out, pole / 2, Wd / 2 + out, 0.022, pole, 0.022],
+        [-L / 2 - out, pole / 2, Wd / 2 + out, 0.022, pole, 0.022],
+        [L / 2 + out, pole / 2, -Wd / 2 - out, 0.022, pole, 0.022],
+        [-L / 2 - out, pole / 2, -Wd / 2 - out, 0.022, pole, 0.022],
+        [0, high * 0.6 + 0.02, Wd / 2 + out, L + 2 * out, 0.014, 0.07],
+        [0, high * 0.6 + 0.02, -Wd / 2 - out, L + 2 * out, 0.014, 0.07],
+        [L * 0.95, 0.018, Wd * 0.9, 0.5, 0.035, 0.045],
+        [L * 0.95, 0.052, Wd * 0.9 + 0.01, 0.5, 0.035, 0.045],
+        [L * 0.95, 0.018, Wd * 0.9 + 0.06, 0.5, 0.035, 0.045],
+      ]);
+      if (site.progress > 0.85 && !look.open) {
+        const done = Math.min(1, (site.progress - 0.85) / 0.15);
+        this.batch(s, roofMesh, [...look.roof], 1, this.root).set(1, (_, o) => {
+          o[0] = site.x * M + (L * (1 - done) * 0.5 * 1.15 * c) / 2;
+          o[1] = 0.024 + wallHigh + roofHigh / 2;
+          o[2] = site.z * M - (L * (1 - done) * 0.5 * 1.15 * sn) / 2;
+          o[3] = L * 1.15 * Math.max(0.3, done);
+          o[4] = roofHigh;
+          o[5] = Wd * 1.15;
+          o[6] = site.yaw;
+        });
+      }
+    }
     // Trees about the village, as its land grows them: dark cones of pine, round crowns,
     // palms, low scrub — facets in a handful of batches.
     const trees = treesOf(plan, s.quality.villageTrees),
@@ -627,8 +688,8 @@ export class VillageScene {
     this.fauna.update(screen);
     this.moments = plan.people.map((_, i) => momentOf(plan, i, t));
     const parts = this.figure.parts,
-      // The swing of a stride: by the screen's clock, each person a little out of step.
-      now = (performance.now() / 1000) * STRIDES * 2 * Math.PI;
+      // Strides and the motions of work: by the screen's clock, each person a little out of step.
+      clock = performance.now() / 1000;
     /** A part of person i's figure, where it is now. */
     const place = (out: number[], p: VillagePlan["people"][number], i: number, pi: number) => {
       const part = parts[pi]!,
@@ -636,9 +697,8 @@ export class VillageScene {
         size = (p.child ? 0.7 : 1) * this.figure.scale,
         c = Math.cos(m.yaw),
         sn = Math.sin(m.yaw),
-        // A walking limb swings about its hinge; standing, it hangs still.
-        walking = m.activity === ACTIVITY.walking && !!part.swing,
-        pitch = walking ? part.swing! * Math.sin(now + i * 1.7) : 0,
+        // A limb swings about its hinge: in the stride, or in the work at hand.
+        pitch = limbPitch(part, m.task, m.activity === ACTIVITY.walking, clock, i),
         hinge = part.pivot ?? 0,
         dy = hinge - hinge * Math.cos(pitch),
         dz = -hinge * Math.sin(pitch),
@@ -646,7 +706,7 @@ export class VillageScene {
         pz = part.z + dz;
       // The part's place about the figure's middle, turned to the way it faces.
       out[0] = m.x * M + (px * c + pz * sn) * size;
-      out[1] = (part.y + dy) * size;
+      out[1] = (part.y + dy + bobOf(m.task, clock, i)) * size;
       out[2] = m.z * M + (-px * sn + pz * c) * size;
       out[3] = part.sx * size;
       out[4] = part.sy * size;
@@ -719,6 +779,17 @@ export class VillageScene {
     return best;
   }
 
+  /** Everyone in sight now: where (metres), doing what, at what (for the look tools). */
+  peopleNow(): { name: string; x: number; z: number; activity: number; task: string | null }[] {
+    const plan = this.plan;
+    if (!plan) return [];
+    return this.moments.flatMap((m, i) =>
+      m.hidden
+        ? []
+        : [{ name: plan.people[i]!.name, x: m.x, z: m.z, activity: m.activity, task: m.task }],
+    );
+  }
+
   /** Everyone carrying something now: where (metres) and what (for the look tools). */
   carriersNow(): { x: number; z: number; carry: string }[] {
     return this.carriers.map((c) => ({ x: c.x / M, z: c.z / M, carry: c.carry }));
@@ -742,6 +813,40 @@ export class VillageScene {
   mark(index: number | null): void {
     this.marked = index;
     if (index === null) this.marker.enabled = false;
+  }
+
+  /**
+   * What the people in view are saying now (M86), as signs over their heads: at most `most`
+   * of them, the nearest first.
+   */
+  bubbles(
+    most = 24,
+  ): { key: string; text: string; at: { x: number; y: number } | null; priority: number }[] {
+    const plan = this.plan;
+    if (!plan) return [];
+    const cam = this.stage.camera.camera!,
+      eye = this.stage.camera.getPosition(),
+      clock = performance.now() / 1000,
+      head = new pc.Vec3(),
+      out: { key: string; text: string; at: { x: number; y: number } | null; priority: number }[] =
+        [];
+    this.moments.forEach((m, i) => {
+      const text = sayOf(plan, i, m, clock);
+      if (!text) return;
+      const p = plan.people[i]!,
+        tall = 0.66 * (p.child ? 0.7 : 1) * this.figure.scale;
+      head.set(m.x * M, tall, m.z * M);
+      const d = head.distance(eye);
+      if (d > 14) return;
+      const at = cam.worldToScreen(head);
+      out.push({
+        key: p.ref,
+        text,
+        at: at.z > 0 ? { x: at.x, y: at.y } : null,
+        priority: -d,
+      });
+    });
+    return out.sort((a, b) => b.priority - a.priority).slice(0, most);
   }
 
   /** Screen positions of the watched homes, for their families' names. */

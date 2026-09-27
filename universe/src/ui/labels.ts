@@ -14,12 +14,17 @@ const WIDTH_PER_CHAR = 7,
   HEIGHT = 18;
 
 export class LabelLayer {
-  private readonly root = el("div", "labels");
+  private readonly root: HTMLElement;
   private readonly pool = new Map<string, HTMLSpanElement>();
   /** Panels over the scene: a label that would fall under one is hidden. */
   blockers: HTMLElement[] = [];
 
-  constructor(parent: HTMLElement) {
+  private readonly kind: "label" | "bubble";
+
+  /** `kind` names the labels' look: names over homes ("label"), or what people say ("bubble"). */
+  constructor(parent: HTMLElement, kind: "label" | "bubble" = "label") {
+    this.kind = kind;
+    this.root = el("div", `${kind}s`);
     parent.prepend(this.root);
   }
 
@@ -42,7 +47,7 @@ export class LabelLayer {
       seen.add(l.key);
       let span = this.pool.get(l.key);
       if (!span) {
-        span = el("span", "label", l.text);
+        span = el("span", this.kind, l.text);
         this.pool.set(l.key, span);
         this.root.append(span);
       }

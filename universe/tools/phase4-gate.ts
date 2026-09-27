@@ -23,7 +23,7 @@ const args = process.argv.slice(2),
   plain = args.filter((a, i) => !a.startsWith("--") && (lanesAt < 0 || i !== lanesAt + 1)),
   seeds = Number(plain[0] ?? (ci ? 30 : 100)),
   years = Number(plain[1] ?? (ci ? 150 : 900));
-/** The world the gate knows a sea people comes to power in (radial swimmers, tide mills in year 835). */
+/** The world the gate knows a sea people comes to power in (radial swimmers, current mills in year 954 since the web of eating, M84). */
 const SEA_POWER = "alien 65";
 /** Earth's lands, and its bounds (tools/phase3-gate.ts): the slowest year, the save. */
 const EARTH_LANDS = 550,
@@ -74,7 +74,7 @@ need("arms their hosts carry", kinds(s.arms), ci ? 3 : 5);
 const other = (x: Survey) =>
   x.industry?.fuelless && x.symmetry !== "bilateral" && x.medium !== "land";
 let road = surveys.find(other);
-if (!road && ci) road = survey(SEA_POWER, 900, true);
+if (!road && ci) road = survey(SEA_POWER, 1200, true);
 if (!road || !other(road))
   problems.push("no people neither two-sided nor of the land came to power without fuel");
 else

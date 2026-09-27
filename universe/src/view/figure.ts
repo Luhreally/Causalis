@@ -38,6 +38,8 @@ export type FigurePart = {
    */
   readonly swing?: number;
   readonly pivot?: number;
+  /** Which limb it is (M86), for the motions of work: an arm or a leg. */
+  readonly role?: "arm" | "leg";
 };
 
 export type Figure = {
@@ -58,10 +60,16 @@ const part = (
 ): FigurePart => ({ shape, x, y, z, sx, sy, sz, tone });
 
 /** A limb: a part that swings about a hinge `pivot` above its middle as they walk. */
-const limb = (p: FigurePart, swing: number, pivot: number): FigurePart => ({
+const limb = (
+  p: FigurePart,
+  swing: number,
+  pivot: number,
+  role: "arm" | "leg" = "leg",
+): FigurePart => ({
   ...p,
   swing,
   pivot,
+  role,
 });
 
 /** Legs under a body: `n` of them, spread across its length; each pair steps in turn. */
@@ -92,8 +100,8 @@ function upright(detail = 0): FigurePart[] {
   const parts = [
     part("box", 0, 0.335, 0, 0.17, 0.2, 0.11),
     part("box", 0, 0.49, 0, 0.11, 0.11, 0.11, 2),
-    limb(part("box", -0.105, 0.33, 0, 0.045, 0.2, 0.05, 2), 0.55, 0.09),
-    limb(part("box", 0.105, 0.33, 0, 0.045, 0.2, 0.05, 2), -0.55, 0.09),
+    limb(part("box", -0.105, 0.33, 0, 0.045, 0.2, 0.05, 2), 0.55, 0.09, "arm"),
+    limb(part("box", 0.105, 0.33, 0, 0.045, 0.2, 0.05, 2), -0.55, 0.09, "arm"),
     limb(part("box", -0.045, 0.12, 0, 0.065, 0.24, 0.07, 1), -0.5, 0.12),
     limb(part("box", 0.045, 0.12, 0, 0.065, 0.24, 0.07, 1), 0.5, 0.12),
   ];
@@ -101,8 +109,8 @@ function upright(detail = 0): FigurePart[] {
   // with them; hair over the head and eyes in the face; a belt.
   if (detail >= 1)
     parts.push(
-      limb(part("box", -0.105, 0.215, 0.005, 0.05, 0.04, 0.055, 2), 0.55, 0.205),
-      limb(part("box", 0.105, 0.215, 0.005, 0.05, 0.04, 0.055, 2), -0.55, 0.205),
+      limb(part("box", -0.105, 0.215, 0.005, 0.05, 0.04, 0.055, 2), 0.55, 0.205, "arm"),
+      limb(part("box", 0.105, 0.215, 0.005, 0.05, 0.04, 0.055, 2), -0.55, 0.205, "arm"),
       limb(part("box", -0.045, 0.0125, 0.015, 0.07, 0.025, 0.1, 1), -0.5, 0.2275),
       limb(part("box", 0.045, 0.0125, 0.015, 0.07, 0.025, 0.1, 1), 0.5, 0.2275),
     );
@@ -200,8 +208,8 @@ export function figureOf(b: FigureBody | null, detail = 0): Figure {
   return {
     parts: [
       part("capsule", 0, 0.26, 0, 1, 0.9, 1),
-      limb(part("cylinder", -0.13, 0.26, 0, 0.04, 0.26, 0.04, 1), 0.6, 0.12),
-      limb(part("cylinder", 0.13, 0.26, 0, 0.04, 0.26, 0.04, 1), -0.6, 0.12),
+      limb(part("cylinder", -0.13, 0.26, 0, 0.04, 0.26, 0.04, 1), 0.6, 0.12, "arm"),
+      limb(part("cylinder", 0.13, 0.26, 0, 0.04, 0.26, 0.04, 1), -0.6, 0.12, "arm"),
     ],
     scale,
   };

@@ -17,16 +17,19 @@ import {
   designsOf,
   handOf,
   houseFor,
+  beliefOf,
   lifeOf,
   loreOf,
   marketsOf,
+  politiesOf,
   populationContext,
   regionOf,
   USE,
+  warsOf,
   wildsOf,
 } from "../sim/index.ts";
 import { meetHousehold, observer, settleAll } from "../causal/index.ts";
-import { LAKE_R, WATER_OUT, type VillagePlan } from "../bridge/index.ts";
+import { LAKE_R, WATER_OUT, type VillageLife, type VillagePlan } from "../bridge/index.ts";
 
 /** Families the microscope watches in a village: a presentation budget, not a rule. */
 export const WATCHED_FAMILIES = 10;
@@ -218,6 +221,79 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
   return planOf(people);
 
   /**
+   * How the village lives now (M86), for what its people are seen doing and saying: from
+   * its land's year (fed, growing in number), its realm (at war, its grievance), its faith,
+   * its living world's turns, what it has learned lately, and the watched families' years.
+   */
+  function lifeNow(cell: number, population: number): VillageLife {
+    const p = ctx.provinces.get(cell),
+      years = ctx.history.yearsOf(cell),
+      last = years.at(-1),
+      before = years.at(-6),
+      growing = !!last && !!before && last.population > before.population * 1.01,
+      realms = politiesOf(world),
+      realm = realms.of(cell),
+      war =
+        !!realm &&
+        warsOf(world)
+          .fighting(realm.ref)
+          .some((w) => w.ended === null),
+      // (Grievance runs past one as a land nears revolt: held at one, near revolt.)
+      unrest = realm ? Math.min(1, realms.discontent(cell).level) : 0,
+      beliefs = beliefOf(world),
+      held = beliefs.of(cell).faith,
+      faith = held ? (beliefs.get(held)?.name ?? null) : null,
+      w = wildsOf(ctx, cell),
+      fed = (p?.fed ?? 1000) / 1000,
+      rain = (p?.rain ?? 1000) / 1000,
+      learned = loreOf(world)
+        .of(cell)
+        .some(([, k]) => k.year >= now - 8),
+      mourning: string[] = [],
+      newborn: string[] = [];
+    for (const h of known()) {
+      const members = h.members.map((m) => ledger.person(m)).filter((q) => !!q);
+      if (members.some((q) => !q!.alive && q!.diedYear !== null && q!.diedYear >= now - 1))
+        mourning.push(h.ref);
+      if (members.some((q) => q!.alive && q!.birthYear >= now - 1)) newborn.push(h.ref);
+    }
+    // What they talk of, the most pressing first; small talk last.
+    const talk: string[] = [];
+    if (fed < 0.85) talk.push("hunger");
+    if (war) talk.push("war");
+    if (unrest > 0.3) talk.push("unrest");
+    if (mourning.length) talk.push("grief");
+    if (w.flocksTaken) talk.push("flocks");
+    if (w.grainEaten) talk.push("pests");
+    if (w.fishFew) talk.push("fish");
+    if (w.thinned) talk.push("game");
+    if (w.multiplied) talk.push("plenty");
+    if (rain < 0.8) talk.push("drought");
+    else if (rain > 1.25) talk.push("rain");
+    if (newborn.length) talk.push("baby");
+    if (learned) talk.push("learning");
+    if (growing) talk.push("building");
+    if (faith) talk.push("faith");
+    if (v!.market) talk.push("trade");
+    talk.push("weather", "food", "gossip");
+    // The next home rises where the next would stand in the village's ring, as far built as
+    // the families it will house have come.
+    const k = homes.length,
+      a = phase + k * 2.399963,
+      rad = 16 + 8.5 * Math.sqrt(k),
+      site =
+        growing && !city && k < 400
+          ? {
+              x: rad * Math.cos(a),
+              z: rad * Math.sin(a),
+              yaw: a + u(seed, 10 + k) * 0.6,
+              progress: Math.max(0.12, population / 5 - Math.floor(population / 5)),
+            }
+          : null;
+    return { fed, growing, war, unrest, faith, talk, site, mourning, newborn };
+  }
+
+  /**
    * What lives about the village: the land's wild lineages (not those hunted or driven out
    * of it) with how much of each stands — its game against what it was, its hunters against
    * as many as the game kept — its flocks and how many of the village keep them, and
@@ -386,6 +462,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       fauna: faunaOf(village.cell, village.population),
       era: eraOf(village.cell),
       works: worksOf(village.cell),
+      life: lifeNow(village.cell, village.population),
       body: (() => {
         const b = ctx.generated.life.people?.body;
         return b

@@ -293,3 +293,55 @@ test("history is told in words: no event's claim shows a raw ref", () => {
   }
   assert.equal(leaks.size, 0, [...leaks].map(([t, c]) => `${t}: ${c}`).join("\n"));
 });
+
+test("a village's plan says how it lives now: fed, growing, at war or not, its grievance, and what it talks of", () => {
+  const before = JSON.stringify(world.domainHashes());
+  const lands = (EARTH.queries["people.map"]!(world, {}) as { cell: number; people: number }[])
+    .sort((a, b) => b.people - a.people)
+    .slice(0, 30);
+  let grown = 0,
+    warring = 0;
+  for (const land of lands) {
+    const v = (EARTH.queries.settlements!(world, { cell: land.cell }) as { ref: string }[])[0];
+    if (!v) continue;
+    type Plan = {
+      homes: { x: number; z: number }[];
+      life: {
+        fed: number;
+        growing: boolean;
+        war: boolean;
+        unrest: number;
+        talk: string[];
+        site: { x: number; z: number; progress: number } | null;
+        mourning: string[];
+        newborn: string[];
+      };
+      districts: unknown;
+    };
+    const plan = EARTH.queries["village.plan"]!(world, { ref: v.ref }) as Plan,
+      life = plan.life,
+      facts = ask<{ ecology: { flocksTaken: string | null; fishFew: string | null } }>("province", {
+        cell: land.cell,
+      });
+    assert.ok(life.fed > 0 && life.fed <= 1.5, `fed ${life.fed}`);
+    assert.ok(life.unrest >= 0 && life.unrest <= 1);
+    // Small talk last, the pressing first — and the land's own turns among them.
+    assert.deepEqual(life.talk.slice(-3), ["weather", "food", "gossip"]);
+    assert.equal(life.talk.includes("hunger"), life.fed < 0.85);
+    assert.equal(life.talk.includes("war"), life.war);
+    assert.equal(life.talk.includes("flocks"), !!facts.ecology.flocksTaken);
+    assert.equal(life.talk.includes("fish"), !!facts.ecology.fishFew);
+    // A growing village builds its next home clear of the others.
+    assert.equal(!!life.site, life.growing && !plan.districts);
+    if (life.site) {
+      grown++;
+      assert.ok(life.site.progress > 0 && life.site.progress <= 1);
+      for (const h of plan.homes)
+        assert.ok(Math.hypot(h.x - life.site.x, h.z - life.site.z) > 6, "clear of the homes");
+    }
+    if (life.war) warring++;
+  }
+  assert.ok(grown >= 1, "some village grows and builds");
+  assert.ok(warring >= 0);
+  assert.equal(JSON.stringify(world.domainHashes()), before, "asking changes nothing");
+});

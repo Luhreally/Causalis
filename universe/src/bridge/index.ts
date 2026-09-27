@@ -15,7 +15,13 @@ export {
   type ToMain,
 } from "./protocol.ts";
 export { inlinePair, workerPort } from "./transport.ts";
-export { LAKE_R, WATER_OUT, type BeastPlan, type VillagePlan } from "./village.ts";
+export {
+  LAKE_R,
+  WATER_OUT,
+  type BeastPlan,
+  type VillageLife,
+  type VillagePlan,
+} from "./village.ts";
 export type { WorldGlobe } from "./worlds.ts";
 export type { DepositPage, PlatePage, RealmPage, SpeciesPage } from "./pages.ts";
 export type {

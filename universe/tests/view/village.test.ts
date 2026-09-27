@@ -131,9 +131,10 @@ test("the old keep near home as late in life as their people's span allows", () 
         home = p.homes[p.people[i]!.home]!;
       return Math.hypot(m.x - home.x, m.z - home.z);
     };
-  assert.ok(at(plan, 3) < 10, "an old ape at home");
-  assert.ok(at(plan, 2) > 10, "a crafter of forty at the square");
-  assert.ok(at(short, 2) < 10, "forty is old in a thirty-year span");
+  // (Near home: by its doorstep, out of its walls — a long house's are wide.)
+  assert.ok(at(plan, 3) < 12, "an old ape at home");
+  assert.ok(at(plan, 2) > 12, "a crafter of forty at the square");
+  assert.ok(at(short, 2) < 12, "forty is old in a thirty-year span");
 });
 
 test("trees stand about a village as its land grows them, never in its fields or on its road", () => {
