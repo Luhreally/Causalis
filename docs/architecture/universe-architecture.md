@@ -2689,7 +2689,30 @@ clear canvas — a starfield in space, the bright gradient sky of the era on the
 with haze toward the horizon — and in space the key light keeps to the viewer's upper
 left. The globe is faceted (each triangle flat, coloured by the most of its three cells)
 in a saturated palette under a glossy sea, with a blue glow at its rim. `tools/look.ts`
-takes the look at a phone's size.
+takes the look at a phone's size. Bodies (A2): an upright ape is a small figure of the era's games — a
+body in its clothes, bare arms and head, legs in darker cloth — whose arms and legs
+swing as it walks, and every people's legs step in turn; what they wear follows how far
+their land has come (hides, undyed cloth, dyed cloth, the engines' dark coats, the modern
+world's bright colours). Places (A3): trees stand about a village as its land grows them,
+clear of its fields, road, pasture and water; homes have doors; walls, roofs and ground
+are bright. The land from above (A4): the region is faceted like the globe, its relief
+stood up (nine times), under a glossy sea; a village keeps the hour — the sun climbs from
+the east and sets in the west, dawn and dusk in the era's sunset gradient, night dark and
+starry. The Phase 7 gate (`npm run gate:7`) walks the journey and holds the phone's
+budgets: each scale's first frame within a second on the phone floor, and the heap.
+
+The phone's budgets (M73), measured by the gate: a first descent to a land took 230 ms
+here (a second on the phone floor) and later ones 23 ms — the first was the shaders
+compiling, and more, fog is a shader's define, so turning it on at the ground had every
+material compiled afresh. The fog now stays on at every scale (pushed out of reach in
+space); the region's and a village's shaders are drawn once, a speck before the camera,
+while the world is made; a land looked at has its region readied before "Look closer";
+a view just asked for is drawn before the world steps on; and the host's background work
+waits while the viewer is asking. First frames now (WebKit, this machine): a land 63 ms,
+a village 47, the star's worlds 37, the stars 30; the heap after three centuries seen at
+every scale, 148 MB. The Phase 7 gate passes: the journey's nineteen steps, each with its
+why, within the budgets; and the Phase 5 and 6 gates pass after the reckoning fix (the
+3100-year save 15.5 MB, time at some 139 years a minute on the phone floor).
 
 ### J. Allocation of ~100k lines
 

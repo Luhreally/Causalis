@@ -14,6 +14,7 @@ import {
   SystemScene,
   ClusterScene,
   VillageScene,
+  regionMaterials,
   runBench,
 } from "../render/index.ts";
 import {
@@ -231,6 +232,9 @@ async function runPlanetPage(): Promise<void> {
     skyScene = new SystemScene(stage),
     starScene = new ClusterScene(stage);
   stage.backdrop("space");
+  // While the world is made, the shaders of the scales below are readied, so the first
+  // "Look closer" draws at once.
+  stage.warm(regionMaterials(stage));
   const { client, mode } = await connect();
   let painted = 0,
     scale: "globe" | "region" | "village" | "system" | "cluster" = "globe",
@@ -303,7 +307,10 @@ async function runPlanetPage(): Promise<void> {
       lon: number;
     };
     if (region.key !== meta.ref) {
+      const t0 = performance.now();
       region.build(meta.ref, meta.size, meta.tileKm, regionHeights(frame));
+      // The phone's budgets are measured by these (npm run gate:7).
+      performance.measure("region.build", { start: t0 });
       regionPanel.show(meta.center, meta.lat, meta.lon, meta.size * meta.tileKm);
       region.setVillages(villages);
     }
@@ -634,7 +641,9 @@ async function runPlanetPage(): Promise<void> {
     // Asked once a year: the year is marked before the answer comes.
     planYear = Math.floor(clock.t / YEAR);
     plan = await client.query<VillagePlan>({ type: "village.plan", args: { ref } });
+    const t0 = performance.now();
     village.build(plan);
+    performance.measure("village.build", { start: t0 });
     villagePanel.show(plan.name, WATCH_DEFAULT);
     villagePanel.hand = plan.hand;
   };
@@ -691,6 +700,7 @@ async function runPlanetPage(): Promise<void> {
   stage.onUpdate(() => {
     if (scale !== "village" || !plan) return;
     const t = now();
+    stage.daylight((t % DAY) / DAY);
     village.update(t);
     villagePanel.tick(t);
     if (watched !== null) villagePanel.moment(village.momentAt(watched));

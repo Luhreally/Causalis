@@ -778,6 +778,11 @@ function planetUniverse(name: string, prior: Prior): Universe {
         return chronicle(world, a.limit ?? 60, a.types);
       },
       "village.plan": (world, args) => villagePlan(world, (args as { ref: string }).ref as Ref),
+      /** Ready a land's region before it is asked for (a pure cache: the world is untouched). */
+      "region.prepare": (world, args) => {
+        region(world, (args as { cell: number }).cell);
+        return true;
+      },
       /** Where the god's hand rests, if anywhere. */
       hand: (world) => {
         const w = handOf(world).resting;

@@ -17,6 +17,8 @@ import {
   handOf,
   houseFor,
   lifeOf,
+  loreOf,
+  marketsOf,
   populationContext,
   regionOf,
   USE,
@@ -213,6 +215,21 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       water:
         waterWay === null ? null : { x: 700 * Math.cos(waterWay), z: 700 * Math.sin(waterWay) },
       house: houseOf(village.cell),
+      era: (() => {
+        // (Sowing is the land's own knowing; smelting shows in its market too.)
+        const lore = loreOf(world),
+          knows = (id: string) => !!lore.get(village.cell, id),
+          land = ctx.provinces.get(village.cell);
+        return knows("electricity") || knows("sea-electricity")
+          ? "modern"
+          : knows("steam-engine")
+            ? "industry"
+            : knows("metalworking") || !!marketsOf(world).get(village.cell)?.metalworking
+              ? "metal"
+              : land?.knowsCultivation || knows("cultivation")
+                ? "farm"
+                : "forage";
+      })(),
       body: (() => {
         const b = ctx.generated.life.people?.body;
         return b

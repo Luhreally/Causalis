@@ -1,4 +1,4 @@
-// node tools/journey.ts [--sky-year n] [--shots dir] — the brief's §29 journey, walked by a
+// node tools/journey.ts [--sky-year n] [--shots dir] [--json] — the brief's §29 journey, walked by a
 // machine at a phone's size in WebKit (Phase 7 M66): each step opens its page and asks
 // "why?", and the report says what it saw or what was missing. Part one walks an open
 // world three centuries on (the planet, its living things, a people, their knowledge, a
@@ -178,7 +178,12 @@ await step("a city", async () => {
     { timeout: 30000 },
   );
   await call("select", village.tile);
-  await page.locator(`${inspector} h2`).first().waitFor({ timeout: 15000 });
+  // Its name, once the inspector has it.
+  await page.waitForFunction(
+    (sel) => /\w/.test(document.querySelector(sel)?.textContent ?? ""),
+    `${inspector} h2`,
+    { timeout: 15000 },
+  );
   return (await page.locator(`${inspector} h2`).first().textContent()) ?? "";
 });
 await step("an unimportant citizen", async () => {
@@ -290,6 +295,8 @@ await page.close();
 await browser.close();
 await server.close();
 const missing = steps.filter((s) => !s.ok);
+// --json: the steps as one line of JSON (for the Phase 7 gate).
+if (args.includes("--json")) console.log(JSON.stringify(steps));
 console.log(`\n${steps.length - missing.length} of ${steps.length} steps of the journey taken`);
 if (missing.length) {
   console.log(`missing: ${missing.map((s) => s.name).join(", ")}`);

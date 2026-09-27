@@ -523,6 +523,9 @@ export class PlanetPanel {
     if (this.selected !== cell) return;
     const province = p.province;
     this.province = province;
+    // A land looked at may be looked closer at: its region readied meanwhile.
+    if (p.elevation >= 0)
+      void this.client.query({ type: "region.prepare", args: { cell: province } }).catch(() => {});
     const [folk, market, past] = await Promise.all([
       this.client.query<ProvinceFacts>({ type: "province", args: { cell: province } }),
       this.client.query<MarketFacts | null>({ type: "market", args: { cell: province } }),

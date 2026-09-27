@@ -77,9 +77,15 @@ test("a century of watching a village meets its families through the observer an
   quiet.runTo(240 * YEAR);
   busy.runTo(240 * YEAR);
   const ref = (EARTH.queries.settlements!(busy, { cell: CRADLE }) as { ref: string }[])[0]!.ref;
-  type Plan = { people: { ref: string; home: number }[]; homes: { household: string | null }[] };
+  type Plan = {
+    people: { ref: string; home: number }[];
+    homes: { household: string | null }[];
+    era: string;
+  };
   const first = EARTH.queries["village.plan"]!(busy, { ref }) as Plan;
   assert.ok(first.people.length >= 10, `${first.people.length} watched`);
+  // A village of farmers (or on), dressed as its land's era.
+  assert.ok(["farm", "metal", "industry", "modern"].includes(first.era), first.era);
   assert.ok(first.people.every((p) => first.homes[p.home]!.household !== null));
   for (let year = 241; year <= 340; year++) {
     quiet.runTo(year * YEAR);

@@ -51,6 +51,12 @@ export type VillagePlan = {
     occupation: number;
     child: boolean;
   }[];
+  /**
+   * How far their land has come, for what they wear and carry (art track A2): gatherers
+   * in hides, farmers in undyed cloth, smiths' people in dyed cloth, the engines' in
+   * coats, the modern world in bright colours. Absent: farmers.
+   */
+  readonly era?: "forage" | "farm" | "metal" | "industry" | "modern";
   /** Their body, as the figure needs it (null: upright apes, as ever). */
   readonly body: {
     readonly clade: string;

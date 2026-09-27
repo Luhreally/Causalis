@@ -298,3 +298,21 @@ body[data-scale="space"] {
 body[data-scale="ground"] {
   background: linear-gradient(180deg, #2f6fd8 0%, #6aa8f5 38%, #b9dcff 72%, #e6f3ff 100%);
 }
+/* The hour over a village: dawn and dusk in the era's sunset gradient, night dark and starry. */
+body[data-scale="ground"][data-daylight="dawn"],
+body[data-scale="ground"][data-daylight="dusk"] {
+  background: linear-gradient(180deg, #2a2d78 0%, #9b4a8c 40%, #ff8a4c 72%, #ffd37a 100%);
+}
+body[data-scale="ground"][data-daylight="night"] {
+  background-color: #03061a;
+  background-image:
+    radial-gradient(1.2px 1.2px at 18% 22%, #ffffff 60%, transparent 100%),
+    radial-gradient(1px 1px at 72% 12%, #cfe4ff 60%, transparent 100%),
+    radial-gradient(1px 1px at 44% 34%, #ffffff 60%, transparent 100%),
+    linear-gradient(180deg, #02041a 0%, #0a1442 65%, #16275e 100%);
+  background-size:
+    173px 173px,
+    211px 211px,
+    149px 149px,
+    100% 100%;
+}

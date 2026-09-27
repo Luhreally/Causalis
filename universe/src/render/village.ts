@@ -52,6 +52,35 @@ const GROUP_COLORS: readonly Rgb[] = [
 ];
 /** Bare skin, arms and faces (the upright apes'). */
 const SKIN: Rgb = [0.88, 0.66, 0.5];
+
+/**
+ * What a figure wears, by its land's era, for each group (workers of the land, makers
+ * and carriers, leaders, the young): body and legs. Gatherers in hides; farmers in
+ * undyed wool and linen, the leaders' a little brighter; the smiths' people in dyed
+ * cloth; the engines' in dark coats with a colour at the chest; the modern world in the
+ * bright colours of its day.
+ */
+function clothes(era: VillagePlan["era"], group: number): { body: Rgb; legs: Rgb } {
+  const bright = GROUP_COLORS[group]!,
+    dim = (c: Rgb, k: number): Rgb => [c[0] * k, c[1] * k, c[2] * k],
+    mix = (a: Rgb, b: Rgb, k: number): Rgb => [
+      a[0] + (b[0] - a[0]) * k,
+      a[1] + (b[1] - a[1]) * k,
+      a[2] + (b[2] - a[2]) * k,
+    ];
+  switch (era) {
+    case "forage":
+      return { body: mix([0.55, 0.38, 0.22], bright, 0.12), legs: [0.45, 0.3, 0.18] };
+    case "metal":
+      return { body: bright, legs: dim(bright, 0.55) };
+    case "industry":
+      return { body: mix([0.2, 0.22, 0.3], bright, 0.35), legs: [0.16, 0.16, 0.2] };
+    case "modern":
+      return { body: mix(bright, [1, 1, 1], 0.1), legs: [0.22, 0.32, 0.62] };
+    default:
+      return { body: mix([0.86, 0.8, 0.66], bright, 0.3), legs: [0.52, 0.44, 0.34] };
+  }
+}
 /** Strides a second of a walking figure, on the screen's clock (a look, not the world's). */
 const STRIDES = 1.6;
 
@@ -347,18 +376,20 @@ export class VillageScene {
       cylinder: cylinderMesh(s, 0.5, 1, 8),
       cone: coneMesh(s, 0.5, 1, 8),
     };
-    this.people = GROUP_COLORS.map((c) =>
-      this.figure.parts.map(
+    // Each part a batch per group, dressed as the land's era dresses them.
+    this.people = GROUP_COLORS.map((_, gi) => {
+      const wear = clothes(plan.era, gi);
+      return this.figure.parts.map(
         (part) =>
           new InstancedBatch(
             s,
             meshes[part.shape],
-            part.tone === 2 ? SKIN : part.tone ? [c[0] * 0.55, c[1] * 0.55, c[2] * 0.6] : c,
+            part.tone === 2 ? SKIN : part.tone ? wear.legs : wear.body,
             Math.max(1, plan.people.length),
             this.root,
           ),
-      ),
-    );
+      );
+    });
     this.moments = [];
   }
 

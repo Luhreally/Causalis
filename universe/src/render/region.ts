@@ -264,6 +264,27 @@ export class RegionScene {
   }
 }
 
+/** The materials a region is drawn with, for the stage to warm before a first descent. */
+export function regionMaterials(
+  stage: Stage,
+): { material: pc.Material; instanced?: boolean; mesh?: pc.Mesh }[] {
+  const land = new pc.StandardMaterial();
+  land.diffuseVertexColor = true;
+  land.specular = new pc.Color(0.05, 0.05, 0.06);
+  land.gloss = 0.1;
+  land.update();
+  // The shapes the region and a village are built of (a cylinder's vertices are a cone's,
+  // a sphere's and a capsule's too): lit plain, clear, and instanced.
+  const shape = cylinderMesh(stage, 0.5, 1, 6);
+  return [
+    { material: land },
+    { material: seaMaterial(), mesh: shape },
+    { material: flatMaterial([1, 1, 1], 0.8), mesh: shape },
+    { material: flatMaterial([1, 1, 1]), mesh: shape },
+    { material: flatMaterial([1, 1, 1]), instanced: true, mesh: shape },
+  ];
+}
+
 /** The sea over a region: a glossy blue sheet, clear enough to show the shallows. */
 function seaMaterial(): pc.StandardMaterial {
   const m = new pc.StandardMaterial();

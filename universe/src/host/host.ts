@@ -131,6 +131,9 @@ const BUILTIN_QUERIES: Record<string, QueryHandler> = {
   hashes: (world) => world.domainHashes(),
 };
 
+/** How long after the page asks for anything the host's background work waits, ms. */
+const ASKING_MS = 1500;
+
 export class SimHost {
   private readonly port: Port<ToHost, ToMain>;
   private readonly universes: Readonly<Record<string, Universe>>;
@@ -146,6 +149,8 @@ export class SimHost {
   private readonly inbox: ToHost[] = [];
   private readonly subscriptions = new Map<number, Subscription>();
   private lastPump: number;
+  /** When the page last asked for anything (a query, a view): background work waits a while after. */
+  private lastAsked = -Infinity;
   private lastFrame = -Infinity;
   private lastStatus = -Infinity;
   private frameSeq = 0;
@@ -420,9 +425,13 @@ export class SimHost {
         dt = Math.max(0, start - this.lastPump) / 1000;
       this.lastPump = start;
       this.finishMoment();
+      if (this.inbox.length) this.lastAsked = start;
       while (this.inbox.length) await this.handle(this.inbox.shift()!);
       const world = this.world;
       if (!world) return;
+      // A view just asked for (a new scale, a new place) is drawn before the world steps on:
+      // its first frame waits for nothing.
+      if (this.lastFrame === -Infinity && this.interest) this.sendFrame(clock());
       if (this.speed > 0) {
         // Where the world should be by now; a backlog of more than a second is dropped
         // (the device cannot keep up, so the world runs as fast as it can).
@@ -447,8 +456,13 @@ export class SimHost {
           }
         }
       }
-      // Time to spare: do early what the world will need, so it need not pause for it.
-      if (this.universe?.idle && clock() < start + this.options.budgetMs / 2)
+      // Time to spare: do early what the world will need, so it need not pause for it —
+      // but not while the viewer is asking for things (an answer must not wait behind it).
+      if (
+        this.universe?.idle &&
+        start - this.lastAsked > ASKING_MS &&
+        clock() < start + this.options.budgetMs / 2
+      )
         this.universe.idle(world);
       this.finishMoment();
       this.stepMs = clock() - start;
