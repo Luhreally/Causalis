@@ -37,6 +37,7 @@ type Exposed = {
   starCount?: () => number;
   drawn?: () => number;
   select?: (cell: number) => void;
+  walk?: () => number;
   bench?: { fps: number; frameMs: number; instances: number; tier: string };
 };
 async function state(page: Page): Promise<AppState | null> {
@@ -431,6 +432,54 @@ for (const engine of engines) {
         }
       }
       await page.close();
+    }
+    // A first visit: the welcome, and a choice that starts a universe.
+    {
+      const first = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      await first.goto(base);
+      await first.waitForSelector(".welcome .choice", { timeout: 20000 });
+      const choices = await first.$$eval(".welcome .choice", (bs) => bs.length);
+      await first.click(".welcome .choice");
+      await first.waitForURL(/universe=earth/, { timeout: 20000 });
+      console.log(`${(engine + " welcome").padEnd(24)} ${choices} ways to begin; Earth chosen`);
+      await first.close();
+    }
+    // Keeping a world: save it from the saves page, see it listed, and take it up again.
+    // (With the guided walk asked for: tapping a land moves it on; Skip ends it.)
+    {
+      const kept = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      await kept.goto(`${base}?universe=earth&seed=kept&walk`);
+      await kept.waitForFunction(
+        () => ((globalThis as { causalis?: Exposed }).causalis?.drawn?.() ?? 0) > 0,
+        undefined,
+        { timeout: 60000 },
+      );
+      const stepOf = () =>
+        kept.evaluate(() => (globalThis as { causalis?: Exposed }).causalis?.walk?.() ?? -2);
+      const first = await stepOf();
+      await kept.evaluate(() => (globalThis as { causalis?: Exposed }).causalis?.select?.(1000));
+      await kept.waitForFunction(
+        () => (globalThis as { causalis?: Exposed }).causalis?.walk?.() === 1,
+        undefined,
+        { timeout: 10000 },
+      );
+      await kept.click(".walk .link:has-text('Skip')");
+      const after = await stepOf();
+      if (first !== 0 || after !== -1)
+        throw new Error(`the guided walk went ${first} → ${after}, not 0 → 1 → skipped`);
+      console.log(`${(engine + " walk").padEnd(24)} shown, moved on by a tap, skipped`);
+      await kept.click(".panel:not([hidden]) .world-line button:has-text('Saves')");
+      await kept.click(".panel:not([hidden]) .inspector .act:has-text('Save this world now')");
+      const line = kept.locator(".panel:not([hidden]) .inspector .line", { hasText: "“kept”" });
+      await line.first().waitFor({ timeout: 20000 });
+      const listed = (await line.first().textContent()) ?? "";
+      await line.first().click();
+      await kept
+        .locator(".panel:not([hidden]) .inspector p", { hasText: /back at year/ })
+        .first()
+        .waitFor({ timeout: 20000 });
+      console.log(`${(engine + " saves").padEnd(24)} saved, listed (${listed}), loaded`);
+      await kept.close();
     }
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await page.goto(`${base}?bench=3000`);

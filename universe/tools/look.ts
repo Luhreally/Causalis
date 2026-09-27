@@ -1,0 +1,87 @@
+// node tools/look.ts <dir> [year] — the look at a phone's size (the art track's eye): the welcome, the globe
+// with the guided walk, a land, a page, the saves, a region and a village, as screenshots in <dir>.
+// (npm run build first.)
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { preview } from "vite";
+import { chromium } from "playwright";
+const dir = process.argv[2]!;
+mkdirSync(dir, { recursive: true });
+const server = await preview({
+  root: fileURLToPath(new URL("..", import.meta.url)),
+  logLevel: "silent",
+  preview: { port: 4231, strictPort: false },
+});
+const base = server.resolvedUrls!.local[0]!;
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+type C = Record<string, (...a: unknown[]) => unknown> & {
+  client?: { query<T>(q: { type: string; args?: unknown }): Promise<T> };
+};
+const c = () => (globalThis as { causalis?: C }).causalis!;
+await page.goto(base);
+await page.waitForSelector(".welcome .choice");
+await page.screenshot({ path: join(dir, "welcome.png") });
+await page.goto(`${base}?universe=earth&year=${process.argv[3] ?? 200}&walk`);
+await page.waitForFunction(
+  () => ((globalThis as { causalis?: C }).causalis?.drawn?.() as number) > 0,
+  undefined,
+  { timeout: 600000 },
+);
+await page.waitForTimeout(1500);
+await page.screenshot({ path: join(dir, "globe-walk.png") });
+const map = await page.evaluate(() =>
+  (globalThis as { causalis?: C }).causalis!.client!.query<
+    { centre: number; people: number; cell: number }[]
+  >({ type: "people.map" }),
+);
+const top = [...map].sort((a, b) => b.people - a.people)[0]!;
+await page.evaluate((cell) => (globalThis as { causalis?: C }).causalis!.select!(cell), top.centre);
+await page.waitForSelector(".panel:not([hidden]) .inspector .why .claim");
+await page.waitForTimeout(800);
+await page.screenshot({ path: join(dir, "land.png") });
+const wild = page
+  .locator(".panel:not([hidden]) .inspector .page-line", {
+    hasText: /lives wild|The seat of|Part of/,
+  })
+  .first();
+if (await wild.count()) {
+  await wild.click();
+  await page.waitForSelector(".panel:not([hidden]) .inspector .page .back");
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: join(dir, "page.png") });
+}
+await page.click(".panel:not([hidden]) .world-line button:has-text('Saves')");
+await page.waitForTimeout(800);
+await page.screenshot({ path: join(dir, "saves.png") });
+// Down to the land, and into a village.
+await page.evaluate((cell) => (globalThis as { causalis?: C }).causalis!.descend!(cell), top.cell);
+await page.waitForFunction(
+  () => (((globalThis as { causalis?: C }).causalis?.villages?.() as number) ?? 0) > 0,
+  undefined,
+  { timeout: 60000 },
+);
+await page.waitForTimeout(1500);
+await page.screenshot({ path: join(dir, "region.png") });
+const vs = await page.evaluate(
+  (cell) =>
+    (globalThis as { causalis?: C }).causalis!.client!.query<{ ref: string }[]>({
+      type: "settlements",
+      args: { cell },
+    }),
+  top.cell,
+);
+if (vs[0]) {
+  await page.evaluate((ref) => (globalThis as { causalis?: C }).causalis!.watch!(ref), vs[0].ref);
+  await page.waitForFunction(
+    () => (((globalThis as { causalis?: C }).causalis?.watching?.() as number) ?? 0) > 0,
+    undefined,
+    { timeout: 60000 },
+  );
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: join(dir, "village.png") });
+}
+await browser.close();
+await server.close();
+console.log("shots in", dir);

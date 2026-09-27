@@ -2,10 +2,11 @@
 // how its people fare, the clock, the lenses to look through, and an inspector for
 // any place — its ground, weather, plate and ores, and the people living there —
 // where every fact can be asked "why?".
-import type { HostClient, Status } from "../bridge/index.ts";
+import type { HostClient, SaveMeta, Status } from "../bridge/index.ts";
 import { LENSES, LENS_NAMES, type Lens } from "../view/index.ts";
 import { lineChart } from "./chart.ts";
 import { HandView } from "./hand.ts";
+import { buildPage, type Page, type PageKind, type PageLinks } from "./pages.ts";
 import type { Tidings } from "./tidings.ts";
 import { WhyTree, el } from "./why.ts";
 import { speedWords, when } from "./words.ts";
@@ -269,11 +270,22 @@ export class PlanetPanel {
   private readonly facts = el("div", "facts");
   private readonly whyBox = el("div", "why");
   private readonly marketBox = el("div");
-  private readonly waysBox = el("div");
-  private readonly realmBox = el("div");
-  private readonly loreBox = el("div");
-  private readonly pastBox = el("div");
-  private readonly handBox = el("div");
+  private readonly waysBox = el("div", "ways");
+  private readonly realmBox = el("div", "realm");
+  private readonly loreBox = el("div", "lore");
+  private readonly pastBox = el("div", "past");
+  private readonly handBox = el("div", "hand-box");
+  /** A page opened from the land — a lineage, a realm, a deposit, a plate — over the land's own parts. */
+  private readonly pageBox = el("div", "page");
+  private pages: { kind: PageKind; ref: string; title: string }[] = [];
+  private pageToken = 0;
+  private landTitle = "";
+  private landWhy = "";
+  private landHidden: boolean[] = [];
+  private readonly links: PageLinks = {
+    why: (text, ref) => this.whyLine(text, ref),
+    page: (text, kind, ref) => this.pageLine(text, kind, ref),
+  };
   private readonly hand: HandView;
   private readonly closer = el("button", "act", "Look closer");
   private selected: number | null = null;
@@ -283,10 +295,23 @@ export class PlanetPanel {
   speed: number;
   private description = "";
   onLens: (lens: Lens) => void = () => {};
+  /** A why or a page was asked for. */
+  onAsked: () => void = () => {};
+  /** Help: the guided walk again. */
+  onHelp: () => void = () => {};
+  /** The bar at the top, where the guided walk shows. */
+  readonly bar = el("header", "bar");
   onClose: () => void = () => {};
   onCloser: (cell: number) => void = () => {};
   /** Out to the home star's system. */
   onSky: () => void = () => {};
+  /** Keep the world as it stands, or take it back up; each says how it went. */
+  onSave: () => Promise<string> = async () => "";
+  /** The saves kept; load one; keep this world as a file; open one from a file. */
+  onSaves: () => Promise<SaveMeta[]> = async () => [];
+  onLoadSave: (save: SaveMeta) => Promise<string> = async () => "";
+  onExport: () => Promise<string> = async () => "";
+  onImport: (file: File) => Promise<string> = async () => "";
 
   /** News of what the observer follows, and the toggles that follow things. */
   tidings: Tidings | null = null;
@@ -297,7 +322,7 @@ export class PlanetPanel {
     this.why = new WhyTree(client);
     this.hand = new HandView(client);
     this.hand.onWhy = (ref) => void this.why.show(ref, this.whyBox);
-    const bar = el("header", "bar");
+    const bar = this.bar;
     bar.append(el("strong", "brand", "Causalis Universe"), this.clock);
     const speeds = el("div", "speeds");
     for (const s of PLANET_SPEEDS) {
@@ -322,7 +347,27 @@ export class PlanetPanel {
     chronicle.onclick = () => void this.showChronicle();
     const sky = el("button", "link", "The sky");
     sky.onclick = () => this.onSky();
-    this.world.append(this.worldText, " · ", chronicle, " · ", sky);
+    const keep = el("button", "link", "Save"),
+      back = el("button", "link", "Saves"),
+      said = el("span", "muted");
+    keep.onclick = async () => (said.textContent = ` ${await this.onSave()}`);
+    back.onclick = () => void this.showSaves();
+    const help = el("button", "link", "Help");
+    help.onclick = () => this.onHelp();
+    this.world.append(
+      this.worldText,
+      " · ",
+      chronicle,
+      " · ",
+      sky,
+      " · ",
+      keep,
+      " · ",
+      back,
+      " · ",
+      help,
+      said,
+    );
     bar.append(speeds, this.world, lenses);
     this.element.append(bar);
     const close = el("button", "close", "×");
@@ -338,6 +383,7 @@ export class PlanetPanel {
       close,
       this.title,
       this.facts,
+      this.pageBox,
       this.closer,
       this.realmBox,
       this.waysBox,
@@ -349,6 +395,7 @@ export class PlanetPanel {
       this.whyBox,
     );
     this.inspector.hidden = true;
+    this.pageBox.hidden = true;
     root.append(this.element);
     this.element.append(
       this.inspector,
@@ -468,6 +515,7 @@ export class PlanetPanel {
 
   async select(cell: number | null): Promise<void> {
     this.selected = cell;
+    this.closePages();
     this.inspector.hidden = cell === null;
     if (cell === null) return;
     // The spot picked, then its province's people, market and years.
@@ -483,8 +531,9 @@ export class PlanetPanel {
     if (this.selected !== cell) return;
     const high = p.elevation >= 0;
     this.title.textContent = p.biome[0]!.toUpperCase() + p.biome.slice(1);
-    // Every line that stands for something opens its why.
-    const rows: [string, string | null][] = [
+    // Every line that stands for something opens its why; a lineage, the plate or a
+    // deposit, its page.
+    const rows: [string, string | null, PageKind?][] = [
       [
         folk
           ? `${folk.people.toLocaleString()} people: ${folk.byOccupation
@@ -509,20 +558,20 @@ export class PlanetPanel {
       ...(folk?.wild ?? [])
         .filter((s) => s.tame)
         .slice(0, 2)
-        .map((s): [string, string | null] => [
+        .map((s): [string, string | null, PageKind] => [
           `The ${s.name} lives wild here: ${s.niche === "seed grass" ? "its seed can be sown" : "it can be tamed"}`,
           s.ref,
+          "species",
         ]),
-      [
-        folk?.wild.some((s) => !s.tame)
-          ? `Wild here: ${folk.wild
-              .filter((s) => !s.tame)
-              .slice(0, 5)
-              .map((s) => s.name)
-              .join(", ")}`
-          : "",
-        null,
-      ],
+      // And the rest that live wild here, each with its lineage's why.
+      ...(folk?.wild ?? [])
+        .filter((s) => !s.tame)
+        .slice(0, 5)
+        .map((s): [string, string | null, PageKind] => [
+          `The ${s.name} lives wild here`,
+          s.ref,
+          "species",
+        ]),
       [latLon(p.lat, p.lon), null],
       [
         high
@@ -539,18 +588,26 @@ export class PlanetPanel {
       [
         `On a ${p.plate.continental ? "continental" : "oceanic"} plate${p.boundary !== "none" ? `, near a ${p.boundary} boundary` : ""}`,
         p.plate.ref,
+        "plate",
       ],
       [
         p.deposit
           ? `${p.deposit.richness.toLocaleString()} units of ${p.deposit.kind} (${p.deposit.process})`
           : "",
         p.deposit?.ref ?? null,
+        "deposit",
       ],
     ];
     this.facts.replaceChildren(
       ...rows
         .filter(([text]) => text)
-        .map(([text, ref]) => (ref ? this.whyLine(text, ref) : el("div", "fact", text))),
+        .map(([text, ref, kind]) =>
+          ref
+            ? kind
+              ? this.pageLine(text, kind, ref)
+              : this.whyLine(text, ref)
+            : el("div", "fact", text),
+        ),
       ...(folk && this.tidings ? [this.tidings.follow(folk.ref, "this land")] : []),
     );
     this.showRealm(folk ? folk.realm : null, !!folk);
@@ -561,12 +618,84 @@ export class PlanetPanel {
     if (folk) void this.hand.show(this.handBox, province);
     else this.handBox.replaceChildren();
     this.closer.hidden = !high;
-    void this.why.show(folk?.folk ?? p.deposit?.ref ?? p.ref, this.whyBox);
+    this.landWhy = folk?.folk ?? p.deposit?.ref ?? p.ref;
+    void this.why.show(this.landWhy, this.whyBox);
+  }
+
+  private pageLine(text: string, kind: PageKind, ref: string): HTMLElement {
+    const b = el("button", "line page-line", text);
+    b.onclick = () => {
+      this.onAsked();
+      void this.openPage(kind, ref);
+    };
+    return b;
+  }
+
+  /** The land's own parts, which a page covers. */
+  private get landParts(): HTMLElement[] {
+    return [
+      this.facts,
+      this.closer,
+      this.realmBox,
+      this.waysBox,
+      this.loreBox,
+      this.marketBox,
+      this.handBox,
+      this.pastBox,
+    ];
+  }
+
+  /** Open a page over the land, keeping the way back. */
+  private async openPage(kind: PageKind, ref: string): Promise<void> {
+    const token = ++this.pageToken,
+      page = await buildPage(this.client, kind, ref, this.links);
+    if (token !== this.pageToken) return;
+    if (!this.pages.length) {
+      this.landTitle = this.title.textContent ?? "";
+      this.landHidden = this.landParts.map((e) => e.hidden === true);
+    }
+    this.pages.push({ kind, ref, title: page.title });
+    this.showPage(page);
+  }
+
+  private showPage(page: Page): void {
+    const before = this.pages.length > 1 ? this.pages.at(-2)!.title : this.landTitle,
+      back = el("button", "back", `‹ ${before}`);
+    back.onclick = () => void this.backPage();
+    this.title.textContent = page.title;
+    for (const e of this.landParts) e.hidden = true;
+    this.pageBox.hidden = false;
+    this.pageBox.replaceChildren(back, ...page.parts);
+    if (page.why) void this.why.show(page.why, this.whyBox);
+    this.inspector.scrollTop = 0;
+  }
+
+  /** Back one page, or to the land. */
+  private async backPage(): Promise<void> {
+    this.pages.pop();
+    const top = this.pages.pop();
+    if (top) return this.openPage(top.kind, top.ref);
+    this.closePages();
+    if (this.landWhy) void this.why.show(this.landWhy, this.whyBox);
+  }
+
+  private closePages(): void {
+    this.pageToken++;
+    if (this.pages.length) {
+      this.landParts.forEach((e, i) => (e.hidden = this.landHidden[i] ?? false));
+      this.title.textContent = this.landTitle;
+    }
+    this.pages = [];
+    this.pageBox.hidden = true;
+    this.pageBox.replaceChildren();
   }
 
   private whyLine(text: string, ref: string): HTMLElement {
     const b = el("button", "line", text);
-    b.onclick = () => void this.why.show(ref, this.whyBox);
+    b.onclick = () => {
+      this.onAsked();
+      void this.why.show(ref, this.whyBox);
+    };
     return b;
   }
 
@@ -616,8 +745,9 @@ export class PlanetPanel {
             : "content";
     const parts = [
       el("h3", undefined, "Their rulers"),
-      this.whyLine(
+      this.pageLine(
         `${r.seat ? "The seat of" : "Part of"} ${r.name} (${r.lands} land${r.lands === 1 ? "" : "s"}): ${r.government}`,
+        "realm",
         r.ref,
       ),
       el("div", "fact", `Ruled by ${r.ruler} since year ${r.since}`),
@@ -729,19 +859,85 @@ export class PlanetPanel {
   }
 
   /** The chronicle: what history holds as mattering most, newest first, each with its why. */
-  async showChronicle(): Promise<void> {
+  /** Clear the inspector for a page of the world's own (the chronicle, the saves). */
+  private worldPage(title: string): void {
+    this.closePages();
     this.selected = null;
     this.province = null;
     this.inspector.hidden = false;
-    this.title.textContent = "Chronicle";
+    this.title.textContent = title;
     this.closer.hidden = true;
-    this.marketBox.replaceChildren();
-    this.pastBox.replaceChildren();
-    this.handBox.replaceChildren();
-    this.waysBox.replaceChildren();
-    this.realmBox.replaceChildren();
-    this.loreBox.replaceChildren();
+    for (const box of [
+      this.marketBox,
+      this.pastBox,
+      this.handBox,
+      this.waysBox,
+      this.realmBox,
+      this.loreBox,
+    ])
+      box.replaceChildren();
     this.facts.replaceChildren(el("p", "muted", "…"));
+  }
+
+  /** The saves kept in this browser: each one's world, year and size, to load; and files. */
+  async showSaves(): Promise<void> {
+    this.worldPage("Saves");
+    this.whyBox.replaceChildren(
+      el(
+        "p",
+        "muted",
+        "Saves are kept in this browser, and the world keeps one on its own every five minutes. A copy as a file keeps it anywhere.",
+      ),
+    );
+    const said = el("p", "muted"),
+      now = el("button", "act", "Save this world now"),
+      file = el("button", "act", "Keep a copy as a file"),
+      open = el("input"),
+      pick = el("button", "act", "Open a save from a file");
+    now.onclick = async () => {
+      said.textContent = await this.onSave();
+      void this.showSaves().then(() => this.facts.prepend(said));
+    };
+    file.onclick = async () => (said.textContent = await this.onExport());
+    open.type = "file";
+    open.accept = ".causalis,.gz,application/gzip";
+    open.hidden = true;
+    open.setAttribute("aria-label", "Open a save from a file");
+    pick.onclick = () => open.click();
+    open.onchange = async () => {
+      const f = open.files?.[0];
+      if (f) said.textContent = await this.onImport(f);
+    };
+    const saves = await this.onSaves();
+    if (this.title.textContent !== "Saves") return;
+    const WORLDS: Record<string, string> = {
+      earth: "Earth",
+      alien: "An alien world",
+      sandbox: "The sandbox",
+    };
+    const rows = saves.map((s) => {
+      const b = el(
+        "button",
+        "line page-line",
+        `${WORLDS[s.universe] ?? s.universe} “${s.seed}”, year ${Math.floor(s.t / YEAR).toLocaleString()} · ${(s.bytes / 1e6).toFixed(1)} MB${s.name.endsWith(":auto") ? " · kept on its own" : ""}${s.rulesets > 1 ? " · carried to newer rules" : ""}`,
+      );
+      b.onclick = async () => (said.textContent = await this.onLoadSave(s));
+      return b;
+    });
+    this.facts.replaceChildren(
+      now,
+      el("h3", undefined, "Kept in this browser"),
+      ...(rows.length ? rows : [el("p", "muted", "Nothing saved yet.")]),
+      el("h3", undefined, "Files"),
+      file,
+      pick,
+      open,
+      said,
+    );
+  }
+
+  async showChronicle(): Promise<void> {
+    this.worldPage("Chronicle");
     const c = await this.client.query<Chronicle>({ type: "chronicle", args: { limit: 60 } });
     if (this.title.textContent !== "Chronicle") return;
     this.facts.replaceChildren(

@@ -3,6 +3,7 @@
 // it. ?universe=earth (the default), alien or sandbox; ?seed=…; ?bench=N runs the
 // instancing benchmark instead.
 import "./styles.css";
+import "./y2k.css";
 import { HostClient, inlinePair, workerPort } from "../bridge/index.ts";
 import {
   GlobeScene,
@@ -24,6 +25,7 @@ import {
   SystemPanel,
   ClusterPanel,
   VillagePanel,
+  GuidedWalk,
   type PeopleEntry,
 } from "../ui/index.ts";
 import type { ClusterPlan, SkyState, SystemPlan, VillagePlan } from "../bridge/index.ts";
@@ -69,6 +71,8 @@ const inline = params.has("inline");
 const bench = Number(params.get("bench") ?? 0);
 const universe = params.get("universe") ?? "earth";
 const startYear = Number(params.get("year") ?? 0);
+/** A save to take up on starting (the saves page opens another world's save this way). */
+const loadName = params.get("load");
 
 type Exposed = {
   client?: HostClient;
@@ -92,6 +96,8 @@ type Exposed = {
   stars?: () => void;
   starCount?: () => number;
   bench?: unknown;
+  /** The guided walk's step (from 0), or -1 when it is not showing. */
+  walk?: () => number;
   /** Why the page could not start, if it could not ("webgl" when 3D is unavailable). */
   error?: string;
   /** The PlayCanvas stage, for debugging tools. */
@@ -109,9 +115,19 @@ async function connect(): Promise<{ client: HostClient; mode: string }> {
       // Fall through to the in-thread host.
     }
   }
-  const { SimHost, UNIVERSES } = await import("../host/index.ts");
+  const { SimHost, UNIVERSES, IndexedDbByteStore } = await import("../host/index.ts");
   const [page, hostEnd] = inlinePair();
-  const host = new SimHost(hostEnd, UNIVERSES, { clock: () => performance.now(), budgetMs: 6 });
+  let storage: InstanceType<typeof IndexedDbByteStore> | undefined;
+  try {
+    storage = typeof indexedDB === "undefined" ? undefined : new IndexedDbByteStore();
+  } catch {
+    // Storage refused (a private window): the world runs, unsaved.
+  }
+  const host = new SimHost(hostEnd, UNIVERSES, {
+    clock: () => performance.now(),
+    budgetMs: 6,
+    ...(storage ? { storage } : {}),
+  });
   const loop = async () => {
     await host.pump();
     requestAnimationFrame(() => void loop());
@@ -134,6 +150,7 @@ async function runBenchPage(): Promise<void> {
   const { canvas, hud } = page(),
     tier = deviceTier(),
     stage = new Stage(canvas, tier, SKY);
+  stage.backdrop("ground", Math.sqrt(bench) * 0.4);
   new OrbitRig(stage, canvas, {
     distance: Math.sqrt(bench) * 0.28 * 1.4,
     minDistance: 2,
@@ -153,6 +170,7 @@ async function runSandboxPage(): Promise<void> {
     tier = deviceTier(),
     stage = new Stage(canvas, tier, SKY),
     scene = new SandboxScene(stage, tier);
+  stage.backdrop("ground", 30);
   const { client, mode } = await connect();
   Object.assign(exposed, { client, mode, seed, universe, drawn: () => scene.figures(), stage });
   await client.start("sandbox", seed);
@@ -212,6 +230,7 @@ async function runPlanetPage(): Promise<void> {
     village = new VillageScene(stage),
     skyScene = new SystemScene(stage),
     starScene = new ClusterScene(stage);
+  stage.backdrop("space");
   const { client, mode } = await connect();
   let painted = 0,
     scale: "globe" | "region" | "village" | "system" | "cluster" = "globe",
@@ -219,8 +238,10 @@ async function runPlanetPage(): Promise<void> {
     systemPlan: SystemPlan | null = null;
   Object.assign(exposed, { client, mode, seed, universe, drawn: () => painted, stage });
   await client.start(universe, seed);
-  // ?year=N starts the world N years on (it runs there first; history is the same).
-  if (startYear > 0) await client.advance(startYear * YEAR);
+  // ?load=name takes up a save; ?year=N starts the world N years on (it runs there
+  // first; history is the same).
+  const loaded = loadName ? await client.load(loadName).catch(() => null) : null;
+  if (!loaded && startYear > 0) await client.advance(startYear * YEAR);
   client.setInterest({ view: "globe", focus: null });
   const speed = YEAR;
   client.setSpeed(speed);
@@ -240,6 +261,17 @@ async function runPlanetPage(): Promise<void> {
     labels = new LabelLayer(hud),
     tidings = new Tidings(hud, client);
   planetPanel.tidings = regionPanel.tidings = villagePanel.tidings = tidings;
+  // The guided walk: on a first visit (not for a machine driving the page, unless asked
+  // with ?walk), and again from Help.
+  const walk = new GuidedWalk(planetPanel.bar);
+  if (
+    !GuidedWalk.walked() &&
+    (!(navigator as { webdriver?: boolean }).webdriver || params.has("walk"))
+  )
+    walk.start();
+  planetPanel.onHelp = () => walk.start();
+  planetPanel.onAsked = () => walk.saw("why");
+  exposed.walk = () => walk.current;
   labels.blockers = [regionPanel.inspector, villagePanel.inspector];
 
   const paintGlobe = () => {
@@ -292,6 +324,7 @@ async function runPlanetPage(): Promise<void> {
     if (closer && !rig.userZoomed) rig.distance = Math.min(rig.distance, 2);
   }
   planetPanel.onLens = (l) => {
+    walk.saw("lens");
     lens = l;
     paintGlobe();
     if (["people", "food", "tongues", "realms", "faiths"].includes(l)) void faceThePeople(true);
@@ -320,6 +353,7 @@ async function runPlanetPage(): Promise<void> {
   const globeFit = () => (aspect() < 1 ? 3.1 / aspect() : 3.3);
   const regionFit = () => (aspect() < 1 ? 120 / aspect() : 130);
   const selectCell = (cell: number | null) => {
+    if (cell !== null) walk.saw("land");
     globe.mark(cell);
     void planetPanel.select(cell);
   };
@@ -356,6 +390,7 @@ async function runPlanetPage(): Promise<void> {
   // the labels and the host's interest all move together.
   const toRegion = (cell: number) => {
     scale = "region";
+    stage.backdrop("ground", regionFit());
     regionCell = cell;
     globe.visible = false;
     region.visible = true;
@@ -387,6 +422,7 @@ async function runPlanetPage(): Promise<void> {
   };
   const toGlobe = () => {
     scale = "globe";
+    stage.backdrop("space");
     regionCell = -1;
     stopVillages?.();
     stopVillages = null;
@@ -412,7 +448,10 @@ async function runPlanetPage(): Promise<void> {
     client.setInterest({ view: "globe", focus: null });
     paintGlobe();
   };
-  planetPanel.onCloser = (cell) => toRegion(cell);
+  planetPanel.onCloser = (cell) => {
+    walk.saw("scale");
+    void toRegion(cell);
+  };
   // Out to the star's system, and back to the world: the worlds go round a month a second.
   const systemPanel = new SystemPanel(hud, client);
   let sky: SkyState = { programs: [], colonies: [] },
@@ -423,6 +462,7 @@ async function runPlanetPage(): Promise<void> {
   };
   const toSystem = async () => {
     scale = "system";
+    stage.backdrop("space");
     labels.clear();
     globe.visible = false;
     planetPanel.visible = false;
@@ -453,7 +493,68 @@ async function runPlanetPage(): Promise<void> {
       target: [0, 0, 0],
     });
   };
-  planetPanel.onSky = () => void toSystem();
+  planetPanel.onSky = () => {
+    walk.saw("scale");
+    void toSystem();
+  };
+  // Keeping the world: a save of one's own, and one kept every five minutes of watching.
+  const saveName = `${universe}:${seed}`;
+  planetPanel.onSave = async () => {
+    try {
+      const { bytes } = await client.save(saveName);
+      return `saved (${(bytes / 1e6).toFixed(1)} MB)`;
+    } catch (error) {
+      return `not saved: ${(error as Error).message}`;
+    }
+  };
+  // Another world's save opens in a page of its own world, and loads there.
+  const elsewhere = (u: string, s: string, name: string) => {
+    location.search = `?universe=${encodeURIComponent(u)}&seed=${encodeURIComponent(s)}&load=${encodeURIComponent(name)}`;
+  };
+  planetPanel.onSaves = () => client.saves();
+  planetPanel.onLoadSave = async (save) => {
+    if (save.universe !== universe || save.seed !== seed) {
+      elsewhere(save.universe, save.seed, save.name);
+      return "opening that world…";
+    }
+    try {
+      const got = await client.load(save.name);
+      paintGlobe();
+      return `back at year ${Math.floor(got.t / YEAR)}${got.fellBack ? " (from the save before; the latest did not read)" : ""}`;
+    } catch (error) {
+      return `not loaded: ${(error as Error).message}`;
+    }
+  };
+  planetPanel.onExport = async () => {
+    try {
+      const bytes = await client.exportSave(),
+        a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/gzip" }));
+      a.download = `causalis-${universe}-${seed.replace(/[^a-z0-9]+/gi, "-")}.causalis`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+      return `kept as ${a.download} (${(bytes.length / 1e6).toFixed(1)} MB)`;
+    } catch (error) {
+      return `not kept: ${(error as Error).message}`;
+    }
+  };
+  planetPanel.onImport = async (file) => {
+    try {
+      const got = await client.importSave(new Uint8Array(await file.arrayBuffer()));
+      if (got.universe !== universe || got.seed !== seed) {
+        // Another world: keep it under its own name, and open it there.
+        const name = `${got.universe}:${got.seed}`;
+        await client.save(name);
+        elsewhere(got.universe, got.seed, name);
+        return "opening that world…";
+      }
+      paintGlobe();
+      return `back at year ${Math.floor(got.t / YEAR)}`;
+    } catch (error) {
+      return `not opened: ${(error as Error).message}`;
+    }
+  };
+  setInterval(() => void client.save(`${saveName}:auto`).catch(() => {}), 5 * 60_000);
   // Out to the stars around, and back to the star's system.
   const clusterPanel = new ClusterPanel(hud, client);
   const selectStar = (i: number | null) => {
@@ -462,6 +563,7 @@ async function runPlanetPage(): Promise<void> {
   };
   const toCluster = async () => {
     scale = "cluster";
+    stage.backdrop("space");
     skyScene.visible = false;
     systemPanel.visible = false;
     if (!clusterPlan) {
@@ -538,6 +640,7 @@ async function runPlanetPage(): Promise<void> {
   };
   const toVillage = async (ref: string) => {
     scale = "village";
+    stage.backdrop("ground", 40);
     labels.clear();
     // Whichever way it came (a region, or straight from the globe), only the village shows.
     globe.visible = false;
@@ -642,7 +745,88 @@ async function runPlanetPage(): Promise<void> {
   });
 }
 
+/**
+ * The first visit (a bare address, never welcomed before): what the universe is, a
+ * choice of where to begin, and how to watch. Links with a universe or seed skip it.
+ */
+function welcome(): boolean {
+  let seen = false;
+  try {
+    seen = localStorage.getItem("causalis.welcomed") === "1";
+  } catch {
+    // Storage may be shut (a private window): welcome again, harmlessly.
+  }
+  if (location.search || seen) return false;
+  const words = [
+      "amber",
+      "kestrel",
+      "tide",
+      "ember",
+      "harrow",
+      "lumen",
+      "quill",
+      "sorrel",
+      "vale",
+      "wren",
+    ],
+    pick = () => {
+      const u = new Uint32Array(2);
+      crypto.getRandomValues(u);
+      return `${words[u[0]! % words.length]} ${u[1]! % 1000}`;
+    },
+    app = document.getElementById("app")!,
+    box = document.createElement("div"),
+    title = document.createElement("h1"),
+    lead = document.createElement("p"),
+    choices = document.createElement("div"),
+    how = document.createElement("ul");
+  box.className = "welcome";
+  title.textContent = "Causalis Universe";
+  lead.textContent =
+    "A universe that runs on its own: worlds, their living things, peoples and their histories, all the way out to the stars. You watch it, ask why anything is so, and — when you choose — lay your hand on it.";
+  choices.className = "choices";
+  for (const [label, note, query] of [
+    ["Earth", "a world like ours, from its first farmers", "?universe=earth"],
+    [
+      "A world never seen",
+      "an open world: any sky, any body, any people",
+      `?universe=alien&seed=${encodeURIComponent(pick())}`,
+    ],
+    ["The sandbox", "a small ring of cells to try the hand on", "?universe=sandbox"],
+  ] as const) {
+    const b = document.createElement("button"),
+      small = document.createElement("small");
+    b.className = "choice";
+    b.textContent = label;
+    small.textContent = note;
+    b.append(small);
+    b.onclick = () => {
+      try {
+        localStorage.setItem("causalis.welcomed", "1");
+      } catch {
+        // Nothing to remember it in: fine.
+      }
+      location.search = query;
+    };
+    choices.append(b);
+  }
+  for (const line of [
+    "Tap any place, person or event, and ask “why?” — every answer opens onto its causes.",
+    "The lenses colour the world by what you want to see: people, realms, tongues, life, ores.",
+    "“Look closer” goes down to a land and its villages; “The sky” goes out to the stars.",
+    "Your hand — rain, harvest, plague, inspiration, a warmer world, a star's flare — is always a choice, and always in the chronicle.",
+  ]) {
+    const li = document.createElement("li");
+    li.textContent = line;
+    how.append(li);
+  }
+  box.append(title, lead, choices, how);
+  app.replaceChildren(box);
+  return true;
+}
+
 async function main(): Promise<void> {
+  if (welcome()) return;
   if (bench > 0) return runBenchPage();
   if (universe === "sandbox") return runSandboxPage();
   return runPlanetPage();

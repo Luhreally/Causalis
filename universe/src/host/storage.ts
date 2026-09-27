@@ -4,6 +4,7 @@
 // goes to the slot the index does not point at, is read back and checked, and
 // only then does the index move — so a crash mid-write leaves the previous save
 // intact, and a damaged latest save falls back to the one before.
+import type { SaveMeta } from "../bridge/index.ts";
 import { SaveError, type SaveDocument } from "../kernel/index.ts";
 
 export interface ByteStore {
@@ -99,7 +100,11 @@ export async function decodeSave(bytes: Uint8Array): Promise<SaveDocument> {
   }
 }
 
-type SlotIndex = { latest: "a" | "b"; count: number };
+type SlotIndex = {
+  latest: "a" | "b";
+  count: number;
+  meta?: Omit<SaveMeta, "name" | "count">;
+};
 
 /** Two alternating slots under one save name, with verified writes and fallback reads. */
 export class SaveSlots {
@@ -125,7 +130,18 @@ export class SaveSlots {
     const back = await this.store.get(this.key(slot));
     if (!back || back.length !== bytes.length || back.some((b, i) => b !== bytes[i]))
       throw new SaveError("the save did not read back as written; the previous save is untouched");
-    const next: SlotIndex = { latest: slot, count: (index?.count ?? 0) + 1 };
+    const next: SlotIndex = {
+      latest: slot,
+      count: (index?.count ?? 0) + 1,
+      meta: {
+        universe: String((doc.meta as { universe?: unknown } | undefined)?.universe ?? ""),
+        seed: doc.seed,
+        t: doc.t,
+        bytes: bytes.length,
+        rulesets: doc.lineage.length,
+        savedAt: Date.now(),
+      },
+    };
     await this.store.put(this.key("index"), new TextEncoder().encode(JSON.stringify(next)));
     return bytes.length;
   }
@@ -153,6 +169,33 @@ export class SaveSlots {
   async remove(): Promise<void> {
     for (const part of ["a", "b", "index"]) await this.store.delete(this.key(part));
   }
+}
+
+/** Every save kept in a store, newest first. */
+export async function listSaves(store: ByteStore): Promise<SaveMeta[]> {
+  const out: SaveMeta[] = [];
+  for (const key of await store.keys()) {
+    const m = /^save\/(.+)\/index$/.exec(key);
+    if (!m) continue;
+    const bytes = await store.get(key);
+    if (!bytes) continue;
+    try {
+      const index = JSON.parse(new TextDecoder().decode(bytes)) as SlotIndex;
+      out.push({
+        name: m[1]!,
+        count: index.count,
+        universe: index.meta?.universe ?? m[1]!.split(":")[0] ?? "",
+        seed: index.meta?.seed ?? m[1]!.split(":")[1] ?? "",
+        t: index.meta?.t ?? 0,
+        bytes: index.meta?.bytes ?? 0,
+        rulesets: index.meta?.rulesets ?? 1,
+        savedAt: index.meta?.savedAt ?? 0,
+      });
+    } catch {
+      // An index that does not read is not listed; its slots stay untouched.
+    }
+  }
+  return out.sort((a, b) => b.savedAt - a.savedAt || (a.name < b.name ? -1 : 1));
 }
 
 /** Ask the browser not to evict saves (Safari clears unused sites' storage after 7 days otherwise). */

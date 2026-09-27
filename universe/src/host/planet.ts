@@ -88,6 +88,7 @@ import {
 import type { ClusterPlan, ClusterStar, SkyState, StarPage, SystemPlan } from "../bridge/index.ts";
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
+import { PAGE_QUERIES } from "./pages.ts";
 import { villagePlan } from "./village.ts";
 
 const BOUNDARY_WORDS = ["none", "converging", "spreading", "sliding"];
@@ -117,6 +118,7 @@ function globeFrame(world: World) {
       lake: Uint8Array.from(g.water.lake),
       deposit: Uint8Array.from(deposit, (v) => (v < 0 ? 255 : v)),
       province: Int32Array.from(pw.provinceOf),
+      diversity: Uint8Array.from(g.life.diversity),
     },
   };
 }
@@ -211,8 +213,10 @@ function province(world: World, cell: number) {
     ways: waysOf(world, cell),
     realm: realmOf(world, cell),
     faith: faithOf(world, cell),
-    // What lives wild there: the lineages that can be tamed or sown first.
+    // What lives wild there (not those hunted out of it): the lineages that can be tamed
+    // or sown first.
     wild: livingIn(homePlanet(world).generated.life, cell)
+      .filter((s) => !wildsOf(ctx, cell).lost.includes(s.index))
       .sort((a, b) => Number(b.tame) - Number(a.tame) || (a.name < b.name ? -1 : 1))
       .map((s) => ({ name: s.name, ref: s.ref, tame: s.tame, niche: s.niche })),
     herding: p.herding,
@@ -330,19 +334,21 @@ function provinceHistory(world: World, cell: number) {
 }
 
 /** What history holds as mattering most, newest first, in words, with the world's people by year. */
-function chronicle(world: World, limit: number) {
+function chronicle(world: World, limit: number, types?: readonly string[]) {
   const ctx = populationContext(world),
     byYear = new Map<number, number>();
   for (const p of ctx.provinces.all())
     for (const y of ctx.history.yearsOf(p.cell))
       byYear.set(y.year, (byYear.get(y.year) ?? 0) + y.population);
+  // What mattered most; or, asked for kinds of event, every one of those kinds held.
   const events = world.events
     .all()
-    .filter((e) => e.importance >= 4)
+    .filter((e) => (types ? types.includes(e.type) : e.importance >= 4))
     .slice(-limit)
     .reverse()
     .map((e) => ({
       ref: e.id,
+      type: e.type,
       year: yearOfMoment(e.t),
       importance: e.importance,
       claim: why(world, e.id).claim,
@@ -565,7 +571,7 @@ function cell(pw: ProvinceWorld, c: number) {
 function planetUniverse(name: string, prior: Prior): Universe {
   return {
     name,
-    version: `${name}-4`,
+    version: `${name}-5`,
     defaultView: "globe",
     // A farming land with no village yet will found one soon: work out its village sites early.
     idle: (world) => {
@@ -635,9 +641,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
           return r ? r.town : null;
         };
         return {
+          // Every realm with anything in the sky: a satellite, a station, a colony.
           programs: space
             .all()
-            .filter((p) => p.satellite)
+            .filter((p) => p.satellite || p.station || p.colonies.length)
             .map((p) => ({
               realm: p.realm,
               name: named(p.realm) ?? "a fallen realm",
@@ -766,7 +773,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
       },
       market: (world, args) => market(world, (args as { cell: number }).cell),
       "province.history": (world, args) => provinceHistory(world, (args as { cell: number }).cell),
-      chronicle: (world, args) => chronicle(world, (args as { limit?: number }).limit ?? 60),
+      chronicle: (world, args) => {
+        const a = (args ?? {}) as { limit?: number; types?: string[] };
+        return chronicle(world, a.limit ?? 60, a.types);
+      },
       "village.plan": (world, args) => villagePlan(world, (args as { ref: string }).ref as Ref),
       /** Where the god's hand rests, if anywhere. */
       hand: (world) => {
@@ -853,6 +863,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
         };
       },
       ...OBSERVE_QUERIES,
+      ...PAGE_QUERIES,
       // The world's deposits where they lie on the globe (fine cells), each with its province.
       deposits: (world) =>
         homePlanet(world).generated.fine.deposits.map((d) => ({

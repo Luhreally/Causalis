@@ -1,7 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, loadWorld, rulesetId, saveWorld, type Seed } from "../../src/kernel/index.ts";
-import { MemoryByteStore, SaveSlots, decodeSave, encodeSave } from "../../src/host/index.ts";
+import {
+  MemoryByteStore,
+  SaveSlots,
+  decodeSave,
+  encodeSave,
+  listSaves,
+} from "../../src/host/index.ts";
 import { makeToyWorld } from "../../src/sim/index.ts";
 
 const build = (seed: Seed) => makeToyWorld(seed.text);
@@ -42,4 +48,22 @@ test("slots alternate, and a damaged latest save falls back to the one before", 
   assert.deepEqual(second?.value.domainHashes(), early);
   await slots.remove();
   assert.equal(await slots.read(load), null);
+});
+
+test("the saves kept are listed with their world, time and size", async () => {
+  const store = new MemoryByteStore(),
+    w = makeToyWorld("listed"),
+    ruleset = rulesetId(w, "test");
+  w.runTo(3 * YEAR);
+  await new SaveSlots(store, "toy:listed").write(saveWorld(w, ruleset, { universe: "toy" }));
+  w.runTo(7 * YEAR);
+  await new SaveSlots(store, "toy:listed:auto").write(saveWorld(w, ruleset, { universe: "toy" }));
+  await store.put("save/broken/index", new TextEncoder().encode("{not json"));
+  const saves = await listSaves(store);
+  assert.deepEqual(saves.map((s) => s.name).sort(), ["toy:listed", "toy:listed:auto"]);
+  const auto = saves.find((s) => s.name.endsWith(":auto"))!;
+  assert.equal(auto.t, 7 * YEAR);
+  assert.equal(auto.universe, "toy");
+  assert.equal(auto.seed, "listed");
+  assert.ok(auto.bytes > 0 && auto.rulesets === 1 && auto.count === 1);
 });

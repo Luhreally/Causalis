@@ -96,3 +96,38 @@ test("a century of watching a village meets its families through the observer an
     "the watched village's history is the unwatched one's",
   );
 });
+
+test("a lineage, a realm, a deposit, a plate and the deep ages each have a page, and asking changes nothing", () => {
+  const before = JSON.stringify(world.domainHashes());
+  type Folk = { wild: { ref: string }[]; realm: { ref: string } | null };
+  const folk = ask<Folk>("province", { cell: CRADLE });
+  const s = ask<{ name: string; lands: number; arose: { ref: string } }>("species.page", {
+    ref: folk.wild[0]!.ref,
+  });
+  assert.ok(s.name && s.lands >= 1, "a lineage lives somewhere");
+  assert.equal(why(world, s.arose.ref as Ref).basis, "generated");
+  const realmRef =
+    folk.realm?.ref ?? world.events.all().find((e) => e.type === "polity.formed")?.subjects[0];
+  assert.ok(realmRef, "a realm to look at");
+  const r = ask<{
+    lands: number;
+    people: number;
+    ruler: { event: string };
+    known: { year: number }[];
+  }>("realm.page", { ref: realmRef });
+  assert.ok(r.lands >= 1 && r.people > 0 && r.ruler.event);
+  // What they know, in the order they came to know it.
+  assert.ok(r.known.every((k, i) => i === 0 || r.known[i - 1]!.year <= k.year));
+  const d = ask<{ ref: string; cell: number }[]>("deposits")[0]!;
+  const page = ask<{ plate: { ref: string } | null; land: number }>("deposit.page", {
+    ref: d.ref,
+  });
+  assert.ok(page.plate, "a deposit lies on a plate");
+  const plate = ask<{ share: number; deposits: { kind: string }[] }>("plate.page", {
+    ref: page.plate.ref,
+  });
+  assert.ok(plate.share > 0 && plate.share < 1 && plate.deposits.length >= 1);
+  const ages = ask<{ claim: string }[]>("deep.ages");
+  assert.ok(ages.length >= 4 && ages.every((a) => a.claim.includes("million years ago")));
+  assert.equal(JSON.stringify(world.domainHashes()), before, "a page is a pure read");
+});

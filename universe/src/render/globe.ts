@@ -1,6 +1,8 @@
 // A planet as a globe: the sphere grid as one mesh, raised by its relief and
 // coloured per cell by the lens, with a marker on the picked place. Only the
 // colours change when the lens does; the shape is built once per planet.
+// The look (art track A4): low-poly facets — each triangle flat, lit by its own face
+// and coloured by the most of its three cells — under a glossy sea, with a glow at the rim.
 import * as pc from "playcanvas";
 import { nearestCell, sphereGrid, type SphereGrid } from "../kernel/index.ts";
 import { globeRadius } from "../view/index.ts";
@@ -14,9 +16,58 @@ export class GlobeScene {
   private entity: pc.Entity | null = null;
   private readonly marker: pc.Entity;
   private positions: Float32Array | null = null;
+  /** For each drawn corner, the cell it colours by (three corners a triangle). */
+  private corners: Int32Array | null = null;
+  private colors: Uint8Array | null = null;
+  private readonly sea: pc.Entity;
+  private readonly halo: pc.Entity;
 
   constructor(stage: Stage) {
     this.stage = stage;
+    // The sea: a glossy shell at sea level, clear enough to show what a lens paints under it.
+    const water = new pc.StandardMaterial();
+    water.diffuse = new pc.Color(0.08, 0.28, 0.62);
+    water.specular = new pc.Color(0.9, 0.95, 1);
+    water.gloss = 0.86;
+    water.opacity = 0.38;
+    water.blendType = pc.BLEND_NORMAL;
+    water.depthWrite = false;
+    water.update();
+    this.sea = new pc.Entity("sea");
+    this.sea.addComponent("render", {
+      meshInstances: [
+        new pc.MeshInstance(
+          pc.Mesh.fromGeometry(
+            stage.device,
+            new pc.SphereGeometry({ radius: 1.0005, latitudeBands: 48, longitudeBands: 96 }),
+          ),
+          water,
+        ),
+      ],
+    });
+    this.sea.enabled = false;
+    stage.root.addChild(this.sea);
+    // The air: a glow about the rim, a camera-facing disc behind the globe's middle.
+    this.halo = new pc.Entity("halo");
+    this.halo.addComponent("render", {
+      meshInstances: [
+        new pc.MeshInstance(
+          pc.Mesh.fromGeometry(
+            stage.device,
+            new pc.PlaneGeometry({ halfExtents: new pc.Vec2(1.32, 1.32) }),
+          ),
+          haloMaterial(stage),
+        ),
+      ],
+    });
+    this.halo.enabled = false;
+    stage.root.addChild(this.halo);
+    stage.onUpdate(() => {
+      if (!this.halo.enabled) return;
+      // The disc's face (its +y) turned to the camera.
+      this.halo.lookAt(stage.camera.getPosition());
+      this.halo.rotateLocal(-90, 0, 0);
+    });
     this.marker = new pc.Entity("marker");
     this.marker.addComponent("render", {
       meshInstances: [
@@ -33,22 +84,62 @@ export class GlobeScene {
       n = grid.count,
       positions = new Float32Array(n * 3);
     for (let c = 0; c < n; c++) {
-      const r = globeRadius(elevation[c]!);
+      // Seabeds a little under the sea's shell, so its gloss lies over them.
+      const r = elevation[c]! <= 0 ? 0.997 : globeRadius(elevation[c]!);
       positions[c * 3] = grid.positions[c * 3]! * r;
       positions[c * 3 + 1] = grid.positions[c * 3 + 1]! * r;
       positions[c * 3 + 2] = grid.positions[c * 3 + 2]! * r;
     }
-    const indices = new Uint32Array(grid.triangles);
+    // Every triangle its own three corners, with its face's normal, wound to face out:
+    // facets, not a blur.
+    const tris = grid.triangles.length / 3,
+      corners = new Int32Array(tris * 3),
+      at = new Float32Array(tris * 9),
+      normals = new Float32Array(tris * 9),
+      indices = new Uint32Array(tris * 3);
+    for (let t = 0; t < tris; t++) {
+      const o = 9 * t;
+      for (let k = 0; k < 3; k++) {
+        const cell = grid.triangles[3 * t + k]!;
+        corners[3 * t + k] = cell;
+        at[o + 3 * k] = positions[3 * cell]!;
+        at[o + 3 * k + 1] = positions[3 * cell + 1]!;
+        at[o + 3 * k + 2] = positions[3 * cell + 2]!;
+      }
+      const ux = at[o + 3]! - at[o]!,
+        uy = at[o + 4]! - at[o + 1]!,
+        uz = at[o + 5]! - at[o + 2]!,
+        vx = at[o + 6]! - at[o]!,
+        vy = at[o + 7]! - at[o + 1]!,
+        vz = at[o + 8]! - at[o + 2]!;
+      let nx = uy * vz - uz * vy,
+        ny = uz * vx - ux * vz,
+        nz = ux * vy - uy * vx;
+      const outward = nx * at[o]! + ny * at[o + 1]! + nz * at[o + 2]! >= 0;
+      if (!outward) [nx, ny, nz] = [-nx, -ny, -nz];
+      const len = Math.hypot(nx, ny, nz) || 1;
+      for (let k = 0; k < 3; k++) {
+        normals[o + 3 * k] = nx / len;
+        normals[o + 3 * k + 1] = ny / len;
+        normals[o + 3 * k + 2] = nz / len;
+      }
+      indices[3 * t] = 3 * t;
+      indices[3 * t + 1] = outward ? 3 * t + 1 : 3 * t + 2;
+      indices[3 * t + 2] = outward ? 3 * t + 2 : 3 * t + 1;
+    }
     const mesh = new pc.Mesh(this.stage.device);
-    mesh.setPositions(positions);
-    mesh.setNormals(pc.calculateNormals(Array.from(positions), Array.from(indices)));
-    mesh.setColors32(new Uint8Array(n * 4).fill(128));
+    mesh.setPositions(at);
+    mesh.setNormals(normals);
+    this.colors = new Uint8Array(tris * 12).fill(128);
+    mesh.setColors32(this.colors);
     mesh.setIndices(indices);
     mesh.update();
     const material = new pc.StandardMaterial();
     material.diffuseVertexColor = true;
     material.diffuse = new pc.Color(1, 1, 1);
-    material.gloss = 0.15;
+    // Matte facets: the era's plain lit colour, no sheen.
+    material.specular = new pc.Color(0.06, 0.06, 0.08);
+    material.gloss = 0.1;
     material.update();
     this.entity?.destroy();
     this.entity = new pc.Entity("globe");
@@ -57,10 +148,13 @@ export class GlobeScene {
     this.grid = grid;
     this.mesh = mesh;
     this.positions = positions;
+    this.corners = corners;
+    this.sea.enabled = this.halo.enabled = true;
   }
 
   set visible(on: boolean) {
     if (this.entity) this.entity.enabled = on;
+    this.sea.enabled = this.halo.enabled = on && this.entity !== null;
     if (!on) this.marker.enabled = false;
   }
 
@@ -68,10 +162,20 @@ export class GlobeScene {
     return this.grid !== null;
   }
 
-  /** Recolour the globe (RGBA per cell). */
+  /** Recolour the globe (RGBA per cell): each facet the colour most of its three cells have. */
   paint(colors: Uint8Array): void {
-    if (!this.mesh) return;
-    this.mesh.setColors32(colors);
+    if (!this.mesh || !this.corners || !this.colors) return;
+    const cells = new Uint32Array(colors.buffer, colors.byteOffset, colors.length >> 2),
+      out = new Uint32Array(this.colors.buffer),
+      k = this.corners;
+    for (let t = 0; t < k.length; t += 3) {
+      const a = cells[k[t]!]!,
+        b = cells[k[t + 1]!]!,
+        c = cells[k[t + 2]!]!,
+        face = a === b || a === c ? a : b === c ? b : a;
+      out[t] = out[t + 1] = out[t + 2] = face;
+    }
+    this.mesh.setColors32(this.colors);
     this.mesh.update();
   }
 
@@ -110,4 +214,41 @@ export class GlobeScene {
     if (axis.length() > 1e-6) q.setFromAxisAngle(axis.normalize(), (angle * 180) / Math.PI);
     this.marker.setLocalRotation(q);
   }
+}
+
+/** A soft ring of light, clear in the middle (the globe hides it) and fading outward. */
+function haloMaterial(stage: Stage): pc.StandardMaterial {
+  const size = 256,
+    canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const g = canvas.getContext("2d")!,
+    r = size / 2,
+    rim = 1 / 1.32,
+    grad = g.createRadialGradient(r, r, 0, r, r, r);
+  grad.addColorStop(0, "rgba(0,0,0,0)");
+  grad.addColorStop(rim * 0.9, "rgba(0,0,0,0)");
+  grad.addColorStop(rim, "rgba(120,210,255,0.85)");
+  grad.addColorStop(rim + (1 - rim) * 0.35, "rgba(60,120,255,0.35)");
+  grad.addColorStop(1, "rgba(20,40,120,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, size, size);
+  const texture = new pc.Texture(stage.device, {
+    width: size,
+    height: size,
+    format: pc.PIXELFORMAT_RGBA8,
+    mipmaps: true,
+  });
+  texture.setSource(canvas);
+  const m = new pc.StandardMaterial();
+  m.useLighting = false;
+  m.diffuse = new pc.Color(0, 0, 0);
+  m.emissive = new pc.Color(1, 1, 1);
+  m.emissiveMap = texture;
+  m.opacityMap = texture;
+  m.opacityMapChannel = "a";
+  m.blendType = pc.BLEND_ADDITIVEALPHA;
+  m.depthWrite = false;
+  m.cull = pc.CULLFACE_NONE;
+  m.update();
+  return m;
 }

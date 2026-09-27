@@ -2491,6 +2491,17 @@ is kept while a ruler, a split or a grievance cites it (a change of ruler at a f
 land's seat is still its news), and living memory runs as long as the people's oldest
 can live (`livingMemory`: the apes' 120 years exactly): alien 55's save from 19.2 MB to
 13.2, Earth's history kept a little lighter, its dynamics unchanged.
+
+45, as built: the Phase 4 gate passes. A hundred open worlds, nine centuries each: eight
+body plans among the peoples, in all three media; four ways the worlds end (17 lifeless,
+17 foragers, 58 with realms, 8 industrial); 71 distinct orders of the first eight finds;
+eight house forms, five arms; a people of the water — radial swimmers — coming to power by
+tide mills, without fuel, in year 467 (alien 41); none growing faster than 2.41-fold a
+century; every save within its bound; the Earth seed within its bands (the Phase 3 gate).
+A world's slowest year is judged alone on the machine, as a phone would run it (worlds run
+four abreast share the machine and slow one another by about 1.7×): the four that were over
+side by side were within alone — alien 41 459 ms (bound 663), alien 51 1,280 (1,666),
+alien 13 1,550 (2,296), alien 61 1,652 (2,758).
 ### I.6 Phase 6 milestones (planned 2026-09-26, during the Phase 5 gate)
 
 Phase 6's "done when" (Part VII): within about two thousand game years of its first
@@ -2573,6 +2584,112 @@ warming), or makes a star flare or calm (every land under its light finds death 
 or rarer). Gates: `npm run gate:5` (Earth to 1400 with a light and a heavy sea world; CI
 runs Earth to its first satellite) and `npm run gate:6` (Earth two thousand years past its
 first launch).
+
+### I.7 Phase 7 milestones (planned 2026-09-26, with the Phase 5 and 6 gates running)
+
+Phase 7's "done when" (Part VII): the brief's §29 journey can be performed end to end by
+a player on an iPhone — generate → discover an alien planet → examine its ecosystem and
+species → a civilization → its technology → a city → an unimportant citizen → a formative
+memory → migration → war → economic conflict → deposit → geology → back out →
+spaceflight → colony → divergence → new states → interplanetary or interstellar war. No
+new layers: every page, instrument and why the journey passes through, whole and quick on
+the phone.
+
+66. **The journey, walked by a machine**: a Playwright walk of the §29 journey at the
+    phone's viewport in WebKit, each step a check that its page opens, says what it is
+    and answers "why?"; the steps the observatory cannot yet take listed, and taken in
+    turn by the milestones below.
+67. **The living world's pages**: a species' page (its lineage, niche, where it lives and
+    why, what it is to the people — tamed, sown, hunted); the world's ecosystem lens.
+68. **A civilization's pages**: a realm's page (its lands, rulers, institutions, wars,
+    pacts, and why it is so), and a people's technology — what it knows, in what order,
+    and why each was found or learned.
+69. **Economic conflict**: disputes of trade — embargoes, tolls, rivalry over a market —
+    as events of the ordinary rules, with their pages and whys; the economy's lens.
+70. **From a place down into the ground**: a deposit's page (what it is, which deep age
+    laid it, the plate it lies on), a plate's page, the ages of the world's deep past.
+71. **Onboarding**: the first run — a universe to choose (Earth, an alien world, the
+    sandbox, a seed), a short guided walk of the observatory, help where it is needed.
+72. **Saves that last**: saves kept in the browser's store, autosave, loading any save of
+    an older ruleset (history kept, the future by the new rules), and a save's page.
+73. **The phone's budgets**: frames, memory and time at the phone floor — the galaxy's
+    time at centuries a minute, every scale's first frame within a second, the heap held.
+74. **The Earth seed tuned to its end**: the calibration past nine centuries — the space
+    age, colonies, the stars — each turning point in a band, and the chronicle's words
+    read through for sense.
+75. **Phase 7 gate**: the journey walked end to end on an iPhone viewport in WebKit, every
+    step answered with its why, within the phone's budgets; the first version complete.
+
+The art track (decided 2026-09-26, question 11: low-poly, procedural, the look of an
+early-2000s computer game), beside 66–74 and before the gate's final pass:
+
+- **A1 The look**: one palette and light for every scale — flat, vertex-coloured
+  facets under a hard key light and a soft fill, fog to a gradient sky; the interface's
+  panels bevelled and glossy in the manner of the era, still readable on a phone.
+- **A2 Bodies**: each species' figure built from its body plan (limbs, heads, skin, size,
+  medium), with a simple walk and idle, and clothing or tools by what its people know.
+- **A3 Places**: houses by the realized building design, fields, trees, roads and walls
+  in villages and cities, instanced within the phone's budget.
+- **A4 The world from above**: the globe and region faceted and textured by biome, water
+  with a lit surface, an atmosphere's rim, and day and night.
+
+66–74, as built so far: `tools/journey.ts` walks the §29 journey in WebKit at a phone's
+viewport — an open world three centuries on (planet, sky, a species, a realm, what they
+know, a town, a citizen, a memory, a move, a war, trade, a deposit and the ground beneath
+it) and the Earth seed in its space age (the sky, a colony, its drift, a state of its own,
+a war out there) — each step opening its page and asking why, and reports what is missing.
+The living world: every wild lineage in a place opens its why; a "Life" lens greens the
+lands where most kinds of beast live. Economic conflict: war shuts the trade between the
+warring realms' lands (an embargo, told once, its why the war). The chronicle can be asked
+for kinds of event at any importance. A first visit is welcomed (Earth, a world never
+seen, the sandbox; how to watch); a world is saved and loaded from the world's line, and
+kept on its own every five minutes (the in-thread host keeps saves too). The calibration
+has bands for the space age (the first satellite 950–1150, the first colony 1150–1350, the
+first ship to a star 1250–1800), checked by runs that long.
+
+The pages (M67, M68, M70): a land's lines open pages of their own over the inspector, with
+the way back — a wild lineage (what it is, the age it arose in, the lands it lives in, where
+the people sow it, herd it or hunted it out), a realm (its lands and people, its rulers and
+those before, what its seat knows in the order it came to know it, its wars and the trade
+they shut, its neighbours), a deposit (what laid it, the plate it lies on and the one it met,
+the age that buried it), a plate (its crust, drift, ores and the plates it meets) and the
+world's deep ages. Each is a pure read (a test holds the world's hashes unchanged by
+asking). Saves (M72): the saves page lists every save the browser keeps (its world, year,
+size, and whether it was carried to newer rules), loads one (another world's in its own
+page, by `?load=`), keeps a copy as a file and opens one; a save of older rules loads though
+the stores changed (a retired store is let go, a new one starts afresh). Onboarding (M71):
+after the welcome, a guided walk in the bar shows one thing at a time — tap a land, ask why,
+a lens, closer or out to the sky — moving on as the viewer does it; Help walks it again.
+
+The long run's budgets (M73, for the Phase 6 gate's 3100 years): a hungry land's births and
+deaths are reckoned by the quarter (a fed land's by the year, a land under an act or the
+hand by the month), each land keeping the last month it has been reckoned through so no
+month is counted twice or missed when the hand lifts; a land's yearly lines are kept by the
+century past a thousand years, and past a century without their trades; and ancestry fades
+as the chronicle does — past the first step of aging, an event below what its age asks is
+kept only as a direct cause of something kept that has not faded (its why opens one step;
+beyond it the past is forgotten into the summaries).
+
+The Earth seed tuned (M74, first pass): a land's births and deaths were reckoned for the
+year ahead in the year's first month, at that month's hunger — the month just after the
+year's imports and tribute land — so a land fed one month and starving eleven was
+reckoned as fed, and grew to eight times what fed it (at year 3000 a land of 3.5 million
+ate a ninth of its need). Each land now counts every month's shortfall and fed-squared,
+and is reckoned after the months, by them: since a death's chance compounds by the sum
+of the months' pressures, the months at once are the months one by one. With it the
+demographic transition is the fuller one of the world we know (TRANSITION 0.6: five
+children a woman fall to two as power makes a people wealthy). The calibration keeps its
+bands to year 1400 (the satellite 999, the first colony 1192); the world settles near half
+a billion from year 1000, its famines the droughts of lands at their limit (some thirty a
+year).
+
+The look (A1, A4 begun): the interface is navy glass framed in chrome bevels, with glossy
+buttons, title bars, a chrome logotype and Verdana; the page paints the backdrop behind a
+clear canvas — a starfield in space, the bright gradient sky of the era on the ground,
+with haze toward the horizon — and in space the key light keeps to the viewer's upper
+left. The globe is faceted (each triangle flat, coloured by the most of its three cells)
+in a saturated palette under a glossy sea, with a blue glow at its rim. `tools/look.ts`
+takes the look at a phone's size.
 
 ### J. Allocation of ~100k lines
 
@@ -2694,6 +2811,14 @@ can be rewritten later if these hold.
    history; the god's hand is the act (§9). This also settles question 10:
    watching never slows fast-forward.
 
+**Decided 2026-09-26**
+
+11. **Art direction** — stylized low-poly, procedural, in the look of an
+    early-2000s (Y2K) computer game: flat and vertex-coloured shading under a hard
+    key light, chunky silhouettes, saturated palettes, gradient skies, and bevelled,
+    glossy panels for the interface. Done as an art track beside Phase 7's UI and
+    UX milestones, before the Phase 7 gate's final pass (§I.7).
+
 **Still open**
 
 5. **How big is the playable galaxy?** The plan assumes a cluster of
@@ -2710,8 +2835,7 @@ can be rewritten later if these hold.
    god and observer an open-ended universe with optional "chapters" (first
    city, first flight, first contact) is the natural default.
 10. *(Settled by 4.)*
-11. **Art direction.** Stylized low-poly (recommended for procedural and
-    phone budgets) or something heavier?
+11. *(Decided 2026-09-26: see above.)*
 12. **Multiplayer, ever?** The plan does not assume it; lockstep multiplayer
     would add constraints on command timing. Sharing seeds and pure runs
     works without it.

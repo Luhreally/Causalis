@@ -1,6 +1,15 @@
 // The page's handle on the simulation host: requests with promised replies,
 // subscriptions, the latest frame of each view, and status.
-import type { FrameMessage, Interest, Port, Query, Status, ToHost, ToMain } from "./protocol.ts";
+import type {
+  FrameMessage,
+  Interest,
+  Port,
+  Query,
+  SaveMeta,
+  Status,
+  ToHost,
+  ToMain,
+} from "./protocol.ts";
 
 export type CommandReceipt = { readonly id: string; readonly t: number };
 
@@ -76,10 +85,14 @@ export class HostClient {
   load(name: string): Promise<{ t: number; fellBack: boolean }> {
     return this.request((id) => ({ kind: "load", id, name }));
   }
+  /** The saves kept, newest first. */
+  saves(): Promise<SaveMeta[]> {
+    return this.request((id) => ({ kind: "saves", id }));
+  }
   exportSave(): Promise<Uint8Array> {
     return this.request((id) => ({ kind: "export", id }));
   }
-  importSave(bytes: Uint8Array): Promise<{ t: number }> {
+  importSave(bytes: Uint8Array): Promise<{ t: number; universe: string; seed: string }> {
     const copy = bytes.slice();
     return this.request((id) => ({ kind: "import", id, bytes: copy }), [copy.buffer]);
   }

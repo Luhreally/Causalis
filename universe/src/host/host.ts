@@ -27,7 +27,7 @@ import {
   type ToHost,
   type ToMain,
 } from "../bridge/index.ts";
-import { SaveSlots, decodeSave, encodeSave, type ByteStore } from "./storage.ts";
+import { SaveSlots, decodeSave, encodeSave, listSaves, type ByteStore } from "./storage.ts";
 
 /** A frame's content. A `key` equal to the last frame sent for the view means nothing changed: it is not sent again. */
 export type FramePayload = {
@@ -297,6 +297,10 @@ export class SimHost {
           this.reply(m.id, { t: got.value.now, fellBack: got.fellBack });
           return;
         }
+        case "saves": {
+          this.reply(m.id, this.options.storage ? await listSaves(this.options.storage) : []);
+          return;
+        }
         case "export": {
           this.dropSteps();
           const bytes = await encodeSave(this.document());
@@ -304,9 +308,16 @@ export class SimHost {
           return;
         }
         case "import": {
-          const doc = await decodeSave(m.bytes);
-          const universe = this.universe!;
-          this.reply(m.id, { t: this.load(universe, doc).now });
+          // A save of any universe this host knows: built by that universe's rules.
+          const doc = await decodeSave(m.bytes),
+            named = (doc.meta as { universe?: unknown } | undefined)?.universe,
+            universe =
+              (typeof named === "string" ? this.universes[named] : undefined) ?? this.universe!;
+          this.reply(m.id, {
+            t: this.load(universe, doc).now,
+            universe: universe.name,
+            seed: doc.seed,
+          });
           return;
         }
       }

@@ -36,6 +36,8 @@ export type ToHost =
   | { readonly kind: "save"; readonly id: number; readonly name: string }
   | { readonly kind: "load"; readonly id: number; readonly name: string }
   | { readonly kind: "export"; readonly id: number }
+  /** The saves kept: each one's world, time and size. */
+  | { readonly kind: "saves"; readonly id: number }
   | { readonly kind: "import"; readonly id: number; readonly bytes: Uint8Array }
   /** Run the world to a time at once (tests, tools and the skip). */
   | { readonly kind: "advance"; readonly id: number; readonly to: number };
@@ -81,3 +83,18 @@ export interface Port<In, Out> {
 export function frameTransfer(frame: FrameMessage): Transferable[] {
   return Object.values(frame.arrays).map((a) => a.buffer as ArrayBuffer);
 }
+
+/** A save as the saves page lists it: which world, how far on, how big, under how many rulesets. */
+export type SaveMeta = {
+  readonly name: string;
+  readonly universe: string;
+  readonly seed: string;
+  /** The world's time, seconds. */
+  readonly t: number;
+  readonly bytes: number;
+  /** How many rulesets its history has run under (more than one: carried to newer rules). */
+  readonly rulesets: number;
+  /** When it was written (the device's clock, milliseconds; for ordering the list only). */
+  readonly savedAt: number;
+  readonly count: number;
+};

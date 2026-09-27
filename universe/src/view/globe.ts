@@ -16,6 +16,7 @@ export const LENSES = [
   "rain",
   "plates",
   "resources",
+  "life",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -31,26 +32,28 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   rain: "Rain",
   plates: "Plates",
   resources: "Ores",
+  life: "Life",
 };
 
-// Biome colours, in the order of gen's BIOME codes.
+// Biome colours, in the order of gen's BIOME codes: the bright, saturated earth of an
+// early-2000s game (art track A1) — blue seas, green woods, sandy deserts, white ice.
 const BIOME_COLORS: readonly Rgb[] = [
-  [0.07, 0.17, 0.35],
-  [0.1, 0.25, 0.47],
-  [0.2, 0.44, 0.62],
-  [0.84, 0.9, 0.95],
-  [0.94, 0.95, 0.97],
-  [0.6, 0.62, 0.53],
-  [0.22, 0.36, 0.27],
-  [0.7, 0.66, 0.56],
-  [0.7, 0.67, 0.42],
-  [0.28, 0.47, 0.24],
-  [0.16, 0.4, 0.26],
-  [0.86, 0.76, 0.52],
-  [0.72, 0.65, 0.35],
-  [0.43, 0.52, 0.24],
-  [0.12, 0.38, 0.15],
-  [0.6, 0.58, 0.56],
+  [0.03, 0.12, 0.42],
+  [0.05, 0.22, 0.6],
+  [0.1, 0.46, 0.76],
+  [0.86, 0.94, 1],
+  [0.97, 0.98, 1],
+  [0.6, 0.66, 0.5],
+  [0.12, 0.42, 0.26],
+  [0.78, 0.72, 0.54],
+  [0.8, 0.76, 0.38],
+  [0.24, 0.58, 0.2],
+  [0.08, 0.5, 0.3],
+  [0.97, 0.82, 0.46],
+  [0.86, 0.72, 0.28],
+  [0.52, 0.64, 0.16],
+  [0.05, 0.5, 0.15],
+  [0.62, 0.58, 0.55],
 ];
 
 export const DEPOSIT_COLORS: readonly Rgb[] = [
@@ -108,6 +111,11 @@ const RAIN: readonly Stop[] = [
   [800, [0.45, 0.66, 0.3]],
   [1600, [0.15, 0.5, 0.35]],
   [3000, [0.12, 0.3, 0.7]],
+];
+const LIFE: readonly (readonly [number, Rgb])[] = [
+  [1, [0.5, 0.58, 0.32]],
+  [2, [0.25, 0.6, 0.25]],
+  [4, [0.08, 0.45, 0.18]],
 ];
 
 function hue(h: number, s: number, v: number): Rgb {
@@ -231,6 +239,12 @@ export function globeColors(
             ? [base[0] * 0.7, base[1] * 0.7, base[2] * 0.75]
             : [grey * 0.65, grey * 0.65, grey * 0.6];
         }
+        break;
+      }
+      case "life": {
+        // How many kinds of beast live here: the rich forests and savannas green, the barren grey.
+        const d = a.diversity ? a.diversity[c]! : 0;
+        col = sea ? [0.12, 0.16, 0.24] : d > 0 ? ramp(LIFE, d) : [0.35, 0.33, 0.3];
         break;
       }
       case "resources": {

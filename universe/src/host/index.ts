@@ -20,6 +20,7 @@ export {
   SaveSlots,
   decodeSave,
   encodeSave,
+  listSaves,
   requestPersistentStorage,
   type ByteStore,
 } from "./storage.ts";
