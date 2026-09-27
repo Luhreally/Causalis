@@ -188,18 +188,18 @@ function ecologyRows(e: NonNullable<ProvinceFacts>["ecology"]): [string, string 
   for (const l of e.lost)
     rows.push([
       l.niche === "hunter"
-        ? `The ${l.name} were driven out of here`
+        ? `The ${l.name} was driven out of here`
         : `The ${l.name} was hunted out here`,
       l.ref,
     ]);
   // Its hunters, where they are thinned, and what they take from the flocks.
   if (e.hunters && e.hunters.stock < 0.6)
     rows.push([
-      `The ${e.hunters.name} are few here: ${pct(Math.min(1, e.hunters.stock))} in a hundred of what the game once kept`,
+      `Few of the ${e.hunters.name} are left here: ${pct(Math.min(1, e.hunters.stock))} in a hundred of what the game once kept`,
       e.hunters.ref,
     ]);
   if (e.hunters && e.flocksTaken)
-    rows.push([`The ${e.hunters.name} take from the flocks here`, e.flocksTaken]);
+    rows.push([`The ${e.hunters.name} takes from the flocks here`, e.flocksTaken]);
   return rows;
 }
 

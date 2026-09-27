@@ -22,7 +22,9 @@ registerEventWords(ECOLOGY_EVENTS.huntedOut.type, (world, e) => {
 });
 registerEventWords(ECOLOGY_EVENTS.huntersGone.type, (world, e) => {
   const beast = (e.data as { beast?: unknown } | null)?.beast;
-  return `The ${typeof beast === "string" ? beast : "hunters"} were driven out of ${landWords(world, e.place)}, ${year(e.t)}`;
+  return typeof beast === "string"
+    ? `The ${beast} was driven out of ${landWords(world, e.place)}, ${year(e.t)}`
+    : `The hunters were driven out of ${landWords(world, e.place)}, ${year(e.t)}`;
 });
 registerEventWords(ECOLOGY_EVENTS.flocksTaken.type, (world, e) => {
   const beast = (e.data as { beast?: unknown } | null)?.beast,
