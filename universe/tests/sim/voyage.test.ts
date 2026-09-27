@@ -48,6 +48,12 @@ test("a ship sails for another star as a land of its realm, its people living ab
   assert.ok(ctx.provinces.get(cell)!.total() > 400, "its people aboard");
   assert.equal(politiesOf(world).of(cell)?.ref, realm.ref);
   assert.match(landWords(world, ctx.provinces.get(cell)!.ref), /the ship bound for/);
+  // The star in words, never its ref.
+  assert.doesNotMatch(landWords(world, ctx.provinces.get(cell)!.ref), /\w+:\d+:\d+/);
+  assert.match(
+    landWords(world, ctx.provinces.get(cell)!.ref),
+    /(red dwarf|orange star|yellow star|white star|blue star|white dwarf)/,
+  );
   // Its why: the star (explained as another star), and the drive.
   const e = world.events.get(ship.voyage)!;
   assert.equal(e.type, VOYAGE_EVENTS.sailed.type);

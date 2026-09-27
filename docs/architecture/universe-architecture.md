@@ -2718,6 +2718,18 @@ unfolds when given something new), and the camera frames its subject below the b
 covers the top of the screen; a star wears a corona and the orbits the HUD's cyan (one
 glow module draws the globe's rim of air and the star's light).
 
+The chronicle read through for sense (M74), every kind of event at year 1600: no claim
+shows a raw ref (a test holds it); numbers carry their separators; halls "were" first
+lived in; a land that breaks away "went its own way"; a friendship breaks over a thing, not
+a clause (the famine term is "the hunger of X for their stores"); a star is named by its
+light ("a red dwarf 2.9 light-years out"); round and long houses say so first; works halls
+leave no dangling comma. And what reading found in the world itself: a land rose against
+the realm it already belonged to (a rebellion now needs another realm to return to); sealed
+halls on other worlds had droughts and hunted-out game (they have no weather and no wild);
+and a ship between the stars ran its works on coal, then on wind and water (sealed lands
+now burn no coal or oil, and have a drive of their own: electric motors on the atom's
+power, when they know habitats and the atom).
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

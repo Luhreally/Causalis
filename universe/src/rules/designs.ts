@@ -697,7 +697,22 @@ export const REALIZATIONS: readonly Realization[] = [
     () => "driven by engines that burn oil",
     (m) => ({ output: 0.8, cost: 0.15 + MATERIAL[m].cost }),
   ),
+  // Sealed halls on another world and ships between the stars: no fuel to dig, no wind or
+  // river — their works run on the atom's power (only such lands may build it).
+  R(
+    "sealed-power",
+    "drive",
+    ["habitats", "nuclear-drive"],
+    ["steel", "iron", "stone", "earth"],
+    () => "run by electric motors, their power raised by the atom",
+    () => ({ output: 0.85, cost: 0.3 }),
+  ),
 ];
+
+/** Drives only sealed lands (halls on another world, ships between the stars) may build. */
+export const SEALED_DRIVES: readonly string[] = ["sealed-power"];
+/** Drives sealed lands cannot build: the open air's wind and water. */
+export const OPEN_AIR_DRIVES: readonly string[] = ["wheel-and-sail"];
 
 /** Weights over the performance axes: what a people want of what they build. */
 export type Doctrine = Partial<Record<Axis, number>>;
@@ -723,12 +738,14 @@ export function compose(
   has: (m: Material) => boolean,
   doctrine: Doctrine,
   body?: BodyPlan,
+  /** Which realizations this place may build at all (by id); all by default. */
+  allow: (realization: string) => boolean = () => true,
 ): Part[] {
   const parts: Part[] = [];
   for (const role of roles) {
     let best: { part: Part; value: number } | null = null;
     for (const r of REALIZATIONS) {
-      if (r.role !== role || !r.needs.every(knows)) continue;
+      if (r.role !== role || !allow(r.id) || !r.needs.every(knows)) continue;
       // A realization for particular bodies is for those alone; one that asks something
       // of a body is for the bodies that can.
       if (r.fits && !(body && r.fits(body))) continue;
@@ -782,11 +799,15 @@ export function designWords(parts: readonly Part[]): string {
     const guard = parts.find((p) => p.role === "guard");
     return `${say("arm")}${guard && guard.id !== "bare" ? ` and ${say("guard")}` : ""}, ${say("mount")}`;
   }
-  if (parts.some((p) => p.role === "hall")) return `${say("hall")}, ${say("drive")}`;
+  if (parts.some((p) => p.role === "hall"))
+    return [say("hall"), say("drive")].filter(Boolean).join(", ");
   if (parts.some((p) => p.id === "tent")) return "tents of hide";
   const form = say("form"),
     roof = parts.find((x) => x.role === "roof");
-  return `houses of ${say("walls")}${roof?.id === "open" ? ", open to the water above" : roof ? ` with ${say("roof")}` : ""}${form === "round" ? ", round" : form === "long" ? ", long" : form ? `, ${form}` : ""}`;
+  // Round and long houses say so first; other forms follow ("built around courtyards").
+  const before = form === "round" || form === "long" ? `${form} ` : "",
+    after = form && !before ? `, ${form}` : "";
+  return `${before}houses of ${say("walls")}${roof?.id === "open" ? ", open to the water above" : roof ? ` with ${say("roof")}` : ""}${after}`;
 }
 
 /** How steep a roof is, in degrees, by its kind and the rain it sheds. */

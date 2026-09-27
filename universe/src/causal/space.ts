@@ -44,7 +44,7 @@ registerEventWords(VOYAGE_EVENTS.arrived.type, (_world, e) => {
 
 registerEventWords(CONTACT_EVENTS.heard.type, (_world, e) => {
   const d = (e.data ?? {}) as { realm?: string; distance?: number; clade?: string; sent?: number };
-  return `The realm of ${d.realm ?? "a people"} heard the signals of another people, ${d.clade ?? "strangers"} of a world ${d.distance ?? "?"} light-years away — sent in our year ${d.sent ?? "?"}, heard only now, year ${yearOfMoment(e.t)}`;
+  return `The realm of ${d.realm ?? "a people"} heard the signals of another people — ${d.clade ?? "strangers"}, of a world ${d.distance ?? "?"} light-years away — sent in our year ${d.sent ?? "?"}, heard only now, year ${yearOfMoment(e.t)}`;
 });
 
 registerEventWords(STARWAR_EVENTS.declared.type, (_world, e) => {

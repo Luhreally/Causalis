@@ -270,7 +270,7 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
         .find((e) => e && t - e.t <= 2 * YEAR);
       if (famine && count)
         terms.push({
-          name: `${realmName(hungry)} covets their stores`,
+          name: `the hunger of ${realmName(hungry)} for their stores`,
           value: -0.25,
           source: famine.id,
         });

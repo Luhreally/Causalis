@@ -89,6 +89,8 @@ export {
   MATERIALS,
   REALIZATIONS,
   compose,
+  OPEN_AIR_DRIVES,
+  SEALED_DRIVES,
   designWords,
   hostPower,
   performanceOf,

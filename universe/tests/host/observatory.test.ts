@@ -137,3 +137,12 @@ test("a lineage, a realm, a deposit, a plate and the deep ages each have a page,
   assert.ok(ages.length >= 4 && ages.every((a) => a.claim.includes("million years ago")));
   assert.equal(JSON.stringify(world.domainHashes()), before, "a page is a pure read");
 });
+
+test("history is told in words: no event's claim shows a raw ref", () => {
+  const leaks = new Map<string, string>();
+  for (const e of world.events.all()) {
+    const claim = why(world, e.id).claim;
+    if (/\b[a-z]{2,6}:\d+:\d+\b/.test(claim) && !leaks.has(e.type)) leaks.set(e.type, claim);
+  }
+  assert.equal(leaks.size, 0, [...leaks].map(([t, c]) => `${t}: ${c}`).join("\n"));
+});

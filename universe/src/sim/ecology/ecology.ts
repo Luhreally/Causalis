@@ -19,7 +19,7 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { BIOME, isProvinceWorld, lives, type HomeWorld } from "../../gen/index.ts";
+import { BIOME, isProvinceWorld, lives, offworldSite, type HomeWorld } from "../../gen/index.ts";
 import { OCC, PRODUCTIVITY } from "../../rules/index.ts";
 import type { Capacity } from "../population/model.ts";
 import { provinceCapacity, type PopulationContext } from "../population/systems.ts";
@@ -183,7 +183,8 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
     year = yearOfMoment(t);
   for (const p of ctx.provinces.all()) {
     const pop = p.total();
-    if (!pop) continue;
+    // (Sealed halls on another world have no wild to thin, no forest, no open soil.)
+    if (!pop || offworldSite(g, p.cell)) continue;
     const w = wildsOf(ctx, p.cell),
       c = provinceCapacity(ctx, p.cell),
       // What the foragers take of what the wild yields, and how much of the land's

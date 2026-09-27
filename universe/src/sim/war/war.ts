@@ -313,13 +313,17 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     };
   for (const r of diplomacy.all()) {
     if (fighting.has(pairKey(r.a, r.b))) continue;
-    const covets = r.terms.find((x) => /covets their stores/.test(x.name));
+    const covets = r.terms.find((x) => /for their stores$/.test(x.name));
     // Without hatred or hunger there is no will to war, whatever else holds.
     if (!covets && -r.opinion - -RIVALRY <= 0) continue;
     const a0 = realms.get(r.a)!,
       b0 = realms.get(r.b)!;
     // The one who resents more, or hungers, attacks: the stronger of the two by default.
-    const hungry = covets ? (covets.name.startsWith(realmName(a0)) ? a0 : b0) : null,
+    const hungry = covets
+        ? covets.name === `the hunger of ${realmName(a0)} for their stores`
+          ? a0
+          : b0
+        : null,
       [sa, sb] = [strength(a0), strength(b0)],
       attacker = hungry ?? (sa >= sb ? a0 : b0),
       defender = attacker === a0 ? b0 : a0,
@@ -368,7 +372,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     ];
     // The rivalry's own reasons, as they stood — so the war's why holds when the realms are gone.
     for (const term of r.terms
-      .filter((x) => x.value < 0 && x.source && !/covets their stores/.test(x.name))
+      .filter((x) => x.value < 0 && x.source && !/for their stores$/.test(x.name))
       .sort((x, y) => x.value - y.value || (x.name < y.name ? -1 : 1))
       .slice(0, 2))
       factors.push({
@@ -580,7 +584,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       const d = realms.discontent(c),
         former = realms.formerly(c),
         home = former ? realms.get(former) : undefined;
-      if (!home || home.ended !== null || d.level < 0.8) continue;
+      if (!home || home.ref === p.ref || home.ended !== null || d.level < 0.8) continue;
       const touches = (() => {
         for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++)
           if (home.members.includes(g.grid.neighbours[k]!)) return true;

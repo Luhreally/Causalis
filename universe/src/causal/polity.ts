@@ -71,7 +71,7 @@ registerEventWords(POLITY_EVENTS.succession.type, (_, e) => {
 });
 registerEventWords(POLITY_EVENTS.split.type, (_, e) => {
   const lands = (e.data as Data)?.lands;
-  return `${cap(realm(e.data))} broke apart at a death: ${typeof lands === "number" ? count(lands) : "its far"} land${lands === 1 ? "" : "s"} went their own way, ${year(e.t)}`;
+  return `${cap(realm(e.data))} broke apart at a death: ${typeof lands === "number" ? count(lands) : "its far"} ${lands === 1 ? "land went its" : "lands went their"} own way, ${year(e.t)}`;
 });
 registerEventWords(POLITY_EVENTS.reformed.type, (_, e) => {
   const to = text(e.data, "to");

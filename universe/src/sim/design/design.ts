@@ -19,7 +19,7 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { BIOME, cellRef, surfaceOre } from "../../gen/index.ts";
+import { BIOME, cellRef, offworldSite, surfaceOre } from "../../gen/index.ts";
 import {
   G,
   HOST_ROLES,
@@ -32,6 +32,8 @@ import {
   type Doctrine,
   type Material,
   type Part,
+  OPEN_AIR_DRIVES,
+  SEALED_DRIVES,
 } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
@@ -309,8 +311,10 @@ export function worksFor(ctx: PopulationContext, cell: number): Part[] | null {
     // Fuel is at hand where the land digs or draws it, or has it in store.
     fuel = (g: number, seam: "coal" | "oil") =>
       (m?.stock[g] ?? 0) > 0 || surfaceOre(ctx.generated, cell, seam);
-  if (fuel(G.coal, "coal")) at.add("coal");
-  if (fuel(G.oil, "oil")) at.add("oil");
+  // (Sealed halls on another world and ships between the stars burn no coal or oil.)
+  const sealed = !!offworldSite(ctx.generated, cell);
+  if (!sealed && fuel(G.coal, "coal")) at.add("coal");
+  if (!sealed && fuel(G.oil, "oil")) at.add("oil");
   if (knows(ctx, cell, "iron")) at.add("iron");
   if (knows(ctx, cell, "steel") || knows(ctx, cell, "refined-metals")) at.add("steel");
   const crafts = p.occupation(OCC.crafter) / Math.max(1, p.total()),
@@ -326,6 +330,7 @@ export function worksFor(ctx: PopulationContext, cell: number): Part[] | null {
     (x) => at.has(x),
     doctrine,
     ctx.generated.life.people?.body,
+    (id) => (sealed ? !OPEN_AIR_DRIVES.includes(id) : !SEALED_DRIVES.includes(id)),
   );
 }
 

@@ -634,6 +634,11 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     acts = actsOf(world);
   for (const p of ctx.provinces.all()) {
+    // Sealed halls on another world have no rain to fail.
+    if (offworldSite(ctx.generated, p.cell)) {
+      p.rain = 1000;
+      continue;
+    }
     // Rain withheld or sent by the god's hand moves the year's rain.
     const act = acts.at(p.cell, "rain", t),
       key = refHash(p.ref),

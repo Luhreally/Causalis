@@ -314,17 +314,36 @@ export function landWords(world: World, place: Ref | null): string {
     site = offworldSite(g, c);
   if (site && site.body < 0) {
     const ship = starSitesOf(world)?.get(c);
-    return ship
-      ? ship.arrived
-        ? `the halls on a world of ${ship.star}, ${ship.distance.toFixed(1)} light-years out`
-        : `the ship bound for ${ship.star}`
-      : "a ship";
+    if (!ship) return "a ship";
+    const star = clusterOf(world).find((x) => x.ref === ship.star),
+      where = `${star ? starKind(star) : "a star"} ${ship.distance.toFixed(1)} light-years out`;
+    return ship.arrived ? `the halls on a world of ${where}` : `the ship bound for ${where}`;
   }
   if (site) return `the halls on ${g.system.bodies[site.body]!.designation}`;
   if (c >= g.grid.count) return "the land";
   const lat = g.grid.lat[c]!,
     lon = g.grid.lon[c]!;
   return `the ${BIOME_NAMES[g.climate.biome[c]!]} at ${deg(lat)}${lat >= 0 ? "N" : "S"} ${deg(lon)}${lon >= 0 ? "E" : "W"}`;
+}
+
+/** A star of the cluster in plain words, by its light: a red dwarf, a yellow star, a white dwarf. */
+export function starKind(s: { spectral: string; remnant: boolean }): string {
+  if (s.remnant) return "a white dwarf";
+  switch (s.spectral[0]) {
+    case "O":
+    case "B":
+      return "a blue star";
+    case "A":
+      return "a white star";
+    case "F":
+      return "a yellow-white star";
+    case "G":
+      return "a yellow star";
+    case "K":
+      return "an orange star";
+    default:
+      return "a red dwarf";
+  }
 }
 
 /** Whether a ref names a generated thing this module explains. */

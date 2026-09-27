@@ -86,7 +86,7 @@ const num = (data: unknown, key: string): number | null => {
   return typeof v === "number" ? v : null;
 };
 const people = (n: number | null, fallback: string) =>
-  n === null ? fallback : `${n} ${n === 1 ? "person" : "people"}`;
+  n === null ? fallback : `${count(n)} ${n === 1 ? "person" : "people"}`;
 
 const E = POPULATION_EVENTS;
 registerEventWords(
@@ -111,12 +111,15 @@ registerEventWords(E.migration.type, (world, e) => {
   const to = e.subjects[1] ?? null;
   return `${people(num(e.data, "count"), "People")} set out from ${landWords(world, e.place)}${to ? ` for ${landWords(world, to)}` : " for new land"}, year ${yearOfMoment(e.t)}`;
 });
-registerEventWords(E.peopled.type, (world, e) =>
-  `${landWords(world, e.place)} was first lived in, year ${yearOfMoment(e.t)}${num(e.data, "people") === null ? "" : `, by ${people(num(e.data, "people"), "")}`}`.replace(
+registerEventWords(E.peopled.type, (world, e) => {
+  const land = landWords(world, e.place),
+    // (Halls are many: "the halls on I were first lived in".)
+    were = /^the halls/.test(land) ? "were" : "was";
+  return `${land} ${were} first lived in, year ${yearOfMoment(e.t)}${num(e.data, "people") === null ? "" : `, by ${people(num(e.data, "people"), "")}`}`.replace(
     /^the/,
     "The",
-  ),
-);
+  );
+});
 registerEventWords(
   E.cultivation.type,
   (world, e) =>
