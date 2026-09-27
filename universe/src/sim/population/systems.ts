@@ -37,7 +37,14 @@ import {
   type Region,
 } from "../../gen/index.ts";
 import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
-import { FLOCK_LOSS, ecologyOf, living, wildsOf } from "../ecology/ecology.ts";
+import {
+  FLOCK_LOSS,
+  ecologyOf,
+  grainLost,
+  living,
+  waterYield,
+  wildsOf,
+} from "../ecology/ecology.ts";
 import { peopleAffords, peopleLife } from "./life.ts";
 import { airOf, heatYield, rainShift, smokeIn } from "../climate/air.ts";
 import { powerOf } from "../economy/systems.ts";
@@ -388,7 +395,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         saturate(c.forage, p.occupation(OCC.forager), PRODUCTIVITY[OCC.forager]! * gathers) *
           rain *
           wilds *
-          alive.wild,
+          alive.wild *
+          waterYield(alive),
       ],
       [
         G.grain,
@@ -400,7 +408,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
             ) *
             rain *
             fields *
-            alive.soil
+            alive.soil *
+            (1 - grainLost(alive))
           : 0,
       ],
       [

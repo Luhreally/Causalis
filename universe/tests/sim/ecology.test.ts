@@ -10,7 +10,9 @@ import {
   makePopulationWorld,
   marketsOf,
   populationContext,
+  grainLost,
   stepWilds,
+  waterYield,
   wildsOf,
   type Wilds,
 } from "../../src/sim/index.ts";
@@ -30,6 +32,16 @@ const fresh = (): Wilds => ({
   hunter: 0,
   hunters: 1,
   flocksTaken: null,
+  huntersLeft: null,
+  small: 1,
+  lesserOf: 1,
+  lesser: 1,
+  scavengerOf: 2,
+  carrion: 1,
+  fish: 1,
+  multiplied: null,
+  grainEaten: null,
+  fishFew: null,
 });
 
 test("pressed hard, the living world gives way; let be, it heals", () => {
@@ -42,7 +54,8 @@ test("pressed hard, the living world gives way; let be, it heals", () => {
   // Fields clear the forest at once, take the wild's ground, and wear the soil...
   const farmed = fresh();
   for (let y = 0; y < 40; y++) stepWilds(farmed, 0, 0.8, 0);
-  assert.ok(farmed.forest <= 0.2 + 1e-9 && farmed.wild <= 0.36 + 1e-9);
+  // (The game a little past the ground's share, its hunters thinned with it.)
+  assert.ok(farmed.forest <= 0.2 + 1e-9 && farmed.wild <= 0.36 * 1.2 + 1e-9);
   assert.ok(farmed.soil < 0.8, `worn soil ${farmed.soil.toFixed(2)}`);
   // ...unless the fields are rested in turn and dunged.
   const rested = fresh();
@@ -94,7 +107,7 @@ test("the default world's lands keep their hunters, and where herders guard thei
   assert.ok(told.length > 0, "hunters driven out or flocks taken somewhere");
   for (const e of told.slice(0, 5)) {
     const s = life.species.find((x) => x.ref === e.subjects[0]);
-    assert.equal(s?.niche, "hunter", "a hunting lineage");
+    assert.ok(s?.niche === "hunter" || s?.niche === "small hunter", "a hunting lineage");
     assert.match(why(world, e.id).claim, new RegExp(s!.name));
   }
 });
@@ -144,7 +157,7 @@ test("a land's harvest is what its soil still gives; its wood, what its forest s
   assert.ok(!landMaterials(ctx, cell).has("wood"));
   const c = living(
     { forage: 100, farm: 200, pasture: 50, areaKm2: 10 },
-    { ...wildsOf(ctx, cell), wild: 0.5, soil: 0.25 },
+    { ...wildsOf(ctx, cell), wild: 0.5, soil: 0.25, small: 1, fish: 1 },
   );
   assert.deepEqual([c.forage, c.farm, c.pasture], [50, 50, 50]);
 });
@@ -167,4 +180,97 @@ test("where people press the land hard, its turns for the worse enter history", 
     );
     assert.match(why(world, e.id).claim, /soils of .* wore thin under the plough/);
   }
+});
+
+test("a land let be keeps every level of its web as it was", () => {
+  const w = fresh();
+  for (let y = 0; y < 100; y++) stepWilds(w, 0, 0, 0, 0);
+  for (const [name, v] of [
+    ["wild", w.wild],
+    ["small", w.small],
+    ["lesser", w.lesser],
+    ["carrion", w.carrion],
+    ["fish", w.fish],
+    ["hunters", w.hunters],
+  ] as const)
+    assert.ok(Math.abs(v - 1) < 1e-9, `${name} ${v}`);
+});
+
+test("where its hunters are driven out, the game multiplies past what it was and browses the woods back", () => {
+  const gone = { ...fresh(), lost: [0], hunters: 0 },
+    kept = fresh();
+  for (const w of [gone, kept]) w.forest = 0.3;
+  for (let y = 0; y < 40; y++) {
+    stepWilds(gone, 0, 0, 0, 0);
+    stepWilds(kept, 0, 0, 0, 0);
+  }
+  assert.ok(gone.wild > 1.15 && gone.wild <= 1.2 + 1e-9, `game ${gone.wild.toFixed(2)}`);
+  assert.equal(kept.wild, 1);
+  assert.ok(
+    gone.forest < kept.forest - 0.1,
+    `browsed woods ${gone.forest.toFixed(2)} against ${kept.forest.toFixed(2)}`,
+  );
+  // And the scavengers, living on the kills, dwindle with the hunters gone; with the game
+  // hunted hard as well, fewer still.
+  assert.ok(gone.carrion < 0.6, `scavengers ${gone.carrion.toFixed(2)}`);
+  const bare = { ...fresh(), lost: [0], hunters: 0 };
+  for (let y = 0; y < 60; y++) stepWilds(bare, 0.99, 0, 0, 0);
+  assert.ok(bare.carrion < gone.carrion * 0.5, `scavengers ${bare.carrion.toFixed(2)}`);
+});
+
+test("farmers and herders drive off the small hunters, and the small game eats the grain", () => {
+  const w = fresh();
+  for (let y = 0; y < 80; y++) stepWilds(w, 0, 0.9, 1, 0.3);
+  assert.ok(w.lesser < 0.4, `small hunters ${w.lesser.toFixed(2)}`);
+  assert.ok(w.small > 1.05, `small game ${w.small.toFixed(2)}`);
+  assert.ok(grainLost(w) > 0.01 && grainLost(w) <= 0.06 + 1e-9, `grain lost ${grainLost(w)}`);
+  // The capacity the land offers counts it.
+  const c = living({ forage: 100, farm: 200, pasture: 50, areaKm2: 10 }, w);
+  assert.ok(c.farm < 200 * w.soil);
+  // Where the small hunters stand, the small game keeps no more than the ground and fields give.
+  const kept = { ...fresh(), lesserOf: -1, lesser: 0 };
+  for (let y = 0; y < 80; y++) stepWilds(kept, 0, 0.9, 1, 0.3);
+  assert.ok(kept.small < w.small, "fewer small game where nothing was driven off");
+});
+
+test("fished hard, the waters grow poor and the wild's food with them; let be, they come back", () => {
+  const w = fresh();
+  for (let y = 0; y < 30; y++) stepWilds(w, 0.95, 0, 0, 0);
+  assert.ok(w.fish < 0.4, `fish ${w.fish.toFixed(2)}`);
+  assert.ok(waterYield(w) < 0.95);
+  for (let y = 0; y < 40; y++) stepWilds(w, 0, 0, 0, 0);
+  assert.ok(w.fish > 0.9, `fish ${w.fish.toFixed(2)}`);
+  // A land with no water has no fish to lose.
+  const dry = { ...fresh(), fish: -1 };
+  for (let y = 0; y < 30; y++) stepWilds(dry, 0.95, 0, 0, 0);
+  assert.equal(dry.fish, -1);
+  assert.equal(waterYield(dry), 1);
+});
+
+test("the web's turns for the worse enter history, each with its why", () => {
+  const world = makePopulationWorld(seedFromText("first light"));
+  world.runTo(120 * YEAR);
+  const ctx = populationContext(world),
+    home = homePlanet(world).generated.life.people!.cell,
+    cell = ctx.provinces
+      .all()
+      .filter((p) => p.total() > 0 && p.knowsCultivation && wildsOf(ctx, p.cell).fish >= 0)
+      .map((p) => p.cell)
+      .sort((a, b) => Number(b === home) - Number(a === home) || a - b)[0]!;
+  const place = ctx.provinces.get(cell)!.ref;
+  // Its waters fished down, and its small game grown thick in the fields.
+  ecologyOf(world).set({ ...wildsOf(ctx, cell), fish: 0.2, small: 1.4 });
+  world.runTo(122 * YEAR);
+  const told = (type: string) =>
+    world.events.all().filter((e) => e.type === type && e.place === place);
+  const fish = told(ECOLOGY_EVENTS.fishFew.type),
+    grain = told(ECOLOGY_EVENTS.grainEaten.type);
+  assert.equal(fish.length, 1, "the fish grown few, told once");
+  assert.equal(grain.length, 1, "the grain eaten, told once");
+  assert.match(why(world, fish[0]!.id).claim, /The fish of .* grew few, fished hard/);
+  assert.match(why(world, grain[0]!.id).claim, /of .* ate \d+ in a hundred of its grain/);
+  // The land remembers them while they last.
+  const w = wildsOf(ctx, cell);
+  assert.equal(w.fishFew, fish[0]!.id);
+  assert.equal(w.grainEaten, grain[0]!.id);
 });

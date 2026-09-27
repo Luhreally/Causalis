@@ -227,8 +227,9 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
     const g = ctx.generated,
       w = wildsOf(ctx, cell),
       land = ctx.provinces.get(cell),
-      // Every beast of the land's web, with its body (M83): the game by what the wild holds,
-      // its hunters by their own number, the rest by the game they live beside.
+      // Every beast of the land's web, with its body (M83), each as its level stands (M84):
+      // the game by what the wild holds, the small game by what the ground and the fields
+      // keep, each hunter and scavenger by its own number, the swimmers by the waters'.
       wild = livingIn(g.life, cell)
         .filter((s) => !w.lost.includes(s.index) && s.body !== null)
         .map((s) => ({
@@ -240,11 +241,15 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
           stock:
             s.niche === "hunter"
               ? w.hunters
-              : s.niche === "scavenger"
-                ? (w.hunters + w.wild) / 2
-                : s.niche === "swimmer"
-                  ? 1
-                  : w.wild,
+              : s.niche === "small hunter"
+                ? w.lesser
+                : s.niche === "scavenger"
+                  ? w.carrion
+                  : s.niche === "swimmer"
+                    ? Math.max(0, w.fish)
+                    : s.niche === "seed-eater"
+                      ? w.small
+                      : w.wild,
           body: s.body,
         })),
       pop = land?.total() ?? 0,

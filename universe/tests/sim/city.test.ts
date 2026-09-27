@@ -9,9 +9,12 @@ import {
   USE,
   blockAt,
   citiesOf,
+  homePlanet,
   layout,
   makePopulationWorld,
+  populationContext,
 } from "../../src/sim/index.ts";
+import { OCC } from "../../src/rules/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 
 /** How far a city's blocks of the given uses lie from its road, in blocks, on average. */
@@ -58,14 +61,28 @@ test("towns grow into cities, and paving reshapes them, answering to the road's 
     assert.ok(learned.type === LORE_EVENTS.found.type || learned.type === LORE_EVENTS.learned.type);
     assert.equal((learned.data as { principle: string }).principle, "roads");
   }
-  if (unpaved.length) {
-    const mean = (cs: typeof cities) =>
-      cs.reduce((s, c) => s + marketsFromRoad(c.uses, c.axis), 0) / cs.length;
+  // Each paved city's trade stands nearer its road than the same town's would unpaved
+  // (weighed against itself, not against other towns on other headings).
+  const ctx = populationContext(world),
+    river = homePlanet(world).generated.water.river;
+  for (const c of paved) {
+    const town = ctx.settlements.all().find((t) => t.ref === c.town)!,
+      p = ctx.provinces.get(c.cell)!,
+      share = Math.min(1, town.population / Math.max(1, p.total())),
+      dirt = layout(
+        town.population,
+        Math.round(p.occupation(OCC.crafter) * share * 3),
+        Math.round(p.occupation(OCC.trader) * share * 3),
+        c.axis,
+        false,
+        !!river[c.cell],
+      );
     assert.ok(
-      mean(paved) < mean(unpaved),
-      `paved ${mean(paved).toFixed(2)}, not ${mean(unpaved).toFixed(2)}`,
+      marketsFromRoad(c.uses, c.axis) <= marketsFromRoad(dirt, c.axis) + 0.05,
+      `${town.name}: ${marketsFromRoad(c.uses, c.axis).toFixed(2)} paved, ${marketsFromRoad(dirt, c.axis).toFixed(2)} were it not`,
     );
   }
+  assert.ok(unpaved.length + paved.length === cities.length);
 });
 
 test("the microscope over a city shows its quarters, its homes in its housing blocks or on open ground, never on a temple, market or workshop", () => {

@@ -8,6 +8,7 @@ import {
   actsOf,
   agentName,
   designsOf,
+  grainLost,
   wildsOf,
   interestsOf,
   beliefOf,
@@ -256,6 +257,29 @@ function province(world: World, cell: number) {
               }
             : null,
         flocksTaken: w.flocksTaken,
+        // The web's other levels (M84): its small game, small hunters, scavengers, fish.
+        small: w.small,
+        lesser:
+          w.lesserOf >= 0 && !w.lost.includes(w.lesserOf)
+            ? {
+                name: g.life.species[w.lesserOf]!.name,
+                ref: g.life.species[w.lesserOf]!.ref,
+                stock: w.lesser,
+              }
+            : null,
+        scavengers:
+          w.scavengerOf >= 0 && !w.lost.includes(w.scavengerOf)
+            ? {
+                name: g.life.species[w.scavengerOf]!.name,
+                ref: g.life.species[w.scavengerOf]!.ref,
+                stock: w.carrion,
+              }
+            : null,
+        fish: w.fish < 0 ? null : w.fish,
+        grainLost: grainLost(w),
+        multiplied: w.multiplied,
+        grainEaten: w.grainEaten,
+        fishFew: w.fishFew,
       };
     })(),
     // Their works and power: what drives their crafts, the fuel and machines they make.

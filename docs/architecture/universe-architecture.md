@@ -3000,6 +3000,25 @@ where its food lives, and one with nothing to eat anywhere died out. The species
 96 lineages (three words a cell). A lineage's why and page say its body and its place in the
 web.
 
+84, as built. Each peopled land's living world holds the web's levels beside its game,
+forest, soil and hunters (sim/ecology): its small game, of the wild ground and — more
+thickly — of the fields' grain; its small hunters, which follow the small game and give way
+to the farmers and herders who guard their grain and young stock; its scavengers, which live
+on the hunters' kills and the herds' own dead; the life of its waters, where it has a river,
+a lake or a coast. Each level is set by what it eats and pressed by what eats it, and grows
+past what it was where what eats it is thinned or gone: a land whose hunters were driven off
+keeps more game (to a fifth more), and that game browses the woods' saplings, so the forest
+comes back slower; a land whose small hunters were driven off breeds small game past what
+its fields keep, and the small game eats the grain (up to six in a hundred of it); waters
+fished hard give less of the wild's food until they are let be. Each turn is history with
+its why — the game multiplying, the grain eaten, the fish grown few, a small hunter driven
+out, the scavengers leaving with the kills — and the land's page tells it; a village's
+beasts are as many as their level stands. Measured on the Earth seed: the web barely moves
+while people are few; by year 700, 362 lands have driven out their hunters, 300 have fished
+their waters down and 69 lose grain to the small game; the calibration's every band holds
+(135M people at year 600 against 134M before). A city test that weighed paved against
+unpaved towns on different headings was replaced by each paved town weighed against itself.
+
 85, as built. The fifteen fixed beast shapes are gone: every creature is built of boxes from
 its lineage's body (view/creature.ts) — a chest and a haunch (a row of segments for a
 many-legged body; a slitherer's segments narrowing to the tail and waving as it goes; a

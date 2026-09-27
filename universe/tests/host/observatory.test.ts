@@ -123,19 +123,28 @@ test("a village's plan says what lives about it: the land's game and hunters as 
       wild: { name: string; tame: boolean; niche: string }[];
       ecology: {
         wild: number;
+        small: number;
         hunters: { name: string; stock: number } | null;
+        lesser: { name: string; stock: number } | null;
+        scavengers: { name: string; stock: number } | null;
+        fish: number | null;
         flocksTaken: string | null;
       };
     }>("province", { cell: CRADLE });
-  // Its game and its hunters, each as much of it as the land's living world still holds.
-  // (The land's game on foot; the water's life and the scavengers go by their own.)
-  const game = plan.fauna.wild.filter(
-      (s) => s.niche !== "hunter" && s.niche !== "swimmer" && s.niche !== "scavenger",
+  // Its game and its hunters, each as much of it as its level of the land's web still holds.
+  const game = plan.fauna.wild.filter((s) =>
+      ["grazer", "browser", "great beast"].includes(s.niche),
     ),
     hunters = plan.fauna.wild.filter((s) => s.niche === "hunter");
   assert.ok(game.length >= 1, "game lives about the cradle's village");
   assert.ok(hunters.length >= 1, "and the hunters that live on it");
   for (const s of game) assert.equal(s.stock, folk.ecology.wild);
+  const e = folk.ecology;
+  for (const s of plan.fauna.wild)
+    if (s.niche === "seed-eater") assert.equal(s.stock, e.small);
+    else if (s.niche === "small hunter" && e.lesser) assert.equal(s.stock, e.lesser.stock);
+    else if (s.niche === "scavenger" && e.scavengers) assert.equal(s.stock, e.scavengers.stock);
+    else if (s.niche === "swimmer") assert.equal(s.stock, Math.max(0, e.fish ?? 0));
   assert.equal(hunters[0]!.name, folk.ecology.hunters!.name);
   assert.equal(hunters[0]!.stock, folk.ecology.hunters!.stock);
   // Its flocks, where the land keeps them: of a beast that can be tamed, kept by its herders.

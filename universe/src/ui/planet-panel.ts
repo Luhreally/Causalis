@@ -99,6 +99,14 @@ type ProvinceFacts = {
     lost: { name: string; ref: string; niche: string }[];
     hunters: { name: string; ref: string; stock: number } | null;
     flocksTaken: string | null;
+    small: number;
+    lesser: { name: string; ref: string; stock: number } | null;
+    scavengers: { name: string; ref: string; stock: number } | null;
+    fish: number | null;
+    grainLost: number;
+    multiplied: string | null;
+    grainEaten: string | null;
+    fishFew: string | null;
   };
   lore: { id: string; name: string; year: number; event: string }[];
 } | null;
@@ -187,10 +195,33 @@ function ecologyRows(e: NonNullable<ProvinceFacts>["ecology"]): [string, string 
     rows.push([`Its soils are worn to ${pct(e.soil)} in a hundred of their strength`, e.worn]);
   for (const l of e.lost)
     rows.push([
-      l.niche === "hunter"
+      l.niche === "hunter" || l.niche === "small hunter"
         ? `The ${l.name} was driven out of here`
-        : `The ${l.name} was hunted out here`,
+        : l.niche === "scavenger"
+          ? `The ${l.name} left here with the kills it lived on`
+          : `The ${l.name} was hunted out here`,
       l.ref,
+    ]);
+  // The web's turns: the game past what it was, the grain eaten, the fish few.
+  if (e.multiplied)
+    rows.push([
+      `The game has multiplied here to ${pct(e.wild)} in a hundred of what it was, its hunters thinned`,
+      e.multiplied,
+    ]);
+  if (e.grainEaten && e.grainLost > 0)
+    rows.push([
+      `The small game eats ${Math.max(1, Math.round(e.grainLost * 100))} in a hundred of the grain here`,
+      e.grainEaten,
+    ]);
+  if (e.lesser && e.lesser.stock < 0.5)
+    rows.push([
+      `Few of the ${e.lesser.name} are left here: ${pct(Math.min(1, e.lesser.stock))} in a hundred of what the small game once kept`,
+      e.lesser.ref,
+    ]);
+  if (e.fish !== null && e.fish < 0.7)
+    rows.push([
+      `Its waters are fished down to ${pct(e.fish)} in a hundred of their fish`,
+      e.fishFew,
     ]);
   // Its hunters, where they are thinned, and what they take from the flocks.
   if (e.hunters && e.hunters.stock < 0.6)
