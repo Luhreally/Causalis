@@ -87,7 +87,8 @@ try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } }),
       cdp = await page.context().newCDPSession(page);
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle });
-    await page.goto(base);
+    // (The bare address welcomes a first visit; the world itself is asked for.)
+    await page.goto(`${base}?universe=earth`);
     await page.waitForFunction(
       () => ((globalThis as any).causalis?.drawn?.() ?? 0) > 0,
       undefined,
