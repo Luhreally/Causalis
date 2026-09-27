@@ -4,9 +4,11 @@ import type { FrameMessage } from "../bridge/index.ts";
 import { biomeColor } from "./globe.ts";
 import type { Rgb } from "./sandbox.ts";
 
-export const REGION_LENSES = ["land", "height", "soil"] as const;
+/** The land's own lenses; and "world", the globe's lens seen in the land (Phase 10 M95). */
+export const REGION_LENSES = ["land", "height", "soil", "world"] as const;
 export type RegionLens = (typeof REGION_LENSES)[number];
 export const REGION_LENS_NAMES: Readonly<Record<RegionLens, string>> = {
+  world: "As the map",
   land: "Land",
   height: "Height",
   soil: "Soil",
@@ -22,6 +24,30 @@ export function regionHeights(frame: FrameMessage): Float32Array {
   const e = frame.arrays.elevation!,
     out = new Float32Array(e.length);
   for (let t = 0; t < e.length; t++) out[t] = (Math.max(e[t]!, -60) / 1000) * REGION_RELIEF;
+  return out;
+}
+
+/**
+ * The globe's lens in a land (Phase 10 M95): each tile the colour its spot of the globe is
+ * painted, shaded by the land's own relief — so what is seen on the globe (a realm's
+ * colours, its borders, a faith, the hungry) is seen closer, the same.
+ */
+export function regionFromGlobe(
+  frame: FrameMessage,
+  parent: Int32Array,
+  globe: Uint8Array,
+): Uint8Array {
+  const land = regionColors(frame, "land"),
+    out = new Uint8Array(land.length);
+  for (let t = 0; t < parent.length; t++) {
+    const s = parent[t]!,
+      // (The land's own light and shade over the map's colour.)
+      l = (land[t * 4]! + land[t * 4 + 1]! + land[t * 4 + 2]!) / (3 * 255),
+      k = 0.72 + 0.56 * (l - 0.45);
+    for (let c = 0; c < 3; c++)
+      out[t * 4 + c] = Math.max(0, Math.min(255, Math.round(globe[s * 4 + c]! * k)));
+    out[t * 4 + 3] = 255;
+  }
   return out;
 }
 
@@ -43,7 +69,8 @@ export function regionColors(frame: FrameMessage, lens: RegionLens): Uint8Array 
     if (water === 1) c = [0.05, 0.3, 0.66];
     else if (water === 2) c = [0.14, 0.5, 0.88];
     else if (water === 3) c = [0.1, 0.44, 0.8];
-    else if (lens === "land") c = biomeColor(a.biome![t]!);
+    // (The map's lens without the map's colours to hand: the land as it is.)
+    else if (lens === "land" || lens === "world") c = biomeColor(a.biome![t]!);
     else if (lens === "height") {
       const k = hi > lo ? (e[t]! - lo) / (hi - lo) : 0;
       c = [0.25 + 0.6 * k, 0.45 + 0.35 * k, 0.25 + 0.55 * k];

@@ -104,6 +104,7 @@ export class RegionPanel {
     );
     root.append(this.element);
     this.markLens("land");
+    this.mapLens(null);
     this.visible = false;
   }
 
@@ -117,8 +118,18 @@ export class RegionPanel {
     this.select(null);
   }
 
-  private markLens(lens: RegionLens): void {
+  /** Show the lens chosen (the page chose it: the globe's own, coming down from it). */
+  markLens(lens: RegionLens): void {
     for (const [l, b] of this.lensButtons) b.classList.toggle("on", l === lens);
+  }
+
+  /** The globe's lens, as the land's "as the map" shows it (its name on its button). */
+  mapLens(name: string | null): void {
+    const b = this.lensButtons.get("world");
+    if (!b) return;
+    b.hidden = !name;
+    b.textContent = name ?? "";
+    b.title = name ? `The world's map, ${name.toLowerCase()}, seen in the land` : "";
   }
 
   /** Show a village: its name, its people, its founding, the families met, and why it is there. */

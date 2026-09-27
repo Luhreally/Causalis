@@ -31,6 +31,8 @@ export class GlobeWars {
   private flags: InstancedBatch[] = [];
   /** How many marks were drawn at the last update (for the look tools). */
   drawn = 0;
+  /** Where each host and clash stood at the last update, and its page (for picking). */
+  private marks: { at: V; ref: string }[] = [];
 
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
@@ -190,6 +192,35 @@ export class GlobeWars {
       );
     });
     this.drawn = tokens.length + clashes.length;
+    // (A host's marks stand for its war; a clash for its battle.)
+    this.marks = [
+      ...clashes.map((c) => ({ at: c.at, ref: c.event })),
+      ...tokens.filter((k) => k.lead).map((k) => ({ at: k.at, ref: k.ref })),
+    ];
+  }
+
+  /** The war (a host) or battle (a clash) nearest a screen point, within `reach`: its ref. */
+  pick(x: number, y: number, reach = 22): string | null {
+    if (!this.root.enabled) return null;
+    const cam = this.stage.camera,
+      eye = cam.getPosition(),
+      at = new pc.Vec3(),
+      out = new pc.Vec3();
+    let best: string | null = null,
+      bestD = reach;
+    for (const m of this.marks) {
+      // (Only what faces the eye: a mark on the far side is hidden by the globe.)
+      if (m.at.x * eye.x + m.at.y * eye.y + m.at.z * eye.z <= 0) continue;
+      at.set(m.at.x, m.at.y, m.at.z);
+      cam.camera!.worldToScreen(at, out);
+      if (out.z <= 0) continue;
+      const d = Math.hypot(out.x - x, out.y - y);
+      if (d < bestD) {
+        bestD = d;
+        best = m.ref;
+      }
+    }
+    return best;
   }
 
   destroy(): void {

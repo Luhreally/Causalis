@@ -748,9 +748,22 @@ body.paging .panel:not(.page-panel) .inspector {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-height: 0;
+  margin: 0;
   padding: 1px 9px;
+  border: 0;
   border-right: 1px solid rgba(160, 188, 240, 0.28);
-  cursor: default;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  text-shadow: none;
+  cursor: pointer;
+}
+/* (Each opens what it counts.) */
+.stat-chip:hover {
+  background: rgba(111, 231, 255, 0.14);
 }
 .stat-chip:last-child {
   border-right: 0;
@@ -1150,4 +1163,352 @@ body.paging .panel:not(.page-panel) .inspector {
   margin-top: 6px;
   min-height: 26px;
   font-size: 0.78rem;
+}
+
+/*
+ * Free roam (Phase 10 M98): its buttons under the bar at the upper right, how to steer
+ * beside them, and on a phone, while roaming, a stick at the lower left and up and down.
+ */
+/* The corner's tools (search, free roam): under the scale's bar at the upper right. */
+.corner-tools {
+  position: absolute;
+  z-index: 3;
+  right: 8px;
+  top: calc(var(--bar-bottom, 72px) + 8px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+.corner-tools > * {
+  pointer-events: auto;
+}
+.free-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+.free-controls > * {
+  pointer-events: auto;
+}
+.free-buttons {
+  display: flex;
+  gap: 4px;
+}
+.free-buttons button {
+  min-width: 38px;
+  height: 34px;
+  padding: 0 8px;
+  font-size: 1.05rem;
+}
+.free-buttons button.on {
+  color: #032b24;
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+}
+.free-hint {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.8rem;
+  max-width: min(30rem, calc(100vw - 32px));
+  text-align: right;
+}
+.free-steer {
+  display: none;
+}
+body.roaming .hint {
+  display: none;
+}
+/* (A walker neither rises nor sinks.) */
+.free-controls.walking .free-heights {
+  display: none;
+}
+@media (pointer: coarse) {
+  .free-controls.roaming .free-steer {
+    position: fixed;
+    left: 14px;
+    bottom: calc(18px + var(--safe-bottom));
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+  }
+}
+.free-pad {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(111, 231, 255, 0.18), rgba(8, 22, 60, 0.6));
+  touch-action: none;
+}
+.free-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+.free-heights {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.free-heights button {
+  width: 48px;
+  height: 44px;
+  touch-action: none;
+}
+
+/* Search (Phase 10 M96): a field and what answers it, the era's window under a 🔍. */
+.search {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.search-open {
+  min-width: 38px;
+  height: 34px;
+  padding: 0 8px;
+  font-size: 1.05rem;
+}
+.search-open.on {
+  color: #032b24;
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+}
+.search-box {
+  width: min(24rem, calc(100vw - 16px));
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-solid);
+  box-shadow: 0 6px 18px rgba(0, 0, 18, 0.55);
+}
+.search-field {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: rgba(4, 10, 30, 0.85);
+  color: var(--ink);
+  font: inherit;
+}
+.search-results {
+  max-height: min(50vh, 26rem);
+  overflow: auto;
+  margin-top: 4px;
+}
+.search-result {
+  display: grid;
+  grid-template-columns: 1.7em 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 6px;
+  width: 100%;
+  min-height: 0;
+  margin: 1px 0;
+  padding: 4px 6px;
+  text-align: left;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  box-shadow: none;
+}
+.search-result:hover,
+.search-result:focus-visible {
+  background: rgba(40, 90, 200, 0.35);
+}
+.search-icon {
+  grid-row: span 2;
+  align-self: center;
+  font-size: 1.1rem;
+}
+.search-title {
+  color: var(--ink);
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-sub {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+/* A page's way up: the world, its realm, its land, its town — small, above its words. */
+.page-crumbs {
+  margin: -2px 0 4px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.3;
+}
+.page-crumbs .ref-link {
+  color: var(--muted);
+}
+.page-crumbs .ref-link:hover {
+  color: var(--accent);
+}
+
+/* The outliner (Phase 10 M96): what is followed, under a 📌, each a line that opens its page. */
+.outliner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.outliner-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 38px;
+  height: 34px;
+  padding: 0 8px;
+  font-size: 1.05rem;
+}
+.outliner-open.on {
+  color: #032b24;
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+}
+.outliner-count {
+  min-width: 1.3em;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #d8362f;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.outliner-list {
+  width: min(18rem, calc(100vw - 16px));
+  max-height: min(40vh, 22rem);
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-solid);
+  box-shadow: 0 6px 18px rgba(0, 0, 18, 0.55);
+}
+.outliner-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.outliner-name {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px 6px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--ink);
+  text-align: left;
+  font-size: 0.86rem;
+}
+.outliner-name:hover {
+  background: rgba(40, 90, 200, 0.35);
+}
+.outliner-name span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.outliner-go {
+  min-height: 0;
+  padding: 0 6px;
+  font-size: 0.8rem;
+}
+
+/* The tooltip (Phase 10 M93): what lies under the pointer, in a small window of the era. */
+.tooltip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 20;
+  max-width: 17rem;
+  padding: 6px 9px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--panel-solid);
+  box-shadow: 0 6px 16px rgba(0, 0, 18, 0.6);
+  color: var(--ink);
+  font-size: 0.8rem;
+  line-height: 1.3;
+  pointer-events: none;
+}
+.tip-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+.tip-icon {
+  font-size: 1rem;
+}
+.tip-line {
+  margin-top: 2px;
+  color: var(--muted);
+}
+.tip-stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 8px;
+  margin-top: 4px;
+  font-size: 0.76rem;
+}
+.tip-label {
+  color: var(--muted);
+  text-transform: uppercase;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  align-self: center;
+}
+.tip-more {
+  margin-top: 4px;
+  color: var(--accent);
+  font-size: 0.68rem;
+}
+@media (pointer: coarse) {
+  .tooltip {
+    display: none;
+  }
+}
+
+/* A page's scene action (Phase 10 M94): keep it in view, lit while it is. */
+.scene-act {
+  min-height: 30px;
+}
+.scene-act.on {
+  color: #032b24;
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+}
+
+/* A number's concept (Phase 10 M97): an ⓘ beside its label, opening the book of concepts. */
+.concept-link {
+  margin-left: 4px;
+  color: var(--accent);
+  font-size: 0.85em;
+  text-decoration: none;
+  cursor: help;
+}
+.concept-link:hover {
+  color: #fff;
 }

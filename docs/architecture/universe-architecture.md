@@ -3526,6 +3526,131 @@ Found and mended on the way:
 - Prettier run from the app's folder formats the golden files, which the root's ignore
   list keeps from it. Run it from the root, or on named files.
 
+96, the second part, as built: the corner's tools under the bar, at every scale.
+
+- **Search** (ui/search.ts; host/search.ts "search"). A 🔍, or "/" or Ctrl+K from anywhere,
+  opens a field. As words are typed, every named thing that answers them is listed: realms
+  (the fallen too), towns, lands by their first town, faiths, tongues, wars, living
+  lineages, the people met. Each shows its icon and a few words. The best match comes
+  first: the name itself, then one that begins so, then a word that does, then one that
+  holds the words. Among equals, the greater comes first. A tap, or Enter on the first,
+  opens its page.
+- **The outliner** (ui/outliner.ts): what is followed, under a 📌 with its number, each
+  opening its page, let go of at its ×. The tidings tell it what is followed as it changes.
+- **The top bar's numbers open what they count**:
+  - people: the chronicle's story;
+  - towns, realms, wars, faiths, tongues and colonies: their tabs of the ledger;
+  - the hungry: the food lens.
+- **A page's way up** (host/inspect/crumbs.ts): the world, then the realm, the land, the
+  town and the household a thing is part of, each a link, small above its words. A war's
+  way goes through the ledger to its attacker; a battle's through its war; a faith's,
+  tongue's or lineage's through its tab of the ledger.
+
+98, as built: free roam (view/free.ts, render/free.ts, ui/free.ts).
+
+- **Controls.** A 🎥 takes the camera to fly it, and a 🚶, in a village, walks among the
+  people at the eye's height.
+  - On a desk: W A S D or the arrows go ahead, back and aside by where it faces; E and Q
+    (or Space and C) rise and sink; Shift hurries; a drag looks about; the wheel steps
+    ahead and back; Esc gives the camera back.
+  - On a phone: a stick to push, ▲ ▼ to rise and sink (not walking), a drag to look.
+  - A tap still picks what is there.
+- **Movement.** Over a land or a village it goes on the level (looking down does not dive).
+  In space (the globe, the sky, the stars) it goes the way it looks. It goes twice as fast
+  for each height risen, and over the globe as fast as it is high. It is kept above the
+  ground; a walker, or one flown as low as the roofs, is kept out of the homes' walls; and
+  it stays off the globe's face.
+- **Through the scales by height**, as zooming goes:
+  - up out of a village into its land, and out of the land to the world, facing the spot
+    flown over;
+  - down out of the sky into the land below, and into the village flown down to.
+  A key held stays held across the hand-over.
+- **Giving the camera back** hands the orbit the free camera's view: it turns about where
+  the free camera looked, from where it stood. A scale left by its own buttons takes its
+  own view instead.
+
+Mended on the way (most found by the Phase 10 gate):
+- A land's hosts and battles no longer make their batches anew each year; the same colours
+  keep the same batches.
+- About a globe, up is away from its middle, so rising stays over one spot. Before this it
+  was the scene's up, and a rise drifted toward the pole.
+- Free roam takes the camera from the orbit's own place. The camera lifted clear of the
+  top bar is degrees of a globe's face away.
+- A camera flight (go-to, keep in view) ends when its scale changes, when free roam takes
+  the camera, or when a spot is faced outright. Before, a flight left frozen resumed
+  scales later and turned the globe elsewhere.
+- Zooming out of a land reads only that land's map, never one not yet replaced.
+- Flown far out from the globe, the flight goes on into its sky, and its speed is bounded.
+- A dive over the sea near a coast comes down in the nearest land, a few spots off.
+
+93, as built: everything can be looked at, and opened.
+
+- **A tooltip** on a desk (ui/tooltip.ts; the host's "tip"). What the pointer rests on, in a
+  few words: its icon and name, the line under its name and its first numbers (its page's).
+  It is asked once the pointer has rested a moment on a thing and kept a while for the
+  next time. A tap opens the page.
+- **What is picked** (main's refAt; the same for a tap):
+  - on the globe: a town, a host (its war), a battle's clash (the battle), else the land;
+  - in a land: a host or a battle, a village, else the land;
+  - in a village: a person, a beast, a bird on the wing, a fish leaping, the soldiers of
+    its battle (the battle), a home (its household, if met, else its town's families), a
+    field (its town);
+  - among the stars: a ship under way (its voyage), a hall founded (its land), a fleet or a
+    battle between the stars (its event), else a star;
+  - in the sky: a world.
+
+94, as built: go-to flights and keeping in view.
+
+- **Flights.** Where a thing is already in the scene shown, "go to" flies there, not a
+  fade (render/orbit.ts flyTo; view/zoom.ts flightAt):
+  - round the globe to a spot;
+  - across a land to a tile;
+  - through a village to a person.
+  A flight is eased at both ends, turns the short way, and changes its distance at a
+  zoom's pace; on a long way it draws back in its middle and comes in again. The viewer's
+  touch ends it.
+- **Swoops.** Come to another scale, the view is drawn back a little and swoops in to
+  where the thing stands.
+- **Keeping in view.** A person's page, in their village, has a "🎯 Keep in view": the view
+  eases after them as they go, a drag still turning about them. "Go to" a person keeps
+  them in view too. Another scale, or another village, lets them go.
+
+95, the second part, as built: the globe's lens seen in the land. Come down from the
+globe while it shows a lens other than its terrain (realms, faiths, tongues, diplomacy,
+war, people, food…), the land shows that lens too. Its lens row gains the lens's own name,
+lit. Each tile takes the colour its spot of the globe is painted, shaded by the land's own
+relief (view/region.ts regionFromGlobe). So a realm's colours and its borders, a faith's
+reach and the hungry are seen closer, the same.
+
+97, as built: the book of concepts (host/inspect/concepts.ts).
+
+- **Eighteen concepts**, each a page (`concept:<id>`) saying what it is, what drives it,
+  what it leads to, where to see it (the ledger's and the chronicle's tabs), and the
+  concepts it is bound up with: being fed, the growth of peoples, grievance, the tithe,
+  realms and rule, war, regard between realms, faith, tongues, what is known, markets and
+  prices, the web of eating, herding, towns and cities, weather and climate, watching and
+  the god's hand, flight and colonies, the ages. They were written from a reading of the
+  simulation's own rules, and say only what the code does.
+- **Numbers linked.** A page's numbers link to their concepts by their labels (Fed, Food
+  put by, Grievance, Tithe, Fallen, Speakers…): an ⓘ beside the label opens the concept.
+  Only concepts the book has are linked.
+- **The book's index** opens from the top bar (📖 Concepts). A concept's way up leads to
+  it.
+
+99, as built: the Phase 10 gate (tools/phase10-gate.ts, `npm run gate:10`, in CI after the
+Phase 9 gate). On the built app, in a real browser, it checks what was asked for:
+- every kind of thing opens as a page, its numbers linked to the book of concepts, its way
+  up shown;
+- a tooltip tells what the pointer rests on;
+- the political map names its realms, and its modes show their legends; the top bar's
+  realms open the ledger's; search finds a realm by its seat's name; what is followed is
+  in the outliner; the chronicle and the ledger have their comparisons;
+- a battle on the globe, zoomed into toward the pointer, is in its land, and its village
+  faces the fight; zoomed out again, the globe;
+- "go to" flies within the globe, and a person can be kept in view;
+- free roam walks a village, flies up out of it through its land to the world, dives into a
+  land again, and gives the camera back.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

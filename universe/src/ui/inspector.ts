@@ -68,6 +68,7 @@ export class PageWindow {
   private readonly tallButton = el("button", "tall", "⤢");
   private readonly portrait = el("canvas", "portrait");
   private readonly sub = el("div", "page-sub");
+  private readonly crumbs = el("nav", "page-crumbs");
   private readonly live = el("div", "page-live");
   private readonly actions = el("div", "page-actions");
   private readonly stats = el("div", "stats");
@@ -96,6 +97,13 @@ export class PageWindow {
   onClose: () => void = () => {};
   /** Told when the viewer asks why (a fact's why, a number's parts). */
   onAsked: () => void = () => {};
+  /**
+   * The scene's own actions for a page (M94): keep a person in view, while they are in the
+   * scene shown. Each its words, whether it is on, and what it does.
+   */
+  sceneActions: (
+    page: PageModel,
+  ) => { label: string; title: string; on: boolean; run: () => void }[] = () => [];
 
   constructor(parent: HTMLElement, client: HostClient) {
     this.client = client;
@@ -120,7 +128,7 @@ export class PageWindow {
     // Under the title: its picture beside its words, its doings, its numbers.
     const head = el("div", "page-head"),
       words = el("div", "page-head-words");
-    words.append(this.sub, this.live, this.actions, this.stats);
+    words.append(this.crumbs, this.sub, this.live, this.actions, this.stats);
     head.append(this.portrait, words);
     this.portrait.hidden = true;
     // The title bar: back and forward, the thing's icon and name, and the window's boxes.
@@ -235,6 +243,8 @@ export class PageWindow {
     this.backButton.disabled = this.at <= 0;
     this.forwardButton.disabled = this.at >= this.history.length - 1;
     this.sub.replaceChildren(this.line(page.subtitle));
+    this.crumbs.replaceChildren(this.line(page.crumbs ?? []));
+    this.crumbs.hidden = !page.crumbs?.length;
     this.drawPortrait(page);
     this.drawActions(page);
     this.drawStats(page);
@@ -277,13 +287,30 @@ export class PageWindow {
     }
     if (page.followable && this.tidings)
       parts.push(this.tidings.follow(page.ref, FOLLOW_WORDS[page.kind] ?? "this"));
+    for (const a of this.sceneActions(page)) {
+      const b = el("button", a.on ? "scene-act on" : "scene-act", a.label);
+      b.title = a.title;
+      b.setAttribute("aria-pressed", String(a.on));
+      b.onclick = () => {
+        a.run();
+        this.drawActions(page);
+      };
+      parts.push(b);
+    }
     this.actions.replaceChildren(...parts);
+  }
+
+  /** Draw the open page's actions again (the scene's changed: a person followed, or let go). */
+  redrawActions(): void {
+    if (this.page) this.drawActions(this.page);
   }
 
   private drawStats(page: PageModel): void {
     const chips = page.stats.map((s) => {
-      const chip = el("button", "stat");
-      chip.append(el("span", "stat-label", s.label), this.line(s.value, "stat-value"));
+      const chip = el("button", "stat"),
+        label = el("span", "stat-label", s.label);
+      if (s.concept) label.append(this.conceptLink(s.concept, s.label));
+      chip.append(label, this.line(s.value, "stat-value"));
       const more = !!s.parts?.length || !!s.why;
       if (more) chip.classList.add("more");
       chip.onclick = (e) => {
@@ -386,6 +413,20 @@ export class PageWindow {
       else box.append(this.link(s.text, s.ref));
     }
     return box;
+  }
+
+  /** An ⓘ opening the concept a number is a measure of (M97). */
+  private conceptLink(concept: string, label: string): HTMLElement {
+    const a = el("a", "concept-link", "ⓘ");
+    a.href = `#concept:${concept}`;
+    a.title = `What is ${label.toLowerCase()}?`;
+    a.setAttribute("aria-label", `What is ${label.toLowerCase()}?`);
+    a.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      void this.open(`concept:${concept}`);
+    };
+    return a;
   }
 
   /** A name that opens its page: a link in the line's words, wrapping with them. */
@@ -524,8 +565,11 @@ export class PageWindow {
 
   /** A fact: its label, its value (names linked), and — asked — its why and its parts. */
   private fact(r: Stat, key: string): HTMLElement {
-    const row = el("div", "fact");
-    row.append(el("span", "fact-label", r.label), this.line(r.value, "fact-value"));
+    const row = el("div", "fact"),
+      label = el("span", "fact-label", r.label);
+    // (What it is a measure of: its page in the book of concepts.)
+    if (r.concept) label.append(this.conceptLink(r.concept, r.label));
+    row.append(label, this.line(r.value, "fact-value"));
     if (r.why || r.parts?.length) {
       const ask = el("button", "ask", "?"),
         more = el("div", "fact-more");

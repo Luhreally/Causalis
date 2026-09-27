@@ -24,6 +24,7 @@ export class RegionWars {
   private readonly stage: Stage;
   private readonly box: pc.Mesh;
   private land: LandWars | null = null;
+  private colorKey = "";
   private height: (x: number, z: number) => number = () => 0;
   private sides: InstancedBatch[] = [];
   private flags: InstancedBatch[] = [];
@@ -62,8 +63,12 @@ export class RegionWars {
   set(land: LandWars | null, height: (x: number, z: number) => number): void {
     this.land = land;
     this.height = height;
+    const colors = land?.colors ?? [],
+      key = JSON.stringify(colors);
+    // (The same colours as before: the same batches, not made anew each year.)
+    if (key === this.colorKey) return;
+    this.colorKey = key;
     for (const b of [...this.sides, ...this.flags]) b.destroy();
-    const colors = land?.colors ?? [];
     this.sides = colors.map((c) => new InstancedBatch(this.stage, this.box, c, MOST, this.root));
     // (Banners a little brighter than their bearers.)
     this.flags = colors.map(
@@ -268,16 +273,18 @@ export class RegionWars {
       out = new pc.Vec3();
     let best: string | null = null,
       bestD = reach;
-    for (const m of this.marks) {
-      at.set(m.x, this.height(m.x, m.z) + 0.8, m.z);
-      cam.worldToScreen(at, out);
-      if (out.z <= 0) continue;
-      const d = Math.hypot(out.x - x, out.y - y);
-      if (d < bestD) {
-        bestD = d;
-        best = m.ref;
+    for (const m of this.marks)
+      // (At the mark, or at its name over it: either is it.)
+      for (const lift of [0.8, 3]) {
+        at.set(m.x, this.height(m.x, m.z) + lift, m.z);
+        cam.worldToScreen(at, out);
+        if (out.z <= 0) continue;
+        const d = Math.hypot(out.x - x, out.y - y);
+        if (d < bestD) {
+          bestD = d;
+          best = m.ref;
+        }
       }
-    }
     return best;
   }
 }

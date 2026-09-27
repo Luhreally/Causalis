@@ -20,6 +20,8 @@ export class Tidings {
   private followed = new Map<string, string>();
   private readonly toggles = new Set<{ b: HTMLButtonElement; say: () => void }>();
   private asking = false;
+  /** Told what is followed, each time it changes (the outliner lists it). */
+  onFollowed: (followed: readonly { ref: string; label: string }[]) => void = () => {};
 
   constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
@@ -33,6 +35,13 @@ export class Tidings {
   /** Learn afresh what is followed (after a world is loaded or begun). */
   async refresh(): Promise<void> {
     this.set(await this.client.query<Followed[]>({ type: "observe.watches" }));
+  }
+
+  /** Stop following a thing (from the outliner). */
+  async unfollow(ref: string): Promise<void> {
+    this.set(
+      await this.client.query<Followed[]>({ type: "observe.watch", args: { ref, on: false } }),
+    );
   }
 
   /** A button that follows `ref`, or stops following it: "Follow this land". */
@@ -65,6 +74,7 @@ export class Tidings {
 
   private set(list: Followed[]): void {
     this.followed = new Map(list.map((w) => [w.ref, w.label]));
+    this.onFollowed(list);
     for (const t of this.toggles)
       if (t.b.isConnected) t.say();
       else this.toggles.delete(t);

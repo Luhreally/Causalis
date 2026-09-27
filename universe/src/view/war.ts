@@ -26,7 +26,13 @@ export type WarPath = {
 export type WarPaths = {
   readonly paths: readonly WarPath[];
   readonly colors: readonly (readonly [number, number, number])[];
-  readonly bursts: readonly { readonly at: Vec; readonly size: number; readonly age: number }[];
+  readonly bursts: readonly {
+    readonly at: Vec;
+    readonly size: number;
+    readonly age: number;
+    /** The battle's event (its page). */
+    readonly event: string;
+  }[];
 };
 
 /** How high above the ground the marks stand (a share of the globe's radius), and how many steps a way has. */
@@ -112,6 +118,7 @@ export function warPaths(map: WarsMap, grid: SphereGrid, elevation: Float32Array
           // The larger the more fell.
           size: 0.02 + 0.035 * Math.min(1, Math.log10(1 + f.fallen) / 4),
           age: Math.max(0, map.year - f.year),
+          event: f.event,
         });
   }
   return { paths, colors, bursts };
@@ -119,6 +126,8 @@ export function warPaths(map: WarsMap, grid: SphereGrid, elevation: Float32Array
 
 /** A war's mark on the globe now: where it stands, which way is up and which ahead, its side, whether a ship. */
 export type WarToken = {
+  /** The war it marches in (its page). */
+  readonly ref: string;
   readonly at: Vec;
   readonly up: Vec;
   readonly ahead: Vec;
@@ -160,6 +169,7 @@ export function warTokens(w: WarPaths, s: number): WarToken[] {
       if (m < 0) break;
       const p = at(m);
       out.push({
+        ref: path.ref,
         at: p.at,
         up: norm(p.at),
         ahead: p.ahead,
@@ -176,6 +186,7 @@ export function warTokens(w: WarPaths, s: number): WarToken[] {
     for (const k of [0, 1]) {
       const d = k ? back : held;
       out.push({
+        ref: path.ref,
         at: d.at,
         up: norm(d.at),
         ahead: { x: -d.ahead.x, y: -d.ahead.y, z: -d.ahead.z },

@@ -3,7 +3,13 @@
 // the god's hand) — to its page, and its place for "go to it". Pure reads of the world as
 // it stands (the observer ledger aside, which history never reads): asking never moves it.
 import { parseRef, type World } from "../../kernel/index.ts";
-import { splitPageRef, type PageModel, type Place } from "../../bridge/index.ts";
+import {
+  splitPageRef,
+  type Line,
+  type PageModel,
+  type Place,
+  type Tip,
+} from "../../bridge/index.ts";
 import type { QueryHandler } from "../host.ts";
 import { landOfRef, landPage, spotPage } from "./land.ts";
 import { agentPage, householdPage, memoryPage, personPage, townPage } from "./settled.ts";
@@ -13,11 +19,14 @@ import { agePage, depositPageModel, lineagePage, platePageModel } from "./life.t
 import { bodyPage, civilizationPage, foreignWorldPage, starPageModel } from "./sky.ts";
 import { actPage, decisionPage, eventPage, unknownPage } from "./history.ts";
 import { chroniclePage, ledgerPage } from "./world.ts";
+import { crumbsOf } from "./crumbs.ts";
+import { conceptPage, withConcepts } from "./concepts.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
 function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref === "world:chronicle") return chroniclePage(world, tab ?? undefined);
   if (ref === "world:ledger") return ledgerPage(world, tab ?? undefined);
+  if (ref.startsWith("concept:")) return conceptPage(world, ref);
   if (ref.startsWith("gstar:")) return starPageModel(world, ref);
   if (ref.includes("/")) return foreignWorldPage(world, ref);
   if (ref.startsWith("agent:")) return agentPage(world, ref);
@@ -91,10 +100,12 @@ export function pageOf(world: World, ref: string): PageModel {
   const { ref: base, tab } = splitPageRef(ref);
   let page: PageModel;
   try {
-    page = tidy(build(world, base, tab));
+    page = withConcepts(tidy(build(world, base, tab)));
   } catch {
     return unknownPage(world, base, true);
   }
+  const crumbs = crumbsOf(world, base);
+  if (crumbs.length) page = { ...page, crumbs };
   return tab && !page.tab ? { ...page, tab } : page;
 }
 
@@ -123,11 +134,29 @@ export function placeOf(world: World, ref: string): Place | null {
   return pageOf(world, ref).place;
 }
 
+/**
+ * A thing in a few words, for a tooltip (Phase 10 M93): its icon and name, the line under
+ * its name and its first numbers — its page's, in plain words.
+ */
+export function tipOf(world: World, ref: string): Tip {
+  const p = pageOf(world, ref),
+    plain = (l: Line) => l.map((s) => (typeof s === "string" ? s : s.text)).join("");
+  return {
+    ref,
+    icon: p.icon,
+    title: p.title,
+    line: plain(p.subtitle),
+    stats: p.stats.slice(0, 3).map((s) => ({ label: s.label, value: plain(s.value) })),
+  };
+}
+
 export const INSPECT_QUERIES: Readonly<Record<string, QueryHandler>> = {
   /** Any thing's page, by its ref. */
   page: (world, args) => pageOf(world, (args as { ref: string }).ref),
   /** Where a thing is to be seen. */
   place: (world, args) => placeOf(world, (args as { ref: string }).ref),
+  /** A thing in a few words, for a tooltip. */
+  tip: (world, args) => tipOf(world, (args as { ref: string }).ref),
 };
 
 export { battlePage };

@@ -7,6 +7,7 @@ export { GlobeScene } from "./globe.ts";
 export { GlobeWars } from "./wars.ts";
 export { RegionWars } from "./regionwars.ts";
 export { GlobeTowns, type GlobeTown } from "./towns.ts";
+export { FreeRig } from "./free.ts";
 export { MicroScene } from "./micro.ts";
 export { ParadeScene } from "./parade.ts";
 export { OrbitRig, type OrbitOptions } from "./orbit.ts";

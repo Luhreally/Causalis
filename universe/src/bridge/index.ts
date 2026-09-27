@@ -40,6 +40,7 @@ export {
   type Span,
   type Stat,
   type Tab,
+  type Tip,
 } from "./inspect.ts";
 export type {
   ClusterPlan,

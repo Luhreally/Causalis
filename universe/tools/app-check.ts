@@ -181,12 +181,13 @@ for (const engine of engines) {
         await page.waitForSelector(".page-window .table .entry", { timeout: 10000 });
         if (shotsAt && !query.includes("inline"))
           await page.screenshot({ path: join(shotsAt, `${engine}-market.png`) });
-        // Their language, and the globe coloured by languages (hues by family).
+        // Their language, and the globe coloured by languages (hues by family). (A label's
+        // own words come first; its ⓘ to the book of concepts follows them.)
         await page.click(".page-window .tab:has-text('People')");
         await page.waitForFunction(
           () =>
             [...document.querySelectorAll(".page-window .fact-label")].some(
-              (x) => x.textContent === "Tongue",
+              (x) => x.firstChild?.textContent === "Tongue",
             ),
           undefined,
           { timeout: 10000 },

@@ -36,6 +36,8 @@ export type Stat = {
   readonly value: Line;
   readonly why?: string;
   readonly parts?: readonly Part[];
+  /** The concept it is a measure of (its page in the book of concepts, M97). */
+  readonly concept?: string;
 };
 
 /** An entry of a list: its words, the page it opens, and the why that explains it. */
@@ -213,9 +215,10 @@ export type PageKind =
   | "decision"
   | "act"
   | "agent"
-  /** The world's own: its chronicle, its ledger. */
+  /** The world's own: its chronicle, its ledger; and the book of concepts. */
   | "chronicle"
   | "ledger"
+  | "concept"
   | "unknown";
 
 export type PageModel = {
@@ -224,6 +227,8 @@ export type PageModel = {
   readonly icon: string;
   readonly title: string;
   readonly subtitle: Line;
+  /** The way up to it (the world, its realm, its land, its town…): each step a link. */
+  readonly crumbs?: Line;
   /** Its own colour, where it has one (a realm's, a faith's). */
   readonly color: readonly [number, number, number] | null;
   /** Its picture, where it has one. */
@@ -239,6 +244,15 @@ export type PageModel = {
   readonly year: number;
   /** How often (ms) it is worth reading again as the world runs, when not the usual. */
   readonly every?: number;
+};
+
+/** A thing in a few words, for a tooltip: its icon, name, a line and its first numbers. */
+export type Tip = {
+  readonly ref: string;
+  readonly icon: string;
+  readonly title: string;
+  readonly line: string;
+  readonly stats: readonly { readonly label: string; readonly value: string }[];
 };
 
 /**

@@ -297,6 +297,27 @@ export class FaunaLayer {
         };
       }
     }
+    // The fliers and the swimmers too (Phase 10 M93): a bird on its wings, a fish leaping.
+    const others = (
+      list: readonly { species: number; x: number; y: number; z: number }[],
+      count: number,
+      doing: string,
+    ) => {
+      for (let i = 0; i < count; i++) {
+        const b = list[i]!,
+          sp = fauna.species[b.species];
+        if (!sp) continue;
+        p.set(b.x * M, b.y * M, b.z * M);
+        const s = cam.worldToScreen(p, at),
+          d = (s.x - x) * (s.x - x) + (s.y - y) * (s.y - y);
+        if (s.z > 0 && d < bestD) {
+          bestD = d;
+          best = { ref: sp.ref, name: sp.name, doing, flock: false, index: -1 };
+        }
+      }
+    };
+    others(this.birdsNow, this.birdCount, "flying");
+    others(this.fishNow, this.fishCount, "leaping from the water");
     return best;
   }
 

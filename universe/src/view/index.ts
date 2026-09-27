@@ -34,6 +34,7 @@ export {
   REGION_LENS_NAMES,
   REGION_RELIEF,
   regionColors,
+  regionFromGlobe,
   regionHeights,
   regionTrees,
   type RegionTree,
@@ -60,7 +61,23 @@ export {
 } from "./village.ts";
 export { STRIDES, bobOf, limbPitch } from "./motion.ts";
 export { BLINK, DASH, FAR, SMOOTH, present, type Presence } from "./presence.ts";
-export { BEYOND, towardOnFlat, towardOnGlobe, zoomStep, type ZoomState } from "./zoom.ts";
+export {
+  BEYOND,
+  flightAt,
+  towardOnFlat,
+  towardOnGlobe,
+  zoomStep,
+  type OrbitView,
+  type ZoomState,
+} from "./zoom.ts";
+export {
+  freeLook,
+  freeStep,
+  orbitOf,
+  type FreeInput,
+  type FreeRules,
+  type FreeState,
+} from "./free.ts";
 export {
   DAWN,
   DAWN_WORDS,
@@ -177,6 +194,7 @@ export {
   starColor,
   voyageMarks,
   type Rgb3,
+  type VoyageMark,
 } from "./cluster.ts";
 export { bandsOf, groundOf, worldColors } from "./worlds.ts";
 export {

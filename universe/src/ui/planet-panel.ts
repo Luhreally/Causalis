@@ -116,6 +116,10 @@ type ProvinceHistory = {
   prices: { year: number; food: number; tools: number }[];
 };
 
+/** What a chip of the top bar counts. */
+export type ChipKind =
+  "people" | "towns" | "realms" | "wars" | "faiths" | "tongues" | "hungry" | "colonies";
+
 /** The world's headline numbers (the host's "world.stats"). */
 export type WorldStats = {
   year: number;
@@ -417,9 +421,11 @@ export class PlanetPanel {
     };
     // The world's chronicle and its ledger, pages of the page window (Phase 10 M96b).
     const chronicle = menuButton("📜", "Chronicle"),
-      ledger = menuButton("📊", "Ledger");
+      ledger = menuButton("📊", "Ledger"),
+      concepts = menuButton("📖", "Concepts");
     chronicle.onclick = () => this.onChronicle();
     ledger.onclick = () => this.onLedger();
+    concepts.onclick = () => this.onConcepts();
     const sky = menuButton("☀️", "The sky");
     sky.onclick = () => this.onSky();
     const keep = menuButton("💾", "Save"),
@@ -437,7 +443,7 @@ export class PlanetPanel {
     // Its words on a line of their own (one line on a desk; a phone leaves them out), then its menu.
     this.worldText.className = "world-about";
     const menu = el("span", "world-menu");
-    menu.append(chronicle, ledger, sky, origin, keep, back, help, settings, said);
+    menu.append(chronicle, ledger, concepts, sky, origin, keep, back, help, settings, said);
     this.world.append(this.worldText, menu);
     bar.append(speeds, this.statsStrip, this.world);
     this.element.append(bar);
@@ -502,22 +508,32 @@ export class PlanetPanel {
             : n >= 1e4
               ? `${Math.round(n / 1e3)}k`
               : n.toLocaleString("en-US"),
-      chip = (icon: string, value: string, title: string, cls = "") => {
-        const c = el("span", `stat-chip ${cls}`.trim());
+      chip = (what: ChipKind, icon: string, value: string, title: string, cls = "") => {
+        // (Each opens what it counts, as a grand strategy game's top bar does.)
+        const c = el("button", `stat-chip ${cls}`.trim());
         c.title = title;
+        c.setAttribute("aria-label", title);
         c.append(el("span", "chip-icon", icon), el("span", "chip-value", value));
+        c.onclick = () => this.onChip(what);
         return c;
       };
     this.statsStrip.replaceChildren(
-      chip("👥", big(s.people), `${s.people.toLocaleString("en-US")} people in ${s.lands} lands`),
-      chip("🏘️", big(s.towns), `${s.towns} towns, ${s.cities} of them cities`),
-      chip("👑", String(s.realms), `${s.realms} realms`),
-      chip("⚔️", String(s.wars), `${s.wars} wars being fought`, s.wars ? "hot" : ""),
-      chip("✨", String(s.faiths), `${s.faiths} faiths held`),
-      chip("🗣️", String(s.tongues), `${s.tongues} tongues spoken`),
-      ...(s.hungry ? [chip("🍞", String(s.hungry), `${s.hungry} lands going hungry`, "hot")] : []),
+      chip(
+        "people",
+        "👥",
+        big(s.people),
+        `${s.people.toLocaleString("en-US")} people in ${s.lands} lands`,
+      ),
+      chip("towns", "🏘️", big(s.towns), `${s.towns} towns, ${s.cities} of them cities`),
+      chip("realms", "👑", String(s.realms), `${s.realms} realms`),
+      chip("wars", "⚔️", String(s.wars), `${s.wars} wars being fought`, s.wars ? "hot" : ""),
+      chip("faiths", "✨", String(s.faiths), `${s.faiths} faiths held`),
+      chip("tongues", "🗣️", String(s.tongues), `${s.tongues} tongues spoken`),
+      ...(s.hungry
+        ? [chip("hungry", "🍞", String(s.hungry), `${s.hungry} lands going hungry`, "hot")]
+        : []),
       ...(s.colonies
-        ? [chip("🏛️", String(s.colonies), `${s.colonies} halls beyond the world`)]
+        ? [chip("colonies", "🏛️", String(s.colonies), `${s.colonies} halls beyond the world`)]
         : []),
     );
   }
@@ -962,7 +978,11 @@ export class PlanetPanel {
   onWorldPage: () => void = () => {};
   /** Asked for the world's chronicle, and its ledger (the page window shows them). */
   onChronicle: () => void = () => {};
+  /** A chip of the top bar pressed: what it counts is shown (its ledger, its map). */
+  onChip: (what: ChipKind) => void = () => {};
   onLedger: () => void = () => {};
+  /** Asked for the book of concepts (M97). */
+  onConcepts: () => void = () => {};
 
   private worldPage(title: string): void {
     this.onWorldPage();

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   BEYOND,
+  flightAt,
   towardOnFlat,
   towardOnGlobe,
   zoomStep,
@@ -64,4 +65,28 @@ test("a zoom goes toward what is under the pointer: a flat scene slides to it, a
   const north = towardOnGlobe(0, 0, { x: 0, y: 1, z: 0 }, 0.5);
   assert.ok(Math.abs(north.pitch + 45) < 1e-9, "north tilts it up");
   assert.deepEqual(towardOnGlobe(20, -10, { x: 1, y: 0, z: 0 }, 1.5), { yaw: 20, pitch: -10 });
+});
+
+test("a flight goes to where it is sent, the short way round, drawn back on a long way", () => {
+  const from = { target: { x: 0, y: 0, z: 0 }, yaw: 170, pitch: -30, distance: 10 },
+    to = { target: { x: 0, y: 0, z: 0 }, yaw: -170, pitch: -30, distance: 10 };
+  const start = flightAt(from, to, 0),
+    end = flightAt(from, to, 1),
+    mid = flightAt(from, to, 0.5);
+  assert.deepEqual(start, from);
+  assert.ok(
+    Math.abs(end.yaw - 190) < 1e-9 || Math.abs(end.yaw + 170) < 1e-9,
+    `ends at its turn (${end.yaw})`,
+  );
+  assert.ok(Math.abs(end.distance - 10) < 1e-9);
+  assert.ok(Math.abs(mid.yaw - 180) < 1e-9, `turns the short way (${mid.yaw})`);
+  // A short turn stays close; a long way across the ground draws back in its middle.
+  assert.ok(Math.abs(mid.distance - 10) < 1e-6, "a short turn is not flown high");
+  const far = flightAt(
+    { target: { x: 0, y: 0, z: 0 }, yaw: 0, pitch: -40, distance: 20 },
+    { target: { x: 200, y: 0, z: 0 }, yaw: 0, pitch: -40, distance: 10 },
+    0.5,
+  );
+  assert.ok(far.distance > 20, `drawn back on the way (${far.distance.toFixed(1)})`);
+  assert.ok(far.target.x > 50 && far.target.x < 150, "halfway there");
 });

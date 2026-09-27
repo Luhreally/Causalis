@@ -6,6 +6,7 @@ import "./styles.css";
 import "./y2k.css";
 import { HostClient, inlinePair, workerPort } from "../bridge/index.ts";
 import {
+  FreeRig,
   GlobeScene,
   GlobeTowns,
   GlobeWars,
@@ -41,8 +42,13 @@ import {
   WorldPanel,
   GalaxyPanel,
   GuidedWalk,
+  FreeControls,
   MapLabels,
   MapModes,
+  type FreeMode,
+  Outliner,
+  SearchBox,
+  Tooltip,
   PageWindow,
   type MapName,
   type PeopleEntry,
@@ -67,9 +73,15 @@ import {
   cellCenter,
   globeColors,
   regionColors,
+  regionFromGlobe,
   regionHeights,
   regionTrees,
   SIGNS,
+  keepOut,
+  orbitOf,
+  villageGround,
+  type FreeRules,
+  type FreeState,
   battleFront,
   landWars,
   warPaths,
@@ -84,6 +96,7 @@ import {
   nameShape,
   namesThatFit,
   withinName,
+  LENS_NAMES,
   STANDING_COLORS,
   WAR_COLORS,
   type Lens,
@@ -190,6 +203,27 @@ type Exposed = {
   landWars?: () => { marches: number; battles: number; known: boolean };
   spotOnScreen?: (spot: number) => { x: number; y: number } | null;
   faceBattle?: () => boolean;
+  /** How the camera is steered now (M98): the orbit's, or free — flying or walking. */
+  roaming?: () => string;
+  spotBelow?: () => {
+    spot: number;
+    province: number;
+    peopled: boolean;
+    near: { spot: number; cell: number } | null;
+    land: number;
+    map: number | null;
+  } | null;
+  /** Where the free camera stands and looks, and whether it is passing between scales (M98). */
+  freeState?: () => {
+    x: number;
+    y: number;
+    z: number;
+    yaw: number;
+    pitch: number;
+    passing: boolean;
+  };
+  /** The thing under a point of the screen, at the scale shown (M93). */
+  refAt?: (x: number, y: number) => string | null;
   /** Turn the globe to a spot of its fine grid, from so far off (for the look tools). */
   faceSpot?: (spot: number, distance?: number) => void;
   /** Zoom on through to the next scale in or out, and which scale is shown (M88, for the look tools). */
@@ -390,11 +424,40 @@ async function runPlanetPage(): Promise<void> {
   let pointAt: (page: PageModel) => void = () => {};
   planetPanel.tidings = regionPanel.tidings = villagePanel.tidings = tidings;
   pageWindow.tidings = tidings;
+  // The corner's tools under the bar (Phase 10 M96): search for anything by name, and the
+  // outliner of what is followed; free roam's controls join them.
+  const corner = document.createElement("div");
+  corner.className = "corner-tools";
+  hud.append(corner);
+  const searchBox = new SearchBox(corner, client),
+    outliner = new Outliner(corner);
+  searchBox.onOpen = (ref) => void pageWindow.open(ref);
+  outliner.onOpen = (ref) => void pageWindow.open(ref);
+  outliner.onLetGo = (ref) => void tidings.unfollow(ref);
+  tidings.onFollowed = (followed) => outliner.set(followed);
   // (The world's own pages — its chronicle, saves, settings — open in its panel instead.)
   planetPanel.onWorldPage = () => pageWindow.close();
   // The world's chronicle and its ledger (Phase 10 M96b): pages of the window like any other.
   planetPanel.onChronicle = () => void pageWindow.open("world:chronicle");
   planetPanel.onLedger = () => void pageWindow.open("world:ledger");
+  planetPanel.onConcepts = () => void pageWindow.open("concept:index");
+  planetPanel.onChip = (what) => {
+    if (what === "hungry") {
+      // (The hungry are shown on the map: the food lens.)
+      planetPanel.onLens("food");
+      return;
+    }
+    const at: Record<string, string> = {
+      people: "world:chronicle#story",
+      towns: "world:ledger#towns",
+      realms: "world:ledger#realms",
+      wars: "world:ledger#wars",
+      faiths: "world:ledger#faiths",
+      tongues: "world:ledger#tongues",
+      colonies: "world:ledger#sky",
+    };
+    void pageWindow.open(at[what] ?? "world:ledger");
+  };
   // While a page is open the scales' own windows stand aside (their sheets would cover it).
   pageWindow.onOpen = (page) => {
     document.body.classList.add("paging");
@@ -412,9 +475,7 @@ async function runPlanetPage(): Promise<void> {
     if (document.documentElement.style.getPropertyValue("--bar-bottom") !== y)
       document.documentElement.style.setProperty("--bar-bottom", y);
   };
-  setInterval(() => {
-    if (pageWindow.visible) markBarBottom();
-  }, 500);
+  setInterval(markBarBottom, 500);
   pageWindow.onClose = () => document.body.classList.remove("paging");
   exposed.open = (ref: string) => pageWindow.open(ref);
   exposed.pageOpen = () => pageWindow.current;
@@ -497,6 +558,8 @@ async function runPlanetPage(): Promise<void> {
     setTimeout(() => warm.remove(), 4000);
   }
 
+  /** The globe's colours as its lens paints them (the land's "as the map" shows them, M95). */
+  let globeLensColors: Uint8Array | null = null;
   const paintGlobe = () => {
     const frame = client.latestFrame("globe");
     if (!frame) return;
@@ -522,6 +585,7 @@ async function runPlanetPage(): Promise<void> {
       sphereGrid((frame.meta as { frequency: number }).frequency),
     );
     globe.paint(colors);
+    globeLensColors = colors;
     // Clouds over the land as it is; none over what a lens paints.
     globe.weather = lens === "terrain" && stage.quality.clouds;
     painted = colors.length / 4;
@@ -563,7 +627,12 @@ async function runPlanetPage(): Promise<void> {
       }
       arriveAt = null;
     }
-    const colors = regionColors(frame, regionLens);
+    // (The globe's lens seen in the land: each tile its spot's colour on the map, M95.)
+    const parent = frame.arrays.parent as Int32Array | undefined,
+      colors =
+        regionLens === "world" && parent && globeLensColors
+          ? regionFromGlobe(frame, parent, globeLensColors)
+          : regionColors(frame, regionLens);
     region.paint(colors);
     painted = colors.length / 4;
   };
@@ -917,11 +986,18 @@ async function runPlanetPage(): Promise<void> {
       void pageWindow.open(`cell:0:${province}`);
     } else void pageWindow.open(`spot:0:${cell}`);
   };
+  // Among the stars: a ship, a hall, a fleet or a battle (M93), else a star.
+  const tapStars = (x: number, y: number) => {
+    const voyage = starScene.pickVoyage(x, y);
+    if (voyage) void pageWindow.open(voyage);
+    else selectStar(starScene.pick(x, y));
+  };
   const tapGlobe = (x: number, y: number) => {
-    const town = townAt(x, y);
-    if (town) {
+    const town = townAt(x, y),
+      war = town ? null : globeWars.pick(x, y);
+    if (town || war) {
       globe.mark(null);
-      void pageWindow.open(town.ref);
+      void pageWindow.open(town ? town.ref : war!);
     } else selectCell(globe.pick(x, y));
   };
   const tapRegion = (x: number, y: number) => {
@@ -966,13 +1042,108 @@ async function runPlanetPage(): Promise<void> {
           : scale === "system"
             ? selectBody(skyScene.pick(x, y))
             : scale === "cluster"
-              ? selectStar(starScene.pick(x, y))
+              ? tapStars(x, y)
               : scale === "world"
                 ? seen && worldPanel.cell(seen, worldScene.pick(x, y))
                 : scale === "galaxy"
                   ? tapGalaxy(x, y)
                   : tapVillage(x, y),
   });
+  /**
+   * What stands at a point of a village's ground, of what is not a person or a beast (M93):
+   * its battle's hosts (the battle), a home (its household, if met, else its town's
+   * families), a field (its town).
+   */
+  const villageThingAt = (x: number, y: number): string | null => {
+    const at = plan ? onPlane(x, y, 0) : null;
+    if (!plan || !at) return null;
+    const mx = at.x / VILLAGE_METRE,
+      mz = at.z / VILLAGE_METRE,
+      front = battleFront(plan),
+      event = plan.life?.battle?.event;
+    if (front && event && Math.hypot(mx - front.x, mz - front.z) < 30) return event;
+    let home = -1,
+      near = 7;
+    plan.homes.forEach((h, k) => {
+      const d = Math.hypot(h.x - mx, h.z - mz);
+      if (d < near) {
+        near = d;
+        home = k;
+      }
+    });
+    if (home >= 0) return plan.homes[home]!.household ?? `${plan.ref}#families`;
+    for (const f of plan.fields) {
+      const c = Math.cos(-f.yaw),
+        s = Math.sin(-f.yaw),
+        dx = mx - f.x,
+        dz = mz - f.z,
+        lx = dx * c - dz * s,
+        lz = dx * s + dz * c;
+      if (Math.abs(lx) < f.w / 2 && Math.abs(lz) < f.d / 2) return plan.ref;
+    }
+    return null;
+  };
+  /** The thing under a point of the screen, at the scale shown (for the tooltip). */
+  const refAt = (x: number, y: number): string | null => {
+    switch (scale) {
+      case "globe": {
+        const town = townAt(x, y);
+        if (town) return town.ref;
+        const war = globeWars.pick(x, y);
+        if (war) return war;
+        const spot = globe.pick(x, y),
+          frame = client.latestFrame("globe"),
+          province =
+            spot === null ? -1 : ((frame?.arrays.province as Int32Array | undefined)?.[spot] ?? -1);
+        return spot === null ? null : province >= 0 ? `cell:0:${province}` : `spot:0:${spot}`;
+      }
+      case "region": {
+        const war = regionWars.pick(x, y);
+        if (war) return war;
+        const tile = region.pick(x, y),
+          near = tile === null ? null : region.villageNear(tile),
+          v = near === null ? undefined : villages.find((w) => w.tile === near);
+        return v ? v.ref : tile === null ? null : `cell:0:${regionCell}`;
+      }
+      case "village": {
+        const i = village.pick(x, y);
+        if (i !== null && plan?.people[i]) return plan.people[i]!.ref;
+        const beast = village.pickBeast(x, y);
+        return beast ? beast.ref : villageThingAt(x, y);
+      }
+      case "system": {
+        const i = skyScene.pick(x, y);
+        return i === null ? null : (systemPlan?.bodies[i]?.ref ?? null);
+      }
+      case "cluster": {
+        const voyage = starScene.pickVoyage(x, y);
+        if (voyage) return voyage;
+        const i = starScene.pick(x, y);
+        return i === null ? null : (clusterPlan?.stars[i]?.ref ?? null);
+      }
+      default:
+        return null;
+    }
+  };
+  // The tooltip (M93): on a desk, what the pointer rests on, in a few words.
+  const tooltip = new Tooltip(hud, client);
+  let hoverAt = 0;
+  canvas.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse" || e.buttons) {
+      tooltip.hide();
+      return;
+    }
+    // (Asked a dozen times a second at most: a pick reads the scene.)
+    const now = performance.now();
+    if (now - hoverAt < 80) return;
+    hoverAt = now;
+    const rect = canvas.getBoundingClientRect();
+    tooltip.point(refAt(e.clientX - rect.left, e.clientY - rect.top), e.clientX, e.clientY);
+  });
+  canvas.addEventListener("pointerleave", () => tooltip.hide());
+  canvas.addEventListener("pointerdown", () => tooltip.hide());
+  canvas.addEventListener("wheel", () => tooltip.hide(), { passive: true });
+  exposed.refAt = refAt;
   // A zoom goes toward what is under the pointer (Phase 10 M95): the globe turns it to the
   // middle; a flat scene (a land, a village, a sky, the stars, the galaxy) slides it there.
   type Point = { x: number; y: number; z: number };
@@ -1052,6 +1223,10 @@ async function runPlanetPage(): Promise<void> {
   // the labels and the host's interest all move together.
   const toRegion = (cell: number) => {
     scale = "region";
+    // The globe's lens, seen in the land too (M95): its terrain, the land's own; else the map's.
+    regionLens = lens === "terrain" ? "land" : "world";
+    regionPanel.markLens(regionLens);
+    regionPanel.mapLens(lens === "terrain" ? null : LENS_NAMES[lens]);
     stage.backdrop("ground", regionFit());
     regionCell = cell;
     globe.visible = false;
@@ -1461,6 +1636,7 @@ async function runPlanetPage(): Promise<void> {
     const frame = client.latestFrame("globe");
     if (!frame) return;
     const p = sphereGrid((frame.meta as { frequency: number }).frequency).positions;
+    rig.halt();
     rig.yaw = (Math.atan2(p[spot * 3]!, p[spot * 3 + 2]!) * 180) / Math.PI;
     rig.pitch = (-Math.asin(p[spot * 3 + 1]!) * 180) / Math.PI;
     if (distance) {
@@ -1557,8 +1733,10 @@ async function runPlanetPage(): Promise<void> {
         rig.distance = 18;
       } else if (scale === "region") {
         // Facing the spot the land's map was looked at, not only its middle.
+        // (This land's map only: another's, not yet replaced, would face somewhere else.)
         const frame = client.latestFrame("region"),
-          parent = frame?.arrays.parent as Int32Array | undefined,
+          own = (frame?.meta as { center?: number } | undefined)?.center === regionCell,
+          parent = own ? (frame?.arrays.parent as Int32Array | undefined) : undefined,
           looked = parent?.[region.tileAt(rig.target.x, rig.target.z)],
           spot = looked ?? centres.get(regionCell);
         await fadeOver(() => toGlobe());
@@ -1642,8 +1820,8 @@ async function runPlanetPage(): Promise<void> {
       // none), that spot of it in the middle.
       const frame = client.latestFrame("globe"),
         at = rig.aimed,
-        len = at ? Math.hypot(at.x, at.y, at.z) || 1 : 1,
-        spot = !frame
+        len = at ? Math.hypot(at.x, at.y, at.z) || 1 : 1;
+      let spot = !frame
           ? null
           : at
             ? nearestCell(
@@ -1657,6 +1835,14 @@ async function runPlanetPage(): Promise<void> {
           spot === null || !frame
             ? null
             : ((frame.arrays.province as Int32Array | undefined)?.[spot] ?? null);
+      // (Over the sea near a coast: the nearest land, a few spots off, is what was meant.)
+      if ((cell === null || cell < 0) && spot !== null && frame) {
+        const near = landNear(spot, frame);
+        if (near) {
+          spot = near.spot;
+          cell = near.cell;
+        }
+      }
       if (cell === null || cell < 0 || !density.has(cell)) return;
       arriveAt = spot;
       await fadeOver(() => ready("the land", () => toRegion(cell)));
@@ -1687,6 +1873,219 @@ async function runPlanetPage(): Promise<void> {
       return;
     }
   };
+  // Free roam (Phase 10 M98): the camera flown where the viewer will — or walked, among a
+  // village's people — above the ground and out of the walls, and on through the scales by
+  // height, as zooming goes: up out of a village into its land and out to the world, down
+  // out of the sky into the land below and into the village flown down to.
+  const free = new FreeRig(stage, canvas),
+    freeControls = new FreeControls(corner);
+  let roaming: FreeMode = "orbit",
+    passing = false;
+  /** How the free camera moves at the scale shown. */
+  const roamRules = (mode: FreeMode): FreeRules => {
+    const M = VILLAGE_METRE;
+    switch (scale) {
+      case "village":
+        return mode === "walk"
+          ? { speed: 1.4 * M, height: 5, clearance: 0.1 * M, walk: { eye: 1.7 * M } }
+          : { speed: 5 * M, height: 25 * M, clearance: 1.5 * M };
+      case "region":
+        return { speed: 0.5, height: 8, clearance: 0.12 };
+      case "globe":
+      case "world":
+        // (As fast as it is high over the globe's face: its width crossed in a few seconds.)
+        return {
+          speed: 0.02,
+          height: 0.15,
+          clearance: 0,
+          space: true,
+          round: true,
+          pace: (s) => Math.max(0.01, Math.hypot(s.x, s.y, s.z) - 1) * 0.6,
+        };
+      default:
+        // The sky, the stars, the galaxy: as quick as the view is wide.
+        return {
+          speed: Math.max(0.05, rig.distance * 0.06),
+          height: rig.distance,
+          clearance: 0,
+          space: true,
+        };
+    }
+  };
+  const roamGround = (): ((x: number, z: number) => number | null) =>
+    scale === "village"
+      ? () => 0
+      : scale === "region"
+        ? (x, z) => region.heightAt(x, z)
+        : () => null;
+  const roamKeep = (mode: FreeMode): ((s: FreeState) => FreeState) | null => {
+    if (scale === "village" && plan) {
+      const ground = villageGround(plan),
+        M = VILLAGE_METRE;
+      // (Among the homes, out of their walls: walking, or flown as low as their roofs.)
+      return (s) => {
+        if (mode !== "walk" && s.y > 9 * M) return s;
+        const p = { x: s.x / M, z: s.z / M };
+        keepOut(ground, p, 0.4);
+        return { ...s, x: p.x * M, z: p.z * M };
+      };
+    }
+    if (scale === "globe" || scale === "world")
+      return (s) => {
+        // Off its face, and no farther than its sky (a world seen whole has no sky to go on to).
+        const r = Math.hypot(s.x, s.y, s.z),
+          k = r < 1.03 ? 1.03 / r : r > 16 ? 16 / r : 1;
+        return k === 1 ? s : { ...s, x: s.x * k, y: s.y * k, z: s.z * k };
+      };
+    return null;
+  };
+  const setRoam = (asked: FreeMode, handBack = true) => {
+    const mode: FreeMode = asked === "walk" && scale !== "village" ? "fly" : asked;
+    if (mode === "orbit") {
+      if (free.on && handBack) {
+        // Handed back to the orbit: turning about where the free camera looks, from where it stood.
+        const l = rig.limits,
+          groundY = scale === "region" ? region.heightAt(free.state.x, free.state.z) : 0,
+          round = scale === "globe" || scale === "world";
+        if (round) {
+          const s = free.state;
+          rig.target.set(0, 0, 0);
+          rig.yaw = (Math.atan2(s.x, s.z) * 180) / Math.PI;
+          rig.pitch = Math.max(
+            l.minPitch,
+            Math.min(
+              l.maxPitch,
+              (-Math.asin(s.y / (Math.hypot(s.x, s.y, s.z) || 1)) * 180) / Math.PI,
+            ),
+          );
+          rig.distance = Math.max(l.min, Math.min(l.max, Math.hypot(s.x, s.y, s.z)));
+        } else {
+          const o = orbitOf(free.state, groundY, l.max * 0.5);
+          rig.target.set(o.target.x, o.target.y, o.target.z);
+          rig.yaw = o.yaw;
+          rig.pitch = Math.max(l.minPitch, Math.min(l.maxPitch, o.pitch));
+          rig.distance = Math.max(l.min, Math.min(l.max, o.distance));
+        }
+        rig.userZoomed = true;
+      }
+      free.stop(passing);
+      rig.enabled = true;
+    } else {
+      free.ground = roamGround();
+      free.keep = roamKeep(mode);
+      // (From the orbit's own place, not the camera lifted clear of the bar: over a globe that
+      // lift is degrees of its face, and "up" would rise over another spot.)
+      const v = rig.view,
+        y = (v.yaw * Math.PI) / 180,
+        p = (v.pitch * Math.PI) / 180;
+      free.start(roamRules(mode), {
+        x: v.target.x + v.distance * Math.cos(p) * Math.sin(y),
+        y: v.target.y - v.distance * Math.sin(p),
+        z: v.target.z + v.distance * Math.cos(p) * Math.cos(y),
+        yaw: v.yaw,
+        pitch: v.pitch,
+      });
+      rig.enabled = false;
+      // Walking: down among the people, at the eye's height, looking along the ground.
+      if (mode === "walk") {
+        const s = free.state,
+          o = orbitOf(s, 0, 40 * VILLAGE_METRE);
+        free.state = { ...s, x: o.target.x, y: 1.7 * VILLAGE_METRE, z: o.target.z, pitch: -4 };
+      }
+    }
+    roaming = mode;
+    // (The scales' own hints — "drag to turn" — are not how a free camera goes.)
+    document.body.classList.toggle("roaming", mode !== "orbit");
+    freeControls.set(mode, scale === "village");
+  };
+  freeControls.onMode = setRoam;
+  exposed.roaming = () => roaming;
+  exposed.freeState = () => ({ ...free.state, passing });
+  // The spot of the globe under the free camera, its land, and the land nearest (look tools).
+  exposed.spotBelow = () => {
+    const frame = client.latestFrame("globe"),
+      s = free.state,
+      r = Math.hypot(s.x, s.y, s.z) || 1;
+    if (!frame) return null;
+    const spot = nearestCell(
+        sphereGrid((frame.meta as { frequency: number }).frequency),
+        s.x / r,
+        s.y / r,
+        s.z / r,
+      ),
+      province = (frame.arrays.province as Int32Array | undefined)?.[spot] ?? -1;
+    return {
+      spot,
+      province,
+      peopled: density.has(province),
+      near: landNear(spot, frame),
+      land: regionCell,
+      map: (client.latestFrame("region")?.meta as { center?: number } | undefined)?.center ?? null,
+    };
+  };
+  freeControls.onStick = (s) => (free.stick = s);
+  free.onTap = (x, y) => rig.tap(x, y);
+  addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && roaming !== "orbit") setRoam("orbit");
+  });
+  // Where the free camera's scale should change (by its height), and into what.
+  free.onMoved = (s) => {
+    if (passing || roaming === "orbit") return;
+    const mode = roaming,
+      go = (how: () => Promise<void>) => {
+        passing = true;
+        setRoam("orbit");
+        void how().finally(() => {
+          // (A frame for the next scale's orbit to stand the camera, then on roaming.)
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              passing = false;
+              setRoam(mode === "walk" && scale !== "village" ? "fly" : mode);
+            }),
+          );
+        });
+      };
+    if (scale === "village" && s.y > 140 * VILLAGE_METRE) go(() => zoomThrough("out"));
+    else if (scale === "region") {
+      const under = region.heightAt(s.x, s.z);
+      if (s.y - under > 180) {
+        // Out to the world, facing the spot flown over (set once the orbit has the camera
+        // back: handing it back turns it about where the free camera looked).
+        go(async () => {
+          rig.target.set(s.x, under, s.z);
+          await zoomThrough("out");
+        });
+      } else if (s.y - under < 0.6) {
+        const tile = region.villageNear(region.tileAt(s.x, s.z), 1),
+          v = tile === null ? undefined : villages.find((x) => x.tile === tile);
+        if (v)
+          go(async () => {
+            await fadeOver(() => ready("the village", () => toVillage(v.ref)));
+            rig.distance = 20;
+          });
+      }
+    } else if (scale === "globe") {
+      const r = Math.hypot(s.x, s.y, s.z);
+      // Far out from the world: on into its sky.
+      if (r > 14) go(() => zoomThrough("out"));
+      else if (r < 1.07) {
+        // Down into the land flown down to.
+        rig.aimed = { x: s.x / r, y: s.y / r, z: s.z / r };
+        rig.pointer = null;
+        go(() => zoomThrough("in"));
+      }
+    }
+  };
+  // (A scale left while roaming by its own buttons, or gone to: the orbit takes the camera back,
+  // as the new scale stands it.)
+  let roamedAt = "";
+  stage.onUpdate(() => {
+    if (roamedAt !== scale) {
+      if (roaming !== "orbit" && !passing) setRoam("orbit", false);
+      freeControls.set(roaming, scale === "village");
+      roamedAt = scale;
+    }
+  });
   rig.onBeyond = (way) => {
     if (through) return;
     through = true;
@@ -1798,7 +2197,10 @@ async function runPlanetPage(): Promise<void> {
     const beast = village.pickBeast(x, y);
     if (!beast) {
       selectPerson(null);
-      pageWindow.close();
+      // (A soldier of its battle, a home, a field: their pages.)
+      const thing = villageThingAt(x, y);
+      if (thing) void pageWindow.open(thing);
+      else pageWindow.close();
       return;
     }
     selectPerson(null);
@@ -1892,8 +2294,111 @@ async function runPlanetPage(): Promise<void> {
       worldPanel.visible = false;
     }
   };
+  // Keeping a person in view (Phase 10 M94): the village's view follows them as they go.
+  let keeping: string | null = null;
+  const keep = (ref: string | null) => {
+    keeping = ref;
+    rig.follow = ref
+      ? () => {
+          const i = plan?.people.findIndex((p) => p.ref === keeping) ?? -1,
+            m = i >= 0 ? village.momentAt(i) : null;
+          return m && !m.hidden ? { x: m.x * VILLAGE_METRE, y: 0, z: m.z * VILLAGE_METRE } : null;
+        }
+      : null;
+    pageWindow.redrawActions();
+  };
+  pageWindow.sceneActions = (page) => {
+    if (
+      scale !== "village" ||
+      page.kind !== "person" ||
+      !plan?.people.some((p) => p.ref === page.ref)
+    )
+      return [];
+    const on = keeping === page.ref;
+    return [
+      {
+        label: on ? "🎯 Kept in view ✓" : "🎯 Keep in view",
+        title: "The view follows them as they go (a drag still turns about them)",
+        on,
+        run: () => {
+          keep(on ? null : page.ref);
+          if (!on) rig.flyTo({ distance: Math.min(rig.distance, 9) }, 0.8);
+        },
+      },
+    ];
+  };
+  // (Kept in view only in their village: another scale, or another village, lets them go.)
+  stage.onUpdate(() => {
+    if (keeping && (scale !== "village" || !plan?.people.some((p) => p.ref === keeping)))
+      keep(null);
+  });
+  /** The land nearest a spot of the sea, within a few spots (a coast zoomed at), if any. */
+  const landNear = (
+    spot: number,
+    frame: NonNullable<ReturnType<typeof client.latestFrame>>,
+  ): { spot: number; cell: number } | null => {
+    const grid = sphereGrid((frame.meta as { frequency: number }).frequency),
+      province = frame.arrays.province as Int32Array | undefined;
+    if (!province) return null;
+    let ring = [spot];
+    const seen = new Set(ring);
+    for (let step = 0; step < 3; step++) {
+      const next: number[] = [];
+      for (const s of ring)
+        for (let k = grid.offsets[s]!; k < grid.offsets[s + 1]!; k++) {
+          const n = grid.neighbours[k]!;
+          if (seen.has(n)) continue;
+          seen.add(n);
+          const cell = province[n] ?? -1;
+          if (cell >= 0 && density.has(cell)) return { spot: n, cell };
+          next.push(n);
+        }
+      ring = next;
+    }
+    return null;
+  };
+  /** Where a spot of the globe is to be faced from (the orbit's turn and tilt). */
+  const facingOf = (spot: number): { yaw: number; pitch: number } | null => {
+    const frame = client.latestFrame("globe");
+    if (!frame) return null;
+    const p = sphereGrid((frame.meta as { frequency: number }).frequency).positions;
+    return {
+      yaw: (Math.atan2(p[spot * 3]!, p[spot * 3 + 2]!) * 180) / Math.PI,
+      pitch: (-Math.asin(p[spot * 3 + 1]!) * 180) / Math.PI,
+    };
+  };
   const goTo = async (place: Place) => {
     walk.saw("scale");
+    // Where it is already in the scene shown: a flight there, not a fade (M94).
+    if (scale === "globe" && place.scale === "globe") {
+      const f = facingOf(place.spot);
+      if (f) {
+        rig.flyTo({ ...f, distance: 2.2 });
+        globe.mark(place.spot);
+        return;
+      }
+    }
+    if (scale === "region" && place.scale === "region" && place.cell === regionCell) {
+      const at = place.tile === undefined ? null : region.groundAt(place.tile);
+      rig.flyTo({ target: at ?? { x: 0, y: 0, z: 0 }, distance: at ? 60 : regionFit() });
+      if (place.tile !== undefined) region.mark(place.tile);
+      return;
+    }
+    if (scale === "village" && place.scale === "village" && place.town === plan?.ref) {
+      const who = place.person,
+        i = who ? plan.people.findIndex((p) => p.ref === who) : -1,
+        m = i >= 0 ? village.momentAt(i) : null;
+      if (m) {
+        watched = i;
+        village.mark(i);
+        rig.flyTo({
+          target: { x: m.x * VILLAGE_METRE, y: 0, z: m.z * VILLAGE_METRE },
+          distance: 8,
+        });
+        keep(who!);
+      } else rig.flyTo({ target: { x: 0, y: 0, z: 0 }, distance: plan.districts ? 78 : 26 });
+      return;
+    }
     const town =
       place.scale === "village"
         ? await client.query<{ cell: number }>({ type: "settlement", args: { ref: place.town } })
@@ -1909,11 +2414,19 @@ async function runPlanetPage(): Promise<void> {
         case "globe":
           faceSpot(place.spot, 2.2);
           globe.mark(place.spot);
+          swoop();
           return;
-        case "region":
+        case "region": {
           await ready("the land", () => toRegion(place.cell));
-          if (place.tile !== undefined) region.mark(place.tile);
+          const at = place.tile === undefined ? null : region.groundAt(place.tile);
+          if (at) {
+            rig.target.set(at.x, at.y, at.z);
+            rig.distance = 60;
+            region.mark(place.tile!);
+          }
+          swoop();
           return;
+        }
         case "village": {
           regionCell = town!.cell;
           await ready("the village", () => toVillage(place.town));
@@ -1923,8 +2436,16 @@ async function runPlanetPage(): Promise<void> {
             if (i >= 0) {
               watched = i;
               village.mark(i);
+              // (Their village come to: the view on them, kept on them as they go.)
+              const m = village.momentAt(i);
+              if (m) {
+                rig.target.set(m.x * VILLAGE_METRE, 0, m.z * VILLAGE_METRE);
+                rig.distance = 8;
+              }
+              keep(who);
             }
           }
+          swoop();
           return;
         }
         case "system":
@@ -1949,6 +2470,12 @@ async function runPlanetPage(): Promise<void> {
           return;
       }
     });
+  };
+  /** Come to a scale: drawn back a little, and in to where it stands, as if flown there. */
+  const swoop = () => {
+    const to = rig.distance;
+    rig.distance = Math.min(rig.limits.max, to * 1.8);
+    rig.flyTo({ distance: to }, 0.9);
   };
   pageWindow.onGoTo = (place) => void goTo(place);
   // What a page is of, lit in the scene when it is there (a link followed, not only a tap).

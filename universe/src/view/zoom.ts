@@ -82,3 +82,44 @@ export function towardOnGlobe(
     s = 1 - k;
   return { yaw: yaw + turn * s, pitch: pitch + (toPitch - pitch) * s };
 }
+
+/** Where an orbit's camera stands: what it turns about, its turn and tilt (degrees), its distance. */
+export type OrbitView = {
+  readonly target: Point;
+  readonly yaw: number;
+  readonly pitch: number;
+  readonly distance: number;
+};
+
+/**
+ * A flight's view at `t` (0 … 1) of the way (Phase 10 M94): eased at both ends, turning the
+ * short way round, the distance changed by its ratio (a zoom's pace), and on a long way —
+ * far to go for the view, or far round a globe — drawn back in its middle and in again, so
+ * the way is seen.
+ */
+export function flightAt(from: OrbitView, to: OrbitView, t: number): OrbitView {
+  const k = t * t * (3 - 2 * t),
+    turn = ((((to.yaw - from.yaw) % 360) + 540) % 360) - 180,
+    span = Math.hypot(
+      to.target.x - from.target.x,
+      to.target.y - from.target.y,
+      to.target.z - from.target.z,
+    ),
+    // (How long the way is, against the views at its ends: a way longer than they are wide
+    // is flown high; a turn of the globe by its angle.)
+    long = Math.max(
+      span / Math.max(1e-9, Math.min(from.distance, to.distance)),
+      (Math.abs(turn) + Math.abs(to.pitch - from.pitch)) / 90,
+    ),
+    hop = 1 + Math.min(1.2, Math.max(0, long - 0.5) * 0.5) * Math.sin(Math.PI * t);
+  return {
+    target: {
+      x: from.target.x + (to.target.x - from.target.x) * k,
+      y: from.target.y + (to.target.y - from.target.y) * k,
+      z: from.target.z + (to.target.z - from.target.z) * k,
+    },
+    yaw: from.yaw + turn * k,
+    pitch: from.pitch + (to.pitch - from.pitch) * k,
+    distance: from.distance * Math.pow(to.distance / from.distance, k) * hop,
+  };
+}

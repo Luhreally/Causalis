@@ -1,6 +1,7 @@
 // The cluster (Phase 6 M56): the stars within reach of home, each a small glowing sphere
 // where it lies, one instanced batch for each colour; home a brighter mark at the middle;
 // the picked star ringed. Built once per plan.
+import type { VoyageMark } from "../view/index.ts";
 import * as pc from "playcanvas";
 import type { ClusterPlan } from "../bridge/index.ts";
 import { LY_SCALE, clusterSpec } from "../view/index.ts";
@@ -13,6 +14,8 @@ export class ClusterScene {
   private readonly root = new pc.Entity("cluster");
   private batches: InstancedBatch[] = [];
   private points: { index: number; x: number; y: number; z: number }[] = [];
+  /** The ships, halls, fleets and battles shown, and their pages (for picking). */
+  private voyageMarks: VoyageMark[] = [];
   private readonly marker: pc.Entity;
   private readonly sphere: pc.Mesh;
   private readonly ringMesh: pc.Mesh;
@@ -142,6 +145,23 @@ export class ClusterScene {
   }
 
   /** The star nearest a screen point (within a finger's width), or null. */
+  /** A ship, a hall, a fleet or a battle among the stars nearest a screen point: its page (M93). */
+  pickVoyage(x: number, y: number, reach = 18): string | null {
+    const cam = this.stage.camera.camera!;
+    let best: string | null = null,
+      bestD = reach;
+    for (const m of this.voyageMarks) {
+      const p = cam.worldToScreen(new pc.Vec3(m.x, m.y, m.z));
+      if (p.z <= 0) continue;
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (d < bestD) {
+        bestD = d;
+        best = m.ref;
+      }
+    }
+    return best;
+  }
+
   pick(x: number, y: number): number | null {
     const cam = this.stage.camera.camera!;
     let best: number | null = null,
@@ -159,11 +179,12 @@ export class ClusterScene {
 
   /** Ships between the stars, and rings about the stars they came down at. */
   voyages(m: {
-    readonly ships: readonly { x: number; y: number; z: number }[];
-    readonly rings: readonly { x: number; y: number; z: number }[];
-    readonly fleets?: readonly { x: number; y: number; z: number }[];
-    readonly battles?: readonly { x: number; y: number; z: number }[];
+    readonly ships: readonly VoyageMark[];
+    readonly rings: readonly VoyageMark[];
+    readonly fleets?: readonly VoyageMark[];
+    readonly battles?: readonly VoyageMark[];
   }): void {
+    this.voyageMarks = [...(m.battles ?? []), ...m.rings, ...(m.fleets ?? []), ...m.ships];
     for (const [pool, list, make] of [
       [this.ships, m.ships, () => this.dot([0.6, 1, 0.7], 0.09)],
       [this.rings, m.rings, () => this.ringAt([0.4, 1, 0.5])],

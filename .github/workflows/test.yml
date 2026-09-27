@@ -118,6 +118,13 @@ jobs:
       - run: npm run gate:9 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 10 gate: everything a page, its numbers explained; tooltips; the political
+      # map and its chrome (search, the outliner, the chronicle, the ledger); zoom both ways
+      # toward the pointer, a battle seen from the globe to its village; go-to flights; free
+      # roam walked and flown through the scales.
+      - run: npm run gate:10 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

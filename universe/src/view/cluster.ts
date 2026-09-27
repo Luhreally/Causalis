@@ -74,22 +74,30 @@ export function clusterWords(plan: ClusterPlan): string[] {
 }
 
 /** Ships in flight between home and their stars, and rings about the stars they came down at. */
+/** A mark among the stars — a ship, a hall, a fleet, a battle — where it is and its page. */
+export type VoyageMark = {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly ref: string;
+};
+
 export function voyageMarks(
   plan: ClusterPlan,
   sky: SkyState,
   year: number,
 ): {
-  readonly ships: readonly { readonly x: number; readonly y: number; readonly z: number }[];
-  readonly rings: readonly { readonly x: number; readonly y: number; readonly z: number }[];
+  readonly ships: readonly VoyageMark[];
+  readonly rings: readonly VoyageMark[];
   /** War fleets under way (three ships to a fleet), and the stars where their battles were fought (M87). */
-  readonly fleets: readonly { readonly x: number; readonly y: number; readonly z: number }[];
-  readonly battles: readonly { readonly x: number; readonly y: number; readonly z: number }[];
+  readonly fleets: readonly VoyageMark[];
+  readonly battles: readonly VoyageMark[];
 } {
   const at = new Map(plan.stars.map((s) => [s.ref, s]));
-  const ships: { x: number; y: number; z: number }[] = [],
-    rings: { x: number; y: number; z: number }[] = [],
-    fleets: { x: number; y: number; z: number }[] = [],
-    battles: { x: number; y: number; z: number }[] = [];
+  const ships: VoyageMark[] = [],
+    rings: VoyageMark[] = [],
+    fleets: VoyageMark[] = [],
+    battles: VoyageMark[] = [];
   for (const f of sky.fleets ?? []) {
     const star = f.star ? at.get(f.star) : undefined;
     if (!star || year < f.sailed) continue;
@@ -109,18 +117,20 @@ export function voyageMarks(
           x: place.x * k + side.x * s * 0.14 - (place.x / l) * b * back,
           y: place.y * k,
           z: place.z * k + side.z * s * 0.14 - (place.z / l) * b * back,
+          ref: f.event,
         });
-    } else if (f.won !== null && year < f.arrives + 30) battles.push(place);
+    } else if (f.won !== null && year < f.arrives + 30) battles.push({ ...place, ref: f.event });
   }
   for (const v of sky.ships ?? []) {
     const star = at.get(v.star);
     if (!star) continue;
     const place = { x: star.x * LY_SCALE, y: star.z * LY_SCALE, z: star.y * LY_SCALE };
-    if (v.arrived) rings.push(place);
+    // (A hall founded is its land's page; a ship under way, its voyage's.)
+    if (v.arrived) rings.push({ ...place, ref: `cell:0:${v.cell}` });
     else {
       // Along the line from home, as far as the crossing has come.
       const k = Math.max(0, Math.min(1, (year - v.departed) / Math.max(1, v.arrives - v.departed)));
-      ships.push({ x: place.x * k, y: place.y * k, z: place.z * k });
+      ships.push({ x: place.x * k, y: place.y * k, z: place.z * k, ref: v.voyage });
     }
   }
   return { ships, rings, fleets, battles };

@@ -3,7 +3,14 @@
 // toward what is under the pointer (Phase 10 M95): a flat scene slides it toward the middle,
 // a globe turns it there; and the zoom that goes on through to the next scale goes into it.
 import * as pc from "playcanvas";
-import { BEYOND, towardOnFlat, towardOnGlobe, zoomStep } from "../view/index.ts";
+import {
+  BEYOND,
+  flightAt,
+  towardOnFlat,
+  towardOnGlobe,
+  zoomStep,
+  type OrbitView,
+} from "../view/index.ts";
 import type { Stage } from "./stage.ts";
 
 export type OrbitOptions = {
@@ -52,6 +59,12 @@ export class OrbitRig {
   round = false;
   /** How far from its middle the target may slide on a flat scene (x and z), if bounded. */
   bounds: { readonly x: number; readonly z: number; readonly reach: number } | null = null;
+  /** Whether it has the camera (free roam takes it, Phase 10 M98: then it neither moves nor listens). */
+  enabled = true;
+  /** Something kept in the middle as it moves (a person followed, M94); null: nothing. */
+  follow: (() => Point | null) | null = null;
+  /** A flight under way (M94): from where to where, how far along, how long it takes. */
+  private flight: { from: OrbitView; to: OrbitView; t: number; seconds: number } | null = null;
   /** The point the last zoom went toward (in the scene), for going through into what is there. */
   aimed: Point | null = null;
   /** And where on the screen (CSS pixels) it was aimed from. */
@@ -73,11 +86,14 @@ export class OrbitRig {
     this.element = element;
     element.style.touchAction = "none";
     const on = <E extends Event>(type: string, fn: (e: E) => void) => {
-      const f = fn as (e: Event) => void;
+      const f = (e: Event) => {
+        if (this.enabled) (fn as (e: Event) => void)(e);
+      };
       element.addEventListener(type, f, { passive: false });
       this.listeners.push([type, f]);
     };
     on<PointerEvent>("pointerdown", (e) => {
+      this.flight = null;
       element.setPointerCapture(e.pointerId);
       this.pointers.set(e.pointerId, {
         x: e.clientX,
@@ -132,6 +148,7 @@ export class OrbitRig {
     on<PointerEvent>("pointercancel", (e) => this.pointers.delete(e.pointerId));
     on<WheelEvent>("wheel", (e) => {
       e.preventDefault();
+      this.flight = null;
       const rect = element.getBoundingClientRect();
       this.zoom(Math.exp(e.deltaY * 0.001), e.clientX - rect.left, e.clientY - rect.top);
       this.idle = 0;
@@ -149,6 +166,13 @@ export class OrbitRig {
     this.idle = 0;
     this.aimed = null;
     this.pointer = null;
+    // (A flight of the scale left behind ends with it.)
+    this.flight = null;
+  }
+
+  /** End a flight under way (the view is being set outright). */
+  halt(): void {
+    this.flight = null;
   }
 
   /** Turn to face a direction from the target (for a globe: a place by its latitude and longitude). */
@@ -227,8 +251,88 @@ export class OrbitRig {
     this.target.z = slid.z;
   }
 
+  /** Where it stands now: its target, turn, tilt and distance. */
+  get view(): OrbitView {
+    return {
+      target: { x: this.target.x, y: this.target.y, z: this.target.z },
+      yaw: this.yaw,
+      pitch: this.pitch,
+      distance: this.distance,
+    };
+  }
+
+  /**
+   * Fly to a view (M94) over `seconds`: eased, turning the short way, drawing back and in
+   * again on a long way (view/zoom.ts flightAt). What is not asked stays as it is; the
+   * viewer's touch ends it.
+   */
+  flyTo(to: Partial<OrbitView>, seconds = 1.1): void {
+    const from = this.view,
+      l = this.limits;
+    this.flight = {
+      from,
+      to: {
+        target: to.target ?? from.target,
+        yaw: to.yaw ?? from.yaw,
+        pitch: Math.max(l.minPitch, Math.min(l.maxPitch, to.pitch ?? from.pitch)),
+        distance: Math.max(l.min, Math.min(l.max, to.distance ?? from.distance)),
+      },
+      t: 0,
+      seconds,
+    };
+    this.userZoomed = true;
+    this.idle = 0;
+  }
+
+  /** Whether a flight is under way. */
+  get flying(): boolean {
+    return this.flight !== null;
+  }
+
+  /** A tap at a point of the screen, as if pressed there (free roam's taps pick as the orbit's do). */
+  tap(x: number, y: number): void {
+    this.options.onTap(x, y);
+  }
+
+  /** How near and far it goes, and how low and high it tilts. */
+  get limits(): { min: number; max: number; minPitch: number; maxPitch: number } {
+    return {
+      min: this.options.minDistance,
+      max: this.options.maxDistance,
+      minPitch: this.options.minPitch ?? -85,
+      maxPitch: this.options.maxPitch ?? -8,
+    };
+  }
+
   private update(stage: Stage, dt: number): void {
+    // (Its camera taken, a flight under way ends: it would fly on from where it was, later.)
+    if (!this.enabled) {
+      this.flight = null;
+      return;
+    }
     this.idle += dt;
+    const f = this.flight;
+    if (f) {
+      f.t = Math.min(1, f.t + dt / f.seconds);
+      const v = flightAt(f.from, f.to, f.t);
+      this.target.set(v.target.x, v.target.y, v.target.z);
+      this.yaw = v.yaw;
+      this.pitch = v.pitch;
+      this.distance = v.distance;
+      this.idle = 0;
+      if (f.t >= 1) this.flight = null;
+    } else if (this.follow) {
+      // Kept in the middle: the view eases after it, a little behind, as a camera follows.
+      const p = this.follow();
+      if (p) {
+        const k = 1 - Math.exp(-dt * 4);
+        this.target.set(
+          this.target.x + (p.x - this.target.x) * k,
+          this.target.y + (p.y - this.target.y) * k,
+          this.target.z + (p.z - this.target.z) * k,
+        );
+      }
+    }
     // (A push past the edge let go of eases off.)
     this.beyond *= Math.exp(-dt * 1.5);
     if (this.idle > 4 && this.pointers.size === 0) this.yaw += dt * (this.options.drift ?? 2.5);

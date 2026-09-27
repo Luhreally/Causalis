@@ -307,3 +307,62 @@ test("a town stands on the globe where its land's map puts it: what is seen ther
     assert.equal(`spot:0:${best}`, region.parent, `${s.name} stands on its tile's spot`);
   }
 });
+
+test("anything is found by its name, the best match and the greatest first; a page shows its way up", () => {
+  const realm = [...politiesOf(world).all()]
+      .filter((r) => r.ended === null)
+      .sort((a, b) => b.members.length - a.members.length)[0]!,
+    found = ask<{ ref: string; title: string; icon: string }[]>("search", { text: realm.town });
+  assert.ok(found.length > 0, "the realm's seat's name finds things");
+  assert.ok(
+    found.some((f) => f.ref === realm.ref),
+    "among them the realm named for it",
+  );
+  // A town by its whole name comes before one that only holds the words.
+  const t = populationContext(world).settlements.get(town.ref as Ref)!,
+    byName = ask<{ ref: string; title: string }[]>("search", { text: t.name });
+  assert.equal(byName[0]!.title.toLowerCase().startsWith(t.name.toLowerCase()), true);
+  assert.ok(byName.some((f) => f.ref === t.ref));
+  // Too little asked finds nothing; nothing by a name finds nothing.
+  assert.deepEqual(ask("search", { text: "a" }), []);
+  assert.deepEqual(ask("search", { text: "zzqzzqzzq" }), []);
+  // The way up: a person's page leads up through their land and town to their household.
+  const person = met.members[0]!.ref,
+    crumbs = page(person).crumbs!,
+    refs = crumbs.flatMap((s) => (typeof s === "string" ? [] : [s.ref]));
+  assert.equal(refs[0], "world:chronicle", "the world first");
+  assert.ok(refs.includes(town.ref), "their town");
+  assert.ok(refs.includes(met.ref), "their household, last");
+  assert.equal(refs.at(-1), met.ref);
+  assert.equal(page("world:ledger").crumbs, undefined, "the world's own pages are the top");
+});
+
+test("the book of concepts: each concept a page, a page's numbers linked to theirs, each link a page", () => {
+  const index = page("concept:index"),
+    list = index.tabs[0]!.blocks[0]!;
+  assert.equal(index.kind, "concept");
+  assert.ok(list.type === "list" && list.items.length >= 12, "the book holds many concepts");
+  if (list.type !== "list") return;
+  for (const it of list.items) {
+    const c = page(it.ref!);
+    assert.equal(c.kind, "concept", `${it.ref} is a concept's page`);
+    const text = c.tabs[0]!.blocks.find((b) => b.type === "text");
+    assert.ok(text && text.type === "text" && text.lines.length >= 1, `${it.ref} says what it is`);
+    for (const l of linksOf(c))
+      assert.notEqual(page(l).kind, "unknown", `${it.ref} links to ${l}, a page`);
+  }
+  // A land's numbers: being fed is a measure of food, and says so.
+  const lp = page(`cell:0:${land.cell}`),
+    all = [
+      ...lp.stats,
+      ...lp.tabs.flatMap((t) => t.blocks.flatMap((b) => (b.type === "facts" ? b.rows : []))),
+    ];
+  assert.ok(
+    all.some((s) => s.label === "Fed" && s.concept === "food"),
+    "a land's Fed is linked to the concept of food",
+  );
+  assert.ok(
+    all.every((s) => !s.concept || page(`concept:${s.concept}`).title !== "The book of concepts"),
+    "every number is linked only to a concept the book has",
+  );
+});
