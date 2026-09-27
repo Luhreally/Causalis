@@ -6,12 +6,15 @@
 import * as pc from "playcanvas";
 import type { VillagePlan } from "../bridge/index.ts";
 import {
+  ACTIVITY,
   biomeColor,
   figureOf,
   houseLook,
   momentOf,
   personGroup,
+  treesOf,
   type Figure,
+  type Tree,
   type Moment,
   type PartShape,
 } from "../view/index.ts";
@@ -47,6 +50,10 @@ const GROUP_COLORS: readonly Rgb[] = [
   [0.95, 0.78, 0.15],
   [0.95, 0.55, 0.75],
 ];
+/** Bare skin, arms and faces (the upright apes'). */
+const SKIN: Rgb = [0.88, 0.66, 0.5];
+/** Strides a second of a walking figure, on the screen's clock (a look, not the world's). */
+const STRIDES = 1.6;
 
 export class VillageScene {
   private readonly stage: Stage;
@@ -93,7 +100,7 @@ export class VillageScene {
         this.root.addChild(e);
       };
     const g = biomeColor(plan.biome);
-    disc(140, [g[0] * 0.85, g[1] * 0.85, g[2] * 0.85]);
+    disc(140, [g[0] * 0.95 + 0.03, g[1] * 0.95 + 0.05, g[2] * 0.9]);
     disc(
       plan.pasture.r * M,
       [g[0] * 0.8 + 0.12, g[1] * 0.85 + 0.14, g[2] * 0.7 + 0.05],
@@ -226,6 +233,94 @@ export class VillageScene {
       out[5] = look.width * (flat ? 1.02 : 1.15);
       out[6] = h.yaw + Math.PI / 4;
     });
+    // Trees about the village, as its land grows them: dark cones of pine, round crowns,
+    // palms, low scrub — facets in a handful of batches.
+    const trees = treesOf(plan),
+      byKind = (k: Tree["kind"]) => trees.filter((t) => t.kind === k),
+      trunk = cylinderMesh(s, 0.5, 1, 5),
+      crown = pc.Mesh.fromGeometry(
+        s.device,
+        new pc.SphereGeometry({ radius: 0.5, latitudeBands: 3, longitudeBands: 6 }),
+      ),
+      pine = coneMesh(s, 0.5, 1, 6),
+      g2 = biomeColor(plan.biome),
+      leaf: Rgb = [g2[0] * 0.45 + 0.02, g2[1] * 0.55 + 0.22, g2[2] * 0.4 + 0.04],
+      grow = (
+        list: Tree[],
+        mesh: pc.Mesh,
+        color: Rgb,
+        y: (t: Tree) => number,
+        w: (t: Tree) => number,
+        h: (t: Tree) => number,
+      ) => {
+        if (!list.length) return;
+        new InstancedBatch(s, mesh, color, list.length, this.root).set(list.length, (i, out) => {
+          const t = list[i]!;
+          out[0] = t.x * M;
+          out[1] = y(t);
+          out[2] = t.z * M;
+          out[3] = out[5] = w(t);
+          out[4] = h(t);
+          out[6] = t.x + t.z;
+        });
+      };
+    const standing = trees.filter((t) => t.kind !== "shrub");
+    grow(
+      standing,
+      trunk,
+      [0.42, 0.28, 0.16],
+      (t) => 0.35 * t.size,
+      () => 0.12,
+      (t) => 0.7 * t.size,
+    );
+    grow(
+      byKind("conifer"),
+      pine,
+      [0.06, 0.36, 0.2],
+      (t) => 1.05 * t.size,
+      (t) => 0.9 * t.size,
+      (t) => 1.5 * t.size,
+    );
+    grow(
+      byKind("broadleaf"),
+      crown,
+      leaf,
+      (t) => 1.05 * t.size,
+      (t) => 1.2 * t.size,
+      (t) => 1 * t.size,
+    );
+    grow(
+      byKind("palm"),
+      crown,
+      [0.2, 0.62, 0.22],
+      (t) => 1.35 * t.size,
+      (t) => 1.1 * t.size,
+      (t) => 0.3 * t.size,
+    );
+    grow(
+      byKind("shrub"),
+      crown,
+      [leaf[0] * 0.9 + 0.08, leaf[1] * 0.85, leaf[2] * 0.8],
+      (t) => 0.18 * t.size,
+      (t) => 0.5 * t.size,
+      (t) => 0.36 * t.size,
+    );
+    // A door on each home, facing out from its front.
+    if (!look.tent && !look.open) {
+      const door = new InstancedBatch(s, box, [0.2, 0.12, 0.08], plan.homes.length, this.root),
+        doorHigh = Math.min(wallHigh * 0.7, 0.26);
+      door.set(plan.homes.length, (i, out) => {
+        const h = plan.homes[i]!,
+          front = look.width / 2 + 0.012;
+        out[0] = h.x * M + Math.sin(h.yaw) * front;
+        out[1] = look.raised + doorHigh / 2;
+        out[2] = h.z * M + Math.cos(h.yaw) * front;
+        out[3] = 0.13;
+        out[4] = doorHigh;
+        out[5] = 0.02;
+        out[6] = h.yaw + Math.PI / 4;
+      });
+    }
     // The market hall, or the well in the square.
     const hall = new InstancedBatch(
       s,
@@ -258,7 +353,7 @@ export class VillageScene {
           new InstancedBatch(
             s,
             meshes[part.shape],
-            part.tone ? [c[0] * 0.7, c[1] * 0.7, c[2] * 0.7] : c,
+            part.tone === 2 ? SKIN : part.tone ? [c[0] * 0.55, c[1] * 0.55, c[2] * 0.6] : c,
             Math.max(1, plan.people.length),
             this.root,
           ),
@@ -273,7 +368,9 @@ export class VillageScene {
     if (!plan) return;
     this.fields?.recolor(fieldColor(t));
     this.moments = plan.people.map((_, i) => momentOf(plan, i, t));
-    const parts = this.figure.parts;
+    const parts = this.figure.parts,
+      // The swing of a stride: by the screen's clock, each person a little out of step.
+      now = (performance.now() / 1000) * STRIDES * 2 * Math.PI;
     this.people.forEach((batches, gi) => {
       const members = plan.people
         .map((p, i) => ({ p, i }))
@@ -285,15 +382,24 @@ export class VillageScene {
             m = this.moments[i]!,
             size = (p.child ? 0.7 : 1) * this.figure.scale,
             c = Math.cos(m.yaw),
-            sn = Math.sin(m.yaw);
+            sn = Math.sin(m.yaw),
+            // A walking limb swings about its hinge; standing, it hangs still.
+            walking = m.activity === ACTIVITY.walking && !!part.swing,
+            pitch = walking ? part.swing! * Math.sin(now + i * 1.7) : 0,
+            hinge = part.pivot ?? 0,
+            dy = hinge - hinge * Math.cos(pitch),
+            dz = -hinge * Math.sin(pitch),
+            px = part.x,
+            pz = part.z + dz;
           // The part's place about the figure's middle, turned to the way it faces.
-          out[0] = m.x * M + (part.x * c + part.z * sn) * size;
-          out[1] = part.y * size;
-          out[2] = m.z * M + (-part.x * sn + part.z * c) * size;
+          out[0] = m.x * M + (px * c + pz * sn) * size;
+          out[1] = (part.y + dy) * size;
+          out[2] = m.z * M + (-px * sn + pz * c) * size;
           out[3] = part.sx * size;
           out[4] = part.sy * size;
           out[5] = part.sz * size;
           out[6] = m.yaw + (part.shape === "box" ? Math.PI / 4 : 0);
+          out[7] = pitch;
         });
       });
     });

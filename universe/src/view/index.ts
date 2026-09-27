@@ -38,9 +38,11 @@ export {
   houseLook,
   momentOf,
   personGroup,
+  treesOf,
   type Activity,
   type HouseLook,
   type Moment,
+  type Tree,
 } from "./village.ts";
 
 export {

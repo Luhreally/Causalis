@@ -1,6 +1,7 @@
 // A region as terrain: the tile grid as one heightmap mesh (1 unit = 1 km),
 // coloured per tile by the lens, under a translucent sea at height zero, with a
-// marker on the picked tile.
+// marker on the picked tile. The look (art track A4): low-poly facets, each triangle
+// flat and coloured by the most of its three tiles, under a glossy sea.
 import * as pc from "playcanvas";
 import { InstancedBatch, cylinderMesh } from "./batch.ts";
 import { flatMaterial, type Stage } from "./stage.ts";
@@ -9,6 +10,9 @@ export class RegionScene {
   private readonly stage: Stage;
   private readonly root = new pc.Entity("region");
   private mesh: pc.Mesh | null = null;
+  /** For each drawn corner, the tile it colours by; and the corners' colours. */
+  private corners: Int32Array | null = null;
+  private colors: Uint8Array | null = null;
   private size = 0;
   private tileKm = 1;
   private heights: Float32Array | null = null;
@@ -64,14 +68,52 @@ export class RegionScene {
         indices[k++] = c;
         indices[k++] = d;
       }
+    // Every triangle its own corners, lit by its own face: facets, not a blur.
+    const tris = indices.length / 3,
+      corners = new Int32Array(tris * 3),
+      at = new Float32Array(tris * 9),
+      normals = new Float32Array(tris * 9),
+      order = new Uint32Array(tris * 3);
+    for (let t = 0; t < tris; t++) {
+      const o = 9 * t;
+      for (let q = 0; q < 3; q++) {
+        const v = indices[3 * t + q]!;
+        corners[3 * t + q] = v;
+        at[o + 3 * q] = positions[3 * v]!;
+        at[o + 3 * q + 1] = positions[3 * v + 1]!;
+        at[o + 3 * q + 2] = positions[3 * v + 2]!;
+        order[3 * t + q] = 3 * t + q;
+      }
+      const ux = at[o + 3]! - at[o]!,
+        uy = at[o + 4]! - at[o + 1]!,
+        uz = at[o + 5]! - at[o + 2]!,
+        vx = at[o + 6]! - at[o]!,
+        vy = at[o + 7]! - at[o + 1]!,
+        vz = at[o + 8]! - at[o + 2]!;
+      let nx = uy * vz - uz * vy,
+        ny = uz * vx - ux * vz,
+        nz = ux * vy - uy * vx;
+      // Up, whichever way the triangle winds.
+      if (ny < 0) [nx, ny, nz] = [-nx, -ny, -nz];
+      const len = Math.hypot(nx, ny, nz) || 1;
+      for (let q = 0; q < 3; q++) {
+        normals[o + 3 * q] = nx / len;
+        normals[o + 3 * q + 1] = ny / len;
+        normals[o + 3 * q + 2] = nz / len;
+      }
+    }
     const mesh = new pc.Mesh(this.stage.device);
-    mesh.setPositions(positions);
-    mesh.setNormals(pc.calculateNormals(Array.from(positions), Array.from(indices)));
-    mesh.setColors32(new Uint8Array(n * 4).fill(128));
-    mesh.setIndices(indices);
+    mesh.setPositions(at);
+    mesh.setNormals(normals);
+    this.colors = new Uint8Array(tris * 12).fill(128);
+    mesh.setColors32(this.colors);
+    mesh.setIndices(order);
     mesh.update();
+    this.corners = corners;
     const material = new pc.StandardMaterial();
     material.diffuseVertexColor = true;
+    // Matte facets, as the globe's.
+    material.specular = new pc.Color(0.05, 0.05, 0.06);
     material.gloss = 0.1;
     material.update();
     const terrain = new pc.Entity("terrain");
@@ -80,10 +122,7 @@ export class RegionScene {
     const sea = new pc.Entity("sea");
     sea.addComponent("render", {
       meshInstances: [
-        new pc.MeshInstance(
-          cylinderMesh(this.stage, half * 1.42, 0.02, 48),
-          flatMaterial([0.16, 0.36, 0.6], 0.55),
-        ),
+        new pc.MeshInstance(cylinderMesh(this.stage, half * 1.42, 0.02, 48), seaMaterial()),
       ],
     });
     sea.setLocalPosition(0, 0, 0);
@@ -95,9 +134,20 @@ export class RegionScene {
     this.key = key;
   }
 
+  /** Recolour the terrain (RGBA per tile): each facet the colour most of its three tiles have. */
   paint(colors: Uint8Array): void {
-    if (!this.mesh) return;
-    this.mesh.setColors32(colors);
+    if (!this.mesh || !this.corners || !this.colors) return;
+    const tiles = new Uint32Array(colors.buffer, colors.byteOffset, colors.length >> 2),
+      out = new Uint32Array(this.colors.buffer),
+      k = this.corners;
+    for (let t = 0; t < k.length; t += 3) {
+      const a = tiles[k[t]!]!,
+        b = tiles[k[t + 1]!]!,
+        c = tiles[k[t + 2]!]!,
+        face = a === b || a === c ? a : b === c ? b : a;
+      out[t] = out[t + 1] = out[t + 2] = face;
+    }
+    this.mesh.setColors32(this.colors);
     this.mesh.update();
   }
 
@@ -212,4 +262,17 @@ export class RegionScene {
       j * this.tileKm - half,
     );
   }
+}
+
+/** The sea over a region: a glossy blue sheet, clear enough to show the shallows. */
+function seaMaterial(): pc.StandardMaterial {
+  const m = new pc.StandardMaterial();
+  m.diffuse = new pc.Color(0.08, 0.3, 0.66);
+  m.specular = new pc.Color(0.85, 0.92, 1);
+  m.gloss = 0.84;
+  m.opacity = 0.62;
+  m.blendType = pc.BLEND_NORMAL;
+  m.depthWrite = false;
+  m.update();
+  return m;
 }

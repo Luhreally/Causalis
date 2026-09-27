@@ -44,16 +44,19 @@ export class InstancedBatch {
   }
 
   /**
-   * Replace the instances: `place(i, out)` writes instance i's translation and
-   * scale into out ([x, y, z, sx, sy, sz, yaw]).
+   * Replace the instances: `place(i, out)` writes instance i's translation, scale and
+   * turn into out ([x, y, z, sx, sy, sz, yaw, pitch]; the pitch tips it about its own
+   * x axis before it is turned, as a swinging limb).
    */
   set(count: number, place: (i: number, out: number[]) => void): void {
     const n = Math.min(count, this.capacity),
-      t = [0, 0, 0, 1, 1, 1, 0],
+      t = [0, 0, 0, 1, 1, 1, 0, 0],
       m = this.matrices;
     for (let i = 0; i < n; i++) {
+      t[7] = 0;
       place(i, t);
-      const [x, y, z, sx, sy, sz, yaw] = t as [
+      const [x, y, z, sx, sy, sz, yaw, pitch] = t as [
+        number,
         number,
         number,
         number,
@@ -64,18 +67,21 @@ export class InstancedBatch {
       ];
       const c = Math.cos(yaw),
         s = Math.sin(yaw),
+        cp = Math.cos(pitch),
+        sp = Math.sin(pitch),
         o = i * 16;
+      // Turned by yaw after tipped by pitch: the columns of Ry·Rx, each scaled.
       m[o] = c * sx;
       m[o + 1] = 0;
       m[o + 2] = -s * sx;
       m[o + 3] = 0;
-      m[o + 4] = 0;
-      m[o + 5] = sy;
-      m[o + 6] = 0;
+      m[o + 4] = s * sp * sy;
+      m[o + 5] = cp * sy;
+      m[o + 6] = c * sp * sy;
       m[o + 7] = 0;
-      m[o + 8] = s * sz;
-      m[o + 9] = 0;
-      m[o + 10] = c * sz;
+      m[o + 8] = s * cp * sz;
+      m[o + 9] = -sp * sz;
+      m[o + 10] = c * cp * sz;
       m[o + 11] = 0;
       m[o + 12] = x;
       m[o + 13] = y;

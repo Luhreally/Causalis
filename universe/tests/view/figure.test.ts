@@ -12,10 +12,21 @@ const body = (id: string): FigureBody =>
   );
 
 test("each body is drawn as itself: an upright ape, a mantle over many arms, a shelled body on six legs", () => {
-  // Upright apes as the microscope has always drawn them: one standing body.
+  // Upright apes: a body, a bare head, two arms and two legs that swing as they walk,
+  // an arm with the other side's leg.
   const apes = figureOf(body("ape"));
-  assert.equal(apes.parts.length, 1);
-  assert.equal(apes.parts[0]!.shape, "capsule");
+  assert.equal(apes.parts.length, 6);
+  const limbs = apes.parts.filter((p) => p.swing);
+  assert.equal(limbs.length, 4);
+  const [la, ra, ll, rl] = limbs;
+  assert.ok(
+    Math.sign(la!.swing!) === Math.sign(rl!.swing!) &&
+      Math.sign(ra!.swing!) === Math.sign(ll!.swing!),
+  );
+  assert.ok(
+    apes.parts.some((p) => p.tone === 2 && p.y > 0.45),
+    "a bare head on top",
+  );
   assert.deepEqual(figureOf(null).parts, apes.parts);
   // A radial swimmer: a mantle and a ring of eight arms about it.
   const swimmer = figureOf(body("swimmer")),

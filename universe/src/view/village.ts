@@ -256,26 +256,27 @@ export type HouseLook = {
   readonly open: boolean;
 };
 
+// Walls and roofs in the bright, clean colours of the era's games (art track A3).
 const WALL: Readonly<Record<string, Rgb>> = {
-  tent: [0.62, 0.52, 0.4],
-  wattle: [0.72, 0.64, 0.5],
-  timber: [0.5, 0.36, 0.24],
-  mudbrick: [0.76, 0.6, 0.42],
-  brick: [0.66, 0.34, 0.26],
-  stone: [0.62, 0.62, 0.6],
-  "reef-walls": [0.86, 0.56, 0.52],
-  "shell-walls": [0.9, 0.87, 0.78],
-  burrow: [0.52, 0.41, 0.3],
+  tent: [0.78, 0.62, 0.42],
+  wattle: [0.9, 0.8, 0.58],
+  timber: [0.66, 0.42, 0.24],
+  mudbrick: [0.92, 0.7, 0.44],
+  brick: [0.8, 0.36, 0.24],
+  stone: [0.78, 0.78, 0.74],
+  "reef-walls": [0.98, 0.6, 0.54],
+  "shell-walls": [0.98, 0.95, 0.84],
+  burrow: [0.62, 0.46, 0.3],
 };
 const ROOF: Readonly<Record<string, Rgb>> = {
-  thatch: [0.62, 0.52, 0.3],
-  turf: [0.3, 0.42, 0.22],
-  flat: [0.7, 0.56, 0.4],
-  tile: [0.6, 0.26, 0.18],
-  vault: [0.66, 0.64, 0.6],
-  "kelp-canopy": [0.28, 0.44, 0.26],
-  mound: [0.46, 0.37, 0.27],
-  open: [0.86, 0.56, 0.52],
+  thatch: [0.86, 0.68, 0.3],
+  turf: [0.34, 0.6, 0.2],
+  flat: [0.84, 0.66, 0.44],
+  tile: [0.82, 0.28, 0.16],
+  vault: [0.8, 0.8, 0.76],
+  "kelp-canopy": [0.24, 0.58, 0.3],
+  mound: [0.58, 0.44, 0.28],
+  open: [0.98, 0.6, 0.54],
 };
 
 export function houseLook(house: VillagePlan["house"]): HouseLook {
@@ -306,4 +307,104 @@ export function houseLook(house: VillagePlan["house"]): HouseLook {
     raised: form === "nest" || form === "tree-house" ? 0.5 : 0,
     open: house.roof === "open",
   };
+}
+
+/** A tree about a village: its kind, where it stands (metres from the middle), how tall. */
+export type Tree = {
+  readonly kind: "conifer" | "broadleaf" | "palm" | "shrub";
+  readonly x: number;
+  readonly z: number;
+  /** Its height against a common tree's (about fifteen metres). */
+  readonly size: number;
+};
+
+/** How many trees stand about a village and of what kind, by its land (gen's BIOME codes). */
+const WOODS: readonly (readonly [number, number, number, number])[] = [
+  // conifer, broadleaf, palm, shrub
+  [0, 0, 0, 0],
+  [0, 0, 0, 0],
+  [0, 0, 0, 0],
+  [0, 0, 0, 0],
+  [0, 0, 0, 0],
+  [0, 0, 0, 14],
+  [150, 10, 0, 10],
+  [0, 0, 0, 14],
+  [4, 18, 0, 20],
+  [25, 125, 0, 10],
+  [120, 70, 0, 10],
+  [0, 0, 8, 10],
+  [0, 30, 4, 20],
+  [0, 110, 10, 16],
+  [0, 170, 40, 10],
+  [60, 0, 0, 20],
+  [0, 0, 0, 0],
+];
+const TREE_KINDS = ["conifer", "broadleaf", "palm", "shrub"] as const;
+
+/**
+ * The trees about a village (art track A3): as many and of the kinds its land grows,
+ * standing in the ring beyond its homes and fields, clear of the fields, the road, the
+ * pasture and the water. A pure function of the plan (the same village, the same trees).
+ */
+export function treesOf(plan: VillagePlan): Tree[] {
+  const woods = WOODS[plan.biome] ?? [0, 0, 0, 0],
+    total = woods.reduce((a, b) => a + b, 0);
+  if (!total) return [];
+  // From just past the homes out (the fields are kept clear of trees one by one).
+  let reach = 40;
+  for (const h of plan.homes) reach = Math.max(reach, Math.hypot(h.x, h.z));
+  const inner = reach + 25,
+    outer = Math.min(1300, inner + 600),
+    seed = hashText(plan.ref),
+    roadLen = Math.hypot(plan.road.x, plan.road.z) || 1,
+    rx = plan.road.x / roadLen,
+    rz = plan.road.z / roadLen,
+    clear = (x: number, z: number) => {
+      // Off the road (it runs through a city both ways), out of the pasture and the water.
+      const along = x * rx + z * rz,
+        off = Math.abs(-x * rz + z * rx);
+      if (off < 18 && (plan.districts ? true : along > 0)) return false;
+      if (Math.hypot(x - plan.pasture.x, z - plan.pasture.z) < plan.pasture.r + 8) return false;
+      if (plan.water && Math.hypot(x - plan.water.x, z - plan.water.z) < 230) return false;
+      for (const f of plan.fields) {
+        const dx = x - f.x,
+          dz = z - f.z,
+          c = Math.cos(f.yaw),
+          s = Math.sin(f.yaw),
+          u = dx * c - dz * s,
+          v = dx * s + dz * c;
+        if (Math.abs(u) < f.w / 2 + 6 && Math.abs(v) < f.d / 2 + 6) return false;
+      }
+      return true;
+    };
+  const out: Tree[] = [];
+  let k = 0;
+  for (let i = 0; out.length < total && i < total * 4; i++) {
+    const u = unitOf(seed, i, 0),
+      a = i * 2.399963 + u * 0.6,
+      r = inner + (outer - inner) * Math.sqrt(unitOf(seed, i, 1)),
+      x = r * Math.cos(a),
+      z = r * Math.sin(a);
+    if (!clear(x, z)) continue;
+    // Kinds in their shares, dealt in turn.
+    let pick = (k++ * 7919) % total,
+      kind = 0;
+    while (pick >= woods[kind]!) pick -= woods[kind++]!;
+    out.push({ kind: TREE_KINDS[kind]!, x, z, size: 0.75 + 0.5 * unitOf(seed, i, 2) });
+  }
+  return out;
+}
+
+function hashText(text: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+function unitOf(seed: number, i: number, n: number): number {
+  let h = Math.imul(seed ^ Math.imul(i + 1, 0x9e3779b1), 0x85ebca6b) ^ Math.imul(n + 1, 0xc2b2ae35);
+  h ^= h >>> 15;
+  h = Math.imul(h, 0x2c1b3c6d);
+  h ^= h >>> 12;
+  return (h >>> 0) / 4294967296;
 }

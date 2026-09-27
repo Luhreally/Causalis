@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { VillagePlan } from "../../src/bridge/index.ts";
-import { ACTIVITY, momentOf, paceOf } from "../../src/view/index.ts";
+import { ACTIVITY, momentOf, paceOf, treesOf } from "../../src/view/index.ts";
 import { CLADES, OCC, bodyOf } from "../../src/rules/index.ts";
 
 const DAY = 86_400,
@@ -134,4 +134,30 @@ test("the old keep near home as late in life as their people's span allows", () 
   assert.ok(at(plan, 3) < 10, "an old ape at home");
   assert.ok(at(plan, 2) > 10, "a crafter of forty at the square");
   assert.ok(at(short, 2) < 10, "forty is old in a thirty-year span");
+});
+
+test("trees stand about a village as its land grows them, never in its fields or on its road", () => {
+  const forest = treesOf({ ...plan, biome: 9 }),
+    steppe = treesOf(plan),
+    desert = treesOf({ ...plan, biome: 11 });
+  assert.ok(
+    forest.length > 3 * steppe.length,
+    `${forest.length} in the woods, ${steppe.length} on the steppe`,
+  );
+  assert.ok(
+    desert.every((t) => t.kind === "palm" || t.kind === "shrub"),
+    "palms and scrub in the desert",
+  );
+  assert.deepEqual(treesOf({ ...plan, biome: 9 }), forest, "the same village, the same trees");
+  assert.equal(treesOf({ ...plan, biome: 1 }).length, 0, "none at sea");
+  for (const t of forest) {
+    for (const f of plan.fields) {
+      const c = Math.cos(f.yaw),
+        s = Math.sin(f.yaw),
+        u = (t.x - f.x) * c - (t.z - f.z) * s,
+        v = (t.x - f.x) * s + (t.z - f.z) * c;
+      assert.ok(Math.abs(u) > f.w / 2 || Math.abs(v) > f.d / 2, "not in a field");
+    }
+    assert.ok(Math.abs(t.x) > 15 || t.z < 0, "not on the road out");
+  }
 });
