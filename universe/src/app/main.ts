@@ -254,6 +254,7 @@ async function runPlanetPage(): Promise<void> {
     regionLens: RegionLens = "land",
     density = new Map<number, number>(),
     foodPrices = new Map<number, number>(),
+    trade = new Map<number, number>(),
     tongues = new Map<number, readonly [number, number, number]>(),
     realms = new Map<number, readonly [number, number, number]>(),
     faiths = new Map<number, readonly [number, number, number]>(),
@@ -290,7 +291,7 @@ async function runPlanetPage(): Promise<void> {
     const colors = globeColors(
       frame,
       lens,
-      lens === "food" ? foodPrices : density,
+      lens === "food" ? foodPrices : lens === "trade" ? trade : density,
       lens === "realms" ? realms : lens === "faiths" ? faiths : tongues,
     );
     globe.paint(colors);
@@ -338,7 +339,8 @@ async function runPlanetPage(): Promise<void> {
     walk.saw("lens");
     lens = l;
     paintGlobe();
-    if (["people", "food", "tongues", "realms", "faiths"].includes(l)) void faceThePeople(true);
+    if (["people", "food", "trade", "tongues", "realms", "faiths"].includes(l))
+      void faceThePeople(true);
   };
   regionPanel.onLens = (l) => {
     regionLens = l;
@@ -353,10 +355,14 @@ async function runPlanetPage(): Promise<void> {
     planetPanel.people(entries);
     density = new Map(entries.map((e) => [e.cell, e.density]));
     foodPrices = new Map(entries.map((e) => [e.cell, e.food]));
+    trade = new Map(entries.map((e) => [e.cell, e.trade]));
     tongues = new Map(entries.flatMap((e) => (e.tongue ? [[e.cell, e.tongue] as const] : [])));
     realms = new Map(entries.flatMap((e) => (e.realm ? [[e.cell, e.realm] as const] : [])));
     faiths = new Map(entries.flatMap((e) => (e.faith ? [[e.cell, e.faith] as const] : [])));
-    if (["people", "food", "tongues", "realms", "faiths"].includes(lens) && scale === "globe")
+    if (
+      ["people", "food", "trade", "tongues", "realms", "faiths"].includes(lens) &&
+      scale === "globe"
+    )
       paintGlobe();
   });
 
@@ -850,7 +856,7 @@ function welcome(): boolean {
   }
   for (const line of [
     "Tap any place, person or event, and ask “why?” — every answer opens onto its causes.",
-    "The lenses colour the world by what you want to see: people, realms, tongues, life, ores.",
+    "The lenses colour the world by what you want to see: people, food, trade, realms, tongues, life, ores.",
     "“Look closer” goes down to a land and its villages; “The sky” goes out to the stars.",
     "Your hand — rain, harvest, plague, inspiration, a warmer world, a star's flare — is always a choice, and always in the chronicle.",
   ]) {

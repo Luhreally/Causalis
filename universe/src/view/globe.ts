@@ -8,6 +8,7 @@ export const LENSES = [
   "terrain",
   "people",
   "food",
+  "trade",
   "tongues",
   "realms",
   "faiths",
@@ -24,6 +25,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   terrain: "Land",
   people: "People",
   food: "Food",
+  trade: "Trade",
   tongues: "Tongues",
   realms: "Realms",
   faiths: "Faiths",
@@ -148,6 +150,14 @@ const PEOPLE: readonly Stop[] = [
 ];
 
 // What food costs against its usual worth: cheap is green, dear is red.
+/** Goods a land moved in a year (in and out), on a log scale: from a trickle to a great market. */
+const TRADE: readonly Stop[] = [
+  [0.5, [0.35, 0.45, 0.7]],
+  [2, [0.3, 0.75, 0.85]],
+  [3.5, [0.95, 0.85, 0.3]],
+  [5, [1, 0.45, 0.2]],
+];
+
 const FOOD: readonly Stop[] = [
   [0.4, [0.3, 0.72, 0.4]],
   [1, [0.95, 0.85, 0.4]],
@@ -229,9 +239,14 @@ export function globeColors(
         break;
       }
       case "people":
-      case "food": {
+      case "food":
+      case "trade": {
         const v = values?.get(province);
-        if (v !== undefined && v > 0) col = ramp(lens === "people" ? PEOPLE : FOOD, v);
+        if (v !== undefined && v > 0)
+          col =
+            lens === "trade"
+              ? ramp(TRADE, Math.log10(1 + v))
+              : ramp(lens === "people" ? PEOPLE : FOOD, v);
         else {
           const base = sea ? ramp(DEPTH, e) : BIOME_COLORS[biome]!,
             grey = (base[0] + base[1] + base[2]) / 3;

@@ -2738,7 +2738,9 @@ to the lower part of the screen. The globe wears clouds under the Land lens (non
 another lens paints). A city's quarters hold what they are for: markets their stalls
 under striped awnings, workshops their sheds and chimneys, the temple a stepped pile with
 a gilded crown, the crowded quarters homes two storeys high; a city is seen from further
-off, its haze as far. CI walks the journey (universe-journey).
+off, its haze as far. CI walks the journey (universe-journey). The economy's lens (M69): "Trade" lights each
+land by the goods it moved in and out in its last year, on a log scale from a trickle to a
+great market; lands without trade are greyed.
 
 ### J. Allocation of ~100k lines
 

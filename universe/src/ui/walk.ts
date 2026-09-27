@@ -16,7 +16,7 @@ const STEPS: readonly Step[] = [
     until: "why",
   },
   {
-    text: "The buttons along the top are lenses: they colour the world by people, food, tongues, realms, life. Try one.",
+    text: "The buttons along the top are lenses: they colour the world by people, food, trade, tongues, realms, life. Try one.",
     until: "lens",
   },
   {
