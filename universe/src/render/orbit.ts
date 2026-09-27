@@ -1,6 +1,7 @@
 // An orbit camera for mouse and touch: drag to turn, wheel or pinch to zoom, a
 // tap (a press that barely moves) to pick. It drifts slowly when left alone.
 import * as pc from "playcanvas";
+import { BEYOND, zoomStep } from "../view/index.ts";
 import type { Stage } from "./stage.ts";
 
 export type OrbitOptions = {
@@ -29,6 +30,14 @@ export class OrbitRig {
   private pinch = 0;
   /** True once the viewer has zoomed by hand; fitting then leaves the distance alone. */
   userZoomed = false;
+  /**
+   * Called as the viewer pushes on past the nearest or the farthest view (M88): the zoom
+   * goes through to the next scale in, or out.
+   */
+  onBeyond: ((way: "in" | "out") => void) | null = null;
+  /** How far past an edge the viewer has pushed (the log of the zoom asked beyond it), and which. */
+  private beyond = 0;
+  private beyondWay: "in" | "out" = "out";
   /**
    * The shares of the screen's height covered from the top (a bar of buttons) and from the
    * bottom (a sheet): the subject is framed in the band between, as a phone's screen is
@@ -129,16 +138,47 @@ export class OrbitRig {
     return ps.length < 2 ? 0 : Math.hypot(ps[0]!.x - ps[1]!.x, ps[0]!.y - ps[1]!.y);
   }
 
+  /**
+   * How near its edges the view stands: -1 at its nearest, 1 at its farthest, 0 between
+   * (by the log of the distance, over the last fifth of the range at each end).
+   */
+  get edge(): number {
+    const lo = Math.log(this.options.minDistance),
+      hi = Math.log(this.options.maxDistance),
+      at = (Math.log(this.distance) - lo) / Math.max(1e-6, hi - lo);
+    return at > 0.8 ? (at - 0.8) / 0.2 : at < 0.2 ? -(0.2 - at) / 0.2 : 0;
+  }
+
+  /** How far past the edge the viewer is pushing now (0 … 1: at one, it goes through). */
+  get pushing(): number {
+    return Math.min(1, this.beyond / BEYOND);
+  }
+
   private zoom(factor: number): void {
     this.userZoomed = true;
-    this.distance = Math.max(
-      this.options.minDistance,
-      Math.min(this.options.maxDistance, this.distance * factor),
+    const lo = this.options.minDistance,
+      hi = this.options.maxDistance;
+    if (!this.onBeyond) {
+      this.distance = Math.max(lo, Math.min(hi, this.distance * factor));
+      return;
+    }
+    // Pushing on past an edge gathers, and goes through to the next scale (view/zoom.ts).
+    const next = zoomStep(
+      { distance: this.distance, beyond: this.beyond, way: this.beyondWay },
+      factor,
+      lo,
+      hi,
     );
+    this.distance = next.distance;
+    this.beyond = next.beyond;
+    this.beyondWay = next.way;
+    if (next.through) this.onBeyond(next.through);
   }
 
   private update(stage: Stage, dt: number): void {
     this.idle += dt;
+    // (A push past the edge let go of eases off.)
+    this.beyond *= Math.exp(-dt * 1.5);
     if (this.idle > 4 && this.pointers.size === 0) this.yaw += dt * (this.options.drift ?? 2.5);
     const yaw = (this.yaw * Math.PI) / 180,
       pitch = (this.pitch * Math.PI) / 180,

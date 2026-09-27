@@ -100,6 +100,8 @@ const universe = params.get("universe") ?? "earth";
 const startYear = Number(params.get("year") ?? 0);
 /** A save to take up on starting (the saves page opens another world's save this way). */
 const loadName = params.get("load");
+/** ?signs=0 keeps what people say unshown (for measuring). */
+const signs = params.get("signs") !== "0";
 
 type Exposed = {
   client?: HostClient;
@@ -159,6 +161,9 @@ type Exposed = {
   warsDrawn?: () => number;
   /** Turn the globe to a spot of its fine grid, from so far off (for the look tools). */
   faceSpot?: (spot: number, distance?: number) => void;
+  /** Zoom on through to the next scale in or out, and which scale is shown (M88, for the look tools). */
+  zoomThrough?: (way: "in" | "out") => Promise<void>;
+  scale?: () => string;
   /** Everyone in sight now, and what they are at (for the look tools). */
   peopleNow?: () => { name: string; x: number; z: number; activity: number; task: string | null }[];
   /** What the people in view are saying now, in signs (for the look tools). */
@@ -486,8 +491,11 @@ async function runPlanetPage(): Promise<void> {
     5000,
     (air) => planetPanel.air(air),
   );
+  // (Each land's middle spot on the globe, to turn to it: M88.)
+  let centres = new Map<number, number>();
   client.subscribe<PeopleEntry[]>({ type: "people.map" }, 1000, (entries) => {
     planetPanel.people(entries);
+    centres = new Map(entries.map((e) => [e.cell, e.centre]));
     density = new Map(entries.map((e) => [e.cell, e.density]));
     foodPrices = new Map(entries.map((e) => [e.cell, e.food]));
     trade = new Map(entries.map((e) => [e.cell, e.trade]));
@@ -523,17 +531,6 @@ async function runPlanetPage(): Promise<void> {
     if (scale === "globe") globeWars.update(performance.now() / 1000);
   });
   exposed.warsDrawn = () => (scale === "globe" ? globeWars.drawn : 0);
-  exposed.faceSpot = (spot: number, distance?: number) => {
-    const frame = client.latestFrame("globe");
-    if (!frame) return;
-    const p = sphereGrid((frame.meta as { frequency: number }).frequency).positions;
-    rig.yaw = (Math.atan2(p[spot * 3]!, p[spot * 3 + 2]!) * 180) / Math.PI;
-    rig.pitch = (-Math.asin(p[spot * 3 + 1]!) * 180) / Math.PI;
-    if (distance) {
-      rig.userZoomed = true;
-      rig.distance = distance;
-    }
-  };
 
   const aspect = () => Math.max(0.3, innerWidth / Math.max(1, innerHeight));
   const globeFit = () => (aspect() < 1 ? 3.1 / aspect() : 3.3);
@@ -955,6 +952,229 @@ async function runPlanetPage(): Promise<void> {
   };
   clusterPanel.onGalaxy = () => void toGalaxy();
   clusterPanel.onVisit = (star, i) => void toForeignWorld(star, i, "cluster");
+  // One zoom (M88): pushing on past a scale's nearest or farthest view goes through to the
+  // next — out from a village to its land, the world, its sky, the stars about it and the
+  // galaxy; in again to the land and the village under the middle of the screen — each
+  // readied ahead as the view nears its edge, a quick fade over the swap, and a word on the
+  // screen only while a scale is still being readied (at once, on a phone, for the heavy ones).
+  const readying = document.createElement("div"),
+    swap = document.createElement("div"),
+    edgeHint = document.createElement("div");
+  readying.className = "readying";
+  readying.hidden = true;
+  swap.className = "swap";
+  edgeHint.className = "edge-hint";
+  edgeHint.style.opacity = "0";
+  hud.append(swap, readying, edgeHint);
+  const ready = async <T>(what: string, work: () => Promise<T> | T, heavy = false): Promise<T> => {
+    const say = () => {
+      readying.textContent = `Readying ${what}…`;
+      readying.hidden = false;
+    };
+    const late = setTimeout(say, heavy && tier.name === "phone" ? 0 : 160);
+    try {
+      return await work();
+    } finally {
+      clearTimeout(late);
+      readying.hidden = true;
+    }
+  };
+  const fadeOver = async (swapNow: () => Promise<void> | void) => {
+    swap.classList.add("on");
+    await new Promise((r) => setTimeout(r, 90));
+    try {
+      await swapNow();
+    } finally {
+      requestAnimationFrame(() => swap.classList.remove("on"));
+    }
+  };
+  /** Turn the globe to a spot of its fine grid, from so far off. */
+  const faceSpot = (spot: number, distance?: number) => {
+    const frame = client.latestFrame("globe");
+    if (!frame) return;
+    const p = sphereGrid((frame.meta as { frequency: number }).frequency).positions;
+    rig.yaw = (Math.atan2(p[spot * 3]!, p[spot * 3 + 2]!) * 180) / Math.PI;
+    rig.pitch = (-Math.asin(p[spot * 3 + 1]!) * 180) / Math.PI;
+    if (distance) {
+      rig.userZoomed = true;
+      rig.distance = distance;
+    }
+  };
+  /**
+   * Readied ahead, as the view nears the far edge of the world, its sky or the stars: the
+   * next scale out only (built as its own scale would build it), and never nearer in, where
+   * the land and the village are drawn.
+   */
+  let aheadBusy = false;
+  const readyAhead = () => {
+    if (aheadBusy) return;
+    const next =
+      scale === "globe" && !systemPlan
+        ? async () => {
+            systemPlan = await client.query<SystemPlan>({ type: "planet.system" });
+            skyScene.build(systemPlan);
+          }
+        : scale === "system" && !clusterPlan
+          ? async () => {
+              clusterPlan = await client.query<ClusterPlan>({ type: "galaxy.cluster" });
+              starScene.build(clusterPlan);
+            }
+          : scale === "cluster" && !galaxyPlan
+            ? async () => {
+                galaxyPlan = await client.query<GalaxyPlan>({ type: "galaxy.plan" });
+              }
+            : null;
+    if (!next) return;
+    aheadBusy = true;
+    void next().finally(() => {
+      aheadBusy = false;
+    });
+  };
+  const OUT_TO: Partial<Record<string, string>> = {
+      village: "its land",
+      region: "the world",
+      globe: "the sky",
+      system: "the stars about us",
+      cluster: "the galaxy",
+    },
+    IN_TO: Partial<Record<string, string>> = {
+      galaxy: "the stars about us",
+      cluster: "our sky",
+      system: "the world",
+      globe: "the land",
+      region: "the village",
+    };
+  stage.onUpdate(() => {
+    const edge = rig.edge,
+      next = edge > 0 ? OUT_TO[scale] : edge < 0 ? IN_TO[scale] : undefined;
+    if (edge > 0.6) readyAhead();
+    // At an edge with somewhere to go: say so.
+    const show = !!next && Math.abs(edge) > 0.97;
+    edgeHint.textContent = next ? `${edge > 0 ? "Zoom on out" : "Zoom on in"} to ${next}` : "";
+    edgeHint.style.opacity = show ? String(0.55 + 0.45 * rig.pushing) : "0";
+  });
+  // Out from the world, the sky's view follows the home world round its orbit while it is
+  // close, and eases onto the star as it draws back.
+  let followHome = false;
+  stage.onUpdate(() => {
+    if (scale !== "system" || !systemPlan || !followHome) return;
+    const home = systemSpec(systemPlan, now())[0]!,
+      k = Math.max(0, Math.min(1, (rig.distance - 4) / 30));
+    rig.target.set(home.x * (1 - k), 0, home.z * (1 - k));
+    if (k >= 1) followHome = false;
+  });
+  let through = false;
+  const zoomThrough = async (way: "in" | "out") => {
+    followHome = false;
+    if (way === "out") {
+      if (scale === "village") {
+        const tile = villages.find((v) => v.ref === plan?.ref)?.tile;
+        await fadeOver(() => villagePanel.onBack?.());
+        // Low over the village, its land about it.
+        const at = tile === undefined ? null : region.groundAt(tile);
+        if (at) rig.target.set(at.x, at.y, at.z);
+        rig.userZoomed = true;
+        rig.distance = 18;
+      } else if (scale === "region") {
+        const spot = centres.get(regionCell);
+        await fadeOver(() => toGlobe());
+        if (spot !== undefined) faceSpot(spot, 1.6);
+      } else if (scale === "globe") {
+        await fadeOver(() => ready("the sky", () => toSystem(), true));
+        // Close on the home world (followed round its orbit), the rest of its system about it.
+        followHome = true;
+        rig.userZoomed = true;
+        rig.distance = 3.2;
+      } else if (scale === "system") {
+        await fadeOver(() => ready("the stars about us", () => toCluster(), true));
+        rig.userZoomed = true;
+        rig.distance = 20;
+      } else if (scale === "cluster") {
+        await fadeOver(() => ready("the galaxy", () => toGalaxy(), true));
+        if (galaxyPlan) {
+          const home = homeOf(galaxyPlan);
+          rig.target.set(home.x, 0, home.z);
+        }
+        rig.userZoomed = true;
+        rig.distance = 70;
+      }
+    } else if (scale === "galaxy") {
+      await fadeOver(() =>
+        ready(
+          "the stars about us",
+          () => {
+            galaxyScene.visible = false;
+            galaxyPanel.visible = false;
+            return toCluster();
+          },
+          true,
+        ),
+      );
+      rig.userZoomed = true;
+      rig.distance = 150;
+    } else if (scale === "cluster") {
+      await fadeOver(() =>
+        ready(
+          "our sky",
+          () => {
+            starScene.visible = false;
+            clusterPanel.visible = false;
+            return toSystem();
+          },
+          true,
+        ),
+      );
+      rig.userZoomed = true;
+      rig.distance = 260;
+    } else if (scale === "system") {
+      await fadeOver(() => {
+        stopSky?.();
+        stopSky = null;
+        client.setSpeed(planetPanel.speed);
+        toGlobe();
+      });
+      rig.userZoomed = true;
+      rig.distance = 10;
+    } else if (scale === "globe") {
+      // Down to the land under the middle of the screen (the sea has none).
+      const frame = client.latestFrame("globe"),
+        spot = globe.pick(innerWidth / 2, innerHeight / 2),
+        cell =
+          spot === null || !frame
+            ? null
+            : ((frame.arrays.province as Int32Array | undefined)?.[spot] ?? null);
+      if (cell === null || cell < 0 || !density.has(cell)) return;
+      await fadeOver(() => ready("the land", () => toRegion(cell)));
+      rig.userZoomed = true;
+      rig.distance = 220;
+    } else if (scale === "region") {
+      // Into the village nearest the middle of the screen.
+      const on = region.screenOf(villages.map((v) => v.tile));
+      let best = -1,
+        bestD = Infinity;
+      on.forEach((p, i) => {
+        if (!p) return;
+        const d = Math.hypot(p.x - innerWidth / 2, p.y - innerHeight / 2);
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      });
+      if (best < 0) return;
+      const ref = villages[best]!.ref;
+      await fadeOver(() => ready("the village", () => toVillage(ref)));
+    }
+  };
+  rig.onBeyond = (way) => {
+    if (through) return;
+    through = true;
+    void zoomThrough(way).finally(() => {
+      through = false;
+    });
+  };
+  exposed.zoomThrough = (way: "in" | "out") => zoomThrough(way);
+  exposed.scale = () => scale;
+  exposed.faceSpot = faceSpot;
   exposed.galaxy = () => void toGalaxy();
   exposed.visitForeign = async (ref: string, index: number) =>
     toForeignWorld(
@@ -1090,7 +1310,7 @@ async function runPlanetPage(): Promise<void> {
     if (watched !== null) villagePanel.moment(village.momentAt(watched));
     // The years turn: re-read the plan, so those who died are gone.
     if (Math.floor(clock.t / YEAR) !== planYear) void loadPlan(plan.ref);
-    bubbles.update(village.bubbles());
+    if (signs) bubbles.update(village.bubbles());
     // Families met are named over their homes; under the hand, the village is its own name.
     if (plan.hand) {
       labels.update([]);

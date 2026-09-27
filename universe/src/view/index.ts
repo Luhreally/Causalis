@@ -51,6 +51,7 @@ export {
   type Tree,
 } from "./village.ts";
 export { STRIDES, bobOf, limbPitch } from "./motion.ts";
+export { BEYOND, zoomStep, type ZoomState } from "./zoom.ts";
 export {
   BATTLE_ROUND,
   MARCH,

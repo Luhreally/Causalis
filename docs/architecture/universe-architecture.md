@@ -3095,6 +3095,24 @@ war. Between the stars: each fleet of war crosses the chart from home toward its
 was fought at is ringed in fire for thirty years. The globe turns to any spot for the look
 tools (faceSpot).
 
+88, as built. One zoom from a person to the galaxy and back. A zoom pushed on past a scale's
+nearest or farthest view gathers, and once it has gone a third again past the edge it goes
+through (view/zoom.ts zoomStep, in the orbit rig): out from a village to its land (low over
+the village), the world (turned to that land), its sky (close on the home world, the view
+following it round its orbit while near and easing onto the star as it draws back), the
+stars about it (among the nearest) and the galaxy (home ringed in its arm); in again from
+the galaxy to the stars, the sky, the world, the land under the middle of the screen and the
+village nearest it. At a scale's edge a hint says where the zoom goes on to. The next scale
+out is readied ahead as the view nears the far edge of the world, its sky or the stars
+(fetched and built, one scale only, never nearer in where the land and the village are
+drawn); a quick fade covers each swap, and a word ("Readying the sky…") shows only while a
+scale is still being readied — at once, on a phone, for the heavy ones. Found on the way: a
+readying that built the sky and the stars from the land's view (whose everyday distance is
+near its far edge) stalled the frame on entering a village; it readies only the next scale
+out now, from the world outward. And WebKit here stalls about one village entry in eight for half a
+second, at any setting and on builds from before Phase 9 as well (Chromium never does): the
+Phase 8 gate's entry budget is judged by the middle of three entries now, the worst told.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

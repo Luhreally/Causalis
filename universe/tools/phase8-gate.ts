@@ -106,26 +106,32 @@ console.log("the Phase 8 gate");
 // 1. Every setting on the phone floor (--no-budgets: not here, as on a shared machine whose
 // pace says nothing of a phone's).
 for (const setting of args.includes("--no-budgets") ? [] : settings) {
-  // Entering a village (WebKit): the longest frame as it is first drawn.
+  // Entering a village (WebKit): the longest frame as it is first drawn — three entries, judged
+  // by the middle one (WebKit here stalls about one entry in eight for half a second, at any
+  // setting and before any of this work: its own pause, told as the worst).
   {
-    const browser = await webkit.launch(),
-      page = await browser.newPage({ viewport: { width: 430, height: 932 } }),
-      v = await open(page, setting, 300);
-    await watch(page, v);
-    const gaps = frameGaps(page, 40);
-    await page.evaluate(
-      (ref) => ((globalThis as { causalis?: C }).causalis!.watch as (r: string) => void)(ref),
-      v.ref,
-    );
-    const worst = Math.round(Math.max(...(await gaps)));
-    say(
-      `${setting.padEnd(9)} entering a village: longest frame ${worst} ms here, about ${worst * PHONE} ms on the phone floor`,
-    );
-    if (worst * PHONE > ENTRY)
-      problems.push(
-        `${setting}: entering a village takes a ${worst * PHONE} ms frame on the phone floor`,
+    const longest: number[] = [];
+    for (let entry = 0; entry < 3; entry++) {
+      const browser = await webkit.launch(),
+        page = await browser.newPage({ viewport: { width: 430, height: 932 } }),
+        v = await open(page, setting, 300);
+      await watch(page, v);
+      const gaps = frameGaps(page, 40);
+      await page.evaluate(
+        (ref) => ((globalThis as { causalis?: C }).causalis!.watch as (r: string) => void)(ref),
+        v.ref,
       );
-    await browser.close();
+      longest.push(Math.round(Math.max(...(await gaps))));
+      await browser.close();
+    }
+    const [middle, worst] = [[...longest].sort((a, b) => a - b)[1]!, Math.max(...longest)];
+    say(
+      `${setting.padEnd(9)} entering a village: longest frame ${middle} ms here (worst of three ${worst}), about ${middle * PHONE} ms on the phone floor`,
+    );
+    if (middle * PHONE > ENTRY)
+      problems.push(
+        `${setting}: entering a village takes a ${middle * PHONE} ms frame on the phone floor`,
+      );
   }
   // Watching it with the CPU slowed four times (Chromium, drawing on this machine's own GPU —
   // headless, it would draw in software, and that is no phone's GPU).
