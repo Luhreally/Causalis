@@ -24,6 +24,7 @@ export {
 } from "./village.ts";
 export type { WorldGlobe } from "./worlds.ts";
 export type { WarsMap } from "./wars.ts";
+export type { GenesisPlan } from "./genesis.ts";
 export type { DepositPage, PlatePage, RealmPage, SpeciesPage } from "./pages.ts";
 export type {
   ClusterPlan,

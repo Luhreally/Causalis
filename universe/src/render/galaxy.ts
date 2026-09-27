@@ -26,6 +26,10 @@ export class GalaxyScene {
   private readonly stage: Stage;
   private readonly root = new pc.Entity("galaxy");
   private disk: pc.Entity | null = null;
+  /** For its birth (M89): the disk's mesh, its stars' own colours, and when each is lit (0 … 1). */
+  private mesh: pc.Mesh | null = null;
+  private colors: Uint8Array | null = null;
+  private births: Float32Array | null = null;
   private readonly bulge: pc.Entity;
   private readonly home: pc.Entity;
   private readonly spot: pc.Entity;
@@ -103,15 +107,48 @@ export class GalaxyScene {
     mesh.setColors32(colors);
     mesh.setIndices(indices);
     mesh.update();
+    // When each star is lit, as the galaxy is born: the bulge's old stars first, then the
+    // disk from the middle outward, each a little before or after its neighbours.
+    const R = plan.radius / 1000,
+      births = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      const x = pts.positions[3 * i]!,
+        z = pts.positions[3 * i + 2]!,
+        r = Math.hypot(x, z) / Math.max(1e-6, R),
+        jitter = (((i * 2654435761) >>> 0) / 4294967296) * 0.15;
+      births[i] = Math.min(0.95, (r < 0.1 ? 0.05 + r * 2 : 0.2 + r * 0.65) + jitter);
+    }
+    this.mesh = mesh;
+    this.colors = colors;
+    this.births = births;
     this.disk = new pc.Entity("disk");
     this.disk.addComponent("render", {
       meshInstances: [new pc.MeshInstance(mesh, galaxyMaterial())],
     });
     this.root.addChild(this.disk);
-    const R = plan.radius / 1000;
     this.bulge.setLocalScale(R * 0.35, R * 0.35, R * 0.35);
     this.home.setLocalPosition(pts.home.x, 0, pts.home.z);
     this.home.setLocalScale(R * 0.03, 1, R * 0.03);
+  }
+
+  /**
+   * The galaxy as it is born, `k` from 0 (a dark cloud) to 1 (as it is): each star lit in its
+   * turn (M89). At one, the stars as they are.
+   */
+  emerge(k: number): void {
+    const mesh = this.mesh,
+      colors = this.colors,
+      births = this.births;
+    if (!mesh || !colors || !births) return;
+    const lit = new Uint8Array(colors.length);
+    for (let i = 0; i < births.length; i++) {
+      const a = Math.max(0, Math.min(1, (k - births[i]!) / 0.08));
+      for (let c = 0; c < 16; c++)
+        lit[16 * i + c] = c % 4 === 3 ? colors[16 * i + c]! : Math.round(colors[16 * i + c]! * a);
+    }
+    mesh.setColors32(lit);
+    mesh.update();
+    this.bulge.enabled = k > 0.1;
   }
 
   /** Where on the disk's plane a screen point falls (units), if on it at all. */

@@ -392,3 +392,31 @@ test("the wars of the year come to the globe as history fights them, and a villa
   assert.ok(battles.length === 0 || seen > 0);
   assert.equal(JSON.stringify(world.domainHashes()), before, "asking changes nothing");
 });
+
+test("a world's beginning comes whole for the genesis: its ages, every lineage with its body, and its people", () => {
+  const before = JSON.stringify(world.domainHashes());
+  type G = {
+    ages: { index: number; from: number; kind: string }[];
+    lineages: {
+      name: string;
+      arose: number;
+      died: number | null;
+      body: unknown;
+      words: string | null;
+    }[];
+    people: { name: string; words: string; cradle: string; figure: { clade: string } } | null;
+  };
+  const g = ask<G>("genesis");
+  assert.ok(g.ages.length >= 8);
+  // Oldest first.
+  for (let i = 1; i < g.ages.length; i++) assert.ok(g.ages[i]!.from < g.ages[i - 1]!.from);
+  assert.ok(g.lineages.filter((l) => l.body).length >= 15);
+  for (const l of g.lineages) {
+    assert.ok(l.arose >= 0 && l.arose < g.ages.length);
+    assert.ok(l.died === null || l.died >= l.arose);
+    assert.equal(!!l.words, !!l.body);
+  }
+  assert.ok(g.people && g.people.figure.clade === "ape" && /upright/.test(g.people.name));
+  assert.match(g.people!.cradle, /at \d+°[NS], \d+°[EW]/);
+  assert.equal(JSON.stringify(world.domainHashes()), before, "asking changes nothing");
+});

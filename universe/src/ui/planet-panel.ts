@@ -352,6 +352,7 @@ export class PlanetPanel {
   onAsked: () => void = () => {};
   /** Help: the guided walk again. */
   onHelp: () => void = () => {};
+  onGenesis: () => void = () => {};
   /** Quality: the viewer's choice, and what is drawn now (the setting and the frames). */
   onQualityChoice: (c: QualityChoice) => void = () => {};
   qualityNow: () => { choice: QualityChoice; name: string; fps: number } = () => ({
@@ -413,7 +414,10 @@ export class PlanetPanel {
     keep.onclick = async () => (said.textContent = ` ${await this.onSave()}`);
     back.onclick = () => void this.showSaves();
     const help = el("button", "link", "Help"),
-      settings = el("button", "link", "Settings");
+      settings = el("button", "link", "Settings"),
+      // The world's own beginning, from the galaxy's birth to its first people (M89).
+      origin = el("button", "link", "Its beginning");
+    origin.onclick = () => this.onGenesis();
     help.onclick = () => this.onHelp();
     settings.onclick = () => void this.showSettings();
     this.world.append(
@@ -422,6 +426,8 @@ export class PlanetPanel {
       chronicle,
       " · ",
       sky,
+      " · ",
+      origin,
       " · ",
       keep,
       " · ",

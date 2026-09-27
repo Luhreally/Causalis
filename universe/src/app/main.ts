@@ -703,6 +703,10 @@ async function runPlanetPage(): Promise<void> {
       target: [0, 0, 0],
     });
   };
+  // Its beginning (M89): the genesis of this very world, from the galaxy's birth.
+  planetPanel.onGenesis = () => {
+    location.search = `?universe=${encodeURIComponent(universe)}&seed=${encodeURIComponent(seed)}&genesis=1`;
+  };
   planetPanel.onSky = () => {
     walk.saw("scale");
     void toSystem();
@@ -1412,6 +1416,11 @@ function welcome(): boolean {
   for (const [label, note, query] of [
     ["Earth", "a world like ours, from its first farmers", "?universe=earth"],
     [
+      "From the beginning",
+      "the galaxy born, a world forming, the first cells, creatures and people — then choose when to begin",
+      "?universe=earth&genesis=1",
+    ],
+    [
       "A world never seen",
       "an open world: any sky, any body, any people",
       `?universe=alien&seed=${encodeURIComponent(pick())}`,
@@ -1449,10 +1458,42 @@ function welcome(): boolean {
   return true;
 }
 
+/**
+ * The genesis (M89): the world's own beginning, stage by stage, and then where to begin —
+ * the world's page, at the year chosen.
+ */
+async function runGenesisPage(): Promise<void> {
+  const { canvas, hud } = page(),
+    tier = deviceTier(),
+    stage = new Stage(canvas, tier, SPACE);
+  stage.backdrop("space");
+  const { client, mode } = await connect();
+  Object.assign(exposed, { client, mode, seed, universe, stage, drawn: () => 1 });
+  await client.start(universe, seed);
+  const { runGenesis } = await import("./genesis.ts");
+  await runGenesis({
+    stage,
+    hud,
+    canvas,
+    client,
+    tier,
+    universe,
+    seed,
+    beginAt: (year) =>
+      (location.search = `?universe=${encodeURIComponent(universe)}&seed=${encodeURIComponent(seed)}${year > 0 ? `&year=${year}` : ""}`),
+    another: () => {
+      const u = new Uint32Array(1);
+      crypto.getRandomValues(u);
+      location.search = `?universe=alien&seed=${encodeURIComponent(`genesis ${u[0]! % 100000}`)}&genesis=1`;
+    },
+  });
+}
+
 async function main(): Promise<void> {
   if (welcome()) return;
   if (bench > 0) return runBenchPage();
   if (universe === "sandbox") return runSandboxPage();
+  if (params.has("genesis")) return runGenesisPage();
   return runPlanetPage();
 }
 

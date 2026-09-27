@@ -405,6 +405,52 @@ button:disabled {
   pointer-events: none !important;
   transition: opacity 0.2s;
 }
+/* The genesis (M89): the telling at the foot of the scene, and the microscope's drop. */
+.genesis {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(8px + var(--safe-bottom));
+  max-height: 46%;
+  overflow: auto;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #0c1636eb;
+  border: 2px solid #8ea4d2;
+  color: #e6eeff;
+  line-height: 1.45;
+  z-index: 2;
+}
+.genesis h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+}
+.genesis p {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+}
+.genesis-step {
+  color: #a9bbe2;
+  font-size: 0.8rem;
+}
+.genesis-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+}
+.genesis-row .choice {
+  text-align: left;
+  flex: 1 1 14rem;
+}
+.genesis-row .choice small {
+  display: block;
+  color: #33477a;
+}
+body[data-scale="micro"] {
+  background: radial-gradient(ellipse at 50% 40%, #2b8a86 0%, #0f4f5c 55%, #06232f 100%);
+}
 /* What the people in view are saying (M86): a sign in a speech bubble over each head. */
 .bubbles {
   position: absolute;

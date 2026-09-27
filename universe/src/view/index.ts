@@ -53,6 +53,19 @@ export {
 export { STRIDES, bobOf, limbPitch } from "./motion.ts";
 export { BEYOND, zoomStep, type ZoomState } from "./zoom.ts";
 export {
+  DAWN,
+  DAWN_WORDS,
+  ageColors,
+  ageWords,
+  dropOf,
+  formingColors,
+  paradeOf,
+  type CellPart,
+  type Dawn,
+  type Drop,
+  type OnStage,
+} from "./genesis.ts";
+export {
   BATTLE_ROUND,
   MARCH,
   battleOf,

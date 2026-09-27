@@ -5,6 +5,8 @@ export { InstancedBatch, capsuleMesh, cylinderMesh } from "./batch.ts";
 export { runBench, type BenchResult } from "./bench.ts";
 export { GlobeScene } from "./globe.ts";
 export { GlobeWars } from "./wars.ts";
+export { MicroScene } from "./micro.ts";
+export { ParadeScene } from "./parade.ts";
 export { OrbitRig, type OrbitOptions } from "./orbit.ts";
 export {
   AutoQuality,

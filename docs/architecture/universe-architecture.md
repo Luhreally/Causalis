@@ -3113,6 +3113,28 @@ out now, from the world outward. And WebKit here stalls about one village entry 
 second, at any setting and on builds from before Phase 9 as well (Chromium never does): the
 Phase 8 gate's entry budget is judged by the middle of three entries now, the worst told.
 
+89, as built. A way to begin from the beginning (?genesis=1, from the welcome's "From the
+beginning" or the world's own "Its beginning"): ten stages, each told in a card at the foot
+of the scene, played on the screen's clock, the viewer free to turn about each, go on, or
+skip to where to begin. The galaxy is born (its stars lit in their turn, the old bulge first
+and the disk from the middle outward: GalaxyScene.emerge); a star and its worlds (with "a
+world never seen" to begin another's genesis instead); the world forms (view/genesis.ts
+formingColors: molten and flickering, a crust cooling dark with fire in its cracks, the seas
+rising over its own low ground, its land greening to the colours it has); its deep ages, one
+by one (ageColors: an icehouse's ice down from the poles, a hothouse's warmth, great
+volcanism's fires, an impact's flash and scar), each told with the lineages that arose in it;
+the dawn of life under the microscope (render/micro.ts, dropOf: the first cells dividing to
+fill the drop, cells with a nucleus and their small parts, one taking another in, balls of
+cells turning as one, the first bodies — a worm of cells, a jelly's bell, a sponge's cup —
+each stage told); the living world (render/parade.ts, paradeOf): the world's own lineages
+arising age by age on a stage, each built from its own body (M85) and shown at a size to see
+(the small larger, the great smaller, their order kept), coming in as it arises and fading in
+the age it died in; the first people (their figure walking out toward the watcher, their
+body, cradle and why in words); and where to begin — at the first people, their first
+fields, three, seven or twelve centuries on — the world's own page at that year. Everything
+shown is the world's own generation (the host's "genesis" query: its ages, every lineage with
+its body, arising and death, and its people).
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

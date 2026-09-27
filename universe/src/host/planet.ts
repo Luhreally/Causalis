@@ -40,7 +40,15 @@ import {
   starWarsOf,
   civilizationsNear,
 } from "../sim/index.ts";
-import { FOODS, G, GOODS, OCCUPATIONS, designWords } from "../rules/index.ts";
+import {
+  FOODS,
+  G,
+  GOODS,
+  OCCUPATIONS,
+  bodyWords,
+  creatureWords,
+  designWords,
+} from "../rules/index.ts";
 import {
   BIOME_NAMES,
   BOUNDARY,
@@ -95,6 +103,7 @@ import type {
   StarPage,
   SystemPlan,
   WarsMap,
+  GenesisPlan,
 } from "../bridge/index.ts";
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
@@ -862,6 +871,58 @@ function planetUniverse(name: string, prior: Prior): Universe {
             ];
           });
         return { year, wars };
+      },
+      // A world's beginning, for the genesis (M89): its deep ages, every lineage with the
+      // age it arose and died in and its body, and the people that rose to thought.
+      genesis: (world): GenesisPlan => {
+        const g = homePlanet(world).generated,
+          life = g.life,
+          people = life.people,
+          deg = (r: number, pos: string, neg: string) =>
+            `${Math.abs((r * 180) / Math.PI).toFixed(0)}°${r >= 0 ? pos : neg}`;
+        return {
+          ages: g.deep.ages.map((a) => ({
+            index: a.index,
+            from: a.from,
+            to: a.to,
+            kind: a.kind,
+            seaLevel: a.seaLevel,
+            warmth: a.warmth,
+            forests: a.forests,
+          })),
+          lineages: life.species
+            .filter((s) => s.index !== people?.species && (s.body || s.niche === "seed grass"))
+            .map((s) => ({
+              ref: s.ref,
+              name: s.name,
+              niche: s.niche,
+              arose: s.arose,
+              died: s.died,
+              size: s.size,
+              level: s.level,
+              body: s.body,
+              words: s.body ? creatureWords(s.body, s.niche) : null,
+            })),
+          people: people
+            ? {
+                name: life.species[people.species]!.name,
+                words: bodyWords(people.body),
+                because: people.because,
+                cradle: `the ${BIOME_NAMES[g.climate.biome[people.cell]!] ?? "land"} at ${deg(g.grid.lat[people.cell]!, "N", "S")}, ${deg(g.grid.lon[people.cell]!, "E", "W")}`,
+                arose: life.species[people.species]!.arose,
+                figure: {
+                  clade: people.body.clade,
+                  medium: people.body.medium,
+                  symmetry: people.body.symmetry,
+                  manipulators: people.body.manipulators,
+                  limbs: people.body.limbs,
+                  skin: people.body.skin,
+                  size: people.body.size,
+                  span: people.body.span,
+                },
+              }
+            : null,
+        };
       },
       "people.map": (world) => {
         const g = homePlanet(world).generated,
