@@ -165,8 +165,16 @@ function firstHit(ground: Ground, p: Point, q: Point, reach: number): Solid | nu
     len2 = dx * dx + dz * dz;
   let best: Solid | null = null,
     bestT = Infinity;
+  // The way's box: a solid whose middle stands further off it than its own reach cannot be
+  // hit, and most of a village's homes are far from any one way (so they cost a comparison).
+  const x0 = Math.min(p.x, q.x),
+    x1 = Math.max(p.x, q.x),
+    z0 = Math.min(p.z, q.z),
+    z1 = Math.max(p.z, q.z);
   const test = (s: Solid) => {
-    const r = s.r + reach;
+    const r = s.r + reach,
+      span = r + (s.half ?? 0);
+    if (s.x < x0 - span || s.x > x1 + span || s.z < z0 - span || s.z > z1 + span) return;
     if (clearOf(s, p) < reach || clearOf(s, q) < reach) return;
     const [a, b] = coreOf(s);
     if (between(p, q, a, b) >= r) return;

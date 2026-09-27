@@ -52,7 +52,12 @@ export class FaunaLayer {
   private readonly birdsNow: BirdNow[] = [];
   private readonly fishNow: FishNow[] = [];
   private readonly box: pc.Mesh;
-  /** Beasts, birds and fish drawn at the last update; the beasts alone. */
+  /** The camera's view as it stands this frame, and a creature's bounds tried against it. */
+  private readonly frustum = new pc.Frustum();
+  private readonly view = new pc.Mat4();
+  private readonly viewProjection = new pc.Mat4();
+  private readonly sphere = new pc.BoundingSphere();
+  /** Beasts, birds and fish about the village at the last update (drawn where in sight); the beasts alone. */
   private shown = 0;
   private beastCount = 0;
   private birdCount = 0;
@@ -133,14 +138,34 @@ export class FaunaLayer {
     }
   }
 
+  /**
+   * Whether a creature of `species` at (x, y, z) metres may be seen: within the camera's view,
+   * or near enough its edge for its shadow to fall into it (the sun low, a shadow long).
+   */
+  private inSight(species: number, x: number, y: number, z: number): boolean {
+    const b = this.fauna!.species[species]!.body,
+      reach = (b.length + b.height + b.neck + b.head + b.tail) * b.k,
+      sphere = this.sphere;
+    sphere.center.set(x * M, y * M + b.height * b.k * 0.5, z * M);
+    sphere.radius = reach * 3 + 0.3;
+    return this.frustum.containsSphere(sphere) > 0;
+  }
+
   /** Put every creature where it is at screen time `s` (seconds). */
   update(s: number): void {
     const fauna = this.fauna;
     if (!fauna || !this.root.enabled) return;
     for (const tones of this.tones) for (const g of tones) g.count = 0;
+    // (The view as the camera stands now, not as it stood for the last frame drawn.)
+    const cam = this.stage.camera;
+    this.view.copy(cam.getWorldTransform()).invert();
+    this.viewProjection.mul2(cam.camera!.projectionMatrix, this.view);
+    this.frustum.setFromMat4(this.viewProjection);
     const n = beastsAt(fauna, s, this.beasts);
     for (let i = 0; i < n; i++) {
       const b = this.beasts[i]!;
+      // (Out of sight, not posed: most of a village's beasts are, looking into it.)
+      if (!this.inSight(b.species, b.x, 0, b.z)) continue;
       this.draw(b.species, b.x, 0, b.z, b.yaw, 0, b.pose);
     }
     // The fliers, on their wings; the swimmers, leaping.
@@ -148,6 +173,7 @@ export class FaunaLayer {
     for (let i = 0; i < birds; i++) {
       const b = this.birdsNow[i]!,
         sp = fauna.species[b.species]!;
+      if (!this.inSight(b.species, b.x, b.y, b.z)) continue;
       this.flying.phase = s * strideOf(sp.body) + i * 0.7;
       // (Gliding, its wings held out still.)
       this.flying.gait = b.glide ? 0 : 1;
@@ -156,6 +182,7 @@ export class FaunaLayer {
     const leaping = fishAt(fauna, s, this.fishNow);
     for (let i = 0; i < leaping; i++) {
       const f = this.fishNow[i]!;
+      if (!this.inSight(f.species, f.x, f.y, f.z)) continue;
       this.swimming.phase = s * 6 + i;
       this.draw(f.species, f.x, 0.02 + f.y, f.z, f.yaw, f.pitch - Math.PI / 2, this.swimming);
     }
@@ -254,7 +281,7 @@ export class FaunaLayer {
     return this.fauna?.species ?? [];
   }
 
-  /** How many beasts, birds and fish are drawn now (for the look tool and tests). */
+  /** How many beasts, birds and fish are about the village now, each drawn where it may be seen (for the look tool and tests). */
   get drawn(): number {
     return this.shown;
   }

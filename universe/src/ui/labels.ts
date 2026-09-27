@@ -13,11 +13,25 @@ export type Label = {
 const WIDTH_PER_CHAR = 7,
   HEIGHT = 18;
 
+/** How often the panels' places are read again (ms): each read makes the page lay itself out. */
+const READ_EVERY = 200;
+
 export class LabelLayer {
   private readonly root: HTMLElement;
   private readonly pool = new Map<string, HTMLSpanElement>();
+  private blocking: HTMLElement[] = [];
+  /** Where the panels stood when last read, about this layer; and when that was. */
+  private blocked: { x0: number; x1: number; y0: number; y1: number }[] = [];
+  private readAt = -Infinity;
+
   /** Panels over the scene: a label that would fall under one is hidden. */
-  blockers: HTMLElement[] = [];
+  get blockers(): HTMLElement[] {
+    return this.blocking;
+  }
+  set blockers(panels: HTMLElement[]) {
+    this.blocking = panels;
+    this.readAt = -Infinity;
+  }
 
   private readonly kind: "label" | "bubble";
 
@@ -29,17 +43,24 @@ export class LabelLayer {
   }
 
   update(labels: readonly Label[]): void {
+    const now = performance.now();
+    if (now - this.readAt >= READ_EVERY) {
+      // (Read now and then, not every frame: a read after the last frame's writes makes the
+      // page lay itself out again before it can go on.)
+      this.readAt = now;
+      const origin = this.root.getBoundingClientRect();
+      this.blocked = [];
+      for (const b of this.blocking)
+        for (const r of b.getClientRects())
+          this.blocked.push({
+            x0: r.left - origin.left,
+            x1: r.right - origin.left,
+            y0: r.top - origin.top,
+            y1: r.bottom - origin.top,
+          });
+    }
     const seen = new Set<string>(),
-      placed: { x0: number; x1: number; y0: number; y1: number }[] = [];
-    const origin = this.root.getBoundingClientRect();
-    for (const b of this.blockers)
-      for (const r of b.getClientRects())
-        placed.push({
-          x0: r.left - origin.left,
-          x1: r.right - origin.left,
-          y0: r.top - origin.top,
-          y1: r.bottom - origin.top,
-        });
+      placed = this.blocked.slice();
     const order = [...labels].sort(
       (a, b) => (b.priority ?? 0) - (a.priority ?? 0) || (a.key < b.key ? -1 : 1),
     );

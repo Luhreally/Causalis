@@ -457,6 +457,9 @@ body[data-scale="micro"] {
   inset: 0;
   overflow: hidden;
   pointer-events: none !important;
+  /* (Its signs change every frame: their layout kept to themselves, so the page's is not
+     done again each time the renderer reads the canvas's size.) */
+  contain: strict;
 }
 .bubble {
   position: absolute;
@@ -486,6 +489,7 @@ body[data-scale="micro"] {
   inset: 0;
   pointer-events: none !important;
   overflow: hidden;
+  contain: strict;
 }
 .label {
   position: absolute;

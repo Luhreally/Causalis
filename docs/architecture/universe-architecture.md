@@ -3170,7 +3170,27 @@ first people. Found and mended at the gate:
   drawing stopped. The busier village never stalled, and the discrete GPU never stalled at
   any scale. The gate times on the discrete GPU now.
 
-CI runs the gate's checks untimed (`--ci`) beside Phases 7 and 8. **Phase 9 closes.**
+CI runs the gate's checks untimed (`--ci`) beside Phases 7 and 8.
+
+Run again after the Phase 9 gate, the Phase 8 gate's village budgets had slipped, and both
+are mended:
+
+- Entering a village at Ultra took a 546 ms frame in WebKit (2.2 s at the phone floor's
+  pace), against 94 ms with M89's village code. The capsule walls were the cause: every
+  leg of every person's day was tried against every home. A way now tries only the homes
+  within reach of its own box, and the rest cost one comparison each.
+- Watching a village at High had crept to a p90 of 37–39 ms with the CPU slowed four times,
+  against a 34 ms budget. This began before M90 (M89's village code gave 37): creatures
+  drawn from their plans have up to 48 parts each. Three kinds of thrift mend it:
+  - Beasts, birds and fish outside the camera's view are neither posed nor drawn, with a
+    margin kept so their shadows still fall into it.
+  - A batch sends the GPU only the instances it draws, not all it could hold (1.05 MB a
+    frame had gone up, mostly empty).
+  - The labels read the page's layout five times a second, not every frame, and their
+    layers are laid out apart from the page's.
+
+Now entering takes 96 ms at High and 95 ms at Ultra (384 and 380 ms at the phone floor's
+pace), and watching gives a p90 of 23 ms at High and 26 ms at Ultra. **Phase 9 closes.**
 
 ### J. Allocation of ~100k lines
 

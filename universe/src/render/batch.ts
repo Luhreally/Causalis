@@ -89,8 +89,26 @@ export class InstancedBatch {
       m[o + 15] = 1;
     }
     this.count = n;
-    this.buffer.setData(this.matrices);
+    this.upload(n);
     this.instance.instancingCount = n;
+  }
+
+  /**
+   * Send the first `n` instances to the GPU, and only those: a batch is sized for the most it
+   * may hold, and most frames it holds far fewer (a village's beasts out of sight, a herd at
+   * rest), so sending the whole of it every frame sent mostly nothing.
+   */
+  private upload(n: number): void {
+    const impl = (this.buffer as unknown as { impl?: { bufferId?: WebGLBuffer | null } }).impl,
+      gl = (this.buffer.device as unknown as { gl?: WebGL2RenderingContext }).gl;
+    if (!gl || !impl?.bufferId) {
+      this.buffer.setData(this.matrices);
+      return;
+    }
+    if (!n) return;
+    // (The buffer's store is this very array, so a restored context re-sends it whole.)
+    gl.bindBuffer(gl.ARRAY_BUFFER, impl.bufferId);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.matrices, 0, n * 16);
   }
 
   /**
@@ -149,7 +167,7 @@ export class InstancedBatch {
       m[o + 15] = 1;
     }
     this.count = n;
-    this.buffer.setData(this.matrices);
+    this.upload(n);
     this.instance.instancingCount = n;
   }
 
