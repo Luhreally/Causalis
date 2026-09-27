@@ -25,6 +25,7 @@ import { folder } from "./window.ts";
 import { lineChart } from "./chart.ts";
 import type { Tidings } from "./tidings.ts";
 import { drawTool } from "./tools.ts";
+import { drawAnatomy, drawPortrait, moves } from "./portrait.ts";
 
 /** How often an open page is read again while the world runs (ms). */
 const REFRESH_MS = 2000;
@@ -63,6 +64,7 @@ export class PageWindow {
   private readonly backButton = el("button", "nav-back", "◀");
   private readonly forwardButton = el("button", "nav-forward", "▶");
   private readonly tallButton = el("button", "tall", "⤢");
+  private readonly portrait = el("canvas", "portrait");
   private readonly sub = el("div", "page-sub");
   private readonly live = el("div", "page-live");
   private readonly actions = el("div", "page-actions");
@@ -95,6 +97,7 @@ export class PageWindow {
     this.why = new WhyTree(client);
     this.why.onOpen = (ref) => void this.open(ref);
     this.element = el("div", "panel page-panel");
+    this.element.hidden = true;
     this.inspector = el("section", "inspector page-window");
     this.inspector.hidden = true;
     this.live.hidden = true;
@@ -109,20 +112,17 @@ export class PageWindow {
     this.forwardButton.onclick = () => void this.step(1);
     this.tallButton.title = "Taller";
     this.tallButton.onclick = () => this.inspector.classList.toggle("tall");
+    // Under the title: its picture beside its words, its doings, its numbers.
+    const head = el("div", "page-head"),
+      words = el("div", "page-head-words");
+    words.append(this.sub, this.live, this.actions, this.stats);
+    head.append(this.portrait, words);
+    this.portrait.hidden = true;
     // The title bar: back and forward, the thing's icon and name, and the window's boxes.
     const boxes = el("span", "page-boxes");
     boxes.append(this.tallButton, folder(this.inspector, this.name), close);
     this.heading.replaceChildren(this.backButton, this.forwardButton, this.icon, this.name, boxes);
-    this.inspector.append(
-      this.heading,
-      this.sub,
-      this.live,
-      this.actions,
-      this.stats,
-      this.statDetail,
-      this.tabs,
-      this.body,
-    );
+    this.inspector.append(this.heading, head, this.statDetail, this.tabs, this.body);
     this.element.append(this.inspector);
     parent.append(this.element);
     // (Not rebuilt while a finger or the pointer is down on it.)
@@ -170,6 +170,8 @@ export class PageWindow {
   close(): void {
     this.setLive(null);
     this.inspector.hidden = true;
+    // (Its panel goes too: "the panel open" then means the scale's own.)
+    this.element.hidden = true;
     this.token++;
     this.page = null;
     this.onClose();
@@ -179,6 +181,7 @@ export class PageWindow {
   private async show(ref: string, fresh: boolean): Promise<void> {
     const token = ++this.token;
     this.inspector.hidden = false;
+    this.element.hidden = false;
     if (fresh) {
       this.setLive(null);
       this.name.textContent = "…";
@@ -220,12 +223,36 @@ export class PageWindow {
     this.backButton.disabled = this.at <= 0;
     this.forwardButton.disabled = this.at >= this.history.length - 1;
     this.sub.replaceChildren(this.line(page.subtitle));
+    this.drawPortrait(page);
     this.drawActions(page);
     this.drawStats(page);
     this.drawTabs(page);
     this.drawBody(page);
     if (!fresh) this.inspector.scrollTop = scroll;
     else this.inspector.scrollTop = 0;
+  }
+
+  /** The page's picture, kept moving (turning, waving, glowing) while it is open. */
+  private drawPortrait(page: PageModel): void {
+    const p = page.portrait;
+    this.portrait.hidden = !p;
+    if (!p) return;
+    const size = innerWidth > 640 ? 96 : 84,
+      started = performance.now(),
+      // (A world's face is drawn pixel by pixel: it turns at a few frames a second.)
+      every = p.kind === "world" ? 250 : 50;
+    let last = -Infinity;
+    const frame = (now: number) => {
+      if (this.page !== page || !this.visible) return;
+      if (now - last >= every) {
+        last = now;
+        drawPortrait(this.portrait, p, size, size, (now - started) / 1000);
+      }
+      if (moves(p)) requestAnimationFrame(frame);
+    };
+    drawPortrait(this.portrait, p, size, size, 0);
+    last = performance.now();
+    if (moves(p)) requestAnimationFrame(frame);
   }
 
   private drawActions(page: PageModel): void {
@@ -393,6 +420,17 @@ export class PageWindow {
         const w = el("div", "why");
         void this.why.show(b.ref, w);
         box.append(w);
+        break;
+      }
+      case "anatomy": {
+        const canvas = el("canvas", "anatomy"),
+          p = this.page?.portrait;
+        box.append(canvas);
+        if (p)
+          // (Drawn once it has its width.)
+          requestAnimationFrame(() =>
+            drawAnatomy(canvas, p, Math.max(260, box.clientWidth || 320), 230),
+          );
         break;
       }
       case "tool":

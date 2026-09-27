@@ -17,7 +17,7 @@ import {
 } from "../../sim/index.ts";
 import { designWords } from "../../rules/index.ts";
 import { governmentWords, principleName, standingWords } from "../../causal/index.ts";
-import { type Ref, type World } from "../../kernel/index.ts";
+import { hashString, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
 import { civilizationsNear } from "../../sim/index.ts";
@@ -208,6 +208,7 @@ export function realmPageModel(world: World, ref: string): PageModel {
     ref: r.ref,
     kind: "realm",
     icon: "👑",
+    portrait: { kind: "flag", flags: [flagOf(r.ref)] },
     title: sentenceRealm(realmName(r)),
     subtitle: [
       governmentWords(r),
@@ -221,6 +222,11 @@ export function realmPageModel(world: World, ref: string): PageModel {
     followable: true,
     year,
   };
+}
+
+/** A realm's flag: its colour, and a pattern keyed on it. */
+function flagOf(ref: string): { color: readonly [number, number, number]; key: number } {
+  return { color: realmColor(ref), key: hashString(ref) };
 }
 
 function sentenceRealm(name: string): string {
@@ -434,6 +440,7 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
     ref: w.ref,
     kind: "war",
     icon: "⚔️",
+    portrait: { kind: "flag", flags: [flagOf(w.attacker), flagOf(w.defender)] },
     title,
     subtitle: [realmLink(world, w.attacker), " against ", realmLink(world, w.defender)],
     color: realmColor(w.attacker),
@@ -468,6 +475,9 @@ export function battlePage(world: World, ref: string): PageModel {
     ref,
     kind: "battle",
     icon: "💥",
+    ...(w
+      ? { portrait: { kind: "flag" as const, flags: [flagOf(w.attacker), flagOf(w.defender)] } }
+      : {}),
     title: land >= 0 ? `The battle at ${landTitle(world, land)}` : "A battle",
     subtitle: [`Year ${year} · `, link("the war", warRef)],
     color: w ? realmColor(w.attacker) : null,

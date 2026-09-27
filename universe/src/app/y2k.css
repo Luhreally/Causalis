@@ -667,3 +667,31 @@ body.paging .panel:not(.page-panel) .inspector {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/* A page's picture beside its words (Phase 10 M93b): a bevelled frame, dark glass behind. */
+.page-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.page-head-words {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.portrait {
+  flex: none;
+  margin: 2px 0 8px;
+  background: radial-gradient(ellipse at 40% 35%, #20346f 0%, #0a1230 70%, #050a1c 100%);
+  border: 2px solid;
+  border-color: var(--chrome-lo) var(--chrome-hi) var(--chrome-hi) var(--chrome-lo);
+  border-radius: 6px;
+  box-shadow: inset 0 0 10px rgba(0, 0, 20, 0.8);
+}
+.anatomy {
+  display: block;
+  width: 100%;
+  height: 230px;
+  background: radial-gradient(ellipse at 50% 45%, #1a2c63 0%, #0a1230 72%, #050a1c 100%);
+  border: 1px solid var(--chrome-lo);
+  border-radius: 6px;
+}

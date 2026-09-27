@@ -40,6 +40,57 @@ export const DRAWN_UNDER_HAND = 400;
 
 const u = (seed: number, n: number) => finish(mix(seed, n), 13) / 4294967296;
 
+/** The people's body, as their figures are drawn from it (null: upright apes, as ever). */
+export function peopleBody(world: World): VillagePlan["body"] {
+  const b = populationContext(world).generated.life.people?.body;
+  return b
+    ? {
+        clade: b.clade,
+        medium: b.medium,
+        symmetry: b.symmetry,
+        manipulators: b.manipulators,
+        limbs: b.limbs,
+        skin: b.skin,
+        size: b.size,
+        span: b.span,
+      }
+    : null;
+}
+
+/** How far a land has come, for what its people wear, carry and dig with. */
+export function landEra(world: World, cell: number): NonNullable<VillagePlan["era"]> {
+  // (Sowing is the land's own knowing; smelting shows in its market too.)
+  const ctx = populationContext(world),
+    lore = loreOf(world),
+    knows = (id: string) => !!lore.get(cell, id),
+    land = ctx.provinces.get(cell);
+  return knows("electricity") || knows("sea-electricity")
+    ? "modern"
+    : knows("steam-engine")
+      ? "industry"
+      : knows("metalworking") || !!marketsOf(world).get(cell)?.metalworking
+        ? "metal"
+        : land?.knowsCultivation || knows("cultivation")
+          ? "farm"
+          : "forage";
+}
+
+/** A land's house design: the one its people realized, or the one they would. */
+export function landHouse(world: World, cell: number): VillagePlan["house"] {
+  const ctx = populationContext(world),
+    design = designsOf(world).of(ctx.provinces.get(cell)!.ref),
+    parts = design?.parts ?? houseFor(ctx, cell),
+    part = (role: string) => parts.find((p) => p.role === role)?.id ?? "",
+    roof = part("roof");
+  return {
+    walls: part("walls"),
+    roof,
+    form: part("form"),
+    pitch: roofPitch(roof, ctx.generated.climate.precipitation[cell]!),
+    design: design?.ref ?? null,
+  };
+}
+
 export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES): VillagePlan {
   const ctx = populationContext(world),
     v = ctx.settlements.get(ref);
@@ -386,23 +437,9 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
     return life.species.find((s) => s.tame && s.niche === "grazer" && s.died === null) ?? null;
   }
 
-  /** How far the land has come, for what its people wear, carry and dig with. */
   function eraOf(cell: number): NonNullable<VillagePlan["era"]> {
-    // (Sowing is the land's own knowing; smelting shows in its market too.)
-    const lore = loreOf(world),
-      knows = (id: string) => !!lore.get(cell, id),
-      land = ctx.provinces.get(cell);
-    return knows("electricity") || knows("sea-electricity")
-      ? "modern"
-      : knows("steam-engine")
-        ? "industry"
-        : knows("metalworking") || !!marketsOf(world).get(cell)?.metalworking
-          ? "metal"
-          : land?.knowsCultivation || knows("cultivation")
-            ? "farm"
-            : "forage";
+    return landEra(world, cell);
   }
-
   /**
    * The land's works about the village, on the open ground furthest from its fields, road
    * and pasture: a mine where it digs coal (a shaft under a headframe once it has engines,
@@ -440,19 +477,8 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
     };
   }
 
-  /** The land's house design (realized now if the land has none yet). */
   function houseOf(cell: number): VillagePlan["house"] {
-    const design = designsOf(world).of(ctx.provinces.get(cell)!.ref),
-      parts = design?.parts ?? houseFor(ctx, cell),
-      part = (role: string) => parts.find((p) => p.role === role)?.id ?? "",
-      roof = part("roof");
-    return {
-      walls: part("walls"),
-      roof,
-      form: part("form"),
-      pitch: roofPitch(roof, ctx.generated.climate.precipitation[cell]!),
-      design: design?.ref ?? null,
-    };
+    return landHouse(world, cell);
   }
 
   function planOf(people: VillagePlan["people"][number][]): VillagePlan {
@@ -482,21 +508,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       era: eraOf(village.cell),
       works: worksOf(village.cell),
       life: lifeNow(village.cell, village.population),
-      body: (() => {
-        const b = ctx.generated.life.people?.body;
-        return b
-          ? {
-              clade: b.clade,
-              medium: b.medium,
-              symmetry: b.symmetry,
-              manipulators: b.manipulators,
-              limbs: b.limbs,
-              skin: b.skin,
-              size: b.size,
-              span: b.span,
-            }
-          : null;
-      })(),
+      body: peopleBody(world),
       // A city's road runs along its axis; a village's out toward the far fields.
       road: city
         ? { x: 1100 * Math.cos(city.axis), z: 1100 * Math.sin(city.axis) }

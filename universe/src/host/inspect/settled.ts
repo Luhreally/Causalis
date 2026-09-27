@@ -24,6 +24,8 @@ import {
 import { yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, Stat, Tab } from "../../bridge/index.ts";
 import { province, settlementFacts } from "../planet.ts";
+import { landEra, landHouse, peopleBody } from "../village.ts";
+import { hashString } from "../../kernel/index.ts";
 import { realmColor } from "../colors.ts";
 import {
   claimOf,
@@ -183,6 +185,13 @@ export function townPage(world: World, ref: string): PageModel {
     ref: s.ref,
     kind: "town",
     icon: s.city ? "🏙️" : "🏘️",
+    portrait: {
+      kind: "town",
+      house: landHouse(world, s.cell),
+      homes: Math.max(3, Math.round(s.population / 5)),
+      city: !!s.city,
+      key: hashString(s.ref),
+    },
     title: s.name,
     subtitle: [s.city ? "A city of " : "A town of ", landLink(world, s.cell)],
     color: realm ? realmColor(realm.ref) : null,
@@ -367,6 +376,16 @@ export function personPage(world: World, ref: string): PageModel {
     ref: p.ref,
     kind: "person",
     icon: p.alive ? (grown ? "🧑" : "🧒") : "🪦",
+    portrait: {
+      kind: "person",
+      ref: p.ref,
+      age,
+      span: peopleBody(world)?.span ?? 70,
+      occupation: p.occupation,
+      child: !grown,
+      era: landEra(world, p.cell),
+      body: peopleBody(world),
+    },
     title: `${p.name} ${p.surname}`,
     subtitle: [
       p.alive ? `${age}, ` : `Died at ${age}, `,

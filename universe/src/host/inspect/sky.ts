@@ -9,7 +9,8 @@ import {
   starWarsOf,
 } from "../../sim/index.ts";
 import { offworldSite, cellRef } from "../../gen/index.ts";
-import { Rng, type World } from "../../kernel/index.ts";
+import { Rng, hashString, type World } from "../../kernel/index.ts";
+import { realmColor } from "../colors.ts";
 import type { Item, PageModel, Place, Stat } from "../../bridge/index.ts";
 import { starByRef, starFacts, foreignGlobe } from "../galaxy.ts";
 import { foreignPlanets } from "../../gen/index.ts";
@@ -59,6 +60,12 @@ export function starPageModel(world: World, ref: string): PageModel {
       ref,
       kind: "star",
       icon: "☀️",
+      portrait: {
+        kind: "star",
+        temperature: g.star.temperature,
+        luminosity: g.star.luminosity,
+        remnant: false,
+      },
       title: "The home star",
       subtitle: [`${starWords(g.star)}, ${g.star.ageGyr.toFixed(1)} billion years old`],
       color: null,
@@ -130,6 +137,12 @@ export function starPageModel(world: World, ref: string): PageModel {
     ref,
     kind: "star",
     icon: "⭐",
+    portrait: {
+      kind: "star",
+      temperature: f.temperature,
+      luminosity: f.luminosity,
+      remnant: f.remnant,
+    },
     title: `${starWords(f)} ${f.distance.toFixed(1)} light-years out`,
     subtitle: [`${f.spectral}, ${f.ageGyr.toFixed(1)} billion years old`],
     color: null,
@@ -212,6 +225,15 @@ export function bodyPage(world: World, ref: string): PageModel {
     ref,
     kind: b.kind === "moon" ? "moon" : "planet",
     icon: home ? "🌍" : b.kind === "moon" ? "🌙" : "🪐",
+    portrait: {
+      kind: "world",
+      look: home ? "home" : b.kind,
+      sea: home ? g.planet.oceanFraction : b.water === "seas" ? 0.55 : 0,
+      ice: /ice/.test(b.water) ? 0.7 : b.temperature < -30 ? 0.35 : home ? 0.1 : 0,
+      green: home ? 0.65 : 0,
+      air: b.pressure > 0.05,
+      key: hashString(b.ref),
+    },
     title: home
       ? "The home world"
       : b.kind === "moon"
@@ -227,7 +249,7 @@ export function bodyPage(world: World, ref: string): PageModel {
     place: home ? { scale: "globe", spot: homeSpot(world) } : { scale: "body", index },
     stats: [
       stat("Gravity", `${b.gravity.toFixed(2)} g`),
-      stat("Warmth", `${Math.round(b.temperature - 273)} °C`),
+      stat("Warmth", `${Math.round(b.temperature)} °C`),
       stat("Air", b.air),
       stat("Water", b.water),
       ...(halls.length ? [stat("Halls", count(halls.length))] : []),
@@ -248,7 +270,12 @@ export function bodyPage(world: World, ref: string): PageModel {
               stat("Size", `${b.radius.toFixed(2)} Earths across`),
               stat("Escape", `${b.escape.toFixed(1)} km/s`),
               stat("Air pressure", `${b.pressure.toFixed(2)} bar`),
-              stat("Radiation", `${b.radiation}`),
+              stat(
+                "Radiation at the ground",
+                home
+                  ? "as at home"
+                  : `${b.radiation < 10 ? b.radiation.toFixed(1) : Math.round(b.radiation)}× the home world's`,
+              ),
             ],
           },
           { type: "text", title: "Why it is like this", lines: b.because.map((w) => [w]) },
@@ -295,6 +322,15 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
     ref,
     kind: "world",
     icon: w.living ? "🌏" : "🪐",
+    portrait: {
+      kind: "world",
+      look: w.kind,
+      sea: w.water === "seas" ? 0.6 : 0,
+      ice: /ice/.test(w.water) ? 0.7 : 0.1,
+      green: w.living ? 0.6 : 0,
+      air: w.air !== "none",
+      key: hashString(ref),
+    },
     title: `The ${ordinal(index + 1)} world of a star`,
     subtitle: [link("its star", star)],
     color: null,
@@ -339,6 +375,7 @@ export function civilizationPage(world: World, ref: string): PageModel {
     ref,
     kind: "civilization",
     icon: "👽",
+    portrait: { kind: "flag", flags: [{ color: realmColor(ref), key: hashString(ref) }] },
     title: `The ${name} of another star`,
     subtitle: [
       link(`its ${ordinal(c.planet + 1)} world`, `${c.star}/${c.planet}`),

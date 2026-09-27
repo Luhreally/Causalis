@@ -47,6 +47,7 @@ import type {
   VillagePlan,
   WorldGlobe,
   GalaxyPlan,
+  PageModel,
   Place,
   StarPage,
   WarsMap,
@@ -357,12 +358,17 @@ async function runPlanetPage(): Promise<void> {
     tidings = new Tidings(hud, client),
     // Every thing's page, in one window (Phase 10 M92).
     pageWindow = new PageWindow(hud, client);
+  // (Set once the scales are made: what a page is of, lit in the scene.)
+  let pointAt: (page: PageModel) => void = () => {};
   planetPanel.tidings = regionPanel.tidings = villagePanel.tidings = tidings;
   pageWindow.tidings = tidings;
   // (The world's own pages — its chronicle, saves, settings — open in its panel instead.)
   planetPanel.onWorldPage = () => pageWindow.close();
   // While a page is open the scales' own windows stand aside (their sheets would cover it).
-  pageWindow.onOpen = () => document.body.classList.add("paging");
+  pageWindow.onOpen = (page) => {
+    document.body.classList.add("paging");
+    pointAt(page);
+  };
   pageWindow.onClose = () => document.body.classList.remove("paging");
   exposed.open = (ref: string) => pageWindow.open(ref);
   exposed.pageOpen = () => pageWindow.current;
@@ -1344,11 +1350,13 @@ async function runPlanetPage(): Promise<void> {
       return;
     }
     selectPerson(null);
+    village.markBeast(beast.index);
     void pageWindow.open(beast.ref).then(() => pageWindow.setLive(`Now ${beast.doing}`));
   };
   const selectPerson = (i: number | null) => {
     watched = i;
     village.mark(i);
+    if (i !== null) village.markBeast(null);
     if (i === null || !plan) return;
     void pageWindow.open(plan.people[i]!.ref);
   };
@@ -1491,6 +1499,38 @@ async function runPlanetPage(): Promise<void> {
     });
   };
   pageWindow.onGoTo = (place) => void goTo(place);
+  // What a page is of, lit in the scene when it is there (a link followed, not only a tap).
+  pointAt = (page) => {
+    const p = page.place;
+    if (!p) return;
+    if (scale === "globe") {
+      const spot =
+        p.scale === "globe" ? p.spot : p.scale === "region" ? centres.get(p.cell) : undefined;
+      if (spot !== undefined) globe.mark(spot);
+    } else if (scale === "region") {
+      if (p.scale === "village") {
+        const v = villages.find((x) => x.ref === p.town);
+        if (v) region.mark(v.tile);
+      } else if (p.scale === "region" && p.tile !== undefined && p.cell === regionCell)
+        region.mark(p.tile);
+    } else if (scale === "village" && plan) {
+      if (page.kind === "lineage") village.markLineage(page.ref);
+      else if (p.scale === "village" && p.person && p.town === plan.ref) {
+        const i = plan.people.findIndex((x) => x.ref === p.person);
+        if (i >= 0) {
+          watched = i;
+          village.mark(i);
+          village.markBeast(null);
+        }
+      }
+    } else if (scale === "system" && (p.scale === "body" || p.scale === "system")) {
+      const i = p.scale === "body" ? p.index : p.body;
+      if (i !== undefined) skyScene.mark(i);
+    } else if (scale === "cluster" && p.scale === "cluster") {
+      const i = clusterPlan?.stars.findIndex((x) => x.ref === p.star) ?? -1;
+      if (i >= 0) starScene.mark(i, clusterPlan);
+    }
+  };
   exposed.goTo = async (ref: string) => {
     const place = await client.query<Place | null>({ type: "place", args: { ref } });
     if (place) await goTo(place);

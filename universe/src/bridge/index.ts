@@ -35,6 +35,7 @@ export {
   type PageModel,
   type Part,
   type Place,
+  type Portrait,
   type Row,
   type Span,
   type Stat,

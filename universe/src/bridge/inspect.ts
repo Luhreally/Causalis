@@ -1,3 +1,5 @@
+import type { BeastPlan, VillagePlan } from "./village.ts";
+
 // Every thing's page (Phase 10 M91, docs/architecture §31): what the host says of any ref —
 // its title and icon, where it is to be seen, its headline numbers with what makes them
 // and what explains them, and tabs of blocks. Every name in a page is a link to its own.
@@ -74,6 +76,8 @@ export type Block =
       readonly unit?: "people" | "share" | "price" | "count";
     }
   | { readonly type: "why"; readonly title?: string; readonly ref: string }
+  /** The page's picture large, with what it is made of named (a lineage's anatomy). */
+  | { readonly type: "anatomy"; readonly title?: string }
   /** Something to do (the god's acts, meeting a family, the hand): the page's tools draw it. */
   | {
       readonly type: "tool";
@@ -82,6 +86,59 @@ export type Block =
     };
 
 export type Tab = { readonly id: string; readonly name: string; readonly blocks: readonly Block[] };
+
+type Rgb = readonly [number, number, number];
+
+/**
+ * What a page's picture shows (Phase 10 M93b), drawn from the same plans as the scenes: a
+ * lineage's body, a person's figure in their clothes with their tools and hair, a town's
+ * houses, a world, a star's light, a realm's flag (a war's two), a faith's sign.
+ */
+export type Portrait =
+  | {
+      readonly kind: "creature";
+      readonly body: BeastPlan;
+      readonly name: string;
+      readonly wool: boolean;
+    }
+  | {
+      readonly kind: "person";
+      readonly ref: string;
+      readonly age: number;
+      readonly span: number;
+      readonly occupation: number;
+      readonly child: boolean;
+      readonly era: NonNullable<VillagePlan["era"]>;
+      readonly body: VillagePlan["body"];
+    }
+  | {
+      readonly kind: "town";
+      readonly house: VillagePlan["house"];
+      readonly homes: number;
+      readonly city: boolean;
+      readonly key: number;
+    }
+  | {
+      readonly kind: "world";
+      readonly look: "home" | "rocky" | "giant" | "ice giant" | "moon";
+      /** Its seas' share of its face, its ice's, how green its land (0 … 1). */
+      readonly sea: number;
+      readonly ice: number;
+      readonly green: number;
+      readonly air: boolean;
+      readonly key: number;
+    }
+  | {
+      readonly kind: "star";
+      readonly temperature: number;
+      readonly luminosity: number;
+      readonly remnant: boolean;
+    }
+  | {
+      readonly kind: "flag";
+      readonly flags: readonly { readonly color: Rgb; readonly key: number }[];
+    }
+  | { readonly kind: "sign"; readonly color: Rgb; readonly tenet: string };
 
 export type PageKind =
   | "land"
@@ -123,6 +180,8 @@ export type PageModel = {
   readonly subtitle: Line;
   /** Its own colour, where it has one (a realm's, a faith's). */
   readonly color: readonly [number, number, number] | null;
+  /** Its picture, where it has one. */
+  readonly portrait?: Portrait;
   readonly place: Place | null;
   readonly stats: readonly Stat[];
   readonly tabs: readonly Tab[];

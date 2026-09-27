@@ -74,6 +74,7 @@ export function faithPage(world: World, ref: string): PageModel {
     ref: f.ref,
     kind: "faith",
     icon: "✨",
+    portrait: { kind: "sign", color: realmColor(`${f.ref}:faith`), tenet: f.tenet },
     title: f.name,
     subtitle: [`A faith of ${DEITIES[f.tenet]}`],
     color: realmColor(`${f.ref}:faith`),

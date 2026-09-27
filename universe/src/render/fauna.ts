@@ -21,16 +21,22 @@ import {
   type FishNow,
   type Pose,
 } from "../view/index.ts";
-import { InstancedBatch, boxMesh, keptMesh } from "./batch.ts";
-import type { Rgb, Stage } from "./stage.ts";
+import { InstancedBatch, boxMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre, as the village's
 /** The most parts of each tone a beast is drawn with: coat, dark features, horn. */
 const PER_BEAST = MOST_OF_TONE;
 const FLOATS = 8;
 
-/** A beast looked at: its lineage (ref and name), what it is doing, whether it is of the flocks. */
-export type PickedBeast = { ref: string; name: string; doing: string; flock: boolean };
+/** A beast looked at: its lineage (ref and name), what it is doing, whether it is of the flocks, and which it is. */
+export type PickedBeast = {
+  ref: string;
+  name: string;
+  doing: string;
+  flock: boolean;
+  index: number;
+};
 
 /** Instances gathered for one batch this frame: [x, y, z, sx, sy, sz, yaw, pitch] each. */
 type Gathered = { batch: InstancedBatch; data: Float32Array; count: number };
@@ -63,10 +69,42 @@ export class FaunaLayer {
   private birdCount = 0;
   private fishCount = 0;
 
+  /** The beast lit as looked at (Phase 10 M93b): a ring on the ground that goes with it. */
+  private readonly ring: pc.Entity;
+  private lit: number | null = null;
+
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
     this.box = keptMesh(boxMesh(stage));
+    this.ring = new pc.Entity("beast-ring");
+    this.ring.addComponent("render", {
+      meshInstances: [
+        new pc.MeshInstance(
+          cylinderMesh(stage, 0.5, 0.012, 24),
+          flatMaterial([1, 0.92, 0.35], 0.8),
+        ),
+      ],
+    });
+    this.ring.enabled = false;
     parent.addChild(this.root);
+    // (Under the layer's own root: the village's rebuilds clear what else stands on its ground.)
+    this.root.addChild(this.ring);
+  }
+
+  /** Light a beast (its place in the herds as laid out), or none. */
+  mark(index: number | null): void {
+    this.lit = index;
+    this.ring.enabled = false;
+  }
+
+  /** Light the first beast of a lineage about the village, if any stands there. */
+  markLineage(ref: string): boolean {
+    const fauna = this.fauna;
+    if (!fauna) return false;
+    const species = fauna.species.findIndex((s) => s.ref === ref),
+      i = this.beasts.slice(0, this.beastCount).findIndex((b) => b.species === species);
+    this.mark(i >= 0 ? i : null);
+    return i >= 0;
   }
 
   private gathered(color: Rgb, capacity: number): Gathered {
@@ -187,6 +225,15 @@ export class FaunaLayer {
       this.draw(f.species, f.x, 0.02 + f.y, f.z, f.yaw, f.pitch - Math.PI / 2, this.swimming);
     }
     for (const tones of this.tones) for (const g of tones) flush(g);
+    // The lit beast's ring, under it and as wide as it is long.
+    const lit = this.lit === null ? undefined : this.beasts[this.lit];
+    this.ring.enabled = !!lit && this.lit! < n;
+    if (lit && this.ring.enabled) {
+      const b = fauna.species[lit.species]!.body,
+        r = Math.max(0.12, b.length * b.k * 0.8);
+      this.ring.setLocalPosition(lit.x * M, 0.035, lit.z * M);
+      this.ring.setLocalScale(r * 2, 1, r * 2);
+    }
     this.shown = n + birds + leaping;
     this.beastCount = n;
     this.birdCount = birds;
@@ -241,7 +288,13 @@ export class FaunaLayer {
         d = (s.x - x) * (s.x - x) + (s.y - y) * (s.y - y);
       if (s.z > 0 && d < bestD) {
         bestD = d;
-        best = { ref: sp.ref, name: sp.name, doing: doingOf(sp, b.pose, b.task), flock: sp.flock };
+        best = {
+          ref: sp.ref,
+          name: sp.name,
+          doing: doingOf(sp, b.pose, b.task),
+          flock: sp.flock,
+          index: this.beasts.indexOf(b),
+        };
       }
     }
     return best;

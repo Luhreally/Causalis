@@ -3369,6 +3369,38 @@ through the world to a land, a village (and the person there), the sky and a wor
 the stars about us, the galaxy, or another star's world. The journey (all 19 steps) and
 app-check (three engines, worker and in-thread) walk it now.
 
+93b, as built. Every page carries its picture (bridge/inspect.ts Portrait; ui/portrait.ts),
+drawn from the same plans as the scenes. It uses a small renderer of flat-shaded solids
+(boxes, gabled roofs, pyramids) on a 2D canvas: the art track's low-poly, the same in every
+browser, with nothing read back from the GPU.
+- A lineage: its body built and posed as in the village (view/creature.ts). Its Overview
+  opens with its anatomy, side on and large: its head's growths, its covering, legs, wings,
+  fins and tail each named where they are, with its weight, length, gait and food, and a
+  metre to measure it by.
+- A person: their figure, dressed as their land's era dresses their group, with their hair
+  and their work's tool (a hoe, a crook, a hammer, a basket, a pack, a staff). The
+  clothes, skin and eyes moved from the village's renderer into the view (view/dress.ts),
+  one palette for both.
+- A town: its own houses (its land's design, view/village.ts houseLook) about its square, a
+  city's towers at its heart.
+- A world's face (seas, lands, ice, a giant's bands, an air's glow) and a star's light.
+- A realm's flag (its colour, a light and a dark beside it, a division and a charge keyed on
+  it, glossy and waving), a war's two crossed, a faith's sign.
+
+Pictures turn, wave and glow while their page is open. What a page is of is lit in the
+scene where it is there, a link followed as well as a tap: a land on the globe, a town in
+its land, a person or a beast of a lineage in a village (a ring that goes with the beast),
+a world in the sky, a star among the stars.
+
+Found and mended on the way:
+- The village's plan lost its land's era and house to a function that became a constant too
+  late (villages would not open). They are functions of their own now (host/village.ts
+  landEra, landHouse).
+- A beast's ring was cleared with the village's own ground at each rebuild; it stands under
+  the beasts' layer now.
+- CI's Phase 8 world check read the page window's empty panel as "the panel open"; the
+  window's panel hides with it.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

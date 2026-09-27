@@ -133,6 +133,9 @@ export function lineagePage(world: World, ref: string): PageModel {
     title: s.name[0]!.toUpperCase() + s.name.slice(1),
     subtitle: [s.what],
     color: null,
+    ...(sp.body
+      ? { portrait: { kind: "creature" as const, body: sp.body, name: s.name, wool: s.wool } }
+      : {}),
     place: lineagePlace(world, sp.index, s.origin.cell),
     stats,
     tabs: [
@@ -140,6 +143,7 @@ export function lineagePage(world: World, ref: string): PageModel {
         id: "overview",
         name: "Overview",
         blocks: [
+          ...(sp.body ? [{ type: "anatomy" as const, title: "Its body" }] : []),
           { type: "facts", rows: facts },
           { type: "why", ref },
         ],

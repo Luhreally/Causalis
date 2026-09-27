@@ -179,3 +179,4 @@ export {
   starWords,
   type GalaxyPoints,
 } from "./galaxy.ts";
+export { EYES, GROUP_COLORS, SKIN, clothes } from "./dress.ts";
