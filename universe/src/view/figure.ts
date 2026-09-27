@@ -29,8 +29,8 @@ export type FigurePart = {
   readonly sx: number;
   readonly sy: number;
   readonly sz: number;
-  /** 0 the body's own colour; 1 its limbs and features, a shade darker; 2 bare skin. */
-  readonly tone: 0 | 1 | 2;
+  /** 0 the body's own colour; 1 its limbs and features, a shade darker; 2 bare skin; 3 hair; 4 eyes. */
+  readonly tone: 0 | 1 | 2 | 3 | 4;
   /**
    * A limb that swings as they walk (art track A2): how far, in radians, and which way
    * (the sign: a left leg and a right arm forward together); it hinges `pivot` above its
@@ -54,7 +54,7 @@ const part = (
   sx: number,
   sy: number,
   sz: number,
-  tone: 0 | 1 | 2 = 0,
+  tone: FigurePart["tone"] = 0,
 ): FigurePart => ({ shape, x, y, z, sx, sy, sz, tone });
 
 /** A limb: a part that swings about a hinge `pivot` above its middle as they walk. */
@@ -88,8 +88,8 @@ function legs(n: number, spread: number, length: number, high: number): FigurePa
  * a figure of the era's games — a boxy body in its clothes, bare arms and head, legs in
  * a darker cloth — that swings its arms and legs as it walks. About 0.55 high.
  */
-function upright(): FigurePart[] {
-  return [
+function upright(detail = 0): FigurePart[] {
+  const parts = [
     part("box", 0, 0.335, 0, 0.17, 0.2, 0.11),
     part("box", 0, 0.49, 0, 0.11, 0.11, 0.11, 2),
     limb(part("box", -0.105, 0.33, 0, 0.045, 0.2, 0.05, 2), 0.55, 0.09),
@@ -97,15 +97,33 @@ function upright(): FigurePart[] {
     limb(part("box", -0.045, 0.12, 0, 0.065, 0.24, 0.07, 1), -0.5, 0.12),
     limb(part("box", 0.045, 0.12, 0, 0.065, 0.24, 0.07, 1), 0.5, 0.12),
   ];
+  // Finer at a finer setting (M79): hands at the arms' ends and shoes at the legs', swinging
+  // with them; hair over the head and eyes in the face; a belt.
+  if (detail >= 1)
+    parts.push(
+      limb(part("box", -0.105, 0.215, 0.005, 0.05, 0.04, 0.055, 2), 0.55, 0.205),
+      limb(part("box", 0.105, 0.215, 0.005, 0.05, 0.04, 0.055, 2), -0.55, 0.205),
+      limb(part("box", -0.045, 0.0125, 0.015, 0.07, 0.025, 0.1, 1), -0.5, 0.2275),
+      limb(part("box", 0.045, 0.0125, 0.015, 0.07, 0.025, 0.1, 1), 0.5, 0.2275),
+    );
+  if (detail >= 2)
+    parts.push(
+      part("box", 0, 0.54, -0.012, 0.118, 0.035, 0.12, 3),
+      part("box", 0, 0.5, -0.05, 0.116, 0.07, 0.03, 3),
+      part("box", -0.025, 0.5, 0.056, 0.018, 0.018, 0.01, 4),
+      part("box", 0.025, 0.5, 0.056, 0.018, 0.018, 0.01, 4),
+    );
+  if (detail >= 3) parts.push(part("box", 0, 0.245, 0, 0.176, 0.025, 0.116, 1));
+  return parts;
 }
 
-/** How a people looks, from its body. */
-export function figureOf(b: FigureBody | null): Figure {
+/** How a people looks, from its body — the upright apes built more finely at a finer `detail` (0 … 3). */
+export function figureOf(b: FigureBody | null, detail = 0): Figure {
   // Scale by the cube root of weight against an upright ape's (clamped for the eye).
   const scale = Math.min(2.4, Math.max(0.6, Math.cbrt((b?.size ?? 60) / 60)));
   if (!b || b.clade === "ape")
     // An upright ape: body, head, two arms and two legs.
-    return { parts: upright(), scale };
+    return { parts: upright(detail), scale };
   if (b.symmetry === "radial" || b.manipulators === "tentacles")
     // A mantle above a ring of arms.
     return {

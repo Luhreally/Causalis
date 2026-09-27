@@ -114,6 +114,8 @@ type Exposed = {
   /** Beasts, birds and fish drawn about the village watched (0 elsewhere), and each beast now. */
   beasts?: () => number;
   faunaNow?: () => { name: string; niche: string; x: number; z: number; doing: string }[];
+  /** Everyone carrying something in the village watched: where and what. */
+  carriersNow?: () => { x: number; z: number; carry: string }[];
   /** The camera's rig, for the look tools. */
   rig?: OrbitRig;
 };
@@ -247,7 +249,8 @@ async function runPlanetPage(): Promise<void> {
   stage.backdrop("space");
   // While the world is made, the shaders of the scales below are readied, so the first
   // "Look closer" draws at once.
-  stage.warm(regionMaterials(stage));
+  // (With the sun casting shadows: a village drawn at High casts them from its first frame.)
+  stage.warm(regionMaterials(stage), true);
   const { client, mode } = await connect();
   let painted = 0,
     scale: "globe" | "region" | "village" | "system" | "cluster" = "globe",
@@ -736,15 +739,18 @@ async function runPlanetPage(): Promise<void> {
   const loadPlan = async (ref: string) => {
     // Asked once a year: the year is marked before the answer comes.
     planYear = Math.floor(clock.t / YEAR);
+    const q0 = performance.now();
     plan = await client.query<VillagePlan>({
       type: "village.plan",
       args: { ref, families: stage.quality.families },
     });
+    performance.measure("village.plan", { start: q0 });
     const t0 = performance.now();
     village.build(plan);
     performance.measure("village.build", { start: t0 });
     villagePanel.show(plan.name, WATCH_DEFAULT);
     villagePanel.hand = plan.hand;
+    villagePanel.works = { era: plan.era, what: plan.works?.mine?.what ?? null };
   };
   const toVillage = async (ref: string) => {
     scale = "village";
@@ -838,6 +844,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.watching = () => (scale === "village" && plan ? plan.people.length : 0);
   exposed.beasts = () => (scale === "village" ? village.beastsDrawn : 0);
   exposed.faunaNow = () => (scale === "village" ? village.faunaNow() : []);
+  exposed.carriersNow = () => (scale === "village" ? village.carriersNow() : []);
   exposed.rig = rig;
 
   regionPanel.onBack = () => toGlobe();

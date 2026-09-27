@@ -7,7 +7,7 @@
 // people's day is drawn from this plan by the view, and nothing flows back.
 import { finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
 import { WATER, livingIn, type Species } from "../gen/index.ts";
-import { OCC, roofPitch } from "../rules/index.ts";
+import { G, OCC, roofPitch } from "../rules/index.ts";
 import {
   agentName,
   BLOCK_M,
@@ -66,21 +66,24 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       w = r.water[t]!;
     ways.push({ angle, soil: w === WATER.land ? r.fertility[t]! : 0, water: w !== WATER.land });
   }
-  const best = [...ways].sort((a, b) => b.soil - a.soil || a.angle - b.angle),
+  const city = citiesOf(world).get(ref),
+    best = [...ways].sort((a, b) => b.soil - a.soil || a.angle - b.angle),
     fieldWay = best[0]?.angle ?? 0,
-    // (A village's road leaves between the fields and the poorer ground; the flocks keep off it.)
-    roadWay = fieldWay + Math.PI * 0.75,
+    // (A village's road leaves between the fields and the poorer ground; a city's runs
+    // through it along its axis, both ways. The flocks and the works keep off it.)
+    roadWay = city ? city.axis : fieldWay + Math.PI * 0.75,
     apart = (a: number, b: number) =>
       Math.abs(((((a - b) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI),
+    offRoad = (a: number) =>
+      city ? Math.min(apart(a, roadWay), apart(a, roadWay + Math.PI)) : apart(a, roadWay),
     poorWay = best.at(-1)?.angle ?? Math.PI,
     turn = apart(poorWay + 0.9, fieldWay) > apart(poorWay - 0.9, fieldWay) ? 0.9 : -0.9,
-    pastureWay = apart(poorWay, roadWay) < 0.7 ? poorWay + turn : poorWay,
+    pastureWay = offRoad(poorWay) < 0.7 ? poorWay + turn : poorWay,
     waterWay = ways.find((w) => w.water)?.angle ?? null;
 
   // Homes for everyone, the watched among them; five to a home. A city's homes stand
   // in its housing quarters; a village's around its square.
-  const city = citiesOf(world).get(ref),
-    homes: { x: number; z: number; yaw: number; household: string | null }[] = [],
+  const homes: { x: number; z: number; yaw: number; household: string | null }[] = [],
     count = Math.max(4, Math.min(160, Math.ceil(v.population / 5))),
     phase = u(seed, 1) * 2 * Math.PI;
   if (city) {
@@ -266,6 +269,60 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
     return life.species.find((s) => s.tame && s.niche === "grazer" && s.died === null) ?? null;
   }
 
+  /** How far the land has come, for what its people wear, carry and dig with. */
+  function eraOf(cell: number): NonNullable<VillagePlan["era"]> {
+    // (Sowing is the land's own knowing; smelting shows in its market too.)
+    const lore = loreOf(world),
+      knows = (id: string) => !!lore.get(cell, id),
+      land = ctx.provinces.get(cell);
+    return knows("electricity") || knows("sea-electricity")
+      ? "modern"
+      : knows("steam-engine")
+        ? "industry"
+        : knows("metalworking") || !!marketsOf(world).get(cell)?.metalworking
+          ? "metal"
+          : land?.knowsCultivation || knows("cultivation")
+            ? "farm"
+            : "forage";
+  }
+
+  /**
+   * The land's works about the village, on the open ground furthest from its fields, road
+   * and pasture: a mine where it digs coal (a shaft under a headframe once it has engines,
+   * a pit before), else an ore pit where it smelts copper, else a quarry where it builds in
+   * stone; its oil well; its factory by the road.
+   */
+  function worksOf(cell: number): NonNullable<VillagePlan["works"]> {
+    const m = marketsOf(world).get(cell),
+      made = m?.years.at(-1)?.ledger[0],
+      era = eraOf(cell),
+      engines = era === "industry" || era === "modern",
+      ways = Array.from({ length: 8 }, (_, k) => (k / 8) * 2 * Math.PI).sort(
+        (a, b) =>
+          Math.min(apart(b, fieldWay), offRoad(b), apart(b, pastureWay)) -
+            Math.min(apart(a, fieldWay), offRoad(a), apart(a, pastureWay)) || a - b,
+      ),
+      at = (a: number, r: number) => ({ x: r * Math.cos(a), z: r * Math.sin(a) }),
+      dig = edge + 70,
+      mine = m?.mine
+        ? { ...at(ways[0]!, dig), kind: engines ? "shaft" : "pit", what: "coal", ref: m.mine }
+        : (made?.[G.copper] ?? 0) > 0
+          ? {
+              ...at(ways[0]!, dig),
+              kind: engines ? "shaft" : "pit",
+              what: "ore",
+              ref: m?.metalworking ?? null,
+            }
+          : houseOf(cell).walls === "stone"
+            ? { ...at(ways[0]!, dig), kind: "quarry", what: "stone", ref: houseOf(cell).design }
+            : null;
+    return {
+      mine: mine as NonNullable<VillagePlan["works"]>["mine"],
+      well: m?.well ? { ...at(ways[1]!, edge + 140), ref: m.well } : null,
+      factory: m?.works ? { ...at(roadWay + 0.4, edge + 35), ref: m.works } : null,
+    };
+  }
+
   /** The land's house design (realized now if the land has none yet). */
   function houseOf(cell: number): VillagePlan["house"] {
     const design = designsOf(world).of(ctx.provinces.get(cell)!.ref),
@@ -303,21 +360,8 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
         waterWay === null ? null : { x: 700 * Math.cos(waterWay), z: 700 * Math.sin(waterWay) },
       house: houseOf(village.cell),
       fauna: faunaOf(village.cell, village.population),
-      era: (() => {
-        // (Sowing is the land's own knowing; smelting shows in its market too.)
-        const lore = loreOf(world),
-          knows = (id: string) => !!lore.get(village.cell, id),
-          land = ctx.provinces.get(village.cell);
-        return knows("electricity") || knows("sea-electricity")
-          ? "modern"
-          : knows("steam-engine")
-            ? "industry"
-            : knows("metalworking") || !!marketsOf(world).get(village.cell)?.metalworking
-              ? "metal"
-              : land?.knowsCultivation || knows("cultivation")
-                ? "farm"
-                : "forage";
-      })(),
+      era: eraOf(village.cell),
+      works: worksOf(village.cell),
       body: (() => {
         const b = ctx.generated.life.people?.body;
         return b

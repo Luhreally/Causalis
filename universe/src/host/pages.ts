@@ -46,12 +46,29 @@ export function speciesPage(world: World, ref: string): SpeciesPage {
     herded = 0,
     lost = 0;
   const origin = isProvinceWorld(g) ? g.provinceOf[s.origin]! : s.origin;
+  // Its place among the living: the hunters and the game it shares lands with.
+  const hunter = s.niche === "hunter",
+    game = s.niche === "grazer" || s.niche === "browser" || s.niche === "great beast",
+    others = g.life.species.filter(
+      (o) =>
+        o.died === null &&
+        (hunter
+          ? o.niche === "grazer" || o.niche === "browser" || o.niche === "great beast"
+          : game && o.niche === "hunter"),
+    ),
+    shared = new Map<number, number>();
+  let raids = 0;
   for (let c = 0; c < n; c++) {
     if (s.died !== null || !lives(g.life, c, s.index)) continue;
-    if (wildsOf(ctx, c).lost.includes(s.index)) {
+    const w = wildsOf(ctx, c);
+    if (w.lost.includes(s.index)) {
       lost++;
       continue;
     }
+    for (const o of others)
+      if (lives(g.life, c, o.index) && !w.lost.includes(o.index))
+        shared.set(o.index, (shared.get(o.index) ?? 0) + 1);
+    if (hunter && w.hunter === s.index && w.flocksTaken) raids++;
     lands++;
     const p = ctx.provinces.get(c);
     if (!p || !p.total()) continue;
@@ -59,10 +76,17 @@ export function speciesPage(world: World, ref: string): SpeciesPage {
     if (s.niche === "seed grass" && p.knowsCultivation && g.life.seedGrass[c] === s.index) sown++;
     if (p.herding && g.life.herdBeast[c] === s.index) herded++;
   }
-  const a = g.deep.ages[s.arose];
+  const a = g.deep.ages[s.arose],
+    kin = [...shared]
+      .sort((x, y) => y[1] - x[1] || x[0] - y[0])
+      .slice(0, 5)
+      .map(([i, k]) => ({ name: g.life.species[i]!.name, ref: g.life.species[i]!.ref, lands: k }));
   return {
     ref: s.ref,
     name: s.name,
+    hunts: hunter ? kin : [],
+    huntedBy: game ? kin : [],
+    raids,
     niche: s.niche,
     what: NICHE_WORDS[s.niche] ?? s.niche,
     size: s.niche === "seed grass" ? null : s.size,

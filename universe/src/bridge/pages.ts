@@ -28,6 +28,22 @@ export type SpeciesPage = {
   readonly died: number | null;
   /** The land it arose in. */
   readonly origin: { readonly cell: number; readonly biome: string };
+  /**
+   * Its place among the living (M77): the game it hunts, or the hunters that hunt it —
+   * each lineage with the lands they share, the most first — and the lands where it takes
+   * from the people's flocks.
+   */
+  readonly hunts: readonly {
+    readonly name: string;
+    readonly ref: string;
+    readonly lands: number;
+  }[];
+  readonly huntedBy: readonly {
+    readonly name: string;
+    readonly ref: string;
+    readonly lands: number;
+  }[];
+  readonly raids: number;
   /** The lands it lives in, those of them peopled, sown with it, herding it; those it was hunted out of. */
   readonly lands: number;
   readonly peopled: number;

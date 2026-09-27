@@ -7,8 +7,12 @@ import * as pc from "playcanvas";
 import type { VillagePlan } from "../bridge/index.ts";
 import {
   ACTIVITY,
+  HAIRS,
   biomeColor,
   figureOf,
+  hairOf,
+  homeDetail,
+  lamplight,
   houseLook,
   momentOf,
   personGroup,
@@ -27,6 +31,7 @@ import {
   gableMesh,
 } from "./batch.ts";
 import { FaunaLayer, type PickedBeast } from "./fauna.ts";
+import { WorkLayer, type Carrier } from "./work.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
@@ -89,6 +94,25 @@ function clothes(era: VillagePlan["era"], group: number): { body: Rgb; legs: Rgb
       return { body: mix([0.86, 0.8, 0.66], bright, 0.3), legs: [0.52, 0.44, 0.34] };
   }
 }
+/** Eyes. */
+const EYES: Rgb = [0.07, 0.06, 0.06];
+
+/**
+ * Windows' glass: dark by day; by night the lamplight glows out of them (its glow never
+ * quite out, so dusk makes no new shader: the one warmed at the start serves all day).
+ */
+export function windowMaterial(): pc.StandardMaterial {
+  const m = flatMaterial([0.14, 0.18, 0.24]);
+  glowWindows(m, 0);
+  return m;
+}
+
+function glowWindows(m: pc.StandardMaterial, glow: number): void {
+  const g = 0.02 + 0.98 * glow;
+  m.emissive = new pc.Color(1 * g, 0.78 * g, 0.4 * g);
+  m.update();
+}
+
 /** Strides a second of a walking figure, on the screen's clock (a look, not the world's). */
 const STRIDES = 1.6;
 
@@ -97,13 +121,25 @@ export class VillageScene {
   private readonly root = new pc.Entity("village");
   private plan: VillagePlan | null = null;
   private fields: InstancedBatch | null = null;
-  private people: InstancedBatch[][] = [];
+  /** Each group's batch for each part of the figure (null: a part drawn by the person's hair). */
+  private people: (InstancedBatch | null)[][] = [];
+  /** For each part of hair, a batch per hair colour (M79). */
+  private hair: (InstancedBatch[] | null)[] = [];
+  /** Windows, lit from dusk to dawn (their material's glow set by the hour). */
+  private windows: pc.StandardMaterial | null = null;
+  private lit = -1;
   private figure: Figure = figureOf(null);
   private moments: Moment[] = [];
   private readonly marker: pc.Entity;
   private marked: number | null = null;
   /** What lives about the village: its herds, hunters, flocks, birds and fish (M77). */
   private readonly fauna: FaunaLayer;
+  /** Its work you can see: what its people carry, its mine and works, its road, its smoke (M78). */
+  private readonly work: WorkLayer;
+  private readonly carriers: Carrier[] = [];
+  /** Where smoke rises: roof tops, and a city's workshop chimneys (metres). */
+  private hearths: { x: number; y: number; z: number }[] = [];
+  private stacks: { x: number; y: number; z: number }[] = [];
   key: string | null = null;
 
   constructor(stage: Stage) {
@@ -118,6 +154,7 @@ export class VillageScene {
     this.marker.enabled = false;
     this.root.addChild(this.marker);
     this.fauna = new FaunaLayer(stage, this.root);
+    this.work = new WorkLayer(stage, this.root);
     this.root.enabled = false;
   }
 
@@ -139,7 +176,9 @@ export class VillageScene {
     for (const b of this.batches) b.destroy();
     this.batches = [];
     for (const child of [...this.root.children])
-      if (child !== this.marker && child !== this.fauna.root) child.destroy();
+      if (child !== this.marker && child !== this.fauna.root && child !== this.work.root)
+        child.destroy();
+    this.stacks = [];
     this.plan = plan;
     this.key = plan.ref;
     const s = this.stage,
@@ -259,6 +298,8 @@ export class VillageScene {
       }
       pieces(sheds, [0.5, 0.48, 0.46]);
       pieces(chimneys, [0.62, 0.26, 0.2]);
+      // (The workshops' chimneys smoke.)
+      this.stacks = chimneys.map((c) => ({ x: c.x / M, y: (c.y + c.h / 2) / M, z: c.z / M }));
       const tiers: typeof stalls = [],
         crowns: typeof stalls = [];
       for (const { k } of blocksOf(5)) {
@@ -453,7 +494,7 @@ export class VillageScene {
     });
     // People: drawn three times their size, so a phone can see them — as their body is
     // built (one figure for a people, part by part, each part a batch per colour group).
-    this.figure = figureOf(plan.body);
+    this.figure = figureOf(plan.body, s.quality.detail);
     const meshes: Record<PartShape, pc.Mesh> = {
       capsule: capsuleMesh(s, 0.11, 0.55),
       box: boxMesh(s),
@@ -464,18 +505,105 @@ export class VillageScene {
     this.people = GROUP_COLORS.map((_, gi) => {
       const wear = clothes(plan.era, gi);
       return this.figure.parts.map((part) =>
-        this.batch(
-          s,
-          meshes[part.shape],
-          part.tone === 2 ? SKIN : part.tone ? wear.legs : wear.body,
-          Math.max(1, plan.people.length),
-          this.root,
-        ),
+        part.tone === 3
+          ? null
+          : this.batch(
+              s,
+              meshes[part.shape],
+              part.tone === 2 ? SKIN : part.tone === 4 ? EYES : part.tone ? wear.legs : wear.body,
+              Math.max(1, plan.people.length),
+              this.root,
+            ),
       );
     });
+    // Hair, each person's own colour (a batch a colour, whatever their group).
+    this.hair = this.figure.parts.map((part) =>
+      part.tone === 3
+        ? HAIRS.map((c) =>
+            this.batch(s, meshes[part.shape], c, Math.max(1, plan.people.length), this.root),
+          )
+        : null,
+    );
+    // Homes built more finely (M79): windows lit at night, chimneys, porches, fences.
+    this.windows = null;
+    this.lit = -1;
+    const pieces = plan.homes.flatMap((h) =>
+        homeDetail(
+          look,
+          wallHigh * storeys(h),
+          wallHigh * storeys(h) + roofHigh,
+          plan.era,
+          s.quality.detail,
+          !!h.household,
+        ).map((p) => ({ h, p })),
+      ),
+      byRole = (role: string) => pieces.filter((x) => x.p.role === role),
+      detailed = (list: typeof pieces, color: Rgb, material?: pc.StandardMaterial) => {
+        if (!list.length) return;
+        const b = new InstancedBatch(s, box, color, list.length, this.root, material);
+        this.batches.push(b);
+        b.set(list.length, (i, out) => {
+          const { h, p } = list[i]!,
+            c = Math.cos(h.yaw),
+            sn = Math.sin(h.yaw);
+          out[0] = h.x * M + p.x * c + p.z * sn;
+          out[1] = p.y;
+          out[2] = h.z * M - p.x * sn + p.z * c;
+          out[3] = p.sx;
+          out[4] = p.sy;
+          out[5] = p.sz;
+          out[6] = h.yaw + p.yaw;
+        });
+      };
+    if (pieces.length) {
+      this.windows = windowMaterial();
+      detailed(byRole("window"), [0.14, 0.18, 0.24], this.windows);
+      detailed(
+        byRole("chimney"),
+        plan.era === "industry" || plan.era === "modern" ? [0.6, 0.28, 0.2] : [0.55, 0.52, 0.48],
+      );
+      detailed(byRole("porch"), [...look.roof]);
+      detailed(byRole("post"), [0.45, 0.3, 0.18]);
+      detailed(byRole("fence"), [0.58, 0.42, 0.26]);
+    }
     this.moments = [];
     // Beasts about it, as many as the setting draws; birds and fish where small motions are drawn.
     this.fauna.build(plan, s.quality.wildlife, s.quality.detail, s.quality.motion);
+    // Its work: what its people carry, its mine and works, its road's traffic, its smoke
+    // (the watched homes' hearths first).
+    this.hearths =
+      look.tent || look.open
+        ? []
+        : [...plan.homes]
+            .sort((a, b) => Number(!!b.household) - Number(!!a.household))
+            .map((h) => {
+              // Out of the chimney's top where it has one; else through the roof's peak.
+              const chimney = homeDetail(
+                  look,
+                  wallHigh * storeys(h),
+                  wallHigh * storeys(h) + roofHigh,
+                  plan.era,
+                  1,
+                  false,
+                ).find((p) => p.role === "chimney"),
+                c = Math.cos(h.yaw),
+                sn = Math.sin(h.yaw);
+              return chimney
+                ? {
+                    x: h.x + (chimney.x * c + chimney.z * sn) / M,
+                    y: (chimney.y + chimney.sy / 2) / M,
+                    z: h.z + (-chimney.x * sn + chimney.z * c) / M,
+                  }
+                : { x: h.x, y: (look.raised + wallHigh * storeys(h) + roofHigh) / M, z: h.z };
+            });
+    this.work.build(
+      plan,
+      s.quality,
+      this.fauna.road,
+      this.fauna.species,
+      this.hearths,
+      this.stacks,
+    );
   }
 
   /** Put everyone where they are at time t. */
@@ -483,44 +611,81 @@ export class VillageScene {
     const plan = this.plan;
     if (!plan) return;
     this.fields?.recolor(fieldColor(t));
+    // Lamplight in the windows from dusk to dawn (set only as it changes).
+    if (this.windows) {
+      const glow = Math.round(lamplight((t % 86_400) / 3600) * 20) / 20;
+      if (glow !== this.lit) {
+        this.lit = glow;
+        glowWindows(this.windows, glow);
+      }
+    }
     // (The beasts move by the screen's clock: a look, at any speed the world runs.)
-    this.fauna.update(performance.now() / 1000);
+    const screen = performance.now() / 1000;
+    this.fauna.update(screen);
     this.moments = plan.people.map((_, i) => momentOf(plan, i, t));
     const parts = this.figure.parts,
       // The swing of a stride: by the screen's clock, each person a little out of step.
       now = (performance.now() / 1000) * STRIDES * 2 * Math.PI;
+    /** A part of person i's figure, where it is now. */
+    const place = (out: number[], p: VillagePlan["people"][number], i: number, pi: number) => {
+      const part = parts[pi]!,
+        m = this.moments[i]!,
+        size = (p.child ? 0.7 : 1) * this.figure.scale,
+        c = Math.cos(m.yaw),
+        sn = Math.sin(m.yaw),
+        // A walking limb swings about its hinge; standing, it hangs still.
+        walking = m.activity === ACTIVITY.walking && !!part.swing,
+        pitch = walking ? part.swing! * Math.sin(now + i * 1.7) : 0,
+        hinge = part.pivot ?? 0,
+        dy = hinge - hinge * Math.cos(pitch),
+        dz = -hinge * Math.sin(pitch),
+        px = part.x,
+        pz = part.z + dz;
+      // The part's place about the figure's middle, turned to the way it faces.
+      out[0] = m.x * M + (px * c + pz * sn) * size;
+      out[1] = (part.y + dy) * size;
+      out[2] = m.z * M + (-px * sn + pz * c) * size;
+      out[3] = part.sx * size;
+      out[4] = part.sy * size;
+      out[5] = part.sz * size;
+      out[6] = m.yaw;
+      out[7] = pitch;
+    };
     this.people.forEach((batches, gi) => {
       const members = plan.people
         .map((p, i) => ({ p, i }))
         .filter(({ p, i }) => personGroup(p) === gi && !this.moments[i]!.hidden);
-      batches.forEach((batch, pi) => {
-        const part = parts[pi]!;
-        batch.set(members.length, (k, out) => {
-          const { p, i } = members[k]!,
-            m = this.moments[i]!,
-            size = (p.child ? 0.7 : 1) * this.figure.scale,
-            c = Math.cos(m.yaw),
-            sn = Math.sin(m.yaw),
-            // A walking limb swings about its hinge; standing, it hangs still.
-            walking = m.activity === ACTIVITY.walking && !!part.swing,
-            pitch = walking ? part.swing! * Math.sin(now + i * 1.7) : 0,
-            hinge = part.pivot ?? 0,
-            dy = hinge - hinge * Math.cos(pitch),
-            dz = -hinge * Math.sin(pitch),
-            px = part.x,
-            pz = part.z + dz;
-          // The part's place about the figure's middle, turned to the way it faces.
-          out[0] = m.x * M + (px * c + pz * sn) * size;
-          out[1] = (part.y + dy) * size;
-          out[2] = m.z * M + (-px * sn + pz * c) * size;
-          out[3] = part.sx * size;
-          out[4] = part.sy * size;
-          out[5] = part.sz * size;
-          out[6] = m.yaw;
-          out[7] = pitch;
-        });
+      batches.forEach((batch, pi) =>
+        batch?.set(members.length, (k, out) => place(out, members[k]!.p, members[k]!.i, pi)),
+      );
+    });
+    // Hair, by each person's own colour.
+    this.hair.forEach((colours, pi) => {
+      if (!colours) return;
+      const span = plan.body?.span ?? 70;
+      colours.forEach((batch, hi) => {
+        const wearers = plan.people
+          .map((p, i) => ({ p, i }))
+          .filter(({ p, i }) => !this.moments[i]!.hidden && hairOf(p.ref, p.age, span) === hi);
+        batch.set(wearers.length, (k, out) => place(out, wearers[k]!.p, wearers[k]!.i, pi));
       });
     });
+    // What they carry, where they go with it.
+    let n = 0;
+    plan.people.forEach((p, i) => {
+      const m = this.moments[i]!;
+      if (m.hidden || !m.carry) return;
+      const c =
+        this.carriers[n] ?? (this.carriers[n] = { x: 0, z: 0, yaw: 0, carry: "tool", size: 1 });
+      c.x = m.x * M;
+      c.z = m.z * M;
+      c.yaw = m.yaw;
+      c.carry = m.carry;
+      c.size = (p.child ? 0.7 : 1) * this.figure.scale;
+      n++;
+    });
+    this.carriers.length = n;
+    this.work.update((t % 86_400) / 3600, screen, this.carriers);
     if (this.marked !== null) {
       const m = this.moments[this.marked];
       this.marker.enabled = !!m && !m.hidden;
@@ -549,6 +714,11 @@ export class VillageScene {
       }
     });
     return best;
+  }
+
+  /** Everyone carrying something now: where (metres) and what (for the look tools). */
+  carriersNow(): { x: number; z: number; carry: string }[] {
+    return this.carriers.map((c) => ({ x: c.x / M, z: c.z / M, carry: c.carry }));
   }
 
   /** Every beast about the village now (for the look tools). */

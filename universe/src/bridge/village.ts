@@ -81,6 +81,24 @@ export type VillagePlan = {
     } | null;
     readonly raided: boolean;
   };
+  /**
+   * The land's works about it (Phase 8 M78), each where it stands (metres from the middle):
+   * its mine — a pit, or a shaft under its headframe in the engines' age, or a quarry — and
+   * what it digs (coal where the land digs it, ore where it smelts copper, stone where it
+   * builds in stone); its oil well; its factory. Absent or null: none.
+   */
+  readonly works?: {
+    readonly mine: {
+      readonly x: number;
+      readonly z: number;
+      readonly kind: "pit" | "shaft" | "quarry";
+      readonly what: "coal" | "ore" | "stone";
+      /** The event that explains it (its first digging), if one was recorded. */
+      readonly ref: string | null;
+    } | null;
+    readonly well: { readonly x: number; readonly z: number; readonly ref: string } | null;
+    readonly factory: { readonly x: number; readonly z: number; readonly ref: string } | null;
+  };
   /** Their body, as the figure needs it (null: upright apes, as ever). */
   readonly body: {
     readonly clade: string;

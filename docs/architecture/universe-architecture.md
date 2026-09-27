@@ -2848,6 +2848,48 @@ land's page names its hunters, how few they are and what they take. Each lineage
 instanced batches whatever its number; every setting holds sixty frames in a village with
 the CPU slowed four times (30, 91, 150 and 208 animals from Low to Ultra).
 
+78, as built. Each leg of a person's day carries what the leg is for: a farmer walks out
+with a tool, works with it in hand and walks back with it — or with a sheaf when the fields
+are reaped; a herder's staff; a forager's basket, or, by the water, a rod out and the catch
+back; a trader's pack on the road, a sack from the market; a child sent to the well, a
+bucket; and in a land that digs, half its crafters walk to the mine with picks and back
+with ore. Each thing is a box or two in its own material (a batch each: wood, the tool's
+head, straw, cloth, wicker, the catch, the ore, leather, water), and a tool's head is of
+what the land works — stone, then bronze, iron, steel. The land's works stand on the open
+ground furthest from its fields, road and pasture (a city's road runs through it both
+ways; a test caught the mine on it): a pit with its windlass where it smelts copper, a coal
+pit, a shaft under an iron headframe with its engine house, chimney and a cart running the
+track to the spoil heap once it has engines, a stepped quarry where it builds in stone, an
+oil derrick, a factory with its sawtooth roofs and chimneys by the road. The road carries
+the land's traffic at its own pace — porters, pack beasts with their panniers where the
+flocks are of horses, oxen, buffalo, camels or tuskers, carts with their drivers in the
+engines' age, lorries in the modern world — and a tap on a beast at work says so. Hearths
+smoke, more at the hours they cook (translucent puffs from the watched homes first, as many
+as the setting draws), and works' chimneys smoke black always. All of it is presentation:
+the routine and the traffic are pure functions of the plan and the clock, and the works are
+where the land's own market says it digs, drills and makes. The phone budgets, measured
+again: a village's first frame had come to take 845 ms in WebKit (3.4 s on the phone floor)
+— three shaders compiled on it, since M76 turned the sun's shadows on over villages and the
+start-up warming never drew with those shadows. The warming now draws its specks once with
+the sun casting shadows exactly as over a village (and the smoke's clear boxes among them),
+so no shader is made on entering one: 79 ms, and the Phase 7 gate passes again (heap 167 MB).
+
+79, as built. The upright figure is built more finely at each setting: hands at the arms'
+ends and shoes at the legs' (Balanced), swinging with them about the same shoulder and hip;
+hair and eyes (High), each person's own hair kept by who they are and grey late in their
+people's span; a belt (Ultra). (Other peoples keep their own shapes.) Homes gain windows
+either side of the door and on the side walls and a chimney once there is a hearth to draw
+(Balanced), a porch over the door on two posts (High), a fence about a watched home's yard
+(Ultra); the windows' glass glows with lamplight from dusk to dawn (its glow never quite
+out, so the one shader warmed at the start serves all day), and hearth smoke rises from the
+chimney tops. What a person carries is told in the inspector with what it is made of — a
+stone tool knapped from flint, a bronze one of copper and tin, iron smelted with coke,
+steel of iron and a little carbon; a load of coal, the buried forests of the deep ages —
+and each material keeps its own sheen (metal heads bright, the catch wet, cloth matte).
+The species pages (after M77) say each lineage's place among the living: what a hunter
+hunts and in how many lands they meet, what hunts a grazer, and where a hunter takes from
+the people's flocks.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

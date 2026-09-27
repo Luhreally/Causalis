@@ -105,6 +105,21 @@ function speciesPage(s: SpeciesPage, links: PageLinks): Page {
           "fact",
           `It lives wild in ${lands(s.lands)}${s.peopled ? `, ${s.peopled.toLocaleString()} of them peopled` : ""}`,
         ),
+    // Its place among the living: what it hunts, or what hunts it.
+    ...(s.hunts.length || s.huntedBy.length
+      ? [
+          el("h3", undefined, "Among the living"),
+          ...s.hunts.map((o) =>
+            links.page(`It hunts the ${o.name}, in ${lands(o.lands)}`, "species", o.ref),
+          ),
+          ...s.huntedBy.map((o) =>
+            links.page(`The ${o.name} hunts it, in ${lands(o.lands)}`, "species", o.ref),
+          ),
+          ...(s.raids
+            ? [el("div", "fact", `It takes from the people's flocks in ${lands(s.raids)}`)]
+            : []),
+        ]
+      : []),
     el("h3", undefined, "What it is to the people"),
   ];
   const uses = [

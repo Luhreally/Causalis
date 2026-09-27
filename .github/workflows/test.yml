@@ -101,7 +101,7 @@ jobs:
       # every step answered with its why (to the Earth seed's year 1300, its first war
       # between the stars fought). The phone's budgets need a GPU; they run locally:
       # npm run gate:7.
-      - run: npm run gate:7 -- --sky-year 1300 --no-budgets
+      - run: npm run gate:7 -- --sky-year 1450 --no-budgets
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
 

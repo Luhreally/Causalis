@@ -48,9 +48,40 @@ export {
 } from "./village.ts";
 
 export {
+  HAIRS,
+  SHEEN,
+  carryWords,
+  hairOf,
+  homeDetail,
+  lamplight,
+  metalOf,
+  type HomePiece,
+} from "./detail.ts";
+export {
+  CARRIES,
+  MATERIALS,
+  cartAt,
+  factoryPieces,
+  itemParts,
+  materialColor,
+  minePieces,
+  smokeAt,
+  toolHead,
+  travellerAt,
+  wellPieces,
+  type Carry,
+  type ItemPart,
+  type Material,
+  type Mine,
+  type MinePiece,
+  type Puff,
+  type Road,
+} from "./work.ts";
+export {
   BEAST_KINDS,
   BEAST_SCALE,
   MOST_PARTS,
+  TRAFFIC_PACE,
   beastsAt,
   birdsAt,
   bodyOf,
@@ -70,6 +101,7 @@ export {
   type FaunaSpecies,
   type FishNow,
   type Pose,
+  type Traffic,
 } from "./fauna.ts";
 export {
   figureOf,

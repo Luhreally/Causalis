@@ -13,6 +13,7 @@
 import { finish, hashString, mix } from "../kernel/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 import { treesOf } from "./village.ts";
+import { travellerAt, type Road } from "./work.ts";
 
 export type Rgb = readonly [number, number, number];
 
@@ -594,10 +595,31 @@ type Pack = {
   readonly key: number;
 };
 
+/** The road's traffic (M78): porters, pack beasts, carts or lorries, by the era and the beasts of burden. */
+export type Traffic = {
+  readonly kind: "porter" | "pack" | "cart" | "lorry";
+  /** The beast that carries or draws (a lineage of the flocks, by its index), else -1. */
+  readonly species: number;
+  readonly count: number;
+  readonly way: Road;
+};
+
+/** Beasts that carry and draw: the horses, oxen, buffalo, camels and tuskers of a people's flocks. */
+const BURDEN: readonly BeastKind[] = ["horse", "ox", "buffalo", "camel", "tusker"];
+
+/** How fast each kind of traffic goes, metres a second. */
+export const TRAFFIC_PACE: Readonly<Record<Traffic["kind"], number>> = {
+  porter: 1.25,
+  pack: 1.2,
+  cart: 1.5,
+  lorry: 11,
+};
+
 export type Fauna = {
   readonly species: readonly FaunaSpecies[];
   readonly herds: readonly Herd[];
   readonly packs: readonly Pack[];
+  readonly road: Traffic;
   /** Birds over the village (a flock wheeling, and a pair of hunting birds higher up). */
   readonly birds: readonly {
     cx: number;
@@ -664,11 +686,12 @@ export function faunaOf(plan: VillagePlan, cap: number, detail: number, ambient:
     }),
     clearOfPasture = (x: number, z: number) =>
       Math.hypot(x - plan.pasture.x, z - plan.pasture.z) > plan.pasture.r + 45;
-  let budget = cap;
+  let budget = cap,
+    flockIndex = -1;
   // The flocks, in their pasture: as many as their herders keep, to a third of what is drawn.
   if (f.flock && f.flock.herders > 0) {
     const n = Math.max(3, Math.min(Math.round(cap * 0.35), Math.round(f.flock.herders * 6)));
-    const sp = speciesOf({ ...f.flock, niche: "grazer" }, true);
+    const sp = (flockIndex = speciesOf({ ...f.flock, niche: "grazer" }, true));
     herds.push({
       species: sp,
       home: { x: plan.pasture.x, z: plan.pasture.z },
@@ -781,7 +804,25 @@ export function faunaOf(plan: VillagePlan, cap: number, detail: number, ambient:
         yaw: u(84, i) * 2 * Math.PI,
       });
     }
-  return { species, herds, packs, birds, fish };
+  // The road's traffic: lorries in the modern world, carts in the engines' age, pack beasts
+  // where the flocks carry, porters otherwise (a market town's road busier).
+  const burden = flockIndex >= 0 && BURDEN.includes(species[flockIndex]!.kind) ? flockIndex : -1,
+    busy = Math.min([1, 2, 4, 6][detail] ?? 2, plan.market ? 6 : 3),
+    kind: Traffic["kind"] =
+      plan.era === "modern"
+        ? "lorry"
+        : plan.era === "industry"
+          ? "cart"
+          : plan.era !== "forage" && burden >= 0
+            ? "pack"
+            : "porter",
+    road: Traffic = {
+      kind,
+      species: kind === "pack" || kind === "cart" ? burden : -1,
+      count: plan.era === "forage" ? Math.min(1, busy) : busy,
+      way: { ref: plan.ref, to: plan.road },
+    };
+  return { species, herds, packs, road, birds, fish };
 
   function membersOf(n: number, radius: number, key: number): Herd["members"] {
     return Array.from({ length: n }, (_, m) => {
@@ -797,8 +838,10 @@ export function faunaOf(plan: VillagePlan, cap: number, detail: number, ambient:
   }
 }
 
-/** What a beast is doing, in words, from how it holds itself now. */
-export function doingOf(sp: FaunaSpecies, pose: Pose): string {
+/** What a beast is doing, in words, from how it holds itself now (and its work, if it has one). */
+export function doingOf(sp: FaunaSpecies, pose: Pose, task: 0 | 1 | 2 = 0): string {
+  if (task === 1) return "carrying packs along the road";
+  if (task === 2) return "drawing a cart along the road";
   if (sp.niche === "hunter")
     return pose.gait === 2
       ? "running at the herd"
@@ -824,6 +867,8 @@ export type BeastNow = {
   z: number;
   yaw: number;
   pose: Pose;
+  /** Its work (M78): 0 none, 1 carrying packs on the road, 2 drawing a cart. */
+  task: 0 | 1 | 2;
 };
 
 const smooth = (a: number, b: number, x: number) => {
@@ -839,9 +884,20 @@ const smooth = (a: number, b: number, x: number) => {
  */
 export function beastsAt(fauna: Fauna, s: number, out: BeastNow[]): number {
   let n = 0;
-  const next = (): BeastNow =>
-    out[n] ??
-    (out[n] = { species: 0, x: 0, z: 0, yaw: 0, pose: { gait: 0, phase: 0, head: 0, crouch: 0 } });
+  const next = (): BeastNow => {
+    const o =
+      out[n] ??
+      (out[n] = {
+        species: 0,
+        x: 0,
+        z: 0,
+        yaw: 0,
+        pose: { gait: 0, phase: 0, head: 0, crouch: 0 },
+        task: 0,
+      });
+    o.task = 0;
+    return o;
+  };
   // Each herd's middle drifts on a slow loop; the hunters' runs push it away and it comes back.
   const middles = fauna.herds.map((h, i) => {
     const w = 0.021 + 0.004 * (i % 3);
@@ -988,6 +1044,26 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[]): number {
       n++;
     }
   });
+  // The beasts of the road's traffic, a few paces ahead of what they carry or draw.
+  const road = fauna.road;
+  if (road.species >= 0) {
+    const sp = fauna.species[road.species]!,
+      lead = road.kind === "cart" ? 6 : 3.5;
+    for (let k = 0; k < road.count; k++) {
+      const t = travellerAt(road.way, k, s, TRAFFIC_PACE[road.kind]),
+        o = next();
+      o.species = road.species;
+      o.x = t.x + Math.sin(t.yaw) * lead;
+      o.z = t.z + Math.cos(t.yaw) * lead;
+      o.yaw = t.yaw;
+      o.pose.gait = 1;
+      o.pose.head = 0.2;
+      o.pose.crouch = 0;
+      o.pose.phase = s * sp.body.p.stride * 2 * Math.PI + k * 2.1;
+      o.task = road.kind === "cart" ? 2 : 1;
+      n++;
+    }
+  }
   return n;
 }
 

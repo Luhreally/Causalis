@@ -3,7 +3,8 @@
 // person — who they are, what they are doing now, how hungry and tired, and their
 // page with its whys. Watching is looking: it never changes what happens.
 import type { HostClient } from "../bridge/index.ts";
-import { ACTIVITY_WORDS, type Moment } from "../view/index.ts";
+import { ACTIVITY_WORDS, carryWords, type Moment } from "../view/index.ts";
+import type { VillagePlan } from "../bridge/index.ts";
 import { PeopleView } from "./people.ts";
 import type { Tidings } from "./tidings.ts";
 import { WhyTree, el } from "./why.ts";
@@ -114,10 +115,16 @@ export class VillagePanel {
     WATCH_SPEEDS.forEach((s, i) => this.speedButtons[i]!.classList.toggle("on", s === speed));
   }
 
-  /** What the person looked at is doing now. */
+  /** The village's age and what its mine digs, for the words of what they carry. */
+  works: { era: VillagePlan["era"]; what: "coal" | "ore" | "stone" | null } = {
+    era: undefined,
+    what: null,
+  };
+
+  /** What the person looked at is doing now, and what they carry (and what it is made of). */
   moment(m: Moment | null): void {
     if (!m) return;
-    this.now.textContent = `Now ${ACTIVITY_WORDS[m.activity]}; ${needWords(m)}`;
+    this.now.textContent = `Now ${ACTIVITY_WORDS[m.activity]}; ${needWords(m)}${m.carry ? `; carrying ${carryWords(m.carry, this.works.era, this.works.what)}` : ""}`;
   }
 
   /** Whether the hand rests on the village watched: then its people are the hand's. */

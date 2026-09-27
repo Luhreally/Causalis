@@ -149,6 +149,95 @@ test("a village's plan says what lives about it: the land's game and hunters as 
   assert.equal(JSON.stringify(world.domainHashes()), before, "looking changes nothing");
 });
 
+test("a village's plan sets its land's works where they stand: its mine by what it digs, clear of its fields, road and pasture", () => {
+  const before = JSON.stringify(world.domainHashes());
+  type Plan = {
+    era: string;
+    districts: unknown;
+    road: { x: number; z: number };
+    pasture: { x: number; z: number; r: number };
+    fields: { x: number; z: number }[];
+    works: {
+      mine: { x: number; z: number; kind: string; what: string; ref: string | null } | null;
+      well: unknown;
+      factory: unknown;
+    };
+  };
+  // Lands that dig (they make copper or coal) and some that do not.
+  const lands = ask<{ cell: number }[]>("people.map").map((l) => l.cell),
+    digs = (cell: number) =>
+      (ask<{ goods: { id: string; made: number }[] } | null>("market", { cell })?.goods ?? []).some(
+        (g) => (g.id === "copper" || g.id === "coal") && g.made > 0,
+      ),
+    sample = [...lands.filter(digs).slice(0, 6), ...lands.filter((c) => !digs(c)).slice(0, 4)];
+  let seen = 0;
+  for (const cell of sample) {
+    const towns = EARTH.queries.settlements!(world, { cell }) as { ref: string }[];
+    if (!towns[0]) continue;
+    const plan = EARTH.queries["village.plan"]!(world, { ref: towns[0].ref }) as Plan,
+      facts = ask<{ industry: { mine: string | null }; house: unknown }>("province", { cell }),
+      goods =
+        ask<{ goods: { id: string; made: number }[] } | null>("market", { cell })?.goods ?? [],
+      copper = (goods.find((g) => g.id === "copper")?.made ?? 0) > 0,
+      mine = plan.works.mine;
+    // A mine where the land digs coal, an ore pit where it smelts copper; none where it does neither and builds in no stone.
+    if (facts.industry.mine) assert.equal(mine?.what, "coal");
+    else if (copper) assert.equal(mine?.what, "ore");
+    if (!mine) continue;
+    seen++;
+    assert.ok(["pit", "shaft", "quarry"].includes(mine.kind));
+    assert.equal(
+      mine.kind === "shaft",
+      ["industry", "modern"].includes(plan.era) && mine.what !== "stone",
+    );
+    // Clear of the pasture and the fields, off the road.
+    assert.ok(Math.hypot(mine.x - plan.pasture.x, mine.z - plan.pasture.z) > plan.pasture.r);
+    for (const f of plan.fields) assert.ok(Math.hypot(mine.x - f.x, mine.z - f.z) > 20);
+    // (A city's road runs through it both ways.)
+    const way = (a: number) =>
+        Math.abs(
+          ((a - Math.atan2(plan.road.z, plan.road.x) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI,
+        ),
+      at = Math.atan2(mine.z, mine.x),
+      apart = plan.districts ? Math.min(way(at), way(at + Math.PI)) : way(at);
+    assert.ok(apart > 0.4, `the mine ${apart.toFixed(2)} rad off the road`);
+  }
+  assert.ok(seen >= 1, "some land about the cradle digs by year 260");
+  assert.equal(JSON.stringify(world.domainHashes()), before, "looking changes nothing");
+});
+
+test("a hunter's page names the game it hunts, and its game's page names the hunter", () => {
+  const before = JSON.stringify(world.domainHashes());
+  type Kin = { name: string; ref: string; lands: number }[];
+  type Page = {
+    name: string;
+    niche: string;
+    hunts: Kin;
+    huntedBy: Kin;
+    raids: number;
+    lands: number;
+  };
+  const folk = ask<{ ecology: { hunters: { ref: string } | null } }>("province", { cell: CRADLE }),
+    hunter = ask<Page>("species.page", { ref: folk.ecology.hunters!.ref });
+  assert.equal(hunter.niche, "hunter");
+  assert.ok(hunter.hunts.length >= 1 && hunter.huntedBy.length === 0, "a hunter hunts");
+  assert.ok(
+    hunter.hunts.every(
+      (k, i) =>
+        k.lands >= 1 &&
+        k.lands <= hunter.lands &&
+        (i === 0 || hunter.hunts[i - 1]!.lands >= k.lands),
+    ),
+  );
+  const prey = ask<Page>("species.page", { ref: hunter.hunts[0]!.ref });
+  assert.ok(["grazer", "browser", "great beast"].includes(prey.niche));
+  assert.ok(
+    prey.huntedBy.some((k) => k.name === hunter.name && k.lands === hunter.hunts[0]!.lands),
+    "and is hunted by it, in as many lands",
+  );
+  assert.equal(JSON.stringify(world.domainHashes()), before, "looking changes nothing");
+});
+
 test("a lineage, a realm, a deposit, a plate and the deep ages each have a page, and asking changes nothing", () => {
   const before = JSON.stringify(world.domainHashes());
   type Folk = { wild: { ref: string }[]; realm: { ref: string } | null };

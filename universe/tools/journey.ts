@@ -13,7 +13,7 @@ import { webkit, type Page } from "playwright";
 
 const args = process.argv.slice(2),
   at = (flag: string) => (args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined),
-  skyYear = Number(at("--sky-year") ?? 1400),
+  skyYear = Number(at("--sky-year") ?? 1450),
   shots = at("--shots");
 const root = fileURLToPath(new URL("..", import.meta.url));
 const server = await preview({
@@ -139,7 +139,8 @@ for (const p of byPeople.slice(0, 40)) {
 }
 await step("examine its ecosystem and species", async () => {
   await call("select", peopled.centre);
-  const name = await openPage(/lives wild here/);
+  // (A lineage that lives wild there, or one that hunts there: M77 names the hunters so.)
+  const name = await openPage(/lives wild here|hunts here/);
   await heading("What it is to the people");
   const facts = await page.locator(`${inspector} .page .fact`).allTextContents();
   return `${name}: ${facts.slice(0, 2).join("; ")} — ${(await claims(0))[0]}`;

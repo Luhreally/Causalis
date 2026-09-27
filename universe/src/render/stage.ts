@@ -188,7 +188,15 @@ export class Stage {
    * are compiled before a scale needs them (a first compile is the slowest part of a first
    * frame on a phone). `instanced` draws it as the batches do.
    */
-  warm(parts: readonly { material: pc.Material; instanced?: boolean; mesh?: pc.Mesh }[]): void {
+  /**
+   * Compile shaders ahead of need: draw each part once, a speck before the camera, for a
+   * few frames — with the sun casting shadows over them if `shadows` (so the shadow pass's
+   * shaders are ready too, before the first village with shadows is shown).
+   */
+  warm(
+    parts: readonly { material: pc.Material; instanced?: boolean; mesh?: pc.Mesh }[],
+    shadows = false,
+  ): void {
     const tri = new pc.Mesh(this.device);
     tri.setPositions([0, 0, 0, 1e-4, 0, 0, 0, 1e-4, 0]);
     tri.setNormals([0, 0, 1, 0, 0, 1, 0, 0, 1]);
@@ -214,16 +222,30 @@ export class Stage {
         return mi;
       }),
       holder = new pc.Entity("warm");
-    holder.addComponent("render", { meshInstances: instances });
+    holder.addComponent("render", { meshInstances: instances, castShadows: shadows });
     this.camera.addChild(holder);
     holder.setLocalPosition(0, 0, -1);
     holder.setLocalScale(1e-4, 1e-4, 1e-4);
+    // (The sun cast its shadows exactly as over a village, so the very shaders it will
+    // want are the ones made; then as the scale shown wants them again.)
+    const wanted = this.shadowsWanted,
+      reach = this.shadowReach;
+    if (shadows) {
+      this.shadowsWanted = true;
+      this.shadowReach = 64;
+      this.applyShadows();
+    }
     let frames = 0;
     const off = this.onUpdate(() => {
       if (++frames < 3) return;
       off();
       holder.destroy();
       for (const b of buffers) b.destroy();
+      if (shadows) {
+        this.shadowsWanted = wanted;
+        this.shadowReach = reach;
+        this.applyShadows();
+      }
     });
   }
 
@@ -251,10 +273,17 @@ export class Stage {
 }
 
 /** A lit, flat-coloured material. */
-export function flatMaterial(color: Rgb, opacity = 1): pc.StandardMaterial {
+export function flatMaterial(
+  color: Rgb,
+  opacity = 1,
+  gloss = 0.25,
+  shine = 0,
+): pc.StandardMaterial {
   const m = new pc.StandardMaterial();
   m.diffuse = new pc.Color(color[0], color[1], color[2]);
-  m.gloss = 0.25;
+  m.gloss = gloss;
+  // (A sheen of its own: metal and wet things catch the light; the rest stay matte.)
+  if (shine > 0) m.specular = new pc.Color(shine, shine, shine);
   if (opacity < 1) {
     m.opacity = opacity;
     m.blendType = pc.BLEND_NORMAL;

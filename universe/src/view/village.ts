@@ -9,6 +9,7 @@ import { finish, hashString, mix } from "../kernel/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 import { OCC } from "../rules/index.ts";
 import { paceOf } from "./figure.ts";
+import type { Carry } from "./work.ts";
 
 export const ACTIVITY = {
   asleep: 0,
@@ -44,6 +45,8 @@ export type Moment = {
   /** 0 fed … 1 hungry; 0 rested … 1 worn out. */
   hunger: number;
   tiredness: number;
+  /** What they carry now (M78): their tools out, what they worked back; null, empty-handed. */
+  carry: Carry | null;
 };
 
 const DAY = 86_400,
@@ -52,7 +55,17 @@ const DAY = 86_400,
 const unit = (h: number) => (h >>> 0) / 4294967296;
 
 type Point = { x: number; z: number };
-type Leg = { from: number; to: number; at: Point; next: Point | null; activity: Activity };
+type Leg = {
+  from: number;
+  to: number;
+  at: Point;
+  next: Point | null;
+  activity: Activity;
+  carry: Carry | null;
+};
+
+/** Where a person works, and what they carry there and back. */
+type Work = Point & { to: Carry | null; back: Carry | null };
 
 /** A keyed stream for one person on one day. */
 function dayDraw(ref: string, day: number): (n: number) => number {
@@ -60,54 +73,94 @@ function dayDraw(ref: string, day: number): (n: number) => number {
   return (n) => unit(finish(mix(base, n), 17));
 }
 
-/** Where a person works, by their trade. */
+/** The share of the year gone (0 … 1) when the fields are ripe and reaped. */
+const HARVEST: readonly [number, number] = [0.6, 0.78];
+
+/**
+ * Where a person works, by their trade, and what they carry there and back (M78): a
+ * farmer's tool out and back, or sheaves in the harvest; a herder's staff; a forager's
+ * basket, or a fisher's catch by the water; a miner's pick out and ore back; a crafter's
+ * wares; a trader's pack; a child sent to the well, its bucket.
+ */
 function workplace(
   plan: VillagePlan,
   p: VillagePlan["people"][number],
   draw: (n: number) => number,
-): Point {
+  day: number,
+): Work {
   const home = plan.homes[p.home]!,
-    angle = draw(1) * 2 * Math.PI;
+    angle = draw(1) * 2 * Math.PI,
+    at = (x: number, z: number, to: Carry | null = null, back: Carry | null = to): Work => ({
+      x,
+      z,
+      to,
+      back,
+    });
   if (p.child) {
-    // Children play near home, or in the square on some days.
+    // Children play near home, or in the square on some days (and bring water from its well).
     return draw(2) < 0.4
-      ? { x: 6 * Math.cos(angle), z: 6 * Math.sin(angle) }
-      : { x: home.x + 8 * Math.cos(angle), z: home.z + 8 * Math.sin(angle) };
+      ? at(6 * Math.cos(angle), 6 * Math.sin(angle), null, plan.market ? null : "water")
+      : at(home.x + 8 * Math.cos(angle), home.z + 8 * Math.sin(angle));
   }
   // The old keep near home: from sixty-two for upright apes, as late in any people's span.
   if (p.age >= (62 * (plan.body?.span ?? 70)) / 70)
-    return { x: home.x + 3 * Math.cos(angle), z: home.z + 3 * Math.sin(angle) };
+    return at(home.x + 3 * Math.cos(angle), home.z + 3 * Math.sin(angle));
   switch (p.occupation) {
     case OCC.farmer: {
       const f = plan.fields[Math.floor(draw(3) * plan.fields.length)] ?? {
-        x: 120,
-        z: 0,
-        w: 30,
-        d: 20,
-        yaw: 0,
-      };
-      return { x: f.x + (draw(4) - 0.5) * f.w * 0.7, z: f.z + (draw(5) - 0.5) * f.d * 0.7 };
+          x: 120,
+          z: 0,
+          w: 30,
+          d: 20,
+          yaw: 0,
+        },
+        season = (day % 365) / 365,
+        reaping = season >= HARVEST[0] && season < HARVEST[1];
+      return at(
+        f.x + (draw(4) - 0.5) * f.w * 0.7,
+        f.z + (draw(5) - 0.5) * f.d * 0.7,
+        "tool",
+        reaping ? "sheaf" : "tool",
+      );
     }
     case OCC.herder:
-      return {
-        x: plan.pasture.x + plan.pasture.r * 0.8 * (draw(4) - 0.5) * 2,
-        z: plan.pasture.z + plan.pasture.r * 0.8 * (draw(5) - 0.5) * 2,
-      };
+      return at(
+        plan.pasture.x + plan.pasture.r * 0.8 * (draw(4) - 0.5) * 2,
+        plan.pasture.z + plan.pasture.r * 0.8 * (draw(5) - 0.5) * 2,
+        "staff",
+      );
     case OCC.forager: {
+      // By the water, some fish from its shore; the rest gather in the wild.
+      if (plan.water && draw(12) < 0.4) {
+        const d = Math.hypot(plan.water.x, plan.water.z) || 1,
+          shore = d - 205,
+          a = Math.atan2(plan.water.z, plan.water.x) + (draw(4) - 0.5) * 0.5;
+        return at(shore * Math.cos(a), shore * Math.sin(a), "staff", "fish");
+      }
       const r = plan.wild + draw(4) * 250;
-      return { x: r * Math.cos(angle), z: r * Math.sin(angle) };
+      return at(r * Math.cos(angle), r * Math.sin(angle), "basket");
     }
     case OCC.trader:
       // Some days out along the road; others at the market.
       return draw(6) < 0.45
-        ? { x: plan.road.x * 0.9, z: plan.road.z * 0.9 }
-        : { x: 10 * Math.cos(angle), z: 10 * Math.sin(angle) };
-    case OCC.crafter:
-      return { x: 14 + 6 * Math.cos(angle), z: -10 + 6 * Math.sin(angle) };
+        ? at(plan.road.x * 0.9, plan.road.z * 0.9, "pack")
+        : at(10 * Math.cos(angle), 10 * Math.sin(angle), null, "sack");
+    case OCC.crafter: {
+      // In a land that digs, half its crafters dig: their picks out, what they dig back.
+      const mine = plan.works?.mine;
+      if (mine && draw(12) < 0.5)
+        return at(mine.x + (draw(4) - 0.5) * 20, mine.z + (draw(5) - 0.5) * 20, "tool", "ore");
+      return at(
+        14 + 6 * Math.cos(angle),
+        -10 + 6 * Math.sin(angle),
+        null,
+        draw(13) < 0.5 ? "sack" : null,
+      );
+    }
     case OCC.leader:
-      return { x: 4 * Math.cos(angle), z: 4 * Math.sin(angle) };
+      return at(4 * Math.cos(angle), 4 * Math.sin(angle));
     default:
-      return { x: home.x + 5 * Math.cos(angle), z: home.z + 5 * Math.sin(angle) };
+      return at(home.x + 5 * Math.cos(angle), home.z + 5 * Math.sin(angle));
   }
 }
 
@@ -125,19 +178,25 @@ function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
     // At home means at the doorstep, where they can be seen: outside the walls.
     door = home.yaw + (draw(20) - 0.5) * 1.2,
     at: Point = { x: home.x + 7 * Math.cos(door), z: home.z + 7 * Math.sin(door) },
-    work = workplace(plan, p, draw),
+    work = workplace(plan, p, draw, day),
     // One day in seven is a day of rest, on a day kept by the village.
     rest = (day + (plan.seed % 7)) % 7 === 0,
     rise = (5.5 + draw(7) * 1.5) * HOUR,
     bed = (21 + draw(8) * 1.5) * HOUR,
     square: Point = { x: (draw(9) - 0.5) * 16, z: (draw(10) - 0.5) * 16 },
     legs: Leg[] = [];
-  const stay = (from: number, to: number, where: Point, activity: Activity) => {
-    if (to > from) legs.push({ from, to, at: where, next: null, activity });
+  const stay = (
+    from: number,
+    to: number,
+    where: Point,
+    activity: Activity,
+    carry: Carry | null = null,
+  ) => {
+    if (to > from) legs.push({ from, to, at: where, next: null, activity, carry });
   };
-  const go = (from: number, a: Point, b: Point) => {
+  const go = (from: number, a: Point, b: Point, carry: Carry | null = null) => {
     const to = from + walkTime(a, b, pace);
-    legs.push({ from, to, at: a, next: b, activity: ACTIVITY.walking });
+    legs.push({ from, to, at: a, next: b, activity: ACTIVITY.walking, carry });
     return to;
   };
   stay(0, rise, at, ACTIVITY.asleep);
@@ -151,20 +210,21 @@ function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
   } else {
     const doing = p.child ? ACTIVITY.playing : ACTIVITY.working,
       far = walkTime(at, work, pace) > 0.6 * HOUR;
-    t = go(t, at, work);
+    // (Out with what they work with; at work with it in hand; back with what they worked.)
+    t = go(t, at, work, work.to);
     // Those who work near home come back to eat at noon; the rest eat where they are.
     if (far) {
-      stay(t, 12 * HOUR, work, doing);
+      stay(t, 12 * HOUR, work, doing, work.to);
       stay(12 * HOUR, 12.75 * HOUR, work, ACTIVITY.eating);
-      stay(12.75 * HOUR, 17.25 * HOUR, work, doing);
-      t = go(17.25 * HOUR, work, at);
+      stay(12.75 * HOUR, 17.25 * HOUR, work, doing, work.to);
+      t = go(17.25 * HOUR, work, at, work.back);
     } else {
-      stay(t, 12 * HOUR, work, doing);
-      t = go(12 * HOUR, work, at);
+      stay(t, 12 * HOUR, work, doing, work.to);
+      t = go(12 * HOUR, work, at, work.back);
       stay(t, t + 0.75 * HOUR, at, ACTIVITY.eating);
-      t = go(t + 0.75 * HOUR, at, work);
-      stay(t, 17.5 * HOUR, work, doing);
-      t = go(17.5 * HOUR, work, at);
+      t = go(t + 0.75 * HOUR, at, work, work.to);
+      stay(t, 17.5 * HOUR, work, doing, work.to);
+      t = go(17.5 * HOUR, work, at, work.back);
     }
     // Some evenings in the square.
     if (draw(11) < 0.3 && t < 19 * HOUR) {
@@ -222,6 +282,7 @@ export function momentOf(plan: VillagePlan, index: number, t: number): Moment {
     yaw,
     activity: leg.activity,
     hidden: leg.activity === ACTIVITY.asleep,
+    carry: leg.carry,
     hunger: Math.max(0, Math.min(1, (s - lastMeal) / (7 * HOUR))),
     tiredness:
       leg.activity === ACTIVITY.asleep ? 0 : Math.max(0, Math.min(1, (s - woke) / (16 * HOUR))),

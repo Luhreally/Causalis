@@ -74,6 +74,7 @@ export class FaunaLayer {
     const counts = fauna.species.map(() => 0);
     for (const h of fauna.herds) counts[h.species]! += h.members.length;
     for (const p of fauna.packs) counts[p.species]! += p.members;
+    if (fauna.road.species >= 0) counts[fauna.road.species]! += fauna.road.count;
     this.tones = fauna.species.map((sp, i) =>
       [sp.coat.coat, sp.coat.dark, sp.coat.horn].map((color, tone) =>
         this.gathered(color, counts[i]! * PER_BEAST[tone as 0 | 1 | 2]),
@@ -231,7 +232,7 @@ export class FaunaLayer {
         d = (s.x - x) * (s.x - x) + (s.y - y) * (s.y - y);
       if (s.z > 0 && d < bestD) {
         bestD = d;
-        best = { ref: sp.ref, name: sp.name, doing: doingOf(sp, b.pose), flock: sp.flock };
+        best = { ref: sp.ref, name: sp.name, doing: doingOf(sp, b.pose, b.task), flock: sp.flock };
       }
     }
     return best;
@@ -243,8 +244,24 @@ export class FaunaLayer {
     if (!fauna) return [];
     return this.beasts.slice(0, this.beastCount).map((b) => {
       const sp = fauna.species[b.species]!;
-      return { name: sp.name, niche: sp.niche, x: b.x, z: b.z, doing: doingOf(sp, b.pose) };
+      return {
+        name: sp.name,
+        niche: sp.niche,
+        x: b.x,
+        z: b.z,
+        doing: doingOf(sp, b.pose, b.task),
+      };
     });
+  }
+
+  /** The road's traffic as laid out (for the works that go with it). */
+  get road(): Fauna["road"] | null {
+    return this.fauna?.road ?? null;
+  }
+
+  /** The species of each lineage drawn (for the works that ride on them). */
+  get species(): Fauna["species"] {
+    return this.fauna?.species ?? [];
   }
 
   /** How many beasts, birds and fish are drawn now (for the look tool and tests). */
