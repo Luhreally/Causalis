@@ -73,6 +73,8 @@ export type War = {
   fallen: [number, number];
   ended: number | null;
   peace: Ref | null;
+  /** The embargo the war laid on the trade between the two realms' lands, once it cut any. */
+  embargo?: Ref;
 };
 
 const DECLARE = defineStream("war.declare");
@@ -322,27 +324,27 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       attacker = hungry ?? (sa >= sb ? a0 : b0),
       defender = attacker === a0 ? b0 : a0,
       ratio = (attacker === a0 ? sa : sb) / Math.max(1, attacker === a0 ? sb : sa);
-    const prize = frontier(ctx, attacker, defender)[0];
-    if (prize === undefined) continue;
     const valour = culture.get(attacker.seat)?.traits[WAY.valour] ?? 0.5,
       hatred = Math.max(0, -r.opinion - (covets ? 0 : -RIVALRY)),
       last = lastPeace.get(attacker.ref),
       rested = last ? Math.min(1, (year - last.ended!) / WEARY_YEARS) : 1,
-      // Its people's voices: traders who want peace with those they trade with hold it
-      // back; a temple that wants war on unbelievers urges it on.
-      voices = interestsOf(ctx, attacker, t),
+      base =
+        Math.min(0.5, (hatred * 0.12 + (covets ? 0.08 : 0)) * Math.min(2, ratio) * (0.5 + valour)) *
+        rested,
+      draw = world.rng.real(DECLARE, Number(attacker.ref.split(":")[2]), t, 0);
+    // Its people's voices at most double the chance: a draw beyond that cannot be met, and
+    // the land it would want and the voices need not be reckoned.
+    if (base <= 0 || !(draw < 2 * base)) continue;
+    const prize = frontier(ctx, attacker, defender)[0];
+    if (prize === undefined) continue;
+    // Its people's voices: traders who want peace with those they trade with hold it
+    // back; a temple that wants war on unbelievers urges it on.
+    const voices = interestsOf(ctx, attacker, t),
       peace = pressure(voices, "peace", defender.ref),
       holy = pressure(voices, "war", defender.ref),
       swayed = (1 - 0.7 * Math.min(1, 2 * peace.total)) * (1 + Math.min(1, 2 * holy.total)),
-      chance =
-        Math.min(0.5, (hatred * 0.12 + (covets ? 0.08 : 0)) * Math.min(2, ratio) * (0.5 + valour)) *
-        rested *
-        swayed;
-    if (
-      chance <= 0 ||
-      !(world.rng.real(DECLARE, Number(attacker.ref.split(":")[2]), t, 0) < chance)
-    )
-      continue;
+      chance = base * swayed;
+    if (chance <= 0 || !(draw < chance)) continue;
     const factors: Factor[] = [
       {
         name: "their rivalry",

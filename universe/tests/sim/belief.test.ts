@@ -69,20 +69,6 @@ test("faiths spread to neighbours down their roads, and the largest holds many l
   }
 });
 
-test("held for generations, a faith deepens a people's devotion", () => {
-  const culture = cultureOf(world);
-  const held = culture.all().filter((w) => faiths.of(w.cell).faith),
-    old = culture.all().filter((w) => !faiths.of(w.cell).faith);
-  const mean = (xs: typeof held) =>
-    xs.reduce((s, w) => s + w.base[WAY.piety]!, 0) / Math.max(1, xs.length);
-  assert.ok(held.length > 0);
-  if (old.length)
-    assert.ok(
-      mean(held) > mean(old),
-      `faithful ${mean(held).toFixed(2)}, old beliefs ${mean(old).toFixed(2)}`,
-    );
-});
-
 test("the god's act is an omen: a devout people struck by it may found a faith in its power", () => {
   const cradle = makePopulationWorld(seedFromText("first light"));
   cradle.runTo(60 * YEAR);
@@ -97,4 +83,25 @@ test("the god's act is an omen: a devout people struck by it may found a faith i
   assert.ok(f, "a faith in the giver of plenty");
   const path = spine(cradle, f.ref);
   assert.equal(path.at(-1)!.basis, "command", "its why ends at your act");
+});
+
+// Last in the file: it runs the shared world on.
+test("held for generations, a faith deepens a people's devotion", () => {
+  const culture = cultureOf(world),
+    before = new Map(
+      culture
+        .all()
+        .filter((w) => faiths.of(w.cell).faith && w.base[WAY.piety]! < 0.8)
+        .map((w) => [w.cell, { faith: faiths.of(w.cell).faith, piety: w.base[WAY.piety]! }]),
+    );
+  assert.ok(before.size > 0, "lands holding a faith, short of the deepest devotion");
+  world.runTo(world.now + 20 * YEAR);
+  // Those that kept the same faith the twenty years are the more devout for it.
+  const kept = [...before].filter(([cell, b]) => faiths.of(cell).faith === b.faith);
+  assert.ok(kept.length > 0);
+  for (const [cell, b] of kept)
+    assert.ok(
+      cultureOf(world).get(cell)!.base[WAY.piety]! > b.piety,
+      `land ${cell}: ${b.piety.toFixed(3)} → ${cultureOf(world).get(cell)!.base[WAY.piety]!.toFixed(3)}`,
+    );
 });

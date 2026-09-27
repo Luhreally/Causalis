@@ -78,6 +78,17 @@ test("damage, a foreign ruleset and a mid-moment save are refused", () => {
   const moved = loadWorld(doc, build, "another", { allowRulesetChange: true });
   assert.deepEqual(moved.lineage.at(-1), { ruleset: "another", from: doc.t });
   assert.equal(verifyByReplay({ ...doc, lineage: moved.lineage }, build).ok, false);
+  // A save of older rules loads though the stores changed: one the old rules kept and
+  // these do not is let go; one these keep that it lacks starts afresh.
+  const older = roundTrip(doc),
+    stores = older.stores as Record<string, unknown>;
+  stores["retired.store"] = stores["toy.population"];
+  const lacking = Object.keys(stores).find((n) => n !== "toy.population" && n !== "retired.store")!;
+  delete stores[lacking];
+  assert.throws(() => loadWorld(older, build, ruleset), /store/);
+  const carried = loadWorld(older, build, "another", { allowRulesetChange: true });
+  assert.equal(carried.world.now, doc.t);
+  carried.world.runTo(doc.t + YEAR);
   const w = makeToyWorld("mid"),
     steps = w.advance(YEAR);
   steps.next();

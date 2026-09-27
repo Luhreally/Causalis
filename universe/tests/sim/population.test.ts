@@ -11,6 +11,7 @@ import {
 } from "../../src/kernel/index.ts";
 import { OCC } from "../../src/rules/index.ts";
 import {
+  HistoryStore,
   POPULATION_EVENTS,
   makePopulationWorld,
   populationContext,
@@ -134,4 +135,21 @@ test("the same seed makes the same history, and a save continues it exactly", ()
     c.checkpoints().map((x) => x.chain),
     a.checkpoints().map((x) => x.chain),
   );
+});
+
+test("a land's years are kept yearly for a century, by the decade to a thousand, then by the century", () => {
+  const h = new HistoryStore();
+  for (let y = 0; y <= 1300; y++) {
+    h.addYear(5, { year: y, population: y, byOccupation: [], fed: 1000, settlements: 0 });
+    h.seal(y, 20);
+  }
+  const kept = h.yearsOf(5).map((s) => s.year);
+  assert.ok(kept.includes(1250) && kept.includes(1201), "the last century, every year");
+  assert.ok(kept.includes(1190) && !kept.includes(1195), "within a thousand years, the decades");
+  assert.ok(
+    kept.includes(300) && kept.includes(200) && !kept.includes(210),
+    "beyond, the centuries",
+  );
+  // (Thinned once a decade: up to nine more of the latest years.)
+  assert.ok(kept.length <= 100 + 9 + 90 + 3, `${kept.length} years kept`);
 });

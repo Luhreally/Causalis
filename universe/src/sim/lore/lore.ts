@@ -16,7 +16,7 @@ import {
   yearOfMoment,
   type CauseRef,
   type Factor,
-  type Hasher,
+  Hasher,
   type Ref,
   type SimTime,
   type StateStore,
@@ -64,6 +64,12 @@ export class LoreStore implements StateStore {
   private readonly known = new Map<number, Map<string, Known>>();
   /** Each land's effects, summed from what it knows (derived; rebuilt as lore grows). */
   private readonly totals = new Map<number, Float64Array>();
+  /**
+   * Every learning folded in as it happens (lore only grows), so a checkpoint hashes one
+   * digest, not every land's whole knowledge every year.
+   */
+  private digest = "";
+  private count = 0;
 
   get(cell: number, id: string): Known | undefined {
     return this.known.get(cell)?.get(id);
@@ -80,6 +86,8 @@ export class LoreStore implements StateStore {
     let m = this.known.get(cell);
     if (!m) this.known.set(cell, (m = new Map()));
     m.set(id, k);
+    this.digest = new Hasher().string(this.digest).int(cell).string(id).value(k).hex();
+    this.count++;
     const t = this.totals.get(cell) ?? new Float64Array(EFFECTS.length);
     EFFECTS.forEach((e, i) => (t[i] = t[i]! + (p.effects[e] ?? 0)));
     this.totals.set(cell, t);
@@ -97,13 +105,14 @@ export class LoreStore implements StateStore {
   }
 
   hashInto(h: Hasher): void {
-    for (const cell of [...this.known.keys()].sort((a, b) => a - b))
-      h.int(cell).value(this.of(cell));
+    h.string(this.digest).int(this.count);
   }
 
   save(): unknown {
     return {
       known: [...this.known.keys()].sort((a, b) => a - b).map((c) => [c, this.of(c)]),
+      digest: this.digest,
+      count: this.count,
     };
   }
 
@@ -111,8 +120,14 @@ export class LoreStore implements StateStore {
     this.known.clear();
     this.totals.clear();
     const byId = new Map(PRINCIPLES.map((p) => [p.id, p]));
-    for (const [cell, list] of (state as { known: [number, [string, Known][]][] }).known)
+    const s = state as { known: [number, [string, Known][]][]; digest?: string; count?: number };
+    for (const [cell, list] of s.known)
       for (const [id, k] of list) this.learn(cell, id, k, byId.get(id)!);
+    // The fold goes on from where it stood (the order it was learned in, not the save's).
+    if (s.digest !== undefined) {
+      this.digest = s.digest;
+      this.count = s.count ?? this.count;
+    }
   }
 }
 

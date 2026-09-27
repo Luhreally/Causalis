@@ -479,28 +479,40 @@ function underStar(ctx: PopulationContext, cell: number): number {
   return star ? starHazard(ctx.world, star).factor : 1;
 }
 
-/** Births and deaths, monthly. */
+/**
+ * Births and deaths. Every month each land's hunger is counted; its people are reckoned for
+ * the months since they last were, all at once, by how they ate in each (macro-history
+ * paging: by the land's own state, never by where anyone looks) — every month under an act
+ * or the hand, at a quarter's end if any of its months was lean, else at the year's end.
+ * A death's chance compounds by the sum of the months' pressures, so a reckoning of many
+ * months at their mean pressure is the months reckoned one by one.
+ */
 export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
   const { world, history } = ctx,
     year = yearOfMoment(t),
     life = ctx.life;
   const markets = marketsOf(world),
     acts = actsOf(world),
-    first = periodIndex(t, MONTH) % 12 === 1;
+    month = periodIndex(t, MONTH),
+    // The last month of the year, and of each quarter (the month at a year's turn closes it).
+    yearEnd = month % 12 === 0,
+    quarterEnd = month % 3 === 0;
   for (const p of ctx.provinces.all()) {
-    // A quiet land — fed, untouched by plague, not under the hand — is reckoned once a
-    // year, in the year's first month, at the year's rates (macro-history paging: by the
-    // land's own state, never by where anyone looks).
-    if (p.paged === year) continue;
+    p.vitalMonths++;
+    p.vitalShort += 1000 - p.fed;
+    p.vitalFed2 += p.fed * p.fed;
     // A plague sent makes deaths likelier; healing, rarer.
     const act = acts.at(p.cell, "plague", t),
       sickness = !act ? 1 : act.sign < 0 ? 1 + ACT_STRENGTH.plague : 1 - ACT_STRENGTH.healing;
-    const quiet = first && !act && p.fed >= 1000 && !handOf(world).over(p.cell),
-      months = quiet ? 12 : 1;
-    if (quiet) p.paged = year;
-    const fed = p.fed / 1000,
-      // A people grown wealthy with power have fewer children (the demographic transition).
-      fertility = fed * fed * transition(ctx, p.cell),
+    const held = !!act || !!handOf(world).over(p.cell);
+    if (!held && !yearEnd && !(quarterEnd && p.vitalShort > 0)) continue;
+    const months = p.vitalMonths,
+      // The months' mean shortfall of food, and their fertility summed (by fed squared).
+      short = p.vitalShort / months / 1000,
+      fedSquared = p.vitalFed2 / 1_000_000;
+    p.vitalMonths = p.vitalShort = p.vitalFed2 = 0;
+    // A people grown wealthy with power have fewer children (the demographic transition).
+    const fertility = fedSquared * transition(ctx, p.cell),
       // In cold lands, those without warm clothing die more easily.
       cold = dmath.clamp((10 - ctx.generated.climate.temperature[p.cell]!) / 10, 0, 1),
       bare = 1 - (markets.get(p.cell)?.clothingCover ?? 1000) / 1000,
@@ -509,7 +521,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       // Where much is burned among few, smoke fouls the air.
       smoke = 1 + 0.3 * smokeIn(ctx, p.cell),
       mortality =
-        (1 + 2.5 * (1 - fed)) *
+        (1 + 2.5 * short) *
         (1 + 0.25 * cold * bare) *
         sickness *
         healed *
@@ -527,22 +539,20 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       if (windowed) for (let o = 0; o < COLS; o++) women -= windowed[row(FEMALE, b) * COLS + o]!;
       expected += women * life.fertility[b]!;
     }
-    const births = roundKeyed((expected * fertility * months) / 12, world.rng.real(BIRTHS, key, t));
+    const births = roundKeyed((expected * fertility) / 12, world.rng.real(BIRTHS, key, t));
     if (births) {
       const [girls, boys] = multinomial(births, [0.488, 0.512], (i) =>
         world.rng.real(BIRTHS, key, t, SEX, i),
       );
-      // Reckoned a whole year at once, the year's newborns were born through it: those of them
-      // who died within it, by the first years' chance spread over the year.
-      const infants = quiet
-          ? Math.min(
-              births,
-              roundKeyed(
-                births * diedInBirthYear(riskUnder(life.mortality[0]!, mortality)),
-                world.rng.real(DEATHS, key, t, 1, 0),
-              ),
-            )
-          : 0,
+      // The months' newborns were born through them: those of them who died within them, by
+      // the first years' chance spread over the months.
+      const infants = Math.min(
+          births,
+          roundKeyed(
+            births * diedInBirthYear(deathWithin(riskUnder(life.mortality[0]!, mortality), months)),
+            world.rng.real(DEATHS, key, t, 1, 0),
+          ),
+        ),
         // Who of the newborns they were: drawn from the girls and boys born, never more of either.
         [lostGirls] = infants
           ? drawWithoutReplacement(infants, [girls!, boys!], (i) =>
@@ -614,7 +624,7 @@ export function transition(ctx: PopulationContext, cell: number): number {
 }
 // At the full transition a people about replace themselves: some five children a woman
 // fall to three and a half, as industry's lower deaths let two in three of them grow up.
-const TRANSITION = 0.33;
+const TRANSITION = 0.6;
 
 /** Below this share of the food it needs (in thousandths), a land's month is a famine. */
 export const FAMINE = 700;

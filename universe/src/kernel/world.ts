@@ -65,6 +65,8 @@ export class World {
    */
   private readonly forever = new Set<string>();
   private foreverChronicle = -1;
+  /** When the kept history was last reckoned by age (its rebuild's time), or -1. */
+  private agedAt = -1;
 
   constructor(seed: Seed, options: WorldOptions = {}) {
     this.seed = seed;
@@ -152,32 +154,58 @@ export class World {
    */
   compactHistory(now: number): { events: number; decisions: number } {
     const forever = this.forever,
-      kept = new Set<string>();
+      kept = new Set<string>(),
+      aging = this.retention.aging;
     if (this.foreverChronicle !== this.retention.chronicle) {
       forever.clear();
       this.foreverChronicle = this.retention.chronicle;
     }
-    // Everything `roots` reaches that is not already kept for ever, into `into`.
+    // The chronicle thins with age, reckoned afresh on a fixed schedule: an event is kept
+    // for ever by the importance its age asked at the last reckoning (new ones by the base).
+    const reckoned = aging ? Math.floor(now / aging.every) * aging.every : -1;
+    if (aging && reckoned !== this.agedAt) {
+      forever.clear();
+      this.agedAt = reckoned;
+    }
+    const needs = (t: number) => {
+      let need = this.retention.chronicle;
+      if (aging && t <= this.agedAt)
+        for (const s of aging.steps)
+          if (this.agedAt - t >= s.after) need = Math.max(need, s.chronicle);
+      return need;
+    };
+    // Ancestry fades with age as the chronicle does: past the first step of aging, an event
+    // below what its age asks (and a decision that old) is kept only as a direct cause of
+    // something kept that has not faded — its own why opens one step, and beyond it the
+    // past is forgotten into the summaries like any other.
+    const first = aging?.steps[0]?.after,
+      old = (t: number) => first !== undefined && this.agedAt - t >= first;
+    // Everything `roots` reaches that is not already kept for ever, into `into`. A
+    // decision passes on whether the event citing it had faded.
     const walk = (roots: Iterable<Ref>, into: Set<string>) => {
-      const stack: Ref[] = [];
-      const reach = (ref: Ref) => {
-        if (into.has(ref) || forever.has(ref) || !(this.events.get(ref) || this.decisions.get(ref)))
-          return;
+      const stack: [Ref, boolean][] = [];
+      const reach = (ref: Ref, fadedParent: boolean) => {
+        if (into.has(ref) || forever.has(ref)) return;
+        const e = this.events.get(ref),
+          d = e ? undefined : this.decisions.get(ref);
+        if (!e && !d) return;
+        const faded = e ? old(e.t) && e.importance < needs(e.t) : fadedParent;
+        if (fadedParent && (e ? faded : old(d!.t))) return;
         into.add(ref);
-        stack.push(ref);
+        stack.push([ref, faded]);
       };
-      for (const ref of roots) reach(ref);
+      for (const ref of roots) reach(ref, false);
       while (stack.length) {
-        const ref = stack.pop()!,
+        const [ref, faded] = stack.pop()!,
           e = this.events.get(ref);
-        if (e) for (const c of e.causes) reach(c.ref);
-        else for (const cited of this.decisions.cited(ref)) reach(cited);
+        if (e) for (const c of e.causes) reach(c.ref, faded);
+        else for (const cited of this.decisions.cited(ref)) reach(cited, faded);
       }
     };
     // The chronicle (an event joins it when it happens, or later when hindsight raises it)...
     const joined: Ref[] = [];
     for (const e of this.events.all())
-      if (e.importance >= this.retention.chronicle && !forever.has(e.id)) joined.push(e.id);
+      if (e.importance >= needs(e.t) && !forever.has(e.id)) joined.push(e.id);
     walk(joined, forever);
     // ...and what the other stores hold on to, for as long as they do.
     for (const pins of this.pinners) walk(pins(), kept);

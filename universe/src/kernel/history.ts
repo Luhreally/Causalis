@@ -123,6 +123,16 @@ export type RetentionOptions = {
    * happened (for ever when absent): the summaries still count it by place and decade.
    */
   readonly tombstones?: number;
+  /**
+   * The chronicle thins with age (Phase 6 M65: history over millennia): an event older
+   * than `after` (seconds) is kept for ever only at this importance or more. Applied on a
+   * fixed schedule (`every` seconds of the world's time), so a world saved and loaded keeps
+   * the same history as one that ran on. Absent: every chronicle event is kept for ever.
+   */
+  readonly aging?: {
+    readonly every: number;
+    readonly steps: readonly { readonly after: number; readonly chronicle: number }[];
+  };
 };
 
 /**

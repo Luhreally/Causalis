@@ -64,6 +64,15 @@ export const PEOPLED_RETENTION = {
   chronicle: 4,
   // The tombstones of what was forgotten, for two centuries.
   tombstones: 200 * YEAR,
+  // And the chronicle thins with age: after four centuries only what mattered more, after
+  // twelve only the greatest (reckoned every quarter-millennium).
+  aging: {
+    every: 250 * YEAR,
+    steps: [
+      { after: 400 * YEAR, chronicle: 5 },
+      { after: 1200 * YEAR, chronicle: 6 },
+    ],
+  },
 } as const;
 
 export type PopulationWorldOptions = PlanetWorldOptions & {

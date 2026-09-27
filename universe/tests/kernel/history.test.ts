@@ -6,6 +6,9 @@ import {
   EVENT,
   YEAR,
   defineEventType,
+  loadWorld,
+  rulesetId,
+  saveWorld,
   seedFromText,
   type Ref,
 } from "../../src/kernel/index.ts";
@@ -20,6 +23,7 @@ import {
   type ToyPopulation,
 } from "../../src/sim/index.ts";
 
+const MIDDLING = defineEventType("test.middling", 3);
 const PING = defineEventType("test.ping", 1);
 const BIG = defineEventType("test.big", 5);
 
@@ -167,4 +171,102 @@ test("why walks from an exodus through its decision to a flood and back to the l
     if (path[i]!.t !== null && path[i - 1]!.t !== null)
       assert.ok(path[i]!.t! <= path[i - 1]!.t!, "causes are earlier");
   assert.equal(why(w, cellRef(3)).basis, "unknown");
+});
+
+test("the chronicle thins with age on a fixed schedule; a world saved and loaded keeps the same", () => {
+  const aged = {
+      window: 5 * YEAR,
+      chronicle: 3,
+      aging: { every: 20 * YEAR, steps: [{ after: 30 * YEAR, chronicle: 4 }] },
+    },
+    build = (seed: { text: string }) => {
+      const w = makeToyWorld(seed.text);
+      w.retention = aged;
+      return w;
+    };
+  const run = build({ text: "aging" });
+  run.runTo(100 * YEAR);
+  // Kept events older than the last reckoning's thirty years are the greater ones, or cited.
+  const cited = new Set<string>();
+  for (const e of run.events.all()) for (const c of e.causes) cited.add(c.ref);
+  for (const d of run.decisions.all()) for (const r of run.decisions.cited(d.id)) cited.add(r);
+  const reckoned = Math.floor(run.now / (20 * YEAR)) * 20 * YEAR;
+  const old = run.events.all().filter((e) => reckoned - e.t >= 30 * YEAR);
+  for (const e of old)
+    assert.ok(
+      e.importance >= 5 || cited.has(e.id),
+      `${e.id} (${e.type}, ${e.importance}) kept too long`,
+    );
+  // A thing of middling note, standing alone, is let go once old; a whole chronicle keeps it.
+  const plant = (w: World, until: number) => {
+    const out: Ref[] = [];
+    for (let y = 1; y <= until; y++) {
+      w.runTo(y * YEAR);
+      if (y <= 10) out.push(w.events.emit({ type: MIDDLING.type }));
+    }
+    return out;
+  };
+  const agedRun = build({ text: "aging" }),
+    whole = makeToyWorld("aging");
+  whole.retention = { window: 5 * YEAR, chronicle: 3 };
+  const lost = plant(agedRun, 100),
+    held = plant(whole, 100);
+  assert.ok(
+    lost.every((r) => !agedRun.events.get(r)),
+    "old middling news let go",
+  );
+  assert.ok(
+    held.every((r) => whole.events.get(r)),
+    "a whole chronicle keeps it",
+  );
+  // Saved half-way and loaded, it ends with the very same history.
+  const first = build({ text: "aging" });
+  first.runTo(57 * YEAR);
+  const ruleset = rulesetId(first, "test"),
+    doc = JSON.parse(JSON.stringify(saveWorld(first, ruleset))) as ReturnType<typeof saveWorld>,
+    { world: again } = loadWorld(doc, (s) => build(s), ruleset);
+  again.runTo(100 * YEAR);
+  assert.deepEqual(again.domainHashes(), run.domainHashes());
+});
+
+test("ancestry fades with age: an old small event is kept only as a direct cause of a greater one", () => {
+  const aged = {
+      window: 5 * YEAR,
+      chronicle: 3,
+      aging: { every: 20 * YEAR, steps: [{ after: 30 * YEAR, chronicle: 4 }] },
+    },
+    chain = (w: World) => {
+      const root = w.events.emit({ type: MIDDLING.type }),
+        cause = w.events.emit({
+          type: MIDDLING.type,
+          causes: [{ ref: root, role: "enabler", weight: 1 }],
+        }),
+        great = w.events.emit({
+          type: BIG.type,
+          causes: [{ ref: cause, role: "enabler", weight: 1 }],
+        });
+      return [root, cause, great] as const;
+    };
+  const w = makeToyWorld("fading");
+  w.retention = aged;
+  w.runTo(5 * YEAR);
+  const [oldRoot, oldCause, oldGreat] = chain(w);
+  w.runTo(95 * YEAR);
+  const [newRoot, newCause, newGreat] = chain(w);
+  w.runTo(100 * YEAR);
+  assert.ok(w.events.get(oldGreat), "the old great event stays");
+  assert.ok(w.events.get(oldCause), "and its direct cause");
+  assert.equal(w.events.get(oldRoot), undefined, "the cause's own old cause is let go");
+  assert.equal(why(w, oldRoot).basis, "forgotten");
+  assert.ok(
+    [newRoot, newCause, newGreat].every((r) => w.events.get(r)),
+    "a young chain is whole",
+  );
+  // Without aging, the whole old chain stays.
+  const whole = makeToyWorld("fading");
+  whole.retention = { window: 5 * YEAR, chronicle: 3 };
+  whole.runTo(5 * YEAR);
+  const kept = chain(whole);
+  whole.runTo(100 * YEAR);
+  assert.ok(kept.every((r) => whole.events.get(r)));
 });

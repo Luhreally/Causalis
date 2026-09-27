@@ -130,11 +130,15 @@ export function loadWorld(
     );
   const world = build(seedFromText(doc.seed));
   const names = world.storeNames();
+  // Under new rules a store the old ones kept and these do not is let go, and a store
+  // these keep and the old did not begins as it would on a new world, from the moment
+  // of loading: history is kept, the future follows the new rules.
   for (const name of Object.keys(doc.stores))
-    if (!names.includes(name))
+    if (!names.includes(name) && !changed)
       throw new SaveError(`the save has a store ${name} this game does not`);
   for (const name of names) {
     const chunk = doc.stores[name];
+    if (!chunk && changed) continue;
     if (!chunk) throw new SaveError(`the save has no store ${name}`);
     if (chunkHash(chunk.data) !== chunk.hash)
       throw new SaveError(`store ${name} is corrupt (its hash does not match)`);
@@ -155,8 +159,8 @@ export function loadWorld(
   world.minter.restore(doc.minter);
   world.scheduler.load(doc.scheduler);
   world.restoreCheckpoints(doc.checkpoints);
-  const migrated = Object.values(doc.stores).some(
-    (c, i) => c.schema !== schemaOf(world.store(Object.keys(doc.stores)[i]!)),
+  const migrated = Object.entries(doc.stores).some(
+    ([name, c]) => names.includes(name) && c.schema !== schemaOf(world.store(name)),
   );
   if (!changed && !migrated) {
     const now = world.domainHashes();

@@ -91,6 +91,10 @@ registerEventWords(ECONOMY_EVENTS.route.type, (world, e) => {
   const to = e.subjects[1] ?? null;
   return `The first ${goodName(text(e.data, "good"))} went from ${landWords(world, e.place)} to ${landWords(world, to)}, ${year(e.t)}`;
 });
+registerEventWords(ECONOMY_EVENTS.embargo.type, (_world, e) => {
+  const ties = num(e.data, "ties");
+  return `War shut the trade between the two realms' lands${ties === null ? "" : `: ${ties} road${ties === 1 ? "" : "s"} and crossing${ties === 1 ? "" : "s"} closed`}, ${year(e.t)}`;
+});
 registerEventWords(ECONOMY_EVENTS.relief.type, (world, e) => {
   const food = num(e.data, "food");
   return `Food came to ${landWords(world, e.place)} while famine was on${food === null ? "" : `, ${count(food)} months' worth`}, ${year(e.t)}`;

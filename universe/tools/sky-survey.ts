@@ -98,7 +98,17 @@ export function skySurvey(seed: string, years: number): SkySurvey {
   let orbitalFlight: number | null = null;
   const left = new Map<number, Ref>(),
     leftYear = new Map<number, number>(),
+    // Why each left, read when it did: long histories forget the small events of old
+    // centuries by the time the run ends.
+    leftWhy = new Map<number, string[]>(),
     owner = new Map<number, string | null>();
+  const leave = (cell: number, e: Ref) => {
+    left.set(cell, e);
+    leftWhy.set(
+      cell,
+      spine(world, e, 6).map((x) => x.claim),
+    );
+  };
   for (let y = 1; y <= years; y++) {
     const a = performance.now();
     world.runTo(y * YEAR);
@@ -115,8 +125,7 @@ export function skySurvey(seed: string, years: number): SkySurvey {
       if (e.type === "polity.seceded" || e.type === "polity.split")
         for (const s of e.subjects) {
           const cell = Number(s.split(":")[2]);
-          if (s.startsWith("cell:") && offworldSite(g, cell) && !left.has(cell))
-            left.set(cell, e.id);
+          if (s.startsWith("cell:") && offworldSite(g, cell) && !left.has(cell)) leave(cell, e.id);
         }
     }
     // Every land of another body or star: who rules it, year by year; when it leaves its
@@ -135,7 +144,7 @@ export function skySurvey(seed: string, years: number): SkySurvey {
             e.subjects.includes(before as Ref) &&
             !left.has(p.cell)
           )
-            left.set(p.cell, e.id);
+            leave(p.cell, e.id);
         }
       }
       owner.set(p.cell, now);
@@ -163,7 +172,7 @@ export function skySurvey(seed: string, years: number): SkySurvey {
         founder: founder?.town ?? "?",
         ruled: !!ruler && ruler.ref === p.realm,
         left: leftYear.get(c.cell) ?? (leftBy ? year(leftBy) : null),
-        whyLeft: leftBy ? spine(world, leftBy, 6).map((x) => x.claim) : [],
+        whyLeft: leftBy ? (leftWhy.get(c.cell) ?? []) : [],
         ways:
           seatWays && mine
             ? Math.sqrt(mine.traits.reduce((s, v, i) => s + (v - seatWays.traits[i]!) ** 2, 0))
@@ -179,15 +188,14 @@ export function skySurvey(seed: string, years: number): SkySurvey {
     recent = times.slice(-200),
     meanRecent = recent.reduce((a, b) => a + b, 0) / Math.max(1, recent.length);
   const starColonies = sites.map(([cell, st]) => {
-    const r = realms.of(cell),
-      by = left.get(cell);
+    const r = realms.of(cell);
     return {
       distance: st.distance,
       people: ctx.provinces.get(cell)?.total() ?? 0,
       arrived: st.arrived !== null,
       ruled: !!r && r.ref === st.realm,
       left: leftYear.get(cell) ?? null,
-      whyLeft: by ? spine(world, by, 6).map((x) => x.claim) : [],
+      whyLeft: leftWhy.get(cell) ?? [],
     };
   });
   const sorted = [...times].sort((a, b) => a - b),

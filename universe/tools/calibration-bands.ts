@@ -7,7 +7,17 @@
 import type { Century } from "./calibration.ts";
 
 export type Turn =
-  "sowing" | "state" | "writing" | "iron" | "coal" | "steam" | "factory" | "electricity";
+  | "sowing"
+  | "state"
+  | "writing"
+  | "iron"
+  | "coal"
+  | "steam"
+  | "factory"
+  | "electricity"
+  | "satellite"
+  | "colony"
+  | "voyage";
 
 export const TURNS: readonly {
   readonly id: Turn;
@@ -28,6 +38,10 @@ export const TURNS: readonly {
   { id: "steam", name: "the steam engine", principle: "steam-engine", band: [400, 750] },
   { id: "factory", name: "the first factory", event: "industry.works", band: [450, 800] },
   { id: "electricity", name: "electricity", principle: "electricity", band: [500, 900] },
+  // The space age (Phase 7 M74): past the ninth century, checked by longer runs.
+  { id: "satellite", name: "the first satellite", event: "space.satellite", band: [950, 1150] },
+  { id: "colony", name: "the first colony", event: "space.colony", band: [1150, 1350] },
+  { id: "voyage", name: "the first ship to a star", event: "space.voyage", band: [1250, 1800] },
 ];
 
 export const BANDS: readonly {

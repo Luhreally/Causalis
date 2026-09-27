@@ -138,8 +138,16 @@ export class Province {
   knowsCultivation = false;
   /** The event through which this province came to keep herds (tamed or learned), if it has. */
   herding: Ref | null = null;
-  /** The year its births and deaths were last reckoned whole, in one step (a quiet band's land). */
-  paged = -1;
+  /**
+   * The months since its births and deaths were last reckoned, and how it ate in them: the
+   * sum of each month's shortfall of food (thousandths short of enough) and of each month's
+   * `fed` squared (thousandths squared). A land is reckoned for those months at once, by
+   * their hunger as it was — so a land fed for the one month after the year's imports and
+   * starving the other eleven is reckoned by its eleven lean months, not by the one.
+   */
+  vitalMonths = 0;
+  vitalShort = 0;
+  vitalFed2 = 0;
   /** The event through which this province came to know cultivation. */
   cultivation: Ref | null = null;
   /** The year the first people came. */
@@ -172,7 +180,9 @@ export class Province {
     h.int(this.rain).int(this.fed).int(this.leanest).bool(this.knowsCultivation);
     h.string(this.cultivation ?? "")
       .string(this.herding ?? "")
-      .int(this.paged)
+      .int(this.vitalMonths)
+      .int(this.vitalShort)
+      .int(this.vitalFed2)
       .int(this.settledYear)
       .string(this.arrival ?? "");
     h.string(this.lastFamine ?? "")
@@ -190,7 +200,9 @@ export class Province {
       knowsCultivation: this.knowsCultivation,
       cultivation: this.cultivation,
       herding: this.herding,
-      paged: this.paged,
+      vitalMonths: this.vitalMonths,
+      vitalShort: this.vitalShort,
+      vitalFed2: this.vitalFed2,
       settledYear: this.settledYear,
       arrival: this.arrival,
       lastFamine: this.lastFamine,
@@ -209,7 +221,9 @@ export class Province {
     p.knowsCultivation = s.knowsCultivation as boolean;
     p.cultivation = s.cultivation as Ref | null;
     p.herding = (s.herding as Ref | null | undefined) ?? null;
-    p.paged = (s.paged as number | undefined) ?? -1;
+    p.vitalMonths = (s.vitalMonths as number | undefined) ?? 0;
+    p.vitalShort = (s.vitalShort as number | undefined) ?? 0;
+    p.vitalFed2 = (s.vitalFed2 as number | undefined) ?? 0;
     p.lastFamine = s.lastFamine as Ref | null;
     p.lastDrought = s.lastDrought as Ref | null;
     p.famineMonth = s.famineMonth as number;

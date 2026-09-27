@@ -57,6 +57,8 @@ import {
 } from "../population/systems.ts";
 import { GOOD_COUNT, type Market, type MarketStore, type TradeFlow } from "./market.ts";
 import { kmBetween, seaRange, seaReach } from "./sea.ts";
+import { politiesOf } from "../polity/polity.ts";
+import { warsOf, type War } from "../war/war.ts";
 
 const SPREADING = purpose("spread");
 const HERDS = defineStream("econ.herds");
@@ -71,6 +73,7 @@ export const ECONOMY_EVENTS = {
   well: defineEventType("industry.well", 4),
   works: defineEventType("industry.works", 5),
   relief: defineEventType("trade.relief", 4),
+  embargo: defineEventType("trade.embargo", 4),
   metalworking: defineEventType("knowledge.metalworking", 6),
   metalworkingSpread: defineEventType("knowledge.metalworking-spread", 3),
 };
@@ -470,7 +473,29 @@ function trade(
   wanted: Map<number, number[]>,
 ): TradeFlow[] {
   const plans: Plan[] = [];
+  // Lands of realms at war with each other trade no more: the war lays an embargo.
+  const realms = politiesOf(ctx.world),
+    open = warsOf(ctx.world)
+      .all()
+      .filter((w) => w.ended === null),
+    between = (a: number, b: number) => {
+      const ra = realms.of(a)?.ref,
+        rb = realms.of(b)?.ref;
+      if (!ra || !rb || ra === rb) return null;
+      return (
+        open.find(
+          (w) =>
+            (w.attacker === ra && w.defender === rb) || (w.attacker === rb && w.defender === ra),
+        ) ?? null
+      );
+    },
+    cut = new Map<War, number>();
   for (const e of edges(ctx)) {
+    const war = open.length ? between(e.a, e.b) : null;
+    if (war) {
+      cut.set(war, (cut.get(war) ?? 0) + 1);
+      continue;
+    }
     const ma = markets.of(e.a),
       mb = markets.of(e.b);
     for (let g = 0; g < GOOD_COUNT; g++) {
@@ -509,6 +534,17 @@ function trade(
     from.tradeMargin += n * pl.margin;
     flows.push({ from: pl.from, to: pl.to, good: pl.good, count: n });
     if (!markets.route(pl.from, pl.to)) openRoute(ctx, markets, pl, n, t);
+  }
+  // Each war that cut trade, told once: the lands it shut.
+  for (const [war, lands] of cut) {
+    if (war.embargo) continue;
+    war.embargo = ctx.world.events.emit({
+      type: ECONOMY_EVENTS.embargo.type,
+      subjects: [war.attacker, war.defender],
+      place: null,
+      causes: [{ ref: war.event, role: "trigger", weight: 1 }],
+      data: { ties: lands },
+    });
   }
   return flows;
 }

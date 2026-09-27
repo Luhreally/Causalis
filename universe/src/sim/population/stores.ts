@@ -174,7 +174,8 @@ export type YearSummary = {
 /**
  * Births, deaths and moves are kept for living memory — as long as anyone alive could
  * have been born, died or moved — then let go (they are folded into the digest already).
- * A year's summary is kept every year for a century, then one year in ten.
+ * A year's summary is kept every year for a century, then one year in ten, and past a
+ * thousand years one in a hundred.
  */
 export const LIVING_MEMORY = 120;
 
@@ -187,7 +188,8 @@ export function livingMemory(life: LifeHistory): number {
   const oldest = (l: LifeHistory) => l.bands.at(-1)! + l.oldest;
   return Math.max(20, Math.round((LIVING_MEMORY * oldest(life)) / oldest(HUMANLIKE)));
 }
-const SUMMARY_YEARS = 100;
+const SUMMARY_YEARS = 100,
+  SUMMARY_DECADES = 1000;
 
 export class HistoryStore implements StateStore {
   readonly name = "population.history";
@@ -296,7 +298,8 @@ export class HistoryStore implements StateStore {
     this.digest = h.hex();
     this.sealedYear = year;
     // Past living memory, a decade at a time: let the oldest births, deaths and moves go,
-    // and thin the summaries of the years beyond a century to one in ten.
+    // and thin the summaries of the years beyond a century to one in ten, beyond a
+    // thousand years to one in a hundred.
     if (year - this.firstYear >= memory + 10) {
       const drop = 10;
       for (const a of this.births.values()) a.splice(0, drop);
@@ -307,10 +310,21 @@ export class HistoryStore implements StateStore {
       this.flowList.splice(0, gone);
       this.flowBase += gone;
       this.sealedFlows -= gone;
+      // (Past the century, a year keeps its people and how they ate, not their trades.)
       for (const [c, lines] of this.years)
         this.years.set(
           c,
-          lines.filter((s) => s.year >= year - SUMMARY_YEARS || s.year % 10 === 0),
+          lines
+            .filter(
+              (s) =>
+                s.year >= year - SUMMARY_YEARS ||
+                (s.year % 10 === 0 && (s.year >= year - SUMMARY_DECADES || s.year % 100 === 0)),
+            )
+            .map((s) =>
+              s.year < year - SUMMARY_YEARS && s.byOccupation.length
+                ? { ...s, byOccupation: [] }
+                : s,
+            ),
         );
     }
   }
