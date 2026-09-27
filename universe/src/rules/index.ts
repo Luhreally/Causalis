@@ -141,3 +141,15 @@ export {
   starDriveFor,
   type StarDrive,
 } from "./starships.ts";
+export {
+  FOOD_WEB,
+  creatureWords,
+  creatureBody,
+  creatureName,
+  type CreatureBody,
+  type CreatureNiche,
+  type Covering,
+  type Eats,
+  type Feature,
+  type Locomotion,
+} from "./creatures.ts";

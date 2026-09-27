@@ -12,6 +12,7 @@ import { BIOME } from "./climate.ts";
 import type { HomeWorld } from "./homeworld.ts";
 import type { Deposit } from "./deposits.ts";
 import { BOUNDARY } from "./plates.ts";
+import { SPECIES_WORDS } from "./biosphere.ts";
 
 /** The province grid's frequency: 4,002 provinces over the whole planet. */
 export const PROVINCE_FREQUENCY = 20;
@@ -132,7 +133,7 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
     oil = new Float32Array(N),
     coalAge = new Uint8Array(N).fill(255),
     oilAge = new Uint8Array(N).fill(255),
-    present = new Uint32Array(2 * N),
+    present = new Uint32Array(SPECIES_WORDS * N),
     herdBeast = new Int16Array(N).fill(-1),
     seedGrass = new Int16Array(N).fill(-1),
     diversity = new Uint8Array(N),
@@ -218,8 +219,9 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
     let beastWorth = -1,
       grassWorth = -1;
     for (const c of kids) {
-      present[2 * p] = present[2 * p]! | life.present[2 * c]!;
-      present[2 * p + 1] = present[2 * p + 1]! | life.present[2 * c + 1]!;
+      for (let w = 0; w < SPECIES_WORDS; w++)
+        present[SPECIES_WORDS * p + w] =
+          present[SPECIES_WORDS * p + w]! | life.present[SPECIES_WORDS * c + w]!;
       diversity[p] = Math.max(diversity[p]!, life.diversity[c]!);
       const beast = life.herdBeast[c]!,
         grass = life.seedGrass[c]!;

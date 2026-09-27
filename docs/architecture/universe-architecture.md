@@ -2937,6 +2937,69 @@ draws both ways (a land 94 ms, the sky 63 ms in WebKit), and the sky's self-lit 
 (lines and spheres) are warmed too. CI runs the gate's world checks (`--no-budgets`) beside
 the journey; its budgets need a GPU and run locally. **Phase 8 closes.**
 
+### I.9 Phase 9 milestones (planned 2026-09-27, at the user's asking)
+
+The user: "animated and visualized battles, marching armies or fleets on land and in star
+wars, farming, fighting, building — everything they do should be able to be seen … I even
+wanna see them socialize with emojis. Also basic physics: they shouldn't be phasing through
+walls … make everything seamless from zoom in to all the way out, from person to galaxy
+(a loading screen only when a device needs it) … a mode where the game starts with the
+emergence of the galaxy, then you choose your planet and see it evolve, primitive then
+conscious life, and choose where to start … a microscopic view of the cells and
+many-celled life, creatures emerging from it like Spore … a creature system like the
+people's: each animal line a body plan (limbs, symmetry, skin, size, how it moves, what it
+eats), evolved from its world's gravity, medium and climate; a real food web with several
+levels; 3D models built from those parameters instead of 15 fixed shapes; names that come
+from the body." Phase 9's "done when": every lineage of every world is a body of its own,
+eaten and eating in a web of several levels, drawn from its plan and named for it; what the
+people do — build, farm, fight, gather, talk — and their wars, marching and sailing, on
+land, at sea and between the stars, is seen; a viewer can go from one person to the whole
+galaxy and back without a seam where the device allows; and a world can be watched from
+its galaxy's first light to its first people.
+
+83. **Creature body plans**: each lineage a body — symmetry, segments, legs, fins, wings,
+    skin, size, how it moves, what it eats — drawn in its age from its niche and its world's
+    pull, seas, air and climate (heavier worlds squatter and many-legged, thin-aired worlds
+    few fliers, cold worlds furred); names from the body; the Earthlike prior's lineages
+    Earth's own (fur and hooves, feathers, scales, fins).
+84. **The food web**: producers, grazers and browsers, seed-eaters, small hunters, apex
+    hunters, scavengers and swimmers, each land's stocks tied level to level (each level's
+    stock set by the one it eats, pressed by the one that eats it), the people's hunting,
+    herding, farming and clearing pressing on it, with events and whys when a level fails.
+85. **Creatures drawn from their plans**: the fixed shapes replaced by bodies built from the
+    plan — segments, leg pairs, fins, wings, necks, tails, skins — each moving as it moves
+    (walking, hopping, crawling, slithering, swimming, flying), finer by the setting.
+86. **Everything they do**: building (sites, scaffolds, walls rising, builders), farming
+    (hoeing, sowing, reaping), fighting (drills, brawls), gathering and talking with emoji
+    moods from the world's own state, and bodies that go round walls and one another.
+87. **Wars seen**: hosts marching between lands, battles joined where history fought them,
+    fleets at sea, and fleets between the stars — all from the wars history records.
+88. **One zoom**: person to galaxy and back as one continuous zoom — each scale fetched and
+    readied ahead of the camera, a loading screen only where the device or the data would
+    stutter.
+89. **Genesis**: a way to begin — the galaxy's emergence, a star and a world chosen, the world
+    forming, its deep ages, the microscopic dawn of life (cells, then cells together, then
+    bodies), lineages arising age by age, the first people, and where to begin chosen.
+90. **Phase 9 gate**.
+
+83, as built. Every beast lineage has a body (rules/creatures.ts): symmetry, one to three
+segments, 0–8 legs, fins, wings, covering (fur, wool, feathers, scales, shell, plates, slick),
+weight, how it moves (walk, run, hop, crawl, slither, swim, fly), what it eats and its level
+in the web of eating, neck, tail and what it grows (horns, antlers, tusks, a trunk, a hump, a
+mane, a crest, spines, claws, a beak). A heavier pull shrinks bodies (weight by g^-0.75) and
+spreads them over more legs; a thicker air bears more fliers; the cold furs them and the dry
+heat plates and scales them. Under the Earthlike prior they are Earth's own — four legs, or
+wings and two, or fins — and keep Earth's names, with bodies to match them (an ox its horns,
+a horse its mane, a tusker its tusks and trunk); elsewhere each is named for its body (a
+"red spined eight-strider", a "dun plumed four-wing", a "grey crested leaf-reacher"). Four
+niches join the web — seed-eaters, swimmers (only by a river, a lake or a coast), small
+hunters and scavengers — drawn age by age on streams of their own after the people, so every
+lineage, the cradle and the people drawn before them are as they were (the oracle moved in
+the planet domain alone; history is bit-identical); a small hunter or scavenger lives only
+where its food lives, and one with nothing to eat anywhere died out. The species mask grew to
+96 lineages (three words a cell). A lineage's why and page say its body and its place in the
+web.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

@@ -7,6 +7,9 @@ export type SpeciesPage = {
   readonly niche: string;
   /** What it is, in words. */
   readonly what: string;
+  /** Its body (a beast's, M83): in words, and what it grows; its level in the web of eating. */
+  readonly body: { readonly words: string; readonly features: readonly string[] } | null;
+  readonly level: number;
   /** Its weight in kg (null for a grass). */
   readonly size: number | null;
   readonly tame: boolean;

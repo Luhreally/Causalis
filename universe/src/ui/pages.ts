@@ -77,6 +77,25 @@ function speciesPage(s: SpeciesPage, links: PageLinks): Page {
       "fact",
       `${cap(s.what)}${s.size !== null ? `, some ${kg(s.size)}` : ""}${s.wool ? ", with a woolly coat" : ""}${s.herd >= 0.5 ? ", living in herds" : ""}`,
     ),
+    // Its body, as its world and its way of life made it (M83), and where it stands in the web.
+    ...(s.body
+      ? [
+          el(
+            "div",
+            "fact",
+            `${cap(s.body.words)}${s.body.features.length ? `; it grows ${s.body.features.join(", ").replace(/-/g, " ")}` : ""}`,
+          ),
+          el(
+            "div",
+            "fact muted",
+            s.level >= 4
+              ? "At the top of its land's web of eating: nothing hunts it but the people"
+              : s.level === 3
+                ? "It eats the plant-eaters (or what is left of them), and is eaten by the great hunters"
+                : "It eats the land's plants, and is eaten by its hunters",
+          ),
+        ]
+      : []),
     el(
       "div",
       "fact",

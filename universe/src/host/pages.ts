@@ -2,6 +2,7 @@
 // lineage, a realm, a deposit, a plate and the world's deep ages — what each is, where
 // it is, what it is to the people, and the refs whose whys the page opens. Pure reads of
 // the world as it stands; asking never moves it.
+import { creatureWords } from "../rules/index.ts";
 import { AGES, BIOME_NAMES, ageRef, isProvinceWorld, lives, offworldSite } from "../gen/index.ts";
 import {
   designsOf,
@@ -30,6 +31,10 @@ const NICHE_WORDS: Readonly<Record<string, string>> = {
   browser: "a browser of the forests",
   "great beast": "a great beast",
   hunter: "a hunter of other beasts",
+  "small hunter": "a small hunter of the lesser beasts",
+  scavenger: "a scavenger of what the hunters leave",
+  "seed-eater": "an eater of seeds",
+  swimmer: "a swimmer of the rivers, lakes and shores",
   "upright ape": "the people",
 };
 
@@ -89,6 +94,8 @@ export function speciesPage(world: World, ref: string): SpeciesPage {
     raids,
     niche: s.niche,
     what: NICHE_WORDS[s.niche] ?? s.niche,
+    body: s.body ? { words: creatureWords(s.body, s.niche), features: s.body.features } : null,
+    level: s.level,
     size: s.niche === "seed grass" ? null : s.size,
     tame: s.tame,
     wool: s.wool,

@@ -3,7 +3,7 @@
 // the planet's crust broke into; the planet orbits its star; the star is how this
 // universe began. Each is answered from the generated world itself, on the basis
 // "generated" — the last links of any chain that reaches down to geology.
-import { bodyWords } from "../rules/index.ts";
+import { creatureWords, bodyWords } from "../rules/index.ts";
 import { kindCodeOf, parseRef, type Ref, type World } from "../kernel/index.ts";
 import {
   AGE,
@@ -20,6 +20,7 @@ import {
   SURFACE_CELL,
   SPOT,
   isProvinceWorld,
+  lives,
   offworldSite,
   ageRef,
   cellRef,
@@ -204,16 +205,12 @@ registerExplainer(SPECIES.code, (world, ref) => {
   for (let c = 0; c < g.grid.count; c++)
     if (g.tectonics.elevation[c]! > 0) {
       land++;
-      if (
-        s.died === null &&
-        ((g.life.present[2 * c + (s.index >> 5)]! >>> (s.index & 31)) & 1) === 1
-      )
-        range++;
+      if (s.died === null && lives(g.life, c, s.index)) range++;
     }
   const body =
     s.niche === "seed grass"
       ? `a grass${s.seed > 0.45 ? " whose seed is heavy enough to sow" : " of light seed"}`
-      : `a ${s.niche} of ${s.size} kg${s.herd > 0.5 ? ", living in herds" : ""}${s.docility > 0.4 ? ", docile" : ", wild-tempered"}${s.wool ? ", woolly" : ""}${s.tame ? ": a beast that can be tamed" : ""}`;
+      : `${s.body ? creatureWords(s.body, s.niche) : `a ${s.niche} of ${s.size} kg`}${s.herd > 0.5 ? ", living in herds" : ""}${s.docility > 0.4 ? ", docile" : ", wild-tempered"}${s.tame ? ": a beast that can be tamed" : ""}`;
   const life =
     s.died === null
       ? `it ranges over ${Math.max(1, Math.round((100 * range) / Math.max(1, land)))}% of the land`
