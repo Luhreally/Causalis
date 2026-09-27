@@ -6,25 +6,27 @@
 import * as pc from "playcanvas";
 import type { VillagePlan } from "../bridge/index.ts";
 import {
-  BEAST_SCALE,
+  MOST_OF_TONE,
   beastsAt,
   birdsAt,
   doingOf,
   faunaOf,
   fishAt,
   posed,
+  strideOf,
   type BeastNow,
   type BeastPart,
   type BirdNow,
   type Fauna,
   type FishNow,
+  type Pose,
 } from "../view/index.ts";
-import { InstancedBatch, boxMesh } from "./batch.ts";
+import { InstancedBatch, boxMesh, keptMesh } from "./batch.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre, as the village's
 /** The most parts of each tone a beast is drawn with: coat, dark features, horn. */
-const PER_BEAST = [12, 18, 4] as const;
+const PER_BEAST = MOST_OF_TONE;
 const FLOATS = 8;
 
 /** A beast looked at: its lineage (ref and name), what it is doing, whether it is of the flocks. */
@@ -40,10 +42,11 @@ export class FaunaLayer {
   private batches: InstancedBatch[] = [];
   /** Per lineage, its three tones' gathered instances. */
   private tones: Gathered[][] = [];
-  private birds: Gathered[] = [];
+  /** A flier's pose (wings beating) and a swimmer's (tail sweeping), reused. */
+  private readonly flying: Pose = { gait: 1, phase: 0, head: 0.2, crouch: 0 };
+  private readonly swimming: Pose = { gait: 1, phase: 0, head: 0, crouch: 0 };
   /** Dust kicked up behind whatever runs (where small motions are drawn). */
   private dust: Gathered | null = null;
-  private fish: Gathered | null = null;
   private readonly beasts: BeastNow[] = [];
   private readonly parts: BeastPart[] = [];
   private readonly birdsNow: BirdNow[] = [];
@@ -52,10 +55,12 @@ export class FaunaLayer {
   /** Beasts, birds and fish drawn at the last update; the beasts alone. */
   private shown = 0;
   private beastCount = 0;
+  private birdCount = 0;
+  private fishCount = 0;
 
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
-    this.box = boxMesh(stage);
+    this.box = keptMesh(boxMesh(stage));
     parent.addChild(this.root);
   }
 
@@ -75,54 +80,90 @@ export class FaunaLayer {
     for (const h of fauna.herds) counts[h.species]! += h.members.length;
     for (const p of fauna.packs) counts[p.species]! += p.members;
     if (fauna.road.species >= 0) counts[fauna.road.species]! += fauna.road.count;
+    for (const b of fauna.birds) counts[b.species]!++;
+    for (const f of fauna.fish) counts[f.species]!++;
     this.tones = fauna.species.map((sp, i) =>
       [sp.coat.coat, sp.coat.dark, sp.coat.horn].map((color, tone) =>
         this.gathered(color, counts[i]! * PER_BEAST[tone as 0 | 1 | 2]),
       ),
     );
-    const small = fauna.birds.filter((b) => !b.big).length,
-      big = fauna.birds.length - small;
-    this.birds = [
-      this.gathered([0.14, 0.13, 0.14], small * 3),
-      this.gathered([0.36, 0.26, 0.16], big * 3),
-    ];
-    this.fish = fauna.fish.length ? this.gathered([0.74, 0.8, 0.86], fauna.fish.length) : null;
     this.dust = ambient
       ? this.gathered([0.76, 0.68, 0.52], counts.reduce((a, b) => a + b, 0) * 3)
       : null;
   }
 
-  /** Put every beast, bird and fish where it is at screen time `s` (seconds). */
+  /**
+   * One creature, drawn from its body: its parts posed, turned to `yaw`, tipped `tilt` about
+   * its middle (a leaping swimmer), at (x, y, z) metres.
+   */
+  private draw(
+    species: number,
+    x: number,
+    y: number,
+    z: number,
+    yaw: number,
+    tilt: number,
+    pose: Pose,
+  ): void {
+    const sp = this.fauna!.species[species]!,
+      count = posed(sp.body, pose, this.parts),
+      c = Math.cos(yaw),
+      sn = Math.sin(yaw),
+      ct = Math.cos(tilt),
+      st = Math.sin(tilt),
+      mid = sp.body.height * sp.body.k,
+      tones = this.tones[species]!;
+    for (let k = 0; k < count; k++) {
+      const p = this.parts[k]!,
+        g = tones[p.tone]!;
+      if (g.count >= g.batch.capacity) continue;
+      // (Tipped about its middle first, then turned to its way.)
+      const py = tilt ? mid + (p.y - mid) * ct - p.z * st : p.y,
+        pz = tilt ? (p.y - mid) * st + p.z * ct : p.z,
+        o = g.count++ * FLOATS,
+        d = g.data;
+      d[o] = x * M + p.x * c + pz * sn;
+      d[o + 1] = y * M + py;
+      d[o + 2] = z * M - p.x * sn + pz * c;
+      d[o + 3] = p.sx;
+      d[o + 4] = p.sy;
+      d[o + 5] = p.sz;
+      d[o + 6] = yaw + p.yaw;
+      d[o + 7] = p.pitch + tilt;
+    }
+  }
+
+  /** Put every creature where it is at screen time `s` (seconds). */
   update(s: number): void {
     const fauna = this.fauna;
     if (!fauna || !this.root.enabled) return;
     for (const tones of this.tones) for (const g of tones) g.count = 0;
     const n = beastsAt(fauna, s, this.beasts);
     for (let i = 0; i < n; i++) {
-      const b = this.beasts[i]!,
-        sp = fauna.species[b.species]!,
-        count = posed(sp.body, b.pose, this.parts),
-        c = Math.cos(b.yaw),
-        sn = Math.sin(b.yaw),
-        tones = this.tones[b.species]!;
-      for (let k = 0; k < count; k++) {
-        const p = this.parts[k]!,
-          g = tones[p.tone]!;
-        if (g.count >= g.batch.capacity) continue;
-        const o = g.count++ * FLOATS,
-          d = g.data;
-        d[o] = b.x * M + p.x * c + p.z * sn;
-        d[o + 1] = p.y;
-        d[o + 2] = b.z * M - p.x * sn + p.z * c;
-        d[o + 3] = p.sx;
-        d[o + 4] = p.sy;
-        d[o + 5] = p.sz;
-        d[o + 6] = b.yaw;
-        d[o + 7] = p.pitch;
-      }
+      const b = this.beasts[i]!;
+      this.draw(b.species, b.x, 0, b.z, b.yaw, 0, b.pose);
+    }
+    // The fliers, on their wings; the swimmers, leaping.
+    const birds = birdsAt(fauna, s, this.birdsNow);
+    for (let i = 0; i < birds; i++) {
+      const b = this.birdsNow[i]!,
+        sp = fauna.species[b.species]!;
+      this.flying.phase = s * strideOf(sp.body) + i * 0.7;
+      // (Gliding, its wings held out still.)
+      this.flying.gait = b.glide ? 0 : 1;
+      this.draw(b.species, b.x, b.y, b.z, b.yaw, 0, this.flying);
+    }
+    const leaping = fishAt(fauna, s, this.fishNow);
+    for (let i = 0; i < leaping; i++) {
+      const f = this.fishNow[i]!;
+      this.swimming.phase = s * 6 + i;
+      this.draw(f.species, f.x, 0.02 + f.y, f.z, f.yaw, f.pitch - Math.PI / 2, this.swimming);
     }
     for (const tones of this.tones) for (const g of tones) flush(g);
-    this.shown = this.beastCount = n;
+    this.shown = n + birds + leaping;
+    this.beastCount = n;
+    this.birdCount = birds;
+    this.fishCount = leaping;
     // Dust behind the runners: small puffs that drift back, rise and shrink as they age
     // (from every other runner of a herd: a cloud, not a wall).
     if (this.dust) {
@@ -154,65 +195,6 @@ export class FaunaLayer {
       }
       flush(g);
     }
-    // Birds: a body and two wings that beat about it.
-    const [small, big] = this.birds as [Gathered, Gathered];
-    small.count = big.count = 0;
-    const birds = birdsAt(fauna, s, this.birdsNow);
-    for (let i = 0; i < birds; i++) {
-      const b = this.birdsNow[i]!,
-        g = b.big ? big : small,
-        k = BEAST_SCALE * (b.big ? 2.2 : 2.6),
-        span = (b.big ? 1 : 0.34) * k,
-        c = Math.cos(b.yaw),
-        sn = Math.sin(b.yaw),
-        x = b.x * M,
-        y = b.y * M,
-        z = b.z * M;
-      put(
-        g,
-        x,
-        y,
-        z,
-        (b.big ? 0.22 : 0.1) * k,
-        (b.big ? 0.14 : 0.08) * k,
-        (b.big ? 0.7 : 0.3) * k,
-        b.yaw,
-        0,
-      );
-      for (const side of [1, -1]) {
-        // The wing's long side runs out from the body; it beats about the body's length.
-        const rx = side * c,
-          rz = -side * sn,
-          out = Math.cos(b.wing) * span * 0.5,
-          up = -Math.sin(b.wing) * span * 0.5;
-        put(
-          g,
-          x + rx * out,
-          y + up,
-          z + rz * out,
-          (b.big ? 0.3 : 0.14) * k,
-          0.02 * k,
-          span,
-          b.yaw + (side * Math.PI) / 2,
-          b.wing,
-        );
-      }
-    }
-    flush(small);
-    flush(big);
-    this.shown += birds;
-    if (this.fish) {
-      const g = this.fish;
-      g.count = 0;
-      const leaping = fishAt(fauna, s, this.fishNow),
-        k = BEAST_SCALE * 2.2;
-      for (let i = 0; i < leaping; i++) {
-        const f = this.fishNow[i]!;
-        put(g, f.x * M, 0.02 + f.y * M, f.z * M, 0.12 * k, 0.7 * k, 0.22 * k, f.yaw, f.pitch);
-      }
-      flush(g);
-      this.shown += leaping;
-    }
   }
 
   /** The beast nearest a screen point, within a finger's reach: its lineage, and what it is doing. */
@@ -227,7 +209,7 @@ export class FaunaLayer {
     for (const b of this.beasts) {
       const sp = fauna.species[b.species];
       if (!sp) continue;
-      p.set(b.x * M, sp.body.p.leg * sp.body.k, b.z * M);
+      p.set(b.x * M, sp.body.leg * sp.body.k, b.z * M);
       const s = cam.worldToScreen(p, at),
         d = (s.x - x) * (s.x - x) + (s.y - y) * (s.y - y);
       if (s.z > 0 && d < bestD) {
@@ -238,20 +220,28 @@ export class FaunaLayer {
     return best;
   }
 
-  /** Every beast as it was last drawn: lineage, niche, where (metres) and what it is doing (for the look tools). */
-  now(): { name: string; niche: string; x: number; z: number; doing: string }[] {
+  /**
+   * Every creature as it was last drawn — on the ground, in the air, leaping from the water:
+   * lineage, niche, where (metres) and what it is doing (for the look tools).
+   */
+  now(): { name: string; niche: string; x: number; y: number; z: number; doing: string }[] {
     const fauna = this.fauna;
     if (!fauna) return [];
-    return this.beasts.slice(0, this.beastCount).map((b) => {
-      const sp = fauna.species[b.species]!;
-      return {
-        name: sp.name,
-        niche: sp.niche,
-        x: b.x,
-        z: b.z,
-        doing: doingOf(sp, b.pose, b.task),
-      };
-    });
+    const one = (species: number, x: number, y: number, z: number, pose: Pose, task: 0 | 1 | 2) => {
+      const sp = fauna.species[species]!;
+      return { name: sp.name, niche: sp.niche, x, y, z, doing: doingOf(sp, pose, task) };
+    };
+    return [
+      ...this.beasts
+        .slice(0, this.beastCount)
+        .map((b) => one(b.species, b.x, 0, b.z, b.pose, b.task)),
+      ...this.birdsNow
+        .slice(0, this.birdCount)
+        .map((b) => one(b.species, b.x, b.y, b.z, this.flying, 0)),
+      ...this.fishNow
+        .slice(0, this.fishCount)
+        .map((f) => one(f.species, f.x, f.y, f.z, this.swimming, 0)),
+    ];
   }
 
   /** The road's traffic as laid out (for the works that go with it). */

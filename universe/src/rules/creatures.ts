@@ -115,7 +115,7 @@ export function creatureBody(
   let legs: CreatureBody["legs"];
   if (swims) legs = 0;
   else if (flies) legs = 2;
-  else if (world.earthlike) legs = niche === "seed-eater" ? 2 : 4;
+  else if (world.earthlike) legs = 4;
   else {
     const r = u(2) + 0.35 * (pull - 1);
     legs = r < 0.12 ? 0 : r < 0.3 ? 2 : r < 0.72 ? 4 : r < 0.92 ? 6 : 8;
@@ -163,7 +163,7 @@ export function creatureBody(
         ? "slither"
         : many
           ? "crawl"
-          : legs === 2 && size < 40
+          : (legs === 2 || niche === "seed-eater") && size < 40
             ? "hop"
             : niche === "hunter" || niche === "small hunter" || (niche === "grazer" && u(5) < 0.4)
               ? "run"
@@ -182,7 +182,8 @@ export function creatureBody(
   }
   if (niche === "hunter" || niche === "small hunter") {
     features.push("claws");
-    if (u(6) < 0.35) features.push(world.earthlike ? "mane" : "crest");
+    if (u(6) < 0.35 && !(world.earthlike && niche === "small hunter"))
+      features.push(world.earthlike ? "mane" : "crest");
   }
   if (flies) features.push("beak");
   if ((covering === "plates" || covering === "shell") && u(7) < 0.5) features.push("spines");
@@ -300,9 +301,17 @@ export function creatureName(
           ? b.size > 0.5
             ? `${colour} pigeon`
             : `${colour} finch`
-          : `${colour} hare`;
+          : b.size < 0.3
+            ? `${colour} mouse`
+            : b.size < 2
+              ? `${colour} rabbit`
+              : `${colour} hare`;
       case "swimmer":
-        return b.size > 8 ? `${colour} pike` : home.warm < 8 ? `${colour} trout` : `${colour} carp`;
+        return b.size > 20
+          ? `${colour} sturgeon`
+          : home.warm < 8
+            ? `${colour} trout`
+            : `${colour} carp`;
     }
   }
   // Elsewhere: named for what it is — its covering or its features, and how it lives.

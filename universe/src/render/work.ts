@@ -28,7 +28,7 @@ import {
   type Puff,
   type Traffic,
 } from "../view/index.ts";
-import { InstancedBatch, boxMesh, coneMesh, cylinderMesh } from "./batch.ts";
+import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre, as the village's
@@ -96,10 +96,10 @@ export class WorkLayer {
 
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
-    this.box = boxMesh(stage);
-    this.wheel = cylinderMesh(stage, 0.5, 1, 10);
-    this.heap = coneMesh(stage, 0.5, 1, 7);
-    this.disc = cylinderMesh(stage, 0.5, 1, 16);
+    this.box = keptMesh(boxMesh(stage));
+    this.wheel = keptMesh(cylinderMesh(stage, 0.5, 1, 10));
+    this.heap = keptMesh(coneMesh(stage, 0.5, 1, 7));
+    this.disc = keptMesh(cylinderMesh(stage, 0.5, 1, 16));
     parent.addChild(this.root);
   }
 
@@ -409,21 +409,21 @@ export class WorkLayer {
       if (traffic.kind === "pack" && beast) {
         // Panniers across the beast's back, a few paces ahead.
         const b = beast.body,
-          back = (b.p.leg + b.p.body[1]) * b.k,
+          back = (b.leg + b.height) * b.k,
           at = rel(0, 3.5 * M);
         for (const side of [-1, 1]) {
           const bag = {
-            x: at.x + side * c * b.p.body[0] * b.k * 0.7,
-            z: at.z - side * sn * b.p.body[0] * b.k * 0.7,
+            x: at.x + side * c * b.width * b.k * 0.7,
+            z: at.z - side * sn * b.width * b.k * 0.7,
           };
           put(
             r.loads,
             bag.x,
             back - 0.02,
             bag.z,
-            b.p.body[0] * b.k * 0.5,
-            b.p.body[1] * b.k * 0.7,
-            b.p.body[2] * b.k * 0.45,
+            b.width * b.k * 0.5,
+            b.height * b.k * 0.7,
+            b.length * b.k * 0.45,
             t.yaw,
             0,
           );

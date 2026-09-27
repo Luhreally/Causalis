@@ -128,7 +128,10 @@ test("a village's plan says what lives about it: the land's game and hunters as 
       };
     }>("province", { cell: CRADLE });
   // Its game and its hunters, each as much of it as the land's living world still holds.
-  const game = plan.fauna.wild.filter((s) => s.niche !== "hunter"),
+  // (The land's game on foot; the water's life and the scavengers go by their own.)
+  const game = plan.fauna.wild.filter(
+      (s) => s.niche !== "hunter" && s.niche !== "swimmer" && s.niche !== "scavenger",
+    ),
     hunters = plan.fauna.wild.filter((s) => s.niche === "hunter");
   assert.ok(game.length >= 1, "game lives about the cradle's village");
   assert.ok(hunters.length >= 1, "and the hunters that live on it");

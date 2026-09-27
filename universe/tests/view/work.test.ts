@@ -197,7 +197,8 @@ test("a mine is built by its kind: a windlass over a pit, a headframe and engine
 test("the road's traffic keeps to the road at its own pace: pack beasts where the flocks carry, carts in the engines' age, lorries after", () => {
   const f = faunaOf(plan, 160, 2, true);
   assert.equal(f.road.kind, "pack");
-  assert.ok(f.road.species >= 0 && f.species[f.road.species]!.kind === "horse");
+  assert.ok(f.road.species >= 0 && f.species[f.road.species]!.name === "grey horse");
+  assert.ok(f.species[f.road.species]!.burden);
   assert.equal(faunaOf({ ...plan, era: "industry" }, 160, 2, true).road.kind, "cart");
   assert.equal(faunaOf({ ...plan, era: "modern" }, 160, 2, true).road.kind, "lorry");
   // Sheep carry nothing: porters walk.

@@ -3000,6 +3000,32 @@ where its food lives, and one with nothing to eat anywhere died out. The species
 96 lineages (three words a cell). A lineage's why and page say its body and its place in the
 web.
 
+85, as built. The fifteen fixed beast shapes are gone: every creature is built of boxes from
+its lineage's body (view/creature.ts) — a chest and a haunch (a row of segments for a
+many-legged body; a slitherer's segments narrowing to the tail and waving as it goes; a
+fish's body tapering to a sweeping tail fin, with a dorsal fin), legs in pairs jointed at the
+knee with the foot tucked back as it swings (a crawler's up from its side to the knee and
+down to the ground, spider-wise, swept fore and aft in a wave), wings of two parts each that
+beat (the outer bending further) or are held out to glide, fins, a tail hanging, fanned or
+held out to balance, a neck and head bowed to its food, and what it grows (horns, antlers,
+tusks, a trunk, a hump, a mane, a crest, spines, a beak), with hooves, ears, eyes, a tail's
+tuft and its coat's marks at the finer settings (at most 48 parts, and a known most of each
+tone, so batches are sized). A walking hunter is built stocky (a bear walks); Earth's
+lineages take the shapes their names say (a tapir's short neck, a cat's long tail). Every
+level of the web is seen about a village: herds on the open ground and at the wood's edge,
+small game at the fields' edges, the hunters' round (prowl, stalk, run, rest), the small
+hunters after the small game, the scavengers watching the hunt from off its side and coming
+in to feed where the hunters killed once they have gone, the land's fliers wheeling low over
+the fields and its scavenging fliers high over the hunts, its swimmers leaping in its water —
+each lineage the land's own, none an ornament (a land with no fliers has no birds). The
+ground is solid (view/ground.ts): the water and the homes are circles a walker is kept out
+of, to the nearest edge (a smooth step round, never a jump), a herd is laid out a body and a
+half apart and pushed apart where two would stand in one another, herds are placed clear of
+the water, and the host turns a village's pasture from the lake it would lie in. Found and
+mended on the way: a shared mesh destroyed with the last batch of a layer that rebuilds
+(the year turning, a setting changed) crashed the frame in its shadow pass — shared meshes
+are now held (render/batch.ts keptMesh). The oracle moved in the planet domain alone.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

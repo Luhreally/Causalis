@@ -103,6 +103,15 @@ export class InstancedBatch {
   }
 }
 
+/**
+ * A mesh shared by batches that come and go (a layer rebuilt as the year turns or the
+ * setting changes): held, so that the last batch's end does not destroy it with itself.
+ */
+export function keptMesh(mesh: pc.Mesh): pc.Mesh {
+  mesh.incRefCount();
+  return mesh;
+}
+
 export function capsuleMesh(stage: Stage, radius: number, height: number): pc.Mesh {
   return pc.Mesh.fromGeometry(stage.device, new pc.CapsuleGeometry({ radius, height, sides: 8 }));
 }

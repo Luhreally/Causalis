@@ -264,10 +264,31 @@ function earthBody(
   if (has("deer") || has("elk")) features.push("antlers");
   if (has("tusker") || has("giant")) features.push("tusks", "trunk");
   if (has("cat") && u(12) < 0.4) features.push("mane");
+  // Its shape, as its name says: a tapir's and a bear's short neck, a camel's long one; a
+  // bear's stub of a tail, a cat's long one.
+  const neck =
+      has("tapir") || has("bear") || has("ox") || has("buffalo")
+        ? 0.25
+        : has("camel")
+          ? 0.9
+          : has("horse") || has("deer") || has("elk")
+            ? Math.max(0.6, b.neck)
+            : b.neck,
+    tail =
+      has("bear") || has("tapir") || has("goat") || has("sheep") || has("deer") || has("elk")
+        ? 0.12
+        : has("cat")
+          ? 0.8
+          : has("horse") || has("wolf")
+            ? 0.55
+            : b.tail;
   return {
     ...b,
     size,
     covering: wool || has("sheep") || has("giant") ? "wool" : b.covering,
+    moves: has("bear") ? "walk" : b.moves,
+    neck,
+    tail,
     features,
   };
 }

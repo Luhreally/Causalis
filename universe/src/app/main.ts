@@ -129,7 +129,16 @@ type Exposed = {
   stage?: Stage;
   /** Beasts, birds and fish drawn about the village watched (0 elsewhere), and each beast now. */
   beasts?: () => number;
-  faunaNow?: () => { name: string; niche: string; x: number; z: number; doing: string }[];
+  faunaNow?: () => {
+    name: string;
+    niche: string;
+    x: number;
+    y: number;
+    z: number;
+    doing: string;
+  }[];
+  /** Hold the beasts' clock at a screen time (seconds), or run it again (null). */
+  holdFauna?: (s: number | null) => void;
   /** Down to another star's world (its star's ref, its place outward). */
   visitForeign?: (ref: string, index: number) => Promise<void>;
   /** Out to the galaxy, how many of its stars are drawn, and a tap on it (screen px). */
@@ -1038,6 +1047,9 @@ async function runPlanetPage(): Promise<void> {
   exposed.watching = () => (scale === "village" && plan ? plan.people.length : 0);
   exposed.beasts = () => (scale === "village" ? village.beastsDrawn : 0);
   exposed.faunaNow = () => (scale === "village" ? village.faunaNow() : []);
+  exposed.holdFauna = (s: number | null) => {
+    village.heldFauna = s;
+  };
   exposed.carriersNow = () => (scale === "village" ? village.carriersNow() : []);
   exposed.rig = rig;
 

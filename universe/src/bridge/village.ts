@@ -1,6 +1,28 @@
 // The microscope's plan of a village, as the host sends it (docs/architecture §9,
 // watch mode): what the view needs to draw a village's day. Positions are metres
 // from the village's middle.
+/** How far a village's water lies out along its way, and how far the lake reaches about that point (metres). */
+export const WATER_OUT = 700;
+export const LAKE_R = 220;
+
+/** A lineage's body plan as it crosses to the page (the rules' creature body, in plain values). */
+export type BeastPlan = {
+  readonly symmetry: string;
+  readonly segments: number;
+  readonly legs: number;
+  readonly fins: number;
+  readonly wings: number;
+  readonly covering: string;
+  readonly size: number;
+  readonly moves: string;
+  readonly eats: string;
+  readonly level: number;
+  readonly neck: number;
+  readonly tail: number;
+  readonly features: readonly string[];
+  readonly warm: boolean;
+};
+
 export type VillagePlan = {
   readonly ref: string;
   readonly name: string;
@@ -71,6 +93,8 @@ export type VillagePlan = {
       readonly size: number;
       readonly wool: boolean;
       readonly stock: number;
+      /** Its body (M83–85), as the view builds it. */
+      readonly body?: BeastPlan | null;
     }[];
     readonly flock: {
       readonly ref: string;
@@ -78,6 +102,7 @@ export type VillagePlan = {
       readonly size: number;
       readonly wool: boolean;
       readonly herders: number;
+      readonly body?: BeastPlan | null;
     } | null;
     readonly raided: boolean;
   };

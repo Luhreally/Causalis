@@ -26,7 +26,7 @@ import {
   wildsOf,
 } from "../sim/index.ts";
 import { meetHousehold, observer, settleAll } from "../causal/index.ts";
-import type { VillagePlan } from "../bridge/index.ts";
+import { LAKE_R, WATER_OUT, type VillagePlan } from "../bridge/index.ts";
 
 /** Families the microscope watches in a village: a presentation budget, not a rule. */
 export const WATCHED_FAMILIES = 10;
@@ -78,7 +78,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       city ? Math.min(apart(a, roadWay), apart(a, roadWay + Math.PI)) : apart(a, roadWay),
     poorWay = best.at(-1)?.angle ?? Math.PI,
     turn = apart(poorWay + 0.9, fieldWay) > apart(poorWay - 0.9, fieldWay) ? 0.9 : -0.9,
-    pastureWay = offRoad(poorWay) < 0.7 ? poorWay + turn : poorWay,
+    pastureToward = offRoad(poorWay) < 0.7 ? poorWay + turn : poorWay,
     waterWay = ways.find((w) => w.water)?.angle ?? null;
 
   // Homes for everyone, the watched among them; five to a home. A city's homes stand
@@ -158,9 +158,22 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       (m, f) => Math.max(m, Math.hypot(f.x, f.z) + Math.max(f.w, f.d) / 2),
       edge,
     ),
-    across = apart(pastureWay, fieldWay),
     pastureR = 90,
-    pastureAt = across > 1.9 ? edge + pastureR + 20 : outer + pastureR + 15,
+    pastureOut = (way: number) =>
+      apart(way, fieldWay) > 1.9 ? edge + pastureR + 20 : outer + pastureR + 15,
+    // (Never in the water: turned from it, a step at a time, if that is where it would lie.)
+    dry = (way: number) =>
+      waterWay === null ||
+      Math.hypot(
+        pastureOut(way) * Math.cos(way) - WATER_OUT * Math.cos(waterWay),
+        pastureOut(way) * Math.sin(way) - WATER_OUT * Math.sin(waterWay),
+      ) >
+        LAKE_R + pastureR + 30,
+    pastureWay =
+      [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, 2.4, -2.4]
+        .map((t) => pastureToward + t)
+        .find((w) => dry(w) && (w === pastureToward || offRoad(w) > 0.7)) ?? pastureToward,
+    pastureAt = pastureOut(pastureWay),
     wildAt = Math.round(outer + 60);
   const watched = known().sort((a, b) => a.seq - b.seq),
     people: VillagePlan["people"][number][] = [],
@@ -214,22 +227,25 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
     const g = ctx.generated,
       w = wildsOf(ctx, cell),
       land = ctx.provinces.get(cell),
+      // Every beast of the land's web, with its body (M83): the game by what the wild holds,
+      // its hunters by their own number, the rest by the game they live beside.
       wild = livingIn(g.life, cell)
-        .filter(
-          (s) =>
-            !w.lost.includes(s.index) &&
-            (s.niche === "grazer" ||
-              s.niche === "browser" ||
-              s.niche === "great beast" ||
-              s.niche === "hunter"),
-        )
+        .filter((s) => !w.lost.includes(s.index) && s.body !== null)
         .map((s) => ({
           ref: s.ref,
           name: s.name,
           niche: s.niche,
           size: s.size,
           wool: s.wool,
-          stock: s.niche === "hunter" ? w.hunters : w.wild,
+          stock:
+            s.niche === "hunter"
+              ? w.hunters
+              : s.niche === "scavenger"
+                ? (w.hunters + w.wild) / 2
+                : s.niche === "swimmer"
+                  ? 1
+                  : w.wild,
+          body: s.body,
         })),
       pop = land?.total() ?? 0,
       herders = land && pop > 0 ? land.occupation(OCC.herder) / pop : 0,
@@ -243,6 +259,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
             size: beast.size,
             wool: beast.wool,
             herders: Math.max(1, Math.round(population * herders)),
+            body: beast.body,
           }
         : null,
       raided: !!w.flocksTaken,
@@ -357,7 +374,9 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       },
       wild: wildAt,
       water:
-        waterWay === null ? null : { x: 700 * Math.cos(waterWay), z: 700 * Math.sin(waterWay) },
+        waterWay === null
+          ? null
+          : { x: WATER_OUT * Math.cos(waterWay), z: WATER_OUT * Math.sin(waterWay) },
       house: houseOf(village.cell),
       fauna: faunaOf(village.cell, village.population),
       era: eraOf(village.cell),

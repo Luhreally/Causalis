@@ -4,7 +4,7 @@
 // about their day. One unit is ten metres; people are drawn three times their size
 // so a phone can see them. Instanced throughout: a village is a handful of draw calls.
 import * as pc from "playcanvas";
-import type { VillagePlan } from "../bridge/index.ts";
+import { LAKE_R, type VillagePlan } from "../bridge/index.ts";
 import {
   ACTIVITY,
   HAIRS,
@@ -199,7 +199,7 @@ export class VillageScene {
       plan.pasture.z * M,
       0.012,
     );
-    if (plan.water) disc(22, [0.2, 0.4, 0.6], plan.water.x * M, plan.water.z * M, 0.014);
+    if (plan.water) disc(LAKE_R * M, [0.2, 0.4, 0.6], plan.water.x * M, plan.water.z * M, 0.014);
     // The road out (through a city, both ways; paved stone once it is paved), and the square.
     const quarters = plan.districts,
       paved = !!quarters?.paved;
@@ -606,6 +606,9 @@ export class VillageScene {
     );
   }
 
+  /** The beasts' clock held at this screen time, if held (for the look tools); null runs it. */
+  heldFauna: number | null = null;
+
   /** Put everyone where they are at time t. */
   update(t: number): void {
     const plan = this.plan;
@@ -620,7 +623,7 @@ export class VillageScene {
       }
     }
     // (The beasts move by the screen's clock: a look, at any speed the world runs.)
-    const screen = performance.now() / 1000;
+    const screen = this.heldFauna ?? performance.now() / 1000;
     this.fauna.update(screen);
     this.moments = plan.people.map((_, i) => momentOf(plan, i, t));
     const parts = this.figure.parts,
