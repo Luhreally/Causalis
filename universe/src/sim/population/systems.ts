@@ -26,17 +26,19 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import {
-  WATER,
   cellRef,
-  placeName,
-  tongueName,
-  isProvinceWorld,
-  offworldSite,
-  refineRegion,
   type HomeWorld,
+  isProvinceWorld,
+  lives,
+  offworldSite,
+  placeName,
+  refineRegion,
   type Region,
+  tongueName,
+  WATER,
 } from "../../gen/index.ts";
 import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
+import { lineageNature } from "../acts/natures.ts";
 import {
   FLOCK_LOSS,
   ecologyOf,
@@ -1202,7 +1204,17 @@ export function knowledgeYear(ctx: PopulationContext, t: SimTime): void {
 function herdingYear(ctx: PopulationContext, t: SimTime): void {
   const { world, generated: g } = ctx,
     year = yearOfMoment(t),
-    made: { p: Province; from: Province | null; beast: number; chance: number }[] = [];
+    made: { p: Province; from: Province | null; beast: number; chance: number }[] = [],
+    // The beasts the god has made tame enough to herd (none, in a world the god has not touched).
+    tamed = g.life.species.filter(
+      (s) =>
+        s.died === null &&
+        s.niche !== "seed grass" &&
+        s.niche !== "upright ape" &&
+        actsOf(world).nature(s.ref)?.docility !== undefined &&
+        lineageNature(world, s).docility >= 0.6,
+    ),
+    tamedHere = (cell: number) => tamed.find((s) => lives(g.life, cell, s.index))?.index ?? -1;
   for (const p of ctx.provinces.all()) {
     if (p.herding || !p.knowsCultivation || p.total() < 10) continue;
     const key = refHash(p.ref);
@@ -1216,10 +1228,12 @@ function herdingYear(ctx: PopulationContext, t: SimTime): void {
         made.push({ p, from: teachers[0]!, beast: -1, chance: 0 });
       continue;
     }
-    const beast = g.life.herdBeast[p.cell]!;
+    // (A beast the god has tamed may be herded where none could be: Phase 16.)
+    const beast = g.life.herdBeast[p.cell]! >= 0 ? g.life.herdBeast[p.cell]! : tamedHere(p.cell);
     if (beast < 0) continue;
     const s = g.life.species[beast]!,
-      chance = 0.006 * (0.5 + s.docility) * (0.5 + s.growth);
+      nature = lineageNature(world, s),
+      chance = 0.006 * (0.5 + nature.docility) * (0.5 + nature.growth);
     if (world.rng.chance(chance, KNOW, key, t, 2)) made.push({ p, from: null, beast, chance });
   }
   for (const { p, from, beast, chance } of made) {
@@ -1242,7 +1256,7 @@ function herdingYear(ctx: PopulationContext, t: SimTime): void {
       factors: [
         {
           name: "a beast that can be tamed",
-          value: s.docility,
+          value: lineageNature(world, s).docility,
           contribution: 1,
           source: { ref: s.ref as Ref, role: "enabler", weight: 1 },
         },

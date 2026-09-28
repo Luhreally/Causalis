@@ -7,6 +7,7 @@ import {
   agentName,
   handOf,
   lifeOf,
+  natureOf,
   politiesOf,
   populationContext,
   realmName,
@@ -269,11 +270,13 @@ export function personPage(world: World, ref: string): PageModel {
     now = yearNow(world),
     age = (p.alive ? now : (p.diedYear ?? now)) - p.birthYear,
     grown = age >= lifeOf(world).adulthood;
-  const traits = TRAITS.flatMap((t) => {
-    const v = p.traits?.[t] ?? 0.5,
-      words = TRAIT_WORDS[t]!;
-    return v < 0.35 ? [words[0]] : v > 0.65 ? [words[2]] : [];
-  });
+  // (What they are like: what they were born with, and what the god has pushed: Phase 16.)
+  const nature = natureOf(world, p.ref, p.traits ?? {}),
+    traits = TRAITS.flatMap((t) => {
+      const v = nature[t] ?? 0.5,
+        words = TRAIT_WORDS[t]!;
+      return v < 0.35 ? [words[0]] : v > 0.65 ? [words[2]] : [];
+    });
   const stats: Stat[] = [
     stat("Age", p.alive ? `${age}` : `died at ${age}`),
     stat("Work", grown ? (OCCUPATION_WORDS[p.occupation] ?? "") : "a child"),
@@ -324,7 +327,22 @@ export function personPage(world: World, ref: string): PageModel {
             ]
           : []),
         { type: "why", ref: p.ref },
-        { type: "tool", tool: "acts.person", args: { ref: p.ref } },
+        {
+          type: "tool",
+          tool: "acts.person",
+          args: {
+            ref: p.ref,
+            alive: p.alive,
+            village: p.village,
+            first: p.name,
+            natures: TRAITS.map((t) => [
+              t,
+              TRAIT_WORDS[t]![0],
+              TRAIT_WORDS[t]![2],
+              nature[t] ?? 0.5,
+            ]),
+          },
+        },
       ],
     },
     // Their family as a tree (Phase 14 M118), as their household's roles tell it.

@@ -4399,6 +4399,19 @@ in tonnes, of its land's own rock where it is of stone; each warrior's arm and g
 kilograms; a works' hall and drive); a region's tile tells the rock under it and the soil over
 it; and a watched village's workers carry their own tools ("a flint hoe, made in year 254").
 
+**Natures in the god's hand** (asked the same day: "I'm not able to modify the traits on
+nations or people or creatures"): `sim/acts/natures.ts` — `act.realm-ways` pushes one of a
+realm's eight ways across all its lands at once (their bases with them); `act.nature` pushes a
+person met's ways of being (boldness, warmth, thrift, curiosity, patience) or a beast's docility
+and growth, kept in the acts store (`natures`, hashed and saved only once there are any). The
+herding of every land reads a beast's docility and growth through `lineageNature`, and a beast
+made tame enough may be herded where it lives though no land had it as its herd beast; a world
+the god has not touched herds as before, bit for bit. Pages: a realm's "Its ways — yours to
+push", a person's "What they are like — yours to change" (and a one-click hand on their
+village, where the hand's people's traits are given and taken), a lineage's "Its nature —
+yours to change" (tame or wild, quick or slow to breed). The people under the hand hold things
+as the people met do, and a field guide to matter opens from the world's menu (🧪 Matter).
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

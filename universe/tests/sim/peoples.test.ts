@@ -20,6 +20,8 @@ import {
   REGARD,
   SETTLERS,
   WAR_EVENTS,
+  NATURE_EVENTS,
+  NATURE_PUSH,
   WAYS_ACT_EVENTS,
   WAYS_PUSH,
   WAY,
@@ -29,6 +31,7 @@ import {
   diplomacyOf,
   frontier,
   languagesOf,
+  lineageNature,
   livableFor,
   makePopulationWorld,
   marketsOf,
@@ -401,6 +404,47 @@ test("a faith founded by the god: its tenet the god's choosing, its land holding
   );
 });
 
+test("a realm's ways pushed across all its lands at once; a lineage made tamer and quicker to breed", () => {
+  const w = fresh(),
+    realm = politiesOf(w)
+      .all()
+      .filter((r) => r.ended === null && r.members.length > 2)
+      .sort((x, y) => y.members.length - x.members.length)[0]!,
+    before = realm.members.map((c) => cultureOf(w).get(c)?.traits[WAY.trade]);
+  const act = w.submit("act.realm-ways", { realm: realm.ref, way: "trade", sign: 1 });
+  w.runTo(AT + 1);
+  realm.members.forEach((c, i) => {
+    const now = cultureOf(w).get(c)?.traits[WAY.trade];
+    if (before[i] === undefined) return;
+    assert.ok(Math.abs(now! - Math.min(0.98, before[i]! + WAYS_PUSH)) < 1e-9, `land ${c}`);
+  });
+  const e = w.events.all().find((x) => x.type === NATURE_EVENTS.realmWays.type)!;
+  assert.equal(e.causes[0]!.ref, act.id);
+  assert.throws(
+    () => w.submit("act.realm-ways", { realm: realm.ref, way: "height", sign: 1 }),
+    /a way is wanted/,
+  );
+  // A beast made tamer and quicker to breed; a grass and the people's own lineage refused.
+  const life = populationContext(w).generated.life,
+    beast = life.species.find((x) => x.died === null && x.niche === "grazer")!,
+    was = lineageNature(w, beast);
+  w.submit("act.nature", { ref: beast.ref, trait: "docility", sign: 1 });
+  w.submit("act.nature", { ref: beast.ref, trait: "growth", sign: -1 });
+  w.runTo(AT + 2);
+  const now = lineageNature(w, beast);
+  assert.ok(Math.abs(now.docility - Math.min(1, was.docility + NATURE_PUSH)) < 1e-9);
+  assert.ok(Math.abs(now.growth - Math.max(0, was.growth - NATURE_PUSH)) < 1e-9);
+  const grass = life.species.find((x) => x.niche === "seed grass" && x.died === null)!;
+  assert.throws(
+    () => w.submit("act.nature", { ref: grass.ref, trait: "docility", sign: 1 }),
+    /not a grass/,
+  );
+  assert.throws(
+    () => w.submit("act.nature", { ref: beast.ref, trait: "wings", sign: 1 }),
+    /a nature is wanted/,
+  );
+});
+
 test("a world touched by the acts on its peoples replays, and its save continues, bit for bit", () => {
   const w = fresh();
   const [a, b] = neighbours(w);
@@ -408,6 +452,12 @@ test("a world touched by the acts on its peoples replays, and its save continues
   w.submit("act.war", { a: a.ref, b: b.ref });
   w.submit("act.quake", { cell: a.seat });
   w.submit("act.meteor", { cell: b.seat });
+  // (And natures changed: a realm's ways, a beast made tame.)
+  w.submit("act.realm-ways", { realm: a.ref, way: "valour", sign: 1 });
+  const beast = populationContext(w).generated.life.species.find(
+    (x) => x.died === null && x.niche === "grazer",
+  )!;
+  w.submit("act.nature", { ref: beast.ref, trait: "docility", sign: 1 });
   w.runTo(AT + 3 * YEAR);
   const doc = saveWorld(w, RULESET);
   assert.deepEqual(verifyByReplay(doc, build), { ok: true, problem: null });

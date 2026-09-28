@@ -7,16 +7,17 @@
 import { yearOfMoment, type World } from "../../kernel/index.ts";
 import { FEMALE } from "../../rules/index.ts";
 import {
+  type Agent,
+  agentName,
+  type Gone,
+  handOf,
+  natureOf,
   PERSON_TRAITS,
+  type PersonTrait,
+  populationContext,
   TRAIT_ANEW,
   TRAIT_INHERITED,
   TRAIT_SHARE,
-  agentName,
-  handOf,
-  populationContext,
-  type Agent,
-  type Gone,
-  type PersonTrait,
   type Window,
 } from "../../sim/index.ts";
 import { observer, type Person } from "../../causal/index.ts";
@@ -327,7 +328,7 @@ export function traitPage(world: World, ref: string): PageModel {
       .allHouseholds()
       .flatMap((h) => h.members.map((r) => ledger.person(r)))
       .filter((p): p is Person => {
-        const v = p?.alive ? p.traits?.[look.of] : undefined;
+        const v = p?.alive ? natureOf(world, p.ref, p.traits ?? {})[look.of] : undefined;
         return v !== undefined && (look.high ? v > 0.65 : v < 0.35);
       });
   return {

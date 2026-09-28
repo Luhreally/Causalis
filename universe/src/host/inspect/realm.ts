@@ -4,18 +4,20 @@
 import { cellRef, offworldSite } from "../../gen/index.ts";
 import {
   beliefOf,
+  cultureOf,
   designsOf,
   diplomacyOf,
-  languagesOf,
   homePlanet,
+  languagesOf,
   loreOf,
   politiesOf,
   populationContext,
   realmName,
   relationRef,
   starWarsOf,
-  warsOf,
   WAR_EVENTS,
+  warsOf,
+  WAY_TRAITS,
 } from "../../sim/index.ts";
 import { designWords } from "../../rules/index.ts";
 import { governmentWords, principleName, standingWords } from "../../causal/index.ts";
@@ -119,6 +121,30 @@ export function realmPageModel(world: World, ref: string): PageModel {
           ...(r.ended !== null ? [stat("Fell", `year ${r.ended}`)] : []),
         ],
       },
+      // Its ways, the mean of its lands', each the god's to push across them all (Phase 16).
+      ...(r.ended === null
+        ? [
+            {
+              type: "tool" as const,
+              tool: "acts.realm-ways",
+              args: {
+                realm: r.ref,
+                ways: WAY_TRAITS.map((w, i) => {
+                  let sum = 0,
+                    people = 0;
+                  for (const c of r.members) {
+                    const ways = cultureOf(world).get(c),
+                      n = peopleOf(c);
+                    if (!ways || !n) continue;
+                    sum += ways.traits[i]! * n;
+                    people += n;
+                  }
+                  return [w, people ? sum / people : 0.5];
+                }),
+              },
+            },
+          ]
+        : []),
       { type: "why", title: "How it came to be", ref: r.ref },
     ],
   });

@@ -2,7 +2,7 @@
 // place in the web of eating, where it lives and what it is to the people — a deposit, a
 // plate, and an age of the deep past.
 import { AGES, BIOME_NAMES, ageRef, cellRef, isProvinceWorld, lives } from "../../gen/index.ts";
-import { homePlanet, populationContext, wildsOf } from "../../sim/index.ts";
+import { homePlanet, lineageNature, populationContext, wildsOf } from "../../sim/index.ts";
 import { why } from "../../causal/index.ts";
 import type { World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, Place, Row, Stat } from "../../bridge/index.ts";
@@ -147,6 +147,25 @@ export function lineagePage(world: World, ref: string): PageModel {
         blocks: [
           ...(sp.body ? [{ type: "anatomy" as const, title: "Its body" }] : []),
           { type: "facts", rows: facts },
+          // Its nature, as the god has left it: how tame, how fast it breeds (Phase 16).
+          ...(sp.died === null && sp.niche !== "seed grass" && sp.niche !== "upright ape"
+            ? (() => {
+                const n = lineageNature(world, sp);
+                return [
+                  {
+                    type: "tool" as const,
+                    tool: "acts.lineage",
+                    args: {
+                      ref,
+                      name: sp.name,
+                      docility: n.docility,
+                      growth: n.growth,
+                      tame: sp.tame || n.docility >= 0.6,
+                    },
+                  },
+                ];
+              })()
+            : []),
           { type: "why", ref },
         ],
       },

@@ -2400,3 +2400,38 @@ body.with-palette .hint {
 .flow-check.off {
   color: #ff9a8a;
 }
+
+/* A nature's row (Phase 16): − low [bar] high +, a push each way. */
+.nature-row {
+  display: grid;
+  /* (Fixed ends, so the bars of a list line up.) */
+  grid-template-columns: auto 5.5rem 1fr 8rem auto;
+  align-items: center;
+  gap: 6px;
+  margin: 3px 0;
+  font-size: 0.86rem;
+}
+.nature-end {
+  color: var(--muted);
+}
+.nature-end.high {
+  text-align: right;
+}
+.nature-bar {
+  height: 10px;
+  border: 1px solid var(--chrome-lo);
+  border-radius: 3px;
+  background: rgba(8, 22, 60, 0.6);
+  overflow: hidden;
+}
+.nature-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #6fe7ff, #c6ff4a);
+}
+.nature-push {
+  min-width: 28px;
+  min-height: 26px;
+  padding: 0 6px;
+  font-weight: 700;
+}

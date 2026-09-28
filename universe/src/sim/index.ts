@@ -276,6 +276,15 @@ export {
 } from "./acts/peoples.ts";
 export { DISASTER, DISASTER_EVENTS, installDisasters } from "./acts/disasters.ts";
 export {
+  LINEAGE_NATURES,
+  NATURE_EVENTS,
+  NATURE_PUSH,
+  PERSON_NATURES,
+  installNatureActs,
+  lineageNature,
+  natureOf,
+} from "./acts/natures.ts";
+export {
   WAYS_ACT_EVENTS,
   WAYS_PUSH,
   installWaysActs,

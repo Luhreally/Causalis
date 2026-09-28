@@ -9,7 +9,9 @@
 //   4. the ground: a land's bedrock, what its rock is made of, its soil, the air; a deposit in
 //      tonnes of ore and of metal; the Ground lens and a land's tooltip under it;
 //   5. things: a household met, what it keeps and each of its people holds; a thing's page —
-//      what it is made of, where, when and by whom, how worn; a person's day of food, their body.
+//      what it is made of, where, when and by whom, how worn; a person's day of food, their body;
+//   6. natures in the god's hand (asked for 2026-09-28): a realm's ways pushed from its page, a
+//      beast made tamer from its lineage's, a person met made bolder from theirs.
 // (npm run build first; --soft draws in software, as CI's browser does.)
 import { fileURLToPath } from "node:url";
 import { preview } from "vite";
@@ -269,6 +271,40 @@ const people = await q<{ cell: number; centre: number; people: number }[]>("peop
     "a thing's page does not tell where, when and how worn",
   );
   check(person && /kcal/.test(theirs), "a person's day of food and body are not read");
+  await k(`document.querySelector(".page-window .close")?.click()`);
+}
+
+// 6. Natures in the god's hand, from their pages.
+{
+  const widths = () =>
+    page.$$eval(".page-window .nature-fill", (x) =>
+      x.map((e) => (e as HTMLElement).style.width).join(),
+    );
+  const pushed = async (ref: string, has: string, push: string, what: string) => {
+    if (!(await open(ref, what, has))) return false;
+    const before = await widths();
+    await page.click(`.page-window button.nature-push[data-push='${push}']`);
+    return until(`${what}, pushed`, async () => (await widths()) !== before, slow(15000));
+  };
+  const realms = await q<{ ref: string; people: number }[]>("realms.map"),
+    realm = [...realms].sort((a, b) => b.people - a.people)[0]!,
+    grazer = (
+      await q<{ lineages: { ref: string; niche: string; died: number | null }[] }>("genesis")
+    ).lineages.find((x) => x.niche === "grazer" && x.died === null);
+  const ways = await pushed(realm.ref, "Its ways", "more trade:1", "a realm's ways");
+  const beast = grazer
+    ? await pushed(grazer.ref, "Its nature", "tame:1", "a beast's nature")
+    : true;
+  const towns = await q<{ ref: string }[]>("settlements", { cell: land.cell }),
+    h = await q<{ members: { ref: string }[] }>("observe.meet", {
+      cell: land.cell,
+      village: towns[0]!.ref,
+    }),
+    bold = await pushed(h.members[0]!.ref, "What they are like", "bold:1", "a person's nature");
+  say(
+    `natures: a realm's ways ${ways ? "pushed" : "not pushed"}; a beast ${beast ? "made tamer" : "not changed"}; a person ${bold ? "made bolder" : "not changed"}`,
+  );
+  check(ways && beast && bold, "a nature was not changed from its page");
   await k(`document.querySelector(".page-window .close")?.click()`);
 }
 

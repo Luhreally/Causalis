@@ -387,7 +387,7 @@ await page.waitForTimeout(1500);
     await whileNot(
       async () => !(await k<boolean>("globalThis.causalis.rig.flying")),
       () => page.waitForTimeout(250),
-      30000,
+      slow(30000),
     );
     // What the middle of the view is on (about it: a villager or a beast may pass before it).
     const view = { on: null as string | null };
@@ -399,7 +399,8 @@ await page.waitForTimeout(1500);
         );
         if (!view.on?.startsWith("ev:")) await page.waitForTimeout(500);
       },
-      20000,
+      // (As long as slow frames need: the swoop to the fight is drawn frame by frame.)
+      slow(20000),
     );
     const fight = view.on;
     say(`on into its village: ${await scale()}, the view on ${fight ?? "nothing"}`);

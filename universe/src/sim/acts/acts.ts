@@ -47,6 +47,12 @@ export class ActStore implements StateStore {
   private list: Act[] = [];
   /** The craters meteors left, on the map for ever (hashed and saved only once there are any). */
   private pits: Crater[] = [];
+  /**
+   * What the god has changed in a nature (Phase 16): a person's ways of being, a lineage's
+   * docility and growth — by ref, each trait's push, and the acts that pushed (hashed and
+   * saved only once there are any).
+   */
+  private natures = new Map<string, { traits: Record<string, number>; events: Ref[] }>();
 
   add(a: Act): void {
     this.list.push(a);
@@ -64,6 +70,24 @@ export class ActStore implements StateStore {
     return this.pits;
   }
 
+  /** The god's pushes to a nature, by trait (undefined: none). */
+  nature(ref: string): Readonly<Record<string, number>> | undefined {
+    return this.natures.get(ref)?.traits;
+  }
+
+  /** The acts that pushed a nature. */
+  natureEvents(ref: string): readonly Ref[] {
+    return this.natures.get(ref)?.events ?? [];
+  }
+
+  /** Push one trait of a nature by `amount`, remembering the act's event. */
+  pushNature(ref: string, trait: string, amount: number, event: Ref): void {
+    let n = this.natures.get(ref);
+    if (!n) this.natures.set(ref, (n = { traits: {}, events: [] }));
+    n.traits[trait] = (n.traits[trait] ?? 0) + amount;
+    n.events.push(event);
+  }
+
   /** The act of a kind in force over a province at time t (the latest, if several). */
   at(cell: number, kind: ActKind, t: number): Act | null {
     let found: Act | null = null;
@@ -74,22 +98,38 @@ export class ActStore implements StateStore {
 
   /** Acts are part of the story for ever, and a crater's meteor. */
   pinned(): Ref[] {
-    return [...this.list.map((a) => a.event), ...this.pits.map((c) => c.event)];
+    return [
+      ...this.list.map((a) => a.event),
+      ...this.pits.map((c) => c.event),
+      ...[...this.natures.values()].flatMap((n) => n.events),
+    ];
   }
 
   hashInto(h: Hasher): void {
     h.value(this.list);
     if (this.pits.length) h.value(this.pits);
+    if (this.natures.size) h.value([...this.natures].sort((a, b) => (a[0] < b[0] ? -1 : 1)));
   }
 
   save(): unknown {
-    return this.pits.length ? { acts: this.list, craters: this.pits } : { acts: this.list };
+    return {
+      acts: this.list,
+      ...(this.pits.length ? { craters: this.pits } : {}),
+      ...(this.natures.size ? { natures: [...this.natures] } : {}),
+    };
   }
 
   load(state: unknown): void {
-    const s = state as { acts: Act[]; craters?: Crater[] };
+    const s = state as {
+      acts: Act[];
+      craters?: Crater[];
+      natures?: [string, { traits: Record<string, number>; events: Ref[] }][];
+    };
     this.list = [...s.acts];
     this.pits = [...(s.craters ?? [])];
+    this.natures = new Map(
+      (s.natures ?? []).map(([k, v]) => [k, { traits: { ...v.traits }, events: [...v.events] }]),
+    );
   }
 }
 

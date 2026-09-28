@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
-import { populationContext } from "../../src/sim/index.ts";
+import { politiesOf, populationContext } from "../../src/sim/index.ts";
 import type { Block, PageModel } from "../../src/bridge/index.ts";
 
 // Phase 15 M125: a household's and a person's things, watched. The first light's world at 300,
@@ -114,4 +114,39 @@ test("a village watched: its workers carry their own tools, told as made where a
     tooled = plan.people.filter((p) => p.tool);
   assert.ok(tooled.length >= 1, "someone carries their own tool");
   for (const p of tooled) assert.match(p.tool!, /^a [a-z]+ [a-z]+, made in year \d+$/);
+});
+
+test("natures in the god's hand, on their pages: a person's ways of being, a realm's ways, a beast's tameness", () => {
+  type Tool = { type: "tool"; tool: string; args: Record<string, unknown> };
+  const tool = (p: PageModel, name: string) =>
+    p.tabs.flatMap((t) => t.blocks).find((b) => b.type === "tool" && (b as Tool).tool === name) as
+      Tool | undefined;
+  // A person met: their five ways of being, each the god's to push.
+  const person = met[0]!.members[0]!.ref,
+    natures = () =>
+      tool(page(person), "acts.person")!.args.natures as [string, string, string, number][],
+    boldness = natures().find(([t]) => t === "boldness")![3];
+  world.submit("act.nature", { ref: person, trait: "boldness", sign: 1 });
+  world.runTo(world.now + 2);
+  const bolder = natures().find(([t]) => t === "boldness")![3];
+  assert.ok(Math.abs(bolder - Math.min(1, boldness + 0.25)) < 1e-9, `${boldness} → ${bolder}`);
+  assert.equal(tool(page(person), "acts.person")!.args.village !== undefined, true);
+  // A realm: its ways, the mean of its lands'.
+  const realm = politiesOf(world)
+      .all()
+      .find((r) => r.ended === null && r.members.length > 1)!,
+    ways = () => tool(page(realm.ref), "acts.realm-ways")!.args.ways as [string, number][],
+    trade = ways().find(([w]) => w === "trade")![1];
+  world.submit("act.realm-ways", { realm: realm.ref, way: "trade", sign: 1 });
+  world.runTo(world.now + 2);
+  assert.ok(ways().find(([w]) => w === "trade")![1] > trade + 0.1, "more given to trade");
+  // A beast: tamer.
+  const beast = populationContext(world).generated.life.species.find(
+      (x) => x.died === null && x.niche === "grazer",
+    )!,
+    tame = () => tool(page(beast.ref), "acts.lineage")!.args.docility as number,
+    was = tame();
+  world.submit("act.nature", { ref: beast.ref, trait: "docility", sign: 1 });
+  world.runTo(world.now + 2);
+  assert.ok(Math.abs(tame() - Math.min(1, was + 0.25)) < 1e-9);
 });

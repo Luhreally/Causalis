@@ -4,6 +4,7 @@
 // then "confirm"), because what follows is history's.
 import type { HostClient } from "../bridge/index.ts";
 import { el } from "./why.ts";
+import { WAY_CHOICES } from "./palette.ts";
 import { HandView } from "./hand.ts";
 
 export type ToolContext = {
@@ -103,19 +104,129 @@ export function drawTool(
       void agentActs(into, args.id as number, ctx);
       return;
     case "acts.person": {
-      // One of a family met is counted among their land's people: the god's hand touches
-      // them only where it rests, over their village (every one of whose people is then someone).
-      const note = el(
-        "p",
-        "muted",
-        "Your hand touches a person only where it rests: lay it on their village, and every one of its people is someone of their own — their families kept, their children born, what they are like yours to give or take.",
+      // What a person met is like, the god's to change (Phase 16); and, over their village, the
+      // hand that makes every one of its people someone.
+      const natures = (args.natures as [string, string, string, number][] | undefined) ?? [],
+        parts: HTMLElement[] = [];
+      if (args.alive && natures.length) {
+        parts.push(el("h3", undefined, "What they are like — yours to change"));
+        for (const [trait, low, high, value] of natures)
+          parts.push(
+            natureRow(low, high, value, async (sign) => {
+              await ctx.client.command("act.nature", { ref: args.ref, trait, sign });
+              ctx.refresh();
+            }),
+          );
+      }
+      parts.push(
+        el("h3", undefined, "Your hand"),
+        el(
+          "p",
+          "muted",
+          "What they are like colours the story of their life. To change the lives of a village's people — their families, their children, their deaths, the traits that weigh on them — lay your hand on the village: then every one of them is someone of their own.",
+        ),
       );
-      into.replaceChildren(el("h3", undefined, "Your hand"), note);
+      if (args.village) {
+        const b = el("button", "act", "✋ Lay your hand on their village"),
+          said = el("p", "note");
+        said.hidden = true;
+        b.onclick = async () => {
+          b.disabled = true;
+          try {
+            await ctx.client.command("hand.lay", { village: args.village });
+            ctx.open(args.village as string);
+          } catch (error) {
+            said.hidden = false;
+            said.textContent = (error as Error).message;
+            b.disabled = false;
+          }
+        };
+        parts.push(b, said);
+      }
+      into.replaceChildren(...parts);
+      return;
+    }
+    case "acts.realm-ways": {
+      // A realm's ways, each the god's to push across all its lands (Phase 16).
+      const ways = (args.ways as [string, number][] | undefined) ?? [];
+      into.replaceChildren(
+        el("h3", undefined, "Its ways — yours to push"),
+        ...ways.map(([way, value]) => {
+          const choice = WAY_CHOICES.find(([id]) => id === way);
+          return natureRow(`${choice?.[1] ?? ""} less`, `more ${way}`, value, async (sign) => {
+            await ctx.client.command("act.realm-ways", { realm: args.realm, way, sign });
+            ctx.refresh();
+          });
+        }),
+        el(
+          "p",
+          "muted",
+          "A push moves the way in every one of its lands, and what they come back to with it. Its ways shape how it is ruled, whether it goes to war, how it trades and what it prays to.",
+        ),
+      );
+      return;
+    }
+    case "acts.lineage": {
+      // A lineage's nature, the god's to change (Phase 16): how tame, how fast it breeds.
+      const push = (trait: string) => async (sign: 1 | -1) => {
+        await ctx.client.command("act.nature", { ref: args.ref, trait, sign });
+        ctx.refresh();
+      };
+      into.replaceChildren(
+        el("h3", undefined, "Its nature — yours to change"),
+        natureRow("wild", "tame", args.docility as number, push("docility")),
+        natureRow("slow to breed", "quick to breed", args.growth as number, push("growth")),
+        el(
+          "p",
+          "muted",
+          args.tame
+            ? "Tame enough to herd: a settled people where it lives may take to herding it."
+            : "Made tame enough, a settled people where it lives may take to herding it.",
+        ),
+      );
       return;
     }
     default:
       return;
   }
+}
+
+/**
+ * A nature's row (Phase 16): its words at each end, how far toward the high end it is, and a
+ * push each way — a refusal said on the row itself.
+ */
+function natureRow(
+  low: string,
+  high: string,
+  value: number,
+  push: (sign: 1 | -1) => Promise<void>,
+): HTMLElement {
+  const row = el("div", "nature-row"),
+    bar = el("span", "nature-bar"),
+    fill = el("span", "nature-fill"),
+    less = el("button", "tool nature-push", "−"),
+    more = el("button", "tool nature-push", "+");
+  fill.style.width = `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
+  bar.append(fill);
+  less.title = `Toward ${low}`;
+  more.title = `Toward ${high}`;
+  less.setAttribute("aria-label", less.title);
+  more.setAttribute("aria-label", more.title);
+  less.dataset.push = `${high}:-1`;
+  more.dataset.push = `${high}:1`;
+  const go = (sign: 1 | -1) => async () => {
+    less.disabled = more.disabled = true;
+    try {
+      await push(sign);
+    } catch (error) {
+      row.title = (error as Error).message;
+      less.disabled = more.disabled = false;
+    }
+  };
+  less.onclick = go(-1);
+  more.onclick = go(1);
+  row.append(less, el("span", "nature-end", low), bar, el("span", "nature-end high", high), more);
+  return row;
 }
 
 /** The god's hand on a place: a shrine raised, a spring opened, fire sent on a city. */
