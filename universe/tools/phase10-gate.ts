@@ -58,6 +58,8 @@ const opened = async (ref: string) => {
     { timeout: 30000 },
   );
 };
+/** A wait on the free camera's flight: longer where frames come slowly (its step is per frame). */
+const slow = (ms: number) => (ci || soft ? ms * 4 : ms);
 const until = async (what: string, ok: () => Promise<boolean>, ms = 60000) => {
   const end = Date.now() + ms;
   while (Date.now() < end) {
@@ -484,10 +486,13 @@ await page.waitForTimeout(1500);
   await until(
     "the land, flown up out of the village",
     async () => (await scale()) === "region",
-    30000,
+    slow(30000),
   );
-  // (Let go the moment the world comes: held on, it would go on rising into the sky.)
-  for (let i = 0; i < 1200 && (await scale()) !== "globe"; i++) await page.waitForTimeout(50);
+  // (Let go the moment the world comes: held on, it would go on rising into the sky. A frame's
+  // step is at most a tenth of a second — a stalled frame does not throw the eye far — so where
+  // frames come slowly, as under software GL in CI, the climb takes the longer.)
+  const risen = Date.now() + slow(90_000);
+  while (Date.now() < risen && (await scale()) !== "globe") await page.waitForTimeout(100);
   await page.keyboard.up("KeyE");
   await page.keyboard.up("ShiftLeft");
   check((await scale()) === "globe", "the world, flown up out of the land, did not come");
@@ -498,7 +503,7 @@ await page.waitForTimeout(1500);
     async () =>
       (await k<string>("globalThis.causalis.roaming()")) === "fly" &&
       !(await k<{ passing: boolean }>("globalThis.causalis.freeState()")).passing,
-    15000,
+    slow(15000),
   );
   await page.keyboard.press("Escape");
   await page.waitForTimeout(400);
@@ -512,11 +517,11 @@ await page.waitForTimeout(1500);
   const dived = await until(
     "a land, flown down from the world",
     async () => (await scale()) === "region",
-    60000,
+    slow(60000),
   );
   await page.keyboard.up("KeyW");
   // (Once through into the land and flying there again.)
-  for (let i = 0; i < 100; i++) {
+  for (const end = Date.now() + slow(10000); Date.now() < end;) {
     const on = await k<boolean>(
       `globalThis.causalis.roaming() === "fly" && !globalThis.causalis.freeState().passing`,
     );
