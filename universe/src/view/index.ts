@@ -23,6 +23,8 @@ export {
   WAR_COLORS,
   biomeColor,
   LENS_NAMES,
+  BELIEF_COLORS,
+  beliefColor,
   globeColors,
   globeRadius,
   lensLegend,

@@ -56,6 +56,7 @@ import {
   ArmsBook,
   EventWindows,
   GodPalette,
+  WAY_CHOICES,
   isGreat,
   HoverTips,
   LogButton,
@@ -97,6 +98,7 @@ import {
   LY_SCALE,
   hallCells,
   hallDomes,
+  beliefColor,
   landWars,
   litColors,
   placeActs,
@@ -145,8 +147,16 @@ const WORK_WORDS = [
 ];
 /** Watching a village starts at an hour a second: a day goes by in 24 seconds. */
 const WATCH_DEFAULT = 3600;
-/** The map modes whose tooltip breaks a land's number down (Phase 12 M108). */
-const DEEP_LENSES: readonly Lens[] = ["unrest", "strength", "wealth", "knowledge", "growth"];
+/** The map modes whose tooltip breaks a land's number down (Phase 12 M108, Phase 14). */
+const DEEP_LENSES: readonly Lens[] = [
+  "unrest",
+  "strength",
+  "wealth",
+  "knowledge",
+  "growth",
+  "ways",
+  "belief",
+];
 /** The map modes that show the people (repainted as their numbers come, and turned to them). */
 const PEOPLE_LENSES: readonly Lens[] = [
   "people",
@@ -160,12 +170,29 @@ const PEOPLE_LENSES: readonly Lens[] = [
   "wealth",
   "knowledge",
   "growth",
+  "ways",
+  "belief",
 ];
 const YEAR = 365 * DAY;
 const SKY = [0.09, 0.1, 0.13] as const;
 const SPACE = [0.02, 0.025, 0.045] as const;
 
 const params = new URLSearchParams(location.search);
+/** Whether the view turns slowly when left alone (a setting, off unless chosen), and how fast. */
+const DRIFT_KEY = "causalis.drift";
+let drifting = (() => {
+  try {
+    return localStorage.getItem(DRIFT_KEY) === "1";
+  } catch {
+    return false;
+  }
+})();
+let driftRate = 1.5;
+/** A scale's own rate of turning (degrees a second), or none unless turning is chosen. */
+const drift = (rate = 1.5) => {
+  driftRate = rate;
+  return drifting ? rate : 0;
+};
 const seed = params.get("seed") ?? "first light";
 const inline = params.has("inline");
 const bench = Number(params.get("bench") ?? 0);
@@ -406,6 +433,7 @@ async function runSandboxPage(): Promise<void> {
     minDistance: 8,
     maxDistance: 110,
     pitch: -42,
+    drift: drift(),
     onTap: (x, y) => {
       const p = stage.groundPoint(x, y);
       select(p ? cellAt(p.x, p.z, spec?.cells.length ?? 16) : null);
@@ -467,8 +495,12 @@ async function runPlanetPage(): Promise<void> {
     density = new Map<number, number>(),
     foodPrices = new Map<number, number>(),
     trade = new Map<number, number>(),
-    // The deeper lenses' readings, land by land (Phase 12 M108).
+    // The deeper lenses' readings, land by land (Phase 12 M108); the way the ways lens shows, and
+    // the colours of what each land has seen of the god (Phase 14).
     deepValues = new Map<Lens, Map<number, number>>(),
+    waysTrait = "valour",
+    beliefColors = new Map<number, readonly [number, number, number]>(),
+    lastEntries: PeopleEntry[] = [],
     tongues = new Map<number, readonly [number, number, number]>(),
     realms = new Map<number, readonly [number, number, number]>(),
     faiths = new Map<number, readonly [number, number, number]>(),
@@ -648,6 +680,17 @@ async function runPlanetPage(): Promise<void> {
   });
   planetPanel.onQualityChoice = (c) => setChoice(c);
   planetPanel.qualityNow = () => ({ choice, name: stage.quality.name, fps });
+  // The view turning when left alone: off unless chosen (asked for 2026-09-28).
+  planetPanel.driftNow = () => drifting;
+  planetPanel.onDrift = (on) => {
+    drifting = on;
+    try {
+      localStorage.setItem(DRIFT_KEY, on ? "1" : "0");
+    } catch {
+      // Nowhere to remember it: for this visit only.
+    }
+    rig.configure({ drift: on ? driftRate : 0 });
+  };
   exposed.quality = () => stage.quality.name;
   exposed.setQuality = (c: string) => setChoice(c as QualityName | "auto");
   labels.blockers = [regionPanel.inspector, villagePanel.inspector, pageWindow.inspector];
@@ -680,13 +723,15 @@ async function runPlanetPage(): Promise<void> {
       lens === "food" ? foodPrices : lens === "trade" ? trade : (deepValues.get(lens) ?? density),
       lens === "realms"
         ? realms
-        : lens === "faiths"
-          ? faiths
-          : lens === "diplomacy"
-            ? standings
-            : lens === "war"
-              ? fronts
-              : tongues,
+        : lens === "belief"
+          ? beliefColors
+          : lens === "faiths"
+            ? faiths
+            : lens === "diplomacy"
+              ? standings
+              : lens === "war"
+                ? fronts
+                : tongues,
       // (Borders between realms, faiths, tongues: a grand strategy map's.)
       sphereGrid((frame.meta as { frequency: number }).frequency),
       // (Lands taken by force, still resenting it, in shadow: M104.)
@@ -767,8 +812,26 @@ async function runPlanetPage(): Promise<void> {
     if (l === "war") void readFronts();
     paintGlobe();
     if (PEOPLE_LENSES.includes(l)) void faceThePeople(true);
-    tooltip.lens = l;
+    // (The ways lens shows one way at a time, chosen under its legend: Phase 14 M119.)
+    mapModes.choose(l === "ways" ? WAY_CHOICES : null, waysTrait, (id) => {
+      waysTrait = id;
+      readWays();
+      tooltip.lens = `ways:${id}`;
+      paintGlobe();
+    });
+    tooltip.lens = l === "ways" ? `ways:${waysTrait}` : l;
   };
+  /** The chosen way's reading, land by land. */
+  function readWays(): void {
+    const i = Math.max(
+      0,
+      WAY_CHOICES.findIndex(([id]) => id === waysTrait),
+    );
+    deepValues.set(
+      "ways",
+      new Map(lastEntries.flatMap((e) => (e.ways.length ? [[e.cell, e.ways[i]!] as const] : []))),
+    );
+  }
   // The map modes' bar (Phase 10 M96), in the world's top bar (floating on a desk).
   const mapModes = new MapModes(lens);
   planetPanel.bar.append(mapModes.element);
@@ -958,6 +1021,14 @@ async function runPlanetPage(): Promise<void> {
     trade = new Map(entries.map((e) => [e.cell, e.trade]));
     for (const k of ["unrest", "strength", "wealth", "knowledge", "growth"] as const)
       deepValues.set(k, new Map(entries.map((e) => [e.cell, e[k]])));
+    lastEntries = entries;
+    readWays();
+    beliefColors = new Map(
+      entries.flatMap((e) => {
+        const c = beliefColor(e.belief[0], e.belief[1], e.belief[2]);
+        return c ? [[e.cell, c] as const] : [];
+      }),
+    );
     tongues = new Map(entries.flatMap((e) => (e.tongue ? [[e.cell, e.tongue] as const] : [])));
     realms = new Map(entries.flatMap((e) => (e.realm ? [[e.cell, e.realm] as const] : [])));
     faiths = new Map(entries.flatMap((e) => (e.faith ? [[e.cell, e.faith] as const] : [])));
@@ -1205,7 +1276,7 @@ async function runPlanetPage(): Promise<void> {
     pitch: -18,
     minPitch: -80,
     maxPitch: 80,
-    drift: 1.5,
+    drift: drift(),
     onTap: (x, y) =>
       palette.armed && (scale === "globe" || scale === "region")
         ? tapPalette(x, y)
@@ -1512,7 +1583,7 @@ async function runPlanetPage(): Promise<void> {
       pitch: -48,
       minPitch: -85,
       maxPitch: -12,
-      drift: 1.5,
+      drift: drift(),
       target: [0, 0, 0],
     });
     client.setInterest({ view: "region", focus: `cell:0:${cell}` });
@@ -1552,7 +1623,7 @@ async function runPlanetPage(): Promise<void> {
       maxDistance: 12,
       minPitch: -80,
       maxPitch: 80,
-      drift: 1.5,
+      drift: drift(),
       target: [0, 0, 0],
     });
     client.setInterest({ view: "globe", focus: null });
@@ -1610,7 +1681,7 @@ async function runPlanetPage(): Promise<void> {
       pitch: -60,
       minPitch: -89,
       maxPitch: -10,
-      drift: 0.6,
+      drift: drift(0.6),
       target: [0, 0, 0],
     });
   };
@@ -1680,6 +1751,18 @@ async function runPlanetPage(): Promise<void> {
     }
   };
   setInterval(() => void client.save(`${saveName}:auto`).catch(() => {}), 5 * 60_000);
+  // Back to the title screen: the world kept on its own first, so Continue takes it up.
+  planetPanel.onMenu = async () => {
+    try {
+      await client.save(`${saveName}:auto`);
+    } catch (error) {
+      // Kept or not, the viewer asked to go: a world that could not be kept is said so.
+      if (!confirm(`The world could not be kept (${(error as Error).message}). Leave it anyway?`))
+        return "stayed";
+    }
+    location.href = location.pathname;
+    return "to the title…";
+  };
   // Out to the stars around, and back to the star's system.
   const clusterPanel = new ClusterPanel(hud, client);
   const selectStar = (i: number | null) => {
@@ -1713,7 +1796,7 @@ async function runPlanetPage(): Promise<void> {
       pitch: -30,
       minPitch: -89,
       maxPitch: 60,
-      drift: 1,
+      drift: drift(1),
       target: [0, 0, 0],
     });
   };
@@ -1846,7 +1929,7 @@ async function runPlanetPage(): Promise<void> {
       pitch: -18,
       minPitch: -80,
       maxPitch: 80,
-      drift: 1.5,
+      drift: drift(),
       target: [0, 0, 0],
     });
   };
@@ -1905,7 +1988,7 @@ async function runPlanetPage(): Promise<void> {
       pitch: -60,
       minPitch: -89,
       maxPitch: -10,
-      drift: 0.6,
+      drift: drift(0.6),
       target: [0, 0, 0],
     });
   };
@@ -1968,7 +2051,7 @@ async function runPlanetPage(): Promise<void> {
       pitch: -55,
       minPitch: -89,
       maxPitch: -5,
-      drift: 0.4,
+      drift: drift(0.4),
       target: [0, 0, 0],
     });
   };
@@ -2621,7 +2704,7 @@ async function runPlanetPage(): Promise<void> {
       pitch: -38,
       minPitch: -85,
       maxPitch: -8,
-      drift: 0.8,
+      drift: drift(0.8),
       target: [0, 0, 0],
     });
     // (And its haze starts as far off.)
@@ -2991,88 +3074,19 @@ async function runPlanetPage(): Promise<void> {
 }
 
 /**
- * The first visit (a bare address, never welcomed before): what the universe is, a
- * choice of where to begin, and how to watch. Links with a universe or seed skip it.
+ * The title screen (a bare address, or ?menu): Continue, a new world, the worlds kept, the
+ * sandbox, how to play. The first visit shows how to play at once.
  */
-function welcome(): boolean {
-  let seen = false;
+async function runTitlePage(): Promise<void> {
+  let first = true;
   try {
-    seen = localStorage.getItem("causalis.welcomed") === "1";
+    first = localStorage.getItem("causalis.welcomed") !== "1";
+    localStorage.setItem("causalis.welcomed", "1");
   } catch {
-    // Storage may be shut (a private window): welcome again, harmlessly.
+    // Storage may be shut (a private window): how to play shown, harmlessly.
   }
-  if (location.search || seen) return false;
-  const words = [
-      "amber",
-      "kestrel",
-      "tide",
-      "ember",
-      "harrow",
-      "lumen",
-      "quill",
-      "sorrel",
-      "vale",
-      "wren",
-    ],
-    pick = () => {
-      const u = new Uint32Array(2);
-      crypto.getRandomValues(u);
-      return `${words[u[0]! % words.length]} ${u[1]! % 1000}`;
-    },
-    app = document.getElementById("app")!,
-    box = document.createElement("div"),
-    title = document.createElement("h1"),
-    lead = document.createElement("p"),
-    choices = document.createElement("div"),
-    how = document.createElement("ul");
-  box.className = "welcome";
-  title.textContent = "Causalis Universe";
-  lead.textContent =
-    "A universe that runs on its own: worlds, their living things, peoples and their histories, all the way out to the stars. You watch it, ask why anything is so, and — when you choose — lay your hand on it.";
-  choices.className = "choices";
-  for (const [label, note, query] of [
-    ["Earth", "a world like ours, from its first farmers", "?universe=earth"],
-    [
-      "From the beginning",
-      "the galaxy born, a world forming, the first cells, creatures and people — then choose when to begin",
-      "?universe=earth&genesis=1",
-    ],
-    [
-      "A world never seen",
-      "an open world: any sky, any body, any people",
-      `?universe=alien&seed=${encodeURIComponent(pick())}`,
-    ],
-    ["The sandbox", "a small ring of cells to try the hand on", "?universe=sandbox"],
-  ] as const) {
-    const b = document.createElement("button"),
-      small = document.createElement("small");
-    b.className = "choice";
-    b.textContent = label;
-    small.textContent = note;
-    b.append(small);
-    b.onclick = () => {
-      try {
-        localStorage.setItem("causalis.welcomed", "1");
-      } catch {
-        // Nothing to remember it in: fine.
-      }
-      location.search = query;
-    };
-    choices.append(b);
-  }
-  for (const line of [
-    "Tap any place, person or event, and ask “why?” — every answer opens onto its causes.",
-    "The lenses colour the world by what you want to see: people, food, trade, realms, tongues, life, ores.",
-    "“Look closer” goes down to a land and its villages; “The sky” goes out to the stars.",
-    "Your hand — rain, harvest, plague, inspiration, a warmer world, a star's flare — is always a choice, and always in the chronicle.",
-  ]) {
-    const li = document.createElement("li");
-    li.textContent = line;
-    how.append(li);
-  }
-  box.append(title, lead, choices, how);
-  app.replaceChildren(box);
-  return true;
+  const { showTitle } = await import("./title.ts");
+  showTitle({ connect, first });
 }
 
 /**
@@ -3107,7 +3121,7 @@ async function runGenesisPage(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  if (welcome()) return;
+  if (!location.search || params.has("menu")) return runTitlePage();
   if (bench > 0) return runBenchPage();
   if (universe === "sandbox") return runSandboxPage();
   if (params.has("genesis")) return runGenesisPage();

@@ -4184,6 +4184,120 @@ Phase 12 gate). In a real browser it:
 - goes down into a battle's land and sees it fought out, some fallen;
 - opens a realm's army and a war's course.
 
+### I.14 Phase 14 milestones (planned 2026-09-28, at the user's asking)
+
+The user: "how you gonna add worldbox stuff but not add the thing to modify its cultures,
+language, religion, etc?? … and like click traits for people and see the family tree and the
+kids they have and like that detail, and like study causalis the original version too … that
+game had great planet depth and inspectability."
+
+A study of Classic (played to year 69 and 78, its sections read) found:
+- it never let the god edit a culture, a tongue or a faith directly: it moved them through
+  omens (acts near a town read as favour, wrath or a portent), a people naming the god after
+  three acts, schisms and seeded factions;
+- its people were deep: named traits that did things, a want, skills, a life told in prose,
+  parents, partners and children, children born over the years, house trees, bonds and feuds;
+- its tongues could be heard: sounds, sound changes, sample words.
+
+Universe's people were thin by comparison: met households are observational and no one is
+born into them; the people under the hand were bare records; a met person's page asked for a
+tool that was never drawn; a tongue's page showed no sounds; a realm's page named neither its
+faith nor its tongue.
+
+Phase 14's "done when":
+- The god can push a people's ways, teach a land a tongue or give it one of its own, and found
+  a faith with the tenet it chooses — each explained, each followed by the simulation.
+- A person can be clicked and read as WorldBox reads a unit, and more: their traits (each
+  clickable, saying what it does and why they have it), their parents, partner, children and
+  grandchildren in a family tree, children born to them over the years; the god can give or
+  take a trait.
+- A people can be read: its ways as bars with what pushed each, its tongue heard (sounds, words,
+  names), its faith, its lands and realms; the ways can be seen on the map.
+- Each people names the god by what it has seen of the god's hand: favour, wrath or a portent.
+
+117. **Ways, speech and faith in the god's hand** (sim: each a logged command; palette "Ways,
+     speech and faith"): push a people's ways (one of eight, more or less), teach a land a
+     tongue, give a land a tongue of its own, found a faith with a chosen tenet; turning a land
+     to a faith moves here. A tongue's page tells its sounds, sample words, how it names people
+     and towns, and what changed from its parent; a realm's page names its faith and tongue.
+118. **Families and traits** (sim, under the hand): each person's mother and father (as the
+     village knew them when the hand was laid, or born under it), a partner, and ten traits
+     that weigh on their lives (the hardy and lucky die the less, the frail the more, the
+     fertile bear more). A person's page: traits as chips, each a page; a family tree (block
+     "tree"); children as they come. The god may give or take a trait. Met families' pages show
+     their family as their household's roles tell it; the missing person tool is drawn.
+119. **Peoples read, and their ways on the map.** A tongue's speakers as a people: their ways
+     (the mean of their lands', as bars, with the nudges that pushed them), their faiths and
+     realms, their lands, their numbers through the years. A "Ways" map mode, one trait at a
+     time, its tooltip breaking a land's reading into its nudges.
+120. **The god as each people names it.** From the god's acts each people has seen (and where):
+     favour (rain, bounty, healing, a spring, a shrine), wrath (drought, blight, plague, fire,
+     a quake, a meteor), portents (a flaring or calmed sun, a warmed world): the god's epithet in
+     each tongue (the Rain-Giver, the Bountiful, the Mender, the Wrathful…) on the people's and
+     faith's pages, and a Belief map mode (favour green, wrath red, portent violet).
+121. **Phase 14 gate.**
+
+**As built (2026-09-28).**
+
+- **117.** `sim/acts/ways.ts`: `act.ways` {cell, way, sign} pushes one of the eight ways, and
+  what the people return to, by `WAYS_PUSH` (0.25), the push kept among the land's nudges;
+  `act.tongue` {cell, language} (the land speaks it, its culture's tongue that language's
+  standard); `act.newtongue` {cell} (six sound shifts from the tongue spoken: a daughter of its
+  family, `language.arose` citing the act); `act.faith` {cell, tenet} (a faith of the chosen
+  tenet founded and held there, `belief.founded` citing the act). The palette's 🎭 tab "Ways,
+  speech and faith": the ways act with a way chooser and ➕/➖, a tongue taught by two touches
+  (the land that speaks it, then the land taught), a tongue of their own, a faith with a tenet
+  chooser, and turning a land to a faith (moved here). A tongue's page gains People and Speech
+  tabs (its sounds — onsets, vowels, codas, place endings; words in it — places, women, men;
+  what changed from its parent); a realm's overview names its faith and its tongue.
+- **118.** `Agent` gains mother, father, partner and traits. `pairUp` pairs the grown who live
+  alone each month (a keyed order, no draw). When the hand is laid each person draws traits
+  (`TRAIT_SHARE`, 12% each) and each child a mother of the right age, her partner its father;
+  a child born under the hand takes each parent's trait by half and one in 25 anew; the dead
+  are kept (`GONE_KEPT`, 4000) for the trees. Every trait does something: hardy (death ×0.75),
+  frail (×1.35), lucky (×0.9), fertile (a couple's children two in five again, either of them
+  fertile), kind (the young in their care die a sixth the less), clever, greedy and wise (a
+  craft, trade, leading three times as likely as they come of age), brave (the hunt and the
+  herds twice as likely), pious (the god's blessing holds half again as long: 30 years).
+  `act.trait` gives or takes one (hardy and frail are opposed: the other is not offered while
+  one is held). A person's page: portrait, age, work, children, traits as chips (each a trait
+  page: what it does, how one comes to have it, who has it now), mother, father and partner,
+  and a Family tab — a tree of grandparents, parents, them and their partner, children and
+  grandchildren, the dead with their years, each person opening on their own tree — and their
+  brothers and sisters. A met person's page: their ways of being at its ends as chips, and a
+  family tab from their household's roles; the tool the page asked for is drawn.
+- **119.** `host/inspect/peoples.ts`: a tongue's People tab — their ways as bars (their lands',
+  weighed by their people), what pushed them most, their faiths and realms, their lands, their
+  numbers through the years. Map modes Ways 🎭 (one way at a time, picked from the legend's
+  eight; held little → held much; a land's tooltip: the way, what they return to, the pushes)
+  and Belief 🕯️.
+- **120.** `godSeen` (kept while the world's time and history stand) reads what each land has
+  seen: the acts (rain, harvest, plague and inspiration by sign; a spring, a shrine, fire, a
+  quake, fire from the sky, a flood, settlers, their ways or speech changed where they fell;
+  friendship, discord, a blessing, a curse and a union by the realms' lands; the sky's acts by
+  every land), and what the hand caused under other events' names (the hand laid, a faith
+  founded, a land turned, a tongue arisen, a rising, a war begun or ended — each cited to a
+  command). Each is a favour, a wrath or a portent with its epithet; each people names the god
+  in its own tongue with the epithet of what it has seen most. The Belief lens colours a land
+  by what it has seen most, the deeper the more; grey where it has seen nothing.
+- **121.** `tools/phase14-gate.ts` (port 4266; `gate:14` in CI): the palette's ways, faith and
+  tongues; the Ways and Belief lenses and their tooltips; one of the people under the hand
+  (chips, a trait's page, the tree walked to their mother's, a trait given); a people read;
+  and the title screen below.
+- **Asked for the same day:** a title screen (`app/title.ts`, at a bare address or `?menu`): a
+  low-poly world turning on a 2D canvas behind a menu — Continue (the world last kept), New
+  world (Earth-like or never seen; a seed, with a roll for another; from its very beginning,
+  at its first farmers, or three centuries on), Worlds kept (and a kept file opened), the
+  sandbox, how to play. "🏠 Main menu" in a world's menu keeps the world (its `:auto` slot)
+  and goes there; the sandbox's and the genesis's bars have it too. The host answers `saves`
+  and `import` before any world runs. And the view no longer turns by itself when left alone:
+  Settings → The view (Still, or Turning at each scale's own rate), kept in the browser.
+
+Next, as the user put it the same day: what to take from Classic is its detail and its
+inspectability — what everything holds and is made of (a person's and a household's things, a
+town's stores, materials and their chemistry) broken down, every part of it a page — not its
+dynasties or a people's songs, which are secondary. Phase 15 takes that up.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

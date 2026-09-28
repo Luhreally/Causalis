@@ -24,6 +24,7 @@ import { installCities } from "../city/city.ts";
 import { installLocalActs } from "../acts/local.ts";
 import { installPeopleActs } from "../acts/peoples.ts";
 import { installDisasters } from "../acts/disasters.ts";
+import { installWaysActs } from "../acts/ways.ts";
 import { installDesigns } from "../design/design.ts";
 import { installEcology } from "../ecology/ecology.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
@@ -225,6 +226,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installLocalActs(world, () => populationContext(world));
   installPeopleActs(world, () => populationContext(world));
   installDisasters(world, () => populationContext(world));
+  installWaysActs(world, () => populationContext(world));
   installDesigns(world, () => populationContext(world));
   installEcology(world, () => populationContext(world));
   installLanguages(world, () => populationContext(world));

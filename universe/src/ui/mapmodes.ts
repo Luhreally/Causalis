@@ -15,6 +15,7 @@ export class MapModes {
   private readonly buttons = new Map<Lens, HTMLButtonElement>();
   private readonly legend = el("div", "legend");
   private readonly note = el("div", "legend-note");
+  private readonly picks = el("div", "legend-picks");
   private current: Lens;
   onLens: (lens: Lens) => void = () => {};
 
@@ -47,6 +48,29 @@ export class MapModes {
     this.drawLegend();
   }
 
+  /** The choices a mode offers (the ways lens: which way), each an icon; picking one tells `pick`. */
+  choose(
+    options: readonly (readonly [string, string, string])[] | null,
+    chosen: string,
+    pick: (id: string) => void,
+  ): void {
+    this.picks.replaceChildren(
+      ...(options ?? []).map(([id, icon, words]) => {
+        const b = el("button", `speed${id === chosen ? " on" : ""}`, icon);
+        b.title = words;
+        b.setAttribute("aria-label", words);
+        b.dataset.choice = id;
+        b.onclick = () => {
+          for (const x of this.picks.children) x.classList.toggle("on", x === b);
+          pick(id);
+        };
+        return b;
+      }),
+    );
+    this.picks.hidden = !options?.length;
+    this.drawLegend();
+  }
+
   /** A line of the mode's own: what it is of ("the league of Geaka"). */
   say(text: string | null): void {
     this.note.textContent = text ?? "";
@@ -74,7 +98,7 @@ export class MapModes {
       }
       parts.push(keys);
     }
-    parts.push(this.note);
+    parts.push(this.picks, this.note);
     this.legend.replaceChildren(...parts);
   }
 }

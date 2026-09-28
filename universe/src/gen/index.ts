@@ -94,6 +94,7 @@ export {
   tongueLikeness,
   tongueName,
   tonguePersonName,
+  tongueSounds,
   type Tongue,
 } from "./names.ts";
 export {

@@ -48,7 +48,17 @@ import {
 import { peopleAffords, peopleLife } from "./life.ts";
 import { airOf, heatYield, rainShift, smokeIn } from "../climate/air.ts";
 import { powerOf } from "../economy/systems.ts";
-import { HAND_VITAL, bandOfAge, handOf, newbornSex } from "../hand/hand.ts";
+import {
+  GONE_KEPT,
+  HAND_VITAL,
+  bandOfAge,
+  drawTraits,
+  handOf,
+  newbornSex,
+  pairUp,
+  traitWeight,
+  workWeights,
+} from "../hand/hand.ts";
 import { cultureOf, cultureYear } from "../culture/culture.ts";
 import { loreOf } from "../lore/lore.ts";
 import { MarketStore } from "../economy/market.ts";
@@ -596,28 +606,72 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
         }
     const w = windowed ? handOf(world).over(p.cell) : null;
     if (w) {
-      const living: typeof w.agents = [];
+      // (Those grown and alone are paired first, so a child born has a father: M118.)
+      pairUp(w.agents, year, life.adulthood);
+      const living: typeof w.agents = [],
+        byId = new Map(w.agents.map((a) => [a.id, a])),
+        // (The young in a kind mother's or father's care die the less.)
+        careOf = (id: number | undefined) => {
+          const parent = id === undefined ? undefined : byId.get(id);
+          return parent ? traitWeight(parent, "care") : 1;
+        };
       for (const a of w.agents) {
         const band = bandOfAge(year - a.birthYear, life),
-          blessed = a.blessedUntil !== undefined && year < a.blessedUntil;
-        // (Over the months reckoned: the first month under the hand closes a stretch.)
+          blessed = a.blessedUntil !== undefined && year < a.blessedUntil,
+          care = year - a.birthYear < life.adulthood ? careOf(a.mother) * careOf(a.father) : 1;
+        // (Over the months reckoned: the first month under the hand closes a stretch. What
+        // they are like weighs on it: the hardy die the less, the frail the more.)
         if (
           !blessed &&
           world.rng.real(HAND_VITAL, a.id, t, 0) <
-            deathWithin(riskUnder(life.mortality[band]!, mortality), months)
+            Math.min(
+              1,
+              deathWithin(riskUnder(life.mortality[band]!, mortality), months) *
+                traitWeight(a, "death") *
+                care,
+            )
         ) {
           d.add(row(a.sex, band), a.occupation, -1);
           history.addDeaths(p.cell, year, band, 1);
+          // (Remembered, for their families' trees.)
+          (w.gone ??= []).push({
+            id: a.id,
+            sex: a.sex,
+            birthYear: a.birthYear,
+            died: year,
+            ...(a.mother !== undefined ? { mother: a.mother } : {}),
+            ...(a.father !== undefined ? { father: a.father } : {}),
+            ...(a.partner !== undefined ? { partner: a.partner } : {}),
+            ...(a.traits?.length ? { traits: a.traits } : {}),
+          });
+          if (w.gone.length > GONE_KEPT) w.gone.splice(0, w.gone.length - GONE_KEPT);
           continue;
         }
         living.push(a);
+        // (A child comes the more to a couple either of whom is fertile.)
+        const father = a.partner !== undefined ? byId.get(a.partner) : undefined;
         if (
           a.sex === FEMALE &&
-          world.rng.real(HAND_VITAL, a.id, t, 1) < (life.fertility[band]! * fertility) / 12
+          world.rng.real(HAND_VITAL, a.id, t, 1) <
+            ((life.fertility[band]! * fertility) / 12) *
+              traitWeight(a, "birth") *
+              (father ? traitWeight(father, "birth") : 1)
         ) {
           const id = w.next++,
             sex = newbornSex(world.rng.real(HAND_VITAL, id, t, 2));
-          living.push({ id, sex, birthYear: year, occupation: OCC.dependent });
+          living.push({
+            id,
+            sex,
+            birthYear: year,
+            occupation: OCC.dependent,
+            mother: a.id,
+            ...(father ? { father: father.id } : {}),
+            // (Their parents' ways in them by half, and now and then one of their own.)
+            traits: drawTraits(
+              (k) => world.rng.real(HAND_VITAL, id, t, 10 + k),
+              [a.traits ?? [], father?.traits ?? []],
+            ),
+          });
           d.add(row(sex, 0), OCC.dependent, 1);
           history.addBirths(p.cell, year, 1);
         }
@@ -727,7 +781,11 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
         if (now === was) continue;
         d.add(row(a.sex, was), a.occupation, -1);
         if (a.occupation === OCC.dependent && life.bands[now]! >= life.adulthood)
-          a.occupation = weightedIndex(targets, world.rng.real(HAND_VITAL, a.id, t, 3));
+          // (What they are like draws them to their work: the clever to a craft.)
+          a.occupation = weightedIndex(
+            workWeights(targets, a),
+            world.rng.real(HAND_VITAL, a.id, t, 3),
+          );
         d.add(row(a.sex, now), a.occupation, 1);
       }
     d.commit(p.counts);

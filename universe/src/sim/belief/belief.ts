@@ -199,7 +199,7 @@ export function beliefOf(world: World): BeliefStore {
 }
 
 /** Faith names: "the Rain-keepers of Kirath" — the faithful's calling, in their tongue's words for a place. */
-function faithName(tenet: Tenet, word: string): string {
+export function faithName(tenet: Tenet, word: string): string {
   const calling: Readonly<Record<Tenet, string>> = {
     rain: "Rain-keepers",
     plenty: "Keepers of Plenty",

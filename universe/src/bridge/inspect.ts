@@ -104,6 +104,36 @@ export type Block =
       }[];
       readonly unit?: "people" | "share" | "price" | "count";
     }
+  /** What someone is like, as chips that open their pages (Phase 14 M118): a person's traits. */
+  | {
+      readonly type: "chips";
+      readonly title?: string;
+      readonly chips: readonly {
+        readonly icon: string;
+        readonly name: string;
+        readonly ref: string | null;
+        /** What it means, for its tooltip. */
+        readonly words?: string;
+      }[];
+    }
+  /** A family's tree (Phase 14 M118): its generations, the eldest first, each its people. */
+  | {
+      readonly type: "tree";
+      readonly title: string;
+      readonly rows: readonly {
+        /** The generation's word: "Grandparents", "Parents", "Children". */
+        readonly label: string;
+        readonly people: readonly {
+          readonly name: Line;
+          /** A few words: their age and work, or when they lived. */
+          readonly note: string;
+          readonly woman: boolean;
+          /** The one whose tree it is. */
+          readonly self?: boolean;
+          readonly dead?: boolean;
+        }[];
+      }[];
+    }
   /** Things through the years: each a bar from its beginning to its end (or on to now). */
   | {
       readonly type: "timeline";
@@ -243,6 +273,7 @@ export type PageKind =
   | "log"
   | "compare"
   | "concept"
+  | "trait"
   | "unknown";
 
 export type PageModel = {

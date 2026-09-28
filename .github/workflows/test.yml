@@ -145,6 +145,12 @@ jobs:
       - run: npm run gate:13 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 14 gate: a people's ways, a tongue and a faith from the palette; the ways and
+      # belief lenses and their tooltips; one of the people under the hand (their traits as
+      # chips, their family tree walked, a trait given); a people read, the god as they name it.
+      - run: npm run gate:14 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

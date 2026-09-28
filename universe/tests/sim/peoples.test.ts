@@ -20,11 +20,15 @@ import {
   REGARD,
   SETTLERS,
   WAR_EVENTS,
+  WAYS_ACT_EVENTS,
+  WAYS_PUSH,
+  WAY,
   actsOf,
   beliefOf,
   cultureOf,
   diplomacyOf,
   frontier,
+  languagesOf,
   livableFor,
   makePopulationWorld,
   marketsOf,
@@ -324,6 +328,77 @@ test("two realms made one: the second's lands the first's, the second ended; a r
   w.runTo(AT + 3);
   levels().forEach((l, i) => assert.ok(Math.abs(l - was[i]!) < 1e-9, "blessed back"));
   assert.throws(() => w.submit("act.bless", { realm: b.ref }), /standing realm/);
+});
+
+test("a people's ways pushed by the god: the trait and what they return to, the push remembered", () => {
+  const w = fresh(),
+    ctx = populationContext(w),
+    land = [...ctx.provinces.all()].sort((x, y) => y.total() - x.total() || x.cell - y.cell)[0]!,
+    ways = cultureOf(w).get(land.cell)!,
+    was = ways.traits[WAY.valour]!,
+    base = ways.base[WAY.valour]!;
+  const act = w.submit("act.ways", { cell: land.cell, way: "valour", sign: 1 });
+  w.runTo(AT + 1);
+  assert.ok(Math.abs(ways.traits[WAY.valour]! - Math.min(0.98, was + WAYS_PUSH)) < 1e-9);
+  assert.ok(Math.abs(ways.base[WAY.valour]! - Math.min(0.98, base + WAYS_PUSH)) < 1e-9);
+  const e = w.events.all().find((x) => x.type === WAYS_ACT_EVENTS.ways.type)!;
+  assert.equal(e.causes[0]!.ref, act.id);
+  assert.ok(
+    ways.nudges.some((n) => n.event === e.id),
+    "the push kept among what moved them",
+  );
+  assert.match(why(w, e.id).claim, /grew more warlike/);
+  assert.throws(
+    () => w.submit("act.ways", { cell: land.cell, way: "height", sign: 1 }),
+    /a way is wanted/,
+  );
+});
+
+test("a land taught a tongue speaks it; a land given a tongue of its own speaks a new one of its family", () => {
+  const w = fresh(),
+    ctx = populationContext(w),
+    store = languagesOf(w),
+    lands = [...ctx.provinces.all()].filter((p) => p.total() > 0 && store.of(p.cell));
+  const a = lands[0]!,
+    other = lands.find((p) => store.of(p.cell) !== store.of(a.cell))!,
+    theirs = store.of(other.cell)!;
+  const taught = w.submit("act.tongue", { cell: a.cell, language: theirs.ref });
+  w.runTo(AT + 1);
+  assert.equal(store.of(a.cell), theirs, "they speak it");
+  assert.deepEqual(cultureOf(w).get(a.cell)!.tongue, theirs.standard, "as its standard is spoken");
+  assert.equal(
+    w.events.all().find((x) => x.type === WAYS_ACT_EVENTS.tongue.type)!.causes[0]!.ref,
+    taught.id,
+  );
+  assert.throws(() => w.submit("act.tongue", { cell: a.cell, language: theirs.ref }), /already/);
+  const before = store.all().length,
+    was = store.of(other.cell)!,
+    own = w.submit("act.newtongue", { cell: other.cell });
+  w.runTo(AT + 2);
+  const born = store.of(other.cell)!;
+  assert.equal(store.all().length, before + 1, "a new tongue");
+  assert.equal(born.parent, was.index, "a daughter of the one they spoke");
+  assert.equal(born.family, was.family);
+  assert.equal(w.events.get(born.event)!.causes[0]!.ref, own.id);
+});
+
+test("a faith founded by the god: its tenet the god's choosing, its land holding it", () => {
+  const w = fresh(),
+    ctx = populationContext(w),
+    land = [...ctx.provinces.all()].sort((x, y) => y.total() - x.total() || x.cell - y.cell)[3]!,
+    before = beliefOf(w).all().length;
+  const act = w.submit("act.faith", { cell: land.cell, tenet: "fire" });
+  w.runTo(AT + 1);
+  const f = beliefOf(w).all()[before]!;
+  assert.equal(f.tenet, "fire");
+  assert.equal(f.seat, land.cell);
+  assert.equal(beliefOf(w).of(land.cell).faith, f.ref, "the land holds it");
+  assert.equal(w.events.get(f.event)!.causes[0]!.ref, act.id);
+  assert.match(f.name, /Keepers of the Flame/);
+  assert.throws(
+    () => w.submit("act.faith", { cell: land.cell, tenet: "gold" }),
+    /a tenet is wanted/,
+  );
 });
 
 test("a world touched by the acts on its peoples replays, and its save continues, bit for bit", () => {

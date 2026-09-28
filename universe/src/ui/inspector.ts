@@ -593,6 +593,45 @@ export class PageWindow {
         box.append(w);
         break;
       }
+      case "chips": {
+        // What someone is like (Phase 14 M118): each a chip that opens its page.
+        const chips = el("div", "chips");
+        for (const c of b.chips) {
+          const chip = c.ref
+            ? this.link(`${c.icon} ${c.name}`, c.ref)
+            : el("span", undefined, `${c.icon} ${c.name}`);
+          chip.classList.add("chip");
+          if (c.words) chip.title = c.words;
+          chips.append(chip);
+        }
+        box.append(chips);
+        break;
+      }
+      case "tree": {
+        // A family's tree (Phase 14 M118): each generation a row, the eldest first.
+        const tree = el("div", "family-tree");
+        for (const r of b.rows) {
+          const row = el("div", "tree-row"),
+            people = el("div", "tree-people");
+          row.append(el("div", "tree-label", r.label));
+          for (const person of r.people) {
+            const cell = el(
+              "div",
+              `tree-person ${person.woman ? "woman" : "man"}${person.self ? " self" : ""}${person.dead ? " dead" : ""}`,
+            );
+            cell.append(
+              el("span", "tree-sign", person.dead ? "✝" : person.woman ? "♀" : "♂"),
+              this.line(person.name),
+              el("span", "tree-note", person.note),
+            );
+            people.append(cell);
+          }
+          row.append(people);
+          tree.append(row);
+        }
+        box.append(tree);
+        break;
+      }
       case "anatomy": {
         const canvas = el("canvas", "anatomy"),
           p = this.page?.portrait;

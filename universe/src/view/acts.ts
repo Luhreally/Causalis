@@ -513,6 +513,45 @@ function bitsOf(a: PlacedAct, s: number, scale: number, out: ActBit[]): void {
       }
       return;
     }
+    case "ways": {
+      // A people's ways pushed: bright motes spiralling up over the land.
+      for (let i = 0; i < 14; i++) {
+        const t = frac(s * 0.35 + i / 14),
+          turn = s * 1.2 + i * 2.4,
+          reach = 0.006 + 0.02 * t;
+        bit(
+          i % 2 ? "gold" : "glint",
+          at(Math.cos(turn) * reach, Math.sin(turn) * reach, 0.006 + 0.05 * t),
+          0.004,
+          0.004,
+          0.004,
+        );
+      }
+      return;
+    }
+    case "tongue":
+    case "faith": {
+      // A land taught a tongue, or a faith founded there: a ring in its colour, rising again and
+      // again; for a faith, a pillar of it too.
+      const color = a.color ?? [1, 1, 1];
+      for (let w = 0; w < 2; w++) {
+        const t = frac(s * 0.3 + w * 0.5);
+        for (let i = 0; i < 16; i++) {
+          const turn = (i * Math.PI * 2) / 16 + s * 0.3;
+          bit(
+            "halo",
+            at(Math.cos(turn) * 0.024, Math.sin(turn) * 0.024, 0.004 + 0.04 * t),
+            0.004 * (1 - t) + 0.001,
+            0.004 * (1 - t) + 0.001,
+            0.004 * (1 - t) + 0.001,
+            north,
+            color,
+          );
+        }
+      }
+      if (a.kind === "faith") bit("halo", at(0, 0, 0.04), 0.004, 0.08, 0.004, north, color);
+      return;
+    }
     case "conversion": {
       // A halo of the faith's colour turning over the land.
       const color = a.color ?? [1, 1, 1];

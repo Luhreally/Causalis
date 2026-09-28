@@ -2,6 +2,10 @@
 // The globe view's frame carries the planet's fields once — they do not change
 // until people change them — and the page colours them by whichever lens is on.
 import {
+  BLESSING,
+  PERSON_TRAITS,
+  PIOUS_BLESSING,
+  opposedTo,
   capacity,
   homePlanet,
   DEITIES,
@@ -128,6 +132,7 @@ import { realmColor } from "./colors.ts";
 import { hostKinds, realmArms } from "./arms.ts";
 import { villagePlan } from "./village.ts";
 import { landReadings } from "./lenses.ts";
+import { TRAIT_LOOK } from "./inspect/folk.ts";
 import { actsMap, paletteLand } from "./acts.ts";
 import { worldGlobe } from "./worlds.ts";
 import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
@@ -1109,6 +1114,16 @@ function planetUniverse(name: string, prior: Prior): Universe {
           age: year - a.birthYear,
           blessedUntil:
             a.blessedUntil !== undefined && a.blessedUntil > year ? a.blessedUntil : null,
+          // (How long the god's blessing would keep them: the pious the longer.)
+          blessing: Math.round(BLESSING * (a.traits?.includes("pious") ? PIOUS_BLESSING : 1)),
+          // (What they are like, for the god's hand to give or take: Phase 14 M118.)
+          traits: PERSON_TRAITS.map((t) => ({
+            id: t,
+            ...TRAIT_LOOK[t],
+            has: a.traits?.includes(t) ?? false,
+            // (Not to be given while they are its opposite: hardy and frail.)
+            barred: a.traits?.some((x) => x === opposedTo(t)) ?? false,
+          })),
           deeds: (w.notables ?? [])
             .filter((n) => n.agent === id)
             .map((n) => ({ event: n.deed, claim: why(world, n.deed).claim })),

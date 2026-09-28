@@ -8,7 +8,9 @@ import {
   HAND_EVENTS,
   LOCAL_ACT_EVENTS,
   PEOPLE_ACT_EVENTS,
+  WAYS_ACT_EVENTS,
   beliefOf,
+  languagesOf,
   politiesOf,
   populationContext,
   realmName,
@@ -18,6 +20,9 @@ import {
   type LandArgs,
   type PairArgs,
   type RealmArgs,
+  type FaithArgs,
+  type TongueArgs,
+  type WaysArgs,
 } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { principleName } from "./lore.ts";
@@ -97,6 +102,14 @@ registerEventWords(
 registerEventWords(LOCAL_ACT_EVENTS.inspireOne.type, (_, e) => {
   const p = (e.data as { principle?: string | null } | null)?.principle ?? null;
   return `By your hand: ${named(e.data, "one of your people")} was inspired${p ? `, and came upon ${principleName(p)}` : ", though there was nothing new their land could learn"}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(LOCAL_ACT_EVENTS.traitOne.type, (_, e) => {
+  const d = e.data as { trait?: string; on?: boolean } | null;
+  return `By your hand: ${named(e.data, "one of your people")} ${d?.on === false ? "was no longer" : "was made"} ${d?.trait ?? "other"}, year ${yearOfMoment(e.t)}`;
+});
+registerCommandWords("act.trait", (_, c) => {
+  const a = c.args as { trait?: string; on?: boolean };
+  return `Your act: you ${a.on === false ? "took from" : "gave"} one of the people under your hand ${a.on === false ? "their" : "a"} ${a.trait ?? "trait"}${a.on === false ? "" : " nature"}, year ${yearOfMoment(c.t)}`;
 });
 registerEventWords(LOCAL_ACT_EVENTS.blessOne.type, (_, e) => {
   const d = e.data as { age?: number; until?: number } | null;
@@ -233,3 +246,42 @@ for (const [kind, words] of [
     return `Your act: you ${kind === "bless" ? "blessed" : "cursed"} the lands of ${r}, year ${yearOfMoment(c.t)}`;
   });
 }
+
+// The god's hand on a people's ways, speech and faith (Phase 14 M117).
+const WAY_SAID: Readonly<Record<string, readonly [string, string]>> = {
+  kinship: ["less bound to their kin", "more bound to their kin"],
+  hierarchy: ["less given to rank", "more given to rank"],
+  piety: ["less devout", "more devout"],
+  valour: ["less warlike", "more warlike"],
+  trade: ["less given to trade", "more given to trade"],
+  openness: ["more wary of strangers", "more open to strangers"],
+  tradition: ["less bound by old custom", "more bound by old custom"],
+  thrift: ["freer with their stores", "more thrifty"],
+};
+const waySaid = (way: unknown, sign: unknown) =>
+  WAY_SAID[String(way)]?.[sign === -1 ? 0 : 1] ?? "changed in their ways";
+registerEventWords(WAYS_ACT_EVENTS.ways.type, (world, e) => {
+  const d = e.data as { way?: string; sign?: number } | null;
+  return `By your hand: the people of ${landWords(world, e.place as Ref | null)} grew ${waySaid(d?.way, d?.sign)}, year ${yearOfMoment(e.t)}`;
+});
+registerCommandWords("act.ways", (world, c) => {
+  const a = c.args as WaysArgs;
+  return `Your act: you made the people of ${landOf(world, c)} ${waySaid(a.way, a.sign)}, year ${yearOfMoment(c.t)}`;
+});
+registerEventWords(WAYS_ACT_EVENTS.tongue.type, (world, e) => {
+  const d = e.data as { name?: string } | null;
+  return `By your hand: ${landWords(world, e.place as Ref | null)} took up the ${d?.name ?? "new"} tongue, year ${yearOfMoment(e.t)}`;
+});
+registerCommandWords("act.tongue", (world, c) => {
+  const a = c.args as TongueArgs;
+  return `Your act: you taught ${landOf(world, c)} the ${languagesOf(world).get(a.language)?.name ?? "new"} tongue, year ${yearOfMoment(c.t)}`;
+});
+registerCommandWords(
+  "act.newtongue",
+  (world, c) =>
+    `Your act: you gave ${landOf(world, c)} a tongue of its own, year ${yearOfMoment(c.t)}`,
+);
+registerCommandWords("act.faith", (world, c) => {
+  const a = c.args as FaithArgs;
+  return `Your act: you founded a faith of ${a.tenet} in ${landOf(world, c)}, year ${yearOfMoment(c.t)}`;
+});

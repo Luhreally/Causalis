@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { DAY, YEAR } from "../../src/kernel/index.ts";
 import { makeToyWorld } from "../../src/sim/index.ts";
 import type { FrameMessage } from "../../src/bridge/index.ts";
-import type { WhyNode } from "../../src/host/index.ts";
+import { MemoryByteStore, type WhyNode } from "../../src/host/index.ts";
 import { rig } from "./harness.ts";
 
 test("a universe started through the host is the same world as one built directly", async () => {
@@ -87,6 +87,27 @@ test("saves round-trip through slots and through exported bytes", async () => {
   await other.settle(other.client.start("sandbox", "something else"));
   await other.settle(other.client.importSave(bytes));
   assert.deepEqual(await other.settle(other.client.query({ type: "hashes" })), saved);
+});
+
+test("the title screen's host: the worlds kept listed, and a kept file opened, before any world runs", async () => {
+  const storage = new MemoryByteStore(),
+    kept = rig(storage);
+  await kept.settle(kept.client.start("sandbox", "kept"));
+  await kept.settle(kept.client.advance(2 * YEAR));
+  await kept.settle(kept.client.save("sandbox:kept"));
+  const bytes = await kept.settle(kept.client.exportSave()),
+    hashes = await kept.settle(kept.client.query({ type: "hashes" }));
+  // A host with the same storage and no world: what is kept is listed.
+  const title = rig(storage);
+  const saves = await title.settle(title.client.saves());
+  assert.deepEqual(
+    saves.map((s) => [s.name, s.universe, s.seed, s.t]),
+    [["sandbox:kept", "sandbox", "kept", 2 * YEAR]],
+  );
+  // And a kept file, opened with no world running, is its own universe's world.
+  const got = await title.settle(title.client.importSave(bytes));
+  assert.deepEqual([got.universe, got.seed, got.t], ["sandbox", "kept", 2 * YEAR]);
+  assert.deepEqual(await title.settle(title.client.query({ type: "hashes" })), hashes);
 });
 
 test("frames carry the view's arrays, and speed follows the clock", async () => {

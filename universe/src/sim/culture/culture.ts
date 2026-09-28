@@ -215,6 +215,11 @@ export function driftedWays(
   return { cell, traits, base: [...traits], tongue, nudges: [], from };
 }
 
+/** Push a people's ways (a nudge kept among their strongest, the trait moved by it). */
+export function pushWays(w: Ways, nudge: Nudge): void {
+  push(w, nudge);
+}
+
 function push(w: Ways, nudge: Nudge): void {
   w.traits[nudge.trait] = dmath.clamp(w.traits[nudge.trait]! + nudge.amount, 0.02, 0.98);
   w.nudges.push(nudge);

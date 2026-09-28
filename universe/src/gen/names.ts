@@ -178,6 +178,27 @@ export function tonguePersonName(t: Tongue, key: number, sex: number): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+/**
+ * A tongue's sounds (Phase 14 M117), to be heard on its page: the beginnings of its syllables,
+ * its vowels, the sounds that close them, and the endings its place names take.
+ */
+export function tongueSounds(t: Tongue): {
+  readonly onsets: readonly string[];
+  readonly vowels: readonly string[];
+  readonly codas: readonly string[];
+  readonly endings: readonly string[];
+} {
+  const heard = (list: readonly string[], mask: number) => [
+    ...new Set(chosen(list, mask).filter((x) => x.length > 0)),
+  ];
+  return {
+    onsets: heard(ONSETS, t.onsets),
+    vowels: heard(VOWELS, t.vowels),
+    codas: heard(CODAS, t.codas),
+    endings: heard(ENDINGS, t.endings),
+  };
+}
+
 /** A sound lost or gained: `u` picks which part and which sound. A part never empties. */
 export function shiftTongue(t: Tongue, u: number): Tongue {
   const f = Math.floor(u * 4) % 4,

@@ -214,6 +214,27 @@ button:active {
 .welcome .choice small {
   color: #33477a;
 }
+.welcome.title-window h1 {
+  font-size: 2.5rem;
+}
+@media (max-width: 480px) {
+  .welcome.title-window h1 {
+    font-size: 1.85rem;
+  }
+}
+/* A choice made (a new world's kind, where it begins): lit sea-green. */
+.title-window .choice.on,
+.begin {
+  color: #032b24;
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #e9fff8 0%, #8ff3d6 46%, #43d9b2 54%, #a9f7e2 100%);
+  box-shadow:
+    0 0 0 2px rgba(111, 240, 207, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+.title-window .choice.on small {
+  color: #0d4a3d;
+}
 .walk {
   border: 1px solid var(--accent);
   background: rgba(8, 22, 60, 0.6);
@@ -2194,4 +2215,94 @@ body.with-palette .hint {
   .palette-words {
     white-space: normal;
   }
+}
+/* What someone is like (Phase 14 M118): each trait a glossy chip that opens its page. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.chips .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border: 1px solid var(--chrome-mid);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(120, 150, 220, 0.35) 0%, rgba(40, 60, 120, 0.5) 100%);
+  color: var(--ink);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+/* A family's tree: each generation a row, the eldest first, each person a small card. */
+.family-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tree-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.tree-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.tree-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.tree-person {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-left: 3px solid #6fa8ff;
+  border-radius: 4px;
+  background: rgba(8, 16, 44, 0.45);
+  font-size: 0.8rem;
+}
+.tree-person.woman {
+  border-left-color: #ff8fc6;
+}
+.tree-person.self {
+  border-color: var(--accent);
+  box-shadow: 0 0 6px rgba(111, 231, 255, 0.45);
+}
+.tree-person.dead {
+  opacity: 0.7;
+}
+.tree-sign {
+  color: var(--muted);
+}
+.tree-note {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+/* The palette's choices: which way pushed, and which way; which tenet a faith holds. */
+.palette-choices {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.palette-choices .speed {
+  padding: 1px 5px;
+  font-size: 0.8rem;
+}
+/* A map mode's choices under its legend (the ways lens: which way). */
+.legend-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 3px;
+}
+.legend-picks .speed {
+  padding: 1px 5px;
+  font-size: 0.8rem;
 }

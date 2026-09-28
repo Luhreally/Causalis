@@ -253,6 +253,26 @@ export class SimHost {
         case "unsubscribe":
           this.subscriptions.delete(m.id);
           return;
+        // (The worlds kept, and a kept file opened, need no world running: the title
+        // screen asks for them before any is.)
+        case "saves": {
+          this.reply(m.id, this.options.storage ? await listSaves(this.options.storage) : []);
+          return;
+        }
+        case "import": {
+          // A save of any universe this host knows: built by that universe's rules.
+          const doc = await decodeSave(m.bytes),
+            named = (doc.meta as { universe?: unknown } | undefined)?.universe,
+            universe =
+              (typeof named === "string" ? this.universes[named] : undefined) ?? this.universe;
+          if (!universe) throw new Error("that file does not say which universe it is of");
+          this.reply(m.id, {
+            t: this.load(universe, doc).now,
+            universe: universe.name,
+            seed: doc.seed,
+          });
+          return;
+        }
       }
       const world = this.world;
       if (!world) throw new Error("no universe is running");
@@ -304,27 +324,10 @@ export class SimHost {
           this.reply(m.id, { t: got.value.now, fellBack: got.fellBack });
           return;
         }
-        case "saves": {
-          this.reply(m.id, this.options.storage ? await listSaves(this.options.storage) : []);
-          return;
-        }
         case "export": {
           this.dropSteps();
           const bytes = await encodeSave(this.document());
           this.reply(m.id, bytes, [bytes.buffer as ArrayBuffer]);
-          return;
-        }
-        case "import": {
-          // A save of any universe this host knows: built by that universe's rules.
-          const doc = await decodeSave(m.bytes),
-            named = (doc.meta as { universe?: unknown } | undefined)?.universe,
-            universe =
-              (typeof named === "string" ? this.universes[named] : undefined) ?? this.universe!;
-          this.reply(m.id, {
-            t: this.load(universe, doc).now,
-            universe: universe.name,
-            seed: doc.seed,
-          });
           return;
         }
       }

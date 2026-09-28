@@ -467,15 +467,16 @@ for (const engine of engines) {
       }
       await page.close();
     }
-    // A first visit: the welcome, and a choice that starts a universe.
+    // A first visit: the title screen, and a new world begun from it.
     {
       const first = await browser.newPage({ viewport: { width: 390, height: 844 } });
       await first.goto(base);
-      await first.waitForSelector(".welcome .choice", { timeout: 20000 });
-      const choices = await first.$$eval(".welcome .choice", (bs) => bs.length);
-      await first.click(".welcome .choice");
-      await first.waitForURL(/universe=earth/, { timeout: 20000 });
-      console.log(`${(engine + " welcome").padEnd(24)} ${choices} ways to begin; Earth chosen`);
+      await first.waitForSelector(".title-menu .choice", { timeout: 20000 });
+      const choices = await first.$$eval(".title-menu .choice", (bs) => bs.length);
+      await first.click(".title-menu .choice:has-text('New world')");
+      await first.click(".title-form .begin", { timeout: 20000 });
+      await first.waitForURL(/universe=earth&seed=/, { timeout: 20000 });
+      console.log(`${(engine + " title").padEnd(24)} ${choices} choices; a new Earth begun`);
       await first.close();
     }
     // Keeping a world: save it from the saves page, see it listed, and take it up again.

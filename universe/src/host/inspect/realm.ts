@@ -3,8 +3,10 @@
 // its battles and its two hosts, a battle, and a war between the stars.
 import { cellRef, offworldSite } from "../../gen/index.ts";
 import {
+  beliefOf,
   designsOf,
   diplomacyOf,
+  languagesOf,
   homePlanet,
   loreOf,
   politiesOf,
@@ -37,7 +39,15 @@ import {
   yearAt,
   yearNow,
 } from "./words.ts";
-import { landLink, landTitle, realmLink, spotOfLand, townLink } from "./names.ts";
+import {
+  faithLink,
+  landLink,
+  landTitle,
+  languageLink,
+  realmLink,
+  spotOfLand,
+  townLink,
+} from "./names.ts";
 
 /** Where a realm is to be seen: its seat, on the globe. */
 export function realmPlace(world: World, ref: string): Place | null {
@@ -96,6 +106,15 @@ export function realmPageModel(world: World, ref: string): PageModel {
           ...(host
             ? [stat("Its host", [link(designWords(host.parts), host.ref)], { why: host.ref })]
             : []),
+          // (The faith and the tongue of its seat: Phase 14 M117.)
+          ...(() => {
+            const f = beliefOf(world).of(r.seat).faith,
+              l = languagesOf(world).of(r.seat);
+            return [
+              stat("Faith", f ? [faithLink(world, f)] : "the old beliefs"),
+              ...(l ? [stat("Tongue", [languageLink(world, l.ref)])] : []),
+            ];
+          })(),
           ...(r.ended !== null ? [stat("Fell", `year ${r.ended}`)] : []),
         ],
       },

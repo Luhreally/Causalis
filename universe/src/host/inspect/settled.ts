@@ -22,6 +22,7 @@ import {
   type Person,
 } from "../../causal/index.ts";
 import { yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
+import { FEMALE } from "../../rules/index.ts";
 import type { Block, Item, PageModel, Stat, Tab } from "../../bridge/index.ts";
 import { province, settlementFacts } from "../planet.ts";
 import { landEra, landHouse, peopleBody } from "../village.ts";
@@ -40,6 +41,7 @@ import {
   yearNow,
 } from "./words.ts";
 import { faithLink, landLink, languageLink, realmLink, townLink } from "./names.ts";
+import { TRAIT_LOOK, agentFamily, metChips, metFamily, traitChips } from "./folk.ts";
 
 const OCCUPATION_WORDS = ["child", "forager", "farmer", "herder", "crafter", "trader", "leader"];
 /** Each trait said low / middling / high. */
@@ -293,17 +295,18 @@ export function personPage(world: World, ref: string): PageModel {
                 ? [townLink(world, p.village), ", ", landLink(world, p.cell)]
                 : [landLink(world, p.cell)],
             ),
-            stat("Who", `a ${p.sex === 0 ? "woman" : "man"}, the household's ${p.role}`),
+            stat("Who", `a ${p.sex === FEMALE ? "woman" : "man"}, the household's ${p.role}`),
             ...(hh ? [stat("Household", [link(`The ${hh.surname} household`, hh.ref)])] : []),
-            ...(traits.length ? [stat("Character", traits.join(", "))] : []),
+
             ...(!p.alive ? [stat("Died", `year ${p.diedYear}`)] : []),
           ],
         },
+        ...(traits.length ? [metChips(traits)] : []),
         ...(hh
           ? [
               {
                 type: "list" as const,
-                title: "Their family",
+                title: "Their household",
                 items: hh.members
                   .filter((r) => r !== p.ref)
                   .map((r) => ledger.person(r))
@@ -321,6 +324,11 @@ export function personPage(world: World, ref: string): PageModel {
         { type: "tool", tool: "acts.person", args: { ref: p.ref } },
       ],
     },
+    // Their family as a tree (Phase 14 M118), as their household's roles tell it.
+    ...(() => {
+      const tree = metFamily(world, p);
+      return tree ? [{ id: "family", name: "Family", blocks: [tree] }] : [];
+    })(),
     {
       id: "life",
       name: "Life",
@@ -446,17 +454,44 @@ export function agentPage(world: World, ref: string): PageModel {
   const ctx = populationContext(world),
     year = yearOfMoment(world.now),
     town = ctx.settlements.get(w.village)!,
-    deeds = (w.notables ?? []).filter((n) => n.agent === id);
+    deeds = (w.notables ?? []).filter((n) => n.agent === id),
+    age = year - a.birthYear,
+    grown = age >= lifeOf(world).adulthood,
+    kin = new Map([...(w.gone ?? []), ...w.agents].map((k) => [k.id, k])),
+    named = (kid: number | undefined) => {
+      const k = kid === undefined ? undefined : kin.get(kid);
+      if (!k) return null;
+      const name = agentName(ctx, k as typeof a, town);
+      return "died" in k ? [`${name} († ${k.died})`] : [link(name, `agent:${k.id}`)];
+    },
+    children = [...kin.values()].filter((k) => k.mother === id || k.father === id).length,
+    traits = a.traits ?? [];
   return {
     ref,
     kind: "agent",
-    icon: "✋",
+    icon: grown ? "🧑" : "🧒",
+    portrait: {
+      kind: "person",
+      ref,
+      age,
+      span: peopleBody(world)?.span ?? 70,
+      occupation: a.occupation,
+      child: !grown,
+      era: landEra(world, w.cell),
+      body: peopleBody(world),
+    },
     title: agentName(ctx, a, town),
-    subtitle: ["Under the hand, in ", townLink(world, w.village)],
+    subtitle: [
+      `${age}, a ${a.sex === FEMALE ? "woman" : "man"}, under your hand in `,
+      townLink(world, w.village),
+    ],
     color: null,
-    place: { scale: "village", town: w.village },
+    place: { scale: "village", town: w.village, person: ref },
     stats: [
-      stat("Age", `${year - a.birthYear}`),
+      stat("Age", `${age}`),
+      stat("Work", grown ? (OCCUPATION_WORDS[a.occupation] ?? "") : "a child"),
+      stat("Children", `${children}`),
+      ...(traits.length ? [stat("Traits", traits.map((t) => TRAIT_LOOK[t].icon).join(" "))] : []),
       ...(a.blessedUntil !== undefined && a.blessedUntil > year
         ? [stat("Blessed", `until year ${a.blessedUntil}`)]
         : []),
@@ -466,6 +501,17 @@ export function agentPage(world: World, ref: string): PageModel {
         id: "overview",
         name: "Overview",
         blocks: [
+          ...(traits.length ? [traitChips(traits)] : []),
+          {
+            type: "facts",
+            rows: [
+              stat("Born", `year ${a.birthYear}`),
+              stat("Who", `a ${a.sex === FEMALE ? "woman" : "man"} of ${town.name}`),
+              ...(named(a.mother) ? [stat("Mother", named(a.mother)!)] : []),
+              ...(named(a.father) ? [stat("Father", named(a.father)!)] : []),
+              ...(named(a.partner) ? [stat("Partner", named(a.partner)!)] : []),
+            ],
+          },
           {
             type: "list",
             title: "Remembered for",
@@ -474,6 +520,9 @@ export function agentPage(world: World, ref: string): PageModel {
           { type: "tool", tool: "acts.agent", args: { id } },
         ],
       },
+      // Their family as a tree (Phase 14 M118): parents and grandparents, partner, children
+      // and grandchildren, those gone among them.
+      { id: "family", name: "Family", blocks: agentFamily(world, w, a) },
     ],
     followable: false,
     year,

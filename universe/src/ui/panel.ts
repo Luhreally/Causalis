@@ -56,7 +56,10 @@ export class SandboxPanel {
       speeds.append(b);
       this.speedButtons.push(b);
     }
-    bar.append(speeds);
+    // Back to the title screen: a new world, the worlds kept.
+    const home = el("button", "link", "🏠 Main menu");
+    home.onclick = () => (location.href = location.pathname);
+    bar.append(speeds, home);
     root.append(bar);
 
     const close = el("button", "close", "×");

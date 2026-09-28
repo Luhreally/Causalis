@@ -348,6 +348,7 @@ export async function runGenesis(o: {
       ? `Begin with the ${plan.people.name} wherever you will; history runs on from there, and every why can be asked.`
       : "Begin where you will; the world runs on from there.";
     row.replaceChildren(
+      toMenu,
       ...BEGINNINGS.map(([label, note, year]) => {
         const b = document.createElement("button"),
           small = document.createElement("small");
@@ -367,7 +368,12 @@ export async function runGenesis(o: {
   another.className = "link";
   another.textContent = "A world never seen ↻";
   another.onclick = () => o.another();
-  row.prepend(another);
+  // (And back to the title screen, at any stage.)
+  const toMenu = document.createElement("button");
+  toMenu.className = "link";
+  toMenu.textContent = "🏠 Main menu";
+  toMenu.onclick = () => (location.href = location.pathname);
+  row.prepend(toMenu, another);
   stage.onUpdate(() => {
     if (done || at < 0) return;
     const s = (performance.now() - started) / 1000,

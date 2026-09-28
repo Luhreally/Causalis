@@ -52,7 +52,11 @@ export class GlobeActs {
     this.acts = acts;
     // A halo for each faith's colour among them.
     const colors = new Set(
-      acts.filter((a) => a.kind === "conversion" && a.color).map((a) => a.color!.join(",")),
+      acts
+        .filter(
+          (a) => (a.kind === "conversion" || a.kind === "tongue" || a.kind === "faith") && a.color,
+        )
+        .map((a) => a.color!.join(",")),
     );
     for (const [key, b] of this.halos)
       if (!colors.has(key)) {

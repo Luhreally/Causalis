@@ -102,6 +102,17 @@ export function drawTool(
     case "acts.agent":
       void agentActs(into, args.id as number, ctx);
       return;
+    case "acts.person": {
+      // One of a family met is counted among their land's people: the god's hand touches
+      // them only where it rests, over their village (every one of whose people is then someone).
+      const note = el(
+        "p",
+        "muted",
+        "Your hand touches a person only where it rests: lay it on their village, and every one of its people is someone of their own — their families kept, their children born, what they are like yours to give or take.",
+      );
+      into.replaceChildren(el("h3", undefined, "Your hand"), note);
+      return;
+    }
     default:
       return;
   }
@@ -200,7 +211,19 @@ async function handOn(into: HTMLElement, ref: string, ctx: ToolContext): Promise
 
 /** The god's acts on one under the hand: inspire them, bless them. */
 async function agentActs(into: HTMLElement, id: number, ctx: ToolContext): Promise<void> {
-  const a = await ctx.client.query<{ name: string; blessedUntil: number | null } | null>({
+  const a = await ctx.client.query<{
+    name: string;
+    blessedUntil: number | null;
+    blessing: number;
+    traits: {
+      id: string;
+      icon: string;
+      name: string;
+      does: string;
+      has: boolean;
+      barred: boolean;
+    }[];
+  } | null>({
     type: "agent",
     args: { id },
   });
@@ -229,9 +252,27 @@ async function agentActs(into: HTMLElement, id: number, ctx: ToolContext): Promi
       tools,
       note,
       "Bless them",
-      `${first} will be spared death for twenty years, while your hand rests here.`,
+      `${first} will be spared death for ${a.blessing} years, while your hand rests here.`,
       act("act.bless-one"),
     );
   else parts.push(el("div", "fact act-line", `Blessed: spared death until year ${a.blessedUntil}`));
+  // What they are like, given or taken by the god's hand (Phase 14 M118).
+  const traits = el("div", "tools"),
+    traitNote = el("p", "note");
+  traitNote.hidden = true;
+  for (const t of a.traits.filter((x) => !x.barred))
+    twice(
+      traits,
+      traitNote,
+      `${t.has ? "Take" : "Give"} ${t.icon} ${t.name}`,
+      t.has
+        ? `${first} will be ${t.name.toLowerCase()} no more.`
+        : `${first} will be ${t.name.toLowerCase()}: ${t.does}.`,
+      async () => {
+        await ctx.client.command("act.trait", { agent: id, trait: t.id, on: !t.has });
+        ctx.refresh();
+      },
+    );
+  parts.push(el("h3", undefined, "What they are like"), traits, traitNote);
   into.replaceChildren(...parts);
 }

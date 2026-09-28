@@ -29,7 +29,10 @@ export type ActKindShown =
   | "settle"
   | "union"
   | "bless"
-  | "curse";
+  | "curse"
+  | "ways"
+  | "tongue"
+  | "faith";
 
 export type ActMark = {
   readonly kind: ActKindShown;
@@ -64,6 +67,12 @@ export type PaletteLand = {
     readonly foes: readonly string[];
   } | null;
   readonly faith: {
+    readonly ref: string;
+    readonly name: string;
+    readonly color: readonly [number, number, number];
+  } | null;
+  /** The tongue it speaks (Phase 14 M117). */
+  readonly tongue: {
     readonly ref: string;
     readonly name: string;
     readonly color: readonly [number, number, number];

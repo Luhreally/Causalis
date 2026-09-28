@@ -20,6 +20,7 @@ import { bodyPage, civilizationPage, foreignWorldPage, starPageModel } from "./s
 import { actPage, decisionPage, eventPage, unknownPage } from "./history.ts";
 import { chroniclePage, ledgerPage } from "./world.ts";
 import { statsPage } from "./stats.ts";
+import { traitPage } from "./folk.ts";
 import { alertsOf, breakdownOf, logPage, type Counted } from "./alerts.ts";
 import { answersOf } from "./answers.ts";
 import { comparePage } from "./compare.ts";
@@ -35,6 +36,7 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref === "world:stats") return statsPage(world, tab ?? undefined);
   if (ref.startsWith("compare:")) return comparePage(world, ref);
   if (ref.startsWith("concept:")) return conceptPage(world, ref);
+  if (ref.startsWith("trait:")) return traitPage(world, ref);
   if (ref.startsWith("gstar:")) return starPageModel(world, ref);
   if (ref.includes("/")) return foreignWorldPage(world, ref);
   if (ref.startsWith("agent:")) return agentPage(world, ref);
@@ -153,10 +155,12 @@ export function tipOf(world: World, ref: string, lens?: string): Tip {
     // (A concept is told by what it is, not by the kind of page it has.)
     what = p.kind === "concept" ? p.tabs[0]?.blocks.find((b) => b.type === "text") : undefined;
   // A land under one of the deeper lenses (Phase 12 M108): what makes its number, first.
+  // (The ways lens reads one way at a time: "ways:valour".)
   const land = ref.startsWith("cell:0:") ? Number(ref.slice(7)) : NaN,
+    [kind, way] = (lens ?? "").split(":"),
     reading =
-      lens && (DEEP_LENSES as readonly string[]).includes(lens) && Number.isInteger(land)
-        ? lensReading(world, land, lens as DeepLens)
+      kind && (DEEP_LENSES as readonly string[]).includes(kind) && Number.isInteger(land)
+        ? lensReading(world, land, kind as DeepLens, way)
         : null;
   if (reading)
     return { ref, icon: p.icon, title: p.title, line: reading.line, stats: reading.stats };

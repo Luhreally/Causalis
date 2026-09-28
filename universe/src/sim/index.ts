@@ -106,12 +106,27 @@ export {
   type ActKind,
 } from "./acts/acts.ts";
 export {
+  GONE_KEPT,
   HAND_EVENTS,
   HandStore,
+  PERSON_TRAITS,
+  PIOUS_BLESSING,
+  TRAIT_ANEW,
+  TRAIT_INHERITED,
+  TRAIT_SHARE,
+  TRAIT_WEIGHT,
+  TRAIT_WORK,
   bandOfAge,
+  drawTraits,
   handOf,
   installHand,
+  opposedTo,
+  pairUp,
+  traitWeight,
+  workWeights,
   type Agent,
+  type Gone,
+  type PersonTrait,
   type Window,
 } from "./hand/hand.ts";
 export {
@@ -242,7 +257,7 @@ export {
   layout,
   type City,
 } from "./city/city.ts";
-export { LOCAL_ACT_EVENTS, agentName, installLocalActs } from "./acts/local.ts";
+export { BLESSING, LOCAL_ACT_EVENTS, agentName, installLocalActs } from "./acts/local.ts";
 export {
   FORTUNE,
   PEOPLE_ACT_EVENTS,
@@ -257,6 +272,14 @@ export {
   type RealmArgs,
 } from "./acts/peoples.ts";
 export { DISASTER, DISASTER_EVENTS, installDisasters } from "./acts/disasters.ts";
+export {
+  WAYS_ACT_EVENTS,
+  WAYS_PUSH,
+  installWaysActs,
+  type FaithArgs,
+  type TongueArgs,
+  type WaysArgs,
+} from "./acts/ways.ts";
 export {
   GROUPS,
   interestsOf,

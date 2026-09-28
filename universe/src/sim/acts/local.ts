@@ -12,7 +12,17 @@ import { cradleTongue, tonguePersonName } from "../../gen/index.ts";
 import { COLS } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { Settlement } from "../population/stores.ts";
-import { handOf, type Agent } from "../hand/hand.ts";
+import {
+  PERSON_TRAITS,
+  PIOUS_BLESSING,
+  handOf,
+  opposedTo,
+  type Agent,
+  type PersonTrait,
+} from "../hand/hand.ts";
+
+/** How many years the god's blessing spares one of the people under the hand. */
+export const BLESSING = 20;
 import { cultureOf } from "../culture/culture.ts";
 import { citiesOf, USE } from "../city/city.ts";
 import { knows, loreOf } from "../lore/lore.ts";
@@ -23,6 +33,7 @@ export const LOCAL_ACT_EVENTS = {
   spring: defineEventType("act.spring", 5),
   inspireOne: defineEventType("act.inspire-one", 5),
   blessOne: defineEventType("act.bless-one", 4),
+  traitOne: defineEventType("act.trait", 4),
 };
 
 type PlaceArgs = { village: Ref };
@@ -175,7 +186,9 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
         id = (command.args as PersonArgs).agent,
         a = w.agents.find((x) => x.id === id)!,
         year = yearOfMoment(t);
-      a.blessedUntil = year + 20;
+      // (The pious are kept the longer.)
+      a.blessedUntil =
+        year + Math.round(BLESSING * (a.traits?.includes("pious") ? PIOUS_BLESSING : 1));
       const event = world.events.emit({
         type: LOCAL_ACT_EVENTS.blessOne.type,
         subjects: [w.village],
@@ -186,6 +199,55 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
           name: agentName(c, a, c.settlements.get(w.village)!),
           age: year - a.birthYear,
           until: a.blessedUntil,
+        },
+      });
+      w.notables = [...(w.notables ?? []), { agent: id, deed: event }];
+    },
+  });
+
+  // A trait given or taken (Phase 14 M118): what they are like, by the god's hand — and, for
+  // the traits that weigh on a life, how their life goes from then on.
+  world.defineCommand({
+    type: "act.trait",
+    validate: (args) => {
+      const bad = agent(args);
+      if (bad) return bad;
+      const a = args as { agent: number; trait?: unknown; on?: unknown },
+        t = a.trait as PersonTrait;
+      if (!(PERSON_TRAITS as readonly string[]).includes(String(a.trait)))
+        return `a trait is wanted: ${PERSON_TRAITS.join(", ")}`;
+      if (typeof a.on !== "boolean") return "on must be true (to give) or false (to take)";
+      const who = handOf(world).resting!.agents.find((x) => x.id === a.agent)!,
+        has = who.traits?.includes(t) ?? false;
+      if (a.on && has) return "they are so already";
+      if (!a.on && !has) return "they are not so";
+      const against = opposedTo(t);
+      return a.on && against && who.traits?.includes(against)
+        ? `the ${against} cannot be made ${t}: take that first`
+        : null;
+    },
+    apply: (command, t) => {
+      const c = ctx(),
+        w = handOf(world).resting!,
+        {
+          agent: id,
+          trait,
+          on,
+        } = command.args as { agent: number; trait: PersonTrait; on: boolean },
+        a = w.agents.find((x) => x.id === id)!,
+        year = yearOfMoment(t);
+      a.traits = on ? [...(a.traits ?? []), trait] : (a.traits ?? []).filter((x) => x !== trait);
+      const event = world.events.emit({
+        type: LOCAL_ACT_EVENTS.traitOne.type,
+        subjects: [w.village],
+        place: c.provinces.get(w.cell)!.ref,
+        causes: [{ ref: command.id, role: "agent", weight: 1 }],
+        data: {
+          agent: id,
+          name: agentName(c, a, c.settlements.get(w.village)!),
+          age: year - a.birthYear,
+          trait,
+          on,
         },
       });
       w.notables = [...(w.notables ?? []), { agent: id, deed: event }];

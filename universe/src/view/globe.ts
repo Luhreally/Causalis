@@ -26,6 +26,8 @@ export const LENSES = [
   "wealth",
   "knowledge",
   "growth",
+  "ways",
+  "belief",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -50,6 +52,8 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   wealth: "Wealth",
   knowledge: "Knowledge",
   growth: "Growth",
+  ways: "Ways",
+  belief: "Belief",
 };
 
 /** Each map mode's icon, for the map modes' bar (Phase 10 M96). */
@@ -74,6 +78,8 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   wealth: "💎",
   knowledge: "📜",
   growth: "📈",
+  ways: "🎭",
+  belief: "🕯️",
 };
 
 /** How every land stands toward the realm the diplomacy lens is of, in its colours. */
@@ -275,6 +281,34 @@ const GROWTH: readonly Stop[] = [
   [0.2, [0.06, 0.42, 0.2]],
 ];
 
+/** One of a people's ways, held little (cool) to much (warm) — Phase 14 M119. */
+const WAYS_RAMP: readonly Stop[] = [
+  [0.15, [0.16, 0.44, 0.84]],
+  [0.35, [0.5, 0.7, 0.9]],
+  [0.5, [0.82, 0.82, 0.76]],
+  [0.65, [0.96, 0.7, 0.4]],
+  [0.85, [0.86, 0.3, 0.16]],
+];
+
+/** What a land has seen of the god: favour green, wrath red, a portent violet (Phase 14 M120). */
+export const BELIEF_COLORS: Readonly<Record<"favour" | "wrath" | "portent", Rgb>> = {
+  favour: [0.3, 0.86, 0.42],
+  wrath: [0.92, 0.24, 0.2],
+  portent: [0.66, 0.4, 0.94],
+};
+
+/** A land's colour for what it has seen of the god: its most seen reading, the deeper the more. */
+export function beliefColor(favour: number, wrath: number, portent: number): Rgb | null {
+  const all = favour + wrath + portent;
+  if (!all) return null;
+  const most =
+      favour >= wrath && favour >= portent ? "favour" : wrath >= portent ? "wrath" : "portent",
+    c = BELIEF_COLORS[most],
+    k = Math.min(1, 0.35 + Math.log2(1 + all) / 4),
+    grey = 0.5;
+  return [grey + (c[0] - grey) * k, grey + (c[1] - grey) * k, grey + (c[2] - grey) * k];
+}
+
 /** How a deeper lens's value is laid on its ramp, and whether a land shows at all. */
 const DEEP: Readonly<
   Partial<
@@ -289,6 +323,7 @@ const DEEP: Readonly<
   wealth: { stops: WEALTH, at: (v) => Math.log10(Math.max(1, v)), shown: () => true },
   knowledge: { stops: KNOWLEDGE, at: (v) => v, shown: () => true },
   growth: { stops: GROWTH, at: (v) => v, shown: () => true },
+  ways: { stops: WAYS_RAMP, at: (v) => v, shown: () => true },
 };
 
 /** A biome's colour on the land lens. */
@@ -356,7 +391,8 @@ export function globeColors(
       case "faiths":
       case "tongues":
       case "diplomacy":
-      case "war": {
+      case "war":
+      case "belief": {
         const tongue = colors?.get(province);
         if (tongue) {
           // A land taken by force, still resenting it (Phase 11 M104): its taker's colour in
@@ -392,7 +428,8 @@ export function globeColors(
       case "strength":
       case "wealth":
       case "knowledge":
-      case "growth": {
+      case "growth":
+      case "ways": {
         const v = values?.get(province),
           deep = DEEP[lens];
         if (v !== undefined && deep && deep.shown(v)) col = ramp(deep.stops, deep.at(v));
@@ -542,6 +579,18 @@ export function lensLegend(lens: Lens): Legend {
       return { kind: "ramp", stops: stops(KNOWLEDGE), low: "little known", high: "much" };
     case "growth":
       return { kind: "ramp", stops: stops(GROWTH), low: "shrinking", high: "growing" };
+    case "ways":
+      return { kind: "ramp", stops: stops(WAYS_RAMP), low: "held little", high: "held much" };
+    case "belief":
+      return {
+        kind: "keys",
+        keys: [
+          [BELIEF_COLORS.favour, "your favour"],
+          [BELIEF_COLORS.wrath, "your wrath"],
+          [BELIEF_COLORS.portent, "your portents"],
+          [[0.4, 0.4, 0.38], "nothing seen of you"],
+        ],
+      };
     case "diplomacy":
       return {
         kind: "keys",

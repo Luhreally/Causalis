@@ -189,7 +189,7 @@ export function languagesOf(world: World): LanguageStore {
 }
 
 /** A new language's name: its speakers' word for their speech, never one already taken. */
-function freshName(store: LanguageStore, t: Tongue, key: number): string {
+export function freshName(store: LanguageStore, t: Tongue, key: number): string {
   const taken = new Set(store.all().map((l) => l.name));
   let name = languageName(t, key);
   for (let k = 1; k < 16 && taken.has(name); k++) name = languageName(t, key + 7919 * k);

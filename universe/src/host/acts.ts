@@ -8,6 +8,9 @@ import {
   ACT_EVENTS,
   BELIEF_EVENTS,
   DISASTER_EVENTS,
+  LANGUAGE_EVENTS,
+  WAYS_ACT_EVENTS,
+  languagesOf,
   LOCAL_ACT_EVENTS,
   PEOPLE_ACT_EVENTS,
   POLITY_EVENTS,
@@ -26,7 +29,7 @@ import {
 } from "../sim/index.ts";
 import type { ActKindShown, ActMark, ActsMap, PaletteLand } from "../bridge/index.ts";
 import { realmColor } from "./colors.ts";
-import { faithColor } from "./planet.ts";
+import { faithColor, languageColor } from "./planet.ts";
 import { landTitle } from "./inspect/names.ts";
 
 /** How long an act done in a moment (a fire, a war set, a land turned) plays on after it. */
@@ -186,6 +189,30 @@ export function actsMap(world: World): ActsMap {
           };
         break;
       }
+      case WAYS_ACT_EVENTS.ways.type: {
+        const at = landAt(cellOf(e.place));
+        if (at) mark = { kind: "ways", at, to: null, color: null };
+        break;
+      }
+      case WAYS_ACT_EVENTS.tongue.type:
+      case LANGUAGE_EVENTS.arose.type: {
+        const at = landAt(cellOf(e.place)),
+          l = languagesOf(world).of(cellOf(e.place));
+        if (byAct(e) && at)
+          mark = {
+            kind: "tongue",
+            at,
+            to: null,
+            color: l ? languageColor(l.family, l.index) : null,
+          };
+        break;
+      }
+      case BELIEF_EVENTS.founded.type: {
+        const at = landAt(cellOf(e.place));
+        if (byAct(e) && at)
+          mark = { kind: "faith", at, to: null, color: faithColor(e.subjects[0]!) };
+        break;
+      }
       case POLITY_EVENTS.seceded.type: {
         const at = landAt(cellOf(e.place));
         if (byAct(e) && at) mark = { kind: "rising", at, to: null, color: null };
@@ -218,6 +245,7 @@ export function paletteLand(world: World, cell: number): PaletteLand | null {
           people: 0,
           realm: null,
           faith: null,
+          tongue: null,
           towns: [],
         }
       : null;
@@ -243,6 +271,12 @@ export function paletteLand(world: World, cell: number): PaletteLand | null {
           }
         : null,
     faith: faith ? { ref: faith.ref, name: faith.name, color: faithColor(faith.ref) } : null,
+    tongue: (() => {
+      const l = languagesOf(world).of(cell);
+      return l && l.died === null
+        ? { ref: l.ref, name: l.name, color: languageColor(l.family, l.index) }
+        : null;
+    })(),
     towns: [...ctx.settlements.inProvince(cell)]
       .filter((t) => t.population > 0)
       .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))

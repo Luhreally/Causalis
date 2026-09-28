@@ -9,7 +9,7 @@ import type { CommandReceipt, HostClient, PaletteLand } from "../bridge/index.ts
 import type { Lit } from "../view/index.ts";
 import { el } from "./why.ts";
 
-type Target = "land" | "town" | "city" | "pair" | "faith" | "realm" | "world" | "star";
+type Target = "land" | "town" | "city" | "pair" | "faith" | "tongue" | "realm" | "world" | "star";
 
 type PaletteAct = {
   readonly id: string;
@@ -25,7 +25,32 @@ type PaletteAct = {
   readonly second?: "foe" | "friend";
   /** Whether it may fall on an empty land (settlers are sent into one). */
   readonly empty?: boolean;
+  /** What is chosen in the palette before it falls: a way to push, a faith's tenet. */
+  readonly choose?: "way" | "tenet";
 };
+
+/** A people's ways, each with its sign in the palette (Phase 14 M117), and on the map. */
+export const WAY_CHOICES: readonly (readonly [string, string, string])[] = [
+  ["kinship", "👪", "kinship"],
+  ["hierarchy", "👑", "rank"],
+  ["piety", "🙏", "piety"],
+  ["valour", "⚔️", "valour"],
+  ["trade", "💰", "trade"],
+  ["openness", "🤝", "openness to strangers"],
+  ["tradition", "📜", "old custom"],
+  ["thrift", "🏺", "thrift"],
+];
+/** A faith's tenets, each with its sign. */
+const TENETS: readonly (readonly [string, string, string])[] = [
+  ["rain", "💧", "the rain"],
+  ["plenty", "🌾", "plenty"],
+  ["sickness", "🌑", "sickness feared"],
+  ["healing", "💊", "healing"],
+  ["teaching", "📖", "teaching"],
+  ["presence", "☀️", "a presence"],
+  ["hunger", "🍂", "hunger"],
+  ["fire", "🔥", "the flame"],
+];
 
 const ACTS: Readonly<Record<string, PaletteAct>> = {
   rain: {
@@ -210,6 +235,37 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
     second: "friend",
   },
   bless: { id: "bless", icon: "🌟", name: "Bless a realm", target: "realm", command: "act.bless" },
+  // A people's ways, speech and faith in the god's hand (Phase 14 M117).
+  ways: {
+    id: "ways",
+    icon: "🎭",
+    name: "Push their ways",
+    target: "land",
+    command: "act.ways",
+    choose: "way",
+  },
+  tongue: {
+    id: "tongue",
+    icon: "🗣️",
+    name: "Teach a tongue",
+    target: "tongue",
+    command: "act.tongue",
+  },
+  newtongue: {
+    id: "newtongue",
+    icon: "💬",
+    name: "A tongue of their own",
+    target: "land",
+    command: "act.newtongue",
+  },
+  faith: {
+    id: "faith",
+    icon: "⛩️",
+    name: "Found a faith",
+    target: "land",
+    command: "act.faith",
+    choose: "tenet",
+  },
   curse: { id: "curse", icon: "🌑", name: "Curse a realm", target: "realm", command: "act.curse" },
 };
 
@@ -231,11 +287,12 @@ export const PALETTE_KINDS: readonly {
     name: "The peoples",
     acts: ["war", "peace", "friendship", "discord", "union"],
   },
+  { id: "realms", icon: "🏰", name: "A realm's fortunes", acts: ["rise", "bless", "curse"] },
   {
-    id: "realms",
-    icon: "🏰",
-    name: "A realm's fortunes",
-    acts: ["rise", "convert", "bless", "curse"],
+    id: "ways",
+    icon: "🎭",
+    name: "Ways, speech and faith",
+    acts: ["ways", "tongue", "newtongue", "faith", "convert"],
   },
   { id: "sky", icon: "🌍", name: "The world and its sun", acts: ["warm", "cool", "flare", "calm"] },
 ];
@@ -255,6 +312,11 @@ export class GodPalette {
   private readonly line = el("div", "palette-line");
   private readonly words = el("span", "palette-words");
   private readonly spans = el("span", "palette-years");
+  /** The choices an act asks for before it falls: which way, which way pushed; which tenet. */
+  private readonly choices = el("span", "palette-choices");
+  private way = "valour";
+  private waySign: 1 | -1 = 1;
+  private tenet = "rain";
   private readonly toggle = el("button", "palette-toggle", "✋");
   private kind = PALETTE_KINDS[0]!.id;
   private act: PaletteAct | null = null;
@@ -307,7 +369,7 @@ export class GodPalette {
       };
       this.spans.append(b);
     }
-    this.line.append(this.words, this.spans);
+    this.line.append(this.words, this.spans, this.choices);
     const bar = el("div", "palette-bar");
     bar.append(this.tabs, this.tiles);
     this.element.append(this.line, bar);
@@ -380,7 +442,7 @@ export class GodPalette {
     if (!a || (cell === null && !whole)) return;
     const land = cell === null ? null : await this.landAt(cell);
     if (cell !== null) this.over = { land, cell, town };
-    if ((a.target === "pair" || a.target === "faith") && !this.first) {
+    if ((a.target === "pair" || a.target === "faith" || a.target === "tongue") && !this.first) {
       const why = this.firstWhy(a, land);
       if (why) {
         this.say(why, "bad");
@@ -445,6 +507,7 @@ export class GodPalette {
   private firstWhy(a: PaletteAct, land: PaletteLand | null): string | null {
     if (!land) return "no one lives there";
     if (a.target === "faith") return land.faith ? null : "they hold only the old beliefs there";
+    if (a.target === "tongue") return land.tongue ? null : "they speak no tongue there";
     return land.realm ? null : `${land.name} is no realm's`;
   }
 
@@ -473,6 +536,27 @@ export class GodPalette {
             args: { cell: land.cell },
           };
         if (!land.people) return { words: `no one lives in ${land.name}`, args: null };
+        if (a.id === "ways") {
+          const w = WAY_CHOICES.find((x) => x[0] === this.way)!;
+          return {
+            words: `the people of ${land.name} ${this.waySign > 0 ? "more" : "less"} given to ${w[2]}`,
+            args: { cell: land.cell, way: this.way, sign: this.waySign },
+          };
+        }
+        if (a.id === "newtongue")
+          return land.tongue
+            ? {
+                words: `a tongue of their own for ${land.name}, grown from ${land.tongue.name}`,
+                args: { cell: land.cell },
+              }
+            : { words: `they speak no tongue in ${land.name} to grow from`, args: null };
+        if (a.id === "faith") {
+          const t = TENETS.find((x) => x[0] === this.tenet)!;
+          return {
+            words: `a faith of ${t[2]} founded in ${land.name}`,
+            args: { cell: land.cell, tenet: this.tenet },
+          };
+        }
         if (a.id === "quake" || a.id === "meteor" || a.id === "flood")
           return {
             words:
@@ -543,6 +627,17 @@ export class GodPalette {
           args: { realm: r.ref },
         };
       }
+      case "tongue": {
+        const tongue = this.first?.tongue;
+        if (!tongue) return { words: "touch a land that speaks the tongue first", args: null };
+        if (!land?.people) return { words: "no one lives there", args: null };
+        if (land.tongue?.ref === tongue.ref)
+          return { words: `they speak ${tongue.name} in ${land.name} already`, args: null };
+        return {
+          words: `${land.name} taught the ${tongue.name} tongue`,
+          args: { cell: land.cell, language: tongue.ref },
+        };
+      }
       case "faith": {
         const faith = this.first?.faith;
         if (!faith) return { words: "touch a land that holds the faith first", args: null };
@@ -583,6 +678,7 @@ export class GodPalette {
   private say(problem?: string, tone?: "bad"): void {
     const a = this.act;
     this.spans.hidden = !a?.lasting;
+    this.drawChoices();
     this.line.classList.toggle("bad", tone === "bad");
     if (problem) {
       this.words.replaceChildren(`${a?.icon ?? "✋"} ${problem}`);
@@ -618,6 +714,9 @@ export class GodPalette {
       faith: this.first?.faith
         ? `${this.first.faith.name}: now touch the land to turn`
         : "touch a land that holds the faith",
+      tongue: this.first?.tongue
+        ? `${this.first.tongue.name}: now touch the land to teach it`
+        : "touch a land that speaks the tongue",
       world: "touch the world",
       star: "touch the world under its sun",
     };
@@ -625,18 +724,20 @@ export class GodPalette {
       this.words.replaceChildren(`${a.icon} ${a.name}: ${asking[a.target]} · Esc puts it down`);
       return;
     }
-    if ((a.target === "pair" || a.target === "faith") && !this.first) {
+    if ((a.target === "pair" || a.target === "faith" || a.target === "tongue") && !this.first) {
       const why = this.firstWhy(a, land);
       this.line.classList.toggle("bad", !!why);
       this.words.replaceChildren(
-        `${a.icon} ${why ?? (a.target === "faith" ? `${land!.faith!.name}: touch to choose it` : `${land!.realm!.name}: touch to choose it`)}`,
+        `${a.icon} ${why ?? (a.target === "faith" ? `${land!.faith!.name}: touch to choose it` : a.target === "tongue" ? `${land!.tongue!.name}: touch to choose it` : `${land!.realm!.name}: touch to choose it`)}`,
       );
       return;
     }
     // (Still over what was just chosen: what is asked next.)
     if (
       (a.target === "pair" && this.first?.realm && land?.realm?.ref === this.first.realm.ref) ||
-      (a.target === "faith" && this.first && land?.cell === this.first.cell)
+      ((a.target === "faith" || a.target === "tongue") &&
+        this.first &&
+        land?.cell === this.first.cell)
     ) {
       this.words.replaceChildren(`${a.icon} ${asking[a.target]}`);
       return;
@@ -656,7 +757,8 @@ export class GodPalette {
     if (a) {
       if (this.first?.realm && a.target === "pair")
         for (const c of this.first.realm.lands) lit.set(c, "chosen");
-      if (this.first && a.target === "faith") lit.set(this.first.cell, "chosen");
+      if (this.first && (a.target === "faith" || a.target === "tongue"))
+        lit.set(this.first.cell, "chosen");
       if (land && a.target !== "world" && a.target !== "star") {
         const second = a.target === "pair" && this.first ? (a.second ?? "reach") : "reach",
           whole =
@@ -684,6 +786,40 @@ export class GodPalette {
         return b;
       }),
     );
+  }
+
+  /** The choices an act asks for: its ways and which way (a push), or its tenets (a faith). */
+  private drawChoices(): void {
+    const a = this.act;
+    this.choices.hidden = !a?.choose;
+    if (!a?.choose) {
+      this.choices.replaceChildren();
+      return;
+    }
+    const list = a.choose === "way" ? WAY_CHOICES : TENETS,
+      chosen = a.choose === "way" ? this.way : this.tenet,
+      buttons = list.map(([id, icon, words]) => {
+        const b = el("button", `speed palette-choice${id === chosen ? " on" : ""}`, icon);
+        b.title = words;
+        b.setAttribute("aria-label", words);
+        b.dataset.choice = id;
+        b.onclick = () => {
+          if (a.choose === "way") this.way = id;
+          else this.tenet = id;
+          this.say();
+        };
+        return b;
+      });
+    if (a.choose === "way") {
+      const sign = el("button", "speed palette-sign", this.waySign > 0 ? "➕" : "➖");
+      sign.title = this.waySign > 0 ? "more given to it" : "less given to it";
+      sign.onclick = () => {
+        this.waySign = this.waySign > 0 ? -1 : 1;
+        this.say();
+      };
+      buttons.unshift(sign);
+    }
+    this.choices.replaceChildren(...buttons);
   }
 
   private drawYears(): void {

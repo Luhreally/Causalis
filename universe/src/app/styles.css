@@ -619,6 +619,121 @@ body[data-scale="micro"] {
   color: var(--muted);
   font-size: 0.9rem;
 }
+/* The title screen: the world turning behind, the menu beside it (on a phone, under it). */
+.title-screen {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.title-sky {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.welcome.title-window {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  width: min(30rem, calc(100vw - 32px));
+  max-width: none;
+  margin: 9vh 0 6vh max(16px, 6vw);
+}
+@media (max-width: 900px) {
+  .welcome.title-window {
+    /* (Below the world: its middle and its reach, as the sky draws it.) */
+    margin: calc(min(24vh, 42vw) + min(34vw, 19vh) + 28px) auto 24px;
+  }
+}
+.title-lead {
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+.title-window .choices {
+  margin: 14px 0 6px;
+}
+.title-window .choice {
+  display: grid;
+  grid-template-columns: 2.2rem 1fr;
+  align-items: center;
+  column-gap: 8px;
+  width: 100%;
+  text-align: left;
+}
+.title-window .choice-icon {
+  grid-row: span 2;
+  font-size: 1.45rem;
+  text-align: center;
+}
+.title-window .choice-words {
+  font-weight: 700;
+}
+.title-window .choice small {
+  grid-column: 2;
+}
+.choice-row {
+  display: grid;
+  gap: 8px;
+}
+.title-form h2 {
+  margin: 4px 0 2px;
+  font-size: 1.2rem;
+}
+.title-form h3 {
+  margin: 14px 0 6px;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.title-form > .muted {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+}
+.seed-row {
+  display: flex;
+  gap: 8px;
+}
+.seed-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+  background: #081231;
+  border: 2px solid;
+  border-color: var(--chrome-lo) var(--chrome-hi) var(--chrome-hi) var(--chrome-lo);
+  border-radius: 5px;
+}
+.seed-roll {
+  min-width: 44px;
+  font-size: 1.2rem;
+}
+.title-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+.begin {
+  min-height: 42px;
+  padding: 6px 24px;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.title-back {
+  margin-top: 10px;
+}
+.title-how {
+  margin: 10px 0 0;
+}
+.title-how li + li {
+  margin-top: 6px;
+}
 /* A line that opens a page of its own (a lineage, a realm, a deposit, a plate). */
 .page-line::after {
   content: " ›";

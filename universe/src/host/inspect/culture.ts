@@ -1,16 +1,23 @@
 // The pages of what people hold in common (Phase 10 M91): a faith, a tongue, a design (how
 // a people builds, what a realm's host fights with, a land's works) and a good in a land's
 // market.
-import { cellRef } from "../../gen/index.ts";
+import {
+  cellRef,
+  tongueName,
+  tonguePersonName,
+  tongueSounds,
+  type Tongue,
+} from "../../gen/index.ts";
 import { DEITIES, beliefOf, designsOf, languagesOf, populationContext } from "../../sim/index.ts";
 import { designWords } from "../../rules/index.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
-import type { PageModel, Place, Row, Tab } from "../../bridge/index.ts";
+import type { Block, PageModel, Place, Row, Tab } from "../../bridge/index.ts";
 import { market } from "../planet.ts";
 import { realmColor } from "../colors.ts";
 import { count, eventsAbout, item, link, many, stat, yearNow } from "./words.ts";
 import { faithLink, landLink, landTitle, languageLink, realmLink, spotOfLand } from "./names.ts";
 import { landPlace } from "./land.ts";
+import { peopleBlocks } from "./peoples.ts";
 import { realmPlace } from "./realm.ts";
 
 function globeAt(world: World, cell: number): Place | null {
@@ -91,6 +98,74 @@ export function faithPage(world: World, ref: string): PageModel {
 }
 
 /** A tongue: its family, where it is spoken and by how many, what grew from it. */
+/** A tongue heard: its sounds, words in it, how it names people and places, what it changed. */
+function speechBlocks(
+  l: { name: string; standard: Tongue; born: number },
+  parent: { name: string; standard: Tongue } | null,
+): Block[] {
+  const sounds = tongueSounds(l.standard),
+    said = (xs: readonly string[]) => (xs.length ? xs.join(" · ") : "—"),
+    blocks: Block[] = [
+      {
+        type: "facts",
+        title: "Its sounds",
+        rows: [
+          stat("Syllables begin", said(sounds.onsets)),
+          stat("Its vowels", said(sounds.vowels)),
+          stat("Syllables close", said(sounds.codas)),
+          stat("Its places end", said(sounds.endings)),
+        ],
+      },
+      {
+        type: "facts",
+        title: "Words in it",
+        rows: [
+          stat(
+            "Places",
+            [0, 1, 2, 3, 4].map((k) => tongueName(l.standard, l.born * 31 + k)).join(", "),
+          ),
+          stat(
+            "Women",
+            [0, 1, 2, 3].map((k) => tonguePersonName(l.standard, l.born * 17 + k, 0)).join(", "),
+          ),
+          stat(
+            "Men",
+            [0, 1, 2, 3].map((k) => tonguePersonName(l.standard, l.born * 17 + k, 1)).join(", "),
+          ),
+        ],
+      },
+    ];
+  if (parent) {
+    const was = tongueSounds(parent.standard),
+      change = (a: readonly string[], b: readonly string[]) => ({
+        lost: a.filter((x) => !b.includes(x)),
+        gained: b.filter((x) => !a.includes(x)),
+      }),
+      parts = [
+        ["beginnings", change(was.onsets, sounds.onsets)],
+        ["vowels", change(was.vowels, sounds.vowels)],
+        ["closings", change(was.codas, sounds.codas)],
+        ["endings", change(was.endings, sounds.endings)],
+      ] as const,
+      lines = parts
+        .filter(([, c]) => c.lost.length || c.gained.length)
+        .map(([part, c]) => [
+          `Its ${part}: ${[
+            ...(c.lost.length ? [`lost ${c.lost.join(", ")}`] : []),
+            ...(c.gained.length ? [`gained ${c.gained.join(", ")}`] : []),
+          ].join("; ")}`,
+        ]);
+    blocks.push({
+      type: "text",
+      title: `What changed from ${parent.name}`,
+      lines: lines.length
+        ? lines
+        : [["Its sounds are its mother tongue's: it drifted in its words."]],
+    });
+  }
+  return blocks;
+}
+
 export function languagePage(world: World, ref: string): PageModel {
   const store = languagesOf(world),
     l = store.get(ref as Ref);
@@ -126,6 +201,10 @@ export function languagePage(world: World, ref: string): PageModel {
         { type: "why", title: "How it arose", ref: l.ref },
       ],
     },
+    // Its people read (Phase 14 M119): the god as they name it, their ways, faiths, realms,
+    // numbers; and its speech, to be heard (M117).
+    { id: "people", name: "People", blocks: peopleBlocks(world, l) },
+    { id: "speech", name: "Speech", blocks: speechBlocks(l, parent) },
     {
       id: "lands",
       name: "Lands",

@@ -5,6 +5,8 @@
 import type { Ref, World } from "../kernel/index.ts";
 import { GOODS } from "../rules/index.ts";
 import {
+  WAY_TRAITS,
+  cultureOf,
   fieldedParts,
   loreOf,
   marketsOf,
@@ -17,9 +19,18 @@ import { principleName } from "../causal/index.ts";
 import { landEra } from "./village.ts";
 import { ERA_WORDS } from "./inspect/world.ts";
 import { bare, claimOf, count, share } from "./inspect/words.ts";
+import { beliefOfLand, godSeen, seenWords } from "./inspect/peoples.ts";
 
 /** The lenses read here, beside the people's own (people, food, trade). */
-export const DEEP_LENSES = ["unrest", "strength", "wealth", "knowledge", "growth"] as const;
+export const DEEP_LENSES = [
+  "unrest",
+  "strength",
+  "wealth",
+  "knowledge",
+  "growth",
+  "ways",
+  "belief",
+] as const;
 export type DeepLens = (typeof DEEP_LENSES)[number];
 
 /** The years a land's growth is reckoned over. */
@@ -37,6 +48,10 @@ export type LandReadings = {
   readonly knowledge: number;
   /** Its people's rise (or fall) these ten years, as a share of what they were. */
   readonly growth: number;
+  /** Its people's ways, each of the eight (Phase 14 M119). */
+  readonly ways: readonly number[];
+  /** What it has seen of the god's hand: favour, wrath, portents (Phase 14 M120). */
+  readonly belief: readonly [number, number, number];
 };
 
 /** The ids a land knows: its lore, and sowing and smelting, which it knows in its own ways. */
@@ -80,7 +95,9 @@ function peopleThen(
 export function landReadings(world: World): (cell: number) => LandReadings {
   const ctx = populationContext(world),
     realms = politiesOf(world),
-    fielded = new Map<string, number>();
+    fielded = new Map<string, number>(),
+    culture = cultureOf(world),
+    seen = godSeen(world);
   return (cell) => {
     const realm = realms.of(cell);
     let strength = 0;
@@ -100,6 +117,11 @@ export function landReadings(world: World): (cell: number) => LandReadings {
       wealth: worthOf(world, cell) / Math.max(1, ctx.provinces.get(cell)?.total() ?? 0),
       knowledge: knownIn(world, cell).size,
       growth: grown.then ? grown.now / grown.then - 1 : 0,
+      ways: culture.get(cell)?.traits.map((v) => Math.round(v * 1000) / 1000) ?? [],
+      belief: (() => {
+        const b = beliefOfLand(seen.get(cell));
+        return [b.favour, b.wrath, b.portent] as const;
+      })(),
     };
   };
 }
@@ -131,7 +153,12 @@ export type Reading = {
 };
 
 /** A land under one of the deeper lenses, broken down (null: not a land of the people). */
-export function lensReading(world: World, cell: number, lens: DeepLens): Reading | null {
+export function lensReading(
+  world: World,
+  cell: number,
+  lens: DeepLens,
+  way?: string,
+): Reading | null {
   const ctx = populationContext(world),
     prov = ctx.provinces.get(cell);
   if (!prov) return null;
@@ -193,6 +220,35 @@ export function lensReading(world: World, cell: number, lens: DeepLens): Reading
             value: newest ? `${principleName(newest[0])} (year ${count(newest[1].year)})` : "—",
           },
         ],
+      };
+    }
+    case "ways": {
+      // One of their ways, and what pushed it (Phase 14 M119).
+      const ways = cultureOf(world).get(cell);
+      if (!ways) return { line: "Ways: they have none of their own yet", stats: [] };
+      const i = Math.max(0, WAY_TRAITS.indexOf((way ?? "valour") as (typeof WAY_TRAITS)[number])),
+        pushes = ways.nudges.filter((n) => n.trait === i).slice(0, 3);
+      return {
+        line: `Ways: ${WAY_TRAITS[i]} ${share(ways.traits[i]!)}`,
+        stats: [
+          { label: "What they return to", value: share(ways.base[i]!) },
+          ...pushes.map((n) => ({
+            label: `${n.amount > 0 ? "+" : "−"}${share(Math.abs(n.amount))}, year ${n.year}`,
+            value: briefly(world, n.event),
+          })),
+        ],
+      };
+    }
+    case "belief": {
+      // What they have seen of the god's hand (Phase 14 M120).
+      const had = godSeen(world).get(cell),
+        b = beliefOfLand(had);
+      return {
+        line: `Belief: favour ${b.favour}, wrath ${b.wrath}, portents ${b.portent}`,
+        stats: [...(had ?? [])]
+          .sort((x, y) => y[1] - x[1])
+          .slice(0, 4)
+          .map(([k, n]) => ({ label: seenWords(k), value: `×${n}` })),
       };
     }
     case "growth": {

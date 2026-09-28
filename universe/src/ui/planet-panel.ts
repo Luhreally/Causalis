@@ -172,6 +172,9 @@ export type PeopleEntry = {
   wealth: number;
   knowledge: number;
   growth: number;
+  /** Their ways, each of the eight, and what they have seen of the god: favour, wrath, portents (Phase 14). */
+  ways: readonly number[];
+  belief: readonly [number, number, number];
 };
 
 /** A people's ways and speech (the host's waysOf). */
@@ -398,6 +401,11 @@ export class PlanetPanel {
     name: "high",
     fps: 0,
   });
+  /** Whether the view turns slowly when left alone (off unless chosen), and its choosing. */
+  driftNow: () => boolean = () => false;
+  onDrift: (on: boolean) => void = () => {};
+  /** Back to the title screen (the world kept first); says how it goes. */
+  onMenu: () => Promise<string> = async () => "";
   /** The bar at the top, where the guided walk shows. */
   readonly bar = el("header", "bar");
   onClose: () => void = () => {};
@@ -461,11 +469,19 @@ export class PlanetPanel {
     back.onclick = () => void this.showSaves();
     const help = menuButton("❓", "Help"),
       settings = menuButton("⚙️", "Settings"),
+      // Back to the title screen: Continue, a new world, the worlds kept.
+      title = menuButton("🏠", "Main menu"),
       // The world's own beginning, from the galaxy's birth to its first people (M89).
       origin = menuButton("🌱", "Its beginning");
     origin.onclick = () => this.onGenesis();
     help.onclick = () => this.onHelp();
     settings.onclick = () => void this.showSettings();
+    title.onclick = async () => {
+      title.disabled = true;
+      said.textContent = " keeping the world…";
+      said.textContent = ` ${await this.onMenu()}`;
+      title.disabled = false;
+    };
     // Its words on a line of their own (one line on a desk; a phone leaves them out), then its menu.
     this.worldText.className = "world-about";
     const menu = el("span", "world-menu");
@@ -480,6 +496,7 @@ export class PlanetPanel {
       back,
       help,
       settings,
+      title,
       said,
     );
     this.world.append(this.worldText, menu);
@@ -1156,7 +1173,32 @@ export class PlanetPanel {
       if (this.title.textContent !== "Settings") clearInterval(tick);
       else draw();
     }, 1000);
-    this.facts.replaceChildren(el("h3", undefined, "Quality"), list, rate);
+    // The view: still as it was left, or turning slowly when left alone.
+    const view = el("div"),
+      drawView = () =>
+        view.replaceChildren(
+          ...(
+            [
+              [false, "Still — the world stays as you left it"],
+              [true, "Turning — the world turns slowly when left alone"],
+            ] as const
+          ).map(([on, words]) => {
+            const b = el("button", `line${this.driftNow() === on ? " chosen" : ""}`, words);
+            b.onclick = () => {
+              this.onDrift(on);
+              drawView();
+            };
+            return b;
+          }),
+        );
+    drawView();
+    this.facts.replaceChildren(
+      el("h3", undefined, "Quality"),
+      list,
+      rate,
+      el("h3", undefined, "The view"),
+      view,
+    );
     this.whyBox.replaceChildren(
       el(
         "p",
