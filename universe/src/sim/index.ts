@@ -283,6 +283,7 @@ export {
   installNatureActs,
   lineageNature,
   natureOf,
+  tameNow,
 } from "./acts/natures.ts";
 export {
   WAYS_ACT_EVENTS,

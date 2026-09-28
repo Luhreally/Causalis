@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
-import { politiesOf, populationContext } from "../../src/sim/index.ts";
+import { politiesOf, populationContext, tameNow } from "../../src/sim/index.ts";
 import type { Block, PageModel } from "../../src/bridge/index.ts";
 
 // Phase 15 M125: a household's and a person's things, watched. The first light's world at 300,
@@ -155,4 +155,12 @@ test("natures in the god's hand, on their pages: a person's ways of being, a rea
   world.submit("act.nature", { ref: beast.ref, trait: "docility", sign: 1 });
   world.runTo(world.now + 2);
   assert.ok(Math.abs(tame() - Math.min(1, was + 0.25)) < 1e-9);
+  // Tame or not, the same in its facts, its tool and its lands' lists, as the world has it now.
+  const facts = of(blocks(page(beast.ref), "overview"), "facts")[0]!,
+    now = tameNow(world, beast);
+  assert.equal(
+    facts.rows.some((r) => r.label === "Tame"),
+    now,
+  );
+  assert.equal(tool(page(beast.ref), "acts.lineage")!.args.tame, now);
 });

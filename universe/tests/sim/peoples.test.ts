@@ -11,35 +11,36 @@ import {
   type World,
 } from "../../src/kernel/index.ts";
 import {
-  BELIEF_EVENTS,
-  DISASTER,
-  DISASTER_EVENTS,
-  FORTUNE,
-  PEOPLE_ACT_EVENTS,
-  POLITY_EVENTS,
-  REGARD,
-  SETTLERS,
-  WAR_EVENTS,
-  NATURE_EVENTS,
-  NATURE_PUSH,
-  WAYS_ACT_EVENTS,
-  WAYS_PUSH,
-  WAY,
   actsOf,
+  BELIEF_EVENTS,
   beliefOf,
   cultureOf,
   diplomacyOf,
+  DISASTER,
+  DISASTER_EVENTS,
+  FORTUNE,
   frontier,
   languagesOf,
   lineageNature,
   livableFor,
   makePopulationWorld,
   marketsOf,
+  NATURE_EVENTS,
+  NATURE_PUSH,
+  PEOPLE_ACT_EVENTS,
   politiesOf,
-  populationContext,
-  settlersFrom,
-  warsOf,
   type Polity,
+  POLITY_EVENTS,
+  populationContext,
+  REGARD,
+  SETTLERS,
+  settlersFrom,
+  tameNow,
+  WAR_EVENTS,
+  warsOf,
+  WAY,
+  WAYS_ACT_EVENTS,
+  WAYS_PUSH,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
 
@@ -443,6 +444,18 @@ test("a realm's ways pushed across all its lands at once; a lineage made tamer a
     () => w.submit("act.nature", { ref: beast.ref, trait: "wings", sign: 1 }),
     /a nature is wanted/,
   );
+  // A beast bred tame, made wild, is tame no longer; a wild one made tame is.
+  const tame = life.species.find((x) => x.died === null && x.tame && x.niche === "grazer")!,
+    wild = life.species.find(
+      (x) => x.died === null && !x.tame && x.niche !== "seed grass" && x.niche !== "upright ape",
+    )!;
+  assert.deepEqual([tameNow(w, tame), tameNow(w, wild)], [true, false]);
+  for (const _ of [1, 2, 3, 4]) {
+    w.submit("act.nature", { ref: tame.ref, trait: "docility", sign: -1 });
+    w.submit("act.nature", { ref: wild.ref, trait: "docility", sign: 1 });
+  }
+  w.runTo(AT + 3);
+  assert.deepEqual([tameNow(w, tame), tameNow(w, wild)], [false, true]);
 });
 
 test("a world touched by the acts on its peoples replays, and its save continues, bit for bit", () => {

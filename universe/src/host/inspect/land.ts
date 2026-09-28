@@ -18,6 +18,7 @@ import {
   populationContext,
   realmName,
   starSitesOf,
+  tameNow,
   wildsOf,
 } from "../../sim/index.ts";
 import { folkRef, waysRef } from "../../causal/index.ts";
@@ -336,7 +337,7 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           [
             `${lineageIcon(s.niche, (s.body?.wings ?? 0) > 0 && s.body?.moves === "fly")} `,
             link(s.name, s.ref),
-            ` — ${s.niche}${s.tame ? ", can be tamed" : ""}${lost.has(s.index) ? ", driven out" : ""}`,
+            ` — ${s.niche}${tameNow(world, s) ? ", can be tamed" : ""}${lost.has(s.index) ? ", driven out" : ""}`,
           ],
           s.ref,
         ),

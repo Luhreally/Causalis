@@ -38,7 +38,7 @@ import {
   WATER,
 } from "../../gen/index.ts";
 import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
-import { lineageNature } from "../acts/natures.ts";
+import { lineageNature, tameNow } from "../acts/natures.ts";
 import {
   FLOCK_LOSS,
   ecologyOf,
@@ -1205,14 +1205,15 @@ function herdingYear(ctx: PopulationContext, t: SimTime): void {
   const { world, generated: g } = ctx,
     year = yearOfMoment(t),
     made: { p: Province; from: Province | null; beast: number; chance: number }[] = [],
-    // The beasts the god has made tame enough to herd (none, in a world the god has not touched).
+    // The beasts whose nature the god has changed and that are tame now (none, in a world the
+    // god has not touched).
     tamed = g.life.species.filter(
       (s) =>
         s.died === null &&
         s.niche !== "seed grass" &&
         s.niche !== "upright ape" &&
         actsOf(world).nature(s.ref)?.docility !== undefined &&
-        lineageNature(world, s).docility >= 0.6,
+        tameNow(world, s),
     ),
     tamedHere = (cell: number) => tamed.find((s) => lives(g.life, cell, s.index))?.index ?? -1;
   for (const p of ctx.provinces.all()) {
@@ -1228,8 +1229,10 @@ function herdingYear(ctx: PopulationContext, t: SimTime): void {
         made.push({ p, from: teachers[0]!, beast: -1, chance: 0 });
       continue;
     }
-    // (A beast the god has tamed may be herded where none could be: Phase 16.)
-    const beast = g.life.herdBeast[p.cell]! >= 0 ? g.life.herdBeast[p.cell]! : tamedHere(p.cell);
+    // (A beast the god has tamed may be herded where none could be, and one the god has made
+    // wild is taken to by none: Phase 16.)
+    const bred = g.life.herdBeast[p.cell]!,
+      beast = bred >= 0 && tameNow(world, g.life.species[bred]!) ? bred : tamedHere(p.cell);
     if (beast < 0) continue;
     const s = g.life.species[beast]!,
       nature = lineageNature(world, s),

@@ -28,7 +28,14 @@ import {
   surfaceCopper,
   type SystemBody,
 } from "../gen/index.ts";
-import { civilizationsNear, clusterOf, homePlanet, starSitesOf } from "../sim/index.ts";
+import {
+  civilizationsNear,
+  clusterOf,
+  homePlanet,
+  lineageNature,
+  starSitesOf,
+  tameNow,
+} from "../sim/index.ts";
 import { edges, registerExplainer, type Explanation } from "./why.ts";
 
 const BOUNDARY_WORDS = ["", "converging", "spreading", "sliding"];
@@ -210,7 +217,7 @@ registerExplainer(SPECIES.code, (world, ref) => {
   const body =
     s.niche === "seed grass"
       ? `a grass${s.seed > 0.45 ? " whose seed is heavy enough to sow" : " of light seed"}`
-      : `${s.body ? creatureWords(s.body, s.niche) : `a ${s.niche} of ${s.size} kg`}${s.herd > 0.5 ? ", living in herds" : ""}${s.docility > 0.4 ? ", docile" : ", wild-tempered"}${s.tame ? ": a beast that can be tamed" : ""}`;
+      : `${s.body ? creatureWords(s.body, s.niche) : `a ${s.niche} of ${s.size} kg`}${s.herd > 0.5 ? ", living in herds" : ""}${lineageNature(world, s).docility > 0.4 ? ", docile" : ", wild-tempered"}${tameNow(world, s) ? ": a beast that can be tamed" : ""}`;
   const life =
     s.died === null
       ? `it ranges over ${Math.max(1, Math.round((100 * range) / Math.max(1, land)))}% of the land`

@@ -181,7 +181,7 @@ export function drawTool(
           "muted",
           args.tame
             ? "Tame enough to herd: a settled people where it lives may take to herding it."
-            : "Made tame enough, a settled people where it lives may take to herding it.",
+            : "Too wild to herd. Made tame enough, a settled people where it lives may take to herding it; those who herd it already keep their flocks.",
         ),
       );
       return;
@@ -205,7 +205,10 @@ function natureRow(
     bar = el("span", "nature-bar"),
     fill = el("span", "nature-fill"),
     less = el("button", "tool nature-push", "−"),
-    more = el("button", "tool nature-push", "+");
+    more = el("button", "tool nature-push", "+"),
+    // (A refusal said under the row, where a touch can read it.)
+    refused = el("p", "note nature-refused");
+  refused.hidden = true;
   fill.style.width = `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
   bar.append(fill);
   less.title = `Toward ${low}`;
@@ -219,13 +222,21 @@ function natureRow(
     try {
       await push(sign);
     } catch (error) {
-      row.title = (error as Error).message;
+      refused.textContent = (error as Error).message;
+      refused.hidden = false;
       less.disabled = more.disabled = false;
     }
   };
   less.onclick = go(-1);
   more.onclick = go(1);
-  row.append(less, el("span", "nature-end", low), bar, el("span", "nature-end high", high), more);
+  row.append(
+    less,
+    el("span", "nature-end", low),
+    bar,
+    el("span", "nature-end high", high),
+    more,
+    refused,
+  );
   return row;
 }
 

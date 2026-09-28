@@ -10,6 +10,7 @@ import { WATER, livingIn, type Species } from "../gen/index.ts";
 import { G, OCC, roofPitch } from "../rules/index.ts";
 import {
   agentName,
+  beliefOf,
   BLOCK_M,
   blockAt,
   BLOCKS,
@@ -17,7 +18,6 @@ import {
   designsOf,
   handOf,
   houseFor,
-  beliefOf,
   lifeOf,
   loreOf,
   marketsOf,
@@ -25,6 +25,7 @@ import {
   populationContext,
   realmName,
   regionOf,
+  tameNow,
   toolMetal,
   USE,
   warsOf,
@@ -440,7 +441,8 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
   function flockBeast(cell: number, herding: Ref): Species | null {
     const life = ctx.generated.life,
       own = life.herdBeast[cell] ?? -1;
-    if (own >= 0) return life.species[own]!;
+    // (Its own, while it is tame: one the god has made wild was herded, if at all, before.)
+    if (own >= 0 && tameNow(world, life.species[own]!)) return life.species[own]!;
     let ref: Ref | null = herding;
     for (let hops = 0; ref && hops < 64; hops++) {
       const e = world.events.get(ref);

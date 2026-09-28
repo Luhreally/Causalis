@@ -4406,7 +4406,10 @@ person met's ways of being (boldness, warmth, thrift, curiosity, patience) or a 
 and growth, kept in the acts store (`natures`, hashed and saved only once there are any). The
 herding of every land reads a beast's docility and growth through `lineageNature`, and a beast
 made tame enough may be herded where it lives though no land had it as its herd beast; a world
-the god has not touched herds as before, bit for bit. Pages: a realm's "Its ways — yours to
+the god has not touched herds as before, bit for bit. Whether a lineage is tame is one rule,
+`tameNow`: as bred, unless the god has made a bred-tame beast wilder than 0.4 (then no land takes
+to herding it, though those who herd it keep their flocks), or a wild one tamer than 0.6 — read
+alike by herding, the lineage's page and why, the land's and the world's lists of the living. Pages: a realm's "Its ways — yours to
 push", a person's "What they are like — yours to change" (and a one-click hand on their
 village, where the hand's people's traits are given and taken), a lineage's "Its nature —
 yours to change" (tame or wild, quick or slow to breed). The people under the hand hold things

@@ -49,6 +49,25 @@ export function lineageNature(
   return { docility: n.docility!, growth: n.growth! };
 }
 
+/**
+ * Whether a lineage may be taken into people's keeping now: as it was bred (a grazer docile and
+ * quick enough to herd, a grass of heavy seed), unless the god has made it wilder than any people
+ * will herd; or a beast the god has made tame enough. A lineage the god has not touched is as bred.
+ */
+export function tameNow(
+  world: World,
+  s: {
+    readonly ref: string;
+    readonly tame: boolean;
+    readonly docility: number;
+    readonly growth: number;
+  },
+): boolean {
+  if (actsOf(world).nature(s.ref)?.docility === undefined) return s.tame;
+  const docility = lineageNature(world, s).docility;
+  return s.tame ? docility > 0.4 : docility >= 0.6;
+}
+
 /** Teach a peopled world the god's hand on natures. */
 export function installNatureActs(world: World, ctx: () => PopulationContext): void {
   const agent = (command: { id: Ref }) => [{ ref: command.id, role: "agent" as const, weight: 1 }];

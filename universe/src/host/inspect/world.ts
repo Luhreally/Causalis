@@ -5,20 +5,21 @@
 // grand strategy game's ledger compares them. Pure reads of the world as it stands.
 import { cellRef, lives, offworldSite } from "../../gen/index.ts";
 import {
-  DEITIES,
   beliefOf,
   citiesOf,
+  DEITIES,
   homePlanet,
   languagesOf,
   loreOf,
   marketsOf,
   politiesOf,
+  type Polity,
   populationContext,
   realmName,
   spaceOf,
+  tameNow,
   warsOf,
   wildsOf,
-  type Polity,
 } from "../../sim/index.ts";
 import { PRINCIPLES } from "../../rules/index.ts";
 import { principleName } from "../../causal/index.ts";
@@ -2018,7 +2019,7 @@ function lifeLedger(world: World): Block[] {
           [count(lands[s.index]!)],
           [age ? `${age.from.toFixed(0)} million years ago` : "the deep past"],
           [s.died === null ? (lands[s.index] ? "living" : "gone from the lands") : "died out"],
-          [s.tame ? "yes" : "—"],
+          [tameNow(world, s) ? "yes" : "—"],
         ],
         keys: [
           s.name,
@@ -2028,7 +2029,7 @@ function lifeLedger(world: World): Block[] {
           lands[s.index]!,
           age?.from ?? 0,
           s.died === null ? 1 : 0,
-          s.tame ? 1 : 0,
+          tameNow(world, s) ? 1 : 0,
         ],
       };
     });

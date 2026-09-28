@@ -13,6 +13,7 @@ import {
   populationContext,
   realmName,
   relationRef,
+  tameNow,
   warsOf,
   wildsOf,
 } from "../sim/index.ts";
@@ -97,7 +98,7 @@ export function speciesPage(world: World, ref: string): SpeciesPage {
     body: s.body ? { words: creatureWords(s.body, s.niche), features: s.body.features } : null,
     level: s.level,
     size: s.niche === "seed grass" ? null : s.size,
-    tame: s.tame,
+    tame: tameNow(world, s),
     wool: s.wool,
     herd: s.herd,
     seed: s.niche === "seed grass" ? s.seed : null,

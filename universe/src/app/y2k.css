@@ -2429,6 +2429,10 @@ body.with-palette .hint {
   height: 100%;
   background: linear-gradient(90deg, #6fe7ff, #c6ff4a);
 }
+.nature-refused {
+  grid-column: 1 / -1;
+  margin: 0;
+}
 .nature-push {
   min-width: 28px;
   min-height: 26px;
