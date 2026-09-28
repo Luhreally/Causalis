@@ -1,5 +1,6 @@
 // Search (Phase 10 M96): any named thing by its name — realms (the fallen too), towns, lands,
-// faiths, tongues, wars, living lineages and the people met — each with its icon and a few
+// faiths, tongues, wars, living lineages, the people met, and matter (substances, reactions,
+// principles, goods: Phase 15) — each with its icon and a few
 // words, the best matches first (a name that is the words asked, then one that begins with
 // them, then one with a word that does, then one that holds them), the greater before the
 // less. Pure reads of the world as it stands.
@@ -15,6 +16,7 @@ import {
   warsOf,
 } from "../sim/index.ts";
 import { observer } from "../causal/index.ts";
+import { GOODS, PRINCIPLES, REACTIONS, SUBSTANCES } from "../rules/index.ts";
 import type { World } from "../kernel/index.ts";
 import { lineageIcon } from "./inspect/names.ts";
 
@@ -133,6 +135,35 @@ export function search(world: World, asked: string, most = 24): Found[] {
       subtitle: s.niche,
     }));
   }
+  // Matter (Phase 15 M122): substances, reactions, principles and goods, by their names.
+  for (const m of SUBSTANCES)
+    offer(m.name, 5, () => ({
+      ref: `subst:${m.id}`,
+      icon: "🧪",
+      title: m.name[0]!.toUpperCase() + m.name.slice(1),
+      subtitle: `${m.written} — a substance`,
+    }));
+  for (const r of REACTIONS)
+    offer(r.name, 5, () => ({
+      ref: `rxn:${r.id}`,
+      icon: "⚗️",
+      title: r.name[0]!.toUpperCase() + r.name.slice(1),
+      subtitle: "a reaction",
+    }));
+  for (const pr of PRINCIPLES)
+    offer(pr.name, 5, () => ({
+      ref: `prin:${pr.id}`,
+      icon: "📜",
+      title: pr.name[0]!.toUpperCase() + pr.name.slice(1),
+      subtitle: "a principle",
+    }));
+  for (const gd of GOODS)
+    offer(gd.name, 6, () => ({
+      ref: `good:${gd.id}`,
+      icon: "📦",
+      title: gd.name[0]!.toUpperCase() + gd.name.slice(1),
+      subtitle: "a good, the world over",
+    }));
   const ledger = observer(world);
   for (const p of ledger.persons.values()) {
     const name = `${p.name} ${p.surname}`;

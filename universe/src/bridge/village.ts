@@ -124,6 +124,8 @@ export type VillagePlan = {
    * coats, the modern world in bright colours. Absent: farmers.
    */
   readonly era?: "forage" | "farm" | "metal" | "industry" | "modern";
+  /** What its tools are headed with (Phase 15 M122: the land's best metal within reach). */
+  readonly metal?: "stone" | "copper" | "bronze" | "iron" | "steel";
   /** How it lives now (M86). Absent: a quiet day. */
   readonly life?: VillageLife;
   /**

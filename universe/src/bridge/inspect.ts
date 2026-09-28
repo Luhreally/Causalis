@@ -104,6 +104,43 @@ export type Block =
       }[];
       readonly unit?: "people" | "share" | "price" | "count";
     }
+  /**
+   * What something is made of (Phase 15 M122): its parts as one bar of their shares, then each
+   * part — its name (a link to its page), its share, and how much of it there is, with its unit.
+   */
+  | {
+      readonly type: "composition";
+      readonly title?: string;
+      readonly parts: readonly {
+        readonly name: Line;
+        readonly share: number;
+        /** How much, in words with its unit ("1.2 t", "340 g"). */
+        readonly amount?: string;
+        readonly color: Rgb;
+      }[];
+      /** A line under it: what it is of, or what it is measured against. */
+      readonly note?: string;
+    }
+  /**
+   * A store's year as a flow (Phase 15 M123): what it began with, each line in (+) or out (−),
+   * what it ended with — and whether they balance, as every change to a stock must.
+   */
+  | {
+      readonly type: "flow";
+      readonly title: string;
+      readonly opening: number;
+      readonly rows: readonly {
+        readonly label: Line;
+        readonly value: number;
+        readonly sign: 1 | -1;
+      }[];
+      readonly closing: number;
+      /** Its last line's words ("Ended with"; a year not yet over, "Stands at"). */
+      readonly closingWords?: string;
+      /** What is counted ("grain"). */
+      readonly unit?: string;
+      readonly balanced: boolean;
+    }
   /** What someone is like, as chips that open their pages (Phase 14 M118): a person's traits. */
   | {
       readonly type: "chips";
@@ -274,6 +311,11 @@ export type PageKind =
   | "compare"
   | "concept"
   | "trait"
+  /** Matter (Phase 15 M122): a substance, a reaction, a principle, a good the world over. */
+  | "substance"
+  | "reaction"
+  | "principle"
+  | "goods"
   | "unknown";
 
 export type PageModel = {

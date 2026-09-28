@@ -21,6 +21,7 @@ import { actPage, decisionPage, eventPage, unknownPage } from "./history.ts";
 import { chroniclePage, ledgerPage } from "./world.ts";
 import { statsPage } from "./stats.ts";
 import { traitPage } from "./folk.ts";
+import { goodKindPage, principlePage, reactionPage, substancePage } from "./matter.ts";
 import { alertsOf, breakdownOf, logPage, type Counted } from "./alerts.ts";
 import { answersOf } from "./answers.ts";
 import { comparePage } from "./compare.ts";
@@ -37,6 +38,11 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("compare:")) return comparePage(world, ref);
   if (ref.startsWith("concept:")) return conceptPage(world, ref);
   if (ref.startsWith("trait:")) return traitPage(world, ref);
+  // Matter (Phase 15 M122): substances, reactions, principles, goods the world over.
+  if (ref.startsWith("subst:")) return substancePage(world, ref);
+  if (ref.startsWith("rxn:")) return reactionPage(world, ref);
+  if (ref.startsWith("prin:")) return principlePage(world, ref);
+  if (ref.startsWith("good:")) return goodKindPage(world, ref);
   if (ref.startsWith("gstar:")) return starPageModel(world, ref);
   if (ref.includes("/")) return foreignWorldPage(world, ref);
   if (ref.startsWith("agent:")) return agentPage(world, ref);
@@ -127,6 +133,7 @@ function tidy(page: PageModel): PageModel {
       blocks: t.blocks.filter(
         (b) =>
           !(b.type === "list" && !b.items.length && !b.more) &&
+          !(b.type === "composition" && !b.parts.length) &&
           !(b.type === "table" && !b.rows.length) &&
           !(b.type === "facts" && !b.rows.length) &&
           !(b.type === "chart" && b.points.length < 2) &&

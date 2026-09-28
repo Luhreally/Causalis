@@ -233,7 +233,30 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
       "The first goods down a road: a trade road opened, a sea route.",
     ],
     see: [{ text: "The first roads and routes", ref: "world:chronicle#firsts" }],
-    related: ["food", "towns", "diplomacy"],
+    related: ["food", "towns", "diplomacy", "matter"],
+  },
+  matter: {
+    icon: "🧪",
+    title: "Matter",
+    what: [
+      "Every good is made of something: grain of starch, protein and water; a tool of flint, copper, bronze, iron or steel on a wooden haft; pottery of fired clay. Each is made of substances, and each substance of elements, in shares that add up to the whole.",
+      "Reactions turn one substance into another, and they balance, atom for atom: malachite and charcoal to copper and carbon dioxide; copper with a tenth of tin to bronze; red ore and charcoal to iron; sand, soda and lime to glass.",
+      "A reaction wants its heat and its fuel, and a principle to teach it. A land makes what it knows how to, where the ore, the seam or the clay is within reach — and a good's page in a market says which ways are open there, and why the others are not.",
+    ],
+    drives: [
+      "What lies in the ground (the deposits, laid down by the plates and the deep past).",
+      "What the land's people have come to know (its lore), and what it can reach by road.",
+    ],
+    leads: [
+      "What a land's tools, clothes, pots and machines are made of — and so how long they last and what they help.",
+      "The fire that smelts and the fuel it burns: carbon dioxide into the air.",
+    ],
+    see: [
+      { text: "Tools, the world over", ref: "good:tools" },
+      { text: "Malachite, copper's green ore", ref: "subst:malachite" },
+      { text: "The bloomery", ref: "rxn:bloomery" },
+    ],
+    related: ["markets", "lore", "climate"],
   },
   web: {
     icon: "🐾",

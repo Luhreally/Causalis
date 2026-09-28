@@ -593,6 +593,71 @@ export class PageWindow {
         box.append(w);
         break;
       }
+      case "composition": {
+        // What something is made of (Phase 15 M122): one bar of its parts, then each part.
+        const bar = el("div", "makeup-bar"),
+          rows = el("div", "makeup-rows"),
+          css = (c: readonly number[]) => `rgb(${c.map((v) => Math.round(v * 255)).join(",")})`;
+        for (const part of b.parts) {
+          if (part.share > 0.004) {
+            const piece = el("span", "makeup-piece");
+            piece.style.flexGrow = String(part.share);
+            piece.style.background = css(part.color);
+            bar.append(piece);
+          }
+          const row = el("div", "makeup-row"),
+            swatch = el("span", "makeup-swatch");
+          swatch.style.background = css(part.color);
+          row.append(
+            swatch,
+            this.line(part.name),
+            el(
+              "span",
+              "makeup-share",
+              part.share >= 0.1
+                ? `${Math.round(part.share * 100)}%`
+                : `${(part.share * 100).toFixed(part.share >= 0.001 ? 1 : 2)}%`,
+            ),
+            el("span", "makeup-amount", part.amount ?? ""),
+          );
+          rows.append(row);
+        }
+        box.append(bar, rows);
+        if (b.note) box.append(el("p", "muted makeup-note", b.note));
+        break;
+      }
+      case "flow": {
+        // A store's year (Phase 15 M123): began with, each line in or out, ended with, and
+        // whether the books balance.
+        const table = el("div", "flow"),
+          n = (v: number) => String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ","),
+          row = (cls: string, sign: string, label: Line | string, v: number) => {
+            const r = el("div", `flow-row ${cls}`);
+            r.append(
+              el("span", "flow-sign", sign),
+              typeof label === "string" ? el("span", "flow-label", label) : this.line(label),
+              el("span", "flow-value", n(v)),
+            );
+            return r;
+          };
+        table.append(row("flow-open", "", "Began with", b.opening));
+        for (const x of b.rows)
+          table.append(
+            row(x.sign > 0 ? "flow-in" : "flow-out", x.sign > 0 ? "+" : "−", x.label, x.value),
+          );
+        table.append(row("flow-close", "=", b.closingWords ?? "Ended with", b.closing));
+        box.append(table);
+        box.append(
+          el(
+            "p",
+            b.balanced ? "flow-check ok" : "flow-check off",
+            b.balanced
+              ? `✓ The books balance${b.unit ? ` (${b.unit})` : ""}: what came and went accounts for every unit.`
+              : "✗ The books do not balance.",
+          ),
+        );
+        break;
+      }
       case "chips": {
         // What someone is like (Phase 14 M118): each a chip that opens its page.
         const chips = el("div", "chips");

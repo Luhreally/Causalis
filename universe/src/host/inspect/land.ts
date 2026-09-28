@@ -27,6 +27,8 @@ import { cell as spotFacts, market, province, provinceHistory } from "../planet.
 import { realmColor } from "../colors.ts";
 import { count, eventsAbout, item, link, many, part, share, stat, yearNow } from "./words.ts";
 import { richWords } from "./life.ts";
+import { prinRef } from "./matter.ts";
+import { landStoresBlocks } from "./stores.ts";
 import {
   faithLink,
   landLink,
@@ -393,6 +395,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
         );
       if (rows2.length) blocks.push({ type: "facts", title: "Works", rows: rows2 });
       tabs.push({ id: "economy", name: "Economy", blocks });
+      // Its stores broken down (Phase 15 M123): by good and by what they are made of.
+      const stores = landStoresBlocks(world, cell);
+      if (stores.length) tabs.push({ id: "stores", name: "Stores", blocks: stores });
     }
   }
   // Its realm.
@@ -452,8 +457,17 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
         {
           type: "list",
           title: "What they know, newest first",
+          // (Each a principle's page; how they came to it, its event.)
           items: p.lore.map((l) =>
-            item([link(l.name, l.event), ` — year ${l.year}`], l.event, l.year),
+            item(
+              [
+                link(l.name, prinRef(l.id)),
+                ` — year ${l.year}, `,
+                link("how they came to it", l.event),
+              ],
+              prinRef(l.id),
+              l.year,
+            ),
           ),
         },
       ],

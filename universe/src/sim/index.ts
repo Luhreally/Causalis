@@ -93,6 +93,9 @@ export {
   installEconomy,
   metalYear,
   powerOf,
+  toolMetal,
+  whyNot,
+  type ToolMetal,
 } from "./economy/systems.ts";
 export {
   ACT_EVENTS,

@@ -132,12 +132,12 @@ test("the deeper lenses read every land, and a land's tip under one breaks its n
   assert.equal(ask<Tip>("tip", { ref }).title, ask<Tip>("tip", { ref, lens: "growth" }).title);
 });
 
-test("the world in numbers: its people, realms and wars, towns, faiths and tongues through the years", () => {
+test("the world in numbers: its people, realms and wars, towns, faiths and tongues through the years, its goods", () => {
   const p = ask<PageModel>("page", { ref: "world:stats" });
   assert.equal(p.kind, "stats");
   assert.deepEqual(
     p.tabs.map((t) => t.id),
-    ["people", "realms", "towns", "beliefs"],
+    ["people", "realms", "towns", "beliefs", "goods"],
   );
   const lines = (b: Block) => (b.type === "lines" ? b.series : []);
   for (const t of p.tabs)

@@ -118,8 +118,26 @@ export function lamplight(hour: number): number {
 
 // —— What things are made of ————————————————————————————————————————————————————
 
-/** What a tool's head is made of in an era, and what that is made of (the chemistry told). */
-export function metalOf(era: VillagePlan["era"]): { name: string; of: string } {
+/** What a tool's head is made of, and what that is made of (the chemistry told). */
+const METAL_WORDS: Readonly<
+  Record<NonNullable<VillagePlan["metal"]>, { name: string; of: string }>
+> = {
+  stone: { name: "stone", of: "flint knapped to an edge" },
+  copper: { name: "copper", of: "green malachite smelted with charcoal" },
+  bronze: { name: "bronze", of: "copper with a tenth of tin, melted together" },
+  iron: { name: "iron", of: "red ore and charcoal in a bloomery" },
+  steel: { name: "steel", of: "iron with a hundredth of carbon, quenched hard" },
+};
+
+/**
+ * What a tool's head is made of — the land's own metal where the plan says it (Phase 15 M122:
+ * copper tools were called bronze), else by the era — and what that is made of.
+ */
+export function metalOf(
+  era: VillagePlan["era"],
+  metal?: VillagePlan["metal"],
+): { name: string; of: string } {
+  if (metal) return METAL_WORDS[metal];
   switch (era) {
     case "metal":
       return { name: "bronze", of: "copper and tin, smelted together" };
@@ -137,8 +155,9 @@ export function carryWords(
   carry: Carry,
   era: VillagePlan["era"],
   what: "coal" | "ore" | "stone" | null = null,
+  metal?: VillagePlan["metal"],
 ): string {
-  const m = metalOf(era);
+  const m = metalOf(era, metal);
   switch (carry) {
     case "tool":
       return `a ${m.name}-headed tool (${m.name}: ${m.of})`;

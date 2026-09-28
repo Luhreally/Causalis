@@ -116,7 +116,11 @@ export class VillagePanel {
   }
 
   /** The village's age and what its mine digs, for the words of what they carry. */
-  works: { era: VillagePlan["era"]; what: "coal" | "ore" | "stone" | null } = {
+  works: {
+    era: VillagePlan["era"];
+    what: "coal" | "ore" | "stone" | null;
+    metal?: VillagePlan["metal"];
+  } = {
     era: undefined,
     what: null,
   };
@@ -129,7 +133,7 @@ export class VillagePanel {
 
   /** What someone is doing now, in words: "Now at work; fed and rested; carrying a hoe". */
   nowWords(m: Moment): string {
-    return `Now ${ACTIVITY_WORDS[m.activity]}; ${needWords(m)}${m.carry ? `; carrying ${carryWords(m.carry, this.works.era, this.works.what)}` : ""}`;
+    return `Now ${ACTIVITY_WORDS[m.activity]}; ${needWords(m)}${m.carry ? `; carrying ${carryWords(m.carry, this.works.era, this.works.what, this.works.metal)}` : ""}`;
   }
 
   /** Whether the hand rests on the village watched: then its people are the hand's. */

@@ -4,6 +4,7 @@
 import type { FrameMessage } from "../bridge/index.ts";
 import type { SphereGrid } from "../kernel/index.ts";
 import type { Rgb } from "./sandbox.ts";
+import { GOODS } from "../rules/index.ts";
 
 export const LENSES = [
   "terrain",
@@ -28,6 +29,7 @@ export const LENSES = [
   "growth",
   "ways",
   "belief",
+  "goods",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -54,6 +56,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   growth: "Growth",
   ways: "Ways",
   belief: "Belief",
+  goods: "Goods",
 };
 
 /** Each map mode's icon, for the map modes' bar (Phase 10 M96). */
@@ -80,6 +83,7 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   growth: "📈",
   ways: "🎭",
   belief: "🕯️",
+  goods: "📦",
 };
 
 /** How every land stands toward the realm the diplomacy lens is of, in its colours. */
@@ -309,6 +313,49 @@ export function beliefColor(favour: number, wrath: number, portent: number): Rgb
   return [grey + (c[0] - grey) * k, grey + (c[1] - grey) * k, grey + (c[2] - grey) * k];
 }
 
+/** Each good's icon, for the goods lens's choices and the pages (Phase 15 M123). */
+const GOOD_ICONS: Readonly<Record<string, string>> = {
+  grain: "🌾",
+  meat: "🥩",
+  wild: "🍄",
+  wool: "🐑",
+  hides: "🟫",
+  copper: "🟠",
+  tools: "🔨",
+  clothing: "👕",
+  pottery: "🏺",
+  coal: "⚫",
+  oil: "🛢️",
+  machines: "⚙️",
+};
+
+/** The goods the goods lens shows, one at a time: each its id, icon and name. */
+export const GOOD_CHOICES: readonly (readonly [string, string, string])[] = GOODS.map((g) => [
+  g.id,
+  GOOD_ICONS[g.id] ?? "📦",
+  g.name,
+]);
+
+/**
+ * One good in store, a head, against the world's own spread of it (0: none; 1: as much as the
+ * richest twentieth of lands hold) — Phase 15 M123: tools a head and grain a head differ a
+ * hundredfold, and each is seen on its own scale.
+ */
+const GOODS_RAMP: readonly Stop[] = [
+  [0, [0.16, 0.14, 0.22]],
+  [0.2, [0.42, 0.3, 0.52]],
+  [0.45, [0.78, 0.42, 0.36]],
+  [0.7, [0.96, 0.7, 0.3]],
+  [1, [1, 0.94, 0.62]],
+];
+
+/** A good's stores a head, land by land, laid on the world's own spread of it (0 … 1). */
+export function goodsSpread(values: ReadonlyMap<number, number>): Map<number, number> {
+  const sorted = [...values.values()].filter((v) => v > 0).sort((a, b) => a - b),
+    top = sorted[Math.floor(sorted.length * 0.95)] ?? sorted[sorted.length - 1] ?? 1;
+  return new Map([...values].map(([c, v]) => [c, top > 0 ? Math.min(1, v / top) : 0]));
+}
+
 /** How a deeper lens's value is laid on its ramp, and whether a land shows at all. */
 const DEEP: Readonly<
   Partial<
@@ -324,6 +371,7 @@ const DEEP: Readonly<
   knowledge: { stops: KNOWLEDGE, at: (v) => v, shown: () => true },
   growth: { stops: GROWTH, at: (v) => v, shown: () => true },
   ways: { stops: WAYS_RAMP, at: (v) => v, shown: () => true },
+  goods: { stops: GOODS_RAMP, at: (v) => Math.sqrt(v), shown: () => true },
 };
 
 /** A biome's colour on the land lens. */
@@ -429,7 +477,8 @@ export function globeColors(
       case "wealth":
       case "knowledge":
       case "growth":
-      case "ways": {
+      case "ways":
+      case "goods": {
         const v = values?.get(province),
           deep = DEEP[lens];
         if (v !== undefined && deep && deep.shown(v)) col = ramp(deep.stops, deep.at(v));
@@ -581,6 +630,13 @@ export function lensLegend(lens: Lens): Legend {
       return { kind: "ramp", stops: stops(GROWTH), low: "shrinking", high: "growing" };
     case "ways":
       return { kind: "ramp", stops: stops(WAYS_RAMP), low: "held little", high: "held much" };
+    case "goods":
+      return {
+        kind: "ramp",
+        stops: stops(GOODS_RAMP),
+        low: "none",
+        high: "the most a head",
+      };
     case "belief":
       return {
         kind: "keys",

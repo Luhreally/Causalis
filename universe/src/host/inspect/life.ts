@@ -9,6 +9,8 @@ import type { Block, Item, PageModel, Place, Row, Stat } from "../../bridge/inde
 import { depositPage, platePage, speciesPage } from "../pages.ts";
 import { region } from "../planet.ts";
 import { count, eventsAbout, item, link, share, stat, yearNow } from "./words.ts";
+import { REACTIONS, SUBSTANCE, SUBSTANCES } from "../../rules/index.ts";
+import { DEPOSIT_MINERALS, rxnRef, substRef } from "./matter.ts";
 import { landLink, landTitle, landsOf, lineageIcon, spotOfLand } from "./names.ts";
 
 const LEVEL_WORDS = [
@@ -229,6 +231,31 @@ export function depositPageModel(world: World, ref: string): PageModel {
             type: "facts",
             rows: [
               stat("Land", [landLink(world, d.land)]),
+              // What it is, as matter (Phase 15 M122): its ore, and what turns that to metal.
+              ...(DEPOSIT_MINERALS[d.kind]
+                ? [
+                    stat(
+                      "Its ore",
+                      DEPOSIT_MINERALS[d.kind]!.flatMap((m, i) => [
+                        ...(i ? [", "] : []),
+                        link(SUBSTANCES[SUBSTANCE[m]!]!.name, substRef(m)),
+                      ]),
+                    ),
+                  ]
+                : []),
+              ...(() => {
+                const turns = REACTIONS.filter((r) =>
+                  r.inputs.some(([x]) => DEPOSIT_MINERALS[d.kind]?.includes(x)),
+                );
+                return turns.length
+                  ? [
+                      stat(
+                        "Worked by",
+                        turns.flatMap((r, i) => [...(i ? [", "] : []), link(r.name, rxnRef(r.id))]),
+                      ),
+                    ]
+                  : [];
+              })(),
               ...(d.plate
                 ? [
                     stat("Plate", [

@@ -25,6 +25,7 @@ import { realmColor } from "../colors.ts";
 import { realmArms } from "../arms.ts";
 import { compareWith, warTally } from "./compare.ts";
 import { armyBlocks, courseBlocks } from "./army.ts";
+import { storesSummed } from "./stores.ts";
 import { civilizationsNear } from "../../sim/index.ts";
 import {
   claimOf,
@@ -178,6 +179,13 @@ export function realmPageModel(world: World, ref: string): PageModel {
   }
   // Its army (Phase 13 M115): its host, the men it fields, its wars and battles.
   tabs.push({ id: "army", name: "Army", blocks: armyBlocks(world, r) });
+  // Its lands' stores, summed (Phase 15 M123).
+  if (r.ended === null)
+    tabs.push({
+      id: "stores",
+      name: "Stores",
+      blocks: storesSummed(world, r.members, "Its lands' stores"),
+    });
   // Its regard for others.
   {
     const rows: Row[] = diplomacyOf(world)

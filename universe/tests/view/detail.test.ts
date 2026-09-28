@@ -94,4 +94,11 @@ test("what a tool is made of is told by the land's age: flint, bronze of copper 
   assert.equal(metalOf("forage").name, "stone");
   assert.match(carryWords("ore", "industry", "coal"), /coal/);
   assert.match(carryWords("ore", "metal", "ore"), /copper/);
+  // The land's own metal, where the plan says it: copper tools are copper, not bronze.
+  assert.match(
+    carryWords("tool", "metal", null, "copper"),
+    /^a copper-headed tool \(copper: .*malachite/,
+  );
+  assert.match(carryWords("tool", "metal", null, "bronze"), /bronze.*tin/);
+  assert.equal(metalOf("industry", "stone").name, "stone");
 });

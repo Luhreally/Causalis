@@ -11,6 +11,7 @@ import type { Block, PageModel, Stat } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
 import { faithColor, languageColor } from "../planet.ts";
 import { count, link, share, stat } from "./words.ts";
+import { storesSummed } from "./stores.ts";
 
 type Rgb = readonly [number, number, number];
 type Point = { x: number; y: number };
@@ -306,6 +307,8 @@ export function statsPage(world: World, tab?: string): PageModel {
       { id: "realms", name: "Realms & wars", blocks: realmBlocks },
       { id: "towns", name: "Towns", blocks: townBlocks },
       { id: "beliefs", name: "Faiths & tongues", blocks: beliefBlocks },
+      // The world's stores (Phase 15 M123): by good, the lands that hold most, what they are made of.
+      { id: "goods", name: "Goods", blocks: storesSummed(world, null, "The world's stores") },
     ],
     ...(tab ? { tab } : {}),
     followable: false,

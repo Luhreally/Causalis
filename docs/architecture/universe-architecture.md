@@ -4320,6 +4320,56 @@ inspectability — what everything holds and is made of (a person's and a househ
 town's stores, materials and their chemistry) broken down, every part of it a page — not its
 dynasties or a people's songs, which are secondary. Phase 15 takes that up.
 
+### I.15 Phase 15 milestones (planned 2026-09-28, at the user's asking)
+
+The user: "the inspo from the orignal causaliss should be the detail to like it breaks down
+inventory and chemistry and the inspectiablity is very well, dont focus to much on dynastic
+aspect or town songs or wtv those are secondary focuses".
+
+A study of Classic (its sections read, its inspector played at year 42; report kept with the
+session's notes) found one kind of stuff under everything — an integer vector of generated
+species in every body, pack, store, building and tile — moved by one transfer rule and one
+reaction executor, audited for conservation; artifacts that keep their maker, owner, material,
+quality and wear; one renderer (`chemistryRows`) for every make-up, each row a compound page
+with its balanced reactions. What not to take: per-world alien names, abstract units, bars
+scaled to a local maximum, raw event ids, heuristics shown as measurements. The Universe takes
+its structure with real substances, keeps conservation where it already is (the markets' books)
+and derives make-up from it.
+
+Phase 15's "done when": any good opens to what it is made of, down to its elements; any
+substance to where it lies and what turns it into what; any reaction or principle to the lands
+that know it. A land's, a realm's and the world's stores read by good and by substance, each
+good's year a flow that balances. The ground of a land can be read (rock, soil, minerals, water,
+air). A household's and a person's things can be read, each with its make-up, maker and wear;
+under the hand people hold real things within the land's stores. Last, measured: ore, fuel and
+alloys in the simulation.
+
+122. **Matter** (rules data and pure reads: no store, no hash): `rules/matter.ts` — 18 elements,
+     45 substances with formulas and properties, 20 reactions balanced atom for atom (a test),
+     what each good is made of each way it is made. Pages for a substance, a reaction, a
+     principle and a good; the market good's make-up here and how it is made here, or why not
+     (`whyNot`, the same test as the crafters' choice); a `composition` block; search; the
+     concept "Matter"; a land's lore opens its principles; a deposit names its ore and what
+     works it; copper tools no longer called bronze (the land's tool metal in the village plan).
+123. **Stores broken down**: a land's Stores tab (weight, worth, food put by, what it holds and
+     how long each lasts, what its stores are made of, whether its books balance); a good's year
+     as a `flow` block that must balance; a realm's Stores tab and the world's Goods tab; a
+     Goods lens, one good at a time on the world's own spread of it, its tooltip the good's year.
+124. **The ground and what lies in it**: a land's bedrock, soil, minerals and water as make-ups;
+     the deposit page in tonnes; the air's make-up; a Ground lens.
+125. **A household's and a person's things, watched** (observational: never hashed).
+126. **Things held under the hand** (authoritative, in the hand's window only).
+127. **Ores, fuel and alloys in the simulation** (the one change to history, measured).
+128. **Phase 15 gate** (`gate:15`), grown with each milestone.
+
+**As built so far (2026-09-28).** 122 and 123 as above: `rules/matter.ts`,
+`host/inspect/matter.ts` (`subst:`, `rxn:`, `prin:`, `good:` pages; `goodHere`, `howMadeHere`,
+`makeUpBlock`), `host/inspect/stores.ts` (`flowOf` — every market's every good balances in
+every kept year, a test over the first light's 549 markets; `landStoresBlocks`,
+`goodYearBlocks`, `storesSummed`), `sim/economy/systems.ts` (`whyNot`, `toolMetal`), the goods
+lens (`host/lenses.ts`, `view/globe.ts` `goodsSpread`), `tools/phase15-gate.ts` (port 4267).
+The books told something at once: most of a big grain store spoils in its year.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

@@ -2309,3 +2309,94 @@ body.with-palette .hint {
   padding: 1px 5px;
   font-size: 0.8rem;
 }
+
+/* What something is made of (Phase 15 M122): one bar of its parts, then a row for each. */
+.makeup-bar {
+  display: flex;
+  height: 14px;
+  margin: 4px 0 8px;
+  overflow: hidden;
+  border: 1px solid var(--chrome-lo);
+  border-radius: 3px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.makeup-piece {
+  flex: 0 0 0;
+  min-width: 2px;
+}
+.makeup-rows {
+  display: grid;
+  gap: 2px;
+}
+.makeup-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto auto;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+.makeup-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  align-self: center;
+}
+.makeup-share {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.makeup-amount {
+  min-width: 4.5rem;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.makeup-note {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+}
+
+/* A store's year as a flow (Phase 15 M123): signed lines between what it began and ended with. */
+.flow {
+  display: grid;
+  gap: 1px;
+  font-size: 0.9rem;
+}
+.flow-row {
+  display: grid;
+  grid-template-columns: 1.2rem 1fr auto;
+  gap: 6px;
+  align-items: baseline;
+  padding: 2px 4px;
+}
+.flow-sign {
+  font-weight: 700;
+  text-align: center;
+}
+.flow-in .flow-sign {
+  color: #6ff0cf;
+}
+.flow-out .flow-sign {
+  color: #ff9a8a;
+}
+.flow-value {
+  font-variant-numeric: tabular-nums;
+}
+.flow-open,
+.flow-close {
+  font-weight: 700;
+  background: rgba(111, 231, 255, 0.08);
+}
+.flow-close {
+  border-top: 1px solid var(--accent);
+}
+.flow-check {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+}
+.flow-check.ok {
+  color: #6ff0cf;
+}
+.flow-check.off {
+  color: #ff9a8a;
+}

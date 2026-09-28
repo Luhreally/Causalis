@@ -82,6 +82,8 @@ import type {
 import { nearestCell, sphereGrid } from "../kernel/index.ts";
 
 import {
+  GOOD_CHOICES,
+  goodsSpread,
   cellAt,
   cellCenter,
   globeColors,
@@ -158,6 +160,7 @@ const DEEP_LENSES: readonly Lens[] = [
   "growth",
   "ways",
   "belief",
+  "goods",
 ];
 /** The map modes that show the people (repainted as their numbers come, and turned to them). */
 const PEOPLE_LENSES: readonly Lens[] = [
@@ -174,6 +177,7 @@ const PEOPLE_LENSES: readonly Lens[] = [
   "growth",
   "ways",
   "belief",
+  "goods",
 ];
 const YEAR = 365 * DAY;
 const SKY = [0.09, 0.1, 0.13] as const;
@@ -503,6 +507,7 @@ async function runPlanetPage(): Promise<void> {
     // the colours of what each land has seen of the god (Phase 14).
     deepValues = new Map<Lens, Map<number, number>>(),
     waysTrait = "valour",
+    goodShown = "grain",
     beliefColors = new Map<number, readonly [number, number, number]>(),
     lastEntries: PeopleEntry[] = [],
     tongues = new Map<number, readonly [number, number, number]>(),
@@ -816,15 +821,40 @@ async function runPlanetPage(): Promise<void> {
     if (l === "war") void readFronts();
     paintGlobe();
     if (PEOPLE_LENSES.includes(l)) void faceThePeople(true);
-    // (The ways lens shows one way at a time, chosen under its legend: Phase 14 M119.)
-    mapModes.choose(l === "ways" ? WAY_CHOICES : null, waysTrait, (id) => {
-      waysTrait = id;
-      readWays();
-      tooltip.lens = `ways:${id}`;
-      paintGlobe();
-    });
-    tooltip.lens = l === "ways" ? `ways:${waysTrait}` : l;
+    // (The ways lens shows one way at a time, chosen under its legend: Phase 14 M119; the
+    // goods lens one good: Phase 15 M123.)
+    if (l === "goods")
+      mapModes.choose(GOOD_CHOICES, goodShown, (id) => {
+        goodShown = id;
+        readGoods();
+        tooltip.lens = `goods:${id}`;
+        paintGlobe();
+      });
+    else
+      mapModes.choose(l === "ways" ? WAY_CHOICES : null, waysTrait, (id) => {
+        waysTrait = id;
+        readWays();
+        tooltip.lens = `ways:${id}`;
+        paintGlobe();
+      });
+    tooltip.lens = l === "ways" ? `ways:${waysTrait}` : l === "goods" ? `goods:${goodShown}` : l;
   };
+  /** The chosen good in store a head, land by land. */
+  function readGoods(): void {
+    const i = Math.max(
+      0,
+      GOOD_CHOICES.findIndex(([id]) => id === goodShown),
+    );
+    // (Each good on its own scale: the world's spread of it.)
+    deepValues.set(
+      "goods",
+      goodsSpread(
+        new Map(
+          lastEntries.flatMap((e) => (e.goods.length ? [[e.cell, e.goods[i]!] as const] : [])),
+        ),
+      ),
+    );
+  }
   /** The chosen way's reading, land by land. */
   function readWays(): void {
     const i = Math.max(
@@ -1027,6 +1057,7 @@ async function runPlanetPage(): Promise<void> {
       deepValues.set(k, new Map(entries.map((e) => [e.cell, e[k]])));
     lastEntries = entries;
     readWays();
+    readGoods();
     beliefColors = new Map(
       entries.flatMap((e) => {
         const c = beliefColor(e.belief[0], e.belief[1], e.belief[2]);
@@ -2689,7 +2720,11 @@ async function runPlanetPage(): Promise<void> {
     performance.measure("village.build", { start: t0 });
     villagePanel.show(plan.name, WATCH_DEFAULT);
     villagePanel.hand = plan.hand;
-    villagePanel.works = { era: plan.era, what: plan.works?.mine?.what ?? null };
+    villagePanel.works = {
+      era: plan.era,
+      what: plan.works?.mine?.what ?? null,
+      ...(plan.metal ? { metal: plan.metal } : {}),
+    };
   };
   const toVillage = async (ref: string) => {
     scale = "village";

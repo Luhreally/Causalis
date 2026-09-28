@@ -153,3 +153,21 @@ export {
   type Feature,
   type Locomotion,
 } from "./creatures.ts";
+export {
+  ELEMENTS,
+  GOOD_MATTER,
+  REACTION,
+  REACTIONS,
+  SUBSTANCE,
+  SUBSTANCES,
+  elementShares,
+  imbalance,
+  molarMass,
+  reactionKg,
+  type Element,
+  type GoodMatter,
+  type MakeUp,
+  type MatterKind,
+  type Reaction,
+  type Substance,
+} from "./matter.ts";

@@ -30,6 +30,7 @@ export const DEEP_LENSES = [
   "growth",
   "ways",
   "belief",
+  "goods",
 ] as const;
 export type DeepLens = (typeof DEEP_LENSES)[number];
 
@@ -52,6 +53,8 @@ export type LandReadings = {
   readonly ways: readonly number[];
   /** What it has seen of the god's hand: favour, wrath, portents (Phase 14 M120). */
   readonly belief: readonly [number, number, number];
+  /** Each good in its market's store, a head (Phase 15 M123). */
+  readonly goods: readonly number[];
 };
 
 /** The ids a land knows: its lore, and sowing and smelting, which it knows in its own ways. */
@@ -121,6 +124,11 @@ export function landReadings(world: World): (cell: number) => LandReadings {
       belief: (() => {
         const b = beliefOfLand(seen.get(cell));
         return [b.favour, b.wrath, b.portent] as const;
+      })(),
+      goods: (() => {
+        const m = marketsOf(world).get(cell),
+          people = ctx.provinces.get(cell)?.total() ?? 0;
+        return m && people ? m.stock.map((n) => Math.round((n / people) * 1000) / 1000) : [];
       })(),
     };
   };
@@ -236,6 +244,34 @@ export function lensReading(
             label: `${n.amount > 0 ? "+" : "−"}${share(Math.abs(n.amount))}, year ${n.year}`,
             value: briefly(world, n.event),
           })),
+        ],
+      };
+    }
+    case "goods": {
+      // One good in store, a head, and its year (Phase 15 M123).
+      const m = marketsOf(world).get(cell),
+        people = populationContext(world).provinces.get(cell)?.total() ?? 0,
+        gi = Math.max(
+          0,
+          GOODS.findIndex((g) => g.id === (way ?? "grain")),
+        ),
+        good = GOODS[gi]!;
+      if (!m || !people) return { line: `Goods: no market holds ${good.name} here`, stats: [] };
+      const last = m.years[m.years.length - 1],
+        line = (l: number) => (last ? last.ledger[l]![gi]! : 0);
+      return {
+        line: `Goods: ${good.name} ${(m.stock[gi]! / people).toFixed(1)} a head`,
+        stats: [
+          { label: "In store", value: count(m.stock[gi]!) },
+          ...(last
+            ? [
+                { label: `Made in year ${last.year}`, value: count(line(0)) },
+                { label: "Used", value: count(line(1)) },
+                { label: "Brought in", value: count(line(2)) },
+                { label: "Sent out", value: count(line(3)) },
+                { label: "Spoiled", value: count(line(4)) },
+              ].filter((s) => s.value !== "0")
+            : []),
         ],
       };
     }

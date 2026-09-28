@@ -9,7 +9,9 @@ import {
   type Tongue,
 } from "../../gen/index.ts";
 import { DEITIES, beliefOf, designsOf, languagesOf, populationContext } from "../../sim/index.ts";
-import { designWords } from "../../rules/index.ts";
+import { GOODS, GOOD_MATTER, designWords } from "../../rules/index.ts";
+import { goodHere, goodRef, howMadeHere, makeUpBlock, weight } from "./matter.ts";
+import { goodYearBlocks } from "./stores.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, PageModel, Place, Row, Tab } from "../../bridge/index.ts";
 import { market } from "../planet.ts";
@@ -302,10 +304,12 @@ export function designPage(world: World, ref: string): PageModel {
 
 /** A good in a land's market (`mkt:cell:good`): its price and why, its stock, what is made and used. */
 export function goodPage(world: World, ref: string): PageModel {
-  const { a: cell } = parseRef(ref as Ref),
+  const { a: cell, b: index } = parseRef(ref as Ref),
     m = market(world, cell),
     g = m?.goods.find((x) => x.ref === ref);
   if (!m || !g) throw new Error(`no market good ${ref}`);
+  const kind = GOODS[index]!,
+    here = goodHere(world, cell, kind.id);
   return {
     ref,
     kind: "good",
@@ -338,6 +342,26 @@ export function goodPage(world: World, ref: string): PageModel {
             ],
           },
           { type: "why", title: "Why its price is what it is", ref },
+        ],
+      },
+      // Its year: what it began with, each line in and out, what it ended with (Phase 15 M123).
+      { id: "year", name: "Its year", blocks: goodYearBlocks(world, cell, index) },
+      // What it is made of here, and how it is made here — or why not (Phase 15 M122).
+      {
+        id: "matter",
+        name: "What it is",
+        blocks: [
+          makeUpBlock(
+            here.parts,
+            g.stock * GOOD_MATTER[kind.id]!.unitKg,
+            `What it is made of here: ${here.name}`,
+            `A unit weighs ${weight(GOOD_MATTER[kind.id]!.unitKg)}; the stock, ${weight(g.stock * GOOD_MATTER[kind.id]!.unitKg)}.`,
+          ),
+          { type: "list", title: "How it is made here", items: howMadeHere(world, cell, kind.id) },
+          {
+            type: "text",
+            lines: [["The good the world over: ", link(kind.name, goodRef(kind.id))]],
+          },
         ],
       },
     ],

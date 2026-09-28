@@ -176,6 +176,8 @@ export type PeopleEntry = {
   /** Their ways, each of the eight, and what they have seen of the god: favour, wrath, portents (Phase 14). */
   ways: readonly number[];
   belief: readonly [number, number, number];
+  /** Each good in store, a head (Phase 15 M123). */
+  goods: readonly number[];
 };
 
 /** A people's ways and speech (the host's waysOf). */

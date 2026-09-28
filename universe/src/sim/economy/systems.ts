@@ -43,6 +43,7 @@ import {
   TOOL_USERS,
   TRADER_CAPACITY,
   WANTS,
+  principle,
   type LifeHistory,
   type Recipe,
 } from "../../rules/index.ts";
@@ -127,14 +128,48 @@ function oreFor(ctx: PopulationContext, cell: number, kind: string): Ore | null 
 }
 
 function canMake(ctx: PopulationContext, p: Province, m: Market, r: Recipe): boolean {
+  return whyNot(ctx, p.cell, m, r) === null;
+}
+
+/**
+ * Why a land cannot work a recipe (null: it can) — the same test its crafters' choice is made
+ * by, in words, for the pages (Phase 15 M122): not known, no ore within reach, no seam, no clay.
+ */
+export function whyNot(ctx: PopulationContext, cell: number, m: Market, r: Recipe): string | null {
   const know = r.needs?.knowledge;
-  if (know === "metalworking" && !m.metalworking) return false;
-  if (know && know !== "metalworking" && !loreOf(ctx.world).get(p.cell, know)) return false;
-  if (r.needs?.deposit && !oreFor(ctx, p.cell, r.needs.deposit)) return false;
-  if (r.needs?.seam && !surfaceOre(ctx.generated, p.cell, r.needs.seam)) return false;
-  if (r.clay && !ctx.generated.water.river[p.cell] && !ctx.generated.water.lake[p.cell])
-    return false;
-  return true;
+  if (know === "metalworking" && !m.metalworking) return "they do not know how to smelt copper";
+  if (know && know !== "metalworking" && !loreOf(ctx.world).get(cell, know))
+    return `they do not know ${principle(know).name}`;
+  if (r.needs?.deposit && !oreFor(ctx, cell, r.needs.deposit))
+    return `no ${r.needs.deposit} within a few days' walk`;
+  if (r.needs?.seam && !surfaceOre(ctx.generated, cell, r.needs.seam))
+    return `no ${r.needs.seam} under its own ground`;
+  if (r.clay && !ctx.generated.water.river[cell] && !ctx.generated.water.lake[cell])
+    return "no clay: no river or lake to dig it from";
+  return null;
+}
+
+/** What a land's tools are headed with: the best metal it knows and has ore for within reach. */
+export type ToolMetal = "stone" | "copper" | "bronze" | "iron" | "steel";
+
+/**
+ * The metal a land's tools would be made of now, as a host's arms are chosen (sim/design
+ * hostFor): steel or iron where it knows them and iron ore is within reach, bronze where it
+ * knows it and copper and tin are, copper where it smelts copper or has copper by trade,
+ * else stone. (The economy's
+ * own recipes still make tools of stone or copper; the ores and alloys come in M127.)
+ */
+export function toolMetal(ctx: PopulationContext, cell: number): ToolMetal {
+  const lore = loreOf(ctx.world),
+    m = ctx.world.store<MarketStore>("economy.markets").get(cell),
+    iron = oreFor(ctx, cell, "iron") !== null,
+    copper = oreFor(ctx, cell, "copper") !== null;
+  if (iron && lore.get(cell, "steel")) return "steel";
+  if (iron && lore.get(cell, "iron")) return "iron";
+  if (copper && lore.get(cell, "bronze") && oreFor(ctx, cell, "tin") !== null) return "bronze";
+  // (Copper by trade as well as from its own ore: copper tools are made of either.)
+  if (m?.metalworking && (copper || m.stock[G.copper]! > 0)) return "copper";
+  return "stone";
 }
 
 /** What a crafter's year at a recipe is worth, at the market's prices. */
