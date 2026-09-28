@@ -1,13 +1,29 @@
-// The god's hold on the peoples (Phase 12 M107): acts not on the weather but on the realms and
-// their lands, as WorldBox's powers over its kingdoms — one realm set upon another, a war
-// ended, two realms made to remember each other kindly or with grievance, a land stirred to
-// rise from its realm, a land turned to a faith. Each is a logged command whose event cites
-// it; what follows (the battles, the pacts and rivalries, the new realm and the war to take
-// it back, the faith's spread) is the simulation's own.
+// The god's hold on the peoples (Phase 12 M107, Phase 13 M113): acts not on the weather but on
+// the realms and their lands, as WorldBox's powers over its kingdoms — one realm set upon
+// another, a war ended, two realms made to remember each other kindly or with grievance, a land
+// stirred to rise from its realm, a land turned to a faith; and the god's making — settlers sent
+// into a land, two realms made one, a realm's lands blessed with content or cursed with unrest.
+// Each is a logged command whose event cites it; what follows (the battles, the pacts and
+// rivalries, the new realm and the war to take it back, the faith's spread, the new land's
+// villages and speech) is the simulation's own.
 import { defineEventType, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
-import { cellRef } from "../../gen/index.ts";
-import type { PopulationContext } from "../population/systems.ts";
-import { POLITY_EVENTS, cutOff, politiesOf, raiseRealm, realmName } from "../polity/polity.ts";
+import { cellRef, offworldSite } from "../../gen/index.ts";
+import { GOODS } from "../../rules/index.ts";
+import { COLS, Province } from "../population/model.ts";
+import {
+  POPULATION_EVENTS,
+  livableFor,
+  marketsOf,
+  type PopulationContext,
+} from "../population/systems.ts";
+import {
+  POLITY_EVENTS,
+  cutOff,
+  endRealm,
+  politiesOf,
+  raiseRealm,
+  realmName,
+} from "../polity/polity.ts";
 import { WAR, WAR_EVENTS, frontier, warsOf } from "../war/war.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { BELIEF_EVENTS, beliefOf } from "../belief/belief.ts";
@@ -15,7 +31,16 @@ import { BELIEF_EVENTS, beliefOf } from "../belief/belief.ts";
 export const PEOPLE_ACT_EVENTS = {
   friendship: defineEventType("act.friendship", 5),
   discord: defineEventType("act.discord", 5),
+  settle: defineEventType("act.settle", 5),
+  union: defineEventType("act.union", 6),
+  bless: defineEventType("act.bless", 5),
+  curse: defineEventType("act.curse", 5),
 };
+
+/** Settlers sent: this share of the land they come from, at most so many, and no fewer than it can spare. */
+export const SETTLERS = { share: 0.08, most: 2000, fewest: 200 };
+/** How far a blessing eases a land's grievance, and a curse deepens it. */
+export const FORTUNE = 0.5;
 
 /** How strongly the god's friendship or discord is remembered (a war between them is 0.45). */
 export const REGARD = 0.5;
@@ -28,6 +53,27 @@ export type PairArgs = { a: Ref; b: Ref };
 export type LandArgs = { cell: number };
 /** A land, and the faith it is turned to. */
 export type ConvertArgs = { cell: number; faith: Ref };
+/** A realm. */
+export type RealmArgs = { realm: Ref };
+
+/** The most peopled land beside a land (by land, or across the sea its traders cross) that can spare settlers. */
+export function settlersFrom(ctx: PopulationContext, cell: number): number | null {
+  const g = ctx.generated,
+    near = new Set<number>();
+  for (let k = g.grid.offsets[cell]!; k < g.grid.offsets[cell + 1]!; k++)
+    near.add(g.grid.neighbours[k]!);
+  for (const n of marketsOf(ctx.world).seaPartners(cell)) near.add(n);
+  let best: number | null = null,
+    most = SETTLERS.fewest - 1;
+  for (const n of [...near].sort((a, b) => a - b)) {
+    const people = ctx.provinces.get(n)?.total() ?? 0;
+    if (people > most && !offworldSite(g, n)) {
+      most = people;
+      best = n;
+    }
+  }
+  return best;
+}
 
 /** Teach a peopled world the god's acts on its peoples. */
 export function installPeopleActs(world: World, ctx: () => PopulationContext): void {
@@ -186,6 +232,152 @@ export function installPeopleActs(world: World, ctx: () => PopulationContext): v
       cutOff(c, p, seceded);
     },
   });
+
+  // Settlers: a share of the most peopled land beside it sent into a land (empty, or not), with
+  // what they know and their share of its stores; an empty land is peopled by them, and takes
+  // their ways and speech.
+  world.defineCommand({
+    type: "act.settle",
+    validate: (args) => {
+      const cell = (args as Partial<LandArgs> | null)?.cell,
+        c = ctx();
+      if (!Number.isInteger(cell) || cell! < 0 || cell! >= c.generated.grid.count)
+        return "a land is wanted";
+      if (offworldSite(c.generated, cell!) || !livableFor(c, cell!))
+        return "no people could live there";
+      return settlersFrom(c, cell!) === null ? "no people near enough to send" : null;
+    },
+    apply: (command, t) => {
+      const c = ctx(),
+        cell = (command.args as LandArgs).cell,
+        year = yearOfMoment(t),
+        from = c.provinces.get(settlersFrom(c, cell)!)!,
+        count = Math.min(SETTLERS.most, Math.floor(from.total() * SETTLERS.share)),
+        decision = world.decisions.record({
+          rule: "act.settle",
+          subject: from.ref,
+          outcome: { to: cellRef(0, cell), count },
+          score: 1,
+          threshold: 0,
+          factors: [
+            {
+              name: "sent by your hand",
+              value: 1,
+              contribution: 1,
+              source: { ref: command.id, role: "agent", weight: 1 },
+            },
+          ],
+        }),
+        event = world.events.emit({
+          type: PEOPLE_ACT_EVENTS.settle.type,
+          subjects: [from.ref, cellRef(0, cell)],
+          place: cellRef(0, cell),
+          causes: agent(command),
+          data: { count },
+        });
+      let dest = c.provinces.get(cell);
+      if (!dest) {
+        dest = c.provinces.add(new Province(cell, year, event));
+        world.events.emit({
+          type: POPULATION_EVENTS.peopled.type,
+          place: dest.ref,
+          causes: [{ ref: event, role: "trigger", weight: 1 }],
+          data: { people: count },
+        });
+      }
+      // They carry what they know, and their share of what their people have.
+      if (from.knowsCultivation && !dest.knowsCultivation) {
+        dest.knowsCultivation = true;
+        dest.cultivation = from.cultivation;
+      }
+      if (from.herding && !dest.herding) dest.herding = from.herding;
+      const markets = marketsOf(world),
+        out = markets.of(from.cell),
+        into = markets.of(cell),
+        people = Math.max(1, from.total());
+      for (let g = 0; g < GOODS.length; g++)
+        into.move(
+          "carriedIn",
+          g,
+          out.move("carriedOut", g, Math.floor((out.stock[g]! * count) / people)),
+        );
+      if (out.metalworking && !into.metalworking) into.metalworking = out.metalworking;
+      // Of every age and trade alike, as many as are sent.
+      const share = count / people,
+        byOccupation = new Array<number>(COLS).fill(0);
+      let moved = 0;
+      for (let r = 0; r < from.counts.rows && moved < count; r++)
+        for (let o = 0; o < COLS && moved < count; o++) {
+          const m = Math.min(count - moved, Math.floor(from.counts.get(r, o) * share));
+          if (m <= 0) continue;
+          from.counts.add(r, o, -m);
+          dest.counts.add(r, o, m);
+          byOccupation[o] = byOccupation[o]! + m;
+          moved += m;
+        }
+      c.history.addFlow({
+        from: from.cell,
+        to: cell,
+        year,
+        count: moved,
+        byOccupation,
+        decision,
+        event,
+      });
+    },
+  });
+
+  // Union: the second realm joins the first, its lands and all, and ends as a realm of its own.
+  world.defineCommand({
+    type: "act.union",
+    validate: pair,
+    apply: (command, t) => {
+      const { a, b } = command.args as PairArgs,
+        into = standing(a)!,
+        gone = standing(b)!,
+        event = world.events.emit({
+          type: PEOPLE_ACT_EVENTS.union.type,
+          subjects: [into.ref, gone.ref],
+          place: ctx().provinces.get(gone.seat)?.ref ?? null,
+          causes: agent(command),
+          data: { a: realmName(into), b: realmName(gone), lands: gone.members.length },
+        });
+      for (const cell of [...gone.members]) {
+        realms().leave(gone, cell);
+        realms().join(into, cell);
+      }
+      endRealm(ctx(), gone, t, { ref: event, role: "trigger", weight: 1 });
+    },
+  });
+
+  // A blessing and a curse on a realm: every land of it the more content, or the more restless.
+  for (const [kind, sign] of [
+    ["bless", -1],
+    ["curse", 1],
+  ] as const)
+    world.defineCommand({
+      type: `act.${kind}`,
+      validate: (args) =>
+        standing((args as Partial<RealmArgs> | null)?.realm) ? null : "a standing realm is wanted",
+      apply: (command) => {
+        const r = standing((command.args as RealmArgs).realm)!,
+          event = world.events.emit({
+            type: PEOPLE_ACT_EVENTS[kind].type,
+            subjects: [r.ref],
+            place: ctx().provinces.get(r.seat)?.ref ?? null,
+            causes: agent(command),
+            data: { name: realmName(r), lands: r.members.length },
+          });
+        for (const cell of r.members) {
+          const d = realms().discontent(cell),
+            level = Math.max(0, d.level + sign * FORTUNE);
+          realms().setDiscontent(cell, {
+            level,
+            cause: sign > 0 ? event : level > 0 ? d.cause : null,
+          });
+        }
+      },
+    });
 
   // Conversion: a land turned to a faith.
   world.defineCommand({

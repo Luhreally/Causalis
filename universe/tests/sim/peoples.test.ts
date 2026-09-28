@@ -12,16 +12,25 @@ import {
 } from "../../src/kernel/index.ts";
 import {
   BELIEF_EVENTS,
+  DISASTER,
+  DISASTER_EVENTS,
+  FORTUNE,
   PEOPLE_ACT_EVENTS,
   POLITY_EVENTS,
   REGARD,
+  SETTLERS,
   WAR_EVENTS,
+  actsOf,
   beliefOf,
+  cultureOf,
   diplomacyOf,
   frontier,
+  livableFor,
   makePopulationWorld,
+  marketsOf,
   politiesOf,
   populationContext,
+  settlersFrom,
   warsOf,
   type Polity,
 } from "../../src/sim/index.ts";
@@ -168,11 +177,162 @@ test("a land turned to a faith holds it from the act", () => {
   );
 });
 
+test("the ground shaken: a share of a land's people dead, its stores spilled, its grief its realm's", () => {
+  const w = fresh(),
+    ctx = populationContext(w),
+    land = [...ctx.provinces.all()].sort((x, y) => y.total() - x.total() || x.cell - y.cell)[0]!,
+    before = land.total(),
+    grain = marketsOf(w).get(land.cell)!.stock[0]!,
+    grief = politiesOf(w).discontent(land.cell).level;
+  const act = w.submit("act.quake", { cell: land.cell });
+  w.runTo(AT + 1);
+  const e = w.events.all().find((x) => x.type === DISASTER_EVENTS.quake.type)!;
+  assert.equal(e.causes[0]!.ref, act.id, "the quake cites the act");
+  const dead = (e.data as { dead: number }).dead;
+  assert.ok(
+    Math.abs(dead - before * DISASTER.quake.dead) < before * 0.01,
+    `${dead} of ${before} died`,
+  );
+  assert.ok(marketsOf(w).get(land.cell)!.stock[0]! < grain, "its stores spilled");
+  if (politiesOf(w).of(land.cell)) {
+    const d = politiesOf(w).discontent(land.cell);
+    assert.ok(d.level > grief && d.cause === e.id, "its grief its realm's");
+  }
+  assert.match(why(w, e.id).claim, /the ground shook under/);
+  assert.throws(() => w.submit("act.quake", { cell: -1 }), /a land is wanted|no one lives/);
+});
+
+test("fire from the sky: many dead, the fields burned for years, a crater left on the map", () => {
+  const w = fresh(),
+    ctx = populationContext(w),
+    land = [...ctx.provinces.all()].sort((x, y) => y.total() - x.total() || x.cell - y.cell)[1]!,
+    before = land.total();
+  w.submit("act.meteor", { cell: land.cell });
+  w.runTo(AT + 1);
+  const e = w.events.all().find((x) => x.type === DISASTER_EVENTS.meteor.type)!,
+    blight = actsOf(w).at(land.cell, "harvest", w.now)!;
+  const dead = (e.data as { dead: number }).dead;
+  assert.ok(
+    Math.abs(dead - before * DISASTER.meteor.dead) < before * 0.01,
+    `${dead} of ${before} died`,
+  );
+  assert.equal(land.total(), before - dead, "a fifth dead");
+  assert.equal(blight.sign, -1, "its fields burned");
+  assert.equal(blight.event, e.id, "the failed harvest cites the fire");
+  assert.equal(blight.until - blight.from, DISASTER.meteor.blighted * YEAR);
+  assert.deepEqual(
+    actsOf(w)
+      .craters()
+      .map((c) => c.cell),
+    [land.cell],
+    "a crater left",
+  );
+  assert.match(why(w, e.id).claim, /fire fell from the sky/);
+});
+
+test("a river risen drowns a river land's fields, and those downriver; a dry land has no river to rise", () => {
+  const w = fresh(),
+    ctx = populationContext(w),
+    g = ctx.generated,
+    river = [...ctx.provinces.all()]
+      .filter((p) => p.total() > 0 && g.water.river[p.cell])
+      .sort((x, y) => y.total() - x.total() || x.cell - y.cell)[0]!,
+    dry = ctx.provinces
+      .all()
+      .find((p) => p.total() > 0 && !g.water.river[p.cell] && !g.water.lake[p.cell]);
+  const act = w.submit("act.flood", { cell: river.cell });
+  w.runTo(AT + 1);
+  const e = w.events.all().find((x) => x.type === DISASTER_EVENTS.flood.type)!;
+  assert.equal(e.causes[0]!.ref, act.id);
+  const drowned = actsOf(w)
+    .all()
+    .filter((a) => a.event === e.id);
+  assert.equal(drowned.length, (e.data as { lands: number }).lands, "each land drowned");
+  assert.ok(drowned.every((a) => a.kind === "harvest" && a.sign === -1));
+  assert.ok(drowned.some((a) => a.cell === river.cell));
+  if (dry) assert.throws(() => w.submit("act.flood", { cell: dry.cell }), /no river/);
+});
+
+test("settlers sent into an empty land people it, with their ways and speech; the flow is history's", () => {
+  // (A young world, its people still at their cradle, the lands about it empty.)
+  const w = makePopulationWorld(seedFromText("first light"));
+  w.runTo(60 * YEAR);
+  const ctx = populationContext(w),
+    g = ctx.generated,
+    empty = Array.from({ length: g.grid.count }, (_, c) => c).find(
+      (c) =>
+        !ctx.provinces.get(c) &&
+        g.tectonics.elevation[c]! > 0 &&
+        livableFor(ctx, c) &&
+        settlersFrom(ctx, c) !== null,
+    );
+  assert.ok(empty !== undefined, "an empty land beside a peopled one");
+  const from = ctx.provinces.get(settlersFrom(ctx, empty)!)!,
+    sent = Math.min(SETTLERS.most, Math.floor(from.total() * SETTLERS.share)),
+    act = w.submit("act.settle", { cell: empty });
+  w.runTo(61 * YEAR);
+  const land = ctx.provinces.get(empty)!,
+    e = w.events.get(land.arrival!)!;
+  assert.equal(e.type, PEOPLE_ACT_EVENTS.settle.type);
+  assert.equal(e.causes[0]!.ref, act.id, "peopled by the act");
+  assert.ok(land.total() > 0.8 * sent, `${land.total()} of ${sent} there a year on`);
+  assert.ok(cultureOf(w).get(empty), "with their ways");
+  assert.ok(
+    ctx.history.flows().some((f) => f.to === empty && f.event === e.id),
+    "the flow written",
+  );
+  assert.match(why(w, e.id).claim, /settlers came into/);
+  const sea = Array.from({ length: g.grid.count }, (_, c) => c).find(
+    (c) => g.tectonics.elevation[c]! < -2000,
+  )!;
+  assert.throws(() => w.submit("act.settle", { cell: sea }), /no people could live there/);
+  // Into a land already peopled: more of them.
+  const j = fresh(),
+    jctx = populationContext(j),
+    peopled = [...jctx.provinces.all()].find((p) => settlersFrom(jctx, p.cell) !== null)!,
+    had = peopled.total();
+  j.submit("act.settle", { cell: peopled.cell });
+  j.runTo(AT + 1);
+  assert.ok(peopled.total() > had, "the more there");
+});
+
+test("two realms made one: the second's lands the first's, the second ended; a realm blessed or cursed", () => {
+  const w = fresh(),
+    [a, b] = neighbours(w),
+    lands = [...b.members];
+  const act = w.submit("act.union", { a: a.ref, b: b.ref });
+  w.runTo(AT + 1);
+  const realms = politiesOf(w);
+  assert.ok(
+    lands.every((c) => realms.of(c)?.ref === a.ref),
+    "its lands the first's",
+  );
+  assert.notEqual(realms.get(b.ref)!.ended, null, "the second ended");
+  const e = w.events.all().find((x) => x.type === PEOPLE_ACT_EVENTS.union.type)!;
+  assert.equal(e.causes[0]!.ref, act.id);
+  const ended = w.events
+    .all()
+    .find((x) => x.type === POLITY_EVENTS.ended.type && x.subjects[0] === b.ref)!;
+  assert.equal(ended.causes[0]!.ref, e.id, "its end cites the union");
+  // A blessing eases every land's grievance; a curse deepens it.
+  const levels = () => a.members.map((c) => realms.discontent(c).level);
+  const was = levels();
+  w.submit("act.curse", { realm: a.ref });
+  w.runTo(AT + 2);
+  levels().forEach((l, i) => assert.ok(Math.abs(l - (was[i]! + FORTUNE)) < 1e-9, "cursed"));
+  w.submit("act.bless", { realm: a.ref });
+  w.runTo(AT + 3);
+  levels().forEach((l, i) => assert.ok(Math.abs(l - was[i]!) < 1e-9, "blessed back"));
+  assert.throws(() => w.submit("act.bless", { realm: b.ref }), /standing realm/);
+});
+
 test("a world touched by the acts on its peoples replays, and its save continues, bit for bit", () => {
   const w = fresh();
   const [a, b] = neighbours(w);
   w.submit("act.discord", { a: a.ref, b: b.ref });
   w.submit("act.war", { a: a.ref, b: b.ref });
+  w.submit("act.quake", { cell: a.seat });
+  w.submit("act.meteor", { cell: b.seat });
   w.runTo(AT + 3 * YEAR);
   const doc = saveWorld(w, RULESET);
   assert.deepEqual(verifyByReplay(doc, build), { ok: true, problem: null });

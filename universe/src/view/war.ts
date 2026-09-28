@@ -479,6 +479,96 @@ export function battleOf(plan: VillagePlan, each: number, s: number): Soldier[] 
   return out;
 }
 
+/** One who fought in a land's battle now (Phase 13 M114): where (km), facing, their side, what they are at. */
+export type LandSoldier = {
+  readonly x: number;
+  readonly z: number;
+  readonly yaw: number;
+  /** 0 the attackers, 1 the defenders. */
+  readonly side: 0 | 1;
+  readonly doing: "advance" | "fight" | "fallen" | "fall back";
+  /** Whether at the head of their host (the banner's). */
+  readonly lead: boolean;
+};
+
+/**
+ * A battle in a land played out (Phase 13 M114), round after round by the screen's clock: the two
+ * hosts, `each` a side, come on in two ranks from either hand of the place it was fought, meet at
+ * the line, fight — as large a share falling as fell of those who fought, the beaten the more —
+ * and the beaten fall back. Last year's battle is not played again: its fallen lie where they
+ * fell. Pure: the same moment, the same soldiers.
+ */
+export function landBattle(
+  b: {
+    readonly at: Flat;
+    readonly event: string;
+    readonly won: boolean;
+    readonly size: number;
+    readonly age: number;
+  },
+  each: number,
+  s: number,
+): LandSoldier[] {
+  const out: LandSoldier[] = [],
+    turn = unit(hashText(b.event), 7) * Math.PI * 2,
+    ux = Math.cos(turn),
+    uz = Math.sin(turn),
+    // (This year's battle is fought over; last year's lies still, the fight done.)
+    phase = b.age === 0 ? (s / BATTLE_ROUND) % 1 : 0.9,
+    falls = Math.max(0.1, Math.min(0.5, 0.15 + 0.35 * b.size)),
+    beaten: 0 | 1 = b.won ? 1 : 0,
+    down = Math.round(falls * 2 * each),
+    downOf = (side: number) =>
+      side === beaten
+        ? Math.min(each, Math.round(down * 0.65))
+        : down - Math.min(each, Math.round(down * 0.65)),
+    smooth = (x: number) => x * x * (3 - 2 * x);
+  for (const side of [0, 1] as const)
+    for (let i = 0; i < each; i++) {
+      const file = (i >> 1) - (Math.ceil(each / 2) - 1) / 2,
+        rank = i & 1,
+        sign = side === 0 ? 1 : -1,
+        across = file * 0.8,
+        from = sign * (7 + rank * 0.9),
+        meet = sign * (0.55 + rank * 0.8),
+        fallsAt = 0.38 + 0.4 * unit(i, side * 13 + 1),
+        fallen =
+          (i * 11 + side * 3) % Math.max(1, each) < downOf(side) &&
+          phase > fallsAt &&
+          (b.age > 0 || phase < 0.97);
+      let along: number, doing: LandSoldier["doing"];
+      if (phase < 0.3) {
+        along = from + (meet - from) * smooth(phase / 0.3);
+        doing = "advance";
+      } else if (phase < 0.82 || side !== beaten) {
+        along = meet + (b.age === 0 ? Math.sin(s * 3 + i) * 0.08 : 0);
+        doing = "fight";
+      } else {
+        along = meet + (from - meet) * smooth((phase - 0.82) / 0.18) * 0.6;
+        doing = "fall back";
+      }
+      if (fallen) doing = "fallen";
+      // Facing the other side (their backs turned as they fall back).
+      const facing = Math.atan2(-sign * ux, -sign * uz) + (doing === "fall back" ? Math.PI : 0);
+      out.push({
+        x: b.at.x + ux * along - uz * across,
+        z: b.at.z + uz * along + ux * across,
+        yaw: facing,
+        side,
+        doing,
+        lead: i === 0,
+      });
+    }
+  return out;
+}
+
+/** A number of a text's own. */
+function hashText(text: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619) >>> 0;
+  return h;
+}
+
 /**
  * Where a village's battle is fought (the middle of the line where the hosts meet), for the
  * view to face it — a battle zoomed into from its land is seen closer (M95). Null: none.

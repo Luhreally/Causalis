@@ -10,7 +10,14 @@
 // garrison under its banner. Instanced; the march plays over as the war lasts, as on the globe.
 import * as pc from "playcanvas";
 import type { HostKinds } from "../bridge/index.ts";
-import { counterWords, holdShape, landColumn, landShape, type LandWars } from "../view/index.ts";
+import {
+  counterWords,
+  holdShape,
+  landBattle,
+  landColumn,
+  landShape,
+  type LandWars,
+} from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, keptMesh } from "./batch.ts";
 import type { Stage } from "./stage.ts";
 
@@ -49,6 +56,8 @@ type Figure = {
   lead: boolean;
   side: number;
   kit: Kit;
+  /** Fallen in a battle: laid on the ground, its mount and arms gone from it. */
+  fallen?: boolean;
 };
 
 /** A host's design as the figures of its column carry it (on foot with spears, where it has none). */
@@ -115,6 +124,8 @@ export class RegionWars {
     banners: 0,
     tents: 0,
     garrison: 0,
+    fought: 0,
+    fallen: 0,
   };
 
   /** The hosts and battles shown (for the look tools). */
@@ -273,35 +284,33 @@ export class RegionWars {
         });
       }
     });
-    // Battles: two lines face to face, closing and falling back as they fight.
+    // Battles played out (Phase 13 M114): the two hosts come on, meet at the line, fight and
+    // fall, and the beaten fall back — round after round while the battle is this year's.
     const clashes: { at: Flat; size: number; pulse: number }[] = [];
+    let fought = 0,
+      fell = 0;
     land.battles.forEach((b, n) => {
       const fresh = b.age === 0 ? 1 : b.age === 1 ? 0.7 : 0.45,
-        count = Math.round(4 + 6 * b.size * fresh),
-        sway = Math.sin(s * 2.2 + n) * 0.25;
-      for (const [side, dir, host] of [
-        [b.side, -1, b.hosts.attacker],
-        [b.foe, 1, b.hosts.defender],
-      ] as const) {
-        const kit = kitOf(host);
-        for (let k = 0; k < count; k++) {
-          const across = (k - (count - 1) / 2) * 0.8,
-            gap = 0.9 + (dir > 0 ? sway : -sway) + (k % 2) * 0.5;
-          figures.push({
-            x: b.at.x + across,
-            // (Riders need the more room.)
-            z: b.at.z + dir * gap * (kit.ride === "foot" ? 1 : 1.4),
-            yaw: dir > 0 ? Math.PI : 0,
-            size: 1,
-            lead: k === Math.floor(count / 2),
-            side,
-            kit,
-          });
-        }
+        each = Math.max(6, Math.min(18, Math.round(6 + 12 * b.size * fresh))),
+        kits = [kitOf(b.hosts.attacker), kitOf(b.hosts.defender)] as const;
+      for (const f of landBattle(b, each, s)) {
+        figures.push({
+          x: f.x,
+          z: f.z,
+          yaw: f.yaw,
+          size: 1,
+          lead: f.lead,
+          side: f.side === 0 ? b.side : b.foe,
+          kit: kits[f.side],
+          fallen: f.doing === "fallen",
+        });
+        fought++;
+        if (f.doing === "fallen") fell++;
       }
+      // (Its mark over the fight, small: the soldiers are the battle now.)
       clashes.push({
         at: b.at,
-        size: (1.4 + 2.6 * b.size) * fresh,
+        size: (0.35 + 0.5 * b.size) * fresh,
         pulse: 0.75 + 0.25 * Math.sin(s * 5 + n * 1.7),
       });
       marks.push({ x: b.at.x, z: b.at.z, ref: b.event, name: `⚔️ ${b.name}`, battle: true });
@@ -392,7 +401,7 @@ export class RegionWars {
       const c = clashes[i]!,
         k = c.size * c.pulse;
       out[0] = c.at.x;
-      out[1] = this.height(c.at.x, c.at.z) + 0.25 + k * 0.4;
+      out[1] = this.height(c.at.x, c.at.z) + 3.4;
       out[2] = c.at.z;
       out[3] = out[4] = out[5] = k;
       out[6] = s;
@@ -400,10 +409,10 @@ export class RegionWars {
     this.blades.set(clashes.length * 2, (i, out) => {
       const c = clashes[i >> 1]!;
       out[0] = c.at.x;
-      out[1] = this.height(c.at.x, c.at.z) + 1.4 + c.size * 0.6;
+      out[1] = this.height(c.at.x, c.at.z) + 3.5;
       out[2] = c.at.z;
-      out[3] = 0.09;
-      out[4] = 1.6 + c.size;
+      out[3] = 0.07;
+      out[4] = 1.1 + c.size;
       out[5] = 0.09;
       out[6] = 0;
       out[7] = i % 2 ? 0.7 : -0.7;
@@ -411,6 +420,8 @@ export class RegionWars {
     this.counts.tents = tents.length;
     this.counts.garrison = garrisoned;
     this.counts.banners = banners.length;
+    this.counts.fought = fought;
+    this.counts.fallen = fell;
   }
 
   /** Every figure: its body in its side's colour and its head, its mount, its arms. */
@@ -434,6 +445,18 @@ export class RegionWars {
       batch.set(mine.length, (i, out) => {
         const f = mine[i]!,
           h = tall(f);
+        if (f.fallen) {
+          // (Laid along the ground, the way they faced.)
+          out[0] = f.x;
+          out[1] = ground(f) + 0.16;
+          out[2] = f.z;
+          out[3] = 0.42 * f.size;
+          out[4] = h;
+          out[5] = 0.3 * f.size;
+          out[6] = f.yaw;
+          out[7] = Math.PI / 2;
+          return;
+        }
         out[0] = f.x;
         out[1] = ground(f) + seatOf(f) * f.size + h / 2;
         out[2] = f.z;
@@ -447,14 +470,25 @@ export class RegionWars {
       const f = shown[i]!,
         h = tall(f),
         r = 0.3 * f.size;
+      if (f.fallen) {
+        const p = beside(f, 0, h / 2 + r / 2);
+        out[0] = p.x;
+        out[1] = ground(f) + 0.16;
+        out[2] = p.z;
+        out[3] = out[4] = out[5] = r;
+        out[6] = f.yaw;
+        return;
+      }
       out[0] = f.x;
       out[1] = ground(f) + seatOf(f) * f.size + h + r / 2;
       out[2] = f.z;
       out[3] = out[4] = out[5] = r;
       out[6] = f.yaw;
     });
+    // (The fallen have lost their mounts and let fall their arms.)
+    const standing = shown.filter((f) => !f.fallen);
     // Horses under the riders, and before the chariots; the chariots' carts behind them.
-    const mounted = shown.filter((f) => f.kit.ride !== "foot"),
+    const mounted = standing.filter((f) => f.kit.ride !== "foot"),
       horseAt = (f: Figure): Flat => (f.kit.ride === "chariot" ? beside(f, 0, 0.95 * f.size) : f);
     this.horses.set(mounted.length, (i, out) => {
       const f = mounted[i]!,
@@ -481,7 +515,7 @@ export class RegionWars {
       out[6] = f.yaw;
       out[7] = 0.5;
     });
-    const chariots = shown.filter((f) => f.kit.ride === "chariot");
+    const chariots = standing.filter((f) => f.kit.ride === "chariot");
     this.carts.set(chariots.length * 3, (i, out) => {
       const f = chariots[Math.floor(i / 3)]!,
         part = i % 3;
@@ -508,9 +542,9 @@ export class RegionWars {
     });
     // Arms: a spear upright at the right hand, its head of steel; a blade at the hip; a bow (or
     // a club) in the left hand.
-    const spears = shown.filter((f) => f.kit.arm === "spear"),
-      blades = shown.filter((f) => f.kit.arm === "sword" || f.kit.arm === "axe"),
-      bows = shown.filter(
+    const spears = standing.filter((f) => f.kit.arm === "spear"),
+      blades = standing.filter((f) => f.kit.arm === "sword" || f.kit.arm === "axe"),
+      bows = standing.filter(
         (f) => f.kit.arm === "bow" || f.kit.arm === "horn-bow" || f.kit.arm === "club",
       );
     this.shafts.set(spears.length, (i, out) => {
@@ -559,7 +593,7 @@ export class RegionWars {
       out[7] = f.kit.arm === "club" ? 0.6 : 0.15;
     });
     // (Shields on the left arm are drawn with the banners, in their colours.)
-    this.shields = shown.filter((f) => f.kit.shield);
+    this.shields = standing.filter((f) => f.kit.shield);
     this.drawn = shown.length;
     this.counts.riders = mounted.length - chariots.length;
     this.counts.chariots = chariots.length;

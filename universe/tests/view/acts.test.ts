@@ -43,6 +43,12 @@ test("every act plays where it falls, on the globe's face, and fades as its time
     "shrine",
     "rising",
     "conversion",
+    "quake",
+    "meteor",
+    "crater",
+    "flood",
+    "bless",
+    "curse",
   ];
   for (const kind of kinds) {
     const placed = placeActs([mark(kind)], grid, elevation),
@@ -52,7 +58,8 @@ test("every act plays where it falls, on the globe's face, and fades as its time
       assert.ok(ACT_PARTS.includes(b.part), b.part);
       // Near its land, above the ground.
       const r = Math.hypot(b.at.x, b.at.y, b.at.z);
-      assert.ok(r >= 1 && r < 1.3, `${kind} ${b.part} at ${r}`);
+      // (A meteor falls from high above.)
+      assert.ok(r >= 1 && r < (kind === "meteor" ? 1.6 : 1.3), `${kind} ${b.part} at ${r}`);
     }
     // A faded act's marks are smaller.
     const faded = actBits(placeActs([mark(kind, 0.05)], grid, elevation), 3.2),
@@ -73,7 +80,7 @@ test("every act plays where it falls, on the globe's face, and fades as its time
 
 test("an act between two realms is a thread from one seat to the other, arched over the globe", () => {
   const to = unit(-0.4, 0.7, 0.5);
-  for (const kind of ["war", "peace", "friendship", "discord"] as const) {
+  for (const kind of ["war", "peace", "friendship", "discord", "settle", "union"] as const) {
     const placed = placeActs([mark(kind, 1, to)], grid, elevation),
       bits = actBits(placed, 2);
     assert.ok(bits.length >= 20, `${kind}: a thread of beads (${bits.length})`);

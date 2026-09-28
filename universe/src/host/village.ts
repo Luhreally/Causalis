@@ -32,6 +32,7 @@ import {
 import { meetHousehold, observer, settleAll } from "../causal/index.ts";
 import { LAKE_R, WATER_OUT, type VillageLife, type VillagePlan } from "../bridge/index.ts";
 import { realmColor } from "./colors.ts";
+import { hostKinds } from "./arms.ts";
 
 /** Families the microscope watches in a village: a presentation budget, not a rule. */
 export const WATCHED_FAMILIES = 10;
@@ -351,8 +352,17 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
         d = realms.get(w.defender);
       if (!b || !a || !d || (battle && battle.year > b.year)) continue;
       battle = {
-        attacker: { name: realmName(a), color: realmColor(w.attacker) },
-        defender: { name: realmName(d), color: realmColor(w.defender) },
+        // (Each in its host's kinds: its arms, its guard — Phase 13 M114.)
+        attacker: {
+          name: realmName(a),
+          color: realmColor(w.attacker),
+          host: hostKinds(world, w.attacker),
+        },
+        defender: {
+          name: realmName(d),
+          color: realmColor(w.defender),
+          host: hostKinds(world, w.defender),
+        },
         won: b.won,
         fallen: b.fallen[0] + b.fallen[1],
         year: b.year,

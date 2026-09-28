@@ -1,6 +1,7 @@
 // The microscope's plan of a village, as the host sends it (docs/architecture §9,
 // watch mode): what the view needs to draw a village's day. Positions are metres
 // from the village's middle.
+import type { HostKinds } from "./wars.ts";
 /** How far a village's water lies out along its way, and how far the lake reaches about that point (metres). */
 export const WATER_OUT = 700;
 export const LAKE_R = 220;
@@ -51,13 +52,20 @@ export type VillageLife = {
    * name and colour, whether the attacker won, how many fell, and the battle's event.
    */
   readonly battle?: {
-    readonly attacker: { readonly name: string; readonly color: readonly [number, number, number] };
-    readonly defender: { readonly name: string; readonly color: readonly [number, number, number] };
+    readonly attacker: BattleSide;
+    readonly defender: BattleSide;
     readonly won: boolean;
     readonly fallen: number;
     readonly year: number;
     readonly event: string;
   } | null;
+};
+
+/** A side of a village's battle: its realm's name and colour, and its host's kinds (what it bears). */
+export type BattleSide = {
+  readonly name: string;
+  readonly color: readonly [number, number, number];
+  readonly host?: HostKinds | null;
 };
 
 export type VillagePlan = {

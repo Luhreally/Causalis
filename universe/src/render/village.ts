@@ -100,6 +100,15 @@ export class VillageScene {
   private soldiers: InstancedBatch[][] = [];
   private spears: InstancedBatch | null = null;
   private soldiersEach = 0;
+  /**
+   * What each side bears, as its host's design has it (Phase 13 M114): its arm (a spear, a
+   * sword, an axe, a bow), whether a shield; and the batches of blades, bows and each side's
+   * shields.
+   */
+  private kits: { arm: string; shield: boolean }[] = [];
+  private blades: InstancedBatch | null = null;
+  private bows: InstancedBatch | null = null;
+  private shields: (InstancedBatch | null)[] = [];
   /** For each part of hair, a batch per hair colour (M79). */
   private hair: (InstancedBatch[] | null)[] = [];
   /** Windows, lit from dusk to dawn (their material's glow set by the hour). */
@@ -596,9 +605,40 @@ export class VillageScene {
           );
         })
       : [];
-    this.spears = battle
+    this.kits = battle
+      ? [battle.attacker, battle.defender].map((side) => ({
+          arm: side.host?.arm || "spear",
+          shield: side.host?.guard === "shield",
+        }))
+      : [];
+    const bears = (arms: readonly string[]) => this.kits.some((k) => arms.includes(k.arm));
+    this.spears = bears(["spear"])
       ? this.batch(s, meshes.box, [0.52, 0.38, 0.24], this.soldiersEach * 2, this.root)
       : null;
+    this.blades = bears(["sword", "axe"])
+      ? this.batch(s, meshes.box, [0.8, 0.82, 0.86], this.soldiersEach * 2, this.root)
+      : null;
+    this.bows = bears(["bow", "horn-bow"])
+      ? this.batch(s, meshes.box, [0.4, 0.26, 0.12], this.soldiersEach * 2, this.root)
+      : null;
+    // (Shields in their side's colour, a little brighter.)
+    this.shields = battle
+      ? [battle.attacker.color, battle.defender.color].map((c, side) =>
+          this.kits[side]!.shield
+            ? this.batch(
+                s,
+                meshes.box,
+                [
+                  Math.min(1, c[0] * 1.2 + 0.1),
+                  Math.min(1, c[1] * 1.2 + 0.1),
+                  Math.min(1, c[2] * 1.2 + 0.1),
+                ],
+                this.soldiersEach,
+                this.root,
+              )
+            : null,
+        )
+      : [];
     // Homes built more finely (M79): windows lit at night, chimneys, porches, fences.
     this.windows = null;
     this.lit = -1;
@@ -849,8 +889,13 @@ export class VillageScene {
         ),
       );
       // Their spears: held upright on the march, thrust in the fight, dropped by the fallen.
-      this.spears?.set(troops.length, (i, out) => {
-        const q = troops[i]!,
+      const armed = (arms: readonly string[]) =>
+          troops
+            .map((q, i) => ({ q, i }))
+            .filter(({ q }) => arms.includes(this.kits[q.side]?.arm ?? "spear")),
+        spearmen = armed(["spear"]);
+      this.spears?.set(spearmen.length, (n, out) => {
+        const { q, i } = spearmen[n]!,
           size = this.figure.scale * q.size,
           c = Math.cos(q.yaw),
           sn = Math.sin(q.yaw),
@@ -869,6 +914,66 @@ export class VillageScene {
         out[5] = 0.018 * size;
         out[6] = q.yaw;
         out[7] = fallen ? -Math.PI / 2 : thrust;
+      });
+      // Swords and axes: at the hip on the march, swung in the fight, dropped by the fallen.
+      const swordsmen = armed(["sword", "axe"]);
+      this.blades?.set(swordsmen.length, (n, out) => {
+        const { q, i } = swordsmen[n]!,
+          size = this.figure.scale * q.size,
+          c = Math.cos(q.yaw),
+          sn = Math.sin(q.yaw),
+          fallen = q.doing === "fallen",
+          swing = q.doing === "fight" ? -1.2 * Math.abs(Math.sin(clock * 2.6 + i * 1.3)) : 0.2,
+          axe = this.kits[q.side]!.arm === "axe",
+          across = 0.14,
+          ahead = fallen ? -0.3 : 0.08;
+        out[0] = q.x * M + (across * c + ahead * sn) * size;
+        out[1] = (fallen ? 0.03 : 0.3) * size;
+        out[2] = q.z * M + (-across * sn + ahead * c) * size;
+        out[3] = 0.016 * size;
+        out[4] = (axe ? 0.3 : 0.38) * size;
+        out[5] = (axe ? 0.07 : 0.03) * size;
+        out[6] = q.yaw;
+        out[7] = fallen ? -Math.PI / 2 : swing;
+      });
+      // Bows: in the left hand, drawn in the fight, dropped by the fallen.
+      const archers = armed(["bow", "horn-bow"]);
+      this.bows?.set(archers.length, (n, out) => {
+        const { q } = archers[n]!,
+          size = this.figure.scale * q.size,
+          c = Math.cos(q.yaw),
+          sn = Math.sin(q.yaw),
+          fallen = q.doing === "fallen",
+          across = -0.14,
+          ahead = fallen ? -0.3 : q.doing === "fight" ? 0.2 : 0.06;
+        out[0] = q.x * M + (across * c + ahead * sn) * size;
+        out[1] = (fallen ? 0.03 : 0.42) * size;
+        out[2] = q.z * M + (-across * sn + ahead * c) * size;
+        out[3] = 0.014 * size;
+        out[4] = 0.5 * size;
+        out[5] = 0.03 * size;
+        out[6] = q.yaw;
+        out[7] = fallen ? -Math.PI / 2 : 0;
+      });
+      // Shields on the left arm, square to the foe; the fallen's lying by them.
+      this.shields.forEach((batch, side) => {
+        if (!batch) return;
+        batch.set(this.soldiersEach, (k, out) => {
+          const q = troops[side * this.soldiersEach + k]!,
+            size = this.figure.scale * q.size,
+            c = Math.cos(q.yaw),
+            sn = Math.sin(q.yaw),
+            fallen = q.doing === "fallen",
+            across = fallen ? -0.25 : -0.15,
+            ahead = fallen ? 0.1 : 0.1;
+          out[0] = q.x * M + (across * c + ahead * sn) * size;
+          out[1] = (fallen ? 0.02 : 0.34) * size;
+          out[2] = q.z * M + (-across * sn + ahead * c) * size;
+          out[3] = 0.22 * size;
+          out[4] = (fallen ? 0.02 : 0.28) * size;
+          out[5] = (fallen ? 0.24 : 0.025) * size;
+          out[6] = q.yaw;
+        });
       });
     }
     // What they carry, where they go with it.

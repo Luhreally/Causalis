@@ -3,9 +3,9 @@
 // (the sea it looks on, its heights, its woods, its sands, its ice) and what its faith holds.
 // Pure reads of the world.
 import { isProvinceWorld } from "../gen/index.ts";
-import { beliefOf, homePlanet, politiesOf, type Tenet } from "../sim/index.ts";
+import { beliefOf, designsOf, homePlanet, politiesOf, type Tenet } from "../sim/index.ts";
 import type { Ref, World } from "../kernel/index.ts";
-import { armsFor, type Arms, type Charge } from "../bridge/index.ts";
+import { armsFor, type Arms, type Charge, type HostKinds } from "../bridge/index.ts";
 import { realmColor } from "./colors.ts";
 
 /** The biomes (by their index, as gen/climate names them) and what a seat among them bears. */
@@ -61,4 +61,15 @@ export function realmArms(world: World, ref: string): Arms | null {
     realmColor(ref),
     r ? { land: chargeOf(world, r.seat), faith: faithCharge(world, r.seat) } : {},
   );
+}
+
+/**
+ * What a realm's host is made of (Phase 12 M110): what it strikes with, what guards it, what
+ * carries it — its design's parts, by their ids (null: it has no design yet).
+ */
+export function hostKinds(world: World, ref: string): HostKinds | null {
+  const parts = designsOf(world).of(ref as Ref)?.parts;
+  if (!parts) return null;
+  const id = (role: string) => parts.find((x) => x.role === role)?.id ?? "";
+  return { arm: id("arm"), guard: id("guard"), mount: id("mount") };
 }

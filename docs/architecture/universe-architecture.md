@@ -4112,6 +4112,78 @@ Phase 13's "done when":
      page: the men each side fielded and the fallen, year by year; the lands taken.
 116. **Phase 13 gate.**
 
+112, as built: disasters (sim/acts/disasters.ts; words in causal/acts.ts; the palette's
+"Disasters" and "The weather").
+
+- **Each a logged command** whose event cites it, following through the simulation's own
+  ledgers:
+  - `act.quake {cell}`: 4% of the land's people dead (of every age and trade, never those the
+    hand holds as themselves), written as deaths; 30% of its stores spilled (written as
+    spoiled); a quarter of its cities' blocks down; its grief laid on its realm (+0.25 grievance,
+    the quake its cause).
+  - `act.meteor {cell}`: a fifth dead, most of the stores burned, half the blocks down, the
+    fields burned for two years (an act on the land's harvest, which its year reads, citing the
+    fire), +0.4 grievance, and a crater kept for ever.
+  - `act.flood {cell}` (only where a river runs or a lake lies): a few drowned, the stores wet,
+    the fields drowned a year there and in up to three lands downriver (the river's own flow).
+- **The craters are kept with the acts** (acts.active), hashed and saved only once there are
+  any: a world no meteor has struck hashes as it did.
+- **They play where they fall**: the ground shaken (dust thrown up, cracks opening); a blazing
+  stone falling with its trail, then the land smouldering; the crater's dark ring and hollow;
+  water spread rippling over the drowned lands.
+
+113, as built: creation and a realm's fortunes (sim/acts/peoples.ts; the palette's "Wonders",
+"The peoples", "A realm's fortunes").
+
+- `act.settle {cell}`: settlers from the most peopled land beside it (by land, or across a sea
+  its traders cross), 8% of it (at most 2,000), with what they know and their share of its
+  stores, into a land empty or peopled. An empty land is peopled by them (its arrival their
+  event), and takes their ways and speech as any land peopled by movers does; the move is a
+  flow in history, its decision the god's.
+- `act.union {a, b}`: b's lands all join a, and b ends, its end citing the union.
+- `act.bless {realm}` and `act.curse {realm}`: every land of it half as content again, or half
+  as restless again (its grievance −0.5 or +0.5, the curse its cause).
+- They play as the others do: a green thread from the settlers' land to the new one, a gold one
+  between the realms made one, gold rising over a blessed realm's seat, dark wisps turning over
+  a cursed one's.
+- The palette now has eight kinds: the weather (rain, drought, a flood), the land's yield,
+  sickness and health, wonders (inspiration, a shrine, a spring, settlers), disasters (a quake,
+  fire from the sky, fire on a city), the peoples (war, peace, friendship, discord, union), a
+  realm's fortunes (a rising, a faith, a blessing, a curse), the world and its sun. An empty land
+  is the palette's too, for settlers.
+
+114, as built: battles played out.
+
+- **In a land** (view/war.ts landBattle; render/regionwars.ts): a battle of this year is fought
+  round after round by the screen's clock — its two hosts, each in its kinds, come on from either
+  hand of where it was fought, meet at the line and fight, as large a share falling as fell (the
+  beaten the more), and the beaten fall back. The fallen lie on the ground, their mounts and arms
+  gone from them. Last year's battle is not fought again: its fallen lie where they fell. Its
+  mark over the fight is small now: the soldiers are the battle.
+- **In its village**: the battle's soldiers bear their host's arms — spears, swords or axes
+  swung in the fight, bows in the left hand, shields in their side's colour (the village plan's
+  battle carries each side's host kinds).
+- A battle's page already goes to its village when it is this year's or last's, and to its land
+  when older.
+
+115, as built: a realm's army and a war's course (host/inspect/army.ts).
+
+- **A realm's "Army" tab**: the men it fields and what that is made of (its fighting men, the
+  share it fields, its valour, a standing army); what it is armed with and since when (its
+  design's page, and why); its battles won and lost, its fallen; the men it would have fielded
+  through the years (its lands' people, as it fields them now — shown only while it has lands);
+  its wars, the latest first, each with its years, its battles won, its fallen and how it went.
+- **A war's "Course" tab**: the fallen of each side year by year; the men each would field
+  through the war's years; the lands taken in it.
+
+116, as built: the Phase 13 gate (tools/phase13-gate.ts, `npm run gate:13`, in CI after the
+Phase 12 gate). In a real browser it:
+- shakes the ground, sends fire from the sky and raises a river from the palette, each told and
+  playing, the crater left (a river raised where none runs is refused, and told);
+- sends settlers, blesses a realm and makes two realms one, the one taken in gone;
+- goes down into a battle's land and sees it fought out, some fallen;
+- opens a realm's army and a war's course.
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

@@ -4,6 +4,7 @@ import { yearOfMoment, type Ref } from "../kernel/index.ts";
 import { cellRef } from "../gen/index.ts";
 import {
   ACT_EVENTS,
+  DISASTER_EVENTS,
   HAND_EVENTS,
   LOCAL_ACT_EVENTS,
   PEOPLE_ACT_EVENTS,
@@ -16,6 +17,7 @@ import {
   type ConvertArgs,
   type LandArgs,
   type PairArgs,
+  type RealmArgs,
 } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { principleName } from "./lore.ts";
@@ -167,3 +169,67 @@ registerEventWords(PEOPLE_ACT_EVENTS.discord.type, (_, e) => {
   const d = e.data as { a?: string; b?: string } | null;
   return `By your hand: discord was sown between ${d?.a ?? "a realm"} and ${d?.b ?? "a realm"}, year ${yearOfMoment(e.t)}`;
 });
+
+// The god's disasters and makings (Phase 13 M112, M113).
+const landOf = (world: WordsWorld, c: { args: unknown }) =>
+  landWords(world, cellRef(0, (c.args as LandArgs).cell));
+/** A number said with its thousands marked, whatever the device's locale: 12,345. */
+const said = (n: unknown) =>
+  typeof n === "number" ? String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "some";
+registerEventWords(DISASTER_EVENTS.quake.type, (world, e) => {
+  const d = e.data as { dead?: number; blocks?: number } | null;
+  return `By your hand: the ground shook under ${landWords(world, e.place as Ref | null)}, and ${said(d?.dead)} died${d?.blocks ? `, and ${d.blocks} of its cities' blocks fell` : ""}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(DISASTER_EVENTS.meteor.type, (world, e) => {
+  const d = e.data as { dead?: number; years?: number } | null;
+  return `By your hand: fire fell from the sky on ${landWords(world, e.place as Ref | null)}: ${said(d?.dead)} died, and its fields burned for ${d?.years ?? 2} years, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(DISASTER_EVENTS.flood.type, (world, e) => {
+  const d = e.data as { dead?: number; lands?: number } | null,
+    down = (d?.lands ?? 1) - 1;
+  return `By your hand: the river rose over ${landWords(world, e.place as Ref | null)}${down > 0 ? ` and ${down} land${down === 1 ? "" : "s"} downriver` : ""}, and ${said(d?.dead)} drowned, year ${yearOfMoment(e.t)}`;
+});
+registerCommandWords(
+  "act.quake",
+  (world, c) =>
+    `Your act: you shook the ground under ${landOf(world, c)}, year ${yearOfMoment(c.t)}`,
+);
+registerCommandWords(
+  "act.meteor",
+  (world, c) =>
+    `Your act: you sent fire from the sky on ${landOf(world, c)}, year ${yearOfMoment(c.t)}`,
+);
+registerCommandWords(
+  "act.flood",
+  (world, c) =>
+    `Your act: you raised the river over ${landOf(world, c)}, year ${yearOfMoment(c.t)}`,
+);
+registerEventWords(PEOPLE_ACT_EVENTS.settle.type, (world, e) => {
+  const d = e.data as { count?: number } | null;
+  return `By your hand: ${said(d?.count)} settlers came into ${landWords(world, e.place as Ref | null)} from ${landWords(world, (e.subjects[0] as Ref | undefined) ?? null)}, year ${yearOfMoment(e.t)}`;
+});
+registerCommandWords(
+  "act.settle",
+  (world, c) => `Your act: you sent settlers into ${landOf(world, c)}, year ${yearOfMoment(c.t)}`,
+);
+registerEventWords(PEOPLE_ACT_EVENTS.union.type, (_, e) => {
+  const d = e.data as { a?: string; b?: string } | null;
+  return `By your hand: ${d?.b ?? "a realm"} joined ${d?.a ?? "a realm"}, and the two were one realm, year ${yearOfMoment(e.t)}`;
+});
+registerCommandWords("act.union", (world, c) => {
+  const [a, b] = pairWords(world, c);
+  return `Your act: you made one realm of ${a} and ${b}, year ${yearOfMoment(c.t)}`;
+});
+for (const [kind, words] of [
+  ["bless", "blessed with content"],
+  ["curse", "cursed with unrest"],
+] as const) {
+  registerEventWords(PEOPLE_ACT_EVENTS[kind].type, (_, e) => {
+    const d = e.data as { name?: string } | null;
+    return `By your hand: the lands of ${d?.name ?? "a realm"} were ${words}, year ${yearOfMoment(e.t)}`;
+  });
+  registerCommandWords(`act.${kind}`, (world, c) => {
+    const r = realmCalled(world, (c.args as RealmArgs).realm);
+    return `Your act: you ${kind === "bless" ? "blessed" : "cursed"} the lands of ${r}, year ${yearOfMoment(c.t)}`;
+  });
+}

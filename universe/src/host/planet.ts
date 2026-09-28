@@ -125,7 +125,7 @@ import {
 import { MAP_QUERIES } from "./map.ts";
 import { SEARCH_QUERIES } from "./search.ts";
 import { realmColor } from "./colors.ts";
-import { realmArms } from "./arms.ts";
+import { hostKinds, realmArms } from "./arms.ts";
 import { villagePlan } from "./village.ts";
 import { landReadings } from "./lenses.ts";
 import { actsMap, paletteLand } from "./acts.ts";
@@ -880,14 +880,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
             );
           },
           ctx = populationContext(world),
-          designs = designsOf(world),
           // What its host is made of: its design's parts (M110), by their ids.
-          hostOf = (ref: Ref): HostKinds | null => {
-            const parts = designs.of(ref)?.parts;
-            if (!parts) return null;
-            const id = (role: string) => parts.find((x) => x.role === role)?.id ?? "";
-            return { arm: id("arm"), guard: id("guard"), mount: id("mount") };
-          },
+          hostOf = (ref: Ref): HostKinds | null => hostKinds(world, ref),
           side = (ref: Ref) => {
             const r = realms.get(ref)!;
             return {

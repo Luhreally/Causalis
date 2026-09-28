@@ -7,6 +7,7 @@ import { isProvinceWorld, offworldSite, regionPoint } from "../gen/index.ts";
 import {
   ACT_EVENTS,
   BELIEF_EVENTS,
+  DISASTER_EVENTS,
   LOCAL_ACT_EVENTS,
   PEOPLE_ACT_EVENTS,
   POLITY_EVENTS,
@@ -74,7 +75,8 @@ export function actsMap(world: World): ActsMap {
       const r = typeof ref === "string" ? realms.get(ref as Ref) : undefined;
       return r ? landAt(r.seat) : null;
     };
-  // The acts on a land in force (and inspiration, for a while after).
+  // The acts on a land in force (and inspiration, for a while after). A flood's drowned fields
+  // show as the water over them.
   for (const a of actsOf(world).all()) {
     const lasting = a.until > a.from,
       end = lasting ? a.until : a.from + ACT_SHOWN;
@@ -82,13 +84,18 @@ export function actsMap(world: World): ActsMap {
     const at = landAt(a.cell);
     if (!at) continue;
     out.push({
-      kind: shownAs(a),
+      kind: world.events.get(a.event)?.type === DISASTER_EVENTS.flood.type ? "flood" : shownAs(a),
       at,
       to: null,
       color: null,
       left: (end - now) / (end - a.from),
       event: a.event,
     });
+  }
+  // The craters meteors left, for ever.
+  for (const c of actsOf(world).craters()) {
+    const at = landAt(c.cell);
+    if (at) out.push({ kind: "crater", at, to: null, color: null, left: 1, event: c.event });
   }
   // What was done in a moment lately: on a town, between two realms, on a land.
   const events = world.events.all(),
@@ -143,6 +150,42 @@ export function actsMap(world: World): ActsMap {
           };
         break;
       }
+      case DISASTER_EVENTS.quake.type:
+      case DISASTER_EVENTS.meteor.type: {
+        const at = landAt(cellOf(e.place));
+        if (at)
+          mark = {
+            kind: e.type === DISASTER_EVENTS.quake.type ? "quake" : "meteor",
+            at,
+            to: null,
+            color: null,
+          };
+        break;
+      }
+      case PEOPLE_ACT_EVENTS.settle.type: {
+        const at = landAt(cellOf(e.subjects[0])),
+          to = landAt(cellOf(e.place));
+        if (at && to) mark = { kind: "settle", at, to, color: null };
+        break;
+      }
+      case PEOPLE_ACT_EVENTS.union.type: {
+        const at = seatOf(e.subjects[0]),
+          to = landAt(cellOf(e.place));
+        if (at && to) mark = { kind: "union", at, to, color: realmColor(e.subjects[0]!) };
+        break;
+      }
+      case PEOPLE_ACT_EVENTS.bless.type:
+      case PEOPLE_ACT_EVENTS.curse.type: {
+        const at = landAt(cellOf(e.place));
+        if (at)
+          mark = {
+            kind: e.type === PEOPLE_ACT_EVENTS.bless.type ? "bless" : "curse",
+            at,
+            to: null,
+            color: null,
+          };
+        break;
+      }
       case POLITY_EVENTS.seceded.type: {
         const at = landAt(cellOf(e.place));
         if (byAct(e) && at) mark = { kind: "rising", at, to: null, color: null };
@@ -165,7 +208,19 @@ export function paletteLand(world: World, cell: number): PaletteLand | null {
   const g = homePlanet(world).generated,
     ctx = populationContext(world),
     prov = ctx.provinces.get(cell);
-  if (!prov || offworldSite(g, cell)) return null;
+  if (offworldSite(g, cell) || cell < 0 || cell >= g.grid.count) return null;
+  // (An empty land is a land still: settlers may be sent into it.)
+  if (!prov)
+    return g.tectonics.elevation[cell]! > 0
+      ? {
+          cell,
+          name: landTitle(world, cell),
+          people: 0,
+          realm: null,
+          faith: null,
+          towns: [],
+        }
+      : null;
   const r = politiesOf(world).of(cell),
     belief = beliefOf(world).of(cell),
     faith = belief.faith ? beliefOf(world).get(belief.faith) : undefined,

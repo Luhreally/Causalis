@@ -9,7 +9,7 @@ import type { CommandReceipt, HostClient, PaletteLand } from "../bridge/index.ts
 import type { Lit } from "../view/index.ts";
 import { el } from "./why.ts";
 
-type Target = "land" | "town" | "city" | "pair" | "faith" | "world" | "star";
+type Target = "land" | "town" | "city" | "pair" | "faith" | "realm" | "world" | "star";
 
 type PaletteAct = {
   readonly id: string;
@@ -23,6 +23,8 @@ type PaletteAct = {
   readonly lasting?: boolean;
   /** Between two realms: how the second is lit. */
   readonly second?: "foe" | "friend";
+  /** Whether it may fall on an empty land (settlers are sent into one). */
+  readonly empty?: boolean;
 };
 
 const ACTS: Readonly<Record<string, PaletteAct>> = {
@@ -175,6 +177,40 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
     command: "act.flare",
     sign: 1,
   },
+  // The disasters, the makings and a realm's fortunes (Phase 13 M112, M113).
+  flood: { id: "flood", icon: "🌊", name: "Raise the river", target: "land", command: "act.flood" },
+  quake: {
+    id: "quake",
+    icon: "🏚️",
+    name: "Shake the ground",
+    target: "land",
+    command: "act.quake",
+  },
+  meteor: {
+    id: "meteor",
+    icon: "☄️",
+    name: "Fire from the sky",
+    target: "land",
+    command: "act.meteor",
+  },
+  settle: {
+    id: "settle",
+    icon: "🧺",
+    name: "Send settlers",
+    target: "land",
+    command: "act.settle",
+    empty: true,
+  },
+  union: {
+    id: "union",
+    icon: "🔗",
+    name: "Make one realm",
+    target: "pair",
+    command: "act.union",
+    second: "friend",
+  },
+  bless: { id: "bless", icon: "🌟", name: "Bless a realm", target: "realm", command: "act.bless" },
+  curse: { id: "curse", icon: "🌑", name: "Curse a realm", target: "realm", command: "act.curse" },
 };
 
 /** The acts by kind, as the palette's tabs hold them. */
@@ -184,15 +220,22 @@ export const PALETTE_KINDS: readonly {
   name: string;
   acts: readonly string[];
 }[] = [
-  { id: "weather", icon: "🌦️", name: "The weather", acts: ["rain", "drought"] },
+  { id: "weather", icon: "🌦️", name: "The weather", acts: ["rain", "drought", "flood"] },
   { id: "yield", icon: "🌾", name: "The land's yield", acts: ["bounty", "blight"] },
   { id: "health", icon: "⚕️", name: "Sickness and health", acts: ["plague", "healing"] },
-  { id: "wonders", icon: "✨", name: "Wonders", acts: ["inspire", "shrine", "spring", "fire"] },
+  { id: "wonders", icon: "✨", name: "Wonders", acts: ["inspire", "shrine", "spring", "settle"] },
+  { id: "disasters", icon: "🌋", name: "Disasters", acts: ["quake", "meteor", "fire"] },
   {
     id: "peoples",
     icon: "👑",
     name: "The peoples",
-    acts: ["war", "peace", "friendship", "discord", "rise", "convert"],
+    acts: ["war", "peace", "friendship", "discord", "union"],
+  },
+  {
+    id: "realms",
+    icon: "🏰",
+    name: "A realm's fortunes",
+    acts: ["rise", "convert", "bless", "curse"],
   },
   { id: "sky", icon: "🌍", name: "The world and its sun", acts: ["warm", "cool", "flare", "calm"] },
 ];
@@ -423,7 +466,23 @@ export class GodPalette {
             }
           : { words: "the sun is being found", args: null };
       case "land": {
-        if (!land) return { words: "no one lives there", args: null };
+        if (!land) return { words: "no land there", args: null };
+        if (a.id === "settle")
+          return {
+            words: `settlers sent into ${land.name}${land.people ? "" : ", empty now"}`,
+            args: { cell: land.cell },
+          };
+        if (!land.people) return { words: `no one lives in ${land.name}`, args: null };
+        if (a.id === "quake" || a.id === "meteor" || a.id === "flood")
+          return {
+            words:
+              a.id === "quake"
+                ? `the ground shaken under ${land.name}`
+                : a.id === "meteor"
+                  ? `fire from the sky on ${land.name}: many dead, its fields burned`
+                  : `the river risen over ${land.name}, and downriver`,
+            args: { cell: land.cell },
+          };
         if (a.id === "rise") {
           if (!land.realm) return { words: `${land.name} is no realm's`, args: null };
           if (land.realm.seat)
@@ -473,6 +532,17 @@ export class GodPalette {
               : `fire sweeping ${t.name}`;
         return { words: doing, args: { village: t.ref } };
       }
+      case "realm": {
+        const r = land?.realm;
+        if (!r) return { words: land ? `${land.name} is no realm's` : "no land there", args: null };
+        return {
+          words:
+            a.id === "bless"
+              ? `the lands of ${r.name} blessed with content`
+              : `the lands of ${r.name} cursed with unrest`,
+          args: { realm: r.ref },
+        };
+      }
       case "faith": {
         const faith = this.first?.faith;
         if (!faith) return { words: "touch a land that holds the faith first", args: null };
@@ -502,6 +572,7 @@ export class GodPalette {
           peace: `the war between ${one.name} and ${two.name} ended`,
           friendship: `${one.name} and ${two.name} made friends`,
           discord: `discord sown between ${one.name} and ${two.name}`,
+          union: `${two.name} joined to ${one.name}, one realm`,
         };
         return { words: doing[a.id] ?? two.name, args: { a: one.ref, b: two.ref } };
       }
@@ -530,11 +601,19 @@ export class GodPalette {
     }
     const land = this.over?.land ?? null;
     const asking: Readonly<Record<Target, string>> = {
-      land: a.id === "rise" ? "touch a land of a realm" : "touch a land",
+      land:
+        a.id === "rise"
+          ? "touch a land of a realm"
+          : a.id === "settle"
+            ? "touch a land, empty or not"
+            : a.id === "flood"
+              ? "touch a land a river runs through"
+              : "touch a land",
+      realm: "touch a land of the realm",
       town: "touch a town or its land",
       city: "touch a city",
       pair: this.first?.realm
-        ? `${this.first.realm.name}: now touch a land of the realm it ${a.id === "war" ? "falls upon" : "is to meet"}`
+        ? `${this.first.realm.name}: now touch a land of the realm it ${a.id === "war" ? "falls upon" : a.id === "union" ? "is to take in" : "is to meet"}`
         : `touch a land of the realm that ${a.id === "war" ? "attacks" : "is first"}`,
       faith: this.first?.faith
         ? `${this.first.faith.name}: now touch the land to turn`
@@ -580,7 +659,10 @@ export class GodPalette {
       if (this.first && a.target === "faith") lit.set(this.first.cell, "chosen");
       if (land && a.target !== "world" && a.target !== "star") {
         const second = a.target === "pair" && this.first ? (a.second ?? "reach") : "reach",
-          whole = a.target === "pair" && land.realm ? land.realm.lands : [land.cell];
+          whole =
+            (a.target === "pair" || a.target === "realm") && land.realm
+              ? land.realm.lands
+              : [land.cell];
         for (const c of whole) if (!lit.has(c)) lit.set(c, second);
       }
     }

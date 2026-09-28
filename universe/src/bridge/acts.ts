@@ -21,7 +21,15 @@ export type ActKindShown =
   | "friendship"
   | "discord"
   | "rising"
-  | "conversion";
+  | "conversion"
+  | "quake"
+  | "meteor"
+  | "crater"
+  | "flood"
+  | "settle"
+  | "union"
+  | "bless"
+  | "curse";
 
 export type ActMark = {
   readonly kind: ActKindShown;

@@ -11,6 +11,7 @@ import {
   counterWords,
   holdShape,
   hostShape,
+  landBattle,
   landColumn,
   landShape,
   landWars,
@@ -533,4 +534,40 @@ test("in a land a host marches in ranks as many as its men, under banners; a cam
     grid,
   );
   assert.equal(away.camps.length, 0);
+});
+
+test("a battle in a land plays out: the hosts come on, fight at the line, fall as many as fell, the beaten fall back", () => {
+  const b = { at: { x: 3, z: -2 }, event: "evt:0:77", won: true, size: 0.6, age: 0 },
+    at = (phase: number) => landBattle(b, 10, phase * BATTLE_ROUND);
+  // Coming on: far apart; at the line: close; each side facing the other.
+  const far = at(0.02),
+    met = at(0.5),
+    gap = (list: typeof far) => {
+      const mid = (side: 0 | 1) => {
+        const xs = list.filter((f) => f.side === side);
+        return {
+          x: xs.reduce((n, f) => n + f.x, 0) / xs.length,
+          z: xs.reduce((n, f) => n + f.z, 0) / xs.length,
+        };
+      };
+      const a = mid(0),
+        d = mid(1);
+      return Math.hypot(a.x - d.x, a.z - d.z);
+    };
+  assert.ok(far.every((f) => f.doing === "advance"));
+  assert.ok(gap(far) > gap(met) * 4, `${gap(far)} apart, then ${gap(met)}`);
+  assert.equal(met.filter((f) => f.side === 0).length, 10);
+  // As many fall as fell, the beaten the more; then the beaten fall back.
+  const late = at(0.9),
+    down = (side: 0 | 1) => late.filter((f) => f.side === side && f.doing === "fallen").length;
+  assert.ok(down(1) > down(0), `the beaten lose more (${down(1)} to ${down(0)})`);
+  assert.ok(
+    late.some((f) => f.side === 1 && f.doing === "fall back"),
+    "the beaten fall back",
+  );
+  assert.ok(!late.some((f) => f.side === 0 && f.doing === "fall back"), "the victors hold");
+  // Last year's battle is not fought again: its fallen lie still.
+  const old = { ...b, age: 1 };
+  assert.deepEqual(landBattle(old, 10, 3), landBattle(old, 10, 17));
+  assert.ok(landBattle(old, 10, 3).some((f) => f.doing === "fallen"));
 });

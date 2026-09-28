@@ -49,6 +49,7 @@ export {
   POPULATION_EVENTS,
   VILLAGE_SIZE,
   installPopulation,
+  livableFor,
   occupationTargets,
   marketsOf,
   populationContext,
@@ -100,6 +101,7 @@ export {
   ActStore,
   actsOf,
   type Act,
+  type Crater,
   type ActArgs,
   type ActKind,
 } from "./acts/acts.ts";
@@ -242,14 +244,19 @@ export {
 } from "./city/city.ts";
 export { LOCAL_ACT_EVENTS, agentName, installLocalActs } from "./acts/local.ts";
 export {
+  FORTUNE,
   PEOPLE_ACT_EVENTS,
   REGARD,
   RISEN,
+  SETTLERS,
   installPeopleActs,
+  settlersFrom,
   type ConvertArgs,
   type LandArgs,
   type PairArgs,
+  type RealmArgs,
 } from "./acts/peoples.ts";
+export { DISASTER, DISASTER_EVENTS, installDisasters } from "./acts/disasters.ts";
 export {
   GROUPS,
   interestsOf,

@@ -139,6 +139,12 @@ jobs:
       - run: npm run gate:12 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 13 gate: disasters from the palette (a quake, fire from the sky and its crater,
+      # a river raised); makings (settlers, a blessing, two realms made one); a battle played out
+      # in its land; a realm's army and a war's course.
+      - run: npm run gate:13 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

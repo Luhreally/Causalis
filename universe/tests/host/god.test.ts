@@ -179,3 +179,61 @@ test("the wars map carries each host's kinds, and the garrisons of the realms at
     "a side's host has its kinds",
   );
 });
+
+test("disasters and makings play where they fall; a crater stays; an empty land is the palette's too", () => {
+  const [a, b] = neighbours();
+  const g = populationContext(world).generated,
+    river = map.find((e) => e.people > 0 && g.water.river[e.cell])?.cell;
+  world.submit("act.quake", { cell: land.cell });
+  world.submit("act.meteor", { cell: map.find((e) => e.cell !== land.cell && e.people > 0)!.cell });
+  if (river !== undefined) world.submit("act.flood", { cell: river });
+  world.submit("act.bless", { realm: a.ref });
+  world.submit("act.union", { a: a.ref, b: b.ref });
+  world.runTo(world.now + 86_400);
+  const kinds = new Set(ask<ActsMap>("acts.map").acts.map((m) => m.kind));
+  for (const kind of [
+    "quake",
+    "meteor",
+    "crater",
+    "bless",
+    "union",
+    ...(river !== undefined ? ["flood"] : []),
+  ])
+    assert.ok(kinds.has(kind as never), `${kind} plays (${[...kinds].join(", ")})`);
+  // An empty land (none may be left three centuries on) or the sea.
+  const empty = Array.from({ length: g.grid.count }, (_, c) => c).find(
+    (c) => !populationContext(world).provinces.get(c) && g.tectonics.elevation[c]! > 0,
+  );
+  if (empty !== undefined) {
+    const seen = ask<PaletteLand>("palette.land", { cell: empty });
+    assert.equal(seen.people, 0);
+    assert.equal(seen.realm, null);
+  }
+  const sea = Array.from({ length: g.grid.count }, (_, c) => c).find(
+    (c) => g.tectonics.elevation[c]! < -1000,
+  )!;
+  assert.equal(ask<PaletteLand | null>("palette.land", { cell: sea }), null);
+});
+
+test("a realm's army and a war's course: its host, the men it fields through the years, how its wars went", () => {
+  const war = warsOf(world)
+      .all()
+      .find((w) => w.battles.length > 0 && politiesOf(world).get(w.attacker)?.ended === null)!,
+    realm = ask<PageModel>("page", { ref: war.attacker }),
+    army = realm.tabs.find((t) => t.id === "army")!;
+  assert.ok(army, "a realm has its army's tab");
+  assert.deepEqual(
+    army.blocks.map((b) => b.type),
+    ["facts", "lines", "table"],
+  );
+  const facts = army.blocks[0]!;
+  assert.ok(facts.type === "facts" && facts.rows.some((r) => r.label === "Fields"));
+  const through = army.blocks[1]!;
+  assert.ok(through.type === "lines" && through.series[0]!.points.length >= 2);
+  const wars = army.blocks[2]!;
+  assert.ok(wars.type === "table" && wars.rows.some((r) => r.ref === war.ref), "its wars listed");
+  const course = ask<PageModel>("page", { ref: war.ref }).tabs.find((t) => t.id === "course")!;
+  assert.ok(course, "a war has its course");
+  const fallen = course.blocks.find((b) => b.type === "lines" && /fallen/.test(b.title));
+  assert.ok(fallen && fallen.type === "lines" && fallen.series.length === 2, "each side's fallen");
+});

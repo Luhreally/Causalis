@@ -32,6 +32,10 @@ export const ACT_PARTS = [
   "white",
   "violet",
   "halo",
+  "rubble",
+  "crack",
+  "green",
+  "wisp",
 ] as const;
 export type ActPart = (typeof ACT_PARTS)[number];
 
@@ -57,6 +61,10 @@ export const ACT_PART_LOOK: Readonly<
   white: { color: [0.96, 0.96, 1], opacity: 1 },
   violet: { color: [0.62, 0.22, 0.86], opacity: 1 },
   halo: { color: [1, 1, 1], opacity: 1 },
+  rubble: { color: [0.52, 0.44, 0.34], opacity: 0.8 },
+  crack: { color: [0.12, 0.09, 0.08], opacity: 1 },
+  green: { color: [0.36, 0.9, 0.46], opacity: 1 },
+  wisp: { color: [0.3, 0.1, 0.38], opacity: 0.6 },
 };
 
 /** A mark of an act now: where, which way is up and which ahead, its size along its own axes. */
@@ -342,20 +350,125 @@ function bitsOf(a: PlacedAct, s: number, scale: number, out: ActBit[]): void {
       bit("gold", at(0, 0, 0.005), 0.005, 0.01, 0.005);
       return;
     }
+    case "quake": {
+      // The ground shaken: dust thrown up and settling, cracks opening, the land trembling.
+      const shake = Math.sin(s * 40 + a.key) * 0.0015 * Math.max(0, a.left - 0.3);
+      for (let i = 0; i < 10; i++) {
+        const t = frac(s * 0.5 + r(i)),
+          e = (r(i + 20) - 0.5) * spread * 1.2 + shake,
+          n = (r(i + 40) - 0.5) * spread * 1.2;
+        bit("rubble", at(e, n, 0.003 + 0.025 * t * (1 - t)), 0.007, 0.005, 0.007);
+      }
+      for (let i = 0; i < 6; i++) {
+        const turn = r(i + 60) * Math.PI,
+          e = (r(i + 70) - 0.5) * spread,
+          n = (r(i + 80) - 0.5) * spread;
+        bit("crack", at(e + shake, n, 0.001), 0.0025, 0.002, 0.03, {
+          x: east.x * Math.cos(turn) + north.x * Math.sin(turn),
+          y: east.y * Math.cos(turn) + north.y * Math.sin(turn),
+          z: east.z * Math.cos(turn) + north.z * Math.sin(turn),
+        });
+      }
+      return;
+    }
+    case "meteor": {
+      // Fire from the sky: first the fall, a blazing stone and its trail; then the land
+      // smouldering, embers and smoke going up.
+      if (a.left > 0.95) {
+        const fall = (1 - a.left) / 0.05,
+          h = 0.25 * (1 - fall),
+          side = 0.12 * (1 - fall);
+        bit("flame", at(side, 0, h), 0.014, 0.014, 0.014);
+        for (let i = 1; i < 8; i++)
+          bit(
+            "ember",
+            at(side + i * 0.012, 0, h + i * 0.025),
+            0.009 - i * 0.001,
+            0.009 - i * 0.001,
+            0.009 - i * 0.001,
+          );
+      }
+      for (let i = 0; i < 8; i++) {
+        const t = frac(s * 0.25 + r(i)),
+          e = (r(i + 20) - 0.5) * spread * 0.8,
+          n = (r(i + 40) - 0.5) * spread * 0.8,
+          size = 0.006 + 0.012 * t;
+        bit("smoke", at(e + 0.01 * t, n, 0.008 + 0.06 * t), size, size, size);
+      }
+      for (let i = 0; i < 6; i++) {
+        const flick = 0.6 + 0.4 * Math.abs(Math.sin(s * 7 + i * 1.9));
+        bit(
+          "ember",
+          at((r(i + 60) - 0.5) * 0.03, (r(i + 70) - 0.5) * 0.03, 0.003),
+          0.004,
+          0.004 * flick,
+          0.004,
+        );
+      }
+      return;
+    }
+    case "crater": {
+      // The crater a meteor left: a dark ring and its hollow, for ever.
+      for (let i = 0; i < 14; i++) {
+        const turn = (i * Math.PI * 2) / 14;
+        bit(
+          "crack",
+          at(Math.cos(turn) * 0.018, Math.sin(turn) * 0.018, 0.002),
+          0.006,
+          0.004,
+          0.006,
+        );
+      }
+      bit("crack", at(0, 0, -0.001), 0.026, 0.002, 0.026);
+      return;
+    }
+    case "flood": {
+      // The river risen: water spread over the fields, rippling.
+      for (let i = 0; i < 9; i++) {
+        const e = (r(i) - 0.5) * spread * 1.3,
+          n = (r(i + 20) - 0.5) * spread * 1.3,
+          swell = 1 + 0.15 * Math.sin(s * 1.6 + i);
+        bit("water", at(e, n, 0.002), 0.02 * swell, 0.0015, 0.016 * swell);
+      }
+      return;
+    }
+    case "bless":
+    case "curse": {
+      // A realm blessed: gold rising over its seat; cursed: dark wisps turning over it.
+      for (let i = 0; i < 12; i++) {
+        const t = frac(s * 0.3 + r(i)),
+          turn = s * 0.4 + (i * Math.PI * 2) / 12,
+          reach = 0.012 + 0.012 * r(i + 12);
+        bit(
+          a.kind === "bless" ? "gold" : "wisp",
+          at(Math.cos(turn) * reach, Math.sin(turn) * reach, 0.01 + 0.04 * t),
+          a.kind === "bless" ? 0.004 : 0.01,
+          a.kind === "bless" ? 0.004 : 0.006,
+          a.kind === "bless" ? 0.004 : 0.01,
+        );
+      }
+      return;
+    }
     case "war":
     case "peace":
     case "friendship":
-    case "discord": {
+    case "discord":
+    case "settle":
+    case "union": {
       if (!a.to) return;
-      // A thread between the two seats, arched over the globe, a pulse running along it.
+      // A thread between the two places, arched over the globe, a pulse running along it:
+      // red set at war, white at peace, gold made friends or one, violet in discord, green the
+      // way settlers went.
       const part: ActPart =
           a.kind === "war"
             ? "red"
             : a.kind === "peace"
               ? "white"
-              : a.kind === "friendship"
+              : a.kind === "friendship" || a.kind === "union"
                 ? "gold"
-                : "violet",
+                : a.kind === "settle"
+                  ? "green"
+                  : "violet",
         from = a.ground,
         to = a.to,
         steps = 40,

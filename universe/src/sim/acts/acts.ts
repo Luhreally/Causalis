@@ -39,9 +39,14 @@ export type Act = {
 
 export type ActArgs = { cell: number; sign: 1 | -1; years: number };
 
+/** A crater a meteor left (Phase 13 M112): its land, its year, the event. */
+export type Crater = { readonly cell: number; readonly year: number; readonly event: Ref };
+
 export class ActStore implements StateStore {
   readonly name = "acts.active";
   private list: Act[] = [];
+  /** The craters meteors left, on the map for ever (hashed and saved only once there are any). */
+  private pits: Crater[] = [];
 
   add(a: Act): void {
     this.list.push(a);
@@ -49,6 +54,14 @@ export class ActStore implements StateStore {
 
   all(): readonly Act[] {
     return this.list;
+  }
+
+  addCrater(c: Crater): void {
+    this.pits.push(c);
+  }
+
+  craters(): readonly Crater[] {
+    return this.pits;
   }
 
   /** The act of a kind in force over a province at time t (the latest, if several). */
@@ -59,21 +72,24 @@ export class ActStore implements StateStore {
     return found;
   }
 
-  /** Acts are part of the story for ever. */
+  /** Acts are part of the story for ever, and a crater's meteor. */
   pinned(): Ref[] {
-    return this.list.map((a) => a.event);
+    return [...this.list.map((a) => a.event), ...this.pits.map((c) => c.event)];
   }
 
   hashInto(h: Hasher): void {
     h.value(this.list);
+    if (this.pits.length) h.value(this.pits);
   }
 
   save(): unknown {
-    return { acts: this.list };
+    return this.pits.length ? { acts: this.list, craters: this.pits } : { acts: this.list };
   }
 
   load(state: unknown): void {
-    this.list = [...(state as { acts: Act[] }).acts];
+    const s = state as { acts: Act[]; craters?: Crater[] };
+    this.list = [...s.acts];
+    this.pits = [...(s.craters ?? [])];
   }
 }
 

@@ -22,6 +22,7 @@ import type { Block, Item, PageModel, Place, Row, Stat, Tab } from "../../bridge
 import { realmColor } from "../colors.ts";
 import { realmArms } from "../arms.ts";
 import { compareWith, warTally } from "./compare.ts";
+import { armyBlocks, courseBlocks } from "./army.ts";
 import { civilizationsNear } from "../../sim/index.ts";
 import {
   claimOf,
@@ -156,6 +157,8 @@ export function realmPageModel(world: World, ref: string): PageModel {
       });
     tabs.push({ id: "wars", name: "Wars", blocks: [{ type: "list", items }] });
   }
+  // Its army (Phase 13 M115): its host, the men it fields, its wars and battles.
+  tabs.push({ id: "army", name: "Army", blocks: armyBlocks(world, r) });
   // Its regard for others.
   {
     const rows: Row[] = diplomacyOf(world)
@@ -428,6 +431,8 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
       name: "Battles",
       blocks: [{ type: "table", columns: ["When", "Where", "Won by", "Fallen"], rows: battleRows }],
     },
+    // Its course (Phase 13 M115): the fallen year by year, the men each fields, the lands taken.
+    { id: "course", name: "Course", blocks: courseBlocks(world, w) },
     { id: "attacker", name: "Attacking host", blocks: hostOf("attacker") },
     { id: "defender", name: "Defending host", blocks: hostOf("defender") },
   ];
