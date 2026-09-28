@@ -1,7 +1,8 @@
 // The observatory over the home star's system (Phase 5 M46, M54): the star's page — its
 // light and age, who has reached the sky, and its worlds and their moons listed — a page
 // for each body, its orbit and its ground, why it is so and the halls set down on it, and
-// a page for each colony, with the why of its founding.
+// a page for each colony, with the why of its founding. Another star's system is shown by
+// it too (Phase 10 M95): its star and its worlds, without the home's sky or hand.
 import type { HostClient, SkyState, SystemPlan } from "../bridge/index.ts";
 import { bodyFacts, routeWords } from "../view/index.ts";
 import { WhyTree, el } from "./why.ts";
@@ -17,6 +18,9 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
 
 type Colony = SkyState["colonies"][number];
 
+/** The sky of a star no one of ours has reached. */
+const NO_SKY: SkyState = { programs: [], colonies: [] };
+
 export class SystemPanel {
   readonly element = el("div", "panel");
   private readonly where = el("span", "clock");
@@ -28,6 +32,10 @@ export class SystemPanel {
   private readonly client: HostClient;
   private plan: SystemPlan | null = null;
   private sky: SkyState = { programs: [], colonies: [] };
+  /** Whether the system shown is another star's. */
+  private foreign = false;
+  private readonly back = el("button", "speed", "‹ The world");
+  private readonly stars = el("button", "speed", "The stars ›");
   /** What the page shows: the star (null), a body, or a colony's land. */
   private page:
     { kind: "star" } | { kind: "body"; index: number } | { kind: "colony"; cell: number } = {
@@ -43,12 +51,10 @@ export class SystemPanel {
   constructor(root: HTMLElement, client: HostClient) {
     this.why = new WhyTree(client);
     this.client = client;
-    const bar = el("header", "bar"),
-      back = el("button", "speed", "‹ The world");
-    back.onclick = () => this.onBack();
-    const stars = el("button", "speed", "The stars ›");
-    stars.onclick = () => this.onStars();
-    bar.append(back, this.where, stars);
+    const bar = el("header", "bar");
+    this.back.onclick = () => this.onBack();
+    this.stars.onclick = () => this.onStars();
+    bar.append(this.back, this.where, this.stars);
     const close = el("button", "close", "×");
     close.setAttribute("aria-label", "Close");
     close.onclick = () => {
@@ -75,10 +81,14 @@ export class SystemPanel {
     this.element.hidden = !on;
   }
 
-  /** Show a system: the star's page, its worlds listed. */
-  show(plan: SystemPlan): void {
+  /** Show a system — the home star's, or (`foreign`) another's: the star's page, its worlds listed. */
+  show(plan: SystemPlan, foreign = false): void {
     this.plan = plan;
-    this.where.textContent = `The star's system`;
+    this.foreign = foreign;
+    this.where.textContent = foreign ? "Another star's system" : "The star's system";
+    // (Back from another star's leads to the stars about it.)
+    this.back.textContent = foreign ? "‹ The stars around" : "‹ The world";
+    this.stars.hidden = foreign;
     this.select(null);
   }
 
@@ -96,6 +106,7 @@ export class SystemPanel {
     const plan = this.plan;
     if (!plan) return;
     this.inspector.hidden = false;
+    const sky = this.foreign ? NO_SKY : this.sky;
     if (index === null) {
       this.page = { kind: "star" };
       const s = plan.star;
@@ -104,7 +115,7 @@ export class SystemPanel {
         el(
           "div",
           "fact",
-          `${s.luminosity.toFixed(2)} times the Sun's light; ${s.mass.toFixed(2)} of its mass; ${Math.round(s.temperature)} K at its face`,
+          `${s.luminosity >= 0.1 ? s.luminosity.toFixed(2) : s.luminosity.toPrecision(2)} times the Sun's light; ${s.mass.toFixed(2)} of its mass; ${Math.round(s.temperature)} K at its face`,
         ),
         el("div", "fact", `${s.ageGyr.toFixed(1)} billion years old`),
         el(
@@ -113,12 +124,14 @@ export class SystemPanel {
           `its frost line ${plan.frostLine.toFixed(1)} AU out: rock inside it, ice and gas beyond`,
         ),
       );
-      const flying = this.sky.programs;
+      const flying = sky.programs;
       this.more.replaceChildren(
-        ...this.acts("Your hand on the star", [
-          ["Make it flare (3 years)", "act.flare", { star: s.ref, sign: -1, years: 3 }],
-          ["Calm it (3 years)", "act.flare", { star: s.ref, sign: 1, years: 3 }],
-        ]),
+        ...(this.foreign
+          ? []
+          : this.acts("Your hand on the star", [
+              ["Make it flare (3 years)", "act.flare", { star: s.ref, sign: -1, years: 3 }],
+              ["Calm it (3 years)", "act.flare", { star: s.ref, sign: 1, years: 3 }],
+            ])),
         ...(flying.length
           ? [
               el("h3", undefined, "In the sky"),
@@ -138,7 +151,7 @@ export class SystemPanel {
           .sort((x, y) => x.b.a - y.b.a)
           .map(({ b, i }) => {
             const moons = plan.bodies.filter((m) => m.around === i).length,
-              settled = this.sky.colonies.filter(
+              settled = sky.colonies.filter(
                 (c) => c.body === i || plan.bodies[c.body]!.around === i,
               ).length,
               line = el(
@@ -163,13 +176,11 @@ export class SystemPanel {
       this.onSelect(null);
     };
     this.title.textContent = `${b.designation}: ${KIND_WORDS[b.kind]}`;
-    const way = routeWords(plan, index, plan.star.mass);
-    const visit = el(
-      "button",
-      "act",
-      index === 0 ? "‹ Back to the world" : `Go to ${b.designation} ›`,
-    );
-    visit.onclick = () => (index === 0 ? this.onBack() : this.onVisit(index));
+    // (The home world is the first of the home star's; another star's first is a world to visit.)
+    const home = index === 0 && !this.foreign,
+      way = this.foreign ? null : routeWords(plan, index, plan.star.mass);
+    const visit = el("button", "act", home ? "‹ Back to the world" : `Go to ${b.designation} ›`);
+    visit.onclick = () => (home ? this.onBack() : this.onVisit(index));
     this.facts.replaceChildren(
       star,
       visit,
@@ -178,11 +189,9 @@ export class SystemPanel {
     );
     const moons = plan.bodies.map((m, i) => ({ m, i })).filter(({ m }) => m.around === index),
       // Its own halls, and those on its moons.
-      halls = this.sky.colonies.filter(
-        (c) => c.body === index || plan.bodies[c.body]!.around === index,
-      );
+      halls = sky.colonies.filter((c) => c.body === index || plan.bodies[c.body]!.around === index);
     this.more.replaceChildren(
-      ...(index === 0
+      ...(home
         ? this.acts("Your hand on the world", [
             ["Warm it (50 years)", "act.warm", { sign: 1, years: 50 }],
             ["Cool it (50 years)", "act.warm", { sign: -1, years: 50 }],
@@ -202,8 +211,12 @@ export class SystemPanel {
             }),
           ]
         : []),
-      el("h3", undefined, "Why is it like this?"),
-      ...b.because.map((w) => el("div", "fact", w)),
+      ...(b.because.length
+        ? [
+            el("h3", undefined, "Why is it like this?"),
+            ...b.because.map((w) => el("div", "fact", w)),
+          ]
+        : []),
       ...(moons.length
         ? [
             el("h3", undefined, "Its moons"),
@@ -211,7 +224,7 @@ export class SystemPanel {
               const line = el(
                 "button",
                 "line",
-                `${m.designation} — ${bodyFacts(m, plan.star)[2]}${this.sky.colonies.some((c) => c.body === i) ? " · settled" : ""}`,
+                `${m.designation} — ${bodyFacts(m, plan.star)[2]}${sky.colonies.some((c) => c.body === i) ? " · settled" : ""}`,
               );
               line.onclick = () => {
                 this.select(i);

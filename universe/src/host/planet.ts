@@ -108,13 +108,13 @@ import type {
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 import { PAGE_QUERIES } from "./pages.ts";
-import { pageOf, placeOf, tipOf } from "./inspect/index.ts";
+import { alertsOf, breakdownOf, pageOf, placeOf, tipOf, type Counted } from "./inspect/index.ts";
 import { MAP_QUERIES } from "./map.ts";
 import { SEARCH_QUERIES } from "./search.ts";
 import { realmColor } from "./colors.ts";
 import { villagePlan } from "./village.ts";
 import { worldGlobe } from "./worlds.ts";
-import { foreignGlobe, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
+import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
 
 const BOUNDARY_WORDS = ["none", "converging", "spreading", "sliding"];
 
@@ -699,6 +699,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
       },
       /** Any star of the galaxy (the cluster's or beyond), and its worlds. */
       "galaxy.star": (world, args): StarPage => starPage(world, (args as { ref: string }).ref),
+      // Another star's own system, to look at as the home star's is (M95).
+      "galaxy.system": (world, args): SystemPlan =>
+        foreignSystem(world, (args as { ref: string }).ref),
       /** The galaxy's shape, and the stars about a spot of it (M80). */
       "galaxy.plan": (world) => galaxyPlan(world),
       "galaxy.near": (world, args) => {
@@ -1086,6 +1089,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
       place: (world, args) => placeOf(world, (args as { ref: string }).ref),
       // A thing in a few words, for a tooltip (Phase 10 M93).
       tip: (world, args) => tipOf(world, (args as { ref: string }).ref),
+      // What stands now and asks to be looked at; what the top bar's numbers are made of (M96, M97).
+      alerts: (world) => alertsOf(world),
+      "world.breakdown": (world, args) => breakdownOf(world, (args as { what: Counted }).what),
       // The world's deposits where they lie on the globe (fine cells), each with its province.
       deposits: (world) =>
         homePlanet(world).generated.fine.deposits.map((d) => ({

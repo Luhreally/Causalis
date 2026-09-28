@@ -215,9 +215,10 @@ export type PageKind =
   | "decision"
   | "act"
   | "agent"
-  /** The world's own: its chronicle, its ledger; and the book of concepts. */
+  /** The world's own: its chronicle, its ledger, the message log; and the book of concepts. */
   | "chronicle"
   | "ledger"
+  | "log"
   | "concept"
   | "unknown";
 
@@ -253,6 +254,29 @@ export type Tip = {
   readonly title: string;
   readonly line: string;
   readonly stats: readonly { readonly label: string; readonly value: string }[];
+};
+
+/**
+ * An alert (Phase 10 M96): something that stands now and asks to be looked at, as a grand
+ * strategy game's alerts ask — a realm followed at war, a land followed going hungry, a life
+ * followed ended, a realm followed fallen, a first in the world.
+ */
+export type Alert = {
+  readonly id: "war" | "hunger" | "death" | "fallen" | "first";
+  readonly icon: string;
+  readonly title: string;
+  /** How it is lit: war red, want amber, loss grey, news cyan. */
+  readonly tone: "war" | "want" | "loss" | "news";
+  /** Each case of it: its words (names linked), the page it opens, and the key it is put by with. */
+  readonly items: readonly { readonly line: Line; readonly ref: string; readonly key: string }[];
+};
+
+/** What one of the top bar's numbers is made of (Phase 10 M97): its greatest parts, each a line. */
+export type Breakdown = {
+  readonly title: string;
+  readonly lines: readonly Line[];
+  /** Beyond the lines: how many more, in words. */
+  readonly more?: string;
 };
 
 /**

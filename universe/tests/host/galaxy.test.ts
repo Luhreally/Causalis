@@ -6,7 +6,9 @@ import type {
   ClusterPlan,
   ClusterStar,
   GalaxyPlan,
+  PageModel,
   StarPage,
+  SystemPlan,
   WorldGlobe,
 } from "../../src/bridge/index.ts";
 import { GALAXY_LY, galaxyPoints, homeOf, lyFromHome, starWords } from "../../src/view/index.ts";
@@ -67,5 +69,29 @@ test("a tap anywhere finds the real stars there, and each can be opened again by
     two = ask<WorldGlobe>("world.globe", { star: withWorlds.ref, index: 0 });
   assert.equal(one, two);
   assert.equal(one.elevation.length, one.cover.length);
+  assert.equal(JSON.stringify(world.domainHashes()), before, "looking changes nothing");
+});
+
+test("another star's own system: its worlds on their orbits, each the world its page names", () => {
+  const before = JSON.stringify(world.domainHashes());
+  const cluster = ask<ClusterPlan>("galaxy.cluster"),
+    near = cluster.stars.find((s) => s.distance > 0 && s.planets > 1)!,
+    page = ask<StarPage>("galaxy.star", { ref: near.ref }),
+    plan = ask<SystemPlan>("galaxy.system", { ref: near.ref });
+  assert.equal(plan.star.ref, near.ref);
+  assert.equal(plan.star.mass, page.mass, "its own star");
+  assert.equal(plan.bodies.length, page.worlds.length, "every world its page tells of");
+  assert.ok(Math.abs(plan.frostLine - 2.7 * Math.sqrt(page.luminosity)) < 1e-9);
+  plan.bodies.forEach((b, i) => {
+    assert.equal(b.ref, `${near.ref}/${i}`, "each the world its page names");
+    assert.equal(b.around, -1, "about the star");
+    assert.equal(b.a, page.worlds[i]!.a, "on its own orbit");
+    assert.equal(b.kind, page.worlds[i]!.kind);
+    assert.ok(i === 0 || b.a > plan.bodies[i - 1]!.a, "outward in turn");
+    assert.equal(ask<PageModel>("page", { ref: b.ref }).kind, "world", "its page, a world's");
+  });
+  // Spread about the star, not in a line.
+  assert.equal(new Set(plan.bodies.map((b) => b.phase.toFixed(3))).size, plan.bodies.length);
+  assert.deepEqual(ask<SystemPlan>("galaxy.system", { ref: near.ref }), plan, "the same each time");
   assert.equal(JSON.stringify(world.domainHashes()), before, "looking changes nothing");
 });

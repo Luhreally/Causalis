@@ -28,7 +28,9 @@ export type { GenesisPlan } from "./genesis.ts";
 export type { DepositPage, PlatePage, RealmPage, SpeciesPage } from "./pages.ts";
 export {
   splitPageRef,
+  type Alert,
   type Block,
+  type Breakdown,
   type Item,
   type Line,
   type PageKind,

@@ -2,7 +2,7 @@
 // how its people fare, the clock, the lenses to look through, and an inspector for
 // any place — its ground, weather, plate and ores, and the people living there —
 // where every fact can be asked "why?".
-import type { HostClient, SaveMeta, Status } from "../bridge/index.ts";
+import type { Breakdown, HostClient, SaveMeta, Status } from "../bridge/index.ts";
 import type { Lens } from "../view/index.ts";
 import { lineChart } from "./chart.ts";
 import { HandView } from "./hand.ts";
@@ -10,6 +10,7 @@ import { buildPage, type Page, type PageKind, type PageLinks } from "./pages.ts"
 import type { Tidings } from "./tidings.ts";
 import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
+import { breakdownCard, type HoverTips } from "./hovertip.ts";
 import { speedWords, when } from "./words.ts";
 
 /** A quality the viewer may choose (the render module's names, or Auto). */
@@ -114,6 +115,18 @@ type ProvinceFacts = {
 type ProvinceHistory = {
   years: { year: number; population: number; fed: number }[];
   prices: { year: number; food: number; tools: number }[];
+};
+
+/** What a click on each of the top bar's chips opens, said in its tooltip. */
+const CHIP_OPENS: Readonly<Record<ChipKind, string>> = {
+  people: "Click for the chronicle's story",
+  towns: "Click for the ledger's towns",
+  realms: "Click for the ledger's realms",
+  wars: "Click for the ledger's wars",
+  faiths: "Click for the ledger's faiths",
+  tongues: "Click for the ledger's tongues",
+  hungry: "Click for the map of food",
+  colonies: "Click for the ledger's sky",
 };
 
 /** What a chip of the top bar counts. */
@@ -330,6 +343,10 @@ export class PlanetPanel {
   private readonly world = el("p", "world-line");
   /** The world's headline numbers, a grand strategy game's top bar (Phase 10 M96). */
   private readonly statsStrip = el("div", "world-stats");
+  /** The top bar's chips, kept from one reading to the next (one rested on keeps its tooltip). */
+  private readonly chips = new Map<ChipKind, HTMLButtonElement>();
+  /** Its numbers broken down in tooltips, on a desk (M97). */
+  hoverTips: HoverTips | null = null;
   private readonly worldText = el("span");
   private readonly inspector = el("section", "inspector");
   private readonly title = el("h2");
@@ -509,15 +526,32 @@ export class PlanetPanel {
               ? `${Math.round(n / 1e3)}k`
               : n.toLocaleString("en-US"),
       chip = (what: ChipKind, icon: string, value: string, title: string, cls = "") => {
-        // (Each opens what it counts, as a grand strategy game's top bar does.)
-        const c = el("button", `stat-chip ${cls}`.trim());
-        c.title = title;
+        // (Each opens what it counts, as a grand strategy game's top bar does; rested on, on a
+        // desk, it is broken down: its greatest parts, each a link.)
+        let c = this.chips.get(what);
+        if (!c) {
+          const made = el("button", "stat-chip");
+          made.append(el("span", "chip-icon", icon), el("span", "chip-value"));
+          made.onclick = () => this.onChip(what);
+          const tips = this.hoverTips;
+          tips?.attach(made, async () =>
+            breakdownCard(
+              tips,
+              await this.client.query<Breakdown>({ type: "world.breakdown", args: { what } }),
+              made.getAttribute("aria-label") ?? "",
+              CHIP_OPENS[what],
+            ),
+          );
+          this.chips.set(what, made);
+          c = made;
+        }
+        c.className = `stat-chip ${cls}`.trim();
+        if (!this.hoverTips) c.title = title;
         c.setAttribute("aria-label", title);
-        c.append(el("span", "chip-icon", icon), el("span", "chip-value", value));
-        c.onclick = () => this.onChip(what);
+        c.lastElementChild!.textContent = value;
         return c;
       };
-    this.statsStrip.replaceChildren(
+    const shown = [
       chip(
         "people",
         "👥",
@@ -535,7 +569,13 @@ export class PlanetPanel {
       ...(s.colonies
         ? [chip("colonies", "🏛️", String(s.colonies), `${s.colonies} halls beyond the world`)]
         : []),
-    );
+    ];
+    // (Set in their order only when it changes: a chip moved loses the pointer resting on it.)
+    if (
+      shown.length !== this.statsStrip.children.length ||
+      shown.some((c, i) => this.statsStrip.children[i] !== c)
+    )
+      this.statsStrip.replaceChildren(...shown);
   }
 
   people(entries: readonly PeopleEntry[]): void {

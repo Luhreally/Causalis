@@ -219,6 +219,10 @@ console.log("the Phase 9 gate");
     await page.evaluate(
       "(() => { const g = globalThis; g.__gaps = []; let last = performance.now(); function tick() { const n = performance.now(); g.__gaps.push(n - last); last = n; if (g.__gaps.length < 150) requestAnimationFrame(tick); } requestAnimationFrame(tick); })()",
     );
+    // (Into our own sky and our own world: whatever star or world the pointer last rested on,
+    // zooming in over it would go into that one.)
+    if (way === "in" && (want === "system" || want === "globe"))
+      await page.evaluate("globalThis.causalis.rig.pointer = null");
     await page.evaluate((w) => (globalThis as any).causalis.zoomThrough(w), way);
     await page.waitForTimeout(2600);
     const scale = await page.evaluate(() => (globalThis as any).causalis.scale()),

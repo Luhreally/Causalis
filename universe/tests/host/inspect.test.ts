@@ -16,7 +16,15 @@ import {
 } from "../../src/sim/index.ts";
 import { ageRef, isProvinceWorld } from "../../src/gen/index.ts";
 import { observer } from "../../src/causal/index.ts";
-import type { Block, Line, PageKind, PageModel } from "../../src/bridge/index.ts";
+import type {
+  Alert,
+  Block,
+  Breakdown,
+  Line,
+  PageKind,
+  PageModel,
+  Tip,
+} from "../../src/bridge/index.ts";
 
 const world = EARTH.build(seedFromText("first light"));
 world.runTo(260 * YEAR);
@@ -365,4 +373,103 @@ test("the book of concepts: each concept a page, a page's numbers linked to thei
     all.every((s) => !s.concept || page(`concept:${s.concept}`).title !== "The book of concepts"),
     "every number is linked only to a concept the book has",
   );
+});
+
+test("the alerts stand for what is followed, the message log keeps what was told, the top bar's numbers break down", () => {
+  const fighting = warsOf(world)
+      .all()
+      .find((w) => w.ended === null),
+    fell = politiesOf(world)
+      .all()
+      .find((r) => r.ended !== null),
+    hungry = ask<Breakdown>("world.breakdown", { what: "hungry" }).lines[0]?.find(
+      (s) => typeof s !== "string",
+    ),
+    follow = [
+      ...(fighting ? [fighting.attacker as string] : []),
+      ...(fell ? [fell.ref as string] : []),
+      ...(hungry && typeof hungry !== "string" ? [hungry.ref] : []),
+      `cell:0:${land.cell}`,
+    ];
+  for (const ref of follow) ask("observe.watch", { ref, on: true });
+  try {
+    const alerts = ask<Alert[]>("alerts"),
+      of = (id: string) => alerts.find((a) => a.id === id);
+    if (fighting)
+      assert.ok(
+        of("war")?.items.some((i) => i.ref === fighting.ref),
+        "a realm followed at war: its war",
+      );
+    if (fell)
+      assert.ok(
+        of("fallen")?.items.some((i) => i.ref === fell.ref),
+        "a realm followed that fell",
+      );
+    if (hungry && typeof hungry !== "string")
+      assert.ok(
+        of("hunger")?.items.some((i) => i.ref === hungry.ref),
+        "a land followed going hungry",
+      );
+    for (const a of alerts)
+      for (const i of a.items) {
+        assert.notEqual(page(i.ref).kind, "unknown", `${a.id}: ${i.ref} opens a page`);
+        for (const s of i.line)
+          if (typeof s !== "string") assert.notEqual(page(s.ref).kind, "unknown", s.ref);
+      }
+    const keys = alerts.flatMap((a) => a.items.map((i) => i.key));
+    assert.equal(new Set(keys).size, keys.length, "each case told once");
+    // The message log: what history holds of what is followed since it was taken up (here,
+    // taken up at the beginning), the newest first, each opening its page.
+    const ledger = observer(world);
+    for (const ref of follow) {
+      const w = ledger.watches.get(ref);
+      if (w) ledger.watches.set(ref, { ...w, since: 0 });
+    }
+    const log = page("world:log"),
+      all = log.tabs[0]!.blocks[0]!;
+    assert.equal(log.kind, "log");
+    assert.ok(all.type === "table" && all.rows.length > 0, "the log holds what was told");
+    if (all.type === "table") {
+      const years = all.rows.map((r) => r.keys![0] as number);
+      assert.deepEqual(
+        years,
+        [...years].sort((a, b) => b - a),
+        "the newest first",
+      );
+      for (const r of all.rows.slice(0, 40))
+        assert.notEqual(page(r.ref!).kind, "unknown", `${r.ref} opens a page`);
+    }
+    // The top bar's numbers broken down: a few lines each, every name a page.
+    for (const what of [
+      "people",
+      "towns",
+      "realms",
+      "wars",
+      "faiths",
+      "tongues",
+      "hungry",
+      "colonies",
+    ]) {
+      const b = ask<Breakdown>("world.breakdown", { what });
+      assert.ok(b.lines.length <= 7, `${what}: a few lines`);
+      for (const l of b.lines)
+        for (const s of l)
+          if (typeof s !== "string")
+            assert.notEqual(page(s.ref).kind, "unknown", `${what}: ${s.ref} opens a page`);
+    }
+    assert.ok(
+      ask<Breakdown>("world.breakdown", { what: "people" }).lines.length > 0,
+      "the people broken down by realm",
+    );
+    // A concept's tooltip says what it is.
+    const food = page("concept:food").tabs[0]!.blocks[0]!;
+    assert.ok(food.type === "text");
+    if (food.type === "text")
+      assert.equal(
+        ask<Tip>("tip", { ref: "concept:food" }).line,
+        food.lines[0]!.map((s) => (typeof s === "string" ? s : s.text)).join(""),
+      );
+  } finally {
+    for (const ref of follow) ask("observe.watch", { ref, on: false });
+  }
 });

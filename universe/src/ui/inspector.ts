@@ -24,6 +24,7 @@ import { el, WhyTree } from "./why.ts";
 import { folder } from "./window.ts";
 import { barsChart, lineChart, linesChart, timelineChart } from "./chart.ts";
 import type { Tidings } from "./tidings.ts";
+import type { HoverTips } from "./hovertip.ts";
 import { drawTool } from "./tools.ts";
 import { drawAnatomy, drawPortrait, moves } from "./portrait.ts";
 
@@ -90,6 +91,8 @@ export class PageWindow {
   private readAt = 0;
   private pressing = false;
   tidings: Tidings | null = null;
+  /** The tooltips that tell of a name or break a number down, on a desk (M97). */
+  hoverTips: HoverTips | null = null;
   /** Go to where a thing is to be seen. */
   onGoTo: (place: Place, ref: string) => void = () => {};
   /** Told as each page opens (the scales mark what it is). */
@@ -210,13 +213,16 @@ export class PageWindow {
   /** Read the open page again as the world runs; redraw only if it says something new. */
   private async follow(): Promise<void> {
     const ref = this.current;
-    if (!ref || this.pressing || document.visibilityState !== "visible") return;
+    // (Nor read again from under a tooltip being read.)
+    if (!ref || this.pressing || this.hoverTips?.showing || document.visibilityState !== "visible")
+      return;
     // (A page of the whole world is read again less often: it reads everything.)
     if (performance.now() - this.readAt < (this.page?.every ?? REFRESH_MS) - 100) return;
     const token = this.token,
       page = await this.client.query<PageModel>({ type: "page", args: { ref } });
     this.readAt = performance.now();
-    if (token !== this.token || this.pressing || this.current !== ref) return;
+    if (token !== this.token || this.pressing || this.hoverTips?.showing || this.current !== ref)
+      return;
     if (JSON.stringify({ ...page, year: 0 }) === this.seen) return;
     this.draw(page, false);
   }
@@ -233,7 +239,11 @@ export class PageWindow {
       this.sorts = new Map();
     }
     // (The world's own pages — its chronicle, its ledger — open wide, as a ledger does.)
-    this.inspector.classList.toggle("wide", page.kind === "chronicle" || page.kind === "ledger");
+    this.inspector.dataset.kind = page.kind;
+    this.inspector.classList.toggle(
+      "wide",
+      page.kind === "chronicle" || page.kind === "ledger" || page.kind === "log",
+    );
     if (!page.tabs.some((t) => t.id === this.tab)) this.tab = page.tabs[0]?.id ?? "";
     this.icon.textContent = page.icon;
     this.name.textContent = page.title;
@@ -313,6 +323,8 @@ export class PageWindow {
       chip.append(label, this.line(s.value, "stat-value"));
       const more = !!s.parts?.length || !!s.why;
       if (more) chip.classList.add("more");
+      // (Rested on, on a desk, it is broken down in a tooltip.)
+      if (more) this.hoverTips?.attach(chip, () => this.breakdown(s));
       chip.onclick = (e) => {
         // (A name in the chip opens its page; the chip itself opens what makes it.)
         if ((e.target as HTMLElement).closest(".ref-link")) return;
@@ -341,6 +353,27 @@ export class PageWindow {
     }
     this.statDetail.hidden = false;
     this.statDetail.replaceChildren(...this.statParts(s));
+  }
+
+  /** What a number is made of, for its tooltip (M97): its parts, each name in them a link. */
+  private breakdown(s: Stat): Node[] {
+    const tips = this.hoverTips!,
+      head = el("div", "tip-head");
+    head.append(el("span", "tip-title", s.label), tips.line(s.value, "tip-sum"));
+    const out: Node[] = [head];
+    if (s.parts?.length) {
+      const list = el("div", "tip-parts");
+      for (const p of s.parts)
+        list.append(tips.line(p.label, "tip-part"), el("span", "tip-part-value", p.value));
+      out.push(list);
+    }
+    if (s.concept) {
+      const c = el("div", "tip-concept");
+      c.append("ⓘ ", tips.link("In the book of concepts", `concept:${s.concept}`));
+      out.push(c);
+    }
+    if (s.why) out.push(el("div", "tip-more", "Click to see why it is so"));
+    return out;
   }
 
   private statParts(s: Stat): HTMLElement[] {
@@ -424,8 +457,10 @@ export class PageWindow {
     a.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
+      this.hoverTips?.close();
       void this.open(`concept:${concept}`);
     };
+    this.hoverTips?.attach(a, () => this.hoverTips!.tipOf(`concept:${concept}`));
     return a;
   }
 
@@ -436,8 +471,11 @@ export class PageWindow {
     a.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
+      this.hoverTips?.close();
       void this.open(ref);
     };
+    // (Rested on, on a desk, it tells of its thing in a few words.)
+    this.hoverTips?.attach(a, () => this.hoverTips!.tipOf(ref));
     return a;
   }
 
@@ -569,7 +607,9 @@ export class PageWindow {
       label = el("span", "fact-label", r.label);
     // (What it is a measure of: its page in the book of concepts.)
     if (r.concept) label.append(this.conceptLink(r.concept, r.label));
-    row.append(label, this.line(r.value, "fact-value"));
+    const value = this.line(r.value, "fact-value");
+    if (r.parts?.length) this.hoverTips?.attach(value, () => this.breakdown(r));
+    row.append(label, value);
     if (r.why || r.parts?.length) {
       const ask = el("button", "ask", "?"),
         more = el("div", "fact-more");

@@ -144,7 +144,6 @@ export class ClusterScene {
     this.root.enabled = on;
   }
 
-  /** The star nearest a screen point (within a finger's width), or null. */
   /** A ship, a hall, a fleet or a battle among the stars nearest a screen point: its page (M93). */
   pickVoyage(x: number, y: number, reach = 18): string | null {
     const cam = this.stage.camera.camera!;
@@ -162,6 +161,15 @@ export class ClusterScene {
     return best;
   }
 
+  /** Where star `index` of the plan stands on the screen (CSS pixels), or null out of sight. */
+  starOnScreen(index: number): { x: number; y: number } | null {
+    const s = this.points.find((p) => p.index === index);
+    if (!s) return null;
+    const p = this.stage.camera.camera!.worldToScreen(new pc.Vec3(s.x, s.y, s.z));
+    return p.z > 0 ? { x: p.x, y: p.y } : null;
+  }
+
+  /** The star nearest a screen point (within a finger's width), or null. */
   pick(x: number, y: number): number | null {
     const cam = this.stage.camera.camera!;
     let best: number | null = null,

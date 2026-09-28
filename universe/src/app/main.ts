@@ -50,6 +50,9 @@ import {
   SearchBox,
   Tooltip,
   PageWindow,
+  Alerts,
+  HoverTips,
+  LogButton,
   type MapName,
   type PeopleEntry,
   type WorldStats,
@@ -83,6 +86,9 @@ import {
   type FreeRules,
   type FreeState,
   battleFront,
+  LY_SCALE,
+  hallCells,
+  hallDomes,
   landWars,
   warPaths,
   sandboxSpec,
@@ -195,12 +201,19 @@ type Exposed = {
   /** Down to a world of the system (by its index), and which world is seen now (-1 none). */
   visit?: (index: number) => void;
   visiting?: () => number;
+  /** How many halls stand on the world seen whole (M95: halls from orbit). */
+  hallsShown?: () => number;
+  /** Into another star's own system (M95), by its ref; and whose system the sky shows. */
+  starSystem?: (ref: string) => void;
+  /** Where a star about us stands on the screen, while the stars are shown. */
+  starOnScreen?: (ref: string) => { x: number; y: number } | null;
+  skyOf?: () => string | null;
   /** Everyone carrying something in the village watched: where and what. */
   carriersNow?: () => { x: number; z: number; carry: string }[];
   /** The marks of war drawn on the globe now (for the look tools). */
   warsDrawn?: () => number;
   /** The hosts and battles a land's map shows of the wars (M95), and whether the wars are known. */
-  landWars?: () => { marches: number; battles: number; known: boolean };
+  landWars?: () => { marches: number; battles: number; ships: number; known: boolean };
   spotOnScreen?: (spot: number) => { x: number; y: number } | null;
   faceBattle?: () => boolean;
   /** How the camera is steered now (M98): the orbit's, or free — flying or walking. */
@@ -390,7 +403,12 @@ async function runPlanetPage(): Promise<void> {
   let painted = 0,
     scale: "globe" | "region" | "village" | "system" | "cluster" | "world" | "galaxy" = "globe",
     clusterPlan: ClusterPlan | null = null,
-    systemPlan: SystemPlan | null = null;
+    systemPlan: SystemPlan | null = null,
+    // The system the sky shows (the home star's, or another's, M95), which the sky's scene
+    // holds built, and the star it is of when another's.
+    skyPlan: SystemPlan | null = null,
+    skyBuilt = "",
+    skyStar: StarPage | null = null;
   Object.assign(exposed, { client, mode, seed, universe, drawn: () => painted, stage });
   await client.start(universe, seed);
   // ?load=name takes up a save; ?year=N starts the world N years on (it runs there
@@ -424,17 +442,27 @@ async function runPlanetPage(): Promise<void> {
   let pointAt: (page: PageModel) => void = () => {};
   planetPanel.tidings = regionPanel.tidings = villagePanel.tidings = tidings;
   pageWindow.tidings = tidings;
-  // The corner's tools under the bar (Phase 10 M96): search for anything by name, and the
-  // outliner of what is followed; free roam's controls join them.
+  // The tooltips that tell of a name or break a number down, on a desk (Phase 10 M97): a name
+  // in one tells of its thing in turn, and a click on it opens its page.
+  const hoverTips = new HoverTips(hud, client);
+  hoverTips.onOpen = (ref) => void pageWindow.open(ref);
+  pageWindow.hoverTips = planetPanel.hoverTips = hoverTips;
+  // The corner's tools under the bar (Phase 10 M96): the alerts, search for anything by name,
+  // the outliner of what is followed and the message log; free roam's controls join them.
   const corner = document.createElement("div");
   corner.className = "corner-tools";
   hud.append(corner);
-  const searchBox = new SearchBox(corner, client),
-    outliner = new Outliner(corner);
+  const alerts = new Alerts(corner, client, hoverTips),
+    searchBox = new SearchBox(corner, client),
+    outliner = new Outliner(corner),
+    logButton = new LogButton(corner);
+  alerts.onOpen = (ref) => void pageWindow.open(ref);
   searchBox.onOpen = (ref) => void pageWindow.open(ref);
   outliner.onOpen = (ref) => void pageWindow.open(ref);
   outliner.onLetGo = (ref) => void tidings.unfollow(ref);
   tidings.onFollowed = (followed) => outliner.set(followed);
+  logButton.onOpen = () => void pageWindow.open("world:log");
+  tidings.onTold = (n) => logButton.told(n);
   // (The world's own pages — its chronicle, saves, settings — open in its panel instead.)
   planetPanel.onWorldPage = () => pageWindow.close();
   // The world's chronicle and its ledger (Phase 10 M96b): pages of the window like any other.
@@ -460,6 +488,7 @@ async function runPlanetPage(): Promise<void> {
   };
   // While a page is open the scales' own windows stand aside (their sheets would cover it).
   pageWindow.onOpen = (page) => {
+    if (page.kind === "log") logButton.read();
     document.body.classList.add("paging");
     markBarBottom();
     pointAt(page);
@@ -916,6 +945,7 @@ async function runPlanetPage(): Promise<void> {
         sphereGrid((globeFrame.meta as { frequency: number }).frequency),
       ),
       (x, z) => region.heightAt(x, z),
+      (x, z) => region.seaAt(x, z),
     );
   };
   // The world's towns on the globe (M95): what is zoomed into is there before it, and named
@@ -1044,7 +1074,7 @@ async function runPlanetPage(): Promise<void> {
             : scale === "cluster"
               ? tapStars(x, y)
               : scale === "world"
-                ? seen && worldPanel.cell(seen, worldScene.pick(x, y))
+                ? tapWorld(x, y)
                 : scale === "galaxy"
                   ? tapGalaxy(x, y)
                   : tapVillage(x, y),
@@ -1113,7 +1143,7 @@ async function runPlanetPage(): Promise<void> {
       }
       case "system": {
         const i = skyScene.pick(x, y);
-        return i === null ? null : (systemPlan?.bodies[i]?.ref ?? null);
+        return i === null ? null : (skyPlan?.bodies[i]?.ref ?? null);
       }
       case "cluster": {
         const voyage = starScene.pickVoyage(x, y);
@@ -1121,6 +1151,8 @@ async function runPlanetPage(): Promise<void> {
         const i = starScene.pick(x, y);
         return i === null ? null : (clusterPlan?.stars[i]?.ref ?? null);
       }
+      case "world":
+        return hallAt(x, y);
       default:
         return null;
     }
@@ -1296,7 +1328,7 @@ async function runPlanetPage(): Promise<void> {
     stopSky: (() => void) | null = null;
   const selectBody = (i: number | null) => {
     skyScene.mark(i);
-    const b = i === null ? undefined : systemPlan?.bodies[i];
+    const b = i === null ? undefined : skyPlan?.bodies[i];
     if (b) void pageWindow.open(b.ref);
     else {
       pageWindow.close();
@@ -1310,10 +1342,14 @@ async function runPlanetPage(): Promise<void> {
     bubbles.clear();
     globe.visible = false;
     planetPanel.visible = false;
-    if (!systemPlan) {
-      systemPlan = await client.query<SystemPlan>({ type: "planet.system" });
+    systemPlan ??= await client.query<SystemPlan>({ type: "planet.system" });
+    // (Built again when another star's was shown since.)
+    if (skyBuilt !== "home") {
       skyScene.build(systemPlan);
+      skyBuilt = "home";
     }
+    skyPlan = systemPlan;
+    skyStar = null;
     systemPanel.show(systemPlan);
     skyScene.mark(null);
     skyScene.visible = true;
@@ -1322,6 +1358,7 @@ async function runPlanetPage(): Promise<void> {
       sky = s;
       systemPanel.update(s);
       clusterPanel.update(s);
+      if (scale === "world" && worldFrom === "system" && seen) showHalls(seenAt, seen);
     });
     systemPanel.visible = true;
     client.setSpeed(SKY_SPEED);
@@ -1448,6 +1485,10 @@ async function runPlanetPage(): Promise<void> {
     void toSystem();
   };
   exposed.stars = () => void toCluster();
+  exposed.starOnScreen = (ref: string) => {
+    const i = clusterPlan?.stars.findIndex((s) => s.ref === ref) ?? -1;
+    return scale === "cluster" && i >= 0 ? starScene.starOnScreen(i) : null;
+  };
   exposed.starCount = () => (scale === "cluster" && clusterPlan ? clusterPlan.stars.length : 0);
   systemPanel.onSelect = (i) => skyScene.mark(i);
   // Down to a world of the system: made whole on the host (a moment), painted, turned.
@@ -1461,14 +1502,81 @@ async function runPlanetPage(): Promise<void> {
     scale = "world";
     seen = w;
     seenAt = index;
+    // (A world of the home star's: back leads to its sky.)
+    worldFrom = "system";
     skyScene.visible = false;
     systemPanel.visible = false;
     showWorld(w);
+    showHalls(index, w);
+    // (Its halls, if it has any, turned to: what was seen from the sky is seen closer.)
+    const hall = worldScene.hallsAt[0];
+    if (hall) {
+      rig.halt();
+      rig.yaw = (Math.atan2(hall.x, hall.z) * 180) / Math.PI;
+      rig.pitch = (-Math.asin(hall.y) * 180) / Math.PI;
+    }
     worldPanel.show(systemPlan, index, w, sky);
     worldPanel.visible = true;
   };
+  // Halls from orbit (M95): a body of the home star's seen whole shows the halls set down on
+  // it, where the view places each site, its domes as many as its people, its lights aglow.
+  let hallsShown: { ref: string; label: string; people: number }[] = [],
+    hallsNamed = false;
+  const showHalls = (index: number, w: WorldGlobe) => {
+    const here = (sky?.colonies ?? []).filter((c) => c.body === index),
+      cells = hallCells(w.frequency, w.cover);
+    worldScene.setHalls(
+      here.map((c) => ({ cell: cells[c.site % cells.length]!, domes: hallDomes(c.people) })),
+    );
+    hallsShown = here.map((c) => ({
+      ref: `cell:0:${c.cell}`,
+      label: `🏛️ The halls of ${c.founder ?? c.realm ?? "a fallen realm"}`,
+      people: c.people,
+    }));
+  };
+  exposed.hallsShown = () => (scale === "world" ? hallsShown.length : 0);
+  /** The halls drawn nearest a point of the screen, within a finger's reach; or null. */
+  const hallAt = (x: number, y: number): string | null => {
+    if (scale !== "world" || !hallsShown.length) return null;
+    let best: string | null = null,
+      bestD = 26;
+    worldScene.screenOf(worldScene.hallsAt, 1.02).forEach((at, i) => {
+      const d = Math.hypot(at.x - x, at.y - y);
+      if (at.facing > 0.1 && d < bestD && hallsShown[i]) {
+        bestD = d;
+        best = hallsShown[i]!.ref;
+      }
+    });
+    return best;
+  };
+  /** A tap on a world seen whole: its halls (their page), else the spot of it tapped. */
+  const tapWorld = (x: number, y: number) => {
+    const hall = hallAt(x, y);
+    if (hall) void pageWindow.open(hall);
+    else if (seen) worldPanel.cell(seen, worldScene.pick(x, y));
+  };
+  stage.onUpdate(() => {
+    if (scale !== "world") return;
+    const named = hallsShown.length
+      ? worldScene.screenOf(worldScene.hallsAt, 1.04).flatMap((at, i) =>
+          at.facing > 0.12 && hallsShown[i]
+            ? [
+                {
+                  key: hallsShown[i]!.ref,
+                  text: hallsShown[i]!.label,
+                  at: { x: at.x, y: at.y },
+                  priority: hallsShown[i]!.people,
+                },
+              ]
+            : [],
+        )
+      : [];
+    if (named.length || hallsNamed) labels.update(named);
+    hallsNamed = named.length > 0;
+  });
   /** A world made whole, drawn and turned to (every other scale and its panel put away). */
   const showWorld = (w: WorldGlobe) => {
+    hallsShown = [];
     globe.visible = false;
     planetPanel.visible = false;
     region.visible = false;
@@ -1503,22 +1611,74 @@ async function runPlanetPage(): Promise<void> {
     });
   };
   systemPanel.onVisit = (i) => {
+    // (Another star's world, from its own system; else one of the home star's.)
+    if (skyStar) {
+      void toForeignWorld(skyStar, i, "star");
+      return;
+    }
     worldFrom = "system";
     worldPanel.backTo = "The sky";
     void toWorld(i);
   };
   // Where a world seen whole was come to from: back leads there.
-  let worldFrom: "system" | "cluster" | "galaxy" = "system";
+  let worldFrom: "system" | "cluster" | "galaxy" | "star" = "system";
   worldPanel.onBack = () => {
     worldScene.visible = false;
     worldPanel.visible = false;
     seen = null;
     if (worldFrom === "galaxy") void toGalaxy();
     else if (worldFrom === "cluster") void toCluster();
+    else if (worldFrom === "star" && skyStar) void toStarSystem(skyStar);
     else void toSystem();
   };
+  /**
+   * Another star's own system (M95), as the home star's is shown: its worlds on their orbits,
+   * each tapped for its page and gone to, seen whole; back, the stars about it.
+   */
+  const toStarSystem = async (star: StarPage) => {
+    const plan = await client.query<SystemPlan>({
+      type: "galaxy.system",
+      args: { ref: star.ref },
+    });
+    scale = "system";
+    stage.backdrop("space");
+    labels.clear();
+    bubbles.clear();
+    for (const hide of [globe, starScene, galaxyScene, worldScene]) hide.visible = false;
+    for (const hide of [planetPanel, clusterPanel, galaxyPanel, worldPanel]) hide.visible = false;
+    skyScene.build(plan);
+    skyBuilt = star.ref;
+    skyPlan = plan;
+    skyStar = star;
+    // (Our sky's news is of our star: not read while another's is shown.)
+    stopSky?.();
+    stopSky = null;
+    systemPanel.show(plan, true);
+    skyScene.mark(null);
+    skyScene.visible = true;
+    systemPanel.visible = true;
+    client.setSpeed(SKY_SPEED);
+    rig.configure({
+      distance: (systemExtent(plan) * 2.9) / Math.min(1, aspect()),
+      minDistance: 2,
+      maxDistance: 400,
+      pitch: -60,
+      minPitch: -89,
+      maxPitch: -10,
+      drift: 0.6,
+      target: [0, 0, 0],
+    });
+  };
+  exposed.starSystem = (ref: string) =>
+    void client
+      .query<StarPage>({ type: "galaxy.star", args: { ref } })
+      .then((page) => toStarSystem(page));
   /** Another star's world, made whole and shown. */
-  const toForeignWorld = async (star: StarPage, index: number, from: "cluster" | "galaxy") => {
+  const toForeignWorld = async (
+    star: StarPage,
+    index: number,
+    from: "cluster" | "galaxy" | "star",
+  ) => {
     const w = await client.query<WorldGlobe>({
       type: "world.globe",
       args: { star: star.ref, index },
@@ -1532,7 +1692,8 @@ async function runPlanetPage(): Promise<void> {
     galaxyScene.visible = false;
     galaxyPanel.visible = false;
     showWorld(w);
-    worldPanel.backTo = from === "galaxy" ? "The galaxy" : "The stars around";
+    worldPanel.backTo =
+      from === "galaxy" ? "The galaxy" : from === "star" ? "Its star" : "The stars around";
     worldPanel.showForeign(star, index, w, Math.floor(now() / YEAR));
     worldPanel.visible = true;
   };
@@ -1657,6 +1818,7 @@ async function runPlanetPage(): Promise<void> {
         ? async () => {
             systemPlan = await client.query<SystemPlan>({ type: "planet.system" });
             skyScene.build(systemPlan);
+            skyBuilt = "home";
           }
         : scale === "system" && !clusterPlan
           ? async () => {
@@ -1702,7 +1864,7 @@ async function runPlanetPage(): Promise<void> {
   // close, and eases onto the star as it draws back.
   let followHome = false;
   stage.onUpdate(() => {
-    if (scale !== "system" || !systemPlan || !followHome) return;
+    if (scale !== "system" || !systemPlan || skyStar || !followHome) return;
     const home = systemSpec(systemPlan, now())[0]!,
       k = Math.max(0, Math.min(1, (rig.distance - 4) / 30));
     rig.target.set(home.x * (1 - k), 0, home.z * (1 - k));
@@ -1751,6 +1913,9 @@ async function runPlanetPage(): Promise<void> {
         await fadeOver(() => ready("the stars about us", () => toCluster(), true));
         rig.userZoomed = true;
         rig.distance = 20;
+        // (Out of another star's system: the stars about it, it in the middle.)
+        const star = skyStar ? clusterPlan?.stars.find((x) => x.ref === skyStar!.ref) : undefined;
+        if (star) rig.target.set(star.x * LY_SCALE, star.z * LY_SCALE, star.y * LY_SCALE);
       } else if (scale === "world") {
         await fadeOver(() => worldPanel.onBack());
       } else if (scale === "cluster") {
@@ -1782,7 +1947,7 @@ async function runPlanetPage(): Promise<void> {
         star = i === null ? undefined : clusterPlan?.stars[i];
       if (star && star.distance > 0 && star.planets > 0) {
         const page = await client.query<StarPage>({ type: "galaxy.star", args: { ref: star.ref } });
-        await fadeOver(() => ready("its world", () => toForeignWorld(page, 0, "cluster"), true));
+        await fadeOver(() => ready("its worlds", () => toStarSystem(page), true));
         return;
       }
       await fadeOver(() =>
@@ -1801,6 +1966,13 @@ async function runPlanetPage(): Promise<void> {
     } else if (scale === "system") {
       // Into the world under the pointer: another of the system, seen whole; else our own.
       const i = rig.pointer ? skyScene.pick(rig.pointer.x, rig.pointer.y) : null;
+      // (Another star's: the world under the pointer, else the nearest to the middle.)
+      if (skyStar && skyPlan?.bodies.length) {
+        const star = skyStar,
+          at = i ?? skyScene.pick(innerWidth / 2, innerHeight / 2) ?? 0;
+        await fadeOver(() => ready("that world", () => toForeignWorld(star, at, "star"), true));
+        return;
+      }
       if (i !== null && i > 0 && systemPlan?.bodies[i]) {
         worldFrom = "system";
         worldPanel.backTo = "The sky";
@@ -2109,23 +2281,33 @@ async function runPlanetPage(): Promise<void> {
   exposed.visit = (i: number) => void toWorld(i);
   exposed.visiting = () => (scale === "world" && seen ? seenAt : -1);
   systemPanel.onBack = () => {
+    // (From another star's system, back to the stars about it.)
+    if (skyStar) {
+      skyScene.visible = false;
+      systemPanel.visible = false;
+      void toCluster();
+      return;
+    }
     stopSky?.();
     stopSky = null;
     client.setSpeed(planetPanel.speed);
     toGlobe();
   };
   exposed.sky = () => void toSystem();
-  exposed.skyBodies = () => (scale === "system" && systemPlan ? systemPlan.bodies.length : 0);
+  exposed.skyBodies = () => (scale === "system" && skyPlan ? skyPlan.bodies.length : 0);
+  /** Whose system the sky shows: the home star's (null), or another's ref. */
+  exposed.skyOf = () => (scale === "system" ? (skyStar?.ref ?? null) : null);
   stage.onUpdate(() => {
     if (scale === "cluster" && clusterPlan)
       starScene.voyages(voyageMarks(clusterPlan, sky, now() / YEAR));
   });
   stage.onUpdate(() => {
-    if (scale !== "system" || !systemPlan) return;
+    if (scale !== "system" || !skyPlan) return;
     const t = now(),
-      spots = systemSpec(systemPlan, t);
+      spots = systemSpec(skyPlan, t);
     skyScene.update(spots);
-    skyScene.marks(skyMarks(sky, spots, t));
+    // (Another star's has none of ours about it.)
+    skyScene.marks(skyMarks(skyStar ? { programs: [], colonies: [] } : sky, spots, t));
   });
   planetPanel.onClose = () => globe.mark(null);
   // Down into a village to watch its day, and back up to its land. Watching is

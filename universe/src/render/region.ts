@@ -189,6 +189,11 @@ export class RegionScene {
     return Math.max(0, this.heights[j * this.size + i]!);
   }
 
+  /** Whether a point of the scene is over the sea (its nearest tile below the sea's level). */
+  seaAt(x: number, z: number): boolean {
+    return !!this.heights && this.heights[this.tileAt(x, z)]! < 0;
+  }
+
   /** The ground under a screen point (by the tile it falls on), for zooming toward it. */
   pointAt(x: number, y: number): pc.Vec3 | null {
     const t = this.pick(x, y);

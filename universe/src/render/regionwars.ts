@@ -1,18 +1,20 @@
 // Wars in a land (Phase 10 M95): the globe's hosts seen closer. Each host a column under its
 // realm's colours — a banner-bearer and those behind — marching in from the map's edge to
-// what it wants, or out from its land toward the front; the defenders standing in a block at
-// what they hold; and each battle fought here lately (as the globe shows it), its two hosts in lines face
-// to face, crossed blades over a flare that pulses, the larger the more fell. Instanced; the
+// what it wants, or out from its land toward the front, and over the sea in ships under its
+// colours, as the globe shows it; the defenders standing in a block at what they hold; and
+// each battle fought here lately (as the globe shows it), its two hosts in lines face to
+// face, crossed blades over a flare that pulses, the larger the more fell. Instanced; the
 // march plays over as the war lasts, as on the globe.
 import * as pc from "playcanvas";
-import type { LandWars } from "../view/index.ts";
+import { landColumn, type LandWars } from "../view/index.ts";
 import { InstancedBatch, boxMesh, keptMesh } from "./batch.ts";
 import type { Stage } from "./stage.ts";
 
 /** How long a host's march across the land takes on the screen (seconds). */
 const LAND_MARCH = 16;
-/** The most figures of one side drawn at once. */
-const MOST = 160;
+/** The most figures of one side drawn at once, and the most ships of all sides. */
+const MOST = 160,
+  MOST_SHIPS = 96;
 
 type Flat = { readonly x: number; readonly z: number };
 
@@ -26,21 +28,29 @@ export class RegionWars {
   private land: LandWars | null = null;
   private colorKey = "";
   private height: (x: number, z: number) => number = () => 0;
+  private sea: (x: number, z: number) => boolean = () => false;
   private sides: InstancedBatch[] = [];
   private flags: InstancedBatch[] = [];
   private readonly heads: InstancedBatch;
   private readonly poles: InstancedBatch;
   private readonly blades: InstancedBatch;
   private readonly flares: InstancedBatch;
+  private readonly hulls: InstancedBatch;
   /** Where each host's head and each battle stood at the last update (for picking, naming). */
   private marks: { x: number; z: number; ref: string; name: string; battle: boolean }[] = [];
   /** How many figures were drawn at the last update (for the look tools). */
   drawn = 0;
 
   /** The hosts and battles shown (for the look tools). */
-  get shown(): { marches: number; battles: number } {
-    return { marches: this.land?.marches.length ?? 0, battles: this.land?.battles.length ?? 0 };
+  get shown(): { marches: number; battles: number; ships: number } {
+    return {
+      marches: this.land?.marches.length ?? 0,
+      battles: this.land?.battles.length ?? 0,
+      ships: this.afloat,
+    };
   }
+  /** How many ships were drawn at the last update. */
+  private afloat = 0;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -51,6 +61,7 @@ export class RegionWars {
     this.poles = make([0.42, 0.3, 0.18], 64);
     this.blades = make([0.86, 0.88, 0.92], 64);
     this.flares = make([1, 0.78, 0.26], 32);
+    this.hulls = make([0.34, 0.22, 0.12], MOST_SHIPS);
     stage.root.addChild(this.root);
     this.root.enabled = false;
   }
@@ -59,10 +70,15 @@ export class RegionWars {
     this.root.enabled = on;
   }
 
-  /** The wars in the land now shown, and the height of its ground at a point. */
-  set(land: LandWars | null, height: (x: number, z: number) => number): void {
+  /** The wars in the land now shown, the height of its ground at a point, and whether it is sea. */
+  set(
+    land: LandWars | null,
+    height: (x: number, z: number) => number,
+    sea: (x: number, z: number) => boolean = () => false,
+  ): void {
     this.land = land;
     this.height = height;
+    this.sea = sea;
     const colors = land?.colors ?? [],
       key = JSON.stringify(colors);
     // (The same colours as before: the same batches, not made anew each year.)
@@ -81,7 +97,8 @@ export class RegionWars {
             Math.min(1, c[1] * 1.2 + 0.08),
             Math.min(1, c[2] * 1.2 + 0.08),
           ],
-          32,
+          // (Their banners, and the sails of their ships.)
+          MOST_SHIPS,
           this.root,
         ),
     );
@@ -93,6 +110,7 @@ export class RegionWars {
     if (!land || !this.root.enabled) return;
     const bySide: Figure[][] = land.colors.map(() => []),
       banners: { at: Flat; yaw: number; side: number; size: number }[] = [],
+      ships: { at: Flat; yaw: number; side: number; size: number }[] = [],
       marks: { x: number; z: number; ref: string; name: string; battle: boolean }[] = [];
     land.marches.forEach((m, n) => {
       const dx = m.to.x - m.from.x,
@@ -100,27 +118,20 @@ export class RegionWars {
         len = Math.hypot(dx, dz) || 1,
         ux = dx / len,
         uz = dz / len,
-        yaw = Math.atan2(ux, uz),
-        cycle = (s / LAND_MARCH + n * 0.37) % 1,
-        lead = cycle * 0.92,
-        grown = loopSize(cycle, 0.06, 0.08);
-      // The column: a banner-bearer and those behind, two abreast.
-      for (let k = 0; k < 12; k++) {
-        const back = Math.floor(k / 2) * 1.1,
-          aside = (k % 2 ? 0.45 : -0.45) * (k ? 1 : 0),
-          along = lead * len - back;
-        if (along < 0) break;
-        const at = { x: m.from.x + ux * along - uz * aside, z: m.from.z + uz * along + ux * aside };
-        bySide[m.side]!.push({
-          ...at,
-          yaw,
-          size: Math.min(grown, loopSize(along / (len * 0.92), 0.06, 0)),
-          lead: k === 0,
+        // The column: a banner-bearer and those behind, two abreast; over the sea, in ships.
+        col = landColumn(m.from, m.to, (s / LAND_MARCH + n * 0.37) % 1, this.sea),
+        yaw = col.yaw;
+      for (const f of col.people)
+        bySide[m.side]!.push({ x: f.x, z: f.z, yaw, size: f.size, lead: f.lead });
+      for (const f of col.ships) ships.push({ at: f, yaw, side: m.side, size: f.size });
+      if (col.head) {
+        if (!col.afloat) banners.push({ at: col.head, yaw, side: m.side, size: col.grown });
+        marks.push({
+          ...col.head,
+          ref: m.ref,
+          name: `${col.afloat ? "⛵" : "🚩"} ${m.name}`,
+          battle: false,
         });
-        if (k === 0) {
-          banners.push({ at, yaw, side: m.side, size: grown });
-          marks.push({ ...at, ref: m.ref, name: `🚩 ${m.name}`, battle: false });
-        }
       }
       // The defenders, in a block before what they hold, facing the way the host comes.
       if (m.held) {
@@ -200,8 +211,33 @@ export class RegionWars {
       out[3] = out[4] = out[5] = r;
       out[6] = f.yaw;
     });
-    // The banners: a pole and its side's flag.
-    this.poles.set(banners.length, (i, out) => {
+    // The ships: a hull on the swell, a mast, and a sail in its side's colour.
+    const afloat = ships.slice(0, MOST_SHIPS),
+      bob = (i: number) => Math.sin(s * 1.7 + i * 1.3) * 0.05;
+    this.afloat = afloat.length;
+    this.hulls.set(afloat.length, (i, out) => {
+      const f = afloat[i]!;
+      out[0] = f.at.x;
+      out[1] = 0.16 * f.size + bob(i);
+      out[2] = f.at.z;
+      out[3] = 0.8 * f.size;
+      out[4] = 0.32 * f.size;
+      out[5] = 1.9 * f.size;
+      out[6] = f.yaw;
+      out[7] = Math.sin(s * 1.3 + i) * 0.05;
+    });
+    // The banners: a pole and its side's flag; and the ships' masts.
+    this.poles.set(banners.length + afloat.length, (i, out) => {
+      if (i >= banners.length) {
+        const f = afloat[i - banners.length]!;
+        out[0] = f.at.x;
+        out[1] = 1.2 * f.size + bob(i - banners.length);
+        out[2] = f.at.z;
+        out[3] = out[5] = 0.07;
+        out[4] = 2 * f.size;
+        out[6] = f.yaw;
+        return;
+      }
       const b = banners[i]!;
       out[0] = b.at.x;
       out[1] = this.height(b.at.x, b.at.z) + 1.1 * b.size;
@@ -211,8 +247,22 @@ export class RegionWars {
       out[6] = b.yaw;
     });
     this.flags.forEach((batch, side) => {
-      const mine = banners.filter((b) => b.side === side);
-      batch.set(mine.length, (i, out) => {
+      const mine = banners.filter((b) => b.side === side),
+        sails = afloat.map((f, i) => ({ f, i })).filter(({ f }) => f.side === side);
+      batch.set(mine.length + sails.length, (i, out) => {
+        if (i >= mine.length) {
+          // (Across the hull, filled by the wind.)
+          const { f, i: k } = sails[i - mine.length]!;
+          out[0] = f.at.x;
+          out[1] = 1.35 * f.size + bob(k);
+          out[2] = f.at.z;
+          out[3] = 1.3 * f.size;
+          out[4] = 1.1 * f.size;
+          out[5] = 0.08;
+          out[6] = f.yaw;
+          out[7] = -0.12;
+          return;
+        }
         const b = mine[i]!,
           wave = Math.sin(s * 4 + i) * 0.12;
         out[0] = b.at.x - Math.sin(b.yaw) * 0.35;
@@ -287,11 +337,4 @@ export class RegionWars {
       }
     return best;
   }
-}
-
-/** A loop's drawn size at its phase (0 … 1): grown over `grow` of it, shrunk over the last `shrink`. */
-function loopSize(phase: number, grow: number, shrink: number): number {
-  const k =
-    phase < grow ? phase / grow : shrink > 0 && phase > 1 - shrink ? (1 - phase) / shrink : 1;
-  return Math.max(0, Math.min(1, k * k * (3 - 2 * k)));
 }

@@ -284,7 +284,12 @@ await page.waitForFunction(
 );
 type Sky = {
   programs: { name: string }[];
-  colonies: { event: string | null; realm: string | null; founder: string | null }[];
+  colonies: {
+    event: string | null;
+    realm: string | null;
+    founder: string | null;
+    body: number;
+  }[];
   ships?: { voyage: string; arrived: boolean; realm: string | null }[];
 };
 const sky = await query<Sky>("space.state");
@@ -298,6 +303,23 @@ await step("colony", async () => {
   const c = sky.colonies.find((x) => x.event);
   if (!c) throw new Error("no colony");
   return (await query<{ claim: string }>("why", { ref: c.event, depth: 1 })).claim;
+});
+await step("the halls seen from orbit", async () => {
+  // A body of the sky with halls on it, seen whole: its halls drawn where they stand (M95).
+  const c = sky.colonies.find((x) => x.body > 0);
+  if (!c) throw new Error("no halls beyond the world");
+  await call("visit", c.body);
+  await page.waitForFunction(
+    () =>
+      ((
+        (globalThis as { causalis?: Exposed }).causalis?.hallsShown as (() => number) | undefined
+      )?.() ?? 0) > 0,
+    undefined,
+    { timeout: 60000 },
+  );
+  const halls = (await call("hallsShown")) as number;
+  await call("sky");
+  return `the halls of ${halls} ${halls === 1 ? "colony" : "colonies"} on world ${c.body} of the sky, seen from orbit`;
 });
 await step("divergence", async () => {
   const drifted = sky.colonies.find((x) => x.founder && x.realm !== x.founder);

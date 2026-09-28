@@ -15,7 +15,7 @@ import {
 } from "../gen/index.ts";
 import { civilizationsNear, contactsOf, homePlanet } from "../sim/index.ts";
 import { CLADES } from "../rules/index.ts";
-import type { ClusterStar, GalaxyPlan, StarPage, WorldGlobe } from "../bridge/index.ts";
+import type { ClusterStar, GalaxyPlan, StarPage, SystemPlan, WorldGlobe } from "../bridge/index.ts";
 
 /** The galaxy's shape: enough to draw it. */
 export function galaxyPlan(world: World): GalaxyPlan {
@@ -111,6 +111,48 @@ export function starPage(world: World, ref: string): StarPage {
       pressure: p.pressure,
       air: p.air,
       water: p.water,
+    })),
+  };
+}
+
+/**
+ * Another star's own system (Phase 10 M95), as the home star's is drawn: its worlds on their
+ * orbits about it, each a body whose ref is the world its page names ("star/index"). Where
+ * each stands on its orbit is the view's choice, spread about the star: nothing here keeps
+ * another star's years.
+ */
+export function foreignSystem(world: World, ref: string): SystemPlan {
+  const s = starByRef(world, ref);
+  return {
+    star: {
+      ref: s.ref,
+      spectral: s.spectral,
+      mass: s.mass,
+      luminosity: s.luminosity,
+      temperature: s.temperature,
+      ageGyr: s.ageGyr,
+    },
+    frostLine: 2.7 * Math.sqrt(s.luminosity),
+    bodies: foreignPlanets(new Rng(world.seed), s).map((p) => ({
+      ref: `${ref}/${p.index}`,
+      designation: String.fromCharCode(98 + p.index),
+      kind: p.kind,
+      around: -1,
+      a: p.a,
+      e: 0,
+      periapsis: 0,
+      phase: (p.index * 2.399963) % (2 * Math.PI),
+      periodDays: 365.25 * Math.sqrt((p.a * p.a * p.a) / s.mass),
+      mass: p.mass,
+      radius: p.radius,
+      gravity: p.gravity,
+      escape: p.escape,
+      temperature: p.temperature,
+      pressure: p.pressure,
+      air: p.air,
+      water: p.water,
+      radiation: p.radiation,
+      because: [],
     })),
   };
 }

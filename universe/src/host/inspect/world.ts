@@ -372,31 +372,28 @@ const COUNTED = [
   "polity.split",
 ] as const;
 
-/** What the world holds, read once for a page. */
-function survey(world: World) {
-  const ctx = populationContext(world),
-    now = yearNow(world),
-    found = happenings(world, COUNTED),
-    known = knowings(world),
-    people = worldPeople(world),
-    towns = ctx.settlements.all(),
-    realms = politiesOf(world).all(),
-    wars = warsOf(world).all(),
-    faiths = beliefOf(world).all(),
-    tongues = languagesOf(world).all();
+/** What the world holds for its firsts, read once. */
+function baseSurvey(world: World) {
+  const ctx = populationContext(world);
   return {
     ctx,
-    now,
-    found,
-    known,
-    people,
-    towns,
-    realms,
-    wars,
-    faiths,
-    tongues,
-    ages: agesOf(world, known, found),
+    now: yearNow(world),
+    found: happenings(world, COUNTED),
+    known: knowings(world),
+    towns: ctx.settlements.all(),
+    realms: politiesOf(world).all(),
+    wars: warsOf(world).all(),
+    faiths: beliefOf(world).all(),
+    tongues: languagesOf(world).all(),
   };
+}
+
+type BaseSurvey = ReturnType<typeof baseSurvey>;
+
+/** What the world holds, read once for a page: its firsts', and its people and its ages. */
+function survey(world: World) {
+  const base = baseSurvey(world);
+  return { ...base, people: worldPeople(world), ages: agesOf(world, base.known, base.found) };
 }
 
 type Survey = ReturnType<typeof survey>;
@@ -488,7 +485,7 @@ export function chroniclePage(world: World, tab?: string): PageModel {
 }
 
 /** Whether a principle is known anywhere, and its first (the roots by their own records). */
-function firstKnown(s: Survey, id: string): Happening | null {
+function firstKnown(s: BaseSurvey, id: string): Happening | null {
   if (id === "cultivation") return s.found.get("knowledge.cultivation")?.[0] ?? null;
   if (id === "metalworking") {
     const m = s.found.get("knowledge.metalworking")?.[0] ?? null,
@@ -677,10 +674,67 @@ function ageBlocks(world: World, s: Survey): Block[] {
 }
 
 /** Things that emerged: where and when first, how soon another followed, how far they reach now. */
-function firstBlocks(world: World, s: Survey): Block[] {
+/**
+ * A first in the world: what emerged, when and where first (its event), the year the next
+ * of it came, and how it stands now.
+ */
+type First = {
+  readonly what: string;
+  readonly first: { readonly year: number; readonly land: number | null; readonly ref: Ref | null };
+  readonly nextYear: number | null;
+  readonly now: string;
+  readonly nowKey: number;
+  /** How many times it was found apart (a finding made in more than one land). */
+  readonly apart?: number;
+};
+
+/** The world's firsts (Phase 10 M96b; the alerts' too, M96): what emerged, oldest first. */
+export function worldFirsts(world: World): {
+  what: string;
+  year: number;
+  land: number | null;
+  ref: Ref | null;
+}[] {
+  return firstsOf(world, baseSurvey(world)).map((f) => ({ what: f.what, ...f.first }));
+}
+
+/** A first as a row of the chronicle's table of them. */
+function firstRow(world: World, f: First): Row {
+  const { what, first, nextYear, now, nowKey, apart } = f,
+    gap = nextYear === null ? null : nextYear - first.year;
+  return {
+    ...(first.ref ? { ref: first.ref } : {}),
+    cells: [
+      [what],
+      [`year ${count(first.year)}`],
+      first.land !== null ? [landLink(world, first.land)] : ["—"],
+      [
+        gap === null
+          ? "none yet"
+          : gap === 0
+            ? "the same year"
+            : `${many(gap, "year", "years")} later`,
+      ],
+      [
+        apart !== undefined && apart > 1
+          ? `${now} · found ${many(apart, "time", "times")} apart`
+          : now,
+      ],
+    ],
+    keys: [
+      what,
+      first.year,
+      first.land !== null ? landTitle(world, first.land) : "",
+      gap ?? 1e9,
+      nowKey,
+    ],
+  };
+}
+
+function firstsOf(world: World, s: BaseSurvey): First[] {
   const ctx = s.ctx,
     provinces = ctx.provinces.all(),
-    rows: Row[] = [],
+    firsts: First[] = [],
     add = (
       what: string,
       first: { year: number; land: number | null; ref: Ref | null } | null,
@@ -689,35 +743,15 @@ function firstBlocks(world: World, s: Survey): Block[] {
       nowKey: number,
       apart?: number,
     ) => {
-      if (!first) return;
-      const gap = nextYear === null ? null : nextYear - first.year;
-      rows.push({
-        ...(first.ref ? { ref: first.ref } : {}),
-        cells: [
-          [what],
-          [`year ${count(first.year)}`],
-          first.land !== null ? [landLink(world, first.land)] : ["—"],
-          [
-            gap === null
-              ? "none yet"
-              : gap === 0
-                ? "the same year"
-                : `${many(gap, "year", "years")} later`,
-          ],
-          [
-            apart !== undefined && apart > 1
-              ? `${now} · found ${many(apart, "time", "times")} apart`
-              : now,
-          ],
-        ],
-        keys: [
+      if (first)
+        firsts.push({
           what,
-          first.year,
-          first.land !== null ? landTitle(world, first.land) : "",
-          gap ?? 1e9,
+          first,
+          nextYear,
+          now,
           nowKey,
-        ],
-      });
+          ...(apart !== undefined ? { apart } : {}),
+        });
     },
     ev = (type: string) => s.found.get(type) ?? [],
     second = (...types: string[]) =>
@@ -947,7 +981,11 @@ function firstBlocks(world: World, s: Survey): Block[] {
         heard.length,
       );
   }
-  rows.sort((a, b) => (a.keys![1] as number) - (b.keys![1] as number));
+  return firsts.sort((a, b) => a.first.year - b.first.year);
+}
+
+function firstBlocks(world: World, s: Survey): Block[] {
+  const rows = firstsOf(world, s).map((f) => firstRow(world, f));
   // The race: how far the great findings spread, year by year.
   const RACE = [
     "writing",

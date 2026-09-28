@@ -4,6 +4,7 @@
 // moment, kept a while for the next time; a tap still opens its page.
 import type { HostClient, Tip } from "../bridge/index.ts";
 import { el } from "./why.ts";
+import { tipCard } from "./hovertip.ts";
 
 /** How long the pointer rests before the tip is asked (ms), and how long a tip is kept. */
 const REST_MS = 140,
@@ -61,18 +62,7 @@ export class Tooltip {
   }
 
   private draw(tip: Tip): void {
-    const head = el("div", "tip-head");
-    head.append(el("span", "tip-icon", tip.icon), el("span", "tip-title", tip.title));
-    const parts: HTMLElement[] = [head];
-    if (tip.line) parts.push(el("div", "tip-line", tip.line));
-    if (tip.stats.length) {
-      const stats = el("div", "tip-stats");
-      for (const s of tip.stats)
-        stats.append(el("span", "tip-label", s.label), el("span", "tip-value", s.value));
-      parts.push(stats);
-    }
-    parts.push(el("div", "tip-more", "Tap to open its page"));
-    this.element.replaceChildren(...parts);
+    this.element.replaceChildren(...tipCard(tip, "Tap to open its page"));
     this.element.hidden = false;
     this.place();
   }

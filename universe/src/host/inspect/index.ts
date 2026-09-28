@@ -19,6 +19,7 @@ import { agePage, depositPageModel, lineagePage, platePageModel } from "./life.t
 import { bodyPage, civilizationPage, foreignWorldPage, starPageModel } from "./sky.ts";
 import { actPage, decisionPage, eventPage, unknownPage } from "./history.ts";
 import { chroniclePage, ledgerPage } from "./world.ts";
+import { alertsOf, breakdownOf, logPage, type Counted } from "./alerts.ts";
 import { crumbsOf } from "./crumbs.ts";
 import { conceptPage, withConcepts } from "./concepts.ts";
 
@@ -26,6 +27,7 @@ import { conceptPage, withConcepts } from "./concepts.ts";
 function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref === "world:chronicle") return chroniclePage(world, tab ?? undefined);
   if (ref === "world:ledger") return ledgerPage(world, tab ?? undefined);
+  if (ref === "world:log") return logPage(world, tab ?? undefined);
   if (ref.startsWith("concept:")) return conceptPage(world, ref);
   if (ref.startsWith("gstar:")) return starPageModel(world, ref);
   if (ref.includes("/")) return foreignWorldPage(world, ref);
@@ -140,12 +142,14 @@ export function placeOf(world: World, ref: string): Place | null {
  */
 export function tipOf(world: World, ref: string): Tip {
   const p = pageOf(world, ref),
-    plain = (l: Line) => l.map((s) => (typeof s === "string" ? s : s.text)).join("");
+    plain = (l: Line) => l.map((s) => (typeof s === "string" ? s : s.text)).join(""),
+    // (A concept is told by what it is, not by the kind of page it has.)
+    what = p.kind === "concept" ? p.tabs[0]?.blocks.find((b) => b.type === "text") : undefined;
   return {
     ref,
     icon: p.icon,
     title: p.title,
-    line: plain(p.subtitle),
+    line: what?.type === "text" && what.lines[0] ? plain(what.lines[0]) : plain(p.subtitle),
     stats: p.stats.slice(0, 3).map((s) => ({ label: s.label, value: plain(s.value) })),
   };
 }
@@ -157,6 +161,12 @@ export const INSPECT_QUERIES: Readonly<Record<string, QueryHandler>> = {
   place: (world, args) => placeOf(world, (args as { ref: string }).ref),
   /** A thing in a few words, for a tooltip. */
   tip: (world, args) => tipOf(world, (args as { ref: string }).ref),
+  /** What stands now and asks to be looked at (M96). */
+  alerts: (world) => alertsOf(world),
+  /** What one of the top bar's numbers is made of (M97). */
+  "world.breakdown": (world, args) => breakdownOf(world, (args as { what: Counted }).what),
 };
+
+export { alertsOf, breakdownOf, type Counted };
 
 export { battlePage };

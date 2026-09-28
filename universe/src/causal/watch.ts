@@ -103,10 +103,27 @@ function firstAfter(events: readonly HistoryEvent[], t: number): number {
   return lo;
 }
 
+/**
+ * Whether an event is news of a thing followed. A land's news happens in it (a land long
+ * settled does not count its new villages; a change of faith, or of ruler at a seat, is
+ * news); a village's names it; a realm's names it and matters.
+ */
+function newsOf(world: World, ref: Ref): (e: HistoryEvent) => boolean {
+  const kind = kindCodeOf(ref),
+    settled =
+      kind === SURFACE_CELL.code &&
+      populationContext(world).settlements.inProvince(parseRef(ref).b).length > SETTLED_LAND;
+  return (e) =>
+    kind === SURFACE_CELL.code
+      ? e.place === ref &&
+        (e.importance >= NEWS || e.type === "belief.converted" || e.type === "polity.succession") &&
+        !(settled && e.type === "settlement.founded")
+      : e.subjects.includes(ref) && (kind === SETTLEMENT.code || e.importance >= NEWS);
+}
+
 /** What has happened to everything followed since it was last told, and mark it told. */
 export function tidings(world: World): Tiding[] {
   const ledger = observer(world),
-    ctx = populationContext(world),
     events = world.events.all(),
     told = new Set<string>(),
     out: Tiding[] = [];
@@ -117,25 +134,11 @@ export function tidings(world: World): Tiding[] {
       w.seen = world.now;
       continue;
     }
-    const kind = kindCodeOf(w.ref);
-    if (kind === PERSON.code) {
+    if (kindCodeOf(w.ref) === PERSON.code) {
       out.push(...personTidings(world, w, name));
       continue;
     }
-    // A land's news happens in it (a land long settled does not count its new villages; a
-    // change of faith, or of ruler at a seat, is news); a village's names it; a realm's
-    // names it and matters.
-    const settled =
-      kind === SURFACE_CELL.code &&
-      ctx.settlements.inProvince(parseRef(w.ref).b).length > SETTLED_LAND;
-    const news = (e: HistoryEvent) =>
-      kind === SURFACE_CELL.code
-        ? e.place === w.ref &&
-          (e.importance >= NEWS ||
-            e.type === "belief.converted" ||
-            e.type === "polity.succession") &&
-          !(settled && e.type === "settlement.founded")
-        : e.subjects.includes(w.ref) && (kind === SETTLEMENT.code || e.importance >= NEWS);
+    const news = newsOf(world, w.ref);
     const hits: HistoryEvent[] = [];
     for (let i = firstAfter(events, w.seen); i < events.length; i++)
       if (news(events[i]!) && !told.has(events[i]!.id)) hits.push(events[i]!);
@@ -162,14 +165,22 @@ export function tidings(world: World): Tiding[] {
 function personTidings(world: World, w: Watch, name: string): Tiding[] {
   // Years told through: the year before `seen`'s (a year's news is complete at its end).
   const from = Math.floor(w.seen / YEAR),
-    to = Math.floor(world.now / YEAR) - 1,
-    out: Tiding[] = [];
-  if (to < from) return out;
-  const p = deepen(world, observer(world).person(w.ref)!);
+    to = Math.floor(world.now / YEAR) - 1;
+  if (to < from) return [];
+  const out = personNews(world, w.ref, name, from, to);
+  // Whole years only: a year still under way is told once it is over.
+  w.seen = Math.max(w.seen, (to + 1) * YEAR);
+  return out.slice(-MOST);
+}
+
+/** What a person met lived through in the years [from, to], and their death, oldest first. */
+function personNews(world: World, ref: Ref, name: string, from: number, to: number): Tiding[] {
+  const out: Tiding[] = [],
+    p = deepen(world, observer(world).person(ref)!);
   for (const l of p.life ?? [])
     if (l.year >= from && l.year <= to)
       out.push({
-        watch: w.ref,
+        watch: ref,
         label: name,
         ref: l.event ?? p.ref,
         year: l.year,
@@ -177,13 +188,54 @@ function personTidings(world: World, w: Watch, name: string): Tiding[] {
       });
   if (!p.alive && p.diedYear !== null && p.diedYear >= from && p.diedYear <= to)
     out.push({
-      watch: w.ref,
+      watch: ref,
       label: name,
       ref: p.ref,
       year: p.diedYear,
       claim: `${name} died in year ${p.diedYear}, at ${p.diedYear - p.birthYear}`,
     });
-  // Whole years only: a year still under way is told once it is over.
-  w.seen = Math.max(w.seen, (to + 1) * YEAR);
-  return out.slice(-MOST);
+  return out;
+}
+
+/** The message log's length: its newest messages. */
+const LOG_MOST = 400;
+
+/**
+ * The message log (Phase 10 M96): everything told of what is followed since each was taken
+ * up, newest first. It is read again from history each time, and marks nothing told, so it
+ * is whole after a load, and holds what history still keeps.
+ */
+export function newsLog(world: World, most = LOG_MOST): Tiding[] {
+  const events = world.events.all(),
+    now = Math.floor(world.now / YEAR),
+    told = new Set<string>(),
+    hits: { watch: Ref; label: string; e: HistoryEvent }[] = [],
+    lives: Tiding[] = [];
+  for (const w of observer(world).allWatches()) {
+    const name = label(world, w.ref);
+    if (name === null) continue;
+    if (kindCodeOf(w.ref) === PERSON.code) {
+      lives.push(...personNews(world, w.ref, name, Math.floor(w.since / YEAR), now));
+      continue;
+    }
+    const news = newsOf(world, w.ref);
+    for (let i = firstAfter(events, w.since); i < events.length; i++) {
+      const e = events[i]!;
+      // (What two things followed share is logged once.)
+      if (!news(e) || told.has(e.id)) continue;
+      told.add(e.id);
+      hits.push({ watch: w.ref, label: name, e });
+    }
+  }
+  const logged: Tiding[] = hits
+    .sort((a, b) => b.e.t - a.e.t)
+    .slice(0, most)
+    .map((h) => ({
+      watch: h.watch,
+      label: h.label,
+      ref: h.e.id,
+      year: yearOfMoment(h.e.t),
+      claim: why(world, h.e.id).claim,
+    }));
+  return [...logged, ...lives].sort((a, b) => b.year - a.year).slice(0, most);
 }

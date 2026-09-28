@@ -3651,6 +3651,142 @@ Phase 9 gate). On the built app, in a real browser, it checks what was asked for
 - free roam walks a village, flies up out of it through its land to the world, dives into a
   land again, and gives the camera back.
 
+96, the third part, and 97, the second, as built (after the user's "the visual style and ui
+and lenses doesn't have enough Paradox games influence"): the alerts, the message log, and
+tooltips that break things down.
+
+- **The alerts** (ui/alerts.ts; host/inspect/alerts.ts, "alerts"). A row of lit gel icons at
+  the head of the corner's tools, at every scale. Each one is something that stands now and
+  asks to be looked at, lit by its kind and counting its cases:
+  - ⚔️ at war: the wars of each realm followed, and of the realm a land or town followed is in;
+  - 🍂 going hungry: a land followed under 85% fed, and a realm followed by its hungry lands;
+  - 🏳️ a realm followed that fell;
+  - 🕯️ a life followed that ended;
+  - 🌟 a first in the world in the last 25 years (the chronicle's firsts).
+
+  Resting on one tells its cases, each name a link. A tap lists them, each opening its page
+  and put by at its ×. One newly come glows a while. The host sends them only when they
+  change. The firsts are read again only once the year or history has moved on: reading
+  them reads all of history, about 17 ms at year 430.
+- **The message log** (`world:log`; causal newsLog): everything told of what is followed
+  since each was taken up, the newest first. It is a table to sort and a list for each thing
+  followed. It is read again from history each time and marks nothing told, so it is whole
+  after a load. The corner's 📬 opens it and counts what has come since it was last read.
+- **Tooltips that break things down** (ui/hovertip.ts), on a desk:
+  - A number with parts, rested on, is broken down (a page's headline numbers and facts):
+    its parts, the ⓘ of its concept, and that a click tells why.
+  - Every name on a page tells of its thing in a few words (the host's "tip"). A concept is
+    told by what it is.
+  - The top bar's numbers are broken down ("world.breakdown"): the most peopled realms, the
+    largest towns, the greatest realms, the wars being fought, the faiths and tongues most
+    held, the hungriest lands, the halls beyond the world.
+
+  A tooltip holds still as the pointer moves into it, so a name in it can be rested on in
+  turn and open a tooltip of its own, over it. A press elsewhere, the wheel or Esc puts them
+  away. A page is not read again from under one.
+
+Found and mended on the way:
+- The hud's children take the pointer, so a layer over the screen must say otherwise as one
+  of them (`#hud > .hovertips`). Otherwise it took every click.
+- The top bar's chips were made anew at each reading, which lost a pointer resting on them.
+  They are kept now, and only their numbers change.
+
+95, the third part, as built: the rest of what is seen at one scale seen at the next.
+
+- **Ships at sea in a land** (view/war.ts landColumn; render/regionwars.ts). A host whose
+  way across a land crosses its sea goes in ships there, as the globe draws it: one ship for
+  every four of the column, down its middle, each a hull on the swell with a mast and a sail
+  in its realm's colours. Its name reads ⛵ while its head is afloat and 🚩 once it is ashore.
+  The land knows its sea by its own tiles (render/region.ts seaAt), so what is sea there is
+  the land's own coast.
+- **Halls from orbit** (view/halls.ts; render/globe.ts setHalls). A body of the home star's
+  seen whole shows the halls set down on it. The simulation keeps a site's halls and people,
+  not their place on the body, so the view places each site on the ground (not the sea)
+  nearest one of three directions spread about the body a little north of its equator, the
+  same each time. They are drawn as low-poly domes, one to seven by their people with the great
+  hall in the middle, and a warm glow of lights over them that shows from far out. They are
+  named ("🏛️ The halls of …"), tell of themselves on a hover and open their page at a tap.
+  The view turns to them as the body is come to, and they follow the sky's state as it changes.
+- **A star's own system** (host/galaxy.ts foreignSystem, "galaxy.system"). Zooming into
+  another star from the stars about it comes to its own system, drawn as the home star's is:
+  its worlds on their orbits about it, spread about the star. (Where each stands on its
+  orbit is the view's choice: nothing keeps another star's years.) The sky's panel shows its
+  star and its worlds, without the home's sky, hand or way there. Zooming into a world of it,
+  or tapping one and going to it, sees it whole. Back or out leads to its system, and out
+  from there to the stars about it, with the star in the middle.
+
+Found and mended on the way:
+- The corner's tools stood over the scales' own windows. On a desk they stood over the
+  sky's and the world's windows at the right, their close boxes under the alerts. On a phone
+  they stood over the page's sheet, its × and its words. Now, on a desk, the alerts stack
+  down the right edge with the rest, a tapped alert's list opens to their left, and those
+  windows stand beside the column. On a phone, while a sheet is open the tools stand aside
+  (not while roaming: its stick is among them), and its × gives them back.
+- Acts side by side (a star's flare and calm) were each as wide as the row, so the second
+  lay scrolled out of sight. They share the row now.
+- A dim star's light read "0.00 times the Sun's": it is given to two figures now.
+- The Phase 9 gate's zoom into our own sky and world clears the pointer first. Zooming in
+  over another star now goes into that star, as the pointer asks.
+
+### I.11 Phase 11 milestones (planned 2026-09-28, after Phase 10)
+
+The user, of Phase 10's chrome: "the visual style and ui and lenses doesn't have enough
+Paradox games influence". Phase 10 gave the genre's chrome: a top bar, map modes, the
+outliner, alerts, the message log, the ledger, and tooltips that break numbers down. What a
+grand strategy game has besides are its events, its counters, its heraldry, its comparisons
+and its map. Phase 11 brings those to the observatory, in the Y2K look.
+
+Phase 11's "done when":
+- The great happenings of what is followed come as event windows, answered by the god's
+  hand where it can answer them.
+- A host on the map is a counter: its realm's arms and its strength.
+- Every realm bears its own arms, on everything that names it.
+- Realms, and the sides of a war, can be set side by side.
+- The political map reads as a grand strategy map closer in: lands named, what war has taken
+  striped.
+
+100. **Event windows.** A great happening to what is followed comes as a window in the
+     middle of the screen. The happenings are:
+     - a war declared on a realm followed, or by one;
+     - a realm followed fallen;
+     - a famine in a land followed;
+     - a life followed ended;
+     - a first in the world;
+     - a new age.
+
+     The window has:
+     - the thing's picture (its portrait: two flags for a war, a skyline, a world);
+     - a title and the happening told, with its causes in a few lines;
+     - buttons: go to it, why, and let it be.
+     - Where the god's hand can answer, its acts: send rain to a land in famine, a fat
+       harvest, inspire a people at war.
+
+     The page's model is read for it: the window is a view of the event's page. A setting
+     chooses windows, cards or neither. While a window is open the clock may wait (another
+     setting).
+101. **Counters.** Each host on the globe, in a land and among the stars carries a counter:
+     its realm's arms and the men it fields, which the war's own reckoning gives
+     (strengthOf: its fighting men, a share by valour, its arms). It is red where it fights a
+     realm followed. A tap on it opens the host's page.
+102. **Heraldry.** Every realm's arms are made from its ref and its colours. They are:
+     - a shield parted one of a few ways (per pale, per fess, quarterly, per bend, a chief);
+     - its colours, and a charge chosen by its faith, its tongue or its land (a star, a tower,
+       a beast of its lands, waves, a mountain);
+     - drawn glossy, as the era drew them.
+
+     The arms show on the realm's page and on everything that names it: the outliner, the
+     alerts, search, the counters, the names across the map, the ledger's rows, the
+     breakdowns.
+103. **Side by side.** A realm's page can be compared with any other's. Their numbers stand
+     side by side in bars (people, lands, towns, strength, wars, faith, tongue), and their
+     lives through the years on one chart. A war's page has its tally, bars pulled between
+     its sides: the fallen, the battles won, the lands taken.
+104. **The map, closer.** The political map, near the ground, names its lands in small
+     capitals under the realms' names. A land taken in a war still fought is striped in its
+     taker's colours. The terrain's shading shows under the realms' colours. A battle and a
+     siege have their marks.
+105. **Phase 11 gate.**
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

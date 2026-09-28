@@ -27,3 +27,5 @@ export { FreeControls, type FreeMode } from "./free.ts";
 export { SearchBox } from "./search.ts";
 export { Outliner } from "./outliner.ts";
 export { Tooltip } from "./tooltip.ts";
+export { HoverTips, breakdownCard, tipCard } from "./hovertip.ts";
+export { Alerts, LogButton } from "./alerts.ts";

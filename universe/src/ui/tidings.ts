@@ -22,6 +22,8 @@ export class Tidings {
   private asking = false;
   /** Told what is followed, each time it changes (the outliner lists it). */
   onFollowed: (followed: readonly { ref: string; label: string }[]) => void = () => {};
+  /** Told how much news has come (the message log counts it). */
+  onTold: (n: number) => void = () => {};
 
   constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
@@ -85,7 +87,9 @@ export class Tidings {
     if (!this.followed.size || this.asking) return;
     this.asking = true;
     try {
-      for (const t of await this.client.query<Tiding[]>({ type: "observe.tidings" })) this.add(t);
+      const told = await this.client.query<Tiding[]>({ type: "observe.tidings" });
+      for (const t of told) this.add(t);
+      if (told.length) this.onTold(told.length);
     } catch {
       // No world yet, or one being loaded: ask again next time.
     } finally {

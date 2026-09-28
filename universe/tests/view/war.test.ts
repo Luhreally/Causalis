@@ -7,6 +7,7 @@ import {
   MARCH,
   battleOf,
   clearOf,
+  landColumn,
   landWars,
   villageGround,
   voyageMarks,
@@ -288,4 +289,33 @@ test("a land's map shows the wars the globe shows: hosts coming in for what they
   assert.equal(land.battles[0]!.event, "evt:0:1");
   assert.ok(land.battles[0]!.size > 0.8 && land.battles[0]!.won);
   assert.ok(land.battles[0]!.at.x > 2);
+});
+
+test("a host crossing the sea in a land goes in ships, as the globe shows it; on the ground, on foot", () => {
+  // West of the land's middle is ground, east of it sea; the host marches east, far along.
+  const from = { x: -10, z: 0 },
+    to = { x: 10, z: 0 },
+    sea = (x: number) => x > 0,
+    col = landColumn(from, to, 0.9, sea);
+  assert.ok(col.afloat, "its head is out on the sea");
+  assert.ok(col.ships.length >= 1 && col.ships.length <= 3, `a few ships (${col.ships.length})`);
+  assert.ok(
+    col.ships.every((f) => f.x > 0),
+    "every ship on the sea",
+  );
+  assert.ok(
+    col.people.every((f) => f.x <= 0.5),
+    "every one on foot on the ground",
+  );
+  assert.ok(col.ships[0]!.lead, "the head's ship leads");
+  assert.ok(Math.abs(col.yaw - Math.PI / 2) < 1e-9, "all face the way it goes");
+  // All on the ground: no ships, the whole column on foot, its head on the ground.
+  const dry = landColumn(from, to, 0.5, () => false);
+  assert.equal(dry.ships.length, 0);
+  assert.equal(dry.people.length, 12);
+  assert.ok(!dry.afloat && dry.head !== null);
+  // All at sea: one ship for every four of the column, none on foot.
+  const wet = landColumn(from, to, 0.5, () => true);
+  assert.equal(wet.people.length, 0);
+  assert.equal(wet.ships.length, 3);
 });

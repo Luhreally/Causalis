@@ -96,15 +96,19 @@ export {
   MARCH,
   battleFront,
   battleOf,
+  landColumn,
   landWars,
+  loopSize,
   warPaths,
   warTokens,
+  type ColumnMark,
   type LandWars,
   type Soldier,
   type WarPath,
   type WarPaths,
   type WarToken,
 } from "./war.ts";
+export { hallCells, hallDomes } from "./halls.ts";
 
 export {
   HAIRS,

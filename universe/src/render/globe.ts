@@ -6,7 +6,7 @@
 import * as pc from "playcanvas";
 import { nearestCell, sphereGrid, type SphereGrid } from "../kernel/index.ts";
 import { globeRadius } from "../view/index.ts";
-import { cylinderMesh } from "./batch.ts";
+import { InstancedBatch, cylinderMesh, keptMesh } from "./batch.ts";
 import { billboard, glowMaterial, type GlowStops } from "./glow.ts";
 import { flatMaterial, type Stage } from "./stage.ts";
 
@@ -17,6 +17,14 @@ const HALO: GlowStops = [
   [0.757, "rgba(120,210,255,0.85)"],
   [0.84, "rgba(60,120,255,0.35)"],
   [1, "rgba(20,40,120,0)"],
+];
+
+/** The lights of halls seen from orbit (Phase 10 M95): a warm point, soft about it. */
+const LIGHTS: GlowStops = [
+  [0, "rgba(255,238,176,1)"],
+  [0.16, "rgba(255,212,122,0.8)"],
+  [0.5, "rgba(255,172,72,0.22)"],
+  [1, "rgba(255,140,40,0)"],
 ];
 
 export class GlobeScene {
@@ -37,6 +45,12 @@ export class GlobeScene {
   /** Whether the world has seas to shine, and an air to glow about its rim (M81: not every world does). */
   private seas = true;
   private air = true;
+  /** Halls on its face, seen from orbit (M95): each site's domes, and the glow of its lights. */
+  private readonly hallRoot = new pc.Entity("halls");
+  private halls: InstancedBatch | null = null;
+  private lightMaterial: pc.Material | null = null;
+  private readonly lights: pc.Entity[] = [];
+  private hallSites: { x: number; y: number; z: number }[] = [];
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -92,6 +106,7 @@ export class GlobeScene {
     });
     this.marker.enabled = false;
     stage.root.addChild(this.marker);
+    stage.root.addChild(this.hallRoot);
   }
 
   /** Build the globe for a grid frequency and relief (once per planet). */
@@ -168,6 +183,8 @@ export class GlobeScene {
     this.sea.enabled = this.seas;
     this.halo.enabled = this.air;
     this.clouds.enabled = this.cloudy;
+    // (A world anew: none of the last one's halls.)
+    this.setHalls([]);
   }
 
   /** What the world has about it: seas, an air (its glow), clouds. */
@@ -192,7 +209,85 @@ export class GlobeScene {
     this.sea.enabled = on && this.entity !== null && this.seas;
     this.halo.enabled = on && this.entity !== null && this.air;
     this.clouds.enabled = on && this.entity !== null && this.cloudy;
+    this.hallRoot.enabled = on;
     if (!on) this.marker.enabled = false;
+  }
+
+  /**
+   * Halls at sites of the globe (each its cell and its domes, in its own plane), or none: the
+   * domes set half in its ground, and a warm glow of lights over each, seen from far out.
+   */
+  setHalls(
+    sites: readonly { cell: number; domes: readonly { u: number; v: number; r: number }[] }[],
+  ): void {
+    const p = this.positions,
+      domes: { x: number; y: number; z: number; r: number }[] = [];
+    this.hallSites = [];
+    for (const site of p ? sites : []) {
+      const cx = p![site.cell * 3]!,
+        cy = p![site.cell * 3 + 1]!,
+        cz = p![site.cell * 3 + 2]!,
+        len = Math.hypot(cx, cy, cz) || 1,
+        nx = cx / len,
+        ny = cy / len,
+        nz = cz / len;
+      // The site's own plane: east about the pole, and north across it.
+      const el = Math.hypot(nx, nz),
+        ex = el < 1e-6 ? 1 : nz / el,
+        ez = el < 1e-6 ? 0 : -nx / el,
+        qx = ny * ez,
+        qy = nz * ex - nx * ez,
+        qz = -ny * ex;
+      for (const d of site.domes) {
+        const x = nx + ex * d.u + qx * d.v,
+          y = ny + qy * d.v,
+          z = nz + ez * d.u + qz * d.v,
+          l = Math.hypot(x, y, z) || 1;
+        domes.push({ x: (x / l) * len, y: (y / l) * len, z: (z / l) * len, r: d.r });
+      }
+      this.hallSites.push({ x: nx, y: ny, z: nz });
+    }
+    if (!this.halls && domes.length) {
+      const m = new pc.StandardMaterial();
+      m.diffuse = new pc.Color(0.86, 0.88, 0.92);
+      // (Lit from within: seen on the night side too.)
+      m.emissive = new pc.Color(0.34, 0.27, 0.12);
+      m.gloss = 0.5;
+      m.update();
+      this.halls = new InstancedBatch(
+        this.stage,
+        keptMesh(
+          pc.Mesh.fromGeometry(
+            this.stage.device,
+            new pc.SphereGeometry({ radius: 1, latitudeBands: 4, longitudeBands: 8 }),
+          ),
+        ),
+        [1, 1, 1],
+        64,
+        this.hallRoot,
+        m,
+      );
+    }
+    this.halls?.set(domes.length, (i, out) => {
+      const d = domes[i]!;
+      out[0] = d.x;
+      out[1] = d.y;
+      out[2] = d.z;
+      out[3] = out[4] = out[5] = d.r;
+    });
+    this.lightMaterial ??= glowMaterial(this.stage, LIGHTS);
+    while (this.lights.length < this.hallSites.length)
+      this.lights.push(billboard(this.stage, this.lightMaterial, 0.05, this.hallRoot));
+    this.lights.forEach((e, i) => {
+      const at = this.hallSites[i];
+      e.enabled = !!at;
+      if (at) e.setLocalPosition(at.x * 1.014, at.y * 1.014, at.z * 1.014);
+    });
+  }
+
+  /** Where each site's halls stand (unit directions), for their names and a finger's pick. */
+  get hallsAt(): readonly { x: number; y: number; z: number }[] {
+    return this.hallSites;
   }
 
   get built(): boolean {

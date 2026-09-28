@@ -200,13 +200,6 @@ export function warTokens(w: WarPaths, s: number): WarToken[] {
   return out;
 }
 
-/** A loop's drawn size at its phase (0 … 1): grown over `grow` of it, shrunk over the last `shrink`. */
-function loopSize(phase: number, grow: number, shrink: number): number {
-  const k =
-    phase < grow ? phase / grow : shrink > 0 && phase > 1 - shrink ? (1 - phase) / shrink : 1;
-  return k * k * (3 - 2 * k);
-}
-
 function norm(v: Vec): Vec {
   const l = Math.hypot(v.x, v.y, v.z) || 1;
   return { x: v.x / l, y: v.y / l, z: v.z / l };
@@ -347,6 +340,70 @@ export type LandWars = {
     readonly won: boolean;
   }[];
 };
+
+/** A loop's drawn size at its phase (0 … 1): grown over `grow` of it, shrunk over the last `shrink`. */
+export function loopSize(phase: number, grow: number, shrink: number): number {
+  const k =
+    phase < grow ? phase / grow : shrink > 0 && phase > 1 - shrink ? (1 - phase) / shrink : 1;
+  return Math.max(0, Math.min(1, k * k * (3 - 2 * k)));
+}
+
+/** One of a host's column in a land, or a ship bearing some of them: where, how large, whether its head. */
+export type ColumnMark = {
+  readonly x: number;
+  readonly z: number;
+  readonly size: number;
+  readonly lead: boolean;
+};
+
+/**
+ * A host's column in a land at phase `cycle` (0 … 1) of its march across it: a banner-bearer
+ * and those behind, two abreast, walking in from `from` toward `to`. Where the ground under
+ * them is sea, they go in ships — one for every four of the column, down its middle — as
+ * the globe draws a host at sea.
+ */
+export function landColumn(
+  from: Flat,
+  to: Flat,
+  cycle: number,
+  sea: (x: number, z: number) => boolean,
+): {
+  people: ColumnMark[];
+  ships: ColumnMark[];
+  /** Where its head is, and whether afloat. */
+  head: Flat | null;
+  afloat: boolean;
+  yaw: number;
+  /** How far grown in (or shrunk away) the whole column is. */
+  grown: number;
+} {
+  const dx = to.x - from.x,
+    dz = to.z - from.z,
+    len = Math.hypot(dx, dz) || 1,
+    ux = dx / len,
+    uz = dz / len,
+    lead = cycle * 0.92,
+    grown = loopSize(cycle, 0.06, 0.08),
+    people: ColumnMark[] = [],
+    ships: ColumnMark[] = [];
+  let head: Flat | null = null,
+    afloat = false;
+  for (let k = 0; k < 12; k++) {
+    const back = Math.floor(k / 2) * 1.1,
+      aside = (k % 2 ? 0.45 : -0.45) * (k ? 1 : 0),
+      along = lead * len - back;
+    if (along < 0) break;
+    const at = { x: from.x + ux * along - uz * aside, z: from.z + uz * along + ux * aside },
+      size = Math.min(grown, loopSize(along / (len * 0.92), 0.06, 0));
+    if (k === 0) head = at;
+    if (sea(at.x, at.z)) {
+      if (k === 0) afloat = true;
+      if (k % 4 === 0)
+        ships.push({ x: from.x + ux * along, z: from.z + uz * along, size, lead: k === 0 });
+    } else people.push({ ...at, size, lead: k === 0 });
+  }
+  return { people, ships, head, afloat, yaw: Math.atan2(ux, uz), grown };
+}
 
 /**
  * The wars in a land's map: `parent` is each tile's spot of the globe's grid (the land's
