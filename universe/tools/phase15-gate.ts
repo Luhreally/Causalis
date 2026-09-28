@@ -5,7 +5,11 @@
 //      goes into; a principle and the lands that know it; a good made of something each way;
 //   2. stores: a land's broken down, every good's year balancing; a good's year as a flow that
 //      balances; the world's goods;
-//   3. the Goods lens: one good at a time, chosen under its legend, a land's tooltip its year.
+//   3. the Goods lens: one good at a time, chosen under its legend, a land's tooltip its year;
+//   4. the ground: a land's bedrock, what its rock is made of, its soil, the air; a deposit in
+//      tonnes of ore and of metal; the Ground lens and a land's tooltip under it;
+//   5. things: a household met, what it keeps and each of its people holds; a thing's page —
+//      what it is made of, where, when and by whom, how worn; a person's day of food, their body.
 // (npm run build first; --soft draws in software, as CI's browser does.)
 import { fileURLToPath } from "node:url";
 import { preview } from "vite";
@@ -189,6 +193,74 @@ const people = await q<{ cell: number; centre: number; people: number }[]>("peop
     "a land's tooltip under the goods lens does not tell its year",
   );
   await press(".mapmodes .mode[aria-label='Land']");
+}
+
+// 4. The ground: a land's, a deposit's, the Ground lens.
+{
+  const ground = await open(`cell:0:${land.cell}#ground`, "a land's ground", "Its bedrock"),
+    words = await window_();
+  const deposit = (await q<{ ref: string }[]>("deposits"))[0]!,
+    tonnes = await open(deposit.ref, "a deposit in tonnes", "Holding"),
+    held = await window_();
+  await k(`document.querySelector(".page-window .close")?.click()`);
+  await press(".mapmodes .mode[aria-label='Ground']");
+  await page.waitForTimeout(slow(1500));
+  const legend = await text(".mapmodes .legend-title"),
+    keys = await page.$$eval(".mapmodes .legend-key, .mapmodes .key", (x) => x.length);
+  await point(land.centre);
+  const tipped = await until(
+    "a land's tooltip under the Ground lens",
+    async () => /^.*Ground: [a-z ]+ \d+%/.test(await tip()),
+    slow(15000),
+  );
+  say(
+    `the ground: ${words.includes("What the rock is made of") ? "its rock's make-up" : "no rock make-up"}, ${words.includes("The air") ? "the air" : "no air"}; a deposit ${/\d[\d,]* t of ore|Mt/.test(held) || held.includes("Ore") ? "in tonnes" : "not in tonnes"}; the ${legend} lens (${keys} keys), “${(await tip()).slice(0, 80)}”`,
+  );
+  check(
+    ground && words.includes("What the rock is made of") && words.includes("Its soil"),
+    "a land's ground is not read",
+  );
+  check(tonnes && held.includes("Holding"), "a deposit is not told in tonnes of what it holds");
+  check(legend === "Ground" && tipped, "the Ground lens does not paint the land, nor tell it");
+  await press(".mapmodes .mode[aria-label='Land']");
+}
+
+// 5. Things: a household's, a thing's, a person's.
+{
+  const towns = await q<{ ref: string }[]>("settlements", { cell: land.cell }),
+    h = await q<{ ref: string; members: { ref: string }[] }>("observe.meet", {
+      cell: land.cell,
+      village: towns[0]!.ref,
+    });
+  const kept = await open(`${h.ref}#things`, "a household's things", "What it keeps"),
+    words = await window_();
+  const model = await q<{ tabs: { id: string; blocks: { items?: { ref?: string }[] }[] }[] }>(
+      "page",
+      { ref: h.ref },
+    ),
+    thing = model.tabs
+      .find((t) => t.id === "things")!
+      .blocks.flatMap((b) => b.items ?? [])
+      .map((i) => i.ref ?? "")
+      .find((r) => r.startsWith("thing:"))!;
+  const opened = await open(thing, "a thing's page", "It lasts"),
+    page_ = await window_();
+  const person = await open(
+      `${h.members[0]!.ref}#things`,
+      "a person's things",
+      "What their body is made of",
+    ),
+    theirs = await window_();
+  say(
+    `things: a household's (${words.includes("Its store of food") ? "its food in store" : "no food"}); a thing (${/Worn\s*\d+%/.test(page_) ? "worn so much" : "no wear"}); a person's day (${/kcal/.test(theirs) ? "its energy against their need" : "no energy"})`,
+  );
+  check(kept && words.includes("Its store of food"), "a household's things are not read");
+  check(
+    opened && page_.includes("Made in") && page_.includes("Worn"),
+    "a thing's page does not tell where, when and how worn",
+  );
+  check(person && /kcal/.test(theirs), "a person's day of food and body are not read");
+  await k(`document.querySelector(".page-window .close")?.click()`);
 }
 
 await browser.close();

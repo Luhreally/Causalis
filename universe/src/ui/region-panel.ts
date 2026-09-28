@@ -20,6 +20,8 @@ type TileFacts = {
   biome: string;
   water: string;
   fertility: number;
+  /** The rock under it and the soil over it (Phase 15 M124). */
+  ground?: { rock: string; soil: string };
   parent: string;
   deposit: { ref: string; kind: string; richness: number; process: string } | null;
   sea: boolean;
@@ -378,6 +380,7 @@ export class RegionPanel {
       f.sea || f.water
         ? ""
         : `${soilWords(f.fertility)[0]!.toUpperCase()}${soilWords(f.fertility).slice(1)}`,
+      f.ground && !f.sea ? `On ${f.ground.rock}, under ${f.ground.soil}` : "",
       f.deposit
         ? `${f.deposit.richness.toLocaleString()} units of ${f.deposit.kind} (${f.deposit.process})`
         : "",

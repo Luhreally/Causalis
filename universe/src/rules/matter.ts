@@ -319,6 +319,58 @@ export const SUBSTANCES: readonly Substance[] = [
     "Half of granite: weathered, it becomes clay.",
   ),
   S(
+    "plagioclase",
+    "plagioclase",
+    "CaAl₂Si₂O₈",
+    { Ca: 1, Al: 2, Si: 2, O: 8 },
+    "mineral",
+    "solid",
+    2730,
+    1550,
+    6,
+    [0.86, 0.86, 0.9],
+    "The commonest mineral of the crust: pale and blocky, in basalt and andesite.",
+  ),
+  S(
+    "pyroxene",
+    "pyroxene",
+    "CaMgSi₂O₆",
+    { Ca: 1, Mg: 1, Si: 2, O: 6 },
+    "mineral",
+    "solid",
+    3300,
+    1390,
+    6,
+    [0.2, 0.3, 0.22],
+    "Dark and heavy: the black of basalt.",
+  ),
+  S(
+    "olivine",
+    "olivine",
+    "Mg₂SiO₄",
+    { Mg: 2, Si: 1, O: 4 },
+    "mineral",
+    "solid",
+    3270,
+    1890,
+    6.5,
+    [0.55, 0.7, 0.2],
+    "Green grains of the deep, brought up in basalt.",
+  ),
+  S(
+    "mica",
+    "mica",
+    "KMg₃AlSi₃O₁₀(OH)₂",
+    { K: 1, Mg: 3, Al: 1, Si: 3, O: 12, H: 2 },
+    "mineral",
+    "solid",
+    2850,
+    1300,
+    2.5,
+    [0.36, 0.28, 0.2],
+    "Flakes that split to thin sheets: the glitter of granite.",
+  ),
+  S(
     "kaolinite",
     "clay",
     "Al₂Si₂O₅(OH)₄",
@@ -540,6 +592,32 @@ export const SUBSTANCES: readonly Substance[] = [
     null,
     [0.9, 0.8, 0.7],
     "What skin and sinew are made of.",
+  ),
+  S(
+    "humus",
+    "humus",
+    "C₅₇H₅O₃₄N₄ (by weight)",
+    byMass({ C: 0.57, H: 0.05, O: 0.34, N: 0.04 }),
+    "living",
+    "solid",
+    1300,
+    null,
+    null,
+    [0.2, 0.14, 0.08],
+    "What is left of dead leaves and roots when the worms are done: the dark of good earth.",
+  ),
+  S(
+    "apatite",
+    "bone mineral",
+    "Ca₁₀(PO₄)₆(OH)₂",
+    { Ca: 10, P: 6, O: 26, H: 2 },
+    "living",
+    "solid",
+    3160,
+    1670,
+    5,
+    [0.94, 0.92, 0.86],
+    "What bones and teeth are made hard with: lime and phosphorus.",
   ),
   S(
     "tannin",
@@ -1262,4 +1340,368 @@ export const GOOD_MATTER: Readonly<Record<string, GoodMatter>> = {
       },
     ],
   },
+};
+
+// —— The ground (Phase 15 M124): rocks, soils, and what an ore holds ——————————————
+
+/** A rock: its name, what it is made of (substances, by weight), a sentence, a colour. */
+export type Rock = {
+  readonly id: string;
+  readonly name: string;
+  readonly parts: readonly (readonly [string, number])[];
+  readonly words: string;
+  readonly colour: readonly [number, number, number];
+};
+
+export const ROCKS: readonly Rock[] = [
+  {
+    id: "granite",
+    name: "granite",
+    parts: [
+      ["feldspar", 0.6],
+      ["quartz", 0.3],
+      ["mica", 0.1],
+    ],
+    words: "The roots of old mountains, cooled slowly deep down: pink and grey, and hard.",
+    colour: [0.86, 0.62, 0.6],
+  },
+  {
+    id: "basalt",
+    name: "basalt",
+    parts: [
+      ["plagioclase", 0.5],
+      ["pyroxene", 0.38],
+      ["olivine", 0.08],
+      ["magnetite", 0.04],
+    ],
+    words: "Dark lava cooled fast: the floor of the oceans, and of the lands a hotspot flooded.",
+    colour: [0.22, 0.22, 0.24],
+  },
+  {
+    id: "andesite",
+    name: "andesite",
+    parts: [
+      ["plagioclase", 0.58],
+      ["pyroxene", 0.25],
+      ["quartz", 0.1],
+      ["magnetite", 0.04],
+      ["mica", 0.03],
+    ],
+    words: "The grey lava of the volcanoes where one plate goes down under another.",
+    colour: [0.52, 0.48, 0.56],
+  },
+  {
+    id: "gneiss",
+    name: "gneiss",
+    parts: [
+      ["feldspar", 0.48],
+      ["quartz", 0.3],
+      ["mica", 0.2],
+      ["magnetite", 0.02],
+    ],
+    words: "The oldest rock of a continent's heart, banded by heat and weight over ages.",
+    colour: [0.6, 0.58, 0.56],
+  },
+  {
+    id: "limestone",
+    name: "limestone",
+    parts: [
+      ["calcite", 0.92],
+      ["quartz", 0.05],
+      ["kaolinite", 0.03],
+    ],
+    words: "The shells of warm shallow seas, laid down and turned to stone.",
+    colour: [0.9, 0.88, 0.76],
+  },
+  {
+    id: "sandstone",
+    name: "sandstone",
+    parts: [
+      ["quartz", 0.85],
+      ["feldspar", 0.1],
+      ["kaolinite", 0.03],
+      ["hematite", 0.02],
+    ],
+    words: "Old sand bound into stone: of deserts, beaches and rivers long gone.",
+    colour: [0.82, 0.62, 0.4],
+  },
+  {
+    id: "shale",
+    name: "shale",
+    parts: [
+      ["kaolinite", 0.55],
+      ["quartz", 0.28],
+      ["feldspar", 0.1],
+      ["calcite", 0.03],
+      ["pyrite", 0.02],
+      ["carbon", 0.02],
+    ],
+    words: "Old mud pressed to thin dark layers: of lakes and quiet seas.",
+    colour: [0.3, 0.32, 0.38],
+  },
+  {
+    id: "coal-measures",
+    name: "coal measures",
+    parts: [
+      ["quartz", 0.4],
+      ["kaolinite", 0.35],
+      ["carbon", 0.18],
+      ["feldspar", 0.04],
+      ["pyrite", 0.03],
+    ],
+    words:
+      "Sandstone and shale with seams of coal between: the swamp forests of a warm age, buried.",
+    colour: [0.12, 0.11, 0.1],
+  },
+];
+
+/** A soil's make-up (substances, by weight, with its water), by the land's biome. */
+export const SOILS: Readonly<
+  Record<string, { name: string; parts: readonly (readonly [string, number])[] }>
+> = {
+  tundra: {
+    name: "a peaty tundra soil",
+    parts: [
+      ["humus", 0.25],
+      ["quartz", 0.3],
+      ["kaolinite", 0.1],
+      ["feldspar", 0.1],
+      ["water", 0.25],
+    ],
+  },
+  borealForest: {
+    name: "a pale, sour forest soil (podzol)",
+    parts: [
+      ["quartz", 0.55],
+      ["humus", 0.12],
+      ["feldspar", 0.1],
+      ["kaolinite", 0.08],
+      ["water", 0.15],
+    ],
+  },
+  coldDesert: {
+    name: "a stony cold-desert soil",
+    parts: [
+      ["quartz", 0.7],
+      ["feldspar", 0.15],
+      ["calcite", 0.08],
+      ["kaolinite", 0.04],
+      ["water", 0.03],
+    ],
+  },
+  steppe: {
+    name: "a black grassland earth (chernozem)",
+    parts: [
+      ["quartz", 0.35],
+      ["kaolinite", 0.2],
+      ["humus", 0.12],
+      ["feldspar", 0.1],
+      ["calcite", 0.05],
+      ["water", 0.18],
+    ],
+  },
+  temperateForest: {
+    name: "a brown forest earth",
+    parts: [
+      ["quartz", 0.4],
+      ["kaolinite", 0.2],
+      ["feldspar", 0.12],
+      ["humus", 0.08],
+      ["hematite", 0.02],
+      ["water", 0.18],
+    ],
+  },
+  temperateRainforest: {
+    name: "a deep, wet forest earth",
+    parts: [
+      ["quartz", 0.3],
+      ["kaolinite", 0.22],
+      ["humus", 0.15],
+      ["feldspar", 0.08],
+      ["water", 0.25],
+    ],
+  },
+  hotDesert: {
+    name: "desert sand",
+    parts: [
+      ["quartz", 0.82],
+      ["feldspar", 0.08],
+      ["calcite", 0.05],
+      ["hematite", 0.03],
+      ["water", 0.02],
+    ],
+  },
+  savanna: {
+    name: "a red savanna soil",
+    parts: [
+      ["quartz", 0.5],
+      ["kaolinite", 0.22],
+      ["hematite", 0.06],
+      ["feldspar", 0.06],
+      ["humus", 0.04],
+      ["water", 0.12],
+    ],
+  },
+  tropicalDryForest: {
+    name: "a red earth",
+    parts: [
+      ["quartz", 0.4],
+      ["kaolinite", 0.28],
+      ["hematite", 0.08],
+      ["humus", 0.06],
+      ["feldspar", 0.04],
+      ["water", 0.14],
+    ],
+  },
+  tropicalRainforest: {
+    name: "a leached red clay (laterite)",
+    parts: [
+      ["kaolinite", 0.4],
+      ["water", 0.22],
+      ["quartz", 0.18],
+      ["hematite", 0.14],
+      ["humus", 0.06],
+    ],
+  },
+  alpine: {
+    name: "a thin mountain soil",
+    parts: [
+      ["quartz", 0.35],
+      ["feldspar", 0.25],
+      ["kaolinite", 0.1],
+      ["mica", 0.1],
+      ["water", 0.15],
+      ["humus", 0.05],
+    ],
+  },
+  ice: { name: "ice over the rock", parts: [["water", 1]] },
+  sea: {
+    name: "sea-floor mud",
+    parts: [
+      ["kaolinite", 0.5],
+      ["calcite", 0.2],
+      ["water", 0.2],
+      ["quartz", 0.1],
+    ],
+  },
+};
+
+/** How much of a deposit's ore is its metal (or its fuel, or its salt), by weight. */
+export const ORE_GRADE: Readonly<Record<string, { of: string; share: number }>> = {
+  copper: { of: "copper", share: 0.02 },
+  tin: { of: "tin", share: 0.006 },
+  iron: { of: "iron", share: 0.45 },
+  gold: { of: "gold", share: 0.00001 },
+  coal: { of: "carbon", share: 0.8 },
+  oil: { of: "crude", share: 1 },
+  salt: { of: "halite", share: 0.95 },
+};
+
+/** Tonnes of ore (or coal, oil, salt) a unit of a deposit's richness stands for. */
+export const TONNES_A_UNIT = 1000;
+
+/**
+ * What a living body of the people is made of, by weight (Phase 15 M125): water, protein, fat
+ * (more in the warm-blooded, and in women), what hardens it (bone, or a shell of lime), its
+ * salts and its sugar.
+ */
+export function bodyMakeUp(woman: boolean, skin: string, warm: boolean): [string, number][] {
+  const shell = skin === "shell",
+    fat = warm ? (woman ? 0.24 : 0.15) : 0.08,
+    protein = woman ? 0.15 : 0.17,
+    hard = shell ? 0.12 : 0.05,
+    salts = 0.01,
+    sugar = 0.01;
+  return [
+    ["water", 1 - fat - protein - hard - salts - sugar],
+    ["protein", protein],
+    ["fat", fat],
+    [shell ? "calcite" : "apatite", hard],
+    ["halite", salts / 2],
+    ["potash", salts / 2],
+    ["sugar", sugar],
+  ];
+}
+
+/** Food's energy, kilocalories a gram, by what it is made of (water and minerals give none). */
+export const KCAL: Readonly<Record<string, number>> = {
+  starch: 4,
+  sugar: 4,
+  protein: 4,
+  fat: 9,
+  cellulose: 2,
+};
+
+/**
+ * What each of the design grammar's materials is made of (Phase 15 M125): stone is the land's
+ * own bedrock where a design stands on a land, else granite; the body's own parts are left out.
+ */
+export const MATERIAL_MATTER: Readonly<Record<string, readonly (readonly [string, number])[]>> = {
+  wood: [
+    ["cellulose", 0.88],
+    ["water", 0.12],
+  ],
+  reed: [
+    ["cellulose", 0.85],
+    ["water", 0.15],
+  ],
+  hide: [
+    ["leather", 0.9],
+    ["water", 0.1],
+  ],
+  earth: [
+    ["quartz", 0.5],
+    ["kaolinite", 0.3],
+    ["water", 0.15],
+    ["humus", 0.05],
+  ],
+  mud: [
+    ["kaolinite", 0.45],
+    ["quartz", 0.45],
+    ["water", 0.05],
+    ["cellulose", 0.05],
+  ],
+  sod: [
+    ["quartz", 0.4],
+    ["humus", 0.2],
+    ["water", 0.2],
+    ["kaolinite", 0.15],
+    ["cellulose", 0.05],
+  ],
+  "fired clay": [["fired-clay", 1]],
+  copper: [["copper", 1]],
+  bronze: [["bronze", 1]],
+  iron: [["iron", 1]],
+  steel: [["steel", 1]],
+  coal: [
+    ["carbon", 0.8],
+    ["kaolinite", 0.14],
+    ["water", 0.06],
+  ],
+  oil: [["crude", 1]],
+  coral: [
+    ["calcite", 0.95],
+    ["protein", 0.05],
+  ],
+  shell: [
+    ["calcite", 0.95],
+    ["protein", 0.05],
+  ],
+  kelp: [
+    ["water", 0.65],
+    ["cellulose", 0.3],
+    ["halite", 0.05],
+  ],
+};
+
+/** What a part of each role weighs: a house's walls, roof and frame; a warrior's arm and guard; a works' hall and drive. */
+export const ROLE_KG: Readonly<Record<string, number>> = {
+  walls: 18000,
+  roof: 2500,
+  form: 1500,
+  arm: 2,
+  guard: 6,
+  mount: 0,
+  hall: 60000,
+  drive: 3000,
 };

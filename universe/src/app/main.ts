@@ -84,6 +84,7 @@ import { nearestCell, sphereGrid } from "../kernel/index.ts";
 import {
   GOOD_CHOICES,
   goodsSpread,
+  groundColors,
   cellAt,
   cellCenter,
   globeColors,
@@ -161,6 +162,7 @@ const DEEP_LENSES: readonly Lens[] = [
   "ways",
   "belief",
   "goods",
+  "ground",
 ];
 /** The map modes that show the people (repainted as their numbers come, and turned to them). */
 const PEOPLE_LENSES: readonly Lens[] = [
@@ -509,6 +511,8 @@ async function runPlanetPage(): Promise<void> {
     waysTrait = "valour",
     goodShown = "grain",
     beliefColors = new Map<number, readonly [number, number, number]>(),
+    // Every land's chief rock (Phase 15 M124), asked once: the ground does not change.
+    groundPaint = new Map<number, readonly [number, number, number]>(),
     lastEntries: PeopleEntry[] = [],
     tongues = new Map<number, readonly [number, number, number]>(),
     realms = new Map<number, readonly [number, number, number]>(),
@@ -734,13 +738,15 @@ async function runPlanetPage(): Promise<void> {
         ? realms
         : lens === "belief"
           ? beliefColors
-          : lens === "faiths"
-            ? faiths
-            : lens === "diplomacy"
-              ? standings
-              : lens === "war"
-                ? fronts
-                : tongues,
+          : lens === "ground"
+            ? groundPaint
+            : lens === "faiths"
+              ? faiths
+              : lens === "diplomacy"
+                ? standings
+                : lens === "war"
+                  ? fronts
+                  : tongues,
       // (Borders between realms, faiths, tongues: a grand strategy map's.)
       sphereGrid((frame.meta as { frequency: number }).frequency),
       // (Lands taken by force, still resenting it, in shadow: M104.)
@@ -818,6 +824,11 @@ async function runPlanetPage(): Promise<void> {
     mapModes.lens = l;
     mapModes.say(null);
     if (l === "diplomacy") void readStandings();
+    if (l === "ground" && !groundPaint.size)
+      void client.query<{ cell: number; rock: string }[]>({ type: "ground.map" }).then((map) => {
+        groundPaint = groundColors(map);
+        paintGlobe();
+      });
     if (l === "war") void readFronts();
     paintGlobe();
     if (PEOPLE_LENSES.includes(l)) void faceThePeople(true);
@@ -2798,11 +2809,12 @@ async function runPlanetPage(): Promise<void> {
     village.update(t);
     villagePanel.tick(t);
     if (watched !== null) {
-      villagePanel.moment(village.momentAt(watched));
+      villagePanel.moment(village.momentAt(watched), plan.people[watched]?.tool);
       // (What they are doing now, on their page.)
       const m = village.momentAt(watched),
         p = plan.people[watched];
-      if (m && p && pageWindow.current === p.ref) pageWindow.setLive(villagePanel.nowWords(m));
+      if (m && p && pageWindow.current === p.ref)
+        pageWindow.setLive(villagePanel.nowWords(m, p.tool));
     }
     // The years turn: re-read the plan, so those who died are gone.
     if (Math.floor(clock.t / YEAR) !== planYear) void loadPlan(plan.ref);

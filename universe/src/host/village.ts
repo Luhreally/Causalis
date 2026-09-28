@@ -31,6 +31,7 @@ import {
   wildsOf,
 } from "../sim/index.ts";
 import { meetHousehold, observer, settleAll } from "../causal/index.ts";
+import { personThings } from "./inspect/things.ts";
 import { LAKE_R, WATER_OUT, type VillageLife, type VillagePlan } from "../bridge/index.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
@@ -263,6 +264,8 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
     for (const m of hh.members) {
       const p = ledger.person(m)!;
       if (!p.alive || p.village !== ref) continue;
+      // (The tool they carry is their own: made where, when and of what: Phase 15 M125.)
+      const tool = personThings(world, p).find((t) => t.good === "tools" && t.made !== null);
       people.push({
         ref: p.ref,
         name: `${p.name} ${p.surname}`,
@@ -270,6 +273,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
         age: now - p.birthYear,
         occupation: p.occupation,
         child: now - p.birthYear < lifeOf(world).adulthood,
+        ...(tool ? { tool: `${tool.name}, made in year ${tool.made}` } : {}),
       });
     }
   });

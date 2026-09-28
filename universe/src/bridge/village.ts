@@ -117,6 +117,8 @@ export type VillagePlan = {
     age: number;
     occupation: number;
     child: boolean;
+    /** The tool they carry to work, in words (Phase 15 M125: a watched person's own). */
+    tool?: string;
   }[];
   /**
    * How far their land has come, for what they wear and carry (art track A2): gatherers

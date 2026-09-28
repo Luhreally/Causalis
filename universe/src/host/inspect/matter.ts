@@ -132,6 +132,7 @@ const EFFECT_WORDS: Readonly<Record<(typeof EFFECTS)[number], string>> = {
 
 /** A weight in words: tonnes, kilograms or grams. */
 export function weight(kg: number): string {
+  if (kg >= 1e9) return `${(kg / 1e9).toFixed(kg >= 1e11 ? 0 : 1)} Mt`;
   if (kg >= 1000) return `${count(kg / 1000)} t`;
   if (kg >= 10) return `${Math.round(kg)} kg`;
   if (kg >= 1) return `${kg.toFixed(1)} kg`;

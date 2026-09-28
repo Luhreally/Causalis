@@ -9,8 +9,8 @@ import type { Block, Item, PageModel, Place, Row, Stat } from "../../bridge/inde
 import { depositPage, platePage, speciesPage } from "../pages.ts";
 import { region } from "../planet.ts";
 import { count, eventsAbout, item, link, share, stat, yearNow } from "./words.ts";
-import { REACTIONS, SUBSTANCE, SUBSTANCES } from "../../rules/index.ts";
-import { DEPOSIT_MINERALS, rxnRef, substRef } from "./matter.ts";
+import { ORE_GRADE, REACTIONS, SUBSTANCE, SUBSTANCES, TONNES_A_UNIT } from "../../rules/index.ts";
+import { DEPOSIT_MINERALS, rxnRef, substRef, weight } from "./matter.ts";
 import { landLink, landTitle, landsOf, lineageIcon, spotOfLand } from "./names.ts";
 
 const LEVEL_WORDS = [
@@ -219,6 +219,16 @@ export function depositPageModel(world: World, ref: string): PageModel {
         : null,
     stats: [
       stat("Richness", `${count(d.richness)} units`),
+      // (A unit of richness is a thousand tonnes of ore: Phase 15 M124.)
+      stat("Ore", weight(d.richness * TONNES_A_UNIT * 1000)),
+      ...(ORE_GRADE[d.kind]
+        ? [
+            stat(
+              "Holding",
+              `${weight(d.richness * TONNES_A_UNIT * 1000 * ORE_GRADE[d.kind]!.share)} of ${SUBSTANCES[SUBSTANCE[ORE_GRADE[d.kind]!.of]!]!.name}`,
+            ),
+          ]
+        : []),
       stat("Laid down by", d.process),
       stat("People over it", count(d.people)),
     ],

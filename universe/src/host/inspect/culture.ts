@@ -11,6 +11,7 @@ import {
 import { DEITIES, beliefOf, designsOf, languagesOf, populationContext } from "../../sim/index.ts";
 import { GOODS, GOOD_MATTER, designWords } from "../../rules/index.ts";
 import { goodHere, goodRef, howMadeHere, makeUpBlock, weight } from "./matter.ts";
+import { designMatter, realmSeat } from "./ground.ts";
 import { goodYearBlocks } from "./stores.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, PageModel, Place, Row, Tab } from "../../bridge/index.ts";
@@ -293,6 +294,20 @@ export function designPage(world: World, ref: string): PageModel {
             title: "What it is made of",
             items: d.parts.map((p) => item(designWords([p]))),
           },
+          // By weight, down to its substances (Phase 15 M125): stone of its land's own rock.
+          ...(() => {
+            const made = designMatter(world, d.parts, ownerCell ?? realmSeat(world, d.owner));
+            return made
+              ? [
+                  makeUpBlock(
+                    made.parts,
+                    made.kg,
+                    "By weight",
+                    `${d.kind === "host" ? "What each warrior carries" : d.kind === "works" ? "A works" : "A house"}: ${weight(made.kg)}.`,
+                  ),
+                ]
+              : [];
+          })(),
           { type: "why", title: "How it was come to", ref: d.ref },
         ],
       },

@@ -26,6 +26,7 @@ export {
   BELIEF_COLORS,
   GOOD_CHOICES,
   beliefColor,
+  groundColors,
   goodsSpread,
   globeColors,
   globeRadius,

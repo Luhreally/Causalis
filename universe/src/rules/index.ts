@@ -156,6 +156,14 @@ export {
 export {
   ELEMENTS,
   GOOD_MATTER,
+  ORE_GRADE,
+  ROCKS,
+  SOILS,
+  TONNES_A_UNIT,
+  KCAL,
+  MATERIAL_MATTER,
+  ROLE_KG,
+  bodyMakeUp,
   REACTION,
   REACTIONS,
   SUBSTANCE,
@@ -169,5 +177,6 @@ export {
   type MakeUp,
   type MatterKind,
   type Reaction,
+  type Rock,
   type Substance,
 } from "./matter.ts";

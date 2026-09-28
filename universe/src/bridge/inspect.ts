@@ -316,6 +316,8 @@ export type PageKind =
   | "reaction"
   | "principle"
   | "goods"
+  /** A thing someone holds (Phase 15 M125): a tool, a garment, a pot. */
+  | "thing"
   | "unknown";
 
 export type PageModel = {

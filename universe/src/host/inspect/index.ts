@@ -22,6 +22,8 @@ import { chroniclePage, ledgerPage } from "./world.ts";
 import { statsPage } from "./stats.ts";
 import { traitPage } from "./folk.ts";
 import { goodKindPage, principlePage, reactionPage, substancePage } from "./matter.ts";
+import { groundReading } from "./ground.ts";
+import { thingPage } from "./things.ts";
 import { alertsOf, breakdownOf, logPage, type Counted } from "./alerts.ts";
 import { answersOf } from "./answers.ts";
 import { comparePage } from "./compare.ts";
@@ -43,6 +45,7 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("rxn:")) return reactionPage(world, ref);
   if (ref.startsWith("prin:")) return principlePage(world, ref);
   if (ref.startsWith("good:")) return goodKindPage(world, ref);
+  if (ref.startsWith("thing:")) return thingPage(world, ref);
   if (ref.startsWith("gstar:")) return starPageModel(world, ref);
   if (ref.includes("/")) return foreignWorldPage(world, ref);
   if (ref.startsWith("agent:")) return agentPage(world, ref);
@@ -166,9 +169,11 @@ export function tipOf(world: World, ref: string, lens?: string): Tip {
   const land = ref.startsWith("cell:0:") ? Number(ref.slice(7)) : NaN,
     [kind, way] = (lens ?? "").split(":"),
     reading =
-      kind && (DEEP_LENSES as readonly string[]).includes(kind) && Number.isInteger(land)
-        ? lensReading(world, land, kind as DeepLens, way)
-        : null;
+      kind === "ground" && Number.isInteger(land)
+        ? groundReading(world, land)
+        : kind && (DEEP_LENSES as readonly string[]).includes(kind) && Number.isInteger(land)
+          ? lensReading(world, land, kind as DeepLens, way)
+          : null;
   if (reading)
     return { ref, icon: p.icon, title: p.title, line: reading.line, stats: reading.stats };
   return {

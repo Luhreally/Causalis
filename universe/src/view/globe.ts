@@ -4,7 +4,7 @@
 import type { FrameMessage } from "../bridge/index.ts";
 import type { SphereGrid } from "../kernel/index.ts";
 import type { Rgb } from "./sandbox.ts";
-import { GOODS } from "../rules/index.ts";
+import { GOODS, ROCKS } from "../rules/index.ts";
 
 export const LENSES = [
   "terrain",
@@ -30,6 +30,7 @@ export const LENSES = [
   "ways",
   "belief",
   "goods",
+  "ground",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -57,6 +58,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   ways: "Ways",
   belief: "Belief",
   goods: "Goods",
+  ground: "Ground",
 };
 
 /** Each map mode's icon, for the map modes' bar (Phase 10 M96). */
@@ -84,6 +86,7 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   ways: "🎭",
   belief: "🕯️",
   goods: "📦",
+  ground: "🪨",
 };
 
 /** How every land stands toward the realm the diplomacy lens is of, in its colours. */
@@ -313,6 +316,12 @@ export function beliefColor(favour: number, wrath: number, portent: number): Rgb
   return [grey + (c[0] - grey) * k, grey + (c[1] - grey) * k, grey + (c[2] - grey) * k];
 }
 
+/** Each land's colour by its chief rock, for the Ground lens (Phase 15 M124). */
+export function groundColors(map: readonly { cell: number; rock: string }[]): Map<number, Rgb> {
+  const by = new Map(ROCKS.map((r) => [r.id, r.colour as Rgb]));
+  return new Map(map.flatMap((x) => (by.has(x.rock) ? [[x.cell, by.get(x.rock)!] as const] : [])));
+}
+
 /** Each good's icon, for the goods lens's choices and the pages (Phase 15 M123). */
 const GOOD_ICONS: Readonly<Record<string, string>> = {
   grain: "🌾",
@@ -440,7 +449,8 @@ export function globeColors(
       case "tongues":
       case "diplomacy":
       case "war":
-      case "belief": {
+      case "belief":
+      case "ground": {
         const tongue = colors?.get(province);
         if (tongue) {
           // A land taken by force, still resenting it (Phase 11 M104): its taker's colour in
@@ -630,6 +640,11 @@ export function lensLegend(lens: Lens): Legend {
       return { kind: "ramp", stops: stops(GROWTH), low: "shrinking", high: "growing" };
     case "ways":
       return { kind: "ramp", stops: stops(WAYS_RAMP), low: "held little", high: "held much" };
+    case "ground":
+      return {
+        kind: "keys",
+        keys: ROCKS.map((r) => [r.colour as Rgb, r.name] as [Rgb, string]),
+      };
     case "goods":
       return {
         kind: "ramp",

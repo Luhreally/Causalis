@@ -159,16 +159,27 @@ export type ToolMetal = "stone" | "copper" | "bronze" | "iron" | "steel";
  * else stone. (The economy's
  * own recipes still make tools of stone or copper; the ores and alloys come in M127.)
  */
-export function toolMetal(ctx: PopulationContext, cell: number): ToolMetal {
+export function toolMetal(ctx: PopulationContext, cell: number, year?: number): ToolMetal {
+  // (In a past year, only what the land knew by then: a tool keeps the metal it was made of.)
   const lore = loreOf(ctx.world),
+    knew = (id: string) => {
+      const k = lore.get(cell, id);
+      return !!k && (year === undefined || k.year <= year);
+    },
     m = ctx.world.store<MarketStore>("economy.markets").get(cell),
+    smelted = (() => {
+      if (!m?.metalworking) return false;
+      if (year === undefined) return true;
+      const e = ctx.world.events.get(m.metalworking);
+      return !e || yearOfMoment(e.t) <= year;
+    })(),
     iron = oreFor(ctx, cell, "iron") !== null,
     copper = oreFor(ctx, cell, "copper") !== null;
-  if (iron && lore.get(cell, "steel")) return "steel";
-  if (iron && lore.get(cell, "iron")) return "iron";
-  if (copper && lore.get(cell, "bronze") && oreFor(ctx, cell, "tin") !== null) return "bronze";
+  if (iron && knew("steel")) return "steel";
+  if (iron && knew("iron")) return "iron";
+  if (copper && knew("bronze") && oreFor(ctx, cell, "tin") !== null) return "bronze";
   // (Copper by trade as well as from its own ore: copper tools are made of either.)
-  if (m?.metalworking && (copper || m.stock[G.copper]! > 0)) return "copper";
+  if (smelted && (copper || m!.stock[G.copper]! > 0)) return "copper";
   return "stone";
 }
 

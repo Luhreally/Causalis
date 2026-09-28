@@ -134,6 +134,7 @@ import { villagePlan } from "./village.ts";
 import { landReadings } from "./lenses.ts";
 import { TRAIT_LOOK } from "./inspect/folk.ts";
 import { actsMap, paletteLand } from "./acts.ts";
+import { groundMap, spotGround } from "./inspect/ground.ts";
 import { worldGlobe } from "./worlds.ts";
 import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
 
@@ -226,6 +227,8 @@ export function tile(world: World, center: number, t: number) {
     biome: BIOME_NAMES[r.biome[t]!],
     water: WATER_WORDS[r.water[t]!],
     fertility: r.fertility[t]!,
+    // Its ground (Phase 15 M124): the rock under it, the soil over it.
+    ground: spotGround(world, r.parent[t]!, r.biome[t]!),
     parent: spotRef(0, r.parent[t]!),
     deposit: deposit
       ? {
@@ -871,6 +874,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // The god's acts where they fall, for the globe to play them; a land as the palette
       // sees it (Phase 12 M106).
       "acts.map": (world) => actsMap(world),
+      // Every land's chief rock, for the Ground lens (Phase 15 M124).
+      "ground.map": (world) => groundMap(world),
       "palette.land": (world, args) => paletteLand(world, (args as { cell: number }).cell),
       "wars.map": (world): WarsMap => {
         const pw = homePlanet(world).generated,

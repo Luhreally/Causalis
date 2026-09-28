@@ -4370,6 +4370,35 @@ every kept year, a test over the first light's 549 markets; `landStoresBlocks`,
 lens (`host/lenses.ts`, `view/globe.ts` `goodsSpread`), `tools/phase15-gate.ts` (port 4267).
 The books told something at once: most of a big grain store spoils in its year.
 
+124 (the ground): `rules/matter.ts` gains the rock-forming minerals (plagioclase, pyroxene,
+olivine, mica), humus, eight rocks as make-ups of minerals, a soil for each biome, and what
+each kind of ore holds (`ORE_GRADE`; a unit of a deposit's richness is a thousand tonnes of
+ore). `host/inspect/ground.ts` reads each spot's bedrock from its crust, its plate boundary,
+its hotspots and the carbon its deep past buried (ocean floor and hotspots basalt, arcs
+andesite, mountain roots granite, old hearts gneiss, coal measures, limestone, sandstone,
+shale), kept per world; a land's Ground tab (its bedrock, what the rock is made of, its soil,
+what lies in it in tonnes of ore and of what the ore holds, its water, the air with its carbon
+dioxide from `sim/climate/air.ts`); the deposit page in tonnes; a Ground lens (every land
+painted by its chief rock, `ground.map`) whose tooltip tells its rocks and soil.
+
+125 (things, watched): `host/inspect/things.ts` — the tools of each trade that wears them
+(farmers a hoe and a sickle, herders shears and a knife, crafters a hammer and a chisel), a
+garment each (a cloak besides in the cold), a household's pots and its share of its land's
+food. Each slot's thing was made in a year keyed on its holder and slot and lasts its good's
+life (`WANTS`: a worker's two tools eight years); a tool is of the metal its land knew in the
+year it was made (`toolMetal(ctx, cell, year)`); stone tools half made at home (`HOME_MADE`);
+where the land's cover fell short, a keyed share of slots are empty and say so. A thing's page
+(`thing:<holder>:<slot>`): its make-up in grams, where, when and by whom it was made, how long
+it lasts and how worn, and where its stuff comes from (ore → reaction → principle). A
+household's and a person's Things tabs; a person's day of food (grams and kilocalories against
+what their body burns, `KCAL`) and what their body is made of (`bodyMakeUp`: bone, or a shell
+of lime, by their people's skin). Observational: nothing kept, nothing hashed.
+
+Beside them: a design by weight (`MATERIAL_MATTER`, `ROLE_KG`: a house's walls, roof and frame
+in tonnes, of its land's own rock where it is of stone; each warrior's arm and guard in
+kilograms; a works' hall and drive); a region's tile tells the rock under it and the soil over
+it; and a watched village's workers carry their own tools ("a flint hoe, made in year 254").
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

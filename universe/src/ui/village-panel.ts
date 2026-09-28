@@ -126,14 +126,23 @@ export class VillagePanel {
   };
 
   /** What the person looked at is doing now, and what they carry (and what it is made of). */
-  moment(m: Moment | null): void {
+  moment(m: Moment | null, tool?: string): void {
     if (!m) return;
-    this.now.textContent = this.nowWords(m);
+    this.now.textContent = this.nowWords(m, tool);
   }
 
-  /** What someone is doing now, in words: "Now at work; fed and rested; carrying a hoe". */
-  nowWords(m: Moment): string {
-    return `Now ${ACTIVITY_WORDS[m.activity]}; ${needWords(m)}${m.carry ? `; carrying ${carryWords(m.carry, this.works.era, this.works.what, this.works.metal)}` : ""}`;
+  /**
+   * What someone is doing now, in words: "Now at work; fed and rested; carrying a hoe" — their
+   * own tool where it is known (Phase 15 M125: "a flint hoe, made in year 254").
+   */
+  nowWords(m: Moment, tool?: string): string {
+    const carrying =
+      m.carry === "tool" && tool
+        ? tool
+        : m.carry
+          ? carryWords(m.carry, this.works.era, this.works.what, this.works.metal)
+          : "";
+    return `Now ${ACTIVITY_WORDS[m.activity]}; ${needWords(m)}${carrying ? `; carrying ${carrying}` : ""}`;
   }
 
   /** Whether the hand rests on the village watched: then its people are the hand's. */

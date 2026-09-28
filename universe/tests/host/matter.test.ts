@@ -4,7 +4,7 @@ import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { GOODS } from "../../src/rules/index.ts";
 import { flowOf, storesSummed } from "../../src/host/inspect/stores.ts";
-import { politiesOf, type MarketStore } from "../../src/sim/index.ts";
+import { designsOf, politiesOf, type MarketStore } from "../../src/sim/index.ts";
 import type { Block, PageModel, Tip } from "../../src/bridge/index.ts";
 
 // Phase 15 M122: matter's pages — substances, reactions, principles, goods — and a good in a
@@ -192,4 +192,81 @@ test("the goods lens: each land's stores a head, and a land's tooltip breaks one
   assert.ok(tip.stats.some((s) => /^Made in year \d+$/.test(s.label)));
   const wool = ask<Tip>("tip", { ref: `cell:0:${land.cell}`, lens: "goods:wool" });
   assert.match(wool.line, /^Goods: wool /);
+});
+
+test("a land's ground: its bedrock and what the rock is made of, its soil, what lies in it, its water, the air", () => {
+  const map = ask<{ cell: number; people: number }[]>("people.map"),
+    lands = [...map].sort((a, b) => b.people - a.people).slice(0, 40);
+  const rocks = new Set<string>();
+  for (const land of lands) {
+    const ground = blocks(page(`cell:0:${land.cell}`), "ground"),
+      parts = of(ground, "composition");
+    const bedrock = parts.find((b) => b.title === "Its bedrock")!;
+    assert.ok(
+      Math.abs(bedrock.parts.reduce((s, x) => s + x.share, 0) - 1) < 1e-9,
+      "its bedrock whole",
+    );
+    for (const x of bedrock.parts) rocks.add(String(x.name[0]));
+    assert.ok(parts.some((b) => b.title === "What the rock is made of"));
+    assert.ok(parts.some((b) => b.title?.startsWith("Its soil: ")));
+    const air = parts.find((b) => b.title === "The air (by volume)")!;
+    assert.match(air.note ?? "", /Carbon dioxide: \d+ parts in a million/);
+    const lies = of(ground, "list").find((b) => b.title === "What lies in it");
+    if (lies)
+      assert.ok(
+        lies.items.every((i) => i.line.some((s) => typeof s === "string" && / of ore/.test(s))),
+      );
+  }
+  assert.ok(rocks.size >= 3, `the ground varies: ${[...rocks].join(", ")}`);
+  // A deposit's own land lists it, in tonnes of ore and of what it holds.
+  const deposit = ask<{ ref: string; province: number }[]>("deposits")[0]!,
+    theirs = of(blocks(page(`cell:0:${deposit.province}`), "ground"), "list").find(
+      (b) => b.title === "What lies in it",
+    )!;
+  assert.ok(
+    theirs.items.some((i) => i.ref === deposit.ref),
+    "the deposit in its land's ground",
+  );
+});
+
+test("the Ground lens: every land's chief rock, peopled or not, and a land's tooltip its rocks and soil", () => {
+  const map = ask<{ cell: number; rock: string }[]>("ground.map"),
+    peopled = ask<{ cell: number }[]>("people.map");
+  assert.ok(
+    map.length > peopled.length,
+    `${map.length} lands painted, more than the ${peopled.length} peopled`,
+  );
+  assert.ok(new Set(map.map((x) => x.rock)).size >= 4, "the ground varies");
+  const land = peopled[0]!,
+    tip = ask<Tip>("tip", { ref: `cell:0:${land.cell}`, lens: "ground" });
+  assert.match(tip.line, /^Ground: [a-z ]+ \d+%/);
+  assert.ok(tip.stats.some((x) => x.label === "Its soil"));
+});
+
+test("a design by weight: a house in tonnes of its land's own stuff, a warrior's kit in kilograms", () => {
+  const designs = designsOf(world).list(),
+    house = designs.find((d) => d.kind === "house")!,
+    host = designs.find((d) => d.kind === "host");
+  const byWeight = (ref: string) =>
+    of(blocks(page(ref)), "composition").find((b) => b.title === "By weight")!;
+  const h = byWeight(house.ref);
+  assert.ok(Math.abs(h.parts.reduce((s, x) => s + x.share, 0) - 1) < 1e-9);
+  assert.match(h.note ?? "", /^A house: [\d,.]+ (t|Mt)\.$/);
+  if (host) assert.match(byWeight(host.ref).note ?? "", /^What each warrior carries: [\d.]+ kg\.$/);
+});
+
+test("a tile of a land's map tells the rock under it and the soil over it", () => {
+  const land = [...ask<{ cell: number; people: number }[]>("people.map")].sort(
+      (a, b) => b.people - a.people,
+    )[0]!,
+    tiles = [0, 100, 500, 1000].map((t) =>
+      ask<{ sea: boolean; ground: { rock: string; soil: string } }>("tile", {
+        center: land.cell,
+        tile: t,
+      }),
+    );
+  for (const t of tiles) {
+    assert.ok(t.ground.rock.length > 0 && t.ground.soil.length > 0);
+    if (!t.sea) assert.notEqual(t.ground.soil, "sea-floor mud");
+  }
 });

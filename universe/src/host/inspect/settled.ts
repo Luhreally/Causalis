@@ -42,6 +42,7 @@ import {
 } from "./words.ts";
 import { faithLink, landLink, languageLink, realmLink, townLink } from "./names.ts";
 import { TRAIT_LOOK, agentFamily, metChips, metFamily, traitChips } from "./folk.ts";
+import { householdThingsBlocks, personThingsBlocks } from "./things.ts";
 
 const OCCUPATION_WORDS = ["child", "forager", "farmer", "herder", "crafter", "trader", "leader"];
 /** Each trait said low / middling / high. */
@@ -243,6 +244,8 @@ export function householdPage(world: World, ref: string): PageModel {
           { type: "why", ref: h.ref },
         ],
       },
+      // Its things (Phase 15 M125): what it keeps, what each of its people holds, its food.
+      { id: "things", name: "Things", blocks: householdThingsBlocks(world, h) },
     ],
     followable: false,
     year: yearNow(world),
@@ -329,6 +332,8 @@ export function personPage(world: World, ref: string): PageModel {
       const tree = metFamily(world, p);
       return tree ? [{ id: "family", name: "Family", blocks: [tree] }] : [];
     })(),
+    // What they hold, what they eat, what their body is made of (Phase 15 M125).
+    { id: "things", name: "Things", blocks: personThingsBlocks(world, p) },
     {
       id: "life",
       name: "Life",

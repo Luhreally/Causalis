@@ -4,7 +4,12 @@ import {
   ELEMENTS,
   GOODS,
   GOOD_MATTER,
+  MATERIALS,
+  MATERIAL_MATTER,
+  ORE_GRADE,
   PRINCIPLES,
+  ROCKS,
+  SOILS,
   REACTIONS,
   RECIPES,
   SUBSTANCE,
@@ -59,4 +64,28 @@ test("every good is made of something, whole, of substances there are; every rea
   // Glass and brewing, once changing nothing, are now the reactions they teach.
   assert.ok(REACTIONS.some((r) => r.principle === "glass"));
   assert.ok(REACTIONS.some((r) => r.principle === "brewing"));
+});
+
+test("every rock and every soil is made of substances there are, whole; every ore holds one", () => {
+  const whole = (parts: readonly (readonly [string, number])[], what: string) => {
+    assert.ok(Math.abs(parts.reduce((a, [, v]) => a + v, 0) - 1) < 1e-9, `${what} sums to one`);
+    for (const [id] of parts) assert.ok(SUBSTANCE[id] !== undefined, `${what}: ${id}`);
+  };
+  for (const r of ROCKS) whole(r.parts, r.id);
+  for (const [id, soil] of Object.entries(SOILS)) whole(soil.parts, id);
+  for (const [kind, g] of Object.entries(ORE_GRADE)) {
+    assert.ok(SUBSTANCE[g.of] !== undefined, kind);
+    assert.ok(g.share > 0 && g.share <= 1);
+  }
+  assert.equal(ROCKS.length, 8);
+});
+
+test("every material a design is made of is made of substances, whole (stone: the land's own rock)", () => {
+  for (const m of MATERIALS) {
+    if (m === "stone" || m === "body") continue;
+    const parts = MATERIAL_MATTER[m];
+    assert.ok(parts, `${m} has its matter`);
+    assert.ok(Math.abs(parts.reduce((a, [, v]) => a + v, 0) - 1) < 1e-9, m);
+    for (const [id] of parts) assert.ok(SUBSTANCE[id] !== undefined, `${m}: ${id}`);
+  }
 });

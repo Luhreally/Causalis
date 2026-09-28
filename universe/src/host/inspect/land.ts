@@ -29,6 +29,7 @@ import { count, eventsAbout, item, link, many, part, share, stat, yearNow } from
 import { richWords } from "./life.ts";
 import { prinRef } from "./matter.ts";
 import { landStoresBlocks } from "./stores.ts";
+import { groundBlocks } from "./ground.ts";
 import {
   faithLink,
   landLink,
@@ -286,6 +287,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
         ),
       });
     tabs.push({ id: "land", name: "Land", blocks });
+    // Its ground (Phase 15 M124): bedrock, soil, what lies in it, its water, the air.
+    tabs.push({ id: "ground", name: "Ground", blocks: groundBlocks(world, cell) });
   }
   // The living world: its web's levels, and its lineages.
   if (cell < landsOf(world)) {
