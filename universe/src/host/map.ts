@@ -99,7 +99,54 @@ export function warLens(world: World) {
     if (Math.floor(e.t / YEAR) < year - 2) break;
     if (e.type === WAR_EVENTS.taken.type && e.place) at.set(Number(e.place.split(":")[2]), "taken");
   }
-  return { lands: [...at.entries()] };
+  return { lands: [...at.entries()], taken: takenLands(world) };
+}
+
+/** A land taken by force is marked while it still resents its taking this much. */
+const RESENT = 0.35;
+
+/**
+ * The lands taken by force, each with the colour of the realm it was taken from (Phase 11
+ * M104): a grand strategy map marks them — while the war that took them goes on, or while they
+ * still resent the battle they were taken in. A land since taken back, or lost again, is left
+ * out.
+ */
+export function takenLands(world: World): [number, readonly [number, number, number]][] {
+  const realms = politiesOf(world),
+    out = new Map<number, readonly [number, number, number]>();
+  // Still resenting its taking: its grievance is the battle it was taken in.
+  for (const p of realms.all()) {
+    if (p.ended !== null) continue;
+    for (const c of p.members) {
+      const d = realms.discontent(c),
+        e = d.level >= RESENT && d.cause ? world.events.get(d.cause) : undefined;
+      // (Taken there by the realm that holds it still — not passed on since, by a rising or
+      // a breaking away, to another that took it from no one.)
+      if (e?.type !== WAR_EVENTS.battle.type || e.place !== `cell:0:${c}`) continue;
+      const [, taker, loser] = e.subjects;
+      if (taker === p.ref && loser && loser !== p.ref) out.set(c, realmColor(loser));
+    }
+  }
+  const fought = new Map<string, number>();
+  for (const w of warsOf(world).all())
+    if (w.ended === null)
+      for (const key of [`${w.attacker}|${w.defender}`, `${w.defender}|${w.attacker}`])
+        fought.set(key, Math.min(fought.get(key) ?? Infinity, w.declared));
+  if (!fought.size) return [...out];
+  for (const e of world.events.all()) {
+    if (e.type !== WAR_EVENTS.taken.type || !e.place) continue;
+    const [taker, loser] = e.subjects,
+      since = fought.get(`${taker}|${loser}`);
+    if (since === undefined || Math.floor(e.t / YEAR) < since) continue;
+    const land = Number(e.place.split(":")[2]);
+    // (Still the taker's: else it went back, or on.)
+    if (realms.of(land)?.ref === taker) out.set(land, realmColor(loser!));
+  }
+  // (Held by another now: taken back, or on.)
+  for (const [land, color] of out)
+    if (!realms.of(land) || realmColor(realms.of(land)!.ref).every((v, i) => v === color[i]))
+      out.delete(land);
+  return [...out];
 }
 
 /** The world's headline numbers, for the top bar. */

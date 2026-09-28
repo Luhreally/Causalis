@@ -70,6 +70,10 @@ export type SkyState = {
   readonly fleets?: readonly {
     readonly realm: string;
     readonly enemy: string;
+    /** The two by their refs, and the fleet's strength (its counter's, Phase 11 M101). */
+    readonly realmRef: string;
+    readonly enemyRef: string;
+    readonly strength: number;
     readonly star: string | null;
     readonly sailed: number;
     readonly arrives: number;

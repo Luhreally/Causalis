@@ -7,6 +7,7 @@ import {
   MARCH,
   battleOf,
   clearOf,
+  counterWords,
   landColumn,
   landWars,
   villageGround,
@@ -43,12 +44,13 @@ const map = (from: number, to: number, ended: number | null = null): WarsMap => 
   wars: [
     {
       ref: "war:0:1",
-      attacker: { ref: "pol:0:1", name: "the Reds", color: red },
-      defender: { ref: "pol:0:2", name: "the Blues", color: blue },
+      attacker: { ref: "pol:0:1", name: "the Reds", color: red, fields: 1200, arms: null },
+      defender: { ref: "pol:0:2", name: "the Blues", color: blue, fields: 800, arms: null },
       from,
       to,
       declared: 298,
       ended,
+      siege: null,
       battles: [
         { spot: to, year: 300, won: true, fallen: 4000, event: "evt:0:1" },
         { spot: from, year: 299, won: false, fallen: 12, event: "evt:0:2" },
@@ -224,6 +226,9 @@ test("a fleet of war crosses between the stars, and its star is ringed in fire w
         {
           realm: "the Reds",
           enemy: "the Far Ones",
+          realmRef: "pol:0:1",
+          enemyRef: "civ:0:2",
+          strength: 7.3,
           star: "star:0:1",
           sailed: 1000,
           arrives: 1100,
@@ -237,6 +242,8 @@ test("a fleet of war crosses between the stars, and its star is ringed in fire w
   const lead = half.fleets[0]!,
     star = voyageMarks(plan, sky, 1099).fleets[0]!;
   assert.ok(Math.hypot(lead.x, lead.z) < Math.hypot(star.x, star.z), "on its way out");
+  // Its counter stands at its lead ship: its realm, its enemy, its strength (M101).
+  assert.deepEqual(half.heads, [{ ...lead, realm: "pol:0:1", enemy: "civ:0:2", strength: 7.3 }]);
   assert.equal(half.battles.length, 0);
   const after = voyageMarks(
     plan,
@@ -244,6 +251,7 @@ test("a fleet of war crosses between the stars, and its star is ringed in fire w
     1110,
   );
   assert.equal(after.fleets.length, 0);
+  assert.equal(after.heads.length, 0, "no counter once it has come");
   assert.equal(after.battles.length, 1);
 });
 
@@ -318,4 +326,28 @@ test("a host crossing the sea in a land goes in ships, as the globe shows it; on
   const wet = landColumn(from, to, 0.5, () => true);
   assert.equal(wet.people.length, 0);
   assert.equal(wet.ships.length, 3);
+});
+
+test("a host's counter: its side, its realm and the men it fields, said short", () => {
+  assert.equal(counterWords(850), "850");
+  assert.equal(counterWords(3400), "3.4k");
+  assert.equal(counterWords(9949), "9.9k");
+  assert.equal(counterWords(9950), "10k");
+  assert.equal(counterWords(12_345), "12k");
+  assert.equal(counterWords(-3), "0");
+  // On the globe: the marchers are the attacker's, the standard at what they want the defender's.
+  const from = cellNear(0.2, 0.9, 0.4),
+    to = cellNear(-0.2, 0.9, 0.4),
+    tokens = warTokens(warPaths(map(from, to), grid, elevation), 3);
+  const heads = tokens.filter((t) => t.lead);
+  assert.equal(heads.filter((t) => t.attacker).length, 1, "one head of the attacker's host");
+  assert.equal(heads.filter((t) => !t.attacker).length, 1, "one standard of the defenders");
+  // In a land: each march bears both its sides, their realms and the men each fields.
+  const size = 8,
+    mid = cellNear(0, 0, 1),
+    parent = new Int32Array(size * size).fill(mid),
+    land = landWars(map(cellNear(-0.9, 0, 0.44), mid), parent, size, 1, grid);
+  assert.equal(land.marches.length, 1);
+  assert.deepEqual(land.marches[0]!.attacker, { ref: "pol:0:1", fields: 1200 });
+  assert.deepEqual(land.marches[0]!.defender, { ref: "pol:0:2", fields: 800 });
 });

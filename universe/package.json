@@ -27,6 +27,7 @@
     "gate:8": "node tools/phase8-gate.ts",
     "gate:9": "node tools/phase9-gate.ts",
     "gate:10": "node tools/phase10-gate.ts",
+    "gate:11": "node tools/phase11-gate.ts",
     "diversity": "node tools/diversity.ts 100 900"
   },
   "dependencies": {

@@ -125,6 +125,13 @@ jobs:
       - run: npm run gate:10 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 11 gate: realms' arms on their pages and beside their names; hosts as
+      # counters on the globe and in a land; a great happening in its window, the clock waiting
+      # and the god's hand answering; realms side by side and a war's tally; the realms' map
+      # closer, taken lands in shadow and sieges marked.
+      - run: npm run gate:11 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

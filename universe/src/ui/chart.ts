@@ -247,6 +247,58 @@ export function barsChart(bars: readonly Bar[], format?: (y: number) => string):
   return box;
 }
 
+/**
+ * Two sides pulled against each other (Phase 11 M103): each row's two amounts in one bar, the
+ * first side's share from the left in its colour, the second's from the right in its own, the
+ * row's words over it and each side's amount at its end; the two sides named above.
+ */
+export function tallyChart(
+  sides: readonly [
+    { readonly name: HTMLElement; readonly color: Rgb },
+    { readonly name: HTMLElement; readonly color: Rgb },
+  ],
+  rows: readonly {
+    readonly label: string;
+    readonly a: number;
+    readonly b: number;
+    readonly words: readonly [string, string];
+  }[],
+): HTMLElement {
+  const box = el("div", "tally"),
+    head = el("div", "tally-head"),
+    gloss = (c: Rgb) => {
+      const up = (x: number) => Math.min(1, x * 1.35 + 0.12);
+      return `linear-gradient(180deg, ${rgb([up(c[0]), up(c[1]), up(c[2])])} 0%, ${rgb(c)} 55%, ${rgb([c[0] * 0.72, c[1] * 0.72, c[2] * 0.72])} 100%)`;
+    };
+  for (const [i, s] of sides.entries()) {
+    const name = el("span", i ? "tally-side tally-b" : "tally-side tally-a");
+    name.append(s.name);
+    name.style.borderColor = rgb(s.color);
+    head.append(name);
+  }
+  box.append(head);
+  for (const r of rows) {
+    const whole = Math.max(0, r.a) + Math.max(0, r.b),
+      left = whole > 0 ? (Math.max(0, r.a) / whole) * 100 : 50,
+      row = el("div", "tally-row"),
+      bar = el("div", "tally-bar"),
+      a = el("span", "tally-fill tally-fill-a"),
+      b = el("span", "tally-fill tally-fill-b");
+    a.style.width = `${left.toFixed(1)}%`;
+    b.style.width = `${(100 - left).toFixed(1)}%`;
+    a.style.background = gloss(sides[0].color);
+    b.style.background = gloss(sides[1].color);
+    bar.append(a, b, el("span", "tally-label", r.label));
+    row.append(
+      el("span", "tally-value tally-a", r.words[0]),
+      bar,
+      el("span", "tally-value tally-b", r.words[1]),
+    );
+    box.append(row);
+  }
+  return box;
+}
+
 /** A thing's span on a timeline. */
 export type Span = {
   readonly label: HTMLElement;

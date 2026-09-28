@@ -37,7 +37,17 @@ export type Tiding = {
   readonly ref: Ref;
   readonly year: number;
   readonly claim: string;
+  /**
+   * What kind of thing happened, and how much it mattered (an event's own; a life's turns are
+   * "life.<what>", its end "life.died"): the great are told in windows (Phase 11 M100).
+   */
+  readonly type: string;
+  readonly importance: number;
 };
+
+/** How much a life's turns matter, told: its end the most. */
+const LIFE_IMPORTANCE = 3,
+  DEATH_IMPORTANCE = 5;
 
 /** How important news of a land or a realm must be to be told. */
 const NEWS = 4;
@@ -154,6 +164,8 @@ export function tidings(world: World): Tiding[] {
         ref: e.id,
         year: yearOfMoment(e.t),
         claim: why(world, e.id).claim,
+        type: e.type,
+        importance: e.importance,
       });
     }
     w.seen = world.now;
@@ -185,6 +197,8 @@ function personNews(world: World, ref: Ref, name: string, from: number, to: numb
         ref: l.event ?? p.ref,
         year: l.year,
         claim: `${name}: ${LIFE_WORDS[l.kind] ?? l.kind}, at ${l.age}, in year ${l.year}`,
+        type: `life.${l.kind}`,
+        importance: LIFE_IMPORTANCE,
       });
   if (!p.alive && p.diedYear !== null && p.diedYear >= from && p.diedYear <= to)
     out.push({
@@ -193,6 +207,8 @@ function personNews(world: World, ref: Ref, name: string, from: number, to: numb
       ref: p.ref,
       year: p.diedYear,
       claim: `${name} died in year ${p.diedYear}, at ${p.diedYear - p.birthYear}`,
+      type: "life.died",
+      importance: DEATH_IMPORTANCE,
     });
   return out;
 }
@@ -236,6 +252,8 @@ export function newsLog(world: World, most = LOG_MOST): Tiding[] {
       ref: h.e.id,
       year: yearOfMoment(h.e.t),
       claim: why(world, h.e.id).claim,
+      type: h.e.type,
+      importance: h.e.importance,
     }));
   return [...logged, ...lives].sort((a, b) => b.year - a.year).slice(0, most);
 }

@@ -33,6 +33,8 @@ export class GlobeWars {
   drawn = 0;
   /** Where each host and clash stood at the last update, and its page (for picking). */
   private marks: { at: V; ref: string }[] = [];
+  /** Where each host's head stood at the last update: its war, and whether the attacker's. */
+  private leads: { at: V; ref: string; attacker: boolean }[] = [];
 
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
@@ -197,6 +199,30 @@ export class GlobeWars {
       ...clashes.map((c) => ({ at: c.at, ref: c.event })),
       ...tokens.filter((k) => k.lead).map((k) => ({ at: k.at, ref: k.ref })),
     ];
+    this.leads = tokens
+      .filter((k) => k.lead && k.size > 0.5)
+      .map((k) => ({ at: k.at, ref: k.ref, attacker: k.attacker }));
+  }
+
+  /**
+   * Each host's head on the screen (CSS pixels), where its counter stands (Phase 11 M101): its
+   * war, and whether the attacker's. Those over the globe's rim, from the eye, are left out.
+   */
+  hostsOnScreen(): { ref: string; attacker: boolean; x: number; y: number }[] {
+    if (!this.root.enabled) return [];
+    const cam = this.stage.camera,
+      eye = cam.getPosition(),
+      at = new pc.Vec3(),
+      out = new pc.Vec3(),
+      found: { ref: string; attacker: boolean; x: number; y: number }[] = [];
+    for (const h of this.leads) {
+      // (Facing the eye: a unit globe's rim, seen from the eye, is where this is 1.)
+      if (h.at.x * eye.x + h.at.y * eye.y + h.at.z * eye.z <= 1.02) continue;
+      at.set(h.at.x * 1.02, h.at.y * 1.02, h.at.z * 1.02);
+      cam.camera!.worldToScreen(at, out);
+      if (out.z > 0) found.push({ ref: h.ref, attacker: h.attacker, x: out.x, y: out.y });
+    }
+    return found;
   }
 
   /** The war (a host) or battle (a clash) nearest a screen point, within `reach`: its ref. */

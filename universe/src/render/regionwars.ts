@@ -6,7 +6,7 @@
 // face, crossed blades over a flare that pulses, the larger the more fell. Instanced; the
 // march plays over as the war lasts, as on the globe.
 import * as pc from "playcanvas";
-import { landColumn, type LandWars } from "../view/index.ts";
+import { counterWords, landColumn, type LandWars } from "../view/index.ts";
 import { InstancedBatch, boxMesh, keptMesh } from "./batch.ts";
 import type { Stage } from "./stage.ts";
 
@@ -17,6 +17,20 @@ const MOST = 160,
   MOST_SHIPS = 96;
 
 type Flat = { readonly x: number; readonly z: number };
+
+/**
+ * A host's head, a defenders' block or a battle: where it stands, its page and name, and a
+ * host's realm and the men it fields (for its counter).
+ */
+type Mark = {
+  x: number;
+  z: number;
+  ref: string;
+  name: string;
+  battle: boolean;
+  realm?: string;
+  fields?: number;
+};
 
 /** A figure: where it stands, which way it faces (yaw), how tall it is drawn (0 … 1: grown in). */
 type Figure = { x: number; z: number; yaw: number; size: number; lead: boolean };
@@ -36,8 +50,11 @@ export class RegionWars {
   private readonly blades: InstancedBatch;
   private readonly flares: InstancedBatch;
   private readonly hulls: InstancedBatch;
-  /** Where each host's head and each battle stood at the last update (for picking, naming). */
-  private marks: { x: number; z: number; ref: string; name: string; battle: boolean }[] = [];
+  /**
+   * Where each host's head, each defenders' block and each battle stood at the last update (for
+   * picking and naming): a host's with its realm and the men it fields, for its counter.
+   */
+  private marks: Mark[] = [];
   /** How many figures were drawn at the last update (for the look tools). */
   drawn = 0;
 
@@ -111,7 +128,7 @@ export class RegionWars {
     const bySide: Figure[][] = land.colors.map(() => []),
       banners: { at: Flat; yaw: number; side: number; size: number }[] = [],
       ships: { at: Flat; yaw: number; side: number; size: number }[] = [],
-      marks: { x: number; z: number; ref: string; name: string; battle: boolean }[] = [];
+      marks: Mark[] = [];
     land.marches.forEach((m, n) => {
       const dx = m.to.x - m.from.x,
         dz = m.to.z - m.from.z,
@@ -131,6 +148,8 @@ export class RegionWars {
           ref: m.ref,
           name: `${col.afloat ? "⛵" : "🚩"} ${m.name}`,
           battle: false,
+          realm: m.attacker.ref,
+          fields: m.attacker.fields,
         });
       }
       // The defenders, in a block before what they hold, facing the way the host comes.
@@ -149,6 +168,15 @@ export class RegionWars {
           yaw: yaw + Math.PI,
           side: m.foe,
           size: 1,
+        });
+        marks.push({
+          x: m.to.x - ux * 1.4,
+          z: m.to.z - uz * 1.4,
+          ref: m.ref,
+          name: m.name,
+          battle: false,
+          realm: m.defender.ref,
+          fields: m.defender.fields,
         });
       }
     });
@@ -298,21 +326,35 @@ export class RegionWars {
     this.drawn = drawn;
   }
 
-  /** Each host's and battle's name where it stands on the screen (CSS pixels), a battle first. */
-  labels(): { key: string; text: string; at: { x: number; y: number } | null; priority: number }[] {
+  /**
+   * Where each battle's name and each host's counter stands on the screen (CSS pixels), a
+   * battle first: a host's counter bears its realm's arms and the men it fields (Phase 11 M101;
+   * its name is told on a hover, as its war).
+   */
+  labels(): {
+    key: string;
+    text: string;
+    at: { x: number; y: number } | null;
+    priority: number;
+    badge?: { realm: string; war: string };
+  }[] {
     const cam = this.stage.camera.camera!,
       at = new pc.Vec3(),
       out = new pc.Vec3();
     return this.marks.map((m) => {
       at.set(m.x, this.height(m.x, m.z) + 3, m.z);
       cam.worldToScreen(at, out);
-      return {
-        key: m.ref,
-        text: m.name,
-        at: out.z > 0 ? { x: out.x, y: out.y } : null,
-        // (Named before the towns about it.)
-        priority: m.battle ? 2e9 : 1e9,
-      };
+      const where = out.z > 0 ? { x: out.x, y: out.y } : null;
+      return m.realm
+        ? {
+            key: `${m.ref}:${m.realm}`,
+            text: counterWords(m.fields ?? 0),
+            at: where,
+            priority: 1.5e9,
+            badge: { realm: m.realm, war: m.ref },
+          }
+        : // (Named before the towns about it.)
+          { key: m.ref, text: m.name, at: where, priority: m.battle ? 2e9 : 1e9 };
     });
   }
 

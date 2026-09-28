@@ -19,6 +19,7 @@ import {
   languagesOf,
   diplomacyOf,
   warsOf,
+  fieldedOf,
   handOf,
   relationRef,
   loreOf,
@@ -108,10 +109,19 @@ import type {
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 import { PAGE_QUERIES } from "./pages.ts";
-import { alertsOf, breakdownOf, pageOf, placeOf, tipOf, type Counted } from "./inspect/index.ts";
+import {
+  alertsOf,
+  answersOf,
+  breakdownOf,
+  pageOf,
+  placeOf,
+  tipOf,
+  type Counted,
+} from "./inspect/index.ts";
 import { MAP_QUERIES } from "./map.ts";
 import { SEARCH_QUERIES } from "./search.ts";
 import { realmColor } from "./colors.ts";
+import { realmArms } from "./arms.ts";
 import { villagePlan } from "./village.ts";
 import { worldGlobe } from "./worlds.ts";
 import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
@@ -767,6 +777,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
               .map((w) => ({
                 realm: named(w.realm) ?? w.realm,
                 enemy: named(w.enemy) ?? w.enemy,
+                realmRef: w.realm,
+                enemyRef: w.enemy,
+                strength: Math.round(w.strength * 10) / 10,
                 star: civs.get(w.enemy) ?? colonies.get(w.enemy) ?? null,
                 sailed: w.sailed,
                 arrives: w.arrives,
@@ -856,9 +869,17 @@ function planetUniverse(name: string, prior: Prior): Universe {
               p[a * 3]! * p[b * 3]! + p[a * 3 + 1]! * p[b * 3 + 1]! + p[a * 3 + 2]! * p[b * 3 + 2]!
             );
           },
+          ctx = populationContext(world),
           side = (ref: Ref) => {
             const r = realms.get(ref)!;
-            return { ref, name: realmName(r), color: realmColor(ref) };
+            return {
+              ref,
+              name: realmName(r),
+              color: realmColor(ref),
+              // (Its counter's: the men it fields, and its arms.)
+              fields: Math.round(fieldedOf(ctx, r)),
+              arms: realmArms(world, ref),
+            };
           };
         const wars = warsOf(world)
           .all()
@@ -893,6 +914,16 @@ function planetUniverse(name: string, prior: Prior): Universe {
                 to,
                 declared: w.declared,
                 ended: w.ended,
+                // (A seat is besieged by a victory there while its realm still holds it.)
+                siege: (() => {
+                  const seat = realms.get(w.defender)?.seat;
+                  return w.ended === null &&
+                    seat !== undefined &&
+                    w.battles.some((b) => b.land === seat && b.won) &&
+                    realms.of(seat)?.ref === w.defender
+                    ? spot(seat)
+                    : null;
+                })(),
                 battles: w.battles
                   .filter((b) => b.year >= year - 2)
                   .map((b) => ({
@@ -1092,6 +1123,13 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // What stands now and asks to be looked at; what the top bar's numbers are made of (M96, M97).
       alerts: (world) => alertsOf(world),
       "world.breakdown": (world, args) => breakdownOf(world, (args as { what: Counted }).what),
+      // What the god's hand may answer a great happening with (Phase 11 M100).
+      "event.answers": (world, args) => {
+        const a = args as { ref: string; watch: string };
+        return answersOf(world, a.ref, a.watch);
+      },
+      // Realms' arms, for everything that names them (Phase 11 M102): null for what is no realm.
+      arms: (world, args) => (args as { refs: string[] }).refs.map((r) => realmArms(world, r)),
       // The world's deposits where they lie on the globe (fine cells), each with its province.
       deposits: (world) =>
         homePlanet(world).generated.fine.deposits.map((d) => ({

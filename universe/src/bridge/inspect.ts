@@ -1,3 +1,4 @@
+import type { Arms } from "./arms.ts";
 import type { BeastPlan, VillagePlan } from "./village.ts";
 
 // Every thing's page (Phase 10 M91, docs/architecture §31): what the host says of any ref —
@@ -120,6 +121,24 @@ export type Block =
         readonly words?: string;
       }[];
     }
+  /**
+   * Two sides set against each other (Phase 11 M103): each row's two amounts pulled apart in a
+   * bar, each side's words at its end — two realms side by side, a war's tally.
+   */
+  | {
+      readonly type: "tally";
+      readonly title?: string;
+      readonly sides: readonly [
+        { readonly name: Line; readonly color: Rgb },
+        { readonly name: Line; readonly color: Rgb },
+      ];
+      readonly rows: readonly {
+        readonly label: string;
+        readonly a: number;
+        readonly b: number;
+        readonly words: readonly [string, string];
+      }[];
+    }
   | { readonly type: "why"; readonly title?: string; readonly ref: string }
   /** The page's picture large, with what it is made of named (a lineage's anatomy). */
   | { readonly type: "anatomy"; readonly title?: string }
@@ -183,7 +202,9 @@ export type Portrait =
       readonly kind: "flag";
       readonly flags: readonly { readonly color: Rgb; readonly key: number }[];
     }
-  | { readonly kind: "sign"; readonly color: Rgb; readonly tenet: string };
+  | { readonly kind: "sign"; readonly color: Rgb; readonly tenet: string }
+  /** A realm's arms (Phase 11 M102); a war's, its two sides' face to face. */
+  | { readonly kind: "arms"; readonly arms: readonly Arms[] };
 
 export type PageKind =
   | "land"
@@ -219,6 +240,7 @@ export type PageKind =
   | "chronicle"
   | "ledger"
   | "log"
+  | "compare"
   | "concept"
   | "unknown";
 
@@ -269,6 +291,13 @@ export type Alert = {
   readonly tone: "war" | "want" | "loss" | "news";
   /** Each case of it: its words (names linked), the page it opens, and the key it is put by with. */
   readonly items: readonly { readonly line: Line; readonly ref: string; readonly key: string }[];
+};
+
+/** An answer the god's hand may give to a great happening (Phase 11 M100): its words, and the act it sends. */
+export type Answer = {
+  readonly label: string;
+  readonly act: string;
+  readonly args: Readonly<Record<string, unknown>>;
 };
 
 /** What one of the top bar's numbers is made of (Phase 10 M97): its greatest parts, each a line. */

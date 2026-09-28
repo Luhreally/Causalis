@@ -3787,6 +3787,171 @@ Phase 11's "done when":
      siege have their marks.
 105. **Phase 11 gate.**
 
+102, as built: heraldry (bridge/arms.ts armsFor; host/arms.ts realmArms, "arms"; ui/arms.ts).
+
+- **Every realm bears its arms**: a heater shield parted one of eight ways (plain, per pale,
+  per fess, quarterly, per bend, a chief, a chevron, a saltire), in its colour and a metal
+  (gold or silver) by the rule of tinctures.
+- **Its charge**: its ref chooses what it bears:
+  - what its seat's land holds: waves by the sea, a mountain high, a tree in the woods, a sun
+    in the sands, a star on the ice;
+  - what its faith holds: rain a drop, plenty a sheaf, sickness a moon, healing a cross,
+    teaching a star, presence a sun, hunger a ring, fire a flame;
+  - or one of its own.
+
+  Realms of one faith often share its sign, as in the genre. At year 400: 62 realms, ten
+  kinds of charge.
+- **Drawn glossy**, with a rim and a shine. A realm's page shows its arms, and a war's page
+  its two sides' face to face. A small shield stands beside every realm named: in every link
+  on a page, in a tooltip (its card bears its arms for its icon), in the outliner, in search,
+  on the counters. The arms are asked once for each realm, in batches, and kept.
+
+101, as built: counters (sim fieldedOf; view/war.ts counterWords; render/wars.ts
+hostsOnScreen; render/regionwars.ts labels; view/cluster.ts FleetHead).
+
+- **The men a realm fields** are its fighting men and the share it fields by its valour and a
+  standing army, the war's own reckoning without the arms (strengthOf shares it,
+  bit-identical).
+- **The counters**: each host's head on the globe, the attacker's column and the defenders'
+  block in a land, and each war fleet among the stars (its strength) is a plaque. The plaque
+  shows its realm's arms and its men said short: 850, 3.4k, 12k.
+- **Edged by stance**: green for a realm followed, red for one fighting a realm followed.
+- **Names on a hover**: a land's host no longer carries its long name over it; its tooltip
+  tells it, as the war's.
+
+100, as built: event windows (ui/events.ts; host/inspect/answers.ts, "event.answers").
+
+- **What is great**: news of what is followed that history counts great (importance 6:
+  wars, realms split or formed, faiths founded, the sky), and a famine, a realm's fall and a
+  life's end whatever it counts them.
+- **The window**, in the middle of the screen, has:
+  - the thing's picture (its page's portrait: a realm's arms);
+  - the happening's name and telling, with its year and what it is news of;
+  - "why it came to pass", its first cause opened;
+  - the god's hand's answers: rain and a fat harvest for a land in famine; for a realm
+    followed at war, a fat harvest at its seat or a plague upon its foe's;
+  - go to it, its page, let it be.
+
+  Those waiting are counted. The clock waits while one is open, and is given back when the
+  last is let be.
+- **Settings** in its foot, kept in the browser: great happenings told in windows, as cards,
+  or not at all; and whether the clock waits. A machine driving the page gets cards unless
+  it asks for windows (`?events`), as the guided walk keeps away from one.
+- **Tidings** carry their event's type and importance now; a life's turns are "life.…",
+  its end "life.died".
+
+103, as built: side by side (host/inspect/compare.ts; the "tally" block; ui/chart.ts
+tallyChart).
+
+- **Two realms side by side**: the page `compare:A|B` has:
+  - how they stand to each other (at war, or their regard, a link);
+  - their numbers pulled against each other: people, lands, towns, men fielded, wars fought,
+    battles won, fallen in war, years standing, tithe;
+  - their people through the years on one chart;
+  - their two shields.
+- **A realm's "Compare" tab** offers those it is at war with, those sworn to it, and the
+  greatest realms.
+- **A war's page** has its tally: each side's fallen, battles won, men fielded now.
+
+104, as built: the map closer.
+
+- **The terrain's shading shows under the colours** of the political modes: lighter where the
+  land rises and little grows, darker in its woods.
+- **A land taken by force**, while the war that took it goes on or while it still resents the
+  battle it was taken in (its grievance's cause, 0.35 and up), is drawn in shadow, its
+  taker's colour touched with its loser's. The legend says so. A land is some eleven of the
+  globe's cells, too few for a grand strategy map's stripes: they read as a patchwork of
+  realms.
+- **A seat under siege** (a victory there, the seat still held) is marked "🏰 … besieged".
+- **The lands' names near the ground** are their towns' names, which the globe gives as the
+  view closes.
+
+105, as built: the Phase 11 gate (tools/phase11-gate.ts, `npm run gate:11`, in CI after the
+Phase 10 gate, pressing and waiting as a viewer does so it holds in software). It checks:
+- a realm's page in its arms, the realms named on it bearing theirs, the charges varied;
+- counters on the globe, edged once their realm is followed, and in the land fought over;
+- a great happening's window, the clock waiting, the hand's answers, the clock given back;
+- two realms side by side and a war's tally;
+- the realms' map's legend of its shadows, and a siege marked when one is laid.
+
+Found and mended on the way:
+- A counter's own display overrode being hidden: one the labels had put away still showed,
+  in the corner of the screen.
+- With twelve realms followed at a year a second, great happenings came as fast as they were
+  let be: the windows are for what history counts greatest (6), not every happening that
+  mattered (5).
+- A land's grievance keeps its cause as it passes on (a rising, a breaking away): only a land
+  held by the realm that took it is shadowed for its taking.
+- The Phase 10 gate failed now and then, and learned to say why. When it presses, it names
+  whatever stands over the thing it presses; before its zoom, it times the host's answer.
+  It found two things standing over a page's buttons:
+  - news cards: on a desk, while a page is open, the news now stands beside the corner's
+    tools, clear of the page;
+  - a tooltip: a page drawn anew under a pointer left still counted as rested on, and its
+    tip opened over the page's own controls. A tip is armed now only by the pointer moving
+    over its thing (a move of its own, not the page's). A tip for something in a page window,
+    or in another tip, opens beside that window, at its owner's height, where there is room.
+- The budget of a slice's slowest year failed once beside the suite's heaviest tests: it
+  holds the slowest year but one now, since a lone pause is the machine's, not the world's.
+
+### I.12 Phase 12 milestones (planned 2026-09-28, at the user's asking)
+
+The user: "like paradox ui and yes ux but more so its depth, not character focused … this is
+more like an ultimate low poly version of the game WorldBox but deeper … WorldBox, yes, its
+god mode features, but focus more on the depth of the game: its stats and lenses, and the
+manipulation it offers; and it also visualizes armies and battles very well."
+
+Phase 12's "done when":
+- The god can take hold of the peoples, not only of the weather: set realms at war and at
+  peace, and make them friends or rivals. The god can stir a land to rise, and turn it to a
+  faith. Every act is cast from a palette onto the world, and flows through the simulation,
+  explained.
+- The world can be read through more lenses: unrest, strength, wealth, knowledge, growth.
+  Its numbers can be read through the years: the world's own, and each realm's, faith's and
+  tongue's.
+- Armies and battles are seen as armies and battles: as large as the men they field, with
+  camps at their sieges and garrisons at home.
+
+106. **The god's palette.** A toolbar of the god's acts, as WorldBox's, by kind:
+     - the weather: rain, drought;
+     - the land's yield: a fat harvest, blight;
+     - sickness and health: plague, healing;
+     - fire, a spring, a shrine;
+     - the world and the star: warm, cool, flare, calm;
+     - the peoples (107).
+
+     An act is picked, then the land, the town or the two realms it falls on. Its reach
+     shows under the pointer before it is cast. Cast, it plays where it falls (clouds and
+     rain, fire, a pall of plague), and its event is told with its why. The acts already in
+     the pages are cast from here too.
+107. **Taking hold of the peoples** (sim: each a logged command whose event cites it; what
+     follows is the simulation's own):
+     - war: one realm set upon another, for a land between them;
+     - peace: a war ended;
+     - friendship and discord: two realms made to remember each other kindly or with
+       grievance, fading as other memories do (pacts and rivalries follow);
+     - rising: a land's grievance stirred, so that it may break away;
+     - conversion: a land turned to a faith.
+108. **More lenses.** New map modes, each with its legend and its numbers broken down on a
+     hover:
+     - unrest (each land's grievance);
+     - strength (the men each realm fields, over its lands);
+     - wealth (its markets' stores);
+     - knowledge (its age);
+     - growth (its people's rise or fall these ten years).
+109. **The world's numbers through the years** (a page, `world:stats`): its people, births
+     and deaths, realms standing, wars being fought and the fallen, towns, faiths and
+     tongues, the fed. Each a chart, with the greatest realms', faiths' and tongues' own
+     lines beside the world's.
+110. **Armies seen.**
+     - On the globe, a host is as large as the men it fields: more columns, longer.
+     - A battle is two masses meeting, with its fallen.
+     - A siege is a camp about the seat besieged.
+     - Each realm's garrison stands at its seat in peace.
+     - In a land, a host marches in its arms' kinds (foot, horse, bows, as its design has
+       them), in ranks under its banners.
+111. **Phase 12 gate.**
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

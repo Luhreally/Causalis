@@ -10,6 +10,7 @@
 // - a world's face and a star's light;
 // - a realm's flag (a war's two, crossed) and a faith's sign.
 import type { Portrait } from "../bridge/index.ts";
+import { drawArms } from "./arms.ts";
 import {
   EYES,
   HAIRS,
@@ -755,7 +756,8 @@ function surface(canvas: HTMLCanvasElement, w: number, h: number): CanvasRenderi
 
 /** Whether a portrait moves (turns, waves, glows) and is drawn again as time passes. */
 export function moves(p: Portrait): boolean {
-  return p.kind !== "sign";
+  // (Arms and signs stand still.)
+  return p.kind !== "sign" && p.kind !== "arms";
 }
 
 /** Draw a page's picture into `canvas` (w × h CSS pixels) as it stands at `t` seconds. */
@@ -823,6 +825,22 @@ export function drawPortrait(
     case "sign":
       drawSign(surface(canvas, w, h), p, w, h);
       return;
+    case "arms": {
+      // A realm's arms whole; a war's two, face to face, crossed blades between them.
+      const ctx = surface(canvas, w, h),
+        two = p.arms.length > 1,
+        sw = w * (two ? 0.4 : 0.62),
+        sh = sw * 1.2;
+      if (!two) drawArms(ctx, p.arms[0]!, (w - sw) / 2, (h - sh) / 2, sw, sh);
+      else {
+        drawArms(ctx, p.arms[0]!, w * 0.06, h * 0.12, sw, sh);
+        drawArms(ctx, p.arms[1]!, w * 0.54, h * 0.12, sw, sh);
+        ctx.font = `${Math.round(h * 0.22)}px system-ui, "Segoe UI Emoji", sans-serif`;
+        ctx.textAlign = "center";
+        ctx.fillText("⚔️", w / 2, h * 0.93);
+      }
+      return;
+    }
   }
 }
 

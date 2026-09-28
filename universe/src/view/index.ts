@@ -96,6 +96,7 @@ export {
   MARCH,
   battleFront,
   battleOf,
+  counterWords,
   landColumn,
   landWars,
   loopSize,
@@ -197,6 +198,7 @@ export {
   clusterWords,
   starColor,
   voyageMarks,
+  type FleetHead,
   type Rgb3,
   type VoyageMark,
 } from "./cluster.ts";

@@ -215,6 +215,7 @@ export {
   WEARY_YEARS,
   WarStore,
   installWar,
+  fieldedOf,
   strengthOf,
   warYear,
   warsOf,

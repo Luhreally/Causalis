@@ -1707,6 +1707,15 @@ body.roaming .hint {
     display: none;
   }
 }
+/* News, while a page is open on a desk: beside the corner's tools, clear of the page, so a
+   card never stands over a page's buttons. */
+@media (min-width: 641px) {
+  body.paging .tidings {
+    left: auto;
+    right: 62px;
+    top: calc(var(--bar-bottom, 72px) + 8px);
+  }
+}
 /* The message log's 📬, with what has come since it was read. */
 .log-open {
   display: inline-flex;
@@ -1782,4 +1791,224 @@ body.roaming .hint {
 .tip-concept {
   margin-top: 4px;
   font-size: 0.76rem;
+}
+
+/* A realm's arms beside its name (Phase 11 M102): a small shield, sat on the line. */
+canvas.arms {
+  display: inline-block;
+  flex: none;
+  margin-right: 3px;
+  vertical-align: -2px;
+}
+
+/*
+ * A host's counter (Phase 11 M101): a plaque at the head of its column — its realm's arms and
+ * the men it fields — edged green when it is of what is followed, red when it fights it.
+ */
+/* (Laid out as a row only while shown: a display of its own would override being hidden.) */
+.label.counter:not([hidden]) {
+  display: inline-flex;
+}
+.label.counter {
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px 1px 3px;
+  border: 1px solid;
+  border-color: var(--chrome-hi) var(--chrome-lo) var(--chrome-lo) var(--chrome-mid);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(34, 48, 96, 0.96), rgba(8, 14, 40, 0.96));
+  box-shadow: 0 2px 5px rgba(0, 0, 18, 0.6);
+}
+.label.counter .arms {
+  margin-right: 0;
+}
+.counter-value {
+  color: #fff;
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+.label.counter.ours {
+  border-color: #7dff9a #1f8a3c #1f8a3c #4fd06e;
+  box-shadow:
+    0 0 0 1px rgba(60, 220, 110, 0.5),
+    0 2px 5px rgba(0, 0, 18, 0.6);
+}
+.label.counter.foe {
+  border-color: #ff9a8a #a3170c #a3170c #e0442f;
+  box-shadow:
+    0 0 0 1px rgba(255, 70, 50, 0.55),
+    0 2px 5px rgba(0, 0, 18, 0.6);
+}
+
+/*
+ * An event window (Phase 11 M100): a great happening told in the middle of the screen, as a
+ * grand strategy game tells its events — its picture beside its words, why it came to pass,
+ * what the god's hand may answer, and what else may be done.
+ */
+.event-window {
+  position: fixed;
+  z-index: 18;
+  left: 50%;
+  top: 50%;
+  width: min(34rem, calc(100vw - 16px));
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  padding: 0 0 10px;
+  transform: translate(-50%, -50%);
+  background: var(--panel-solid);
+  border: 2px solid;
+  border-color: var(--chrome-hi) var(--chrome-lo) var(--chrome-lo) var(--chrome-mid);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 10px 40px rgba(0, 0, 18, 0.75);
+}
+.event-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 7px 12px;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, #3a78e0 0%, #1d4fb8 48%, #123a94 52%, #2a62cc 100%);
+  color: #fff;
+  font-size: 1.05rem;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+}
+.event-body {
+  display: flex;
+  gap: 12px;
+  padding: 0 14px;
+}
+.event-picture {
+  flex: none;
+  width: 104px;
+  height: 104px;
+  border: 2px solid;
+  border-color: var(--chrome-lo) var(--chrome-hi) var(--chrome-hi) var(--chrome-lo);
+  border-radius: 4px;
+  background: radial-gradient(circle at 50% 40%, #1b2d63, #070d24);
+}
+.event-words {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.event-claim {
+  margin: 0 0 4px;
+  font-size: 1.02rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.event-when {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+/* (Its why without its own words again: the causes, to be opened.) */
+.event-why > .why-node > .claim {
+  display: none;
+}
+.event-window h3 {
+  margin: 10px 14px 4px;
+}
+.event-words h3 {
+  margin: 8px 0 4px;
+}
+.event-window > .act {
+  display: block;
+  width: calc(100% - 28px);
+  margin: 6px 14px 0;
+}
+.event-window > .note {
+  margin: 6px 14px 0;
+}
+.event-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 14px 0;
+}
+.event-more {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.event-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 14px 0;
+  padding-top: 8px;
+  border-top: 1px dotted var(--line);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+@media (max-width: 640px) {
+  .event-body {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+/*
+ * A tally (Phase 11 M103): two sides pulled against each other — each row one bar, the first
+ * side's share from the left and the second's from the right, the row's words over it.
+ */
+.tally-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+.tally-side {
+  padding: 0 4px 2px;
+  border-bottom: 3px solid;
+}
+.tally-b {
+  text-align: right;
+}
+/* (The same columns in every row, so the bars stand one under the other.) */
+.tally-row {
+  display: grid;
+  grid-template-columns: 5.4rem 1fr 5.4rem;
+  align-items: center;
+  gap: 8px;
+  margin: 3px 0;
+  font-size: 0.8rem;
+}
+.tally-value {
+  font-variant-numeric: tabular-nums;
+}
+.tally-value.tally-a {
+  text-align: right;
+}
+.tally-bar {
+  position: relative;
+  display: flex;
+  height: 18px;
+  overflow: hidden;
+  border: 1px solid;
+  border-color: var(--chrome-lo) var(--chrome-hi) var(--chrome-hi) var(--chrome-lo);
+  border-radius: 3px;
+  background: #070d24;
+}
+.tally-fill {
+  height: 100%;
+}
+.tally-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.85),
+    0 0 3px rgba(0, 0, 0, 0.7);
 }

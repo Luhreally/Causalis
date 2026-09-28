@@ -22,9 +22,10 @@ import type {
 } from "../bridge/index.ts";
 import { el, WhyTree } from "./why.ts";
 import { folder } from "./window.ts";
-import { barsChart, lineChart, linesChart, timelineChart } from "./chart.ts";
+import { barsChart, lineChart, linesChart, tallyChart, timelineChart } from "./chart.ts";
 import type { Tidings } from "./tidings.ts";
 import type { HoverTips } from "./hovertip.ts";
+import type { ArmsBook } from "./arms.ts";
 import { drawTool } from "./tools.ts";
 import { drawAnatomy, drawPortrait, moves } from "./portrait.ts";
 
@@ -93,6 +94,8 @@ export class PageWindow {
   tidings: Tidings | null = null;
   /** The tooltips that tell of a name or break a number down, on a desk (M97). */
   hoverTips: HoverTips | null = null;
+  /** Realms' arms, borne beside their names (Phase 11 M102). */
+  arms: ArmsBook | null = null;
   /** Go to where a thing is to be seen. */
   onGoTo: (place: Place, ref: string) => void = () => {};
   /** Told as each page opens (the scales mark what it is). */
@@ -468,6 +471,8 @@ export class PageWindow {
   private link(text: string, ref: string): HTMLElement {
     const a = el("a", "ref-link", text);
     a.href = `#${ref}`;
+    // (A realm named bears its arms.)
+    if (this.arms && ref.startsWith("pol:")) a.prepend(this.arms.shield(ref, 12));
     a.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -528,6 +533,17 @@ export class PageWindow {
           }),
         );
         if (title) title.remove();
+        break;
+      case "tally":
+        box.append(
+          tallyChart(
+            [
+              { name: this.line(b.sides[0].name), color: b.sides[0].color },
+              { name: this.line(b.sides[1].name), color: b.sides[1].color },
+            ],
+            b.rows,
+          ),
+        );
         break;
       case "bars":
         box.append(

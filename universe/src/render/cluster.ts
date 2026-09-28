@@ -1,7 +1,7 @@
 // The cluster (Phase 6 M56): the stars within reach of home, each a small glowing sphere
 // where it lies, one instanced batch for each colour; home a brighter mark at the middle;
 // the picked star ringed. Built once per plan.
-import type { VoyageMark } from "../view/index.ts";
+import type { FleetHead, VoyageMark } from "../view/index.ts";
 import * as pc from "playcanvas";
 import type { ClusterPlan } from "../bridge/index.ts";
 import { LY_SCALE, clusterSpec } from "../view/index.ts";
@@ -16,6 +16,8 @@ export class ClusterScene {
   private points: { index: number; x: number; y: number; z: number }[] = [];
   /** The ships, halls, fleets and battles shown, and their pages (for picking). */
   private voyageMarks: VoyageMark[] = [];
+  /** Each war fleet's lead ship (M101). */
+  private fleetHeads: readonly FleetHead[] = [];
   private readonly marker: pc.Entity;
   private readonly sphere: pc.Mesh;
   private readonly ringMesh: pc.Mesh;
@@ -161,6 +163,17 @@ export class ClusterScene {
     return best;
   }
 
+  /** Each war fleet's lead ship on the screen (CSS pixels), where its counter stands (M101). */
+  fleetsOnScreen(): (FleetHead & { sx: number; sy: number })[] {
+    const cam = this.stage.camera.camera!,
+      out: (FleetHead & { sx: number; sy: number })[] = [];
+    for (const h of this.fleetHeads) {
+      const p = cam.worldToScreen(new pc.Vec3(h.x, h.y, h.z));
+      if (p.z > 0) out.push({ ...h, sx: p.x, sy: p.y });
+    }
+    return out;
+  }
+
   /** Where star `index` of the plan stands on the screen (CSS pixels), or null out of sight. */
   starOnScreen(index: number): { x: number; y: number } | null {
     const s = this.points.find((p) => p.index === index);
@@ -191,8 +204,10 @@ export class ClusterScene {
     readonly rings: readonly VoyageMark[];
     readonly fleets?: readonly VoyageMark[];
     readonly battles?: readonly VoyageMark[];
+    readonly heads?: readonly FleetHead[];
   }): void {
     this.voyageMarks = [...(m.battles ?? []), ...m.rings, ...(m.fleets ?? []), ...m.ships];
+    this.fleetHeads = m.heads ?? [];
     for (const [pool, list, make] of [
       [this.ships, m.ships, () => this.dot([0.6, 1, 0.7], 0.09)],
       [this.rings, m.rings, () => this.ringAt([0.4, 1, 0.5])],

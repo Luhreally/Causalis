@@ -20,6 +20,8 @@ import { bodyPage, civilizationPage, foreignWorldPage, starPageModel } from "./s
 import { actPage, decisionPage, eventPage, unknownPage } from "./history.ts";
 import { chroniclePage, ledgerPage } from "./world.ts";
 import { alertsOf, breakdownOf, logPage, type Counted } from "./alerts.ts";
+import { answersOf } from "./answers.ts";
+import { comparePage } from "./compare.ts";
 import { crumbsOf } from "./crumbs.ts";
 import { conceptPage, withConcepts } from "./concepts.ts";
 
@@ -28,6 +30,7 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref === "world:chronicle") return chroniclePage(world, tab ?? undefined);
   if (ref === "world:ledger") return ledgerPage(world, tab ?? undefined);
   if (ref === "world:log") return logPage(world, tab ?? undefined);
+  if (ref.startsWith("compare:")) return comparePage(world, ref);
   if (ref.startsWith("concept:")) return conceptPage(world, ref);
   if (ref.startsWith("gstar:")) return starPageModel(world, ref);
   if (ref.includes("/")) return foreignWorldPage(world, ref);
@@ -124,6 +127,7 @@ function tidy(page: PageModel): PageModel {
           !(b.type === "chart" && b.points.length < 2) &&
           !(b.type === "lines" && !b.series.some((x) => x.points.length > 1)) &&
           !(b.type === "bars" && !b.bars.length) &&
+          !(b.type === "tally" && !b.rows.length) &&
           !(b.type === "timeline" && !b.rows.length),
       ),
     }))
@@ -167,6 +171,6 @@ export const INSPECT_QUERIES: Readonly<Record<string, QueryHandler>> = {
   "world.breakdown": (world, args) => breakdownOf(world, (args as { what: Counted }).what),
 };
 
-export { alertsOf, breakdownOf, type Counted };
+export { alertsOf, answersOf, breakdownOf, type Counted };
 
 export { battlePage };

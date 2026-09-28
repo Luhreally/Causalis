@@ -23,12 +23,14 @@ export {
   type VillagePlan,
 } from "./village.ts";
 export type { WorldGlobe } from "./worlds.ts";
-export type { WarsMap } from "./wars.ts";
+export type { WarSide, WarsMap } from "./wars.ts";
 export type { GenesisPlan } from "./genesis.ts";
 export type { DepositPage, PlatePage, RealmPage, SpeciesPage } from "./pages.ts";
+export { METALS, armsFor, type Arms, type Charge, type Division, type Holds } from "./arms.ts";
 export {
   splitPageRef,
   type Alert,
+  type Answer,
   type Block,
   type Breakdown,
   type Item,

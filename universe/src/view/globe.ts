@@ -232,6 +232,7 @@ export function globeColors(
   values?: ReadonlyMap<number, number>,
   colors?: ReadonlyMap<number, Rgb>,
   grid?: SphereGrid,
+  taken?: ReadonlyMap<number, Rgb>,
 ): Uint8Array {
   const a = frame.arrays,
     elevation = a.elevation!,
@@ -282,8 +283,25 @@ export function globeColors(
       case "diplomacy":
       case "war": {
         const tongue = colors?.get(province);
-        if (tongue) col = tongue;
-        else {
+        if (tongue) {
+          // A land taken by force, still resenting it (Phase 11 M104): its taker's colour in
+          // shadow, touched with the colour of the realm it was taken from. (Its facets are too
+          // few for a grand strategy map's stripes: they would read as a patchwork of realms.)
+          const loser = taken?.get(province),
+            flat: Rgb = loser
+              ? [
+                  (tongue[0] * 0.8 + loser[0] * 0.2) * TAKEN,
+                  (tongue[1] * 0.8 + loser[1] * 0.2) * TAKEN,
+                  (tongue[2] * 0.8 + loser[2] * 0.2) * TAKEN,
+                ]
+              : tongue;
+          // The land's own shading under its colour: lighter as it rises and where little
+          // grows, darker in its woods (M104).
+          const base = BIOME_COLORS[biome] ?? [0.5, 0.6, 0.35],
+            light = (base[0] + base[1] + base[2]) / 3 + Math.min(1, e / 4000) * 0.25,
+            k = Math.max(0.82, Math.min(1.08, 0.8 + 0.5 * (light - 0.3)));
+          col = [flat[0] * k, flat[1] * k, flat[2] * k];
+        } else {
           const base = sea ? ramp(DEPTH, e) : BIOME_COLORS[biome]!,
             grey = (base[0] + base[1] + base[2]) / 3;
           col = sea
@@ -335,6 +353,9 @@ export function globeColors(
   if (grid && colors && BORDERED.has(lens)) borders(out, frame, colors, grid);
   return out;
 }
+
+/** How dark a land taken by force is drawn, still resenting its taking. */
+const TAKEN = 0.68;
 
 /** The map modes whose lands are drawn with their borders. */
 const BORDERED: ReadonlySet<Lens> = new Set(["realms", "faiths", "tongues", "diplomacy", "war"]);
@@ -425,7 +446,10 @@ export function lensLegend(lens: Lens): Legend {
     case "realms":
       return {
         kind: "keys",
-        keys: [[[0.6, 0.6, 0.55], "each realm its colour, its name across its lands"]],
+        keys: [
+          [[0.6, 0.6, 0.55], "each realm its colour, its name across its lands"],
+          [[0.36, 0.36, 0.33], "in shadow: taken by force, and resenting it"],
+        ],
       };
     case "faiths":
       return { kind: "keys", keys: [[[0.6, 0.6, 0.55], "each faith its colour"]] };

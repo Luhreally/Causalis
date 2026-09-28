@@ -52,6 +52,9 @@ test("following a land tells what matters there, once, and changes nothing", () 
         `${e.type} matters`,
       );
       assert.ok(e.t > 100 * YEAR, "only news from after it was followed");
+      // (Its kind and how much it mattered: the great are told in windows.)
+      assert.equal(t.type, e.type);
+      assert.equal(t.importance, e.importance);
       told.push(t);
     }
   }
@@ -80,10 +83,16 @@ test("following a person met tells what they lived through and their death", () 
   told.push(...tidings(world));
   const name = `${eldest.name} ${eldest.surname}`;
   assert.ok(told.length >= 1, "something to tell");
-  for (const t of told) assert.ok(t.claim.startsWith(name), t.claim);
+  for (const t of told) {
+    assert.ok(t.claim.startsWith(name), t.claim);
+    assert.ok(t.type.startsWith("life."), t.type);
+    assert.equal(t.importance, t.type === "life.died" ? 5 : 3, "a life's end matters most");
+  }
   if (!eldest.alive)
     assert.ok(
-      told.some((t) => t.claim.includes(`died in year ${eldest.diedYear}`)),
+      told.some(
+        (t) => t.type === "life.died" && t.claim.includes(`died in year ${eldest.diedYear}`),
+      ),
       "their death is told",
     );
   // Their life is carried on as time passes, keeping what was told before.

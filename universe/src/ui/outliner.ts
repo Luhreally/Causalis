@@ -2,6 +2,7 @@
 // it — under a 📌 with their number, each with its icon and name, opening its page at a tap,
 // let go of at its ×. Following is observation: it changes nothing that happens.
 import { el } from "./why.ts";
+import type { ArmsBook } from "./arms.ts";
 
 /** A thing's icon by its kind (the kind is its ref's first word). */
 const ICONS: Readonly<Record<string, string>> = {
@@ -25,6 +26,8 @@ export class Outliner {
   /** Open a thing's page; let one go. */
   onOpen: (ref: string) => void = () => {};
   onLetGo: (ref: string) => void = () => {};
+  /** Realms' arms, borne for their icons (Phase 11 M102). */
+  arms: ArmsBook | null = null;
 
   constructor(parent: HTMLElement) {
     this.button.title = "What you follow";
@@ -51,7 +54,9 @@ export class Outliner {
               open = el("button", "outliner-name"),
               go = el("button", "outliner-go", "×");
             open.append(
-              el("span", "outliner-icon", ICONS[f.ref.slice(0, f.ref.indexOf(":"))] ?? "•"),
+              this.arms && f.ref.startsWith("pol:")
+                ? this.arms.shield(f.ref, 15)
+                : el("span", "outliner-icon", ICONS[f.ref.slice(0, f.ref.indexOf(":"))] ?? "•"),
               el("span", undefined, f.label),
             );
             open.onclick = () => this.onOpen(f.ref);

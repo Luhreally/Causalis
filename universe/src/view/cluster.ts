@@ -82,6 +82,13 @@ export type VoyageMark = {
   readonly ref: string;
 };
 
+/** A war fleet's lead ship, for its counter (Phase 11 M101): its realm, its enemy, its strength. */
+export type FleetHead = VoyageMark & {
+  readonly realm: string;
+  readonly enemy: string;
+  readonly strength: number;
+};
+
 export function voyageMarks(
   plan: ClusterPlan,
   sky: SkyState,
@@ -92,12 +99,15 @@ export function voyageMarks(
   /** War fleets under way (three ships to a fleet), and the stars where their battles were fought (M87). */
   readonly fleets: readonly VoyageMark[];
   readonly battles: readonly VoyageMark[];
+  /** Each fleet's lead ship, where its counter stands. */
+  readonly heads: readonly FleetHead[];
 } {
   const at = new Map(plan.stars.map((s) => [s.ref, s]));
   const ships: VoyageMark[] = [],
     rings: VoyageMark[] = [],
     fleets: VoyageMark[] = [],
-    battles: VoyageMark[] = [];
+    battles: VoyageMark[] = [],
+    heads: FleetHead[] = [];
   for (const f of sky.fleets ?? []) {
     const star = f.star ? at.get(f.star) : undefined;
     if (!star || year < f.sailed) continue;
@@ -119,6 +129,12 @@ export function voyageMarks(
           z: place.z * k + side.z * s * 0.14 - (place.z / l) * b * back,
           ref: f.event,
         });
+      heads.push({
+        ...fleets.at(-3)!,
+        realm: f.realmRef,
+        enemy: f.enemyRef,
+        strength: f.strength,
+      });
     } else if (f.won !== null && year < f.arrives + 30) battles.push({ ...place, ref: f.event });
   }
   for (const v of sky.ships ?? []) {
@@ -133,5 +149,5 @@ export function voyageMarks(
       ships.push({ x: place.x * k, y: place.y * k, z: place.z * k, ref: v.voyage });
     }
   }
-  return { ships, rings, fleets, battles };
+  return { ships, rings, fleets, battles, heads };
 }

@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { YEAR, parseRef, seedFromText, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
   beliefOf,
   civilizationsNear,
   designsOf,
   diplomacyOf,
+  fieldedOf,
   homePlanet,
   languagesOf,
   politiesOf,
@@ -16,15 +17,21 @@ import {
 } from "../../src/sim/index.ts";
 import { ageRef, isProvinceWorld } from "../../src/gen/index.ts";
 import { observer } from "../../src/causal/index.ts";
-import type {
-  Alert,
-  Block,
-  Breakdown,
-  Line,
-  PageKind,
-  PageModel,
-  Tip,
+import {
+  METALS,
+  armsFor,
+  type Arms,
+  type Alert,
+  type Answer,
+  type Block,
+  type Breakdown,
+  type Line,
+  type PageKind,
+  type PageModel,
+  type Tip,
+  type WarsMap,
 } from "../../src/bridge/index.ts";
+import { realmColor } from "../../src/host/colors.ts";
 
 const world = EARTH.build(seedFromText("first light"));
 world.runTo(260 * YEAR);
@@ -73,6 +80,7 @@ function linksOf(p: PageModel): string[] {
           r.cells.forEach(line);
         }
       if (b.type === "why") out.push(b.ref);
+      if (b.type === "tally") for (const side of b.sides) line(side.name);
       if (b.type === "lines") for (const x of b.series) if (x.ref) out.push(x.ref);
       if (b.type === "bars")
         for (const x of b.bars) {
@@ -472,4 +480,229 @@ test("the alerts stand for what is followed, the message log keeps what was told
   } finally {
     for (const ref of follow) ask("observe.watch", { ref, on: false });
   }
+});
+
+test("each realm bears its own arms: its colour and a metal, and what its land or its faith holds", () => {
+  const realms = politiesOf(world)
+      .all()
+      .filter((r) => r.ended === null),
+    g = homePlanet(world).generated,
+    same = (a: readonly number[], b: readonly number[]) => a.every((x, i) => x === b[i]);
+  assert.ok(realms.length > 3);
+  const arms = ask<(Arms | null)[]>("arms", {
+    refs: [...realms.map((r) => r.ref as string), `cell:0:${land.cell}`],
+  });
+  assert.equal(arms.length, realms.length + 1, "one for each asked");
+  assert.equal(arms.at(-1), null, "none for what is no realm");
+  realms.forEach((r, i) => {
+    const a = arms[i]!,
+      color = realmColor(r.ref);
+    assert.deepEqual(ask<(Arms | null)[]>("arms", { refs: [r.ref] })[0], a, "the same each time");
+    assert.ok(
+      a.field.some((t) => same(t, color)),
+      "its field holds its colour",
+    );
+    assert.ok(
+      a.field.some((t) => METALS.some((m) => same(t, m))),
+      "and a metal",
+    );
+    assert.ok(!same(a.tincture, a.field[0]), "its charge stands out from its field");
+  });
+  // Many charges among them: the realms by the sea, in the woods, of this faith or that.
+  assert.ok(new Set(arms.slice(0, -1).map((a) => a!.charge)).size >= 4, "arms of many kinds");
+  assert.ok(
+    isProvinceWorld(g) && realms.some((r) => (g.climate.inland[r.seat] ?? 99) <= 1),
+    "seats by the sea",
+  );
+  // A realm's page shows its arms; a war's, its two sides'.
+  const realm = realms[0]!;
+  assert.deepEqual(page(realm.ref).portrait, { kind: "arms", arms: [arms[0]] });
+  const war = warsOf(world).all()[0];
+  if (war) {
+    const p = page(war.ref).portrait;
+    assert.ok(p?.kind === "arms" && p.arms.length === 2, "a war's page shows both sides' arms");
+  }
+  // Its ref chooses what it bears: what its land holds, what its faith holds, or its own; and
+  // colour on metal, metal on colour, whatever it bears.
+  const from = new Set<string>();
+  for (let i = 0; i < 60; i++) {
+    const a = armsFor(`pol:0:${i}`, [0.5, 0.1, 0.1], { land: "waves", faith: "flame" });
+    from.add(a.charge === "waves" ? "land" : a.charge === "flame" ? "faith" : "own");
+    assert.ok(!same(a.tincture, a.field[0]));
+  }
+  assert.equal(from.size, 3, "some bear their land's, some their faith's, some their own");
+});
+
+test("a war's sides on the map bear their arms and the men each fields, for their counters", () => {
+  const before = JSON.stringify(world.domainHashes()),
+    map = ask<WarsMap>("wars.map"),
+    ctx = populationContext(world);
+  assert.ok(map.wars.length > 0, "wars on the map");
+  for (const w of map.wars)
+    for (const side of [w.attacker, w.defender]) {
+      assert.ok(Number.isInteger(side.fields) && side.fields > 0, `${side.ref} fields men`);
+      assert.deepEqual(side.arms, ask<(Arms | null)[]>("arms", { refs: [side.ref] })[0]);
+      const realm = politiesOf(world).get(side.ref as Ref)!;
+      assert.equal(side.fields, Math.round(fieldedOf(ctx, realm)));
+    }
+  assert.equal(JSON.stringify(world.domainHashes()), before, "looking changes nothing");
+});
+
+test("the god's hand may answer a great happening: rain and a harvest for a famine; for a war, a harvest at home and a plague upon the foe", () => {
+  const before = JSON.stringify(world.domainHashes()),
+    answers = (ref: string, watch: string) => ask<Answer[]>("event.answers", { ref, watch }),
+    shaped = (a: Answer) =>
+      Number.isInteger(a.args.cell) &&
+      (a.args.sign === 1 || a.args.sign === -1) &&
+      (a.args.years as number) >= 1 &&
+      (a.args.years as number) <= 10;
+  // A famine in a land still peopled.
+  const ctx = populationContext(world),
+    famine = world.events
+      .all()
+      .find(
+        (e) =>
+          e.type === "people.famine" &&
+          e.place?.startsWith("cell:") &&
+          (ctx.provinces.get(parseRef(e.place as Ref).b)?.total() ?? 0) > 0,
+      );
+  assert.ok(famine, "a famine in history");
+  const fed = answers(famine.id, famine.place!);
+  assert.deepEqual(
+    fed.map((a) => a.act),
+    ["act.rain", "act.harvest"],
+  );
+  for (const a of fed) {
+    assert.equal(a.args.cell, parseRef(famine.place as Ref).b, "upon the land in famine");
+    assert.equal(a.args.sign, 1, "giving, not taking");
+    assert.ok(shaped(a));
+  }
+  // A war: for the side followed, a harvest at its seat; upon the other's, a plague.
+  const war = warsOf(world)
+      .all()
+      .find((w) => w.ended === null)!,
+    realms = politiesOf(world),
+    [a, d] = [realms.get(war.attacker)!, realms.get(war.defender)!],
+    ours = answers(war.event, war.attacker);
+  assert.deepEqual(
+    ours.map((x) => [x.act, x.args.cell, x.args.sign]),
+    [
+      ["act.harvest", a.seat, 1],
+      ["act.plague", d.seat, -1],
+    ],
+  );
+  assert.ok(ours.every(shaped));
+  assert.deepEqual(
+    answers(war.event, war.defender).map((x) => [x.act, x.args.cell]),
+    [
+      ["act.harvest", d.seat],
+      ["act.plague", a.seat],
+    ],
+    "the other way round for the defender",
+  );
+  // What the hand does not answer: a town founded.
+  const town = world.events.all().find((e) => e.type === "settlement.founded")!;
+  assert.deepEqual(answers(town.id, town.place ?? ""), []);
+  assert.equal(JSON.stringify(world.domainHashes()), before, "asking changes nothing");
+});
+
+test("realms side by side, and a war's tally: their numbers pulled against each other", () => {
+  const before = JSON.stringify(world.domainHashes()),
+    realms = politiesOf(world)
+      .all()
+      .filter((r) => r.ended === null),
+    [a, b] = realms;
+  assert.ok(a && b);
+  // A realm's page offers others to set beside it, each opening the two side by side.
+  const tab = page(a.ref).tabs.find((t) => t.id === "compare");
+  assert.ok(tab, "a realm's page has its Compare tab");
+  const list = tab.blocks.find((x) => x.type === "list");
+  assert.ok(list && list.type === "list" && list.items.length > 0);
+  if (list?.type === "list")
+    for (const i of list.items) {
+      assert.ok(i.ref?.startsWith(`compare:${a.ref}|`), i.ref);
+      assert.equal(page(i.ref!).kind, "compare");
+    }
+  // Two realms side by side: both named, their numbers pulled against each other.
+  const side = page(`compare:${a.ref}|${b.ref}`),
+    tally = side.tabs[0]!.blocks.find((x) => x.type === "tally");
+  assert.equal(side.kind, "compare");
+  assert.ok(side.portrait?.kind === "arms" && side.portrait.arms.length === 2, "both their arms");
+  assert.ok(tally && tally.type === "tally");
+  if (tally?.type === "tally") {
+    assert.deepEqual(
+      tally.sides.map((x) => (x.name[0] as { ref: string }).ref),
+      [a.ref, b.ref],
+    );
+    const people = tally.rows.find((r) => r.label === "People")!,
+      ctx = populationContext(world),
+      count = (r: typeof a) =>
+        r.members.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0);
+    assert.equal(people.a, count(a));
+    assert.equal(people.b, count(b));
+    assert.equal(tally.rows.find((r) => r.label === "Lands")!.a, a.members.length);
+  }
+  assert.equal(page(`compare:${a.ref}|${a.ref}`).title, "Nothing to set side by side");
+  // A war's tally: the fallen of each side, the battles each won.
+  const war = warsOf(world)
+      .all()
+      .find((w) => w.battles.length > 0)!,
+    wt = page(war.ref).tabs[0]!.blocks.find((x) => x.type === "tally");
+  assert.ok(wt && wt.type === "tally");
+  if (wt?.type === "tally") {
+    const fallen = wt.rows.find((r) => r.label === "Fallen")!,
+      won = wt.rows.find((r) => r.label === "Battles won")!;
+    assert.deepEqual([fallen.a, fallen.b], war.fallen);
+    assert.equal(won.a + won.b, war.battles.length);
+    assert.equal(won.a, war.battles.filter((x) => x.won).length);
+  }
+  assert.equal(JSON.stringify(world.domainHashes()), before, "looking changes nothing");
+});
+
+test("the map closer: lands taken by force, in their loser's colour; seats under siege", () => {
+  const before = JSON.stringify(world.domainHashes()),
+    lens = ask<{ taken: [number, readonly [number, number, number]][] }>("war.lens"),
+    realms = politiesOf(world),
+    wars = warsOf(world)
+      .all()
+      .filter((w) => w.ended === null);
+  // Each land marked was taken by force by its holder; its colour is its loser's.
+  const same = (ref: string, color: readonly number[]) =>
+    realmColor(ref).every((v, i) => v === color[i]);
+  for (const [land, color] of lens.taken) {
+    const holder = realms.of(land);
+    assert.ok(holder, `land ${land} is held`);
+    assert.ok(!same(holder.ref, color), "marked with another's colour");
+    assert.ok(
+      world.events
+        .all()
+        .some(
+          (e) =>
+            e.place === `cell:0:${land}` &&
+            ((e.type === "war.taken" &&
+              e.subjects[0] === holder.ref &&
+              same(e.subjects[1]!, color)) ||
+              (e.type === "war.battle" &&
+                e.subjects[1] === holder.ref &&
+                same(e.subjects[2]!, color))),
+        ),
+      `land ${land}: taken by its holder from the realm whose colour it bears`,
+    );
+  }
+  assert.ok(wars.length > 0, "wars being fought");
+  // A seat under siege: won at, and still held by the realm besieged.
+  const map = ask<WarsMap>("wars.map"),
+    g = homePlanet(world).generated;
+  for (const w of map.wars) {
+    if (w.siege === null) continue;
+    const war = warsOf(world).get(w.ref as Ref)!,
+      seat = realms.get(war.defender)!.seat;
+    assert.equal(w.siege, isProvinceWorld(g) ? g.centre[seat] : seat, "at the defender's seat");
+    assert.ok(
+      war.battles.some((b) => b.land === seat && b.won),
+      "won at",
+    );
+    assert.equal(realms.of(seat)?.ref, war.defender, "and still held");
+  }
+  assert.equal(JSON.stringify(world.domainHashes()), before, "looking changes nothing");
 });

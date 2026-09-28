@@ -174,21 +174,19 @@ export function warsOf(world: World): WarStore {
   return world.store<WarStore>("war.wars");
 }
 
-/** How many a realm can field, and how well armed: grown men, a share by valour and a standing army. */
-export function strengthOf(ctx: PopulationContext, p: Polity): number {
-  const culture = cultureOf(ctx.world),
-    lore = loreOf(ctx.world),
-    valour = culture.get(p.seat)?.traits[WAY.valour] ?? 0.5,
-    share =
-      0.04 +
-      0.1 * valour +
-      0.03 * lore.effect(p.seat, "arms") * (lore.get(p.seat, "standing-army") ? 1 : 0),
-    // What its host fights with: its design (realized now, if the realm is newer than it).
-    // What its host fights with: its design (realized now, if the realm is newer than it),
-    // borne by bodies as strong as they are.
-    arms =
-      hostPower(designsOf(ctx.world).of(p.ref)?.parts ?? hostFor(ctx, p).parts) *
-      ctx.affords.strength;
+/** The share of its fighting men a realm fields: more by its valour, more with a standing army. */
+function fieldShare(ctx: PopulationContext, p: Polity): number {
+  const valour = cultureOf(ctx.world).get(p.seat)?.traits[WAY.valour] ?? 0.5,
+    lore = loreOf(ctx.world);
+  return (
+    0.04 +
+    0.1 * valour +
+    0.03 * lore.effect(p.seat, "arms") * (lore.get(p.seat, "standing-army") ? 1 : 0)
+  );
+}
+
+/** A realm's grown men of fighting age, in all its lands. */
+function fightingMen(ctx: PopulationContext, p: Polity): number {
   let men = 0;
   for (const c of p.members) {
     const prov = ctx.provinces.get(c);
@@ -196,7 +194,23 @@ export function strengthOf(ctx: PopulationContext, p: Polity): number {
     for (let b = 0; b < BANDS; b++)
       if (fighting(ctx.life, b)) men += prov.counts.rowSum(row(MALE, b));
   }
-  return men * share * arms;
+  return men;
+}
+
+/** How many a realm fields (for its counters, Phase 11 M101): its fighting men, the share it fields. */
+export function fieldedOf(ctx: PopulationContext, p: Polity): number {
+  return fightingMen(ctx, p) * fieldShare(ctx, p);
+}
+
+/** How many a realm can field, and how well armed: grown men, a share by valour and a standing army. */
+export function strengthOf(ctx: PopulationContext, p: Polity): number {
+  const share = fieldShare(ctx, p),
+    // What its host fights with: its design (realized now, if the realm is newer than it),
+    // borne by bodies as strong as they are.
+    arms =
+      hostPower(designsOf(ctx.world).of(p.ref)?.parts ?? hostFor(ctx, p).parts) *
+      ctx.affords.strength;
+  return fightingMen(ctx, p) * share * arms;
 }
 
 /** The border lands of `b` next to `a`, richest in food first. */

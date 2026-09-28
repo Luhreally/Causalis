@@ -32,6 +32,7 @@ import {
 } from "../render/index.ts";
 import {
   LabelLayer,
+  type Label,
   Tidings,
   PlanetPanel,
   RegionPanel,
@@ -51,6 +52,9 @@ import {
   Tooltip,
   PageWindow,
   Alerts,
+  ArmsBook,
+  EventWindows,
+  isGreat,
   HoverTips,
   LogButton,
   type MapName,
@@ -86,6 +90,7 @@ import {
   type FreeRules,
   type FreeState,
   battleFront,
+  counterWords,
   LY_SCALE,
   hallCells,
   hallDomes,
@@ -203,6 +208,8 @@ type Exposed = {
   visiting?: () => number;
   /** How many halls stand on the world seen whole (M95: halls from orbit). */
   hallsShown?: () => number;
+  /** Whether a great happening's window is open (M100). */
+  eventOpen?: () => boolean;
   /** Into another star's own system (M95), by its ref; and whose system the sky shows. */
   starSystem?: (ref: string) => void;
   /** Where a star about us stands on the screen, while the stars are shown. */
@@ -447,6 +454,11 @@ async function runPlanetPage(): Promise<void> {
   const hoverTips = new HoverTips(hud, client);
   hoverTips.onOpen = (ref) => void pageWindow.open(ref);
   pageWindow.hoverTips = planetPanel.hoverTips = hoverTips;
+  // Realms' arms (Phase 11 M102): asked once each, borne beside their names everywhere.
+  const armsBook = new ArmsBook(client);
+  pageWindow.arms = hoverTips.arms = labels.arms = armsBook;
+  // What is followed (its counters are "ours", and those that fight it its foes', M101).
+  let followedRefs = new Set<string>();
   // The corner's tools under the bar (Phase 10 M96): the alerts, search for anything by name,
   // the outliner of what is followed and the message log; free roam's controls join them.
   const corner = document.createElement("div");
@@ -456,13 +468,36 @@ async function runPlanetPage(): Promise<void> {
     searchBox = new SearchBox(corner, client),
     outliner = new Outliner(corner),
     logButton = new LogButton(corner);
+  outliner.arms = searchBox.arms = armsBook;
   alerts.onOpen = (ref) => void pageWindow.open(ref);
   searchBox.onOpen = (ref) => void pageWindow.open(ref);
   outliner.onOpen = (ref) => void pageWindow.open(ref);
   outliner.onLetGo = (ref) => void tidings.unfollow(ref);
-  tidings.onFollowed = (followed) => outliner.set(followed);
+  tidings.onFollowed = (followed) => {
+    outliner.set(followed);
+    followedRefs = new Set(followed.map((f) => f.ref));
+  };
   logButton.onOpen = () => void pageWindow.open("world:log");
   tidings.onTold = (n) => logButton.told(n);
+  // Great happenings told in windows (Phase 11 M100), answered by the god's hand where it can:
+  // or as cards, or not at all, as the viewer chooses.
+  const events = new EventWindows(
+    hud,
+    client,
+    // (Not in the way of a machine driving the page, unless it asks: ?events.)
+    !!(navigator as { webdriver?: boolean }).webdriver && !params.has("events"),
+  );
+  events.onOpen = (ref) => void pageWindow.open(ref);
+  events.onGoTo = async (ref) => {
+    const place = await client.query<Place | null>({ type: "place", args: { ref } });
+    if (place) await goTo(place);
+  };
+  tidings.onGreat = (t) => {
+    if (!isGreat(t) || events.mode === "card") return false;
+    if (events.mode === "window") events.tell(t);
+    return true;
+  };
+  exposed.eventOpen = () => events.open;
   // (The world's own pages — its chronicle, saves, settings — open in its panel instead.)
   planetPanel.onWorldPage = () => pageWindow.close();
   // The world's chronicle and its ledger (Phase 10 M96b): pages of the window like any other.
@@ -612,6 +647,8 @@ async function runPlanetPage(): Promise<void> {
               : tongues,
       // (Borders between realms, faiths, tongues: a grand strategy map's.)
       sphereGrid((frame.meta as { frequency: number }).frequency),
+      // (Lands taken by force, still resenting it, in shadow: M104.)
+      lens === "realms" || lens === "war" ? takenLands : undefined,
     );
     globe.paint(colors);
     globeLensColors = colors;
@@ -698,6 +735,7 @@ async function runPlanetPage(): Promise<void> {
   // most peopled; the war lens shows the wars' sides, what they fight for, what was taken.
   let standings = new Map<number, readonly [number, number, number]>(),
     fronts = new Map<number, readonly [number, number, number]>(),
+    takenLands = new Map<number, readonly [number, number, number]>(),
     focusRealm: string | null = null;
   const readStandings = async () => {
     const open = pageWindow.current,
@@ -734,15 +772,20 @@ async function runPlanetPage(): Promise<void> {
     if (lens === "diplomacy") paintGlobe();
   };
   const readFronts = async () => {
-    const w = await client.query<{ lands: [number, string][] }>({ type: "war.lens" });
+    const w = await client.query<{
+      lands: [number, string][];
+      taken: [number, readonly [number, number, number]][];
+    }>({ type: "war.lens" });
     fronts = new Map(w.lands.map(([c, k]) => [c, WAR_COLORS[k] ?? WAR_COLORS.attacker!]));
-    mapModes.say(w.lands.length ? null : "no war is being fought");
-    if (lens === "war") paintGlobe();
+    takenLands = new Map(w.taken);
+    if (lens === "war") mapModes.say(w.lands.length ? null : "no war is being fought");
+    if (lens === "war" || lens === "realms") paintGlobe();
   };
   setInterval(() => {
     if (scale !== "globe") return;
     if (lens === "diplomacy") void readStandings();
-    if (lens === "war") void readFronts();
+    // (The realms' map too: the lands taken by force are in shadow on it.)
+    if (lens === "war" || lens === "realms") void readFronts();
   }, 3000);
   // The top bar's numbers.
   client.subscribe<WorldStats>({ type: "world.stats" }, 2000, (st) => planetPanel.stats(st));
@@ -964,6 +1007,60 @@ async function runPlanetPage(): Promise<void> {
       frame.arrays.elevation as Float32Array,
     );
   };
+  /**
+   * How a host stands to what is followed (M101): its own realm followed ("ours"), or fighting
+   * a realm followed ("foe").
+   */
+  const stanceOf = (realm: string, war: string): "ours" | "foe" | undefined => {
+    if (followedRefs.has(realm)) return "ours";
+    const w = warsNow?.wars.find((x) => x.ref === war),
+      enemy = w ? (w.attacker.ref === realm ? w.defender.ref : w.attacker.ref) : null;
+    return enemy && followedRefs.has(enemy) ? "foe" : undefined;
+  };
+  /** Each seat under siege, marked where it stands (M104): a victory there, the seat still held. */
+  const siegeMarks = (): Label[] => {
+    const frame = client.latestFrame("globe");
+    if (!frame || !warsNow || !globeWars.root.enabled) return [];
+    const p = sphereGrid((frame.meta as { frequency: number }).frequency).positions,
+      besieged = warsNow.wars.filter((w) => w.siege !== null),
+      at = globe.screenOf(
+        besieged.map((w) => ({
+          x: p[w.siege! * 3]!,
+          y: p[w.siege! * 3 + 1]!,
+          z: p[w.siege! * 3 + 2]!,
+        })),
+        1.03,
+      );
+    return besieged.flatMap((w, i) =>
+      at[i]!.facing > 0.15
+        ? [
+            {
+              key: `siege:${w.ref}`,
+              text: `🏰 ${w.defender.name.split(" of ").at(-1)} besieged`,
+              at: { x: at[i]!.x, y: at[i]!.y },
+              priority: 1.6e9,
+            },
+          ]
+        : [],
+    );
+  };
+  /** Each host on the globe as its counter (M101): its realm's arms and the men it fields. */
+  const globeCounters = (): Label[] =>
+    globeWars.hostsOnScreen().flatMap((h) => {
+      const w = warsNow?.wars.find((x) => x.ref === h.ref),
+        side = w ? (h.attacker ? w.attacker : w.defender) : null;
+      return side
+        ? [
+            {
+              key: `${h.ref}:${side.ref}`,
+              text: counterWords(side.fields),
+              at: { x: h.x, y: h.y },
+              priority: 1.5e9,
+              badge: { realm: side.ref, stance: stanceOf(side.ref, h.ref) },
+            },
+          ]
+        : [];
+    });
   let townsNamed = false;
   stage.onUpdate(() => {
     globeTowns.visible = scale === "globe";
@@ -971,17 +1068,19 @@ async function runPlanetPage(): Promise<void> {
     // (Read again every half-minute while near enough to be seen.)
     if (rig.distance < 2.6 && performance.now() - townsAt > 30_000) void readTowns();
     globeTowns.update(rig.distance);
-    const named = globeTowns.named(stage.camera.camera!, rig.distance);
-    if (named.length || townsNamed)
-      labels.update(
-        named.map((n) => ({
+    const named = globeTowns.named(stage.camera.camera!, rig.distance),
+      counters = [...siegeMarks(), ...globeCounters()];
+    if (named.length || counters.length || townsNamed)
+      labels.update([
+        ...counters,
+        ...named.map((n) => ({
           key: n.town.ref,
           text: n.town.city ? `🏙️ ${n.town.name}` : n.town.name,
           at: { x: n.x, y: n.y },
           priority: n.town.people,
         })),
-      );
-    townsNamed = named.length > 0;
+      ]);
+    townsNamed = named.length + counters.length > 0;
   });
   /** The town drawn nearest a point of the screen on the globe, within a finger's reach. */
   const townAt = (x: number, y: number): GlobeTown | null => {
@@ -2297,9 +2396,24 @@ async function runPlanetPage(): Promise<void> {
   exposed.skyBodies = () => (scale === "system" && skyPlan ? skyPlan.bodies.length : 0);
   /** Whose system the sky shows: the home star's (null), or another's ref. */
   exposed.skyOf = () => (scale === "system" ? (skyStar?.ref ?? null) : null);
+  let fleetsNamed = false;
   stage.onUpdate(() => {
-    if (scale === "cluster" && clusterPlan)
-      starScene.voyages(voyageMarks(clusterPlan, sky, now() / YEAR));
+    if (scale !== "cluster" || !clusterPlan) return;
+    starScene.voyages(voyageMarks(clusterPlan, sky, now() / YEAR));
+    // Each war fleet as its counter (M101): its realm's arms and its strength, edged by how
+    // it stands to what is followed.
+    const counters: Label[] = starScene.fleetsOnScreen().map((h) => ({
+      key: `fleet:${h.ref}`,
+      text: h.strength.toFixed(1),
+      at: { x: h.sx, y: h.sy },
+      priority: 1.5e9,
+      badge: {
+        realm: h.realm,
+        stance: followedRefs.has(h.realm) ? "ours" : followedRefs.has(h.enemy) ? "foe" : undefined,
+      },
+    }));
+    if (counters.length || fleetsNamed) labels.update(counters);
+    fleetsNamed = counters.length > 0;
   });
   stage.onUpdate(() => {
     if (scale !== "system" || !skyPlan) return;
@@ -2713,8 +2827,15 @@ async function runPlanetPage(): Promise<void> {
         at: at[i] ?? null,
         priority: v.population,
       })),
-      // Its hosts and battles, named over the towns about them (M95).
-      ...regionWars.labels(),
+      // Its hosts' counters and its battles, over the towns about them (M95, M101).
+      ...regionWars.labels().map((l) =>
+        l.badge
+          ? {
+              ...l,
+              badge: { realm: l.badge.realm, stance: stanceOf(l.badge.realm, l.badge.war) },
+            }
+          : l,
+      ),
     ]);
   });
   addEventListener("resize", () => {

@@ -5,7 +5,16 @@
 import type { HostClient } from "../bridge/index.ts";
 import { WhyTree, el } from "./why.ts";
 
-export type Tiding = { watch: string; label: string; ref: string; year: number; claim: string };
+export type Tiding = {
+  watch: string;
+  label: string;
+  ref: string;
+  year: number;
+  claim: string;
+  /** What kind of thing happened and how much it mattered: the great are told in windows. */
+  type: string;
+  importance: number;
+};
 type Followed = { ref: string; label: string };
 
 /** How long a card of news stays unless it is opened, in ms; and how many are shown at once. */
@@ -24,6 +33,11 @@ export class Tidings {
   onFollowed: (followed: readonly { ref: string; label: string }[]) => void = () => {};
   /** Told how much news has come (the message log counts it). */
   onTold: (n: number) => void = () => {};
+  /**
+   * Asked of each piece of news first (Phase 11 M100): true if it was told otherwise (a great
+   * happening in its window) and wants no card.
+   */
+  onGreat: (t: Tiding) => boolean = () => false;
 
   constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
@@ -88,7 +102,7 @@ export class Tidings {
     this.asking = true;
     try {
       const told = await this.client.query<Tiding[]>({ type: "observe.tidings" });
-      for (const t of told) this.add(t);
+      for (const t of told) if (!this.onGreat(t)) this.add(t);
       if (told.length) this.onTold(told.length);
     } catch {
       // No world yet, or one being loaded: ask again next time.

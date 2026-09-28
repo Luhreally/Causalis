@@ -132,6 +132,8 @@ export type WarToken = {
   readonly up: Vec;
   readonly ahead: Vec;
   readonly side: number;
+  /** Whether it is of the attacker's host (else it stands with the defenders). */
+  readonly attacker: boolean;
   readonly ship: boolean;
   /** The banner-bearer at the column's head (or a defender's standard). */
   readonly lead: boolean;
@@ -174,6 +176,7 @@ export function warTokens(w: WarPaths, s: number): WarToken[] {
         up: norm(p.at),
         ahead: p.ahead,
         side: path.side,
+        attacker: true,
         ship: p.sea,
         lead: k === 0,
         // (Each behind the lead grows in as it sets out.)
@@ -191,6 +194,7 @@ export function warTokens(w: WarPaths, s: number): WarToken[] {
         up: norm(d.at),
         ahead: { x: -d.ahead.x, y: -d.ahead.y, z: -d.ahead.z },
         side: path.foe,
+        attacker: false,
         ship: d.sea,
         lead: k === 0,
         size: 1,
@@ -325,6 +329,9 @@ export type LandWars = {
     readonly held: boolean;
     /** Whose host it is, and against whom. */
     readonly name: string;
+    /** Its two realms and the men each fields (their counters, Phase 11 M101). */
+    readonly attacker: { readonly ref: string; readonly fields: number };
+    readonly defender: { readonly ref: string; readonly fields: number };
   }[];
   readonly battles: readonly {
     readonly event: string;
@@ -405,6 +412,12 @@ export function landColumn(
   return { people, ships, head, afloat, yaw: Math.atan2(ux, uz), grown };
 }
 
+/** The men a host fields, as its counter says them: 850, 3.4k, 12k (Phase 11 M101). */
+export function counterWords(men: number): string {
+  const n = Math.max(0, Math.round(men));
+  return n >= 9950 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`;
+}
+
 /**
  * The wars in a land's map: `parent` is each tile's spot of the globe's grid (the land's
  * map is `size` tiles a side, `tileKm` each). A spot of the map stands at the middle of its
@@ -475,7 +488,11 @@ export function landWars(
       foe = colorOf(w.defender.color),
       prize = here(w.to),
       home = here(w.from),
-      name = `${w.attacker.name}'s host upon ${w.defender.name}`;
+      name = `${w.attacker.name}'s host upon ${w.defender.name}`,
+      sides = {
+        attacker: { ref: w.attacker.ref, fields: w.attacker.fields },
+        defender: { ref: w.defender.ref, fields: w.defender.fields },
+      };
     if (w.ended === null) {
       // What it wants is here: its host comes in from the way it sets out, to the defenders.
       if (prize)
@@ -487,6 +504,7 @@ export function landWars(
           foe,
           held: true,
           name,
+          ...sides,
         });
       // It sets out from here: its host goes out toward the front.
       else if (home)
@@ -498,6 +516,7 @@ export function landWars(
           foe,
           held: false,
           name,
+          ...sides,
         });
     }
     for (const b of w.battles) {

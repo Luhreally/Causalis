@@ -3,6 +3,7 @@
 // few words, the best first. A tap (or Enter on the first) opens its page.
 import type { HostClient } from "../bridge/index.ts";
 import { el } from "./why.ts";
+import type { ArmsBook } from "./arms.ts";
 
 type Found = { ref: string; icon: string; title: string; subtitle: string };
 
@@ -17,6 +18,8 @@ export class SearchBox {
   private found: Found[] = [];
   /** Open a thing's page. */
   onOpen: (ref: string) => void = () => {};
+  /** Realms' arms, borne for their icons (Phase 11 M102). */
+  arms: ArmsBook | null = null;
 
   constructor(parent: HTMLElement, client: HostClient) {
     this.client = client;
@@ -79,7 +82,10 @@ export class SearchBox {
         ? found.map((f) => {
             const b = el("button", "search-result");
             b.append(
-              el("span", "search-icon", f.icon),
+              // (A realm bears its arms for its icon.)
+              this.arms && f.ref.startsWith("pol:")
+                ? this.arms.shield(f.ref, 16)
+                : el("span", "search-icon", f.icon),
               el("span", "search-title", f.title),
               el("span", "search-sub", f.subtitle),
             );

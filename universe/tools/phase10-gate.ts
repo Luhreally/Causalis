@@ -80,8 +80,21 @@ const press = async (sel: string) => {
     problems.push(`${sel} was not there to press`);
     return false;
   }
+  // (What stands over it, if anything does: the press would fall on that instead.)
+  const over = await k<string | null>(
+    `(() => { const e = document.querySelector(${JSON.stringify(sel)}), o = document.elementFromPoint(${at.x}, ${at.y}); return !o || e === o || e?.contains(o) ? null : o.tagName.toLowerCase() + "." + [...o.classList].join("."); })()`,
+  );
+  if (over) problems.push(`${sel} was covered by ${over} when pressed`);
   await page.mouse.click(at.x, at.y);
   return true;
+};
+/** How long the host takes to answer (ms): a stalled host stops everything that asks it. */
+const hostAnswers = async (what: string) => {
+  const t = Date.now();
+  await k(`globalThis.causalis.client.query({ type: "world.stats" })`);
+  const ms = Date.now() - t;
+  if (ms > 10000) problems.push(`the host took ${Math.round(ms / 1000)} s to answer, ${what}`);
+  return ms;
 };
 const rest = async (sel: string) => {
   const at = await centre(sel);
@@ -320,6 +333,7 @@ await page.waitForTimeout(1500);
 
 // 4. Zoom both ways: a battle on the globe zoomed into, in its land, faced in its village.
 {
+  say(`the host answers in ${await hostAnswers("before the zoom")} ms`);
   const wars = await k<{ year: number; wars: { battles: { spot: number; year: number }[] }[] }>(
       `globalThis.causalis.client.query({ type: "wars.map" })`,
     ),

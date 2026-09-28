@@ -88,3 +88,46 @@ test("a political map draws its borders: dark between realms, faint between a re
   );
   assert.equal(inside, 0, "within a land, nothing is darkened");
 });
+
+test("a land taken by force is in shadow, touched with its loser's colour, over the land's own shading", () => {
+  const grid = sphereGrid(16),
+    n = grid.count,
+    p = grid.positions,
+    // Two lands: the north (taken from the blues) and the south; the east half high ground.
+    province = Int32Array.from({ length: n }, (_, c) => (p[c * 3 + 1]! > 0 ? 0 : 1)),
+    frame = {
+      view: "globe",
+      t: 0,
+      key: "k",
+      meta: { plates: [{ continental: true }] },
+      arrays: {
+        elevation: Float32Array.from({ length: n }, (_, c) => (p[c * 3]! > 0 ? 3000 : 200)),
+        biome: new Uint8Array(n).fill(8),
+        province,
+        lake: new Uint8Array(n),
+        river: new Uint8Array(n),
+      },
+    } as unknown as FrameMessage,
+    red: readonly [number, number, number] = [0.8, 0.2, 0.2],
+    blue: readonly [number, number, number] = [0.2, 0.2, 0.8],
+    colors = new Map([
+      [0, red],
+      [1, red],
+    ]),
+    plain = globeColors(frame, "realms", undefined, colors),
+    marked = globeColors(frame, "realms", undefined, colors, undefined, new Map([[0, blue]]));
+  // A cell of each land at the same height: the taken one darker, and bluer for its size.
+  const pick = (land: number) =>
+      [...Array(n).keys()].find((c) => province[c] === land && p[c * 3]! < -0.3)!,
+    north = pick(0),
+    south = pick(1);
+  assert.ok(marked[north * 4]! < plain[north * 4]! * 0.8, "the taken land in shadow");
+  assert.ok(
+    marked[north * 4 + 2]! / marked[north * 4]! > plain[north * 4 + 2]! / plain[north * 4]!,
+    "touched with the colour it was taken from",
+  );
+  assert.equal(marked[south * 4], plain[south * 4], "the land not taken as it was");
+  // The land's own shading under its colour: its heights lighter than its lows.
+  const high = [...Array(n).keys()].find((c) => province[c] === 1 && p[c * 3]! > 0.5)!;
+  assert.ok(plain[high * 4]! > plain[south * 4]!, "the heights lighter under the same colour");
+});

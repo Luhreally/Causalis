@@ -4,6 +4,7 @@
 // open a tooltip of its own, and that one another. On a desk only: a phone taps instead.
 import type { Breakdown, HostClient, Line, Tip } from "../bridge/index.ts";
 import { el } from "./why.ts";
+import type { ArmsBook } from "./arms.ts";
 
 /** How long the pointer rests before a tip opens, and how long one lingers once left (ms). */
 const REST_MS = 260,
@@ -25,6 +26,11 @@ export class HoverTips {
   private readonly desk = matchMedia("(hover: hover) and (pointer: fine)");
   /** Open a thing's page (a name in a tip clicked). */
   onOpen: (ref: string) => void = () => {};
+  /** Realms' arms, borne beside their names and on their cards (Phase 11 M102). */
+  arms: ArmsBook | null = null;
+
+  /** The moves that have armed a tip already (the innermost thing a move is over arms its own). */
+  private readonly armed = new WeakSet<Event>();
 
   constructor(parent: HTMLElement, client: HostClient) {
     this.client = client;
@@ -50,8 +56,13 @@ export class HoverTips {
 
   /** Rest the pointer on `target` a moment and `content` shows beside it. */
   attach(target: HTMLElement, content: TipContent): void {
-    target.addEventListener("pointerenter", (e) => {
+    // Armed by the pointer moving over it, and opened once it rests: a thing that came under a
+    // pointer left still (a page drawn anew under it) is not rested on, and has no tip.
+    target.addEventListener("pointermove", (e) => {
       if (e.pointerType !== "mouse" || !this.desk.matches) return;
+      if ((!e.movementX && !e.movementY) || this.armed.has(e)) return;
+      this.armed.add(e);
+      if (this.open.some((o) => o.owner === target)) return;
       this.stopLingering();
       if (this.waiting) clearTimeout(this.waiting);
       this.waiting = setTimeout(() => {
@@ -70,6 +81,7 @@ export class HoverTips {
   link(text: string, ref: string, cls = "ref-link"): HTMLElement {
     const a = el("a", cls, text);
     a.href = `#${ref}`;
+    if (this.arms && ref.startsWith("pol:")) a.prepend(this.arms.shield(ref, 12));
     a.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -102,7 +114,13 @@ export class HoverTips {
       this.known.set(ref, kept);
       if (this.known.size > 200) this.known.delete(this.known.keys().next().value!);
     }
-    return tipCard(kept.tip, "Click to open its page");
+    const card = tipCard(kept.tip, "Click to open its page");
+    // (A realm's card bears its arms for its icon.)
+    if (this.arms && ref.startsWith("pol:")) {
+      const head = card[0] as HTMLElement;
+      head.querySelector(".tip-icon")?.replaceWith(this.arms.shield(ref, 16));
+    }
+    return card;
   }
 
   /** Put every tip away. */
@@ -155,11 +173,23 @@ export class HoverTips {
   }
 
   /** Under what it tells of (over it, if there is no room under), kept on the screen. */
+  /**
+   * Beside the window its owner stands in — a page's, or the tip it was opened from — at the
+   * owner's height, so it never stands over that window's own controls; where there is no room
+   * beside it, under the owner (over it, if there is no room under). Kept on the screen.
+   */
   private place(box: HTMLElement, owner: HTMLElement): void {
     const r = owner.getBoundingClientRect(),
       w = box.offsetWidth,
       h = box.offsetHeight,
-      x = Math.max(8, Math.min(innerWidth - w - 8, r.left)),
+      frame = owner.closest(".page-window, .hovertip")?.getBoundingClientRect(),
+      fitsBeside = frame && frame.right + 8 + w <= innerWidth - 8;
+    if (frame && fitsBeside) {
+      const y = Math.max(8, Math.min(innerHeight - h - 8, r.top - 4));
+      box.style.transform = `translate(${frame.right + 8}px, ${y}px)`;
+      return;
+    }
+    const x = Math.max(8, Math.min(innerWidth - w - 8, r.left)),
       y = r.bottom + 6 + h > innerHeight - 8 ? Math.max(8, r.top - h - 6) : r.bottom + 6;
     box.style.transform = `translate(${x}px, ${y}px)`;
   }
