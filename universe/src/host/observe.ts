@@ -4,7 +4,7 @@
 // the observer ledger, which history never reads, so looking never changes history.
 import { YEAR, type Ref, type World } from "../kernel/index.ts";
 
-import { lifeOf, populationContext } from "../sim/index.ts";
+import { lifeOf, natureOf, populationContext } from "../sim/index.ts";
 import {
   LIFE_WORDS,
   MEMORY_WORDS,
@@ -115,7 +115,8 @@ function personPage(world: World, ref: Ref) {
       ref: m.ref,
       words: `${sentence(MEMORY_WORDS[m.kind] ?? m.kind)}, in year ${m.year}, at ${m.age}`,
     })),
-    character: traitWords(p.traits ?? {}),
+    // (As the god left them: what they were born with, and any push of the god's hand.)
+    character: traitWords(natureOf(world, p.ref, p.traits ?? {})),
   };
 }
 

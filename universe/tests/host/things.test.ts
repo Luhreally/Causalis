@@ -131,6 +131,12 @@ test("natures in the god's hand, on their pages: a person's ways of being, a rea
   const bolder = natures().find(([t]) => t === "boldness")![3];
   assert.ok(Math.abs(bolder - Math.min(1, boldness + 0.25)) < 1e-9, `${boldness} → ${bolder}`);
   assert.equal(tool(page(person), "acts.person")!.args.village !== undefined, true);
+  // Pushed to the end, they are met as bold.
+  for (const _ of [1, 2]) world.submit("act.nature", { ref: person, trait: "boldness", sign: 1 });
+  world.runTo(world.now + 2);
+  assert.ok(
+    ask<{ character: string[] }>("observe.person", { ref: person }).character.includes("bold"),
+  );
   // A realm: its ways, the mean of its lands'.
   const realm = politiesOf(world)
       .all()
