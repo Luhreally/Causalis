@@ -591,6 +591,7 @@ async function runPlanetPage(): Promise<void> {
   planetPanel.onLedger = () => void pageWindow.open("world:ledger");
   planetPanel.onConcepts = () => void pageWindow.open("concept:index");
   planetPanel.onNumbers = () => void pageWindow.open("world:stats");
+  planetPanel.onMatter = () => void pageWindow.open("world:matter");
   planetPanel.onChip = (what) => {
     if (what === "hungry") {
       // (The hungry are shown on the map: the food lens.)

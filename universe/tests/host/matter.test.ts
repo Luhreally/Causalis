@@ -270,3 +270,16 @@ test("a tile of a land's map tells the rock under it and the soil over it", () =
     if (!t.sea) assert.notEqual(t.ground.soil, "sea-floor mud");
   }
 });
+
+test("the field guide to matter: every substance by its kind, every reaction, every element, each opening", () => {
+  const p = page("world:matter");
+  assert.equal(p.kind, "matter");
+  assert.deepEqual(
+    p.tabs.map((t) => t.id),
+    ["substances", "reactions", "elements"],
+  );
+  const listed = blocks(p, "substances").flatMap((b) => (b.type === "list" ? b.items : []));
+  assert.ok(listed.length >= 50, `${listed.length} substances listed`);
+  for (const i of [...listed, ...of(blocks(p, "reactions"), "list")[0]!.items])
+    assert.notEqual(page(i.ref!).kind, "unknown", `${i.ref} opens`);
+});

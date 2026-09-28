@@ -658,3 +658,79 @@ export function howMadeHere(world: World, cell: number, goodId: string): Item[] 
     ]);
   });
 }
+
+/** The kinds of matter, in the order the field guide tells them. */
+const KIND_ORDER: readonly MatterKind[] = [
+  "metal",
+  "ore",
+  "mineral",
+  "fuel",
+  "made",
+  "food",
+  "living",
+  "water",
+  "gas",
+];
+const KIND_TITLE: Readonly<Record<MatterKind, string>> = {
+  metal: "Metals",
+  ore: "Ores",
+  mineral: "Minerals",
+  fuel: "Fuels",
+  made: "Made by hand and fire",
+  food: "What food is made of",
+  living: "The stuff of living things",
+  water: "Water",
+  gas: "The air's gases",
+};
+
+/**
+ * The field guide to matter (`world:matter`, Phase 15, after Classic's): every substance by
+ * its kind, every reaction with what goes in and comes out, every element — each a page.
+ */
+export function matterGuidePage(world: World, tab?: string): PageModel {
+  const substances: Block[] = KIND_ORDER.map((k) => ({
+      type: "list" as const,
+      title: KIND_TITLE[k],
+      items: SUBSTANCES.filter((s) => s.kind === k).map((s) =>
+        item([link(cap(s.name), substRef(s.id)), ` — ${s.written}`], substRef(s.id)),
+      ),
+    })),
+    reactions: Block = {
+      type: "list",
+      title: "What turns into what",
+      items: REACTIONS.map((r) =>
+        item([link(cap(r.name), rxnRef(r.id)), " — ", ...equation(r)], rxnRef(r.id)),
+      ),
+    },
+    elements: Block = {
+      type: "table",
+      title: "The elements",
+      columns: ["Element", "Symbol", "A mole weighs"],
+      rows: ELEMENTS.map((e) => ({
+        cells: [[cap(e.name)], [e.symbol], [`${e.mass} g`]],
+        keys: [e.name, e.symbol, e.mass],
+      })),
+    };
+  return {
+    ref: "world:matter",
+    kind: "matter",
+    icon: "🧪",
+    title: "Matter",
+    subtitle: ["What everything in the world is made of, and what turns into what"],
+    color: null,
+    place: null,
+    stats: [
+      stat("Substances", count(SUBSTANCES.length)),
+      stat("Reactions", count(REACTIONS.length)),
+      stat("Elements", count(ELEMENTS.length)),
+    ],
+    tabs: [
+      { id: "substances", name: "Substances", blocks: substances },
+      { id: "reactions", name: "Reactions", blocks: [reactions] },
+      { id: "elements", name: "Elements", blocks: [elements] },
+    ],
+    ...(tab ? { tab } : {}),
+    followable: false,
+    year: yearNow(world),
+  };
+}

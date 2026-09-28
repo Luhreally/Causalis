@@ -458,10 +458,13 @@ export class PlanetPanel {
       ledger = menuButton("📊", "Ledger"),
       // (The world's numbers through the years: Phase 12 M109.)
       numbers = menuButton("📈", "Numbers"),
+      // The field guide to matter (Phase 15): every substance, reaction and element.
+      matter = menuButton("🧪", "Matter"),
       concepts = menuButton("📖", "Concepts");
     chronicle.onclick = () => this.onChronicle();
     ledger.onclick = () => this.onLedger();
     numbers.onclick = () => this.onNumbers();
+    matter.onclick = () => this.onMatter();
     concepts.onclick = () => this.onConcepts();
     const sky = menuButton("☀️", "The sky");
     sky.onclick = () => this.onSky();
@@ -501,6 +504,7 @@ export class PlanetPanel {
       chronicle,
       ledger,
       numbers,
+      matter,
       concepts,
       sky,
       origin,
@@ -1072,6 +1076,7 @@ export class PlanetPanel {
   onConcepts: () => void = () => {};
   /** Asked for the world's numbers through the years (Phase 12 M109). */
   onNumbers: () => void = () => {};
+  onMatter: () => void = () => {};
 
   private worldPage(title: string): void {
     this.onWorldPage();

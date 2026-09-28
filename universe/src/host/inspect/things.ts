@@ -20,7 +20,17 @@ import {
   type MakeUp,
 } from "../../rules/index.ts";
 import { hashString, type Ref, type World } from "../../kernel/index.ts";
-import { lifeOf, loreOf, populationContext, toolMetal, type MarketStore } from "../../sim/index.ts";
+import {
+  agentName,
+  handOf,
+  lifeOf,
+  loreOf,
+  populationContext,
+  toolMetal,
+  type Agent,
+  type MarketStore,
+  type Window,
+} from "../../sim/index.ts";
 import { observer, type Household, type Person } from "../../causal/index.ts";
 import type { Block, Item, PageModel } from "../../bridge/index.ts";
 import { count, item, link, share, stat, yearNow } from "./words.ts";
@@ -42,6 +52,21 @@ const TOOLS: Readonly<Partial<Record<number, readonly (readonly [string, number]
     ["chisel", 0.3],
   ],
 };
+
+/** Whoever holds things: a person met, or one of the people under the hand (`agent:<id>`). */
+export type Holder = Pick<Person, "ref" | "occupation" | "sex" | "birthYear" | "cell" | "alive">;
+
+/** One of the people under the hand, as a holder of things. */
+export function agentHolder(w: Window, a: Agent): Holder {
+  return {
+    ref: `agent:${a.id}` as Ref,
+    occupation: a.occupation,
+    sex: a.sex,
+    birthYear: a.birthYear,
+    cell: w.cell,
+    alive: true,
+  };
+}
 
 /** What a thing is: a tool of a trade, a garment, a pot. */
 export type Thing = {
@@ -128,7 +153,7 @@ function slotThing(
 }
 
 /** What a person holds: the tools of their trade (if it wears them), and what they wear. */
-export function personThings(world: World, p: Person): Thing[] {
+export function personThings(world: World, p: Holder): Thing[] {
   if (!p.alive) return [];
   const ctx = populationContext(world),
     cell = p.cell,
@@ -249,7 +274,7 @@ export function householdThingsBlocks(world: World, h: Household): Block[] {
 }
 
 /** A person's body weight now: their people's, grown to it from birth. */
-function bodyKg(world: World, p: Person): number {
+function bodyKg(world: World, p: Holder): number {
   const b = populationContext(world).generated.life.people?.body,
     size = b?.size ?? 65,
     adult = lifeOf(world).adulthood,
@@ -259,7 +284,7 @@ function bodyKg(world: World, p: Person): number {
 }
 
 /** A person's Things tab: what they hold, what they eat in a day, what their body is made of. */
-export function personThingsBlocks(world: World, p: Person): Block[] {
+export function personThingsBlocks(world: World, p: Holder): Block[] {
   const things = personThings(world, p),
     made = thingsMakeUp(things),
     blocks: Block[] = [];
@@ -336,7 +361,18 @@ export function thingPage(world: World, ref: string): PageModel {
     ledger = observer(world),
     person = holder.startsWith("prsn:") ? ledger.person(holder as Ref) : undefined,
     house = holder.startsWith("hhold:") ? ledger.household(holder as Ref) : undefined,
-    list = person ? personThings(world, person) : house ? householdThings(world, house) : [],
+    // (One of the people under the hand holds things as a person met does.)
+    hand = handOf(world).resting,
+    agent = holder.startsWith("agent:")
+      ? hand?.agents.find((a) => `agent:${a.id}` === holder)
+      : undefined,
+    list = person
+      ? personThings(world, person)
+      : house
+        ? householdThings(world, house)
+        : agent && hand
+          ? personThings(world, agentHolder(hand, agent))
+          : [],
     t = list.find((x) => x.slot === slot);
   if (!t) throw new Error(`no thing ${ref}`);
   const now = yearNow(world),
@@ -345,7 +381,18 @@ export function thingPage(world: World, ref: string): PageModel {
       ? [link(`${person.name} ${person.surname}`, person.ref)]
       : house
         ? [link(`the ${house.surname} household`, house.ref)]
-        : [],
+        : agent && hand
+          ? [
+              link(
+                agentName(
+                  populationContext(world),
+                  agent,
+                  populationContext(world).settlements.get(hand.village)!,
+                ),
+                holder,
+              ),
+            ]
+          : [],
     known =
       t.good === "tools" && t.way.id !== "stone" ? loreOf(world).get(t.cell, t.way.id) : undefined;
   const blocks: Block[] =
@@ -377,7 +424,7 @@ export function thingPage(world: World, ref: string): PageModel {
     kind: "thing",
     icon: t.good === "tools" ? "🔨" : t.good === "clothing" ? "👕" : "🏺",
     title: t.name[0]!.toUpperCase() + t.name.slice(1),
-    subtitle: [person ? "Held by " : "Kept by ", ...by],
+    subtitle: [house ? "Kept by " : "Held by ", ...by],
     color: null,
     place: null,
     stats:

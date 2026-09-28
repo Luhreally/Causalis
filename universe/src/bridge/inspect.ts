@@ -318,6 +318,8 @@ export type PageKind =
   | "goods"
   /** A thing someone holds (Phase 15 M125): a tool, a garment, a pot. */
   | "thing"
+  /** The field guide to matter (`world:matter`). */
+  | "matter"
   | "unknown";
 
 export type PageModel = {

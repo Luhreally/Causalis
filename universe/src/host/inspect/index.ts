@@ -21,7 +21,13 @@ import { actPage, decisionPage, eventPage, unknownPage } from "./history.ts";
 import { chroniclePage, ledgerPage } from "./world.ts";
 import { statsPage } from "./stats.ts";
 import { traitPage } from "./folk.ts";
-import { goodKindPage, principlePage, reactionPage, substancePage } from "./matter.ts";
+import {
+  goodKindPage,
+  matterGuidePage,
+  principlePage,
+  reactionPage,
+  substancePage,
+} from "./matter.ts";
 import { groundReading } from "./ground.ts";
 import { thingPage } from "./things.ts";
 import { alertsOf, breakdownOf, logPage, type Counted } from "./alerts.ts";
@@ -37,6 +43,7 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref === "world:ledger") return ledgerPage(world, tab ?? undefined);
   if (ref === "world:log") return logPage(world, tab ?? undefined);
   if (ref === "world:stats") return statsPage(world, tab ?? undefined);
+  if (ref === "world:matter") return matterGuidePage(world, tab ?? undefined);
   if (ref.startsWith("compare:")) return comparePage(world, ref);
   if (ref.startsWith("concept:")) return conceptPage(world, ref);
   if (ref.startsWith("trait:")) return traitPage(world, ref);

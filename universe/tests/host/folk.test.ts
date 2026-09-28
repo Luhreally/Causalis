@@ -111,3 +111,18 @@ test("the acts on a people's ways, speech and faith play where they fall", () =>
   )!;
   assert.ok(seen.belief[2]! >= 2, `portents ${seen.belief[2]}`);
 });
+
+test("one of the people under the hand holds things as the people met do: their tools, their day, their body", () => {
+  const w = handOf(world).resting!,
+    worker = w.agents.find((a) => a.occupation === 2 && 280 - a.birthYear > 20)!,
+    p = page(`agent:${worker.id}`),
+    things = blocks(p, "things");
+  const held = of(things, "list").find((b) => b.title === "What they hold")!;
+  assert.ok(
+    held.items.some((i) => i.ref === `thing:agent:${worker.id}:hoe`),
+    "a farmer's hoe",
+  );
+  const hoe = page(`thing:agent:${worker.id}:hoe`);
+  assert.equal(hoe.kind, "thing");
+  assert.ok(of(things, "composition").some((b) => b.title === "What their body is made of"));
+});

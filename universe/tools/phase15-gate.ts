@@ -137,6 +137,15 @@ const people = await q<{ cell: number; centre: number; people: number }[]>("peop
   const metal = await open("prin:metalworking", "a principle's page", "Lands that know it");
   const good = await open("good:tools", "a good the world over", "A unit, as copper tools");
   const ways = await page.$$eval(".page-window .makeup-bar", (x) => x.length);
+  // The field guide, from the world's menu.
+  await press(".world-menu button[title='Matter']");
+  const guide = await until(
+    "the field guide to matter",
+    async () =>
+      (await window_()).includes("What turns into what") || (await window_()).includes("Metals"),
+    slow(15000),
+  );
+  check(guide, "the field guide to matter does not open from the world's menu");
   say(
     `matter: malachite found and opened (${bars} make-up drawn); its smelting (${reaction.includes("charcoal") ? "with charcoal" : "no charcoal"}); a principle's knowers; tools ${ways} ways`,
   );
