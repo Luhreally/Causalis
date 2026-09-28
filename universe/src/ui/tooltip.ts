@@ -17,6 +17,8 @@ export class Tooltip {
   private showing: string | null = null;
   private waiting: ReturnType<typeof setTimeout> | null = null;
   private at = { x: 0, y: 0 };
+  /** The map mode shown: a land under one of the deeper lenses tells what makes its number (M108). */
+  lens = "terrain";
 
   constructor(parent: HTMLElement, client: HostClient) {
     this.client = client;
@@ -28,19 +30,21 @@ export class Tooltip {
   /** The pointer at (x, y) on the screen, resting on `ref` (null: on nothing). */
   point(ref: string | null, x: number, y: number): void {
     this.at = { x, y };
-    if (ref !== this.showing) {
-      this.showing = ref;
+    // (A land's tip is of the lens it is seen through.)
+    const key = ref?.startsWith("cell:0:") ? `${this.lens}|${ref}` : ref;
+    if (key !== this.showing) {
+      this.showing = key;
       if (this.waiting) clearTimeout(this.waiting);
       this.waiting = null;
-      if (!ref) {
+      if (!ref || !key) {
         this.element.hidden = true;
         return;
       }
-      const kept = this.known.get(ref);
+      const kept = this.known.get(key);
       if (kept && performance.now() - kept.at < KEEP_MS) this.draw(kept.tip);
       else {
         this.element.hidden = true;
-        this.waiting = setTimeout(() => void this.ask(ref), REST_MS);
+        this.waiting = setTimeout(() => void this.ask(ref, key), REST_MS);
       }
     }
     this.place();
@@ -50,12 +54,15 @@ export class Tooltip {
     this.point(null, 0, 0);
   }
 
-  private async ask(ref: string): Promise<void> {
+  private async ask(ref: string, key: string): Promise<void> {
     try {
-      const tip = await this.client.query<Tip>({ type: "tip", args: { ref } });
-      this.known.set(ref, { tip, at: performance.now() });
+      const tip = await this.client.query<Tip>({
+        type: "tip",
+        args: key === ref ? { ref } : { ref, lens: this.lens },
+      });
+      this.known.set(key, { tip, at: performance.now() });
       if (this.known.size > 200) this.known.delete(this.known.keys().next().value!);
-      if (this.showing === ref) this.draw(tip);
+      if (this.showing === key) this.draw(tip);
     } catch {
       // (A thing gone: no tip.)
     }

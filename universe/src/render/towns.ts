@@ -12,6 +12,8 @@ import type { Stage } from "./stage.ts";
 export type GlobeTown = {
   readonly ref: string;
   readonly name: string;
+  /** Its land (province). */
+  readonly cell: number;
   readonly people: number;
   readonly city: boolean;
   readonly at: readonly [number, number, number];

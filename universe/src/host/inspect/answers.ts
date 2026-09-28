@@ -1,7 +1,7 @@
 // The god's answers to a great happening (Phase 11 M100): which of the hand's acts may answer
 // an event told in its window — rain and a fat harvest for a land in famine; for a realm
-// followed at war, a fat harvest at its seat, or a plague upon its foe's. Only what the hand
-// can do, where it can do it (a peopled land). Pure reads of the world.
+// followed at war, a fat harvest at its seat, a plague upon its foe's, or peace between them.
+// Only what the hand can do, where it can do it (a peopled land). Pure reads of the world.
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import { politiesOf, populationContext, warsOf } from "../../sim/index.ts";
 import type { Answer } from "../../bridge/index.ts";
@@ -67,6 +67,13 @@ export function answersOf(world: World, ref: string, watch: string): Answer[] {
           label: `A plague upon ${them.town}'s seat (${YEARS} years)`,
           act: "act.plague",
           args: { cell: them.seat, sign: -1, years: YEARS },
+        });
+      // (Or the war ended before it is fought: the god's hold on the peoples, Phase 12 M107.)
+      if (war.ended === null && us?.ended === null && them?.ended === null)
+        out.push({
+          label: `Make peace between ${us.town} and ${them.town}`,
+          act: "act.peace",
+          args: { a: war.attacker, b: war.defender },
         });
       return out;
     }

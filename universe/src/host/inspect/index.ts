@@ -19,10 +19,12 @@ import { agePage, depositPageModel, lineagePage, platePageModel } from "./life.t
 import { bodyPage, civilizationPage, foreignWorldPage, starPageModel } from "./sky.ts";
 import { actPage, decisionPage, eventPage, unknownPage } from "./history.ts";
 import { chroniclePage, ledgerPage } from "./world.ts";
+import { statsPage } from "./stats.ts";
 import { alertsOf, breakdownOf, logPage, type Counted } from "./alerts.ts";
 import { answersOf } from "./answers.ts";
 import { comparePage } from "./compare.ts";
 import { crumbsOf } from "./crumbs.ts";
+import { DEEP_LENSES, lensReading, type DeepLens } from "../lenses.ts";
 import { conceptPage, withConcepts } from "./concepts.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
@@ -30,6 +32,7 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref === "world:chronicle") return chroniclePage(world, tab ?? undefined);
   if (ref === "world:ledger") return ledgerPage(world, tab ?? undefined);
   if (ref === "world:log") return logPage(world, tab ?? undefined);
+  if (ref === "world:stats") return statsPage(world, tab ?? undefined);
   if (ref.startsWith("compare:")) return comparePage(world, ref);
   if (ref.startsWith("concept:")) return conceptPage(world, ref);
   if (ref.startsWith("gstar:")) return starPageModel(world, ref);
@@ -144,11 +147,19 @@ export function placeOf(world: World, ref: string): Place | null {
  * A thing in a few words, for a tooltip (Phase 10 M93): its icon and name, the line under
  * its name and its first numbers — its page's, in plain words.
  */
-export function tipOf(world: World, ref: string): Tip {
+export function tipOf(world: World, ref: string, lens?: string): Tip {
   const p = pageOf(world, ref),
     plain = (l: Line) => l.map((s) => (typeof s === "string" ? s : s.text)).join(""),
     // (A concept is told by what it is, not by the kind of page it has.)
     what = p.kind === "concept" ? p.tabs[0]?.blocks.find((b) => b.type === "text") : undefined;
+  // A land under one of the deeper lenses (Phase 12 M108): what makes its number, first.
+  const land = ref.startsWith("cell:0:") ? Number(ref.slice(7)) : NaN,
+    reading =
+      lens && (DEEP_LENSES as readonly string[]).includes(lens) && Number.isInteger(land)
+        ? lensReading(world, land, lens as DeepLens)
+        : null;
+  if (reading)
+    return { ref, icon: p.icon, title: p.title, line: reading.line, stats: reading.stats };
   return {
     ref,
     icon: p.icon,
@@ -164,7 +175,10 @@ export const INSPECT_QUERIES: Readonly<Record<string, QueryHandler>> = {
   /** Where a thing is to be seen. */
   place: (world, args) => placeOf(world, (args as { ref: string }).ref),
   /** A thing in a few words, for a tooltip. */
-  tip: (world, args) => tipOf(world, (args as { ref: string }).ref),
+  tip: (world, args) => {
+    const a = args as { ref: string; lens?: string };
+    return tipOf(world, a.ref, a.lens);
+  },
   /** What stands now and asks to be looked at (M96). */
   alerts: (world) => alertsOf(world),
   /** What one of the top bar's numbers is made of (M97). */

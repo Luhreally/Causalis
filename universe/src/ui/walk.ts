@@ -5,7 +5,7 @@
 import { el } from "./why.ts";
 
 /** What the viewer did, as the walk listens for it. */
-export type WalkCue = "land" | "why" | "lens" | "scale";
+export type WalkCue = "land" | "why" | "lens" | "hand" | "scale";
 
 type Step = { text: string; until: WalkCue | null };
 
@@ -18,6 +18,10 @@ const STEPS: readonly Step[] = [
   {
     text: "The buttons along the top are lenses: they colour the world by people, food, trade, tongues, realms, life. Try one.",
     until: "lens",
+  },
+  {
+    text: "The palette at the foot of the screen is your hand: take an act — rain, a plague, a war set between two realms — and touch where it falls. What follows is theirs.",
+    until: "hand",
   },
   {
     text: "“Look closer” goes down to a land's villages and its people; “The sky” goes out to the star's worlds, and on to the stars.",

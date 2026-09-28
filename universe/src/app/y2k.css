@@ -2012,3 +2012,186 @@ canvas.arms {
     0 1px 1px rgba(0, 0, 0, 0.85),
     0 0 3px rgba(0, 0, 0, 0.7);
 }
+/* The god's palette (Phase 12 M106): WorldBox's bar of powers in glossy tiles — the kinds at
+   its left, their acts beside them, and over them a line saying what the act in hand will do. */
+#hud > .palette {
+  position: fixed;
+  z-index: 1;
+  left: 50%;
+  bottom: calc(10px + var(--safe-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-width: min(36rem, calc(100vw - 460px));
+  padding: 6px 8px 7px;
+  background: var(--panel-solid);
+  border: 2px solid;
+  border-color: var(--chrome-hi) var(--chrome-lo) var(--chrome-lo) var(--chrome-mid);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 4px 14px rgba(0, 0, 18, 0.55);
+}
+.palette-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 1.5em;
+  font-size: 0.8rem;
+  color: var(--ink);
+}
+.palette-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-line.bad .palette-words {
+  color: #ffb45c;
+}
+.palette-years {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+.palette-years .speed {
+  padding: 1px 6px;
+  font-size: 0.72rem;
+}
+.palette-see {
+  padding: 0 4px;
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: none;
+  box-shadow: none;
+  text-decoration: underline;
+  text-shadow: none;
+  cursor: pointer;
+}
+.palette-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.palette-tabs {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding-right: 8px;
+  border-right: 1px solid var(--chrome-lo);
+}
+.palette-tab {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+.palette-tab.on {
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+}
+.palette-acts {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+/* Each act lime glass, as the hand's acts are; the one in hand lit gold and glowing. */
+.palette-act {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+  border-color: #5b7d00;
+  background: linear-gradient(180deg, #f4ffd6 0%, #d5ff72 46%, #a9e61e 54%, #e2ff9a 100%);
+}
+.palette-act.on {
+  border-color: #9a5a00;
+  background: linear-gradient(180deg, #fff8d8 0%, #ffd866 46%, #ffb21e 54%, #ffe39a 100%);
+  box-shadow:
+    0 0 10px rgba(255, 196, 64, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+/* The palette's own button, for a phone (on a desk the palette is always out). */
+#hud > .palette-toggle {
+  display: none;
+}
+/* Where its acts cannot fall (a village, the sky, the stars) the palette stands aside; on a
+   phone it does too while a page is open over the map. */
+body.palette-off #hud > .palette,
+body.palette-off #hud > .palette-toggle {
+  display: none;
+}
+@media (max-width: 640px) {
+  body.paging #hud > .palette,
+  body.paging #hud > .palette-toggle {
+    display: none;
+  }
+}
+/* An act in hand: the pointer is a crosshair over the map; the old hint stands aside. */
+body.casting canvas {
+  cursor: crosshair;
+}
+body.with-palette .hint {
+  display: none;
+}
+/* While a page is open at the left, the palette stands clear of it, beside the map modes. */
+@media (min-width: 641px) {
+  body.paging #hud > .palette {
+    left: auto;
+    right: 232px;
+    transform: none;
+    max-width: calc(100vw - 232px - 27rem - 24px);
+  }
+}
+/* On a phone: a round button at the lower left; the palette a sheet above it when opened. */
+@media (max-width: 640px) {
+  #hud > .palette-toggle {
+    display: block;
+    position: fixed;
+    z-index: 2;
+    left: 10px;
+    bottom: calc(10px + var(--safe-bottom));
+    width: 46px;
+    height: 46px;
+    padding: 0;
+    font-size: 1.4rem;
+    border-radius: 50%;
+    border-color: #5b7d00;
+    background: linear-gradient(180deg, #f4ffd6 0%, #d5ff72 46%, #a9e61e 54%, #e2ff9a 100%);
+  }
+  #hud > .palette {
+    left: 8px;
+    right: 8px;
+    bottom: calc(64px + var(--safe-bottom));
+    transform: none;
+    max-width: none;
+  }
+  #hud > .palette:not(.open) {
+    display: none;
+  }
+  .palette-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+  }
+  .palette-tabs {
+    justify-content: space-between;
+    padding: 0 0 5px;
+    border-right: none;
+    border-bottom: 1px solid var(--chrome-lo);
+  }
+  .palette-tab {
+    flex: 1 1 0;
+  }
+  .palette-words {
+    white-space: normal;
+  }
+}

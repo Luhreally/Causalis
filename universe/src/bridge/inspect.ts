@@ -239,6 +239,7 @@ export type PageKind =
   /** The world's own: its chronicle, its ledger, the message log; and the book of concepts. */
   | "chronicle"
   | "ledger"
+  | "stats"
   | "log"
   | "compare"
   | "concept"

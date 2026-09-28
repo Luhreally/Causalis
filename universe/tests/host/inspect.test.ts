@@ -548,7 +548,7 @@ test("a war's sides on the map bear their arms and the men each fields, for thei
   assert.equal(JSON.stringify(world.domainHashes()), before, "looking changes nothing");
 });
 
-test("the god's hand may answer a great happening: rain and a harvest for a famine; for a war, a harvest at home and a plague upon the foe", () => {
+test("the god's hand may answer a great happening: rain and a harvest for a famine; for a war, a harvest at home, a plague upon the foe, or peace", () => {
   const before = JSON.stringify(world.domainHashes()),
     answers = (ref: string, watch: string) => ask<Answer[]>("event.answers", { ref, watch }),
     shaped = (a: Answer) =>
@@ -577,7 +577,8 @@ test("the god's hand may answer a great happening: rain and a harvest for a fami
     assert.equal(a.args.sign, 1, "giving, not taking");
     assert.ok(shaped(a));
   }
-  // A war: for the side followed, a harvest at its seat; upon the other's, a plague.
+  // A war: for the side followed, a harvest at its seat; upon the other's, a plague; or peace
+  // between them (Phase 12 M107).
   const war = warsOf(world)
       .all()
       .find((w) => w.ended === null)!,
@@ -589,14 +590,17 @@ test("the god's hand may answer a great happening: rain and a harvest for a fami
     [
       ["act.harvest", a.seat, 1],
       ["act.plague", d.seat, -1],
+      ["act.peace", undefined, undefined],
     ],
   );
-  assert.ok(ours.every(shaped));
+  assert.ok(ours.filter((x) => x.act !== "act.peace").every(shaped));
+  assert.deepEqual(ours.at(-1)!.args, { a: war.attacker, b: war.defender });
   assert.deepEqual(
     answers(war.event, war.defender).map((x) => [x.act, x.args.cell]),
     [
       ["act.harvest", d.seat],
       ["act.plague", a.seat],
+      ["act.peace", undefined],
     ],
     "the other way round for the defender",
   );

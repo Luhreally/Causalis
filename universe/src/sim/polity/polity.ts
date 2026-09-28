@@ -684,40 +684,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       const town = edge
         .flatMap((c) => ctx.settlements.inProvince(c).filter((s) => s.market))
         .sort((x, y) => y.population - x.population || (x.ref < y.ref ? -1 : 1))[0];
-      const seatWays = town ? culture.get(town.cell) : undefined;
-      if (town && seatWays) {
-        const inst = institutionsOf(
-            seatWays,
-            undefined,
-            loreOf(world).effect(town.cell, "writing") > 0,
-          ),
-          ref = world.minter.mint(POLITY),
-          name = realmName({ ...inst, town: town.name }),
-          formed = world.events.emit({
-            type: POLITY_EVENTS.formed.type,
-            subjects: [ref, town.ref],
-            place: ctx.provinces.get(town.cell)!.ref,
-            causes: [{ ref: split, role: "trigger", weight: 1 }],
-            data: { name },
-          });
-        store.add({
-          ref,
-          town: town.name,
-          seat: town.cell,
-          founded: year,
-          event: formed,
-          members: [],
-          ...inst,
-          ruler: crown(world, seatWays, town.cell, t, formed, null),
-          tribute: 0.05,
-          ended: null,
-        });
-        // It holds what it can reach from its new seat; the rest go their own way.
-        const theirs = stepsFrom(ctx, town.cell, new Set(edge)),
-          limit = 3 + loreOf(world).effect(town.cell, "reach");
-        for (const c of edge)
-          if ((theirs.get(c) ?? limit + 1) <= limit) store.join(store.get(ref)!, c);
-      }
+      if (town) raiseRealm(ctx, town, edge, split, t);
     }
   }
 
@@ -759,6 +726,52 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
   }
   // The realms that have ended will not change again: fold them into the digest.
   store.seal();
+}
+
+/**
+ * A realm raised at a town under a new ruler, for what broke away (`cause`: a split, a
+ * rising): it holds those of `lands` it can reach from its new seat; the rest go their own
+ * way. Null where the town's land has no ways to found it on.
+ */
+export function raiseRealm(
+  ctx: PopulationContext,
+  town: { readonly ref: Ref; readonly name: string; readonly cell: number },
+  lands: readonly number[],
+  cause: Ref,
+  t: SimTime,
+): Polity | null {
+  const world = ctx.world,
+    store = politiesOf(world),
+    seatWays = cultureOf(world).get(town.cell);
+  if (!seatWays) return null;
+  const inst = institutionsOf(seatWays, undefined, loreOf(world).effect(town.cell, "writing") > 0),
+    ref = world.minter.mint(POLITY),
+    name = realmName({ ...inst, town: town.name }),
+    formed = world.events.emit({
+      type: POLITY_EVENTS.formed.type,
+      subjects: [ref, town.ref],
+      place: ctx.provinces.get(town.cell)!.ref,
+      causes: [{ ref: cause, role: "trigger", weight: 1 }],
+      data: { name },
+    });
+  store.add({
+    ref,
+    town: town.name,
+    seat: town.cell,
+    founded: yearOfMoment(t),
+    event: formed,
+    members: [],
+    ...inst,
+    ruler: crown(world, seatWays, town.cell, t, formed, null),
+    tribute: 0.05,
+    ended: null,
+  });
+  // It holds what it can reach from its new seat; the rest go their own way.
+  const theirs = stepsFrom(ctx, town.cell, new Set(lands)),
+    limit = 3 + loreOf(world).effect(town.cell, "reach"),
+    realm = store.get(ref)!;
+  for (const c of lands) if ((theirs.get(c) ?? limit + 1) <= limit) store.join(realm, c);
+  return realm;
 }
 
 /** Lands no longer joined to their seat through the realm's own (the lands between were lost to `cause`) go their own way. */

@@ -31,3 +31,4 @@ export { HoverTips, breakdownCard, tipCard } from "./hovertip.ts";
 export { Alerts, LogButton } from "./alerts.ts";
 export { ArmsBook, drawArms, paintArms } from "./arms.ts";
 export { EventWindows, isGreat, type EventMode } from "./events.ts";
+export { GodPalette, PALETTE_KINDS } from "./palette.ts";

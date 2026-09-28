@@ -167,6 +167,7 @@ export {
   installPolities,
   politiesOf,
   polityYear,
+  raiseRealm,
   realmName,
   type Discontent,
   type Polity,
@@ -216,6 +217,8 @@ export {
   WarStore,
   installWar,
   fieldedOf,
+  fieldedParts,
+  frontier,
   strengthOf,
   warYear,
   warsOf,
@@ -238,6 +241,15 @@ export {
   type City,
 } from "./city/city.ts";
 export { LOCAL_ACT_EVENTS, agentName, installLocalActs } from "./acts/local.ts";
+export {
+  PEOPLE_ACT_EVENTS,
+  REGARD,
+  RISEN,
+  installPeopleActs,
+  type ConvertArgs,
+  type LandArgs,
+  type PairArgs,
+} from "./acts/peoples.ts";
 export {
   GROUPS,
   interestsOf,

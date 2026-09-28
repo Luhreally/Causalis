@@ -16,7 +16,7 @@ import {
   type Seed,
   type StateStore,
 } from "../../src/kernel/index.ts";
-import { makeToyWorld } from "../../src/sim/index.ts";
+import { makePopulationWorld, makeToyWorld } from "../../src/sim/index.ts";
 
 const build = (seed: Seed) => makeToyWorld(seed.text);
 const VERSION = "test";
@@ -47,6 +47,21 @@ test("a loaded save continues exactly as the world it came from", () => {
     world.checkpoints().map((c) => c.chain),
     live.checkpoints().map((c) => c.chain),
   );
+});
+
+test("a save held in memory loads again, whatever a world loaded from it did since", () => {
+  // (A store keeps what it loads: were it the save's own arrays, the world running on would
+  // write into the save — a people's markets add a line each year — and the save would no
+  // longer match its hashes.)
+  const people = (seed: Seed) => makePopulationWorld(seed),
+    live = people(seedFromText("first light"));
+  live.runTo(60 * YEAR);
+  const ruleset = rulesetId(live, VERSION),
+    doc = saveWorld(live, ruleset),
+    first = loadWorld(doc, people, ruleset).world;
+  first.runTo(80 * YEAR);
+  const again = loadWorld(doc, people, ruleset).world;
+  assert.deepEqual(again.domainHashes(), live.domainHashes());
 });
 
 test("a save proves itself by replaying its commands from the seed", () => {

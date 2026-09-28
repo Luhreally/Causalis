@@ -5,7 +5,7 @@
 // fought over this year or last: the two hosts in their colours, closing, fighting and
 // falling as many as fell, the beaten falling back. A look, by the screen's clock: history
 // says who fought where and how it went; the march and the fight play over as a war lasts.
-import type { VillagePlan, WarsMap } from "../bridge/index.ts";
+import type { HostKinds, VillagePlan, WarsMap } from "../bridge/index.ts";
 import type { SphereGrid } from "../kernel/index.ts";
 import { keepOut, villageGround } from "./ground.ts";
 import { globeRadius } from "./globe.ts";
@@ -21,6 +21,11 @@ export type WarPath = {
   readonly sea: readonly boolean[];
   /** Whether the war is still fought (a war ended stands down). */
   readonly fought: boolean;
+  /** The men each side fields (its host as large as they are, M110), and whether each rides. */
+  readonly men: number;
+  readonly foeMen: number;
+  readonly mounted: boolean;
+  readonly foeMounted: boolean;
 };
 
 export type WarPaths = {
@@ -32,8 +37,50 @@ export type WarPaths = {
     readonly age: number;
     /** The battle's event (its page). */
     readonly event: string;
+    /** Its two sides' colours (the attacker's first), who won, how many fell (M110). */
+    readonly side: number;
+    readonly foe: number;
+    readonly won: boolean;
+    readonly fallen: number;
+  }[];
+  /** The besiegers' camps about the seats under siege (M110): where, whose, their war. */
+  readonly camps: readonly { readonly at: Vec; readonly side: number; readonly war: string }[];
+  /** The garrisons at the seats of realms at peace (M110). */
+  readonly garrisons: readonly {
+    readonly at: Vec;
+    readonly side: number;
+    readonly men: number;
+    readonly mounted: boolean;
+    readonly realm: string;
   }[];
 };
+
+/** Whether a host's design has it ride (horses, a chariot). */
+export function rides(host: HostKinds | null | undefined): boolean {
+  return !!host && (host.mount === "horse" || host.mount === "cavalry" || host.mount === "chariot");
+}
+
+/**
+ * A host's shape on the globe, by the men it fields (M110): ranks one behind another and files
+ * abreast — a band of hundreds three short ranks, a host of thousands two files of five, a great
+ * host of a hundred thousand three files of eight.
+ */
+export function hostShape(men: number): { ranks: number; files: number } {
+  const m = Math.max(1, men);
+  return {
+    ranks: Math.max(3, Math.min(9, Math.round(2 + 1.6 * Math.log10(m / 200)))),
+    files: m < 3000 ? 1 : m < 30000 ? 2 : 3,
+  };
+}
+
+/** The defenders' block at what they hold, by the men they field: two ranks to five. */
+export function holdShape(men: number): { ranks: number; files: number } {
+  const m = Math.max(1, men);
+  return {
+    ranks: Math.max(2, Math.min(5, Math.round(1 + 1.2 * Math.log10(m / 300)))),
+    files: m < 3000 ? 1 : m < 30000 ? 2 : 3,
+  };
+}
 
 /** How high above the ground the marks stand (a share of the globe's radius), and how many steps a way has. */
 const LIFT = 1.008,
@@ -83,7 +130,8 @@ export function warPaths(map: WarsMap, grid: SphereGrid, elevation: Float32Array
     p = grid.positions,
     unit = (c: number): Vec => ({ x: p[c * 3]!, y: p[c * 3 + 1]!, z: p[c * 3 + 2]! });
   const paths: WarPath[] = [],
-    bursts: WarPaths["bursts"][number][] = [];
+    bursts: WarPaths["bursts"][number][] = [],
+    camps: WarPaths["camps"][number][] = [];
   for (const w of map.wars) {
     const a = unit(w.from),
       b = unit(w.to),
@@ -103,13 +151,19 @@ export function warPaths(map: WarsMap, grid: SphereGrid, elevation: Float32Array
       points.push(placeOf(grid, elevation, cell, v));
       sea.push((elevation[cell] ?? 0) <= 0);
     }
+    const side = colorOf(w.attacker.color),
+      foe = colorOf(w.defender.color);
     paths.push({
       ref: w.ref,
-      side: colorOf(w.attacker.color),
-      foe: colorOf(w.defender.color),
+      side,
+      foe,
       points,
       sea,
       fought: w.ended === null,
+      men: w.attacker.fields,
+      foeMen: w.defender.fields,
+      mounted: rides(w.attacker.host),
+      foeMounted: rides(w.defender.host),
     });
     for (const f of w.battles)
       if (f.spot >= 0)
@@ -119,9 +173,22 @@ export function warPaths(map: WarsMap, grid: SphereGrid, elevation: Float32Array
           size: 0.02 + 0.035 * Math.min(1, Math.log10(1 + f.fallen) / 4),
           age: Math.max(0, map.year - f.year),
           event: f.event,
+          side,
+          foe,
+          won: f.won,
+          fallen: f.fallen,
         });
+    if (w.siege !== null && w.siege >= 0 && w.ended === null)
+      camps.push({ at: placeOf(grid, elevation, w.siege), side, war: w.ref });
   }
-  return { paths, colors, bursts };
+  const garrisons = (map.garrisons ?? []).map((g) => ({
+    at: placeOf(grid, elevation, g.spot),
+    side: colorOf(g.color),
+    men: g.fields,
+    mounted: rides(g.host),
+    realm: g.realm,
+  }));
+  return { paths, colors, bursts, camps, garrisons };
 }
 
 /** A war's mark on the globe now: where it stands, which way is up and which ahead, its side, whether a ship. */
@@ -139,6 +206,10 @@ export type WarToken = {
   readonly lead: boolean;
   /** How much of it is drawn (0 … 1): a march ends and begins again in a blink, not a jump. */
   readonly size: number;
+  /** Whether it bears a banner (the head, and one in every three ranks, M110). */
+  readonly banner: boolean;
+  /** Whether it rides (its host's design has horses or chariots). */
+  readonly mounted: boolean;
 };
 
 /** How long a host's march from its land to the front takes on the screen (seconds). */
@@ -162,46 +233,158 @@ export function warTokens(w: WarPaths, s: number): WarToken[] {
       };
     };
     // The column marches out, and stops short of the front; then marches again (shrunk away
-    // at the front and grown at the start, so none jumps back).
+    // at the front and grown at the start, so none jumps back). As many ranks and files as the
+    // men it fields (M110), its banner at its head and over every third rank.
     const cycle = (s / MARCH + n * 0.37) % 1,
       lead = cycle * 0.9,
-      size = loopSize(cycle, 0.06, 0.08);
-    for (let k = 0; k < 4; k++) {
-      const m = lead - k * 0.035;
+      size = loopSize(cycle, 0.06, 0.08),
+      shape = hostShape(path.men),
+      mid = Math.floor((shape.files - 1) / 2);
+    for (let r = 0; r < shape.ranks; r++) {
+      const m = lead - r * 0.03;
       if (m < 0) break;
-      const p = at(m);
-      out.push({
-        ref: path.ref,
-        at: p.at,
-        up: norm(p.at),
-        ahead: p.ahead,
-        side: path.side,
-        attacker: true,
-        ship: p.sea,
-        lead: k === 0,
-        // (Each behind the lead grows in as it sets out.)
-        size: Math.min(size, loopSize(m / 0.9, 0.06, 0)),
-      });
+      const p = at(m),
+        up = norm(p.at),
+        aside = norm(cross(up, p.ahead));
+      for (let f = 0; f < shape.files; f++) {
+        const off = (f - (shape.files - 1) / 2) * 0.011;
+        out.push({
+          ref: path.ref,
+          at: { x: p.at.x + aside.x * off, y: p.at.y + aside.y * off, z: p.at.z + aside.z * off },
+          up,
+          ahead: p.ahead,
+          side: path.side,
+          attacker: true,
+          ship: p.sea,
+          lead: r === 0 && f === mid,
+          // (Each behind the lead grows in as it sets out.)
+          size: Math.min(size, loopSize(m / 0.9, 0.06, 0)),
+          banner: f === mid && r % 3 === 0,
+          mounted: path.mounted,
+        });
+      }
     }
-    // The defenders stand at what they hold, facing the way the host comes.
-    const held = at(1),
-      back = at(0.96);
-    for (const k of [0, 1]) {
-      const d = k ? back : held;
+    // The defenders stand in a block at what they hold, facing the way the host comes.
+    const hold = holdShape(path.foeMen),
+      hmid = Math.floor((hold.files - 1) / 2);
+    for (let r = 0; r < hold.ranks; r++) {
+      const d = at(1 - r * 0.04),
+        up = norm(d.at),
+        aside = norm(cross(up, d.ahead));
+      for (let f = 0; f < hold.files; f++) {
+        const off = (f - (hold.files - 1) / 2) * 0.011;
+        out.push({
+          ref: path.ref,
+          at: { x: d.at.x + aside.x * off, y: d.at.y + aside.y * off, z: d.at.z + aside.z * off },
+          up,
+          ahead: { x: -d.ahead.x, y: -d.ahead.y, z: -d.ahead.z },
+          side: path.foe,
+          attacker: false,
+          ship: d.sea,
+          lead: r === 0 && f === hmid,
+          size: 1,
+          banner: r === 0 && f === hmid,
+          mounted: path.foeMounted,
+        });
+      }
+    }
+  });
+  return out;
+}
+
+/** One who fought in a battle on the globe now (M110): standing in their side's mass, or fallen. */
+export type BattleFigure = {
+  readonly event: string;
+  readonly at: Vec;
+  readonly up: Vec;
+  readonly ahead: Vec;
+  readonly side: number;
+  readonly fallen: boolean;
+  readonly size: number;
+};
+
+/**
+ * The battles of this year and last as two masses meeting (M110): each side a block in its
+ * colour pressing on the other across the place it was fought, swaying as the fight goes, the
+ * larger the more fought; and between them the fallen, as many more as fell. Last year's
+ * smaller: its fight is done, its fallen remain.
+ */
+export function battleFigures(w: WarPaths, s: number): BattleFigure[] {
+  const out: BattleFigure[] = [];
+  w.bursts.forEach((b, n) => {
+    if (b.age > 1) return;
+    const up = norm(b.at),
+      [t0, t1] = tangentsOf(up),
+      turn = hashOf(b.event) * Math.PI * 2,
+      dir = {
+        x: t0.x * Math.cos(turn) + t1.x * Math.sin(turn),
+        y: t0.y * Math.cos(turn) + t1.y * Math.sin(turn),
+        z: t0.z * Math.cos(turn) + t1.z * Math.sin(turn),
+      },
+      aside = norm(cross(up, dir)),
+      k = b.age === 0 ? 1 : 0.7,
+      each = Math.max(3, Math.min(8, Math.round(2 + Math.log10(1 + b.fallen)))),
+      sway = b.age === 0 ? Math.sin(s * 2.2 + n) * 0.003 : 0,
+      place = (along: number, across: number): Vec => ({
+        x: b.at.x + dir.x * along + aside.x * across,
+        y: b.at.y + dir.y * along + aside.y * across,
+        z: b.at.z + dir.z * along + aside.z * across,
+      });
+    for (const [side, sign] of [
+      [b.side, -1],
+      [b.foe, 1],
+    ] as const)
+      for (let i = 0; i < each; i++) {
+        const rank = i % 2,
+          file = Math.floor(i / 2) - (Math.ceil(each / 2) - 1) / 2;
+        out.push({
+          event: b.event,
+          at: place(sign * (0.008 + rank * 0.007) + sign * sway, file * 0.008),
+          up,
+          ahead: { x: -sign * dir.x, y: -sign * dir.y, z: -sign * dir.z },
+          side,
+          fallen: false,
+          size: k,
+        });
+      }
+    // The fallen between them, the more the more fell (of both sides, the beaten more).
+    const fallen = Math.max(1, Math.min(10, Math.round(2.5 * Math.log10(1 + b.fallen))));
+    for (let i = 0; i < fallen; i++) {
+      const u = hashOf(`${b.event}:${i}`),
+        v = hashOf(`${b.event}:${i}:v`),
+        beaten = b.won ? b.foe : b.side;
       out.push({
-        ref: path.ref,
-        at: d.at,
-        up: norm(d.at),
-        ahead: { x: -d.ahead.x, y: -d.ahead.y, z: -d.ahead.z },
-        side: path.foe,
-        attacker: false,
-        ship: d.sea,
-        lead: k === 0,
-        size: 1,
+        event: b.event,
+        at: place((u - 0.5) * 0.012, (v - 0.5) * 0.03),
+        up,
+        ahead: { x: aside.x, y: aside.y, z: aside.z },
+        side: i % 3 === 2 ? (beaten === b.side ? b.foe : b.side) : beaten,
+        fallen: true,
+        size: k,
       });
     }
   });
   return out;
+}
+
+function cross(a: Vec, b: Vec): Vec {
+  return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x };
+}
+
+/** Two directions along the globe's face at a place whose up is `u`. */
+function tangentsOf(u: Vec): [Vec, Vec] {
+  const a = Math.abs(u.y) < 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 },
+    t0 = norm(cross(a, u)),
+    t1 = cross(u, t0);
+  return [t0, t1];
+}
+
+/** A number in [0, 1) of a text's own. */
+function hashOf(text: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) >>> 0;
+  return ((h ^ (h >>> 13)) >>> 0) / 4294967296;
 }
 
 function norm(v: Vec): Vec {
@@ -332,6 +515,24 @@ export type LandWars = {
     /** Its two realms and the men each fields (their counters, Phase 11 M101). */
     readonly attacker: { readonly ref: string; readonly fields: number };
     readonly defender: { readonly ref: string; readonly fields: number };
+    /** What each side's host is made of (its arms' kinds, M110). */
+    readonly hosts: { readonly attacker: HostKinds | null; readonly defender: HostKinds | null };
+  }[];
+  /** The besiegers' camps about a seat under siege in the land (M110). */
+  readonly camps: readonly {
+    readonly war: string;
+    readonly at: Flat;
+    readonly side: number;
+    readonly name: string;
+  }[];
+  /** The garrison of a realm at peace whose seat is in the land (M110). */
+  readonly garrisons: readonly {
+    readonly realm: string;
+    readonly at: Flat;
+    readonly side: number;
+    readonly name: string;
+    readonly men: number;
+    readonly host: HostKinds | null;
   }[];
   readonly battles: readonly {
     readonly event: string;
@@ -345,6 +546,8 @@ export type LandWars = {
     readonly side: number;
     readonly foe: number;
     readonly won: boolean;
+    /** What each side's host is made of (M110). */
+    readonly hosts: { readonly attacker: HostKinds | null; readonly defender: HostKinds | null };
   }[];
 };
 
@@ -361,19 +564,35 @@ export type ColumnMark = {
   readonly z: number;
   readonly size: number;
   readonly lead: boolean;
+  /** Its rank from the front (0: the head's), and whether it bears a banner (M110). */
+  readonly rank: number;
+  readonly banner: boolean;
 };
 
 /**
+ * A host's shape in a land, by the men it fields (M110): files abreast and ranks behind — two
+ * files of four ranks for a band, four of ten for a great host.
+ */
+export function landShape(men: number): { files: number; ranks: number } {
+  const m = Math.max(1, men);
+  return {
+    files: m < 3000 ? 2 : m < 30000 ? 3 : 4,
+    ranks: Math.max(4, Math.min(10, Math.round(4 + 1.5 * Math.log10(m / 300)))),
+  };
+}
+
+/**
  * A host's column in a land at phase `cycle` (0 … 1) of its march across it: a banner-bearer
- * and those behind, two abreast, walking in from `from` toward `to`. Where the ground under
- * them is sea, they go in ships — one for every four of the column, down its middle — as
- * the globe draws a host at sea.
+ * and those behind, in ranks `shape.files` abreast (two abreast, six deep, unless told), walking
+ * in from `from` toward `to`. Where the ground under them is sea, they go in ships — one for
+ * every four of the column, down its middle — as the globe draws a host at sea.
  */
 export function landColumn(
   from: Flat,
   to: Flat,
   cycle: number,
   sea: (x: number, z: number) => boolean,
+  shape: { files: number; ranks: number } = { files: 2, ranks: 6 },
 ): {
   people: ColumnMark[];
   ships: ColumnMark[];
@@ -395,9 +614,12 @@ export function landColumn(
     ships: ColumnMark[] = [];
   let head: Flat | null = null,
     afloat = false;
-  for (let k = 0; k < 12; k++) {
-    const back = Math.floor(k / 2) * 1.1,
-      aside = (k % 2 ? 0.45 : -0.45) * (k ? 1 : 0),
+  for (let k = 0; k < shape.files * shape.ranks; k++) {
+    const rank = Math.floor(k / shape.files),
+      file = k % shape.files,
+      back = rank * 1.1,
+      // (The head walks alone at the front's middle; the rest in their files.)
+      aside = k ? (file - (shape.files - 1) / 2) * 0.9 : 0,
       along = lead * len - back;
     if (along < 0) break;
     const at = { x: from.x + ux * along - uz * aside, z: from.z + uz * along + ux * aside },
@@ -406,8 +628,23 @@ export function landColumn(
     if (sea(at.x, at.z)) {
       if (k === 0) afloat = true;
       if (k % 4 === 0)
-        ships.push({ x: from.x + ux * along, z: from.z + uz * along, size, lead: k === 0 });
-    } else people.push({ ...at, size, lead: k === 0 });
+        ships.push({
+          x: from.x + ux * along,
+          z: from.z + uz * along,
+          size,
+          lead: k === 0,
+          rank,
+          banner: k === 0,
+        });
+    } else
+      people.push({
+        ...at,
+        size,
+        lead: k === 0,
+        rank,
+        // (A banner at the head, and over the middle of every third rank behind it.)
+        banner: k === 0 || (rank > 0 && rank % 3 === 0 && file === Math.floor(shape.files / 2)),
+      });
   }
   return { people, ships, head, afloat, yaw: Math.atan2(ux, uz), grown };
 }
@@ -482,7 +719,8 @@ export function landWars(
       return colors.length - 1;
     },
     marches: LandWars["marches"][number][] = [],
-    battles: LandWars["battles"][number][] = [];
+    battles: LandWars["battles"][number][] = [],
+    camps: LandWars["camps"][number][] = [];
   for (const w of map.wars) {
     const side = colorOf(w.attacker.color),
       foe = colorOf(w.defender.color),
@@ -492,6 +730,7 @@ export function landWars(
       sides = {
         attacker: { ref: w.attacker.ref, fields: w.attacker.fields },
         defender: { ref: w.defender.ref, fields: w.defender.fields },
+        hosts: { attacker: w.attacker.host ?? null, defender: w.defender.host ?? null },
       };
     if (w.ended === null) {
       // What it wants is here: its host comes in from the way it sets out, to the defenders.
@@ -519,6 +758,15 @@ export function landWars(
           ...sides,
         });
     }
+    // A seat under siege here: the besiegers' camp about it.
+    const besieged = w.siege !== null && w.ended === null ? here(w.siege) : null;
+    if (besieged)
+      camps.push({
+        war: w.ref,
+        at: besieged,
+        side,
+        name: `⛺ The camp of ${w.attacker.name} before ${w.defender.name}'s seat`,
+      });
     for (const b of w.battles) {
       const at = b.spot >= 0 ? here(b.spot) : null,
         age = map.year - b.year;
@@ -533,8 +781,25 @@ export function landWars(
         side,
         foe,
         won: b.won,
+        hosts: sides.hosts,
       });
     }
   }
-  return { colors, marches, battles };
+  // A realm at peace whose seat is here: its garrison stands by it.
+  const garrisons = (map.garrisons ?? []).flatMap((g) => {
+    const at = here(g.spot);
+    return at
+      ? [
+          {
+            realm: g.realm,
+            at,
+            side: colorOf(g.color),
+            name: `🛡️ The garrison of ${g.name}`,
+            men: g.fields,
+            host: g.host,
+          },
+        ]
+      : [];
+  });
+  return { colors, marches, battles, camps, garrisons };
 }

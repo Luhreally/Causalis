@@ -202,6 +202,22 @@ export function fieldedOf(ctx: PopulationContext, p: Polity): number {
   return fightingMen(ctx, p) * fieldShare(ctx, p);
 }
 
+/**
+ * What the host a realm fields is made of (the strength lens's breakdown, Phase 12 M108): its
+ * fighting men, the share of them it fields, its people's valour, whether it keeps a standing army.
+ */
+export function fieldedParts(
+  ctx: PopulationContext,
+  p: Polity,
+): { men: number; share: number; valour: number; standing: boolean } {
+  return {
+    men: fightingMen(ctx, p),
+    share: fieldShare(ctx, p),
+    valour: cultureOf(ctx.world).get(p.seat)?.traits[WAY.valour] ?? 0.5,
+    standing: !!loreOf(ctx.world).get(p.seat, "standing-army"),
+  };
+}
+
 /** How many a realm can field, and how well armed: grown men, a share by valour and a standing army. */
 export function strengthOf(ctx: PopulationContext, p: Polity): number {
   const share = fieldShare(ctx, p),
@@ -214,7 +230,7 @@ export function strengthOf(ctx: PopulationContext, p: Polity): number {
 }
 
 /** The border lands of `b` next to `a`, richest in food first. */
-function frontier(ctx: PopulationContext, a: Polity, b: Polity): number[] {
+export function frontier(ctx: PopulationContext, a: Polity, b: Polity): number[] {
   const g = ctx.generated,
     markets = ctx.world.store<MarketStore>("economy.markets"),
     // A realm with ships fights for lands across the sea its traders have reached.

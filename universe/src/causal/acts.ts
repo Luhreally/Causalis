@@ -6,9 +6,16 @@ import {
   ACT_EVENTS,
   HAND_EVENTS,
   LOCAL_ACT_EVENTS,
+  PEOPLE_ACT_EVENTS,
+  beliefOf,
+  politiesOf,
   populationContext,
+  realmName,
   type ActArgs,
   type ActKind,
+  type ConvertArgs,
+  type LandArgs,
+  type PairArgs,
 } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { principleName } from "./lore.ts";
@@ -115,3 +122,48 @@ registerCommandWords(
   "act.bless-one",
   (_, c) => `Your act: you blessed one of the people under your hand, year ${yearOfMoment(c.t)}`,
 );
+
+// The god's hold on the peoples (Phase 12 M107): realms set at war and at peace, made friends
+// or rivals; a land stirred to rise, a land turned to a faith.
+type WordsWorld = Parameters<Parameters<typeof registerEventWords>[1]>[0];
+const realmCalled = (world: WordsWorld, ref: unknown) => {
+  const r = typeof ref === "string" ? politiesOf(world).get(ref as Ref) : undefined;
+  return r ? realmName(r) : "a realm";
+};
+const pairWords = (world: WordsWorld, c: { args: unknown }) => {
+  const a = c.args as PairArgs;
+  return [realmCalled(world, a.a), realmCalled(world, a.b)] as const;
+};
+registerCommandWords("act.war", (world, c) => {
+  const [a, b] = pairWords(world, c);
+  return `Your act: you set ${a} upon ${b}, year ${yearOfMoment(c.t)}`;
+});
+registerCommandWords("act.peace", (world, c) => {
+  const [a, b] = pairWords(world, c);
+  return `Your act: you ended the war between ${a} and ${b}, year ${yearOfMoment(c.t)}`;
+});
+registerCommandWords("act.friendship", (world, c) => {
+  const [a, b] = pairWords(world, c);
+  return `Your act: you made friends of ${a} and ${b}, year ${yearOfMoment(c.t)}`;
+});
+registerCommandWords("act.discord", (world, c) => {
+  const [a, b] = pairWords(world, c);
+  return `Your act: you sowed discord between ${a} and ${b}, year ${yearOfMoment(c.t)}`;
+});
+registerCommandWords(
+  "act.rise",
+  (world, c) =>
+    `Your act: you stirred ${landWords(world, cellRef(0, (c.args as LandArgs).cell))} to rise, year ${yearOfMoment(c.t)}`,
+);
+registerCommandWords("act.convert", (world, c) => {
+  const a = c.args as ConvertArgs;
+  return `Your act: you turned ${landWords(world, cellRef(0, a.cell))} to ${beliefOf(world).get(a.faith)?.name ?? "a faith"}, year ${yearOfMoment(c.t)}`;
+});
+registerEventWords(PEOPLE_ACT_EVENTS.friendship.type, (_, e) => {
+  const d = e.data as { a?: string; b?: string } | null;
+  return `By your hand: ${d?.a ?? "a realm"} and ${d?.b ?? "a realm"} were made friends, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(PEOPLE_ACT_EVENTS.discord.type, (_, e) => {
+  const d = e.data as { a?: string; b?: string } | null;
+  return `By your hand: discord was sown between ${d?.a ?? "a realm"} and ${d?.b ?? "a realm"}, year ${yearOfMoment(e.t)}`;
+});

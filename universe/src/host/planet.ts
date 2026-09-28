@@ -100,12 +100,16 @@ import {
 import type {
   ClusterPlan,
   ClusterStar,
+  HostKinds,
   SkyState,
   StarPage,
   SystemPlan,
   WarsMap,
   GenesisPlan,
 } from "../bridge/index.ts";
+
+/** The most garrisons the globe shows at the seats of realms at peace (Phase 12 M110). */
+const GARRISONS = 48;
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 import { PAGE_QUERIES } from "./pages.ts";
@@ -123,6 +127,8 @@ import { SEARCH_QUERIES } from "./search.ts";
 import { realmColor } from "./colors.ts";
 import { realmArms } from "./arms.ts";
 import { villagePlan } from "./village.ts";
+import { landReadings } from "./lenses.ts";
+import { actsMap, paletteLand } from "./acts.ts";
 import { worldGlobe } from "./worlds.ts";
 import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
 
@@ -857,6 +863,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
       },
       // The wars of the year on the globe (M87): each side in its colour, where its host
       // marches from and for, and the battles fought lately.
+      // The god's acts where they fall, for the globe to play them; a land as the palette
+      // sees it (Phase 12 M106).
+      "acts.map": (world) => actsMap(world),
+      "palette.land": (world, args) => paletteLand(world, (args as { cell: number }).cell),
       "wars.map": (world): WarsMap => {
         const pw = homePlanet(world).generated,
           grid = pw.fine.grid,
@@ -870,6 +880,14 @@ function planetUniverse(name: string, prior: Prior): Universe {
             );
           },
           ctx = populationContext(world),
+          designs = designsOf(world),
+          // What its host is made of: its design's parts (M110), by their ids.
+          hostOf = (ref: Ref): HostKinds | null => {
+            const parts = designs.of(ref)?.parts;
+            if (!parts) return null;
+            const id = (role: string) => parts.find((x) => x.role === role)?.id ?? "";
+            return { arm: id("arm"), guard: id("guard"), mount: id("mount") };
+          },
           side = (ref: Ref) => {
             const r = realms.get(ref)!;
             return {
@@ -879,6 +897,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
               // (Its counter's: the men it fields, and its arms.)
               fields: Math.round(fieldedOf(ctx, r)),
               arms: realmArms(world, ref),
+              host: hostOf(ref),
             };
           };
         const wars = warsOf(world)
@@ -936,7 +955,25 @@ function planetUniverse(name: string, prior: Prior): Universe {
               },
             ];
           });
-        return { year, wars };
+        // The realms at peace, their garrisons at their seats (M110): the greatest first.
+        const fighting = new Set(
+            wars.flatMap((w) => (w.ended === null ? [w.attacker.ref, w.defender.ref] : [])),
+          ),
+          garrisons = realms
+            .living()
+            .filter((r) => !fighting.has(r.ref) && spot(r.seat) >= 0)
+            .map((r) => ({ r, fields: Math.round(fieldedOf(ctx, r)) }))
+            .sort((a, b) => b.fields - a.fields || (a.r.ref < b.r.ref ? -1 : 1))
+            .slice(0, GARRISONS)
+            .map(({ r, fields }) => ({
+              realm: r.ref,
+              name: realmName(r),
+              color: realmColor(r.ref),
+              spot: spot(r.seat),
+              fields,
+              host: hostOf(r.ref),
+            }));
+        return { year, garrisons, wars };
       },
       // A world's beginning, for the genesis (M89): its deep ages, every lineage with the
       // age it arose and died in and its body, and the people that rose to thought.
@@ -993,7 +1030,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "people.map": (world) => {
         const g = homePlanet(world).generated,
           medium = g.life.people?.body.medium ?? "land",
-          markets = marketsOf(world);
+          markets = marketsOf(world),
+          // (The deeper lenses' readings: unrest, strength, wealth, knowledge, growth — M108.)
+          readings = landReadings(world);
         // The lands of the home world (lands on other bodies are shown with the sky).
         return populationContext(world)
           .provinces.all()
@@ -1027,6 +1066,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
                 ? last.ledger[2]!.reduce((a, b) => a + b, 0) +
                   last.ledger[3]!.reduce((a, b) => a + b, 0)
                 : 0,
+              ...readings(p.cell),
             };
           });
       },
@@ -1119,7 +1159,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
       ...SEARCH_QUERIES,
       place: (world, args) => placeOf(world, (args as { ref: string }).ref),
       // A thing in a few words, for a tooltip (Phase 10 M93).
-      tip: (world, args) => tipOf(world, (args as { ref: string }).ref),
+      tip: (world, args) => {
+        const a = args as { ref: string; lens?: string };
+        return tipOf(world, a.ref, a.lens);
+      },
       // What stands now and asks to be looked at; what the top bar's numbers are made of (M96, M97).
       alerts: (world) => alertsOf(world),
       "world.breakdown": (world, args) => breakdownOf(world, (args as { what: Counted }).what),

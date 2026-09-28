@@ -1535,7 +1535,8 @@ function andMore(shown: number, all: number, what: string): Block[] {
     : [];
 }
 
-const ERA_WORDS: Readonly<Record<string, string>> = {
+/** Each age in a word and its sign. */
+export const ERA_WORDS: Readonly<Record<string, string>> = {
   forage: "🏹 foragers",
   farm: "🌾 farming",
   metal: "⚒️ metal",

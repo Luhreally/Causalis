@@ -21,6 +21,11 @@ export const LENSES = [
   "life",
   "diplomacy",
   "war",
+  "unrest",
+  "strength",
+  "wealth",
+  "knowledge",
+  "growth",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -40,6 +45,11 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   life: "Life",
   diplomacy: "Diplomacy",
   war: "War",
+  unrest: "Unrest",
+  strength: "Strength",
+  wealth: "Wealth",
+  knowledge: "Knowledge",
+  growth: "Growth",
 };
 
 /** Each map mode's icon, for the map modes' bar (Phase 10 M96). */
@@ -59,6 +69,11 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   life: "🦌",
   diplomacy: "🤝",
   war: "⚔️",
+  unrest: "🔥",
+  strength: "🛡️",
+  wealth: "💎",
+  knowledge: "📜",
+  growth: "📈",
 };
 
 /** How every land stands toward the realm the diplomacy lens is of, in its colours. */
@@ -216,6 +231,66 @@ const FOOD: readonly Stop[] = [
   [2.5, [0.75, 0.12, 0.18]],
 ];
 
+// The deeper lenses (Phase 12 M108). A land's grievance: content green to seething red.
+const UNREST: readonly Stop[] = [
+  [0, [0.34, 0.68, 0.4]],
+  [0.3, [0.93, 0.84, 0.36]],
+  [0.6, [0.95, 0.5, 0.2]],
+  [0.85, [0.8, 0.12, 0.12]],
+  [1, [0.46, 0.04, 0.1]],
+];
+/** The men a realm fields, on a log scale: a band (a hundred) to a great host (millions). */
+const STRENGTH: readonly Stop[] = [
+  [2, [0.78, 0.8, 0.88]],
+  [3, [0.58, 0.66, 0.9]],
+  [4, [0.36, 0.4, 0.84]],
+  [5, [0.5, 0.18, 0.66]],
+  [6.4, [0.22, 0.04, 0.34]],
+];
+/** A land's stores a head, at their worth, on a log scale: poor (ten a head) to rich (hundreds). */
+const WEALTH: readonly Stop[] = [
+  [0.9, [0.46, 0.4, 0.34]],
+  [1.2, [0.66, 0.54, 0.3]],
+  [1.5, [0.9, 0.72, 0.22]],
+  [1.9, [1, 0.88, 0.42]],
+  [2.4, [1, 0.98, 0.8]],
+];
+/** How many things a land knows (of some 85 to be found): the few to the learned. */
+const KNOWLEDGE: readonly Stop[] = [
+  [0, [0.36, 0.26, 0.22]],
+  [6, [0.46, 0.3, 0.62]],
+  [14, [0.26, 0.42, 0.86]],
+  [22, [0.18, 0.66, 0.74]],
+  [30, [0.36, 0.8, 0.42]],
+  [42, [0.94, 0.86, 0.34]],
+  [56, [1, 0.98, 0.9]],
+];
+/** Its people's rise or fall these ten years: shrinking red, steady pale, growing green. */
+const GROWTH: readonly Stop[] = [
+  [-0.15, [0.62, 0.08, 0.12]],
+  [-0.03, [0.92, 0.5, 0.3]],
+  [0.03, [0.9, 0.86, 0.6]],
+  [0.07, [0.66, 0.86, 0.5]],
+  [0.11, [0.28, 0.68, 0.32]],
+  [0.2, [0.06, 0.42, 0.2]],
+];
+
+/** How a deeper lens's value is laid on its ramp, and whether a land shows at all. */
+const DEEP: Readonly<
+  Partial<
+    Record<
+      Lens,
+      { stops: readonly Stop[]; at: (v: number) => number; shown: (v: number) => boolean }
+    >
+  >
+> = {
+  unrest: { stops: UNREST, at: (v) => v, shown: () => true },
+  strength: { stops: STRENGTH, at: (v) => Math.log10(1 + v), shown: (v) => v > 0 },
+  wealth: { stops: WEALTH, at: (v) => Math.log10(Math.max(1, v)), shown: () => true },
+  knowledge: { stops: KNOWLEDGE, at: (v) => v, shown: () => true },
+  growth: { stops: GROWTH, at: (v) => v, shown: () => true },
+};
+
 /** A biome's colour on the land lens. */
 export function biomeColor(biome: number): Rgb {
   return BIOME_COLORS[biome] ?? [0.5, 0.6, 0.35];
@@ -312,9 +387,16 @@ export function globeColors(
       }
       case "people":
       case "food":
-      case "trade": {
-        const v = values?.get(province);
-        if (v !== undefined && v > 0)
+      case "trade":
+      case "unrest":
+      case "strength":
+      case "wealth":
+      case "knowledge":
+      case "growth": {
+        const v = values?.get(province),
+          deep = DEEP[lens];
+        if (v !== undefined && deep && deep.shown(v)) col = ramp(deep.stops, deep.at(v));
+        else if (v !== undefined && !deep && v > 0)
           col =
             lens === "trade"
               ? ramp(TRADE, Math.log10(1 + v))
@@ -351,6 +433,35 @@ export function globeColors(
     out[c * 4 + 3] = 255;
   }
   if (grid && colors && BORDERED.has(lens)) borders(out, frame, colors, grid);
+  return out;
+}
+
+/** How a land is lit by the god's palette (Phase 12 M106): in an act's reach, chosen, as a foe or a friend. */
+export type Lit = "reach" | "chosen" | "foe" | "friend";
+/** Each light's colour, and how far toward it a lit land is drawn. */
+const LIGHTS: Readonly<Record<Lit, readonly [Rgb, number]>> = {
+  reach: [[1, 0.97, 0.78], 0.45],
+  chosen: [[1, 0.8, 0.18], 0.55],
+  foe: [[1, 0.2, 0.16], 0.55],
+  friend: [[0.36, 1, 0.52], 0.5],
+};
+
+/** A map's colours with lands lit over them: every fine cell of a lit land drawn toward its light. */
+export function litColors(
+  base: Uint8Array,
+  frame: FrameMessage,
+  lit: ReadonlyMap<number, Lit>,
+): Uint8Array {
+  const province = frame.arrays.province as Int32Array | undefined;
+  if (!province || !lit.size) return base;
+  const out = base.slice();
+  for (let c = 0; c < province.length; c++) {
+    const l = province[c]! >= 0 ? lit.get(province[c]!) : undefined;
+    if (!l) continue;
+    const [color, k] = LIGHTS[l];
+    for (let j = 0; j < 3; j++)
+      out[c * 4 + j] = Math.round(out[c * 4 + j]! * (1 - k) + color[j]! * 255 * k);
+  }
   return out;
 }
 
@@ -421,6 +532,16 @@ export function lensLegend(lens: Lens): Legend {
       return { kind: "ramp", stops: stops(RAIN), low: "desert", high: "3 m a year" };
     case "life":
       return { kind: "ramp", stops: LIFE.map(([, c]) => c), low: "few kinds", high: "many" };
+    case "unrest":
+      return { kind: "ramp", stops: stops(UNREST), low: "content", high: "rising" };
+    case "strength":
+      return { kind: "ramp", stops: stops(STRENGTH), low: "a band", high: "a great host" };
+    case "wealth":
+      return { kind: "ramp", stops: stops(WEALTH), low: "poor", high: "rich (in store a head)" };
+    case "knowledge":
+      return { kind: "ramp", stops: stops(KNOWLEDGE), low: "little known", high: "much" };
+    case "growth":
+      return { kind: "ramp", stops: stops(GROWTH), low: "shrinking", high: "growing" };
     case "diplomacy":
       return {
         kind: "keys",

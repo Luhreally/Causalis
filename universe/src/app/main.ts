@@ -7,6 +7,7 @@ import "./y2k.css";
 import { HostClient, inlinePair, workerPort } from "../bridge/index.ts";
 import {
   FreeRig,
+  GlobeActs,
   GlobeScene,
   GlobeTowns,
   GlobeWars,
@@ -54,6 +55,7 @@ import {
   Alerts,
   ArmsBook,
   EventWindows,
+  GodPalette,
   isGreat,
   HoverTips,
   LogButton,
@@ -62,6 +64,7 @@ import {
   type WorldStats,
 } from "../ui/index.ts";
 import type {
+  ActsMap,
   ClusterPlan,
   SkyState,
   SystemPlan,
@@ -95,6 +98,8 @@ import {
   hallCells,
   hallDomes,
   landWars,
+  litColors,
+  placeActs,
   warPaths,
   sandboxSpec,
   skyMarks,
@@ -111,6 +116,7 @@ import {
   STANDING_COLORS,
   WAR_COLORS,
   type Lens,
+  type Lit,
   type NameShape,
   type RegionLens,
   type SandboxSpec,
@@ -139,6 +145,22 @@ const WORK_WORDS = [
 ];
 /** Watching a village starts at an hour a second: a day goes by in 24 seconds. */
 const WATCH_DEFAULT = 3600;
+/** The map modes whose tooltip breaks a land's number down (Phase 12 M108). */
+const DEEP_LENSES: readonly Lens[] = ["unrest", "strength", "wealth", "knowledge", "growth"];
+/** The map modes that show the people (repainted as their numbers come, and turned to them). */
+const PEOPLE_LENSES: readonly Lens[] = [
+  "people",
+  "food",
+  "trade",
+  "tongues",
+  "realms",
+  "faiths",
+  "unrest",
+  "strength",
+  "wealth",
+  "knowledge",
+  "growth",
+];
 const YEAR = 365 * DAY;
 const SKY = [0.09, 0.1, 0.13] as const;
 const SPACE = [0.02, 0.025, 0.045] as const;
@@ -210,6 +232,21 @@ type Exposed = {
   hallsShown?: () => number;
   /** Whether a great happening's window is open (M100). */
   eventOpen?: () => boolean;
+  /** The god's palette (Phase 12 M106): the act in hand, an act taken up or put down, a tap. */
+  palette?: {
+    holding: () => string | null;
+    take: (id: string) => void;
+    putDown: () => void;
+  };
+  /** What the armies drawn are made of now (M110): on the globe and in a land, by kind. */
+  armies?: () => { globe: Record<string, number>; land: Record<string, number> };
+  /** Where each host, battle, camp and garrison stands in the land shown (its map's km). */
+  landMarks?: () => { ref: string; name: string; x: number; z: number }[];
+  /** The acts playing on the globe, and their marks drawn now. */
+  actsPlaying?: () => number;
+  actsDrawn?: () => number;
+  /** The lands the palette lights now. */
+  lit?: () => [number, string][];
   /** Into another star's own system (M95), by its ref; and whose system the sky shows. */
   starSystem?: (ref: string) => void;
   /** Where a star about us stands on the screen, while the stars are shown. */
@@ -430,12 +467,16 @@ async function runPlanetPage(): Promise<void> {
     density = new Map<number, number>(),
     foodPrices = new Map<number, number>(),
     trade = new Map<number, number>(),
+    // The deeper lenses' readings, land by land (Phase 12 M108).
+    deepValues = new Map<Lens, Map<number, number>>(),
     tongues = new Map<number, readonly [number, number, number]>(),
     realms = new Map<number, readonly [number, number, number]>(),
     faiths = new Map<number, readonly [number, number, number]>(),
     villages: Village[] = [],
     regionCell = -1,
-    stopVillages: (() => void) | null = null;
+    stopVillages: (() => void) | null = null,
+    // The lands the god's palette lights (its reach, its choices: Phase 12 M106).
+    litLands: ReadonlyMap<number, Lit> = new Map();
   const planetPanel = new PlanetPanel(hud, client, speed),
     regionPanel = new RegionPanel(hud, client),
     villagePanel = new VillagePanel(hud, client),
@@ -504,6 +545,7 @@ async function runPlanetPage(): Promise<void> {
   planetPanel.onChronicle = () => void pageWindow.open("world:chronicle");
   planetPanel.onLedger = () => void pageWindow.open("world:ledger");
   planetPanel.onConcepts = () => void pageWindow.open("concept:index");
+  planetPanel.onNumbers = () => void pageWindow.open("world:stats");
   planetPanel.onChip = (what) => {
     if (what === "hungry") {
       // (The hungry are shown on the map: the food lens.)
@@ -635,7 +677,7 @@ async function runPlanetPage(): Promise<void> {
     const colors = globeColors(
       frame,
       lens,
-      lens === "food" ? foodPrices : lens === "trade" ? trade : density,
+      lens === "food" ? foodPrices : lens === "trade" ? trade : (deepValues.get(lens) ?? density),
       lens === "realms"
         ? realms
         : lens === "faiths"
@@ -650,7 +692,7 @@ async function runPlanetPage(): Promise<void> {
       // (Lands taken by force, still resenting it, in shadow: M104.)
       lens === "realms" || lens === "war" ? takenLands : undefined,
     );
-    globe.paint(colors);
+    globe.paint(litLands.size ? litColors(colors, frame, litLands) : colors);
     globeLensColors = colors;
     // Clouds over the land as it is; none over what a lens paints.
     globe.weather = lens === "terrain" && stage.quality.clouds;
@@ -724,8 +766,8 @@ async function runPlanetPage(): Promise<void> {
     if (l === "diplomacy") void readStandings();
     if (l === "war") void readFronts();
     paintGlobe();
-    if (["people", "food", "trade", "tongues", "realms", "faiths"].includes(l))
-      void faceThePeople(true);
+    if (PEOPLE_LENSES.includes(l)) void faceThePeople(true);
+    tooltip.lens = l;
   };
   // The map modes' bar (Phase 10 M96), in the world's top bar (floating on a desk).
   const mapModes = new MapModes(lens);
@@ -914,14 +956,12 @@ async function runPlanetPage(): Promise<void> {
     density = new Map(entries.map((e) => [e.cell, e.density]));
     foodPrices = new Map(entries.map((e) => [e.cell, e.food]));
     trade = new Map(entries.map((e) => [e.cell, e.trade]));
+    for (const k of ["unrest", "strength", "wealth", "knowledge", "growth"] as const)
+      deepValues.set(k, new Map(entries.map((e) => [e.cell, e[k]])));
     tongues = new Map(entries.flatMap((e) => (e.tongue ? [[e.cell, e.tongue] as const] : [])));
     realms = new Map(entries.flatMap((e) => (e.realm ? [[e.cell, e.realm] as const] : [])));
     faiths = new Map(entries.flatMap((e) => (e.faith ? [[e.cell, e.faith] as const] : [])));
-    if (
-      ["people", "food", "trade", "tongues", "realms", "faiths"].includes(lens) &&
-      scale === "globe"
-    )
-      paintGlobe();
+    if (PEOPLE_LENSES.includes(lens) && scale === "globe") paintGlobe();
   });
 
   // The year's wars on the globe (M87): hosts marching toward what they want, ships where
@@ -946,13 +986,16 @@ async function runPlanetPage(): Promise<void> {
   });
   stage.onUpdate(() => {
     globeWars.root.enabled = scale === "globe";
-    if (scale === "globe") globeWars.update(performance.now() / 1000);
+    if (scale === "globe") globeWars.update(performance.now() / 1000, rig.distance);
     regionWars.visible = scale === "region";
     if (scale === "region") regionWars.update(performance.now() / 1000);
   });
   exposed.warsDrawn = () =>
     scale === "globe" ? globeWars.drawn : scale === "region" ? regionWars.drawn : 0;
   exposed.landWars = () => ({ ...regionWars.shown, known: warsNow !== null });
+  // What the armies drawn are made of now (M110): on the globe and in a land.
+  exposed.armies = () => ({ globe: { ...globeWars.counts }, land: { ...regionWars.counts } });
+  exposed.landMarks = () => regionWars.places();
   // Where a spot of the globe is on the screen (for the look tools: to zoom at a thing).
   exposed.spotOnScreen = (spot: number) => {
     const frame = client.latestFrame("globe");
@@ -1164,19 +1207,21 @@ async function runPlanetPage(): Promise<void> {
     maxPitch: 80,
     drift: 1.5,
     onTap: (x, y) =>
-      scale === "globe"
-        ? tapGlobe(x, y)
-        : scale === "region"
-          ? tapRegion(x, y)
-          : scale === "system"
-            ? selectBody(skyScene.pick(x, y))
-            : scale === "cluster"
-              ? tapStars(x, y)
-              : scale === "world"
-                ? tapWorld(x, y)
-                : scale === "galaxy"
-                  ? tapGalaxy(x, y)
-                  : tapVillage(x, y),
+      palette.armed && (scale === "globe" || scale === "region")
+        ? tapPalette(x, y)
+        : scale === "globe"
+          ? tapGlobe(x, y)
+          : scale === "region"
+            ? tapRegion(x, y)
+            : scale === "system"
+              ? selectBody(skyScene.pick(x, y))
+              : scale === "cluster"
+                ? tapStars(x, y)
+                : scale === "world"
+                  ? tapWorld(x, y)
+                  : scale === "galaxy"
+                    ? tapGalaxy(x, y)
+                    : tapVillage(x, y),
   });
   /**
    * What stands at a point of a village's ground, of what is not a person or a beast (M93):
@@ -1216,9 +1261,12 @@ async function runPlanetPage(): Promise<void> {
   const refAt = (x: number, y: number): string | null => {
     switch (scale) {
       case "globe": {
-        const town = townAt(x, y);
+        // (Under one of the deeper lenses the tip tells the land's number there, what its colour
+        // says: not the town, host or garrison standing in it, M108.)
+        const reading = DEEP_LENSES.includes(lens);
+        const town = reading ? null : townAt(x, y);
         if (town) return town.ref;
-        const war = globeWars.pick(x, y);
+        const war = reading ? null : globeWars.pick(x, y);
         if (war) return war;
         const spot = globe.pick(x, y),
           frame = client.latestFrame("globe"),
@@ -1268,13 +1316,106 @@ async function runPlanetPage(): Promise<void> {
     const now = performance.now();
     if (now - hoverAt < 80) return;
     hoverAt = now;
-    const rect = canvas.getBoundingClientRect();
-    tooltip.point(refAt(e.clientX - rect.left, e.clientY - rect.top), e.clientX, e.clientY);
+    const rect = canvas.getBoundingClientRect(),
+      x = e.clientX - rect.left,
+      y = e.clientY - rect.top;
+    // With an act in hand the palette says what it will do where the pointer is, and lights it.
+    if (palette.armed && (scale === "globe" || scale === "region")) {
+      tooltip.hide();
+      const at = paletteAt(x, y);
+      palette.hover(at.cell, at.town);
+      return;
+    }
+    tooltip.point(refAt(x, y), e.clientX, e.clientY);
   });
   canvas.addEventListener("pointerleave", () => tooltip.hide());
   canvas.addEventListener("pointerdown", () => tooltip.hide());
   canvas.addEventListener("wheel", () => tooltip.hide(), { passive: true });
   exposed.refAt = refAt;
+
+  // The god's palette (Phase 12 M106): an act taken in hand falls where the map is touched,
+  // its reach lit under the pointer before it is cast.
+  const palette = new GodPalette(hud, client);
+  document.body.classList.add("with-palette");
+  /** The land (province) and the town under a point of the screen, for the palette. */
+  const paletteAt = (x: number, y: number): { cell: number | null; town: string | null } => {
+    if (scale === "region") {
+      const tile = region.pick(x, y),
+        near = tile === null ? null : region.villageNear(tile),
+        v = near === null ? undefined : villages.find((w) => w.tile === near);
+      return { cell: regionCell >= 0 ? regionCell : null, town: v?.ref ?? null };
+    }
+    const town = townAt(x, y),
+      spot = globe.pick(x, y),
+      frame = client.latestFrame("globe"),
+      province =
+        spot === null ? -1 : ((frame?.arrays.province as Int32Array | undefined)?.[spot] ?? -1);
+    return {
+      cell: town ? town.cell : province >= 0 ? province : null,
+      town: town?.ref ?? null,
+    };
+  };
+  const tapPalette = (x: number, y: number) => {
+    const at = paletteAt(x, y);
+    void palette.tap(at.cell, at.town);
+  };
+  palette.onOpen = (ref) => void pageWindow.open(ref);
+  palette.onArmed = (armed) => {
+    document.body.classList.toggle("casting", armed);
+    tooltip.hide();
+    if (armed) walk.saw("hand");
+  };
+  palette.onLight = (lit) => {
+    litLands = lit;
+    const frame = client.latestFrame("globe");
+    if (scale === "globe" && frame && globeLensColors)
+      globe.paint(lit.size ? litColors(globeLensColors, frame, lit) : globeLensColors);
+  };
+  // (A right click puts the act in hand down.)
+  canvas.addEventListener("contextmenu", (e) => {
+    if (!palette.armed) return;
+    e.preventDefault();
+    palette.putDown();
+  });
+  exposed.palette = {
+    holding: () => palette.holding,
+    take: (id) => palette.take(id),
+    putDown: () => palette.putDown(),
+  };
+  exposed.lit = () => [...litLands];
+  // The acts playing where they fell: rain over a land, fire on a town, threads between realms.
+  const globeActs = new GlobeActs(stage, stage.root);
+  let actsKey = "";
+  const showActs = (map: ActsMap) => {
+    const frame = client.latestFrame("globe");
+    if (!frame) return;
+    // (Placed again as acts come and go, and as they fade, a step at a time.)
+    const key = JSON.stringify(map.acts.map((a) => [a.event, Math.round(a.left * 10)]));
+    if (key === actsKey) return;
+    actsKey = key;
+    globeActs.set(
+      placeActs(
+        map.acts,
+        sphereGrid((frame.meta as { frequency: number }).frequency),
+        frame.arrays.elevation as Float32Array,
+      ),
+    );
+  };
+  client.subscribe<ActsMap>({ type: "acts.map" }, 2000, showActs);
+  palette.onCast = () => void client.query<ActsMap>({ type: "acts.map" }).then(showActs);
+  stage.onUpdate(() => {
+    globeActs.root.enabled = scale === "globe";
+    if (scale === "globe") globeActs.update(performance.now() / 1000, rig.distance);
+    // (The palette's acts fall on the world and its lands: at the other scales it stands aside,
+    // and an act in hand is put down.)
+    const castable = scale === "globe" || scale === "region";
+    if (document.body.classList.contains("palette-off") === castable) {
+      document.body.classList.toggle("palette-off", !castable);
+      if (!castable) palette.putDown();
+    }
+  });
+  exposed.actsPlaying = () => globeActs.playing;
+  exposed.actsDrawn = () => (scale === "globe" ? globeActs.drawn : 0);
   // A zoom goes toward what is under the pointer (Phase 10 M95): the globe turns it to the
   // middle; a flat scene (a land, a village, a sky, the stars, the galaxy) slides it there.
   type Point = { x: number; y: number; z: number };

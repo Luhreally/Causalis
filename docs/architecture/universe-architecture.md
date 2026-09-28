@@ -3952,6 +3952,166 @@ Phase 12's "done when":
        them), in ranks under its banners.
 111. **Phase 12 gate.**
 
+107, as built: the god's hold on the peoples (sim/acts/peoples.ts; words in causal/acts.ts).
+
+- **Each a logged command** whose event cites it (the command its agent); what follows is the
+  simulation's own:
+  - `act.war {a, b}`: a set upon b, for the land of b's it wants most (the war's own frontier);
+    refused where no land lies between them, or they are at war already. Fought as any war.
+  - `act.peace {a, b}`: the war between them ended, and remembered as its sides remember a war.
+    (Two realms, not a war's ref as planned: the palette touches two realms, as for war.)
+  - `act.friendship {a, b}` and `act.discord {a, b}`: remembered by both at ±0.5 (a war
+    between them is −0.45), fading as other memories fade (half in thirty years), so pacts and
+    rivalries — and wars — follow of themselves.
+  - `act.rise {cell}`: a land (not a seat) breaks from its realm. Where it has a town it raises
+    its own realm there under a claimant, as a split does (polity's raiseRealm, now shared by
+    the split, hash-identical), and the realm it left remembers "a land that rose against
+    them" (−0.4) — the war to take it back is the simulation's; without a town it goes its own
+    way, too aggrieved to bow to another soon. What the land joined to the seat is cut off.
+  - `act.convert {cell, faith}`: a land turned to a faith.
+- **A great happening's window** for a war offers peace between its sides beside the harvest
+  and the plague.
+- Tests: juniper's realms at year 400, each act and its refusals; a world touched by them
+  replays, and its save continues, bit for bit.
+
+106, as built: the god's palette (ui/palette.ts; host/acts.ts, "acts.map", "palette.land";
+view/acts.ts; render/acts.ts; view/globe.ts litColors).
+
+- **A bar of powers** at the foot of the screen, in the era's glossy tiles: the kinds (the
+  weather, the land's yield, sickness and health, wonders, the peoples, the world and its sun)
+  at its left, their acts beside them — rain, drought, a fat harvest, blight, plague, healing,
+  inspiration, a shrine, a spring, fire, war, peace, friendship, discord, a rising, a faith,
+  a warmer or cooler world, a flaring or calmed sun. On a phone, a round ✋ opens it as a
+  sheet.
+- **An act in hand** falls where the map is touched: a land (on the globe, or the land shown),
+  a town or its land (the town under the pointer, else the land's greatest; fire only on a
+  city), two realms one after the other, a land that holds a faith then the land to turn, or
+  the world anywhere. Over the map the pointer is a crosshair; the line over the palette says
+  what it will do there ("Rain over Koubromar's land for 3 years — touch to cast") or why it
+  cannot, and its reach is lit: the land, or the realm's lands (the first realm chosen gold,
+  the second red for war and discord, green for peace and friendship). A lasting act is laid
+  for 1, 3 or 5 years. Cast, the line says it was done, with a link to what it led to (the
+  act's page). It stays in hand, a faith with it, until put down (Esc, a right click, its tile).
+- **It plays where it falls**, for as long as it lasts (a moment's act for two years), fading as
+  its time runs out: clouds heaped over the land and rain falling from them; a sun's glare and
+  heat rising over a drought; golden motes rising from a blessed harvest, dark ones settling
+  on a blight; a green pall turning over a plague; white crosses rising from the healed; a
+  pillar of light over the inspired; flames, embers and smoke on a burning town; a spring's
+  water leaping; a glint over a shrine; between two realms' seats a thread arched over the
+  globe, a bead running along it — red set at war, white at peace, gold made friends, jagged
+  violet in discord; a ring of red widening from a land risen; a halo of its faith's colour
+  over a land turned. Drawn larger seen from afar, and smaller close.
+- The guided walk has a step for it.
+
+108, as built: more lenses (host/lenses.ts landReadings and lensReading; view/globe.ts).
+
+- **Five map modes more**, each with its legend's ramp:
+  - unrest: each land's grievance (content green to rising red; read as full past the full);
+  - strength: the men its realm fields, over all its lands;
+  - wealth: its stores a head, at their goods' usual worth, on a log scale;
+  - knowledge: the things it knows (of some 85);
+  - growth: its people's rise or fall these ten years.
+
+  Each land's readings come with the people's map. The ramps were fitted to their measured
+  spreads (a probe of every land at years 100, 250, 400, 700): wealth in all rose past any fixed
+  scale as the people grew, so it is read a head; strength runs to millions late on.
+- **A land's tooltip under one** tells what makes its number: a grievance and what caused the
+  most of it; the fighting men, the share fielded, their valour, a standing army; the goods in
+  store; its age and newest knowing; its people ten years before, the born, the dead, those who
+  came or left. Under these lenses the tip is the land's, not a town's, host's or garrison's
+  standing in it.
+
+109, as built: the world in numbers (host/inspect/stats.ts, `world:stats`; "📈 Numbers" in the
+top bar).
+
+- **People**: the world's through the years, and its six greatest realms' (the lands each holds
+  now); the born and the dead each year of living memory; the share fed, the world's and its
+  greatest realms'.
+- **Realms & wars**: realms standing and wars being fought through the years; the fallen of each
+  year; the greatest realms by their people.
+- **Towns**: the towns and villages through the years.
+- **Faiths & tongues**: faiths founded and tongues spoken through the years; the greatest
+  faiths' people and tongues' speakers.
+
+110, as built: armies seen (view/war.ts; render/wars.ts; render/regionwars.ts; the wars map
+carries each side's host's kinds and the garrisons).
+
+- **On the globe**:
+  - a host is as many ranks and files as the men it fields (a band three short ranks, a host
+    of a hundred thousand three files of eight), in its realm's colours, its banners at its
+    head and over every third rank; riders on their horses where its design rides;
+  - the defenders a block as large as theirs;
+  - a battle of this year or last two masses in their colours meeting across the place it was
+    fought, swaying as they fight, the fallen lying between them (the more fell, the more lie;
+    last year's the smaller);
+  - a seat under siege ringed by the besiegers' tents under their banner;
+  - closer in, the garrisons of the realms at peace (the 48 greatest) by their seats under
+    their banners.
+- **In a land**, each figure is as its host's design has it: on foot, on a horse, in a chariot
+  with its wheels and its horse before it; a spear upright with its steel head, a sword or an
+  axe at the hip, a bow or a club in the left hand; a shield in its side's colour. A column is
+  in ranks as many as its men, under banners; the defenders' block too. A seat besieged there is
+  ringed by tents behind a palisade, fires among them; a realm at peace's garrison stands in two
+  ranks by its seat.
+
+111, as built: the Phase 12 gate (tools/phase12-gate.ts, `npm run gate:12`, in CI after the
+Phase 11 gate). In a real browser it:
+- takes rain in hand, and checks its reach lit and said under the pointer, the cast told, the
+  act in force and playing, and Esc putting it down;
+- ends a war from the palette and sets it going again, each told, the war playing between the
+  realms;
+- shows the five lenses with their legends, and a land's tooltip under growth broken down;
+- opens the world in numbers and its charts;
+- counts the armies on the globe (marching, in garrison, in battle and fallen) and a host in a
+  land fought over (its arms, its banners), and casts an act on the land there;
+- on a phone, opens the palette from its button.
+
+Found and mended on the way:
+- A world loaded from a save held in memory wrote into it: a store keeps what it loads, and the
+  markets' years, prices and trade were the save's own arrays, so a second load of the same
+  save found it corrupt. The kernel now loads a copy (a test loads one save twice). The app
+  reads each save afresh from its storage, so none was harmed.
+- CI's software GL failed the Phase 10 gate's free-roam step: the free camera steps at most a
+  tenth of a second a frame, so where frames are slow the climb out of a land takes the longer.
+  The gate's flight waits are timed now, four times as long under --ci and --soft.
+- A land's grievance can run past the full; its lens and tooltip read it as full.
+
+### I.13 Phase 13 milestones (planned 2026-09-28, after Phase 12)
+
+Still at the user's WorldBox-but-deeper asking: more of the god's hand (what WorldBox's powers
+do that ours do not yet — disasters, creation, a realm's fortunes), battles not only marked
+but played out, and a realm's and a war's numbers as deep as the world's.
+
+Phase 13's "done when":
+- The god can strike a land with a disaster — an earthquake, a meteor, a flood — and each
+  follows through the simulation: the dead, the stores lost, the fields ruined, the grief.
+- The god can make as well as unmake: send settlers to found a village, set a people in an
+  empty land, unite two realms, bless or curse a realm's lands.
+- A battle can be watched: its two hosts in their kinds advance, clash, fall as many as fell,
+  and the beaten break — on its land's map, and closer at its village.
+- A realm has its army's page (its host's design, the men it fields through the years, its
+  wars and battles), and a war its course (men and fallen year by year, lands taken).
+
+112. **Disasters** (sim, each a logged command; palette "Disasters"):
+     - earthquake: a share of a land's people and of its towns' homes lost; its stores spilled;
+     - meteor: a land devastated — many dead, its fields burned (the harvest fails two years),
+       a crater left on the map;
+     - flood: a river land's fields drowned for a year, a few dead; lands downriver too.
+     Each plays where it falls (the ground shaking, a fire from the sky, the water spread).
+113. **Creation and a realm's fortunes** (sim; palette "Creation", "The peoples"):
+     - settlers: a village founded in a land from its most peopled neighbour;
+     - a people: a band set in an empty land, of its nearest people's ways;
+     - union: one realm joins another, its lands and all, remembered;
+     - blessing and curse on a realm: its lands' grievance eased or stirred.
+114. **Battles played out.** A battle of this year or last, on its land's map: its hosts in
+     their kinds advance, fight at the line, fall (as large a share as fell, the beaten more),
+     and the beaten fall back; its page's "Watch" flies there and frames it. In its village,
+     the same battle closer (the village's battle given kits).
+115. **A realm's army and a war's course.** A realm's "Army" tab: its host's design and why,
+     the men it fields now and through the years, its wars and battles won and lost. A war's
+     page: the men each side fielded and the fallen, year by year; the lands taken.
+116. **Phase 13 gate.**
+
 ### J. Allocation of ~100k lines
 
 | Module | Lines | Notes |

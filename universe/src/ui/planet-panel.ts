@@ -166,6 +166,12 @@ export type PeopleEntry = {
   realm: readonly [number, number, number] | null;
   /** Their faith's colour, if they hold one beyond the old beliefs. */
   faith: readonly [number, number, number] | null;
+  /** The deeper lenses' readings (Phase 12 M108): grievance (0 … 1), the men their realm fields, their stores' worth a head, the things they know, their growth these ten years. */
+  unrest: number;
+  strength: number;
+  wealth: number;
+  knowledge: number;
+  growth: number;
 };
 
 /** A people's ways and speech (the host's waysOf). */
@@ -439,9 +445,12 @@ export class PlanetPanel {
     // The world's chronicle and its ledger, pages of the page window (Phase 10 M96b).
     const chronicle = menuButton("📜", "Chronicle"),
       ledger = menuButton("📊", "Ledger"),
+      // (The world's numbers through the years: Phase 12 M109.)
+      numbers = menuButton("📈", "Numbers"),
       concepts = menuButton("📖", "Concepts");
     chronicle.onclick = () => this.onChronicle();
     ledger.onclick = () => this.onLedger();
+    numbers.onclick = () => this.onNumbers();
     concepts.onclick = () => this.onConcepts();
     const sky = menuButton("☀️", "The sky");
     sky.onclick = () => this.onSky();
@@ -460,7 +469,19 @@ export class PlanetPanel {
     // Its words on a line of their own (one line on a desk; a phone leaves them out), then its menu.
     this.worldText.className = "world-about";
     const menu = el("span", "world-menu");
-    menu.append(chronicle, ledger, concepts, sky, origin, keep, back, help, settings, said);
+    menu.append(
+      chronicle,
+      ledger,
+      numbers,
+      concepts,
+      sky,
+      origin,
+      keep,
+      back,
+      help,
+      settings,
+      said,
+    );
     this.world.append(this.worldText, menu);
     bar.append(speeds, this.statsStrip, this.world);
     this.element.append(bar);
@@ -1023,6 +1044,8 @@ export class PlanetPanel {
   onLedger: () => void = () => {};
   /** Asked for the book of concepts (M97). */
   onConcepts: () => void = () => {};
+  /** Asked for the world's numbers through the years (Phase 12 M109). */
+  onNumbers: () => void = () => {};
 
   private worldPage(title: string): void {
     this.onWorldPage();

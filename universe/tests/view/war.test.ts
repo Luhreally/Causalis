@@ -5,11 +5,16 @@ import { sphereGrid } from "../../src/kernel/index.ts";
 import {
   BATTLE_ROUND,
   MARCH,
+  battleFigures,
   battleOf,
   clearOf,
   counterWords,
+  holdShape,
+  hostShape,
   landColumn,
+  landShape,
   landWars,
+  rides,
   villageGround,
   voyageMarks,
   warPaths,
@@ -41,11 +46,26 @@ const red = [0.8, 0.2, 0.2] as const,
   blue = [0.2, 0.3, 0.8] as const;
 const map = (from: number, to: number, ended: number | null = null): WarsMap => ({
   year: 300,
+  garrisons: [],
   wars: [
     {
       ref: "war:0:1",
-      attacker: { ref: "pol:0:1", name: "the Reds", color: red, fields: 1200, arms: null },
-      defender: { ref: "pol:0:2", name: "the Blues", color: blue, fields: 800, arms: null },
+      attacker: {
+        ref: "pol:0:1",
+        name: "the Reds",
+        color: red,
+        fields: 1200,
+        arms: null,
+        host: { arm: "spear", guard: "shield", mount: "foot" },
+      },
+      defender: {
+        ref: "pol:0:2",
+        name: "the Blues",
+        color: blue,
+        fields: 800,
+        arms: null,
+        host: { arm: "bow", guard: "leather", mount: "horse" },
+      },
       from,
       to,
       declared: 298,
@@ -266,6 +286,7 @@ test("a land's map shows the wars the globe shows: hosts coming in for what they
   assert.notEqual(mid, east);
   const wars: WarsMap = {
     year: 300,
+    garrisons: [],
     wars: [
       // Its host comes from far in the west for the eastern strip; fought there this year.
       {
@@ -350,4 +371,166 @@ test("a host's counter: its side, its realm and the men it fields, said short", 
   assert.equal(land.marches.length, 1);
   assert.deepEqual(land.marches[0]!.attacker, { ref: "pol:0:1", fields: 1200 });
   assert.deepEqual(land.marches[0]!.defender, { ref: "pol:0:2", fields: 800 });
+});
+
+test("a host is as large as the men it fields: more ranks, more files abreast, a banner every third rank", () => {
+  const shapes = [300, 2000, 9000, 60000, 400000].map(hostShape);
+  for (let i = 1; i < shapes.length; i++)
+    assert.ok(
+      shapes[i]!.ranks * shapes[i]!.files > shapes[i - 1]!.ranks * shapes[i - 1]!.files,
+      `larger with more men (${JSON.stringify(shapes)})`,
+    );
+  assert.deepEqual(hostShape(300), { ranks: 3, files: 1 });
+  assert.ok(holdShape(100000).ranks > holdShape(500).ranks);
+  const from = cellNear(0.7, 0.7, 0),
+    to = cellNear(-0.7, 0.7, 0.05),
+    sized = (fields: number) => {
+      const m = map(from, to),
+        w = m.wars[0]!;
+      return warTokens(
+        warPaths({ ...m, wars: [{ ...w, attacker: { ...w.attacker, fields } }] }, grid, elevation),
+        MARCH * 0.8,
+      ).filter((t) => t.attacker);
+    };
+  const band = sized(400),
+    host = sized(80000);
+  assert.ok(host.length > band.length * 3, `${host.length} marching against ${band.length}`);
+  assert.equal(host.filter((t) => t.lead).length, 1, "one head");
+  assert.ok(host.filter((t) => t.banner).length >= 2, "banners along the column");
+  // Riders where its design rides; the Reds go on foot, the Blues ride.
+  assert.ok(rides({ arm: "bow", guard: "leather", mount: "horse" }));
+  assert.ok(!rides({ arm: "spear", guard: "shield", mount: "foot" }) && !rides(null));
+  const tokens = warTokens(warPaths(map(from, to), grid, elevation), MARCH * 0.5);
+  assert.ok(tokens.filter((t) => t.attacker).every((t) => !t.mounted));
+  assert.ok(tokens.filter((t) => !t.attacker).every((t) => t.mounted));
+});
+
+test("a battle is two masses meeting in their colours, the fallen between them; a seat besieged is ringed by a camp", () => {
+  const from = cellNear(0.7, 0.7, 0),
+    to = cellNear(-0.7, 0.7, 0.05),
+    paths = warPaths(map(from, to), grid, elevation),
+    now = battleFigures(paths, 2);
+  // This year's battle (4000 fell) and last year's (12): the older smaller, both shown.
+  const fresh = now.filter((f) => f.event === "evt:0:1"),
+    old = now.filter((f) => f.event === "evt:0:2");
+  assert.ok(fresh.length > 0 && old.length > 0);
+  const standing = fresh.filter((f) => !f.fallen),
+    sides = new Set(standing.map((f) => f.side));
+  assert.equal(sides.size, 2, "two masses");
+  const fallen = fresh.filter((f) => f.fallen).length;
+  assert.ok(fallen > old.filter((f) => f.fallen).length, "the more fell, the more lie");
+  assert.ok(
+    old.every((f) => f.size < 1),
+    "last year's the smaller",
+  );
+  // Each faces the other mass.
+  const middle = (side: number) => {
+    const list = standing.filter((f) => f.side === side),
+      sum = list.reduce((s, f) => ({ x: s.x + f.at.x, y: s.y + f.at.y, z: s.z + f.at.z }), {
+        x: 0,
+        y: 0,
+        z: 0,
+      });
+    return { x: sum.x / list.length, y: sum.y / list.length, z: sum.z / list.length };
+  };
+  for (const f of standing) {
+    const other = middle([...sides].find((s) => s !== f.side)!),
+      d = { x: other.x - f.at.x, y: other.y - f.at.y, z: other.z - f.at.z };
+    assert.ok(f.ahead.x * d.x + f.ahead.y * d.y + f.ahead.z * d.z > 0, "facing the foe");
+  }
+  // Two years on, no battle is fought there: none stand.
+  assert.equal(
+    battleFigures({ ...paths, bursts: paths.bursts.map((b) => ({ ...b, age: 2 })) }, 2).length,
+    0,
+  );
+  // A seat under siege: the besiegers' camp; a realm at peace: its garrison at its seat.
+  const m = map(from, to),
+    besieged = warPaths(
+      {
+        ...m,
+        garrisons: [
+          {
+            realm: "pol:0:9",
+            name: "the Greens",
+            color: [0.2, 0.8, 0.3],
+            spot: from,
+            fields: 5000,
+            host: null,
+          },
+        ],
+        wars: [{ ...m.wars[0]!, siege: to }],
+      },
+      grid,
+      elevation,
+    );
+  assert.equal(besieged.camps.length, 1);
+  assert.equal(besieged.camps[0]!.side, besieged.paths[0]!.side, "in the besiegers' colours");
+  assert.equal(besieged.garrisons.length, 1);
+  assert.equal(besieged.garrisons[0]!.realm, "pol:0:9");
+  assert.ok(
+    Math.hypot(
+      besieged.garrisons[0]!.at.x,
+      besieged.garrisons[0]!.at.y,
+      besieged.garrisons[0]!.at.z,
+    ) >= 1,
+  );
+});
+
+test("in a land a host marches in ranks as many as its men, under banners; a camp rings a seat besieged there, a garrison stands by a seat at peace", () => {
+  assert.ok(
+    landShape(80000).files * landShape(80000).ranks > landShape(500).files * landShape(500).ranks,
+  );
+  const col = landColumn({ x: -20, z: 0 }, { x: 20, z: 0 }, 0.8, () => false, {
+    files: 3,
+    ranks: 7,
+  });
+  assert.equal(col.people.length, 21);
+  assert.equal(col.people.filter((f) => f.lead).length, 1);
+  assert.deepEqual(
+    col.people.filter((f) => f.banner).map((f) => f.rank),
+    [0, 3, 6],
+    "a banner at the head and over every third rank",
+  );
+  const size = 8,
+    mid = cellNear(0, 0, 1),
+    parent = new Int32Array(size * size).fill(mid),
+    m = map(cellNear(-0.9, 0, 0.44), mid),
+    land = landWars(
+      {
+        ...m,
+        garrisons: [
+          {
+            realm: "pol:0:9",
+            name: "the Greens",
+            color: [0.2, 0.8, 0.3],
+            spot: mid,
+            fields: 5000,
+            host: null,
+          },
+        ],
+        wars: [{ ...m.wars[0]!, siege: mid }],
+      },
+      parent,
+      size,
+      1,
+      grid,
+    );
+  assert.equal(land.camps.length, 1);
+  assert.match(land.camps[0]!.name, /camp of the Reds/);
+  assert.equal(land.garrisons.length, 1);
+  assert.match(land.garrisons[0]!.name, /garrison of the Greens/);
+  assert.deepEqual(land.marches[0]!.hosts.defender, {
+    arm: "bow",
+    guard: "leather",
+    mount: "horse",
+  });
+  // A seat beyond the map: no camp in it.
+  const away = landWars(
+    { ...m, wars: [{ ...m.wars[0]!, siege: cellNear(-0.9, 0, 0.44) }] },
+    parent,
+    size,
+    1,
+    grid,
+  );
+  assert.equal(away.camps.length, 0);
 });

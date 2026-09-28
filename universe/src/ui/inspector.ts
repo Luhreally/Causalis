@@ -245,7 +245,10 @@ export class PageWindow {
     this.inspector.dataset.kind = page.kind;
     this.inspector.classList.toggle(
       "wide",
-      page.kind === "chronicle" || page.kind === "ledger" || page.kind === "log",
+      page.kind === "chronicle" ||
+        page.kind === "ledger" ||
+        page.kind === "stats" ||
+        page.kind === "log",
     );
     if (!page.tabs.some((t) => t.id === this.tab)) this.tab = page.tabs[0]?.id ?? "";
     this.icon.textContent = page.icon;

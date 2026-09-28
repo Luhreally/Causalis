@@ -5,6 +5,7 @@ export { InstancedBatch, capsuleMesh, cylinderMesh } from "./batch.ts";
 export { runBench, type BenchResult } from "./bench.ts";
 export { GlobeScene } from "./globe.ts";
 export { GlobeWars } from "./wars.ts";
+export { GlobeActs } from "./acts.ts";
 export { RegionWars } from "./regionwars.ts";
 export { GlobeTowns, type GlobeTown } from "./towns.ts";
 export { FreeRig } from "./free.ts";

@@ -132,6 +132,13 @@ jobs:
       - run: npm run gate:11 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 12 gate: the god's palette (an act's reach lit and said, cast, playing where it
+      # fell); the peoples in its hand (peace made and war set between two realms); the deeper
+      # lenses and their tooltips; the world in numbers; armies seen on the globe and in a land;
+      # the palette on a phone.
+      - run: npm run gate:12 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

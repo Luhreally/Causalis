@@ -1,37 +1,66 @@
-// Wars on the globe (Phase 9 M87): each host a column of tokens under its realm's colours —
-// a banner-bearer and those behind, a ship with its sail where the way crosses the sea —
-// the defenders' standards at what they hold, and a clash where each battle was fought
-// lately: crossed blades over a flare that pulses, the larger the more fell, dimmer as the
-// years pass. Instanced, each mark stood upright on the globe's face.
+// Wars on the globe (Phase 9 M87, Phase 12 M110): each host a column in its realm's colours, as
+// many ranks and files as the men it fields — riders on their horses where its design rides —
+// its banners over its head and every third rank, a ship with its sail where the way crosses the
+// sea; the defenders in a block at what they hold; each battle of this year and last two masses
+// meeting in their colours, the fallen lying between them, crossed blades over a flare that
+// pulses, the larger the more fell, dimmer as the years pass; a ring of tents about a seat under
+// siege; and at the seats of realms at peace, their garrisons under their banners. Instanced,
+// each mark stood upright on the globe's face (the fallen laid along it).
 import * as pc from "playcanvas";
-import { warTokens, type WarPaths, type WarToken } from "../view/index.ts";
-import { InstancedBatch, boxMesh, keptMesh } from "./batch.ts";
+import {
+  battleFigures,
+  holdShape,
+  hostShape,
+  warTokens,
+  type BattleFigure,
+  type WarPaths,
+} from "../view/index.ts";
+import { InstancedBatch, boxMesh, coneMesh, keptMesh } from "./batch.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
-/** The most tokens and clashes drawn at once. */
-const MOST = 160,
+/** The most tokens, clashes and figures of one kind drawn at once. */
+const MOST = 700,
   MOST_CLASHES = 48;
+/** How close the eye comes (the globe's radius 1) before the seats' garrisons show. */
+export const GARRISON_ZOOM = 2.4;
 
 type V = { x: number; y: number; z: number };
+
+/** A figure standing (or lying) on the globe: where, which way up and ahead, its side, its size. */
+type Stood = {
+  readonly at: V;
+  readonly up: V;
+  readonly ahead: V;
+  readonly side: number;
+  readonly size: number;
+  readonly lead: boolean;
+  readonly mounted: boolean;
+};
 
 export class GlobeWars {
   readonly root = new pc.Entity("wars");
   private readonly stage: Stage;
   private readonly box: pc.Mesh;
+  private readonly tent: pc.Mesh;
   private paths: WarPaths | null = null;
-  private readonly bodies: InstancedBatch;
   private readonly heads: InstancedBatch;
+  private readonly horses: InstancedBatch;
+  private readonly fallen: InstancedBatch;
   private readonly poles: InstancedBatch;
   private readonly hulls: InstancedBatch;
   private readonly sails: InstancedBatch;
   private readonly blades: InstancedBatch;
   private readonly flares: InstancedBatch;
   private readonly embers: InstancedBatch;
-  /** Each side's flags, by the colours of the year's wars. */
+  /** Each side's flags, bodies (tabards) and tents, by the colours of the year's wars. */
   private flags: InstancedBatch[] = [];
+  private tabards: InstancedBatch[] = [];
+  private tents: InstancedBatch[] = [];
   /** How many marks were drawn at the last update (for the look tools). */
   drawn = 0;
-  /** Where each host and clash stood at the last update, and its page (for picking). */
+  /** What was drawn at the last update, by kind (for the look tools and the gate). */
+  counts = { marching: 0, battle: 0, fallen: 0, tents: 0, garrison: 0, riders: 0 };
+  /** Where each host, clash, camp and garrison stood at the last update, and its page (for picking). */
   private marks: { at: V; ref: string }[] = [];
   /** Where each host's head stood at the last update: its war, and whether the attacker's. */
   private leads: { at: V; ref: string; attacker: boolean }[] = [];
@@ -39,10 +68,12 @@ export class GlobeWars {
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
     this.box = keptMesh(boxMesh(stage));
+    this.tent = keptMesh(coneMesh(stage, 0.5, 1, 4));
     const make = (color: Rgb, n: number) =>
       new InstancedBatch(stage, this.box, color, n, this.root);
-    this.bodies = make([0.16, 0.14, 0.12], MOST);
     this.heads = make([0.9, 0.72, 0.56], MOST);
+    this.horses = make([0.46, 0.3, 0.18], MOST);
+    this.fallen = make([0.3, 0.18, 0.14], MOST);
     this.poles = make([0.42, 0.3, 0.18], MOST);
     this.hulls = make([0.46, 0.3, 0.16], MOST);
     this.sails = make([0.94, 0.92, 0.84], MOST);
@@ -55,25 +86,66 @@ export class GlobeWars {
   /** The year's wars, as ways over the globe (null: none shown). */
   set(paths: WarPaths | null): void {
     this.paths = paths;
-    for (const f of this.flags) f.destroy();
-    this.flags = (paths?.colors ?? []).map(
-      (c) => new InstancedBatch(this.stage, this.box, c, MOST, this.root),
+    for (const f of [...this.flags, ...this.tabards, ...this.tents]) f.destroy();
+    const colors = paths?.colors ?? [],
+      // Each colour's batches hold as many as it can show (a garrison's few, a great host's
+      // many), not the most any could.
+      bodies = colors.map(() => 0),
+      banners = colors.map(() => 0),
+      camps = colors.map(() => 0);
+    for (const p of paths?.paths ?? []) {
+      const host = hostShape(p.men),
+        hold = holdShape(p.foeMen);
+      bodies[p.side]! += host.ranks * host.files;
+      banners[p.side]! += host.ranks * host.files;
+      bodies[p.foe]! += hold.ranks * hold.files;
+      banners[p.foe]! += 1;
+    }
+    for (const b of paths?.bursts ?? []) {
+      bodies[b.side]! += 8;
+      bodies[b.foe]! += 8;
+    }
+    for (const c of paths?.camps ?? []) {
+      camps[c.side]! += 8;
+      banners[c.side]! += 1;
+    }
+    for (const g of paths?.garrisons ?? []) {
+      bodies[g.side]! += 3;
+      banners[g.side]! += 1;
+    }
+    const cap = (n: number) => Math.min(MOST, n + 4);
+    this.flags = colors.map(
+      (c, i) => new InstancedBatch(this.stage, this.box, c, cap(banners[i]!), this.root),
     );
+    // (A body in its side's colour, a little darker than its banner.)
+    this.tabards = colors.map(
+      (c, i) =>
+        new InstancedBatch(
+          this.stage,
+          this.box,
+          [c[0] * 0.78, c[1] * 0.78, c[2] * 0.78],
+          cap(bodies[i]!),
+          this.root,
+        ),
+    );
+    this.tents = colors.flatMap((c, i) =>
+      camps[i] ? [new InstancedBatch(this.stage, this.tent, c, camps[i]!, this.root)] : [],
+    );
+    this.tentSides = colors.flatMap((_, i) => (camps[i] ? [i] : []));
   }
+  /** The colour each tents' batch is of. */
+  private tentSides: number[] = [];
 
-  /** Put every host and clash where it is at screen time `s` (seconds). */
-  update(s: number): void {
+  /**
+   * Put every host, battle, camp and garrison where it is at screen time `s` (seconds), the eye
+   * `zoom` from the globe's middle (garrisons are shown only closer than GARRISON_ZOOM).
+   */
+  update(s: number, zoom = 3): void {
     const paths = this.paths;
     if (!paths || !this.root.enabled) return;
     const tokens = warTokens(paths, s).slice(0, MOST),
       walkers = tokens.filter((t) => !t.ship),
       ships = tokens.filter((t) => t.ship),
-      // (A token shrinks toward the ground as its march ends, and grows as it begins.)
-      lift = (t: WarToken, h: number): V => ({
-        x: t.at.x + t.up.x * h * t.size,
-        y: t.at.y + t.up.y * h * t.size,
-        z: t.at.z + t.up.z * h * t.size,
-      }),
       stand = (
         out: number[],
         at: V,
@@ -96,49 +168,126 @@ export class GlobeWars {
         out[9] = ahead.x;
         out[10] = ahead.y;
         out[11] = ahead.z;
-      };
-    // On foot: a body, the banner-bearer larger; over the sea: a hull and its sail.
-    this.bodies.setBasis(walkers.length, (i, out) => {
-      const t = walkers[i]!,
-        h = t.lead ? 0.022 : 0.014;
-      stand(
-        out,
-        lift(t, h / 2),
-        t.up,
-        t.ahead,
-        t.lead ? 0.016 : 0.01,
-        h,
-        t.lead ? 0.01 : 0.008,
-        t.size,
-      );
+      },
+      lift = (at: V, up: V, h: number, k: number): V => ({
+        x: at.x + up.x * h * k,
+        y: at.y + up.y * h * k,
+        z: at.z + up.z * h * k,
+      });
+    // Everyone standing: the marchers and defenders, the battles' masses, the garrisons.
+    const battle = battleFigures(paths, s),
+      fighting = battle.filter((f) => !f.fallen),
+      lying = battle.filter((f) => f.fallen),
+      garrison = zoom < GARRISON_ZOOM ? garrisonFigures(paths) : [],
+      standing: Stood[] = [
+        ...walkers,
+        ...fighting.map((f: BattleFigure) => ({ ...f, lead: false, mounted: false })),
+        ...garrison,
+      ].slice(0, MOST);
+    // (A rider sits on a horse: a body the higher by it.)
+    const seat = (f: Stood) => (f.mounted ? 0.012 : 0),
+      height = (f: Stood) => (f.lead ? 0.022 : 0.014);
+    this.tabards.forEach((batch, side) => {
+      const mine = standing.filter((f) => f.side === side);
+      batch.setBasis(mine.length, (i, out) => {
+        const f = mine[i]!,
+          h = height(f);
+        stand(
+          out,
+          lift(f.at, f.up, seat(f) + h / 2, f.size),
+          f.up,
+          f.ahead,
+          f.lead ? 0.016 : 0.01,
+          h,
+          f.lead ? 0.01 : 0.008,
+          f.size,
+        );
+      });
     });
-    // (A head on each, so a token reads as one who marches.)
-    this.heads.setBasis(walkers.length, (i, out) => {
-      const t = walkers[i]!,
-        h = t.lead ? 0.022 : 0.014,
-        r = t.lead ? 0.011 : 0.008;
-      stand(out, lift(t, h + r / 2), t.up, t.ahead, r, r, r, t.size);
+    this.heads.setBasis(standing.length, (i, out) => {
+      const f = standing[i]!,
+        h = height(f),
+        r = f.lead ? 0.011 : 0.008;
+      stand(out, lift(f.at, f.up, seat(f) + h + r / 2, f.size), f.up, f.ahead, r, r, r, f.size);
+    });
+    const riders = standing.filter((f) => f.mounted);
+    this.horses.setBasis(riders.length, (i, out) => {
+      const f = riders[i]!;
+      stand(out, lift(f.at, f.up, 0.006, f.size), f.up, f.ahead, 0.009, 0.01, 0.024, f.size);
+    });
+    // The fallen, laid along the ground.
+    this.fallen.setBasis(lying.length, (i, out) => {
+      const f = lying[i]!;
+      stand(out, lift(f.at, f.up, 0.003, f.size), f.ahead, f.up, 0.01, 0.018, 0.006, f.size);
     });
     this.hulls.setBasis(ships.length, (i, out) => {
       const t = ships[i]!;
-      stand(out, lift(t, 0.003), t.up, t.ahead, 0.011, 0.006, 0.028, t.size);
+      stand(out, lift(t.at, t.up, 0.003, t.size), t.up, t.ahead, 0.011, 0.006, 0.028, t.size);
     });
     this.sails.setBasis(ships.length, (i, out) => {
       const t = ships[i]!;
-      stand(out, lift(t, 0.016), t.up, t.ahead, 0.002, 0.02, 0.016, t.size);
+      stand(out, lift(t.at, t.up, 0.016, t.size), t.up, t.ahead, 0.002, 0.02, 0.016, t.size);
     });
-    // The banners: a pole and a flag in its side's colour, over the lead of each column
-    // and over every ship.
-    const bearers = tokens.filter((t) => t.lead || t.ship);
+    // The camps about the seats under siege: a ring of tents in the besiegers' colours, a
+    // banner at their middle.
+    const camps = paths.camps.flatMap((c) => {
+      const up = unit(c.at),
+        [t0, t1] = tangents(up);
+      return Array.from({ length: 8 }, (_, i) => {
+        const a = (i * Math.PI * 2) / 8,
+          r = 0.026;
+        return {
+          at: {
+            x: c.at.x + (t0.x * Math.cos(a) + t1.x * Math.sin(a)) * r,
+            y: c.at.y + (t0.y * Math.cos(a) + t1.y * Math.sin(a)) * r,
+            z: c.at.z + (t0.z * Math.cos(a) + t1.z * Math.sin(a)) * r,
+          },
+          up,
+          side: c.side,
+          ahead: t0,
+        };
+      });
+    });
+    this.tents.forEach((batch, k) => {
+      const mine = camps.filter((c) => c.side === this.tentSides[k]);
+      batch.setBasis(mine.length, (i, out) => {
+        const c = mine[i]!;
+        stand(out, lift(c.at, c.up, 0.007, 1), c.up, c.ahead, 0.014, 0.014, 0.014);
+      });
+    });
+    // The banners: a pole and a flag in its side's colour, over each banner-bearer, every
+    // ship, each camp's middle and each garrison's.
+    const bearers: Stood[] = [
+      ...tokens.filter((t) => t.banner || t.ship),
+      ...paths.camps.map((c) => ({
+        at: c.at,
+        up: unit(c.at),
+        ahead: tangents(unit(c.at))[0],
+        side: c.side,
+        size: 1,
+        lead: true,
+        mounted: false,
+      })),
+      ...garrison.filter((g) => g.lead),
+    ];
     this.poles.setBasis(bearers.length, (i, out) => {
       const t = bearers[i]!;
-      stand(out, lift(t, 0.03), t.up, t.ahead, 0.0022, 0.05, 0.0022, t.size);
+      stand(
+        out,
+        lift(t.at, t.up, 0.03 + seat(t), t.size),
+        t.up,
+        t.ahead,
+        0.0022,
+        0.05,
+        0.0022,
+        t.size,
+      );
     });
     this.flags.forEach((batch, side) => {
       const mine = bearers.filter((t) => t.side === side);
       batch.setBasis(mine.length, (i, out) => {
         const t = mine[i]!,
-          at = lift(t, 0.047),
+          at = lift(t.at, t.up, 0.047 + seat(t), t.size),
           back = { x: -t.ahead.x * 0.012, y: -t.ahead.y * 0.012, z: -t.ahead.z * 0.012 };
         stand(
           out,
@@ -193,11 +342,22 @@ export class GlobeWars {
         0.004,
       );
     });
-    this.drawn = tokens.length + clashes.length;
-    // (A host's marks stand for its war; a clash for its battle.)
+    this.drawn = tokens.length + clashes.length + battle.length + camps.length + garrison.length;
+    this.counts = {
+      marching: walkers.length,
+      battle: fighting.length,
+      fallen: lying.length,
+      tents: camps.length,
+      garrison: garrison.length,
+      riders: riders.length,
+    };
+    // (A host's marks stand for its war; a clash for its battle; a camp for its war; a
+    // garrison for its realm.)
     this.marks = [
       ...clashes.map((c) => ({ at: c.at, ref: c.event })),
       ...tokens.filter((k) => k.lead).map((k) => ({ at: k.at, ref: k.ref })),
+      ...paths.camps.map((c) => ({ at: c.at, ref: c.war })),
+      ...(garrison.length ? paths.garrisons.map((g) => ({ at: g.at, ref: g.realm })) : []),
     ];
     this.leads = tokens
       .filter((k) => k.lead && k.size > 0.5)
@@ -225,7 +385,10 @@ export class GlobeWars {
     return found;
   }
 
-  /** The war (a host) or battle (a clash) nearest a screen point, within `reach`: its ref. */
+  /**
+   * The war (a host, a camp), battle (a clash) or realm (a garrison) nearest a screen point,
+   * within `reach`: its ref.
+   */
   pick(x: number, y: number, reach = 22): string | null {
     if (!this.root.enabled) return null;
     const cam = this.stage.camera,
@@ -251,8 +414,9 @@ export class GlobeWars {
 
   destroy(): void {
     for (const b of [
-      this.bodies,
       this.heads,
+      this.horses,
+      this.fallen,
       this.poles,
       this.hulls,
       this.sails,
@@ -260,10 +424,44 @@ export class GlobeWars {
       this.flares,
       this.embers,
       ...this.flags,
+      ...this.tabards,
+      ...this.tents,
     ])
       b.destroy();
     this.flags = [];
+    this.tabards = [];
+    this.tents = [];
   }
+}
+
+/**
+ * Each realm at peace's garrison by its seat: a short line under its banner — two, three for a
+ * great realm's — riders if it rides.
+ */
+function garrisonFigures(paths: WarPaths): Stood[] {
+  const out: Stood[] = [];
+  for (const g of paths.garrisons) {
+    const up = unit(g.at),
+      [t0, t1] = tangents(up),
+      files = g.men >= 20000 ? 3 : 2;
+    for (let f = 0; f < files; f++) {
+      const across = (f - (files - 1) / 2) * 0.006;
+      out.push({
+        at: {
+          x: g.at.x + t0.x * 0.01 + t1.x * across,
+          y: g.at.y + t0.y * 0.01 + t1.y * across,
+          z: g.at.z + t0.z * 0.01 + t1.z * across,
+        },
+        up,
+        ahead: { x: -t0.x, y: -t0.y, z: -t0.z },
+        side: g.side,
+        size: 0.55,
+        lead: f === Math.floor((files - 1) / 2),
+        mounted: g.mounted,
+      });
+    }
+  }
+  return out;
 }
 
 function unit(v: V): V {

@@ -154,7 +154,9 @@ export function loadWorld(
       throw new SaveError(
         `store ${name} has schema ${chunk.schema}, newer than this game's ${target}`,
       );
-    store.load(data);
+    // (A copy: a store keeps what it loads, and the world running on must not write into the
+    // save it came from — the same save may be loaded again.)
+    store.load(structuredClone(data));
   }
   world.minter.restore(doc.minter);
   world.scheduler.load(doc.scheduler);
