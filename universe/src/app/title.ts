@@ -66,6 +66,7 @@ const HOW = [
   "The world runs on its own. Watch it, and tap any place, person or event to ask “why?” — every answer opens onto its causes.",
   "The lenses colour the world by what you want to see: people, food, trade, realms, tongues, faiths, their ways, what they have seen of you.",
   "“Look closer” goes down to a land and its villages; “The sky” goes out to the stars.",
+  "Steer as in a builder's game: W A S D to go, Q E to turn, R F to tilt, + − or the wheel to zoom, Shift to hurry; drag to move the land, right-drag to turn it. Space pauses, 1 2 3 set the speed. On a phone: drag, pinch, and twist two fingers.",
   "Your hand — rain, harvest, plague, quakes, settlers, wars and peace, a people's ways, a tongue, a faith — is always a choice, and always in the chronicle.",
   "Lay your hand on a village and everyone there is someone: their traits, their families, their children.",
   "The world keeps itself every five minutes; “Continue” takes up the world last kept.",

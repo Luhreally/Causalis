@@ -1,12 +1,13 @@
-// Free roam's camera (Phase 10 M98): the keys and the mouse on a desk — W A S D (or the
-// arrows) to go ahead, back and aside, Q and E down and up, Shift to hurry, a drag to look
-// about, the wheel to go ahead and back — and on a phone a stick to push and a drag to look.
-// It moves by view/free.ts and stands the stage's camera where it is; a tap still picks.
+// Free roam's camera (Phase 10 M98), steered as the Sims 3's own free camera is: W A S D (or
+// the arrows) to go ahead, back and aside, Q and E down and up, + and − (or Z and X, or the
+// wheel) ahead and back, Shift to hurry, a drag to look about — and on a phone a stick to push
+// and a drag to look. It eases into its pace and out of it, as fast as it stands high. It
+// moves by view/free.ts and stands the stage's camera where it is; a tap still picks.
 import * as pc from "playcanvas";
-import { freeLook, freeStep, type FreeRules, type FreeState } from "../view/index.ts";
+import { freeLook, freeStep, steerKey, type FreeRules, type FreeState } from "../view/index.ts";
 import type { Stage } from "./stage.ts";
 
-/** The keys that steer it: which way each pushes (ahead, aside, up). */
+/** The keys that steer it: which way each pushes (ahead, aside, up). (Space is time's: it pauses.) */
 const KEYS: Readonly<Record<string, readonly [number, number, number]>> = {
   KeyW: [1, 0, 0],
   ArrowUp: [1, 0, 0],
@@ -17,10 +18,19 @@ const KEYS: Readonly<Record<string, readonly [number, number, number]>> = {
   KeyD: [0, 1, 0],
   ArrowRight: [0, 1, 0],
   KeyE: [0, 0, 1],
-  Space: [0, 0, 1],
   KeyQ: [0, 0, -1],
   KeyC: [0, 0, -1],
+  // (+ and −, and Z and X, go ahead and back, as they zoom the orbit in and out.)
+  zoomIn: [1, 0, 0],
+  zoomOut: [-1, 0, 0],
 };
+
+/** The key a keyboard event is to the free camera (null: not its). */
+function keyOf(e: KeyboardEvent): string | null {
+  if (e.code in KEYS) return e.code;
+  const a = steerKey(e);
+  return a === "zoomIn" || a === "zoomOut" ? a : null;
+}
 
 export class FreeRig {
   state: FreeState = { x: 0, y: 10, z: 0, yaw: 0, pitch: -20 };
@@ -37,6 +47,8 @@ export class FreeRig {
   private fast = false;
   /** The stick's push (a phone's): -1 … 1 ahead and aside. */
   stick = { ahead: 0, aside: 0, up: 0 };
+  /** The push eased toward what is asked (quick to start and to stop). */
+  private moving = { ahead: 0, aside: 0, up: 0 };
   private active = false;
   private drag: { id: number; x: number; y: number; startX: number; startY: number } | null = null;
   private readonly element: HTMLElement;
@@ -46,15 +58,17 @@ export class FreeRig {
     this.stage = stage;
     this.element = element;
     addEventListener("keydown", (e) => {
-      if (!this.active || isTyping(e)) return;
-      if (e.code in KEYS) {
-        this.held.add(e.code);
+      this.fast = e.shiftKey;
+      if (!this.active || isTyping(e) || e.ctrlKey || e.metaKey || e.altKey) return;
+      const k = keyOf(e);
+      if (k) {
+        this.held.add(k);
         e.preventDefault();
       }
-      this.fast = e.shiftKey;
     });
     addEventListener("keyup", (e) => {
-      this.held.delete(e.code);
+      const k = keyOf(e);
+      if (k) this.held.delete(k);
       this.fast = e.shiftKey;
     });
     addEventListener("blur", () => this.held.clear());
@@ -99,11 +113,11 @@ export class FreeRig {
       (e) => {
         if (!this.active) return;
         e.preventDefault();
-        // The wheel goes ahead and back, a step at a time.
+        // The wheel goes ahead and back, a step for each notch (a pad's small turns, less).
         this.state = freeStep(
           this.state,
           { ahead: -Math.sign(e.deltaY), aside: 0, up: 0, fast: e.shiftKey },
-          0.35,
+          Math.min(1.5, Math.max(0.1, Math.abs(e.deltaY) / 100)) * 0.5,
           this.rules,
           this.ground,
         );
@@ -143,6 +157,7 @@ export class FreeRig {
     if (passing) return;
     this.held.clear();
     this.stick = { ahead: 0, aside: 0, up: 0 };
+    this.moving = { ahead: 0, aside: 0, up: 0 };
   }
 
   private update(dt: number): void {
@@ -156,12 +171,24 @@ export class FreeRig {
       aside += s;
       up += u;
     }
-    const clamp = (v: number) => Math.max(-1, Math.min(1, v));
-    if (ahead || aside || up)
+    const clamp = (v: number) => Math.max(-1, Math.min(1, v)),
+      k = 1 - Math.exp(-dt * 12),
+      m = this.moving,
+      eased = (v: number, to: number) => {
+        const x = v + (to - v) * k;
+        return to === 0 && Math.abs(x) < 1e-3 ? 0 : x;
+      };
+    this.moving = {
+      ahead: eased(m.ahead, clamp(ahead)),
+      aside: eased(m.aside, clamp(aside)),
+      up: eased(m.up, clamp(up)),
+    };
+    // (A slow frame's step is capped: a stall does not throw the eye far.)
+    if (this.moving.ahead || this.moving.aside || this.moving.up)
       this.state = freeStep(
         this.state,
-        { ahead: clamp(ahead), aside: clamp(aside), up: clamp(up), fast: this.fast },
-        Math.min(dt, 0.1),
+        { ...this.moving, fast: this.fast },
+        Math.min(dt, 0.25),
         this.rules,
         this.ground,
       );

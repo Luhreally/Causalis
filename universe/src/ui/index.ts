@@ -24,6 +24,7 @@ export { PageWindow } from "./inspector.ts";
 export { MapLabels, type MapName } from "./maplabels.ts";
 export { MapModes } from "./mapmodes.ts";
 export { FreeControls, type FreeMode } from "./free.ts";
+export { KEY_LINES, installTimeKeys, steerWords, touching, typing } from "./keys.ts";
 export { SearchBox } from "./search.ts";
 export { Outliner } from "./outliner.ts";
 export { Tooltip } from "./tooltip.ts";

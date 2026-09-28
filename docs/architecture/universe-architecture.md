@@ -4293,6 +4293,28 @@ Phase 14's "done when":
   and `import` before any world runs. And the view no longer turns by itself when left alone:
   Settings → The view (Still, or Turning at each scale's own rate), kept in the browser.
 
+- **Controls, asked for the same day** ("improve basic web playing functionality … on mobile
+  … when i hold for too long it copies the screen … the free roam controls suck and i move to
+  slow … like sims 3 … plus and minus is zoom in and out"). The orbit camera is steered as a
+  builder's camera is (`view/steer.ts`, pure and tested; `render/orbit.ts`): W A S D and the
+  arrows go (over a land, its middle slides along the ground as far each second as the
+  camera stands from it; about a globe, north and round it as fast as it stands high), Q E
+  turn, R F and Page Up/Down tilt, + − and Z X zoom (on through to the next scale), Shift
+  hurries; the velocity eases in and out. Over a land a drag (one finger, or the left button)
+  takes hold of the ground; the right or middle button, or Alt/Ctrl with the left, turns and
+  tilts; two fingers pinch, twist to turn, and move up or down together to tilt; a globe held
+  nearer turns less under a drag. A person kept in view is let go when the view is steered on.
+  Free roam goes as far each second as it stands high (`FREE_PACE`), eases, walks at a jog, and
+  takes + − and a wheel measured by its turn. Space pauses and goes on, 1 2 3 set the speed
+  (`ui/keys.ts`, on whichever speed bar is shown, else the world's). The page is a game's, not
+  a document: nothing is selected or called out by a held touch, no menu opens from it or the
+  right button, no double tap or pinch zooms the page, no pull refreshes it; the map's tooltip
+  is put away when the view moves under a resting pointer. Settings lists the controls, each
+  scene's hint says them for a desk or a phone, a Full screen toggle is in the world's menu,
+  and a web-app manifest with its icons lets a phone keep the game on its home screen and play
+  it full screen. Deposit richness is told in the units the ground holds (thin, fair or rich
+  by thirds), no longer as a share. Gate 14 checks the steering, the time keys and the page.
+
 Next, as the user put it the same day: what to take from Classic is its detail and its
 inspectability — what everything holds and is made of (a person's and a household's things, a
 town's stores, materials and their chemistry) broken down, every part of it a page — not its

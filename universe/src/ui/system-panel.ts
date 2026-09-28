@@ -7,6 +7,7 @@ import type { HostClient, SkyState, SystemPlan } from "../bridge/index.ts";
 import { bodyFacts, routeWords } from "../view/index.ts";
 import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
+import { steerWords } from "./keys.ts";
 
 const KIND_WORDS: Readonly<Record<string, string>> = {
   home: "the home world",
@@ -71,7 +72,7 @@ export class SystemPanel {
     this.element.append(
       bar,
       this.inspector,
-      el("p", "hint", "Tap a world to look at it. Drag to turn, pinch or scroll to zoom."),
+      el("p", "hint", `Tap a world to look at it. ${steerWords("space")}`),
     );
     root.append(this.element);
     this.visible = false;

@@ -5,6 +5,7 @@ import type { ClusterPlan, HostClient, SkyState, StarPage } from "../bridge/inde
 import { clusterWords, starWords } from "../view/index.ts";
 import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
+import { steerWords } from "./keys.ts";
 
 export class ClusterPanel {
   readonly element = el("div", "panel");
@@ -51,7 +52,7 @@ export class ClusterPanel {
     this.element.append(
       bar,
       this.inspector,
-      el("p", "hint", "Tap a star to look at it. Drag to turn, pinch or scroll to zoom."),
+      el("p", "hint", `Tap a star to look at it. ${steerWords("space")}`),
     );
     root.append(this.element);
     this.visible = false;

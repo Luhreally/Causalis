@@ -12,6 +12,7 @@ import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
 import { breakdownCard, type HoverTips } from "./hovertip.ts";
 import { speedWords, when } from "./words.ts";
+import { KEY_LINES, steerWords } from "./keys.ts";
 
 /** A quality the viewer may choose (the render module's names, or Auto). */
 type QualityChoice = "auto" | "low" | "balanced" | "high" | "ultra";
@@ -471,11 +472,20 @@ export class PlanetPanel {
       settings = menuButton("⚙️", "Settings"),
       // Back to the title screen: Continue, a new world, the worlds kept.
       title = menuButton("🏠", "Main menu"),
+      // The whole screen, as a game is played (where the browser can give it).
+      whole = menuButton("⛶", "Full screen"),
       // The world's own beginning, from the galaxy's birth to its first people (M89).
       origin = menuButton("🌱", "Its beginning");
     origin.onclick = () => this.onGenesis();
     help.onclick = () => this.onHelp();
     settings.onclick = () => void this.showSettings();
+    whole.hidden = !document.fullscreenEnabled;
+    whole.onclick = () =>
+      void (
+        document.fullscreenElement
+          ? document.exitFullscreen()
+          : document.documentElement.requestFullscreen({ navigationUI: "hide" })
+      ).catch(() => {});
     title.onclick = async () => {
       title.disabled = true;
       said.textContent = " keeping the world…";
@@ -496,6 +506,7 @@ export class PlanetPanel {
       back,
       help,
       settings,
+      whole,
       title,
       said,
     );
@@ -532,11 +543,7 @@ export class PlanetPanel {
     root.append(this.element);
     this.element.append(
       this.inspector,
-      el(
-        "p",
-        "hint",
-        "Tap the world to look at a place. Drag to turn it, pinch or scroll to zoom.",
-      ),
+      el("p", "hint", `Tap the world to look at a place. ${steerWords("round")}`),
     );
     this.markSpeed(speed);
     client.onStatus((s: Status) => {
@@ -1173,6 +1180,15 @@ export class PlanetPanel {
       if (this.title.textContent !== "Settings") clearInterval(tick);
       else draw();
     }, 1000);
+    // The keys and the mouse (a phone's fingers are told under each scene).
+    const keys = el("div", "key-lines");
+    keys.replaceChildren(
+      ...KEY_LINES.map(([k, does]) => {
+        const row = el("div", "key-line");
+        row.append(el("kbd", undefined, k), el("span", undefined, does));
+        return row;
+      }),
+    );
     // The view: still as it was left, or turning slowly when left alone.
     const view = el("div"),
       drawView = () =>
@@ -1198,6 +1214,8 @@ export class PlanetPanel {
       rate,
       el("h3", undefined, "The view"),
       view,
+      el("h3", undefined, "Controls"),
+      keys,
     );
     this.whyBox.replaceChildren(
       el(

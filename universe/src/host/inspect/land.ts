@@ -26,6 +26,7 @@ import type { Block, Item, Line, PageModel, Place, Row, Stat, Tab } from "../../
 import { cell as spotFacts, market, province, provinceHistory } from "../planet.ts";
 import { realmColor } from "../colors.ts";
 import { count, eventsAbout, item, link, many, part, share, stat, yearNow } from "./words.ts";
+import { richWords } from "./life.ts";
 import {
   faithLink,
   landLink,
@@ -279,16 +280,7 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
         type: "list",
         title: "What lies in the ground",
         items: deposits.map((d) =>
-          item(
-            [
-              link(
-                `${d.kind}, ${d.richness < 0.34 ? "thin" : d.richness < 0.67 ? "fair" : "rich"}`,
-                d.ref,
-              ),
-              ` (${d.process})`,
-            ],
-            d.ref,
-          ),
+          item([link(`${d.kind}, ${richWords(d.richness)}`, d.ref), ` (${d.process})`], d.ref),
         ),
       });
     tabs.push({ id: "land", name: "Land", blocks });

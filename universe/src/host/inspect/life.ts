@@ -182,6 +182,14 @@ export function lineagePage(world: World, ref: string): PageModel {
 }
 
 /** A deposit: what it is, how rich, what laid it down, its plate and its land. */
+/**
+ * A deposit's richness in words: the thirds of what the ground holds of it (200 to 2,000 units,
+ * gen/deposits.ts) — thin, fair or rich.
+ */
+export function richWords(units: number): "thin" | "fair" | "rich" {
+  return units < 800 ? "thin" : units < 1400 ? "fair" : "rich";
+}
+
 export function depositPageModel(world: World, ref: string): PageModel {
   const d = depositPage(world, ref);
   let tile: number | undefined;
@@ -195,7 +203,7 @@ export function depositPageModel(world: World, ref: string): PageModel {
   } catch {
     tile = undefined;
   }
-  const rich = d.richness < 0.34 ? "thin" : d.richness < 0.67 ? "fair" : "rich";
+  const rich = richWords(d.richness);
   return {
     ref,
     kind: "deposit",
@@ -208,7 +216,7 @@ export function depositPageModel(world: World, ref: string): PageModel {
         ? { scale: "region", cell: d.land, ...(tile !== undefined ? { tile } : {}) }
         : null,
     stats: [
-      stat("Richness", share(d.richness)),
+      stat("Richness", `${count(d.richness)} units`),
       stat("Laid down by", d.process),
       stat("People over it", count(d.people)),
     ],

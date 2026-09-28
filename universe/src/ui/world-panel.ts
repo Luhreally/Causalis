@@ -5,6 +5,7 @@ import type { SkyState, StarPage, SystemPlan, WorldGlobe } from "../bridge/index
 import { bodyFacts, starWords } from "../view/index.ts";
 import { el } from "./why.ts";
 import { folder } from "./window.ts";
+import { steerWords } from "./keys.ts";
 
 const COVER_WORDS = ["bare ground", "sea", "ice"];
 
@@ -34,11 +35,7 @@ export class WorldPanel {
     this.element.append(
       bar,
       this.inspector,
-      el(
-        "p",
-        "hint",
-        "Tap the ground to see what it is like there. Drag to turn, pinch or scroll to zoom.",
-      ),
+      el("p", "hint", `Tap the ground to see what it is like there. ${steerWords("round")}`),
     );
     root.append(this.element);
     this.visible = false;

@@ -5,6 +5,7 @@ import type { ClusterStar, GalaxyPlan, HostClient, StarPage } from "../bridge/in
 import { starWords } from "../view/index.ts";
 import { el } from "./why.ts";
 import { folder } from "./window.ts";
+import { steerWords } from "./keys.ts";
 
 const KIND = (k: string) =>
   k === "rocky" ? "a world of rock" : k === "giant" ? "a gas giant" : "an ice giant";
@@ -41,11 +42,7 @@ export class GalaxyPanel {
     this.element.append(
       bar,
       this.inspector,
-      el(
-        "p",
-        "hint",
-        "Tap anywhere on the galaxy to find the stars there. Drag to turn, pinch or scroll to zoom.",
-      ),
+      el("p", "hint", `Tap anywhere on the galaxy to find the stars there. ${steerWords("space")}`),
     );
     root.append(this.element);
     this.visible = false;

@@ -1,15 +1,30 @@
-// An orbit camera for mouse and touch: drag to turn, wheel or pinch to zoom, a
-// tap (a press that barely moves) to pick. It drifts slowly when left alone. A zoom goes
-// toward what is under the pointer (Phase 10 M95): a flat scene slides it toward the middle,
-// a globe turns it there; and the zoom that goes on through to the next scale goes into it.
+// An orbit camera for mouse, touch and keys, steered as a builder's camera is (asked for
+// 2026-09-28: "like the Sims 3"). Over a flat land a drag takes hold of the ground and moves
+// it (one finger, or the left button); the right or middle button (or Alt or Ctrl with the
+// left) turns and tilts; two fingers pinch to zoom, twist to turn and move up or down
+// together to tilt. About a globe a drag turns it, held as its face is held. W A S D (or the
+// arrows) go, Q and E turn, R and F tilt, + and − (or Z and X) zoom, Shift hurries (view/
+// steer.ts). A tap (a press that barely moves) picks. A zoom goes toward what is under the
+// pointer (Phase 10 M95), and the zoom that goes on through to the next scale goes into it.
+// It turns by itself when left alone only if asked to (its drift).
 import * as pc from "playcanvas";
 import {
   BEYOND,
+  STILL,
+  asked,
+  ease,
   flightAt,
+  globeDrag,
+  grabbed,
+  steerKey,
+  steerView,
+  still,
   towardOnFlat,
   towardOnGlobe,
   zoomStep,
   type OrbitView,
+  type Steer,
+  type SteerAction,
 } from "../view/index.ts";
 import type { Stage } from "./stage.ts";
 
@@ -35,11 +50,22 @@ export class OrbitRig {
   distance: number;
   readonly target = new pc.Vec3(0, 0, 0);
   private options: OrbitOptions;
+  /** Each pointer down: where it was and began, and whether it turns (else it takes hold of the ground). */
   private readonly pointers = new Map<
     number,
-    { x: number; y: number; startX: number; startY: number }
+    { x: number; y: number; startX: number; startY: number; turn: boolean }
   >();
   private pinch = 0;
+  /** Two fingers' angle and middle height, last seen (a twist turns; moved up or down together, a tilt). */
+  private twist: { angle: number; midY: number } | null = null;
+  /** The keys held (what each asks), whether Shift is, and the velocity eased toward them. */
+  private readonly held = new Set<SteerAction>();
+  private hurry = false;
+  private velocity: Steer = STILL;
+  /** Whether the keys steer it (a page may keep them for itself). */
+  keys = true;
+  /** Told when the viewer moves the view on (a person followed is let go). */
+  onLetGo: (() => void) | null = null;
   /** True once the viewer has zoomed by hand; fitting then leaves the distance alone. */
   userZoomed = false;
   /**
@@ -95,28 +121,43 @@ export class OrbitRig {
     on<PointerEvent>("pointerdown", (e) => {
       this.flight = null;
       element.setPointerCapture(e.pointerId);
+      // (Over a flat land a first finger or the left button takes hold of the ground; the
+      // right or middle button, Alt or Ctrl with the left, or a person followed, turns.)
+      const turn =
+        !this.bounds ||
+        e.button === 1 ||
+        e.button === 2 ||
+        e.altKey ||
+        e.ctrlKey ||
+        this.follow !== null;
       this.pointers.set(e.pointerId, {
         x: e.clientX,
         y: e.clientY,
         startX: e.clientX,
         startY: e.clientY,
+        turn,
       });
       this.pinch = this.spread();
+      this.twist = this.fingers();
       this.idle = 0;
     });
+    // (The middle button would scroll the page by itself; the right, open a menu.)
+    on<MouseEvent>("mousedown", (e) => {
+      if (e.button === 1) e.preventDefault();
+    });
+    on<MouseEvent>("contextmenu", (e) => e.preventDefault());
     on<PointerEvent>("pointermove", (e) => {
       const p = this.pointers.get(e.pointerId);
       if (!p) return;
-      const dx = e.clientX - p.x,
+      const fromX = p.x,
+        fromY = p.y,
+        dx = e.clientX - p.x,
         dy = e.clientY - p.y;
       p.x = e.clientX;
       p.y = e.clientY;
       if (this.pointers.size === 1) {
-        this.yaw -= dx * 0.3;
-        this.pitch = Math.max(
-          this.options.minPitch ?? -85,
-          Math.min(this.options.maxPitch ?? -8, this.pitch - dy * 0.25),
-        );
+        if (p.turn) this.turnBy(dx, dy);
+        else this.grab(fromX, fromY, e.clientX, e.clientY);
       } else if (this.pointers.size === 2) {
         const spread = this.spread(),
           [a, b] = [...this.pointers.values()],
@@ -127,6 +168,19 @@ export class OrbitRig {
             (a!.x + b!.x) / 2 - rect.left,
             (a!.y + b!.y) / 2 - rect.top,
           );
+        // A twist turns the view with the fingers; both moved up or down (the fingers not
+        // spreading) tilt a flat land's.
+        const f = this.fingers();
+        if (f && this.twist) {
+          let turned = f.angle - this.twist.angle;
+          if (turned > Math.PI) turned -= 2 * Math.PI;
+          else if (turned < -Math.PI) turned += 2 * Math.PI;
+          this.yaw -= (turned * 180) / Math.PI;
+          const rise = f.midY - this.twist.midY;
+          if (this.bounds && Math.abs(spread - this.pinch) < Math.abs(rise) * 0.5)
+            this.pitch = this.tilted(this.pitch - rise * 0.3);
+        }
+        this.twist = f;
         this.pinch = spread;
       }
       this.idle = 0;
@@ -143,9 +197,13 @@ export class OrbitRig {
         this.options.onTap(e.clientX - rect.left, e.clientY - rect.top);
       }
       this.pinch = this.spread();
+      this.twist = this.fingers();
     };
     on<PointerEvent>("pointerup", up);
-    on<PointerEvent>("pointercancel", (e) => this.pointers.delete(e.pointerId));
+    on<PointerEvent>("pointercancel", (e) => {
+      this.pointers.delete(e.pointerId);
+      this.twist = this.fingers();
+    });
     on<WheelEvent>("wheel", (e) => {
       e.preventDefault();
       this.flight = null;
@@ -153,7 +211,85 @@ export class OrbitRig {
       this.zoom(Math.exp(e.deltaY * 0.001), e.clientX - rect.left, e.clientY - rect.top);
       this.idle = 0;
     });
+    // The keys: held, each asks a way; Shift hurries. (Not while a field is typed in, nor with
+    // Ctrl or the command key — those are the browser's — nor the arrows over a page read.)
+    const key = (e: KeyboardEvent, down: boolean) => {
+      const a = steerKey(e);
+      this.hurry = e.shiftKey;
+      if (!a) return;
+      if (!down) {
+        this.held.delete(a);
+        return;
+      }
+      if (!this.enabled || !this.keys || typing(e) || e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (/^(Arrow|Page)/.test(e.code) && t?.closest?.(".inspector, .page-window, .palette"))
+        return;
+      this.held.add(a);
+      this.flight = null;
+      this.idle = 0;
+      e.preventDefault();
+    };
+    const down = (e: Event) => key(e as KeyboardEvent, true),
+      lift = (e: Event) => key(e as KeyboardEvent, false),
+      blur = () => this.held.clear();
+    addEventListener("keydown", down);
+    addEventListener("keyup", lift);
+    addEventListener("blur", blur);
+    this.windowListeners.push(["keydown", down], ["keyup", lift], ["blur", blur]);
     stage.onUpdate((dt) => this.update(stage, dt));
+  }
+
+  private readonly windowListeners: [string, EventListener][] = [];
+
+  /** Turn and tilt by a drag of so many pixels (about a globe, less the nearer its face). */
+  private turnBy(dx: number, dy: number): void {
+    const k = this.round ? globeDrag(this.distance) : 0.3;
+    this.yaw -= dx * k;
+    this.pitch = this.tilted(this.pitch - dy * k * (this.round ? 1 : 0.83));
+  }
+
+  private tilted(pitch: number): number {
+    return Math.max(this.options.minPitch ?? -85, Math.min(this.options.maxPitch ?? -8, pitch));
+  }
+
+  /**
+   * The ground under a pointer taken hold of, moved from one screen point to another: the
+   * point that was under it comes under it again (past the horizon, where nothing is under
+   * it, the land slides by the screen's own measure).
+   */
+  private grab(fromX: number, fromY: number, toX: number, toY: number): void {
+    const rect = this.element.getBoundingClientRect(),
+      a = this.anchor?.(fromX - rect.left, fromY - rect.top) ?? null,
+      b = this.anchor?.(toX - rect.left, toY - rect.top) ?? null;
+    let t: { x: number; y: number; z: number };
+    if (a && b) t = grabbed(this.target, a, b, this.bounds);
+    else {
+      const k = (this.distance * 1.4) / Math.max(1, rect.height),
+        yaw = (this.yaw * Math.PI) / 180,
+        dx = (toX - fromX) * k,
+        dy = (toY - fromY) * k;
+      // (Dragged right, the land goes right: the middle goes left; dragged down, it comes near.)
+      t = grabbed(
+        this.target,
+        { x: 0, y: 0, z: 0 },
+        {
+          x: Math.cos(yaw) * dx - Math.sin(yaw) * dy,
+          y: 0,
+          z: -Math.sin(yaw) * dx - Math.cos(yaw) * dy,
+        },
+        this.bounds,
+      );
+    }
+    this.target.set(t.x, t.y, t.z);
+  }
+
+  /** Two fingers' angle and the height of their middle (null: not two). */
+  private fingers(): { angle: number; midY: number } | null {
+    const ps = [...this.pointers.values()];
+    if (ps.length !== 2) return null;
+    const [a, b] = ps as [(typeof ps)[number], (typeof ps)[number]];
+    return { angle: Math.atan2(b.y - a.y, b.x - a.x), midY: (a.y + b.y) / 2 };
   }
 
   /** Move to another scale: new limits, a new target and distance, zoom state reset. */
@@ -284,6 +420,11 @@ export class OrbitRig {
     this.idle = 0;
   }
 
+  /** Whether the keys are steering it now (or it is coming to rest from them). */
+  get steering(): boolean {
+    return !still(this.velocity);
+  }
+
   /** Whether a flight is under way. */
   get flying(): boolean {
     return this.flight !== null;
@@ -333,6 +474,25 @@ export class OrbitRig {
         );
       }
     }
+    // The keys: the view steered by the velocity eased toward what they ask. (Going on over
+    // the land lets a person followed go; zooming toward the middle of the screen.)
+    this.velocity = ease(this.velocity, asked(this.held), dt);
+    if (!still(this.velocity)) {
+      if (this.follow && (this.velocity.ahead || this.velocity.aside)) {
+        this.follow = null;
+        this.onLetGo?.();
+      }
+      const scene = this.round ? "round" : this.bounds ? "flat" : "space",
+        next = steerView(this.view, this.velocity, dt, scene, this.hurry, this.limits, this.bounds);
+      this.target.set(next.target.x, next.target.y, next.target.z);
+      this.yaw = next.yaw;
+      this.pitch = next.pitch;
+      if (next.zoom !== 1) {
+        const rect = this.element.getBoundingClientRect();
+        this.zoom(next.zoom, rect.width / 2, rect.height / 2);
+      }
+      this.idle = 0;
+    }
     // (A push past the edge let go of eases off.)
     this.beyond *= Math.exp(-dt * 1.5);
     if (this.idle > 4 && this.pointers.size === 0) this.yaw += dt * (this.options.drift ?? 2.5);
@@ -357,5 +517,18 @@ export class OrbitRig {
 
   destroy(): void {
     for (const [type, f] of this.listeners) this.element.removeEventListener(type, f);
+    for (const [type, f] of this.windowListeners) removeEventListener(type, f);
   }
+}
+
+/** Whether a key goes to a field being typed in (not to the camera). */
+function typing(e: KeyboardEvent): boolean {
+  const t = e.target as HTMLElement | null;
+  return (
+    !!t &&
+    (t.tagName === "INPUT" ||
+      t.tagName === "TEXTAREA" ||
+      t.tagName === "SELECT" ||
+      t.isContentEditable)
+  );
 }

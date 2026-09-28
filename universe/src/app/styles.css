@@ -24,6 +24,49 @@ body {
   background: var(--bg);
   color: var(--ink);
   -webkit-text-size-adjust: 100%;
+  /* A game's page, not a document: a touch held selects nothing and calls nothing out, a
+     double tap does not zoom it, a pull does not refresh it. (The fields typed in still do.) */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+img,
+a,
+canvas {
+  -webkit-user-drag: none;
+}
+/* The keys, as the settings list them. */
+.key-lines {
+  display: grid;
+  gap: 4px;
+}
+.key-line {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, auto) 1fr;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 0.88rem;
+}
+.key-line kbd {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(8, 22, 60, 0.6);
+  color: var(--accent);
+  white-space: nowrap;
 }
 #app {
   position: fixed;

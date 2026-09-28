@@ -63,6 +63,8 @@ import {
   type MapName,
   type PeopleEntry,
   type WorldStats,
+  installTimeKeys,
+  typing,
 } from "../ui/index.ts";
 import type {
   ActsMap,
@@ -395,6 +397,7 @@ async function runBenchPage(): Promise<void> {
 }
 
 async function runSandboxPage(): Promise<void> {
+  installTimeKeys();
   const { canvas, hud } = page(),
     tier = deviceTier(),
     stage = new Stage(canvas, tier, SKY),
@@ -452,6 +455,7 @@ async function runSandboxPage(): Promise<void> {
 type Village = { ref: string; name: string; tile: number; population: number; founded: number };
 
 async function runPlanetPage(): Promise<void> {
+  installTimeKeys();
   const { canvas, hud } = page(),
     tier = deviceTier(),
     stage = new Stage(canvas, tier, SPACE),
@@ -1402,6 +1406,13 @@ async function runPlanetPage(): Promise<void> {
   canvas.addEventListener("pointerleave", () => tooltip.hide());
   canvas.addEventListener("pointerdown", () => tooltip.hide());
   canvas.addEventListener("wheel", () => tooltip.hide(), { passive: true });
+  // (The view moved under a pointer at rest — steered by the keys, or another scale come to —
+  // its tip is of what was there: put away.)
+  let tippedAt: string = scale;
+  stage.onUpdate(() => {
+    if (rig.steering || tippedAt !== scale) tooltip.hide();
+    tippedAt = scale;
+  });
   exposed.refAt = refAt;
 
   // The god's palette (Phase 12 M106): an act taken in hand falls where the map is touched,
@@ -2381,8 +2392,9 @@ async function runPlanetPage(): Promise<void> {
     const M = VILLAGE_METRE;
     switch (scale) {
       case "village":
+        // (Walking at a jog, Shift a run: a village is crossed in a minute, not five.)
         return mode === "walk"
-          ? { speed: 1.4 * M, height: 5, clearance: 0.1 * M, walk: { eye: 1.7 * M } }
+          ? { speed: 4 * M, height: 5, clearance: 0.1 * M, walk: { eye: 1.7 * M } }
           : { speed: 5 * M, height: 25 * M, clearance: 1.5 * M };
       case "region":
         return { speed: 0.5, height: 8, clearance: 0.12 };
@@ -2395,13 +2407,13 @@ async function runPlanetPage(): Promise<void> {
           clearance: 0,
           space: true,
           round: true,
-          pace: (s) => Math.max(0.01, Math.hypot(s.x, s.y, s.z) - 1) * 0.6,
+          pace: (s) => Math.max(0.01, Math.hypot(s.x, s.y, s.z) - 1),
         };
       default:
         // The sky, the stars, the galaxy: as quick as the view is wide.
         return {
           speed: Math.max(0.05, rig.distance * 0.06),
-          height: rig.distance,
+          height: rig.distance * 0.5,
           clearance: 0,
           space: true,
         };
@@ -2827,6 +2839,8 @@ async function runPlanetPage(): Promise<void> {
       : null;
     pageWindow.redrawActions();
   };
+  // (Steered on over the land, the view lets the person kept in view go.)
+  rig.onLetGo = () => keep(null);
   pageWindow.sceneActions = (page) => {
     if (
       scale !== "village" ||
@@ -3120,7 +3134,23 @@ async function runGenesisPage(): Promise<void> {
   });
 }
 
+/**
+ * A game's page, not a document (asked for 2026-09-28: a long press copied the screen): no
+ * menu from a held touch or the right button (but in the fields typed in), and no pinch of
+ * the page itself (the scenes take pinches for their own). What is not selected nor called
+ * out by a touch held is the stylesheet's (styles.css).
+ */
+function gameSurface(): void {
+  addEventListener("contextmenu", (e) => {
+    if (!typing(e)) e.preventDefault();
+  });
+  // (Safari's own pinch of the page.)
+  for (const type of ["gesturestart", "gesturechange"])
+    addEventListener(type, (e) => e.preventDefault(), { passive: false });
+}
+
 async function main(): Promise<void> {
+  gameSurface();
   if (!location.search || params.has("menu")) return runTitlePage();
   if (bench > 0) return runBenchPage();
   if (universe === "sandbox") return runSandboxPage();

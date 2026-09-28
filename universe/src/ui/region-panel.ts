@@ -7,6 +7,7 @@ import { PeopleView } from "./people.ts";
 import type { Tidings } from "./tidings.ts";
 import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
+import { steerWords } from "./keys.ts";
 
 type TileFacts = {
   tile: number;
@@ -100,7 +101,7 @@ export class RegionPanel {
     this.element.append(
       bar,
       this.inspector,
-      el("p", "hint", "Tap the land to look at a place. Drag to turn, pinch or scroll to zoom."),
+      el("p", "hint", `Tap the land to look at a place. ${steerWords("flat")}`),
     );
     root.append(this.element);
     this.markLens("land");

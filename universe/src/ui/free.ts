@@ -102,7 +102,7 @@ export class FreeControls {
         ? ""
         : touch
           ? `${mode === "walk" ? "Walking" : "Flying"}: push the stick to go, drag to look${mode === "fly" ? ", ▲ ▼ to rise and sink" : ""}`
-          : `${mode === "walk" ? "Walking" : "Flying"}: W A S D to go, drag to look${mode === "fly" ? ", E and Q to rise and sink" : ""}, Shift to hurry, Esc to stop`;
+          : `${mode === "walk" ? "Walking" : "Flying"}: W A S D to go, drag to look${mode === "fly" ? ", E and Q to rise and sink, + − or the wheel ahead and back" : ""}, Shift to hurry, Esc to stop`;
     this.hint.hidden = mode === "orbit";
   }
 }

@@ -165,6 +165,22 @@ test("every kind of thing has a page of its own: a title, headline numbers and t
   void observer;
 });
 
+test("a deposit's richness is told in the units the ground holds, thin, fair or rich by their thirds", () => {
+  const g = homePlanet(world).generated,
+    fine = isProvinceWorld(g) ? g.fine : g,
+    words = new Set<string>();
+  for (const d of fine.deposits.slice(0, 40)) {
+    const p = page(d.ref),
+      rich = p.stats.find((s) => s.label === "Richness")!;
+    const units = String(d.richness).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    assert.equal(String(rich.value), `${units} units`);
+    const word = p.title.split(", ")[1]!;
+    assert.equal(word, d.richness < 800 ? "thin" : d.richness < 1400 ? "fair" : "rich");
+    words.add(word);
+  }
+  assert.ok(words.size >= 2, `not all alike: ${[...words].join(", ")}`);
+});
+
 test("every link on every page leads to a page, and looking never changes history", () => {
   const before = JSON.stringify(world.domainHashes()),
     seeds = [

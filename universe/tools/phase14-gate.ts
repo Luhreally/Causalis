@@ -10,8 +10,11 @@
 //      from one), their family as a tree walked to their mother's, a trait given by the hand;
 //   4. a people read: its tongue's sounds and words, the god as they name it from what they
 //      saw, their ways; a realm's faith and tongue;
-//   5. (asked for 2026-09-28) the view still when left alone, turning only when chosen in the
-//      settings; the main menu from a world keeps it and goes to the title screen, where
+//   5. (asked for 2026-09-28) steered as a builder's camera is: W A S D and + − over the globe,
+//      Space and the numbers for time, and over a land W to go, a drag that takes hold of it
+//      and a right-drag that turns it; a page a held touch neither selects nor opens a menu on;
+//   6. (asked for the same day) the view still when left alone, turning only when chosen in
+//      the settings; the main menu from a world keeps it and goes to the title screen, where
 //      Continue takes it up again; a new world, of another kind, begun from the title.
 // (npm run build first; --soft draws in software, as CI's browser does.)
 import { fileURLToPath } from "node:url";
@@ -418,7 +421,86 @@ const first = await land(lands[0]!.cell);
   await k(`document.querySelector(".page-window .close")?.click()`);
 }
 
-// 5. The view left alone, the title screen, Continue, a new world.
+// 5. Steered as a builder's camera is, and time from the keys; a page that is not a document.
+{
+  type View = { x: number; z: number; yaw: number; pitch: number; d: number };
+  const view = () =>
+    k<View>(
+      "(() => { const r = globalThis.causalis.rig; return { x: r.target.x, z: r.target.z, yaw: r.yaw, pitch: r.pitch, d: r.distance }; })()",
+    );
+  const hold = async (key: string, ms: number) => {
+    await page.keyboard.down(key);
+    await page.waitForTimeout(slow(ms));
+    await page.keyboard.up(key);
+    await page.waitForTimeout(slow(300));
+  };
+  await page.mouse.move(30, 400);
+  const g0 = await view();
+  await hold("KeyW", 400);
+  const g1 = await view();
+  await hold("Equal", 300);
+  const g2 = await view();
+  const northward = g1.pitch < g0.pitch - 1,
+    nearer = g2.d < g1.d * 0.95;
+  // Time: Space pauses and goes on; 3 the fastest.
+  const on = () =>
+    page.$$eval(".bar .speeds button", (x) => x.findIndex((b) => b.classList.contains("on")));
+  await k("globalThis.causalis.client.setSpeed(0)");
+  await page.click(".bar .speeds button:nth-child(2)");
+  await page.keyboard.press("Space");
+  const paused = (await on()) === 0;
+  await page.keyboard.press("Space");
+  const resumed = (await on()) === 1;
+  await page.keyboard.press("Digit3");
+  const fastest = (await on()) === 3;
+  await page.keyboard.press("Space");
+  // Over a land: W goes along the ground, a drag takes hold of it, a right-drag turns it.
+  await k(`globalThis.causalis.descend(${lands[0]!.cell})`);
+  await until(
+    "the land, for steering",
+    async () => (await k<string>("globalThis.causalis.scale()")) === "region",
+    slow(60000),
+  );
+  await page.waitForTimeout(slow(3000));
+  const l0 = await view();
+  await hold("KeyW", 400);
+  const l1 = await view(),
+    went = Math.hypot(l1.x - l0.x, l1.z - l0.z) > 1;
+  await page.mouse.move(700, 450);
+  await page.mouse.down();
+  await page.mouse.move(600, 400, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForTimeout(slow(300));
+  const l2 = await view(),
+    held = Math.hypot(l2.x - l1.x, l2.z - l1.z) > 1 && Math.abs(l2.yaw - l1.yaw) < 0.01;
+  await page.mouse.down({ button: "right" });
+  await page.mouse.move(640, 440, { steps: 6 });
+  await page.mouse.up({ button: "right" });
+  await page.waitForTimeout(slow(300));
+  const l3 = await view(),
+    turned = Math.abs(l3.yaw - l2.yaw) > 5 && Math.hypot(l3.x - l2.x, l3.z - l2.z) < 0.01;
+  // Not a document: nothing selected, no menu from a held touch or the right button.
+  const surface = await page.evaluate(() => {
+    const menu = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    document.querySelector("canvas")!.dispatchEvent(menu);
+    return { select: getComputedStyle(document.body).userSelect, menu: menu.defaultPrevented };
+  });
+  say(
+    `steering: the globe ${northward ? "north by W" : "not moved by W"}, ${nearer ? "nearer by +" : "not zoomed by +"}; time ${paused ? "paused" : "not paused"} and ${resumed ? "going on" : "not going on"} by Space, ${fastest ? "fastest by 3" : "not by 3"}; a land ${went ? "gone along by W" : "not moved by W"}, ${held ? "taken hold of by a drag" : "not held by a drag"}, ${turned ? "turned by a right-drag" : "not turned"}; the page: select ${surface.select}, menu ${surface.menu ? "refused" : "opened"}`,
+  );
+  check(northward && nearer, "the globe is not steered by W and +");
+  check(paused && resumed && fastest, "Space and the numbers do not set time");
+  check(went && held && turned, "a land is not steered by W, a drag and a right-drag");
+  check(surface.select === "none" && surface.menu, "a held touch selects, or opens a menu");
+  await k("globalThis.causalis.zoomThrough('out')");
+  await until(
+    "the world again",
+    async () => (await k<string>("globalThis.causalis.scale()")) === "globe",
+    slow(30000),
+  );
+}
+
+// 6. The view left alone, the title screen, Continue, a new world.
 {
   const yaw = () => k<number>("globalThis.causalis.rig.yaw");
   await page.mouse.move(30, 400);

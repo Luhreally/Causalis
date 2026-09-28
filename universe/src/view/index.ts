@@ -84,6 +84,22 @@ export {
   type ZoomState,
 } from "./zoom.ts";
 export {
+  STEER,
+  STILL,
+  asked,
+  ease,
+  globeDrag,
+  grabbed,
+  steerKey,
+  steerView,
+  still,
+  withinBounds,
+  type Steer,
+  type SteerAction,
+  type SteerScene,
+} from "./steer.ts";
+export {
+  FREE_PACE,
   freeLook,
   freeStep,
   orbitOf,

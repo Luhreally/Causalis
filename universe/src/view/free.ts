@@ -1,7 +1,12 @@
 // Free roam (Phase 10 M98): a camera that flies — or, among a village's people, walks — the
 // way the viewer steers it: ahead, back and aside by where it looks, up and down, faster
-// the higher it is (a world is crossed as quickly as a square). Pure: a step from the keys
-// held and the stick pushed; the scene keeps it above its ground and out of its walls.
+// the higher it is: as far each second as it stands high (asked for 2026-09-28: it went too
+// slowly), so the ground goes by at one pace at every height and a world is crossed as
+// quickly as a square. Pure: a step from the keys held and the stick pushed; the scene keeps
+// it above its ground and out of its walls.
+
+/** How far a flight goes each second for each unit it stands above its ground. */
+export const FREE_PACE = 1.1;
 
 /** Where the free camera is and where it looks (degrees: yaw about up, pitch below level). */
 export type FreeState = {
@@ -20,10 +25,11 @@ export type FreeInput = {
   readonly fast: boolean;
 };
 
-/** How it moves at a scale: its speed (units a second, at `height` above the ground), and how it walks. */
+/** How it moves at a scale: its speed near the ground (units a second), and how it walks. */
 export type FreeRules = {
-  /** Speed at the ground; doubled for each `height` risen above it (a flight's reach grows). */
+  /** Speed at the ground (the least a flight goes); higher up, FREE_PACE times its height. */
   readonly speed: number;
+  /** How high it counts itself where there is no ground under it (the sky, the stars). */
   readonly height: number;
   /** Walking: kept at the eye's height over the ground, not flying (a village's people). */
   readonly walk?: { readonly eye: number };
@@ -52,9 +58,13 @@ export function freeStep(
 ): FreeState {
   const under = ground(s.x, s.z),
     above = under === null ? rules.height : Math.max(0, s.y - under),
-    // (The higher, the faster: twice as fast each `height` risen, to a flight's reach.)
-    reach = rules.walk ? 1 : Math.min(64, Math.pow(2, above / rules.height)),
-    speed = (rules.pace ? rules.pace(s) : rules.speed * reach) * (input.fast ? 3 : 1) * dt,
+    // (The higher, the faster: as far each second as it stands high; walking, its own pace.)
+    pace = rules.pace
+      ? rules.pace(s)
+      : rules.walk
+        ? rules.speed
+        : Math.max(rules.speed, FREE_PACE * above),
+    speed = pace * (input.fast ? 3 : 1) * dt,
     yaw = (s.yaw * Math.PI) / 180,
     // Ahead: the way it faces, on the level (the orbit's convention: at yaw 0 it looks along
     // -z); in space, the way it looks.

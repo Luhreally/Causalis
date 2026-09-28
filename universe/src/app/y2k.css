@@ -1720,6 +1720,9 @@ body.roaming .hint {
   }
   #hud > .panel > .inspector:not(.page-window) {
     right: 60px;
+    /* (Below the bar, however many lines it wraps to: it never covers the bar's own menu.) */
+    top: calc(var(--bar-bottom, 72px) + 8px);
+    max-height: calc(100% - var(--bar-bottom, 72px) - 16px - var(--safe-bottom));
   }
 }
 @media (max-width: 640px) {

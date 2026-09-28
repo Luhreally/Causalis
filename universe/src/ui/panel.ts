@@ -8,6 +8,7 @@ import { CLASS_COLORS, CLASS_NAMES } from "../view/index.ts";
 import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
 import { eventWords, speedWords, when } from "./words.ts";
+import { steerWords } from "./keys.ts";
 
 const DAY = 86_400;
 const YEAR = 365 * DAY;
@@ -84,11 +85,7 @@ export class SandboxPanel {
     this.inspector.hidden = true;
     root.append(this.inspector);
 
-    const hint = el(
-      "p",
-      "hint",
-      "Tap a cell to look closer. Drag to turn, pinch or scroll to zoom.",
-    );
+    const hint = el("p", "hint", `Tap a cell to look closer. ${steerWords("space")}`);
     root.append(hint);
     client.onStatus((s) => this.status(s));
     this.markSpeed(initialSpeed);
