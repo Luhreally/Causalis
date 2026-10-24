@@ -3322,9 +3322,18 @@ async function runPlanetPage(): Promise<void> {
       return;
     }
     type Sky = { peoples?: { landings: { cell: number; year: number }[] } };
+    const landed = async () =>
+      !!(await client.query<Sky>({ type: "space.state", args: {} })).peoples?.landings.some(
+        (l) => l.cell === land.cell && l.year > startYear,
+      );
+    // They cross in a year: the world is carried on, a year at a time, to the morning after they
+    // come down, not waited on at whatever pace it runs (on a slow machine, minutes).
+    for (let years = 0; years < 4 && !(await landed()); years++) {
+      const now = (await client.advance(0)).t;
+      await client.advance((Math.floor(now / YEAR) + 1) * YEAR + 9 * (DAY / 24));
+    }
     for (let tries = 0; tries < 240; tries++) {
-      const sky = await client.query<Sky>({ type: "space.state", args: {} });
-      if (sky.peoples?.landings.some((l) => l.cell === land.cell && l.year > startYear)) {
+      if (await landed()) {
         const towns = await client.query<{ ref: string; cell: number; people: number }[]>({
             type: "towns.map",
             args: {},

@@ -843,7 +843,8 @@ export function dropView(
     }
   });
   const size = () => {
-    const w = Math.max(240, Math.round(box.clientWidth || 320)),
+    // (Within its box, its border of a pixel each side and all.)
+    const w = Math.max(240, Math.round((box.clientWidth || 320) - 2)),
       h = Math.round((w * FIELD_H) / FIELD_W),
       dpr = Math.min(2, globalThis.devicePixelRatio || 1);
     if (w === width) return;
