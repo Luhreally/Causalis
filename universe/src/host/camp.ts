@@ -4,8 +4,8 @@
 // people have not hunted out of it (a herding band's flocks among them, tame); the people's
 // figure; a band of the camp's; the hour of the world's day. Looked at, never lived.
 import { DAY, type World } from "../kernel/index.ts";
-import { livingIn, type Species } from "../gen/index.ts";
-import { homePlanet, populationContext, tameNow, wildsOf } from "../sim/index.ts";
+import { BIOME, livingIn, type Species } from "../gen/index.ts";
+import { homePlanet, populationContext, regionOf, tameNow, wildsOf } from "../sim/index.ts";
 import type { CampNear } from "../bridge/index.ts";
 import { landCamps } from "./land.ts";
 import { landTitle } from "./inspect/names.ts";
@@ -13,6 +13,28 @@ import { landTitle } from "./inspect/names.ts";
 /** The fewest and the most of a band seen near. */
 const LEAST_BAND = 6;
 const MOST_BAND = 24;
+
+/**
+ * How a land of now is drawn near, by the ground the camp stands on: frosted where it is cold,
+ * lush where it is wet and hot, sand where it is dry; else as a quiet age's.
+ */
+function lookOf(biome: number): string {
+  switch (biome) {
+    case BIOME.ice:
+    case BIOME.tundra:
+    case BIOME.alpine:
+    case BIOME.borealForest:
+      return "icehouse";
+    case BIOME.tropicalRainforest:
+    case BIOME.temperateRainforest:
+      return "hothouse";
+    case BIOME.hotDesert:
+    case BIOME.coldDesert:
+      return "dry";
+    default:
+      return "quiet";
+  }
+}
 
 export function campNear(world: World, cell: number, id: number): CampNear | null {
   const camp = landCamps(world, cell).find((c) => c.id === id);
@@ -51,7 +73,7 @@ export function campNear(world: World, cell: number, id: number): CampNear | nul
           index: 0,
           from: 0,
           to: 0,
-          kind: now?.kind ?? "quiet",
+          kind: lookOf(regionOf(populationContext(world), cell).biome[camp.tile] ?? -1),
           seaLevel: now?.seaLevel ?? 0,
           warmth: now?.warmth ?? 0,
           // (Wooded as the land is now: its forest against what it first had.)

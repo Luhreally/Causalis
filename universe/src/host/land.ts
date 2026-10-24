@@ -47,6 +47,8 @@ const MOST_TRAFFIC = 8;
 const BAND_PEOPLE = 30;
 const MOST_CAMPS = 16;
 export const CAMP_RANGE = 3;
+/** The stretches of a land too poor for villages its camps are spread over (tiles a side). */
+const CAMP_STEP = 8;
 const APART = 6;
 
 /** How busy a way is by the goods that went down it last year: one, and more for more. */
@@ -154,7 +156,17 @@ export function landCamps(
     },
     want = Math.max(1, Math.min(MOST_CAMPS, Math.round(people / BAND_PEOPLE))),
     homes: number[] = [];
-  for (const site of landSites(ctx, cell)) {
+  // (Its best sites first; on ground too poor for any village, its dry ground all the same —
+  // a keyed spot of every stretch of it: foragers need no field.)
+  const dry: number[] = [];
+  for (let j = CAMP_STEP / 2; j < size; j += CAMP_STEP)
+    for (let i = CAMP_STEP / 2; i < size; i += CAMP_STEP) {
+      const t = j * size + i;
+      if (r.water[t] === WATER.land && provinceOfTile(ctx, r, t) === cell) dry.push(t);
+    }
+  const keyed = (t: number) => mix(mix(0x6a09e667, cell), t) >>> 0;
+  dry.sort((a, b) => keyed(a) - keyed(b));
+  for (const site of [...landSites(ctx, cell), ...dry]) {
     if (homes.length >= want) break;
     if (towns.every((t) => apart(t.tile, site)) && homes.every((h) => apart(h, site)))
       homes.push(site);

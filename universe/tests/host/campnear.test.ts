@@ -33,6 +33,8 @@ test("a camp seen near: the land's own beasts, a band of the camp's, the world's
   assert.ok(near.figure, "the people's figure");
   assert.ok(Math.abs(near.hour - ((world.now % DAY) / DAY) * 24) < 1e-9, "the world's hour");
   assert.equal(near.plan.ages.length, 1);
+  // (Drawn as the ground the camp stands on is: frosted, lush, sand, or as a quiet age.)
+  assert.ok(["icehouse", "hothouse", "dry", "quiet"].includes(near.plan.ages[0]!.kind));
   assert.ok(near.plan.lineages.length >= 3, `${near.plan.lineages.length} lineages`);
   for (const l of near.plan.lineages) {
     assert.ok(l.body, `${l.name} has a body`);

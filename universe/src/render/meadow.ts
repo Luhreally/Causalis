@@ -74,6 +74,18 @@ const LOOKS: Readonly<Record<string, Look>> = {
     leaf: [0.3, 0.4, 0.18],
     bark: [0.2, 0.16, 0.14],
   },
+  // A desert's ground, sand and sparse yellowed grass (a land of now, Phase 29 M160).
+  dry: {
+    dirt: [0.78, 0.66, 0.46],
+    grass: [
+      [0.76, 0.64, 0.44],
+      [0.72, 0.64, 0.4],
+      [0.66, 0.62, 0.34],
+      [0.56, 0.56, 0.28],
+    ],
+    leaf: [0.42, 0.46, 0.24],
+    bark: [0.44, 0.34, 0.22],
+  },
   impact: {
     dirt: [0.34, 0.31, 0.28],
     grass: [

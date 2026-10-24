@@ -203,6 +203,8 @@ const GROWTH: Readonly<Record<string, number>> = {
   icehouse: 0.5,
   "great volcanism": 0.65,
   impact: 0.4,
+  // (A land of now drawn as its ground is: a desert's, sparse and slow, Phase 29 M160.)
+  dry: 0.55,
 };
 
 /** A lineage of the plan as a kind of the meadow (null: no beast of it walks the land). */
