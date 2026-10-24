@@ -2816,8 +2816,12 @@ async function runPlanetPage(): Promise<void> {
   rig.onBeyond = (way) => {
     if (through) return;
     through = true;
+    // (The wheel turned on through is spent: none of it zooms the scale come to, toward wherever
+    // the pointer rests, off what the eye was turned to there — a battle faced, a land's spot.)
+    rig.hush(Infinity);
     void zoomThrough(way).finally(() => {
       through = false;
+      rig.hush(500);
     });
   };
   exposed.zoomThrough = (way: "in" | "out") => zoomThrough(way);

@@ -91,6 +91,11 @@ export class OrbitRig {
   follow: (() => Point | null) | null = null;
   /** A flight under way (M94): from where to where, how far along, how long it takes. */
   private flight: { from: OrbitView; to: OrbitView; t: number; seconds: number } | null = null;
+  /**
+   * Until when (performance.now(), ms) the wheel goes unheeded: a zoom carried through to the next
+   * scale goes no further in it — what is left of the turn of the wheel is spent.
+   */
+  private hushed = 0;
   /** The point the last zoom went toward (in the scene), for going through into what is there. */
   aimed: Point | null = null;
   /** And where on the screen (CSS pixels) it was aimed from. */
@@ -206,6 +211,7 @@ export class OrbitRig {
     });
     on<WheelEvent>("wheel", (e) => {
       e.preventDefault();
+      if (performance.now() < this.hushed) return;
       this.flight = null;
       const rect = element.getBoundingClientRect();
       this.zoom(Math.exp(e.deltaY * 0.001), e.clientX - rect.left, e.clientY - rect.top);
@@ -340,6 +346,11 @@ export class OrbitRig {
   /** How far past the edge the viewer is pushing now (0 … 1: at one, it goes through). */
   get pushing(): number {
     return Math.min(1, this.beyond / BEYOND);
+  }
+
+  /** Heed no wheel for `ms` (Infinity: until told again). */
+  hush(ms: number): void {
+    this.hushed = performance.now() + ms;
   }
 
   /** Zoom by `factor`, toward what is under a screen point (CSS pixels) when one is given. */
