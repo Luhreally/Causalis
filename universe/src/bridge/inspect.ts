@@ -477,6 +477,38 @@ export type Answer = {
   readonly args: Readonly<Record<string, unknown>>;
 };
 
+/**
+ * A world's stage (Phase 31 M167, asked for 2026-10-24: "every stage like spore"): what its peoples
+ * have come to — bands, villages, realms, cities, writing, iron, engines, electricity, orbit, other
+ * worlds — the one reached
+ * last in that order, and each with the year it was first reached and where (null: not yet).
+ */
+export type WorldStage = {
+  readonly id: string;
+  readonly icon: string;
+  readonly name: string;
+  readonly stages: readonly {
+    readonly id: string;
+    readonly icon: string;
+    readonly name: string;
+    /** What first made it so, as the chronicle's firsts name it ("🏙️ A city"). */
+    readonly first: string | null;
+    readonly year: number | null;
+    readonly land: number | null;
+    readonly ref: string | null;
+  }[];
+};
+
+/** A first in the world, as the chronicle tells them: what, when, where, and its happening. */
+export type WorldFirst = {
+  readonly what: string;
+  readonly year: number;
+  readonly land: number | null;
+  readonly ref: string | null;
+  /** The stage of the world it opens ("Villages", "Iron"), if it opens one (Phase 31 M167). */
+  readonly stage?: string;
+};
+
 /** What one of the top bar's numbers is made of (Phase 10 M97): its greatest parts, each a line. */
 export type Breakdown = {
   readonly title: string;

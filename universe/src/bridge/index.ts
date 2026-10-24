@@ -76,6 +76,8 @@ export {
   type Answer,
   type Block,
   type Breakdown,
+  type WorldFirst,
+  type WorldStage,
   type Item,
   type Line,
   type PageKind,

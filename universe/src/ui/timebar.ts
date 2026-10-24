@@ -17,6 +17,8 @@ export class TimeBar {
   /** The weather where the eye is on the ground (Phase 30 M162): its sign and the air's warmth. */
   private readonly weatherMark = el("span", "weather-mark");
   private readonly speeds = el("div", "speeds");
+  /** What goes with the date at every scale (the world's stage: Phase 31 M167). */
+  private readonly besides = el("span", "beside-date");
   private readonly state: TimeState;
   private readonly send: (speed: number) => void;
   /** Whether the date is drawn each frame by the page (else as the host reports it). */
@@ -41,7 +43,8 @@ export class TimeBar {
     this.speeds.setAttribute("role", "group");
     this.speeds.setAttribute("aria-label", "Speed");
     this.weatherMark.hidden = true;
-    this.element.append(this.weatherMark, this.clock, this.speeds);
+    this.besides.hidden = true;
+    this.element.append(this.weatherMark, this.clock, this.besides, this.speeds);
     client.onStatus((s) => {
       this.status = s;
       if (!this.framed) this.tick(s.t);
@@ -50,6 +53,11 @@ export class TimeBar {
 
   get scale(): TimeScale {
     return this.state.scale;
+  }
+
+  /** Whether the clock stands: paused by the viewer, or held by something waiting on them. */
+  get stopped(): boolean {
+    return this.state.stopped;
   }
 
   /** The speed the world is asked to run at now (0 while stopped). */
@@ -88,6 +96,12 @@ export class TimeBar {
       this.weatherMark.title = words;
       this.weatherMark.setAttribute("aria-label", words);
     }
+  }
+
+  /** Shown beside the date, at every scale (the world's stage: Phase 31 M167). */
+  beside(item: HTMLElement): void {
+    if (item.parentElement !== this.besides) this.besides.replaceChildren(item);
+    this.besides.hidden = false;
   }
 
   /** Pause, or go on. */

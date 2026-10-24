@@ -843,6 +843,29 @@ body.paging .panel:not(.page-panel) .inspector {
   color: #ff8a5c;
   text-shadow: 0 0 6px rgba(255, 90, 40, 0.6);
 }
+/* The world's stage (Phase 31): beside the date at every scale, its name lit as an age's banner. */
+.stat-chip.stage .chip-value {
+  color: #ffe08a;
+  text-shadow: 0 0 6px rgba(255, 200, 80, 0.45);
+  font-variant-numeric: normal;
+}
+.beside-date {
+  display: inline-flex;
+  flex: none;
+}
+.beside-date[hidden] {
+  display: none;
+}
+.beside-date > .stat-chip.stage {
+  padding: 2px 9px;
+  border: 1px solid;
+  border-color: var(--chrome-lo) var(--chrome-mid) var(--chrome-mid) var(--chrome-lo);
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgba(4, 10, 30, 0.75), rgba(12, 24, 64, 0.6));
+}
+.beside-date > .stat-chip.stage:hover {
+  background: rgba(111, 231, 255, 0.14);
+}
 .world-line .link {
   padding: 0 2px;
 }
@@ -1270,6 +1293,66 @@ body.paging .panel:not(.page-panel) .inspector {
   height: 34px;
   padding: 0 8px;
   font-size: 1.05rem;
+}
+/* The eye that watches by itself (Phase 31): lit while it watches, its caption under the bar. */
+.director-caption {
+  position: absolute;
+  z-index: 3;
+  top: calc(var(--bar-bottom, 72px) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(36rem, calc(100vw - 132px));
+  padding: 5px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(8, 22, 60, 0.82);
+  box-shadow: inset 0 0 12px rgba(111, 231, 255, 0.18);
+  color: var(--ink);
+  font-size: 0.9rem;
+  pointer-events: auto;
+}
+.director-caption[hidden] {
+  display: none;
+}
+.director-words {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.director-caption.let-go {
+  border-color: var(--line);
+  color: var(--muted);
+}
+.director-stop {
+  flex: none;
+  padding: 0 4px;
+  font-size: 0.82rem;
+}
+/* (On a phone: from the left edge to the corner's buttons, its words over two lines.) */
+@media (max-width: 640px) {
+  .director-caption {
+    left: 8px;
+    right: 100px;
+    transform: none;
+    max-width: none;
+    font-size: 0.78rem;
+    padding: 4px 8px;
+    gap: 6px;
+  }
+  .director-words {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+  }
+  .director-stop-words {
+    display: none;
+  }
 }
 .free-buttons button.on {
   color: #032b24;

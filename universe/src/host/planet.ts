@@ -119,7 +119,9 @@ import {
   breakdownOf,
   pageOf,
   placeOf,
+  stageOf,
   tipOf,
+  worldFirstsNow,
   type Counted,
 } from "./inspect/index.ts";
 import { MAP_QUERIES } from "./map.ts";
@@ -1174,6 +1176,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // What stands now and asks to be looked at; what the top bar's numbers are made of (M96, M97).
       alerts: (world) => alertsOf(world),
       "world.breakdown": (world, args) => breakdownOf(world, (args as { what: Counted }).what),
+      // The world's stage, and its firsts the earliest first (Phase 31 M167, M168).
+      "world.stage": (world) => stageOf(world),
+      "world.firsts": (world) => worldFirstsNow(world),
       // What the god's hand may answer a great happening with (Phase 11 M100).
       "event.answers": (world, args) => {
         const a = args as { ref: string; watch: string };

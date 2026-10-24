@@ -36,6 +36,7 @@ import { faithLink, landLink, languageLink, nameOf, realmLink, townLink } from "
 import { worldFirsts } from "./world.ts";
 import { sicknessLink } from "./sickness.ts";
 import { houseLink } from "./credit.ts";
+import { stageBreakdown } from "./stage.ts";
 
 /** A land is going hungry below this much of its need met, in thousandths (as the top bar counts). */
 const HUNGRY = 850;
@@ -51,7 +52,7 @@ type AlertItem = Alert["items"][number];
  * are asked every few seconds; reading the firsts reads all of history).
  */
 const firstsKept = new WeakMap<World, { key: string; firsts: ReturnType<typeof worldFirsts> }>();
-function firstsNow(world: World): ReturnType<typeof worldFirsts> {
+export function firstsNow(world: World): ReturnType<typeof worldFirsts> {
   const key = `${yearNow(world)}:${world.events.all().length}`,
     kept = firstsKept.get(world);
   if (kept?.key === key) return kept.firsts;
@@ -410,7 +411,7 @@ export function logPage(world: World, tab?: string): PageModel {
 
 /** What the top bar counts, each of its numbers. */
 export type Counted =
-  "people" | "towns" | "realms" | "wars" | "faiths" | "tongues" | "hungry" | "colonies";
+  "people" | "towns" | "realms" | "wars" | "faiths" | "tongues" | "hungry" | "colonies" | "stage";
 
 /** The greatest first, as far as the breakdown shows, and how many more. */
 function greatest<T>(
@@ -438,6 +439,9 @@ export function breakdownOf(world: World, what: Counted): Breakdown {
     g = homePlanet(world).generated,
     home = ctx.provinces.all().filter((p) => !offworldSite(g, p.cell) && p.total() > 0);
   switch (what) {
+    // (The world's stage, Phase 31 M167.)
+    case "stage":
+      return stageBreakdown(world);
     case "people":
     case "realms": {
       const byRealm = new Map<string, { people: number; lands: number }>();

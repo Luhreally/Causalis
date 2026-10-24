@@ -73,6 +73,7 @@ import {
   TimeBar,
   typing,
   el,
+  DirectorControls,
 } from "../ui/index.ts";
 import type {
   ActsMap,
@@ -91,12 +92,20 @@ import type {
   Place,
   StarPage,
   WarsMap,
+  WorldFirst,
+  WorldStage,
 } from "../bridge/index.ts";
 import { nearestCell, sphereGrid, yearOfMoment } from "../kernel/index.ts";
 
 import {
   GOOD_CHOICES,
   LAW_CHOICES,
+  newDirector,
+  nextTake,
+  untold,
+  type Director,
+  type Take,
+  type TownSeen,
   goodsSpread,
   groundColors,
   cellAt,
@@ -287,6 +296,16 @@ type Exposed = {
   goNear?: (cell: number, camp: number) => Promise<void>;
   /** A world no people rose on: what the bar tells of it (null where people rose). */
   lifeless?: () => string | null;
+  /** The world's stage as last read (Phase 31 M167). */
+  worldStage?: () => WorldStage | null;
+  /** The eye that watches by itself (Phase 31 M168): whether it watches, its caption, its take. */
+  director?: () => {
+    watching: boolean;
+    told: string;
+    take: { kind: string; words: string } | null;
+    filming: boolean;
+  };
+  watchIt?: (on: boolean) => Promise<void>;
   /** A band of a land's camp seen near (Phase 29 M160): its people, the land's beasts, their hour, what they are at. */
   near?: () => {
     cell: number;
@@ -758,6 +777,7 @@ async function runPlanetPage(): Promise<void> {
       return;
     }
     const at: Record<string, string> = {
+      stage: "world:chronicle#firsts",
       people: "world:chronicle#story",
       towns: "world:ledger#towns",
       realms: "world:ledger#realms",
@@ -1179,6 +1199,14 @@ async function runPlanetPage(): Promise<void> {
   }, 3000);
   // The top bar's numbers.
   client.subscribe<WorldStats>({ type: "world.stats" }, 2000, (st) => planetPanel.stats(st));
+  // The world's stage (Phase 31 M167): what its peoples have come to, beside the date at every
+  // scale.
+  let stageNow: WorldStage | null = null;
+  exposed.worldStage = () => stageNow;
+  client.subscribe<WorldStage>({ type: "world.stage" }, 3000, (st) => {
+    time.beside(planetPanel.stage(st));
+    stageNow = st;
+  });
   // Realms' names written across their lands on the political map, and a star at each seat.
   const mapNames = new MapLabels(hud);
   let realmNames: {
@@ -4197,11 +4225,19 @@ async function runPlanetPage(): Promise<void> {
     }
   };
   if (params.has("contact") && !loaded) void strangersCome();
+  /** Down in a town at night: the clock taken on to its morning (a town is watched by day). */
+  const byDay = async () => {
+    const at = (await client.advance(0)).t,
+      hour = DAY / 24,
+      of = ((at % DAY) + DAY) % DAY;
+    if (of < 7 * hour || of >= 17 * hour)
+      await client.advance(at - of + (of < 7 * hour ? 0 : DAY) + 9 * hour);
+  };
   // Begun from the genesis at the first people (?cradle, Phase 24): the rising flows on into their
   // first years — the eye down on the land most peopled, its bands camped about it (Phase 28
   // M159), near the greatest camp, while they wander; and down to the first camp they settle as
   // it is made (by day), unless the viewer has gone elsewhere by then.
-  const toTheCradle = async () => {
+  const toTheCradle = async (): Promise<boolean> => {
     const map = await client.query<{ cell: number; people: number }[]>({
         type: "people.map",
         args: {},
@@ -4238,19 +4274,178 @@ async function runPlanetPage(): Promise<void> {
         }),
         town = [...towns].sort((a, b) => b.people - a.people)[0];
       if (town) {
-        if (!watching()) return;
-        const at = (await client.advance(0)).t,
-          hour = DAY / 24,
-          of = at % DAY;
-        if (of < 7 * hour || of >= 17 * hour)
-          await client.advance(at - of + (of < 7 * hour ? 0 : DAY) + 9 * hour);
+        if (!watching()) return false;
+        await byDay();
         await exposed.goTo?.(town.ref);
-        return;
+        return true;
       }
       await new Promise((r) => setTimeout(r, 1000));
     }
+    return false;
   };
-  if (params.has("cradle") && !loaded) void toTheCradle();
+  // The eye that watches by itself (Phase 31 M168, asked for 2026-10-24: "i would just watch it
+  // emerge and be able to pause and influence and all that"): 🎬 sets it going — each first in
+  // the world as it comes, seen where it happened, and the round of the world's life between
+  // (view/director.ts). It holds while the clock does or a page is open; the god's hand may be
+  // laid on the world while it watches; the viewer's own steering (a drag, the wheel, the keys,
+  // free roam) takes the eye back. Begun from the genesis (?watch), it watches from the first
+  // village on.
+  const directorControls = new DirectorControls(corner, hud);
+  let director: Director | null = null,
+    take: Take | null = null,
+    takeUntil = 0,
+    filming = false;
+  /** Into the whole world from wherever the eye is. */
+  const toWholeWorld = async () => {
+    if (scale === "globe") return;
+    await fadeOver(() => {
+      leaveScale();
+      toGlobe();
+    });
+  };
+  /** Film a take: the eye taken where it is seen, the clock at the pace it is best seen at. */
+  const film = async (next: Take): Promise<void> => {
+    const s = next.shot;
+    switch (s.kind) {
+      case "first": {
+        const place = s.first.ref
+            ? await client
+                .query<Place | null>({ type: "place", args: { ref: s.first.ref } })
+                .catch(() => null)
+            : null,
+          to: Place | null =
+            place ?? (s.first.land !== null ? { scale: "region", cell: s.first.land } : null);
+        if (!to) await toWholeWorld();
+        else {
+          if (to.scale === "village") await byDay();
+          await goTo(to);
+        }
+        // (A town's hour, a land's month, the world's year a second.)
+        time.pick(scale === "village" ? 2 : scale === "region" ? 3 : 2);
+        return;
+      }
+      case "bands": {
+        if (!(scale === "region" && regionCell === s.cell))
+          await goTo({ scale: "region", cell: s.cell });
+        const camps = region.land.camps.info(),
+          most = [...camps].sort((a, b) => b.people - a.people)[0];
+        if (most)
+          rig.flyTo({
+            target: { x: most.x, y: region.land.camps.points()[camps.indexOf(most)]!.y, z: most.z },
+            distance: 18,
+            pitch: -36,
+          });
+        time.pick(4);
+        return;
+      }
+      case "camp": {
+        if (!(scale === "region" && regionCell === s.cell))
+          await goTo({ scale: "region", cell: s.cell });
+        // (The land's camps come a moment after the land.)
+        for (let wait = 0; wait < 40 && !region.land.camps.info().length; wait++)
+          await new Promise((r) => setTimeout(r, 250));
+        const most = [...region.land.camps.info()].sort((a, b) => b.people - a.people)[0];
+        if (most && scale === "region") await goNear(s.cell, most.id);
+        return;
+      }
+      case "grow":
+        await watchGrow(s.cell, s.town);
+        return;
+      case "street":
+        await byDay();
+        await exposed.goTo?.(s.town);
+        time.pick(2);
+        return;
+      case "world":
+        await toWholeWorld();
+        time.pick(2);
+        return;
+    }
+  };
+  /** The next take, when the one shown has had its time or a first comes. */
+  const direct = async () => {
+    if (!directorControls.watching || filming || !director) return;
+    // (Held while the clock is, a page is read, or the god's hand holds an act to lay on the
+    // world shown: the take lasts on.)
+    if (time.stopped || pageWindow.current || palette.holding) {
+      takeUntil = Math.max(takeUntil, performance.now() + 1500);
+      return;
+    }
+    filming = true;
+    try {
+      const firsts = await client.query<WorldFirst[]>({ type: "world.firsts" });
+      const news = untold(director, firsts).length > 0;
+      if (performance.now() < takeUntil && !(news && take?.shot.kind !== "first")) return;
+      const towns = await client.query<TownSeen[]>({ type: "towns.map", args: {} }),
+        peopled = await client.query<{ cell: number; people: number }[]>({
+          type: "people.map",
+          args: {},
+        });
+      if (!directorControls.watching) return;
+      const next = nextTake(director, firsts, towns.slice(0, 12), peopled);
+      directorControls.tell(next.words);
+      take = next;
+      takeUntil = Infinity;
+      await film(next);
+      takeUntil = performance.now() + next.seconds * 1000;
+    } catch {
+      // (A take that could not be filmed: the next in its time.)
+      takeUntil = performance.now() + 5000;
+    } finally {
+      filming = false;
+    }
+  };
+  setInterval(() => void direct(), 1000);
+  /** Watching from now: what is already in the world is history; `first`, a take already showing. */
+  const watchIt = async (first?: { words: string; seconds: number }) => {
+    const firsts = await client.query<WorldFirst[]>({ type: "world.firsts" }).catch(() => []);
+    director = newDirector(firsts);
+    take = null;
+    takeUntil = first ? performance.now() + first.seconds * 1000 : 0;
+    directorControls.watching = true;
+    directorControls.tell(first?.words ?? "Watching it emerge…");
+  };
+  const stopWatching = () => {
+    if (!directorControls.watching) return;
+    directorControls.watching = false;
+    director = null;
+  };
+  directorControls.onToggle = (on: boolean) => void (on ? watchIt() : stopWatching());
+  // The viewer's own steering takes the eye back: a drag on the world, the wheel, the keys that
+  // steer, free roam. (A tap — a place chosen, the hand cast — does not.)
+  let pressedAt: { x: number; y: number } | null = null;
+  canvas.addEventListener("pointerdown", (e) => (pressedAt = { x: e.clientX, y: e.clientY }), true);
+  canvas.addEventListener(
+    "pointermove",
+    (e) => {
+      if (
+        pressedAt &&
+        e.buttons &&
+        Math.hypot(e.clientX - pressedAt.x, e.clientY - pressedAt.y) > 8
+      )
+        stopWatching();
+    },
+    true,
+  );
+  addEventListener("pointerup", () => (pressedAt = null), true);
+  canvas.addEventListener("wheel", () => stopWatching(), { capture: true, passive: true });
+  stage.onUpdate(() => {
+    if (directorControls.watching && (rig.steering || roaming !== "orbit")) stopWatching();
+  });
+  exposed.director = () => ({
+    watching: directorControls.watching,
+    told: directorControls.told,
+    take: take ? { kind: take.shot.kind, words: take.words } : null,
+    filming,
+  });
+  exposed.watchIt = (on: boolean) => (on ? watchIt() : (stopWatching(), Promise.resolve()));
+  if (params.has("cradle") && !loaded)
+    void toTheCradle().then((down) => {
+      // (Begun from the genesis, watching: from the first village on.)
+      if (down && params.has("watch") && !directorControls.watching)
+        void watchIt({ words: "🏘️ Their first village", seconds: 20 });
+    });
+  else if (params.has("watch")) void watchIt();
   client.onFrame((frame) => {
     if (frame.view === "globe") paintGlobe();
     else if (frame.view === "region") paintRegion();
@@ -4295,9 +4490,10 @@ async function runGenesisPage(): Promise<void> {
     universe,
     seed,
     // (Begun from the seed's text as the genesis left it: the acts laid on its dawn in it.)
-    // (At the first people, the eye goes down to their first camp.)
+    // (At the first people, the eye goes down to their first camp; and from the genesis the eye
+    // watches by itself on — Phase 31 — until the viewer takes it.)
     beginAt: (year, text) =>
-      (location.search = `?universe=${encodeURIComponent(universe)}&seed=${encodeURIComponent(text)}${year > 0 ? `&year=${year}` : "&cradle=1"}`),
+      (location.search = `?universe=${encodeURIComponent(universe)}&seed=${encodeURIComponent(text)}${year > 0 ? `&year=${year}` : "&cradle=1"}&watch=1`),
     // (Another world never seen, one life arises on: a genesis is the coming of its life.)
     another: async () => {
       const u = new Uint32Array(1);

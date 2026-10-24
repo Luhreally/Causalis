@@ -2,7 +2,7 @@
 // how its people fare, the clock, the lenses to look through, and an inspector for
 // any place — its ground, weather, plate and ores, and the people living there —
 // where every fact can be asked "why?".
-import type { Breakdown, HostClient, SaveMeta, Status } from "../bridge/index.ts";
+import type { Breakdown, HostClient, SaveMeta, Status, WorldStage } from "../bridge/index.ts";
 import type { Lens } from "../view/index.ts";
 import { lineChart } from "./chart.ts";
 import { HandView } from "./hand.ts";
@@ -18,6 +18,12 @@ type QualityChoice = "auto" | "low" | "balanced" | "high" | "ultra";
 
 const DAY = 86_400;
 const YEAR = 365 * DAY;
+
+/** Since when the world has been at its stage, in words (" since year 27"; the bands: nothing). */
+function stageSince(s: WorldStage): string {
+  const year = s.stages.find((x) => x.id === s.id)?.year;
+  return year ? ` since year ${year.toLocaleString("en-US")}` : "";
+}
 
 type Summary = {
   prior: string;
@@ -117,6 +123,7 @@ type ProvinceHistory = {
 
 /** What a click on each of the top bar's chips opens, said in its tooltip. */
 const CHIP_OPENS: Readonly<Record<ChipKind, string>> = {
+  stage: "Click for the chronicle's firsts",
   people: "Click for the chronicle's story",
   towns: "Click for the ledger's towns",
   realms: "Click for the ledger's realms",
@@ -129,7 +136,7 @@ const CHIP_OPENS: Readonly<Record<ChipKind, string>> = {
 
 /** What a chip of the top bar counts. */
 export type ChipKind =
-  "people" | "towns" | "realms" | "wars" | "faiths" | "tongues" | "hungry" | "colonies";
+  "stage" | "people" | "towns" | "realms" | "wars" | "faiths" | "tongues" | "hungry" | "colonies";
 
 /** The world's headline numbers (the host's "world.stats"). */
 export type WorldStats = {
@@ -559,6 +566,44 @@ export class PlanetPanel {
   }
 
   /** The people line under the bar, from the host's people map. */
+  /**
+   * A chip of the top bar, kept from one reading to the next. (Each opens what it counts, as a
+   * grand strategy game's top bar does; rested on, on a desk, it is broken down: its greatest
+   * parts, each a link.)
+   */
+  private chip(
+    what: ChipKind,
+    icon: string,
+    value: string,
+    title: string,
+    cls = "",
+  ): HTMLButtonElement {
+    let c = this.chips.get(what);
+    if (!c) {
+      const made = el("button", "stat-chip");
+      made.append(el("span", "chip-icon", icon), el("span", "chip-value"));
+      made.onclick = () => this.onChip(what);
+      const tips = this.hoverTips;
+      tips?.attach(made, async () =>
+        breakdownCard(
+          tips,
+          await this.client.query<Breakdown>({ type: "world.breakdown", args: { what } }),
+          made.getAttribute("aria-label") ?? "",
+          CHIP_OPENS[what],
+        ),
+      );
+      this.chips.set(what, made);
+      c = made;
+    }
+    const kind = `stat-chip ${cls}`.trim();
+    if (c.className !== kind) c.className = kind;
+    if (!this.hoverTips && c.title !== title) c.title = title;
+    if (c.getAttribute("aria-label") !== title) c.setAttribute("aria-label", title);
+    if (c.firstElementChild!.textContent !== icon) c.firstElementChild!.textContent = icon;
+    if (c.lastElementChild!.textContent !== value) c.lastElementChild!.textContent = value;
+    return c;
+  }
+
   /** The world's headline numbers, each with its icon and its words on hover. */
   stats(s: WorldStats): void {
     const big = (n: number) =>
@@ -569,32 +614,7 @@ export class PlanetPanel {
             : n >= 1e4
               ? `${Math.round(n / 1e3)}k`
               : n.toLocaleString("en-US"),
-      chip = (what: ChipKind, icon: string, value: string, title: string, cls = "") => {
-        // (Each opens what it counts, as a grand strategy game's top bar does; rested on, on a
-        // desk, it is broken down: its greatest parts, each a link.)
-        let c = this.chips.get(what);
-        if (!c) {
-          const made = el("button", "stat-chip");
-          made.append(el("span", "chip-icon", icon), el("span", "chip-value"));
-          made.onclick = () => this.onChip(what);
-          const tips = this.hoverTips;
-          tips?.attach(made, async () =>
-            breakdownCard(
-              tips,
-              await this.client.query<Breakdown>({ type: "world.breakdown", args: { what } }),
-              made.getAttribute("aria-label") ?? "",
-              CHIP_OPENS[what],
-            ),
-          );
-          this.chips.set(what, made);
-          c = made;
-        }
-        c.className = `stat-chip ${cls}`.trim();
-        if (!this.hoverTips) c.title = title;
-        c.setAttribute("aria-label", title);
-        c.lastElementChild!.textContent = value;
-        return c;
-      };
+      chip = this.chip.bind(this);
     const shown = [
       chip(
         "people",
@@ -620,6 +640,20 @@ export class PlanetPanel {
       shown.some((c, i) => this.statsStrip.children[i] !== c)
     )
       this.statsStrip.replaceChildren(...shown);
+  }
+
+  /**
+   * The world's stage (Phase 31 M167): what its peoples have come to, as a chip that goes beside
+   * the date at every scale (an age by its date, as in Civilization's bar).
+   */
+  stage(s: WorldStage): HTMLButtonElement {
+    return this.chip(
+      "stage",
+      s.icon,
+      s.name,
+      `The world's stage: ${s.name}${stageSince(s)}`,
+      "stage",
+    );
   }
 
   people(entries: readonly PeopleEntry[]): void {

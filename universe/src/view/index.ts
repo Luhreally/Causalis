@@ -462,3 +462,14 @@ export {
   type Weather,
 } from "./weather.ts";
 export { actsNear, type ActsNear, type NearMote } from "./nearacts.ts";
+export {
+  BEHIND,
+  firstWords,
+  newDirector,
+  nextTake,
+  untold,
+  type Director,
+  type Shot,
+  type Take,
+  type TownSeen,
+} from "./director.ts";

@@ -228,5 +228,6 @@ export const INSPECT_QUERIES: Readonly<Record<string, QueryHandler>> = {
 };
 
 export { alertsOf, answersOf, breakdownOf, type Counted };
+export { WORLD_STAGES, stageOf, worldFirstsNow } from "./stage.ts";
 
 export { battlePage };
