@@ -172,6 +172,12 @@ jobs:
       - run: npm run gate:19 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 20 gate: sickness (every sickness side by side, the deadliest's page and its
+      # drop of blood under the glass, the book's page of a sickness, the lens of sickness, a land
+      # warded by the god; a sickness's page on a phone).
+      - run: npm run gate:20 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

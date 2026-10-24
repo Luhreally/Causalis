@@ -531,8 +531,8 @@ function bindNew(
     l.shares[k] = (l.shares[k]! * before + (k === bond ? count : 0)) / total;
 }
 
-/** `count` of a land's bound gone from it (fled, fallen): every kind in its measure. */
-function boundGone(store: OrderStore, cell: number, count: number, before: number): void {
+/** `count` of a land's bound gone from it (fled, fallen, dead of sickness): every kind in its measure. */
+export function boundGone(store: OrderStore, cell: number, count: number, before: number): void {
   const l = store.lands.get(cell);
   if (!l || before <= count) return;
   const held = l.shares.reduce((a, b) => a + b, 0) * before;

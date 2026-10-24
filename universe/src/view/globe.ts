@@ -34,6 +34,7 @@ export const LENSES = [
   "bondage",
   "standing",
   "laws",
+  "sickness",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -65,6 +66,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   bondage: "Bondage",
   standing: "Standing",
   laws: "Laws",
+  sickness: "Sickness",
 };
 
 /** Each map mode's icon, for the map modes' bar (Phase 10 M96). */
@@ -96,6 +98,7 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   bondage: "⛓️",
   standing: "⚖️",
   laws: "🏛️",
+  sickness: "🦠",
 };
 
 /** How every land stands toward the realm the diplomacy lens is of, in its colours. */
@@ -320,6 +323,14 @@ const LAWS_RAMP: readonly Stop[] = [
   [0.5, [0.86, 0.76, 0.52]],
   [1, [0.24, 0.66, 0.62]],
 ];
+/** How deep a land's last sickness cut, spared (pale) to a great dying (deep bruise) — M140. */
+const SICKNESS: readonly Stop[] = [
+  [0, [0.8, 0.84, 0.76]],
+  [0.15, [0.82, 0.86, 0.5]],
+  [0.4, [0.6, 0.7, 0.3]],
+  [0.7, [0.46, 0.34, 0.5]],
+  [1, [0.24, 0.08, 0.26]],
+];
 /** The laws the laws lens shows, one at a time: each its id, icon and name (M139). */
 export const LAW_CHOICES: readonly (readonly [string, string, string])[] = [
   ["land", "🌾", "The land"],
@@ -425,6 +436,7 @@ const DEEP: Readonly<
   bondage: { stops: BONDAGE, at: (v) => Math.sqrt(v), shown: () => true },
   standing: { stops: STANDING, at: (v) => v, shown: (v) => v >= 0 },
   laws: { stops: LAWS_RAMP, at: (v) => v, shown: (v) => v >= 0 },
+  sickness: { stops: SICKNESS, at: (v) => Math.sqrt(v), shown: () => true },
 };
 
 /** A biome's colour on the land lens. */
@@ -535,7 +547,8 @@ export function globeColors(
       case "goods":
       case "bondage":
       case "standing":
-      case "laws": {
+      case "laws":
+      case "sickness": {
         const v = values?.get(province),
           deep = DEEP[lens];
         if (v !== undefined && deep && deep.shown(v)) col = ramp(deep.stops, deep.at(v));
@@ -705,6 +718,8 @@ export function lensLegend(lens: Lens): Legend {
       return { kind: "ramp", stops: stops(STANDING), low: "held wrongful", high: "revered" };
     case "laws":
       return { kind: "ramp", stops: stops(LAWS_RAMP), low: "the old order", high: "the new" };
+    case "sickness":
+      return { kind: "ramp", stops: stops(SICKNESS), low: "spared lately", high: "a great dying" };
     case "belief":
       return {
         kind: "keys",

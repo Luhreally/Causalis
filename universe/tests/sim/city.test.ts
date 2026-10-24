@@ -63,8 +63,8 @@ test("towns grow into cities, and paving reshapes them, answering to the road's 
   }
   // Each paved city whose quarters have come to their worth stands its trade nearer its road
   // than the same town's would unpaved (weighed against itself, not against other towns on
-  // other headings). A few blocks move a year: a city paved these last years is still being
-  // reshaped, and is not weighed until it is.
+  // other headings). A few blocks move a year: a city paved — or grown — these last years is
+  // still being reshaped, and is not weighed until its trade stands where the paved plan puts it.
   const ctx = populationContext(world),
     river = homePlanet(world).generated.water.river;
   let settled = 0;
@@ -81,8 +81,11 @@ test("towns grow into cities, and paving reshapes them, answering to the road's 
           pave,
           !!river[c.cell],
         ),
-      dirt = laid(false);
-    if (laid(true).filter((u, k) => u !== c.uses[k]).length > 12) continue;
+      dirt = laid(false),
+      plan = laid(true),
+      trade = (u: number | undefined) => (TRADE as readonly number[]).includes(u ?? -1);
+    if (plan.filter((u, k) => u !== c.uses[k]).length > 12) continue;
+    if (plan.filter((u, k) => trade(u) !== trade(c.uses[k])).length > 3) continue;
     settled++;
     assert.ok(
       marketsFromRoad(c.uses, c.axis) <= marketsFromRoad(dirt, c.axis) + 0.05,

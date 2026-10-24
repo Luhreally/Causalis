@@ -38,6 +38,7 @@ const HEADINGS: Readonly<Record<string, readonly [string, string]>> = {
   peoples: ["Peoples of the stars", "👽"],
   contact: ["Contact", "🛸"],
   order: ["Bonds and freedoms", "⛓️"],
+  health: ["Sickness", "🦠"],
 };
 
 /** Events whose kind says itself better whole than as its domain and its word. */
@@ -68,6 +69,10 @@ const TITLES: Readonly<Record<string, string>> = {
   "act.stir": "The bound stirred",
   "act.mandate": "A sign from the heavens",
   "act.decree": "A law decreed",
+  "health.rose": "A new sickness",
+  "health.outbreak": "A sickness came",
+  "act.ward": "A land warded",
+  "act.loose": "A sickness loosed",
 };
 
 /** Where a thing an event names is to be seen (its place, most often a land). */

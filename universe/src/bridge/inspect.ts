@@ -408,6 +408,8 @@ export type PageKind =
   /** The tree of life (`world:tree`), and a line of it no living lineage is (Phase 17). */
   | "tree"
   | "clade"
+  /** A sickness (Phase 20 M140). */
+  | "sickness"
   | "unknown";
 
 export type PageModel = {
@@ -450,7 +452,7 @@ export type Tip = {
  * followed ended, a realm followed fallen, a first in the world.
  */
 export type Alert = {
-  readonly id: "war" | "hunger" | "order" | "death" | "fallen" | "first";
+  readonly id: "war" | "hunger" | "order" | "sickness" | "death" | "fallen" | "first";
   readonly icon: string;
   readonly title: string;
   /** How it is lit: war red, want amber, loss grey, news cyan. */

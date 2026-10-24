@@ -221,6 +221,68 @@ export function drawTool(
       );
       return;
     }
+    case "acts.sickness": {
+      // A sickness in the god's hand (Phase 20 M140): loosed again where it rose.
+      const tools = el("div", "tools"),
+        note = el("p", "note");
+      note.hidden = true;
+      twice(
+        tools,
+        note,
+        `☣️ Loose it on ${args.home as string}`,
+        `${args.name as string} comes again to the land where it rose, on whoever there is not spared it.`,
+        async () => {
+          await ctx.client.command("act.loose", { cell: args.cell, sickness: args.sickness });
+          ctx.refresh();
+        },
+      );
+      into.replaceChildren(el("h3", undefined, "It is yours to loose"), tools, note);
+      return;
+    }
+    case "acts.health": {
+      // A land's health in the god's hand (Phase 20 M140): warded, or a sickness loosed on it.
+      const tools = el("div", "tools"),
+        note = el("p", "note"),
+        cell = args.cell as number,
+        land = args.land as string,
+        loose = (sickness: string | null) => async () => {
+          await ctx.client.command("act.loose", { cell, sickness });
+          ctx.refresh();
+        };
+      note.hidden = true;
+      if (!args.warded)
+        twice(
+          tools,
+          note,
+          "💉 Ward this land",
+          `The people of ${land} are spared every sickness there is — until they forget, and their children are born never having had it.`,
+          async () => {
+            await ctx.client.command("act.ward", { cell });
+            ctx.refresh();
+          },
+        );
+      for (const [ref, name] of (args.sicknesses as [string, string][] | undefined) ?? [])
+        twice(
+          tools,
+          note,
+          `☣️ Loose ${name} here`,
+          `${name} comes to ${land}, on whoever is not spared it — and goes on from there.`,
+          loose(ref),
+        );
+      twice(
+        tools,
+        note,
+        "☣️ A new sickness here",
+        `A sickness never seen before rises in ${land}: its nature is its own.`,
+        loose(null),
+      );
+      into.replaceChildren(
+        el("h3", undefined, "Its health — yours to ward or blight"),
+        tools,
+        note,
+      );
+      return;
+    }
     case "acts.laws": {
       // A realm's laws in the god's hand (Phase 19 M139): each a step older or newer, at once.
       const laws = (args.laws as [string, string, number, string[]][] | undefined) ?? [],

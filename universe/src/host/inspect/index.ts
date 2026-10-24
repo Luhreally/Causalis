@@ -38,6 +38,7 @@ import { comparePage } from "./compare.ts";
 import { crumbsOf } from "./crumbs.ts";
 import { DEEP_LENSES, lensReading, type DeepLens } from "../lenses.ts";
 import { conceptPage, withConcepts } from "./concepts.ts";
+import { sicknessPage } from "./sickness.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
 function build(world: World, ref: string, tab: string | null): PageModel {
@@ -112,6 +113,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
       return bodyPage(world, ref);
     case "civ":
       return civilizationPage(world, ref);
+    case "sick":
+      return sicknessPage(world, ref);
     case "ev":
       return eventPage(world, ref);
     case "dec":

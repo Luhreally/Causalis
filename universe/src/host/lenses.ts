@@ -22,6 +22,7 @@ import { bare, claimOf, count, share } from "./inspect/words.ts";
 import { beliefOfLand, godSeen, seenWords } from "./inspect/peoples.ts";
 import { bondageReading, lawReading, orderReadings, standingReading } from "./inspect/order.ts";
 import { LAWS, type Law } from "../sim/index.ts";
+import { sicknessReading, sicknessValue } from "./inspect/sickness.ts";
 
 /** The lenses read here, beside the people's own (people, food, trade). */
 export const DEEP_LENSES = [
@@ -38,6 +39,8 @@ export const DEEP_LENSES = [
   "standing",
   // A realm's laws, one law at a time (Phase 19 M139).
   "laws",
+  // How deep its last sickness cut, fading over six years (Phase 20 M140).
+  "sickness",
 ] as const;
 export type DeepLens = (typeof DEEP_LENSES)[number];
 
@@ -67,6 +70,8 @@ export type LandReadings = {
   readonly standing: number;
   /** Its realm's laws, each a position 0 … 2 (by LAWS; none for a land of no realm) — M139. */
   readonly laws: readonly number[];
+  /** How deep its last sickness cut (0 … 1, a great dying full), fading over six years — M140. */
+  readonly sickness: number;
 };
 
 /** The ids a land knows: its lore, and sowing and smelting, which it knows in its own ways. */
@@ -144,6 +149,7 @@ export function landReadings(world: World): (cell: number) => LandReadings {
         return m && people ? m.stock.map((n) => Math.round((n / people) * 1000) / 1000) : [];
       })(),
       ...order(cell),
+      sickness: Math.round(sicknessValue(world, cell) * 1000) / 1000,
     };
   };
 }
@@ -191,6 +197,8 @@ export function lensReading(
       return bondageReading(world, cell);
     case "standing":
       return standingReading(world, cell);
+    case "sickness":
+      return sicknessReading(world, cell);
     case "laws":
       return lawReading(
         world,

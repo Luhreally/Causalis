@@ -359,6 +359,18 @@ const TREE: readonly Principle[] = [
     { town: 1 },
     { health: 0.05 },
   ),
+  // Sickness understood (Phase 20 M140): its small seeds seen through glass; the young given a
+  // mild form so they are spared the sickness; the sick kept apart and the gates shut.
+  P(
+    "germs",
+    "the seeds of sickness",
+    ["medicine", "glass", "writing"],
+    0.004,
+    { leaders: 0.5, crafters: 0.5, town: 1 },
+    { health: 0.04 },
+  ),
+  P("vaccines", "vaccination", ["germs"], 0.004, { leaders: 0.5, town: 1 }, { health: 0.03 }),
+  P("quarantine", "keeping the sick apart", ["germs"], 0.005, { leaders: 1, town: 1 }, {}),
   // Building.
   P(
     "masonry",

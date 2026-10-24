@@ -22,6 +22,7 @@ export function domainOf(world: World, ref: string): string {
   if (kind === "lang" || kind === "ways") return "culture";
   if (kind === "dsgn") return "design";
   if (kind === "faith") return "belief";
+  if (kind === "sick") return "health";
   const type =
     kind === "ev"
       ? (world.events.get(ref as Ref)?.type ?? world.events.tombstone(ref as Ref)?.type ?? "")
@@ -38,6 +39,7 @@ export function domainOf(world: World, ref: string): string {
   if (/^ecology/.test(type)) return "ecology";
   if (/^design/.test(type)) return "design";
   if (/^belief/.test(type)) return "belief";
+  if (/^health/.test(type)) return "health";
   return "people";
 }
 

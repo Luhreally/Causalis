@@ -9,6 +9,7 @@ import { deepen, newsLog, observer, watches } from "../../causal/index.ts";
 import {
   beliefOf,
   citiesOf,
+  healthOf,
   homePlanet,
   languagesOf,
   orderOf,
@@ -29,6 +30,7 @@ import type {
 import { bare, count, many, part, share, stat, yearAt, yearNow } from "./words.ts";
 import { faithLink, landLink, languageLink, nameOf, realmLink, townLink } from "./names.ts";
 import { worldFirsts } from "./world.ts";
+import { sicknessLink } from "./sickness.ts";
 
 /** A land is going hungry below this much of its need met, in thousandths (as the top bar counts). */
 const HUNGRY = 850;
@@ -193,6 +195,31 @@ export function alertsOf(world: World): Alert[] {
       });
     }
   }
+  // Sickness (Phase 20 M140): a sickness come these two years to a land followed, or to a
+  // followed realm's, that took one in thirty of its people or more.
+  const sickness: AlertItem[] = [];
+  {
+    const health = healthOf(world),
+      watched = new Set<number>(lands);
+    for (const ref of atWar) {
+      const r = realms.get(ref as Ref);
+      if (r && r.ended === null) for (const c of r.members) watched.add(c);
+    }
+    for (const c of [...watched].sort((a, b) => a - b)) {
+      const l = health?.land(c)?.last;
+      if (!l || l.year < now - 2 || l.share < 1 / 30 || sickness.length >= 12) continue;
+      sickness.push({
+        line: [
+          sicknessLink(world, l.sickness),
+          " came to ",
+          landLink(world, c),
+          `: ${count(l.dead)} dead, year ${count(l.year)}`,
+        ],
+        ref: l.event,
+        key: `sickness:${l.event}`,
+      });
+    }
+  }
   // Firsts: what the world did first lately, the newest first.
   const first: AlertItem[] = firstsNow(world)
     .filter((f) => f.year >= now - FIRST_YEARS)
@@ -210,6 +237,7 @@ export function alertsOf(world: World): Alert[] {
     { id: "war", icon: "⚔️", title: "At war", tone: "war", items: war },
     { id: "hunger", icon: "🍂", title: "Going hungry", tone: "want", items: hunger },
     { id: "order", icon: "✊", title: "Bonds and freedoms", tone: "war", items: order },
+    { id: "sickness", icon: "🦠", title: "Sickness", tone: "loss", items: sickness },
     { id: "fallen", icon: "🏳️", title: "A realm fallen", tone: "loss", items: fallen },
     { id: "death", icon: "🕯️", title: "A life ended", tone: "loss", items: death },
     { id: "first", icon: "🌟", title: "A first in the world", tone: "news", items: first },

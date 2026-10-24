@@ -8,6 +8,7 @@ import {
   beliefOf,
   citiesOf,
   DEITIES,
+  healthOf,
   homePlanet,
   languagesOf,
   loreOf,
@@ -34,6 +35,7 @@ import { faithColor, languageColor } from "../planet.ts";
 import { landEra } from "../village.ts";
 import { bare, claimOf, count, item, link, many, share, stat, yearAt, yearNow } from "./words.ts";
 import { bondsLedger } from "./order.ts";
+import { sicknessLedger } from "./sickness.ts";
 import {
   faithLink,
   landLink,
@@ -996,6 +998,29 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
         );
     }
   }
+  // Sickness (Phase 20 M140): the first to rise, and the first great dying (kept by its store).
+  {
+    const health = healthOf(world);
+    const first = health?.sicknesses[0];
+    if (health && first)
+      add(
+        "🦠 A new sickness",
+        { year: first.year, land: first.cell, ref: first.event },
+        health.sicknesses[1]?.year ?? null,
+        `${many(health.sicknesses.length, "sickness", "sicknesses")}, ${count(
+          health.sicknesses.reduce((a, s) => a + s.dead, 0),
+        )} dead`,
+        health.sicknesses.length,
+      );
+    if (health?.great)
+      add(
+        "💀 A great dying",
+        { year: health.great.year, land: health.great.cell, ref: health.great.event },
+        null,
+        many(health.greats, "great dying", "great dyings"),
+        health.greats,
+      );
+  }
   for (const [type, what, one, more] of [
     ["trade.route-opened", "🐪 A trade road", "road", "roads"],
     ["trade.sea-route", "⛵ A sea route", "route", "routes"],
@@ -1570,6 +1595,8 @@ export function ledgerPage(world: World, tab?: string): PageModel {
     { id: "wars", name: "Wars", blocks: warLedger(world, now) },
     // Each realm's order and its bound (Phase 19 M138).
     { id: "bonds", name: "Bonds", blocks: bondsLedger(world) },
+    // Every sickness side by side (Phase 20 M140).
+    { id: "sickness", name: "Sickness", blocks: sicknessLedger(world) },
     { id: "faiths", name: "Faiths", blocks: faithLedger(world) },
     { id: "tongues", name: "Tongues", blocks: tongueLedger(world) },
     { id: "life", name: "Life", blocks: lifeLedger(world) },

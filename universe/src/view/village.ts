@@ -676,6 +676,8 @@ export const SIGNS: Readonly<Record<string, string>> = {
   freedom: "🕊️",
   // A new law in the realm (Phase 19 M139).
   law: "📜",
+  // A sickness among them (Phase 20 M140).
+  sickness: "🤒",
 };
 
 /**

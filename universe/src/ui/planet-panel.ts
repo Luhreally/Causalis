@@ -183,6 +183,8 @@ export type PeopleEntry = {
   standing: number;
   /** Their realm's laws, each a position 0 … 2 (none: no realm's) — M139. */
   laws: readonly number[];
+  /** How deep their last sickness cut (0 … 1), fading over six years — M140. */
+  sickness: number;
 };
 
 /** A people's ways and speech (the host's waysOf). */

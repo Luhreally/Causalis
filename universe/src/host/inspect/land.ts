@@ -33,6 +33,7 @@ import { landStoresBlocks } from "./stores.ts";
 import { groundBlocks } from "./ground.ts";
 import { dropBlock } from "./small.ts";
 import { landBondBlocks } from "./order.ts";
+import { landHealthBlocks } from "./sickness.ts";
 import {
   faithLink,
   landLink,
@@ -249,6 +250,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
       });
     blocks.push({ type: "tool", tool: "meet.land", args: { cell } });
     tabs.push({ id: "people", name: "People", blocks });
+    // Its health (Phase 20 M140): what sickness came, who is spared, its healers.
+    const health = landHealthBlocks(world, cell);
+    if (health.length) tabs.push({ id: "health", name: "Health", blocks: health });
   }
   // The ground and its air.
   if (place) {

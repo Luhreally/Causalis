@@ -17,6 +17,7 @@ import {
   citiesOf,
   designsOf,
   handOf,
+  healthOf,
   houseFor,
   lifeOf,
   loreOf,
@@ -361,6 +362,11 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
         })
       )
         talk.push("law");
+    }
+    // A sickness among them these two years (Phase 20 M140).
+    {
+      const last = healthOf(world)?.land(cell)?.last;
+      if (last && last.year >= now - 2 && last.share >= 0.005) talk.push("sickness");
     }
     if (mourning.length) talk.push("grief");
     if (w.flocksTaken) talk.push("flocks");

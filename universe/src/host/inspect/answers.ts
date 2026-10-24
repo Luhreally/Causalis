@@ -107,6 +107,28 @@ export function answersOf(world: World, ref: string, watch: string): Answer[] {
       });
       return out;
     }
+    // A sickness risen or come (Phase 20 M140): the land warded, or the sickness loosed on another.
+    case "health.rose":
+    case "health.outbreak": {
+      const cell = e.place ? parseRef(e.place as Ref).b : -1,
+        prov = populationContext(world).provinces.get(cell);
+      if (!prov || prov.total() <= 0) return [];
+      const out: Answer[] = [
+        {
+          label: `Ward ${landTitle(world, cell)} against sickness`,
+          act: "act.ward",
+          args: { cell },
+        },
+      ];
+      const realm = politiesOf(world).of(cell);
+      if (realm && realm.ended === null && realm.seat !== cell)
+        out.push({
+          label: `Ward ${realm.town}'s seat`,
+          act: "act.ward",
+          args: { cell: realm.seat },
+        });
+      return out;
+    }
     default:
       return [];
   }
