@@ -1,8 +1,9 @@
 // How a region looks, as data: tile colours for a lens and heights for the
 // terrain mesh. Pure, like every view builder.
-import type { FrameMessage } from "../bridge/index.ts";
+import type { FrameMessage, LandSky } from "../bridge/index.ts";
 import { biomeColor } from "./globe.ts";
 import type { Rgb } from "./sandbox.ts";
+import { seasonAt, seasonGround, seasonWater, type GroundSeason } from "./weather.ts";
 
 /** The land's own lenses; and "world", the globe's lens seen in the land (Phase 10 M95). */
 export const REGION_LENSES = ["land", "height", "soil", "world"] as const;
@@ -153,6 +154,47 @@ export function regionTrees(frame: FrameMessage, cap = 4000): RegionTree[] {
         kind: wood[1],
         size: 0.32 + 0.22 * unit(t, 3 + 4 * k),
       });
+  }
+  return out;
+}
+
+/**
+ * A land's map as the season leaves it at moment t (Phase 30 M164): snow lying where the air is
+ * cold enough for it — on the hills first, the lowlands after — and ice on its lakes and rivers;
+ * the sea stays open. A new array; the colours given are left as they were.
+ */
+export function seasonTiles(
+  colors: Uint8Array,
+  frame: FrameMessage,
+  sky: LandSky,
+  t: number,
+): Uint8Array {
+  const e = frame.arrays.elevation as Float32Array | undefined,
+    water = frame.arrays.water as Uint8Array | undefined;
+  if (!e) return colors;
+  let mean = 0,
+    n = 0;
+  for (let i = 0; i < e.length; i++)
+    if (e[i]! > 0) {
+      mean += e[i]!;
+      n++;
+    }
+  mean = n ? mean / n : 0;
+  // (The season at each hundred metres up or down, worked out once.)
+  const steps = new Map<number, GroundSeason>(),
+    out = new Uint8Array(colors);
+  for (let i = 0; i < e.length && i * 4 < out.length; i++) {
+    const w = water?.[i] ?? 0;
+    if (w === 1) continue;
+    const step = Math.round((Math.max(0, e[i]!) - mean) / 100);
+    let season = steps.get(step);
+    if (!season) steps.set(step, (season = seasonAt(sky, t, step * 100)));
+    if (w === 0 ? season.snow <= 0 : season.ice <= 0) continue;
+    const c: Rgb = [out[i * 4]! / 255, out[i * 4 + 1]! / 255, out[i * 4 + 2]! / 255],
+      d = w === 0 ? seasonGround(c, season) : seasonWater(c, season);
+    out[i * 4] = Math.round(d[0] * 255);
+    out[i * 4 + 1] = Math.round(d[1] * 255);
+    out[i * 4 + 2] = Math.round(d[2] * 255);
   }
   return out;
 }

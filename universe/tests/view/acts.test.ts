@@ -27,6 +27,9 @@ const mark = (kind: ActMark["kind"], left = 1, to: ActMark["to"] = null): ActMar
   color: kind === "conversion" ? [0.2, 0.8, 0.4] : null,
   left,
   event: `ev:0:${kind}`,
+  cell: 7,
+  town: null,
+  from: 0,
 });
 
 test("every act plays where it falls, on the globe's face, and fades as its time runs out", () => {

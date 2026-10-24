@@ -34,6 +34,20 @@ export class Stage {
   /** Whether the scale shown is on the ground and wants the sun's shadows, and how far. */
   private shadowsWanted = false;
   private shadowReach = 60;
+  /**
+   * The weather over the ground shown (Phase 30 M162), and the light and air of a clear sky it
+   * greys: the sun's strength, the fill, the haze's colour and how far off it begins and ends.
+   */
+  private weathered = { cloud: 0, wet: 0, haze: 0, flash: 0 };
+  private clear = {
+    sun: 1.25,
+    ambient: [0.34, 0.38, 0.5] as Rgb,
+    fog: [0.78, 0.88, 1] as Rgb,
+    start: 0,
+    end: 0,
+  };
+  private readonly ambientNow = new pc.Color();
+  private readonly fogNow = new pc.Color();
 
   constructor(canvas: HTMLCanvasElement, tier: DeviceTier, sky: Rgb) {
     this.app = new pc.Application(canvas, {
@@ -145,6 +159,69 @@ export class Stage {
     fog.color = new pc.Color(0.78, 0.88, 1);
     fog.start = reach * 1.1;
     fog.end = reach * 3.2;
+    this.clear = {
+      sun: 1.25,
+      ambient: [0.34, 0.38, 0.5],
+      fog: [0.78, 0.88, 1],
+      start: fog.start,
+      end: fog.end,
+    };
+    this.applyWeather();
+  }
+
+  /**
+   * The weather over the ground shown (Phase 30 M162; null: a clear sky): the sun dimmed and the
+   * air greyed by cloud, the far land lost in rain or snow, yellowed by a dry haze, and lit white
+   * for a moment by lightning. The page's sky goes grey under cloud, pale gold in a haze.
+   */
+  weather(w: { cloud: number; wet: number; haze: number; flash: number } | null): void {
+    this.weathered = w ?? { cloud: 0, wet: 0, haze: 0, flash: 0 };
+    this.applyWeather();
+    const sky = !w ? "" : w.cloud > 0.5 ? "grey" : w.haze > 0.3 ? "haze" : "";
+    if ((document.body.dataset.sky ?? "") !== sky) {
+      if (sky) document.body.dataset.sky = sky;
+      else delete document.body.dataset.sky;
+    }
+  }
+
+  private applyWeather(): void {
+    if (this.sunFollows) return;
+    const w = this.weathered,
+      c = this.clear,
+      grey = Math.min(1, w.cloud),
+      thick = Math.min(1, w.wet),
+      haze = Math.min(1, w.haze),
+      flash = Math.min(1, w.flash),
+      mix = (a: number, b: number, k: number) => a + (b - a) * k;
+    this.sun.light!.intensity = c.sun * (1 - 0.5 * grey) + 1.8 * flash;
+    const dim = 1 - 0.12 * grey;
+    this.ambientNow.set(
+      c.ambient[0] * dim + 0.3 * flash,
+      c.ambient[1] * dim + 0.3 * flash,
+      c.ambient[2] * dim + 0.35 * flash,
+    );
+    this.app.scene.ambientLight = this.ambientNow;
+    // (Greyed and yellowed as bright as the clear air was: a night's air stays dark.)
+    const fog = this.app.scene.fog,
+      lum = 0.3 * c.fog[0] + 0.59 * c.fog[1] + 0.11 * c.fog[2],
+      g = 0.6 * grey,
+      h = 0.55 * haze,
+      at = (i: 0 | 1 | 2) =>
+        mix(
+          mix(
+            mix(c.fog[i], lum * [0.95, 0.98, 1.02][i]!, g),
+            Math.min(1, lum * [1.15, 1, 0.72][i]!),
+            h,
+          ),
+          1,
+          flash * 0.6,
+        );
+    this.fogNow.set(at(0), at(1), at(2));
+    fog.color = this.fogNow;
+    if (c.end > 0) {
+      fog.start = c.start * (1 - 0.35 * thick - 0.3 * haze);
+      fog.end = c.end * (1 - 0.3 * thick - 0.25 * haze);
+    }
   }
 
   /**
@@ -174,13 +251,15 @@ export class Stage {
       0.38 - 0.24 * night,
       0.5 - 0.16 * night,
     );
-    const fog = this.app.scene.fog;
-    fog.color =
-      phase === "night"
-        ? new pc.Color(0.06, 0.08, 0.2)
-        : warm
-          ? new pc.Color(1, 0.66, 0.5)
-          : new pc.Color(0.78, 0.88, 1);
+    const fog: Rgb =
+      phase === "night" ? [0.06, 0.08, 0.2] : warm ? [1, 0.66, 0.5] : [0.78, 0.88, 1];
+    this.clear = {
+      ...this.clear,
+      sun: this.sun.light!.intensity,
+      ambient: [0.34 - 0.24 * night, 0.38 - 0.24 * night, 0.5 - 0.16 * night],
+      fog,
+    };
+    this.applyWeather();
   }
 
   /**

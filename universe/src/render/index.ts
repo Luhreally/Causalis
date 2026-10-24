@@ -13,6 +13,8 @@ export { MicroScene } from "./micro.ts";
 export { ParadeScene } from "./parade.ts";
 export { MeadowScene } from "./meadow.ts";
 export { BandLayer } from "./band.ts";
+export { WeatherLayer } from "./weather.ts";
+export { ActsNearLayer } from "./nearacts.ts";
 export { OrbitRig, type OrbitOptions } from "./orbit.ts";
 export {
   AutoQuality,

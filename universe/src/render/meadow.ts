@@ -14,8 +14,13 @@ import {
   cellMiddle,
   coatOf,
   posed,
+  seasonGround,
+  seasonKey,
+  seasonLeaf,
+  seasonWater,
   type BeastPart,
   type Built,
+  type GroundSeason,
   type MeadowState,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
@@ -26,6 +31,9 @@ const M = 0.1;
 const FLOATS = 8;
 /** How often the grass and woods are drawn again (ms): they change slowly. */
 const GROWTH_EVERY = 250;
+
+/** The pool's water. */
+const POOL: Rgb = [0.22, 0.46, 0.66];
 
 /** An age's look: its bare ground, its grass from eaten down to lush, its leaves, its water. */
 type Look = { dirt: Rgb; grass: readonly [Rgb, Rgb, Rgb, Rgb]; leaf: Rgb; bark: Rgb };
@@ -122,6 +130,9 @@ export class MeadowScene {
   private drawn = new Map<string, Drawn>();
   private readonly parts: BeastPart[] = [];
   private look = "";
+  /** The season on the ground (a land of now: Phase 30 M164), and its key as last dressed. */
+  private seasonNow: GroundSeason | null = null;
+  private seasonSeen = "";
   private grownAt = 0;
   private detail = 2;
 
@@ -147,9 +158,7 @@ export class MeadowScene {
     this.fallen = new InstancedBatch(stage, this.box, [0.5, 0.36, 0.3], 128, this.root);
     this.pond = new pc.Entity("pool");
     this.pond.addComponent("render", {
-      meshInstances: [
-        new pc.MeshInstance(this.cyl, flatMaterial([0.22, 0.46, 0.66], 0.85, 0.8, 0.3)),
-      ],
+      meshInstances: [new pc.MeshInstance(this.cyl, flatMaterial(POOL, 0.85, 0.8, 0.3))],
     });
     this.root.addChild(this.pond);
     this.ring = new pc.Entity("followed");
@@ -286,21 +295,37 @@ export class MeadowScene {
     });
   }
 
-  /** The ground, grass, woods and pool in the age's colours. */
+  /**
+   * The season on the ground of a land of now (Phase 30 M164; null: an age's, none told): snow
+   * lying on the ground and the grass, the leaves turned or fallen, the pool frozen over.
+   */
+  season(s: GroundSeason | null): void {
+    const key = s ? seasonKey(s) : "";
+    if (key === this.seasonSeen) return;
+    this.seasonSeen = key;
+    this.seasonNow = s;
+  }
+
+  /** The ground, grass, woods and pool in the age's colours (and the season's, where told). */
   private dress(s: MeadowState): void {
-    const key = s.kindOfAge;
+    const key = `${s.kindOfAge}|${this.seasonSeen}`;
     if (key === this.look) return;
     this.look = key;
-    const look = LOOKS[key] ?? LOOKS.quiet!;
-    (this.ground.render!.meshInstances[0]!.material as pc.StandardMaterial).diffuse.set(
-      look.dirt[0],
-      look.dirt[1],
-      look.dirt[2],
-    );
-    (this.ground.render!.meshInstances[0]!.material as pc.StandardMaterial).update();
-    this.grass.forEach((b, i) => b.recolor(look.grass[i]!));
+    const look = LOOKS[s.kindOfAge] ?? LOOKS.quiet!,
+      sea = this.seasonNow,
+      ground = (c: Rgb) => (sea ? seasonGround(c, sea) : c),
+      dirt = ground(look.dirt),
+      water = sea ? seasonWater(POOL, sea) : POOL,
+      paint = (e: pc.Entity, c: Rgb) => {
+        const m = e.render!.meshInstances[0]!.material as pc.StandardMaterial;
+        m.diffuse.set(c[0], c[1], c[2]);
+        m.update();
+      };
+    paint(this.ground, dirt);
+    paint(this.pond, water);
+    this.grass.forEach((b, i) => b.recolor(ground(look.grass[i]!)));
     this.trunks.recolor(look.bark);
-    this.crowns.recolor(look.leaf);
+    this.crowns.recolor(sea ? seasonLeaf(look.leaf, sea) : look.leaf);
     const p = s.pond;
     this.pond.enabled = !!p;
     if (p) {

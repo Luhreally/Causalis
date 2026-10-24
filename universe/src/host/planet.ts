@@ -130,7 +130,7 @@ import { campNear } from "./camp.ts";
 import { landReadings } from "./lenses.ts";
 import { genesisOf } from "./genesis.ts";
 import { TRAIT_LOOK } from "./inspect/folk.ts";
-import { actsMap, paletteLand } from "./acts.ts";
+import { actsMap, landSky, paletteLand } from "./acts.ts";
 import { groundMap, spotGround } from "./inspect/ground.ts";
 import { worldGlobe } from "./worlds.ts";
 import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
@@ -877,6 +877,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // The god's acts where they fall, for the globe to play them; a land as the palette
       // sees it (Phase 12 M106).
       "acts.map": (world) => actsMap(world),
+      /** A land's sky (Phase 30 M162): its climate, this year's rain, the god's acts on it. */
+      "land.sky": (world, args) => landSky(world, (args as { cell: number }).cell),
       // Every land's chief rock, for the Ground lens (Phase 15 M124).
       "ground.map": (world) => groundMap(world),
       "palette.land": (world, args) => paletteLand(world, (args as { cell: number }).cell),

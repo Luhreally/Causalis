@@ -6,10 +6,18 @@
 // from them; a town not yet built (no fabric) a knot of huts.
 import * as pc from "playcanvas";
 import type { LandPlan } from "../bridge/index.ts";
-import { treesClear, type LandGround, type RegionTree } from "../view/index.ts";
+import {
+  seasonKey,
+  seasonLeaf,
+  seasonNeedle,
+  treesClear,
+  type GroundSeason,
+  type LandGround,
+  type RegionTree,
+} from "../view/index.ts";
 import { LandLayer } from "./land.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh } from "./batch.ts";
-import { flatMaterial, type Stage } from "./stage.ts";
+import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 import { windowMaterial } from "./village.ts";
 
 export class RegionScene {
@@ -25,6 +33,10 @@ export class RegionScene {
   private readonly marker: pc.Entity;
   private huts: InstancedBatch | null = null;
   private woods: InstancedBatch[] = [];
+  /** Each wood's kind and its colour in leaf; the season it was last dressed in (Phase 30 M164). */
+  private woodKinds: { kind: string; color: Rgb }[] = [];
+  private seasonNow: GroundSeason | null = null;
+  private seasonSeen = "";
   private villageTiles: number[] = [];
   /** The land's ground as its towns, roads and fields read it; and what is drawn on it. */
   private ground: LandGround | null = null;
@@ -267,9 +279,29 @@ export class RegionScene {
     );
   }
 
+  /** The season on the land's woods (null: none told): the broad leaves turned or fallen, snow on them. */
+  season(s: GroundSeason | null): void {
+    const key = s ? seasonKey(s) : "";
+    if (key === this.seasonSeen) return;
+    this.seasonSeen = key;
+    this.seasonNow = s;
+    this.dressWoods();
+  }
+
+  private dressWoods(): void {
+    const s = this.seasonNow;
+    this.woods.forEach((b, i) => {
+      const k = this.woodKinds[i]!;
+      b.recolor(
+        !s ? k.color : k.kind === "conifer" ? seasonNeedle(k.color, s) : seasonLeaf(k.color, s),
+      );
+    });
+  }
+
   private plantWoods(trees: readonly RegionTree[]): void {
     for (const b of this.woods) b.destroy();
     this.woods = [];
+    this.woodKinds = [];
     if (!this.heights || !trees.length) return;
     const s = this.stage,
       half = ((this.size - 1) * this.tileKm) / 2,
@@ -311,7 +343,9 @@ export class RegionScene {
         out[6] = t.dx * 6;
       });
       this.woods.push(batch);
+      this.woodKinds.push({ kind: k.kind, color: k.color });
     }
+    this.dressWoods();
   }
 
   /** Villages as clusters of huts, more huts for more people — but those `drawn` from their fabric. */

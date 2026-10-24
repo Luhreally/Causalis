@@ -27,7 +27,7 @@ import {
   warsOf,
   type Act,
 } from "../sim/index.ts";
-import type { ActKindShown, ActMark, ActsMap, PaletteLand } from "../bridge/index.ts";
+import type { ActKindShown, ActMark, ActsMap, LandSky, PaletteLand } from "../bridge/index.ts";
 import { realmColor } from "./colors.ts";
 import { faithColor, languageColor } from "./planet.ts";
 import { landTitle } from "./inspect/names.ts";
@@ -93,12 +93,26 @@ export function actsMap(world: World): ActsMap {
       color: null,
       left: (end - now) / (end - a.from),
       event: a.event,
+      cell: a.cell,
+      town: null,
+      from: a.from,
     });
   }
   // The craters meteors left, for ever.
   for (const c of actsOf(world).craters()) {
     const at = landAt(c.cell);
-    if (at) out.push({ kind: "crater", at, to: null, color: null, left: 1, event: c.event });
+    if (at)
+      out.push({
+        kind: "crater",
+        at,
+        to: null,
+        color: null,
+        left: 1,
+        event: c.event,
+        cell: c.cell,
+        town: null,
+        from: world.events.get(c.event)?.t ?? 0,
+      });
   }
   // What was done in a moment lately: on a town, between two realms, on a land.
   const events = world.events.all(),
@@ -107,14 +121,17 @@ export function actsMap(world: World): ActsMap {
   for (let i = events.length - 1; i >= 0 && events[i]!.t > since; i--) {
     const e = events[i]!,
       left = 1 - (now - e.t) / ACT_SHOWN;
-    let mark: Omit<ActMark, "left" | "event"> | null = null;
+    let mark: Omit<ActMark, "left" | "event" | "from"> | null = null;
     switch (e.type) {
       case LOCAL_ACT_EVENTS.fire.type:
       case LOCAL_ACT_EVENTS.spring.type:
       case LOCAL_ACT_EVENTS.shrine.type: {
-        const at = townAt(e.subjects[0]);
-        if (at)
+        const at = townAt(e.subjects[0]),
+          town = ctx.settlements.get(e.subjects[0] as Ref);
+        if (at && town)
           mark = {
+            cell: town.cell,
+            town: town.ref,
             kind:
               e.type === LOCAL_ACT_EVENTS.fire.type
                 ? "fire"
@@ -133,6 +150,8 @@ export function actsMap(world: World): ActsMap {
           to = seatOf(e.subjects[1]);
         if (at && to)
           mark = {
+            cell: -1,
+            town: null,
             kind: e.type === PEOPLE_ACT_EVENTS.friendship.type ? "friendship" : "discord",
             at,
             to,
@@ -146,6 +165,8 @@ export function actsMap(world: World): ActsMap {
           to = seatOf(e.subjects[2]);
         if (byAct(e) && at && to)
           mark = {
+            cell: -1,
+            town: null,
             kind: e.type === WAR_EVENTS.declared.type ? "war" : "peace",
             at,
             to,
@@ -158,6 +179,8 @@ export function actsMap(world: World): ActsMap {
         const at = landAt(cellOf(e.place));
         if (at)
           mark = {
+            cell: cellOf(e.place),
+            town: null,
             kind: e.type === DISASTER_EVENTS.quake.type ? "quake" : "meteor",
             at,
             to: null,
@@ -168,13 +191,22 @@ export function actsMap(world: World): ActsMap {
       case PEOPLE_ACT_EVENTS.settle.type: {
         const at = landAt(cellOf(e.subjects[0])),
           to = landAt(cellOf(e.place));
-        if (at && to) mark = { kind: "settle", at, to, color: null };
+        if (at && to)
+          mark = { kind: "settle", at, to, color: null, cell: cellOf(e.place), town: null };
         break;
       }
       case PEOPLE_ACT_EVENTS.union.type: {
         const at = seatOf(e.subjects[0]),
           to = landAt(cellOf(e.place));
-        if (at && to) mark = { kind: "union", at, to, color: realmColor(e.subjects[0]!) };
+        if (at && to)
+          mark = {
+            kind: "union",
+            at,
+            to,
+            color: realmColor(e.subjects[0]!),
+            cell: cellOf(e.place),
+            town: null,
+          };
         break;
       }
       case PEOPLE_ACT_EVENTS.bless.type:
@@ -182,6 +214,8 @@ export function actsMap(world: World): ActsMap {
         const at = landAt(cellOf(e.place));
         if (at)
           mark = {
+            cell: cellOf(e.place),
+            town: null,
             kind: e.type === PEOPLE_ACT_EVENTS.bless.type ? "bless" : "curse",
             at,
             to: null,
@@ -191,7 +225,8 @@ export function actsMap(world: World): ActsMap {
       }
       case WAYS_ACT_EVENTS.ways.type: {
         const at = landAt(cellOf(e.place));
-        if (at) mark = { kind: "ways", at, to: null, color: null };
+        if (at)
+          mark = { kind: "ways", at, to: null, color: null, cell: cellOf(e.place), town: null };
         break;
       }
       case WAYS_ACT_EVENTS.tongue.type:
@@ -200,6 +235,8 @@ export function actsMap(world: World): ActsMap {
           l = languagesOf(world).of(cellOf(e.place));
         if (byAct(e) && at)
           mark = {
+            cell: cellOf(e.place),
+            town: null,
             kind: "tongue",
             at,
             to: null,
@@ -210,24 +247,58 @@ export function actsMap(world: World): ActsMap {
       case BELIEF_EVENTS.founded.type: {
         const at = landAt(cellOf(e.place));
         if (byAct(e) && at)
-          mark = { kind: "faith", at, to: null, color: faithColor(e.subjects[0]!) };
+          mark = {
+            kind: "faith",
+            at,
+            to: null,
+            color: faithColor(e.subjects[0]!),
+            cell: cellOf(e.place),
+            town: null,
+          };
         break;
       }
       case POLITY_EVENTS.seceded.type: {
         const at = landAt(cellOf(e.place));
-        if (byAct(e) && at) mark = { kind: "rising", at, to: null, color: null };
+        if (byAct(e) && at)
+          mark = { kind: "rising", at, to: null, color: null, cell: cellOf(e.place), town: null };
         break;
       }
       case BELIEF_EVENTS.converted.type: {
         const at = landAt(cellOf(e.place));
         if (byAct(e) && at)
-          mark = { kind: "conversion", at, to: null, color: faithColor(e.subjects[0]!) };
+          mark = {
+            kind: "conversion",
+            at,
+            to: null,
+            color: faithColor(e.subjects[0]!),
+            cell: cellOf(e.place),
+            town: null,
+          };
         break;
       }
     }
-    if (mark) out.push({ ...mark, left, event: e.id });
+    if (mark) out.push({ ...mark, left, event: e.id, from: e.t });
   }
   return { year, acts: out };
+}
+
+/**
+ * A land's sky (Phase 30 M162): its climate, this year's rain against its usual (moved by the
+ * god's rain sent or withheld, as the year's harvest is), and the god's acts on it now.
+ */
+export function landSky(world: World, cell: number): LandSky {
+  const g = homePlanet(world).generated,
+    prov = populationContext(world).provinces.get(cell),
+    c = g.climate;
+  return {
+    cell,
+    warmth: c.temperature[cell] ?? 10,
+    swing: c.seasonality[cell] ?? 8,
+    wet: c.precipitation[cell] ?? 600,
+    year: prov && !offworldSite(g, cell) ? prov.rain / 1000 : 1,
+    sent: (Math.sign(actsOf(world).at(cell, "rain", world.now)?.sign ?? 0) || 0) as 1 | 0 | -1,
+    acts: actsMap(world).acts.filter((a) => a.cell === cell),
+  };
 }
 
 /** A land as the god's palette sees it (null: no land of the home world's people). */

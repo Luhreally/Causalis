@@ -30,6 +30,8 @@ import {
   runBench,
   MeadowScene,
   BandLayer,
+  WeatherLayer,
+  ActsNearLayer,
   type CarrierKind,
   type GlobeTown,
   type QualityName,
@@ -77,6 +79,7 @@ import type {
   CampNear,
   ClusterPlan,
   LandPlan,
+  LandSky,
   SkyState,
   PeoplesSky,
   SystemPlan,
@@ -121,6 +124,15 @@ import {
   bandPersonWords,
   bandWords,
   figureOf,
+  weatherAt,
+  downpourAt,
+  seasonAt,
+  seasonKey,
+  seasonTiles,
+  actsNear,
+  type ActsNear,
+  type GroundSeason,
+  type Weather,
   newBand,
   newMeadow,
   stepBand,
@@ -288,6 +300,37 @@ type Exposed = {
     names: string[];
     followed: string | null;
     onScreen: { id: number; at: { x: number; y: number } | null }[];
+  } | null;
+  /** The weather where the eye is on the ground (Phase 30 M162): its land, how it is told, what is drawn. */
+  weather?: () => {
+    cell: number;
+    words: string;
+    icon: string;
+    rain: number;
+    snow: number;
+    cloud: number;
+    haze: number;
+    warmth: number;
+    drops: number;
+    flakes: number;
+    sky: string;
+    /** In a town: how many are in out of a downpour. */
+    sheltered: number;
+    /** The god's acts on the land seen near (M163): told, and what is drawn of them. */
+    hand: {
+      told: string[];
+      motes: number;
+      flames: number;
+      smoke: number;
+      light: number;
+      shake: number;
+    };
+    /** The weather's own seconds (they stand while the clock does). */
+    seconds: number;
+    /** The season on the ground (M164): snow lying, the leaves, how far turned, ice. */
+    season: { snow: number; leaf: number; turned: number; ice: number };
+    /** Among a band: the land about them greening or parching (else empty). */
+    ground: string;
   } | null;
   /** A land's bands' camps as drawn (Phase 28 M159). */
   camps?: () => {
@@ -562,13 +605,22 @@ async function runPlanetPage(): Promise<void> {
     starScene = new ClusterScene(stage),
     // Another world of the system, seen whole (M81); the whole galaxy (M80).
     worldScene = new GlobeScene(stage),
-    galaxyScene = new GalaxyScene(stage);
+    galaxyScene = new GalaxyScene(stage),
+    // The weather over the ground the eye is near (Phase 30 M162), and the god's acts on it (M163).
+    weather = new WeatherLayer(stage, stage.root),
+    handNear = new ActsNearLayer(stage, stage.root);
   stage.backdrop("space");
   // While the world is made, the shaders of the scales below are readied, so the first
   // "Look closer" draws at once.
   // (With the sun casting shadows: a village drawn at High casts them from its first frame.)
   stage.warm(
-    [...regionMaterials(stage), ...skyMaterials(stage), { material: galaxyMaterial() }],
+    [
+      ...regionMaterials(stage),
+      ...skyMaterials(stage),
+      ...weather.materials(),
+      ...handNear.materials(),
+      { material: galaxyMaterial() },
+    ],
     true,
   );
   const { client, mode } = await connect();
@@ -863,6 +915,10 @@ async function runPlanetPage(): Promise<void> {
     globe.weather = lens === "terrain" && stage.quality.clouds;
     painted = colors.length / 4;
   };
+  // The land's sky as last read, and the moment its season was last laid on its map (Phase 30:
+  // the weather below keeps them).
+  let landSky: LandSky | null = null,
+    seasonT = 0;
   const paintRegion = () => {
     const frame = client.latestFrame("region");
     if (!frame || scale !== "region") return;
@@ -914,7 +970,12 @@ async function runPlanetPage(): Promise<void> {
         regionLens === "world" && parent && globeLensColors
           ? regionFromGlobe(frame, parent, globeLensColors)
           : regionColors(frame, regionLens);
-    region.paint(colors);
+    // (The land as the season leaves it: snow on its hills, ice on its lakes; M164.)
+    region.paint(
+      regionLens === "land" && landSky?.cell === regionCell
+        ? seasonTiles(colors, frame, landSky, seasonT)
+        : colors,
+    );
     painted = colors.length / 4;
   };
   /** The spot of the globe a zoom went down into, to stand in the middle of its land's map. */
@@ -3398,6 +3459,194 @@ async function runPlanetPage(): Promise<void> {
           })),
         }
       : null;
+  // The land's weather where the eye is on the ground (Phase 30 M162, asked for 2026-10-24: "be
+  // able to pause and influence and all that"): among a band, over a land, in a town — its sky
+  // read every few seconds (and at once when the god's hand falls), and played moment by moment:
+  // showers and storms, snow, a dry year's haze, the god's rain poured down or withheld. Told by
+  // the spell, the day or the season as fast as the clock runs; still while it is.
+  let skyAsked = { cell: -1, at: -Infinity },
+    landSeason = { key: "", at: -Infinity },
+    weatherSeconds = 0,
+    weatherNow: Weather | null = null,
+    handNow: ActsNear | null = null,
+    seasonNow: GroundSeason | null = null;
+  /** The land's middle where the eye is (an inspiration's light, a stone's fall): a band's fire, a land's middle, a town's square. */
+  const landMiddle = (): { x: number; y: number; z: number } | null => {
+    if (scale === "camp" && near)
+      return { x: near.band.camp.x * 0.1, y: 0.02, z: near.band.camp.z * 0.1 };
+    if (scale === "region") {
+      const g = region.groundAt(region.tileAt(0, 0));
+      return g ? { x: 0, y: g.y, z: 0 } : null;
+    }
+    return scale === "village" ? { x: 0, y: 0, z: 0 } : null;
+  };
+  /** Where a town of the land is, and how far it reaches, where the eye is (null: not seen). */
+  const townSpot = (ref: string) => {
+    if (scale === "region") {
+      const d = region.land.townAt(ref);
+      if (d) {
+        const g = region.groundAt(region.tileAt(d.x, d.z));
+        return { x: d.x, y: g?.y ?? 0, z: d.z, r: d.r };
+      }
+      const v = villages.find((w) => w.ref === ref),
+        g = v ? region.groundAt(v.tile) : null;
+      return g ? { x: g.x, y: g.y, z: g.z, r: 0.5 } : null;
+    }
+    return scale === "village" && plan?.ref === ref
+      ? { x: 0, y: 0, z: 0, r: Math.max(40, village.townReach()) * VILLAGE_METRE }
+      : null;
+  };
+  const weatherCell = () =>
+    scale === "camp"
+      ? (near?.info.cell ?? -1)
+      : scale === "region"
+        ? regionCell
+        : scale === "village"
+          ? (plan?.cell ?? regionCell)
+          : -1;
+  const castWas = palette.onCast;
+  palette.onCast = (receipt) => {
+    castWas(receipt);
+    skyAsked.at = -Infinity;
+  };
+  stage.onUpdate((dt) => {
+    const cell = weatherCell(),
+      sky = cell >= 0 && landSky?.cell === cell ? landSky : null;
+    if (cell >= 0) {
+      const wall = performance.now();
+      if (cell !== skyAsked.cell || wall - skyAsked.at > 3000) {
+        skyAsked = { cell, at: wall };
+        void client
+          .query<LandSky>({ type: "land.sky", args: { cell } })
+          .then((s) => (landSky = s))
+          .catch(() => {});
+      }
+    }
+    if (!sky) {
+      if (weatherNow) {
+        weatherNow = null;
+        handNow = null;
+        weather.update(null, rig.target, rig.target, rig.distance, weatherSeconds, 0);
+        handNear.update(null, rig.target, rig.target, null, () => null, rig.distance, 0, 0);
+        stage.weather(null);
+        time.weather("", null, "");
+      }
+      return;
+    }
+    const running = time.speed > 0;
+    if (running) weatherSeconds += dt;
+    // Among a band, the land about them greens under the god's rain and parches under a drought
+    // (theirs or the god's): its grass and leaf come back the faster or the slower.
+    if (scale === "camp" && near) {
+      const m = near.meadow;
+      if (sky.sent > 0) m.lush = Math.max(m.lush, 1);
+      else if (sky.sent < 0 || sky.year < 0.72) m.dry = Math.max(m.dry, 1);
+    }
+    const t = now(),
+      w = weatherAt(sky, t, time.pace, running ? performance.now() / 1000 : null),
+      eye = stage.camera.getPosition().clone();
+    weatherNow = w;
+    weather.update(
+      w,
+      rig.target,
+      eye,
+      rig.distance,
+      weatherSeconds,
+      tier.name === "phone" ? 420 : 1100,
+    );
+    // The season on the ground (M164): snow lying, the leaves turned or fallen, ice on still water.
+    const ground = seasonAt(sky, t);
+    if (scale === "camp") meadowScene?.season(ground);
+    else if (scale === "village") village.season(ground);
+    else if (scale === "region") {
+      region.season(ground);
+      const key = `${cell}:${regionLens}:${seasonKey(ground)}`,
+        wall = performance.now();
+      if (key !== landSeason.key && wall - landSeason.at > 250) {
+        landSeason = { key, at: wall };
+        seasonT = t;
+        paintRegion();
+      }
+    }
+    seasonNow = ground;
+    // The god's hand on the land, seen near (M163): a blessed harvest's gold, a blight's dust, a
+    // plague's pall, a town afire, the ground shaking, a stone from the sky.
+    const hand = actsNear(sky, t, time.pace);
+    handNow = hand;
+    handNear.update(
+      hand,
+      rig.target,
+      eye,
+      landMiddle(),
+      townSpot,
+      rig.distance,
+      weatherSeconds,
+      tier.name === "phone" ? 260 : 700,
+    );
+    // (A blessed harvest greens the band's land as the rain does; a blight parches it.)
+    if (scale === "camp" && near) {
+      if (hand.motes.some((m) => m.kind === "gold"))
+        near.meadow.lush = Math.max(near.meadow.lush, 1);
+      if (hand.motes.some((m) => m.kind === "dust")) near.meadow.dry = Math.max(near.meadow.dry, 1);
+    }
+    stage.weather({
+      cloud: w.cloud,
+      wet: Math.max(w.rain, w.snow),
+      haze: w.haze,
+      flash: Math.max(w.flash, hand.strike?.flash ?? 0),
+    });
+    // The ground shakes while the clock runs (after the rig has set the eye: a jolt, not a drift).
+    if (hand.shake > 0 && running) {
+      const k = hand.shake * rig.distance * 0.012,
+        wall = performance.now();
+      stage.camera.translate(
+        Math.sin(wall * 0.061) * k,
+        Math.sin(wall * 0.083 + 1) * k * 0.6,
+        Math.sin(wall * 0.047 + 2) * k,
+      );
+    }
+    time.weather(
+      w.icon,
+      w.warmth,
+      [w.words, ...hand.told.map((x) => x.words)].join("; "),
+      hand.told
+        .slice(0, 3)
+        .map((x) => x.icon)
+        .join(""),
+    );
+  });
+  exposed.weather = () =>
+    weatherNow
+      ? {
+          cell: weatherCell(),
+          words: weatherNow.words,
+          icon: weatherNow.icon,
+          rain: weatherNow.rain,
+          snow: weatherNow.snow,
+          cloud: weatherNow.cloud,
+          haze: weatherNow.haze,
+          warmth: weatherNow.warmth,
+          drops: weather.shown.drops,
+          flakes: weather.shown.flakes,
+          hand: {
+            told: handNow?.told.map((x) => x.words) ?? [],
+            ...handNear.shown,
+            shake: handNow?.shake ?? 0,
+          },
+          sky: document.body.dataset.sky ?? "",
+          sheltered: scale === "village" ? village.shelteredNow() : 0,
+          seconds: weatherSeconds,
+          season: seasonNow ?? { snow: 0, leaf: 1, turned: 0, ice: 0 },
+          ground:
+            scale === "camp" && near
+              ? near.meadow.lush > 0
+                ? "greening"
+                : near.meadow.dry > 0
+                  ? "parching"
+                  : ""
+              : "",
+        }
+      : null;
   villagePanel.onClose = () => selectPerson(null);
   villagePanel.onBack = () => {
     village.visible = false;
@@ -3412,7 +3661,9 @@ async function runPlanetPage(): Promise<void> {
       // work and its sky by day, not a day's round flashing by in every frame.
       seen = time.lapse ? Math.floor(t / DAY) * DAY + 10 * 3600 : t;
     stage.daylight((seen % DAY) / DAY);
-    village.update(seen);
+    // Those at their ease go in out of a downpour (Phase 30), and come out when it is over.
+    const sky = landSky?.cell === weatherCell() ? landSky : null;
+    village.update(seen, sky ? downpourAt(sky, seen, time.pace) : null);
     if (watched !== null) {
       villagePanel.moment(village.momentAt(watched), plan.people[watched]?.tool);
       // (What they are doing now, on their page.)
@@ -3689,12 +3940,29 @@ async function runPlanetPage(): Promise<void> {
     while (here() && !villages.some((v) => v.ref === town) && performance.now() < by)
       await new Promise((done) => setTimeout(done, 100));
     if (!here()) return;
-    const tile = villages.find((v) => v.ref === town)?.tile,
-      at = region.land.townAt(town),
-      ground = tile === undefined ? null : region.groundAt(tile);
-    const target = at ? { x: at.x, y: ground?.y ?? 0, z: at.z } : (ground ?? { x: 0, y: 0, z: 0 });
-    rig.flyTo({ target, distance: Math.max(14, (at?.r ?? 1) * 9), pitch: -42 });
+    const fly = () => {
+      const tile = villages.find((v) => v.ref === town)?.tile,
+        at = region.land.townAt(town),
+        ground = tile === undefined ? null : region.groundAt(tile),
+        target = at ? { x: at.x, y: ground?.y ?? 0, z: at.z } : (ground ?? { x: 0, y: 0, z: 0 });
+      rig.flyTo({ target, distance: Math.max(14, (at?.r ?? 1) * 9), pitch: -42 });
+      return { target, drawn: !!at };
+    };
+    const first = fly();
     time.pick(4);
+    if (first.drawn) return;
+    // (Its land's towns drawn from their fabric come later still on a slow machine — the town
+    // drawn a few kilometres from its tile: the eye goes on to it, unless the viewer has moved it.)
+    const drawnBy = performance.now() + 30000;
+    while (here() && (!region.land.townAt(town) || rig.flying) && performance.now() < drawnBy)
+      await new Promise((done) => setTimeout(done, 200));
+    const t = rig.target;
+    if (
+      here() &&
+      region.land.townAt(town) &&
+      Math.hypot(t.x - first.target.x, t.z - first.target.z) < 1
+    )
+      fly();
   };
   pageWindow.onWatch = (cell, town) => void watchGrow(cell, town);
   // What a page is of, lit in the scene when it is there (a link followed, not only a tap).

@@ -14,6 +14,8 @@ export class TimeBar {
   /** The date and the speeds, as one piece of a scale's bar. */
   readonly element = el("span", "timebar");
   private readonly clock = el("span", "clock");
+  /** The weather where the eye is on the ground (Phase 30 M162): its sign and the air's warmth. */
+  private readonly weatherMark = el("span", "weather-mark");
   private readonly speeds = el("div", "speeds");
   private readonly state: TimeState;
   private readonly send: (speed: number) => void;
@@ -38,7 +40,8 @@ export class TimeBar {
     };
     this.speeds.setAttribute("role", "group");
     this.speeds.setAttribute("aria-label", "Speed");
-    this.element.append(this.clock, this.speeds);
+    this.weatherMark.hidden = true;
+    this.element.append(this.weatherMark, this.clock, this.speeds);
     client.onStatus((s) => {
       this.status = s;
       if (!this.framed) this.tick(s.t);
@@ -54,6 +57,11 @@ export class TimeBar {
     return this.state.speed;
   }
 
+  /** The speed the scale runs at when it runs, paused or not (how finely the weather is told). */
+  get pace(): number {
+    return this.state.speedAt();
+  }
+
   /** Whether a town is watched growing rather than living its day (faster than days a second). */
   get lapse(): boolean {
     return this.state.speed >= LAPSE;
@@ -64,6 +72,22 @@ export class TimeBar {
     this.state.scale = scale;
     if (this.element.parentElement !== slot) slot.append(this.element);
     this.apply();
+  }
+
+  /**
+   * The weather shown by the date (an empty sign: none, off the ground), told in full on a hover;
+   * after it, the signs of the god's acts on the land (Phase 30 M163).
+   */
+  weather(icon: string, warmth: number | null, words: string, marks = ""): void {
+    const text = icon
+      ? `${icon}${warmth === null ? "" : ` ${Math.round(warmth)}°`}${marks ? ` · ${marks}` : ""}`
+      : "";
+    if (this.weatherMark.textContent !== text) this.weatherMark.textContent = text;
+    this.weatherMark.hidden = !text;
+    if (this.weatherMark.title !== words) {
+      this.weatherMark.title = words;
+      this.weatherMark.setAttribute("aria-label", words);
+    }
   }
 
   /** Pause, or go on. */

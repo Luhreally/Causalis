@@ -53,6 +53,7 @@ export {
   regionColors,
   regionFromGlobe,
   regionHeights,
+  seasonTiles,
   regionTrees,
   type RegionTree,
   type RegionLens,
@@ -445,3 +446,19 @@ export {
   type Peopling,
   type PeoplingAct,
 } from "./peopling.ts";
+export {
+  downpourAt,
+  seasonAt,
+  seasonGround,
+  seasonKey,
+  seasonLeaf,
+  seasonNeedle,
+  seasonWater,
+  warmthAt,
+  weatherAt,
+  weatherGrain,
+  wetShare,
+  type GroundSeason,
+  type Weather,
+} from "./weather.ts";
+export { actsNear, type ActsNear, type NearMote } from "./nearacts.ts";

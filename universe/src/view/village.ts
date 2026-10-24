@@ -28,6 +28,8 @@ export const ACTIVITY = {
   playing: 5,
   resting: 6,
   gathering: 7,
+  /** Indoors out of a downpour (Phase 30). */
+  sheltering: 8,
 } as const;
 export type Activity = (typeof ACTIVITY)[keyof typeof ACTIVITY];
 
@@ -40,6 +42,7 @@ export const ACTIVITY_WORDS: readonly string[] = [
   "playing",
   "resting",
   "with the others in the square",
+  "indoors, out of the weather",
 ];
 
 /**
@@ -73,7 +76,7 @@ export type Moment = {
   activity: Activity;
   /** What they are at, where they are at something (M86). */
   task: Task | null;
-  /** Out of sight (asleep indoors). */
+  /** Out of sight (asleep indoors, or in out of a downpour). */
   hidden: boolean;
   /** 0 fed … 1 hungry; 0 rested … 1 worn out. */
   hunger: number;
@@ -401,16 +404,56 @@ function legsOf(plan: VillagePlan, index: number, day: number): Leg[] {
   return legs;
 }
 
-/** Where a watched person is at sim time t, and how they fare. */
-export function momentOf(plan: VillagePlan, index: number, t: number): Moment {
+/** Those at their ease (not at work, nor on their way, nor at the drill) go in out of a downpour. */
+function atEase(leg: Leg): boolean {
+  return (
+    leg.activity === ACTIVITY.home ||
+    leg.activity === ACTIVITY.eating ||
+    leg.activity === ACTIVITY.playing ||
+    leg.activity === ACTIVITY.resting ||
+    (leg.activity === ACTIVITY.gathering && leg.task !== "drill")
+  );
+}
+
+/**
+ * Where a watched person is at sim time t, and how they fare. `downpour`: the span of a downpour
+ * over the village (world seconds; weather's downpourAt), if one falls — those at their ease in
+ * it go home through it and in at their door, and come out again when it is over.
+ */
+export function momentOf(
+  plan: VillagePlan,
+  index: number,
+  t: number,
+  downpour: { readonly from: number; readonly to: number } | null = null,
+): Moment {
   const day = Math.floor(t / DAY),
     s = t - day * DAY,
     legs = legsOf(plan, index, day);
   const leg = legs.find((l) => s >= l.from && s < l.to) ?? legs[legs.length - 1]!;
   let x = leg.at.x,
     z = leg.at.z,
-    yaw = leg.face ?? 0;
-  if (leg.next) {
+    yaw = leg.face ?? 0,
+    activity: Activity = leg.activity,
+    task = leg.task;
+  const sheltering = !!downpour && t >= downpour.from && t < downpour.to && atEase(leg);
+  if (sheltering) {
+    // From where they were at their ease when it came on (or when they came to it, in it), home
+    // to their doorstep and in.
+    const door = legs[0]!.at,
+      went = Math.max(downpour.from, day * DAY + leg.from),
+      k = (t - went) / Math.max(1, walkTime(leg.at, door, paceOf(plan.body)));
+    task = null;
+    if (k < 1) {
+      x += (door.x - leg.at.x) * k;
+      z += (door.z - leg.at.z) * k;
+      yaw = Math.atan2(door.x - leg.at.x, door.z - leg.at.z);
+      activity = ACTIVITY.walking;
+    } else {
+      x = door.x;
+      z = door.z;
+      activity = ACTIVITY.sheltering;
+    }
+  } else if (leg.next) {
     const k = (s - leg.from) / Math.max(1, leg.to - leg.from);
     x += (leg.next.x - leg.at.x) * k;
     z += (leg.next.z - leg.at.z) * k;
@@ -438,9 +481,9 @@ export function momentOf(plan: VillagePlan, index: number, t: number): Moment {
     x,
     z,
     yaw,
-    activity: leg.activity,
-    task: leg.task,
-    hidden: leg.activity === ACTIVITY.asleep,
+    activity,
+    task,
+    hidden: activity === ACTIVITY.asleep || activity === ACTIVITY.sheltering,
     carry: leg.carry,
     hunger: Math.max(0, Math.min(1, (s - lastMeal) / (7 * HOUR))),
     tiredness:

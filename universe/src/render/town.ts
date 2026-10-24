@@ -20,7 +20,7 @@ import {
   type TownThing,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
-import type { Stage } from "./stage.ts";
+import type { Rgb, Stage } from "./stage.ts";
 
 const M = 0.1;
 /** How often what rises is put again (moments of the sim apart, at the least): a few times a day. */
@@ -35,6 +35,9 @@ class PartBatches {
   /** The windows' glass, lit at night (its batch made anew when it changes). */
   lamps: pc.Material | null = null;
   private lampsIn: pc.Material | null = null;
+  /** Each batch's own colour, and whether it is a roof (snow lies on it: Phase 30 M164). */
+  private readonly bases = new Map<string, { color: Rgb; roof: boolean }>();
+  private snow = 0;
   constructor(stage: Stage, root: pc.Entity, meshes: Readonly<Record<PartMesh, pc.Mesh>>) {
     this.stage = stage;
     this.root = root;
@@ -60,6 +63,11 @@ class PartBatches {
         );
         if (g.lamp) this.lampsIn = this.lamps;
         this.batches.set(key, b);
+        this.bases.set(key, {
+          color: [g.color[0], g.color[1], g.color[2]],
+          roof: !g.lamp && (g.mesh === "gable" || g.mesh === "cone"),
+        });
+        if (this.snow > 0) this.tint(key, b);
       }
       const d = g.data;
       b.set(n, (i, out) => {
@@ -75,9 +83,25 @@ class PartBatches {
     }
     for (const [key, b] of this.batches) if (!parts.groups.has(key)) b.set(0, () => {});
   }
+  /** Snow lying on the roofs (0 … 1). */
+  season(snow: number): void {
+    if (snow === this.snow) return;
+    this.snow = snow;
+    for (const [key, b] of this.batches) this.tint(key, b);
+  }
+
+  private tint(key: string, b: InstancedBatch): void {
+    const base = this.bases.get(key);
+    if (!base?.roof) return;
+    const c = base.color,
+      k = this.snow * 0.8;
+    b.recolor([c[0] + (0.93 - c[0]) * k, c[1] + (0.95 - c[1]) * k, c[2] + (0.98 - c[2]) * k]);
+  }
+
   destroy(): void {
     for (const b of this.batches.values()) b.destroy();
     this.batches.clear();
+    this.bases.clear();
   }
 }
 
@@ -106,6 +130,12 @@ export class TownLayer {
 
   get visible(): boolean {
     return this.root.enabled;
+  }
+
+  /** Snow lying on the town's roofs (Phase 30 M164; 0 … 1). */
+  season(snow: number): void {
+    this.settled.season(snow);
+    this.rising.season(snow);
   }
   set visible(on: boolean) {
     this.root.enabled = on;

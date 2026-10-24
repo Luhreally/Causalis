@@ -29,8 +29,14 @@ import {
   momentOf,
   personGroup,
   sayOf,
+  seasonGround,
+  seasonKey,
+  seasonLeaf,
+  seasonNeedle,
+  seasonWater,
   treesOf,
   type Figure,
+  type GroundSeason,
   type Tree,
   type Moment,
   type PartShape,
@@ -164,6 +170,45 @@ export class VillageScene {
 
   /** Every batch the village is built of, so a rebuild frees their buffers too. */
   private batches: InstancedBatch[] = [];
+  /**
+   * What the season dresses (Phase 30 M164): the ground and the lake, the leaves and the needles,
+   * each with its own colour and how to paint it; the season as last dressed.
+   */
+  private dressed: {
+    kind: "ground" | "water" | "leaf" | "needle" | "roof";
+    base: Rgb;
+    paint: (c: Rgb) => void;
+  }[] = [];
+  private seasonNow: GroundSeason | null = null;
+  private seasonSeen = "";
+
+  /** The season on the ground (null: none told): snow lying, the leaves turned or fallen, the lake frozen. */
+  season(s: GroundSeason | null): void {
+    const key = s ? seasonKey(s) : "";
+    if (key === this.seasonSeen) return;
+    this.seasonSeen = key;
+    this.seasonNow = s;
+    this.dress();
+  }
+
+  private dress(): void {
+    const s = this.seasonNow;
+    this.town.season(s?.snow ?? 0);
+    for (const d of this.dressed)
+      d.paint(
+        !s
+          ? d.base
+          : d.kind === "ground"
+            ? seasonGround(d.base, s)
+            : d.kind === "roof"
+              ? seasonGround(d.base, { ...s, snow: s.snow * 0.87 })
+              : d.kind === "water"
+                ? seasonWater(d.base, s)
+                : d.kind === "needle"
+                  ? seasonNeedle(d.base, s)
+                  : seasonLeaf(d.base, s),
+      );
+  }
   private batch(...args: ConstructorParameters<typeof InstancedBatch>): InstancedBatch {
     const b = new InstancedBatch(...args);
     this.batches.push(b);
@@ -185,6 +230,7 @@ export class VillageScene {
       )
         child.destroy();
     this.stacks = [];
+    this.dressed = [];
     this.plan = plan;
     // (A new village's people are drawn afresh; the same village's, carried on.)
     if (this.presenceOf !== plan.ref) {
@@ -195,13 +241,22 @@ export class VillageScene {
     }
     this.key = plan.ref;
     const s = this.stage,
-      disc = (r: number, color: Rgb, x = 0, z = 0, y = 0) => {
-        const e = new pc.Entity("disc");
+      disc = (r: number, color: Rgb, x = 0, z = 0, y = 0, kind: "ground" | "water" = "ground") => {
+        const e = new pc.Entity("disc"),
+          m = flatMaterial(color);
         e.addComponent("render", {
-          meshInstances: [new pc.MeshInstance(cylinderMesh(s, r, 0.02, 48), flatMaterial(color))],
+          meshInstances: [new pc.MeshInstance(cylinderMesh(s, r, 0.02, 48), m)],
         });
         e.setLocalPosition(x, y, z);
         this.root.addChild(e);
+        this.dressed.push({
+          kind,
+          base: color,
+          paint: (c) => {
+            m.diffuse.set(c[0], c[1], c[2]);
+            m.update();
+          },
+        });
       };
     const g = biomeColor(plan.biome);
     disc(140, [g[0] * 0.95 + 0.03, g[1] * 0.95 + 0.05, g[2] * 0.9]);
@@ -212,7 +267,8 @@ export class VillageScene {
       plan.pasture.z * M,
       0.012,
     );
-    if (plan.water) disc(LAKE_R * M, [0.2, 0.4, 0.6], plan.water.x * M, plan.water.z * M, 0.014);
+    if (plan.water)
+      disc(LAKE_R * M, [0.2, 0.4, 0.6], plan.water.x * M, plan.water.z * M, 0.014, "water");
     // The road out (through a city, both ways; paved stone once it is paved), and the square.
     const quarters = plan.districts,
       paved = !!quarters?.paved;
@@ -364,6 +420,8 @@ export class VillageScene {
       walls = this.batch(s, shell, [...look.wall], plan.homes.length, this.root),
       watched = this.batch(s, shell, lighter, plan.homes.length, this.root),
       roofs = this.batch(s, roofMesh, [...look.roof], plan.homes.length, this.root);
+    // (Snow lies on them in a cold land's winter: M164.)
+    this.dressed.push({ kind: "roof", base: [...look.roof], paint: (c) => roofs.recolor(c) });
     // In a city's crowded quarters homes stand two storeys high.
     const storeys = (h: VillagePlan["homes"][number]) => {
         const q = plan.districts;
@@ -479,9 +537,12 @@ export class VillageScene {
         y: (t: Tree) => number,
         w: (t: Tree) => number,
         h: (t: Tree) => number,
+        dressed?: "leaf" | "needle",
       ) => {
         if (!list.length) return;
-        this.batch(s, mesh, color, list.length, this.root).set(list.length, (i, out) => {
+        const b = this.batch(s, mesh, color, list.length, this.root);
+        if (dressed) this.dressed.push({ kind: dressed, base: color, paint: (c) => b.recolor(c) });
+        b.set(list.length, (i, out) => {
           const t = list[i]!;
           out[0] = t.x * M;
           out[1] = y(t);
@@ -507,6 +568,7 @@ export class VillageScene {
       (t) => 1.05 * t.size,
       (t) => 0.9 * t.size,
       (t) => 1.5 * t.size,
+      "needle",
     );
     grow(
       byKind("broadleaf"),
@@ -515,6 +577,7 @@ export class VillageScene {
       (t) => 1.05 * t.size,
       (t) => 1.2 * t.size,
       (t) => 1 * t.size,
+      "leaf",
     );
     grow(
       byKind("palm"),
@@ -531,7 +594,10 @@ export class VillageScene {
       (t) => 0.18 * t.size,
       (t) => 0.5 * t.size,
       (t) => 0.36 * t.size,
+      "leaf",
     );
+    // (In the season the land is in, from the first frame.)
+    this.dress();
     // A door on each home, facing out from its front (a town draws its own homes).
     if (!look.tent && !look.open && !town) {
       const door = this.batch(s, box, [0.2, 0.12, 0.08], plan.homes.length, this.root),
@@ -803,7 +869,11 @@ export class VillageScene {
     return this.town.lotAt(p);
   }
 
-  update(t: number): void {
+  /**
+   * The village at moment t. `downpour`: the span of a downpour over it, if one falls (those at
+   * their ease go in out of it).
+   */
+  update(t: number, downpour: { readonly from: number; readonly to: number } | null = null): void {
     const plan = this.plan;
     if (!plan) return;
     this.lastT = t;
@@ -826,7 +896,7 @@ export class VillageScene {
       clock = performance.now() / 1000,
       // The battle, if its land was fought over (its soldiers stand where they stand).
       troops = this.soldiers.length ? battleOf(plan, this.soldiersEach, clock) : [];
-    const targets = plan.people.map((_, i) => momentOf(plan, i, t));
+    const targets = plan.people.map((_, i) => momentOf(plan, i, t, downpour));
     // No one stands in anyone else, nor in a soldier; and no one jumps: each is carried to
     // where their day has them, however fast the world runs.
     keepApart(plan, targets, troops);
@@ -1116,6 +1186,11 @@ export class VillageScene {
             },
           ],
     );
+  }
+
+  /** How many are in out of a downpour now (for the look tools). */
+  shelteredNow(): number {
+    return this.moments.filter((m) => m.activity === ACTIVITY.sheltering).length;
   }
 
   /** Everyone carrying something now: where (metres) and what (for the look tools). */

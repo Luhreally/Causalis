@@ -162,3 +162,49 @@ test("trees stand about a village as its land grows them, never in its fields or
     assert.ok(Math.abs(t.x) > 15 || t.z < 0, "not on the road out");
   }
 });
+
+test("in a downpour those at their ease go home and in; those at work stay out; all come out after", () => {
+  // The rest day's morning: everyone at their ease about their doors goes in at once.
+  const rain = { from: restday * DAY + 9 * HOUR, to: restday * DAY + 12 * HOUR };
+  for (let i = 0; i < plan.people.length; i++) {
+    const dry = momentOf(plan, i, restday * DAY + 10 * HOUR),
+      wet = momentOf(plan, i, restday * DAY + 10 * HOUR, rain);
+    assert.ok(!dry.hidden, "out in the dry");
+    assert.ok(
+      wet.hidden && wet.activity === ACTIVITY.sheltering,
+      `${plan.people[i]!.name} indoors`,
+    );
+    assert.deepEqual(
+      momentOf(plan, i, restday * DAY + 13 * HOUR, rain),
+      momentOf(plan, i, restday * DAY + 13 * HOUR),
+      "out after",
+    );
+  }
+  // A work day: the farmer works on in the fields through it.
+  const work = { from: workday * DAY + 9 * HOUR, to: workday * DAY + 12 * HOUR },
+    farmer = momentOf(plan, 0, workday * DAY + 10 * HOUR, work);
+  assert.equal(farmer.activity, ACTIVITY.working);
+  assert.ok(!farmer.hidden);
+  // An evening in the square: when it pours they walk home through it, then go in.
+  let found: { i: number; day: number; s: number } | null = null;
+  for (let day = 10; day < 80 && !found; day++)
+    for (let i = 0; i < plan.people.length && !found; i++) {
+      const s = 19 * HOUR + 10 * 60,
+        m = momentOf(plan, i, day * DAY + s);
+      if (m.activity === ACTIVITY.gathering && m.task !== "drill") found = { i, day, s };
+    }
+  assert.ok(found, "someone in the square of an evening");
+  const { i, day, s } = found!,
+    pour = { from: day * DAY + s, to: day * DAY + s + 2 * HOUR },
+    there = momentOf(plan, i, day * DAY + s),
+    door = momentOf(plan, i, day * DAY + 2 * HOUR),
+    going = momentOf(plan, i, day * DAY + s + 5, pour),
+    gone = momentOf(plan, i, day * DAY + s + 30 * 60, pour);
+  assert.equal(going.activity, ACTIVITY.walking);
+  assert.ok(!going.hidden);
+  assert.ok(
+    Math.hypot(going.x - door.x, going.z - door.z) < Math.hypot(there.x - door.x, there.z - door.z),
+    "on the way home",
+  );
+  assert.ok(gone.hidden && gone.activity === ACTIVITY.sheltering, "in at the door");
+});

@@ -46,9 +46,32 @@ export type ActMark = {
   readonly left: number;
   /** Its event (its page). */
   readonly event: string;
+  /** The land it falls on (-1: none of one land), and the town, where it falls on one (Phase 30). */
+  readonly cell: number;
+  readonly town: string | null;
+  /** When it was done, or began (the near views play a moment's act as it happens). */
+  readonly from: number;
 };
 
 export type ActsMap = { readonly year: number; readonly acts: readonly ActMark[] };
+
+/**
+ * A land's sky (Phase 30 M162): what its weather is made from — its climate, this year's rain
+ * against its usual, and the god's acts on it now — for the near views to play day by day.
+ */
+export type LandSky = {
+  readonly cell: number;
+  /** Its mean warmth (°C), half its yearly swing (°C), and its rain in a usual year (mm). */
+  readonly warmth: number;
+  readonly swing: number;
+  readonly wet: number;
+  /** This year's rain against its usual (1 as usual; below 0.72 a drought). */
+  readonly year: number;
+  /** The god's rain on it now: sent (1), withheld (-1), or neither (0). */
+  readonly sent: 1 | 0 | -1;
+  /** The god's acts on it now, as the globe plays them. */
+  readonly acts: readonly ActMark[];
+};
 
 /** A land as the god's palette sees it: whose it is, its faith, its towns. */
 export type PaletteLand = {

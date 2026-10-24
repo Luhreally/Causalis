@@ -629,6 +629,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       ref,
       hand: !!hand && hand.village === ref,
       name: village.name,
+      cell: village.cell,
       population: village.population,
       market: village.market !== null,
       biome: r.biome[village.tile]!,

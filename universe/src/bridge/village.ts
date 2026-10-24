@@ -72,6 +72,8 @@ export type BattleSide = {
 export type VillagePlan = {
   readonly ref: string;
   readonly name: string;
+  /** The land it stands in (Phase 30: its weather). */
+  readonly cell?: number;
   readonly population: number;
   readonly market: boolean;
   /** Whether the god's hand rests here: then everyone shown is one of the hand's people. */

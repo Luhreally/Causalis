@@ -132,6 +132,13 @@ button:disabled {
 .timebar {
   display: contents;
 }
+/* The weather by the date (Phase 30 M162): its sign and the air's warmth. */
+.weather-mark {
+  flex: none;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .speeds {
   display: flex;
   gap: 4px;

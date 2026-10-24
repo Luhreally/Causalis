@@ -348,6 +348,22 @@ body[data-scale="ground"][data-daylight="night"] {
     149px 149px,
     100% 100%;
 }
+/* The weather over the ground (Phase 30 M162): a grey sky under cloud, and by day a pale gold
+   one in a dry haze; a night under cloud without its stars. */
+body[data-scale="ground"][data-sky="grey"] {
+  background: linear-gradient(180deg, #5d6878 0%, #8a96a6 40%, #b4bdc8 75%, #cfd5dc 100%);
+}
+body[data-scale="ground"][data-sky="grey"][data-daylight="dawn"],
+body[data-scale="ground"][data-sky="grey"][data-daylight="dusk"] {
+  background: linear-gradient(180deg, #3a3b55 0%, #6b5d72 45%, #a07f7a 80%, #b99a86 100%);
+}
+body[data-scale="ground"][data-sky="grey"][data-daylight="night"] {
+  background: linear-gradient(180deg, #05070f 0%, #0d1220 65%, #161c2c 100%);
+}
+body[data-scale="ground"][data-sky="haze"][data-daylight="day"],
+body[data-scale="ground"][data-sky="haze"]:not([data-daylight]) {
+  background: linear-gradient(180deg, #b39a6a 0%, #d6bf8c 40%, #ecd9ad 75%, #f5ead0 100%);
+}
 
 /* A window's fold: beside the close box; folded, only the title bar is left. */
 .inspector .fold {
