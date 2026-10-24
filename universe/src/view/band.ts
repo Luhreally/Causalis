@@ -187,9 +187,16 @@ function pitch(b: BandState): void {
 
 /**
  * A band of `size` on a meadow (the last age's land), camped where the land would feed them,
- * at the start of a morning, a few days' food in store.
+ * a few days' food in store: at the start of a morning, or at the hour given (a land's camp seen
+ * near at the world's own hour, Phase 29 M160).
  */
-export function newBand(m: MeadowState, size: number, name: string, seedText: string): BandState {
+export function newBand(
+  m: MeadowState,
+  size: number,
+  name: string,
+  seedText: string,
+  hour = RISE,
+): BandState {
   const rnd = seeded(hashText(`${seedText} band`)),
     b: BandState = {
       name,
@@ -198,7 +205,7 @@ export function newBand(m: MeadowState, size: number, name: string, seedText: st
       going: null,
       shelters: [],
       food: 3,
-      clock: (RISE / 24) * BAND_DAY,
+      clock: ((((hour % 24) + 24) % 24) / 24) * BAND_DAY,
       day: 0,
       here: 0,
       camps: 1,
@@ -264,10 +271,11 @@ function goTo(p: BandPerson, x: number, z: number, pace: number, near: number): 
   return false;
 }
 
-/** What a band's hunters may take: the age's beasts that eat grass and leaf, not too small to be worth it nor too great. */
+/** What a band's hunters may take: the age's beasts that eat grass and leaf, not too small to be worth it nor too great (nor their own flock). */
 export function bandQuarry(m: MeadowState, beast: Beast): boolean {
   const k = m.kinds[beast.kind]!;
   return (
+    !k.tame &&
     (k.feed === "graze" || k.feed === "browse" || k.feed === "great" || k.feed === "peck") &&
     k.size >= 8 &&
     k.size <= 1200 &&

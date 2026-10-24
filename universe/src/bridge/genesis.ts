@@ -107,3 +107,9 @@ export type GenesisPlan = {
     readonly livable: number;
   } | null;
 };
+
+/**
+ * What a living land is made from (the meadow of an age, Phase 27; a land's camp seen near, Phase
+ * 29 M160): its seed, its ages and the lineages that may walk it.
+ */
+export type MeadowPlan = Pick<GenesisPlan, "seed" | "ages" | "lineages">;

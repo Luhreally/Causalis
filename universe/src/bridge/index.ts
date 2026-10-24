@@ -47,6 +47,8 @@ export {
   townLots,
   townReach,
   wallRing,
+  type CampNear,
+  type LandCamp,
   type LandEra,
   type LandLane,
   type LandPlan,
@@ -64,7 +66,7 @@ export {
 } from "./town.ts";
 export type { Garrison, HostKinds, WarSide, WarsMap } from "./wars.ts";
 export type { ActKindShown, ActMark, ActsMap, PaletteLand } from "./acts.ts";
-export type { GenesisPlan } from "./genesis.ts";
+export type { GenesisPlan, MeadowPlan } from "./genesis.ts";
 export type { DepositPage, PlatePage, RealmPage, SpeciesPage } from "./pages.ts";
 export { METALS, armsFor, type Arms, type Charge, type Division, type Holds } from "./arms.ts";
 export {

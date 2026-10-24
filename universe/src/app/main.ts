@@ -28,6 +28,8 @@ import {
   QUALITY_NAMES,
   regionMaterials,
   runBench,
+  MeadowScene,
+  BandLayer,
   type CarrierKind,
   type GlobeTown,
   type QualityName,
@@ -43,6 +45,7 @@ import {
   ClusterPanel,
   VillagePanel,
   WorldPanel,
+  CampPanel,
   GalaxyPanel,
   GuidedWalk,
   FreeControls,
@@ -70,6 +73,8 @@ import {
 } from "../ui/index.ts";
 import type {
   ActsMap,
+  BeastPlan,
+  CampNear,
   ClusterPlan,
   LandPlan,
   SkyState,
@@ -109,6 +114,18 @@ import {
   hallCells,
   hallDomes,
   landTidings,
+  campWords,
+  BAND_DAY,
+  MEADOW_STEP,
+  bandHour,
+  bandWords,
+  figureOf,
+  newBand,
+  newMeadow,
+  stepBand,
+  stepMeadow,
+  type BandState,
+  type MeadowState,
   beliefColor,
   landWars,
   litColors,
@@ -249,7 +266,34 @@ type Exposed = {
     roads: number;
     lanes: number;
     traffic: Partial<Record<string, number>>;
+    camps: number;
+    campParts: number;
   };
+  /** Down among a band of a land's camp (Phase 29 M160). */
+  goNear?: (cell: number, camp: number) => Promise<void>;
+  /** A band of a land's camp seen near (Phase 29 M160): its people, the land's beasts, their hour, what they are at. */
+  near?: () => {
+    cell: number;
+    camp: number;
+    people: number;
+    beasts: number;
+    kinds: string[];
+    hour: number;
+    day: number;
+    kills: number;
+    doing: string;
+    parts: number;
+  } | null;
+  /** A land's bands' camps as drawn (Phase 28 M159). */
+  camps?: () => {
+    cell: number;
+    id: number;
+    tile: number;
+    x: number;
+    z: number;
+    people: number;
+    herds: boolean;
+  }[];
   /** Where the first cart, wagon, truck, train or ship of a land is now (Phase 26 M153). */
   landCarrier?: (kind: string) => { x: number; z: number } | null;
   /** Where on the screen one of the town's buildings, one of its homes and its walls are (M151). */
@@ -524,7 +568,8 @@ async function runPlanetPage(): Promise<void> {
   );
   const { client, mode } = await connect();
   let painted = 0,
-    scale: "globe" | "region" | "village" | "system" | "cluster" | "world" | "galaxy" = "globe",
+    scale: "globe" | "region" | "camp" | "village" | "system" | "cluster" | "world" | "galaxy" =
+      "globe",
     clusterPlan: ClusterPlan | null = null,
     systemPlan: SystemPlan | null = null,
     // The system the sky shows (the home star's, or another's, M95), which the sky's scene
@@ -567,6 +612,8 @@ async function runPlanetPage(): Promise<void> {
     // lately, on its label a while (Phase 26 M154).
     landPlan: LandPlan | null = null,
     townNews = new Map<string, { text: string; until: number }>(),
+    // (Whether camps were labelled last frame: their labels let go when the last camp goes.)
+    campsLabelled = false,
     regionCell = -1,
     stopVillages: (() => void) | null = null,
     // The lands the god's palette lights (its reach, its choices: Phase 12 M106).
@@ -1417,9 +1464,14 @@ async function runPlanetPage(): Promise<void> {
     } else selectCell(globe.pick(x, y));
   };
   const tapRegion = (x: number, y: number) => {
-    const war = regionWars.pick(x, y);
+    const war = regionWars.pick(x, y),
+      // A band's camp (Phase 28 M159): its page.
+      camp = war ? null : region.land.camps.pick(stage.camera.camera!, x, y);
     if (war) void pageWindow.open(war);
-    else selectTile(region.pick(x, y));
+    else if (camp !== null) {
+      region.mark(null);
+      void pageWindow.open(`camp:${regionCell}:${camp}`);
+    } else selectTile(region.pick(x, y));
   };
   const selectTile = (tile: number | null) => {
     region.mark(tile);
@@ -1451,7 +1503,7 @@ async function runPlanetPage(): Promise<void> {
     maxPitch: 80,
     drift: drift(),
     onTap: (x, y) =>
-      palette.armed && (scale === "globe" || scale === "region")
+      palette.armed && (scale === "globe" || scale === "region" || scale === "camp")
         ? tapPalette(x, y)
         : scale === "globe"
           ? tapGlobe(x, y)
@@ -1465,7 +1517,9 @@ async function runPlanetPage(): Promise<void> {
                   ? tapWorld(x, y)
                   : scale === "galaxy"
                     ? tapGalaxy(x, y)
-                    : tapVillage(x, y),
+                    : scale === "camp"
+                      ? tapCamp(x, y)
+                      : tapVillage(x, y),
   });
   /**
    * What stands at a point of a village's ground, of what is not a person or a beast (M93):
@@ -1530,9 +1584,13 @@ async function runPlanetPage(): Promise<void> {
             spot === null ? -1 : ((frame?.arrays.province as Int32Array | undefined)?.[spot] ?? -1);
         return spot === null ? null : province >= 0 ? `cell:0:${province}` : `spot:0:${spot}`;
       }
+      case "camp":
+        return campThingAt(x, y);
       case "region": {
         const war = regionWars.pick(x, y);
         if (war) return war;
+        const camp = region.land.camps.pick(stage.camera.camera!, x, y);
+        if (camp !== null) return `camp:${regionCell}:${camp}`;
         const tile = region.pick(x, y),
           near = tile === null ? null : region.villageNear(tile),
           v = near === null ? undefined : villages.find((w) => w.tile === near);
@@ -1580,7 +1638,7 @@ async function runPlanetPage(): Promise<void> {
       x = e.clientX - rect.left,
       y = e.clientY - rect.top;
     // With an act in hand the palette says what it will do where the pointer is, and lights it.
-    if (palette.armed && (scale === "globe" || scale === "region")) {
+    if (palette.armed && (scale === "globe" || scale === "region" || scale === "camp")) {
       tooltip.hide();
       const at = paletteAt(x, y);
       palette.hover(at.cell, at.town);
@@ -1606,6 +1664,7 @@ async function runPlanetPage(): Promise<void> {
   document.body.classList.add("with-palette");
   /** The land (province) and the town under a point of the screen, for the palette. */
   const paletteAt = (x: number, y: number): { cell: number | null; town: string | null } => {
+    if (scale === "camp") return { cell: regionCell >= 0 ? regionCell : null, town: null };
     if (scale === "region") {
       const tile = region.pick(x, y),
         near = tile === null ? null : region.villageNear(tile),
@@ -1675,7 +1734,8 @@ async function runPlanetPage(): Promise<void> {
     if (scale === "globe") globeActs.update(performance.now() / 1000, rig.distance);
     // (The palette's acts fall on the world and its lands: at the other scales it stands aside,
     // and an act in hand is put down.)
-    const castable = scale === "globe" || scale === "region";
+    // (Among a band, on their land: Phase 29 M160.)
+    const castable = scale === "globe" || scale === "region" || scale === "camp";
     if (document.body.classList.contains("palette-off") === castable) {
       document.body.classList.toggle("palette-off", !castable);
       if (!castable) palette.putDown();
@@ -2351,11 +2411,16 @@ async function runPlanetPage(): Promise<void> {
       readying.hidden = false;
     };
     const late = setTimeout(say, heavy && tier.name === "phone" ? 0 : 160);
+    // (The world waits while the eye goes to another scale: else it runs on at the pace of the
+    // scale left for as long as the next takes to ready — on a slow machine, years from the
+    // globe, the morning gone dark and what was gone to see come and gone.)
+    time.hold("readying");
     try {
       return await work();
     } finally {
       clearTimeout(late);
       readying.hidden = true;
+      time.release("readying");
     }
   };
   const fadeOver = async (swapNow: () => Promise<void> | void) => {
@@ -2413,6 +2478,7 @@ async function runPlanetPage(): Promise<void> {
   };
   const OUT_TO: Partial<Record<string, string>> = {
       village: "its land",
+      camp: "its land",
       region: "the world",
       globe: "the sky",
       system: "the stars about us",
@@ -2428,7 +2494,12 @@ async function runPlanetPage(): Promise<void> {
     };
   stage.onUpdate(() => {
     const edge = rig.edge,
-      next = edge > 0 ? OUT_TO[scale] : edge < 0 ? IN_TO[scale] : undefined;
+      // (A land of bands with no village yet goes in among a camp's.)
+      inTo =
+        scale === "region" && !villages.length && landPlan?.camps.length
+          ? "the camp nearest the pointer"
+          : IN_TO[scale],
+      next = edge > 0 ? OUT_TO[scale] : edge < 0 ? inTo : undefined;
     if (edge > 0.6) readyAhead();
     // At an edge with somewhere to go: say so.
     const show = !!next && Math.abs(edge) > 0.97;
@@ -2460,7 +2531,8 @@ async function runPlanetPage(): Promise<void> {
   const zoomThrough = async (way: "in" | "out") => {
     followHome = false;
     if (way === "out") {
-      if (scale === "village") {
+      if (scale === "camp") await leaveCamp();
+      else if (scale === "village") {
         const tile = villages.find((v) => v.ref === plan?.ref)?.tile;
         await fadeOver(() => villagePanel.onBack?.());
         // Low over the village, its land about it.
@@ -2608,10 +2680,27 @@ async function runPlanetPage(): Promise<void> {
           best = i;
         }
       });
+      // (Zoomed in on a battle: its village, its view facing the fight.)
+      const war = regionWars.pick(aim.x, aim.y, 160, true);
+      // A band's camp under the pointer, nearer it than any village (Phase 29 M160): down among
+      // them — not where a battle is zoomed into, nor a camp far off the pointer while a village
+      // stands on the land.
+      let camp = -1,
+        campD = Infinity;
+      if (!war)
+        for (const [id, p] of region.land.camps.named(stage.camera.camera!)) {
+          const d = p ? Math.hypot(p.x - aim.x, p.y - aim.y) : Infinity;
+          if (d < campD) {
+            campD = d;
+            camp = id;
+          }
+        }
+      if (camp >= 0 && campD < bestD && (best < 0 || campD < CAMP_REACH)) {
+        await fadeOver(() => ready("the band", () => toCamp(regionCell, camp)));
+        return;
+      }
       if (best < 0) return;
-      const ref = villages[best]!.ref,
-        // (Zoomed in on a battle: its village's view faces the fight.)
-        war = regionWars.pick(aim.x, aim.y, 160, true);
+      const ref = villages[best]!.ref;
       await fadeOver(() => ready("the village", () => toVillage(ref)));
       if (war?.startsWith("ev:")) faceBattle();
     } else if (scale === "world") {
@@ -2638,6 +2727,9 @@ async function runPlanetPage(): Promise<void> {
           : { speed: 5 * M, height: 25 * M, clearance: 1.5 * M };
       case "region":
         return { speed: 0.5, height: 8, clearance: 0.12 };
+      case "camp":
+        // (The meadow's metres a tenth of a unit: at a run, as high as a tall tree's top or more.)
+        return { speed: 0.6, height: 3.5, clearance: 0.05 };
       case "globe":
       case "world":
         // (As fast as it is high over the globe's face: its width crossed in a few seconds.)
@@ -2793,6 +2885,7 @@ async function runPlanetPage(): Promise<void> {
         });
       };
     if (scale === "village" && s.y > 140 * VILLAGE_METRE) go(() => zoomThrough("out"));
+    else if (scale === "camp" && s.y > 3.2) go(() => zoomThrough("out"));
     else if (scale === "region") {
       const under = region.heightAt(s.x, s.z);
       if (s.y - under > 180) {
@@ -2846,6 +2939,8 @@ async function runPlanetPage(): Promise<void> {
   };
   exposed.zoomThrough = (way: "in" | "out") => zoomThrough(way);
   exposed.scale = () => scale;
+  /** The scale now (read through a call, so a check after an await is not narrowed by one before it). */
+  const scaleNow = () => scale;
   exposed.faceSpot = faceSpot;
   exposed.galaxy = () => void toGalaxy();
   exposed.visitForeign = async (ref: string, index: number) =>
@@ -3036,6 +3131,190 @@ async function runPlanetPage(): Promise<void> {
     void pageWindow.open(plan.people[i]!.ref);
   };
   regionPanel.onWatch = (ref) => void toVillage(ref);
+  // A camp of a land's bands seen near (Phase 29 M160, asked for 2026-10-24: "i should be able to
+  // be in my game and see the cell stage and every stage like spore i would just watch it
+  // emerge"): one of its bands living its day among the land's own beasts — gathering, hunting,
+  // sleeping about the fire — their day the world's day, at the band's own speeds; back up to the
+  // land by the bar, or by zooming out.
+  const campPanel = new CampPanel(hud);
+  let meadowScene: MeadowScene | null = null,
+    bandLayer: BandLayer | null = null,
+    near: {
+      readonly info: CampNear;
+      readonly meadow: MeadowState;
+      readonly band: BandState;
+      readonly bodies: readonly (BeastPlan | null)[];
+      /** The world's moment last stepped to; the band's seconds owed, and gone (for the drawing). */
+      t: number;
+      owed: number;
+      time: number;
+      toldAt: number;
+    } | null = null;
+  /** How near the pointer (px) a camp must be to be zoomed into while a village stands on the land. */
+  const CAMP_REACH = 90;
+  /** The world's seconds to one of the band's: their day is the world's day. */
+  const BAND_SECOND = DAY / BAND_DAY;
+  /** Where the eye keeps: between the fire and the band, or on them as they walk on. */
+  const bandMiddle = () => {
+    if (!near) return null;
+    const b = near.band;
+    let x = 0,
+      z = 0;
+    for (const q of b.people) {
+      x += q.x;
+      z += q.z;
+    }
+    const n = b.people.length || 1,
+      mx = b.going ? x / n : (b.camp.x * 2 + x / n) / 3,
+      mz = b.going ? z / n : (b.camp.z * 2 + z / n) / 3;
+    return { x: mx * 0.1, y: 0.2, z: mz * 0.1 };
+  };
+  const toCamp = async (cell: number, id: number) => {
+    const info = await client.query<CampNear | null>({ type: "camp.near", args: { cell, id } });
+    if (!info) return;
+    leaveScale();
+    scale = "camp";
+    const detail = tier.name === "phone" ? 1 : 2;
+    if (!meadowScene) {
+      meadowScene = new MeadowScene(stage);
+      meadowScene.setDetail(detail);
+      bandLayer = new BandLayer(stage, meadowScene.root);
+    }
+    labels.clear();
+    bubbles.clear();
+    globe.visible = false;
+    planetPanel.visible = false;
+    region.visible = false;
+    regionPanel.visible = false;
+    regionCell = cell;
+    client.setInterest({ view: "region", focus: `cell:0:${cell}` });
+    meadowScene.reset();
+    // (A land of now: green, its woods standing.)
+    const meadow = newMeadow(info.plan, 0, info.plan.seed, true);
+    // (Their own flock grazes among the land's beasts: the hunters leave it be.)
+    for (const k of meadow.kinds) if (info.flocks.includes(k.lineage)) k.tame = true;
+    const band = newBand(meadow, info.size, info.people, info.plan.seed, info.hour);
+    bandLayer!.people(figureOf(info.figure, detail));
+    near = {
+      info,
+      meadow,
+      band,
+      bodies: info.plan.lineages.map((l) => l.body),
+      t: now(),
+      owed: 0,
+      time: 0,
+      toldAt: -Infinity,
+    };
+    meadowScene.visible = true;
+    bandLayer!.root.enabled = true;
+    stage.backdrop("ground", 40);
+    campPanel.show(`${campWords(info.camp)} · ${info.land}`);
+    campPanel.visible = true;
+    time.at("camp", campPanel.timeSlot);
+    rig.configure({
+      distance: 7,
+      minDistance: 2,
+      maxDistance: 30,
+      pitch: -26,
+      minPitch: -85,
+      maxPitch: -8,
+      drift: 0,
+      target: [band.camp.x * 0.1, 0.2, band.camp.z * 0.1],
+    });
+    rig.follow = bandMiddle;
+  };
+  /** Down among a band of a land's camp, from wherever the eye is. */
+  const goNear = async (cell: number, id: number) => {
+    walk.saw("scale");
+    pageWindow.close();
+    await fadeOver(() => ready("the band", () => toCamp(cell, id)));
+  };
+  pageWindow.onNear = (cell, id) => void goNear(cell, id);
+  exposed.goNear = goNear;
+  /** Back up to the land, low over the camp the band was of. */
+  const leaveCamp = async () => {
+    const was = near?.info;
+    if (!was) return;
+    await fadeOver(() =>
+      ready("the land", () => {
+        leaveScale();
+        toRegion(was.cell);
+      }),
+    );
+    const at = region.groundAt(was.camp.tile);
+    if (at) rig.target.set(at.x, at.y, at.z);
+    rig.userZoomed = true;
+    rig.distance = 18;
+  };
+  campPanel.onBack = () => void leaveCamp();
+  campPanel.onPage = () => {
+    if (near) void pageWindow.open(`camp:${near.info.cell}:${near.info.camp.id}`);
+  };
+  /** What stands at a point of the screen among the band: a beast (its lineage), one of them (their camp). */
+  const campThingAt = (x: number, y: number): string | null => {
+    if (!near || !meadowScene || !bandLayer) return null;
+    const beast = meadowScene.pick(near.meadow, x, y),
+      kind = beast === null ? undefined : near.meadow.beasts.find((b) => b.id === beast)?.kind;
+    if (kind !== undefined) return near.meadow.kinds[kind]?.ref ?? null;
+    for (const p of near.band.people) {
+      const at = bandLayer.onScreen(near.band, p.id);
+      if (at && Math.hypot(at.x - x, at.y - y) < 24)
+        return `camp:${near.info.cell}:${near.info.camp.id}`;
+    }
+    return null;
+  };
+  const tapCamp = (x: number, y: number) => {
+    const ref = campThingAt(x, y);
+    if (ref) void pageWindow.open(ref);
+  };
+  stage.onUpdate(() => {
+    if (scale !== "camp" || !near || !meadowScene || !bandLayer) return;
+    const t = now(),
+      d = t - near.t;
+    near.t = t;
+    // (A leap of the world's clock — a day gone at once — is not lived through, step by step.)
+    if (d > 0 && d < DAY) {
+      near.owed += d / BAND_SECOND;
+      near.time += d / BAND_SECOND;
+    }
+    let n = 0;
+    while (near.owed >= MEADOW_STEP && n < 12) {
+      stepMeadow(near.meadow);
+      stepBand(near.band, near.meadow);
+      near.owed -= MEADOW_STEP;
+      n++;
+    }
+    if (n === 12) near.owed = 0;
+    // Their hour kept to the world's (a slow machine's frames, too few to step every moment,
+    // would leave their day behind it).
+    const hour = ((t % DAY) / DAY) * 24,
+      off = Math.abs(bandHour(near.band) - hour);
+    if (Math.min(off, 24 - off) > 0.5) near.band.clock = (hour / 24) * BAND_DAY;
+    near.band.news.length = 0;
+    meadowScene.update(near.meadow, near.bodies);
+    bandLayer.update(near.band, near.time);
+    stage.daylight(bandHour(near.band) / 24);
+    const wall = performance.now();
+    if (wall - near.toldAt >= 250) {
+      near.toldAt = wall;
+      campPanel.say(bandWords(near.band));
+    }
+  });
+  exposed.near = () =>
+    near && bandLayer
+      ? {
+          cell: near.info.cell,
+          camp: near.info.camp.id,
+          people: near.band.people.length,
+          beasts: near.meadow.beasts.length,
+          kinds: near.meadow.kinds.map((k) => k.name),
+          hour: bandHour(near.band),
+          day: near.band.day,
+          kills: near.band.kills,
+          doing: bandWords(near.band),
+          parts: bandLayer.count(),
+        }
+      : null;
   villagePanel.onClose = () => selectPerson(null);
   villagePanel.onBack = () => {
     village.visible = false;
@@ -3112,6 +3391,12 @@ async function runPlanetPage(): Promise<void> {
       villagePanel.visible = false;
       plan = null;
       watched = null;
+    } else if (scale === "camp") {
+      if (meadowScene) meadowScene.visible = false;
+      if (bandLayer) bandLayer.root.enabled = false;
+      campPanel.visible = false;
+      rig.follow = null;
+      near = null;
     } else if (
       scale === "system" ||
       scale === "cluster" ||
@@ -3374,11 +3659,16 @@ async function runPlanetPage(): Promise<void> {
   exposed.landTown = (ref: string) => region.land.townAt(ref);
   exposed.landParts = () => region.land.count;
   exposed.land = () => region.land.info();
+  exposed.camps = () =>
+    scale === "region" ? region.land.camps.info().map((c) => ({ ...c, cell: regionCell })) : [];
   exposed.landCarrier = (kind: string) => region.land.carrier(kind as CarrierKind);
 
   stage.onUpdate(() => {
-    if (scale !== "region" || !villages.length) return;
+    const camps = landPlan?.camps ?? [];
+    if (scale !== "region" || (!villages.length && !camps.length && !campsLabelled)) return;
+    campsLabelled = camps.length > 0;
     const at = region.screenOf(villages.map((v) => v.tile)),
+      campsAt = region.land.camps.named(stage.camera.camera!),
       wall = performance.now();
     labels.update([
       ...villages.map((v, i) => {
@@ -3390,6 +3680,13 @@ async function runPlanetPage(): Promise<void> {
           priority: v.population,
         };
       }),
+      // Its bands' camps, under its towns' names (Phase 28 M159).
+      ...camps.map((c) => ({
+        key: `camp:${regionCell}:${c.id}`,
+        text: campWords(c),
+        at: campsAt.get(c.id) ?? null,
+        priority: -1 + c.people / 1e6,
+      })),
       // Its hosts' counters and its battles, over the towns about them (M95, M101).
       ...regionWars.labels().map((l) =>
         l.badge
@@ -3432,47 +3729,99 @@ async function runPlanetPage(): Promise<void> {
       !!(await client.query<Sky>({ type: "space.state", args: {} })).peoples?.landings.some(
         (l) => l.cell === land.cell && l.year > sailed,
       );
-    // They cross in a year: the world is carried on, a year at a time, to the morning after they
-    // come down, not waited on at whatever pace it runs (on a slow machine, minutes).
-    for (let years = 0; years < 4 && !(await landed()); years++) {
-      const now = (await client.advance(0)).t;
-      await client.advance((Math.floor(now / YEAR) + 1) * YEAR + 9 * (DAY / 24));
+    // The clock held from the call until the eye is among them: the world is carried on by
+    // hand, a year at a time, to the morning after they come down (their landing told at the
+    // turn of the year after it), and the town readied, not run on at the globe's pace meanwhile
+    // — on a slow machine each ask took seconds, and years went by in them: they had come and
+    // gone before they could be seen.
+    time.hold("strangers");
+    try {
+      for (let years = 0; years < 4 && !(await landed()); years++) {
+        const now = (await client.advance(0)).t;
+        await client.advance((Math.floor(now / YEAR) + 1) * YEAR + 9 * (DAY / 24));
+      }
+      if (await landed()) {
+        await toStrangers(land.cell);
+        return;
+      }
+    } finally {
+      time.release("strangers");
     }
+    // (Not come in the years carried on: waited on as the world runs.)
     for (let tries = 0; tries < 240; tries++) {
       if (await landed()) {
-        const towns = await client.query<{ ref: string; cell: number; people: number }[]>({
-            type: "towns.map",
-            args: {},
-          }),
-          town = towns.filter((t) => t.cell === land.cell).sort((a, b) => b.people - a.people)[0];
-        if (!town) return;
-        // (Seen by day: on to the next morning if they came down by night.)
-        const at = (await client.advance(0)).t,
-          hour = DAY / 24,
-          of = at % DAY;
-        if (of < 7 * hour || of >= 17 * hour)
-          await client.advance(at - of + (of < 7 * hour ? 0 : DAY) + 9 * hour);
-        await exposed.goTo?.(town.ref);
-        // Once they are drawn among its people, the eye goes down to them, as a tap on their
-        // ship would take it.
-        for (let wait = 0; wait < 120; wait++) {
-          const view = scale === "village" ? village.visitorsView() : null;
-          if (view) {
-            rig.flyTo({ target: view.at, distance: view.distance, pitch: view.pitch });
-            return;
-          }
-          await new Promise((r) => setTimeout(r, 250));
+        time.hold("strangers");
+        try {
+          await toStrangers(land.cell);
+        } finally {
+          time.release("strangers");
         }
         return;
       }
       await new Promise((r) => setTimeout(r, 500));
     }
   };
+  /** Down to the greatest town of the land strangers came down in, and among them there. */
+  const toStrangers = async (cell: number) => {
+    const towns = await client.query<{ ref: string; cell: number; people: number }[]>({
+        type: "towns.map",
+        args: {},
+      }),
+      town = towns.filter((t) => t.cell === cell).sort((a, b) => b.people - a.people)[0];
+    if (!town) return;
+    // (Seen by day: on to the next morning if they came down by night.)
+    const at = (await client.advance(0)).t,
+      hour = DAY / 24,
+      of = at % DAY;
+    if (of < 7 * hour || of >= 17 * hour)
+      await client.advance(at - of + (of < 7 * hour ? 0 : DAY) + 9 * hour);
+    await exposed.goTo?.(town.ref);
+    // Once they are drawn among its people, the eye goes down to them, as a tap on their ship
+    // would take it (waited on for as long as a slow machine takes to draw the town).
+    for (const end = performance.now() + 120_000; performance.now() < end;) {
+      const view = scale === "village" ? village.visitorsView() : null;
+      if (view) {
+        rig.flyTo({ target: view.at, distance: view.distance, pitch: view.pitch });
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  };
   if (params.has("contact") && !loaded) void strangersCome();
   // Begun from the genesis at the first people (?cradle, Phase 24): the rising flows on into their
-  // first years — the eye on their lands while their bands wander, and down to the first camp
-  // they settle as it is made (by day), unless the viewer has gone elsewhere by then.
+  // first years — the eye down on the land most peopled, its bands camped about it (Phase 28
+  // M159), near the greatest camp, while they wander; and down to the first camp they settle as
+  // it is made (by day), unless the viewer has gone elsewhere by then.
   const toTheCradle = async () => {
+    const map = await client.query<{ cell: number; people: number }[]>({
+        type: "people.map",
+        args: {},
+      }),
+      land = [...map].sort((a, b) => b.people - a.people || a.cell - b.cell)[0];
+    let down = -1;
+    if (land && scale === "globe" && !pageWindow.current) {
+      await fadeOver(() => ready("the land", () => toRegion(land.cell)));
+      down = land.cell;
+      // (Near its greatest camp once the land's camps are drawn.)
+      const here = () => scaleNow() === "region" && regionCell === down;
+      for (let wait = 0; wait < 40 && here(); wait++) {
+        const camps = region.land.camps.info(),
+          most = [...camps].sort((a, b) => b.people - a.people)[0];
+        if (most) {
+          rig.userZoomed = true;
+          rig.flyTo({
+            target: { x: most.x, y: region.land.camps.points()[camps.indexOf(most)]!.y, z: most.z },
+            distance: 18,
+            pitch: -36,
+          });
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+    const watching = () =>
+      !pageWindow.current &&
+      (scaleNow() === "globe" || (scaleNow() === "region" && regionCell === down));
     for (let tries = 0; tries < 900; tries++) {
       const towns = await client.query<{ ref: string; cell: number; people: number }[]>({
           type: "towns.map",
@@ -3480,7 +3829,7 @@ async function runPlanetPage(): Promise<void> {
         }),
         town = [...towns].sort((a, b) => b.people - a.people)[0];
       if (town) {
-        if (scale !== "globe" || pageWindow.current) return;
+        if (!watching()) return;
         const at = (await client.advance(0)).t,
           hour = DAY / 24,
           of = at % DAY;

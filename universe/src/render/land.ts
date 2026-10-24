@@ -41,6 +41,7 @@ import {
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
 import { LandTraffic, type BusyWay, type CarrierKind, type RoadWay } from "./landtraffic.ts";
+import { LandCamps } from "./landcamps.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
 /** How far over the ground a town's ground stands (region units), and how deep its slabs go into it. */
@@ -183,6 +184,8 @@ export class LandLayer {
   private readonly stage: Stage;
   private readonly meshes: Readonly<Record<PartMesh, pc.Mesh>>;
   private readonly traffic: LandTraffic;
+  /** Its bands' camps (Phase 28 M159). */
+  readonly camps: LandCamps;
   /** The ways carriers go along: its roads and railways as drawn this year, its sea lanes (each lane's line worked out once). */
   private roadWays: RoadWay[] = [];
   private railWays: BusyWay[] = [];
@@ -214,6 +217,7 @@ export class LandLayer {
     this.settled = new GroundBatches(stage, this.root, this.meshes);
     this.rising = new GroundBatches(stage, this.root, this.meshes);
     this.traffic = new LandTraffic(stage, this.root, this.meshes);
+    this.camps = new LandCamps(stage, this.root, this.meshes);
   }
 
   /** A new land: its ground, and nothing on it yet. */
@@ -226,6 +230,7 @@ export class LandLayer {
     this.railWays = [];
     this.laneWays = [];
     this.traffic.clear();
+    this.camps.clear();
     this.fields = [];
     this.plan = null;
     this.roadsKey = "";
@@ -264,6 +269,7 @@ export class LandLayer {
     const g = this.ground;
     if (!g) return;
     this.plan = plan;
+    this.camps.set(plan.camps ?? [], g);
     const seen = new Set<string>();
     let changed = false;
     for (const town of plan.towns) {
@@ -336,6 +342,7 @@ export class LandLayer {
     if (!g || !this.plan) return;
     this.running = running;
     this.traffic.move(g, running);
+    this.camps.update(running);
     const wall = performance.now();
     if (Math.abs(t - this.drawnAt) >= RISE_EVERY && wall - this.drawnWall >= RISE_WAIT) {
       this.drawnAt = t;
@@ -501,6 +508,8 @@ export class LandLayer {
     roads: number;
     lanes: number;
     traffic: Partial<Record<CarrierKind, number>>;
+    camps: number;
+    campParts: number;
   } {
     let roads = 0;
     for (const b of Object.values(this.roadBatches)) roads += b?.size ?? 0;
@@ -511,6 +520,8 @@ export class LandLayer {
       roads,
       lanes: this.laneWays.length,
       traffic: this.traffic.info(),
+      camps: this.camps.info().length,
+      campParts: this.camps.count,
     };
   }
 
@@ -523,6 +534,7 @@ export class LandLayer {
     this.settled.destroy();
     this.rising.destroy();
     this.traffic.destroy();
+    this.camps.destroy();
     for (const b of this.fieldBatches) b.destroy();
     for (const b of Object.values(this.roadBatches)) b?.destroy();
     this.root.destroy();

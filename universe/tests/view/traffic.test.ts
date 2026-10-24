@@ -112,6 +112,7 @@ const planAt = (year: number, towns: LandTown[]): LandPlan => ({
   towns,
   roads: [],
   lanes: [],
+  camps: [],
 });
 
 test("what each town did between two plans is told on its label in a few words", () => {

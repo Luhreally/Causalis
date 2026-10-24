@@ -205,6 +205,9 @@ jobs:
       - run: npm run gate:28 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      - run: npm run gate:29 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

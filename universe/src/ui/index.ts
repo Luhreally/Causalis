@@ -7,6 +7,7 @@ export { PlanetPanel, type ChipKind, type PeopleEntry, type WorldStats } from ".
 export { RegionPanel } from "./region-panel.ts";
 export { SystemPanel } from "./system-panel.ts";
 export { WorldPanel } from "./world-panel.ts";
+export { CampPanel } from "./camp-panel.ts";
 export { GalaxyPanel } from "./galaxy-panel.ts";
 export { ClusterPanel } from "./cluster-panel.ts";
 export { VillagePanel } from "./village-panel.ts";

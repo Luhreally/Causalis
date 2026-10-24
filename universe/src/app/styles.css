@@ -522,6 +522,13 @@ body[data-scale="micro"] {
   padding: 3px 10px;
   font-size: 0.88rem;
 }
+/* What a band seen near is at now (Phase 29 M160): a line of its own under the bar's buttons. */
+.camp-doing {
+  flex-basis: 100%;
+  font-size: 0.82rem;
+  color: #a9e3c9;
+  font-variant-numeric: tabular-nums;
+}
 .genesis .genesis-count {
   margin: 0 0 6px;
   font-size: 0.82rem;

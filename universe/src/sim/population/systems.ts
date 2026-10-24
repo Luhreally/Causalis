@@ -1414,6 +1414,11 @@ export function sitesReady(ctx: PopulationContext, cell: number): boolean {
 export function prepareSites(ctx: PopulationContext, cell: number): void {
   siteBlocks(ctx, cell);
 }
+/** A land's village sites, best first (tiles of its full region): where its bands range too (Phase 28 M159). */
+export function landSites(ctx: PopulationContext, cell: number): readonly number[] {
+  const { tiles, order } = siteBlocks(ctx, cell);
+  return Array.from(order, (b) => tiles[b]!);
+}
 
 function chooseSite(
   ctx: PopulationContext,

@@ -416,6 +416,8 @@ export type PageKind =
   | "lot"
   | "building"
   | "walls"
+  /** A band's camp on its land (Phase 28 M159). */
+  | "camp"
   | "unknown";
 
 export type PageModel = {

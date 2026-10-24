@@ -8,11 +8,29 @@
 // learned to pave them, railed from the year it learned railways between towns of a size to want
 // them; and how busy each is, by the towns it joins or the goods that went down it last year, and
 // the sea lanes its ships sail toward the lands across the sea they have reached (Phase 26 M153).
-// Looked at, never lived.
-import { mix, yearOfMoment, type World } from "../kernel/index.ts";
-import { isProvinceWorld } from "../gen/index.ts";
-import { citiesOf, loreOf, marketsOf, populationContext, regionOf, townsOf } from "../sim/index.ts";
-import type { LandLane, LandPlan, LandRoad, LandTown, TownPlan } from "../bridge/index.ts";
+// And its bands' camps (Phase 28 M159): those of its people who forage or herd, in no village,
+// ranging about its good sites and camped this season near one. Looked at, never lived.
+import { YEAR, mix, yearOfMoment, type World } from "../kernel/index.ts";
+import { WATER, isProvinceWorld } from "../gen/index.ts";
+import { OCC, OCCUPATIONS } from "../rules/index.ts";
+import {
+  citiesOf,
+  landSites,
+  loreOf,
+  marketsOf,
+  populationContext,
+  provinceOfTile,
+  regionOf,
+  townsOf,
+} from "../sim/index.ts";
+import type {
+  LandCamp,
+  LandLane,
+  LandPlan,
+  LandRoad,
+  LandTown,
+  TownPlan,
+} from "../bridge/index.ts";
 import { townPlan } from "./town.ts";
 import { landEra, townSite } from "./village.ts";
 
@@ -24,6 +42,12 @@ const SHARE = 0.6;
 const RAIL_TOWN = 800;
 /** The most carts on a road at once, and ships on a lane. */
 const MOST_TRAFFIC = 8;
+/** People to a band; the most camps a land draws; how far a band's camps go from its range's
+ * middle, and how far apart ranges and villages keep (tiles of the land's map). */
+const BAND_PEOPLE = 30;
+const MOST_CAMPS = 16;
+export const CAMP_RANGE = 3;
+const APART = 6;
 
 /** How busy a way is by the goods that went down it last year: one, and more for more. */
 function busy(goods: number): number {
@@ -41,15 +65,18 @@ function planKey(plan: TownPlan | null): number {
   return mix(h, plan.paved ? 1 : 0) >>> 0;
 }
 
+/** A land's towns that stand (a town forsaken still stands, in ruins, while its fabric does). */
+function settledIn(world: World, cell: number) {
+  const fabrics = townsOf(world);
+  return populationContext(world)
+    .settlements.inProvince(cell)
+    .filter((s) => s.population > 0 || fabrics.get(s.ref));
+}
+
 /** A land's towns, each with its plan out to its share of `budget` lots, and its roads. */
 export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
-  const ctx = populationContext(world),
-    fabrics = townsOf(world),
-    cities = citiesOf(world),
-    // (A town forsaken still stands, in ruins, while its fabric does.)
-    settled = ctx.settlements
-      .inProvince(cell)
-      .filter((s) => s.population > 0 || fabrics.get(s.ref)),
+  const cities = citiesOf(world),
+    settled = settledIn(world, cell),
     era = landEra(world, cell),
     fields = era !== "forage",
     plans = new Map<string, TownPlan | null>();
@@ -90,7 +117,79 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
     towns,
     roads: landRoads(world, cell, towns),
     lanes: landLanes(world, cell, towns),
+    camps: landCamps(world, cell, towns),
   };
+}
+
+/**
+ * A land's bands' camps (Phase 28 M159): its people in no village (with their children, as many
+ * as share their work) — all of them before its first village is peopled, after it those who
+ * forage, the villages holding the rest — camped about its best sites that no village holds: a
+ * band to every BAND_PEOPLE of them, as many camps as there are bands up to MOST_CAMPS (more bands
+ * to a camp past that); its herders' camps the first, as many as their share. Each camp this
+ * season on a keyed tile of dry ground near its range's middle: moving camp as the seasons turn.
+ */
+export function landCamps(
+  world: World,
+  cell: number,
+  towns: readonly { readonly tile: number }[] = settledIn(world, cell),
+): LandCamp[] {
+  const ctx = populationContext(world),
+    p = ctx.provinces.get(cell);
+  // (A people of the water keeps no camp of tents on the land.)
+  if (!p || ctx.medium === "water") return [];
+  let grown = 0;
+  for (let o = 0; o < OCCUPATIONS.length; o++) if (o !== OCC.dependent) grown += p.occupation(o);
+  const peopled = ctx.settlements.inProvince(cell).some((s) => s.population > 0),
+    herders = peopled ? 0 : p.occupation(OCC.herder),
+    roamers = peopled ? p.occupation(OCC.forager) : grown,
+    people = grown > 0 ? Math.round((p.total() * roamers) / grown) : 0;
+  if (people < BAND_PEOPLE / 3) return [];
+  const r = regionOf(ctx, cell),
+    size = r.size,
+    apart = (a: number, b: number) => {
+      const di = (a % size) - (b % size),
+        dj = Math.floor(a / size) - Math.floor(b / size);
+      return di * di + dj * dj >= APART * APART;
+    },
+    want = Math.max(1, Math.min(MOST_CAMPS, Math.round(people / BAND_PEOPLE))),
+    homes: number[] = [];
+  for (const site of landSites(ctx, cell)) {
+    if (homes.length >= want) break;
+    if (towns.every((t) => apart(t.tile, site)) && homes.every((h) => apart(h, site)))
+      homes.push(site);
+  }
+  if (!homes.length) return [];
+  const year = Math.floor(world.now / YEAR),
+    season = Math.floor(((world.now % YEAR) / YEAR) * 4),
+    herding = Math.round((homes.length * herders) / Math.max(1, roamers)),
+    // (Some ranges hold more than others: a keyed share of the land's roamers each.)
+    weights = homes.map((_, id) => 0.55 + 0.9 * ((mix(mix(0x2c1b3c6d, cell), id) >>> 0) / 2 ** 32)),
+    whole = weights.reduce((a, b) => a + b, 0);
+  return homes.map((home, id) => {
+    const each = (people * weights[id]!) / whole;
+    // This season's camp: a keyed tile of its range, on dry ground of the land (else its middle).
+    let tile = home;
+    for (let k = 0; k < 8; k++) {
+      const h = mix(mix(mix(mix(0x51ed270b, cell), id), year), season * 8 + k) >>> 0,
+        i = (home % size) + (h % (2 * CAMP_RANGE + 1)) - CAMP_RANGE,
+        j = Math.floor(home / size) + (Math.floor(h / 4099) % (2 * CAMP_RANGE + 1)) - CAMP_RANGE,
+        t = j * size + i;
+      if (i < 1 || j < 1 || i >= size - 1 || j >= size - 1) continue;
+      if (r.water[t] === WATER.land && provinceOfTile(ctx, r, t) === cell) {
+        tile = t;
+        break;
+      }
+    }
+    return {
+      id,
+      tile,
+      home,
+      people: Math.round(each),
+      bands: Math.max(1, Math.round(each / BAND_PEOPLE)),
+      herds: id < herding,
+    };
+  });
 }
 
 /** A land's roads: between its towns, each to the nearest founded before it; and out of it by road. */

@@ -9,7 +9,7 @@
 // trodden, then paved, then railed. Pure: what is drawn, in the region's units (kilometres).
 import { MinHeap, YEAR } from "../kernel/index.ts";
 import { civic, type CivicKind } from "../rules/index.ts";
-import type { LandPlan, LandRoad, LandTown } from "../bridge/index.ts";
+import type { LandCamp, LandPlan, LandRoad, LandTown } from "../bridge/index.ts";
 import { REGION_RELIEF, type RegionTree } from "./region.ts";
 import { sprawlOf, type TownScene } from "./town.ts";
 import { townReach } from "../bridge/index.ts";
@@ -534,4 +534,10 @@ export function landTidings(prev: LandPlan | null, next: LandPlan): Map<string, 
     if (said.length) out.set(t.ref, said.slice(0, 2).join(", "));
   }
   return out;
+}
+
+/** A camp's name on the land (Phase 28 M159): its bands, whether they herd, how many they are. */
+export function campWords(c: LandCamp): string {
+  const who = c.bands > 1 ? `${c.bands} bands` : "a band";
+  return `${c.herds ? "🐑" : "⛺"} ${who}${c.herds ? " of herders" : ""} · ${c.people}`;
 }

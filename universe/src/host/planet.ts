@@ -126,6 +126,7 @@ import { realmColor } from "./colors.ts";
 import { hostKinds, realmArms } from "./arms.ts";
 import { villagePlan } from "./village.ts";
 import { landPlan } from "./land.ts";
+import { campNear } from "./camp.ts";
 import { landReadings } from "./lenses.ts";
 import { genesisOf } from "./genesis.ts";
 import { TRAIT_LOOK } from "./inspect/folk.ts";
@@ -1123,6 +1124,11 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "towns.land": (world, args) => {
         const a = args as { cell: number; most?: number };
         return landPlan(world, a.cell, a.most);
+      },
+      // A camp of a land's bands seen near (Phase 29 M160).
+      "camp.near": (world, args) => {
+        const a = args as { cell: number; id: number };
+        return campNear(world, a.cell, a.id);
       },
       ...OBSERVE_QUERIES,
       ...PAGE_QUERIES,

@@ -15,7 +15,7 @@ const MINUTE = 60,
 
 /** The scales time is watched at (the sandbox's ring of cells among them). */
 export type TimeScale =
-  "village" | "region" | "globe" | "world" | "system" | "cluster" | "galaxy" | "ring";
+  "camp" | "village" | "region" | "globe" | "world" | "system" | "cluster" | "galaxy" | "ring";
 
 /** A scale's speeds (sim seconds a real second), slowest first, and the one it opens at. */
 export type TimeLadder = { readonly speeds: readonly number[]; readonly start: number };
@@ -23,6 +23,8 @@ export type TimeLadder = { readonly speeds: readonly number[]; readonly start: n
 export const TIME_LADDERS: Readonly<Record<TimeScale, TimeLadder>> = {
   // A town close: a person's day (a minute, an hour a second), a day a second, and its months
   // and years going by, for the town to be watched growing.
+  // A band of a camp seen near (Phase 29 M160): their day in two minutes, in one, in forty seconds.
+  camp: { speeds: [12 * MINUTE, 24 * MINUTE, 36 * MINUTE], start: 12 * MINUTE },
   village: { speeds: [MINUTE, HOUR, DAY, MONTH, YEAR], start: HOUR },
   // A land: a day or a week a second (a host on the march), its months, its years and decades.
   region: { speeds: [DAY, WEEK, MONTH, YEAR, 10 * YEAR], start: MONTH },

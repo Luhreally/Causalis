@@ -102,6 +102,8 @@ export class PageWindow {
   onGoTo: (place: Place, ref: string) => void = () => {};
   /** Go down to a town's land and watch it grow (Phase 26 M154). */
   onWatch: ((cell: number, town: string) => void) | null = null;
+  /** Down among a band of a land's camp (Phase 29 M160). */
+  onNear: ((cell: number, camp: number) => void) | null = null;
   /** Told as each page opens (the scales mark what it is). */
   onOpen: (page: PageModel) => void = () => {};
   onClose: () => void = () => {};
@@ -744,6 +746,7 @@ export class PageWindow {
           },
           open: (ref) => void this.open(ref),
           ...(this.onWatch ? { watch: this.onWatch } : {}),
+          ...(this.onNear ? { near: this.onNear } : {}),
         });
         break;
     }

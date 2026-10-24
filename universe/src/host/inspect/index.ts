@@ -41,6 +41,7 @@ import { conceptPage, withConcepts } from "./concepts.ts";
 import { sicknessPage } from "./sickness.ts";
 import { housePage } from "./credit.ts";
 import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
+import { campPage } from "./camp.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
 function build(world: World, ref: string, tab: string | null): PageModel {
@@ -68,6 +69,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("lot:")) return lotPage(world, ref);
   if (ref.startsWith("bldg:")) return buildingPage(world, ref);
   if (ref.startsWith("walls:")) return wallsPage(world, ref);
+  // A band's camp on its land (Phase 28 M159).
+  if (ref.startsWith("camp:")) return campPage(world, ref);
   const code = ref.slice(0, ref.indexOf(":")),
     t = tab ?? undefined;
   switch (code) {

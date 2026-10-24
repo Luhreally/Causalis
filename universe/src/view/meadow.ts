@@ -9,7 +9,7 @@
 // lineages come and go: those that died out at an age's end fall, those newly arisen walk in.
 // The god's hand may green the land or parch it, hearten the hunters or shelter the hunted; what
 // prospered under it, against the same land left alone beside it, bends the ages after it. Pure.
-import type { GenesisPlan } from "../bridge/index.ts";
+import type { MeadowPlan } from "../bridge/index.ts";
 import type { LifeWay } from "../rules/index.ts";
 
 /** The stretch of land, metres across and deep (the beasts drawn on it as the village draws them). */
@@ -92,6 +92,8 @@ export type MeadowKind = {
   readonly herd: number;
   /** Died out at an age's end: its last fall and no more are born. */
   gone: boolean;
+  /** A band's own flock (Phase 29 M160): its hunters leave it be. */
+  tame?: boolean;
 };
 
 export type Beast = {
@@ -204,7 +206,7 @@ const GROWTH: Readonly<Record<string, number>> = {
 };
 
 /** A lineage of the plan as a kind of the meadow (null: no beast of it walks the land). */
-function kindOf(plan: GenesisPlan, lineage: number): MeadowKind | null {
+function kindOf(plan: MeadowPlan, lineage: number): MeadowKind | null {
   const l = plan.lineages[lineage];
   if (!l?.body) return null;
   const feed = FEED_OF[l.niche];
@@ -240,7 +242,7 @@ function kindOf(plan: GenesisPlan, lineage: number): MeadowKind | null {
 }
 
 /** The lineages living in an age that walk the meadow: the newest of each way, as many as it holds. */
-export function meadowLineages(plan: GenesisPlan, age: number): number[] {
+export function meadowLineages(plan: MeadowPlan, age: number): number[] {
   const taken: Partial<Record<Feed, number>> = {};
   return plan.lineages
     .map((l, i) => ({ l, i }))
@@ -279,9 +281,15 @@ function inPond(s: MeadowState, x: number, z: number, margin = 0): boolean {
 
 /**
  * The meadow of an age: its ground as the age has it, its grass and woods, its pool if anything
- * swims, and the beasts of its living lineages, each lineage as many as it brings.
+ * swims, and the beasts of its living lineages, each lineage as many as it brings. (Bare in the
+ * first age, before life came ashore — unless it is a land of now, Phase 29 M160.)
  */
-export function newMeadow(plan: GenesisPlan, age: number, seedText = plan.seed): MeadowState {
+export function newMeadow(
+  plan: MeadowPlan,
+  age: number,
+  seedText = plan.seed,
+  ashore = age > 0,
+): MeadowState {
   const a = plan.ages[age],
     rnd = seeded(hashText(`${seedText} meadow ${age}`)),
     s: MeadowState = {
@@ -312,7 +320,6 @@ export function newMeadow(plan: GenesisPlan, age: number, seedText = plan.seed):
   // The pool, at one side.
   s.pond = { x: MEADOW_W * 0.28, z: -MEADOW_H * 0.18, r: 13, food: 1 };
   // (Before life came ashore the land is bare: it greens in the age the first beasts walk it.)
-  const ashore = age > 0;
   for (let i = 0; i < s.grass.length; i++) {
     const m = cellMiddle(i);
     s.grass[i] = inPond(s, m.x, m.z, 1) || !ashore ? 0 : 0.55 + 0.4 * rnd();
@@ -342,7 +349,7 @@ function woods(s: MeadowState): void {
 }
 
 /** A lineage come into the meadow: its beasts about the meadow, or walking in from its edge. */
-function arrive(s: MeadowState, plan: GenesisPlan, lineage: number, walkIn: boolean): void {
+function arrive(s: MeadowState, plan: MeadowPlan, lineage: number, walkIn: boolean): void {
   const kind = kindOf(plan, lineage);
   if (!kind) return;
   const k = s.kinds.length;
@@ -410,7 +417,7 @@ function born(
 }
 
 /** The age come on: lineages that died out fall, the newly arisen walk in, the land as the age has it. */
-export function meadowAge(s: MeadowState, plan: GenesisPlan, age: number): MeadowState {
+export function meadowAge(s: MeadowState, plan: MeadowPlan, age: number): MeadowState {
   const a = plan.ages[age],
     wanted = new Set(meadowLineages(plan, age)),
     out: MeadowState = { ...s, age };

@@ -17,7 +17,9 @@ export type Label = {
 };
 
 const WIDTH_PER_CHAR = 7,
-  HEIGHT = 18;
+  HEIGHT = 18,
+  /** How far a name keeps from the screen's edge (px). */
+  EDGE = 4;
 
 /** How often the panels' places are read again (ms): each read makes the page lay itself out. */
 const READ_EVERY = 200;
@@ -29,6 +31,9 @@ export class LabelLayer {
   /** Where the panels stood when last read, about this layer; and when that was. */
   private blocked: { x0: number; x1: number; y0: number; y1: number }[] = [];
   private readAt = -Infinity;
+  /** The layer's size when last read (0: not laid out yet): a name is kept within it. */
+  private width = 0;
+  private height = 0;
 
   /** Panels over the scene: a label that would fall under one is hidden. */
   get blockers(): HTMLElement[] {
@@ -57,6 +62,8 @@ export class LabelLayer {
       // page lay itself out again before it can go on.)
       this.readAt = now;
       const origin = this.root.getBoundingClientRect();
+      this.width = origin.width;
+      this.height = origin.height;
       this.blocked = [];
       for (const b of this.blocking)
         for (const r of b.getClientRects())
@@ -95,9 +102,18 @@ export class LabelLayer {
         span.classList.toggle("foe", l.badge.stance === "foe");
       } else if (span.textContent !== l.text) span.textContent = l.text;
       let at = l.at;
+      const w = ((l.badge ? l.text.length + 3 : l.text.length) * WIDTH_PER_CHAR) / 2 + 8;
+      // (A name whose place is off the screen is hidden; one at its edge, moved within it.)
+      if (at && this.width > 0 && this.height > 0)
+        at =
+          at.x < 0 || at.x > this.width || at.y < 0 || at.y > this.height
+            ? null
+            : {
+                x: Math.max(Math.min(at.x, this.width - w - EDGE), w + EDGE),
+                y: Math.max(at.y, HEIGHT + EDGE),
+              };
       if (at) {
-        const w = ((l.badge ? l.text.length + 3 : l.text.length) * WIDTH_PER_CHAR) / 2 + 8,
-          box = { x0: at.x - w, x1: at.x + w, y0: at.y - HEIGHT, y1: at.y };
+        const box = { x0: at.x - w, x1: at.x + w, y0: at.y - HEIGHT, y1: at.y };
         if (placed.some((p) => p.x0 < box.x1 && box.x0 < p.x1 && p.y0 < box.y1 && box.y0 < p.y1))
           at = null;
         else placed.push(box);

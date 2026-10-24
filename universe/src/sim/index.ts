@@ -59,6 +59,8 @@ export {
   REGION_SIZE,
   PROVINCE_TILE_KM,
   prepareSites,
+  landSites,
+  provinceOfTile,
   hallsShare,
   spaceSteps,
   sitesReady,

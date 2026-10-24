@@ -8,6 +8,7 @@
 // fallen or burnt; its other buildings rising, standing, fallen; its walls. Shared by the host
 // (its people's homes, where its fields begin) and the view (what is drawn).
 import { MONTH, YEAR, mix } from "../kernel/index.ts";
+import type { GenesisPlan, MeadowPlan } from "./genesis.ts";
 
 /** A lot: so many metres along its street, so many deep. */
 export const LOT_W = 9;
@@ -524,11 +525,50 @@ export type LandLane = {
 /** How far a land has come, for what its people carry their goods in. */
 export type LandEra = "forage" | "farm" | "metal" | "industry" | "modern";
 
-/** A land's towns and roads, as the land draws them at moment `t`. */
+/**
+ * A camp of a land's bands (Phase 28 M159): of its people who forage or herd and so live in no
+ * village, those ranging about one of the land's good sites — where its villages are founded once
+ * they come to farm — camped this season on a tile near it.
+ */
+export type LandCamp = {
+  /** Its number among the land's camps (its range: the same from season to season). */
+  readonly id: number;
+  /** Where it is camped this season (a tile of the land's map), and its range's middle. */
+  readonly tile: number;
+  readonly home: number;
+  /** How many camp there, in how many bands; whether they herd (their flocks about them). */
+  readonly people: number;
+  readonly bands: number;
+  readonly herds: boolean;
+};
+
+/** A land's towns and roads, as the land draws them at moment `t`; and its bands' camps. */
 export type LandPlan = {
   readonly t: number;
   readonly era: LandEra;
   readonly towns: readonly LandTown[];
   readonly roads: readonly LandRoad[];
   readonly lanes: readonly LandLane[];
+  readonly camps: readonly LandCamp[];
+};
+
+/**
+ * A camp of a land's bands seen near (Phase 29 M160): what one of its bands lives its day among —
+ * the land's own beasts and grasses now (as a meadow is made from), the people's figure, how many
+ * the band is, the world's hour.
+ */
+export type CampNear = {
+  readonly cell: number;
+  readonly camp: LandCamp;
+  /** The land's name, and its people's as the world calls them. */
+  readonly land: string;
+  readonly people: string;
+  readonly figure: NonNullable<GenesisPlan["people"]>["figure"] | null;
+  /** The land's living lineages now, all of its one age (the present). */
+  readonly plan: MeadowPlan;
+  /** Their flocks, when they herd (indices among the plan's lineages). */
+  readonly flocks: readonly number[];
+  /** How many the band seen is, and the hour of the world's day (0 … 24). */
+  readonly size: number;
+  readonly hour: number;
 };

@@ -15,6 +15,8 @@ export type ToolContext = {
   readonly open: (ref: string) => void;
   /** Go down to a town's land and watch it grow (Phase 26 M154). */
   readonly watch?: (cell: number, town: string) => void;
+  /** Go down among a band of a land's camp (Phase 29 M160). */
+  readonly near?: (cell: number, camp: number) => void;
 };
 
 type Settlement = {
@@ -86,6 +88,15 @@ export function drawTool(
       b.title =
         "Down to its land with the clock at a year a second: its homes raised, rebuilt higher and fallen, its buildings begun, the carts on its roads.";
       b.onclick = () => ctx.watch!(args.cell as number, args.town as string);
+      into.append(b);
+      return;
+    }
+    case "watch.camp": {
+      if (!ctx.near) return;
+      const b = el("button", "act", "👣 Watch them near");
+      b.title =
+        "Down among one of the camp's bands, at the world's own hour: gathering, hunting the land's beasts, sleeping about the fire.";
+      b.onclick = () => ctx.near!(args.cell as number, args.camp as number);
       into.append(b);
       return;
     }
