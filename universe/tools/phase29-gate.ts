@@ -197,7 +197,7 @@ await begin(page);
         );
       say(`a while on: their hour ${later?.hour.toFixed(1)}, day ${later?.day}; “${bar}”`);
       check(
-        !!first && !!later && (later.day > first.day || later.hour - first.hour > 0.3),
+        !!first && !!later && (later.day > first.day || (later.hour - first.hour + 24) % 24 > 0.3),
         "the band's day does not go on while the clock runs",
       );
       check(/^(The band of|Night: the band of)/.test(bar), "what the band is at is not told");

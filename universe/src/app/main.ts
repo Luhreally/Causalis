@@ -3263,6 +3263,8 @@ async function runPlanetPage(): Promise<void> {
       toldAt: number;
       /** The one of them the eye keeps to (their id; -1: the band). */
       followed: number;
+      /** The world's day they were come down among on (their first day: their day 0). */
+      readonly day0: number;
     } | null = null;
   /** How near the pointer (px) a camp must be to be zoomed into while a village stands on the land. */
   const CAMP_REACH = 90;
@@ -3321,6 +3323,7 @@ async function runPlanetPage(): Promise<void> {
       time: 0,
       toldAt: -Infinity,
       followed: -1,
+      day0: Math.floor(now() / DAY),
     };
     meadowScene.visible = true;
     bandLayer!.root.enabled = true;
@@ -3445,7 +3448,11 @@ async function runPlanetPage(): Promise<void> {
     // would leave their day behind it).
     const hour = ((t % DAY) / DAY) * 24,
       off = Math.abs(bandHour(near.band) - hour);
-    if (Math.min(off, 24 - off) > 0.5) near.band.clock = (hour / 24) * BAND_DAY;
+    if (Math.min(off, 24 - off) > 0.5) {
+      near.band.clock = (hour / 24) * BAND_DAY;
+      // (Set on past midnight, a new day of theirs, as the world's: they are counted together.)
+      near.band.day = Math.max(near.band.day, Math.floor(t / DAY) - near.day0);
+    }
     near.band.news.length = 0;
     meadowScene.update(near.meadow, near.bodies);
     bandLayer.update(near.band, near.time);
