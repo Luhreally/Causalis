@@ -12,6 +12,7 @@ import {
   languagesOf,
   loreOf,
   marketsOf,
+  orderOf,
   politiesOf,
   type Polity,
   populationContext,
@@ -29,6 +30,7 @@ import { realmColor } from "../colors.ts";
 import { faithColor, languageColor } from "../planet.ts";
 import { landEra } from "../village.ts";
 import { bare, claimOf, count, item, link, many, share, stat, yearAt, yearNow } from "./words.ts";
+import { bondsLedger } from "./order.ts";
 import {
   faithLink,
   landLink,
@@ -371,6 +373,15 @@ const COUNTED = [
   "contact.heard",
   "war.rebellion",
   "polity.split",
+  // Bonds and freedoms (Phase 19 M138).
+  "order.captives",
+  "order.bondage",
+  "order.serfdom",
+  "order.indenture",
+  "order.revolt",
+  "order.freed",
+  "order.movement",
+  "order.abolished",
 ] as const;
 
 /** What the world holds for its firsts, read once. */
@@ -903,6 +914,53 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
         b[1]?.year ?? null,
         many(b.length, "battle", "battles"),
         b.length,
+      );
+  }
+  // Bonds and freedoms (Phase 19 M138): the first held, the first rising, movement and law.
+  {
+    const store = orderOf(world),
+      holding = store
+        ? s.realms.filter(
+            (r) => r.ended === null && r.members.some((c) => store.bound(c) >= 0.0005),
+          ).length
+        : 0,
+      held = ["order.captives", "order.bondage", "order.serfdom", "order.indenture"]
+        .flatMap((t) => ev(t))
+        .sort((a, b) => a.year - b.year);
+    if (held[0])
+      add(
+        "⛓️ People held in bondage",
+        held[0],
+        held[1]?.year ?? null,
+        `${many(holding, "realm holds", "realms hold")} the bound`,
+        holding,
+      );
+    const rose = ev("order.revolt");
+    if (rose[0])
+      add(
+        "✊ A rising of the bound",
+        rose[0],
+        rose[1]?.year ?? null,
+        `${many(rose.length, "rising", "risings")}, ${count(ev("order.freed").length)} won`,
+        rose.length,
+      );
+    const moved = ev("order.movement");
+    if (moved[0])
+      add(
+        "📣 A movement of the people",
+        moved[0],
+        moved[1]?.year ?? null,
+        many(moved.length, "movement", "movements"),
+        moved.length,
+      );
+    const outlawed = ev("order.abolished");
+    if (outlawed[0])
+      add(
+        "🕊️ Bondage outlawed",
+        outlawed[0],
+        outlawed[1]?.year ?? null,
+        many(outlawed.length, "realm", "realms"),
+        outlawed.length,
       );
   }
   for (const [type, what, one, more] of [
@@ -1477,6 +1535,8 @@ export function ledgerPage(world: World, tab?: string): PageModel {
     { id: "might", name: "Knowledge", blocks: knowledgeLedger(world, standing, realmPeople) },
     { id: "towns", name: "Towns", blocks: townLedger(world) },
     { id: "wars", name: "Wars", blocks: warLedger(world, now) },
+    // Each realm's order and its bound (Phase 19 M138).
+    { id: "bonds", name: "Bonds", blocks: bondsLedger(world) },
     { id: "faiths", name: "Faiths", blocks: faithLedger(world) },
     { id: "tongues", name: "Tongues", blocks: tongueLedger(world) },
     { id: "life", name: "Life", blocks: lifeLedger(world) },

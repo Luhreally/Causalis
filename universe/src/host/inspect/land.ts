@@ -32,6 +32,7 @@ import { prinRef } from "./matter.ts";
 import { landStoresBlocks } from "./stores.ts";
 import { groundBlocks } from "./ground.ts";
 import { dropBlock } from "./small.ts";
+import { landBondBlocks } from "./order.ts";
 import {
   faithLink,
   landLink,
@@ -456,7 +457,12 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
         title: "Neighbours",
         items: r.neighbours.map((n) => item([link(`${n.name}: ${n.standing}`, n.ref)], n.ref)),
       });
+    // Its bound, and its realm's law and standing (Phase 19 M138).
+    blocks.push(...landBondBlocks(world, cell));
     tabs.push({ id: "realm", name: "Realm", blocks });
+  } else {
+    const bonds = landBondBlocks(world, cell);
+    if (bonds.length) tabs.push({ id: "bonds", name: "Bonds", blocks: bonds });
   }
   // What they know.
   if (p?.lore.length)

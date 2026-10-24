@@ -31,6 +31,8 @@ export const LENSES = [
   "belief",
   "goods",
   "ground",
+  "bondage",
+  "standing",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -59,6 +61,8 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   belief: "Belief",
   goods: "Goods",
   ground: "Ground",
+  bondage: "Bondage",
+  standing: "Standing",
 };
 
 /** Each map mode's icon, for the map modes' bar (Phase 10 M96). */
@@ -87,6 +91,8 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   belief: "🕯️",
   goods: "📦",
   ground: "🪨",
+  bondage: "⛓️",
+  standing: "⚖️",
 };
 
 /** How every land stands toward the realm the diplomacy lens is of, in its colours. */
@@ -288,6 +294,23 @@ const GROWTH: readonly Stop[] = [
   [0.2, [0.06, 0.42, 0.2]],
 ];
 
+/** The share of a land's people held in bondage, all free (pale) to most held (dark rust) — M138. */
+const BONDAGE: readonly Stop[] = [
+  [0, [0.78, 0.82, 0.72]],
+  [0.2, [0.9, 0.78, 0.5]],
+  [0.45, [0.86, 0.5, 0.26]],
+  [0.7, [0.62, 0.2, 0.14]],
+  [1, [0.3, 0.06, 0.08]],
+];
+/** A realm's standing with its people, held wrongful (purple-red) to revered (gold) — M138. */
+const STANDING: readonly Stop[] = [
+  [0.1, [0.46, 0.08, 0.22]],
+  [0.3, [0.82, 0.3, 0.26]],
+  [0.5, [0.86, 0.8, 0.66]],
+  [0.7, [0.5, 0.74, 0.5]],
+  [0.9, [0.98, 0.82, 0.3]],
+];
+
 /** One of a people's ways, held little (cool) to much (warm) — Phase 14 M119. */
 const WAYS_RAMP: readonly Stop[] = [
   [0.15, [0.16, 0.44, 0.84]],
@@ -381,6 +404,9 @@ const DEEP: Readonly<
   growth: { stops: GROWTH, at: (v) => v, shown: () => true },
   ways: { stops: WAYS_RAMP, at: (v) => v, shown: () => true },
   goods: { stops: GOODS_RAMP, at: (v) => Math.sqrt(v), shown: () => true },
+  // (A small share held shows: the root of it.)
+  bondage: { stops: BONDAGE, at: (v) => Math.sqrt(v), shown: () => true },
+  standing: { stops: STANDING, at: (v) => v, shown: (v) => v >= 0 },
 };
 
 /** A biome's colour on the land lens. */
@@ -488,7 +514,9 @@ export function globeColors(
       case "knowledge":
       case "growth":
       case "ways":
-      case "goods": {
+      case "goods":
+      case "bondage":
+      case "standing": {
         const v = values?.get(province),
           deep = DEEP[lens];
         if (v !== undefined && deep && deep.shown(v)) col = ramp(deep.stops, deep.at(v));
@@ -652,6 +680,10 @@ export function lensLegend(lens: Lens): Legend {
         low: "none",
         high: "the most a head",
       };
+    case "bondage":
+      return { kind: "ramp", stops: stops(BONDAGE), low: "all free", high: "most held" };
+    case "standing":
+      return { kind: "ramp", stops: stops(STANDING), low: "held wrongful", high: "revered" };
     case "belief":
       return {
         kind: "keys",

@@ -166,6 +166,61 @@ export function drawTool(
       );
       return;
     }
+    case "acts.order": {
+      // A realm's order in the god's hand (Phase 19 M138): its chains broken, its bound stirred,
+      // a sign for or against its rule. Each asks before it acts; a refusal is said under them.
+      const tools = el("div", "tools"),
+        note = el("p", "note"),
+        realm = args.realm as string,
+        act =
+          (type: string, extra: Record<string, unknown> = {}) =>
+          async () => {
+            await ctx.client.command(type, { realm, ...extra });
+            ctx.refresh();
+          };
+      note.hidden = true;
+      if ((args.bound as number) > 0)
+        twice(
+          tools,
+          note,
+          "⛓️ Break their chains",
+          "Every one held in its lands goes free at once — though its law, unchanged, may bind again.",
+          act("act.unchain"),
+        );
+      if (args.stirrable)
+        twice(
+          tools,
+          note,
+          "✊ Stir the bound to rise",
+          "The bound of its most-held land rise now, against what the realm can bring.",
+          act("act.stir"),
+        );
+      twice(
+        tools,
+        note,
+        "☀️ A sign for its rule",
+        "Its people see the heavens favour their rulers: its standing rises, and the sign is remembered for forty years.",
+        act("act.mandate", { sign: 1 }),
+      );
+      twice(
+        tools,
+        note,
+        "🌩️ A sign against its rule",
+        "Its people see the heavens turn from their rulers: its standing falls, and the sign is remembered for forty years.",
+        act("act.mandate", { sign: -1 }),
+      );
+      into.replaceChildren(
+        el("h3", undefined, "Its order — yours to break or bless"),
+        tools,
+        note,
+        el(
+          "p",
+          "muted",
+          `Its bound rise of themselves where an eighth of a land is held; stirred, they rise where ${args.stir as number} in a hundred are.`,
+        ),
+      );
+      return;
+    }
     case "acts.lineage": {
       // A lineage's nature, the god's to change (Phase 16): how tame, how fast it breeds.
       const push = (trait: string) => async (sign: 1 | -1) => {

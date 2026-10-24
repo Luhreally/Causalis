@@ -61,27 +61,38 @@ test("towns grow into cities, and paving reshapes them, answering to the road's 
     assert.ok(learned.type === LORE_EVENTS.found.type || learned.type === LORE_EVENTS.learned.type);
     assert.equal((learned.data as { principle: string }).principle, "roads");
   }
-  // Each paved city's trade stands nearer its road than the same town's would unpaved
-  // (weighed against itself, not against other towns on other headings).
+  // Each paved city whose quarters have come to their worth stands its trade nearer its road
+  // than the same town's would unpaved (weighed against itself, not against other towns on
+  // other headings). A few blocks move a year: a city paved these last years is still being
+  // reshaped, and is not weighed until it is.
   const ctx = populationContext(world),
     river = homePlanet(world).generated.water.river;
+  let settled = 0;
   for (const c of paved) {
     const town = ctx.settlements.all().find((t) => t.ref === c.town)!,
       p = ctx.provinces.get(c.cell)!,
       share = Math.min(1, town.population / Math.max(1, p.total())),
-      dirt = layout(
-        town.population,
-        Math.round(p.occupation(OCC.crafter) * share * 3),
-        Math.round(p.occupation(OCC.trader) * share * 3),
-        c.axis,
-        false,
-        !!river[c.cell],
-      );
+      laid = (pave: boolean) =>
+        layout(
+          town.population,
+          Math.round(p.occupation(OCC.crafter) * share * 3),
+          Math.round(p.occupation(OCC.trader) * share * 3),
+          c.axis,
+          pave,
+          !!river[c.cell],
+        ),
+      dirt = laid(false);
+    if (laid(true).filter((u, k) => u !== c.uses[k]).length > 12) continue;
+    settled++;
     assert.ok(
       marketsFromRoad(c.uses, c.axis) <= marketsFromRoad(dirt, c.axis) + 0.05,
       `${town.name}: ${marketsFromRoad(c.uses, c.axis).toFixed(2)} paved, ${marketsFromRoad(dirt, c.axis).toFixed(2)} were it not`,
     );
   }
+  assert.ok(
+    settled >= Math.ceil(paved.length / 2),
+    `${settled} of ${paved.length} paved cities come to their worth`,
+  );
   assert.ok(unpaved.length + paved.length === cities.length);
 });
 

@@ -44,6 +44,7 @@ import "./ecology.ts";
 import "./languages.ts";
 import "./climate.ts";
 import "./space.ts";
+import "./order.ts";
 export { priceWords } from "./economy.ts";
 export {
   canWatch,

@@ -5,6 +5,7 @@
 import type { World } from "../../kernel/index.ts";
 import type { Block, Line, PageModel, Stat } from "../../bridge/index.ts";
 import { link, yearNow } from "./words.ts";
+import { ORDER_CONCEPTS, ORDER_CONCEPT_OF } from "./order-concepts.ts";
 
 /** A concept: its icon and name, and what the book says of it. */
 export type Concept = {
@@ -360,6 +361,8 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
     ],
     related: ["lore", "flight"],
   },
+  // Bonds and freedoms (Phase 19 M138).
+  ...ORDER_CONCEPTS,
 };
 
 /** Which concept a number is a measure of, by its label on the pages. */
@@ -422,6 +425,7 @@ export const CONCEPT_OF: Readonly<Record<string, string>> = {
   Blessed: "hand",
   Shrine: "hand",
   Spring: "hand",
+  ...ORDER_CONCEPT_OF,
 };
 
 /** A page's numbers and facts, each linked to the concept it measures (where it has one). */

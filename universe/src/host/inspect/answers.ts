@@ -1,9 +1,11 @@
 // The god's answers to a great happening (Phase 11 M100): which of the hand's acts may answer
 // an event told in its window — rain and a fat harvest for a land in famine; for a realm
-// followed at war, a fat harvest at its seat, a plague upon its foe's, or peace between them.
-// Only what the hand can do, where it can do it (a peopled land). Pure reads of the world.
+// followed at war, a fat harvest at its seat, a plague upon its foe's, or peace between them;
+// for a realm that took captives, crushed a rising, lost its people's faith or met a movement to
+// free its bound, its chains broken or a sign for or against its rule (Phase 19 M138). Only what
+// the hand can do, where it can do it (a peopled land, a realm holding the bound). Pure reads.
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
-import { politiesOf, populationContext, warsOf } from "../../sim/index.ts";
+import { orderOf, politiesOf, populationContext, warsOf } from "../../sim/index.ts";
 import type { Answer } from "../../bridge/index.ts";
 import { landTitle } from "./names.ts";
 
@@ -75,6 +77,34 @@ export function answersOf(world: World, ref: string, watch: string): Answer[] {
           act: "act.peace",
           args: { a: war.attacker, b: war.defender },
         });
+      return out;
+    }
+    case "order.captives":
+    case "order.revolt":
+    case "order.crushed":
+    case "order.crisis":
+    case "order.movement": {
+      const r = politiesOf(world).get(e.subjects[0] as Ref),
+        store = orderOf(world);
+      if (!r || r.ended !== null || !store) return [];
+      const out: Answer[] = [];
+      if (r.members.some((c) => store.bound(c) >= 0.0005))
+        out.push({
+          label: `Break the chains of ${r.town}'s bound`,
+          act: "act.unchain",
+          args: { realm: r.ref },
+        });
+      if (e.type === "order.crisis" || e.type === "order.movement")
+        out.push({
+          label: `A sign for ${r.town}'s rule`,
+          act: "act.mandate",
+          args: { realm: r.ref, sign: 1 },
+        });
+      out.push({
+        label: `A sign against ${r.town}'s rule`,
+        act: "act.mandate",
+        args: { realm: r.ref, sign: -1 },
+      });
       return out;
     }
     default:

@@ -5,7 +5,7 @@
 // market at its heart, the road out — and what lives about it: the land's wild beasts,
 // its hunters and its flocks (Phase 8 M77). Everything here is looked at, not lived: the
 // people's day is drawn from this plan by the view, and nothing flows back.
-import { finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
+import { YEAR, finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
 import { WATER, livingIn, type Species } from "../gen/index.ts";
 import { G, OCC, roofPitch } from "../rules/index.ts";
 import {
@@ -21,6 +21,7 @@ import {
   lifeOf,
   loreOf,
   marketsOf,
+  orderOf,
   politiesOf,
   populationContext,
   realmName,
@@ -338,6 +339,21 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
     if (fed < 0.85) talk.push("hunger");
     if (war) talk.push("war");
     if (unrest > 0.3) talk.push("unrest");
+    // Bonds and freedoms (Phase 19 M138): the bound among them, a rising lately, a freedom won.
+    {
+      const order = orderOf(world),
+        l = order?.land(cell),
+        lately = l?.cause ? world.events.get(l.cause) : undefined,
+        o = realm ? order?.of(realm.ref) : undefined,
+        since = (years: number) => !!lately && lately.t >= (now - years) * YEAR;
+      if ((order?.bound(cell) ?? 0) >= 0.05) talk.push("bondage");
+      if (since(3) && /^order\.(revolt|crushed|freed)$/.test(lately!.type)) talk.push("rising");
+      if (
+        (o && o.abolished !== null && o.abolished >= now - 10) ||
+        (since(10) && (lately!.type === "order.freed" || lately!.type === "act.unchain"))
+      )
+        talk.push("freedom");
+    }
     if (mourning.length) talk.push("grief");
     if (w.flocksTaken) talk.push("flocks");
     if (w.grainEaten) talk.push("pests");

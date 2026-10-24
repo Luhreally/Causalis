@@ -571,6 +571,8 @@ body[data-scale="ground"][data-daylight="night"] {
 }
 .entry {
   display: block;
+  /* (Its padding inside its width: an entry with no page to open is a block, not a button.) */
+  box-sizing: border-box;
   width: 100%;
   margin: 2px 0;
   padding: 4px 8px;

@@ -34,8 +34,18 @@ function keep(key: string, value: string): void {
 
 /** What history counts great (a war, a realm split, a faith founded, a first into the sky). */
 const GREAT = 6;
-/** Great whatever history counts them: a famine where one follows, a realm's fall, a life's end. */
-const ALWAYS: ReadonlySet<string> = new Set(["people.famine", "polity.ended", "life.died"]);
+/**
+ * Great whatever history counts them: a famine where one follows, a realm's fall, a life's end;
+ * its people carried off, a rising crushed, its rule held wrongful (Phase 19 M138).
+ */
+const ALWAYS: ReadonlySet<string> = new Set([
+  "people.famine",
+  "polity.ended",
+  "life.died",
+  "order.captives",
+  "order.crushed",
+  "order.crisis",
+]);
 
 /** Whether a tiding is great enough for a window. */
 export function isGreat(t: Tiding): boolean {

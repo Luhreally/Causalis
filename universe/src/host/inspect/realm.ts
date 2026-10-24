@@ -28,6 +28,7 @@ import { realmArms } from "../arms.ts";
 import { compareWith, warTally } from "./compare.ts";
 import { armyBlocks, courseBlocks } from "./army.ts";
 import { storesSummed } from "./stores.ts";
+import { realmOrderBlocks } from "./order.ts";
 import { civilizationsNear } from "../../sim/index.ts";
 import {
   claimOf,
@@ -183,6 +184,8 @@ export function realmPageModel(world: World, ref: string): PageModel {
       blocks: [{ type: "list", title: "Who ruled, newest first", items }],
     });
   }
+  // Its order (Phase 19 M138): its standing with its people, its rank and levies, its bound.
+  tabs.push({ id: "order", name: "Order", blocks: realmOrderBlocks(world, r) });
   // Its wars.
   {
     const items: Item[] = warsOf(world)

@@ -4,13 +4,14 @@
 // the world (a person met is brought up to now in the observer ledger, which history never
 // reads), so asking never moves it.
 import { offworldSite } from "../../gen/index.ts";
-import { parseRef, type Ref, type World } from "../../kernel/index.ts";
+import { YEAR, parseRef, type Ref, type World } from "../../kernel/index.ts";
 import { deepen, newsLog, observer, watches } from "../../causal/index.ts";
 import {
   beliefOf,
   citiesOf,
   homePlanet,
   languagesOf,
+  orderOf,
   politiesOf,
   populationContext,
   warsOf,
@@ -25,7 +26,7 @@ import type {
   Span,
   Stat,
 } from "../../bridge/index.ts";
-import { bare, count, many, part, share, stat, yearNow } from "./words.ts";
+import { bare, count, many, part, share, stat, yearAt, yearNow } from "./words.ts";
 import { faithLink, landLink, languageLink, nameOf, realmLink, townLink } from "./names.ts";
 import { worldFirsts } from "./world.ts";
 
@@ -156,6 +157,42 @@ export function alertsOf(world: World): Alert[] {
         });
     }
   }
+  // Bonds and freedoms (Phase 19 M138): the realms asked after whose rule has lost its people's
+  // faith, and whose bound rose these five years (history's tail, newest first).
+  const order: AlertItem[] = [],
+    store = orderOf(world);
+  for (const ref of atWar) {
+    const o = store?.of(ref as Ref);
+    if (o?.crisis)
+      order.push({
+        line: [
+          realmLink(world, ref),
+          ` has lost its people's faith in its rule (${share(o.legitimacy)})`,
+        ],
+        ref: o.crisis,
+        key: `crisis:${ref}`,
+      });
+  }
+  {
+    const all = world.events.all();
+    for (let i = all.length - 1; i >= 0 && order.length < 12; i--) {
+      const e = all[i]!;
+      if (e.t < (now - 5) * YEAR) break;
+      const against = e.subjects[0];
+      if (e.type !== "order.revolt" || !e.place || !against || !atWar.has(against)) continue;
+      order.push({
+        line: [
+          "The bound of ",
+          landLink(world, parseRef(e.place as Ref).b),
+          " rose against ",
+          realmLink(world, against),
+          `, year ${yearAt(e.t)}`,
+        ],
+        ref: e.id,
+        key: `rising:${e.id}`,
+      });
+    }
+  }
   // Firsts: what the world did first lately, the newest first.
   const first: AlertItem[] = firstsNow(world)
     .filter((f) => f.year >= now - FIRST_YEARS)
@@ -172,6 +209,7 @@ export function alertsOf(world: World): Alert[] {
   const alerts: Alert[] = [
     { id: "war", icon: "⚔️", title: "At war", tone: "war", items: war },
     { id: "hunger", icon: "🍂", title: "Going hungry", tone: "want", items: hunger },
+    { id: "order", icon: "✊", title: "Bonds and freedoms", tone: "war", items: order },
     { id: "fallen", icon: "🏳️", title: "A realm fallen", tone: "loss", items: fallen },
     { id: "death", icon: "🕯️", title: "A life ended", tone: "loss", items: death },
     { id: "first", icon: "🌟", title: "A first in the world", tone: "news", items: first },

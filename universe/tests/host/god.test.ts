@@ -216,9 +216,14 @@ test("disasters and makings play where they fall; a crater stays; an empty land 
 });
 
 test("a realm's army and a war's course: its host, the men it fields through the years, how its wars went", () => {
+  // (A war fought over two years at least: its course a line through them.)
   const war = warsOf(world)
       .all()
-      .find((w) => w.battles.length > 0 && politiesOf(world).get(w.attacker)?.ended === null)!,
+      .find(
+        (w) =>
+          new Set(w.battles.map((b) => b.year)).size >= 2 &&
+          politiesOf(world).get(w.attacker)?.ended === null,
+      )!,
     realm = ask<PageModel>("page", { ref: war.attacker }),
     army = realm.tabs.find((t) => t.id === "army")!;
   assert.ok(army, "a realm has its army's tab");

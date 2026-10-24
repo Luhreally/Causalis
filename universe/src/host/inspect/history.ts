@@ -37,6 +37,7 @@ const HEADINGS: Readonly<Record<string, readonly [string, string]>> = {
   people: ["People", "🧑"],
   peoples: ["Peoples of the stars", "👽"],
   contact: ["Contact", "🛸"],
+  order: ["Bonds and freedoms", "⛓️"],
 };
 
 /** Events whose kind says itself better whole than as its domain and its word. */
@@ -48,6 +49,23 @@ const TITLES: Readonly<Record<string, string>> = {
   "peoples.raid": "A fleet from the stars",
   "contact.met": "Contact",
   "contact.exchange": "What passed between them",
+  // Bonds and freedoms (Phase 19 M138).
+  "order.captives": "Captives carried off",
+  "order.bondage": "Sold into debt",
+  "order.serfdom": "Bound to the land",
+  "order.indenture": "Bound for their passage",
+  "order.convicts": "The condemned at labour",
+  "order.corvee": "Called to the realm's works",
+  "order.flight": "Fled their bonds",
+  "order.revolt": "A rising of the bound",
+  "order.crushed": "A rising crushed",
+  "order.freed": "The bound freed",
+  "order.movement": "A movement",
+  "order.abolished": "Bondage outlawed",
+  "order.crisis": "A crisis of standing",
+  "act.unchain": "Chains broken",
+  "act.stir": "The bound stirred",
+  "act.mandate": "A sign from the heavens",
 };
 
 /** Where a thing an event names is to be seen (its place, most often a land). */

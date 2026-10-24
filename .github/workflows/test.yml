@@ -166,6 +166,12 @@ jobs:
       - run: npm run gate:18 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 19 gate: bonds and freedoms (a realm's order and who it holds, the book's page
+      # of its standing, the lenses of bondage and of standing, the ledger's bonds, the god's
+      # sign against a rule; the Order tab on a phone).
+      - run: npm run gate:19 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

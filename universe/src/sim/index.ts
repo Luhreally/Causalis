@@ -194,6 +194,33 @@ export {
   type Ruler,
 } from "./polity/polity.ts";
 export {
+  ABOLITION_EVERY,
+  BOND,
+  BONDS,
+  CAPTIVE_LINE,
+  CRISIS,
+  DEBT_LINE,
+  MANDATE_PUSH,
+  MANDATE_YEARS,
+  ORDER_EVENTS,
+  OrderStore,
+  RESTORED,
+  RISING_SHARE,
+  boundIn,
+  boundShare,
+  capacityOf,
+  installOrder,
+  legitimacyFactors,
+  orderOf,
+  orderYear,
+  type Bond,
+  type LandBonds,
+  type Memory,
+  type Movement,
+  type RealmOrder,
+} from "./order/order.ts";
+export { ORDER_ACTS, STIR_SHARE, installOrderActs, mostHeld } from "./order/acts.ts";
+export {
   BELIEF_EVENTS,
   BeliefStore,
   DEITIES,

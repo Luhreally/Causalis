@@ -670,6 +670,10 @@ export const SIGNS: Readonly<Record<string, string>> = {
   visitors: "🛸",
   wonder: "✨",
   fear: "😨",
+  // Bonds and freedoms (Phase 19 M138): the bound among them, a rising, a freedom won.
+  bondage: "⛓️",
+  rising: "✊",
+  freedom: "🕊️",
 };
 
 /**

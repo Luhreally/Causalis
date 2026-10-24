@@ -178,6 +178,9 @@ export type PeopleEntry = {
   belief: readonly [number, number, number];
   /** Each good in store, a head (Phase 15 M123). */
   goods: readonly number[];
+  /** The share held in bondage, and their realm's standing (-1: no realm's) — Phase 19 M138. */
+  bondage: number;
+  standing: number;
 };
 
 /** A people's ways and speech (the host's waysOf). */

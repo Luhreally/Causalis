@@ -35,6 +35,19 @@ export class PopulationStore implements StateStore {
     return n;
   }
 
+  /**
+   * The events its lands hold on to — how each came to be peopled, to sow and to herd, its
+   * last hunger and drought — never forgotten while a land holds them (a life lived there
+   * remembers them, and its page links them).
+   */
+  pinned(): Ref[] {
+    const out: Ref[] = [];
+    for (const p of this.all())
+      for (const r of [p.arrival, p.cultivation, p.herding, p.lastFamine, p.lastDrought])
+        if (r) out.push(r);
+    return out;
+  }
+
   hashInto(h: Hasher): void {
     const all = this.all();
     h.int(all.length);
