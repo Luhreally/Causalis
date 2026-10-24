@@ -251,6 +251,11 @@ function walkTime(a: Point, b: Point, pace: number): number {
   return Math.hypot(b.x - a.x, b.z - a.z) / pace;
 }
 
+/** One day in seven is a day of rest, on a day kept by the village: given to play and talk. */
+export function restDay(plan: Pick<VillagePlan, "seed">, day: number): boolean {
+  return (day + (plan.seed % 7)) % 7 === 0;
+}
+
 /** A person's day as legs: [from, to) in seconds of the day, where, and doing what. */
 function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
   const pace = paceOf(plan.body);
@@ -263,8 +268,7 @@ function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
     doorOut = Math.max(7, (ground.homes[p.home]?.r ?? 5) + PERSON_REACH + 0.8),
     at = doorstep(ground, home, home.yaw + (draw(20) - 0.5) * 1.2, doorOut),
     work = workplace(plan, p, draw, day),
-    // One day in seven is a day of rest, on a day kept by the village.
-    rest = (day + (plan.seed % 7)) % 7 === 0,
+    rest = restDay(plan, day),
     rise = (5.5 + draw(7) * 1.5) * HOUR,
     bed = (21 + draw(8) * 1.5) * HOUR,
     // In the square, a place in one of its rings of talk, facing the ring's middle.

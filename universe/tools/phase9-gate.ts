@@ -27,6 +27,7 @@ import {
   clearOf,
   keepApart,
   momentOf,
+  restDay,
   sayOf,
   villageGround,
   warPaths,
@@ -113,7 +114,8 @@ console.log("the Phase 9 gate");
     ground = villageGround(plan),
     tasks = new Set<string>(),
     signs = new Set<string>(),
-    day = 700 * 365 + 150;
+    // (A working day: one in seven is the village's day of rest, given to play and talk.)
+    day = 700 * 365 + (restDay(plan, 700 * 365 + 150) ? 151 : 150);
   let inside = 0,
     crowded = 0;
   for (let s = 0; s < 86_400; s += 300) {

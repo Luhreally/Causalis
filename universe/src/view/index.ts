@@ -66,6 +66,7 @@ export {
   houseLook,
   keepApart,
   momentOf,
+  restDay,
   villageSolids,
   personGroup,
   sayOf,
