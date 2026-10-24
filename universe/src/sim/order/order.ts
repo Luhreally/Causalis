@@ -1003,7 +1003,7 @@ export function rise(
       .inProvince(c)
       .filter((s) => s.market)
       .sort((x, y) => y.population - x.population || (x.ref < y.ref ? -1 : 1))[0];
-    const raised = town ? raiseRealm(ctx, town, [c], freed, t) : null;
+    const raised = town ? raiseRealm(ctx, town, [c], freed, t, p.ref) : null;
     if (raised) {
       const ro = realmOrder(store, raised, ways);
       ro.abolished = year;
@@ -1194,7 +1194,9 @@ function stirMovements(
     makers = interests.reduce(
       (s, i) => s + (i.group === "traders" || i.group === "crafters" ? i.sway : 0),
       0,
-    );
+    ),
+    thought = loreOf(world).get(p.seat, "philosophy"),
+    works = loreOf(world).get(p.seat, "factories");
   let hungry = 0,
     people = 0;
   for (const c of p.members) {
@@ -1223,13 +1225,18 @@ function stirMovements(
         0.4 * (hier - 0.4),
       source: store.lands.get(p.seat)?.cause ?? null,
     },
-    // (A voice is wanted against a chief, a priest-king, or a general: M145.)
+    // (A voice is wanted against a chief, a priest-king, or a general: M145; the more where ideas
+    // of a voice and of rights are known, and the many work massed in workshops: M146.)
     voice: {
       target:
         p.leadership === 0 || p.leadership === 3 || p.leadership === GENERAL
-          ? 1.5 * (makers - 0.15) + 0.4 * (open - 0.5) - 0.5 * (hier - 0.5)
+          ? 1.5 * (makers - 0.15) +
+            0.4 * (open - 0.5) -
+            0.5 * (hier - 0.5) +
+            (thought ? 0.2 : 0) +
+            (works ? 0.15 : 0)
           : 0,
-      source: null,
+      source: thought?.event ?? null,
     },
   };
   for (const cause of ["abolition", "land", "voice"] as const) {

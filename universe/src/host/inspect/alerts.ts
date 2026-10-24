@@ -274,10 +274,24 @@ export function alertsOf(world: World): Alert[] {
   const strife: AlertItem[] = [];
   {
     const store = strifeOf(world);
-    if (store)
-      for (const x of [...store.coups, ...store.restorations])
+    if (store) {
+      for (const x of [...store.coups, ...store.restorations, ...store.revolutions])
         if (x.year >= now - 2 && atWar.has(x.realm) && strife.length < 12)
           strife.push({ line: [claimOf(world, x.event)], ref: x.event, key: `strife:${x.event}` });
+      // (A civil war of a realm followed, still fought: M146.)
+      for (const c of store.civil)
+        if (c.ended === null && (atWar.has(c.rebel) || atWar.has(c.loyal)) && strife.length < 12)
+          strife.push({
+            line: [
+              realmLink(world, c.rebel),
+              " has risen against ",
+              realmLink(world, c.loyal),
+              `, year ${count(c.year)}`,
+            ],
+            ref: c.war,
+            key: `civil:${c.war}`,
+          });
+    }
   }
   // Firsts: what the world did first lately, the newest first.
   const first: AlertItem[] = firstsNow(world)

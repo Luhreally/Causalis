@@ -64,7 +64,7 @@ test("a coup won: the realm a protectorate, its rule its army's; the ledger, the
   const tool = strife.blocks.find((b) => b.type === "tool" && b.tool === "acts.strife");
   assert.ok(tool && tool.type === "tool" && tool.args.junta === true);
   const list = strife.blocks.find(
-    (b) => b.type === "list" && b.title === "Coups and restorations, the newest first",
+    (b) => b.type === "list" && b.title === "Coups, revolutions and restorations, the newest first",
   );
   assert.ok(list && list.type === "list" && list.items.some((i) => i.why === event));
   foil(ctx, other, [], at(2));

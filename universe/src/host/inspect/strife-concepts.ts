@@ -1,5 +1,6 @@
 // The book of concepts on strife (Phase 22 M145): the army as one of a realm's voices, a coup,
-// and a realm ruled by its army. Each says how the world works it, as it does.
+// and a realm ruled by its army (M146: a civil war, a revolution). Each says how the world works
+// it, as it does.
 import type { Concept } from "./concepts.ts";
 
 const LEDGER = { text: "Every coup, side by side", ref: "world:ledger#strife" };
@@ -47,6 +48,39 @@ export const STRIFE_CONCEPTS: Readonly<Record<string, Concept>> = {
     see: [LEDGER],
     related: ["coup", "army-sway", "legitimacy", "realms"],
   },
+  "civil-war": {
+    icon: "⚔️",
+    title: "A civil war",
+    what: [
+      "A realm may go to war with itself. When a ruler dies in a crisis and its far lands break away under a rival claimant, the claimant fights for the throne — seven times in ten where rule passes by birth (kin's claims are the hardest to set aside), less where it passes by choice or by acclaim. A general whose coup was foiled may flee to the far lands and raise them; a revolution's old court may do the same; the god may raise a pretender. And where the bound rose and won a realm of their own, their old masters — where they still hold the bound, keep to rank and are the stronger — may march on them to take them back.",
+      "Its host marches on the realm's seat, battle by battle, as in any war. If it takes the seat, the throne is the claimant's: the old realm falls and its lands pass to the new. When peace comes short of that, whether the rising is put down is weighed: the likelier if it was beaten back, the more the realm's host outweighs its own, and the less the farther the realm's seat is from reaching those lands — a realm that broke because it could not hold its far lands seldom wins them back. Put down, its realm ends and its lands return, aggrieved; else the realm stays parted for good. The freed, taken back, are bound again.",
+    ],
+    drives: [
+      "A succession in crisis; a foiled coup; a revolution; the god's hand; the freed.",
+      "Rule by birth, for a throne contested.",
+    ],
+    leads: ["A throne taken, a rising put down, or a realm parted; the fallen of both sides."],
+    see: [LEDGER],
+    related: ["realms", "war", "coup", "revolution"],
+  },
+  revolution: {
+    icon: "🔥",
+    title: "A revolution",
+    what: [
+      "Where a realm's people press for a voice or for the land, they may rise at its seat. It is weighed by how doubted the rule is and how strong the movement, by hunger at the seat and a seat that cannot reach its lands, by ideas of a voice and of rights where philosophy is known, and by the many massed in workshops where there are factories — and against it an army loyal to the seat (the more so a general's) and rank set hard. Philosophy and the factory feed the movement for a voice too: an age of revolutions comes with them.",
+      "Won, the realm becomes a commonwealth, its rulers acclaimed: its court is purged, its rank broken, one law holds for all — and the land goes to those who till it, if that is what they rose for. Its new rule holds a generation before its people's ways may reform it. Its old court may flee to the far lands and fight to return. Lost, it is drowned in blood at the seat: remembered as a massacre, its movement broken, its rank the harder.",
+    ],
+    drives: [
+      "A doubted rule; a movement for a voice or the land; hunger; a thin reach.",
+      "Philosophy, and the factory.",
+    ],
+    leads: [
+      "A commonwealth, one law for all, the land to its tillers — or a massacre remembered.",
+      "A counter-revolution, sometimes.",
+    ],
+    see: [LEDGER],
+    related: ["movement", "legitimacy", "civil-war", "laws"],
+  },
 };
 
 /** The labels on pages that are measures of these concepts. */
@@ -57,4 +91,9 @@ export const STRIFE_CONCEPT_OF: Readonly<Record<string, string>> = {
   Coups: "coup",
   "Ruled by their armies now": "military-rule",
   "Rule restored": "military-rule",
+  "A civil war": "civil-war",
+  "It came to": "civil-war",
+  "Civil wars": "civil-war",
+  "A revolution": "revolution",
+  Revolutions: "revolution",
 };

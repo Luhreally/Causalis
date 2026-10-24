@@ -30,11 +30,20 @@ const text = (d: unknown, k: string) => {
 };
 const year = (t: number) => `year ${yearOfMoment(t)}`;
 
-registerEventWords(
-  WAR_EVENTS.declared.type,
-  (world, e) =>
-    `${cap(text(e.data, "a"))} went to war with ${text(e.data, "b")} for ${landWords(world, e.place)}, ${year(e.t)}`,
-);
+// (A civil war says what it is fought over: M146.)
+const CIVIL: Readonly<Record<string, string>> = {
+  succession: "for the throne, in a war of succession",
+  general: "in a general's revolt",
+  pretender: "for a pretender's claim",
+  revolution: "for the old court's return",
+  freed: "to take back the freed",
+};
+registerEventWords(WAR_EVENTS.declared.type, (world, e) => {
+  const civil = (e.data as { civil?: string } | null)?.civil;
+  return civil
+    ? `${cap(text(e.data, "a"))} rose against ${text(e.data, "b")} ${CIVIL[civil] ?? "in a civil war"}, marching on ${landWords(world, e.place)}, ${year(e.t)}`
+    : `${cap(text(e.data, "a"))} went to war with ${text(e.data, "b")} for ${landWords(world, e.place)}, ${year(e.t)}`;
+});
 registerEventWords(WAR_EVENTS.battle.type, (world, e) => {
   const d = e.data as { won?: boolean; fallen?: number } | null;
   return `${cap(text(e.data, "a"))} ${d?.won ? "won" : "lost"} a battle against ${text(e.data, "b")} in ${landWords(world, e.place)}; ${count(d?.fallen ?? 0)} fell, ${year(e.t)}`;

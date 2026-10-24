@@ -32,6 +32,7 @@ import { bandOfAge } from "../hand/hand.ts";
 import type { BeliefStore } from "../belief/belief.ts";
 import type { LoreStore } from "../lore/lore.ts";
 import { interestsOf, pressure } from "./interests.ts";
+import { revolutionHolds } from "../strife/strife.ts";
 
 export const POLITY = defineKind("pol", "realm", "minted");
 
@@ -97,6 +98,8 @@ export type Polity = {
   /** The event of its last change, if it has changed. */
   tithed?: Ref;
   ended: number | null;
+  /** The realm it broke away from (a split, a rising, a revolt, a claim), if it did (M146). */
+  from?: Ref;
 };
 
 /** A member land's grievance against its realm, and what caused the most of it. */
@@ -300,7 +303,7 @@ export function realmName(p: { leadership: number; town: string }): string {
 }
 
 /** Steps from the seat to every member, over the realm's own land and the sea its ships have crossed. */
-function reach(ctx: PopulationContext, p: Polity): Map<number, number> {
+export function reach(ctx: PopulationContext, p: Polity): Map<number, number> {
   return stepsFrom(ctx, p.seat, new Set(p.members));
 }
 
@@ -698,7 +701,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       const town = edge
         .flatMap((c) => ctx.settlements.inProvince(c).filter((s) => s.market))
         .sort((x, y) => y.population - x.population || (x.ref < y.ref ? -1 : 1))[0];
-      if (town) raiseRealm(ctx, town, edge, split, t);
+      if (town) raiseRealm(ctx, town, edge, split, t, p.ref);
     }
   }
 
@@ -706,7 +709,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
   // which ends only when it is restored: M145).
   if (year % 10 === 0)
     for (const p of store.living()) {
-      if (p.leadership === GENERAL) continue;
+      if (p.leadership === GENERAL || revolutionHolds(world, p.ref, year)) continue;
       const ways = culture.get(p.seat)!,
         want = institutionsOf(ways, p, loreOf(world).effect(p.seat, "writing") > 0);
       if (
@@ -755,6 +758,7 @@ export function raiseRealm(
   lands: readonly number[],
   cause: Ref,
   t: SimTime,
+  from?: Ref,
 ): Polity | null {
   const world = ctx.world,
     store = politiesOf(world),
@@ -781,6 +785,7 @@ export function raiseRealm(
     ruler: crown(world, seatWays, town.cell, t, formed, null),
     tribute: 0.05,
     ended: null,
+    ...(from ? { from } : {}),
   });
   // It holds what it can reach from its new seat; the rest go their own way.
   const theirs = stepsFrom(ctx, town.cell, new Set(lands)),

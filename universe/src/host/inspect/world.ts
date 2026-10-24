@@ -1096,9 +1096,16 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
   {
     const strife = strifeOf(world),
       won = strife?.coups.filter((c) => c.won) ?? [];
+    const civil = (strife?.civil ?? []).map((c) => ({
+        year: c.year,
+        event: warsOf(world).get(c.war)?.event ?? c.war,
+      })),
+      risen = strife?.revolutions.filter((x) => x.won) ?? [];
     for (const [list, what, one, more] of [
       [won, "🗡️ A coup", "coup", "coups"],
       [strife?.restorations ?? [], "🏛️ Rule restored", "restoration", "restorations"],
+      [civil, "⚔️ A civil war", "civil war", "civil wars"],
+      [risen, "🔥 A revolution", "revolution", "revolutions"],
     ] as const) {
       const at = list[0] ? world.events.get(list[0].event) : undefined;
       if (list[0])

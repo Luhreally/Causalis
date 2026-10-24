@@ -89,6 +89,12 @@ const TITLES: Readonly<Record<string, string>> = {
   "strife.restored": "Rule restored",
   "act.incite": "An army stirred",
   "act.restore": "Rule given back",
+  "strife.throne": "A throne taken",
+  "strife.subdued": "A rising put down",
+  "strife.parted": "A realm parted",
+  "strife.revolution": "A revolution",
+  "strife.repressed": "A revolution drowned in blood",
+  "act.pretender": "A pretender raised",
   "act.forgive": "Debts forgiven",
   "act.break": "A house broken",
 };

@@ -30,7 +30,7 @@ import { armyBlocks, courseBlocks } from "./army.ts";
 import { storesSummed } from "./stores.ts";
 import { realmOrderBlocks } from "./order.ts";
 import { realmCreditBlocks, warChestRows } from "./credit.ts";
-import { realmStrifeBlocks } from "./strife.ts";
+import { civilWarRows, realmStrifeBlocks } from "./strife.ts";
 import { civilizationsNear } from "../../sim/index.ts";
 import {
   claimOf,
@@ -389,7 +389,13 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
     d = realms.get(w.defender),
     year = yearNow(world),
     name = (r: typeof a, fallback: string) => (r ? r.town : fallback),
-    title = `The war of ${name(a, "the fallen")} upon ${name(d, "the fallen")}`;
+    // (A civil war is a rising — or, against the freed, a war upon them: M146.)
+    title =
+      w.civil === "freed"
+        ? `The war of ${name(a, "the fallen")} upon the freed of ${name(d, "the fallen")}`
+        : w.civil
+          ? `The rising of ${name(a, "the fallen")} against ${name(d, "the fallen")}`
+          : `The war of ${name(a, "the fallen")} upon ${name(d, "the fallen")}`;
   // The attacker's host sets out from its land nearest what it wants.
   const g = homePlanet(world).generated,
     grid = g.fine.grid,
@@ -488,8 +494,9 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
             ...(w.embargo
               ? [stat("Embargo", [link("trade between them cut", w.embargo)], { why: w.embargo })]
               : []),
-            // (What each side borrowed to pay its host — M144.)
+            // (What each side borrowed to pay its host — M144; a civil war's kind and end — M146.)
             ...warChestRows(world, w),
+            ...civilWarRows(world, w),
           ],
         },
         warTally(world, w),

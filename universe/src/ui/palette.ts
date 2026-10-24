@@ -162,6 +162,14 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
     command: "act.restore",
     sign: 1,
   },
+  pretender: {
+    id: "pretender",
+    icon: "👑",
+    name: "Raise a pretender",
+    target: "land",
+    command: "act.pretender",
+    sign: -1,
+  },
   inspire: {
     id: "inspire",
     icon: "💡",
@@ -349,7 +357,12 @@ export const PALETTE_KINDS: readonly {
   },
   { id: "realms", icon: "🏰", name: "A realm's fortunes", acts: ["rise", "bless", "curse"] },
   { id: "credit", icon: "🏦", name: "Debt and credit", acts: ["forgive", "break"] },
-  { id: "strife", icon: "🗡️", name: "Armies and seats", acts: ["incite", "restore"] },
+  {
+    id: "strife",
+    icon: "🗡️",
+    name: "Armies and seats",
+    acts: ["incite", "restore", "pretender"],
+  },
   {
     id: "ways",
     icon: "🎭",
@@ -624,6 +637,18 @@ export class GodPalette {
             words: `strangers of another star called down to ${land.name}: they cross in a year`,
             args: { cell: land.cell },
           };
+        if (a.id === "pretender") {
+          if (!land.realm) return { words: `${land.name} is no realm's`, args: null };
+          if (land.realm.seat)
+            return {
+              words: `${land.name} is the seat of ${land.realm.name}: no pretender rises there`,
+              args: null,
+            };
+          return {
+            words: `a pretender raised in ${land.name}, with the lands about it, against ${land.realm.name}`,
+            args: { cell: land.cell },
+          };
+        }
         if (a.id === "incite" || a.id === "restore") {
           if (!land.realm) return { words: `${land.name} is no realm's`, args: null };
           return {

@@ -42,7 +42,7 @@ import { loreOf } from "../lore/lore.ts";
 import { RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
 import { handOf } from "../hand/hand.ts";
 import { CREDIT, warChest } from "../credit/credit.ts";
-import { STRIFE } from "../strife/strife.ts";
+import { STRIFE, settleCivil } from "../strife/strife.ts";
 import { GENERAL } from "../polity/polity.ts";
 
 export const WAR = defineKind("war", "war", "minted");
@@ -63,6 +63,9 @@ export type Battle = {
   readonly event: Ref;
 };
 
+/** What a civil war is fought over (Phase 22 M146): a throne at a succession, a general's revolt, a pretender's claim, an old court's return, the freed taken back. */
+export type CivilKind = "succession" | "general" | "pretender" | "revolution" | "freed";
+
 export type War = {
   readonly ref: Ref;
   readonly attacker: Ref;
@@ -78,6 +81,8 @@ export type War = {
   peace: Ref | null;
   /** The embargo the war laid on the trade between the two realms' lands, once it cut any. */
   embargo?: Ref;
+  /** A civil war: what it is fought over (M146). */
+  readonly civil?: CivilKind;
 };
 
 const DECLARE = defineStream("war.declare");
@@ -494,6 +499,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       b = realms.get(w.defender)!;
     if (a.ended !== null || b.ended !== null) {
       w.ended = year;
+      if (w.civil) settleCivil(ctx, w, false, false, t);
       continue;
     }
     const land = frontier(ctx, a, b)[0];
@@ -507,6 +513,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         causes: [{ ref: w.event, role: "trigger", weight: 1 }],
         data: { a: realmName(a), b: realmName(b), years: year - w.declared, won: false },
       });
+      if (w.civil) settleCivil(ctx, w, false, false, t);
       continue;
     }
     const key = Number(w.ref.split(":")[2]),
@@ -624,6 +631,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         year,
         source: w.event,
       });
+      if (w.civil) settleCivil(ctx, w, prizeWon, repulsed, t);
     }
   }
 

@@ -300,6 +300,17 @@ export function drawTool(
           ctx.refresh();
         },
       );
+      if (typeof args.far === "number")
+        twice(
+          tools,
+          note,
+          `👑 Raise a pretender in ${args.farName as string}`,
+          `A claimant rises in ${args.farName as string}, with the lands about it, and marches on ${realm}'s seat: a civil war.`,
+          async () => {
+            await ctx.client.command("act.pretender", { cell: args.far as number });
+            ctx.refresh();
+          },
+        );
       if (args.junta)
         twice(
           tools,
