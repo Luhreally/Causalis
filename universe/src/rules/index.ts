@@ -200,10 +200,15 @@ export {
 export {
   AGE_ACTS,
   DAWN_WAYS,
+  LIFE_NICHES,
+  LIFE_WAYS,
   ageAct,
   agesMade,
   dawnAct,
   dawnMade,
+  lifeAct,
+  livesMade,
   type AgeAct,
   type DawnWay,
+  type LifeWay,
 } from "./dawn.ts";

@@ -12,7 +12,7 @@ import {
   treeOfLife,
   type HomeWorld,
 } from "../gen/index.ts";
-import { agesMade, bodyWords, creatureWords, dawnMade } from "../rules/index.ts";
+import { agesMade, bodyWords, creatureWords, dawnMade, livesMade } from "../rules/index.ts";
 import { homePlanet } from "../sim/index.ts";
 import type { GenesisPlan } from "../bridge/index.ts";
 import { dawnSeaOf, dropOfWorld } from "./inspect/small.ts";
@@ -61,6 +61,7 @@ export function genesisPlan(g: HomeWorld, seed: string): GenesisPlan {
     acts: {
       ages: [...agesMade(seed, AGES)].map(([age, kind]) => ({ age, kind })),
       dawn: dawnMade(seed),
+      lives: [...livesMade(seed, AGES)].map(([age, way]) => ({ age, way })),
     },
     ages: g.deep.ages.map((a) => ({
       index: a.index,

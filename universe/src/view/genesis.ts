@@ -12,10 +12,10 @@
 // thousands of years at the people's rising — paused and let go at any stage, its speeds the
 // stage's own; and the god's hand laid on it, the world remade from the acts.
 import type { GenesisPlan } from "../bridge/index.ts";
-import type { AgeAct, DawnWay } from "../rules/index.ts";
+import { LIFE_NICHES, type AgeAct, type DawnWay, type LifeWay } from "../rules/index.ts";
 
 /** The acts the god's hand may lay on a world's dawn, as its seed's text carries them. */
-export { AGE_ACTS, ageAct, dawnAct, type AgeAct } from "../rules/index.ts";
+export { AGE_ACTS, ageAct, dawnAct, lifeAct, type AgeAct, type LifeWay } from "../rules/index.ts";
 
 type Rgb = readonly [number, number, number];
 
@@ -406,7 +406,8 @@ const SPEEDS: Readonly<Record<GenesisStage, readonly [readonly number[], number]
   nucleus: [[20, 100, 400], 100],
   colonies: [[10, 50, 200], 50],
   bodies: [[5, 25, 100], 25],
-  ages: [[1, 5, 10, 25], 10],
+  // (Slow enough to watch an age's living world: an age some seconds.)
+  ages: [[1, 5, 10, 25], 5],
   people: [[0.02, 0.1, 0.2], 0.2],
 };
 
@@ -635,6 +636,13 @@ const DAWN_WAY_WORDS: Readonly<Record<DawnWay, readonly [string, string, readonl
   together: ["cells together", "great beasts and scavengers", ["great beast", "scavenger"]],
 };
 
+/** An age's ways of beasts, in words. */
+const LIFE_WORDS: Readonly<Record<LifeWay, string>> = {
+  grazers: "grazers and seed-eaters",
+  browsers: "browsers and great beasts",
+  hunters: "hunters and those that eat the dead",
+};
+
 /**
  * What an act laid on the dawn did, in words: from the beginning as it was (`before`) to the
  * world remade (`after`) — an age made otherwise and the lineages that ended in it; what
@@ -661,6 +669,17 @@ export function remakeWords(before: GenesisPlan, after: GenesisPlan, act: string
         out.push(
           `In the ages after it arose ${fresh.slice(0, 3).join(", ")}${fresh.length > 3 ? ` and ${fresh.length - 3} more` : ""}, that would not have.`,
         );
+    }
+  } else if (word === "life") {
+    // What prospered in an age's living world under the hand (Phase 27).
+    const k = Number(n) - 1,
+      niches = LIFE_NICHES[what as LifeWay];
+    if (niches) {
+      const count = (p: GenesisPlan) =>
+        p.lineages.filter((l) => niches.includes(l.niche) && l.arose > k).length;
+      out.push(
+        `The ages after age ${k + 1} ran the more to its ${LIFE_WORDS[what as LifeWay]}: ${count(before)} lineages of them arose after it, now ${count(after)}.`,
+      );
     }
   } else if (word === "dawn") {
     const w = DAWN_WAY_WORDS[n as DawnWay];

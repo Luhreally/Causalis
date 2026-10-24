@@ -2,7 +2,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { seedActs, seedFromText, seedName, seedWithAct } from "../../src/kernel/index.ts";
 import { generateHomeWorld } from "../../src/gen/index.ts";
-import { EARTHLIKE, OPEN, ageAct, agesMade, dawnAct, dawnMade } from "../../src/rules/index.ts";
+import {
+  EARTHLIKE,
+  OPEN,
+  ageAct,
+  agesMade,
+  dawnAct,
+  dawnMade,
+  lifeAct,
+  livesMade,
+} from "../../src/rules/index.ts";
 
 // Phase 24: the acts the god's hand lays on a world's dawn ride in its seed's text, and the
 // world is made again from them — changed where they reach, as it was where they do not.
@@ -85,4 +94,46 @@ test("what prospered in the first seas bends the web of eating after it", () => 
   }
   assert.ok(bentHunters > plainHunters * 1.3, `hunters ${plainHunters} → ${bentHunters}`);
   assert.ok(bentGreat > plainGreat * 1.3, `great bodies ${plainGreat} → ${bentGreat}`);
+});
+
+test("what fared best in an age's living world under the hand bends the ages after it, not before", () => {
+  // Phase 27: "~life 5 grazers" — the ages after age 5 run the more to grazers and seed-eaters,
+  // and those of its niches live through the ages' ends the better.
+  const text = seedWithAct(seedWithAct("first light", lifeAct(4, "grazers")), ageAct(6, "cool"));
+  assert.equal(text, "first light ~age 7 cool ~life 5 grazers");
+  assert.deepEqual([...livesMade(text, 16)], [[4, "grazers"]]);
+  const grazers = (g: ReturnType<typeof generateHomeWorld>, from: number) =>
+    g.life.species.filter(
+      (s) => (s.niche === "grazer" || s.niche === "seed-eater") && s.arose > from,
+    ).length;
+  let plainAfter = 0,
+    bentAfter = 0;
+  for (const [name, prior] of [
+    ["first light", EARTHLIKE],
+    ["juniper", EARTHLIKE],
+    ["alien 3", OPEN],
+  ] as const) {
+    const plain = generateHomeWorld(seedFromText(name), prior),
+      bent = generateHomeWorld(seedFromText(`${name} ~${lifeAct(4, "grazers")}`), prior);
+    assert.equal(bent.ground, plain.ground, "the same land");
+    assert.deepEqual(bent.deep.ages, plain.deep.ages, "the same ages");
+    // The lineages arisen up to the age the hand was laid on, as they were (the ages' first
+    // niches by name; the web's newer ones, drawn after them all, by niche and where they arose).
+    const classic = new Set(["seed grass", "grazer", "browser", "great beast", "hunter"]),
+      early = (g: typeof plain) => g.life.species.filter((x) => x.arose <= 4);
+    for (const s of early(plain).filter((x) => classic.has(x.niche))) {
+      const same = bent.life.species[s.index]!;
+      assert.equal(same.name, s.name, `${name}: ${s.name}`);
+      assert.equal(same.arose, s.arose);
+    }
+    const web = (g: typeof plain) =>
+      early(g)
+        .filter((x) => !classic.has(x.niche) && x.niche !== "upright ape")
+        .map((x) => `${x.niche}@${x.arose}@${x.origin}`)
+        .sort();
+    assert.deepEqual(web(bent), web(plain), `${name}: the web's early lineages`);
+    plainAfter += grazers(plain, 4);
+    bentAfter += grazers(bent, 4);
+  }
+  assert.ok(bentAfter > plainAfter * 1.2, `grazers after age 5: ${plainAfter} → ${bentAfter}`);
 });

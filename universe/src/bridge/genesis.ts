@@ -29,6 +29,8 @@ export type GenesisPlan = {
   readonly acts: {
     readonly ages: readonly { readonly age: number; readonly kind: string }[];
     readonly dawn: string | null;
+    /** The ages whose living world prospered under the hand, and the way that did (Phase 27). */
+    readonly lives: readonly { readonly age: number; readonly way: string }[];
   };
   readonly ages: readonly {
     readonly index: number;

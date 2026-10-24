@@ -14,11 +14,18 @@
 // after it. Any age of the deep past may be warmed, cooled, set afire, struck from the sky or
 // calmed. Each act is laid on the world's seed, and the world is made again from it: what the
 // act reaches is changed, the rest is as it was; and the world begun is the world remade.
+//
+// The ages lived (Phase 27): each age's living world is a stretch of its land with the beasts of
+// its lineages on it, grazing, browsing, hunting, fleeing, bearing young and dying, its lineages
+// coming and going as the clock passes the ages. The god's hand may green it or parch it, hearten
+// its hunters or shelter the hunted; what fared best under the hand, against the land left alone,
+// is laid on the world as the age ends, and the ages after run the more to its kind.
 import type { GalaxyPlan, GenesisPlan, HostClient, SystemPlan } from "../bridge/index.ts";
 import { seedWithAct } from "../kernel/index.ts";
 import {
   GalaxyScene,
   GlobeScene,
+  MeadowScene,
   MicroScene,
   OrbitRig,
   ParadeScene,
@@ -32,6 +39,8 @@ import {
   DROP_ACT_WORDS,
   DeepClock,
   GENESIS,
+  MEADOW_ACT_WORDS,
+  MEADOW_STEP,
   STEP,
   ageAct,
   ageAt,
@@ -46,12 +55,20 @@ import {
   dropOf,
   figureOf,
   follow,
+  followBeast,
   followWords,
+  followedLife,
   formingColors,
   genesisSpans,
   globeColors,
   homeOf,
+  lifeAct,
+  meadowAge,
+  meadowCounts,
+  meadowProspered,
+  meadowProsperedWords,
   newDrop,
+  newMeadow,
   paradeOf,
   prosperedWords,
   remakeWords,
@@ -59,13 +76,17 @@ import {
   roundOf,
   rungsPassed,
   stepDrop,
+  stepMeadow,
   systemSpec,
   touchDrop,
+  touchMeadow,
   waysWorth,
   type AgeAct,
   type DropAct,
   type DropState,
   type GenesisStage,
+  type MeadowAct,
+  type MeadowState,
 } from "../view/index.ts";
 
 /** Where one may begin: the years, and what the world will be doing then. */
@@ -137,7 +158,8 @@ export async function runGenesis(o: {
     skyScene = new SystemScene(stage),
     globe = new GlobeScene(stage),
     micro = new MicroScene(stage),
-    parade = new ParadeScene(stage);
+    parade = new ParadeScene(stage),
+    meadowScene = new MeadowScene(stage);
   let tap: (x: number, y: number) => void = () => {};
   const rig = new OrbitRig(stage, o.canvas, {
     distance: 200,
@@ -154,9 +176,12 @@ export async function runGenesis(o: {
   globe.build(frequency, elevation);
   globe.visible = false;
   const detail = o.tier.name === "phone" ? 1 : 2;
-  let beasts = plan.lineages.filter((l) => l.body);
+  meadowScene.setDetail(detail);
+  let beasts = plan.lineages.filter((l) => l.body),
+    bodies = plan.lineages.map((l) => l.body);
   const castParade = () => {
     beasts = plan.lineages.filter((l) => l.body);
+    bodies = plan.lineages.map((l) => l.body);
     // (The stage's ground the green of the land the first people came to know.)
     parade.set(beasts, detail, biomeColor(8));
     parade.people(plan.people ? figureOf(plan.people.figure, detail) : null);
@@ -230,6 +255,7 @@ export async function runGenesis(o: {
       (a) => `age ${a.age + 1} made ${/^[aeiou]/.test(a.kind) ? "an" : "a"} ${a.kind}`,
     );
     if (plan.acts.dawn) parts.push(`the first seas' ${plan.acts.dawn} prospered`);
+    for (const l of plan.acts.lives) parts.push(`age ${l.age + 1}'s ${l.way} prospered`);
     return parts.length ? `Your hand: ${parts.join(" · ")}` : "";
   };
 
@@ -239,6 +265,7 @@ export async function runGenesis(o: {
     globe.visible = false;
     micro.visible = false;
     parade.visible = false;
+    meadowScene.visible = false;
   };
   const home = system.bodies.find((b) => b.kind === "home") ?? system.bodies[0]!,
     R = galaxy.radius / 1000,
@@ -325,6 +352,65 @@ export async function runGenesis(o: {
     void remake(dawnAct(way));
   };
 
+  // —— An age's living world: alive, its lineages coming and going as the ages pass ————————
+  let meadow: MeadowState | null = null,
+    // (The same land untouched, beside it: what would have fared best without the hand.)
+    meadowTwin: MeadowState | null = null,
+    meadowTouched = false,
+    meadowOwed = 0;
+  /** The ages whose living world's act was laid in this play (once each). */
+  const lifeLaid = new Set<number>();
+  const freshMeadow = (age: number) => {
+    meadow = newMeadow(plan, age, seed);
+    meadowTwin = newMeadow(plan, age, seed);
+    meadowTouched = false;
+    meadowScene.reset();
+  };
+  const touchLife = (act: MeadowAct) => {
+    if (!meadow) return;
+    touchMeadow(meadow, act);
+    meadowTouched = true;
+  };
+  /** An age left forward: what fared best in its living world under the hand, laid on the world. */
+  const settleAge = () => {
+    const m = meadow,
+      twin = meadowTwin;
+    if (!m || !twin || !meadowTouched || lifeLaid.has(m.age)) return;
+    lifeLaid.add(m.age);
+    meadowTouched = false;
+    const { way, words } = meadowProsperedWords(m, twin);
+    tell(words);
+    if (way) void remake(lifeAct(m.age, way));
+  };
+  /** The living world at the clock's age: on into the next (its dead falling, its new coming in), or begun afresh. */
+  const syncMeadow = (age: number) => {
+    if (!meadow || age < meadow.age) return freshMeadow(age);
+    if (age === meadow.age) return;
+    settleAge();
+    meadow = meadowAge(meadow, plan, age);
+    meadowTwin = meadowAge(meadowTwin!, plan, age);
+  };
+  const stepMeadows = (dt: number) => {
+    if (!meadow || !meadowTwin) return;
+    // (Faster at the stage's faster speeds; still while the clock is.)
+    meadowOwed += dt * Math.max(0, clock.lit);
+    let n = 0;
+    while (meadowOwed >= MEADOW_STEP && n < 12) {
+      stepMeadow(meadow);
+      stepMeadow(meadowTwin);
+      meadowOwed -= MEADOW_STEP;
+      n++;
+    }
+    if (n === 12) meadowOwed = 0;
+  };
+  let meadowCounted = -1;
+  const countMeadow = () => {
+    if (!meadow || played - meadowCounted < 0.5) return;
+    meadowCounted = played;
+    const followed = followedLife(meadow);
+    counts.textContent = `${meadowCounts(meadow) || (meadow.age === 0 ? "Life keeps to the seas: nothing walks the land yet" : "Nothing walks the land")}${followed ? ` — ${followed}` : ""}`;
+  };
+
   // —— The god's hand on an age: the world remade from it ————————————————————————————————
   let remaking = false,
     // (The last remaking, waited on before the world is begun.)
@@ -343,6 +429,8 @@ export async function runGenesis(o: {
       seed = next;
       castParade();
       ageShown = -1;
+      // (Its living world begun again from the world remade, at the age the clock is in.)
+      if (meadow) freshMeadow(meadow.age);
       told.lastElementChild?.remove();
       tell(words || "The world is remade.");
       laidLine.textContent = laid();
@@ -371,8 +459,20 @@ export async function runGenesis(o: {
       lookAtWorld = !lookAtWorld;
       enter(clock.at);
     };
+    const life = lookAtWorld
+      ? []
+      : (Object.keys(MEADOW_ACT_WORDS) as MeadowAct[]).map((a) => {
+          const [icon, words] = MEADOW_ACT_WORDS[a];
+          return actButton(
+            icon,
+            words,
+            `${words}: this age's living world — what fares best under your hand, the ages after run the more to`,
+            () => touchLife(a),
+          );
+        });
     return [
       view,
+      ...life,
       ...(Object.keys(AGE_ACT_WORDS) as AgeAct[]).map((a) => {
         const [icon, words] = AGE_ACT_WORDS[a];
         return actButton(icon, words, `${words}: this age, as the clock stands in it`, () => {
@@ -481,7 +581,7 @@ export async function runGenesis(o: {
     ages: {
       title: "The living world",
       text: () =>
-        `${beasts.length} lineages of beasts in all, each a body of its own — of its niche, its world's pull and air, the climate it arose in — some living yet, some gone in the great deaths. Lay your hand on any age: warm it, cool it, wake its fires, strike it from the sky or calm it, and the world is remade from it.`,
+        `${beasts.length} lineages of beasts in all, each a body of its own — of its niche, its world's pull and air, the climate it arose in — some living yet, some gone in the great deaths. Green an age's land or parch it, hearten its hunters or shelter the hunted, and tap a beast to follow its line: what fares best under your hand, the ages after run to. Or lay your hand on the age itself — warm it, cool it, wake its fires, strike it from the sky or calm it — and the world is remade from it.`,
       enter: () => {
         ageShown = -1;
         if (lookAtWorld) {
@@ -499,21 +599,22 @@ export async function runGenesis(o: {
           });
           return;
         }
-        stage.backdrop("ground", 20);
-        parade.visible = true;
+        stage.backdrop("ground", 40);
+        meadowScene.visible = true;
         rig.configure({
-          distance: 7.5,
+          distance: 13,
           minDistance: 3,
           maxDistance: 30,
-          pitch: -18,
-          target: [0.9, 0.4, -0.6],
-          drift: 2,
+          pitch: -30,
+          target: [0, 0.2, 0],
+          drift: 1.5,
         });
       },
       update: () => {
         const { age, within } = ageAt(plan, clock.my),
           a = plan.ages[age];
         if (!a) return;
+        syncMeadow(age);
         if (age !== ageShown) {
           ageShown = age;
           title.textContent = `The living world: age ${a.index + 1} of ${plan.ages.length}`;
@@ -521,14 +622,8 @@ export async function runGenesis(o: {
           text.textContent = `${ageWords(a)}.${born ? ` ${born[0]!.toUpperCase()}${born.slice(1)}.` : ""}`;
         }
         if (lookAtWorld) paint(ageColors(land, grid.lat, elevation, a.kind, within, a.index + 1));
-        else {
-          const t = (plan.ages[0]!.from - clock.my) / plan.ages[0]!.from,
-            p = paradeOf(plan, t);
-          parade.update(
-            p.on.map((q) => ({ ...q, lineage: beasts.indexOf(plan.lineages[q.lineage]!) })),
-            played,
-          );
-        }
+        else if (meadow) meadowScene.update(meadow, bodies);
+        countMeadow();
       },
       acts: ageActs,
     },
@@ -609,6 +704,8 @@ export async function runGenesis(o: {
       settleDawn();
     // (Back into the dawn: a fresh drop.)
     if (DROP_STAGES.has(spans[i]!.stage) && (i < shown || !drop)) freshDrop();
+    // (Leaving the ages forward: what fared best in the last age's living world, laid on the world.)
+    if (going && spans[shown]!.stage === "ages") settleAge();
     shown = i;
     played = 0;
     paintedAt = -1;
@@ -622,7 +719,7 @@ export async function runGenesis(o: {
     acts.replaceChildren(...(st.acts?.() ?? []));
     acts.hidden = !st.acts;
     counts.textContent = "";
-    counts.hidden = !DROP_STAGES.has(spans[i]!.stage);
+    counts.hidden = !DROP_STAGES.has(spans[i]!.stage) && spans[i]!.stage !== "ages";
     another.hidden = i > 1;
     back.hidden = i === 0;
     tap = DROP_STAGES.has(spans[i]!.stage)
@@ -633,7 +730,14 @@ export async function runGenesis(o: {
           follow(drop, chosen);
           countedAt = -1;
         }
-      : () => {};
+      : spans[i]!.stage === "ages"
+        ? (x, y) => {
+            // A beast tapped, followed with its line.
+            if (!meadow || lookAtWorld) return;
+            followBeast(meadow, meadowScene.pick(meadow, x, y));
+            meadowCounted = -1;
+          }
+        : () => {};
     drawSpeeds();
   };
   const choose = () => {
@@ -697,6 +801,7 @@ export async function runGenesis(o: {
       tell(`${deepWhen(r.at)}: ${r.name} — ${r.words}.`);
     if (clock.at !== shown) enter(clock.at);
     if (DROP_STAGES.has(spans[shown]!.stage)) stepDrops(dt);
+    if (spans[shown]!.stage === "ages") stepMeadows(dt);
     STAGES[spans[shown]!.stage].update(clock.through);
     const w = `${deepWhen(clock.my)}${clock.stopped ? " · paused" : ""}`;
     if (w !== whenShown) {
@@ -736,6 +841,43 @@ export async function runGenesis(o: {
       motes: drop ? (drop as DropState).motes.length : 0,
       chosen,
       choosing: done,
+      // An age's living world (Phase 27): its age, its beasts by lineage, its lives, the one followed.
+      meadow: meadow
+        ? {
+            age: (meadow as MeadowState).age,
+            beasts: (meadow as MeadowState).beasts.length,
+            kinds: Object.fromEntries(
+              (meadow as MeadowState).kinds.map((k, i) => [
+                k.name,
+                (meadow as MeadowState).beasts.filter((b) => b.kind === i).length,
+              ]),
+            ),
+            born: (meadow as MeadowState).born,
+            died: (meadow as MeadowState).died,
+            taken: (meadow as MeadowState).taken,
+            grass:
+              (meadow as MeadowState).grass.reduce((x, y) => x + y, 0) /
+              (meadow as MeadowState).grass.length,
+            chosen: (meadow as MeadowState).chosen,
+            parts: meadowScene.count(),
+            touched: meadowTouched,
+            // (What would be said to have fared best, were the age to end now.)
+            verdict: meadowTwin
+              ? meadowProspered(meadow as MeadowState, meadowTwin as MeadowState)
+              : null,
+            first: (meadow as MeadowState).beasts[0]
+              ? {
+                  id: (meadow as MeadowState).beasts[0]!.id,
+                  x: (meadow as MeadowState).beasts[0]!.x,
+                  z: (meadow as MeadowState).beasts[0]!.z,
+                }
+              : null,
+          }
+        : null,
     }),
+    /** Where a beast of the living world is on the screen (the look tools). */
+    meadowSpot: (id: number) => (meadow ? meadowScene.onScreen(meadow, id) : null),
+    /** The beginning's eye (the look tools). */
+    rig,
   });
 }

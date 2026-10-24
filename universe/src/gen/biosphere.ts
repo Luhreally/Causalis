@@ -15,6 +15,7 @@ import { defineStream, weightedKey, type Rng, type SphereGrid } from "../kernel/
 import {
   CLADES,
   FOOD_WEB,
+  LIFE_NICHES,
   bodyOf,
   creatureBody,
   creatureName,
@@ -24,6 +25,7 @@ import {
   type CreatureBody,
   type CreatureNiche,
   type DawnWay,
+  type LifeWay,
   type Medium,
 } from "../rules/index.ts";
 import { BIOME, type Climate } from "./climate.ts";
@@ -63,6 +65,17 @@ const DAWN_BENT: Readonly<Record<DawnWay, Partial<Record<Niche, number>>>> = {
   light: { browser: 1.6, "seed grass": 1.4, swimmer: 1.3 },
   hunters: { hunter: 2.2, "small hunter": 1.8 },
   together: { "great beast": 2.4, scavenger: 1.6 },
+};
+
+/**
+ * What the way that prospered in an age's living world under the hand made of the ages after it
+ * (Phase 27): the more lineages of its niches arising, and its own living through the ages' ends
+ * the better.
+ */
+const LIFE_BENT: Readonly<Record<LifeWay, Partial<Record<Niche, number>>>> = {
+  grazers: { grazer: 1.9, "seed grass": 1.3, "seed-eater": 1.6 },
+  browsers: { browser: 1.9, "great beast": 2.2 },
+  hunters: { hunter: 2.1, "small hunter": 1.7, scavenger: 1.5 },
 };
 
 /** At most this many lineages ever (one bit each in a cell's mask), in words of 32 a cell. */
@@ -322,6 +335,8 @@ export function makeBiosphere(
     readonly pressure?: number;
     /** The way that prospered in its first seas, as the god's hand left them (null: as it would). */
     readonly dawn?: DawnWay | null;
+    /** The ways that prospered in its ages' living worlds under the hand, by age (Phase 27). */
+    readonly lives?: ReadonlyMap<number, LifeWay>;
   } = {
     prior: "earthlike",
     gravity: 1,
@@ -338,6 +353,16 @@ export function makeBiosphere(
     },
     land = (c: number) => elevation[c]! > 0,
     bent = world.dawn ? DAWN_BENT[world.dawn] : {},
+    lifeActs = [...(world.lives ?? new Map<number, LifeWay>())],
+    /** How an age's niches are bent by the ages before it whose life prospered under the hand. */
+    livedBefore = (k: number, x: Niche) => {
+      let m = 1;
+      for (const [a, way] of lifeActs) if (a < k) m *= LIFE_BENT[way][x] ?? 1;
+      return m;
+    },
+    /** Whether a niche's lineages were made to prosper in an age at or before this one. */
+    spared = (k: number, x: Niche) =>
+      lifeActs.some(([a, way]) => a <= k && (LIFE_NICHES[way] as readonly string[]).includes(x)),
     alive: {
       s: Omit<Species, "died" | "index" | "ref">;
       died: number | null;
@@ -359,7 +384,8 @@ export function makeBiosphere(
           "great beast": 0.5,
           hunter: 0.7,
         };
-      for (const x of Object.keys(weights) as ClassicNiche[]) weights[x] *= bent[x] ?? 1;
+      for (const x of Object.keys(weights) as ClassicNiche[])
+        weights[x] *= (bent[x] ?? 1) * livedBefore(k, x);
       const niches = Object.keys(weights) as ClassicNiche[],
         pick = rng.real(BIO, k, 1, i) * niches.reduce((a, x) => a + weights[x], 0);
       let acc = 0,
@@ -471,8 +497,13 @@ export function makeBiosphere(
                 : age.kind === "hothouse" && coldFit
                   ? 0.4
                   : 0.04;
-      // Plants weather the worst better than beasts: their seed waits in the ground.
-      if (rng.real(BIO, j, k, 90) < risk * (a.s.niche === "seed grass" ? 0.5 : 1)) a.died = k;
+      // Plants weather the worst better than beasts: their seed waits in the ground; and a way
+      // the hand made prosper lives through the better.
+      if (
+        rng.real(BIO, j, k, 90) <
+        risk * (a.s.niche === "seed grass" ? 0.5 : 1) * (spared(k, a.s.niche) ? 0.5 : 1)
+      )
+        a.died = k;
     });
   }
 
@@ -757,19 +788,23 @@ export function makeBiosphere(
       },
       kinds = Object.keys(weights) as WebNiche[];
     for (const x of kinds) weights[x] *= bent[x] ?? 1;
-    const total = kinds.reduce((a, x) => a + weights[x], 0);
     for (let k = 1; k < AGES; k++) {
       const age = deep.ages[k]!,
-        count = 1 + Math.floor(rng.real(BIO, k, 60, 0) * 3);
+        count = 1 + Math.floor(rng.real(BIO, k, 60, 0) * 3),
+        // (The ages after one whose life prospered under the hand run the more to its way.)
+        here = lifeActs.length
+          ? Object.fromEntries(kinds.map((x) => [x, weights[x] * livedBefore(k, x)]))
+          : weights,
+        total = kinds.reduce((a, x) => a + here[x]!, 0);
       for (let i = 0; i < count && species.length + later.length < MAX_SPECIES; i++) {
         let pick = rng.real(BIO, k, 61, i) * total,
           niche: WebNiche = kinds[0]!;
         for (const x of kinds) {
-          if (pick < weights[x]) {
+          if (pick < here[x]!) {
             niche = x;
             break;
           }
-          pick -= weights[x];
+          pick -= here[x]!;
         }
         let origin = -1,
           best = Infinity;
@@ -836,7 +871,7 @@ export function makeBiosphere(
                 : age.kind === "hothouse" && a.s.warm < 5
                   ? 0.4
                   : 0.04;
-        if (rng.real(BIO, j, k, 95) < risk) a.died = k;
+        if (rng.real(BIO, j, k, 95) < risk * (spared(k, a.s.niche) ? 0.5 : 1)) a.died = k;
       });
     }
     const added: Species[] = [];

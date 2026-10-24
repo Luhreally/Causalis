@@ -13,7 +13,7 @@ import {
   type Seed,
   type SphereGrid,
 } from "../kernel/index.ts";
-import { agesMade, dawnMade, type Prior } from "../rules/index.ts";
+import { agesMade, dawnMade, livesMade, type Prior } from "../rules/index.ts";
 import { makePlanet, makeStar, type Planet, type Star } from "./bodies.ts";
 import { makeSystem, type StarSystem } from "./system.ts";
 import { makeClimate, type Climate } from "./climate.ts";
@@ -84,6 +84,7 @@ export function generateHomeWorld(
       gravity: planet.gravity,
       ocean: planet.oceanFraction,
       dawn: dawnMade(seed.text),
+      lives: livesMade(seed.text, AGES),
     }),
     deposits = makeDeposits(grid, rng, tectonics, climate, water, tectonics.elevation, deep);
   const h = new Hasher().string(prior.name).int(frequency).value(star).value(planet);

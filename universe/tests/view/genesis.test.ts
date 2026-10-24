@@ -126,7 +126,7 @@ const BEGUN = {
     { id: "bodies", name: "The first bodies", at: 640, words: "bodies" },
   ],
   drop: null,
-  acts: { ages: [], dawn: null },
+  acts: { ages: [], dawn: null, lives: [] },
 } as const;
 
 test("the living world arises age by age: each lineage on the stage from its age, gone after the age it died in", () => {
