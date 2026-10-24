@@ -72,7 +72,7 @@ export type World = {
 export type Home = { readonly warm: number; readonly rain: number };
 
 /** Middle weights by niche (kg), before the world and chance vary them. */
-const SIZE: Readonly<Record<CreatureNiche, readonly [number, number]>> = {
+export const NICHE_SIZE: Readonly<Record<CreatureNiche, readonly [number, number]>> = {
   grazer: [30, 700],
   browser: [40, 440],
   "great beast": [2000, 6000],
@@ -95,7 +95,7 @@ export function creatureBody(
 ): CreatureBody {
   const web = FOOD_WEB[niche],
     pull = Math.max(0.3, world.gravity),
-    [lo, hi] = SIZE[niche],
+    [lo, hi] = NICHE_SIZE[niche],
     // Heavier worlds keep bodies smaller (the square-cube law against their pull).
     size = (lo + (hi - lo) * u(0) * u(0)) * dmath.pow(pull, -0.75),
     cold = home.warm < 5,

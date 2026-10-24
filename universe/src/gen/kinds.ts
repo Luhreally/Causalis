@@ -14,6 +14,8 @@ export const SPOT = defineKind("spot", "spot on a planet's fine grid", "structur
 export const DEPOSIT = defineKind("depo", "mineral deposit", "structural");
 export const AGE = defineKind("age", "age of a world's deep past", "structural");
 export const SPECIES = defineKind("spec", "lineage of living things", "structural");
+/** A line of descent in a world's tree of life that no lineage of its living world is (Phase 17). */
+export const CLADE = defineKind("clade", "line of descent in the tree of life", "structural");
 
 export const HOME = 0;
 
@@ -43,6 +45,10 @@ export function ageRef(planet: number, age: number): Ref {
 
 export function speciesRef(planet: number, species: number): Ref {
   return makeRef(SPECIES, planet, species);
+}
+
+export function cladeRef(planet: number, line: number): Ref {
+  return makeRef(CLADE, planet, line);
 }
 
 export function spotRef(planet: number, cell: number): Ref {

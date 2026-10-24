@@ -8,6 +8,7 @@ import { kindCodeOf, parseRef, type Ref, type World } from "../kernel/index.ts";
 import {
   AGE,
   AGES,
+  CLADE,
   SPECIES,
   BIOME_NAMES,
   BOUNDARY,
@@ -26,6 +27,9 @@ import {
   cellRef,
   pastLatitude,
   surfaceCopper,
+  starAgeGyr,
+  treeOfLife,
+  type HomeWorld,
   type SystemBody,
 } from "../gen/index.ts";
 import {
@@ -69,7 +73,7 @@ registerExplainer(STAR.code, (world, ref) => {
   const s = homePlanet(world).generated.star;
   return generated(
     ref,
-    `A ${s.spectral} star of ${s.mass.toFixed(2)} suns, ${s.ageGyr.toFixed(1)} billion years old, shining ${s.luminosity.toFixed(2)} times as bright as the Sun`,
+    `A ${s.spectral} star of ${s.mass.toFixed(2)} suns, ${starAgeGyr(s).toFixed(1)} billion years old, shining ${s.luminosity.toFixed(2)} times as bright as the Sun`,
     [],
   );
 });
@@ -187,6 +191,48 @@ registerExplainer(AGE.code, (world, ref) => {
   );
 });
 
+/** The world as generated, whose tree of life it is. */
+function fineWorld(world: World): HomeWorld {
+  const g = homePlanet(world).generated;
+  return isProvinceWorld(g) ? g.fine : g;
+}
+
+/** When, in words, millions of years back. */
+function agoWords(my: number): string {
+  return my >= 1000
+    ? `${(my / 1000).toFixed(1)} billion years ago`
+    : `${Math.round(my)} million years ago`;
+}
+
+/** The line of the tree of life a lineage came of (Phase 17 M129), to cite. */
+function motherLine(world: World, species: number): Ref | null {
+  const tree = treeOfLife(fineWorld(world)),
+    id = tree.ofSpecies[species] ?? -1,
+    mother = id >= 0 ? tree.nodes[tree.nodes[id]!.parent] : undefined;
+  return mother ? (mother.ref as Ref) : null;
+}
+
+// A line of the tree of life (Phase 17 M129): what it was, what it came of and what changed.
+registerExplainer(CLADE.code, (world, ref) => {
+  if (!hasPlanet(world)) return null;
+  const g = fineWorld(world),
+    tree = treeOfLife(g),
+    n = tree.nodes[parseRef(ref).b];
+  if (!n || n.ref !== ref) return null;
+  const mother = n.parent >= 0 ? tree.nodes[n.parent]! : null,
+    changes = n.innovations.map((i) => `${i.what} (${i.why})`).join("; ");
+  return generated(
+    ref,
+    `The ${n.name}: ${n.what}. It arose ${agoWords(n.from)}${mother ? ` of the ${mother.name}` : ", the first of all"}${changes ? `: ${changes}` : ""}${n.fate ? `. Its end: ${n.fate}` : ""}`,
+    edges(world, [
+      mother
+        ? { ref: mother.ref as Ref, role: "enabler", weight: 0.6 }
+        : { ref: g.planet.ref as Ref, role: "enabler", weight: 1 },
+      ...(n.arose >= 0 ? [{ ref: ageRef(0, n.arose), role: "enabler" as const, weight: 0.4 }] : []),
+    ]),
+  );
+});
+
 registerExplainer(SPECIES.code, (world, ref) => {
   if (!hasPlanet(world)) return null;
   const g = homePlanet(world).generated,
@@ -202,8 +248,12 @@ registerExplainer(SPECIES.code, (world, ref) => {
       ref,
       `The ${s.name}, the people: they arose in the last age at ${deg(g.grid.lat[c]!)}${g.grid.lat[c]! >= 0 ? "N" : "S"}, where ${g.life.diversity[c]} kinds of beast lived${g.life.seedGrass[c]! >= 0 ? ` and the ${g.life.species[g.life.seedGrass[c]!]!.name} grew wild` : ""}${g.water.river[c] ? ", by a river" : ""}${people ? ` — ${people.because}. ${cap(bodyWords(people.body))}` : ""}`,
       edges(world, [
-        { ref: cellRef(0, c), role: "enabler", weight: 0.6 },
-        { ref: ageRef(0, s.arose), role: "enabler", weight: 0.4 },
+        { ref: cellRef(0, c), role: "enabler", weight: 0.5 },
+        { ref: ageRef(0, s.arose), role: "enabler", weight: 0.3 },
+        ...(() => {
+          const m = motherLine(world, s.index);
+          return m ? [{ ref: m, role: "enabler" as const, weight: 0.2 }] : [];
+        })(),
       ]),
     );
   }
@@ -229,9 +279,14 @@ registerExplainer(SPECIES.code, (world, ref) => {
       {
         ref: ageRef(0, s.died ?? s.arose),
         role: s.died === null ? "enabler" : "trigger",
-        weight: 0.7,
+        weight: 0.5,
       },
-      { ref: cellRef(0, origin), role: "enabler", weight: 0.3 },
+      { ref: cellRef(0, origin), role: "enabler", weight: 0.2 },
+      // (What it came of, in the tree of life.)
+      ...(() => {
+        const m = motherLine(world, s.index);
+        return m ? [{ ref: m, role: "enabler" as const, weight: 0.3 }] : [];
+      })(),
     ]),
   );
 });

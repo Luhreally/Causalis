@@ -30,6 +30,7 @@ import {
 } from "./matter.ts";
 import { groundReading } from "./ground.ts";
 import { thingPage } from "./things.ts";
+import { cladePage, treePage } from "./tree.ts";
 import { alertsOf, breakdownOf, logPage, type Counted } from "./alerts.ts";
 import { answersOf } from "./answers.ts";
 import { comparePage } from "./compare.ts";
@@ -44,6 +45,9 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref === "world:log") return logPage(world, tab ?? undefined);
   if (ref === "world:stats") return statsPage(world, tab ?? undefined);
   if (ref === "world:matter") return matterGuidePage(world, tab ?? undefined);
+  // The tree of life (Phase 17 M129), and a line of it no living lineage is.
+  if (ref === "world:tree") return treePage(world, tab ?? undefined);
+  if (ref.startsWith("clade:")) return cladePage(world, ref);
   if (ref.startsWith("compare:")) return comparePage(world, ref);
   if (ref.startsWith("concept:")) return conceptPage(world, ref);
   if (ref.startsWith("trait:")) return traitPage(world, ref);

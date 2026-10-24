@@ -8,7 +8,7 @@ import {
   starSitesOf,
   starWarsOf,
 } from "../../sim/index.ts";
-import { offworldSite, cellRef } from "../../gen/index.ts";
+import { offworldSite, cellRef, starAgeGyr } from "../../gen/index.ts";
 import { Rng, hashString, type World } from "../../kernel/index.ts";
 import { realmColor } from "../colors.ts";
 import type { Item, PageModel, Place, Stat } from "../../bridge/index.ts";
@@ -67,7 +67,7 @@ export function starPageModel(world: World, ref: string): PageModel {
         remnant: false,
       },
       title: "The home star",
-      subtitle: [`${starWords(g.star)}, ${g.star.ageGyr.toFixed(1)} billion years old`],
+      subtitle: [`${starWords(g.star)}, ${starAgeGyr(g.star).toFixed(1)} billion years old`],
       color: null,
       place: { scale: "system" },
       stats: [

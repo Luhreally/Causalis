@@ -45,6 +45,17 @@ function spectralClass(t: number): string {
   return `${letter}${sub}V`;
 }
 
+/** The oldest a star of the disk can be (billions of years): the galaxy itself is no older. */
+export const OLDEST_STAR_GYR = 12.6;
+
+/**
+ * A star's age as it is told: what it has burned through of its life, but never older than
+ * the galaxy (a small dim star's life is far longer than the universe has yet lasted).
+ */
+export function starAgeGyr(s: { readonly ageGyr: number }): number {
+  return Math.min(s.ageGyr, OLDEST_STAR_GYR);
+}
+
 export function makeStar(rng: Rng, prior: Prior): Star {
   const mass = draw(rng, prior.star.mass, 1, 0),
     luminosity = mass < 0.43 ? 0.23 * dmath.pow(mass, 2.3) : dmath.pow(mass, 4),

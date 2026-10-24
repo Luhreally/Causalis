@@ -143,6 +143,7 @@ export {
 } from "./starships.ts";
 export {
   FOOD_WEB,
+  NICHE_SIZE,
   creatureWords,
   creatureBody,
   creatureName,

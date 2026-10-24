@@ -156,6 +156,11 @@ jobs:
       - run: npm run gate:15 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 17 gate: the tree of life (every line of descent charted, the first of each
+      # kind of body drawn, a lineage's ancestry, a forebear's page from its row; on a phone).
+      - run: npm run gate:17 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

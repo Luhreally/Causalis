@@ -2,7 +2,14 @@
 // rivers and deposits now; the galaxy, deep-time life, species, cultures and
 // languages as later milestones add them. May import: kernel, rules.
 // See README.md and docs/architecture §24, §27.
-export { makePlanet, makeStar, type Planet, type Star } from "./bodies.ts";
+export {
+  OLDEST_STAR_GYR,
+  makePlanet,
+  makeStar,
+  starAgeGyr,
+  type Planet,
+  type Star,
+} from "./bodies.ts";
 export {
   foreignPlanets,
   makeSystem,
@@ -56,6 +63,7 @@ export {
 } from "./deeptime.ts";
 export {
   AGE,
+  CLADE,
   SPECIES,
   DEPOSIT,
   HOME,
@@ -66,6 +74,7 @@ export {
   SURFACE_CELL,
   SPOT,
   ageRef,
+  cladeRef,
   speciesRef,
   spotRef,
   cellRef,
@@ -129,3 +138,35 @@ export {
   type Civilization,
 } from "./civilizations.ts";
 export { COVER, WORLD_FREQUENCY, otherWorld, type OtherWorld } from "./worlds.ts";
+export {
+  ageSpan,
+  descendantsOf,
+  develop,
+  distance,
+  encode,
+  endOf,
+  fitness,
+  innovations,
+  inWater,
+  kindOfBody,
+  lineOf,
+  lineRef,
+  livesOn,
+  massWords,
+  mutate,
+  peopleGenome,
+  pressures,
+  treeOfLife,
+  wayWord,
+  type Env,
+  type Gait,
+  type Genome,
+  type Innovation,
+  type LifeNode,
+  type NodeKind,
+  type Pattern,
+  type Pressure,
+  type Rung,
+  type TreeOfLife,
+  type Way,
+} from "./evolution.ts";

@@ -12,6 +12,7 @@ import { count, eventsAbout, item, link, share, stat, yearNow } from "./words.ts
 import { ORE_GRADE, REACTIONS, SUBSTANCE, SUBSTANCES, TONNES_A_UNIT } from "../../rules/index.ts";
 import { DEPOSIT_MINERALS, rxnRef, substRef, weight } from "./matter.ts";
 import { landLink, landTitle, landsOf, lineageIcon, spotOfLand } from "./names.ts";
+import { ageLines, ancestryTab } from "./tree.ts";
 
 const LEVEL_WORDS = [
   "",
@@ -169,6 +170,11 @@ export function lineagePage(world: World, ref: string): PageModel {
           { type: "why", ref },
         ],
       },
+      // Where it came from, body by body (Phase 17 M129).
+      ...(() => {
+        const t = ancestryTab(world, sp.index);
+        return t ? [t] : [];
+      })(),
       {
         id: "web",
         name: "Web of eating",
@@ -389,7 +395,9 @@ export function agePage(world: World, ref: string): PageModel {
       .map((s) => item([link(s.name, s.ref), ` — ${s.niche}`], s.ref)),
     died: Item[] = g.life.species
       .filter((s) => s.died === index)
-      .map((s) => item([link(s.name, s.ref), ` — ${s.niche}`], s.ref));
+      .map((s) => item([link(s.name, s.ref), ` — ${s.niche}`], s.ref)),
+    // (The lines of the tree of life that arose and died in it and left no living lineage.)
+    lines = ageLines(world, index);
   return {
     ref,
     kind: "age",
@@ -411,6 +419,8 @@ export function agePage(world: World, ref: string): PageModel {
         blocks: [
           { type: "list", title: "Arose in it", items: arose },
           { type: "list", title: "Died out in it", items: died },
+          { type: "list", title: "Lines of the tree that arose in it", items: lines.arose },
+          { type: "list", title: "Lines of the tree that ended in it", items: lines.died },
           {
             type: "list",
             title: "The ages",

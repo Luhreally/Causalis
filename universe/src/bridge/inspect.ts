@@ -206,6 +206,40 @@ export type Block =
         readonly words: readonly [string, string];
       }[];
     }
+  /**
+   * A tree of life (Phase 17 M129): lines of descent through time, each a bar from when it
+   * arose to its end, hung from its mother's bar where it branched off.
+   */
+  | {
+      readonly type: "phylo";
+      readonly title?: string;
+      /** The chart's span, millions of years ago: its oldest moment, and now (0). */
+      readonly from: number;
+      readonly to: number;
+      /** Where the chart's scale turns from the dawn's long ages to the near ones (My ago). */
+      readonly fold?: number;
+      readonly lines: readonly PhyloLine[];
+      /** The line whose page it is, lit with its ancestry. */
+      readonly focus?: number;
+    }
+  /**
+   * Bodies in a row (Phase 17 M129): a line of descent, each its picture, its name and a few
+   * words — or, `apart`, bodies side by side that are no line (no arrows between them).
+   */
+  | {
+      readonly type: "lineup";
+      readonly title?: string;
+      readonly apart?: boolean;
+      readonly items: readonly {
+        readonly ref: string;
+        readonly name: string;
+        readonly body: BeastPlan | null;
+        /** Its sign where it has no body to draw (a cell, a plant, the people). */
+        readonly icon?: string;
+        readonly words: string;
+        readonly self?: boolean;
+      }[];
+    }
   | { readonly type: "why"; readonly title?: string; readonly ref: string }
   /** The page's picture large, with what it is made of named (a lineage's anatomy). */
   | { readonly type: "anatomy"; readonly title?: string }
@@ -215,6 +249,23 @@ export type Block =
       readonly tool: string;
       readonly args: Readonly<Record<string, unknown>>;
     };
+
+/** A line of a tree of life, as the chart draws it. */
+export type PhyloLine = {
+  readonly id: number;
+  /** Its mother line (-1: the root, or a mother not shown). */
+  readonly parent: number;
+  readonly ref: string;
+  readonly name: string;
+  /** When it arose and where its bar ends, millions of years ago (0: now). */
+  readonly from: number;
+  readonly end: number;
+  /** It lives (its bar runs to now), it died out (a cross at its end), or it lives on in its daughters. */
+  readonly fate: "lives" | "died" | "line";
+  readonly color: Rgb;
+  /** What it was, in a few words. */
+  readonly words?: string;
+};
 
 export type Tab = { readonly id: string; readonly name: string; readonly blocks: readonly Block[] };
 
@@ -320,6 +371,9 @@ export type PageKind =
   | "thing"
   /** The field guide to matter (`world:matter`). */
   | "matter"
+  /** The tree of life (`world:tree`), and a line of it no living lineage is (Phase 17). */
+  | "tree"
+  | "clade"
   | "unknown";
 
 export type PageModel = {

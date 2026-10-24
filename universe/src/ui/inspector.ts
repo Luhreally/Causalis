@@ -28,6 +28,7 @@ import type { HoverTips } from "./hovertip.ts";
 import type { ArmsBook } from "./arms.ts";
 import { drawTool } from "./tools.ts";
 import { drawAnatomy, drawPortrait, moves } from "./portrait.ts";
+import { lineupStrip, phyloChart } from "./phylo.ts";
 
 /** How often an open page is read again while the world runs (ms). */
 const REFRESH_MS = 2000;
@@ -697,6 +698,18 @@ export class PageWindow {
         box.append(tree);
         break;
       }
+      case "phylo":
+        // A tree of life (Phase 17 M129): each line's name opens its page.
+        box.append(
+          phyloChart(b, {
+            label: (l) => this.link(l.name, l.ref),
+            open: (ref) => void this.open(ref),
+          }),
+        );
+        break;
+      case "lineup":
+        box.append(lineupStrip(b, (ref) => void this.open(ref)));
+        break;
       case "anatomy": {
         const canvas = el("canvas", "anatomy"),
           p = this.page?.portrait;

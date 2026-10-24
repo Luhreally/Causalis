@@ -39,6 +39,7 @@ export {
   type PageKind,
   type PageModel,
   type Part,
+  type PhyloLine,
   type Place,
   type Portrait,
   type Row,

@@ -460,11 +460,14 @@ export class PlanetPanel {
       numbers = menuButton("📈", "Numbers"),
       // The field guide to matter (Phase 15): every substance, reaction and element.
       matter = menuButton("🧪", "Matter"),
+      // The tree of life (Phase 17): every line of descent, from the first cells to now.
+      life = menuButton("🌳", "Tree of life"),
       concepts = menuButton("📖", "Concepts");
     chronicle.onclick = () => this.onChronicle();
     ledger.onclick = () => this.onLedger();
     numbers.onclick = () => this.onNumbers();
     matter.onclick = () => this.onMatter();
+    life.onclick = () => this.onTree();
     concepts.onclick = () => this.onConcepts();
     const sky = menuButton("☀️", "The sky");
     sky.onclick = () => this.onSky();
@@ -505,6 +508,7 @@ export class PlanetPanel {
       ledger,
       numbers,
       matter,
+      life,
       concepts,
       sky,
       origin,
@@ -1077,6 +1081,8 @@ export class PlanetPanel {
   /** Asked for the world's numbers through the years (Phase 12 M109). */
   onNumbers: () => void = () => {};
   onMatter: () => void = () => {};
+  /** Asked for the tree of life (Phase 17 M129). */
+  onTree: () => void = () => {};
 
   private worldPage(title: string): void {
     this.onWorldPage();

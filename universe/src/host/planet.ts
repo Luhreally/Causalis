@@ -75,6 +75,7 @@ import {
   type Region,
   type Tongue,
   spotRef,
+  starAgeGyr,
   type ProvinceWorld,
 } from "../gen/index.ts";
 import { EARTHLIKE, OPEN, type Prior } from "../rules/index.ts";
@@ -613,7 +614,7 @@ export function summary(g: HomeWorld) {
       spectral: s.spectral,
       mass: s.mass,
       luminosity: s.luminosity,
-      ageGyr: s.ageGyr,
+      ageGyr: starAgeGyr(s),
     },
     planet: {
       ref: p.ref,
@@ -834,7 +835,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
             mass: g.star.mass,
             luminosity: g.star.luminosity,
             temperature: g.star.temperature,
-            ageGyr: g.star.ageGyr,
+            ageGyr: starAgeGyr(g.star),
           },
           frostLine: g.system.frostLine,
           bodies: bodies.map((b) => ({
