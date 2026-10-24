@@ -77,7 +77,14 @@ const centre = (sel: string) =>
 // (The pointer is taken there and pressed, or rested, as a viewer's is — not by Playwright's
 // own checks, which wait for two frames alike: long where the frames come slowly, as in CI.)
 const press = async (sel: string) => {
-  const at = await centre(sel);
+  // (Where it stands once it stands still: a tool the corner's column moves is pressed where it went.)
+  let at = await centre(sel);
+  for (let i = 0; i < 20 && at; i++) {
+    await page.waitForTimeout(100);
+    const now = await centre(sel);
+    if (now && Math.abs(now.x - at.x) < 1 && Math.abs(now.y - at.y) < 1) break;
+    at = now;
+  }
   if (!at) {
     problems.push(`${sel} was not there to press`);
     return false;

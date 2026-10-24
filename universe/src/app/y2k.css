@@ -1201,7 +1201,7 @@ body.paging .panel:not(.page-panel) .inspector {
  * Free roam (Phase 10 M98): its buttons under the bar at the upper right, how to steer
  * beside them, and on a phone, while roaming, a stick at the lower left and up and down.
  */
-/* The corner's tools (search, free roam): under the scale's bar at the upper right. */
+/* The corner's tools (free roam first, then alerts, search, the outliner, the log): under the scale's bar at the upper right. */
 .corner-tools {
   position: absolute;
   z-index: 3;
@@ -1546,8 +1546,9 @@ body.roaming .hint {
 }
 
 /*
- * Alerts (Phase 10 M96): a row of lit gel icons at the head of the corner's tools, each lit by
- * its kind (war red, want amber, loss grey, news cyan) with its count; one newly come pulses.
+ * Alerts (Phase 10 M96): a row of lit gel icons near the head of the corner's tools (under free
+ * roam's two buttons), each lit by its kind (war red, want amber, loss grey, news cyan) with its
+ * count; one newly come pulses.
  */
 .alerts {
   display: flex;

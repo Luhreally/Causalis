@@ -79,7 +79,9 @@ export class FreeControls {
     const steering = el("div", "free-steer");
     steering.append(this.pad, heights);
     this.element.append(buttons, this.hint, steering);
-    parent.append(this.element);
+    // (First of the corner's tools: alerts that come and lists that open below never move them
+    // out from under a press.)
+    parent.prepend(this.element);
     this.set("orbit", false);
   }
 
