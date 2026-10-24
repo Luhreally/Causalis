@@ -219,7 +219,13 @@ else {
 // 4. Side by side: two realms compared; a war's tally.
 {
   await opened(`${realms[0]!.ref}#compare`);
-  await press(".page-window .entry");
+  // (The row itself sets the two side by side; the realm's name in it opens the realm's own
+  // page: pressed at its far end, clear of the name.)
+  const row = await k<{ x: number; y: number } | null>(
+    `(() => { const e = document.querySelector(".page-window .entry"); if (!e) return null; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); return r.width ? { x: r.right - 12, y: r.top + r.height / 2 } : null; })()`,
+  );
+  if (row) await page.mouse.click(row.x, row.y);
+  else problems.push("no realm offered to set beside it");
   await until(
     "two realms side by side",
     async () => (await title()).includes("side by side"),
