@@ -43,6 +43,7 @@ import {
   progress,
   townLots,
   townReach,
+  type TownWater,
   type VillageLife,
   type VillagePlan,
   type Visitor,
@@ -110,6 +111,50 @@ export function landHouse(world: World, cell: number): VillagePlan["house"] {
   };
 }
 
+/** The eight ways out of a settlement's tile of its land: how good the ground is each way, and whether it is water. */
+function waysOut(
+  world: World,
+  cell: number,
+  tile: number,
+): { angle: number; soil: number; water: boolean }[] {
+  const r = regionOf(populationContext(world), cell),
+    i0 = tile % r.size,
+    j0 = Math.floor(tile / r.size),
+    ways: { angle: number; soil: number; water: boolean }[] = [];
+  for (let k = 0; k < 8; k++) {
+    const angle = (k / 8) * 2 * Math.PI,
+      i = Math.round(i0 + Math.cos(angle)),
+      j = Math.round(j0 + Math.sin(angle));
+    if (i < 0 || j < 0 || i >= r.size || j >= r.size) continue;
+    const t = j * r.size + i,
+      w = r.water[t]!;
+    ways.push({ angle, soil: w === WATER.land ? r.fertility[t]! : 0, water: w !== WATER.land });
+  }
+  return ways;
+}
+
+/**
+ * Where a town's streets run and the water its blocks are laid about, as its own streets are
+ * drawn (Phase 25: the land draws it the same): a city's along its axis, a village's along its
+ * road out, between its fields and the poorer ground; its water the first way out that is water.
+ */
+export function townSite(world: World, ref: Ref): { axis: number; water: TownWater | null } | null {
+  const v = populationContext(world).settlements.get(ref);
+  if (!v) return null;
+  const ways = waysOut(world, v.cell, v.tile),
+    city = citiesOf(world).get(ref),
+    best = [...ways].sort((a, b) => b.soil - a.soil || a.angle - b.angle),
+    fieldWay = best[0]?.angle ?? 0,
+    waterWay = ways.find((w) => w.water)?.angle ?? null;
+  return {
+    axis: city ? city.axis : fieldWay + Math.PI * 0.75,
+    water:
+      waterWay === null
+        ? null
+        : { x: WATER_OUT * Math.cos(waterWay), z: WATER_OUT * Math.sin(waterWay), r: LAKE_R },
+  };
+}
+
 export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES): VillagePlan {
   const ctx = populationContext(world),
     v = ctx.settlements.get(ref);
@@ -129,18 +174,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
 
   // Which way the good ground lies: fields go toward it, flocks away from it.
   const r = regionOf(ctx, v.cell),
-    i0 = v.tile % r.size,
-    j0 = Math.floor(v.tile / r.size),
-    ways: { angle: number; soil: number; water: boolean }[] = [];
-  for (let k = 0; k < 8; k++) {
-    const angle = (k / 8) * 2 * Math.PI,
-      i = Math.round(i0 + Math.cos(angle)),
-      j = Math.round(j0 + Math.sin(angle));
-    if (i < 0 || j < 0 || i >= r.size || j >= r.size) continue;
-    const t = j * r.size + i,
-      w = r.water[t]!;
-    ways.push({ angle, soil: w === WATER.land ? r.fertility[t]! : 0, water: w !== WATER.land });
-  }
+    ways = waysOut(world, v.cell, v.tile);
   const city = citiesOf(world).get(ref),
     best = [...ways].sort((a, b) => b.soil - a.soil || a.angle - b.angle),
     fieldWay = best[0]?.angle ?? 0,

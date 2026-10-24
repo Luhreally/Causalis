@@ -29,6 +29,8 @@ export type Quality = {
   readonly motion: boolean;
   /** Families of a village the microscope meets (its depth; the observer's work). */
   readonly families: number;
+  /** Lots of its towns a land draws at most (its great cities' far lots their sprawl). */
+  readonly landLots: number;
 };
 
 export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
@@ -40,12 +42,13 @@ export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
     clouds: false,
     glows: false,
     crowdCap: 24,
-    regionTrees: 800,
+    regionTrees: 2400,
     villageTrees: 0.35,
     wildlife: 30,
     detail: 0,
     motion: false,
     families: 5,
+    landLots: 2500,
   },
   balanced: {
     name: "balanced",
@@ -55,12 +58,13 @@ export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
     clouds: true,
     glows: true,
     crowdCap: 40,
-    regionTrees: 2500,
+    regionTrees: 6000,
     villageTrees: 0.7,
     wildlife: 80,
     detail: 1,
     motion: true,
     families: 8,
+    landLots: 6000,
   },
   high: {
     name: "high",
@@ -70,12 +74,13 @@ export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
     clouds: true,
     glows: true,
     crowdCap: 80,
-    regionTrees: 4000,
+    regionTrees: 10000,
     villageTrees: 1,
     wildlife: 160,
     detail: 2,
     motion: true,
     families: 10,
+    landLots: 12000,
   },
   ultra: {
     name: "ultra",
@@ -85,12 +90,13 @@ export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
     clouds: true,
     glows: true,
     crowdCap: 140,
-    regionTrees: 8000,
+    regionTrees: 18000,
     villageTrees: 1.4,
     wildlife: 320,
     detail: 3,
     motion: true,
     families: 14,
+    landLots: 24000,
   },
 };
 

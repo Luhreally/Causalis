@@ -96,6 +96,9 @@ export type RegionTree = {
   readonly size: number;
 };
 
+/** Trees in a wooded tile's clump. */
+const CLUMP = 3;
+
 /** How wooded each land is (gen's BIOME codes): the chance a tile bears a tree, and its kind. */
 const WOODED: Readonly<Record<number, readonly [number, "conifer" | "broadleaf"]>> = {
   5: [0.04, "conifer"],
@@ -133,21 +136,23 @@ export function regionTrees(frame: FrameMessage, cap = 4000): RegionTree[] {
     return (h >>> 0) / 4294967296;
   };
   // As many as the woods would hold, thinned alike everywhere to the cap (not the first
-  // rows filled and the rest bare).
+  // rows filled and the rest bare): a clump of a few trees in each wooded tile.
   let expected = 0;
   for (let t = 0; t < biome.length; t++) if (!water[t]) expected += WOODED[biome[t]!]?.[0] ?? 0;
-  const thin = Math.min(1, cap / Math.max(1, expected));
-  for (let t = 0; t < biome.length && out.length < cap; t++) {
+  // (A little under the cap, so the last rows are not left bare by the luck of the first.)
+  const thin = Math.min(1, (0.9 * cap) / CLUMP / Math.max(1, expected));
+  for (let t = 0; t < biome.length && out.length + CLUMP <= cap; t++) {
     if (water[t]) continue;
     const wood = WOODED[biome[t]!];
     if (!wood || unit(t, 0) >= wood[0] * thin) continue;
-    out.push({
-      tile: t,
-      dx: unit(t, 1) - 0.5,
-      dz: unit(t, 2) - 0.5,
-      kind: wood[1],
-      size: 0.8 + 0.5 * unit(t, 3),
-    });
+    for (let k = 0; k < CLUMP; k++)
+      out.push({
+        tile: t,
+        dx: (unit(t, 1 + 4 * k) - 0.5) * 0.9,
+        dz: (unit(t, 2 + 4 * k) - 0.5) * 0.9,
+        kind: wood[1],
+        size: 0.32 + 0.22 * unit(t, 3 + 4 * k),
+      });
   }
   return out;
 }

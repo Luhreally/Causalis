@@ -107,6 +107,8 @@ export {
 } from "./designs.ts";
 export {
   CIVICS,
+  CIVIC_FOR,
+  CIVIC_ICON,
   CIVIC_INDEX,
   HOLDS,
   HOME_LEVELS,

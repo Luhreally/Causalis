@@ -125,6 +125,7 @@ import { SEARCH_QUERIES } from "./search.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds, realmArms } from "./arms.ts";
 import { villagePlan } from "./village.ts";
+import { landPlan } from "./land.ts";
 import { landReadings } from "./lenses.ts";
 import { genesisOf } from "./genesis.ts";
 import { TRAIT_LOOK } from "./inspect/folk.ts";
@@ -1118,6 +1119,11 @@ function planetUniverse(name: string, prior: Prior): Universe {
             founded: s.founded,
           })),
       settlement: (world, args) => settlementFacts(world, (args as { ref: string }).ref),
+      // A land's towns as the land draws them, each from its fabric, and its roads (M150).
+      "towns.land": (world, args) => {
+        const a = args as { cell: number; most?: number };
+        return landPlan(world, a.cell, a.most);
+      },
       ...OBSERVE_QUERIES,
       ...PAGE_QUERIES,
       // Every thing's page, and where it is to be seen (Phase 10 M91). (Called through, not

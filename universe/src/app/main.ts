@@ -70,6 +70,7 @@ import {
 import type {
   ActsMap,
   ClusterPlan,
+  LandPlan,
   SkyState,
   PeoplesSky,
   SystemPlan,
@@ -234,6 +235,12 @@ type Exposed = {
   descend?: (cell: number) => void;
   /** How many villages the region on screen shows. */
   villages?: () => number;
+  /** A town of the land on screen as drawn from its fabric: its square and reach (region units); and the parts drawn in all (M150). */
+  landTown?: (ref: string) => { x: number; z: number; r: number } | null;
+  landParts?: () => number;
+  land?: () => { towns: number; parts: number; fields: number; roads: number };
+  /** Where on the screen one of the town's buildings, one of its homes and its walls are (M151). */
+  townOnScreen?: () => unknown;
   /** Watch a village through the microscope; how many people are watched. */
   watch?: (ref: string) => void;
   watching?: () => number;
@@ -543,6 +550,8 @@ async function runPlanetPage(): Promise<void> {
     realms = new Map<number, readonly [number, number, number]>(),
     faiths = new Map<number, readonly [number, number, number]>(),
     villages: Village[] = [],
+    // The land's towns as drawn from their fabric, and its roads (Phase 25 M150).
+    landPlan: LandPlan | null = null,
     regionCell = -1,
     stopVillages: (() => void) | null = null,
     // The lands the god's palette lights (its reach, its choices: Phase 12 M106).
@@ -800,12 +809,20 @@ async function runPlanetPage(): Promise<void> {
     };
     if (region.key !== meta.ref) {
       const t0 = performance.now();
-      region.build(meta.ref, meta.size, meta.tileKm, regionHeights(frame));
+      region.build(
+        meta.ref,
+        meta.size,
+        meta.tileKm,
+        regionHeights(frame),
+        frame.arrays.water as Uint8Array | undefined,
+        frame.arrays.fertility as Uint8Array | undefined,
+      );
       // The phone's budgets are measured by these (npm run gate:7).
       performance.measure("region.build", { start: t0 });
       regionPanel.show(meta.center, meta.lat, meta.lon, meta.size * meta.tileKm);
       region.setVillages(villages);
       region.plantTrees(regionTrees(frame, stage.quality.regionTrees));
+      if (landPlan) region.setTowns(landPlan, landPlan.t);
       showLandWars();
       // Come down from the globe onto a spot of it: that spot in the middle (M95).
       const parent = frame.arrays.parent as Int32Array | undefined;
@@ -1352,7 +1369,8 @@ async function runPlanetPage(): Promise<void> {
 
   const aspect = () => Math.max(0.3, innerWidth / Math.max(1, innerHeight));
   const globeFit = () => (aspect() < 1 ? 3.1 / aspect() : 3.3);
-  const regionFit = () => (aspect() < 1 ? 120 / aspect() : 130);
+  // (Near enough that its towns, drawn from their fabric, are seen growing: M150.)
+  const regionFit = () => (aspect() < 1 ? 74 / aspect() : 80);
   // A land touched on the globe: its page (a spot of the sea, the spot's own).
   const selectCell = (cell: number | null) => {
     globe.mark(cell);
@@ -1447,6 +1465,18 @@ async function runPlanetPage(): Promise<void> {
       front = battleFront(plan),
       event = plan.life?.battle?.event;
     if (front && event && Math.hypot(mx - front.x, mz - front.z) < 30) return event;
+    // A town drawn from its fabric (Phase 25 M151): one of its buildings, its walls, a lot of it —
+    // a watched family's home on it, theirs.
+    const thing = village.townThingAt(mx, mz, now());
+    if (thing) {
+      if (thing.kind === "civic") return `bldg:${plan.ref}:${thing.at}:${thing.start}`;
+      if (thing.kind === "walls") return `walls:${plan.ref}`;
+      const lot = village.townLot(thing.lot),
+        theirs = lot
+          ? plan.homes.find((h) => h.household && Math.hypot(h.x - lot.x, h.z - lot.z) < 1)
+          : undefined;
+      return theirs?.household ?? `lot:${plan.ref}:${thing.lot}`;
+    }
     let home = -1,
       near = 7;
     plan.homes.forEach((h, k) => {
@@ -1740,14 +1770,25 @@ async function runPlanetPage(): Promise<void> {
     });
     client.setInterest({ view: "region", focus: `cell:0:${cell}` });
     villages = [];
+    landPlan = null;
     stopVillages?.();
-    stopVillages = client.subscribe<Village[]>(
-      { type: "settlements", args: { cell } },
+    // Its towns drawn from their fabric, their fields and its roads, as they grow (M150).
+    stopVillages = client.subscribe<LandPlan>(
+      { type: "towns.land", args: { cell, most: stage.quality.landLots } },
       1000,
-      (list) => {
+      (plan) => {
         if (regionCell !== cell) return;
-        villages = list;
-        region.setVillages(list);
+        villages = plan.towns.map((v) => ({
+          ref: v.ref,
+          name: v.name,
+          tile: v.tile,
+          population: v.population,
+          founded: v.founded,
+        }));
+        landPlan = plan;
+        const t0 = performance.now();
+        region.setTowns(plan, plan.t);
+        performance.measure("region.towns", { start: t0 });
       },
     );
     paintRegion();
@@ -1759,6 +1800,7 @@ async function runPlanetPage(): Promise<void> {
     stopVillages?.();
     stopVillages = null;
     villages = [];
+    landPlan = null;
     labels.clear();
     bubbles.clear();
     region.visible = false;
@@ -2876,6 +2918,10 @@ async function runPlanetPage(): Promise<void> {
     return Math.min(shown, clock.t + clock.speed);
   };
   stage.onUpdate(() => time.tick(now()));
+  // The land's towns rising as its clock runs, its fields at the season, its roads at the year.
+  stage.onUpdate(() => {
+    if (scale === "region") region.land.update(now());
+  });
   const loadPlan = async (ref: string) => {
     // Asked once a year: the year is marked before the answer comes.
     planYear = Math.floor(clock.t / YEAR);
@@ -3019,6 +3065,7 @@ async function runPlanetPage(): Promise<void> {
   });
   exposed.watch = (ref: string) => void toVillage(ref);
   exposed.watching = () => (scale === "village" && plan ? plan.people.length : 0);
+  exposed.townOnScreen = () => (scale === "village" && plan ? village.townOnScreen(now()) : null);
   exposed.beasts = () => (scale === "village" ? village.beastsDrawn : 0);
   exposed.visitors = () => (scale === "village" ? village.visitorsShown() : null);
   exposed.visitorsOnScreen = () => (scale === "village" ? village.visitorsOnScreen() : []);
@@ -3283,6 +3330,9 @@ async function runPlanetPage(): Promise<void> {
   exposed.select = (n: number) => (scale === "globe" ? selectCell(n) : selectTile(n));
   exposed.descend = (cell: number) => toRegion(cell);
   exposed.villages = () => villages.length;
+  exposed.landTown = (ref: string) => region.land.townAt(ref);
+  exposed.landParts = () => region.land.count;
+  exposed.land = () => region.land.info();
 
   stage.onUpdate(() => {
     if (scale !== "region" || !villages.length) return;

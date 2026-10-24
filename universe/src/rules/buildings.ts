@@ -255,3 +255,49 @@ export function civic(kind: CivicKind): CivicDef {
 export function wallYears(plots: number): number {
   return 3 + Math.ceil(Math.sqrt(plots) / 4);
 }
+
+/** What each of a town's other buildings is for, in a few words (its page says so). */
+export const CIVIC_FOR: Readonly<Record<CivicKind, string>> = {
+  shrine: "where the town brings its offerings to its gods",
+  granary: "where the harvest is kept against lean years",
+  kiln: "where the potters fire their pots",
+  smithy: "where metal is worked into tools and arms",
+  market: "where the land's goods are bought and sold under one roof",
+  mill: "where grain is ground to flour",
+  temple: "the house of the town's faith, raised in stone",
+  hall: "where the law is kept and quarrels are heard",
+  school: "where the young are taught their letters",
+  workshop: "where crafters work side by side",
+  docks: "where ships are loaded and unloaded",
+  academy: "where the learned teach and dispute",
+  baths: "where the town comes to wash",
+  observatory: "where the sky is watched and reckoned",
+  hospital: "where the sick are tended",
+  factory: "where goods are made by machines",
+  station: "where the railway stops",
+  power: "where the town's electricity is made",
+  offices: "where the town's business is done",
+};
+
+/** Each building's sign. */
+export const CIVIC_ICON: Readonly<Record<CivicKind, string>> = {
+  shrine: "⛩️",
+  granary: "🌾",
+  kiln: "🏺",
+  smithy: "⚒️",
+  market: "🏪",
+  mill: "🌬️",
+  temple: "🛕",
+  hall: "🏛️",
+  school: "🏫",
+  workshop: "🔨",
+  docks: "⚓",
+  academy: "🎓",
+  baths: "♨️",
+  observatory: "🔭",
+  hospital: "🏥",
+  factory: "🏭",
+  station: "🚉",
+  power: "⚡",
+  offices: "🏢",
+};

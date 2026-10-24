@@ -3,7 +3,7 @@
 // what rises through the year (homes climbing in their scaffolds, buildings, walls) in another,
 // put again as it climbs. One unit is ten metres, as in the village.
 import * as pc from "playcanvas";
-import type { TownPlan } from "../bridge/index.ts";
+import { LOT, civicMoments, footprint, progress, type TownPlan } from "../bridge/index.ts";
 import {
   TownParts,
   civicsActive,
@@ -13,9 +13,11 @@ import {
   townGround,
   townHomes,
   townScene,
+  townThingAt,
   townWalls,
   type PartMesh,
   type TownScene,
+  type TownThing,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
 import type { Stage } from "./stage.ts";
@@ -161,6 +163,44 @@ export class TownLayer {
     if (p < 0) return null;
     const top = roofTop(s, p, t);
     return top === null ? null : { x: s.lots.x[p]!, y: top + 0.5, z: s.lots.z[p]! };
+  }
+
+  /** What of the town stands at a point (metres from its middle) at moment t, for a tap. */
+  thingAt(x: number, z: number, t: number): TownThing | null {
+    return this.scene && this.visible ? townThingAt(this.scene, x, z, t) : null;
+  }
+
+  /**
+   * Where one of its buildings stands whole, one of its homes stands done and a length of its
+   * walls (metres from the middle), at moment t: for the look tools.
+   */
+  spots(t: number): {
+    civic: { at: number; start: number; x: number; z: number } | null;
+    lot: { lot: number; x: number; z: number } | null;
+    walls: { x: number; z: number } | null;
+  } {
+    const s = this.scene;
+    if (!s) return { civic: null, lot: null, walls: null };
+    const c = s.plan.civics.find(
+        (x) => x.fell === null && civicMoments(x).done <= t && x.at + x.lots <= s.lots.x.length,
+      ),
+      f = c ? footprint(s.lots, c.at, c.lots) : null;
+    let lot = -1;
+    for (let p = 0; p < s.plan.lots && lot < 0; p++)
+      if (s.states.what[p] === LOT.home && progress(s.states.began[p]!, s.states.takes[p]!, t) >= 1)
+        lot = p;
+    const w = s.walls?.lengths.find((l) => !l.gate);
+    return {
+      civic: c && f ? { at: c.at, start: c.start, x: f.x, z: f.z } : null,
+      lot: lot >= 0 ? { lot, x: s.lots.x[lot]!, z: s.lots.z[lot]! } : null,
+      walls: w && t >= (s.plan.walls!.start + 1) * 365 * 86_400 ? { x: w.x, z: w.z } : null,
+    };
+  }
+
+  /** Where a lot is (metres from the middle), or null. */
+  lotAt(p: number): { x: number; z: number } | null {
+    const s = this.scene;
+    return s && p >= 0 && p < s.lots.x.length ? { x: s.lots.x[p]!, z: s.lots.z[p]! } : null;
   }
 
   /** How far out its lots reach (metres), for the eye. */

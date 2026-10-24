@@ -40,6 +40,7 @@ import { DEEP_LENSES, lensReading, type DeepLens } from "../lenses.ts";
 import { conceptPage, withConcepts } from "./concepts.ts";
 import { sicknessPage } from "./sickness.ts";
 import { housePage } from "./credit.ts";
+import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
 function build(world: World, ref: string, tab: string | null): PageModel {
@@ -63,6 +64,10 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("gstar:")) return starPageModel(world, ref);
   if (ref.includes("/")) return foreignWorldPage(world, ref);
   if (ref.startsWith("agent:")) return agentPage(world, ref);
+  // A town's lots, its other buildings, its walls (Phase 25 M151).
+  if (ref.startsWith("lot:")) return lotPage(world, ref);
+  if (ref.startsWith("bldg:")) return buildingPage(world, ref);
+  if (ref.startsWith("walls:")) return wallsPage(world, ref);
   const code = ref.slice(0, ref.indexOf(":")),
     t = tab ?? undefined;
   switch (code) {

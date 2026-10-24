@@ -835,6 +835,56 @@ export function townWalls(scene: TownScene, t: number, out: TownParts): void {
   }
 }
 
+/** What of a town is at a point (metres from its middle), for a tap: one of its buildings, its walls, a lot. */
+export type TownThing =
+  | { readonly kind: "civic"; readonly at: number; readonly start: number }
+  | { readonly kind: "walls" }
+  | { readonly kind: "lot"; readonly lot: number };
+
+/** Whether a point lies in a footprint turned by its yaw (with `pad` metres about it). */
+function inside(
+  f: { x: number; z: number; yaw: number; w: number; d: number },
+  x: number,
+  z: number,
+  pad = 0,
+): boolean {
+  const dx = x - f.x,
+    dz = z - f.z,
+    c = Math.cos(f.yaw),
+    s = Math.sin(f.yaw);
+  // (In its own frame: along its front, and across.)
+  return Math.abs(dx * c - dz * s) <= f.w / 2 + pad && Math.abs(dx * s + dz * c) <= f.d / 2 + pad;
+}
+
+/**
+ * What of a town stands at a point at moment t: one of its buildings (begun, standing or its ruin),
+ * a length of its walls or a gate, else the lot under it (null: a street, the square, past its edge).
+ */
+export function townThingAt(scene: TownScene, x: number, z: number, t: number): TownThing | null {
+  const { plan, lots } = scene;
+  for (const c of plan.civics) {
+    if (c.at + c.lots > lots.x.length) continue;
+    const m = civicMoments(c);
+    if (t < m.began || (m.fell !== null && t >= m.fell + 60 * YEAR_S)) continue;
+    if (inside(footprint(lots, c.at, c.lots), x, z, 1))
+      return { kind: "civic", at: c.at, start: c.start };
+  }
+  const w = plan.walls;
+  if (w && scene.walls && t >= (w.start + 1) * YEAR_S)
+    for (const l of scene.walls.lengths)
+      if (
+        inside(
+          { x: l.x, z: l.z, yaw: l.yaw, w: l.gate ? GATE_TOWER : l.len, d: WALL_THICK },
+          x,
+          z,
+          2,
+        )
+      )
+        return { kind: "walls" };
+  const p = lotNear(scene, x, z, LOT_W * 0.75);
+  return p >= 0 ? { kind: "lot", lot: p } : null;
+}
+
 /** The lot nearest a point (metres from the middle), for a tap (-1 if none near). */
 export function lotNear(scene: TownScene, x: number, z: number, reach = LOT_W): number {
   let best = -1,

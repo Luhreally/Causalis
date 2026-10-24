@@ -55,6 +55,23 @@ export function crumbsOf(world: World, ref: string): Line {
         if (t) landOf(t.cell);
         break;
       }
+      // A town's lot, building or walls: up through the town (Phase 25 M151).
+      case "lot":
+      case "bldg":
+      case "walls": {
+        const t = populationContext(world).settlements.get(
+          ref
+            .slice(ref.indexOf(":") + 1)
+            .split(":")
+            .slice(0, 3)
+            .join(":") as Ref,
+        );
+        if (t) {
+          landOf(t.cell);
+          add(t.name, t.ref);
+        }
+        break;
+      }
       case "hhold": {
         const h = observer(world).household(ref as Ref);
         if (h) {

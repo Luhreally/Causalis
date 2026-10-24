@@ -34,6 +34,7 @@ import {
   type Tree,
   type Moment,
   type PartShape,
+  type TownThing,
 } from "../view/index.ts";
 import {
   InstancedBatch,
@@ -764,6 +765,42 @@ export class VillageScene {
   /** How far out the town's lots reach (metres; 0 for a village drawn without its fabric). */
   townReach(): number {
     return this.town.visible ? this.town.reach() : 0;
+  }
+
+  /** What of a town drawn from its fabric stands at a point (metres from its middle), for a tap (M151). */
+  townThingAt(x: number, z: number, t: number): TownThing | null {
+    return this.town.thingAt(x, z, t);
+  }
+
+  /** Where on the screen one of the town's buildings, one of its homes and its walls are, at moment t (the look tools). */
+  townOnScreen(t: number): {
+    civic: { x: number; y: number; at: number; start: number } | null;
+    lot: { x: number; y: number; lot: number } | null;
+    walls: { x: number; y: number } | null;
+    /** Where a length of its walls stands in the scene (units), for the eye to be turned to it. */
+    wallsAt: { x: number; z: number } | null;
+  } {
+    const spots = this.town.spots(t),
+      cam = this.stage.camera.camera!,
+      on = (p: { x: number; z: number } | null) => {
+        if (!p) return null;
+        const s = cam.worldToScreen(new pc.Vec3(p.x * M, 0, p.z * M));
+        return s.z > 0 ? { x: s.x, y: s.y } : null;
+      };
+    const civic = on(spots.civic),
+      lot = on(spots.lot);
+    return {
+      civic:
+        civic && spots.civic ? { ...civic, at: spots.civic.at, start: spots.civic.start } : null,
+      lot: lot && spots.lot ? { ...lot, lot: spots.lot.lot } : null,
+      walls: on(spots.walls),
+      wallsAt: spots.walls ? { x: spots.walls.x * M, z: spots.walls.z * M } : null,
+    };
+  }
+
+  /** Where a lot of the town is (metres from its middle). */
+  townLot(p: number): { x: number; z: number } | null {
+    return this.town.lotAt(p);
   }
 
   update(t: number): void {

@@ -44,6 +44,7 @@ import {
 import { faithLink, landLink, languageLink, realmLink, townLink } from "./names.ts";
 import { TRAIT_LOOK, agentFamily, metChips, metFamily, traitChips } from "./folk.ts";
 import { agentHolder, householdThingsBlocks, personThingsBlocks } from "./things.ts";
+import { buildingsTab } from "./fabric.ts";
 
 const OCCUPATION_WORDS = ["child", "forager", "farmer", "herder", "crafter", "trader", "leader"];
 /** Each trait said low / middling / high. */
@@ -154,6 +155,11 @@ export function townPage(world: World, ref: string): PageModel {
       { type: "tool", tool: "acts.place", args: { town: s.ref } },
     );
     tabs.push({ id: "overview", name: "Overview", blocks });
+  }
+  // Its fabric: its homes by level, its other buildings, its walls (Phase 25 M151).
+  {
+    const built = buildingsTab(world, s.ref as Ref);
+    if (built) tabs.push(built);
   }
   {
     const items: Item[] = met.map((h) =>

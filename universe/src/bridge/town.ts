@@ -470,3 +470,43 @@ export function wallRing(
     lengths: standing.map((l) => ({ ...l, len, gate: gates.has(l.k), tower: l.k % 4 === 0 })),
   };
 }
+
+/**
+ * A town of a land as the land draws it (Phase 25 M150): where it stands, how many it holds, and
+ * its fabric's plan (null: none yet) — `key` changes when the plan does.
+ */
+export type LandTown = {
+  readonly ref: string;
+  readonly name: string;
+  readonly tile: number;
+  readonly population: number;
+  readonly founded: number;
+  readonly city: boolean;
+  /** Whether its land sows (its fields about it). */
+  readonly fields: boolean;
+  readonly plan: TownPlan | null;
+  readonly key: number;
+};
+
+/**
+ * A road of a land (tiles of its map): between two of its towns, or out of it toward another
+ * land (`b` null, `toward` that land's greatest town); trodden from `since`, paved from `paved`,
+ * railed from `rails` (years; null: not yet).
+ */
+export type LandRoad = {
+  readonly from: number;
+  readonly to: number;
+  readonly a: string;
+  readonly b: string | null;
+  readonly toward: string | null;
+  readonly since: number;
+  readonly paved: number | null;
+  readonly rails: number | null;
+};
+
+/** A land's towns and roads, as the land draws them at moment `t`. */
+export type LandPlan = {
+  readonly t: number;
+  readonly towns: readonly LandTown[];
+  readonly roads: readonly LandRoad[];
+};

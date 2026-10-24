@@ -92,11 +92,37 @@ export {
   townGround,
   townHomes,
   townScene,
+  townThingAt,
   townWalls,
   type PartMesh,
   type TownScene,
+  type TownThing,
 } from "./town.ts";
 export { Streets, streetDoor } from "./streets.ts";
+export {
+  CROPS,
+  LAND_ACROSS,
+  LAND_FLAT,
+  LAND_SCALE,
+  LAND_UP,
+  MOST_FIELDS,
+  cropAt,
+  groundAt,
+  landFields,
+  landReach,
+  linePieces,
+  roadLine,
+  roadLook,
+  roadOutside,
+  roadTiles,
+  tileMiddle,
+  tileOf,
+  treesClear,
+  wetAt,
+  type FieldsLaid,
+  type LandField,
+  type LandGround,
+} from "./land.ts";
 export { STRIDES, bobOf, limbPitch } from "./motion.ts";
 export { BLINK, DASH, FAR, SMOOTH, present, type Presence } from "./presence.ts";
 export {

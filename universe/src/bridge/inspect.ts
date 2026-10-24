@@ -412,6 +412,10 @@ export type PageKind =
   | "sickness"
   /** A house of lending (Phase 21 M143). */
   | "house"
+  /** A lot of a town, one of its other buildings, its walls (Phase 25 M151). */
+  | "lot"
+  | "building"
+  | "walls"
   | "unknown";
 
 export type PageModel = {

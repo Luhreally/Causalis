@@ -1,9 +1,13 @@
 // A region as terrain: the tile grid as one heightmap mesh (1 unit = 1 km),
 // coloured per tile by the lens, under a translucent sea at height zero, with a
 // marker on the picked tile. The look (art track A4): low-poly facets, each triangle
-// flat and coloured by the most of its three tiles, under a glossy sea.
+// flat and coloured by the most of its three tiles, under a glossy sea. Its towns
+// drawn from their fabric, their fields and roads (Phase 25 M150), the woods cleared
+// from them; a town not yet built (no fabric) a knot of huts.
 import * as pc from "playcanvas";
-import type { RegionTree } from "../view/index.ts";
+import type { LandPlan } from "../bridge/index.ts";
+import { treesClear, type LandGround, type RegionTree } from "../view/index.ts";
+import { LandLayer } from "./land.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh } from "./batch.ts";
 import { flatMaterial, type Stage } from "./stage.ts";
 import { windowMaterial } from "./village.ts";
@@ -22,6 +26,12 @@ export class RegionScene {
   private huts: InstancedBatch | null = null;
   private woods: InstancedBatch[] = [];
   private villageTiles: number[] = [];
+  /** The land's ground as its towns, roads and fields read it; and what is drawn on it. */
+  private ground: LandGround | null = null;
+  readonly land: LandLayer;
+  /** Every tree of the woods, and the clearings made in them for the towns (by their key). */
+  private trees: readonly RegionTree[] = [];
+  private cleared = "";
   key: string | null = null;
 
   constructor(stage: Stage) {
@@ -35,6 +45,7 @@ export class RegionScene {
     });
     this.marker.enabled = false;
     this.root.addChild(this.marker);
+    this.land = new LandLayer(stage, this.root);
     this.root.enabled = false;
   }
 
@@ -42,14 +53,26 @@ export class RegionScene {
     this.root.enabled = on;
   }
 
-  build(key: string, size: number, tileKm: number, heights: Float32Array): void {
+  build(
+    key: string,
+    size: number,
+    tileKm: number,
+    heights: Float32Array,
+    water: Uint8Array = new Uint8Array(size * size),
+    fertility: Uint8Array = new Uint8Array(size * size).fill(128),
+  ): void {
     // (Batches first: their instance buffers go with them.)
     this.huts?.destroy();
     for (const b of this.woods) b.destroy();
-    for (const child of [...this.root.children]) if (child !== this.marker) child.destroy();
+    for (const child of [...this.root.children])
+      if (child !== this.marker && child !== this.land.root) child.destroy();
     this.huts = null;
     this.woods = [];
     this.villageTiles = [];
+    this.trees = [];
+    this.cleared = "";
+    this.ground = { size, tileKm, heights, water, fertility };
+    this.land.reset(this.ground);
     const n = size * size,
       positions = new Float32Array(n * 3),
       half = ((size - 1) * tileKm) / 2;
@@ -219,8 +242,32 @@ export class RegionScene {
     );
   }
 
-  /** The region's woods: a low-poly crown for each tree, on the ground where it stands. */
+  /**
+   * A land's towns and roads at moment t (M150): each town with a fabric drawn from it, the rest
+   * as huts; the woods cleared from the towns and their fields.
+   */
+  setTowns(plan: LandPlan, t: number): void {
+    if (!this.ground) return;
+    this.land.set(plan, t);
+    const drawn = this.land.drawn();
+    this.setVillages(plan.towns, drawn);
+    const clearings = this.land.clearings(),
+      key = clearings.map((c) => `${c.x.toFixed(1)},${c.z.toFixed(1)},${c.r.toFixed(1)}`).join(";");
+    if (key !== this.cleared) {
+      this.cleared = key;
+      this.plantWoods(treesClear(this.ground, this.trees, clearings));
+    }
+  }
+
+  /** The region's woods: a low-poly crown for each tree, on the ground where it stands (none on a town's ground). */
   plantTrees(trees: readonly RegionTree[]): void {
+    this.trees = trees;
+    this.plantWoods(
+      this.ground ? treesClear(this.ground, trees, this.land.clearings()) : [...trees],
+    );
+  }
+
+  private plantWoods(trees: readonly RegionTree[]): void {
     for (const b of this.woods) b.destroy();
     this.woods = [];
     if (!this.heights || !trees.length) return;
@@ -267,8 +314,11 @@ export class RegionScene {
     }
   }
 
-  /** Villages as clusters of huts: more huts for more people. */
-  setVillages(villages: readonly { tile: number; population: number }[]): void {
+  /** Villages as clusters of huts, more huts for more people — but those `drawn` from their fabric. */
+  setVillages(
+    villages: readonly { ref?: string; tile: number; population: number }[],
+    drawn: ReadonlySet<string> = new Set(),
+  ): void {
     if (!this.heights) return;
     // (Within the region, so they go and come with it.)
     this.huts ??= new InstancedBatch(
@@ -281,6 +331,7 @@ export class RegionScene {
     this.villageTiles = villages.map((v) => v.tile);
     const places: [number, number, number, number][] = [];
     for (const v of villages) {
+      if (v.ref && drawn.has(v.ref)) continue;
       const at = this.groundAt(v.tile)!,
         huts = Math.max(1, Math.min(24, Math.round(Math.sqrt(v.population) / 1.6)));
       for (let k = 0; k < huts; k++) {

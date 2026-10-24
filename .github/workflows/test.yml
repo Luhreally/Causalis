@@ -190,6 +190,12 @@ jobs:
       - run: npm run gate:24 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 25 gate: towns seen growing on the land (drawn from their fabric, with their
+      # fields and roads, as the land's clock runs), and in a town a tap on a building, a home
+      # and the walls each opening its page; a building's page on a phone.
+      - run: npm run gate:25 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest
