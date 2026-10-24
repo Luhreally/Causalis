@@ -11,7 +11,6 @@ import type { Tidings } from "./tidings.ts";
 import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
 import { breakdownCard, type HoverTips } from "./hovertip.ts";
-import { speedWords, when } from "./words.ts";
 import { KEY_LINES, steerWords } from "./keys.ts";
 
 /** A quality the viewer may choose (the render module's names, or Auto). */
@@ -19,8 +18,6 @@ type QualityChoice = "auto" | "low" | "balanced" | "high" | "ultra";
 
 const DAY = 86_400;
 const YEAR = 365 * DAY;
-/** Paused, a month, a year and ten years to the second. */
-export const PLANET_SPEEDS = [0, YEAR / 12, YEAR, 10 * YEAR];
 
 type Summary = {
   prior: string;
@@ -359,8 +356,8 @@ export class PlanetPanel {
   readonly element = el("div", "panel");
   private readonly client: HostClient;
   private readonly why: WhyTree;
-  private readonly speedButtons: HTMLButtonElement[] = [];
-  private readonly clock = el("span", "clock");
+  /** Where the clock's bar goes in the world's bar. */
+  readonly timeSlot = el("span", "time-slot");
   private readonly world = el("p", "world-line");
   /** The world's headline numbers, a grand strategy game's top bar (Phase 10 M96). */
   private readonly statsStrip = el("div", "world-stats");
@@ -397,8 +394,6 @@ export class PlanetPanel {
   private selected: number | null = null;
   /** The picked spot's province. */
   private province: number | null = null;
-  /** The speed chosen for the world (the microscope keeps its own). */
-  speed: number;
   private description = "";
   onLens: (lens: Lens) => void = () => {};
   /** A why or a page was asked for. */
@@ -435,26 +430,13 @@ export class PlanetPanel {
   /** News of what the observer follows, and the toggles that follow things. */
   tidings: Tidings | null = null;
 
-  constructor(root: HTMLElement, client: HostClient, speed: number) {
+  constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
-    this.speed = speed;
     this.why = new WhyTree(client);
     this.hand = new HandView(client);
     this.hand.onWhy = (ref) => void this.why.show(ref, this.whyBox);
     const bar = this.bar;
-    bar.append(el("strong", "brand", "Causalis Universe"), this.clock);
-    const speeds = el("div", "speeds");
-    for (const s of PLANET_SPEEDS) {
-      const b = el("button", "speed", s === 0 ? "❚❚" : speedWords(s).replace(" a second", "/s"));
-      b.setAttribute("aria-label", s === 0 ? "Pause" : speedWords(s));
-      b.onclick = () => {
-        client.setSpeed(s);
-        this.markSpeed(s);
-        this.speed = s;
-      };
-      speeds.append(b);
-      this.speedButtons.push(b);
-    }
+    bar.append(el("strong", "brand", "Causalis Universe"), this.timeSlot);
     // The menu: an icon and a word each (a phone shows the icons).
     const menuButton = (icon: string, word: string) => {
       const b = el("button", "link");
@@ -530,7 +512,7 @@ export class PlanetPanel {
       said,
     );
     this.world.append(this.worldText, menu);
-    bar.append(speeds, this.statsStrip, this.world);
+    bar.append(this.statsStrip, this.world);
     this.element.append(bar);
     const close = el("button", "close", "×");
     close.setAttribute("aria-label", "Close");
@@ -564,10 +546,6 @@ export class PlanetPanel {
       this.inspector,
       el("p", "hint", `Tap the world to look at a place. ${steerWords("round")}`),
     );
-    this.markSpeed(speed);
-    client.onStatus((s: Status) => {
-      this.clock.textContent = `${when(s.t)} · ${s.speed === 0 ? "paused" : speedWords(Math.max(0, s.achieved))}`;
-    });
     void this.describe();
   }
 
@@ -719,10 +697,6 @@ export class PlanetPanel {
         ),
       );
     this.marketBox.replaceChildren(...parts);
-  }
-
-  private markSpeed(speed: number): void {
-    PLANET_SPEEDS.forEach((s, i) => this.speedButtons[i]!.classList.toggle("on", s === speed));
   }
 
   async select(cell: number | null): Promise<void> {

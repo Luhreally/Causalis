@@ -1,30 +1,25 @@
 // ui: the observatory — panels that read through queries and subscriptions and act
 // only through commands, in plain words. May import: kernel, bridge, view.
 // See README.md and docs/architecture §31.
-export { SPEEDS, SandboxPanel } from "./panel.ts";
+export { SandboxPanel } from "./panel.ts";
 export { LabelLayer, type Label } from "./labels.ts";
-export {
-  PLANET_SPEEDS,
-  PlanetPanel,
-  type ChipKind,
-  type PeopleEntry,
-  type WorldStats,
-} from "./planet-panel.ts";
+export { PlanetPanel, type ChipKind, type PeopleEntry, type WorldStats } from "./planet-panel.ts";
 export { RegionPanel } from "./region-panel.ts";
 export { SystemPanel } from "./system-panel.ts";
 export { WorldPanel } from "./world-panel.ts";
 export { GalaxyPanel } from "./galaxy-panel.ts";
 export { ClusterPanel } from "./cluster-panel.ts";
-export { VillagePanel, WATCH_SPEEDS, clockWords } from "./village-panel.ts";
+export { VillagePanel } from "./village-panel.ts";
 export { WhyTree, el, type WhyNode } from "./why.ts";
-export { claimWords, eventWords, roleWords, speedWords, when } from "./words.ts";
+export { claimWords, clockWords, eventWords, roleWords, speedWords, when } from "./words.ts";
+export { TimeBar } from "./timebar.ts";
 export { Tidings, type Tiding } from "./tidings.ts";
 export { GuidedWalk, type WalkCue } from "./walk.ts";
 export { PageWindow } from "./inspector.ts";
 export { MapLabels, type MapName } from "./maplabels.ts";
 export { MapModes } from "./mapmodes.ts";
 export { FreeControls, type FreeMode } from "./free.ts";
-export { KEY_LINES, installTimeKeys, steerWords, touching, typing } from "./keys.ts";
+export { KEY_LINES, installTimeKeys, steerWords, touching, typing, type TimeKeys } from "./keys.ts";
 export { SearchBox } from "./search.ts";
 export { Outliner } from "./outliner.ts";
 export { Tooltip } from "./tooltip.ts";

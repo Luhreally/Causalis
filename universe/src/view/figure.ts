@@ -48,6 +48,20 @@ export type Figure = {
   readonly scale: number;
 };
 
+/** The capsule every capsule part is drawn from (its radius, its height): a part's sizes multiply it. */
+export const FIGURE_CAPSULE = { radius: 0.11, height: 0.55 } as const;
+
+/** A part's true extent (across, up, forward): a capsule's sizes are multiples of FIGURE_CAPSULE's. */
+export function partExtent(p: FigurePart): readonly [number, number, number] {
+  return p.shape === "capsule"
+    ? [
+        2 * FIGURE_CAPSULE.radius * p.sx,
+        FIGURE_CAPSULE.height * p.sy,
+        2 * FIGURE_CAPSULE.radius * p.sz,
+      ]
+    : [p.sx, p.sy, p.sz];
+}
+
 const part = (
   shape: PartShape,
   x: number,

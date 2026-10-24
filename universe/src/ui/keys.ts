@@ -1,7 +1,7 @@
 // The keys a web game is played with, beside the camera's (asked for 2026-09-28): Space
-// pauses and goes on again, 1, 2 and 3 set the speed (as the Sims' do), on whichever bar of
-// speeds is shown (or the world's, where none is); and the words that tell how the view is
-// steered, by a desk's keys and mouse or a phone's fingers.
+// pauses and goes on again, the numbers set the speed (as the Sims' do) — the speeds of the
+// scale watched, on the clock's bar; and the words that tell how the view is steered, by a
+// desk's keys and mouse or a phone's fingers.
 
 /** Whether a key goes to a field being typed in (not to the game). */
 export function typing(e: Event): boolean {
@@ -15,39 +15,32 @@ export function typing(e: Event): boolean {
   );
 }
 
+/** What the keys of time work: the clock's bar. */
+export type TimeKeys = {
+  /** Pause, or go on. */
+  toggle(): void;
+  /** The scale's i-th speed; false where it has none. */
+  pick(i: number): boolean;
+};
+
 let installed = false,
-  resume = 1,
   spaced = false;
 
 /** Space and the numbers for time, once for the page. */
-export function installTimeKeys(): void {
+export function installTimeKeys(time: TimeKeys): void {
   if (installed) return;
   installed = true;
   addEventListener("keydown", (e) => {
     if (typing(e) || e.ctrlKey || e.metaKey || e.altKey) return;
-    // (The bar shown; where none is — over a land — the world's own, first made.)
-    const bars = [...document.querySelectorAll<HTMLElement>(".speeds")],
-      bar = bars.find((b) => b.offsetParent !== null) ?? bars[0],
-      buttons = bar ? [...bar.querySelectorAll<HTMLButtonElement>("button")] : [];
-    if (!buttons.length) return;
     if (e.code === "Space") {
       // (Not a button's own press either: a button last clicked keeps the focus.)
       e.preventDefault();
       spaced = true;
-      if (e.repeat) return;
-      const on = buttons.findIndex((b) => b.classList.contains("on"));
-      if (on > 0) {
-        resume = on;
-        buttons[0]!.click();
-      } else buttons[Math.min(resume, buttons.length - 1)]!.click();
+      if (!e.repeat) time.toggle();
       return;
     }
-    const digit = /^(?:Digit|Numpad)([1-9])$/.exec(e.code),
-      b = digit ? buttons[Number(digit[1])] : undefined;
-    if (b) {
-      e.preventDefault();
-      if (!e.repeat) b.click();
-    }
+    const digit = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
+    if (digit && (e.repeat || time.pick(Number(digit[1])))) e.preventDefault();
   });
   addEventListener("keyup", (e) => {
     if (e.code === "Space" && spaced) {
@@ -86,7 +79,7 @@ export const KEY_LINES: readonly (readonly [string, string])[] = [
   ["Shift", "hurry"],
   ["Drag", "take hold of the land and move it; right-drag to turn and tilt"],
   ["Space", "pause, and go on"],
-  ["1 2 3", "the speeds"],
+  ["1 to 5", "the speeds of the scale watched: a town's hours, a land's months, a world's years"],
   ["/ or Ctrl K", "find anything by name"],
   ["Esc", "put down what the hand holds; stop flying"],
 ];

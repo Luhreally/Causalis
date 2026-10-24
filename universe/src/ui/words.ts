@@ -19,12 +19,24 @@ const ROLE_WORDS: Record<string, string> = {
   agent: "done by",
 };
 
-const DAY = 86_400;
-const YEAR = 365 * DAY;
+const MINUTE = 60,
+  HOUR = 3600,
+  DAY = 86_400,
+  YEAR = 365 * DAY;
 
 /** "year 3, day 41" */
 export function when(t: number): string {
   return `year ${Math.floor(t / YEAR)}, day ${Math.floor((t % YEAR) / DAY)}`;
+}
+
+/** "year 240, day 185, 07:40" */
+export function clockWords(t: number): string {
+  const year = Math.floor(t / YEAR),
+    day = Math.floor((t % YEAR) / DAY),
+    s = t % DAY,
+    h = Math.floor(s / 3600),
+    m = Math.floor((s % 3600) / 60);
+  return `year ${year}, day ${day}, ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 export function eventWords(type: string): string {
@@ -50,11 +62,18 @@ export function claimWords(claim: string, ref: string): string {
   return claim;
 }
 
-/** Sim seconds per real second as words: "30 days a second". */
+/** Sim seconds per real second as words: "30 days a second", "1 hour a second". */
 export function speedWords(secondsPerSecond: number): string {
-  if (secondsPerSecond <= 0) return "paused";
-  if (secondsPerSecond >= YEAR)
-    return `${Math.round(secondsPerSecond / YEAR)} year${secondsPerSecond >= 2 * YEAR ? "s" : ""} a second`;
-  const days = Math.round(secondsPerSecond / DAY);
-  return `${days} day${days === 1 ? "" : "s"} a second`;
+  const s = secondsPerSecond,
+    say = (n: number, unit: string) => {
+      const v = Math.max(1, Math.round(n));
+      return `${v} ${unit}${v === 1 ? "" : "s"} a second`;
+    };
+  if (s <= 0) return "paused";
+  // (Near enough a year, a day, an hour is said as one: the clock measures, it does not count.)
+  if (s >= 0.95 * YEAR) return say(s / YEAR, "year");
+  if (s >= 0.95 * DAY) return say(s / DAY, "day");
+  if (s >= 0.95 * HOUR) return say(s / HOUR, "hour");
+  if (s >= 0.95 * MINUTE) return say(s / MINUTE, "minute");
+  return say(s, "second");
 }

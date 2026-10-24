@@ -1,5 +1,5 @@
-// The microscope's panel (docs/architecture §9, §31): the village watched, the time
-// of day, the slow speeds a day is watched at, and an inspector for a watched
+// The microscope's panel (docs/architecture §9, §31): the village watched (its clock
+// the time bar's, at the speeds a town is watched at), and an inspector for a watched
 // person — who they are, what they are doing now, how hungry and tired, and their
 // page with its whys. Watching is looking: it never changes what happens.
 import type { HostClient } from "../bridge/index.ts";
@@ -9,23 +9,6 @@ import { PeopleView } from "./people.ts";
 import type { Tidings } from "./tidings.ts";
 import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
-
-/** Speeds for watching a day go by: paused, ten minutes, an hour, a day a second. */
-export const WATCH_SPEEDS = [0, 600, 3600, 86_400] as const;
-const SPEED_WORDS = ["❚❚", "10 min/s", "1 hour/s", "1 day/s"];
-
-const DAY = 86_400,
-  YEAR = 365 * DAY;
-
-/** "year 240, day 185, 07:40" */
-export function clockWords(t: number): string {
-  const year = Math.floor(t / YEAR),
-    day = Math.floor((t % YEAR) / DAY),
-    s = t % DAY,
-    h = Math.floor(s / 3600),
-    m = Math.floor((s % 3600) / 60);
-  return `year ${year}, day ${day}, ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
 
 function needWords(m: Moment): string {
   const hunger = m.hunger > 0.8 ? "hungry" : m.hunger > 0.5 ? "getting hungry" : "fed",
@@ -40,8 +23,8 @@ export class VillagePanel {
   private readonly why: WhyTree;
   private readonly people: PeopleView;
   private readonly title = el("strong", "brand");
-  private readonly clock = el("span", "clock");
-  private readonly speedButtons: HTMLButtonElement[] = [];
+  /** Where the clock's bar goes in this bar. */
+  readonly timeSlot = el("span", "time-slot");
   private readonly who = el("h2");
   private readonly now = el("div", "fact");
   private readonly page = el("div");
@@ -49,7 +32,6 @@ export class VillagePanel {
   private view = 0;
   private readonly hint = el("p", "hint");
   onBack: () => void = () => {};
-  onSpeed: (speed: number) => void = () => {};
   onClose: () => void = () => {};
   /** News of what the observer follows, and the toggles that follow things. */
   tidings: Tidings | null = null;
@@ -63,18 +45,7 @@ export class VillagePanel {
     const bar = el("header", "bar"),
       back = el("button", "speed", "‹ The land");
     back.onclick = () => this.onBack();
-    bar.append(back, this.title, this.clock);
-    const speeds = el("div", "speeds");
-    WATCH_SPEEDS.forEach((s, i) => {
-      const b = el("button", "speed", SPEED_WORDS[i]!);
-      b.onclick = () => {
-        this.markSpeed(s);
-        this.onSpeed(s);
-      };
-      speeds.append(b);
-      this.speedButtons.push(b);
-    });
-    bar.append(speeds);
+    bar.append(back, this.title, this.timeSlot);
     const close = el("button", "close", "×");
     close.setAttribute("aria-label", "Close");
     close.onclick = () => {
@@ -101,18 +72,9 @@ export class VillagePanel {
     this.element.hidden = !on;
   }
 
-  show(name: string, speed: number): void {
+  show(name: string): void {
     this.title.textContent = name;
     this.inspector.hidden = true;
-    this.markSpeed(speed);
-  }
-
-  tick(t: number): void {
-    this.clock.textContent = clockWords(t);
-  }
-
-  markSpeed(speed: number): void {
-    WATCH_SPEEDS.forEach((s, i) => this.speedButtons[i]!.classList.toggle("on", s === speed));
   }
 
   /** The village's age and what its mine digs, for the words of what they carry. */

@@ -15,6 +15,7 @@ import {
   biomeColor,
   battleOf,
   bobOf,
+  FIGURE_CAPSULE,
   figureOf,
   hairOf,
   keepApart,
@@ -559,7 +560,7 @@ export class VillageScene {
     // built (one figure for a people, part by part, each part a batch per colour group).
     this.figure = figureOf(plan.body, s.quality.detail);
     const meshes: Record<PartShape, pc.Mesh> = {
-      capsule: capsuleMesh(s, 0.11, 0.55),
+      capsule: capsuleMesh(s, FIGURE_CAPSULE.radius, FIGURE_CAPSULE.height),
       box: boxMesh(s),
       cylinder: cylinderMesh(s, 0.5, 1, 8),
       cone: coneMesh(s, 0.5, 1, 8),

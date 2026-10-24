@@ -127,6 +127,11 @@ button:disabled {
   font-variant-numeric: tabular-nums;
   flex: 1 1 12rem;
 }
+/* The clock's bar, in whichever scale's bar is up: its date and speeds sit in that bar's row. */
+.time-slot,
+.timebar {
+  display: contents;
+}
 .speeds {
   display: flex;
   gap: 4px;

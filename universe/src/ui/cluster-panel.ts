@@ -9,6 +9,8 @@ import { steerWords } from "./keys.ts";
 
 export class ClusterPanel {
   readonly element = el("div", "panel");
+  /** Where the clock's bar goes in this bar. */
+  readonly timeSlot = el("span", "time-slot");
   private readonly where = el("span", "clock");
   readonly inspector = el("section", "inspector");
   private readonly title = el("h2");
@@ -35,7 +37,7 @@ export class ClusterPanel {
     back.onclick = () => this.onBack();
     const galaxy = el("button", "speed", "The galaxy ›");
     galaxy.onclick = () => this.onGalaxy();
-    bar.append(back, this.where, galaxy);
+    bar.append(back, this.where, this.timeSlot, galaxy);
     const close = el("button", "close", "×");
     close.setAttribute("aria-label", "Close");
     close.onclick = () => {

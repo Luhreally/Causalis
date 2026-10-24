@@ -1,18 +1,14 @@
-// The first piece of the observatory (docs/architecture §31): the clock and its
-// speeds, the god's first act, and an inspector for the selected cell whose every
+// The first piece of the observatory (docs/architecture §31): the clock (the time
+// bar's), the god's first act, and an inspector for the selected cell whose every
 // fact can be asked "why?". Panels read through queries and subscriptions and act
 // only through commands; nothing here is rebuilt under the pointer — sections are
 // updated in place, and an opened why-tree stays open.
-import type { HostClient, Status } from "../bridge/index.ts";
+import type { HostClient } from "../bridge/index.ts";
 import { CLASS_COLORS, CLASS_NAMES } from "../view/index.ts";
 import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
-import { eventWords, speedWords, when } from "./words.ts";
+import { eventWords, when } from "./words.ts";
 import { steerWords } from "./keys.ts";
-
-const DAY = 86_400;
-const YEAR = 365 * DAY;
-export const SPEEDS = [0, DAY, 30 * DAY, YEAR];
 
 type Cell = {
   cell: number;
@@ -30,8 +26,8 @@ function rgb(c: readonly [number, number, number]): string {
 export class SandboxPanel {
   private readonly client: HostClient;
   private readonly why: WhyTree;
-  private readonly clock = el("span", "clock");
-  private readonly speedButtons: HTMLButtonElement[] = [];
+  /** Where the clock's bar goes in the ring's bar. */
+  readonly timeSlot = el("span", "time-slot");
   private readonly inspector = el("section", "inspector");
   private readonly title = el("h2");
   private readonly facts = el("div", "facts");
@@ -44,23 +40,15 @@ export class SandboxPanel {
   private whyFor: string | null = null;
   onClose: () => void = () => {};
 
-  constructor(root: HTMLElement, client: HostClient, initialSpeed: number) {
+  constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
     this.why = new WhyTree(client);
     const bar = el("header", "bar");
-    bar.append(el("strong", "brand", "Causalis Universe"), this.clock);
-    const speeds = el("div", "speeds");
-    for (const s of SPEEDS) {
-      const b = el("button", "speed", s === 0 ? "❚❚" : speedWords(s).replace(" a second", "/s"));
-      b.setAttribute("aria-label", s === 0 ? "Pause" : speedWords(s));
-      b.onclick = () => this.setSpeed(s);
-      speeds.append(b);
-      this.speedButtons.push(b);
-    }
+    bar.append(el("strong", "brand", "Causalis Universe"), this.timeSlot);
     // Back to the title screen: a new world, the worlds kept.
     const home = el("button", "link", "🏠 Main menu");
     home.onclick = () => (location.href = location.pathname);
-    bar.append(speeds, home);
+    bar.append(home);
     root.append(bar);
 
     const close = el("button", "close", "×");
@@ -87,21 +75,6 @@ export class SandboxPanel {
 
     const hint = el("p", "hint", `Tap a cell to look closer. ${steerWords("space")}`);
     root.append(hint);
-    client.onStatus((s) => this.status(s));
-    this.markSpeed(initialSpeed);
-  }
-
-  private setSpeed(s: number): void {
-    this.client.setSpeed(s);
-    this.markSpeed(s);
-  }
-
-  private markSpeed(s: number): void {
-    SPEEDS.forEach((v, i) => this.speedButtons[i]!.classList.toggle("on", v === s));
-  }
-
-  private status(s: Status): void {
-    this.clock.textContent = `${when(s.t)} · ${s.speed === 0 ? "paused" : speedWords(Math.max(0, s.achieved))}`;
   }
 
   select(cell: number | null): void {

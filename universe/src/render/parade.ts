@@ -1,9 +1,11 @@
 // The living world's stage (Phase 9 M89): the ground of the world, and on it its lineages
 // as they arise, each drawn from its own body (view/creature.ts) in its coat's colours,
-// walking in place, grown in as it arises and shrunk away as it dies out.
+// walking in place, grown in as it arises and shrunk away as it dies out. The first people are
+// drawn part by part in each part's own shape, as the village draws them.
 import * as pc from "playcanvas";
 import type { BeastPlan } from "../bridge/index.ts";
 import {
+  FIGURE_CAPSULE,
   MOST_OF_TONE,
   buildBody,
   coatOf,
@@ -14,14 +16,17 @@ import {
   type Built,
   type Figure,
   type OnStage,
+  type PartShape,
 } from "../view/index.ts";
-import { InstancedBatch, boxMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import { InstancedBatch, boxMesh, capsuleMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 export class ParadeScene {
   readonly root = new pc.Entity("parade");
   private readonly stage: Stage;
   private readonly box: pc.Mesh;
+  /** A mesh for each shape a figure's parts take. */
+  private readonly shapes: Record<PartShape, pc.Mesh>;
   private readonly ground: pc.Entity;
   private bodies: Built[] = [];
   private tones: InstancedBatch[][] = [];
@@ -32,6 +37,12 @@ export class ParadeScene {
   constructor(stage: Stage) {
     this.stage = stage;
     this.box = keptMesh(boxMesh(stage));
+    this.shapes = {
+      box: this.box,
+      capsule: keptMesh(capsuleMesh(stage, FIGURE_CAPSULE.radius, FIGURE_CAPSULE.height)),
+      cylinder: keptMesh(cylinderMesh(stage, 0.5, 1, 8)),
+      cone: keptMesh(coneMesh(stage, 0.5, 1, 8)),
+    };
     this.ground = new pc.Entity("ground");
     this.ground.addComponent("render", {
       meshInstances: [
@@ -89,7 +100,7 @@ export class ParadeScene {
             (part) =>
               new InstancedBatch(
                 this.stage,
-                this.box,
+                this.shapes[part.shape],
                 part.tone === 2
                   ? [0.88, 0.66, 0.5]
                   : part.tone === 3

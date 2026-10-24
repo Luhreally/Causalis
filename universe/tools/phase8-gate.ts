@@ -259,7 +259,7 @@ for (const setting of args.includes("--no-budgets") ? [] : settings) {
       c.client.setSpeed(3600);
       for (let k = 0; k < 120; k++) {
         const clock = document.querySelector(".panel:not([hidden]) .clock")?.textContent ?? "",
-          hour = Number(/(\d\d):\d\d$/.exec(clock)?.[1] ?? -1),
+          hour = Number(/(\d\d):\d\d/.exec(clock)?.[1] ?? -1),
           n = (c.carriersNow!() as unknown[]).length;
         if (hour >= 8 && hour <= 11 && n > 0) return n;
         await new Promise((r) => setTimeout(r, 250));

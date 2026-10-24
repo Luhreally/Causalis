@@ -37,6 +37,8 @@ function soilWords(f: number): string {
 
 export class RegionPanel {
   readonly element = el("div", "panel");
+  /** Where the clock's bar goes in this bar. */
+  readonly timeSlot = el("span", "time-slot");
   private readonly client: HostClient;
   private readonly why: WhyTree;
   private readonly where = el("span", "clock");
@@ -72,7 +74,7 @@ export class RegionPanel {
     const bar = el("header", "bar"),
       back = el("button", "speed", "‹ The world");
     back.onclick = () => this.onBack();
-    bar.append(back, this.where);
+    bar.append(back, this.where, this.timeSlot);
     const lenses = el("div", "speeds");
     for (const l of REGION_LENSES) {
       const b = el("button", "speed", REGION_LENS_NAMES[l]);

@@ -64,6 +64,7 @@ import {
   type PeopleEntry,
   type WorldStats,
   installTimeKeys,
+  TimeBar,
   typing,
 } from "../ui/index.ts";
 import type {
@@ -80,7 +81,7 @@ import type {
   StarPage,
   WarsMap,
 } from "../bridge/index.ts";
-import { nearestCell, sphereGrid } from "../kernel/index.ts";
+import { nearestCell, sphereGrid, yearOfMoment } from "../kernel/index.ts";
 
 import {
   GOOD_CHOICES,
@@ -142,8 +143,6 @@ function rim(s: NameShape, d: number): { x: number; y: number; z: number } {
 import { deviceTier } from "./tier.ts";
 
 const DAY = 86_400;
-/** How fast time runs while the star's system is shown: a month a second, so the worlds can be watched going round. */
-const SKY_SPEED = 30 * DAY;
 /** What the hand's people do, in words. */
 const WORK_WORDS = [
   "a child",
@@ -154,8 +153,6 @@ const WORK_WORDS = [
   "a trader",
   "a leader",
 ];
-/** Watching a village starts at an hour a second: a day goes by in 24 seconds. */
-const WATCH_DEFAULT = 3600;
 /** The map modes whose tooltip breaks a land's number down (Phase 12 M108, Phase 14). */
 const DEEP_LENSES: readonly Lens[] = [
   "unrest",
@@ -426,7 +423,6 @@ async function runBenchPage(): Promise<void> {
 }
 
 async function runSandboxPage(): Promise<void> {
-  installTimeKeys();
   const { canvas, hud } = page(),
     tier = deviceTier(),
     stage = new Stage(canvas, tier, SKY),
@@ -435,12 +431,13 @@ async function runSandboxPage(): Promise<void> {
   const { client, mode } = await connect();
   Object.assign(exposed, { client, mode, seed, universe, drawn: () => scene.figures(), stage });
   await client.start("sandbox", seed);
-  const speed = 30 * DAY;
-  client.setSpeed(speed);
+  const time = new TimeBar(client, "ring");
+  installTimeKeys(time);
   client.setInterest({ view: "ring", focus: null });
 
   let spec: SandboxSpec | null = null;
-  const panel = new SandboxPanel(hud, client, speed);
+  const panel = new SandboxPanel(hud, client);
+  time.at("ring", panel.timeSlot);
   const select = (cell: number | null) => {
     panel.select(cell);
     scene.select(
@@ -484,7 +481,6 @@ async function runSandboxPage(): Promise<void> {
 type Village = { ref: string; name: string; tile: number; population: number; founded: number };
 
 async function runPlanetPage(): Promise<void> {
-  installTimeKeys();
   const { canvas, hud } = page(),
     tier = deviceTier(),
     stage = new Stage(canvas, tier, SPACE),
@@ -521,8 +517,10 @@ async function runPlanetPage(): Promise<void> {
   const loaded = loadName ? await client.load(loadName).catch(() => null) : null;
   if (!loaded && startYear > 0) await client.advance(startYear * YEAR);
   client.setInterest({ view: "globe", focus: null });
-  const speed = YEAR;
-  client.setSpeed(speed);
+  // One clock for every scale, its speeds the scale's own (asked for 2026-10-24): the date
+  // drawn each frame, as the scales draw the world.
+  const time = new TimeBar(client, "globe", true);
+  installTimeKeys(time);
   let lens: Lens = "terrain",
     regionLens: RegionLens = "land",
     density = new Map<number, number>(),
@@ -547,7 +545,7 @@ async function runPlanetPage(): Promise<void> {
     stopVillages: (() => void) | null = null,
     // The lands the god's palette lights (its reach, its choices: Phase 12 M106).
     litLands: ReadonlyMap<number, Lit> = new Map();
-  const planetPanel = new PlanetPanel(hud, client, speed),
+  const planetPanel = new PlanetPanel(hud, client),
     regionPanel = new RegionPanel(hud, client),
     villagePanel = new VillagePanel(hud, client),
     labels = new LabelLayer(hud),
@@ -558,6 +556,7 @@ async function runPlanetPage(): Promise<void> {
     pageWindow = new PageWindow(hud, client);
   // (Set once the scales are made: what a page is of, lit in the scene.)
   let pointAt: (page: PageModel) => void = () => {};
+  time.at("globe", planetPanel.timeSlot);
   planetPanel.tidings = regionPanel.tidings = villagePanel.tidings = tidings;
   pageWindow.tidings = tidings;
   // The tooltips that tell of a name or break a number down, on a desk (Phase 10 M97): a name
@@ -598,6 +597,7 @@ async function runPlanetPage(): Promise<void> {
     // (Not in the way of a machine driving the page, unless it asks: ?events.)
     !!(navigator as { webdriver?: boolean }).webdriver && !params.has("events"),
   );
+  events.clock = time;
   events.onOpen = (ref) => void pageWindow.open(ref);
   events.onGoTo = async (ref) => {
     const place = await client.query<Place | null>({ type: "place", args: { ref } });
@@ -1725,6 +1725,7 @@ async function runPlanetPage(): Promise<void> {
     region.visible = true;
     planetPanel.visible = false;
     regionPanel.visible = true;
+    time.at("region", regionPanel.timeSlot);
     rig.configure({
       distance: regionFit(),
       minDistance: 12,
@@ -1766,6 +1767,7 @@ async function runPlanetPage(): Promise<void> {
     globe.visible = true;
     regionPanel.visible = false;
     planetPanel.visible = true;
+    time.at("globe", planetPanel.timeSlot);
     rig.configure({
       distance: globeFit(),
       minDistance: 1.35,
@@ -1782,7 +1784,7 @@ async function runPlanetPage(): Promise<void> {
     walk.saw("scale");
     void toRegion(cell);
   };
-  // Out to the star's system, and back to the world: the worlds go round a month a second.
+  // Out to the star's system, and back to the world: the worlds go round at the sky's speeds.
   const systemPanel = new SystemPanel(hud, client);
   let sky: SkyState = { programs: [], colonies: [] },
     stopSky: (() => void) | null = null,
@@ -1835,7 +1837,7 @@ async function runPlanetPage(): Promise<void> {
     skyScene.visible = true;
     watchSky();
     systemPanel.visible = true;
-    client.setSpeed(SKY_SPEED);
+    time.at("system", systemPanel.timeSlot);
     rig.configure({
       // The whole system in view: its farthest orbit across the screen's narrow side.
       distance: (systemExtent(systemPlan) * 2.9) / Math.min(1, aspect()),
@@ -1958,6 +1960,7 @@ async function runPlanetPage(): Promise<void> {
     starScene.mark(null, clusterPlan);
     starScene.visible = true;
     clusterPanel.visible = true;
+    time.at("cluster", clusterPanel.timeSlot);
     rig.configure({
       distance: (clusterPlan.radius * 0.3 * 2.8) / Math.min(1, aspect()),
       minDistance: 1,
@@ -2009,6 +2012,7 @@ async function runPlanetPage(): Promise<void> {
     }
     worldPanel.show(systemPlan, index, w, sky);
     worldPanel.visible = true;
+    time.at("world", worldPanel.timeSlot);
   };
   // Halls from orbit (M95): a body of the home star's seen whole shows the halls set down on
   // it, where the view places each site, its domes as many as its people, its lights aglow.
@@ -2162,7 +2166,7 @@ async function runPlanetPage(): Promise<void> {
     skyScene.mark(null);
     skyScene.visible = true;
     systemPanel.visible = true;
-    client.setSpeed(SKY_SPEED);
+    time.at("system", systemPanel.timeSlot);
     rig.configure({
       distance: (systemExtent(plan) * 2.9) / Math.min(1, aspect()),
       minDistance: 2,
@@ -2201,6 +2205,7 @@ async function runPlanetPage(): Promise<void> {
       from === "galaxy" ? "The galaxy" : from === "star" ? "Its star" : "The stars around";
     worldPanel.showForeign(star, index, w, Math.floor(now() / YEAR));
     worldPanel.visible = true;
+    time.at("world", worldPanel.timeSlot);
   };
   // Out to the whole galaxy: its disk drawn from its own numbers, tapped for the stars there.
   const galaxyPanel = new GalaxyPanel(hud, client);
@@ -2225,6 +2230,7 @@ async function runPlanetPage(): Promise<void> {
     galaxyScene.visible = true;
     galaxyPanel.show(galaxyPlan);
     galaxyPanel.visible = true;
+    time.at("galaxy", galaxyPanel.timeSlot);
     const R = galaxyPlan.radius / 1000;
     rig.configure({
       distance: (R * 2.3) / Math.min(1, aspect()),
@@ -2487,7 +2493,6 @@ async function runPlanetPage(): Promise<void> {
       await fadeOver(() => {
         stopSky?.();
         stopSky = null;
-        client.setSpeed(planetPanel.speed);
         toGlobe();
       });
       rig.userZoomed = true;
@@ -2796,7 +2801,6 @@ async function runPlanetPage(): Promise<void> {
     }
     stopSky?.();
     stopSky = null;
-    client.setSpeed(planetPanel.speed);
     toGlobe();
   };
   exposed.sky = () => void toSystem();
@@ -2869,6 +2873,7 @@ async function runPlanetPage(): Promise<void> {
     shown = Math.max(shown, clock.t + ahead);
     return Math.min(shown, clock.t + clock.speed);
   };
+  stage.onUpdate(() => time.tick(now()));
   const loadPlan = async (ref: string) => {
     // Asked once a year: the year is marked before the answer comes.
     planYear = Math.floor(clock.t / YEAR);
@@ -2881,7 +2886,7 @@ async function runPlanetPage(): Promise<void> {
     const t0 = performance.now();
     village.build(plan);
     performance.measure("village.build", { start: t0 });
-    villagePanel.show(plan.name, WATCH_DEFAULT);
+    villagePanel.show(plan.name);
     villagePanel.hand = plan.hand;
     villagePanel.works = {
       era: plan.era,
@@ -2905,7 +2910,7 @@ async function runPlanetPage(): Promise<void> {
     await loadPlan(ref);
     village.visible = true;
     villagePanel.visible = true;
-    client.setSpeed(WATCH_DEFAULT);
+    time.at("village", villagePanel.timeSlot);
     rig.configure({
       // A city is seen from further off: most of its quarters in view.
       distance: plan?.districts ? 78 : 26,
@@ -2957,21 +2962,21 @@ async function runPlanetPage(): Promise<void> {
     void pageWindow.open(plan.people[i]!.ref);
   };
   regionPanel.onWatch = (ref) => void toVillage(ref);
-  villagePanel.onSpeed = (s) => client.setSpeed(s);
   villagePanel.onClose = () => selectPerson(null);
   villagePanel.onBack = () => {
     village.visible = false;
     villagePanel.visible = false;
     plan = null;
-    client.setSpeed(planetPanel.speed);
     toRegion(regionCell);
   };
   stage.onUpdate(() => {
     if (scale !== "village" || !plan) return;
-    const t = now();
-    stage.daylight((t % DAY) / DAY);
-    village.update(t);
-    villagePanel.tick(t);
+    const t = now(),
+      // A town watched growing (days, months, years a second): its people at their morning's
+      // work and its sky by day, not a day's round flashing by in every frame.
+      seen = time.lapse ? Math.floor(t / DAY) * DAY + 10 * 3600 : t;
+    stage.daylight((seen % DAY) / DAY);
+    village.update(seen);
     if (watched !== null) {
       villagePanel.moment(village.momentAt(watched), plan.people[watched]?.tool);
       // (What they are doing now, on their page.)
@@ -3032,7 +3037,6 @@ async function runPlanetPage(): Promise<void> {
       villagePanel.visible = false;
       plan = null;
       watched = null;
-      client.setSpeed(planetPanel.speed);
     } else if (
       scale === "system" ||
       scale === "cluster" ||
@@ -3041,7 +3045,6 @@ async function runPlanetPage(): Promise<void> {
     ) {
       stopSky?.();
       stopSky = null;
-      client.setSpeed(planetPanel.speed);
       galaxyScene.visible = false;
       galaxyPanel.visible = false;
       worldScene.visible = false;
@@ -3314,17 +3317,20 @@ async function runPlanetPage(): Promise<void> {
       land = [...map].sort((a, b) => b.people - a.people || a.cell - b.cell)[0];
     if (!land) return;
     const called = await client.command("act.summon", { cell: land.cell }).then(
-      () => true,
-      () => false,
+      (receipt) => receipt,
+      () => null,
     );
     if (!called) {
       void pageWindow.open("concept:contact");
       return;
     }
+    // (They set out in the year the call took hold, as the world counts its years — at the
+    // first moment of a year that is still the year before — and come down after it.)
+    const sailed = yearOfMoment(called.t);
     type Sky = { peoples?: { landings: { cell: number; year: number }[] } };
     const landed = async () =>
       !!(await client.query<Sky>({ type: "space.state", args: {} })).peoples?.landings.some(
-        (l) => l.cell === land.cell && l.year > startYear,
+        (l) => l.cell === land.cell && l.year > sailed,
       );
     // They cross in a year: the world is carried on, a year at a time, to the morning after they
     // come down, not waited on at whatever pace it runs (on a slow machine, minutes).

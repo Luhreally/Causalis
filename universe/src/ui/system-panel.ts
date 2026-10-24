@@ -24,6 +24,8 @@ const NO_SKY: SkyState = { programs: [], colonies: [] };
 
 export class SystemPanel {
   readonly element = el("div", "panel");
+  /** Where the clock's bar goes in this bar. */
+  readonly timeSlot = el("span", "time-slot");
   private readonly where = el("span", "clock");
   readonly inspector = el("section", "inspector");
   private readonly title = el("h2");
@@ -55,7 +57,7 @@ export class SystemPanel {
     const bar = el("header", "bar");
     this.back.onclick = () => this.onBack();
     this.stars.onclick = () => this.onStars();
-    bar.append(this.back, this.where, this.stars);
+    bar.append(this.back, this.where, this.timeSlot, this.stars);
     const close = el("button", "close", "×");
     close.setAttribute("aria-label", "Close");
     close.onclick = () => {

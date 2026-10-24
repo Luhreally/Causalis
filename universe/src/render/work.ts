@@ -15,6 +15,7 @@ import {
   factoryPieces,
   figureOf,
   itemParts,
+  partExtent,
   materialColor,
   minePieces,
   smokeAt,
@@ -180,7 +181,7 @@ export class WorkLayer {
     this.items.clear();
     this.plan = plan;
     const figure = figureOf(plan.body),
-      high = Math.max(...figure.parts.map((p) => p.y + p.sy / 2));
+      high = Math.max(...figure.parts.map((p) => p.y + partExtent(p)[1] / 2));
     this.lift = high / 0.55;
     const works = plan.works,
       engines = plan.era === "industry" || plan.era === "modern";

@@ -11,6 +11,8 @@ const COVER_WORDS = ["bare ground", "sea", "ice"];
 
 export class WorldPanel {
   readonly element = el("div", "panel");
+  /** Where the clock's bar goes in this bar. */
+  readonly timeSlot = el("span", "time-slot");
   readonly inspector = el("section", "inspector");
   private readonly where = el("span", "clock");
   private readonly title = el("h2");
@@ -24,7 +26,7 @@ export class WorldPanel {
     const bar = el("header", "bar"),
       back = this.back;
     back.onclick = () => this.onBack();
-    bar.append(back, this.where);
+    bar.append(back, this.where, this.timeSlot);
     this.inspector.append(
       folder(this.inspector, this.title),
       this.title,

@@ -65,9 +65,8 @@ export class EventWindows {
   private readonly why: WhyTree;
   private readonly queue: Tiding[] = [];
   private showing: Tiding | null = null;
-  /** The clock's speed when a window stopped it (null: no window stopped it). */
-  private resumeTo: number | null = null;
-  private lastSpeed = 0;
+  /** The clock a window holds while it waits on the viewer. */
+  clock: { hold(who: string): void; release(who: string): void } | null = null;
   /** Go to where a happening is to be seen; open a page. */
   onGoTo: (ref: string) => void = () => {};
   onOpen: (ref: string) => void = () => {};
@@ -92,10 +91,6 @@ export class EventWindows {
     this.element.setAttribute("role", "dialog");
     this.element.setAttribute("aria-label", "A great happening");
     parent.append(this.element);
-    // (The speed to give back: the one it ran at before a window stopped it.)
-    client.onStatus((s) => {
-      if (this.resumeTo === null) this.lastSpeed = s.speed;
-    });
   }
 
   /** How great happenings are told. */
@@ -138,15 +133,11 @@ export class EventWindows {
     if (!t) {
       this.element.hidden = true;
       this.element.replaceChildren();
-      // (The clock given back as it was.)
-      if (this.resumeTo !== null) this.client.setSpeed(this.resumeTo);
-      this.resumeTo = null;
+      // (The clock let go: as it was, unless the viewer chose otherwise meanwhile.)
+      this.clock?.release("window");
       return;
     }
-    if (this.pauses && this.resumeTo === null && this.lastSpeed > 0) {
-      this.resumeTo = this.lastSpeed;
-      this.client.setSpeed(0);
-    }
+    if (this.pauses) this.clock?.hold("window");
     await this.draw(t);
   }
 

@@ -289,6 +289,11 @@ button:active {
     padding: 4px 9px;
     font-size: 0.86rem;
   }
+  /* (A scale's five speeds and the pause across a phone.) */
+  .bar .speeds .speed {
+    padding: 4px 5px;
+    font-size: 0.76rem;
+  }
   .walk {
     font-size: 0.82rem;
     padding: 8px 10px;

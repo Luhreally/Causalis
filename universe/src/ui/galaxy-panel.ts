@@ -17,6 +17,8 @@ const ly = (n: number) =>
 
 export class GalaxyPanel {
   readonly element = el("div", "panel");
+  /** Where the clock's bar goes in this bar. */
+  readonly timeSlot = el("span", "time-slot");
   readonly inspector = el("section", "inspector");
   private readonly where = el("span", "clock");
   private readonly title = el("h2");
@@ -37,7 +39,7 @@ export class GalaxyPanel {
     const bar = el("header", "bar"),
       back = el("button", "speed", "‹ The stars around");
     back.onclick = () => this.onBack();
-    bar.append(back, this.where);
+    bar.append(back, this.where, this.timeSlot);
     this.inspector.append(folder(this.inspector, this.title), this.title, this.facts, this.more);
     this.element.append(
       bar,

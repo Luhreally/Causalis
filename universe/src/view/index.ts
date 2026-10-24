@@ -104,6 +104,14 @@ export {
   type SteerScene,
 } from "./steer.ts";
 export {
+  LAPSE,
+  TIME_LADDERS,
+  TimeState,
+  speedLabel,
+  type TimeLadder,
+  type TimeScale,
+} from "./time.ts";
+export {
   FREE_PACE,
   freeLook,
   freeStep,
@@ -213,8 +221,10 @@ export {
   type Pose,
 } from "./creature.ts";
 export {
+  FIGURE_CAPSULE,
   figureOf,
   paceOf,
+  partExtent,
   type Figure,
   type FigureBody,
   type FigurePart,
