@@ -178,6 +178,12 @@ jobs:
       - run: npm run gate:20 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 21 gate: credit (every house of lending side by side, the greatest's page and
+      # the book's page of credit, a realm's war chests, the lens of debt, a house broken by the
+      # god; a house's page on a phone).
+      - run: npm run gate:21 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

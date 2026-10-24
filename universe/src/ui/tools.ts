@@ -283,6 +283,44 @@ export function drawTool(
       );
       return;
     }
+    case "acts.credit": {
+      // A land's debts in the god's hand (Phase 21 M144): forgiven; its house of lending broken.
+      const tools = el("div", "tools"),
+        note = el("p", "note"),
+        cell = args.cell as number,
+        land = args.land as string,
+        house = args.house as string | null;
+      note.hidden = true;
+      if (args.owes)
+        twice(
+          tools,
+          note,
+          "🕊️ Forgive its debts",
+          `Every debt ${land} owes is released — its lenders bear it — and half its debt-bound go free.`,
+          async () => {
+            await ctx.client.command("act.forgive", { cell });
+            ctx.refresh();
+          },
+        );
+      if (house)
+        twice(
+          tools,
+          note,
+          `🔨 Break ${house}`,
+          `${house} fails at once: what it is owed forgiven, its town's savers ruined, and every house lends dearer for ten years.`,
+          async () => {
+            await ctx.client.command("act.break", { cell });
+            ctx.refresh();
+          },
+        );
+      into.replaceChildren(
+        el("h3", undefined, "Its debts — yours to forgive, its house yours to break"),
+        ...(tools.childElementCount
+          ? [tools, note]
+          : [el("p", "muted", "It owes nothing now, and no house lends here.")]),
+      );
+      return;
+    }
     case "acts.laws": {
       // A realm's laws in the god's hand (Phase 19 M139): each a step older or newer, at once.
       const laws = (args.laws as [string, string, number, string[]][] | undefined) ?? [],

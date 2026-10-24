@@ -8,8 +8,12 @@
 // its later harvests with interest: fewer die of the famine, but a land that cannot pay sinks
 // into debt, and its poor into bondage. A debt no land will ever pay is written off at last; a
 // house that loses more than it holds fails — its town's savers with it — and every house lends
-// dearer for a while. Every house, loan, loss and failure is a decision or an event whose causes
-// say why.
+// dearer for a while. (M144) A realm at war borrows to pay its host — a war chest, and its host
+// fights the harder for it — and a realm fallen, or beaten and crushed by what it owes for the
+// war, repudiates the debt: its lender bears it, and the realm is held faithless. A realm whose
+// people are crushed by debt may proclaim a jubilee, releasing every debt its lands owe; the god
+// may forgive a land its debts, or break a house. Every house, loan, loss and failure is a
+// decision or an event whose causes say why.
 import {
   YEAR,
   defineEventType,
@@ -29,9 +33,10 @@ import { marketsOf, mouths, type PopulationContext } from "../population/systems
 import type { Market } from "../economy/market.ts";
 import { loreOf } from "../lore/lore.ts";
 import { WAY, cultureOf, pushWays } from "../culture/culture.ts";
-import { politiesOf, realmName } from "../polity/polity.ts";
+import { LAW, POLITY_EVENTS, politiesOf, realmName } from "../polity/polity.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
-import { warsOf } from "../war/war.ts";
+import { fieldedOf, warsOf, type War } from "../war/war.ts";
+import { BOND, orderOf } from "../order/order.ts";
 
 export const HOUSE = defineKind("house", "a house of lending", "minted");
 
@@ -40,6 +45,18 @@ export const CREDIT_EVENTS = {
   lent: defineEventType("credit.lent", 3),
   lost: defineEventType("credit.lost", 3),
   failed: defineEventType("credit.failed", 6),
+  /** A realm's war chest: grain lent it to pay its host (M144). */
+  chest: defineEventType("credit.chest", 4),
+  /** A realm repudiates what it owes for a war. */
+  defaulted: defineEventType("credit.defaulted", 6),
+  /** A realm releases every debt its lands owe. */
+  jubilee: defineEventType("credit.jubilee", 6),
+};
+
+/** The god's hand on credit (M144): a land's debts forgiven; a house of lending broken. */
+export const CREDIT_ACTS = {
+  forgive: defineEventType("act.forgive", 5),
+  break: defineEventType("act.break", 5),
 };
 
 /** How credit is given, paid and lost (people, shares, years, months). */
@@ -78,6 +95,25 @@ export const CREDIT = {
   crushing: 0.5,
   /** A debt unpaid so many years is written off. */
   forgotten: 30,
+  /** A realm at war borrows for its host (M144): so many months of food for the men it fields,
+   * dearer by this for war's risk; a host paid from a war chest fights the harder by this, and
+   * is not slowed by its lands' hunger. */
+  season: 3,
+  war: 0.04,
+  chest: 1.15,
+  /** A realm that repudiated a debt is held faithless so many years: none lends it for a war,
+   * and its lands are lent dearer. */
+  faithless: 20,
+  /** At a new ruler's coming, a realm whose lands owe the houses, or whose people are bound for
+   * debt, may proclaim a jubilee, at this chance (more under a sacred law, the more its people are
+   * bound or aggrieved; less where houses of lending stand in its lands); its lands' debt-bound go
+   * free, so many of them. */
+  release: 0.08,
+  freed: 0.5,
+  /** A house's family draws each year this share of what it holds above so many times its stake:
+   * a house grows, but not without end — and a great loss can break it. */
+  drawn: 0.2,
+  cushion: 2,
   /** Loans ended are kept for so many years for the pages. */
   kept: 60,
 } as const;
@@ -93,11 +129,18 @@ export type Loan = {
   readonly rate: number;
   owed: number;
   paid: number;
-  /** The year it was paid off, written off, or forgiven (its house failed), and how. */
+  /** The year it ended, and how: paid off, written off, forgiven (its house failed),
+   * repudiated (its realm refused it, M144), or released (a jubilee, or the god). */
   ended: number | null;
-  end: "paid" | "lost" | "forgiven" | null;
+  end: "paid" | "lost" | "forgiven" | "repudiated" | "released" | null;
   endEvent: Ref | null;
+  /** A war loan's war, and the realm that borrowed (M144); a famine loan has neither. */
+  readonly war?: Ref;
+  readonly realm?: Ref;
 };
+
+/** A loan whose end its house bore: written off, repudiated, or released. */
+const BORNE: ReadonlySet<Loan["end"]> = new Set(["lost", "repudiated", "released"]);
 
 /** A house of lending: its family's name, its town, what it holds, what it earned and lost. */
 export type House = {
@@ -112,6 +155,8 @@ export type House = {
   readonly stake: number;
   earned: number;
   lost: number;
+  /** What its family drew from it, ever (M144). */
+  drawn: number;
   /** Grain lent, ever. */
   lentEver: number;
   failed: number | null;
@@ -128,6 +173,9 @@ export class CreditStore implements StateStore {
   failures = 0;
   /** Each year's grain owed to the houses, and lent that year (the ledger's chart). */
   years: { year: number; owed: number; lent: number }[] = [];
+  /** Each realm's repudiations, and each jubilee proclaimed (M144). */
+  defaults: { realm: Ref; year: number; event: Ref }[] = [];
+  jubilees: { realm: Ref; year: number; event: Ref }[] = [];
 
   house(ref: Ref | string): House | undefined {
     return this.houses.find((h) => h.ref === ref);
@@ -152,6 +200,16 @@ export class CreditStore implements StateStore {
       }
     return { owed, loan };
   }
+  /** The loan a realm took to pay its host in a war (its war chest), if it took one. */
+  chest(realm: Ref, war: Ref): Loan | undefined {
+    return this.loans.find((l) => l.war === war && l.realm === realm);
+  }
+  /** A realm's last repudiation, if it is held faithless for it still. */
+  faithless(realm: Ref, year: number): { year: number; event: Ref } | null {
+    return (
+      this.defaults.findLast((d) => d.realm === realm && year - d.year < CREDIT.faithless) ?? null
+    );
+  }
   /** What is owed to a house now. */
   outstanding(house: Ref): number {
     let n = 0;
@@ -169,6 +227,8 @@ export class CreditStore implements StateStore {
       if (l.endEvent) out.push(l.endEvent);
     }
     if (this.crisis) out.push(this.crisis.event);
+    for (const d of this.defaults) out.push(d.event);
+    for (const j of this.jubilees) out.push(j.event);
     return out;
   }
   save(): unknown {
@@ -179,6 +239,8 @@ export class CreditStore implements StateStore {
       crisis: this.crisis,
       failures: this.failures,
       years: this.years,
+      defaults: this.defaults,
+      jubilees: this.jubilees,
     };
   }
   hashInto(h: Hasher): void {
@@ -192,6 +254,8 @@ export class CreditStore implements StateStore {
       crisis: { year: number; event: Ref } | null;
       failures: number;
       years: { year: number; owed: number; lent: number }[];
+      defaults?: { realm: Ref; year: number; event: Ref }[];
+      jubilees?: { realm: Ref; year: number; event: Ref }[];
     };
     this.houses = s.houses.map((h) => ({ ...h }));
     this.loans = s.loans.map((l) => ({ ...l }));
@@ -199,6 +263,8 @@ export class CreditStore implements StateStore {
     this.crisis = s.crisis ? { ...s.crisis } : null;
     this.failures = s.failures;
     this.years = s.years.map((y) => ({ ...y }));
+    this.defaults = (s.defaults ?? []).map((d) => ({ ...d }));
+    this.jubilees = (s.jubilees ?? []).map((j) => ({ ...j }));
   }
 }
 
@@ -222,6 +288,7 @@ export function debtBurden(ctx: PopulationContext, cell: number): number {
 }
 
 const RISE = defineStream("credit.rise");
+const JUBILEE = defineStream("credit.jubilee");
 /** The foods a debt is paid in, the first first. */
 const PAID_IN = [G.grain, G.wild, G.meat] as const;
 
@@ -236,16 +303,30 @@ export function lendable(ctx: PopulationContext, store: CreditStore, h: House): 
   return Math.max(0, Math.floor(Math.min(room, spare)));
 }
 
-/** How dear a house lends to a land: the rate, its past losses there, a crisis on. */
-export function rateFor(store: CreditStore, cell: number, year: number): number {
-  const lost = store.loans.filter((l) => l.cell === cell && l.end === "lost").length,
+/**
+ * How dear a house lends to a land: the rate, its past losses there (and its realm's faith broken
+ * lately, as two), a crisis on.
+ */
+export function rateFor(
+  store: CreditStore,
+  cell: number,
+  year: number,
+  realm: Ref | null = null,
+): number {
+  const lost = store.loans.filter((l) => l.cell === cell && BORNE.has(l.end)).length,
+    faithless = realm && store.faithless(realm, year) ? 2 : 0,
     crisis = store.crisis && year - store.crisis.year < CREDIT.crisis;
-  return CREDIT.rate + CREDIT.risk * Math.min(3, lost) + (crisis ? CREDIT.dearer : 0);
+  return CREDIT.rate + CREDIT.risk * Math.min(3, lost + faithless) + (crisis ? CREDIT.dearer : 0);
 }
 
-/** A loan ends: paid, written off (its house loses what was owed), or forgiven. */
+/** A realm's war chest for a war (M144): the event of the loan it took to pay its host, if any. */
+export function warChest(world: World, realm: Ref, war: Ref): Ref | null {
+  return creditOf(world)?.chest(realm, war)?.event ?? null;
+}
+
+/** A loan ends: paid; written off, repudiated or released (its house loses what was owed); or forgiven. */
 function endLoan(store: CreditStore, l: Loan, year: number, end: Loan["end"], event: Ref | null) {
-  if (end === "lost") {
+  if (BORNE.has(end)) {
     const h = store.house(l.house)!;
     h.capital -= l.owed;
     h.lost += l.owed;
@@ -279,14 +360,19 @@ function fail(ctx: PopulationContext, store: CreditStore, h: House, cause: Ref, 
   if (ways) pushWays(ways, { event, year, trait: WAY.thrift, amount: 0.05 });
 }
 
-/** The yearly work of credit: interest and payment, losses and failures, new houses, new loans. */
+/**
+ * The yearly work of credit: interest and payment, losses, repudiations, jubilees and failures,
+ * new houses, new loans against famine and for war.
+ */
 export function creditYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     store = creditOf(world)!,
     year = yearOfMoment(t),
     markets = marketsOf(world),
     lore = loreOf(world),
-    realms = politiesOf(world);
+    realms = politiesOf(world),
+    wars = warsOf(world),
+    diplomacy = diplomacyOf(world);
   // 1. Interest, and payment from the harvest: a land pays what it can, in food of any kind — at
   // most a share of its food made, never what would leave it hungry. A debt unpaid a generation
   // is written off.
@@ -325,15 +411,142 @@ export function creditYear(ctx: PopulationContext, t: SimTime): void {
       endLoan(store, l, year, "lost", lost);
     }
   }
-  // 2. A house that lost more than it holds fails.
+  // 2. A realm fallen, or beaten in the war it borrowed for and crushed by what it owes for it,
+  // repudiates the debt (M144): its lender bears it, and the realm is held faithless.
+  for (const l of store.loans) {
+    if (l.ended !== null || !l.realm) continue;
+    const p = realms.get(l.realm),
+      w = l.war ? wars.get(l.war) : undefined,
+      fallen = !p || p.ended !== null,
+      beaten = !!w && w.ended !== null && lostWar(world, w, l.realm);
+    if (!fallen && !(beaten && debtBurden(ctx, l.cell) >= CREDIT.crushing)) continue;
+    const h = store.house(l.house)!,
+      why = (fallen ? fallOf(world, l.realm) : null) ?? w?.peace ?? l.event,
+      event = world.events.emit({
+        type: CREDIT_EVENTS.defaulted.type,
+        subjects: [l.realm, h.ref],
+        place: ctx.provinces.get(l.cell)?.ref ?? cellRef(0, l.cell),
+        causes: [
+          { ref: why, role: "trigger", weight: 1 },
+          { ref: l.event, role: "enabler", weight: 1 },
+        ],
+        data: {
+          name: h.name,
+          realm: p ? realmName(p) : "a fallen realm",
+          owed: Math.round(l.owed),
+          fallen,
+        },
+      });
+    endLoan(store, l, year, "repudiated", event);
+    store.defaults.push({ realm: l.realm, year, event });
+    // (The lender's realm remembers it.)
+    const theirs = realms.of(h.cell);
+    if (p && theirs && theirs.ref !== p.ref)
+      diplomacy.remember(p.ref, theirs.ref, {
+        name: "debts repudiated",
+        value: -0.3,
+        year,
+        source: event,
+      });
+  }
+  // 3. A jubilee (M144): at a new ruler's coming, a realm whose lands owe the houses or whose
+  // people are bound for debt may release every debt its lands owe — likelier under a sacred law,
+  // the more its people are bound, crushed or aggrieved, the less where houses of lending stand in
+  // its lands. Its houses bear it, and many of its debt-bound go free.
+  const order = orderOf(world);
+  for (const p of [...realms.living()].sort((a, b) => (a.ref < b.ref ? -1 : 1))) {
+    if (year - p.ruler.since > 1) continue;
+    let people = 0,
+      crushed = 0,
+      bound = 0,
+      grievance = 0,
+      loan: Loan | null = null;
+    for (const c of p.members) {
+      const n = ctx.provinces.get(c)?.total() ?? 0;
+      people += n;
+      grievance += n * Math.min(1, realms.discontent(c).level);
+      bound += n * (order?.lands.get(c)?.shares[BOND.debt] ?? 0);
+      const owing = store.owedBy(c).loan;
+      if (owing && (!loan || owing.owed > loan.owed)) loan = owing;
+      if (n > 0 && owing && debtBurden(ctx, c) >= CREDIT.crushing) crushed += n;
+    }
+    if (!loan && bound < 1) continue;
+    const all = Math.max(1, people),
+      sacred = p.law === LAW.indexOf("the sacred") ? 1 : 0,
+      aggrieved = grievance / all,
+      held = Math.min(1, 20 * (bound / all) + crushed / all),
+      sway = store.standing().some((h) => p.members.includes(h.cell)) ? 1 : 0,
+      chance = CREDIT.release * Math.max(0, 0.5 + sacred + aggrieved + held - 0.5 * sway);
+    if (world.rng.real(JUBILEE, Number(p.ref.split(":")[2]), t, 0) >= chance) continue;
+    const members = new Set(p.members),
+      owed = store.loans.reduce(
+        (a, l) => a + (l.ended === null && members.has(l.cell) ? l.owed : 0),
+        0,
+      ),
+      decision = world.decisions.record({
+        rule: "credit.jubilee",
+        subject: p.ref,
+        outcome: { owed: Math.round(owed), bound: Math.round(bound) },
+        score: chance,
+        threshold: 0,
+        factors: [
+          {
+            name: "a new ruler",
+            value: year - p.ruler.since,
+            contribution: CREDIT.release * 0.5,
+            source: { ref: p.ruler.event, role: "trigger", weight: 1 },
+          },
+          {
+            name: "its people bound or crushed by debt",
+            value: held,
+            contribution: CREDIT.release * held,
+            source: loan ? { ref: loan.event, role: "pressure", weight: 1 } : null,
+          },
+          {
+            name: "a sacred law",
+            value: sacred,
+            contribution: CREDIT.release * sacred,
+            source: null,
+          },
+          {
+            name: "its people's grievance",
+            value: aggrieved,
+            contribution: CREDIT.release * aggrieved,
+            source: null,
+          },
+          {
+            name: "houses of lending in its lands",
+            value: sway,
+            contribution: -CREDIT.release * 0.5 * sway,
+            source: null,
+          },
+        ],
+      }),
+      event = world.events.emit({
+        type: CREDIT_EVENTS.jubilee.type,
+        subjects: [p.ref],
+        place: ctx.provinces.get(p.seat)?.ref ?? cellRef(0, p.seat),
+        causes: [{ ref: decision, role: "trigger", weight: 1 }],
+        data: {
+          realm: realmName(p),
+          owed: Math.round(owed),
+          freed: Math.round(bound * CREDIT.freed),
+        },
+      });
+    for (const l of store.loans)
+      if (l.ended === null && members.has(l.cell)) endLoan(store, l, year, "released", event);
+    store.jubilees.push({ realm: p.ref, year, event });
+    freeTheBound(world, p.members, event);
+  }
+  // 4. A house that lost more than it holds fails.
   for (const h of store.standing())
     if (h.capital < 0) {
       const last = store.loans
-        .filter((l) => l.house === h.ref && l.end === "lost" && l.endEvent)
+        .filter((l) => l.house === h.ref && BORNE.has(l.end) && l.endEvent)
         .sort((a, b) => b.ended! - a.ended! || b.id - a.id)[0];
       fail(ctx, store, h, last?.endEvent ?? h.event, year);
     }
-  // 3. Houses rise in market towns that know lending, with traders enough and grain to spare.
+  // 5. Houses rise in market towns that know lending, with traders enough and grain to spare.
   if (store.standing().length < CREDIT.most) {
     const towns = ctx.settlements
       .all()
@@ -409,20 +622,19 @@ export function creditYear(ctx: PopulationContext, t: SimTime): void {
         stake,
         earned: 0,
         lost: 0,
+        drawn: 0,
         lentEver: 0,
         failed: null,
         failedEvent: null,
       });
     }
   }
-  // 4. The hungry borrow: a land in a famine borrows grain to bring its food to three months — a
+  // 6. The hungry borrow: a land in a famine borrows grain to bring its food to three months — a
   // land of a realm from a house of its realm, else from one of a realm that knows its own and is
   // at peace with it; a land of no realm from one of a realm on its border — unless it already
   // owes more than it can pay.
   let lentNow = 0;
-  const standing = store.standing(),
-    wars = warsOf(world),
-    diplomacy = diplomacyOf(world);
+  const standing = store.standing();
   if (standing.length)
     for (const prov of [...ctx.provinces.all()].sort((a, b) => a.cell - b.cell)) {
       const famine = prov.lastFamine ? world.events.get(prov.lastFamine) : undefined;
@@ -468,7 +680,7 @@ export function creditYear(ctx: PopulationContext, t: SimTime): void {
       const lender = realms.of(best.cell)!,
         hm = markets.get(best.cell)!,
         risk = !abroad ? 0 : realm ? CREDIT.abroad : CREDIT.unruled,
-        rate = rateFor(store, prov.cell, year) + risk,
+        rate = rateFor(store, prov.cell, year, realm?.ref ?? null) + risk,
         owing = store.owedBy(prov.cell),
         crisis = store.crisis && year - store.crisis.year < CREDIT.crisis ? store.crisis : null,
         hunger = Math.min(1, need / Math.max(1, CREDIT.months * mouths(prov, ctx.life))),
@@ -562,7 +774,124 @@ export function creditYear(ctx: PopulationContext, t: SimTime): void {
       best.lentEver += amount;
       lentNow += amount;
     }
-  // 5. The year's owing and lending kept; loans long ended let go.
+  // 7. A realm at war borrows to pay its host (M144): a season's food for the men it fields, from a
+  // house of its realm, else of a realm that knows it and is not at war with it (never its
+  // enemy's) — unless it broke faith with its lenders lately, or owes more than it can pay.
+  if (standing.length)
+    for (const p of [...realms.living()].sort((a, b) => (a.ref < b.ref ? -1 : 1))) {
+      const fighting = wars.fighting(p.ref),
+        sm = markets.get(p.seat),
+        seat = ctx.provinces.get(p.seat);
+      if (!fighting.length || !sm || !seat || store.faithless(p.ref, year)) continue;
+      for (const w of fighting) {
+        if (store.chest(p.ref, w.ref)) continue;
+        const burden = debtBurden(ctx, p.seat);
+        if (burden >= CREDIT.crushing) continue;
+        const men = fieldedOf(ctx, p),
+          want = Math.ceil(CREDIT.season * men * ctx.life.appetite),
+          enemy = w.attacker === p.ref ? w.defender : w.attacker;
+        if (want < 50) continue;
+        let best: House | null = null,
+          most = 0,
+          abroad = false;
+        for (const far of [false, true]) {
+          for (const h of standing) {
+            const theirs = realms.of(h.cell);
+            if (!theirs || theirs.ended !== null || theirs.ref === enemy) continue;
+            if ((theirs.ref !== p.ref) !== far) continue;
+            if (far) {
+              const known = diplomacy.get(theirs.ref, p.ref);
+              if (!known || known.opinion < 0 || wars.between(theirs.ref, p.ref)) continue;
+            }
+            const can = lendable(ctx, store, h);
+            if (can > most || (can === most && best && h.ref < best.ref)) [best, most] = [h, can];
+          }
+          if (best) {
+            abroad = far;
+            break;
+          }
+        }
+        if (!best || most < 50) continue;
+        const amount = Math.min(want, most),
+          lender = realms.of(best.cell)!,
+          hm = markets.get(best.cell)!,
+          risk = CREDIT.war + (abroad ? CREDIT.abroad : 0),
+          rate = rateFor(store, p.seat, year, p.ref) + risk,
+          owing = store.owedBy(p.seat),
+          decision = world.decisions.record({
+            rule: "credit.war",
+            subject: p.ref,
+            outcome: { house: best.ref, grain: amount, rate: Math.round(rate * 1000) / 1000 },
+            score: 1,
+            threshold: 0,
+            factors: [
+              {
+                name: "a war to fight",
+                value: 1,
+                contribution: 1,
+                source: { ref: w.event, role: "trigger", weight: 1 },
+              },
+              { name: "the men it fields", value: Math.round(men), contribution: 0, source: null },
+              {
+                name: abroad ? "a house of lending abroad" : "a house of lending in its realm",
+                value: most,
+                contribution: 0,
+                source: { ref: best.event, role: "enabler", weight: 1 },
+              },
+              {
+                name: "what it owes already",
+                value: Math.round(owing.owed),
+                contribution: -burden,
+                source: owing.loan
+                  ? { ref: owing.loan.event, role: "constraint", weight: 1 }
+                  : null,
+              },
+              { name: "war's risk", value: risk, contribution: -risk, source: null },
+            ],
+          });
+        sm.move("in", G.grain, hm.move("out", G.grain, amount));
+        const event = world.events.emit({
+          type: CREDIT_EVENTS.chest.type,
+          subjects: [best.ref, p.ref, w.ref],
+          place: seat.ref,
+          causes: [{ ref: decision, role: "trigger", weight: 1 }],
+          data: {
+            name: best.name,
+            realm: realmName(p),
+            enemy: realmName(realms.get(enemy) ?? p),
+            grain: amount,
+            rate: Math.round(rate * 100),
+            ...(abroad ? { abroad: realmName(lender) } : {}),
+          },
+        });
+        store.loans.push({
+          id: store.count++,
+          house: best.ref,
+          cell: p.seat,
+          year,
+          event,
+          lent: amount,
+          rate,
+          owed: amount,
+          paid: 0,
+          ended: null,
+          end: null,
+          endEvent: null,
+          war: w.ref,
+          realm: p.ref,
+        });
+        best.lentEver += amount;
+        lentNow += amount;
+      }
+    }
+  // 8. The houses' families draw on what each holds above a cushion of its stake.
+  for (const h of store.standing()) {
+    const over = Math.floor(CREDIT.drawn * (h.capital - CREDIT.cushion * h.stake));
+    if (over <= 0) continue;
+    h.capital -= over;
+    h.drawn += over;
+  }
+  // 9. The year's owing and lending kept; loans long ended let go.
   store.years.push({
     year,
     owed: Math.round(store.open().reduce((a, l) => a + l.owed, 0)),
@@ -570,6 +899,34 @@ export function creditYear(ctx: PopulationContext, t: SimTime): void {
   });
   if (store.years.length > 400) store.years.shift();
   store.loans = store.loans.filter((l) => l.ended === null || year - l.ended < CREDIT.kept);
+}
+
+/** Whether a realm lost a war now ended: the attacker that did not win its prize, the defender that lost it. */
+function lostWar(world: World, w: War, realm: Ref): boolean {
+  const won = w.peace ? (world.events.get(w.peace)?.data as { won?: boolean } | null)?.won : false;
+  return w.attacker === realm ? !won : w.defender === realm ? !!won : false;
+}
+
+/** The event of a realm's end, if the record still holds it. */
+function fallOf(world: World, realm: Ref): Ref | null {
+  return (
+    world.events
+      .all()
+      .findLast((e) => e.type === POLITY_EVENTS.ended.type && e.subjects.includes(realm))?.id ??
+    null
+  );
+}
+
+/** The debt-bound of lands set free, so many of them, by a release of their debts. */
+function freeTheBound(world: World, cells: readonly number[], event: Ref): void {
+  const order = orderOf(world);
+  if (!order) return;
+  for (const c of cells) {
+    const l = order.lands.get(c);
+    if (!l || l.shares[BOND.debt]! <= 0) continue;
+    l.shares[BOND.debt] = l.shares[BOND.debt]! * (1 - CREDIT.freed);
+    l.cause = event;
+  }
 }
 
 /** The realms of the lands about a land. */
@@ -590,4 +947,72 @@ export function installCredit(world: World, ctx: () => PopulationContext): Credi
   world.addPinner(() => store.pinned());
   world.system({ key: "189.credit.year", every: YEAR, run: (t) => creditYear(ctx(), t) });
   return store;
+}
+
+/** The god's hand on credit (M144): a land's debts forgiven, a house of lending broken. */
+export function installCreditActs(world: World, ctx: () => PopulationContext): void {
+  const land = (args: unknown): string | null => {
+    const cell = (args as { cell?: unknown } | null)?.cell;
+    if (!Number.isInteger(cell)) return "a land is wanted";
+    return ctx().provinces.get(cell as number) ? null : "no one lives there";
+  };
+  // A land's debts forgiven: every loan it owes released, its houses bearing it; its debt-bound freed.
+  world.defineCommand({
+    type: "act.forgive",
+    validate: (args) => {
+      const store = creditOf(world);
+      if (!store) return "this world knows no lending";
+      const no = land(args);
+      if (no) return no;
+      return store.owedBy((args as { cell: number }).cell).loan
+        ? null
+        : "it owes no house anything";
+    },
+    apply: (command, t) => {
+      const c = ctx(),
+        store = creditOf(world)!,
+        cell = (command.args as { cell: number }).cell,
+        event = world.events.emit({
+          type: CREDIT_ACTS.forgive.type,
+          place: c.provinces.get(cell)?.ref ?? cellRef(0, cell),
+          causes: [{ ref: command.id, role: "agent", weight: 1 }],
+          data: { owed: Math.round(store.owedBy(cell).owed) },
+        });
+      for (const l of store.loans)
+        if (l.ended === null && l.cell === cell)
+          endLoan(store, l, yearOfMoment(t), "released", event);
+      freeTheBound(world, [cell], event);
+    },
+  });
+  // A house of lending broken: it fails at once, what it is owed forgiven, its town's savers ruined.
+  world.defineCommand({
+    type: "act.break",
+    validate: (args) => {
+      const store = creditOf(world);
+      if (!store) return "this world knows no lending";
+      const no = land(args);
+      if (no) return no;
+      const cell = (args as { cell: number }).cell;
+      return store.standing().some((h) => h.cell === cell)
+        ? null
+        : "no house of lending stands there";
+    },
+    apply: (command, t) => {
+      const c = ctx(),
+        store = creditOf(world)!,
+        cell = (command.args as { cell: number }).cell,
+        house = store
+          .standing()
+          .filter((h) => h.cell === cell)
+          .sort((a, b) => b.capital - a.capital || (a.ref < b.ref ? -1 : 1))[0]!,
+        event = world.events.emit({
+          type: CREDIT_ACTS.break.type,
+          subjects: [house.ref],
+          place: c.provinces.get(cell)?.ref ?? cellRef(0, cell),
+          causes: [{ ref: command.id, role: "agent", weight: 1 }],
+          data: { name: house.name },
+        });
+      fail(c, store, house, event, yearOfMoment(t));
+    },
+  });
 }

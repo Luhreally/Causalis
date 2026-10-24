@@ -503,6 +503,7 @@ export {
 export { SUMMON_EVENTS, calledPeople, installSummon } from "./space/summon.ts";
 export {
   CREDIT,
+  CREDIT_ACTS,
   CREDIT_EVENTS,
   CreditStore,
   HOUSE,
@@ -510,8 +511,10 @@ export {
   creditYear,
   debtBurden,
   installCredit,
+  installCreditActs,
   lendable,
   rateFor,
+  warChest,
   type House,
   type Loan,
 } from "./credit/credit.ts";

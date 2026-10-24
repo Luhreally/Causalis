@@ -7,6 +7,7 @@ import {
   CREDIT,
   POPULATION_EVENTS,
   creditOf,
+  warsOf,
   creditYear,
   loreOf,
   marketsOf,
@@ -16,11 +17,12 @@ import {
   row,
   type Polity,
 } from "../../src/sim/index.ts";
-import type { Block, PageModel } from "../../src/bridge/index.ts";
+import type { Block, PageModel, Tip } from "../../src/bridge/index.ts";
 import { CREDIT_CONCEPTS } from "../../src/host/inspect/credit-concepts.ts";
 
 // Phase 21 M143: credit, read — a house of lending's page, a land's debts, the ledger's houses,
-// the chronicle's first, the book's concepts. The first light's world a century and a quarter on;
+// the chronicle's first, the book's concepts (M144: a realm's credit, a war's chests, the lens of
+// debt). The first light's world a century and a quarter on;
 // its greatest realm's most peopled land with a town made by hand a market town that knows
 // lending, a house risen there, and the realm's next land lent grain against a famine.
 const world = EARTH.build(seedFromText("first light"));
@@ -113,8 +115,23 @@ test("a land's debts: what it owes and to whom, against its harvest, every loan 
   assert.equal(rows.find((r) => r.label === "It owes")!.why, loan.event);
   const loans = debt.blocks.find((b) => b.type === "list");
   assert.ok(loans && loans.type === "list" && loans.items.length === 1);
-  // (A land that never borrowed has no debt tab.)
-  assert.ok(!page(`cell:0:${lender}`).tabs.some((t) => t.id === "debt"));
+  // The god's hand: its debts forgiven (it owes), no house of its own to break.
+  const tool = debt.blocks.find((b) => b.type === "tool" && b.tool === "acts.credit");
+  assert.ok(tool && tool.type === "tool" && tool.args.cell === borrower && tool.args.owes === true);
+  assert.equal(tool.args.house, null);
+  // The lender's land: its house told, and the god's hand to break it; it owes nothing.
+  const theirs = tabOf(page(`cell:0:${lender}`), "debt");
+  assert.ok(theirs, "the lender's land has its house told");
+  assert.ok(
+    rowsOf(theirs.blocks).some((r) => r.label === "A house lends here" && r.why === house.event),
+  );
+  const its = theirs.blocks.find((b) => b.type === "tool" && b.tool === "acts.credit");
+  assert.ok(its && its.type === "tool" && its.args.owes === false);
+  assert.equal(String(its.args.house).toLowerCase(), house.name.toLowerCase());
+  // (A land that never borrowed, where no house lends, has no debt tab.)
+  const neither = realm.members.find((c) => c !== lender && c !== borrower);
+  if (neither !== undefined)
+    assert.ok(!page(`cell:0:${neither}`).tabs.some((t) => t.id === "debt"));
 });
 
 test("the ledger sets every house side by side; the chronicle tells the first; the lending titled", () => {
@@ -143,4 +160,60 @@ test("the book of concepts has a page for each of credit's concepts, each bound 
     for (const i of related.items)
       assert.notEqual(page(i.ref!).title, "The book of concepts", `${id}: ${i.ref} has a page`);
   }
+});
+
+test("a realm's credit: its war chests and its houses; a war's page tells what each side borrowed", () => {
+  // The realm set upon a realm it borders, and borrowing for it.
+  let war = null as ReturnType<ReturnType<typeof warsOf>["all"]>[number] | null;
+  for (const q of [...politiesOf(world).living()].sort((a, b) => (a.ref < b.ref ? -1 : 1))) {
+    if (q.ref === realm.ref) continue;
+    try {
+      world.submit("act.war", { a: realm.ref, b: q.ref });
+    } catch {
+      continue;
+    }
+    world.runTo(world.now + 3);
+    war = warsOf(world).between(realm.ref, q.ref) ?? null;
+    break;
+  }
+  assert.ok(war, "a war declared");
+  creditYear(ctx, (world.now + 1) as SimTime);
+  const chest = creditOf(world)!.chest(realm.ref, war!.ref)!;
+  assert.ok(chest, "the realm borrowed for its war");
+  const credit = tabOf(page(realm.ref), "credit");
+  assert.ok(credit, "a credit tab");
+  const rows = rowsOf(credit.blocks);
+  assert.equal(rows.find((r) => r.label === "War chests")!.why, chest.event);
+  assert.ok(
+    rows.every((r) => r.concept),
+    "each a measure of a concept",
+  );
+  const chests = credit.blocks.find(
+    (b) => b.type === "list" && b.title === "Its war chests, the newest first",
+  );
+  assert.ok(chests && chests.type === "list" && chests.items.some((i) => i.why === chest.event));
+  const houses = credit.blocks.find(
+    (b) => b.type === "list" && b.title === "Houses of lending in its lands",
+  );
+  assert.ok(houses && houses.type === "list" && houses.items.some((i) => i.why === house.event));
+  const told = rowsOf(tabOf(page(war!.ref), "overview").blocks).find(
+    (r) =>
+      r.label ===
+      (war!.attacker === realm.ref ? "The attacker's war chest" : "The defender's war chest"),
+  );
+  assert.ok(told, "the war's page tells its chest");
+  assert.equal(told!.why, chest.event);
+  assert.equal(page(chest.event).title, "A war chest");
+});
+
+test("the lens of debt reads a land: what it owes, to whom, at what interest", () => {
+  const entry = ask<{ cell: number; debt: number }[]>("people.map").find(
+    (e) => e.cell === borrower,
+  )!;
+  assert.ok(entry.debt > 0 && entry.debt <= 1, `debt ${entry.debt}`);
+  const tip = ask<Tip>("tip", { ref: `cell:0:${borrower}`, lens: "debt" });
+  assert.match(tip.line, /^💸 Debt: it owes /);
+  assert.ok(tip.stats.some((s) => s.label === "Most of it to"));
+  const none = ask<Tip>("tip", { ref: `cell:0:${lender}`, lens: "debt" });
+  assert.ok(none.stats.some((s) => s.label === "A house lends here"));
 });

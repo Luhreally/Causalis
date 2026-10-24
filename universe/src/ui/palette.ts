@@ -130,6 +130,22 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
     target: "land",
     command: "act.summon",
   },
+  forgive: {
+    id: "forgive",
+    icon: "🕊️",
+    name: "Forgive a land its debts",
+    target: "land",
+    command: "act.forgive",
+    sign: 1,
+  },
+  break: {
+    id: "break",
+    icon: "🔨",
+    name: "Break a house of lending",
+    target: "land",
+    command: "act.break",
+    sign: -1,
+  },
   inspire: {
     id: "inspire",
     icon: "💡",
@@ -316,6 +332,7 @@ export const PALETTE_KINDS: readonly {
     acts: ["war", "peace", "friendship", "discord", "union", "summon"],
   },
   { id: "realms", icon: "🏰", name: "A realm's fortunes", acts: ["rise", "bless", "curse"] },
+  { id: "credit", icon: "🏦", name: "Debt and credit", acts: ["forgive", "break"] },
   {
     id: "ways",
     icon: "🎭",
@@ -588,6 +605,16 @@ export class GodPalette {
         if (a.id === "summon")
           return {
             words: `strangers of another star called down to ${land.name}: they cross in a year`,
+            args: { cell: land.cell },
+          };
+        if (a.id === "forgive")
+          return {
+            words: `every debt ${land.name} owes forgiven, and its debt-bound freed`,
+            args: { cell: land.cell },
+          };
+        if (a.id === "break")
+          return {
+            words: `the house of lending in ${land.name} broken: its savers ruined, credit dear`,
             args: { cell: land.cell },
           };
         if (a.id === "loose")

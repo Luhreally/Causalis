@@ -7,8 +7,11 @@ import { offworldSite } from "../../gen/index.ts";
 import { YEAR, parseRef, type Ref, type World } from "../../kernel/index.ts";
 import { deepen, newsLog, observer, watches } from "../../causal/index.ts";
 import {
+  CREDIT,
   beliefOf,
   citiesOf,
+  creditOf,
+  debtBurden,
   healthOf,
   homePlanet,
   languagesOf,
@@ -27,10 +30,11 @@ import type {
   Span,
   Stat,
 } from "../../bridge/index.ts";
-import { bare, count, many, part, share, stat, yearAt, yearNow } from "./words.ts";
+import { bare, claimOf, count, many, part, share, stat, yearAt, yearNow } from "./words.ts";
 import { faithLink, landLink, languageLink, nameOf, realmLink, townLink } from "./names.ts";
 import { worldFirsts } from "./world.ts";
 import { sicknessLink } from "./sickness.ts";
+import { houseLink } from "./credit.ts";
 
 /** A land is going hungry below this much of its need met, in thousandths (as the top bar counts). */
 const HUNGRY = 850;
@@ -220,6 +224,51 @@ export function alertsOf(world: World): Alert[] {
       });
     }
   }
+  // Debt (Phase 21 M144): the lands followed (and the followed realms') crushed by debt; the
+  // followed realms' repudiations and jubilees, and the houses failed in their lands, these two years.
+  const credit: AlertItem[] = [];
+  {
+    const store = creditOf(world),
+      ctx = populationContext(world),
+      watched = new Set<number>(lands);
+    for (const ref of atWar) {
+      const r = realms.get(ref as Ref);
+      if (r && r.ended === null) for (const c of r.members) watched.add(c);
+    }
+    if (store) {
+      for (const c of [...watched].sort((a, b) => a - b)) {
+        const owing = store.owedBy(c);
+        if (!owing.loan || credit.length >= 12 || debtBurden(ctx, c) < CREDIT.crushing) continue;
+        credit.push({
+          line: [
+            landLink(world, c),
+            ` is crushed by debt: it owes ${count(Math.round(owing.owed))} grain`,
+          ],
+          ref: owing.loan.event,
+          key: `debt:${c}`,
+        });
+      }
+      for (const d of [...store.defaults, ...store.jubilees])
+        if (d.year >= now - 2 && atWar.has(d.realm) && credit.length < 12)
+          credit.push({
+            line: [claimOf(world, d.event)],
+            ref: d.event,
+            key: `credit:${d.event}`,
+          });
+      for (const h of store.houses)
+        if (h.failed !== null && h.failed >= now - 2 && watched.has(h.cell) && credit.length < 12)
+          credit.push({
+            line: [
+              houseLink(world, h.ref),
+              " failed, ",
+              landLink(world, h.cell),
+              `, year ${count(h.failed)}`,
+            ],
+            ref: h.failedEvent ?? h.ref,
+            key: `failed:${h.ref}`,
+          });
+    }
+  }
   // Firsts: what the world did first lately, the newest first.
   const first: AlertItem[] = firstsNow(world)
     .filter((f) => f.year >= now - FIRST_YEARS)
@@ -238,6 +287,7 @@ export function alertsOf(world: World): Alert[] {
     { id: "hunger", icon: "🍂", title: "Going hungry", tone: "want", items: hunger },
     { id: "order", icon: "✊", title: "Bonds and freedoms", tone: "war", items: order },
     { id: "sickness", icon: "🦠", title: "Sickness", tone: "loss", items: sickness },
+    { id: "credit", icon: "💸", title: "Debt", tone: "want", items: credit },
     { id: "fallen", icon: "🏳️", title: "A realm fallen", tone: "loss", items: fallen },
     { id: "death", icon: "🕯️", title: "A life ended", tone: "loss", items: death },
     { id: "first", icon: "🌟", title: "A first in the world", tone: "news", items: first },

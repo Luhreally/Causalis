@@ -35,6 +35,7 @@ export const LENSES = [
   "standing",
   "laws",
   "sickness",
+  "debt",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -67,6 +68,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   standing: "Standing",
   laws: "Laws",
   sickness: "Sickness",
+  debt: "Debt",
 };
 
 /** Each map mode's icon, for the map modes' bar (Phase 10 M96). */
@@ -99,6 +101,7 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   standing: "⚖️",
   laws: "🏛️",
   sickness: "🦠",
+  debt: "💸",
 };
 
 /** How every land stands toward the realm the diplomacy lens is of, in its colours. */
@@ -331,6 +334,13 @@ const SICKNESS: readonly Stop[] = [
   [0.7, [0.46, 0.34, 0.5]],
   [1, [0.24, 0.08, 0.26]],
 ];
+/** What a land owes, against a year's food: nothing (pale) to crushing (deep rust) — M144. */
+const DEBT: readonly Stop[] = [
+  [0, [0.84, 0.84, 0.78]],
+  [0.2, [0.9, 0.78, 0.46]],
+  [0.5, [0.86, 0.5, 0.24]],
+  [1, [0.5, 0.16, 0.12]],
+];
 /** The laws the laws lens shows, one at a time: each its id, icon and name (M139). */
 export const LAW_CHOICES: readonly (readonly [string, string, string])[] = [
   ["land", "🌾", "The land"],
@@ -437,6 +447,7 @@ const DEEP: Readonly<
   standing: { stops: STANDING, at: (v) => v, shown: (v) => v >= 0 },
   laws: { stops: LAWS_RAMP, at: (v) => v, shown: (v) => v >= 0 },
   sickness: { stops: SICKNESS, at: (v) => Math.sqrt(v), shown: () => true },
+  debt: { stops: DEBT, at: (v) => v, shown: () => true },
 };
 
 /** A biome's colour on the land lens. */
@@ -548,7 +559,8 @@ export function globeColors(
       case "bondage":
       case "standing":
       case "laws":
-      case "sickness": {
+      case "sickness":
+      case "debt": {
         const v = values?.get(province),
           deep = DEEP[lens];
         if (v !== undefined && deep && deep.shown(v)) col = ramp(deep.stops, deep.at(v));
@@ -720,6 +732,8 @@ export function lensLegend(lens: Lens): Legend {
       return { kind: "ramp", stops: stops(LAWS_RAMP), low: "the old order", high: "the new" };
     case "sickness":
       return { kind: "ramp", stops: stops(SICKNESS), low: "spared lately", high: "a great dying" };
+    case "debt":
+      return { kind: "ramp", stops: stops(DEBT), low: "owes nothing", high: "a year's food" };
     case "belief":
       return {
         kind: "keys",

@@ -30,7 +30,7 @@ import { installNatureActs } from "../acts/natures.ts";
 import { installOrderActs } from "../order/acts.ts";
 import { installHealth, installHealthActs } from "../health/health.ts";
 import { installSummon } from "../space/summon.ts";
-import { installCredit } from "../credit/credit.ts";
+import { installCredit, installCreditActs } from "../credit/credit.ts";
 import { installDesigns } from "../design/design.ts";
 import { installEcology } from "../ecology/ecology.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
@@ -240,6 +240,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installNatureActs(world, () => populationContext(world));
   installOrderActs(world, () => populationContext(world));
   installHealthActs(world, () => populationContext(world));
+  installCreditActs(world, () => populationContext(world));
   installDesigns(world, () => populationContext(world));
   installEcology(world, () => populationContext(world));
   installLanguages(world, () => populationContext(world));

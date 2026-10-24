@@ -1061,6 +1061,34 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
         many(failed.length, "house failed", "houses failed"),
         failed.length,
       );
+    // (A war chest, a realm's debts repudiated, a jubilee — M144.)
+    const chests = credit?.loans.filter((l) => l.realm) ?? [];
+    if (chests[0])
+      add(
+        "💰 A war chest",
+        { year: chests[0].year, land: chests[0].cell, ref: chests[0].event },
+        chests[1]?.year ?? null,
+        many(chests.length, "war chest", "war chests"),
+        chests.length,
+      );
+    for (const [list, what, one, more] of [
+      [credit?.defaults ?? [], "🚫 Debts repudiated", "repudiation", "repudiations"],
+      [credit?.jubilees ?? [], "🕊️ A jubilee", "jubilee", "jubilees"],
+    ] as const) {
+      const at = list[0] ? world.events.get(list[0].event) : undefined;
+      if (list[0])
+        add(
+          what,
+          {
+            year: list[0].year,
+            land: at?.place ? parseRef(at.place).b : null,
+            ref: list[0].event,
+          },
+          list[1]?.year ?? null,
+          many(list.length, one, more),
+          list.length,
+        );
+    }
   }
   for (const [type, what, one, more] of [
     ["trade.route-opened", "🐪 A trade road", "road", "roads"],

@@ -379,7 +379,8 @@ export function legitimacyFactors(ctx: PopulationContext, p: Polity): Factor[] {
       (o?.memory ?? []).filter((m) => m.what === "massacre").reduce((s, m) => s + m.weight, 0),
     ),
     massacre = (o?.memory ?? []).find((m) => m.what === "massacre"),
-    bound = boundShare(ctx, p) * trait(seat, WAY.openness);
+    bound = boundShare(ctx, p) * trait(seat, WAY.openness),
+    faithless = creditOf(world)?.faithless(p.ref, year) ?? null;
   return [
     {
       name: "an old rule, kept by custom",
@@ -435,6 +436,17 @@ export function legitimacyFactors(ctx: PopulationContext, p: Polity): Factor[] {
       contribution: -0.3 * bound,
       source: null,
     },
+    // (Faith broken with its lenders: a debt repudiated these twenty years — M144.)
+    ...(faithless
+      ? [
+          {
+            name: "debts repudiated",
+            value: 1,
+            contribution: -0.1,
+            source: { ref: faithless.event, role: "pressure" as const, weight: 1 },
+          },
+        ]
+      : []),
     // (Its laws: how far they are what its powerful want, and its justice — M139.)
     {
       name: "laws its powerful want",

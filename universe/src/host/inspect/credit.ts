@@ -1,13 +1,24 @@
 // Credit, read (Phase 21 M143, asked for 2026-10-23: "debt, credit, banking"): a house of
 // lending's page — what it holds, is owed, earned and lost, whom it lent to and how that ended;
 // a land's debts for its page; every house side by side, and what is owed to them year by year,
-// for the ledger.
-import type { World } from "../../kernel/index.ts";
+// for the ledger. (M144: a realm's debts and war chests for its page, a war's chests for its;
+// repudiations and jubilees; the god's hand on a land's debts; the lens of debt.)
+import type { Ref, World } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { CREDIT, creditOf, debtBurden, populationContext, type Loan } from "../../sim/index.ts";
+import {
+  CREDIT,
+  creditOf,
+  debtBurden,
+  politiesOf,
+  populationContext,
+  warsOf,
+  type Loan,
+  type War,
+} from "../../sim/index.ts";
 import type { Block, Item, PageModel, Span, Stat } from "../../bridge/index.ts";
+import type { Reading } from "../lenses.ts";
 import { claimOf, count, item, link, share, stat, yearNow } from "./words.ts";
-import { landLink, spotOfLand } from "./names.ts";
+import { landLink, landTitle, realmLink, spotOfLand } from "./names.ts";
 
 export const HOUSE_ICON = "🏦";
 type Rgb = [number, number, number];
@@ -25,15 +36,30 @@ const ENDS: Readonly<Record<NonNullable<Loan["end"]>, string>> = {
   paid: "paid off",
   lost: "written off",
   forgiven: "forgiven",
+  repudiated: "repudiated",
+  released: "released",
 };
 
 /** A loan in a line: to (or from) whom, how much, at what interest, and how it stands. */
 function loanLine(world: World, l: Loan, from: "house" | "land"): Item {
-  const who = from === "house" ? landLink(world, l.cell) : houseLink(world, l.house);
+  // (A war chest says which war: the realm's enemy in it.)
+  const war = l.war ? warsOf(world).get(l.war) : undefined,
+    enemy = war && l.realm ? (war.attacker === l.realm ? war.defender : war.attacker) : null,
+    forWar: Span[] = enemy
+      ? [", for its war with ", realmLink(world, enemy)]
+      : l.realm
+        ? [", for its war"]
+        : [],
+    who: Span[] =
+      from === "land"
+        ? [houseLink(world, l.house), ...forWar]
+        : l.realm
+          ? [realmLink(world, l.realm), ...forWar]
+          : [landLink(world, l.cell)];
   return {
     ...item(
       [
-        who,
+        ...who,
         ` — year ${l.year}: ${count(l.lent)} grain at ${Math.round(l.rate * 100)} in a hundred; `,
         l.ended === null
           ? `owes ${count(Math.round(l.owed))}, paid ${count(Math.round(l.paid))}`
@@ -64,6 +90,7 @@ export function housePage(world: World, ref: string): PageModel {
         ...stat("Lost to debts never paid", `${count(Math.round(h.lost))}`),
         concept: "house-failure",
       },
+      { ...stat("Drawn by its family", `${count(Math.round(h.drawn))}`), concept: "credit" },
       stat("It began", [landLink(world, h.cell), `, year ${h.year}, its stake ${count(h.stake)}`], {
         why: h.event,
       }),
@@ -110,7 +137,6 @@ export function housePage(world: World, ref: string): PageModel {
               .sort((a, b) => b.owed - a.owed || a.id - b.id)
               .map((l) => loanLine(world, l, "house")),
           },
-          { type: "text", lines: [[claimOf(world, h.ref)]] },
           { type: "why", ref: h.ref },
         ],
       },
@@ -133,12 +159,13 @@ export function housePage(world: World, ref: string): PageModel {
   };
 }
 
-/** A land's debts, for its page: what it owes, to whom, against its harvest. */
+/** A land's debts, for its page: what it owes, to whom, against its harvest; its own house. */
 export function landCreditBlocks(world: World, cell: number): Block[] {
   const store = creditOf(world);
   if (!store) return [];
-  const mine = store.loans.filter((l) => l.cell === cell);
-  if (!mine.length) return [];
+  const mine = store.loans.filter((l) => l.cell === cell),
+    here = store.standing().filter((h) => h.cell === cell);
+  if (!mine.length && !here.length) return [];
   const ctx = populationContext(world),
     open = mine.filter((l) => l.ended === null),
     owed = open.reduce((a, l) => a + l.owed, 0),
@@ -178,6 +205,10 @@ export function landCreditBlocks(world: World, cell: number): Block[] {
         ),
         concept: "credit",
       },
+      ...here.map((h) => ({
+        ...stat("A house lends here", [houseLink(world, h.ref)], { why: h.event }),
+        concept: "credit",
+      })),
     ];
   return [
     { type: "facts", title: "Debt", rows },
@@ -188,7 +219,130 @@ export function landCreditBlocks(world: World, cell: number): Block[] {
         .sort((a, b) => b.year - a.year || b.id - a.id)
         .map((l) => loanLine(world, l, "land")),
     },
+    {
+      type: "tool",
+      tool: "acts.credit",
+      args: {
+        cell,
+        land: landTitle(world, cell),
+        owes: open.length > 0,
+        house: here[0] ? cap(here[0].name) : null,
+      },
+    },
   ];
+}
+
+/** A realm's debts, for its page (M144): what its lands owe, its war chests, its faith with its lenders. */
+export function realmCreditBlocks(world: World, realm: Ref): Block[] {
+  const store = creditOf(world),
+    r = politiesOf(world).get(realm);
+  if (!store || !r) return [];
+  const members = new Set(r.members),
+    open = store.loans.filter((l) => l.ended === null && members.has(l.cell)),
+    chests = store.loans.filter((l) => l.realm === realm),
+    houses = store.standing().filter((h) => members.has(h.cell)),
+    defaults = store.defaults.filter((d) => d.realm === realm),
+    jubilees = store.jubilees.filter((j) => j.realm === realm);
+  if (!open.length && !chests.length && !houses.length && !defaults.length && !jubilees.length)
+    return [];
+  const year = yearNow(world),
+    faithless = store.faithless(realm, year),
+    rows: Stat[] = [
+      {
+        ...stat(
+          "Its lands owe",
+          open.length
+            ? `${count(Math.round(open.reduce((a, l) => a + l.owed, 0)))} grain, in ${open.length} loan${open.length === 1 ? "" : "s"}`
+            : "nothing now",
+          { why: open[0]?.event ?? null },
+        ),
+        concept: "debt",
+      },
+      {
+        ...stat("War chests", chests.length ? `${chests.length}` : "none", {
+          why: chests.at(-1)?.event ?? null,
+        }),
+        concept: "war-chest",
+      },
+      ...(faithless
+        ? [
+            {
+              ...stat("Held faithless", `since year ${faithless.year}: none lends it for a war`, {
+                why: faithless.event,
+              }),
+              concept: "repudiation",
+            },
+          ]
+        : []),
+      ...(jubilees.length
+        ? [
+            {
+              ...stat("Its last jubilee", `year ${jubilees.at(-1)!.year}`, {
+                why: jubilees.at(-1)!.event,
+              }),
+              concept: "jubilee",
+            },
+          ]
+        : []),
+    ];
+  const told = (d: { year: number; event: Ref }): Item => ({
+    ...item([claimOf(world, d.event)], d.event, d.year),
+    why: d.event,
+  });
+  return [
+    { type: "facts", title: "Credit", rows },
+    {
+      type: "list",
+      title: "Its war chests, the newest first",
+      items: [...chests]
+        .sort((a, b) => b.year - a.year || b.id - a.id)
+        .map((l) => loanLine(world, l, "land")),
+    },
+    {
+      type: "list",
+      title: "Houses of lending in its lands",
+      items: houses.map((h) => ({
+        ...item(
+          [houseLink(world, h.ref), ", in ", landLink(world, h.cell), `, since year ${h.year}`],
+          h.event,
+          h.year,
+        ),
+        why: h.event,
+      })),
+    },
+    {
+      type: "list",
+      title: "Debts repudiated and released",
+      items: [...defaults, ...jubilees].sort((a, b) => b.year - a.year).map(told),
+    },
+  ];
+}
+
+/** A war's chests, for its page (M144): what each side borrowed to pay its host. */
+export function warChestRows(world: World, w: War): Stat[] {
+  const store = creditOf(world);
+  if (!store) return [];
+  const rows: Stat[] = [];
+  for (const [side, realm] of [
+    ["The attacker's war chest", w.attacker],
+    ["The defender's war chest", w.defender],
+  ] as const) {
+    const l = store.chest(realm, w.ref);
+    if (l)
+      rows.push({
+        ...stat(
+          side,
+          [
+            houseLink(world, l.house),
+            ` lent ${count(l.lent)} grain at ${Math.round(l.rate * 100)} in a hundred`,
+            l.ended !== null ? `; ${ENDS[l.end!]} in year ${l.ended}` : "",
+          ],
+          { why: l.event },
+        ),
+        concept: "war-chest",
+      });
+  }
+  return rows;
 }
 
 /** Every house side by side, and what was owed to them year by year, for the ledger. */
@@ -271,6 +425,14 @@ export function creditLedger(world: World): Block[] {
     },
     {
       type: "list",
+      title: "Debts repudiated and jubilees, the newest first",
+      items: [...store.defaults, ...store.jubilees]
+        .sort((a, b) => b.year - a.year || (a.event < b.event ? 1 : -1))
+        .slice(0, 24)
+        .map((d) => ({ ...item([claimOf(world, d.event)], d.event, d.year), why: d.event })),
+    },
+    {
+      type: "list",
       title: "Houses failed, the newest first",
       items: all
         .filter((h) => h.failed !== null)
@@ -293,4 +455,30 @@ export function creditLedger(world: World): Block[] {
 /** How heavy a land's debts lie on it, for the lens (0: none … 1: a year's food or more). */
 export function debtValue(world: World, cell: number): number {
   return Math.min(1, debtBurden(populationContext(world), cell));
+}
+
+/** The lens of debt's reading of a land (M144): what it owes, to whom, against its harvest. */
+export function debtReading(world: World, cell: number): Reading {
+  const store = creditOf(world),
+    owing = store?.owedBy(cell),
+    burden = debtBurden(populationContext(world), cell),
+    here = store?.standing().filter((h) => h.cell === cell) ?? [];
+  const line = !owing?.loan
+    ? "💸 Debt: it owes no house anything"
+    : `💸 Debt: it owes ${count(Math.round(owing.owed))} grain — ${share(Math.min(9.99, burden))} of a year's food${burden >= CREDIT.crushing ? ", crushing" : ""}`;
+  return {
+    line,
+    stats: [
+      ...(owing?.loan
+        ? [
+            {
+              label: "Most of it to",
+              value: cap(store!.house(owing.loan.house)?.name ?? "a house"),
+            },
+            { label: "At", value: `${Math.round(owing.loan.rate * 100)} in a hundred a year` },
+          ]
+        : []),
+      ...(here.length ? [{ label: "A house lends here", value: cap(here[0]!.name) }] : []),
+    ],
+  };
 }

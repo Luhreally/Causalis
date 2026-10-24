@@ -171,6 +171,7 @@ const DEEP_LENSES: readonly Lens[] = [
   "standing",
   "laws",
   "sickness",
+  "debt",
 ];
 /** The map modes that show the people (repainted as their numbers come, and turned to them). */
 const PEOPLE_LENSES: readonly Lens[] = [
@@ -192,6 +193,7 @@ const PEOPLE_LENSES: readonly Lens[] = [
   "standing",
   "laws",
   "sickness",
+  "debt",
 ];
 const YEAR = 365 * DAY;
 const SKY = [0.09, 0.1, 0.13] as const;
@@ -1126,6 +1128,7 @@ async function runPlanetPage(): Promise<void> {
       "bondage",
       "standing",
       "sickness",
+      "debt",
     ] as const)
       deepValues.set(k, new Map(entries.map((e) => [e.cell, e[k]])));
     lastEntries = entries;

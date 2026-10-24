@@ -41,6 +41,7 @@ import { interestsOf, pressure } from "../polity/interests.ts";
 import { loreOf } from "../lore/lore.ts";
 import { RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
 import { handOf } from "../hand/hand.ts";
+import { CREDIT, warChest } from "../credit/credit.ts";
 
 export const WAR = defineKind("war", "war", "minted");
 
@@ -518,10 +519,14 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         const e = f ? world.events.get(f) : undefined;
         return e && t - e.t <= YEAR;
       }),
+      // (A host paid from a war chest fights the harder, and its lands' hunger slows it not — M144.)
+      chestA = warChest(world, a.ref, w.ref),
+      chestB = warChest(world, b.ref, w.ref),
       attack =
         strengthOf(ctx, a) *
         (1 / (1 + 0.15 * far)) *
-        (hungry ? 0.7 : 1) *
+        (hungry && !chestA ? 0.7 : 1) *
+        (chestA ? CREDIT.chest : 1) *
         (1 + 0.3 * lore.effect(a.seat, "sieges")) *
         (overseas(ctx, a, land) ? LANDING : 1),
       hills = g.tectonics.elevation[land]! > 600 ? 1.3 : 1,
@@ -530,7 +535,14 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       // Those who hold the land know its ground, and every village is a stronghold; at
       // its seat the whole realm stands.
       seat = land === b.seat,
-      defend = strengthOf(ctx, b) * 1.5 * (seat ? 2 : 1) * hills * river * walls,
+      defend =
+        strengthOf(ctx, b) *
+        1.5 *
+        (seat ? 2 : 1) *
+        hills *
+        river *
+        walls *
+        (chestB ? CREDIT.chest : 1),
       odds = attack / Math.max(1, attack + defend),
       won = world.rng.real(FIGHT, key, t, 0) < odds;
     // The fallen: a share of the smaller host, more on the losing side.
@@ -545,7 +557,11 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       type: WAR_EVENTS.battle.type,
       subjects: [w.ref, a.ref, b.ref],
       place: cellRef(0, land),
-      causes: [{ ref: w.event, role: "trigger", weight: 1 }],
+      causes: [
+        { ref: w.event, role: "trigger", weight: 1 },
+        ...(chestA ? [{ ref: chestA, role: "enabler" as const, weight: 0.5 }] : []),
+        ...(chestB ? [{ ref: chestB, role: "enabler" as const, weight: 0.5 }] : []),
+      ],
       data: { a: realmName(a), b: realmName(b), won, fallen: fa + fb },
     });
     w.battles.push({ year, land, won, fallen: [fa, fb], event: battle });

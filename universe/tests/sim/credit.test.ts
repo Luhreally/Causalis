@@ -15,13 +15,17 @@ import { FOODS, G, MALE, OCC, PRINCIPLES } from "../../src/rules/index.ts";
 import {
   BOND,
   CREDIT,
+  CREDIT_ACTS,
   CREDIT_EVENTS,
+  LAW,
   POPULATION_EVENTS,
+  WAR_EVENTS,
   WAY,
   creditOf,
   creditYear,
   cultureOf,
   debtBurden,
+  legitimacyFactors,
   loreOf,
   makePopulationWorld,
   marketsOf,
@@ -32,6 +36,9 @@ import {
   populationContext,
   rateFor,
   row,
+  warChest,
+  warYear,
+  warsOf,
   type House,
   type Loan,
   type Polity,
@@ -41,7 +48,8 @@ import { why } from "../../src/causal/index.ts";
 // Phase 21 M143: credit. Juniper's realms sixty years on; the greatest realm's most peopled land
 // made by hand a market town that knows coin and lending, with traders and grain to spare; its
 // next land hungry. Worked on by the year of credit alone (the rest of the world held still),
-// each year's draw at its own moment of year sixty.
+// each year's draw at its own moment of year sixty. (M144: its wars, borrowed for; a debt
+// repudiated; a jubilee; the god's hand.)
 const seed = seedFromText("juniper"),
   build = (s = seed) => makePopulationWorld(s, { start: "spread" }),
   world = build();
@@ -343,4 +351,191 @@ test("credit is kept whole by a save, goes on alike after it, and the world repl
   const r = fresh();
   r.runTo(62 * YEAR);
   assert.deepEqual(verifyByReplay(saveWorld(r, RULESET), build), { ok: true, problem: null });
+});
+
+type War = ReturnType<ReturnType<typeof warsOf>["all"]>[number];
+/** The greatest realm set upon a realm it borders, by the god's hand: the war, once declared. */
+function atWar(w: World): { p: Polity; war: War } {
+  const p = greatest(w);
+  for (const q of [...politiesOf(w).living()].sort((a, b) => (a.ref < b.ref ? -1 : 1))) {
+    if (q.ref === p.ref) continue;
+    try {
+      w.submit("act.war", { a: p.ref, b: q.ref });
+    } catch {
+      continue;
+    }
+    w.runTo(w.now + 3);
+    return { p, war: warsOf(w).between(p.ref, q.ref)! };
+  }
+  throw new Error("no realm borders the greatest");
+}
+
+test("a realm at war borrows to pay its host — a war chest, never from its enemy; its battles cite it", () => {
+  const w = fresh(),
+    [lender] = towned(w, greatest(w));
+  marketTown(w, lender!);
+  const { house, k } = untilAHouse(w),
+    { p, war } = atWar(w),
+    store = creditOf(w)!,
+    seat = marketsOf(w).of(p.seat),
+    had = seat.stock[G.grain]!;
+  creditYear(populationContext(w), at(k + 1));
+  const chest = store.chest(p.ref, war.ref)!;
+  assert.ok(chest, "the realm borrowed for its war");
+  assert.equal(chest.house, house!.ref);
+  assert.equal(chest.cell, p.seat);
+  assert.equal(chest.realm, p.ref);
+  assert.ok(Math.abs(chest.rate - (CREDIT.rate + CREDIT.war)) < 1e-9, "dearer for war's risk");
+  assert.equal(
+    seat.stock[G.grain],
+    had + (house!.cell === p.seat ? 0 : chest.lent),
+    "the grain came to its seat",
+  );
+  assert.equal(warChest(w, p.ref, war.ref), chest.event);
+  // Its enemy has none: the only house is its enemy's.
+  const enemy = war.attacker === p.ref ? war.defender : war.attacker;
+  assert.equal(warChest(w, enemy, war.ref), null);
+  const event = w.events.get(chest.event)!,
+    decision = w.decisions.get(event.causes[0]!.ref)!;
+  assert.equal(event.type, CREDIT_EVENTS.chest.type);
+  assert.equal(decision.rule, "credit.war");
+  assert.equal(decision.factors.find((f) => f.name === "a war to fight")!.source?.ref, war.event);
+  assert.match(why(w, chest.event).claim, /to pay its host in its war with .+: a war chest/);
+  // Once borrowed, not again for the same war.
+  creditYear(populationContext(w), at(k + 2));
+  assert.equal(store.loans.filter((l) => l.war === war.ref).length, 1);
+  // Its battles cite it.
+  warYear(populationContext(w), (61 * YEAR + 1) as SimTime);
+  const battle = w.events
+    .all()
+    .findLast((e) => e.type === WAR_EVENTS.battle.type && e.subjects[0] === war.ref);
+  assert.ok(battle, "a battle fought");
+  assert.ok(
+    battle.causes.some((c) => c.ref === chest.event && c.role === "enabler"),
+    "the war chest behind it",
+  );
+});
+
+test("a realm beaten and crushed by its war debt repudiates it: its lender bears it, the realm held faithless", () => {
+  const w = fresh(),
+    [lender] = towned(w, greatest(w));
+  marketTown(w, lender!);
+  const { house, k } = untilAHouse(w),
+    { p, war } = atWar(w),
+    ctx = populationContext(w),
+    store = creditOf(w)!;
+  creditYear(ctx, at(k + 1));
+  const chest = store.chest(p.ref, war.ref)!;
+  assert.ok(chest, "the realm borrowed for its war");
+  // The war lost (the realm the attacker, its prize not won), its seat's harvest nothing.
+  war.ended = 60;
+  war.peace = w.events.emit({
+    type: WAR_EVENTS.peace.type,
+    subjects: [war.ref, war.attacker, war.defender],
+    data: { won: war.attacker !== p.ref },
+  });
+  marketsOf(w).of(p.seat).closeYear(60);
+  assert.ok(debtBurden(ctx, p.seat) >= CREDIT.crushing);
+  const lost = house!.lost;
+  creditYear(ctx, at(k + 2));
+  assert.equal(chest.end, "repudiated");
+  const defaulted = w.events.get(chest.endEvent!)!;
+  assert.equal(defaulted.type, CREDIT_EVENTS.defaulted.type);
+  assert.equal(defaulted.causes[0]!.ref, war.peace);
+  assert.equal(defaulted.causes[1]!.ref, chest.event);
+  assert.ok(house!.lost > lost, "its lender bears it");
+  assert.equal(store.faithless(p.ref, 60)?.event, defaulted.id);
+  assert.equal(store.faithless(p.ref, 60 + CREDIT.faithless), null, "faithless twenty years");
+  // Its lands lent dearer; its standing the less; none lends it for a war.
+  const other = p.members.find((c) => c !== p.seat);
+  if (other !== undefined)
+    assert.ok(
+      Math.abs(rateFor(store, other, 60, p.ref) - (CREDIT.rate + 2 * CREDIT.risk)) < 1e-9,
+      "its lands lent dearer",
+    );
+  const faith = legitimacyFactors(ctx, p).find((f) => f.name === "debts repudiated")!;
+  assert.ok(faith && faith.contribution < 0);
+  assert.equal(faith.source?.ref, defaulted.id);
+  war.ended = null;
+  war.peace = null;
+  const before = store.loans.length;
+  creditYear(ctx, at(k + 3));
+  assert.equal(store.loans.length, before, "none lends a faithless realm for a war");
+  assert.match(why(w, defaulted.id).claim, /repudiated the .+ grain it owed/);
+});
+
+test("a jubilee at a new ruler's coming: every debt its lands owe released; its houses bear it; its debt-bound go free; none under an old ruler", () => {
+  const w = fresh(),
+    p = greatest(w),
+    [lender] = towned(w, p);
+  marketTown(w, lender!);
+  const { k } = untilAHouse(w),
+    ctx = populationContext(w),
+    store = creditOf(w)!,
+    realms = politiesOf(w),
+    order = orderOf(w)!;
+  // Its other lands hungry, lent to, and then crushed: nothing made.
+  for (const c of p.members) if (c !== lender) famished(w, c);
+  creditYear(ctx, at(k + 1));
+  const owing = p.members.filter((c) => store.owedBy(c).loan);
+  assert.ok(owing.length >= 1, "its lands borrowed");
+  for (const c of owing) marketsOf(w).of(c).closeYear(60);
+  // A sacred law; its people aggrieved; some of them bound for debt. An old ruler: no jubilee.
+  p.law = LAW.indexOf("the sacred");
+  (p.ruler as { since: number }).since = 40;
+  for (const c of p.members) realms.setDiscontent(c, { level: 1, cause: null });
+  const shares = [0, 0, 0, 0, 0];
+  shares[BOND.debt] = 0.2;
+  order.lands.set(owing[0]!, { cell: owing[0]!, shares, cause: null });
+  for (let j = k + 2; j < k + 100; j++) creditYear(ctx, at(j));
+  assert.equal(store.jubilees.length, 0, "none under an old ruler");
+  // A new ruler.
+  (p.ruler as { since: number }).since = 60;
+  let j = k + 100;
+  while (!store.jubilees.length && j < k + 300) creditYear(ctx, at(j++));
+  const jubilee = store.jubilees[0]!;
+  assert.ok(jubilee, "a jubilee proclaimed");
+  assert.equal(jubilee.realm, p.ref);
+  for (const c of owing)
+    assert.ok(
+      store.loans
+        .filter((l) => l.cell === c)
+        .every((l) => l.end === "released" && l.endEvent === jubilee.event),
+      "every debt released",
+    );
+  assert.ok(
+    Math.abs(order.lands.get(owing[0]!)!.shares[BOND.debt]! - 0.2 * (1 - CREDIT.freed)) < 1e-9,
+    "its debt-bound freed",
+  );
+  const event = w.events.get(jubilee.event)!,
+    decision = w.decisions.get(event.causes[0]!.ref)!;
+  assert.equal(decision.rule, "credit.jubilee");
+  assert.equal(decision.factors.find((f) => f.name === "a sacred law")!.value, 1);
+  assert.equal(decision.factors.find((f) => f.name === "a new ruler")!.source?.ref, p.ruler.event);
+  assert.ok(decision.factors.find((f) => f.name === "its people bound or crushed by debt")!.source);
+  assert.match(why(w, jubilee.event).claim, /proclaimed a jubilee/);
+});
+
+test("the god forgives a land its debts and breaks a house of lending; asked where there is none, refuses", () => {
+  const w = fresh(),
+    { house, loan, lender, borrower } = lent(w),
+    store = creditOf(w)!;
+  assert.throws(
+    () => w.submit("act.break", { cell: borrower }),
+    /no house of lending stands there/,
+  );
+  w.submit("act.forgive", { cell: borrower });
+  w.runTo(w.now + 3);
+  assert.equal(loan.end, "released");
+  const forgiven = w.events.get(loan.endEvent!)!;
+  assert.equal(forgiven.type, CREDIT_ACTS.forgive.type);
+  assert.equal(forgiven.causes[0]!.role, "agent");
+  assert.throws(() => w.submit("act.forgive", { cell: borrower }), /owes no house anything/);
+  w.submit("act.break", { cell: lender });
+  w.runTo(w.now + 3);
+  assert.notEqual(house.failed, null);
+  const broken = w.events.get(house.failedEvent!)!;
+  assert.equal(w.events.get(broken.causes[0]!.ref)!.type, CREDIT_ACTS.break.type);
+  assert.equal(store.standing().length, 0);
+  assert.match(why(w, forgiven.id).claim, /forgiven every debt it owed/);
 });

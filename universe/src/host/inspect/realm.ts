@@ -29,6 +29,7 @@ import { compareWith, warTally } from "./compare.ts";
 import { armyBlocks, courseBlocks } from "./army.ts";
 import { storesSummed } from "./stores.ts";
 import { realmOrderBlocks } from "./order.ts";
+import { realmCreditBlocks, warChestRows } from "./credit.ts";
 import { civilizationsNear } from "../../sim/index.ts";
 import {
   claimOf,
@@ -186,6 +187,11 @@ export function realmPageModel(world: World, ref: string): PageModel {
   }
   // Its order (Phase 19 M138): its standing with its people, its rank and levies, its bound.
   tabs.push({ id: "order", name: "Order", blocks: realmOrderBlocks(world, r) });
+  // Its credit (Phase 21 M144): what its lands owe, its war chests, its faith with its lenders.
+  {
+    const credit = realmCreditBlocks(world, r.ref);
+    if (credit.length) tabs.push({ id: "credit", name: "Credit", blocks: credit });
+  }
   // Its wars.
   {
     const items: Item[] = warsOf(world)
@@ -476,6 +482,8 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
             ...(w.embargo
               ? [stat("Embargo", [link("trade between them cut", w.embargo)], { why: w.embargo })]
               : []),
+            // (What each side borrowed to pay its host — M144.)
+            ...warChestRows(world, w),
           ],
         },
         warTally(world, w),

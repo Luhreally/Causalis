@@ -5,7 +5,7 @@
 // free its bound, its chains broken or a sign for or against its rule (Phase 19 M138). Only what
 // the hand can do, where it can do it (a peopled land, a realm holding the bound). Pure reads.
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
-import { orderOf, politiesOf, populationContext, warsOf } from "../../sim/index.ts";
+import { creditOf, orderOf, politiesOf, populationContext, warsOf } from "../../sim/index.ts";
 import type { Answer } from "../../bridge/index.ts";
 import { landTitle } from "./names.ts";
 
@@ -128,6 +128,24 @@ export function answersOf(world: World, ref: string, watch: string): Answer[] {
           args: { cell: realm.seat },
         });
       return out;
+    }
+    // Grain lent, or a war chest (Phase 21 M144): the debt forgiven; a repudiation: its lender broken.
+    case "credit.lent":
+    case "credit.chest": {
+      const cell = e.place ? parseRef(e.place as Ref).b : -1;
+      if (!creditOf(world)?.owedBy(cell).loan) return [];
+      return [
+        {
+          label: `Forgive ${landTitle(world, cell)} its debts`,
+          act: "act.forgive",
+          args: { cell },
+        },
+      ];
+    }
+    case "credit.defaulted": {
+      const h = creditOf(world)?.house(e.subjects[1] as Ref);
+      if (!h || h.failed !== null) return [];
+      return [{ label: `Break ${h.name}`, act: "act.break", args: { cell: h.cell } }];
     }
     default:
       return [];

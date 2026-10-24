@@ -185,6 +185,8 @@ export type PeopleEntry = {
   laws: readonly number[];
   /** How deep their last sickness cut (0 … 1), fading over six years — M140. */
   sickness: number;
+  /** What they owe, against a year's food (0 … 1) — M144. */
+  debt: number;
 };
 
 /** A people's ways and speech (the host's waysOf). */

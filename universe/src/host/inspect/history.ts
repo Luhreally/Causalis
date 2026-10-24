@@ -80,6 +80,11 @@ const TITLES: Readonly<Record<string, string>> = {
   "credit.lent": "Grain lent against a famine",
   "credit.lost": "A debt written off",
   "credit.failed": "A house of lending failed",
+  "credit.chest": "A war chest",
+  "credit.defaulted": "Debts repudiated",
+  "credit.jubilee": "A jubilee",
+  "act.forgive": "Debts forgiven",
+  "act.break": "A house broken",
 };
 
 /** Where a thing an event names is to be seen (its place, most often a land). */
