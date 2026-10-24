@@ -737,6 +737,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       },
       /** Visitors from another star at the home world's lands now (Phase 18 M134). */
       "peoples.visits": (world) => visitsNow(world),
+      /** The peoples among the stars alone (M136), for another star's system while it is shown. */
+      "peoples.sky": (world) => peoplesSky(world) ?? null,
       /** Who has reached the sky, and the colonies on the system's bodies. */
       "space.state": (world): SkyState => {
         const g = homePlanet(world).generated,

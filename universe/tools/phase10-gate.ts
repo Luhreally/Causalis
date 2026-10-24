@@ -313,10 +313,23 @@ await page.waitForTimeout(1500);
       check(listed >= 1, "the war alert did not list its war");
     }
   } else say("no war being fought: the war alert is not tried");
-  // The top bar's people, broken down by realm.
+  // The top bar's people, broken down by realm (once the alerts' tips are put away: the newest
+  // tip is the one read, not one still fading from the last step).
+  await page.mouse.move(683, 790);
+  await until(
+    "the alerts' tips put away",
+    async () => (await page.$$(".hovertip")).length === 0,
+    5000,
+  );
   await rest(".world-stats .stat-chip:nth-child(1)");
-  await until("the people's breakdown", async () => (await page.$$(".hovertip")).length > 0, 5000);
-  const people = await page.$eval(".hovertip", (e) => e.textContent ?? "").catch(() => "");
+  const peopleTip = () =>
+    page.$$eval(".hovertip", (tips) => tips.at(-1)?.textContent ?? "").catch(() => "");
+  await until(
+    "the people's breakdown",
+    async () => (await peopleTip()).includes("The most peopled realms"),
+    slow(5000),
+  );
+  const people = await peopleTip();
   say(`the people broken down: ${people.slice(0, 90)}…`);
   check(people.includes("The most peopled realms"), "the top bar's people were not broken down");
   await page.mouse.move(683, 790);

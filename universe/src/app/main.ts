@@ -70,6 +70,7 @@ import type {
   ActsMap,
   ClusterPlan,
   SkyState,
+  PeoplesSky,
   SystemPlan,
   VillagePlan,
   WorldGlobe,
@@ -112,6 +113,7 @@ import {
   skyMarks,
   voyageMarks,
   peopleMarks,
+  peopleSystemMarks,
   systemExtent,
   systemSpec,
   worldColors,
@@ -249,6 +251,8 @@ type Exposed = {
   visits?: () => number;
   /** Visitors from another star in the village shown (Phase 18 M134), or null off the village. */
   visitors?: () => { groups: number; figures: number; whys: string[] } | null;
+  /** The peoples of other stars drawn in the system shown (M136), or null off a system. */
+  systemPeople?: () => { worlds: number; craft: number; ships: number } | null;
   /** Where each group's ship stands on the screen, and a tap in the village as by hand. */
   visitorsOnScreen?: () => { key: string; text: string; x: number; y: number }[];
   tapVillage?: (x: number, y: number) => void;
@@ -1367,7 +1371,7 @@ async function runPlanetPage(): Promise<void> {
           : scale === "region"
             ? tapRegion(x, y)
             : scale === "system"
-              ? selectBody(skyScene.pick(x, y))
+              ? tapSystem(x, y)
               : scale === "cluster"
                 ? tapStars(x, y)
                 : scale === "world"
@@ -1444,6 +1448,8 @@ async function runPlanetPage(): Promise<void> {
         return beast ? beast.ref : villageThingAt(x, y);
       }
       case "system": {
+        const ship = skyScene.pickPeople(x, y);
+        if (ship) return ship;
         const i = skyScene.pick(x, y);
         return i === null ? null : (skyPlan?.bodies[i]?.ref ?? null);
       }
@@ -1727,7 +1733,16 @@ async function runPlanetPage(): Promise<void> {
   // Out to the star's system, and back to the world: the worlds go round a month a second.
   const systemPanel = new SystemPanel(hud, client);
   let sky: SkyState = { programs: [], colonies: [] },
-    stopSky: (() => void) | null = null;
+    stopSky: (() => void) | null = null,
+    // The peoples among the stars while another star's system is shown (M136), read alone.
+    starPeoples: PeoplesSky | null = null,
+    stopStarPeoples: (() => void) | null = null;
+  /** A tap in a system: a ship of another star's people (its crossing), else a body. */
+  const tapSystem = (x: number, y: number) => {
+    const ship = skyScene.pickPeople(x, y);
+    if (ship) return void pageWindow.open(ship);
+    selectBody(skyScene.pick(x, y));
+  };
   const selectBody = (i: number | null) => {
     skyScene.mark(i);
     const b = i === null ? undefined : skyPlan?.bodies[i];
@@ -1871,6 +1886,10 @@ async function runPlanetPage(): Promise<void> {
     }
   };
   const toCluster = async () => {
+    // (However it was come to, from a village or a land too, only the stars show.)
+    if (scale === "village") leaveScale();
+    region.visible = false;
+    regionPanel.visible = false;
     scale = "cluster";
     stage.backdrop("space");
     globe.visible = false;
@@ -2061,12 +2080,14 @@ async function runPlanetPage(): Promise<void> {
       type: "galaxy.system",
       args: { ref: star.ref },
     });
+    if (scale === "village") leaveScale();
     scale = "system";
     stage.backdrop("space");
     labels.clear();
     bubbles.clear();
-    for (const hide of [globe, starScene, galaxyScene, worldScene]) hide.visible = false;
-    for (const hide of [planetPanel, clusterPanel, galaxyPanel, worldPanel]) hide.visible = false;
+    for (const hide of [globe, starScene, galaxyScene, worldScene, region]) hide.visible = false;
+    for (const hide of [planetPanel, clusterPanel, galaxyPanel, worldPanel, regionPanel])
+      hide.visible = false;
     skyScene.build(plan);
     skyBuilt = star.ref;
     skyPlan = plan;
@@ -2074,6 +2095,17 @@ async function runPlanetPage(): Promise<void> {
     // (Our sky's news is of our star: not read while another's is shown.)
     stopSky?.();
     stopSky = null;
+    // (The peoples about it are: read while it is shown, and no longer.)
+    stopStarPeoples?.();
+    starPeoples = null;
+    stopStarPeoples = client.subscribe<PeoplesSky | null>({ type: "peoples.sky" }, 1000, (p) => {
+      if (scale !== "system" || !skyStar) {
+        stopStarPeoples?.();
+        stopStarPeoples = null;
+        return;
+      }
+      starPeoples = p;
+    });
     systemPanel.show(plan, true);
     skyScene.mark(null);
     skyScene.visible = true;
@@ -2717,6 +2749,7 @@ async function runPlanetPage(): Promise<void> {
   };
   exposed.sky = () => void toSystem();
   exposed.skyBodies = () => (scale === "system" && skyPlan ? skyPlan.bodies.length : 0);
+  exposed.systemPeople = () => (scale === "system" ? skyScene.peopleShown : null);
   /** Whose system the sky shows: the home star's (null), or another's ref. */
   exposed.skyOf = () => (scale === "system" ? (skyStar?.ref ?? null) : null);
   let fleetsNamed = false;
@@ -2749,10 +2782,24 @@ async function runPlanetPage(): Promise<void> {
   stage.onUpdate(() => {
     if (scale !== "system" || !skyPlan) return;
     const t = now(),
-      spots = systemSpec(skyPlan, t);
+      spots = systemSpec(skyPlan, t),
+      screen = performance.now() / 1000;
     skyScene.update(spots);
     // (Another star's has none of ours about it.)
-    skyScene.marks(skyMarks(skyStar ? { programs: [], colonies: [] } : sky, spots, t));
+    skyScene.marks(skyMarks(skyStar ? { programs: [], colonies: [] } : sky, spots, screen));
+    // The peoples of other stars about it (M136): their worlds, craft and ships, named.
+    const peoples = skyStar ? starPeoples : sky.peoples;
+    skyScene.peoples(
+      peopleSystemMarks(peoples, skyStar?.ref ?? peoples?.home ?? "", spots, t / YEAR, screen),
+    );
+    labels.update(
+      skyScene.peopleOnScreen().map((n) => ({
+        key: n.key,
+        text: n.text,
+        at: { x: n.x, y: n.y },
+        priority: 1.3e9,
+      })),
+    );
   });
   planetPanel.onClose = () => globe.mark(null);
   // Down into a village to watch its day, and back up to its land. Watching is

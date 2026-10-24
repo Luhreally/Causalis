@@ -8,6 +8,7 @@
 //      the stars they hold and how they met, drawn in the cluster and listed beside it; a
 //      people's own page; and on the home world the omen of their landing, named over its
 //      land on the globe, their ship over the town and themselves among its people;
+//   3. their own system: their world ringed in their colour, their craft about it, named;
 // (npm run build first; --soft draws in software, as CI's browser does; --shots keeps a
 // picture of each step.)
 import { mkdirSync } from "node:fs";
@@ -179,7 +180,7 @@ await page.waitForTimeout(1500);
   await k("globalThis.causalis.client.setSpeed(0)");
   await page.waitForTimeout(1500);
   type Peoples = {
-    civs: { ref: string; name: string; holds: unknown[] }[];
+    civs: { ref: string; name: string; star: string; holds: unknown[] }[];
     meetings: { civ: string; event: string }[];
     landings: { civ: string; cell: number; year: number; omen: boolean }[];
   };
@@ -292,6 +293,39 @@ await page.waitForTimeout(1500);
         check(signs.length >= 1, "the visitors do not show how they came");
       } else check(false, "their ship is not on the screen");
     }
+  }
+  // 3. Their own system (M136): their world ringed in their colour, their satellites and
+  // stations about it, their ships plying, their name over it.
+  if (landing) {
+    const civ = p!.civs.find((c) => c.ref === landing.civ)!;
+    await k("globalThis.causalis.stars()");
+    await until(
+      "the stars again",
+      async () => (await k<number>("globalThis.causalis.starCount()")) > 0,
+      slow(60000),
+    );
+    await k(`globalThis.causalis.starSystem(${JSON.stringify(civ.star)})`);
+    type Shown = { worlds: number; craft: number; ships: number };
+    await until(
+      "their system",
+      async () =>
+        ((await k<Shown | null>("globalThis.causalis.systemPeople?.() ?? null"))?.worlds ?? 0) > 0,
+      slow(30000),
+    );
+    await page.waitForTimeout(slow(2500));
+    const shown = (await k<Shown | null>("globalThis.causalis.systemPeople?.() ?? null"))!,
+      named = await page.$$eval(
+        ".label",
+        (ls) => ls.filter((l) => (l.textContent ?? "").includes("👽")).length,
+      );
+    await shot("3-their-system");
+    say(
+      `their own system: ${shown.worlds} world ringed, ${shown.craft} craft about it, ${shown.ships} ships about, ${named ? "named" : "not named"}`,
+    );
+    check(
+      shown.worlds >= 1 && shown.craft >= 1 && named >= 1,
+      "a people's own system does not show them",
+    );
   }
 }
 

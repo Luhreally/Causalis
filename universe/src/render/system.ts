@@ -1,9 +1,17 @@
 // The home star's system (Phase 5 M46): the star alight at the middle, each world a
 // sphere on its ring, moons about their planets, the picked body ringed. Built once per
-// plan; each frame only moves the bodies to where the view says they are.
+// plan; each frame only moves the bodies to where the view says they are. About them, the
+// peoples of other stars (Phase 18 M136): their worlds ringed in their colour, their
+// satellites and stations, their ships plying, setting out and coming in.
 import * as pc from "playcanvas";
 import type { SystemPlan } from "../bridge/index.ts";
-import { STAR_SIZE, orbitRings, type SkyMarks, type SystemSpot } from "../view/index.ts";
+import {
+  STAR_SIZE,
+  orbitRings,
+  type PeopleSystemMarks,
+  type SkyMarks,
+  type SystemSpot,
+} from "../view/index.ts";
 import { billboard, glowMaterial } from "./glow.ts";
 import { flatMaterial, type Stage } from "./stage.ts";
 
@@ -19,6 +27,12 @@ export class SystemScene {
   private readonly stations: pc.Entity[] = [];
   private readonly ringMesh: pc.Mesh;
   private readonly dotMesh: pc.Mesh;
+  /** The peoples of other stars about the system (M136), pooled. */
+  private readonly peopleRings: pc.Entity[] = [];
+  private readonly peopleCraft: pc.Entity[] = [];
+  private readonly peopleShips: pc.Entity[] = [];
+  private peopleMarks: PeopleSystemMarks | null = null;
+  private readonly tints = new Map<string, pc.StandardMaterial>();
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -52,6 +66,10 @@ export class SystemScene {
     this.colonyRings.length = 0;
     this.satellites.length = 0;
     this.stations.length = 0;
+    this.peopleRings.length = 0;
+    this.peopleCraft.length = 0;
+    this.peopleShips.length = 0;
+    this.peopleMarks = null;
     this.bodies = [];
     const sphere = pc.Mesh.fromGeometry(
       this.stage.device,
@@ -180,6 +198,105 @@ export class SystemScene {
     });
     m.satellites.forEach((p, i) => this.satellites[i]!.setLocalPosition(p.x, 0, p.z));
     m.stations.forEach((p, i) => this.stations[i]!.setLocalPosition(p.x, 0, p.z));
+  }
+
+  /**
+   * Draw the peoples of other stars about the system: their worlds ringed in their colours,
+   * their craft, their ships (and, for a ship on a crossing, the way it has come).
+   */
+  peoples(m: PeopleSystemMarks): void {
+    this.peopleMarks = m;
+    const fill = (pool: pc.Entity[], n: number, make: () => pc.Entity) => {
+      while (pool.length < n) {
+        const e = make();
+        this.root.addChild(e);
+        pool.push(e);
+      }
+      pool.forEach((e, i) => (e.enabled = i < n));
+    };
+    fill(this.peopleRings, m.rings.length, () => this.ringEntity([1, 1, 1]));
+    fill(this.peopleCraft, m.craft.length, () => this.dotEntity([1, 1, 1], 0.03));
+    fill(this.peopleShips, m.ships.length, () => this.dotEntity([1, 1, 1], 0.05));
+    m.rings.forEach((r, i) => {
+      const e = this.peopleRings[i]!;
+      e.render!.meshInstances[0]!.material = this.tint(r.color);
+      e.setLocalPosition(r.x, 0, r.z);
+      e.setLocalScale(r.r, r.r, r.r);
+    });
+    m.craft.forEach((c, i) => {
+      const e = this.peopleCraft[i]!;
+      e.render!.meshInstances[0]!.material = this.tint(c.color);
+      e.setLocalPosition(c.x, 0, c.z);
+      e.setLocalScale(c.size, c.size, c.size);
+    });
+    m.ships.forEach((s, i) => {
+      const e = this.peopleShips[i]!,
+        size = s.fleet ? 0.11 : 0.08;
+      e.render!.meshInstances[0]!.material = this.tint(
+        s.fleet ? [1, 0.35 + 0.3 * s.color[1], 0.25] : s.color,
+      );
+      e.setLocalPosition(s.x, 0.02, s.z);
+      e.setLocalScale(size, size, size);
+    });
+    // The lanes their ships ply, faint; and the way a ship on a crossing has come, behind it.
+    const positions: number[] = [],
+      colors: number[] = [];
+    for (const l of m.lanes) {
+      positions.push(l.ax, 0, l.az, l.bx, 0, l.bz);
+      colors.push(...l.color, 0.22, ...l.color, 0.06);
+    }
+    for (const s of m.ships) {
+      if (!s.course) continue;
+      positions.push(s.fromX, 0, s.fromZ, s.x, 0, s.z);
+      const [r, g, b] = s.fleet ? [1, 0.4, 0.3] : s.color;
+      colors.push(r, g, b, 0.15, r, g, b, 0.7);
+    }
+    if (positions.length) this.stage.app.drawLineArrays(positions, colors, true);
+  }
+
+  /** The ship of a people of another star nearest a screen point (its event), else its world's people. */
+  pickPeople(x: number, y: number): string | null {
+    const m = this.peopleMarks;
+    if (!m || !this.root.enabled) return null;
+    const cam = this.stage.camera.camera!;
+    let best: string | null = null,
+      bestD = 16;
+    for (const s of m.ships) {
+      const p = cam.worldToScreen(new pc.Vec3(s.x, 0, s.z));
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (p.z > 0 && d < bestD) [best, bestD] = [s.ref, d];
+    }
+    return best;
+  }
+
+  /** Where each people's name stands over its world on the screen (and a ship come home). */
+  peopleOnScreen(): { key: string; text: string; ref: string; x: number; y: number }[] {
+    const m = this.peopleMarks;
+    if (!m || !this.root.enabled) return [];
+    const cam = this.stage.camera.camera!,
+      out: { key: string; text: string; ref: string; x: number; y: number }[] = [];
+    for (const n of m.names) {
+      const p = cam.worldToScreen(new pc.Vec3(n.x, 0, n.z));
+      if (p.z > 0) out.push({ key: n.key, text: n.text, ref: n.ref, x: p.x, y: p.y - 22 });
+    }
+    return out;
+  }
+
+  /** How much of the peoples is drawn now (for the gate). */
+  get peopleShown(): { worlds: number; craft: number; ships: number } {
+    const m = this.peopleMarks;
+    return {
+      worlds: m?.rings.length ?? 0,
+      craft: m?.craft.length ?? 0,
+      ships: m?.ships.length ?? 0,
+    };
+  }
+
+  private tint(color: readonly [number, number, number]): pc.StandardMaterial {
+    const key = color.join(",");
+    let m = this.tints.get(key);
+    if (!m) this.tints.set(key, (m = glow(color)));
+    return m;
   }
 
   private ringEntity(color: readonly [number, number, number]): pc.Entity {

@@ -108,13 +108,19 @@ export type PeoplesSky = {
     readonly star: string;
     /** Its colour among the stars. */
     readonly color: readonly [number, number, number];
-    /** The year it came to the stars (in ours), and the stars it holds. */
+    /** Its own world (by its place outward from its star). */
+    readonly world: number;
+    /** The years (in ours) it came to signals, to orbit and to the stars, and the stars it holds. */
+    readonly electronics: number;
+    readonly orbit: number;
     readonly stars: number;
     readonly holds: readonly {
       readonly star: string;
       readonly year: number;
       /** Taken from another people by its fleets. */
       readonly taken: boolean;
+      /** The world it lives about there, if its bodies could live on any. */
+      readonly world: number | null;
     }[];
   }[];
   readonly ships: readonly {

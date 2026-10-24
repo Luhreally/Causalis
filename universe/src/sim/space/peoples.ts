@@ -354,13 +354,36 @@ const apart = (a: Point, b: Point) => {
 /** Where a star lies: a star of the cluster by its ref; the home star at the middle. */
 const STAR_AT = new Map<string, Map<string, GalaxyStar>>();
 export function starPoint(world: World, ref: Ref): Point {
+  return starByRef(world, ref) ?? ORIGIN;
+}
+
+function starByRef(world: World, ref: Ref): GalaxyStar | undefined {
   const key = world.seed.text;
   let byRef = STAR_AT.get(key);
   if (!byRef) {
     if (STAR_AT.size > 8) STAR_AT.clear();
     STAR_AT.set(key, (byRef = new Map(clusterOf(world).map((s) => [s.ref as string, s]))));
   }
-  return byRef.get(ref) ?? ORIGIN;
+  return byRef.get(ref);
+}
+
+/**
+ * The world a people lives about at a star it holds (Phase 18 M136): its own world at its own
+ * star; elsewhere the first, outward from the star, its bodies could live on; or none.
+ */
+const HOLD_WORLDS = new Map<string, number | null>();
+export function holdWorld(world: World, civ: Civilization, star: Ref): number | null {
+  if (star === civ.star) return civ.planet;
+  const key = `${world.seed.text} ${civ.ref} ${star}`;
+  const known = HOLD_WORLDS.get(key);
+  if (known !== undefined) return known;
+  if (HOLD_WORLDS.size > 512) HOLD_WORLDS.clear();
+  const s = starByRef(world, star),
+    body = bodyOf(civ),
+    found = s && worldsOf(world, s).find((p) => habitability(p, body, civ.gravity).livable),
+    index = found ? found.index : null;
+  HOLD_WORLDS.set(key, index);
+  return index;
 }
 
 /** The stars a people's bodies could live about, nearest its own first (a pure function of the world). */

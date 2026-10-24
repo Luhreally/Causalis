@@ -401,6 +401,7 @@ export {
   REGARD_STIRS,
   SETTLE_GAP,
   WAR_REGARD,
+  holdWorld,
   installPeoples,
   leaning,
   peopleNature,

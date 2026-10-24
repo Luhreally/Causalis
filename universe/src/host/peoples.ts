@@ -6,6 +6,7 @@ import type { PeoplesSky, Visitor } from "../bridge/index.ts";
 import { CLADES } from "../rules/index.ts";
 import {
   civilizationsNear,
+  holdWorld,
   homePlanet,
   peoplesOf,
   peopleWords,
@@ -60,10 +61,16 @@ export function peoplesSky(world: World): PeoplesSky | undefined {
         kind: w.kind,
         star: c.star,
         color: PEOPLE_COLORS[i % PEOPLE_COLORS.length]!,
+        world: c.planet,
+        electronics: c.electronics,
+        orbit: c.orbit,
         stars: c.stars,
-        holds: store
-          .holdsOf(c.ref)
-          .map((h) => ({ star: h.star, year: h.year, taken: h.from !== null })),
+        holds: store.holdsOf(c.ref).map((h) => ({
+          star: h.star,
+          year: h.year,
+          taken: h.from !== null,
+          world: holdWorld(world, c, h.star),
+        })),
       };
     }),
     ships: store.ships

@@ -225,10 +225,12 @@ export {
   bodyFacts,
   bodySize,
   orbitRings,
+  peopleSystemMarks,
   routeWords,
   skyMarks,
   systemExtent,
   systemSpec,
+  type PeopleSystemMarks,
   type SkyMarks,
   type SystemSpot,
 } from "./system.ts";
