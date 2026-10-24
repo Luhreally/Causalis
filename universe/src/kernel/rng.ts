@@ -8,12 +8,65 @@ import { finish, hashString, mix, mixInt } from "./hash.ts";
 /** The universe seed: 64 bits from the player's seed text. */
 export type Seed = { readonly text: string; readonly lo: number; readonly hi: number };
 
+/**
+ * The 64 bits are of the world's name alone: the acts laid on its dawn (Phase 24) remake it
+ * where they reach, and every draw they do not reach is as it was.
+ */
 export function seedFromText(text: string): Seed {
+  const name = seedName(text);
   return Object.freeze({
     text,
-    lo: hashString(text, 0x9747b28c),
-    hi: hashString(text, 0x1b873593),
+    lo: hashString(name, 0x9747b28c),
+    hi: hashString(name, 0x1b873593),
   });
+}
+
+/** What marks an act laid on a world's dawn in its seed's text: "first light ~age 7 cool". */
+const ACT = " ~";
+
+/** The name of a seed's world: its text before the acts laid on its dawn. */
+export function seedName(text: string): string {
+  const i = text.indexOf(ACT);
+  return i < 0 ? text : text.slice(0, i);
+}
+
+/** The acts laid on a seed's dawn, each its subject's words and then what was done ("age 7 cool"). */
+export function seedActs(text: string): string[] {
+  const i = text.indexOf(ACT);
+  if (i < 0) return [];
+  return text
+    .slice(i + ACT.length)
+    .split(ACT)
+    .map((a) => a.trim())
+    .filter((a) => a.length > 0);
+}
+
+/**
+ * The seed's text with an act laid on: it takes the place of any act on the same subject (an
+ * act's words but its last), and the acts are kept in one order, so that the same acts, however
+ * they were laid, name the same world.
+ */
+export function seedWithAct(text: string, act: string): string {
+  const subject = (a: string) => a.slice(0, Math.max(0, a.lastIndexOf(" "))),
+    laid = act.trim(),
+    acts = seedActs(text).filter((a) => subject(a) !== subject(laid));
+  acts.push(laid);
+  acts.sort(actOrder);
+  return [seedName(text), ...acts].join(ACT);
+}
+
+/** Acts in order: by their first word, then by their number ("age 3" before "age 12"). */
+function actOrder(a: string, b: string): number {
+  const [wa, na] = actKey(a),
+    [wb, nb] = actKey(b);
+  if (wa !== wb) return wa < wb ? -1 : 1;
+  if (na !== nb) return na - nb;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function actKey(a: string): [string, number] {
+  const words = a.split(" ");
+  return [words[0] ?? "", Number(words[1]) || 0];
 }
 
 /**

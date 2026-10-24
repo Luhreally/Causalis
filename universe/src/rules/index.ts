@@ -195,3 +195,13 @@ export {
   type Rock,
   type Substance,
 } from "./matter.ts";
+export {
+  AGE_ACTS,
+  DAWN_WAYS,
+  ageAct,
+  agesMade,
+  dawnAct,
+  dawnMade,
+  type AgeAct,
+  type DawnWay,
+} from "./dawn.ts";

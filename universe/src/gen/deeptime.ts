@@ -94,7 +94,18 @@ function zonalRain(lat: number, warmth: number): number {
   return (250 + 1800 * bell(d / 12) + 900 * bell((d - 50) / 12)) * Math.max(0.5, 1 + warmth / 25);
 }
 
-export function makeDeepTime(grid: SphereGrid, rng: Rng, planet: Planet, t: Tectonics): DeepTime {
+/**
+ * The deep past, its ages made as `made` says where the god's hand laid an act on them at the
+ * world's dawn (Phase 24: an age's index, and the kind it was made): an age made warm or cold
+ * is as warm or cold as such an age is, and the ages after it wander on from there.
+ */
+export function makeDeepTime(
+  grid: SphereGrid,
+  rng: Rng,
+  planet: Planet,
+  t: Tectonics,
+  made: ReadonlyMap<number, AgeKind> = new Map(),
+): DeepTime {
   // The ages: warmth wanders (a keyed walk that ends near today's climate); the seas
   // rise with warmth; some ages are marked by great events.
   const ages: Age[] = [];
@@ -103,11 +114,16 @@ export function makeDeepTime(grid: SphereGrid, rng: Rng, planet: Planet, t: Tect
     const last = k === AGES - 1,
       u = rng.real(DEEP, k, 0, 0),
       v = rng.real(DEEP, k, 0, 1),
-      w = rng.real(DEEP, k, 0, 2);
+      w = rng.real(DEEP, k, 0, 2),
+      act = made.get(k);
     warmth = last ? 0.5 * warmth : Math.max(-8, Math.min(9, 0.55 * warmth + (u - 0.45) * 12));
+    if (act === "hothouse") warmth = Math.max(warmth, 5);
+    else if (act === "icehouse") warmth = Math.min(warmth, -4.5);
+    else if (act === "quiet") warmth = Math.max(-3, Math.min(3.5, warmth));
     const seaLevel = Math.round(22 * warmth + (v - 0.5) * 120),
       kind: AgeKind =
-        !last && w < 0.1
+        act ??
+        (!last && w < 0.1
           ? "impact"
           : !last && w < 0.22
             ? "great volcanism"
@@ -115,7 +131,7 @@ export function makeDeepTime(grid: SphereGrid, rng: Rng, planet: Planet, t: Tect
               ? "hothouse"
               : warmth < -3.5
                 ? "icehouse"
-                : "quiet";
+                : "quiet");
     ages.push({
       index: k,
       from: (AGES - k) * AGE_MY,

@@ -420,3 +420,28 @@ test("a world's beginning comes whole for the genesis: its ages, every lineage w
   assert.match(g.people!.cradle, /at \d+°[NS], \d+°[EW]/);
   assert.equal(JSON.stringify(world.domainHashes()), before, "asking changes nothing");
 });
+
+test("a world's beginning remade by an act laid on its dawn: asked of the host, the world watched untouched", () => {
+  const before = JSON.stringify(world.domainHashes());
+  type G = {
+    seed: string;
+    name: string;
+    rungs: { id: string; at: number }[];
+    drop: { kinds: { way: string }[] } | null;
+    acts: { ages: { age: number; kind: string }[]; dawn: string | null };
+    ages: { kind: string }[];
+  };
+  const plain = ask<G>("genesis"),
+    seed = `${plain.seed} ~age 5 strike ~dawn hunters`,
+    g = ask<G>("genesis", { seed });
+  assert.equal(plain.name, "first light");
+  assert.deepEqual(plain.acts, { ages: [], dawn: null });
+  assert.ok(plain.rungs.some((r) => r.id === "nucleus") && plain.drop!.kinds.length === 4);
+  assert.equal(g.seed, seed);
+  assert.equal(g.ages[4]!.kind, "impact");
+  assert.deepEqual(g.acts, { ages: [{ age: 4, kind: "impact" }], dawn: "hunters" });
+  assert.deepEqual(g.ages.slice(0, 4), plain.ages.slice(0, 4));
+  // (Another world's name is not this world's: its own beginning is told.)
+  assert.equal(ask<G>("genesis", { seed: "juniper ~age 5 strike" }).seed, plain.seed);
+  assert.equal(JSON.stringify(world.domainHashes()), before, "asking changes nothing");
+});

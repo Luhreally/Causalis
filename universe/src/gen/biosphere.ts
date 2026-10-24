@@ -23,6 +23,7 @@ import {
   type Conditions,
   type CreatureBody,
   type CreatureNiche,
+  type DawnWay,
   type Medium,
 } from "../rules/index.ts";
 import { BIOME, type Climate } from "./climate.ts";
@@ -50,6 +51,19 @@ export type Niche = (typeof NICHES)[number];
 type ClassicNiche = "seed grass" | "grazer" | "browser" | "great beast" | "hunter";
 /** The web's newer niches. */
 type WebNiche = "seed-eater" | "swimmer" | "small hunter" | "scavenger";
+
+/**
+ * What the way that prospered in the first seas made of the web of eating after it (Phase 24):
+ * where the small eaters prospered, the grazers and seed-eaters; the light-eaters, the green
+ * world's browsers and grasses and the swimmers; the hunting cells, the hunters; cells together,
+ * the great bodies and those that eat the dead.
+ */
+const DAWN_BENT: Readonly<Record<DawnWay, Partial<Record<Niche, number>>>> = {
+  eaters: { grazer: 1.6, "seed grass": 1.2, "seed-eater": 1.5 },
+  light: { browser: 1.6, "seed grass": 1.4, swimmer: 1.3 },
+  hunters: { hunter: 2.2, "small hunter": 1.8 },
+  together: { "great beast": 2.4, scavenger: 1.6 },
+};
 
 /** At most this many lineages ever (one bit each in a cell's mask), in words of 32 a cell. */
 export const MAX_SPECIES = 96;
@@ -306,6 +320,8 @@ export function makeBiosphere(
     readonly ocean: number;
     /** Its air at the ground, bar (1 if not said): a thicker one bears more fliers. */
     readonly pressure?: number;
+    /** The way that prospered in its first seas, as the god's hand left them (null: as it would). */
+    readonly dawn?: DawnWay | null;
   } = {
     prior: "earthlike",
     gravity: 1,
@@ -321,6 +337,7 @@ export function makeBiosphere(
       earthlike,
     },
     land = (c: number) => elevation[c]! > 0,
+    bent = world.dawn ? DAWN_BENT[world.dawn] : {},
     alive: {
       s: Omit<Species, "died" | "index" | "ref">;
       died: number | null;
@@ -342,6 +359,7 @@ export function makeBiosphere(
           "great beast": 0.5,
           hunter: 0.7,
         };
+      for (const x of Object.keys(weights) as ClassicNiche[]) weights[x] *= bent[x] ?? 1;
       const niches = Object.keys(weights) as ClassicNiche[],
         pick = rng.real(BIO, k, 1, i) * niches.reduce((a, x) => a + weights[x], 0);
       let acc = 0,
@@ -737,8 +755,9 @@ export function makeBiosphere(
         "small hunter": 0.7,
         scavenger: 0.45,
       },
-      kinds = Object.keys(weights) as WebNiche[],
-      total = kinds.reduce((a, x) => a + weights[x], 0);
+      kinds = Object.keys(weights) as WebNiche[];
+    for (const x of kinds) weights[x] *= bent[x] ?? 1;
+    const total = kinds.reduce((a, x) => a + weights[x], 0);
     for (let k = 1; k < AGES; k++) {
       const age = deep.ages[k]!,
         count = 1 + Math.floor(rng.real(BIO, k, 60, 0) * 3);

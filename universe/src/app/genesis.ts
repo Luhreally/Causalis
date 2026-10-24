@@ -1,11 +1,21 @@
 // The genesis (Phase 9 M89): a way to begin. The galaxy born from a turning cloud; a star
 // and its worlds, and the world chosen (this one, or one never seen); the world forming —
-// molten, cooling, its seas rising, its land greening — and marked by each of its deep ages;
-// the dawn of life under the microscope, from the first cells to the first bodies; the
-// living world arising age by age from its own lineages' bodies; the first people; and then
-// where to begin. Each stage told, played on the screen's clock, the viewer free to turn about
-// it, to go on, or to skip to the choice. Everything shown is the world's own generation.
+// molten, cooling, its seas rising; the dawn of life under the microscope, from the first
+// cells to the first bodies; the living world arising age by age from its own lineages'
+// bodies; the first people; and then where to begin. Everything shown is the world's own
+// generation.
+//
+// Played (Phase 24, asked for 2026-10-24: "i should be able to be in my game and see the cell
+// stage and every stage like spore i would just watch it emerge and be able to pause and
+// influence and all that"): the whole of it runs on a deep clock, its speeds each stage's own,
+// paused and let go at will. The first seas are a living drop — small cells, then light-eaters,
+// hunting cells and cells together arising as the clock comes to them — that the god's hand
+// may feed, shade, warm and stir; what prospered in it under the hand bends the living world
+// after it. Any age of the deep past may be warmed, cooled, set afire, struck from the sky or
+// calmed. Each act is laid on the world's seed, and the world is made again from it: what the
+// act reaches is changed, the rest is as it was; and the world begun is the world remade.
 import type { GalaxyPlan, GenesisPlan, HostClient, SystemPlan } from "../bridge/index.ts";
+import { seedWithAct } from "../kernel/index.ts";
 import {
   GalaxyScene,
   GlobeScene,
@@ -17,29 +27,46 @@ import {
   type Stage,
 } from "../render/index.ts";
 import {
-  DAWN,
+  AGE_ACT_WORDS,
   DAWN_WORDS,
+  DROP_ACT_WORDS,
+  DeepClock,
+  GENESIS,
+  STEP,
+  ageAct,
+  ageAt,
   ageColors,
   ageWords,
+  arise,
   biomeColor,
+  dawnAct,
+  deepSpeedLabel,
+  deepSpeedWords,
+  deepWhen,
   dropOf,
   figureOf,
+  follow,
+  followWords,
   formingColors,
+  genesisSpans,
   globeColors,
   homeOf,
+  newDrop,
   paradeOf,
+  prosperedWords,
+  remakeWords,
+  roundDrop,
+  roundOf,
+  rungsPassed,
+  stepDrop,
   systemSpec,
-  type Dawn,
+  touchDrop,
+  waysWorth,
+  type AgeAct,
+  type DropAct,
+  type DropState,
+  type GenesisStage,
 } from "../view/index.ts";
-
-/** A stage of the genesis: its title and words, how long it plays, and what it shows. */
-type Part = {
-  readonly title: string;
-  readonly text: () => string;
-  readonly seconds: number;
-  readonly enter: () => void;
-  readonly update: (s: number) => void;
-};
 
 /** Where one may begin: the years, and what the world will be doing then. */
 const BEGINNINGS: readonly (readonly [string, string, number])[] = [
@@ -50,6 +77,26 @@ const BEGINNINGS: readonly (readonly [string, string, number])[] = [
   ["Among the stars", "a world reaching for its sky", 1150],
 ];
 
+/** The stages the first seas' drop is watched in. */
+const DROP_STAGES: ReadonlySet<GenesisStage> = new Set(["first cells", "nucleus", "colonies"]);
+/** The drop's ways, by the step of the dawn each arises at. */
+const ARISING: readonly (readonly [string, string])[] = [
+  ["light", "light"],
+  ["hunter", "nucleus"],
+  ["colony", "together"],
+];
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const e = document.createElement(tag);
+  if (className) e.className = className;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
 export async function runGenesis(o: {
   stage: Stage;
   hud: HTMLElement;
@@ -58,17 +105,21 @@ export async function runGenesis(o: {
   tier: DeviceTier;
   universe: string;
   seed: string;
-  /** Where the world's own page is, for a year (to begin there). */
-  beginAt: (year: number) => void;
+  /** Where the world's own page is, for a year (to begin there), of the seed's text given. */
+  beginAt: (year: number, seed: string) => void;
   /** Another world never seen, from its beginning. */
   another: () => void;
+  /** Hooks for a machine driving the page (the gates). */
+  expose?: (hooks: Record<string, unknown>) => void;
 }): Promise<void> {
   const { stage, hud, client } = o;
-  const [galaxy, system, plan] = await Promise.all([
+  const [galaxy, system, first] = await Promise.all([
     client.query<GalaxyPlan>({ type: "galaxy.plan" }),
     client.query<SystemPlan>({ type: "planet.system" }),
     client.query<GenesisPlan>({ type: "genesis" }),
   ]);
+  let plan = first,
+    seed = first.seed;
   client.setInterest({ view: "globe", focus: null });
   // The world as generated (its cells, heights and land), for it to form on the globe.
   let frame = client.latestFrame("globe");
@@ -86,44 +137,101 @@ export async function runGenesis(o: {
     skyScene = new SystemScene(stage),
     globe = new GlobeScene(stage),
     micro = new MicroScene(stage),
-    parade = new ParadeScene(stage),
-    rig = new OrbitRig(stage, o.canvas, {
-      distance: 200,
-      minDistance: 0.5,
-      maxDistance: 2000,
-      pitch: -45,
-      drift: 3,
-      onTap: () => {},
-    });
+    parade = new ParadeScene(stage);
+  let tap: (x: number, y: number) => void = () => {};
+  const rig = new OrbitRig(stage, o.canvas, {
+    distance: 200,
+    minDistance: 0.5,
+    maxDistance: 2000,
+    pitch: -45,
+    drift: 3,
+    onTap: (x, y) => tap(x, y),
+  });
   galaxyScene.build(galaxy, o.tier.name === "phone" ? 8000 : 16000);
   galaxyScene.visible = false;
   skyScene.build(system);
   skyScene.visible = false;
   globe.build(frequency, elevation);
   globe.visible = false;
-  const detail = o.tier.name === "phone" ? 1 : 2,
+  const detail = o.tier.name === "phone" ? 1 : 2;
+  let beasts = plan.lineages.filter((l) => l.body);
+  const castParade = () => {
     beasts = plan.lineages.filter((l) => l.body);
-  // (The stage's ground the green of the land the first people came to know.)
-  parade.set(beasts, detail, biomeColor(8));
-  parade.people(plan.people ? figureOf(plan.people.figure, detail) : null);
+    // (The stage's ground the green of the land the first people came to know.)
+    parade.set(beasts, detail, biomeColor(8));
+    parade.people(plan.people ? figureOf(plan.people.figure, detail) : null);
+  };
+  castParade();
 
-  // The words over the scene: a card at the foot, the stage's title and telling, and ways on.
-  const card = document.createElement("div"),
-    step = document.createElement("div"),
-    title = document.createElement("h2"),
-    text = document.createElement("p"),
-    row = document.createElement("div"),
-    skip = document.createElement("button"),
-    next = document.createElement("button");
-  card.className = "genesis";
-  step.className = "genesis-step";
-  row.className = "genesis-row";
-  skip.className = "link";
-  skip.textContent = "Skip to where to begin";
-  next.textContent = "Next ›";
-  row.append(skip, next);
-  card.append(step, title, text, row);
-  hud.append(card);
+  const spans = genesisSpans(plan),
+    clock = new DeepClock(spans);
+
+  // —— The bar: the world's name, the deep clock and its stage's speeds ——————————————————
+  const bar = el("header", "bar genesis-bar"),
+    toMenu = el("button", "link", "🏠 Main menu"),
+    brand = el("strong", "brand", plan.name),
+    when = el("span", "clock"),
+    speeds = el("div", "speeds");
+  speeds.setAttribute("role", "group");
+  speeds.setAttribute("aria-label", "Speed");
+  toMenu.onclick = () => (location.href = location.pathname);
+  bar.append(brand, when, speeds, toMenu);
+  let speedButtons: HTMLButtonElement[] = [],
+    speedsOf = -1;
+  const drawSpeeds = () => {
+    if (speedsOf !== clock.at) {
+      speedsOf = clock.at;
+      speedButtons = [0, ...clock.span.speeds].map((s, i) => {
+        const b = el("button", "speed", s === 0 ? "❚❚" : deepSpeedLabel(s));
+        b.setAttribute("aria-label", s === 0 ? "Pause" : deepSpeedWords(s));
+        b.title = s === 0 ? "Pause (Space)" : `${deepSpeedWords(s)} (${i})`;
+        b.onclick = () => {
+          clock.pick(i);
+          drawSpeeds();
+        };
+        return b;
+      });
+      speeds.replaceChildren(...speedButtons);
+    }
+    const lit = clock.lit;
+    speedButtons.forEach((b, i) => {
+      b.classList.toggle("on", i === lit);
+      b.setAttribute("aria-pressed", String(i === lit));
+    });
+  };
+
+  // —— The card at the foot: the stage told, the god's hand, what came of it, ways on ——————
+  const card = el("div", "genesis"),
+    step = el("div", "genesis-step"),
+    title = el("h2"),
+    text = el("p"),
+    acts = el("div", "genesis-acts"),
+    counts = el("p", "genesis-count"),
+    told = el("div", "genesis-told"),
+    row = el("div", "genesis-row"),
+    skip = el("button", "link", "Skip to where to begin"),
+    back = el("button", "link", "‹ Back"),
+    next = el("button", undefined, "Next ›"),
+    another = el("button", "link", "A world never seen ↻");
+  another.onclick = () => o.another();
+  row.append(skip, another, back, next);
+  card.append(step, title, text, acts, counts, told, row);
+  hud.append(bar, card);
+
+  /** A line of what came to pass (the last few kept). */
+  const tell = (words: string) => {
+    const p = el("p", undefined, words);
+    told.append(p);
+    while (told.childElementCount > 3) told.firstElementChild?.remove();
+  };
+  /** The acts laid on this world's dawn, in a line. */
+  const laid = () => {
+    const parts = plan.acts.ages.map(
+      (a) => `age ${a.age + 1} made ${/^[aeiou]/.test(a.kind) ? "an" : "a"} ${a.kind}`,
+    );
+    if (plan.acts.dawn) parts.push(`the first seas' ${plan.acts.dawn} prospered`);
+    return parts.length ? `Your hand: ${parts.join(" · ")}` : "";
+  };
 
   const hideAll = () => {
     galaxyScene.visible = false;
@@ -133,7 +241,6 @@ export async function runGenesis(o: {
     parade.visible = false;
   };
   const home = system.bodies.find((b) => b.kind === "home") ?? system.bodies[0]!,
-    ages = plan.ages,
     R = galaxy.radius / 1000,
     beastWords = (age: number) =>
       beasts
@@ -141,46 +248,165 @@ export async function runGenesis(o: {
         .slice(0, 2)
         .map((l) => `the ${l.name} arose — ${l.words}`)
         .join("; ");
-  let paintedAt = -1;
-  const paint = (colors: Uint8Array, now: number) => {
+  let paintedAt = -1,
+    played = 0;
+  const paint = (colors: Uint8Array) => {
     // (A tenth of a second between paints: the globe's cells are many.)
-    if (now - paintedAt < 0.1) return;
-    paintedAt = now;
+    if (played - paintedAt < 0.1 && paintedAt >= 0) return;
+    paintedAt = played;
     globe.paint(colors);
   };
 
-  const dawn = (d: Dawn): Part => ({
-    title: DAWN_WORDS[d][0],
-    text: () => DAWN_WORDS[d][1],
-    seconds: 10,
-    enter: () => {
-      hideAll();
-      stage.backdrop("space");
-      document.body.dataset.scale = "micro";
-      micro.visible = true;
-      rig.configure({
-        distance: 8.5,
-        minDistance: 3,
-        maxDistance: 30,
-        pitch: -20,
-        target: [0, 0, 0],
-        drift: 1.5,
-      });
-    },
-    update: (s) => micro.update(dropOf(d, s)),
-  });
+  // —— The first seas' drop: alive, its kinds arising as the clock comes to them ————————————
+  const block = plan.drop,
+    colors = block ? block.kinds.map((k) => k.color) : [],
+    kindOf = (way: string) => (block ? block.kinds.findIndex((k) => k.way === way) : -1),
+    rungAt = (id: string) => plan.rungs.find((r) => r.id === id)?.at ?? -1;
+  let drop: DropState | null = null,
+    // (The same drop untouched, beside it: what would have prospered without the hand.)
+    twin: DropState | null = null,
+    touched = false,
+    // (Laid in this play: a world remade at its dawn before keeps its act unless touched again.)
+    dawnLaid = false,
+    chosen: number | null = null,
+    owed = 0;
+  const freshDrop = () => {
+    if (!block) return;
+    const risen = block.kinds.map((k) => k.way === "eater");
+    drop = newDrop(block, risen);
+    twin = newDrop(block, risen);
+    touched = false;
+    dawnLaid = false;
+    chosen = null;
+  };
+  const touch = (act: DropAct) => {
+    if (!drop || !block) return;
+    touchDrop(drop, act, block);
+    touched = true;
+  };
+  const stepDrops = (dt: number) => {
+    if (!drop || !twin) return;
+    for (const [way, rung] of ARISING) {
+      const k = kindOf(way);
+      if (k >= 0 && clock.my <= rungAt(rung)) {
+        arise(drop, k);
+        arise(twin, k);
+      }
+    }
+    // (Faster at the stage's faster speeds; still while the clock is.)
+    owed += dt * Math.max(0, clock.lit);
+    let n = 0;
+    while (owed >= STEP && n < 10) {
+      stepDrop(drop);
+      stepDrop(twin);
+      owed -= STEP;
+      n++;
+    }
+    if (n === 10) owed = 0;
+  };
+  let countedAt = -1;
+  const countDrop = () => {
+    if (!drop || !block || played - countedAt < 0.5) return;
+    countedAt = played;
+    const n = block.kinds.map(() => 0);
+    for (const c of drop.cells) n[c.kind]!++;
+    counts.textContent = block.kinds
+      .map((k, i) => (drop!.risen[i] ? `${k.name} ${n[i]}` : ""))
+      .filter(Boolean)
+      .join(" · ");
+    if (chosen !== null) counts.textContent += ` — ${followWords(drop, chosen)}`;
+  };
+  /** Once the dawn is past: what the hand made prosper in the first seas, laid on the world. */
+  const settleDawn = () => {
+    if (dawnLaid || !touched || !drop || !twin) return;
+    dawnLaid = true;
+    const { way, words } = prosperedWords(drop, waysWorth(twin));
+    tell(words);
+    void remake(dawnAct(way));
+  };
 
-  const parts: Part[] = [
-    {
+  // —— The god's hand on an age: the world remade from it ————————————————————————————————
+  let remaking = false,
+    // (The last remaking, waited on before the world is begun.)
+    pending: Promise<void> = Promise.resolve();
+  const remake = (act: string) => (pending = remaking ? pending : remakeNow(act));
+  const remakeNow = async (act: string) => {
+    remaking = true;
+    clock.hold("remake");
+    acts.classList.add("busy");
+    tell("The world remakes itself from your hand…");
+    try {
+      const next = seedWithAct(seed, act),
+        p = await client.query<GenesisPlan>({ type: "genesis", args: { seed: next } }),
+        words = remakeWords(plan, p, act);
+      plan = p;
+      seed = next;
+      castParade();
+      ageShown = -1;
+      told.lastElementChild?.remove();
+      tell(words || "The world is remade.");
+      laidLine.textContent = laid();
+    } finally {
+      acts.classList.remove("busy");
+      clock.release("remake");
+      remaking = false;
+    }
+  };
+  const laidLine = el("p", "genesis-laid", laid());
+  card.insertBefore(laidLine, told);
+
+  // —— Each stage: what it shows, how it is told, the hand's acts in it ——————————————————
+  let lookAtWorld = false,
+    ageShown = -1;
+  const actButton = (icon: string, words: string, why: string, act: () => void) => {
+    const b = el("button", "act", `${icon} ${words}`);
+    b.title = why;
+    b.onclick = act;
+    return b;
+  };
+  const ageActs = () => {
+    const view = el("button", "link", lookAtWorld ? "🦕 Its life" : "🌍 The world");
+    view.title = lookAtWorld ? "See the living world of this age" : "See the world in this age";
+    view.onclick = () => {
+      lookAtWorld = !lookAtWorld;
+      enter(clock.at);
+    };
+    return [
+      view,
+      ...(Object.keys(AGE_ACT_WORDS) as AgeAct[]).map((a) => {
+        const [icon, words] = AGE_ACT_WORDS[a];
+        return actButton(icon, words, `${words}: this age, as the clock stands in it`, () => {
+          const { age } = ageAt(plan, clock.my);
+          if (age >= 0) void remake(ageAct(age, a));
+        });
+      }),
+    ];
+  };
+  const dropActs = () =>
+    (Object.keys(DROP_ACT_WORDS) as DropAct[]).map((a) => {
+      const [icon, words] = DROP_ACT_WORDS[a];
+      return actButton(icon, words, `${words}: the drop of the first seas`, () => touch(a));
+    });
+
+  const STAGES: Readonly<
+    Record<
+      GenesisStage,
+      {
+        readonly title: string;
+        readonly text: () => string;
+        readonly enter: () => void;
+        readonly update: (k: number) => void;
+        readonly acts?: () => HTMLElement[];
+      }
+    >
+  > = {
+    galaxy: {
       title: "The galaxy is born",
       text: () =>
         `Some thirteen billion years ago a cloud of gas began to turn. Its middle fell together first, a swarm of old stars; its arms, turning, lit with young ones, one after another — a disk ${Math.round((galaxy.radius * 2) / 1000)} thousand light-years across. Out on an arm, ${Math.hypot(homeOf(galaxy).x, homeOf(galaxy).z).toFixed(0)} thousand light-years from the middle, a star would light.`,
-      seconds: 14,
       enter: () => {
-        hideAll();
         stage.backdrop("space");
         galaxyScene.visible = true;
-        galaxyScene.emerge(0);
         rig.configure({
           distance: R * 2.6,
           minDistance: 2,
@@ -190,15 +416,13 @@ export async function runGenesis(o: {
           drift: 3,
         });
       },
-      update: (s) => galaxyScene.emerge(Math.min(1, s / 11)),
+      update: (k) => galaxyScene.emerge(Math.min(1, k * 1.15)),
     },
-    {
+    star: {
       title: "A star, and its worlds",
       text: () =>
         `A ${system.star.spectral} star, ${system.star.ageGyr.toFixed(1)} billion years old, ${system.star.luminosity.toFixed(2)} times the Sun's light. About it, ${system.bodies.filter((b) => b.around < 0).length} worlds: rock inside its frost line, ${system.frostLine.toFixed(1)} times as far as Earth from the Sun; ice and gas beyond. One of them held water, and would hold life.`,
-      seconds: 11,
       enter: () => {
-        hideAll();
         stage.backdrop("space");
         skyScene.visible = true;
         rig.configure({
@@ -210,18 +434,17 @@ export async function runGenesis(o: {
           drift: 2,
         });
       },
-      update: (s) => skyScene.update(systemSpec(system, s * 20 * 86_400 * 30)),
+      update: () => skyScene.update(systemSpec(system, played * 20 * 86_400 * 30)),
     },
-    {
+    forming: {
       title: "The world forms",
       text: () =>
-        `The world — ${home.mass.toFixed(2)} of Earth's weight, ${home.a.toFixed(2)} times Earth's distance from its star — formed hot: its rock molten and glowing. As it cooled a dark crust closed over it, the fire showing in its cracks; the rain of ages filled its low ground with seas; and its land, where the rains fell, greened.`,
-      seconds: 16,
+        `The world — ${home.mass.toFixed(2)} of Earth's weight, ${home.a.toFixed(2)} times Earth's distance from its star — formed hot: its rock molten and glowing. As it cooled a dark crust closed over it, the fire showing in its cracks; and the rain of ages filled its low ground with seas, where life would begin.`,
       enter: () => {
-        hideAll();
         stage.backdrop("space");
         globe.visible = true;
         globe.features(false, true, false);
+        paintedAt = -1;
         rig.configure({
           distance: 3.4,
           minDistance: 1.4,
@@ -231,43 +454,51 @@ export async function runGenesis(o: {
           drift: 6,
         });
       },
-      update: (s) => {
-        const k = Math.min(1, s / 13);
-        paint(formingColors(elevation, land, k, s), s);
-        if (k >= 1) globe.features(true, true, false);
-      },
+      // (Its seas risen by the end; its land greens only once life comes ashore, in the ages.)
+      update: (k) => paint(formingColors(elevation, land, 0.72 * k, played)),
     },
-    {
-      title: "Its deep ages",
-      text: () =>
-        ages
-          .map((a) => ageWords(a))
-          .slice(-4)
-          .join(". ") + ".",
-      seconds: Math.max(8, ages.length * 1.6),
+    "first cells": dropStage("first cells"),
+    nucleus: dropStage("nucleus"),
+    colonies: dropStage("colonies"),
+    bodies: {
+      title: DAWN_WORDS.bodies[0],
+      text: () => DAWN_WORDS.bodies[1],
       enter: () => {
-        hideAll();
         stage.backdrop("space");
-        globe.visible = true;
-        globe.features(true, true, false);
-        paintedAt = -1;
+        document.body.dataset.scale = "micro";
+        micro.visible = true;
+        rig.configure({
+          distance: 8.5,
+          minDistance: 3,
+          maxDistance: 30,
+          pitch: -20,
+          target: [0, 0, 0],
+          drift: 1.5,
+        });
       },
-      update: (s) => {
-        const at = Math.min(ages.length - 1e-6, s / 1.6),
-          a = ages[Math.floor(at)]!;
-        title.textContent = `Its deep ages: ${a.index + 1} of ${ages.length}`;
-        text.textContent = `${ageWords(a)}.${beastWords(a.index) ? ` In it ${beastWords(a.index)}.` : ""}`;
-        paint(ageColors(land, grid.lat, elevation, a.kind, at - Math.floor(at), a.index + 1), s);
-      },
+      update: () => micro.update(dropOf("bodies", played)),
     },
-    ...DAWN.map(dawn),
-    {
+    ages: {
       title: "The living world",
       text: () =>
-        `${beasts.length} lineages of beasts in all, each a body of its own — of its niche, its world's pull and air, the climate it arose in — some living yet, some gone in the great deaths.`,
-      seconds: Math.max(12, ages.length * 2),
+        `${beasts.length} lineages of beasts in all, each a body of its own — of its niche, its world's pull and air, the climate it arose in — some living yet, some gone in the great deaths. Lay your hand on any age: warm it, cool it, wake its fires, strike it from the sky or calm it, and the world is remade from it.`,
       enter: () => {
-        hideAll();
+        ageShown = -1;
+        if (lookAtWorld) {
+          stage.backdrop("space");
+          globe.visible = true;
+          globe.features(true, true, false);
+          paintedAt = -1;
+          rig.configure({
+            distance: 3.4,
+            minDistance: 1.4,
+            maxDistance: 12,
+            pitch: -15,
+            target: [0, 0, 0],
+            drift: 6,
+          });
+          return;
+        }
         stage.backdrop("ground", 20);
         parade.visible = true;
         rig.configure({
@@ -279,108 +510,232 @@ export async function runGenesis(o: {
           drift: 2,
         });
       },
-      update: (s) => {
-        const t = Math.min(1, s / Math.max(12, ages.length * 2)),
-          p = paradeOf(plan, t);
-        parade.update(
-          p.on.map((q) => ({ ...q, lineage: beasts.indexOf(plan.lineages[q.lineage]!) })),
-          s,
-        );
-        const a = ages[p.age];
-        if (a) {
-          title.textContent = `The living world: age ${a.index + 1} of ${ages.length}`;
+      update: () => {
+        const { age, within } = ageAt(plan, clock.my),
+          a = plan.ages[age];
+        if (!a) return;
+        if (age !== ageShown) {
+          ageShown = age;
+          title.textContent = `The living world: age ${a.index + 1} of ${plan.ages.length}`;
           const born = beastWords(a.index);
           text.textContent = `${ageWords(a)}.${born ? ` ${born[0]!.toUpperCase()}${born.slice(1)}.` : ""}`;
         }
+        if (lookAtWorld) paint(ageColors(land, grid.lat, elevation, a.kind, within, a.index + 1));
+        else {
+          const t = (plan.ages[0]!.from - clock.my) / plan.ages[0]!.from,
+            p = paradeOf(plan, t);
+          parade.update(
+            p.on.map((q) => ({ ...q, lineage: beasts.indexOf(plan.lineages[q.lineage]!) })),
+            played,
+          );
+        }
       },
+      acts: ageActs,
     },
-    {
+    people: {
       title: "The first people",
       text: () =>
         plan.people
           ? `And then, in ${plan.people.cradle}, the ${plan.people.name} rose to thought — ${plan.people.words}; ${plan.people.because}.`
           : "On this world no lineage rose to thought: its life goes on, watched by no one of its own.",
-      seconds: 12,
       enter: () => {
-        hideAll();
         stage.backdrop("ground", 20);
         parade.visible = true;
-        rig.configure({ drift: 0 });
+        rig.configure({
+          distance: 7.5,
+          minDistance: 3,
+          maxDistance: 30,
+          pitch: -18,
+          target: [0.9, 0.4, -0.6],
+          drift: 0,
+        });
       },
-      update: (s) => {
+      update: () => {
         const p = paradeOf(plan, 1);
         parade.update(
           p.on.map((q) => ({ ...q, lineage: beasts.indexOf(plan.lineages[q.lineage]!) })),
-          s,
+          played,
         );
         // (Along the watcher's own line of sight, toward them, from among the beasts.)
         const toward = (rig.yaw * Math.PI) / 180,
-          d = -10 + Math.min(1, s / 4) * 30;
+          d = -10 + Math.min(1, played / 4) * 30;
         parade.placePeople(
           9 + Math.sin(toward) * d,
           -6 + Math.cos(toward) * d,
           Math.atan2(Math.sin(toward), Math.cos(toward)),
-          s,
+          played,
         );
       },
     },
-  ];
+  };
 
-  // The runner: each stage for its while, then the next; the viewer may go on, or skip.
-  let at = -1,
-    started = 0,
+  /** A stage of the dawn watched in the drop of the first seas, alive. */
+  function dropStage(d: "first cells" | "nucleus" | "colonies"): (typeof STAGES)["galaxy"] {
+    return {
+      title: DAWN_WORDS[d][0],
+      text: () =>
+        `${DAWN_WORDS[d][1]} ${d === "first cells" ? "Feed the drop, shade it, warm it or stir it, and tap a cell to follow its line: what prospers under your hand will shape the life that comes of it." : ""}`.trim(),
+      enter: () => {
+        stage.backdrop("space");
+        document.body.dataset.scale = "micro";
+        micro.visible = true;
+        if (!drop) freshDrop();
+        rig.yaw = 0;
+        rig.configure({
+          distance: 13,
+          minDistance: 3,
+          maxDistance: 30,
+          pitch: -10,
+          target: [0, 0, 0],
+          drift: 0,
+        });
+      },
+      update: () => {
+        if (!drop) return micro.update(dropOf(d, played));
+        micro.living(roundDrop(drop, chosen), colors);
+        countDrop();
+      },
+      acts: block ? dropActs : undefined,
+    };
+  }
+
+  // —— Going from stage to stage ——————————————————————————————————————————————————————
+  let shown = -1,
     done = false;
-  const go = (i: number) => {
-    at = i;
-    started = performance.now();
-    if (i >= parts.length) return choose();
-    const part = parts[i]!;
-    step.textContent = `${i + 1} of ${parts.length}`;
-    title.textContent = part.title;
-    text.textContent = part.text();
-    part.enter();
+  const enter = (i: number) => {
+    const going = i > shown && shown >= 0;
+    // (Leaving the dawn forward: what the hand made prosper there is laid on the world.)
+    if (going && !DROP_STAGES.has(spans[i]!.stage) && DROP_STAGES.has(spans[shown]!.stage))
+      settleDawn();
+    // (Back into the dawn: a fresh drop.)
+    if (DROP_STAGES.has(spans[i]!.stage) && (i < shown || !drop)) freshDrop();
+    shown = i;
+    played = 0;
+    paintedAt = -1;
+    const st = STAGES[spans[i]!.stage];
+    hideAll();
+    delete document.body.dataset.scale;
+    st.enter();
+    step.textContent = `${i + 1} of ${spans.length}`;
+    title.textContent = st.title;
+    text.textContent = st.text();
+    acts.replaceChildren(...(st.acts?.() ?? []));
+    acts.hidden = !st.acts;
+    counts.textContent = "";
+    counts.hidden = !DROP_STAGES.has(spans[i]!.stage);
+    another.hidden = i > 1;
+    back.hidden = i === 0;
+    tap = DROP_STAGES.has(spans[i]!.stage)
+      ? (x, y) => {
+          if (!drop) return;
+          const k = micro.pick(x, y, drop.cells.map(roundOf));
+          chosen = k >= 0 ? drop.cells[k]!.id : null;
+          follow(drop, chosen);
+          countedAt = -1;
+        }
+      : () => {};
+    drawSpeeds();
   };
   const choose = () => {
+    if (done) return;
     done = true;
     step.textContent = "";
+    acts.replaceChildren();
+    counts.textContent = "";
     title.textContent = "Where to begin";
     text.textContent = plan.people
       ? `Begin with the ${plan.people.name} wherever you will; history runs on from there, and every why can be asked.`
       : "Begin where you will; the world runs on from there.";
     row.replaceChildren(
-      toMenu,
       ...BEGINNINGS.map(([label, note, year]) => {
-        const b = document.createElement("button"),
-          small = document.createElement("small");
-        b.className = "choice";
-        b.textContent = label;
-        small.textContent = note;
+        const b = el("button", "choice", label),
+          small = el("small", undefined, note);
         b.append(small);
-        b.onclick = () => o.beginAt(year);
+        b.onclick = () => void pending.then(() => o.beginAt(year, seed));
         return b;
       }),
     );
   };
-  next.onclick = () => go(at + 1);
-  skip.onclick = () => go(parts.length);
-  // (On the star's stage: another world, never seen, from its beginning.)
-  const another = document.createElement("button");
-  another.className = "link";
-  another.textContent = "A world never seen ↻";
-  another.onclick = () => o.another();
-  // (And back to the title screen, at any stage.)
-  const toMenu = document.createElement("button");
-  toMenu.className = "link";
-  toMenu.textContent = "🏠 Main menu";
-  toMenu.onclick = () => (location.href = location.pathname);
-  row.prepend(toMenu, another);
-  stage.onUpdate(() => {
-    if (done || at < 0) return;
-    const s = (performance.now() - started) / 1000,
-      part = parts[at]!;
-    part.update(s);
-    another.hidden = at > 1;
-    if (s > part.seconds) go(at + 1);
+  next.onclick = () => {
+    clock.jump(clock.at + 1);
+    if (clock.done) {
+      settleDawn();
+      choose();
+    }
+  };
+  back.onclick = () => clock.jump(Math.max(0, clock.at - (clock.through < 0.05 ? 1 : 0)));
+  skip.onclick = () => {
+    clock.jump(spans.length);
+    settleDawn();
+    choose();
+  };
+
+  // Space pauses and lets go; the numbers choose a speed; the arrows go on and back.
+  addEventListener("keydown", (e) => {
+    if (done || e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey) return;
+    if (e.key === " ") {
+      e.preventDefault();
+      clock.toggle();
+      drawSpeeds();
+    } else if (/^[0-9]$/.test(e.key)) {
+      if (clock.pick(Number(e.key))) drawSpeeds();
+    } else if (e.key === "ArrowRight") next.click();
+    else if (e.key === "ArrowLeft") back.click();
   });
-  go(0);
+
+  let last = performance.now(),
+    whenShown = "";
+  stage.onUpdate(() => {
+    const now = performance.now(),
+      dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
+    last = now;
+    if (done) return;
+    const before = clock.my;
+    clock.run(dt);
+    if (!clock.stopped) played += dt;
+    for (const r of rungsPassed(plan, before, clock.my))
+      tell(`${deepWhen(r.at)}: ${r.name} — ${r.words}.`);
+    if (clock.at !== shown) enter(clock.at);
+    if (DROP_STAGES.has(spans[shown]!.stage)) stepDrops(dt);
+    STAGES[spans[shown]!.stage].update(clock.through);
+    const w = `${deepWhen(clock.my)}${clock.stopped ? " · paused" : ""}`;
+    if (w !== whenShown) {
+      whenShown = w;
+      when.textContent = w;
+      drawSpeeds();
+    }
+    if (clock.done) {
+      settleDawn();
+      choose();
+    }
+  });
+  enter(0);
+
+  o.expose?.({
+    genesis: () => ({
+      stage: spans[clock.at]!.stage,
+      stages: GENESIS.length,
+      my: clock.my,
+      paused: clock.stopped,
+      speed: clock.speed,
+      seed,
+      acts: plan.acts,
+      ages: plan.ages.map((a) => a.kind),
+      lineages: plan.lineages.length,
+      died: plan.lineages.map((l) => l.died),
+      people: plan.people?.name ?? null,
+      cells: drop
+        ? Object.fromEntries(
+            [...new Set((drop as DropState).cells.map((c) => c.way))].map((w) => [
+              w,
+              (drop as DropState).cells.filter((c) => c.way === w).length,
+            ]),
+          )
+        : null,
+      born: drop ? (drop as DropState).born : 0,
+      motes: drop ? (drop as DropState).motes.length : 0,
+      chosen,
+      choosing: done,
+    }),
+  });
 }

@@ -111,7 +111,15 @@ export function dropBlock(
   spot: number,
   options: { readonly title?: string; readonly focus?: string; readonly habitat?: Habitat } = {},
 ): Block | null {
-  const g = fineOf(world);
+  return dropOfWorld(fineOf(world), spot, options);
+}
+
+/** A drop from a spot of a world as generated (one remade at its dawn, Phase 24, among them). */
+export function dropOfWorld(
+  g: HomeWorld,
+  spot: number,
+  options: { readonly title?: string; readonly focus?: string; readonly habitat?: Habitat } = {},
+): Extract<Block, { type: "drop" }> | null {
   if (spot < 0 || spot >= g.grid.count) return null;
   const tree = treeOfLife(g),
     place = placeOf(g, spot),
@@ -159,8 +167,12 @@ export function dropBlock(
 
 /** The warmest shallow sea of the world, where a drop of the dawn's seas is drawn from. */
 export function dawnSea(world: World): number {
-  const g = fineOf(world),
-    e = g.tectonics.elevation,
+  return dawnSeaOf(fineOf(world));
+}
+
+/** The warmest shallow sea of a world as generated. */
+export function dawnSeaOf(g: HomeWorld): number {
+  const e = g.tectonics.elevation,
     t = g.climate.temperature;
   let best = -1,
     warm = -Infinity;

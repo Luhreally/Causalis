@@ -499,6 +499,71 @@ button:disabled {
 body[data-scale="micro"] {
   background: radial-gradient(ellipse at 50% 40%, #2b8a86 0%, #0f4f5c 55%, #06232f 100%);
 }
+/* The genesis played (Phase 24): the hand's acts in a row, the drop's lives counted, what the
+   hand has laid on the dawn, and what came to pass; on a wide screen, the telling at the side. */
+.genesis-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 8px;
+}
+.genesis-acts[hidden] {
+  display: none;
+}
+.genesis-acts.busy {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.genesis .genesis-acts .act {
+  width: auto;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 3px 10px;
+  font-size: 0.88rem;
+}
+.genesis .genesis-count {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  color: #a9e3c9;
+  font-variant-numeric: tabular-nums;
+}
+.genesis .genesis-laid {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  color: #ffe08a;
+}
+.genesis .genesis-laid:empty,
+.genesis .genesis-count:empty {
+  display: none;
+}
+.genesis-told p {
+  margin: 0 0 4px;
+  font-size: 0.82rem;
+  color: #c8d6f5;
+}
+@media (max-width: 600px) {
+  .genesis {
+    max-height: 42%;
+    padding: 9px 11px;
+  }
+  .genesis h2 {
+    font-size: 1rem;
+  }
+  .genesis p {
+    font-size: 0.86rem;
+    margin-bottom: 7px;
+  }
+}
+@media (min-width: 900px) {
+  .genesis {
+    left: auto;
+    top: calc(78px + var(--safe-top));
+    bottom: auto;
+    width: 400px;
+    max-height: calc(100% - 96px);
+  }
+}
 /* What the people in view are saying (M86): a sign in a speech bubble over each head. */
 .bubbles {
   position: absolute;

@@ -184,6 +184,12 @@ jobs:
       - run: npm run gate:21 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 24 gate: the dawn, played (the deep clock run and paused, the first seas' drop
+      # alive and fed, a cell followed, what prospered under the hand laid on the seed, an age
+      # cooled and the world remade from it, the world begun the world remade; on a phone).
+      - run: npm run gate:24 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

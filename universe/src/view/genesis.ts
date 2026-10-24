@@ -6,7 +6,16 @@
 // under the microscope: the first cells dividing, cells with a nucleus, cells together in
 // turning colonies, the first bodies. The living world: its lineages arising age by age from
 // their own bodies, and passing in the great deaths; then the people.
+//
+// Played (Phase 24): the whole of it on a deep clock — billions of years a second as the galaxy
+// turns, millions as life's dawn comes, an age every few seconds as the living world arises,
+// thousands of years at the people's rising — paused and let go at any stage, its speeds the
+// stage's own; and the god's hand laid on it, the world remade from the acts.
 import type { GenesisPlan } from "../bridge/index.ts";
+import type { AgeAct, DawnWay } from "../rules/index.ts";
+
+/** The acts the god's hand may lay on a world's dawn, as its seed's text carries them. */
+export { AGE_ACTS, ageAct, dawnAct, type AgeAct } from "../rules/index.ts";
 
 type Rgb = readonly [number, number, number];
 
@@ -352,3 +361,321 @@ export const DAWN_WORDS: Readonly<Record<Dawn, readonly [string, string]>> = {
     "At last cells that differed — some to move, some to eat, some to feel — made bodies: a worm of cells rippling along the bottom, a jelly's bell beating in the water, a sponge's cup straining it. From these, every creature to come.",
   ],
 };
+
+// —— The genesis, played on a deep clock (Phase 24) —————————————————————————————————————
+
+/** The genesis's stages, oldest first. */
+export const GENESIS = [
+  "galaxy",
+  "star",
+  "forming",
+  "first cells",
+  "nucleus",
+  "colonies",
+  "bodies",
+  "ages",
+  "people",
+] as const;
+export type GenesisStage = (typeof GENESIS)[number];
+
+/**
+ * A stage on the deep clock: from when to when (millions of years ago), its speeds (millions of
+ * years a second, slowest first) and the one it opens at.
+ */
+export type GenesisSpan = {
+  readonly stage: GenesisStage;
+  readonly from: number;
+  readonly to: number;
+  readonly speeds: readonly number[];
+  readonly start: number;
+};
+
+/** How long ago the galaxy began to turn (millions of years). */
+export const GALAXY_AGE = 13_600;
+/** How long ago the people's rising is watched from (millions of years): the last of it. */
+export const RISING = 2;
+/** How long the worlds took to gather about their star (millions of years). */
+const GATHERING = 60;
+
+/** Each stage's speeds (millions of years a second), and the one it opens at. */
+const SPEEDS: Readonly<Record<GenesisStage, readonly [readonly number[], number]>> = {
+  galaxy: [[100, 500, 1000], 1000],
+  star: [[2, 10], 10],
+  forming: [[10, 50, 200], 50],
+  "first cells": [[20, 100, 400], 100],
+  nucleus: [[20, 100, 400], 100],
+  colonies: [[10, 50, 200], 50],
+  bodies: [[5, 25, 100], 25],
+  ages: [[1, 5, 10, 25], 10],
+  people: [[0.02, 0.1, 0.2], 0.2],
+};
+
+/**
+ * The stages of a world's beginning on the deep clock: the galaxy turning until its star lit;
+ * the worlds gathering; this one forming until the first replicators; the first cells until
+ * one took another in; cells with a nucleus until they stayed together; cells together until
+ * the first bodies; the first bodies until the ages; the living world age by age; the people.
+ */
+export function genesisSpans(
+  plan: Pick<GenesisPlan, "worldAge" | "rungs" | "ages">,
+): GenesisSpan[] {
+  const at = (id: string, or: number) => plan.rungs.find((r) => r.id === id)?.at ?? or,
+    age = Math.max(1000, plan.worldAge),
+    agesFrom = plan.ages[0]?.from ?? 400,
+    // (Each later than the last, however a world's dawn fell.)
+    cuts = [
+      GALAXY_AGE,
+      age,
+      age - GATHERING,
+      at("replicators", age - 500),
+      at("nucleus", age * 0.45),
+      at("together", age * 0.25),
+      at("bodies", 650),
+      agesFrom,
+      RISING,
+      0,
+    ];
+  for (let i = 1; i < cuts.length; i++)
+    cuts[i] = Math.max(0, Math.min(cuts[i]!, cuts[i - 1]! - (i === cuts.length - 1 ? 0 : 1)));
+  return GENESIS.map((stage, i) => ({
+    stage,
+    from: cuts[i]!,
+    to: cuts[i + 1]!,
+    speeds: SPEEDS[stage][0],
+    start: SPEEDS[stage][1],
+  }));
+}
+
+/**
+ * The deep clock: how long ago it stands (millions of years), the stage it is in, the speed
+ * chosen at each stage, a pause the viewer holds, and holds while the world is remade.
+ */
+export class DeepClock {
+  readonly spans: readonly GenesisSpan[];
+  /** Millions of years ago. */
+  my: number;
+  paused = false;
+  private readonly chosen = new Map<GenesisStage, number>();
+  private readonly holds = new Set<string>();
+
+  constructor(spans: readonly GenesisSpan[], my = spans[0]?.from ?? 0) {
+    this.spans = spans;
+    this.my = my;
+  }
+
+  /** The stage it stands in (its index; the last once it has come to the first year). */
+  get at(): number {
+    const i = this.spans.findIndex((s) => this.my > s.to);
+    return i < 0 ? this.spans.length - 1 : i;
+  }
+
+  get span(): GenesisSpan {
+    return this.spans[this.at]!;
+  }
+
+  /** Whether it has come to the people's first year. */
+  get done(): boolean {
+    return this.my <= 0;
+  }
+
+  /** How far through its stage it is (0 at its start, 1 at its end). */
+  get through(): number {
+    const s = this.span;
+    return Math.max(0, Math.min(1, (s.from - this.my) / Math.max(1e-9, s.from - s.to)));
+  }
+
+  speedAt(i = this.at): number {
+    const s = this.spans[i]!;
+    return this.chosen.get(s.stage) ?? s.start;
+  }
+
+  get stopped(): boolean {
+    return this.paused || this.holds.size > 0;
+  }
+
+  /** Millions of years a second now (0 stopped). */
+  get speed(): number {
+    return this.stopped ? 0 : this.speedAt();
+  }
+
+  /** The stage's speed that is lit: 0 stopped, i the i-th, -1 none of them. */
+  get lit(): number {
+    if (this.stopped) return 0;
+    const i = this.span.speeds.indexOf(this.speedAt());
+    return i < 0 ? -1 : i + 1;
+  }
+
+  /** On by `dt` seconds of the screen (none while stopped). */
+  run(dt: number): void {
+    if (!this.stopped) this.my = Math.max(0, this.my - this.speed * dt);
+  }
+
+  /** To the start of stage i (past the last: the people's first year). */
+  jump(i: number): void {
+    this.my = i >= this.spans.length ? 0 : this.spans[Math.max(0, i)]!.from;
+  }
+
+  /** A speed chosen at the stage (0 pauses): the viewer's word, so a pause goes. */
+  choose(speed: number): void {
+    if (!(speed > 0)) {
+      this.paused = true;
+      return;
+    }
+    this.paused = false;
+    this.chosen.set(this.span.stage, speed);
+  }
+
+  /** The stage's i-th speed (1 the slowest, 0 pauses); false where it has no such. */
+  pick(i: number): boolean {
+    if (i === 0) {
+      this.choose(0);
+      return true;
+    }
+    const s = this.span.speeds[i - 1];
+    if (s === undefined) return false;
+    this.choose(s);
+    return true;
+  }
+
+  toggle(): void {
+    this.paused = !this.paused;
+  }
+
+  /** Held still by `who` (the world being remade) until it lets go. */
+  hold(who: string): void {
+    this.holds.add(who);
+  }
+
+  release(who: string): void {
+    this.holds.delete(who);
+  }
+}
+
+/** How long ago, as the clock says it: "4.12 billion years ago", "312 million years ago". */
+export function deepWhen(my: number): string {
+  if (my <= 0) return "the first year";
+  if (my >= 1000) return `${(my / 1000).toFixed(2)} billion years ago`;
+  if (my >= 10) return `${Math.round(my)} million years ago`;
+  if (my >= 1) return `${my.toFixed(1)} million years ago`;
+  return `${Math.max(1, Math.round(my * 1000))} thousand years ago`;
+}
+
+/** A deep speed as its button says it: "1 Gyr/s", "100 Myr/s", "200 kyr/s". */
+export function deepSpeedLabel(myPerSecond: number): string {
+  if (myPerSecond >= 1000) return `${myPerSecond / 1000} Gyr/s`;
+  if (myPerSecond >= 1) return `${myPerSecond} Myr/s`;
+  return `${Math.round(myPerSecond * 1000)} kyr/s`;
+}
+
+/** A deep speed in words: "a billion years a second", "100 million years a second". */
+export function deepSpeedWords(myPerSecond: number): string {
+  if (myPerSecond >= 1000) {
+    const b = myPerSecond / 1000;
+    return `${b === 1 ? "a" : b} billion years a second`;
+  }
+  if (myPerSecond >= 1) return `${myPerSecond === 1 ? "a" : myPerSecond} million years a second`;
+  return `${Math.round(myPerSecond * 1000)} thousand years a second`;
+}
+
+/** The age the clock stands in (its index; -1 before the ages), and how far through it. */
+export function ageAt(
+  plan: Pick<GenesisPlan, "ages">,
+  my: number,
+): { age: number; within: number } {
+  const ages = plan.ages;
+  if (!ages.length || my > ages[0]!.from) return { age: -1, within: 0 };
+  for (let i = 0; i < ages.length; i++) {
+    const a = ages[i]!;
+    if (my > a.to || i === ages.length - 1)
+      return {
+        age: i,
+        within: Math.max(0, Math.min(1, (a.from - my) / Math.max(1e-9, a.from - a.to))),
+      };
+  }
+  return { age: ages.length - 1, within: 1 };
+}
+
+/** The steps of life's dawn the clock passed going from `before` to `after` (millions of years ago). */
+export function rungsPassed(
+  plan: Pick<GenesisPlan, "rungs">,
+  before: number,
+  after: number,
+): GenesisPlan["rungs"] {
+  return plan.rungs.filter((r) => r.at <= before && r.at > after);
+}
+
+/** The god's acts on an age, as its buttons say them: an icon, the act, and what it did. */
+export const AGE_ACT_WORDS: Readonly<Record<AgeAct, readonly [string, string, string]>> = {
+  warm: ["☀️", "Warm it", "warmed"],
+  cool: ["❄️", "Cool it", "cooled"],
+  fire: ["🌋", "Wake its fires", "set afire"],
+  strike: ["☄️", "Strike it", "struck from the sky"],
+  calm: ["🕊️", "Calm it", "calmed"],
+};
+
+/** The god's hand on the first seas' drop, as its buttons say it. */
+export const DROP_ACT_WORDS = {
+  feed: ["✚", "Feed it"],
+  shade: ["☁️", "Shade it"],
+  light: ["☀️", "Light it"],
+  warm: ["🌡️", "Warm it"],
+  cool: ["❄️", "Cool it"],
+  stir: ["🥄", "Stir it"],
+} as const;
+
+/** What prospered in the first seas, what the living world after ran to, and its niches. */
+const DAWN_WAY_WORDS: Readonly<Record<DawnWay, readonly [string, string, readonly string[]]>> = {
+  eaters: ["the small eaters", "grazers and seed-eaters", ["grazer", "seed-eater"]],
+  light: [
+    "the light-eaters",
+    "browsers, grasses and swimmers",
+    ["browser", "seed grass", "swimmer"],
+  ],
+  hunters: ["the hunting cells", "hunters", ["hunter", "small hunter"]],
+  together: ["cells together", "great beasts and scavengers", ["great beast", "scavenger"]],
+};
+
+/**
+ * What an act laid on the dawn did, in words: from the beginning as it was (`before`) to the
+ * world remade (`after`) — an age made otherwise and the lineages that ended in it; what
+ * prospered in the first seas and what the living world after ran to; a people risen otherwise.
+ */
+export function remakeWords(before: GenesisPlan, after: GenesisPlan, act: string): string {
+  const [word, n, what] = act.split(" "),
+    out: string[] = [];
+  if (word === "age") {
+    const k = Number(n) - 1,
+      a = after.ages[k],
+      words = AGE_ACT_WORDS[what as AgeAct];
+    if (a && words) {
+      const died = (p: GenesisPlan) => p.lineages.filter((l) => l.died === k).length,
+        was = died(before),
+        now = died(after);
+      out.push(
+        `Age ${k + 1} ${words[2]}: ${ageWords(a)}. ${now === 0 ? "No lineage" : now === 1 ? "One lineage" : `${now} lineages`} ended in it${was !== now ? `, where ${was} would have` : ""}.`,
+      );
+      const arose = (p: GenesisPlan) => p.lineages.filter((l) => l.arose > k).map((l) => l.name),
+        then = new Set(arose(before)),
+        fresh = arose(after).filter((x) => !then.has(x));
+      if (fresh.length)
+        out.push(
+          `In the ages after it arose ${fresh.slice(0, 3).join(", ")}${fresh.length > 3 ? ` and ${fresh.length - 3} more` : ""}, that would not have.`,
+        );
+    }
+  } else if (word === "dawn") {
+    const w = DAWN_WAY_WORDS[n as DawnWay];
+    if (w) {
+      const count = (p: GenesisPlan) => p.lineages.filter((l) => w[2].includes(l.niche)).length;
+      out.push(
+        `In the first seas ${w[0]} prospered under your hand, and the living world after them ran the more to ${w[1]} (${count(before)} lineages of them, now ${count(after)}).`,
+      );
+    }
+  }
+  if (before.people && after.people && before.people.name !== after.people.name)
+    out.push(
+      `It was the ${after.people.name} that rose to thought, not the ${before.people.name}.`,
+    );
+  else if (!before.people && after.people) out.push(`The ${after.people.name} rose to thought.`);
+  else if (before.people && !after.people) out.push("No lineage rose to thought.");
+  return out.join(" ");
+}

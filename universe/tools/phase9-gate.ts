@@ -258,7 +258,9 @@ console.log("the Phase 9 gate");
   say(
     `the genesis: ${seen.length} stages told (${seen.map((t) => t.split(":")[0]).join(" · ")}), ${choices.length} places to begin`,
   );
-  if (seen.length < 10 || choices.length < 5)
+  // (Nine stages on the deep clock since Phase 24: the galaxy, the star, the world forming, the
+  // dawn's four, the living world's ages, the people.)
+  if (seen.length < 9 || choices.length < 5)
     problems.push("the genesis did not play through to where to begin");
   else {
     await choices[0]!.click();

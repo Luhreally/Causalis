@@ -56,7 +56,7 @@ const BEGINNINGS = [
     "genesis",
     "🌌",
     "From its very beginning",
-    "the galaxy born, the world formed, life and people arising — then choose when to begin",
+    "watch the galaxy born, the world formed, the first cells, beasts and people arise — pause it, lay your hand on it — then begin in their first camp",
   ],
   ["farmers", "🏕️", "At its first farmers", "year 0: the first villages"],
   ["later", "🏛️", "Three centuries on", "realms and wars under way (it takes a moment to reach)"],

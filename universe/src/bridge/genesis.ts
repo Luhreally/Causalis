@@ -1,9 +1,35 @@
 // A world's beginning, as the genesis shows it (Phase 9 M89): its deep ages, oldest first;
 // every lineage of its living things — the age it arose in and the age it died out in, its
-// body in words and in plan; and the people that rose to thought, where and why.
+// body in words and in plan; and the people that rose to thought, where and why. Played on a
+// deep clock (Phase 24): how old the world is, the steps of life's dawn and when each came, a
+// drop of its first seas, and the acts the god's hand laid on its dawn.
+import type { Block } from "./inspect.ts";
 import type { BeastPlan } from "./village.ts";
 
 export type GenesisPlan = {
+  /** The seed's text this is the beginning of (its acts in it), and its world's name. */
+  readonly seed: string;
+  readonly name: string;
+  /** How old the world is, millions of years. */
+  readonly worldAge: number;
+  /**
+   * The steps of life's dawn, oldest first: when each came (millions of years ago), and what
+   * it was — the first replicators, cells, light-eaters, the air, the nucleus, cells together,
+   * the first bodies, their great radiation, life ashore.
+   */
+  readonly rungs: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly at: number;
+    readonly words: string;
+  }[];
+  /** A drop of its first seas, for the dawn to be watched in (its small lives by their ways). */
+  readonly drop: Extract<Block, { type: "drop" }> | null;
+  /** The acts laid on its dawn: the ages made otherwise (index, kind), what prospered in its seas. */
+  readonly acts: {
+    readonly ages: readonly { readonly age: number; readonly kind: string }[];
+    readonly dawn: string | null;
+  };
   readonly ages: readonly {
     readonly index: number;
     /** Millions of years ago, its start and end. */

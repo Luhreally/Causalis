@@ -1,7 +1,15 @@
 // A world with people (Phase 1): the home planet, and a first people in the
 // province that suits them best — warm enough, watered, rich in what can be
 // gathered — whose choice is itself a recorded decision the explainer can open.
-import { World, YEAR, apportion, hashString, type Ref, type Seed } from "../../kernel/index.ts";
+import {
+  World,
+  YEAR,
+  apportion,
+  hashString,
+  seedName,
+  type Ref,
+  type Seed,
+} from "../../kernel/index.ts";
 import { BIOME, cellRef, type HomeWorld } from "../../gen/index.ts";
 import { FEMALE, G, MALE, OCC, type LifeHistory, type Medium } from "../../rules/index.ts";
 import { peopleLife } from "./life.ts";
@@ -313,7 +321,9 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   });
   const culture = world.register(new CultureStore());
   world.addPinner(() => culture.pinned());
-  const cradle = cradleWays(home, hashString(`culture ${seed.text}`), origin);
+  // (Keyed on the world's name: the acts laid on its dawn change its ways only through what they
+  // change of its people and land.)
+  const cradle = cradleWays(home, hashString(`culture ${seedName(seed.text)}`), origin);
   culture.set(cradle);
   if (options.start !== "spread") {
     people(provinces.add(new Province(home, 0, origin)), first, peopleLife(g));

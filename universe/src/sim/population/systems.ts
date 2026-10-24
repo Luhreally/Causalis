@@ -18,6 +18,7 @@ import {
   periodIndex,
   purpose,
   refHash,
+  seedName,
   weightedIndex,
   type CauseRef,
   type Factor,
@@ -296,7 +297,7 @@ export function populationContext(world: World): PopulationContext {
     provinces: world.store<PopulationStore>("population.provinces"),
     settlements: world.store<SettlementStore>("population.settlements"),
     history: world.store<HistoryStore>("population.history"),
-    culture: hashString(`culture ${world.seed.text}`),
+    culture: hashString(`culture ${seedName(world.seed.text)}`),
   };
 }
 

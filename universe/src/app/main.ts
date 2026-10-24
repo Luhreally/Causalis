@@ -359,6 +359,8 @@ type Exposed = {
   bubblesNow?: () => { key: string; text: string; at: { x: number; y: number } | null }[];
   /** The camera's rig, for the look tools. */
   rig?: OrbitRig;
+  /** The genesis played (Phase 24): its stage and clock, the seed as the hand left it, its drop. */
+  genesis?: () => unknown;
 };
 const exposed: Exposed = {};
 (globalThis as { causalis?: Exposed }).causalis = exposed;
@@ -3371,6 +3373,30 @@ async function runPlanetPage(): Promise<void> {
     }
   };
   if (params.has("contact") && !loaded) void strangersCome();
+  // Begun from the genesis at the first people (?cradle, Phase 24): the rising flows on into their
+  // first years — the eye on their lands while their bands wander, and down to the first camp
+  // they settle as it is made (by day), unless the viewer has gone elsewhere by then.
+  const toTheCradle = async () => {
+    for (let tries = 0; tries < 900; tries++) {
+      const towns = await client.query<{ ref: string; cell: number; people: number }[]>({
+          type: "towns.map",
+          args: {},
+        }),
+        town = [...towns].sort((a, b) => b.people - a.people)[0];
+      if (town) {
+        if (scale !== "globe" || pageWindow.current) return;
+        const at = (await client.advance(0)).t,
+          hour = DAY / 24,
+          of = at % DAY;
+        if (of < 7 * hour || of >= 17 * hour)
+          await client.advance(at - of + (of < 7 * hour ? 0 : DAY) + 9 * hour);
+        await exposed.goTo?.(town.ref);
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  };
+  if (params.has("cradle") && !loaded) void toTheCradle();
   client.onFrame((frame) => {
     if (frame.view === "globe") paintGlobe();
     else if (frame.view === "region") paintRegion();
@@ -3414,13 +3440,16 @@ async function runGenesisPage(): Promise<void> {
     tier,
     universe,
     seed,
-    beginAt: (year) =>
-      (location.search = `?universe=${encodeURIComponent(universe)}&seed=${encodeURIComponent(seed)}${year > 0 ? `&year=${year}` : ""}`),
+    // (Begun from the seed's text as the genesis left it: the acts laid on its dawn in it.)
+    // (At the first people, the eye goes down to their first camp.)
+    beginAt: (year, text) =>
+      (location.search = `?universe=${encodeURIComponent(universe)}&seed=${encodeURIComponent(text)}${year > 0 ? `&year=${year}` : "&cradle=1"}`),
     another: () => {
       const u = new Uint32Array(1);
       crypto.getRandomValues(u);
       location.search = `?universe=alien&seed=${encodeURIComponent(`genesis ${u[0]! % 100000}`)}&genesis=1`;
     },
+    expose: (hooks) => Object.assign(exposed, hooks),
   });
 }
 

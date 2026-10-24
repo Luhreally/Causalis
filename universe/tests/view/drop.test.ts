@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FIELD_H, FIELD_W, newDrop, stepDrop, type DropState } from "../../src/ui/drop.ts";
+import { FIELD_H, FIELD_W, newDrop, stepDrop, type DropState } from "../../src/view/index.ts";
 import type { Block, DropKind } from "../../src/bridge/index.ts";
 
 type Drop = Extract<Block, { type: "drop" }>;

@@ -13,14 +13,14 @@ import {
   type Seed,
   type SphereGrid,
 } from "../kernel/index.ts";
-import type { Prior } from "../rules/index.ts";
+import { agesMade, dawnMade, type Prior } from "../rules/index.ts";
 import { makePlanet, makeStar, type Planet, type Star } from "./bodies.ts";
 import { makeSystem, type StarSystem } from "./system.ts";
 import { makeClimate, type Climate } from "./climate.ts";
 import { makeDeposits, type Deposit } from "./deposits.ts";
 import { ageRef } from "./kinds.ts";
 import { makeHydrology, type Hydrology } from "./hydrology.ts";
-import { makeDeepTime, type DeepTime } from "./deeptime.ts";
+import { AGES, makeDeepTime, type AgeKind, type DeepTime } from "./deeptime.ts";
 import { makeBiosphere, type Biosphere } from "./biosphere.ts";
 import { BOUNDARY, makeTectonics, type Tectonics } from "./plates.ts";
 
@@ -70,11 +70,20 @@ export function generateHomeWorld(
     tectonics = makeTectonics(grid, rng, planet),
     climate = makeClimate(grid, planet, tectonics.elevation),
     water = makeHydrology(grid, tectonics.elevation, climate.precipitation),
-    deep = makeDeepTime(grid, rng, planet, tectonics),
+    // (Its deep ages, and the way that prospered in its first seas, as the acts laid on its dawn
+    // made them: Phase 24.)
+    deep = makeDeepTime(
+      grid,
+      rng,
+      planet,
+      tectonics,
+      agesMade(seed.text, AGES) as ReadonlyMap<number, AgeKind>,
+    ),
     life = makeBiosphere(grid, rng, climate, water, tectonics.elevation, deep, {
       prior: prior.name,
       gravity: planet.gravity,
       ocean: planet.oceanFraction,
+      dawn: dawnMade(seed.text),
     }),
     deposits = makeDeposits(grid, rng, tectonics, climate, water, tectonics.elevation, deep);
   const h = new Hasher().string(prior.name).int(frequency).value(star).value(planet);
