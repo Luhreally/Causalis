@@ -28,6 +28,26 @@ const HEADINGS: Readonly<Record<string, readonly [string, string]>> = {
   city: ["Cities", "🏙️"],
   diplomacy: ["Diplomacy", "🤝"],
   culture: ["Ways", "🧭"],
+  knowledge: ["Knowledge", "💡"],
+  industry: ["Industry", "🏭"],
+  hand: ["The god's hand", "✋"],
+  settlement: ["Settlement", "🏘️"],
+  weather: ["Weather", "🌦️"],
+  trade: ["Trade", "📦"],
+  people: ["People", "🧑"],
+  peoples: ["Peoples of the stars", "👽"],
+  contact: ["Contact", "🛸"],
+};
+
+/** Events whose kind says itself better whole than as its domain and its word. */
+const TITLES: Readonly<Record<string, string>> = {
+  "peoples.sailed": "Ships set out among the stars",
+  "peoples.settled": "A star settled",
+  "peoples.landed": "They came down",
+  "peoples.met": "A meeting among the stars",
+  "peoples.raid": "A fleet from the stars",
+  "contact.met": "Contact",
+  "contact.exchange": "What passed between them",
 };
 
 /** Where a thing an event names is to be seen (its place, most often a land). */
@@ -84,7 +104,7 @@ export function eventPage(world: World, ref: string): PageModel {
     ref,
     kind: "event",
     icon: heading[1],
-    title: `${heading[0]}${what ? `: ${what.replace(/-/g, " ")}` : ""}`,
+    title: TITLES[type] ?? `${heading[0]}${what ? `: ${what.replace(/-/g, " ")}` : ""}`,
     subtitle: [
       ...(year !== null ? [`Year ${year}`] : []),
       ...(e?.place ? [" · ", refLink(world, e.place)] : []),

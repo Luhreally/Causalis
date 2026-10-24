@@ -6,11 +6,13 @@ import { PROPULSION, STAR_DRIVES } from "../rules/index.ts";
 import {
   CONTACT_EVENTS,
   GREAT_ACT_EVENTS,
+  PEOPLES_EVENTS,
   SPACE_EVENTS,
   STARWAR_EVENTS,
   VOYAGE_EVENTS,
 } from "../sim/index.ts";
 import { registerEventWords } from "./why.ts";
+import { count } from "./words.ts";
 
 type Flight = { realm?: string; speed?: number; engine?: string; stages?: number };
 
@@ -67,4 +69,86 @@ registerEventWords(GREAT_ACT_EVENTS.warm.type, (_world, e) => {
 registerEventWords(GREAT_ACT_EVENTS.flare.type, (_world, e) => {
   const d = (e.data ?? {}) as { sign?: number; years?: number };
   return `By your hand a star ${d.sign === -1 ? "flared, its light deadlier to all under it" : "grew calm, its light kinder"} for ${d.years ?? "some"} years, year ${yearOfMoment(e.t)}`;
+});
+
+// The peoples of the stars (Phase 18 M133): their ships, landings, meetings, exchanges and fleets.
+type Peoples = {
+  name?: string;
+  kind?: string;
+  realm?: string | null;
+  other?: string | null;
+  otherKind?: string | null;
+  theirs?: string;
+  ours?: string;
+  omen?: boolean;
+  far?: boolean;
+  heard?: boolean;
+  years?: number;
+  distance?: number;
+  what?: string;
+  principle?: string | null;
+  machines?: number;
+  won?: boolean;
+  taken?: boolean;
+};
+const people = (d: Peoples) => `the ${d.name ?? "strangers"}`;
+const realmOf = (d: Peoples) => (d.realm ? `the realm of ${d.realm}` : "a land with no realm");
+const IN: Readonly<Record<string, string>> = {
+  wonder: "in wonder",
+  fear: "in fear",
+  trade: "to trade",
+  war: "for war",
+};
+const cap = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+registerEventWords(PEOPLES_EVENTS.sailed.type, (_world, e) => {
+  const d = (e.data ?? {}) as Peoples & { kind?: string };
+  const what =
+    d.kind === "envoys"
+      ? `sent envoys toward the home world, ${d.heard ? "having heard its signals" : "having seen that it lives"}`
+      : d.kind === "fleet"
+        ? `sent a fleet against ${d.realm ? `the realm of ${d.realm}` : "a foe among the stars"}`
+        : "sent settlers to another star";
+  return `${cap(people(d))} ${what}: ${d.years ?? "many"} years on the way, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(PEOPLES_EVENTS.settled.type, (_world, e) => {
+  const d = (e.data ?? {}) as Peoples;
+  return `Settlers of ${people(d)}${d.kind ? `, ${d.kind},` : ""} came down about a star ${d.distance ?? "?"} light-years from their own, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(PEOPLES_EVENTS.landed.type, (_world, e) => {
+  const d = (e.data ?? {}) as Peoples,
+    where = d.realm ? `by the seat of the realm of ${d.realm}` : "in the most peopled land";
+  return d.omen
+    ? `A ship of ${people(d)} — ${d.kind ?? "strangers"} of another star — came down ${where}; they looked, and were seen, and went, year ${yearOfMoment(e.t)}`
+    : `Envoys of ${people(d)}, ${d.kind ?? "strangers"} of another star, came down ${where}${d.heard ? ", come because they heard the world's signals" : ""}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(PEOPLES_EVENTS.met.type, (_world, e) => {
+  const d = (e.data ?? {}) as Peoples;
+  return `${cap(people(d))} met ${realmOf(d)}${d.far ? " at another star" : ""}: they came ${IN[d.theirs ?? ""] ?? "unknown"}, and were met ${IN[d.ours ?? ""] ?? "unknown"}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(PEOPLES_EVENTS.among.type, (_world, e) => {
+  const d = (e.data ?? {}) as Peoples;
+  return `${cap(people(d))} met the ${d.other ?? "strangers"}${d.otherKind ? `, ${d.otherKind},` : ""} among the stars: they came ${IN[d.theirs ?? ""] ?? "unknown"}, and were met ${IN[d.ours ?? ""] ?? "unknown"}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(PEOPLES_EVENTS.exchange.type, (_world, e) => {
+  const d = (e.data ?? {}) as Peoples,
+    y = yearOfMoment(e.t);
+  if (d.other)
+    return `${cap(people(d))} and the ${d.other} exchanged ${d.what ?? "gifts"}, year ${y}`;
+  return d.what === "knowledge"
+    ? `${cap(people(d))} taught ${realmOf(d)} ${d.principle ?? "something new"}, year ${y}`
+    : d.what === "goods"
+      ? `${cap(people(d))} traded ${realmOf(d)} goods worth ${count(d.machines ?? 0)} machines, year ${y}`
+      : `Time among ${people(d)} opened the ways of ${realmOf(d)} to strangers, year ${y}`;
+});
+registerEventWords(PEOPLES_EVENTS.raid.type, (_world, e) => {
+  const d = (e.data ?? {}) as Peoples,
+    y = yearOfMoment(e.t);
+  if (d.other)
+    return d.won
+      ? `A fleet of ${people(d)} ${d.taken ? "took a star" : "struck"} of the ${d.other}, year ${y}`
+      : `A fleet of ${people(d)} came against the ${d.other} and was beaten off, year ${y}`;
+  return d.won
+    ? `A fleet of ${people(d)} fell on ${d.far ? "the halls of " : ""}${realmOf(d)}${d.far ? " at another star" : ""} and burned them, year ${y}`
+    : `A fleet of ${people(d)} came against ${realmOf(d)} and was beaten off, year ${y}`;
 });

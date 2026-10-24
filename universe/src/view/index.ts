@@ -233,13 +233,20 @@ export {
   type SystemSpot,
 } from "./system.ts";
 export {
+  BURST_SHOWN,
   LY_SCALE,
+  MEETING_SHOWN,
+  REACTION_ICONS,
   clusterSpec,
   clusterWords,
+  peopleMarks,
   starColor,
   voyageMarks,
   type FleetHead,
+  type PeopleMark,
+  type ReactionMark,
   type Rgb3,
+  type StarLine,
   type VoyageMark,
 } from "./cluster.ts";
 export { bandsOf, groundOf, worldColors } from "./worlds.ts";

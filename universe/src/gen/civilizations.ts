@@ -5,7 +5,14 @@
 // aggregate, never as a second planet: when their chronicle began against ours, how fast
 // they go, and so when they came to electronics (their signals leave at light's speed),
 // to orbit (later on a heavier world, as the rocket equation says) and to the stars.
-import { defineKind, defineStream, makeRef, type Ref, type Rng } from "../kernel/index.ts";
+import {
+  defineKind,
+  defineStream,
+  makeRef,
+  parseRef,
+  type Ref,
+  type Rng,
+} from "../kernel/index.ts";
 import { CLADES, toOrbit } from "../rules/index.ts";
 import type { GalaxyStar } from "./galaxy.ts";
 import type { ForeignPlanet } from "./system.ts";
@@ -13,6 +20,7 @@ import type { ForeignPlanet } from "./system.ts";
 export const CIVILIZATION = defineKind("civ", "civilization of another star", "structural");
 
 const CIVS = defineStream("gen.civilizations");
+const NAMES = defineStream("gen.civilization.names");
 
 /**
  * The home world's own pace, as the Earth seed's calibrated chronicle keeps it: the years
@@ -91,4 +99,47 @@ export function civilizationsOf(
     }
   }
   return out;
+}
+
+// The sounds of a people's name for itself: not the home world's (gen/names.ts), but other.
+const ONSETS = [
+  "k",
+  "q",
+  "v",
+  "z",
+  "x",
+  "th",
+  "sh",
+  "zh",
+  "r",
+  "s",
+  "m",
+  "n",
+  "t",
+  "h",
+  "y",
+  "l",
+  "kr",
+  "vr",
+  "gr",
+  "ts",
+];
+const VOWELS = ["a", "e", "i", "o", "u", "aa", "ei", "ou", "y", "ai"];
+const CODAS = ["", "", "r", "n", "k", "th", "x", "l", "sh"];
+const ENDINGS = ["i", "a", "on", "ix", "ur", "eth", "ai", "ok", "ani", "esh"];
+
+/** What a civilization calls itself, by a draw keyed to it: the same each time. */
+export function civName(rng: Rng, civ: { readonly ref: Ref }): string {
+  const { a, b } = parseRef(civ.ref),
+    u = (n: number) => rng.real(NAMES, (a * 4096 + b) >>> 0, 0, 0, n),
+    pick = (list: readonly string[], n: number) => list[Math.floor(u(n) * list.length)]!,
+    syllables = 1 + Math.floor(u(0) * 2);
+  let name = "";
+  for (let s = 0; s < syllables; s++)
+    name +=
+      pick(ONSETS, 1 + 3 * s) +
+      pick(VOWELS, 2 + 3 * s) +
+      (s === syllables - 1 ? pick(CODAS, 3 + 3 * s) : "");
+  name += pick(ENDINGS, 9);
+  return name.charAt(0).toUpperCase() + name.slice(1);
 }

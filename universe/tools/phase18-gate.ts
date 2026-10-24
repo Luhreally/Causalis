@@ -4,6 +4,10 @@
 // a real browser on the built app:
 //   1. life elsewhere: another star's world with bodies, its life told, its bodies drawn and
 //      a drop of its seas under the glass; its star's page telling each world's life;
+//   2. the peoples among the stars: a world whose neighbours came to the stars long ago —
+//      the stars they hold and how they met, drawn in the cluster and listed beside it; a
+//      people's own page; and on the home world the omen of their landing, named over its
+//      land on the globe, their ship over the town and themselves among its people;
 // (npm run build first; --soft draws in software, as CI's browser does; --shots keeps a
 // picture of each step.)
 import { mkdirSync } from "node:fs";
@@ -160,6 +164,134 @@ await page.waitForTimeout(1500);
     check(opened && bodies >= 3 && still === bodies, "another world's bodies are not drawn");
     check(glass === 1 && kinds >= 2, "another world's drop is not drawn");
     check(told && /bodies/.test(words), "a star's page does not tell its worlds' life");
+  }
+}
+
+// 2. The peoples among the stars (M133–M135), on a world whose neighbours are old at the stars:
+// one came down by its greatest seat in the year 126, and looked, and went.
+{
+  await page.goto(`${base}?universe=alien&seed=tide&year=127`);
+  await page.waitForFunction(
+    () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
+    undefined,
+    { timeout: 900000 },
+  );
+  await k("globalThis.causalis.client.setSpeed(0)");
+  await page.waitForTimeout(1500);
+  type Peoples = {
+    civs: { ref: string; name: string; holds: unknown[] }[];
+    meetings: { civ: string; event: string }[];
+    landings: { civ: string; cell: number; year: number; omen: boolean }[];
+  };
+  const sky = await q<{ peoples?: Peoples }>("space.state"),
+    p = sky.peoples,
+    held = p?.civs.filter((c) => c.holds.length > 1).length ?? 0,
+    landing = p?.landings.at(-1);
+  say(
+    `the peoples: ${p?.civs.length ?? 0}, ${held} holding stars, ${p?.meetings.length ?? 0} met, ${p?.landings.length ?? 0} landed`,
+  );
+  check(held >= 2, "no peoples hold stars about their own");
+  check(!!landing && landing.omen, "no people came down on the home world, as an omen");
+  // On the globe: their name over the land they came down in.
+  await until(
+    "the visitors named on the globe",
+    async () => (await k<number>("globalThis.causalis.visits?.() ?? 0")) > 0,
+    slow(20000),
+  );
+  // The stars about us: their holds ringed, their reach and lines of contact drawn, and how
+  // they met where they met.
+  await k("globalThis.causalis.stars()");
+  await until(
+    "the stars about us",
+    async () => (await k<number>("globalThis.causalis.starCount()")) > 0,
+    slow(60000),
+  );
+  await page.waitForTimeout(slow(4000));
+  const icons = await page.$$eval(
+      ".label",
+      (ls) => ls.filter((l) => /✨|😨|🤝|⚔/u.test(l.textContent ?? "")).length,
+    ),
+    listed = await count(".people-line");
+  await shot("2-peoples-among-the-stars");
+  say(`among the stars: ${listed} peoples listed, ${icons} meetings shown`);
+  check(listed >= 2, "the peoples are not listed beside the stars");
+  check(icons >= 1, "how peoples met is not shown where they met");
+  // A people's own page: its nature, its stars, whom it met.
+  if (landing) {
+    const civ = p!.civs.find((c) => c.ref === landing.civ)!,
+      opened = await open(civ.ref, "a people's page", "Their nature"),
+      met = await open(`${civ.ref}#met`, "whom they met", "Whom they met");
+    await shot("2-their-page");
+    say(
+      `their page: ${civ.name} — ${opened && met ? "their nature, stars and meetings" : "not whole"}`,
+    );
+    check(opened && met, "a people's page does not tell its nature and meetings");
+    await k(`document.querySelector(".page-window .close")?.click()`);
+    // Down into the town they came down by: their ship over it, themselves among its people.
+    const towns = await q<{ ref: string; cell: number; people: number }[]>("towns.map"),
+      town = towns.filter((t) => t.cell === landing.cell).sort((a, b) => b.people - a.people)[0];
+    if (!town) problems.push("no town where they came down");
+    else {
+      // (As a page's “go to” takes one there, from the stars.)
+      await k(`globalThis.causalis.goTo(${JSON.stringify(town.ref)})`);
+      await until(
+        "the visitors in the village",
+        async () =>
+          ((await k<{ groups: number } | null>("globalThis.causalis.visitors?.() ?? null"))
+            ?.groups ?? 0) > 0,
+        slow(60000),
+      );
+      await page.waitForTimeout(slow(2500));
+      const shown = await k<{ groups: number; figures: number; whys: string[] } | null>(
+          "globalThis.causalis.visitors?.() ?? null",
+        ),
+        named = await page.$$eval(
+          ".label",
+          (ls) => ls.filter((l) => (l.textContent ?? "").includes("🛸")).length,
+        );
+      await shot("2-their-ship-over-the-town");
+      say(
+        `in the town they came down by: ${shown?.groups ?? 0} ship (${shown?.whys.join(", ") ?? "none"}), ${shown?.figures ?? 0} of them among its people, ${named ? "named" : "not named"}`,
+      );
+      check(
+        (shown?.groups ?? 0) >= 1 && (shown?.figures ?? 0) >= 1,
+        "their ship and people are not drawn",
+      );
+      check(named >= 1, "their ship is not named over it");
+      // A tap on their ship: the eye goes down among them, and their coming opens; they show
+      // how they came, as the people show what they talk of (the land's talk is of them).
+      const ship = (
+        await k<{ x: number; y: number }[]>("globalThis.causalis.visitorsOnScreen?.() ?? []")
+      )[0];
+      if (ship) {
+        const before = await k<number>("globalThis.causalis.rig.distance");
+        await k(`globalThis.causalis.tapVillage(${ship.x}, ${ship.y + 26})`);
+        await until(
+          "their coming opened, the eye among them",
+          async () =>
+            (await page
+              .$eval(".page-window .page-title", (e) => e.textContent ?? "")
+              .catch(() => "")) !== "" && !(await k<boolean>("globalThis.causalis.rig.flying")),
+          slow(20000),
+        );
+        await page.waitForTimeout(slow(3000));
+        const near = await k<number>("globalThis.causalis.rig.distance"),
+          opened = await page
+            .$eval(".page-window .page-title", (e) => e.textContent ?? "")
+            .catch(() => ""),
+          signs = (
+            await k<{ key: string; text: string }[]>("globalThis.causalis.bubblesNow()")
+          ).filter((b) => b.key.startsWith("visitor:"));
+        await k(`document.querySelector(".page-window .close")?.click()`);
+        await page.waitForTimeout(slow(800));
+        await shot("2-among-them");
+        say(
+          `a tap on their ship: “${opened}” opened, the eye from ${before.toFixed(0)} to ${near.toFixed(0)}, ${signs.length} of them showing how they came (${signs.map((b) => b.text).join("")})`,
+        );
+        check(!!opened && near < before, "a tap on their ship does not go down to them");
+        check(signs.length >= 1, "the visitors do not show how they came");
+      } else check(false, "their ship is not on the screen");
+    }
   }
 }
 

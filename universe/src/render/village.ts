@@ -43,6 +43,7 @@ import {
   gableMesh,
 } from "./batch.ts";
 import { FaunaLayer, type PickedBeast } from "./fauna.ts";
+import { VisitorsLayer } from "./visitors.ts";
 import { WorkLayer, type Carrier } from "./work.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
@@ -120,6 +121,8 @@ export class VillageScene {
   private marked: number | null = null;
   /** What lives about the village: its herds, hunters, flocks, birds and fish (M77). */
   private readonly fauna: FaunaLayer;
+  /** Visitors from another star (Phase 18 M134): their ship and their people. */
+  private readonly visitors: VisitorsLayer;
   /** Its work you can see: what its people carry, its mine and works, its road, its smoke (M78). */
   private readonly work: WorkLayer;
   private readonly carriers: Carrier[] = [];
@@ -141,6 +144,7 @@ export class VillageScene {
     this.root.addChild(this.marker);
     this.fauna = new FaunaLayer(stage, this.root);
     this.work = new WorkLayer(stage, this.root);
+    this.visitors = new VisitorsLayer(stage, this.root);
     this.root.enabled = false;
   }
 
@@ -162,7 +166,12 @@ export class VillageScene {
     for (const b of this.batches) b.destroy();
     this.batches = [];
     for (const child of [...this.root.children])
-      if (child !== this.marker && child !== this.fauna.root && child !== this.work.root)
+      if (
+        child !== this.marker &&
+        child !== this.fauna.root &&
+        child !== this.work.root &&
+        child !== this.visitors.root
+      )
         child.destroy();
     this.stacks = [];
     this.plan = plan;
@@ -684,6 +693,7 @@ export class VillageScene {
     this.moments = [];
     // Beasts about it, as many as the setting draws; birds and fish where small motions are drawn.
     this.fauna.build(plan, s.quality.wildlife, s.quality.detail, s.quality.motion);
+    this.visitors.build(plan, s.quality.detail);
     // Its work: what its people carry, its mine and works, its road's traffic, its smoke
     // (the watched homes' hearths first).
     this.hearths =
@@ -752,6 +762,7 @@ export class VillageScene {
     // (The beasts move by the screen's clock: a look, at any speed the world runs.)
     const screen = this.heldFauna ?? performance.now() / 1000;
     this.fauna.update(screen);
+    this.visitors.update(screen);
     const parts = this.figure.parts,
       // Strides and the motions of work: by the screen's clock, each person a little out of step.
       clock = performance.now() / 1000,
@@ -1054,6 +1065,23 @@ export class VillageScene {
     return this.carriers.map((c) => ({ x: c.x / M, z: c.z / M, carry: c.carry }));
   }
 
+  /** Visitors from another star shown (Phase 18 M134): how many groups, figures, and why each is here. */
+  visitorsShown(): VisitorsLayer["shown"] {
+    return this.visitors.shown;
+  }
+  /** The visitors (their ship) nearest a screen point: their event, and where to look at them. */
+  pickVisitors(x: number, y: number): ReturnType<VisitorsLayer["pick"]> {
+    return this.visitors.pick(x, y);
+  }
+  /** Each group's name over its ship, where it is on the screen. */
+  visitorsOnScreen(): ReturnType<VisitorsLayer["onScreen"]> {
+    return this.visitors.onScreen();
+  }
+  /** The eye's yaw that faces the visitors across the village, or null with none. */
+  visitorsFacing(): number | null {
+    return this.visitors.facing();
+  }
+
   /** Every beast about the village now (for the look tools). */
   faunaNow(): ReturnType<FaunaLayer["now"]> {
     return this.fauna.now();
@@ -1085,8 +1113,8 @@ export class VillageScene {
   }
 
   /**
-   * What the people in view are saying now (M86), as signs over their heads: at most `most`
-   * of them, the nearest first.
+   * What the people in view are saying now (M86), as signs over their heads, and the visitors
+   * from another star how they came (M134): at most `most` of them, the nearest first.
    */
   bubbles(
     most = 24,
@@ -1115,6 +1143,7 @@ export class VillageScene {
         priority: -d,
       });
     });
+    out.push(...this.visitors.bubbles(clock));
     return out.sort((a, b) => b.priority - a.priority).slice(0, most);
   }
 

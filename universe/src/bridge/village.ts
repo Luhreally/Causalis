@@ -175,6 +175,13 @@ export type VillagePlan = {
     readonly well: { readonly x: number; readonly z: number; readonly ref: string } | null;
     readonly factory: { readonly x: number; readonly z: number; readonly ref: string } | null;
   };
+  /**
+   * Visitors from another star (Phase 18 M134): a people of the stars just come down here (or
+   * seen to come and go, before this world could speak), kept here as an embassy while the two
+   * stand well, or its fleet over the land in war. Their ship in the sky; and, unless in war, a
+   * few of them among the people in their own bodies, in their own colour.
+   */
+  readonly visitors?: readonly Visitor[];
   /** Their body, as the figure needs it (null: upright apes, as ever). */
   readonly body: {
     readonly clade: string;
@@ -187,4 +194,24 @@ export type VillagePlan = {
     /** How long they live, years: their old age comes as late. */
     readonly span: number;
   } | null;
+};
+
+/** A people of another star at a land (Phase 18 M134). */
+export type Visitor = {
+  readonly civ: string;
+  /** What it calls itself ("the Laxai"), and what it is ("trunked giants"). */
+  readonly name: string;
+  readonly kind: string;
+  readonly body: NonNullable<VillagePlan["body"]>;
+  readonly color: readonly [number, number, number];
+  /** Why they are here: come down now, come and gone as an omen, an embassy, or a fleet's raid. */
+  readonly why: "landing" | "omen" | "embassy" | "raid";
+  readonly year: number;
+  /** The event to open: their landing, their latest exchange, or the raid. */
+  readonly event: string;
+  /** How many of them stand among the people (none in war). */
+  readonly count: number;
+  /** How they came, and how the land met them ("wonder", "fear", "trade", "war"), if they met. */
+  readonly theirs: string | null;
+  readonly ours: string | null;
 };

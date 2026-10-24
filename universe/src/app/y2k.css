@@ -2723,3 +2723,18 @@ body.with-palette .hint {
   padding: 0 6px;
   font-weight: 700;
 }
+
+/* The peoples among the stars (Phase 18 M134): each line led by its people's colour. */
+.people-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+}
+.people-swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px currentColor;
+}

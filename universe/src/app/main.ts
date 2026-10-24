@@ -111,6 +111,7 @@ import {
   sandboxSpec,
   skyMarks,
   voyageMarks,
+  peopleMarks,
   systemExtent,
   systemSpec,
   worldColors,
@@ -244,6 +245,13 @@ type Exposed = {
   stage?: Stage;
   /** Beasts, birds and fish drawn about the village watched (0 elsewhere), and each beast now. */
   beasts?: () => number;
+  /** How many lands visitors from another star are at now (Phase 18 M134). */
+  visits?: () => number;
+  /** Visitors from another star in the village shown (Phase 18 M134), or null off the village. */
+  visitors?: () => { groups: number; figures: number; whys: string[] } | null;
+  /** Where each group's ship stands on the screen, and a tap in the village as by hand. */
+  visitorsOnScreen?: () => { key: string; text: string; x: number; y: number }[];
+  tapVillage?: (x: number, y: number) => void;
   faunaNow?: () => {
     name: string;
     niche: string;
@@ -1206,6 +1214,32 @@ async function runPlanetPage(): Promise<void> {
         : [],
     );
   };
+  // Visitors from another star (Phase 18 M134): over each land where they came down, keep an
+  // embassy, or struck, their name.
+  let visits: { cell: number; text: string; event: string }[] = [];
+  client.subscribe<typeof visits>({ type: "peoples.visits" }, 3000, (v) => (visits = v));
+  const visitMarks = (): Label[] => {
+    const frame = client.latestFrame("globe");
+    if (!frame || !visits.length) return [];
+    const p = sphereGrid((frame.meta as { frequency: number }).frequency).positions,
+      at = globe.screenOf(
+        visits.map((v) => ({ x: p[v.cell * 3]!, y: p[v.cell * 3 + 1]!, z: p[v.cell * 3 + 2]! })),
+        1.04,
+      );
+    return visits.flatMap((v, i) =>
+      at[i]!.facing > 0.15
+        ? [
+            {
+              key: `visit:${v.event}`,
+              text: v.text,
+              at: { x: at[i]!.x, y: at[i]!.y - 16 },
+              priority: 1.7e9,
+            },
+          ]
+        : [],
+    );
+  };
+  exposed.visits = () => visits.length;
   /** Each host on the globe as its counter (M101): its realm's arms and the men it fields. */
   const globeCounters = (): Label[] =>
     globeWars.hostsOnScreen().flatMap((h) => {
@@ -1231,7 +1265,7 @@ async function runPlanetPage(): Promise<void> {
     if (rig.distance < 2.6 && performance.now() - townsAt > 30_000) void readTowns();
     globeTowns.update(rig.distance);
     const named = globeTowns.named(stage.camera.camera!, rig.distance),
-      counters = [...siegeMarks(), ...globeCounters()];
+      counters = [...visitMarks(), ...siegeMarks(), ...globeCounters()];
     if (named.length || counters.length || townsNamed)
       labels.update([
         ...counters,
@@ -1404,6 +1438,8 @@ async function runPlanetPage(): Promise<void> {
       case "village": {
         const i = village.pick(x, y);
         if (i !== null && plan?.people[i]) return plan.people[i]!.ref;
+        const visitors = village.pickVisitors(x, y);
+        if (visitors) return visitors.event;
         const beast = village.pickBeast(x, y);
         return beast ? beast.ref : villageThingAt(x, y);
       }
@@ -1701,6 +1737,17 @@ async function runPlanetPage(): Promise<void> {
       systemPanel.select(null);
     }
   };
+  // What has gone up and out among the stars, asked again every second while the sky is shown
+  // (from the home star's system, the stars about it, or another star's system).
+  const watchSky = () => {
+    stopSky?.();
+    stopSky = client.subscribe<SkyState>({ type: "space.state" }, 1000, (s) => {
+      sky = s;
+      systemPanel.update(s);
+      clusterPanel.update(s);
+      if (scale === "world" && worldFrom === "system" && seen) showHalls(seenAt, seen);
+    });
+  };
   const toSystem = async () => {
     scale = "system";
     stage.backdrop("space");
@@ -1719,13 +1766,7 @@ async function runPlanetPage(): Promise<void> {
     systemPanel.show(systemPlan);
     skyScene.mark(null);
     skyScene.visible = true;
-    stopSky?.();
-    stopSky = client.subscribe<SkyState>({ type: "space.state" }, 1000, (s) => {
-      sky = s;
-      systemPanel.update(s);
-      clusterPanel.update(s);
-      if (scale === "world" && worldFrom === "system" && seen) showHalls(seenAt, seen);
-    });
+    watchSky();
     systemPanel.visible = true;
     client.setSpeed(SKY_SPEED);
     rig.configure({
@@ -1841,6 +1882,8 @@ async function runPlanetPage(): Promise<void> {
       starScene.build(clusterPlan);
     }
     clusterPanel.show(clusterPlan);
+    // (Come here other than by the home star's system: the sky watched from here too.)
+    if (!stopSky) watchSky();
     starScene.mark(null, clusterPlan);
     starScene.visible = true;
     clusterPanel.visible = true;
@@ -2680,6 +2723,14 @@ async function runPlanetPage(): Promise<void> {
   stage.onUpdate(() => {
     if (scale !== "cluster" || !clusterPlan) return;
     starScene.voyages(voyageMarks(clusterPlan, sky, now() / YEAR));
+    // The peoples of other stars among them (Phase 18 M134), and how they met where they met.
+    starScene.peoples(peopleMarks(clusterPlan, sky, now() / YEAR));
+    const met: Label[] = starScene.reactionsOnScreen().map((r) => ({
+      key: `met:${r.ref}`,
+      text: r.text,
+      at: { x: r.sx, y: r.sy },
+      priority: 1.2e9,
+    }));
     // Each war fleet as its counter (M101): its realm's arms and its strength, edged by how
     // it stands to what is followed.
     const counters: Label[] = starScene.fleetsOnScreen().map((h) => ({
@@ -2692,8 +2743,8 @@ async function runPlanetPage(): Promise<void> {
         stance: followedRefs.has(h.realm) ? "ours" : followedRefs.has(h.enemy) ? "foe" : undefined,
       },
     }));
-    if (counters.length || fleetsNamed) labels.update(counters);
-    fleetsNamed = counters.length > 0;
+    if (counters.length || met.length || fleetsNamed) labels.update([...counters, ...met]);
+    fleetsNamed = counters.length + met.length > 0;
   });
   stage.onUpdate(() => {
     if (scale !== "system" || !skyPlan) return;
@@ -2767,6 +2818,9 @@ async function runPlanetPage(): Promise<void> {
       drift: drift(0.8),
       target: [0, 0, 0],
     });
+    // Visitors from another star (M134): the village opens facing them.
+    const facing = village.visitorsFacing();
+    if (facing !== null) rig.yaw = facing;
     // (And its haze starts as far off.)
     if (plan?.districts) stage.backdrop("ground", 110, true);
   };
@@ -2774,6 +2828,15 @@ async function runPlanetPage(): Promise<void> {
   const tapVillage = (x: number, y: number) => {
     const i = village.pick(x, y);
     if (i !== null) return selectPerson(i);
+    // Visitors from another star (M134): their landing, their embassy's latest, or their raid;
+    // the eye goes down to them, near enough to see them among the people.
+    const visitors = village.pickVisitors(x, y);
+    if (visitors) {
+      selectPerson(null);
+      rig.flyTo({ target: visitors.at, distance: visitors.distance, pitch: visitors.pitch });
+      void pageWindow.open(visitors.event);
+      return;
+    }
     const beast = village.pickBeast(x, y);
     if (!beast) {
       selectPerson(null);
@@ -2822,25 +2885,36 @@ async function runPlanetPage(): Promise<void> {
     if (Math.floor(clock.t / YEAR) !== planYear) void loadPlan(plan.ref);
     if (signs) bubbles.update(village.bubbles());
     // Families met are named over their homes; under the hand, the village is its own name.
+    // Visitors from another star named over their ship (M134).
+    const visitors = village.visitorsOnScreen().map((v) => ({
+      key: v.key,
+      text: v.text,
+      at: { x: v.x, y: v.y },
+      priority: 1e9,
+    }));
     if (plan.hand) {
-      labels.update([]);
+      labels.update(visitors);
       return;
     }
     const names = new Map(
       plan.people.map((p) => [plan!.homes[p.home]!.household, p.name.split(" ").at(-1)!]),
     );
-    labels.update(
-      village.homesOnScreen().map((h) => ({
+    labels.update([
+      ...visitors,
+      ...village.homesOnScreen().map((h) => ({
         key: h.household,
         text: names.get(h.household) ?? "",
         at: h.at,
         priority: 1,
       })),
-    );
+    ]);
   });
   exposed.watch = (ref: string) => void toVillage(ref);
   exposed.watching = () => (scale === "village" && plan ? plan.people.length : 0);
   exposed.beasts = () => (scale === "village" ? village.beastsDrawn : 0);
+  exposed.visitors = () => (scale === "village" ? village.visitorsShown() : null);
+  exposed.visitorsOnScreen = () => (scale === "village" ? village.visitorsOnScreen() : []);
+  exposed.tapVillage = tapVillage;
   exposed.faunaNow = () => (scale === "village" ? village.faunaNow() : []);
   exposed.holdFauna = (s: number | null) => {
     village.heldFauna = s;

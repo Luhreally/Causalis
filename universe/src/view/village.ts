@@ -666,6 +666,10 @@ export const SIGNS: Readonly<Record<string, string>> = {
   play: "😄",
   herd: "🐑",
   haggle: "💰",
+  // Visitors from another star (Phase 18 M134), and how the land met them.
+  visitors: "🛸",
+  wonder: "✨",
+  fear: "😨",
 };
 
 /**

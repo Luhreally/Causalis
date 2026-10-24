@@ -151,3 +151,184 @@ export function voyageMarks(
   }
   return { ships, rings, fleets, battles, heads };
 }
+
+/** A people of another star's mark (Phase 18 M134): where, its colour, and the page it opens. */
+export type PeopleMark = VoyageMark & { readonly color: Rgb3 };
+/** How two peoples met, shown where they met: each one's reaction as an icon. */
+export type ReactionMark = VoyageMark & { readonly text: string };
+/** A line among the stars: a people's reach between its holds, or two peoples' line of contact. */
+export type StarLine = {
+  readonly a: readonly [number, number, number];
+  readonly b: readonly [number, number, number];
+  readonly color: Rgb3;
+  readonly alpha: number;
+};
+
+export const REACTION_ICONS: Readonly<Record<string, string>> = {
+  wonder: "✨",
+  fear: "😨",
+  trade: "🤝",
+  war: "⚔️",
+};
+
+/** How long a meeting's icons, a raid's fire and a landing's burst stay shown (years). */
+export const MEETING_SHOWN = 80;
+export const BURST_SHOWN = 40;
+
+/**
+ * The peoples of other stars among them: each one's holds ringed in its colour (its own star
+ * the larger), its reach drawn between them, its ships under way, the lines of contact between
+ * peoples who met (green as they stand well, red as they stand ill, faint while they cannot yet
+ * speak), how each met the other where they met, and the bursts of raids and landings.
+ */
+export function peopleMarks(
+  plan: ClusterPlan,
+  sky: SkyState,
+  year: number,
+): {
+  readonly holds: readonly PeopleMark[];
+  readonly own: readonly PeopleMark[];
+  readonly ships: readonly PeopleMark[];
+  readonly fleets: readonly PeopleMark[];
+  readonly lines: readonly StarLine[];
+  readonly reactions: readonly ReactionMark[];
+  readonly raids: readonly (PeopleMark & { readonly age: number })[];
+  readonly landings: readonly (PeopleMark & { readonly age: number })[];
+} {
+  const p = sky.peoples,
+    empty = {
+      holds: [],
+      own: [],
+      ships: [],
+      fleets: [],
+      lines: [],
+      reactions: [],
+      raids: [],
+      landings: [],
+    };
+  if (!p) return empty;
+  const at = new Map(plan.stars.map((s) => [s.ref, s])),
+    place = (ref: string): [number, number, number] | null => {
+      if (ref === p.home) return [0, 0, 0];
+      const s = at.get(ref);
+      return s ? [s.x * LY_SCALE, s.z * LY_SCALE, s.y * LY_SCALE] : null;
+    },
+    apart = (a: readonly number[], b: readonly number[]) =>
+      Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!),
+    colorOf = new Map(p.civs.map((c) => [c.ref, c.color])),
+    holdsOf = new Map(
+      p.civs.map((c) => [c.ref, c.holds.map((h) => place(h.star)).filter((x) => x !== null)]),
+    ),
+    nearest = (civ: string, to: readonly number[]) => {
+      let best: [number, number, number] | null = null;
+      for (const h of holdsOf.get(civ) ?? []) if (!best || apart(h, to) < apart(best, to)) best = h;
+      return best;
+    };
+  const holds: PeopleMark[] = [],
+    own: PeopleMark[] = [],
+    lines: StarLine[] = [];
+  for (const c of p.civs) {
+    const placed = c.holds
+      .filter((h) => h.year <= year)
+      .map((h) => ({ h, at: place(h.star) }))
+      .filter((x): x is { h: (typeof c.holds)[number]; at: [number, number, number] } => !!x.at);
+    placed.forEach(({ h, at: xyz }, i) => {
+      const mark = { x: xyz[0], y: xyz[1], z: xyz[2], ref: c.ref, color: c.color };
+      (h.star === c.star ? own : holds).push(mark);
+      // Its reach: each hold joined to the nearest held before it.
+      let from: [number, number, number] | null = null;
+      for (const prior of placed.slice(0, i))
+        if (!from || apart(prior.at, xyz) < apart(from, xyz)) from = prior.at;
+      if (from) lines.push({ a: from, b: xyz, color: c.color, alpha: 0.85 });
+    });
+  }
+  // Lines of contact: from the people's nearest hold to where the other stands.
+  const reactions: ReactionMark[] = [],
+    told = new Map<string, number>();
+  for (const m of p.meetings) {
+    if (m.year > year) continue;
+    const where = place(m.star) ?? [0, 0, 0],
+      them =
+        m.with === "people"
+          ? (nearest(m.other, nearest(m.civ, where) ?? where) ?? where)
+          : m.star === p.home
+            ? [0, 0, 0]
+            : where,
+      mine = nearest(m.civ, them);
+    if (mine)
+      lines.push({
+        a: mine,
+        b: them as [number, number, number],
+        color: !m.talking ? [0.85, 0.85, 0.95] : m.regard >= 0 ? [0.35, 1, 0.55] : [1, 0.3, 0.25],
+        alpha: !m.talking ? 0.35 : 0.55 + 0.45 * Math.min(1, Math.abs(m.regard)),
+      });
+    if (year - m.year < MEETING_SHOWN) {
+      // (Several met at one star: their icons stacked a little apart.)
+      const key = where.join(","),
+        k = told.get(key) ?? 0;
+      told.set(key, k + 1);
+      reactions.push({
+        x: where[0],
+        y: where[1] + 0.25 + 0.22 * k,
+        z: where[2],
+        ref: m.event,
+        text: `${REACTION_ICONS[m.theirs] ?? "?"}${REACTION_ICONS[m.ours] ?? "?"}`,
+      });
+    }
+  }
+  const ships: PeopleMark[] = [],
+    fleets: PeopleMark[] = [];
+  for (const s of p.ships) {
+    const a = place(s.from),
+      b = place(s.to);
+    if (!a || !b || year < s.sailed) continue;
+    const k = Math.max(0, Math.min(1, (year - s.sailed) / Math.max(1, s.arrives - s.sailed))),
+      color = colorOf.get(s.civ) ?? [1, 1, 1],
+      at: [number, number, number] = [
+        a[0] + (b[0] - a[0]) * k,
+        a[1] + (b[1] - a[1]) * k,
+        a[2] + (b[2] - a[2]) * k,
+      ];
+    (s.kind === "fleet" ? fleets : ships).push({
+      x: at[0],
+      y: at[1],
+      z: at[2],
+      ref: s.event,
+      color,
+    });
+    // Its course: come so far bright, the rest of the way faint.
+    const fire: Rgb3 = [1, 0.35, 0.2];
+    lines.push(
+      { a, b: at, color: s.kind === "fleet" ? fire : color, alpha: 0.75 },
+      { a: at, b, color: s.kind === "fleet" ? fire : color, alpha: 0.22 },
+    );
+  }
+  const raids = p.raids
+      .filter((r) => r.year <= year && year - r.year < BURST_SHOWN)
+      .flatMap((r) => {
+        const xyz = place(r.star);
+        return xyz
+          ? [
+              {
+                x: xyz[0],
+                y: xyz[1],
+                z: xyz[2],
+                ref: r.event,
+                color: colorOf.get(r.civ) ?? [1, 0.4, 0.2],
+                age: year - r.year,
+              },
+            ]
+          : [];
+      }),
+    landings = p.landings
+      .filter((l) => l.year <= year && year - l.year < BURST_SHOWN)
+      .map((l) => ({
+        x: 0,
+        y: 0,
+        z: 0,
+        ref: l.event,
+        color: colorOf.get(l.civ) ?? [1, 1, 1],
+        age: year - l.year,
+      }));
+  return { holds, own, ships, fleets, lines, reactions, raids, landings };
+}

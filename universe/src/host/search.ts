@@ -8,6 +8,9 @@ import { offworldSite } from "../gen/index.ts";
 import {
   beliefOf,
   citiesOf,
+  civilizationsNear,
+  peoplesOf,
+  peopleWords,
   homePlanet,
   languagesOf,
   politiesOf,
@@ -175,6 +178,19 @@ export function search(world: World, asked: string, most = 24): Found[] {
         ? `born in year ${fmt(p.birthYear)}`
         : `died in year ${fmt(p.diedYear ?? 0)}`,
     }));
+  }
+  // The peoples of other stars (Phase 18 M135), by what they call themselves or what they are.
+  const store = peoplesOf(world);
+  for (const c of civilizationsNear(world)) {
+    const w = peopleWords(world, c),
+      held = store?.holdsOf(c.ref).length ?? 0;
+    for (const name of [w.name, w.kind])
+      offer(name, 8 + held, () => ({
+        ref: c.ref,
+        icon: "👽",
+        title: `The ${w.name}`,
+        subtitle: `${w.kind} of another star, ${c.distance.toFixed(1)} light-years out${held ? `, holding ${many(held, "star", "stars")}` : ""}`,
+      }));
   }
   return found
     .sort((a, b) => b.score - a.score || (a.f.title < b.f.title ? -1 : 1))

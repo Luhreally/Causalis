@@ -21,6 +21,7 @@ export {
   type BeastPlan,
   type VillageLife,
   type VillagePlan,
+  type Visitor,
 } from "./village.ts";
 export type { WorldGlobe } from "./worlds.ts";
 export type { Garrison, HostKinds, WarSide, WarsMap } from "./wars.ts";
@@ -52,6 +53,7 @@ export {
 export type {
   ClusterPlan,
   ClusterStar,
+  PeoplesSky,
   SkyState,
   StarPage,
   SystemPlan,

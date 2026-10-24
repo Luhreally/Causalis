@@ -554,9 +554,11 @@ export function installSpace(world: World, ctx: () => PopulationContext): SpaceS
   installVoyages(world, ctx);
   installContact(world, ctx);
   installStarWars(world, ctx);
+  installPeoples(world, ctx);
   return store;
 }
 
 import { installVoyages } from "./voyages.ts";
 import { installContact } from "./contact.ts";
 import { installStarWars } from "./starwar.ts";
+import { installPeoples } from "./peoples.ts";

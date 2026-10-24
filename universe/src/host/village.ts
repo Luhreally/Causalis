@@ -33,9 +33,16 @@ import {
 } from "../sim/index.ts";
 import { meetHousehold, observer, settleAll } from "../causal/index.ts";
 import { personThings } from "./inspect/things.ts";
-import { LAKE_R, WATER_OUT, type VillageLife, type VillagePlan } from "../bridge/index.ts";
+import {
+  LAKE_R,
+  WATER_OUT,
+  type VillageLife,
+  type VillagePlan,
+  type Visitor,
+} from "../bridge/index.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
+import { visitorsAt } from "./peoples.ts";
 
 /** Families the microscope watches in a village: a presentation budget, not a rule. */
 export const WATCHED_FAMILIES = 10;
@@ -283,9 +290,14 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
   /**
    * How the village lives now (M86), for what its people are seen doing and saying: from
    * its land's year (fed, growing in number), its realm (at war, its grievance), its faith,
-   * its living world's turns, what it has learned lately, and the watched families' years.
+   * its living world's turns, what it has learned lately, and the watched families' years;
+   * and, before all else, visitors from another star among them, and how the land met them.
    */
-  function lifeNow(cell: number, population: number): VillageLife {
+  function lifeNow(
+    cell: number,
+    population: number,
+    visitors: readonly Visitor[] | undefined,
+  ): VillageLife {
     const p = ctx.provinces.get(cell),
       years = ctx.history.yearsOf(cell),
       last = years.at(-1),
@@ -319,6 +331,10 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
     }
     // What they talk of, the most pressing first; small talk last.
     const talk: string[] = [];
+    for (const visitor of visitors ?? []) {
+      talk.push("visitors");
+      if (visitor.ours && !talk.includes(visitor.ours)) talk.push(visitor.ours);
+    }
     if (fed < 0.85) talk.push("hunger");
     if (war) talk.push("war");
     if (unrest > 0.3) talk.push("unrest");
@@ -499,7 +515,8 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
   }
 
   function planOf(people: VillagePlan["people"][number][]): VillagePlan {
-    const village = v!;
+    const village = v!,
+      visitors = visitorsAt(world, village.cell, now);
     return {
       ref,
       hand: !!hand && hand.village === ref,
@@ -525,8 +542,9 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       era: eraOf(village.cell),
       metal: toolMetal(ctx, village.cell),
       works: worksOf(village.cell),
-      life: lifeNow(village.cell, village.population),
+      life: lifeNow(village.cell, village.population, visitors),
       body: peopleBody(world),
+      visitors,
       // A city's road runs along its axis; a village's out toward the far fields.
       road: city
         ? { x: 1100 * Math.cos(city.axis), z: 1100 * Math.sin(city.axis) }

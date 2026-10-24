@@ -139,6 +139,7 @@ import { actsMap, paletteLand } from "./acts.ts";
 import { groundMap, spotGround } from "./inspect/ground.ts";
 import { worldGlobe } from "./worlds.ts";
 import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
+import { peoplesSky, visitsNow } from "./peoples.ts";
 
 const BOUNDARY_WORDS = ["none", "converging", "spreading", "sliding"];
 
@@ -734,6 +735,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
         const a = args as { x: number; y: number };
         return starsNear(world, a.x, a.y);
       },
+      /** Visitors from another star at the home world's lands now (Phase 18 M134). */
+      "peoples.visits": (world) => visitsNow(world),
       /** Who has reached the sky, and the colonies on the system's bodies. */
       "space.state": (world): SkyState => {
         const g = homePlanet(world).generated,
@@ -814,6 +817,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
             realm: named(realms.of(cell)?.ref ?? null),
             voyage: s.voyage,
           })),
+          peoples: peoplesSky(world),
         };
       },
       /** The home star's system: the star, and every planet and moon with its orbit and ground. */

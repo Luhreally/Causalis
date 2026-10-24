@@ -42,7 +42,7 @@ export const DISASTER = {
  * A share of a land's people dead, of every age and trade alike (never those the hand holds
  * as themselves): written into the ledger of deaths. How many died.
  */
-function strike(ctx: PopulationContext, cell: number, share: number, t: SimTime): number {
+export function strike(ctx: PopulationContext, cell: number, share: number, t: SimTime): number {
   const p = ctx.provinces.get(cell);
   if (!p) return 0;
   const year = yearOfMoment(t),
@@ -68,7 +68,7 @@ function spill(ctx: PopulationContext, cell: number, share: number): void {
 }
 
 /** A share of a land's cities' built blocks brought down (the middle first): how many. */
-function raze(ctx: PopulationContext, cell: number, share: number): number {
+export function raze(ctx: PopulationContext, cell: number, share: number): number {
   let down = 0;
   for (const v of ctx.settlements.inProvince(cell)) {
     const city = citiesOf(ctx.world).get(v.ref);
@@ -85,7 +85,7 @@ function raze(ctx: PopulationContext, cell: number, share: number): number {
 }
 
 /** A land's grief laid on its realm: its grievance deepened, the disaster its cause. */
-function grieve(world: World, cell: number, amount: number, cause: Ref): void {
+export function grieve(world: World, cell: number, amount: number, cause: Ref): void {
   const realms = politiesOf(world);
   if (!realms.of(cell)) return;
   const d = realms.discontent(cell);

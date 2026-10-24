@@ -16,7 +16,8 @@ import { agentPage, householdPage, memoryPage, personPage, townPage } from "./se
 import { battlePage, realmPageModel, relationPage, starWarPage, warPage } from "./realm.ts";
 import { designPage, faithPage, goodPage, languagePage } from "./culture.ts";
 import { agePage, depositPageModel, lineagePage, platePageModel } from "./life.ts";
-import { bodyPage, civilizationPage, foreignWorldPage, starPageModel } from "./sky.ts";
+import { bodyPage, foreignWorldPage, starPageModel } from "./sky.ts";
+import { civilizationPage } from "./starfolk.ts";
 import { actPage, decisionPage, eventPage, unknownPage } from "./history.ts";
 import { chroniclePage, ledgerPage } from "./world.ts";
 import { statsPage } from "./stats.ts";

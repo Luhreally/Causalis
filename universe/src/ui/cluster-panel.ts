@@ -2,7 +2,7 @@
 // many of each kind, the nearest — and a page for each star: its kind, distance, light
 // and age, and its worlds.
 import type { ClusterPlan, HostClient, SkyState, StarPage } from "../bridge/index.ts";
-import { clusterWords, starWords } from "../view/index.ts";
+import { REACTION_ICONS, clusterWords, starWords } from "../view/index.ts";
 import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
 import { steerWords } from "./keys.ts";
@@ -71,9 +71,76 @@ export class ClusterPanel {
   /** The cluster's page (null), or a star's. */
   /** The sky as it stands: its ships (the open page is redrawn when they change). */
   update(sky: SkyState): void {
-    const changed = JSON.stringify(sky.ships ?? []) !== JSON.stringify(this.sky.ships ?? []);
+    const changed =
+      JSON.stringify([sky.ships ?? [], peopleDigest(sky)]) !==
+      JSON.stringify([this.sky.ships ?? [], peopleDigest(this.sky)]);
     this.sky = sky;
     if (changed && !this.inspector.hidden) void this.select(this.shown);
+  }
+
+  /** The peoples of other stars (Phase 18 M134): each in its colour, what it holds, whom it met and how. */
+  private peoplesList(plan: ClusterPlan): HTMLElement[] {
+    const p = this.sky.peoples;
+    if (!p) return [];
+    const risen = p.civs.filter((c) => c.holds.length || p.meetings.some((m) => m.civ === c.ref));
+    if (!risen.length) return [];
+    return [
+      el("h3", undefined, "Peoples among the stars"),
+      ...risen.map((c) => {
+        const met = p.meetings.filter((m) => m.civ === c.ref || m.other === c.ref),
+          out = p.ships.filter((s) => s.civ === c.ref),
+          line = el("button", "line people-line"),
+          swatch = el("span", "people-swatch");
+        swatch.style.background = `rgb(${c.color.map((x) => Math.round(255 * x)).join(",")})`;
+        line.append(
+          swatch,
+          el(
+            "span",
+            undefined,
+            `${c.name}, ${c.kind}: ${c.holds.length} star${c.holds.length === 1 ? "" : "s"} held${out.length ? `, ${out.length} ship${out.length > 1 ? "s" : ""} out` : ""}${met.length ? ` — met ${met.map((m) => `${m.civ === c.ref ? m.otherName : (p.civs.find((x) => x.ref === m.civ)?.name ?? "strangers")} ${REACTION_ICONS[m.theirs] ?? ""}${REACTION_ICONS[m.ours] ?? ""}`).join(", ")}` : ""}`,
+          ),
+        );
+        const i = plan.stars.findIndex((x) => x.ref === c.star);
+        line.onclick = () => {
+          if (i < 0) return;
+          void this.select(i);
+          this.onSelect(i);
+        };
+        return line;
+      }),
+    ];
+  }
+
+  /** Who holds a star, and since when (Phase 18 M134). */
+  private heldHere(star: string): HTMLElement[] {
+    const p = this.sky.peoples;
+    if (!p) return [];
+    const out: HTMLElement[] = [];
+    for (const c of p.civs) {
+      const h = c.holds.find((x) => x.star === star);
+      if (!h) continue;
+      out.push(
+        el("h3", undefined, star === c.star ? `Home of ${c.name}` : `Held by ${c.name}`),
+        el(
+          "div",
+          "fact",
+          star === c.star
+            ? `${c.kind}: they rose here, and came to the stars in our year ${c.stars}`
+            : `${c.kind}: ${h.taken ? "taken by their fleets" : "settled"} in ${h.year < 0 ? `our year ${h.year}, before the chronicle began` : `the year ${h.year}`}`,
+        ),
+      );
+    }
+    for (const sh of p.ships.filter((x) => x.to === star)) {
+      const c = p.civs.find((x) => x.ref === sh.civ);
+      out.push(
+        el(
+          "div",
+          "fact",
+          `${sh.kind === "fleet" ? "A fleet" : sh.kind === "envoys" ? "Envoys" : "Settlers"} of ${c?.name ?? "strangers"} bound here, sailed ${sh.sailed}, arriving ${sh.arrives}`,
+        ),
+      );
+    }
+    return out;
   }
 
   async select(index: number | null): Promise<void> {
@@ -105,6 +172,7 @@ export class ClusterPanel {
               }),
             ]
           : []),
+        ...this.peoplesList(plan),
         el("h3", undefined, "The nearest"),
         ...plan.stars.slice(0, 12).map((s, i) => {
           const line = el(
@@ -167,6 +235,7 @@ export class ClusterPanel {
     const here = (this.sky.ships ?? []).filter((v) => v.star === s.ref),
       whyBox = el("div", "why");
     this.more.replaceChildren(
+      ...this.heldHere(s.ref),
       ...here.flatMap((v) => [
         el("h3", undefined, v.arrived ? "Halls of home's people here" : "A ship bound here"),
         el(
@@ -194,4 +263,16 @@ export class ClusterPanel {
     );
     if (here[0]) void this.why.show(here[0].voyage, whyBox);
   }
+}
+
+/** What of the peoples among the stars the panel shows: redrawn when it changes. */
+function peopleDigest(sky: SkyState): unknown {
+  const p = sky.peoples;
+  return p
+    ? [
+        p.civs.map((c) => c.holds.length),
+        p.ships.map((s) => s.event),
+        p.meetings.map((m) => [m.event, m.talking]),
+      ]
+    : null;
 }

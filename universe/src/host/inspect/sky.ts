@@ -4,6 +4,8 @@ import { CLADES } from "../../rules/index.ts";
 import {
   civilizationsNear,
   homePlanet,
+  peoplesOf,
+  peopleWords,
   populationContext,
   starSitesOf,
   starWarsOf,
@@ -120,9 +122,36 @@ export function starPageModel(world: World, ref: string): PageModel {
     }),
     stat("Age", `${f.ageGyr.toFixed(1)} billion years`),
   ];
-  const peopleItems: Item[] = civs.map((c) =>
-    item([link("A people of this star", c.ref), ` — on its ${ordinal(c.planet + 1)} world`], c.ref),
-  );
+  // Its own peoples, and the peoples of other stars who hold it (Phase 18 M135).
+  const store = peoplesOf(world),
+    holders = civilizationsNear(world).flatMap((c) => {
+      const h = store?.holdsOf(c.ref).find((x) => x.star !== c.star && sameStar(x.star, s));
+      return h ? [{ c, h }] : [];
+    });
+  const peopleItems: Item[] = [
+    ...civs.map((c) =>
+      item(
+        [
+          link(`The ${peopleWords(world, c).name}`, c.ref),
+          ` — they rose on its ${ordinal(c.planet + 1)} world`,
+        ],
+        c.ref,
+      ),
+    ),
+    ...holders.map(({ c, h }) =>
+      item(
+        [
+          link(`The ${peopleWords(world, c).name}`, c.ref),
+          h.from
+            ? ` — took it in ${h.year}`
+            : h.year < 0
+              ? " — held it before the chronicle began"
+              : ` — settled it in ${h.year}`,
+        ],
+        h.event ?? c.ref,
+      ),
+    ),
+  ];
   const shipItems: Item[] = ships.map(([cell, site]) =>
     item(
       [
@@ -401,52 +430,6 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
             },
           ]
         : []),
-    ],
-    followable: false,
-    year: yearNow(world),
-  };
-}
-
-/** Another star's people (`civ:`): who they are, where, and when they came to each stage. */
-export function civilizationPage(world: World, ref: string): PageModel {
-  const c = civilizationsNear(world).find((x) => x.ref === ref);
-  if (!c) throw new Error(`no people ${ref}`);
-  const name = CLADES.find((x) => x.id === c.clade)?.body.name ?? c.clade;
-  return {
-    ref,
-    kind: "civilization",
-    icon: "👽",
-    portrait: { kind: "flag", flags: [{ color: realmColor(ref), key: hashString(ref) }] },
-    title: `The ${name} of another star`,
-    subtitle: [
-      link(`its ${ordinal(c.planet + 1)} world`, `${c.star}/${c.planet}`),
-      `, ${c.distance.toFixed(1)} light-years out`,
-    ],
-    color: null,
-    place: { scale: "world", star: c.star, index: c.planet },
-    stats: [
-      stat("Distance", `${c.distance.toFixed(1)} light-years`),
-      stat("They live in", c.medium),
-      stat("Their pull", `${c.gravity.toFixed(2)} g`),
-    ],
-    tabs: [
-      {
-        id: "overview",
-        name: "Overview",
-        blocks: [
-          {
-            type: "facts",
-            rows: [
-              stat("Electronics", `year ${c.electronics}`),
-              stat("Orbit", `year ${c.orbit}`),
-              stat("The stars", `year ${c.stars}`),
-              stat("Their star", [link("their star", c.star)]),
-            ],
-          },
-          { type: "text", lines: [[claimOf(world, ref)]] },
-          { type: "why", ref },
-        ],
-      },
     ],
     followable: false,
     year: yearNow(world),

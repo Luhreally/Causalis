@@ -92,6 +92,74 @@ export type SkyState = {
     readonly realm: string | null;
     readonly voyage: string;
   }[];
+  /** The peoples of other stars (Phase 18 M133–M134): what each holds, its ships, whom it met. */
+  readonly peoples?: PeoplesSky;
+};
+
+/** How the peoples of other stars stand among them, for the cluster's view (Phase 18 M134). */
+export type PeoplesSky = {
+  /** The home star's ref: where envoys to the home world sail. */
+  readonly home: string;
+  readonly civs: readonly {
+    readonly ref: string;
+    /** What it calls itself ("the Kaari"), and what it is ("trunked giants"). */
+    readonly name: string;
+    readonly kind: string;
+    readonly star: string;
+    /** Its colour among the stars. */
+    readonly color: readonly [number, number, number];
+    /** The year it came to the stars (in ours), and the stars it holds. */
+    readonly stars: number;
+    readonly holds: readonly {
+      readonly star: string;
+      readonly year: number;
+      /** Taken from another people by its fleets. */
+      readonly taken: boolean;
+    }[];
+  }[];
+  readonly ships: readonly {
+    readonly civ: string;
+    readonly kind: "settlers" | "envoys" | "fleet";
+    readonly from: string;
+    readonly to: string;
+    readonly sailed: number;
+    readonly arrives: number;
+    readonly event: string;
+  }[];
+  readonly meetings: readonly {
+    readonly civ: string;
+    /** Whom they met: a realm, a land of the home world with no realm, or another people. */
+    readonly other: string;
+    readonly with: "realm" | "land" | "people";
+    readonly otherName: string;
+    readonly star: string;
+    readonly year: number;
+    /** How each met the other: "wonder", "fear", "trade" or "war". */
+    readonly theirs: string;
+    readonly ours: string;
+    /** How the two stand now (-1 … 1), and whether they can speak yet. */
+    readonly regard: number;
+    readonly talking: boolean;
+    readonly exchanges: number;
+    readonly raids: number;
+    readonly last: number;
+    readonly event: string;
+  }[];
+  readonly raids: readonly {
+    readonly civ: string;
+    readonly star: string;
+    readonly year: number;
+    readonly won: boolean;
+    readonly taken: boolean;
+    readonly event: string;
+  }[];
+  readonly landings: readonly {
+    readonly civ: string;
+    readonly cell: number;
+    readonly year: number;
+    readonly omen: boolean;
+    readonly event: string;
+  }[];
 };
 
 /** The stars within the cluster's reach of home (Phase 6 M56), each where it lies. */
