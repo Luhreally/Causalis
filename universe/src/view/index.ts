@@ -415,6 +415,7 @@ export {
   BAND_DAY,
   bandHour,
   bandPace,
+  bandPersonWords,
   bandQuarry,
   bandWords,
   newBand,

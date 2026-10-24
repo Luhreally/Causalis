@@ -7,6 +7,7 @@ import {
   BAND_DAY,
   MEADOW_STEP,
   bandHour,
+  bandPersonWords,
   bandQuarry,
   newBand,
   newMeadow,
@@ -78,4 +79,44 @@ test("a herding band's hunters leave its own flock be", () => {
   m.kinds[k]!.tame = true;
   assert.equal(bandQuarry(m, beast), false, "spared");
   assert.ok(before || m.kinds[k]!.size < 8 || m.kinds[k]!.size > 1200, "wild, it was quarry");
+});
+
+test("each of the band named in the land's tongue, and told by what they are at", () => {
+  const near = ask<CampNear>("camp.near", { cell, id: camps[0]!.id }),
+    m = newMeadow(near.plan, 0, near.plan.seed, true),
+    b = newBand(m, near.size, near.people, near.plan.seed, near.hour, near.names);
+  assert.equal(near.names.length, near.size);
+  assert.ok(
+    near.names.every((n) => n.length >= 2),
+    "a name each",
+  );
+  assert.ok(new Set(near.names).size >= near.size * 0.7, "their names mostly their own");
+  assert.deepEqual(
+    b.people.map((p) => p.name),
+    near.names,
+  );
+  // (Another camp's band are other people.)
+  if (camps[1])
+    assert.notDeepEqual(ask<CampNear>("camp.near", { cell, id: camps[1].id }).names, near.names);
+  // Through a day each is told by name, as one of the band, at what they are doing.
+  const roles = new Set<string>(),
+    doings = new Set<string>();
+  for (let i = 0; i < BAND_DAY / MEADOW_STEP; i++) {
+    stepMeadow(m);
+    stepBand(b, m);
+    if (i % 40) continue;
+    for (const p of b.people) {
+      const line = bandPersonWords(b, m, p.id);
+      assert.ok(line.startsWith(`${p.name}, `) && line.endsWith("."), line);
+      assert.ok(!/undefined|null|NaN/.test(line), line);
+      roles.add(line.split(" — ")[0]!.slice(p.name.length + 2));
+      doings.add(p.doing);
+    }
+  }
+  assert.ok(roles.size >= 2, [...roles].join("; "));
+  assert.ok(doings.size >= 3, [...doings].join(", "));
+  // (Unnamed, one of them still; none such, nothing.)
+  const unnamed = newBand(m, 6, near.people, near.plan.seed);
+  assert.match(bandPersonWords(unnamed, m, 1), /^One of them, /);
+  assert.equal(bandPersonWords(unnamed, m, 999), "");
 });

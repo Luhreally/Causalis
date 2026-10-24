@@ -316,6 +316,21 @@ export class BandLayer {
     return this.shown;
   }
 
+  /** Where each of the band's names goes on the screen, over their heads (null: behind the eye). */
+  namesOnScreen(b: BandState): { id: number; at: { x: number; y: number } | null }[] {
+    const scale = this.figure?.f.scale ?? 1,
+      world = this.root.getWorldTransform(),
+      at = new pc.Vec3(),
+      out = new pc.Vec3();
+    return b.people.map((p) => {
+      const lying = p.doing === "sleeping" ? 0.35 : 1,
+        up = (STANDS * lying + 0.12) * scale * KIN_SCALE[p.kin];
+      world.transformPoint(new pc.Vec3(p.x * M, up, p.z * M), at);
+      this.stage.camera.camera!.worldToScreen(at, out);
+      return { id: p.id, at: out.z > 0 ? { x: out.x, y: out.y } : null };
+    });
+  }
+
   /** Where a person of the band is on the screen (the look tools). */
   onScreen(b: BandState, id: number): { x: number; y: number } | null {
     const p = b.people.find((q) => q.id === id);

@@ -570,5 +570,7 @@ export type CampNear = {
   readonly flocks: readonly number[];
   /** How many the band seen is, and the hour of the world's day (0 … 24). */
   readonly size: number;
+  /** Each of them by name, in the land's tongue (Phase 29 M161). */
+  readonly names: readonly string[];
   readonly hour: number;
 };

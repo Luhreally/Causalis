@@ -6,6 +6,7 @@
 //      it, tents round their fires, their smoke going up, each camp named on the land;
 //      a camp tapped opens its page, and from it the eye goes down among one of its bands (M160):
 //      the land's own beasts about them, their hour the world's, their day going on as it runs;
+//      each of them named, and one tapped kept in the eye, the bar telling what they are at (M161);
 //   2. as the seasons turn they move camp about their ranges;
 //   3. the years on, they come to farm and the first village is founded: the eye goes down to it;
 //   4. on a phone: the land and its camps' names within the screen; and among a band, its bar.
@@ -55,6 +56,9 @@ type Near = {
   hour: number;
   day: number;
   parts: number;
+  names: string[];
+  followed: string | null;
+  onScreen: { id: number; at: { x: number; y: number } | null }[];
 };
 
 const root = fileURLToPath(new URL("..", import.meta.url)),
@@ -198,7 +202,45 @@ await begin(page);
       );
       check(/^(The band of|Night: the band of)/.test(bar), "what the band is at is not told");
       await k(`globalThis.causalis.client.setSpeed(0)`);
+      await page.waitForTimeout(slow(500));
       await shot("1c-among-the-band");
+      // One of them tapped (M161): each of the band named in their land's tongue; the eye keeps
+      // to the one tapped, and the bar tells who they are and what they are at.
+      const held = await k<Near | null>(`globalThis.causalis.near?.() ?? null`),
+        one = held?.onScreen.find(
+          (o) => o.at && o.at.x > 60 && o.at.x < 1306 && o.at.y > 140 && o.at.y < 660,
+        );
+      check(
+        !!held &&
+          held.names.length === held.people &&
+          held.names.every((n) => n.length >= 2) &&
+          new Set(held.names).size >= held.people * 0.7,
+        "the band are not named, each their own name",
+      );
+      check(!!one, "none of the band is on the screen to be tapped");
+      if (one?.at) {
+        await page.mouse.click(one.at.x, one.at.y);
+        let line = "",
+          who: string | null = null;
+        await until(
+          "one of the band followed",
+          async () => {
+            who = (await k<Near | null>(`globalThis.causalis.near?.() ?? null`))?.followed ?? null;
+            line = await k<string>(
+              `document.querySelector(".panel:not([hidden]) .camp-doing")?.textContent ?? ""`,
+            );
+            return !!who && line.startsWith(`${who}, `);
+          },
+          slow(10000),
+        );
+        await page.waitForTimeout(slow(1200));
+        const over = await page.$$eval(".labels .label", (x) =>
+          x.filter((e) => !(e as HTMLElement).hidden).map((e) => e.textContent ?? ""),
+        );
+        say(`one of them tapped: “${line}”; ${over.length} named over them`);
+        check(!!who && over.includes(`👁 ${who}`), "the one followed is not named over them");
+        await shot("1d-one-of-them");
+      }
       await page.locator(".panel:not([hidden]) button", { hasText: "‹ The land" }).click();
       await until("back up on the land", async () => (await scale()) === "region", slow(30000));
     } else await k(`document.querySelector(".page-window .close")?.click()`);

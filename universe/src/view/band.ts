@@ -38,6 +38,8 @@ export type BandDoing =
 
 export type BandPerson = {
   readonly id: number;
+  /** Their name, in their land's tongue (Phase 29 M161; empty where none was given). */
+  readonly name: string;
   readonly kin: BandKin;
   /** Goes out to hunt, when grown (else to gather). */
   readonly hunter: boolean;
@@ -196,6 +198,7 @@ export function newBand(
   name: string,
   seedText: string,
   hour = RISE,
+  names: readonly string[] = [],
 ): BandState {
   const rnd = seeded(hashText(`${seedText} band`)),
     b: BandState = {
@@ -229,6 +232,7 @@ export function newBand(
       seat = (2 * Math.PI * i) / size + 0.2 * rnd();
     b.people.push({
       id: i + 1,
+      name: names[i] ?? "",
       kin,
       // (Of the grown, about half go out to hunt, the rest to gather.)
       hunter: kin === "grown" && (i - old - young) % 2 === 0,
@@ -666,6 +670,57 @@ export function bandPace(pace: number): { label: string; words: string } {
           : `${COUNTS[secs / 60] ?? secs / 60} minutes`
         : `${Math.round(secs)} seconds`;
   return { label: `${pace}×`, words: `A day of theirs in ${long}` };
+}
+
+/** One of the band in a line (Phase 29 M161): who they are, and what they are at now. */
+export function bandPersonWords(b: BandState, m: MeadowState, id: number): string {
+  const p = b.people.find((q) => q.id === id);
+  if (!p) return "";
+  const who =
+      p.kin === "child"
+        ? "a child"
+        : p.kin === "old"
+          ? "one of the old"
+          : p.hunter
+            ? "a hunter"
+            : "a gatherer",
+    beast = (kind: number | undefined) => m.kinds[kind ?? -1]?.name ?? "a beast",
+    quarry = b.quarry >= 0 ? m.beasts.find((q) => q.id === b.quarry) : undefined,
+    doing = ((): string => {
+      switch (p.doing) {
+        case "sleeping":
+          return "asleep by the fire";
+        case "resting":
+          return "resting by the fire";
+        case "tending":
+          return "keeping the fire";
+        case "playing":
+          return "at play about the camp";
+        case "gathering":
+          return p.target >= 0 ? "gathering from the brush" : "digging roots in the grass";
+        case "carrying":
+          return p.carrying === "meat"
+            ? "carrying meat home"
+            : p.carrying === "bundle"
+              ? "carrying the camp"
+              : "carrying home what was gathered";
+        case "stalking":
+          return `creeping up on a ${beast(quarry?.kind)}`;
+        case "chasing":
+          return `running down a ${beast(quarry?.kind)}`;
+        case "butchering":
+          return `cutting up the ${b.kill?.name ?? "kill"}`;
+        case "moving":
+          return "carrying the camp on to fresh ground";
+        default:
+          return b.going
+            ? "walking on with the band to fresh ground"
+            : p.carrying
+              ? "walking home, laden"
+              : "walking out from the camp";
+      }
+    })();
+  return `${p.name || "One of them"}, ${who} — ${doing}.`;
 }
 
 /** The band in a line: how many, what they are at, the hour, their store. */

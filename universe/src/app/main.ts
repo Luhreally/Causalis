@@ -118,6 +118,7 @@ import {
   BAND_DAY,
   MEADOW_STEP,
   bandHour,
+  bandPersonWords,
   bandWords,
   figureOf,
   newBand,
@@ -283,6 +284,10 @@ type Exposed = {
     kills: number;
     doing: string;
     parts: number;
+    /** Each of them by name, and the one the eye keeps to (Phase 29 M161). */
+    names: string[];
+    followed: string | null;
+    onScreen: { id: number; at: { x: number; y: number } | null }[];
   } | null;
   /** A land's bands' camps as drawn (Phase 28 M159). */
   camps?: () => {
@@ -3149,9 +3154,13 @@ async function runPlanetPage(): Promise<void> {
       owed: number;
       time: number;
       toldAt: number;
+      /** The one of them the eye keeps to (their id; -1: the band). */
+      followed: number;
     } | null = null;
   /** How near the pointer (px) a camp must be to be zoomed into while a village stands on the land. */
   const CAMP_REACH = 90;
+  /** How near the eye must be for the band's names to be told over them (the one followed always is). */
+  const NAMES_WITHIN = 9;
   /** The world's seconds to one of the band's: their day is the world's day. */
   const BAND_SECOND = DAY / BAND_DAY;
   /** Where the eye keeps: between the fire and the band, or on them as they walk on. */
@@ -3193,7 +3202,7 @@ async function runPlanetPage(): Promise<void> {
     const meadow = newMeadow(info.plan, 0, info.plan.seed, true);
     // (Their own flock grazes among the land's beasts: the hunters leave it be.)
     for (const k of meadow.kinds) if (info.flocks.includes(k.lineage)) k.tame = true;
-    const band = newBand(meadow, info.size, info.people, info.plan.seed, info.hour);
+    const band = newBand(meadow, info.size, info.people, info.plan.seed, info.hour, info.names);
     bandLayer!.people(figureOf(info.figure, detail));
     near = {
       info,
@@ -3204,6 +3213,7 @@ async function runPlanetPage(): Promise<void> {
       owed: 0,
       time: 0,
       toldAt: -Infinity,
+      followed: -1,
     };
     meadowScene.visible = true;
     bandLayer!.root.enabled = true;
@@ -3250,22 +3260,61 @@ async function runPlanetPage(): Promise<void> {
   campPanel.onPage = () => {
     if (near) void pageWindow.open(`camp:${near.info.cell}:${near.info.camp.id}`);
   };
+  /** The one of the band nearest a point of the screen, within a finger's reach (their id). */
+  const bandPersonAt = (x: number, y: number): number | null => {
+    if (!near || !bandLayer) return null;
+    let best: number | null = null,
+      bestD = 24;
+    for (const p of near.band.people) {
+      const at = bandLayer.onScreen(near.band, p.id),
+        d = at ? Math.hypot(at.x - x, at.y - y) : Infinity;
+      if (d < bestD) {
+        best = p.id;
+        bestD = d;
+      }
+    }
+    return best;
+  };
   /** What stands at a point of the screen among the band: a beast (its lineage), one of them (their camp). */
   const campThingAt = (x: number, y: number): string | null => {
     if (!near || !meadowScene || !bandLayer) return null;
     const beast = meadowScene.pick(near.meadow, x, y),
       kind = beast === null ? undefined : near.meadow.beasts.find((b) => b.id === beast)?.kind;
     if (kind !== undefined) return near.meadow.kinds[kind]?.ref ?? null;
-    for (const p of near.band.people) {
-      const at = bandLayer.onScreen(near.band, p.id);
-      if (at && Math.hypot(at.x - x, at.y - y) < 24)
-        return `camp:${near.info.cell}:${near.info.camp.id}`;
-    }
-    return null;
+    return bandPersonAt(x, y) === null ? null : `camp:${near.info.cell}:${near.info.camp.id}`;
   };
+  /** The eye kept on one of the band as they go about their day (Phase 29 M161), or on the band (null). */
+  const followPerson = (id: number | null) => {
+    if (!near) return;
+    near.followed = id ?? -1;
+    near.toldAt = -Infinity;
+    const p = id === null ? undefined : near.band.people.find((q) => q.id === id);
+    rig.follow = p
+      ? () => {
+          const q = near?.band.people.find((r) => r.id === p.id);
+          return q ? { x: q.x * 0.1, y: 0.2, z: q.z * 0.1 } : null;
+        }
+      : bandMiddle;
+    if (p)
+      rig.flyTo(
+        { target: { x: p.x * 0.1, y: 0.2, z: p.z * 0.1 }, distance: Math.min(rig.distance, 6) },
+        0.8,
+      );
+  };
+  // A tap among the band: one of them followed (tapped again, their camp's page); a beast's page;
+  // the open ground, the band again.
   const tapCamp = (x: number, y: number) => {
+    if (!near) return;
+    const who = bandPersonAt(x, y);
+    if (who !== null) {
+      if (who === near.followed)
+        void pageWindow.open(`camp:${near.info.cell}:${near.info.camp.id}`);
+      else followPerson(who);
+      return;
+    }
     const ref = campThingAt(x, y);
     if (ref) void pageWindow.open(ref);
+    else if (near.followed >= 0) followPerson(null);
   };
   stage.onUpdate(() => {
     if (scale !== "camp" || !near || !meadowScene || !bandLayer) return;
@@ -3294,10 +3343,34 @@ async function runPlanetPage(): Promise<void> {
     meadowScene.update(near.meadow, near.bodies);
     bandLayer.update(near.band, near.time);
     stage.daylight(bandHour(near.band) / 24);
+    // Their names over them, once the eye is near enough to tell one from another; the one
+    // followed, from any way off.
+    const all = rig.distance < NAMES_WITHIN,
+      named = all || near.followed >= 0 ? bandLayer.namesOnScreen(near.band) : [];
+    labels.update(
+      named.flatMap(({ id, at }) => {
+        const p = near!.band.people.find((q) => q.id === id),
+          followed = id === near!.followed;
+        return p?.name && (all || followed)
+          ? [
+              {
+                key: `band:${id}`,
+                text: followed ? `👁 ${p.name}` : p.name,
+                at,
+                priority: followed ? 2 : 1,
+              },
+            ]
+          : [];
+      }),
+    );
     const wall = performance.now();
     if (wall - near.toldAt >= 250) {
       near.toldAt = wall;
-      campPanel.say(bandWords(near.band));
+      campPanel.say(
+        near.followed >= 0
+          ? bandPersonWords(near.band, near.meadow, near.followed) || bandWords(near.band)
+          : bandWords(near.band),
+      );
     }
   });
   exposed.near = () =>
@@ -3313,6 +3386,16 @@ async function runPlanetPage(): Promise<void> {
           kills: near.band.kills,
           doing: bandWords(near.band),
           parts: bandLayer.count(),
+          names: near.band.people.map((p) => p.name),
+          followed:
+            near.followed >= 0
+              ? (near.band.people.find((p) => p.id === near!.followed)?.name ?? null)
+              : null,
+          // (Where each of them is on the screen, for the look tools to tap.)
+          onScreen: near.band.people.map((p) => ({
+            id: p.id,
+            at: bandLayer!.onScreen(near!.band, p.id),
+          })),
         }
       : null;
   villagePanel.onClose = () => selectPerson(null);
