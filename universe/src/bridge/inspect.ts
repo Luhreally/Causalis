@@ -410,6 +410,8 @@ export type PageKind =
   | "clade"
   /** A sickness (Phase 20 M140). */
   | "sickness"
+  /** A house of lending (Phase 21 M143). */
+  | "house"
   | "unknown";
 
 export type PageModel = {

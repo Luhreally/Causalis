@@ -34,6 +34,7 @@ import { groundBlocks } from "./ground.ts";
 import { dropBlock } from "./small.ts";
 import { landBondBlocks } from "./order.ts";
 import { landHealthBlocks } from "./sickness.ts";
+import { landCreditBlocks } from "./credit.ts";
 import {
   faithLink,
   landLink,
@@ -253,6 +254,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     // Its health (Phase 20 M140): what sickness came, who is spared, its healers.
     const health = landHealthBlocks(world, cell);
     if (health.length) tabs.push({ id: "health", name: "Health", blocks: health });
+    // Its debts (Phase 21 M143): what it owes, to which houses, against its harvest.
+    const debt = landCreditBlocks(world, cell);
+    if (debt.length) tabs.push({ id: "debt", name: "Debt", blocks: debt });
   }
   // The ground and its air.
   if (place) {

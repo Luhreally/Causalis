@@ -39,6 +39,7 @@ import { crumbsOf } from "./crumbs.ts";
 import { DEEP_LENSES, lensReading, type DeepLens } from "../lenses.ts";
 import { conceptPage, withConcepts } from "./concepts.ts";
 import { sicknessPage } from "./sickness.ts";
+import { housePage } from "./credit.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
 function build(world: World, ref: string, tab: string | null): PageModel {
@@ -115,6 +116,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
       return civilizationPage(world, ref);
     case "sick":
       return sicknessPage(world, ref);
+    case "house":
+      return housePage(world, ref);
     case "ev":
       return eventPage(world, ref);
     case "dec":

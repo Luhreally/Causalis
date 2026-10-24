@@ -39,6 +39,7 @@ const HEADINGS: Readonly<Record<string, readonly [string, string]>> = {
   contact: ["Contact", "🛸"],
   order: ["Bonds and freedoms", "⛓️"],
   health: ["Sickness", "🦠"],
+  credit: ["Credit", "🏦"],
 };
 
 /** Events whose kind says itself better whole than as its domain and its word. */
@@ -75,6 +76,10 @@ const TITLES: Readonly<Record<string, string>> = {
   "act.summon": "Strangers called",
   "act.ward": "A land warded",
   "act.loose": "A sickness loosed",
+  "credit.founded": "A house of lending",
+  "credit.lent": "Grain lent against a famine",
+  "credit.lost": "A debt written off",
+  "credit.failed": "A house of lending failed",
 };
 
 /** Where a thing an event names is to be seen (its place, most often a land). */

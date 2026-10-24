@@ -47,6 +47,7 @@ import { warsOf } from "../war/war.ts";
 import { grieve, strike } from "../acts/disasters.ts";
 import { handOf } from "../hand/hand.ts";
 import { LAW_OF, firstLaws, lawGrievance, weighLaws } from "./laws.ts";
+import { CREDIT, creditOf, debtBurden } from "../credit/credit.ts";
 
 /** The kinds of bondage a people may be held in (corvée, a levy on the free, is the realm's). */
 export const BONDS = ["chattel", "debt", "serf", "indenture", "convict"] as const;
@@ -673,7 +674,10 @@ function takeCaptives(
   if (loser) remember(loser, { what: "captivity", year: yearOfMoment(t), cell: land, event });
 }
 
-/** The hungry selling themselves for grain: debt bondage in a land of a realm, if it comes to that. */
+/**
+ * The hungry selling themselves for grain, and the crushed by debt to pay it (Phase 21 M143):
+ * debt bondage in a land of a realm, if it comes to that.
+ */
 function sellThemselves(
   ctx: PopulationContext,
   store: OrderStore,
@@ -684,22 +688,30 @@ function sellThemselves(
   const { world } = ctx,
     prov = ctx.provinces.get(c),
     ways = cultureOf(world).get(c),
-    famine = prov?.lastFamine ? world.events.get(prov.lastFamine) : undefined;
-  if (!prov || !ways || !famine || t - famine.t > 2 * YEAR) return;
-  const hunger = 1 - prov.leanest / 1000,
+    found = prov?.lastFamine ? world.events.get(prov.lastFamine) : undefined,
+    famine = found && t - found.t <= 2 * YEAR ? found : undefined,
+    // (A debt to the houses of lending above half a year's grain: crushing, famine or none.)
+    burden = prov ? debtBurden(ctx, c) : 0,
+    owing = burden >= CREDIT.crushing ? creditOf(world)?.owedBy(c).loan : null;
+  if (!prov || !ways || (!famine && !owing)) return;
+  const hunger = famine ? 1 - prov.leanest / 1000 : 0,
+    crushed = owing ? Math.min(1, burden) : 0,
     hier = trait(ways, WAY.hierarchy),
     kin = trait(ways, WAY.kinship),
     open = trait(ways, WAY.openness),
-    score = 0.6 * hunger + 0.4 * hier - 0.35 * kin - 0.2 * open;
+    score = 0.6 * hunger + 0.5 * crushed + 0.4 * hier - 0.35 * kin - 0.2 * open;
   if (score < DEBT_LINE) return;
   const l = landOf(store, c),
     free = Math.max(0, 1 - l.shares.reduce((a, b) => a + b, 0)),
-    add = Math.min(DEBT_MOST - l.shares[BOND.debt]!, free * 0.06 * hunger * (0.5 + hier));
+    add = Math.min(
+      DEBT_MOST - l.shares[BOND.debt]!,
+      free * 0.06 * Math.max(hunger, crushed) * (0.5 + hier),
+    );
   if (add <= 0) return;
   l.shares[BOND.debt] = l.shares[BOND.debt]! + add;
-  // A great binding is told; the rest goes on as the famine's.
+  // A great binding is told; the rest goes on as the famine's (or the debt's).
   if (add * prov.total() < 20) {
-    l.cause ??= prov.lastFamine;
+    l.cause ??= famine ? famine.id : owing!.event;
     return;
   }
   const decision = world.decisions.record({
@@ -709,12 +721,30 @@ function sellThemselves(
     score,
     threshold: DEBT_LINE,
     factors: [
-      {
-        name: "hunger",
-        value: hunger,
-        contribution: 0.6 * hunger,
-        source: { ref: famine.id, role: "trigger", weight: 1 },
-      },
+      ...(famine
+        ? [
+            {
+              name: "hunger",
+              value: hunger,
+              contribution: 0.6 * hunger,
+              source: { ref: famine.id, role: "trigger" as const, weight: 1 },
+            },
+          ]
+        : []),
+      ...(owing
+        ? [
+            {
+              name: "debts they cannot pay",
+              value: Math.round(burden * 100) / 100,
+              contribution: 0.5 * crushed,
+              source: {
+                ref: owing.event,
+                role: (famine ? "pressure" : "trigger") as CauseRef["role"],
+                weight: 1,
+              },
+            },
+          ]
+        : []),
       {
         name: "a people who keep to rank",
         value: hier,

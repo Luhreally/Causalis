@@ -7,6 +7,7 @@ import type { Block, Line, PageModel, Stat } from "../../bridge/index.ts";
 import { link, yearNow } from "./words.ts";
 import { ORDER_CONCEPTS, ORDER_CONCEPT_OF } from "./order-concepts.ts";
 import { HEALTH_CONCEPTS, HEALTH_CONCEPT_OF } from "./health-concepts.ts";
+import { CREDIT_CONCEPTS, CREDIT_CONCEPT_OF } from "./credit-concepts.ts";
 
 /** A concept: its icon and name, and what the book says of it. */
 export type Concept = {
@@ -383,6 +384,7 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
   // Bonds and freedoms (Phase 19 M138).
   ...ORDER_CONCEPTS,
   ...HEALTH_CONCEPTS,
+  ...CREDIT_CONCEPTS,
 };
 
 /** Which concept a number is a measure of, by its label on the pages. */
@@ -447,6 +449,7 @@ export const CONCEPT_OF: Readonly<Record<string, string>> = {
   Spring: "hand",
   ...ORDER_CONCEPT_OF,
   ...HEALTH_CONCEPT_OF,
+  ...CREDIT_CONCEPT_OF,
 };
 
 /** A page's numbers and facts, each linked to the concept it measures (where it has one). */

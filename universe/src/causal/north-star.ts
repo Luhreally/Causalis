@@ -23,13 +23,14 @@ export function domainOf(world: World, ref: string): string {
   if (kind === "dsgn") return "design";
   if (kind === "faith") return "belief";
   if (kind === "sick") return "health";
+  if (kind === "house") return "economy";
   const type =
     kind === "ev"
       ? (world.events.get(ref as Ref)?.type ?? world.events.tombstone(ref as Ref)?.type ?? "")
       : kind === "dec"
         ? (world.decisions.get(ref as Ref)?.rule ?? "")
         : "";
-  if (/^(trade|settlement\.market)/.test(type)) return "economy";
+  if (/^(trade|settlement\.market|credit)/.test(type)) return "economy";
   if (/^industry/.test(type)) return "industry";
   if (/^(climate|people\.smoke)/.test(type)) return "climate";
   if (/^(polity|war|diplomacy)/.test(type)) return "realm";

@@ -8,6 +8,7 @@ import {
   beliefOf,
   citiesOf,
   DEITIES,
+  creditOf,
   healthOf,
   homePlanet,
   languagesOf,
@@ -36,6 +37,7 @@ import { landEra } from "../village.ts";
 import { bare, claimOf, count, item, link, many, share, stat, yearAt, yearNow } from "./words.ts";
 import { bondsLedger } from "./order.ts";
 import { sicknessLedger } from "./sickness.ts";
+import { creditLedger } from "./credit.ts";
 import {
   faithLink,
   landLink,
@@ -1032,6 +1034,34 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
         fromStars.length,
       );
   }
+  // Credit (Phase 21 M143): the first house of lending, and the first to fail.
+  {
+    const credit = creditOf(world),
+      first = credit?.houses[0],
+      failed = credit?.houses
+        .filter((h) => h.failed !== null)
+        .sort((a, b) => a.failed! - b.failed!);
+    if (credit && first)
+      add(
+        "🏦 A house of lending",
+        { year: first.year, land: first.cell, ref: first.event },
+        credit.houses[1]?.year ?? null,
+        many(credit.standing().length, "house lends", "houses lend"),
+        credit.standing().length,
+      );
+    if (failed?.[0])
+      add(
+        "💥 A house of lending failed",
+        {
+          year: failed[0].failed!,
+          land: failed[0].cell,
+          ref: failed[0].failedEvent ?? failed[0].event,
+        },
+        failed[1]?.failed ?? null,
+        many(failed.length, "house failed", "houses failed"),
+        failed.length,
+      );
+  }
   for (const [type, what, one, more] of [
     ["trade.route-opened", "🐪 A trade road", "road", "roads"],
     ["trade.sea-route", "⛵ A sea route", "route", "routes"],
@@ -1608,6 +1638,8 @@ export function ledgerPage(world: World, tab?: string): PageModel {
     { id: "bonds", name: "Bonds", blocks: bondsLedger(world) },
     // Every sickness side by side (Phase 20 M140).
     { id: "sickness", name: "Sickness", blocks: sicknessLedger(world) },
+    // Every house of lending side by side, and what is owed them (Phase 21 M143).
+    { id: "credit", name: "Credit", blocks: creditLedger(world) },
     { id: "faiths", name: "Faiths", blocks: faithLedger(world) },
     { id: "tongues", name: "Tongues", blocks: tongueLedger(world) },
     { id: "life", name: "Life", blocks: lifeLedger(world) },

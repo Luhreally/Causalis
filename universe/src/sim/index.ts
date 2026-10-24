@@ -501,3 +501,17 @@ export {
   type GreatAct,
 } from "./acts/great.ts";
 export { SUMMON_EVENTS, calledPeople, installSummon } from "./space/summon.ts";
+export {
+  CREDIT,
+  CREDIT_EVENTS,
+  CreditStore,
+  HOUSE,
+  creditOf,
+  creditYear,
+  debtBurden,
+  installCredit,
+  lendable,
+  rateFor,
+  type House,
+  type Loan,
+} from "./credit/credit.ts";

@@ -49,13 +49,15 @@ export const ORDER_CONCEPTS: Readonly<Record<string, Concept>> = {
     icon: "📜",
     title: "Debt bondage",
     what: [
-      "In a hungry year, where the few hold the grain and kin do not feed kin, the hungry sell themselves for it, bound to work until the debt is paid.",
+      "In a hungry year, where the few hold the grain and kin do not feed kin, the hungry sell themselves for it, bound to work until the debt is paid. Where a land owes the houses of lending more than half a year's food, its poor sell themselves to pay it, famine or none.",
       "In fed years they work it off, some in a dozen each year; in lean years few go free.",
     ],
-    drives: ["Famine; steep rank; weak bonds of kin; a people closed to strangers."],
+    drives: [
+      "Famine, or a crushing debt; steep rank; weak bonds of kin; a people closed to strangers.",
+    ],
     leads: ["Grievance; the movement to free the bound; a realm's standing the less."],
     see: [LEDGER],
-    related: ["bondage", "food", "grievance"],
+    related: ["bondage", "food", "grievance", "debt"],
   },
   serfdom: {
     icon: "🌾",
