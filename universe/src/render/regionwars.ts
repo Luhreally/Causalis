@@ -724,13 +724,15 @@ export class RegionWars {
   }
 
   /** The host, battle, camp or garrison nearest a screen point, within `reach` (a finger's), its ref; or null. */
-  pick(x: number, y: number, reach = 28): string | null {
+  pick(x: number, y: number, reach = 28, battles = false): string | null {
     const cam = this.stage.camera.camera!,
       at = new pc.Vec3(),
       out = new pc.Vec3();
     let best: string | null = null,
       bestD = reach;
-    for (const m of this.marks)
+    for (const m of this.marks) {
+      // (A battle zoomed into: a camp or a garrison nearer the pointer is not it.)
+      if (battles && !m.battle) continue;
       // (At the mark, or at its name over it: either is it.)
       for (const lift of [0.8, 3]) {
         at.set(m.x, this.height(m.x, m.z) + lift, m.z);
@@ -742,6 +744,7 @@ export class RegionWars {
           best = m.ref;
         }
       }
+    }
     return best;
   }
 }

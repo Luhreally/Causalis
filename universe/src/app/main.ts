@@ -2549,7 +2549,7 @@ async function runPlanetPage(): Promise<void> {
       if (best < 0) return;
       const ref = villages[best]!.ref,
         // (Zoomed in on a battle: its village's view faces the fight.)
-        war = regionWars.pick(aim.x, aim.y, 160);
+        war = regionWars.pick(aim.x, aim.y, 160, true);
       await fadeOver(() => ready("the village", () => toVillage(ref)));
       if (war?.startsWith("ev:")) faceBattle();
     } else if (scale === "world") {
