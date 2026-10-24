@@ -24,6 +24,7 @@ import {
   type Interest,
   type Port,
   type Query,
+  type SeedLife,
   type ToHost,
   type ToMain,
 } from "../bridge/index.ts";
@@ -53,6 +54,8 @@ export type Universe = {
   readonly idle?: (world: World) => boolean;
   /** The view shown before the page says otherwise. */
   readonly defaultView: string;
+  /** Whether life arises on a seed's world, and a people in time (the world itself not built). */
+  readonly life?: (seed: Seed) => SeedLife;
 };
 
 export type HostOptions = {
@@ -257,6 +260,22 @@ export class SimHost {
         // screen asks for them before any is.)
         case "saves": {
           this.reply(m.id, this.options.storage ? await listSaves(this.options.storage) : []);
+          return;
+        }
+        case "deleteSave": {
+          if (!this.options.storage) throw new Error("this host has no storage");
+          const kept = (await listSaves(this.options.storage)).some((s) => s.name === m.name);
+          await new SaveSlots(this.options.storage, m.name).remove();
+          this.reply(m.id, { removed: kept });
+          return;
+        }
+        case "life": {
+          const universe = this.universes[m.universe];
+          if (!universe) throw new Error(`no universe ${m.universe}`);
+          this.reply(
+            m.id,
+            universe.life?.(seedFromText(m.seed)) ?? { living: true, peopled: true, words: "" },
+          );
           return;
         }
         case "import": {

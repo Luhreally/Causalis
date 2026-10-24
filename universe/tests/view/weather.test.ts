@@ -150,6 +150,8 @@ test("the seasons on the ground: snow lies in a cold land's winter (on the hills
   }
   // (A cold desert: too dry for snow to lie.)
   assert.equal(seasonAt(land({ warmth: -6, swing: 14, wet: 20 }), midwinter).snow, 0);
+  // (Unless the god sends its snows: then they lie as on a wet land.)
+  assert.ok(seasonAt(land({ warmth: -6, swing: 14, wet: 20, sent: 1 }), midwinter).snow > 0.8);
 });
 
 test("a land's map in its winter: snow on its hills before its lowlands, ice on its lakes, the sea open", () => {

@@ -816,6 +816,45 @@ body[data-scale="micro"] {
   display: grid;
   gap: 8px;
 }
+/* (The choice of life on it shows only for a world never seen.) */
+.choice-row[hidden],
+.title-form h3[hidden] {
+  display: none;
+}
+/* Whether life arises on the seed's world, told as it is typed. */
+.title-form > .seed-life {
+  min-height: 1.3em;
+  margin: 6px 0 0;
+  color: var(--ink);
+}
+/* A kept world and its delete beside it; asked twice before it is put away. */
+.kept-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+.kept-row > .choice {
+  flex: 1;
+  min-width: 0;
+}
+.kept-delete {
+  flex: none;
+  min-width: 44px;
+  font-size: 1.1rem;
+}
+.kept-ask {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+.kept-ask > span {
+  flex: 1 1 12rem;
+}
 .title-form h2 {
   margin: 4px 0 2px;
   font-size: 1.2rem;

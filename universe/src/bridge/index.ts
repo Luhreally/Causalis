@@ -10,6 +10,7 @@ export {
   type Port,
   type Query,
   type SaveMeta,
+  type SeedLife,
   type Status,
   type ToHost,
   type ToMain,

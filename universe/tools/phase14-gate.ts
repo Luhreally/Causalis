@@ -548,29 +548,57 @@ const first = await land(lands[0]!.cell);
   const again = await k<number>(
     "Math.floor(globalThis.causalis.client.latestFrame('globe').t / (365 * 86400))",
   );
-  // A new world from the title: one never seen, its seed as drawn.
   await page.goto(base);
   await page.waitForSelector(".title-menu .choice");
+  // A kept world deleted from the title (asked for 2026-10-24: "i should be able to delete saves"),
+  // asked twice: what will go, then gone.
   // (The title screen draws only a light turning world: its buttons are clicked as any page's.)
+  await page.click(".title-menu .choice:has-text('Worlds kept')");
+  await page.waitForSelector(".kept-row");
+  const keptRows = () => page.$$eval(".kept-row", (x) => x.length),
+    keptBefore = await keptRows();
+  await page.click(".kept-row .kept-delete >> nth=0");
+  const asked = await text(".kept-ask");
+  await page.click(".kept-ask .kept-yes");
+  const deleted = await until(
+    "a kept world deleted",
+    async () => (await keptRows()) === keptBefore - 1,
+    slow(10000),
+  );
+  await page.click(".title-back");
+  // A new world from the title: one never seen where life arises — a seed typed whose world freezes
+  // over lifeless ("alien 0") told so, and begun on the nearest one on where a people rises.
   await page.click(".title-menu .choice:has-text('New world')");
   await page.click(".choice-row .choice[data-id='alien']");
-  const seed = await page.$eval(".seed-input", (e) => (e as HTMLInputElement).value);
+  await page.fill(".seed-input", "alien 0");
+  const lifeTold = await until(
+    "the seed's world told lifeless",
+    async () => (await text(".seed-life")).includes("No people will rise here"),
+    slow(30000),
+  );
+  const told = await text(".seed-life");
   await page.click(".title-form .begin");
-  await page.waitForURL(/universe=alien&seed=/, { timeout: slow(20000) });
+  await page.waitForURL(/universe=alien&seed=/, { timeout: slow(60000) });
   const begun = await until(
     "a new world never seen",
     async () => ((await k<number>("globalThis.causalis?.drawn?.() ?? 0")) ?? 0) > 0,
     slow(120000),
   );
-  const said = await k<string>("globalThis.causalis.seed");
+  const said = await k<string>("globalThis.causalis.seed"),
+    lifeless = await k<string | null>("globalThis.causalis.lifeless?.() ?? null");
   say(
-    `the view: ${still ? "still when left alone" : "turned by itself"}, ${turned ? "turning when chosen" : "not turning when chosen"} (${drift.length} choices); the title: “${menu.slice(0, 70)}…”; Continue at year ${again} (kept at ${year}); a new world “${said}”: ${begun}`,
+    `the view: ${still ? "still when left alone" : "turned by itself"}, ${turned ? "turning when chosen" : "not turning when chosen"} (${drift.length} choices); the title: “${menu.slice(0, 70)}…”; Continue at year ${again} (kept at ${year}); a kept world deleted (“${asked.slice(0, 60)}…”: ${keptBefore} → ${await keptRows().catch(() => -1)}); “alien 0” told “${told.slice(0, 80)}”, begun as “${said}”: ${begun}${lifeless ? `; the bar says “${lifeless.slice(0, 60)}”` : ""}`,
   );
   check(still, "the view turned when left alone, turning not chosen");
   check(turned, "the view did not turn when left alone, turning chosen");
   // (Taken up where it was kept, not begun again: it runs on a little before it is read.)
   check(titled && again >= year, "the main menu did not keep the world for Continue to take up");
-  check(begun && said === seed, "a new world was not begun from the title screen with its seed");
+  check(deleted && keptBefore > 0, "a kept world could not be deleted from the title screen");
+  check(lifeTold, "a lifeless seed's world was not told so on the title screen");
+  check(
+    begun && said !== "alien 0" && /^alien \d+$/.test(said) && lifeless === null,
+    `a world where life arises was not begun for a lifeless seed (begun “${said}”)`,
+  );
 }
 
 await browser.close();

@@ -72,6 +72,7 @@ import {
   installTimeKeys,
   TimeBar,
   typing,
+  el,
 } from "../ui/index.ts";
 import type {
   ActsMap,
@@ -284,6 +285,8 @@ type Exposed = {
   };
   /** Down among a band of a land's camp (Phase 29 M160). */
   goNear?: (cell: number, camp: number) => Promise<void>;
+  /** A world no people rose on: what the bar tells of it (null where people rose). */
+  lifeless?: () => string | null;
   /** A band of a land's camp seen near (Phase 29 M160): its people, the land's beasts, their hour, what they are at. */
   near?: () => {
     cell: number;
@@ -796,6 +799,41 @@ async function runPlanetPage(): Promise<void> {
   )
     walk.start();
   planetPanel.onHelp = () => walk.start();
+  // A world no people rose on (a world never seen, its seed taken as it fell: one in ten): told
+  // so in the bar, and on a world never seen, the way on to the nearest one life arises on.
+  const lifeless = el("div", "walk lifeless");
+  lifeless.hidden = true;
+  planetPanel.bar.append(lifeless);
+  exposed.lifeless = () => (lifeless.hidden ? null : (lifeless.textContent ?? ""));
+  void client
+    .lifeOf(universe, seed)
+    .then((life) => {
+      if (life.peopled) return;
+      const keep = el("button", "link", "Watch it as it is"),
+        on = el("button", "walk-next", "🌱 To a world where life arises"),
+        row = el("div", "walk-row");
+      keep.onclick = () => (lifeless.hidden = true);
+      on.onclick = async () => {
+        on.disabled = true;
+        on.textContent = "Finding one…";
+        const { livingSeed } = await import("./title.ts"),
+          found = await livingSeed(client, universe, seed);
+        location.search = `?universe=${encodeURIComponent(universe)}&seed=${encodeURIComponent(found.seed)}`;
+      };
+      row.append(keep, ...(universe === "alien" ? [on] : []));
+      lifeless.replaceChildren(
+        el(
+          "p",
+          undefined,
+          life.living
+            ? "Life arose on this world, but no people rose from it: its beasts are all it will know."
+            : `No life arose on this world: ${life.words}. No people will ever rise on it.`,
+        ),
+        row,
+      );
+      lifeless.hidden = false;
+    })
+    .catch(() => {});
   planetPanel.onAsked = () => walk.saw("why");
   pageWindow.onAsked = () => walk.saw("why");
   exposed.walk = () => walk.current;
@@ -2074,6 +2112,14 @@ async function runPlanetPage(): Promise<void> {
       return `back at year ${Math.floor(got.t / YEAR)}${got.fellBack ? " (from the save before; the latest did not read)" : ""}`;
     } catch (error) {
       return `not loaded: ${(error as Error).message}`;
+    }
+  };
+  planetPanel.onDeleteSave = async (save) => {
+    try {
+      await client.deleteSave(save.name);
+      return `“${save.seed}”, year ${Math.floor(save.t / YEAR)}, deleted${save.name === `${saveName}:auto` ? " (this world keeps itself again in five minutes)" : ""}`;
+    } catch (error) {
+      return `not deleted: ${(error as Error).message}`;
     }
   };
   planetPanel.onExport = async () => {
@@ -3951,18 +3997,23 @@ async function runPlanetPage(): Promise<void> {
     const first = fly();
     time.pick(4);
     if (first.drawn) return;
-    // (Its land's towns drawn from their fabric come later still on a slow machine — the town
-    // drawn a few kilometres from its tile: the eye goes on to it, unless the viewer has moved it.)
-    const drawnBy = performance.now() + 30000;
-    while (here() && (!region.land.townAt(town) || rig.flying) && performance.now() < drawnBy)
-      await new Promise((done) => setTimeout(done, 200));
-    const t = rig.target;
-    if (
+    // (Its land's towns drawn from their fabric come later still on a slow machine — a minute or
+    // more on one drawing in software — the town drawn kilometres from its tile, or the land's
+    // ground not yet there to fly to: the eye goes on to it once it is drawn, unless the viewer
+    // has moved it meanwhile.)
+    const drawnBy = performance.now() + 180_000,
+      left = () => {
+        const t = rig.target;
+        return Math.hypot(t.x - first.target.x, t.z - first.target.z) < 1 || rig.flying;
+      };
+    while (
       here() &&
-      region.land.townAt(town) &&
-      Math.hypot(t.x - first.target.x, t.z - first.target.z) < 1
+      left() &&
+      (!region.land.townAt(town) || rig.flying) &&
+      performance.now() < drawnBy
     )
-      fly();
+      await new Promise((done) => setTimeout(done, 250));
+    if (here() && left() && region.land.townAt(town)) fly();
   };
   pageWindow.onWatch = (cell, town) => void watchGrow(cell, town);
   // What a page is of, lit in the scene when it is there (a link followed, not only a tap).
@@ -4240,10 +4291,15 @@ async function runGenesisPage(): Promise<void> {
     // (At the first people, the eye goes down to their first camp.)
     beginAt: (year, text) =>
       (location.search = `?universe=${encodeURIComponent(universe)}&seed=${encodeURIComponent(text)}${year > 0 ? `&year=${year}` : "&cradle=1"}`),
-    another: () => {
+    // (Another world never seen, one life arises on: a genesis is the coming of its life.)
+    another: async () => {
       const u = new Uint32Array(1);
       crypto.getRandomValues(u);
-      location.search = `?universe=alien&seed=${encodeURIComponent(`genesis ${u[0]! % 100000}`)}&genesis=1`;
+      const { livingSeed } = await import("./title.ts"),
+        found = await livingSeed(client, "alien", `genesis ${u[0]! % 100000}`).catch(() => ({
+          seed: `genesis ${u[0]! % 100000}`,
+        }));
+      location.search = `?universe=alien&seed=${encodeURIComponent(found.seed)}&genesis=1`;
     },
     expose: (hooks) => Object.assign(exposed, hooks),
   });

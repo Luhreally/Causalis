@@ -231,9 +231,12 @@ export function seasonAt(land: LandSky, t: number, rise = 0): GroundSeason {
     year = (((t % YEAR) + YEAR) % YEAR) / YEAR,
     // (Where the year swings, the broad leaves fall in its cold and turn as it cools.)
     seasonal = land.swing >= 5 && land.warmth < 22,
-    leaf = seasonal ? clamp((now - 2) / 5, 0, 1) : 1;
+    leaf = seasonal ? clamp((now - 2) / 5, 0, 1) : 1,
+    // (Snow lies as deep as the land's snows fall: none on a polar desert — unless the god sends
+    // them, and then as on a wet land.)
+    wet = land.sent > 0 ? Math.max(land.wet, 800) : land.wet;
   return {
-    snow: land.wet < 40 ? 0 : clamp((0.5 - was) / 5, 0, 1) * clamp(land.wet / 250, 0.25, 1),
+    snow: wet < 40 ? 0 : clamp((0.5 - was) / 5, 0, 1) * clamp(wet / 250, 0.25, 1),
     leaf,
     turned: seasonal && year > 0.5 ? clamp((14 - now) / 6, 0, 1) : 0,
     ice: clamp((-was - 2) / 6, 0, 1),

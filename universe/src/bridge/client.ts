@@ -6,6 +6,7 @@ import type {
   Port,
   Query,
   SaveMeta,
+  SeedLife,
   Status,
   ToHost,
   ToMain,
@@ -88,6 +89,14 @@ export class HostClient {
   /** The saves kept, newest first. */
   saves(): Promise<SaveMeta[]> {
     return this.request((id) => ({ kind: "saves", id }));
+  }
+  /** A kept world put away for good. */
+  deleteSave(name: string): Promise<{ removed: boolean }> {
+    return this.request((id) => ({ kind: "deleteSave", id, name }));
+  }
+  /** Whether life arises on a seed's world (its living things), and a people in time. */
+  lifeOf(universe: string, seed: string): Promise<SeedLife> {
+    return this.request((id) => ({ kind: "life", id, universe, seed }));
   }
   exportSave(): Promise<Uint8Array> {
     return this.request((id) => ({ kind: "export", id }));

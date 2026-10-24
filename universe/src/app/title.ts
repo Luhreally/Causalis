@@ -50,6 +50,41 @@ const KINDS = [
   ["alien", "🪐", "Never seen", "any star, any body, any sky, any people"],
 ] as const;
 
+/**
+ * Whether a world never seen must be one life arises on (asked for 2026-10-24: "it should give me
+ * option to where the world supports life"): one in ten freezes over lifeless as its seed falls.
+ */
+const LIFE = [
+  ["living", "🌱", "Where life arises", "its first cells, its beasts, and in time a people"],
+  ["any", "🎲", "As its seed falls", "any world at all: one in ten never knows life"],
+] as const;
+
+/**
+ * The seed nearest `seed` whose world life arises on, a people in time: the seed itself if it is
+ * one, else the next number on from it ("amber 412" → "amber 413"; "amber" → "amber 2"), the
+ * acts laid on its dawn kept; and why the seed asked for was passed by (null if it was not).
+ */
+export async function livingSeed(
+  client: Pick<HostClient, "lifeOf">,
+  universe: string,
+  seed: string,
+  tries = 40,
+): Promise<{ seed: string; passed: string | null }> {
+  const asked = await client.lifeOf(universe, seed);
+  if (asked.peopled) return { seed, passed: null };
+  const cut = seed.indexOf(" ~"),
+    name = (cut < 0 ? seed : seed.slice(0, cut)).trim(),
+    acts = cut < 0 ? "" : seed.slice(cut),
+    m = /^(.*?)(\d+)$/.exec(name),
+    stem = m ? m[1]! : `${name} `,
+    from = m ? Number(m[2]) : 1;
+  for (let i = 1; i <= tries; i++) {
+    const next = `${stem}${from + i}${acts}`;
+    if ((await client.lifeOf(universe, next)).peopled) return { seed: next, passed: asked.words };
+  }
+  return { seed, passed: null };
+}
+
 /** Where a new world begins. */
 const BEGINNINGS = [
   [
@@ -142,6 +177,8 @@ export function showTitle(options: TitleOptions): void {
   };
   let saves: SaveMeta[] | null = null,
     client: HostClient | null = null;
+  /** The host asked (one, once it has started). */
+  const host = async () => client ?? (client = (await options.connect()).client);
 
   const back = (to: () => void) => {
     const b = el("button", "link title-back", "‹ Back");
@@ -192,13 +229,17 @@ export function showTitle(options: TitleOptions): void {
   // A new world: its kind, its seed, where it begins.
   const newWorld = () => {
     let kind: string = KINDS[0][0],
-      begin: string = BEGINNINGS[1][0];
+      begin: string = BEGINNINGS[1][0],
+      life: string = LIFE[0][0];
     const form = el("div", "title-form"),
       kinds = el("div", "choice-row"),
+      lifeHead = el("h3", undefined, "Life on it"),
+      lives = el("div", "choice-row"),
       beginnings = el("div", "choice-row"),
       seedRow = el("div", "seed-row"),
       seed = el("input", "seed-input"),
       roll = el("button", "seed-roll", "🎲"),
+      seedNote = el("p", "muted seed-life"),
       start = el("button", "begin", "Begin ▶");
     seed.value = randomSeed();
     seed.maxLength = 60;
@@ -206,18 +247,58 @@ export function showTitle(options: TitleOptions): void {
     seed.setAttribute("aria-label", "The world's seed");
     roll.title = "Another seed";
     roll.setAttribute("aria-label", "Another seed");
-    roll.onclick = () => (seed.value = randomSeed());
     seedRow.append(seed, roll);
     const pick = (row: HTMLElement, id: string) => {
       for (const b of row.children) b.classList.toggle("on", (b as HTMLElement).dataset.id === id);
+    };
+    // A world never seen: whether life arises on the seed's world is told as it is typed, and
+    // where it would not, Begin goes on to the nearest seed whose world it does.
+    let asked = 0;
+    const tell = async () => {
+      const n = ++asked,
+        s = seed.value.trim();
+      lifeHead.hidden = lives.hidden = kind !== "alien";
+      if (kind !== "alien" || !s) {
+        seedNote.textContent = "";
+        return;
+      }
+      seedNote.textContent = "…";
+      try {
+        const got = await (await host()).lifeOf(kind, s);
+        if (n !== asked) return;
+        seedNote.textContent = got.peopled
+          ? "🌱 Life arises on this world, and in time a people."
+          : `❄️ No people will rise here: ${got.words}.${life === "living" ? " Begin will take the nearest world where life arises." : ""}`;
+      } catch {
+        if (n === asked) seedNote.textContent = "";
+      }
+    };
+    let typing = 0;
+    seed.addEventListener("input", () => {
+      clearTimeout(typing);
+      typing = window.setTimeout(() => void tell(), 350);
+    });
+    roll.onclick = () => {
+      seed.value = randomSeed();
+      void tell();
     };
     for (const [id, icon, words, note] of KINDS) {
       const b = choice(icon, words, note, () => {
         kind = id;
         pick(kinds, id);
+        void tell();
       });
       b.dataset.id = id;
       kinds.append(b);
+    }
+    for (const [id, icon, words, note] of LIFE) {
+      const b = choice(icon, words, note, () => {
+        life = id;
+        pick(lives, id);
+        void tell();
+      });
+      b.dataset.id = id;
+      lives.append(b);
     }
     for (const [id, icon, words, note] of BEGINNINGS) {
       const b = choice(icon, words, note, () => {
@@ -228,10 +309,23 @@ export function showTitle(options: TitleOptions): void {
       beginnings.append(b);
     }
     pick(kinds, kind);
+    pick(lives, life);
     pick(beginnings, begin);
-    const begun = () => {
-      const s = seed.value.trim() || randomSeed(),
-        at = `?universe=${kind}&seed=${encodeURIComponent(s)}`;
+    lifeHead.hidden = lives.hidden = true;
+    const begun = async () => {
+      let s = seed.value.trim() || randomSeed();
+      if (kind === "alien" && life === "living") {
+        start.disabled = true;
+        seedNote.textContent = "Finding a world where life arises…";
+        try {
+          s = (await livingSeed(await host(), kind, s)).seed;
+          seed.value = s;
+        } catch {
+          // (No host to ask: begun as typed.)
+        }
+        start.disabled = false;
+      }
+      const at = `?universe=${kind}&seed=${encodeURIComponent(s)}`;
       go(
         begin === "genesis"
           ? `${at}&genesis=1`
@@ -242,16 +336,19 @@ export function showTitle(options: TitleOptions): void {
               : at,
       );
     };
-    start.onclick = begun;
+    start.onclick = () => void begun();
     seed.onkeydown = (e) => {
-      if (e.key === "Enter") begun();
+      if (e.key === "Enter") void begun();
     };
     form.append(
       el("h2", undefined, "A new world"),
       el("h3", undefined, "What kind of world"),
       kinds,
+      lifeHead,
+      lives,
       el("h3", undefined, "Its seed"),
       seedRow,
+      seedNote,
       el("p", "muted", "The same seed makes the same world, every time: keep it to share it."),
       el("h3", undefined, "Where it begins"),
       beginnings,
@@ -295,15 +392,61 @@ export function showTitle(options: TitleOptions): void {
         said.textContent = `not opened: ${(error as Error).message}`;
       }
     };
-    for (const s of saves ?? [])
-      list.append(
+    // Each kept world, and beside it its delete (asked twice: what will go, then gone).
+    const row = (s: SaveMeta): HTMLElement => {
+      const line = el("div", "kept-row"),
+        del = el("button", "kept-delete", "🗑");
+      del.title = "Delete this kept world";
+      del.setAttribute("aria-label", `Delete ${worldWords(s)}`);
+      del.onclick = () => {
+        const ask = el("div", "kept-ask"),
+          yes = el("button", "act kept-yes", "Delete"),
+          no = el("button", "link", "Keep it");
+        ask.append(
+          el(
+            "span",
+            undefined,
+            `Delete ${worldWords(s)}, year ${Math.floor(s.t / YEAR)}${s.name.endsWith(":auto") ? " (kept on its own)" : ""}, for good?`,
+          ),
+          yes,
+          no,
+        );
+        no.onclick = () => line.replaceWith(row(s));
+        yes.onclick = async () => {
+          yes.disabled = true;
+          try {
+            await (await host()).deleteSave(s.name);
+            saves = (saves ?? []).filter((x) => x.name !== s.name);
+            kept();
+            body
+              .querySelector(".title-form")
+              ?.prepend(
+                el(
+                  "p",
+                  "muted kept-said",
+                  `${worldWords(s)}, year ${Math.floor(s.t / YEAR)}, deleted.`,
+                ),
+              );
+          } catch (error) {
+            said.textContent = `not deleted: ${(error as Error).message}`;
+            yes.disabled = false;
+          }
+        };
+        line.replaceChildren(ask);
+        yes.focus();
+      };
+      line.append(
         choice(
           s.universe === "alien" ? "🪐" : "🌍",
           worldWords(s),
           `year ${Math.floor(s.t / YEAR)} · kept ${ago(s.savedAt)}${s.name.endsWith(":auto") ? " (on its own)" : ""} · ${(s.bytes / 1e6).toFixed(1)} MB`,
           () => go(keptAddress(s)),
         ),
+        del,
       );
+      return line;
+    };
+    for (const s of saves ?? []) list.append(row(s));
     if (!saves?.length) list.append(el("p", "muted", "No world is kept in this browser yet."));
     list.append(open);
     form.append(el("h2", undefined, "Worlds kept"), list, file, said, back(menu));

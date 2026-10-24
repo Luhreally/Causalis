@@ -110,6 +110,41 @@ test("the title screen's host: the worlds kept listed, and a kept file opened, b
   assert.deepEqual(await title.settle(title.client.query({ type: "hashes" })), hashes);
 });
 
+test("a kept world put away for good: gone from the list, its slots gone, the others kept", async () => {
+  const storage = new MemoryByteStore(),
+    r = rig(storage);
+  await r.settle(r.client.start("sandbox", "kept"));
+  await r.settle(r.client.save("sandbox:kept"));
+  await r.settle(r.client.save("sandbox:kept:auto"));
+  const title = rig(storage);
+  assert.deepEqual(await title.settle(title.client.deleteSave("sandbox:kept:auto")), {
+    removed: true,
+  });
+  assert.deepEqual(
+    (await title.settle(title.client.saves())).map((s) => s.name),
+    ["sandbox:kept"],
+  );
+  assert.ok(!(await storage.keys()).some((k) => k.startsWith("save/sandbox:kept:auto/")));
+  // (One not kept: nothing to put away.)
+  assert.deepEqual(await title.settle(title.client.deleteSave("sandbox:never")), {
+    removed: false,
+  });
+  await assert.rejects(title.settle(title.client.load("sandbox:kept:auto")));
+});
+
+test("whether life arises on a seed's world is asked of the host with no world running", async () => {
+  const title = rig();
+  const lifeless = await title.settle(title.client.lifeOf("alien", "alien 0")),
+    living = await title.settle(title.client.lifeOf("alien", "alien 55")),
+    earth = await title.settle(title.client.lifeOf("earth", "first light"));
+  assert.deepEqual([lifeless.living, lifeless.peopled], [false, false]);
+  assert.match(lifeless.words, /froze over/);
+  assert.deepEqual([living.living, living.peopled, living.words], [true, true, ""]);
+  assert.deepEqual([earth.living, earth.peopled], [true, true]);
+  // (A universe with no life of its own to ask: as living.)
+  assert.equal((await title.settle(title.client.lifeOf("sandbox", "x"))).peopled, true);
+});
+
 test("frames carry the view's arrays, and speed follows the clock", async () => {
   const r = rig(),
     frames: FrameMessage[] = [];

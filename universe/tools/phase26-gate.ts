@@ -232,8 +232,14 @@ if (plan) {
       /year a second/i.test(lit),
       `watching it grow, the clock is not a year a second (“${lit}”)`,
     );
-    // The eye on the town, once it has flown there.
+    // The eye on the town, once it has flown there (on a slow machine the town is drawn late,
+    // and the eye goes on to it then).
     await page.waitForTimeout(slow(2000));
+    await until(
+      "the eye come to rest",
+      async () => !(await k<boolean>(`globalThis.causalis.rig.flying`)),
+      slow(15000),
+    );
     const eye = await k<{ x: number; z: number }>(
         `(() => { const t = globalThis.causalis.rig.target; return { x: t.x, z: t.z }; })()`,
       ),

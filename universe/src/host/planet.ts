@@ -63,6 +63,7 @@ import {
   refineRegion,
   tongueLikeness,
   tongueName,
+  generateHomeWorld,
   type HomeWorld,
   type Region,
   type Tongue,
@@ -104,6 +105,7 @@ import type {
   SystemPlan,
   WarsMap,
   GenesisPlan,
+  SeedLife,
 } from "../bridge/index.ts";
 
 /** The most garrisons the globe shows at the seats of realms at peace (Phase 12 M110). */
@@ -682,6 +684,26 @@ export function settlementFacts(world: World, ref: string) {
   };
 }
 
+/** Whether life arose on a home world, and a people; where none did, why, in a few words. */
+export function seedLife(g: HomeWorld): SeedLife {
+  const living = g.life.species.length > 0,
+    peopled = !!g.life.people,
+    t = Math.round(g.planet.meanTemperature);
+  return {
+    living,
+    peopled,
+    words: peopled
+      ? ""
+      : living
+        ? "life arose on it, but no people rose from it"
+        : t < -15
+          ? `its seas froze over before life took hold (${t} °C on average)`
+          : t > 60
+            ? `too hot for life to take hold in its seas (${t} °C on average)`
+            : "no life took hold in its first seas",
+  };
+}
+
 function planetUniverse(name: string, prior: Prior): Universe {
   return {
     name,
@@ -702,6 +724,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
       prepareSites(ctx, next.cell);
       return true;
     },
+    // Whether life arises on a seed's world (asked 2026-10-24: a world never seen "where the world
+    // supports life"; one in ten freezes over lifeless): its home world made, and nothing more.
+    life: (seed) => seedLife(generateHomeWorld(seed, prior)),
     build: (seed) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const world = makePopulationWorld(seed, { prior, start: "spread" });

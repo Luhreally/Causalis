@@ -38,6 +38,10 @@ export type ToHost =
   | { readonly kind: "export"; readonly id: number }
   /** The saves kept: each one's world, time and size. */
   | { readonly kind: "saves"; readonly id: number }
+  /** A kept world put away for good: both its slots and its index. */
+  | { readonly kind: "deleteSave"; readonly id: number; readonly name: string }
+  /** Whether life arises on a seed's world, and people in time (no world need be running). */
+  | { readonly kind: "life"; readonly id: number; readonly universe: string; readonly seed: string }
   | { readonly kind: "import"; readonly id: number; readonly bytes: Uint8Array }
   /** Run the world to a time at once (tests, tools and the skip). */
   | { readonly kind: "advance"; readonly id: number; readonly to: number };
@@ -83,6 +87,16 @@ export interface Port<In, Out> {
 export function frameTransfer(frame: FrameMessage): Transferable[] {
   return Object.values(frame.arrays).map((a) => a.buffer as ArrayBuffer);
 }
+
+/**
+ * Whether life arises on a seed's world: any living thing, and a people in time; and, where none
+ * does, why, in a few words ("its seas frozen over, −32 °C on average").
+ */
+export type SeedLife = {
+  readonly living: boolean;
+  readonly peopled: boolean;
+  readonly words: string;
+};
 
 /** A save as the saves page lists it: which world, how far on, how big, under how many rulesets. */
 export type SaveMeta = {

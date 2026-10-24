@@ -424,6 +424,8 @@ export class PlanetPanel {
   /** The saves kept; load one; keep this world as a file; open one from a file. */
   onSaves: () => Promise<SaveMeta[]> = async () => [];
   onLoadSave: (save: SaveMeta) => Promise<string> = async () => "";
+  /** A kept world put away for good; says how it went. */
+  onDeleteSave: (save: SaveMeta) => Promise<string> = async () => "";
   onExport: () => Promise<string> = async () => "";
   onImport: (file: File) => Promise<string> = async () => "";
 
@@ -1123,15 +1125,39 @@ export class PlanetPanel {
       alien: "An alien world",
       sandbox: "The sandbox",
     };
-    const rows = saves.map((s) => {
-      const b = el(
-        "button",
-        "line page-line",
-        `${WORLDS[s.universe] ?? s.universe} “${s.seed}”, year ${Math.floor(s.t / YEAR).toLocaleString()} · ${(s.bytes / 1e6).toFixed(1)} MB${s.name.endsWith(":auto") ? " · kept on its own" : ""}${s.rulesets > 1 ? " · carried to newer rules" : ""}`,
-      );
+    // Each save, to load; and beside it its delete, asked twice (what will go, then gone).
+    const row = (s: SaveMeta): HTMLElement => {
+      const words = `${WORLDS[s.universe] ?? s.universe} “${s.seed}”, year ${Math.floor(s.t / YEAR).toLocaleString()}`,
+        line = el("div", "kept-row"),
+        b = el(
+          "button",
+          "line page-line",
+          `${words} · ${(s.bytes / 1e6).toFixed(1)} MB${s.name.endsWith(":auto") ? " · kept on its own" : ""}${s.rulesets > 1 ? " · carried to newer rules" : ""}`,
+        ),
+        del = el("button", "kept-delete", "🗑");
       b.onclick = async () => (said.textContent = await this.onLoadSave(s));
-      return b;
-    });
+      del.title = "Delete this save";
+      del.setAttribute("aria-label", `Delete ${words}`);
+      del.onclick = () => {
+        const ask = el("div", "kept-ask"),
+          yes = el("button", "act kept-yes", "Delete"),
+          no = el("button", "link", "Keep it");
+        ask.append(el("span", undefined, `Delete ${words}, for good?`), yes, no);
+        no.onclick = () => line.replaceWith(row(s));
+        yes.onclick = async () => {
+          yes.disabled = true;
+          const told = await this.onDeleteSave(s);
+          await this.showSaves();
+          said.textContent = told;
+          this.facts.prepend(said);
+        };
+        line.replaceChildren(ask);
+        yes.focus();
+      };
+      line.append(b, del);
+      return line;
+    };
+    const rows = saves.map(row);
     this.facts.replaceChildren(
       now,
       el("h3", undefined, "Kept in this browser"),
