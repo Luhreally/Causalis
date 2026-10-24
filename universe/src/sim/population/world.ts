@@ -22,6 +22,7 @@ import { installDiplomacy } from "../diplomacy/diplomacy.ts";
 import { installWar } from "../war/war.ts";
 import { installOrder } from "../order/order.ts";
 import { installCities } from "../city/city.ts";
+import { installTowns } from "../town/fabric.ts";
 import { installLocalActs } from "../acts/local.ts";
 import { installPeopleActs } from "../acts/peoples.ts";
 import { installDisasters } from "../acts/disasters.ts";
@@ -235,6 +236,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installCredit(world, () => populationContext(world));
   installStrife(world, () => populationContext(world));
   installCities(world, () => populationContext(world));
+  installTowns(world, () => populationContext(world));
   installLocalActs(world, () => populationContext(world));
   installPeopleActs(world, () => populationContext(world));
   installDisasters(world, () => populationContext(world));

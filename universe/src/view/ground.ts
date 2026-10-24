@@ -4,12 +4,16 @@
 // circle); and the push that keeps a walker out of them, to the nearest point of the wall,
 // so that passing one is a smooth step around it and never a jump. A walker is kept its own
 // reach off them (a beast's half-length as drawn), so its body does not pass into a wall.
-import { LAKE_R, type VillagePlan } from "../bridge/index.ts";
+// In a town built lot by lot (Phase 23), every block that holds anything and the lengths of its
+// walls stand solid too, and a walk goes by its streets (streets.ts).
+import { LAKE_R, LOT_D, LOT_W, type VillagePlan } from "../bridge/index.ts";
 import { houseLook } from "./village.ts";
+import { streetsOf, type Streets } from "./streets.ts";
 
 /**
  * A solid on the ground: its middle and how far its wall stands from its core; a long one's
- * core runs along a unit axis (ax, az), `half` its length each way (0: a circle).
+ * core runs along a unit axis (ax, az), `half` its length each way (0: a circle); a box's core
+ * reaches `across` it each way too.
  */
 export type Solid = {
   readonly x: number;
@@ -18,6 +22,7 @@ export type Solid = {
   readonly ax?: number;
   readonly az?: number;
   readonly half?: number;
+  readonly across?: number;
 };
 
 export type Ground = {
@@ -25,6 +30,8 @@ export type Ground = {
   readonly homes: readonly Solid[];
   /** How far out from the middle the homes reach (a walker further out passes none). */
   readonly homesReach: number;
+  /** A town's blocks, walls and streets (Phase 23; null: a village's open ground). */
+  readonly town?: Streets | null;
 };
 
 type Point = { readonly x: number; readonly z: number };
@@ -41,6 +48,27 @@ export function villageGround(plan: VillagePlan): Ground {
 }
 
 function groundOf(plan: VillagePlan): Ground {
+  const lake = plan.water ? { x: plan.water.x, z: plan.water.z, r: LAKE_R } : null;
+  if (plan.town) {
+    // A town's: its blocks and walls, and the watched homes each its lot's whole footprint (as
+    // much as any home on it is built to, wall to wall along its street); what it reaches out
+    // to, the town's edge.
+    const town = streetsOf(plan.town, lake);
+    return {
+      lake,
+      homes: plan.homes.map((h) => ({
+        x: h.x,
+        z: h.z,
+        r: 0,
+        ax: Math.cos(h.yaw),
+        az: -Math.sin(h.yaw),
+        half: LOT_W / 2 - 0.1,
+        across: LOT_D / 2 - 0.8,
+      })),
+      homesReach: town.edge,
+      town,
+    };
+  }
   const look = houseLook(plan.house),
     // (A house's drawn measures are tenths of its metres; its roof overhangs its walls.)
     long = look.length * 10 * 1.15,
@@ -58,31 +86,45 @@ function groundOf(plan: VillagePlan): Ground {
     });
   let reach = 0;
   for (const h of homes) reach = Math.max(reach, Math.hypot(h.x, h.z) + h.r + h.half);
-  return {
-    lake: plan.water ? { x: plan.water.x, z: plan.water.z, r: LAKE_R } : null,
-    homes,
-    homesReach: reach,
-  };
+  return { lake, homes, homesReach: reach, town: null };
 }
 
 /** The point of a solid's core nearest (px, pz). */
 function coreNear(s: Solid, px: number, pz: number): [number, number] {
-  const h = s.half ?? 0;
-  if (!h) return [s.x, s.z];
+  const h = s.half ?? 0,
+    w = s.across ?? 0;
+  if (!h && !w) return [s.x, s.z];
   const ax = s.ax ?? 1,
     az = s.az ?? 0,
-    t = Math.max(-h, Math.min(h, (px - s.x) * ax + (pz - s.z) * az));
-  return [s.x + ax * t, s.z + az * t];
+    dx = px - s.x,
+    dz = pz - s.z,
+    t = Math.max(-h, Math.min(h, dx * ax + dz * az));
+  if (!w) return [s.x + ax * t, s.z + az * t];
+  // (A box: across its axis too, the axis turned a quarter.)
+  const n = Math.max(-w, Math.min(w, -dx * az + dz * ax));
+  return [s.x + ax * t - az * n, s.z + az * t + ax * n];
 }
 
 /** How far a point stands clear of a solid's wall (less than nothing: inside it). */
 export function clearOf(s: Solid, p: Point): number {
-  const [cx, cz] = coreNear(s, p.x, p.z);
-  return Math.hypot(p.x - cx, p.z - cz) - s.r;
+  const [cx, cz] = coreNear(s, p.x, p.z),
+    d = Math.hypot(p.x - cx, p.z - cz);
+  if (d > 0 || !s.across) return d - s.r;
+  // (Within a box's core: as deep in as its nearer side is far.)
+  const ax = s.ax ?? 1,
+    az = s.az ?? 0,
+    dx = p.x - s.x,
+    dz = p.z - s.z;
+  return (
+    -Math.min(
+      (s.half ?? 0) - Math.abs(dx * ax + dz * az),
+      s.across - Math.abs(-dx * az + dz * ax),
+    ) - s.r
+  );
 }
 
 /** Push `p` out of `s` (with `reach` to spare) to the nearest point of its wall, in place. */
-function pushOut(s: Solid, p: { x: number; z: number }, reach: number): void {
+export function pushOut(s: Solid, p: { x: number; z: number }, reach: number): void {
   const [cx, cz] = coreNear(s, p.x, p.z),
     r = s.r + reach,
     dx = p.x - cx,
@@ -91,9 +133,29 @@ function pushOut(s: Solid, p: { x: number; z: number }, reach: number): void {
   if (d2 >= r * r) return;
   const d = Math.sqrt(d2);
   if (d < 1e-9) {
+    const ax = s.ax ?? 1,
+      az = s.az ?? 0;
+    if (s.across) {
+      // (Within a box's core: out by its nearer side.)
+      const ex = p.x - s.x,
+        ez = p.z - s.z,
+        t = ex * ax + ez * az,
+        n = -ex * az + ez * ax,
+        h = s.half ?? 0;
+      if (h - Math.abs(t) < s.across - Math.abs(n)) {
+        const out = (t < 0 ? -1 : 1) * (h + r);
+        p.x = s.x + ax * out - az * n;
+        p.z = s.z + az * out + ax * n;
+      } else {
+        const out = (n < 0 ? -1 : 1) * (s.across + r);
+        p.x = s.x + ax * t - az * out;
+        p.z = s.z + az * t + ax * out;
+      }
+      return;
+    }
     // (On the core itself: out across it.)
-    p.x = cx - (s.az ?? 0) * r;
-    p.z = cz + (s.ax ?? 1) * r;
+    p.x = cx - az * r;
+    p.z = cz + ax * r;
     return;
   }
   p.x = cx + (dx / d) * r;
@@ -102,17 +164,64 @@ function pushOut(s: Solid, p: { x: number; z: number }, reach: number): void {
 
 /**
  * Keep a walker `reach` metres across out of the water and the homes (in place) — pushed
- * again where homes stand so close that out of one is into the next.
+ * again where homes stand so close that out of one is into the next; in a town, out of its
+ * blocks and walls.
  */
 export function keepOut(ground: Ground, p: { x: number; z: number }, reach: number): void {
   for (let pass = 0; pass < 3; pass++) {
     const x = p.x,
       z = p.z;
     if (ground.lake) pushOut(ground.lake, p, reach);
-    if (p.x * p.x + p.z * p.z < (ground.homesReach + reach) ** 2)
+    if (p.x * p.x + p.z * p.z < (ground.homesReach + reach) ** 2) {
       for (const h of ground.homes) pushOut(h, p, reach);
+      ground.town?.keepOut(p, reach);
+    }
     if (p.x === x && p.z === z) return;
   }
+}
+
+/** Whether a point stands `reach` clear of every wall on the ground and dry. */
+export function clearAt(ground: Ground, p: Point, reach: number): boolean {
+  if (ground.lake && clearOf(ground.lake, p) < reach) return false;
+  for (const h of ground.homes) if (clearOf(h, p) < reach) return false;
+  return !ground.town || ground.town.clearAt(p, reach);
+}
+
+/** Whether the way from p to q keeps `reach` off a solid's wall. */
+export function wayClear(s: Solid, p: Point, q: Point, reach: number): boolean {
+  const r = s.r + reach;
+  if (!s.across) {
+    // (A circle: how near the way comes to its middle.)
+    if (!s.half) return toSegment(s.x, s.z, p, q) >= r;
+    const [a, b] = coreOf(s);
+    return between(p, q, a, b) >= r;
+  }
+  // A box: in its own frame, the way against its core grown by r on every side (its corners
+  // square: a little more than kept off them) — clear if no stretch of it lies within both of
+  // the box's slabs at once.
+  const ax = s.ax ?? 1,
+    az = s.az ?? 0,
+    pu = (p.x - s.x) * ax + (p.z - s.z) * az,
+    pv = -(p.x - s.x) * az + (p.z - s.z) * ax,
+    du = (q.x - s.x) * ax + (q.z - s.z) * az - pu,
+    dv = -(q.x - s.x) * az + (q.z - s.z) * ax - pv,
+    hu = (s.half ?? 0) + r,
+    hv = s.across + r;
+  let lo = 0,
+    hi = 1;
+  if (Math.abs(du) < 1e-12) {
+    if (pu <= -hu || pu >= hu) return true;
+  } else {
+    const t0 = (-hu - pu) / du,
+      t1 = (hu - pu) / du;
+    lo = Math.max(lo, Math.min(t0, t1));
+    hi = Math.min(hi, Math.max(t0, t1));
+    if (lo >= hi) return true;
+  }
+  if (Math.abs(dv) < 1e-12) return pv <= -hv || pv >= hv;
+  const t0 = (-hv - pv) / dv,
+    t1 = (hv - pv) / dv;
+  return Math.max(lo, Math.min(t0, t1)) >= Math.min(hi, Math.max(t0, t1));
 }
 
 /** Whether (x, z) is clear of the water by `margin` metres. */
@@ -172,12 +281,10 @@ function firstHit(ground: Ground, p: Point, q: Point, reach: number): Solid | nu
     z0 = Math.min(p.z, q.z),
     z1 = Math.max(p.z, q.z);
   const test = (s: Solid) => {
-    const r = s.r + reach,
-      span = r + (s.half ?? 0);
+    const span = s.r + reach + (s.half ?? 0) + (s.across ?? 0);
     if (s.x < x0 - span || s.x > x1 + span || s.z < z0 - span || s.z > z1 + span) return;
     if (clearOf(s, p) < reach || clearOf(s, q) < reach) return;
-    const [a, b] = coreOf(s);
-    if (between(p, q, a, b) >= r) return;
+    if (wayClear(s, p, q, reach)) return;
     const t = len2 > 0 ? ((s.x - p.x) * dx + (s.z - p.z) * dz) / len2 : 0;
     if (t < bestT) {
       bestT = t;
@@ -192,9 +299,10 @@ function firstHit(ground: Ground, p: Point, q: Point, reach: number): Solid | nu
 /**
  * A way from `a` to `b` round the solids between, as the points to pass (a walker's
  * `reach` kept off each wall): where the straight way would pass through one, it turns at
- * the wall beside it — a few turns at most.
+ * the wall beside it — a few turns at most. In a town, by its streets.
  */
 export function route(ground: Ground, a: Point, b: Point, reach: number): Point[] {
+  if (ground.town) return ground.town.route(a, b, reach);
   const way: Point[] = [a, b];
   for (let pass = 0; pass < 4; pass++) {
     let turned = false;

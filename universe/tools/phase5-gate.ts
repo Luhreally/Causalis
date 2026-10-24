@@ -24,7 +24,7 @@ const RUNS: readonly [string, number][] = ci
     ];
 const EARTH_LANDS = 550,
   YEAR_MS = process.env.CI ? 1200 : 600,
-  SAVE_BYTES = 16_000_000;
+  SAVE_BYTES = 18_000_000;
 
 function run(seed: string, years: number): Promise<SkySurvey> {
   return new Promise((done, fail) => {

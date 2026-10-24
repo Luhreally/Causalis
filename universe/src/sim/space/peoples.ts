@@ -1000,7 +1000,7 @@ function fleetArrives(
   let dead = 0;
   if (won && realm) {
     dead = strike(ctx, cell, far ? 0.25 : 0.03, t);
-    raze(ctx, cell, far ? 0.4 : 0.1);
+    raze(ctx, cell, far ? 0.4 : 0.1, t);
     grieve(world, cell, far ? 0.4 : 0.2, event);
   }
   if (taken && them) {

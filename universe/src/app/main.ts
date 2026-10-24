@@ -2884,7 +2884,7 @@ async function runPlanetPage(): Promise<void> {
     });
     performance.measure("village.plan", { start: q0 });
     const t0 = performance.now();
-    village.build(plan);
+    village.build(plan, now());
     performance.measure("village.build", { start: t0 });
     villagePanel.show(plan.name);
     villagePanel.hand = plan.hand;
@@ -2911,11 +2911,13 @@ async function runPlanetPage(): Promise<void> {
     village.visible = true;
     villagePanel.visible = true;
     time.at("village", villagePanel.timeSlot);
+    // A town is seen from as far off as it spreads (Phase 23); a city's quarters from further off.
+    const reach = village.townReach() * 0.1,
+      far = reach > 0 ? Math.min(170, Math.max(26, reach * 1.4)) : plan?.districts ? 78 : 26;
     rig.configure({
-      // A city is seen from further off: most of its quarters in view.
-      distance: plan?.districts ? 78 : 26,
+      distance: far,
       minDistance: 3,
-      maxDistance: 140,
+      maxDistance: Math.max(140, far * 1.6),
       pitch: -38,
       minPitch: -85,
       maxPitch: -8,
@@ -2926,7 +2928,7 @@ async function runPlanetPage(): Promise<void> {
     const facing = village.visitorsFacing();
     if (facing !== null) rig.yaw = facing;
     // (And its haze starts as far off.)
-    if (plan?.districts) stage.backdrop("ground", 110, true);
+    if (reach > 0 || plan?.districts) stage.backdrop("ground", Math.max(110, far * 2.2), true);
   };
   // A tap in the village: someone, else a beast (its lineage and what it is doing), else no one.
   const tapVillage = (x: number, y: number) => {

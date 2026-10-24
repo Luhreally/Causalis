@@ -2147,7 +2147,10 @@ every dry year — the chronicle is now weight 4 and all it cites, ordinary even
 while young or held by a store, and the tombstones of what was forgotten stay two
 centuries (the summaries keep their count). The save at year 900 is 14 MB (5 MB at
 300), bounded by the living-memory windows and growing with how busy the world is, not
-with its age. **Phase 3 closed.**
+with its age. **Phase 3 closed.** (Phase 23 raised the bound to 18 MB: the towns' fabric —
+every lot of some twenty-three thousand towns, their buildings and walls — is near 3 MB
+of the save at year 900, packed: a building's lots and years are its kind's, homes and open
+lots are read again on loading, runs join across the buildings among them.)
 
 ### I.4 Phase 4 milestones (planned 2026-09-26, after the Phase 3 gate)
 

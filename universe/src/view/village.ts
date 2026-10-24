@@ -9,12 +9,14 @@
 // next home built as the village grows, the young drilling in ranks while their realm is
 // at war, rings of talk in the square — hot words and a brawl where grievance runs high —
 // and what each says, in signs, of what the village's own year has brought. Walkers go
-// round the homes and the water, never through them.
+// round the homes and the water, never through them; in a town built lot by lot (Phase 23),
+// each family's door is on its street, and its walks go by the streets.
 import { finish, hashString, mix } from "../kernel/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 import { OCC } from "../rules/index.ts";
 import { paceOf } from "./figure.ts";
-import { clearOf, keepOut, route, villageGround, type Ground } from "./ground.ts";
+import { clearAt, clearOf, keepOut, route, villageGround, type Ground } from "./ground.ts";
+import { streetDoor } from "./streets.ts";
 import type { Carry } from "./work.ts";
 
 export const ACTIVITY = {
@@ -142,19 +144,22 @@ function workplace(
       back: Carry | null = to,
       task: Task | null = null,
     ): Work => ({ ...clearSpot(ground, { x, z }), to, back, task }),
-    // Beside their own home: a doorstep's way out, on a side clear of the walls.
+    // Beside their own home: a doorstep's way out, on a side clear of the walls (in a town, on
+    // the street before it, a few steps along).
     nearHome = (
       out: number,
       to: Carry | null = null,
       back: Carry | null = to,
       task: Task | null = null,
     ): Work => ({
-      ...doorstep(
-        ground,
-        home,
-        angle,
-        Math.max(out, (ground.homes[p.home]?.r ?? 5) + PERSON_REACH + 0.8),
-      ),
+      ...(plan.town
+        ? clearSpot(ground, streetDoor(home, (draw(21) - 0.5) * Math.min(12, out)))
+        : doorstep(
+            ground,
+            home,
+            angle,
+            Math.max(out, (ground.homes[p.home]?.r ?? 5) + PERSON_REACH + 0.8),
+          )),
       to,
       back,
       task,
@@ -264,9 +269,11 @@ function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
     home = plan.homes[p.home]!,
     ground = groundFor(plan),
     // At home means at the doorstep, where they can be seen: outside the walls (on a side
-    // clear of the neighbours' too).
+    // clear of the neighbours' too; in a town, on its street before its door).
     doorOut = Math.max(7, (ground.homes[p.home]?.r ?? 5) + PERSON_REACH + 0.8),
-    at = doorstep(ground, home, home.yaw + (draw(20) - 0.5) * 1.2, doorOut),
+    at = plan.town
+      ? clearSpot(ground, streetDoor(home, (draw(20) - 0.5) * 5))
+      : doorstep(ground, home, home.yaw + (draw(20) - 0.5) * 1.2, doorOut),
     work = workplace(plan, p, draw, day),
     rest = restDay(plan, day),
     rise = (5.5 + draw(7) * 1.5) * HOUR,
@@ -443,10 +450,7 @@ export function momentOf(plan: VillagePlan, index: number, t: number): Moment {
 
 /** The nearest place to `p` clear of every wall (itself, if it is), a few steps about it. */
 function clearSpot(ground: Ground, p: Point): Point {
-  const clear = (q: Point) =>
-    ground.homes.every((h) => clearOf(h, q) >= PERSON_REACH) &&
-    (!ground.lake ||
-      Math.hypot(q.x - ground.lake.x, q.z - ground.lake.z) >= ground.lake.r + PERSON_REACH);
+  const clear = (q: Point) => clearAt(ground, q, PERSON_REACH);
   if (clear(p)) return p;
   for (let r = 2; r <= 12; r += 2)
     for (let k = 0; k < 8; k++) {
@@ -845,12 +849,15 @@ export function treesOf(plan: VillagePlan, share = 1): Tree[] {
     // (A setting may draw fewer or more of them: `share` of the land's count.)
     total = Math.round(woods.reduce((a, b) => a + b, 0) * share);
   if (!total) return [];
-  // From just past the homes out (the fields are kept clear of trees one by one).
+  // From just past the homes out (the fields are kept clear of trees one by one) — past a
+  // town's edge.
   let reach = 40;
   for (const h of plan.homes) reach = Math.max(reach, Math.hypot(h.x, h.z));
+  if (plan.town) reach = Math.max(reach, villageGround(plan).homesReach);
   const inner = reach + 25,
-    outer = Math.min(1300, inner + 600),
-    seed = hashText(plan.ref),
+    outer = Math.min(1300, inner + 600);
+  if (outer < inner + 50) return [];
+  const seed = hashText(plan.ref),
     roadLen = Math.hypot(plan.road.x, plan.road.z) || 1,
     rx = plan.road.x / roadLen,
     rz = plan.road.z / roadLen,

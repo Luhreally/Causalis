@@ -2067,7 +2067,7 @@ canvas.arms {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  max-width: min(36rem, calc(100vw - 460px));
+  max-width: min(46rem, calc(100vw - 460px));
   padding: 6px 8px 7px;
   background: var(--panel-solid);
   border: 2px solid;
@@ -2138,12 +2138,13 @@ canvas.arms {
   border-color: #0b7a62;
   background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
 }
+/* (Every act of a kind in sight: where the bar is too narrow for them, they wrap to a second row
+   rather than scroll out of view.) */
 .palette-acts {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
 }
 /* Each act lime glass, as the hand's acts are; the one in hand lit gold and glowing. */
 .palette-act {

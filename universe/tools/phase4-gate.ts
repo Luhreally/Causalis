@@ -28,7 +28,7 @@ const SEA_POWER = "alien 65";
 /** Earth's lands, and its bounds (tools/phase3-gate.ts): the slowest year, the save. */
 const EARTH_LANDS = 550,
   YEAR_MS = process.env.CI ? 1200 : 600,
-  SAVE_BYTES = 16_000_000;
+  SAVE_BYTES = 18_000_000;
 /** No people grows faster than this a century, over the whole run. */
 const MOST_GROWTH = 3;
 

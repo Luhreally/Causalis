@@ -25,6 +25,7 @@ import {
 export const BLESSING = 20;
 import { cultureOf } from "../culture/culture.ts";
 import { citiesOf, USE } from "../city/city.ts";
+import { razeTown } from "../town/fabric.ts";
 import { knows, loreOf } from "../lore/lore.ts";
 
 export const LOCAL_ACT_EVENTS = {
@@ -99,6 +100,8 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
           .filter((b) => b.u !== USE.open && b.u !== USE.temple),
         burnt = built.slice(0, Math.ceil(built.length / 5));
       for (const b of burnt) city.uses[b.k] = USE.open;
+      // (And as great a share of its homes, the heart first: Phase 23.)
+      razeTown(c, v.ref, 0.2, t);
       const p = c.provinces.get(v.cell)!;
       let dead = Math.round(v.population / 100);
       for (let b = 0; b < BANDS && dead > 0; b++)

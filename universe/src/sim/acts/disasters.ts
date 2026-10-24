@@ -19,6 +19,7 @@ import type { PopulationContext } from "../population/systems.ts";
 import { handOf } from "../hand/hand.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { citiesOf, USE } from "../city/city.ts";
+import { razeTown } from "../town/fabric.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { actsOf } from "./acts.ts";
 
@@ -67,10 +68,14 @@ function spill(ctx: PopulationContext, cell: number, share: number): void {
   for (let g = 0; g < GOODS.length; g++) m.move("spoiled", g, Math.floor(m.stock[g]! * share));
 }
 
-/** A share of a land's cities' built blocks brought down (the middle first): how many. */
-export function raze(ctx: PopulationContext, cell: number, share: number): number {
+/**
+ * A share of a land's cities' built blocks brought down (the middle first): how many; and as
+ * great a share of every town's homes there, the heart first (Phase 23).
+ */
+export function raze(ctx: PopulationContext, cell: number, share: number, t: SimTime): number {
   let down = 0;
   for (const v of ctx.settlements.inProvince(cell)) {
+    razeTown(ctx, v.ref, share, t);
     const city = citiesOf(ctx.world).get(v.ref);
     if (!city) continue;
     const built = city.uses
@@ -128,7 +133,7 @@ export function installDisasters(world: World, ctx: () => PopulationContext): vo
         cell = (command.args as LandArgs).cell,
         k = DISASTER.quake,
         dead = strike(c, cell, k.dead, t),
-        blocks = raze(c, cell, k.blocks);
+        blocks = raze(c, cell, k.blocks, t);
       spill(c, cell, k.stores);
       const event = world.events.emit({
         type: DISASTER_EVENTS.quake.type,
@@ -150,7 +155,7 @@ export function installDisasters(world: World, ctx: () => PopulationContext): vo
         cell = (command.args as LandArgs).cell,
         k = DISASTER.meteor,
         dead = strike(c, cell, k.dead, t),
-        blocks = raze(c, cell, k.blocks);
+        blocks = raze(c, cell, k.blocks, t);
       spill(c, cell, k.stores);
       const event = world.events.emit({
         type: DISASTER_EVENTS.meteor.type,

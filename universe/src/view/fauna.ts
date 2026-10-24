@@ -224,9 +224,11 @@ export function faunaOf(plan: VillagePlan, cap: number, detail: number, ambient:
     fx += fl.x;
     fz += fl.z;
   }
-  // Between the homes and the wild's edge, where they can be seen from the village.
+  // Between the homes and the wild's edge, where they can be seen from the village (past a
+  // town's edge).
   let homes = 40;
   for (const h of plan.homes) homes = Math.max(homes, Math.hypot(h.x, h.z));
+  if (plan.town) homes = Math.max(homes, villageGround(plan).homesReach);
   const fieldWay = plan.fields.length ? Math.atan2(fz, fx) : 0,
     near = homes + 60,
     far = Math.max(near + 120, plan.wild + 60),

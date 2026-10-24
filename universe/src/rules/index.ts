@@ -106,6 +106,20 @@ export {
   type Role,
 } from "./designs.ts";
 export {
+  CIVICS,
+  CIVIC_INDEX,
+  HOLDS,
+  HOME_LEVELS,
+  HOME_LIFE,
+  HOME_MONTHS,
+  HOME_STOREYS,
+  LEVEL,
+  civic,
+  wallYears,
+  type CivicDef,
+  type CivicKind,
+} from "./buildings.ts";
+export {
   AU_KM,
   eccentricAnomaly,
   hohmann,

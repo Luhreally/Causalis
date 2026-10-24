@@ -16,6 +16,7 @@ import {
 } from "../../src/sim/index.ts";
 import { OCC } from "../../src/rules/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
+import { LOT, lotStates, townLots, type TownPlan } from "../../src/bridge/index.ts";
 
 /** How far a city's blocks of the given uses lie from its road, in blocks, on average. */
 function fromRoad(uses: readonly number[], axis: number, which: readonly number[]): number {
@@ -106,8 +107,32 @@ test("the microscope over a city shows its quarters, its homes in its housing bl
     plan = EARTH.queries["village.plan"]!(world, { ref: city.town }) as {
       districts: { uses: number[]; blocks: number; blockM: number } | null;
       homes: { x: number; z: number }[];
+      town?: TownPlan;
     };
   assert.ok(plan.districts, "a city's plan has its quarters");
+  // A city built lot by lot (Phase 23): its people in its own homes, on lots its buildings do not take.
+  if (plan.town) {
+    const lots = townLots(
+        plan.town.family,
+        plan.town.seed,
+        plan.town.axis,
+        plan.town.lots,
+        plan.town.water,
+      ),
+      states = lotStates(plan.town);
+    for (const h of plan.homes) {
+      const p = [...lots.x.keys()].find(
+        (q) => q < plan.town!.lots && lots.x[q] === h.x && lots.z[q] === h.z,
+      );
+      assert.ok(p !== undefined, `a home at ${h.x.toFixed(0)},${h.z.toFixed(0)} on a lot`);
+      assert.equal(states.what[p], LOT.home, `lot ${p} a home`);
+      assert.ok(
+        plan.town.civics.every((c) => c.fell !== null || p < c.at || p >= c.at + c.lots),
+        `lot ${p} under no building`,
+      );
+    }
+    return;
+  }
   for (const h of plan.homes) {
     const i = Math.round(h.x / BLOCK_M + (BLOCKS - 1) / 2),
       j = Math.round(h.z / BLOCK_M + (BLOCKS - 1) / 2),

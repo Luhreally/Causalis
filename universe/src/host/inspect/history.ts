@@ -97,6 +97,9 @@ const TITLES: Readonly<Record<string, string>> = {
   "act.pretender": "A pretender raised",
   "act.forgive": "Debts forgiven",
   "act.break": "A house broken",
+  "town.walled": "Walls raised",
+  "town.temple": "A temple raised",
+  "town.forsaken": "A town forsaken",
 };
 
 /** Where a thing an event names is to be seen (its place, most often a land). */

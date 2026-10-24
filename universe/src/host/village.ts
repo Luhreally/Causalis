@@ -37,11 +37,17 @@ import { meetHousehold, observer, settleAll } from "../causal/index.ts";
 import { personThings } from "./inspect/things.ts";
 import {
   LAKE_R,
+  LOT,
   WATER_OUT,
+  lotStates,
+  progress,
+  townLots,
+  townReach,
   type VillageLife,
   type VillagePlan,
   type Visitor,
 } from "../bridge/index.ts";
+import { townPlan } from "./town.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
 import { visitorsAt } from "./peoples.ts";
@@ -155,7 +161,28 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
   const homes: { x: number; z: number; yaw: number; household: string | null }[] = [],
     count = Math.max(4, Math.min(160, Math.ceil(v.population / 5))),
     phase = u(seed, 1) * 2 * Math.PI;
-  if (city) {
+  // A town built lot by lot (Phase 23): its people live in its own homes, the standing ones
+  // nearest its square; its quarters and its ring of homes are drawn no more.
+  // (Lots drawn as the device can bear, by the families it meets: two thousand to sixteen.)
+  // (Laid about its water, never in it.)
+  const lake =
+      waterWay === null
+        ? null
+        : { x: WATER_OUT * Math.cos(waterWay), z: WATER_OUT * Math.sin(waterWay), r: LAKE_R },
+    town = townPlan(world, ref, city ? city.axis : roadWay, families * families * 80, lake),
+    lots = town ? townLots(town.family, town.seed, town.axis, town.lots, town.water) : null;
+  if (town && lots) {
+    const states = lotStates(town);
+    for (let p = 0; p < town.lots && homes.length < count; p++)
+      if (
+        states.what[p] === LOT.home &&
+        progress(states.began[p]!, states.takes[p]!, world.now) >= 1
+      )
+        homes.push({ x: lots.x[p]!, z: lots.z[p]!, yaw: lots.yaw[p]!, household: null });
+  }
+  const fabric = homes.length >= 4;
+  if (!fabric) homes.length = 0;
+  if (city && !fabric) {
     const perBlock = [0, 3, 6, 0, 0, 0];
     city.uses.forEach((use, k) => {
       const at = blockAt(k % BLOCKS, Math.floor(k / BLOCKS));
@@ -187,13 +214,13 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
         });
   }
   // (A city with no ground left to build on at all houses its people just outside its grid.)
-  for (let k = 0; city && homes.length < 4; k++) {
+  for (let k = 0; city && !fabric && homes.length < 4; k++) {
     const a = phase + k * 2.399963,
       rad = (BLOCKS * BLOCK_M) / 2 + 30;
     homes.push({ x: rad * Math.cos(a), z: rad * Math.sin(a), yaw: a, household: null });
   }
   // A village's homes circle its square.
-  const wanted = city ? 0 : count;
+  const wanted = city || fabric ? 0 : count;
   for (let k = 0; homes.length < wanted && k < 400; k++) {
     const a = phase + k * 2.399963,
       rad = 16 + 8.5 * Math.sqrt(k);
@@ -207,7 +234,12 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
   // Fields in a fan toward the good ground, beyond the homes.
   const fields: { x: number; z: number; w: number; d: number; yaw: number }[] = [],
     // Fields begin beyond the homes (beyond a city's quarters).
-    edge = city ? (BLOCKS * BLOCK_M) / 2 + 60 : 16 + 8.5 * Math.sqrt(count) + 30,
+    edge =
+      fabric && lots && town
+        ? Math.min(2600, townReach(lots) * Math.sqrt(town.whole / Math.max(1, town.lots))) + 30
+        : city
+          ? (BLOCKS * BLOCK_M) / 2 + 60
+          : 16 + 8.5 * Math.sqrt(count) + 30,
     fieldCount = Math.max(6, Math.min(90, Math.round(count * 0.7)));
   for (let k = 0; k < fieldCount; k++) {
     const ring = Math.floor(k / 12),
@@ -382,20 +414,32 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
     if (faith) talk.push("faith");
     if (v!.market) talk.push("trade");
     talk.push("weather", "food", "gossip");
-    // The next home rises where the next would stand in the village's ring, as far built as
-    // the families it will house have come.
+    // The next home rises where the next would stand in the village's ring (in a town built
+    // lot by lot, on its next lot), as far built as the families it will house have come.
     const k = homes.length,
       a = phase + k * 2.399963,
       rad = 16 + 8.5 * Math.sqrt(k),
-      site =
-        growing && !city && k < 400
+      progress = Math.max(0.12, population / 5 - Math.floor(population / 5)),
+      building = growing && !city && k < 400,
+      next =
+        building && fabric && town
+          ? townLots(town.family, town.seed, town.axis, town.whole + 1, town.water)
+          : null,
+      site = building
+        ? next && town
           ? {
+              x: next.x[town.whole]!,
+              z: next.z[town.whole]!,
+              yaw: next.yaw[town.whole]!,
+              progress,
+            }
+          : {
               x: rad * Math.cos(a),
               z: rad * Math.sin(a),
               yaw: a + u(seed, 10 + k) * 0.6,
-              progress: Math.max(0.12, population / 5 - Math.floor(population / 5)),
+              progress,
             }
-          : null;
+        : null;
     // A battle fought in its land this year or last, as history fought it.
     let battle: VillageLife["battle"] = null;
     for (const w of warsOf(world).all()) {
@@ -582,6 +626,7 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       districts: city
         ? { blocks: BLOCKS, blockM: BLOCK_M, uses: city.uses, paved: !!city.paved }
         : null,
+      ...(fabric && town ? { town } : {}),
       people,
     };
   }

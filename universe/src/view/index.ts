@@ -77,6 +77,26 @@ export {
   type Task,
   type Tree,
 } from "./village.ts";
+export {
+  AVENUES,
+  AVENUE_HALF,
+  LAMP,
+  TownParts,
+  avenueWay,
+  civicsActive,
+  homeWear,
+  lotNear,
+  roofTop,
+  sprawlOf,
+  townCivics,
+  townGround,
+  townHomes,
+  townScene,
+  townWalls,
+  type PartMesh,
+  type TownScene,
+} from "./town.ts";
+export { Streets, streetDoor } from "./streets.ts";
 export { STRIDES, bobOf, limbPitch } from "./motion.ts";
 export { BLINK, DASH, FAR, SMOOTH, present, type Presence } from "./presence.ts";
 export {
@@ -208,7 +228,16 @@ export {
   type FishNow,
   type Traffic,
 } from "./fauna.ts";
-export { clearOf, dryAt, keepOut, villageGround, type Ground, type Solid } from "./ground.ts";
+export {
+  clearAt,
+  clearOf,
+  dryAt,
+  keepOut,
+  route,
+  villageGround,
+  type Ground,
+  type Solid,
+} from "./ground.ts";
 export {
   BEAST_SCALE,
   MOST_OF_TONE,

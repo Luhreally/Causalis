@@ -1,0 +1,180 @@
+// A town's fabric drawn (Phase 23 M149): the parts the view lays out, in batches by mesh and
+// colour — its ground and what stands all year in one set, put once as the year's plan comes;
+// what rises through the year (homes climbing in their scaffolds, buildings, walls) in another,
+// put again as it climbs. One unit is ten metres, as in the village.
+import * as pc from "playcanvas";
+import type { TownPlan } from "../bridge/index.ts";
+import {
+  TownParts,
+  civicsActive,
+  lotNear,
+  roofTop,
+  townCivics,
+  townGround,
+  townHomes,
+  townScene,
+  townWalls,
+  type PartMesh,
+  type TownScene,
+} from "../view/index.ts";
+import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
+import type { Stage } from "./stage.ts";
+
+const M = 0.1;
+/** How often what rises is put again (moments of the sim apart, at the least): a few times a day. */
+const RISE_EVERY = 6 * 3600;
+
+/** Batches of parts by mesh and colour, kept and refilled (made anew only when one outgrows itself). */
+class PartBatches {
+  private readonly batches = new Map<string, InstancedBatch>();
+  private readonly stage: Stage;
+  private readonly root: pc.Entity;
+  private readonly meshes: Readonly<Record<PartMesh, pc.Mesh>>;
+  /** The windows' glass, lit at night (its batch made anew when it changes). */
+  lamps: pc.Material | null = null;
+  private lampsIn: pc.Material | null = null;
+  constructor(stage: Stage, root: pc.Entity, meshes: Readonly<Record<PartMesh, pc.Mesh>>) {
+    this.stage = stage;
+    this.root = root;
+    this.meshes = meshes;
+  }
+  show(parts: TownParts): void {
+    for (const [key, g] of parts.groups) {
+      const n = g.data.length / 7;
+      let b = this.batches.get(key);
+      if (n === 0) {
+        b?.set(0, () => {});
+        continue;
+      }
+      if (!b || b.capacity < n || (g.lamp && this.lampsIn !== this.lamps)) {
+        b?.destroy();
+        b = new InstancedBatch(
+          this.stage,
+          this.meshes[g.mesh],
+          [g.color[0], g.color[1], g.color[2]],
+          Math.max(16, Math.ceil(n * 1.3)),
+          this.root,
+          g.lamp ? (this.lamps ?? undefined) : undefined,
+        );
+        if (g.lamp) this.lampsIn = this.lamps;
+        this.batches.set(key, b);
+      }
+      const d = g.data;
+      b.set(n, (i, out) => {
+        const o = i * 7;
+        out[0] = d[o]! * M;
+        out[1] = d[o + 1]! * M;
+        out[2] = d[o + 2]! * M;
+        out[3] = d[o + 3]! * M;
+        out[4] = d[o + 4]! * M;
+        out[5] = d[o + 5]! * M;
+        out[6] = d[o + 6]!;
+      });
+    }
+    for (const [key, b] of this.batches) if (!parts.groups.has(key)) b.set(0, () => {});
+  }
+  destroy(): void {
+    for (const b of this.batches.values()) b.destroy();
+    this.batches.clear();
+  }
+}
+
+export class TownLayer {
+  readonly root = new pc.Entity("town");
+  private readonly settled: PartBatches;
+  private readonly rising: PartBatches;
+  private readonly parts = new TownParts();
+  private scene: TownScene | null = null;
+  private key = "";
+  private drawnAt = -Infinity;
+  /** Whether anything rises or falls this year (else the rising set is put once). */
+  private busy = false;
+
+  constructor(stage: Stage, parent: pc.Entity) {
+    parent.addChild(this.root);
+    const meshes: Record<PartMesh, pc.Mesh> = {
+      box: keptMesh(boxMesh(stage)),
+      gable: keptMesh(gableMesh(stage)),
+      cone: keptMesh(coneMesh(stage, 0.5, 1, 8)),
+      cyl: keptMesh(cylinderMesh(stage, 0.5, 1, 10)),
+    };
+    this.settled = new PartBatches(stage, this.root, meshes);
+    this.rising = new PartBatches(stage, this.root, meshes);
+  }
+
+  get visible(): boolean {
+    return this.root.enabled;
+  }
+  set visible(on: boolean) {
+    this.root.enabled = on;
+  }
+
+  /**
+   * A year's plan of the town (the same town's carried on: its lots are not laid out again), its
+   * windows' glass in `lamps` (lit at night).
+   */
+  build(plan: TownPlan | null, ref: string, t: number, lamps: pc.Material | null = null): void {
+    this.settled.lamps = this.rising.lamps = lamps;
+    if (!plan) {
+      this.scene = null;
+      this.parts.clear();
+      this.settled.show(this.parts);
+      this.rising.show(this.parts);
+      this.visible = false;
+      return;
+    }
+    this.visible = true;
+    const same = this.key === ref && this.scene !== null;
+    this.key = ref;
+    this.scene = townScene(plan, t, same ? this.scene!.lots : undefined);
+    // What stands all year: the ground, the homes done, the ruins.
+    this.parts.clear();
+    townGround(this.scene, this.parts);
+    townHomes(this.scene, this.scene.settled, t, this.parts);
+    this.settled.show(this.parts);
+    this.busy = this.scene.active.length > 0 || civicsActive(plan, t) || !!plan.walls;
+    this.drawnAt = -Infinity;
+    this.update(t);
+  }
+
+  /** What rises through the year, put again as it climbs. */
+  update(t: number): void {
+    const scene = this.scene;
+    if (!scene) return;
+    if (Math.abs(t - this.drawnAt) < RISE_EVERY || (!this.busy && this.drawnAt > -Infinity)) return;
+    this.drawnAt = t;
+    this.parts.clear();
+    townHomes(scene, scene.active, t, this.parts);
+    townCivics(scene, t, this.parts);
+    townWalls(scene, t, this.parts);
+    this.rising.show(this.parts);
+  }
+
+  /**
+   * Where a home's hearth smokes, at the lot nearest (x, z) (metres): its roof's top, or null where
+   * no home stands whole there.
+   */
+  hearth(x: number, z: number, t: number): { x: number; y: number; z: number } | null {
+    const s = this.scene;
+    if (!s) return null;
+    const p = lotNear(s, x, z, 1);
+    if (p < 0) return null;
+    const top = roofTop(s, p, t);
+    return top === null ? null : { x: s.lots.x[p]!, y: top + 0.5, z: s.lots.z[p]! };
+  }
+
+  /** How far out its lots reach (metres), for the eye. */
+  reach(): number {
+    const s = this.scene;
+    if (!s) return 0;
+    let r = 0;
+    for (let p = 0; p < s.plan.lots; p++) r = Math.max(r, Math.hypot(s.lots.x[p]!, s.lots.z[p]!));
+    return r + 14;
+  }
+
+  destroy(): void {
+    this.settled.destroy();
+    this.rising.destroy();
+    this.root.destroy();
+  }
+}

@@ -22,8 +22,8 @@ import { BANDS, TURNS } from "./calibration-bands.ts";
 const years = Number(process.argv[2] ?? 900);
 /** The slowest year allowed at full speed (the phone proxy, `npm run slice`, holds the phone's). CI runners are about half as fast. */
 const YEAR_MS = process.env.CI ? 1200 : 600;
-/** The save of nine centuries, compressed. */
-const SAVE_BYTES = 16_000_000;
+/** The save of nine centuries, compressed (18 MB since Phase 23: the towns' fabric, every lot of some twenty-three thousand towns, is near 3 MB of it). */
+const SAVE_BYTES = 18_000_000;
 
 const problems: string[] = [],
   world = EARTH.build(seedFromText("first light")),

@@ -5,8 +5,9 @@
 //   2. the web of eating turns in history, each turn with its why: the default world's
 //      waters fished down, its grain eaten, its hunters driven out, by seven centuries;
 //   3. what the people do is seen: a village's day holds many tasks, its people keep out of
-//      its walls and out of one another, and what they say is its own year's; its wars are
-//      drawn — hosts on their ways, a battle's two hosts in a village fought over;
+//      its walls (a town's blocks and walls too) and out of one another, and what they say is
+//      its own year's; its wars are drawn — hosts on their ways, a battle's two hosts in a
+//      village fought over;
 //   4. one zoom, from a person to the galaxy and back, each hand-over within the phone
 //      floor's budget (Chromium on this machine's discrete GPU; --ci: the ladder only,
 //      untimed);
@@ -128,6 +129,8 @@ console.log("the Phase 9 gate");
       const said = sayOf(plan, i, m, s / 7);
       if (said) signs.add(said);
       for (const h of ground.homes) if (clearOf(h, m) < 1.2 - 1e-6) inside++;
+      // (In a town built lot by lot, its blocks and walls too.)
+      for (const b of ground.town?.solids ?? []) if (clearOf(b, m) < 1.2 - 1e-6) inside++;
     });
     const live = now.filter((m) => !m.hidden);
     for (let a = 0; a < live.length; a++)
@@ -140,7 +143,7 @@ console.log("the Phase 9 gate");
   );
   if (tasks.size < 5) problems.push(`a village's day holds only ${tasks.size} tasks`);
   if (!signs.size) problems.push("no one in the village said anything");
-  if (inside) problems.push(`people stood in a home ${inside} times`);
+  if (inside) problems.push(`people stood in a home or a wall ${inside} times`);
   if (crowded) problems.push(`people stood in one another ${crowded} times`);
   // Its wars on the globe, and a battle in a village fought over.
   const wars = q<WarsMap>("wars.map"),

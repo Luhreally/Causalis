@@ -24,6 +24,39 @@ export {
   type Visitor,
 } from "./village.ts";
 export type { WorldGlobe } from "./worlds.ts";
+export {
+  BLOCK_D,
+  BLOCK_LOTS,
+  BLOCK_REACH,
+  BLOCK_W,
+  GATE_TOWER,
+  LOT,
+  LOT_D,
+  LOT_W,
+  SHORE,
+  SQUARE,
+  STREET,
+  WALL_THICK,
+  WALL_TOWER,
+  blocksHeld,
+  civicMoments,
+  footprint,
+  lotStates,
+  progress,
+  townBlocks,
+  townLots,
+  townReach,
+  wallRing,
+  type LotStates,
+  type TownBlocks,
+  type TownCivic,
+  type TownDesign,
+  type TownFamily,
+  type TownLots,
+  type TownPlan,
+  type TownWater,
+  type WallLength,
+} from "./town.ts";
 export type { Garrison, HostKinds, WarSide, WarsMap } from "./wars.ts";
 export type { ActKindShown, ActMark, ActsMap, PaletteLand } from "./acts.ts";
 export type { GenesisPlan } from "./genesis.ts";

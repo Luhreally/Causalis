@@ -12,6 +12,7 @@
 import {
   YEAR,
   defineEventType,
+  dmath,
   defineStream,
   yearOfMoment,
   type CauseRef,
@@ -55,6 +56,13 @@ const FIND = defineStream("lore.find");
 export const LORE_PACE = 0.02;
 /** How readily a land learns what a neighbour knows, in a year, before speech and roads. */
 export const LEARNING = 0.03;
+/**
+ * Many hands: a land of ninety thousand at a craft finds it twice as readily as one of
+ * fifty, one of near a million three times — each tenfold more adds only as much again.
+ * Small early lands are barely touched; the great lands of the age of iron and steam no
+ * longer wait on the luck of a few.
+ */
+export const MANY_HANDS = 10_000;
 const LEARN = defineStream("lore.learn");
 
 export type Known = { readonly year: number; readonly event: Ref };
@@ -230,11 +238,25 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
         ],
       ];
       const drive = terms.reduce((s, [, w, v]) => s + w * v, 0),
-        chance = p.rate * (0.2 + drive) * LORE_PACE;
+        hands =
+          (d.crafters ?? 0) * prov.occupation(OCC.crafter) +
+          (d.farmers ?? 0) * prov.occupation(OCC.farmer) +
+          (d.herders ?? 0) * prov.occupation(OCC.herder) +
+          (d.traders ?? 0) * prov.occupation(OCC.trader) +
+          (d.leaders ?? 0) * prov.occupation(OCC.leader),
+        many = 1 + dmath.log10(1 + hands / MANY_HANDS),
+        chance = p.rate * (0.2 + drive) * LORE_PACE * many;
       if (!(world.rng.real(FIND, cell, t, PRINCIPLE_INDEX.get(p.id)!) < chance)) continue;
       const factors: Factor[] = terms
         .filter(([, w, v]) => w * v > 0)
         .map(([name, w, v, source]) => ({ name, value: v, contribution: w * v, source }));
+      if (many >= 1.1)
+        factors.push({
+          name: "many hands",
+          value: Math.round(hands),
+          contribution: many - 1,
+          source: null,
+        });
       if (ore !== null)
         factors.push({
           name: `${d.ore} within reach`,

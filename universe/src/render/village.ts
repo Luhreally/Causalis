@@ -46,6 +46,7 @@ import {
 import { FaunaLayer, type PickedBeast } from "./fauna.ts";
 import { VisitorsLayer } from "./visitors.ts";
 import { WorkLayer, type Carrier } from "./work.ts";
+import { TownLayer } from "./town.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
@@ -116,6 +117,8 @@ export class VillageScene {
   /** Windows, lit from dusk to dawn (their material's glow set by the hour). */
   private windows: pc.StandardMaterial | null = null;
   private lit = -1;
+  /** A town's windows' glass (one for every plan of it: its batches are kept). */
+  private townLamps: pc.StandardMaterial | null = null;
   private figure: Figure = figureOf(null);
   private moments: Moment[] = [];
   private readonly marker: pc.Entity;
@@ -126,6 +129,10 @@ export class VillageScene {
   private readonly visitors: VisitorsLayer;
   /** Its work you can see: what its people carry, its mine and works, its road, its smoke (M78). */
   private readonly work: WorkLayer;
+  /** A town built lot by lot (Phase 23), drawn from its fabric in place of its homes and quarters. */
+  private readonly town: TownLayer;
+  /** The moment last drawn, for a rebuild between moments. */
+  private lastT = 0;
   private readonly carriers: Carrier[] = [];
   /** Where smoke rises: roof tops, and a city's workshop chimneys (metres). */
   private hearths: { x: number; y: number; z: number }[] = [];
@@ -146,6 +153,7 @@ export class VillageScene {
     this.fauna = new FaunaLayer(stage, this.root);
     this.work = new WorkLayer(stage, this.root);
     this.visitors = new VisitorsLayer(stage, this.root);
+    this.town = new TownLayer(stage, this.root);
     this.root.enabled = false;
   }
 
@@ -162,7 +170,7 @@ export class VillageScene {
   }
 
   /** Lay out a village from its plan. */
-  build(plan: VillagePlan): void {
+  build(plan: VillagePlan, t = this.lastT): void {
     // (Batches first: an entity destroyed does not free the instance buffer it was given.)
     for (const b of this.batches) b.destroy();
     this.batches = [];
@@ -171,7 +179,8 @@ export class VillageScene {
         child !== this.marker &&
         child !== this.fauna.root &&
         child !== this.work.root &&
-        child !== this.visitors.root
+        child !== this.visitors.root &&
+        child !== this.town.root
       )
         child.destroy();
     this.stacks = [];
@@ -223,8 +232,13 @@ export class VillageScene {
       out[5] = quarters ? 2 * len : len;
       out[6] = Math.atan2(plan.road.x, plan.road.z);
     });
+    // A town built lot by lot draws its own streets, homes and buildings (Phase 23).
+    const town = plan.town ?? null;
+    // (Its windows' glass, lit from dusk to dawn as the village's are.)
+    if (town) this.townLamps ??= windowMaterial();
+    this.town.build(town, plan.ref, t, town ? this.townLamps : null);
     // A city's quarters: each block's ground coloured by its use, and a hall at its heart.
-    if (quarters) {
+    if (quarters && !town) {
       const patch = boxMesh(s),
         side = quarters.blockM * M * 0.94;
       QUARTER_COLORS.forEach((color, use) => {
@@ -316,7 +330,7 @@ export class VillageScene {
       pieces(tiers, [0.94, 0.92, 0.86]);
       pieces(crowns, [0.98, 0.8, 0.25]);
     }
-    disc(2.2, [0.66, 0.6, 0.48], 0, 0, 0.016);
+    if (!town) disc(2.2, [0.66, 0.6, 0.48], 0, 0, 0.016);
     this.fields = this.batch(s, boxMesh(s), fieldColor(0), plan.fields.length, this.root);
     this.fields.set(plan.fields.length, (i, out) => {
       const f = plan.fields[i]!;
@@ -370,16 +384,10 @@ export class VillageScene {
           out[5] = look.width;
           out[6] = h.yaw;
         });
-    place(
-      plan.homes.filter((h) => !h.household),
-      walls,
-    );
-    place(
-      plan.homes.filter((h) => h.household),
-      watched,
-    );
+    place(town ? [] : plan.homes.filter((h) => !h.household), walls);
+    place(town ? [] : plan.homes.filter((h) => h.household), watched);
     // A house open to the water above has no roof.
-    roofs.set(look.open ? 0 : plan.homes.length, (i, out) => {
+    roofs.set(look.open || town ? 0 : plan.homes.length, (i, out) => {
       const h = plan.homes[i]!;
       out[0] = h.x * M;
       out[1] = look.raised + wallHigh * storeys(h) + roofHigh / 2;
@@ -393,7 +401,7 @@ export class VillageScene {
     // The next home rising (M86): its footing, its walls as far built as the families it
     // will house have come, the scaffold about them, the timber waiting, and its roof going
     // on at the last.
-    const site = plan.life?.site;
+    const site = town ? undefined : plan.life?.site;
     if (site && !look.tent) {
       const L = look.length,
         Wd = look.width,
@@ -523,8 +531,8 @@ export class VillageScene {
       (t) => 0.5 * t.size,
       (t) => 0.36 * t.size,
     );
-    // A door on each home, facing out from its front.
-    if (!look.tent && !look.open) {
+    // A door on each home, facing out from its front (a town draws its own homes).
+    if (!look.tent && !look.open && !town) {
       const door = this.batch(s, box, [0.2, 0.12, 0.08], plan.homes.length, this.root),
         doorHigh = Math.min(wallHigh * 0.7, 0.26);
       door.set(plan.homes.length, (i, out) => {
@@ -650,9 +658,9 @@ export class VillageScene {
         )
       : [];
     // Homes built more finely (M79): windows lit at night, chimneys, porches, fences.
-    this.windows = null;
+    this.windows = town ? this.townLamps : null;
     this.lit = -1;
-    const pieces = plan.homes.flatMap((h) =>
+    const pieces = (town ? [] : plan.homes).flatMap((h) =>
         homeDetail(
           look,
           wallHigh * storeys(h),
@@ -697,8 +705,13 @@ export class VillageScene {
     this.visitors.build(plan, s.quality.detail);
     // Its work: what its people carry, its mine and works, its road's traffic, its smoke
     // (the watched homes' hearths first).
-    this.hearths =
-      look.tent || look.open
+    this.hearths = town
+      ? plan.homes.flatMap((h) => {
+          // (In a town, from the roof of the home its fabric draws.)
+          const at = this.town.hearth(h.x, h.z, t);
+          return at ? [{ x: at.x, y: at.y, z: at.z }] : [];
+        })
+      : look.tent || look.open
         ? []
         : [...plan.homes]
             .sort((a, b) => Number(!!b.household) - Number(!!a.household))
@@ -748,9 +761,16 @@ export class VillageScene {
   private soldierLimbs = new Float32Array(0);
 
   /** Put everyone where they are at time t. */
+  /** How far out the town's lots reach (metres; 0 for a village drawn without its fabric). */
+  townReach(): number {
+    return this.town.visible ? this.town.reach() : 0;
+  }
+
   update(t: number): void {
     const plan = this.plan;
     if (!plan) return;
+    this.lastT = t;
+    this.town.update(t);
     this.fields?.recolor(fieldColor(t));
     // Lamplight in the windows from dusk to dawn (set only as it changes).
     if (this.windows) {

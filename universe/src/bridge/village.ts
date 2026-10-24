@@ -2,6 +2,7 @@
 // watch mode): what the view needs to draw a village's day. Positions are metres
 // from the village's middle.
 import type { HostKinds } from "./wars.ts";
+import type { TownPlan } from "./town.ts";
 /** How far a village's water lies out along its way, and how far the lake reaches about that point (metres). */
 export const WATER_OUT = 700;
 export const LAKE_R = 220;
@@ -110,6 +111,11 @@ export type VillagePlan = {
     readonly uses: readonly number[];
     readonly paved: boolean;
   } | null;
+  /**
+   * Its fabric (Phase 23 M149): lot by lot along its streets, what stands on each and since when
+   * — drawn in place of the homes and quarters above where it has one.
+   */
+  readonly town?: TownPlan;
   readonly people: readonly {
     ref: string;
     name: string;

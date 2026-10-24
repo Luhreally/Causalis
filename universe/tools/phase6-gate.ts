@@ -15,7 +15,7 @@ import type { SkySurvey } from "./sky-survey.ts";
 
 const years = Number(process.argv[2] ?? 3100);
 const EARTH_LANDS = 550,
-  SAVE_BYTES = 16_000_000,
+  SAVE_BYTES = 18_000_000,
   /** The phone floor runs at a quarter of this machine's pace; a century a minute there, at least. */
   PHONE = 4,
   LEAST_PACE = 100;
