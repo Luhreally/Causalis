@@ -981,6 +981,137 @@ export function ageSpan(k: number): [number, number] {
 
 const STEM_WAYS: readonly Way[] = ["sea swimmer", "sea crawler", "burrower"];
 
+/**
+ * Many changed bodies of a mother's, the fittest kept for its way: each try one to three
+ * changes; only what is fitter is kept, and what came along with it that helps nothing is
+ * let go. `draw(try, slot, k)` is the keyed draw.
+ */
+function breedLine(
+  mother: Genome,
+  way: Way,
+  env: Env,
+  draw: (c: number, slot: number, k?: number) => number,
+  tries = 16,
+): Genome {
+  let best = mother,
+    bestFit = fitness(mother, way, env);
+  for (let c = 0; c < tries; c++) {
+    let x = mother;
+    const steps = 1 + Math.floor(draw(c, 1) * 3);
+    for (let s = 0; s < steps; s++) x = mutate(x, (k) => draw(c, 10 + s, k));
+    x = { ...x, diet: WAYS[way].diet };
+    const f = fitness(x, way, env);
+    // (Only what is fitter is kept: a change that helps nothing is not kept for long.)
+    if (f > bestFit + 0.02) [best, bestFit] = [x, f];
+  }
+  // What came along with the change that helped and helps nothing itself is not kept.
+  for (const c of changes(best, mother)) {
+    const y = c.apply(best);
+    if (fitness(y, way, env) >= bestFit - 0.005) [best, bestFit] = [y, fitness(y, way, env)];
+  }
+  return best;
+}
+
+/**
+ * A line bred over many generations toward its way, then grown or shrunk to the size its
+ * way wants under its world's pull. `draw(round, try, slot, k)`; round -1 draws its size.
+ */
+function evolveLine(
+  mother: Genome,
+  way: Way,
+  env: Env,
+  draw: (r: number, c: number, slot: number, k?: number) => number,
+  rounds: number,
+): Genome {
+  let x: Genome = { ...mother, diet: WAYS[way].diet };
+  for (let r = 0; r < rounds; r++) x = breedLine(x, way, env, (c, slot, k) => draw(r, c, slot, k));
+  const pull = Math.max(0.3, env.gravity),
+    k = dmath.pow(pull, -0.75),
+    [lo, hi] = WAYS[way].size;
+  if (x.mass < lo * k || x.mass > hi * k)
+    x = {
+      ...x,
+      mass: roundMass(lo * k * dmath.pow(hi / lo, 0.15 + 0.5 * draw(-1, 0, 0) * draw(-1, 1, 0))),
+    };
+  return x;
+}
+
+/** The first body with a front and a back, and the first bell of jelly: where bodies began. */
+const FIRST_WORM: Genome = {
+  axis: "bilateral",
+  segments: 1,
+  legs: 0,
+  fins: 0,
+  wings: 0,
+  skin: "slick",
+  mass: 0.004,
+  neck: 0,
+  tail: 0.2,
+  warm: false,
+  gait: "walk",
+  grows: [],
+  eyes: 0,
+  feelers: false,
+  pattern: "plain",
+  diet: "plankton",
+};
+const FIRST_JELLY: Genome = { ...FIRST_WORM, axis: "radial", mass: 0.03, tail: 0 };
+
+/** The ways a world seen from afar is sketched with: the sea's first, then the land's. */
+const SKETCH_WAYS: readonly Way[] = [
+  "drifter",
+  "sea swimmer",
+  "sea crawler",
+  "walker",
+  "grazer",
+  "hunter",
+  "burrower",
+  "land crawler",
+];
+
+/** A body of another world, sketched: its name, its way, its body and the instructions for it. */
+export type Sketched = {
+  readonly name: string;
+  readonly way: Way;
+  readonly body: CreatureBody;
+  readonly genome: Genome;
+};
+
+/**
+ * The bodies of a world known only from afar (Phase 18 M132): a few lines grown as its own
+ * life would grow them, from the first worm and jelly under its own pull, warmth and air,
+ * each bred toward a way of life its world offers — the sea's, and the land's where it has
+ * land and air enough to come ashore. The land's are bred from the first that walked.
+ * Pure: the same key draws the same bodies.
+ */
+export function sketchLife(key: string, env: Env, land: boolean, count = 6): Sketched[] {
+  const rng = new Rng(seedFromText(`life elsewhere ${key}`)),
+    names = new Set<string>(),
+    out: Sketched[] = [];
+  let walker: Genome | null = null;
+  const ways = SKETCH_WAYS.filter((w) => land || WAYS[w].sea).slice(0, count);
+  ways.forEach((way, i) => {
+    const from = way === "drifter" ? FIRST_JELLY : !WAYS[way].sea && walker ? walker : FIRST_WORM,
+      genome = evolveLine(
+        from,
+        way,
+        env,
+        (r, c, slot, k = 0) => rng.real(EVO, i, r * 64 + c, slot, k),
+        WAYS[way].sea ? 6 : 8,
+      ),
+      body = develop(genome, WAYS[way].level);
+    if (way === "walker") walker = genome;
+    const name = (
+      WAYS[way].sea || way === "walker" || way === "land crawler"
+        ? stemName(way, body, names)
+        : uniqueName(names, body, way, env.warmth, rng.real(EVO, i, 999, 0, 0))
+    ).replace(/^the (first )?/, "");
+    names.add(name);
+    out.push({ name, way, body, genome });
+  });
+  return out;
+}
+
 function growTree(g: HomeWorld): TreeOfLife {
   const rng = new Rng(seedFromText(`tree of life ${g.digest}`)),
     u = (a: number, b: number, c: number, d = 0) => rng.real(EVO, a, b, c, d),
@@ -1110,25 +1241,8 @@ function growTree(g: HomeWorld): TreeOfLife {
   );
 
   // The first bodies: a worm, a jelly's bell, a sponge's cup.
-  const worm: Genome = {
-      axis: "bilateral",
-      segments: 1,
-      legs: 0,
-      fins: 0,
-      wings: 0,
-      skin: "slick",
-      mass: 0.004,
-      neck: 0,
-      tail: 0.2,
-      warm: false,
-      gait: "walk",
-      grows: [],
-      eyes: 0,
-      feelers: false,
-      pattern: "plain",
-      diet: "plankton",
-    },
-    jelly: Genome = { ...worm, axis: "radial", mass: 0.03, tail: 0 };
+  const worm = FIRST_WORM,
+    jelly = FIRST_JELLY;
   const firstWorm = dawnLine(
     together.id,
     "the first worms",
@@ -1171,42 +1285,20 @@ function growTree(g: HomeWorld): TreeOfLife {
   });
 
   /** Many changed bodies of a mother's, the fittest kept for the way it took up. */
-  const breed = (mother: Genome, way: Way, env: Env, key: number, tries = 16): Genome => {
-    let best = mother,
-      bestFit = fitness(mother, way, env);
-    for (let c = 0; c < tries; c++) {
-      let x = mother;
-      const steps = 1 + Math.floor(u(key, c, 1) * 3);
-      for (let s = 0; s < steps; s++) x = mutate(x, (k) => u(key, c, 10 + s, k));
-      x = { ...x, diet: WAYS[way].diet };
-      const f = fitness(x, way, env);
-      // (Only what is fitter is kept: a change that helps nothing is not kept for long.)
-      if (f > bestFit + 0.02) [best, bestFit] = [x, f];
-    }
-    // What came along with the change that helped and helps nothing itself is not kept.
-    for (const c of changes(best, mother)) {
-      const y = c.apply(best);
-      if (fitness(y, way, env) >= bestFit - 0.005) [best, bestFit] = [y, fitness(y, way, env)];
-    }
-    return best;
-  };
+  const breed = (mother: Genome, way: Way, env: Env, key: number, tries = 16): Genome =>
+    breedLine(mother, way, env, (c, slot, k = 0) => u(key, c, slot, k), tries);
   /**
    * A line bred over many generations toward its way: bred again and again, and grown or
    * shrunk to the size its way wants (the many small steps of weight, taken at once).
    */
-  const evolve = (mother: Genome, way: Way, env: Env, key: number, rounds: number): Genome => {
-    let x: Genome = { ...mother, diet: WAYS[way].diet };
-    for (let r = 0; r < rounds; r++) x = breed(x, way, env, key * 64 + r);
-    const pull = Math.max(0.3, env.gravity),
-      k = dmath.pow(pull, -0.75),
-      [lo, hi] = WAYS[way].size;
-    if (x.mass < lo * k || x.mass > hi * k)
-      x = {
-        ...x,
-        mass: roundMass(lo * k * dmath.pow(hi / lo, 0.15 + 0.5 * u(key, 999, 0) * u(key, 999, 1))),
-      };
-    return x;
-  };
+  const evolve = (mother: Genome, way: Way, env: Env, key: number, rounds: number): Genome =>
+    evolveLine(
+      mother,
+      way,
+      env,
+      (r, c, slot, k = 0) => (r < 0 ? u(key, 999, c) : u(key * 64 + r, c, slot, k)),
+      rounds,
+    );
   const seaEnv = envOf(sea, 1000, -1, 0.15);
 
   // The dawn's great radiation in the sea: from the worms, swimmers, crawlers of the floor and

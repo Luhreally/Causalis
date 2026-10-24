@@ -2446,6 +2446,12 @@ body.with-palette .hint {
 .lineup-card:hover {
   border-color: var(--accent);
 }
+.lineup-card.still {
+  cursor: default;
+}
+.lineup-card.still:hover {
+  border-color: var(--line);
+}
 .lineup-card.self {
   border-color: var(--accent);
   box-shadow: 0 0 6px rgba(111, 231, 255, 0.45);

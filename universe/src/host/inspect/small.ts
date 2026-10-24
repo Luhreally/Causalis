@@ -4,7 +4,16 @@
 // together. What the drop is of (sea, fresh water, wet soil, ice), how much light and food
 // reach it and how warm it is are the place's own. Pure reads of the generated world.
 import { seedFromText } from "../../kernel/index.ts";
-import { isProvinceWorld, treeOfLife, type HomeWorld } from "../../gen/index.ts";
+import {
+  LIFE_WORDS,
+  isProvinceWorld,
+  massWords,
+  treeOfLife,
+  wayWord,
+  type Elsewhere,
+  type HomeWorld,
+  type SmallWay,
+} from "../../gen/index.ts";
 import { homePlanet } from "../../sim/index.ts";
 import type { World } from "../../kernel/index.ts";
 import type { Block, DropKind } from "../../bridge/index.ts";
@@ -159,6 +168,86 @@ export function dawnSea(world: World): number {
     if (e[i]! <= 0 && e[i]! > -400 && t[i]! > warm) [best, warm] = [i, t[i]!];
   if (best < 0) for (let i = 0; i < g.grid.count && best < 0; i++) if (e[i]! <= 0) best = i;
   return Math.max(0, best);
+}
+
+/** Billions of years in words: "3.1 billion years ago", "640 million years ago". */
+function gyrAgo(gyr: number): string {
+  return gyr >= 1
+    ? `${gyr.toFixed(1)} billion years ago`
+    : `${Math.round(gyr * 1000)} million years ago`;
+}
+
+/**
+ * A world elsewhere's life as a page's blocks (Phase 18 M132): how far life came there and
+ * why, when, its bodies sketched as its own life would grow them, and a drop of its water
+ * under the glass (its small lives, by their ways, with no lines of a tree to open).
+ */
+export function elsewhereBlocks(
+  life: Elsewhere,
+  options: { readonly key: string; readonly warmth: number; readonly light: number },
+): Block[] {
+  const out: Block[] = [
+    {
+      type: "facts",
+      rows: [
+        { label: "Life", value: [`${LIFE_WORDS[life.level]}: ${life.because}`] },
+        ...(life.where ? [{ label: "Where", value: [`in its ${life.where}`] }] : []),
+        ...(life.cellsAgo !== null
+          ? [{ label: "Its first cells", value: [gyrAgo(life.cellsAgo)] }]
+          : []),
+        ...(life.bodiesAgo !== null
+          ? [{ label: "Its first bodies", value: [gyrAgo(life.bodiesAgo)] }]
+          : []),
+      ],
+    },
+  ];
+  if (life.bodies.length)
+    out.push({
+      type: "lineup",
+      title: "What lives there, as its own life grew it",
+      apart: true,
+      items: life.bodies.map((b) => ({
+        ref: "",
+        name: b.name,
+        body: b.body,
+        words: `${wayWord(b.way)}, ${massWords(b.body.size)}`,
+      })),
+    });
+  if (life.small.length) {
+    const sea = life.where !== "water under its ice",
+      kinds: DropKind[] = [];
+    for (const way of life.small) {
+      const s = SMALL.find((x) => x.way === way)!;
+      kinds.push({
+        ref: "",
+        name: s.name,
+        line: "its own first cells",
+        way,
+        color: s.color,
+        size: s.size,
+        share: s.share,
+      });
+    }
+    const whole = kinds.reduce((a, k) => a + k.share, 0);
+    out.push({
+      type: "drop",
+      title: sea ? "A drop of its seas, under the glass" : "A drop of the water under its ice",
+      habitat: sea ? "sea" : "ice",
+      seed: seedFromText(`drop elsewhere ${options.key}`).lo >>> 0,
+      light: sea ? Math.min(1, Math.max(0.15, options.light)) : 0.05,
+      warmth: options.warmth,
+      food: sea ? 0.6 : 0.3,
+      kinds: kinds.map((k) => ({ ...k, share: k.share / whole })),
+      words:
+        "Its small lives are not ours: they came of their own first cells, but they live as small lives everywhere must — after what floats, by the light, by taking in others.",
+    });
+  }
+  return out;
+}
+
+/** The kinds of small life a world's ways hold, as the drop names them. */
+export function smallWords(ways: readonly SmallWay[]): string {
+  return ways.map((w) => SMALL.find((s) => s.way === w)!.name).join(", ");
 }
 
 /** The refs of the tree's lines that live on in a drop (the small lives' own pages show one). */

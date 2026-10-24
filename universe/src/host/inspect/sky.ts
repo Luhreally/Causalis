@@ -8,11 +8,13 @@ import {
   starSitesOf,
   starWarsOf,
 } from "../../sim/index.ts";
-import { offworldSite, cellRef, starAgeGyr } from "../../gen/index.ts";
+import { LIFE_WORDS, offworldSite, cellRef, starAgeGyr } from "../../gen/index.ts";
 import { Rng, hashString, type World } from "../../kernel/index.ts";
 import { realmColor } from "../colors.ts";
 import type { Item, PageModel, Place, Stat } from "../../bridge/index.ts";
 import { starByRef, starFacts, foreignGlobe } from "../galaxy.ts";
+import { civilizationOn, lifeOfBody, lifeOfWorld, sameStar } from "../elsewhere.ts";
+import { elsewhereBlocks } from "./small.ts";
 import { foreignPlanets } from "../../gen/index.ts";
 import { claimOf, count, item, link, many, stat, yearNow } from "./words.ts";
 import { landLink, realmLink, spotOfLand } from "./names.ts";
@@ -104,8 +106,9 @@ export function starPageModel(world: World, ref: string): PageModel {
     f = starFacts(s, rng),
     worlds = foreignPlanets(rng, s),
     far = ref.startsWith("gstar:"),
-    civs = civilizationsNear(world).filter((c) => c.star === ref),
-    ships = (starSitesOf(world)?.all() ?? []).filter(([, site]) => site.star === ref),
+    // (The star by itself, whichever name it was found by.)
+    civs = civilizationsNear(world).filter((c) => sameStar(c.star, s)),
+    ships = (starSitesOf(world)?.all() ?? []).filter(([, site]) => sameStar(site.star, s)),
     wars = starWarsOf(world)
       .all()
       .filter((w) => civs.some((c) => c.ref === w.enemy));
@@ -160,7 +163,7 @@ export function starPageModel(world: World, ref: string): PageModel {
               item(
                 [
                   link(`Its ${ordinal(i + 1)} world`, `${ref}/${i}`),
-                  ` — ${w.kind}, ${w.a.toFixed(2)} AU, ${w.water === "seas" ? "with seas" : w.water}`,
+                  ` — ${w.kind}, ${w.a.toFixed(2)} AU, ${w.water === "seas" ? "with seas" : w.water}; ${LIFE_WORDS[lifeOfWorld(world, s, i).level]}`,
                 ],
                 `${ref}/${i}`,
               ),
@@ -220,7 +223,10 @@ export function bodyPage(world: World, ref: string): PageModel {
     halls = ctx.provinces
       .all()
       .filter((p) => offworldSite(g, p.cell)?.body === index && p.total() > 0),
-    around = g.system.bodies.find((x) => x.ref === b.orbit.around);
+    around = g.system.bodies.find((x) => x.ref === b.orbit.around),
+    life = home ? null : lifeOfBody(world, b),
+    // (A moon is as far from the star as its planet.)
+    lightAt = b.kind === "moon" && around ? around.orbit.a : b.orbit.a;
   return {
     ref,
     kind: b.kind === "moon" ? "moon" : "planet",
@@ -252,6 +258,7 @@ export function bodyPage(world: World, ref: string): PageModel {
       stat("Warmth", `${Math.round(b.temperature)} °C`),
       stat("Air", b.air),
       stat("Water", b.water),
+      ...(life ? [stat("Life", LIFE_WORDS[life.level])] : []),
       ...(halls.length ? [stat("Halls", count(halls.length))] : []),
     ],
     tabs: [
@@ -305,6 +312,20 @@ export function bodyPage(world: World, ref: string): PageModel {
           { type: "why", ref },
         ],
       },
+      // What lives on it (Phase 18 M132): a few of the home star's worlds hold cells.
+      ...(life && life.level !== "none"
+        ? [
+            {
+              id: "life",
+              name: "Life",
+              blocks: elsewhereBlocks(life, {
+                key: ref,
+                warmth: b.temperature,
+                light: g.star.luminosity / (lightAt * lightAt),
+              }),
+            },
+          ]
+        : []),
     ],
     followable: false,
     year: yearNow(world),
@@ -317,17 +338,20 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
     star = ref.slice(0, slash),
     index = Number(ref.slice(slash + 1)),
     w = foreignGlobe(world, star, index),
-    civ = civilizationsNear(world).find((c) => c.star === star && c.planet === index);
+    s = starByRef(world, star),
+    civ = civilizationOn(world, s, index),
+    life = lifeOfWorld(world, s, index),
+    p = foreignPlanets(new Rng(world.seed), s)[index]!;
   return {
     ref,
     kind: "world",
-    icon: w.living ? "🌏" : "🪐",
+    icon: w.living ? "🌏" : life.level === "cells" ? "🦠" : "🪐",
     portrait: {
       kind: "world",
       look: w.kind,
       sea: w.water === "seas" ? 0.6 : 0,
       ice: /ice/.test(w.water) ? 0.7 : 0.1,
-      green: w.living ? 0.6 : 0,
+      green: w.living ? 0.6 : life.level === "bodies" ? 0.15 : 0,
       air: w.air !== "none",
       key: hashString(ref),
     },
@@ -339,7 +363,7 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
       stat("Kind", w.kind),
       stat("Air", w.air),
       stat("Water", w.water),
-      stat("Living", w.living ? "its lands are green" : "no life on it"),
+      stat("Life", LIFE_WORDS[life.level]),
     ],
     tabs: [
       {
@@ -350,6 +374,9 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
             type: "facts",
             rows: [
               stat("Star", [link("its star", star)]),
+              stat("Warmth", `${Math.round(p.temperature)} °C`),
+              stat("Pull", `${p.gravity.toFixed(2)} g`),
+              stat("Life", `${LIFE_WORDS[life.level]}: ${life.because}`),
               ...(w.people && civ
                 ? [
                     stat("People", [link(w.people.name, civ.ref)]),
@@ -360,6 +387,20 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
           },
         ],
       },
+      // What lives there (Phase 18 M132): its bodies sketched, a drop of its water.
+      ...(life.level !== "none"
+        ? [
+            {
+              id: "life",
+              name: "Life",
+              blocks: elsewhereBlocks(life, {
+                key: ref,
+                warmth: p.temperature,
+                light: s.luminosity / (p.a * p.a),
+              }),
+            },
+          ]
+        : []),
     ],
     followable: false,
     year: yearNow(world),

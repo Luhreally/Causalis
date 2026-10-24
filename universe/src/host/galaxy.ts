@@ -14,6 +14,7 @@ import {
   type SystemBody,
 } from "../gen/index.ts";
 import { civilizationsNear, contactsOf, homePlanet } from "../sim/index.ts";
+import { civilizationOn, lifeOfWorld } from "./elsewhere.ts";
 import { CLADES } from "../rules/index.ts";
 import type { ClusterStar, GalaxyPlan, StarPage, SystemPlan, WorldGlobe } from "../bridge/index.ts";
 
@@ -160,8 +161,9 @@ export function foreignSystem(world: World, ref: string): SystemPlan {
 const MADE = new Map<string, WorldGlobe>();
 
 /** The people of another star's world, if one of the cluster's civilizations arose there. */
-function peopleOf(world: World, star: string, index: number): WorldGlobe["people"] {
-  const civ = civilizationsNear(world).find((c) => c.star === star && c.planet === index);
+function peopleOf(world: World, star: GalaxyStar, index: number): WorldGlobe["people"] {
+  // (The star by itself, whichever name it was found by.)
+  const civ = civilizationOn(world, star, index);
   if (!civ) return null;
   return {
     name: CLADES.find((c) => c.id === civ.clade)?.body.name ?? civ.clade,
@@ -207,6 +209,7 @@ export function foreignGlobe(world: World, ref: string, index: number): WorldGlo
       because: [],
     },
     w = otherWorld(body, s, p.a, g.digest),
+    life = lifeOfWorld(world, s, index),
     made: WorldGlobe = {
       ref: body.ref,
       kind: body.kind,
@@ -221,9 +224,10 @@ export function foreignGlobe(world: World, ref: string, index: number): WorldGlo
       tint: w.tint,
       air: body.air,
       water: body.water,
-      // Life where seas lie about a living star old enough for it; a people where one arose.
-      living: body.water === "seas" && !s.remnant && s.ageGyr >= 1,
-      people: peopleOf(world, s.ref, index),
+      // Green lands where bodies came ashore; a people where one arose.
+      living: life.level === "people" || (life.level === "bodies" && /ashore/.test(life.because)),
+      life: life.level,
+      people: peopleOf(world, s, index),
     };
   if (MADE.size >= 6) MADE.delete(MADE.keys().next().value!);
   MADE.set(key, made);

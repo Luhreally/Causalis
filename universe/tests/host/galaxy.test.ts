@@ -95,3 +95,58 @@ test("another star's own system: its worlds on their orbits, each the world its 
   assert.deepEqual(ask<SystemPlan>("galaxy.system", { ref: near.ref }), plan, "the same each time");
   assert.equal(JSON.stringify(world.domainHashes()), before, "looking changes nothing");
 });
+
+test("what lives on other worlds: each world's life told, its bodies and its small lives shown, by either name of its star", async () => {
+  const { civilizationsNear } = await import("../../src/sim/index.ts"),
+    { lifeOfWorld } = await import("../../src/host/elsewhere.ts"),
+    { starByRef } = await import("../../src/host/galaxy.ts");
+  const before = JSON.stringify(world.domainHashes()),
+    cluster = ask<ClusterPlan>("galaxy.cluster");
+  // A world with bodies, and a lifeless one.
+  let living: string | null = null,
+    dead: string | null = null;
+  for (const s of cluster.stars) {
+    const star = starByRef(world, s.ref);
+    for (let i = 0; i < s.planets && (!living || !dead); i++) {
+      const level = lifeOfWorld(world, star, i).level;
+      if (level === "bodies" && !living) living = `${s.ref}/${i}`;
+      if (level === "none" && !dead) dead = `${s.ref}/${i}`;
+    }
+    if (living && dead) break;
+  }
+  assert.ok(living && dead, "a world with bodies, and a lifeless one");
+  const page = ask<PageModel>("page", { ref: living }),
+    life = page.tabs.find((t) => t.id === "life");
+  assert.ok(life, "a living world's page tells its life");
+  const lineup = life.blocks.find((b) => b.type === "lineup"),
+    drop = life.blocks.find((b) => b.type === "drop");
+  assert.ok(lineup && lineup.type === "lineup" && lineup.items.every((x) => x.body && !x.ref));
+  assert.ok(drop && drop.type === "drop" && drop.kinds.every((k) => !k.ref));
+  const lifeless = ask<PageModel>("page", { ref: dead });
+  assert.ok(!lifeless.tabs.some((t) => t.id === "life"), "a lifeless world has no life to tell");
+  assert.equal(String(lifeless.stats.find((s) => s.label === "Life")!.value), "lifeless");
+  // A people's world, found by the far name of its star, still has its people.
+  const civ = civilizationsNear(world)[0];
+  if (civ) {
+    const [, sector, k] = civ.star.split(":").map(Number),
+      far = ask<{ ref: string }[]>("galaxy.near", { x: 0, y: 0 }).find((s) => {
+        const st = starByRef(world, s.ref);
+        return st.sector === sector && st.k === k;
+      });
+    if (far) {
+      const globe = ask<WorldGlobe>("world.globe", { star: far.ref, index: civ.planet });
+      assert.ok(globe.people, "a people's world, by either name");
+      assert.equal(globe.life, "people");
+    }
+  }
+  // The home star's other worlds: each tells its life.
+  const plan = ask<SystemPlan>("planet.system");
+  for (const b of plan.bodies.slice(1, 6)) {
+    const p = ask<PageModel>("page", { ref: b.ref });
+    assert.ok(
+      p.stats.some((s) => s.label === "Life"),
+      `${b.ref} tells its life`,
+    );
+  }
+  assert.equal(JSON.stringify(world.domainHashes()), before, "looking changes nothing");
+});

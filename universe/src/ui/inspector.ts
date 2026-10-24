@@ -713,7 +713,12 @@ export class PageWindow {
         break;
       case "drop":
         // A drop under the glass (Phase 17 M131): its kinds' names open their lines' pages.
-        box.append(dropView(b, { label: (k) => this.link(k.name, k.ref) }));
+        box.append(
+          dropView(b, {
+            // (Another world's small lives have no lines of a tree to open.)
+            label: (k) => (k.ref ? this.link(k.name, k.ref) : el("span", "drop-name", k.name)),
+          }),
+        );
         break;
       case "anatomy": {
         const canvas = el("canvas", "anatomy"),

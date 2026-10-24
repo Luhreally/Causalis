@@ -5,6 +5,7 @@ import type { World } from "../kernel/index.ts";
 import { WORLD_FREQUENCY, otherWorld } from "../gen/index.ts";
 import { homePlanet } from "../sim/index.ts";
 import type { WorldGlobe } from "../bridge/index.ts";
+import { lifeOfBody } from "./elsewhere.ts";
 
 const MADE = new Map<string, WorldGlobe>();
 /** Worlds kept made at once. */
@@ -22,6 +23,7 @@ export function worldGlobe(world: World, ref: string): WorldGlobe {
   const parent = body.kind === "moon" ? bodies.find((b) => b.ref === body.orbit.around) : undefined,
     au = parent ? parent.orbit.a : body.orbit.a,
     w = otherWorld(body, g.star, au, g.digest),
+    life = lifeOfBody(world, body),
     made: WorldGlobe = {
       ref,
       kind: body.kind,
@@ -36,8 +38,9 @@ export function worldGlobe(world: World, ref: string): WorldGlobe {
       tint: w.tint,
       air: body.air,
       water: body.water,
-      // (Of the home star's worlds, only home lives.)
+      // (Of the home star's other worlds, a few hold cells in their seas or under their ice.)
       living: false,
+      life: life?.level ?? "none",
       people: null,
     };
   if (MADE.size >= KEPT) MADE.delete(MADE.keys().next().value!);

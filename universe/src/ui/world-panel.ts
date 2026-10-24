@@ -123,10 +123,23 @@ export class WorldPanel {
             el(
               "div",
               "fact",
-              "Life greens its lands: seas about a star old enough for it, forests where rain falls, deserts where it does not, ice about the poles",
+              "Life greens its lands: its bodies came ashore, forests where rain falls, deserts where it does not, ice about the poles",
             ),
           ]
-        : []),
+        : world.life === "bodies" || world.life === "cells" || world.life === "chemistry"
+          ? [
+              el("h3", undefined, "Life"),
+              el(
+                "div",
+                "fact",
+                world.life === "bodies"
+                  ? "Bodies swim in its seas; none has come ashore, and its lands lie bare"
+                  : world.life === "cells"
+                    ? "Single cells live in its water — nothing larger; its lands lie bare"
+                    : "Its water holds the first chemistry of life, but nothing lives",
+              ),
+            ]
+          : []),
       ...(p
         ? [
             el("h3", undefined, "A people of another star"),

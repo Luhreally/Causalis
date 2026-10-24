@@ -20,8 +20,10 @@ export type WorldGlobe = {
   /** Its air and where its water lies (as the system tells them). */
   readonly air: string;
   readonly water: string;
-  /** Whether life greens its lands (seas about a star old enough); a people of it, if one arose there. */
+  /** Whether life greens its lands (bodies came ashore there); a people of it, if one arose there. */
   readonly living: boolean;
+  /** How far life has come on it (Phase 18 M132): none, the first chemistry, cells, bodies, a people. */
+  readonly life: "none" | "chemistry" | "cells" | "bodies" | "people";
   readonly people: {
     readonly name: string;
     readonly medium: string;

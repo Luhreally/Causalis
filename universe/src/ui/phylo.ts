@@ -210,7 +210,12 @@ export function lineupStrip(b: Lineup, open: (ref: string) => void): HTMLElement
       card.append(canvas);
     } else card.append(el("span", "lineup-icon", item.icon ?? "🧬"));
     card.append(el("span", "lineup-name", item.name));
-    card.onclick = () => open(item.ref);
+    // (A body with no page of its own — another world's — is shown, not opened.)
+    if (item.ref) card.onclick = () => open(item.ref);
+    else {
+      card.classList.add("still");
+      card.tabIndex = -1;
+    }
     box.append(card);
   });
   return box;

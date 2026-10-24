@@ -169,4 +169,15 @@ export {
   type Rung,
   type TreeOfLife,
   type Way,
+  sketchLife,
+  type Sketched,
 } from "./evolution.ts";
+export {
+  LIFE_WORDS,
+  lifeElsewhere,
+  type Elsewhere,
+  type LifeGround,
+  type LifeLevel,
+  type LifeStar,
+  type SmallWay,
+} from "./elsewhere.ts";
