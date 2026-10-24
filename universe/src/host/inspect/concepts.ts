@@ -345,7 +345,25 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
       "The sky's firsts; colonies; ships to the stars; word from other peoples; wars between the stars.",
     ],
     see: [{ text: "The race to the sky", ref: "world:ledger#sky" }],
-    related: ["lore", "realms", "ages"],
+    related: ["lore", "realms", "ages", "contact"],
+  },
+  contact: {
+    icon: "👽",
+    title: "Peoples of other stars",
+    what: [
+      "Other peoples rose on other worlds, each by its own road, and some came to the stars long before this one did. A people at the stars settles worlds its bodies could live on, within reach of its own; it sees that the home world lives, and sends envoys to look; once it hears the home world speak across the dark, it comes to talk.",
+      "When two peoples meet, each meets the other as it is — in wonder, in fear, to trade, or for war: the strangers by their nature (curious, wary, bold, given to trade), a land of the home world by its ways (open, pious, bound to the old ways, trading, valiant), each by how strong it is against the other.",
+      "Two who stand well exchange knowledge, goods or ways; two who stand ill send fleets against each other's halls and holds. What passes between them moves how they stand.",
+    ],
+    drives: [
+      "How long they have been at the stars, and how near they are; the home world's air, then its signals; the natures of both.",
+    ],
+    leads: [
+      "Omens and landings; knowledge learned, machines given, ways opened; raids, burned halls, holds taken.",
+      "Sicknesses of other worlds come down; ours carried home.",
+    ],
+    see: [{ text: "The race to the sky", ref: "world:ledger#sky" }],
+    related: ["flight", "star-sickness", "war"],
   },
   ages: {
     icon: "📜",

@@ -15,6 +15,7 @@ export const HEALTH_CONCEPTS: Readonly<Record<string, Concept>> = {
     ],
     drives: [
       "Herds, great towns and hot marshes, and many people among them.",
+      "Strangers come down from the stars, with the sicknesses of their own world.",
       "The god may loose one, or make a new one.",
     ],
     leads: [
@@ -22,7 +23,7 @@ export const HEALTH_CONCEPTS: Readonly<Record<string, Concept>> = {
       "Grief laid on a realm, a people turned to their gods, and from strangers.",
     ],
     see: [LEDGER],
-    related: ["outbreak", "immunity", "great-dying", "healers", "drains"],
+    related: ["outbreak", "immunity", "great-dying", "healers", "drains", "star-sickness"],
   },
   outbreak: {
     icon: "🔥",
@@ -107,6 +108,24 @@ export const HEALTH_CONCEPTS: Readonly<Record<string, Concept>> = {
     see: [LEDGER],
     related: ["bondage", "outbreak", "great-dying"],
   },
+  "star-sickness": {
+    icon: "🛸",
+    title: "A sickness from the stars",
+    what: [
+      "Strangers from another star who come down among a people bring the small life of their own world with them, and now and then a sickness of it takes: one no one here was ever spared, named for the strangers, that goes on from land to land as any sickness does. Come down again, they may bring it again.",
+      "It goes the other way too. A sickness about the land they came down in may go home with them — each of ours once with each people — and a people whose own were sickened by the home world fear it the more, the more as it kills: their regard falls, and a people that stands ill enough with the home world sends fleets against it.",
+    ],
+    drives: [
+      "Strangers come down: to talk and trade (one time in two a sickness comes with them), only to look (one in four), or in war (one in three).",
+      "A people who keep the sick apart are reached half as often.",
+    ],
+    leads: [
+      "A new sickness that no one is spared, and a people turned from strangers.",
+      "Their regard for the home world soured.",
+    ],
+    see: [LEDGER],
+    related: ["sickness", "immunity", "great-dying", "contact"],
+  },
 };
 
 /** The labels on pages that are measures of these concepts. */
@@ -119,4 +138,7 @@ export const HEALTH_CONCEPT_OF: Readonly<Record<string, string>> = {
   "Warded by the god": "immunity",
   "It passes": "sickness",
   "The survivors": "immunity",
+  "Their sickness": "star-sickness",
+  "Ours they carried home": "star-sickness",
+  "Gone to the stars": "star-sickness",
 };

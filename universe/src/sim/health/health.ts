@@ -11,7 +11,8 @@
 // generation that never knew it — and on a people who never met it, it comes as a great dying.
 // Every rising and every coming is a decision whose factors say why, and every death is written
 // in the land's ledger of deaths; a land's grief is laid on its realm, and its people turn to
-// their gods, and from strangers.
+// their gods, and from strangers. (M141: strangers from another star who come down bring the
+// sicknesses of their own world, that no one here was ever spared; and ours go home with them.)
 import {
   YEAR,
   defineEventType,
@@ -37,22 +38,28 @@ import { politiesOf } from "../polity/polity.ts";
 import { warsOf } from "../war/war.ts";
 import { grieve } from "../acts/disasters.ts";
 import { orderOf, boundGone } from "../order/order.ts";
+import { civilizationsNear } from "../space/contact.ts";
+import { peoplesOf, peopleWords } from "../space/peoples.ts";
 
 export const SICKNESS = defineKind("sick", "sickness", "minted");
 
 /** How a sickness passes from one to another. */
 export const ROUTES = ["breath", "water", "vermin", "touch"] as const;
 export type Route = (typeof ROUTES)[number];
-/** Where a sickness rose: among herds, in crowds, in hot marshes, or by the god's hand. */
-export const SOURCES = ["herds", "crowds", "marsh", "the god"] as const;
+/** Where a sickness rose: among herds, in crowds, in hot marshes, by the god's hand — or it came
+ * down from the stars with strangers. */
+export const SOURCES = ["herds", "crowds", "marsh", "the god", "the stars"] as const;
 export type Source = (typeof SOURCES)[number];
-/** What carried a sickness to a land: its neighbours, a trade road, a sea route, an army. */
-export const VIAS = ["near", "road", "sea", "army", "god"] as const;
+/** What carried a sickness to a land: its neighbours, a trade road, a sea route, an army, the
+ * god's hand, strangers come down from the stars. */
+export const VIAS = ["near", "road", "sea", "army", "god", "stars"] as const;
 export type Via = (typeof VIAS)[number];
 
 export const HEALTH_EVENTS = {
   rose: defineEventType("health.rose", 5),
   outbreak: defineEventType("health.outbreak", 4),
+  /** A sickness of the home world gone home to the stars with strangers who came down. */
+  went: defineEventType("health.went", 5),
 };
 
 /** How sickness rises, travels and kills (each a share or a chance a year). */
@@ -63,7 +70,10 @@ export const SICK = {
   gap: 15,
   most: 8,
   /** The chance a carrier brings a sickness, before how many it reaches and who is spared. */
-  carry: { near: 0.22, road: 0.35, sea: 0.45, army: 0.55, god: 1 } as Record<Via, number>,
+  carry: { near: 0.22, road: 0.35, sea: 0.45, army: 0.55, god: 1, stars: 0.6 } as Record<
+    Via,
+    number
+  >,
   /** Unseen so long, a sickness sleeps where it rose, and wakes there now and then; longer, it is gone. */
   sleeps: 25,
   wake: 0.03,
@@ -78,6 +88,20 @@ export const SICK = {
   vaccinating: 0.25,
   /** Where they keep the sick apart, a sickness is brought this much less often. */
   quarantine: 0.5,
+} as const;
+
+/**
+ * Strangers from the stars come down (M141): the chance a sickness of their world comes down with
+ * them — after they came to talk and trade, only to look, or in war — and the chance, by how many
+ * it reaches, that one of ours about the land they came down in goes home with them; and how far
+ * their regard for the home world falls for it, at the deadliest.
+ */
+export const STAR_SICKNESS = {
+  talked: 0.5,
+  looked: 0.25,
+  war: 0.35,
+  home: 0.5,
+  fear: 0.25,
 } as const;
 
 /** Of a land's people in each age band, how much likelier than the mean to die of a sickness. */
@@ -100,6 +124,8 @@ export type Sickness = {
   readonly cell: number;
   readonly year: number;
   readonly event: Ref;
+  /** The people of the stars it came down with (null: it rose on the home world). */
+  readonly people: Ref | null;
   /** Lands it has come to, its dead, the last year it struck anywhere, its dead decade by decade. */
   struck: number;
   dead: number;
@@ -135,6 +161,15 @@ export type LandHealth = {
   ward: { year: number; event: Ref } | null;
 };
 
+/** A sickness of the home world gone home to the stars with a people who came down. */
+export type Went = {
+  readonly sickness: Ref;
+  readonly civ: Ref;
+  readonly cell: number;
+  readonly year: number;
+  readonly event: Ref;
+};
+
 export class HealthStore implements StateStore {
   readonly name = "health.sickness";
   sicknesses: Sickness[] = [];
@@ -144,6 +179,8 @@ export class HealthStore implements StateStore {
   /** The first great dying (a coming that killed a sixth of a land), and how many there have been. */
   great: { year: number; cell: number; event: Ref } | null = null;
   greats = 0;
+  /** Sicknesses of ours gone home to the stars, each with a people once. */
+  went: Went[] = [];
 
   get(ref: Ref | string): Sickness | undefined {
     return this.sicknesses.find((s) => s.ref === ref);
@@ -165,6 +202,7 @@ export class HealthStore implements StateStore {
       if (l.last) out.push(l.last.event);
       if (l.ward) out.push(l.ward.event);
     }
+    for (const w of this.went) out.push(w.event);
     if (this.great) out.push(this.great.event);
     return out;
   }
@@ -175,6 +213,7 @@ export class HealthStore implements StateStore {
       lastRose: this.lastRose,
       great: this.great,
       greats: this.greats,
+      went: this.went,
     };
   }
   hashInto(h: Hasher): void {
@@ -187,8 +226,13 @@ export class HealthStore implements StateStore {
       lastRose: number | null;
       great: { year: number; cell: number; event: Ref } | null;
       greats: number;
+      went?: Went[];
     };
-    this.sicknesses = s.sicknesses.map((x) => ({ ...x, byDecade: [...x.byDecade] }));
+    this.sicknesses = s.sicknesses.map((x) => ({
+      ...x,
+      people: x.people ?? null,
+      byDecade: [...x.byDecade],
+    }));
     this.lands = new Map(
       s.lands.map((l) => [
         l.cell,
@@ -198,6 +242,7 @@ export class HealthStore implements StateStore {
     this.lastRose = s.lastRose;
     this.great = s.great ? { ...s.great } : null;
     this.greats = s.greats;
+    this.went = (s.went ?? []).map((w) => ({ ...w }));
   }
 }
 
@@ -209,7 +254,8 @@ const RISE = defineStream("health.rise"),
   SPREAD = defineStream("health.spread"),
   TOLL = defineStream("health.toll"),
   NATURE = defineStream("health.nature"),
-  WAKE = defineStream("health.wake");
+  WAKE = defineStream("health.wake"),
+  FROM_STARS = defineStream("health.stars");
 
 const clamp = (lo: number, hi: number, x: number) => Math.max(lo, Math.min(hi, x));
 
@@ -287,6 +333,12 @@ function natureOf(
         ["vermin", 0.3],
         ["water", 0.2],
         ["touch", 0.1],
+      ],
+      "the stars": [
+        ["breath", 0.45],
+        ["touch", 0.3],
+        ["water", 0.15],
+        ["vermin", 0.1],
       ],
     };
   let u = r(0),
@@ -381,7 +433,7 @@ function strike(
   s: Sickness,
   cell: number,
   t: SimTime,
-  why: { causes: CauseRef[]; from: number | null; via: Via | null },
+  why: { causes: CauseRef[]; from: number | null; via: Via | null; strangers?: string },
 ): Outbreak | null {
   const { world } = ctx,
     store = healthOf(world)!,
@@ -406,6 +458,7 @@ function strike(
         people: before,
         dead: expected,
         bound: Math.round(toll.bound * 100),
+        ...(why.strangers ? { strangers: why.strangers } : {}),
       },
     });
   const dead = sicken(ctx, cell, toll.share, t);
@@ -449,6 +502,9 @@ function strike(
     const them = why.from !== null ? cultureOf(world).get(why.from) : undefined;
     if (them && 1 - tongueLikeness(ways.tongue, them.tongue) > 0.5)
       pushWays(ways, { event, year, trait: WAY.openness, amount: -Math.min(0.04, 0.3 * share) });
+    // (Come down from the stars with strangers, they turn from strangers the more.)
+    if (why.via === "stars")
+      pushWays(ways, { event, year, trait: WAY.openness, amount: -Math.min(0.06, 0.5 * share) });
   }
   return outbreak;
 }
@@ -545,6 +601,7 @@ export function spreadChance(
       sea: "carried over the sea",
       army: "carried by an army",
       god: "loosed by the god",
+      stars: "carried down from the stars",
     };
   const factors: Factor[] = [
     {
@@ -614,6 +671,7 @@ function bring(
   chance: number,
   factors: Factor[],
   t: SimTime,
+  strangers?: string,
 ): Outbreak | null {
   const { world } = ctx,
     decision = world.decisions.record({
@@ -634,10 +692,14 @@ function bring(
     ],
     from: c.from === c.to ? null : c.from,
     via: c.via,
+    ...(strangers ? { strangers } : {}),
   });
 }
 
-/** A new sickness rises in a land: its nature drawn, its name given, its first coming. */
+/**
+ * A new sickness rises in a land: its nature drawn, its name given, its first coming. (Come down
+ * from the stars, it is named for the strangers who brought it.)
+ */
 export function riseSickness(
   ctx: PopulationContext,
   cell: number,
@@ -645,6 +707,7 @@ export function riseSickness(
   factors: Factor[],
   t: SimTime,
   agent: Ref | null = null,
+  stars: { civ: Ref; name: string; event: Ref } | null = null,
 ): Sickness {
   const { world } = ctx,
     store = healthOf(world)!,
@@ -652,7 +715,7 @@ export function riseSickness(
     index = store.sicknesses.length,
     nature = natureOf(world, index, source),
     ref = world.minter.mint(SICKNESS),
-    name = `the ${townOf(ctx, cell)} ${nature.kind}`,
+    name = `the ${stars ? stars.name : townOf(ctx, cell)} ${nature.kind}`,
     decision = world.decisions.record({
       rule: "health.rise",
       subject: cellRef(0, cell),
@@ -663,13 +726,19 @@ export function riseSickness(
     }),
     event = world.events.emit({
       type: HEALTH_EVENTS.rose.type,
-      subjects: [ref],
+      subjects: stars ? [ref, stars.civ] : [ref],
       place: ctx.provinces.get(cell)?.ref ?? cellRef(0, cell),
       causes: [
         { ref: decision, role: "trigger", weight: 1 },
         ...(agent ? [{ ref: agent, role: "agent" as const, weight: 1 }] : []),
+        ...(stars ? [{ ref: stars.event, role: "enabler" as const, weight: 1 }] : []),
       ],
-      data: { sickness: name, source, route: nature.route },
+      data: {
+        sickness: name,
+        source,
+        route: nature.route,
+        ...(stars ? { strangers: stars.name } : {}),
+      },
     });
   const s: Sickness = {
     ref,
@@ -679,6 +748,7 @@ export function riseSickness(
     cell,
     year,
     event,
+    people: stars?.civ ?? null,
     struck: 0,
     dead: 0,
     last: year,
@@ -686,13 +756,155 @@ export function riseSickness(
     ended: null,
   };
   store.sicknesses.push(s);
-  store.lastRose = year;
+  // (One come down from the stars keeps no pace with those that rise here.)
+  if (!stars) store.lastRose = year;
   strike(ctx, s, cell, t, {
     causes: [{ ref: event, role: "trigger", weight: 1 }],
     from: null,
-    via: agent ? "god" : null,
+    via: agent ? "god" : stars ? "stars" : null,
+    ...(stars ? { strangers: stars.name } : {}),
   });
   return s;
+}
+
+/** Strangers come down in a land: to talk and trade, only to look, or in war. */
+type Came = { civ: Ref; cell: number; event: Ref; how: "talked" | "looked" | "war" };
+
+/**
+ * Strangers from the stars who came down last year: a sickness of their world may come down with
+ * them, one no one here was ever spared (or, theirs known here already, come again); and one of
+ * ours about the land they came down in may go home with them — and they fear the home world the
+ * more for it, the more as it kills.
+ */
+function fromTheStars(
+  ctx: PopulationContext,
+  store: HealthStore,
+  struck: Set<number>,
+  t: SimTime,
+): void {
+  const { world } = ctx,
+    peoples = peoplesOf(world),
+    year = yearOfMoment(t),
+    home = ctx.generated.star.ref as Ref;
+  if (!peoples) return;
+  const came: Came[] = [
+    ...peoples.landings
+      .filter((l) => l.year === year - 1)
+      .map((l): Came => ({
+        civ: l.civ,
+        cell: l.cell,
+        event: l.event,
+        how: l.omen ? "looked" : "talked",
+      })),
+    ...peoples.raids
+      .filter((r) => r.year === year - 1 && r.cell >= 0 && r.star === home)
+      .map((r): Came => ({ civ: r.civ, cell: r.cell, event: r.event, how: "war" })),
+  ];
+  if (!came.length) return;
+  const civs = new Map(civilizationsNear(world).map((c) => [c.ref as string, c])),
+    lore = loreOf(world);
+  for (const [i, c] of came.entries()) {
+    const civ = civs.get(c.civ),
+      people = ctx.provinces.get(c.cell)?.total() ?? 0;
+    if (!civ || people <= 0) continue;
+    const strangers = peopleWords(world, civ).name,
+      ours = store.land(c.cell)?.last ?? null;
+    // Ours, gone home with them (each of ours once with each people).
+    if (ours && year - ours.year <= 2) {
+      const s = store.get(ours.sickness);
+      if (
+        s &&
+        s.people !== c.civ &&
+        !store.went.some((w) => w.civ === c.civ && w.sickness === s.ref) &&
+        world.rng.real(FROM_STARS, c.cell, t, 2 * i + 1) < STAR_SICKNESS.home * s.reach
+      )
+        goHome(ctx, store, s, c, strangers, ours.event, year);
+    }
+    if (struck.has(c.cell)) continue;
+    const theirs = store.sicknesses.find((s) => s.people === c.civ);
+    if (theirs) {
+      // Theirs, known here already, come down again with them.
+      const carrier: Carrier = { from: c.cell, to: c.cell, via: "stars", by: c.event },
+        { chance, factors } = spreadChance(ctx, theirs, carrier);
+      if (world.rng.real(FROM_STARS, c.cell, t, 2 * i) >= chance) continue;
+      if (theirs.ended !== null) theirs.ended = null;
+      if (bring(ctx, theirs, carrier, chance, factors, t, strangers)) struck.add(c.cell);
+      continue;
+    }
+    // A sickness of their world, come down with them: one no one here was ever spared.
+    const apart = lore.get(c.cell, "quarantine"),
+      base = STAR_SICKNESS[c.how],
+      chance = base * (apart ? SICK.quarantine : 1);
+    if (world.rng.real(FROM_STARS, c.cell, t, 2 * i) >= chance) continue;
+    riseSickness(
+      ctx,
+      c.cell,
+      "the stars",
+      [
+        {
+          name:
+            c.how === "talked"
+              ? "strangers from the stars came down to talk and trade"
+              : c.how === "looked"
+                ? "strangers from the stars came down, looked, and went"
+                : "strangers from the stars came down in war",
+          value: base,
+          contribution: base,
+          source: { ref: c.event, role: "trigger", weight: 1 },
+        },
+        {
+          name: "a sickness of another world, that no one here was ever spared",
+          value: 1,
+          contribution: 0,
+          source: null,
+        },
+        ...(apart
+          ? [
+              {
+                name: "they keep the sick apart",
+                value: SICK.quarantine,
+                contribution: chance - base,
+                source: { ref: apart.event, role: "constraint" as const, weight: 1 },
+              },
+            ]
+          : []),
+        { name: "many people where they came down", value: people, contribution: 0, source: null },
+      ],
+      t,
+      null,
+      { civ: c.civ, name: strangers, event: c.event },
+    );
+    struck.add(c.cell);
+  }
+}
+
+/** A sickness of ours gone home to the stars with strangers: told, and their regard for us soured. */
+function goHome(
+  ctx: PopulationContext,
+  store: HealthStore,
+  s: Sickness,
+  c: Came,
+  strangers: string,
+  ours: Ref,
+  year: number,
+): void {
+  const { world } = ctx,
+    home = ctx.generated.star.ref as Ref,
+    fear = STAR_SICKNESS.fear * Math.min(1, s.deadliness / 0.1),
+    event = world.events.emit({
+      type: HEALTH_EVENTS.went.type,
+      subjects: [s.ref, c.civ],
+      place: ctx.provinces.get(c.cell)?.ref ?? cellRef(0, c.cell),
+      causes: [
+        { ref: c.event, role: "trigger", weight: 1 },
+        { ref: ours, role: "pressure", weight: 1 },
+      ],
+      data: { sickness: s.name, strangers, fear: Math.round(fear * 100) },
+    });
+  store.went.push({ sickness: s.ref, civ: c.civ, cell: c.cell, year, event });
+  // (In every meeting of theirs with the home world, they fear it the more.)
+  for (const m of peoplesOf(world)!.meetings)
+    if (m.civ === c.civ && m.star === home) m.regard = Math.max(-1, m.regard - fear);
 }
 
 /** The yearly work of sickness: the spared forget, it spreads, sleeps and wakes, and new ones rise. */
@@ -797,7 +1009,10 @@ export function healthYear(ctx: PopulationContext, t: SimTime): void {
     )
       struck.add(s.cell);
   }
-  // 4. A new sickness rises where life crowds: among herds, in great towns, in hot marshes.
+  // 4. Strangers from the stars, come down last year: a sickness of theirs may come with them, and
+  // one of ours go home with them.
+  fromTheStars(ctx, store, struck, t);
+  // 5. A new sickness rises where life crowds: among herds, in great towns, in hot marshes.
   if (
     (store.lastRose !== null && year - store.lastRose < SICK.gap) ||
     store.living().length >= SICK.most

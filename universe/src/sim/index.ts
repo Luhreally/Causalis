@@ -229,6 +229,7 @@ export {
   SICK,
   SICKNESS,
   SOURCES,
+  STAR_SICKNESS,
   VIAS,
   healthOf,
   healthYear,
@@ -245,6 +246,7 @@ export {
   type Sickness,
   type Source,
   type Via,
+  type Went,
 } from "./health/health.ts";
 export {
   LAWS,

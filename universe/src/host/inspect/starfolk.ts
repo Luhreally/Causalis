@@ -15,6 +15,7 @@ import type { World } from "../../kernel/index.ts";
 import type { Item, PageModel, Stat } from "../../bridge/index.ts";
 import { PEOPLE_COLORS, metName } from "../peoples.ts";
 import { claimOf, item, link, many, stat, yearNow } from "./words.ts";
+import { starSicknessBlocks } from "./sickness.ts";
 
 const ordinal = (n: number) =>
   `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
@@ -187,6 +188,7 @@ export function civilizationPage(world: World, ref: string): PageModel {
           },
           { type: "facts", title: "Their nature", rows: natureRows },
           { type: "list", title: "On the home world", items: told(landings) },
+          ...starSicknessBlocks(world, c.ref),
           { type: "text", lines: [[claimOf(world, ref)]] },
           { type: "why", ref },
         ],

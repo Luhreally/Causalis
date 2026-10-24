@@ -2,7 +2,9 @@
 // immunity, epidemics, sanitation, medicine, public health, healthcare inequality"): a sickness's
 // page — its nature, its rising, where it is now, who is spared it, its comings and its dead, a
 // drop of a sick one's blood under the glass, and the god's hand on it; a land's health for its
-// page; every sickness side by side for the ledger; and the map's lens of sickness.
+// page; every sickness side by side for the ledger; and the map's lens of sickness. (M141: a
+// sickness come down from the stars told as such, and on the strangers' page what passed between
+// them and us.)
 import { seedFromText, type Ref, type World } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
 import {
@@ -16,7 +18,14 @@ import {
   type Sickness,
   type Via,
 } from "../../sim/index.ts";
-import { ROUTE_WORDS, SOURCE_WORDS, VIA_WORDS, oneIn, sparedWords } from "../../causal/index.ts";
+import {
+  ROUTE_WORDS,
+  SOURCE_WORDS,
+  VIA_WORDS,
+  oneIn,
+  sparedWords,
+  strangersOf,
+} from "../../causal/index.ts";
 import type { Block, DropKind, Item, PageModel, Row, Span, Stat, Tab } from "../../bridge/index.ts";
 import type { Reading } from "../lenses.ts";
 import {
@@ -26,6 +35,7 @@ import {
   eventsAbout,
   item,
   link,
+  many,
   share,
   stat,
   yearAt,
@@ -63,7 +73,19 @@ function comingsOf(world: World, sickness?: Ref) {
     .reverse();
 }
 
-type Coming = { from?: number | null; via?: Via | null; people?: number; dead?: number };
+type Coming = {
+  from?: number | null;
+  via?: Via | null;
+  people?: number;
+  dead?: number;
+  strangers?: string;
+};
+
+/** A people of the stars, linked by its name. */
+function civLink(world: World, civ: Ref | null): Span {
+  const name = strangersOf(world, { people: civ });
+  return civ && name ? link(`the ${name}`, civ) : "strangers";
+}
 
 /** A coming in a line: where, when, how many died, and whence. */
 function comingLine(world: World, e: { place: Ref | null; t: number; data: unknown }): Span[] {
@@ -79,7 +101,9 @@ function comingLine(world: World, e: { place: Ref | null; t: number; data: unkno
       ? [`, ${VIA_WORDS[d.via ?? "near"]} from `, landLink(world, d.from)]
       : d?.via === "god"
         ? [", by the god's hand"]
-        : []),
+        : d?.via === "stars"
+          ? [`, down from the stars with the ${d.strangers ?? "strangers"}`]
+          : []),
   ];
 }
 
@@ -128,6 +152,7 @@ export function sicknessPage(world: World, ref: string): PageModel {
   if (!store || !s) throw new Error(`no sickness ${ref}`);
   const ctx = populationContext(world),
     year = yearNow(world),
+    went = store.went.filter((w) => w.sickness === s.ref),
     peopleOf = (c: number) => ctx.provinces.get(c)?.total() ?? 0,
     now = [...store.lands.values()]
       .filter((l) => l.last?.sickness === s.ref && l.last.year >= year - 1)
@@ -145,15 +170,47 @@ export function sicknessPage(world: World, ref: string): PageModel {
       },
       { ...stat("Of those who take it", `${oneIn(s.deadliness)} die`), concept: "sickness" },
       { ...stat("The survivors", `are spared it ${sparedWords(s)}`), concept: "immunity" },
-      stat(
-        "It rose",
-        [`${SOURCE_WORDS[s.source]} of `, landLink(world, s.cell), `, year ${s.year}`],
-        {
-          why: s.event,
-        },
-      ),
+      s.people
+        ? {
+            ...stat(
+              "It rose",
+              [
+                "came down from the stars with ",
+                civLink(world, s.people),
+                " to ",
+                landLink(world, s.cell),
+                `, year ${s.year}`,
+              ],
+              { why: s.event },
+            ),
+            concept: "star-sickness",
+          }
+        : stat(
+            "It rose",
+            [`${SOURCE_WORDS[s.source]} of `, landLink(world, s.cell), `, year ${s.year}`],
+            {
+              why: s.event,
+            },
+          ),
       stat("Lands it came to", count(s.struck)),
       stat("Its dead", count(s.dead)),
+      ...(went.length
+        ? [
+            {
+              ...stat(
+                "Gone to the stars",
+                went.flatMap((w, k): Span[] => [
+                  ...(k ? ["; "] : []),
+                  "with ",
+                  civLink(world, w.civ),
+                  `, year ${w.year}`,
+                ]),
+                { why: went[0]!.event },
+              ),
+              concept: "star-sickness",
+            },
+          ]
+        : []),
       s.ended !== null
         ? stat("Gone", `unseen since year ${s.last}`)
         : year - s.last >= SICK.sleeps
@@ -244,11 +301,17 @@ export function sicknessPage(world: World, ref: string): PageModel {
     kind: "sickness",
     icon: SICK_ICON,
     title: cap(s.name),
-    subtitle: [
-      `A sickness that passes ${ROUTE_WORDS[s.route]}, risen ${SOURCE_WORDS[s.source]} of `,
-      landLink(world, s.cell),
-      ` in year ${s.year}`,
-    ],
+    subtitle: s.people
+      ? [
+          `A sickness of another world that passes ${ROUTE_WORDS[s.route]}, come down from the stars to `,
+          landLink(world, s.cell),
+          ` in year ${s.year}`,
+        ]
+      : [
+          `A sickness that passes ${ROUTE_WORDS[s.route]}, risen ${SOURCE_WORDS[s.source]} of `,
+          landLink(world, s.cell),
+          ` in year ${s.year}`,
+        ],
     color: ROUTE_COLOR[s.route],
     place: spot === null ? null : { scale: "globe", spot },
     stats: [
@@ -397,7 +460,7 @@ export function sicknessLedger(world: World): Block[] {
         ref: s.ref,
         cells: [
           [sicknessLink(world, s.ref)],
-          [`year ${s.year}`],
+          [s.people ? `year ${s.year}, from the stars` : `year ${s.year}`],
           [ROUTE_WORDS[s.route]],
           [oneIn(s.deadliness)],
           [count(s.struck)],
@@ -468,7 +531,9 @@ export function sicknessReading(world: World, cell: number): Reading {
               value: `${VIA_WORDS[l.last.via ?? "near"]}, from ${landTitle(world, l.last.from)}`,
             },
           ]
-        : []),
+        : l?.last?.via === "stars"
+          ? [{ label: "Came", value: VIA_WORDS.stars }]
+          : []),
       ...spared,
       { label: "Its healers", value: healers > 0 ? `spare ${oneIn(healers)}` : "none" },
     ],
@@ -502,4 +567,34 @@ export function sicknessNow(world: World, s: Sickness): number {
   for (const l of store.lands.values())
     if (l.last?.sickness === s.ref && l.last.year >= year - 1) n++;
   return n;
+}
+
+/** On the page of a people of the stars: the sickness they brought down, and ours they took home. */
+export function starSicknessBlocks(world: World, civ: string): Block[] {
+  const store = healthOf(world);
+  if (!store) return [];
+  const rows: Stat[] = [
+    ...store.sicknesses
+      .filter((s) => s.people === civ)
+      .map((s) => ({
+        ...stat(
+          "Their sickness",
+          [
+            sicknessLink(world, s.ref),
+            `: ${count(s.dead)} dead here, in ${many(s.struck, "land", "lands")}`,
+          ],
+          { why: s.event },
+        ),
+        concept: "star-sickness",
+      })),
+    ...store.went
+      .filter((w) => w.civ === civ)
+      .map((w) => ({
+        ...stat("Ours they carried home", [sicknessLink(world, w.sickness), `, year ${w.year}`], {
+          why: w.event,
+        }),
+        concept: "star-sickness",
+      })),
+  ];
+  return rows.length ? [{ type: "facts", title: "Sickness between them and us", rows }] : [];
 }

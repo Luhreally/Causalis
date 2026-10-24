@@ -1020,6 +1020,17 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
         many(health.greats, "great dying", "great dyings"),
         health.greats,
       );
+    const fromStars = health?.sicknesses.filter((s) => s.people !== null) ?? [];
+    if (fromStars.length)
+      add(
+        "🛸 A sickness from the stars",
+        { year: fromStars[0]!.year, land: fromStars[0]!.cell, ref: fromStars[0]!.event },
+        fromStars[1]?.year ?? null,
+        `${many(fromStars.length, "sickness", "sicknesses")}, ${count(
+          fromStars.reduce((a, s) => a + s.dead, 0),
+        )} dead`,
+        fromStars.length,
+      );
   }
   for (const [type, what, one, more] of [
     ["trade.route-opened", "🐪 A trade road", "road", "roads"],

@@ -47,7 +47,7 @@ import "./space.ts";
 import "./order.ts";
 import "./health.ts";
 export { priceWords } from "./economy.ts";
-export { ROUTE_WORDS, SOURCE_WORDS, VIA_WORDS, oneIn, sparedWords } from "./health.ts";
+export { ROUTE_WORDS, SOURCE_WORDS, VIA_WORDS, oneIn, sparedWords, strangersOf } from "./health.ts";
 export {
   canWatch,
   label,

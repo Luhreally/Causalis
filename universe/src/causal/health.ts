@@ -1,13 +1,16 @@
 // Sickness in words (Phase 20 M140): a sickness's nature and its rising; its coming to a land —
 // whence, by what, and how many it took; its waking where it slept; the god's ward and the god's
-// pestilence.
-import { yearOfMoment, type CauseRef, type Ref } from "../kernel/index.ts";
+// pestilence; a sickness of another world come down from the stars, and ours gone home with
+// the strangers (M141).
+import { yearOfMoment, type CauseRef, type Ref, type World } from "../kernel/index.ts";
 import { cellRef } from "../gen/index.ts";
 import {
   HEALTH_ACTS,
   HEALTH_EVENTS,
   SICKNESS,
+  civilizationsNear,
   healthOf,
+  peopleWords,
   type Route,
   type Sickness,
   type Source,
@@ -36,6 +39,7 @@ export const SOURCE_WORDS: Readonly<Record<Source, string>> = {
   crowds: "in the crowds",
   marsh: "in the hot marshes",
   "the god": "by the god's hand",
+  "the stars": "come down from the stars",
 };
 /** What carried a sickness, in words. */
 export const VIA_WORDS: Readonly<Record<Via, string>> = {
@@ -44,7 +48,14 @@ export const VIA_WORDS: Readonly<Record<Via, string>> = {
   sea: "over the sea",
   army: "with an army",
   god: "by the god's hand",
+  stars: "down from the stars",
 };
+
+/** The name of the people of the stars a sickness came down with (null: it rose here). */
+export function strangersOf(world: World, s: Pick<Sickness, "people">): string | null {
+  const civ = s.people ? civilizationsNear(world).find((c) => c.ref === s.people) : undefined;
+  return civ ? peopleWords(world, civ).name : null;
+}
 
 /** A share, as "one in N" or "N in a hundred". */
 export function oneIn(x: number): string {
@@ -70,18 +81,25 @@ type Data = {
   people?: number;
   dead?: number;
   bound?: number;
+  strangers?: string;
 } | null;
 
 registerExplainer(SICKNESS.code, (world, ref) => {
   const s = healthOf(world)?.get(ref);
   if (!s) return null;
-  const claim = `${cap(s.name)}: it passes ${ROUTE_WORDS[s.route]}; of those it reaches who never had it, ${oneIn(s.reach)} take it, and of those ${oneIn(s.deadliness)} die; the survivors are spared it ${sparedWords(s)}. It rose ${SOURCE_WORDS[s.source]} of ${landWords(world, cellRef(0, s.cell))} in year ${s.year}, and has come to ${count(s.struck)} land${s.struck === 1 ? "" : "s"}, killing ${count(s.dead)}`;
+  const strangers = strangersOf(world, s),
+    rose = strangers
+      ? `It came down from the stars with the ${strangers} to ${landWords(world, cellRef(0, s.cell))} in year ${s.year}`
+      : `It rose ${SOURCE_WORDS[s.source]} of ${landWords(world, cellRef(0, s.cell))} in year ${s.year}`;
+  const claim = `${cap(s.name)}: it passes ${ROUTE_WORDS[s.route]}; of those it reaches who never had it, ${oneIn(s.reach)} take it, and of those ${oneIn(s.deadliness)} die; the survivors are spared it ${sparedWords(s)}. ${rose}, and has come to ${count(s.struck)} land${s.struck === 1 ? "" : "s"}, killing ${count(s.dead)}`;
   const causes: CauseRef[] = [{ ref: s.event, role: "trigger", weight: 1 }];
   return { ref, claim, basis: "recorded", t: null, causes: edges(world, causes) };
 });
 
 registerEventWords(HEALTH_EVENTS.rose.type, (world, e) => {
   const d = e.data as Data;
+  if (d?.source === "the stars")
+    return `A sickness of another world, ${d.sickness ?? "a sickness"}, came down from the stars with the ${d.strangers ?? "strangers"} to ${landWords(world, e.place)}; it passes ${ROUTE_WORDS[d.route ?? "breath"]}, ${year(e.t)}`;
   return `A new sickness, ${d?.sickness ?? "a sickness"}, rose ${SOURCE_WORDS[d?.source ?? "herds"]} of ${landWords(world, e.place)}; it passes ${ROUTE_WORDS[d?.route ?? "breath"]}, ${year(e.t)}`;
 });
 registerEventWords(HEALTH_EVENTS.outbreak.type, (world, e) => {
@@ -91,10 +109,16 @@ registerEventWords(HEALTH_EVENTS.outbreak.type, (world, e) => {
         ? ` ${VIA_WORDS[d.via ?? "near"]}, from ${landWords(world, cellRef(0, d.from))}`
         : d?.via === "god"
           ? " by the god's hand"
-          : "",
+          : d?.via === "stars"
+            ? ` with the ${d.strangers ?? "strangers"}, down from the stars`
+            : "",
     dead = d?.dead ?? 0,
     people = d?.people ?? 0;
   return `${cap(d?.sickness ?? "a sickness")} came to ${landWords(world, e.place)}${from}: ${count(dead)} of its ${count(people)} died${people && dead / people >= 0.15 ? ", a great dying" : ""}, ${year(e.t)}`;
+});
+registerEventWords(HEALTH_EVENTS.went.type, (world, e) => {
+  const d = e.data as Data;
+  return `${cap(d?.sickness ?? "a sickness")} went home to the stars with the ${d?.strangers ?? "strangers"}, from ${landWords(world, e.place)}: they fear the home world the more, ${year(e.t)}`;
 });
 registerEventWords(
   HEALTH_ACTS.ward.type,
@@ -112,9 +136,10 @@ registerCommandWords("act.loose", (world, c) => {
   return `Your act: you loosed ${s ? s.name : "a new sickness"} on ${landWords(world, cellRef(0, a.cell))}, year ${yearOfMoment(c.t)}`;
 });
 
-registerDecisionWords(
-  "health.rise",
-  (world, d) => `A new sickness rose in ${landWords(world, d.subject)}`,
+registerDecisionWords("health.rise", (world, d) =>
+  (d.outcome as { source?: Source } | null)?.source === "the stars"
+    ? `A sickness of another world came down in ${landWords(world, d.subject)}`
+    : `A new sickness rose in ${landWords(world, d.subject)}`,
 );
 registerDecisionWords("health.spread", (world, d) => {
   const s = healthOf(world)?.get(d.subject),

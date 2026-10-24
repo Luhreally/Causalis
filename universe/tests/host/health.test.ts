@@ -2,7 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
-import { healthOf, politiesOf, populationContext, type Polity } from "../../src/sim/index.ts";
+import {
+  civilizationsNear,
+  healthOf,
+  peoplesOf,
+  politiesOf,
+  populationContext,
+  type Polity,
+} from "../../src/sim/index.ts";
 import type { Answer, Block, PageModel, Tip } from "../../src/bridge/index.ts";
 import { HEALTH_CONCEPTS } from "../../src/host/inspect/health-concepts.ts";
 
@@ -129,4 +136,48 @@ test("the god may answer a sickness come: the land warded; the ward told and tit
   assert.equal(page(ward.id).title, "A land warded");
   assert.equal(page(coming.id).title, "A sickness came");
   assert.ok(facts(tabOf(page(`cell:0:${land}`), "health").blocks).includes("Warded by the god"));
+});
+
+test("a sickness from the stars: named for the strangers, told on its page and theirs, first in the chronicle, in the book", () => {
+  // Juniper sixty years on: strangers of the people longest at the stars come down to talk in
+  // its greatest realm's six most peopled lands.
+  const w = EARTH.build(seedFromText("juniper"));
+  w.runTo(60 * YEAR);
+  const c = populationContext(w),
+    held = (cell: number) => c.provinces.get(cell)?.total() ?? 0,
+    peopleIn = (p: Polity) => p.members.reduce((n, x) => n + held(x), 0),
+    p = [...politiesOf(w).living()].sort(
+      (a, b) => peopleIn(b) - peopleIn(a) || (a.ref < b.ref ? -1 : 1),
+    )[0]!,
+    civ = [...civilizationsNear(w)].sort(
+      (a, b) => a.stars - b.stars || (a.ref < b.ref ? -1 : 1),
+    )[0]!,
+    lands = [...p.members].sort((a, b) => held(b) - held(a) || a - b).slice(0, 6);
+  for (const cell of lands)
+    peoplesOf(w)!.landings.push({ civ: civ.ref, cell, year: 60, omen: false, event: p.event });
+  w.runTo(62 * YEAR);
+  const theirs = healthOf(w)!.sicknesses.find((s) => s.people === civ.ref)!;
+  assert.ok(theirs, "their sickness came down");
+  const pageOf = (ref: string) => EARTH.queries.page!(w, { ref }) as PageModel,
+    rows = (pm: PageModel) =>
+      pm.tabs.flatMap((t) => t.blocks).flatMap((b) => (b.type === "facts" ? b.rows : []));
+  const sp = pageOf(theirs.ref),
+    rose = rows(sp).find((r) => r.label === "It rose")!;
+  assert.match(JSON.stringify(rose.value), /came down from the stars with /);
+  assert.equal(rose.concept, "star-sickness");
+  assert.match(JSON.stringify(sp.subtitle), /A sickness of another world/);
+  const theirsRow = rows(pageOf(civ.ref)).find((r) => r.label === "Their sickness");
+  assert.ok(
+    theirsRow && JSON.stringify(theirsRow.value).includes(theirs.ref),
+    "on the strangers' page",
+  );
+  const firsts = tabOf(pageOf("world:chronicle"), "firsts").blocks.find((b) => b.type === "table");
+  assert.ok(
+    firsts &&
+      firsts.type === "table" &&
+      firsts.rows.some((r) => JSON.stringify(r.cells[0]).includes("A sickness from the stars")),
+    "the chronicle's first",
+  );
+  assert.equal(pageOf("concept:star-sickness").title, "A sickness from the stars");
+  assert.equal(pageOf("concept:contact").title, "Peoples of other stars");
 });

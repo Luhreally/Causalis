@@ -7,6 +7,7 @@ import {
   saveWorld,
   seedFromText,
   verifyByReplay,
+  type Ref,
   type SimTime,
   type World,
 } from "../../src/kernel/index.ts";
@@ -17,11 +18,16 @@ import {
   BONDS,
   HEALTH_EVENTS,
   SICK,
+  STAR_SICKNESS,
+  civilizationsNear,
+  cultureOf,
   healthOf,
   healthYear,
   loreOf,
   makePopulationWorld,
   orderOf,
+  peoplesOf,
+  peopleWords,
   politiesOf,
   populationContext,
   riseSickness,
@@ -320,6 +326,152 @@ test("the god's ward spares a land every sickness; a sickness loosed comes at on
   assert.equal(fresh2.source, "the god");
   assert.ok(w.events.get(fresh2.event)!.causes.some((c) => c.role === "agent"));
   assert.match(why(w, fresh2.event).claim, /rose by the god's hand of /);
+});
+
+/** A realm's most peopled lands, the most first. */
+const most = (w: World, p: Polity, n: number) => {
+  const ctx = populationContext(w);
+  return [...p.members]
+    .sort(
+      (a, b) =>
+        (ctx.provinces.get(b)?.total() ?? 0) - (ctx.provinces.get(a)?.total() ?? 0) || a - b,
+    )
+    .slice(0, n);
+};
+/** The people longest at the stars. */
+const oldest = (w: World) =>
+  [...civilizationsNear(w)].sort((a, b) => a.stars - b.stars || (a.ref < b.ref ? -1 : 1))[0]!;
+/** Strangers come down in lands in a year (their coming cited as the realm's founding, by hand). */
+const landed = (w: World, civ: Ref, lands: readonly number[], year: number, cause: Ref) => {
+  for (const cell of lands)
+    peoplesOf(w)!.landings.push({ civ, cell, year, omen: false, event: cause });
+};
+
+test("strangers from the stars bring down a sickness of their world, named for them, that no one here was spared; it comes again with them", () => {
+  const w = fresh(),
+    p = greatest(w),
+    store = healthOf(w)!,
+    civ = oldest(w),
+    name = peopleWords(w, civ).name,
+    lands = most(w, p, 12),
+    had = store.sicknesses.length;
+  // They come down to talk in six of its lands one year…
+  landed(w, civ.ref, lands.slice(0, 6), 60, p.event);
+  sicknessFor(w, 61, 61);
+  const theirs = store.sicknesses.find((s) => s.people === civ.ref)!;
+  assert.ok(theirs, "a sickness of theirs came down");
+  assert.equal(store.sicknesses.length, had + 1, "one of theirs, not one a land");
+  assert.equal(theirs.source, "the stars");
+  assert.ok(theirs.name.startsWith(`the ${name} `), theirs.name);
+  assert.ok(lands.slice(0, 6).includes(theirs.cell));
+  const rose = w.events.get(theirs.event)!;
+  assert.ok(rose.subjects.includes(civ.ref), "the strangers named in its rising");
+  const d = w.decisions.get(
+    rose.causes.find((c) => w.decisions.get(c.ref)?.rule === "health.rise")!.ref,
+  )!;
+  assert.ok(
+    d.factors.some(
+      (f) =>
+        f.source?.ref === p.event &&
+        f.name === "strangers from the stars came down to talk and trade",
+    ),
+    "their coming down cited",
+  );
+  const first = comings(w, theirs)[0]!;
+  assert.equal((first.data as { via: string }).via, "stars");
+  assert.match(
+    why(w, theirs.event).claim,
+    /^A sickness of another world, .+, came down from the stars with the /,
+  );
+  assert.match(why(w, first.id).claim, /with the .+, down from the stars: /);
+  // …and in six more the next year: theirs comes again with them — never a second of theirs.
+  (theirs as { reach: number }).reach = 0.95;
+  landed(w, civ.ref, lands.slice(6, 12), 61, p.event);
+  sicknessFor(w, 62, 62);
+  assert.equal(store.sicknesses.filter((s) => s.people === civ.ref).length, 1);
+  const again = comings(w, theirs).filter(
+    (e) => e.id !== first.id && (e.data as { via: string }).via === "stars",
+  );
+  assert.ok(again.length >= 1, "it came again with them");
+  const spread = w.decisions.get(
+    again[0]!.causes.find((c) => w.decisions.get(c.ref)?.rule === "health.spread")!.ref,
+  )!;
+  assert.ok(
+    spread.factors.some(
+      (f) => f.name === "carried down from the stars" && f.source?.ref === p.event,
+    ),
+  );
+  // Those it came to turn from strangers.
+  const ways = cultureOf(w).get(theirs.cell);
+  if (ways && first.data && ((first.data as { dead: number }).dead ?? 0) > 0)
+    assert.ok(ways.nudges.some((n) => n.event === first.id));
+});
+
+test("ours go home with them to the stars, each of ours once with each people; they fear the home world the more, the deadlier it was", () => {
+  const w = fresh(),
+    p = greatest(w),
+    store = healthOf(w)!,
+    peoples = peoplesOf(w)!,
+    civ = oldest(w),
+    home = populationContext(w).generated.star.ref as Ref,
+    lands = most(w, p, 6),
+    s = made(w, lands[0]!);
+  (s as { reach: number }).reach = 1;
+  (s as { deadliness: number }).deadliness = 0.2;
+  // Burning in every land they come down in.
+  for (const cell of lands)
+    store.lands.set(cell, {
+      cell,
+      immune: [],
+      last: { sickness: s.ref, year: 60, event: s.event, dead: 0, share: 0, from: null, via: null },
+      struck: 1,
+      dead: 0,
+      ward: null,
+    });
+  peoples.meetings.push({
+    civ: civ.ref,
+    other: p.ref,
+    with: "realm",
+    star: home,
+    cell: lands[0]!,
+    year: 55,
+    event: p.event,
+    theirs: "wonder",
+    ours: "wonder",
+    talking: true,
+    regard: 0.4,
+    exchanges: 0,
+    last: 55,
+    lastEvent: null,
+    raids: 0,
+    lastRaid: 55,
+    lastRaidEvent: null,
+  });
+  landed(w, civ.ref, lands, 60, p.event);
+  sicknessFor(w, 61, 61);
+  const went = store.went.filter((x) => x.civ === civ.ref);
+  assert.equal(went.length, 1, "once with each people");
+  assert.equal(went[0]!.sickness, s.ref);
+  const e = w.events.get(went[0]!.event)!;
+  assert.equal(e.type, HEALTH_EVENTS.went.type);
+  assert.ok(
+    e.causes.some((c) => c.ref === p.event && c.role === "trigger"),
+    "their coming down",
+  );
+  assert.ok(
+    e.causes.some((c) => c.ref === s.event && c.role === "pressure"),
+    "ours about",
+  );
+  const m = peoples.meetings.at(-1)!;
+  assert.ok(Math.abs(m.regard - (0.4 - STAR_SICKNESS.fear)) < 1e-9, `regard ${m.regard}`);
+  assert.match(
+    why(w, e.id).claim,
+    /went home to the stars with the .+: they fear the home world the more/,
+  );
+  // Come down again, they take it no more.
+  landed(w, civ.ref, lands, 61, p.event);
+  sicknessFor(w, 62, 62);
+  assert.equal(store.went.filter((x) => x.civ === civ.ref && x.sickness === s.ref).length, 1);
 });
 
 test("sickness is kept whole by a save, goes on alike after it, and the world replays", () => {
