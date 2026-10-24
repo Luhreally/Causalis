@@ -126,7 +126,13 @@ const BEGUN = {
     { id: "bodies", name: "The first bodies", at: 640, words: "bodies" },
   ],
   drop: null,
-  acts: { ages: [], dawn: null, lives: [] },
+  acts: {
+    ages: [],
+    dawn: null,
+    lives: [],
+    peopling: { seasLow: false, age: null, cradle: null },
+  },
+  peopling: null,
 } as const;
 
 test("the living world arises age by age: each lineage on the stage from its age, gone after the age it died in", () => {
@@ -207,6 +213,9 @@ test("the genesis plays on a deep clock: its stages oldest first, each at its ow
   assert.deepEqual([at("ages").from, at("ages").to], [400, 2]);
   // Billions of years a second as the galaxy turns; an age every few seconds as life arises.
   assert.ok(at("galaxy").start >= 1000 && at("ages").start <= 25 && at("people").start < 1);
+  // The bands' peopling of the land the last hundred thousand years, thousands of years a second.
+  assert.deepEqual([at("people").to, at("peopling").from, at("peopling").to], [0.1, 0.1, 0]);
+  assert.ok(at("peopling").speeds.every((s) => s >= 0.001 && s <= 0.005));
 
   const clock = new DeepClock(spans);
   assert.equal(clock.at, 0);
@@ -235,7 +244,7 @@ test("the genesis plays on a deep clock: its stages oldest first, each at its ow
   assert.ok(!clock.stopped);
   clock.jump(GENESIS.length);
   assert.ok(clock.done);
-  assert.equal(clock.span.stage, "people");
+  assert.equal(clock.span.stage, "peopling");
 
   assert.equal(deepWhen(4120), "4.12 billion years ago");
   assert.equal(deepWhen(312.4), "312 million years ago");

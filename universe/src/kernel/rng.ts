@@ -55,6 +55,14 @@ export function seedWithAct(text: string, act: string): string {
   return [seedName(text), ...acts].join(ACT);
 }
 
+/** A seed's text with an act lifted from it: every act of the act's subject ("cradle 12" lifts any cradle). */
+export function seedWithoutAct(text: string, act: string): string {
+  const subject = (a: string) => a.slice(0, Math.max(0, a.lastIndexOf(" "))),
+    lifted = subject(act.trim()),
+    acts = seedActs(text).filter((a) => subject(a) !== lifted);
+  return [seedName(text), ...acts].join(ACT);
+}
+
 /** Acts in order: by their first word, then by their number ("age 3" before "age 12"). */
 function actOrder(a: string, b: string): number {
   const [wa, na] = actKey(a),

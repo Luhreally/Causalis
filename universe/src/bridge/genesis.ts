@@ -31,6 +31,12 @@ export type GenesisPlan = {
     readonly dawn: string | null;
     /** The ages whose living world prospered under the hand, and the way that did (Phase 27). */
     readonly lives: readonly { readonly age: number; readonly way: string }[];
+    /** The acts laid on its peopling (Phase 28): the seas lowered, a kind or a hard age, where they were bidden to rise (a cell). */
+    readonly peopling: {
+      readonly seasLow: boolean;
+      readonly age: "kind" | "hard" | null;
+      readonly cradle: number | null;
+    };
   };
   readonly ages: readonly {
     readonly index: number;
@@ -70,5 +76,34 @@ export type GenesisPlan = {
       readonly size: number;
       readonly span?: number;
     };
+  } | null;
+  /**
+   * How the first people spread over the land before the chronicle opened (Phase 28), as the
+   * world is begun from: the lands their bands reached in the order they came, and the tongues
+   * each spoke at the opening, by family.
+   */
+  readonly peopling: {
+    /** The province they rose in, and its middle (a cell of the world's fine grid). */
+    readonly cradle: number;
+    readonly middle: number;
+    /** Each land reached: [province, steps from the cradle, the province its bands came from], in the order they came. */
+    readonly lands: readonly (readonly [number, number, number])[];
+    /** How many lived in each at the chronicle's opening. */
+    readonly sizes: readonly number[];
+    /** The family of tongues each spoke then (an index into families). */
+    readonly family: readonly number[];
+    readonly families: readonly {
+      readonly name: string;
+      /** The province its first tongue was first spoken in, and that province's middle (a fine cell). */
+      readonly root: number;
+      readonly middle: number;
+      readonly lands: number;
+      readonly tongues: number;
+      readonly people: number;
+    }[];
+    /** The steps from the cradle each tongue of the opening arose at (ascending). */
+    readonly tongues: readonly number[];
+    /** The provinces of the world its people could live in, reached or not. */
+    readonly livable: number;
   } | null;
 };

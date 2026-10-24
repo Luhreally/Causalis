@@ -29,6 +29,7 @@ import {
   commonTongue,
   languageName,
   tongueLikeness,
+  type HomeWorld,
   type Tongue,
 } from "../../gen/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
@@ -196,72 +197,117 @@ export function freshName(store: LanguageStore, t: Tongue, key: number): string 
   return name;
 }
 
+/** A language of the chronicle's opening, as planned: its name, forebear and family (indices), home and standard, and how much of its forebears' speech it kept (%). */
+export type OpeningLanguage = {
+  readonly name: string;
+  readonly parent: number | null;
+  readonly family: number;
+  readonly home: number;
+  readonly standard: Tongue;
+  readonly kept: number;
+};
+
 /**
- * The languages at the chronicle's opening. `lands` are in the order the bands reached
- * them, each with the land they came from (the cradle names itself). A land speaks the
- * language, of those its forebears or placed neighbours speak, whose standard its
- * speech is most like — or, if none is like enough, a language of its own, a daughter
- * of its forebears'. The first people's daughters each begin a family.
+ * The languages at the chronicle's opening (pure). `lands` are in the order the bands
+ * reached them, each with the land they came from (the cradle names itself). A land speaks
+ * the language, of those its forebears or placed neighbours speak, whose standard its
+ * speech is most like — or, if none is like enough, a language of its own, a daughter of
+ * its forebears'. The first people's daughters each begin a family.
  */
-export function foundLanguages(world: World, lands: readonly [number, number][], cause: Ref): void {
-  const store = languagesOf(world),
-    culture = cultureOf(world),
-    g = homePlanet(world).generated;
+export function planLanguages(
+  g: HomeWorld,
+  lands: readonly (readonly [number, number])[],
+  tongueOf: (cell: number) => Tongue,
+): { readonly languages: OpeningLanguage[]; readonly speaks: Map<number, number> } {
+  const languages: OpeningLanguage[] = [],
+    speaks = new Map<number, number>(),
+    taken = new Set<string>(),
+    // (A new language's name: its speakers' word for their speech, never one already taken.)
+    fresh = (t: Tongue, key: number) => {
+      let name = languageName(t, key);
+      for (let k = 1; k < 16 && taken.has(name); k++) name = languageName(t, key + 7919 * k);
+      taken.add(name);
+      return name;
+    };
   for (const [cell, from] of lands) {
-    const tongue = culture.get(cell)!.tongue;
+    const tongue = tongueOf(cell);
     if (cell === from) {
-      const ref = world.minter.mint(LANGUAGE);
-      store.add({
-        ref,
-        index: 0,
-        name: freshName(store, tongue, cell),
+      speaks.set(cell, languages.length);
+      languages.push({
+        name: fresh(tongue, cell),
         parent: null,
         family: 0,
-        born: 0,
-        event: cause,
         home: cell,
         standard: tongue,
-        died: null,
+        kept: 100,
       });
-      store.speak(cell, 0, cause);
       continue;
     }
     // The candidates: the forebears' language, and any a placed neighbour speaks.
-    const candidates = new Set<number>([store.of(from)!.index]);
+    const candidates = new Set<number>([speaks.get(from)!]);
     for (let k = g.grid.offsets[cell]!; k < g.grid.offsets[cell + 1]!; k++) {
-      const l = store.of(g.grid.neighbours[k]!);
-      if (l) candidates.add(l.index);
+      const l = speaks.get(g.grid.neighbours[k]!);
+      if (l !== undefined) candidates.add(l);
     }
     let best = -1,
       like = -1;
     for (const i of [...candidates].sort((a, b) => a - b)) {
-      const v = tongueLikeness(tongue, store.at(i).standard);
+      const v = tongueLikeness(tongue, languages[i]!.standard);
       if (v > like) [best, like] = [i, v];
     }
     if (like >= APART) {
-      store.speak(cell, best, cause);
+      speaks.set(cell, best);
       continue;
     }
-    const parent = store.of(from)!,
-      index = store.all().length,
-      name = freshName(store, tongue, cell),
-      event = world.events.emit({
-        type: LANGUAGE_EVENTS.arose.type,
-        subjects: [],
-        place: cellRef(0, cell),
-        causes: [{ ref: cause, role: "trigger", weight: 1 }],
-        data: { name, from: parent.name, kept: Math.round(100 * like), year: 0 },
-      });
+    const parent = speaks.get(from)!,
+      index = languages.length;
+    speaks.set(cell, index);
+    languages.push({
+      name: fresh(tongue, cell),
+      parent,
+      family: parent === 0 ? index : languages[parent]!.family,
+      home: cell,
+      standard: tongue,
+      kept: Math.round(100 * like),
+    });
+  }
+  return { languages, speaks };
+}
+
+/** The languages at the chronicle's opening, founded as planned (planLanguages), each new one an event. */
+export function foundLanguages(world: World, lands: readonly [number, number][], cause: Ref): void {
+  const store = languagesOf(world),
+    culture = cultureOf(world),
+    g = homePlanet(world).generated,
+    { languages, speaks } = planLanguages(g, lands, (cell) => culture.get(cell)!.tongue);
+  for (const [cell] of lands) {
+    const index = speaks.get(cell)!;
+    // (Spoken by a land before: taken up here.)
+    if (index < store.all().length) {
+      store.speak(cell, index, cause);
+      continue;
+    }
+    const l = languages[index]!,
+      event =
+        l.parent === null
+          ? cause
+          : world.events.emit({
+              type: LANGUAGE_EVENTS.arose.type,
+              subjects: [],
+              place: cellRef(0, cell),
+              causes: [{ ref: cause, role: "trigger", weight: 1 }],
+              data: { name: l.name, from: languages[l.parent]!.name, kept: l.kept, year: 0 },
+            });
     store.add({
       ref: world.minter.mint(LANGUAGE),
       index,
-      name,
-      parent: parent.index,
-      family: parent.index === 0 ? index : parent.family,
+      name: l.name,
+      parent: l.parent,
+      family: l.family,
       born: 0,
       event,
       home: cell,
-      standard: tongue,
+      standard: l.standard,
       died: null,
     });
     store.speak(cell, index, event);

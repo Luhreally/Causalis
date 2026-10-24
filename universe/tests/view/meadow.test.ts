@@ -70,7 +70,13 @@ const PLAN = {
   worldAge: 4500,
   rungs: [],
   drop: null,
-  acts: { ages: [], dawn: null, lives: [] },
+  acts: {
+    ages: [],
+    dawn: null,
+    lives: [],
+    peopling: { seasLow: false, age: null, cradle: null },
+  },
+  peopling: null,
   ages: [age(0), age(1), age(2), age(3, "impact")],
   lineages: [
     lineage("grey ox", "grazer", 300, 1, null),

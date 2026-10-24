@@ -39,6 +39,7 @@ export {
   seedFromText,
   seedName,
   seedWithAct,
+  seedWithoutAct,
   streams,
   type Seed,
   type Stream,

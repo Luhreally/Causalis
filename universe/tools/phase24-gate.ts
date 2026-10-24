@@ -231,7 +231,11 @@ let cooled = -1;
 {
   await next();
   await until("the first people", async () => (await state()).stage === "people", slow(10000));
+  // (The peopling after them since Phase 28.)
   await next();
+  await until("the peopling", async () => (await state()).stage === "peopling", slow(10000));
+  await next();
+  await page.waitForSelector(".genesis .choice", { timeout: slow(10000) });
   const choices = await page.$$(".genesis .choice");
   check(choices.length >= 5, `${choices.length} places to begin`);
   const seed = (await state()).seed;

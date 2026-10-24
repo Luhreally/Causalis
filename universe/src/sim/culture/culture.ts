@@ -15,6 +15,7 @@ import {
   yearOfMoment,
   type Hasher,
   type Ref,
+  type Rng,
   type SimTime,
   type StateStore,
   type World,
@@ -192,7 +193,7 @@ export function cradleWays(cell: number, culture: number, from: Ref | null): Way
  * by the land.
  */
 export function driftedWays(
-  world: World,
+  world: { readonly rng: Rng },
   cradle: Ways,
   cell: number,
   steps: number,

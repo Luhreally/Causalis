@@ -337,6 +337,8 @@ export function makeBiosphere(
     readonly dawn?: DawnWay | null;
     /** The ways that prospered in its ages' living worlds under the hand, by age (Phase 27). */
     readonly lives?: ReadonlyMap<number, LifeWay>;
+    /** Where the god's hand bade the people rise, a cell (Phase 28; null: where they would). */
+    readonly cradle?: number | null;
   } = {
     prior: "earthlike",
     gravity: 1,
@@ -595,6 +597,9 @@ export function makeBiosphere(
       apesAt = c;
     }
   }
+  // Bidden by the god's hand to rise elsewhere (Phase 28): there, where it is green land.
+  const bidden = world.cradle ?? -1;
+  if (bidden >= 0 && bidden < n && land(bidden) && green(climate.biome[bidden]!)) apesAt = bidden;
   // Earth's own (the Earthlike prior): its first farmers found beasts to tame in their own
   // country — the land nearest the cradle, a twentieth of the world — as Earth's found
   // their sheep, goats and cattle. If no grazer there can be tamed, the herd-living one
@@ -701,6 +706,12 @@ export function makeBiosphere(
       const score = mild * (1 + shelfBy(c) + diversity[c]!) * u;
       if (score > shoreScore) [shoreAt, shoreScore] = [c, score];
     }
+  }
+  // (A people of the water bidden to a reef shelf by a coast; one of the shore to a coast by one.)
+  if (bidden >= 0 && bidden < n) {
+    if (climate.biome[bidden] === BIOME.shelf && coastOf(bidden)) seaAt = bidden;
+    else if (land(bidden) && shelfBy(bidden) > 0 && climate.biome[bidden] !== BIOME.ice)
+      shoreAt = bidden;
   }
   // The hunters follow their prey (Phase 8 M77): beyond the country that suits them best,
   // a hunting lineage crosses the land joined to its own, within a wider warmth than it

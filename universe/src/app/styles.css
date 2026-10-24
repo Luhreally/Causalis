@@ -564,6 +564,18 @@ body[data-scale="micro"] {
     max-height: calc(100% - 96px);
   }
 }
+/* The peopling (Phase 28): the families of tongues named over the globe, each with its colour. */
+.genesis-label .swatch {
+  display: inline-block;
+  width: 0.62em;
+  height: 0.62em;
+  margin-right: 5px;
+  border-radius: 2px;
+  vertical-align: 0.02em;
+}
+.genesis-label[hidden] {
+  display: none;
+}
 /* What the people in view are saying (M86): a sign in a speech bubble over each head. */
 .bubbles {
   position: absolute;

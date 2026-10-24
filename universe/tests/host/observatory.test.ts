@@ -432,14 +432,21 @@ test("a world's beginning remade by an act laid on its dawn: asked of the host, 
       ages: { age: number; kind: string }[];
       dawn: string | null;
       lives: { age: number; way: string }[];
+      peopling: { seasLow: boolean; age: string | null; cradle: number | null };
     };
     ages: { kind: string }[];
+    peopling: { cradle: number; lands: number[][]; families: { name: string }[] } | null;
   };
   const plain = ask<G>("genesis"),
-    seed = `${plain.seed} ~age 5 strike ~dawn hunters ~life 6 browsers`,
+    seed = `${plain.seed} ~age 5 strike ~dawn hunters ~life 6 browsers ~peopling seas low`,
     g = ask<G>("genesis", { seed });
   assert.equal(plain.name, "first light");
-  assert.deepEqual(plain.acts, { ages: [], dawn: null, lives: [] });
+  assert.deepEqual(plain.acts, {
+    ages: [],
+    dawn: null,
+    lives: [],
+    peopling: { seasLow: false, age: null, cradle: null },
+  });
   assert.ok(plain.rungs.some((r) => r.id === "nucleus") && plain.drop!.kinds.length === 4);
   assert.equal(g.seed, seed);
   assert.equal(g.ages[4]!.kind, "impact");
@@ -447,7 +454,15 @@ test("a world's beginning remade by an act laid on its dawn: asked of the host, 
     ages: [{ age: 4, kind: "impact" }],
     dawn: "hunters",
     lives: [{ age: 5, way: "browsers" }],
+    peopling: { seasLow: true, age: null, cradle: null },
   });
+  // The peopling (Phase 28): the bands' lands from the cradle, more of them with the seas low.
+  assert.ok(plain.peopling && g.peopling);
+  assert.equal(plain.peopling.lands[0]![0], plain.peopling.cradle);
+  assert.ok(plain.peopling.families.length >= 2, `${plain.peopling.families.length} families`);
+  const low = ask<G>("genesis", { seed: `${plain.seed} ~peopling seas low` });
+  assert.ok(low.peopling!.lands.length > plain.peopling.lands.length);
+  assert.equal(low.peopling!.cradle, plain.peopling.cradle);
   assert.deepEqual(g.ages.slice(0, 4), plain.ages.slice(0, 4));
   // (Another world's name is not this world's: its own beginning is told.)
   assert.equal(ask<G>("genesis", { seed: "juniper ~age 5 strike" }).seed, plain.seed);

@@ -3,7 +3,8 @@
 // cold, its fires woken, a stone struck from the sky or the age calmed; the way of life that
 // prospered in its first seas; and the way of life that prospered in an age's living world under
 // the hand (Phase 27). The world is made again from them: what they reach is changed, what they
-// do not is as it was.
+// do not is as it was. And on the peopling (Phase 28): the seas lowered as the bands spread, a kind
+// or a hard age for them, and where the people rose.
 import { seedActs } from "../kernel/index.ts";
 
 /** What each act makes of an age (its kind of age, as deep time names them). */
@@ -82,4 +83,56 @@ export function livesMade(text: string, ages: number): Map<number, LifeWay> {
     if ((LIFE_WAYS as readonly string[]).includes(way ?? "")) out.set(k, way as LifeWay);
   }
   return out;
+}
+
+/**
+ * The god's hand on the peopling (Phase 28): the seas lowered while the bands spread, so they
+ * walk over the straits a little sea apart (as an ice age's low seas let Earth's walk to its
+ * far lands); and a kind age or a hard one for them, their bands the more or the fewer.
+ */
+export const PEOPLING_ACTS = {
+  seas: "peopling seas low",
+  kind: "peopling kind",
+  hard: "peopling hard",
+} as const;
+export type PeoplingAct = keyof typeof PEOPLING_ACTS;
+
+/** How many more (or fewer) people a kind (or hard) age leaves in the bands than an ordinary one. */
+export const PEOPLING_PLENTY = { kind: 1.6, hard: 0.6 } as const;
+/** How many provinces of sea the bands cross while the seas are low (else one). */
+export const LOW_SEAS_REACH = 3;
+
+/** The act laid on the peopling: "peopling seas low". */
+export function peoplingAct(act: PeoplingAct): string {
+  return PEOPLING_ACTS[act];
+}
+
+/** The act that bids the people rise elsewhere: a cell of the world's fine grid ("cradle 1234"). */
+export function cradleAct(cell: number): string {
+  return `cradle ${cell}`;
+}
+
+/** What a seed's acts made of the peopling: the seas lowered, the age kind or hard, the cradle bidden. */
+export type PeoplingMade = {
+  readonly seasLow: boolean;
+  readonly age: "kind" | "hard" | null;
+  readonly cradle: number | null;
+};
+
+/** The acts a seed's text laid on its peopling (none: as it would have been). */
+export function peoplingMade(text: string): PeoplingMade {
+  let seasLow = false,
+    age: "kind" | "hard" | null = null,
+    cradle: number | null = null;
+  for (const a of seedActs(text)) {
+    if (a === PEOPLING_ACTS.seas) seasLow = true;
+    else if (a === PEOPLING_ACTS.kind) age = "kind";
+    else if (a === PEOPLING_ACTS.hard) age = "hard";
+    else {
+      const [word, n] = a.split(" "),
+        c = Number(n);
+      if (word === "cradle" && Number.isInteger(c) && c >= 0) cradle = c;
+    }
+  }
+  return { seasLow, age, cradle };
 }

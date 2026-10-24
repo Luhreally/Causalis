@@ -410,3 +410,23 @@ export {
   type MeadowState,
   type Shrub,
 } from "./meadow.ts";
+export {
+  ALL_REACHED,
+  FAMILY_COLORS,
+  PEOPLING_ACT_WORDS,
+  cradleAct,
+  familiesReached,
+  familyColor,
+  familyWords,
+  peoplingColors,
+  peoplingCounts,
+  peoplingDoneWords,
+  peoplingFront,
+  peoplingAct,
+  peoplingLandWords,
+  peoplingReached,
+  peoplingRemakeWords,
+  peoplingThrough,
+  type Peopling,
+  type PeoplingAct,
+} from "./peopling.ts";

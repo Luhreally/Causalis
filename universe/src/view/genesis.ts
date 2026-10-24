@@ -13,6 +13,7 @@
 // stage's own; and the god's hand laid on it, the world remade from the acts.
 import type { GenesisPlan } from "../bridge/index.ts";
 import { LIFE_NICHES, type AgeAct, type DawnWay, type LifeWay } from "../rules/index.ts";
+import { peoplingRemakeWords } from "./peopling.ts";
 
 /** The acts the god's hand may lay on a world's dawn, as its seed's text carries them. */
 export { AGE_ACTS, ageAct, dawnAct, lifeAct, type AgeAct, type LifeWay } from "../rules/index.ts";
@@ -375,6 +376,7 @@ export const GENESIS = [
   "bodies",
   "ages",
   "people",
+  "peopling",
 ] as const;
 export type GenesisStage = (typeof GENESIS)[number];
 
@@ -394,6 +396,8 @@ export type GenesisSpan = {
 export const GALAXY_AGE = 13_600;
 /** How long ago the people's rising is watched from (millions of years): the last of it. */
 export const RISING = 2;
+/** How long ago their bands began to spread over the land (millions of years: a hundred thousand years). */
+export const PEOPLING = 0.1;
 /** How long the worlds took to gather about their star (millions of years). */
 const GATHERING = 60;
 
@@ -409,13 +413,16 @@ const SPEEDS: Readonly<Record<GenesisStage, readonly [readonly number[], number]
   // (Slow enough to watch an age's living world: an age some seconds.)
   ages: [[1, 5, 10, 25], 5],
   people: [[0.02, 0.1, 0.2], 0.2],
+  // (Slow enough to watch the bands go land by land: the spread some forty seconds.)
+  peopling: [[0.001, 0.002, 0.005], 0.002],
 };
 
 /**
  * The stages of a world's beginning on the deep clock: the galaxy turning until its star lit;
  * the worlds gathering; this one forming until the first replicators; the first cells until
  * one took another in; cells with a nucleus until they stayed together; cells together until
- * the first bodies; the first bodies until the ages; the living world age by age; the people.
+ * the first bodies; the first bodies until the ages; the living world age by age; the people;
+ * their bands spreading over the land (Phase 28).
  */
 export function genesisSpans(
   plan: Pick<GenesisPlan, "worldAge" | "rungs" | "ages">,
@@ -434,6 +441,7 @@ export function genesisSpans(
       at("bodies", 650),
       agesFrom,
       RISING,
+      PEOPLING,
       0,
     ];
   for (let i = 1; i < cuts.length; i++)
@@ -575,7 +583,8 @@ export function deepSpeedWords(myPerSecond: number): string {
     return `${b === 1 ? "a" : b} billion years a second`;
   }
   if (myPerSecond >= 1) return `${myPerSecond === 1 ? "a" : myPerSecond} million years a second`;
-  return `${Math.round(myPerSecond * 1000)} thousand years a second`;
+  const k = Math.round(myPerSecond * 1000);
+  return `${k === 1 ? "a" : k} thousand years a second`;
 }
 
 /** The age the clock stands in (its index; -1 before the ages), and how far through it. */
@@ -681,6 +690,10 @@ export function remakeWords(before: GenesisPlan, after: GenesisPlan, act: string
         `The ages after age ${k + 1} ran the more to its ${LIFE_WORDS[what as LifeWay]}: ${count(before)} lineages of them arose after it, now ${count(after)}.`,
       );
     }
+  } else if (word === "peopling" || word === "cradle") {
+    // The god's hand on the peopling (Phase 28).
+    const words = peoplingRemakeWords(before, after);
+    if (words) out.push(words);
   } else if (word === "dawn") {
     const w = DAWN_WAY_WORDS[n as DawnWay];
     if (w) {

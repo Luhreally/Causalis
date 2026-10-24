@@ -69,8 +69,12 @@ export {
   FIRST_PEOPLE,
   SPREAD,
   chooseHome,
+  firstWays,
   makePopulationWorld,
+  openingWays,
+  spreadOf,
   type PopulationWorldOptions,
+  type Spread,
 } from "./population/world.ts";
 export {
   GOOD_COUNT,
@@ -150,6 +154,7 @@ export {
   LanguageStore,
   NEARER,
   foundLanguages,
+  planLanguages,
   installLanguages,
   languagesOf,
   languagesYear,

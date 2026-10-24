@@ -20,8 +20,14 @@
 // coming and going as the clock passes the ages. The god's hand may green it or parch it, hearten
 // its hunters or shelter the hunted; what fared best under the hand, against the land left alone,
 // is laid on the world as the age ends, and the ages after run the more to its kind.
+//
+// The peopling (Phase 28): from the cradle the first people's bands go out over the globe land by
+// land, as the world is begun from, each land in the colour of the family of tongues it will speak,
+// the families named where they began, the eye following the bands' front. The god's hand may lower
+// the seas for them to walk over the straits, give them a kind age or a hard one, or bid them rise
+// elsewhere — a land tapped — and the peopling goes out again from the world remade.
 import type { GalaxyPlan, GenesisPlan, HostClient, SystemPlan } from "../bridge/index.ts";
-import { seedWithAct } from "../kernel/index.ts";
+import { seedWithAct, seedWithoutAct } from "../kernel/index.ts";
 import {
   GalaxyScene,
   GlobeScene,
@@ -41,6 +47,7 @@ import {
   GENESIS,
   MEADOW_ACT_WORDS,
   MEADOW_STEP,
+  PEOPLING_ACT_WORDS,
   STEP,
   ageAct,
   ageAt,
@@ -48,11 +55,15 @@ import {
   ageWords,
   arise,
   biomeColor,
+  cradleAct,
   dawnAct,
   deepSpeedLabel,
   deepSpeedWords,
   deepWhen,
   dropOf,
+  familiesReached,
+  familyColor,
+  familyWords,
   figureOf,
   follow,
   followBeast,
@@ -70,6 +81,14 @@ import {
   newDrop,
   newMeadow,
   paradeOf,
+  peoplingAct,
+  peoplingColors,
+  peoplingCounts,
+  peoplingDoneWords,
+  peoplingFront,
+  peoplingLandWords,
+  peoplingReached,
+  peoplingThrough,
   prosperedWords,
   remakeWords,
   roundDrop,
@@ -87,6 +106,8 @@ import {
   type GenesisStage,
   type MeadowAct,
   type MeadowState,
+  type Peopling,
+  type PeoplingAct,
 } from "../view/index.ts";
 
 /** Where one may begin: the years, and what the world will be doing then. */
@@ -152,7 +173,10 @@ export async function runGenesis(o: {
   const elevation = frame.arrays.elevation as Float32Array,
     frequency = (frame.meta as { frequency: number }).frequency,
     grid = (await import("../kernel/index.ts")).sphereGrid(frequency),
-    land = globeColors(frame, "terrain");
+    land = globeColors(frame, "terrain"),
+    // (Each cell's province and ground: the lands the bands came to, and where a people could rise.)
+    province = frame.arrays.province as Int32Array,
+    biome = frame.arrays.biome as Uint8Array;
 
   const galaxyScene = new GalaxyScene(stage),
     skyScene = new SystemScene(stage),
@@ -241,7 +265,10 @@ export async function runGenesis(o: {
   another.onclick = () => o.another();
   row.append(skip, another, back, next);
   card.append(step, title, text, acts, counts, told, row);
-  hud.append(bar, card);
+  // (The families of tongues named over the globe as the bands come to them: Phase 28.)
+  const labels = el("div", "labels genesis-labels");
+  labels.hidden = true;
+  hud.append(labels, bar, card);
 
   /** A line of what came to pass (the last few kept). */
   const tell = (words: string) => {
@@ -256,6 +283,10 @@ export async function runGenesis(o: {
     );
     if (plan.acts.dawn) parts.push(`the first seas' ${plan.acts.dawn} prospered`);
     for (const l of plan.acts.lives) parts.push(`age ${l.age + 1}'s ${l.way} prospered`);
+    const pa = plan.acts.peopling;
+    if (pa.cradle !== null) parts.push("they rose where you bade");
+    if (pa.seasLow) parts.push("the seas low as they spread");
+    if (pa.age) parts.push(`a ${pa.age} age for their bands`);
     return parts.length ? `Your hand: ${parts.join(" · ")}` : "";
   };
 
@@ -266,6 +297,8 @@ export async function runGenesis(o: {
     micro.visible = false;
     parade.visible = false;
     meadowScene.visible = false;
+    labels.hidden = true;
+    globe.mark(null);
   };
   const home = system.bodies.find((b) => b.kind === "home") ?? system.bodies[0]!,
     R = galaxy.radius / 1000,
@@ -415,15 +448,18 @@ export async function runGenesis(o: {
   let remaking = false,
     // (The last remaking, waited on before the world is begun.)
     pending: Promise<void> = Promise.resolve();
-  const remake = (act: string) => (pending = remaking ? pending : remakeNow(act));
-  const remakeNow = async (act: string) => {
+  const remake = (act: string) =>
+    (pending = remaking ? pending : remakeNow(act, seedWithAct(seed, act)));
+  /** An act lifted: the world made again without it. */
+  const lift = (act: string) =>
+    (pending = remaking ? pending : remakeNow(act, seedWithoutAct(seed, act)));
+  const remakeNow = async (act: string, next: string) => {
     remaking = true;
     clock.hold("remake");
     acts.classList.add("busy");
     tell("The world remakes itself from your hand…");
     try {
-      const next = seedWithAct(seed, act),
-        p = await client.query<GenesisPlan>({ type: "genesis", args: { seed: next } }),
+      const p = await client.query<GenesisPlan>({ type: "genesis", args: { seed: next } }),
         words = remakeWords(plan, p, act);
       plan = p;
       seed = next;
@@ -434,6 +470,15 @@ export async function runGenesis(o: {
       told.lastElementChild?.remove();
       tell(words || "The world is remade.");
       laidLine.textContent = laid();
+      // (The peopling gone out again from the world remade; the stage's acts as they now stand.)
+      if (spans[shown]?.stage === "peopling") {
+        freshPeopling();
+        clock.jump(spans.findIndex((s) => s.stage === "peopling"));
+      }
+      if (shown >= 0) {
+        text.textContent = STAGES[spans[shown]!.stage].text();
+        acts.replaceChildren(...(STAGES[spans[shown]!.stage].acts?.() ?? []));
+      }
     } finally {
       acts.classList.remove("busy");
       clock.release("remake");
@@ -482,6 +527,199 @@ export async function runGenesis(o: {
       }),
     ];
   };
+  // —— The peopling: the bands going out over the land, land by land (Phase 28) ————————————————
+  let frontTold = -1,
+    frontShown = -1,
+    peoplingTold = false,
+    choosingCradle = false,
+    // (The eye follows the bands' front until the viewer turns the globe for themselves.)
+    eyeSet: { yaw: number; pitch: number } | null = null,
+    eyeOwn = false,
+    labelled: { el: HTMLElement; middle: number; family: number }[] = [];
+  const P = grid.positions,
+    provinces = province.reduce((m, v) => Math.max(m, v + 1), 0),
+    // (Each province's direction from the globe's middle: the sum of its cells'.)
+    toward = new Float32Array(provinces * 3);
+  for (let c = 0; c < province.length; c++) {
+    const q = province[c]! * 3;
+    toward[q] = toward[q]! + P[c * 3]!;
+    toward[q + 1] = toward[q + 1]! + P[c * 3 + 1]!;
+    toward[q + 2] = toward[q + 2]! + P[c * 3 + 2]!;
+  }
+  /** When the bands came (or will come) to a step from the cradle, by the deep clock. */
+  const stepWhen = (step: number) => {
+    const p = plan.peopling!,
+      s = spans.find((x) => x.stage === "peopling")!,
+      my = s.from - peoplingThrough(p, step) * (s.from - s.to);
+    return my >= clock.my
+      ? deepWhen(my)
+      : `in some ${Math.max(1, Math.round((clock.my - my) * 1000))} thousand years`;
+  };
+  /** The eye turned toward a direction from the globe's middle. */
+  const face = (x: number, y: number, z: number) => {
+    const len = Math.hypot(x, y, z) || 1;
+    rig.yaw = (Math.atan2(x, z) * 180) / Math.PI;
+    rig.pitch = Math.max(-78, Math.min(78, (-Math.asin(y / len) * 180) / Math.PI));
+    eyeSet = { yaw: rig.yaw, pitch: rig.pitch };
+  };
+  const turned = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
+  /** The peopling from its beginning: the cradle marked and faced, its families labelled as they are come to. */
+  const freshPeopling = () => {
+    frontTold = -1;
+    frontShown = -1;
+    peoplingTold = false;
+    eyeOwn = false;
+    paintedAt = -1;
+    const p = plan.peopling;
+    globe.mark(p ? p.middle : null);
+    if (p) face(P[p.middle * 3]!, P[p.middle * 3 + 1]!, P[p.middle * 3 + 2]!);
+    // The greatest families named, at the land their first tongue was first spoken in.
+    const named = p
+      ? p.families
+          .map((f, i) => ({ f, i }))
+          .sort((a, b) => b.f.lands - a.f.lands || a.i - b.i)
+          .slice(0, o.tier.name === "phone" ? 6 : 10)
+      : [];
+    labelled = named.map(({ f, i }) => {
+      const l = el("span", "label genesis-label"),
+        swatch = el("i", "swatch"),
+        [r, g, b] = familyColor(i);
+      swatch.style.background = `rgb(${r},${g},${b})`;
+      l.append(swatch, f.name);
+      return { el: l, middle: f.middle, family: i };
+    });
+    labels.replaceChildren(...labelled.map((x) => x.el));
+  };
+  /** The eye eased toward the bands' front (the lands they came to last), the short way round. */
+  const followFront = (p: Peopling, front: number) => {
+    if (eyeOwn || !eyeSet) return;
+    if (turned(rig.yaw, eyeSet.yaw) > 0.5 || Math.abs(rig.pitch - eyeSet.pitch) > 0.5) {
+      eyeOwn = true;
+      return;
+    }
+    let x = 0,
+      y = 0,
+      z = 0;
+    for (const [cell, s] of p.lands)
+      if (s <= front && s > front - 2.5) {
+        x += toward[cell * 3]!;
+        y += toward[cell * 3 + 1]!;
+        z += toward[cell * 3 + 2]!;
+      }
+    const len = Math.hypot(x, y, z);
+    if (len < 1e-6) return;
+    const yaw = (Math.atan2(x, z) * 180) / Math.PI,
+      pitch = Math.max(-78, Math.min(78, (-Math.asin(y / len) * 180) / Math.PI)),
+      dyaw = ((yaw - rig.yaw + 540) % 360) - 180;
+    rig.yaw += dyaw * 0.025;
+    rig.pitch += (pitch - rig.pitch) * 0.025;
+    eyeSet = { yaw: rig.yaw, pitch: rig.pitch };
+  };
+  /** The families' names over the globe, each once its first land is come to and while it faces the eye, none over another. */
+  const placeLabels = (p: Peopling, front: number) => {
+    const placed: { x: number; y: number; w: number }[] = [];
+    const steps = new Map<number, number>(p.lands.map(([cell, s]) => [cell, s])),
+      at = globe.screenOf(
+        labelled.map((x) => ({
+          x: P[x.middle * 3]!,
+          y: P[x.middle * 3 + 1]!,
+          z: P[x.middle * 3 + 2]!,
+        })),
+        1.03,
+      );
+    labelled.forEach((x, k) => {
+      const s = steps.get(p.families[x.family]!.root) ?? Infinity,
+        spot = at[k]!,
+        // (About as wide as its name; the greatest families placed first.)
+        w = 26 + 7 * p.families[x.family]!.name.length,
+        show =
+          s <= front &&
+          spot.facing > 0.3 &&
+          !placed.some(
+            (q) => Math.abs(q.x - spot.x) < (q.w + w) / 2 && Math.abs(q.y - spot.y) < 20,
+          );
+      if (show) placed.push({ x: spot.x, y: spot.y, w });
+      x.el.hidden = !show;
+      if (show) x.el.style.transform = `translate(${spot.x}px, ${spot.y}px) translate(-50%, -50%)`;
+    });
+  };
+  let peoplingCounted = -1;
+  const countPeopling = (p: Peopling, front: number) => {
+    if (played - peoplingCounted < 0.25 || choosingCradle) return;
+    peoplingCounted = played;
+    counts.textContent = peoplingCounts(p, front);
+  };
+  /** Whether a people of this world could rise on a cell (the hand bids them only where they could). */
+  const fitCradle = (cell: number) => {
+    const b = biome[cell]!,
+      medium = plan.people?.figure.medium ?? "land",
+      ground = elevation[cell]! > 0;
+    // (Ice 4, hot desert 11, alpine 15; a reef shelf 2.)
+    if (medium === "water") return b === 2;
+    if (medium === "shore") return ground && b !== 4;
+    return ground && b !== 4 && b !== 11 && b !== 15;
+  };
+  const peoplingActs = () => {
+    const made = plan.acts.peopling,
+      act = (a: PeoplingAct, on: boolean, off: string) => {
+        const [icon, words, why] = PEOPLING_ACT_WORDS[a];
+        return actButton(
+          icon,
+          on ? off : words,
+          on ? `${off}: the act lifted` : why,
+          () => void (on ? lift(peoplingAct(a)) : remake(peoplingAct(a))),
+        );
+      },
+      rise = actButton(
+        "📍",
+        choosingCradle
+          ? "Tap a land for them to rise in…"
+          : made.cradle !== null
+            ? "Where they first rose"
+            : "Let them rise elsewhere",
+        made.cradle !== null
+          ? "The people rise where they would have: the act lifted"
+          : "Tap a land of the globe: the people rise there, and the peopling goes out from it",
+        () => {
+          if (made.cradle !== null && !choosingCradle) return void lift(cradleAct(made.cradle));
+          choosingCradle = !choosingCradle;
+          counts.textContent = choosingCradle ? "Tap the land where the people should rise." : "";
+          peoplingCounted = -1;
+          acts.replaceChildren(...peoplingActs());
+        },
+      );
+    return [
+      act("seas", made.seasLow, "Let the seas rise again"),
+      act("kind", made.age === "kind", "An ordinary age"),
+      act("hard", made.age === "hard", "An ordinary age"),
+      rise,
+    ];
+  };
+  /** A land of the globe tapped: the people bidden to rise there, or what came to it told. */
+  const tapPeopling = (x: number, y: number) => {
+    const p = plan.peopling,
+      cell = globe.pick(x, y);
+    if (!p || cell === null) return;
+    if (choosingCradle) {
+      if (!fitCradle(cell)) {
+        tell(
+          "No people could rise there: the land is too cold, too dry or too high, or no land at all.",
+        );
+        return;
+      }
+      choosingCradle = false;
+      void remake(cradleAct(cell));
+      return;
+    }
+    counts.textContent = peoplingLandWords(
+      p,
+      province[cell]!,
+      peoplingFront(p, clock.through),
+      stepWhen,
+    );
+    peoplingCounted = played + 4;
+  };
+
   const dropActs = () =>
     (Object.keys(DROP_ACT_WORDS) as DropAct[]).map((a) => {
       const [icon, words] = DROP_ACT_WORDS[a];
@@ -662,6 +900,59 @@ export async function runGenesis(o: {
         );
       },
     },
+    peopling: {
+      title: "The peopling",
+      text: () =>
+        plan.people && plan.peopling
+          ? `From ${plan.people.cradle} the ${plan.people.name}${plan.people.name.endsWith("s") ? "'" : "'s"} bands went out over the land, a few days' walk in a lifetime — land after land, and as they went their speech grew apart, into the families of tongues the chronicle opens with, each land here the colour of its family. Tap a land to ask who came to it; lower the seas for them to walk over the straits, give them a kind age or a hard one, or bid them rise elsewhere.`
+          : "No one's bands went out over this world: its land waits, unpeopled.",
+      enter: () => {
+        stage.backdrop("space");
+        globe.visible = true;
+        globe.features(true, true, false);
+        labels.hidden = false;
+        rig.configure({
+          distance: 3,
+          minDistance: 1.4,
+          maxDistance: 12,
+          pitch: -15,
+          minPitch: -80,
+          maxPitch: 80,
+          target: [0, 0, 0],
+          drift: 0,
+        });
+        freshPeopling();
+      },
+      update: (k) => {
+        const p = plan.peopling;
+        if (!p) return;
+        const front = peoplingFront(p, k);
+        // (Back to the stage's beginning: told again from it.)
+        if (front < frontTold) {
+          frontTold = -1;
+          peoplingTold = false;
+        }
+        // (The cradle's tongue and the great families told as they are come to; the small, named on asking.)
+        for (const f of familiesReached(p, frontTold, front))
+          if (f === 0 || labelled.some((x) => x.family === f))
+            tell(familyWords(p, f, deepWhen(clock.my)));
+        frontTold = front;
+        if (!peoplingTold && peoplingReached(p, front).lands === p.lands.length) {
+          peoplingTold = true;
+          tell(peoplingDoneWords(p));
+        }
+        // (Painted as the front goes on a tenth of a step, as often as the globe may be.)
+        const tenth = Math.floor(front * 10) / 10;
+        if (tenth !== frontShown && (paintedAt < 0 || played - paintedAt >= 0.1)) {
+          frontShown = tenth;
+          paint(peoplingColors(land, province, p, front, elevation));
+        }
+        followFront(p, front);
+        placeLabels(p, front);
+        countPeopling(p, front);
+      },
+      acts: peoplingActs,
+    },
   };
 
   /** A stage of the dawn watched in the drop of the first seas, alive. */
@@ -709,9 +1000,12 @@ export async function runGenesis(o: {
     shown = i;
     played = 0;
     paintedAt = -1;
+    choosingCradle = false;
     const st = STAGES[spans[i]!.stage];
     hideAll();
     delete document.body.dataset.scale;
+    // (The pitch's limits each stage's own: a globe seen from below as from above only in the peopling.)
+    rig.configure({ minPitch: -85, maxPitch: -8 });
     st.enter();
     step.textContent = `${i + 1} of ${spans.length}`;
     title.textContent = st.title;
@@ -719,7 +1013,10 @@ export async function runGenesis(o: {
     acts.replaceChildren(...(st.acts?.() ?? []));
     acts.hidden = !st.acts;
     counts.textContent = "";
-    counts.hidden = !DROP_STAGES.has(spans[i]!.stage) && spans[i]!.stage !== "ages";
+    counts.hidden =
+      !DROP_STAGES.has(spans[i]!.stage) &&
+      spans[i]!.stage !== "ages" &&
+      spans[i]!.stage !== "peopling";
     another.hidden = i > 1;
     back.hidden = i === 0;
     tap = DROP_STAGES.has(spans[i]!.stage)
@@ -737,7 +1034,9 @@ export async function runGenesis(o: {
             followBeast(meadow, meadowScene.pick(meadow, x, y));
             meadowCounted = -1;
           }
-        : () => {};
+        : spans[i]!.stage === "peopling"
+          ? tapPeopling
+          : () => {};
     drawSpeeds();
   };
   const choose = () => {
@@ -877,6 +1176,43 @@ export async function runGenesis(o: {
     }),
     /** Where a beast of the living world is on the screen (the look tools). */
     meadowSpot: (id: number) => (meadow ? meadowScene.onScreen(meadow, id) : null),
+    // The peopling (Phase 28): how far the bands have come, what the hand has laid on it.
+    peopling: () => {
+      const p = plan.peopling;
+      if (!p) return null;
+      const front = peoplingFront(p, spans[clock.at]!.stage === "peopling" ? clock.through : 1);
+      return {
+        front,
+        reached: peoplingReached(p, front),
+        all: peoplingReached(p, Infinity),
+        livable: p.livable,
+        cradle: p.cradle,
+        families: p.families.map((f) => f.name),
+        labels: labelled.filter((x) => !x.el.hidden).length,
+        choosing: choosingCradle,
+        acts: plan.acts.peopling,
+        painted: frontShown,
+        own: eyeOwn,
+        yaw: rig.yaw,
+        pitch: rig.pitch,
+        counts: counts.textContent,
+      };
+    },
+    /** Cells of the globe facing the eye, on the screen, where a people could rise or not (the look tools). */
+    globeSpots: (fit: boolean, many = 8) => {
+      const out: { cell: number; x: number; y: number }[] = [];
+      for (let c = 0; c < province.length && out.length < many; c += 7) {
+        // (Its neighbours alike, so a tap a little off it falls on the same kind of ground.)
+        let alike = fitCradle(c) === fit;
+        for (let j = grid.offsets[c]!; alike && j < grid.offsets[c + 1]!; j++)
+          alike = fitCradle(grid.neighbours[j]!) === fit;
+        if (!alike) continue;
+        const [spot] = globe.screenOf([{ x: P[c * 3]!, y: P[c * 3 + 1]!, z: P[c * 3 + 2]! }], 1.01);
+        if (spot && spot.facing > 0.6 && document.elementFromPoint(spot.x, spot.y) === o.canvas)
+          out.push({ cell: c, x: spot.x, y: spot.y });
+      }
+      return out;
+    },
     /** The beginning's eye (the look tools). */
     rig,
   });

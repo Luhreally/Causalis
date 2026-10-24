@@ -8,10 +8,21 @@ import {
   hashString,
   seedName,
   type Ref,
+  type Rng,
   type Seed,
 } from "../../kernel/index.ts";
 import { BIOME, cellRef, type HomeWorld } from "../../gen/index.ts";
-import { FEMALE, G, MALE, OCC, type LifeHistory, type Medium } from "../../rules/index.ts";
+import {
+  FEMALE,
+  G,
+  LOW_SEAS_REACH,
+  MALE,
+  OCC,
+  PEOPLING_PLENTY,
+  peoplingMade,
+  type LifeHistory,
+  type Medium,
+} from "../../rules/index.ts";
 import { peopleLife } from "./life.ts";
 import { MarketStore } from "../economy/market.ts";
 import { installEconomy } from "../economy/systems.ts";
@@ -19,7 +30,7 @@ import { installActs } from "../acts/acts.ts";
 import { installGreatActs } from "../acts/great.ts";
 import { clusterOf } from "../space/voyages.ts";
 import { installHand } from "../hand/hand.ts";
-import { CultureStore, cradleWays, driftedWays } from "../culture/culture.ts";
+import { CultureStore, cradleWays, driftedWays, type Ways } from "../culture/culture.ts";
 import { foundLanguages, installLanguages } from "../culture/languages.ts";
 import { installAir } from "../climate/air.ts";
 import { installSpace } from "../space/space.ts";
@@ -126,23 +137,19 @@ function people(p: Province, n: number, life: LifeHistory): void {
   });
 }
 
-/** The habitable land within `rings` steps of a cell, nearest first (ties by cell), with each one's distance. */
-/**
- * The habitable land within `rings` steps of a cell, nearest first (ties by cell), with
- * each one's distance: over land, and across a single province of sea to land beyond
- * (bands crossing a strait along the coast), which counts as two steps.
- */
 /**
  * Every place the bands reached from `from` in their own medium (land, shore or the
- * shallow seas): its cell, its steps away, and the place they came from. They cross one
+ * shallow seas): its cell, its steps away, and the place they came from. They cross a
  * strait of the other medium (water for a land people, land for a people of the water)
- * as two steps.
+ * `reach` provinces wide — one, or more while the seas are low (Phase 28) — at a step
+ * for each and one more.
  */
 function landAround(
   g: HomeWorld,
   from: number,
   rings: number,
   medium: Medium,
+  reach = 1,
 ): [number, number, number][] {
   const dist = new Map<number, number>([[from, 0]]),
     parent = new Map<number, number>([[from, from]]),
@@ -160,11 +167,24 @@ function landAround(
       const n = g.grid.neighbours[k]!;
       if (dist.has(n)) continue;
       if (habitable(n)) next.push([n, d + 1]);
-      else if (crossable(n))
-        for (let j = g.grid.offsets[n]!; j < g.grid.offsets[n + 1]!; j++) {
-          const m = g.grid.neighbours[j]!;
-          if (!dist.has(m) && habitable(m)) next.push([m, d + 2]);
+      else if (crossable(n)) {
+        // Over the strait: the land beyond it, as far over as the bands could cross.
+        let over = [n];
+        const seen = new Set(over);
+        for (let w = 1; w <= reach && over.length > 0; w++) {
+          const further: number[] = [];
+          for (const s of over)
+            for (let j = g.grid.offsets[s]!; j < g.grid.offsets[s + 1]!; j++) {
+              const m = g.grid.neighbours[j]!;
+              if (!dist.has(m) && habitable(m)) next.push([m, d + 1 + w]);
+              else if (w < reach && !seen.has(m) && !habitable(m) && crossable(m)) {
+                seen.add(m);
+                further.push(m);
+              }
+            }
+          over = further;
         }
+      }
     }
     for (const [n, far] of next.sort((a, b) => a[0] - b[0] || a[1] - b[1]))
       if (!dist.has(n) && far <= rings) {
@@ -174,6 +194,62 @@ function landAround(
       }
   }
   return queue.map((c) => [c, dist.get(c)!, parent.get(c)!]);
+}
+
+/** The generated prehistory: where the people rose, the lands their bands reached and how many lived in each. */
+export type Spread = {
+  readonly home: number;
+  readonly medium: Medium;
+  /** Each land reached, in the order the bands came: its cell, its steps away, the land they came from. */
+  readonly lands: readonly (readonly [number, number, number])[];
+  /** How many lived in each at the chronicle's opening. */
+  readonly sizes: readonly number[];
+};
+
+/**
+ * The bands' spread from the cradle over the land before the chronicle (pure): the lands they
+ * reached, nearest first, and how thickly they lived there — as the acts laid on the peopling
+ * made it (Phase 28): further over the straits while the seas were low, the more or the fewer
+ * in a kind age or a hard one.
+ */
+export function spreadOf(g: HomeWorld, text: string): Spread {
+  const home = chooseHome(g),
+    medium = g.life.people?.body.medium ?? "land",
+    made = peoplingMade(text),
+    appetite = peopleLife(g).appetite,
+    density = SPREAD.density * (made.age ? PEOPLING_PLENTY[made.age] : 1),
+    lands = landAround(g, home, SPREAD.rings, medium, made.seasLow ? LOW_SEAS_REACH : 1),
+    sizes = lands.map(([c]) =>
+      Math.max(SPREAD.least, Math.round((capacity(g, c, medium).forage * density) / appetite)),
+    );
+  return { home, medium, lands, sizes };
+}
+
+/**
+ * Each land's ways and speech at the chronicle's opening (pure but for the draws, which are
+ * keyed): drifted from those of the land its bands came from, the more the further they went —
+ * kin peoples live near each other, and speak alike. `from` is what they came with.
+ */
+export function openingWays(
+  source: { readonly rng: Rng },
+  lands: Spread["lands"],
+  cradle: Ways,
+  from: Ref | null,
+): Map<number, Ways> {
+  const ways = new Map<number, Ways>([[cradle.cell, cradle]]),
+    ring = new Map(lands.map(([cell, r]) => [cell, r]));
+  for (const [cell, r, back] of lands)
+    if (cell !== cradle.cell)
+      ways.set(
+        cell,
+        driftedWays(source, ways.get(back)!, cell, (r - ring.get(back)!) * SPREAD.stride, from),
+      );
+  return ways;
+}
+
+/** The ways the first people rose with (keyed on the world's name: its acts change them only through what they change). */
+export function firstWays(home: number, text: string, from: Ref | null): Ways {
+  return cradleWays(home, hashString(`culture ${seedName(text)}`), from);
 }
 
 export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions = {}): World {
@@ -323,7 +399,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   world.addPinner(() => culture.pinned());
   // (Keyed on the world's name: the acts laid on its dawn change its ways only through what they
   // change of its people and land.)
-  const cradle = cradleWays(home, hashString(`culture ${seedName(seed.text)}`), origin);
+  const cradle = firstWays(home, seed.text, origin);
   culture.set(cradle);
   if (options.start !== "spread") {
     people(provinces.add(new Province(home, 0, origin)), first, peopleLife(g));
@@ -333,33 +409,22 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     return world;
   }
   // The ages before the chronicle: bands spread from the cradle across the land.
-  const lands = landAround(g, home, SPREAD.rings, medium),
-    sizes = lands.map(([c]) =>
-      Math.max(
-        SPREAD.least,
-        Math.round((capacity(g, c, medium).forage * SPREAD.density) / appetite),
-      ),
-    );
+  const { lands, sizes } = spreadOf(g, seed.text);
   const spread = world.events.emit({
     type: POPULATION_EVENTS.spread.type,
     place: cellRef(0, home),
     causes: [{ ref: origin, role: "trigger", weight: 1 }],
     data: { provinces: lands.length, people: sizes.reduce((a, b) => a + b, 0) },
   });
-  const ring = new Map(lands.map(([cell, r]) => [cell, r]));
-  lands.forEach(([cell, r, from], i) => {
+  const ways = openingWays(world, lands, cradle, spread);
+  lands.forEach(([cell], i) => {
     people(
       provinces.add(new Province(cell, 0, cell === home ? origin : spread)),
       sizes[i]!,
       peopleLife(g),
     );
     markets.of(cell).move("carriedIn", G.wild, sizes[i]! * 6);
-    // Each land's ways and speech drifted from those of the land its bands came from, the
-    // more the further they went: kin peoples live near each other, and speak alike.
-    if (cell !== home)
-      culture.set(
-        driftedWays(world, culture.get(from)!, cell, (r - ring.get(from)!) * SPREAD.stride, spread),
-      );
+    if (cell !== home) culture.set(ways.get(cell)!);
   });
   foundLanguages(
     world,

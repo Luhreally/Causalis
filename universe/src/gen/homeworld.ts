@@ -13,7 +13,7 @@ import {
   type Seed,
   type SphereGrid,
 } from "../kernel/index.ts";
-import { agesMade, dawnMade, livesMade, type Prior } from "../rules/index.ts";
+import { agesMade, dawnMade, livesMade, peoplingMade, type Prior } from "../rules/index.ts";
 import { makePlanet, makeStar, type Planet, type Star } from "./bodies.ts";
 import { makeSystem, type StarSystem } from "./system.ts";
 import { makeClimate, type Climate } from "./climate.ts";
@@ -85,6 +85,7 @@ export function generateHomeWorld(
       ocean: planet.oceanFraction,
       dawn: dawnMade(seed.text),
       lives: livesMade(seed.text, AGES),
+      cradle: peoplingMade(seed.text).cradle,
     }),
     deposits = makeDeposits(grid, rng, tectonics, climate, water, tectonics.elevation, deep);
   const h = new Hasher().string(prior.name).int(frequency).value(star).value(planet);
@@ -101,6 +102,8 @@ export function generateHomeWorld(
   hashArray(h, deep.oil);
   for (const s of life.species) h.value(s);
   if (life.people) h.value(life.people.body);
+  // (Where the hand bade them rise: kept apart from a world whose people rose where they would.)
+  if (life.people && peoplingMade(seed.text).cradle !== null) h.int(life.people.cell);
   hashArray(h, life.present);
   for (const d of deposits) h.value(d);
   return {
