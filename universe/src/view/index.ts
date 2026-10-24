@@ -411,6 +411,19 @@ export {
   type Shrub,
 } from "./meadow.ts";
 export {
+  BAND_DAY,
+  bandHour,
+  bandPace,
+  bandQuarry,
+  bandWords,
+  newBand,
+  stepBand,
+  type BandDoing,
+  type BandKin,
+  type BandPerson,
+  type BandState,
+} from "./band.ts";
+export {
   ALL_REACHED,
   FAMILY_COLORS,
   PEOPLING_ACT_WORDS,

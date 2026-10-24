@@ -25,10 +25,13 @@
 // land, as the world is begun from, each land in the colour of the family of tongues it will speak,
 // the families named where they began, the eye following the bands' front. The god's hand may lower
 // the seas for them to walk over the straits, give them a kind age or a hard one, or bid them rise
-// elsewhere — a land tapped — and the peopling goes out again from the world remade.
+// elsewhere — a land tapped — and the peopling goes out again from the world remade. Or a band of
+// them is watched near, on the last age's land among its beasts: camped about their fire, out to
+// gather and to hunt by day, asleep by night, walking on when the land about them is bare.
 import type { GalaxyPlan, GenesisPlan, HostClient, SystemPlan } from "../bridge/index.ts";
 import { seedWithAct, seedWithoutAct } from "../kernel/index.ts";
 import {
+  BandLayer,
   GalaxyScene,
   GlobeScene,
   MeadowScene,
@@ -54,6 +57,9 @@ import {
   ageColors,
   ageWords,
   arise,
+  bandHour,
+  bandPace,
+  bandWords,
   biomeColor,
   cradleAct,
   dawnAct,
@@ -78,6 +84,7 @@ import {
   meadowCounts,
   meadowProspered,
   meadowProsperedWords,
+  newBand,
   newDrop,
   newMeadow,
   paradeOf,
@@ -94,6 +101,7 @@ import {
   roundDrop,
   roundOf,
   rungsPassed,
+  stepBand,
   stepDrop,
   stepMeadow,
   systemSpec,
@@ -101,6 +109,7 @@ import {
   touchMeadow,
   waysWorth,
   type AgeAct,
+  type BandState,
   type DropAct,
   type DropState,
   type GenesisStage,
@@ -201,6 +210,7 @@ export async function runGenesis(o: {
   globe.visible = false;
   const detail = o.tier.name === "phone" ? 1 : 2;
   meadowScene.setDetail(detail);
+  const bandLayer = new BandLayer(stage, meadowScene.root);
   let beasts = plan.lineages.filter((l) => l.body),
     bodies = plan.lineages.map((l) => l.body);
   const castParade = () => {
@@ -226,14 +236,17 @@ export async function runGenesis(o: {
   toMenu.onclick = () => (location.href = location.pathname);
   bar.append(brand, when, speeds, toMenu);
   let speedButtons: HTMLButtonElement[] = [],
-    speedsOf = -1;
+    speedsOf = "";
   const drawSpeeds = () => {
-    if (speedsOf !== clock.at) {
-      speedsOf = clock.at;
+    // (Watching a band, the speeds are its day's: the deep clock held meanwhile.)
+    const near = watchingBand();
+    if (speedsOf !== `${clock.at}${near ? " band" : ""}`) {
+      speedsOf = `${clock.at}${near ? " band" : ""}`;
       speedButtons = [0, ...clock.span.speeds].map((s, i) => {
-        const b = el("button", "speed", s === 0 ? "❚❚" : deepSpeedLabel(s));
-        b.setAttribute("aria-label", s === 0 ? "Pause" : deepSpeedWords(s));
-        b.title = s === 0 ? "Pause (Space)" : `${deepSpeedWords(s)} (${i})`;
+        const pace = near ? bandPace(i) : null,
+          b = el("button", "speed", s === 0 ? "❚❚" : pace ? pace.label : deepSpeedLabel(s));
+        b.setAttribute("aria-label", s === 0 ? "Pause" : pace ? pace.words : deepSpeedWords(s));
+        b.title = s === 0 ? "Pause (Space)" : `${pace ? pace.words : deepSpeedWords(s)} (${i})`;
         b.onclick = () => {
           clock.pick(i);
           drawSpeeds();
@@ -242,7 +255,11 @@ export async function runGenesis(o: {
       });
       speeds.replaceChildren(...speedButtons);
     }
-    const lit = clock.lit;
+    const lit = near
+      ? clock.paused
+        ? 0
+        : clock.span.speeds.indexOf(clock.speedAt()) + 1
+      : clock.lit;
     speedButtons.forEach((b, i) => {
       b.classList.toggle("on", i === lit);
       b.setAttribute("aria-pressed", String(i === lit));
@@ -473,6 +490,8 @@ export async function runGenesis(o: {
       // (The peopling gone out again from the world remade; the stage's acts as they now stand.)
       if (spans[shown]?.stage === "peopling") {
         freshPeopling();
+        band = null;
+        showPeopling();
         clock.jump(spans.findIndex((s) => s.stage === "peopling"));
       }
       if (shown >= 0) {
@@ -571,8 +590,6 @@ export async function runGenesis(o: {
     eyeOwn = false;
     paintedAt = -1;
     const p = plan.peopling;
-    globe.mark(p ? p.middle : null);
-    if (p) face(P[p.middle * 3]!, P[p.middle * 3 + 1]!, P[p.middle * 3 + 2]!);
     // The greatest families named, at the land their first tongue was first spoken in.
     const named = p
       ? p.families
@@ -659,7 +676,129 @@ export async function runGenesis(o: {
     if (medium === "shore") return ground && b !== 4;
     return ground && b !== 4 && b !== 11 && b !== 15;
   };
+  // —— A band watched: the peopling seen near, on the last age's land (Phase 28 M158) ——————————
+  let lookAtBand = false,
+    band: BandState | null = null,
+    bandLand: MeadowState | null = null,
+    bandOwed = 0,
+    bandCounted = -1,
+    // (The band's own screen time: on at its pace, still while paused — the deep clock, and the
+    // screen time that goes with it, held while it is watched.)
+    bandTime = 0;
+  /** Whether a band is being watched now (the deep clock held meanwhile). */
+  const watchingBand = () => lookAtBand && spans[shown]?.stage === "peopling";
+  /** A band of the first people camped on the last age's land, as many as their age was kind to. */
+  const freshBand = () => {
+    band = null;
+    bandLand = null;
+    meadowScene.reset();
+    if (!plan.people) return;
+    bandLand = newMeadow(plan, Math.max(0, plan.ages.length - 1), seed);
+    const age = plan.acts.peopling.age;
+    band = newBand(
+      bandLand,
+      age === "kind" ? 18 : age === "hard" ? 10 : 14,
+      plan.people.name,
+      seed,
+    );
+    bandLayer.people(figureOf(plan.people.figure, detail));
+  };
+  /** The band a frame on, at the pace chosen (still while paused); what came to pass told. */
+  const stepBands = (dt: number) => {
+    if (!band || !bandLand) return;
+    const pace = clock.paused ? 0 : clock.span.speeds.indexOf(clock.speedAt()) + 1;
+    bandOwed += dt * Math.max(0, pace);
+    bandTime += dt * Math.max(0, pace);
+    let n = 0;
+    while (bandOwed >= MEADOW_STEP && n < 12) {
+      stepMeadow(bandLand);
+      stepBand(band, bandLand);
+      bandOwed -= MEADOW_STEP;
+      n++;
+    }
+    if (n === 12) bandOwed = 0;
+    while (band.news.length) tell(band.news.shift()!);
+  };
+  /** Where the eye keeps: between the fire and the band, or on them as they walk on. */
+  const bandMiddle = () => {
+    if (!band) return null;
+    let x = 0,
+      z = 0;
+    for (const q of band.people) {
+      x += q.x;
+      z += q.z;
+    }
+    const n = band.people.length || 1,
+      mx = band.going ? x / n : (band.camp.x * 2 + x / n) / 3,
+      mz = band.going ? z / n : (band.camp.z * 2 + z / n) / 3;
+    return { x: mx * 0.1, y: 0.2, z: mz * 0.1 };
+  };
+  /** The peopling seen: over the world, its bands going out; or one band near, the deep clock held. */
+  const showPeopling = () => {
+    hideAll();
+    choosingCradle = false;
+    if (!plan.people) lookAtBand = false;
+    if (lookAtBand) {
+      clock.hold("band");
+      stage.backdrop("ground", 40);
+      meadowScene.visible = true;
+      bandLayer.root.enabled = true;
+      if (!band) freshBand();
+      const c = band ? band.camp : { x: 0, z: 0 };
+      rig.configure({
+        distance: 7,
+        minDistance: 2,
+        maxDistance: 30,
+        pitch: -26,
+        minPitch: -85,
+        maxPitch: -8,
+        target: [c.x * 0.1, 0.2, c.z * 0.1],
+        drift: 0,
+      });
+      rig.follow = bandMiddle;
+      bandCounted = -1;
+      return;
+    }
+    clock.release("band");
+    rig.follow = null;
+    bandLayer.root.enabled = false;
+    stage.backdrop("space");
+    globe.visible = true;
+    globe.features(true, true, false);
+    labels.hidden = false;
+    rig.configure({
+      distance: 3,
+      minDistance: 1.4,
+      maxDistance: 12,
+      pitch: -15,
+      minPitch: -80,
+      maxPitch: 80,
+      target: [0, 0, 0],
+      drift: 0,
+    });
+    const p = plan.peopling;
+    globe.mark(p ? p.middle : null);
+    paintedAt = -1;
+    frontShown = -1;
+    // (Fresh, facing the cradle; come back from the band, turned toward the bands' front.)
+    if (p && frontTold < 0) face(P[p.middle * 3]!, P[p.middle * 3 + 1]!, P[p.middle * 3 + 2]!);
+    else {
+      eyeOwn = false;
+      eyeSet = { yaw: rig.yaw, pitch: rig.pitch };
+    }
+  };
   const peoplingActs = () => {
+    const view = el("button", "link", lookAtBand ? "🌍 The world" : "👣 A band");
+    view.title = lookAtBand
+      ? "See the bands go out over the world"
+      : "See a band of them near: their camp, their fire, out gathering and hunting the age's beasts";
+    view.onclick = () => {
+      lookAtBand = !lookAtBand;
+      showPeopling();
+      counts.textContent = "";
+      acts.replaceChildren(...peoplingActs());
+      drawSpeeds();
+    };
     const made = plan.acts.peopling,
       act = (a: PeoplingAct, on: boolean, off: string) => {
         const [icon, words, why] = PEOPLING_ACT_WORDS[a];
@@ -689,14 +828,17 @@ export async function runGenesis(o: {
         },
       );
     return [
+      // (A band to watch only where there is a people.)
+      ...(plan.people ? [view] : []),
       act("seas", made.seasLow, "Let the seas rise again"),
       act("kind", made.age === "kind", "An ordinary age"),
       act("hard", made.age === "hard", "An ordinary age"),
-      rise,
+      ...(lookAtBand ? [] : [rise]),
     ];
   };
   /** A land of the globe tapped: the people bidden to rise there, or what came to it told. */
   const tapPeopling = (x: number, y: number) => {
+    if (lookAtBand) return;
     const p = plan.peopling,
       cell = globe.pick(x, y);
     if (!p || cell === null) return;
@@ -907,24 +1049,26 @@ export async function runGenesis(o: {
           ? `From ${plan.people.cradle} the ${plan.people.name}${plan.people.name.endsWith("s") ? "'" : "'s"} bands went out over the land, a few days' walk in a lifetime — land after land, and as they went their speech grew apart, into the families of tongues the chronicle opens with, each land here the colour of its family. Tap a land to ask who came to it; lower the seas for them to walk over the straits, give them a kind age or a hard one, or bid them rise elsewhere.`
           : "No one's bands went out over this world: its land waits, unpeopled.",
       enter: () => {
-        stage.backdrop("space");
-        globe.visible = true;
-        globe.features(true, true, false);
-        labels.hidden = false;
-        rig.configure({
-          distance: 3,
-          minDistance: 1.4,
-          maxDistance: 12,
-          pitch: -15,
-          minPitch: -80,
-          maxPitch: 80,
-          target: [0, 0, 0],
-          drift: 0,
-        });
         freshPeopling();
+        // (A fresh band each time the stage is come to: the meadow drawn may have been another's.)
+        band = null;
+        showPeopling();
       },
       update: (k) => {
         const p = plan.peopling;
+        if (lookAtBand) {
+          // A band seen near: the land and its beasts, the band, the hour of their day.
+          if (band && bandLand) {
+            meadowScene.update(bandLand, bodies);
+            bandLayer.update(band, bandTime);
+            stage.daylight(bandHour(band) / 24);
+            if (bandCounted < 0 || bandTime - bandCounted >= 0.25) {
+              bandCounted = bandTime;
+              counts.textContent = bandWords(band);
+            }
+          }
+          return;
+        }
         if (!p) return;
         const front = peoplingFront(p, k);
         // (Back to the stage's beginning: told again from it.)
@@ -1001,6 +1145,11 @@ export async function runGenesis(o: {
     played = 0;
     paintedAt = -1;
     choosingCradle = false;
+    // (The band's hold on the deep clock, and the eye kept on it, let go with its stage; the band
+    // not drawn on another stage's meadow.)
+    clock.release("band");
+    rig.follow = null;
+    bandLayer.root.enabled = false;
     const st = STAGES[spans[i]!.stage];
     hideAll();
     delete document.body.dataset.scale;
@@ -1101,8 +1250,9 @@ export async function runGenesis(o: {
     if (clock.at !== shown) enter(clock.at);
     if (DROP_STAGES.has(spans[shown]!.stage)) stepDrops(dt);
     if (spans[shown]!.stage === "ages") stepMeadows(dt);
+    if (watchingBand()) stepBands(dt);
     STAGES[spans[shown]!.stage].update(clock.through);
-    const w = `${deepWhen(clock.my)}${clock.stopped ? " · paused" : ""}`;
+    const w = `${deepWhen(clock.my)}${watchingBand() ? ` · a band, day ${(band?.day ?? 0) + 1}${clock.paused ? " · paused" : ""}` : clock.stopped ? " · paused" : ""}`;
     if (w !== whenShown) {
       whenShown = w;
       when.textContent = w;
@@ -1198,6 +1348,33 @@ export async function runGenesis(o: {
         counts: counts.textContent,
       };
     },
+    /** A band watched near (Phase 28 M158): its people at what they are at, its day, its store, its camps and kills. */
+    band: () =>
+      band
+        ? {
+            watching: watchingBand(),
+            people: (band as BandState).people.length,
+            doing: Object.fromEntries(
+              [...new Set((band as BandState).people.map((q) => q.doing))].map((d) => [
+                d,
+                (band as BandState).people.filter((q) => q.doing === d).length,
+              ]),
+            ),
+            hour: bandHour(band as BandState),
+            day: (band as BandState).day,
+            food: (band as BandState).food,
+            hunts: (band as BandState).hunts,
+            kills: (band as BandState).kills,
+            camps: (band as BandState).camps,
+            gathered: (band as BandState).gathered,
+            camp: (band as BandState).camp,
+            going: (band as BandState).going !== null,
+            first: { x: (band as BandState).people[0]!.x, z: (band as BandState).people[0]!.z },
+            beasts: bandLand ? (bandLand as MeadowState).beasts.length : 0,
+            parts: bandLayer.count(),
+            counts: counts.textContent,
+          }
+        : null,
     /** Cells of the globe facing the eye, on the screen, where a people could rise or not (the look tools). */
     globeSpots: (fit: boolean, many = 8) => {
       const out: { cell: number; x: number; y: number }[] = [];

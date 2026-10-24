@@ -5,7 +5,9 @@
 //   1. the peopling: from the cradle the bands go out over the globe land by land as the clock
 //      runs, each land its family of tongues' colour, the families named and told as they are come
 //      to, the eye following the front; held, it stands;
-//   2. a land tapped: who came to it, and when;
+//   2. a land tapped: who came to it, and when; a band watched near — camped about their fire on
+//      the last age's land, out gathering and hunting its beasts by day, asleep by night — the deep
+//      clock held while they are watched, their day at the pace chosen, still when paused;
 //   3. the hand: the seas lowered — the world remade, the bands going out again from the cradle
 //      and coming to more lands, told; a kind age — more of them; bidden to rise elsewhere — not
 //      where none could live, but on a green land tapped, the peopling going out from there; the
@@ -58,7 +60,24 @@ type Peopling = {
   pitch: number;
   counts: string;
 };
-type State = { stage: string; paused: boolean; seed: string; choosing: boolean };
+type State = { stage: string; paused: boolean; seed: string; choosing: boolean; my: number };
+type Band = {
+  watching: boolean;
+  people: number;
+  doing: Record<string, number>;
+  hour: number;
+  day: number;
+  food: number;
+  hunts: number;
+  kills: number;
+  camps: number;
+  gathered: number;
+  going: boolean;
+  first: { x: number; z: number };
+  beasts: number;
+  parts: number;
+  counts: string;
+} | null;
 
 const root = fileURLToPath(new URL("..", import.meta.url)),
   server = await preview({ root, logLevel: "silent", preview: { port: 4280, strictPort: false } }),
@@ -78,6 +97,7 @@ watch(page);
 const k = <T>(code: string, p: Page = page): Promise<T> => p.evaluate(code) as Promise<T>;
 const state = (p: Page = page) => k<State>(`globalThis.causalis.genesis()`, p);
 const peopling = (p: Page = page) => k<Peopling>(`globalThis.causalis.peopling()`, p);
+const band = (p: Page = page) => k<Band>(`globalThis.causalis.band()`, p);
 const until = async (what: string, ok: () => Promise<boolean>, ms = 60000, p: Page = page) => {
   const end = Date.now() + ms;
   while (Date.now() < end) {
@@ -102,10 +122,11 @@ const told = (p: Page = page) =>
   p.$$eval(".genesis-told p", (x) => x.map((e) => e.textContent ?? ""));
 const SEED = "first light";
 
-/** Into the beginning, on to the peopling. */
+/** Into the beginning, on to the peopling — held, so it is seen from its very start. */
 const toPeopling = async (p: Page) => {
   await p.goto(`${base}?universe=earth&seed=${encodeURIComponent(SEED)}&genesis=1`);
   await p.waitForSelector(".genesis h2", { timeout: 600000 });
+  await p.click(".genesis-bar .speed >> nth=0");
   for (let i = 0; i < 14 && (await state(p)).stage !== "peopling"; i++) {
     await p.click(".genesis-row button:not(.link)");
     await p.waitForTimeout(300);
@@ -192,6 +213,74 @@ let begun: Peopling;
     "a land tapped is not told of",
   );
   await shot("2-a-land");
+}
+
+// 2b. A band watched near: the deep clock held; their day at the pace chosen, still when paused.
+{
+  const world = await peopling(),
+    my = (await state()).my;
+  await act("A band");
+  await until("the band seen", async () => !!(await band())?.watching, slow(15000));
+  await page.waitForTimeout(slow(800));
+  const a = await band();
+  say(
+    `a band: ${a?.people} of them about their fire, ${a?.beasts} beasts on the land, ${a?.parts} parts drawn — “${a?.counts}”`,
+  );
+  check(!!a && a.people >= 10 && a.parts > 20, "the band is not drawn");
+  check(!!a && a.beasts >= 10, "the band's land has no beasts about it");
+  check(/^The band of \d+|^Night: the band/.test(a?.counts ?? ""), "the band is not told");
+  const paces = await page.$$eval(".genesis-bar .speed", (x) => x.map((e) => e.textContent));
+  check(paces.join(" ") === "❚❚ 1× 2× 3×", `the speeds are not the band's (${paces.join(" ")})`);
+  await shot("2b-band-camp");
+  // At the pace chosen: out by day to gather and hunt.
+  await speed(3);
+  const out = await until(
+    "the band out gathering or hunting",
+    async () => {
+      const d = (await band())?.doing ?? {};
+      return (d.gathering ?? 0) + (d.stalking ?? 0) + (d.chasing ?? 0) + (d.carrying ?? 0) >= 3;
+    },
+    slow(30000),
+  );
+  const b = await band();
+  say(`out: hour ${b?.hour.toFixed(1)}, ${JSON.stringify(b?.doing)}; ${b?.gathered} armfuls home`);
+  if (out) await shot("2b-band-out");
+  check((await state()).my === my, "the deep clock ran on while the band was watched");
+  // Paused: they stand.
+  await speed(0);
+  await page.waitForTimeout(slow(300));
+  const c = await band();
+  await page.waitForTimeout(slow(1200));
+  const d = await band();
+  check(
+    !!c && !!d && c.first.x === d.first.x && c.hour === d.hour,
+    "paused, the band did not stand",
+  );
+  check(
+    /· paused/.test((await page.textContent(".genesis-bar .clock")) ?? ""),
+    "paused is not shown",
+  );
+  // By night: asleep about the fire.
+  await speed(3);
+  const night = await until(
+    "the band's night",
+    async () => {
+      const e = await band();
+      return !!e && (e.hour >= 21.5 || e.hour < 5) && (e.doing.sleeping ?? 0) >= e.people - 2;
+    },
+    slow(60000),
+  );
+  const e = await band();
+  say(`night: day ${(e?.day ?? 0) + 1}, “${e?.counts}”`);
+  if (night) await shot("2b-band-night");
+  await speed(0);
+  // Back to the world: the bands where they were left.
+  await act("The world");
+  await page.waitForTimeout(slow(500));
+  const back = await peopling();
+  check(!(await band())?.watching, "the world not seen again");
+  check(back.front === world.front, "the peopling went on while the band was watched");
+  check(back.labels >= 1, "the families are not named over the globe again");
 }
 
 // 3. The hand: the seas lowered; a kind age; bidden to rise elsewhere; lifted again.

@@ -211,3 +211,27 @@ test("a beast followed: its life told, and how it ended", () => {
   followBeast(m, null);
   assert.equal(followedLife(m), "");
 });
+
+test("a long watch: the hunters bear young only where game is plenty, the pool keeps its swimmers, the few left of a lineage are joined by more", () => {
+  const m = newMeadow(PLAN, 2),
+    away: number[] = [],
+    longest: number[] = [];
+  let mostCats = 0;
+  run(m, 600, (s) => {
+    const cats = s.beasts.filter((b) => s.kinds[b.kind]!.feed === "hunt").length;
+    mostCats = Math.max(mostCats, cats);
+    if (Math.floor(s.t) === Math.floor(s.t - MEADOW_STEP)) return;
+    s.kinds.forEach((_, i) => {
+      away[i] = s.beasts.some((b) => b.kind === i) ? 0 : (away[i] ?? 0) + 1;
+      longest[i] = Math.max(longest[i] ?? 0, away[i]!);
+    });
+  });
+  for (const [i, k] of m.kinds.entries())
+    if (!k.gone)
+      assert.ok(longest[i]! < 60, `${k.name} gone from the land ${longest[i]} s at most`);
+  assert.ok(
+    m.beasts.some((b) => m.kinds[b.kind]!.feed !== "hunt" && m.kinds[b.kind]!.feed !== "swim"),
+    "the eaten not eaten out",
+  );
+  assert.ok(mostCats <= 8, `hunters ${mostCats} at most`);
+});

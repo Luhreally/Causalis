@@ -12,6 +12,7 @@ export { FreeRig } from "./free.ts";
 export { MicroScene } from "./micro.ts";
 export { ParadeScene } from "./parade.ts";
 export { MeadowScene } from "./meadow.ts";
+export { BandLayer } from "./band.ts";
 export { OrbitRig, type OrbitOptions } from "./orbit.ts";
 export {
   AutoQuality,

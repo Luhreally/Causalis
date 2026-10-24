@@ -170,6 +170,10 @@ export type MeadowState = {
   fate: Fate | null;
   /** Each kind's number, every second. */
   history: { t: number; count: number[] }[];
+  /** People about on the land, where a band lives on it (Phase 28): the hunting, running. */
+  folk?: { x: number; z: number; hunting: boolean }[];
+  /** The band's fire, where it is camped: the beasts keep from it. */
+  fire?: { x: number; z: number } | null;
 };
 
 /** A small fast seeded source of numbers in [0, 1). */
@@ -516,6 +520,12 @@ export function stepMeadow(s: MeadowState): void {
   const byId = new Map(s.beasts.map((b) => [b.id, b]));
   const dead = new Set<number>();
   const counted = counts(s);
+  // (How much game each hunting kind has about it: they bear young only where it is plentiful.)
+  const game = s.kinds.map((h) =>
+    h.feed === "hunt" || h.feed === "small"
+      ? s.kinds.reduce((n, p, j) => n + (prey(h, p) ? counted[j]! : 0), 0)
+      : 0,
+  );
   for (const b of s.beasts) {
     if (dead.has(b.id)) continue;
     const k = s.kinds[b.kind]!;
@@ -647,7 +657,7 @@ export function stepMeadow(s: MeadowState): void {
       }
     } else {
       // The eaten: from what hunts them first.
-      let threat: Beast | undefined,
+      let threat: { x: number; z: number } | undefined,
         near = (s.shelter > 0 ? 30 : 19) * (k.flies ? 0.7 : 1);
       for (const o of s.beasts) {
         const h = s.kinds[o.kind]!;
@@ -658,6 +668,15 @@ export function stepMeadow(s: MeadowState): void {
           threat = o;
         }
       }
+      // (And from people, where a band lives on the land: from the hunters' run, or any too near.)
+      if (s.folk)
+        for (const f of s.folk) {
+          const d = Math.hypot(f.x - b.x, f.z - b.z);
+          if (d < near && (f.hunting || d < near * 0.45)) {
+            near = d;
+            threat = f;
+          }
+        }
       if (threat) {
         if (b.doing !== "fleeing") b.fled++;
         b.doing = "fleeing";
@@ -726,6 +745,16 @@ export function stepMeadow(s: MeadowState): void {
         if (b.doing === "walking") want = turn(b.heading, want, Math.PI);
       }
     }
+    // (Kept from a band's fire, where one burns on the land.)
+    const fire = s.fire;
+    if (fire && k.feed !== "swim" && b.doing !== "coming") {
+      const d = Math.hypot(b.x - fire.x, b.z - fire.z);
+      if (d < 12 + k.length * 0.5 && d > 1e-6) {
+        want = Math.atan2(b.x - fire.x, b.z - fire.z);
+        pace = Math.max(pace, k.walk);
+        if (b.doing !== "fleeing" && b.doing !== "chasing") b.doing = "walking";
+      }
+    }
     // Go, kept to the meadow and out of the pool (a swimmer in it).
     b.heading = turn(b.heading, want, 3.2 * dt * (pace > k.walk * 1.5 ? 1.6 : 1));
     b.speed = pace;
@@ -764,6 +793,9 @@ export function stepMeadow(s: MeadowState): void {
       b.age > k.grown &&
       counted[b.kind]! < k.most &&
       s.beasts.length < MOST &&
+      ((k.feed !== "hunt" && k.feed !== "small") || game[b.kind]! >= 4 * counted[b.kind]!) &&
+      // (Swimmers spawn only while the pool feeds them well.)
+      (k.feed !== "swim" || (s.pond?.food ?? 0) > 0.7) &&
       r() < 0.35 * dt
     ) {
       b.energy -= FEEDS[k.feed].breed * 0.45;
@@ -793,7 +825,44 @@ export function stepMeadow(s: MeadowState): void {
     s.died += dead.size;
     s.beasts = s.beasts.filter((b) => !dead.has(b.id));
   }
-  if (Math.floor(s.t) !== Math.floor(s.t - dt)) record(s);
+  if (Math.floor(s.t) !== Math.floor(s.t - dt)) {
+    record(s);
+    wander(s);
+  }
+}
+
+/**
+ * The land beyond the meadow: a lineage of the age not died out, with hardly any of it left here,
+ * now and then has a few of its own walk in from an edge (the meadow is a stretch of a wider land,
+ * not the whole of it), or, a swimmer, come down into the pool from the waters it joins. Once a
+ * second.
+ */
+function wander(s: MeadowState): void {
+  const r = s.rnd,
+    n = counts(s);
+  s.kinds.forEach((k, i) => {
+    if (k.gone || n[i]! >= 2 || s.beasts.length > MOST - 4 || r() > 0.08) return;
+    if (k.feed === "swim") {
+      const p = s.pond;
+      if (!p || p.food < 0.5) return;
+      for (let j = 0; j < 2; j++) {
+        const a = r() * Math.PI * 2,
+          d = p.r - 2.5;
+        s.beasts.push(born(s, i, null, p.x + Math.cos(a) * d, p.z + Math.sin(a) * d));
+      }
+      return;
+    }
+    const side = Math.floor(r() * 4),
+      along = (r() - 0.5) * 0.8,
+      few =
+        k.feed === "hunt" || k.feed === "small" ? 1 + Math.floor(r() * 2) : 2 + Math.floor(r() * 2);
+    for (let j = 0; j < few; j++) {
+      const out = 1.5 + j * 1.4,
+        x = side < 2 ? (side ? 1 : -1) * (MEADOW_W / 2 + out) : along * MEADOW_W,
+        z = side >= 2 ? (side === 3 ? 1 : -1) * (MEADOW_H / 2 + out) : along * MEADOW_H;
+      s.beasts.push(born(s, i, null, x, z, true));
+    }
+  });
 }
 
 /** How much the grass and leaf feed, the hand's greening richer, its parching thinner. */

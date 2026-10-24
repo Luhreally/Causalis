@@ -140,10 +140,16 @@ await page.waitForSelector(".genesis h2", { timeout: 600000 });
     async () => ((await state()).cells?.light ?? 0) > 0,
     slow(40000),
   );
+  // (Held while it is fed, so the hungry cells do not eat what is poured in before it is counted.)
+  const lit = await page.$$eval(".genesis-bar .speed", (x) =>
+    x.findIndex((e) => e.classList.contains("on")),
+  );
+  await page.click(".genesis-bar .speed >> nth=0");
   const fed = await state();
   await act("Feed it");
   const after = await state();
   check(after.motes >= fed.motes + 40, `fed, the drop has ${fed.motes} → ${after.motes} motes`);
+  if (lit > 0) await page.click(`.genesis-bar .speed >> nth=${lit}`);
   // A cell tapped in the drop is followed.
   let followed = false;
   for (const [x, y] of [
