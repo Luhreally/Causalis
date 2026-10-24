@@ -9,6 +9,7 @@ import {
   citiesOf,
   DEITIES,
   creditOf,
+  strifeOf,
   healthOf,
   homePlanet,
   languagesOf,
@@ -38,6 +39,7 @@ import { bare, claimOf, count, item, link, many, share, stat, yearAt, yearNow } 
 import { bondsLedger } from "./order.ts";
 import { sicknessLedger } from "./sickness.ts";
 import { creditLedger } from "./credit.ts";
+import { strifeLedger } from "./strife.ts";
 import {
   faithLink,
   landLink,
@@ -1090,6 +1092,29 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
         );
     }
   }
+  // Strife (Phase 22 M145): the first coup won, and the first realm given back its own rule.
+  {
+    const strife = strifeOf(world),
+      won = strife?.coups.filter((c) => c.won) ?? [];
+    for (const [list, what, one, more] of [
+      [won, "🗡️ A coup", "coup", "coups"],
+      [strife?.restorations ?? [], "🏛️ Rule restored", "restoration", "restorations"],
+    ] as const) {
+      const at = list[0] ? world.events.get(list[0].event) : undefined;
+      if (list[0])
+        add(
+          what,
+          {
+            year: list[0].year,
+            land: at?.place ? parseRef(at.place).b : null,
+            ref: list[0].event,
+          },
+          list[1]?.year ?? null,
+          many(list.length, one, more),
+          list.length,
+        );
+    }
+  }
   for (const [type, what, one, more] of [
     ["trade.route-opened", "🐪 A trade road", "road", "roads"],
     ["trade.sea-route", "⛵ A sea route", "route", "routes"],
@@ -1668,6 +1693,8 @@ export function ledgerPage(world: World, tab?: string): PageModel {
     { id: "sickness", name: "Sickness", blocks: sicknessLedger(world) },
     // Every house of lending side by side, and what is owed them (Phase 21 M143).
     { id: "credit", name: "Credit", blocks: creditLedger(world) },
+    // Every coup and restoration (Phase 22 M145).
+    { id: "strife", name: "Strife", blocks: strifeLedger(world) },
     { id: "faiths", name: "Faiths", blocks: faithLedger(world) },
     { id: "tongues", name: "Tongues", blocks: tongueLedger(world) },
     { id: "life", name: "Life", blocks: lifeLedger(world) },

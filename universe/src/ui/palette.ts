@@ -146,6 +146,22 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
     command: "act.break",
     sign: -1,
   },
+  incite: {
+    id: "incite",
+    icon: "🗡️",
+    name: "Stir an army against its seat",
+    target: "land",
+    command: "act.incite",
+    sign: -1,
+  },
+  restore: {
+    id: "restore",
+    icon: "🏛️",
+    name: "Give a realm back its rule",
+    target: "land",
+    command: "act.restore",
+    sign: 1,
+  },
   inspire: {
     id: "inspire",
     icon: "💡",
@@ -333,6 +349,7 @@ export const PALETTE_KINDS: readonly {
   },
   { id: "realms", icon: "🏰", name: "A realm's fortunes", acts: ["rise", "bless", "curse"] },
   { id: "credit", icon: "🏦", name: "Debt and credit", acts: ["forgive", "break"] },
+  { id: "strife", icon: "🗡️", name: "Armies and seats", acts: ["incite", "restore"] },
   {
     id: "ways",
     icon: "🎭",
@@ -607,6 +624,16 @@ export class GodPalette {
             words: `strangers of another star called down to ${land.name}: they cross in a year`,
             args: { cell: land.cell },
           };
+        if (a.id === "incite" || a.id === "restore") {
+          if (!land.realm) return { words: `${land.name} is no realm's`, args: null };
+          return {
+            words:
+              a.id === "incite"
+                ? `the army of ${land.realm.name} stirred against its seat`
+                : `${land.realm.name} given back its own rule, if its army rules it`,
+            args: { cell: land.cell },
+          };
+        }
         if (a.id === "forgive")
           return {
             words: `every debt ${land.name} owes forgiven, and its debt-bound freed`,

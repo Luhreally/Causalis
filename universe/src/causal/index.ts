@@ -47,6 +47,7 @@ import "./space.ts";
 import "./order.ts";
 import "./health.ts";
 import "./credit.ts";
+import "./strife.ts";
 export { priceWords } from "./economy.ts";
 export { ROUTE_WORDS, SOURCE_WORDS, VIA_WORDS, oneIn, sparedWords, strangersOf } from "./health.ts";
 export {

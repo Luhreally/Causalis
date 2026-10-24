@@ -11,6 +11,7 @@ import {
   beliefOf,
   citiesOf,
   creditOf,
+  strifeOf,
   debtBurden,
   healthOf,
   homePlanet,
@@ -269,6 +270,15 @@ export function alertsOf(world: World): Alert[] {
           });
     }
   }
+  // Strife (Phase 22 M145): the followed realms' coups, won or foiled, and their rule given back, these two years.
+  const strife: AlertItem[] = [];
+  {
+    const store = strifeOf(world);
+    if (store)
+      for (const x of [...store.coups, ...store.restorations])
+        if (x.year >= now - 2 && atWar.has(x.realm) && strife.length < 12)
+          strife.push({ line: [claimOf(world, x.event)], ref: x.event, key: `strife:${x.event}` });
+  }
   // Firsts: what the world did first lately, the newest first.
   const first: AlertItem[] = firstsNow(world)
     .filter((f) => f.year >= now - FIRST_YEARS)
@@ -288,6 +298,7 @@ export function alertsOf(world: World): Alert[] {
     { id: "order", icon: "✊", title: "Bonds and freedoms", tone: "war", items: order },
     { id: "sickness", icon: "🦠", title: "Sickness", tone: "loss", items: sickness },
     { id: "credit", icon: "💸", title: "Debt", tone: "want", items: credit },
+    { id: "strife", icon: "🗡️", title: "Strife", tone: "war", items: strife },
     { id: "fallen", icon: "🏳️", title: "A realm fallen", tone: "loss", items: fallen },
     { id: "death", icon: "🕯️", title: "A life ended", tone: "loss", items: death },
     { id: "first", icon: "🌟", title: "A first in the world", tone: "news", items: first },

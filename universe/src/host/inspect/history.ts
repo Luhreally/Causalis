@@ -40,6 +40,7 @@ const HEADINGS: Readonly<Record<string, readonly [string, string]>> = {
   order: ["Bonds and freedoms", "⛓️"],
   health: ["Sickness", "🦠"],
   credit: ["Credit", "🏦"],
+  strife: ["Strife", "🗡️"],
 };
 
 /** Events whose kind says itself better whole than as its domain and its word. */
@@ -83,6 +84,11 @@ const TITLES: Readonly<Record<string, string>> = {
   "credit.chest": "A war chest",
   "credit.defaulted": "Debts repudiated",
   "credit.jubilee": "A jubilee",
+  "strife.coup": "A coup",
+  "strife.foiled": "A coup foiled",
+  "strife.restored": "Rule restored",
+  "act.incite": "An army stirred",
+  "act.restore": "Rule given back",
   "act.forgive": "Debts forgiven",
   "act.break": "A house broken",
 };

@@ -454,7 +454,8 @@ export type Tip = {
  * followed ended, a realm followed fallen, a first in the world.
  */
 export type Alert = {
-  readonly id: "war" | "hunger" | "order" | "sickness" | "credit" | "death" | "fallen" | "first";
+  readonly id:
+    "war" | "hunger" | "order" | "sickness" | "credit" | "strife" | "death" | "fallen" | "first";
   readonly icon: string;
   readonly title: string;
   /** How it is lit: war red, want amber, loss grey, news cyan. */

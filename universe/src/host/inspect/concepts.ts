@@ -8,6 +8,7 @@ import { link, yearNow } from "./words.ts";
 import { ORDER_CONCEPTS, ORDER_CONCEPT_OF } from "./order-concepts.ts";
 import { HEALTH_CONCEPTS, HEALTH_CONCEPT_OF } from "./health-concepts.ts";
 import { CREDIT_CONCEPTS, CREDIT_CONCEPT_OF } from "./credit-concepts.ts";
+import { STRIFE_CONCEPTS, STRIFE_CONCEPT_OF } from "./strife-concepts.ts";
 
 /** A concept: its icon and name, and what the book says of it. */
 export type Concept = {
@@ -105,7 +106,7 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
       "Every five years the seat weighs who wants more and who wants less, each heard as much as its sway, and sets it again, between two and fifteen in a hundred.",
     ],
     drives: [
-      "For more: the court (the more at war) and the temple (under sacred law).",
+      "For more: the court (the more at war), the temple (under sacred law) and the army, wanting its pay.",
       "For less: the farmers and herders, the more after a famine.",
       "Who leads decides who is heard: an assembly hears the farmers, a priest-king the temple.",
     ],
@@ -118,7 +119,7 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
     title: "Realms and rule",
     what: [
       "A land with a market town may found a realm, the more readily where its people hold to rank and it has leaders enough. The realm is named for its seat's town.",
-      "Its people's ways decide its rule: a priest-king where they are pious and ranked (a holy seat), a chief (a chiefdom), a council of elders where kinship matters (a league), else an assembly (a commonwealth); rule passing by birth, by choice or by acclaim; law of custom, decree or the sacred.",
+      "Its people's ways decide its rule: a priest-king where they are pious and ranked (a holy seat), a chief (a chiefdom), a council of elders where kinship matters (a league), else an assembly (a commonwealth); rule passing by birth, by choice or by acclaim; law of custom, decree or the sacred. A general rules only by the sword: a realm whose seat its army has seized is a protectorate.",
       "Neighbours join it the more readily the more alike, the nearer by road, the stronger it is. A ruler rules until death; a crisis at a death may split off its farthest lands.",
     ],
     drives: [
@@ -133,7 +134,7 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
       { text: "The realms side by side", ref: "world:ledger#realms" },
       { text: "The realms through the years", ref: "world:chronicle#lives" },
     ],
-    related: ["tithe", "grievance", "war", "diplomacy", "towns"],
+    related: ["tithe", "grievance", "war", "diplomacy", "towns", "military-rule"],
   },
   war: {
     icon: "⚔️",
@@ -385,6 +386,7 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
   ...ORDER_CONCEPTS,
   ...HEALTH_CONCEPTS,
   ...CREDIT_CONCEPTS,
+  ...STRIFE_CONCEPTS,
 };
 
 /** Which concept a number is a measure of, by its label on the pages. */
@@ -450,6 +452,7 @@ export const CONCEPT_OF: Readonly<Record<string, string>> = {
   ...ORDER_CONCEPT_OF,
   ...HEALTH_CONCEPT_OF,
   ...CREDIT_CONCEPT_OF,
+  ...STRIFE_CONCEPT_OF,
 };
 
 /** A page's numbers and facts, each linked to the concept it measures (where it has one). */

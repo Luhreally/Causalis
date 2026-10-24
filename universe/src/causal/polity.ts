@@ -14,6 +14,7 @@ const LEADS = [
   "a council of elders leads it",
   "an assembly of its people leads it",
   "a priest-king leads it",
+  "its army rules it, under a general",
 ];
 const PASSES = ["rule passes by birth", "its leaders are chosen", "its leaders are acclaimed"];
 const HOLDS = ["custom is its law", "decree is its law", "sacred law holds"];

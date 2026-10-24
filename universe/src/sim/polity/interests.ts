@@ -1,6 +1,8 @@
 // Interest groups (docs/architecture §21): within a realm, those who live alike want
 // alike — the farmers (and those who still gather), the herders, the crafters, the
-// traders, the court (those who lead) and, where the seat holds a faith, the temple.
+// traders, the court (those who lead), where the seat holds a faith, the temple, and its
+// army (Phase 22 M145: its guard, its levy, its standing army; heard above all under a
+// general, and wanting its pay and war on those its realm resents).
 // Each holds sway by its numbers and its wealth, weighed by the realm's institutions:
 // an assembly hears the many, a council of elders the few who lead, a priest-king the
 // temple. Each makes demands that rest on something in the world — lighter tribute
@@ -15,7 +17,9 @@ import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { beliefOf } from "../belief/belief.ts";
 import type { WarStore } from "../war/war.ts";
-import { LAW, politiesOf, type Polity } from "./polity.ts";
+import { diplomacyOf } from "../diplomacy/diplomacy.ts";
+import { armyOf, strifeOf } from "../strife/strife.ts";
+import { GENERAL, LAW, politiesOf, type Polity } from "./polity.ts";
 
 export const GROUPS = [
   "farmers",
@@ -24,6 +28,7 @@ export const GROUPS = [
   "traders",
   "the court",
   "the temple",
+  "the army",
 ] as const;
 export type Group = (typeof GROUPS)[number];
 
@@ -45,16 +50,17 @@ export type Interest = {
   readonly demands: readonly Demand[];
 };
 
-/** How much one of a group counts, by who leads: a chief, a council of elders, an assembly, a priest-king. */
+/** How much one of a group counts, by who leads: a chief, a council of elders, an assembly, a priest-king, a general. */
 const CLOUT: Readonly<Record<Exclude<Group, "the temple">, readonly number[]>> = {
-  farmers: [1, 0.8, 1.8, 0.8],
-  herders: [1.2, 0.8, 1.8, 0.8],
-  crafters: [2, 1.5, 2.5, 1.5],
-  traders: [8, 6, 8, 6],
-  "the court": [20, 24, 8, 12],
+  farmers: [1, 0.8, 1.8, 0.8, 0.4],
+  herders: [1.2, 0.8, 1.8, 0.8, 0.4],
+  crafters: [2, 1.5, 2.5, 1.5, 1.2],
+  traders: [8, 6, 8, 6, 5],
+  "the court": [20, 24, 8, 12, 10],
+  "the army": [5, 4, 2, 3, 15],
 };
 /** How much of a devout people's weight the temple carries, by who leads. */
-const TEMPLE = [0.15, 0.15, 0.1, 0.5];
+const TEMPLE = [0.15, 0.15, 0.1, 0.5, 0.1];
 
 /** Each group's sway in a realm with these numbers, institutions and devotion (shares summing to one). */
 export function swayOf(
@@ -71,6 +77,7 @@ export function swayOf(
       crafters: people.crafters * CLOUT.crafters[leadership]!,
       traders: people.traders * CLOUT.traders[leadership]!,
       "the court": people["the court"] * CLOUT["the court"][leadership]!,
+      "the army": people["the army"] * CLOUT["the army"][leadership]!,
       "the temple": faith
         ? all * Math.max(0, piety - 0.35) * TEMPLE[leadership]! * (sacred ? 2 : 1)
         : 0,
@@ -97,6 +104,7 @@ export function interestsOf(ctx: PopulationContext, p: Polity, t: SimTime): Inte
     crafters: 0,
     traders: 0,
     "the court": 0,
+    "the army": armyOf(ctx, p).people,
   };
   let famine: Ref | null = null,
     faminAt = -Infinity;
@@ -176,6 +184,44 @@ export function interestsOf(ctx: PopulationContext, p: Polity, t: SimTime): Inte
     toward: null,
     source: atWar[0]?.event ?? p.event,
   });
+  // The army: its pay — the more at war, the more again where it rules — and, the more where
+  // its people prize valour and it rules, war on the neighbour its realm resents most (M145).
+  const junta = strifeOf(world)?.junta(p.ref) ?? null,
+    valour = ways?.traits[WAY.valour] ?? 0.5;
+  if (count["the army"] > 0) {
+    want({
+      group: "the army",
+      want: "more tribute",
+      name: "the army wants its pay",
+      strength: 0.2 + (atWar.length ? 0.3 : 0) + (p.leadership === GENERAL ? 0.3 : 0),
+      toward: null,
+      source: atWar[0]?.event ?? junta?.event ?? p.event,
+    });
+    const relations = diplomacyOf(world),
+      rival = [...neighbours]
+        .map((q) => ({ q, relation: relations.get(p.ref, q.ref) }))
+        .filter((x) => (x.relation?.opinion ?? 0) < 0)
+        .sort(
+          (a, b) => a.relation!.opinion - b.relation!.opinion || (a.q.ref < b.q.ref ? -1 : 1),
+        )[0];
+    if (rival)
+      want({
+        group: "the army",
+        want: "war",
+        name: "the army wants war on its rivals",
+        strength:
+          (valour - 0.4) *
+          2 *
+          Math.min(1, -2 * rival.relation!.opinion) *
+          (p.leadership === GENERAL ? 1.5 : 1),
+        toward: rival.q.ref,
+        // (What their rivalry rests on most.)
+        source:
+          [...rival.relation!.terms]
+            .filter((x) => x.value < 0 && x.source)
+            .sort((x, y) => x.value - y.value || (x.name < y.name ? -1 : 1))[0]?.source ?? null,
+      });
+  }
   // The temple: its tithe, and war on unbelievers across the border.
   if (seatFaith.faith) {
     want({

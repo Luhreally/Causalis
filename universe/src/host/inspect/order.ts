@@ -174,7 +174,7 @@ export function rankWords(x: number): string {
 const points = (x: number) => `${x >= 0 ? "+" : "-"}${Math.round(Math.abs(x) * 100)}`;
 
 /** A factor as a breakdown's line: its name (a link to what drives it) and its pull. */
-const factorPart = (f: {
+export const factorPart = (f: {
   readonly name: string;
   readonly contribution: number;
   readonly source: { readonly ref: string } | null;

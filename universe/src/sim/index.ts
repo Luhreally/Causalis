@@ -175,6 +175,7 @@ export {
 } from "./climate/air.ts";
 export {
   LAW,
+  GENERAL,
   LEADERSHIP,
   POLITY,
   POLITY_EVENTS,
@@ -518,3 +519,23 @@ export {
   type House,
   type Loan,
 } from "./credit/credit.ts";
+export {
+  STRIFE,
+  STRIFE_ACTS,
+  STRIFE_EVENTS,
+  StrifeStore,
+  armyOf,
+  coupDanger,
+  foil,
+  installStrife,
+  installStrifeActs,
+  restore,
+  seize,
+  seizedFactor,
+  strifeOf,
+  strifeYear,
+  type Coup,
+  type Junta,
+  type RealmStrife,
+  type Restoration,
+} from "./strife/strife.ts";

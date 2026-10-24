@@ -33,7 +33,7 @@ export function domainOf(world: World, ref: string): string {
   if (/^(trade|settlement\.market|credit)/.test(type)) return "economy";
   if (/^industry/.test(type)) return "industry";
   if (/^(climate|people\.smoke)/.test(type)) return "climate";
-  if (/^(polity|war|diplomacy)/.test(type)) return "realm";
+  if (/^(polity|war|diplomacy|strife)/.test(type)) return "realm";
   if (/^(knowledge|lore)/.test(type)) return "knowledge";
   if (/^weather/.test(type)) return "weather";
   if (/^(language|culture)/.test(type)) return "culture";

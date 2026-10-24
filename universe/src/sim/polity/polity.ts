@@ -48,14 +48,28 @@ export const POLITY_EVENTS = {
   tithe: defineEventType("polity.tithe", 3),
 };
 
-/** Who leads. */
-export const LEADERSHIP = ["chief", "council of elders", "assembly", "priest-king"] as const;
+/** Who leads (a general only by the sword: Phase 22 M145). */
+export const LEADERSHIP = [
+  "chief",
+  "council of elders",
+  "assembly",
+  "priest-king",
+  "general",
+] as const;
+/** The general's rule, as a kind of rule (LEADERSHIP). */
+export const GENERAL = 4;
 /** How rule passes. */
 export const SUCCESSION = ["by birth", "by choice", "by acclaim"] as const;
 /** What law holds. */
 export const LAW = ["custom", "decree", "the sacred"] as const;
 /** What a realm is called, by who leads it. */
-export const REALM_WORDS = ["chiefdom", "league", "commonwealth", "holy seat"] as const;
+export const REALM_WORDS = [
+  "chiefdom",
+  "league",
+  "commonwealth",
+  "holy seat",
+  "protectorate",
+] as const;
 
 export type Ruler = {
   readonly name: string;
@@ -332,7 +346,7 @@ function recent(world: World, ref: Ref | null, t: number): Ref | null {
 }
 
 /** A new ruler: named in the realm's tongue, grown, keyed by the realm and the moment. */
-function crown(
+export function crown(
   world: World,
   ways: Ways,
   seq: number,
@@ -688,9 +702,11 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
     }
   }
 
-  // 6. Institutions reform when the seat's ways have drifted from them.
+  // 6. Institutions reform when the seat's ways have drifted from them (not a general's rule,
+  // which ends only when it is restored: M145).
   if (year % 10 === 0)
     for (const p of store.living()) {
+      if (p.leadership === GENERAL) continue;
       const ways = culture.get(p.seat)!,
         want = institutionsOf(ways, p, loreOf(world).effect(p.seat, "writing") > 0);
       if (

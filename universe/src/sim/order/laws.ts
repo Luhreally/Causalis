@@ -60,6 +60,7 @@ const WANTS: Readonly<Record<Law, Readonly<Record<Group, readonly [number, numbe
     traders: [-0.3, 0.6, 0.2],
     "the court": [1, 0.3, -0.8],
     "the temple": [0.6, 0.2, -0.4],
+    "the army": [0.6, 0.2, -0.4],
   },
   strangers: {
     farmers: [0.2, 0, -0.1],
@@ -68,6 +69,7 @@ const WANTS: Readonly<Record<Law, Readonly<Record<Group, readonly [number, numbe
     traders: [-0.6, -0.2, 1],
     "the court": [0.8, 0.2, -0.6],
     "the temple": [0, 1, -0.4],
+    "the army": [0.6, 0.2, -0.4],
   },
   faith: {
     farmers: [0.2, 0.2, 0],
@@ -76,6 +78,7 @@ const WANTS: Readonly<Record<Law, Readonly<Record<Group, readonly [number, numbe
     traders: [-0.6, 0.6, 0.6],
     "the court": [0.4, 0.4, -0.2],
     "the temple": [1, -0.2, -1],
+    "the army": [0.2, 0.2, 0],
   },
   justice: {
     farmers: [0.2, 0, 0.4],
@@ -84,6 +87,7 @@ const WANTS: Readonly<Record<Law, Readonly<Record<Group, readonly [number, numbe
     traders: [-0.6, 0.2, 1],
     "the court": [-0.2, 1, -0.4],
     "the temple": [0.4, 0.4, -0.2],
+    "the army": [-0.4, 0.8, -0.2],
   },
 };
 

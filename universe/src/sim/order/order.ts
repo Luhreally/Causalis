@@ -41,13 +41,21 @@ import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf, pushWays, type Ways } from "../culture/culture.ts";
 import { beliefOf } from "../belief/belief.ts";
 import { loreOf } from "../lore/lore.ts";
-import { cutOff, politiesOf, raiseRealm, realmName, type Polity } from "../polity/polity.ts";
+import {
+  GENERAL,
+  cutOff,
+  politiesOf,
+  raiseRealm,
+  realmName,
+  type Polity,
+} from "../polity/polity.ts";
 import { interestsOf } from "../polity/interests.ts";
 import { warsOf } from "../war/war.ts";
 import { grieve, strike } from "../acts/disasters.ts";
 import { handOf } from "../hand/hand.ts";
 import { LAW_OF, firstLaws, lawGrievance, weighLaws } from "./laws.ts";
 import { CREDIT, creditOf, debtBurden } from "../credit/credit.ts";
+import { seizedFactor } from "../strife/strife.ts";
 
 /** The kinds of bondage a people may be held in (corvée, a levy on the free, is the realm's). */
 export const BONDS = ["chattel", "debt", "serf", "indenture", "convict"] as const;
@@ -380,7 +388,8 @@ export function legitimacyFactors(ctx: PopulationContext, p: Polity): Factor[] {
     ),
     massacre = (o?.memory ?? []).find((m) => m.what === "massacre"),
     bound = boundShare(ctx, p) * trait(seat, WAY.openness),
-    faithless = creditOf(world)?.faithless(p.ref, year) ?? null;
+    faithless = creditOf(world)?.faithless(p.ref, year) ?? null,
+    seized = seizedFactor(world, p);
   return [
     {
       name: "an old rule, kept by custom",
@@ -447,6 +456,8 @@ export function legitimacyFactors(ctx: PopulationContext, p: Polity): Factor[] {
           },
         ]
       : []),
+    // (A rule seized by the sword, while remembered — M145.)
+    ...(seized ? [seized] : []),
     // (Its laws: how far they are what its powerful want, and its justice — M139.)
     {
       name: "laws its powerful want",
@@ -1212,9 +1223,10 @@ function stirMovements(
         0.4 * (hier - 0.4),
       source: store.lands.get(p.seat)?.cause ?? null,
     },
+    // (A voice is wanted against a chief, a priest-king, or a general: M145.)
     voice: {
       target:
-        p.leadership === 0 || p.leadership === 3
+        p.leadership === 0 || p.leadership === 3 || p.leadership === GENERAL
           ? 1.5 * (makers - 0.15) + 0.4 * (open - 0.5) - 0.5 * (hier - 0.5)
           : 0,
       source: null,

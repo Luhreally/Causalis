@@ -5,7 +5,14 @@
 // free its bound, its chains broken or a sign for or against its rule (Phase 19 M138). Only what
 // the hand can do, where it can do it (a peopled land, a realm holding the bound). Pure reads.
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
-import { creditOf, orderOf, politiesOf, populationContext, warsOf } from "../../sim/index.ts";
+import {
+  creditOf,
+  orderOf,
+  politiesOf,
+  populationContext,
+  strifeOf,
+  warsOf,
+} from "../../sim/index.ts";
 import type { Answer } from "../../bridge/index.ts";
 import { landTitle } from "./names.ts";
 
@@ -146,6 +153,21 @@ export function answersOf(world: World, ref: string, watch: string): Answer[] {
       const h = creditOf(world)?.house(e.subjects[1] as Ref);
       if (!h || h.failed !== null) return [];
       return [{ label: `Break ${h.name}`, act: "act.break", args: { cell: h.cell } }];
+    }
+    // A coup won (Phase 22 M145): the realm given back its own rule; foiled: its army stirred again.
+    case "strife.coup":
+    case "strife.foiled": {
+      const r = politiesOf(world).get(e.subjects[0] as Ref);
+      if (!r || r.ended !== null) return [];
+      return strifeOf(world)?.junta(r.ref)
+        ? [
+            {
+              label: `Give ${r.town} back its own rule`,
+              act: "act.restore",
+              args: { cell: r.seat },
+            },
+          ]
+        : [{ label: `Stir ${r.town}'s army again`, act: "act.incite", args: { cell: r.seat } }];
     }
     default:
       return [];

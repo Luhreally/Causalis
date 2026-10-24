@@ -56,8 +56,6 @@ export type Relation = {
   pact: Ref | null;
 };
 
-const SACRED = LAW.indexOf("the sacred");
-
 /** A remembered wrong fades by half every thirty years, and is forgotten below this. */
 const FORGOTTEN = 0.02;
 const faded = (m: Memory, year: number) => m.value * dmath.pow(0.5, (year - m.year) / 30);
@@ -233,7 +231,10 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
       const zealot = [a, b]
         .map((p) => ({
           p,
-          zeal: p.law === SACRED ? (culture.get(p.seat)!.traits[WAY.piety]! - 0.55) * 2 : 0,
+          zeal:
+            p.law === LAW.indexOf("the sacred")
+              ? (culture.get(p.seat)!.traits[WAY.piety]! - 0.55) * 2
+              : 0,
         }))
         .sort((x, y) => y.zeal - x.zeal || (x.p.ref < y.p.ref ? -1 : 1))[0]!;
       if (zealot.zeal > 0)

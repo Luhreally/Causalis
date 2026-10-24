@@ -30,6 +30,7 @@ import { armyBlocks, courseBlocks } from "./army.ts";
 import { storesSummed } from "./stores.ts";
 import { realmOrderBlocks } from "./order.ts";
 import { realmCreditBlocks, warChestRows } from "./credit.ts";
+import { realmStrifeBlocks } from "./strife.ts";
 import { civilizationsNear } from "../../sim/index.ts";
 import {
   claimOf,
@@ -191,6 +192,11 @@ export function realmPageModel(world: World, ref: string): PageModel {
   {
     const credit = realmCreditBlocks(world, r.ref);
     if (credit.length) tabs.push({ id: "credit", name: "Credit", blocks: credit });
+  }
+  // Its strife (Phase 22 M145): its army's voice, how near a coup is and why, its rule, its coups.
+  {
+    const strife = realmStrifeBlocks(world, r);
+    if (strife.length) tabs.push({ id: "strife", name: "Strife", blocks: strife });
   }
   // Its wars.
   {

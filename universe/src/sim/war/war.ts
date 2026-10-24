@@ -42,6 +42,8 @@ import { loreOf } from "../lore/lore.ts";
 import { RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
 import { handOf } from "../hand/hand.ts";
 import { CREDIT, warChest } from "../credit/credit.ts";
+import { STRIFE } from "../strife/strife.ts";
+import { GENERAL } from "../polity/polity.ts";
 
 export const WAR = defineKind("war", "war", "minted");
 
@@ -175,14 +177,15 @@ export function warsOf(world: World): WarStore {
   return world.store<WarStore>("war.wars");
 }
 
-/** The share of its fighting men a realm fields: more by its valour, more with a standing army. */
+/** The share of its fighting men a realm fields: more by its valour, more with a standing army, more under a general. */
 function fieldShare(ctx: PopulationContext, p: Polity): number {
   const valour = cultureOf(ctx.world).get(p.seat)?.traits[WAY.valour] ?? 0.5,
     lore = loreOf(ctx.world);
   return (
     0.04 +
     0.1 * valour +
-    0.03 * lore.effect(p.seat, "arms") * (lore.get(p.seat, "standing-army") ? 1 : 0)
+    0.03 * lore.effect(p.seat, "arms") * (lore.get(p.seat, "standing-army") ? 1 : 0) +
+    (p.leadership === GENERAL ? STRIFE.fields : 0)
   );
 }
 
@@ -387,10 +390,11 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         contribution: Math.max(0, -r.opinion),
         source: { ref: relationRef(r.a, r.b), role: "pressure", weight: 1 },
       },
+      // (What they fight for: weighed so it is always among the factors kept.)
       {
         name: "the land they want",
         value: prize,
-        contribution: 0.3,
+        contribution: 0.5,
         source: { ref: cellRef(0, prize), role: "enabler", weight: 1 },
       },
       { name: "their strength", value: ratio, contribution: Math.min(2, ratio) / 2, source: null },

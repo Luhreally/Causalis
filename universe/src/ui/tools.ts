@@ -283,6 +283,41 @@ export function drawTool(
       );
       return;
     }
+    case "acts.strife": {
+      // A realm's army in the god's hand (Phase 22 M145): stirred against its seat; its rule given back.
+      const tools = el("div", "tools"),
+        note = el("p", "note"),
+        cell = args.cell as number,
+        realm = args.realm as string;
+      note.hidden = true;
+      twice(
+        tools,
+        note,
+        "🗡️ Stir its army",
+        `${realm}'s army reaches for its seat now — the likelier won for your hand in it, but it may yet be foiled.`,
+        async () => {
+          await ctx.client.command("act.incite", { cell });
+          ctx.refresh();
+        },
+      );
+      if (args.junta)
+        twice(
+          tools,
+          note,
+          "🏛️ Give it back its rule",
+          `${realm}'s army gives up its rule at once: its own rule, of its people's ways as they are now, is restored.`,
+          async () => {
+            await ctx.client.command("act.restore", { cell });
+            ctx.refresh();
+          },
+        );
+      into.replaceChildren(
+        el("h3", undefined, "Its army and its seat — yours to stir"),
+        tools,
+        note,
+      );
+      return;
+    }
     case "acts.credit": {
       // A land's debts in the god's hand (Phase 21 M144): forgiven; its house of lending broken.
       const tools = el("div", "tools"),

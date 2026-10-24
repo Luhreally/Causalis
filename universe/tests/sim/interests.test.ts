@@ -12,11 +12,18 @@ import {
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
 
-const PEOPLE = { farmers: 5000, herders: 800, crafters: 400, traders: 120, "the court": 60 };
-const [CHIEF, COUNCIL, ASSEMBLY, PRIEST] = [0, 1, 2, 3];
+const PEOPLE = {
+  farmers: 5000,
+  herders: 800,
+  crafters: 400,
+  traders: 120,
+  "the court": 60,
+  "the army": 150,
+};
+const [CHIEF, COUNCIL, ASSEMBLY, PRIEST, GENERAL] = [0, 1, 2, 3, 4];
 
 test("sway is shared among the groups, weighed by who leads", () => {
-  for (const leadership of [CHIEF, COUNCIL, ASSEMBLY, PRIEST]) {
+  for (const leadership of [CHIEF, COUNCIL, ASSEMBLY, PRIEST, GENERAL]) {
     const s = swayOf(PEOPLE, leadership, 0.7, true, true);
     const total = GROUPS.reduce((a, g) => a + s[g], 0);
     assert.ok(Math.abs(total - 1) < 1e-9, `shares sum to one (${total})`);
@@ -28,6 +35,13 @@ test("sway is shared among the groups, weighed by who leads", () => {
   assert.ok(council["the court"] > assembly["the court"], "a council of elders, the few who lead");
   assert.ok(priest["the temple"] > assembly["the temple"], "a priest-king, the temple");
   assert.equal(assembly["the temple"], 0, "no faith, no temple");
+  // (Under a general, the army above all: M145.)
+  const general = swayOf(PEOPLE, GENERAL, 0.5, false, false);
+  assert.ok(general["the army"] > assembly["the army"] * 5, "a general, the army");
+  assert.ok(
+    GROUPS.every((g) => g === "the army" || general["the army"] >= general[g]),
+    "under a general, none outweighs the army",
+  );
 });
 
 const world = makePopulationWorld(seedFromText("kestrel"), { start: "spread" });
