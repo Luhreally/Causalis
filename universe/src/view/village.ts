@@ -674,6 +674,8 @@ export const SIGNS: Readonly<Record<string, string>> = {
   bondage: "⛓️",
   rising: "✊",
   freedom: "🕊️",
+  // A new law in the realm (Phase 19 M139).
+  law: "📜",
 };
 
 /**

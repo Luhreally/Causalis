@@ -221,6 +221,19 @@ export {
 } from "./order/order.ts";
 export { ORDER_ACTS, STIR_SHARE, installOrderActs, mostHeld } from "./order/acts.ts";
 export {
+  LAWS,
+  LAW_EVENTS,
+  LAW_EVERY,
+  LAW_OF,
+  LAW_POSITIONS,
+  REFORM_LINE,
+  firstLaws,
+  lawGrievance,
+  lawOf,
+  weighLaws,
+  type Law,
+} from "./order/laws.ts";
+export {
   BELIEF_EVENTS,
   BeliefStore,
   DEITIES,

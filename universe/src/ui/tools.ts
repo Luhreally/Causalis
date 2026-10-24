@@ -221,6 +221,57 @@ export function drawTool(
       );
       return;
     }
+    case "acts.laws": {
+      // A realm's laws in the god's hand (Phase 19 M139): each a step older or newer, at once.
+      const laws = (args.laws as [string, string, number, string[]][] | undefined) ?? [],
+        note = el("p", "note");
+      note.hidden = true;
+      const rows = laws.map(([law, label, position, words]) => {
+        const row = el("div", "law-row"),
+          older = el("button", "tool nature-push", "◀"),
+          newer = el("button", "tool nature-push", "▶"),
+          settle = () => {
+            older.disabled = position <= 0;
+            newer.disabled = position >= 2;
+          },
+          decree = (to: number) => async () => {
+            older.disabled = newer.disabled = true;
+            try {
+              await ctx.client.command("act.decree", { realm: args.realm, law, to });
+              ctx.refresh();
+            } catch (error) {
+              note.hidden = false;
+              note.textContent = (error as Error).message;
+              settle();
+            }
+          };
+        settle();
+        older.title = position > 0 ? `Decree: ${words[position - 1]}` : "";
+        newer.title = position < 2 ? `Decree: ${words[position + 1]}` : "";
+        older.setAttribute("aria-label", `${label}: ${older.title || "no older law"}`);
+        newer.setAttribute("aria-label", `${label}: ${newer.title || "no newer law"}`);
+        older.onclick = decree(position - 1);
+        newer.onclick = decree(position + 1);
+        row.append(
+          el("span", "law-name", label),
+          older,
+          el("span", "law-now", words[position] ?? ""),
+          newer,
+        );
+        return row;
+      });
+      into.replaceChildren(
+        el("h3", undefined, "Its laws — yours to decree"),
+        ...rows,
+        note,
+        el(
+          "p",
+          "muted",
+          "A decree sets the law at once. The realm weighs its laws again in its turn, by what its people want, and may undo what you set.",
+        ),
+      );
+      return;
+    }
     case "acts.lineage": {
       // A lineage's nature, the god's to change (Phase 16): how tame, how fast it breeds.
       const push = (trait: string) => async (sign: 1 | -1) => {

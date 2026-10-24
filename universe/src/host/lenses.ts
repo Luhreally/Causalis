@@ -20,7 +20,8 @@ import { landEra } from "./village.ts";
 import { ERA_WORDS } from "./inspect/world.ts";
 import { bare, claimOf, count, share } from "./inspect/words.ts";
 import { beliefOfLand, godSeen, seenWords } from "./inspect/peoples.ts";
-import { bondageReading, orderReadings, standingReading } from "./inspect/order.ts";
+import { bondageReading, lawReading, orderReadings, standingReading } from "./inspect/order.ts";
+import { LAWS, type Law } from "../sim/index.ts";
 
 /** The lenses read here, beside the people's own (people, food, trade). */
 export const DEEP_LENSES = [
@@ -35,6 +36,8 @@ export const DEEP_LENSES = [
   // Bonds and freedoms (Phase 19 M138): the share of a land's people held; its realm's standing.
   "bondage",
   "standing",
+  // A realm's laws, one law at a time (Phase 19 M139).
+  "laws",
 ] as const;
 export type DeepLens = (typeof DEEP_LENSES)[number];
 
@@ -62,6 +65,8 @@ export type LandReadings = {
   /** The share of its people held in bondage, and its realm's standing (-1: no realm's) — M138. */
   readonly bondage: number;
   readonly standing: number;
+  /** Its realm's laws, each a position 0 … 2 (by LAWS; none for a land of no realm) — M139. */
+  readonly laws: readonly number[];
 };
 
 /** The ids a land knows: its lore, and sowing and smelting, which it knows in its own ways. */
@@ -186,6 +191,12 @@ export function lensReading(
       return bondageReading(world, cell);
     case "standing":
       return standingReading(world, cell);
+    case "laws":
+      return lawReading(
+        world,
+        cell,
+        (LAWS as readonly string[]).includes(way ?? "") ? (way as Law) : "land",
+      );
     case "unrest": {
       const d = realms.discontent(cell);
       return {

@@ -3,7 +3,15 @@
 // the people called to the seat's works; the bound fleeing and rising, freed or crushed;
 // movements among a realm's people, a realm's crisis of standing, and its law freeing the bound.
 import { yearOfMoment } from "../kernel/index.ts";
-import { ORDER_ACTS, ORDER_EVENTS, politiesOf, realmName } from "../sim/index.ts";
+import {
+  LAW_EVENTS,
+  LAW_POSITIONS,
+  ORDER_ACTS,
+  ORDER_EVENTS,
+  politiesOf,
+  realmName,
+  type Law,
+} from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { count } from "./words.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
@@ -87,6 +95,21 @@ registerEventWords(
   (_, e) => `${cap(realm(e.data))} lost its people's faith in its rule, ${year(e.t)}`,
 );
 
+// A realm's laws changed (M139): the land, strangers, faith, justice.
+const LAW_NAMES: Readonly<Record<Law, string>> = {
+  land: "its land",
+  strangers: "strangers",
+  faith: "other faiths",
+  justice: "justice",
+};
+registerEventWords(LAW_EVENTS.changed.type, (_, e) => {
+  const d = e.data as { law?: Law; from?: number; to?: number } | null,
+    law = d?.law ?? "land",
+    from = LAW_POSITIONS[law][d?.from ?? 0],
+    to = LAW_POSITIONS[law][d?.to ?? 0];
+  return `${cap(realm(e.data))} changed its law of ${LAW_NAMES[law]}: from ${from} to ${to}, ${year(e.t)}`;
+});
+
 // The god's hand on bonds and freedoms (M138).
 registerEventWords(
   ORDER_ACTS.unchain.type,
@@ -98,6 +121,11 @@ registerEventWords(
   (world, e) =>
     `The god stirred the bound of ${landWords(world, e.place)} to rise against ${realm(e.data)}, ${year(e.t)}`,
 );
+registerEventWords(ORDER_ACTS.decree.type, (_, e) => {
+  const d = e.data as { law?: Law; to?: number } | null,
+    law = d?.law ?? "land";
+  return `By the god's decree ${realm(e.data)} took a new law of ${LAW_NAMES[law]}: ${LAW_POSITIONS[law][d?.to ?? 0]}, ${year(e.t)}`;
+});
 registerEventWords(
   ORDER_ACTS.mandate.type,
   (_, e) =>
@@ -137,6 +165,10 @@ registerDecisionWords(
 registerDecisionWords(
   "order.abolish",
   (world, d) => `${cap(realmOf(world, d.subject))} weighed freeing its bound`,
+);
+registerDecisionWords(
+  "order.law",
+  (world, d) => `${cap(realmOf(world, d.subject))} weighed changing a law`,
 );
 registerDecisionWords(
   "order.legitimacy",

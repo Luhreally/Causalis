@@ -46,6 +46,7 @@ import { interestsOf } from "../polity/interests.ts";
 import { warsOf } from "../war/war.ts";
 import { grieve, strike } from "../acts/disasters.ts";
 import { handOf } from "../hand/hand.ts";
+import { LAW_OF, firstLaws, lawGrievance, weighLaws } from "./laws.ts";
 
 /** The kinds of bondage a people may be held in (corvée, a levy on the free, is the realm's). */
 export const BONDS = ["chattel", "debt", "serf", "indenture", "convict"] as const;
@@ -156,6 +157,11 @@ export type RealmOrder = {
   memory: Memory[];
   /** A sign from the god for its rule (1) or against it (-1), fading (M138); absent if none. */
   mandate?: { readonly sign: 1 | -1; readonly year: number; readonly event: Ref };
+  /** Its laws (by LAWS: land, strangers, faith, justice), each a position 0 … 2, and the event of each's last change (M139). */
+  laws: number[];
+  lawEvents: (Ref | null)[];
+  /** How far its laws are what its powerful want (-1 … 1), as last weighed. */
+  approval: number;
 };
 
 export class OrderStore implements StateStore {
@@ -183,6 +189,7 @@ export class OrderStore implements StateStore {
       if (o.corveeEvent) out.push(o.corveeEvent);
       if (o.mandate) out.push(o.mandate.event);
       for (const f of o.firsts) if (f) out.push(f);
+      for (const e of o.lawEvents) if (e) out.push(e);
       for (const m of o.movements) out.push(m.event);
       for (const m of o.memory) out.push(m.event);
     }
@@ -205,6 +212,8 @@ export class OrderStore implements StateStore {
         {
           ...o,
           firsts: [...o.firsts],
+          laws: [...o.laws],
+          lawEvents: [...o.lawEvents],
           movements: o.movements.map((m) => ({ ...m })),
           memory: o.memory.map((m) => ({ ...m })),
         },
@@ -234,7 +243,12 @@ export function landOf(store: OrderStore, cell: number): LandBonds {
 }
 
 /** A realm's order, begun with its rule rightful enough and nothing skimmed yet. */
-export function realmOrder(store: OrderStore, p: Polity, ways: Ways | undefined): RealmOrder {
+export function realmOrder(
+  store: OrderStore,
+  p: Polity,
+  ways: Ways | undefined,
+  faith = false,
+): RealmOrder {
   let o = store.realms.get(p.ref);
   if (!o)
     store.realms.set(
@@ -252,6 +266,9 @@ export function realmOrder(store: OrderStore, p: Polity, ways: Ways | undefined)
         corveeEvent: null,
         movements: [],
         memory: [],
+        laws: firstLaws(p, ways, faith),
+        lawEvents: [null, null, null, null],
+        approval: 0,
       }),
     );
   return o;
@@ -417,6 +434,23 @@ export function legitimacyFactors(ctx: PopulationContext, p: Polity): Factor[] {
       contribution: -0.3 * bound,
       source: null,
     },
+    // (Its laws: how far they are what its powerful want, and its justice — M139.)
+    {
+      name: "laws its powerful want",
+      value: o?.approval ?? 0,
+      contribution: 0.12 * (o?.approval ?? 0),
+      source: o?.lawEvents.find((e) => e)
+        ? { ref: o.lawEvents.find((e) => e)!, role: "enabler" as const, weight: 1 }
+        : null,
+    },
+    {
+      name: "its justice",
+      value: o?.laws[LAW_OF.justice] ?? 1,
+      contribution: [-0.02, 0, 0.05][o?.laws[LAW_OF.justice] ?? 1]!,
+      source: o?.lawEvents[LAW_OF.justice]
+        ? { ref: o.lawEvents[LAW_OF.justice]!, role: "enabler" as const, weight: 1 }
+        : null,
+    },
     // (The god's sign for or against its rule, fading: M138.)
     ...(() => {
       const m = o?.mandate,
@@ -548,7 +582,14 @@ function takeCaptives(
     ours = faiths.of(a.seat).faith,
     other = faiths.of(land).faith,
     unbelievers = ours !== null && other !== null && other !== ours ? 1 : 0,
-    score = 0.35 * hier + 0.25 * (1 - open) + 0.25 * foreign + 0.15 * unbelievers + 0.1 * valour;
+    citizens = o.laws[LAW_OF.strangers] === 2,
+    score =
+      0.35 * hier +
+      0.25 * (1 - open) +
+      0.25 * foreign +
+      0.15 * unbelievers +
+      0.1 * valour -
+      (citizens ? 0.4 : 0);
   const decision = world.decisions.record({
     rule: "order.captives",
     subject: a.ref,
@@ -562,12 +603,24 @@ function takeCaptives(
         contribution: 0.35 * hier,
         source: nudged(mine, WAY.hierarchy),
       },
-      {
-        name: "closed to strangers",
-        value: 1 - open,
-        contribution: 0.25 * (1 - open),
-        source: nudged(mine, WAY.openness),
-      },
+      // (A law that makes strangers citizens forbids it: M139.)
+      citizens
+        ? {
+            name: "closed to strangers, though its law makes them citizens",
+            value: 1 - open,
+            contribution: 0.25 * (1 - open) - 0.4,
+            source: {
+              ref: o.lawEvents[LAW_OF.strangers] ?? a.event,
+              role: "constraint",
+              weight: 1,
+            },
+          }
+        : {
+            name: "closed to strangers",
+            value: 1 - open,
+            contribution: 0.25 * (1 - open),
+            source: nudged(mine, WAY.openness),
+          },
       {
         name: "the taken speak another tongue",
         value: foreign,
@@ -1170,7 +1223,8 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
     markets = world.store<MarketStore>("economy.markets"),
     year = yearOfMoment(t),
     living = realms.living();
-  for (const p of living) realmOrder(store, p, culture.get(p.seat));
+  for (const p of living)
+    realmOrder(store, p, culture.get(p.seat), beliefOf(world).of(p.seat).faith !== null);
 
   // 1. Captives from the lands taken this year.
   for (const w of warsOf(world).all()) {
@@ -1197,13 +1251,14 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
       free = o.abolished !== null;
 
     // 3. The hungry selling themselves; serfs bound to the land; the condemned set to labour.
+    // (Under the lord's land its farmers are bound the more; leased, the less; the tiller's own, not at all.)
     const serfMeasure = free
         ? 0
         : clamp(
             0,
             0.6,
             1.4 * (hier - 0.55) + (atWar ? 0.25 : 0) + 0.3 * (0.5 - trade) - 0.3 * (open - 0.5),
-          ),
+          ) * [1, 0.5, 0][o.laws[LAW_OF.land]!]!,
       decree = p.law === 1 && loreOf(world).effect(p.seat, "writing") > 0;
     for (const c of p.members) {
       if (!free) sellThemselves(ctx, store, p, c, t);
@@ -1315,7 +1370,8 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
         0.02 * (1 - cap.value) * Math.min(1, p.members.length / 8) +
         0.015 * Math.min(1, Math.max(0, year - p.ruler.since) / 25) -
         (p.leadership === 2 ? 0.01 : 0) -
-        (decree ? 0.01 : 0),
+        (decree ? 0.01 : 0) -
+        0.004 * o.laws[LAW_OF.justice]!,
     );
     const seatMarket = markets.get(p.seat);
     if (seatMarket) {
@@ -1372,6 +1428,19 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
           add,
           (bound > 0.05 ? l?.cause : null) ?? o.crisis ?? o.corveeEvent ?? p.event,
         );
+      // What its laws ask of a land strange to its seat: strangers held as subjects, unbelievers (M139).
+      if (c !== p.seat) {
+        const ways = culture.get(c),
+          foreign = seatWays && ways ? 1 - tongueLikeness(seatWays.tongue, ways.tongue) : 0,
+          theirs = beliefOf(world).of(c).faith,
+          seatFaith = beliefOf(world).of(p.seat).faith,
+          law = lawGrievance(
+            o,
+            foreign,
+            seatFaith !== null && theirs !== null && theirs !== seatFaith,
+          );
+        if (law.add > 0.002) grieve(world, c, law.add, law.cause ?? p.event);
+      }
       if (bound < 0.04) continue;
       flee(ctx, store, p, c, bound, t);
       if (bound < RISING_SHARE || (l?.quiet ?? 0) > year) continue;
@@ -1447,6 +1516,8 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
     stirMovements(ctx, store, p, o, t);
     if (o.abolished === null && (year + keyOf(p.ref)) % ABOLITION_EVERY === 0)
       weighAbolition(ctx, store, p, o, t);
+    // (And every ten years, in its turn, its laws: M139.)
+    weighLaws(ctx, p, o, t);
 
     // 9. What it remembers fades.
     for (const m of o.memory) m.weight *= MEMORY_KEPT;

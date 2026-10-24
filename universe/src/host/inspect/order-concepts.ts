@@ -195,6 +195,25 @@ export const ORDER_CONCEPTS: Readonly<Record<string, Concept>> = {
     see: [LEDGER],
     related: ["abolition", "rising", "memory"],
   },
+  laws: {
+    icon: "🏛️",
+    title: "Laws",
+    what: [
+      "A realm keeps four laws: its land (the lord's, leased, or the tiller's own), strangers (subjects, the faithful, or citizens), other faiths (one faith, others tolerated, or free conscience) and justice (custom and vengeance, the ruler's courts, or one law for all).",
+      "Its first laws come of its people's ways and its rule. Every ten years it weighs each law against what its interest groups want, by their sway — the court's the less as its rule is doubted — what its movements and its people's ways push for, and how hard old ways hold. A law moves a step at a time; one law for all, and free conscience, are written laws.",
+    ],
+    drives: [
+      "Who holds sway: farmers, herders, crafters, traders, the court, the temple.",
+      "The movements for the land and for a voice; a people's openness, rank and piety; a rule doubted.",
+    ],
+    leads: [
+      "Serfs bound under the lord's land, and freed under the tiller's own.",
+      "Grievance in lands of another tongue held as subjects, and of another faith where one faith is the law.",
+      "Captives seldom carried off where strangers are citizens; less skimmed under courts; a standing the firmer where the laws are what the powerful want, and where one law holds for all.",
+    ],
+    see: [{ text: "Each realm's laws", ref: "world:ledger#bonds" }],
+    related: ["serfdom", "legitimacy", "movement", "corruption", "chattel"],
+  },
   memory: {
     icon: "🕯️",
     title: "What a realm remembers",

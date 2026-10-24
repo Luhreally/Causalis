@@ -7,6 +7,9 @@
 import { cellRef } from "../../gen/index.ts";
 import {
   BONDS,
+  LAWS,
+  LAW_OF,
+  LAW_POSITIONS,
   ORDER_EVENTS,
   STIR_SHARE,
   boundIn,
@@ -18,6 +21,7 @@ import {
   populationContext,
   realmName,
   type Bond,
+  type Law,
   type Memory,
   type Movement,
   type Polity,
@@ -109,6 +113,25 @@ const MEMORY_WORDS: Readonly<Record<Memory["what"], string>> = {
   freedom: "🕊️ A freedom won",
   abolition: "📜 Bondage outlawed",
 };
+
+/** Each law by its name on a page, its sign and its concept's words (M139). */
+export const LAW_WORDS: Readonly<Record<Law, readonly [string, string]>> = {
+  land: ["🌾", "The land"],
+  strangers: ["🧳", "Strangers"],
+  faith: ["🙏", "Other faiths"],
+  justice: ["⚖️", "Justice"],
+};
+
+/** What a realm's powerful think of its laws, in words. */
+export function approvalWords(x: number): string {
+  return x > 0.2
+    ? "content with them"
+    : x > 0
+      ? "mostly content"
+      : x > -0.2
+        ? "grumbling"
+        : "set against them";
+}
 
 /** A realm's standing with its people, in words. */
 export function legitimacyWords(x: number): string {
@@ -229,7 +252,8 @@ function orderHistory(world: World, r: Polity, most = 30): Item[] {
     fled = 0;
   for (let i = all.length - 1; i >= 0 && out.length < most; i--) {
     const e = all[i]!;
-    if (!e.type.startsWith("order.") && !/^act\.(unchain|stir|mandate)$/.test(e.type)) continue;
+    if (!e.type.startsWith("order.") && !/^act\.(unchain|stir|mandate|decree)$/.test(e.type))
+      continue;
     if (!e.subjects.includes(r.ref) && !(e.place && lands.has(e.place))) continue;
     if (e.type === ORDER_EVENTS.flight.type && ++flights > FLIGHTS_TOLD) {
       fled += (e.data as { count?: number } | null)?.count ?? 0;
@@ -375,6 +399,42 @@ export function realmOrderBlocks(world: World, r: Polity): Block[] {
   const history = orderHistory(world, r);
   return [
     { type: "facts", rows: facts },
+    // Its laws (M139): each its position, the change that made it, and the god's hand on them.
+    {
+      type: "facts",
+      title: "Its laws",
+      rows: [
+        ...LAWS.map((law) => ({
+          ...stat(
+            `${LAW_WORDS[law][0]} ${LAW_WORDS[law][1]}`,
+            LAW_POSITIONS[law][o.laws[LAW_OF[law]]!]!,
+            { why: o.lawEvents[LAW_OF[law]] },
+          ),
+          concept: "laws",
+        })),
+        {
+          ...stat("Its powerful", `${points(o.approval)} — ${approvalWords(o.approval)}`),
+          concept: "laws",
+        },
+      ],
+    },
+    ...(living
+      ? [
+          {
+            type: "tool" as const,
+            tool: "acts.laws",
+            args: {
+              realm: r.ref,
+              laws: LAWS.map((law) => [
+                law,
+                `${LAW_WORDS[law][0]} ${LAW_WORDS[law][1]}`,
+                o.laws[LAW_OF[law]]!,
+                LAW_POSITIONS[law],
+              ]),
+            },
+          },
+        ]
+      : []),
     whoIsHeld("Who is held, and how", people, held),
     ...(lands.length
       ? [
@@ -573,6 +633,29 @@ export function bondsLedger(world: World): Block[] {
       rows,
     },
     {
+      type: "table",
+      title: "Each realm's laws",
+      columns: ["Realm", ...LAWS.map((law) => LAW_WORDS[law][1])],
+      rows: [...realms]
+        .sort((a, b) => b.people - a.people || (a.r.ref < b.r.ref ? -1 : 1))
+        .flatMap(({ r, o }) =>
+          o
+            ? [
+                {
+                  ref: `${r.ref}#order`,
+                  cells: [
+                    [realmLink(world, r.ref)],
+                    ...LAWS.map((law) => [
+                      link(LAW_POSITIONS[law][o.laws[LAW_OF[law]]!]!, o.lawEvents[LAW_OF[law]]),
+                    ]),
+                  ],
+                  keys: [realmName(r), ...LAWS.map((law) => o.laws[LAW_OF[law]]!)],
+                },
+              ]
+            : [],
+        ),
+    },
+    {
       type: "list",
       title: "Risings of the bound, newest first",
       items: risings.length ? risings : [item("No rising yet: the bound have not taken up arms.")],
@@ -641,6 +724,23 @@ export function standingReading(world: World, cell: number): Reading {
   };
 }
 
+/** A land under the lens of a law: its realm's position, the change that made it, what it does. */
+export function lawReading(world: World, cell: number, law: Law): Reading {
+  const realm = politiesOf(world).of(cell),
+    o = realm && realm.ended === null ? orderOf(world)?.of(realm.ref) : undefined,
+    [icon, name] = LAW_WORDS[law];
+  if (!realm || !o) return { line: `${name}: no realm's law here`, stats: [] };
+  const k = LAW_OF[law],
+    changed = o.lawEvents[k];
+  return {
+    line: `${icon} ${name}: ${LAW_POSITIONS[law][o.laws[k]!]} — ${realmName(realm)}`,
+    stats: [
+      ...(changed ? [{ label: "Since", value: briefly(claimOf(world, changed)) }] : []),
+      { label: "Its powerful", value: approvalWords(o.approval) },
+    ],
+  };
+}
+
 /** A line's words cut to a tooltip's width. */
 function briefly(words: string): string {
   const w = bare(words);
@@ -650,7 +750,7 @@ function briefly(words: string): string {
 /** A realm's standing and share held, for a land's map readings (null: no realm's). */
 export function orderReadings(
   world: World,
-): (cell: number) => { bondage: number; standing: number } {
+): (cell: number) => { bondage: number; standing: number; laws: readonly number[] } {
   const store = orderOf(world),
     realms = politiesOf(world);
   return (cell) => {
@@ -660,6 +760,8 @@ export function orderReadings(
       bondage: Math.round((store?.bound(cell) ?? 0) * 1000) / 1000,
       // (A land of no realm reads -1: not shown under the lens.)
       standing: o ? Math.round(o.legitimacy * 1000) / 1000 : -1,
+      // (Each law's position, 0 … 2, by LAWS; none for a land of no realm.)
+      laws: o ? [...o.laws] : [],
     };
   };
 }

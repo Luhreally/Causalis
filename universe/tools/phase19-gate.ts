@@ -6,11 +6,13 @@
 //   1. a realm's order: the realm holding the most in bondage, its Order tab — its standing and
 //      what makes it, its reach, rank and levies, who is held and where — and the book's page
 //      for its standing, opened from the ⓘ beside it;
-//   2. the map's lenses of bondage and of standing, each with its legend, a land's tooltip
-//      breaking its number down;
-//   3. the ledger's bonds: every realm's order side by side;
-//   4. the god's hand: a sign against the realm's rule, asked twice, told and weighed on its page;
-//   5. the Order tab on a phone, nothing running off its side.
+//   2. its laws (M139): each where it stands, and one of them decreed a step older or newer in
+//      the god's hand, told on its page;
+//   3. the map's lenses of bondage, of standing and of laws (one law at a time), each with its
+//      legend, a land's tooltip breaking its number down;
+//   4. the ledger's bonds: every realm's order and every realm's laws side by side;
+//   5. the god's hand: a sign against the realm's rule, asked twice, told and weighed on its page;
+//   6. the Order tab on a phone, nothing running off its side.
 // (npm run build first; --soft draws in software, as CI's browser does; --shots keeps a
 // picture of each step.)
 import { mkdirSync } from "node:fs";
@@ -146,7 +148,9 @@ await page.waitForTimeout(1500);
 
 // 1. A realm's order: the realm holding the most in bondage, its Order tab, its standing's page.
 const ledger = await q<Model>("page", { ref: "world:ledger" }),
-  table = ledger.tabs.find((t) => t.id === "bonds")?.blocks.find((b) => b.type === "table"),
+  table = ledger.tabs
+    .find((t) => t.id === "bonds")
+    ?.blocks.find((b) => b.type === "table" && b.title === "Each realm's order"),
   first = table?.rows?.[0],
   realm = first?.ref ?? null,
   held = Number(first?.keys?.[2] ?? 0);
@@ -191,7 +195,47 @@ if (realm) {
   await k(`document.querySelector(".page-window .close")?.click()`);
 }
 
-// 2. The lenses of bondage and of standing: each its legend; a land's tooltip under it.
+// 2. Its laws: each where it stands; one decreed a step in the god's hand, told on its page.
+if (realm) {
+  await open(`${realm}#order`, "the realm's laws", "Its laws");
+  const body = await window_();
+  for (const words of [
+    "Its laws",
+    "The land",
+    "Strangers",
+    "Other faiths",
+    "Justice",
+    "Its powerful",
+  ])
+    check(body.includes(words), `its laws do not tell “${words}”`);
+  const rows = await page.$$eval(".page-window .law-row", (x) => x.length);
+  check(rows === 4, `its laws have ${rows} rows in the god's hand, not four`);
+  // (Justice, a step newer if it may go so, else older.)
+  const justice = () =>
+    k<{ now: string; x: number; y: number } | null>(
+      `(() => { const r = document.querySelectorAll(".page-window .law-row")[3]; if (!r) return null; const b = [...r.querySelectorAll("button")].reverse().find((x) => !x.disabled); if (!b) return null; b.scrollIntoView({ block: "center" }); const q = b.getBoundingClientRect(); return { now: r.querySelector(".law-now")?.textContent ?? "", x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`,
+    );
+  const before = await justice();
+  check(!!before, "its law of justice has no step to decree");
+  if (before) {
+    await page.mouse.click(before.x, before.y);
+    await k("globalThis.causalis.client.setSpeed(1)");
+    const decreed = await until(
+      "the decree told on the realm's page",
+      async () =>
+        (await window_()).includes("By the god's decree") && (await justice())?.now !== before.now,
+      slow(30000),
+    );
+    await k("globalThis.causalis.client.setSpeed(0)");
+    say(
+      `its laws: ${rows} rows; justice decreed from “${before.now}” to “${(await justice())?.now}”: ${decreed ? "told on its page" : "not told"}`,
+    );
+  }
+  await shot("2b-laws");
+  await k(`document.querySelector(".page-window .close")?.click()`);
+}
+
+// 3. The lenses of bondage, of standing and of laws: each its legend; a land's tooltip under it.
 {
   const map =
       await q<
@@ -221,21 +265,48 @@ if (realm) {
     if (tipped) await shot(file);
     await page.mouse.move(30, 400);
   }
+  // The lens of laws, one law at a time: other faiths chosen.
+  await press(".mapmodes .mode[aria-label='Laws']");
+  await page.waitForTimeout(slow(800));
+  const legend = await page
+      .$eval(".mapmodes .legend-title", (e) => e.textContent ?? "")
+      .catch(() => ""),
+    ends = await text(".mapmodes .legend-ends"),
+    choices = await page.$$eval(".mapmodes .legend-picks button[data-choice]", (x) => x.length);
+  check(legend === "Laws", "the Laws lens has no legend");
+  check(ends.includes("the old order"), "the Laws lens's legend does not run from the old order");
+  check(choices === 4, `the Laws lens offers ${choices} laws to show, not four`);
+  await press(".mapmodes .legend-picks button[data-choice='faith']");
+  await page.waitForTimeout(slow(600));
+  if (ruled) {
+    await point(ruled.centre);
+    const tipped = await until(
+      "a land's tooltip under the Laws lens",
+      async () => (await tooltip()).includes("Other faiths:"),
+      slow(15000),
+    );
+    say(
+      `Laws: legend “${legend}” (${choices} laws); a land's tip: “${(await tooltip()).slice(0, 100)}”`,
+    );
+    if (tipped) await shot("4b-laws-lens");
+    await page.mouse.move(30, 400);
+  }
   await press(".mapmodes .mode[aria-label='Land']");
 }
 
-// 3. The ledger's bonds: every realm's order side by side.
+// 4. The ledger's bonds: every realm's order and every realm's laws side by side.
 {
   await open("world:ledger#bonds", "the ledger's bonds", "Each realm's order");
   const body = await window_();
   check(body.includes("The bound, realm by realm"), "the ledger's bonds have no bars of the bound");
+  check(body.includes("Each realm's laws"), "the ledger's bonds set no realm's laws side by side");
   check(body.includes("Risings of the bound"), "the ledger's bonds tell no risings");
   say(`the ledger's bonds: “${body.slice(0, 120).replace(/\s+/g, " ")}…”`);
   await shot("5-ledger-bonds");
   await k(`document.querySelector(".page-window .close")?.click()`);
 }
 
-// 4. The god's hand: a sign against the realm's rule, asked twice, told on its page.
+// 5. The god's hand: a sign against the realm's rule, asked twice, told on its page.
 if (realm) {
   await open(`${realm}#order`, "the realm's order again", "Standing");
   await pressWords("🌩️ A sign against its rule");
@@ -252,7 +323,7 @@ if (realm) {
   await shot("6-sign");
 }
 
-// 5. On a phone: the Order tab, nothing running off its side.
+// 6. On a phone: the Order tab, its laws among it, nothing running off its side.
 if (realm) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(slow(1000));

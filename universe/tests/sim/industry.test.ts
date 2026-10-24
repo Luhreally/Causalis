@@ -107,8 +107,12 @@ test("a land that knows engines digs its coal, burns it and makes machines — a
   assert.ok(world.events.get(m.works)!.causes.some((c) => c.ref === m.mine));
   assert.match(why(world, m.works).claim, /first made machines/);
   // Its engines run on its coal: power well beyond its people's own strength.
+  // (A mine digs as its stock runs down, so not every year: in the last five, some.)
   const last = m.years.at(-1)!.ledger;
-  assert.ok(last[0]![G.coal]! > 0 && last[0]![G.machines]! > 0, "coal dug and machines made");
+  assert.ok(
+    m.years.slice(-5).some((y) => y.ledger[0]![G.coal]! > 0) && last[0]![G.machines]! > 0,
+    "coal dug and machines made",
+  );
   assert.ok(m.powerCover > 900 && m.machineCover > 900);
   assert.ok(powerOf(ctx, coalLand.cell) > 1, `${powerOf(ctx, coalLand.cell)} kW a person`);
   // The coal is dug as it is used, not heaped up without end.

@@ -990,7 +990,16 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
                 ? { ref: famine.id, role: "pressure", weight: 1 }
                 : null,
           },
-          { name: "crowding", value: crowd, contribution: crowd, source: null },
+          // (Crowded, for what let them grow so many: their sowing, or else their coming here.)
+          {
+            name: "crowding",
+            value: crowd,
+            contribution: crowd,
+            source:
+              crowd > 0 && (p.cultivation ?? p.arrival)
+                ? { ref: (p.cultivation ?? p.arrival)!, role: "enabler", weight: 1 }
+                : null,
+          },
           {
             name: "young bands seeking their own grounds",
             value: budding,

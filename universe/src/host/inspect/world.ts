@@ -11,9 +11,12 @@ import {
   homePlanet,
   languagesOf,
   loreOf,
+  LAWS,
+  LAW_OF,
   marketsOf,
   orderOf,
   politiesOf,
+  type Law,
   type Polity,
   populationContext,
   realmName,
@@ -962,6 +965,36 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
         many(outlawed.length, "realm", "realms"),
         outlawed.length,
       );
+    // The newest of each law, first come (M139): by a realm's own weighing or by decree.
+    const NEWEST: Readonly<Record<Law, string>> = {
+      land: "🌾 The land to those who till it",
+      strangers: "🤝 Strangers made citizens",
+      faith: "🙏 Free conscience",
+      justice: "⚖️ One law for all",
+    };
+    const lawChanges = world.events
+      .all()
+      .filter((e) => e.type === "order.law" || e.type === "act.decree");
+    for (const law of LAWS) {
+      const came = lawChanges
+          .filter((e) => {
+            const d = e.data as { law?: string; to?: number } | null;
+            return d?.law === law && d.to === 2;
+          })
+          .map((e) => ({ year: yearAt(e.t), land: landOfPlace(e.place), ref: e.id })),
+        keeping = store
+          ? s.realms.filter((r) => r.ended === null && store.of(r.ref)?.laws[LAW_OF[law]] === 2)
+              .length
+          : 0;
+      if (came[0])
+        add(
+          NEWEST[law],
+          came[0],
+          came[1]?.year ?? null,
+          `${many(keeping, "realm keeps", "realms keep")} it`,
+          keeping,
+        );
+    }
   }
   for (const [type, what, one, more] of [
     ["trade.route-opened", "🐪 A trade road", "road", "roads"],

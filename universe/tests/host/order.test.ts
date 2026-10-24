@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
+  LAWS,
+  LAW_OF,
+  LAW_POSITIONS,
   ORDER_EVENTS,
   orderOf,
   politiesOf,
@@ -155,4 +158,65 @@ test("the god's sign against a realm's rule is told, titled and weighed on its p
     "the sign among what makes it",
   );
   assert.ok(facts(order.blocks).includes("A sign from the heavens"));
+});
+
+test("a realm's laws on its page, each where it stands and what made it so; the lens of laws; the ledger's laws", () => {
+  const o = store.of(realm.ref)!,
+    order = tabOf(page(realm.ref), "order"),
+    laws = order.blocks.find((b) => b.type === "facts" && b.title === "Its laws");
+  assert.ok(laws && laws.type === "facts");
+  assert.deepEqual(
+    laws.rows.map((r) => r.label),
+    ["🌾 The land", "🧳 Strangers", "🙏 Other faiths", "⚖️ Justice", "Its powerful"],
+  );
+  assert.ok(laws.rows.every((r) => r.concept === "laws"));
+  LAWS.forEach((law, k) => {
+    assert.deepEqual(laws.rows[k]!.value, [LAW_POSITIONS[law][o.laws[k]!]]);
+    assert.equal(laws.rows[k]!.why ?? null, o.lawEvents[k] ?? null);
+  });
+  const tool = order.blocks.find((b) => b.type === "tool" && b.tool === "acts.laws");
+  assert.ok(tool && tool.type === "tool" && tool.args.realm === realm.ref);
+  assert.equal((tool.args.laws as unknown[]).length, LAWS.length);
+  // The map's lens of laws, one law at a time.
+  const entry = ask<{ cell: number; laws: number[] }[]>("people.map").find(
+    (e) => e.cell === lands[0],
+  )!;
+  assert.deepEqual(entry.laws, o.laws);
+  const ref = `cell:0:${lands[0]}`,
+    faith = ask<Tip>("tip", { ref, lens: "laws:faith" }),
+    land = ask<Tip>("tip", { ref, lens: "laws" });
+  assert.match(faith.line, /^🙏 Other faiths: (one faith|others tolerated|free conscience) — /);
+  assert.match(land.line, /^🌾 The land: (the lord's|leased|the tiller's own) — /);
+  assert.ok(faith.stats.some((s) => s.label === "Its powerful"));
+  // The ledger: every realm's laws side by side.
+  const table = tabOf(page("world:ledger"), "bonds").blocks.find(
+    (b) => b.type === "table" && b.title === "Each realm's laws",
+  );
+  assert.ok(table && table.type === "table");
+  assert.ok(table.rows.some((r) => r.ref === `${realm.ref}#order`));
+  assert.ok(table.rows.length >= politiesOf(world).living().length / 2);
+});
+
+test("the god's decree of a realm's law: told, titled, shown on its page, and first in the chronicle", () => {
+  const o = store.of(realm.ref)!,
+    to = o.laws[LAW_OF.justice] === 2 ? 1 : 2;
+  world.submit("act.decree", { realm: realm.ref, law: "justice", to });
+  world.runTo(world.now + 3);
+  const decree = world.events.all().findLast((e) => e.type === "act.decree")!;
+  assert.equal(page(decree.id).title, "A law decreed");
+  const laws = tabOf(page(realm.ref), "order").blocks.find(
+    (b) => b.type === "facts" && b.title === "Its laws",
+  );
+  assert.ok(laws && laws.type === "facts");
+  const justice = laws.rows.find((r) => r.label === "⚖️ Justice")!;
+  assert.deepEqual(justice.value, [LAW_POSITIONS.justice[to]]);
+  assert.equal(justice.why, decree.id, "the decree behind it");
+  if (to === 2) {
+    const firsts = tabOf(page("world:chronicle"), "firsts").blocks.find((b) => b.type === "table");
+    assert.ok(firsts && firsts.type === "table");
+    assert.ok(
+      firsts.rows.some((r) => JSON.stringify(r.cells[0]).includes("One law for all")),
+      "one law for all, first",
+    );
+  }
 });

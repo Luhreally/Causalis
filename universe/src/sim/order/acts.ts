@@ -2,8 +2,9 @@
 // forced labour … resistance, revolts, abolition … legitimacy"): the chains of every bound in a
 // realm's lands broken at once — though its law, unchanged, may bind again; the bound of its
 // most-held land stirred to rise now, winning or crushed as any rising; a sign from the heavens
-// for its rule or against it, its standing moved at once and weighed on for forty years. Each a
-// logged command, cited by what follows.
+// for its rule or against it, its standing moved at once and weighed on for forty years; and
+// (M139) one of its laws decreed, which it weighs again in its turn. Each a logged command,
+// cited by what follows.
 import { defineEventType, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { WAY, cultureOf, pushWays } from "../culture/culture.ts";
@@ -18,11 +19,13 @@ import {
   rise,
   type OrderStore,
 } from "./order.ts";
+import { LAWS, LAW_OF, type Law } from "./laws.ts";
 
 export const ORDER_ACTS = {
   unchain: defineEventType("act.unchain", 6),
   stir: defineEventType("act.stir", 5),
   mandate: defineEventType("act.mandate", 5),
+  decree: defineEventType("act.decree", 5),
 };
 
 /** The least share of a land's people held for its bound to be stirred to rise. */
@@ -173,6 +176,37 @@ export function installOrderActs(world: World, ctx: () => PopulationContext): vo
         });
       o.mandate = { sign, year: yearOfMoment(t), event };
       o.legitimacy = Math.max(0.02, Math.min(0.98, o.legitimacy + sign * MANDATE_PUSH));
+    },
+  });
+
+  // One of a realm's laws decreed (M139): set at once, weighed again by the realm in its turn.
+  world.defineCommand({
+    type: "act.decree",
+    validate: (args) => {
+      const r = standing(args),
+        store = orderOf(world);
+      if (!r || !store) return "a realm that stands is wanted";
+      const a = args as { law?: unknown; to?: unknown };
+      if (!(LAWS as readonly string[]).includes(String(a.law)))
+        return `a law is wanted: ${LAWS.join(", ")}`;
+      if (a.to !== 0 && a.to !== 1 && a.to !== 2) return "to must be 0, 1 or 2";
+      return store.of(r.ref)?.laws[LAW_OF[a.law as Law]] === a.to ? "it is its law already" : null;
+    },
+    apply: (command, t) => {
+      const r = standing(command.args)!,
+        { law, to } = command.args as { law: Law; to: number },
+        c = ctx(),
+        o = realmOrder(orderOf(world)!, r, cultureOf(world).get(r.seat)),
+        k = LAW_OF[law],
+        event = world.events.emit({
+          type: ORDER_ACTS.decree.type,
+          subjects: [r.ref],
+          place: seatOf(c, r),
+          causes: agent(command),
+          data: { realm: realmName(r), law, from: o.laws[k]!, to, year: yearOfMoment(t) },
+        });
+      o.laws[k] = to;
+      o.lawEvents[k] = event;
     },
   });
 }

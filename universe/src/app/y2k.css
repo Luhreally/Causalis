@@ -569,6 +569,18 @@ body[data-scale="ground"][data-daylight="night"] {
   border-color: #0b7a62;
   background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
 }
+/* A realm's law in the god's hand (Phase 19 M139): its name, a step older, where it stands, a step newer. */
+.law-row {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, 1fr) auto minmax(6.5rem, 1.3fr) auto;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+}
+.law-now {
+  text-align: center;
+  font-weight: 600;
+}
 .entry {
   display: block;
   /* (Its padding inside its width: an entry with no page to open is a block, not a button.) */

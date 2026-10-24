@@ -25,6 +25,7 @@ export {
   LENS_NAMES,
   BELIEF_COLORS,
   GOOD_CHOICES,
+  LAW_CHOICES,
   beliefColor,
   groundColors,
   goodsSpread,

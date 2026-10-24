@@ -63,9 +63,11 @@ const TITLES: Readonly<Record<string, string>> = {
   "order.movement": "A movement",
   "order.abolished": "Bondage outlawed",
   "order.crisis": "A crisis of standing",
+  "order.law": "A law changed",
   "act.unchain": "Chains broken",
   "act.stir": "The bound stirred",
   "act.mandate": "A sign from the heavens",
+  "act.decree": "A law decreed",
 };
 
 /** Where a thing an event names is to be seen (its place, most often a land). */

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   YEAR,
   loadWorld,
+  parseRef,
   rulesetId,
   saveWorld,
   seedFromText,
@@ -16,6 +17,10 @@ import {
   BOND,
   BONDS,
   CAPTIVE_LINE,
+  LAWS,
+  LAW_EVENTS,
+  LAW_EVERY,
+  LAW_OF,
   MANDATE_PUSH,
   ORDER_EVENTS,
   POPULATION_EVENTS,
@@ -30,8 +35,11 @@ import {
   orderYear,
   politiesOf,
   populationContext,
+  REFORM_LINE,
+  lawGrievance,
   warsOf,
   type Polity,
+  type RealmOrder,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
 
@@ -80,6 +88,14 @@ test("every realm has an order: standing, reach, what is skimmed, rank; each wit
       const s = boundShare(ctx, p, k);
       assert.ok(s >= 0 && s <= 1);
     }
+    // (Its four laws, each a position of three, and how far its powerful want them: M139.)
+    assert.equal(o.laws.length, LAWS.length);
+    assert.ok(
+      o.laws.every((x) => x === 0 || x === 1 || x === 2),
+      JSON.stringify(o.laws),
+    );
+    assert.equal(o.lawEvents.length, LAWS.length);
+    assert.ok(o.approval >= -1 && o.approval <= 1);
   }
 });
 
@@ -329,4 +345,172 @@ test("a sign from the heavens moves a realm's standing and weighs on it while it
   assert.match(why(w, sign.source!.ref).claim, /A sign from the heavens against the rule of/);
   w.runTo(63 * YEAR);
   assert.deepEqual(verifyByReplay(saveWorld(w, RULESET), build), { ok: true, problem: null });
+});
+
+/** The realm's year of ten in which it weighs its laws, the last before `by`. */
+const weighedIn = (p: Polity, by: number) => {
+  for (let y = by; ; y--) if ((y + (parseRef(p.ref).b % LAW_EVERY)) % LAW_EVERY === 0) return y;
+};
+
+test("a movement for the land and a rule doubted loosen the lord's hold, in the realm's year of ten, and why", () => {
+  const w = fresh(),
+    ctx = populationContext(w),
+    p = greatest(w),
+    o = orderOf(w)!.of(p.ref)!,
+    ways = cultureOf(w).get(p.seat)!;
+  ways.traits[WAY.hierarchy] = 0.1;
+  ways.traits[WAY.tradition] = 0.1;
+  o.laws[LAW_OF.land] = 0;
+  o.legitimacy = 0.1;
+  const movement = w.events.emit({
+    type: ORDER_EVENTS.movement.type,
+    subjects: [p.ref],
+    place: ctx.provinces.get(p.seat)!.ref,
+    causes: [{ ref: p.event, role: "enabler", weight: 1 }],
+    data: { cause: "land" },
+  });
+  o.movements = [{ cause: "land", strength: 0.95, since: 55, event: movement }];
+  const was = ids(w);
+  let moved: number | null = null;
+  for (let y = 61; y <= 70; y++) {
+    orderFor(w, y, y);
+    if (moved === null && o.laws[LAW_OF.land] !== 0) moved = y;
+  }
+  assert.equal(moved, weighedIn(p, 70), "weighed in its own year of ten");
+  const changed = since(w, LAW_EVENTS.changed.type, was).filter(
+    (e) => e.subjects.includes(p.ref) && (e.data as { law: string }).law === "land",
+  );
+  assert.equal(changed.length, 1, "a step in its year of ten");
+  const e = changed[0]!;
+  assert.deepEqual([(e.data as { from: number }).from, (e.data as { to: number }).to], [0, 1]);
+  assert.equal(o.laws[LAW_OF.land], 1);
+  assert.equal(o.lawEvents[LAW_OF.land], e.id);
+  const decision = w.decisions.get(
+    e.causes.find((c) => w.decisions.get(c.ref)?.rule === "order.law")!.ref,
+  )!;
+  assert.ok(decision.score >= REFORM_LINE && decision.factors.length <= 6);
+  assert.ok(
+    decision.factors.some(
+      (f) =>
+        f.name === "the movement for the land" && f.source?.ref === movement && f.contribution > 0,
+    ),
+    "the movement behind it",
+  );
+  assert.ok(decision.factors.some((f) => f.name === "a rule doubted gives ground"));
+  assert.match(why(w, e.id).claim, /changed its law of its land: from the lord's to leased/);
+});
+
+test("serfs are bound the more under the lord's land, the less leased, and loosed where the land is the tiller's own", () => {
+  const serfs = (position: number) => {
+    const w = fresh(),
+      p = greatest(w),
+      store = orderOf(w)!,
+      ways = cultureOf(w).get(p.seat)!;
+    ways.traits[WAY.hierarchy] = 0.95;
+    ways.traits[WAY.trade] = 0.1;
+    ways.traits[WAY.openness] = 0.1;
+    store.of(p.ref)!.laws[LAW_OF.land] = position;
+    for (const c of p.members)
+      store.lands.set(c, { cell: c, shares: [0, 0, 0.3, 0, 0], cause: null });
+    orderFor(w, 61, 61);
+    return p.members.reduce((s, c) => s + store.land(c)!.shares[BOND.serf]!, 0) / p.members.length;
+  };
+  const [lords, leased, tillers] = [serfs(0), serfs(1), serfs(2)];
+  assert.ok(lords > leased && leased > tillers, `${lords} > ${leased} > ${tillers}`);
+});
+
+test("what a realm's laws ask of a land strange to its seat: strangers held as subjects, unbelievers under one faith", () => {
+  const o = { laws: [1, 0, 0, 1], lawEvents: [null, "e:1", "e:2", null] } as unknown as RealmOrder,
+    near = (a: number, b: number) => Math.abs(a - b) < 1e-12;
+  let g = lawGrievance(o, 0.5, true);
+  assert.ok(near(g.add, 0.015 + 0.04) && g.cause === "e:2", "subjects, and unbelievers the more");
+  g = lawGrievance(o, 1, false);
+  assert.ok(near(g.add, 0.03) && g.cause === "e:1", "subjects of another tongue");
+  o.laws = [1, 1, 1, 1];
+  assert.ok(near(lawGrievance(o, 1, true).add, 0.03 + 0.01), "the faithful only, tolerated");
+  assert.equal(lawGrievance(o, 1, false).add, 0, "of the faith, nothing asked");
+  o.laws = [1, 2, 2, 1];
+  assert.equal(lawGrievance(o, 1, true).add, 0, "citizens of free conscience");
+});
+
+test("a realm whose law makes strangers citizens weighs carrying off the taken against its law", () => {
+  // The same hard victors, the taken of their own tongue: subjects carried off, citizens not.
+  const taken = (strangers: number) => {
+    const w = fresh(),
+      ctx = populationContext(w),
+      a = greatest(w),
+      seatWays = cultureOf(w).get(a.seat)!;
+    seatWays.traits[WAY.hierarchy] = 0.95;
+    seatWays.traits[WAY.openness] = 0.05;
+    seatWays.traits[WAY.valour] = 0.9;
+    orderOf(w)!.of(a.ref)!.laws[LAW_OF.strangers] = strangers;
+    const land = a.members.find((c) => c !== a.seat && (ctx.provinces.get(c)?.total() ?? 0) > 400)!;
+    cultureOf(w).get(land)!.tongue = seatWays.tongue;
+    const battle = w.events.emit({
+      type: "war.battle",
+      subjects: [a.ref],
+      place: ctx.provinces.get(land)!.ref,
+      causes: [{ ref: a.event, role: "trigger", weight: 1 }],
+      data: {},
+    });
+    warsOf(w).add({
+      ref: "war:0:9999" as Ref,
+      attacker: a.ref,
+      defender: a.ref,
+      declared: 61,
+      event: battle,
+      prize: land,
+      battles: [{ year: 61, land, won: true, fallen: [0, 0], event: battle }],
+      fallen: [0, 0],
+      ended: null,
+      peace: null,
+    });
+    const was = ids(w);
+    orderFor(w, 61, 61);
+    return {
+      count: since(w, ORDER_EVENTS.captives.type, was).filter(
+        (e) => e.place === ctx.provinces.get(land)!.ref,
+      ).length,
+      weighed: w.decisions
+        .all()
+        .findLast((d) => d.rule === "order.captives" && d.subject === a.ref)!,
+    };
+  };
+  const subjects = taken(0),
+    citizens = taken(2);
+  assert.equal(subjects.count, 1, "subjects carried off");
+  assert.equal(citizens.count, 0, "citizens not");
+  assert.ok(Math.abs(subjects.weighed.score - citizens.weighed.score - 0.4) < 1e-9);
+  assert.ok(citizens.weighed.score < CAPTIVE_LINE);
+  const law = citizens.weighed.factors.find((f) =>
+    /though its law makes them citizens/.test(f.name),
+  )!;
+  assert.ok(law && law.contribution < 0 && law.source?.role === "constraint");
+});
+
+test("the god decrees a realm's law: set at once, told, kept by a save", () => {
+  const w = fresh(),
+    p = greatest(w),
+    o = orderOf(w)!.of(p.ref)!,
+    now = o.laws[LAW_OF.justice]!,
+    to = now === 2 ? 1 : now + 1;
+  assert.throws(
+    () => w.submit("act.decree", { realm: p.ref, law: "tithes", to: 1 }),
+    /a law is wanted/,
+  );
+  assert.throws(() => w.submit("act.decree", { realm: p.ref, law: "justice", to: 3 }), /0, 1 or 2/);
+  assert.throws(
+    () => w.submit("act.decree", { realm: p.ref, law: "justice", to: now }),
+    /it is its law already/,
+  );
+  const was = ids(w);
+  w.submit("act.decree", { realm: p.ref, law: "justice", to });
+  w.runTo(w.now + 3);
+  const decreed = since(w, "act.decree", was)[0]!;
+  assert.equal(o.laws[LAW_OF.justice], to);
+  assert.equal(o.lawEvents[LAW_OF.justice], decreed.id);
+  assert.match(why(w, decreed.id).claim, /^By the god's decree .* took a new law of justice: /);
+  const again = loadWorld(saveWorld(w, RULESET), build, RULESET).world;
+  assert.deepEqual(orderOf(again)!.of(p.ref)!.laws, o.laws);
+  assert.equal(orderOf(again)!.of(p.ref)!.lawEvents[LAW_OF.justice], decreed.id);
 });

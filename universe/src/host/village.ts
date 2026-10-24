@@ -353,6 +353,14 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
         (since(10) && (lately!.type === "order.freed" || lately!.type === "act.unchain"))
       )
         talk.push("freedom");
+      // (A new law in the realm these three years: M139.)
+      if (
+        o?.lawEvents.some((e) => {
+          const at = e ? world.events.get(e)?.t : undefined;
+          return at !== undefined && at >= (now - 3) * YEAR;
+        })
+      )
+        talk.push("law");
     }
     if (mourning.length) talk.push("grief");
     if (w.flocksTaken) talk.push("flocks");

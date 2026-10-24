@@ -181,6 +181,8 @@ export type PeopleEntry = {
   /** The share held in bondage, and their realm's standing (-1: no realm's) — Phase 19 M138. */
   bondage: number;
   standing: number;
+  /** Their realm's laws, each a position 0 … 2 (none: no realm's) — M139. */
+  laws: readonly number[];
 };
 
 /** A people's ways and speech (the host's waysOf). */

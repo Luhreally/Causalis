@@ -84,6 +84,7 @@ import { nearestCell, sphereGrid } from "../kernel/index.ts";
 
 import {
   GOOD_CHOICES,
+  LAW_CHOICES,
   goodsSpread,
   groundColors,
   cellAt,
@@ -168,6 +169,7 @@ const DEEP_LENSES: readonly Lens[] = [
   "ground",
   "bondage",
   "standing",
+  "laws",
 ];
 /** The map modes that show the people (repainted as their numbers come, and turned to them). */
 const PEOPLE_LENSES: readonly Lens[] = [
@@ -187,6 +189,7 @@ const PEOPLE_LENSES: readonly Lens[] = [
   "goods",
   "bondage",
   "standing",
+  "laws",
 ];
 const YEAR = 365 * DAY;
 const SKY = [0.09, 0.1, 0.13] as const;
@@ -526,6 +529,8 @@ async function runPlanetPage(): Promise<void> {
     deepValues = new Map<Lens, Map<number, number>>(),
     waysTrait = "valour",
     goodShown = "grain",
+    // (The law the laws lens shows: Phase 19 M139.)
+    lawShown = "land",
     beliefColors = new Map<number, readonly [number, number, number]>(),
     // Every land's chief rock (Phase 15 M124), asked once: the ground does not change.
     groundPaint = new Map<number, readonly [number, number, number]>(),
@@ -859,6 +864,14 @@ async function runPlanetPage(): Promise<void> {
         tooltip.lens = `goods:${id}`;
         paintGlobe();
       });
+    // (The laws lens one law at a time: Phase 19 M139.)
+    else if (l === "laws")
+      mapModes.choose(LAW_CHOICES, lawShown, (id) => {
+        lawShown = id;
+        readLaws();
+        tooltip.lens = `laws:${id}`;
+        paintGlobe();
+      });
     else
       mapModes.choose(l === "ways" ? WAY_CHOICES : null, waysTrait, (id) => {
         waysTrait = id;
@@ -866,7 +879,14 @@ async function runPlanetPage(): Promise<void> {
         tooltip.lens = `ways:${id}`;
         paintGlobe();
       });
-    tooltip.lens = l === "ways" ? `ways:${waysTrait}` : l === "goods" ? `goods:${goodShown}` : l;
+    tooltip.lens =
+      l === "ways"
+        ? `ways:${waysTrait}`
+        : l === "goods"
+          ? `goods:${goodShown}`
+          : l === "laws"
+            ? `laws:${lawShown}`
+            : l;
   };
   /** The chosen good in store a head, land by land. */
   function readGoods(): void {
@@ -881,6 +901,19 @@ async function runPlanetPage(): Promise<void> {
         new Map(
           lastEntries.flatMap((e) => (e.goods.length ? [[e.cell, e.goods[i]!] as const] : [])),
         ),
+      ),
+    );
+  }
+  /** The chosen law's position, land by land, laid from the old order (0) to the new (1). */
+  function readLaws(): void {
+    const i = Math.max(
+      0,
+      LAW_CHOICES.findIndex(([id]) => id === lawShown),
+    );
+    deepValues.set(
+      "laws",
+      new Map(
+        lastEntries.flatMap((e) => (e.laws.length ? [[e.cell, e.laws[i]! / 2] as const] : [])),
       ),
     );
   }
@@ -1095,6 +1128,7 @@ async function runPlanetPage(): Promise<void> {
     lastEntries = entries;
     readWays();
     readGoods();
+    readLaws();
     beliefColors = new Map(
       entries.flatMap((e) => {
         const c = beliefColor(e.belief[0], e.belief[1], e.belief[2]);

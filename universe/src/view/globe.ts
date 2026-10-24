@@ -33,6 +33,7 @@ export const LENSES = [
   "ground",
   "bondage",
   "standing",
+  "laws",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -63,6 +64,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   ground: "Ground",
   bondage: "Bondage",
   standing: "Standing",
+  laws: "Laws",
 };
 
 /** Each map mode's icon, for the map modes' bar (Phase 10 M96). */
@@ -93,6 +95,7 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   ground: "🪨",
   bondage: "⛓️",
   standing: "⚖️",
+  laws: "🏛️",
 };
 
 /** How every land stands toward the realm the diplomacy lens is of, in its colours. */
@@ -311,6 +314,20 @@ const STANDING: readonly Stop[] = [
   [0.9, [0.98, 0.82, 0.3]],
 ];
 
+/** A realm's law, from the old order (umber) through the middle (sand) to the new (teal) — M139. */
+const LAWS_RAMP: readonly Stop[] = [
+  [0, [0.56, 0.3, 0.2]],
+  [0.5, [0.86, 0.76, 0.52]],
+  [1, [0.24, 0.66, 0.62]],
+];
+/** The laws the laws lens shows, one at a time: each its id, icon and name (M139). */
+export const LAW_CHOICES: readonly (readonly [string, string, string])[] = [
+  ["land", "🌾", "The land"],
+  ["strangers", "🧳", "Strangers"],
+  ["faith", "🙏", "Other faiths"],
+  ["justice", "⚖️", "Justice"],
+];
+
 /** One of a people's ways, held little (cool) to much (warm) — Phase 14 M119. */
 const WAYS_RAMP: readonly Stop[] = [
   [0.15, [0.16, 0.44, 0.84]],
@@ -407,6 +424,7 @@ const DEEP: Readonly<
   // (A small share held shows: the root of it.)
   bondage: { stops: BONDAGE, at: (v) => Math.sqrt(v), shown: () => true },
   standing: { stops: STANDING, at: (v) => v, shown: (v) => v >= 0 },
+  laws: { stops: LAWS_RAMP, at: (v) => v, shown: (v) => v >= 0 },
 };
 
 /** A biome's colour on the land lens. */
@@ -516,7 +534,8 @@ export function globeColors(
       case "ways":
       case "goods":
       case "bondage":
-      case "standing": {
+      case "standing":
+      case "laws": {
         const v = values?.get(province),
           deep = DEEP[lens];
         if (v !== undefined && deep && deep.shown(v)) col = ramp(deep.stops, deep.at(v));
@@ -684,6 +703,8 @@ export function lensLegend(lens: Lens): Legend {
       return { kind: "ramp", stops: stops(BONDAGE), low: "all free", high: "most held" };
     case "standing":
       return { kind: "ramp", stops: stops(STANDING), low: "held wrongful", high: "revered" };
+    case "laws":
+      return { kind: "ramp", stops: stops(LAWS_RAMP), low: "the old order", high: "the new" };
     case "belief":
       return {
         kind: "keys",

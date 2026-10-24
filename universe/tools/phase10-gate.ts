@@ -485,12 +485,17 @@ await page.waitForTimeout(1500);
     person = plan.people[0]?.ref ?? null;
   if (person) {
     await opened(person);
-    const act = await page.$(".page-window .scene-act");
-    if (act) await press(".page-window .scene-act");
-    await page.waitForTimeout(500);
-    const kept = await page
-      .$eval(".page-window .scene-act", (e) => e.textContent ?? "")
-      .catch(() => "");
+    // (Pressed, and its tick waited on: where the frames come slowly, as under software GL in CI,
+    // a press is answered only after the frame being drawn. Unanswered, pressed once more, as a
+    // viewer would.)
+    const keptText = () =>
+      page.$eval(".page-window .scene-act", (e) => e.textContent ?? "").catch(() => "");
+    for (let tries = 0; tries < 2 && !(await keptText()).includes("✓"); tries++) {
+      if (await page.$(".page-window .scene-act")) await press(".page-window .scene-act");
+      const end = Date.now() + slow(5000);
+      while (Date.now() < end && !(await keptText()).includes("✓")) await page.waitForTimeout(200);
+    }
+    const kept = await keptText();
     say(`a person kept in view: ${kept}`);
     check(kept.includes("✓"), "a person could not be kept in view");
     await k(`document.querySelector(".page-window .close")?.click()`);
@@ -512,8 +517,20 @@ await page.waitForTimeout(1500);
   // (Let go the moment the world comes: held on, it would go on rising into the sky. A frame's
   // step is at most a tenth of a second — a stalled frame does not throw the eye far — so where
   // frames come slowly, as under software GL in CI, the climb takes the longer.)
-  const risen = Date.now() + slow(90_000);
-  while (Date.now() < risen && (await scale()) !== "globe") await page.waitForTimeout(100);
+  // (Waited on while it rises: where frames come slowly the climb is slow, not stuck; it is
+  // stuck only when it rises no more for a long while.)
+  const risen = Date.now() + slow(240_000);
+  let height = -Infinity,
+    rose = Date.now();
+  while (Date.now() < risen && (await scale()) !== "globe") {
+    await page.waitForTimeout(100);
+    const s = await k<{ x: number; y: number; z: number }>("globalThis.causalis.freeState()"),
+      h = (await scale()) === "region" ? s.y : Math.hypot(s.x, s.y, s.z);
+    if (h > height + 1e-3) {
+      height = h;
+      rose = Date.now();
+    } else if (Date.now() - rose > slow(30_000)) break;
+  }
   await page.keyboard.up("KeyE");
   await page.keyboard.up("ShiftLeft");
   check((await scale()) === "globe", "the world, flown up out of the land, did not come");
