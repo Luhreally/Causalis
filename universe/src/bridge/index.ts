@@ -47,6 +47,8 @@ export {
   townLots,
   townReach,
   wallRing,
+  type LandEra,
+  type LandLane,
   type LandPlan,
   type LandRoad,
   type LandTown,

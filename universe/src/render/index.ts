@@ -20,6 +20,7 @@ export {
   type QualityName,
 } from "./quality.ts";
 export { RegionScene, regionMaterials } from "./region.ts";
+export type { CarrierKind } from "./landtraffic.ts";
 export { SandboxScene } from "./sandbox.ts";
 export { SystemScene, skyMaterials } from "./system.ts";
 export { ClusterScene } from "./cluster.ts";

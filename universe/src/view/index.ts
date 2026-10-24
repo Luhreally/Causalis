@@ -100,15 +100,19 @@ export {
 } from "./town.ts";
 export { Streets, streetDoor } from "./streets.ts";
 export {
+  CARRIERS,
   CROPS,
   LAND_ACROSS,
   LAND_FLAT,
   LAND_SCALE,
   LAND_UP,
   MOST_FIELDS,
+  alongWay,
   cropAt,
   groundAt,
   landFields,
+  landTidings,
+  laneLine,
   landReach,
   linePieces,
   roadLine,
@@ -118,10 +122,12 @@ export {
   tileMiddle,
   tileOf,
   treesClear,
+  wayOf,
   wetAt,
   type FieldsLaid,
   type LandField,
   type LandGround,
+  type Way,
 } from "./land.ts";
 export { STRIDES, bobOf, limbPitch } from "./motion.ts";
 export { BLINK, DASH, FAR, SMOOTH, present, type Presence } from "./presence.ts";

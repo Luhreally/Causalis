@@ -3,7 +3,8 @@
 // flat set into the ground as a slab, what stands on it at its height above — all the land's towns
 // in one set of batches by mesh and colour; what stands all year put once as a year's plans come,
 // what rises put again as it climbs (a few times a second at most); fields by what they show at
-// the season; roads trodden, paved and railed.
+// the season; roads trodden, paved and railed; and what goes along them and out on the sea
+// (Phase 26 M153, render/landtraffic.ts).
 import * as pc from "playcanvas";
 import { YEAR } from "../kernel/index.ts";
 import type { LandPlan } from "../bridge/index.ts";
@@ -17,6 +18,7 @@ import {
   cropAt,
   groundAt,
   landFields,
+  laneLine,
   landReach,
   linePieces,
   roadLine,
@@ -29,6 +31,7 @@ import {
   townHomes,
   townScene,
   townWalls,
+  wayOf,
   wetAt,
   type FieldsLaid,
   type LandField,
@@ -37,6 +40,7 @@ import {
   type TownScene,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
+import { LandTraffic, type BusyWay, type CarrierKind, type RoadWay } from "./landtraffic.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
 /** How far over the ground a town's ground stands (region units), and how deep its slabs go into it. */
@@ -178,6 +182,12 @@ export class LandLayer {
   };
   private readonly stage: Stage;
   private readonly meshes: Readonly<Record<PartMesh, pc.Mesh>>;
+  private readonly traffic: LandTraffic;
+  /** The ways carriers go along: its roads and railways as drawn this year, its sea lanes (each lane's line worked out once). */
+  private roadWays: RoadWay[] = [];
+  private railWays: BusyWay[] = [];
+  private laneWays: BusyWay[] = [];
+  private laneLines = new Map<string, { x: number; z: number }[]>();
   private ground: LandGround | null = null;
   private towns = new Map<string, Drawn>();
   private fields: { field: LandField; crop: number }[] = [];
@@ -189,6 +199,8 @@ export class LandLayer {
   private drawnWall = 0;
   private season = -1;
   private year = -1;
+  /** Whether the clock ran when last drawn (a new plan come while it is held leaves all standing). */
+  private running = false;
 
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
@@ -201,6 +213,7 @@ export class LandLayer {
     };
     this.settled = new GroundBatches(stage, this.root, this.meshes);
     this.rising = new GroundBatches(stage, this.root, this.meshes);
+    this.traffic = new LandTraffic(stage, this.root, this.meshes);
   }
 
   /** A new land: its ground, and nothing on it yet. */
@@ -208,6 +221,11 @@ export class LandLayer {
     this.ground = ground;
     this.towns.clear();
     this.lines.clear();
+    this.laneLines.clear();
+    this.roadWays = [];
+    this.railWays = [];
+    this.laneWays = [];
+    this.traffic.clear();
     this.fields = [];
     this.plan = null;
     this.roadsKey = "";
@@ -306,13 +324,18 @@ export class LandLayer {
     }
     this.drawnAt = -Infinity;
     this.drawnWall = 0;
-    this.update(t);
+    this.update(t, this.running);
   }
 
-  /** What rises through the year, the fields at the season and the roads at the year. */
-  update(t: number): void {
+  /**
+   * What rises through the year, the fields at the season, the roads at the year; and what goes
+   * along them, on while the clock runs (`running`) and standing while it is held.
+   */
+  update(t: number, running = true): void {
     const g = this.ground;
     if (!g || !this.plan) return;
+    this.running = running;
+    this.traffic.move(g, running);
     const wall = performance.now();
     if (Math.abs(t - this.drawnAt) >= RISE_EVERY && wall - this.drawnWall >= RISE_WAIT) {
       this.drawnAt = t;
@@ -379,9 +402,15 @@ export class LandLayer {
       paved: [],
       rails: [],
     };
-    const key = plan.roads.map((r) => `${r.from}-${r.to}-${roadLook(r, year)}`).join("|");
+    const key = `${this.stage.quality.landTraffic}|${plan.era}|${plan.roads
+      .map((r) => `${r.from}-${r.to}-${roadLook(r, year)}-${r.traffic}`)
+      .join("|")}|${plan.lanes
+      .map((l) => (l.since <= year ? `${l.from}:${l.dx}:${l.dz}:${l.ships}` : ""))
+      .join("|")}`;
     if (key === this.roadsKey) return;
     this.roadsKey = key;
+    this.roadWays = [];
+    this.railWays = [];
     for (const road of plan.roads) {
       const look = roadLook(road, year);
       if (look === "none") continue;
@@ -396,6 +425,7 @@ export class LandLayer {
         out = roadOutside(line, ends);
       if (out.length < 2) continue;
       pieces[look === "rails" ? "paved" : look].push(...linePieces(g, out, LIFT * 1.4));
+      this.roadWays.push({ way: wayOf(out), look, traffic: road.traffic });
       if (look === "rails") {
         // The railway beside the road: its bed a little to one side.
         const off = ROAD_WIDE.paved * 0.9,
@@ -408,8 +438,25 @@ export class LandLayer {
             return { x: p.x - (dz / n) * off, z: p.z + (dx / n) * off };
           });
         pieces.rails.push(...linePieces(g, side, LIFT * 1.6));
+        this.railWays.push({ way: wayOf(side), busy: road.traffic });
       }
     }
+    // Its sea lanes, from the year its ships first went.
+    this.laneWays = [];
+    for (const lane of plan.lanes) {
+      if (lane.since > year) continue;
+      const k = `${lane.from}:${lane.dx}:${lane.dz}`;
+      let line = this.laneLines.get(k);
+      if (!line) this.laneLines.set(k, (line = laneLine(g, lane.from, lane.dx, lane.dz)));
+      if (line.length >= 2) this.laneWays.push({ way: wayOf(line), busy: lane.ships });
+    }
+    this.traffic.lay(
+      plan.era,
+      this.roadWays,
+      this.railWays,
+      this.laneWays,
+      this.stage.quality.landTraffic,
+    );
     for (const look of ["track", "paved", "rails"] as const) {
       const list = pieces[look];
       let b = this.roadBatches[look];
@@ -443,16 +490,39 @@ export class LandLayer {
     return this.settled.count + this.rising.count;
   }
 
-  /** What the land draws: its towns from their fabric, their parts, its fields, its roads' pieces (the look tools). */
-  info(): { towns: number; parts: number; fields: number; roads: number } {
+  /**
+   * What the land draws: its towns from their fabric, their parts, its fields, its roads' pieces,
+   * its sea lanes and what goes along its ways, by kind (the look tools).
+   */
+  info(): {
+    towns: number;
+    parts: number;
+    fields: number;
+    roads: number;
+    lanes: number;
+    traffic: Partial<Record<CarrierKind, number>>;
+  } {
     let roads = 0;
     for (const b of Object.values(this.roadBatches)) roads += b?.size ?? 0;
-    return { towns: this.towns.size, parts: this.count, fields: this.fields.length, roads };
+    return {
+      towns: this.towns.size,
+      parts: this.count,
+      fields: this.fields.length,
+      roads,
+      lanes: this.laneWays.length,
+      traffic: this.traffic.info(),
+    };
+  }
+
+  /** Where the first carrier of a kind is now (region units), or null (the look tools). */
+  carrier(kind: CarrierKind): { x: number; z: number } | null {
+    return this.traffic.first(kind);
   }
 
   destroy(): void {
     this.settled.destroy();
     this.rising.destroy();
+    this.traffic.destroy();
     for (const b of this.fieldBatches) b.destroy();
     for (const b of Object.values(this.roadBatches)) b?.destroy();
     this.root.destroy();

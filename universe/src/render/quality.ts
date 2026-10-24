@@ -31,6 +31,8 @@ export type Quality = {
   readonly families: number;
   /** Lots of its towns a land draws at most (its great cities' far lots their sprawl). */
   readonly landLots: number;
+  /** Carts, trains and ships going along a land's ways at most (Phase 26 M153). */
+  readonly landTraffic: number;
 };
 
 export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
@@ -49,6 +51,7 @@ export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
     motion: false,
     families: 5,
     landLots: 2500,
+    landTraffic: 40,
   },
   balanced: {
     name: "balanced",
@@ -65,6 +68,7 @@ export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
     motion: true,
     families: 8,
     landLots: 6000,
+    landTraffic: 120,
   },
   high: {
     name: "high",
@@ -81,6 +85,7 @@ export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
     motion: true,
     families: 10,
     landLots: 12000,
+    landTraffic: 240,
   },
   ultra: {
     name: "ultra",
@@ -97,6 +102,7 @@ export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
     motion: true,
     families: 14,
     landLots: 24000,
+    landTraffic: 400,
   },
 };
 

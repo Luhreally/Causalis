@@ -7,7 +7,8 @@
 //     this machine's pace, as `npm run slice` finds): the globe, a land, a village, the
 //     star's worlds and the stars around;
 //   - the heap held: a world some centuries on, looked at from every scale, keeps its
-//     JavaScript heap within the phone's share (Chromium measures it).
+//     JavaScript heap within the phone's share (Chromium measures it, once what is let go is
+//     collected: the heap read before then counts what is no longer held).
 // (npm run build first.)
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -82,7 +83,8 @@ if (!args.includes("--no-budgets")) {
   }
   const engines = [
     { name: "webkit", launch: () => webkit.launch() },
-    { name: "chromium", launch: () => chromium.launch() },
+    // (Its collector open to the page: the heap is read once what is let go is gone.)
+    { name: "chromium", launch: () => chromium.launch({ args: ["--js-flags=--expose-gc"] }) },
   ] as const;
   for (const engine of engines) {
     const browser = await engine.launch(),
@@ -156,11 +158,13 @@ if (!args.includes("--no-budgets")) {
             `${n}'s first frame takes ${ms} ms here, some ${ms * PHONE} ms on the phone floor`,
           );
     if (engine.name === "chromium") {
-      const heap = await page.evaluate(
-        () =>
+      const heap = await page.evaluate(() => {
+        (globalThis as { gc?: () => void }).gc?.();
+        return (
           (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory
-            ?.usedJSHeapSize ?? 0,
-      );
+            ?.usedJSHeapSize ?? 0
+        );
+      });
       console.log(
         `  the heap after a world three centuries on, seen at every scale: ${(heap / 1e6).toFixed(0)} MB`,
       );

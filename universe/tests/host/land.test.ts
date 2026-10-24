@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
-import { populationContext, townsOf } from "../../src/sim/index.ts";
+import { marketsOf, populationContext, townsOf } from "../../src/sim/index.ts";
 import type { LandPlan, PageModel, Tip } from "../../src/bridge/index.ts";
 
 // Phase 25 M150–M151: a land's towns as the land draws them, each from its fabric, and its
@@ -65,6 +65,37 @@ test("a land's roads join every town to one founded before it, and lead out to t
     assert.ok(refs.has(r.a));
     assert.ok(r.since <= Math.floor(world.now / YEAR));
   }
+});
+
+test("a land's ways are as busy as its towns and trade, and its ships go toward the lands it reaches by sea", () => {
+  const plan = ask<LandPlan>("towns.land", { cell: busiest });
+  assert.ok(["forage", "farm", "metal", "industry", "modern"].includes(plan.era), plan.era);
+  for (const r of plan.roads)
+    assert.ok(Number.isInteger(r.traffic) && r.traffic >= 1 && r.traffic <= 8, `${r.traffic}`);
+  // A land on the sea that trades over it.
+  const markets = marketsOf(world),
+    coast = [...counts.keys()]
+      .sort((a, b) => a - b)
+      .find((cell) => markets.seaPartners(cell).some((nb) => markets.bySea(cell, nb)));
+  assert.ok(coast !== undefined, "a land trading by sea");
+  const sea = ask<LandPlan>("towns.land", { cell: coast }),
+    year = Math.floor(world.now / YEAR);
+  assert.ok(sea.lanes.length >= 1, "its sea lanes");
+  for (const l of sea.lanes) {
+    const port = sea.towns.find((t) => t.ref === l.a);
+    assert.ok(port && port.tile === l.from, "from a town of the land");
+    assert.ok(Math.abs(Math.hypot(l.dx, l.dz) - 1) < 1e-9, "a way");
+    assert.ok(l.ships >= 1 && l.ships <= 8 && l.since <= year);
+  }
+  // A town's page sends the eye down to watch it grow.
+  const great = [...ctx.settlements.all()].sort((a, b) => b.population - a.population)[0]!,
+    page = ask<PageModel>("page", { ref: great.ref }),
+    watch = page.tabs[0]!.blocks.find((b) => b.type === "tool" && b.tool === "watch.grow");
+  assert.deepEqual(watch, {
+    type: "tool",
+    tool: "watch.grow",
+    args: { cell: great.cell, town: great.ref },
+  });
 });
 
 test("a town's lots, buildings and walls each have a page, up through the town", () => {

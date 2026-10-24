@@ -7,8 +7,9 @@
 // about it, more for more people, on the good dry ground, green in spring and gold at harvest;
 // its roads over the land from town to town and out of it, round the water and the steep,
 // trodden, then paved, then railed. Pure: what is drawn, in the region's units (kilometres).
-import { MinHeap } from "../kernel/index.ts";
-import type { LandRoad, LandTown } from "../bridge/index.ts";
+import { MinHeap, YEAR } from "../kernel/index.ts";
+import { civic, type CivicKind } from "../rules/index.ts";
+import type { LandPlan, LandRoad, LandTown } from "../bridge/index.ts";
 import { REGION_RELIEF, type RegionTree } from "./region.ts";
 import { sprawlOf, type TownScene } from "./town.ts";
 import { townReach } from "../bridge/index.ts";
@@ -356,6 +357,181 @@ export function linePieces(
         Math.atan2(-(y1 - y0), flat),
       ]);
     }
+  }
+  return out;
+}
+
+// —— Traffic on the land (Phase 26 M153) ————————————————————————————————————————————————
+
+/**
+ * A sea lane's way over the water, region units: from the sea beside its port out across the sea
+ * as far as it reaches the way the far land lies (the map's edge, where the sea runs to it), round
+ * the land between; none where no sea is at hand.
+ */
+export function laneLine(
+  g: LandGround,
+  from: number,
+  dx: number,
+  dz: number,
+): { x: number; z: number }[] {
+  const size = g.size,
+    sea = (t: number) => g.water[t] === 1,
+    i0 = from % size,
+    j0 = Math.floor(from / size);
+  // The sea beside the port.
+  let start = -1;
+  for (let r = 1; r <= 2 && start < 0; r++)
+    for (let dj = -r; dj <= r && start < 0; dj++)
+      for (let di = -r; di <= r && start < 0; di++) {
+        const i = i0 + di,
+          j = j0 + dj;
+        if (i >= 0 && j >= 0 && i < size && j < size && sea(j * size + i)) start = j * size + i;
+      }
+  if (start < 0) return [];
+  // The sea reached from it, and the farthest of it the way the far land lies.
+  const seen = new Uint8Array(size * size),
+    queue = [start];
+  seen[start] = 1;
+  let goal = start,
+    best = -Infinity;
+  for (let q = 0; q < queue.length; q++) {
+    const t = queue[q]!,
+      i = t % size,
+      j = Math.floor(t / size),
+      along = i * dx + j * dz;
+    if (along > best + 1e-9) {
+      best = along;
+      goal = t;
+    }
+    for (const [di, dj] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const ni = i + di,
+        nj = j + dj,
+        s = nj * size + ni;
+      if (ni < 0 || nj < 0 || ni >= size || nj >= size || seen[s] || !sea(s)) continue;
+      seen[s] = 1;
+      queue.push(s);
+    }
+  }
+  if (goal === start) return [];
+  // Over the sea alone (a ground with every land tile walled off, and flat: a ship climbs no depths).
+  const water = new Uint8Array(size * size);
+  for (let t = 0; t < size * size; t++) water[t] = sea(t) ? 0 : 1;
+  const tiles = roadTiles({ ...g, water, heights: new Float32Array(size * size) }, start, goal);
+  return tiles.length ? roadLine(g, tiles) : [];
+}
+
+/** A way's line with the length run to each of its points (region units), for things going along it. */
+export type Way = {
+  readonly line: readonly { x: number; z: number }[];
+  readonly run: Float64Array;
+  readonly length: number;
+};
+
+export function wayOf(line: readonly { x: number; z: number }[]): Way {
+  const run = new Float64Array(line.length);
+  for (let k = 1; k < line.length; k++)
+    run[k] = run[k - 1]! + Math.hypot(line[k]!.x - line[k - 1]!.x, line[k]!.z - line[k - 1]!.z);
+  return { line, run, length: line.length ? run[line.length - 1]! : 0 };
+}
+
+/**
+ * Where something going along a way is at `s` of its length to and fro (0 … 2 × its length: out,
+ * then back), kept to its right by `aside`: its point and its heading (yaw).
+ */
+export function alongWay(w: Way, s: number, aside = 0): { x: number; z: number; yaw: number } {
+  const L = w.length,
+    m = L > 0 ? ((s % (2 * L)) + 2 * L) % (2 * L) : 0,
+    back = m > L,
+    d = back ? 2 * L - m : m;
+  // (The first point at or past d: halved toward it.)
+  let lo = 1,
+    hi = Math.max(1, w.line.length - 1);
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (w.run[mid]! < d) lo = mid + 1;
+    else hi = mid;
+  }
+  const k = lo;
+  const a = w.line[k - 1]!,
+    b = w.line[k] ?? a,
+    span = w.run[k]! - w.run[k - 1]! || 1,
+    f = Math.max(0, Math.min(1, (d - w.run[k - 1]!) / span)),
+    ux = (b.x - a.x) / span,
+    uz = (b.z - a.z) / span,
+    hx = back ? -ux : ux,
+    hz = back ? -uz : uz;
+  return {
+    // (Its right: the heading turned a quarter clockwise, seen from above.)
+    x: a.x + (b.x - a.x) * f - hz * aside,
+    z: a.z + (b.z - a.z) * f + hx * aside,
+    yaw: Math.atan2(hx, hz),
+  };
+}
+
+/** What goes along a land's ways at an era: on its roads, on its rails, on its sea lanes. */
+export const CARRIERS: Readonly<
+  Record<
+    "forage" | "farm" | "metal" | "industry" | "modern",
+    { road: "none" | "cart" | "wagon" | "truck"; sea: "none" | "sail" | "steam" }
+  >
+> = {
+  forage: { road: "none", sea: "none" },
+  farm: { road: "cart", sea: "sail" },
+  metal: { road: "wagon", sea: "sail" },
+  industry: { road: "wagon", sea: "steam" },
+  modern: { road: "truck", sea: "steam" },
+};
+
+// —— A land's towns watched growing (Phase 26 M154) ———————————————————————————————————————
+
+/**
+ * What each town of a land did between two of its plans, in a few words for its label — the two
+ * greatest of: founded, become a city, a building begun, its walls begun, homes raised on new
+ * lots, homes rebuilt higher (by its towns' refs; none for a town that did nothing, nor where the
+ * clock went back).
+ */
+export function landTidings(prev: LandPlan | null, next: LandPlan): Map<string, string> {
+  const out = new Map<string, string>();
+  if (!prev || next.t <= prev.t) return out;
+  const before = new Map(prev.towns.map((t) => [t.ref, t])),
+    was = Math.floor(prev.t / YEAR),
+    now = Math.floor(next.t / YEAR),
+    // (A run's lots, shared over its years, as many as fell in the years between.)
+    within = (first: number, last: number, lots: number) => {
+      const span = last + 1 - first,
+        over = Math.min(now + 1, last + 1) - Math.max(was + 1, first);
+      return over > 0 && span > 0 ? (lots * over) / span : 0;
+    };
+  for (const t of next.towns) {
+    const p = before.get(t.ref),
+      said: string[] = [];
+    if (!p) {
+      if (t.founded > was) said.push("founded");
+    } else {
+      if (t.city && !p.city) said.push("now a city");
+      const begun = (t.plan?.civics ?? []).filter((c) => c.start > was && c.start <= now),
+        // (New lots, but for those a building was begun on.)
+        newLots =
+          (t.plan?.whole ?? 0) -
+          (p.plan?.whole ?? 0) -
+          begun.filter((c) => c.at >= (p.plan?.whole ?? 0)).reduce((n, c) => n + c.lots, 0);
+      const first = begun[0];
+      if (first) said.push(`${civic(first.kind as CivicKind).name} begun`);
+      if (t.plan?.walls && t.plan.walls.start > was && t.plan.walls.start <= now)
+        said.push("walls begun");
+      if (newLots > 0) said.push(`+${newLots} ${newLots === 1 ? "home" : "homes"}`);
+      let higher = 0;
+      for (const r of t.plan?.runs ?? [])
+        if (r[0] === 1) higher += within(r[3]!, r[4]!, r[2]! - r[1]!);
+      const up = Math.round(higher);
+      if (up > 0) said.push(`${up} rebuilt higher`);
+    }
+    if (said.length) out.set(t.ref, said.slice(0, 2).join(", "));
   }
   return out;
 }

@@ -28,6 +28,7 @@ import {
   QUALITY_NAMES,
   regionMaterials,
   runBench,
+  type CarrierKind,
   type GlobeTown,
   type QualityName,
 } from "../render/index.ts";
@@ -107,6 +108,7 @@ import {
   LY_SCALE,
   hallCells,
   hallDomes,
+  landTidings,
   beliefColor,
   landWars,
   litColors,
@@ -195,6 +197,8 @@ const PEOPLE_LENSES: readonly Lens[] = [
 ];
 const YEAR = 365 * DAY;
 const SKY = [0.09, 0.1, 0.13] as const;
+/** How long what a town did lately stays on its label (ms). */
+const TIDING_MS = 4000;
 const SPACE = [0.02, 0.025, 0.045] as const;
 
 const params = new URLSearchParams(location.search);
@@ -238,7 +242,16 @@ type Exposed = {
   /** A town of the land on screen as drawn from its fabric: its square and reach (region units); and the parts drawn in all (M150). */
   landTown?: (ref: string) => { x: number; z: number; r: number } | null;
   landParts?: () => number;
-  land?: () => { towns: number; parts: number; fields: number; roads: number };
+  land?: () => {
+    towns: number;
+    parts: number;
+    fields: number;
+    roads: number;
+    lanes: number;
+    traffic: Partial<Record<string, number>>;
+  };
+  /** Where the first cart, wagon, truck, train or ship of a land is now (Phase 26 M153). */
+  landCarrier?: (kind: string) => { x: number; z: number } | null;
   /** Where on the screen one of the town's buildings, one of its homes and its walls are (M151). */
   townOnScreen?: () => unknown;
   /** Watch a village through the microscope; how many people are watched. */
@@ -550,8 +563,10 @@ async function runPlanetPage(): Promise<void> {
     realms = new Map<number, readonly [number, number, number]>(),
     faiths = new Map<number, readonly [number, number, number]>(),
     villages: Village[] = [],
-    // The land's towns as drawn from their fabric, and its roads (Phase 25 M150).
+    // The land's towns as drawn from their fabric, and its roads (Phase 25 M150); what each did
+    // lately, on its label a while (Phase 26 M154).
     landPlan: LandPlan | null = null,
+    townNews = new Map<string, { text: string; until: number }>(),
     regionCell = -1,
     stopVillages: (() => void) | null = null,
     // The lands the god's palette lights (its reach, its choices: Phase 12 M106).
@@ -1771,6 +1786,7 @@ async function runPlanetPage(): Promise<void> {
     client.setInterest({ view: "region", focus: `cell:0:${cell}` });
     villages = [];
     landPlan = null;
+    townNews.clear();
     stopVillages?.();
     // Its towns drawn from their fabric, their fields and its roads, as they grow (M150).
     stopVillages = client.subscribe<LandPlan>(
@@ -1785,6 +1801,10 @@ async function runPlanetPage(): Promise<void> {
           population: v.population,
           founded: v.founded,
         }));
+        // What each town did since the last plan, on its label a while (M154).
+        const wall = performance.now();
+        for (const [ref, text] of landTidings(landPlan, plan))
+          townNews.set(ref, { text, until: wall + TIDING_MS });
         landPlan = plan;
         const t0 = performance.now();
         region.setTowns(plan, plan.t);
@@ -2924,7 +2944,7 @@ async function runPlanetPage(): Promise<void> {
   stage.onUpdate(() => time.tick(now()));
   // The land's towns rising as its clock runs, its fields at the season, its roads at the year.
   stage.onUpdate(() => {
-    if (scale === "region") region.land.update(now());
+    if (scale === "region") region.land.update(now(), time.speed > 0);
   });
   const loadPlan = async (ref: string) => {
     // Asked once a year: the year is marked before the answer comes.
@@ -3292,6 +3312,23 @@ async function runPlanetPage(): Promise<void> {
     rig.flyTo({ distance: to }, 0.9);
   };
   pageWindow.onGoTo = (place) => void goTo(place);
+  // Watch a town grow (Phase 26 M154): down to its land, the eye on it, the clock a year a second.
+  const watchGrow = async (cell: number, town: string) => {
+    if (!(scale === "region" && regionCell === cell)) await goTo({ scale: "region", cell });
+    // (Its land's towns come a moment after the land: the eye goes to the town once it is there.)
+    const here = () => scale === "region" && regionCell === cell,
+      by = performance.now() + 15000;
+    while (here() && !villages.some((v) => v.ref === town) && performance.now() < by)
+      await new Promise((done) => setTimeout(done, 100));
+    if (!here()) return;
+    const tile = villages.find((v) => v.ref === town)?.tile,
+      at = region.land.townAt(town),
+      ground = tile === undefined ? null : region.groundAt(tile);
+    const target = at ? { x: at.x, y: ground?.y ?? 0, z: at.z } : (ground ?? { x: 0, y: 0, z: 0 });
+    rig.flyTo({ target, distance: Math.max(14, (at?.r ?? 1) * 9), pitch: -42 });
+    time.pick(4);
+  };
+  pageWindow.onWatch = (cell, town) => void watchGrow(cell, town);
   // What a page is of, lit in the scene when it is there (a link followed, not only a tap).
   pointAt = (page) => {
     const p = page.place;
@@ -3337,17 +3374,22 @@ async function runPlanetPage(): Promise<void> {
   exposed.landTown = (ref: string) => region.land.townAt(ref);
   exposed.landParts = () => region.land.count;
   exposed.land = () => region.land.info();
+  exposed.landCarrier = (kind: string) => region.land.carrier(kind as CarrierKind);
 
   stage.onUpdate(() => {
     if (scale !== "region" || !villages.length) return;
-    const at = region.screenOf(villages.map((v) => v.tile));
+    const at = region.screenOf(villages.map((v) => v.tile)),
+      wall = performance.now();
     labels.update([
-      ...villages.map((v, i) => ({
-        key: v.ref,
-        text: v.name,
-        at: at[i] ?? null,
-        priority: v.population,
-      })),
+      ...villages.map((v, i) => {
+        const said = townNews.get(v.ref);
+        return {
+          key: v.ref,
+          text: said && said.until > wall ? `${v.name} · ${said.text}` : v.name,
+          at: at[i] ?? null,
+          priority: v.population,
+        };
+      }),
       // Its hosts' counters and its battles, over the towns about them (M95, M101).
       ...regionWars.labels().map((l) =>
         l.badge

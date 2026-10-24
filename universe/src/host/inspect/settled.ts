@@ -151,6 +151,8 @@ export function townPage(world: World, ref: string): PageModel {
         ],
       });
     blocks.push(
+      // Down to its land to watch it grow, the clock a year a second (Phase 26 M154).
+      { type: "tool", tool: "watch.grow", args: { cell: s.cell, town: s.ref } },
       { type: "why", title: "How it came to be", ref: s.event },
       { type: "tool", tool: "acts.place", args: { town: s.ref } },
     );

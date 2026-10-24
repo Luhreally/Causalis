@@ -100,6 +100,8 @@ export class PageWindow {
   arms: ArmsBook | null = null;
   /** Go to where a thing is to be seen. */
   onGoTo: (place: Place, ref: string) => void = () => {};
+  /** Go down to a town's land and watch it grow (Phase 26 M154). */
+  onWatch: ((cell: number, town: string) => void) | null = null;
   /** Told as each page opens (the scales mark what it is). */
   onOpen: (page: PageModel) => void = () => {};
   onClose: () => void = () => {};
@@ -741,6 +743,7 @@ export class PageWindow {
             if (ref) void this.show(ref, false);
           },
           open: (ref) => void this.open(ref),
+          ...(this.onWatch ? { watch: this.onWatch } : {}),
         });
         break;
     }

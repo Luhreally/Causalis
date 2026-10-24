@@ -502,11 +502,33 @@ export type LandRoad = {
   readonly since: number;
   readonly paved: number | null;
   readonly rails: number | null;
+  /** How busy it is: the carts (or wagons, trucks) on it at once (Phase 26 M153). */
+  readonly traffic: number;
 };
+
+/**
+ * A sea lane of a land (Phase 26 M153): from the town its ships put out from, out across the sea
+ * toward a land its goods have reached by ship (`dx`, `dz` the way, region units: x east, z
+ * south), from the year they first went; and how many ships are on it at once.
+ */
+export type LandLane = {
+  readonly from: number;
+  readonly a: string;
+  readonly toward: string | null;
+  readonly dx: number;
+  readonly dz: number;
+  readonly since: number;
+  readonly ships: number;
+};
+
+/** How far a land has come, for what its people carry their goods in. */
+export type LandEra = "forage" | "farm" | "metal" | "industry" | "modern";
 
 /** A land's towns and roads, as the land draws them at moment `t`. */
 export type LandPlan = {
   readonly t: number;
+  readonly era: LandEra;
   readonly towns: readonly LandTown[];
   readonly roads: readonly LandRoad[];
+  readonly lanes: readonly LandLane[];
 };

@@ -90,6 +90,7 @@ test("a road is trodden from its year, paved and railed from theirs", () => {
     since: 50,
     paved: 300,
     rails: 700,
+    traffic: 2,
   };
   assert.equal(roadLook(road, 49), "none");
   assert.equal(roadLook(road, 50), "track");

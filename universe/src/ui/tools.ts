@@ -13,6 +13,8 @@ export type ToolContext = {
   readonly refresh: () => void;
   /** Open a thing's page. */
   readonly open: (ref: string) => void;
+  /** Go down to a town's land and watch it grow (Phase 26 M154). */
+  readonly watch?: (cell: number, town: string) => void;
 };
 
 type Settlement = {
@@ -78,6 +80,15 @@ export function drawTool(
     case "acts.place":
       void placeActs(into, args.town as string, ctx);
       return;
+    case "watch.grow": {
+      if (!ctx.watch) return;
+      const b = el("button", "act", "🌱 Watch it grow");
+      b.title =
+        "Down to its land with the clock at a year a second: its homes raised, rebuilt higher and fallen, its buildings begun, the carts on its roads.";
+      b.onclick = () => ctx.watch!(args.cell as number, args.town as string);
+      into.append(b);
+      return;
+    }
     case "hand.town":
       void handOn(into, args.town as string, ctx);
       return;
