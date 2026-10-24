@@ -333,13 +333,27 @@ export class VisitorsLayer {
       const d = Math.hypot(p.x - x, p.y - y);
       if (d < bestD) [best, bestD] = [g, d];
     }
-    if (!best) return null;
+    return best ? this.lookAt(best) : null;
+  }
+
+  /** Where to look from to see the first of them and their people, as a tap on their ship does. */
+  view(): ReturnType<VisitorsLayer["pick"]> {
+    const g = this.groups[0];
+    return g ? this.lookAt(g) : null;
+  }
+
+  private lookAt(g: Group): {
+    event: string;
+    at: { x: number; y: number; z: number };
+    distance: number;
+    pitch: number;
+  } {
     // (From low down, a little way up toward the ship: it overhead, its people below it.)
-    const at = best.ship.getPosition();
+    const at = g.ship.getPosition();
     return {
-      event: best.v.event,
-      at: { x: at.x, y: best.hover * (best.v.why === "raid" ? 0.5 : 0.3), z: at.z },
-      distance: Math.max(7, 1.5 * best.hover + 3 * best.size),
+      event: g.v.event,
+      at: { x: at.x, y: g.hover * (g.v.why === "raid" ? 0.5 : 0.3), z: at.z },
+      distance: Math.max(7, 1.5 * g.hover + 3 * g.size),
       pitch: -16,
     };
   }

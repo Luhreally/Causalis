@@ -3300,6 +3300,57 @@ async function runPlanetPage(): Promise<void> {
   });
   // Open facing the people (the most peopled province), not wherever the camera starts.
   void faceThePeople(false);
+  // Begun when strangers come down (?contact, Phase 20 M142): the god calls a people of another
+  // star down to the most peopled land; once they have crossed (a year), the eye goes down to
+  // the town they came down by. (None at the stars yet: what they are, and that they will come.)
+  const strangersCome = async () => {
+    const map = await client.query<{ cell: number; people: number }[]>({
+        type: "people.map",
+        args: {},
+      }),
+      land = [...map].sort((a, b) => b.people - a.people || a.cell - b.cell)[0];
+    if (!land) return;
+    const called = await client.command("act.summon", { cell: land.cell }).then(
+      () => true,
+      () => false,
+    );
+    if (!called) {
+      void pageWindow.open("concept:contact");
+      return;
+    }
+    type Sky = { peoples?: { landings: { cell: number; year: number }[] } };
+    for (let tries = 0; tries < 240; tries++) {
+      const sky = await client.query<Sky>({ type: "space.state", args: {} });
+      if (sky.peoples?.landings.some((l) => l.cell === land.cell && l.year > startYear)) {
+        const towns = await client.query<{ ref: string; cell: number; people: number }[]>({
+            type: "towns.map",
+            args: {},
+          }),
+          town = towns.filter((t) => t.cell === land.cell).sort((a, b) => b.people - a.people)[0];
+        if (!town) return;
+        // (Seen by day: on to the next morning if they came down by night.)
+        const at = (await client.advance(0)).t,
+          hour = DAY / 24,
+          of = at % DAY;
+        if (of < 7 * hour || of >= 17 * hour)
+          await client.advance(at - of + (of < 7 * hour ? 0 : DAY) + 9 * hour);
+        await exposed.goTo?.(town.ref);
+        // Once they are drawn among its people, the eye goes down to them, as a tap on their
+        // ship would take it.
+        for (let wait = 0; wait < 120; wait++) {
+          const view = scale === "village" ? village.visitorsView() : null;
+          if (view) {
+            rig.flyTo({ target: view.at, distance: view.distance, pitch: view.pitch });
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 250));
+        }
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  };
+  if (params.has("contact") && !loaded) void strangersCome();
   client.onFrame((frame) => {
     if (frame.view === "globe") paintGlobe();
     else if (frame.view === "region") paintRegion();

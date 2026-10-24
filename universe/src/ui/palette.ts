@@ -107,6 +107,29 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
     sign: 1,
     lasting: true,
   },
+  loose: {
+    id: "loose",
+    icon: "🦠",
+    name: "Loose a new sickness",
+    target: "land",
+    command: "act.loose",
+    sign: -1,
+  },
+  ward: {
+    id: "ward",
+    icon: "💉",
+    name: "Ward against sickness",
+    target: "land",
+    command: "act.ward",
+    sign: 1,
+  },
+  summon: {
+    id: "summon",
+    icon: "🛸",
+    name: "Call strangers from the stars",
+    target: "land",
+    command: "act.summon",
+  },
   inspire: {
     id: "inspire",
     icon: "💡",
@@ -278,14 +301,19 @@ export const PALETTE_KINDS: readonly {
 }[] = [
   { id: "weather", icon: "🌦️", name: "The weather", acts: ["rain", "drought", "flood"] },
   { id: "yield", icon: "🌾", name: "The land's yield", acts: ["bounty", "blight"] },
-  { id: "health", icon: "⚕️", name: "Sickness and health", acts: ["plague", "healing"] },
+  {
+    id: "health",
+    icon: "⚕️",
+    name: "Sickness and health",
+    acts: ["plague", "healing", "loose", "ward"],
+  },
   { id: "wonders", icon: "✨", name: "Wonders", acts: ["inspire", "shrine", "spring", "settle"] },
   { id: "disasters", icon: "🌋", name: "Disasters", acts: ["quake", "meteor", "fire"] },
   {
     id: "peoples",
     icon: "👑",
     name: "The peoples",
-    acts: ["war", "peace", "friendship", "discord", "union"],
+    acts: ["war", "peace", "friendship", "discord", "union", "summon"],
   },
   { id: "realms", icon: "🏰", name: "A realm's fortunes", acts: ["rise", "bless", "curse"] },
   {
@@ -557,6 +585,21 @@ export class GodPalette {
             args: { cell: land.cell, tenet: this.tenet },
           };
         }
+        if (a.id === "summon")
+          return {
+            words: `strangers of another star called down to ${land.name}: they cross in a year`,
+            args: { cell: land.cell },
+          };
+        if (a.id === "loose")
+          return {
+            words: `a new sickness loosed in ${land.name}: it goes on by what carries it`,
+            args: { cell: land.cell, sickness: null },
+          };
+        if (a.id === "ward")
+          return {
+            words: `the people of ${land.name} warded against every sickness they know`,
+            args: { cell: land.cell },
+          };
         if (a.id === "quake" || a.id === "meteor" || a.id === "flood")
           return {
             words:

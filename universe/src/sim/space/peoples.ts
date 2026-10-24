@@ -124,6 +124,8 @@ export type PeopleShip = {
   /** Envoys sent because they heard the home world (not only saw that it lives). */
   readonly heard: boolean;
   arrived: Ref | null;
+  /** The land the god called them down to (M142), if the god called them. */
+  readonly cell?: number;
 };
 
 /** Two peoples met: where and when, how each met the other, and what has passed since. */
@@ -487,6 +489,16 @@ function landingPlace(ctx: PopulationContext): { cell: number; realm: Polity | n
     if (p.total() > top || (p.total() === top && cell >= 0 && p.cell < cell))
       [cell, top] = [p.cell, p.total()];
   return cell >= 0 && top > 0 ? { cell, realm: null } : null;
+}
+
+/** The land the god called strangers down to, while anyone lives there; else where they would come. */
+function calledTo(
+  ctx: PopulationContext,
+  cell: number,
+): { cell: number; realm: Polity | null } | null {
+  if (!((ctx.provinces.get(cell)?.total() ?? 0) > 0)) return landingPlace(ctx);
+  const realm = politiesOf(ctx.world).of(cell);
+  return { cell, realm: realm && realm.ended === null ? realm : null };
 }
 
 type Side =
@@ -1040,9 +1052,9 @@ export function peoplesYear(ctx: PopulationContext, t: SimTime): void {
       continue;
     }
     if (ship.kind === "envoys") {
-      // They come down where the most people are ruled from; before the home world can
-      // speak across the dark they look, and are seen, and go.
-      const at = landingPlace(ctx);
+      // They come down where the most people are ruled from (or where the god called them
+      // down); before the home world can speak across the dark they look, and are seen, and go.
+      const at = ship.cell !== undefined ? calledTo(ctx, ship.cell) : landingPlace(ctx);
       if (!at) {
         ship.arrived = ship.event;
         continue;
@@ -1060,6 +1072,7 @@ export function peoplesYear(ctx: PopulationContext, t: SimTime): void {
             omen,
             heard: ship.heard,
             year,
+            ...(ship.cell !== undefined ? { called: true } : {}),
           },
         });
       ship.arrived = landed;

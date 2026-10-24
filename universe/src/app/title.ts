@@ -60,6 +60,12 @@ const BEGINNINGS = [
   ],
   ["farmers", "🏕️", "At its first farmers", "year 0: the first villages"],
   ["later", "🏛️", "Three centuries on", "realms and wars under way (it takes a moment to reach)"],
+  [
+    "contact",
+    "🛸",
+    "When strangers come down",
+    "three centuries on, a people of another star called down among the most peopled land — and you there to see them",
+  ],
 ] as const;
 
 const HOW = [
@@ -226,7 +232,15 @@ export function showTitle(options: TitleOptions): void {
     const begun = () => {
       const s = seed.value.trim() || randomSeed(),
         at = `?universe=${kind}&seed=${encodeURIComponent(s)}`;
-      go(begin === "genesis" ? `${at}&genesis=1` : begin === "later" ? `${at}&year=300` : at);
+      go(
+        begin === "genesis"
+          ? `${at}&genesis=1`
+          : begin === "later"
+            ? `${at}&year=300`
+            : begin === "contact"
+              ? `${at}&year=300&contact=1`
+              : at,
+      );
     };
     start.onclick = begun;
     seed.onkeydown = (e) => {

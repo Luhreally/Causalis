@@ -29,6 +29,7 @@ import { installWaysActs } from "../acts/ways.ts";
 import { installNatureActs } from "../acts/natures.ts";
 import { installOrderActs } from "../order/acts.ts";
 import { installHealth, installHealthActs } from "../health/health.ts";
+import { installSummon } from "../space/summon.ts";
 import { installDesigns } from "../design/design.ts";
 import { installEcology } from "../ecology/ecology.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
@@ -242,6 +243,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installLanguages(world, () => populationContext(world));
   installAir(world, () => populationContext(world));
   installSpace(world, () => populationContext(world));
+  installSummon(world, () => populationContext(world));
 
   const g = homePlanet(world).generated;
   if (!g.life.people) {

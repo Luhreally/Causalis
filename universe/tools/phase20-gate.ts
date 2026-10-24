@@ -7,7 +7,10 @@
 //      blood under the glass, and the book's page for a sickness opened from the ⓘ beside it;
 //   3. the map's lens of sickness, its legend, a land's tooltip breaking it down;
 //   4. the god's hand: a land warded against sickness, asked twice, told on its page;
-//   5. a sickness's page on a phone, nothing running off its side.
+//   5. a sickness's page on a phone, nothing running off its side;
+//   6. a world begun when strangers come down (M142): three centuries on, a people of another
+//      star called down by the god among the most peopled land — their ship over the town and
+//      themselves among its people.
 // (npm run build first; --soft draws in software, as CI's browser does; --shots keeps a
 // picture of each step.)
 import { mkdirSync } from "node:fs";
@@ -253,6 +256,42 @@ if (sickness) {
   );
   check(fit, "a sickness's page runs off a phone's side");
   await shot("6-phone");
+}
+
+// 6. When strangers come down: juniper three centuries on, the god's call answered.
+{
+  await page.setViewportSize({ width: 1366, height: 800 });
+  await page.goto(`${base}?universe=earth&seed=juniper&year=300&contact=1`);
+  await page.waitForFunction(
+    () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
+    undefined,
+    { timeout: 900000 },
+  );
+  const came = await until(
+    "the strangers called down, among the town's people",
+    async () =>
+      ((await k<{ figures: number } | null>("globalThis.causalis.visitors?.() ?? null"))?.figures ??
+        0) > 0,
+    slow(120000),
+  );
+  // (And the eye gone down to them, its flight done.)
+  const down =
+    came &&
+    (await until(
+      "the eye gone down to the strangers",
+      async () =>
+        (await k<boolean>(
+          "!globalThis.causalis.rig.flying && globalThis.causalis.rig.distance < 60",
+        )) === true,
+      slow(30000),
+    ));
+  const shown = await k<{ groups: number; figures: number; whys: string[] } | null>(
+    "globalThis.causalis.visitors?.() ?? null",
+  );
+  say(
+    `when strangers come down: ${shown?.groups ?? 0} ship (${shown?.whys.join(", ") ?? "none"}), ${shown?.figures ?? 0} of them among the people, the eye ${down ? "down among them" : "still far off"}`,
+  );
+  if (came) await shot("7-strangers-come-down");
 }
 
 for (const e of errors) problems.push(`the page said: ${e}`);

@@ -72,6 +72,7 @@ const TITLES: Readonly<Record<string, string>> = {
   "health.rose": "A new sickness",
   "health.outbreak": "A sickness came",
   "health.went": "A sickness went to the stars",
+  "act.summon": "Strangers called",
   "act.ward": "A land warded",
   "act.loose": "A sickness loosed",
 };

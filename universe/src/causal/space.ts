@@ -2,6 +2,7 @@
 // first crew and first station, each told with the speed its world asked and the engine
 // that gave it.
 import { yearOfMoment } from "../kernel/index.ts";
+import { cellRef } from "../gen/index.ts";
 import { PROPULSION, STAR_DRIVES } from "../rules/index.ts";
 import {
   CONTACT_EVENTS,
@@ -9,9 +10,11 @@ import {
   PEOPLES_EVENTS,
   SPACE_EVENTS,
   STARWAR_EVENTS,
+  SUMMON_EVENTS,
   VOYAGE_EVENTS,
 } from "../sim/index.ts";
-import { registerEventWords } from "./why.ts";
+import { landWords } from "./generated.ts";
+import { registerCommandWords, registerEventWords } from "./why.ts";
 import { count } from "./words.ts";
 
 type Flight = { realm?: string; speed?: number; engine?: string; stages?: number };
@@ -90,6 +93,7 @@ type Peoples = {
   machines?: number;
   won?: boolean;
   taken?: boolean;
+  called?: boolean;
 };
 const people = (d: Peoples) => `the ${d.name ?? "strangers"}`;
 const realmOf = (d: Peoples) => (d.realm ? `the realm of ${d.realm}` : "a land with no realm");
@@ -115,13 +119,26 @@ registerEventWords(PEOPLES_EVENTS.settled.type, (_world, e) => {
   const d = (e.data ?? {}) as Peoples;
   return `Settlers of ${people(d)}${d.kind ? `, ${d.kind},` : ""} came down about a star ${d.distance ?? "?"} light-years from their own, year ${yearOfMoment(e.t)}`;
 });
-registerEventWords(PEOPLES_EVENTS.landed.type, (_world, e) => {
+registerEventWords(PEOPLES_EVENTS.landed.type, (world, e) => {
   const d = (e.data ?? {}) as Peoples,
-    where = d.realm ? `by the seat of the realm of ${d.realm}` : "in the most peopled land";
+    where = d.called
+      ? `in ${landWords(world, e.place)} at the god's call`
+      : d.realm
+        ? `by the seat of the realm of ${d.realm}`
+        : "in the most peopled land";
   return d.omen
     ? `A ship of ${people(d)} — ${d.kind ?? "strangers"} of another star — came down ${where}; they looked, and were seen, and went, year ${yearOfMoment(e.t)}`
     : `Envoys of ${people(d)}, ${d.kind ?? "strangers"} of another star, came down ${where}${d.heard ? ", come because they heard the world's signals" : ""}, year ${yearOfMoment(e.t)}`;
 });
+registerEventWords(SUMMON_EVENTS.called.type, (world, e) => {
+  const d = (e.data ?? {}) as Peoples;
+  return `At the god's call ${people(d)} — ${d.kind ?? "strangers"} of another star — crossed the dark in a year, for ${landWords(world, e.place)}, year ${yearOfMoment(e.t)}`;
+});
+registerCommandWords(
+  "act.summon",
+  (world, c) =>
+    `Your act: you called strangers from the stars down to ${landWords(world, cellRef(0, (c.args as { cell: number }).cell))}, year ${yearOfMoment(c.t)}`,
+);
 registerEventWords(PEOPLES_EVENTS.met.type, (_world, e) => {
   const d = (e.data ?? {}) as Peoples;
   return `${cap(people(d))} met ${realmOf(d)}${d.far ? " at another star" : ""}: they came ${IN[d.theirs ?? ""] ?? "unknown"}, and were met ${IN[d.ours ?? ""] ?? "unknown"}, year ${yearOfMoment(e.t)}`;

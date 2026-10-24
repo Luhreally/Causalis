@@ -1073,6 +1073,10 @@ export class VillageScene {
   pickVisitors(x: number, y: number): ReturnType<VisitorsLayer["pick"]> {
     return this.visitors.pick(x, y);
   }
+  /** Where to look from to see the first visitors and their people (null with none here). */
+  visitorsView(): ReturnType<VisitorsLayer["view"]> {
+    return this.visitors.view();
+  }
   /** Each group's name over its ship, where it is on the screen. */
   visitorsOnScreen(): ReturnType<VisitorsLayer["onScreen"]> {
     return this.visitors.onScreen();
