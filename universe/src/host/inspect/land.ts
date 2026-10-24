@@ -31,6 +31,7 @@ import { richWords } from "./life.ts";
 import { prinRef } from "./matter.ts";
 import { landStoresBlocks } from "./stores.ts";
 import { groundBlocks } from "./ground.ts";
+import { dropBlock } from "./small.ts";
 import {
   faithLink,
   landLink,
@@ -343,6 +344,11 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
         ),
       );
     if (items.length) blocks.push({ type: "list", title: "What lives here", items });
+    // (And what lives too small to see: a drop of its water under the glass.)
+    if (spot !== null) {
+      const drop = dropBlock(world, spot);
+      if (drop) blocks.push(drop);
+    }
     if (blocks.length) tabs.push({ id: "life", name: "Life", blocks });
   }
   // Its market, trade and works.

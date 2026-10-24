@@ -29,6 +29,7 @@ import type { ArmsBook } from "./arms.ts";
 import { drawTool } from "./tools.ts";
 import { drawAnatomy, drawPortrait, moves } from "./portrait.ts";
 import { lineupStrip, phyloChart } from "./phylo.ts";
+import { dropView } from "./drop.ts";
 
 /** How often an open page is read again while the world runs (ms). */
 const REFRESH_MS = 2000;
@@ -709,6 +710,10 @@ export class PageWindow {
         break;
       case "lineup":
         box.append(lineupStrip(b, (ref) => void this.open(ref)));
+        break;
+      case "drop":
+        // A drop under the glass (Phase 17 M131): its kinds' names open their lines' pages.
+        box.append(dropView(b, { label: (k) => this.link(k.name, k.ref) }));
         break;
       case "anatomy": {
         const canvas = el("canvas", "anatomy"),

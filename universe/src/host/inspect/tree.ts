@@ -24,6 +24,7 @@ import type { World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, PhyloLine, Place, Stat, Tab } from "../../bridge/index.ts";
 import { count, item, link, stat, yearNow } from "./words.ts";
 import { landLink, landOfSpot, landsOf, lineageIcon } from "./names.ts";
+import { dawnSea, dropBlock, smallLines } from "./small.ts";
 
 type Rgb = readonly [number, number, number];
 
@@ -343,6 +344,16 @@ export function cladePage(world: World, ref: string): PageModel {
             ],
           },
           { type: "list", title: "What changed as it arose", items: innovationItems(n) },
+          // (A line that lives on in the cells of today: its kin, in a drop of the sea.)
+          ...(smallLines(world).has(ref)
+            ? [
+                dropBlock(world, dawnSea(world), {
+                  title: "Its kin today, in a drop of the sea",
+                  focus: ref,
+                  habitat: "sea",
+                }),
+              ].filter((b): b is Block => b !== null)
+            : []),
           { type: "why", ref },
         ],
       },
@@ -471,6 +482,12 @@ export function treePage(world: World, tab?: string): PageModel {
               ),
             ),
           },
+          ...[
+            dropBlock(world, dawnSea(world), {
+              title: "The dawn's life lives on: a drop of the sea, under the glass",
+              habitat: "sea",
+            }),
+          ].filter((b): b is Block => b !== null),
           ...(g.prior !== "earthlike"
             ? []
             : [

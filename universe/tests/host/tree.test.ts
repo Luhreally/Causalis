@@ -130,3 +130,29 @@ test("looking at the tree never changes history", () => {
   for (const n of tree.nodes.slice(0, 30)) page(n.ref);
   assert.equal(JSON.stringify(world.domainHashes()), before);
 });
+
+test("a land's life holds a drop of its water under the glass, its small lives the living dawn of the tree", () => {
+  const map = EARTH.queries["people.map"]!(world, {}) as { cell: number; people: number }[],
+    land = [...map].sort((a, b) => b.people - a.people)[0]!.cell,
+    life = page(`cell:0:${land}#life`).tabs.find((t) => t.id === "life"),
+    drop = life?.blocks.find((b) => b.type === "drop");
+  assert.ok(drop && drop.type === "drop", "a land's life has its drop");
+  assert.ok(drop.kinds.length >= 2);
+  for (const k of drop.kinds)
+    assert.ok(
+      tree.nodes.some((n) => n.ref === k.ref && n.kind === "dawn"),
+      `${k.name} is a line of the dawn`,
+    );
+  assert.ok(Math.abs(drop.kinds.reduce((a, k) => a + k.share, 0) - 1) < 1e-9);
+  // The tree's dawn shows one of the sea; a small line's page, its kin with it most of them.
+  const dawn = page("world:tree#dawn")
+    .tabs.find((t) => t.id === "dawn")!
+    .blocks.find((b) => b.type === "drop");
+  assert.ok(dawn && dawn.type === "drop" && dawn.habitat === "sea");
+  const nucleus = tree.nodes[tree.rungs.find((r) => r.id === "nucleus")!.node!]!,
+    own = page(nucleus.ref).tabs[0]!.blocks.find((b) => b.type === "drop");
+  assert.ok(own && own.type === "drop" && own.focus === nucleus.ref, "its kin, in a drop");
+  const theirs = own.kinds.find((k) => k.ref === nucleus.ref)!,
+    usual = dawn.kinds.find((k) => k.ref === nucleus.ref)!;
+  assert.ok(theirs.share > usual.share, "more of them in their own page's drop");
+});

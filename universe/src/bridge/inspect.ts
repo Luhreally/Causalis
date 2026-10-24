@@ -240,6 +240,25 @@ export type Block =
         readonly self?: boolean;
       }[];
     }
+  /**
+   * A drop under the glass (Phase 17 M131, the smallest scale): a place's water — or its wet
+   * soil — as a microscope shows it, its small lives moving, eating and dividing, each kind a
+   * line of the tree of life. The view runs it; the same seed shows the same lives.
+   */
+  | {
+      readonly type: "drop";
+      readonly title?: string;
+      readonly habitat: "sea" | "fresh" | "soil" | "ice";
+      readonly seed: number;
+      /** How much light reaches it (0 … 1), how warm it is (°C), how much food is in it (0 … 1). */
+      readonly light: number;
+      readonly warmth: number;
+      readonly food: number;
+      readonly kinds: readonly DropKind[];
+      /** The kind whose page it is (most of the drop, and named first). */
+      readonly focus?: string;
+      readonly words?: string;
+    }
   | { readonly type: "why"; readonly title?: string; readonly ref: string }
   /** The page's picture large, with what it is made of named (a lineage's anatomy). */
   | { readonly type: "anatomy"; readonly title?: string }
@@ -249,6 +268,21 @@ export type Block =
       readonly tool: string;
       readonly args: Readonly<Record<string, unknown>>;
     };
+
+/** A kind of small life in a drop: what it is called there, its line, how it lives. */
+export type DropKind = {
+  readonly ref: string;
+  /** What it is called in the drop ("small cells"), and the line of the tree it is of. */
+  readonly name: string;
+  readonly line: string;
+  /** How it lives: by what floats in the water, by light, by taking in other cells; or many cells as one. */
+  readonly way: "eater" | "light" | "hunter" | "colony";
+  readonly color: Rgb;
+  /** Its size across, micrometres. */
+  readonly size: number;
+  /** Its share of the drop's lives at the start. */
+  readonly share: number;
+};
 
 /** A line of a tree of life, as the chart draws it. */
 export type PhyloLine = {

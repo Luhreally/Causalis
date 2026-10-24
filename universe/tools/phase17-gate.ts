@@ -6,7 +6,8 @@
 //   2. the first of each kind of body, drawn;
 //   3. a lineage's ancestry: the bodies it came of in a row, its line lit in the tree; a tap
 //      on a forebear's row opens that forebear's page, its body drawn and named;
-//   4. on a phone, the tree fits the screen's width.
+//   4. a drop of a land's water under the glass, its lives moving and dividing, one followed;
+//   5. on a phone, the tree fits the screen's width.
 // (npm run build first; --soft draws in software, as CI's browser does; --shots keeps a
 // picture of each step.)
 import { mkdirSync } from "node:fs";
@@ -233,7 +234,40 @@ await page.waitForTimeout(1500);
   }
 }
 
-// 4. On a phone, the tree fits the screen.
+// 4. A drop of a land's water under the glass: its lives move, eat, divide; a tap follows one.
+{
+  const people = await q<{ cell: number; people: number }[]>("people.map"),
+    land = [...people].sort((a, b) => b.people - a.people)[0]!;
+  const opened = await open(`cell:0:${land.cell}#life`, "a land's drop", "under the glass");
+  await k(
+    `document.querySelector(".page-window .drop-glass")?.scrollIntoView({ block: "center" })`,
+  );
+  await page.waitForTimeout(slow(4000));
+  const glass = await drawn(".page-window .drop-glass"),
+    kinds = await count(".page-window .drop-kind"),
+    read = await text(".page-window .drop-read"),
+    born = Number(/([\d,]+) born/.exec(read)?.[1]?.replace(/,/g, "") ?? 0);
+  // Tap where a cell is: the drop's own cells, found by asking where they are.
+  const at = await k<{ x: number; y: number } | null>(
+    `(() => { const c = document.querySelector(".page-window .drop-glass"); if (!c) return null; const r = c.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`,
+  );
+  let followed = "";
+  if (at)
+    for (let i = 0; i < 12 && !followed; i++) {
+      await page.mouse.click(at.x + ((i % 4) - 1.5) * 30, at.y + (Math.floor(i / 4) - 1) * 25);
+      await page.waitForTimeout(300);
+      followed = await text(".page-window .drop-card");
+    }
+  await shot("5-drop");
+  say(
+    `a drop: ${glass ? "drawn" : "not drawn"}, ${kinds} kinds, ${born} born in its first seconds; followed: “${followed.slice(0, 80)}”`,
+  );
+  check(opened && glass === 1 && kinds >= 2, "a land's drop is not drawn with its kinds");
+  check(born > 0, "the drop's lives do not divide");
+  check(followed.length > 10, "a tap does not follow a cell of the drop");
+}
+
+// 5. On a phone, the tree fits the screen.
 {
   await page.close();
   page = await browser.newPage({
@@ -254,7 +288,7 @@ await page.waitForTimeout(1500);
     rows = await count(".page-window .phylo-row"),
     wide = await fits();
   await k(`document.querySelector(".page-window .phylo")?.scrollIntoView({ block: "start" })`);
-  await shot("5-phone");
+  await shot("6-phone");
   say(`on a phone: ${rows} lines, ${wide ? "fitting the screen" : "running off it"}`);
   check(opened && rows >= 60 && wide, "the tree of life does not fit a phone's screen");
 }
