@@ -5,13 +5,15 @@
 // its course, a line of its years drawn back and forth, each of its battles marked on it where its
 // turn comes (in the colour of the side that won it), what is told now under it, and the battle
 // told of a tap away, to be watched fought.
-import type { Campaign } from "../bridge/index.ts";
+import type { Campaign, WarAge } from "../bridge/index.ts";
 import {
   WAR_SPEEDS,
   campaignSpan,
   foughtAt,
   outcomeWords,
+  warAgeSpan,
   type CampaignNow,
+  type WarAgeNow,
 } from "../view/index.ts";
 import { el } from "./why.ts";
 
@@ -33,7 +35,7 @@ const count = (n: number) => n.toLocaleString("en-US");
 const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
 
 export class WarPanel {
-  readonly element = el("div", "panel battle-panel war-panel");
+  readonly element = el("div", "panel war-panel");
   private readonly title = el("span", "clock battle-title");
   private readonly speeds = el("div", "speeds battle-speeds");
   private readonly buttons: HTMLButtonElement[];
@@ -41,7 +43,7 @@ export class WarPanel {
   private readonly page = el("button", "speed", "📜 Its page");
   private readonly back = el("button", "speed", "‹ Leave the war");
   private readonly sides: [SideCard, SideCard];
-  private readonly course = el("div", "battle-course war-course");
+  private readonly course = el("div", "war-course");
   private readonly fill = el("div", "battle-fill");
   private readonly told = el("div", "battle-told");
   private readonly when = el("div", "battle-each war-when");
@@ -190,6 +192,141 @@ export class WarPanel {
     if (latest) {
       const label = `⚔️ Watch the battle at ${latest.land} (year ${latest.year})`;
       if (this.watch.textContent !== label) this.watch.textContent = label;
+    }
+    this.buttons.forEach((b, i) => b.classList.toggle("on", i === speed));
+  }
+}
+
+/**
+ * The wars of an age watched unfolding together (M194): the bar over the globe — leave them, which
+ * years, their clock, again from the first; and the age's course, a line of its years drawn back
+ * and forth, each of its battles marked where its turn comes (in the colour of the side that won
+ * it); what is told now, how many wars are under way, the battles fought and their fallen; the
+ * latest battle and its war a tap away, watched.
+ */
+export class WarAgePanel {
+  readonly element = el("div", "panel war-panel war-age");
+  private readonly title = el("span", "clock battle-title");
+  private readonly speeds = el("div", "speeds battle-speeds");
+  private readonly buttons: HTMLButtonElement[];
+  private readonly again = el("button", "speed", "↺ Again");
+  private readonly back = el("button", "speed", "‹ Leave the wars");
+  private readonly course = el("div", "war-course");
+  private readonly fill = el("div", "battle-fill");
+  private readonly told = el("div", "battle-told");
+  private readonly when = el("div", "battle-each war-when");
+  private readonly acts = el("div", "war-acts");
+  private readonly battle = el("button", "act war-watch", "⚔️ Watch this battle");
+  private readonly war = el("button", "act war-watch", "▶ Watch its war");
+  private span = { from: 0, to: 1 };
+  private latest: { event: string; war: string } | null = null;
+  private shown = "";
+  onBack: () => void = () => {};
+  onAgain: () => void = () => {};
+  /** A speed chosen (its index among WAR_SPEEDS). */
+  onSpeed: (i: number) => void = () => {};
+  /** A moment of the age chosen on its course (a year, fractional). */
+  onScrub: (year: number) => void = () => {};
+  /** Its latest battle, to be watched fought; its war, to be watched unfolding. */
+  onBattle: (event: string) => void = () => {};
+  onWar: (ref: string) => void = () => {};
+
+  constructor(root: HTMLElement) {
+    const bar = el("header", "bar");
+    this.back.onclick = () => this.onBack();
+    this.back.title = "Back to the world as it is now";
+    this.again.onclick = () => this.onAgain();
+    this.again.title = "Its wars again from its first year";
+    this.speeds.setAttribute("role", "group");
+    this.speeds.setAttribute("aria-label", "The wars' speed");
+    this.buttons = WAR_SPEEDS.map((_, i) => {
+      const b = el("button", "speed", SPEED_WORDS[i]!);
+      b.title = i === 0 ? "Hold the wars still" : `The wars at ${SPEED_WORDS[i]} their pace`;
+      b.onclick = () => this.onSpeed(i);
+      return b;
+    });
+    this.speeds.append(...this.buttons);
+    this.course.append(this.fill);
+    this.course.setAttribute("role", "slider");
+    this.course.setAttribute("aria-label", "The age's course");
+    this.course.tabIndex = 0;
+    const scrub = (e: PointerEvent) => {
+      const r = this.course.getBoundingClientRect(),
+        k = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      this.onScrub(this.span.from + k * (this.span.to - this.span.from));
+    };
+    this.course.addEventListener("pointerdown", (e) => {
+      this.course.setPointerCapture(e.pointerId);
+      scrub(e);
+    });
+    this.course.addEventListener("pointermove", (e) => {
+      if (this.course.hasPointerCapture(e.pointerId)) scrub(e);
+    });
+    this.battle.title =
+      "Down to the field it was fought on, to watch it fought; back to the wars after";
+    this.battle.onclick = () => this.latest && this.onBattle(this.latest.event);
+    this.war.title = "That war alone, from its declaring, on a clock of its own";
+    this.war.onclick = () => this.latest && this.onWar(this.latest.war);
+    this.acts.append(this.battle, this.war);
+    this.acts.hidden = true;
+    const middle = el("div", "battle-middle");
+    middle.append(this.told, this.course, this.when, this.acts);
+    const sheet = el("div", "battle-sheet");
+    sheet.append(middle);
+    bar.append(this.back, this.title, this.speeds, this.again, sheet);
+    this.element.append(bar);
+    root.append(this.element);
+    this.visible = false;
+  }
+
+  set visible(on: boolean) {
+    this.element.hidden = !on;
+  }
+
+  /** Which years, its battles marked on its course. */
+  show(a: WarAge): void {
+    this.span = warAgeSpan(a);
+    this.title.textContent = `⚔️ The world's wars · years ${this.span.from}–${a.to}${
+      a.wars.length ? ` · the bloodiest ${a.wars.length === 1 ? "one" : count(a.wars.length)}` : ""
+    }`;
+    for (const m of [...this.course.querySelectorAll(".war-mark")]) m.remove();
+    const width = this.span.to - this.span.from;
+    for (const c of a.wars) {
+      const at = foughtAt(c);
+      c.battles.forEach((b, i) => {
+        if (at[i]! < this.span.from || at[i]! > this.span.to) return;
+        const m = el("span", "battle-mark war-mark");
+        m.style.left = `${((at[i]! - this.span.from) / width) * 100}%`;
+        m.style.background = rgb(b.won ? c.attacker.color : c.defender.color);
+        m.title = `Year ${b.year}: the battle at ${b.land} — ${outcomeWords(c, b)}; ${count(
+          b.fallen[0] + b.fallen[1],
+        )} fell`;
+        this.course.append(m);
+      });
+    }
+    this.latest = null;
+    this.shown = "";
+  }
+
+  /** The age now: its year, what is told, its wars under way, its battles and fallen, the speed lit. */
+  tally(now: WarAgeNow, speed: number): void {
+    const key = `${Math.round(now.year * 20)}|${now.fought}|${now.under}|${now.words}|${speed}`;
+    if (key === this.shown) return;
+    this.shown = key;
+    const k = (now.year - this.span.from) / Math.max(1e-6, this.span.to - this.span.from);
+    this.fill.style.width = `${Math.max(0, Math.min(1, k)) * 100}%`;
+    this.course.setAttribute("aria-valuenow", `${Math.floor(now.year)}`);
+    if (this.told.textContent !== now.words) this.told.textContent = now.words;
+    const wars = now.under === 1 ? "a war" : `${count(now.under)} wars`,
+      battles = `${count(now.fought)} ${now.fought === 1 ? "battle" : "battles"}`,
+      when = `Year ${Math.floor(now.year)} · ${wars} under way · ${battles} · ${count(now.fallen)} fallen`;
+    if (this.when.textContent !== when) this.when.textContent = when;
+    const l = now.latest;
+    this.latest = l ? { event: l.battle.event, war: l.war.ref } : null;
+    this.acts.hidden = !l;
+    if (l) {
+      const label = `⚔️ Watch the battle at ${l.battle.land} (year ${l.battle.year})`;
+      if (this.battle.textContent !== label) this.battle.textContent = label;
     }
     this.buttons.forEach((b, i) => b.classList.toggle("on", i === speed));
   }

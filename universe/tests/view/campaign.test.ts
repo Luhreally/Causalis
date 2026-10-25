@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { Campaign, CampaignBattle } from "../../src/bridge/index.ts";
-import { campaignAt, campaignSpan, foughtAt } from "../../src/view/index.ts";
+import type { Campaign, CampaignBattle, WarAge } from "../../src/bridge/index.ts";
+import { campaignAt, campaignSpan, foughtAt, warAgeAt, warAgeSpan } from "../../src/view/index.ts";
 
 // Phase 38 M193: a war watched unfolding on the globe — its host marching while it is fought, its
 // battles flaring in their turns, the fallen mounting, the lands taken marked, told as it goes.
@@ -161,4 +161,72 @@ test("held where it fought, its host is thrown back and comes on again; held at 
   assert.equal(at(103), 1);
   const beaten: Campaign = { ...twice, battles: [twice.battles[0]!] };
   assert.ok(campaignAt(beaten, 103).march! < 0.65, "beaten at its last, it falls back");
+});
+
+// —— The wars of an age (M194) ——
+
+const later: Campaign = {
+  ...war,
+  ref: "war:2",
+  title: "The war of the realm of Oak upon the realm of Yew",
+  attacker: side("Oak", [0.9, 0.7, 0.1]),
+  defender: side("Yew", [0.1, 0.6, 0.3]),
+  from: 50,
+  to: 60,
+  prize: "the land of 6",
+  declared: 103,
+  ended: null,
+  battles: [battle("ev:5", 103, 6, "taken", [5, 900])],
+};
+const age: WarAge = { from: 100, to: 110, now: 120, wars: [war, later] };
+
+test("an age's wars unfold together: each under way drawn as it is then, its host on its way", () => {
+  assert.deepEqual(warAgeSpan(age), { from: 100, to: 111 });
+  // (Begun at its first war's declaring, when that is later than its first year.)
+  assert.deepEqual(warAgeSpan({ ...age, from: 90 }), { from: 100, to: 111 });
+  assert.deepEqual(warAgeSpan({ ...age, wars: [] }), { from: 100, to: 111 });
+  const early = warAgeAt(age, 101.5);
+  assert.equal(early.under, 1, "the first war only");
+  assert.deepEqual(
+    early.map.wars.map((w) => w.ref),
+    ["war:1"],
+  );
+  assert.ok(early.marching.has("war:1"));
+  const both = warAgeAt(age, 103.2);
+  assert.equal(both.under, 2);
+  assert.deepEqual(
+    both.map.wars.map((w) => w.ref),
+    ["war:1", "war:2"],
+  );
+  assert.equal(both.marching.size, 2);
+  // (Each one's map is its own war's at that moment.)
+  assert.deepEqual(both.map.wars[0], campaignAt(war, 103.2).map.wars[0]);
+  // Ended, a war stands down and in a year is gone; one still fought plays on.
+  const after = warAgeAt(age, 105.5);
+  assert.deepEqual(
+    after.map.wars.map((w) => w.ref),
+    ["war:2"],
+  );
+  assert.equal(after.under, 1);
+});
+
+test("an age's battles tallied as they come, the latest told, the year's bloodiest marked", () => {
+  const now = warAgeAt(age, 103.6);
+  // (ev:1 to ev:4 of the first war, and ev:5: by 103.6, all but ev:4 at 103.5 … which is fought too.)
+  assert.equal(now.fought, 5);
+  assert.equal(now.fallen, 50 + 70 + 90 + 280 + 905);
+  assert.equal(now.latest?.battle.event, "ev:4");
+  assert.match(now.words, /^Year 103: the battle at the land of 4 — the realm of Ash stormed/);
+  assert.deepEqual(
+    now.marks.map((m) => m.text),
+    [
+      "⚔️ 905 fell · 103",
+      "🏴 The land of 6 taken · 103",
+      "⚔️ 280 fell · 103",
+      "🏴 The realm of Elm's seat taken · 103",
+    ],
+  );
+  // Before any battle: what is under way.
+  assert.equal(warAgeAt(age, 100.2).words, "Year 100: a war under way");
+  assert.equal(warAgeAt({ ...age, wars: [] }, 104).words, "Year 104: the world at peace");
 });

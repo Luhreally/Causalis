@@ -9,7 +9,7 @@ export { SystemPanel } from "./system-panel.ts";
 export { WorldPanel } from "./world-panel.ts";
 export { CampPanel } from "./camp-panel.ts";
 export { BattlePanel } from "./battle-panel.ts";
-export { WarPanel } from "./war-panel.ts";
+export { WarAgePanel, WarPanel } from "./war-panel.ts";
 export { GalaxyPanel } from "./galaxy-panel.ts";
 export { ClusterPanel } from "./cluster-panel.ts";
 export { VillagePanel } from "./village-panel.ts";

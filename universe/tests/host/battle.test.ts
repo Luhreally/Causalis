@@ -4,7 +4,7 @@ import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { sideColors } from "../../src/host/battle.ts";
 import { WAR_EVENTS, warsOf } from "../../src/sim/index.ts";
-import type { BattleNear, Block, Campaign, PageModel } from "../../src/bridge/index.ts";
+import type { BattleNear, Block, Campaign, PageModel, WarAge } from "../../src/bridge/index.ts";
 import { campaignAt, campaignSpan } from "../../src/view/index.ts";
 
 // Phase 37 M183/M186: a battle seen near — what history says of it, for the eye to watch it
@@ -174,6 +174,36 @@ test("a war's course is told to be watched unfolding: its sides, its host's way,
   assert.ok(ended, "a war ended in peace");
   assert.equal(ask<Campaign>("war.campaign", { ref: ended.peace! }).ref, ended.ref);
   assert.equal(ask<Campaign>("war.campaign", { ref: ended.event }).ref, ended.ref);
+});
+
+test("the wars of an age, to be watched unfolding together: the bloodiest of them, as declared (M194)", () => {
+  const now = 125,
+    age = ask<WarAge>("wars.age"),
+    fell = (w: (typeof wars)[number]) => w.fallen[0] + w.fallen[1],
+    within = (from: number, to: number) =>
+      wars.filter((w) => w.declared <= to && (w.ended ?? now) >= from);
+  assert.deepEqual([age.from, age.to, age.now], [25, 125, 125]);
+  assert.equal(age.wars.length, Math.min(24, within(25, 125).length));
+  assert.ok(age.wars.every((c, i) => i === 0 || age.wars[i - 1]!.declared <= c.declared));
+  const bloodiest = [...within(25, 125)].sort((a, b) => fell(b) - fell(a))[0]!;
+  assert.ok(
+    age.wars.some((c) => c.ref === bloodiest.ref),
+    "the bloodiest among them",
+  );
+  // Years asked, and how many.
+  const some = ask<WarAge>("wars.age", { from: 100, to: 110, most: 3 });
+  assert.deepEqual([some.from, some.to], [100, 110]);
+  assert.ok(some.wars.length <= 3 && some.wars.length > 0);
+  assert.ok(some.wars.every((c) => c.declared <= 110 && (c.ended ?? now) >= 100));
+  // Each as its own course says.
+  for (const c of some.wars) assert.deepEqual(c, ask<Campaign>("war.campaign", { ref: c.ref }));
+  const tab = ask<PageModel>("page", { ref: "world:ledger" }).tabs.find((t) => t.id === "wars")!,
+    watch = tab.blocks.find(
+      (b): b is Extract<Block, { type: "tool" }> => b.type === "tool" && b.tool === "watch.wars",
+    );
+  assert.ok(watch, "the ledger offers the world's wars watched");
+  assert.deepEqual([watch.args.from, watch.args.to], [25, 125]);
+  assert.equal(watch.args.label, "▶ Watch the world's wars of years 25–125 unfold");
 });
 
 test("a war's page offers it watched unfolding, and the ledger its bloodiest", () => {

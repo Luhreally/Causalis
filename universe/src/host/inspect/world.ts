@@ -2089,6 +2089,20 @@ function warLedger(world: World, now: number): Block[] {
           color: realmColor(w.attacker),
         })),
     },
+    // The world's wars of the last hundred years watched unfolding together (Phase 38 M194).
+    ...(wars.some((w) => w.declared <= now && (w.ended ?? now) >= now - 100)
+      ? [
+          {
+            type: "tool" as const,
+            tool: "watch.wars",
+            args: {
+              from: Math.max(0, now - 100),
+              to: now,
+              label: `▶ Watch the world's wars of years ${count(Math.max(0, now - 100))}–${count(now)} unfold`,
+            },
+          },
+        ]
+      : []),
     // The bloodiest of them watched unfolding on the globe (Phase 38 M193).
     ...[...wars]
       .filter((w) => w.battles.length > 0 && w.fallen[0] + w.fallen[1] > 0)

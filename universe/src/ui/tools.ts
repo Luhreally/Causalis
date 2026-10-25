@@ -21,6 +21,8 @@ export type ToolContext = {
   readonly battle?: (event: string) => void;
   /** Watch a war unfold on the globe (Phase 38 M193). */
   readonly war?: (ref: string) => void;
+  /** Watch the world's wars of an age unfold together (M194). */
+  readonly wars?: (from: number, to: number) => void;
 };
 
 type Settlement = {
@@ -119,6 +121,19 @@ export function drawTool(
       b.title =
         "Out on the whole world, the war played again on a clock of its own: its host marching from battle to battle, each flaring where it was fought, the fallen mounting, the lands taken — held still, slowed, or drawn back and forth; any of its battles to be watched fought.";
       b.onclick = () => ctx.war!(args.ref as string);
+      into.append(b);
+      return;
+    }
+    case "watch.wars": {
+      if (!ctx.wars) return;
+      const b = el(
+        "button",
+        "act",
+        (args.label as string | undefined) ?? "▶ Watch the world's wars unfold",
+      );
+      b.title =
+        "Out on the whole world, the bloodiest wars of those years played again at once: each host marching from battle to battle, each battle flaring in its turn, the eye going to each as it is fought.";
+      b.onclick = () => ctx.wars!(args.from as number, args.to as number);
       into.append(b);
       return;
     }

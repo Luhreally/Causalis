@@ -156,14 +156,18 @@ export {
   type TrooperNow,
 } from "./battle.ts";
 export {
+  WAR_AGE_YEARS_A_SECOND,
   WAR_SPEEDS,
   WAR_YEARS_A_SECOND,
   campaignAt,
   campaignSpan,
   foughtAt,
   outcomeWords,
+  warAgeAt,
+  warAgeSpan,
   type CampaignMark,
   type CampaignNow,
+  type WarAgeNow,
 } from "./campaign.ts";
 export { BLINK, DASH, FAR, SMOOTH, present, type Presence } from "./presence.ts";
 export {

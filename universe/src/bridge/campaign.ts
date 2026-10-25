@@ -41,3 +41,11 @@ export type Campaign = {
   /** A rising (a civil war's): what it was fought over (null: a war between realms). */
   readonly civil: string | null;
 };
+
+/** The wars of an age, to be watched unfolding together (M194): the bloodiest of them, as declared. */
+export type WarAge = {
+  readonly from: number;
+  readonly to: number;
+  readonly now: number;
+  readonly wars: readonly Campaign[];
+};

@@ -1,5 +1,6 @@
 // node tools/phase38-gate.ts [--ci] [--soft] [--shots dir] — the Phase 38 gate (wars seen
-// unfolding, M193: a war of history played again on the globe), on the built app:
+// unfolding, M193: a war of history played again on the globe; M194: the world's wars of an age
+// together), on the built app:
 //   1. the ledger offers its bloodiest war watched unfolding; out on the globe the world's clock is
 //      held while the war plays on a clock of its own, its host marching on what it wanted;
 //   2. its clock: held still by Space, run at its speeds by the numbers, drawn back and forth on
@@ -8,7 +9,9 @@
 //      tallied; at its end its whole is told and its host stands down;
 //   4. a battle of it watched fought, and back to the war where it was left;
 //   5. a war's own page offers it watched; left, the world's clock goes on as it went;
-//   6. on a phone the war's bar keeps to the screen's width.
+//   6. the corner's ⚔️: the world's wars of the last hundred years played at once, on their own
+//      clock, their battles in their turns; the latest watched fought, and back to them;
+//   7. on a phone the war's bar keeps to the screen's width.
 // (npm run build first; --soft draws in software, as CI's browser does; --shots keeps pictures.)
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -156,7 +159,7 @@ await page.keyboard.press("Digit4");
 check((await seen(page))!.speed === 4, "4: the war at four times its pace");
 await page.keyboard.press("Space");
 check((await seen(page))!.speed === 0, "Space again holds it");
-const course = await page.locator(".war-course").boundingBox();
+const course = await page.locator(".war-panel:not(.war-age) .war-course").boundingBox();
 if (course) await page.mouse.click(course.x + course.width * 0.8, course.y + course.height / 2);
 w = await seen(page);
 const want = w!.span.from + 0.8 * (w!.span.to - w!.span.from);
@@ -203,7 +206,7 @@ if (c.ended !== null) {
 await shot(page, "3-its-end");
 
 // 4. A battle of it watched fought, and back to the war where it was left.
-const button = page.locator(".war-watch");
+const button = page.locator(".war-panel:not(.war-age) .war-watch");
 check(await button.isVisible(), "its latest battle offered watched");
 const left = (await seen(page))!.year;
 await button.click();
@@ -226,7 +229,7 @@ check(w?.speed === 0, `held as it was left (${w?.speed})`);
 await shot(page, "4-back-to-the-war");
 
 // 5. A war's own page offers it watched; left, the world's clock goes on.
-await page.locator(".war-panel button", { hasText: "Leave the war" }).click();
+await page.locator(".war-panel:not(.war-age) button", { hasText: "Leave the war" }).click();
 await until(page, "the war left", async () => (await seen(page)) === null, slow(10000));
 await k(page, `globalThis.causalis.open(${JSON.stringify(c.ref)})`);
 const own = page.locator(".page-window button.act", { hasText: "Watch the war unfold" });
@@ -234,7 +237,7 @@ await until(page, "the war page's watch", async () => (await own.count()) > 0, s
 await own.first().click();
 await until(page, "the war watched from its page", async () => (await seen(page)) !== null);
 check((await seen(page))?.ref === c.ref, "its page's war watched");
-await page.locator(".war-panel button", { hasText: "Leave the war" }).click();
+await page.locator(".war-panel:not(.war-age) button", { hasText: "Leave the war" }).click();
 await until(page, "the war left again", async () => (await seen(page)) === null, slow(10000));
 const after = await k<{ stopped: boolean; speed: number }>(page, `globalThis.causalis.clock()`);
 check(!after.stopped && after.speed > 0, `the world's clock goes on (${JSON.stringify(after)})`);
@@ -245,7 +248,89 @@ await until(
   slow(5000),
 );
 
-// 6. On a phone, the war's bar keeps to the screen.
+// 6. The world's wars of the last hundred years, from the corner's ⚔️.
+type Age = {
+  from: number;
+  to: number;
+  wars: number;
+  year: number;
+  span: { from: number; to: number };
+  speed: number;
+  words: string;
+  under: number;
+  fought: number;
+  fallen: number;
+  latest: { event: string; war: string } | null;
+  drawn: { marching: number; battle: number; fallen: number; tents: number };
+  marks: string[];
+  world: boolean;
+  panel: boolean;
+};
+const age = (p: Page) => k<Age | null>(p, `globalThis.causalis.warAge()`);
+await page.locator(".wars-button").click();
+await until(page, "the world's wars watched", async () => (await age(page)) !== null, slow(60000));
+let a = await age(page);
+say(`the world's wars: years ${a?.from}–${a?.to}, the bloodiest ${a?.wars} — "${a?.words}"`);
+check(!!a && a.panel && a.wars > 0, "the age's bar shown, its wars to watch");
+check(a?.world === true, "the world's clock held while its wars are watched");
+const ay0 = (await age(page))!.year;
+await page.waitForTimeout(2000);
+const ay1 = (await age(page))!.year;
+say(`its own pace: year ${ay0.toFixed(1)} → ${ay1.toFixed(1)} in two seconds of ours`);
+check(ay1 - ay0 > 1, `the wars play (${ay0} → ${ay1})`);
+await page.keyboard.press("Space");
+check((await age(page))!.speed === 0, "Space holds the wars still");
+const ages = await k<{ wars: { battles: { year: number; fallen: [number, number] }[] }[] }>(
+    page,
+    `globalThis.causalis.client.query({ type: "wars.age" })`,
+  ),
+  inAge = ages.wars
+    .flatMap((w) => w.battles)
+    .filter((b) => b.year >= a!.from && b.year <= a!.to)
+    .sort((p, q) => p.year - q.year);
+check(inAge.length > 0, "battles in the age");
+if (inAge[0]) {
+  await k(page, `globalThis.causalis.warAgeAt(${inAge[0].year + 0.999}, 0)`);
+  await page.waitForTimeout(slow(900));
+  a = await age(page);
+  say(
+    `its first battle: "${a?.words}" — ${a?.fought} fought, ${a?.fallen} fallen, marks ${JSON.stringify(a?.marks)}`,
+  );
+  check(!!a && a.fought >= 1 && a.fallen > 0, "its battles tallied as they come");
+  check(
+    !!a && a.drawn.battle > 0,
+    `the battle drawn where it was fought (${JSON.stringify(a?.drawn)})`,
+  );
+  check(
+    !!a && a.marks.some((m) => / fell · /.test(m)),
+    `the battle marked (${JSON.stringify(a?.marks)})`,
+  );
+  await shot(page, "6-the-worlds-wars");
+  const leftAt = a!.year;
+  await page.locator(".war-age .war-watch", { hasText: "Watch the battle" }).click();
+  await until(
+    page,
+    "the age's battle on its field",
+    async () => (await k<unknown>(page, `globalThis.causalis.battle()`)) !== null,
+    slow(60000),
+  );
+  check(
+    (await k<{ event: string } | null>(page, `globalThis.causalis.battle()`))?.event ===
+      a?.latest?.event,
+    "the age's latest battle watched",
+  );
+  await page.locator(".battle-panel button", { hasText: "The wars" }).first().click();
+  await until(page, "the world's wars again", async () => (await age(page)) !== null, slow(60000));
+  a = await age(page);
+  check(
+    !!a && Math.abs(a.year - leftAt) < 1e-6,
+    `back to the wars where they were left (${a?.year})`,
+  );
+}
+await page.locator(".war-age button", { hasText: "Leave the wars" }).click();
+await until(page, "the world's wars left", async () => (await age(page)) === null, slow(10000));
+
+// 7. On a phone, the war's bar keeps to the screen.
 await k(page, `globalThis.causalis.client.setSpeed(0)`);
 await k(page, `globalThis.causalis.watchWar(${JSON.stringify(c.ref)})`);
 await page.setViewportSize({ width: 390, height: 844 });

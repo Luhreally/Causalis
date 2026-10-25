@@ -4,7 +4,7 @@
 // fought, each of its battles flaring where it was fought as its turn comes (those of one year
 // one after another through it), the fallen of each side mounting, the lands taken marked, the
 // seat besieged — and told as it goes. Pure: what the war is at a moment of it.
-import type { Campaign, CampaignBattle, WarsMap } from "../bridge/index.ts";
+import type { Campaign, CampaignBattle, WarAge, WarsMap } from "../bridge/index.ts";
 
 /** How many of the war's years pass in a second of ours at its own pace. */
 export const WAR_YEARS_A_SECOND = 0.4;
@@ -113,7 +113,11 @@ function legAt(
 }
 
 /** The war at `year` (of the world's, fractional: those of one year come one after another). */
-export function campaignAt(c: Campaign, year: number, at = foughtAt(c)): CampaignNow {
+export function campaignAt(
+  c: Campaign,
+  year: number,
+  at: readonly number[] = foughtAt(c),
+): CampaignNow {
   const span = campaignSpan(c),
     y = Math.max(span.from, Math.min(span.to, year)),
     whole = Math.floor(y),
@@ -201,6 +205,126 @@ export function campaignAt(c: Campaign, year: number, at = foughtAt(c)): Campaig
     marks,
     march: over ? null : leg.k,
     over,
+    words,
+  };
+}
+
+// —— The wars of an age (M194) ——————————————————————————————————————————————————
+
+/** How many of an age's years pass in a second of ours at its own pace. */
+export const WAR_AGE_YEARS_A_SECOND = 2;
+/** How many of an age's battles of a year are marked over the globe, the bloodiest. */
+const WAR_AGE_MARKS = 8;
+
+/**
+ * The years an age's wars are watched over: from its first year (or its first war's declaring, if
+ * later: no years of peace to wait through first) to a year past its last.
+ */
+export function warAgeSpan(a: WarAge): { from: number; to: number } {
+  const first = a.wars.reduce((n, c) => Math.min(n, c.declared), Infinity);
+  if (!a.wars.length) return { from: a.from, to: a.to + 1 };
+  return { from: Math.max(a.from, Math.min(a.to, first)), to: a.to + 1 };
+}
+
+export type WarAgeNow = {
+  readonly year: number;
+  /** Every war of the age under way then (or lately ended), as the globe draws them. */
+  readonly map: WarsMap;
+  /** How far along its way each one's host is (by the war's ref). */
+  readonly marching: ReadonlyMap<string, number>;
+  /** Over the globe: the bloodiest battles of the year, and the lands taken in it. */
+  readonly marks: readonly CampaignMark[];
+  /** How many of its wars are under way then; its battles fought since its first year, their fallen. */
+  readonly under: number;
+  readonly fought: number;
+  readonly fallen: number;
+  /** Its latest battle by then, and the war it was of (null: none yet). */
+  readonly latest: { readonly war: Campaign; readonly battle: CampaignBattle } | null;
+  readonly words: string;
+};
+
+/**
+ * The wars of an age at `year` (M194): each war under way as it is then (its host on its way, its
+ * battles flaring in their turns, campaignAt), the year's bloodiest battles and the lands taken in
+ * it marked, the age's battles and fallen tallied, its latest battle told. `at`: when each war's
+ * battles are seen fought (foughtAt), kept between frames.
+ */
+export function warAgeAt(
+  a: WarAge,
+  year: number,
+  at: readonly (readonly number[])[] = a.wars.map((c) => foughtAt(c)),
+): WarAgeNow {
+  const span = warAgeSpan(a),
+    y = Math.max(span.from, Math.min(span.to, year)),
+    whole = Math.floor(y),
+    wars: WarsMap["wars"][number][] = [],
+    marching = new Map<string, number>(),
+    marked: { mark: CampaignMark; fell: number }[] = [];
+  let under = 0,
+    fought = 0,
+    fallen = 0,
+    latest: WarAgeNow["latest"] = null,
+    latestAt = -Infinity;
+  for (let i = 0; i < a.wars.length; i++) {
+    const c = a.wars[i]!,
+      t = at[i]!;
+    for (let j = 0; j < c.battles.length; j++) {
+      const b = c.battles[j]!,
+        fell = b.fallen[0] + b.fallen[1];
+      if (t[j]! > y || b.year < a.from) continue;
+      fought++;
+      fallen += fell;
+      if (t[j]! > latestAt) {
+        latestAt = t[j]!;
+        latest = { war: c, battle: b };
+      }
+      if (b.spot < 0 || b.year !== whole) continue;
+      marked.push({
+        mark: {
+          key: `battle:${b.event}`,
+          spot: b.spot,
+          text: `⚔️ ${count(fell)} fell · ${b.year}`,
+        },
+        fell,
+      });
+      if (b.outcome === "taken" || b.outcome === "stormed")
+        marked.push({
+          mark: {
+            key: `taken:${b.event}`,
+            spot: b.spot,
+            text: `🏴 ${cap(b.outcome === "stormed" ? `${c.defender.name}'s seat` : b.land)} taken · ${b.year}`,
+          },
+          fell,
+        });
+    }
+    if (y < c.declared || y >= campaignSpan(c).to) continue;
+    const n = campaignAt(c, y, t);
+    if (!n.over) under++;
+    wars.push(n.map.wars[0]!);
+    if (n.march !== null) marching.set(c.ref, n.march);
+  }
+  const marks = marked
+      .sort((p, q) => q.fell - p.fell)
+      .slice(0, WAR_AGE_MARKS)
+      .map((m) => m.mark),
+    last = latest as WarAgeNow["latest"],
+    words = last
+      ? `Year ${last.battle.year}: the battle at ${last.battle.land} — ${outcomeWords(
+          last.war,
+          last.battle,
+        )}; ${count(last.battle.fallen[0] + last.battle.fallen[1])} fell`
+      : `Year ${whole}: ${
+          under ? `${under === 1 ? "a war" : `${under} wars`} under way` : "the world at peace"
+        }`;
+  return {
+    year: y,
+    map: { year: whole, garrisons: [], wars },
+    marching,
+    marks,
+    under,
+    fought,
+    fallen,
+    latest: last,
     words,
   };
 }

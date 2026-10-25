@@ -615,7 +615,8 @@ body[data-scale="micro"] {
   font-size: 1rem;
   min-height: 1.3em;
 }
-.battle-course {
+.battle-course,
+.war-course {
   position: relative;
   height: 14px;
   border-radius: 7px;
@@ -671,6 +672,19 @@ body[data-scale="micro"] {
   white-space: nowrap;
 }
 .war-watch[hidden] {
+  display: none;
+}
+/* The wars of an age (M194): no two sides, its course across the bar; its latest battle and war. */
+.war-age .battle-sheet {
+  grid-template-columns: minmax(0, 1fr);
+}
+.war-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.war-acts[hidden] {
   display: none;
 }
 @media (max-width: 640px) {
