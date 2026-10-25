@@ -8,7 +8,8 @@
 //      search, the outliner, the alerts (a tooltip over a tooltip), the message log, a
 //      page's way up, the chronicle and the ledger;
 //   4. zoom goes both ways, toward the pointer, and what is seen at one scale is seen at the
-//      next: a battle on the globe zoomed into is in its land, and its village faces it;
+//      next: a battle on the globe zoomed into is in its land; zoomed onto there, down on its
+//      field to watch it fought (Phase 37), and zoomed into beside it, its village faces it;
 //   5. go-to flies, and a person can be kept in view;
 //   6. free roam: walked among a village's people, and flown up out of it through its land
 //      to the world, and down again;
@@ -353,7 +354,8 @@ await page.waitForTimeout(1500);
   await k(`document.querySelector(".page-window .close")?.click()`);
 }
 
-// 4. Zoom both ways: a battle on the globe zoomed into, in its land, faced in its village.
+// 4. Zoom both ways: a battle on the globe zoomed into, in its land, fought on its field, faced in
+// its village.
 {
   say(`the host answers in ${await hostAnswers("before the zoom")} ms`);
   const wars = await k<{ year: number; wars: { battles: { spot: number; year: number }[] }[] }>(
@@ -388,14 +390,59 @@ await page.waitForTimeout(1500);
       (await scale()) === "region" && land.battles >= 1,
       "a battle zoomed into was not in its land",
     );
-    const label = async () =>
-      k<{ x: number; y: number } | null>(
-        `(() => { const l = [...document.querySelectorAll(".labels > *")].find((e) => e.textContent.includes("A battle of")); if (!l) return null; const r = l.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.bottom + 14 }; })()`,
+    // Where the land's battles are marked on the screen (under their labels).
+    const marks = () =>
+      k<{ x: number; y: number }[]>(
+        `[...document.querySelectorAll(".labels > *")].filter((e) => e.textContent.includes("A battle of")).map((l) => { const r = l.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.bottom + 14 }; })`,
       );
+    // Zoomed onto the battle: down on its field, to watch it fought (Phase 37 M186).
     await whileNot(
       async () => (await scale()) !== "region",
       async () => {
-        const at = await label();
+        const at = (await marks())[0];
+        if (at) await page.mouse.move(at.x, at.y);
+        await page.mouse.wheel(0, -240);
+        await page.waitForTimeout(60);
+      },
+      120000,
+    );
+    const watched = () => k<{ event: string } | null>("globalThis.causalis.battle()");
+    await whileNot(
+      async () => !!(await watched()),
+      () => page.waitForTimeout(250),
+      slow(30000),
+    );
+    const onField = await watched();
+    say(`zoomed onto its battle: ${await scale()}, its field ${onField?.event ?? "not come to"}`);
+    check(
+      (await scale()) === "battle" && !!onField?.event.startsWith("ev:"),
+      "zooming onto a land's battle did not come down on its field",
+    );
+    // Back to its land; and zoomed into beside the battle, not onto it: its village, facing it.
+    await page.locator(".battle-panel button", { hasText: "The land" }).click();
+    await whileNot(
+      async () => (await scale()) === "region",
+      () => page.waitForTimeout(250),
+      slow(30000),
+    );
+    await page.waitForTimeout(1500);
+    const beside = async () => {
+      const all = await marks(),
+        m = all[0];
+      if (!m) return null;
+      const size = await k<{ w: number; h: number }>("({ w: innerWidth, h: innerHeight })");
+      for (let a = 0; a < 16; a++) {
+        const x = m.x + 125 * Math.cos((a * Math.PI) / 8),
+          y = m.y + 125 * Math.sin((a * Math.PI) / 8);
+        if (x < 20 || y < 160 || x > size.w - 20 || y > size.h - 20) continue;
+        if (all.every((o) => Math.hypot(o.x - x, o.y - y) > 100)) return { x, y };
+      }
+      return null;
+    };
+    await whileNot(
+      async () => (await scale()) !== "region",
+      async () => {
+        const at = await beside();
         if (at) await page.mouse.move(at.x, at.y);
         await page.mouse.wheel(0, -240);
         await page.waitForTimeout(60);
