@@ -15,6 +15,8 @@
 // a house.
 import { finish, hashString, mix } from "../kernel/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
+import { fieldPoint } from "./country.ts";
+import { flockAt, flockMember, foldReach } from "./flock.ts";
 import type { CreatureBody } from "../rules/index.ts";
 import { buildBody, strideOf, type Built, type Pose } from "./creature.ts";
 import { dryAt, keepOut, villageGround, type Ground } from "./ground.ts";
@@ -107,6 +109,8 @@ export type FaunaSpecies = {
 type Herd = {
   readonly species: number;
   readonly home: { x: number; z: number };
+  /** A town's flock (Phase 46 M208): its town's plan, by which its day goes on the world's clock. */
+  readonly flock?: VillagePlan;
   /** Each member's place in the herd, metres from its middle, and its own clock. */
   readonly members: readonly { dx: number; dz: number; period: number; phase: number }[];
   /** How far it runs from the hunters; how far each wanders from its place. */
@@ -251,6 +255,7 @@ export function faunaOf(plan: VillagePlan, cap: number, detail: number, ambient:
     herds.push({
       species: sp,
       home: { x: plan.pasture.x, z: plan.pasture.z },
+      flock: plan,
       members: membersOf(
         n,
         Math.min(plan.pasture.r * 0.7, Math.max(8 + 4 * Math.sqrt(n), room(sp, n))),
@@ -554,6 +559,8 @@ export type BeastNow = {
   z: number;
   yaw: number;
   pose: Pose;
+  /** How big against its kind (a lamb: less; Phase 46 M208). */
+  size: number;
   /** Its work (M78): 0 none, 1 carrying packs on the road, 2 drawing a cart. */
   task: 0 | 1 | 2;
 };
@@ -595,9 +602,10 @@ const smooth = (a: number, b: number, x: number) => {
  * Where every beast is at screen time `s` (seconds), written into `out` (reused; returns how
  * many). Herds graze and wander a little, each beast on its own clock; a hunting band
  * prowls, stalks its herd, and runs at it; the herd lifts its heads, then flees, and drifts
- * back to its grazing when the hunters have given up.
+ * back to its grazing when the hunters have given up. A town's flock goes by the world's moment
+ * `at` (seconds; Phase 46 M208): folded by night, driven out, grazing, brought in.
  */
-export function beastsAt(fauna: Fauna, s: number, out: BeastNow[]): number {
+export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number): number {
   let n = 0;
   const next = (): BeastNow => {
     const o =
@@ -609,12 +617,21 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[]): number {
         yaw: 0,
         pose: { gait: 0, phase: 0, head: 0, crouch: 0 },
         task: 0,
+        size: 1,
       });
     o.task = 0;
+    o.size = 1;
     return o;
   };
+  // A town's flock by the world's clock (Phase 46 M208): folded, driven out, grazing, brought in.
+  const flocks = fauna.herds.map((h) =>
+    h.flock && at !== undefined ? flockAt(h.flock, at) : null,
+  );
   // Each herd's middle drifts on a slow loop; the hunters' runs push it away and it comes back.
   const drift = (i: number, t: number) => {
+    const fl = flocks[i];
+    // (A town's flock is where its day has taken it, and any hunters stalk it there.)
+    if (fl) return { x: fl.x, z: fl.z };
     const h = fauna.herds[i]!,
       w = 0.021 + 0.004 * (i % 3),
       r = species(h).flock ? 6 : 26;
@@ -645,9 +662,12 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[]): number {
       flee = b.angle + Math.PI,
       away = phi < 0.72 ? 0 : phi < 0.86 ? smooth(0.72, 0.86, phi) : 1 - (phi - 0.86) / 0.54,
       lastAway = phi < 0.4 ? Math.max(0, 1 - (phi + 0.14) / 0.54) : 0,
-      last = b.last + Math.PI;
-    herd.fx += h.flight * (away * Math.cos(flee) + lastAway * Math.cos(last));
-    herd.fz += h.flight * (away * Math.sin(flee) + lastAway * Math.sin(last));
+      last = b.last + Math.PI,
+      // (A town's flock runs less far, its herders with it; penned in its fold, it only mills.)
+      fl = flocks[p.herd],
+      flight = h.flight * (!fl ? 1 : fl.spread < 0.5 && !fl.driven ? 0.12 : 0.5);
+    herd.fx += flight * (away * Math.cos(flee) + lastAway * Math.cos(last));
+    herd.fz += flight * (away * Math.sin(flee) + lastAway * Math.sin(last));
     // (Alarm comes over a herd, and leaves it, over a few seconds.)
     herd.alert = Math.max(herd.alert, smooth(0.5, 0.58, phi) * (1 - smooth(0.86, 0.95, phi)));
     herd.running = herd.running || (phi >= 0.72 && phi < 0.86);
@@ -783,8 +803,88 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[]): number {
     const m = middles[i]!,
       sp = species(h),
       stride = strideOf(sp.body),
-      first = n;
+      first = n,
+      fl = flocks[i],
+      // (In its fold a body and a half apart, as its kind is big — but within its hurdles.)
+      widest = fl ? Math.max(1, ...h.members.map((b) => Math.hypot(b.dx, b.dz))) : 1,
+      fit = fl && h.flock ? (foldReach(h.flock) - 3) / widest : 1,
+      packed = (sp.reach * 3 * Math.sqrt(h.members.length / Math.PI)) / widest,
+      // (Grazing a field's stubble, over it a body and a half apart — a little past its bounds
+      // where the flock is many.)
+      field =
+        fl && h.flock && fl.state === "grazing" && fl.stubble >= 0
+          ? h.flock.fields[fl.stubble]
+          : undefined,
+      over = field
+        ? Math.max(
+            1,
+            (sp.reach * 3 * Math.sqrt(h.members.length / Math.PI)) /
+              Math.sqrt(Math.max(4, field.w / 2 - 3) * Math.max(4, field.d / 2 - 3)),
+          )
+        : 1,
+      // (Driven, a few abreast as it is many, so far apart as its kind is long.)
+      abreast = Math.max(3, Math.min(7, Math.round(Math.sqrt(h.members.length) / 1.5))),
+      rankGap = Math.max(2.4, sp.reach * 2.4),
+      fileGap = Math.max(1.9, sp.reach * 1.7);
     h.members.forEach((b, j) => {
+      if (fl && h.flock && at !== undefined) {
+        // (A lamb in the spring, grown by the harvest; one of four gone from the cull till then.)
+        const one = flockMember(h.flock, j, at);
+        if (!one.shown) return;
+        const o = next();
+        o.species = h.species;
+        o.size = one.size;
+        if (fl.driven && !m.running) {
+          // Driven: strung out loosely behind its head, walking its way — its ranks staggered,
+          // each a little behind or ahead of its place, a little turned.
+          const rank = Math.floor(j / abreast),
+            file = (j % abreast) - (abreast - 1) / 2 + (rank % 2) * 0.5,
+            lag = (b.period - 17.5) / 9,
+            sway = Math.sin(s * 0.9 + j * 1.7) * 0.4 + (b.phase - 0.5) * fileGap * 0.5,
+            back = (rank + lag * 0.8) * rankGap,
+            side = file * fileGap + sway;
+          o.x = m.x + m.fx - fl.driven.ux * back - fl.driven.uz * side;
+          o.z = m.z + m.fz - fl.driven.uz * back + fl.driven.ux * side;
+          o.yaw = Math.atan2(fl.driven.ux, fl.driven.uz) + (b.phase - 0.5) * 0.3;
+          o.pose.gait = 1;
+          o.pose.head = 0.3;
+          o.pose.crouch = 0;
+        } else {
+          // At the fold packed close (lying by night); out at its grazing, spread and wandering.
+          // (In the fold they stand or lie still, most facing one way; out, they graze about —
+          // on the stubble, over the field reaped and within its bounds.)
+          const w = s / b.period + b.phase,
+            folded = fl.spread < 0.5,
+            spread = folded ? Math.min(fit, Math.max(fl.spread, packed)) : fl.spread,
+            wander = folded ? 0 : h.wander * (field ? 0.5 : spread),
+            f = w - Math.floor(w),
+            jx = Math.sin(w * 0.5 + j) * wander * 0.6,
+            jz = Math.cos(w * 0.4 + j) * wander * 0.6,
+            spot = field
+              ? fieldPoint(
+                  field,
+                  (b.dx / widest) * (0.5 - 3 / field.w) * over,
+                  (b.dz / widest) * (0.5 - 3 / field.d) * over,
+                )
+              : { x: m.x + b.dx * spread, z: m.z + b.dz * spread };
+          o.x = spot.x + m.fx + jx;
+          o.z = spot.z + m.fz + jz;
+          // (Up on their feet when the hunters come at them.)
+          const lying = fl.lying && !m.running;
+          o.yaw = lying
+            ? b.phase * 6.28
+            : folded
+              ? fl.yaw + (b.phase - 0.5) * 0.9
+              : Math.atan2(Math.cos(w * 0.5 + j), -Math.sin(w * 0.4 + j));
+          o.pose.gait = m.running ? 2 : !folded && f > 0.72 && f < 0.98 ? 1 : 0;
+          o.pose.head = lying ? 0.4 : m.alert > 0.5 ? 0 : o.pose.gait ? 0.25 : 1;
+          o.pose.crouch = lying ? 1 : 0;
+          if (m.running) o.yaw = Math.atan2(m.fx, m.fz);
+        }
+        o.pose.phase = s * stride * (o.pose.gait === 2 ? 2.2 : 1) * 2 * Math.PI + j * 1.3;
+        n++;
+        return;
+      }
       const t = s / b.period + b.phase,
         c = Math.floor(t),
         f = t - c,

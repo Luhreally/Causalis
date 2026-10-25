@@ -147,6 +147,7 @@ export class FaunaLayer {
     yaw: number,
     tilt: number,
     pose: Pose,
+    size = 1,
   ): void {
     const sp = this.fauna!.species[species]!,
       count = posed(sp.body, pose, this.parts),
@@ -165,12 +166,12 @@ export class FaunaLayer {
         pz = tilt ? (p.y - mid) * st + p.z * ct : p.z,
         o = g.count++ * FLOATS,
         d = g.data;
-      d[o] = x * M + p.x * c + pz * sn;
-      d[o + 1] = y * M + py;
-      d[o + 2] = z * M - p.x * sn + pz * c;
-      d[o + 3] = p.sx;
-      d[o + 4] = p.sy;
-      d[o + 5] = p.sz;
+      d[o] = x * M + (p.x * c + pz * sn) * size;
+      d[o + 1] = y * M + py * size;
+      d[o + 2] = z * M + (pz * c - p.x * sn) * size;
+      d[o + 3] = p.sx * size;
+      d[o + 4] = p.sy * size;
+      d[o + 5] = p.sz * size;
       d[o + 6] = yaw + p.yaw;
       d[o + 7] = p.pitch + tilt;
     }
@@ -190,7 +191,7 @@ export class FaunaLayer {
   }
 
   /** Put every creature where it is at screen time `s` (seconds). */
-  update(s: number): void {
+  update(s: number, t?: number): void {
     const fauna = this.fauna;
     if (!fauna || !this.root.enabled) return;
     for (const tones of this.tones) for (const g of tones) g.count = 0;
@@ -199,12 +200,12 @@ export class FaunaLayer {
     this.view.copy(cam.getWorldTransform()).invert();
     this.viewProjection.mul2(cam.camera!.projectionMatrix, this.view);
     this.frustum.setFromMat4(this.viewProjection);
-    const n = beastsAt(fauna, s, this.beasts);
+    const n = beastsAt(fauna, s, this.beasts, t);
     for (let i = 0; i < n; i++) {
       const b = this.beasts[i]!;
       // (Out of sight, not posed: most of a village's beasts are, looking into it.)
       if (!this.inSight(b.species, b.x, 0, b.z)) continue;
-      this.draw(b.species, b.x, 0, b.z, b.yaw, 0, b.pose);
+      this.draw(b.species, b.x, 0, b.z, b.yaw, 0, b.pose, b.size);
     }
     // The fliers, on their wings; the swimmers, leaping.
     const birds = birdsAt(fauna, s, this.birdsNow);
@@ -343,6 +344,16 @@ export class FaunaLayer {
         .slice(0, this.fishCount)
         .map((f) => one(f.species, f.x, f.y, f.z, this.swimming, 0)),
     ];
+  }
+
+  /** The town's flock as last laid out (Phase 46 M208, the look tools): each of it, how big, lying or not. */
+  flockNow(): { x: number; z: number; size: number; lying: boolean }[] {
+    const fauna = this.fauna;
+    if (!fauna) return [];
+    return this.beasts
+      .slice(0, this.beastCount)
+      .filter((b) => fauna.species[b.species]?.flock && b.task === 0)
+      .map((b) => ({ x: b.x, z: b.z, size: b.size, lying: b.pose.crouch > 0.5 }));
   }
 
   /** The road's traffic as laid out (for the works that go with it). */

@@ -15,6 +15,8 @@ import {
   blossomOf,
   boatAt,
   countryOf,
+  fleecesPiled,
+  onHay,
   reapingsOf,
   rowNow,
   stooksOf,
@@ -55,6 +57,9 @@ const WOOD: Rgb = [0.46, 0.33, 0.2],
   BLOSSOM: Rgb = [0.98, 0.9, 0.92],
   FRUIT: Rgb = [0.88, 0.22, 0.12],
   HAY: Rgb = [0.88, 0.74, 0.38],
+  /** Wattle hurdles; a fleece shorn (Phase 46 M208). */
+  HURDLES: Rgb = [0.5, 0.41, 0.26],
+  FLEECE: Rgb = [0.9, 0.87, 0.78],
   STOOK: Rgb = [0.84, 0.7, 0.36],
   FLAME: Rgb = [1, 0.46, 0.1],
   SMOKE: Rgb = [0.32, 0.3, 0.28],
@@ -142,10 +147,23 @@ function at(
   return { x: spot.x + c * lx + s * lz, y, z: spot.z - s * lx + c * lz, sx, sy, sz, yaw };
 }
 
+/** The fleeces' pile: where each lies (across, up, along), two layers and one atop. */
+const FLEECE_PILE: readonly (readonly [number, number, number])[] = [
+  [-0.8, 0.1, -0.4],
+  [0, 0.1, -0.4],
+  [0.8, 0.1, -0.4],
+  [-0.8, 0.1, 0.4],
+  [0, 0.1, 0.4],
+  [0.8, 0.1, 0.4],
+  [-0.4, 0.3, 0],
+  [0.4, 0.3, 0],
+  [0, 0.5, 0],
+];
+
 /** Pieces shown only in their season: their batch, and whether they show now. */
 type Seasonal = {
   /** What it is, for the look tools ("": a part counted with another). */
-  readonly name: "fruit" | "hay" | "scarecrows" | "";
+  readonly name: "fruit" | "hay" | "scarecrows" | "racks" | "fleeces" | "";
   readonly batch: InstancedBatch;
   readonly pieces: readonly CountryPiece[];
   readonly pitch: number;
@@ -489,6 +507,33 @@ export class CountryLayer {
       this.placed(this.box, WOOD, [at(r, 0, 0.8, 0, 1.2, 1.6, 2.4)]);
       this.placed(this.box, HAY, [at(r, 0, 1.75, 0, 1.1, 0.5, 2.2)]);
     }
+    // The flock's fold (Phase 46 M208): its hurdles and racks; hay in the racks in winter; the
+    // fleeces piled by it on the day of the shearing.
+    const fold = c.pen.fold;
+    if (fold) {
+      this.placed(this.box, HURDLES, fold.hurdles);
+      this.placed(
+        this.box,
+        WOOD,
+        fold.racks.map((r) => at(r, 0, 0.8, 0, 1.2, 1.6, 2.4)),
+      );
+      this.inSeason(
+        "racks",
+        this.box,
+        HAY,
+        fold.racks.map((r) => at(r, 0, 1.75, 0, 1.1, 0.5, 2.2)),
+        onHay,
+      );
+      this.inSeason(
+        "fleeces",
+        this.box,
+        FLEECE,
+        FLEECE_PILE.map(([lx, y, lz], k) =>
+          at(fold.fleeces, lx, y, lz, 0.85, 0.2, 0.75, fold.fleeces.yaw + (k % 3) * 0.35),
+        ),
+        (t) => fleecesPiled(plan, t),
+      );
+    }
     this.dressedAs = "";
     this.dress();
   }
@@ -773,6 +818,9 @@ export class CountryLayer {
       turbines: c.mills.filter((m) => m.kind === "turbine").length,
       tractors: c.tractors.length,
       pen: c.pen.rails.length,
+      fold: c.pen.fold?.hurdles.length ?? 0,
+      racks: shown("racks"),
+      fleeces: shown("fleeces"),
       hay: shown("hay"),
       scarecrows: shown("scarecrows"),
       fruit: shown("fruit"),

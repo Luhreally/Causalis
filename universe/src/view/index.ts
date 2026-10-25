@@ -642,6 +642,30 @@ export {
   type Spot as CountrySpot,
 } from "./country.ts";
 export {
+  CULL,
+  CULL_EVERY,
+  FLOCK_HANDS,
+  FLOCK_IN,
+  FLOCK_MOST,
+  FLOCK_LIES,
+  FLOCK_OUT,
+  LAMBING,
+  SHEARING,
+  fleecesPiled,
+  flockAt,
+  flockMember,
+  foldOf,
+  foldReach,
+  grazingOf,
+  herderAt,
+  keepsFlock,
+  onHay,
+  shearingDay,
+  type FlockNow,
+  type FlockState,
+} from "./flock.ts";
+export { HARVEST, SOWING, WINTER } from "./seasons.ts";
+export {
   BLIGHTED,
   BURN_HOURS,
   CROP_HIGH,

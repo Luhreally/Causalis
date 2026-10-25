@@ -10,7 +10,8 @@
 // windmills on the fields' rim once the land works metal, their sails turning, and tall wind
 // turbines in the modern age; silos by the barns from the engines' age, and tractors in the
 // modern one — out on their fields at the sowing and the harvest by day, waiting at the gate
-// between; the pasture fenced, its trough, and a rack of hay where no flock grazes. And by its
+// between; the pasture fenced, its trough, and a rack of hay where no flock grazes — where one
+// does, its fold of hurdles (Phase 46 M208), racks of hay in it for the winter. And by its
 // water (M173, as Classic's seafaring drew its docks): a jetty out from the shore nearest the
 // town, and its boats as its age builds them — rowing boats, sailing boats once it works metal,
 // steam launches, motor boats — out on the water by day, tied up at the jetty by night and while
@@ -19,6 +20,7 @@
 import { LAKE_R, type VillagePlan } from "../bridge/index.ts";
 import { hashText, unitOf } from "./draws.ts";
 import { HARVEST, SOWING } from "./seasons.ts";
+import { foldOf, foldReach } from "./flock.ts";
 
 const DAY = 86_400,
   YEAR = 365 * DAY;
@@ -115,6 +117,16 @@ export type Country = {
     readonly posts: readonly Piece[];
     readonly trough: Spot | null;
     readonly rack: Spot | null;
+    /**
+     * Where a flock is kept (Phase 46 M208), its fold: hurdles round where it lies by night, open
+     * toward the town and toward the pasture; a rack at each side within (filled with hay in
+     * winter); where its fleeces are piled on the day of the shearing.
+     */
+    readonly fold: {
+      readonly hurdles: readonly Piece[];
+      readonly racks: readonly Spot[];
+      readonly fleeces: Spot;
+    } | null;
   };
 };
 
@@ -150,6 +162,9 @@ export const ROW_GAP = 3,
 /** The pasture's posts apart; the jetty's length out over the water (metres). */
 const PEN_POST = 6,
   PIER = 32;
+/** A hurdle's length (metres); how wide the fold is open each way (radians either side). */
+const HURDLE = 2.2,
+  FOLD_OPEN = 0.45;
 /** Lands that grow broad leaves enough for hedgerows (gen's BIOME codes: steppe, the temperate and tropical woods, savanna). */
 const HEDGED = new Set([8, 9, 10, 12, 13, 14]);
 
@@ -239,7 +254,7 @@ export function countryOf(plan: VillagePlan, detail = 1): Country {
       mills: [],
       tractors: [],
       water: null,
-      pen: { rails: [], posts: [], trough: null, rack: null },
+      pen: { rails: [], posts: [], trough: null, rack: null, fold: null },
     };
   if (!manner) return none;
   const engines = era === "industry" || era === "modern",
@@ -486,6 +501,36 @@ export function countryOf(plan: VillagePlan, detail = 1): Country {
   }
   const tx = p.x + Math.cos(toward) * p.r * 0.45,
     tz = p.z + Math.sin(toward) * p.r * 0.45;
+  // The flock's fold: hurdles round where it lies, open toward the town and the pasture.
+  let fold: Country["pen"]["fold"] = null;
+  if (plan.fauna?.flock && plan.fauna.flock.herders > 0) {
+    const f = foldOf(plan),
+      r = foldReach(plan),
+      m = Math.max(12, Math.round((2 * Math.PI * r) / HURDLE)),
+      hurdles: Piece[] = [],
+      side = (a: number, out: number): Spot => ({
+        x: f.x + Math.cos(a) * out,
+        z: f.z + Math.sin(a) * out,
+        yaw: Math.atan2(-Math.sin(a), Math.cos(a)),
+      });
+    for (let i = 0; i < m; i++) {
+      const a = toward + ((i + 0.5) / m) * 2 * Math.PI,
+        off = Math.abs(Math.atan2(Math.sin(a - toward), Math.cos(a - toward)));
+      if (off < FOLD_OPEN || off > Math.PI - FOLD_OPEN) continue;
+      hurdles.push({
+        ...side(a, r),
+        y: 0.5,
+        sx: 0.1,
+        sy: 1,
+        sz: ((2 * Math.PI * r) / m) * 0.94,
+      });
+    }
+    fold = {
+      hurdles,
+      racks: [-1, 1].map((k) => side(toward + (k * Math.PI) / 2, r * 0.8)),
+      fleeces: side(toward + 0.85, r * 0.7),
+    };
+  }
   // By its water: a jetty out from the shore nearest the town, a boat for every few hundred of
   // its people (five at most), each tied up along it and going about its own stretch of water.
   let water: Country["water"] = null;
@@ -572,6 +617,7 @@ export function countryOf(plan: VillagePlan, detail = 1): Country {
       rack: plan.fauna?.flock
         ? null
         : { x: tx + Math.sin(toward) * 8, z: tz - Math.cos(toward) * 8, yaw: toward },
+      fold,
     },
   };
 }

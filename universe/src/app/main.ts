@@ -733,6 +733,19 @@ type Exposed = {
     }[];
   } | null;
   /**
+   * The flock of the town watched as drawn (Phase 46 M208): what it is about and where, its fold,
+   * the stubble it grazes (-1: its pasture), each of it (size, lying) and its herders now.
+   */
+  flock?: () => {
+    state: string;
+    x: number;
+    z: number;
+    fold: { x: number; z: number };
+    stubble: number;
+    beasts: { x: number; z: number; size: number; lying: boolean }[];
+    herders: { x: number; z: number; why: string | null }[];
+  } | null;
+  /**
    * The year in the fields of the town watched as drawn (Phase 44 M206): how it stands (rain, dry,
    * lush, blight, blessed, worn, growth), its crop laid out, the fields being reaped and their
    * fronts, those watered and pulled today, and those at the fields' work now by what they are at.
@@ -5614,6 +5627,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.felling = () => (scale === "village" ? village.fellingShown() : null);
   exposed.graveyard = (days = 30) => (scale === "village" ? village.graveyardShown(days) : null);
   exposed.fields = () => (scale === "village" ? village.fieldsShown() : null);
+  exposed.flock = () => (scale === "village" ? village.flockShown() : null);
   exposed.rig = rig;
 
   // Going to anything (Phase 10 M92): a page's place, from whatever scale is up — the scale

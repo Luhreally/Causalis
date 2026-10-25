@@ -864,7 +864,8 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
                   : "hoe";
         return;
       case OCC.herder:
-        kinds[i] = "herd";
+        // (Each its own place with the flock: Phase 46 M208.)
+        sit(i, "herd", 0);
         return;
       case OCC.forager:
         kinds[i] = plan.water && draw(12) < 0.4 ? "fish" : "gather";

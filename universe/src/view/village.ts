@@ -43,6 +43,7 @@ import {
 } from "./graveyard.ts";
 import type { Carry } from "./work.ts";
 import { hashText, unitOf } from "./draws.ts";
+import { FLOCK_HANDS, herderAt, keepsFlock } from "./flock.ts";
 import { ROW_ENDS, ROW_GAP, rowsOf } from "./country.ts";
 import {
   REAP_HOURS,
@@ -493,7 +494,9 @@ type Step = {
    * Where the work goes on as it is done (Phase 44 M206: a reaper at a field's front as it moves
    * along its rows), by the seconds of the day, and which way they face there; null: as they were.
    */
-  readonly follow?: (s: number) => (Point & { readonly face: number }) | null;
+  readonly follow?: (
+    s: number,
+  ) => (Point & { readonly face: number; readonly why?: string }) | null;
 };
 
 /** At work that moves (a reaper following the front), a leg each so many seconds. */
@@ -2145,7 +2148,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
         carry: st.carry,
         task: st.task ?? null,
         face: p?.face ?? st.face ?? null,
-        why: st.why,
+        why: p?.why ?? st.why,
         effect: null,
       });
       if (p) at = p;
@@ -2512,6 +2515,52 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
         ];
       }
       case "herd": {
+        // The flock's day (Phase 46 M208): out to it at the fold, and with it — driving it out,
+        // about it as it grazes, bringing it in; among it at the shearing, by its hay in winter.
+        // (A great town's other herders are out with its other flocks, on the far pastures.)
+        if (keepsFlock(plan) && role.seat >= FLOCK_HANDS) {
+          const p = plan.pasture,
+            [u, v] = at2(6000, 7000),
+            a = Math.atan2(p.z, p.x) + (u - 0.5) * 1.6,
+            r = Math.hypot(p.x, p.z) + p.r + 60 + v * 120;
+          return [
+            {
+              to: clearSpot(ground, { x: r * Math.cos(a), z: r * Math.sin(a) }),
+              carry: "staff",
+              why: "Out to the flocks on the far pastures",
+            },
+            {
+              flex: true,
+              hours: 9,
+              min: 0.5,
+              task: "herd",
+              carry: "staff",
+              why: "With the flocks on the far pastures",
+            },
+          ];
+        }
+        if (keepsFlock(plan)) {
+          const seat = role.seat,
+            follow = (sec: number) => herderAt(plan, day * DAY + sec, seat),
+            first = follow((k < 100 ? 7.1 : 12.9) * HOUR);
+          if (first)
+            return [
+              {
+                to: clearSpot(ground, first),
+                carry: "staff",
+                why: k < 100 ? "Out to the fold for the flock" : "Back out to the flock",
+              },
+              {
+                flex: true,
+                hours: 10,
+                min: 0.25,
+                task: "herd",
+                carry: "staff",
+                why: "With the flock",
+                follow,
+              },
+            ];
+        }
         const [u, v] = at2(6000, 7000);
         return [
           {

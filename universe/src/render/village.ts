@@ -17,6 +17,9 @@ import {
   FAIR_YEAR,
   cropTint,
   fieldsNow,
+  flockAt,
+  foldOf,
+  type FlockState,
   frontOf,
   pulledOn,
   reapedAt,
@@ -1176,7 +1179,7 @@ export class VillageScene {
     }
     // (The beasts move by the screen's clock: a look, at any speed the world runs.)
     const screen = this.heldFauna ?? performance.now() / 1000;
-    this.fauna.update(screen);
+    this.fauna.update(screen, t);
     this.country.update(t, screen, sown, year);
     this.feast.update(t, screen);
     this.visitors.update(screen);
@@ -1788,6 +1791,37 @@ export class VillageScene {
       fight: fightNow(plan, this.lastT),
       burning: spot(b.fires[0]),
       dusty: spot(b.dust[0]),
+    };
+  }
+
+  /**
+   * The town's flock as drawn (the look tools, Phase 46 M208): what it is about and where, its fold,
+   * the stubble it grazes (a field's index; -1: its pasture), each of it (how big, lying or not),
+   * and its herders at work now with what they are about.
+   */
+  flockShown(): {
+    state: FlockState;
+    x: number;
+    z: number;
+    fold: { x: number; z: number };
+    stubble: number;
+    beasts: { x: number; z: number; size: number; lying: boolean }[];
+    herders: { x: number; z: number; why: string | null }[];
+  } | null {
+    const plan = this.plan,
+      fl = plan ? flockAt(plan, this.lastT) : null;
+    if (!plan || !fl) return null;
+    const fold = foldOf(plan);
+    return {
+      state: fl.state,
+      x: fl.x,
+      z: fl.z,
+      fold: { x: fold.x, z: fold.z },
+      stubble: fl.stubble,
+      beasts: this.fauna.flockNow(),
+      herders: this.moments
+        .filter((m) => m && !m.hidden && m.task === "herd")
+        .map((m) => ({ x: m.x, z: m.z, why: m.why })),
     };
   }
 

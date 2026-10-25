@@ -15,7 +15,13 @@ import {
   doingOf,
   faunaOf,
   fishAt,
+  FLOCK_MOST,
+  flockAt,
+  foldOf,
+  foldReach,
+  grazingOf,
   posed,
+  restDay,
   strideOf,
   type BeastNow,
   type BeastPart,
@@ -557,4 +563,88 @@ test("the land's fliers wheel low over the fields and its scavengers high over t
     true,
   );
   assert.equal(bare.birds.length + bare.fish.length, 0);
+});
+
+test("a town's flock goes by its day: folded by night, driven out, about its grazing, and hunted where it is", () => {
+  const f = faunaOf(plan, 160, 2, true),
+    out: BeastNow[] = [],
+    DAY = 86_400,
+    HOUR = 3_600,
+    fold = foldOf(plan),
+    reach = foldReach(plan);
+  let day = 40 * 365 + 150;
+  while (restDay(plan, day)) day++;
+  const flockAtHour = (h: number) => {
+    const n = beastsAt(f, 77.7, out, day * DAY + h * HOUR);
+    return out.slice(0, n).filter((b) => f.species[b.species]!.flock);
+  };
+  // By night: all within the fold's hurdles, lying down.
+  const night = flockAtHour(2);
+  assert.ok(night.length >= 3);
+  for (const b of night) {
+    assert.ok(Math.hypot(b.x - fold.x, b.z - fold.z) < reach - 1, "out of the fold by night");
+    assert.equal(b.pose.crouch, 1);
+  }
+  // (At the finest setting a flock is drawn no greater than its herders' places allow for.)
+  const great = { ...plan.fauna!, flock: { ...plan.fauna!.flock!, herders: 400 } },
+    most = faunaOf({ ...plan, fauna: great }, 320, 3, true);
+  assert.ok(most.herds.find((h) => most.species[h.species]!.flock)!.members.length <= FLOCK_MOST);
+  // (Packed, yet each with its room.)
+  const room = f.species[night[0]!.species]!.reach;
+  let close = 0;
+  for (let i = 0; i < night.length; i++)
+    for (let j = i + 1; j < night.length; j++)
+      if (Math.hypot(night[i]!.x - night[j]!.x, night[i]!.z - night[j]!.z) < room) close++;
+  assert.ok(close <= night.length * 0.02, `${close} of the flock lying in one another`);
+  // Driven out in the morning: on their feet, walking its way.
+  const drive = flockAtHour(7.6),
+    way = flockAt(plan, day * DAY + 7.6 * HOUR)!.driven!;
+  assert.ok(drive.every((b) => b.pose.gait === 1 && b.pose.crouch === 0));
+  assert.ok(drive.every((b) => Math.abs(b.yaw - Math.atan2(way.ux, way.uz)) < 0.16));
+  // At its grazing: about the spot its day has it at.
+  const noon = flockAtHour(11),
+    at = flockAt(plan, day * DAY + 11 * HOUR)!,
+    mid = {
+      x: noon.reduce((a, b) => a + b.x, 0) / noon.length,
+      z: noon.reduce((a, b) => a + b.z, 0) / noon.length,
+    };
+  assert.ok(Math.hypot(mid.x - at.x, mid.z - at.z) < 12, "the flock drawn away from its grazing");
+  // Where the hunters raid the flocks, they stalk it where it grazes — out on the stubble after
+  // the harvest, far from its pasture — not its empty fold.
+  let stubble = 40 * 365 + Math.ceil(0.7 * 365);
+  while (restDay(plan, stubble) || grazingOf(plan, stubble).stubble < 0) stubble++;
+  const there = flockAt(plan, stubble * DAY + 11 * HOUR)!;
+  assert.ok(
+    there.stubble >= 0 && Math.hypot(there.x - plan.pasture.x, there.z - plan.pasture.z) > 250,
+  );
+  // (Grazing it, the flock is over the field reaped — few enough here to keep within its bounds.)
+  const field = plan.fields[there.stubble]!,
+    onIt = beastsAt(f, 77.7, out, stubble * DAY + 11 * HOUR);
+  for (const b of out.slice(0, onIt).filter((b) => f.species[b.species]!.flock)) {
+    const dx = b.x - field.x,
+      dz = b.z - field.z,
+      along = dx * Math.cos(field.yaw) - dz * Math.sin(field.yaw),
+      across = dx * Math.sin(field.yaw) + dz * Math.cos(field.yaw);
+    assert.ok(
+      Math.abs(along) < field.w / 2 + 1 && Math.abs(across) < field.d / 2 + 1,
+      `one of the flock off the stubble (${along.toFixed(1)}, ${across.toFixed(1)})`,
+    );
+  }
+  const raided = faunaOf({ ...plan, fauna: { ...plan.fauna!, raided: true } }, 160, 2, true),
+    flockHerd = raided.herds.findIndex((h) => raided.species[h.species]!.flock),
+    band = raided.packs.findIndex((p) => p.herd === flockHerd && p.follows < 0),
+    // (The bands are drawn after the herds, in turn, and the road's beasts after them.)
+    banded = raided.packs.reduce((a, p) => a + p.members, 0),
+    road = raided.road.species >= 0 ? raided.road.count : 0,
+    before = raided.packs.slice(0, band).reduce((a, p) => a + p.members, 0),
+    seen: number[] = [];
+  assert.ok(band >= 0, "nothing hunts the flock");
+  for (let s = 0; s < 400; s += 3.1) {
+    const n = beastsAt(raided, s, out, stubble * DAY + 11 * HOUR),
+      first = n - road - banded + before;
+    for (let j = 0; j < raided.packs[band]!.members; j++)
+      seen.push(Math.hypot(out[first + j]!.x - there.x, out[first + j]!.z - there.z));
+  }
+  assert.ok(seen.length > 0, "no hunters about");
+  assert.ok(Math.max(...seen) < 180, "the hunters off where the flock is not");
 });
