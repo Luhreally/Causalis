@@ -141,11 +141,14 @@ await until(
 await shot(page, "1-the-host-sets-out");
 
 // 2. Its own clock: it plays at its own pace; Space holds it; the numbers its speeds; the course.
-const y0 = (await seen(page))!.year;
-await page.waitForTimeout(2000);
+// (Waited on by its own clock, not ours: in software a frame comes slowly, and the clock goes by frames.)
+const y0 = (await seen(page))!.year,
+  t0 = Date.now();
+await until(page, "the war playing", async () => (await seen(page))!.year - y0 > 0.2, slow(8000));
 const y1 = (await seen(page))!.year;
-say(`its own pace: year ${y0.toFixed(2)} → ${y1.toFixed(2)} in two seconds of ours`);
-check(y1 - y0 > 0.2, `the war plays (${y0} → ${y1})`);
+say(
+  `its own pace: year ${y0.toFixed(2)} → ${y1.toFixed(2)} in ${((Date.now() - t0) / 1000).toFixed(1)} seconds of ours`,
+);
 await page.keyboard.press("Space");
 const held = (await seen(page))!;
 await page.waitForTimeout(1200);
@@ -273,11 +276,13 @@ let a = await age(page);
 say(`the world's wars: years ${a?.from}–${a?.to}, the bloodiest ${a?.wars} — "${a?.words}"`);
 check(!!a && a.panel && a.wars > 0, "the age's bar shown, its wars to watch");
 check(a?.world === true, "the world's clock held while its wars are watched");
-const ay0 = (await age(page))!.year;
-await page.waitForTimeout(2000);
+const ay0 = (await age(page))!.year,
+  at0 = Date.now();
+await until(page, "the wars playing", async () => (await age(page))!.year - ay0 > 1, slow(8000));
 const ay1 = (await age(page))!.year;
-say(`its own pace: year ${ay0.toFixed(1)} → ${ay1.toFixed(1)} in two seconds of ours`);
-check(ay1 - ay0 > 1, `the wars play (${ay0} → ${ay1})`);
+say(
+  `its own pace: year ${ay0.toFixed(1)} → ${ay1.toFixed(1)} in ${((Date.now() - at0) / 1000).toFixed(1)} seconds of ours`,
+);
 await page.keyboard.press("Space");
 check((await age(page))!.speed === 0, "Space holds the wars still");
 const ages = await k<{ wars: { battles: { year: number; fallen: [number, number] }[] }[] }>(
