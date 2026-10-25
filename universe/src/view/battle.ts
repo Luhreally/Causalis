@@ -149,6 +149,8 @@ export type BattleField = {
     readonly z: number;
     readonly up: number;
     readonly down: number | null;
+    /** The one who climbs it (-1: none). */
+    readonly climber: number;
   }[];
   /** The cannon each side brought, where its realm knew black powder (Phase 37 M188). */
   readonly cannon: readonly Cannon[];
@@ -386,7 +388,7 @@ export function newBattle(near: BattleNear, most: number): BattleField {
         : null;
   // At a seat's walls, the attackers' ladders along their front, either side of the gate: raised
   // against the walls as they rush them, thrown down where the walls held.
-  const ladders: { z: number; up: number; down: number | null }[] = [];
+  const ladders: { z: number; up: number; down: number | null; climber: number }[] = [];
   if (ground.wall) {
     const gate = ground.wall.gate,
       far = Math.max(gate + 4, Math.min(reach[0]!, FIELD.z - 5)),
@@ -399,7 +401,25 @@ export function newBattle(near: BattleNear, most: number): BattleField {
         z: out * (gate + 3 + ((far - gate - 3) * (k + 0.5)) / each + (unit(key, 300 + i) - 0.5)),
         up: MOMENTS.melee + 0.5 + 2.5 * unit(key, 310 + i),
         down: near.outcome === "held" ? MOMENTS.rout - 4 + 3 * unit(key, 320 + i) : null,
+        climber: -1,
       });
+    }
+    // (Who climbs each: the one at the front of the file nearest it.)
+    const taken = new Set<number>();
+    for (const l of ladders) {
+      let best: Trooper | null = null;
+      for (const t of troopers)
+        if (
+          t.side === 0 &&
+          t.rank === 0 &&
+          !taken.has(t.id) &&
+          (!best || Math.abs(t.z - l.z) < Math.abs(best.z - l.z))
+        )
+          best = t;
+      if (best) {
+        taken.add(best.id);
+        l.climber = best.id;
+      }
     }
   }
   const field: BattleField = {
@@ -825,6 +845,10 @@ function placed(
   when: number,
 ): { x: number; z: number; yaw: number; run: boolean; fled: number } {
   const facing = t.side === 0 ? Math.PI / 2 : -Math.PI / 2;
+  // On a ladder, or over the walls from it.
+  const climb = climbing(field, t, when);
+  if (climb && (t.flees === null || when < t.flees))
+    return { x: climb.x, z: climb.z, yaw: facing, run: climb.act === "run", fled: 0 };
   // Fled: from where the rout found them, toward their edge (or the town), running.
   if (t.flees !== null && when >= t.flees) {
     const p = inOrder(field, t, t.flees),
@@ -970,6 +994,23 @@ function trooperNow(field: BattleField, t: Trooper, s: number): TrooperNow {
       crawl: 0,
     };
   }
+  const climb = climbing(field, t, s);
+  if (climb && (t.flees === null || s < t.flees))
+    return {
+      id: t.id,
+      side: t.side,
+      x: p.x,
+      y: climb.y,
+      z: p.z,
+      yaw: p.yaw,
+      act: climb.act,
+      cycle,
+      down: 0,
+      back: false,
+      size: 1,
+      bearer: t.bearer,
+      crawl: 0,
+    };
   let act: Act;
   if (t.flees !== null && s >= t.flees) act = "flee";
   else if (p.run) act = "run";
@@ -1004,6 +1045,76 @@ function trooperNow(field: BattleField, t: Trooper, s: number): TrooperNow {
     bearer: t.bearer,
     crawl: 0,
   };
+}
+
+/** A ladder raised against a seat's walls: where its foot stands (x, m), how it leans, how long it is. */
+function ladderOn(w: NonNullable<BattleGround["wall"]>): {
+  foot: number;
+  lean: number;
+  long: number;
+} {
+  const run = 1.3,
+    high = w.high + 0.3;
+  return {
+    foot: w.x - (w.stone ? 0.7 : 0.21) - run,
+    lean: Math.atan2(high, run),
+    long: Math.hypot(run, high),
+  };
+}
+
+/**
+ * Where one who climbs a ladder is at `s` (null: not on it then): to its foot once it is raised,
+ * up it, fighting at its top; down it again before it is thrown down where the walls held (or
+ * before the field's end, at a siege laid), or over the walls onto their walk once the gate of a
+ * seat stormed is broken.
+ */
+function climbing(
+  field: BattleField,
+  t: Trooper,
+  s: number,
+): { x: number; y: number; z: number; act: Act } | null {
+  const l = field.ladders.find((x) => x.climber === t.id),
+    w = field.ground.wall;
+  if (!l || !w) return null;
+  const { foot, lean, long } = ladderOn(w),
+    start = l.up + 1.6,
+    atFoot = start + 0.8,
+    atTop = atFoot + 2.6,
+    top = long - 0.55,
+    stormed = field.near.outcome === "stormed",
+    back = stormed ? null : (l.down ?? MOMENTS.rout + 1) - 2.6,
+    on = (along: number) => ({
+      x: foot + Math.cos(lean) * along,
+      y: Math.sin(lean) * along,
+      z: l.z,
+    });
+  if (s < start) return null;
+  if (s < atFoot) {
+    const from = lineOrder(field, t, start),
+      f = smooth((s - start) / 0.8);
+    return { x: from.x + (foot - from.x) * f, y: 0, z: from.z + (l.z - from.z) * f, act: "run" };
+  }
+  if (s < atTop) return { ...on(top * smooth((s - atFoot) / 2.6)), act: "march" };
+  if (back === null) {
+    if (s < MOMENTS.gate) return { ...on(top), act: "fight" };
+    // Over the walls onto their walk, and there they stand.
+    const at = on(top),
+      f = smooth((s - MOMENTS.gate) / 1.2);
+    return {
+      x: at.x + (w.x - at.x) * f,
+      y: at.y + (w.high - 1.1 - at.y) * f,
+      z: l.z,
+      act: s >= MOMENTS.after ? "cheer" : "stand",
+    };
+  }
+  if (s < back) return { ...on(top), act: "fight" };
+  if (s < back + 2) return { ...on(top * (1 - smooth((s - back) / 2))), act: "march" };
+  if (s < back + 2.8) {
+    const to = lineOrder(field, t, back + 2.8),
+      f = smooth((s - back - 2) / 0.8);
+    return { x: foot + (to.x - foot) * f, y: 0, z: l.z + (to.z - l.z) * f, act: "run" };
+  }
+  return null;
 }
 
 /** The ground's height where one lies (in the river, under its water). */
@@ -1206,17 +1317,15 @@ export function battleAt(field: BattleField, s: number): BattleNow {
   if (w)
     for (const l of field.ladders) {
       if (t < l.up - 0.6) continue;
-      const run = 1.3,
-        high = w.high + 0.3,
-        lean = Math.atan2(high, run);
+      const { foot, lean, long } = ladderOn(w);
       ladders.push({
-        x: w.x - (w.stone ? 0.7 : 0.21) - run,
+        x: foot,
         z: l.z,
         rise:
           l.down !== null && t >= l.down
             ? lean + (Math.PI - lean) * smooth((t - l.down) / 1.4)
             : lean * smooth((t - l.up) / 1.6),
-        long: Math.hypot(run, high),
+        long,
       });
     }
   const stormed = field.near.outcome === "stormed",
@@ -1316,6 +1425,15 @@ const ORDINALS = [
   "tenth",
 ];
 
+/** What one on a ladder is at, in words. */
+const CLIMB_WORDS: Partial<Record<Act, string>> = {
+  run: "making for a ladder",
+  march: "on a ladder",
+  fight: "fighting at the top of a ladder",
+  stand: "over the walls",
+  cheer: "over the walls",
+};
+
 /**
  * One who fought, told (the one followed, Phase 37 M186): who they were in their host, and what
  * had become of them by `s` — waiting in the line, coming on, in the press, fallen and how,
@@ -1339,6 +1457,7 @@ export function trooperWords(field: BattleField, id: number, s: number): string 
     // (Of a wing that wheels about the other host's flank.)
     wing = !!field.wings && field.wings.side === t.side && Math.abs(t.z) > field.wings.z,
     crawls = crawlsFor(field, t),
+    climb = climbing(field, t, s),
     fate =
       t.falls !== null && s >= t.falls && crawls && s < t.falls + CRAWL.after + crawls
         ? "struck down, dragging themselves back toward their lines"
@@ -1350,25 +1469,27 @@ export function trooperWords(field: BattleField, id: number, s: number): string 
               : "fell in the press"
           : t.flees !== null && s >= t.flees
             ? "running from the field"
-            : t.gate && s >= MOMENTS.gate
-              ? "through the broken gate"
-              : t.pursues && s >= MOMENTS.rout && s < MOMENTS.after
-                ? "after the beaten"
-                : s < MOMENTS.advance
-                  ? "waiting in the line"
-                  : s < MOMENTS.melee
-                    ? t.side === 0
-                      ? "coming on"
-                      : "holding the line"
-                    : s < MOMENTS.rout
-                      ? wing && s > WHEEL.from
-                        ? s < WHEEL.to
-                          ? "wheeling about their flank"
-                          : "falling on their flank"
-                        : "in the press"
-                      : won
-                        ? "standing on the field, its victor"
-                        : "standing still",
+            : climb
+              ? (CLIMB_WORDS[climb.act] ?? "on a ladder")
+              : t.gate && s >= MOMENTS.gate
+                ? "through the broken gate"
+                : t.pursues && s >= MOMENTS.rout && s < MOMENTS.after
+                  ? "after the beaten"
+                  : s < MOMENTS.advance
+                    ? "waiting in the line"
+                    : s < MOMENTS.melee
+                      ? t.side === 0
+                        ? "coming on"
+                        : "holding the line"
+                      : s < MOMENTS.rout
+                        ? wing && s > WHEEL.from
+                          ? s < WHEEL.to
+                            ? "wheeling about their flank"
+                            : "falling on their flank"
+                          : "in the press"
+                        : won
+                          ? "standing on the field, its victor"
+                          : "standing still",
     each = field.per > 1 ? ` (a figure for ${field.per.toLocaleString("en-US")} men)` : "";
   return `👁 ${who[0]!.toUpperCase()}${who.slice(1)} of ${side.name}, in the ${rank} rank${each}: ${fate}.`;
 }

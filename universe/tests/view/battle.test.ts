@@ -404,3 +404,37 @@ test("at a seat's walls the attackers raise ladders against them as they rush th
     "none in the open",
   );
 });
+
+test("one climbs each ladder: up it once raised, fighting at its top; down again where the walls held, over them once the gate is broken", () => {
+  const held = newBattle(
+      near("held", side("Ash", 5000, 300), side("Elm", 900, 80), { walls: 2 }),
+      360,
+    ),
+    stormed = newBattle(
+      near("stormed", side("Ash", 5000, 70), side("Elm", 200, 160), { walls: 2 }),
+      360,
+    );
+  for (const f of [held, stormed]) {
+    const wall = f.ground.wall!,
+      l = f.ladders.find(
+        (x) => x.climber >= 0 && (f.troopers[x.climber]!.falls ?? Infinity) > MOMENTS.rout + 10,
+      );
+    assert.ok(l, "a climber who lives through it");
+    const at = (s: number) => battleAt(f, s).troopers[l.climber]!,
+      top = at(l.up + 6);
+    assert.equal(top.act, "fight", "at the ladder's top");
+    assert.ok(top.y > wall.high - 1.2, `up on the walls' height (${top.y})`);
+    assert.ok(Math.abs(top.z - l.z) < 1e-6 && top.x < wall.x, "on the ladder, before the walls");
+    if (f === held) {
+      const after = at(l.down! + 0.5);
+      // (Back in the line by then, on the ground.)
+      assert.ok(after.y < 0.01 && after.x < wall.x - 2, "down again before it is thrown down");
+    } else {
+      const over = at(MOMENTS.gate + 3);
+      assert.ok(Math.abs(over.x - wall.x) < 0.05, "over the walls");
+      assert.ok(Math.abs(over.y - (wall.high - 1.1)) < 0.05, "on their walk");
+      assert.match(trooperWords(f, l.climber, MOMENTS.gate + 3), /over the walls\.$/);
+    }
+    assert.match(trooperWords(f, l.climber, l.up + 6), /fighting at the top of a ladder\.$/);
+  }
+});
