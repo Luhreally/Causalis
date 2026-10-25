@@ -536,6 +536,41 @@ body[data-scale="micro"] {
   color: #a9e3c9;
   font-variant-numeric: tabular-nums;
 }
+/* The town's stores and its work today (Phase 39 M198): a line of them under its bar, a tap
+   from their card. */
+.town-stores {
+  flex-basis: 100%;
+  min-height: 0;
+  padding: 2px 8px;
+  text-align: left;
+  font-size: 0.82rem;
+  color: #e8dcb8;
+  font-variant-numeric: tabular-nums;
+  background: rgba(0, 0, 0, 0.18);
+  border-color: transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.town-stores.lean {
+  color: #ffb08a;
+}
+.town-stores[hidden] {
+  display: none;
+}
+.stores-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+.stores-list li {
+  margin: 2px 0;
+}
+.stores-doing {
+  margin: 0;
+  font-size: 0.88rem;
+}
 /* A battle watched (Phase 37 M186): its two hosts either side of its course. */
 .battle-title {
   flex: 1 1 14rem;

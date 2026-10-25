@@ -1,14 +1,44 @@
 // The microscope's panel (docs/architecture §9, §31): the village watched (its clock
 // the time bar's, at the speeds a town is watched at), and an inspector for a watched
-// person — who they are, what they are doing now, how hungry and tired, and their
-// page with its whys. Watching is looking: it never changes what happens.
-import type { HostClient } from "../bridge/index.ts";
-import { ACTIVITY_WORDS, carryWords, type Moment } from "../view/index.ts";
+// person — who they are, what they are doing now and why, how hungry and tired, and their
+// page with its whys. Under its bar, the town's stores and its work today (Phase 39 M198), a
+// tap from their card: what each store holds and how long it would last, what came in and went
+// out today, who is at what, and what is going up. Watching is looking: it never changes what
+// happens.
+import { STORE_KINDS, type HostClient } from "../bridge/index.ts";
+import {
+  ACTIVITY,
+  ACTIVITY_WORDS,
+  ROLE_WORDS,
+  STORE_WORDS,
+  carryWords,
+  type Moment,
+  type StoresNow,
+} from "../view/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 import { PeopleView } from "./people.ts";
 import type { Tidings } from "./tidings.ts";
 import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
+
+const count = (n: number) => Math.round(n).toLocaleString("en-US");
+
+/** How long a store would last, in words: "8 months", "a fortnight", "a year and more". */
+function lastsWords(months: number): string {
+  if (months >= 24) return "years";
+  if (months >= 12) return "a year and more";
+  if (months >= 1.5) return `${Math.round(months)} months`;
+  if (months >= 0.75) return "a month";
+  if (months >= 0.3) return "a fortnight";
+  return months > 0 ? "days" : "none";
+}
+
+/** A store's months, short: "8 mo", "1 yr+", "—". */
+function lastsShort(months: number): string {
+  if (months >= 12) return "1 yr+";
+  if (months <= 0) return "—";
+  return months >= 1 ? `${Math.round(months)} mo` : `${Math.max(1, Math.round(months * 30))} d`;
+}
 
 function needWords(m: Moment): string {
   const hunger = m.hunger > 0.8 ? "hungry" : m.hunger > 0.5 ? "getting hungry" : "fed",
@@ -31,8 +61,17 @@ export class VillagePanel {
   private readonly whyBox = el("div", "why");
   private view = 0;
   private readonly hint = el("p", "hint");
+  /** The town's stores and work, a line under the bar (Phase 39 M198); its card when open. */
+  private readonly storesLine = el("button", "town-stores");
+  private storesKey = "";
+  private stores: StoresNow | null = null;
+  private storesOpen = false;
+  private folkOpen = false;
+  private cardKey = "";
   onBack: () => void = () => {};
   onClose: () => void = () => {};
+  /** The stores' card opened (what else is up is put away). */
+  onStores: () => void = () => {};
   /** News of what the observer follows, and the toggles that follow things. */
   tidings: Tidings | null = null;
 
@@ -45,11 +84,15 @@ export class VillagePanel {
     const bar = el("header", "bar"),
       back = el("button", "speed", "‹ The land");
     back.onclick = () => this.onBack();
-    bar.append(back, this.title, this.timeSlot);
+    this.storesLine.hidden = true;
+    this.storesLine.title = "The town's stores and its work today";
+    this.storesLine.onclick = () => this.showStores();
+    bar.append(back, this.title, this.timeSlot, this.storesLine);
     const close = el("button", "close", "×");
     close.setAttribute("aria-label", "Close");
     close.onclick = () => {
       this.inspector.hidden = true;
+      this.storesOpen = this.folkOpen = false;
       this.onClose();
     };
     this.inspector.append(
@@ -72,9 +115,159 @@ export class VillagePanel {
     this.element.hidden = !on;
   }
 
-  show(name: string): void {
+  /** A town watched: its name; `fresh`, a town come to (else the same read again as the years turn). */
+  show(name: string, fresh = true): void {
     this.title.textContent = name;
+    if (!fresh) return;
     this.inspector.hidden = true;
+    this.storesOpen = this.folkOpen = false;
+    this.storesKey = this.cardKey = "";
+    this.storesLine.hidden = true;
+  }
+
+  /** The panel's own card (the stores', one of the many's) put away, if one is up. */
+  closeCard(): void {
+    if (!this.storesOpen && !this.folkOpen) return;
+    this.storesOpen = this.folkOpen = false;
+    this.inspector.hidden = true;
+  }
+
+  /** The words of the card up now, if it is the stores' or one of the many's (the look tools). */
+  cardShown(): string | null {
+    return (this.storesOpen || this.folkOpen) && !this.inspector.hidden
+      ? (this.inspector.textContent ?? "")
+      : null;
+  }
+
+  /**
+   * The town's stores now (null: none told), on the line under the bar — each store's sign and how
+   * long it would last, the yard's loads, what is going up — and on their card, if it is open.
+   */
+  storesNow(s: StoresNow | null): void {
+    this.stores = s;
+    if (!s) {
+      this.storesLine.hidden = true;
+      return;
+    }
+    const chip = (sign: string, text: string) => `${sign} ${text}`,
+      parts = [
+        chip(STORE_WORDS.grain.sign, lastsShort(s.lasts.grain)),
+        // (Fresh food eaten as it comes, and stone where none is raised, are not kept: no chip.)
+        ...(s.have.food >= 0.5 ? [chip(STORE_WORDS.food.sign, lastsShort(s.lasts.food))] : []),
+        chip(STORE_WORDS.wood.sign, count(s.have.wood)),
+        ...(s.have.stone >= 0.5 ? [chip(STORE_WORDS.stone.sign, count(s.have.stone))] : []),
+        ...(s.have.ore > 0.5 ? [chip(STORE_WORDS.ore.sign, lastsShort(s.lasts.ore))] : []),
+        ...(s.sites.length ? [chip("🏗️", `${s.sites.length} going up`)] : []),
+        ...(s.lean ? ["🥣 Lean"] : []),
+      ],
+      key = parts.join(" · ");
+    if (key !== this.storesKey) {
+      this.storesKey = key;
+      this.storesLine.textContent = key;
+      this.storesLine.classList.toggle("lean", s.lean);
+    }
+    this.storesLine.hidden = false;
+    if (this.storesOpen) this.fillStores(s);
+  }
+
+  /** The town's stores and its work today, in the inspector (kept up as the day goes). */
+  showStores(): void {
+    if (!this.stores) return;
+    this.onStores();
+    this.view++;
+    this.storesOpen = true;
+    this.folkOpen = false;
+    this.cardKey = "";
+    this.inspector.hidden = false;
+    this.who.textContent = `${this.title.textContent ?? "The town"} at work`;
+    this.whyBox.replaceChildren();
+    this.fillStores(this.stores);
+  }
+
+  private fillStores(s: StoresNow): void {
+    const rows = STORE_KINDS.filter(
+        (k) => k !== "ore" || s.have.ore > 0.5 || s.brought.ore > 0 || s.taken.ore > 0,
+      ).map((k) => {
+        const w = STORE_WORDS[k],
+          yard = k === "wood" || k === "stone",
+          moving = s.brought[k] > 0.5 || s.taken[k] > 0.5,
+          // (What is eaten as it comes keeps none: fresh meat, milk, the wild's.)
+          held = yard
+            ? `${count(s.have[k])} loads`
+            : s.have[k] < 0.5
+              ? moving
+                ? "none kept, used as it comes"
+                : "none"
+              : `${count(s.have[k])} (lasts ${lastsWords(s.lasts[k])})`,
+          today = moving ? ` · today +${count(s.brought[k])} / −${count(s.taken[k])}` : "";
+        return `${w.sign} ${w.name}: ${held}${today}`;
+      }),
+      doing = s.doing
+        .filter((d) => d.n > 0)
+        .map((d) => `${d.n} ${ROLE_WORDS[d.kind]}`)
+        .join(" · "),
+      // (Alike going up told together: "7 × a house rising — 3 at work".)
+      alike = new Map<string, { n: number; hands: number }>(),
+      sites: string[] = [];
+    for (const x of s.sites) {
+      const a = alike.get(x.words) ?? { n: 0, hands: 0 };
+      a.n++;
+      a.hands += x.hands;
+      alike.set(x.words, a);
+    }
+    for (const [words, a] of alike)
+      sites.push(`${a.n > 1 ? `${a.n} × ` : ""}${words}${a.hands ? ` — ${a.hands} at work` : ""}`);
+    const key = [rows.join("|"), doing, sites.join("|"), s.lean].join("#");
+    if (key === this.cardKey) return;
+    this.cardKey = key;
+    this.now.textContent = `Food for ${lastsWords(s.months)}${s.lean ? " — a lean time" : ""}`;
+    const list = (lines: readonly string[]) => {
+      const ul = el("ul", "stores-list");
+      for (const line of lines) ul.append(el("li", undefined, line));
+      return ul;
+    };
+    this.page.replaceChildren(
+      el("h3", undefined, "Its stores"),
+      list(rows),
+      el("h3", undefined, "Today, of those drawn"),
+      el("p", "stores-doing", doing || "A day of rest: none at work."),
+      ...(sites.length ? [el("h3", undefined, `Going up (${s.sites.length})`), list(sites)] : []),
+      ...(s.lean
+        ? [
+            el(
+              "p",
+              "muted",
+              "A lean time: the granary has little to give, and those idle go out to the wild for what it gives.",
+            ),
+          ]
+        : []),
+      el(
+        "p",
+        "muted",
+        "As history keeps them: what the town holds, made and used over its year, shared among those drawn as they bring and take it.",
+      ),
+    );
+  }
+
+  /**
+   * One of the town's many drawn for its crowd (Phase 39 M198): not one history follows, but
+   * living the town's day as its own people do — their work today.
+   */
+  showFolk(name: string, today: string | null): void {
+    this.view++;
+    this.storesOpen = false;
+    this.folkOpen = true;
+    this.inspector.hidden = false;
+    this.who.textContent = name;
+    this.page.replaceChildren(
+      ...(today ? [el("div", "fact", `Today: ${today}`)] : []),
+      el(
+        "p",
+        "muted",
+        "One of the town's many, drawn for its crowd: history counts them among its people but does not follow them by name. They live its day as its own people do.",
+      ),
+    );
+    this.whyBox.replaceChildren();
   }
 
   /** The village's age and what its mine digs, for the words of what they carry. */
@@ -89,22 +282,27 @@ export class VillagePanel {
 
   /** What the person looked at is doing now, and what they carry (and what it is made of). */
   moment(m: Moment | null, tool?: string): void {
-    if (!m) return;
+    if (!m || this.storesOpen) return;
     this.now.textContent = this.nowWords(m, tool);
   }
 
   /**
-   * What someone is doing now, in words: "Now at work; fed and rested; carrying a hoe" — their
-   * own tool where it is known (Phase 15 M125: "a flint hoe, made in year 254").
+   * What someone is doing now and why, in words: "Now at work: felling timber for the builders;
+   * fed and rested; carrying an axe" — their own tool where it is known (Phase 15 M125: "a flint
+   * hoe, made in year 254").
    */
   nowWords(m: Moment, tool?: string): string {
     const carrying =
-      m.carry === "tool" && tool
-        ? tool
-        : m.carry
-          ? carryWords(m.carry, this.works.era, this.works.what, this.works.metal)
+        m.carry === "tool" && tool
+          ? tool
+          : m.carry
+            ? carryWords(m.carry, this.works.era, this.works.what, this.works.metal)
+            : "",
+      why =
+        m.why && m.activity !== ACTIVITY.sheltering
+          ? `: ${m.why[0]!.toLowerCase()}${m.why.slice(1)}`
           : "";
-    return `Now ${ACTIVITY_WORDS[m.activity]}; ${needWords(m)}${carrying ? `; carrying ${carrying}` : ""}`;
+    return `Now ${ACTIVITY_WORDS[m.activity]}${why}; ${needWords(m)}${carrying ? `; carrying ${carrying}` : ""}`;
   }
 
   /** Whether the hand rests on the village watched: then its people are the hand's. */
@@ -117,6 +315,7 @@ export class VillagePanel {
   /** One of the hand's people: who they are, what they are remembered for, and what the god may do for them. */
   async showAgent(id: number, name: string, age: number, work: string): Promise<void> {
     const view = ++this.view;
+    this.storesOpen = this.folkOpen = false;
     this.inspector.hidden = false;
     this.who.textContent = name;
     const about = el(
@@ -197,6 +396,7 @@ export class VillagePanel {
   /** A beast looked at: its lineage, what it is doing now, and its lineage's why. */
   showBeast(b: { ref: string; name: string; doing: string; flock: boolean }): void {
     this.view++;
+    this.storesOpen = this.folkOpen = false;
     this.inspector.hidden = false;
     this.who.textContent = `The ${b.name}`;
     this.now.textContent = `Now ${b.doing}`;
@@ -214,6 +414,7 @@ export class VillagePanel {
 
   async showPerson(ref: string): Promise<void> {
     const view = ++this.view;
+    this.storesOpen = this.folkOpen = false;
     this.inspector.hidden = false;
     this.who.textContent = "…";
     const p = await this.people.person(this.page, ref);

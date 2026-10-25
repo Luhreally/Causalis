@@ -3,7 +3,8 @@
 // sickle, one arm casting seed, the hammer's quick blows on the rising walls, reaching for
 // what the wild gives, the rod held out over the water, hands in talk and haggling, the
 // spear thrust in the drill with a step, fists and a boxer's shuffle in a brawl, children
-// running at play. A pure function of the limb, what its person is at and the screen's
+// running at play; the axe swung high and down into the trunk, and a load lifted down or up at a
+// store (Phase 39 M198). A pure function of the limb, what its person is at and the screen's
 // clock, so the same moment always looks the same and watching never touches history.
 import type { FigurePart } from "./figure.ts";
 import type { Task } from "./village.ts";
@@ -49,6 +50,12 @@ export function limbPitch(
     case "hammer":
     case "build":
       return right ? -0.9 - 0.8 * Math.abs(Math.sin(ph * 1.6 + off)) : -0.6;
+    case "chop":
+      // Both hands on the haft: raised over the shoulder and brought down hard.
+      return -0.6 - 1.9 * Math.max(0, Math.sin(ph * 1.25 + off)) ** 0.6;
+    case "load":
+      // Reaching down for the load and lifting it, or setting it down.
+      return -0.7 - 0.5 * Math.abs(Math.sin(ph * 0.9 + off));
     case "gather":
       return -0.9 + 0.45 * Math.sin(ph * 0.6 + off + (right ? Math.PI : 0));
     case "fish":

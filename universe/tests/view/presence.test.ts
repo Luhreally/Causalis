@@ -25,6 +25,7 @@ function moment(x: number, z: number, hidden = false): Moment {
     hunger: 0,
     tiredness: 0,
     carry: null,
+    why: null,
   };
 }
 

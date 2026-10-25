@@ -254,6 +254,12 @@ jobs:
       - run: npm run gate:38 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # Phase 39 (the town lived: its many drawn; its people at the work its needs set them —
+      # reaping, the sheaves to the granary, beams to what is going up; its stores heaped, on the
+      # line under its bar and on their card; one of them tapped, what they do and why).
+      - run: npm run gate:39 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

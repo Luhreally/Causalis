@@ -84,26 +84,20 @@ function dayOfCarrying(p: VillagePlan, i: number, day: number) {
 const workday = (d0: number) =>
   [0, 1, 2, 3, 4, 5, 6].map((k) => d0 + k).find((d) => (d + (plan.seed % 7)) % 7 !== 0)!;
 
-test("a farmer goes out with a tool and works with it in hand; in the harvest they bring sheaves back", () => {
-  const spring = workday(40),
+test("a farmer goes out with a tool and works with it in hand; in the harvest they carry the sheaves in, trip on trip", () => {
+  const summer = workday(150),
     harvest = workday(Math.floor(0.68 * 365));
-  for (const [day, back] of [
-    [spring, "tool"],
-    [harvest, "sheaf"],
-  ] as const) {
+  for (const day of [summer, harvest]) {
     const d = dayOfCarrying(plan, 0, day);
-    const out = d.filter((s) => s.activity === ACTIVITY.walking && s.hour < 9);
-    assert.ok(out.length, "walks out in the morning");
     assert.ok(
-      out.every((s) => s.carry === "tool"),
-      "with a tool",
+      d.some((s) => s.activity === ACTIVITY.walking && s.hour < 12 && s.carry === "tool"),
+      "out with a tool",
     );
+    // (At their work in the field, the tool in hand; at the granary, the sheaves put down.)
     const working = d.filter((s) => s.activity === ACTIVITY.working);
-    assert.ok(working.length && working.every((s) => s.carry === "tool"), "working, tool in hand");
-    const home = d.filter((s) => s.activity === ACTIVITY.walking && s.hour > 16);
     assert.ok(
-      home.some((s) => s.carry === back),
-      `back with ${back}`,
+      working.length && working.every((s) => s.carry === "tool" || s.carry === "sheaf"),
+      "working, tool in hand",
     );
     assert.ok(
       d
@@ -112,6 +106,22 @@ test("a farmer goes out with a tool and works with it in hand; in the harvest th
       "empty-handed at home",
     );
   }
+  // Through the summer they hoe and come home with the hoe.
+  const hoeing = dayOfCarrying(plan, 0, summer);
+  assert.ok(
+    hoeing.some((s) => s.activity === ACTIVITY.walking && s.hour > 16 && s.carry === "tool"),
+    "home with the tool",
+  );
+  assert.ok(!hoeing.some((s) => s.carry === "sheaf"), "no sheaves before the harvest");
+  // In the harvest they reap, and carry each armful of sheaves in to the granary: more than once.
+  let trips = 0,
+    was = false;
+  for (const s of dayOfCarrying(plan, 0, harvest)) {
+    const carrying = s.activity === ACTIVITY.walking && s.carry === "sheaf";
+    if (carrying && !was) trips++;
+    was = carrying;
+  }
+  assert.ok(trips >= 2, `${trips} trips with sheaves`);
 });
 
 test("in a land that digs, crafters walk to the mine with picks and back with ore; by the water, foragers fish; traders carry packs", () => {

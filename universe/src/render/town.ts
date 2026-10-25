@@ -227,6 +227,17 @@ export class TownLayer {
     };
   }
 
+  /** The town's homes standing at moment t, the first `most` of its lots (the look tools). */
+  homes(t: number, most = 40): { lot: number; x: number; z: number }[] {
+    const s = this.scene,
+      out: { lot: number; x: number; z: number }[] = [];
+    if (!s) return out;
+    for (let p = 0; p < s.plan.lots && out.length < most; p++)
+      if (s.states.what[p] === LOT.home && progress(s.states.began[p]!, s.states.takes[p]!, t) >= 1)
+        out.push({ lot: p, x: s.lots.x[p]!, z: s.lots.z[p]! });
+    return out;
+  }
+
   /** Where a lot is (metres from the middle), or null. */
   lotAt(p: number): { x: number; z: number } | null {
     const s = this.scene;

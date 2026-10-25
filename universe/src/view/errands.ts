@@ -1,0 +1,735 @@
+// The town's day as lived (Phase 39 M198, asked for 2026-10-25: "bringing back og causlisis like
+// town/country game play and sim like the depth the og game had ... and just actions of stuff"):
+// what a town keeps in store and where — its granary, its yard of timber, stone and ore, its
+// smithy — the buildings going up on a day, and each of its people's work for that day as its
+// needs set it. Classic's heart (need → task → walk → act on matter → stores and buildings
+// changed) played over the town's own stores and building as history keeps them: a shadow window
+// (docs/architecture §9), its stores copied from history each day and nothing flowing back. The
+// harvest brings sheaves to the granary and its seed goes out to the fields; builders carry beams
+// and stone from the yard to every home and building rising, and fellers and quarrymen fill the
+// yard again; miners bring up ore and smiths forge it; each household fetches its bread; in a
+// lean year the granary has nothing to give, and the idle go out to the wild for what it gives.
+import { finish, hashString, mix } from "../kernel/index.ts";
+import {
+  LOT,
+  LOT_D,
+  civicMoments,
+  footprint,
+  type StoreBook,
+  type StoreKind,
+  type TownLots,
+  type VillagePlan,
+} from "../bridge/index.ts";
+import { HOME_LEVELS, OCC, civic, type CivicKind } from "../rules/index.ts";
+import { clearAt, type Ground } from "./ground.ts";
+import { streetDoor } from "./streets.ts";
+import { homeWear, townScene, type TownScene } from "./town.ts";
+
+const DAY = 86_400,
+  YEAR = 365 * DAY;
+
+type Point = { readonly x: number; readonly z: number };
+
+const unit = (h: number) => (h >>> 0) / 4294967296;
+
+/** A keyed stream for one person on one day. */
+export function dayDraw(ref: string, day: number): (n: number) => number {
+  const base = mix(hashString(ref), day);
+  return (n) => unit(finish(mix(base, n), 17));
+}
+
+/** The share of the year gone (0 … 1) when the fields are ripe and reaped; when they are sown. */
+export const HARVEST: readonly [number, number] = [0.6, 0.78];
+export const SOWING: readonly [number, number] = [0.18, 0.34];
+/** From this share of the year until the sowing, the fields lie fallow: the slack season. */
+export const WINTER = 0.9;
+
+/** Each store's sign and its name, for the town's stores card. */
+export const STORE_WORDS: Readonly<
+  Record<StoreKind, { readonly sign: string; readonly name: string }>
+> = {
+  grain: { sign: "🌾", name: "Grain" },
+  food: { sign: "🍖", name: "Meat, milk and wild food" },
+  wood: { sign: "🪵", name: "Timber in the yard" },
+  stone: { sign: "🪨", name: "Stone in the yard" },
+  ore: { sign: "⛏️", name: "Ore and coal" },
+  tools: { sign: "🔨", name: "Tools" },
+};
+
+/** A store's book: what it held at moment t, and what a year brings in and takes out. */
+type Book = {
+  readonly t: number;
+  readonly have: StoreBook;
+  readonly made: StoreBook;
+  readonly used: StoreBook;
+};
+
+/**
+ * The town's stores as history keeps them, or (a plan without them: a village of the usual) half a
+ * year's grain, a month's other food, and as much flowing in as is eaten.
+ */
+function bookOf(plan: VillagePlan): Book {
+  if (plan.stores) return plan.stores;
+  const n = plan.population,
+    digs = !!plan.works?.mine && plan.works.mine.what !== "stone",
+    flows = {
+      grain: n * 10,
+      food: n * 2,
+      wood: 0,
+      stone: 0,
+      ore: digs ? n * 0.3 : 0,
+      tools: n * 0.1,
+    };
+  return {
+    t: 0,
+    have: { grain: n * 5, food: n, wood: 0, stone: 0, ore: digs ? n * 0.4 : 0, tools: n * 0.3 },
+    made: flows,
+    used: flows,
+  };
+}
+
+/** How much of a year's grain is reaped by moment t (whole years, and the reaping's share of this one). */
+function reapedBy(t: number): number {
+  const y = Math.floor(t / YEAR),
+    s = t / YEAR - y;
+  return y + Math.max(0, Math.min(1, (s - HARVEST[0]) / (HARVEST[1] - HARVEST[0])));
+}
+
+/**
+ * What the town holds of a kind at moment t, from history's books: what it held when they were
+ * read, with what has come in since (the grain at the reaping, the rest through the year) and less
+ * what has gone out. Wood and stone are the yard's (the day's own, below).
+ */
+export function storeAt(plan: VillagePlan, kind: StoreKind, t: number): number {
+  if (kind === "wood" || kind === "stone") return 0;
+  const b = bookOf(plan),
+    years = (t - b.t) / YEAR,
+    made = kind === "grain" ? (reapedBy(t) - reapedBy(b.t)) * b.made.grain : b.made[kind] * years;
+  return Math.max(0, b.have[kind] + made - b.used[kind] * years);
+}
+
+/** What comes into a kind's store over [a, b), and what goes out, by history's books. */
+export function storeFlow(
+  plan: VillagePlan,
+  kind: StoreKind,
+  a: number,
+  b: number,
+): { made: number; used: number } {
+  const book = bookOf(plan),
+    years = (b - a) / YEAR;
+  return {
+    made:
+      kind === "grain" ? (reapedBy(b) - reapedBy(a)) * book.made.grain : book.made[kind] * years,
+    used: book.used[kind] * years,
+  };
+}
+
+/**
+ * How many months `amount` of the given stores would last, going out as history's books have them
+ * going (99 at most; none going out, as long as there is any).
+ */
+export function monthsOf(plan: VillagePlan, kinds: readonly StoreKind[], amount: number): number {
+  const b = bookOf(plan),
+    monthly = kinds.reduce((n, k) => n + b.used[k], 0) / 12;
+  return monthly > 0 ? Math.min(99, amount / monthly) : amount > 0 ? 99 : 0;
+}
+
+/**
+ * Whether the town goes hungry on a day: its land ill fed, or its granary and larders near empty
+ * (less than a fortnight of eating left).
+ */
+export function leanOn(plan: VillagePlan, day: number): boolean {
+  const t = day * DAY;
+  if ((plan.life?.fed ?? 1) < 0.85) return true;
+  return (
+    monthsOf(plan, ["grain", "food"], storeAt(plan, "grain", t) + storeAt(plan, "food", t)) < 0.5
+  );
+}
+
+// —— Where the stores are kept ——————————————————————————————————————————————————
+
+/** A store: where its heap or its door stands (metres from the middle), and which way it faces. */
+export type Store = Point & {
+  readonly yaw: number;
+  /** Where those who bring and fetch stand at it. */
+  readonly door: Point;
+  /** Its heap drawn in the open (a store with a building of its own keeps it within). */
+  readonly heap: boolean;
+  /** In words: "the granary", "the yard". */
+  readonly words: string;
+};
+
+export type StoreSpots = { readonly granary: Store; readonly yard: Store; readonly smithy: Store };
+
+/** Where a village's crafters keep their workshop (by the market hall, or in the square). */
+export const WORKSHOP: Point = { x: 14, z: -10 };
+
+const SPOTS = new WeakMap<VillagePlan, StoreSpots>();
+
+/**
+ * Where the town keeps its stores. A town built lot by lot: in its granary, its market hall and
+ * its smithy, where it has them standing — at their doors, on their streets — else in the corners
+ * of its square. A village: its granary at the edge of its homes toward the fields, its yard
+ * beside it off the fields' way, its smithy its workshop by the square.
+ */
+export function storeSpots(plan: VillagePlan, ground: Ground, t: number): StoreSpots {
+  let s = SPOTS.get(plan);
+  if (s) return s;
+  const store = (at: Point, yaw: number, heap: boolean, words: string): Store => ({
+    ...at,
+    yaw,
+    door: heap ? { x: at.x + 3.6 * Math.sin(yaw), z: at.z + 3.6 * Math.cos(yaw) } : at,
+    heap,
+    words,
+  });
+  if (plan.town) {
+    const town = plan.town,
+      lots = lotsOf(plan, t),
+      standing = (kind: CivicKind) =>
+        town.civics.find((c) => {
+          const m = civicMoments(c);
+          return c.kind === kind && c.at < town.lots && m.done <= t && (m.fell ?? Infinity) > t;
+        }),
+      door = (kind: CivicKind, words: string) => {
+        const c = standing(kind);
+        if (!c || !lots) return null;
+        const f = footprint(lots, c.at, c.lots),
+          at = streetDoor(f, 0, f.d / 2 + 1.9);
+        return store(at, Math.atan2(f.x - at.x, f.z - at.z), false, words);
+      },
+      // (The square's corners, beyond its stalls and its feast: each heap facing its middle.)
+      corner = (k: number, words: string) => {
+        const a = Math.PI / 4 + (k * Math.PI) / 2,
+          at = { x: 22 * Math.cos(a), z: 22 * Math.sin(a) };
+        return store(at, Math.atan2(-at.x, -at.z), true, words);
+      };
+    const granary =
+        door("granary", "the granary") ??
+        door("market", "the market hall") ??
+        corner(1, "the granary heap in the square"),
+      yard = corner(3, "the yard in the square");
+    s = {
+      granary,
+      yard,
+      smithy: door("smithy", "the smithy") ?? door("workshop", "the workshop") ?? yard,
+    };
+  } else {
+    // Out at the edge of the homes, toward the fields: the granary; the yard a turn round from it.
+    const fx = plan.fields.reduce((a, f) => a + f.x, 0),
+      fz = plan.fields.reduce((a, f) => a + f.z, 0),
+      toFields = plan.fields.length ? Math.atan2(fz, fx) : 0,
+      out = ground.homesReach + 12,
+      road = Math.atan2(plan.road.z, plan.road.x),
+      apart = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))),
+      spot = (from: number, turn: number, words: string) => {
+        for (let k = 0; k < 16; k++) {
+          const a = from + turn * k * 0.2,
+            at = { x: out * Math.cos(a), z: out * Math.sin(a) };
+          if (apart(a, road) > 0.25 && clearAt(ground, at, 5))
+            return store(at, Math.atan2(-at.x, -at.z), true, words);
+        }
+        const at = { x: out * Math.cos(from), z: out * Math.sin(from) };
+        return store(at, Math.atan2(-at.x, -at.z), true, words);
+      };
+    const granary = spot(toFields, 1, "the granary"),
+      yard = spot(Math.atan2(granary.z, granary.x) + 1.1, 1, "the yard");
+    s = { granary, yard, smithy: store(WORKSHOP, 0, false, "the workshop") };
+  }
+  SPOTS.set(plan, s);
+  return s;
+}
+
+/** A piece of a store's heap: its middle (metres from the town's), its size (metres), how it lies. */
+export type HeapPiece = {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly sx: number;
+  readonly sy: number;
+  readonly sz: number;
+  readonly yaw: number;
+  readonly pitch: number;
+};
+
+/** The heaps of a town's stores in the open: its granary's sacks, its yard's logs and stones, its ore. */
+export type Heaps = {
+  readonly sacks: readonly HeapPiece[];
+  readonly logs: readonly HeapPiece[];
+  readonly stones: readonly HeapPiece[];
+  readonly ore: readonly HeapPiece[];
+};
+
+/** The most of each piece a heap is drawn with (a fuller store's heap is drawn as full). */
+export const HEAP_MOST = { sacks: 30, logs: 42, stones: 36, ore: 1 } as const;
+
+/**
+ * How many of each piece the stores' heaps are drawn with now: a sack for each fortnight of grain
+ * the granary holds (where it is a heap in the open), a log and a stone for each load in the yard,
+ * and the ore's heap (its months, a year's at most).
+ */
+export function heapCounts(
+  spots: StoreSpots,
+  n: {
+    readonly grain: number;
+    readonly wood: number;
+    readonly stone: number;
+    readonly ore: number;
+  },
+): { sacks: number; logs: number; stones: number; ore: number } {
+  const most = HEAP_MOST;
+  return {
+    sacks: spots.granary.heap
+      ? Math.min(most.sacks, Math.max(0, Math.ceil(n.grain * 2 - 0.01)))
+      : 0,
+    logs: spots.yard.heap ? Math.min(most.logs, Math.max(0, Math.round(n.wood))) : 0,
+    stones: spots.yard.heap ? Math.min(most.stones, Math.max(0, Math.round(n.stone))) : 0,
+    ore: spots.yard.heap ? Math.round(Math.min(12, Math.max(0, n.ore)) * 4) / 4 : 0,
+  };
+}
+
+/**
+ * The stores' heaps laid out (Phase 39 M198): the granary's sacks piled behind where its grain is
+ * brought, the yard's logs in a pile (a second beside it) and its stones stacked by it, and its ore
+ * heaped the other side. `k` is the scale the people are drawn at against an upright ape's (the
+ * heaps of the things they carry are drawn as they carry them).
+ */
+export function storeHeaps(
+  spots: StoreSpots,
+  n: {
+    readonly sacks: number;
+    readonly logs: number;
+    readonly stones: number;
+    readonly ore: number;
+  },
+  k: number,
+): Heaps {
+  /** A piece at (across, up, ahead) of a store, ahead toward its door. */
+  const at = (
+    s: Store,
+    across: number,
+    y: number,
+    ahead: number,
+    size: readonly [number, number, number],
+    yaw = 0,
+    pitch = 0,
+  ): HeapPiece => {
+    const c = Math.cos(s.yaw),
+      sn = Math.sin(s.yaw);
+    return {
+      x: s.x + across * c + ahead * sn,
+      y,
+      z: s.z - across * sn + ahead * c,
+      sx: size[0],
+      sy: size[1],
+      sz: size[2],
+      yaw: s.yaw + yaw,
+      pitch,
+    };
+  };
+  const sacks: HeapPiece[] = [],
+    logs: HeapPiece[] = [],
+    stones: HeapPiece[] = [],
+    ore: HeapPiece[] = [];
+  // Sacks lying in rows, each layer a sack narrower and (from the third) a row shallower.
+  const g = spots.granary;
+  for (let l = 0, left = n.sacks; left > 0 && l < 6; l++) {
+    const cols = 6 - l,
+      rows = Math.max(1, 3 - Math.floor(l / 2));
+    for (let r = 0; r < rows && left > 0; r++)
+      for (let j = 0; j < cols && left > 0; j++, left--)
+        sacks.push(
+          at(
+            g,
+            (j - (cols - 1) / 2) * 1.55 * k,
+            (l + 0.5) * 0.9 * k,
+            -(r + 0.5 + l * 0.25) * 1.25 * k,
+            [1.5 * k, 0.9 * k, 1.2 * k],
+          ),
+        );
+  }
+  // Logs lying across the yard, a pile narrowing as it rises (twenty-one to a pile).
+  const y = spots.yard;
+  for (let left = n.logs, pile = 0; left > 0 && pile < 2; pile++)
+    for (let l = 0; l < 6 && left > 0; l++)
+      for (let j = 0; j < 6 - l && left > 0; j++, left--)
+        logs.push(
+          at(
+            y,
+            (pile ? 6.2 : 0) * k,
+            (0.4 + l * 0.7) * k,
+            -(1 + (j + l / 2) * 0.85) * k,
+            [0.8 * k, 5.2 * k, 0.8 * k],
+            Math.PI / 2,
+            Math.PI / 2,
+          ),
+        );
+  // Stones stacked beside them, four by three a layer.
+  for (let left = n.stones, l = 0; left > 0 && l < 3; l++)
+    for (let r = 0; r < 3 && left > 0; r++)
+      for (let j = 0; j < 4 && left > 0; j++, left--)
+        stones.push(
+          at(y, (-5.2 - j * 1.8) * k, (0.65 + l * 1.3) * k, -(1.2 + r * 1.4) * k, [
+            1.7 * k,
+            1.3 * k,
+            1.3 * k,
+          ]),
+        );
+  // The ore heaped behind the pile, as high as the months it would last.
+  if (n.ore > 0) {
+    const r = (1.2 + 2.6 * Math.sqrt(n.ore / 12)) * k,
+      h = r * 0.6;
+    ore.push(at(y, 0, h / 2, -(7.5 * k + r), [2 * r, h, 2 * r]));
+  }
+  return { sacks, logs, stones, ore };
+}
+
+const SCENES = new WeakMap<VillagePlan, TownScene | null>();
+/** A town's scene as its view has it (its lots, what stands on each, which change), once a plan. */
+function sceneOf(plan: VillagePlan, t: number): TownScene | null {
+  let s = SCENES.get(plan);
+  if (s === undefined) SCENES.set(plan, (s = plan.town ? townScene(plan.town, t) : null));
+  return s;
+}
+function lotsOf(plan: VillagePlan, t: number): TownLots | null {
+  return sceneOf(plan, t)?.lots ?? null;
+}
+
+// —— What is going up ——————————————————————————————————————————————————————————
+
+/** A building going up on a day: where, its builders' places about it, how many hands it wants. */
+export type Site = Point & {
+  readonly yaw: number;
+  /** Where its builders stand at their work (metres from the middle), each facing it. */
+  readonly spots: readonly Point[];
+  /** How many it wants at work on it at once. */
+  readonly hands: number;
+  /** What it is, for its builders' errands: "the new home", "the new granary". */
+  readonly name: string;
+  /** In words, for the town's card: "a house rising", "a granary going up". */
+  readonly words: string;
+  /** Whether it is raised in stone as well as timber. */
+  readonly stone: boolean;
+};
+
+/** Hands wanted at a home of each level going up: a hut's two, a high-rise's many. */
+const HANDS = [2, 2, 3, 4, 5, 6];
+/** The most sites worked on at once (the nearest the square's): a great city's more go unseen. */
+const MOST_SITES = 48;
+
+const SITES = new WeakMap<VillagePlan, Map<number, Site[]>>();
+
+/**
+ * What is going up in the town on a day, the nearest its square first: a village's next home (when
+ * it grows), the homes rising on its lots — new, raised higher, or worn and rebuilt in their
+ * place — and the buildings going up on its streets. (As history and the town's view raise them:
+ * when each begins and is done is never the errands'.)
+ */
+export function sitesOn(plan: VillagePlan, day: number, ground: Ground): Site[] {
+  let days = SITES.get(plan);
+  if (!days) SITES.set(plan, (days = new Map()));
+  const known = days.get(day);
+  if (known) return known;
+  const out: Site[] = [],
+    stoneLand = ["stone", "brick", "mudbrick"].includes(plan.house.walls);
+  const site = plan.life?.site;
+  if (site && !plan.town) {
+    // A village turns out to raise its next home: a ring of places about its rising walls.
+    const spots = Array.from({ length: 10 }, (_, k) => {
+      const a = (k / 10) * 2 * Math.PI + 0.3;
+      return { x: site.x + 9 * Math.cos(a), z: site.z + 9 * Math.sin(a) };
+    }).filter((p) => clearAt(ground, p, 1.2));
+    out.push({
+      x: site.x,
+      z: site.z,
+      yaw: site.yaw,
+      spots,
+      hands: 99,
+      name: "the new home",
+      words: "the next home rising",
+      stone: stoneLand,
+    });
+  }
+  const a = day * DAY,
+    b = a + DAY,
+    scene = plan.town ? sceneOf(plan, a) : null;
+  if (scene) {
+    const { lots, states } = scene,
+      front = (at: { x: number; z: number; yaw: number }, out: number, alongs: readonly number[]) =>
+        alongs.map((u) => streetDoor(at, u, out));
+    // (Those that change through the plan's year: rising, or worn and to be rebuilt.)
+    for (const p of scene.active) {
+      if (states.what[p] !== LOT.home || states.takes[p]! <= 0) continue;
+      const began = states.began[p]!,
+        takes = states.takes[p]!,
+        level = Math.max(0, states.level[p]!),
+        kind = HOME_LEVELS[level] ?? "home";
+      let name: string | null = null,
+        words = "";
+      if (began < b && began + takes > a) {
+        name = `the new ${kind}`;
+        words = states.raised[p] ? `a ${kind} raised in place of the old` : `a ${kind} rising`;
+      } else if (began + takes <= a) {
+        const w = homeWear(scene, p, b);
+        if (w.at !== null && w.at < b && w.at + takes > a) {
+          name = `the ${kind} being rebuilt`;
+          words = `a worn ${kind} rebuilt`;
+        }
+      }
+      if (!name) continue;
+      const at = { x: lots.x[p]!, z: lots.z[p]!, yaw: lots.yaw[p]! };
+      out.push({
+        ...at,
+        spots: front(at, LOT_D / 2 + 1.9, [-3, 0, 3, -1.5, 1.5, 4.5]),
+        hands: HANDS[level] ?? 2,
+        name,
+        words,
+        stone: stoneLand || level >= 2,
+      });
+    }
+    const town = scene.plan;
+    for (const c of town.civics) {
+      if (c.at >= town.lots) continue;
+      const m = civicMoments(c);
+      if (m.began >= b || m.done <= a || (m.fell !== null && m.fell <= a)) continue;
+      const f = footprint(lots, c.at, c.lots),
+        what = civic(c.kind as CivicKind).name;
+      out.push({
+        x: f.x,
+        z: f.z,
+        yaw: f.yaw,
+        spots: front(f, f.d / 2 + 1.9, [-6, -2, 2, 6, -4, 4]),
+        hands: 6,
+        name: `the new ${what.replace(/^(a|an) /, "")}`,
+        words: `${what} going up`,
+        stone: true,
+      });
+    }
+  }
+  // (The nearest the square's first: the eye is there most.)
+  out.sort((p, q) => p.x * p.x + p.z * p.z - (q.x * q.x + q.z * q.z));
+  const kept = out.slice(0, MOST_SITES);
+  if (days.size > 60) days.clear();
+  days.set(day, kept);
+  return kept;
+}
+
+// —— Who does what ————————————————————————————————————————————————————————————
+
+/**
+ * What a person does on a day (their work's errands, as the town's needs set them): the
+ * harvest's reaping and the sowing; the hoe; firewood and mending in the slack season; the wild's gathering
+ * and the shore's fishing; the flock; building at a site; felling timber and cutting stone for
+ * the yard; the mine; the smithy and the workshop; foraging in a lean year — or the day as it was
+ * before (children, the old, traders, leaders, the rest), "as ever".
+ */
+export type RoleKind =
+  | "as-ever"
+  | "reap"
+  | "sow"
+  | "hoe"
+  | "firewood"
+  | "mend"
+  | "gather"
+  | "fish"
+  | "herd"
+  | "build"
+  | "cut"
+  | "quarry"
+  | "mine"
+  | "smith"
+  | "workshop"
+  | "forage";
+
+/** Each day's work in words, for the town's card: "reaping", "felling timber". */
+export const ROLE_WORDS: Readonly<Record<RoleKind, string>> = {
+  "as-ever": "about their usual day",
+  reap: "reaping",
+  sow: "sowing",
+  hoe: "in the fields",
+  firewood: "cutting firewood",
+  mend: "mending at home",
+  gather: "gathering",
+  fish: "fishing",
+  herd: "with the flocks",
+  build: "building",
+  cut: "felling timber",
+  quarry: "cutting stone",
+  mine: "in the mine",
+  smith: "at the forge",
+  workshop: "at the workshop",
+  forage: "foraging in the wild",
+};
+
+export type Role = {
+  readonly kind: RoleKind;
+  /** The site they build at (an index into the day's sites; -1 none). */
+  readonly site: number;
+  /** Fetching their household's bread from the granary on the way home. */
+  readonly fetch: boolean;
+  /** Bringing in the flock's milk on the way home (herders, some days). */
+  readonly milk: boolean;
+};
+
+/** The town's day: what is going up, who does what, whether it goes hungry. */
+export type TownDay = {
+  readonly sites: readonly Site[];
+  readonly roles: readonly Role[];
+  readonly lean: boolean;
+  /** The day of rest (none works). */
+  readonly rest: boolean;
+};
+
+/** One day in seven is a day of rest, on a day kept by the village: given to play and talk. */
+export function restDay(plan: Pick<VillagePlan, "seed">, day: number): boolean {
+  return (day + (plan.seed % 7)) % 7 === 0;
+}
+
+/** Whether a person is old: from sixty-two for upright apes, as late in any people's span. */
+export function oldOf(plan: VillagePlan, p: VillagePlan["people"][number]): boolean {
+  return p.age >= (62 * (plan.body?.span ?? 70)) / 70;
+}
+
+const DAYS = new WeakMap<VillagePlan, Map<number, TownDay>>();
+
+/**
+ * Who does what on a day, as the town's needs set it: its sites take the crafters first (and, in
+ * the slack season, the farmers), and as many fellers and quarrymen as keep its yard in what they
+ * draw from it; half the rest of the crafters dig where the land has a mine, and those left forge
+ * its ore or keep to the workshop; the farmers reap, sow or hoe by the season (firewood, mending
+ * and the muck in winter); and one of each household fetches its bread every third day (every day
+ * in a lean year, when the granary has nothing to give, and the idle go out to the wild).
+ */
+export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay {
+  let days = DAYS.get(plan);
+  if (!days) DAYS.set(plan, (days = new Map()));
+  const known = days.get(day);
+  if (known) return known;
+  const rest = restDay(plan, day),
+    sites = rest ? [] : sitesOn(plan, day, ground),
+    lean = leanOn(plan, day),
+    season = (day % 365) / 365,
+    winter = season >= WINTER || season < SOWING[0],
+    reaping = season >= HARVEST[0] && season < HARVEST[1],
+    sowing = season >= SOWING[0] && season < SOWING[1],
+    mine = plan.works?.mine ?? null,
+    digs = !!mine && mine.what !== "stone",
+    quarry = !!mine && mine.what === "stone",
+    oreIn = storeAt(plan, "ore", day * DAY) > 1,
+    kinds: RoleKind[] = plan.people.map(() => "as-ever"),
+    siteOf = plan.people.map(() => -1),
+    draws = plan.people.map((p) => dayDraw(p.ref, day)),
+    working = (i: number) => {
+      const p = plan.people[i]!;
+      return !rest && !p.child && !oldOf(plan, p);
+    };
+  // Builders first: each site's hands, the nearest first, from those willing — and as they are
+  // put to it, as many fellers and quarrymen as keep the yard in what they draw from it (a
+  // builder's day takes three or four loads, half of them stone where it raises stone; a feller's
+  // brings in four or five, a quarryman's three or four).
+  const want = sites.map((s) => s.hands);
+  let wood = 0,
+    stone = 0,
+    fellers = 0,
+    quarrymen = 0;
+  const put = (i: number, supply: boolean): boolean => {
+    // (To the site with the most hands still wanted against what it wants; ties, the nearer.)
+    let best = -1;
+    for (let k = 0; k < sites.length; k++)
+      if (
+        want[k]! > 0 &&
+        (best < 0 || want[k]! / sites[k]!.hands > want[best]! / sites[best]!.hands)
+      )
+        best = k;
+    if (best < 0) return false;
+    if (supply && fellers * 4.5 < wood) {
+      fellers++;
+      kinds[i] = "cut";
+      return true;
+    }
+    if (supply && quarry && quarrymen * 3.5 < stone) {
+      quarrymen++;
+      kinds[i] = "quarry";
+      return true;
+    }
+    want[best]!--;
+    kinds[i] = "build";
+    siteOf[i] = best;
+    wood += quarry && sites[best]!.stone ? 1.75 : 3.5;
+    stone += quarry && sites[best]!.stone ? 1.75 : 0;
+    return true;
+  };
+  const crafters: number[] = [];
+  plan.people.forEach((p, i) => {
+    if (!working(i)) return;
+    const draw = draws[i]!;
+    switch (p.occupation) {
+      case OCC.crafter:
+        // (A village's crafters mostly; a town's, with its many going up, nearly all.)
+        if (sites.length && draw(14) < (plan.town ? 0.85 : 0.6) && put(i, true)) return;
+        if (digs && draw(12) < 0.5) kinds[i] = "mine";
+        else crafters.push(i);
+        return;
+      case OCC.farmer:
+        // (A farmer or two lends a hand at a village's next home, but for the harvest.)
+        if (!reaping && !plan.town && sites.length && draw(14) < 0.12 && put(i, false)) return;
+        // (In the slack season: firewood, mending at home, the muck ploughed in.)
+        kinds[i] = reaping
+          ? "reap"
+          : sowing
+            ? "sow"
+            : !winter
+              ? "hoe"
+              : draw(15) < 0.4
+                ? "firewood"
+                : draw(15) < 0.7
+                  ? "mend"
+                  : "hoe";
+        return;
+      case OCC.herder:
+        kinds[i] = "herd";
+        return;
+      case OCC.forager:
+        kinds[i] = plan.water && draw(12) < 0.4 ? "fish" : "gather";
+        return;
+      case OCC.dependent:
+        if (lean) kinds[i] = "forage";
+        return;
+    }
+  });
+  // In the slack season the farmers raise what the crafters cannot.
+  if (winter)
+    plan.people.forEach((p, i) => {
+      if ((kinds[i] === "firewood" || kinds[i] === "mend") && draws[i]!(17) < 0.6) put(i, true);
+    });
+  // (Where the willing were too few to keep the yard, the rest of the crafters fell and cut for it.)
+  while (crafters.length && fellers * 4.5 < wood - 2.25) {
+    kinds[crafters.shift()!] = "cut";
+    fellers++;
+  }
+  while (quarry && crafters.length && quarrymen * 3.5 < stone - 1.75) {
+    kinds[crafters.shift()!] = "quarry";
+    quarrymen++;
+  }
+  // The rest forge the ore the town has, or keep to the workshop (in a lean year, out to the wild).
+  for (const i of crafters)
+    kinds[i] = lean ? "forage" : oreIn && draws[i]!(16) < 0.5 ? "smith" : "workshop";
+  // A household's bread: one of it (who works) every third day, every day in a lean year.
+  const fetcher = new Map<number, number>();
+  plan.people.forEach((p, i) => {
+    if (!working(i) || kinds[i] === "as-ever") return;
+    const was = fetcher.get(p.home);
+    if (was === undefined || draws[i]!(31) < draws[was]!(31)) fetcher.set(p.home, i);
+  });
+  const roles = plan.people.map((p, i): Role => ({
+    kind: kinds[i]!,
+    site: siteOf[i]!,
+    fetch:
+      fetcher.get(p.home) === i &&
+      (lean || (day + (hashString(`${plan.ref}|${p.home}`) % 3)) % 3 === 0),
+    milk: kinds[i] === "herd" && draws[i]!(30) < 0.5,
+  }));
+  const town: TownDay = { sites, roles, lean, rest };
+  if (days.size > 60) days.clear();
+  days.set(day, town);
+  return town;
+}

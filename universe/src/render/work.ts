@@ -3,11 +3,14 @@
 // packs' leather, the water) — the land's mine by its age, its oil derrick and its
 // factory, the mine's cart running its track, the road's porters, pack beasts' loads,
 // carts and lorries, and the smoke of hearths and works. Static works are placed once;
-// what moves is posed afresh each frame from the view's pure functions.
+// what moves is posed afresh each frame from the view's pure functions. And the town's stores
+// heaped in the open (Phase 39 M198): its granary's sacks, its yard's logs, stones and ore, as
+// much as each holds now.
 import * as pc from "playcanvas";
 import type { VillagePlan } from "../bridge/index.ts";
 import {
   BEAST_SCALE,
+  HEAP_MOST,
   MATERIALS,
   SHEEN,
   TRAFFIC_PACE,
@@ -15,19 +18,25 @@ import {
   factoryPieces,
   figureOf,
   figurePaint,
+  heapCounts,
   itemParts,
   partExtent,
   materialColor,
   minePieces,
   smokeAt,
+  storeHeaps,
+  storeSpots,
   travellerAt,
+  villageSolids,
   wellPieces,
   type Carry,
   type FaunaSpecies,
   type Figure,
+  type HeapPiece,
   type Material,
   type MinePiece,
   type Puff,
+  type StoreSpots,
   type Traffic,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
@@ -91,6 +100,16 @@ export class WorkLayer {
     sources: { x: number; y: number; z: number; dark: number }[];
   } | null = null;
   private readonly puffs: Puff[] = [];
+  /** The stores' heaps in the open, where they are kept, the people's scale, and the counts last laid. */
+  private heaps: {
+    sacks: Gathered;
+    logs: Gathered;
+    stones: Gathered;
+    ore: Gathered;
+    spots: StoreSpots;
+    k: number;
+  } | null = null;
+  private heapsShown = "";
   private readonly box: pc.Mesh;
   private readonly wheel: pc.Mesh;
   private readonly heap: pc.Mesh;
@@ -167,7 +186,8 @@ export class WorkLayer {
   /**
    * Lay out a village's works: the items its people may carry, its mine, derrick and
    * factory, the road's traffic (its beasts from the flocks), and the smoke's sources —
-   * `hearths` (roof tops, metres) and `chimneys` (a city's workshops, metres).
+   * `hearths` (roof tops, metres) and `chimneys` (a city's workshops, metres) — and where its
+   * stores are heaped, as they stand at moment t.
    */
   build(
     plan: VillagePlan,
@@ -176,6 +196,7 @@ export class WorkLayer {
     species: readonly FaunaSpecies[],
     hearths: readonly { x: number; y: number; z: number }[],
     chimneys: readonly { x: number; y: number; z: number }[],
+    t = 0,
   ): void {
     for (const b of this.batches) b.destroy();
     this.batches = [];
@@ -199,6 +220,18 @@ export class WorkLayer {
           SHEEN[m],
         ),
       );
+    // The stores' heaps (laid as the stores are told).
+    const spots = storeSpots(plan, villageSolids(plan), t),
+      mined = works?.mine?.what ?? null;
+    this.heaps = {
+      sacks: this.gathered(materialColor("cloth", plan.era), HEAP_MOST.sacks),
+      logs: this.gathered(materialColor("wood", plan.era), HEAP_MOST.logs, this.wheel),
+      stones: this.gathered(materialColor("stone", plan.era), HEAP_MOST.stones),
+      ore: this.gathered(materialColor("rock", plan.era, mined), HEAP_MOST.ore, this.heap),
+      spots,
+      k: figure.scale,
+    };
+    this.heapsShown = "";
     // The mine, the derrick and the factory, each facing the village.
     const facing = (p: { x: number; z: number }) => Math.atan2(-p.x, -p.z);
     if (works?.mine) this.place(minePieces(works.mine), works.mine, facing(works.mine), engines);
@@ -273,6 +306,58 @@ export class WorkLayer {
         };
       }
     }
+  }
+
+  /**
+   * The stores' heaps as much as each holds now: `grain` and `ore` the months they would last,
+   * `wood` and `stone` the loads in the yard. Laid again only as a heap's count changes.
+   */
+  heapsAt(n: {
+    readonly grain: number;
+    readonly wood: number;
+    readonly stone: number;
+    readonly ore: number;
+  }): void {
+    const h = this.heaps;
+    if (!h) return;
+    const counts = heapCounts(h.spots, n),
+      key = `${counts.sacks}|${counts.logs}|${counts.stones}|${counts.ore}`;
+    if (key === this.heapsShown) return;
+    this.heapsShown = key;
+    const pieces = storeHeaps(h.spots, counts, h.k),
+      lay = (g: Gathered, list: readonly HeapPiece[]) => {
+        g.count = 0;
+        for (const p of list)
+          put(g, p.x * M, p.y * M, p.z * M, p.sx * M, p.sy * M, p.sz * M, p.yaw, p.pitch);
+        flush(g);
+      };
+    lay(h.sacks, pieces.sacks);
+    lay(h.logs, pieces.logs);
+    lay(h.stones, pieces.stones);
+    lay(h.ore, pieces.ore);
+  }
+
+  /** How many of each piece the stores' heaps are drawn with now (the look tools). */
+  heapsNow(): {
+    sacks: number;
+    logs: number;
+    stones: number;
+    ore: number;
+    /** Where the granary and the yard are kept (metres), and whether each is a heap in the open. */
+    granary: { x: number; z: number; heap: boolean };
+    yard: { x: number; z: number; heap: boolean };
+  } | null {
+    const h = this.heaps;
+    if (!h) return null;
+    const { granary, yard } = h.spots;
+    return {
+      sacks: h.sacks.count,
+      logs: h.logs.count,
+      stones: h.stones.count,
+      ore: h.ore.count,
+      granary: { x: granary.x, z: granary.z, heap: granary.heap },
+      yard: { x: yard.x, z: yard.z, heap: yard.heap },
+    };
   }
 
   /** Pose what moves: the carried things, the mine's cart, the road's traffic, the smoke. */
@@ -467,6 +552,7 @@ export class WorkLayer {
   destroy(): void {
     for (const b of this.batches) b.destroy();
     this.batches = [];
+    this.heaps = null;
     this.plan = null;
   }
 }

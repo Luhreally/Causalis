@@ -31,7 +31,11 @@ import {
   limbPitch,
   momentOf,
   personGroup,
+  prepareDay,
   sayOf,
+  storesNow,
+  townDay,
+  ROLE_WORDS,
   seasonGround,
   seasonKey,
   seasonLeaf,
@@ -45,6 +49,7 @@ import {
   type PartShape,
   type TownThing,
   type Crop,
+  type StoresNow,
 } from "../view/index.ts";
 import {
   InstancedBatch,
@@ -846,7 +851,9 @@ export class VillageScene {
       this.fauna.species,
       this.hearths,
       this.stacks,
+      t,
     );
+    this.stores = null;
   }
 
   /** The beasts' clock held at this screen time, if held (for the look tools); null runs it. */
@@ -906,12 +913,26 @@ export class VillageScene {
         const s = cam.worldToScreen(new pc.Vec3(p.x * M, 0, p.z * M));
         return s.z > 0 ? { x: s.x, y: s.y } : null;
       };
-    const civic = on(spots.civic),
-      lot = on(spots.lot);
+    // (A home well within the screen with no one standing before it: a tap there finds the home,
+    // not one of the townsfolk going about their day in front of it.)
+    const rect = this.stage.app.graphicsDevice.clientRect,
+      inView = (p: { x: number; y: number }) =>
+        p.x > 24 && p.x < rect.width - 24 && p.y > 130 && p.y < rect.height - 24,
+      home = this.town
+        .homes(t)
+        .map((h) => ({ h, s: on(h) }))
+        .find(({ s }) => !!s && inView(s) && this.pick(s.x, s.y, 40) === null),
+      civic = on(spots.civic),
+      lot = home
+        ? { ...home.s!, lot: home.h.lot }
+        : (() => {
+            const s = on(spots.lot);
+            return s && spots.lot ? { ...s, lot: spots.lot.lot } : null;
+          })();
     return {
       civic:
         civic && spots.civic ? { ...civic, at: spots.civic.at, start: spots.civic.start } : null,
-      lot: lot && spots.lot ? { ...lot, lot: spots.lot.lot } : null,
+      lot,
       walls: on(spots.walls),
       wallsAt: spots.walls ? { x: spots.walls.x * M, z: spots.walls.z * M } : null,
     };
@@ -923,12 +944,24 @@ export class VillageScene {
   }
 
   /**
-   * The village at moment t. `downpour`: the span of a downpour over it, if one falls (those at
-   * their ease go in out of it).
+   * The town's stores as last told (Phase 39 M198): the moment and way they were told, and when
+   * on the screen's clock (ms).
    */
-  update(t: number, downpour: { readonly from: number; readonly to: number } | null = null): void {
+  private stores: { now: StoresNow; t: number; fine: boolean; at: number } | null = null;
+
+  /**
+   * The village at moment t. `downpour`: the span of a downpour over it, if one falls (those at
+   * their ease go in out of it). `fine`: its people at their day's errands (else, a town watched
+   * growing, each at their work as it was before Phase 39, walking straight to it).
+   */
+  update(
+    t: number,
+    downpour: { readonly from: number; readonly to: number } | null = null,
+    fine = true,
+  ): void {
     const plan = this.plan;
     if (!plan) return;
+    const step = t - this.lastT;
     this.lastT = t;
     this.town.update(t);
     // The fields in their crop's colour now, snow lying on them in a cold land's winter (set
@@ -961,7 +994,36 @@ export class VillageScene {
       clock = performance.now() / 1000,
       // The battle, if its land was fought over (its soldiers stand where they stand).
       troops = this.soldiers.length ? battleOf(plan, this.soldiersEach, clock) : [];
-    const targets = plan.people.map((_, i) => momentOf(plan, i, t, downpour));
+    const targets = plan.people.map((_, i) => momentOf(plan, i, t, downpour, fine));
+    // Through the evening the next day is laid out, a few at a time (as many a frame as see it
+    // laid by midnight at the speed the day goes), so its turn comes without a stall.
+    const into = t % 86_400;
+    if (fine && into >= 18 * 3600) {
+      const frames = step > 0 ? Math.max(1, (86_400 - into) / step) : 360;
+      prepareDay(
+        plan,
+        Math.floor(t / 86_400) + 1,
+        Math.max(6, Math.ceil(plan.people.length / frames) + 2),
+      );
+    }
+    // The stores (told again as their day moves them, every half minute of it; a town watched
+    // growing, four times a second), and their heaps.
+    const told = this.stores,
+      wall = performance.now();
+    if (
+      !told ||
+      told.fine !== fine ||
+      (Math.abs(t - told.t) >= 30 && (fine || wall - told.at >= 250))
+    ) {
+      const now = storesNow(plan, t, fine);
+      this.stores = { now, t, fine, at: wall };
+      this.work.heapsAt({
+        grain: now.lasts.grain,
+        wood: now.have.wood,
+        stone: now.have.stone,
+        ore: now.lasts.ore,
+      });
+    }
     // A feast's ring going round its fire (Phase 33), by the screen's clock.
     for (const m of targets)
       if (m.task === "dance" && !m.hidden) Object.assign(m, ringTurn(plan, m, screen));
@@ -1241,6 +1303,12 @@ export class VillageScene {
     activity: number;
     task: string | null;
     size: number;
+    /** Which of those drawn, their ref, whether one of the town's many (Phase 39), what they carry and why. */
+    index: number;
+    ref: string;
+    folk: boolean;
+    carry: string | null;
+    why: string | null;
   }[] {
     const plan = this.plan;
     if (!plan) return [];
@@ -1255,6 +1323,11 @@ export class VillageScene {
               activity: m.activity,
               task: m.task,
               size: this.sizes[i] ?? 1,
+              index: i,
+              ref: plan.people[i]!.ref,
+              folk: !!plan.people[i]!.folk,
+              carry: m.carry,
+              why: m.why,
             },
           ],
     );
@@ -1263,6 +1336,36 @@ export class VillageScene {
   /** How many are in out of a downpour now (for the look tools). */
   shelteredNow(): number {
     return this.moments.filter((m) => m.activity === ACTIVITY.sheltering).length;
+  }
+
+  /**
+   * What one of those drawn is at today, in words (Phase 39 M198): "felling timber" (null: a town
+   * watched growing, or a day of rest).
+   */
+  workToday(index: number): string | null {
+    const plan = this.plan;
+    if (!plan || !this.stores?.fine) return null;
+    const town = townDay(plan, Math.floor(this.lastT / 86_400), villageSolids(plan)),
+      r = town.roles[index];
+    return r && !town.rest ? ROLE_WORDS[r.kind] : null;
+  }
+
+  /** The town's stores now (Phase 39 M198), as last told; null before the first frame. */
+  storesShown(): StoresNow | null {
+    return this.stores?.now ?? null;
+  }
+
+  /** How many of each piece the stores' heaps are drawn with now (the look tools). */
+  heapsNow(): ReturnType<WorkLayer["heapsNow"]> {
+    return this.work.heapsNow();
+  }
+
+  /** Where on the screen one of those drawn stands now (null: out of sight, or indoors). */
+  personOnScreen(index: number): { x: number; y: number } | null {
+    const m = this.moments[index];
+    if (!m || m.hidden) return null;
+    const s = this.stage.camera.camera!.worldToScreen(new pc.Vec3(m.x * M, 0.2, m.z * M));
+    return s.z > 0 ? { x: s.x, y: s.y } : null;
   }
 
   /** Everyone carrying something now: where (metres) and what (for the look tools). */

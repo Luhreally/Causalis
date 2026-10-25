@@ -8,7 +8,7 @@
 import { YEAR, finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
 import type { Feast } from "../bridge/index.ts";
 import { WATER, livingIn, type Species } from "../gen/index.ts";
-import { G, OCC, roofPitch } from "../rules/index.ts";
+import { G, HOME_LIFE, OCC, roofPitch } from "../rules/index.ts";
 import {
   agentName,
   beliefOf,
@@ -44,6 +44,9 @@ import {
   progress,
   townLots,
   townReach,
+  type StoreBook,
+  type TownPlan,
+  type TownStores,
   type TownWater,
   type VillageLife,
   type VillagePlan,
@@ -59,6 +62,18 @@ import { peopleFigure } from "./folk.ts";
 export const WATCHED_FAMILIES = 10;
 /** Under the hand, at most this many of the village's people are drawn (all of them live). */
 export const DRAWN_UNDER_HAND = 400;
+/** One of a town's people drawn for every so many of them (Phase 39 M198), as the eye is given. */
+export const FOLK_PER = 30;
+/** What the town's other people are called, by their work. */
+const FOLK_WORDS = [
+  "A child",
+  "A forager",
+  "A farmer",
+  "A herder",
+  "A crafter",
+  "A trader",
+  "An elder",
+];
 
 const u = (seed: number, n: number) => finish(mix(seed, n), 13) / 4294967296;
 
@@ -145,7 +160,12 @@ export function townSite(world: World, ref: Ref): { axis: number; water: TownWat
   };
 }
 
-export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES): VillagePlan {
+export function villagePlan(
+  world: World,
+  ref: Ref,
+  families = WATCHED_FAMILIES,
+  folk = 0,
+): VillagePlan {
   const ctx = populationContext(world),
     v = ctx.settlements.get(ref);
   if (!v) throw new Error(`no village ${ref}`);
@@ -343,7 +363,78 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       });
     }
   });
+  // The town's other people (Phase 39 M198): as many more as a town of its size is seen to hold —
+  // one drawn for every thirty of it, up to what the eye is given — each at the work its land
+  // does (builders as many as what it raises at once wants), living in the homes the watched do
+  // not. Not met, and never history's: nothing they do flows back.
+  const more = Math.min(folk, Math.max(0, Math.ceil(v.population / FOLK_PER) - people.length));
+  if (more > 0) {
+    const land = ctx.provinces.get(v.cell),
+      kinds = [OCC.forager, OCC.farmer, OCC.herder, OCC.crafter, OCC.trader, OCC.leader],
+      counts = kinds.map((o) => land?.occupation(o) ?? 0),
+      total = counts.reduce((a, b) => a + b, 0),
+      builders = Math.min(Math.round(more * 0.4), 2 * risingAt(town, world.now)),
+      taken = new Set(people.map((p) => p.home)),
+      free = homes.map((_, i) => i).filter((i) => !taken.has(i)),
+      homesFor = free.length ? free : homes.map((_, i) => i);
+    for (let k = 0; k < more; k++) {
+      const key = hashString(`folk ${ref} ${k}`),
+        child = u(key, 1) < 0.18;
+      let occupation: number = OCC.farmer;
+      if (child) occupation = OCC.dependent;
+      else if (k < builders) occupation = OCC.crafter;
+      else if (total > 0) {
+        let pick = u(key, 2) * total;
+        for (let j = 0; j < kinds.length; j++) {
+          pick -= counts[j]!;
+          if (pick < 0) {
+            occupation = kinds[j]!;
+            break;
+          }
+        }
+      }
+      people.push({
+        ref: `folk:${ref}:${k}`,
+        name: `${FOLK_WORDS[occupation] ?? "One"} of ${v.name}`,
+        home: homesFor[Math.floor(k / 4) % homesFor.length]!,
+        age: child ? 4 + Math.floor(u(key, 3) * 10) : 17 + Math.floor(u(key, 3) * 42),
+        occupation,
+        child,
+        folk: true,
+      });
+    }
+  }
   return planOf(people);
+
+  /**
+   * What the town holds in store and how it flows (Phase 39 M198): its share of its land's stocks,
+   * and of its land's books for the year past, by its share of the land's people.
+   */
+  function storesOf(cell: number, population: number): TownStores | undefined {
+    const m = marketsOf(world).get(cell),
+      all = ctx.provinces.get(cell)?.total() ?? 0;
+    if (!m || all <= 0) return undefined;
+    const share = Math.min(1, population / all),
+      books = m.years.at(-1)?.ledger,
+      line = (l: number, g: number) => books?.[l]?.[g] ?? 0,
+      // (In: made, bought in, carried in; out: used, sold away, spoiled, carried out.)
+      made = (g: number) => line(0, g) + line(2, g) + line(5, g),
+      used = (g: number) => line(1, g) + line(3, g) + line(4, g) + line(6, g),
+      book = (f: (g: number) => number): StoreBook => ({
+        grain: f(G.grain) * share,
+        food: (f(G.meat) + f(G.wild)) * share,
+        wood: 0,
+        stone: 0,
+        ore: (f(G.copper) + f(G.coal)) * share,
+        tools: f(G.tools) * share,
+      });
+    return {
+      t: world.now,
+      have: book((g) => m.stock[g] ?? 0),
+      made: book(made),
+      used: book(used),
+    };
+  }
 
   /**
    * How the village lives now (M86), for what its people are seen doing and saying: from
@@ -666,7 +757,8 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
 
   function planOf(people: VillagePlan["people"][number][]): VillagePlan {
     const village = v!,
-      visitors = visitorsAt(world, village.cell, now);
+      visitors = visitorsAt(world, village.cell, now),
+      stores = storesOf(village.cell, village.population);
     return {
       ref,
       hand: !!hand && hand.village === ref,
@@ -705,6 +797,29 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
         : null,
       ...(fabric && town ? { town } : {}),
       people,
+      ...(stores ? { stores } : {}),
     };
   }
+}
+
+/**
+ * How many homes and buildings a town has going up at once about moment t, of those drawn: those
+ * rising, and as many of those standing as are in their turn worn and rebuilt (as the town's view
+ * rebuilds them: a level's months of building in each of its years of standing) — a building
+ * counting for three (a village: its next home).
+ */
+function risingAt(town: TownPlan | null, t: number): number {
+  if (!town) return 1;
+  const states = lotStates(town);
+  let n = 0;
+  for (let p = 0; p < town.lots; p++) {
+    if (states.what[p] !== LOT.home) continue;
+    const g = progress(states.began[p]!, states.takes[p]!, t);
+    if (g < 1) n += g > 0 ? 1 : 0;
+    else n += states.takes[p]! / ((HOME_LIFE[states.level[p]!] ?? 50) * YEAR);
+  }
+  return (
+    Math.round(n) +
+    3 * town.civics.filter((c) => c.start <= t / YEAR && c.end >= t / YEAR - 1).length
+  );
 }

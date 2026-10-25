@@ -83,6 +83,26 @@ export type BattleSide = {
   readonly host?: HostKinds | null;
 };
 
+/** What a town keeps in store (Phase 39 M198), by kind. */
+export const STORE_KINDS = ["grain", "food", "wood", "stone", "ore", "tools"] as const;
+export type StoreKind = (typeof STORE_KINDS)[number];
+export type StoreBook = Readonly<Record<StoreKind, number>>;
+
+/**
+ * What a town holds in store and how it flows (Phase 39 M198), for the errands that move it: what
+ * it held at moment `t` (world seconds) — its share of its land's stocks, by its share of the
+ * land's people — and what a year brings in and takes out at that share (its land's books for the
+ * year past). Grain is its granary's; food, its other food (meat, milk, what the wild gives); ore,
+ * what it digs (copper's rock, coal); tools, what its smiths make. History keeps no count of wood
+ * and stone: those are its yard's, the view's own.
+ */
+export type TownStores = {
+  readonly t: number;
+  readonly have: StoreBook;
+  readonly made: StoreBook;
+  readonly used: StoreBook;
+};
+
 export type VillagePlan = {
   readonly ref: string;
   readonly name: string;
@@ -141,7 +161,14 @@ export type VillagePlan = {
     child: boolean;
     /** The tool they carry to work, in words (Phase 15 M125: a watched person's own). */
     tool?: string;
+    /**
+     * One of the town's people the observer has not met (Phase 39 M198): drawn so a town is seen
+     * as full as it is, at its work — the view's, never history's.
+     */
+    folk?: boolean;
   }[];
+  /** What it holds in store and how that flows (Phase 39 M198). Absent: a village's usual. */
+  readonly stores?: TownStores;
   /**
    * How far their land has come, for what they wear and carry (art track A2): gatherers
    * in hides, farmers in undyed cloth, smiths' people in dyed cloth, the engines' in

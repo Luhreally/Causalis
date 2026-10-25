@@ -185,6 +185,10 @@ export function carryWords(
       return "a beam for the walls going up";
     case "spear":
       return `a ${m.name}-headed spear, for the drill`;
+    case "log":
+      return "a log felled in the woods";
+    case "stone":
+      return "a block of cut stone";
   }
 }
 
@@ -199,4 +203,5 @@ export const SHEEN: Readonly<Record<Material, { gloss: number; metal: boolean }>
   rock: { gloss: 0.3, metal: false },
   leather: { gloss: 0.35, metal: false },
   water: { gloss: 0.9, metal: false },
+  stone: { gloss: 0.12, metal: false },
 };

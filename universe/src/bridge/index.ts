@@ -18,7 +18,11 @@ export {
 export { inlinePair, workerPort } from "./transport.ts";
 export {
   LAKE_R,
+  STORE_KINDS,
   WATER_OUT,
+  type StoreBook,
+  type StoreKind,
+  type TownStores,
   type BeastPlan,
   type VillageLife,
   type Feast,

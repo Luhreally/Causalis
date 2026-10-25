@@ -211,6 +211,7 @@ import {
   type NameShape,
   type RegionLens,
   type SandboxSpec,
+  type StoresNow,
 } from "../view/index.ts";
 
 /** A point along a name's line: `d` radians from its centre, on the unit sphere. */
@@ -580,6 +581,27 @@ type Exposed = {
   skyOf?: () => string | null;
   /** Everyone carrying something in the village watched: where and what. */
   carriersNow?: () => { x: number; z: number; carry: string }[];
+  /**
+   * The town's stores now (Phase 39 M198): what each holds and how long it would last, what came
+   * in and went out today, who is at what, what is going up; its heaps' pieces; its card's words.
+   */
+  stores?: () =>
+    | (StoresNow & {
+        heaps: {
+          sacks: number;
+          logs: number;
+          stones: number;
+          ore: number;
+          granary: { x: number; z: number; heap: boolean };
+          yard: { x: number; z: number; heap: boolean };
+        } | null;
+        card: string | null;
+      })
+    | null;
+  /** Open the town's stores card (the look tools). */
+  showStores?: () => void;
+  /** Where on the screen one of those drawn in the town stands now. */
+  personOnScreen?: (index: number) => { x: number; y: number } | null;
   /** The marks of war drawn on the globe now (for the look tools). */
   warsDrawn?: () => number;
   /** The hosts and battles a land's map shows of the wars (M95), and whether the wars are known. */
@@ -3468,7 +3490,9 @@ async function runPlanetPage(): Promise<void> {
     planYear = -1,
     watched: number | null = null,
     clock = { t: 0, wall: 0, speed: 0 },
-    shown = 0;
+    shown = 0,
+    /** The town's stores as last put on its panel (Phase 39 M198). */
+    storesTold: StoresNow | null = null;
   client.onStatus((s) => (clock = { t: s.t, wall: performance.now(), speed: s.speed }));
   /** The sim time now, carried forward smoothly between the host's reports. */
   const now = () => {
@@ -3484,16 +3508,19 @@ async function runPlanetPage(): Promise<void> {
   const loadPlan = async (ref: string) => {
     // Asked once a year: the year is marked before the answer comes.
     planYear = Math.floor(clock.t / YEAR);
+    // (The same town read again as the years turn keeps what its panel shows.)
+    const fresh = plan?.ref !== ref;
     const q0 = performance.now();
     plan = await client.query<VillagePlan>({
       type: "village.plan",
-      args: { ref, families: stage.quality.families },
+      args: { ref, families: stage.quality.families, folk: stage.quality.crowdCap },
     });
     performance.measure("village.plan", { start: q0 });
     const t0 = performance.now();
     village.build(plan, now());
     performance.measure("village.build", { start: t0 });
-    villagePanel.show(plan.name);
+    villagePanel.show(plan.name, fresh);
+    storesTold = null;
     villagePanel.hand = plan.hand;
     villagePanel.works = {
       era: plan.era,
@@ -3567,8 +3594,20 @@ async function runPlanetPage(): Promise<void> {
     watched = i;
     village.mark(i);
     if (i !== null) village.markBeast(null);
+    villagePanel.closeCard();
     if (i === null || !plan) return;
-    void pageWindow.open(plan.people[i]!.ref);
+    const p = plan.people[i]!;
+    // (One of the town's many drawn for its crowd, Phase 39 M198, has no page: their card.)
+    if (p.folk) {
+      pageWindow.close();
+      villagePanel.showFolk(p.name, village.workToday(i));
+      return;
+    }
+    void pageWindow.open(p.ref);
+  };
+  villagePanel.onStores = () => {
+    selectPerson(null);
+    pageWindow.close();
   };
   regionPanel.onWatch = (ref) => void toVillage(ref);
   // A camp of a land's bands seen near (Phase 29 M160, asked for 2026-10-24: "i should be able to
@@ -4991,7 +5030,10 @@ async function runPlanetPage(): Promise<void> {
     stage.daylight((seen % DAY) / DAY);
     // Those at their ease go in out of a downpour (Phase 30), and come out when it is over.
     const sky = landSky?.cell === weatherCell() ? landSky : null;
-    village.update(seen, sky ? downpourAt(sky, seen, time.pace) : null);
+    village.update(seen, sky ? downpourAt(sky, seen, time.pace) : null, !time.lapse);
+    // The town's stores and its work today (Phase 39 M198), as they are told.
+    const told = village.storesShown();
+    if (told !== storesTold) villagePanel.storesNow((storesTold = told));
     if (watched !== null) {
       villagePanel.moment(village.momentAt(watched), plan.people[watched]?.tool);
       // (What they are doing now, on their page.)
@@ -5048,6 +5090,13 @@ async function runPlanetPage(): Promise<void> {
     village.heldFauna = s;
   };
   exposed.carriersNow = () => (scale === "village" ? village.carriersNow() : []);
+  exposed.stores = () => {
+    const s = scale === "village" && plan ? village.storesShown() : null;
+    return s ? { ...s, heaps: village.heapsNow(), card: villagePanel.cardShown() } : null;
+  };
+  exposed.showStores = () => villagePanel.showStores();
+  exposed.personOnScreen = (i: number) =>
+    scale === "village" && plan ? village.personOnScreen(i) : null;
   exposed.bubblesNow = () => (scale === "village" ? village.bubbles() : []);
   exposed.peopleNow = () => (scale === "village" ? village.peopleNow() : []);
   exposed.rig = rig;

@@ -24,6 +24,9 @@ export const CARRIES = [
   "water",
   "beam",
   "spear",
+  // A log felled for the yard on the shoulder; a block of stone held before them (Phase 39 M198).
+  "log",
+  "stone",
 ] as const;
 export type Carry = (typeof CARRIES)[number];
 
@@ -38,6 +41,7 @@ export const MATERIALS = [
   "rock",
   "leather",
   "water",
+  "stone",
 ] as const;
 export type Material = (typeof MATERIALS)[number];
 
@@ -86,6 +90,8 @@ export function materialColor(
       return [0.46, 0.28, 0.16];
     case "water":
       return [0.36, 0.52, 0.72];
+    case "stone":
+      return [0.76, 0.74, 0.68];
   }
 }
 
@@ -148,6 +154,8 @@ const ITEMS: Readonly<Record<Carry, readonly ItemPart[]>> = {
     P("wood", 0.12, 0.34, 0.06, 0.018, 0.74, 0.018),
     P("head", 0.12, 0.74, 0.06, 0.03, 0.07, 0.012),
   ],
+  log: [P("wood", 0.1, 0.52, 0.0, 0.08, 0.08, 0.52)],
+  stone: [P("stone", 0, 0.34, 0.12, 0.17, 0.13, 0.13)],
 };
 
 /** The boxes of an item as it is carried. */
