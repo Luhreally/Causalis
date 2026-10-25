@@ -101,3 +101,39 @@ test("two hosts too alike in colour are told apart, and none is drawn in the gra
   const [g] = sideColors([0.3, 0.55, 0.2], [0.1, 0.2, 0.8]);
   assert.ok(Math.hypot(g[0] - 0.3, g[1] - 0.55, g[2] - 0.2) >= 0.22, "not the grass's green");
 });
+
+test("the ledger's wars offer the bloodiest battles watched; a war's page its bloodiest as well as its last", () => {
+  const fell = (b: (typeof battles)[number]["b"]) => b.fallen[0] + b.fallen[1],
+    bloodiest = [...battles].sort((p, q) => fell(q.b) - fell(p.b) || q.b.year - p.b.year),
+    tab = ask<PageModel>("page", { ref: "world:ledger" }).tabs.find((t) => t.id === "wars")!,
+    watch = tab.blocks.filter(
+      (b): b is Extract<Block, { type: "tool" }> => b.type === "tool" && b.tool === "watch.battle",
+    );
+  assert.deepEqual(
+    watch.map((t) => t.args.event),
+    bloodiest.slice(0, 3).map(({ b }) => b.event),
+  );
+  assert.match(
+    String(watch[0]!.args.label),
+    /^⚔️ Watch the battle at .+ \(year \d+\): [\d,]+ fell$/,
+  );
+  assert.ok(
+    tab.blocks.some((b) => b.type === "bars" && b.title === "The bloodiest battles"),
+    "the bloodiest battles charted",
+  );
+  // (A war of more than one battle, whose bloodiest was not its last.)
+  const war = wars.find((w) => {
+    const most = [...w.battles].sort((p, q) => fell(q) - fell(p) || q.year - p.year)[0];
+    return !!most && most !== w.battles.at(-1) && fell(most) > 0;
+  });
+  assert.ok(war, "a war whose bloodiest battle was not its last");
+  const offered = tools(ask<PageModel>("page", { ref: war.ref })).filter(
+    (t) => t.tool === "watch.battle",
+  );
+  assert.ok(
+    offered.some((t) =>
+      /^⚔️ Watch its bloodiest \(year \d+: [\d,]+ fell\)$/.test(String(t.args.label)),
+    ),
+    "its bloodiest offered",
+  );
+});

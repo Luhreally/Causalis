@@ -31,6 +31,12 @@ export const MOMENTS = {
   after: 130,
 } as const;
 
+/**
+ * A wing's wheel about the other host's flank (where one host's front reaches far past the
+ * other's): from when to when, and how far it turns (radians, short of a right angle).
+ */
+const WHEEL = { from: MOMENTS.melee + 3, to: MOMENTS.melee + 20, turn: 1.4 } as const;
+
 /** How a host strikes hand to hand: a thrust (spears, tusks), a blow (swords, axes, clubs, claws), a bite, a grapple. */
 export type Stroke = "thrust" | "strike" | "bite" | "grapple";
 
@@ -138,6 +144,11 @@ export type BattleField = {
   readonly drive: number;
   /** What is told as the battle goes: from when, in words. */
   readonly moments: readonly { readonly at: number; readonly words: string }[];
+  /**
+   * The host whose front reaches far past the other's, in the open, and where the other's flanks
+   * are (|z|, m): its files beyond them wheel about them once the lines have met (none: neither).
+   */
+  readonly wings: { readonly side: 0 | 1; readonly z: number } | null;
 };
 
 /** One who fought, now. */
@@ -339,6 +350,17 @@ export function newBattle(near: BattleNear, most: number): BattleField {
       });
     }
   }
+  // A front reaching far past the other's, in the open (no walls, no river between), closes its
+  // wings about the other's flanks.
+  const reach = [0, 1].map((side) =>
+      troopers.reduce((m, t) => (t.side === side ? Math.max(m, Math.abs(t.z)) : m), 0),
+    ),
+    wider: 0 | 1 = reach[0]! >= reach[1]! ? 0 : 1,
+    narrow = reach[wider === 0 ? 1 : 0]!,
+    wings =
+      !ground.wall && !ground.river && reach[wider]! > narrow + 6
+        ? { side: wider, z: narrow + 1.5 }
+        : null;
   const field: BattleField = {
     near,
     per,
@@ -355,7 +377,8 @@ export function newBattle(near: BattleNear, most: number): BattleField {
     ground,
     meet,
     drive,
-    moments: momentsOf(near),
+    moments: momentsOf(near, wings),
+    wings,
   };
   fates(field, key);
   return field;
@@ -393,7 +416,7 @@ function cannonOf(near: BattleNear, key: number): Cannon[] {
 }
 
 /** What is told as the battle goes. */
-function momentsOf(near: BattleNear): { at: number; words: string }[] {
+function momentsOf(near: BattleNear, wings: BattleField["wings"]): { at: number; words: string }[] {
   const a = near.attacker.name,
     d = near.defender.name,
     cap = (s: string) => s[0]!.toUpperCase() + s.slice(1),
@@ -418,6 +441,13 @@ function momentsOf(near: BattleNear): { at: number; words: string }[] {
     { at: MOMENTS.charge, words: near.walls ? `${cap(a)} rush the walls` : `${cap(a)} charge` },
     { at: MOMENTS.melee, words: near.walls ? "They fight at the walls" : "The lines meet" },
   );
+  if (wings) {
+    const [wide, hemmed] = wings.side === 0 ? [a, d] : [d, a];
+    out.push(
+      { at: WHEEL.from + 2, words: `The wings of ${wide} close about ${hemmed}` },
+      { at: WHEEL.to + 6, words: `${cap(hemmed)} are hemmed in, fighting on three sides` },
+    );
+  }
   if (near.outcome === "stormed") out.push({ at: MOMENTS.gate, words: "The gate is broken" });
   out.push({
     at: MOMENTS.rout,
@@ -538,11 +568,24 @@ function fates(field: BattleField, key: number): void {
       inReach = files.filter((f) => f.length && Math.abs(f[0]!.z) <= other);
     return inReach.length ? inReach : files.filter((f) => f.length);
   };
+  // The host whose flanks the other's wings close about, and its outermost files still standing
+  // (on one side or the other): where the wings bite.
+  const hemmed = field.wings ? (field.wings.side === 0 ? 1 : 0) : -1,
+    flank = (side: 0 | 1) => {
+      const sign = rnd() < 0.5 ? -1 : 1,
+        files = alive[side]!.filter((f) => f.length && Math.sign(f[0]!.z) === sign);
+      if (!files.length) return undefined;
+      const out = files.reduce((p, q) => (Math.abs(q[0]!.z) > Math.abs(p[0]!.z) ? q : p));
+      return out[Math.floor(rnd() * out.length)];
+    };
   for (const death of deaths) {
     let victim: Trooper | undefined;
     if (death.by === "blow") {
+      // (Once the wings have closed about a host, many of its dead fall on its flanks.)
+      if (death.side === hemmed && death.at >= WHEEL.to - 4 && rnd() < 0.4)
+        victim = flank(death.side);
       const files = front(death.side);
-      victim = files.length ? files[Math.floor(rnd() * files.length)]![0] : undefined;
+      victim ??= files.length ? files[Math.floor(rnd() * files.length)]![0] : undefined;
     } else {
       const living = alive[death.side]!.flat().filter(
         (t) => death.by !== "rout" || (t.flees !== null && t.flees <= death.at - 0.6),
@@ -623,8 +666,50 @@ function closedUp(field: BattleField, t: Trooper, s: number): number {
   return t.rank - ahead;
 }
 
-/** Where one who fought stands at `s` in their host's order (before any flight). */
+/**
+ * Where one who fought stands at `s` in their host's order (before any flight): in its line, or
+ * wheeling with its wing.
+ */
 function inOrder(
+  field: BattleField,
+  t: Trooper,
+  s: number,
+): { x: number; z: number; run: boolean; yaw?: number } {
+  return wheeled(field, t, s, lineOrder(field, t, s));
+}
+
+/**
+ * Where a wing's file stands as it wheels about the other host's flank: turned about the flank's
+ * corner at the line, as a door on its hinge, from facing the other's front to facing its flank,
+ * running as it goes (those not of a wing, as they were).
+ */
+function wheeled(
+  field: BattleField,
+  t: Trooper,
+  s: number,
+  p: { x: number; z: number; run: boolean },
+): { x: number; z: number; run: boolean; yaw?: number } {
+  const w = field.wings;
+  if (!w || t.side !== w.side || Math.abs(t.z) <= w.z || s <= WHEEL.from) return p;
+  const turn = WHEEL.turn * smooth((s - WHEEL.from) / (WHEEL.to - WHEEL.from)),
+    way = t.side === 0 ? 1 : -1,
+    out = Math.sign(t.z),
+    hinge = meetAt(field, s),
+    // (Ahead of the hinge toward the other host, and out past its flank.)
+    ahead = (p.x - hinge) * way,
+    past = Math.abs(p.z) - w.z,
+    c = Math.cos(turn),
+    sn = Math.sin(turn);
+  return {
+    x: hinge + (ahead * c + past * sn) * way,
+    z: out * (w.z + (past * c - ahead * sn)),
+    run: p.run || s < WHEEL.to,
+    yaw: Math.atan2(way * c, -out * sn),
+  };
+}
+
+/** Where one who fought stands at `s` in their host's line (before any wheel or flight). */
+function lineOrder(
   field: BattleField,
   t: Trooper,
   s: number,
@@ -760,7 +845,7 @@ function placed(
     return { x: p.x - back, z: p.z, yaw: facing, run: false, fled: 0 };
   }
   const p = inOrder(field, t, when);
-  return { x: p.x, z: p.z, yaw: facing, run: p.run, fled: 0 };
+  return { x: p.x, z: p.z, yaw: p.yaw ?? facing, run: p.run, fled: 0 };
 }
 
 /**
@@ -1109,6 +1194,8 @@ export function trooperWords(field: BattleField, id: number, s: number): string 
             : (FIGHTERS[side.host?.arm ?? ""] ?? "one"),
     rank = ORDINALS[t.rank] ?? `${t.rank + 1}th`,
     won = t.side === field.beaten ? false : true,
+    // (Of a wing that wheels about the other host's flank.)
+    wing = !!field.wings && field.wings.side === t.side && Math.abs(t.z) > field.wings.z,
     fate =
       t.falls !== null && s >= t.falls
         ? t.by === "arrow"
@@ -1129,7 +1216,11 @@ export function trooperWords(field: BattleField, id: number, s: number): string 
                     ? "coming on"
                     : "holding the line"
                   : s < MOMENTS.rout
-                    ? "in the press"
+                    ? wing && s > WHEEL.from
+                      ? s < WHEEL.to
+                        ? "wheeling about their flank"
+                        : "falling on their flank"
+                      : "in the press"
                     : won
                       ? "standing on the field, its victor"
                       : "standing still",

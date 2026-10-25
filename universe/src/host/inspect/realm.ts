@@ -447,19 +447,36 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
     ],
     keys: [b.year, landTitle(world, b.land), b.won ? 1 : 0, b.fallen[0] + b.fallen[1]],
   }));
+  // Its last battle, and its bloodiest where that was another, watched fought (Phase 37).
   const last = w.battles.at(-1),
-    watchLast: Block[] = last
-      ? [
-          {
-            type: "tool",
-            tool: "watch.battle",
-            args: {
-              event: last.event,
-              label: `⚔️ Watch its last battle (year ${last.year})`,
+    fell = (b: (typeof w.battles)[number]) => b.fallen[0] + b.fallen[1],
+    bloodiest = [...w.battles].sort((p, q) => fell(q) - fell(p) || q.year - p.year)[0],
+    watchLast: Block[] = [
+      ...(last
+        ? [
+            {
+              type: "tool" as const,
+              tool: "watch.battle",
+              args: {
+                event: last.event,
+                label: `⚔️ Watch its last battle (year ${last.year})`,
+              },
             },
-          },
-        ]
-      : [];
+          ]
+        : []),
+      ...(bloodiest && bloodiest !== last && fell(bloodiest) > 0
+        ? [
+            {
+              type: "tool" as const,
+              tool: "watch.battle",
+              args: {
+                event: bloodiest.event,
+                label: `⚔️ Watch its bloodiest (year ${bloodiest.year}: ${count(fell(bloodiest))} fell)`,
+              },
+            },
+          ]
+        : []),
+    ];
   const hostOf = (side: "attacker" | "defender"): Block[] => {
     const realm = side === "attacker" ? w.attacker : w.defender,
       design = designsOf(world).of(realm),

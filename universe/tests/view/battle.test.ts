@@ -282,3 +282,49 @@ test("a seat's defenders stand its walls on foot, their horses within; in the op
     ["horse", null],
   );
 });
+
+test("the wider host's wings close about the other's flanks once the lines meet, and its dead fall there too", () => {
+  const f = newBattle(near("field", side("Ash", 9000, 300), side("Elm", 1500, 600)), 360);
+  assert.equal(f.wings?.side, 0, "the wider host wheels");
+  const w = f.wings!,
+    wing = f.troopers.filter((t) => t.side === 0 && Math.abs(t.z) > w.z && t.falls === null);
+  assert.ok(wing.length > 20, `${wing.length} in its wings`);
+  const before = battleAt(f, MOMENTS.melee),
+    after = battleAt(f, MOMENTS.melee + 25),
+    mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  // Wheeled on past the line about the other's flank, turned to face it, never into its ranks.
+  assert.ok(
+    mean(wing.map((t) => after.troopers[t.id]!.x - before.troopers[t.id]!.x)) > 3,
+    "the wings come on past the line",
+  );
+  for (const t of wing)
+    assert.ok(Math.abs(after.troopers[t.id]!.z) >= w.z - 0.5, `${t.id} kept outside the flank`);
+  assert.ok(
+    mean(wing.map((t) => Math.abs(Math.cos(after.troopers[t.id]!.yaw)))) > 0.9,
+    "the wings face the flank",
+  );
+  assert.ok(
+    f.moments.some((m) => m.words === "The wings of the realm of Ash close about the realm of Elm"),
+  );
+  // The other's outermost files fall the more: the wings bite at its flanks.
+  const elm = f.troopers.filter((t) => t.side === 1),
+    reach = Math.max(...elm.map((t) => Math.abs(t.z))),
+    outer = elm.filter((t) => Math.abs(t.z) > reach - 3.2),
+    share = (ts: typeof elm) => ts.filter((t) => t.by === "blow").length / ts.length;
+  assert.ok(share(outer) > share(elm), `${share(outer)} on the flanks against ${share(elm)}`);
+  // As many fall as fell, still.
+  assert.deepEqual(menAt(f, battleAt(f, BATTLE_LENGTH)).fallen, [300, 600]);
+});
+
+test("no wings close where the hosts are matched, at a seat's walls or across a river", () => {
+  const big = side("Ash", 9000, 300),
+    small = side("Elm", 1500, 600);
+  assert.equal(
+    newBattle(near("field", side("Ash", 2000, 200), side("Elm", 1800, 260)), 360).wings,
+    null,
+  );
+  assert.equal(newBattle(near("siege", big, small, { walls: 2 }), 360).wings, null);
+  assert.equal(newBattle(near("field", big, small, { river: true }), 360).wings, null);
+  // (A defender's wider line closes about the attackers as well.)
+  assert.equal(newBattle(near("held", small, big), 360).wings?.side, 1);
+});

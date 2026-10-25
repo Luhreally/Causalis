@@ -21,6 +21,7 @@ import {
   politiesOf,
   type Law,
   type Polity,
+  type War,
   populationContext,
   realmName,
   spaceOf,
@@ -2088,6 +2089,7 @@ function warLedger(world: World, now: number): Block[] {
           color: realmColor(w.attacker),
         })),
     },
+    ...battleLedger(world, wars),
     {
       type: "table",
       title: "The wars, the newest first",
@@ -2095,6 +2097,38 @@ function warLedger(world: World, now: number): Block[] {
       rows,
     },
     ...andMore(rows.length, wars.length, "newest wars"),
+  ];
+}
+
+/** The battles where the most fell, of every war: each opened, the three bloodiest to be watched fought (Phase 37). */
+function battleLedger(world: World, wars: readonly War[]): Block[] {
+  const fell = (b: War["battles"][number]) => b.fallen[0] + b.fallen[1],
+    greatest = wars
+      .flatMap((w) => w.battles.map((b) => ({ w, b })))
+      .filter(({ b }) => fell(b) > 0)
+      .sort((p, q) => fell(q.b) - fell(p.b) || q.b.year - p.b.year)
+      .slice(0, 10);
+  if (!greatest.length) return [];
+  return [
+    {
+      type: "bars",
+      title: "The bloodiest battles",
+      unit: "people",
+      bars: greatest.map(({ w, b }) => ({
+        label: [`${landTitle(world, b.land)}, year ${count(b.year)}`],
+        ref: b.event,
+        value: fell(b),
+        color: realmColor(w.attacker),
+      })),
+    },
+    ...greatest.slice(0, 3).map(({ b }) => ({
+      type: "tool" as const,
+      tool: "watch.battle",
+      args: {
+        event: b.event,
+        label: `⚔️ Watch the battle at ${landTitle(world, b.land, true)} (year ${count(b.year)}): ${count(fell(b))} fell`,
+      },
+    })),
   ];
 }
 
