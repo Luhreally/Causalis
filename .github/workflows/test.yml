@@ -302,6 +302,11 @@ jobs:
       - run: npm run gate:46 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # Phase 47 (the hunt: the town's hunters creeping in on the game abreast, its heads up, the
+      # rush and the herd running, one brought down and dressed, carried home across the shoulders).
+      - run: npm run gate:47 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

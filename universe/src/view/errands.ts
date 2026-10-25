@@ -26,6 +26,7 @@ import { streetDoor } from "./streets.ts";
 import { homeWear, townScene, type TownScene } from "./town.ts";
 import { HARVEST, SOWING, WINTER, restDay } from "./seasons.ts";
 import { REAPERS_AT, fieldsNow, pulledOn, reapingOn, stookedOn, wateredOn } from "./fields.ts";
+import { HUNT_PARTY, huntOn } from "./hunt.ts";
 
 const DAY = 86_400,
   YEAR = 365 * DAY;
@@ -616,7 +617,9 @@ export type RoleKind =
   // pulled and burned.
   | "water"
   | "pull"
-  | "cart";
+  | "cart"
+  // The hunt (Phase 47 M209): out after the game with the others.
+  | "hunt";
 
 /** Each day's work in words, for the town's card: "reaping", "felling timber". */
 export const ROLE_WORDS: Readonly<Record<RoleKind, string>> = {
@@ -643,6 +646,7 @@ export const ROLE_WORDS: Readonly<Record<RoleKind, string>> = {
   water: "carrying water to the fields",
   pull: "pulling the blighted crop",
   cart: "carrying in the sheaves",
+  hunt: "out hunting",
 };
 
 export type Role = {
@@ -712,6 +716,7 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
     digs = !!mine && mine.what !== "stone",
     quarry = !!mine && mine.what === "stone",
     oreIn = storeAt(plan, "ore", day * DAY) > 1,
+    hunting = !rest && !!huntOn(plan, day),
     kinds: RoleKind[] = plan.people.map(() => "as-ever"),
     siteOf = plan.people.map(() => -1),
     // (The town's buildings standing, each trade's own: Phase 41 M199.)
@@ -868,6 +873,11 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
         sit(i, "herd", 0);
         return;
       case OCC.forager:
+        // (On a hunting day the first few out after the game together: Phase 47 M209.)
+        if (hunting && (seated.get("hunt:0") ?? 0) < HUNT_PARTY) {
+          sit(i, "hunt", 0);
+          return;
+        }
         kinds[i] = plan.water && draw(12) < 0.4 ? "fish" : "gather";
         return;
       case OCC.dependent:

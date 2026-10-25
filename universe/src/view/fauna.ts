@@ -17,6 +17,7 @@ import { finish, hashString, mix } from "../kernel/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 import { fieldPoint } from "./country.ts";
 import { flockAt, flockMember, foldReach } from "./flock.ts";
+import { gameAt, huntGround, huntOn } from "./hunt.ts";
 import type { CreatureBody } from "../rules/index.ts";
 import { buildBody, strideOf, type Built, type Pose } from "./creature.ts";
 import { dryAt, keepOut, villageGround, type Ground } from "./ground.ts";
@@ -111,6 +112,8 @@ type Herd = {
   readonly home: { x: number; z: number };
   /** A town's flock (Phase 46 M208): its town's plan, by which its day goes on the world's clock. */
   readonly flock?: VillagePlan;
+  /** The game a town's hunters go after (Phase 47 M209): its town, by whose hunts it goes. */
+  readonly game?: VillagePlan;
   /** Each member's place in the herd, metres from its middle, and its own clock. */
   readonly members: readonly { dx: number; dz: number; period: number; phase: number }[];
   /** How far it runs from the hunters; how far each wanders from its place. */
@@ -321,9 +324,12 @@ export function faunaOf(plan: VillagePlan, cap: number, detail: number, ambient:
         a = Math.atan2(tree.z, tree.x);
         r = Math.hypot(tree.x, tree.z);
       }
+      // (The first herd of the first game: on the ground the town's hunters go out to.)
+      const hunted = i === 0 && h === 0 ? huntGround(plan) : null;
       herds.push({
         species: sp,
-        home: { x: r * Math.cos(a), z: r * Math.sin(a) },
+        home: hunted ?? { x: r * Math.cos(a), z: r * Math.sin(a) },
+        ...(hunted ? { game: plan } : {}),
         members: membersOf(
           size,
           Math.max(6 + 3.5 * Math.sqrt(size) * (s.niche === "great beast" ? 2 : 1), room(sp, size)),
@@ -561,6 +567,10 @@ export type BeastNow = {
   pose: Pose;
   /** How big against its kind (a lamb: less; Phase 46 M208). */
   size: number;
+  /** Brought down by the hunters, lying where it fell (Phase 47 M209). */
+  dead: boolean;
+  /** Which of the herds it is of (an index; -1: a hunting band's, the road's). */
+  herd: number;
   /** Its work (M78): 0 none, 1 carrying packs on the road, 2 drawing a cart. */
   task: 0 | 1 | 2;
 };
@@ -593,6 +603,12 @@ function apart(out: BeastNow[], from: number, to: number, room: number): void {
     }
 }
 
+/** Which way a town's game runs from its hunters at moment t (a yaw): on along the way they came. */
+function huntWay(plan: VillagePlan, t: number): number | null {
+  const hunt = huntOn(plan, Math.floor(t / 86_400));
+  return hunt ? Math.atan2(hunt.ux, hunt.uz) : null;
+}
+
 const smooth = (a: number, b: number, x: number) => {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
@@ -618,19 +634,25 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
         pose: { gait: 0, phase: 0, head: 0, crouch: 0 },
         task: 0,
         size: 1,
+        dead: false,
+        herd: -1,
       });
     o.task = 0;
     o.size = 1;
+    o.dead = false;
+    o.herd = -1;
     return o;
   };
   // A town's flock by the world's clock (Phase 46 M208): folded, driven out, grazing, brought in.
   const flocks = fauna.herds.map((h) =>
     h.flock && at !== undefined ? flockAt(h.flock, at) : null,
   );
+  // The game a town hunts, by the world's clock (Phase 47 M209): run off at the rush, coming back.
+  const games = fauna.herds.map((h) => (h.game && at !== undefined ? gameAt(h.game, at) : null));
   // Each herd's middle drifts on a slow loop; the hunters' runs push it away and it comes back.
   const drift = (i: number, t: number) => {
-    const fl = flocks[i];
-    // (A town's flock is where its day has taken it, and any hunters stalk it there.)
+    const fl = flocks[i] ?? games[i];
+    // (A town's flock is where its day has taken it, and any hunters stalk it there; so its game.)
     if (fl) return { x: fl.x, z: fl.z };
     const h = fauna.herds[i]!,
       w = 0.021 + 0.004 * (i % 3),
@@ -640,13 +662,18 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
       z: h.home.z + r * Math.sin(t * w * 0.8 + 2 * i),
     };
   };
-  const middles = fauna.herds.map((_, i) => ({
-    ...drift(i, s),
-    fx: 0,
-    fz: 0,
-    alert: 0,
-    running: false,
-  }));
+  const middles = fauna.herds.map((h, i) => {
+    const g = games[i];
+    return {
+      ...drift(i, s),
+      fx: 0,
+      fz: 0,
+      alert: g?.alert ?? 0,
+      running: g?.running ?? false,
+      // (Which way it runs from the town's hunters; else away from the beasts that hunt it.)
+      way: g?.running && h.game ? huntWay(h.game, at!) : null,
+    };
+  });
   function species(h: Herd) {
     return fauna.species[h.species]!;
   }
@@ -885,6 +912,7 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
         n++;
         return;
       }
+      if (j === 0 && games[i]?.struck) return;
       const t = s / b.period + b.phase,
         c = Math.floor(t),
         f = t - c,
@@ -904,7 +932,7 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
       o.x = x;
       o.z = z;
       if (m.running) {
-        o.yaw = Math.atan2(m.fx, m.fz);
+        o.yaw = m.way ?? Math.atan2(m.fx, m.fz);
         o.pose.gait = 2;
         o.pose.head = 0;
       } else {
@@ -919,6 +947,23 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
     // Each keeps its body's room from the others, and out of the water and the homes.
     apart(out, first, n, sp.reach * 1.7);
     for (let j = first; j < n; j++) keepOut(fauna.ground, out[j]!, sp.reach);
+    for (let j = first; j < n; j++) out[j]!.herd = i;
+    // (The one the hunters brought down, lying where it fell till it is carried off.)
+    const down = games[i]?.down;
+    if (down) {
+      const o = next();
+      o.species = h.species;
+      o.x = down.x;
+      o.z = down.z;
+      o.yaw = down.yaw;
+      o.pose.gait = 0;
+      o.pose.head = 0;
+      o.pose.crouch = 1;
+      o.pose.phase = 0;
+      o.dead = true;
+      o.herd = i;
+      n++;
+    }
   });
   // The hunters, a few paces apart, facing their way; the scavengers on their track.
   bands.forEach((b, i) => {

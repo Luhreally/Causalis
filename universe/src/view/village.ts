@@ -44,6 +44,7 @@ import {
 import type { Carry } from "./work.ts";
 import { hashText, unitOf } from "./draws.ts";
 import { FLOCK_HANDS, herderAt, keepsFlock } from "./flock.ts";
+import { HUNT_DONE, HUNT_STALK, hunterAt, huntOn } from "./hunt.ts";
 import { ROW_ENDS, ROW_GAP, rowsOf } from "./country.ts";
 import {
   REAP_HOURS,
@@ -152,6 +153,9 @@ export const TASKS = [
   // The year in the fields (Phase 44 M206): water poured on a parched row; a blighted crop pulled.
   "water",
   "pull",
+  // The hunt (Phase 47 M209): creeping on the herd, spear low; the rush, the spear thrust.
+  "stalk",
+  "strike",
 ] as const;
 export type Task = (typeof TASKS)[number];
 
@@ -496,8 +500,16 @@ type Step = {
    */
   readonly follow?: (
     s: number,
-  ) => (Point & { readonly face: number; readonly why?: string }) | null;
+  ) =>
+    (Point & { readonly face: number; readonly why?: string; readonly task?: Task | null }) | null;
+  /** Followed so many seconds a leg (FOLLOW_STEP if not said: a hunt's rush wants finer). */
+  readonly every?: number;
+  /** A stay to this moment of the day (seconds into it), however long that is from its start. */
+  readonly until?: number;
 };
+
+/** Following work faster than this (metres a second), they are drawn on their feet, striding. */
+const STRIDING = 0.4;
 
 /** At work that moves (a reaper following the front), a leg each so many seconds. */
 const FOLLOW_STEP = 300;
@@ -2137,16 +2149,18 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
       }
     }
     while (t < to - 1) {
-      const next = Math.min(to, t + FOLLOW_STEP),
-        p = spot(next);
+      const next = Math.min(to, t + (st.every ?? FOLLOW_STEP)),
+        p = spot(next),
+        // (Going fast — a rush — on their feet, striding.)
+        striding = !!p && Math.hypot(p.x - at.x, p.z - at.z) > STRIDING * (next - t);
       legs.push({
         from: t,
         to: next,
         at,
         next: p ?? at,
-        activity: st.activity ?? ACTIVITY.working,
+        activity: striding ? ACTIVITY.walking : (st.activity ?? ACTIVITY.working),
         carry: st.carry,
-        task: st.task ?? null,
+        task: p?.task !== undefined ? p.task : (st.task ?? null),
         face: p?.face ?? st.face ?? null,
         why: p?.why ?? st.why,
         effect: null,
@@ -2187,7 +2201,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
           ways.push(way);
           fixed += lengthOf(way) / pace;
           pos = st.to;
-        } else if (!st.flex) fixed += (st.hours ?? 0) * HOUR;
+        } else if (!st.flex && st.until === undefined) fixed += (st.hours ?? 0) * HOUR;
       const job = steps.find((st) => st.flex),
         room = until - t - fixed,
         most = (job?.hours ?? 0) * HOUR;
@@ -2206,7 +2220,12 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
           pos = st.to;
           continue;
         }
-        const d = st.flex ? flex : (st.hours ?? 0) * HOUR;
+        const d =
+          st.until !== undefined
+            ? Math.max(0, st.until - t)
+            : st.flex
+              ? flex
+              : (st.hours ?? 0) * HOUR;
         if (st.follow) {
           pos = following(t, t + d, pos, st);
           moved = true;
@@ -2512,6 +2531,44 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
             why: "Laying the catch in the store",
             effect: { kind: "food", amount: 1 },
           },
+        ];
+      }
+      case "hunt": {
+        // The hunt (Phase 47 M209): out at first light with the others after the game, to where
+        // the wild begins; the stalk, the rush, the kill dressed where it fell; then home — the
+        // kill across the first one's shoulders to the store, the rest with their spears. (Their
+        // errands after it, and on a day without a hunt: gathering in the wild.)
+        const hunt = k === 0 ? huntOn(plan, day) : null;
+        if (!hunt) return errandOf({ ...role, kind: "gather" }, town, k);
+        const seat = role.seat,
+          follow = (sec: number) => hunterAt(plan, day * DAY + sec, seat),
+          first = follow(HUNT_STALK[0] * HOUR - 60)!,
+          carrier = seat === 0 && !!hunt.kill;
+        return [
+          { to: clearSpot(ground, first), carry: "spear", why: "Out to the hunt" },
+          {
+            until: HUNT_DONE * HOUR,
+            every: 60,
+            carry: "spear",
+            why: "After game",
+            follow,
+          },
+          carrier
+            ? { to: granary.door, carry: "kill", why: `Carrying the kill to ${granary.words}` }
+            : {
+                to: at,
+                carry: "spear",
+                why: hunt.kill ? "Home from the hunt" : "Home from the hunt, empty-handed",
+              },
+          carrier
+            ? {
+                hours: 0.2,
+                task: "load",
+                carry: "kill",
+                why: `Hanging the kill in ${granary.words}`,
+                effect: { kind: "food", amount: 4 },
+              }
+            : { hours: 0.05, task: "load", carry: "spear", why: "Putting up the spear" },
         ];
       }
       case "herd": {

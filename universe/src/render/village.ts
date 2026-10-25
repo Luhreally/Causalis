@@ -19,6 +19,8 @@ import {
   fieldsNow,
   flockAt,
   foldOf,
+  gameAt,
+  huntOn,
   type FlockState,
   frontOf,
   pulledOn,
@@ -1791,6 +1793,64 @@ export class VillageScene {
       fight: fightNow(plan, this.lastT),
       burning: spot(b.fires[0]),
       dusty: spot(b.dust[0]),
+    };
+  }
+
+  /**
+   * The town's hunt as drawn (the look tools, Phase 47 M209): today's (where the rush finds the
+   * herd, where one falls), the game now (as the day has it, and as drawn), and those at the hunt
+   * now — what they are about, how, and what they carry.
+   */
+  huntShown(): {
+    hunt: { target: { x: number; z: number }; kill: { x: number; z: number } | null } | null;
+    game: {
+      x: number;
+      z: number;
+      alert: number;
+      running: boolean;
+      down: { x: number; z: number } | null;
+    } | null;
+    drawn: { alive: number; dead: number; x: number; z: number; running: boolean } | null;
+    hunters: {
+      x: number;
+      z: number;
+      why: string | null;
+      task: string | null;
+      carry: string | null;
+    }[];
+  } | null {
+    const plan = this.plan;
+    if (!plan) return null;
+    const hunt = huntOn(plan, Math.floor(this.lastT / 86_400)),
+      game = gameAt(plan, this.lastT);
+    return {
+      hunt: hunt
+        ? {
+            target: { x: hunt.target.x, z: hunt.target.z },
+            kill: hunt.kill ? { x: hunt.kill.x, z: hunt.kill.z } : null,
+          }
+        : null,
+      game: game
+        ? {
+            x: game.x,
+            z: game.z,
+            alert: game.alert,
+            running: game.running,
+            down: game.down ? { x: game.down.x, z: game.down.z } : null,
+          }
+        : null,
+      drawn: this.fauna.gameNow(),
+      hunters: this.moments
+        .filter(
+          (m) =>
+            m &&
+            !m.hidden &&
+            (m.carry === "kill" ||
+              /hunt|the herd|the kill|after game/i.test(m.why ?? "") ||
+              m.task === "stalk" ||
+              m.task === "strike"),
+        )
+        .map((m) => ({ x: m.x, z: m.z, why: m.why, task: m.task, carry: m.carry })),
     };
   }
 

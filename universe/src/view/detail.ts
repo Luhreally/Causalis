@@ -188,13 +188,15 @@ export function carryWords(
     case "beam":
       return "a beam for the walls going up";
     case "spear":
-      return `a ${m.name}-headed spear, for the drill`;
+      return `a ${m.name}-headed spear`;
     case "log":
       return "a log felled in the woods";
     case "stone":
       return "a block of cut stone";
     case "pots":
       return "pots fired in the kiln, for the market";
+    case "kill":
+      return "the hunt's kill, across the shoulders";
   }
 }
 
@@ -211,4 +213,6 @@ export const SHEEN: Readonly<Record<Material, { gloss: number; metal: boolean }>
   water: { gloss: 0.9, metal: false },
   stone: { gloss: 0.12, metal: false },
   clay: { gloss: 0.25, metal: false },
+  hide: { gloss: 0.08, metal: false },
+  hoof: { gloss: 0.4, metal: false },
 };

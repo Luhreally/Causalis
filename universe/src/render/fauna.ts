@@ -205,7 +205,7 @@ export class FaunaLayer {
       const b = this.beasts[i]!;
       // (Out of sight, not posed: most of a village's beasts are, looking into it.)
       if (!this.inSight(b.species, b.x, 0, b.z)) continue;
-      this.draw(b.species, b.x, 0, b.z, b.yaw, 0, b.pose, b.size);
+      this.draw(b.species, b.x, 0, b.z, b.yaw, b.dead ? 0.35 : 0, b.pose, b.size);
     }
     // The fliers, on their wings; the swimmers, leaping.
     const birds = birdsAt(fauna, s, this.birdsNow);
@@ -354,6 +354,26 @@ export class FaunaLayer {
       .slice(0, this.beastCount)
       .filter((b) => fauna.species[b.species]?.flock && b.task === 0)
       .map((b) => ({ x: b.x, z: b.z, size: b.size, lying: b.pose.crouch > 0.5 }));
+  }
+
+  /**
+   * The game a town's hunters go after, as last laid out (Phase 47 M209, the look tools): how
+   * many of its herd stand, how many lie brought down, where its middle is, whether it runs.
+   */
+  gameNow(): { alive: number; dead: number; x: number; z: number; running: boolean } | null {
+    const fauna = this.fauna,
+      g = fauna ? fauna.herds.findIndex((h) => !!h.game) : -1;
+    if (!fauna || g < 0) return null;
+    const mine = this.beasts.slice(0, this.beastCount).filter((b) => b.herd === g),
+      alive = mine.filter((b) => !b.dead),
+      n = Math.max(1, alive.length);
+    return {
+      alive: alive.length,
+      dead: mine.length - alive.length,
+      x: alive.reduce((a, b) => a + b.x, 0) / n,
+      z: alive.reduce((a, b) => a + b.z, 0) / n,
+      running: alive.some((b) => b.pose.gait === 2),
+    };
   }
 
   /** The road's traffic as laid out (for the works that go with it). */

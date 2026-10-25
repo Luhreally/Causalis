@@ -733,6 +733,28 @@ type Exposed = {
     }[];
   } | null;
   /**
+   * The hunt of the town watched as drawn (Phase 47 M209): today's, the game (by its day, and as
+   * drawn), and those at the hunt now.
+   */
+  hunt?: () => {
+    hunt: { target: { x: number; z: number }; kill: { x: number; z: number } | null } | null;
+    game: {
+      x: number;
+      z: number;
+      alert: number;
+      running: boolean;
+      down: { x: number; z: number } | null;
+    } | null;
+    drawn: { alive: number; dead: number; x: number; z: number; running: boolean } | null;
+    hunters: {
+      x: number;
+      z: number;
+      why: string | null;
+      task: string | null;
+      carry: string | null;
+    }[];
+  } | null;
+  /**
    * The flock of the town watched as drawn (Phase 46 M208): what it is about and where, its fold,
    * the stubble it grazes (-1: its pasture), each of it (size, lying) and its herders now.
    */
@@ -5628,6 +5650,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.graveyard = (days = 30) => (scale === "village" ? village.graveyardShown(days) : null);
   exposed.fields = () => (scale === "village" ? village.fieldsShown() : null);
   exposed.flock = () => (scale === "village" ? village.flockShown() : null);
+  exposed.hunt = () => (scale === "village" ? village.huntShown() : null);
   exposed.rig = rig;
 
   // Going to anything (Phase 10 M92): a page's place, from whatever scale is up — the scale

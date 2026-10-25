@@ -666,6 +666,20 @@ export {
 } from "./flock.ts";
 export { HARVEST, SOWING, WINTER } from "./seasons.ts";
 export {
+  FLIGHT,
+  HUNT_DONE,
+  HUNT_PARTY,
+  HUNT_RUSH,
+  HUNT_STALK,
+  gameAt,
+  gameOf,
+  huntGround,
+  huntOn,
+  hunterAt,
+  type GameNow,
+  type Hunt,
+} from "./hunt.ts";
+export {
   BLIGHTED,
   BURN_HOURS,
   CROP_HIGH,

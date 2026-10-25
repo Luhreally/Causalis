@@ -39,6 +39,9 @@ export function limbPitch(
     if (task === "play") return swing * 1.3 * Math.sin(ph * 2.4 + off);
     // (A dance's step, kept to the tune: the ring's off together.)
     if (task === "dance") return swing * 1.1 * Math.sin(ph * 1.6 + i * 0.05);
+    // (The hunt, Phase 47 M209: creeping on the herd step by slow step; the rush at a run.)
+    if (task === "stalk") return swing * 0.4 * Math.sin(ph * 0.45 + off);
+    if (task === "strike") return swing * 1.25 * Math.sin(ph * 2.6 + off);
     return 0;
   }
   switch (task) {
@@ -120,6 +123,12 @@ export function limbPitch(
       return right ? -0.75 - 0.25 * Math.sin(ph * 0.5 + off) : -0.35;
     case "pull":
       return -1.05 + 0.6 * Math.abs(Math.sin(ph * 0.75 + off));
+    // The hunt (Phase 47 M209): the spear held low before them, creeping in; drawn back and
+    // thrust at the rush.
+    case "stalk":
+      return right ? -0.75 : -0.5;
+    case "strike":
+      return right ? -2.5 + 1.7 * Math.max(0, Math.sin(ph * 1.8 + off)) : -0.7;
     default:
       return 0;
   }
@@ -131,5 +140,6 @@ export function bobOf(task: Task | null, t: number, i: number): number {
   if (task === "play") return 0.03 * Math.abs(Math.sin(ph * 2.4));
   if (task === "brawl") return 0.012 * Math.abs(Math.sin(ph * 2.2));
   if (task === "dance") return 0.022 * Math.abs(Math.sin(t * 2 * Math.PI * 1.6 + i * 0.05));
+  if (task === "strike") return 0.02 * Math.abs(Math.sin(ph * 2.6));
   return 0;
 }

@@ -33,6 +33,8 @@ export const CARRIES = [
   "bucket",
   // A bier on the shoulder, borne to the graveyard (Phase 43 M205; drawn whole, over its bearers).
   "bier",
+  // The hunt's kill across the shoulders, its legs hanging (Phase 47 M209).
+  "kill",
 ] as const;
 export type Carry = (typeof CARRIES)[number];
 
@@ -49,6 +51,9 @@ export const MATERIALS = [
   "water",
   "stone",
   "clay",
+  // The hunt's kill (Phase 47 M209): its hide, and its hooves and muzzle.
+  "hide",
+  "hoof",
 ] as const;
 export type Material = (typeof MATERIALS)[number];
 
@@ -101,6 +106,10 @@ export function materialColor(
       return [0.76, 0.74, 0.68];
     case "clay":
       return [0.74, 0.42, 0.26];
+    case "hide":
+      return [0.6, 0.45, 0.3];
+    case "hoof":
+      return [0.2, 0.15, 0.12];
   }
 }
 
@@ -174,6 +183,19 @@ const ITEMS: Readonly<Record<Carry, readonly ItemPart[]>> = {
     P("clay", 0.05, 0.33, 0.12, 0.07, 0.13, 0.07),
   ],
   bier: [],
+  // (Across the shoulders, its body behind the neck; its head hanging down on one side, its
+  // legs held together before them in the carrier's hands.)
+  kill: [
+    P("hide", 0, 0.6, -0.06, 0.34, 0.15, 0.15),
+    P("hide", -0.21, 0.52, -0.04, 0.09, 0.08, 0.08),
+    P("hide", -0.27, 0.43, 0.0, 0.07, 0.11, 0.07, 0.3),
+    P("hoof", -0.27, 0.36, 0.03, 0.04, 0.04, 0.05),
+    P("hide", -0.09, 0.52, 0.08, 0.035, 0.035, 0.2),
+    P("hide", 0.09, 0.52, 0.08, 0.035, 0.035, 0.2),
+    P("hoof", -0.03, 0.5, 0.17, 0.05, 0.04, 0.05),
+    P("hoof", 0.03, 0.5, 0.17, 0.05, 0.04, 0.05),
+    P("hide", 0.2, 0.62, -0.08, 0.05, 0.05, 0.05),
+  ],
 };
 
 /** The boxes of an item as it is carried. */
