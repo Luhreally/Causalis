@@ -14,7 +14,6 @@ import {
   figurePaint,
   biomeColor,
   cropColor,
-  battleOf,
   bobOf,
   FIGURE_CAPSULE,
   figureOf,
@@ -50,6 +49,9 @@ import {
   type TownThing,
   type Crop,
   type StoresNow,
+  townWarScene,
+  type TownWar,
+  type TownWarScene,
 } from "../view/index.ts";
 import {
   InstancedBatch,
@@ -65,6 +67,7 @@ import { WorkLayer, type Carrier } from "./work.ts";
 import { TownLayer } from "./town.ts";
 import { CountryLayer } from "./country.ts";
 import { FeastLayer } from "./feast.ts";
+import { TownWarLayer } from "./townwar.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
@@ -110,10 +113,22 @@ export class VillageScene {
   private crops: { crop: Crop; batch: InstancedBatch; shown: string }[] = [];
   /** Each group's batch for each part of the figure (null: a part drawn by the person's hair). */
   private people: (InstancedBatch | null)[][] = [];
-  /** A battle's two hosts (M87): each side's batch for each part of the figure, and their spears. */
+  /**
+   * A war's two hosts about the town (M87; on the world's clock, Phase 40 M204): each side's
+   * batch for each part of the figure, and their spears. Each side's `soldiersEach`: its host,
+   * then the fallen of a battle fought before the town.
+   */
   private soldiers: InstancedBatch[][] = [];
   private spears: InstancedBatch | null = null;
   private soldiersEach = 0;
+  /** The war about the town now, as last drawn, and the sides its soldiers are armed for. */
+  private townWar: TownWar | null = null;
+  private warScene: TownWarScene | null = null;
+  private armed = "";
+  private soldierBatches: InstancedBatch[] = [];
+  private meshes: Record<PartShape, pc.Mesh> | null = null;
+  /** The besiegers' tents and fires, a town burning (M204). */
+  private readonly warLayer: TownWarLayer;
   /**
    * What each side bears, as its host's design has it (Phase 13 M114): its arm (a spear, a
    * sword, an axe, a bow), whether a shield; and the batches of blades, bows and each side's
@@ -171,6 +186,7 @@ export class VillageScene {
     this.town = new TownLayer(stage, this.root);
     this.country = new CountryLayer(stage, this.root);
     this.feast = new FeastLayer(stage, this.root);
+    this.warLayer = new TownWarLayer(stage, this.root);
     this.root.enabled = false;
   }
 
@@ -239,7 +255,8 @@ export class VillageScene {
         child !== this.visitors.root &&
         child !== this.town.root &&
         child !== this.country.root &&
-        child !== this.feast.root
+        child !== this.feast.root &&
+        child !== this.warLayer.root
       )
         child.destroy();
     this.stacks = [];
@@ -699,73 +716,12 @@ export class VillageScene {
           )
         : null,
     );
-    // A battle in its land this year or last (M87): the two hosts, each in its realm's
-    // colour, spears in hand — as many a side as the setting draws.
-    const battle = plan.life?.battle;
-    this.soldiersEach = battle ? (SOLDIERS[s.quality.detail] ?? 10) : 0;
-    this.soldiers = battle
-      ? [battle.attacker.color, battle.defender.color].map((c) => {
-          const body: Rgb = [c[0], c[1], c[2]],
-            legs: Rgb = [c[0] * 0.5, c[1] * 0.5, c[2] * 0.5],
-            paint = figurePaint(plan.body, plan.era, 0);
-          // (A people in their own look fight in their hide, their realm's colour over it.)
-          return this.figure.parts.map((part) =>
-            this.batch(
-              s,
-              meshes[part.shape],
-              paint.folk
-                ? part.tone === 5
-                  ? body
-                  : paint.tones[part.tone]
-                : part.tone === 2
-                  ? SKIN
-                  : part.tone === 4
-                    ? EYES
-                    : part.tone === 3
-                      ? HAIRS[1]!
-                      : part.tone
-                        ? legs
-                        : body,
-              this.soldiersEach,
-              this.root,
-            ),
-          );
-        })
-      : [];
-    this.kits = battle
-      ? [battle.attacker, battle.defender].map((side) => ({
-          arm: side.host?.arm || "spear",
-          shield: side.host?.guard === "shield",
-        }))
-      : [];
-    const bears = (arms: readonly string[]) => this.kits.some((k) => arms.includes(k.arm));
-    this.spears = bears(["spear", ...GUNS])
-      ? this.batch(s, meshes.box, [0.52, 0.38, 0.24], this.soldiersEach * 2, this.root)
-      : null;
-    this.blades = bears(["sword", "axe"])
-      ? this.batch(s, meshes.box, [0.8, 0.82, 0.86], this.soldiersEach * 2, this.root)
-      : null;
-    this.bows = bears(["bow", "horn-bow"])
-      ? this.batch(s, meshes.box, [0.4, 0.26, 0.12], this.soldiersEach * 2, this.root)
-      : null;
-    // (Shields in their side's colour, a little brighter.)
-    this.shields = battle
-      ? [battle.attacker.color, battle.defender.color].map((c, side) =>
-          this.kits[side]!.shield
-            ? this.batch(
-                s,
-                meshes.box,
-                [
-                  Math.min(1, c[0] * 1.2 + 0.1),
-                  Math.min(1, c[1] * 1.2 + 0.1),
-                  Math.min(1, c[2] * 1.2 + 0.1),
-                ],
-                this.soldiersEach,
-                this.root,
-              )
-            : null,
-        )
-      : [];
+    // The soldiers of a war about the town (M87, M204), armed afresh for it.
+    this.meshes = meshes;
+    this.armed = "";
+    this.soldierBatches = [];
+    this.soldiers = [];
+    this.arm(this.townWar?.sides ?? null);
     // Homes built more finely (M79): windows lit at night, chimneys, porches, fences.
     this.windows = town ? this.townLamps : null;
     this.lit = -1;
@@ -992,8 +948,14 @@ export class VillageScene {
     const parts = this.figure.parts,
       // Strides and the motions of work: by the screen's clock, each person a little out of step.
       clock = performance.now() / 1000,
-      // The battle, if its land was fought over (its soldiers stand where they stand).
-      troops = this.soldiers.length ? battleOf(plan, this.soldiersEach, clock) : [];
+      // The war about the town (M204): its hosts where its year has them, its fallen where they fell.
+      scene =
+        this.townWar && this.soldiers.length
+          ? townWarScene(plan, this.townWar, this.soldiersEach / 2)
+          : null,
+      troops = scene?.soldiers ?? [];
+    this.warScene = scene;
+    this.warLayer.update(scene, screen);
     const targets = plan.people.map((_, i) => momentOf(plan, i, t, downpour, fine));
     // Through the evening the next day is laid out, a few at a time (as many a frame as see it
     // laid by midnight at the speed the day goes), so its turn comes without a stall.
@@ -1029,7 +991,11 @@ export class VillageScene {
       if (m.task === "dance" && !m.hidden) Object.assign(m, ringTurn(plan, m, screen));
     // No one stands in anyone else, nor in a soldier; and no one jumps: each is carried to
     // where their day has them, however fast the world runs.
-    keepApart(plan, targets, troops);
+    keepApart(
+      plan,
+      targets,
+      troops.filter((q) => q.size > 0.5),
+    );
     const dt = this.presenceClock === null ? 0 : clock - this.presenceClock;
     this.presenceClock = clock;
     const drawn = present(
@@ -1104,8 +1070,9 @@ export class VillageScene {
         batch.set(wearers.length, (k, out) => place(out, wearers[k]!.p, wearers[k]!.i, pi));
       });
     });
-    // The battle, if its land was fought over: closing, fighting, falling, falling back.
-    if (this.soldiers.length) {
+    // The war about the town: its hosts mustering, marching, drawn up, closing, fighting, falling,
+    // in flight; its fallen where they fell.
+    if (this.soldiers.length && troops.length) {
       if (this.soldierLimbs.length !== 2 * this.soldiersEach * parts.length)
         this.soldierLimbs = new Float32Array(2 * this.soldiersEach * parts.length).fill(Number.NaN);
       /** A part of a soldier's figure now (lying on their back, if fallen). */
@@ -1121,7 +1088,12 @@ export class VillageScene {
               ? 0
               : limbPitch(
                   part,
-                  walking ? null : k % 2 ? "drill" : "brawl",
+                  // (Standing in their ranks at rest; at the drill as they muster; in the fight, thrusting.)
+                  walking || q.doing === "stand"
+                    ? null
+                    : q.doing === "drill" || k % 2
+                      ? "drill"
+                      : "brawl",
                   walking,
                   clock * (walking ? 1.4 : 1),
                   k + side * 31,
@@ -1270,6 +1242,131 @@ export class VillageScene {
       this.marker.enabled = !!m && !m.hidden;
       if (m) this.marker.setLocalPosition(m.x * M, 0.03, m.z * M);
     }
+  }
+
+  /**
+   * A war's two hosts armed (M87; Phase 40 M204: as a war comes to the town): each side in its
+   * realm's colour, each part of the figure a batch, its arms (spears, blades, bows) and its
+   * shields — as many a side as the setting draws, and their fallen. Armed again only when the
+   * sides change.
+   */
+  private arm(sides: TownWar["sides"] | null): void {
+    const key = sides
+      ? sides
+          .map((x) => `${x.color.join(",")}:${x.host?.arm ?? ""}:${x.host?.guard ?? ""}`)
+          .join("|")
+      : "";
+    if (key === this.armed || !this.plan || !this.meshes) return;
+    this.armed = key;
+    for (const b of this.soldierBatches) b.destroy();
+    this.batches = this.batches.filter((b) => !this.soldierBatches.includes(b));
+    this.soldierBatches = [];
+    this.soldierLimbs = new Float32Array(0);
+    const plan = this.plan,
+      s = this.stage,
+      meshes = this.meshes,
+      battle = sides ? { attacker: sides[0], defender: sides[1] } : null,
+      kept = (...args: ConstructorParameters<typeof InstancedBatch>) => {
+        const b = this.batch(...args);
+        this.soldierBatches.push(b);
+        return b;
+      };
+    this.soldiersEach = battle ? 2 * (SOLDIERS[s.quality.detail] ?? 10) : 0;
+
+    this.soldiers = battle
+      ? [battle.attacker.color, battle.defender.color].map((c) => {
+          const body: Rgb = [c[0], c[1], c[2]],
+            legs: Rgb = [c[0] * 0.5, c[1] * 0.5, c[2] * 0.5],
+            paint = figurePaint(plan.body, plan.era, 0);
+          // (A people in their own look fight in their hide, their realm's colour over it.)
+          return this.figure.parts.map((part) =>
+            kept(
+              s,
+              meshes[part.shape],
+              paint.folk
+                ? part.tone === 5
+                  ? body
+                  : paint.tones[part.tone]
+                : part.tone === 2
+                  ? SKIN
+                  : part.tone === 4
+                    ? EYES
+                    : part.tone === 3
+                      ? HAIRS[1]!
+                      : part.tone
+                        ? legs
+                        : body,
+              this.soldiersEach,
+              this.root,
+            ),
+          );
+        })
+      : [];
+    this.kits = battle
+      ? [battle.attacker, battle.defender].map((side) => ({
+          arm: side.host?.arm || "spear",
+          shield: side.host?.guard === "shield",
+        }))
+      : [];
+    const bears = (arms: readonly string[]) => this.kits.some((k) => arms.includes(k.arm));
+    this.spears = bears(["spear", ...GUNS])
+      ? kept(s, meshes.box, [0.52, 0.38, 0.24], this.soldiersEach * 2, this.root)
+      : null;
+    this.blades = bears(["sword", "axe"])
+      ? kept(s, meshes.box, [0.8, 0.82, 0.86], this.soldiersEach * 2, this.root)
+      : null;
+    this.bows = bears(["bow", "horn-bow"])
+      ? kept(s, meshes.box, [0.4, 0.26, 0.12], this.soldiersEach * 2, this.root)
+      : null;
+    // (Shields in their side's colour, a little brighter.)
+    this.shields = battle
+      ? [battle.attacker.color, battle.defender.color].map((c, side) =>
+          this.kits[side]!.shield
+            ? kept(
+                s,
+                meshes.box,
+                [
+                  Math.min(1, c[0] * 1.2 + 0.1),
+                  Math.min(1, c[1] * 1.2 + 0.1),
+                  Math.min(1, c[2] * 1.2 + 0.1),
+                ],
+                this.soldiersEach,
+                this.root,
+              )
+            : null,
+        )
+      : [];
+  }
+
+  /** The war about the town now (null: none): its soldiers armed for its sides as it comes. */
+  war(tw: TownWar | null): void {
+    this.townWar = tw;
+    this.arm(tw?.sides ?? null);
+  }
+
+  /** The war about the town as last drawn (the look tools). */
+  warNow(): { war: TownWar; scene: TownWarScene; tents: number; fires: number } | null {
+    return this.townWar && this.warScene
+      ? { war: this.townWar, scene: this.warScene, ...this.warLayer.shown }
+      : null;
+  }
+
+  /** Whether a soldier of the war about the town stands at a point of its ground (metres). */
+  soldierAt(x: number, z: number, reach = 4): boolean {
+    return !!this.warScene?.soldiers.some(
+      (q) => q.size > 0.5 && Math.hypot(q.x - x, q.z - z) < reach,
+    );
+  }
+
+  /** Where each host of the war about the town stands on the screen (null: none, or off it). */
+  hostsOnScreen(): ({ x: number; y: number } | null)[] {
+    const cam = this.stage.camera.camera!,
+      at = new pc.Vec3();
+    return (this.warScene?.middles ?? [null, null]).map((m) => {
+      if (!m) return null;
+      const p = cam.worldToScreen(new pc.Vec3(m.x * M, 0.8, m.z * M), at);
+      return p.z > 0 ? { x: p.x, y: p.y } : null;
+    });
   }
 
   /** What a watched person is doing now. */

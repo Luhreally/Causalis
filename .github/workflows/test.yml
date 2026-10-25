@@ -260,6 +260,13 @@ jobs:
       - run: npm run gate:39 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # Phase 40 (war in place: a war of history played on its land on the world's clock — the
+      # attacker mustered at its border and marched by the roads, the defenders' garrison rallied,
+      # the two drawn up and engaged with the clock slowed to a day a second, the rout at the
+      # year's turn; on the globe, its host going between).
+      - run: npm run gate:40 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

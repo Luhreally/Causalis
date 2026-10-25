@@ -281,6 +281,7 @@ export {
   landBattle,
   landColumn,
   landShape,
+  landSpots,
   landWars,
   loopSize,
   rides,
@@ -289,12 +290,42 @@ export {
   type BattleFigure,
   type ColumnMark,
   type LandSoldier,
+  type LandSpots,
   type LandWars,
   type Soldier,
   type WarPath,
   type WarPaths,
   type WarToken,
 } from "./war.ts";
+export {
+  DOING_ICON,
+  FIELD_GAP,
+  LandWays,
+  WAR_YEAR,
+  doingWords,
+  globeInPlace,
+  heartTown,
+  landInPlace,
+  onWay,
+  warNow,
+  type HostDoing,
+  type HostNow,
+  type LandPlay,
+  type LandPlayNow,
+  type PlayFigure,
+  type PlayMark,
+  type WarNow,
+} from "./warplay.ts";
+export {
+  TOWN_DOING_ICON,
+  townWarNow,
+  townWarScene,
+  type TownDoing,
+  type TownHost,
+  type TownPlace,
+  type TownWar,
+  type TownWarScene,
+} from "./townwar.ts";
 export { hallCells, hallDomes } from "./halls.ts";
 
 export {

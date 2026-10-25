@@ -19,6 +19,7 @@ import {
   designsOf,
   handOf,
   healthOf,
+  homePlanet,
   houseFor,
   lifeOf,
   loreOf,
@@ -26,6 +27,8 @@ import {
   orderOf,
   politiesOf,
   populationContext,
+  PROVINCE_TILE_KM,
+  REGION_SIZE,
   realmName,
   regionOf,
   tameNow,
@@ -40,6 +43,7 @@ import {
   LAKE_R,
   LOT,
   WATER_OUT,
+  heartTown,
   lotStates,
   progress,
   townLots,
@@ -555,9 +559,25 @@ export function villagePlan(
               progress,
             }
         : null;
-    // A battle fought in its land this year or last, as history fought it.
+    // Whether it is its land's heart (Phase 40 M204): the battles for its land are fought before
+    // it, its sieges laid about it — as its land's map draws them (bridge/wars heartTown, its
+    // towns where its map has them).
+    const half = ((REGION_SIZE - 1) * PROVINCE_TILE_KM) / 2,
+      heartOf = heartTown(
+        ctx.settlements
+          .inProvince(cell)
+          .filter((s) => s.population > 0)
+          .map((s) => ({
+            ref: s.ref,
+            population: s.population,
+            x: (s.tile % REGION_SIZE) * PROVINCE_TILE_KM - half,
+            z: Math.floor(s.tile / REGION_SIZE) * PROVINCE_TILE_KM - half,
+          })),
+      ),
+      heart = !heartOf || heartOf.ref === ref;
+    // A battle fought in its land this year or last, as history fought it (before its heart).
     let battle: VillageLife["battle"] = null;
-    for (const w of warsOf(world).all()) {
+    for (const w of heart ? warsOf(world).all() : []) {
       const b = w.battles.findLast((x) => x.land === cell && x.year >= now - 1),
         a = realms.get(w.attacker),
         d = realms.get(w.defender);
@@ -633,7 +653,20 @@ export function villagePlan(
           words: `The feast of ${faith}`,
           ref: held,
         });
-    return { fed, growing, war, unrest, faith, talk, site, mourning, newborn, battle, feasts };
+    return {
+      fed,
+      growing,
+      war,
+      unrest,
+      faith,
+      talk,
+      site,
+      mourning,
+      newborn,
+      battle,
+      feasts,
+      heart,
+    };
   }
 
   /**
@@ -764,6 +797,7 @@ export function villagePlan(
       hand: !!hand && hand.village === ref,
       name: village.name,
       cell: village.cell,
+      spot: homePlanet(world).generated.centre[village.cell] ?? -1,
       population: village.population,
       market: village.market !== null,
       biome: r.biome[village.tile]!,

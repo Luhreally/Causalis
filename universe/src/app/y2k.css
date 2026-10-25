@@ -815,6 +815,25 @@ body.paging .panel:not(.page-panel) .inspector {
   color: #ff9c6a;
   text-shadow: 0 0 5px rgba(255, 140, 90, 0.5);
 }
+/* The war about the town (Phase 40 M204): its readout in the war's red. */
+.bar .town-war {
+  flex: 1 1 100%;
+  min-height: 0;
+  padding: 2px 10px;
+  font-family: "Lucida Console", "Courier New", monospace;
+  font-size: 0.8rem;
+  text-align: left;
+  color: #ff9a7a;
+  text-shadow: 0 0 5px rgba(255, 110, 70, 0.45);
+  background: linear-gradient(180deg, #1a0503 0%, #2c0b06 100%);
+  border: 1px solid;
+  border-color: #01060a #aa5d5d #aa5d5d #01060a;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+.bar .town-war:hover {
+  color: #ffd2c0;
+}
 .bar .speeds {
   gap: 0;
 }
@@ -1360,6 +1379,14 @@ body.paging .panel:not(.page-panel) .inspector {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* A battle the land's clock is slowed for (Phase 40): its caption the war's colour, under the director's. */
+.director-caption.battle-slow {
+  border-color: #ff9a3c;
+  box-shadow: inset 0 0 12px rgba(255, 140, 40, 0.22);
+}
+.director-caption:not([hidden]) ~ .director-caption.battle-slow {
+  top: calc(var(--bar-bottom, 72px) + 52px);
 }
 .director-caption.let-go {
   border-color: var(--line);

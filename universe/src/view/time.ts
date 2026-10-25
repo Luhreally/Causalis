@@ -49,6 +49,8 @@ export class TimeState {
   paused = false;
   private readonly chosen = new Map<TimeScale, number>();
   private readonly holds = new Set<string>();
+  /** Caps on how fast it runs, by who set them (a battle drawn near in a land, Phase 40 M203). */
+  private readonly caps = new Map<string, number>();
 
   constructor(scale: TimeScale) {
     this.scale = scale;
@@ -64,19 +66,22 @@ export class TimeState {
     return this.paused || this.holds.size > 0;
   }
 
-  /** The speed the world runs at now. */
+  /** The speed the world runs at now (the one chosen, as capped). */
   get speed(): number {
-    return this.stopped ? 0 : this.speedAt();
+    if (this.stopped) return 0;
+    let s = this.speedAt();
+    for (const c of this.caps.values()) s = Math.min(s, c);
+    return s;
   }
 
   /** The speed of the scale's ladder that is lit: 0 stopped, i the i-th speed, -1 one of its own. */
   get lit(): number {
     if (this.stopped) return 0;
-    const i = TIME_LADDERS[this.scale].speeds.indexOf(this.speedAt());
+    const i = TIME_LADDERS[this.scale].speeds.indexOf(this.speed);
     return i < 0 ? -1 : i + 1;
   }
 
-  /** A speed chosen at the scale watched (0 pauses): the viewer's word, so every hold goes. */
+  /** A speed chosen at the scale watched (0 pauses): the viewer's word, so every hold and cap goes. */
   choose(speed: number): void {
     if (!(speed > 0)) {
       this.paused = true;
@@ -84,7 +89,22 @@ export class TimeState {
     }
     this.paused = false;
     this.holds.clear();
+    this.caps.clear();
     this.chosen.set(this.scale, speed);
+  }
+
+  /** Run no faster than `speed` for `who` (a battle drawn near) until it lets go, or a speed is chosen. */
+  cap(who: string, speed: number): void {
+    this.caps.set(who, speed);
+  }
+
+  uncap(who: string): void {
+    this.caps.delete(who);
+  }
+
+  /** Whether `who` caps the clock still. */
+  capped(who: string): boolean {
+    return this.caps.has(who);
   }
 
   /** The scale's i-th speed (1 the slowest; 0 pauses); false where the ladder has no such rung. */

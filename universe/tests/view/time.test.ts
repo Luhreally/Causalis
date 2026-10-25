@@ -129,3 +129,27 @@ test("speeds in words: on the buttons, and as the clock measures them", () => {
   assert.equal(speedWords(12.4 * YEAR), "12 years a second");
   assert.equal(clockWords(300 * YEAR + 41 * DAY + 7 * HOUR + 40 * 60), "year 300, day 41, 07:40");
 });
+
+test("a battle drawn near slows the clock no faster than it asks, and lets go as it was, or at a speed chosen", () => {
+  const c = new TimeState("region");
+  assert.equal(c.speed, MONTH, "a land opens at a month a second");
+  c.cap("battle", DAY);
+  assert.equal(c.speed, DAY);
+  assert.equal(c.lit, 1, "the day a second lit while slowed");
+  assert.equal(c.speedAt(), MONTH, "the speed chosen kept");
+  c.uncap("battle");
+  assert.equal(c.speed, MONTH, "given back");
+  // Paused while slowed, and gone on: still slowed.
+  c.cap("battle", DAY);
+  c.toggle();
+  assert.equal(c.speed, 0);
+  c.toggle();
+  assert.equal(c.speed, DAY);
+  // A speed chosen while slowed is the viewer's word: every cap let go.
+  assert.ok(c.pick(4));
+  assert.equal(c.speed, YEAR);
+  assert.equal(c.capped("battle"), false);
+  // A cap no slower than the speed chosen leaves it.
+  c.cap("battle", 10 * YEAR);
+  assert.equal(c.speed, YEAR);
+});

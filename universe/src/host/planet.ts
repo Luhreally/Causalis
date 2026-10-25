@@ -15,6 +15,7 @@ import {
   designsOf,
   diplomacyOf,
   fieldedOf,
+  frontier,
   grainLost,
   handOf,
   homePlanet,
@@ -131,7 +132,8 @@ import { hostKinds, realmArms } from "./arms.ts";
 import { villagePlan } from "./village.ts";
 import { landPlan } from "./land.ts";
 import { campNear } from "./camp.ts";
-import { battleNear } from "./battle.ts";
+import { battleNear, battleOutcome } from "./battle.ts";
+import { landTitle } from "./inspect/names.ts";
 import { campaignOf, warsOfAge } from "./campaign.ts";
 import { landReadings } from "./lenses.ts";
 import { genesisOf } from "./genesis.ts";
@@ -970,6 +972,33 @@ function planetUniverse(name: string, prior: Prior): Universe {
               }
             }
             if (from < 0) return [];
+            // Where it fights next, as things stand (M203): the land its attacker wants most now,
+            // as history will choose it at the turn; and its land nearest that, where it musters.
+            const a = realms.get(w.attacker)!,
+              d = realms.get(w.defender)!,
+              nextCell =
+                w.ended === null && a.ended === null && d.ended === null
+                  ? frontier(ctx, a, d)[0]
+                  : undefined,
+              next = nextCell === undefined ? null : spot(nextCell);
+            let muster = from;
+            if (next !== null && next >= 0) {
+              let near0 = -Infinity;
+              for (const m of a.members) {
+                const s = spot(m);
+                if (s < 0 || m === nextCell) continue;
+                const k = near(s, next);
+                if (k > near0) {
+                  near0 = k;
+                  muster = s;
+                }
+              }
+            }
+            const cells = new Map<number, number>();
+            for (const c of [w.prize, nextCell, a.seat, d.seat, ...w.battles.map((b) => b.land)])
+              if (c !== undefined && spot(c) >= 0) cells.set(spot(c), c);
+            for (const m of a.members)
+              if (spot(m) === muster || spot(m) === from) cells.set(spot(m), m);
             return [
               {
                 ref: w.ref,
@@ -977,6 +1006,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
                 defender: side(w.defender),
                 from,
                 to,
+                next: next !== null && next >= 0 ? next : null,
+                muster,
+                seats: { attacker: spot(a.seat), defender: spot(d.seat) },
+                places: [...cells].map(([s, c]) => ({ spot: s, name: landTitle(world, c, true) })),
                 declared: w.declared,
                 ended: w.ended,
                 // (A seat is besieged by a victory there while its realm still holds it.)
@@ -997,6 +1030,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
                     won: b.won,
                     fallen: b.fallen[0] + b.fallen[1],
                     event: b.event,
+                    outcome: battleOutcome(world, b),
+                    seat: b.seat ?? false,
                   })),
               },
             ];

@@ -72,6 +72,7 @@ export {
   type WallLength,
 } from "./town.ts";
 export type { Garrison, HostKinds, WarSide, WarsMap } from "./wars.ts";
+export { HEART_REACH, heartTown } from "./wars.ts";
 export type { BattleNear, BattleOutcome, BattleSideNear } from "./battle.ts";
 export type { Campaign, CampaignBattle, WarAge } from "./campaign.ts";
 export type { ActKindShown, ActMark, ActsMap, LandSky, PaletteLand } from "./acts.ts";

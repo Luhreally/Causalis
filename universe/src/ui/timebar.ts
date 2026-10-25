@@ -128,6 +128,22 @@ export class TimeBar {
     this.apply();
   }
 
+  /** Run no faster than `speed` for `who` (a battle drawn near, M203), until it lets go or a speed is chosen. */
+  cap(who: string, speed: number): void {
+    this.state.cap(who, speed);
+    this.apply();
+  }
+
+  uncap(who: string): void {
+    if (!this.state.capped(who)) return;
+    this.state.uncap(who);
+    this.apply();
+  }
+
+  capped(who: string): boolean {
+    return this.state.capped(who);
+  }
+
   /** The date: to the minute while a day is watched, else to the day; and how fast it goes. */
   tick(t: number): void {
     const rate = this.state.stopped ? "paused" : this.status ? this.rate(this.status) : "",

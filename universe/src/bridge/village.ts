@@ -74,6 +74,11 @@ export type VillageLife = {
   } | null;
   /** The feasts it keeps this year and the next (Phase 33 M174). */
   readonly feasts?: readonly Feast[];
+  /**
+   * Whether it is its land's heart (Phase 40 M204: bridge/wars heartTown): the battles for its land
+   * are fought before it, its sieges laid about it. Its land's battle (`battle`) is told to it alone.
+   */
+  readonly heart?: boolean;
 };
 
 /** A side of a village's battle: its realm's name and colour, and its host's kinds (what it bears). */
@@ -108,6 +113,8 @@ export type VillagePlan = {
   readonly name: string;
   /** The land it stands in (Phase 30: its weather). */
   readonly cell?: number;
+  /** Its land's middle on the globe's grid, as the wars map names lands (Phase 40 M204). */
+  readonly spot?: number;
   readonly population: number;
   readonly market: boolean;
   /** Whether the god's hand rests here: then everyone shown is one of the hand's people. */

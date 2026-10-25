@@ -51,6 +51,7 @@ import {
   WorldPanel,
   CampPanel,
   BattlePanel,
+  BattleSlowCaption,
   WarAgePanel,
   WarPanel,
   GalaxyPanel,
@@ -187,6 +188,14 @@ import {
   type MeadowState,
   beliefColor,
   landWars,
+  LandWays,
+  globeInPlace,
+  heartTown,
+  landSpots,
+  townWarNow,
+  TOWN_DOING_ICON,
+  TIME_LADDERS,
+  type TownWar,
   litColors,
   placeActs,
   warPaths,
@@ -606,6 +615,53 @@ type Exposed = {
   warsDrawn?: () => number;
   /** The hosts and battles a land's map shows of the wars (M95), and whether the wars are known. */
   landWars?: () => { marches: number; battles: number; ships: number; known: boolean };
+  /** A land's wars in place now (M203): each host's doing and place, the fights about the turn, the clock slowed for one. */
+  warsInPlace?: () => {
+    marks: {
+      ref: string;
+      side: number;
+      doing: string;
+      x: number;
+      z: number;
+      men: number;
+      name: string;
+    }[];
+    fights: { key: string; stage: string; k: number; x: number; z: number; name: string }[];
+    camps: number;
+    figures: number;
+    fallen: number;
+    slowed: string | null;
+    told: string;
+    wars: {
+      ref: string;
+      turn: number;
+      f: number;
+      attacker: string | null;
+      defender: string | null;
+    }[];
+  } | null;
+  /** How far along its way each of the world's wars' hosts is on the globe now (M203). */
+  globeMarching?: () => Record<string, number>;
+  faceLand?: (x: number, z: number, distance?: number) => boolean;
+  /** The war about the town watched (Phase 40 M204): its hosts, its fight, its fallen, its camp and fires. */
+  townWar?: () => {
+    ref: string;
+    words: string;
+    told: string;
+    hosts: { side: 0 | 1; doing: string; k: number; gathered: number }[];
+    fight: TownWar["fight"];
+    fought: TownWar["fought"];
+    siege: boolean;
+    burning: number;
+    soldiers: number;
+    fallen: number;
+    doing: string[];
+    middles: readonly ({ x: number; z: number } | null)[];
+    tents: number;
+    fires: number;
+  } | null;
+  faceTown?: (x: number, z: number, distance?: number) => boolean;
+  battleSlowed?: () => { slowed: string | null; told: string };
   spotOnScreen?: (spot: number) => { x: number; y: number } | null;
   faceBattle?: () => boolean;
   /** How the camera is steered now (M98): the orbit's, or free — flying or walking. */
@@ -1217,6 +1273,8 @@ async function runPlanetPage(): Promise<void> {
             n++;
           }
         if (n) rig.target.set(x / n, region.heightAt(x / n, z / n), z / n);
+        // (Where a battle of it is drawn here, its field, once the land's towns are known: M203.)
+        arriveField = { spot: arriveAt, cell: meta.center, until: performance.now() + 10_000 };
       }
       arriveAt = null;
     }
@@ -1236,6 +1294,9 @@ async function runPlanetPage(): Promise<void> {
   };
   /** The spot of the globe a zoom went down into, to stand in the middle of its land's map. */
   let arriveAt: number | null = null;
+  /** A spot come down onto, or a battle come back from (M203): its field faced once its land's
+   *  towns are known. */
+  let arriveField: { spot?: number; event?: string; cell: number; until: number } | null = null;
   /** Turn to the most peopled province; closer, for the lenses that show the people. */
   async function faceThePeople(closer: boolean): Promise<void> {
     const map = await client.query<PeopleEntry[]>({ type: "people.map" });
@@ -1614,6 +1675,11 @@ async function runPlanetPage(): Promise<void> {
     globeWars.skin(paint.folk ? paint.tones[0] : null);
     regionWars.skin(paint.folk ? paint.tones[0] : null);
     showLandWars();
+    // (The world's own wars are drawn in place on the globe, as their year goes: M203.)
+    if (map === warsLive && !campaign && !warAge) {
+      liveLegs = "";
+      return;
+    }
     globeWars.set(
       warPaths(
         map,
@@ -1622,7 +1688,7 @@ async function runPlanetPage(): Promise<void> {
       ),
     );
   };
-  client.subscribe<WarsMap>({ type: "wars.map" }, 2000, (map) => {
+  const takeWars = (map: WarsMap) => {
     const frame = client.latestFrame("globe"),
       key = JSON.stringify(map);
     if (!frame || key === warsKey) return;
@@ -1630,20 +1696,166 @@ async function runPlanetPage(): Promise<void> {
     warsLive = map;
     // (While a war, or an age's, is watched unfolding, it is drawn instead.)
     if (!campaign && !warAge) showWars(map);
-  });
+  };
+  client.subscribe<WarsMap>({ type: "wars.map" }, 2000, takeWars);
+  /**
+   * The world's own wars in place on the globe (Phase 40 M203): each host as far along its way as
+   * its year has gone, on the world's clock. Their ways as last drawn (by their ends), and how far.
+   */
+  let liveLegs = "",
+    liveMarching: Map<string, number> | undefined,
+    /** When the wars were last asked for at a year's turn (ms). */
+    warsAsked = 0,
+    /** The battle the land's clock is slowed for now (M203), and every battle slowed for once. */
+    slowFor: string | null = null,
+    /** The war about the town watched, as its year has it now (Phase 40 M204). */
+    townWar: TownWar | null = null;
+  const slowedOnce = new Set<string>();
   stage.onUpdate(() => {
     globeWars.root.enabled = scale === "globe";
     // (The eye leaning over a war watched: its figures drawn as seen from the side.)
     globeWars.lean = Math.min(1, rig.lean / 45);
-    if (scale === "globe")
+    const y = now() / YEAR;
+    // (A year turned: its battles asked for at once, not at the next telling.)
+    if (
+      (scale === "globe" || scale === "region" || scale === "village") &&
+      warsLive &&
+      Math.floor(y) > warsLive.year &&
+      performance.now() - warsAsked > 600
+    ) {
+      warsAsked = performance.now();
+      void client.query<WarsMap>({ type: "wars.map" }).then(takeWars);
+    }
+    if (scale === "globe") {
+      const frame = client.latestFrame("globe");
+      if (!campaign && !warAge && warsLive && frame) {
+        const placed = globeInPlace(warsLive, y),
+          legs = placed.map.wars
+            .map((w) => `${w.ref}:${w.from}:${w.to}:${w.ended}:${w.siege}`)
+            .join("|");
+        if (legs !== liveLegs) {
+          liveLegs = legs;
+          globeWars.set(
+            warPaths(
+              placed.map,
+              sphereGrid((frame.meta as { frequency: number }).frequency),
+              frame.arrays.elevation as Float32Array,
+            ),
+          );
+        }
+        liveMarching = placed.marching;
+      } else liveMarching = undefined;
       globeWars.update(
         performance.now() / 1000,
         rig.distance,
-        campaign?.marching ?? warAge?.now.marching,
+        campaign?.marching ?? warAge?.now.marching ?? liveMarching,
       );
+    }
     regionWars.visible = scale === "region";
-    if (scale === "region") regionWars.update(performance.now() / 1000);
+    if (scale === "region") regionWars.update(performance.now() / 1000, y);
+    // Come down onto a battle's spot: the eye over its field, where it is drawn.
+    if (arriveField) {
+      const at =
+        scale === "region" && regionCell === arriveField.cell && landPlan && regionWars.now
+          ? arriveField.event !== undefined
+            ? regionWars.now.fields.get(arriveField.event)
+            : regionWars.now.lands.get(arriveField.spot ?? -1)
+          : undefined;
+      if (at) {
+        rig.flyTo({ target: { x: at.x, y: region.heightAt(at.x, at.z), z: at.z } }, 0.8);
+        arriveField = null;
+      } else if (performance.now() > arriveField.until || scale !== "region") arriveField = null;
+    }
+    // A battle drawn near in the land (M203): its clock slowed to a day a second from the hosts
+    // drawn up to the rout, for it to be watched fought; once for each battle, and let go at a
+    // speed the viewer sets meanwhile.
+    const townFight =
+        scale === "village" && plan && townWar?.fight
+          ? townWar.fight.stage !== "drawn" || townWar.fight.k >= 0.55
+            ? { key: townWar.fight.key, name: `⚔️ The battle before ${plan.name}` }
+            : null
+          : null,
+      fight =
+        scale === "region" && regionWars.now
+          ? (regionWars.now.fights.find((f) => f.stage !== "drawn" || f.k >= 0.55) ?? null)
+          : townFight;
+    if (
+      fight &&
+      fight.key !== slowFor &&
+      !slowedOnce.has(fight.key) &&
+      !time.stopped &&
+      time.pace > DAY &&
+      time.pace <= 30 * DAY
+    ) {
+      slowedOnce.add(fight.key);
+      slowFor = fight.key;
+      time.cap("battle", DAY);
+    }
+    if (slowFor && (!fight || fight.key !== slowFor || !time.capped("battle"))) {
+      time.uncap("battle");
+      slowFor = null;
+    }
+    battleSlow.show(
+      slowFor && fight
+        ? `Slowed to a day a second for ${fight.name.replace(/^⚔️ The battle/, "the battle").replace(/, before .*$/, "")}`
+        : null,
+    );
   });
+  const battleSlow = new BattleSlowCaption(hud);
+  battleSlow.onGo = () => time.uncap("battle");
+  exposed.warsInPlace = () => {
+    const n = regionWars.now;
+    return n
+      ? {
+          marks: n.marks.map((m) => ({
+            ref: m.ref,
+            side: m.side,
+            doing: m.doing,
+            x: m.x,
+            z: m.z,
+            men: m.men,
+            name: m.name,
+          })),
+          fights: n.fights.map((f) => ({
+            key: f.key,
+            stage: f.stage,
+            k: f.k,
+            x: f.x,
+            z: f.z,
+            name: f.name,
+          })),
+          camps: n.camps.length,
+          figures: n.figures.length,
+          fallen: n.figures.filter((f) => f.fallen).length,
+          slowed: slowFor,
+          told: battleSlow.told,
+          wars: n.wars.flatMap((w) =>
+            w
+              ? [
+                  {
+                    ref: w.ref,
+                    turn: w.turn,
+                    f: w.f,
+                    attacker: w.attacker?.doing ?? null,
+                    defender: w.defender?.doing ?? null,
+                  },
+                ]
+              : [],
+          ),
+        }
+      : null;
+  };
+  exposed.globeMarching = () => Object.fromEntries(liveMarching ?? []);
+  // The battle a clock is slowed for now (a land's or a town's), and how it is told.
+  exposed.battleSlowed = () => ({ slowed: slowFor, told: battleSlow.told });
+  // The eye over a point of the land, so far off (for the look tools: to watch a host or a fight).
+  exposed.faceLand = (x: number, z: number, distance = 30) => {
+    if (scale !== "region") return false;
+    rig.target.set(x, region.heightAt(x, z), z);
+    rig.userZoomed = true;
+    rig.distance = distance;
+    return true;
+  };
   exposed.warsDrawn = () =>
     scale === "globe" ? globeWars.drawn : scale === "region" ? regionWars.drawn : 0;
   exposed.landWars = () => ({ ...regionWars.shown, known: warsNow !== null });
@@ -1659,8 +1871,13 @@ async function runPlanetPage(): Promise<void> {
     return at && at.facing > 0 ? { x: at.x, y: at.y } : null;
   };
   // The same wars seen closer in a land (Phase 10 M95): its hosts coming in for what they
-  // want or going out to the front, its defenders, its battles of this year and last.
+  // want or going out to the front, its defenders, its battles of this year and last; since
+  // Phase 40 (M203) each host where its year has it, by the land's roads.
   const regionWars = new RegionWars(stage);
+  /** The ways a land's hosts go by, worked out once for each land (M203). */
+  let landWays: { key: string; ways: LandWays } | null = null;
+  /** The land's heart (its battles fought before it, M203) and its middle spot, as last drawn. */
+  let landHeart: { ref: string; middle: number } | null = null;
   const showLandWars = () => {
     const frame = client.latestFrame("region"),
       globeFrame = client.latestFrame("globe"),
@@ -1675,18 +1892,38 @@ async function runPlanetPage(): Promise<void> {
       regionWars.set(null, () => 0);
       return;
     }
-    const meta = frame.meta as { size: number; tileKm: number };
+    const meta = frame.meta as { size: number; tileKm: number },
+      grid = sphereGrid((globeFrame.meta as { frequency: number }).frequency);
     regionWars.set(
-      landWars(
-        warsNow,
-        parent,
-        meta.size,
-        meta.tileKm,
-        sphereGrid((globeFrame.meta as { frequency: number }).frequency),
-      ),
+      landWars(warsNow, parent, meta.size, meta.tileKm, grid),
       (x, z) => region.heightAt(x, z),
       (x, z) => region.seaAt(x, z),
     );
+    // Each of the world's own wars where its year has its hosts (not a war watched unfolding).
+    const g = region.landGround;
+    if (!g || campaign || warAge || warsNow !== warsLive) {
+      regionWars.inPlace(null, null);
+      return;
+    }
+    if (!landWays || landWays.key !== region.key)
+      landWays = { key: region.key ?? "", ways: new LandWays(g) };
+    // (Of its peopled towns, as the host finds a town's heart: a ruin is fought past.)
+    const town = heartTown(
+        (landPlan?.towns ?? [])
+          .filter((t) => t.population > 0)
+          .flatMap((t) => {
+            const at = region.land.townAt(t.ref);
+            return at ? [{ ...at, name: t.name, population: t.population, ref: t.ref }] : [];
+          }),
+      ),
+      spots = landSpots(parent, meta.size, meta.tileKm, grid);
+    landHeart = town ? { ref: town.ref, middle: spots.middle } : null;
+    regionWars.inPlace(warsNow, {
+      spots,
+      ways: landWays.ways,
+      town,
+      sea: (x, z) => region.seaAt(x, z),
+    });
   };
   // The world's towns on the globe (M95): what is zoomed into is there before it, and named
   // as the view closes in.
@@ -1955,6 +2192,7 @@ async function runPlanetPage(): Promise<void> {
       mz = at.z / VILLAGE_METRE,
       front = battleFront(plan),
       event = plan.life?.battle?.event;
+    if (townWar && village.soldierAt(mx, mz)) return townWar.fought?.event ?? townWar.ref;
     if (front && event && Math.hypot(mx - front.x, mz - front.z) < 30) return event;
     // A town drawn from its fabric (Phase 25 M151): one of its buildings, its walls, a lot of it —
     // a watched family's home on it, theirs.
@@ -2315,6 +2553,8 @@ async function runPlanetPage(): Promise<void> {
         const t0 = performance.now();
         region.setTowns(plan, plan.t);
         performance.measure("region.towns", { start: t0 });
+        // (Its wars' battles fought before its greatest town, its sieges laid about it: M203.)
+        showLandWars();
       },
     );
     paintRegion();
@@ -3161,7 +3401,13 @@ async function runPlanetPage(): Promise<void> {
         return;
       }
       if (best < 0) return;
-      const ref = villages[best]!.ref;
+      const fought = war?.startsWith("ev:")
+          ? warsNow?.wars.flatMap((w) => w.battles).find((b) => b.event === war)
+          : undefined,
+        ref =
+          fought && landHeart && fought.spot === landHeart.middle
+            ? landHeart.ref
+            : villages[best]!.ref;
       await fadeOver(() => ready("the village", () => toVillage(ref)));
       if (war?.startsWith("ev:")) faceBattle();
     } else if (scale === "world") {
@@ -3527,6 +3773,56 @@ async function runPlanetPage(): Promise<void> {
       what: plan.works?.mine?.what ?? null,
       ...(plan.metal ? { metal: plan.metal } : {}),
     };
+  };
+  // The war about the town (Phase 40 M204): of the world's wars, the one its year brings to it now —
+  // its men mustering and marching out; before its land's heart, the hosts drawn up and fighting,
+  // the siege, the storm — drawn as its land plays it, and told on a line under its bar.
+  stage.onUpdate(() => {
+    const spot =
+        scale === "village" && plan ? (plan.spot ?? centres.get(plan.cell ?? -1)) : undefined,
+      tw =
+        plan && warsLive && spot !== undefined
+          ? townWarNow(warsLive, now() / YEAR, { spot, heart: plan.life?.heart ?? true })
+          : null;
+    if (tw === null && townWar === null) return;
+    townWar = tw;
+    village.war(tw);
+    villagePanel.warNow(tw?.words ?? null, tw ? (tw.fought?.event ?? tw.ref) : null);
+  });
+  villagePanel.onWar = (ref) => void pageWindow.open(ref);
+  exposed.townWar = () => {
+    const w = scale === "village" ? village.warNow() : null;
+    if (!w) return null;
+    const drawn = w.scene.soldiers.filter((q) => q.size > 0.5);
+    return {
+      ref: w.war.ref,
+      words: w.war.words,
+      told: villagePanel.warTold,
+      hosts: w.war.hosts.map((h) => ({
+        side: h.side,
+        doing: h.doing,
+        k: h.k,
+        gathered: h.gathered,
+      })),
+      fight: w.war.fight,
+      fought: w.war.fought,
+      siege: w.war.siege,
+      burning: w.war.burning,
+      soldiers: drawn.filter((q) => q.doing !== "fallen").length,
+      fallen: drawn.filter((q) => q.doing === "fallen").length,
+      doing: [...new Set(drawn.map((q) => q.doing))],
+      middles: w.scene.middles,
+      tents: w.tents,
+      fires: w.fires,
+    };
+  };
+  // The eye over a point of the town (metres), so far off (the look tools: to watch its hosts).
+  exposed.faceTown = (x: number, z: number, distance = 30) => {
+    if (scale !== "village") return false;
+    rig.target.set(x * VILLAGE_METRE, 0, z * VILLAGE_METRE);
+    rig.userZoomed = true;
+    rig.distance = distance;
+    return true;
   };
   const toVillage = async (ref: string) => {
     scale = "village";
@@ -4145,6 +4441,8 @@ async function runPlanetPage(): Promise<void> {
       ready("the land", () => {
         leaveScale();
         toRegion(was.cell);
+        // (Its field faced, where the land draws it: M203 fights before the land's town.)
+        arriveField = { event: was.event, cell: was.cell, until: performance.now() + 10_000 };
       }),
     );
   };
@@ -5053,14 +5351,33 @@ async function runPlanetPage(): Promise<void> {
       at: { x: v.x, y: v.y },
       priority: 1e9,
     }));
+    const war = townWar,
+      hosts = war
+        ? village.hostsOnScreen().flatMap((at, side) => {
+            const h = war.hosts.find((x) => x.side === side),
+              who = war.sides[side]!;
+            return at && h
+              ? [
+                  {
+                    key: `host:${war.ref}:${side}`,
+                    text: `${TOWN_DOING_ICON[h.doing]} ${who.name.charAt(0).toUpperCase()}${who.name.slice(1)}`,
+                    at,
+                    priority: 2e9,
+                    badge: { realm: who.ref },
+                  },
+                ]
+              : [];
+          })
+        : [];
     if (plan.hand) {
-      labels.update(visitors);
+      labels.update([...hosts, ...visitors]);
       return;
     }
     const names = new Map(
       plan.people.map((p) => [plan!.homes[p.home]!.household, p.name.split(" ").at(-1)!]),
     );
     labels.update([
+      ...hosts,
       ...visitors,
       ...village.homesOnScreen().map((h) => ({
         key: h.household,
@@ -5552,6 +5869,21 @@ async function runPlanetPage(): Promise<void> {
   // first years — the eye down on the land most peopled, its bands camped about it (Phase 28
   // M159), near the greatest camp, while they wander; and down to the first camp they settle as
   // it is made (by day), unless the viewer has gone elsewhere by then.
+  /**
+   * Begun at the first people: their first years rushed by at a year a second (below), unless the
+   * god's hand is laid on the world meanwhile — an act cast is watched, not raced past (the rain
+   * sent for three years gone in three seconds): the land's clock goes back to its pace then, and
+   * is not rushed after. `back`: the land's speed to go back to (its ladder's place; 0, none).
+   */
+  let cradle: { acted: boolean; back: number } | null = null;
+  const castBeforeCradle = palette.onCast;
+  palette.onCast = (receipt) => {
+    castBeforeCradle(receipt);
+    if (!cradle) return;
+    cradle.acted = true;
+    if (cradle.back > 0 && time.scale === "region" && time.speed === YEAR) time.pick(cradle.back);
+    cradle.back = 0;
+  };
   const toTheCradle = async (): Promise<boolean> => {
     const map = await client.query<{ cell: number; people: number }[]>({
         type: "people.map",
@@ -5583,10 +5915,14 @@ async function runPlanetPage(): Promise<void> {
       // until the eye has come down near them — on a machine slow to draw, the years would go by
       // while it flies, and the first village come before the camps were ever seen — and not over
       // the clock as the viewer has held it or set it going themselves meanwhile.)
-      const pace = time.speed;
+      const pace = time.speed,
+        watch = (cradle = { acted: false, back: 0 });
       for (let wait = 0; wait < 240 && here() && rig.flying; wait++)
         await new Promise((r) => setTimeout(r, 250));
-      if (here() && !time.stopped && time.speed === pace) time.pick(4);
+      if (here() && !time.stopped && time.speed === pace && !watch.acted) {
+        watch.back = TIME_LADDERS.region.speeds.indexOf(pace) + 1;
+        time.pick(4);
+      }
     }
     const watching = () =>
       !pageWindow.current &&
@@ -5598,6 +5934,8 @@ async function runPlanetPage(): Promise<void> {
         }),
         town = [...towns].sort((a, b) => b.people - a.people)[0];
       if (town) {
+        // (Their first village come: the rush over, whatever comes of it.)
+        cradle = null;
         if (!watching()) return false;
         await byDay();
         await exposed.goTo?.(town.ref);
@@ -5605,6 +5943,7 @@ async function runPlanetPage(): Promise<void> {
       }
       await new Promise((r) => setTimeout(r, 1000));
     }
+    cradle = null;
     return false;
   };
   // The eye that watches by itself (Phase 31 M168, asked for 2026-10-24: "i would just watch it

@@ -348,7 +348,7 @@ test("a village's plan says how it lives now: fed, growing, at war or not, its g
   assert.equal(JSON.stringify(world.domainHashes()), before, "asking changes nothing");
 });
 
-test("the wars of the year come to the globe as history fights them, and a village sees a battle fought in its land", () => {
+test("the wars of the year come to the globe as history fights them, and the town a land's battle was fought before sees it", () => {
   const before = JSON.stringify(world.domainHashes());
   type Map = {
     year: number;
@@ -374,19 +374,28 @@ test("the wars of the year come to the globe as history fights them, and a villa
       assert.ok(world.events.get(b.event as Ref), "a battle history holds");
     }
   }
-  // A village in a land fought over this year or last sees its battle.
+  // A land fought over this year or last: its heart (the town its battles are fought before, M204)
+  // sees its battle; its other towns are told none.
   const battles = warsOfWorld(world).flatMap((w) =>
     w.battles.filter((b) => b.year >= map.year - 1).map((b) => ({ land: b.land, event: b.event })),
   );
+  type Plan = {
+    spot: number;
+    life: { battle: { event: string; fallen: number } | null; talk: string[]; heart: boolean };
+  };
   let seen = 0;
   for (const b of battles.slice(0, 6)) {
-    const v = (EARTH.queries.settlements!(world, { cell: b.land }) as { ref: string }[])[0];
-    if (!v) continue;
-    const plan = EARTH.queries["village.plan"]!(world, { ref: v.ref }) as {
-      life: { battle: { event: string; fallen: number } | null; talk: string[] };
-    };
-    assert.ok(plan.life.battle, "the village sees the battle");
-    assert.ok(plan.life.talk.includes("war"));
+    const plans = (EARTH.queries.settlements!(world, { cell: b.land }) as { ref: string }[]).map(
+      (v) => EARTH.queries["village.plan"]!(world, { ref: v.ref }) as Plan,
+    );
+    if (!plans.length) continue;
+    const hearts = plans.filter((p) => p.life.heart);
+    assert.equal(hearts.length, 1, "one heart to a land");
+    assert.ok(hearts[0]!.life.battle, "its heart sees the battle");
+    assert.ok(hearts[0]!.life.talk.includes("war"));
+    for (const p of plans) if (!p.life.heart) assert.equal(p.life.battle, null);
+    // (Its land named as the wars map names it.)
+    assert.ok(plans.every((p) => p.spot === plans[0]!.spot && p.spot >= 0));
     seen++;
   }
   assert.ok(battles.length === 0 || seen > 0);

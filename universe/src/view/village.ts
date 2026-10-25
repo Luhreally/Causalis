@@ -471,7 +471,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     // While their realm is at war, the young drill in ranks of an evening, spears in hand.
     drills = !!life?.war && !p.child && p.age >= 16 && p.age < 45 && !(rest && draw(16) < 0.5),
     slot = Math.floor(draw(17) * 16),
-    field = drillField(plan),
+    field = drillGround(plan),
     rank: Point = {
       x: field.x + ((slot & 3) - 1.5) * DRILL_GAP,
       z: field.z + ((slot >> 2) - 1.5) * DRILL_GAP,
@@ -1491,10 +1491,10 @@ function clearSpot(ground: Ground, p: Point): Point {
   return q;
 }
 
-// Where the young drill while their realm is at war: open ground just past the homes, off
-// the fields, the pasture, the road and the water.
+// Where the young drill while their realm is at war, and its men muster for it (M204): open
+// ground just past the homes, off the fields, the pasture, the road and the water.
 const FIELDS = new WeakMap<VillagePlan, Point>();
-function drillField(plan: VillagePlan): Point {
+export function drillGround(plan: VillagePlan): Point {
   let f = FIELDS.get(plan);
   if (!f) {
     const ground = groundFor(plan),

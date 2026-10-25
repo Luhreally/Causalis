@@ -552,7 +552,8 @@ export type Soldier = {
   yaw: number;
   /** 0 the attackers, 1 the defenders. */
   side: 0 | 1;
-  doing: "advance" | "fight" | "fallen" | "fall back";
+  /** On the move, fighting, fallen, falling back — or standing in their ranks, at the drill (M204). */
+  doing: "advance" | "fight" | "fallen" | "fall back" | "stand" | "drill";
   /** How much of them is drawn (0 … 1): the round begins and ends in a blink, not a jump. */
   readonly size: number;
 };
@@ -904,19 +905,28 @@ export function counterWords(men: number): string {
           : `${n}`;
 }
 
+/** Where the spots of the globe's grid fall in a land's map (shared by its wars, M95, and its wars in place, M203). */
+export type LandSpots = {
+  /** A spot's middle in the map (of its tiles there), or null where none of its tiles is in it. */
+  readonly here: (spot: number) => Flat | null;
+  /** Where the way toward a spot beyond the map leaves it, from a point in it (at its edge, a little in). */
+  readonly edgeToward: (spot: number, from: Flat) => Flat;
+  /** The spot at the map's middle: its own land's. */
+  readonly middle: number;
+};
+
 /**
- * The wars in a land's map: `parent` is each tile's spot of the globe's grid (the land's
- * map is `size` tiles a side, `tileKm` each). A spot of the map stands at the middle of its
- * tiles; a spot beyond it, at the map's edge the way it lies (by the map's own frame: east
- * and north at its middle, as the land's map is drawn).
+ * A land's map's spots: `parent` is each tile's spot of the globe's grid (the map is `size`
+ * tiles a side, `tileKm` each). A spot of the map stands at the middle of its tiles; a spot
+ * beyond it, at the map's edge the way it lies (by the map's own frame: east and north at its
+ * middle, as the land's map is drawn).
  */
-export function landWars(
-  map: WarsMap,
+export function landSpots(
   parent: Int32Array,
   size: number,
   tileKm: number,
   grid: SphereGrid,
-): LandWars {
+): LandSpots {
   const half = ((size - 1) * tileKm) / 2,
     sums = new Map<number, { x: number; z: number; n: number }>();
   for (let t = 0; t < parent.length; t++) {
@@ -960,6 +970,18 @@ export function landWars(
       t = Math.max(0, Math.min(tx, tz));
     return { x: from.x + ux * t, z: from.z + uz * t };
   };
+  return { here, edgeToward, middle: mid };
+}
+
+/** The wars in a land's map (its spots as landSpots has them). */
+export function landWars(
+  map: WarsMap,
+  parent: Int32Array,
+  size: number,
+  tileKm: number,
+  grid: SphereGrid,
+): LandWars {
+  const { here, edgeToward } = landSpots(parent, size, tileKm, grid);
   const colors: [number, number, number][] = [],
     colorOf = (c: readonly [number, number, number]) => {
       const i = colors.findIndex((k) => k[0] === c[0] && k[1] === c[1] && k[2] === c[2]);

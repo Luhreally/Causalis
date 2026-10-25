@@ -176,6 +176,11 @@ export class RegionScene {
     this.key = key;
   }
 
+  /** The land's ground as its roads read it (null: none built), for the ways its hosts go by (M203). */
+  get landGround(): LandGround | null {
+    return this.ground;
+  }
+
   /** Recolour the terrain (RGBA per tile): each facet the colour most of its three tiles have. */
   paint(colors: Uint8Array): void {
     if (!this.mesh || !this.corners || !this.colors) return;

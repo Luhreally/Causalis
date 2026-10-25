@@ -558,6 +558,23 @@ body[data-scale="micro"] {
 .town-stores[hidden] {
   display: none;
 }
+/* The war about the town (Phase 40 M204): what its hosts are at, a line under its stores. */
+.town-war {
+  flex-basis: 100%;
+  min-height: 0;
+  padding: 2px 8px;
+  text-align: left;
+  font-size: 0.82rem;
+  color: #ffc2a8;
+  background: rgba(60, 0, 0, 0.28);
+  border-color: transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.town-war[hidden] {
+  display: none;
+}
 .stores-list {
   margin: 0;
   padding-left: 1.1rem;

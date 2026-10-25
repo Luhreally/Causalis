@@ -7,22 +7,24 @@
 // lately (as the globe shows it), its two hosts in lines face to face, crossed blades over a
 // flare that pulses, the larger the more fell; a seat under siege ringed by its besiegers'
 // tents behind a palisade, their fires burning; and by the seat of a realm at peace, its
-// garrison under its banner. Instanced; the march plays over as the war lasts, as on the globe.
+// garrison under its banner. Instanced. Since Phase 40 (M203) each war's hosts are where its year
+// has them on the world's clock (view/warplay.ts): mustering, marching by the roads, drawn up,
+// engaged at the year's turn, routed, entering a land taken, camped about a seat and storming it,
+// going home; a land's battles' fallen lie on their fields.
 import * as pc from "playcanvas";
-import type { HostKinds } from "../bridge/index.ts";
+import type { HostKinds, WarsMap } from "../bridge/index.ts";
 import {
+  DOING_ICON,
   counterWords,
-  holdShape,
   landBattle,
-  landColumn,
-  landShape,
+  landInPlace,
+  type LandPlay,
+  type LandPlayNow,
   type LandWars,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, keptMesh } from "./batch.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
-/** How long a host's march across the land takes on the screen (seconds). */
-const LAND_MARCH = 16;
 /** The most figures of one side drawn at once, the most ships of all sides, and the most of one kind of gear. */
 const MOST = 240,
   MOST_SHIPS = 96,
@@ -44,6 +46,12 @@ type Mark = {
   battle: boolean;
   realm?: string;
   fields?: number;
+  /** A host's doing's sign before its counter, and the realm it fights (M203). */
+  icon?: string;
+  foe?: string;
+  /** Its own key among the labels (a host's, M203), and whether a fight now (named before all). */
+  key?: string;
+  fight?: boolean;
 };
 
 /** How one is carried to war, what they strike with, and whether they bear a shield. */
@@ -138,17 +146,29 @@ export class RegionWars {
     ships: number;
     camps: number;
     garrisons: number;
+    fights: number;
   } {
     return {
-      marches: this.land?.marches.length ?? 0,
+      // (Each war's hosts drawn where their year has them, M203.)
+      marches: this.now ? this.now.marks.length : (this.land?.marches.length ?? 0),
       battles: this.land?.battles.length ?? 0,
       ships: this.afloat,
-      camps: this.land?.camps.length ?? 0,
+      camps: this.now ? this.now.camps.length : (this.land?.camps.length ?? 0),
       garrisons: this.land?.garrisons.length ?? 0,
+      fights: this.now?.fights.length ?? 0,
     };
   }
   /** How many ships were drawn at the last update. */
   private afloat = 0;
+  /** The wars in place (M203): the map they are of, and what they are played on (its colours aside). */
+  private play: { map: WarsMap; play: Omit<LandPlay, "colorOf"> } | null = null;
+  /** The wars in place at the last update (for the look tools and the clock). */
+  now: LandPlayNow | null = null;
+
+  /** The wars of a map played in place on a land (M203), or none. */
+  inPlace(map: WarsMap | null, play: Omit<LandPlay, "colorOf"> | null): void {
+    this.play = map && play ? { map, play } : null;
+  }
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -214,94 +234,83 @@ export class RegionWars {
           this.root,
         ),
     );
-    this.tents = colors.map((c) => new InstancedBatch(this.stage, this.tent, c, 64, this.root));
+    this.tents = colors.map((c) => new InstancedBatch(this.stage, this.tent, c, 96, this.root));
   }
 
-  /** Put every host, battle, camp and garrison where it is at screen time `s` (seconds). */
-  update(s: number): void {
+  /**
+   * Put every host, battle, camp and garrison where it is at screen time `s` (seconds), the
+   * world's year `y` (fractional): each war's hosts where its year has them (M203).
+   */
+  update(s: number, y = 0): void {
     const land = this.land;
     if (!land || !this.root.enabled) return;
     const figures: Figure[] = [],
       banners: { at: Flat; yaw: number; side: number; size: number }[] = [],
       ships: { at: Flat; yaw: number; side: number; size: number }[] = [],
-      marks: Mark[] = [];
-    land.marches.forEach((m, n) => {
-      const dx = m.to.x - m.from.x,
-        dz = m.to.z - m.from.z,
-        len = Math.hypot(dx, dz) || 1,
-        ux = dx / len,
-        uz = dz / len,
-        // The column: in ranks as the men it fields, its banners over its head and every third
-        // rank; over the sea, in ships.
-        col = landColumn(
-          m.from,
-          m.to,
-          (s / LAND_MARCH + n * 0.37) % 1,
-          this.sea,
-          landShape(m.attacker.fields),
+      marks: Mark[] = [],
+      colors = land.colors,
+      colorOf = (c: readonly [number, number, number]) =>
+        Math.max(
+          0,
+          colors.findIndex((k) => k[0] === c[0] && k[1] === c[1] && k[2] === c[2]),
         ),
-        yaw = col.yaw,
-        kit = kitOf(m.hosts.attacker);
-      for (const f of col.people) {
-        figures.push({ x: f.x, z: f.z, yaw, size: f.size, lead: f.lead, side: m.side, kit });
-        if (f.banner) banners.push({ at: f, yaw, side: m.side, size: f.size });
+      now = this.play ? landInPlace(this.play.map, y, { ...this.play.play, colorOf }, s) : null,
+      wars = this.play?.map.wars ?? [];
+    this.now = now;
+    // Each war's hosts where its year has them: in column, drawn up, on the walls; over the sea in
+    // ships (one for every four of a column afloat).
+    let afloat = 0;
+    for (const f of now?.figures ?? []) {
+      const w = wars[f.war]!,
+        kit = kitOf(f.side === 0 ? w.attacker.host : w.defender.host);
+      if (f.afloat && !f.fallen) {
+        if (afloat++ % 4 === 0) ships.push({ at: f, yaw: f.yaw, side: f.color, size: f.size });
+        continue;
       }
-      for (const f of col.ships) ships.push({ at: f, yaw, side: m.side, size: f.size });
-      if (col.head)
-        marks.push({
-          ...col.head,
-          ref: m.ref,
-          name: `${col.afloat ? "⛵" : "🚩"} ${m.name}`,
-          battle: false,
-          realm: m.attacker.ref,
-          fields: m.attacker.fields,
-        });
-      // The defenders, in a block before what they hold, facing the way the host comes: as
-      // many ranks as the men they field.
-      if (m.held) {
-        const hold = holdShape(m.defender.fields),
-          files = hold.files + 2,
-          dkit = kitOf(m.hosts.defender);
-        for (let k = 0; k < files * hold.ranks; k++) {
-          const row = Math.floor(k / files),
-            c = (k % files) - (files - 1) / 2;
-          figures.push({
-            x: m.to.x - ux * (1.4 + row * 0.9) + -uz * c * 0.9,
-            z: m.to.z - uz * (1.4 + row * 0.9) + ux * c * 0.9,
-            yaw: yaw + Math.PI,
-            size: 1,
-            lead: k === Math.floor(files / 2),
-            side: m.foe,
-            kit: dkit,
-          });
-        }
-        banners.push({
-          at: { x: m.to.x - ux * 1.4, z: m.to.z - uz * 1.4 },
-          yaw: yaw + Math.PI,
-          side: m.foe,
-          size: 1,
-        });
-        marks.push({
-          x: m.to.x - ux * 1.4,
-          z: m.to.z - uz * 1.4,
-          ref: m.ref,
-          name: m.name,
-          battle: false,
-          realm: m.defender.ref,
-          fields: m.defender.fields,
-        });
-      }
-    });
-    // Battles played out (Phase 13 M114): the two hosts come on, meet at the line, fight and
-    // fall, and the beaten fall back — round after round while the battle is this year's.
+      figures.push({
+        x: f.x,
+        z: f.z,
+        yaw: f.yaw,
+        size: f.size,
+        lead: f.lead,
+        side: f.color,
+        kit,
+        ...(f.fallen ? { fallen: true } : {}),
+      });
+      if (f.banner && !f.fallen) banners.push({ at: f, yaw: f.yaw, side: f.color, size: f.size });
+    }
+    for (const m of now?.marks ?? []) {
+      const w = wars[m.war]!;
+      marks.push({
+        x: m.x,
+        z: m.z,
+        ref: m.ref,
+        name: m.name,
+        battle: false,
+        realm: m.realm,
+        fields: m.men,
+        icon: DOING_ICON[m.doing],
+        foe: m.side === 0 ? w.defender.ref : w.attacker.ref,
+        key: `${m.key}:${m.realm}`,
+      });
+    }
+    // The battles fought here lately: their fallen lie on their fields (the living are the hosts,
+    // where their war has them now).
     const clashes: { at: Flat; size: number; pulse: number }[] = [];
     let fought = 0,
       fell = 0;
+    for (const f of now?.figures ?? [])
+      if (f.fallen) {
+        fought++;
+        fell++;
+      }
     land.battles.forEach((b, n) => {
-      const fresh = b.age === 0 ? 1 : b.age === 1 ? 0.7 : 0.45,
+      const at = now?.fields.get(b.event) ?? b.at,
+        fresh = b.age === 0 ? 1 : b.age === 1 ? 0.7 : 0.45,
         each = Math.max(6, Math.min(18, Math.round(6 + 12 * b.size * fresh))),
         kits = [kitOf(b.hosts.attacker), kitOf(b.hosts.defender)] as const;
-      for (const f of landBattle(b, each, s)) {
+      for (const f of landBattle({ ...b, at, age: Math.max(1, b.age) }, each, s)) {
+        if (f.doing !== "fallen" && now) continue;
         figures.push({
           x: f.x,
           z: f.z,
@@ -315,37 +324,55 @@ export class RegionWars {
         fought++;
         if (f.doing === "fallen") fell++;
       }
-      // (Its mark over the fight, small: the soldiers are the battle now.)
+      // (Its mark over the field, small: the fallen are the battle now.)
       clashes.push({
-        at: b.at,
+        at,
         size: (0.35 + 0.5 * b.size) * fresh,
         pulse: 0.75 + 0.25 * Math.sin(s * 5 + n * 1.7),
       });
-      marks.push({ x: b.at.x, z: b.at.z, ref: b.event, name: `⚔️ ${b.name}`, battle: true });
+      marks.push({ x: at.x, z: at.z, ref: b.event, name: `⚔️ ${b.name}`, battle: true });
     });
+    // The fights the year ends in, as they are fought: a flare over the line, pulsing the harder
+    // the nearer the turn; the line's figures are the hosts'.
+    for (const f of now?.fights ?? []) {
+      const hot = f.stage === "drawn" ? 0.25 : f.stage === "engaged" ? 0.6 + 0.4 * f.k : 1 - f.k;
+      clashes.push({
+        at: f,
+        size: 0.35 + 0.65 * hot,
+        pulse: 0.7 + 0.3 * Math.sin(s * (5 + 6 * hot)),
+      });
+      if (f.stage !== "drawn") fought += 2;
+      marks.push({ x: f.x, z: f.z, ref: f.key, name: f.name, battle: false, fight: true });
+    }
     // The camps about a seat under siege: tents in a ring behind a palisade, fires among them.
     const tents: { at: Flat; side: number; yaw: number }[] = [],
       stakes: Flat[] = [],
       fires: Flat[] = [];
-    for (const c of land.camps) {
-      for (let i = 0; i < 10; i++) {
-        const a = (i * Math.PI * 2) / 10;
+    const camps = now
+      ? now.camps.map((c) => ({ at: c, side: c.color, war: c.ref, name: c.name, r: c.r }))
+      : land.camps.map((c) => ({ ...c, r: 3.4 }));
+    for (const c of camps) {
+      const r = c.r,
+        many = Math.max(10, Math.round(r * 3));
+      for (let i = 0; i < many; i++) {
+        const a = (i * Math.PI * 2) / many;
         tents.push({
-          at: { x: c.at.x + Math.cos(a) * 3.4, z: c.at.z + Math.sin(a) * 3.4 },
+          at: { x: c.at.x + Math.cos(a) * r, z: c.at.z + Math.sin(a) * r },
           side: c.side,
           yaw: a,
         });
       }
-      for (let i = 0; i < 28; i++) {
-        const a = (i * Math.PI * 2) / 28;
-        stakes.push({ x: c.at.x + Math.cos(a) * 4.6, z: c.at.z + Math.sin(a) * 4.6 });
+      const ring = Math.max(28, Math.round(r * 8));
+      for (let i = 0; i < ring; i++) {
+        const a = (i * Math.PI * 2) / ring;
+        stakes.push({ x: c.at.x + Math.cos(a) * (r + 1.2), z: c.at.z + Math.sin(a) * (r + 1.2) });
       }
       for (let i = 0; i < 3; i++) {
         const a = (i * Math.PI * 2) / 3 + 0.5;
-        fires.push({ x: c.at.x + Math.cos(a) * 2.3, z: c.at.z + Math.sin(a) * 2.3 });
+        fires.push({ x: c.at.x + Math.cos(a) * (r - 1.1), z: c.at.z + Math.sin(a) * (r - 1.1) });
       }
-      banners.push({ at: { x: c.at.x + 3.4, z: c.at.z }, yaw: 0, side: c.side, size: 1.2 });
-      marks.push({ x: c.at.x, z: c.at.z, ref: c.war, name: c.name, battle: false });
+      banners.push({ at: { x: c.at.x + r, z: c.at.z }, yaw: 0, side: c.side, size: 1.2 });
+      marks.push({ x: c.at.x, z: c.at.z + r, ref: c.war, name: c.name, battle: false });
     }
     // A garrison by the seat of a realm at peace: two ranks under its banner.
     let garrisoned = 0;
@@ -719,14 +746,19 @@ export class RegionWars {
       const where = out.z > 0 ? { x: out.x, y: out.y } : null;
       return m.realm
         ? {
-            key: `${m.ref}:${m.realm}`,
-            text: counterWords(m.fields ?? 0),
+            key: m.key ?? `${m.ref}:${m.realm}`,
+            text: `${m.icon ? `${m.icon} ` : ""}${counterWords(m.fields ?? 0)}`,
             at: where,
             priority: 1.5e9,
             badge: { realm: m.realm, war: m.ref },
           }
-        : // (Named before the towns about it.)
-          { key: m.ref, text: m.name, at: where, priority: m.battle ? 2e9 : 1e9 };
+        : // (Named before the towns about it; a fight now before the battles lately fought.)
+          {
+            key: m.ref,
+            text: m.name,
+            at: where,
+            priority: m.fight ? 2.5e9 : m.battle ? 2e9 : 1e9,
+          };
     });
   }
 

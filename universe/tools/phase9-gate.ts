@@ -6,8 +6,8 @@
 //      waters fished down, its grain eaten, its hunters driven out, by seven centuries;
 //   3. what the people do is seen: a village's day holds many tasks, its people keep out of
 //      its walls (a town's blocks and walls too) and out of one another, and what they say is
-//      its own year's; its wars are drawn — hosts on their ways, a battle's two hosts in a
-//      village fought over;
+//      its own year's; its wars are drawn — hosts on their ways, a battle's two hosts before
+//      the town of a land fought over its battles are fought before (its heart: Phase 40 M204);
 //   4. one zoom, from a person to the galaxy and back, each hand-over within the phone
 //      floor's budget (Chromium on this machine's discrete GPU; --ci: the ladder only,
 //      untimed);
@@ -145,7 +145,8 @@ console.log("the Phase 9 gate");
   if (!signs.size) problems.push("no one in the village said anything");
   if (inside) problems.push(`people stood in a home or a wall ${inside} times`);
   if (crowded) problems.push(`people stood in one another ${crowded} times`);
-  // Its wars on the globe, and a battle in a village fought over.
+  // Its wars on the globe, and a battle before the heart of a land fought over (Phase 40 M204: its
+  // other towns are told none).
   const wars = q<WarsMap>("wars.map"),
     globe = EARTH.frames.globe!(world, {} as never) as unknown as {
       meta: { frequency: number };
@@ -164,10 +165,12 @@ console.log("the Phase 9 gate");
     for (const b of w.battles) {
       const cell = map.find((m) => (m as { centre?: number }).centre === b.spot)?.cell;
       if (cell === undefined) continue;
-      const v = q<{ ref: string }[]>("settlements", { cell })[0];
-      if (!v) continue;
-      const p = q<VillagePlan>("village.plan", { ref: v.ref });
-      if (p.life?.battle && battleOf(p, 10, 12).length === 20) battles++;
+      for (const v of q<{ ref: string }[]>("settlements", { cell })) {
+        const p = q<VillagePlan>("village.plan", { ref: v.ref });
+        if (!p.life?.heart) continue;
+        if (p.life.battle && battleOf(p, 10, 12).length === 20) battles++;
+        break;
+      }
     }
   say(`battles seen in the villages fought over: ${battles}`);
   if (!battles) problems.push("no battle was seen in a village fought over");

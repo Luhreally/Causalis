@@ -3,6 +3,7 @@
 // marches from and the land it marches for (fine-grid spots), and the battles fought lately —
 // where, whether the attacker won, how many fell.
 import type { Arms } from "./arms.ts";
+import type { BattleOutcome } from "./battle.ts";
 import type { VillagePlan } from "./village.ts";
 
 /**
@@ -21,6 +22,32 @@ export type WarSide = {
   readonly arms: Arms | null;
   readonly host: HostKinds | null;
 };
+
+/** How near a land's middle its heart lies (km). */
+export const HEART_REACH = 60;
+
+/**
+ * A land's heart, where the battles for it are fought before and its sieges laid about: the greatest
+ * of its towns within HEART_REACH of its middle, else the town nearest that (a land's greatest town
+ * lies a median 95 km from its map's middle on "first light" in year 120, often at the map's edge;
+ * its nearest, 31 km).
+ */
+export function heartTown<T extends { x: number; z: number; population: number; ref: string }>(
+  towns: readonly T[],
+): T | null {
+  let best: T | null = null;
+  for (const t of towns)
+    if (
+      Math.hypot(t.x, t.z) <= HEART_REACH &&
+      (!best ||
+        t.population > best.population ||
+        (t.population === best.population && t.ref < best.ref))
+    )
+      best = t;
+  if (best) return best;
+  for (const t of towns) if (!best || Math.hypot(t.x, t.z) < Math.hypot(best.x, best.z)) best = t;
+  return best;
+}
 
 /** A realm at peace, its garrison standing at its seat (Phase 12 M110). */
 export type Garrison = {
@@ -51,6 +78,17 @@ export type WarsMap = {
     readonly ended: number | null;
     /** The defender's seat, if it is under siege (a victory there, the seat still held): its spot. */
     readonly siege: number | null;
+    /**
+     * Where its next battle will be fought, as things stand (Phase 40 M203: the land its attacker
+     * wants most now, as history will choose it at the year's turn; null: none, or the war over),
+     * and the attacker's land nearest it (where its host musters for it).
+     */
+    readonly next?: number | null;
+    readonly muster?: number;
+    /** Each side's seat (spots; -1: none). */
+    readonly seats?: { readonly attacker: number; readonly defender: number };
+    /** The names of the lands it is fought over and from, by their spots ("Lithiv's land"). */
+    readonly places?: readonly { readonly spot: number; readonly name: string }[];
     readonly battles: readonly {
       readonly spot: number;
       readonly year: number;
@@ -59,6 +97,10 @@ export type WarsMap = {
       readonly event: string;
       /** The land its host came on it from (a war watched unfolding, M195: its masses face that way). */
       readonly from?: number;
+      /** What it won: the field, a siege laid, a land taken, a seat stormed — or held (M203). */
+      readonly outcome?: BattleOutcome;
+      /** Whether it was fought at the defender's seat, about its walls. */
+      readonly seat?: boolean;
     }[];
   }[];
 };

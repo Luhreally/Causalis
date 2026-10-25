@@ -66,12 +66,17 @@ export class VillagePanel {
   private storesKey = "";
   private stores: StoresNow | null = null;
   private storesOpen = false;
+  /** The war about the town (Phase 40 M204), a line under the stores: what its hosts are at. */
+  private readonly warLine = el("button", "town-war");
+  private warRef: string | null = null;
   private folkOpen = false;
   private cardKey = "";
   onBack: () => void = () => {};
   onClose: () => void = () => {};
   /** The stores' card opened (what else is up is put away). */
   onStores: () => void = () => {};
+  /** The war about the town tapped: its page (the battle's, once one is fought before it). */
+  onWar: (ref: string) => void = () => {};
   /** News of what the observer follows, and the toggles that follow things. */
   tidings: Tidings | null = null;
 
@@ -87,7 +92,11 @@ export class VillagePanel {
     this.storesLine.hidden = true;
     this.storesLine.title = "The town's stores and its work today";
     this.storesLine.onclick = () => this.showStores();
-    bar.append(back, this.title, this.timeSlot, this.storesLine);
+    this.warLine.hidden = true;
+    this.warLine.onclick = () => {
+      if (this.warRef) this.onWar(this.warRef);
+    };
+    bar.append(back, this.title, this.timeSlot, this.storesLine, this.warLine);
     const close = el("button", "close", "×");
     close.setAttribute("aria-label", "Close");
     close.onclick = () => {
@@ -123,6 +132,21 @@ export class VillagePanel {
     this.storesOpen = this.folkOpen = false;
     this.storesKey = this.cardKey = "";
     this.storesLine.hidden = true;
+    this.warNow(null, null);
+  }
+
+  /** The war about the town told (null: none), and what a tap on it opens. */
+  warNow(words: string | null, ref: string | null): void {
+    this.warRef = ref;
+    if (this.warLine.textContent !== (words ?? "")) this.warLine.textContent = words ?? "";
+    const title = words ? `${words} — its page` : "";
+    if (this.warLine.title !== title) this.warLine.title = title;
+    if (this.warLine.hidden !== !words) this.warLine.hidden = !words;
+  }
+
+  /** The war about the town as told on its line (the look tools). */
+  get warTold(): string {
+    return this.warLine.hidden ? "" : (this.warLine.textContent ?? "");
   }
 
   /** The panel's own card (the stores', one of the many's) put away, if one is up. */

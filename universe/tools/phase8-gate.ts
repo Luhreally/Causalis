@@ -30,8 +30,16 @@ const PHONE = 1.5,
   ENTRY = 1000,
   WATCH = 34;
 
-/** Chromium on the machine's own GPU (ANGLE over Direct3D 11), not its software stand-in. */
-const GPU = ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"];
+/**
+ * Chromium on the machine's own GPU (ANGLE over Direct3D 11), not its software stand-in — its
+ * discrete one where it has two (headless on the integrated one, an ultra village stalled).
+ */
+const GPU = [
+  "--use-angle=d3d11",
+  "--ignore-gpu-blocklist",
+  "--enable-gpu",
+  "--force_high_performance_gpu",
+];
 
 const problems: string[] = [],
   told: string[] = [];
