@@ -360,3 +360,47 @@ test("some of the fallen crawl back toward their own lines a while, leaving thei
     "those cut down running lie where they fell",
   );
 });
+
+test("at a seat's walls the attackers raise ladders against them as they rush them, thrown down where the walls held", () => {
+  const held = newBattle(
+      near("held", side("Ash", 5000, 300), side("Elm", 900, 80), { walls: 2 }),
+      360,
+    ),
+    siege = newBattle(
+      near("siege", side("Ash", 5000, 90), side("Elm", 900, 160), { walls: 1 }),
+      360,
+    );
+  for (const f of [held, siege]) {
+    assert.ok(f.ladders.length >= 2, "ladders brought");
+    // (Either side of the gate, along the attackers' front.)
+    for (const l of f.ladders) assert.ok(Math.abs(l.z) > f.ground.wall!.gate + 1, "off the gate");
+    assert.equal(battleAt(f, MOMENTS.charge).ladders.length, 0, "none before they reach the walls");
+    const up = battleAt(f, MOMENTS.melee + 6).ladders;
+    assert.equal(up.length, f.ladders.length);
+    for (const l of up) {
+      assert.ok(l.rise > 0.9 && l.rise < Math.PI / 2, `leaning on the walls (${l.rise})`);
+      // (Its top at the walls' face.)
+      assert.ok(
+        Math.abs(
+          l.x +
+            Math.cos(l.rise) * l.long -
+            (f.ground.wall!.x - (f.ground.wall!.stone ? 0.7 : 0.21)),
+        ) < 0.01,
+      );
+    }
+  }
+  const end = (f: typeof held) => battleAt(f, BATTLE_LENGTH).ladders;
+  assert.ok(
+    end(held).every((l) => l.rise > Math.PI - 0.05),
+    "thrown down where the walls held",
+  );
+  assert.ok(
+    end(siege).every((l) => l.rise < Math.PI / 2),
+    "left standing where they did not",
+  );
+  assert.equal(
+    newBattle(near("field", side("Ash", 5000, 300), side("Elm", 900, 80)), 360).ladders.length,
+    0,
+    "none in the open",
+  );
+});

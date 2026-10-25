@@ -141,6 +141,15 @@ export type BattleField = {
   /** Each side's files, each front first (who steps up as the front falls). */
   readonly files: readonly (readonly (readonly Trooper[])[])[];
   readonly arrows: readonly Arrow[];
+  /**
+   * At a seat's walls, the attackers' ladders: where along the walls (z, m), when each is raised
+   * against them, and when thrown down (null: where the walls did not hold, they stay).
+   */
+  readonly ladders: readonly {
+    readonly z: number;
+    readonly up: number;
+    readonly down: number | null;
+  }[];
   /** The cannon each side brought, where its realm knew black powder (Phase 37 M188). */
   readonly cannon: readonly Cannon[];
   /** The side beaten: 1 where the attackers won, else 0. */
@@ -201,6 +210,11 @@ export type BattleNow = {
   /** Each side's figures standing and fallen (of those drawn). */
   readonly standing: readonly [number, number];
   readonly fallen: readonly [number, number];
+  /**
+   * The ladders at a seat's walls: the foot of each (x, z, m), how far it is raised (radians up off
+   * the ground toward the walls: past a right angle, thrown down away from them), how long (m).
+   */
+  readonly ladders: readonly { x: number; z: number; rise: number; long: number }[];
   /** How far the gate stands open (0 … 1), the fires in the town (0 … 1), the siege's tents pitched (0 … 1). */
   readonly gate: number;
   readonly burning: number;
@@ -370,6 +384,24 @@ export function newBattle(near: BattleNear, most: number): BattleField {
       !ground.wall && !ground.river && reach[wider]! > narrow + 6
         ? { side: wider, z: narrow + 1.5 }
         : null;
+  // At a seat's walls, the attackers' ladders along their front, either side of the gate: raised
+  // against the walls as they rush them, thrown down where the walls held.
+  const ladders: { z: number; up: number; down: number | null }[] = [];
+  if (ground.wall) {
+    const gate = ground.wall.gate,
+      far = Math.max(gate + 4, Math.min(reach[0]!, FIELD.z - 5)),
+      n = Math.max(2, Math.min(7, Math.round(hosts[0].files / 5))),
+      each = Math.ceil(n / 2);
+    for (let i = 0; i < n; i++) {
+      const out = i % 2 ? 1 : -1,
+        k = Math.floor(i / 2);
+      ladders.push({
+        z: out * (gate + 3 + ((far - gate - 3) * (k + 0.5)) / each + (unit(key, 300 + i) - 0.5)),
+        up: MOMENTS.melee + 0.5 + 2.5 * unit(key, 310 + i),
+        down: near.outcome === "held" ? MOMENTS.rout - 4 + 3 * unit(key, 320 + i) : null,
+      });
+    }
+  }
   const field: BattleField = {
     near,
     per,
@@ -382,6 +414,7 @@ export function newBattle(near: BattleNear, most: number): BattleField {
     ),
     arrows: [],
     cannon: cannonOf(near, key),
+    ladders,
     beaten,
     ground,
     meet,
@@ -1166,6 +1199,26 @@ export function battleAt(field: BattleField, s: number): BattleNow {
       }
     }
   }
+  // The ladders at a seat's walls: lying at their feet a moment, raised against them, and where
+  // the walls held, thrown down off them.
+  const w = field.ground.wall,
+    ladders: BattleNow["ladders"][number][] = [];
+  if (w)
+    for (const l of field.ladders) {
+      if (t < l.up - 0.6) continue;
+      const run = 1.3,
+        high = w.high + 0.3,
+        lean = Math.atan2(high, run);
+      ladders.push({
+        x: w.x - (w.stone ? 0.7 : 0.21) - run,
+        z: l.z,
+        rise:
+          l.down !== null && t >= l.down
+            ? lean + (Math.PI - lean) * smooth((t - l.down) / 1.4)
+            : lean * smooth((t - l.up) / 1.6),
+        long: Math.hypot(run, high),
+      });
+    }
   const stormed = field.near.outcome === "stormed",
     moment = [...field.moments].reverse().find((m) => t >= m.at);
   return {
@@ -1181,6 +1234,7 @@ export function battleAt(field: BattleField, s: number): BattleNow {
     dust,
     standing,
     fallen,
+    ladders,
     gate: stormed ? smooth((t - MOMENTS.gate) / 3) : 0,
     burning: stormed ? smooth((t - MOMENTS.gate - 6) / 14) : 0,
     camp: field.near.outcome === "siege" ? smooth((t - MOMENTS.after - 4) / 10) : 0,

@@ -31,6 +31,8 @@ const M = 0.1;
 const SOLDIER = 0.5;
 /** The most of one side's figures the batches hold. */
 const MOST = 380;
+/** The rungs of a ladder. */
+const RUNGS = 6;
 const WOOD: Rgb = [0.46, 0.33, 0.19],
   IRON: Rgb = [0.7, 0.71, 0.74],
   BRONZE: Rgb = [0.72, 0.52, 0.26],
@@ -43,7 +45,9 @@ const WOOD: Rgb = [0.46, 0.33, 0.19],
   HOUSE: Rgb = [0.78, 0.72, 0.6],
   SMOKE: Rgb = [0.13, 0.12, 0.12],
   POWDER: Rgb = [0.86, 0.86, 0.84],
-  WATER: Rgb = [0.24, 0.46, 0.64];
+  WATER: Rgb = [0.24, 0.46, 0.64],
+  // (Fresh-cut timber, paler than the hafts about it.)
+  LADDER: Rgb = [0.8, 0.64, 0.42];
 
 const darker = (c: Rgb, k: number): Rgb => [c[0] * k, c[1] * k, c[2] * k];
 
@@ -241,6 +245,8 @@ export class BattleLayer {
   private readonly walls: InstancedBatch;
   private readonly tops: InstancedBatch;
   private readonly gates: InstancedBatch;
+  /** The ladders against a seat's walls: their rails and rungs. */
+  private readonly ladders: InstancedBatch;
   private readonly houses: InstancedBatch;
   private readonly roofs: InstancedBatch;
   private readonly river: pc.Entity;
@@ -307,6 +313,7 @@ export class BattleLayer {
     this.walls = batch(this.box, STONE, 260);
     this.tops = batch(this.box, STONE, 260);
     this.gates = batch(this.box, darker(WOOD, 0.75), 4);
+    this.ladders = batch(this.box, LADDER, 7 * (2 + RUNGS));
     this.houses = batch(this.box, HOUSE, 40);
     this.roofs = batch(this.cone, ROOF, 40);
     this.river = new pc.Entity("river");
@@ -964,6 +971,20 @@ export class BattleLayer {
       out[4] = d.r * M;
       out[5] = d.r * M;
       out[6] = j * 0.7;
+    });
+    // The ladders: two rails and their rungs, as far up as they are raised.
+    this.ladders.set(now.ladders.length * (2 + RUNGS), (j, out) => {
+      const l = now.ladders[Math.floor(j / (2 + RUNGS))]!,
+        part = j % (2 + RUNGS),
+        along = part < 2 ? l.long / 2 : (l.long * (part - 2 + 0.5)) / RUNGS;
+      out[0] = (l.x + Math.cos(l.rise) * along) * M;
+      out[1] = (Math.sin(l.rise) * along + 0.05) * M;
+      out[2] = (l.z + (part === 0 ? -0.26 : part === 1 ? 0.26 : 0)) * M;
+      out[3] = (part < 2 ? 0.12 : 0.6) * M;
+      out[4] = 0.09 * M;
+      out[5] = (part < 2 ? l.long : 0.07) * M;
+      out[6] = Math.PI / 2;
+      out[7] = -l.rise;
     });
     // The gate, open as far as it is broken open.
     const w = field.ground.wall;
