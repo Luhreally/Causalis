@@ -34,6 +34,18 @@ export class LabelLayer {
   /** The layer's size when last read (0: not laid out yet): a name is kept within it. */
   private width = 0;
   private height = 0;
+  /** Where the layer stood on the screen when last read, and each name showing, about it. */
+  private left = 0;
+  private top = 0;
+  private readonly shown = new Map<string, { x0: number; x1: number; y0: number; y1: number }>();
+
+  /**
+   * Bars along the top of the scene (each scale's own): a name is kept below the one showing, as
+   * within the screen's edges (a name under it could be neither read nor tapped).
+   */
+  ceilings: () => Iterable<HTMLElement> = () => [];
+  /** How far down the bar showing reaches, about this layer, when last read (0: none). */
+  private ceiling = 0;
 
   /** Panels over the scene: a label that would fall under one is hidden. */
   get blockers(): HTMLElement[] {
@@ -64,6 +76,15 @@ export class LabelLayer {
       const origin = this.root.getBoundingClientRect();
       this.width = origin.width;
       this.height = origin.height;
+      this.left = origin.left;
+      this.top = origin.top;
+      this.ceiling = 0;
+      for (const c of this.ceilings()) {
+        const r = c.getBoundingClientRect();
+        // (One showing along the top, across the most of it.)
+        if (r.height > 0 && r.top - origin.top < HEIGHT && r.width > origin.width / 2)
+          this.ceiling = Math.max(this.ceiling, r.bottom - origin.top);
+      }
       this.blocked = [];
       for (const b of this.blocking)
         for (const r of b.getClientRects())
@@ -76,6 +97,7 @@ export class LabelLayer {
     }
     const seen = new Set<string>(),
       placed = this.blocked.slice();
+    this.shown.clear();
     const order = [...labels].sort(
       (a, b) => (b.priority ?? 0) - (a.priority ?? 0) || (a.key < b.key ? -1 : 1),
     );
@@ -103,20 +125,24 @@ export class LabelLayer {
       } else if (span.textContent !== l.text) span.textContent = l.text;
       let at = l.at;
       const w = ((l.badge ? l.text.length + 3 : l.text.length) * WIDTH_PER_CHAR) / 2 + 8;
-      // (A name whose place is off the screen is hidden; one at its edge, moved within it.)
+      // (A name whose place is off the screen is hidden; one at its edge, or under the bar along
+      // its top, moved within it.)
       if (at && this.width > 0 && this.height > 0)
         at =
           at.x < 0 || at.x > this.width || at.y < 0 || at.y > this.height
             ? null
             : {
                 x: Math.max(Math.min(at.x, this.width - w - EDGE), w + EDGE),
-                y: Math.max(at.y, HEIGHT + EDGE),
+                y: Math.max(at.y, this.ceiling + HEIGHT + EDGE),
               };
       if (at) {
         const box = { x0: at.x - w, x1: at.x + w, y0: at.y - HEIGHT, y1: at.y };
         if (placed.some((p) => p.x0 < box.x1 && box.x0 < p.x1 && p.y0 < box.y1 && box.y0 < p.y1))
           at = null;
-        else placed.push(box);
+        else {
+          placed.push(box);
+          this.shown.set(l.key, box);
+        }
       }
       span.hidden = at === null;
       if (at)
@@ -127,6 +153,18 @@ export class LabelLayer {
         span.remove();
         this.pool.delete(key);
       }
+  }
+
+  /**
+   * The key of the name shown at a point of the screen (client px), if one is: a tap on a name
+   * moved in from the edge, or from under the bar, is a tap on what it names.
+   */
+  keyAt(x: number, y: number): string | null {
+    const px = x - this.left,
+      py = y - this.top;
+    for (const [key, b] of this.shown)
+      if (px >= b.x0 && px <= b.x1 && py >= b.y0 && py <= b.y1) return key;
+    return null;
   }
 
   clear(): void {

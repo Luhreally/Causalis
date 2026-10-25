@@ -1319,6 +1319,10 @@ async function runPlanetPage(): Promise<void> {
   exposed.setQuality = (c: string) => setChoice(c as QualityName | "auto");
   labels.blockers = [regionPanel.inspector, villagePanel.inspector, pageWindow.inspector];
   bubbles.blockers = labels.blockers;
+  // (Names and words kept below the scale's bar: a camp's name came under it, on CI's screen.)
+  // (Read as the names are placed: the scales' panels come one by one, some later on.)
+  labels.ceilings = () => document.querySelectorAll<HTMLElement>(".panel > header.bar");
+  bubbles.ceilings = labels.ceilings;
   // The signs' font, readied before any village is entered: its first drawing is slow (a
   // colour font loaded and its glyphs drawn), and would otherwise stall a frame there.
   {
@@ -2259,10 +2263,18 @@ async function runPlanetPage(): Promise<void> {
       void pageWindow.open(town ? town.ref : war!);
     } else selectCell(globe.pick(x, y));
   };
+  /**
+   * A band's camp on the land (Phase 28 M159) at a point of the screen: by its name where that is
+   * shown (moved in from the edge or from under the bar), else by its fire or its name's place.
+   */
+  const campAt = (x: number, y: number): number | null => {
+    const named = /^camp:\d+:(\d+)$/.exec(labels.keyAt(x, y) ?? "");
+    return named ? Number(named[1]) : region.land.camps.pick(stage.camera.camera!, x, y);
+  };
   const tapRegion = (x: number, y: number) => {
     const war = regionWars.pick(x, y),
       // A band's camp (Phase 28 M159): its page.
-      camp = war ? null : region.land.camps.pick(stage.camera.camera!, x, y);
+      camp = war ? null : campAt(x, y);
     if (war) void pageWindow.open(war);
     else if (camp !== null) {
       region.mark(null);
@@ -2395,7 +2407,7 @@ async function runPlanetPage(): Promise<void> {
       case "region": {
         const war = regionWars.pick(x, y);
         if (war) return war;
-        const camp = region.land.camps.pick(stage.camera.camera!, x, y);
+        const camp = campAt(x, y);
         if (camp !== null) return `camp:${regionCell}:${camp}`;
         const tile = region.pick(x, y),
           near = tile === null ? null : region.villageNear(tile),
