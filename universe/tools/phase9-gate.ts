@@ -37,8 +37,8 @@ import {
 import type { VillagePlan, WarsMap } from "../src/bridge/index.ts";
 
 const ci = process.argv.includes("--ci");
-/** The phone floor runs at a quarter of this machine's pace; a hand-over's frame there. */
-const PHONE = 4,
+/** The phone floor (an iPhone 15 Plus) runs at two thirds of this machine's pace; a hand-over's frame there. */
+const PHONE = 1.5,
   HANDOVER = 1000;
 /**
  * Chromium on the machine's own GPU (ANGLE over Direct3D 11), not its software stand-in —

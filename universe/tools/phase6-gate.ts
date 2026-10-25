@@ -7,7 +7,7 @@
 //   - a war between the stars whose why reaches back to something made at the universe's
 //     making — a world, a star, another people's world;
 //   - budgets: the save within bounds for its lands, and time running at centuries a
-//     minute on the phone floor (a quarter of this machine's pace, as `npm run slice` finds).
+//     minute on the phone floor (an iPhone 15 Plus: some two thirds of this machine's pace).
 // Divine acts at the scale of a world and of a star are held by tests (great-acts).
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -16,8 +16,8 @@ import type { SkySurvey } from "./sky-survey.ts";
 const years = Number(process.argv[2] ?? 3100);
 const EARTH_LANDS = 550,
   SAVE_BYTES = 18_000_000,
-  /** The phone floor runs at a quarter of this machine's pace; a century a minute there, at least. */
-  PHONE = 4,
+  /** The phone floor (an iPhone 15 Plus) runs at two thirds of this machine's pace; a century a minute there, at least. */
+  PHONE = 1.5,
   LEAST_PACE = 100;
 
 const t0 = performance.now(),

@@ -2,7 +2,7 @@
 //   [--wait ms] [--click text]...
 // A screenshot of the built app (npm run build first), for looking at what a change
 // did. --resize changes the viewport after load; --pixels reads four pixels from
-// inside a rendered frame (antialiasing must be off: add ?tier=phone); --wait waits
+// inside a rendered frame (antialiasing must be off: add ?aa=0); --wait waits
 // longer before looking (a world run on a century takes a while); --click presses the
 // button with that text (a lens, a speed), in order.
 import { preview } from "vite";

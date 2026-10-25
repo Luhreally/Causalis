@@ -214,13 +214,13 @@ export async function runGenesis(o: {
     drift: 3,
     onTap: (x, y) => tap(x, y),
   });
-  galaxyScene.build(galaxy, o.tier.name === "phone" ? 8000 : 16000);
+  galaxyScene.build(galaxy, 16000);
   galaxyScene.visible = false;
   skyScene.build(system);
   skyScene.visible = false;
   globe.build(frequency, elevation);
   globe.visible = false;
-  const detail = o.tier.name === "phone" ? 1 : 2;
+  const detail = 2;
   meadowScene.setDetail(detail);
   const bandLayer = new BandLayer(stage, meadowScene.root);
   let beasts = plan.lineages.filter((l) => l.body),

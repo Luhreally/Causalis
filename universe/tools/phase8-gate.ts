@@ -1,8 +1,9 @@
 // node tools/phase8-gate.ts [--settings low,balanced,high,ultra] [--no-budgets] — the Phase 8 gate (docs/architecture
 // §I.8, milestone 82), at an iPhone 15 Plus's size:
 //   1. every setting holds the phone floor: entering a village makes no frame longer than a
-//      second on the floor (WebKit, a quarter of this machine's pace), and watching it, its
-//      slower frames (p90) keep within a thirtieth of a second with the CPU slowed four times
+//      second on the floor (WebKit; the floor, an iPhone 15 Plus, at two thirds of this
+//      machine's pace), and watching it, its slower frames (p90) keep within a thirtieth of a
+//      second with the CPU slowed half again
 //      (Chromium on this machine's own GPU, an integrated one weaker than the phone's) — Ultra
 //      measured and told, for devices past the floor;
 //   2. the default world shows what it holds: hunters on at least half its lands with game, a
@@ -24,8 +25,8 @@ import { lives } from "../src/gen/index.ts";
 const args = process.argv.slice(2),
   at = (flag: string) => (args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined),
   settings = (at("--settings") ?? "low,balanced,high,ultra").split(",");
-/** The phone floor runs at a quarter of this machine's pace; a frame's budget there; the watched frames' p90. */
-const PHONE = 4,
+/** The phone floor (an iPhone 15 Plus) runs at two thirds of this machine's pace; a frame's budget there; the watched frames' p90. */
+const PHONE = 1.5,
   ENTRY = 1000,
   WATCH = 34;
 
@@ -133,7 +134,7 @@ for (const setting of args.includes("--no-budgets") ? [] : settings) {
         `${setting}: entering a village takes a ${middle * PHONE} ms frame on the phone floor`,
       );
   }
-  // Watching it with the CPU slowed four times (Chromium, drawing on this machine's own GPU —
+  // Watching it with the CPU slowed half again (Chromium, drawing on this machine's own GPU —
   // headless, it would draw in software, and that is no phone's GPU).
   {
     const browser = await chromium.launch({ args: GPU }),

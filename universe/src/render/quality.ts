@@ -110,11 +110,19 @@ export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
  * Auto: the setting moves by the frames the device holds. Frame times (ms) are gathered
  * in windows; a window whose slower frames run past `slow` steps down, and windows
  * that all run well under `fast` step up (after a while, so it does not hunt), never
- * past `ceiling`. A pure state machine: fed frame times, it says where to go.
+ * past `ceiling`. A screen that shows its frames at its own pace (sixty a second: a phone's)
+ * never runs under `fast`: a long spell of windows at its pace (under `steady`) tries the
+ * setting above — not one too slow lately, and the longer the more often it was (M197: a device
+ * stepped down by a heavy moment is not held down for good). A pure state machine: fed frame
+ * times, it says where to go.
  */
 export class AutoQuality {
   private readonly window: number[] = [];
   private calm = 0;
+  /** Windows at the screen's own pace in a row; windows seen; when each setting was last too slow, and how often. */
+  private even = 0;
+  private windows = 0;
+  private readonly fell: Partial<Record<QualityName, { at: number; times: number }>> = {};
   current: QualityName;
   readonly ceiling: QualityName;
   /** Frame time (ms) past which a window is too slow, and under which it is easy. */
@@ -123,6 +131,9 @@ export class AutoQuality {
   /** Frames to a window; easy windows before stepping up. */
   readonly size: number;
   readonly patience: number;
+  /** Frame time (ms) under which a window keeps a sixty-a-second screen's pace; windows to wait, at the least, before trying again a setting that was too slow. */
+  readonly steady: number;
+  readonly cool: number;
   constructor(
     start: QualityName,
     ceiling: QualityName = "ultra",
@@ -130,6 +141,8 @@ export class AutoQuality {
     fast = 12,
     size = 90,
     patience = 4,
+    steady = 18,
+    cool = 40,
   ) {
     this.current = start;
     this.ceiling = ceiling;
@@ -137,6 +150,8 @@ export class AutoQuality {
     this.fast = fast;
     this.size = size;
     this.patience = patience;
+    this.steady = steady;
+    this.cool = cool;
   }
 
   /** One frame's time; returns the new setting when it should change, else null. */
@@ -147,18 +162,38 @@ export class AutoQuality {
       // The slower frames of the window (its 80th percentile): a hitch alone does not count.
       p80 = sorted[Math.floor(sorted.length * 0.8)]!;
     this.window.length = 0;
+    this.windows++;
     const at = QUALITY_NAMES.indexOf(this.current),
       top = QUALITY_NAMES.indexOf(this.ceiling);
     if (p80 > this.slow && at > 0) {
       this.calm = 0;
+      this.even = 0;
+      const was = this.fell[this.current];
+      this.fell[this.current] = { at: this.windows, times: (was?.times ?? 0) + 1 };
       return (this.current = QUALITY_NAMES[at - 1]!);
     }
     if (p80 < this.fast) {
+      this.even = 0;
       if (++this.calm >= this.patience && at < top) {
         this.calm = 0;
         return (this.current = QUALITY_NAMES[at + 1]!);
       }
-    } else this.calm = 0;
+      return null;
+    }
+    this.calm = 0;
+    if (p80 >= this.steady) {
+      this.even = 0;
+      return null;
+    }
+    // At the screen's own pace: after a long spell, the setting above tried — if it was not too
+    // slow lately (the wait doubling each time it was).
+    const above = QUALITY_NAMES[at + 1],
+      fell = above ? this.fell[above] : undefined,
+      rested = !fell || this.windows - fell.at >= this.cool * 2 ** (fell.times - 1);
+    if (++this.even >= this.patience * 4 && above && at < top && rested) {
+      this.even = 0;
+      return (this.current = above);
+    }
     return null;
   }
 }

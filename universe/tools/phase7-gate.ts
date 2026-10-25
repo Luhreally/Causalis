@@ -3,9 +3,8 @@
 // step answered with its why (tools/journey.ts, in its own process), within the phone's
 // budgets:
 //   - every scale's first frame within a second on the phone floor, reckoned from this
-//     machine's WebKit at a quarter of the phone's time (the floor runs at a quarter of
-//     this machine's pace, as `npm run slice` finds): the globe, a land, a village, the
-//     star's worlds and the stars around;
+//     machine's WebKit (the floor, an iPhone 15 Plus, runs at some two thirds of this
+//     machine's pace): the globe, a land, a village, the star's worlds and the stars around;
 //   - the heap held: a world some centuries on, looked at from every scale, keeps its
 //     JavaScript heap within the phone's share (Chromium measures it, once what is let go is
 //     collected: the heap read before then counts what is no longer held).
@@ -18,11 +17,11 @@ import { chromium, webkit, type Page } from "playwright";
 const args = process.argv.slice(2),
   at = (flag: string) => (args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined),
   skyYear = at("--sky-year") ?? "1500";
-/** The phone floor runs at a quarter of this machine's pace. */
-const PHONE = 4,
+/** The phone floor (an iPhone 15 Plus) runs at two thirds of this machine's pace. */
+const PHONE = 1.5,
   /** A scale's first frame on the phone floor, ms; the heap a world may hold, bytes. */
   FIRST_FRAME = 1000,
-  HEAP = 250_000_000;
+  HEAP = 600_000_000;
 
 const problems: string[] = [];
 

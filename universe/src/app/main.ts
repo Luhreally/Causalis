@@ -1042,6 +1042,11 @@ async function runPlanetPage(): Promise<void> {
         return "auto";
       }
     };
+  /**
+   * How finely the fields' bodies are built (a band's camp, a battle): the finer unless the
+   * quality has stepped down past High (M197: a phone of today builds them as a desktop does).
+   */
+  const fieldDetail = (): 1 | 2 => (stage.quality.detail >= 2 ? 2 : 1);
   let choice = readChoice(),
     auto: AutoQuality | null = null,
     fps = 0,
@@ -1053,7 +1058,9 @@ async function runPlanetPage(): Promise<void> {
     } catch {
       // Nothing to keep it in: it holds for this visit.
     }
-    const start: QualityName = c === "auto" ? (tier.name === "phone" ? "high" : "ultra") : c;
+    // (Auto begins at the finest on any device, a phone too, M197: it steps down if the frames
+    // do not keep up, and back up once they do.)
+    const start: QualityName = c === "auto" ? "ultra" : c;
     auto = c === "auto" ? new AutoQuality(start, "ultra") : null;
     stage.setQuality(QUALITIES[start]);
   };
@@ -3613,7 +3620,7 @@ async function runPlanetPage(): Promise<void> {
     if (!info) return;
     leaveScale();
     scale = "camp";
-    const detail = tier.name === "phone" ? 1 : 2;
+    const detail = fieldDetail();
     if (!meadowScene) {
       meadowScene = new MeadowScene(stage);
       meadowScene.setDetail(detail);
@@ -3867,7 +3874,7 @@ async function runPlanetPage(): Promise<void> {
       tail: look.tail > 0.12,
       hide: hex(look.hide),
       mark: hex(look.mark),
-      parts: figureOf(body, tier.name === "phone" ? 1 : 2).parts.length,
+      parts: figureOf(body, fieldDetail()).parts.length,
       at: one ? { x: one.x * 0.1, z: one.z * 0.1 } : null,
       middle: band ? { x: band.camp.x * 0.1, z: band.camp.z * 0.1 } : null,
       // (Which way the one at the camp faces, as the eye's turn: the eye there sees their face.)
@@ -3997,7 +4004,7 @@ async function runPlanetPage(): Promise<void> {
     if (!info) return;
     leaveScale();
     scale = "battle";
-    const detail = tier.name === "phone" ? 1 : 2;
+    const detail = fieldDetail();
     if (!meadowScene) {
       meadowScene = new MeadowScene(stage);
       meadowScene.setDetail(detail);
@@ -4871,14 +4878,7 @@ async function runPlanetPage(): Promise<void> {
       w = weatherAt(sky, t, time.pace, running ? performance.now() / 1000 : null),
       eye = stage.camera.getPosition().clone();
     weatherNow = w;
-    weather.update(
-      w,
-      rig.target,
-      eye,
-      rig.distance,
-      weatherSeconds,
-      tier.name === "phone" ? 420 : 1100,
-    );
+    weather.update(w, rig.target, eye, rig.distance, weatherSeconds, 1100);
     // The season on the ground (M164): snow lying, the leaves turned or fallen, ice on still water.
     const ground = seasonAt(sky, t);
     if (scale === "camp") meadowScene?.season(ground);
@@ -4906,7 +4906,7 @@ async function runPlanetPage(): Promise<void> {
       townSpot,
       rig.distance,
       weatherSeconds,
-      tier.name === "phone" ? 260 : 700,
+      700,
     );
     // (A blessed harvest greens the band's land as the rain does; a blight parches it.)
     if (scale === "camp" && near) {

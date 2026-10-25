@@ -2,7 +2,7 @@
 // slice: a peopled world grown to 300 years (farming, villages, trade, metal, a
 // market town) must run, save and show within these. The limits are several times
 // what the reference machine measures, so they catch a regression, not noise; the
-// phone floor is about four times slower again, and the worker keeps the page
+// phone floor (an iPhone 15 Plus) is about half again slower, and the worker keeps the page
 // smooth while the world steps.
 import { test } from "node:test";
 import assert from "node:assert/strict";

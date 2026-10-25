@@ -1,5 +1,5 @@
 // node tools/slice.ts [years] [throttle] — the app's world on a phone-floor proxy:
-// Chromium with its CPU slowed (4× by default, about a mid-range phone).
+// Chromium with its CPU slowed (1.5× by default, about an iPhone 15 Plus).
 //
 // 1. The simulation alone: the world bundled into a blank, slowed tab and run year
 //    by year to the given year (300 by default). The world's own pace is a year a
@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { build, preview } from "vite";
 import { chromium } from "playwright";
 
-const [yearsArg = "300", throttleArg = "4"] = process.argv.slice(2);
+const [yearsArg = "300", throttleArg = "1.5"] = process.argv.slice(2);
 const years = Number(yearsArg),
   throttle = Number(throttleArg),
   YEAR = 365 * 86_400;
