@@ -782,8 +782,38 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
       });
       sit(i, "school", best);
     });
+  // Kept at the town's own buildings whatever goes up: one to teach at each school its children
+  // go to (lean or not), one at each kiln and each mill — the crafter living nearest it, the same
+  // one day on day. (Without them a day of much building took every crafter to the sites and the
+  // woodlot, and the children sat before an empty door.)
+  const kept = new Set<number>(),
+    keep = (kind: RoleKind, at: readonly { x: number; z: number }[]) =>
+      at.forEach((d, k) => {
+        if (kind === "teach" && !seated.has(`school:${k}`)) return;
+        let best = -1,
+          far = Infinity;
+        plan.people.forEach((p, i) => {
+          if (kept.has(i) || p.occupation !== OCC.crafter || !working(i)) return;
+          const h = plan.homes[p.home]!,
+            r = (h.x - d.x) * (h.x - d.x) + (h.z - d.z) * (h.z - d.z);
+          if (r < far) {
+            far = r;
+            best = i;
+          }
+        });
+        if (best < 0) return;
+        kept.add(best);
+        sit(best, kind, k);
+      });
+  if (!rest) {
+    keep("teach", schools);
+    if (!lean) {
+      keep("kiln", kilns);
+      keep("mill", mills);
+    }
+  }
   plan.people.forEach((p, i) => {
-    if (!working(i)) return;
+    if (!working(i) || kept.has(i)) return;
     const draw = draws[i]!;
     switch (p.occupation) {
       case OCC.crafter:
@@ -838,11 +868,13 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
   // wild — but the teachers).
   let c = 0;
   schools.forEach((_, k) => {
-    if (c < crafters.length && seated.has(`school:${k}`)) sit(crafters[c++]!, "teach", k);
+    if (c < crafters.length && seated.has(`school:${k}`) && !seated.has(`teach:${k}`))
+      sit(crafters[c++]!, "teach", k);
   });
   if (!lean)
     for (let k = 0; k < mills.length; k++)
-      for (let m = 0; m < 2 && c < crafters.length; m++) sit(crafters[c++]!, "mill", k);
+      while ((seated.get(`mill:${k}`) ?? 0) < 2 && c < crafters.length)
+        sit(crafters[c++]!, "mill", k);
   // (A kiln keeps four at it, a workshop eight: the rest at their craft by the market.)
   const room = (kind: RoleKind, n: number, from: number, most: number): number => {
     for (let j = 0; j < n; j++) {

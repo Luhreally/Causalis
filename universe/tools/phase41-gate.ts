@@ -161,8 +161,12 @@ if (!town) {
 await k(`globalThis.causalis.goTo(${JSON.stringify(town.ref)})`);
 await until(`${town.name}'s trades`, async () => ((await trades())?.kilns ?? 0) > 0, slow(120000));
 await k(`globalThis.causalis.client.setSpeed(0)`);
+// (The clock may have run on while the eye came down to the town: its days from where it stands
+// now it is held.)
+await page.waitForTimeout(slow(500));
+const t1 = await k<number>(`globalThis.causalis.client.status?.t ?? 0`);
 const rest = (day: number) => (day + (town!.seed % 7)) % 7 === 0;
-let day = Math.floor(t0 / DAY) + 1;
+let day = Math.floor(t1 / DAY) + 1;
 while (rest(day)) day++;
 
 // 1. A working morning.

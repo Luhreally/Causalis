@@ -193,6 +193,47 @@ test("the millers carry the granary's grain to the mill, grind it, and bring the
   );
 });
 
+test("however much the town raises, its school keeps its teacher and its kiln and mill a hand each, the same day on day", () => {
+  // (The same town raising a third of its homes through this year — a run of the year before
+  // goes up through the next: its sites want more hands than it has.)
+  const busy: VillagePlan = {
+      ...plan,
+      ref: "town:0:10",
+      town: {
+        ...fabric,
+        runs: [
+          [0, 0, 16, 10, 10, LEVEL.house, -1],
+          [0, 64, 300, 10, 10, LEVEL.house, -1],
+          [0, 300, 480, 39, 39, LEVEL.house, -1],
+        ],
+      },
+    },
+    g = villageSolids(busy),
+    crafters = busy.people.flatMap((p, i) => (p.occupation === OCC.crafter ? [i] : [])),
+    kept = { teach: new Set<number>(), kiln: new Set<number>(), mill: new Set<number>() };
+  let swept = 0,
+    days = 0;
+  for (let day = DAY0; day < DAY0 + 21; day++) {
+    if (restDay(busy, day)) continue;
+    days++;
+    const town = townDay(busy, day, g),
+      at = (kind: string) => town.roles.flatMap((r, i) => (r.kind === kind ? [i] : []));
+    assert.equal(at("teach").length, 1, `one teaching on day ${day}`);
+    assert.ok(at("kiln").length >= 1, `one at the kiln on day ${day}`);
+    assert.ok(at("mill").length >= 1, `one at the mill on day ${day}`);
+    for (const kind of ["teach", "kiln", "mill"] as const) kept[kind].add(at(kind)[0]!);
+    // (A day the sites and the woodlot took every crafter but those kept.)
+    const rest = crafters.filter((i) => !["teach", "kiln", "mill"].includes(town.roles[i]!.kind));
+    if (rest.every((i) => ["build", "cut"].includes(town.roles[i]!.kind))) swept++;
+  }
+  assert.ok(
+    days >= 15 && swept >= days / 2,
+    `days the sites took all the rest: ${swept} of ${days}`,
+  );
+  for (const kind of ["teach", "kiln", "mill"] as const)
+    assert.equal(kept[kind].size, 1, `the same ${kind} day on day`);
+});
+
 test("on a day of rest most of the town stands at prayer before its temple in the morning", () => {
   const rest = dayFrom(DAY0, true),
     temple = doors.get("temple")![0]!,
