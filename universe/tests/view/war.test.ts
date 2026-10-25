@@ -528,6 +528,34 @@ test("a battle is two masses meeting in their colours, the fallen between them; 
   );
 });
 
+test("a battle of a war watched faces the way its host came on it: the attacker's mass on that side (M195)", () => {
+  const from = cellNear(0.7, 0.7, 0),
+    to = cellNear(-0.7, 0.7, 0.05),
+    m = map(from, to),
+    w = warPaths(
+      { ...m, wars: [{ ...m.wars[0]!, battles: [{ ...m.wars[0]!.battles[0]!, from }] }] },
+      grid,
+      elevation,
+    ),
+    standing = battleFigures(w, 2).filter((f) => !f.fallen),
+    p = grid.positions,
+    came = { x: p[from * 3]!, y: p[from * 3 + 1]!, z: p[from * 3 + 2]! },
+    toward = (side: number) => {
+      const list = standing.filter((f) => f.side === side);
+      return (
+        list.reduce((s, f) => s + f.at.x * came.x + f.at.y * came.y + f.at.z * came.z, 0) /
+        list.length
+      );
+    };
+  assert.ok(w.bursts[0]!.way, "the way it came on it");
+  assert.ok(
+    toward(w.paths[0]!.side) > toward(w.paths[0]!.foe),
+    "the attacker on the side it came from",
+  );
+  // (A battle whose coming is not known keeps a way of its own.)
+  assert.equal(warPaths(m, grid, elevation).bursts[0]!.way, undefined);
+});
+
 test("in a land a host marches in ranks as many as its men, under banners; a camp rings a seat besieged there, a garrison stands by a seat at peace", () => {
   assert.ok(
     landShape(80000).files * landShape(80000).ranks > landShape(500).files * landShape(500).ranks,

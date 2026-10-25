@@ -83,6 +83,21 @@ export class OrbitRig {
   anchor: ((x: number, y: number) => Point | null) | null = null;
   /** Whether the scene is a globe about the target (turned toward the point) or flat (slid). */
   round = false;
+  /**
+   * How far a globe's view leans back from looking straight down on its face (degrees; Phase 38
+   * M195: a war watched low over the land, its hosts seen from the side, not from above). The eye
+   * is tipped back about the point of the face under it (the globe's radius 1), as high over it,
+   * that point still in the middle and the horizon level.
+   */
+  lean = 0;
+  /**
+   * A way along the globe's face that a leaning eye looks across (a host's march, M195: the two
+   * hosts side by side on the screen, not one behind the other); null: it looks the way the
+   * screen's top is. Swung to as it changes, from the side of it nearer where it looks already.
+   */
+  across: Point | null = null;
+  /** Which way along the face the leaning eye looks now (swung toward what it is asked). */
+  private looking: pc.Vec3 | null = null;
   /** How far from its middle the target may slide on a flat scene (x and z), if bounded. */
   bounds: { readonly x: number; readonly z: number; readonly reach: number } | null = null;
   /** Whether it has the camera (free roam takes it, Phase 10 M98: then it neither moves nor listens). */
@@ -516,6 +531,50 @@ export class OrbitRig {
       this.target.z + d * Math.cos(pitch) * Math.cos(yaw),
     );
     stage.camera.lookAt(this.target);
+    if (this.round && this.lean > 0 && d > 1) {
+      const at = stage.camera.getPosition(),
+        up = new pc.Vec3(
+          at.x - this.target.x,
+          at.y - this.target.y,
+          at.z - this.target.z,
+        ).normalize(),
+        a = (Math.min(80, this.lean) * Math.PI) / 180,
+        h = d - 1,
+        face = new pc.Vec3(this.target.x + up.x, this.target.y + up.y, this.target.z + up.z),
+        // (A direction along the face there: less what of it is up.)
+        flat = (v: Point) => {
+          const t = new pc.Vec3(v.x, v.y, v.z);
+          return t.sub(up.clone().mulScalar(t.dot(up)));
+        };
+      // Which way it looks along the face: across what it is asked to (of its two sides, the
+      // one nearer where it looks already), else toward the screen's top; swung, not jumped.
+      let want = stage.camera.up.clone();
+      if (this.across) {
+        const w = new pc.Vec3().cross(up, flat(this.across));
+        if (w.length() > 1e-6) {
+          w.normalize();
+          want = w.dot(this.looking ?? want) >= 0 ? w : w.mulScalar(-1);
+        }
+      }
+      const ahead = this.looking ? flat(this.looking) : want.clone();
+      ahead.lerp(ahead, want, 1 - Math.exp(-Math.min(dt, 0.1) * 2));
+      if (ahead.length() < 1e-3) ahead.copy(want);
+      ahead.normalize();
+      this.looking = ahead.clone();
+      stage.camera.setPosition(
+        face.x + (up.x * Math.cos(a) - ahead.x * Math.sin(a)) * h,
+        face.y + (up.y * Math.cos(a) - ahead.y * Math.sin(a)) * h,
+        face.z + (up.z * Math.cos(a) - ahead.z * Math.sin(a)) * h,
+      );
+      stage.camera.lookAt(
+        face,
+        new pc.Vec3(
+          up.x * Math.sin(a) + ahead.x * Math.cos(a),
+          up.y * Math.sin(a) + ahead.y * Math.cos(a),
+          up.z * Math.sin(a) + ahead.z * Math.cos(a),
+        ),
+      );
+    } else this.looking = null;
     // Framed below what covers the top: the camera lifted, looking on, so the subject sits
     // in the middle of what is left (the camera itself moves, so picking stays true).
     const c = this.covered(),

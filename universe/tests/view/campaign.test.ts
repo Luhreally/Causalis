@@ -143,6 +143,24 @@ test("its host marches from where it set out to each battle in turn, there by th
   assert.ok(half.march! > 0.3 && half.march! < 1, `${half.march}`);
 });
 
+test("each battle says the land its host came on it from, for its masses to face that way (M195)", () => {
+  const came = (y: number) =>
+    campaignAt(war, y).map.wars[0]!.battles.map((b) => [b.spot, b.from ?? null]);
+  // From its land to its first field (fought there twice), and on from there to the seat.
+  assert.deepEqual(came(104.5), [
+    [30, 5],
+    [30, 5],
+    [40, 30],
+    [40, 30],
+  ]);
+  // (Fought where it set out: from nowhere else.)
+  const home: Campaign = { ...war, from: 30 };
+  assert.deepEqual(
+    campaignAt(home, 101.5).map.wars[0]!.battles.map((b) => b.from ?? null),
+    [null],
+  );
+});
+
 test("held where it fought, its host is thrown back and comes on again; held at its last, it falls back", () => {
   const twice: Campaign = {
       ...war,

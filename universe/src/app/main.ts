@@ -1602,6 +1602,8 @@ async function runPlanetPage(): Promise<void> {
   });
   stage.onUpdate(() => {
     globeWars.root.enabled = scale === "globe";
+    // (The eye leaning over a war watched: its figures drawn as seen from the side.)
+    globeWars.lean = Math.min(1, rig.lean / 45);
     if (scale === "globe")
       globeWars.update(
         performance.now() / 1000,
@@ -1784,6 +1786,8 @@ async function runPlanetPage(): Promise<void> {
     if (scale !== "globe") return;
     // (Read again every half-minute while near enough to be seen.)
     if (rig.distance < 2.6 && performance.now() - townsAt > 30_000) void readTowns();
+    // (The eye leaning over a war watched: the cities' towers lower, not a forest of posts.)
+    globeTowns.low = Math.min(1, rig.lean / 45);
     globeTowns.update(rig.distance);
     // (While a war is watched unfolding, its marks only: the towns' names stand aside.)
     const named = campaign || warAge ? [] : globeTowns.named(stage.camera.camera!, rig.distance),
@@ -4221,6 +4225,15 @@ async function runPlanetPage(): Promise<void> {
   const warPanel = new WarPanel(hud);
   /** How much larger than the year's a war watched unfolding's figures are drawn, near as the eye comes. */
   const WAR_GRAND = 1.8;
+  /**
+   * How far the eye leans back over the land while a war is watched (degrees, M195): its hosts
+   * seen from the side as they march and meet, not from above — fully this near the face, not at
+   * all from where the whole world is seen.
+   */
+  const WAR_LEAN = 55;
+  /** How many men abreast and deep each of its figures is drawn as (M195): its hosts crowds. */
+  const WAR_SQUAD = 3;
+  const warLean = () => WAR_LEAN * Math.max(0, Math.min(1, (2.7 - rig.distance) / 1.1));
   /** The war's clock: at speed `i` of its own (0 holds it still). */
   const warSpeed = (i: number) => {
     if (!campaign) return;
@@ -4276,6 +4289,19 @@ async function runPlanetPage(): Promise<void> {
       s1 = Math.sin(f * theta) / Math.sin(theta);
     return { x: a.x * s0 + b.x * s1, y: a.y * s0 + b.y * s1, z: a.z * s0 + b.z * s1 };
   };
+  /** The way a war's host goes now (from where it last fought to where it fights next): the eye looks across it. */
+  const wayOf = (
+    w: WarsMap["wars"][number] | undefined,
+  ): { x: number; y: number; z: number } | null => {
+    const frame = client.latestFrame("globe");
+    if (!frame || !w || w.from === w.to) return null;
+    const p = sphereGrid((frame.meta as { frequency: number }).frequency).positions;
+    return {
+      x: p[w.to * 3]! - p[w.from * 3]!,
+      y: p[w.to * 3 + 1]! - p[w.from * 3 + 1]!,
+      z: p[w.to * 3 + 2]! - p[w.from * 3 + 2]!,
+    };
+  };
   /** How far off the eye keeps to see its host's way and its two hosts whole: nearer for a march from a land next door. */
   const warDistance = (): number => {
     const frame = client.latestFrame("globe");
@@ -4310,10 +4336,13 @@ async function runPlanetPage(): Promise<void> {
     if (!campaign) return;
     campaign = null;
     warKeys = null;
+    rig.lean = 0;
+    rig.across = null;
     warPanel.visible = false;
     labels.clear();
     time.release("war");
     globeWars.grand = 1;
+    globeWars.squad = 1;
     if (scale === "globe") planetPanel.visible = true;
     if (warsLive) showWars(warsLive);
   };
@@ -4345,6 +4374,7 @@ async function runPlanetPage(): Promise<void> {
     // (The world waits while its war is watched.)
     time.hold("war");
     globeWars.grand = WAR_GRAND;
+    globeWars.squad = WAR_SQUAD;
     planetPanel.visible = false;
     warPanel.show(c);
     warPanel.visible = true;
@@ -4431,6 +4461,10 @@ async function runPlanetPage(): Promise<void> {
       campaign.seen = campaign.now.fought.length;
       campaign.follow = true;
     }
+    rig.lean = warLean();
+    // (Its two hosts side by side on the screen: the eye looks across its host's way, while it
+    // follows; let go, it turns back to the screen's top, as the globe is turned by hand.)
+    rig.across = campaign.follow ? (wayOf(campaign.now.map.wars[0]) ?? rig.across) : null;
     const eye = campaign.follow && !rig.flying ? warEye() : null;
     if (eye) {
       lookToward(eye, dt);
@@ -4457,11 +4491,14 @@ async function runPlanetPage(): Promise<void> {
           march: campaign.now.march,
           siege: campaign.now.map.wars[0]!.siege,
           follow: campaign.follow,
+          lean: rig.lean,
+          across: rig.across !== null,
           drawn: {
             marching: globeWars.counts.marching,
             battle: globeWars.counts.battle,
             fallen: globeWars.counts.fallen,
             tents: globeWars.counts.tents,
+            men: globeWars.counts.men,
           },
           marks: campaignMarks().map((m) => m.text),
           world: time.stopped,
@@ -4509,10 +4546,13 @@ async function runPlanetPage(): Promise<void> {
     if (!warAge) return;
     warAge = null;
     warKeys = null;
+    rig.lean = 0;
+    rig.across = null;
     warAgePanel.visible = false;
     labels.clear();
     time.release("wars");
     globeWars.grand = 1;
+    globeWars.squad = 1;
     if (scale === "globe") planetPanel.visible = true;
     if (warsLive) showWars(warsLive);
   };
@@ -4550,6 +4590,7 @@ async function runPlanetPage(): Promise<void> {
     };
     time.hold("wars");
     globeWars.grand = WAR_GRAND;
+    globeWars.squad = 2;
     planetPanel.visible = false;
     warAgePanel.show(a);
     warAgePanel.visible = true;
@@ -4635,6 +4676,13 @@ async function runPlanetPage(): Promise<void> {
       warAge.seen = warAge.now.fought;
       warAge.follow = true;
     }
+    rig.lean = warLean();
+    // (Across the way of the war of its latest battle.)
+    const latest = warAge.now.latest?.war.ref;
+    rig.across = warAge.follow
+      ? (wayOf(warAge.now.map.wars.find((w) => w.ref === latest) ?? warAge.now.map.wars[0]) ??
+        rig.across)
+      : null;
     const eye = warAge.follow && !rig.flying ? ageEye() : null;
     if (eye) {
       lookToward(eye, dt);

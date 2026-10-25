@@ -31,6 +31,12 @@ export class GlobeTowns {
   /** Each town's ground on the globe, and the way up there. */
   private placed: { town: GlobeTown; at: pc.Vec3; up: pc.Vec3 }[] = [];
   private grown = -1;
+  /**
+   * How low the cities' towers stand (0 … 1, M195): seen from the side by a leaning eye, as tall
+   * as from above they would stand over the land like a forest of posts.
+   */
+  low = 0;
+  private lowered = 0;
 
   constructor(stage: Stage) {
     this.huts = new InstancedBatch(
@@ -64,8 +70,14 @@ export class GlobeTowns {
     if (!this.root.enabled) return;
     const k = Math.max(0, Math.min(1, (FAR - distance) / (FAR - NEAR)));
     // (Laid again only as they grow or shrink.)
-    if (Math.abs(k - this.grown) < 0.02 && !(k === 0 && this.grown !== 0)) return;
+    if (
+      Math.abs(k - this.grown) < 0.02 &&
+      Math.abs(this.low - this.lowered) < 0.02 &&
+      !(k === 0 && this.grown !== 0)
+    )
+      return;
     this.grown = k;
+    this.lowered = this.low;
     const s = 0.006 * k,
       huts: [pc.Vec3, pc.Vec3, number][] = [],
       towers: [pc.Vec3, pc.Vec3][] = [];
@@ -106,7 +118,7 @@ export class GlobeTowns {
     });
     this.towers.setBasis(towers.length, (i, out) => {
       const [at, up] = towers[i]!;
-      lay(out, at, up, s * 1.1, s * 4.5, 0);
+      lay(out, at, up, s * 1.1, s * 4.5 * (1 - 0.7 * this.low), 0);
     });
   }
 

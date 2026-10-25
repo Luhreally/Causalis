@@ -44,6 +44,8 @@ export type WarPaths = {
     readonly foe: number;
     readonly won: boolean;
     readonly fallen: number;
+    /** The way its attacker came on it (a war watched unfolding, M195): its masses face along it. */
+    readonly way?: Vec;
   }[];
   /** The besiegers' camps about the seats under siege (M110): where, whose, their war. */
   readonly camps: readonly { readonly at: Vec; readonly side: number; readonly war: string }[];
@@ -179,8 +181,13 @@ export function warPaths(map: WarsMap, grid: SphereGrid, elevation: Float32Array
         ),
       });
     for (const f of w.battles)
-      if (f.spot >= 0)
+      if (f.spot >= 0) {
+        const came = f.from !== undefined && f.from !== f.spot ? unit(f.from) : null,
+          there = unit(f.spot);
         bursts.push({
+          ...(came
+            ? { way: { x: there.x - came.x, y: there.y - came.y, z: there.z - came.z } }
+            : {}),
           at: placeOf(grid, elevation, f.spot),
           // The larger the more fell.
           size: 0.02 + 0.035 * Math.min(1, Math.log10(1 + f.fallen) / 4),
@@ -191,6 +198,7 @@ export function warPaths(map: WarsMap, grid: SphereGrid, elevation: Float32Array
           won: f.won,
           fallen: f.fallen,
         });
+      }
     if (w.siege !== null && w.siege >= 0 && w.ended === null)
       camps.push({ at: placeOf(grid, elevation, w.siege), side, war: w.ref });
   }
@@ -450,7 +458,9 @@ export function battleFigures(w: WarPaths, s: number, grand = 1): BattleFigure[]
     const up = norm(b.at),
       [t0, t1] = tangentsOf(up),
       turn = hashOf(b.event) * Math.PI * 2,
-      dir = {
+      // (The way its attacker came on it, along the face there; else a way of its own.)
+      way = b.way ? along(b.way, up) : null,
+      dir = way ?? {
         x: t0.x * Math.cos(turn) + t1.x * Math.sin(turn),
         y: t0.y * Math.cos(turn) + t1.y * Math.sin(turn),
         z: t0.z * Math.cos(turn) + t1.z * Math.sin(turn),
@@ -499,6 +509,13 @@ export function battleFigures(w: WarPaths, s: number, grand = 1): BattleFigure[]
     }
   });
   return out;
+}
+
+/** A direction along the globe's face where up is `up` (none if it points straight up or down). */
+function along(v: Vec, up: Vec): Vec | null {
+  const u = v.x * up.x + v.y * up.y + v.z * up.z,
+    t = { x: v.x - up.x * u, y: v.y - up.y * u, z: v.z - up.z * u };
+  return Math.hypot(t.x, t.y, t.z) > 1e-9 ? norm(t) : null;
 }
 
 function cross(a: Vec, b: Vec): Vec {

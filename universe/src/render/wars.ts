@@ -8,19 +8,23 @@
 // each mark stood upright on the globe's face (the fallen laid along it).
 import * as pc from "playcanvas";
 import {
+  RANK_STEP,
   battleFigures,
   holdShape,
   hostShape,
   warTokens,
   type BattleFigure,
   type WarPaths,
+  type WarToken,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, keptMesh } from "./batch.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
 /** The most tokens, clashes and figures of one kind drawn at once. */
 const MOST = 700,
-  MOST_CLASHES = 48;
+  MOST_CLASHES = 48,
+  /** The most men drawn at once (a war watched drawn near: its figures squads of men, M195). */
+  MOST_MEN = MOST * 4;
 /** A head's colour where the people have no look of their own (Earth's upright apes). */
 const SKIN: Rgb = [0.9, 0.72, 0.56];
 /** How close the eye comes (the globe's radius 1) before the seats' garrisons show. */
@@ -60,10 +64,23 @@ export class GlobeWars {
   private tents: InstancedBatch[] = [];
   /** How much larger than the year's its figures are drawn (a war watched unfolding's, Phase 38 M193). */
   grand = 1;
+  /**
+   * How far the eye leans over the land (0 … 1, M195): the figures of a war watched, drawn larger,
+   * have their heads small and their bodies broad to show their colours from above — seen from
+   * the side, as they are.
+   */
+  lean = 0;
+  /**
+   * How many men abreast and deep each figure of a war watched is drawn as (M195: near, its hosts
+   * crowds, not a few great figures; 1: each one). Its batches are made for it as the wars are set.
+   */
+  squad = 1;
+  /** Each war watched's march at the last update: a host gone on since steps as it goes (M195). */
+  private marched = new Map<string, number>();
   /** How many marks were drawn at the last update (for the look tools). */
   drawn = 0;
   /** What was drawn at the last update, by kind (for the look tools and the gate). */
-  counts = { marching: 0, battle: 0, fallen: 0, tents: 0, garrison: 0, riders: 0 };
+  counts = { marching: 0, battle: 0, fallen: 0, tents: 0, garrison: 0, riders: 0, men: 0 };
   /** Where each host, clash, camp and garrison stood at the last update, and its page (for picking). */
   private marks: { at: V; ref: string }[] = [];
   /** Where each host's head stood at the last update: its war, and whether the attacker's. */
@@ -75,9 +92,9 @@ export class GlobeWars {
     this.tent = keptMesh(coneMesh(stage, 0.5, 1, 4));
     const make = (color: Rgb, n: number) =>
       new InstancedBatch(stage, this.box, color, n, this.root);
-    this.heads = make(SKIN, MOST);
-    this.horses = make([0.46, 0.3, 0.18], MOST);
-    this.fallen = make([0.3, 0.18, 0.14], MOST);
+    this.heads = make(SKIN, MOST_MEN);
+    this.horses = make([0.46, 0.3, 0.18], MOST_MEN);
+    this.fallen = make([0.3, 0.18, 0.14], MOST_MEN);
     this.poles = make([0.42, 0.3, 0.18], MOST);
     this.hulls = make([0.46, 0.3, 0.16], MOST);
     this.sails = make([0.94, 0.92, 0.84], MOST);
@@ -122,7 +139,9 @@ export class GlobeWars {
       bodies[g.side]! += 3;
       banners[g.side]! += 1;
     }
-    const cap = (n: number) => Math.min(MOST, n + 4);
+    // (A war watched drawn near: each body a squad's.)
+    const many = Math.max(1, Math.round(this.squad)) ** 2,
+      cap = (n: number, k = 1) => Math.min(MOST * k, n * k + 4);
     this.flags = colors.map(
       (c, i) => new InstancedBatch(this.stage, this.box, c, cap(banners[i]!), this.root),
     );
@@ -133,7 +152,7 @@ export class GlobeWars {
           this.stage,
           this.box,
           [c[0] * 0.78, c[1] * 0.78, c[2] * 0.78],
-          cap(bodies[i]!),
+          cap(bodies[i]!, many),
           this.root,
         ),
     );
@@ -157,8 +176,9 @@ export class GlobeWars {
     // colours show from above, its banners and blades `pg` the larger.)
     const g = this.grand,
       pg = Math.sqrt(g),
-      wide = g > 1 ? 1.35 : 1,
-      headK = g > 1 ? 0.6 : 1,
+      lean = Math.max(0, Math.min(1, this.lean)),
+      wide = g > 1 ? 1.35 - 0.35 * lean : 1,
+      headK = g > 1 ? 0.6 + 0.4 * lean : 1,
       tokens = warTokens(paths, s, marching, g).slice(0, MOST),
       walkers = tokens.filter((t) => !t.ship),
       ships = tokens.filter((t) => t.ship),
@@ -200,11 +220,82 @@ export class GlobeWars {
         ...fighting.map((f: BattleFigure) => ({ ...f, lead: false, mounted: false })),
         ...garrison,
       ].slice(0, MOST);
+    // (A host watched on the march — its clock gone on since the last — steps as it goes, each
+    // rank a little behind the one before: each lifted a little, and set down.)
+    const going = new Set<string>();
+    for (const [ref, k] of marching ?? []) {
+      const was = this.marched.get(ref);
+      if (was !== undefined && Math.abs(k - was) > 1e-6) going.add(ref);
+    }
+    this.marched = new Map(marching ?? []);
+    // (A war watched drawn near, M195: each of its figures a squad of men, `n` abreast and deep —
+    // its hosts crowds, not a few great figures — each of its fallen three; each man of a host on
+    // the march stepping in his turn.)
+    const n = Math.max(1, Math.round(this.squad)),
+      steps = new Map<Stood, number>(),
+      men: Stood[] = [];
+    standing.forEach((f, i) => {
+      const walker = i < walkers.length,
+        stepping = walker && (f as WarToken).attacker && going.has((f as WarToken).ref),
+        k = walker ? n : Math.min(n, 2);
+      if (k === 1) {
+        men.push(f);
+        if (stepping) steps.set(f, Math.abs(Math.sin(s * 7 + i * 0.9)) * 0.003);
+        return;
+      }
+      const [across, deep] = walker ? [0.014 * g, RANK_STEP * g] : [0.012 * g, 0.01 * g],
+        aside = unit(cross(f.up, f.ahead));
+      for (let a = 0; a < k; a++)
+        for (let b = 0; b < k; b++) {
+          const x = ((a - (k - 1) / 2) * across) / k,
+            y = ((b - (k - 1) / 2) * deep) / k,
+            man: Stood = {
+              at: {
+                x: f.at.x + aside.x * x + f.ahead.x * y,
+                y: f.at.y + aside.y * x + f.ahead.y * y,
+                z: f.at.z + aside.z * x + f.ahead.z * y,
+              },
+              up: f.up,
+              ahead: f.ahead,
+              side: f.side,
+              size: (f.size * 1.2) / k,
+              lead: false,
+              mounted: f.mounted,
+            };
+          men.push(man);
+          if (stepping)
+            steps.set(man, Math.abs(Math.sin(s * 7 + i * 0.9 + (a * k + b) * 1.3)) * 0.003);
+        }
+    });
+    const strewn: { at: V; up: V; ahead: V; size: number }[] =
+      n > 1
+        ? lying.flatMap((f) => {
+            const aside = unit(cross(f.up, f.ahead));
+            return (
+              [
+                [-0.5, -0.3, false],
+                [0.45, 0.35, true],
+                [0.1, -0.8, false],
+              ] as const
+            ).map(([x, y, turned]) => ({
+              at: {
+                x: f.at.x + (aside.x * x + f.ahead.x * y) * 0.01 * g,
+                y: f.at.y + (aside.y * x + f.ahead.y * y) * 0.01 * g,
+                z: f.at.z + (aside.z * x + f.ahead.z * y) * 0.01 * g,
+              },
+              up: f.up,
+              ahead: turned ? aside : f.ahead,
+              size: f.size * 0.6,
+            }));
+          })
+        : lying;
+    // (Their banners over the squads the less tall.)
+    const q = n > 1 ? 0.7 : 1;
     // (A rider sits on a horse: a body the higher by it.)
-    const seat = (f: Stood) => (f.mounted ? 0.012 : 0),
+    const seat = (f: Stood) => (f.mounted ? 0.012 : 0) + (steps.get(f) ?? 0),
       height = (f: Stood) => (f.lead ? 0.022 : 0.014);
     this.tabards.forEach((batch, side) => {
-      const mine = standing.filter((f) => f.side === side);
+      const mine = men.filter((f) => f.side === side);
       batch.setBasis(mine.length, (i, out) => {
         const f = mine[i]!,
           h = height(f);
@@ -220,8 +311,8 @@ export class GlobeWars {
         );
       });
     });
-    this.heads.setBasis(standing.length, (i, out) => {
-      const f = standing[i]!,
+    this.heads.setBasis(men.length, (i, out) => {
+      const f = men[i]!,
         h = height(f),
         r = (f.lead ? 0.011 : 0.008) * headK;
       stand(
@@ -235,12 +326,12 @@ export class GlobeWars {
         f.size * g,
       );
     });
-    const riders = standing.filter((f) => f.mounted);
+    const riders = men.filter((f) => f.mounted);
     this.horses.setBasis(riders.length, (i, out) => {
       const f = riders[i]!;
       stand(
         out,
-        lift(f.at, f.up, 0.006, f.size * g),
+        lift(f.at, f.up, 0.006 + (steps.get(f) ?? 0), f.size * g),
         f.up,
         f.ahead,
         0.009,
@@ -250,8 +341,8 @@ export class GlobeWars {
       );
     });
     // The fallen, laid along the ground.
-    this.fallen.setBasis(lying.length, (i, out) => {
-      const f = lying[i]!;
+    this.fallen.setBasis(strewn.length, (i, out) => {
+      const f = strewn[i]!;
       stand(
         out,
         lift(f.at, f.up, 0.003, f.size * g),
@@ -335,24 +426,24 @@ export class GlobeWars {
       const t = bearers[i]!;
       stand(
         out,
-        lift(t.at, t.up, 0.03 + seat(t), t.size * g),
+        lift(t.at, t.up, 0.03 + seat(t), t.size * g * q),
         t.up,
         t.ahead,
         0.0022,
         0.05,
         0.0022,
-        t.size * pg,
+        t.size * pg * q,
       );
     });
     this.flags.forEach((batch, side) => {
       const mine = bearers.filter((t) => t.side === side);
       batch.setBasis(mine.length, (i, out) => {
         const t = mine[i]!,
-          at = lift(t.at, t.up, 0.047 + seat(t), t.size * g),
+          at = lift(t.at, t.up, 0.047 + seat(t), t.size * g * q),
           back = {
-            x: -t.ahead.x * 0.012 * pg,
-            y: -t.ahead.y * 0.012 * pg,
-            z: -t.ahead.z * 0.012 * pg,
+            x: -t.ahead.x * 0.012 * pg * q,
+            y: -t.ahead.y * 0.012 * pg * q,
+            z: -t.ahead.z * 0.012 * pg * q,
           };
         stand(
           out,
@@ -362,7 +453,7 @@ export class GlobeWars {
           0.002,
           0.014,
           0.024,
-          t.size * pg,
+          t.size * pg * q,
         );
       });
     });
@@ -381,7 +472,11 @@ export class GlobeWars {
               y: t0.y * Math.cos(a) + t1.y * Math.sin(a),
               z: t0.z * Math.cos(a) + t1.z * Math.sin(a),
             },
-            size = c.size * (pulse ? 0.85 + 0.35 * Math.abs(Math.sin(s * 3 + i)) : 0.7);
+            // (To a leaning eye, the flare laid on the ground the smaller: seen from the side.)
+            size =
+              c.size *
+              (pulse ? 0.85 + 0.35 * Math.abs(Math.sin(s * 3 + i)) : 0.7) *
+              (1 - 0.45 * lean);
           stand(out, c.at, up, ahead, size * 0.28, 0.003, size * 1.6, g);
         });
     spokes(fresh, this.flares, true);
@@ -396,7 +491,7 @@ export class GlobeWars {
           y: up0.y * Math.cos(lean) + t0.y * Math.sin(lean),
           z: up0.z * Math.cos(lean) + t0.z * Math.sin(lean),
         },
-        h = 0.05 * pg;
+        h = 0.05 * pg * (1 - 0.3 * lean);
       stand(
         out,
         { x: c.at.x + up.x * h * 0.5, y: c.at.y + up.y * h * 0.5, z: c.at.z + up.z * h * 0.5 },
@@ -415,6 +510,7 @@ export class GlobeWars {
       tents: camps.length,
       garrison: garrison.length,
       riders: riders.length,
+      men: men.length,
     };
     // (A host's marks stand for its war; a clash for its battle; a camp for its war; a
     // garrison for its realm.)
@@ -527,6 +623,10 @@ function garrisonFigures(paths: WarPaths): Stood[] {
     }
   }
   return out;
+}
+
+function cross(a: V, b: V): V {
+  return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x };
 }
 
 function unit(v: V): V {

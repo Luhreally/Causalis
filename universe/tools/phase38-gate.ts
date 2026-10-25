@@ -81,6 +81,8 @@ type Seen = {
   march: number | null;
   siege: number | null;
   follow: boolean;
+  lean: number;
+  across: boolean;
   drawn: { marching: number; battle: number; fallen: number; tents: number };
   marks: string[];
   world: boolean;
@@ -132,6 +134,18 @@ check(/march on .+, for /.test(w?.words ?? ""), `what it marches for, told ("${w
 await page.waitForTimeout(slow(1500));
 w = await seen(page);
 check(!!w && w.drawn.marching > 0, `its host drawn marching (${JSON.stringify(w?.drawn)})`);
+// (M195: the eye low over the land, leaning, across its host's way: its hosts seen from the side.)
+await until(
+  page,
+  "the eye leaning over the war",
+  async () => ((await seen(page))?.lean ?? 0) > 10,
+  slow(8000),
+);
+w = await seen(page);
+say(
+  `the eye leans ${w?.lean.toFixed(0)}° over the land${w?.across ? ", across its host's way" : ""}`,
+);
+check(!!w && w.lean > 10, `the eye leans low over the war (${w?.lean})`);
 await until(
   page,
   "the god's hand standing aside while a war of history is watched",

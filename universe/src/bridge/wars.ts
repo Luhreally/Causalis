@@ -57,6 +57,8 @@ export type WarsMap = {
       readonly won: boolean;
       readonly fallen: number;
       readonly event: string;
+      /** The land its host came on it from (a war watched unfolding, M195: its masses face that way). */
+      readonly from?: number;
     }[];
   }[];
 };

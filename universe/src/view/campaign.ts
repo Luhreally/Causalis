@@ -142,6 +142,17 @@ export function campaignAt(
               b.outcome === "siege" &&
               !fought.some((x) => x.cell === b.cell && x.outcome === "stormed" && x.year >= b.year),
           ) ?? null);
+  // (Each battle's host came on it from where it last fought elsewhere, or from its land.)
+  const came: number[] = [];
+  let was = c.from,
+    here = c.from;
+  for (const b of fought) {
+    if (b.spot >= 0 && b.spot !== here) {
+      was = here;
+      here = b.spot;
+    }
+    came.push(was);
+  }
   const leg = legAt(c, y, at, span),
     map: WarsMap = {
       year: whole,
@@ -156,15 +167,20 @@ export function campaignAt(
           declared: c.declared,
           ended: over ? c.ended : null,
           siege: siege && siege.spot >= 0 ? siege.spot : null,
-          battles: fought
-            .filter((b) => b.spot >= 0)
-            .map((b) => ({
-              spot: b.spot,
-              year: b.year,
-              won: b.won,
-              fallen: b.fallen[0] + b.fallen[1],
-              event: b.event,
-            })),
+          battles: fought.flatMap((b, i) =>
+            b.spot >= 0
+              ? [
+                  {
+                    spot: b.spot,
+                    year: b.year,
+                    won: b.won,
+                    fallen: b.fallen[0] + b.fallen[1],
+                    event: b.event,
+                    ...(came[i] !== b.spot ? { from: came[i]! } : {}),
+                  },
+                ]
+              : [],
+          ),
         },
       ],
     };
