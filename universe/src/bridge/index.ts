@@ -24,6 +24,7 @@ export {
   type Feast,
   type VillagePlan,
   type Visitor,
+  type FolkFacts,
 } from "./village.ts";
 export type { WorldGlobe } from "./worlds.ts";
 export {

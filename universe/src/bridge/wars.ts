@@ -3,6 +3,7 @@
 // marches from and the land it marches for (fine-grid spots), and the battles fought lately —
 // where, whether the attacker won, how many fell.
 import type { Arms } from "./arms.ts";
+import type { VillagePlan } from "./village.ts";
 
 /**
  * What a realm's host is made of (Phase 12 M110): what it strikes with (a spear, a sword, a
@@ -34,6 +35,8 @@ export type Garrison = {
 
 export type WarsMap = {
   readonly year: number;
+  /** Whose soldiers they are: the world's people's figure (Phase 34: their heads in their own hide). */
+  readonly body?: VillagePlan["body"];
   /** The realms at peace, the greatest first, their garrisons at their seats. */
   readonly garrisons: readonly Garrison[];
   readonly wars: readonly {

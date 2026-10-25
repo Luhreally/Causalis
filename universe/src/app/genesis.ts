@@ -218,7 +218,10 @@ export async function runGenesis(o: {
     bodies = plan.lineages.map((l) => l.body);
     // (The stage's ground the green of the land the first people came to know.)
     parade.set(beasts, detail, biomeColor(8));
-    parade.people(plan.people ? figureOf(plan.people.figure, detail) : null);
+    parade.people(
+      plan.people ? figureOf(plan.people.figure, detail) : null,
+      plan.people?.figure ?? null,
+    );
   };
   castParade();
 
@@ -694,14 +697,18 @@ export async function runGenesis(o: {
     meadowScene.reset();
     if (!plan.people) return;
     bandLand = newMeadow(plan, Math.max(0, plan.ages.length - 1), seed);
-    const age = plan.acts.peopling.age;
+    const age = plan.acts.peopling.age,
+      drawn = figureOf(plan.people.figure, detail);
     band = newBand(
       bandLand,
       age === "kind" ? 18 : age === "hard" ? 10 : 14,
       plan.people.name,
       seed,
+      undefined,
+      undefined,
+      drawn.scale,
     );
-    bandLayer.people(figureOf(plan.people.figure, detail));
+    bandLayer.people(drawn, plan.people.figure);
   };
   /** The band a frame on, at the pace chosen (still while paused); what came to pass told. */
   const stepBands = (dt: number) => {

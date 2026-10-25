@@ -14,7 +14,9 @@ import {
   strideOf,
   type BeastPart,
   type Built,
+  figurePaint,
   type Figure,
+  type FigureBody,
   type OnStage,
   type PartShape,
 } from "../view/index.ts";
@@ -90,9 +92,10 @@ export class ParadeScene {
     });
   }
 
-  /** The first people's figure on the stage (null: none), in their skin, cloth and hair. */
-  people(f: Figure | null): void {
+  /** The first people's figure on the stage (null: none), in their skin, cloth and hair (or their own look, Phase 34). */
+  people(f: Figure | null, body: FigureBody | null = null): void {
     for (const b of this.figure?.batches ?? []) b.destroy();
+    const paint = figurePaint(body, "forage", 0);
     this.figure = f
       ? {
           f,
@@ -101,15 +104,17 @@ export class ParadeScene {
               new InstancedBatch(
                 this.stage,
                 this.shapes[part.shape],
-                part.tone === 2
-                  ? [0.88, 0.66, 0.5]
-                  : part.tone === 3
-                    ? [0.2, 0.13, 0.08]
-                    : part.tone === 4
-                      ? [0.07, 0.06, 0.06]
-                      : part.tone
-                        ? [0.42, 0.3, 0.2]
-                        : [0.72, 0.56, 0.36],
+                paint.folk
+                  ? paint.tones[part.tone]
+                  : part.tone === 2
+                    ? [0.88, 0.66, 0.5]
+                    : part.tone === 3
+                      ? [0.2, 0.13, 0.08]
+                      : part.tone === 4
+                        ? [0.07, 0.06, 0.06]
+                        : part.tone === 1
+                          ? [0.42, 0.3, 0.2]
+                          : [0.72, 0.56, 0.36],
                 1,
                 this.root,
               ),

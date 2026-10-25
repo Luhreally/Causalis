@@ -19,7 +19,7 @@ import {
   type LandWars,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, keptMesh } from "./batch.ts";
-import type { Stage } from "./stage.ts";
+import type { Rgb, Stage } from "./stage.ts";
 
 /** How long a host's march across the land takes on the screen (seconds). */
 const LAND_MARCH = 16;
@@ -27,6 +27,8 @@ const LAND_MARCH = 16;
 const MOST = 240,
   MOST_SHIPS = 96,
   MOST_GEAR = 720;
+/** A head's colour where the people have no look of their own (Earth's upright apes). */
+const SKIN: Rgb = [0.9, 0.72, 0.56];
 
 type Flat = { readonly x: number; readonly z: number };
 
@@ -153,7 +155,7 @@ export class RegionWars {
     this.tent = keptMesh(coneMesh(stage, 0.5, 1, 4));
     const make = (color: readonly [number, number, number], n: number) =>
       new InstancedBatch(stage, this.box, color, n, this.root);
-    this.heads = make([0.9, 0.72, 0.56], MOST * 2);
+    this.heads = make(SKIN, MOST * 2);
     this.poles = make([0.42, 0.3, 0.18], 160);
     this.blades = make([0.86, 0.88, 0.92], 64);
     this.flares = make([1, 0.78, 0.26], 32);
@@ -172,6 +174,11 @@ export class RegionWars {
 
   set visible(on: boolean) {
     this.root.enabled = on;
+  }
+
+  /** Its soldiers' heads in their people's own hide (null: as Earth's upright apes'). */
+  skin(c: Rgb | null): void {
+    this.heads.recolor(c ?? SKIN);
   }
 
   /** The wars in the land now shown, the height of its ground at a point, and whether it is sea. */

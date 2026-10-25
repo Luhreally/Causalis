@@ -24,6 +24,7 @@ import {
 } from "../sim/index.ts";
 import type { GenesisPlan } from "../bridge/index.ts";
 import { dawnSeaOf, dropOfWorld } from "./inspect/small.ts";
+import { figureBody, folkFacts } from "./folk.ts";
 
 /** The last world remade from acts laid on its dawn (a viewer asks again and again of one). */
 let remade: { readonly key: string; readonly g: ProvinceWorld } | null = null;
@@ -160,16 +161,7 @@ export function genesisPlan(pw: ProvinceWorld, seed: string): GenesisPlan {
           because: people.because,
           cradle: `the ${BIOME_NAMES[g.climate.biome[people.cell]!] ?? "land"} at ${deg(g.grid.lat[people.cell]!, "N", "S")}, ${deg(g.grid.lon[people.cell]!, "E", "W")}`,
           arose: life.species[people.species]!.arose,
-          figure: {
-            clade: people.body.clade,
-            medium: people.body.medium,
-            symmetry: people.body.symmetry,
-            manipulators: people.body.manipulators,
-            limbs: people.body.limbs,
-            skin: people.body.skin,
-            size: people.body.size,
-            span: people.body.span,
-          },
+          figure: figureBody(people.body, folkFacts(g)),
         }
       : null,
     peopling: peoplingOf(pw, seed),

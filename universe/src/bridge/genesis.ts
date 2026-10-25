@@ -4,7 +4,7 @@
 // deep clock (Phase 24): how old the world is, the steps of life's dawn and when each came, a
 // drop of its first seas, and the acts the god's hand laid on its dawn.
 import type { Block } from "./inspect.ts";
-import type { BeastPlan } from "./village.ts";
+import type { BeastPlan, FolkFacts } from "./village.ts";
 
 export type GenesisPlan = {
   /** The seed's text this is the beginning of (its acts in it), and its world's name. */
@@ -75,6 +75,8 @@ export type GenesisPlan = {
       readonly skin: string;
       readonly size: number;
       readonly span?: number;
+      /** What their own look is made of (Phase 34). */
+      readonly folk?: FolkFacts | null;
     };
   } | null;
   /**

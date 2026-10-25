@@ -16,6 +16,7 @@ import {
 import type { CampNear } from "../bridge/index.ts";
 import { landCamps } from "./land.ts";
 import { landTitle } from "./inspect/names.ts";
+import { peopleFigure } from "./folk.ts";
 
 /** The fewest and the most of a band seen near. */
 const LEAST_BAND = 6;
@@ -64,18 +65,7 @@ export function campNear(world: World, cell: number, id: number): CampNear | nul
     camp,
     land: landTitle(world, cell),
     people: people ? g.life.species[people.species]!.name : "people",
-    figure: people
-      ? {
-          clade: people.body.clade,
-          medium: people.body.medium,
-          symmetry: people.body.symmetry,
-          manipulators: people.body.manipulators,
-          limbs: people.body.limbs,
-          skin: people.body.skin,
-          size: people.body.size,
-          span: people.body.span,
-        }
-      : null,
+    figure: peopleFigure(g),
     plan: {
       seed: `${world.seed.text} camp ${cell}:${id}`,
       ages: [

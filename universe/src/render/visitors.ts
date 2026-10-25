@@ -9,7 +9,7 @@
 // opens facing them. A handful of draw calls a group.
 import * as pc from "playcanvas";
 import type { VillagePlan, Visitor } from "../bridge/index.ts";
-import { figureOf, limbPitch, type Figure, type PartShape } from "../view/index.ts";
+import { figureOf, figurePaint, limbPitch, type Figure, type PartShape } from "../view/index.ts";
 import { InstancedBatch, boxMesh, capsuleMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
@@ -177,11 +177,16 @@ export class VisitorsLayer {
         body: Rgb = [0.25 + 0.5 * r, 0.25 + 0.5 * g, 0.25 + 0.5 * b],
         dark: Rgb = [0.15 + 0.35 * r, 0.15 + 0.35 * g, 0.15 + 0.35 * b],
         skin: Rgb = [0.45 + 0.45 * r, 0.45 + 0.45 * g, 0.45 + 0.45 * b],
+        // (In their own look, Phase 34: their hide, and their people's colour on what they wear.)
+        paint = figurePaint(v.body, "modern", 0),
         batches =
           v.count > 0
             ? figure.parts.map((part) => {
-                const tone: Rgb =
-                  part.tone === 4
+                const tone: Rgb = paint.folk
+                  ? part.tone === 5
+                    ? body
+                    : paint.tones[part.tone]
+                  : part.tone === 4
                     ? [0.04, 0.04, 0.06]
                     : part.tone === 2
                       ? skin

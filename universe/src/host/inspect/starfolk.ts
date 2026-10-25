@@ -14,6 +14,7 @@ import {
 import type { World } from "../../kernel/index.ts";
 import type { Item, PageModel, Stat } from "../../bridge/index.ts";
 import { PEOPLE_COLORS, metName } from "../peoples.ts";
+import { figureBody, starFolk } from "../folk.ts";
 import { claimOf, item, link, many, stat, yearNow } from "./words.ts";
 import { starSicknessBlocks } from "./sickness.ts";
 
@@ -137,16 +138,7 @@ export function civilizationPage(world: World, ref: string): PageModel {
           occupation: 0,
           child: false,
           era: year >= c.electronics ? "modern" : "farm",
-          body: {
-            clade: clade.clade,
-            medium: clade.medium,
-            symmetry: clade.symmetry,
-            manipulators: clade.manipulators,
-            limbs: clade.limbs,
-            skin: clade.skin,
-            size: clade.size,
-            span: clade.span,
-          },
+          body: figureBody(clade, starFolk(c)),
         }
       : { kind: "flag", flags: [{ color, key: i }] },
     title: `The ${words.name}`,

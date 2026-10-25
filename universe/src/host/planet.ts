@@ -139,6 +139,7 @@ import { groundMap, spotGround } from "./inspect/ground.ts";
 import { worldGlobe } from "./worlds.ts";
 import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
 import { peoplesSky, visitsNow } from "./peoples.ts";
+import { peopleFigure } from "./folk.ts";
 
 const BOUNDARY_WORDS = ["none", "converging", "spreading", "sliding"];
 
@@ -1009,7 +1010,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
               fields,
               host: hostOf(r.ref),
             }));
-        return { year, garrisons, wars };
+        return { year, garrisons, wars, body: peopleFigure(ctx.generated) };
       },
       // A world's beginning, for the genesis (M89): its deep ages, every lineage with the
       // age it arose and died in and its body, and the people that rose to thought; played on

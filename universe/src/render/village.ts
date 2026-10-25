@@ -11,7 +11,7 @@ import {
   EYES,
   GROUP_COLORS,
   SKIN,
-  clothes,
+  figurePaint,
   biomeColor,
   cropColor,
   battleOf,
@@ -20,6 +20,7 @@ import {
   figureOf,
   hairOf,
   keepApart,
+  partExtent,
   present,
   ringTurn,
   villageSolids,
@@ -666,25 +667,27 @@ export class VillageScene {
       cylinder: cylinderMesh(s, 0.5, 1, 8),
       cone: coneMesh(s, 0.5, 1, 8),
     };
-    // Each part a batch per group, dressed as the land's era dresses them.
+    // Each part a batch per group, dressed as the land's era dresses them (a people in their own
+    // look in their hide, their clothes over it: Phase 34).
     this.people = GROUP_COLORS.map((_, gi) => {
-      const wear = clothes(plan.era, gi);
+      const paint = figurePaint(plan.body, plan.era, gi);
       return this.figure.parts.map((part) =>
         part.tone === 3
           ? null
           : this.batch(
               s,
               meshes[part.shape],
-              part.tone === 2 ? SKIN : part.tone === 4 ? EYES : part.tone ? wear.legs : wear.body,
+              paint.tones[part.tone],
               Math.max(1, plan.people.length),
               this.root,
             ),
       );
     });
-    // Hair, each person's own colour (a batch a colour, whatever their group).
+    // Hair (a people's markings), each person's own colour (a batch a colour, whatever their group).
+    const hairs = figurePaint(plan.body, plan.era, 0).hairs;
     this.hair = this.figure.parts.map((part) =>
       part.tone === 3
-        ? HAIRS.map((c) =>
+        ? hairs.map((c) =>
             this.batch(s, meshes[part.shape], c, Math.max(1, plan.people.length), this.root),
           )
         : null,
@@ -696,20 +699,26 @@ export class VillageScene {
     this.soldiers = battle
       ? [battle.attacker.color, battle.defender.color].map((c) => {
           const body: Rgb = [c[0], c[1], c[2]],
-            legs: Rgb = [c[0] * 0.5, c[1] * 0.5, c[2] * 0.5];
+            legs: Rgb = [c[0] * 0.5, c[1] * 0.5, c[2] * 0.5],
+            paint = figurePaint(plan.body, plan.era, 0);
+          // (A people in their own look fight in their hide, their realm's colour over it.)
           return this.figure.parts.map((part) =>
             this.batch(
               s,
               meshes[part.shape],
-              part.tone === 2
-                ? SKIN
-                : part.tone === 4
-                  ? EYES
-                  : part.tone === 3
-                    ? HAIRS[1]!
-                    : part.tone
-                      ? legs
-                      : body,
+              paint.folk
+                ? part.tone === 5
+                  ? body
+                  : paint.tones[part.tone]
+                : part.tone === 2
+                  ? SKIN
+                  : part.tone === 4
+                    ? EYES
+                    : part.tone === 3
+                      ? HAIRS[1]!
+                      : part.tone
+                        ? legs
+                        : body,
               this.soldiersEach,
               this.root,
             ),
@@ -1325,7 +1334,11 @@ export class VillageScene {
       const text = sayOf(plan, i, m, clock);
       if (!text) return;
       const p = plan.people[i]!,
-        tall = 0.66 * (p.child ? 0.7 : 1) * this.figure.scale;
+        // (Over their heads, as high as their figure stands.)
+        tall =
+          (Math.max(...this.figure.parts.map((q) => q.y + partExtent(q)[1] / 2)) + 0.11) *
+          (p.child ? 0.7 : 1) *
+          this.figure.scale;
       head.set(m.x * M, tall, m.z * M);
       const d = head.distance(eye);
       if (d > 14) return;

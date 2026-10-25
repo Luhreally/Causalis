@@ -4,6 +4,7 @@
 import { YEAR, type Ref, type World } from "../kernel/index.ts";
 import type { PeoplesSky, Visitor } from "../bridge/index.ts";
 import { CLADES } from "../rules/index.ts";
+import { figureBody, starFolk } from "./folk.ts";
 import {
   civilizationsNear,
   holdWorld,
@@ -153,16 +154,7 @@ export function visitorsAt(world: World, cell: number, year: number): Visitor[] 
       civ: civRef,
       name: `the ${w.name}`,
       kind: w.kind,
-      body: {
-        clade: body.clade,
-        medium: body.medium,
-        symmetry: body.symmetry,
-        manipulators: body.manipulators,
-        limbs: body.limbs,
-        skin: body.skin,
-        size: body.size,
-        span: body.span,
-      },
+      body: figureBody(body, starFolk(civ)),
       color: PEOPLE_COLORS[i % PEOPLE_COLORS.length]!,
       why,
       year: since,

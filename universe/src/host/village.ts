@@ -53,6 +53,7 @@ import { townPlan } from "./town.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
 import { visitorsAt } from "./peoples.ts";
+import { peopleFigure } from "./folk.ts";
 
 /** Families the microscope watches in a village: a presentation budget, not a rule. */
 export const WATCHED_FAMILIES = 10;
@@ -61,21 +62,9 @@ export const DRAWN_UNDER_HAND = 400;
 
 const u = (seed: number, n: number) => finish(mix(seed, n), 13) / 4294967296;
 
-/** The people's body, as their figures are drawn from it (null: upright apes, as ever). */
+/** The people's body, as their figures are drawn from it, with what their look is made of (null: upright apes, as ever). */
 export function peopleBody(world: World): VillagePlan["body"] {
-  const b = populationContext(world).generated.life.people?.body;
-  return b
-    ? {
-        clade: b.clade,
-        medium: b.medium,
-        symmetry: b.symmetry,
-        manipulators: b.manipulators,
-        limbs: b.limbs,
-        skin: b.skin,
-        size: b.size,
-        span: b.span,
-      }
-    : null;
+  return peopleFigure(populationContext(world).generated);
 }
 
 /** How far a land has come, for what its people wear, carry and dig with. */

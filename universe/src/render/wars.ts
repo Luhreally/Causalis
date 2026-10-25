@@ -21,6 +21,8 @@ import type { Rgb, Stage } from "./stage.ts";
 /** The most tokens, clashes and figures of one kind drawn at once. */
 const MOST = 700,
   MOST_CLASHES = 48;
+/** A head's colour where the people have no look of their own (Earth's upright apes). */
+const SKIN: Rgb = [0.9, 0.72, 0.56];
 /** How close the eye comes (the globe's radius 1) before the seats' garrisons show. */
 export const GARRISON_ZOOM = 2.4;
 
@@ -71,7 +73,7 @@ export class GlobeWars {
     this.tent = keptMesh(coneMesh(stage, 0.5, 1, 4));
     const make = (color: Rgb, n: number) =>
       new InstancedBatch(stage, this.box, color, n, this.root);
-    this.heads = make([0.9, 0.72, 0.56], MOST);
+    this.heads = make(SKIN, MOST);
     this.horses = make([0.46, 0.3, 0.18], MOST);
     this.fallen = make([0.3, 0.18, 0.14], MOST);
     this.poles = make([0.42, 0.3, 0.18], MOST);
@@ -81,6 +83,11 @@ export class GlobeWars {
     this.flares = make([1, 0.8, 0.28], MOST_CLASHES * 3);
     this.embers = make([0.66, 0.4, 0.18], MOST_CLASHES * 3);
     parent.addChild(this.root);
+  }
+
+  /** Its soldiers' heads in their people's own hide (null: as Earth's upright apes'). */
+  skin(c: Rgb | null): void {
+    this.heads.recolor(c ?? SKIN);
   }
 
   /** The year's wars, as ways over the globe (null: none shown). */

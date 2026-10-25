@@ -215,6 +215,34 @@ export type VillagePlan = {
     readonly size: number;
     /** How long they live, years: their old age comes as late. */
     readonly span: number;
+    /** What their own look is made of, on a world not Earth (Phase 34; none: their kind's plain figure). */
+    readonly folk?: FolkFacts | null;
+  } | null;
+};
+
+/**
+ * What a people's look is made of on a world other than Earth (Phase 34 M176): a key of their
+ * own, their planet's pull (g) and their star's warmth (kelvin), the warmth (°C), rain (mm) and
+ * ground (biome) of the land they rose in, and what their forebears grew, as the tree of life
+ * has them (their neck and tail, what grew on them, their eyes, feelers, markings, covering and
+ * pairs of legs). The view makes their look of it.
+ */
+export type FolkFacts = {
+  readonly key: number;
+  readonly gravity: number;
+  readonly star: number;
+  readonly warmth: number;
+  readonly rain: number;
+  readonly biome: number;
+  readonly forebears: {
+    readonly neck: number;
+    readonly tail: number;
+    readonly grows: readonly string[];
+    readonly eyes: number;
+    readonly feelers: boolean;
+    readonly pattern: string;
+    readonly covering: string;
+    readonly legs: number;
   } | null;
 };
 

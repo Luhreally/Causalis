@@ -134,6 +134,8 @@ import {
   bandPersonWords,
   bandWords,
   figureOf,
+  figurePaint,
+  folkLook,
   weatherAt,
   squareNow,
   downpourAt,
@@ -307,6 +309,27 @@ type Exposed = {
     filming: boolean;
   };
   watchIt?: (on: boolean) => Promise<void>;
+  /**
+   * The look of the people seen near (Phase 34), at a camp or in a town: how they stand, their
+   * arms, eyes and what grows on them, their hide's colour, the parts of their figure (null: the
+   * upright apes, as ever, or none seen); where one of them stands and which way they face, and
+   * the camp's middle (units, degrees), for the eye.
+   */
+  folk?: () => {
+    stance: string;
+    arms: number;
+    eyes: number;
+    crest: boolean;
+    horns: number;
+    feelers: boolean;
+    tail: boolean;
+    hide: string;
+    mark: string;
+    parts: number;
+    at: { x: number; z: number } | null;
+    middle: { x: number; z: number } | null;
+    facing: number | null;
+  } | null;
   /** A band of a land's camp seen near (Phase 29 M160): its people, the land's beasts, their hour, what they are at. */
   near?: () => {
     cell: number;
@@ -1376,6 +1399,10 @@ async function runPlanetPage(): Promise<void> {
     if (!frame || key === warsKey) return;
     warsKey = key;
     warsNow = map;
+    // (Their soldiers' heads in their people's own hide, where they have a look of their own.)
+    const paint = figurePaint(map.body ?? null, "metal", 0);
+    globeWars.skin(paint.folk ? paint.tones[0] : null);
+    regionWars.skin(paint.folk ? paint.tones[0] : null);
     showLandWars();
     globeWars.set(
       warPaths(
@@ -3349,8 +3376,18 @@ async function runPlanetPage(): Promise<void> {
     const meadow = newMeadow(info.plan, 0, info.plan.seed, true);
     // (Their own flock grazes among the land's beasts: the hunters leave it be.)
     for (const k of meadow.kinds) if (info.flocks.includes(k.lineage)) k.tame = true;
-    const band = newBand(meadow, info.size, info.people, info.plan.seed, info.hour, info.names);
-    bandLayer!.people(figureOf(info.figure, detail));
+    // (As far apart about their fire as their figures are drawn large.)
+    const drawn = figureOf(info.figure, detail),
+      band = newBand(
+        meadow,
+        info.size,
+        info.people,
+        info.plan.seed,
+        info.hour,
+        info.names,
+        drawn.scale,
+      );
+    bandLayer!.people(drawn, info.figure);
     near = {
       info,
       meadow,
@@ -3525,6 +3562,62 @@ async function runPlanetPage(): Promise<void> {
       );
     }
   });
+  exposed.folk = () => {
+    const body =
+        scale === "camp"
+          ? (near?.info.figure ?? null)
+          : scale === "village"
+            ? (plan?.body ?? null)
+            : null,
+      look = folkLook(body);
+    if (!body || !look) return null;
+    const hex = (c: readonly number[]) =>
+        "#" +
+        c
+          .map((x) =>
+            Math.round(x * 255)
+              .toString(16)
+              .padStart(2, "0"),
+          )
+          .join(""),
+      band = scale === "camp" ? near?.band : undefined,
+      // (At a camp, the one awake standing most in the open: clear of the fire, the shelters and
+      // the rest of the band.)
+      open = (x: number, z: number) =>
+        band
+          ? Math.min(
+              Math.hypot(x - band.camp.x, z - band.camp.z),
+              ...band.shelters.map((s) => Math.hypot(x - s.x, z - s.z)),
+              ...band.people
+                .filter((q) => q.x !== x || q.z !== z)
+                .map((q) => Math.hypot(x - q.x, z - q.z)),
+            )
+          : 0,
+      one = band
+        ? [...band.people]
+            .filter(
+              (p) =>
+                p.doing !== "sleeping" && Math.hypot(p.x - band.camp.x, p.z - band.camp.z) < 40,
+            )
+            .sort((a, b) => open(b.x, b.z) - open(a.x, a.z) || a.id - b.id)[0]
+        : village.peopleNow().find((p) => p.activity !== 0);
+    return {
+      stance: look.stance,
+      arms: look.arms,
+      eyes: look.eyes,
+      crest: look.crest > 0,
+      horns: look.horns,
+      feelers: look.feelers,
+      tail: look.tail > 0.12,
+      hide: hex(look.hide),
+      mark: hex(look.mark),
+      parts: figureOf(body, tier.name === "phone" ? 1 : 2).parts.length,
+      at: one ? { x: one.x * 0.1, z: one.z * 0.1 } : null,
+      middle: band ? { x: band.camp.x * 0.1, z: band.camp.z * 0.1 } : null,
+      // (Which way the one at the camp faces, as the eye's turn: the eye there sees their face.)
+      facing: band && one && "heading" in one ? (one.heading * 180) / Math.PI : null,
+    };
+  };
   exposed.near = () =>
     near && bandLayer
       ? {

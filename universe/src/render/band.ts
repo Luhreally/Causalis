@@ -11,7 +11,10 @@ import {
   limbPitch,
   type BandPerson,
   type BandState,
+  figurePaint,
+  partExtent,
   type Figure,
+  type FigureBody,
   type PartShape,
   type Task,
 } from "../view/index.ts";
@@ -55,7 +58,8 @@ export class BandLayer {
   readonly root = new pc.Entity("band");
   private readonly stage: Stage;
   private readonly shapes: Record<PartShape, pc.Mesh>;
-  private figure: { f: Figure; batches: InstancedBatch[] } | null = null;
+  /** The figure drawn, its batches, and how high it stands against an upright ape (what it carries rides so high). */
+  private figure: { f: Figure; batches: InstancedBatch[]; lift: number } | null = null;
   private readonly sleepers: InstancedBatch;
   /** What they carry: an armful gathered, meat, the camp packed. */
   private readonly loads: Record<"food" | "meat" | "bundle", InstancedBatch>;
@@ -131,9 +135,16 @@ export class BandLayer {
     parent.addChild(this.root);
   }
 
-  /** The people's figure (null: none), drawn part by part in their tones. */
-  people(f: Figure | null): void {
+  /**
+   * The people's figure (null: none), drawn part by part in their tones: in hides, or in a
+   * people's own look (Phase 34), their hide and a wrap of hide over it; the sleepers under
+   * their hides' colour.
+   */
+  people(f: Figure | null, body: FigureBody | null = null): void {
     for (const b of this.figure?.batches ?? []) b.destroy();
+    const paint = figurePaint(body, "forage", 0),
+      tones: readonly Rgb[] = paint.folk ? paint.tones : [...TONES, TONES[0]!];
+    this.sleepers.recolor(paint.folk ? paint.tones[0] : TONES[0]!);
     this.figure = f
       ? {
           f,
@@ -142,11 +153,12 @@ export class BandLayer {
               new InstancedBatch(
                 this.stage,
                 this.shapes[part.shape],
-                TONES[part.tone]!,
+                tones[part.tone]!,
                 MOST,
                 this.root,
               ),
           ),
+          lift: Math.max(...f.parts.map((p) => p.y + partExtent(p)[1] / 2)) / 0.55,
         }
       : null;
   }
@@ -208,7 +220,7 @@ export class BandLayer {
           k = size(p),
           big = what === "bundle" ? 1.35 : what === "meat" ? 1.1 : 0.85;
         out[0] = p.x * M - Math.sin(p.heading) * 0.075 * k;
-        out[1] = 0.36 * k;
+        out[1] = 0.36 * k * fig.lift;
         out[2] = p.z * M - Math.cos(p.heading) * 0.075 * k;
         out[3] = 0.15 * k * big;
         out[4] = 0.13 * k * big;
@@ -232,7 +244,7 @@ export class BandLayer {
         sn = Math.sin(p.heading),
         side = 0.13 * k;
       out[0] = p.x * M + c * side;
-      out[1] = 0.3 * k;
+      out[1] = 0.3 * k * fig.lift;
       out[2] = p.z * M - sn * side;
       out[3] = 0.016 * k;
       out[4] = 0.62 * k;
@@ -319,12 +331,13 @@ export class BandLayer {
   /** Where each of the band's names goes on the screen, over their heads (null: behind the eye). */
   namesOnScreen(b: BandState): { id: number; at: { x: number; y: number } | null }[] {
     const scale = this.figure?.f.scale ?? 1,
+      lift = this.figure?.lift ?? 1,
       world = this.root.getWorldTransform(),
       at = new pc.Vec3(),
       out = new pc.Vec3();
     return b.people.map((p) => {
       const lying = p.doing === "sleeping" ? 0.35 : 1,
-        up = (STANDS * lying + 0.12) * scale * KIN_SCALE[p.kin];
+        up = (STANDS * lying * lift + 0.12) * scale * KIN_SCALE[p.kin];
       world.transformPoint(new pc.Vec3(p.x * M, up, p.z * M), at);
       this.stage.camera.camera!.worldToScreen(at, out);
       return { id: p.id, at: out.z > 0 ? { x: out.x, y: out.y } : null };

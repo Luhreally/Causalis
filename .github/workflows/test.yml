@@ -225,6 +225,11 @@ jobs:
       - run: npm run gate:33 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 34 gate: a people's own look, made of their world (four worlds never seen, each
+      # people's stance, arms, eyes, what grows on them and their hide; Earth's upright apes).
+      - run: npm run gate:34 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

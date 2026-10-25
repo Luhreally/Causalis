@@ -18,6 +18,31 @@ const RISE = 6.5,
 /** How fast they walk and run (m/s, as the meadow's beasts are drawn). */
 const WALK = 2.6,
   RUN = 6.2;
+/**
+ * A body's room on a ring about the fire, and how far each ring lies past the one inside it (m):
+ * drawn larger than life, as the meadow's beasts are, a band many to a fire stands in rings, not
+ * shoulder to shoulder in one.
+ */
+const ROOM = 2.1,
+  ROW = 2.6;
+
+/** The i-th of n's place in rings about a fire: as many on the first ring as it has room for, the rest farther out, each ring's seats set between those of the ring inside. */
+function ringOf(i: number, n: number): { row: number; a: number } {
+  for (let row = 0, first = 0; ; row++) {
+    const here = Math.min(
+      Math.max(1, Math.floor((2 * Math.PI * (3.2 + ROW * row)) / ROOM)),
+      n - first,
+    );
+    if (i < first + here) return { row, a: (2 * Math.PI * (i - first + (row % 2) * 0.5)) / here };
+    first += here;
+  }
+}
+
+/** Where one sits about a fire (the camp's, or the fresh ground's): on their ring, the first `from` out. */
+function seatOf(b: BandState, p: BandPerson, from: number, at = b.camp): { x: number; z: number } {
+  const r = (from + ROW * p.row) * b.spread;
+  return { x: at.x + Math.sin(p.seat) * r, z: at.z + Math.cos(p.seat) * r };
+}
 /** How far from the camp they go to gather and to hunt (m). */
 const GATHER_REACH = 46,
   HUNT_REACH = 64;
@@ -54,8 +79,9 @@ export type BandPerson = {
   /** What it brings home: an armful of what was gathered, meat, or the camp packed. */
   carry: number;
   carrying: "food" | "meat" | "bundle" | null;
-  /** Its place about the fire (an angle), and where its legs are in their stride. */
+  /** Its place about the fire (an angle, and which ring out from it), and where its legs are in their stride. */
   readonly seat: number;
+  readonly row: number;
   phase: number;
 };
 
@@ -97,6 +123,8 @@ export type BandState = {
   /** What came to pass, to be told. */
   news: string[];
   t: number;
+  /** How far apart they stand and sit: as much larger than an upright ape as their figures are drawn. */
+  readonly spread: number;
   readonly rnd: () => number;
 };
 
@@ -178,12 +206,14 @@ function campGround(
   return best;
 }
 
-/** Their shelters about the fire: one to every four or five of them. */
+/** Their shelters about the fire: one to every four or five of them, beyond where they sleep. */
 function pitch(b: BandState): void {
-  const n = Math.max(2, Math.round(b.people.length / 4.5));
+  const many = b.people.length,
+    n = Math.max(2, Math.round(many / 4.5)),
+    r = Math.max(8.5, 7.8 + ROW * ringOf(Math.max(0, many - 1), Math.max(1, many)).row) * b.spread;
   b.shelters = Array.from({ length: n }, (_, i) => {
     const a = (2 * Math.PI * (i + 0.3)) / n;
-    return { x: b.camp.x + Math.sin(a) * 8.5, z: b.camp.z + Math.cos(a) * 8.5, yaw: a };
+    return { x: b.camp.x + Math.sin(a) * r, z: b.camp.z + Math.cos(a) * r, yaw: a };
   });
 }
 
@@ -199,6 +229,7 @@ export function newBand(
   seedText: string,
   hour = RISE,
   names: readonly string[] = [],
+  spread = 1,
 ): BandState {
   const rnd = seeded(hashText(`${seedText} band`)),
     b: BandState = {
@@ -221,23 +252,25 @@ export function newBand(
       kill: null,
       news: [],
       t: 0,
+      spread: Math.max(1, spread),
       rnd,
     };
   b.camp = campGround(m, rnd, b.camp, 0, 18);
-  pitch(b);
   const old = Math.max(1, Math.round(size * 0.12)),
     young = Math.max(2, Math.round(size * 0.3));
   for (let i = 0; i < size; i++) {
     const kin: BandKin = i < old ? "old" : i < old + young ? "child" : "grown",
-      seat = (2 * Math.PI * i) / size + 0.2 * rnd();
+      ring = ringOf(i, size),
+      seat = ring.a + 0.12 * (rnd() - 0.5),
+      r = 3.2 + ROW * ring.row;
     b.people.push({
       id: i + 1,
       name: names[i] ?? "",
       kin,
       // (Of the grown, about half go out to hunt, the rest to gather.)
       hunter: kin === "grown" && (i - old - young) % 2 === 0,
-      x: b.camp.x + Math.sin(seat) * 3.2,
-      z: b.camp.z + Math.cos(seat) * 3.2,
+      x: b.camp.x + Math.sin(seat) * r * b.spread,
+      z: b.camp.z + Math.cos(seat) * r * b.spread,
       heading: seat + Math.PI,
       speed: 0,
       doing: "resting",
@@ -246,9 +279,11 @@ export function newBand(
       carry: 0,
       carrying: null,
       seat,
+      row: ring.row,
       phase: rnd(),
     });
   }
+  pitch(b);
   return b;
 }
 
@@ -385,10 +420,7 @@ export function stepBand(b: BandState, m: MeadowState): void {
     if (b.going) {
       // Walking on to the fresh ground, the camp on their backs.
       p.doing = "moving";
-      const spot = {
-        x: b.going.x + Math.sin(p.seat) * 3.2,
-        z: b.going.z + Math.cos(p.seat) * 3.2,
-      };
+      const spot = seatOf(b, p, 3.2, b.going);
       if (!goTo(p, spot.x, spot.z, WALK * (p.kin === "old" ? 0.8 : 1), 1)) pace = p.speed;
     } else if (night && p.carrying) {
       // Come in late, laden.
@@ -399,10 +431,12 @@ export function stepBand(b: BandState, m: MeadowState): void {
       // By night about the fire: asleep, but for one who keeps it (a night's watch, dusk to dawn).
       const keeper =
         p.id === 1 + ((b.day + (hour >= SLEEP ? 1 : 0)) % Math.max(1, b.people.length));
-      const spot = {
-        x: b.camp.x + Math.sin(p.seat) * (keeper ? 2.4 : 4.2),
-        z: b.camp.z + Math.cos(p.seat) * (keeper ? 2.4 : 4.2),
-      };
+      const spot = keeper
+        ? {
+            x: b.camp.x + Math.sin(p.seat) * 2.4 * b.spread,
+            z: b.camp.z + Math.cos(p.seat) * 2.4 * b.spread,
+          }
+        : seatOf(b, p, 4.2);
       if (goTo(p, spot.x, spot.z, WALK, 0.6)) {
         p.doing = keeper ? "tending" : "sleeping";
         p.heading = turn(p.heading, Math.atan2(b.camp.x - p.x, b.camp.z - p.z), 0.2);
@@ -423,10 +457,7 @@ export function stepBand(b: BandState, m: MeadowState): void {
           pace = p.speed;
         }
       } else {
-        const spot = {
-          x: b.camp.x + Math.sin(p.seat) * 3.2,
-          z: b.camp.z + Math.cos(p.seat) * 3.2,
-        };
+        const spot = seatOf(b, p, 3.2);
         if (goTo(p, spot.x, spot.z, WALK, 0.6)) {
           p.doing = p.kin === "old" ? "tending" : "resting";
           p.heading = turn(p.heading, Math.atan2(b.camp.x - p.x, b.camp.z - p.z), 0.2);
@@ -447,7 +478,7 @@ export function stepBand(b: BandState, m: MeadowState): void {
       pace = 1.8 + 1.2 * Math.max(0, Math.sin(b.t * 2 + p.id));
     } else if (p.kin === "old") {
       // The old keep the fire and the camp.
-      const spot = { x: b.camp.x + Math.sin(p.seat) * 2.4, z: b.camp.z + Math.cos(p.seat) * 2.4 };
+      const spot = seatOf(b, p, 2.4);
       if (goTo(p, spot.x, spot.z, WALK * 0.7, 0.6)) p.doing = "tending";
       else {
         p.doing = "walking";
@@ -461,7 +492,10 @@ export function stepBand(b: BandState, m: MeadowState): void {
     } else if (p.hunter && b.kill) {
       // At the kill: cutting it up, then home with the meat.
       const k = b.kill;
-      if (goTo(p, k.x + Math.sin(p.seat) * 1.6, k.z + Math.cos(p.seat) * 1.6, WALK * 1.4, 0.8)) {
+      const about = 1.6 * b.spread;
+      if (
+        goTo(p, k.x + Math.sin(p.seat) * about, k.z + Math.cos(p.seat) * about, WALK * 1.4, 0.8)
+      ) {
         p.doing = "butchering";
         if (p.timer <= 0 && k.meat > 0) {
           p.timer = 1.2 + r();
@@ -543,8 +577,12 @@ export function stepBand(b: BandState, m: MeadowState): void {
   m.fire = b.going ? null : b.camp;
 
   // Come to the fresh ground: camp pitched, the fire lit.
-  if (b.going && b.people.every((p) => Math.hypot(p.x - b.going!.x, p.z - b.going!.z) < 6)) {
-    b.camp = b.going;
+  const g = b.going;
+  if (
+    g &&
+    b.people.every((p) => Math.hypot(p.x - g.x, p.z - g.z) < (3.2 + ROW * p.row) * b.spread + 2.8)
+  ) {
+    b.camp = g;
     b.going = null;
     b.here = 0;
     b.camps++;

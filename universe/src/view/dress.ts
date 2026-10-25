@@ -2,6 +2,9 @@
 // M93b): each group's colours by its land's era, their bare skin and their eyes — one
 // palette for the figures in a village and the figure on a person's page.
 import type { VillagePlan } from "../bridge/index.ts";
+import { HAIRS } from "./detail.ts";
+import { folkLook } from "./folk.ts";
+import type { FigureBody } from "./figure.ts";
 
 type Rgb = readonly [number, number, number];
 
@@ -44,3 +47,35 @@ export function clothes(era: VillagePlan["era"], group: number): { body: Rgb; le
 }
 /** Eyes. */
 export const EYES: Rgb = [0.07, 0.06, 0.06];
+
+/**
+ * The colour of each of a figure's tones (0 … 5) for one of its people's groups (Phase 34): the
+ * upright apes in their land's clothes, their bare skin, their eyes; a people in their own look in
+ * their hide, its darker limbs and lighter face, their markings and their eyes, and their clothes
+ * over it. Hair (and a people's markings) is each person's own: `hairs` are the colours to choose
+ * among, as `hairOf` chooses.
+ */
+export function figurePaint(
+  body: FigureBody | null,
+  era: VillagePlan["era"],
+  group: number,
+): {
+  readonly tones: readonly [Rgb, Rgb, Rgb, Rgb, Rgb, Rgb];
+  readonly hairs: readonly Rgb[];
+  /** Whether it is a people's own look (their clothes only over their hide). */
+  readonly folk: boolean;
+} {
+  const wear = clothes(era, group),
+    look = folkLook(body);
+  return look
+    ? {
+        tones: [look.hide, look.shade, look.under, look.mark, look.eye, wear.body],
+        hairs: look.marks,
+        folk: true,
+      }
+    : {
+        tones: [wear.body, wear.legs, SKIN, HAIRS[1]!, EYES, wear.body],
+        hairs: HAIRS,
+        folk: false,
+      };
+}

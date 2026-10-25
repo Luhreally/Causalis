@@ -356,7 +356,8 @@ export {
   starWords,
   type GalaxyPoints,
 } from "./galaxy.ts";
-export { EYES, GROUP_COLORS, SKIN, clothes } from "./dress.ts";
+export { EYES, GROUP_COLORS, SKIN, clothes, figurePaint } from "./dress.ts";
+export { MARK_SHADES, folkLook, hsl, type FolkLook, type Stance } from "./folk.ts";
 export { nameShape, namesThatFit, withinName, type LaidName, type NameShape } from "./mapnames.ts";
 export {
   FIELD_H,

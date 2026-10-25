@@ -14,6 +14,7 @@ import {
   cartAt,
   factoryPieces,
   figureOf,
+  figurePaint,
   itemParts,
   partExtent,
   materialColor,
@@ -181,6 +182,7 @@ export class WorkLayer {
     this.items.clear();
     this.plan = plan;
     const figure = figureOf(plan.body),
+      paint = figurePaint(plan.body, plan.era, 0),
       high = Math.max(...figure.parts.map((p) => p.y + partExtent(p)[1] / 2));
     this.lift = high / 0.55;
     const works = plan.works,
@@ -218,11 +220,18 @@ export class WorkLayer {
         traffic,
         beast: traffic.species >= 0 ? (species[traffic.species] ?? null) : null,
         walker,
-        walkers: [
-          this.gathered([0.46, 0.4, 0.32], n * walker.parts.length),
-          this.gathered([0.36, 0.3, 0.24], n * walker.parts.length),
-          this.gathered([0.86, 0.66, 0.5], n * walker.parts.length),
-        ],
+        // (A batch a tone: in travellers' drab, or a people's own look, Phase 34.)
+        walkers: (paint.folk
+          ? paint.tones
+          : ([
+              [0.46, 0.4, 0.32],
+              [0.36, 0.3, 0.24],
+              [0.86, 0.66, 0.5],
+              paint.tones[3],
+              paint.tones[4],
+              [0.46, 0.4, 0.32],
+            ] as const)
+        ).map((c) => this.gathered(c, n * walker.parts.length)),
         loads: this.gathered([0.5, 0.33, 0.2], n * 3),
         bodies: this.gathered(
           traffic.kind === "lorry" ? [0.3, 0.42, 0.72] : [0.5, 0.36, 0.22],

@@ -107,10 +107,16 @@ test("a band camps where the land would feed it: its old, its children and its g
     b.people.some((p) => p.hunter) && b.people.every((p) => !p.hunter || p.kin === "grown"),
   );
   assert.ok(b.shelters.length >= 2, "shelters about the fire");
+  // (About the fire in rings, as many on each as there is room for, drawn larger than life as they are.)
+  const out = b.people.map((p) => Math.hypot(p.x - b.camp.x, p.z - b.camp.z));
   assert.ok(
-    b.people.every((p) => Math.hypot(p.x - b.camp.x, p.z - b.camp.z) < 4),
-    "all about the fire",
+    out.every((d) => d > 2.5 && d < 6.5),
+    `all about the fire (${out.map((d) => d.toFixed(1)).join(" ")})`,
   );
+  for (const p of b.people)
+    for (const q of b.people)
+      if (p.id < q.id)
+        assert.ok(Math.hypot(p.x - q.x, p.z - q.z) > 1.6, `${p.id} and ${q.id} stand apart`);
   if (m.pond)
     assert.ok(Math.hypot(b.camp.x - m.pond.x, b.camp.z - m.pond.z) > m.pond.r, "not in the pool");
   assert.equal(Math.round(bandHour(b)), 7, "a morning");
@@ -142,7 +148,7 @@ test("by day the grown go out to gather and hunt, the children play, the old kee
     `hunting (seen ${[...byDay].join(", ")})`,
   );
   assert.deepEqual([...byNight].sort(), ["sleeping", "tending"], "asleep, one keeping the fire");
-  assert.ok(farAtNight < 6, `all home by night (${farAtNight.toFixed(1)} m out)`);
+  assert.ok(farAtNight < 7.5, `all home by night (${farAtNight.toFixed(1)} m out)`);
   assert.ok(b.gathered >= 5, `armfuls brought home: ${b.gathered}`);
   assert.equal(b.day, 2);
 });

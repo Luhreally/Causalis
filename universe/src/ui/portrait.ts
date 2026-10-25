@@ -19,8 +19,10 @@ import {
   clothes,
   coatOf,
   figureOf,
+  figurePaint,
   hairOf,
   houseLook,
+  partExtent,
   posed,
   type BeastPart,
 } from "../view/index.ts";
@@ -351,20 +353,25 @@ function personSolids(p: Extract<Portrait, { kind: "person" }>): Solid[] {
   const figure = figureOf(p.body, 3),
     group = p.child ? 3 : p.occupation === 6 ? 2 : p.occupation === 4 || p.occupation === 5 ? 1 : 0,
     wear = clothes(p.era, group),
-    hair = HAIRS[hairOf(p.ref, p.age, p.span)]!,
+    paint = figurePaint(p.body, p.era, group),
+    hair = paint.hairs[hairOf(p.ref, p.age, p.span)]!,
     scale = p.child ? 0.7 : 1;
+  // (A capsule's sizes are multiples of the figure's capsule: drawn as solids at their true extent.)
   const solids: Solid[] = figure.parts.map((q) => ({
     x: q.x * scale,
     y: q.y * scale,
     z: q.z * scale,
-    sx: q.sx * scale,
-    sy: q.sy * scale,
-    sz: q.sz * scale,
+    sx: partExtent(q)[0] * scale,
+    sy: partExtent(q)[1] * scale,
+    sz: partExtent(q)[2] * scale,
     yaw: 0,
     // (An arm held a little forward, to hold what they work with.)
     pitch: q.role === "arm" && q.x > 0 && !p.child ? -0.5 : 0,
-    color:
-      q.tone === 2
+    color: paint.folk
+      ? q.tone === 3
+        ? hair
+        : paint.tones[q.tone]
+      : q.tone === 2
         ? SKIN
         : q.tone === 3
           ? hair
