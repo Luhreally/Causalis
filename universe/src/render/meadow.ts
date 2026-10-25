@@ -107,6 +107,12 @@ const LOOKS: Readonly<Record<string, Look>> = {
   },
 };
 
+/** An age's ground and its lushest grass (the rise a battle is fought up, Phase 37 M185). */
+export function groundOfLook(kind: string): { dirt: Rgb; grass: Rgb } {
+  const look = LOOKS[kind] ?? LOOKS.quiet!;
+  return { dirt: look.dirt, grass: look.grass[3] };
+}
+
 /** A lineage of the meadow as drawn: its body, its three tones' batches and their instances. */
 type Drawn = {
   readonly body: Built;

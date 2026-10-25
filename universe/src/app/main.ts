@@ -30,6 +30,8 @@ import {
   runBench,
   MeadowScene,
   BandLayer,
+  BattleLayer,
+  groundOfLook,
   WeatherLayer,
   ActsNearLayer,
   type CarrierKind,
@@ -48,6 +50,7 @@ import {
   VillagePanel,
   WorldPanel,
   CampPanel,
+  BattlePanel,
   GalaxyPanel,
   GuidedWalk,
   FreeControls,
@@ -70,6 +73,7 @@ import {
   type PeopleEntry,
   type WorldStats,
   installTimeKeys,
+  type TimeKeys,
   TimeBar,
   typing,
   el,
@@ -79,6 +83,7 @@ import type {
   ActsMap,
   BeastPlan,
   CampNear,
+  BattleNear,
   ClusterPlan,
   LandPlan,
   LandSky,
@@ -106,6 +111,7 @@ import {
   type Director,
   type Take,
   type TownSeen,
+  type BattleSeen,
   goodsSpread,
   groundColors,
   cellAt,
@@ -148,6 +154,17 @@ import {
   type Weather,
   newBand,
   newMeadow,
+  BATTLE_LENGTH,
+  BATTLE_SPEEDS,
+  MOMENTS,
+  battleAt,
+  menAt,
+  mostFor,
+  newBattle,
+  trooperWords,
+  fieldMeadow,
+  type BattleField,
+  type BattleNow,
   stepBand,
   stepMeadow,
   type BandState,
@@ -282,6 +299,31 @@ type Exposed = {
   descend?: (cell: number) => void;
   /** How many villages the region on screen shows. */
   villages?: () => number;
+  /** Down to a battle's field to watch it fought (Phase 37 M186): whether it is watched. */
+  watchBattle?: (event: string) => Promise<boolean>;
+  /** The battle watched: its moment and speed, its hosts as drawn and as history counts them, what is told, those seen. */
+  battle?: () => {
+    event: string;
+    title: string;
+    outcome: string;
+    s: number;
+    speed: number;
+    per: number;
+    figures: number[];
+    standing: number[];
+    fallen: number[];
+    men: { standing: number[]; fallen: number[] };
+    words: string;
+    arrows: number;
+    parts: number;
+    followed: string | null;
+    onScreen: { id: number; side: number; act: string; at: { x: number; y: number } | null }[];
+    world: boolean;
+  } | null;
+  /** The battle watched set to a moment (its seconds), at one of its speeds (an index). */
+  battleAt?: (s: number, speed?: number) => void;
+  /** The world's clock: whether it stands (paused, or held), and the speed asked of it. */
+  clock?: () => { stopped: boolean; speed: number };
   /** A town of the land on screen as drawn from its fabric: its square and reach (region units); and the parts drawn in all (M150). */
   landTown?: (ref: string) => { x: number; z: number; r: number } | null;
   landParts?: () => number;
@@ -675,8 +717,16 @@ async function runPlanetPage(): Promise<void> {
   );
   const { client, mode } = await connect();
   let painted = 0,
-    scale: "globe" | "region" | "camp" | "village" | "system" | "cluster" | "world" | "galaxy" =
-      "globe",
+    scale:
+      | "globe"
+      | "region"
+      | "camp"
+      | "battle"
+      | "village"
+      | "system"
+      | "cluster"
+      | "world"
+      | "galaxy" = "globe",
     clusterPlan: ClusterPlan | null = null,
     systemPlan: SystemPlan | null = null,
     // The system the sky shows (the home star's, or another's, M95), which the sky's scene
@@ -694,7 +744,12 @@ async function runPlanetPage(): Promise<void> {
   // One clock for every scale, its speeds the scale's own (asked for 2026-10-24): the date
   // drawn each frame, as the scales draw the world.
   const time = new TimeBar(client, "globe", true);
-  installTimeKeys(time);
+  // (While a battle is watched, Space and the numbers work its own clock: Phase 37 M186.)
+  let battleKeys: TimeKeys | null = null;
+  installTimeKeys({
+    toggle: () => (scale === "battle" && battleKeys ? battleKeys.toggle() : time.toggle()),
+    pick: (i) => (scale === "battle" && battleKeys ? battleKeys.pick(i) : time.pick(i)),
+  });
   let lens: Lens = "terrain",
     regionLens: RegionLens = "land",
     density = new Map<number, number>(),
@@ -1690,7 +1745,9 @@ async function runPlanetPage(): Promise<void> {
                     ? tapGalaxy(x, y)
                     : scale === "camp"
                       ? tapCamp(x, y)
-                      : tapVillage(x, y),
+                      : scale === "battle"
+                        ? tapBattle(x, y)
+                        : tapVillage(x, y),
   });
   /**
    * What stands at a point of a village's ground, of what is not a person or a beast (M93):
@@ -1757,6 +1814,12 @@ async function runPlanetPage(): Promise<void> {
       }
       case "camp":
         return campThingAt(x, y);
+      case "battle": {
+        // (One who fought: their side's realm.)
+        const who = fight && battleLayer ? battleLayer.pick(fight.now, x, y) : null,
+          t = who === null ? undefined : fight?.now.troopers[who];
+        return t ? (t.side === 0 ? fight!.info.attacker.ref : fight!.info.defender.ref) : null;
+      }
       case "region": {
         const war = regionWars.pick(x, y);
         if (war) return war;
@@ -1967,7 +2030,10 @@ async function runPlanetPage(): Promise<void> {
               // (Out to its countryside: its farthest fields and its pasture, Phase 32.)
               reach: Math.max(plan?.districts ? 600 : 300, village.countryReach()) * VILLAGE_METRE,
             }
-          : null;
+          : scale === "battle"
+            ? // (Over the field it was fought on: seventy metres either way.)
+              { x: 0, z: 0, reach: 7.5 }
+            : null;
   });
   // Framed between the bar of whichever scale is up and, on a phone, the sheet open below
   // (read a few times a second, not each frame).
@@ -2716,6 +2782,7 @@ async function runPlanetPage(): Promise<void> {
     followHome = false;
     if (way === "out") {
       if (scale === "camp") await leaveCamp();
+      else if (scale === "battle") await leaveBattle();
       else if (scale === "village") {
         const tile = villages.find((v) => v.ref === plan?.ref)?.tile;
         await fadeOver(() => villagePanel.onBack?.());
@@ -2864,8 +2931,14 @@ async function runPlanetPage(): Promise<void> {
           best = i;
         }
       });
-      // (Zoomed in on a battle: its village, its view facing the fight.)
-      const war = regionWars.pick(aim.x, aim.y, 160, true);
+      // Zoomed in on a battle: down onto its field to watch it fought (Phase 37 M186); near
+      // enough it, its village, its view facing the fight.
+      const war = regionWars.pick(aim.x, aim.y, 160, true),
+        field = regionWars.pick(aim.x, aim.y, 90, true);
+      if (field?.startsWith("ev:")) {
+        await fadeOver(() => ready("the battle", () => toBattle(field)));
+        return;
+      }
       // A band's camp under the pointer, nearer it than any village (Phase 29 M160): down among
       // them — not where a battle is zoomed into, nor a camp far off the pointer while a village
       // stands on the land.
@@ -2912,6 +2985,7 @@ async function runPlanetPage(): Promise<void> {
       case "region":
         return { speed: 0.5, height: 8, clearance: 0.12 };
       case "camp":
+      case "battle":
         // (The meadow's metres a tenth of a unit: at a run, as high as a tall tree's top or more.)
         return { speed: 0.6, height: 3.5, clearance: 0.05 };
       case "globe":
@@ -3069,7 +3143,7 @@ async function runPlanetPage(): Promise<void> {
         });
       };
     if (scale === "village" && s.y > 140 * VILLAGE_METRE) go(() => zoomThrough("out"));
-    else if (scale === "camp" && s.y > 3.2) go(() => zoomThrough("out"));
+    else if ((scale === "camp" || scale === "battle") && s.y > 3.2) go(() => zoomThrough("out"));
     else if (scale === "region") {
       const under = region.heightAt(s.x, s.z);
       if (s.y - under > 180) {
@@ -3650,6 +3724,303 @@ async function runPlanetPage(): Promise<void> {
           })),
         }
       : null;
+  // A battle watched (Phase 37 M186, asked for 2026-10-24: "i still cant see warfare and like wars
+  // like theres no coherent animations and battle between them or a way to make time in a way for
+  // me to see the carnage"): down on the field a battle of history was fought on, the world's
+  // clock held while it is watched, and the battle on a clock of its own — held still, at half
+  // its pace, its own, twice or four times, again from its start, or drawn back and forth to any
+  // moment of it; one who fought followed where tapped, and told.
+  const battlePanel = new BattlePanel(hud);
+  let battleLayer: BattleLayer | null = null,
+    fight: {
+      info: BattleNear;
+      field: BattleField;
+      meadow: MeadowState;
+      /** Its moment (its seconds), its speed (of BATTLE_SPEEDS), the speed it was at before held. */
+      s: number;
+      speed: number;
+      was: number;
+      now: BattleNow;
+      /** The one followed (-1: the hosts), and when they were told last. */
+      followed: number;
+      toldAt: number;
+    } | null = null;
+  /** Where the eye keeps: on the line where they fight, else midway between the two hosts as they go. */
+  const battleMiddle = () => {
+    if (!fight) return null;
+    let fx = 0,
+      fz = 0,
+      fn = 0;
+    for (const t of fight.now.troopers)
+      if (t.act === "fight") {
+        fx += t.x;
+        fz += t.z;
+        fn++;
+      }
+    if (fn >= 6) return { x: (fx / fn) * 0.1, y: 0.15, z: (fz / fn) * 0.1 };
+    const mid = [0, 1].map((side) => {
+      let x = 0,
+        z = 0,
+        n = 0;
+      for (const t of fight!.now.troopers)
+        if (t.side === side && t.act !== "fall" && t.size > 0.3) {
+          x += t.x;
+          z += t.z;
+          n++;
+        }
+      return n ? { x: x / n, z: z / n } : null;
+    });
+    const [a, d] = mid,
+      at = a && d ? { x: (a.x + d.x) / 2, z: (a.z + d.z) / 2 } : (a ?? d ?? { x: 0, z: 0 });
+    return { x: at.x * 0.1, y: 0.15, z: at.z * 0.1 };
+  };
+  /** The eye kept on one who fought (their id), or on the hosts (null). */
+  const followTrooper = (id: number | null) => {
+    if (!fight) return;
+    fight.followed = id ?? -1;
+    fight.toldAt = -Infinity;
+    rig.follow =
+      id === null
+        ? battleMiddle
+        : () => {
+            const t = fight?.now.troopers[id];
+            return t ? { x: t.x * 0.1, y: 0.12 + t.y * 0.1, z: t.z * 0.1 } : null;
+          };
+    if (id !== null) {
+      const t = fight.now.troopers[id];
+      if (t)
+        rig.flyTo(
+          {
+            target: { x: t.x * 0.1, y: 0.12 + t.y * 0.1, z: t.z * 0.1 },
+            distance: Math.min(rig.distance, 3.5),
+          },
+          0.8,
+        );
+    }
+  };
+  /** The battle's clock: at speed `i` of its own (0 holds it still). */
+  const battleSpeed = (i: number) => {
+    if (!fight) return;
+    const was = fight.speed;
+    fight.speed = Math.max(0, Math.min(BATTLE_SPEEDS.length - 1, i));
+    if (fight.speed === 0 && was > 0) fight.was = was;
+    // (Run on from its end: again from its start.)
+    if (fight.speed > 0 && fight.s >= BATTLE_LENGTH) fight.s = 0;
+  };
+  battleKeys = {
+    toggle: () => {
+      if (fight) battleSpeed(fight.speed === 0 ? fight.was : 0);
+    },
+    pick: (i) => {
+      if (!fight || i < 1 || i >= BATTLE_SPEEDS.length) return false;
+      battleSpeed(i);
+      return true;
+    },
+  };
+  const toBattle = async (event: string): Promise<void> => {
+    const info = await client.query<BattleNear | null>({ type: "battle.near", args: { event } });
+    if (!info) return;
+    leaveScale();
+    scale = "battle";
+    const detail = tier.name === "phone" ? 1 : 2;
+    if (!meadowScene) {
+      meadowScene = new MeadowScene(stage);
+      meadowScene.setDetail(detail);
+      bandLayer = new BandLayer(stage, meadowScene.root);
+    }
+    battleLayer ??= new BattleLayer(stage, meadowScene.root);
+    labels.clear();
+    bubbles.clear();
+    globe.visible = false;
+    planetPanel.visible = false;
+    region.visible = false;
+    regionPanel.visible = false;
+    regionCell = info.cell;
+    client.setInterest({ view: "region", focus: `cell:0:${info.cell}` });
+    meadowScene.reset();
+    const meadow = newMeadow(info.plan, 0, info.plan.seed, true),
+      field = newBattle(info, mostFor(detail));
+    // (The field cleared for the hosts, trodden where they go and worn where the fallen lie.)
+    fieldMeadow(field, meadow);
+    battleLayer.setup(
+      field,
+      info.figure ? figureOf(info.figure, detail) : null,
+      info.figure,
+      groundOfLook(meadow.kindOfAge).grass,
+    );
+    fight = {
+      info,
+      field,
+      meadow,
+      s: 0,
+      speed: 2,
+      was: 2,
+      now: battleAt(field, 0),
+      followed: -1,
+      toldAt: -Infinity,
+    };
+    if (bandLayer) bandLayer.root.enabled = false;
+    meadowScene.visible = true;
+    meadowScene.season(null);
+    stage.backdrop("ground", 40);
+    battlePanel.show(info, field.per);
+    battlePanel.visible = true;
+    // (The world waits while its battle is watched.)
+    time.hold("battle");
+    rig.configure({
+      distance: 7.5,
+      minDistance: 1.2,
+      maxDistance: 24,
+      pitch: -20,
+      minPitch: -85,
+      maxPitch: -5,
+      drift: 0,
+      target: [-1, 0.15, 0],
+    });
+    rig.yaw = 14;
+    rig.follow = battleMiddle;
+  };
+  /** Down to a battle's field, from wherever the eye is. */
+  const watchBattle = async (event: string) => {
+    walk.saw("scale");
+    pageWindow.close();
+    await fadeOver(() => ready("the battle", () => toBattle(event)));
+  };
+  pageWindow.onBattle = (event) => void watchBattle(event);
+  /** Back up to the land it was fought in, low over it. */
+  const leaveBattle = async () => {
+    const was = fight?.info;
+    if (!was) return;
+    await fadeOver(() =>
+      ready("the land", () => {
+        leaveScale();
+        toRegion(was.cell);
+      }),
+    );
+  };
+  battlePanel.onBack = () => void leaveBattle();
+  battlePanel.onPage = () => {
+    if (fight) void pageWindow.open(fight.info.event);
+  };
+  battlePanel.onAgain = () => {
+    if (!fight) return;
+    fight.s = 0;
+    if (fight.speed === 0) battleSpeed(fight.was);
+  };
+  battlePanel.onSpeed = (i) => battleSpeed(i);
+  battlePanel.onScrub = (s) => {
+    if (!fight) return;
+    fight.s = Math.max(0, Math.min(BATTLE_LENGTH, s));
+    fight.now = battleAt(fight.field, fight.s);
+  };
+  battlePanel.onSide = (ref) => void pageWindow.open(ref);
+  // A tap on the field: one who fought followed (tapped again, the battle's page); the open
+  // ground, the hosts again.
+  const tapBattle = (x: number, y: number) => {
+    if (!fight || !battleLayer) return;
+    const who = battleLayer.pick(fight.now, x, y);
+    if (who !== null) {
+      if (who === fight.followed) void pageWindow.open(fight.info.event);
+      else followTrooper(who);
+      return;
+    }
+    if (fight.followed >= 0) followTrooper(null);
+  };
+  /** How near the eye keeps as the battle goes, unless the viewer has set it: nearer as the lines meet. */
+  const battleDistance = (s: number) =>
+    s < MOMENTS.charge
+      ? 7.5
+      : s < MOMENTS.melee
+        ? 7.5 - 2.7 * ((s - MOMENTS.charge) / (MOMENTS.melee - MOMENTS.charge))
+        : s < MOMENTS.rout
+          ? 4.8
+          : s < MOMENTS.after
+            ? 4.8 + 2.7 * ((s - MOMENTS.rout) / (MOMENTS.after - MOMENTS.rout))
+            : 7.5;
+  stage.onUpdate((dt) => {
+    if (scale !== "battle" || !fight || !battleLayer || !meadowScene) return;
+    const pace = BATTLE_SPEEDS[fight.speed] ?? 0;
+    if (!rig.userZoomed && fight.followed < 0 && !rig.steering)
+      rig.distance +=
+        (battleDistance(fight.s) - rig.distance) * (1 - Math.exp(-Math.min(dt, 0.1) * 1.5));
+    if (pace > 0) {
+      fight.s = Math.min(BATTLE_LENGTH, fight.s + Math.min(dt, 0.1) * pace);
+      // (At its end it stands, the field as it was left.)
+      if (fight.s >= BATTLE_LENGTH) battleSpeed(0);
+    }
+    fight.now = battleAt(fight.field, fight.s);
+    meadowScene.update(fight.meadow, []);
+    battleLayer.update(fight.now);
+    // A battle fought by day: from the morning into the afternoon as it goes.
+    stage.daylight((9 + (7 * fight.s) / BATTLE_LENGTH) / 24);
+    const men = menAt(fight.field, fight.now);
+    battlePanel.tally(fight.s, men.standing, men.fallen, fight.now.words, fight.speed);
+    // Each host's name over it, with how many of it stand; the one followed, marked over them.
+    const sides = [fight.info.attacker, fight.info.defender] as const,
+      over = battleLayer.hostsOnScreen(fight.now),
+      followed = fight.followed >= 0 ? fight.now.troopers[fight.followed] : undefined;
+    labels.update([
+      ...sides.flatMap((side, i) =>
+        over[i]
+          ? [
+              {
+                key: `host:${i}`,
+                text: `${i === 0 ? "⚔️" : "🛡️"} ${side.name} · ${men.standing[i]!.toLocaleString("en-US")}`,
+                at: over[i],
+                priority: 2,
+                badge: { realm: side.ref },
+              },
+            ]
+          : [],
+      ),
+      ...(followed
+        ? [{ key: "followed", text: "👁", at: battleLayer.onScreen(followed, 0.3), priority: 3 }]
+        : []),
+    ]);
+    const wall = performance.now();
+    if (fight.followed >= 0 && wall - fight.toldAt >= 250) {
+      fight.toldAt = wall;
+      battlePanel.follow(trooperWords(fight.field, fight.followed, fight.s));
+    } else if (fight.followed < 0 && fight.toldAt !== -Infinity) {
+      fight.toldAt = -Infinity;
+      battlePanel.follow("");
+    }
+  });
+  exposed.watchBattle = async (event: string) => {
+    await watchBattle(event);
+    return scale === "battle";
+  };
+  exposed.battle = () =>
+    fight && battleLayer
+      ? {
+          event: fight.info.event,
+          title: fight.info.title,
+          outcome: fight.info.outcome,
+          s: fight.s,
+          speed: BATTLE_SPEEDS[fight.speed] ?? 0,
+          per: fight.field.per,
+          figures: [fight.field.hosts[0].n, fight.field.hosts[1].n],
+          standing: [...fight.now.standing],
+          fallen: [...fight.now.fallen],
+          men: menAt(fight.field, fight.now),
+          words: fight.now.words,
+          arrows: fight.now.flying.length,
+          parts: battleLayer.count(),
+          followed: fight.followed >= 0 ? trooperWords(fight.field, fight.followed, fight.s) : null,
+          onScreen: fight.now.troopers
+            .filter((t) => t.size > 0.3)
+            .slice(0, 400)
+            .map((t) => ({ id: t.id, side: t.side, act: t.act, at: battleLayer!.onScreen(t) })),
+          world: time.stopped,
+        }
+      : null;
+  exposed.battleAt = (s: number, speed?: number) => {
+    if (!fight) return;
+    fight.s = Math.max(0, Math.min(BATTLE_LENGTH, s));
+    fight.now = battleAt(fight.field, fight.s);
+    if (speed !== undefined) battleSpeed(speed);
+  };
+  exposed.clock = () => ({ stopped: time.stopped, speed: time.speed });
   // The land's weather where the eye is on the ground (Phase 30 M162, asked for 2026-10-24: "be
   // able to pause and influence and all that"): among a band, over a land, in a town — its sky
   // read every few seconds (and at once when the god's hand falls), and played moment by moment:
@@ -3933,6 +4304,17 @@ async function runPlanetPage(): Promise<void> {
       campPanel.visible = false;
       rig.follow = null;
       near = null;
+    } else if (scale === "battle") {
+      if (meadowScene) meadowScene.visible = false;
+      battleLayer?.clear();
+      if (battleLayer) battleLayer.root.enabled = false;
+      battlePanel.visible = false;
+      battlePanel.follow("");
+      labels.clear();
+      rig.follow = null;
+      fight = null;
+      // (The world goes on as it went before the battle was watched.)
+      time.release("battle");
     } else if (
       scale === "system" ||
       scale === "cluster" ||
@@ -4481,6 +4863,11 @@ async function runPlanetPage(): Promise<void> {
         await toWholeWorld();
         time.pick(2);
         return;
+      case "battle":
+        // (Down onto its field just before the charge, at twice its pace.)
+        await watchBattle(s.event);
+        if (scale === "battle") exposed.battleAt?.(36, 3);
+        return;
     }
   };
   /** The next take, when the one shown has had its time or a first comes. */
@@ -4488,7 +4875,7 @@ async function runPlanetPage(): Promise<void> {
     if (!directorControls.watching || filming || !director) return;
     // (Held while the clock is, a page is read, or the god's hand holds an act to lay on the
     // world shown: the take lasts on.)
-    if (time.stopped || pageWindow.current || palette.holding) {
+    if ((time.stopped && scale !== "battle") || pageWindow.current || palette.holding) {
       takeUntil = Math.max(takeUntil, performance.now() + 1500);
       return;
     }
@@ -4503,7 +4890,15 @@ async function runPlanetPage(): Promise<void> {
           args: {},
         });
       if (!directorControls.watching) return;
-      const next = nextTake(director, firsts, towns.slice(0, 12), peopled);
+      // (The battles of the last two years, as the wars' map has them.)
+      const battles: BattleSeen[] = warsNow
+          ? warsNow.wars.flatMap((w) =>
+              w.battles
+                .filter((b) => b.year >= warsNow!.year - 2)
+                .map((b) => ({ event: b.event, year: b.year, fallen: b.fallen })),
+            )
+          : [],
+        next = nextTake(director, firsts, towns.slice(0, 12), peopled, battles);
       directorControls.tell(next.words);
       take = next;
       takeUntil = Infinity;

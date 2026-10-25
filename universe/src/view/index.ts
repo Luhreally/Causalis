@@ -132,6 +132,29 @@ export {
   type Way,
 } from "./land.ts";
 export { STRIDES, bobOf, limbPitch } from "./motion.ts";
+export {
+  BATTLE_LENGTH,
+  BATTLE_SPEEDS,
+  FIELD,
+  MOMENTS,
+  battleAt,
+  battleGroundAt,
+  menAt,
+  mostFor,
+  newBattle,
+  placeAt,
+  fieldMeadow,
+  trooperWords,
+  strokeOf,
+  type Act,
+  type BattleField,
+  type BattleGround,
+  type BattleNow,
+  type HostDrawn,
+  type Stroke,
+  type Trooper,
+  type TrooperNow,
+} from "./battle.ts";
 export { BLINK, DASH, FAR, SMOOTH, present, type Presence } from "./presence.ts";
 export {
   BEYOND,
@@ -465,10 +488,12 @@ export {
 export { actsNear, type ActsNear, type NearMote } from "./nearacts.ts";
 export {
   BEHIND,
+  GREAT_BATTLE,
   firstWords,
   newDirector,
   nextTake,
   untold,
+  type BattleSeen,
   type Director,
   type Shot,
   type Take,

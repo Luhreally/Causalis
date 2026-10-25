@@ -1,0 +1,56 @@
+// A battle seen near (Phase 37 M183, asked for 2026-10-24: "i still cant see warfare and like wars
+// like theres no coherent animations and battle between them or a way to make time in a way for
+// me to see the carnage"): what history says of one battle — its two hosts, how many each had in
+// the field and how many of them fell, what they fought with, who won and what came of it — and
+// the ground it was fought on: its land as it is now, its hills, its river, a seat's walls.
+// Looked at, never lived: the battle is history's, and what is drawn follows what it says.
+import type { Arms } from "./arms.ts";
+import type { GenesisPlan, MeadowPlan } from "./genesis.ts";
+import type { HostKinds } from "./wars.ts";
+
+/** One of a battle's two hosts. */
+export type BattleSideNear = {
+  /** Its realm (a fallen one still has its name). */
+  readonly ref: string;
+  readonly name: string;
+  readonly color: readonly [number, number, number];
+  /** Its realm's arms (null: a realm fallen and forgotten). */
+  readonly arms: Arms | null;
+  /** The men it had in the field, and those of them who fell. */
+  readonly fielded: number;
+  readonly fallen: number;
+  /** What it fought with: its host's design (on foot with spears, where it had none). */
+  readonly host: HostKinds | null;
+  /** That host in words: "bronze swords and shields, on foot". */
+  readonly kit: string;
+};
+
+/** What the battle won: the field, a siege laid about a seat, a land taken, a seat stormed. */
+export type BattleOutcome = "held" | "field" | "siege" | "taken" | "stormed";
+
+export type BattleNear = {
+  /** The battle's event, and its war's. */
+  readonly event: string;
+  readonly war: string;
+  /** "The battle at Kanickath's land" — and where, and when. */
+  readonly title: string;
+  readonly cell: number;
+  readonly land: string;
+  readonly year: number;
+  readonly attacker: BattleSideNear;
+  readonly defender: BattleSideNear;
+  /** Whether the attacker won. */
+  readonly won: boolean;
+  readonly outcome: BattleOutcome;
+  /** A rising (a civil war's battle): what it was fought over (null: a war between realms). */
+  readonly civil: string | null;
+  /** The ground: hills the defenders hold, a river between, a seat's walls (0 none, 1 a palisade, 2 stone). */
+  readonly hills: boolean;
+  readonly river: boolean;
+  readonly walls: 0 | 1 | 2;
+  /** The town behind the walls, at a seat (null: none). */
+  readonly town: string | null;
+  /** The world's people's figure (their look, Phase 34), and the land's ground as it is now. */
+  readonly figure: NonNullable<GenesisPlan["people"]>["figure"] | null;
+  readonly plan: MeadowPlan;
+};

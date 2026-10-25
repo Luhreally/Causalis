@@ -447,6 +447,19 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
     ],
     keys: [b.year, landTitle(world, b.land), b.won ? 1 : 0, b.fallen[0] + b.fallen[1]],
   }));
+  const last = w.battles.at(-1),
+    watchLast: Block[] = last
+      ? [
+          {
+            type: "tool",
+            tool: "watch.battle",
+            args: {
+              event: last.event,
+              label: `⚔️ Watch its last battle (year ${last.year})`,
+            },
+          },
+        ]
+      : [];
   const hostOf = (side: "attacker" | "defender"): Block[] => {
     const realm = side === "attacker" ? w.attacker : w.defender,
       design = designsOf(world).of(realm),
@@ -500,13 +513,18 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
           ],
         },
         warTally(world, w),
+        // (Its last battle watched fought, Phase 37 M186.)
+        ...watchLast,
         { type: "why", title: "Why it was fought", ref: w.ref },
       ],
     },
     {
       id: "battles",
       name: "Battles",
-      blocks: [{ type: "table", columns: ["When", "Where", "Won by", "Fallen"], rows: battleRows }],
+      blocks: [
+        ...watchLast,
+        { type: "table", columns: ["When", "Where", "Won by", "Fallen"], rows: battleRows },
+      ],
     },
     // Its course (Phase 13 M115): the fallen year by year, the men each fields, the lands taken.
     { id: "course", name: "Course", blocks: courseBlocks(world, w) },
@@ -624,6 +642,8 @@ export function battlePage(world: World, ref: string): PageModel {
                 : []),
             ],
           },
+          // (Watched fought on its field, Phase 37 M186.)
+          ...(b ? [{ type: "tool" as const, tool: "watch.battle", args: { event: ref } }] : []),
           { type: "why", ref },
         ],
       },

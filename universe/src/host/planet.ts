@@ -131,6 +131,7 @@ import { hostKinds, realmArms } from "./arms.ts";
 import { villagePlan } from "./village.ts";
 import { landPlan } from "./land.ts";
 import { campNear } from "./camp.ts";
+import { battleNear } from "./battle.ts";
 import { landReadings } from "./lenses.ts";
 import { genesisOf } from "./genesis.ts";
 import { TRAIT_LOOK } from "./inspect/folk.ts";
@@ -1167,6 +1168,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
         const a = args as { cell: number; id: number };
         return campNear(world, a.cell, a.id);
       },
+      // A battle seen near (Phase 37 M183): its hosts, its ground, what came of it.
+      "battle.near": (world, args) => battleNear(world, (args as { event: string }).event),
       ...OBSERVE_QUERIES,
       ...PAGE_QUERIES,
       // Every thing's page, and where it is to be seen (Phase 10 M91). (Called through, not

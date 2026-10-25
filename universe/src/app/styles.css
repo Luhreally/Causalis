@@ -536,6 +536,132 @@ body[data-scale="micro"] {
   color: #a9e3c9;
   font-variant-numeric: tabular-nums;
 }
+/* A battle watched (Phase 37 M186): its two hosts either side of its course. */
+.battle-title {
+  flex: 1 1 14rem;
+  color: var(--ink);
+  font-weight: 600;
+}
+.battle-sheet {
+  flex-basis: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+.battle-side {
+  --side: #888;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+  border-left: 6px solid var(--side);
+  padding: 6px 8px;
+}
+.battle-side.side-1 {
+  align-items: flex-end;
+  text-align: right;
+  border-left: 1px solid var(--line);
+  border-right: 6px solid var(--side);
+}
+.battle-side-name {
+  font-weight: 650;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.battle-side-kit {
+  font-size: 0.78rem;
+  color: inherit;
+  opacity: 0.75;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.battle-side-tally {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.battle-side-track {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.battle-side-bar {
+  display: block;
+  height: 100%;
+  background: var(--side);
+}
+.battle-side.side-1 .battle-side-bar {
+  margin-left: auto;
+}
+.battle-middle {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+.battle-told {
+  text-align: center;
+  font-weight: 650;
+  font-size: 1rem;
+  min-height: 1.3em;
+}
+.battle-course {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  touch-action: none;
+}
+.battle-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #c9a24a, #c0392b);
+}
+.battle-mark {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.55);
+}
+.battle-each {
+  text-align: center;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.battle-followed {
+  text-align: center;
+  font-size: 0.82rem;
+  color: #ffe08a;
+}
+.battle-followed[hidden] {
+  display: none;
+}
+@media (max-width: 640px) {
+  .battle-sheet {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .battle-middle {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .battle-side-kit {
+    display: none;
+  }
+}
 .genesis .genesis-count {
   margin: 0 0 6px;
   font-size: 0.82rem;

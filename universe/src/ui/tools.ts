@@ -17,6 +17,8 @@ export type ToolContext = {
   readonly watch?: (cell: number, town: string) => void;
   /** Go down among a band of a land's camp (Phase 29 M160). */
   readonly near?: (cell: number, camp: number) => void;
+  /** Watch a battle fought (Phase 37 M186). */
+  readonly battle?: (event: string) => void;
 };
 
 type Settlement = {
@@ -97,6 +99,15 @@ export function drawTool(
       b.title =
         "Down among one of the camp's bands, at the world's own hour: gathering, hunting the land's beasts, sleeping about the fire.";
       b.onclick = () => ctx.near!(args.cell as number, args.camp as number);
+      into.append(b);
+      return;
+    }
+    case "watch.battle": {
+      if (!ctx.battle) return;
+      const b = el("button", "act", (args.label as string | undefined) ?? "⚔️ Watch the battle");
+      b.title =
+        "Down to the field it was fought on, on a clock of its own: the hosts drawn up, the arrows, the charge, the lines meeting, the beaten breaking and the fallen — held still, slowed, or drawn back and forth.";
+      b.onclick = () => ctx.battle!(args.event as string);
       into.append(b);
       return;
     }

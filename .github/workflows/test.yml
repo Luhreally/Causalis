@@ -241,6 +241,12 @@ jobs:
       - run: npm run gate:36 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 37 gate: battles seen (a battle of history watched on its field, the world held
+      # while its own clock runs, held and sped and drawn back and forth; its hosts in proportion and
+      # as many fallen as history says; one who fought followed; back to the land; on a phone).
+      - run: npm run gate:37 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

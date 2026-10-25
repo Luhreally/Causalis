@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   BEHIND,
+  GREAT_BATTLE,
   firstWords,
   newDirector,
   nextTake,
@@ -104,4 +105,26 @@ test("fallen behind the world, the lesser firsts are let go and the stages kept"
   const e = newDirector([]),
     few = now.slice(0, BEHIND);
   assert.equal(nextTake(e, few, [], []).words, "🐪 The first trade road — year 2");
+});
+
+test("now and then a great battle lately fought, down on its field: the greatest not yet watched, never one after another (Phase 37 M187)", () => {
+  const d = newDirector([]),
+    towns = [town("a", 900), town("b", 400)],
+    battles = [
+      { event: "ev:0:10", year: 50, fallen: 40 },
+      { event: "ev:0:11", year: 50, fallen: 600 },
+      { event: "ev:0:12", year: 51, fallen: 300 },
+    ];
+  const first = nextTake(d, [], towns, [], battles);
+  assert.deepEqual(first.shot, { kind: "battle", event: "ev:0:11", year: 50, fallen: 600 });
+  assert.equal(first.words, "⚔️ A battle of year 50: 600 fall");
+  // (Not straight after: the round goes on a while first.)
+  const between = [0, 1, 2].map(() => nextTake(d, [], towns, [], battles).shot.kind);
+  assert.deepEqual(between, ["grow", "street", "world"]);
+  const next = nextTake(d, [], towns, [], battles);
+  assert.equal(next.shot.kind === "battle" && next.shot.event, "ev:0:12");
+  // A battle too small to go down to, and one already watched, are not taken.
+  const e = newDirector([]);
+  assert.ok(GREAT_BATTLE > 40);
+  assert.equal(nextTake(e, [], towns, [], [battles[0]!]).shot.kind, "grow");
 });

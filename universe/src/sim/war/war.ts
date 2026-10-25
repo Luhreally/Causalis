@@ -61,6 +61,10 @@ export type Battle = {
   readonly won: boolean;
   readonly fallen: readonly [number, number];
   readonly event: Ref;
+  /** The men each side had in the field (Phase 37 M183: the battle seen; absent in older saves). */
+  readonly fielded?: readonly [number, number];
+  /** Whether it was fought at the defender's seat, about its walls (M183). */
+  readonly seat?: boolean;
 };
 
 /** What a civil war is fought over (Phase 22 M146): a throne at a succession, a general's revolt, a pretender's claim, an old court's return, the freed taken back. */
@@ -575,7 +579,15 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       ],
       data: { a: realmName(a), b: realmName(b), won, fallen: fa + fb },
     });
-    w.battles.push({ year, land, won, fallen: [fa, fb], event: battle });
+    w.battles.push({
+      year,
+      land,
+      won,
+      fallen: [fa, fb],
+      event: battle,
+      fielded: [Math.round(fieldedOf(ctx, a)), Math.round(fieldedOf(ctx, b))],
+      seat,
+    });
     // A seat is not taken in a day: the first victory there lays a siege, the second takes it.
     const besieged = seat && won && !w.battles.slice(0, -1).some((x) => x.land === land && x.won);
     if (won && !besieged) {
