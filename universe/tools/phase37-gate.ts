@@ -192,10 +192,13 @@ if (greatest) {
   check(!!one, "one who fought seen on the screen");
   if (one?.at) {
     await page.mouse.click(one.at.x, one.at.y);
+    // (Told on the panel at the next frame drawn after: slow in software, so waited for too.)
     await until(
       page,
       "the one tapped followed",
-      async () => !!(await seen(page))?.followed,
+      async () =>
+        !!(await seen(page))?.followed &&
+        !!(await page.locator(".battle-followed").textContent())?.trim(),
       slow(8000),
     );
     const told = await page.locator(".battle-followed").textContent();
