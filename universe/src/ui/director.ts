@@ -4,8 +4,12 @@
 // (the page listens for that); a moment's word then says the eye is theirs again.
 import { el } from "./why.ts";
 
-/** How long the word that the eye is the viewer's again stays (ms). */
-const LET_GO_MS = 6000;
+/**
+ * How long the word that the eye is the viewer's again stays (ms), and over at the least how many
+ * frames drawn (on a machine slow to draw, it is still seen).
+ */
+const LET_GO_MS = 6000,
+  LET_GO_FRAMES = 90;
 
 export class DirectorControls {
   readonly button = el("button", "director-button", "🎬");
@@ -14,7 +18,7 @@ export class DirectorControls {
   /** (On a phone, only its hand.) */
   private readonly stop = el("button", "link director-stop", "✋");
   private on = false;
-  private letGoTimer = 0;
+  private letGoFrame = 0;
   /** Asked to watch, or to stop watching. */
   onToggle: (on: boolean) => void = () => {};
 
@@ -46,7 +50,7 @@ export class DirectorControls {
     this.on = on;
     this.button.classList.toggle("on", on);
     this.button.setAttribute("aria-pressed", String(on));
-    clearTimeout(this.letGoTimer);
+    cancelAnimationFrame(this.letGoFrame);
     this.stop.hidden = !on;
     if (on) {
       this.caption.hidden = false;
@@ -54,7 +58,15 @@ export class DirectorControls {
     } else {
       this.words.textContent = "✋ The eye is yours again — 🎬 to watch it emerge";
       this.caption.classList.add("let-go");
-      this.letGoTimer = window.setTimeout(() => (this.caption.hidden = true), LET_GO_MS);
+      // (Gone once it has stood its time over as many frames drawn.)
+      const from = performance.now();
+      let frames = 0;
+      const wait = () => {
+        if (++frames >= LET_GO_FRAMES && performance.now() - from >= LET_GO_MS)
+          this.caption.hidden = true;
+        else this.letGoFrame = requestAnimationFrame(wait);
+      };
+      this.letGoFrame = requestAnimationFrame(wait);
     }
   }
 
