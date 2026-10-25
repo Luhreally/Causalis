@@ -137,6 +137,15 @@ button:active {
 .tool:hover {
   background: linear-gradient(180deg, #fbffe9 0%, #e3ff98 46%, #bff23c 54%, #edffb8 100%);
 }
+/* An act laid and standing (the world's making as the hand made it): lit sea-green. */
+.genesis-acts .act.on {
+  color: #032b24;
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #e9fff8 0%, #8ff3d6 46%, #43d9b2 54%, #a9f7e2 100%);
+  box-shadow:
+    0 0 0 2px rgba(111, 240, 207, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
 /* Acts side by side in a row share it (each whole-width, the rest were scrolled out of sight). */
 .speeds > .act {
   flex: 1 1 0;
@@ -222,8 +231,9 @@ button:active {
     font-size: 1.85rem;
   }
 }
-/* A choice made (a new world's kind, where it begins): lit sea-green. */
+/* A choice made (a new world's kind, where it begins, a making laid): lit sea-green. */
 .title-window .choice.on,
+.title-window .making-dial.on,
 .begin {
   color: #032b24;
   border-color: #0b7a62;

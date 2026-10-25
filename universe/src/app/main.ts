@@ -864,8 +864,15 @@ async function runPlanetPage(): Promise<void> {
       on.onclick = async () => {
         on.disabled = true;
         on.textContent = "Finding one…";
-        const { livingSeed } = await import("./title.ts"),
-          found = await livingSeed(client, universe, seed);
+        const { livingSeed, unmadeSeed } = await import("./title.ts");
+        // (The nearest so made; where none near it knows life, the nearest with its making lifted.)
+        let found = await livingSeed(client, universe, seed);
+        if (!found.found && unmadeSeed(seed) !== seed)
+          found = await livingSeed(client, universe, unmadeSeed(seed));
+        if (!found.found) {
+          on.textContent = "None found near it";
+          return;
+        }
         location.search = `?universe=${encodeURIComponent(universe)}&seed=${encodeURIComponent(found.seed)}`;
       };
       row.append(keep, ...(universe === "alien" ? [on] : []));
@@ -4618,6 +4625,10 @@ async function runGenesisPage(): Promise<void> {
         }));
       location.search = `?universe=alien&seed=${encodeURIComponent(found.seed)}&genesis=1`;
     },
+    // (The world made again by the hand on its making: its genesis on from the stage it was laid at.)
+    remakeFrom: (text, at) =>
+      (location.search = `?universe=${encodeURIComponent(universe)}&seed=${encodeURIComponent(text)}&genesis=1&from=${encodeURIComponent(at)}`),
+    from: params.get("from"),
     expose: (hooks) => Object.assign(exposed, hooks),
   });
 }

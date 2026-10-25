@@ -230,6 +230,11 @@ jobs:
       - run: npm run gate:34 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 35 gate: the world's making under the god's hand (its star, pull, orbit, seas and
+      # air on the title's dials and in its genesis; the world begun as made, its page telling it).
+      - run: npm run gate:35 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

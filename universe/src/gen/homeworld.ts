@@ -13,7 +13,14 @@ import {
   type Seed,
   type SphereGrid,
 } from "../kernel/index.ts";
-import { agesMade, dawnMade, livesMade, peoplingMade, type Prior } from "../rules/index.ts";
+import {
+  agesMade,
+  dawnMade,
+  livesMade,
+  madePrior,
+  peoplingMade,
+  type Prior,
+} from "../rules/index.ts";
 import { makePlanet, makeStar, type Planet, type Star } from "./bodies.ts";
 import { makeSystem, type StarSystem } from "./system.ts";
 import { makeClimate, type Climate } from "./climate.ts";
@@ -61,12 +68,15 @@ export function generateHomeWorld(
   prior: Prior,
   frequency = PLANET_FREQUENCY,
 ): HomeWorld {
-  const rng = new Rng(seed),
+  // (Its star, its pull, its orbit, its seas and its air as the hand made them, the rest as the
+  // seed falls: Phase 35.)
+  const made = madePrior(prior, seed.text),
+    rng = new Rng(seed),
     grid = sphereGrid(frequency),
-    star = makeStar(rng, prior),
-    planet = makePlanet(rng, prior, star),
+    star = makeStar(rng, made),
+    planet = makePlanet(rng, made, star),
     // The rest of the star's system, on its own stream (the home world is untouched by it).
-    system = makeSystem(rng, prior, star, planet),
+    system = makeSystem(rng, made, star, planet),
     tectonics = makeTectonics(grid, rng, planet),
     climate = makeClimate(grid, planet, tectonics.elevation),
     water = makeHydrology(grid, tectonics.elevation, climate.precipitation),

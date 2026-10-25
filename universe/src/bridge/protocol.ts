@@ -96,6 +96,17 @@ export type SeedLife = {
   readonly living: boolean;
   readonly peopled: boolean;
   readonly words: string;
+  /**
+   * The world it makes (Phase 35, for a new world's form): its star's class and warmth (kelvin),
+   * its pull (g), its mean warmth (°C), the share of it under sea.
+   */
+  readonly world?: {
+    readonly star: string;
+    readonly kelvin: number;
+    readonly gravity: number;
+    readonly warmth: number;
+    readonly seas: number;
+  };
 };
 
 /** A save as the saves page lists it: which world, how far on, how big, under how many rulesets. */

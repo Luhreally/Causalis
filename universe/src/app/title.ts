@@ -2,7 +2,16 @@
 // A low-poly world turns slowly behind a menu: Continue (the world last kept), a new world
 // (what kind, its seed, where it begins), the worlds kept in this browser (and a kept file
 // opened), the sandbox, how to play. Every choice is an address: the page goes there.
-import type { HostClient, SaveMeta } from "../bridge/index.ts";
+import type { HostClient, SaveMeta, SeedLife } from "../bridge/index.ts";
+import { seedWithAct, seedWithoutAct } from "../kernel/index.ts";
+import {
+  MAKINGS,
+  MAKING_SUBJECTS,
+  MAKING_WORDS,
+  makingAct,
+  makingsOf,
+  type MakingSubject,
+} from "../view/index.ts";
 
 export type TitleOptions = {
   /** A host to ask for the worlds kept, and to open a kept file with. */
@@ -62,16 +71,19 @@ const LIFE = [
 /**
  * The seed nearest `seed` whose world life arises on, a people in time: the seed itself if it is
  * one, else the next number on from it ("amber 412" → "amber 413"; "amber" → "amber 2"), the
- * acts laid on its dawn kept; and why the seed asked for was passed by (null if it was not).
+ * acts laid on its dawn and its making kept; why the seed asked for was passed by (null if it was
+ * not); and whether one was found within `tries` (if not, the seed as asked). `looked` is told
+ * each seed looked at.
  */
 export async function livingSeed(
   client: Pick<HostClient, "lifeOf">,
   universe: string,
   seed: string,
   tries = 40,
-): Promise<{ seed: string; passed: string | null }> {
+  looked: (n: number) => void = () => {},
+): Promise<{ seed: string; passed: string | null; found: boolean }> {
   const asked = await client.lifeOf(universe, seed);
-  if (asked.peopled) return { seed, passed: null };
+  if (asked.peopled) return { seed, passed: null, found: true };
   const cut = seed.indexOf(" ~"),
     name = (cut < 0 ? seed : seed.slice(0, cut)).trim(),
     acts = cut < 0 ? "" : seed.slice(cut),
@@ -80,9 +92,22 @@ export async function livingSeed(
     from = m ? Number(m[2]) : 1;
   for (let i = 1; i <= tries; i++) {
     const next = `${stem}${from + i}${acts}`;
-    if ((await client.lifeOf(universe, next)).peopled) return { seed: next, passed: asked.words };
+    looked(i);
+    if ((await client.lifeOf(universe, next)).peopled)
+      return { seed: next, passed: asked.words, found: true };
   }
-  return { seed, passed: null };
+  return { seed, passed: asked.words, found: false };
+}
+
+/** A seed's text with its making lifted, the acts laid on its dawn kept: its world as its seed falls. */
+export function unmadeSeed(seed: string): string {
+  return MAKING_SUBJECTS.reduce((s, m) => seedWithoutAct(s, makingAct(m, "-")), seed);
+}
+
+/** The world a seed makes, in a line: "⭐ an M0V star, 3,435 K · 1.48 g · −16 °C · 85% sea". */
+export function madeWorldWords(w: NonNullable<SeedLife["world"]>): string {
+  const t = w.warmth < 0 ? `−${-w.warmth}` : `${w.warmth}`;
+  return `⭐ ${/^[AEFHILMNORSX]/.test(w.star) ? "an" : "a"} ${w.star} star, ${w.kelvin.toLocaleString("en")} K · ${w.gravity.toFixed(2)} g · ${t} °C · ${Math.round(w.seas * 100)}% sea`;
 }
 
 /** Where a new world begins. */
@@ -240,6 +265,12 @@ export function showTitle(options: TitleOptions): void {
       seed = el("input", "seed-input"),
       roll = el("button", "seed-roll", "🎲"),
       seedNote = el("p", "muted seed-life"),
+      // Its making (Phase 35 M180): a world never seen made by the hand before it forms — its
+      // star, its pull, its orbit, its seas, its air — each an act laid in its seed's text, the
+      // rest as the seed falls; and the world it makes, told.
+      makingHead = el("h3", undefined, "Its making"),
+      makingRow = el("div", "making-row"),
+      madeNote = el("p", "muted seed-made"),
       start = el("button", "begin", "Begin ▶");
     seed.value = randomSeed();
     seed.maxLength = 60;
@@ -251,6 +282,35 @@ export function showTitle(options: TitleOptions): void {
     const pick = (row: HTMLElement, id: string) => {
       for (const b of row.children) b.classList.toggle("on", (b as HTMLElement).dataset.id === id);
     };
+    // Its making: a dial for each, turned through its choices and back to "as it falls".
+    const dials = MAKING_SUBJECTS.map((subject) => {
+      const b = el("button", "making-dial");
+      b.dataset.subject = subject;
+      b.onclick = () => {
+        const choices: (string | undefined)[] = [undefined, ...Object.keys(MAKINGS[subject])],
+          next = choices[(choices.indexOf(makingsOf(seed.value)[subject]) + 1) % choices.length];
+        seed.value =
+          next === undefined
+            ? seedWithoutAct(seed.value, makingAct(subject, "-"))
+            : seedWithAct(seed.value, makingAct(subject, next));
+        showMakings();
+        void tell();
+      };
+      return b;
+    });
+    const showMakings = () => {
+      const m = makingsOf(seed.value);
+      for (const b of dials) {
+        const subject = b.dataset.subject as MakingSubject,
+          w = MAKING_WORDS[subject],
+          c = m[subject],
+          words = c !== undefined ? w.choices[c] : undefined;
+        b.textContent = `${w.icon} ${w.name.replace(/^Its /, "").replace(/^./, (c) => c.toUpperCase())}: ${words ? words[0] : "as it falls"}`;
+        b.title = words ? `${w.name}: ${words[1]}` : `${w.name}: as the seed falls — tap to choose`;
+        b.classList.toggle("on", !!words);
+      }
+    };
+    makingRow.append(...dials);
     // A world never seen: whether life arises on the seed's world is told as it is typed, and
     // where it would not, Begin goes on to the nearest seed whose world it does.
     let asked = 0;
@@ -258,8 +318,9 @@ export function showTitle(options: TitleOptions): void {
       const n = ++asked,
         s = seed.value.trim();
       lifeHead.hidden = lives.hidden = kind !== "alien";
+      makingHead.hidden = makingRow.hidden = madeNote.hidden = kind !== "alien";
       if (kind !== "alien" || !s) {
-        seedNote.textContent = "";
+        seedNote.textContent = madeNote.textContent = "";
         return;
       }
       seedNote.textContent = "…";
@@ -269,17 +330,21 @@ export function showTitle(options: TitleOptions): void {
         seedNote.textContent = got.peopled
           ? "🌱 Life arises on this world, and in time a people."
           : `❄️ No people will rise here: ${got.words}.${life === "living" ? " Begin will take the nearest world where life arises." : ""}`;
+        madeNote.textContent = got.world ? madeWorldWords(got.world) : "";
       } catch {
-        if (n === asked) seedNote.textContent = "";
+        if (n === asked) seedNote.textContent = madeNote.textContent = "";
       }
     };
     let typing = 0;
     seed.addEventListener("input", () => {
+      showMakings();
       clearTimeout(typing);
       typing = window.setTimeout(() => void tell(), 350);
     });
+    // (Another seed, its making kept.)
     roll.onclick = () => {
-      seed.value = randomSeed();
+      const cut = seed.value.indexOf(" ~");
+      seed.value = randomSeed() + (cut < 0 ? "" : seed.value.slice(cut));
       void tell();
     };
     for (const [id, icon, words, note] of KINDS) {
@@ -311,14 +376,25 @@ export function showTitle(options: TitleOptions): void {
     pick(kinds, kind);
     pick(lives, life);
     pick(beginnings, begin);
+    showMakings();
     lifeHead.hidden = lives.hidden = true;
+    makingHead.hidden = makingRow.hidden = madeNote.hidden = true;
     const begun = async () => {
       let s = seed.value.trim() || randomSeed();
       if (kind === "alien" && life === "living") {
         start.disabled = true;
         seedNote.textContent = "Finding a world where life arises…";
         try {
-          s = (await livingSeed(await host(), kind, s)).seed;
+          const found = await livingSeed(await host(), kind, s, 40, (k) => {
+            seedNote.textContent = `Finding a world where life arises… ${k} looked at`;
+          });
+          if (!found.found) {
+            // (None near it so made: told, and not begun — a making lifted, or another seed.)
+            seedNote.textContent = `❄️ No world near this seed knows life so made: ${found.passed}. Lift a making, or try another seed.`;
+            start.disabled = false;
+            return;
+          }
+          s = found.seed;
           seed.value = s;
         } catch {
           // (No host to ask: begun as typed.)
@@ -346,9 +422,12 @@ export function showTitle(options: TitleOptions): void {
       kinds,
       lifeHead,
       lives,
+      makingHead,
+      makingRow,
       el("h3", undefined, "Its seed"),
       seedRow,
       seedNote,
+      madeNote,
       el("p", "muted", "The same seed makes the same world, every time: keep it to share it."),
       el("h3", undefined, "Where it begins"),
       beginnings,

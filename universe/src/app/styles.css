@@ -827,6 +827,31 @@ body[data-scale="micro"] {
   margin: 6px 0 0;
   color: var(--ink);
 }
+/* Its making (Phase 35): a dial for each — its star, pull, orbit, seas and air — two or three to
+   a line, and the world it makes told under the seed. */
+.making-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+}
+.making-row[hidden],
+.title-form > .seed-made[hidden] {
+  display: none;
+}
+.making-dial {
+  min-height: 40px;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.title-form > .seed-made {
+  min-height: 1.2em;
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+}
 /* A kept world and its delete beside it; asked twice before it is put away. */
 .kept-row {
   display: flex;

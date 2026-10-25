@@ -695,6 +695,13 @@ export function seedLife(g: HomeWorld): SeedLife {
   return {
     living,
     peopled,
+    world: {
+      star: g.star.spectral,
+      kelvin: Math.round(g.star.temperature),
+      gravity: Math.round(g.planet.gravity * 100) / 100,
+      warmth: t,
+      seas: Math.round(g.planet.oceanFraction * 100) / 100,
+    },
     words: peopled
       ? ""
       : living

@@ -513,3 +513,13 @@ export {
   squareScale,
   type SquarePiece,
 } from "./feast.ts";
+export {
+  MAKINGS,
+  MAKING_SUBJECTS,
+  MAKING_WORDS,
+  makingAct,
+  makingWords,
+  makingsOf,
+  type MakingSubject,
+  type Makings,
+} from "./making.ts";

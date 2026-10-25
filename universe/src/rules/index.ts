@@ -220,3 +220,14 @@ export {
   type PeoplingAct,
   type PeoplingMade,
 } from "./dawn.ts";
+export {
+  MAKINGS,
+  MAKING_SUBJECTS,
+  MAKING_WORDS,
+  madePrior,
+  makingAct,
+  makingWords,
+  makingsOf,
+  type MakingSubject,
+  type Makings,
+} from "./making.ts";

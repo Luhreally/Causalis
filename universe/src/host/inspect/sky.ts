@@ -1,6 +1,6 @@
 // The pages of the sky (Phase 10 M91): the home star and its worlds and moons, a star of the
 // cluster or of the galaxy far out, another star's world, and the people that rose on one.
-import { CLADES } from "../../rules/index.ts";
+import { CLADES, makingWords, makingsOf } from "../../rules/index.ts";
 import {
   civilizationsNear,
   homePlanet,
@@ -254,6 +254,8 @@ export function bodyPage(world: World, ref: string): PageModel {
       .filter((p) => offworldSite(g, p.cell)?.body === index && p.total() > 0),
     around = g.system.bodies.find((x) => x.ref === b.orbit.around),
     life = home ? null : lifeOfBody(world, b),
+    // (The home world as the hand made it, if it did: Phase 35.)
+    made = home ? makingWords(makingsOf(world.seed.text)) : "",
     // (A moon is as far from the star as its planet.)
     lightAt = b.kind === "moon" && around ? around.orbit.a : b.orbit.a;
   return {
@@ -314,6 +316,15 @@ export function bodyPage(world: World, ref: string): PageModel {
               ),
             ],
           },
+          ...(made
+            ? [
+                {
+                  type: "text" as const,
+                  title: "Made by your hand",
+                  lines: [[`Before it formed, your hand made it so: ${made}.`]],
+                },
+              ]
+            : []),
           { type: "text", title: "Why it is like this", lines: b.because.map((w) => [w]) },
           ...(moons.length
             ? [

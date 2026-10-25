@@ -48,6 +48,7 @@ import {
   DROP_ACT_WORDS,
   DeepClock,
   GENESIS,
+  MAKING_WORDS,
   MEADOW_ACT_WORDS,
   MEADOW_STEP,
   PEOPLING_ACT_WORDS,
@@ -80,6 +81,9 @@ import {
   globeColors,
   homeOf,
   lifeAct,
+  makingAct,
+  makingWords,
+  makingsOf,
   meadowAge,
   meadowCounts,
   meadowProspered,
@@ -113,6 +117,7 @@ import {
   type DropAct,
   type DropState,
   type GenesisStage,
+  type MakingSubject,
   type MeadowAct,
   type MeadowState,
   type Peopling,
@@ -160,6 +165,13 @@ export async function runGenesis(o: {
   beginAt: (year: number, seed: string) => void;
   /** Another world never seen, from its beginning. */
   another: () => void;
+  /**
+   * The world made again from its seed's text so made (Phase 35: the hand on its star, its pull,
+   * its orbit, its seas or its air), its genesis watched on from the stage given.
+   */
+  remakeFrom?: (seed: string, stage: GenesisStage) => void;
+  /** The stage to begin at (a world made again: the stage the hand was laid at). */
+  from?: string | null;
   /** Hooks for a machine driving the page (the gates). */
   expose?: (hooks: Record<string, unknown>) => void;
 }): Promise<void> {
@@ -298,9 +310,11 @@ export async function runGenesis(o: {
   };
   /** The acts laid on this world's dawn, in a line. */
   const laid = () => {
-    const parts = plan.acts.ages.map(
-      (a) => `age ${a.age + 1} made ${/^[aeiou]/.test(a.kind) ? "an" : "a"} ${a.kind}`,
-    );
+    const made = makingWords(makingsOf(seed)),
+      parts = plan.acts.ages.map(
+        (a) => `age ${a.age + 1} made ${/^[aeiou]/.test(a.kind) ? "an" : "a"} ${a.kind}`,
+      );
+    if (made) parts.unshift(made);
     if (plan.acts.dawn) parts.push(`the first seas' ${plan.acts.dawn} prospered`);
     for (const l of plan.acts.lives) parts.push(`age ${l.age + 1}'s ${l.way} prospered`);
     const pa = plan.acts.peopling;
@@ -518,6 +532,42 @@ export async function runGenesis(o: {
     b.title = why;
     b.onclick = act;
     return b;
+  };
+  // —— The hand on the world's making (Phase 35 M181): its star chosen as it lights; its pull, its
+  // orbit, its seas and its air as the world forms — the world made again from its beginning so,
+  // and watched on from there. A world like ours is not remade.
+  const makingActs = (subjects: readonly MakingSubject[], at: GenesisStage): HTMLElement[] => {
+    const remakeFrom = o.remakeFrom;
+    if (o.universe === "earth" || !remakeFrom) return [];
+    const now = makingsOf(seed);
+    return subjects.flatMap((subject) =>
+      Object.entries(MAKING_WORDS[subject].choices).map(([choice, [short, words, icon]]) => {
+        const laid = now[subject] === choice,
+          // (A star by its kind; the rest by their making and its choice: "Pull: heavy".)
+          b = actButton(
+            icon,
+            subject === "star"
+              ? short[0]!.toUpperCase() + short.slice(1)
+              : `${MAKING_WORDS[subject].name.replace(/^Its /, "").replace(/^./, (c) => c.toUpperCase())}: ${short}`,
+            laid
+              ? `${MAKING_WORDS[subject].name} is ${words}, as your hand made it — again to let it fall as it would`
+              : `Make the world so: ${words} — it is made again from its beginning`,
+            () => {
+              if (remaking) return;
+              remaking = true;
+              clock.hold("remake");
+              acts.classList.add("busy");
+              tell("The world is made again from your hand…");
+              const act = makingAct(subject, choice);
+              void pending.then(() =>
+                remakeFrom(laid ? seedWithoutAct(seed, act) : seedWithAct(seed, act), at),
+              );
+            },
+          );
+        b.classList.toggle("on", laid);
+        return b;
+      }),
+    );
   };
   const ageActs = () => {
     const view = el("button", "link", lookAtWorld ? "🦕 Its life" : "🌍 The world");
@@ -908,7 +958,7 @@ export async function runGenesis(o: {
     star: {
       title: "A star, and its worlds",
       text: () =>
-        `A ${system.star.spectral} star, ${system.star.ageGyr.toFixed(1)} billion years old, ${system.star.luminosity.toFixed(2)} times the Sun's light. About it, ${system.bodies.filter((b) => b.around < 0).length} worlds: rock inside its frost line, ${system.frostLine.toFixed(1)} times as far as Earth from the Sun; ice and gas beyond. One of them held water, and would hold life.`,
+        `${/^[AEFHILMNORSX]/.test(system.star.spectral) ? "An" : "A"} ${system.star.spectral} star${makingsOf(seed).star ? ", as your hand made it" : ""}, ${system.star.ageGyr.toFixed(1)} billion years old, ${system.star.luminosity.toFixed(2)} times the Sun's light. About it, ${system.bodies.filter((b) => b.around < 0).length} worlds: rock inside its frost line, ${system.frostLine.toFixed(1)} times as far as Earth from the Sun; ice and gas beyond. One of them held water, and would hold life.`,
       enter: () => {
         stage.backdrop("space");
         skyScene.visible = true;
@@ -922,6 +972,7 @@ export async function runGenesis(o: {
         });
       },
       update: () => skyScene.update(systemSpec(system, played * 20 * 86_400 * 30)),
+      acts: () => makingActs(["star"], "star"),
     },
     forming: {
       title: "The world forms",
@@ -943,6 +994,7 @@ export async function runGenesis(o: {
       },
       // (Its seas risen by the end; its land greens only once life comes ashore, in the ages.)
       update: (k) => paint(formingColors(elevation, land, 0.72 * k, played)),
+      acts: () => makingActs(["pull", "orbit", "seas", "air"], "forming"),
     },
     "first cells": dropStage("first cells"),
     nucleus: dropStage("nucleus"),
@@ -1270,7 +1322,14 @@ export async function runGenesis(o: {
       choose();
     }
   });
-  enter(0);
+  // (Made again by the hand on its making: watched on from the stage it was laid at, held there to
+  // be seen — Phase 35.)
+  const from = o.from ? spans.findIndex((s) => s.stage === o.from) : -1;
+  if (from > 0) {
+    clock.jump(from);
+    clock.choose(0);
+  }
+  enter(Math.max(0, from));
 
   o.expose?.({
     genesis: () => ({
