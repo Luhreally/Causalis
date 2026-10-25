@@ -1129,6 +1129,8 @@ function crawlsFor(field: BattleField, t: Trooper): number {
   if (t.by === null || t.by === "rout") return 0;
   // (Not off a seat's walls: those struck down on them lie on its walk.)
   if (t.side === 1 && field.ground.wall) return 0;
+  // (Nor riders: they lie with their horses.)
+  if (field.hosts[t.side]!.mounted) return 0;
   return unit(t.id, 13) < CRAWL.share
     ? CRAWL.least + (CRAWL.most - CRAWL.least) * unit(t.id, 14)
     : 0;

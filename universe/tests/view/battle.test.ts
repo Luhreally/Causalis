@@ -438,3 +438,13 @@ test("one climbs each ladder: up it once raised, fighting at its top; down again
     assert.match(trooperWords(f, l.climber, l.up + 6), /fighting at the top of a ladder\.$/);
   }
 });
+
+test("riders struck down lie with their horses: none crawls off from beside it", () => {
+  const riders = (name: string, fielded: number, fallen: number): BattleSideNear => ({
+    ...side(name, fielded, fallen, "sword"),
+    host: { arm: "sword", guard: "shield", mount: "horse" },
+  });
+  const f = newBattle(near("field", riders("Ash", 3000, 600), riders("Elm", 2600, 700)), 360);
+  for (const t of f.troopers.filter((x) => x.falls !== null))
+    assert.equal(battleAt(f, t.falls! + 3).troopers[t.id]!.crawl, 0);
+});
