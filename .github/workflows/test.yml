@@ -267,6 +267,12 @@ jobs:
       - run: npm run gate:40 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # Phase 41 (a town's trades at their own buildings: its children at their letters in the
+      # school's rows and one teaching them, its potters at the kiln aglow, sparks at the anvil;
+      # its woodlot's trees felled, lying and carried off, their stumps; a day of rest's prayer).
+      - run: npm run gate:41 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

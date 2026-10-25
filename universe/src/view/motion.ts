@@ -83,6 +83,18 @@ export function limbPitch(
     case "feast":
       // A cup or a bite raised now and then; the other hand on the table.
       return right ? -0.5 - 0.9 * Math.max(0, Math.sin(ph * 0.45 + off)) : -0.45;
+    case "learn":
+      // Still in their rows; now and then a hand up to answer (Phase 41 M199).
+      return right && Math.sin(t * 0.7 + i * 2.3) > 0.9 ? -2.7 : -0.12;
+    case "pray":
+      // Hands together before them; raised all together now and then, as the prayer goes.
+      return Math.sin(t * 0.32 + i * 0.03) > 0.82 ? -2.4 : -1.15 + 0.04 * Math.sin(ph * 0.4 + off);
+    case "throw":
+      // Both hands at the clay turning on the wheel.
+      return -1.0 + 0.12 * Math.sin(ph * 1.3 + (right ? Math.PI / 2 : 0));
+    case "tend":
+      // Feeding the kiln's fire, working the millstones: both arms pushed out and drawn back.
+      return -0.7 - 0.6 * Math.max(0, Math.sin(ph * 0.7 + off));
     default:
       return 0;
   }

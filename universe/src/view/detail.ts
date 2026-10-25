@@ -189,6 +189,8 @@ export function carryWords(
       return "a log felled in the woods";
     case "stone":
       return "a block of cut stone";
+    case "pots":
+      return "pots fired in the kiln, for the market";
   }
 }
 
@@ -204,4 +206,5 @@ export const SHEEN: Readonly<Record<Material, { gloss: number; metal: boolean }>
   leather: { gloss: 0.35, metal: false },
   water: { gloss: 0.9, metal: false },
   stone: { gloss: 0.12, metal: false },
+  clay: { gloss: 0.25, metal: false },
 };

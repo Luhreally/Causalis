@@ -27,6 +27,8 @@ export const CARRIES = [
   // A log felled for the yard on the shoulder; a block of stone held before them (Phase 39 M198).
   "log",
   "stone",
+  // Fired pots from the kiln, held before them (Phase 41 M199).
+  "pots",
 ] as const;
 export type Carry = (typeof CARRIES)[number];
 
@@ -42,6 +44,7 @@ export const MATERIALS = [
   "leather",
   "water",
   "stone",
+  "clay",
 ] as const;
 export type Material = (typeof MATERIALS)[number];
 
@@ -92,6 +95,8 @@ export function materialColor(
       return [0.36, 0.52, 0.72];
     case "stone":
       return [0.76, 0.74, 0.68];
+    case "clay":
+      return [0.74, 0.42, 0.26];
   }
 }
 
@@ -156,6 +161,10 @@ const ITEMS: Readonly<Record<Carry, readonly ItemPart[]>> = {
   ],
   log: [P("wood", 0.1, 0.52, 0.0, 0.08, 0.08, 0.52)],
   stone: [P("stone", 0, 0.34, 0.12, 0.17, 0.13, 0.13)],
+  pots: [
+    P("clay", -0.05, 0.31, 0.12, 0.08, 0.11, 0.08),
+    P("clay", 0.05, 0.33, 0.12, 0.07, 0.13, 0.07),
+  ],
 };
 
 /** The boxes of an item as it is carried. */

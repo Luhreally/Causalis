@@ -28,6 +28,8 @@ import {
   SOWING,
   WINTER,
   WORKSHOP,
+  beside,
+  civicDoors,
   dayDraw,
   leanOn,
   monthsOf,
@@ -97,6 +99,12 @@ export const TASKS = [
   "brawl",
   "dance",
   "feast",
+  // At the town's own buildings (Phase 41 M199): children at their letters, a hand up now and
+  // then; the faithful at prayer; a potter at the wheel; the kiln's fire and the millstones tended.
+  "learn",
+  "pray",
+  "throw",
+  "tend",
 ] as const;
 export type Task = (typeof TASKS)[number];
 
@@ -402,34 +410,245 @@ type Step = {
   readonly why: string | null;
   readonly face?: number | null;
   readonly effect?: Effect | null;
+  /** What they are at while at it (at work, if not said: a child's afternoon is at play). */
+  readonly activity?: Activity;
 };
 
 /** Where an errand would leave less than this of a stint, its work is drawn out to the stint's end. */
 const MIN_ERRAND = 1.4 * HOUR;
 
-/** The trees felled for timber and firewood: those every setting draws, and the nearest of them to a place. */
-const FELLED = new WeakMap<VillagePlan, { trees: Tree[]; near: Map<string, Tree[]> }>();
+// —— The woodlot (Phase 41 M200) ———————————————————————————————————————————————
 
 /**
- * A tree to fell near `from` — one of the six nearest it, as `pick` falls — and where to stand at
- * it, facing it (null where the land grows none).
+ * How long a felled tree's stump stands (days), and how long the sapling grown up beside it takes
+ * to be a tree to fell again.
  */
-function treeAt(plan: VillagePlan, from: Point, pick: number): (Point & { face: number }) | null {
-  let w = FELLED.get(plan);
-  if (!w) FELLED.set(plan, (w = { trees: treesOf(plan, 0.35), near: new Map() }));
-  if (!w.trees.length) return null;
+export const STUMP_DAYS = 120,
+  SAPLING_DAYS = 3 * 365;
+/** How long a tree takes to come down (world seconds); the least it lies before the last of it is carried off. */
+const FALL_S = 40,
+  LIES_S = 2 * HOUR;
+
+/**
+ * A town's woodlot: the trees every setting draws (not the scrub), the nearest its yard first;
+ * each felled while the town was watched — by where it stood, to the metre, so that it is carried
+ * on as the town's plan is read again each year — and the day it came down; and each day's
+ * fellers, at which tree (by their place in its people).
+ */
+type Woodlot = {
+  readonly plan: VillagePlan;
+  readonly trees: readonly Tree[];
+  readonly order: readonly number[];
+  readonly felled: Map<string, number>;
+  readonly days: Map<number, Map<number, Feller>>;
+  /** For firewood: the six nearest a place. */
+  readonly near: Map<string, number[]>;
+};
+const WOODLOTS = new Map<string, Woodlot>();
+const treeKey = (t: Tree) => `${Math.round(t.x)},${Math.round(t.z)}`;
+
+function woodlotOf(plan: VillagePlan): Woodlot {
+  const was = WOODLOTS.get(plan.ref);
+  if (was?.plan === plan) return was;
+  const yard = storeSpots(plan, groundFor(plan), 0).yard.door,
+    trees = treesOf(plan, 0.35),
+    far = (k: number) => Math.hypot(trees[k]!.x - yard.x, trees[k]!.z - yard.z),
+    order = trees
+      .flatMap((t, k) => (t.kind === "shrub" ? [] : [k]))
+      .sort((a, b) => far(a) - far(b));
+  if (!was && WOODLOTS.size >= 6) WOODLOTS.clear();
+  const w: Woodlot = {
+    plan,
+    trees,
+    order,
+    felled: was?.felled ?? new Map(),
+    days: new Map(),
+    near: new Map(),
+  };
+  WOODLOTS.set(plan.ref, w);
+  return w;
+}
+
+/** A feller's tree of the day (its place in the woodlot's trees), and their place about it (0: on the yard's side). */
+type Feller = { readonly tree: number; readonly seat: number };
+
+/**
+ * How many of the woodlot's trees come down in a day at most — one for every two hundred it has,
+ * and one at least, so that the drawn woods stand for the many more the town fells — and how many
+ * fell one together. (The rest of the day's fellers go out to the far woods.)
+ */
+const treesADay = (n: number) => Math.max(1, Math.ceil(n / 200)),
+  TO_A_TREE = 3;
+
+/** Whether a tree of the woodlot stands grown on a day (felled that very day, it stood that morning). */
+function grownOn(w: Woodlot, k: number, day: number): boolean {
+  const was = w.felled.get(treeKey(w.trees[k]!));
+  return was === undefined || was >= day || day - was >= STUMP_DAYS + SAPLING_DAYS;
+}
+
+/**
+ * Each feller's tree on a day (by their place in the town's people): the next grown trees nearest
+ * the yard, as many as the woodlot gives a day, one feller to each and then the rest to them in
+ * turn, three to a tree — each marked felled that day as it is given. Those left over have none.
+ */
+function fellersOn(plan: VillagePlan, day: number): ReadonlyMap<number, Feller> {
+  const w = woodlotOf(plan),
+    known = w.days.get(day);
+  if (known) return known;
+  const today = new Map<number, Feller>();
+  w.days.set(day, today);
+  const fellers = townDay(plan, day, groundFor(plan)).roles.flatMap((r, i) =>
+      r.kind === "cut" ? [i] : [],
+    ),
+    trees: number[] = [];
+  let cursor = 0;
+  for (const i of fellers) {
+    if (trees.length >= treesADay(w.order.length)) break;
+    while (cursor < w.order.length) {
+      const k = w.order[cursor++]!;
+      if (!grownOn(w, k, day)) continue;
+      trees.push(k);
+      today.set(i, { tree: k, seat: 0 });
+      w.felled.set(treeKey(w.trees[k]!), day);
+      break;
+    }
+  }
+  let turn = 0;
+  for (const i of fellers.slice(trees.length)) {
+    if (!trees.length || turn >= trees.length * (TO_A_TREE - 1)) break;
+    today.set(i, { tree: trees[turn % trees.length]!, seat: 1 + Math.floor(turn / trees.length) });
+    turn++;
+  }
+  for (const d of [...w.days.keys()]) if (d < day - 2) w.days.delete(d);
+  return today;
+}
+
+/**
+ * Where to stand at a tree, coming from a place: a step short of it, facing it — the first on
+ * the way's side of it (it falls away from them), those helping a turn round it either side.
+ */
+function standAt(t: Tree, from: Point, seat = 0): Point & { face: number } {
+  const a = Math.atan2(from.z - t.z, from.x - t.x) + [0, 1.25, -1.25][seat % 3]!,
+    stand = { x: t.x + Math.cos(a) * 1.8, z: t.z + Math.sin(a) * 1.8 };
+  return { ...stand, face: Math.atan2(t.x - stand.x, t.z - stand.z) };
+}
+
+/**
+ * A tree to cut firewood from near `from` on a day — one of the six nearest it still grown, as
+ * `pick` falls — and where to stand at it, facing it (null where the land grows none).
+ */
+function treeAt(
+  plan: VillagePlan,
+  from: Point,
+  pick: number,
+  day: number,
+): (Point & { face: number }) | null {
+  const w = woodlotOf(plan);
+  if (!w.order.length) return null;
   const key = `${Math.round(from.x)},${Math.round(from.z)}`;
   let near = w.near.get(key);
   if (!near) {
-    const far = (t: Tree) => Math.hypot(t.x - from.x, t.z - from.z);
-    near = [...w.trees].sort((a, b) => far(a) - far(b)).slice(0, 6);
+    const far = (k: number) => Math.hypot(w.trees[k]!.x - from.x, w.trees[k]!.z - from.z);
+    near = [...w.order].sort((a, b) => far(a) - far(b)).slice(0, 12);
     if (w.near.size > 2000) w.near.clear();
     w.near.set(key, near);
   }
-  const t = near[Math.min(near.length - 1, Math.floor(pick * near.length))]!,
-    d = Math.hypot(from.x - t.x, from.z - t.z) || 1,
-    stand = { x: t.x + ((from.x - t.x) / d) * 1.8, z: t.z + ((from.z - t.z) / d) * 1.8 };
-  return { ...stand, face: Math.atan2(t.x - stand.x, t.z - stand.z) };
+  const grown = near.filter((k) => grownOn(w, k, day)).slice(0, 6);
+  if (!grown.length) return null;
+  return standAt(
+    w.trees[grown[Math.min(grown.length - 1, Math.floor(pick * grown.length))]!]!,
+    from,
+  );
+}
+
+/**
+ * What is felled about the town at moment t (Phase 41 M200), by the trees' places in treesOf's
+ * (every setting draws these first): those not standing whole — coming down, lying, a stump, a
+ * sapling growing; the saplings, how grown; the stumps; and those coming down or lying today: the
+ * way each falls (away from its feller), how far over (0 upright … 1 down), how much is left of it
+ * (1 … 0, as its logs are carried off). `key` changes as any of it but the falling does.
+ */
+export type Felling = {
+  readonly key: string;
+  readonly down: ReadonlySet<number>;
+  readonly saplings: ReadonlyMap<number, number>;
+  readonly stumps: readonly number[];
+  readonly falling: readonly {
+    readonly index: number;
+    readonly yaw: number;
+    readonly over: number;
+    readonly left: number;
+  }[];
+  /** When the next of today's trees comes down (world seconds; null, none more today). */
+  readonly next: number | null;
+};
+
+/** What came down before a day (kept a day: the stumps and saplings change only as days turn). */
+const BEFORE = new WeakMap<
+  Woodlot,
+  { day: number; size: number; stumps: number[]; saplings: Map<number, number> }
+>();
+
+export function fellingNow(plan: VillagePlan, t: number): Felling {
+  const w = woodlotOf(plan),
+    day = Math.floor(t / DAY),
+    s = t - day * DAY;
+  let before = BEFORE.get(w);
+  if (!before || before.day !== day || before.size !== w.felled.size) {
+    const stumps: number[] = [],
+      saplings = new Map<number, number>();
+    w.trees.forEach((tree, k) => {
+      const was = w.felled.get(treeKey(tree));
+      if (was === undefined || was >= day) return;
+      const since = day - was;
+      if (since >= STUMP_DAYS + SAPLING_DAYS) return;
+      if (since < STUMP_DAYS) stumps.push(k);
+      else saplings.set(k, (since - STUMP_DAYS) / SAPLING_DAYS);
+    });
+    BEFORE.set(w, (before = { day, size: w.felled.size, stumps, saplings }));
+  }
+  const down = new Set<number>([...before.stumps, ...before.saplings.keys()]),
+    stumps = [...before.stumps],
+    falling: { index: number; yaw: number; over: number; left: number }[] = [];
+  let next: number | null = null;
+  // Today's: standing till the first blows' end (its first feller's), then coming down away from
+  // them and lying till the last log is carried off, then a stump.
+  const trees = new Map<number, { at: number; gone: number; yaw: number }>();
+  for (const [i, f] of w.days.get(day) ?? []) {
+    const chops = legsOf(plan, i, day, true).filter((l) => l.task === "chop");
+    if (!chops.length) continue;
+    const was = trees.get(f.tree),
+      first = chops[0]!.to,
+      last = chops[chops.length - 1]!.to;
+    if (!was) trees.set(f.tree, { at: first, gone: last, yaw: chops[0]!.face ?? 0 });
+    else {
+      if (f.seat === 0) was.yaw = chops[0]!.face ?? was.yaw;
+      was.at = Math.min(was.at, first);
+      was.gone = Math.max(was.gone, last);
+    }
+  }
+  for (const [k, { at, gone: cut, yaw }] of trees) {
+    const gone = Math.max(cut, at + LIES_S);
+    if (s < at) {
+      next = Math.min(next ?? Infinity, day * DAY + at);
+      continue;
+    }
+    down.add(k);
+    if (s >= gone) {
+      stumps.push(k);
+      continue;
+    }
+    const u = Math.min(1, (s - at) / FALL_S);
+    falling.push({ index: k, yaw, over: u * u, left: 1 - (0.8 * (s - at)) / (gone - at) });
+  }
+  return {
+    key: `${day}|${down.size}|${stumps.length}`,
+    down,
+    saplings: before.saplings,
+    stumps,
+    falling,
+    next,
+  };
 }
 
 /**
@@ -613,6 +832,28 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     role = town?.roles[index];
   if (rest || p.age >= 62) {
     const ease = (feast ? FEAST_HOURS.gather : 17) * HOUR;
+    // A day of rest's morning at prayer (Phase 41 M199): most of a town that keeps a temple or a
+    // shrine go to it, stand in its rows before its door a while, and come home.
+    const doors = rest && fine && plan.town ? civicDoors(plan, day * DAY) : null,
+      shrine = doors?.get("temple")?.[0] ?? doors?.get("shrine")?.[0] ?? null;
+    if (shrine && draw(27) < 0.7) {
+      const start = Math.max(t, (9 + (draw(28) - 0.5) * 0.5) * HOUR),
+        place = clearSpot(ground, beside(shrine, Math.floor(draw(29) * 48), 1.2, 2.5, 8)),
+        over = 11 * HOUR;
+      stay(t, start, at, ACTIVITY.home);
+      t = go(start, at, place, null, `To ${shrine.words} on the day of rest`);
+      stay(
+        t,
+        Math.max(t, over),
+        place,
+        ACTIVITY.gathering,
+        null,
+        "pray",
+        shrine.yaw,
+        `At prayer at ${shrine.words}`,
+      );
+      t = go(Math.max(t, over), place, at, null, `Home from ${shrine.words}`);
+    }
     stay(t, ease, at, p.child ? ACTIVITY.playing : ACTIVITY.resting, null, p.child ? "play" : null);
     t = feast ? feasting(Math.max(t, ease)) : evening(Math.max(t, 17 * HOUR), 19.5 * HOUR);
   } else if (town && role && role.kind !== "as-ever") {
@@ -723,7 +964,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
           t,
           t + d,
           pos,
-          ACTIVITY.working,
+          st.activity ?? ACTIVITY.working,
           st.carry,
           st.task ?? null,
           st.face ?? null,
@@ -748,6 +989,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
   /** The k-th errand of a role's day (0 the first of the morning, 100 of the afternoon). */
   function errandOf(role: Role, town: TownDay, k: number): Step[] | null {
     const spots = storeSpots(plan, ground, day * DAY),
+      doors = civicDoors(plan, day * DAY),
       granary = spots.granary,
       yard = spots.yard,
       first = k === 0,
@@ -822,7 +1064,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
           },
         ];
       case "firewood": {
-        const tree = treeAt(plan, at, draw(10000 + k));
+        const tree = treeAt(plan, at, draw(10000 + k), day);
         if (!tree) return errandOf({ ...role, kind: "hoe" }, town, k);
         return [
           { to: tree, carry: "tool", why: "To the woods for firewood" },
@@ -957,10 +1199,34 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
         ];
       }
       case "cut": {
-        const tree = treeAt(plan, yard.door, draw(10000 + k));
-        if (!tree) return errandOf({ ...role, kind: "workshop" }, town, k);
+        // (Each feller's own tree of the day, the nearest the yard still grown: felled at their
+        // first errand, then cut up, a log carried off each time — Phase 41 M200. Where the
+        // woodlot is felled bare, out past the wild's edge to the far woods for it.)
+        const w = woodlotOf(plan),
+          mine = fellersOn(plan, day).get(index),
+          a = draw(1) * 2 * Math.PI,
+          r = plan.wild + 120 + draw(4) * 200,
+          far = clearSpot(ground, { x: r * Math.cos(a), z: r * Math.sin(a) }),
+          tree =
+            mine === undefined
+              ? { ...far, face: Math.atan2(far.x, far.z) }
+              : standAt(w.trees[mine.tree]!, yard.door, mine.seat),
+          words =
+            mine === undefined
+              ? (["Out to the far woods for timber", "Felling timber in the far woods"] as const)
+              : k > 0
+                ? (["Back to the tree they felled", "Cutting the felled tree into logs"] as const)
+                : mine.seat === 0
+                  ? ([
+                      "Out to fell a tree for the builders",
+                      "Felling a tree for the builders",
+                    ] as const)
+                  : ([
+                      "Out to help fell a tree for the builders",
+                      "Helping to fell a tree for the builders",
+                    ] as const);
         return [
-          { to: tree, carry: "tool", why: "Out to fell timber for the builders" },
+          { to: tree, carry: "tool", why: words[0] },
           {
             flex: true,
             hours: 1.5,
@@ -968,7 +1234,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
             task: "chop",
             carry: "tool",
             face: tree.face,
-            why: "Felling timber for the builders",
+            why: words[1],
           },
           { to: yard.door, carry: "log", why: `Bringing the timber to ${yard.words}` },
           {
@@ -1017,7 +1283,8 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
           },
         ];
       }
-      case "smith":
+      case "smith": {
+        const anvil = clearSpot(ground, beside(spots.smithy, Math.max(0, role.seat)));
         return [
           { to: yard.door, carry: null, why: `To ${yard.words} for ore` },
           {
@@ -1027,13 +1294,14 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
             why: "Taking ore to forge",
             effect: { kind: "ore", amount: -1 },
           },
-          { to: spots.smithy.door, carry: "ore", why: `Carrying the ore to ${spots.smithy.words}` },
+          { to: anvil, carry: "ore", why: `Carrying the ore to ${spots.smithy.words}` },
           {
             flex: true,
             hours: 2.5,
             min: 0.5,
             task: "hammer",
             carry: null,
+            face: spots.smithy.yaw,
             why: "Forging tools from the ore",
           },
           { to: granary.door, carry: "tool", why: `Bringing the new tools to ${granary.words}` },
@@ -1045,29 +1313,183 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
             effect: { kind: "tools", amount: 1 },
           },
         ];
+      }
       case "workshop":
       case "mend": {
+        // (A town's crafters at its workshops, where it has them; else by the market.)
         const mend = role.kind === "mend",
+          shop = !mend && role.place >= 0 ? doors.get("workshop")?.[role.place] : undefined,
           a = draw(1) * 2 * Math.PI,
           spot = mend
             ? at
-            : clearSpot(ground, {
-                x: WORKSHOP.x + 6 * Math.cos(a),
-                z: WORKSHOP.z + 6 * Math.sin(a),
-              });
+            : shop
+              ? clearSpot(ground, beside(shop, role.seat))
+              : clearSpot(ground, {
+                  x: WORKSHOP.x + 6 * Math.cos(a),
+                  z: WORKSHOP.z + 6 * Math.sin(a),
+                });
         return [
-          { to: spot, carry: null, why: mend ? "Home to mend" : "To the workshop" },
+          {
+            to: spot,
+            carry: null,
+            why: mend ? "Home to mend" : shop ? `To ${shop.words}` : "To the workshop",
+          },
           {
             flex: true,
             hours: 7,
             min: 0.25,
             task: "hammer",
             carry: !mend && draw(13) < 0.5 ? "sack" : null,
+            face: shop?.yaw ?? null,
             why: mend
               ? "Mending tools and fences in the slack season"
-              : "At their craft by the market",
+              : shop
+                ? `At their craft in ${shop.words}`
+                : "At their craft by the market",
           },
         ];
+      }
+      // The potters (Phase 41 M199): the kiln fired with wood from the yard, pots thrown at the
+      // wheel by it, and the fired pots brought to the market.
+      case "kiln": {
+        const kiln = doors.get("kiln")?.[role.place];
+        if (!kiln) return errandOf({ ...role, kind: "workshop", place: -1 }, town, k);
+        const spot = clearSpot(ground, beside(kiln, role.seat)),
+          market = doors.get("market")?.[0] ?? granary;
+        if (first)
+          return [
+            { to: yard.door, carry: null, why: `To ${yard.words} for wood to fire the kiln` },
+            {
+              hours: 0.06,
+              task: "load",
+              carry: null,
+              why: "Taking wood for the kiln",
+              effect: { kind: "wood", amount: -1 },
+            },
+            { to: spot, carry: "log", why: `Carrying the wood to ${kiln.words}` },
+            {
+              flex: true,
+              hours: 2.5,
+              min: 0.5,
+              task: "tend",
+              carry: null,
+              face: kiln.yaw,
+              why: `Firing ${kiln.words}`,
+            },
+          ];
+        return k % 2 === 1
+          ? [
+              { to: spot, carry: null, why: `To ${kiln.words}` },
+              {
+                flex: true,
+                hours: 2,
+                min: 0.5,
+                task: "throw",
+                carry: null,
+                face: kiln.yaw,
+                why: "Throwing pots at the wheel by the kiln",
+              },
+            ]
+          : [
+              { to: spot, carry: null, why: `To ${kiln.words}` },
+              {
+                hours: 0.1,
+                task: "load",
+                carry: null,
+                face: kiln.yaw,
+                why: `Taking the fired pots out of ${kiln.words}`,
+              },
+              { to: market.door, carry: "pots", why: `Bringing the pots to ${market.words}` },
+              {
+                hours: 0.06,
+                task: "load",
+                carry: "pots",
+                why: `Setting the pots out at ${market.words}`,
+              },
+            ];
+      }
+      // The millers: the granary's grain carried to the mill, ground, and brought back as flour.
+      case "mill": {
+        const mill = doors.get("mill")?.[role.place];
+        if (!mill) return errandOf({ ...role, kind: "workshop", place: -1 }, town, k);
+        const spot = clearSpot(ground, beside(mill, role.seat, 2.2));
+        return [
+          { to: granary.door, carry: null, why: `To ${granary.words} for grain to grind` },
+          { hours: 0.06, task: "load", carry: null, why: "Taking a sack of grain for the mill" },
+          { to: spot, carry: "sack", why: `Carrying the grain to ${mill.words}` },
+          {
+            flex: true,
+            hours: 2,
+            min: 0.5,
+            task: "tend",
+            carry: null,
+            face: mill.yaw,
+            why: `Grinding the grain at ${mill.words}`,
+          },
+          { to: granary.door, carry: "sack", why: `Bringing the flour to ${granary.words}` },
+          {
+            hours: 0.06,
+            task: "load",
+            carry: "sack",
+            why: `Storing the flour in ${granary.words}`,
+          },
+        ];
+      }
+      // The one who teaches: the mornings at the school's door before its rows; the afternoon at
+      // their craft.
+      case "teach": {
+        const school = doors.get("school")?.[role.place];
+        if (!school || k >= 100) return errandOf({ ...role, kind: "workshop", place: -1 }, town, k);
+        return [
+          {
+            to: clearSpot(ground, beside(school, 0, 1, 0.8, 1)),
+            carry: null,
+            why: `To ${school.words}`,
+          },
+          {
+            flex: true,
+            hours: 5,
+            min: 0.25,
+            task: "talk",
+            carry: null,
+            face: school.yaw + Math.PI,
+            why: `Teaching the children their letters at ${school.words}`,
+          },
+        ];
+      }
+      // The children: their letters at school in the morning, in its rows; then out to play.
+      case "school": {
+        const school = doors.get("school")?.[role.place];
+        if (!school) return null;
+        return k < 100
+          ? [
+              {
+                to: clearSpot(ground, beside(school, role.seat, 1.1, 3, 6)),
+                carry: null,
+                why: `To ${school.words}`,
+              },
+              {
+                flex: true,
+                hours: 5,
+                min: 0.25,
+                task: "learn",
+                carry: null,
+                face: school.yaw,
+                why: `At their letters at ${school.words}`,
+              },
+            ]
+          : [
+              { to: work, carry: null, why: "Out to play, school over" },
+              {
+                flex: true,
+                hours: 6,
+                min: 0.25,
+                task: "play",
+                carry: null,
+                activity: ACTIVITY.playing,
+                why: "Playing after school",
+              },
+            ];
       }
       default:
         return null;
@@ -1286,7 +1708,9 @@ export function momentOf(
   } else if (leg.activity === ACTIVITY.working && leg.face !== null) {
     // Held to their work (behind a market stall, at a rising wall, at a tree): a step or two along
     // it, facing the way it does.
-    const along = Math.sin(s / 600 + index) * (leg.task === "chop" ? 0.2 : 0.7);
+    // (A child at their letters keeps their place in the school's rows.)
+    const along =
+      Math.sin(s / 600 + index) * (leg.task === "chop" ? 0.2 : leg.task === "learn" ? 0 : 0.7);
     x += Math.cos(leg.face) * along;
     z -= Math.sin(leg.face) * along;
   } else if (

@@ -6,6 +6,8 @@ import * as pc from "playcanvas";
 import { LOT, civicMoments, footprint, progress, type TownPlan } from "../bridge/index.ts";
 import {
   TownParts,
+  civicChimneys,
+  civicMotions,
   civicsActive,
   lotNear,
   roofTop,
@@ -15,6 +17,7 @@ import {
   townScene,
   townThingAt,
   townWalls,
+  type CivicMotion,
   type PartMesh,
   type TownScene,
   type TownThing,
@@ -177,9 +180,20 @@ export class TownLayer {
     this.drawnAt = t;
     this.parts.clear();
     townHomes(scene, scene.active, t, this.parts);
-    townCivics(scene, t, this.parts);
+    // (A mill's sails turning are drawn by themselves: render/trades.ts.)
+    townCivics(scene, t, this.parts, false);
     townWalls(scene, t, this.parts);
     this.rising.show(this.parts);
+  }
+
+  /** Where its buildings smoke at moment t (Phase 41 M199): their chimneys' tops (metres). */
+  chimneys(t: number): { x: number; y: number; z: number }[] {
+    return this.scene ? civicChimneys(this.scene, t) : [];
+  }
+
+  /** Its mills, kilns and smithies standing at moment t, for their work drawn moving (Phase 41 M199). */
+  motions(t: number): CivicMotion[] {
+    return this.scene ? civicMotions(this.scene, t) : [];
   }
 
   /**

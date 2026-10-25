@@ -661,6 +661,23 @@ type Exposed = {
     fires: number;
   } | null;
   faceTown?: (x: number, z: number, distance?: number) => boolean;
+  /** The town's trades at their buildings as drawn (Phase 41 M199): its works, the sails' turn, kilns aglow, sparks. */
+  trades?: () => {
+    mills: number;
+    kilns: number;
+    smithies: number;
+    turn: number;
+    glowing: number;
+    sparks: number;
+  } | null;
+  /** The woodlot as drawn (Phase 41 M200): trees down, stumps, saplings, the next to come down, those coming down or lying. */
+  felling?: () => {
+    down: number;
+    stumps: number;
+    saplings: number;
+    next: number | null;
+    falling: { over: number; left: number; x: number; z: number }[];
+  } | null;
   battleSlowed?: () => { slowed: string | null; told: string };
   spotOnScreen?: (spot: number) => { x: number; y: number } | null;
   faceBattle?: () => boolean;
@@ -5416,6 +5433,8 @@ async function runPlanetPage(): Promise<void> {
     scale === "village" && plan ? village.personOnScreen(i) : null;
   exposed.bubblesNow = () => (scale === "village" ? village.bubbles() : []);
   exposed.peopleNow = () => (scale === "village" ? village.peopleNow() : []);
+  exposed.trades = () => (scale === "village" ? village.tradesNow() : null);
+  exposed.felling = () => (scale === "village" ? village.fellingShown() : null);
   exposed.rig = rig;
 
   // Going to anything (Phase 10 M92): a page's place, from whatever scale is up — the scale

@@ -607,6 +607,7 @@ function civicShape(
   f: { x: number; z: number; yaw: number; w: number; d: number },
   grow: number,
   color = (c: Rgb) => c,
+  still = true,
 ): void {
   const { x, z, yaw, w, d } = f,
     put = (
@@ -667,8 +668,11 @@ function civicShape(
     case "mill":
       put("cyl", WHITE, 0, 5, 0, 6, 10, 6);
       put("cone", [0.5, 0.36, 0.24], 0, 11, 0, 6.6, 2.4, 6.6);
-      put("box", TIMBER, 0, 9, d * 0.24, 16, 0.8, 0.3, 0.6);
-      put("box", TIMBER, 0, 9, d * 0.24, 16, 0.8, 0.3, -0.6 + Math.PI / 2);
+      // (Its sails: still here, or turning where a mill standing is drawn near: civicMotions.)
+      if (still || grow < 1) {
+        put("box", TIMBER, 0, 9, d * 0.24, 16, 0.8, 0.3, 0.6);
+        put("box", TIMBER, 0, 9, d * 0.24, 16, 0.8, 0.3, -0.6 + Math.PI / 2);
+      }
       break;
     case "temple":
       [1, 0.72, 0.46].forEach((s, n) =>
@@ -743,6 +747,90 @@ function civicShape(
   }
 }
 
+/** A town's buildings standing whole at moment t, each with its footprint. */
+function standing(
+  scene: TownScene,
+  t: number,
+): { kind: string; f: { x: number; z: number; yaw: number; w: number; d: number } }[] {
+  const { plan, lots } = scene,
+    out: { kind: string; f: { x: number; z: number; yaw: number; w: number; d: number } }[] = [];
+  for (const c of plan.civics) {
+    if (c.at + c.lots > lots.x.length) continue;
+    const m = civicMoments(c);
+    if (m.done > t || (m.fell !== null && t >= m.fell)) continue;
+    out.push({ kind: c.kind, f: footprint(lots, c.at, c.lots) });
+  }
+  return out;
+}
+
+/**
+ * Where a town's buildings smoke at moment t (Phase 41 M199): the kiln's flue, the smithy's
+ * stack, the workshops' chimneys, the factories' and the power stations' — their tops, in metres
+ * from its middle (as civicShape raises them).
+ */
+export function civicChimneys(scene: TownScene, t: number): { x: number; y: number; z: number }[] {
+  const out: { x: number; y: number; z: number }[] = [];
+  for (const { kind, f } of standing(scene, t)) {
+    const top = (u: number, v: number, y: number) => {
+      const [x, z] = at(f.x, f.z, f.yaw, u, v);
+      out.push({ x, y, z });
+    };
+    switch (kind) {
+      case "kiln":
+        top(2.5, -2.5, 8);
+        break;
+      case "smithy":
+        top(f.w * 0.25, f.d * 0.2, 9);
+        break;
+      case "workshop":
+        top(f.w * 0.3, -f.d * 0.2, 10);
+        break;
+      case "factory":
+        top(f.w * 0.36, f.d * 0.36, 28);
+        top(f.w * 0.22, f.d * 0.36, 24);
+        break;
+      case "power":
+        top(f.w * 0.36, f.d * 0.3, 44);
+        break;
+    }
+  }
+  return out;
+}
+
+/**
+ * One of a town's buildings whose work is seen moving (Phase 41 M199): a mill's sails turning on
+ * their hub, a kiln's mouth aglow while it is fired, sparks from the anvil before a smithy at each
+ * blow. Where (metres from the town's middle, y up: the hub, the mouth; a smithy's, its door), which
+ * way its front looks (its footprint's yaw: its street lies that way's back), and its door.
+ */
+export type CivicMotion = {
+  readonly kind: "mill" | "kiln" | "smithy";
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly yaw: number;
+  readonly door: { readonly x: number; readonly z: number };
+};
+
+/** A town's mills, kilns and smithies standing at moment t, for their work drawn moving. */
+export function civicMotions(scene: TownScene, t: number): CivicMotion[] {
+  const out: CivicMotion[] = [];
+  for (const { kind, f } of standing(scene, t)) {
+    if (kind !== "mill" && kind !== "kiln" && kind !== "smithy") continue;
+    const [dx, dz] = at(f.x, f.z, f.yaw, 0, -(f.d / 2 + 1.9)),
+      door = { x: dx, z: dz },
+      // (A mill's hub before its tower, on the street side; a kiln's mouth at its foot.)
+      [x, z] =
+        kind === "mill"
+          ? at(f.x, f.z, f.yaw, 0, -3.6)
+          : kind === "kiln"
+            ? at(f.x, f.z, f.yaw, 0, -3.05)
+            : [door.x, door.z];
+    out.push({ kind, x, y: kind === "mill" ? 9 : kind === "kiln" ? 0.9 : 0, z, yaw: f.yaw, door });
+  }
+  return out;
+}
+
 /** The tallest a building of each kind stands (metres), for its scaffold. */
 const CIVIC_HIGH: Readonly<Record<string, number>> = {
   shrine: 7,
@@ -766,8 +854,11 @@ const CIVIC_HIGH: Readonly<Record<string, number>> = {
   offices: 62,
 };
 
-/** A town's other buildings at moment t: rising in a scaffold, standing, or fallen to ruin. */
-export function townCivics(scene: TownScene, t: number, out: TownParts): void {
+/**
+ * A town's other buildings at moment t: rising in a scaffold, standing, or fallen to ruin.
+ * `still`: a mill's sails drawn with it (else turning, drawn by itself: civicMotions).
+ */
+export function townCivics(scene: TownScene, t: number, out: TownParts, still = true): void {
   const { plan, lots, states } = scene;
   for (const c of plan.civics) {
     if (c.at + c.lots > lots.x.length) continue;
@@ -786,7 +877,7 @@ export function townCivics(scene: TownScene, t: number, out: TownParts): void {
     }
     const g = Math.min(1, (t - m.began) / Math.max(1, m.done - m.began));
     out.put("box", FOOTING, f.x, 0.1, f.z, f.w - 0.6, 0.2, f.d - 0.6, f.yaw);
-    civicShape(out, c.kind, f, g < 1 ? Math.max(0.05, g) : 1);
+    civicShape(out, c.kind, f, g < 1 ? Math.max(0.05, g) : 1, undefined, still);
     if (g < 1) {
       const top = (CIVIC_HIGH[c.kind] ?? 10) * g + 1.5;
       for (const [u, v] of [

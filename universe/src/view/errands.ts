@@ -20,7 +20,7 @@ import {
   type TownLots,
   type VillagePlan,
 } from "../bridge/index.ts";
-import { HOME_LEVELS, OCC, civic, type CivicKind } from "../rules/index.ts";
+import { CIVIC_INDEX, HOME_LEVELS, OCC, civic, type CivicKind } from "../rules/index.ts";
 import { clearAt, type Ground } from "./ground.ts";
 import { streetDoor } from "./streets.ts";
 import { homeWear, townScene, type TownScene } from "./town.ts";
@@ -237,6 +237,75 @@ export function storeSpots(plan: VillagePlan, ground: Ground, t: number): StoreS
   }
   SPOTS.set(plan, s);
   return s;
+}
+
+// —— The town's buildings at work (Phase 41 M199) ————————————————————————————————
+
+/** One of a town's buildings standing: its door on its street (those at work there face it), and its footprint. */
+export type CivicDoor = Store & {
+  readonly kind: CivicKind;
+  /** Its middle, which way it is turned, its breadth and depth (metres). */
+  readonly middle: Point & { readonly yaw: number; readonly w: number; readonly d: number };
+};
+
+const DOORS = new WeakMap<
+  VillagePlan,
+  { readonly year: number; readonly doors: ReadonlyMap<CivicKind, readonly CivicDoor[]> }
+>();
+const NO_DOORS: ReadonlyMap<CivicKind, readonly CivicDoor[]> = new Map();
+
+/**
+ * A town's buildings standing in a year (Phase 41 M199: Classic's trades each at its own
+ * building), by kind, the nearest its square first: each one's door on its street, where those
+ * who work there stand. (A village has none: its crafts are kept at home and by its square.)
+ */
+export function civicDoors(
+  plan: VillagePlan,
+  t: number,
+): ReadonlyMap<CivicKind, readonly CivicDoor[]> {
+  const year = Math.floor(t / YEAR),
+    known = DOORS.get(plan);
+  if (known && known.year === year) return known.doors;
+  const town = plan.town,
+    lots = town ? lotsOf(plan, t) : null;
+  if (!town || !lots) return NO_DOORS;
+  const doors = new Map<CivicKind, CivicDoor[]>();
+  for (const c of town.civics) {
+    const m = civicMoments(c),
+      kind = c.kind as CivicKind;
+    if (!CIVIC_INDEX.has(kind)) continue;
+    if (c.at + c.lots > lots.x.length || m.done > t || (m.fell ?? Infinity) <= t) continue;
+    const f = footprint(lots, c.at, c.lots),
+      at = streetDoor(f, 0, f.d / 2 + 1.9),
+      list = doors.get(kind) ?? [];
+    list.push({
+      ...at,
+      yaw: Math.atan2(f.x - at.x, f.z - at.z),
+      door: at,
+      heap: false,
+      words: `the ${civic(kind).name.replace(/^an? /, "")}`,
+      kind,
+      middle: { x: f.x, z: f.z, yaw: f.yaw, w: f.w, d: f.d },
+    });
+    doors.set(kind, list);
+  }
+  for (const list of doors.values())
+    list.sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z));
+  DOORS.set(plan, { year, doors });
+  return doors;
+}
+
+/**
+ * Where the `seat`-th of those at a building stands before its door (metres from the middle):
+ * along its street in fives, a step back for each five — facing it. `gap` apart; `back` how far
+ * out from its door the first row stands.
+ */
+export function beside(store: Store, seat: number, gap = 1.4, back = 0.6, row = 5): Point {
+  const c = Math.cos(store.yaw),
+    s = Math.sin(store.yaw),
+    across = ((seat % row) - (row - 1) / 2) * gap,
+    out = back + Math.floor(seat / row) * gap;
+  return { x: store.door.x + c * across - s * out, z: store.door.z - s * across - c * out };
 }
 
 /** A piece of a store's heap: its middle (metres from the town's), its size (metres), how it lies. */
@@ -538,7 +607,13 @@ export type RoleKind =
   | "mine"
   | "smith"
   | "workshop"
-  | "forage";
+  | "forage"
+  // At the town's own buildings (Phase 41 M199): the potters' kiln, the millers' mill, the
+  // children at school and the one who teaches them.
+  | "kiln"
+  | "mill"
+  | "teach"
+  | "school";
 
 /** Each day's work in words, for the town's card: "reaping", "felling timber". */
 export const ROLE_WORDS: Readonly<Record<RoleKind, string>> = {
@@ -558,6 +633,10 @@ export const ROLE_WORDS: Readonly<Record<RoleKind, string>> = {
   smith: "at the forge",
   workshop: "at the workshop",
   forage: "foraging in the wild",
+  kiln: "at the kiln",
+  mill: "at the mill",
+  teach: "teaching",
+  school: "at school",
 };
 
 export type Role = {
@@ -568,6 +647,10 @@ export type Role = {
   readonly fetch: boolean;
   /** Bringing in the flock's milk on the way home (herders, some days). */
   readonly milk: boolean;
+  /** Which of the town's buildings of their trade they work at (civicDoors' order; -1 none). */
+  readonly place: number;
+  /** Their place among those at it (its rows before the door). */
+  readonly seat: number;
 };
 
 /** The town's day: what is going up, who does what, whether it goes hungry. */
@@ -582,6 +665,16 @@ export type TownDay = {
 /** One day in seven is a day of rest, on a day kept by the village: given to play and talk. */
 export function restDay(plan: Pick<VillagePlan, "seed">, day: number): boolean {
   return (day + (plan.seed % 7)) % 7 === 0;
+}
+
+/** How many fire a kiln and its pots, and how many work at a workshop, at most. */
+const POTTERS = 4,
+  SHOP_HANDS = 8;
+
+/** Whether a child is of an age for school: six to thirteen for upright apes, as late in any people's span. */
+export function schoolAge(plan: VillagePlan, p: VillagePlan["people"][number]): boolean {
+  const age = (p.age * 70) / (plan.body?.span ?? 70);
+  return p.child && age >= 6 && age < 14;
 }
 
 /** Whether a person is old: from sixty-two for upright apes, as late in any people's span. */
@@ -617,6 +710,23 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
     oreIn = storeAt(plan, "ore", day * DAY) > 1,
     kinds: RoleKind[] = plan.people.map(() => "as-ever"),
     siteOf = plan.people.map(() => -1),
+    // (The town's buildings standing, each trade's own: Phase 41 M199.)
+    doors = plan.town ? civicDoors(plan, day * DAY) : NO_DOORS,
+    schools = doors.get("school") ?? [],
+    kilns = doors.get("kiln") ?? [],
+    mills = doors.get("mill") ?? [],
+    shops = doors.get("workshop") ?? [],
+    placeOf = plan.people.map(() => -1),
+    seatOf = plan.people.map(() => -1),
+    seated = new Map<string, number>(),
+    sit = (i: number, kind: RoleKind, place: number) => {
+      const key = `${kind}:${place}`,
+        n = seated.get(key) ?? 0;
+      kinds[i] = kind;
+      placeOf[i] = place;
+      seatOf[i] = n;
+      seated.set(key, n + 1);
+    },
     draws = plan.people.map((p) => dayDraw(p.ref, day)),
     working = (i: number) => {
       const p = plan.people[i]!;
@@ -659,6 +769,19 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
     return true;
   };
   const crafters: number[] = [];
+  // The children of an age for it to school, where the town keeps one: each to the nearest.
+  if (!rest && schools.length)
+    plan.people.forEach((p, i) => {
+      if (!schoolAge(plan, p)) return;
+      const home = plan.homes[p.home]!;
+      let best = 0;
+      schools.forEach((sc, k) => {
+        const b = schools[best]!;
+        if (Math.hypot(sc.x - home.x, sc.z - home.z) < Math.hypot(b.x - home.x, b.z - home.z))
+          best = k;
+      });
+      sit(i, "school", best);
+    });
   plan.people.forEach((p, i) => {
     if (!working(i)) return;
     const draw = draws[i]!;
@@ -710,9 +833,35 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
     kinds[crafters.shift()!] = "quarry";
     quarrymen++;
   }
-  // The rest forge the ore the town has, or keep to the workshop (in a lean year, out to the wild).
-  for (const i of crafters)
-    kinds[i] = lean ? "forage" : oreIn && draws[i]!(16) < 0.5 ? "smith" : "workshop";
+  // The rest: one to teach at each school its children go to, two to each mill; the others forge
+  // the ore the town has, fire its kilns or keep to its workshops (in a lean year, all out to the
+  // wild — but the teachers).
+  let c = 0;
+  schools.forEach((_, k) => {
+    if (c < crafters.length && seated.has(`school:${k}`)) sit(crafters[c++]!, "teach", k);
+  });
+  if (!lean)
+    for (let k = 0; k < mills.length; k++)
+      for (let m = 0; m < 2 && c < crafters.length; m++) sit(crafters[c++]!, "mill", k);
+  // (A kiln keeps four at it, a workshop eight: the rest at their craft by the market.)
+  const room = (kind: RoleKind, n: number, from: number, most: number): number => {
+    for (let j = 0; j < n; j++) {
+      const k = (from + j) % n;
+      if ((seated.get(`${kind}:${k}`) ?? 0) < most) return k;
+    }
+    return -1;
+  };
+  for (const i of crafters.slice(c)) {
+    const d = draws[i]!(16),
+      from = Math.floor(draws[i]!(18) * 64),
+      kiln = d < 0.75 ? room("kiln", kilns.length, from, POTTERS) : -1,
+      shop = room("workshop", shops.length, from, SHOP_HANDS);
+    if (lean) kinds[i] = "forage";
+    else if (oreIn && d < 0.5) sit(i, "smith", 0);
+    else if (kiln >= 0) sit(i, "kiln", kiln);
+    else if (shop >= 0) sit(i, "workshop", shop);
+    else kinds[i] = "workshop";
+  }
   // A household's bread: one of it (who works) every third day, every day in a lean year.
   const fetcher = new Map<number, number>();
   plan.people.forEach((p, i) => {
@@ -727,6 +876,8 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
       fetcher.get(p.home) === i &&
       (lean || (day + (hashString(`${plan.ref}|${p.home}`) % 3)) % 3 === 0),
     milk: kinds[i] === "herd" && draws[i]!(30) < 0.5,
+    place: placeOf[i]!,
+    seat: seatOf[i]!,
   }));
   const town: TownDay = { sites, roles, lean, rest };
   if (days.size > 60) days.clear();

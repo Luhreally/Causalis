@@ -41,6 +41,8 @@ import {
   seasonNeedle,
   seasonWater,
   treesOf,
+  fellingNow,
+  type Felling,
   type Figure,
   type GroundSeason,
   type Tree,
@@ -68,9 +70,18 @@ import { TownLayer } from "./town.ts";
 import { CountryLayer } from "./country.ts";
 import { FeastLayer } from "./feast.ts";
 import { TownWarLayer } from "./townwar.ts";
+import { TradesLayer, type AtWork } from "./trades.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
+/** The most trees drawn coming down or lying at once (Phase 41 M200). */
+const FELLING = 16;
+/** A crown's place up its tree, its breadth and its height (units at a tree's size: as they are grown). */
+const CROWNS = {
+  conifer: { at: 1.05, w: 0.9, h: 1.5 },
+  broadleaf: { at: 1.05, w: 1.2, h: 1 },
+  palm: { at: 1.35, w: 1.1, h: 0.3 },
+} as const;
 /** A village scene's units per metre (its plans are in metres). */
 export const VILLAGE_METRE = M;
 /** How many a side a village's battle draws, by the setting's detail. */
@@ -147,6 +158,27 @@ export class VillageScene {
   private townLamps: pc.StandardMaterial | null = null;
   private figure: Figure = figureOf(null);
   private moments: Moment[] = [];
+  /**
+   * The trees about it (Phase 41 M200): each part's batch (trunks, crowns by kind) and the trees it
+   * holds, by their places in the trees drawn — those felled hidden, saplings grown small — and
+   * the woodlot's own: what is coming down and lying today, and the stumps.
+   */
+  private forest: {
+    readonly batch: InstancedBatch;
+    readonly list: readonly Tree[];
+    readonly index: readonly number[];
+    readonly y: (t: Tree) => number;
+    readonly w: (t: Tree) => number;
+    readonly h: (t: Tree) => number;
+  }[] = [];
+  private forestTrees: readonly Tree[] = [];
+  private felled: {
+    readonly trunks: InstancedBatch;
+    readonly crowns: ReadonlyMap<Tree["kind"], InstancedBatch>;
+    readonly stumps: InstancedBatch;
+  } | null = null;
+  private fellKey = "";
+  private fellNow: Felling | null = null;
   private readonly marker: pc.Entity;
   private marked: number | null = null;
   /** What lives about the village: its herds, hunters, flocks, birds and fish (M77). */
@@ -161,6 +193,8 @@ export class VillageScene {
   private readonly country: CountryLayer;
   /** Its square on feast days and market days (Phase 33): bunting, tables, the bonfire; the stalls. */
   private readonly feast: FeastLayer;
+  /** Its trades at their buildings (Phase 41 M199): mills' sails turning, kilns aglow, sparks at the anvil. */
+  private readonly trades: TradesLayer;
   /** The moment last drawn, for a rebuild between moments. */
   private lastT = 0;
   private readonly carriers: Carrier[] = [];
@@ -187,6 +221,7 @@ export class VillageScene {
     this.country = new CountryLayer(stage, this.root);
     this.feast = new FeastLayer(stage, this.root);
     this.warLayer = new TownWarLayer(stage, this.root);
+    this.trades = new TradesLayer(stage, this.root);
     this.root.enabled = false;
   }
 
@@ -256,7 +291,8 @@ export class VillageScene {
         child !== this.town.root &&
         child !== this.country.root &&
         child !== this.feast.root &&
-        child !== this.warLayer.root
+        child !== this.warLayer.root &&
+        child !== this.trades.root
       )
         child.destroy();
     this.stacks = [];
@@ -335,6 +371,7 @@ export class VillageScene {
     // (Its windows' glass, lit from dusk to dawn as the village's are.)
     if (town) this.townLamps ??= windowMaterial();
     this.town.build(town, plan.ref, t, town ? this.townLamps : null);
+    this.trades.build(town ? this.town.motions(t) : []);
     // A city's quarters: each block's ground coloured by its use, and a hall at its heart.
     if (quarters && !town) {
       const patch = boxMesh(s),
@@ -572,6 +609,7 @@ export class VillageScene {
     // Trees about the village, as its land grows them: dark cones of pine, round crowns,
     // palms, low scrub — facets in a handful of batches.
     const trees = treesOf(plan, s.quality.villageTrees),
+      drawnAt = new Map(trees.map((t, k) => [t, k])),
       byKind = (k: Tree["kind"]) => trees.filter((t) => t.kind === k),
       trunk = cylinderMesh(s, 0.5, 1, 5),
       crown = pc.Mesh.fromGeometry(
@@ -593,16 +631,24 @@ export class VillageScene {
         if (!list.length) return;
         const b = this.batch(s, mesh, color, list.length, this.root);
         if (dressed) this.dressed.push({ kind: dressed, base: color, paint: (c) => b.recolor(c) });
-        b.set(list.length, (i, out) => {
-          const t = list[i]!;
-          out[0] = t.x * M;
-          out[1] = y(t);
-          out[2] = t.z * M;
-          out[3] = out[5] = w(t);
-          out[4] = h(t);
-          out[6] = t.x + t.z;
-        });
+        this.forest.push({ batch: b, list, index: list.map((t) => drawnAt.get(t)!), y, w, h });
       };
+    this.forest = [];
+    this.forestTrees = trees;
+    this.fellKey = "";
+    this.fellNow = null;
+    // (What the woodlot fells: a few coming down or lying at once, and their stumps.)
+    this.felled = trees.length
+      ? {
+          trunks: this.batch(s, trunk, [0.42, 0.28, 0.16], FELLING, this.root),
+          crowns: new Map([
+            ["conifer", this.batch(s, pine, [0.06, 0.36, 0.2], FELLING, this.root)],
+            ["broadleaf", this.batch(s, crown, leaf, FELLING, this.root)],
+            ["palm", this.batch(s, crown, [0.2, 0.62, 0.22], FELLING, this.root)],
+          ]),
+          stumps: this.batch(s, trunk, [0.6, 0.48, 0.32], Math.min(trees.length, 600), this.root),
+        }
+      : null;
     const standing = trees.filter((t) => t.kind !== "shrub");
     grow(
       standing,
@@ -647,6 +693,7 @@ export class VillageScene {
       (t) => 0.36 * t.size,
       "leaf",
     );
+    this.plant(null);
     // (In the season the land is in, from the first frame.)
     this.dress();
     // A door on each home, facing out from its front (a town draws its own homes).
@@ -800,6 +847,8 @@ export class VillageScene {
                   }
                 : { x: h.x, y: (look.raised + wallHigh * storeys(h) + roofHigh) / M, z: h.z };
             });
+    // (A town's kilns, smithies, workshops and works smoke from their chimneys: Phase 41 M199.)
+    if (town) this.stacks = this.town.chimneys(t);
     this.work.build(
       plan,
       s.quality,
@@ -986,6 +1035,17 @@ export class VillageScene {
         ore: now.lasts.ore,
       });
     }
+    // The woodlot (Phase 41 M200): a tree coming down at its feller's first blows' end, lying
+    // as it is cut up, then its stump; saplings growing where trees were felled.
+    if (this.forest.length) {
+      const f = fellingNow(plan, t);
+      if (f.key !== this.fellKey) {
+        this.fellKey = f.key;
+        this.plant(f);
+      }
+      this.fallen(f);
+      this.fellNow = f;
+    }
     // A feast's ring going round its fire (Phase 33), by the screen's clock.
     for (const m of targets)
       if (m.task === "dance" && !m.hidden) Object.assign(m, ringTurn(plan, m, screen));
@@ -1006,6 +1066,22 @@ export class VillageScene {
       villageSolids(plan),
     );
     this.moments = drawn.map((d) => d.moment);
+    // The town's trades at their buildings (Phase 41 M199): who tends each kiln now (or throws
+    // pots by it), and who strikes at each smithy's anvil.
+    if (this.trades.works.length) {
+      const busy = this.trades.works.map((w): AtWork => {
+        if (w.kind === "mill") return null;
+        for (const m of this.moments)
+          if (
+            !m.hidden &&
+            (w.kind === "kiln" ? m.task === "tend" || m.task === "throw" : m.task === "hammer") &&
+            Math.hypot(m.x - w.door.x, m.z - w.door.z) < 9
+          )
+            return m;
+        return null;
+      });
+      this.trades.update(screen, this.stage.quality.motion, busy);
+    }
     this.sizes = drawn.map((d) => d.size);
     this.strides = drawn.map((d) => d.stride);
     // Each limb eased toward its pose now: a stride begun or ended, a task taken up, is a
@@ -1336,6 +1412,125 @@ export class VillageScene {
             : null,
         )
       : [];
+  }
+
+  /**
+   * The trees as the woodlot has them (Phase 41 M200): each part's trees, those felled hidden and
+   * saplings grown small (none felled: `f` null); and the stumps.
+   */
+  private plant(f: Felling | null): void {
+    for (const part of this.forest)
+      part.batch.set(part.list.length, (i, out) => {
+        const t = part.list[i]!,
+          k = part.index[i]!;
+        let as = t;
+        if (f?.down.has(k)) {
+          const g = f.saplings.get(k);
+          if (g === undefined) {
+            out[0] = t.x * M;
+            out[1] = -10;
+            out[2] = t.z * M;
+            out[3] = out[4] = out[5] = 0;
+            out[6] = 0;
+            return;
+          }
+          as = { ...t, size: t.size * (0.2 + 0.8 * g) };
+        }
+        out[0] = t.x * M;
+        out[1] = part.y(as);
+        out[2] = t.z * M;
+        out[3] = out[5] = part.w(as);
+        out[4] = part.h(as);
+        out[6] = t.x + t.z;
+      });
+    const stumps = (f?.stumps ?? []).filter((k) => k < this.forestTrees.length),
+      fb = this.felled;
+    if (!fb) return;
+    fb.stumps.set(stumps.length, (i, out) => {
+      const t = this.forestTrees[stumps[i]!]!;
+      out[0] = t.x * M;
+      out[1] = 0.025;
+      out[2] = t.z * M;
+      out[3] = out[5] = 0.15;
+      out[4] = 0.05;
+      out[6] = t.x;
+    });
+  }
+
+  /** The trees coming down or lying now: tipped over away from their fellers, cut shorter as their logs go. */
+  private fallen(f: Felling): void {
+    const fb = this.felled;
+    if (!fb) return;
+    const trees = this.forestTrees,
+      list = f.falling.filter((x) => x.index < trees.length).slice(0, FELLING),
+      /** Along a tree's length, tipped by `p` toward `yaw`: from its foot, `d` up its height; its own breadth `r` lifting it off the ground as it lies. */
+      put = (out: number[], t: Tree, yaw: number, p: number, d: number, r: number) => {
+        out[0] = t.x * M + Math.sin(yaw) * Math.sin(p) * d;
+        out[1] = Math.cos(p) * d + r * Math.sin(p);
+        out[2] = t.z * M + Math.cos(yaw) * Math.sin(p) * d;
+        out[6] = yaw;
+        out[7] = p;
+      },
+      tip = (over: number) => over * (Math.PI / 2 - 0.05);
+    // (Cut into logs from its foot: what is left lies toward its crown's end.)
+    fb.trunks.set(list.length, (i, out) => {
+      const x = list[i]!,
+        t = trees[x.index]!,
+        whole = 0.7 * t.size,
+        h = whole * Math.max(0.15, x.left);
+      put(out, t, x.yaw, tip(x.over), whole - h / 2, 0.06);
+      out[3] = out[5] = 0.12;
+      out[4] = h;
+    });
+    // (Its crown goes with the first logs: lopped, then carried off as brush.)
+    for (const [kind, b] of fb.crowns) {
+      const mine = list.filter((x) => trees[x.index]!.kind === kind && x.left > 0.6),
+        shape = CROWNS[kind as "conifer" | "broadleaf" | "palm"];
+      b.set(mine.length, (i, out) => {
+        const x = mine[i]!,
+          t = trees[x.index]!;
+        put(out, t, x.yaw, tip(x.over), shape.at * t.size, (shape.w * t.size) / 2);
+        out[3] = out[5] = shape.w * t.size;
+        out[4] = shape.h * t.size;
+      });
+    }
+  }
+
+  /** The woodlot as last drawn (the look tools): trees down, stumps, saplings, and those coming down or lying. */
+  fellingShown(): {
+    down: number;
+    stumps: number;
+    saplings: number;
+    next: number | null;
+    falling: { over: number; left: number; x: number; z: number }[];
+  } | null {
+    const f = this.fellNow;
+    if (!f) return null;
+    return {
+      down: f.down.size,
+      stumps: f.stumps.length,
+      saplings: f.saplings.size,
+      next: f.next,
+      falling: f.falling.map((x) => ({
+        over: x.over,
+        left: x.left,
+        x: this.forestTrees[x.index]?.x ?? 0,
+        z: this.forestTrees[x.index]?.z ?? 0,
+      })),
+    };
+  }
+
+  /** The town's trades as last drawn (the look tools): its works by kind, the sails' turn, kilns aglow, sparks. */
+  tradesNow(): {
+    mills: number;
+    kilns: number;
+    smithies: number;
+    turn: number;
+    glowing: number;
+    sparks: number;
+  } {
+    const n = (k: string) => this.trades.works.filter((w) => w.kind === k).length;
+    return { mills: n("mill"), kilns: n("kiln"), smithies: n("smithy"), ...this.trades.shown };
   }
 
   /** The war about the town now (null: none): its soldiers armed for its sides as it comes. */
