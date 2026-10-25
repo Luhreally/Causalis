@@ -1392,6 +1392,20 @@ export async function runGenesis(o: {
     }),
     /** Where a beast of the living world is on the screen (the look tools). */
     meadowSpot: (id: number) => (meadow ? meadowScene.onScreen(meadow, id) : null),
+    /** Where a cell of the drop is on the screen, the middlemost of those seen (the look tools). */
+    dropSpot: () => {
+      if (!drop) return null;
+      let best: { x: number; y: number } | null = null,
+        bd = Infinity;
+      for (const c of (drop as DropState).cells) {
+        const at = micro.onScreen(roundOf(c));
+        if (!at || at.x < 40 || at.y < 120 || at.x > innerWidth - 40 || at.y > innerHeight - 160)
+          continue;
+        const d = (at.x - innerWidth / 2) ** 2 + (at.y - innerHeight / 2) ** 2;
+        if (d < bd) [best, bd] = [at, d];
+      }
+      return best;
+    },
     // The peopling (Phase 28): how far the bands have come, what the hand has laid on it.
     peopling: () => {
       const p = plan.peopling;

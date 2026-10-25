@@ -150,23 +150,21 @@ await page.waitForSelector(".genesis h2", { timeout: 600000 });
   const after = await state();
   check(after.motes >= fed.motes + 40, `fed, the drop has ${fed.motes} → ${after.motes} motes`);
   if (lit > 0) await page.click(`.genesis-bar .speed >> nth=${lit}`);
-  // A cell tapped in the drop is followed.
+  // A cell tapped in the drop is followed: the drop held still, where a cell is seen.
+  // (Fixed points of the screen were tapped once; a slow machine's cells had drifted off them.)
   let followed = false;
-  for (const [x, y] of [
-    [683, 300],
-    [600, 250],
-    [760, 340],
-    [520, 320],
-    [840, 260],
-    [683, 200],
-  ] as const) {
-    await page.mouse.click(x, y);
-    await page.waitForTimeout(200);
-    if ((await state()).chosen !== null) {
-      followed = true;
-      break;
+  await page.click(".genesis-bar .speed >> nth=0");
+  for (let tries = 0; tries < 6 && !followed; tries++) {
+    const at = await k<{ x: number; y: number } | null>(`globalThis.causalis.dropSpot()`);
+    if (!at) {
+      await page.waitForTimeout(300);
+      continue;
     }
+    await page.mouse.click(at.x, at.y);
+    await page.waitForTimeout(200);
+    followed = (await state()).chosen !== null;
   }
+  if (lit > 0) await page.click(`.genesis-bar .speed >> nth=${lit}`);
   check(followed, "no cell tapped in the drop was followed");
   const counted = (await page.textContent(".genesis-count")) ?? "";
   say(`the drop: ${JSON.stringify((await state()).cells)} — “${counted.slice(0, 140)}”`);

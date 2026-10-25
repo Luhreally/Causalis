@@ -130,6 +130,13 @@ export class MicroScene {
     this.water.enabled = true;
   }
 
+  /** Where a point of the drop is on the screen (CSS pixels), or null behind the eye. */
+  onScreen(a: { x: number; y: number; z: number }): { x: number; y: number } | null {
+    const out = new pc.Vec3();
+    this.stage.camera.camera!.worldToScreen(new pc.Vec3(a.x, a.y, a.z), out);
+    return out.z > 0 ? { x: out.x, y: out.y } : null;
+  }
+
   /**
    * The nearest of `at` to a point of the screen (CSS pixels from the canvas's corner), within
    * `reach` pixels; -1 where none is.
