@@ -1193,8 +1193,8 @@ async function runPlanetPage(): Promise<void> {
     pointAt(page);
   };
   // The page window stands below whichever scale's bar shows (its lines wrap as it narrows):
-  // read as a page opens and twice a second (a resize observer on the bars trips WebKit's
-  // loop check as the scales' panels come and go).
+  // read as a page opens, as the date widens, and twice a second (a resize observer on the bars
+  // trips WebKit's loop check as the scales' panels come and go).
   const markBarBottom = () => {
     const bar = [...document.querySelectorAll<HTMLElement>(".panel > header.bar")].find(
         (b) => b.offsetParent !== null,
@@ -1204,6 +1204,9 @@ async function runPlanetPage(): Promise<void> {
       document.documentElement.style.setProperty("--bar-bottom", y);
   };
   setInterval(markBarBottom, 500);
+  // (The corner's tools under the bar go down with it in the frame it takes another line, never
+  // left under it for a moment where a tap on them would land on the bar.)
+  time.onWiden = markBarBottom;
   pageWindow.onClose = () => document.body.classList.remove("paging");
   exposed.open = (ref: string) => pageWindow.open(ref);
   exposed.pageOpen = () => pageWindow.current;

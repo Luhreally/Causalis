@@ -30,6 +30,10 @@ export class TimeBar {
   /** When the speed asked for last changed (whether the world keeps up is judged after it). */
   private askedAt = 0;
   private shown = "";
+  /** The longest date shown at this scale, in letters: the clock never narrows below it. */
+  private widest = 0;
+  /** Called as the clock widens (the bar it is in may take another line). */
+  onWiden: (() => void) | null = null;
 
   constructor(client: HostClient, scale: TimeScale, framed = false) {
     this.state = new TimeState(scale);
@@ -151,6 +155,15 @@ export class TimeBar {
     if (text === this.shown) return;
     this.shown = text;
     this.clock.textContent = text;
+    // (Never narrower than the longest date shown at this scale, in its letters — the clock's type
+    // is monospaced, so a letter is a `ch`: a narrow bar takes another line once as the date
+    // lengthens, never back and forth as the days count up and over, carrying what stands under
+    // the bar up and down with it.)
+    if (text.length > this.widest) {
+      this.widest = text.length;
+      this.clock.style.minWidth = `min(calc(${this.widest}ch + 22px), 100%)`;
+      this.onWiden?.();
+    }
   }
 
   /** How fast the world goes ("8 years/s"), and where it cannot keep up, that it is its fastest. */
@@ -185,6 +198,8 @@ export class TimeBar {
   private build(): void {
     const scale = this.state.scale;
     this.built = scale;
+    this.widest = 0;
+    this.clock.style.minWidth = "";
     this.buttons = [0, ...TIME_LADDERS[scale].speeds].map((s, i) => {
       const b = el("button", "speed", s === 0 ? "❚❚" : speedLabel(s));
       b.setAttribute("aria-label", s === 0 ? "Pause" : speedWords(s));

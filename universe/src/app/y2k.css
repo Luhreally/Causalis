@@ -304,6 +304,20 @@ button:active {
     padding: 4px 5px;
     font-size: 0.76rem;
   }
+  /* (The world's numbers in columns: how many lines they take is set by how many they are, never
+     by how wide their figures run as they count, so the bar keeps its height.) */
+  .bar .world-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .bar .world-stats > .stat-chip {
+    justify-content: center;
+    min-width: 0;
+    padding: 4px 2px;
+  }
+  .bar .world-stats > .stat-chip:nth-child(4n) {
+    border-right: 0;
+  }
   .walk {
     font-size: 0.82rem;
     padding: 8px 10px;

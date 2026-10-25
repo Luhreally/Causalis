@@ -215,6 +215,9 @@ check(/yours/.test(caption), `the caption did not say the eye is the viewer's (â
 await shot("5-taken");
 
 // 6. On a phone: the stage chip and the caption within the screen.
+// (The desk's page closed first: left running its world at a month a second, on CI's few cores
+// drawing in software it starved the phone's page, whose tap then went unanswered.)
+await page.close();
 {
   const phone = await browser.newPage({
     viewport: { width: 390, height: 844 },
