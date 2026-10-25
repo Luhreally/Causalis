@@ -16,7 +16,7 @@ export type Quality = {
   /** Clouds over the globe; glows about the globe's rim, stars and the sun. */
   readonly clouds: boolean;
   readonly glows: boolean;
-  /** Figures of a crowd per cell and class (the sandbox's). */
+  /** Figures of a crowd per cell and class (the sandbox's); a town's many drawn at most (M198, M202). */
   readonly crowdCap: number;
   /** Trees over a region at most; a village's trees against the full count. */
   readonly regionTrees: number;
@@ -43,7 +43,7 @@ export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
     shadowResolution: 512,
     clouds: false,
     glows: false,
-    crowdCap: 24,
+    crowdCap: 48,
     regionTrees: 2400,
     villageTrees: 0.35,
     wildlife: 30,
@@ -60,7 +60,7 @@ export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
     shadowResolution: 1024,
     clouds: true,
     glows: true,
-    crowdCap: 40,
+    crowdCap: 120,
     regionTrees: 6000,
     villageTrees: 0.7,
     wildlife: 80,
@@ -77,7 +77,7 @@ export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
     shadowResolution: 1024,
     clouds: true,
     glows: true,
-    crowdCap: 80,
+    crowdCap: 220,
     regionTrees: 10000,
     villageTrees: 1,
     wildlife: 160,
@@ -94,7 +94,7 @@ export const QUALITIES: Readonly<Record<QualityName, Quality>> = {
     shadowResolution: 2048,
     clouds: true,
     glows: true,
-    crowdCap: 140,
+    crowdCap: 360,
     regionTrees: 18000,
     villageTrees: 1.4,
     wildlife: 320,

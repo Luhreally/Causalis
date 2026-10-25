@@ -287,8 +287,10 @@ export class VillagePanel {
     this.folkOpen = true;
     this.inspector.hidden = false;
     this.who.textContent = name;
+    this.folkMore.replaceChildren();
     this.page.replaceChildren(
       ...(today ? [el("div", "fact", `Today: ${today}`)] : []),
+      this.folkMore,
       el(
         "p",
         "muted",
@@ -297,6 +299,9 @@ export class VillagePanel {
     );
     this.whyBox.replaceChildren();
   }
+
+  /** Under the card of one of the town's many, more of them as the scene shows it (their day, Phase 45 M207). */
+  readonly folkMore = el("div", "folk-more");
 
   /** The village's age and what its mine digs, for the words of what they carry. */
   works: {

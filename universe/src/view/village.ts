@@ -1940,7 +1940,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     return go(until, square, at);
   };
   stay(0, rise, at, ACTIVITY.asleep);
-  stay(rise, rise + 0.75 * HOUR, at, ACTIVITY.eating);
+  stay(rise, rise + 0.75 * HOUR, at, ACTIVITY.eating, null, null, null, "Breakfast at home");
   let t = rise + 0.75 * HOUR;
   // A market morning (Phase 33 M175): the old and some of the rest go to buy at a stall before
   // the day's work, and come home with what they bought.
@@ -2017,7 +2017,16 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     // Those who work near home come back to eat at noon; the rest eat where they are.
     if (far) {
       stay(t, 12 * HOUR, work, doing, work.to, work.task, work.face, work.why);
-      stay(Math.max(t, 12 * HOUR), Math.max(t, 12.75 * HOUR), work, ACTIVITY.eating);
+      stay(
+        Math.max(t, 12 * HOUR),
+        Math.max(t, 12.75 * HOUR),
+        work,
+        ACTIVITY.eating,
+        null,
+        null,
+        null,
+        "Their bread at noon, where they work",
+      );
       stay(
         Math.max(t, 12.75 * HOUR),
         stop ?? 17.25 * HOUR,
@@ -2032,7 +2041,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     } else {
       stay(t, 12 * HOUR, work, doing, work.to, work.task, work.face, work.why);
       t = go(Math.max(t, 12 * HOUR), work, at, work.back);
-      stay(t, t + 0.75 * HOUR, at, ACTIVITY.eating);
+      stay(t, t + 0.75 * HOUR, at, ACTIVITY.eating, null, null, null, "Home to eat at noon");
       t = go(t + 0.75 * HOUR, at, work, work.to);
       stay(t, stop ?? 17.5 * HOUR, work, doing, work.to, work.task, work.face, work.why);
       t = go(Math.max(t, stop ?? 17.5 * HOUR), work, at, work.back);
@@ -2041,7 +2050,16 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     if (feast) t = feasting(t);
     else if ((drills || draw(11) < 0.3) && t < 19 * HOUR) t = evening(t, 20 * HOUR);
   }
-  stay(t, Math.max(t, bed - 0.5 * HOUR), at, ACTIVITY.eating);
+  stay(
+    t,
+    Math.max(t, bed - 0.5 * HOUR),
+    at,
+    ACTIVITY.eating,
+    null,
+    null,
+    null,
+    "Supper at home, and the evening",
+  );
   stay(Math.max(t, bed - 0.5 * HOUR), bed, at, ACTIVITY.home);
   stay(Math.max(t, bed), DAY, at, ACTIVITY.asleep);
   // A fire in the town, or homes shaken down (Phase 42 M201): from wherever the alarm finds them,
@@ -3096,6 +3114,64 @@ export function momentOf(
     why: sheltering ? "In out of the downpour" : leg.why,
   };
 }
+
+/**
+ * A line of a person's day told (Phase 45 M207): from when to when (seconds into the day), what
+ * they are about, and how many times over (an errand run again and again: once).
+ */
+export type DayLine = { readonly from: number; readonly to: number; words: string; times: number };
+
+/**
+ * A person's day told (Phase 45 M207): what they are about from midnight to midnight, a line for
+ * each thing in turn, the walk to it folded into it; an errand run again and again (the sheaves
+ * carried in load after load) one line, with how many times.
+ */
+export function dayTold(plan: VillagePlan, index: number, day: number, fine = true): DayLine[] {
+  const stays: { from: number; to: number; words: string; times: number }[] = [];
+  let walked: number | null = null;
+  for (const leg of legsOf(plan, index, day, fine)) {
+    if (leg.activity === ACTIVITY.walking) {
+      walked ??= leg.from;
+      continue;
+    }
+    const words = leg.why ?? sentenceOf(ACTIVITY_WORDS[leg.activity] ?? "about"),
+      last = stays.at(-1);
+    if (last && last.words === words) last.to = leg.to;
+    else stays.push({ from: walked ?? leg.from, to: leg.to, words, times: 1 });
+    walked = null;
+  }
+  if (walked !== null) stays.push({ from: walked, to: DAY, words: "Walking", times: 1 });
+  // (The same few things over and over: one line for them all.)
+  const out: DayLine[] = [],
+    same = (a: number, b: number, n: number) => {
+      for (let j = 0; j < n; j++) if (stays[a + j]!.words !== stays[b + j]!.words) return false;
+      return true;
+    };
+  for (let i = 0; i < stays.length;) {
+    let run = { n: 1, times: 1 };
+    for (let n = 1; n <= 4 && i + 2 * n <= stays.length; n++) {
+      let times = 1;
+      while (i + (times + 1) * n <= stays.length && same(i, i + times * n, n)) times++;
+      if (times > 1 && times * n > run.times * run.n) run = { n, times };
+    }
+    const first = stays[i]!,
+      end = stays[i + run.n * run.times - 1]!;
+    out.push({
+      from: first.from,
+      to: end.to,
+      words: stays
+        .slice(i, i + run.n)
+        .map((x, j) => (j ? x.words[0]!.toLowerCase() + x.words.slice(1) : x.words))
+        .join("; "),
+      times: run.times,
+    });
+    i += run.n * run.times;
+  }
+  return out;
+}
+
+/** "at home" as a line begins: "At home". */
+const sentenceOf = (words: string) => words[0]!.toUpperCase() + words.slice(1);
 
 /** A town's stores at a moment (Phase 39 M198), as its day has moved them; and what is going up. */
 export type StoresNow = {

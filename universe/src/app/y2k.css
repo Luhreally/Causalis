@@ -727,6 +727,53 @@ body.paging .panel:not(.page-panel) .inspector {
   border-left: 3px solid var(--act);
 }
 
+/* A person's day told (Phase 45 M207): the lines gone by dimmed, the one now lit, those still to
+   come taken on to with a tap. */
+.day-told {
+  margin: -2px 0 8px;
+  font-size: 0.8rem;
+}
+.day-told summary {
+  cursor: pointer;
+  color: var(--act);
+  font-weight: 600;
+}
+.day-lines {
+  position: relative;
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  max-height: 9.5rem;
+  overflow-y: auto;
+}
+.day-lines li {
+  display: grid;
+  grid-template-columns: 3.1rem minmax(0, 1fr);
+  gap: 6px;
+  padding: 1px 4px;
+  border-left: 3px solid transparent;
+}
+.day-lines li.gone {
+  opacity: 0.5;
+}
+.day-lines li.now {
+  color: var(--act);
+  background: rgba(4, 10, 30, 0.5);
+  border-left-color: var(--act);
+}
+.day-lines li.next {
+  cursor: pointer;
+}
+.day-lines li.next:hover,
+.day-lines li.next:focus {
+  background: rgba(120, 160, 255, 0.16);
+  outline: none;
+}
+.day-at {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
 /* Follow, on a page: a glossy button like the others, lit while followed. */
 .page-actions .follow {
   margin: 0;

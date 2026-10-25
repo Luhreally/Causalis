@@ -107,8 +107,8 @@ const CROWNS = {
 } as const;
 /** A village scene's units per metre (its plans are in metres). */
 export const VILLAGE_METRE = M;
-/** How many a side a village's battle draws, by the setting's detail. */
-const SOLDIERS = [6, 10, 14, 20];
+/** How many a side a village's battle draws, by the setting's detail (M202: hosts the size of a town's). */
+const SOLDIERS = [10, 18, 28, 44];
 /** A host's arms that fire (Phase 37 M188): carried as a spear is, levelled to fire. */
 const GUNS: readonly string[] = ["musket", "rifle"];
 const YEAR = 365 * 86_400;

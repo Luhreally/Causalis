@@ -72,8 +72,11 @@ import { peopleFigure } from "./folk.ts";
 export const WATCHED_FAMILIES = 10;
 /** Under the hand, at most this many of the village's people are drawn (all of them live). */
 export const DRAWN_UNDER_HAND = 400;
-/** One of a town's people drawn for every so many of them (Phase 39 M198), as the eye is given. */
-export const FOLK_PER = 30;
+/**
+ * One of a town's people drawn for every so many of them (Phase 39 M198; a crowd sized to its town,
+ * M202), as the eye is given.
+ */
+export const FOLK_PER = 12;
 /** What the town's other people are called, by their work. */
 const FOLK_WORDS = [
   "A child",
@@ -396,7 +399,7 @@ export function villagePlan(
     }
   });
   // The town's other people (Phase 39 M198): as many more as a town of its size is seen to hold —
-  // one drawn for every thirty of it, up to what the eye is given — each at the work its land
+  // one drawn for every twelve of it, up to what the eye is given — each at the work its land
   // does (builders as many as what it raises at once wants), living in the homes the watched do
   // not. Not met, and never history's: nothing they do flows back.
   const more = Math.min(folk, Math.max(0, Math.ceil(v.population / FOLK_PER) - people.length));

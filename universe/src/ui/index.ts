@@ -14,6 +14,7 @@ export { WarAgePanel, WarPanel } from "./war-panel.ts";
 export { GalaxyPanel } from "./galaxy-panel.ts";
 export { ClusterPanel } from "./cluster-panel.ts";
 export { VillagePanel } from "./village-panel.ts";
+export { DayTold, clockOf } from "./day.ts";
 export { WhyTree, el, type WhyNode } from "./why.ts";
 export { claimWords, clockWords, eventWords, roleWords, speedWords, when } from "./words.ts";
 export { TimeBar } from "./timebar.ts";

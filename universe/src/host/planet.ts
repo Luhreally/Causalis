@@ -1117,7 +1117,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
           world,
           a.ref as Ref,
           a.families ? Math.max(1, Math.min(16, Math.round(a.families))) : undefined,
-          a.folk ? Math.max(0, Math.min(200, Math.round(a.folk))) : 0,
+          a.folk ? Math.max(0, Math.min(480, Math.round(a.folk))) : 0,
         );
       },
       /** A land's heart (Phase 40 M204): the town its battles are fought before, or null. */

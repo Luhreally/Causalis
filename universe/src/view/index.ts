@@ -67,6 +67,8 @@ export {
   houseLook,
   keepApart,
   momentOf,
+  dayTold,
+  type DayLine,
   prepareDay,
   restDay,
   storesNow,

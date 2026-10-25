@@ -292,6 +292,11 @@ jobs:
       - run: npm run gate:44 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # Phase 45 (a crowd sized to its town; a person's day told on their page and card, a line
+      # still to come taken on to with a tap, the eye kept on them).
+      - run: npm run gate:45 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

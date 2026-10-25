@@ -82,6 +82,7 @@ import {
   typing,
   el,
   DirectorControls,
+  DayTold,
 } from "../ui/index.ts";
 import type {
   ActsMap,
@@ -222,6 +223,8 @@ import {
   type RegionLens,
   type SandboxSpec,
   type StoresNow,
+  dayTold,
+  type DayLine,
 } from "../view/index.ts";
 
 /** A point along a name's line: `d` radians from its centre, on the unit sphere. */
@@ -5500,7 +5503,26 @@ async function runPlanetPage(): Promise<void> {
         p = plan.people[watched];
       if (m && p && pageWindow.current === p.ref)
         pageWindow.setLive(villagePanel.nowWords(m, p.tool));
-    }
+      // Their day told (Phase 45 M207), on their page or the card of one of the town's many: a
+      // town watched growing has no day to tell.
+      const fine = !time.lapse,
+        day = Math.floor(seen / DAY);
+      if (
+        !theirs ||
+        theirs.plan !== plan ||
+        theirs.i !== watched ||
+        theirs.day !== day ||
+        theirs.fine !== fine
+      )
+        theirs = { plan, i: watched, day, fine, lines: fine ? dayTold(plan, watched, day) : [] };
+      const slot = p?.folk
+        ? villagePanel.folkMore
+        : p && pageWindow.current === p.ref
+          ? pageWindow.liveMore
+          : null;
+      if (slot && theirDay.element.parentElement !== slot) slot.append(theirDay.element);
+      theirDay.show(slot ? theirs.lines : null, seen - day * DAY, `${plan.ref}|${watched}|${day}`);
+    } else theirDay.show(null, 0, "");
     // The years turn: re-read the plan, so those who died are gone.
     if (Math.floor(clock.t / YEAR) !== planYear) void loadPlan(plan.ref);
     if (signs) bubbles.update(village.bubbles());
@@ -5636,6 +5658,23 @@ async function runPlanetPage(): Promise<void> {
   };
   // Keeping a person in view (Phase 10 M94): the village's view follows them as they go.
   let keeping: string | null = null;
+  // A person's day told (Phase 45 M207): a line of it still to come, tapped, takes the clock on to
+  // it, the eye kept on them.
+  const theirDay = new DayTold();
+  let theirs: {
+    plan: VillagePlan;
+    i: number;
+    day: number;
+    fine: boolean;
+    lines: DayLine[];
+  } | null = null;
+  theirDay.onGo = (s) => {
+    const p = watched !== null ? plan?.people[watched] : undefined;
+    if (!p || !theirs) return;
+    // (The world's clock goes by whole seconds: on to the line's first, not short of it.)
+    void client.advance(Math.ceil(theirs.day * DAY + s));
+    if (!p.folk) keep(p.ref);
+  };
   const keep = (ref: string | null) => {
     keeping = ref;
     rig.follow = ref

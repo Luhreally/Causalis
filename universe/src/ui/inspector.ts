@@ -74,6 +74,8 @@ export class PageWindow {
   private readonly sub = el("div", "page-sub");
   private readonly crumbs = el("nav", "page-crumbs");
   private readonly live = el("div", "page-live");
+  /** Under the live line, more of it as the scale shows it (a person's day, Phase 45 M207): emptied as a page is opened. */
+  readonly liveMore = el("div", "page-live-more");
   private readonly actions = el("div", "page-actions");
   private readonly stats = el("div", "stats");
   private readonly statDetail = el("div", "stat-detail");
@@ -146,7 +148,7 @@ export class PageWindow {
     // Under the title: its picture beside its words, its doings, its numbers.
     const head = el("div", "page-head"),
       words = el("div", "page-head-words");
-    words.append(this.crumbs, this.sub, this.live, this.actions, this.stats);
+    words.append(this.crumbs, this.sub, this.live, this.liveMore, this.actions, this.stats);
     head.append(this.portrait, words);
     this.portrait.hidden = true;
     // The title bar: back and forward, the thing's icon and name, and the window's boxes.
@@ -200,6 +202,7 @@ export class PageWindow {
 
   close(): void {
     this.setLive(null);
+    this.liveMore.replaceChildren();
     this.inspector.hidden = true;
     // (Its panel goes too: "the panel open" then means the scale's own.)
     this.element.hidden = true;
@@ -215,6 +218,7 @@ export class PageWindow {
     this.element.hidden = false;
     if (fresh) {
       this.setLive(null);
+      this.liveMore.replaceChildren();
       this.name.textContent = "…";
       this.body.replaceChildren(el("p", "muted", "…"));
     }
