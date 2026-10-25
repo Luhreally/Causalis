@@ -23,6 +23,8 @@ export {
   type StoreBook,
   type StoreKind,
   type TownStores,
+  type TownTrade,
+  type TradeGood,
   type BeastPlan,
   type VillageLife,
   type Feast,

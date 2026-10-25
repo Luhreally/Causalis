@@ -7,8 +7,8 @@
 // people's day is drawn from this plan by the view, and nothing flows back.
 import { YEAR, finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
 import type { Feast } from "../bridge/index.ts";
-import { WATER, livingIn, type Species } from "../gen/index.ts";
-import { G, HOME_LIFE, OCC, roofPitch } from "../rules/index.ts";
+import { WATER, cellRef, livingIn, type Species } from "../gen/index.ts";
+import { G, GOODS, HOME_LIFE, OCC, roofPitch } from "../rules/index.ts";
 import {
   actsOf,
   agentName,
@@ -40,7 +40,7 @@ import {
   warsOf,
   wildsOf,
 } from "../sim/index.ts";
-import { meetHousehold, observer, settleAll } from "../causal/index.ts";
+import { landWords, meetHousehold, observer, settleAll } from "../causal/index.ts";
 import { personThings } from "./inspect/things.ts";
 import {
   LAKE_R,
@@ -54,7 +54,9 @@ import {
   type StoreBook,
   type TownPlan,
   type TownStores,
+  type TownTrade,
   type TownWater,
+  type TradeGood,
   type FieldYear,
   type VillageLife,
   type VillagePlan,
@@ -472,6 +474,49 @@ export function villagePlan(
   }
 
   /**
+   * What the town's land traded last year (Phase 48 M210), at the town's share by its people: the
+   * goods its carriers took out and where to, and what came in and where from — each land named
+   * by its market town (else its greatest), the most first, a few each way.
+   */
+  function tradeOf(cell: number, population: number): TownTrade | undefined {
+    const markets = marketsOf(world),
+      all = ctx.provinces.get(cell)?.total() ?? 0;
+    if (all <= 0 || !markets.flows.length) return undefined;
+    const share = Math.min(1, population / all),
+      named = (c: number) => {
+        const towns = ctx.settlements.inProvince(c).filter((x) => x.population > 0),
+          best =
+            towns.find((x) => x.market !== null) ??
+            [...towns].sort((a, b) => b.population - a.population)[0];
+        return best?.name ?? landWords(world, cellRef(0, c));
+      },
+      goods = (other: (f: (typeof markets.flows)[number]) => number | null): TradeGood[] => {
+        const by = new Map<string, TradeGood>();
+        for (const f of markets.flows) {
+          const c = other(f),
+            g = GOODS[f.good];
+          if (c === null || !g) continue;
+          const land = named(c),
+            key = `${g.id} ${land}`,
+            was = by.get(key);
+          by.set(key, {
+            good: g.id,
+            what: TRADE_WORDS[g.id] ?? g.name,
+            land,
+            count: (was?.count ?? 0) + f.count * share,
+          });
+        }
+        return [...by.values()]
+          .filter((x) => x.count >= 0.5)
+          .sort((a, b) => b.count - a.count || (a.land < b.land ? -1 : a.land > b.land ? 1 : 0))
+          .slice(0, 4);
+      },
+      out = goods((f) => (f.from === cell ? f.to : null)),
+      came = goods((f) => (f.to === cell ? f.from : null));
+    return out.length || came.length ? { out, in: came } : undefined;
+  }
+
+  /**
    * How the village lives now (M86), for what its people are seen doing and saying: from
    * its land's year (fed, growing in number), its realm (at war, its grievance), its faith,
    * its living world's turns, what it has learned lately, and the watched families' years;
@@ -869,7 +914,8 @@ export function villagePlan(
   function planOf(people: VillagePlan["people"][number][]): VillagePlan {
     const village = v!,
       visitors = visitorsAt(world, village.cell, now),
-      stores = storesOf(village.cell, village.population);
+      stores = storesOf(village.cell, village.population),
+      trade = tradeOf(village.cell, village.population);
     return {
       ref,
       hand: !!hand && hand.village === ref,
@@ -912,9 +958,16 @@ export function villagePlan(
       rest: restOf(village.cell, village.population, village.founded),
       people,
       ...(stores ? { stores } : {}),
+      ...(trade ? { trade } : {}),
     };
   }
 }
+
+/** Goods as a load of them is named on the road (Phase 48 M210), where not as the market names them. */
+const TRADE_WORDS: Readonly<Record<string, string>> = {
+  meat: "salt meat and cheese",
+  wild: "dried fruit and nuts",
+};
 
 /**
  * The god's wonders in a village (Phase 42 M201): its shrine and its spring, from their events —

@@ -242,7 +242,21 @@ export class VillagePanel {
     }
     for (const [words, a] of alike)
       sites.push(`${a.n > 1 ? `${a.n} × ` : ""}${words}${a.hands ? ` — ${a.hands} at work` : ""}`);
-    const key = [rows.join("|"), doing, sites.join("|"), s.lean, s.fields?.words ?? ""].join("#");
+    // (Its land's trade, at its share: what its traders take down the road, and bring back.)
+    const trade = s.trade
+      ? [
+          ...s.trade.out.map((g) => `↗ ${g.what} to ${g.land}: ${count(g.count)} a year`),
+          ...s.trade.in.map((g) => `↙ ${g.what} from ${g.land}: ${count(g.count)} a year`),
+        ]
+      : [];
+    const key = [
+      rows.join("|"),
+      doing,
+      sites.join("|"),
+      s.lean,
+      s.fields?.words ?? "",
+      trade.join("|"),
+    ].join("#");
     if (key === this.cardKey) return;
     this.cardKey = key;
     this.now.textContent = `Food for ${lastsWords(s.months)}${s.lean ? " — a lean time" : ""}`;
@@ -259,6 +273,17 @@ export class VillagePanel {
       ...(sites.length ? [el("h3", undefined, `Going up (${s.sites.length})`), list(sites)] : []),
       ...(s.fields
         ? [el("h3", undefined, "Its fields"), el("p", "stores-fields", s.fields.words)]
+        : []),
+      ...(trade.length
+        ? [
+            el("h3", undefined, "Its trade"),
+            list(trade),
+            el(
+              "p",
+              "muted",
+              "Its share of its land's trade last year, its traders taking it down the road and bringing back what comes.",
+            ),
+          ]
         : []),
       ...(s.lean
         ? [

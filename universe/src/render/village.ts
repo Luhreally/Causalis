@@ -4,7 +4,7 @@
 // about their day. One unit is ten metres; people are drawn three times their size
 // so a phone can see them. Instanced throughout: a village is a handful of draw calls.
 import * as pc from "playcanvas";
-import { LAKE_R, type VillagePlan } from "../bridge/index.ts";
+import { LAKE_R, type TradeGood, type VillagePlan } from "../bridge/index.ts";
 import {
   ACTIVITY,
   HAIRS,
@@ -78,6 +78,7 @@ import {
   type Crop,
   type StoresNow,
   townWarScene,
+  traderSeat,
   type TownWar,
   type TownWarScene,
 } from "../view/index.ts";
@@ -1851,6 +1852,34 @@ export class VillageScene {
               m.task === "strike"),
         )
         .map((m) => ({ x: m.x, z: m.z, why: m.why, task: m.task, carry: m.carry })),
+    };
+  }
+
+  /**
+   * The town's trade as drawn (the look tools, Phase 48 M210): its plan's, and each of its traders
+   * now (by their place in the plan) — where, what they are about and carry, and whether drawn.
+   */
+  tradeShown(): {
+    trade: { out: TradeGood[]; in: TradeGood[] } | null;
+    traders: {
+      index: number;
+      x: number;
+      z: number;
+      why: string | null;
+      carry: string | null;
+      hidden: boolean;
+    }[];
+  } | null {
+    const plan = this.plan;
+    if (!plan) return null;
+    return {
+      trade: plan.trade ? { out: [...plan.trade.out], in: [...plan.trade.in] } : null,
+      traders: plan.people.flatMap((_, index) => {
+        const m = this.moments[index];
+        return traderSeat(plan, index) >= 0 && m
+          ? [{ index, x: m.x, z: m.z, why: m.why, carry: m.carry, hidden: m.hidden }]
+          : [];
+      }),
     };
   }
 

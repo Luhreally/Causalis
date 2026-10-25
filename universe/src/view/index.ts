@@ -679,6 +679,7 @@ export {
   type GameNow,
   type Hunt,
 } from "./hunt.ts";
+export { COME_BACK, SET_OUT, storeOfGood, traderSeat, tripOn, type Trip } from "./trade.ts";
 export {
   BLIGHTED,
   BURN_HOURS,

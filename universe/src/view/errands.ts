@@ -27,6 +27,7 @@ import { homeWear, townScene, type TownScene } from "./town.ts";
 import { HARVEST, SOWING, WINTER, restDay } from "./seasons.ts";
 import { REAPERS_AT, fieldsNow, pulledOn, reapingOn, stookedOn, wateredOn } from "./fields.ts";
 import { HUNT_PARTY, huntOn } from "./hunt.ts";
+import { traderSeat, tripOn } from "./trade.ts";
 
 const DAY = 86_400,
   YEAR = 365 * DAY;
@@ -619,7 +620,9 @@ export type RoleKind =
   | "pull"
   | "cart"
   // The hunt (Phase 47 M209): out after the game with the others.
-  | "hunt";
+  | "hunt"
+  // The road's trade (Phase 48 M210): a trader setting out, away, or coming back with goods.
+  | "trade";
 
 /** Each day's work in words, for the town's card: "reaping", "felling timber". */
 export const ROLE_WORDS: Readonly<Record<RoleKind, string>> = {
@@ -647,6 +650,7 @@ export const ROLE_WORDS: Readonly<Record<RoleKind, string>> = {
   pull: "pulling the blighted crop",
   cart: "carrying in the sheaves",
   hunt: "out hunting",
+  trade: "on the road with goods",
 };
 
 export type Role = {
@@ -883,6 +887,10 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
       case OCC.dependent:
         if (lean) kinds[i] = "forage";
         return;
+      case OCC.trader:
+        // (On the road with the town's goods, on the days of a trip: Phase 48 M210.)
+        if (tripOn(plan, traderSeat(plan, i), day)) kinds[i] = "trade";
+        return;
     }
   });
   // In the slack season the farmers raise what the crafters cannot.
@@ -930,10 +938,11 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
     else if (shop >= 0) sit(i, "workshop", shop);
     else kinds[i] = "workshop";
   }
-  // A household's bread: one of it (who works) every third day, every day in a lean year.
+  // A household's bread: one of it (who works, and is not away down the road) every third day,
+  // every day in a lean year.
   const fetcher = new Map<number, number>();
   plan.people.forEach((p, i) => {
-    if (!working(i) || kinds[i] === "as-ever") return;
+    if (!working(i) || kinds[i] === "as-ever" || kinds[i] === "trade") return;
     const was = fetcher.get(p.home);
     if (was === undefined || draws[i]!(31) < draws[was]!(31)) fetcher.set(p.home, i);
   });

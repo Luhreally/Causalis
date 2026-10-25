@@ -134,6 +134,24 @@ export type TownStores = {
   readonly used: StoreBook;
 };
 
+/**
+ * A good its land traded last year, at the town's share by its people (Phase 48 M210): which (the
+ * goods' id), in words, the town of the land it went to or came from, and how much a year (the
+ * markets' units: a unit of food, a person's month of eating).
+ */
+export type TradeGood = {
+  readonly good: string;
+  readonly what: string;
+  readonly land: string;
+  readonly count: number;
+};
+
+/** What its land traded last year, at its share: what went out, and what came in (the most first). */
+export type TownTrade = {
+  readonly out: readonly TradeGood[];
+  readonly in: readonly TradeGood[];
+};
+
 /** One of the god's wonders in a village or town (Phase 42 M201). */
 export type Wonder = {
   readonly kind: "spring" | "shrine";
@@ -237,6 +255,8 @@ export type VillagePlan = {
   }[];
   /** What it holds in store and how that flows (Phase 39 M198). Absent: a village's usual. */
   readonly stores?: TownStores;
+  /** What its land traded last year, at its share (Phase 48 M210). Absent: none. */
+  readonly trade?: TownTrade;
   /**
    * How far their land has come, for what they wear and carry (art track A2): gatherers
    * in hides, farmers in undyed cloth, smiths' people in dyed cloth, the engines' in

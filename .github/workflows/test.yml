@@ -307,6 +307,11 @@ jobs:
       - run: npm run gate:47 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # Phase 48 (the road's trade: a trader loading the town's goods at its store and setting out down
+      # the road with them, away, back a day or two on with what that land sends; the card's trade).
+      - run: npm run gate:48 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

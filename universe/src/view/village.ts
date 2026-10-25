@@ -44,7 +44,9 @@ import {
 import type { Carry } from "./work.ts";
 import { hashText, unitOf } from "./draws.ts";
 import { FLOCK_HANDS, herderAt, keepsFlock } from "./flock.ts";
+import type { TownTrade } from "../bridge/index.ts";
 import { HUNT_DONE, HUNT_STALK, hunterAt, huntOn } from "./hunt.ts";
+import { SET_OUT, storeOfGood, traderSeat, tripOn } from "./trade.ts";
 import { ROW_ENDS, ROW_GAP, rowsOf } from "./country.ts";
 import {
   REAP_HOURS,
@@ -95,6 +97,8 @@ export const ACTIVITY = {
   sheltering: 8,
   /** At a feast in the square (Phase 33). */
   feasting: 9,
+  /** Away from the town down the road, with its goods (Phase 48 M210). */
+  away: 10,
 } as const;
 export type Activity = (typeof ACTIVITY)[keyof typeof ACTIVITY];
 
@@ -109,6 +113,7 @@ export const ACTIVITY_WORDS: readonly string[] = [
   "with the others in the square",
   "indoors, out of the weather",
   "at the feast in the square",
+  "away from the town",
 ];
 
 /**
@@ -370,8 +375,9 @@ function workplace(
           face: s.yaw,
         };
       }
-      // Some days out along the road; others at the market.
-      return draw(6) < 0.45
+      // Some days out along the road; others at the market. (Where its land trades, the road is
+      // their trips', Phase 48 M210: the days between, at the market.)
+      return draw(6) < 0.45 && !plan.trade
         ? at(
             plan.road.x * 0.9,
             plan.road.z * 0.9,
@@ -510,6 +516,8 @@ type Step = {
 
 /** Following work faster than this (metres a second), they are drawn on their feet, striding. */
 const STRIDING = 0.4;
+/** How long a trader's load takes to put up, or to take down (hours: Phase 48 M210). */
+const LOADING = 0.4;
 
 /** At work that moves (a reaper following the front), a leg each so many seconds. */
 const FOLLOW_STEP = 300;
@@ -1954,6 +1962,14 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     );
     return go(until, square, at);
   };
+  // A trader's trip down the road (Phase 48 M210): loaded at the store of a morning and out
+  // along the road, away a night or two in the land they trade with, and back of an afternoon to
+  // unload what they bring.
+  const trip =
+    fine && p.occupation === OCC.trader && !p.child && !oldOf(plan, p)
+      ? tripOn(plan, traderSeat(plan, index), day)
+      : null;
+  if (trip) return tripDay(trip);
   stay(0, rise, at, ACTIVITY.asleep);
   stay(rise, rise + 0.75 * HOUR, at, ACTIVITY.eating, null, null, null, "Breakfast at home");
   let t = rise + 0.75 * HOUR;
@@ -2081,6 +2097,96 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
   // to their part in it, and back to their day after — each of their parts in it in turn.
   for (const part of (fine ? fightsOn(plan, day).get(index) : undefined) ?? []) breakIn(part);
   return legs;
+
+  /**
+   * A trader's day on a trip (Phase 48 M210): the day they set out — loaded at the store what
+   * they take is kept in, and down the road with it; a day away; or the day they come back — in
+   * along the road with what that land sends, unloaded at the store it goes to, and home.
+   */
+  function tripDay({ trip, part }: NonNullable<ReturnType<typeof tripOn>>): Leg[] {
+    const { take, bring, land } = trip,
+      spots = storeSpots(plan, ground, day * DAY),
+      // (Where the road leaves what is shown.)
+      edge = clearSpot(ground, { x: plan.road.x * 0.97, z: plan.road.z * 0.97 });
+    if (part === "away") {
+      stay(0, DAY, edge, ACTIVITY.away, null, null, null, `Away down the road, trading in ${land}`);
+      return legs;
+    }
+    if (part === "out") {
+      const from = take ? spots[storeOfGood(take.good)] : null,
+        leave = Math.max(rise + 0.75 * HOUR, SET_OUT * HOUR);
+      stay(0, rise, at, ACTIVITY.asleep);
+      stay(rise, rise + 0.75 * HOUR, at, ACTIVITY.eating, null, null, null, "Breakfast at home");
+      stay(rise + 0.75 * HOUR, leave, at, ACTIVITY.home);
+      let t = leave,
+        here: Point = at;
+      if (from && take) {
+        t = go(t, at, from.door, null, `To ${from.words} for the ${take.what}`);
+        stay(
+          t,
+          t + LOADING * HOUR,
+          from.door,
+          ACTIVITY.working,
+          "pack",
+          "load",
+          from.yaw,
+          `Loading ${take.what} for ${land}`,
+        );
+        t += LOADING * HOUR;
+        here = from.door;
+      }
+      t = go(
+        t,
+        here,
+        edge,
+        take ? "pack" : null,
+        take
+          ? `Taking ${take.what} down the road to ${land}`
+          : `Down the road to ${land}${bring ? ` for ${bring.what}` : ""}`,
+      );
+      stay(t, DAY, edge, ACTIVITY.away, null, null, null, `On the road to ${land}`);
+      return legs;
+    }
+    const to = bring ? spots[storeOfGood(bring.good)] : null;
+    stay(0, trip.home, edge, ACTIVITY.away, null, null, null, `On the road back from ${land}`);
+    let t = go(
+      trip.home,
+      edge,
+      to ? to.door : at,
+      bring ? "pack" : null,
+      bring
+        ? `Back from ${land} with ${bring.what}`
+        : take
+          ? `Back from ${land}, the ${take.what} sold`
+          : `Back from ${land}`,
+    );
+    if (to && bring) {
+      stay(
+        t,
+        t + LOADING * HOUR,
+        to.door,
+        ACTIVITY.working,
+        "pack",
+        "load",
+        to.yaw,
+        `Unloading ${bring.what} at ${to.words}`,
+      );
+      t = go(t + LOADING * HOUR, to.door, at, null, "Home from the road");
+    }
+    stay(
+      t,
+      Math.max(t, bed - 0.5 * HOUR),
+      at,
+      ACTIVITY.eating,
+      null,
+      null,
+      null,
+      "Supper at home, and the evening",
+    );
+    stay(Math.max(t, bed - 0.5 * HOUR), bed, at, ACTIVITY.home);
+    stay(Math.max(t, bed), DAY, at, ACTIVITY.asleep);
+    return legs;
+  }
 
   /**
    * A bier taken up and borne off (Phase 43 M205): a step in to their place at it, held there
@@ -3118,7 +3224,10 @@ function leanDay(plan: VillagePlan, day: number): boolean {
   return lean;
 }
 
-/** Those at their ease (not at work, nor on their way, nor at the drill) go in out of a downpour. */
+/**
+ * Those at their ease (not at work, nor on their way, nor at the drill, a funeral or prayer) go in
+ * out of a downpour.
+ */
 function atEase(leg: Leg): boolean {
   return (
     leg.activity === ACTIVITY.home ||
@@ -3126,7 +3235,11 @@ function atEase(leg: Leg): boolean {
     leg.activity === ACTIVITY.playing ||
     leg.activity === ACTIVITY.resting ||
     leg.activity === ACTIVITY.feasting ||
-    (leg.activity === ACTIVITY.gathering && leg.task !== "drill")
+    // (A drill goes on in the rain; and a funeral, and prayer: Phase 48 M210.)
+    (leg.activity === ACTIVITY.gathering &&
+      leg.task !== "drill" &&
+      leg.task !== "mourn" &&
+      leg.task !== "pray")
   );
 }
 
@@ -3212,7 +3325,10 @@ export function momentOf(
     yaw,
     activity,
     task,
-    hidden: activity === ACTIVITY.asleep || activity === ACTIVITY.sheltering,
+    hidden:
+      activity === ACTIVITY.asleep ||
+      activity === ACTIVITY.sheltering ||
+      activity === ACTIVITY.away,
     carry: sheltering ? null : leg.carry,
     hunger: Math.max(0, Math.min(1, (s - fed) / ((lean ? 4.5 : 7) * HOUR))),
     tiredness:
@@ -3305,6 +3421,8 @@ export type StoresNow = {
    * the bar where it is one to see (null: a fair year with nothing to tell).
    */
   readonly fields: { readonly words: string; readonly sign: string | null } | null;
+  /** Its land's trade last year, at its share (Phase 48 M210): what went out, what came in. */
+  readonly trade: TownTrade | null;
 };
 
 /** The yard's loads to spare at the day's start, over what its day takes from it. */
@@ -3444,6 +3562,7 @@ export function storesNow(plan: VillagePlan, t: number, fine = true): StoresNow 
     doing: [...count].map(([kind, n]) => ({ kind, n })).sort((p, q) => q.n - p.n),
     sites: sites.map((x, k) => ({ words: x.words, x: x.x, z: x.z, hands: hands[k]! })),
     fields: words ? { words, sign } : null,
+    trade: plan.trade ?? null,
   };
 }
 

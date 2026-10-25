@@ -732,6 +732,21 @@ type Exposed = {
       name: string | null;
     }[];
   } | null;
+  /** The trade of the town watched (Phase 48 M210): its plan's, and its traders now. */
+  trade?: () => {
+    trade: {
+      out: { what: string; land: string; count: number }[];
+      in: { what: string; land: string; count: number }[];
+    } | null;
+    traders: {
+      index: number;
+      x: number;
+      z: number;
+      why: string | null;
+      carry: string | null;
+      hidden: boolean;
+    }[];
+  } | null;
   /**
    * The hunt of the town watched as drawn (Phase 47 M209): today's, the game (by its day, and as
    * drawn), and those at the hunt now.
@@ -5663,6 +5678,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.fields = () => (scale === "village" ? village.fieldsShown() : null);
   exposed.flock = () => (scale === "village" ? village.flockShown() : null);
   exposed.hunt = () => (scale === "village" ? village.huntShown() : null);
+  exposed.trade = () => (scale === "village" ? village.tradeShown() : null);
   exposed.rig = rig;
 
   // Going to anything (Phase 10 M92): a page's place, from whatever scale is up — the scale
