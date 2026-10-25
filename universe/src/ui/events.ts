@@ -70,6 +70,8 @@ export class EventWindows {
   /** Go to where a happening is to be seen; open a page. */
   onGoTo: (ref: string) => void = () => {};
   onOpen: (ref: string) => void = () => {};
+  /** A battle, watched fought on its field (Phase 37 M187); null: not offered. */
+  onBattle: ((event: string) => void) | null = null;
 
   /** How great happenings are told when the viewer has not chosen: in windows, or as cards. */
   private readonly fallback: EventMode;
@@ -223,6 +225,15 @@ export class EventWindows {
     be.onclick = () => this.letBe();
     this.drawWaiting();
     const buttons = el("div", "event-buttons");
+    // (A battle: watched fought, Phase 37 M187.)
+    if (event?.kind === "battle" && this.onBattle) {
+      const watch = el("button", "event-go", "⚔️ Watch the battle");
+      watch.onclick = () => {
+        this.letBe();
+        this.onBattle?.(t.ref);
+      };
+      buttons.append(watch);
+    }
     buttons.append(go, page, be, this.waiting);
     this.element.replaceChildren(head, body, ...acts, buttons, this.settings());
     this.element.hidden = false;

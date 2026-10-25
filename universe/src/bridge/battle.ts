@@ -19,10 +19,18 @@ export type BattleSideNear = {
   /** The men it had in the field, and those of them who fell. */
   readonly fielded: number;
   readonly fallen: number;
+  /**
+   * Of those in the field, the men not of its host: where more fell than it fielded, the land's
+   * men who rose with it (a defender's — at its seat the whole realm stands) or the levies sent
+   * after it (an attacker's), counted with it so a remnant is left standing (none: its host alone).
+   */
+  readonly risen?: number;
   /** What it fought with: its host's design (on foot with spears, where it had none). */
   readonly host: HostKinds | null;
   /** That host in words: "bronze swords and shields, on foot". */
   readonly kit: string;
+  /** Whether its realm knows black powder: it brings cannon to the field (Phase 37 M188). */
+  readonly cannon?: boolean;
 };
 
 /** What the battle won: the field, a siege laid about a seat, a land taken, a seat stormed. */

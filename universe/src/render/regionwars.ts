@@ -121,6 +121,7 @@ export class RegionWars {
     riders: 0,
     chariots: 0,
     spears: 0,
+    guns: 0,
     bows: 0,
     shields: 0,
     banners: 0,
@@ -547,32 +548,35 @@ export class RegionWars {
       out[5] = 0.56 * f.size;
       out[6] = f.yaw;
     });
-    // Arms: a spear upright at the right hand, its head of steel; a blade at the hip; a bow (or
-    // a club) in the left hand.
-    const spears = standing.filter((f) => f.kit.arm === "spear"),
+    // Arms: a spear upright at the right hand, its head of steel (a musket or a rifle shouldered,
+    // its bayonet fixed); a blade at the hip; a bow (or a club) in the left hand.
+    const gun = (f: (typeof standing)[number]) => f.kit.arm === "musket" || f.kit.arm === "rifle",
+      spears = standing.filter((f) => f.kit.arm === "spear" || gun(f)),
       blades = standing.filter((f) => f.kit.arm === "sword" || f.kit.arm === "axe"),
       bows = standing.filter(
         (f) => f.kit.arm === "bow" || f.kit.arm === "horn-bow" || f.kit.arm === "club",
       );
     this.shafts.set(spears.length, (i, out) => {
       const f = spears[i]!,
-        p = beside(f, 0.3 * f.size, 0.05);
+        p = beside(f, 0.3 * f.size, 0.05),
+        long = gun(f) ? 1.2 : 1.7;
       out[0] = p.x;
-      out[1] = ground(f) + seatOf(f) * f.size + 0.85 * f.size;
+      out[1] = ground(f) + seatOf(f) * f.size + (long / 2) * f.size;
       out[2] = p.z;
-      out[3] = out[5] = 0.05 * f.size;
-      out[4] = 1.7 * f.size;
+      out[3] = out[5] = (gun(f) ? 0.07 : 0.05) * f.size;
+      out[4] = long * f.size;
       out[6] = f.yaw;
     });
     this.steel.set(spears.length + blades.length, (i, out) => {
       if (i < spears.length) {
         const f = spears[i]!,
-          p = beside(f, 0.3 * f.size, 0.05);
+          p = beside(f, 0.3 * f.size, 0.05),
+          long = gun(f) ? 1.2 : 1.7;
         out[0] = p.x;
-        out[1] = ground(f) + seatOf(f) * f.size + 1.78 * f.size;
+        out[1] = ground(f) + seatOf(f) * f.size + (long + 0.08) * f.size;
         out[2] = p.z;
-        out[3] = out[5] = 0.09 * f.size;
-        out[4] = 0.22 * f.size;
+        out[3] = out[5] = (gun(f) ? 0.04 : 0.09) * f.size;
+        out[4] = (gun(f) ? 0.16 : 0.22) * f.size;
         out[6] = f.yaw;
         return;
       }
@@ -604,7 +608,8 @@ export class RegionWars {
     this.drawn = shown.length;
     this.counts.riders = mounted.length - chariots.length;
     this.counts.chariots = chariots.length;
-    this.counts.spears = spears.length;
+    this.counts.guns = spears.filter(gun).length;
+    this.counts.spears = spears.length - this.counts.guns;
     this.counts.bows = bows.filter((f) => f.kit.arm !== "club").length;
     this.counts.shields = this.shields.length;
   }

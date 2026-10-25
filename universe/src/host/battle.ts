@@ -57,6 +57,9 @@ const STRONG: readonly Rgb[] = [
   [0.1, 0.62, 0.66],
 ];
 const GRASS: Rgb = [0.3, 0.55, 0.2];
+/** The most of those in the field that fall: a remnant is left standing (the rest risen with it). */
+const KEPT = 0.9;
+
 const apart = (a: Rgb, b: Rgb) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
 /**
@@ -101,16 +104,20 @@ export function battleNear(world: World, ref: string): BattleNear | null {
     lore = loreOf(world),
     data = e.data as { a?: string; b?: string },
     colors = sideColors(realmColor(war.attacker), realmColor(war.defender)),
-    side = (realm: Ref, said: string | undefined, fielded: number, fallen: number, color: Rgb) => {
+    side = (realm: Ref, said: string | undefined, host: number, fallen: number, color: Rgb) => {
       const r = realms.get(realm),
+        // (Where more fell than its host had in the field, the men who rose with it are counted
+        // with it, a remnant of them all left standing.)
+        risen = fallen > host * KEPT ? Math.ceil(fallen / KEPT) - host : 0,
         parts = designsOf(world).of(realm)?.parts ?? (r ? hostFor(ctx, r).parts : null);
       return {
         ref: realm,
         name: said ?? (r ? realmName(r) : "a fallen realm"),
         color: [color[0], color[1], color[2]] as [number, number, number],
         arms: realmArms(world, realm),
-        fielded,
+        fielded: host + risen,
         fallen,
+        ...(risen ? { risen } : {}),
         host: parts
           ? (hostKinds(world, realm) ?? {
               arm: parts.find((p) => p.role === "arm")?.id ?? "",
@@ -119,6 +126,7 @@ export function battleNear(world: World, ref: string): BattleNear | null {
             })
           : null,
         kit: parts ? designWords(parts) : "spears, on foot",
+        ...(r && lore.get(r.seat, "gunpowder") ? { cannon: true } : {}),
       } satisfies BattleSideNear;
     },
     // (A battle of an older save knew not how many were in the field: as many as fell, ten times.)

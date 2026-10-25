@@ -38,6 +38,8 @@ export class Tidings {
    * happening in its window) and wants no card.
    */
   onGreat: (t: Tiding) => boolean = () => false;
+  /** A battle's news, to watch it fought on its field (Phase 37 M187); null: not offered. */
+  onBattle: ((event: string) => void) | null = null;
 
   constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
@@ -127,7 +129,16 @@ export class Tidings {
       if (open) void this.why.show(t.ref, whyBox);
       else whyBox.replaceChildren();
     };
-    head.append(from, close);
+    // (A battle's news: watched fought, Phase 37 M187.)
+    if (t.type === "war.battle" && this.onBattle) {
+      const watch = el("button", "tiding-watch", "⚔️ Watch");
+      watch.title = "Down to the field it was fought on, to watch it fought";
+      watch.onclick = () => {
+        card.remove();
+        this.onBattle?.(t.ref);
+      };
+      head.append(from, watch, close);
+    } else head.append(from, close);
     card.append(head, claim, whyBox);
     this.element.prepend(card);
     while (this.element.children.length > SHOWN) this.element.lastElementChild!.remove();

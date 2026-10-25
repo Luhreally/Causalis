@@ -67,6 +67,8 @@ const M = 0.1; // units per metre
 export const VILLAGE_METRE = M;
 /** How many a side a village's battle draws, by the setting's detail. */
 const SOLDIERS = [6, 10, 14, 20];
+/** A host's arms that fire (Phase 37 M188): carried as a spear is, levelled to fire. */
+const GUNS: readonly string[] = ["musket", "rifle"];
 const YEAR = 365 * 86_400;
 
 /** A city's quarters by use: open, houses, crowded houses, markets, workshops, the temple. */
@@ -732,7 +734,7 @@ export class VillageScene {
         }))
       : [];
     const bears = (arms: readonly string[]) => this.kits.some((k) => arms.includes(k.arm));
-    this.spears = bears(["spear"])
+    this.spears = bears(["spear", ...GUNS])
       ? this.batch(s, meshes.box, [0.52, 0.38, 0.24], this.soldiersEach * 2, this.root)
       : null;
     this.blades = bears(["sword", "axe"])
@@ -1093,30 +1095,34 @@ export class VillageScene {
           batch.set(this.soldiersEach, (k, out) => soldierPart(out, k, pi, side)),
         ),
       );
-      // Their spears: held upright on the march, thrust in the fight, dropped by the fallen.
+      // Their spears: held upright on the march, thrust in the fight, dropped by the fallen (a
+      // musket or a rifle shouldered on the march, levelled to fire in the fight).
       const armed = (arms: readonly string[]) =>
           troops
             .map((q, i) => ({ q, i }))
             .filter(({ q }) => arms.includes(this.kits[q.side]?.arm ?? "spear")),
-        spearmen = armed(["spear"]);
+        spearmen = armed(["spear", ...GUNS]);
       this.spears?.set(spearmen.length, (n, out) => {
         const { q, i } = spearmen[n]!,
           size = this.figure.scale * q.size,
           c = Math.cos(q.yaw),
           sn = Math.sin(q.yaw),
           fallen = q.doing === "fallen",
+          gun = GUNS.includes(this.kits[q.side]?.arm ?? ""),
           thrust =
             q.doing === "fight"
-              ? -0.5 - 0.7 * Math.abs(Math.sin(clock * 2 * Math.PI * 0.8 + i * 1.7))
+              ? gun
+                ? -1.42
+                : -0.5 - 0.7 * Math.abs(Math.sin(clock * 2 * Math.PI * 0.8 + i * 1.7))
               : -0.25,
           across = 0.13,
           ahead = fallen ? -0.35 : 0.05;
         out[0] = q.x * M + (across * c + ahead * sn) * size;
         out[1] = (fallen ? 0.03 : 0.36) * size;
         out[2] = q.z * M + (-across * sn + ahead * c) * size;
-        out[3] = 0.018 * size;
-        out[4] = 0.8 * size;
-        out[5] = 0.018 * size;
+        out[3] = (gun ? 0.026 : 0.018) * size;
+        out[4] = (gun ? 0.62 : 0.8) * size;
+        out[5] = (gun ? 0.026 : 0.018) * size;
         out[6] = q.yaw;
         out[7] = fallen ? -Math.PI / 2 : thrust;
       });

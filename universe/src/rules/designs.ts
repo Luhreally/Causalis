@@ -203,6 +203,33 @@ export const REALIZATIONS: readonly Realization[] = [
     () => "bows of horn and sinew",
     () => ({ shock: 0.2, range: 0.8, cost: 0.2 }),
   ),
+  // Powder and shot (Phase 37 M188): a ball loosed farther and harder than any arrow, a
+  // bayonet on its muzzle for the press; then the rifled barrel, truer and farther yet.
+  R(
+    "musket",
+    "arm",
+    ["firearms"],
+    ["iron", "steel"],
+    () => "muskets",
+    (m) => ({
+      shock: 0.6 + 0.2 * MATERIAL[m].edge,
+      reach: 0.45,
+      range: 0.85,
+      cost: 0.25 + 0.2 * MATERIAL[m].cost,
+    }),
+    undefined,
+    wields,
+  ),
+  R(
+    "rifle",
+    "arm",
+    ["rifling"],
+    ["steel"],
+    () => "rifles",
+    () => ({ shock: 0.95, reach: 0.45, range: 1.15, cost: 0.4 }),
+    undefined,
+    wields,
+  ),
   // A body's own weapons and guard, and the host of a people of the water.
   R(
     "claws",

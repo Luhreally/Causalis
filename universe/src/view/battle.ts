@@ -79,6 +79,15 @@ export type Trooper = {
   lies?: { x: number; z: number; yaw: number; run: boolean; fled: number };
 };
 
+/** A cannon brought to the field: where it stands (m), which way it points, when it fires. */
+export type Cannon = {
+  readonly side: 0 | 1;
+  readonly x: number;
+  readonly z: number;
+  readonly yaw: number;
+  readonly fires: readonly number[];
+};
+
 /** An arrow loosed: from where, at what, when, how long it flies; whom it strikes (-1: the ground). */
 export type Arrow = {
   readonly side: 0 | 1;
@@ -87,6 +96,8 @@ export type Arrow = {
   readonly at: number;
   readonly flight: number;
   readonly hits: number;
+  /** A gun's ball (none seen in flight: its muzzle's flash and smoke), not an arrow. */
+  readonly shot?: boolean;
 };
 
 export type BattleGround = {
@@ -117,6 +128,8 @@ export type BattleField = {
   /** Each side's files, each front first (who steps up as the front falls). */
   readonly files: readonly (readonly (readonly Trooper[])[])[];
   readonly arrows: readonly Arrow[];
+  /** The cannon each side brought, where its realm knew black powder (Phase 37 M188). */
+  readonly cannon: readonly Cannon[];
   /** The side beaten: 1 where the attackers won, else 0. */
   readonly beaten: 0 | 1;
   readonly ground: BattleGround;
@@ -158,6 +171,11 @@ export type BattleNow = {
   readonly blood: readonly { x: number; z: number; r: number }[];
   /** The blood thrown up as a blow or an arrow strikes home (m). */
   readonly spray: readonly { x: number; y: number; z: number; r: number }[];
+  /** Powder smoke where guns have fired, drifting off; a muzzle's flash as one fires (m). */
+  readonly smoke: readonly { x: number; y: number; z: number; r: number }[];
+  readonly flashes: readonly { x: number; y: number; z: number; yaw: number }[];
+  /** The cannon where they stand, each thrown back as it fires (recoil 1, easing to 0). */
+  readonly cannon: readonly { x: number; z: number; yaw: number; recoil: number }[];
   /** Dust thrown up where they run and fight. */
   readonly dust: readonly { x: number; y: number; z: number; r: number }[];
   /** Each side's figures standing and fallen (of those drawn). */
@@ -201,6 +219,9 @@ export function strokeOf(arm: string | undefined): Stroke {
     case "spear":
     case "tusks":
     case "shell-darts":
+    // (A bayonet on the muzzle.)
+    case "musket":
+    case "rifle":
       return "thrust";
     case "mandibles":
       return "bite";
@@ -213,7 +234,17 @@ export function strokeOf(arm: string | undefined): Stroke {
 
 /** Whether a host's arm looses at a distance. */
 export function loosesFrom(arm: string | undefined): boolean {
-  return arm === "bow" || arm === "horn-bow" || arm === "shell-darts";
+  return arm === "bow" || arm === "horn-bow" || arm === "shell-darts" || firesFrom(arm);
+}
+
+/** Whether a host's arm fires powder and shot (Phase 37 M188): a musket, a rifle. */
+export function firesFrom(arm: string | undefined): boolean {
+  return arm === "musket" || arm === "rifle";
+}
+
+/** The share of a host's dead that fall to what the other side looses: more to shot than to arrows. */
+function loosedShare(arm: string | undefined): number {
+  return arm === "rifle" ? 0.6 : arm === "musket" ? 0.45 : 0.25;
 }
 
 /** Metres between files and between ranks: riders and chariots stand wider. */
@@ -256,7 +287,8 @@ export function newBattle(near: BattleNear, most: number): BattleField {
   // Each host as the field draws it.
   const drawnOf = (s: typeof a, side: 0 | 1): HostDrawn => {
     const n = Math.max(1, Math.round(s.fielded / per)),
-      mount = s.host?.mount,
+      // (Behind its walls a seat's defenders stand them on foot, their horses within.)
+      mount = side === 1 && walls ? undefined : s.host?.mount,
       mounted: HostDrawn["mounted"] =
         mount === "chariot" ? "chariot" : mount === "horse" || mount === "cavalry" ? "horse" : null,
       files = Math.max(1, Math.min(n, Math.round(Math.sqrt(n * (mounted ? 2.2 : 3.6))))),
@@ -318,6 +350,7 @@ export function newBattle(near: BattleNear, most: number): BattleField {
       ),
     ),
     arrows: [],
+    cannon: cannonOf(near, key),
     beaten,
     ground,
     meet,
@@ -328,13 +361,45 @@ export function newBattle(near: BattleNear, most: number): BattleField {
   return field;
 }
 
+/**
+ * The cannon a side brings where its realm knows black powder: the attackers' behind their line
+ * on its flanks, firing as they come on and until the lines meet (at a seat, until its gate is
+ * broken); the defenders' at their line (on their walls, at a seat), firing the while.
+ */
+function cannonOf(near: BattleNear, key: number): Cannon[] {
+  const out: Cannon[] = [];
+  for (const side of [0, 1] as const) {
+    const s = side === 0 ? near.attacker : near.defender;
+    if (!s.cannon) continue;
+    const n = Math.max(2, Math.min(6, Math.round(Math.sqrt(s.fielded) / 6))),
+      walls = near.walls > 0,
+      until = side === 0 && walls && near.outcome === "stormed" ? MOMENTS.gate : MOMENTS.melee - 2;
+    for (let i = 0; i < n; i++) {
+      const across = (i - (n - 1) / 2) * 9 + (unit(key + side, i + 71) - 0.5) * 2,
+        x = side === 0 ? -40 - 3 * unit(key, i + 81) : walls ? 17 : 26 + 2 * unit(key, i + 91),
+        fires: number[] = [];
+      for (let at = MOMENTS.advance + 4 + 3 * unit(key + side * 13, i); at < until;)
+        fires.push((at += 3.5 + 2.5 * unit(key + i, Math.round(at * 10))));
+      out.push({
+        side,
+        x,
+        z: across,
+        yaw: side === 0 ? Math.PI / 2 : -Math.PI / 2,
+        fires: fires.filter((f) => f < until),
+      });
+    }
+  }
+  return out;
+}
+
 /** What is told as the battle goes. */
 function momentsOf(near: BattleNear): { at: number; words: string }[] {
   const a = near.attacker.name,
     d = near.defender.name,
     cap = (s: string) => s[0]!.toUpperCase() + s.slice(1),
     town = near.town ?? "the town",
-    arrows = loosesFrom(near.attacker.host?.arm) || loosesFrom(near.defender.host?.arm);
+    arrows = loosesFrom(near.attacker.host?.arm) || loosesFrom(near.defender.host?.arm),
+    guns = firesFrom(near.attacker.host?.arm) || firesFrom(near.defender.host?.arm);
   const out: { at: number; words: string }[] = [
     {
       at: 0,
@@ -344,7 +409,11 @@ function momentsOf(near: BattleNear): { at: number; words: string }[] {
     },
     { at: MOMENTS.advance, words: `${cap(a)} come on` },
   ];
-  if (arrows) out.push({ at: MOMENTS.arrows, words: "Arrows fall on them as they come" });
+  if (arrows)
+    out.push({
+      at: MOMENTS.arrows,
+      words: guns ? "Volleys of shot ring out as they come" : "Arrows fall on them as they come",
+    });
   out.push(
     { at: MOMENTS.charge, words: near.walls ? `${cap(a)} rush the walls` : `${cap(a)} charge` },
     { at: MOMENTS.melee, words: near.walls ? "They fight at the walls" : "The lines meet" },
@@ -414,7 +483,12 @@ function fates(field: BattleField, key: number): void {
   // line, and (the beaten) in the rout.
   const shares = (side: 0 | 1) => {
     const n = hosts[side]!.falls,
-      arrows = hosts[side === 0 ? 1 : 0]!.missiles ? 0.25 : ground.wall && side === 0 ? 0.1 : 0,
+      other = side === 0 ? field.near.defender : field.near.attacker,
+      arrows = hosts[side === 0 ? 1 : 0]!.missiles
+        ? loosedShare(other.host?.arm)
+        : ground.wall && side === 0
+          ? 0.1
+          : 0,
       rout = side === beaten ? (ground.wall && beaten === 1 ? 0.15 : 0.32) : 0,
       byArrow = Math.round(n * arrows),
       byRout = Math.round(n * rout);
@@ -495,7 +569,9 @@ function fates(field: BattleField, key: number): void {
         const from = archers[Math.floor(unit(key + v, k * 3 + shooters) * archers.length)]!,
           hit = hitting[k],
           at = hit ? hit.falls! : lands + 0.15 * k,
-          flight = 1.6,
+          // (A ball is there as soon as it is fired.)
+          shot = firesFrom((shooters === 0 ? field.near.attacker : field.near.defender).host?.arm),
+          flight = shot ? 0.15 : 1.6,
           src = placeAt(field, from, at - flight),
           dst = hit
             ? placeAt(field, hit, at)
@@ -515,6 +591,7 @@ function fates(field: BattleField, key: number): void {
           at: at - flight,
           flight,
           hits: hit ? hit.id : -1,
+          ...(shot ? { shot } : {}),
         });
       }
     }
@@ -793,9 +870,39 @@ export function battleAt(field: BattleField, s: number): BattleNow {
   // Arrows in flight, and those spent in the ground.
   const flying: BattleNow["flying"][number][] = [],
     spent: BattleNow["spent"][number][] = [];
+  const smoke: BattleNow["smoke"][number][] = [],
+    flashes: BattleNow["flashes"][number][] = [];
   for (const a of field.arrows) {
     const f = (t - a.at) / a.flight;
     if (f < 0) continue;
+    if (a.shot) {
+      // A gun fired: its flash at the muzzle, its smoke rolling out before it and drifting off
+      // on the wind, rising and spreading, for a few seconds.
+      const age = t - a.at,
+        dx = a.to.x - a.from.x,
+        dz = a.to.z - a.from.z,
+        far = Math.hypot(dx, dz) || 1,
+        ux = dx / far,
+        uz = dz / far;
+      if (age < 0.09)
+        flashes.push({
+          x: a.from.x + ux * 1.1,
+          y: 1.35,
+          z: a.from.z + uz * 1.1,
+          yaw: Math.atan2(dx, dz),
+        });
+      if (age < 3.2)
+        for (let k = 0; k < 2; k++) {
+          const out = 1.2 + 1.6 * smooth(age / 1.2) + k * 0.7;
+          smoke.push({
+            x: a.from.x + ux * out + 0.6 * age,
+            y: 1.3 + 0.32 * age + k * 0.25,
+            z: a.from.z + uz * out + (k - 0.5) * 0.5,
+            r: (0.35 + 1.05 * smooth(age / 2.2)) * (1 - 0.25 * k),
+          });
+        }
+      continue;
+    }
     const dx = a.to.x - a.from.x,
       dz = a.to.z - a.from.z,
       yaw = Math.atan2(dx, dz);
@@ -859,6 +966,33 @@ export function battleAt(field: BattleField, s: number): BattleNow {
         r: (0.5 + 1.1 * ph) * (x.act === "fight" ? 0.8 : 1),
       });
     }
+  // The cannon: the smoke of their firing, a great cloud rolling out before each; the flash.
+  const cannon: BattleNow["cannon"][number][] = [];
+  for (const c of field.cannon) {
+    const last = c.fires.filter((f) => f <= t).at(-1) ?? null,
+      ux = Math.sin(c.yaw),
+      uz = Math.cos(c.yaw);
+    cannon.push({
+      x: c.x,
+      z: c.z,
+      yaw: c.yaw,
+      recoil: last === null ? 0 : Math.max(0, 1 - (t - last) / 0.6),
+    });
+    for (const f of c.fires) {
+      const age = t - f;
+      if (age < 0 || age >= 4.5) continue;
+      if (age < 0.12) flashes.push({ x: c.x + ux * 2.4, y: 1.0, z: c.z + uz * 2.4, yaw: c.yaw });
+      for (let k = 0; k < 4; k++) {
+        const out = 2.4 + 4 * smooth(age / 1.5) + k * 1.4;
+        smoke.push({
+          x: c.x + ux * out + 0.6 * age,
+          y: 1.0 + 0.45 * age + k * 0.35,
+          z: c.z + uz * out + (unit(f * 10, k) - 0.5) * 2,
+          r: (0.8 + 2.2 * smooth(age / 3)) * (1 - 0.15 * k),
+        });
+      }
+    }
+  }
   const stormed = field.near.outcome === "stormed",
     moment = [...field.moments].reverse().find((m) => t >= m.at);
   return {
@@ -868,6 +1002,9 @@ export function battleAt(field: BattleField, s: number): BattleNow {
     spent,
     blood,
     spray,
+    smoke,
+    flashes,
+    cannon,
     dust,
     standing,
     fallen,
@@ -912,6 +1049,8 @@ export const TRODDEN = { x: 66, z: 40 } as const;
 const FIGHTERS: Readonly<Record<string, string>> = {
   club: "a clubman",
   spear: "a spearman",
+  musket: "a musketeer",
+  rifle: "a rifleman",
   axe: "an axeman",
   sword: "a swordsman",
   bow: "a bowman",
@@ -922,6 +1061,20 @@ const FIGHTERS: Readonly<Record<string, string>> = {
   grapple: "a grappler",
   "shell-darts": "a darter",
 };
+
+/** What struck one down from afar: an arrow, a dart, a ball, a bullet (the other side's arm). */
+function shotBy(other: BattleNear["attacker"]): string {
+  switch (other.host?.arm) {
+    case "musket":
+      return "a musket ball";
+    case "rifle":
+      return "a bullet";
+    case "shell-darts":
+      return "a dart";
+    default:
+      return "an arrow";
+  }
+}
 
 const ORDINALS = [
   "first",
@@ -959,7 +1112,7 @@ export function trooperWords(field: BattleField, id: number, s: number): string 
     fate =
       t.falls !== null && s >= t.falls
         ? t.by === "arrow"
-          ? "fell to an arrow"
+          ? `fell to ${shotBy(t.side === 0 ? field.near.defender : field.near.attacker)}`
           : t.by === "rout"
             ? "cut down as they ran"
             : "fell in the press"

@@ -34,8 +34,13 @@ test("every battle is seen near as history has it: its hosts, its fallen, what i
     assert.equal(n.defender.ref, war.defender);
     assert.equal(n.attacker.fallen, b.fallen[0]);
     assert.equal(n.defender.fallen, b.fallen[1]);
-    // (A battle of this world knows its hosts' strength in the field.)
-    assert.deepEqual([n.attacker.fielded, n.defender.fielded], b.fielded);
+    // (A battle of this world knows its hosts' strength in the field — and, where more fell than
+    // a host had, the men who rose with it: a remnant of them all is left standing.)
+    [n.attacker, n.defender].forEach((s, i) => {
+      assert.equal(s.fielded - (s.risen ?? 0), b.fielded![i], `${b.event} fielded`);
+      assert.equal(!!s.risen, s.fallen > b.fielded![i]! * 0.9, `${b.event} risen`);
+      assert.ok(s.fallen <= s.fielded * 0.9, `${b.event} a remnant`);
+    });
     assert.equal(n.won, b.won);
     assert.equal(n.outcome === "held", !b.won);
     // A seat fought at stands behind its walls; the land taken is told by its taking.

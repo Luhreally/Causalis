@@ -42,6 +42,7 @@ const WOOD: Rgb = [0.46, 0.33, 0.19],
   ROOF: Rgb = [0.55, 0.3, 0.2],
   HOUSE: Rgb = [0.78, 0.72, 0.6],
   SMOKE: Rgb = [0.13, 0.12, 0.12],
+  POWDER: Rgb = [0.86, 0.86, 0.84],
   WATER: Rgb = [0.24, 0.46, 0.64];
 
 const darker = (c: Rgb, k: number): Rgb => [c[0] * k, c[1] * k, c[2] * k];
@@ -224,6 +225,12 @@ export class BattleLayer {
   private readonly flames: InstancedBatch;
   private readonly smoke: InstancedBatch;
   private readonly tents: InstancedBatch;
+  /** Powder smoke, a muzzle's flash; the cannon: barrels, carriages, wheels (Phase 37 M188). */
+  private readonly powder: InstancedBatch;
+  private readonly flash: InstancedBatch;
+  private readonly barrels: InstancedBatch;
+  private readonly carriages: InstancedBatch;
+  private readonly cannonWheels: InstancedBatch;
   /** The field's own: its walls, its town, its river and its ridge (built for each battle). */
   private readonly walls: InstancedBatch;
   private readonly tops: InstancedBatch;
@@ -276,6 +283,21 @@ export class BattleLayer {
     this.flames = batch(this.cone, [1, 0.5, 0.1], 48, fire);
     this.smoke = batch(this.box, SMOKE, 240, flatMaterial(SMOKE, 0.62));
     this.tents = batch(this.cone, [0.8, 0.76, 0.66], 24);
+    this.powder = batch(this.box, POWDER, 900, flatMaterial(POWDER, 0.55));
+    const flare = new pc.StandardMaterial();
+    flare.useLighting = false;
+    flare.diffuse = new pc.Color(0, 0, 0);
+    flare.emissive = new pc.Color(1, 0.86, 0.4);
+    flare.update();
+    this.flash = batch(this.cone, [1, 0.86, 0.4], 120, flare);
+    this.barrels = batch(
+      this.cyl,
+      [0.2, 0.2, 0.22],
+      16,
+      flatMaterial([0.2, 0.2, 0.22], 1, 0.7, 0.45),
+    );
+    this.carriages = batch(this.box, darker(WOOD, 0.85), 16);
+    this.cannonWheels = batch(this.cyl, darker(WOOD, 0.6), 32);
     this.walls = batch(this.box, STONE, 260);
     this.tops = batch(this.box, STONE, 260);
     this.gates = batch(this.box, darker(WOOD, 0.75), 4);
@@ -627,10 +649,20 @@ export class BattleLayer {
           long = 0.5;
           [up, ahead] = [0.6, 1];
           break;
+        case "musket":
+        case "rifle":
+          // Levelled to fire, the bayonet levelled in the press, else shouldered.
+          long = arm === "musket" ? 1.0 : 0.9;
+          [up, ahead] =
+            t.act === "loose"
+              ? [0.05, 1]
+              : t.act === "fight" || t.act === "brace" || t.act === "run"
+                ? [0.16, 1]
+                : [1, 0.3];
+          break;
         default:
           // A blade or a head on a haft, along the forearm and on past the hand.
           long = arm === "axe" ? 0.62 : arm === "club" ? 0.5 : 0.58;
-          [up, ahead] = [-Math.cos(lp + lean) * -1, -Math.sin(lp + lean) * -1];
           [up, ahead] = [Math.cos(lp + lean - 1.2), Math.sin(lp + lean - 1.2)];
       }
       const n = Math.hypot(up, ahead) || 1;
@@ -650,12 +682,13 @@ export class BattleLayer {
     this.shafts.set(armed.length, (j, out) => {
       const { t, arm } = armed[j]!,
         h = hold(t, arm),
-        bladed = arm === "sword";
+        bladed = arm === "sword",
+        gun = arm === "musket" || arm === "rifle";
       out[0] = h.x;
       out[1] = h.y;
       out[2] = h.z;
-      out[3] = (bladed ? 0.018 : 0.026) * k;
-      out[4] = (bladed ? 0.018 : 0.026) * k;
+      out[3] = (bladed ? 0.018 : gun ? 0.034 : 0.026) * k;
+      out[4] = (bladed ? 0.018 : gun ? 0.04 : 0.026) * k;
       out[5] = (bladed ? h.long * 0.25 : h.long) * k;
       out[6] = h.yaw;
       out[7] = h.pitch;
@@ -664,8 +697,9 @@ export class BattleLayer {
       const { t, arm } = armed[j]!,
         h = hold(t, arm),
         bow = arm === "bow" || arm === "horn-bow",
-        // The blade at the far end (a spear's head, an axe's), or the length of a sword.
-        tip = arm === "sword" ? 0.12 : bow ? 0 : h.long * 0.46,
+        gun = arm === "musket" || arm === "rifle",
+        // The blade at the far end (a spear's head, an axe's, a bayonet), or the length of a sword.
+        tip = arm === "sword" ? 0.12 : bow ? 0 : h.long * (gun ? 0.56 : 0.46),
         dir = { up: -Math.sin(h.pitch), ahead: Math.cos(h.pitch) },
         c = Math.cos(h.yaw),
         sn = Math.sin(h.yaw);
@@ -674,7 +708,7 @@ export class BattleLayer {
       out[2] = h.z + c * dir.ahead * tip * k;
       out[3] = (arm === "axe" ? 0.02 : bow ? 0.012 : 0.03) * k;
       out[4] = (arm === "axe" ? 0.12 : bow ? 0.012 : 0.012) * k;
-      out[5] = (arm === "sword" ? 0.5 : arm === "axe" ? 0.09 : bow ? 0.02 : 0.1) * k;
+      out[5] = (arm === "sword" ? 0.5 : arm === "axe" ? 0.09 : bow ? 0.02 : gun ? 0.16 : 0.1) * k;
       out[6] = h.yaw;
       out[7] = h.pitch;
     });
@@ -821,6 +855,73 @@ export class BattleLayer {
       out[5] = 0.07;
       out[6] = a.yaw;
       out[7] = 0.9;
+    });
+    // Powder smoke where guns have fired, rolling and drifting; a muzzle's flash.
+    this.powder.set(Math.min(this.powder.capacity, now.smoke.length), (j, out) => {
+      const d = now.smoke[j]!;
+      out[0] = d.x * M;
+      out[1] = (battleGroundAt(field.ground, d.x, d.z) + d.y) * M;
+      out[2] = d.z * M;
+      out[3] = d.r * 2 * M;
+      out[4] = d.r * 1.6 * M;
+      out[5] = d.r * 2 * M;
+      out[6] = j * 0.7 + d.r;
+      out[7] = j * 0.3;
+    });
+    this.flash.set(Math.min(this.flash.capacity, now.flashes.length), (j, out) => {
+      const f = now.flashes[j]!;
+      out[0] = f.x * M;
+      out[1] = (battleGroundAt(field.ground, f.x, f.z) + f.y) * M;
+      out[2] = f.z * M;
+      out[3] = 0.45 * M;
+      out[4] = 1.1 * M;
+      out[5] = 0.45 * M;
+      out[6] = f.yaw;
+      // (Its point along the way it fires.)
+      out[7] = Math.PI / 2;
+    });
+    // The cannon: each a barrel on its carriage between two wheels, thrown back as it fires.
+    const guns = now.cannon;
+    this.barrels.set(guns.length, (j, out) => {
+      const c = guns[j]!,
+        back = 0.5 * c.recoil;
+      out[0] = (c.x - Math.sin(c.yaw) * back) * M;
+      out[1] = (battleGroundAt(field.ground, c.x, c.z) + 1.0) * M;
+      out[2] = (c.z - Math.cos(c.yaw) * back) * M;
+      out[3] = 0.42 * M;
+      out[4] = 2.6 * M;
+      out[5] = 0.42 * M;
+      out[6] = c.yaw;
+      // (Laid along the way it points, its muzzle a little raised.)
+      out[7] = Math.PI / 2 - 0.12;
+    });
+    this.carriages.set(guns.length, (j, out) => {
+      const c = guns[j]!,
+        back = 0.35 * c.recoil + 0.5;
+      out[0] = (c.x - Math.sin(c.yaw) * back) * M;
+      out[1] = (battleGroundAt(field.ground, c.x, c.z) + 0.55) * M;
+      out[2] = (c.z - Math.cos(c.yaw) * back) * M;
+      out[3] = 0.8 * M;
+      out[4] = 0.4 * M;
+      out[5] = 2.4 * M;
+      out[6] = c.yaw;
+      out[7] = 0.18;
+    });
+    this.cannonWheels.set(guns.length * 2, (j, out) => {
+      const c = guns[j >> 1]!,
+        side = j & 1 ? 1 : -1,
+        back = 0.35 * c.recoil,
+        // (Either side of the carriage, across the way it points.)
+        ax = Math.cos(c.yaw) * side * 0.6,
+        az = -Math.sin(c.yaw) * side * 0.6;
+      out[0] = (c.x + ax - Math.sin(c.yaw) * back) * M;
+      out[1] = (battleGroundAt(field.ground, c.x, c.z) + 0.6) * M;
+      out[2] = (c.z + az - Math.cos(c.yaw) * back) * M;
+      out[3] = 1.2 * M;
+      out[4] = 0.16 * M;
+      out[5] = 1.2 * M;
+      out[6] = c.yaw + Math.PI / 2;
+      out[7] = Math.PI / 2;
     });
     // The blood of the fallen.
     // (Over the trodden grass, where the fallen lie.)

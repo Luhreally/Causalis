@@ -86,6 +86,36 @@ test("a host is armed with what its people know and its lands hold", () => {
   for (const p of steel) assert.ok(realization(p.id).materials.includes(p.material));
 });
 
+test("powder and shot: a host that knows the musket bears muskets, the rifle rifles, and fights the harder (Phase 37 M188)", () => {
+  const but =
+      (...not: string[]) =>
+      (id: string) =>
+        !not.includes(id),
+    arm = (parts: Part[]) => parts.find((p) => p.role === "arm")!.id;
+  for (const shock of [0.8, 1.1, 1.6]) {
+    const doctrine = { shock, reach: 0.3, range: 0.4, protection: 0.5, mobility: 0.3, cost: 0.5 },
+      swords = compose(HOST_ROLES, but("firearms", "rifling"), () => true, doctrine),
+      muskets = compose(HOST_ROLES, but("rifling"), () => true, doctrine),
+      rifles = compose(HOST_ROLES, all, () => true, doctrine);
+    assert.ok(
+      !["musket", "rifle"].includes(arm(swords)),
+      `no guns without the musket: ${arm(swords)}`,
+    );
+    assert.equal(arm(muskets), "musket", `valour ${shock}`);
+    assert.equal(arm(rifles), "rifle", `valour ${shock}`);
+    assert.ok(hostPower(swords) < hostPower(muskets) && hostPower(muskets) < hostPower(rifles));
+    assert.match(designWords(muskets), /^muskets/);
+  }
+  // (Iron for a musket's barrel; none without metal.)
+  const noIron = compose(
+    HOST_ROLES,
+    all,
+    only("wood", "stone", "hide", "reed", "copper", "bronze"),
+    { shock: 1.1, reach: 0.3, range: 0.4, protection: 0.5, mobility: 0.3, cost: 0.5 },
+  );
+  assert.ok(!["musket", "rifle"].includes(arm(noIron)), arm(noIron));
+});
+
 // Amber's land runs from desert to rainforest, and some of its realms have metal near.
 const world = EARTH.build(seedFromText("amber"));
 world.runTo(420 * YEAR);

@@ -819,6 +819,12 @@ body[data-scale="micro"] {
   background: none;
   border: 0;
 }
+.tiding-watch {
+  min-height: 26px;
+  padding: 0 8px;
+  margin-left: auto;
+  font-size: 0.78rem;
+}
 .tiding-claim {
   display: block;
   width: 100%;

@@ -682,6 +682,33 @@ const TREE: readonly Principle[] = [
     { crafters: 1, leaders: 0.3 },
     {},
   ),
+  // Powder and shot (Phase 37 M188): found where those who seek cures mix salts and charcoal
+  // and burn them; then the hand-gun its works and its locks make a weapon of; then the rifled
+  // barrel its factories bore true. (At the tree's end: what was found before is found as it was.)
+  P(
+    "gunpowder",
+    "black powder",
+    ["medicine", "iron"],
+    0.006,
+    { crafters: 1, leaders: 0.5 },
+    { sieges: 1 },
+  ),
+  P(
+    "firearms",
+    "the musket",
+    ["gunpowder", "clockwork"],
+    0.006,
+    { crafters: 1, leaders: 1 },
+    { arms: 1 },
+  ),
+  P(
+    "rifling",
+    "the rifle",
+    ["firearms", "factories"],
+    0.006,
+    { crafters: 1, leaders: 0.5 },
+    { arms: 1 },
+  ),
 ];
 
 /**
@@ -691,6 +718,9 @@ const TREE: readonly Principle[] = [
  */
 const ASKS: Readonly<Record<string, BodyNeeds>> = {
   "pottery-wheel": { fire: true },
+  gunpowder: { fire: true, media: ["land", "shore"] },
+  firearms: { fire: true, media: ["land", "shore"] },
+  rifling: { fire: true, media: ["land", "shore"] },
   bronze: { fire: true },
   iron: { fire: true },
   steel: { fire: true },

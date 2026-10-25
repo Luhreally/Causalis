@@ -15,6 +15,8 @@ type SideCard = {
   readonly box: HTMLElement;
   readonly name: HTMLElement;
   readonly kit: HTMLElement;
+  /** The men who rose with it, where more fell than its host had (hidden: none). */
+  readonly risen: HTMLElement;
   readonly tally: HTMLElement;
   readonly bar: HTMLElement;
   ref: string;
@@ -68,12 +70,13 @@ export class BattlePanel {
       const box = el("button", `battle-side side-${side}`),
         name = el("span", "battle-side-name"),
         kit = el("span", "battle-side-kit"),
+        risen = el("span", "battle-side-kit battle-side-risen"),
         tally = el("span", "battle-side-tally"),
         track = el("span", "battle-side-track"),
         bar = el("span", "battle-side-bar");
       track.append(bar);
-      box.append(name, kit, tally, track);
-      const c: SideCard = { box, name, kit, tally, bar, ref: "", fielded: 1 };
+      box.append(name, kit, risen, tally, track);
+      const c: SideCard = { box, name, kit, risen, tally, bar, ref: "", fielded: 1 };
       box.onclick = () => c.ref && this.onSide(c.ref);
       return c;
     };
@@ -131,8 +134,15 @@ export class BattlePanel {
       c.fielded = Math.max(1, s.fielded);
       c.name.textContent = `${i === 0 ? "⚔️" : "🛡️"} ${s.name[0]!.toUpperCase()}${s.name.slice(1)}`;
       c.kit.textContent = s.kit;
+      // (The men who rose with it, where more fell than its host had in the field.)
+      const risen = s.risen ?? 0,
+        rose = i === 0 ? "levies sent after it" : "of its land's men, risen with it";
+      c.risen.textContent = risen ? `+ ${risen.toLocaleString("en-US")} ${rose}` : "";
+      c.risen.hidden = !risen;
       c.box.style.setProperty("--side", rgb);
-      c.box.title = `${s.name}: ${s.fielded.toLocaleString("en-US")} in the field — their realm's page`;
+      c.box.title = risen
+        ? `${s.name}: ${(s.fielded - risen).toLocaleString("en-US")} in its host, ${risen.toLocaleString("en-US")} ${rose} — their realm's page`
+        : `${s.name}: ${s.fielded.toLocaleString("en-US")} in the field — their realm's page`;
     });
     this.each.textContent =
       per > 1

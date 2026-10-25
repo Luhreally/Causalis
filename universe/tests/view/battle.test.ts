@@ -220,3 +220,65 @@ test("the meadow made the field: no pool, no wood where the hosts go, bare in th
     i = Math.floor((0 + 45) / 5) * cols + Math.floor((river.x + 70) / 5);
   assert.equal(meadow.grass[i], 0);
 });
+
+test("powder and shot: volleys fired — a flash at each muzzle, smoke rolling off, no arrow in the air; cannon where powder is known (Phase 37 M188)", () => {
+  const a = { ...side("Ash", 3000, 400, "musket"), cannon: true },
+    d = side("Elm", 2600, 500, "musket"),
+    f = newBattle(near("field", a, d), 360);
+  assert.ok(f.arrows.length > 0 && f.arrows.every((x) => x.shot), "every one loosed a shot");
+  const volley = battleAt(f, MOMENTS.arrows + 3);
+  assert.equal(volley.flying.length, 0, "no arrow in the air");
+  assert.ok(volley.smoke.length > 0, "powder smoke");
+  assert.ok(
+    f.arrows.every((x) => battleAt(f, x.at + 0.02).flashes.length > 0),
+    "a muzzle's flash as each fires",
+  );
+  assert.ok(f.cannon.length >= 2 && f.cannon.every((c) => c.side === 0), "the attackers' cannon");
+  assert.ok(
+    f.cannon.every((c) => c.fires.every((t) => t < MOMENTS.melee)),
+    "silent once the lines meet",
+  );
+  const fired = f.cannon[0]!.fires[0]!;
+  assert.ok(battleAt(f, fired + 0.05).cannon[0]!.recoil > 0.8, "thrown back as it fires");
+  // As many fall as history says, the most to shot; and those shot down are told so.
+  const end = battleAt(f, BATTLE_LENGTH);
+  assert.deepEqual(menAt(f, end).fallen, [400, 500]);
+  assert.equal(
+    f.troopers.filter((t) => t.side === 1 && t.by === "arrow").length,
+    Math.round(f.hosts[1].falls * 0.45),
+  );
+  const shot = f.troopers.find((t) => t.side === 1 && t.by === "arrow")!;
+  assert.match(
+    trooperWords(f, shot.id, BATTLE_LENGTH),
+    /^👁 A (musketeer|banner's bearer) of the realm of Elm, .*: fell to a musket ball\.$/,
+  );
+  assert.ok(f.moments.some((m) => m.words === "Volleys of shot ring out as they come"));
+  // Riflemen: their dead fall to bullets.
+  const r = newBattle(
+      near("held", side("Ash", 2000, 300, "rifle"), side("Elm", 2000, 200, "rifle")),
+      360,
+    ),
+    hit = r.troopers.find((t) => t.by === "arrow")!;
+  assert.match(trooperWords(r, hit.id, BATTLE_LENGTH), /fell to a bullet\.$/);
+  assert.equal(r.cannon.length, 0, "no cannon without powder known");
+});
+
+test("a seat's defenders stand its walls on foot, their horses within; in the open they ride", () => {
+  const riders = (name: string, fielded: number, fallen: number): BattleSideNear => ({
+    ...side(name, fielded, fallen, "sword"),
+    host: { arm: "sword", guard: "shield", mount: "horse" },
+  });
+  const open = newBattle(near("field", riders("Ash", 5000, 70), riders("Elm", 2000, 160)), 360),
+    walled = newBattle(
+      near("siege", riders("Ash", 5000, 70), riders("Elm", 2000, 160), { walls: 2 }),
+      360,
+    );
+  assert.deepEqual(
+    open.hosts.map((h) => h.mounted),
+    ["horse", "horse"],
+  );
+  assert.deepEqual(
+    walled.hosts.map((h) => h.mounted),
+    ["horse", null],
+  );
+});

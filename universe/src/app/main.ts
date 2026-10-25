@@ -3887,6 +3887,8 @@ async function runPlanetPage(): Promise<void> {
     await fadeOver(() => ready("the battle", () => toBattle(event)));
   };
   pageWindow.onBattle = (event) => void watchBattle(event);
+  tidings.onBattle = (event) => void watchBattle(event);
+  events.onBattle = (event) => void watchBattle(event);
   /** Back up to the land it was fought in, low over it. */
   const leaveBattle = async () => {
     const was = fight?.info;
