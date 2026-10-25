@@ -181,6 +181,10 @@ export function carryWords(
       return "a herder's staff";
     case "water":
       return "a bucket of water from the well";
+    case "bucket":
+      return "an empty bucket, back to the water for more";
+    case "bier":
+      return "a bier, the dead on it borne to the graveyard";
     case "beam":
       return "a beam for the walls going up";
     case "spear":

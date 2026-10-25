@@ -454,7 +454,7 @@ export function storeHeaps(
 
 const SCENES = new WeakMap<VillagePlan, TownScene | null>();
 /** A town's scene as its view has it (its lots, what stands on each, which change), once a plan. */
-function sceneOf(plan: VillagePlan, t: number): TownScene | null {
+export function sceneOf(plan: VillagePlan, t: number): TownScene | null {
   let s = SCENES.get(plan);
   if (s === undefined) SCENES.set(plan, (s = plan.town ? townScene(plan.town, t) : null));
   return s;

@@ -262,3 +262,30 @@ test("a great city's sprawl keeps its avenues clear, and its walkers go out alon
   assert.ok(nearest(plan, way) >= 1.2 - 1e-6);
   assert.equal(BLOCK_LOTS, 8);
 });
+
+test("a walk kept wider of the walls (a bier's) leaves the walkers' own ways as they were", () => {
+  // (Each reach its own ways through the town: made first for a wider one, a walker's walks are
+  // the same as ever, and as clear of every wall.)
+  const fresh = () => {
+      const plan = village(town({ lots: 240 }));
+      return { plan, ground: villageGround(plan) };
+    },
+    alone = fresh(),
+    after = fresh();
+  let walks = 0;
+  for (const h of alone.plan.homes.slice(0, 4))
+    for (let k = 0; k < 8; k++) {
+      const from = { x: h.x, z: h.z },
+        to = {
+          x: (alone.ground.homesReach + 60) * Math.cos(k * 0.8 + 0.2),
+          z: (alone.ground.homesReach + 60) * Math.sin(k * 0.8 + 0.2),
+        };
+      if (!alone.ground.town!.clearAt(from, 1.2)) alone.ground.town!.keepOut(from, 1.2);
+      route(after.ground, from, to, 2.6);
+      const way = route(after.ground, from, to, 1.2);
+      assert.deepEqual(way, route(alone.ground, from, to, 1.2));
+      assert.ok(nearest(after.plan, way) >= 1.2 - 1e-6);
+      walks++;
+    }
+  assert.equal(walks, 32);
+});

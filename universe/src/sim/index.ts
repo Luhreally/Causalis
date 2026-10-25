@@ -355,6 +355,7 @@ export {
   civicMask,
   edgeLevel,
   homesOf,
+  homesStand,
   housingOf,
   installTowns,
   levelsOf,

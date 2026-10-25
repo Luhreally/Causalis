@@ -4,7 +4,7 @@
 // sparks and the glow sized to its folk, drawn three times a person's size.
 import * as pc from "playcanvas";
 import type { CivicMotion } from "../view/index.ts";
-import { InstancedBatch, boxMesh } from "./batch.ts";
+import { InstancedBatch, boxMesh, keptMesh } from "./batch.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
 const M = 0.1;
@@ -41,7 +41,9 @@ export class TradesLayer {
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
     parent.addChild(this.root);
-    this.box = boxMesh(stage);
+    // (Held: its batches are made anew each time the town is laid out, and the last of them
+    // ending would otherwise destroy it with itself.)
+    this.box = keptMesh(boxMesh(stage));
     const lit = (c: Rgb) => {
       const m = new pc.StandardMaterial();
       m.useLighting = false;

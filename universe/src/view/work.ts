@@ -29,6 +29,10 @@ export const CARRIES = [
   "stone",
   // Fired pots from the kiln, held before them (Phase 41 M199).
   "pots",
+  // A bucket emptied on the fire, taken back to the water for more (Phase 42 M201).
+  "bucket",
+  // A bier on the shoulder, borne to the graveyard (Phase 43 M205; drawn whole, over its bearers).
+  "bier",
 ] as const;
 export type Carry = (typeof CARRIES)[number];
 
@@ -153,6 +157,10 @@ const ITEMS: Readonly<Record<Carry, readonly ItemPart[]>> = {
     P("water", 0.13, 0.15, 0.02, 0.06, 0.06, 0.06),
     P("wood", 0.13, 0.19, 0.02, 0.07, 0.01, 0.07),
   ],
+  bucket: [
+    P("wood", 0.13, 0.15, 0.02, 0.065, 0.065, 0.065),
+    P("wood", 0.13, 0.19, 0.02, 0.07, 0.01, 0.07),
+  ],
   // A beam over the shoulder, along the way they go; a spear held upright.
   beam: [P("wood", 0.1, 0.5, 0.02, 0.045, 0.045, 0.72)],
   spear: [
@@ -165,6 +173,7 @@ const ITEMS: Readonly<Record<Carry, readonly ItemPart[]>> = {
     P("clay", -0.05, 0.31, 0.12, 0.08, 0.11, 0.08),
     P("clay", 0.05, 0.33, 0.12, 0.07, 0.13, 0.07),
   ],
+  bier: [],
 };
 
 /** The boxes of an item as it is carried. */

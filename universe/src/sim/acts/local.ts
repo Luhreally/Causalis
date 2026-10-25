@@ -1,7 +1,8 @@
 // The god's acts on a place and on a person (docs/architecture §3.1): the grammar's
 // finer scales. On a place — a village or a city: a shrine raised (a sign the
-// devout read), a fire sent (a city's quarters burn and some die), a spring opened
-// (the village draws people to it). On a person — only where the hand rests, since
+// devout read), a fire sent (a town's homes burn — and a city's quarters — and some
+// die), a spring opened (the village draws people to it); each where the hand sets
+// it in the town, if it does (Phase 42 M201). On a person — only where the hand rests, since
 // only there are people the world's own: inspiration (their land comes upon the
 // next thing it could know, and they are remembered for it) and blessing (they are
 // spared death for twenty years). Each is a logged command whose event cites it;
@@ -25,7 +26,7 @@ import {
 export const BLESSING = 20;
 import { cultureOf } from "../culture/culture.ts";
 import { citiesOf, USE } from "../city/city.ts";
-import { razeTown } from "../town/fabric.ts";
+import { homesStand, razeTown } from "../town/fabric.ts";
 import { knows, loreOf } from "../lore/lore.ts";
 
 export const LOCAL_ACT_EVENTS = {
@@ -37,8 +38,39 @@ export const LOCAL_ACT_EVENTS = {
   traitOne: defineEventType("act.trait", 4),
 };
 
-type PlaceArgs = { village: Ref };
+type PlaceArgs = {
+  village: Ref;
+  /** Where in it (metres from its middle), if the hand sets it there (Phase 42 M201). */
+  x?: number;
+  z?: number;
+};
+/** A fire: the lot of the town's plan it falls on, if the hand sends it there. */
+type FireArgs = PlaceArgs & { lot?: number };
 type PersonArgs = { agent: number };
+
+/** How far from a town's middle the hand may set a thing in it (metres). */
+const REACH_M = 4000;
+
+/** Why a place's spot is no spot, if it is not (none given is none wanted). */
+function spotProblem(args: unknown): string | null {
+  const { x, z } = (args ?? {}) as Partial<PlaceArgs>;
+  if (x === undefined && z === undefined) return null;
+  return typeof x === "number" &&
+    typeof z === "number" &&
+    Number.isFinite(x) &&
+    Number.isFinite(z) &&
+    x * x + z * z <= REACH_M * REACH_M
+    ? null
+    : "a spot in the town is x and z, metres from its middle";
+}
+
+/** The spot set, for the event's data (none: nothing). */
+function spotOf(args: unknown): { x: number; z: number } | Record<string, never> {
+  const { x, z } = args as PlaceArgs;
+  return typeof x === "number" && typeof z === "number"
+    ? { x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10 }
+    : {};
+}
 
 /** One of the hand's people by name, in their land's tongue: "Asha of Kirath". */
 export function agentName(ctx: PopulationContext, a: Agent, v: Settlement): string {
@@ -65,6 +97,7 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
     type: "act.shrine",
     validate: (args) =>
       village(args) ??
+      spotProblem(args) ??
       (ctx().settlements.get((args as PlaceArgs).village)!.shrine
         ? "a shrine already stands there"
         : null),
@@ -75,7 +108,7 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
         subjects: [v.ref],
         place: ctx().provinces.get(v.cell)!.ref,
         causes: [{ ref: command.id, role: "agent", weight: 1 }],
-        data: { name: v.name },
+        data: { name: v.name, ...spotOf(command.args) },
       });
     },
   });
@@ -85,25 +118,33 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
     validate: (args) => {
       const problem = village(args);
       if (problem) return problem;
-      return citiesOf(world).get((args as PlaceArgs).village)
+      const { village: ref, lot } = args as FireArgs;
+      if (lot !== undefined && (!Number.isInteger(lot) || lot < 0))
+        return "lot must be one of the town's lots";
+      // (Any town whose homes stand burns, not a city only: Phase 42 M201.)
+      return citiesOf(world).get(ref) || homesStand(world, ref)
         ? null
-        : "only a city burns: this is a village";
+        : "nothing stands there to burn";
     },
     apply: (command, t) => {
       const c = ctx(),
+        { lot } = command.args as FireArgs,
         v = c.settlements.get((command.args as PlaceArgs).village)!,
-        city = citiesOf(world).get(v.ref)!,
+        city = citiesOf(world).get(v.ref),
         year = yearOfMoment(t);
-      // A fifth of the built blocks burn, the nearest the middle first; a hundredth of the people die.
-      const built = city.uses
+      // A fifth of a city's built blocks burn, the nearest the middle first; a hundredth of the
+      // people die.
+      const built = (city?.uses ?? [])
           .map((u, k) => ({ u, k }))
           .filter((b) => b.u !== USE.open && b.u !== USE.temple),
         burnt = built.slice(0, Math.ceil(built.length / 5));
-      for (const b of burnt) city.uses[b.k] = USE.open;
-      // (And as great a share of its homes, the heart first: Phase 23.)
-      razeTown(c, v.ref, 0.2, t);
-      const p = c.provinces.get(v.cell)!;
-      let dead = Math.round(v.population / 100);
+      for (const b of burnt) city!.uses[b.k] = USE.open;
+      // (And as great a share of its homes, the heart first — or those about the lot it fell on:
+      // Phase 23, Phase 42 M201.)
+      const homes = razeTown(c, v.ref, 0.2, t, lot);
+      const p = c.provinces.get(v.cell)!,
+        toll = Math.round(v.population / 100);
+      let dead = toll;
       for (let b = 0; b < BANDS && dead > 0; b++)
         for (let r = b; r < 2 * BANDS && dead > 0; r += BANDS)
           for (let o = 0; o < COLS && dead > 0; o++) {
@@ -118,7 +159,14 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
         subjects: [v.ref],
         place: p.ref,
         causes: [{ ref: command.id, role: "agent", weight: 1 }],
-        data: { name: v.name, blocks: burnt.length },
+        // (How many it killed: told, for their burying — Phase 43 M205.)
+        data: {
+          name: v.name,
+          blocks: burnt.length,
+          homes,
+          dead: toll - dead,
+          ...(lot !== undefined ? { lot } : {}),
+        },
       });
     },
   });
@@ -127,6 +175,7 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
     type: "act.spring",
     validate: (args) =>
       village(args) ??
+      spotProblem(args) ??
       (ctx().settlements.get((args as PlaceArgs).village)!.spring
         ? "a spring already rises there"
         : null),
@@ -137,7 +186,7 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
         subjects: [v.ref],
         place: ctx().provinces.get(v.cell)!.ref,
         causes: [{ ref: command.id, role: "agent", weight: 1 }],
-        data: { name: v.name },
+        data: { name: v.name, ...spotOf(command.args) },
       });
     },
   });

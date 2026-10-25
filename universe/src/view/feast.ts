@@ -8,6 +8,7 @@
 // square's pieces (metres from its middle) and which days are which; the people's own part in
 // them is their day's (village.ts).
 import type { Feast, VillagePlan } from "../bridge/index.ts";
+import { buryingDay } from "./graveyard.ts";
 
 const DAY = 86_400,
   HOUR = 3_600;
@@ -74,13 +75,15 @@ export const FEAST_SIGNS: Readonly<Record<Feast["occasion"], string>> = {
 };
 
 /** The feast kept on `day` (days since the world began), if one is. */
-export function feastOn(plan: Pick<VillagePlan, "life">, day: number): Feast | null {
+export function feastOn(plan: Pick<VillagePlan, "life" | "town">, day: number): Feast | null {
+  // (Put off the day the town buries those a fire or a quake killed: Phase 43 M205.)
+  if (buryingDay(plan, day)) return null;
   return plan.life?.feasts?.find((f) => f.day === day) ?? null;
 }
 
 /** Whether the square is dressed for a feast at moment t, and whether its fire burns. */
 export function feastAt(
-  plan: Pick<VillagePlan, "life">,
+  plan: Pick<VillagePlan, "life" | "town">,
   t: number,
 ): { readonly feast: Feast; readonly dressed: boolean; readonly lit: boolean } | null {
   const day = Math.floor(t / DAY),
@@ -94,19 +97,30 @@ export function feastAt(
   };
 }
 
-/** A town's market day: once a week where it keeps a market (never its day of rest, nor a feast day). */
+/**
+ * A town's market day: once a week where it keeps a market (never its day of rest, nor a feast
+ * day, nor the day it buries those a fire or a quake killed).
+ */
 export function marketDay(
-  plan: Pick<VillagePlan, "market" | "seed" | "life">,
+  plan: Pick<VillagePlan, "market" | "seed" | "life" | "town">,
   day: number,
 ): boolean {
-  return plan.market && (day + (plan.seed % 7)) % 7 === 3 && !feastOn(plan, day);
+  return (
+    plan.market &&
+    (day + (plan.seed % 7)) % 7 === 3 &&
+    !feastOn(plan, day) &&
+    !buryingDay(plan, day)
+  );
 }
 
 /** When the market stands: its stalls set up early, the buying of a morning, packed away late in the afternoon. */
 export const MARKET_HOURS = { set: 7, buy: 8.5, done: 12, packed: 17.5 } as const;
 
 /** Whether the market stands in the square at moment t. */
-export function marketAt(plan: Pick<VillagePlan, "market" | "seed" | "life">, t: number): boolean {
+export function marketAt(
+  plan: Pick<VillagePlan, "market" | "seed" | "life" | "town">,
+  t: number,
+): boolean {
   const day = Math.floor(t / DAY),
     hour = (t - day * DAY) / HOUR;
   return marketDay(plan, day) && hour >= MARKET_HOURS.set && hour < MARKET_HOURS.packed;

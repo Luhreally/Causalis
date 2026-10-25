@@ -92,8 +92,12 @@ export class Streets {
   private readonly cells = new Map<number, number[]>();
   private stamp: Uint32Array;
   private mark = 0;
-  private ways: Ways | null = null;
-  private readonly walks = new Map<number, Int32Array | null>();
+  /**
+   * The ways, and the walks found along them, for each reach kept off the walls: made apart, so
+   * that a walk kept wider of them never leaves the walkers' own ways made for its reach.
+   */
+  private readonly ways = new Map<number, Ways>();
+  private readonly walks = new Map<number, Map<number, Int32Array | null>>();
   private g = new Float64Array(0);
   private came = new Int32Array(0);
   private reached = new Uint32Array(0);
@@ -291,11 +295,13 @@ export class Streets {
       eb = this.entry(w, b, a, reach);
     if (!ea || !eb) return this.roundLake([a, b], reach);
     const key = ea.way * w.x.length + eb.way;
-    let walk = this.walks.get(key);
+    let walks = this.walks.get(reach);
+    if (!walks) this.walks.set(reach, (walks = new Map()));
+    let walk = walks.get(key);
     if (walk === undefined) {
-      if (this.walks.size >= KEPT) this.walks.clear();
+      if (walks.size >= KEPT) walks.clear();
       walk = this.search(w, ea.way, eb.way);
-      this.walks.set(key, walk);
+      walks.set(key, walk);
     }
     if (!walk) return this.roundLake([a, b], reach);
     const points: Point[] = [a, ...ea.lead];
@@ -498,7 +504,8 @@ export class Streets {
 
   /** The ways, made the first time a walk needs them. */
   private waysFor(reach: number): Ways {
-    if (this.ways) return this.ways;
+    const known = this.ways.get(reach);
+    if (known) return known;
     const xs: number[] = [],
       zs: number[] = [],
       links: [number, number][] = [];
@@ -681,8 +688,9 @@ export class Streets {
       to[fill[j]!] = i;
       far[fill[j]!++] = d;
     }
-    this.ways = { ...w0, first, to, far };
-    return this.ways;
+    const ways = { ...w0, first, to, far };
+    this.ways.set(reach, ways);
+    return ways;
   }
 }
 

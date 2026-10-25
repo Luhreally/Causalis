@@ -5,7 +5,9 @@
 // twenty-four — and, while one rises, its stages as Classic drew them: stakes, a footing, the
 // frame, walls climbing inside a scaffold (a crane over the tall ones), the roof going on; a
 // home let fall standing empty, roofless, its walls crumbling year by year; a burnt one black
-// stubs; its other buildings each in a shape of its own, rising, standing, fallen; its walls
+// stubs — and, where the god's fire or a quake struck it, each home standing till it caught,
+// blackening as it burns and falling in, or shaken down to rubble (Phase 42 M201); its other
+// buildings each in a shape of its own, rising, standing, fallen; its walls
 // raised course by course, a tower at every few lengths and a gate where its road runs out —
 // pulled down where the town has grown over them; a great city's sprawl past the lots drawn, its
 // avenues kept clear. Pure: what is drawn at a moment, in parts (metres from the square's middle), for the renderer
@@ -99,6 +101,20 @@ const LEVELS: readonly { w: number; d: number; h: number; storeys: number }[] = 
   { w: 8.8, d: 12.4, h: 30, storeys: 10 },
   { w: 7.8, d: 11, h: 72, storeys: 24 },
 ];
+/**
+ * How high a home of a town stands to its roof's top, and how broad it is (metres; Phase 42
+ * M201): a hut or a house as its look draws it, its roof as steep as its rain wants.
+ */
+export function homeSize(scene: TownScene, p: number): { high: number; wide: number } {
+  const level = Math.max(0, Math.min(5, scene.states.level[p]!)),
+    L = LEVELS[level]!;
+  if (level > 1) return { high: L.h + (level === 2 ? 3.2 : 0.5), wide: L.w };
+  const look = scene.looks[scene.states.design[p]!] ?? scene.looks[0]!,
+    [w, d] = lowFoot(L, look),
+    flat = look.rise < 0.1,
+    rh = look.open ? 0 : look.tent ? 7.5 : flat ? 0.6 : Math.min(5, look.rise * d * 0.5);
+  return { high: look.raised * 10 + L.h * look.height + rh, wide: Math.max(w, d) };
+}
 /** The industrial levels' own materials: brick, concrete, glass. */
 const BRICK: Rgb = [0.66, 0.32, 0.24],
   CONCRETE: Rgb = [0.7, 0.69, 0.65],
@@ -110,6 +126,8 @@ const BRICK: Rgb = [0.66, 0.32, 0.24],
   FOOTING: Rgb = [0.64, 0.6, 0.54],
   CRANE: Rgb = [0.96, 0.74, 0.12],
   CHAR: Rgb = [0.17, 0.15, 0.14],
+  ASH: Rgb = [0.22, 0.21, 0.2],
+  HEARTH: Rgb = [0.46, 0.44, 0.41],
   STONE: Rgb = [0.74, 0.72, 0.66],
   GOLD: Rgb = [0.98, 0.8, 0.25],
   WHITE: Rgb = [0.94, 0.93, 0.9],
@@ -138,6 +156,8 @@ export type TownScene = {
   readonly plan: TownPlan;
   readonly lots: TownLots;
   readonly states: LotStates;
+  /** Its homes razed by what struck it (Phase 42 M201): the lots, in the order they caught or fell. */
+  readonly struck: readonly number[];
   /** Which blocks hold anything (the rest are open ground). */
   readonly held: Uint8Array;
   /** Its walls as they stand (null: none). */
@@ -167,10 +187,25 @@ export function townScene(plan: TownPlan, t: number, previous?: TownLots): TownS
     ),
     active: number[] = [],
     settled: number[] = [],
-    scene = { plan, lots, states, held, walls: wallRing(plan, lots, held), looks, active, settled };
-  // Active: rising, or to be rebuilt as it wears before the year is out.
+    struck: number[] = [],
+    scene = {
+      plan,
+      lots,
+      states,
+      struck,
+      held,
+      walls: wallRing(plan, lots, held),
+      looks,
+      active,
+      settled,
+    };
+  for (let p = 0; p < plan.lots; p++) if (states.struck[p]! >= 0) struck.push(p);
+  struck.sort((a, b) => states.began[a]! - states.began[b]!);
+  // Active: rising, or to be rebuilt as it wears before the year is out; or struck, till it has
+  // burnt and fallen in.
   for (let p = 0; p < plan.lots; p++) {
-    if (states.what[p] !== LOT.home) settled.push(p);
+    if (states.struck[p]! >= 0 && t < states.began[p]! + FALLS_S) active.push(p);
+    else if (states.what[p] !== LOT.home) settled.push(p);
     else if (progress(states.began[p]!, states.takes[p]!, t) < 1) active.push(p);
     else {
       const w = homeWear(scene, p, t);
@@ -535,8 +570,35 @@ function ruin(
   const L = LEVELS[1]!,
     [w, d] = lowFoot(L, look);
   if (burnt) {
-    const h = Math.max(0.8, 1.6 - years / 25);
-    out.put("box", CHAR, x, h / 2, z, w, h, d, yaw);
+    // Burnt out (Phase 42 M201): its floor in ash, the stubs of its corner posts standing black
+    // (one fallen), a beam come down across it, and its hearth's chimney left standing in its
+    // smoked stone — all of it lower as the years go.
+    const fade = Math.max(0.35, 1 - years / 30),
+      // (Each ruin its own: how its posts burned, which fell.)
+      r = (k: number) => {
+        const v = Math.sin(x * 12.9898 + z * 78.233 + k * 37.719) * 43758.5453;
+        return v - Math.floor(v);
+      },
+      fallen = Math.floor(r(0) * 4),
+      // (On its yard, which stands a curb above the street: half a metre up.)
+      yard = 0.5;
+    out.put("box", ASH, x, yard + 0.08, z, w * 0.96, 0.16, d * 0.96, yaw);
+    for (let k = 0; k < 4; k++) {
+      if (k === fallen) continue;
+      const [px, pz] = at(
+          x,
+          z,
+          yaw,
+          (k & 1 ? 1 : -1) * (w / 2 - 0.3),
+          (k & 2 ? 1 : -1) * (d / 2 - 0.3),
+        ),
+        h = (0.7 + 1.5 * r(k + 1)) * fade;
+      out.put("box", CHAR, px, yard + h / 2, pz, 0.32, h, 0.32, yaw);
+    }
+    out.put("box", CHAR, x, yard + 0.3, z, w * 0.8, 0.28, 0.3, yaw + 0.45 + r(5) * 0.3);
+    const [cx, cz] = at(x, z, yaw, w * 0.28, 0),
+      high = 2.6 * fade;
+    out.put("box", HEARTH, cx, yard + high / 2, cz, 0.9, high, 0.9, yaw);
     return;
   }
   const h = L.h * Math.max(0.15, 1 - years / 35),
@@ -555,6 +617,118 @@ function ruin(
       d * 1.1,
       yaw,
     );
+}
+
+/**
+ * How what strikes a town plays out (seconds, Phase 42 M201): a burning home falls in after an
+ * hour and a half; its flames burn two and a half hours; it smoulders a day and more after; the
+ * dust of homes shaken down hangs a quarter of an hour; a quake shakes the ground forty seconds.
+ */
+export const FALLS_S = 1.5 * 3600,
+  FLAMES_S = 2.5 * 3600,
+  SMOULDER_S = 30 * 3600,
+  DUST_S = 15 * 60,
+  SHAKE_S = 40;
+
+/** Whether a home of a town struck was thrown down by a quake (in rubble, not standing as it burned). */
+export function thrownDown(scene: TownScene, p: number): boolean {
+  return scene.plan.struck?.[scene.states.struck[p]!]?.kind === "quake";
+}
+
+/** How high a home's rubble lies, thrown down (metres). */
+export const RUBBLE_HIGH = 1.6;
+
+/**
+ * Whether a home struck caught, fell or fell in between two moments (Phase 42 M201), so that it
+ * is drawn again at once, not at the fire's next minute.
+ */
+export function strikeTurned(scene: TownScene, a: number, b: number): boolean {
+  const lo = Math.min(a, b),
+    hi = Math.max(a, b);
+  if (!(hi > lo)) return false;
+  for (const p of scene.struck) {
+    const at = scene.states.began[p]!;
+    if ((at > lo && at <= hi) || (at + FALLS_S > lo && at + FALLS_S <= hi)) return true;
+  }
+  return false;
+}
+
+/** When what struck a town plays out: from the first home catching to the last falling in (null: nothing struck). */
+export function strikeSpan(scene: TownScene): { from: number; until: number } | null {
+  const { struck, states } = scene;
+  if (!struck.length) return null;
+  return {
+    from: states.began[struck[0]!]!,
+    until: states.began[struck[struck.length - 1]!]! + FALLS_S,
+  };
+}
+
+/** Parts put darkened by the fire, their windows dark: a burning home's (Phase 42 M201). */
+class Scorched extends TownParts {
+  private readonly into: TownParts;
+  private readonly f: number;
+  constructor(into: TownParts, f: number) {
+    super();
+    this.into = into;
+    this.f = f;
+  }
+  override lamp(): void {}
+  override put(
+    mesh: PartMesh,
+    color: Rgb,
+    x: number,
+    y: number,
+    z: number,
+    sx: number,
+    sy: number,
+    sz: number,
+    yaw: number,
+  ): void {
+    this.into.put(mesh, darker(color, this.f), x, y, z, sx, sy, sz, yaw);
+  }
+}
+
+/**
+ * A home struck (Phase 42 M201) at moment t, its catching (or falling) `began` ago: standing whole
+ * till then; burning — blackening by stages, its roof falling in, its walls burning down — till it
+ * falls in, then black stubs; or, shaken down unburnt, rubble.
+ */
+function struckHome(
+  out: TownParts,
+  look: HouseLook,
+  level: number,
+  x: number,
+  z: number,
+  yaw: number,
+  since: number,
+  burns: boolean,
+  thrown: boolean,
+): void {
+  if (since < 0) {
+    home(out, look, level, x, z, yaw);
+    return;
+  }
+  // (Thrown down: its rubble, burning there a while if it caught.)
+  if (!burns || (thrown && since < FALLS_S)) {
+    ruin(out, look, x, z, yaw, 20 + since / YEAR_S, false);
+    return;
+  }
+  if (since >= FALLS_S) {
+    ruin(out, look, x, z, yaw, since / YEAR_S, true);
+    return;
+  }
+  const k = since / FALLS_S,
+    f = [1, 0.66, 0.42, 0.26][Math.min(3, Math.floor(k * 4))]!;
+  home(
+    new Scorched(out, f),
+    look,
+    level,
+    x,
+    z,
+    yaw,
+    k < 0.6 ? 1 : 1 - (0.5 * (k - 0.6)) / 0.4,
+    k < 0.6 ? 1 : 0,
+  );
 }
 
 /** The homes of the given lots, as they stand at moment t. */
@@ -587,7 +761,20 @@ export function townHomes(
       // as it was.)
       else if (states.raised[p] === 1) home(out, look, Math.max(1, level - 1), x, z, yaw);
       else if (states.raised[p] === 2) home(out, look, level, x, z, yaw);
-    } else if (what === LOT.fallen || what === LOT.razed) {
+    } else if (what === LOT.razed && states.struck[p]! >= 0)
+      // (Struck: Phase 42 M201.)
+      struckHome(
+        out,
+        look,
+        states.level[p]!,
+        x,
+        z,
+        yaw,
+        t - states.began[p]!,
+        states.burns[p] === 1,
+        thrownDown(scene, p),
+      );
+    else if (what === LOT.fallen || what === LOT.razed) {
       const years = (t - states.began[p]!) / YEAR_S;
       if (years >= 0) ruin(out, look, x, z, yaw, years, what === LOT.razed);
     }

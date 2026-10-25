@@ -54,7 +54,9 @@ import {
   type TownWater,
   type VillageLife,
   type VillagePlan,
+  type VillageRest,
   type Visitor,
+  type Wonder,
 } from "../bridge/index.ts";
 import { townPlan } from "./town.ts";
 import { realmColor } from "./colors.ts";
@@ -784,6 +786,41 @@ export function villagePlan(
     };
   }
 
+  /**
+   * Its dead and their burying (Phase 43 M205): its share, by its people, of its land's dead —
+   * last year's, a year's; and every year's since it was founded that history holds, those in
+   * its graveyard — and the watched households' dead of these three years, by name.
+   */
+  function restOf(cell: number, population: number, founded: number): VillageRest {
+    const years = ctx.history.yearsOf(cell),
+      last = years.at(-1),
+      share = last && last.population > 0 ? Math.min(1, population / last.population) : 0;
+    let dead = 0;
+    for (let y = Math.max(founded, now - 400); y < now; y++) dead += ctx.history.deathsIn(cell, y);
+    const named: VillageRest["named"][number][] = [];
+    for (const h of known()) {
+      const home = homes.findIndex((x) => x.household === h.ref);
+      if (home < 0) continue;
+      for (const m of h.members) {
+        const q = ledger.person(m);
+        if (!q || q.alive || q.diedYear === null || q.diedYear < now - 3) continue;
+        named.push({
+          name: `${q.name} ${q.surname}`,
+          year: q.diedYear,
+          age: q.diedYear - q.birthYear,
+          home,
+        });
+      }
+    }
+    named.sort((a, b) => a.year - b.year || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    return {
+      year: now,
+      perYear: ctx.history.deathsIn(cell, now - 1) * share,
+      graves: Math.round(dead * share),
+      named,
+    };
+  }
+
   function houseOf(cell: number): VillagePlan["house"] {
     return landHouse(world, cell);
   }
@@ -830,10 +867,38 @@ export function villagePlan(
         ? { blocks: BLOCKS, blockM: BLOCK_M, uses: city.uses, paved: !!city.paved }
         : null,
       ...(fabric && town ? { town } : {}),
+      ...wondersOfIn(world, village.shrine ?? null, village.spring ?? null),
+      rest: restOf(village.cell, village.population, village.founded),
       people,
       ...(stores ? { stores } : {}),
     };
   }
+}
+
+/**
+ * The god's wonders in a village (Phase 42 M201): its shrine and its spring, from their events —
+ * when, and where the hand set them in it (if it did).
+ */
+function wondersOfIn(world: World, shrine: Ref | null, spring: Ref | null): { wonders?: Wonder[] } {
+  const out: Wonder[] = [];
+  for (const [kind, ref] of [
+    ["spring", spring],
+    ["shrine", shrine],
+  ] as const) {
+    if (!ref) continue;
+    const e = world.events.get(ref),
+      d = (e?.data ?? null) as { x?: unknown; z?: unknown } | null,
+      x = typeof d?.x === "number" ? d.x : null,
+      z = typeof d?.z === "number" ? d.z : null;
+    out.push({
+      kind,
+      at: e?.t ?? 0,
+      x: x !== null && z !== null ? x : null,
+      z: x !== null ? z : null,
+      event: ref,
+    });
+  }
+  return out.length ? { wonders: out } : {};
 }
 
 /**

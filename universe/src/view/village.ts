@@ -16,12 +16,31 @@
 // home and building rising, timber felled and ore dug for the yard, the household's bread
 // fetched home — each moving the town's stores, history's own, copied in each day.
 import { finish, hashString, mix } from "../kernel/index.ts";
-import { STORE_KINDS, type StoreBook, type StoreKind, type VillagePlan } from "../bridge/index.ts";
+import {
+  LOT,
+  SQUARE,
+  STORE_KINDS,
+  type StoreBook,
+  type StoreKind,
+  type VillagePlan,
+  type Wonder,
+} from "../bridge/index.ts";
 import { OCC } from "../rules/index.ts";
 import { paceOf } from "./figure.ts";
 import { clearAt, clearOf, keepOut, route, villageGround, type Ground } from "./ground.ts";
 import { streetDoor } from "./streets.ts";
 import { FEAST_HOURS, MARKET_HOURS, feastOn, feastPlace, marketDay, marketScene } from "./feast.ts";
+import { FLAMES_S, strikeSpan } from "./town.ts";
+import {
+  FUNERAL,
+  funeralsOf,
+  funeralsOn,
+  graveyardAt,
+  gravesBefore,
+  plotAt,
+  type Funeral,
+  type Graveyard,
+} from "./graveyard.ts";
 import type { Carry } from "./work.ts";
 import {
   HARVEST,
@@ -33,7 +52,9 @@ import {
   dayDraw,
   leanOn,
   monthsOf,
+  oldOf,
   restDay,
+  sceneOf,
   sitesOn,
   storeAt,
   storeFlow,
@@ -105,6 +126,15 @@ export const TASKS = [
   "pray",
   "throw",
   "tend",
+  // A fire fought (Phase 42 M201): water thrown on it, buckets passed down the line and filled at
+  // its water; those come to watch.
+  "douse",
+  "pass",
+  "fill",
+  "watch",
+  // A funeral (Phase 43 M205): its dead mourned; borne on a bier on the way to the graveyard.
+  "mourn",
+  "bear",
 ] as const;
 export type Task = (typeof TASKS)[number];
 
@@ -387,6 +417,37 @@ function walkTime(a: Point, b: Point, pace: number): number {
   return Math.hypot(b.x - a.x, b.z - a.z) / pace;
 }
 
+/** Where a day's legs have them at second s of it. */
+function whereAt(legs: readonly Leg[], s: number): Point {
+  const l = legAt(legs, s);
+  if (!l.next || l.to <= l.from) return l.at;
+  const k = Math.max(0, Math.min(1, (s - l.from) / (l.to - l.from)));
+  return { x: l.at.x + (l.next.x - l.at.x) * k, z: l.at.z + (l.next.z - l.at.z) * k };
+}
+
+/**
+ * A day's legs between seconds a and b of it: those within whole, those crossing either end cut
+ * there (a walk cut where it had come to, at its own pace; what a cut stay does to the stores, not
+ * done).
+ */
+function cutLegs(legs: readonly Leg[], a: number, b: number): Leg[] {
+  const out: Leg[] = [];
+  for (const l of legs) {
+    if (l.to <= a || l.from >= b) continue;
+    const from = Math.max(l.from, a),
+      to = Math.min(l.to, b);
+    if (to <= from) continue;
+    if (from === l.from && to === l.to) {
+      out.push(l);
+      continue;
+    }
+    const at = l.next ? whereAt([l], from) : l.at,
+      next = l.next ? whereAt([l], to) : null;
+    out.push({ ...l, from, to, at, next, effect: null });
+  }
+  return out;
+}
+
 /** How long a way is, end to end (metres). */
 function lengthOf(way: readonly Point[]): number {
   let n = 0;
@@ -561,6 +622,1016 @@ function treeAt(
   );
 }
 
+// —— The town in trouble (Phase 42 M201) ———————————————————————————————————————————————
+
+/** The well in the middle of a town's square (metres), where its bucket lines draw lacking better water. */
+export const TOWN_WELL: Point = { x: 0, z: 0 };
+
+/** Where one of the god's wonders stands in a town (metres): where the hand set it, else by its square. */
+export function wonderSpot(plan: VillagePlan, w: Wonder): Point {
+  const p =
+    w.x !== null && w.z !== null
+      ? { x: w.x, z: w.z }
+      : w.kind === "spring"
+        ? { x: -15, z: 11 }
+        : { x: 13, z: -13 };
+  return clearSpot(groundFor(plan), p);
+}
+
+/** How long after a home catches the alarm is raised (seconds), and how long a fire is fought at most. */
+const ALARM_S = 4 * 60,
+  FIGHT_S = 4 * HOUR;
+/**
+ * The most at a fire's bucket line (two of them throwing at the fire), the most come to watch it
+ * close by, and the most of the rest who hear it gathered farther back, a crowd.
+ */
+const LINE_MOST = 14,
+  THROWERS = 2,
+  WATCHERS = 10,
+  CROWD = 24;
+/** How many homes a quake threw down are dug through at once, three at each. */
+const DUG = 6;
+/** How far a bucket line reaches from its water (metres): farther off, they run with their buckets. */
+const LINE_REACH = 70;
+/** How near a fire a home's water butt is drawn on, where no water is near enough for a line (metres). */
+const BUTT_FROM = 16,
+  BUTT_TO = 55;
+/** How far off one hears the alarm and comes (metres, from their home to the fire). */
+const HEARS = 260;
+/** How long after one bier the next is taken up and borne off (seconds): a procession, not a crowd. */
+const BIER_APART = 20;
+/** How long a bier's bearers take to step in and take it up (seconds). */
+const TAKE_UP = 6;
+
+/** A way for a bier from a to b: as its town's walkers go (its bearers about it kept off the walls as they are). */
+function bierWay(ground: Ground, a: Point, b: Point): Point[] {
+  return route(ground, a, b, PERSON_REACH);
+}
+
+/** A way's straight runs, each with its start, end, length and direction (none of no length). */
+function runsOf(way: readonly Point[]): { a: Point; b: Point; len: number; d: Point }[] {
+  const out: { a: Point; b: Point; len: number; d: Point }[] = [];
+  for (let k = 0; k + 1 < way.length; k++) {
+    const a = way[k]!,
+      b = way[k + 1]!,
+      len = Math.hypot(b.x - a.x, b.z - a.z);
+    if (len > 1e-6) out.push({ a, b, len, d: { x: (b.x - a.x) / len, z: (b.z - a.z) / len } });
+  }
+  return out;
+}
+
+/** The point `along` and `across` from p on a line running d (a unit direction; across, to its right as faced). */
+function offWay(p: Point, d: Point, along: number, across: number): Point {
+  return { x: p.x + d.x * along + d.z * across, z: p.z + d.z * along - d.x * across };
+}
+
+/**
+ * A way laid out for walking in step (a bier's bearers): its points, how far along it each lies,
+ * the way to its right at each (mitred at its bends), and its length — run on `ahead` past each
+ * end, for those who walk it ahead of its middle or behind.
+ */
+type StepWay = {
+  readonly pts: readonly Point[];
+  readonly at: readonly number[];
+  readonly side: readonly Point[];
+  readonly long: number;
+};
+
+function stepWay(way: readonly Point[], ahead: number): StepWay {
+  const runs = runsOf(way),
+    first = runs[0] ?? { a: way[0]!, b: way[0]!, len: 0, d: { x: 0, z: 1 } },
+    last = runs.at(-1) ?? first,
+    pts: Point[] = [
+      { x: first.a.x - first.d.x * ahead, z: first.a.z - first.d.z * ahead },
+      first.a,
+    ],
+    at: number[] = [-ahead, 0];
+  let long = 0;
+  for (const r of runs) {
+    long += r.len;
+    pts.push(r.b);
+    at.push(long);
+  }
+  pts.push({ x: last.b.x + last.d.x * ahead, z: last.b.z + last.d.z * ahead });
+  at.push(long + ahead);
+  // (Its right along each stretch; at a bend, between the two, as far out as keeps them abreast.)
+  const right = (k: number): Point => {
+      const a = pts[k]!,
+        b = pts[k + 1]!,
+        l = Math.hypot(b.x - a.x, b.z - a.z);
+      return l > 1e-6 ? { x: (b.z - a.z) / l, z: -(b.x - a.x) / l } : { x: 0, z: 0 };
+    },
+    side = pts.map((_, k): Point => {
+      const n1 = k > 0 ? right(k - 1) : right(k),
+        n2 = k + 1 < pts.length ? right(k) : n1,
+        sx = n1.x + n2.x,
+        sz = n1.z + n2.z,
+        m = Math.hypot(sx, sz);
+      if (m < 0.2) return Math.hypot(n2.x, n2.z) > 0 ? n2 : n1;
+      const scale = Math.min(2, 2 / m) / m;
+      return { x: sx * scale, z: sz * scale };
+    });
+  return { pts, at, side, long };
+}
+
+/** Where one walking in step stands at `u` metres along a laid-out way, `across` to its right. */
+function stepAt(w: StepWay, u: number, across: number): Point {
+  let k = 0;
+  while (k + 2 < w.pts.length && w.at[k + 1]! < u) k++;
+  const a = w.pts[k]!,
+    b = w.pts[k + 1]!,
+    na = w.side[k]!,
+    nb = w.side[k + 1]!,
+    span = w.at[k + 1]! - w.at[k]!,
+    f = span > 1e-9 ? Math.max(0, Math.min(1, (u - w.at[k]!) / span)) : 0;
+  return {
+    x: a.x + (b.x - a.x) * f + (na.x + (nb.x - na.x) * f) * across,
+    z: a.z + (b.z - a.z) * f + (na.z + (nb.z - na.z) * f) * across,
+  };
+}
+
+/** How long a walk in step along a way takes at a pace (its middle's length: all of them in step with it). */
+function inStepTime(way: readonly Point[], pace: number): number {
+  return stepWay(way, 0).long / pace;
+}
+
+/** One's part at a fire, or in the rubble, on a day: from when to when (world seconds), where, at what. */
+type Stint = {
+  readonly from: number;
+  readonly until: number;
+  readonly at: Point;
+  readonly task: Task | null;
+  readonly carry: Carry | null;
+  readonly face: number;
+  readonly activity: Activity;
+  /** What they are about there, and on their way to it. */
+  readonly why: string;
+  readonly to: string;
+  /** A runner's water: they go back and forth between it and `at`, filling and throwing. */
+  readonly water?: Point;
+  /** Filling at a neighbour's water butt (drawn beside them while they fill). */
+  readonly butt?: Point;
+  /** What they carry on the way to it (a bier borne to the graveyard: Phase 43 M205). */
+  readonly walkCarry?: Carry;
+  /**
+   * Walked to in step with others along a way they share (a bier's bearers): so far along it and
+   * across its line, all of them setting off along it at `start` (world seconds).
+   */
+  readonly inStep?: {
+    readonly way: readonly Point[];
+    readonly along: number;
+    readonly across: number;
+    readonly start: number;
+  };
+};
+
+const FIGHTS = new WeakMap<VillagePlan, Map<number, ReadonlyMap<number, readonly Stint[]>>>();
+const NO_FIGHTS: ReadonlyMap<number, readonly Stint[]> = new Map();
+
+/** Where a town's buckets are filled for a fire at a point: the nearest of its water's edge, the god's spring, its well. */
+function waterFor(plan: VillagePlan, to: Point): Point {
+  const options: Point[] = [TOWN_WELL],
+    lake = plan.town?.water;
+  if (lake) {
+    const d = Math.hypot(to.x - lake.x, to.z - lake.z) || 1;
+    options.push({
+      x: lake.x + ((to.x - lake.x) / d) * (lake.r + 1.5),
+      z: lake.z + ((to.z - lake.z) / d) * (lake.r + 1.5),
+    });
+  }
+  const spring = plan.wonders?.find((w) => w.kind === "spring");
+  if (spring) options.push(wonderSpot(plan, spring));
+  const far = (p: Point) => Math.hypot(p.x - to.x, p.z - to.z);
+  return clearSpot(
+    groundFor(plan),
+    options.reduce((b, o) => (far(o) < far(b) ? o : b)),
+  );
+}
+
+/** The point a share `u` (0…1) of the way along a way. */
+function alongWay(way: readonly Point[], u: number): Point {
+  let left = Math.max(0, Math.min(1, u)) * lengthOf(way);
+  for (let k = 0; k + 1 < way.length; k++) {
+    const a = way[k]!,
+      b = way[k + 1]!,
+      d = Math.hypot(b.x - a.x, b.z - a.z);
+    if (left <= d || k + 2 === way.length) {
+      const f = d > 0 ? Math.min(1, left / d) : 0;
+      return { x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f };
+    }
+    left -= d;
+  }
+  return way[0]!;
+}
+
+/**
+ * Who of a town is at each of its fires on a day, and how (by their place in its people; Phase 42
+ * M201, as Classic's townsfolk fought fires with buckets and buried their dead): the alarm raised
+ * a few minutes after the first home catches, and the able nearest it come running — two to throw
+ * water on the fire where its water reaches it first, the rest a line passing buckets from the
+ * water (its edge, the god's spring or the square's well; one filling them there), or running with
+ * them where the water lies too far for a line — till its last flames die (four hours at most);
+ * the nearest of the rest, of any age, come to watch a while. Where a quake shook homes down, the
+ * nearest able dig in the rubble of the first four for those under it, three hours.
+ */
+function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly Stint[]> {
+  const struck = plan.town?.struck ?? [],
+    // (And its funerals: Phase 43 M205.)
+    rites = funeralsOn(plan, day);
+  if (!struck.length && !rites.length) return NO_FIGHTS;
+  let days = FIGHTS.get(plan);
+  if (!days) FIGHTS.set(plan, (days = new Map()));
+  const known = days.get(day);
+  if (known) return known;
+  const out = new Map<number, Stint[]>(),
+    // (Each their parts in the order they come; none while another holds them, a walk apart.)
+    put = (i: number, st: Stint) => {
+      const list = out.get(i) ?? [];
+      list.push(st);
+      list.sort((a, b) => a.from - b.from);
+      out.set(i, list);
+    },
+    free = (i: number, from: number, until: number) =>
+      !(out.get(i) ?? []).some((st) => st.from < until + 900 && st.until + 900 > from);
+  for (const d of [...days.keys()]) if (d < day - 2) days.delete(d);
+  days.set(day, out);
+  const scene = struck.length ? sceneOf(plan, day * DAY) : null,
+    span = scene ? strikeSpan(scene) : null,
+    start = day * DAY,
+    end = start + DAY - 120;
+  const ground = groundFor(plan),
+    dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z),
+    homeOf = (i: number) => plan.homes[plan.people[i]!.home]!,
+    able = (i: number) => {
+      const p = plan.people[i]!;
+      return !p.child && !oldOf(plan, p);
+    },
+    // (The nearest the place by their homes, of those not at another part meanwhile, living
+    // within `reach` of it.)
+    nearest = (
+      to: Point,
+      ok: (i: number) => boolean,
+      most: number,
+      from: number,
+      until: number,
+      reach = HEARS,
+    ) =>
+      plan.people
+        .map((_, i) => i)
+        .filter((i) => free(i, from, until) && ok(i) && dist(homeOf(i), to) <= reach)
+        .sort((a, b) => dist(homeOf(a), to) - dist(homeOf(b), to) || a - b)
+        .slice(0, most);
+  if (scene && span && span.from <= end && span.until + FLAMES_S >= start) {
+    const { states, lots } = scene,
+      lotAt = (p: number): Point => ({ x: lots.x[p]!, z: lots.z[p]! });
+    struck.forEach((k, s) => {
+      const theirs = scene.struck.filter((p) => states.struck[p] === s),
+        burning = theirs.filter((p) => states.burns[p] === 1),
+        fallen = theirs.filter((p) => states.burns[p] !== 1),
+        shaken = k.kind === "quake";
+      // (After a quake, those under the rubble first; then its fires.)
+      if (shaken) dig();
+      if (burning.length) fight();
+
+      /** Its homes alight fought: a bucket line at them, those come to watch. */
+      function fight(): void {
+        const alarm = states.began[burning[0]!]! + ALARM_S,
+          dies = Math.max(...burning.map((p) => states.began[p]! + FLAMES_S)) - 20 * 60,
+          from = Math.max(alarm, start),
+          until = Math.min(alarm + FIGHT_S, dies, end);
+        if (until > from + 600) {
+          const well = waterFor(plan, lotAt(burning[0]!)),
+            // (Fought where its water reaches it first.)
+            target = burning.reduce((b, p) =>
+              dist(lotAt(p), well) < dist(lotAt(b), well) ? p : b,
+            ),
+            T = lotAt(target),
+            // (No water near enough for a line: the water butt of the nearest home standing a
+            // little way off — on the water's side of the fire, the better.)
+            // (Measured as the line would stand: round what is in the way, from the water to
+            // the throwers before the fire.)
+            lineFrom = (w: Point) => {
+              const d = dist(T, w) || 1;
+              return lengthOf(
+                route(
+                  ground,
+                  w,
+                  clearSpot(ground, {
+                    x: T.x + ((w.x - T.x) / d) * 7,
+                    z: T.z + ((w.z - T.z) / d) * 7,
+                  }),
+                  PERSON_REACH,
+                ),
+              );
+            },
+            butt =
+              dist(T, well) <= LINE_REACH && lineFrom(well) <= LINE_REACH
+                ? null
+                : (() => {
+                    let best: Point | null = null,
+                      score = Infinity;
+                    for (let p = 0; p < lots.x.length && p < states.what.length; p++) {
+                      if (states.what[p] !== LOT.home || states.struck[p]! >= 0) continue;
+                      const q = lotAt(p),
+                        d = dist(q, T);
+                      if (d < BUTT_FROM || d > BUTT_TO) continue;
+                      const s = d + 0.25 * dist(q, well);
+                      if (s < score) {
+                        score = s;
+                        best = q;
+                      }
+                    }
+                    if (!best) return null;
+                    const d = dist(best, T) || 1;
+                    return clearSpot(ground, {
+                      x: best.x + ((T.x - best.x) / d) * 6,
+                      z: best.z + ((T.z - best.z) / d) * 6,
+                    });
+                  })(),
+            water = butt ?? well,
+            gap = dist(T, water) || 1,
+            stand = clearSpot(ground, {
+              x: T.x + ((water.x - T.x) / gap) * 7,
+              z: T.z + ((water.z - T.z) / gap) * 7,
+            }),
+            face = Math.atan2(T.x - stand.x, T.z - stand.z),
+            what = k.kind === "meteor" ? "the fire fallen from the sky" : "the fire",
+            crew = nearest(T, able, LINE_MOST, from, until),
+            way = route(ground, water, stand, PERSON_REACH),
+            line = lengthOf(way) <= LINE_REACH && crew.length > THROWERS + 1;
+          crew.forEach((i, j) => {
+            // (They come as they hear: a little apart.)
+            const come = Math.min(until - 300, from + j * 20);
+            if (j < THROWERS) {
+              const side = (j === 0 ? -1 : 1) * 1.4,
+                at = clearSpot(ground, {
+                  x: stand.x + Math.cos(face) * side,
+                  z: stand.z - Math.sin(face) * side,
+                });
+              put(i, {
+                from: come,
+                until,
+                at,
+                task: "douse",
+                carry: "water",
+                face,
+                activity: ACTIVITY.working,
+                why: `Throwing water on ${what}`,
+                to: `Running to ${what}`,
+              });
+              return;
+            }
+            if (line) {
+              // The line: the first at the water filling, the rest down to the throwers.
+              const n = crew.length - THROWERS,
+                u = (j - THROWERS) / n,
+                at = clearSpot(ground, alongWay(way, u)),
+                next = alongWay(way, Math.min(1, u + 1 / n)),
+                filling = j === THROWERS;
+              put(i, {
+                from: come,
+                until,
+                at,
+                task: filling ? "fill" : "pass",
+                carry: "water",
+                face: Math.atan2(next.x - at.x, next.z - at.z),
+                activity: ACTIVITY.working,
+                why: filling
+                  ? butt
+                    ? `Filling buckets at a neighbour's water butt for ${what}`
+                    : `Filling buckets for ${what}`
+                  : `Passing buckets down the line to ${what}`,
+                to: `Running to the bucket line at ${what}`,
+                ...(filling && butt ? { butt: { x: at.x + 0.9, z: at.z + 0.9 } } : {}),
+              });
+              return;
+            }
+            // (Too far for a line: back and forth with their buckets.)
+            put(i, {
+              from: come,
+              until,
+              at: clearSpot(ground, {
+                x: stand.x + ((water.x - stand.x) / gap) * 2,
+                z: stand.z + ((water.z - stand.z) / gap) * 2,
+              }),
+              task: "douse",
+              carry: "water",
+              face,
+              activity: ACTIVITY.working,
+              why: `Carrying water to ${what}`,
+              to: `Running to ${what}`,
+              water,
+            });
+          });
+          // Those come to watch, on the water's side of it: the nearest close by, the rest of
+          // those who hear it farther back, in rows a dozen long — the town's day stopped for it.
+          const toward = Math.atan2(water.x - T.x, water.z - T.z);
+          // (After a quake, none stand watching: the rest are at the rubble.)
+          nearest(T, () => true, shaken ? 0 : WATCHERS + CROWD, from, until).forEach((i, j) => {
+            const row = j < WATCHERS ? 0 : 1 + Math.floor((j - WATCHERS) / 12),
+              u = row ? ((j - WATCHERS) % 12) / 11 : j / Math.max(1, WATCHERS - 1),
+              a = toward + (u - 0.5) * (row ? 3.2 : 2.6),
+              r = row ? 22 + row * 5 + (j % 2) * 1.5 : 16 + (j % 3) * 2.5,
+              at = clearSpot(ground, { x: T.x + Math.sin(a) * r, z: T.z + Math.cos(a) * r }),
+              come = from + 120 + j * 45;
+            if (come >= until - 600) return;
+            put(i, {
+              from: come,
+              until: Math.min(until, come + (50 + (j % 4) * 15) * 60),
+              at,
+              task: "watch",
+              carry: null,
+              face: Math.atan2(T.x - at.x, T.z - at.z),
+              activity: ACTIVITY.gathering,
+              why: `Watching ${what} in dismay`,
+              to: `Running to see ${what}`,
+            });
+          });
+        }
+      }
+
+      /** Its homes shaken down dug through for those under them, the first thrown down first. */
+      function dig(): void {
+        if (!fallen.length) return;
+        const from = Math.max(states.began[fallen[0]!]! + 90, start),
+          until = Math.min(from + 3 * HOUR, end);
+        if (until > from + 600)
+          for (const p of fallen.slice(0, DUG)) {
+            const L = lotAt(p);
+            nearest(L, able, 3, from, until).forEach((i, m) => {
+              const a = (m / 3) * 2 * Math.PI + p,
+                at = clearSpot(ground, { x: L.x + Math.sin(a) * 4.5, z: L.z + Math.cos(a) * 4.5 });
+              put(i, {
+                from: from + m * 40,
+                until,
+                at,
+                task: "dig",
+                carry: null,
+                face: Math.atan2(L.x - at.x, L.z - at.z),
+                activity: ACTIVITY.working,
+                why: "Digging in the rubble for those under it",
+                to: "Running to the homes shaken down",
+              });
+            });
+          }
+      }
+    });
+  }
+  // Its funerals (Phase 43 M205): the dead borne on biers from their homes (those a strike killed,
+  // from the square) to the graveyard, four to a bier, their kin and neighbours after them, one
+  // speaking the words over them where the town keeps a faith; a grave dug for each that morning
+  // and filled after.
+  const yard = rites.length ? graveyardFor(plan) : null,
+    told: Rite[] = [];
+  if (yard) for (const f of rites) bury(f, yard);
+  let byDay = RITES.get(plan);
+  if (!byDay) RITES.set(plan, (byDay = new Map()));
+  for (const d of [...byDay.keys()]) if (d < day - 2) byDay.delete(d);
+  byDay.set(day, told);
+  return out;
+
+  function bury(f: Funeral, yard: Graveyard): void {
+    const pace = paceOf(plan.body),
+      first = plotAt(yard, f.plot),
+      // (Another of the town's homes: its lot's, its household's if it is a watched one.)
+      lot = f.home === -2 ? homeLotFor(plan, day, f.pick) : null,
+      home = lot ? lot.home : f.home,
+      // (Gathered before the home's door, or at the square's edge toward the graveyard.)
+      door =
+        home >= 0
+          ? doorOfHome(plan, ground, home)
+          : lot
+            ? clearSpot(ground, streetDoor(lot, 0))
+            : clearSpot(ground, {
+                x: (yard.gate.x / (Math.hypot(yard.gate.x, yard.gate.z) || 1)) * (SQUARE - 4),
+                z: (yard.gate.z / (Math.hypot(yard.gate.x, yard.gate.z) || 1)) * (SQUARE - 4),
+              }),
+      gather = f.leaves - FUNERAL.gather,
+      // (Facing as the day's stays do: along x = sin, z = cos.)
+      out = Math.atan2(first.x - door.x, first.z - door.z),
+      down = Math.atan2(Math.cos(yard.way), Math.sin(yard.way)),
+      kin =
+        home >= 0 ? plan.people.map((_, i) => i).filter((i) => plan.people[i]!.home === home) : [],
+      surname = kin.length ? plan.people[kin[0]!]!.name.split(" ").at(-1) : null,
+      kind = f.struck ? plan.town?.struck?.find((k) => k.event === f.struck)?.kind : null,
+      whose = f.name
+        ? f.name
+        : kind === "quake"
+          ? "the quake's dead"
+          : kind === "meteor"
+            ? "the dead of the fire from the sky"
+            : kind
+              ? "the fire's dead"
+              : surname
+                ? `the ${surname} household's dead`
+                : "a neighbour's dead",
+      faith = plan.life?.faith ?? null,
+      graves = Array.from({ length: f.biers }, (_, b) => plotAt(yard, f.plot + b)),
+      // A point by a frame turned `face`: `along` it, `across` it.
+      by = (p: Point, face: number, along: number, across: number): Point => ({
+        x: p.x + Math.sin(face) * along + Math.cos(face) * across,
+        z: p.z + Math.cos(face) * along - Math.sin(face) * across,
+      }),
+      // Where each bier rests before it is taken up: on the way out from the door toward the
+      // graveyard, the first to go the farthest on, the rest one behind another.
+      lead = bierWay(ground, door, first),
+      leadLong = Math.max(1, lengthOf(lead)),
+      rests = graves.map((_, b) =>
+        alongWay(lead, Math.min(1, (4.5 + (graves.length - 1 - b) * 10) / leadLong)),
+      ),
+      // Each bier's way to its grave, its bearers walking in step either side of it; which way
+      // it sets off; when they set off with it, a moment after they take it up.
+      ways = graves.map((g, b) => bierWay(ground, rests[b]!, g)),
+      heads = ways.map((w) => runsOf(w)[0]?.d ?? { x: Math.sin(out), z: Math.cos(out) }),
+      starts = graves.map((_, b) => f.leaves + b * BIER_APART + TAKE_UP),
+      // (Borne off one after another; come to the graveyard as the last comes, and stood at a while.)
+      arrive = Math.max(...ways.map((w, b) => starts[b]! + inStepTime(w, pace))) + 30,
+      done = arrive + FUNERAL.stand;
+    // The bearers: its kin first, then those living nearest; four to a bier.
+    const bearers = [
+      ...kin.filter((i) => able(i) && free(i, gather, done)),
+      ...nearest(door, (i) => able(i) && !kin.includes(i), 4 * f.biers, gather, done, Infinity),
+    ].slice(0, 4 * f.biers);
+    bearers.forEach((i, n) => {
+      const b = Math.floor(n / 4),
+        j = n % 4,
+        along = j < 2 ? 2.4 : -2.4,
+        across = j % 2 ? 1.3 : -1.3,
+        sets = f.leaves + b * BIER_APART,
+        way = ways[b]!,
+        end = way.at(-1)!,
+        // (Stood about it till it is taken up, a step back from where they will bear it; set
+        // down by the grave, about it as they bore it.)
+        at = clearSpot(ground, offWay(rests[b]!, heads[b]!, along * 1.35, across * 1.8)),
+        laid = stepWay(way, Math.abs(along) + 1),
+        there = stepAt(laid, laid.long + along, across);
+      put(i, {
+        from: gather + n * 20,
+        until: sets,
+        at,
+        task: "mourn",
+        carry: null,
+        face: Math.atan2(rests[b]!.x - at.x, rests[b]!.z - at.z),
+        activity: ACTIVITY.gathering,
+        why: `Come to bear ${whose} to the graveyard`,
+        to: `To the funeral of ${whose}`,
+      });
+      put(i, {
+        from: sets,
+        until: done,
+        at: there,
+        task: "mourn",
+        carry: null,
+        face: Math.atan2(end.x - there.x, end.z - there.z),
+        activity: ACTIVITY.gathering,
+        why: `At the grave of ${whose}`,
+        to: `Bearing ${whose} to the graveyard`,
+        walkCarry: "bier",
+        inStep: { way, along, across, start: starts[b]! },
+      });
+    });
+    // One to speak the words over them, where the town keeps a faith: at the bier's head.
+    const words = faith
+      ? nearest(door, (i) => plan.people[i]!.occupation === OCC.leader, 1, gather, done, Infinity)
+      : [];
+    for (const i of words) {
+      const at = offWay(rests[0]!, heads[0]!, 6.5, 0),
+        there = by(graves[0]!, down, -5, 0);
+      put(i, {
+        from: gather,
+        until: f.leaves + 20,
+        at,
+        task: "pray",
+        carry: null,
+        face: out + Math.PI,
+        activity: ACTIVITY.gathering,
+        why: `Come to lead ${whose} to the graveyard`,
+        to: `To the funeral of ${whose}`,
+      });
+      put(i, {
+        from: f.leaves + 20,
+        until: done,
+        at: there,
+        task: "pray",
+        carry: null,
+        face: Math.atan2(graves[0]!.x - there.x, graves[0]!.z - there.z),
+        activity: ACTIVITY.gathering,
+        why: `Speaking the words of ${faith} over ${whose}`,
+        to: `Leading ${whose} to the graveyard`,
+      });
+    }
+    // Its mourners: the rest of its kin, young and old, and its neighbours (the town, for a
+    // strike's dead), about the door and then about the grave, on the gate's side.
+    const mourners = [
+      ...kin.filter((i) => free(i, gather, done)),
+      ...nearest(door, (i) => !kin.includes(i), f.struck ? 22 : 8, gather, done, HEARS * 1.5),
+    ];
+    mourners.forEach((i, m) => {
+      const a = out + Math.PI + (((m % 9) - 4) / 4) * 1.4,
+        r = 7 + Math.floor(m / 9) * 2.5,
+        at = clearSpot(ground, { x: door.x + Math.sin(a) * r, z: door.z + Math.cos(a) * r }),
+        g = (((m % 11) - 5) / 5) * 1.6,
+        rg = 8 + Math.floor(m / 11) * 2.5,
+        there = by(
+          graves[Math.min(graves.length - 1, m % graves.length)]!,
+          down + Math.PI + g,
+          rg,
+          0,
+        ),
+        leave = f.leaves + 30 + m * 4;
+      put(i, {
+        from: gather + 60 + m * 25,
+        until: leave,
+        at,
+        task: "mourn",
+        carry: null,
+        face: Math.atan2(door.x - at.x, door.z - at.z),
+        activity: ACTIVITY.gathering,
+        why: `Mourning ${whose}`,
+        to: `To the funeral of ${whose}`,
+      });
+      put(i, {
+        from: leave,
+        until: done,
+        at: there,
+        task: "mourn",
+        carry: null,
+        face: Math.atan2(graves[0]!.x - there.x, graves[0]!.z - there.z),
+        activity: ACTIVITY.gathering,
+        why: `Mourning ${whose} at the grave`,
+        to: `Following ${whose} to the graveyard`,
+      });
+    });
+    // A grave dug for each that morning, and filled in after, by the one living nearest the
+    // graveyard who is free (from anywhere: a great town's may lie far out).
+    const digs = graves.map((g, b) => {
+      const from = start + FUNERAL.dig + b * 600,
+        filled = done + FUNERAL.fill,
+        [i] = nearest(g, able, 1, from, filled, Infinity);
+      if (i === undefined) return { from, filled };
+      const at = by(g, down, 0, 3.2),
+        face = Math.atan2(g.x - at.x, g.z - at.z);
+      put(i, {
+        from,
+        until: f.leaves - 600,
+        at,
+        task: "dig",
+        carry: "tool",
+        face,
+        activity: ACTIVITY.working,
+        why: `Digging a grave for ${whose}`,
+        to: "To the graveyard, to dig a grave",
+      });
+      // (Standing by, a little back, spade in hand, while they come and stand at it.)
+      const back = by(g, down, -1.5, 6.5);
+      put(i, {
+        from: f.leaves - 600,
+        until: done + 60,
+        at: back,
+        task: null,
+        carry: "tool",
+        face: Math.atan2(g.x - back.x, g.z - back.z),
+        activity: ACTIVITY.resting,
+        why: `Standing by the grave dug for ${whose}`,
+        to: "Stepping back from the grave",
+      });
+      put(i, {
+        from: done + 60,
+        until: filled,
+        at,
+        task: "dig",
+        carry: "tool",
+        face,
+        activity: ACTIVITY.working,
+        why: `Filling in the grave of ${whose}`,
+        to: "To the grave, to fill it in",
+      });
+      return { from, filled };
+    });
+    told.push({
+      f,
+      bearers,
+      rests,
+      heads: heads.map((d) => Math.atan2(d.x, d.z)),
+      ways,
+      starts,
+      graves,
+      down,
+      arrive,
+      done,
+      dug: digs.map((d) => d.from),
+      filled: digs.map((d) => d.filled),
+    });
+  }
+}
+
+/**
+ * A funeral of a day as its town keeps it (Phase 43 M205): its bearers (four to a bier, in turn),
+ * where its biers rest before they are taken up, its graves and which way they lie, when it comes
+ * to the graveyard and is done there, and when each grave is begun and filled in.
+ */
+export type Rite = {
+  readonly f: Funeral;
+  readonly bearers: readonly number[];
+  readonly rests: readonly Point[];
+  /** Which way each bier lies at rest (as faces: along x = sin, z = cos), the way it sets off. */
+  readonly heads: readonly number[];
+  /** Each bier's way to its grave, and when it sets off along it (world seconds). */
+  readonly ways: readonly (readonly Point[])[];
+  readonly starts: readonly number[];
+  readonly graves: readonly Point[];
+  readonly down: number;
+  readonly arrive: number;
+  readonly done: number;
+  readonly dug: readonly number[];
+  readonly filled: readonly number[];
+};
+const RITES = new WeakMap<VillagePlan, Map<number, readonly Rite[]>>();
+
+/** A town's funerals of a day (days since the world began), as it keeps them. */
+export function ritesOn(plan: VillagePlan, day: number): readonly Rite[] {
+  fightsOn(plan, day);
+  return RITES.get(plan)?.get(day) ?? [];
+}
+
+const STANDING = new WeakMap<VillagePlan, { day: number; lots: readonly number[] }>();
+
+/**
+ * One of a town's homes standing on a day (its lot: where, which way its front; the watched
+ * household's on it, or -1), `pick` of the way through them; null, a village.
+ */
+function homeLotFor(
+  plan: VillagePlan,
+  day: number,
+  pick: number,
+): (Point & { readonly yaw: number; readonly home: number }) | null {
+  const scene = sceneOf(plan, day * DAY);
+  if (!scene) return null;
+  let known = STANDING.get(plan);
+  if (!known || known.day !== day) {
+    const { states } = scene,
+      t = day * DAY,
+      lots: number[] = [];
+    for (let p = 0; p < scene.plan.lots; p++)
+      if (
+        states.what[p] === LOT.home &&
+        states.began[p]! + states.takes[p]! <= t &&
+        states.struck[p]! < 0
+      )
+        lots.push(p);
+    STANDING.set(plan, (known = { day, lots }));
+  }
+  if (!known.lots.length) return null;
+  const p = known.lots[Math.min(known.lots.length - 1, Math.floor(pick * known.lots.length))]!,
+    { lots } = scene,
+    at = { x: lots.x[p]!, z: lots.z[p]!, yaw: lots.yaw[p]! },
+    home = plan.homes.findIndex((h) => Math.abs(h.x - at.x) < 0.5 && Math.abs(h.z - at.z) < 0.5);
+  return { ...at, home };
+}
+
+const YARDS = new WeakMap<VillagePlan, Graveyard | null>();
+
+/**
+ * A town's graveyard (Phase 43 M205; null: none of its dead told): just past its homes, off its
+ * fields, its pasture, its road, its water and the ground its young drill on; its gate toward
+ * the town, its rows running back from it, as many as its dead want.
+ */
+export function graveyardFor(plan: VillagePlan): Graveyard | null {
+  if (YARDS.has(plan)) return YARDS.get(plan)!;
+  let yard: Graveyard | null = null;
+  const rest = plan.rest;
+  if (rest) {
+    const ground = groundFor(plan),
+      out = ground.homesReach + 26,
+      // (Its size, wherever it lies: what it must keep clear of, as far as its corners.)
+      size = graveyardAt({ x: 0, z: 0 }, 0, rest.graves, rest.perYear),
+      wide = Math.hypot(size.w, size.d) / 2,
+      apart = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))),
+      fx = plan.fields.reduce((a, q) => a + q.x, 0),
+      fz = plan.fields.reduce((a, q) => a + q.z, 0),
+      fieldWay = plan.fields.length ? Math.atan2(fz, fx) : Math.PI,
+      roadWay = Math.atan2(plan.road.z, plan.road.x),
+      // (How far a point lies off the road: out from the middle, or both ways through a city.)
+      roadOver = (p: Point) => {
+        const l = Math.hypot(plan.road.x, plan.road.z) || 1,
+          ux = plan.road.x / l,
+          uz = plan.road.z / l,
+          along = p.x * ux + p.z * uz;
+        return along < 0 && !plan.districts ? Math.hypot(p.x, p.z) : Math.abs(p.x * uz - p.z * ux);
+      },
+      drill = drillGround(plan),
+      drillWay = Math.atan2(drill.z, drill.x);
+    let best = 0,
+      bestScore = -Infinity;
+    for (let k = 0; k < 24; k++) {
+      const a = (k / 24) * 2 * Math.PI + 0.13,
+        q = { x: out * Math.cos(a), z: out * Math.sin(a) },
+        // (Its middle, its rows run back to it and past.)
+        mid = { x: (out + size.d / 2) * Math.cos(a), z: (out + size.d / 2) * Math.sin(a) },
+        far = { x: (out + size.d) * Math.cos(a), z: (out + size.d) * Math.sin(a) },
+        // (Over a field, the pasture or the road: put off.)
+        over =
+          plan.fields.filter(
+            (q) => Math.hypot(q.x - mid.x, q.z - mid.z) < wide + Math.hypot(q.w, q.d) / 2,
+          ).length *
+            2 +
+          (Math.hypot(mid.x - plan.pasture.x, mid.z - plan.pasture.z) < wide + plan.pasture.r
+            ? 3
+            : 0) +
+          (roadOver(mid) < wide ? 3 : 0),
+        score =
+          -over +
+          Math.min(apart(a, fieldWay), 1.5) +
+          Math.min(apart(a, roadWay), 1) +
+          Math.min(apart(a, drillWay), 1.2) +
+          Math.min(
+            1,
+            Math.hypot(far.x - plan.pasture.x, far.z - plan.pasture.z) / (plan.pasture.r + 60),
+          ) +
+          (ground.lake &&
+          Math.min(
+            Math.hypot(q.x - ground.lake.x, q.z - ground.lake.z),
+            Math.hypot(mid.x - ground.lake.x, mid.z - ground.lake.z) - wide,
+            Math.hypot(far.x - ground.lake.x, far.z - ground.lake.z),
+          ) <
+            ground.lake.r + 20
+            ? -10
+            : 0);
+      if (score > bestScore) {
+        bestScore = score;
+        best = a;
+      }
+    }
+    const gate = clearSpot(ground, { x: out * Math.cos(best), z: out * Math.sin(best) });
+    yard = graveyardAt(gate, best, rest.graves, rest.perYear);
+  }
+  YARDS.set(plan, yard);
+  return yard;
+}
+
+/**
+ * How a town's burying stands at moment t (Phase 43 M205): the biers resting or borne now (where,
+ * which way they lie), the graves open (where, which way, how deep dug: 0 … 1), and how many
+ * graves have been dug and filled in since the town was founded, so many of them this year.
+ */
+export function burialNow(
+  plan: VillagePlan,
+  t: number,
+): {
+  readonly biers: readonly {
+    readonly x: number;
+    readonly z: number;
+    readonly face: number;
+    /** On its bearers' shoulders (theirs, by their places in the plan's people), or set down. */
+    readonly borne: boolean;
+    readonly bearers: readonly number[];
+  }[];
+  readonly open: readonly {
+    readonly x: number;
+    readonly z: number;
+    readonly way: number;
+    readonly deep: number;
+  }[];
+  readonly graves: number;
+  readonly fresh: number;
+  /** Whether the town mourns now: those a fire or a quake killed being buried (gathered till filled in). */
+  readonly mourning: boolean;
+} {
+  const rest = plan.rest,
+    yard = graveyardFor(plan);
+  if (!rest || !yard) return { biers: [], open: [], graves: 0, fresh: 0, mourning: false };
+  const day = Math.floor(t / DAY),
+    rites = ritesOn(plan, day),
+    biers: { x: number; z: number; face: number; borne: boolean; bearers: readonly number[] }[] =
+      [],
+    open: { x: number; z: number; way: number; deep: number }[] = [];
+  let graves = gravesBefore(plan);
+  for (const f of funeralsOf(plan)) if (Math.floor(f.leaves / DAY) < day) graves += f.dead;
+  for (const r of rites) {
+    r.graves.forEach((g, b) => {
+      const dug = r.dug[b]!,
+        filled = r.filled[b]!,
+        ready = r.f.leaves - 600;
+      if (t >= dug && t < filled)
+        open.push({
+          x: g.x,
+          z: g.z,
+          way: yard.way,
+          deep:
+            t < ready
+              ? (t - dug) / Math.max(1, ready - dug)
+              : t < r.done
+                ? 1
+                : 1 - (t - r.done) / Math.max(1, filled - r.done),
+        });
+      // Its bier: before the door till taken up, then on its bearers' shoulders, then set by the
+      // grave till it is lowered in.
+      const sets = r.f.leaves + b * BIER_APART;
+      if (t < r.f.leaves - FUNERAL.gather || t >= r.arrive + FUNERAL.lowered) return;
+      const four = r.bearers.slice(b * 4, b * 4 + 4);
+      if (t < sets || four.length < 2 || t >= r.arrive) {
+        biers.push(
+          t < sets
+            ? { ...r.rests[b]!, face: r.heads[b]!, borne: false, bearers: [] }
+            : { ...g, face: r.down, borne: false, bearers: [] },
+        );
+        return;
+      }
+      const ms = four.map((i) => momentOf(plan, i, t));
+      biers.push({ ...bierBetween(ms), borne: true, bearers: four });
+    });
+    if (t >= Math.max(...r.filled)) graves += r.f.dead;
+  }
+  const mourning = rites.some(
+    (r) => r.f.struck !== null && t >= r.f.leaves - FUNERAL.gather && t < Math.max(...r.filled),
+  );
+  return { biers, open, graves, fresh: graves - gravesBefore(plan), mourning };
+}
+
+/**
+ * Where a bier is borne between its bearers (Phase 43 M205; the first two at its front, the
+ * others behind): amid them, lying from those behind toward those before.
+ */
+export function bierBetween(
+  ms: readonly { readonly x: number; readonly z: number; readonly yaw: number }[],
+): {
+  x: number;
+  z: number;
+  face: number;
+} {
+  const mid = (q: readonly { x: number; z: number }[]) => ({
+      x: q.reduce((a, m) => a + m.x, 0) / Math.max(1, q.length),
+      z: q.reduce((a, m) => a + m.z, 0) / Math.max(1, q.length),
+    }),
+    all = mid(ms),
+    front = mid(ms.slice(0, 2)),
+    back = mid(ms.slice(2));
+  return {
+    ...all,
+    face:
+      ms.length > 2 && Math.hypot(front.x - back.x, front.z - back.z) > 0.5
+        ? Math.atan2(front.x - back.x, front.z - back.z)
+        : (ms[0]?.yaw ?? 0),
+  };
+}
+
+/** The funerals a town keeps from moment t for so many days (the look tools): when each leaves, comes to the graveyard, is done; its biers and dead; where its first grave is. */
+export function funeralsAhead(
+  plan: VillagePlan,
+  t: number,
+  days = 30,
+): {
+  leaves: number;
+  arrive: number;
+  done: number;
+  filled: number;
+  biers: number;
+  dead: number;
+  bearers: number;
+  grave: Point;
+  struck: string | null;
+  name: string | null;
+}[] {
+  const out: ReturnType<typeof funeralsAhead> = [],
+    day = Math.floor(t / DAY);
+  for (let d = day; d < day + days; d++)
+    for (const r of ritesOn(plan, d))
+      if (r.done > t)
+        out.push({
+          leaves: r.f.leaves,
+          arrive: r.arrive,
+          done: r.done,
+          filled: Math.max(...r.filled),
+          biers: r.f.biers,
+          dead: r.f.dead,
+          bearers: r.bearers.length,
+          grave: r.graves[0]!,
+          struck: r.f.struck,
+          name: r.f.name,
+        });
+  return out;
+}
+
+/** The neighbours' water butts filled from at a town's fires at moment t (where to draw them; metres). */
+export function buttsNow(plan: VillagePlan, t: number): Point[] {
+  const out: Point[] = [];
+  for (const parts of fightsOn(plan, Math.floor(t / DAY)).values())
+    for (const st of parts)
+      if (st.butt && t >= st.from - 600 && t < st.until + 600) out.push(st.butt);
+  return out;
+}
+
+/** Who of a town is at its fires, and how, at moment t (the look tools): by what they are at. */
+export function fightNow(plan: VillagePlan, t: number): Record<string, number> {
+  const day = Math.floor(t / DAY),
+    counts: Record<string, number> = {};
+  for (const parts of fightsOn(plan, day).values())
+    for (const st of parts)
+      if (t >= st.from && t < st.until)
+        counts[st.task ?? "by"] = (counts[st.task ?? "by"] ?? 0) + 1;
+  return counts;
+}
+
 /**
  * What is felled about the town at moment t (Phase 41 M200), by the trees' places in treesOf's
  * (every setting draws these first): those not standing whole — coming down, lying, a stump, a
@@ -732,7 +1803,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
         next: q,
         activity: ACTIVITY.walking,
         carry,
-        task: null,
+        task: carry === "bier" ? "bear" : null,
         face: null,
         why,
         effect: null,
@@ -748,6 +1819,42 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     carry: Carry | null = null,
     why: string | null = null,
   ) => along(from, wayOf(a, b), carry, why);
+  /**
+   * A walk in step with others along a way they share (a bier's bearers, Phase 43 M205), so far
+   * along and across its line: run by run at the one pace, turning together at each bend.
+   */
+  const inStep = (
+    from: number,
+    st: NonNullable<Stint["inStep"]>,
+    carry: Carry | null,
+    why: string | null,
+  ): number => {
+    const w = stepWay(st.way, Math.abs(st.along) + 1),
+      // (Where they are as its middle passes each of its points, and at its ends.)
+      marks = [
+        st.along,
+        ...w.at.filter((u) => u > st.along && u < w.long + st.along),
+        w.long + st.along,
+      ],
+      task = carry === "bier" ? "bear" : null;
+    for (let k = 0; k + 1 < marks.length; k++) {
+      const u0 = marks[k]!,
+        u1 = marks[k + 1]!;
+      legs.push({
+        from: from + (u0 - st.along) / pace,
+        to: from + (u1 - st.along) / pace,
+        at: stepAt(w, u0, st.across),
+        next: stepAt(w, u1, st.across),
+        activity: ACTIVITY.walking,
+        carry,
+        task,
+        face: null,
+        why,
+        effect: null,
+      });
+    }
+    return from + w.long / pace;
+  };
   // A feast day (Phase 33 M174): the work done by mid-afternoon, and the evening at the feast —
   // at a table or in the ring about the fire, changing over halfway — until late (the young and
   // the old home sooner).
@@ -913,7 +2020,59 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
   stay(t, Math.max(t, bed - 0.5 * HOUR), at, ACTIVITY.eating);
   stay(Math.max(t, bed - 0.5 * HOUR), bed, at, ACTIVITY.home);
   stay(Math.max(t, bed), DAY, at, ACTIVITY.asleep);
+  // A fire in the town, or homes shaken down (Phase 42 M201): from wherever the alarm finds them,
+  // to their part in it, and back to their day after — each of their parts in it in turn.
+  for (const part of (fine ? fightsOn(plan, day).get(index) : undefined) ?? []) breakIn(part);
   return legs;
+
+  /**
+   * A bier taken up and borne off (Phase 43 M205): a step in to their place at it, held there
+   * till all of them set off together, then in step along its way; when they are there.
+   */
+  function takeUp(
+    st: NonNullable<Stint["inStep"]>,
+    s0: number,
+    from: Point,
+    carry: Carry | null,
+    why: string,
+  ): number {
+    const d = runsOf(st.way)[0]?.d ?? { x: 0, z: 1 },
+      place = stepAt(stepWay(st.way, Math.abs(st.along) + 1), st.along, st.across),
+      there = go(s0, from, place, null, why),
+      begin = Math.max(there, st.start - day * DAY);
+    stay(there, begin, place, ACTIVITY.gathering, carry, "bear", Math.atan2(d.x, d.z), why);
+    return inStep(begin, st, carry, why);
+  }
+
+  /** The day's legs with a part in the town's trouble put in (the legs it takes the place of cut out). */
+  function breakIn(part: Stint): void {
+    const plain = legs.splice(0),
+      s0 = part.from - day * DAY,
+      s1 = Math.max(s0, part.until - day * DAY);
+    legs.push(...cutLegs(plain, 0, s0));
+    let t = part.inStep
+      ? takeUp(part.inStep, s0, whereAt(plain, s0), part.walkCarry ?? null, part.to)
+      : go(s0, whereAt(plain, s0), part.at, part.walkCarry ?? null, part.to);
+    if (part.water) {
+      // Back and forth: filled at the water, run to the fire, thrown, and back for more.
+      const fire = part.at,
+        water = part.water;
+      while (t < s1 - 120) {
+        t = go(t, fire, water, "bucket", "Back to the water for more");
+        stay(t, t + 40, water, ACTIVITY.working, "bucket", "fill", null, "Filling a bucket");
+        t = go(t + 40, water, fire, "water", part.why);
+        stay(t, t + 15, fire, ACTIVITY.working, "water", "douse", part.face, part.why);
+        t += 15;
+      }
+    } else stay(t, s1, part.at, part.activity, part.carry, part.task, part.face, part.why);
+    t = Math.max(t, s1);
+    // (Back to where their day has them, a walk on.)
+    if (t < DAY - 60) {
+      const there = whereAt(plain, Math.min(DAY - 1, t + 240)),
+        back = Math.min(DAY - 1, go(t, part.at, there, null, "Back to their day"));
+      legs.push(...cutLegs(plain, back, DAY));
+    }
+  }
 
   /**
    * The errands of a stint of work (Phase 39 M198), from `start` at `from` until `until`: one
@@ -1704,7 +2863,8 @@ export function momentOf(
     const k = (s - leg.from) / Math.max(1, leg.to - leg.from);
     x += (leg.next.x - leg.at.x) * k;
     z += (leg.next.z - leg.at.z) * k;
-    yaw = Math.atan2(leg.next.x - leg.at.x, leg.next.z - leg.at.z);
+    // (Facing the way they walk; or, turning in step with others at a bend, the way they turn to.)
+    yaw = leg.face ?? Math.atan2(leg.next.x - leg.at.x, leg.next.z - leg.at.z);
   } else if (leg.activity === ACTIVITY.working && leg.face !== null) {
     // Held to their work (behind a market stall, at a rising wall, at a tree): a step or two along
     // it, facing the way it does.
@@ -1953,6 +3113,14 @@ export function drillGround(plan: VillagePlan): Point {
   return f;
 }
 
+/** Before a home's door, as a funeral gathers there (Phase 43 M205): on its street in a town, else on its doorstep. */
+function doorOfHome(plan: VillagePlan, ground: Ground, h: number): Point {
+  const home = plan.homes[h]!;
+  return plan.town
+    ? clearSpot(ground, streetDoor(home, 0))
+    : doorstep(ground, home, home.yaw, Math.max(7, (ground.homes[h]?.r ?? 5) + PERSON_REACH + 0.8));
+}
+
 /** A doorstep `out` metres from a home toward `way`, turned to the first side clear of every wall. */
 function doorstep(ground: Ground, home: Point, way: number, out: number): Point {
   for (let k = 0; k < 12; k++) {
@@ -2144,6 +3312,16 @@ export const SIGNS: Readonly<Record<string, string>> = {
   dance: "🎶",
   feast: "🍖",
   cheers: "🍻",
+  // At a fire in the town (Phase 42 M201): the fire, the water thrown, the buckets passed, the
+  // dismay.
+  fire: "🔥",
+  douse: "💦",
+  pass: "🪣",
+  fill: "🪣",
+  watch: "😨",
+  // A funeral (Phase 43 M205): its mourners; its dead borne.
+  mourn: "😢",
+  bear: "⚰️",
 };
 
 /**
@@ -2151,9 +3329,18 @@ export const SIGNS: Readonly<Record<string, string>> = {
  * village's own year has brought, the most pressing most often — hunger, war, grievance, a
  * death, the hunters at the flocks, the grain eaten, a newborn, what was learned; at work,
  * now and then, what they are at; the hungry and the worn out say so. By the screen's
- * clock (`s`, seconds), each person speaking in their turn, a few seconds at a time.
+ * clock (`s`, seconds), each person speaking in their turn, a few seconds at a time. While
+ * something strikes the town (`struck`: its fire, its homes shaken down), their talk and play
+ * turn to it.
  */
-export function sayOf(plan: VillagePlan, index: number, m: Moment, s: number): string | null {
+export function sayOf(
+  plan: VillagePlan,
+  index: number,
+  m: Moment,
+  s: number,
+  struck = false,
+  mourning = false,
+): string | null {
   if (m.hidden) return null;
   const p = plan.people[index]!,
     key = hashString(p.ref),
@@ -2164,6 +3351,25 @@ export function sayOf(plan: VillagePlan, index: number, m: Moment, s: number): s
   // (A third of the time, in turns of a few seconds.)
   if (turn > 0.34) return null;
   const pick = unit(finish(mix(key, beat + 7919), 31));
+  if (
+    struck &&
+    (m.task === "talk" ||
+      m.task === "play" ||
+      m.task === "haggle" ||
+      m.task === "feast" ||
+      m.task === "dance")
+  )
+    return pick < 0.4 ? SIGNS.fear! : pick < 0.7 ? SIGNS.grief! : SIGNS.fire!;
+  // (While the town buries those a strike killed, its talk is of them.)
+  if (
+    mourning &&
+    (m.task === "talk" ||
+      m.task === "play" ||
+      m.task === "haggle" ||
+      m.task === "feast" ||
+      m.task === "dance")
+  )
+    return pick < 0.7 ? SIGNS.grief! : null;
   if (m.task === "talk") {
     if (home && life?.mourning.includes(home) && pick < 0.4) return SIGNS.grief!;
     if (home && life?.newborn.includes(home) && pick < 0.4) return SIGNS.baby!;

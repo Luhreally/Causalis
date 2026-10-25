@@ -29,6 +29,9 @@ export function limbPitch(
     off = i * 1.7,
     // The right arm (and leg) swings with a positive sign on an upright figure.
     right = swing > 0;
+  // (A bier borne on the shoulder: the arms up to hold it, the legs in a slow step.)
+  if (walking && task === "bear")
+    return part.role === "arm" ? -2.7 : swing * 0.7 * Math.sin(ph * STRIDES * 0.8 + off);
   if (walking) return swing * Math.sin(ph * STRIDES + off);
   if (part.role === "leg") {
     if (task === "drill") return 0.35 * Math.sign(swing) * Math.max(0, Math.sin(ph * 0.8 + off));
@@ -95,6 +98,22 @@ export function limbPitch(
     case "tend":
       // Feeding the kiln's fire, working the millstones: both arms pushed out and drawn back.
       return -0.7 - 0.6 * Math.max(0, Math.sin(ph * 0.7 + off));
+    // A fire fought (Phase 42 M201): a bucket swung up and its water thrown on the flames; buckets
+    // passed hand to hand down the line; one dipped and drawn up full; and, watching, a hand to
+    // the head now and then.
+    case "douse":
+      return -0.3 - 1.9 * Math.max(0, Math.sin(ph * 0.55 + off)) ** 0.7;
+    case "pass":
+      return -1.1 + 0.55 * Math.sin(ph * 0.8 + i * 0.4 + (right ? 0 : Math.PI));
+    case "fill":
+      return -0.9 - 0.5 * Math.max(0, Math.sin(ph * 0.5 + off));
+    case "watch":
+      return right && Math.sin(t * 0.37 + i * 1.3) > 0.8 ? -2.6 : 0;
+    // A funeral (Phase 43 M205): hands clasped before them, head bowed; the bearers' up to the bier.
+    case "mourn":
+      return -0.55;
+    case "bear":
+      return -2.7;
     default:
       return 0;
   }

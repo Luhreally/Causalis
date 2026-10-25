@@ -11,14 +11,18 @@ import {
   type World,
 } from "../../src/kernel/index.ts";
 import {
+  CHANGE,
   LOCAL_ACT_EVENTS,
   LORE_EVENTS,
   USE,
   citiesOf,
+  civicMask,
   handOf,
+  levelsOf,
   loreOf,
   makePopulationWorld,
   populationContext,
+  townsOf,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
@@ -62,11 +66,62 @@ test("a shrine is a sign the devout read; raising one twice is refused", () => {
   world.runTo(240 * YEAR + 1);
   assert.ok(populationContext(world).settlements.get(v.ref)!.shrine, "the shrine stands");
   assert.throws(() => world.submit("act.shrine", { village: v.ref }), /already stands/);
-  const village = populationContext(world)
-    .settlements.inProvince(HOME)
-    .find((s) => !citiesOf(world).get(s.ref))!;
-  assert.throws(() => world.submit("act.fire", { village: village.ref }), /only a city burns/);
   assert.throws(() => world.submit("act.shrine", { village: "town:0:999999" }), /no village/);
+  // (Set where the hand sets it, a spot is metres from the town's middle: Phase 42 M201.)
+  const other = populationContext(world).settlements.inProvince(HOME)[1]!;
+  assert.throws(
+    () => world.submit("act.spring", { village: other.ref, x: Number.NaN, z: 3 }),
+    /a spot in the town/,
+  );
+  world.submit("act.spring", { village: other.ref, x: 12.34, z: -8 });
+  world.runTo(240 * YEAR + 2);
+  const sprung = world.events.get(populationContext(world).settlements.get(other.ref)!.spring!)!;
+  assert.deepEqual(
+    { x: (sprung.data as { x: number }).x, z: (sprung.data as { z: number }).z },
+    { x: 12.3, z: -8 },
+  );
+});
+
+test("fire sent on a town that is no city burns a fifth of its homes, those about the lot it fell on", () => {
+  const world = build();
+  world.runTo(240 * YEAR);
+  const ctx = populationContext(world),
+    v = ctx.settlements
+      .inProvince(HOME)
+      .filter((s) => !citiesOf(world).get(s.ref) && (townsOf(world).get(s.ref)?.next ?? 0) >= 40)
+      .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0]!,
+    f = townsOf(world).get(v.ref)!,
+    standing = () => {
+      const levels = levelsOf(f, 0, f.next),
+        under = civicMask(f, 0, f.next),
+        out: number[] = [];
+      for (let p = 0; p < f.next; p++) if (levels[p]! >= 0 && !under[p]) out.push(p);
+      return out;
+    },
+    before = standing(),
+    lot = before[Math.floor(before.length * 0.7)]!;
+  assert.ok(before.length >= 20, `${before.length} homes stand in ${v.name}`);
+  assert.throws(() => world.submit("act.fire", { village: v.ref, lot: -1 }), /lot must be/);
+  const act = world.submit("act.fire", { village: v.ref, lot });
+  world.runTo(240 * YEAR + 1);
+  const after = new Set(standing()),
+    burnt = before.filter((p) => !after.has(p)),
+    far = Math.max(...burnt.map((p) => Math.abs(p - lot)));
+  assert.equal(burnt.length, Math.ceil(before.length * 0.2), "a fifth of its homes burn");
+  // (Those nearest the lot along its plan: none left standing nearer it than the farthest burnt.)
+  for (const p of after) assert.ok(Math.abs(p - lot) >= far, `lot ${p} stands nearer than ${far}`);
+  const razed = f.changes.filter((c) => c[0] === CHANGE.razed && c[3] === 240);
+  assert.equal(
+    razed.reduce((n, c) => n + c[2] - c[1], 0),
+    burnt.length,
+    "its burnt homes are razed runs of the year",
+  );
+  const fire = world.events.all().find((e) => e.type === LOCAL_ACT_EVENTS.fire.type)!;
+  assert.equal(fire.causes[0]!.ref, act.id);
+  assert.deepEqual(
+    { homes: (fire.data as { homes: number }).homes, lot: (fire.data as { lot: number }).lot },
+    { homes: burnt.length, lot },
+  );
 });
 
 test("fire on a city burns a fifth of its quarters and kills a hundredth of its people", () => {

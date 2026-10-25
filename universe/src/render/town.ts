@@ -6,6 +6,7 @@ import * as pc from "playcanvas";
 import { LOT, civicMoments, footprint, progress, type TownPlan } from "../bridge/index.ts";
 import {
   TownParts,
+  blazeNow,
   civicChimneys,
   civicMotions,
   civicsActive,
@@ -17,6 +18,9 @@ import {
   townScene,
   townThingAt,
   townWalls,
+  strikeSpan,
+  strikeTurned,
+  type BlazeNow,
   type CivicMotion,
   type PartMesh,
   type TownScene,
@@ -27,7 +31,9 @@ import type { Rgb, Stage } from "./stage.ts";
 
 const M = 0.1;
 /** How often what rises is put again (moments of the sim apart, at the least): a few times a day. */
-const RISE_EVERY = 6 * 3600;
+const RISE_EVERY = 6 * 3600,
+  /** ... and while what struck it plays out — homes catching, burning, falling in (Phase 42 M201). */
+  STRUCK_EVERY = 60;
 
 /** Batches of parts by mesh and colour, kept and refilled (made anew only when one outgrows itself). */
 class PartBatches {
@@ -176,7 +182,18 @@ export class TownLayer {
   update(t: number): void {
     const scene = this.scene;
     if (!scene) return;
-    if (Math.abs(t - this.drawnAt) < RISE_EVERY || (!this.busy && this.drawnAt > -Infinity)) return;
+    // (Finely while a strike plays out between the last drawing and now, either way of the clock;
+    // at once where a home of it caught or fell meanwhile.)
+    const span = strikeSpan(scene),
+      every =
+        span &&
+        Math.min(t, this.drawnAt) <= span.until &&
+        Math.max(t, this.drawnAt) >= span.from - 2 * STRUCK_EVERY
+          ? strikeTurned(scene, this.drawnAt, t)
+            ? 0
+            : STRUCK_EVERY
+          : RISE_EVERY;
+    if (Math.abs(t - this.drawnAt) < every || (!this.busy && this.drawnAt > -Infinity)) return;
     this.drawnAt = t;
     this.parts.clear();
     townHomes(scene, scene.active, t, this.parts);
@@ -184,6 +201,11 @@ export class TownLayer {
     townCivics(scene, t, this.parts, false);
     townWalls(scene, t, this.parts);
     this.rising.show(this.parts);
+  }
+
+  /** What of it is alight, smoking and in dust at moment t, and how the ground shakes (Phase 42 M201). */
+  blaze(t: number): BlazeNow {
+    return blazeNow(this.visible ? this.scene : null, t);
   }
 
   /** Where its buildings smoke at moment t (Phase 41 M199): their chimneys' tops (metres). */
@@ -250,6 +272,11 @@ export class TownLayer {
       if (s.states.what[p] === LOT.home && progress(s.states.began[p]!, s.states.takes[p]!, t) >= 1)
         out.push({ lot: p, x: s.lots.x[p]!, z: s.lots.z[p]! });
     return out;
+  }
+
+  /** The lot of its plan nearest a point (metres from the middle), within a lot and a half (-1: none). */
+  lotOf(x: number, z: number): number {
+    return this.scene && this.visible ? lotNear(this.scene, x, z, 14) : -1;
   }
 
   /** Where a lot is (metres from the middle), or null. */

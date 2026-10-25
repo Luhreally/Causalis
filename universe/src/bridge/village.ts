@@ -108,6 +108,34 @@ export type TownStores = {
   readonly used: StoreBook;
 };
 
+/** One of the god's wonders in a village or town (Phase 42 M201). */
+export type Wonder = {
+  readonly kind: "spring" | "shrine";
+  readonly at: number;
+  readonly x: number | null;
+  readonly z: number | null;
+  readonly event: string;
+};
+
+/**
+ * A town's dead and their burying (Phase 43 M205): how many of it die a year (its share, by its
+ * people, of its land's dead last year), how many lie in its graveyard when its year began (its
+ * share of its land's dead since it was founded, as far back as history holds them), and the
+ * watched households' dead of these few years, by name — when, how old, from which of its homes.
+ */
+export type VillageRest = {
+  /** The year its graves are counted to the beginning of (the plan's year). */
+  readonly year: number;
+  readonly perYear: number;
+  readonly graves: number;
+  readonly named: readonly {
+    readonly name: string;
+    readonly year: number;
+    readonly age: number;
+    readonly home: number;
+  }[];
+};
+
 export type VillagePlan = {
   readonly ref: string;
   readonly name: string;
@@ -159,6 +187,13 @@ export type VillagePlan = {
    * — drawn in place of the homes and quarters above where it has one.
    */
   readonly town?: TownPlan;
+  /**
+   * The god's wonders in it (Phase 42 M201): a spring welled up, a shrine raised — when, and
+   * where the hand set it (metres from its middle; null: where the hand did not say).
+   */
+  readonly wonders?: readonly Wonder[];
+  /** Its dead and their burying (Phase 43 M205; absent: none told). */
+  readonly rest?: VillageRest;
   readonly people: readonly {
     ref: string;
     name: string;

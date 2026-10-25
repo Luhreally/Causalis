@@ -27,6 +27,8 @@ export {
   type VillageLife,
   type Feast,
   type VillagePlan,
+  type VillageRest,
+  type Wonder,
   type Visitor,
   type FolkFacts,
 } from "./village.ts";
@@ -41,6 +43,7 @@ export {
   LOT_D,
   LOT_W,
   SHORE,
+  SPREAD,
   SQUARE,
   STREET,
   WALL_THICK,
@@ -68,6 +71,7 @@ export {
   type TownFamily,
   type TownLots,
   type TownPlan,
+  type TownStrike,
   type TownWater,
   type WallLength,
 } from "./town.ts";

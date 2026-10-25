@@ -2,10 +2,69 @@
 // of its streets, its runs, its buildings, its walls — with the looks of the designs its homes
 // stand in (the design of each run, the oldest in their own), how long each level takes to
 // raise, and whether its streets are paved. Looked at, never lived.
-import { hashString, yearOfMoment, type Ref, type World } from "../kernel/index.ts";
+import { YEAR, hashString, yearOfMoment, type Ref, type World } from "../kernel/index.ts";
 import { HOME_MONTHS, roofPitch } from "../rules/index.ts";
-import { citiesOf, designsOf, houseFor, populationContext, townsOf } from "../sim/index.ts";
-import type { TownDesign, TownPlan, TownWater } from "../bridge/index.ts";
+import {
+  DISASTER_EVENTS,
+  LOCAL_ACT_EVENTS,
+  citiesOf,
+  designsOf,
+  houseFor,
+  populationContext,
+  townsOf,
+} from "../sim/index.ts";
+import type { TownDesign, TownPlan, TownStrike, TownWater } from "../bridge/index.ts";
+
+/** How long what struck a town is told to its plan: its homes burn a day, and lie in ruin years. */
+const STRUCK_SHOWN = 2 * YEAR;
+
+/**
+ * What struck a town these two years past, oldest first (Phase 42 M201): fire sent on it, the
+ * ground shaken or fire fallen from the sky on its land (`land`: its province's ref).
+ */
+export function strikesOn(world: World, ref: Ref, land: Ref | null): TownStrike[] {
+  const events = world.events.all(),
+    since = world.now - STRUCK_SHOWN,
+    out: TownStrike[] = [],
+    // (A quake's or a fallen fire's dead are its land's: the town's share of them, by its people.)
+    ctx = populationContext(world),
+    v = ctx.settlements.get(ref),
+    all = v ? (ctx.provinces.get(v.cell)?.total() ?? 0) : 0,
+    share = v && all > 0 ? Math.min(1, v.population / all) : 0;
+  for (let i = events.length - 1; i >= 0 && events[i]!.t > since; i--) {
+    const e = events[i]!,
+      kind =
+        e.type === LOCAL_ACT_EVENTS.fire.type && e.subjects[0] === ref
+          ? "fire"
+          : land !== null && e.place === land && e.type === DISASTER_EVENTS.quake.type
+            ? "quake"
+            : land !== null && e.place === land && e.type === DISASTER_EVENTS.meteor.type
+              ? "meteor"
+              : null;
+    if (!kind) continue;
+    const data = e.data as { lot?: unknown; homes?: unknown; dead?: unknown } | null,
+      lot = data?.lot,
+      told = typeof data?.dead === "number" ? data.dead : 0,
+      dead = kind === "fire" ? told : Math.round(told * share),
+      // (A fire tells how many of its homes it brought down; a quake or fire from the sky, how
+      // many of each town's.)
+      homes =
+        kind === "fire"
+          ? data?.homes
+          : typeof data?.homes === "object" && data.homes !== null
+            ? ((data.homes as Record<string, unknown>)[ref] ?? 0)
+            : undefined;
+    out.push({
+      kind,
+      at: e.t,
+      lot: typeof lot === "number" ? lot : -1,
+      homes: typeof homes === "number" ? homes : -1,
+      event: e.id,
+      ...(dead > 0 ? { dead } : {}),
+    });
+  }
+  return out.reverse();
+}
 
 /**
  * The plan of a town's fabric, its streets running along `axis` (null: it has none yet), out to
@@ -74,5 +133,10 @@ export function townPlan(
     paved: !!citiesOf(world).get(ref)?.paved,
     water,
     year: Math.min(year, yearOfMoment(world.now)),
+    // (What struck it lately: Phase 42 M201.)
+    ...(() => {
+      const struck = strikesOn(world, ref, land?.ref ?? null);
+      return struck.length ? { struck } : {};
+    })(),
   };
 }

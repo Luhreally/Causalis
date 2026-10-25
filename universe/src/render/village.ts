@@ -41,7 +41,17 @@ import {
   seasonNeedle,
   seasonWater,
   treesOf,
+  bierBetween,
+  burialNow,
+  buttsNow,
   fellingNow,
+  fightNow,
+  funeralsAhead,
+  graveyardFor,
+  gravesBefore,
+  TOWN_WELL,
+  wonderSpot,
+  type BlazeNow,
   type Felling,
   type Figure,
   type GroundSeason,
@@ -71,6 +81,8 @@ import { CountryLayer } from "./country.ts";
 import { FeastLayer } from "./feast.ts";
 import { TownWarLayer } from "./townwar.ts";
 import { TradesLayer, type AtWork } from "./trades.ts";
+import { BlazeLayer } from "./blaze.ts";
+import { GraveyardLayer } from "./graveyard.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
@@ -195,6 +207,16 @@ export class VillageScene {
   private readonly feast: FeastLayer;
   /** Its trades at their buildings (Phase 41 M199): mills' sails turning, kilns aglow, sparks at the anvil. */
   private readonly trades: TradesLayer;
+  /** What struck it, as it plays out (Phase 42 M201): its homes alight, their smoke, the dust of the fallen. */
+  private readonly blazeLayer: BlazeLayer;
+  private blazed: BlazeNow | null = null;
+  /** Its graveyard and its burying (Phase 43 M205): its graves, those open today, the biers borne to them. */
+  private readonly graveyard: GraveyardLayer;
+  /** Whether the town mourns now (those a strike killed being buried): its talk of them. */
+  private mourning = false;
+  /** The god's wonders in it as drawn (the look tools): where each stands, off what is built (metres). */
+  wonders: { kind: string; x: number; z: number }[] = [];
+  private shaken = false;
   /** The moment last drawn, for a rebuild between moments. */
   private lastT = 0;
   private readonly carriers: Carrier[] = [];
@@ -222,6 +244,8 @@ export class VillageScene {
     this.feast = new FeastLayer(stage, this.root);
     this.warLayer = new TownWarLayer(stage, this.root);
     this.trades = new TradesLayer(stage, this.root);
+    this.blazeLayer = new BlazeLayer(stage, this.root);
+    this.graveyard = new GraveyardLayer(stage, this.root);
     this.root.enabled = false;
   }
 
@@ -255,6 +279,7 @@ export class VillageScene {
   private dress(): void {
     const s = this.seasonNow;
     this.town.season(s?.snow ?? 0);
+    this.graveyard.season(s?.snow ?? 0);
     this.country.season(s);
     for (const d of this.dressed)
       d.paint(
@@ -292,7 +317,9 @@ export class VillageScene {
         child !== this.country.root &&
         child !== this.feast.root &&
         child !== this.warLayer.root &&
-        child !== this.trades.root
+        child !== this.trades.root &&
+        child !== this.blazeLayer.root &&
+        child !== this.graveyard.root
       )
         child.destroy();
     this.stacks = [];
@@ -372,6 +399,109 @@ export class VillageScene {
     if (town) this.townLamps ??= windowMaterial();
     this.town.build(town, plan.ref, t, town ? this.townLamps : null);
     this.trades.build(town ? this.town.motions(t) : []);
+    // Its graveyard, just past its homes (Phase 43 M205).
+    this.graveyard.build(graveyardFor(plan));
+    // A town's well in the middle of its square, where its bucket lines draw (Phase 42 M201): a
+    // ring of stone about its water, two posts and a little roof over it.
+    if (town) {
+      const stone = this.batch(s, cylinderMesh(s, 0.5, 1, 12), [0.6, 0.58, 0.54], 1, this.root),
+        well = this.batch(s, cylinderMesh(s, 0.5, 1, 12), [0.2, 0.36, 0.5], 1, this.root),
+        posts = this.batch(s, boxMesh(s), [0.42, 0.3, 0.18], 2, this.root),
+        cover = this.batch(s, gableMesh(s), [0.5, 0.26, 0.18], 1, this.root);
+      stone.set(1, (_, out) => {
+        out[0] = TOWN_WELL.x * M;
+        out[1] = 0.08;
+        out[2] = TOWN_WELL.z * M;
+        out[3] = out[5] = 0.42;
+        out[4] = 0.16;
+      });
+      well.set(1, (_, out) => {
+        out[0] = TOWN_WELL.x * M;
+        out[1] = 0.162;
+        out[2] = TOWN_WELL.z * M;
+        out[3] = out[5] = 0.32;
+        out[4] = 0.01;
+      });
+      posts.set(2, (i, out) => {
+        out[0] = (TOWN_WELL.x + (i ? 1.9 : -1.9)) * M;
+        out[1] = 0.3;
+        out[2] = TOWN_WELL.z * M;
+        out[3] = out[5] = 0.04;
+        out[4] = 0.6;
+      });
+      cover.set(1, (_, out) => {
+        out[0] = TOWN_WELL.x * M;
+        out[1] = 0.66;
+        out[2] = TOWN_WELL.z * M;
+        out[3] = 0.5;
+        out[4] = 0.14;
+        out[5] = 0.36;
+        out[6] = Math.PI / 2;
+      });
+    }
+    // The god's wonders in it (Phase 42 M201): a spring's pool brimming in a basin of stone where
+    // it welled up (above a square's paving), stones about its rim, its water rising in the
+    // middle; a shrine where it was raised — a stone, a white stele and its gold flame.
+    this.wonders = [];
+    for (const w of plan.wonders ?? []) {
+      const at = wonderSpot(plan, w);
+      this.wonders.push({ kind: w.kind, x: at.x, z: at.z });
+      if (w.kind === "spring") {
+        const basin = this.batch(s, cylinderMesh(s, 0.5, 1, 16), [0.62, 0.6, 0.56], 1, this.root),
+          stones = this.batch(s, boxMesh(s), [0.58, 0.56, 0.52], 10, this.root),
+          rise = this.batch(s, coneMesh(s, 0.5, 1, 8), [0.7, 0.86, 0.95], 1, this.root);
+        basin.set(1, (_, out) => {
+          out[0] = at.x * M;
+          out[1] = 0.03;
+          out[2] = at.z * M;
+          out[3] = out[5] = 0.72;
+          out[4] = 0.06;
+        });
+        disc(0.3, [0.24, 0.5, 0.68], at.x * M, at.z * M, 0.058, "water");
+        stones.set(10, (i, out) => {
+          const a = (i / 10) * 2 * Math.PI;
+          out[0] = (at.x + Math.cos(a) * 3.5) * M;
+          out[1] = 0.065;
+          out[2] = (at.z + Math.sin(a) * 3.5) * M;
+          out[3] = 0.09;
+          out[4] = 0.06;
+          out[5] = 0.07;
+          out[6] = a;
+        });
+        rise.set(1, (_, out) => {
+          out[0] = at.x * M;
+          out[1] = 0.12;
+          out[2] = at.z * M;
+          out[3] = out[5] = 0.08;
+          out[4] = 0.1;
+        });
+      } else {
+        const stone = this.batch(s, boxMesh(s), [0.66, 0.64, 0.6], 1, this.root),
+          stele = this.batch(s, boxMesh(s), [0.95, 0.94, 0.9], 1, this.root),
+          flame = this.batch(s, coneMesh(s, 0.5, 1, 8), [0.98, 0.8, 0.25], 1, this.root);
+        stone.set(1, (_, out) => {
+          out[0] = at.x * M;
+          out[1] = 0.05;
+          out[2] = at.z * M;
+          out[3] = out[5] = 0.3;
+          out[4] = 0.1;
+        });
+        stele.set(1, (_, out) => {
+          out[0] = at.x * M;
+          out[1] = 0.33;
+          out[2] = at.z * M;
+          out[3] = out[5] = 0.12;
+          out[4] = 0.46;
+        });
+        flame.set(1, (_, out) => {
+          out[0] = at.x * M;
+          out[1] = 0.66;
+          out[2] = at.z * M;
+          out[3] = out[5] = 0.14;
+          out[4] = 0.2;
+        });
+      }
+    }
     // A city's quarters: each block's ground coloured by its use, and a hall at its heart.
     if (quarters && !town) {
       const patch = boxMesh(s),
@@ -903,6 +1033,12 @@ export class VillageScene {
     return this.town.thingAt(x, z, t);
   }
 
+  /** Where on the screen a point of the town is (metres from its middle; the look tools), or null behind the eye. */
+  screenOf(x: number, z: number): { x: number; y: number } | null {
+    const s = this.stage.camera.camera!.worldToScreen(new pc.Vec3(x * M, 0, z * M));
+    return s.z > 0 ? { x: s.x, y: s.y } : null;
+  }
+
   /** Where on the screen one of the town's buildings, one of its homes and its walls are, at moment t (the look tools). */
   townOnScreen(t: number): {
     civic: { x: number; y: number; at: number; start: number } | null;
@@ -1035,6 +1171,33 @@ export class VillageScene {
         ore: now.lasts.ore,
       });
     }
+    // What struck the town (Phase 42 M201): its homes alight, their smoke rolling up, the dust of
+    // those shaken down — the nearest the eye drawn; and while a quake shakes it, the ground
+    // under it all.
+    if (plan.town?.struck?.length || this.blazed) {
+      const b = this.town.blaze(t),
+        eye = this.stage.camera.getPosition(),
+        // (Where the eye looks, on the ground: what is drawn of it, the nearest there.)
+        ahead = this.stage.camera.forward,
+        reach = ahead.y < -0.05 ? -eye.y / ahead.y : 0;
+      this.blazeLayer.update(
+        b,
+        screen,
+        this.stage.quality.motion,
+        { x: eye.x / M, y: eye.y / M, z: eye.z / M },
+        { x: (eye.x + ahead.x * reach) / M, z: (eye.z + ahead.z * reach) / M },
+      );
+      this.blazeLayer.waterButts(buttsNow(plan, t));
+      this.blazed = b.fires.length || b.smoke.length || b.dust.length || b.shake ? b : null;
+      if (b.shake > 0 && this.stage.quality.motion) {
+        const a = 0.06 * b.shake;
+        this.root.setLocalPosition(a * Math.sin(screen * 41), 0, a * Math.cos(screen * 37));
+        this.shaken = true;
+      } else if (this.shaken) {
+        this.root.setLocalPosition(0, 0, 0);
+        this.shaken = false;
+      }
+    }
     // The woodlot (Phase 41 M200): a tree coming down at its feller's first blows' end, lying
     // as it is cut up, then its stump; saplings growing where trees were felled.
     if (this.forest.length) {
@@ -1081,6 +1244,30 @@ export class VillageScene {
         return null;
       });
       this.trades.update(screen, this.stage.quality.motion, busy);
+    }
+    // Its dead and their burying (Phase 43 M205): the graves open today, their earth heaped
+    // beside them; the dead on their biers, on their bearers' shoulders where they are drawn.
+    this.mourning = false;
+    if (this.graveyard.yard) {
+      const b = burialNow(plan, t),
+        moments = this.moments;
+      this.mourning = b.mourning;
+      this.graveyard.update(
+        {
+          open: b.open,
+          biers: b.biers.map((q) => {
+            const ms = q.bearers.map((i) => moments[i]).filter((m) => !!m && !m.hidden) as Moment[];
+            return q.borne && ms.length === q.bearers.length && ms.length >= 2
+              ? { ...q, ...bierBetween(ms) }
+              : q;
+          }),
+          graves: b.graves,
+          freshFrom: gravesBefore(plan),
+          perYear: plan.rest?.perYear ?? 0,
+        },
+        // (Held up on their raised hands, over their heads.)
+        6.1 * this.figure.scale,
+      );
     }
     this.sizes = drawn.map((d) => d.size);
     this.strides = drawn.map((d) => d.stride);
@@ -1520,6 +1707,91 @@ export class VillageScene {
     };
   }
 
+  /** The lot of the town's plan nearest a point of it (metres; -1: none, or no town). */
+  lotAt(x: number, z: number): number {
+    return this.plan?.town ? this.town.lotOf(x, z) : -1;
+  }
+
+  /**
+   * What struck the town as last drawn (the look tools, Phase 42 M201): its homes alight, smoking,
+   * in dust, drawn and in all; how the ground shakes; who is at its fires and rubble, by what.
+   */
+  blazeShown(): {
+    fires: number;
+    smoke: number;
+    dust: number;
+    alight: number;
+    shake: number;
+    fight: Record<string, number>;
+    /** Where the first home alight and the first in dust are (metres), if any. */
+    burning: { x: number; z: number } | null;
+    dusty: { x: number; z: number } | null;
+  } | null {
+    const plan = this.plan;
+    if (!plan?.town) return null;
+    const b = this.town.blaze(this.lastT),
+      spot = (f: { x: number; z: number } | undefined) => (f ? { x: f.x, z: f.z } : null);
+    return {
+      ...this.blazeLayer.shown,
+      alight: b.fires.length,
+      shake: b.shake,
+      fight: fightNow(plan, this.lastT),
+      burning: spot(b.fires[0]),
+      dusty: spot(b.dust[0]),
+    };
+  }
+
+  /**
+   * The town's graveyard and its burying as last drawn (the look tools, Phase 43 M205): where it
+   * lies and how it is laid out; its graves; what of them is drawn; the funerals to come.
+   */
+  graveyardShown(days = 30): {
+    gate: { x: number; z: number };
+    way: number;
+    rows: number;
+    sections: number;
+    w: number;
+    d: number;
+    x: number;
+    z: number;
+    graves: number;
+    freshFrom: number;
+    perYear: number;
+    stones: number;
+    fallen: number;
+    crosses: number;
+    fresh: number;
+    mounds: number;
+    open: number;
+    heaps: number;
+    biers: number;
+    borne: number;
+    /** Where the first bier is now (metres), and whether it is borne. */
+    bier: { x: number; z: number; borne: boolean } | null;
+    funerals: ReturnType<typeof funeralsAhead>;
+  } | null {
+    const plan = this.plan,
+      yard = this.graveyard.yard;
+    if (!plan || !yard) return null;
+    const b = burialNow(plan, this.lastT);
+    return {
+      gate: { x: yard.gate.x, z: yard.gate.z },
+      way: yard.way,
+      rows: yard.rows,
+      sections: yard.sections,
+      w: yard.w,
+      d: yard.d,
+      x: yard.x,
+      z: yard.z,
+      graves: b.graves,
+      freshFrom: gravesBefore(plan),
+      perYear: plan.rest?.perYear ?? 0,
+      ...this.graveyard.shown,
+      bier: b.biers[0] ? { x: b.biers[0].x, z: b.biers[0].z, borne: b.biers[0].borne } : null,
+      funerals: funeralsAhead(plan, this.lastT, days),
+    };
+  }
+
   /** The town's trades as last drawn (the look tools): its works by kind, the sails' turn, kilns aglow, sparks. */
   tradesNow(): {
     mills: number;
@@ -1732,7 +2004,7 @@ export class VillageScene {
       out: { key: string; text: string; at: { x: number; y: number } | null; priority: number }[] =
         [];
     this.moments.forEach((m, i) => {
-      const text = sayOf(plan, i, m, clock);
+      const text = sayOf(plan, i, m, clock, this.blazed !== null, this.mourning);
       if (!text) return;
       const p = plan.people[i]!,
         // (Over their heads, as high as their figure stands.)

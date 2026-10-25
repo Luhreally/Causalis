@@ -68,6 +68,7 @@ import {
   ArmsBook,
   EventWindows,
   GodPalette,
+  type TownPlace,
   WAY_CHOICES,
   isGreat,
   HoverTips,
@@ -511,6 +512,8 @@ type Exposed = {
   landCarrier?: (kind: string) => { x: number; z: number } | null;
   /** Where on the screen one of the town's buildings, one of its homes and its walls are (M151). */
   townOnScreen?: () => unknown;
+  /** Where on the screen a point of the town seen near is (metres from its middle; M201), or null. */
+  townScreen?: (x: number, z: number) => { x: number; y: number } | null;
   /** How many of each thing a town's countryside shows now (Phase 32), at the village scale. */
   country?: () => Record<string, number> | null;
   /** What a town's square shows now (Phase 33): its feast, its fire, its market; the bar's words. */
@@ -669,6 +672,60 @@ type Exposed = {
     turn: number;
     glowing: number;
     sparks: number;
+  } | null;
+  /** What struck the town watched as drawn (Phase 42 M201): its homes alight, smoking, in dust; the ground shaking; who is at its fires, by what. */
+  /** The god's wonders in a town seen near as drawn (M201): each, where it stands (metres). */
+  wonders?: () => { kind: string; x: number; z: number }[];
+  blaze?: () => {
+    fires: number;
+    smoke: number;
+    dust: number;
+    alight: number;
+    shake: number;
+    fight: Record<string, number>;
+    burning: { x: number; z: number } | null;
+    dusty: { x: number; z: number } | null;
+  } | null;
+  /**
+   * The graveyard of the town watched as drawn (Phase 43 M205): where it lies, its size, its
+   * graves, what of them is drawn, today's open graves and biers, and its funerals of so many
+   * days to come (when each leaves, comes to the graveyard, is done and filled in; how many it
+   * buries and bears; who, where known).
+   */
+  graveyard?: (days?: number) => {
+    gate: { x: number; z: number };
+    way: number;
+    rows: number;
+    sections: number;
+    w: number;
+    d: number;
+    x: number;
+    z: number;
+    graves: number;
+    freshFrom: number;
+    perYear: number;
+    stones: number;
+    fallen: number;
+    crosses: number;
+    fresh: number;
+    mounds: number;
+    open: number;
+    heaps: number;
+    biers: number;
+    borne: number;
+    bier: { x: number; z: number; borne: boolean } | null;
+    funerals: {
+      leaves: number;
+      arrive: number;
+      done: number;
+      filled: number;
+      biers: number;
+      dead: number;
+      bearers: number;
+      grave: { x: number; z: number };
+      struck: string | null;
+      name: string | null;
+    }[];
   } | null;
   /** The woodlot as drawn (Phase 41 M200): trees down, stumps, saplings, the next to come down, those coming down or lying. */
   felling?: () => {
@@ -2177,7 +2234,8 @@ async function runPlanetPage(): Promise<void> {
     maxPitch: 80,
     drift: drift(),
     onTap: (x, y) =>
-      palette.armed && (scale === "globe" || scale === "region" || scale === "camp")
+      palette.armed &&
+      (scale === "globe" || scale === "region" || scale === "camp" || scale === "village")
         ? tapPalette(x, y)
         : scale === "globe"
           ? tapGlobe(x, y)
@@ -2321,7 +2379,10 @@ async function runPlanetPage(): Promise<void> {
       x = e.clientX - rect.left,
       y = e.clientY - rect.top;
     // With an act in hand the palette says what it will do where the pointer is, and lights it.
-    if (palette.armed && (scale === "globe" || scale === "region" || scale === "camp")) {
+    if (
+      palette.armed &&
+      (scale === "globe" || scale === "region" || scale === "camp" || scale === "village")
+    ) {
       tooltip.hide();
       const at = paletteAt(x, y);
       palette.hover(at.cell, at.town);
@@ -2346,8 +2407,23 @@ async function runPlanetPage(): Promise<void> {
   const palette = new GodPalette(hud, client);
   document.body.classList.add("with-palette");
   /** The land (province) and the town under a point of the screen, for the palette. */
-  const paletteAt = (x: number, y: number): { cell: number | null; town: string | null } => {
+  const paletteAt = (
+    x: number,
+    y: number,
+  ): { cell: number | null; town: string | null; place?: TownPlace } => {
     if (scale === "camp") return { cell: regionCell >= 0 ? regionCell : null, town: null };
+    // In a town watched (Phase 42 M201): the town, and where in it the hand touches.
+    if (scale === "village") {
+      const at = plan ? onPlane(x, y, 0) : null;
+      if (!plan) return { cell: null, town: null };
+      const mx = at ? at.x / VILLAGE_METRE : 0,
+        mz = at ? at.z / VILLAGE_METRE : 0;
+      return {
+        cell: plan.cell ?? null,
+        town: plan.ref,
+        ...(at ? { place: { x: mx, z: mz, lot: village.lotAt(mx, mz) } } : {}),
+      };
+    }
     if (scale === "region") {
       const tile = region.pick(x, y),
         near = tile === null ? null : region.villageNear(tile),
@@ -2366,7 +2442,7 @@ async function runPlanetPage(): Promise<void> {
   };
   const tapPalette = (x: number, y: number) => {
     const at = paletteAt(x, y);
-    void palette.tap(at.cell, at.town);
+    void palette.tap(at.cell, at.town, at.place);
   };
   palette.onOpen = (ref) => void pageWindow.open(ref);
   palette.onArmed = (armed) => {
@@ -2419,8 +2495,12 @@ async function runPlanetPage(): Promise<void> {
     // and an act in hand is put down.)
     // (Among a band, on their land: Phase 29 M160.)
     // (Nor while a war of history is watched unfolding: Phase 38 M193.)
+    // (And in a town watched, on it and its land: Phase 42 M201.)
     const castable =
-      (scale === "globe" && !campaign && !warAge) || scale === "region" || scale === "camp";
+      (scale === "globe" && !campaign && !warAge) ||
+      scale === "region" ||
+      scale === "camp" ||
+      scale === "village";
     if (document.body.classList.contains("palette-off") === castable) {
       document.body.classList.toggle("palette-off", !castable);
       if (!castable) palette.putDown();
@@ -3807,6 +3887,15 @@ async function runPlanetPage(): Promise<void> {
     villagePanel.warNow(tw?.words ?? null, tw ? (tw.fought?.event ?? tw.ref) : null);
   });
   villagePanel.onWar = (ref) => void pageWindow.open(ref);
+  // (An act cast on the town watched — fire sent on it, a spring, a shrine, its land shaken — read
+  // again at once, so it is seen as it falls: Phase 42 M201.)
+  const castOnTown = palette.onCast;
+  palette.onCast = (receipt) => {
+    castOnTown(receipt);
+    if (scale === "village" && plan) void loadPlan(plan.ref);
+  };
+  exposed.blaze = () => (scale === "village" ? village.blazeShown() : null);
+  exposed.wonders = () => (scale === "village" ? village.wonders : []);
   exposed.townWar = () => {
     const w = scale === "village" ? village.warNow() : null;
     if (!w) return null;
@@ -5178,8 +5267,10 @@ async function runPlanetPage(): Promise<void> {
         g = v ? region.groundAt(v.tile) : null;
       return g ? { x: g.x, y: g.y, z: g.z, r: 0.5 } : null;
     }
-    return scale === "village" && plan?.ref === ref
-      ? { x: 0, y: 0, z: 0, r: Math.max(40, village.townReach()) * VILLAGE_METRE }
+    // (A town drawn lot by lot shows a fire on it home by home, each catching and burning as it
+    // did — Phase 42 M201 — and not these flames over the whole of it.)
+    return scale === "village" && plan?.ref === ref && village.townReach() <= 0
+      ? { x: 0, y: 0, z: 0, r: 40 * VILLAGE_METRE }
       : null;
   };
   const weatherCell = () =>
@@ -5407,6 +5498,8 @@ async function runPlanetPage(): Promise<void> {
   exposed.watch = (ref: string) => void toVillage(ref);
   exposed.watching = () => (scale === "village" && plan ? plan.people.length : 0);
   exposed.townOnScreen = () => (scale === "village" && plan ? village.townOnScreen(now()) : null);
+  exposed.townScreen = (x: number, z: number) =>
+    scale === "village" && plan ? village.screenOf(x, z) : null;
   exposed.country = () => (scale === "village" && plan ? village.countryNow() : null);
   exposed.feast = () =>
     scale === "village" && plan
@@ -5435,6 +5528,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.peopleNow = () => (scale === "village" ? village.peopleNow() : []);
   exposed.trades = () => (scale === "village" ? village.tradesNow() : null);
   exposed.felling = () => (scale === "village" ? village.fellingShown() : null);
+  exposed.graveyard = (days = 30) => (scale === "village" ? village.graveyardShown(days) : null);
   exposed.rig = rig;
 
   // Going to anything (Phase 10 M92): a page's place, from whatever scale is up — the scale

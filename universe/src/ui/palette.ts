@@ -11,6 +11,9 @@ import { el } from "./why.ts";
 
 type Target = "land" | "town" | "city" | "pair" | "faith" | "tongue" | "realm" | "world" | "star";
 
+/** Where in a town watched the hand touches (Phase 42 M201): metres from its middle, and the lot there (-1: none). */
+export type TownPlace = { readonly x: number; readonly z: number; readonly lot: number };
+
 type PaletteAct = {
   readonly id: string;
   readonly icon: string;
@@ -192,7 +195,8 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
     target: "town",
     command: "act.spring",
   },
-  fire: { id: "fire", icon: "🔥", name: "Send fire", target: "city", command: "act.fire" },
+  // (On any town whose homes stand, where the hand sends it in it: Phase 42 M201.)
+  fire: { id: "fire", icon: "🔥", name: "Send fire", target: "town", command: "act.fire" },
   war: {
     id: "war",
     icon: "⚔️",
@@ -509,8 +513,11 @@ export class GodPalette {
     });
   }
 
-  /** The map touched with an act in hand: choose, or cast. */
-  async tap(cell: number | null, town: string | null): Promise<void> {
+  /**
+   * The map touched with an act in hand: choose, or cast — in a town watched, where in it
+   * (`place`: metres from its middle, and the lot of its plan there; Phase 42 M201).
+   */
+  async tap(cell: number | null, town: string | null, place?: TownPlace): Promise<void> {
     const a = this.act,
       whole = a?.target === "world" || a?.target === "star";
     // (The world's and the sun's acts fall on the whole world, touched anywhere, sea or land.)
@@ -528,7 +535,7 @@ export class GodPalette {
       this.light();
       return;
     }
-    const aim = this.aim(a, land, town);
+    const aim = this.aim(a, land, town, place);
     if (!aim.args) {
       this.say(aim.words, "bad");
       return;
@@ -586,8 +593,13 @@ export class GodPalette {
     return land.realm ? null : `${land.name} is no realm's`;
   }
 
-  /** What the act in hand would do to a land (and a town there), or why it cannot. */
-  private aim(a: PaletteAct, land: PaletteLand | null, town: string | null): Aim {
+  /** What the act in hand would do to a land (and a town there, where in it), or why it cannot. */
+  private aim(
+    a: PaletteAct,
+    land: PaletteLand | null,
+    town: string | null,
+    place?: TownPlace,
+  ): Aim {
     const years = this.years,
       span = a.lasting ? ` for ${years} year${years === 1 ? "" : "s"}` : "";
     switch (a.target) {
@@ -731,12 +743,25 @@ export class GodPalette {
         if (a.id === "spring" && t.spring)
           return { words: `a spring already rises at ${t.name}`, args: null };
         const doing =
-          a.id === "shrine"
-            ? `a shrine rising in ${t.name}`
-            : a.id === "spring"
-              ? `a spring welling up at ${t.name}`
-              : `fire sweeping ${t.name}`;
-        return { words: doing, args: { village: t.ref } };
+            a.id === "shrine"
+              ? `a shrine rising in ${t.name}`
+              : a.id === "spring"
+                ? `a spring welling up at ${t.name}`
+                : `fire sweeping ${t.name}`,
+          // (Where the hand sets it in the town it touches: the lot a fire falls on, the spot a
+          // shrine or a spring is set.)
+          here = place && t.ref === town ? place : null,
+          where = !here
+            ? {}
+            : a.id === "fire"
+              ? here.lot >= 0
+                ? { lot: here.lot }
+                : {}
+              : { x: Math.round(here.x * 10) / 10, z: Math.round(here.z * 10) / 10 };
+        return {
+          words: here ? `${doing} where you touched` : doing,
+          args: { village: t.ref, ...where },
+        };
       }
       case "realm": {
         const r = land?.realm;

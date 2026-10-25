@@ -70,12 +70,20 @@ function spill(ctx: PopulationContext, cell: number, share: number): void {
 
 /**
  * A share of a land's cities' built blocks brought down (the middle first): how many; and as
- * great a share of every town's homes there, the heart first (Phase 23).
+ * great a share of every town's homes there, the heart first (Phase 23) — how many of each
+ * town's, into `homes` where it is given (Phase 42 M201: its event tells them).
  */
-export function raze(ctx: PopulationContext, cell: number, share: number, t: SimTime): number {
+export function raze(
+  ctx: PopulationContext,
+  cell: number,
+  share: number,
+  t: SimTime,
+  homes?: Record<string, number>,
+): number {
   let down = 0;
   for (const v of ctx.settlements.inProvince(cell)) {
-    razeTown(ctx, v.ref, share, t);
+    const n = razeTown(ctx, v.ref, share, t);
+    if (homes && n > 0) homes[v.ref] = n;
     const city = citiesOf(ctx.world).get(v.ref);
     if (!city) continue;
     const built = city.uses
@@ -133,14 +141,15 @@ export function installDisasters(world: World, ctx: () => PopulationContext): vo
         cell = (command.args as LandArgs).cell,
         k = DISASTER.quake,
         dead = strike(c, cell, k.dead, t),
-        blocks = raze(c, cell, k.blocks, t);
+        homes: Record<string, number> = {},
+        blocks = raze(c, cell, k.blocks, t, homes);
       spill(c, cell, k.stores);
       const event = world.events.emit({
         type: DISASTER_EVENTS.quake.type,
         subjects: [c.provinces.get(cell)!.ref],
         place: c.provinces.get(cell)!.ref,
         causes: agent(command),
-        data: { dead, blocks },
+        data: { dead, blocks, homes },
       });
       grieve(world, cell, k.grief, event);
     },
@@ -155,14 +164,15 @@ export function installDisasters(world: World, ctx: () => PopulationContext): vo
         cell = (command.args as LandArgs).cell,
         k = DISASTER.meteor,
         dead = strike(c, cell, k.dead, t),
-        blocks = raze(c, cell, k.blocks, t);
+        homes: Record<string, number> = {},
+        blocks = raze(c, cell, k.blocks, t, homes);
       spill(c, cell, k.stores);
       const event = world.events.emit({
         type: DISASTER_EVENTS.meteor.type,
         subjects: [c.provinces.get(cell)!.ref],
         place: c.provinces.get(cell)!.ref,
         causes: agent(command),
-        data: { dead, blocks, years: k.blighted },
+        data: { dead, blocks, years: k.blighted, homes },
       });
       ruin(command.id, event, cell, k.blighted, t);
       actsOf(world).addCrater({ cell, year: yearOfMoment(t), event });

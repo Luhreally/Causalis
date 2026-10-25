@@ -30,6 +30,21 @@ export type TownFamily = "lanes" | "grid" | "rings";
 /** A town's water — a lake, the sea's edge — beside it: its middle and reach (metres from its square). */
 export type TownWater = { readonly x: number; readonly z: number; readonly r: number };
 
+/**
+ * What struck a town these two years past (Phase 42 M201): fire the god sent on it, the ground
+ * shaken or fire fallen from the sky on its land — when; the lot of its plan a fire fell on (-1:
+ * it took the town from its heart); and how many of its homes it brought down (-1: not told).
+ */
+export type TownStrike = {
+  readonly kind: "fire" | "quake" | "meteor";
+  readonly at: number;
+  readonly lot: number;
+  readonly homes: number;
+  readonly event: string;
+  /** How many of its people it killed (Phase 43 M205: buried two days after; absent: none told). */
+  readonly dead?: number;
+};
+
 /** One of a town's buildings besides its homes, as its fabric keeps it. */
 export type TownCivic = {
   readonly kind: string;
@@ -77,6 +92,8 @@ export type TownPlan = {
   readonly water: TownWater | null;
   /** The year whose building it shows last (its runs' and buildings' latest). */
   readonly year: number;
+  /** What struck it these two years past, oldest first (Phase 42 M201; absent: nothing). */
+  readonly struck?: readonly TownStrike[];
 };
 
 /** A small hash of whole numbers, for the plan's wanderings (not history's). */
@@ -285,7 +302,23 @@ export type LotStates = {
   readonly began: Float64Array;
   readonly takes: Float64Array;
   readonly raised: Uint8Array;
+  /**
+   * Of a home razed by what struck the town (Phase 42 M201): which of its strikes (-1: none — let
+   * fall, or razed by no act it knows); `began` is then the moment it caught (or fell), and its
+   * level and design those of the home that stood (as its nearest neighbour standing).
+   */
+  readonly struck: Int16Array;
+  /** Whether it burned (a quake shakes most down unburnt). */
+  readonly burns: Uint8Array;
 };
+
+/**
+ * How what struck a town spreads (seconds): a fire from the lot it fell on to the farthest of its
+ * homes in an hour and a half at most, a house to every three quarters of a minute; fire from the
+ * sky over its homes in two minutes; a quake's homes falling within its forty seconds, one in four
+ * catching fire from its hearths a few minutes after.
+ */
+export const SPREAD = { fire: 45, fireAll: 5400, meteorAll: 120, quakeAll: 40, quakeBurns: 0.25 };
 
 /**
  * The moment the change of lot p in a run began: a year's work done through the year after it
@@ -344,7 +377,98 @@ export function lotStates(plan: TownPlan): LotStates {
       raised[p] = 0;
     }
   }
-  return { what, level, design, began, takes, raised };
+  const struck = new Int16Array(n).fill(-1),
+    burns = new Uint8Array(n);
+  strikes(plan, what, level, design, began, struck, burns);
+  return { what, level, design, began, takes, raised, struck, burns };
+}
+
+/**
+ * Each home razed in a year something struck the town (Phase 42 M201) given to its strike, each
+ * strike's in the order it spread through them: when each caught or fell, whether it burned, and
+ * what stood. The strikes of a year take theirs in the order they fell, each as many as it brought
+ * down, as the fabric chose them — those nearest the lot a fire fell on, else from the heart out —
+ * of those its earlier ones left (a strike that told no count: those lying nearer it than any other).
+ */
+function strikes(
+  plan: TownPlan,
+  what: Int8Array,
+  level: Int8Array,
+  design: Int16Array,
+  began: Float64Array,
+  struck: Int16Array,
+  burns: Uint8Array,
+): void {
+  const list = plan.struck ?? [],
+    n = what.length;
+  if (!list.length) return;
+  const theirs: number[][] = list.map(() => []),
+    // (The razed lots of each year a strike fell in.)
+    razed = new Map<number, Set<number>>();
+  for (const run of plan.runs) {
+    const [kind, lo, hi, start, end] = run as [number, number, number, number, number];
+    if (kind !== 3) continue;
+    for (let p = Math.max(0, lo); p < Math.min(hi, n); p++) {
+      if (what[p] !== LOT.razed) continue;
+      for (const k of list) {
+        const year = Math.floor(k.at / YEAR);
+        if (year < start || year > end) continue;
+        let of = razed.get(year);
+        if (!of) razed.set(year, (of = new Set()));
+        of.add(p);
+      }
+    }
+  }
+  const order = list.map((_, i) => i).sort((a, b) => list[a]!.at - list[b]!.at || a - b),
+    near = (k: TownStrike) => (a: number, b: number) =>
+      Math.abs(a - Math.max(0, k.lot)) - Math.abs(b - Math.max(0, k.lot)) || a - b;
+  for (const i of order) {
+    const k = list[i]!,
+      left = razed.get(Math.floor(k.at / YEAR));
+    if (!left?.size || k.homes < 0) continue;
+    const mine = [...left].sort(near(k)).slice(0, k.homes);
+    for (const p of mine) left.delete(p);
+    theirs[i] = mine;
+  }
+  // (Those a strike that told no count has: the rest of its year's, each to the nearest of them.)
+  for (const [year, left] of razed)
+    for (const p of left) {
+      let best = -1,
+        far = Infinity;
+      list.forEach((k, i) => {
+        if (k.homes >= 0 || Math.floor(k.at / YEAR) !== year) return;
+        const d = Math.abs(p - Math.max(0, k.lot));
+        if (d < far) {
+          far = d;
+          best = i;
+        }
+      });
+      if (best >= 0) theirs[best]!.push(p);
+    }
+  theirs.forEach((lots, i) => {
+    const k = list[i]!,
+      from = Math.max(0, k.lot);
+    lots.sort((a, b) => Math.abs(a - from) - Math.abs(b - from) || a - b);
+    const step =
+      k.kind === "fire"
+        ? Math.min(SPREAD.fire, SPREAD.fireAll / Math.max(1, lots.length))
+        : (k.kind === "meteor" ? SPREAD.meteorAll : SPREAD.quakeAll) / Math.max(1, lots.length);
+    lots.forEach((p, j) => {
+      struck[p] = i;
+      const burnt = k.kind !== "quake" || hash(p, Math.round(k.at), 7) < SPREAD.quakeBurns;
+      burns[p] = burnt ? 1 : 0;
+      began[p] = k.at + (j + hash(p, Math.round(k.at), 3)) * step;
+      // (What stood there: as the nearest home standing beside it.)
+      level[p] = 1;
+      for (let d = 1; d <= 16; d++) {
+        const q = what[p - d] === LOT.home ? p - d : what[p + d] === LOT.home ? p + d : -1;
+        if (q < 0) continue;
+        level[p] = level[q]!;
+        design[p] = design[q]!;
+        break;
+      }
+    });
+  });
 }
 
 /** How far a change begun at `began`, taking `takes`, has come at moment t: 0 not begun, 1 done. */

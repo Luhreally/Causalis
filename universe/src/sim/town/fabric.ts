@@ -757,13 +757,22 @@ export class TownBuilder {
   }
 
   /** A share of a town's homes razed: its heart first, or its edge for a town sacked. */
-  raze(f: Fabric, share: number, edge: boolean): number {
+  raze(f: Fabric, share: number, edge: boolean, near?: number): number {
     const levels = levelsOf(f, 0, f.next),
       under = civicMask(f, 0, f.next),
       standing: number[] = [];
     for (let p = 0; p < f.next; p++) if (levels[p]! >= 0 && !under[p]) standing.push(p);
     const n = Math.min(standing.length, Math.ceil(standing.length * share)),
-      down = edge ? standing.slice(-n) : standing.slice(0, n);
+      // (About a lot, where one is given — the nearest it along the plan first: Phase 42 M201.)
+      down =
+        near !== undefined
+          ? [...standing]
+              .sort((a, b) => Math.abs(a - near) - Math.abs(b - near) || a - b)
+              .slice(0, n)
+              .sort((a, b) => a - b)
+          : edge
+            ? standing.slice(-n)
+            : standing.slice(0, n);
     let run = -1,
       at = -1;
     const done = () => {
@@ -1041,10 +1050,27 @@ export function causeOf(ctx: PopulationContext, cell: number, kind: CivicKind): 
   return best?.event ?? null;
 }
 
-/** Raze a share of a town's homes, the heart first (a fire, a quake, fire from the sky): how many came down. */
-export function razeTown(ctx: PopulationContext, town: Ref, share: number, t: SimTime): number {
+/**
+ * Raze a share of a town's homes (a fire, a quake, fire from the sky): the heart first, or those
+ * nearest a lot of its plan where one is given (a fire sent where it falls: Phase 42 M201). How
+ * many came down.
+ */
+export function razeTown(
+  ctx: PopulationContext,
+  town: Ref,
+  share: number,
+  t: SimTime,
+  near?: number,
+): number {
   const f = townsOf(ctx.world).get(town);
-  return f ? new TownBuilder(ctx, yearOfMoment(t)).raze(f, share, false) : 0;
+  return f ? new TownBuilder(ctx, yearOfMoment(t)).raze(f, share, false, near) : 0;
+}
+
+/** Whether any of a town's homes stand (or rise). */
+export function homesStand(world: World, town: Ref): boolean {
+  return !!townsOf(world)
+    .get(town)
+    ?.homes.some((n) => n > 0);
 }
 
 /** Teach a peopled world its towns' fabric. */

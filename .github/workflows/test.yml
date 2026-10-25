@@ -273,6 +273,19 @@ jobs:
       - run: npm run gate:41 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # Phase 42 (the god's hand in a town watched: fire sent on a home of it from the palette, its
+      # homes catching and burning, the town come running — throwing water, a line passing
+      # buckets, others watching — the flames out and the ruins smouldering; a spring set where
+      # touched; its land shaken: the ground shaking, homes down in dust, the rubble dug).
+      - run: npm run gate:42 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
+      # Phase 43 (a town's dead buried: its graveyard past its homes, a grave dug in the morning,
+      # the dead borne on a bier by four in step, its mourners after it, the grave filled in;
+      # those a fire killed buried together two days after it, on biers one after another).
+      - run: npm run gate:43 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest
