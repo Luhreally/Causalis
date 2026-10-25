@@ -4,7 +4,8 @@
 // sides, each in its colour with the battles it won and its fallen mounting as the war goes; and
 // its course, a line of its years drawn back and forth, each of its battles marked on it where its
 // turn comes (in the colour of the side that won it), what is told now under it, and the battle
-// told of a tap away, to be watched fought.
+// told of a tap away, to be watched fought; or each battle as it comes gone down to and watched
+// fought on its field, and back to the war (M196).
 import type { Campaign, WarAge } from "../bridge/index.ts";
 import {
   WAR_SPEEDS,
@@ -42,6 +43,7 @@ export class WarPanel {
   private readonly again = el("button", "speed", "↺ Again");
   private readonly page = el("button", "speed", "📜 Its page");
   private readonly back = el("button", "speed", "‹ Leave the war");
+  private readonly fields = el("button", "speed war-fields", "🗡️ Into each battle");
   private readonly sides: [SideCard, SideCard];
   private readonly course = el("div", "war-course");
   private readonly fill = el("div", "battle-fill");
@@ -66,6 +68,8 @@ export class WarPanel {
   onSide: (ref: string) => void = () => {};
   /** A battle of it, to be watched fought. */
   onBattle: (event: string) => void = () => {};
+  /** Each battle gone down to as it comes, or not (M196). */
+  onFields: (on: boolean) => void = () => {};
 
   constructor(root: HTMLElement) {
     const bar = el("header", "bar");
@@ -75,6 +79,10 @@ export class WarPanel {
     this.page.title = "The war's page: why it was fought, its battles, its course, its hosts";
     this.again.onclick = () => this.onAgain();
     this.again.title = "The war again from its declaring";
+    this.fields.title =
+      "Down to each battle as it is fought, to watch it fought on its field from the eve of the charge; back to the war once the field is won";
+    this.fields.setAttribute("aria-pressed", "false");
+    this.fields.onclick = () => this.onFields(!this.fields.classList.contains("on"));
     this.speeds.setAttribute("role", "group");
     this.speeds.setAttribute("aria-label", "The war's speed");
     this.buttons = WAR_SPEEDS.map((_, i) => {
@@ -123,7 +131,7 @@ export class WarPanel {
     middle.append(this.told, this.course, this.when, this.watch);
     const sheet = el("div", "battle-sheet");
     sheet.append(this.sides[0].box, middle, this.sides[1].box);
-    bar.append(this.back, this.title, this.speeds, this.again, this.page, sheet);
+    bar.append(this.back, this.title, this.speeds, this.again, this.page, this.fields, sheet);
     this.element.append(bar);
     root.append(this.element);
     this.visible = false;
@@ -131,6 +139,12 @@ export class WarPanel {
 
   set visible(on: boolean) {
     this.element.hidden = !on;
+  }
+
+  /** Whether each battle is gone down to as it comes: its button lit. */
+  set fieldsOn(on: boolean) {
+    this.fields.classList.toggle("on", on);
+    this.fields.setAttribute("aria-pressed", String(on));
   }
 
   /** Which war, its sides, its battles marked on its course. */

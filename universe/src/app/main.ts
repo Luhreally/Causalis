@@ -1557,6 +1557,8 @@ async function runPlanetPage(): Promise<void> {
       seen: number;
       /** Whether the eye has been brought nearer or farther by hand (else it keeps its host's way in view). */
       zoomed: boolean;
+      /** Whether each battle, as it is fought, is gone down to and watched on its field (M196). */
+      fields: boolean;
     } | null = null,
     /** The wars of an age watched unfolding together (M194: see watchWarAge), null: none. */
     warAge: {
@@ -4060,6 +4062,8 @@ async function runPlanetPage(): Promise<void> {
     speed: number;
     /** Left from the wars of an age (M194): its years. */
     age?: { from: number; to: number };
+    /** Gone down to as it came (M196): watched from the eve of the charge, the war gone back to once the field is won. */
+    fields?: boolean;
   };
   /** The war to go back to from the battle watched (null: none). */
   let warReturn: WarLeft | null = null;
@@ -4070,6 +4074,14 @@ async function runPlanetPage(): Promise<void> {
     warReturn = fromWar;
     battlePanel.backTo(fromWar?.age ? "‹ The wars" : fromWar ? "‹ The war" : "‹ The land");
     await fadeOver(() => ready("the battle", () => toBattle(event)));
+    // (Not shown: nothing to go back from. Gone down to as it came in a war, M196: from the eve
+    // of the charge, a step faster than the war went.)
+    if (scale !== "battle") warReturn = null;
+    else if (fromWar?.fields && fight) {
+      fight.s = MOMENTS.charge - 4;
+      fight.now = battleAt(fight.field, fight.s);
+      battleSpeed(Math.max(1, Math.min(BATTLE_SPEEDS.length - 1, fromWar.speed + 1)));
+    }
   };
   pageWindow.onBattle = (event) => void watchBattle(event);
   tidings.onBattle = (event) => void watchBattle(event);
@@ -4139,6 +4151,11 @@ async function runPlanetPage(): Promise<void> {
       fight.s = Math.min(BATTLE_LENGTH, fight.s + Math.min(dt, 0.1) * pace);
       // (At its end it stands, the field as it was left.)
       if (fight.s >= BATTLE_LENGTH) battleSpeed(0);
+      // (Gone down to as it came in a war, M196: the field won, back to the war.)
+      if (warReturn?.fields && fight.s >= MOMENTS.after + 4) {
+        void leaveBattle();
+        return;
+      }
     }
     fight.now = battleAt(fight.field, fight.s);
     meadowScene.update(fight.meadow, []);
@@ -4223,6 +4240,8 @@ async function runPlanetPage(): Promise<void> {
   // going with its host; told as it goes, the battle told of a tap away to be watched fought, and
   // back to the war after.
   const warPanel = new WarPanel(hud);
+  /** Whether a war watched goes down to each battle as it is fought (M196): the viewer's, kept from war to war. */
+  let warFields = false;
   /** How much larger than the year's a war watched unfolding's figures are drawn, near as the eye comes. */
   const WAR_GRAND = 1.8;
   /**
@@ -4357,19 +4376,22 @@ async function runPlanetPage(): Promise<void> {
     if (scale !== "globe") return false;
     const span = campaignSpan(c),
       at = foughtAt(c),
-      y = Math.max(span.from, Math.min(span.to, left?.year ?? span.from));
+      y = Math.max(span.from, Math.min(span.to, left?.year ?? span.from)),
+      now = campaignAt(c, y, at);
     campaign = {
       c,
       at,
       year: y,
       speed: left?.speed ?? 2,
       was: 2,
-      now: campaignAt(c, y, at),
+      now,
       drawn: "",
       marching: new Map(),
       follow: true,
-      seen: -1,
+      // (Back from a battle: those fought are seen; only the next is gone down to.)
+      seen: left ? now.fought.length : -1,
       zoomed: false,
+      fields: left?.fields ?? warFields,
     };
     // (The world waits while its war is watched.)
     time.hold("war");
@@ -4377,6 +4399,7 @@ async function runPlanetPage(): Promise<void> {
     globeWars.squad = WAR_SQUAD;
     planetPanel.visible = false;
     warPanel.show(c);
+    warPanel.fieldsOn = campaign.fields;
     warPanel.visible = true;
     warKeys = {
       toggle: () => {
@@ -4416,6 +4439,14 @@ async function runPlanetPage(): Promise<void> {
     const span = campaignSpan(campaign.c);
     campaign.year = Math.max(span.from, Math.min(span.to, year));
     drawWar();
+    // (Drawn to a moment: its battles by then seen, not gone down to.)
+    campaign.seen = campaign.now.fought.length;
+    campaign.follow = true;
+  };
+  warPanel.onFields = (on) => {
+    warFields = on;
+    if (campaign) campaign.fields = on;
+    warPanel.fieldsOn = on;
   };
   warPanel.onSide = (ref) => void pageWindow.open(ref);
   warPanel.onBattle = (event) => {
@@ -4458,8 +4489,30 @@ async function runPlanetPage(): Promise<void> {
     drawWar();
     if (rig.steering) campaign.follow = false;
     if (campaign.now.fought.length !== campaign.seen) {
+      // (A battle fought as the war's clock went on, each gone down to: its field, then back, M196.)
+      const latest = campaign.now.fought.at(-1),
+        down =
+          campaign.fields &&
+          pace > 0 &&
+          campaign.seen >= 0 &&
+          campaign.now.fought.length > campaign.seen &&
+          !!latest &&
+          latest.spot >= 0;
       campaign.seen = campaign.now.fought.length;
       campaign.follow = true;
+      if (down) {
+        const speed = campaign.speed;
+        // (Held while the eye goes down.)
+        campaign.was = speed;
+        campaign.speed = 0;
+        void watchBattle(latest!.event, {
+          ref: campaign.c.ref,
+          year: campaign.year,
+          speed,
+          fields: true,
+        });
+        return;
+      }
     }
     rig.lean = warLean();
     // (Its two hosts side by side on the screen: the eye looks across its host's way, while it
@@ -4493,6 +4546,7 @@ async function runPlanetPage(): Promise<void> {
           follow: campaign.follow,
           lean: rig.lean,
           across: rig.across !== null,
+          fields: campaign.fields,
           drawn: {
             marching: globeWars.counts.marching,
             battle: globeWars.counts.battle,
@@ -4511,6 +4565,8 @@ async function runPlanetPage(): Promise<void> {
     campaign.year = Math.max(span.from, Math.min(span.to, year));
     if (speed !== undefined) warSpeed(speed);
     drawWar();
+    campaign.seen = campaign.now.fought.length;
+    campaign.follow = true;
   };
   exposed.leaveWar = () => endWar();
 

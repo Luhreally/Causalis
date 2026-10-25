@@ -7,7 +7,8 @@
 //      its course;
 //   3. its battles come in their turns, each drawn and marked where it was fought, its fallen
 //      tallied; at its end its whole is told and its host stands down;
-//   4. a battle of it watched fought, and back to the war where it was left;
+//   4. a battle of it watched fought, and back to the war where it was left; each battle gone down
+//      to as it comes (M196), watched from the eve of the charge, and back to the war once won;
 //   5. a war's own page offers it watched; left, the world's clock goes on as it went;
 //   6. the corner's ⚔️: the world's wars of the last hundred years played at once, on their own
 //      clock, their battles in their turns; the latest watched fought, and back to them;
@@ -83,6 +84,7 @@ type Seen = {
   follow: boolean;
   lean: number;
   across: boolean;
+  fields: boolean;
   drawn: { marching: number; battle: number; fallen: number; tents: number };
   marks: string[];
   world: boolean;
@@ -244,6 +246,54 @@ w = await seen(page);
 check(!!w && Math.abs(w.year - left) < 1e-6, `back where it was left (${w?.year} for ${left})`);
 check(w?.speed === 0, `held as it was left (${w?.speed})`);
 await shot(page, "4-back-to-the-war");
+// (M196: each battle gone down to as it comes — the war played into its last battle, its field
+// watched from the eve of the charge, and back to the war once the field is won.)
+const lastBattle = c.battles.at(-1);
+if (lastBattle) {
+  const fields = page.locator(".war-panel:not(.war-age) .war-fields");
+  await fields.click();
+  check((await seen(page))?.fields === true, "each battle to be gone down to as it comes");
+  // (Those of one year fought one after another through it: the last of its year's at its share.)
+  const sameYear = c.battles.filter((b) => b.year === lastBattle.year).length,
+    lastAt = lastBattle.year + (sameYear - 0.5) / sameYear;
+  await k(page, `globalThis.causalis.warAt(${lastAt - 0.05}, 1)`);
+  await until(
+    page,
+    "down to the battle as it came",
+    async () => (await k<unknown>(page, `globalThis.causalis.battle()`)) !== null,
+    slow(60000),
+  );
+  const down = await k<{ event: string; s: number; speed: number } | null>(
+    page,
+    `globalThis.causalis.battle()`,
+  );
+  say(
+    `gone down to the battle at ${lastBattle.land} as it came: from second ${down?.s.toFixed(0)}, at ${down?.speed}×`,
+  );
+  check(down?.event === lastBattle.event, `the battle as it came gone down to (${down?.event})`);
+  check(
+    !!down && down.s >= 30 && down.speed > 0,
+    `watched from the eve of the charge (${down?.s}, ${down?.speed}×)`,
+  );
+  await shot(page, "4b-down-to-its-field");
+  await k(page, `globalThis.causalis.battleAt(132, 4)`);
+  await until(
+    page,
+    "back to the war once the field is won",
+    async () => (await seen(page)) !== null,
+    slow(60000),
+  );
+  w = await seen(page);
+  say(`back to the war: year ${w?.year.toFixed(2)}, ${w?.fought} fought, at ${w?.speed}×`);
+  check(!!w && w.fields, "still going down to each battle");
+  check(
+    !!w && w.year >= lastAt && w.fought === c.battles.length,
+    `back past it (${w?.year}, ${w?.fought} fought)`,
+  );
+  check(w?.speed === 0.5, `at the pace it went (${w?.speed})`);
+  await fields.click();
+  check((await seen(page))?.fields === false, "no more battles gone down to");
+}
 
 // 5. A war's own page offers it watched; left, the world's clock goes on.
 await page.locator(".war-panel:not(.war-age) button", { hasText: "Leave the war" }).click();
