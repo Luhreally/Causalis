@@ -10,6 +10,7 @@ import type { Feast } from "../bridge/index.ts";
 import { WATER, livingIn, type Species } from "../gen/index.ts";
 import { G, HOME_LIFE, OCC, roofPitch } from "../rules/index.ts";
 import {
+  actsOf,
   agentName,
   beliefOf,
   BLOCK_M,
@@ -17,7 +18,9 @@ import {
   BLOCKS,
   citiesOf,
   designsOf,
+  grainLost,
   handOf,
+  heatYield,
   healthOf,
   homePlanet,
   houseFor,
@@ -52,6 +55,7 @@ import {
   type TownPlan,
   type TownStores,
   type TownWater,
+  type FieldYear,
   type VillageLife,
   type VillagePlan,
   type VillageRest,
@@ -164,6 +168,28 @@ export function townSite(world: World, ref: Ref): { axis: number; water: TownWat
         ? null
         : { x: WATER_OUT * Math.cos(waterWay), z: WATER_OUT * Math.sin(waterWay), r: LAKE_R },
   };
+}
+
+/**
+ * A land's heart (Phase 40 M204): the town the battles for the land are fought before and its
+ * sieges laid about, as its land's map draws them (bridge/wars heartTown, its towns where its map
+ * has them); null where no town of it is peopled.
+ */
+export function landHeart(world: World, cell: number): Ref | null {
+  const half = ((REGION_SIZE - 1) * PROVINCE_TILE_KM) / 2;
+  return (
+    heartTown(
+      populationContext(world)
+        .settlements.inProvince(cell)
+        .filter((s) => s.population > 0)
+        .map((s) => ({
+          ref: s.ref,
+          population: s.population,
+          x: (s.tile % REGION_SIZE) * PROVINCE_TILE_KM - half,
+          z: Math.floor(s.tile / REGION_SIZE) * PROVINCE_TILE_KM - half,
+        })),
+    )?.ref ?? null
+  );
 }
 
 export function villagePlan(
@@ -524,6 +550,7 @@ export function villagePlan(
     if (mourning.length) talk.push("grief");
     if (w.flocksTaken) talk.push("flocks");
     if (w.grainEaten) talk.push("pests");
+    if (actsOf(world).at(cell, "harvest", world.now)?.sign === -1) talk.unshift("blight");
     if (w.fishFew) talk.push("fish");
     if (w.thinned) talk.push("game");
     if (w.multiplied) talk.push("plenty");
@@ -562,21 +589,9 @@ export function villagePlan(
             }
         : null;
     // Whether it is its land's heart (Phase 40 M204): the battles for its land are fought before
-    // it, its sieges laid about it — as its land's map draws them (bridge/wars heartTown, its
-    // towns where its map has them).
-    const half = ((REGION_SIZE - 1) * PROVINCE_TILE_KM) / 2,
-      heartOf = heartTown(
-        ctx.settlements
-          .inProvince(cell)
-          .filter((s) => s.population > 0)
-          .map((s) => ({
-            ref: s.ref,
-            population: s.population,
-            x: (s.tile % REGION_SIZE) * PROVINCE_TILE_KM - half,
-            z: Math.floor(s.tile / REGION_SIZE) * PROVINCE_TILE_KM - half,
-          })),
-      ),
-      heart = !heartOf || heartOf.ref === ref;
+    // it, its sieges laid about it.
+    const heartOf = landHeart(world, cell),
+      heart = !heartOf || heartOf === ref;
     // A battle fought in its land this year or last, as history fought it (before its heart).
     let battle: VillageLife["battle"] = null;
     for (const w of heart ? warsOf(world).all() : []) {
@@ -655,6 +670,28 @@ export function villagePlan(
           words: `The feast of ${faith}`,
           ref: held,
         });
+    // The year in its fields (Phase 44 M206): its rain as the year began, its soil, the vermin in
+    // its grain, the warming on them; the god's hand on its rain and its harvest now, since when.
+    const acts = actsOf(world),
+      sending = acts.at(cell, "rain", world.now),
+      giving = acts.at(cell, "harvest", world.now),
+      drought = p?.lastDrought ? world.events.get(p.lastDrought) : undefined,
+      fields: FieldYear = {
+        rain,
+        sent: sending ? sending.sign : 0,
+        sentFrom: sending?.from ?? 0,
+        gift: giving ? giving.sign : 0,
+        giftFrom: giving?.from ?? 0,
+        soil: w.soil,
+        vermin: grainLost(w),
+        heat: heatYield(ctx, cell),
+        why: [
+          ...(drought && world.now - drought.t < YEAR ? [drought.id] : []),
+          ...(sending ? [sending.event] : []),
+          ...(giving ? [giving.event] : []),
+          ...(w.worn ? [w.worn] : []),
+        ],
+      };
     return {
       fed,
       growing,
@@ -668,6 +705,7 @@ export function villagePlan(
       battle,
       feasts,
       heart,
+      fields,
     };
   }
 

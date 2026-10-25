@@ -380,6 +380,7 @@ test("the wars of the year come to the globe as history fights them, and the tow
     w.battles.filter((b) => b.year >= map.year - 1).map((b) => ({ land: b.land, event: b.event })),
   );
   type Plan = {
+    ref: string;
     spot: number;
     life: { battle: { event: string; fallen: number } | null; talk: string[]; heart: boolean };
   };
@@ -392,6 +393,8 @@ test("the wars of the year come to the globe as history fights them, and the tow
     const hearts = plans.filter((p) => p.life.heart);
     assert.equal(hearts.length, 1, "one heart to a land");
     assert.ok(hearts[0]!.life.battle, "its heart sees the battle");
+    // (And it is the town a battle zoomed into beside goes down into.)
+    assert.equal(ask<string | null>("land.heart", { cell: b.land }), hearts[0]!.ref);
     assert.ok(hearts[0]!.life.talk.includes("war"));
     for (const p of plans) if (!p.life.heart) assert.equal(p.life.battle, null);
     // (Its land named as the wars map names it.)

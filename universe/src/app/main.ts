@@ -512,6 +512,8 @@ type Exposed = {
   landCarrier?: (kind: string) => { x: number; z: number } | null;
   /** Where on the screen one of the town's buildings, one of its homes and its walls are (M151). */
   townOnScreen?: () => unknown;
+  /** The town seen near (the look tools): which, whether it is its land's heart, the battle it sees. */
+  townShown?: () => { ref: string; name: string; heart: boolean; battle: string | null } | null;
   /** Where on the screen a point of the town seen near is (metres from its middle; M201), or null. */
   townScreen?: (x: number, z: number) => { x: number; y: number } | null;
   /** How many of each thing a town's countryside shows now (Phase 32), at the village scale. */
@@ -726,6 +728,34 @@ type Exposed = {
       struck: string | null;
       name: string | null;
     }[];
+  } | null;
+  /**
+   * The year in the fields of the town watched as drawn (Phase 44 M206): how it stands (rain, dry,
+   * lush, blight, blessed, worn, growth), its crop laid out, the fields being reaped and their
+   * fronts, those watered and pulled today, and those at the fields' work now by what they are at.
+   */
+  fields?: () => {
+    year: {
+      rain: number;
+      dry: number;
+      lush: number;
+      blight: number;
+      blessed: number;
+      worn: number;
+      growth: number;
+    };
+    crop: {
+      standing: number;
+      withered: number;
+      stubble: number;
+      stooks: number;
+      high: number;
+      fires: number;
+    };
+    reaping: { field: number; share: number; x: number; z: number }[];
+    watered: number[];
+    pulled: number[];
+    at: Record<string, number>;
   } | null;
   /** The woodlot as drawn (Phase 41 M200): trees down, stumps, saplings, the next to come down, those coming down or lying. */
   felling?: () => {
@@ -1950,8 +1980,6 @@ async function runPlanetPage(): Promise<void> {
   const regionWars = new RegionWars(stage);
   /** The ways a land's hosts go by, worked out once for each land (M203). */
   let landWays: { key: string; ways: LandWays } | null = null;
-  /** The land's heart (its battles fought before it, M203) and its middle spot, as last drawn. */
-  let landHeart: { ref: string; middle: number } | null = null;
   const showLandWars = () => {
     const frame = client.latestFrame("region"),
       globeFrame = client.latestFrame("globe"),
@@ -1991,7 +2019,6 @@ async function runPlanetPage(): Promise<void> {
           }),
       ),
       spots = landSpots(parent, meta.size, meta.tileKm, grid);
-    landHeart = town ? { ref: town.ref, middle: spots.middle } : null;
     regionWars.inPlace(warsNow, {
       spots,
       ways: landWays.ways,
@@ -3472,14 +3499,43 @@ async function runPlanetPage(): Promise<void> {
           best = i;
         }
       });
-      // Zoomed in on a battle: down onto its field to watch it fought (Phase 37 M186); near
-      // enough it, its village, its view facing the fight.
-      const war = regionWars.pick(aim.x, aim.y, 160, true),
+      // Zoomed in on a battle: down onto its field to watch it fought (Phase 37 M186).
+      const aimed = rig.aimed,
+        picked = regionWars.pick(aim.x, aim.y, 160, true),
+        near = picked || !aimed ? null : regionWars.battleNear(aimed.x, aimed.z, BATTLE_NEAR_KM),
         field = regionWars.pick(aim.x, aim.y, 90, true);
       if (field?.startsWith("ev:")) {
         await fadeOver(() => ready("the battle", () => toBattle(field)));
         return;
       }
+      // Near enough it, its village, its view facing the fight: the town of its land it is fought
+      // before (asked of the host — a slow machine may not have drawn this land's towns yet, and a
+      // battle its map shows may be the next land's). Near enough: its mark within reach of the
+      // pointer, or the ground zoomed toward nearer it than any town but that one (the mark goes
+      // off the pointer as the eye closes in toward the ground beside it).
+      const toward = picked ?? near?.ref ?? null,
+        fought = toward?.startsWith("ev:")
+          ? warsNow?.wars.flatMap((w) => w.battles).find((b) => b.event === toward)
+          : undefined,
+        globeFrame = fought ? client.latestFrame("globe") : null,
+        land =
+          fought && globeFrame
+            ? ((globeFrame.arrays.province as Int32Array | undefined)?.[fought.spot] ?? -1)
+            : -1,
+        heart =
+          land >= 0
+            ? await client.query<string | null>({ type: "land.heart", args: { cell: land } })
+            : null,
+        townNearest = (but: string | null): number => {
+          let d = Infinity;
+          for (const v of villages) {
+            const g = v.ref === but ? null : region.groundAt(v.tile);
+            if (g && aimed) d = Math.min(d, Math.hypot(g.x - aimed.x, g.z - aimed.z));
+          }
+          return d;
+        },
+        war = picked ?? (near && heart && near.d < townNearest(heart) ? near.ref : null),
+        battleTown = war?.startsWith("ev:") ? heart : null;
       // A band's camp under the pointer, nearer it than any village (Phase 29 M160): down among
       // them — not where a battle is zoomed into, nor a camp far off the pointer while a village
       // stands on the land.
@@ -3497,14 +3553,9 @@ async function runPlanetPage(): Promise<void> {
         await fadeOver(() => ready("the band", () => toCamp(regionCell, camp)));
         return;
       }
-      if (best < 0) return;
-      const fought = war?.startsWith("ev:")
-          ? warsNow?.wars.flatMap((w) => w.battles).find((b) => b.event === war)
-          : undefined,
-        ref =
-          fought && landHeart && fought.spot === landHeart.middle
-            ? landHeart.ref
-            : villages[best]!.ref;
+      if (best < 0 && !battleTown) return;
+      if (battleTown) regionCell = land;
+      const ref = battleTown ?? villages[best]!.ref;
       await fadeOver(() => ready("the village", () => toVillage(ref)));
       if (war?.startsWith("ev:")) faceBattle();
     } else if (scale === "world") {
@@ -4037,6 +4088,8 @@ async function runPlanetPage(): Promise<void> {
     } | null = null;
   /** How near the pointer (px) a camp must be to be zoomed into while a village stands on the land. */
   const CAMP_REACH = 90;
+  /** How near a battle (km) the ground zoomed toward may be for its town to be gone down into, facing it. */
+  const BATTLE_NEAR_KM = 24;
   /** How near the eye must be for the band's names to be told over them (the one followed always is). */
   const NAMES_WITHIN = 9;
   /** The world's seconds to one of the band's: their day is the world's day. */
@@ -5498,6 +5551,15 @@ async function runPlanetPage(): Promise<void> {
   exposed.watch = (ref: string) => void toVillage(ref);
   exposed.watching = () => (scale === "village" && plan ? plan.people.length : 0);
   exposed.townOnScreen = () => (scale === "village" && plan ? village.townOnScreen(now()) : null);
+  exposed.townShown = () =>
+    scale === "village" && plan
+      ? {
+          ref: plan.ref,
+          name: plan.name,
+          heart: plan.life?.heart ?? false,
+          battle: plan.life?.battle?.event ?? null,
+        }
+      : null;
   exposed.townScreen = (x: number, z: number) =>
     scale === "village" && plan ? village.screenOf(x, z) : null;
   exposed.country = () => (scale === "village" && plan ? village.countryNow() : null);
@@ -5529,6 +5591,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.trades = () => (scale === "village" ? village.tradesNow() : null);
   exposed.felling = () => (scale === "village" ? village.fellingShown() : null);
   exposed.graveyard = (days = 30) => (scale === "village" ? village.graveyardShown(days) : null);
+  exposed.fields = () => (scale === "village" ? village.fieldsShown() : null);
   exposed.rig = rig;
 
   // Going to anything (Phase 10 M92): a page's place, from whatever scale is up — the scale

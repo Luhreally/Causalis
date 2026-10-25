@@ -129,7 +129,7 @@ import { MAP_QUERIES } from "./map.ts";
 import { SEARCH_QUERIES } from "./search.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds, realmArms } from "./arms.ts";
-import { villagePlan } from "./village.ts";
+import { landHeart, villagePlan } from "./village.ts";
 import { landPlan } from "./land.ts";
 import { campNear } from "./camp.ts";
 import { battleNear, battleOutcome } from "./battle.ts";
@@ -1120,6 +1120,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
           a.folk ? Math.max(0, Math.min(200, Math.round(a.folk))) : 0,
         );
       },
+      /** A land's heart (Phase 40 M204): the town its battles are fought before, or null. */
+      "land.heart": (world, args) => landHeart(world, (args as { cell: number }).cell),
       /** Ready a land's region before it is asked for (a pure cache: the world is untouched). */
       "region.prepare": (world, args) => {
         region(world, (args as { cell: number }).cell);

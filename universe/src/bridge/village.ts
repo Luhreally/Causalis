@@ -79,6 +79,32 @@ export type VillageLife = {
    * are fought before it, its sieges laid about it. Its land's battle (`battle`) is told to it alone.
    */
   readonly heart?: boolean;
+  /** The year in its fields (Phase 44 M206), as history has it. Absent: a fair year. */
+  readonly fields?: FieldYear;
+};
+
+/**
+ * The year in a town's fields (Phase 44 M206), as its land's history has it: what grows its crop
+ * — this year's rain, its soil, the vermin in its grain, the warming on its fields — and the god's
+ * hand on its rain and its harvest now, since when; and the events behind each, for its why.
+ */
+export type FieldYear = {
+  /** This year's rain against its usual (1 as usual; below 0.72 a drought), as the year began. */
+  readonly rain: number;
+  /** The god's rain on its land now: sent (1), withheld (−1), neither (0); since when (world seconds). */
+  readonly sent: 1 | 0 | -1;
+  readonly sentFrom: number;
+  /** The god's hand on its harvest now: blessed (1), blighted (−1), neither (0); since when. */
+  readonly gift: 1 | 0 | -1;
+  readonly giftFrom: number;
+  /** Its soil (1 as it first was … worn toward 0). */
+  readonly soil: number;
+  /** The share of its grain the small game eats, where it has grown past what it was. */
+  readonly vermin: number;
+  /** What the warming does to its fields (1 as ever; below, hot fields give less). */
+  readonly heat: number;
+  /** The events behind it: the year's drought, the god's acts on its rain and harvest, its soil worn. */
+  readonly why: readonly string[];
 };
 
 /** A side of a village's battle: its realm's name and colour, and its host's kinds (what it bears). */

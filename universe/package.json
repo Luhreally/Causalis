@@ -10,7 +10,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit -p .",
     "lint": "node tools/lint.ts",
-    "test": "node --test \"tests/**/*.test.ts\"",
+    "test": "node --test \"tests/{*.test.ts,!(perf)/**/*.test.ts}\" && node --test \"tests/perf/**/*.test.ts\"",
     "check": "npm run typecheck && npm run lint && npm test",
     "golden": "node tools/golden.ts",
     "engines": "node tools/engines.ts",
@@ -57,6 +57,7 @@
     "gate:41": "node tools/phase41-gate.ts",
     "gate:42": "node tools/phase42-gate.ts",
     "gate:43": "node tools/phase43-gate.ts",
+    "gate:44": "node tools/phase44-gate.ts",
     "diversity": "node tools/diversity.ts 100 900"
   },
   "dependencies": {

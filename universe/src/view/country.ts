@@ -17,7 +17,8 @@
 // the water is frozen. Pure: the same plan, the same countryside; what moves (a tractor, the
 // sails, the boats) by the moment and the screen's clock.
 import { LAKE_R, type VillagePlan } from "../bridge/index.ts";
-import { HARVEST, SOWING, hashText, unitOf } from "./village.ts";
+import { hashText, unitOf } from "./draws.ts";
+import { HARVEST, SOWING } from "./seasons.ts";
 
 const DAY = 86_400,
   YEAR = 365 * DAY;
@@ -58,8 +59,16 @@ export type Country = {
   readonly bounds: readonly Piece[];
   /** The posts of the fences and the stakes of the hurdles. */
   readonly posts: readonly Piece[];
-  /** The rows of the crop across the sown fields (none across the fallow), by what they grow. */
-  readonly rows: readonly (Piece & { readonly crop: Crop })[];
+  /**
+   * The rows of the crop across the sown fields (none across the fallow), by what they grow: each
+   * of its field (its place in the plan's fields) and its place among the field's rows (from the
+   * field's near side). Laid out flat (`sy` one): the year stands them (view/fields.ts).
+   */
+  readonly rows: readonly (Piece & {
+    readonly crop: Crop;
+    readonly field: number;
+    readonly row: number;
+  })[];
   /** The orchards' trees, in rows: where, and how big against a common one. */
   readonly trees: readonly { readonly x: number; readonly z: number; readonly size: number }[];
   /** Barns by the outermost fields, and sheds by the far ones. */
@@ -132,9 +141,12 @@ const BOUND: Readonly<Record<Manner, { h: number; w: number; posts: number }>> =
 };
 /** The gate's gap in a field's bound, as a share of its side. */
 const GAP: readonly [number, number] = [0.38, 0.62];
-/** The orchards' trees apart, and the crop's rows (metres). */
-const TREE_GAP = 7,
-  ROW_GAP = 3;
+/** The orchards' trees apart (metres). */
+const TREE_GAP = 7;
+/** The crop's rows apart, and the furrow between them; their ends in from the field's bound (metres). */
+export const ROW_GAP = 3,
+  FURROW = 0.7,
+  ROW_ENDS = 1.25;
 /** The pasture's posts apart; the jetty's length out over the water (metres). */
 const PEN_POST = 6,
   PIER = 32;
@@ -145,7 +157,7 @@ const HEDGED = new Set([8, 9, 10, 12, 13, 14]);
 type Field = VillagePlan["fields"][number];
 
 /** A point of a field, by its own ways: u along its width (−½ … ½), v along its depth. */
-function fieldPoint(f: Field, u: number, v: number): { x: number; z: number } {
+export function fieldPoint(f: Field, u: number, v: number): { x: number; z: number } {
   const c = Math.cos(f.yaw),
     s = Math.sin(f.yaw),
     a = u * f.w,
@@ -164,9 +176,46 @@ export function mannerOf(plan: Pick<VillagePlan, "era" | "biome" | "house">): Ma
   return walls === "mudbrick" || walls === "brick" ? "bank" : "hurdle";
 }
 
+/** How many rows of its crop a field is sown in (along its width, across its depth). */
+export function rowsOf(f: Pick<Field, "d">): number {
+  return Math.max(0, Math.ceil((f.d - 1) / ROW_GAP) - 1);
+}
+
+const CROPS = new WeakMap<
+  Pick<VillagePlan, "fields">,
+  { readonly orchard: readonly boolean[]; readonly crop: readonly (Crop | null)[] }
+>();
+
+/**
+ * What each of a town's fields is: an orchard (where trees grow at all), or sown with grain,
+ * greens or left fallow — the same fields the same, each by its own draw; a foraging people's
+ * grounds all grass and seed (`grain`, never bounded nor sown in rows).
+ */
+export function cropsOf(plan: Pick<VillagePlan, "ref" | "era" | "biome" | "house" | "fields">): {
+  readonly orchard: readonly boolean[];
+  readonly crop: readonly (Crop | null)[];
+} {
+  const known = CROPS.get(plan);
+  if (known) return known;
+  const seed = hashText(`country ${plan.ref}`),
+    draw = (i: number, n: number) => unitOf(seed, i, n),
+    // (An orchard wants a land where trees grow at all.)
+    orchards = !!mannerOf(plan) && ![5, 7, 11, 15].includes(plan.biome),
+    orchard = plan.fields.map((_, k) => orchards && draw(k, 1) < ORCHARD_SHARE),
+    crop = plan.fields.map((_, k): Crop | null => {
+      if (!mannerOf(plan)) return "grain";
+      if (orchard[k]) return null;
+      const u = draw(k, 14);
+      return u < FALLOW_SHARE ? "fallow" : u < FALLOW_SHARE + GREENS_SHARE ? "greens" : "grain";
+    }),
+    out = { orchard, crop };
+  CROPS.set(plan, out);
+  return out;
+}
+
 /**
  * The countryside about a town: built once for its plan. `detail` is the setting's (0 plain …
- * 3 the finest): the crop's rows and the pasture's second rail from 1.
+ * 3 the finest): the pasture's second rail from 1.
  */
 export function countryOf(plan: VillagePlan, detail = 1): Country {
   const manner = mannerOf(plan),
@@ -195,14 +244,7 @@ export function countryOf(plan: VillagePlan, detail = 1): Country {
   if (!manner) return none;
   const engines = era === "industry" || era === "modern",
     modern = era === "modern",
-    // (An orchard wants a land where trees grow at all.)
-    orchards = ![5, 7, 11, 15].includes(plan.biome),
-    orchard = fields.map((_, k) => orchards && draw(k, 1) < ORCHARD_SHARE),
-    crop = fields.map((_, k): Crop | null => {
-      if (orchard[k]) return null;
-      const u = draw(k, 14);
-      return u < FALLOW_SHARE ? "fallow" : u < FALLOW_SHARE + GREENS_SHARE ? "greens" : "grain";
-    });
+    { orchard, crop } = cropsOf(plan);
   const bounds: Country["bounds"][number][] = [],
     posts: Piece[] = [],
     rows: Country["rows"][number][] = [],
@@ -287,20 +329,22 @@ export function countryOf(plan: VillagePlan, detail = 1): Country {
         }
       return;
     }
-    // The crop in rows along its width (grass lies as it grows).
+    // The crop in rows along its width (grass lies as it grows), a furrow between each two.
     const sown = crop[k]!;
-    if (detail && sown !== "fallow")
-      for (let j = 1; j * ROW_GAP < f.d - 1; j++) {
-        const p = fieldPoint(f, 0, j * (ROW_GAP / f.d) - 0.5);
+    if (sown !== "fallow")
+      for (let j = 0, n = rowsOf(f); j < n; j++) {
+        const p = fieldPoint(f, 0, (j + 1) * (ROW_GAP / f.d) - 0.5);
         rows.push({
           x: p.x,
-          y: 0.035,
+          y: 0,
           z: p.z,
-          sx: f.w - 2.5,
-          sy: 0.02,
-          sz: 1,
+          sx: f.w - 2 * ROW_ENDS,
+          sy: 1,
+          sz: ROW_GAP - FURROW,
           yaw: f.yaw,
           crop: sown,
+          field: k,
+          row: j,
         });
       }
     if (sown !== "grain") return;

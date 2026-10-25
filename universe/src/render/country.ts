@@ -3,13 +3,23 @@
 // wind turbines, its tractors and its pasture's fence. Placed once from the view's pure
 // countryside (view/country.ts); what the year shows — hay in the stubble, scarecrows over the
 // corn, blossom, fruit, the hedges turning — set as the season turns; what moves, the sails and
-// the tractors, posed each frame by the screen's clock.
+// the tractors, posed each frame by the screen's clock. The crop stands in its rows as the year
+// in the fields has it (Phase 44 M206, view/fields.ts): growing, gold, cut to stubble row by row
+// at the reaping with stooks behind the reapers, short and pale in a dry year, withered where a
+// blight has taken, and the blighted crop burning at the fields' corners where it is pulled.
 import * as pc from "playcanvas";
 import type { VillagePlan } from "../bridge/index.ts";
 import {
+  BLIGHTED,
+  blightFires,
   blossomOf,
   boatAt,
   countryOf,
+  reapingsOf,
+  rowNow,
+  stooksOf,
+  stubbleTint,
+  type FieldsNow,
   fruitHangs,
   hayStands,
   sailTurn,
@@ -45,6 +55,9 @@ const WOOD: Rgb = [0.46, 0.33, 0.2],
   BLOSSOM: Rgb = [0.98, 0.9, 0.92],
   FRUIT: Rgb = [0.88, 0.22, 0.12],
   HAY: Rgb = [0.88, 0.74, 0.38],
+  STOOK: Rgb = [0.84, 0.7, 0.36],
+  FLAME: Rgb = [1, 0.46, 0.1],
+  SMOKE: Rgb = [0.32, 0.3, 0.28],
   WHITE: Rgb = [0.93, 0.94, 0.95],
   TRACTOR_PAINT: readonly Rgb[] = [
     [0.78, 0.16, 0.12],
@@ -80,6 +93,21 @@ const BOAT_PARTS: Readonly<
     { mesh: "box", color: [0.26, 0.42, 0.62], at: [0.6, 1.4, 0, 2.4, 1.1, 1.8] },
   ],
 };
+
+/** The flames and the smoke puffs over a fire of the blighted crop; the most fires drawn. */
+const FLAMES = 3,
+  PUFFS = 4,
+  MOST_FIRES = 8;
+
+/** A material glowing of itself, unlit (a flame). */
+function glowing(c: Rgb): pc.StandardMaterial {
+  const m = new pc.StandardMaterial();
+  m.useLighting = false;
+  m.diffuse = new pc.Color(0, 0, 0);
+  m.emissive = new pc.Color(c[0], c[1], c[2]);
+  m.update();
+  return m;
+}
 
 /** Blends two colours. */
 function mix(a: Rgb, b: Rgb, k: number): Rgb {
@@ -140,8 +168,25 @@ export class CountryLayer {
   /** What the season dresses: the hedges, walls and banks; the orchards' grass; the crowns. */
   private dressed: { kind: "leaf" | "snow" | "ground"; base: Rgb; batch: InstancedBatch }[] = [];
   private crowns: InstancedBatch | null = null;
-  /** The crop's rows, a batch to each crop, and the colour each was last drawn in. */
-  private rows: { crop: Crop; batch: InstancedBatch; shown: string }[] = [];
+  /**
+   * The crop in its rows (Phase 44 M206): a batch for each crop's standing rows, one for the rows a
+   * blight has taken, one for the stubble, one for the stooks; the fires the blighted crop burns
+   * on; how each was last laid out and coloured.
+   */
+  private cropRows: {
+    readonly grain: InstancedBatch;
+    readonly greens: InstancedBatch;
+    readonly withered: InstancedBatch;
+    readonly stubble: InstancedBatch;
+    readonly stooks: InstancedBatch;
+    readonly flames: InstancedBatch;
+    readonly smoke: InstancedBatch;
+  } | null = null;
+  private cropAs = "";
+  private tinted = { grain: "", greens: "", stubble: "" };
+  /** The blighted crop's fires now (where), and what was last laid out (the look tools). */
+  private fires: { x: number; z: number }[] = [];
+  private laid = { standing: 0, withered: 0, stubble: 0, stooks: 0, high: 0 };
   /** What shows only in its season, with what it holds then: set again only as that changes. */
   private seasonal: Seasonal[] = [];
   private sails: { batch: InstancedBatch; blades: number } | null = null;
@@ -213,7 +258,10 @@ export class CountryLayer {
     this.dressed = [];
     this.seasonal = [];
     this.crowns = null;
-    this.rows = [];
+    this.cropRows = null;
+    this.cropAs = "";
+    this.tinted = { grain: "", greens: "", stubble: "" };
+    this.fires = [];
     this.sails = null;
     this.tractors = null;
     this.boats = [];
@@ -233,13 +281,30 @@ export class CountryLayer {
         });
     }
     this.placed(this.box, WOOD, c.posts);
-    for (const crop of ["grain", "greens"] as const) {
-      const batch = this.placed(
-        this.box,
-        [0.4, 0.33, 0.22],
-        c.rows.filter((r) => r.crop === crop),
-      );
-      if (batch) this.rows.push({ crop, batch, shown: "" });
+    // The crop's rows, laid out as the year stands them (in update): each row's standing crop and
+    // its stubble where it is being cut; the stooks as many as a rich year's along every row of
+    // the fields reaped.
+    if (c.rows.length) {
+      const reaped = reapingsOf(plan),
+        stooks = c.rows.reduce((n, r) => n + (reaped[r.field] ? Math.ceil(r.sx / 5) + 1 : 0), 0),
+        flames = new InstancedBatch(
+          this.stage,
+          this.cone,
+          FLAME,
+          MOST_FIRES * FLAMES,
+          this.root,
+          glowing(FLAME),
+        );
+      this.batches.push(flames);
+      this.cropRows = {
+        grain: this.batch(this.box, [0.34, 0.58, 0.24], c.rows.length),
+        greens: this.batch(this.box, [0.2, 0.44, 0.24], c.rows.length),
+        withered: this.batch(this.box, BLIGHTED, c.rows.length),
+        stubble: this.batch(this.box, [0.74, 0.65, 0.42], c.rows.length),
+        stooks: this.batch(this.cone, STOOK, Math.max(1, stooks)),
+        flames,
+        smoke: this.batch(this.ball, SMOKE, MOST_FIRES * PUFFS),
+      };
     }
     // The orchards: their grass, their trees in rows, their fruit in its season.
     const grassBase: Rgb = [0.36, 0.56, 0.24],
@@ -459,22 +524,37 @@ export class CountryLayer {
     return this.country?.crop ?? [];
   }
 
+  /** Whether the fields are sown in rows (else their crop is the colour of the field itself). */
+  get sown(): boolean {
+    return !!this.cropRows;
+  }
+
   /**
-   * The countryside at moment t: the crop's rows a shade darker than their fields (`field`, a
-   * crop's colour now), what shows in its season, the crowns in blossom or turned; the sails
-   * and tractors by the screen's `clock`.
+   * The countryside at moment t: the crop standing in its rows as `year` has it (`field`, a
+   * crop's colour now), what shows in its season, the crowns in blossom or turned; the sails,
+   * the tractors and the blighted crop's fires by the screen's `clock`.
    */
-  update(t: number, clock: number, field: (crop: Crop) => Rgb): void {
+  update(t: number, clock: number, field: (crop: Crop) => Rgb, year: FieldsNow): void {
     const plan = this.plan,
       c = this.country;
     if (!plan || !c) return;
-    for (const r of this.rows) {
-      const f = field(r.crop),
-        row: Rgb = [f[0] * 0.72, f[1] * 0.72, f[2] * 0.72],
-        key = row.map((x) => x.toFixed(3)).join();
-      if (key === r.shown) continue;
-      r.shown = key;
-      r.batch.recolor(row);
+    if (this.cropRows) {
+      // (Laid out again each few minutes of the world's clock, and as the year moves the crop.)
+      const key = `${Math.floor(t / 300)}|${year.growth.toFixed(2)}|${year.blight.toFixed(2)}`;
+      if (key !== this.cropAs) {
+        this.cropAs = key;
+        this.lay(t, year);
+      }
+      const tint = (name: "grain" | "greens" | "stubble", color: Rgb) => {
+        const k = color.map((x) => x.toFixed(3)).join();
+        if (k === this.tinted[name]) return;
+        this.tinted[name] = k;
+        this.cropRows![name].recolor(color);
+      };
+      tint("grain", field("grain"));
+      tint("greens", field("greens"));
+      tint("stubble", stubbleTint(year));
+      this.burn(clock);
     }
     for (const s of this.seasonal) {
       const shown = s.when(t);
@@ -562,6 +642,114 @@ export class CountryLayer {
   private bloom = 0;
   private spin = 0;
   private working = 0;
+
+  /**
+   * The crop laid out at t as `year` stands it: each row's standing part (withered where a blight
+   * has taken it) and its stubble, as far as its reaping has come; the stooks behind the reapers;
+   * where the blighted crop burns.
+   */
+  private lay(t: number, year: FieldsNow): void {
+    const plan = this.plan!,
+      c = this.country!,
+      crop = this.cropRows!,
+      parts: Record<"grain" | "greens" | "withered" | "stubble", CountryPiece[]> = {
+        grain: [],
+        greens: [],
+        withered: [],
+        stubble: [],
+      };
+    let high = 0;
+    for (const r of c.rows) {
+      const now = rowNow(plan, r.field, r.row, t, year),
+        // (A part of the row from share a to b along it, from the field's one side.)
+        part = (a: number, b: number, h: number, into: CountryPiece[]) => {
+          if (b - a < 1e-3 || h < 0.02) return;
+          const mid = ((a + b) / 2 - 0.5) * r.sx;
+          into.push({
+            x: r.x + Math.cos(r.yaw) * mid,
+            y: h / 2,
+            z: r.z - Math.sin(r.yaw) * mid,
+            sx: (b - a) * r.sx,
+            sy: h,
+            sz: r.sz,
+            yaw: r.yaw,
+          });
+        };
+      if (now.high > 0) {
+        part(
+          now.from,
+          now.to,
+          now.high,
+          now.blighted ? parts.withered : parts[r.crop === "greens" ? "greens" : "grain"],
+        );
+        high = Math.max(high, now.high);
+      }
+      if (now.stubble > 0) {
+        part(0, now.from, now.stubble, parts.stubble);
+        part(now.to, 1, now.stubble, parts.stubble);
+      }
+    }
+    for (const name of ["grain", "greens", "withered", "stubble"] as const)
+      crop[name].set(parts[name].length, (i, out) => put(out, parts[name][i]!));
+    const stooks: CountryPiece[] = [];
+    plan.fields.forEach((_, k) => {
+      for (const s of stooksOf(plan, k, t, year))
+        stooks.push({ x: s.x, y: 1, z: s.z, sx: 1.5, sy: 2, sz: 1.5, yaw: s.yaw });
+    });
+    crop.stooks.set(stooks.length, (i, out) => put(out, stooks[i]!));
+    this.fires = blightFires(plan, t, year).slice(0, MOST_FIRES);
+    this.laid = {
+      standing: parts.grain.length + parts.greens.length,
+      withered: parts.withered.length,
+      stubble: parts.stubble.length,
+      stooks: Math.min(stooks.length, crop.stooks.capacity),
+      high,
+    };
+  }
+
+  /** The blighted crop's fires, their flames leaping and their smoke rising by the screen's clock. */
+  private burn(clock: number): void {
+    const crop = this.cropRows!,
+      fires = this.fires,
+      t = this.motion ? clock : 0;
+    crop.flames.set(fires.length * FLAMES, (i, out) => {
+      const f = fires[Math.floor(i / FLAMES)]!,
+        n = i % FLAMES,
+        a = n * 2.1 + Math.floor(i / FLAMES),
+        leap = 0.75 + 0.25 * Math.sin(t * 7 + i * 1.3);
+      out[0] = (f.x + Math.cos(a) * 0.5) * M;
+      out[1] = 0.9 * leap * M;
+      out[2] = (f.z + Math.sin(a) * 0.5) * M;
+      out[3] = 1.1 * M;
+      out[4] = 1.8 * leap * M;
+      out[5] = 1.1 * M;
+      out[6] = a;
+    });
+    crop.smoke.set(fires.length * PUFFS, (i, out) => {
+      const f = fires[Math.floor(i / PUFFS)]!,
+        rise = (t * 0.25 + (i % PUFFS) / PUFFS) % 1,
+        size = 1.2 + 2.2 * rise;
+      out[0] = (f.x + 1.2 * rise) * M;
+      out[1] = (2 + 9 * rise) * M;
+      out[2] = (f.z + 0.6 * rise) * M;
+      out[3] = size * M;
+      out[4] = size * M;
+      out[5] = size * M;
+      out[6] = 0;
+    });
+  }
+
+  /** What the crop shows now (the look tools): its rows standing, withered, in stubble; stooks; fires. */
+  cropShown(): {
+    standing: number;
+    withered: number;
+    stubble: number;
+    stooks: number;
+    high: number;
+    fires: number;
+  } {
+    return { ...this.laid, fires: this.fires.length };
+  }
 
   /** How many of each thing the countryside shows now (the look tools). */
   counts(): Record<string, number> {

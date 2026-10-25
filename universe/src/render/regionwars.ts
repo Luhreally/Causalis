@@ -767,6 +767,16 @@ export class RegionWars {
     return this.marks.map((m) => ({ ref: m.ref, name: m.name, x: m.x, z: m.z }));
   }
 
+  /** The battle marked nearest a point of the land (km), within `reach` km of it: its ref and how far; or null. */
+  battleNear(x: number, z: number, reach: number): { ref: string; d: number } | null {
+    let best: { ref: string; d: number } | null = null;
+    for (const m of this.marks) {
+      const d = Math.hypot(m.x - x, m.z - z);
+      if (m.battle && d < (best?.d ?? reach)) best = { ref: m.ref, d };
+    }
+    return best;
+  }
+
   /** The host, battle, camp or garrison nearest a screen point, within `reach` (a finger's), its ref; or null. */
   pick(x: number, y: number, reach = 28, battles = false): string | null {
     const cam = this.stage.camera.camera!,

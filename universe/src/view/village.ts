@@ -42,6 +42,19 @@ import {
   type Graveyard,
 } from "./graveyard.ts";
 import type { Carry } from "./work.ts";
+import { hashText, unitOf } from "./draws.ts";
+import { ROW_ENDS, ROW_GAP, rowsOf } from "./country.ts";
+import {
+  REAP_HOURS,
+  blightedRow,
+  burnSpot,
+  cutPoint,
+  fieldsNow,
+  fieldsWords,
+  reapingOn,
+  rowPoint,
+  stooksOf,
+} from "./fields.ts";
 import {
   HARVEST,
   SOWING,
@@ -65,7 +78,7 @@ import {
   type TownDay,
 } from "./errands.ts";
 
-export { HARVEST, SOWING, restDay };
+export { HARVEST, SOWING, restDay, hashText, unitOf };
 
 export const ACTIVITY = {
   asleep: 0,
@@ -135,6 +148,9 @@ export const TASKS = [
   // A funeral (Phase 43 M205): its dead mourned; borne on a bier on the way to the graveyard.
   "mourn",
   "bear",
+  // The year in the fields (Phase 44 M206): water poured on a parched row; a blighted crop pulled.
+  "water",
+  "pull",
 ] as const;
 export type Task = (typeof TASKS)[number];
 
@@ -473,7 +489,15 @@ type Step = {
   readonly effect?: Effect | null;
   /** What they are at while at it (at work, if not said: a child's afternoon is at play). */
   readonly activity?: Activity;
+  /**
+   * Where the work goes on as it is done (Phase 44 M206: a reaper at a field's front as it moves
+   * along its rows), by the seconds of the day, and which way they face there; null: as they were.
+   */
+  readonly follow?: (s: number) => (Point & { readonly face: number }) | null;
 };
+
+/** At work that moves (a reaper following the front), a leg each so many seconds. */
+const FOLLOW_STEP = 300;
 
 /** Where an errand would leave less than this of a stint, its work is drawn out to the stint's end. */
 const MIN_ERRAND = 1.4 * HOUR;
@@ -2075,6 +2099,44 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
   }
 
   /**
+   * At work where it moves on as it is done (Phase 44 M206: a reaper at a field's front), from
+   * `from` until `to`: a step to where it is now (where that fits), then on with it, a leg each
+   * few minutes; where they are when it is done.
+   */
+  function following(from: number, to: number, start: Point, st: Step): Point {
+    const spot = st.follow!;
+    let t = from,
+      at = start;
+    const first = spot(Math.min(to, from + 30));
+    if (first && Math.hypot(first.x - at.x, first.z - at.z) > 0.6) {
+      const way = wayOf(at, first);
+      if (t + lengthOf(way) / pace < to - 60) {
+        t = along(t, way, st.carry, st.why);
+        at = first;
+      }
+    }
+    while (t < to - 1) {
+      const next = Math.min(to, t + FOLLOW_STEP),
+        p = spot(next);
+      legs.push({
+        from: t,
+        to: next,
+        at,
+        next: p ?? at,
+        activity: st.activity ?? ACTIVITY.working,
+        carry: st.carry,
+        task: st.task ?? null,
+        face: p?.face ?? st.face ?? null,
+        why: st.why,
+        effect: null,
+      });
+      if (p) at = p;
+      t = next;
+    }
+    return at;
+  }
+
+  /**
    * The errands of a stint of work (Phase 39 M198), from `start` at `from` until `until`: one
    * after another while one fits, its work drawn out to the stint's end where another would not;
    * where they are when it is done, and what they carry.
@@ -2110,26 +2172,35 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
         most = (job?.hours ?? 0) * HOUR;
       if (room < (job?.min ?? 0) * HOUR) break;
       const flex = !job ? 0 : room - most < MIN_ERRAND ? Math.min(room, most * 1.8) : most;
-      let w = 0;
+      let w = 0,
+        moved = false;
       pos = here;
       for (const st of steps) {
         if (st.to) {
-          t = along(t, ways[w++]!, st.carry, st.why);
+          // (From where the work before it left them, where it took them on along a field's rows.)
+          const way = moved ? wayOf(pos, st.to) : ways[w]!;
+          w++;
+          moved = false;
+          t = along(t, way, st.carry, st.why);
           pos = st.to;
           continue;
         }
         const d = st.flex ? flex : (st.hours ?? 0) * HOUR;
-        stay(
-          t,
-          t + d,
-          pos,
-          st.activity ?? ACTIVITY.working,
-          st.carry,
-          st.task ?? null,
-          st.face ?? null,
-          st.why,
-          st.effect ?? null,
-        );
+        if (st.follow) {
+          pos = following(t, t + d, pos, st);
+          moved = true;
+        } else
+          stay(
+            t,
+            t + d,
+            pos,
+            st.activity ?? ACTIVITY.working,
+            st.carry,
+            st.task ?? null,
+            st.face ?? null,
+            st.why,
+            st.effect ?? null,
+          );
         t += d;
       }
       here = pos;
@@ -2157,16 +2228,35 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
       at2 = (a: number, b: number) => [draw(k ? a + k : 4), draw(k ? b + k : 5)] as const;
     switch (role.kind) {
       case "reap": {
-        const f = fieldSpot(k);
+        // (At a field being reaped today, each in their place at its front — two cutting, those
+        // after them binding and stooking behind — on along its rows with it: Phase 44 M206.)
+        const field = role.place >= 0 ? role.place : -1,
+          s = role.seat,
+          back = s === 0 ? 0.5 : s === 1 ? 1.5 : s === 2 ? 4.5 : s === 3 ? 7.5 : 9 + (s - 4) * 2.5,
+          across = s === 0 ? -1 : s === 1 ? 1 : s === 2 ? 0 : s % 2 ? 0.9 : -0.9,
+          follow =
+            field >= 0
+              ? (sec: number) => cutPoint(plan, field, day * DAY + sec, back, across)
+              : undefined,
+          // (Where the front will be about when they come to it: the morning's first errand at
+          // the working day's start, each after it some hours on.)
+          guess = (k < 100 ? REAP_HOURS[0] + 3 * k : 13.5 + 3 * (k - 100)) * HOUR,
+          there = follow?.(Math.min(guess, REAP_HOURS[1] * HOUR)),
+          f = there ? clearSpot(ground, there) : fieldSpot(k),
+          cutting = s < 2;
         return [
           { to: f, carry: "tool", why: "Out to the harvest" },
           {
             flex: true,
             hours: 2.5,
             min: 0.5,
-            task: "reap",
+            task: follow && !cutting ? "gather" : "reap",
             carry: "tool",
-            why: "Reaping: the harvest is in",
+            why:
+              follow && !cutting
+                ? "Binding the sheaves behind the reapers"
+                : "Reaping: the harvest is in",
+            ...(follow ? { follow } : {}),
           },
           { to: granary.door, carry: "sheaf", why: `Bringing the sheaves in to ${granary.words}` },
           {
@@ -2175,6 +2265,103 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
             carry: "sheaf",
             why: `Stacking the sheaves in ${granary.words}`,
             effect: { kind: "grain", amount: 1 },
+          },
+        ];
+      }
+      case "cart": {
+        // The harvest carried in (Phase 44 M206): sheaves taken up from a reaped field's stooks
+        // and carried to the granary, and back for more.
+        const f = plan.fields[role.place];
+        if (!f) return errandOf({ ...role, kind: "reap", place: -1 }, town, k);
+        // (A stook still standing about when they come to it: the morning's first errand at the
+        // working day's start, each after it most of an hour on.)
+        const guess = Math.min(
+            k < 100 ? REAP_HOURS[0] + 0.75 * k : 13.5 + 0.75 * (k - 100),
+            REAP_HOURS[1],
+          ),
+          t = day * DAY + guess * HOUR,
+          stooks = stooksOf(plan, role.place, t, fieldsNow(plan, t)),
+          n = Math.max(1, rowsOf(f)),
+          spot = clearSpot(
+            ground,
+            stooks.length
+              ? stooks[(role.seat * 7 + k * 3) % stooks.length]!
+              : rowPoint(f, (role.seat + k) % n, draw(k ? 9000 + k : 4) * (f.w - 2 * ROW_ENDS), 0),
+          );
+        return [
+          { to: spot, carry: null, why: "Out to the stooks for the sheaves" },
+          { hours: 0.15, task: "load", carry: null, why: "Taking up sheaves from the stooks" },
+          { to: granary.door, carry: "sheaf", why: `Carrying the sheaves in to ${granary.words}` },
+          {
+            hours: 0.08,
+            task: "load",
+            carry: "sheaf",
+            why: `Stacking the sheaves in ${granary.words}`,
+            effect: { kind: "grain", amount: 1 },
+          },
+        ];
+      }
+      case "water": {
+        // A dry year (Phase 44 M206): a bucket filled at the water, carried out and poured along a
+        // parched row, and back for more.
+        const f = plan.fields[role.place];
+        if (!f) return errandOf({ ...role, kind: "hoe" }, town, k);
+        const n = Math.max(1, rowsOf(f)),
+          spot = clearSpot(
+            ground,
+            rowPoint(
+              f,
+              (role.seat + k) % n,
+              draw(k ? 7000 + k : 4) * (f.w - 2 * ROW_ENDS),
+              ROW_GAP / 2,
+            ),
+          ),
+          well = waterFor(plan, spot);
+        return [
+          { to: well, carry: "bucket", why: "To the water with a bucket: the fields are parched" },
+          { hours: 0.05, task: "fill", carry: "bucket", why: "Filling a bucket for the fields" },
+          { to: spot, carry: "water", why: "Carrying water out to the parched fields" },
+          {
+            flex: true,
+            hours: 0.3,
+            min: 0.1,
+            task: "water",
+            carry: "water",
+            why: "Watering the parched rows",
+          },
+        ];
+      }
+      case "pull": {
+        // A blight (Phase 44 M206): its crop pulled up along a blighted row, carried to the fire
+        // at the field's corner and burned.
+        const f = plan.fields[role.place];
+        if (!f) return errandOf({ ...role, kind: "hoe" }, town, k);
+        const year = fieldsNow(plan, day * DAY + 12 * HOUR),
+          taken = Array.from({ length: rowsOf(f) }, (_, j) => j).filter((j) =>
+            blightedRow(plan, role.place, j, year.blight),
+          ),
+          row = taken.length ? taken[(role.seat + k) % taken.length]! : 0,
+          spot = clearSpot(
+            ground,
+            rowPoint(f, row, draw(k ? 8000 + k : 4) * (f.w - 2 * ROW_ENDS), ROW_GAP / 2),
+          ),
+          fire = clearSpot(ground, burnSpot(f));
+        return [
+          { to: spot, carry: "tool", why: "Out to the blighted field" },
+          {
+            flex: true,
+            hours: 1.2,
+            min: 0.25,
+            task: "pull",
+            carry: "tool",
+            why: "Pulling up the blighted crop",
+          },
+          { to: fire, carry: "sheaf", why: "Carrying the blighted crop to the fire" },
+          {
+            hours: 0.05,
+            task: "load",
+            carry: "sheaf",
+            why: "Throwing the blighted crop on the fire",
           },
         ];
       }
@@ -2931,6 +3118,11 @@ export type StoresNow = {
     readonly z: number;
     readonly hands: number;
   }[];
+  /**
+   * The year in its fields (Phase 44 M206): in words for its card, and its sign for the line under
+   * the bar where it is one to see (null: a fair year with nothing to tell).
+   */
+  readonly fields: { readonly words: string; readonly sign: string | null } | null;
 };
 
 /** The yard's loads to spare at the day's start, over what its day takes from it. */
@@ -3048,6 +3240,18 @@ export function storesNow(plan: VillagePlan, t: number, fine = true): StoresNow 
       count.set(r.kind, (count.get(r.kind) ?? 0) + 1);
   });
   for (const k of STORE_KINDS) lasts[k] = monthsOf(plan, [k], have[k]);
+  const words = fieldsWords(plan, t),
+    year = fieldsNow(plan, t),
+    sign =
+      year.blight > 0.05
+        ? "🥀 Blight"
+        : year.dry > 0.2
+          ? "☀️ Parched"
+          : year.lush > 0.2 || year.blessed > 0.05
+            ? "🌿 Lush"
+            : reapingOn(plan, day).length
+              ? "🌾 Reaping"
+              : null;
   return {
     have,
     brought,
@@ -3057,6 +3261,7 @@ export function storesNow(plan: VillagePlan, t: number, fine = true): StoresNow 
     lean: town.lean,
     doing: [...count].map(([kind, n]) => ({ kind, n })).sort((p, q) => q.n - p.n),
     sites: sites.map((x, k) => ({ words: x.words, x: x.x, z: x.z, hands: hands[k]! })),
+    fields: words ? { words, sign } : null,
   };
 }
 
@@ -3322,6 +3527,10 @@ export const SIGNS: Readonly<Record<string, string>> = {
   // A funeral (Phase 43 M205): its mourners; its dead borne.
   mourn: "😢",
   bear: "⚰️",
+  // The year in the fields (Phase 44 M206): the blight talked of; water poured; the blight pulled.
+  blight: "🥀",
+  water: "💧",
+  pull: "🥀",
 };
 
 /**
@@ -3562,18 +3771,4 @@ export function treesOf(plan: VillagePlan, share = 1): Tree[] {
     out.push({ kind: TREE_KINDS[kind]!, x, z, size: 0.75 + 0.5 * unitOf(seed, i, 2) });
   }
   return out;
-}
-
-export function hashText(text: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
-  return h >>> 0;
-}
-
-export function unitOf(seed: number, i: number, n: number): number {
-  let h = Math.imul(seed ^ Math.imul(i + 1, 0x9e3779b1), 0x85ebca6b) ^ Math.imul(n + 1, 0xc2b2ae35);
-  h ^= h >>> 15;
-  h = Math.imul(h, 0x2c1b3c6d);
-  h ^= h >>> 12;
-  return (h >>> 0) / 4294967296;
 }

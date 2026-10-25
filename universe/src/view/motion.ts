@@ -114,6 +114,12 @@ export function limbPitch(
       return -0.55;
     case "bear":
       return -2.7;
+    // The year in the fields (Phase 44 M206): water poured along a row from a bucket held low; the
+    // blighted crop pulled up, both hands down to it and up.
+    case "water":
+      return right ? -0.75 - 0.25 * Math.sin(ph * 0.5 + off) : -0.35;
+    case "pull":
+      return -1.05 + 0.6 * Math.abs(Math.sin(ph * 0.75 + off));
     default:
       return 0;
   }

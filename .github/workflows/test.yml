@@ -286,6 +286,12 @@ jobs:
       - run: npm run gate:43 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # Phase 44 (the year in a town's fields: the crop standing in its rows; the rain withheld and
+      # water carried out to the parched fields; a blight pulled and burned; the harvest reaped
+      # row by row, so many at each field's front, the rest carrying in the sheaves).
+      - run: npm run gate:44 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

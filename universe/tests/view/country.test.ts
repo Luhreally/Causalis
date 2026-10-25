@@ -142,9 +142,16 @@ test("one field in five or so an orchard, its trees in rows within it; the rest 
   assert.equal(grain + greens + fallow + orchards, 90);
   assert.ok(grain > greens && greens > 0 && fallow > 0, `${grain}/${greens}/${fallow}`);
   assert.ok(c.rows.length >= (grain + greens) * 6);
-  assert.ok(c.rows.every((r) => r.crop !== "fallow"));
-  // (No rows on the plainest setting; no orchards where trees will not grow.)
-  assert.equal(countryOf(plan, 0).rows.length, 0);
+  assert.ok(c.rows.every((r) => r.crop !== "fallow" && r.crop === c.crop[r.field]));
+  // (Each row of its field, numbered from its near side, within it; the crop standing in them on
+  // every setting, the year in the fields seen on the plainest too: Phase 44 M206.)
+  for (const r of c.rows) {
+    const f = plan.fields[r.field]!,
+      v = (r.x - f.x) * Math.sin(f.yaw) + (r.z - f.z) * Math.cos(f.yaw);
+    assert.ok(Math.abs(v + f.d / 2 - (r.row + 1) * 3) < 1e-6 && Math.abs(v) + r.sz / 2 < f.d / 2);
+  }
+  assert.equal(countryOf(plan, 0).rows.length, c.rows.length);
+  // (No orchards where trees will not grow.)
   assert.equal(countryOf(town("metal", "mudbrick", 11, 90)).trees.length, 0);
 });
 

@@ -28,6 +28,7 @@ export {
   type Feast,
   type VillagePlan,
   type VillageRest,
+  type FieldYear,
   type Wonder,
   type Visitor,
   type FolkFacts,

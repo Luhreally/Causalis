@@ -24,6 +24,8 @@ import { CIVIC_INDEX, HOME_LEVELS, OCC, civic, type CivicKind } from "../rules/i
 import { clearAt, type Ground } from "./ground.ts";
 import { streetDoor } from "./streets.ts";
 import { homeWear, townScene, type TownScene } from "./town.ts";
+import { HARVEST, SOWING, WINTER, restDay } from "./seasons.ts";
+import { REAPERS_AT, fieldsNow, pulledOn, reapingOn, stookedOn, wateredOn } from "./fields.ts";
 
 const DAY = 86_400,
   YEAR = 365 * DAY;
@@ -38,11 +40,7 @@ export function dayDraw(ref: string, day: number): (n: number) => number {
   return (n) => unit(finish(mix(base, n), 17));
 }
 
-/** The share of the year gone (0 … 1) when the fields are ripe and reaped; when they are sown. */
-export const HARVEST: readonly [number, number] = [0.6, 0.78];
-export const SOWING: readonly [number, number] = [0.18, 0.34];
-/** From this share of the year until the sowing, the fields lie fallow: the slack season. */
-export const WINTER = 0.9;
+export { HARVEST, SOWING, WINTER, restDay };
 
 /** Each store's sign and its name, for the town's stores card. */
 export const STORE_WORDS: Readonly<
@@ -613,7 +611,12 @@ export type RoleKind =
   | "kiln"
   | "mill"
   | "teach"
-  | "school";
+  | "school"
+  // The year in the fields (Phase 44 M206): water carried out to them in a dry year, a blight
+  // pulled and burned.
+  | "water"
+  | "pull"
+  | "cart";
 
 /** Each day's work in words, for the town's card: "reaping", "felling timber". */
 export const ROLE_WORDS: Readonly<Record<RoleKind, string>> = {
@@ -637,6 +640,9 @@ export const ROLE_WORDS: Readonly<Record<RoleKind, string>> = {
   mill: "at the mill",
   teach: "teaching",
   school: "at school",
+  water: "carrying water to the fields",
+  pull: "pulling the blighted crop",
+  cart: "carrying in the sheaves",
 };
 
 export type Role = {
@@ -647,7 +653,10 @@ export type Role = {
   readonly fetch: boolean;
   /** Bringing in the flock's milk on the way home (herders, some days). */
   readonly milk: boolean;
-  /** Which of the town's buildings of their trade they work at (civicDoors' order; -1 none). */
+  /**
+   * Which of the town's buildings of their trade they work at (civicDoors' order), or which of its
+   * fields (Phase 44 M206: the plan's fields' order — reaped, watered, pulled); -1 none.
+   */
   readonly place: number;
   /** Their place among those at it (its rows before the door). */
   readonly seat: number;
@@ -661,11 +670,6 @@ export type TownDay = {
   /** The day of rest (none works). */
   readonly rest: boolean;
 };
-
-/** One day in seven is a day of rest, on a day kept by the village: given to play and talk. */
-export function restDay(plan: Pick<VillagePlan, "seed">, day: number): boolean {
-  return (day + (plan.seed % 7)) % 7 === 0;
-}
 
 /** How many fire a kiln and its pots, and how many work at a workshop, at most. */
 const POTTERS = 4,
@@ -728,6 +732,14 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
       seated.set(key, n + 1);
     },
     draws = plan.people.map((p) => dayDraw(p.ref, day)),
+    // The year in the fields (Phase 44 M206): the fields being reaped today, those a dry year
+    // carries water out to, those a blight is pulled from.
+    year = fieldsNow(plan, day * DAY + 12 * 3600),
+    reaped = reaping ? reapingOn(plan, day) : [],
+    stooked = reaping ? stookedOn(plan, day) : [],
+    watered = !reaping && !sowing && !winter ? wateredOn(plan, day, year) : [],
+    pulled = !reaping && !sowing && !winter ? pulledOn(plan, day, year) : [],
+    sent = { reap: 0, water: 0, pull: 0 },
     working = (i: number) => {
       const p = plan.people[i]!;
       return !rest && !p.child && !oldOf(plan, p);
@@ -825,6 +837,19 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
       case OCC.farmer:
         // (A farmer or two lends a hand at a village's next home, but for the harvest.)
         if (!reaping && !plan.town && sites.length && draw(14) < 0.12 && put(i, false)) return;
+        // At the harvest, each to one of the fields being reaped today, in turn; in a dry year so
+        // many carry water out to the nearest fields, and where a blight has taken, so many pull it.
+        if (reaped.length) {
+          // (So many at each field's front; the rest carry in the sheaves of the fields reaped.)
+          const n = sent.reap++;
+          if (n >= REAPERS_AT * reaped.length && stooked.length)
+            return sit(i, "cart", stooked[(n - REAPERS_AT * reaped.length) % stooked.length]!);
+          return sit(i, "reap", reaped[n % reaped.length]!);
+        }
+        if (watered.length && draw(19) < Math.min(0.7, year.dry))
+          return sit(i, "water", watered[sent.water++ % watered.length]!);
+        if (pulled.length && draw(20) < Math.min(0.8, year.blight + 0.25))
+          return sit(i, "pull", pulled[sent.pull++ % pulled.length]!);
         // (In the slack season: firewood, mending at home, the muck ploughed in.)
         kinds[i] = reaping
           ? "reap"

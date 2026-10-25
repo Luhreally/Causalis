@@ -182,6 +182,7 @@ export class VillagePanel {
         ...(s.have.stone >= 0.5 ? [chip(STORE_WORDS.stone.sign, count(s.have.stone))] : []),
         ...(s.have.ore > 0.5 ? [chip(STORE_WORDS.ore.sign, lastsShort(s.lasts.ore))] : []),
         ...(s.sites.length ? [chip("🏗️", `${s.sites.length} going up`)] : []),
+        ...(s.fields?.sign ? [s.fields.sign] : []),
         ...(s.lean ? ["🥣 Lean"] : []),
       ],
       key = parts.join(" · ");
@@ -241,7 +242,7 @@ export class VillagePanel {
     }
     for (const [words, a] of alike)
       sites.push(`${a.n > 1 ? `${a.n} × ` : ""}${words}${a.hands ? ` — ${a.hands} at work` : ""}`);
-    const key = [rows.join("|"), doing, sites.join("|"), s.lean].join("#");
+    const key = [rows.join("|"), doing, sites.join("|"), s.lean, s.fields?.words ?? ""].join("#");
     if (key === this.cardKey) return;
     this.cardKey = key;
     this.now.textContent = `Food for ${lastsWords(s.months)}${s.lean ? " — a lean time" : ""}`;
@@ -256,6 +257,9 @@ export class VillagePanel {
       el("h3", undefined, "Today, of those drawn"),
       el("p", "stores-doing", doing || "A day of rest: none at work."),
       ...(sites.length ? [el("h3", undefined, `Going up (${s.sites.length})`), list(sites)] : []),
+      ...(s.fields
+        ? [el("h3", undefined, "Its fields"), el("p", "stores-fields", s.fields.words)]
+        : []),
       ...(s.lean
         ? [
             el(

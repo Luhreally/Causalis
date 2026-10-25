@@ -14,6 +14,17 @@ import {
   figurePaint,
   biomeColor,
   cropColor,
+  FAIR_YEAR,
+  cropTint,
+  fieldsNow,
+  frontOf,
+  pulledOn,
+  reapedAt,
+  reapingOn,
+  wateredOn,
+  grassTint,
+  soilTint,
+  type FieldsNow,
   bobOf,
   FIGURE_CAPSULE,
   figureOf,
@@ -263,7 +274,12 @@ export class VillageScene {
     kind: "ground" | "water" | "leaf" | "needle" | "roof";
     base: Rgb;
     paint: (c: Rgb) => void;
+    /** Grass (the ground about the town, its pasture): browning in a dry year (Phase 44 M206). */
+    grass?: boolean;
   }[] = [];
+  /** How dry the year in the fields last dressed the grass (tenths); the year in them now. */
+  private dryAs = 0;
+  private yearNow: FieldsNow = FAIR_YEAR;
   private seasonNow: GroundSeason | null = null;
   private seasonSeen = "";
 
@@ -284,9 +300,14 @@ export class VillageScene {
     for (const d of this.dressed)
       d.paint(
         !s
-          ? d.base
+          ? d.grass
+            ? grassTint(d.base, { ...FAIR_YEAR, dry: this.dryAs })
+            : d.base
           : d.kind === "ground"
-            ? seasonGround(d.base, s)
+            ? seasonGround(
+                d.grass ? grassTint(d.base, { ...FAIR_YEAR, dry: this.dryAs }) : d.base,
+                s,
+              )
             : d.kind === "roof"
               ? seasonGround(d.base, { ...s, snow: s.snow * 0.87 })
               : d.kind === "water"
@@ -334,7 +355,15 @@ export class VillageScene {
     }
     this.key = plan.ref;
     const s = this.stage,
-      disc = (r: number, color: Rgb, x = 0, z = 0, y = 0, kind: "ground" | "water" = "ground") => {
+      disc = (
+        r: number,
+        color: Rgb,
+        x = 0,
+        z = 0,
+        y = 0,
+        kind: "ground" | "water" = "ground",
+        grass = false,
+      ) => {
         const e = new pc.Entity("disc"),
           m = flatMaterial(color);
         e.addComponent("render", {
@@ -349,6 +378,7 @@ export class VillageScene {
             m.diffuse.set(c[0], c[1], c[2]);
             m.update();
           },
+          grass,
         });
       };
     const g = biomeColor(plan.biome),
@@ -359,17 +389,23 @@ export class VillageScene {
         Math.hypot(plan.pasture.x, plan.pasture.z) + plan.pasture.r,
       );
     this.reach = reach;
-    disc(Math.min(390, Math.max(140, (reach + 300) * M)), [
-      g[0] * 0.95 + 0.03,
-      g[1] * 0.95 + 0.05,
-      g[2] * 0.9,
-    ]);
+    disc(
+      Math.min(390, Math.max(140, (reach + 300) * M)),
+      [g[0] * 0.95 + 0.03, g[1] * 0.95 + 0.05, g[2] * 0.9],
+      0,
+      0,
+      0,
+      "ground",
+      true,
+    );
     disc(
       plan.pasture.r * M,
       [g[0] * 0.8 + 0.12, g[1] * 0.85 + 0.14, g[2] * 0.7 + 0.05],
       plan.pasture.x * M,
       plan.pasture.z * M,
       0.012,
+      "ground",
+      true,
     );
     if (plan.water)
       disc(LAKE_R * M, [0.2, 0.4, 0.6], plan.water.x * M, plan.water.z * M, 0.014, "water");
@@ -1105,17 +1141,31 @@ export class VillageScene {
     const step = t - this.lastT;
     this.lastT = t;
     this.town.update(t);
-    // The fields in their crop's colour now, snow lying on them in a cold land's winter (set
-    // only as it changes).
-    const sown = (kind: Crop): Rgb =>
-      this.seasonNow ? seasonGround(cropColor(kind, t), this.seasonNow) : cropColor(kind, t);
+    // The fields as the year in them has it (Phase 44 M206): their crop's colour now — parched,
+    // lush, sallow — the earth between their rows where the crop stands in rows, snow lying on
+    // them in a cold land's winter (set only as it changes); the grass browning in a dry year.
+    const year = fieldsNow(plan, t),
+      snowed = (c: Rgb): Rgb => (this.seasonNow ? seasonGround(c, this.seasonNow) : c),
+      sown = (kind: Crop): Rgb => snowed(cropTint(kind, t, year)),
+      earth = (kind: Crop): Rgb =>
+        !this.country.sown
+          ? sown(kind)
+          : kind === "fallow"
+            ? snowed(grassTint(cropTint("fallow", t, year), year))
+            : snowed(soilTint(year));
     for (const c of this.crops) {
-      const color = sown(c.crop),
+      const color = earth(c.crop),
         key = color.map((x) => x.toFixed(3)).join();
       if (key === c.shown) continue;
       c.shown = key;
       c.batch.recolor(color);
     }
+    const dry = Math.round(year.dry * 10) / 10;
+    if (dry !== this.dryAs) {
+      this.dryAs = dry;
+      this.dress();
+    }
+    this.yearNow = year;
     // Lamplight in the windows from dusk to dawn (set only as it changes).
     if (this.windows) {
       const glow = Math.round(lamplight((t % 86_400) / 3600) * 20) / 20;
@@ -1127,7 +1177,7 @@ export class VillageScene {
     // (The beasts move by the screen's clock: a look, at any speed the world runs.)
     const screen = this.heldFauna ?? performance.now() / 1000;
     this.fauna.update(screen);
-    this.country.update(t, screen, sown);
+    this.country.update(t, screen, sown, year);
     this.feast.update(t, screen);
     this.visitors.update(screen);
     const parts = this.figure.parts,
@@ -1738,6 +1788,50 @@ export class VillageScene {
       fight: fightNow(plan, this.lastT),
       burning: spot(b.fires[0]),
       dusty: spot(b.dust[0]),
+    };
+  }
+
+  /**
+   * The year in the town's fields as drawn (the look tools, Phase 44 M206): how it stands; its crop
+   * as laid out (rows standing, withered, in stubble; stooks; fires of the blighted crop); the
+   * fields being reaped today (how far, where their front is); those watered and pulled today;
+   * and how many of those drawn are at the fields' work now, by what they are at ("cart": those
+   * carrying in the sheaves of the fields reaped).
+   */
+  fieldsShown(): {
+    year: FieldsNow;
+    crop: ReturnType<CountryLayer["cropShown"]>;
+    reaping: { field: number; share: number; x: number; z: number }[];
+    watered: number[];
+    pulled: number[];
+    at: Record<string, number>;
+  } | null {
+    const plan = this.plan;
+    if (!plan) return null;
+    const t = this.lastT,
+      day = Math.floor(t / 86_400),
+      at: Record<string, number> = {};
+    for (const m of this.moments) {
+      if (!m || m.hidden) continue;
+      if (m.task && ["reap", "gather", "water", "pull", "fill"].includes(m.task))
+        at[m.task] = (at[m.task] ?? 0) + 1;
+      // (Those carrying in the sheaves of the fields reaped, out to the stooks or back.)
+      else if (
+        m.why &&
+        /^(Out to the stooks|Taking up sheaves|Carrying the sheaves in)/.test(m.why)
+      )
+        at["cart"] = (at["cart"] ?? 0) + 1;
+    }
+    return {
+      year: this.yearNow,
+      crop: this.country.cropShown(),
+      reaping: reapingOn(plan, day).map((k) => {
+        const f = frontOf(plan, k, t)!;
+        return { field: k, share: reapedAt(plan, k, t), x: f.x, z: f.z };
+      }),
+      watered: wateredOn(plan, day, this.yearNow),
+      pulled: pulledOn(plan, day, this.yearNow),
+      at,
     };
   }
 
