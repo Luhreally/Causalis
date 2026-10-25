@@ -2769,6 +2769,73 @@ body.with-palette .hint {
   font-size: 0.82rem;
 }
 
+/* Back to the beginning (Phase 36 M182): each step a scale further back, its sign on a thread
+   that runs down the page from a life to the galaxy turning. */
+.thread {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+.thread-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 8px;
+  padding: 0 0 10px;
+}
+/* (The thread itself, from one sign down to the next.) */
+.thread-step:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: calc(1rem - 1px);
+  top: 1.9rem;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, var(--accent), rgba(111, 231, 255, 0.25));
+}
+.thread-icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  font-size: 1.05rem;
+  border: 1px solid var(--chrome-mid);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #2b4a8f 0%, #0b1638 80%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.thread-step.opens {
+  cursor: pointer;
+}
+.thread-step.opens:hover .thread-icon {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(111, 231, 255, 0.35);
+}
+.thread-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.thread-scale {
+  color: var(--accent);
+  font-weight: 700;
+}
+.thread-when {
+  color: var(--muted);
+  text-transform: none;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.thread-line {
+  display: block;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
 /* A store's year as a flow (Phase 15 M123): signed lines between what it began and ended with. */
 .flow {
   display: grid;

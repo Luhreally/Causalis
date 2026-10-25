@@ -30,6 +30,7 @@ import { count, eventsAbout, item, link, many, part, share, stat, yearNow } from
 import { richWords } from "./life.ts";
 import { prinRef } from "./matter.ts";
 import { landStoresBlocks } from "./stores.ts";
+import { threadBlock } from "./thread.ts";
 import { groundBlocks } from "./ground.ts";
 import { dropBlock } from "./small.ts";
 import { landBondBlocks } from "./order.ts";
@@ -393,7 +394,7 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
             return item(
               [
                 `${count(f.count)} ${GOODS[f.good]!.name} ${f.from === cell ? "to" : "from"} `,
-                landLink(world, other),
+                landLink(world, other, true),
               ],
               cellRef(0, other),
             );
@@ -497,6 +498,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
       ],
     });
   // What has happened there.
+  // Back to the beginning (Phase 36 M182): its people, their line, the world (a land of home's).
+  if (!site) tabs.push({ id: "origins", name: "Origins", blocks: [threadBlock(world, { cell })] });
   {
     const items = eventsAbout(
       world,
@@ -534,7 +537,7 @@ export function spotPage(world: World, spot: number): PageModel {
     kind: "spot",
     icon: "📍",
     title: `${f.biome ? f.biome[0]!.toUpperCase() + f.biome.slice(1) : "Ground"} at ${Math.abs(f.lat).toFixed(1)}°${f.lat >= 0 ? "N" : "S"}`,
-    subtitle: ["Part of ", landLink(world, land)],
+    subtitle: ["Part of ", landLink(world, land, true)],
     color: null,
     place: { scale: "globe", spot },
     stats: [

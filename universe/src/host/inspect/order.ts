@@ -389,7 +389,7 @@ export function realmOrderBlocks(world: World, r: Polity): Block[] {
         [
           link(MEMORY_WORDS[m.what], m.event),
           ` — year ${m.year}, `,
-          landLink(world, m.cell),
+          landLink(world, m.cell, true),
           m.weight < 0.35 ? " (fading)" : "",
         ],
         m.event,

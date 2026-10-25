@@ -287,7 +287,19 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
     cell: provinceOf[d.cell]!,
     detail: { ...d.detail, spot: d.cell },
   }));
-  const people = life.people ? { ...life.people, cell: provinceOf[life.people.cell]! } : null;
+  // (A land people whose cradle is on a coast or in a valley of a province they cannot live in —
+  // mostly sea, or ice, or high mountains — rose in the nearest they can.)
+  const fit = (p: number) =>
+      elevation[p]! > 0 && biome[p] !== BIOME.ice && biome[p] !== BIOME.alpine,
+    people = life.people
+      ? {
+          ...life.people,
+          cell:
+            life.people.body.medium === "land"
+              ? nearestProvince(f, provinceOf, life.people.cell, fit)
+              : provinceOf[life.people.cell]!,
+        }
+      : null;
   return {
     prior: fine.prior,
     star: fine.star,
@@ -360,6 +372,30 @@ function withSites(g: SphereGrid, sites: readonly OffworldSite[], radius: number
 }
 
 /** The key with the greatest weight (ties to the lowest key). */
+/** The province of the fine cell nearest `cell` (itself first, then ring by ring) that is `fit`. */
+function nearestProvince(
+  f: SphereGrid,
+  provinceOf: Int32Array,
+  cell: number,
+  fit: (province: number) => boolean,
+): number {
+  const seen = new Uint8Array(f.count),
+    queue = [cell];
+  seen[cell] = 1;
+  for (let h = 0; h < queue.length; h++) {
+    const c = queue[h]!;
+    if (fit(provinceOf[c]!)) return provinceOf[c]!;
+    for (let k = f.offsets[c]!; k < f.offsets[c + 1]!; k++) {
+      const m = f.neighbours[k]!;
+      if (!seen[m]) {
+        seen[m] = 1;
+        queue.push(m);
+      }
+    }
+  }
+  return provinceOf[cell]!;
+}
+
 function majority(weights: Map<number, number>): number {
   let best = -1,
     most = -Infinity;

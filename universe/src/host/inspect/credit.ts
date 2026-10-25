@@ -111,7 +111,7 @@ export function housePage(world: World, ref: string): PageModel {
     title: cap(h.name),
     subtitle: [
       `A house of lending in `,
-      landLink(world, h.cell),
+      landLink(world, h.cell, true),
       h.failed !== null
         ? `, from year ${h.year} until it failed in year ${h.failed}`
         : `, since year ${h.year}`,
@@ -303,7 +303,12 @@ export function realmCreditBlocks(world: World, realm: Ref): Block[] {
       title: "Houses of lending in its lands",
       items: houses.map((h) => ({
         ...item(
-          [houseLink(world, h.ref), ", in ", landLink(world, h.cell), `, since year ${h.year}`],
+          [
+            houseLink(world, h.ref),
+            ", in ",
+            landLink(world, h.cell, true),
+            `, since year ${h.year}`,
+          ],
           h.event,
           h.year,
         ),

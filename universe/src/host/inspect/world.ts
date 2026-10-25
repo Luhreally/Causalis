@@ -552,7 +552,7 @@ function storyBlocks(world: World, s: Survey): Block[] {
       ...(a.event
         ? [
             " It began",
-            ...(a.land !== null ? [" in ", landLink(world, a.land)] : []),
+            ...(a.land !== null ? [" in ", landLink(world, a.land, true)] : []),
             a.had ? `, where ${a.had} was known already, when ` : " when ",
             link(when(world, a.event), a.event),
             ".",
@@ -561,7 +561,7 @@ function storyBlocks(world: World, s: Survey): Block[] {
       ...(a.early
         ? [
             ` ${a.early.what} was known before it, first`,
-            ...(a.early.land !== null ? [" in ", landLink(world, a.early.land)] : []),
+            ...(a.early.land !== null ? [" in ", landLink(world, a.early.land, true)] : []),
             ` in year ${count(a.early.year)}.`,
           ]
         : []),
@@ -645,7 +645,7 @@ function ageBlocks(world: World, s: Survey): Block[] {
         ? [
             [
               `${a.icon} ${a.early.what} came before ${a.name.replace(/^The /, "the ")}: first`,
-              ...(a.early.land !== null ? [" in ", landLink(world, a.early.land)] : []),
+              ...(a.early.land !== null ? [" in ", landLink(world, a.early.land, true)] : []),
               ` in year ${count(a.early.year)}, by a people not yet in the age before it.`,
             ],
           ]

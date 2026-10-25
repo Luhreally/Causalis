@@ -235,6 +235,12 @@ jobs:
       - run: npm run gate:35 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 36 gate: the thread back to the beginning (a life's Origins, from their birth back
+      # through their town, land, people and line to the world and its galaxy; on a phone; on a
+      # world the hand made).
+      - run: npm run gate:36 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

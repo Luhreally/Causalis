@@ -196,7 +196,7 @@ export function languagePage(world: World, ref: string): PageModel {
           rows: [
             stat("Family", store.familyName(l)),
             stat("Arose", `year ${l.born}`, { why: l.event }),
-            stat("Its standard", ["the speech of ", landLink(world, l.home)]),
+            stat("Its standard", ["the speech of ", landLink(world, l.home, true)]),
             ...(parent ? [stat("Grew from", [languageLink(world, parent.ref)])] : []),
             ...(l.died !== null ? [stat("Last spoken", `year ${l.died}`)] : []),
           ],
@@ -329,8 +329,8 @@ export function goodPage(world: World, ref: string): PageModel {
     ref,
     kind: "good",
     icon: "📦",
-    title: `${g.name[0]!.toUpperCase()}${g.name.slice(1)} at ${m.town ? m.town.name : landTitle(world, cell)}`,
-    subtitle: ["In the market of ", landLink(world, cell)],
+    title: `${g.name[0]!.toUpperCase()}${g.name.slice(1)} at ${m.town ? m.town.name : landTitle(world, cell, true)}`,
+    subtitle: ["In the market of ", landLink(world, cell, true)],
     color: null,
     place: landPlace(world, cell),
     stats: [

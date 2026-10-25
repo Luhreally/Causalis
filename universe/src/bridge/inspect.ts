@@ -260,6 +260,22 @@ export type Block =
       readonly words?: string;
     }
   | { readonly type: "why"; readonly title?: string; readonly ref: string }
+  /**
+   * A thread back to the beginning (Phase 36 M182): from a life, a town or a land, each step a
+   * scale further back — the town, the land, the people, their line, life's dawn, the world, its
+   * galaxy — its sign, its scale, when, its words (each name a link), and the page it opens.
+   */
+  | {
+      readonly type: "thread";
+      readonly title?: string;
+      readonly steps: readonly {
+        readonly icon: string;
+        readonly scale: string;
+        readonly when: string;
+        readonly line: Line;
+        readonly ref?: string;
+      }[];
+    }
   /** The page's picture large, with what it is made of named (a lineage's anatomy). */
   | { readonly type: "anatomy"; readonly title?: string }
   /** Something to do (the god's acts, meeting a family, the hand): the page's tools draw it. */

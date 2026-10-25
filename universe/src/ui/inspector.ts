@@ -593,6 +593,30 @@ export class PageWindow {
         );
         if (title) title.remove();
         break;
+      case "thread": {
+        // Back to the beginning (Phase 36 M182): a step a scale further back, each on the thread
+        // down the page — its sign, its scale and when, its words; the step itself opens its page.
+        const thread = el("ol", "thread");
+        for (const step of b.steps) {
+          const li = el("li", "thread-step"),
+            head = el("div", "thread-head");
+          head.append(el("span", "thread-scale", step.scale), el("span", "thread-when", step.when));
+          const body = el("div", "thread-body");
+          body.append(head, this.line(step.line, "thread-line"));
+          li.append(el("span", "thread-icon", step.icon), body);
+          if (step.ref) {
+            const ref = step.ref;
+            li.classList.add("opens");
+            li.onclick = (e) => {
+              if ((e.target as HTMLElement).closest("a")) return;
+              void this.open(ref);
+            };
+          }
+          thread.append(li);
+        }
+        box.append(thread);
+        break;
+      }
       case "why": {
         const w = el("div", "why");
         void this.why.show(b.ref, w);

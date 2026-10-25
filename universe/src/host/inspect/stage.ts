@@ -74,7 +74,7 @@ export function stageBreakdown(world: World): Breakdown {
       return [
         head,
         `since year ${x.year.toLocaleString("en-US")}`,
-        ...(x.land !== null ? [", in ", landLink(world, x.land)] : []),
+        ...(x.land !== null ? [", in ", landLink(world, x.land, true)] : []),
       ];
     }),
     more: "Before them all, its first cells, its beasts and its first people: “Its beginning” shows them",

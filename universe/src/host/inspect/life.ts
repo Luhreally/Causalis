@@ -236,7 +236,7 @@ export function depositPageModel(world: World, ref: string): PageModel {
     kind: "deposit",
     icon: "⛏️",
     title: `${d.kind[0]!.toUpperCase()}${d.kind.slice(1)}, ${rich}`,
-    subtitle: ["In ", landLink(world, d.land)],
+    subtitle: ["In ", landLink(world, d.land, true)],
     color: null,
     place:
       d.land < landsOf(world)

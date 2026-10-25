@@ -100,7 +100,7 @@ export function realmPageModel(world: World, ref: string): PageModel {
           stat(
             "Seat",
             seatTown
-              ? [townLink(world, seatTown.ref), ", ", landLink(world, r.seat)]
+              ? [townLink(world, seatTown.ref), ", ", landLink(world, r.seat, true)]
               : [landLink(world, r.seat)],
           ),
           stat("Founded", `year ${r.founded}`, { why: r.event }),
@@ -288,7 +288,7 @@ export function realmPageModel(world: World, ref: string): PageModel {
     subtitle: [
       governmentWords(r),
       " · seat ",
-      seatTown ? townLink(world, seatTown.ref) : landLink(world, r.seat),
+      seatTown ? townLink(world, seatTown.ref) : landLink(world, r.seat, true),
     ],
     color: realmColor(r.ref),
     place: realmPlace(world, r.ref),
@@ -468,10 +468,10 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
             ? stat(
                 "Marches",
                 from >= 0
-                  ? ["from ", landLink(world, from), " for ", landLink(world, w.prize)]
-                  : ["for ", landLink(world, w.prize)],
+                  ? ["from ", landLink(world, from, true), " for ", landLink(world, w.prize, true)]
+                  : ["for ", landLink(world, w.prize, true)],
               )
-            : stat("Stands", ["at ", landLink(world, w.prize)]),
+            : stat("Stands", ["at ", landLink(world, w.prize, true)]),
         ],
       },
     ];
@@ -568,7 +568,7 @@ export function battlePage(world: World, ref: string): PageModel {
           },
         }
       : {}),
-    title: land >= 0 ? `The battle at ${landTitle(world, land)}` : "A battle",
+    title: land >= 0 ? `The battle at ${landTitle(world, land, true)}` : "A battle",
     subtitle: [`Year ${year} · `, link("the war", warRef)],
     color: w ? realmColor(w.attacker) : null,
     place,

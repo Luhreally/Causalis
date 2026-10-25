@@ -37,7 +37,7 @@ export function answersOf(world: World, ref: string, watch: string): Answer[] {
     case "people.famine": {
       const cell = cellOf(e.place);
       if (cell === null || !peopled(cell)) return [];
-      const where = landTitle(world, cell);
+      const where = landTitle(world, cell, true);
       return [
         {
           label: `Send rain upon ${where} (${YEARS} years)`,
@@ -122,7 +122,7 @@ export function answersOf(world: World, ref: string, watch: string): Answer[] {
       if (!prov || prov.total() <= 0) return [];
       const out: Answer[] = [
         {
-          label: `Ward ${landTitle(world, cell)} against sickness`,
+          label: `Ward ${landTitle(world, cell, true)} against sickness`,
           act: "act.ward",
           args: { cell },
         },
@@ -143,7 +143,7 @@ export function answersOf(world: World, ref: string, watch: string): Answer[] {
       if (!creditOf(world)?.owedBy(cell).loan) return [];
       return [
         {
-          label: `Forgive ${landTitle(world, cell)} its debts`,
+          label: `Forgive ${landTitle(world, cell, true)} its debts`,
           act: "act.forgive",
           args: { cell },
         },

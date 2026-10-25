@@ -48,7 +48,7 @@ export function campPage(world: World, ref: string): PageModel {
       kind: "camp",
       icon: "⛺",
       title: "A camp",
-      subtitle: known ? ["Of ", landLink(world, cell)] : ["Of a land"],
+      subtitle: known ? ["Of ", landLink(world, cell, true)] : ["Of a land"],
       color: null,
       place: null,
       stats: [],
@@ -97,7 +97,7 @@ export function campPage(world: World, ref: string): PageModel {
     ];
   const who: Line = [
       `They are of the people of `,
-      landLink(world, cell),
+      landLink(world, cell, true),
       ...(p.ways?.language ? [", speaking ", languageLink(world, p.ways.language.ref)] : []),
       ...(p.faith ? [", keeping ", faithLink(world, p.faith.ref)] : []),
       ".",
@@ -135,7 +135,7 @@ export function campPage(world: World, ref: string): PageModel {
     kind: "camp",
     icon: camp.herds ? "🐑" : "⛺",
     title: campName(camp).replace(/^a/, "A"),
-    subtitle: ["Camped in ", landLink(world, cell)],
+    subtitle: ["Camped in ", landLink(world, cell, true)],
     color: null,
     place: { scale: "region", cell, tile: camp.tile },
     stats,

@@ -98,7 +98,7 @@ function comingLine(world: World, e: { place: Ref | null; t: number; data: unkno
     ` — year ${yearAt(e.t)}: ${count(dead)} dead`,
     ...(people ? [` (${share(dead / people)})`] : []),
     ...(d?.from !== null && d?.from !== undefined
-      ? [`, ${VIA_WORDS[d.via ?? "near"]} from `, landLink(world, d.from)]
+      ? [`, ${VIA_WORDS[d.via ?? "near"]} from `, landLink(world, d.from, true)]
       : d?.via === "god"
         ? [", by the god's hand"]
         : d?.via === "stars"
@@ -178,7 +178,7 @@ export function sicknessPage(world: World, ref: string): PageModel {
                 "came down from the stars with ",
                 civLink(world, s.people),
                 " to ",
-                landLink(world, s.cell),
+                landLink(world, s.cell, true),
                 `, year ${s.year}`,
               ],
               { why: s.event },
@@ -187,7 +187,7 @@ export function sicknessPage(world: World, ref: string): PageModel {
           }
         : stat(
             "It rose",
-            [`${SOURCE_WORDS[s.source]} of `, landLink(world, s.cell), `, year ${s.year}`],
+            [`${SOURCE_WORDS[s.source]} of `, landLink(world, s.cell, true), `, year ${s.year}`],
             {
               why: s.event,
             },
@@ -304,12 +304,12 @@ export function sicknessPage(world: World, ref: string): PageModel {
     subtitle: s.people
       ? [
           `A sickness of another world that passes ${ROUTE_WORDS[s.route]}, come down from the stars to `,
-          landLink(world, s.cell),
+          landLink(world, s.cell, true),
           ` in year ${s.year}`,
         ]
       : [
           `A sickness that passes ${ROUTE_WORDS[s.route]}, risen ${SOURCE_WORDS[s.source]} of `,
-          landLink(world, s.cell),
+          landLink(world, s.cell, true),
           ` in year ${s.year}`,
         ],
     color: ROUTE_COLOR[s.route],

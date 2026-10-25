@@ -151,8 +151,6 @@ export const DEPOSIT_MINERALS: Readonly<Record<string, readonly string[]>> = {
 };
 
 const substanceOf = (id: string): Substance => SUBSTANCES[SUBSTANCE[id]!]!;
-/** A land's title within a sentence ("the alpine at …", not "The alpine at …"). */
-const inWords = (title: string) => (title.startsWith("The ") ? `the ${title.slice(4)}` : title);
 const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
 
 /**
@@ -275,7 +273,7 @@ function whereItLies(world: World, id: string): { items: Item[]; more: number } 
       .map((d) =>
         item(
           [
-            link(`${d.kind} in ${inWords(landTitle(world, landOf(d.cell)))}`, d.ref),
+            link(`${d.kind} in ${landTitle(world, landOf(d.cell), true)}`, d.ref),
             ` — ${count(d.richness)} units`,
           ],
           d.ref,

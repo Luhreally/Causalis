@@ -45,6 +45,7 @@ import { faithLink, landLink, languageLink, realmLink, townLink } from "./names.
 import { TRAIT_LOOK, agentFamily, metChips, metFamily, traitChips } from "./folk.ts";
 import { agentHolder, householdThingsBlocks, personThingsBlocks } from "./things.ts";
 import { buildingsTab } from "./fabric.ts";
+import { threadBlock } from "./thread.ts";
 
 const OCCUPATION_WORDS = ["child", "forager", "farmer", "herder", "crafter", "trader", "leader"];
 /** Each trait said low / middling / high. */
@@ -188,6 +189,8 @@ export function townPage(world: World, ref: string): PageModel {
       ],
     });
   }
+  // Back to the beginning (Phase 36 M182): its land, its people, their line, the world.
+  tabs.push({ id: "origins", name: "Origins", blocks: [threadBlock(world, { town: s.ref })] });
   {
     const items = eventsAbout(world, [s.ref], 30);
     if (items.length)
@@ -205,7 +208,7 @@ export function townPage(world: World, ref: string): PageModel {
       key: hashString(s.ref),
     },
     title: s.name,
-    subtitle: [s.city ? "A city of " : "A town of ", landLink(world, s.cell)],
+    subtitle: [s.city ? "A city of " : "A town of ", landLink(world, s.cell, true)],
     color: realm ? realmColor(realm.ref) : null,
     place: { scale: "village", town: s.ref },
     stats,
@@ -229,7 +232,9 @@ export function householdPage(world: World, ref: string): PageModel {
     kind: "household",
     icon: "🏠",
     title: `The ${h.surname} household`,
-    subtitle: h.village ? ["Of ", townLink(world, h.village)] : ["Of ", landLink(world, h.cell)],
+    subtitle: h.village
+      ? ["Of ", townLink(world, h.village)]
+      : ["Of ", landLink(world, h.cell, true)],
     color: null,
     place: h.village
       ? { scale: "village", town: h.village, household: h.ref }
@@ -306,7 +311,7 @@ export function personPage(world: World, ref: string): PageModel {
             stat(
               "Lives in",
               p.village
-                ? [townLink(world, p.village), ", ", landLink(world, p.cell)]
+                ? [townLink(world, p.village), ", ", landLink(world, p.cell, true)]
                 : [landLink(world, p.cell)],
             ),
             stat("Who", `a ${p.sex === FEMALE ? "woman" : "man"}, the household's ${p.role}`),
@@ -380,7 +385,13 @@ export function personPage(world: World, ref: string): PageModel {
           title: "Where they went",
           items: p.moves.map((m) =>
             item(
-              ["Year ", `${m.year}: from `, landLink(world, m.from), " to ", landLink(world, m.to)],
+              [
+                "Year ",
+                `${m.year}: from `,
+                landLink(world, m.from, true),
+                " to ",
+                landLink(world, m.to, true),
+              ],
               m.event,
               m.year,
             ),
@@ -410,6 +421,9 @@ export function personPage(world: World, ref: string): PageModel {
         },
       ],
     },
+    // Back to the beginning (Phase 36 M182): their town, their land, their people, their line,
+    // the world.
+    { id: "origins", name: "Origins", blocks: [threadBlock(world, { person: p })] },
   ];
   return {
     ref: p.ref,
@@ -428,7 +442,7 @@ export function personPage(world: World, ref: string): PageModel {
     title: `${p.name} ${p.surname}`,
     subtitle: [
       p.alive ? `${age}, ` : `Died at ${age}, `,
-      p.village ? townLink(world, p.village) : landLink(world, p.cell),
+      p.village ? townLink(world, p.village) : landLink(world, p.cell, true),
     ],
     color: null,
     place:
@@ -556,6 +570,26 @@ export function agentPage(world: World, ref: string): PageModel {
       { id: "family", name: "Family", blocks: agentFamily(world, w, a) },
       // What they hold, eat and are made of (Phase 15 M125), as the people met.
       { id: "things", name: "Things", blocks: personThingsBlocks(world, agentHolder(w, a)) },
+      // Back to the beginning (Phase 36 M182), as the people met.
+      {
+        id: "origins",
+        name: "Origins",
+        blocks: [
+          threadBlock(world, {
+            life: {
+              ref,
+              name: agentName(ctx, a, town),
+              alive: true,
+              born: a.birthYear,
+              beforeChronicle: a.birthYear < 0,
+              cell: w.cell,
+              home: w.cell,
+              town: w.village,
+              parents: [named(a.mother), named(a.father)].filter((n) => n !== null),
+            },
+          }),
+        ],
+      },
     ],
     followable: false,
     year,

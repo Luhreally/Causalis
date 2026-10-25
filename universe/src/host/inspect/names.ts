@@ -20,17 +20,24 @@ export function landsOf(world: World): number {
   return homePlanet(world).generated.offworld.base;
 }
 
-/** A land's name: its first town's land, or where it lies. */
-export function landTitle(world: World, cell: number): string {
-  const g = homePlanet(world).generated;
-  if (offworldSite(g, cell)) return sentence(landWords(world, cellRef(0, cell)));
+/**
+ * A land's name: its first town's land, or where it lies — "The tundra at 9.0°S 91.9°E"; `mid`,
+ * within a sentence, "the tundra at 9.0°S 91.9°E".
+ */
+export function landTitle(world: World, cell: number, mid = false): string {
+  const g = homePlanet(world).generated,
+    where = () => {
+      const words = landWords(world, cellRef(0, cell));
+      return mid ? words : sentence(words);
+    };
+  if (offworldSite(g, cell)) return where();
   const first = populationContext(world).settlements.inProvince(cell)[0];
-  return first ? `${first.name}'s land` : sentence(landWords(world, cellRef(0, cell)));
+  return first ? `${first.name}'s land` : where();
 }
 
-/** A land as a link. */
-export function landLink(world: World, cell: number): Span {
-  return link(landTitle(world, cell), cellRef(0, cell));
+/** A land as a link (`mid`: within a sentence). */
+export function landLink(world: World, cell: number, mid = false): Span {
+  return link(landTitle(world, cell, mid), cellRef(0, cell));
 }
 
 /** The province a fine spot is part of. */

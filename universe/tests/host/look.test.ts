@@ -4,8 +4,8 @@ import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { treeOfLife } from "../../src/gen/index.ts";
 import { ALIEN, EARTH } from "../../src/host/planet.ts";
 import { folkFacts, peopleFigure } from "../../src/host/folk.ts";
-import { populationContext } from "../../src/sim/index.ts";
-import type { CampNear, LandPlan, WarsMap } from "../../src/bridge/index.ts";
+import { homePlanet, livable, populationContext } from "../../src/sim/index.ts";
+import type { CampNear, GenesisPlan, LandPlan, WarsMap } from "../../src/bridge/index.ts";
 
 // Phase 34 M176: what a people's look is made of, gathered from their world as it was made.
 
@@ -47,6 +47,23 @@ test("a world not Earth: its people's figure carries what their look is made of 
   assert.deepEqual(near.figure!.folk, folk);
   // (And the wars' map, its soldiers' heads drawn in their hide.)
   assert.deepEqual(ask<WarsMap>("wars.map").body, peopleFigure(g));
+  // (And the god's parade of the first people, in the genesis: the same people, the same look.)
+  assert.deepEqual(ask<GenesisPlan>("genesis").people!.figure, peopleFigure(g));
+});
+
+test("a land people's cradle is a land they can live in, not the sea by its coast", () => {
+  // (Violet hollow's people rose on a coast of tundra whose province is mostly frozen sea.)
+  const g = homePlanet(alien).generated,
+    fine = g.fine.life.people!.cell,
+    cell = g.life.people!.cell;
+  assert.notEqual(cell, g.provinceOf[fine], "moved from the sea's province");
+  assert.ok(g.tectonics.elevation[cell]! > 0, "a land province");
+  assert.ok(livable(g, cell, "land"), "one they can live in");
+  assert.equal(
+    ask<GenesisPlan>("genesis").peopling!.cradle,
+    cell,
+    "and their bands set out from it",
+  );
 });
 
 test("Earth's people are its upright apes, as ever: nothing gathered for a look of their own", () => {

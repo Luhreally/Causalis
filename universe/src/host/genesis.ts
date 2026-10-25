@@ -161,7 +161,8 @@ export function genesisPlan(pw: ProvinceWorld, seed: string): GenesisPlan {
           because: people.because,
           cradle: `the ${BIOME_NAMES[g.climate.biome[people.cell]!] ?? "land"} at ${deg(g.grid.lat[people.cell]!, "N", "S")}, ${deg(g.grid.lon[people.cell]!, "E", "W")}`,
           arose: life.species[people.species]!.arose,
-          figure: figureBody(people.body, folkFacts(g)),
+          // (Drawn as they are on their world, from the lands they live in: the same look.)
+          figure: figureBody(people.body, folkFacts(pw)),
         }
       : null,
     peopling: peoplingOf(pw, seed),

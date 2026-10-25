@@ -191,7 +191,7 @@ export function alertsOf(world: World): Alert[] {
       order.push({
         line: [
           "The bound of ",
-          landLink(world, parseRef(e.place as Ref).b),
+          landLink(world, parseRef(e.place as Ref).b, true),
           " rose against ",
           realmLink(world, against),
           `, year ${yearAt(e.t)}`,
@@ -218,7 +218,7 @@ export function alertsOf(world: World): Alert[] {
         line: [
           sicknessLink(world, l.sickness),
           " came to ",
-          landLink(world, c),
+          landLink(world, c, true),
           `: ${count(l.dead)} dead, year ${count(l.year)}`,
         ],
         ref: l.event,
@@ -263,7 +263,7 @@ export function alertsOf(world: World): Alert[] {
             line: [
               houseLink(world, h.ref),
               " failed, ",
-              landLink(world, h.cell),
+              landLink(world, h.cell, true),
               `, year ${count(h.failed)}`,
             ],
             ref: h.failedEvent ?? h.ref,
@@ -302,7 +302,7 @@ export function alertsOf(world: World): Alert[] {
       line: [
         f.what,
         `, year ${count(f.year)}`,
-        ...(f.land !== null ? [", ", landLink(world, f.land)] : []),
+        ...(f.land !== null ? [", ", landLink(world, f.land, true)] : []),
       ],
       ref: f.ref ?? (f.land !== null ? `cell:0:${f.land}` : "world:chronicle#firsts"),
       key: `first:${f.what}`,

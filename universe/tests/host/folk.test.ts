@@ -20,6 +20,27 @@ const blocks = (p: PageModel, tab: string) => p.tabs.find((t) => t.id === tab)?.
 const of = <K extends Block["type"]>(list: readonly Block[], type: K) =>
   list.filter((b): b is Extract<Block, { type: K }> => b.type === type);
 
+test("one of the people under the hand traces back to the beginning, as the people met do", () => {
+  const w = handOf(world).resting!,
+    child = w.agents.find(
+      (a) => a.birthYear > 260 && a.mother !== undefined && a.father !== undefined,
+    )!,
+    thread = blocks(page(`agent:${child.id}`), "origins").find(
+      (b): b is Extract<Block, { type: "thread" }> => b.type === "thread",
+    )!;
+  assert.ok(thread, "an Origins tab with its thread");
+  assert.deepEqual(
+    thread.steps.slice(0, 3).map((s) => s.ref),
+    [`agent:${child.id}`, w.village, `cell:0:${w.cell}`],
+  );
+  // (Born to their mother and father, each opening their own page.)
+  const born = thread.steps[0]!.line.filter((s) => typeof s !== "string").map((s) => s.ref);
+  for (const parent of [child.mother, child.father])
+    if (w.agents.some((a) => a.id === parent))
+      assert.ok(born.includes(`agent:${parent}`), born.join(" "));
+  assert.equal(thread.steps.at(-1)!.scale, "The galaxy");
+});
+
 test("one of the people under the hand: their traits as chips, their family as a tree", () => {
   const w = handOf(world).resting!,
     // (Someone born under the hand, with a mother and father, and traits.)
