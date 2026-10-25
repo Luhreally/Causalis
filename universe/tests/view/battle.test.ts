@@ -328,3 +328,35 @@ test("no wings close where the hosts are matched, at a seat's walls or across a 
   // (A defender's wider line closes about the attackers as well.)
   assert.equal(newBattle(near("held", small, big), 360).wings?.side, 1);
 });
+
+test("some of the fallen crawl back toward their own lines a while, leaving their blood along the way; counted fallen as they fall", () => {
+  const f = newBattle(near("field", side("Ash", 3000, 600), side("Elm", 2600, 700)), 360),
+    end = battleAt(f, BATTLE_LENGTH);
+  // (One wounded: dragging themselves on a while after they fell, toward their own side.)
+  const crawler = f.troopers.find(
+    (t) =>
+      t.falls !== null &&
+      t.falls < MOMENTS.rout - 20 &&
+      battleAt(f, t.falls + 3).troopers[t.id]!.crawl === 1,
+  );
+  assert.ok(crawler, "one of the wounded crawls");
+  const at = (s: number) => battleAt(f, s).troopers[crawler.id]!,
+    a = at(crawler.falls! + 2),
+    b = at(crawler.falls! + 4);
+  assert.equal(a.act, "fall");
+  assert.ok(crawler.side === 0 ? b.x < a.x : b.x > a.x, "back toward their own lines");
+  // They lie still at last, where they came to.
+  const later = at(crawler.falls! + 20),
+    last = at(crawler.falls! + 24);
+  assert.equal(later.crawl, 0);
+  assert.deepEqual([later.x, later.z], [last.x, last.z]);
+  // Counted fallen from when they fell; the field's blood more than one pool for each.
+  assert.equal(menAt(f, end).fallen[0] + menAt(f, end).fallen[1], 1300);
+  assert.ok(end.blood.length > end.fallen[0] + end.fallen[1], "a trail of blood");
+  assert.ok(
+    f.troopers
+      .filter((t) => t.by === "rout")
+      .every((t) => battleAt(f, t.falls! + 3).troopers[t.id]!.crawl === 0),
+    "those cut down running lie where they fell",
+  );
+});

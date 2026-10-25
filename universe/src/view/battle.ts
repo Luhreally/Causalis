@@ -37,6 +37,13 @@ export const MOMENTS = {
  */
 const WHEEL = { from: MOMENTS.melee + 3, to: MOMENTS.melee + 20, turn: 1.4 } as const;
 
+/**
+ * The wounded who crawl (of those struck down by blows and arrows, not cut down running): what
+ * share of them, how long after they fall they begin, how fast they go (m a second), and for how
+ * long at least and at most — back toward their own lines, before they lie still.
+ */
+const CRAWL = { share: 0.28, after: 1.2, pace: 0.32, least: 5, most: 13 } as const;
+
 /** How a host strikes hand to hand: a thrust (spears, tusks), a blow (swords, axes, clubs, claws), a bite, a grapple. */
 export type Stroke = "thrust" | "strike" | "bite" | "grapple";
 
@@ -169,6 +176,8 @@ export type TrooperNow = {
   /** How much of them is drawn (they fade at the field's edge, run off it). */
   readonly size: number;
   readonly bearer: boolean;
+  /** Wounded, dragging themselves back toward their own lines (1), or not (0). */
+  readonly crawl: number;
 };
 
 export type BattleNow = {
@@ -889,9 +898,29 @@ function trooperNow(field: BattleField, t: Trooper, s: number): TrooperNow {
   const size = clamp01((FIELD.x + 10 - Math.abs(p.x)) / 10),
     cycle = s * (p.run ? 1.6 : 1) + t.u * 3;
   if (t.falls !== null && s >= t.falls) {
-    // Fallen: onto their back where struck from before them, on their face where they ran.
     const down = smooth((s - t.falls) / 0.7),
-      l = lying(t, p, down);
+      dur = crawlsFor(field, t);
+    if (dur) {
+      // Wounded: face down, dragging themselves back toward their own lines a while.
+      const c = crawledTo(field, t, s, dur);
+      return {
+        id: t.id,
+        side: t.side,
+        x: c.x,
+        y: groundY(ground, c.x, c.z),
+        z: c.z,
+        yaw: c.yaw,
+        act: "fall",
+        cycle: s,
+        down,
+        back: false,
+        size: 1,
+        bearer: t.bearer,
+        crawl: c.going ? 1 : 0,
+      };
+    }
+    // Fallen: onto their back where struck from before them, on their face where they ran.
+    const l = lying(t, p, down);
     return {
       id: t.id,
       side: t.side,
@@ -905,6 +934,7 @@ function trooperNow(field: BattleField, t: Trooper, s: number): TrooperNow {
       back: t.by !== "rout",
       size: 1,
       bearer: t.bearer,
+      crawl: 0,
     };
   }
   let act: Act;
@@ -939,6 +969,49 @@ function trooperNow(field: BattleField, t: Trooper, s: number): TrooperNow {
     back: false,
     size: p.fled > 0 ? size : 1,
     bearer: t.bearer,
+    crawl: 0,
+  };
+}
+
+/** The ground's height where one lies (in the river, under its water). */
+function groundY(ground: BattleGround, x: number, z: number): number {
+  return ground.river && Math.abs(x - ground.river.x) < ground.river.w
+    ? -0.55
+    : battleGroundAt(ground, x, z);
+}
+
+/** How long one fallen crawls (seconds; 0: they lie where they fell). */
+function crawlsFor(field: BattleField, t: Trooper): number {
+  if (t.by === null || t.by === "rout") return 0;
+  // (Not off a seat's walls: those struck down on them lie on its walk.)
+  if (t.side === 1 && field.ground.wall) return 0;
+  return unit(t.id, 13) < CRAWL.share
+    ? CRAWL.least + (CRAWL.most - CRAWL.least) * unit(t.id, 14)
+    : 0;
+}
+
+/**
+ * Where one wounded has dragged themselves to by `s`, from where they fell — back toward their own
+ * lines, veering a little — whether they are still going, and how far they have come (m).
+ */
+function crawledTo(
+  field: BattleField,
+  t: Trooper,
+  s: number,
+  dur: number,
+): { x: number; z: number; yaw: number; going: boolean; gone: number } {
+  const from = placeAt(field, t, t.falls!),
+    on = s - t.falls! - CRAWL.after,
+    gone = CRAWL.pace * Math.max(0, Math.min(dur, on)),
+    dx = t.side === 0 ? -1 : 1,
+    dz = (unit(t.id, 15) - 0.5) * 0.5,
+    n = Math.hypot(dx, dz);
+  return {
+    x: from.x + (dx / n) * gone,
+    z: from.z + (dz / n) * gone,
+    yaw: Math.atan2(dx, dz),
+    going: on > 0 && on < dur,
+    gone,
   };
 }
 
@@ -1014,8 +1087,23 @@ export function battleAt(field: BattleField, s: number): BattleNow {
     spray: BattleNow["spray"][number][] = [];
   for (const x of field.troopers) {
     if (x.falls === null || t < x.falls) continue;
-    const p = placeAt(field, x, x.falls);
-    if (t > x.falls + 0.3) {
+    const p = placeAt(field, x, x.falls),
+      dur = crawlsFor(field, x);
+    if (dur) {
+      // The wounded: a lesser pool where they fell, a smear every so far along the way they
+      // dragged themselves, and where they came to lie still, their blood spreading.
+      const c = crawledTo(field, x, t, dur);
+      if (t > x.falls + 0.3)
+        blood.push({ x: p.x, z: p.z, r: (0.45 + 0.4 * x.u) * smooth((t - x.falls - 0.3) / 3) });
+      for (let d = 0.9; d < c.gone; d += 0.9)
+        blood.push({
+          x: p.x + ((c.x - p.x) * d) / c.gone,
+          z: p.z + ((c.z - p.z) * d) / c.gone,
+          r: 0.26 + 0.12 * unit(x.id, 80 + Math.round(d * 10)),
+        });
+      const still = t - (x.falls + CRAWL.after + dur);
+      if (still > 0) blood.push({ x: c.x, z: c.z, r: (0.7 + 0.8 * x.u) * smooth(still / 4) });
+    } else if (t > x.falls + 0.3) {
       const at = bloodAt(x, p);
       blood.push({
         x: at.x,
@@ -1196,34 +1284,37 @@ export function trooperWords(field: BattleField, id: number, s: number): string 
     won = t.side === field.beaten ? false : true,
     // (Of a wing that wheels about the other host's flank.)
     wing = !!field.wings && field.wings.side === t.side && Math.abs(t.z) > field.wings.z,
+    crawls = crawlsFor(field, t),
     fate =
-      t.falls !== null && s >= t.falls
-        ? t.by === "arrow"
-          ? `fell to ${shotBy(t.side === 0 ? field.near.defender : field.near.attacker)}`
-          : t.by === "rout"
-            ? "cut down as they ran"
-            : "fell in the press"
-        : t.flees !== null && s >= t.flees
-          ? "running from the field"
-          : t.gate && s >= MOMENTS.gate
-            ? "through the broken gate"
-            : t.pursues && s >= MOMENTS.rout && s < MOMENTS.after
-              ? "after the beaten"
-              : s < MOMENTS.advance
-                ? "waiting in the line"
-                : s < MOMENTS.melee
-                  ? t.side === 0
-                    ? "coming on"
-                    : "holding the line"
-                  : s < MOMENTS.rout
-                    ? wing && s > WHEEL.from
-                      ? s < WHEEL.to
-                        ? "wheeling about their flank"
-                        : "falling on their flank"
-                      : "in the press"
-                    : won
-                      ? "standing on the field, its victor"
-                      : "standing still",
+      t.falls !== null && s >= t.falls && crawls && s < t.falls + CRAWL.after + crawls
+        ? "struck down, dragging themselves back toward their lines"
+        : t.falls !== null && s >= t.falls
+          ? t.by === "arrow"
+            ? `fell to ${shotBy(t.side === 0 ? field.near.defender : field.near.attacker)}`
+            : t.by === "rout"
+              ? "cut down as they ran"
+              : "fell in the press"
+          : t.flees !== null && s >= t.flees
+            ? "running from the field"
+            : t.gate && s >= MOMENTS.gate
+              ? "through the broken gate"
+              : t.pursues && s >= MOMENTS.rout && s < MOMENTS.after
+                ? "after the beaten"
+                : s < MOMENTS.advance
+                  ? "waiting in the line"
+                  : s < MOMENTS.melee
+                    ? t.side === 0
+                      ? "coming on"
+                      : "holding the line"
+                    : s < MOMENTS.rout
+                      ? wing && s > WHEEL.from
+                        ? s < WHEEL.to
+                          ? "wheeling about their flank"
+                          : "falling on their flank"
+                        : "in the press"
+                      : won
+                        ? "standing on the field, its victor"
+                        : "standing still",
     each = field.per > 1 ? ` (a figure for ${field.per.toLocaleString("en-US")} men)` : "";
   return `👁 ${who[0]!.toUpperCase()}${who.slice(1)} of ${side.name}, in the ${rank} rank${each}: ${fate}.`;
 }

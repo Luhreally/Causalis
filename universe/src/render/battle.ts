@@ -90,7 +90,10 @@ function limbAt(part: FigurePart, t: TrooperNow, stroke: string): number {
       case "brace":
         return 0.3 * Math.sign(swing);
       case "fall":
-        return 0.25 * Math.sign(swing) * t.down;
+        // (The wounded kick on as they drag themselves along.)
+        return t.crawl
+          ? 0.25 * Math.sign(swing) + 0.35 * Math.sin(ph * 1.1 + off + (right ? 0 : Math.PI))
+          : 0.25 * Math.sign(swing) * t.down;
       default:
         return 0;
     }
@@ -125,7 +128,10 @@ function limbAt(part: FigurePart, t: TrooperNow, stroke: string): number {
     case "cheer":
       return -2.7 + 0.35 * Math.sin(ph * 3 + (right ? Math.PI : 0) + off);
     case "fall":
-      return (right ? -0.7 : 0.5) * t.down;
+      // (The wounded reach out ahead, one arm and then the other, to drag themselves on.)
+      return t.crawl
+        ? -2.3 - 0.6 * Math.sin(ph * 1.1 + off + (right ? 0 : Math.PI))
+        : (right ? -0.7 : 0.5) * t.down;
     default:
       return right ? -0.15 : 0;
   }
@@ -267,7 +273,7 @@ export class BattleLayer {
     this.cars = batch(this.box, WOOD, MOST);
     this.wheels = batch(this.cyl, darker(WOOD, 0.7), MOST * 2);
     this.arrows = batch(this.box, [0.36, 0.26, 0.16], 900);
-    this.blood = batch(this.cyl, BLOOD, MOST * 2, flatMaterial(BLOOD, 0.9, 0.7, 0.3));
+    this.blood = batch(this.cyl, BLOOD, MOST * 4, flatMaterial(BLOOD, 0.9, 0.7, 0.3));
     this.spray = batch(
       this.box,
       [0.62, 0.03, 0.04],
