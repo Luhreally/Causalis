@@ -33,6 +33,8 @@ export function limbPitch(
     if (task === "drill") return 0.35 * Math.sign(swing) * Math.max(0, Math.sin(ph * 0.8 + off));
     if (task === "brawl") return 0.3 * Math.sign(swing) * Math.sin(ph * 2.2 + off);
     if (task === "play") return swing * 1.3 * Math.sin(ph * 2.4 + off);
+    // (A dance's step, kept to the tune: the ring's off together.)
+    if (task === "dance") return swing * 1.1 * Math.sin(ph * 1.6 + i * 0.05);
     return 0;
   }
   switch (task) {
@@ -68,6 +70,12 @@ export function limbPitch(
       return -1.5 * Math.max(0, Math.sin(ph * 2.2 + off + (right ? Math.PI : 0)));
     case "play":
       return swing * 1.3 * Math.sin(ph * 2.4 + off);
+    case "dance":
+      // Hands up and swinging, in time with the ring.
+      return -1.3 - 0.6 * Math.sin(ph * 1.6 + i * 0.05 + (right ? Math.PI : 0));
+    case "feast":
+      // A cup or a bite raised now and then; the other hand on the table.
+      return right ? -0.5 - 0.9 * Math.max(0, Math.sin(ph * 0.45 + off)) : -0.45;
     default:
       return 0;
   }
@@ -78,5 +86,6 @@ export function bobOf(task: Task | null, t: number, i: number): number {
   const ph = t * 2 * Math.PI + i * 1.7;
   if (task === "play") return 0.03 * Math.abs(Math.sin(ph * 2.4));
   if (task === "brawl") return 0.012 * Math.abs(Math.sin(ph * 2.2));
+  if (task === "dance") return 0.022 * Math.abs(Math.sin(t * 2 * Math.PI * 1.6 + i * 0.05));
   return 0;
 }

@@ -21,6 +21,7 @@ export {
   WATER_OUT,
   type BeastPlan,
   type VillageLife,
+  type Feast,
   type VillagePlan,
   type Visitor,
 } from "./village.ts";

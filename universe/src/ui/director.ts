@@ -5,7 +5,7 @@
 import { el } from "./why.ts";
 
 /** How long the word that the eye is the viewer's again stays (ms). */
-const LET_GO_MS = 3500;
+const LET_GO_MS = 6000;
 
 export class DirectorControls {
   readonly button = el("button", "director-button", "🎬");

@@ -6,6 +6,7 @@
 // its hunters and its flocks (Phase 8 M77). Everything here is looked at, not lived: the
 // people's day is drawn from this plan by the view, and nothing flows back.
 import { YEAR, finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
+import type { Feast } from "../bridge/index.ts";
 import { WATER, livingIn, type Species } from "../gen/index.ts";
 import { G, OCC, roofPitch } from "../rules/index.ts";
 import {
@@ -500,7 +501,59 @@ export function villagePlan(world: World, ref: Ref, families = WATCHED_FAMILIES)
       };
     }
     if (battle && !talk.includes("war")) talk.unshift("war");
-    return { fed, growing, war, unrest, faith, talk, site, mourning, newborn, battle };
+    // The feasts it keeps (Phase 33 M174, as Classic's festivals): the harvest home once the grain
+    // is in, where the land is fed; a peace its realm made this year past, two days on; its realm's
+    // new ruler crowned, three days on; the holy day of its faith. One feast to a day.
+    const feasts: Feast[] = [],
+      keep = (f: Feast) => {
+        if (!feasts.some((g) => g.day === f.day)) feasts.push(f);
+      },
+      DAY = YEAR / 365;
+    if (fed >= 0.9)
+      for (const y of [now, now + 1])
+        keep({
+          day: y * 365 + 286 + (seed % 4),
+          occasion: "harvest",
+          words: "Harvest home",
+          ref: null,
+        });
+    if (realm) {
+      for (const w of warsOf(world).all()) {
+        if (!w.peace || (w.attacker !== realm.ref && w.defender !== realm.ref)) continue;
+        const e = world.events.get(w.peace);
+        if (!e || e.t < world.now - YEAR) continue;
+        const other = realms.get(w.attacker === realm.ref ? w.defender : w.attacker);
+        keep({
+          day: Math.floor(e.t / DAY) + 2,
+          occasion: "peace",
+          words: other ? `The peace with ${realmName(other)}` : "The peace",
+          ref: e.id,
+        });
+      }
+      const events = world.events.all();
+      for (let i = events.length - 1; i >= 0; i--) {
+        const e = events[i]!;
+        if (e.t < world.now - YEAR) break;
+        if (e.type === "polity.succession" && e.subjects[0] === realm.ref) {
+          keep({
+            day: Math.floor(e.t / DAY) + 3,
+            occasion: "crowning",
+            words: `${realmName(realm)}'s new ruler crowned`,
+            ref: e.id,
+          });
+          break;
+        }
+      }
+    }
+    if (held && faith)
+      for (const y of [now, now + 1])
+        keep({
+          day: y * 365 + 30 + (hashString(`holy ${held}`) % 230),
+          occasion: "holy",
+          words: `The feast of ${faith}`,
+          ref: held,
+        });
+    return { fed, growing, war, unrest, faith, talk, site, mourning, newborn, battle, feasts };
   }
 
   /**

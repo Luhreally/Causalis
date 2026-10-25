@@ -135,6 +135,7 @@ import {
   bandWords,
   figureOf,
   weatherAt,
+  squareNow,
   downpourAt,
   seasonAt,
   seasonKey,
@@ -368,6 +369,10 @@ type Exposed = {
   landCarrier?: (kind: string) => { x: number; z: number } | null;
   /** Where on the screen one of the town's buildings, one of its homes and its walls are (M151). */
   townOnScreen?: () => unknown;
+  /** How many of each thing a town's countryside shows now (Phase 32), at the village scale. */
+  country?: () => Record<string, number> | null;
+  /** What a town's square shows now (Phase 33): its feast, its fire, its market; the bar's words. */
+  feast?: () => (Record<string, number> & { words: string; feasts: number }) | null;
   /** Watch a village through the microscope; how many people are watched. */
   watch?: (ref: string) => void;
   watching?: () => number;
@@ -1922,7 +1927,12 @@ async function runPlanetPage(): Promise<void> {
       scale === "region"
         ? { x: 0, z: 0, reach: half * 0.85 }
         : scale === "village"
-          ? { x: 0, z: 0, reach: (plan?.districts ? 600 : 300) * VILLAGE_METRE }
+          ? {
+              x: 0,
+              z: 0,
+              // (Out to its countryside: its farthest fields and its pasture, Phase 32.)
+              reach: Math.max(plan?.districts ? 600 : 300, village.countryReach()) * VILLAGE_METRE,
+            }
           : null;
   });
   // Framed between the bar of whichever scale is up and, on a phone, the sheet open below
@@ -3686,14 +3696,17 @@ async function runPlanetPage(): Promise<void> {
         Math.sin(wall * 0.047 + 2) * k,
       );
     }
+    // A feast kept in the town seen near, or its market standing (Phase 33 M174–M175).
+    const square = scale === "village" && plan ? squareNow(plan, t) : null;
     time.weather(
       w.icon,
       w.warmth,
-      [w.words, ...hand.told.map((x) => x.words)].join("; "),
-      hand.told
-        .slice(0, 3)
-        .map((x) => x.icon)
-        .join(""),
+      [w.words, ...(square ? [square.words] : []), ...hand.told.map((x) => x.words)].join("; "),
+      (square?.icon ?? "") +
+        hand.told
+          .slice(0, 3)
+          .map((x) => x.icon)
+          .join(""),
     );
   });
   exposed.weather = () =>
@@ -3784,6 +3797,14 @@ async function runPlanetPage(): Promise<void> {
   exposed.watch = (ref: string) => void toVillage(ref);
   exposed.watching = () => (scale === "village" && plan ? plan.people.length : 0);
   exposed.townOnScreen = () => (scale === "village" && plan ? village.townOnScreen(now()) : null);
+  exposed.country = () => (scale === "village" && plan ? village.countryNow() : null);
+  exposed.feast = () =>
+    scale === "village" && plan
+      ? Object.assign(village.feastNow(), {
+          words: squareNow(plan, now())?.words ?? "",
+          feasts: plan.life?.feasts?.length ?? 0,
+        })
+      : null;
   exposed.beasts = () => (scale === "village" ? village.beastsDrawn : 0);
   exposed.visitors = () => (scale === "village" ? village.visitorsShown() : null);
   exposed.visitorsOnScreen = () => (scale === "village" ? village.visitorsOnScreen() : []);

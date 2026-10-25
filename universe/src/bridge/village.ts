@@ -33,6 +33,18 @@ export type BeastPlan = {
  * (keys the view gives signs); the next home rising as it grows (where, and how far built);
  * the watched households mourning a death this year, and those with a newborn.
  */
+/**
+ * A feast a town keeps (Phase 33 M174): its day (days since the world began), why — the harvest
+ * home, a peace its realm made, its realm's new ruler crowned, its faith's holy day — its words,
+ * and what it answers to.
+ */
+export type Feast = {
+  readonly day: number;
+  readonly occasion: "harvest" | "peace" | "crowning" | "holy";
+  readonly words: string;
+  readonly ref: string | null;
+};
+
 export type VillageLife = {
   readonly fed: number;
   readonly growing: boolean;
@@ -60,6 +72,8 @@ export type VillageLife = {
     readonly year: number;
     readonly event: string;
   } | null;
+  /** The feasts it keeps this year and the next (Phase 33 M174). */
+  readonly feasts?: readonly Feast[];
 };
 
 /** A side of a village's battle: its realm's name and colour, and its host's kinds (what it bears). */

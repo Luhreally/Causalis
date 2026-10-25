@@ -197,13 +197,17 @@ await page.mouse.move(700, 450);
 await page.mouse.down();
 await page.mouse.move(760, 470, { steps: 6 });
 await page.mouse.up();
+// (The caption read as the eye is taken back: on a busy machine a later read may find it gone.)
+let caption = "";
 const taken = await until(
   "the eye taken back by a drag",
-  async () => !(await director())?.watching,
+  async () => {
+    const d = await director();
+    if (!d || d.watching) return false;
+    caption = d.told;
+    return true;
+  },
   slow(10000),
-);
-const caption = await k<string>(
-  `document.querySelector(".director-caption:not([hidden]) .director-words")?.textContent ?? ""`,
 );
 say(`dragged: watching ${(await director())?.watching}; “${caption}”`);
 check(taken, "a drag on the world did not take the eye back");

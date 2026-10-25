@@ -17,6 +17,7 @@ import { OCC } from "../rules/index.ts";
 import { paceOf } from "./figure.ts";
 import { clearAt, clearOf, keepOut, route, villageGround, type Ground } from "./ground.ts";
 import { streetDoor } from "./streets.ts";
+import { FEAST_HOURS, MARKET_HOURS, feastOn, feastPlace, marketDay, marketScene } from "./feast.ts";
 import type { Carry } from "./work.ts";
 
 export const ACTIVITY = {
@@ -30,6 +31,8 @@ export const ACTIVITY = {
   gathering: 7,
   /** Indoors out of a downpour (Phase 30). */
   sheltering: 8,
+  /** At a feast in the square (Phase 33). */
+  feasting: 9,
 } as const;
 export type Activity = (typeof ACTIVITY)[keyof typeof ACTIVITY];
 
@@ -43,6 +46,7 @@ export const ACTIVITY_WORDS: readonly string[] = [
   "resting",
   "with the others in the square",
   "indoors, out of the weather",
+  "at the feast in the square",
 ];
 
 /**
@@ -65,6 +69,8 @@ export const TASKS = [
   "play",
   "drill",
   "brawl",
+  "dance",
+  "feast",
 ] as const;
 export type Task = (typeof TASKS)[number];
 
@@ -103,8 +109,11 @@ type Leg = {
   face: number | null;
 };
 
-/** Where a person works, what they carry there and back, and what they are at there. */
-type Work = Point & { to: Carry | null; back: Carry | null; task: Task | null };
+/**
+ * Where a person works, what they carry there and back, and what they are at there; which way
+ * they face at it, where it holds them to it (behind a market stall, facing the square).
+ */
+type Work = Point & { to: Carry | null; back: Carry | null; task: Task | null; face?: number };
 
 /** A keyed stream for one person on one day. */
 function dayDraw(ref: string, day: number): (n: number) => number {
@@ -113,8 +122,8 @@ function dayDraw(ref: string, day: number): (n: number) => number {
 }
 
 /** The share of the year gone (0 … 1) when the fields are ripe and reaped; when they are sown. */
-const HARVEST: readonly [number, number] = [0.6, 0.78];
-const SOWING: readonly [number, number] = [0.18, 0.34];
+export const HARVEST: readonly [number, number] = [0.6, 0.78];
+export const SOWING: readonly [number, number] = [0.18, 0.34];
 
 /** The square's rings of talk: how many, and how far out from its middle each stands. */
 const RINGS = 4,
@@ -223,11 +232,18 @@ function workplace(
       const r = plan.wild + draw(4) * 250;
       return at(r * Math.cos(angle), r * Math.sin(angle), "basket", "basket", "gather");
     }
-    case OCC.trader:
+    case OCC.trader: {
+      // On a market day, behind a stall in the square (Phase 33 M175).
+      const stalls = marketDay(plan, day) ? marketScene(plan) : null;
+      if (stalls?.backs.length) {
+        const s = stalls.backs[Math.floor(draw(6) * stalls.backs.length)]!;
+        return { ...at(s.x, s.z, "sack", "sack", "haggle"), face: s.yaw };
+      }
       // Some days out along the road; others at the market.
       return draw(6) < 0.45
         ? at(plan.road.x * 0.9, plan.road.z * 0.9, "pack")
         : at(10 * Math.cos(angle), 10 * Math.sin(angle), null, "sack", "haggle");
+    }
     case OCC.crafter: {
       // In a land that digs, half its crafters dig: their picks out, what they dig back.
       const mine = plan.works?.mine;
@@ -337,6 +353,26 @@ function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
     }
     return t;
   };
+  // A feast day (Phase 33 M174): the work done by mid-afternoon, and the evening at the feast —
+  // at a table or in the ring about the fire, changing over halfway — until late (the young and
+  // the old home sooner).
+  const feast = feastOn(plan, day),
+    dancesFirst = draw(22) < 0.45,
+    seatU = draw(23),
+    ringU = draw(24);
+  const feasting = (from: number): number => {
+    const until = (p.child ? 21 : p.age >= 62 ? 21.5 : FEAST_HOURS.over) * HOUR,
+      swap = 19.75 * HOUR,
+      first = feastPlace(plan, dancesFirst, dancesFirst ? ringU : seatU),
+      then = feastPlace(plan, !dancesFirst, dancesFirst ? seatU : ringU),
+      start = Math.max(from, FEAST_HOURS.gather * HOUR);
+    stay(from, start, at, ACTIVITY.home);
+    let s = go(start, at, first);
+    stay(s, swap, first, ACTIVITY.feasting, null, dancesFirst ? "dance" : "feast", first.yaw);
+    s = go(Math.max(s, swap), first, then);
+    stay(s, until, then, ACTIVITY.feasting, null, dancesFirst ? "feast" : "dance", then.yaw);
+    return go(Math.max(s, until), then, at);
+  };
   /** An evening in the square: talk in the rings (or blows), or the drill while at war. */
   const evening = (t: number, until: number): number => {
     if (drills) {
@@ -351,37 +387,56 @@ function dayOf(plan: VillagePlan, index: number, day: number): Leg[] {
   stay(0, rise, at, ACTIVITY.asleep);
   stay(rise, rise + 0.75 * HOUR, at, ACTIVITY.eating);
   let t = rise + 0.75 * HOUR;
+  // A market morning (Phase 33 M175): the old and some of the rest go to buy at a stall before
+  // the day's work, and come home with what they bought.
+  const stalls = marketDay(plan, day) ? marketScene(plan) : null,
+    front = stalls?.fronts.length
+      ? stalls.fronts[Math.floor(draw(25) * stalls.fronts.length)]!
+      : null;
+  if (front && !p.child && p.occupation !== OCC.trader && (p.age >= 62 || draw(26) < 0.3)) {
+    const open = MARKET_HOURS.buy * HOUR;
+    stay(t, open, at, ACTIVITY.home);
+    t = go(Math.max(t, open), at, front);
+    const done = Math.max(t, (p.age >= 62 ? 11 : 9.5) * HOUR);
+    stay(t, done, front, ACTIVITY.gathering, null, "haggle", front.yaw);
+    t = go(done, front, at, "sack");
+  }
   if (rest || p.age >= 62) {
-    stay(
-      t,
-      17 * HOUR,
-      at,
-      p.child ? ACTIVITY.playing : ACTIVITY.resting,
-      null,
-      p.child ? "play" : null,
-    );
-    t = evening(17 * HOUR, 19.5 * HOUR);
+    const ease = (feast ? FEAST_HOURS.gather : 17) * HOUR;
+    stay(t, ease, at, p.child ? ACTIVITY.playing : ACTIVITY.resting, null, p.child ? "play" : null);
+    t = feast ? feasting(Math.max(t, ease)) : evening(Math.max(t, 17 * HOUR), 19.5 * HOUR);
   } else {
     const doing = p.child ? ACTIVITY.playing : ACTIVITY.working,
-      far = walkTime(at, work, pace) > 0.6 * HOUR;
+      far = walkTime(at, work, pace) > 0.6 * HOUR,
+      // (On a feast day the work is put down by mid-afternoon.)
+      stop = feast ? 15 * HOUR : null;
     // (Out with what they work with; at work with it in hand; back with what they worked.)
     t = go(t, at, work, work.to);
     // Those who work near home come back to eat at noon; the rest eat where they are.
     if (far) {
-      stay(t, 12 * HOUR, work, doing, work.to, work.task);
-      stay(12 * HOUR, 12.75 * HOUR, work, ACTIVITY.eating);
-      stay(12.75 * HOUR, 17.25 * HOUR, work, doing, work.to, work.task);
-      t = go(17.25 * HOUR, work, at, work.back);
+      stay(t, 12 * HOUR, work, doing, work.to, work.task, work.face);
+      stay(Math.max(t, 12 * HOUR), Math.max(t, 12.75 * HOUR), work, ACTIVITY.eating);
+      stay(
+        Math.max(t, 12.75 * HOUR),
+        stop ?? 17.25 * HOUR,
+        work,
+        doing,
+        work.to,
+        work.task,
+        work.face,
+      );
+      t = go(Math.max(t, stop ?? 17.25 * HOUR), work, at, work.back);
     } else {
-      stay(t, 12 * HOUR, work, doing, work.to, work.task);
-      t = go(12 * HOUR, work, at, work.back);
+      stay(t, 12 * HOUR, work, doing, work.to, work.task, work.face);
+      t = go(Math.max(t, 12 * HOUR), work, at, work.back);
       stay(t, t + 0.75 * HOUR, at, ACTIVITY.eating);
       t = go(t + 0.75 * HOUR, at, work, work.to);
-      stay(t, 17.5 * HOUR, work, doing, work.to, work.task);
-      t = go(17.5 * HOUR, work, at, work.back);
+      stay(t, stop ?? 17.5 * HOUR, work, doing, work.to, work.task, work.face);
+      t = go(Math.max(t, stop ?? 17.5 * HOUR), work, at, work.back);
     }
-    // Some evenings in the square (every evening, for those who drill).
-    if ((drills || draw(11) < 0.3) && t < 19 * HOUR) t = evening(t, 20 * HOUR);
+    // The feast, or some evenings in the square (every evening, for those who drill).
+    if (feast) t = feasting(t);
+    else if ((drills || draw(11) < 0.3) && t < 19 * HOUR) t = evening(t, 20 * HOUR);
   }
   stay(t, Math.max(t, bed - 0.5 * HOUR), at, ACTIVITY.eating);
   stay(Math.max(t, bed - 0.5 * HOUR), bed, at, ACTIVITY.home);
@@ -411,6 +466,7 @@ function atEase(leg: Leg): boolean {
     leg.activity === ACTIVITY.eating ||
     leg.activity === ACTIVITY.playing ||
     leg.activity === ACTIVITY.resting ||
+    leg.activity === ACTIVITY.feasting ||
     (leg.activity === ACTIVITY.gathering && leg.task !== "drill")
   );
 }
@@ -458,6 +514,11 @@ export function momentOf(
     x += (leg.next.x - leg.at.x) * k;
     z += (leg.next.z - leg.at.z) * k;
     yaw = Math.atan2(leg.next.x - leg.at.x, leg.next.z - leg.at.z);
+  } else if (leg.activity === ACTIVITY.working && leg.face !== null) {
+    // Held to their work (behind a market stall): a step or two along it, facing the way it does.
+    const along = Math.sin(s / 600 + index) * 0.7;
+    x += Math.cos(leg.face) * along;
+    z -= Math.sin(leg.face) * along;
   } else if (leg.activity === ACTIVITY.working || leg.activity === ACTIVITY.playing) {
     // At work they move about a little: a few steps this way and that.
     const w = s / 600 + index;
@@ -729,6 +790,10 @@ export const SIGNS: Readonly<Record<string, string>> = {
   law: "📜",
   // A sickness among them (Phase 20 M140).
   sickness: "🤒",
+  // At a feast (Phase 33 M174): a song as they dance, the food, a cup raised.
+  dance: "🎶",
+  feast: "🍖",
+  cheers: "🍻",
 };
 
 /**
@@ -760,6 +825,9 @@ export function sayOf(plan: VillagePlan, index: number, m: Moment, s: number): s
   if (m.task === "brawl") return pick < 0.5 ? SIGNS.brawl! : SIGNS.unrest!;
   if (m.task === "drill") return pick < 0.3 ? SIGNS.drill! : null;
   if (m.task === "play") return pick < 0.5 ? SIGNS.play! : null;
+  if (m.task === "dance") return pick < 0.6 ? SIGNS.dance! : SIGNS.laugh!;
+  if (m.task === "feast")
+    return pick < 0.35 ? SIGNS.cheers! : pick < 0.7 ? SIGNS.feast! : SIGNS.laugh!;
   if (m.activity === ACTIVITY.walking) {
     if (m.hunger > 0.85) return SIGNS.hunger!;
     if (m.tiredness > 0.9) return SIGNS.tired!;
@@ -940,13 +1008,13 @@ export function treesOf(plan: VillagePlan, share = 1): Tree[] {
   return out;
 }
 
-function hashText(text: string): number {
+export function hashText(text: string): number {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
   return h >>> 0;
 }
 
-function unitOf(seed: number, i: number, n: number): number {
+export function unitOf(seed: number, i: number, n: number): number {
   let h = Math.imul(seed ^ Math.imul(i + 1, 0x9e3779b1), 0x85ebca6b) ^ Math.imul(n + 1, 0xc2b2ae35);
   h ^= h >>> 15;
   h = Math.imul(h, 0x2c1b3c6d);

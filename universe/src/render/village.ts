@@ -13,6 +13,7 @@ import {
   SKIN,
   clothes,
   biomeColor,
+  cropColor,
   battleOf,
   bobOf,
   FIGURE_CAPSULE,
@@ -20,6 +21,7 @@ import {
   hairOf,
   keepApart,
   present,
+  ringTurn,
   villageSolids,
   type Presence,
   homeDetail,
@@ -41,6 +43,7 @@ import {
   type Moment,
   type PartShape,
   type TownThing,
+  type Crop,
 } from "../view/index.ts";
 import {
   InstancedBatch,
@@ -54,6 +57,8 @@ import { FaunaLayer, type PickedBeast } from "./fauna.ts";
 import { VisitorsLayer } from "./visitors.ts";
 import { WorkLayer, type Carrier } from "./work.ts";
 import { TownLayer } from "./town.ts";
+import { CountryLayer } from "./country.ts";
+import { FeastLayer } from "./feast.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
@@ -72,16 +77,6 @@ const QUARTER_COLORS: readonly Rgb[] = [
   [0.5, 0.5, 0.54],
   [0.9, 0.88, 0.82],
 ];
-
-/** Fields through the year: bare, sprouting, green, ripe, stubble. */
-function fieldColor(t: number): Rgb {
-  const d = (t % YEAR) / YEAR;
-  if (d < 0.2) return [0.46, 0.36, 0.24];
-  if (d < 0.35) return [0.5, 0.62, 0.3];
-  if (d < 0.6) return [0.34, 0.58, 0.24];
-  if (d < 0.75) return [0.82, 0.7, 0.32];
-  return [0.6, 0.52, 0.34];
-}
 
 /**
  * Windows' glass: dark by day; by night the lamplight glows out of them (its glow never
@@ -103,7 +98,8 @@ export class VillageScene {
   private readonly stage: Stage;
   private readonly root = new pc.Entity("village");
   private plan: VillagePlan | null = null;
-  private fields: InstancedBatch | null = null;
+  /** The sown fields, a batch to each crop (Phase 32: a patchwork), and the colour each was last drawn in. */
+  private crops: { crop: Crop; batch: InstancedBatch; shown: string }[] = [];
   /** Each group's batch for each part of the figure (null: a part drawn by the person's hair). */
   private people: (InstancedBatch | null)[][] = [];
   /** A battle's two hosts (M87): each side's batch for each part of the figure, and their spears. */
@@ -138,6 +134,10 @@ export class VillageScene {
   private readonly work: WorkLayer;
   /** A town built lot by lot (Phase 23), drawn from its fabric in place of its homes and quarters. */
   private readonly town: TownLayer;
+  /** Its countryside (Phase 32): the fields' bounds, orchards, barns, mills, tractors, the pasture's fence. */
+  private readonly country: CountryLayer;
+  /** Its square on feast days and market days (Phase 33): bunting, tables, the bonfire; the stalls. */
+  private readonly feast: FeastLayer;
   /** The moment last drawn, for a rebuild between moments. */
   private lastT = 0;
   private readonly carriers: Carrier[] = [];
@@ -161,6 +161,8 @@ export class VillageScene {
     this.work = new WorkLayer(stage, this.root);
     this.visitors = new VisitorsLayer(stage, this.root);
     this.town = new TownLayer(stage, this.root);
+    this.country = new CountryLayer(stage, this.root);
+    this.feast = new FeastLayer(stage, this.root);
     this.root.enabled = false;
   }
 
@@ -194,6 +196,7 @@ export class VillageScene {
   private dress(): void {
     const s = this.seasonNow;
     this.town.season(s?.snow ?? 0);
+    this.country.season(s);
     for (const d of this.dressed)
       d.paint(
         !s
@@ -226,7 +229,9 @@ export class VillageScene {
         child !== this.fauna.root &&
         child !== this.work.root &&
         child !== this.visitors.root &&
-        child !== this.town.root
+        child !== this.town.root &&
+        child !== this.country.root &&
+        child !== this.feast.root
       )
         child.destroy();
     this.stacks = [];
@@ -258,8 +263,19 @@ export class VillageScene {
           },
         });
       };
-    const g = biomeColor(plan.biome);
-    disc(140, [g[0] * 0.95 + 0.03, g[1] * 0.95 + 0.05, g[2] * 0.9]);
+    const g = biomeColor(plan.biome),
+      // (The ground runs out past its farthest fields and pasture, and the mills on their rim — a
+      // great city's lie kilometres out — to the horizon's edge.)
+      reach = Math.max(
+        plan.fields.reduce((m, f) => Math.max(m, Math.hypot(f.x, f.z) + Math.max(f.w, f.d)), 0),
+        Math.hypot(plan.pasture.x, plan.pasture.z) + plan.pasture.r,
+      );
+    this.reach = reach;
+    disc(Math.min(390, Math.max(140, (reach + 300) * M)), [
+      g[0] * 0.95 + 0.03,
+      g[1] * 0.95 + 0.05,
+      g[2] * 0.9,
+    ]);
     disc(
       plan.pasture.r * M,
       [g[0] * 0.8 + 0.12, g[1] * 0.85 + 0.14, g[2] * 0.7 + 0.05],
@@ -388,16 +404,26 @@ export class VillageScene {
       pieces(crowns, [0.98, 0.8, 0.25]);
     }
     if (!town) disc(2.2, [0.66, 0.6, 0.48], 0, 0, 0.016);
-    this.fields = this.batch(s, boxMesh(s), fieldColor(0), plan.fields.length, this.root);
-    this.fields.set(plan.fields.length, (i, out) => {
-      const f = plan.fields[i]!;
-      out[0] = f.x * M;
-      out[1] = 0.02;
-      out[2] = f.z * M;
-      out[3] = f.w * M;
-      out[4] = 0.02;
-      out[5] = f.d * M;
-      out[6] = f.yaw;
+    // Its countryside (Phase 32): the orchards drawn there under their trees; the rest sown here,
+    // a batch to each crop.
+    this.country.build(plan, houseLook(plan.house), s.quality);
+    this.feast.build(plan);
+    const crop = this.country.crop;
+    this.crops = (["grain", "greens", "fallow"] as const).flatMap((kind) => {
+      const sown = plan.fields.filter((_, k) => crop[k] === kind);
+      if (!sown.length) return [];
+      const batch = this.batch(s, boxMesh(s), cropColor(kind, t), sown.length, this.root);
+      batch.set(sown.length, (i, out) => {
+        const f = sown[i]!;
+        out[0] = f.x * M;
+        out[1] = 0.02;
+        out[2] = f.z * M;
+        out[3] = f.w * M;
+        out[4] = 0.02;
+        out[5] = f.d * M;
+        out[6] = f.yaw;
+      });
+      return [{ crop: kind, batch, shown: "" }];
     });
     // Homes, as the land builds them (its design): walls of its material, four-square
     // or round, long or wide; roofs pitched to the rain, flat, or conical; tents whole
@@ -833,6 +859,22 @@ export class VillageScene {
     return this.town.visible ? this.town.reach() : 0;
   }
 
+  /** How far out its countryside reaches (metres): its farthest fields and its pasture. */
+  private reach = 0;
+  countryReach(): number {
+    return this.reach;
+  }
+
+  /** What its square shows now (Phase 33; the look tools): a feast, its fire, the market. */
+  feastNow(): Record<string, number> {
+    return this.feast.counts();
+  }
+
+  /** How many of each thing its countryside shows now (Phase 32; the look tools). */
+  countryNow(): Record<string, number> {
+    return this.country.counts();
+  }
+
   /** What of a town drawn from its fabric stands at a point (metres from its middle), for a tap (M151). */
   townThingAt(x: number, z: number, t: number): TownThing | null {
     return this.town.thingAt(x, z, t);
@@ -878,7 +920,17 @@ export class VillageScene {
     if (!plan) return;
     this.lastT = t;
     this.town.update(t);
-    this.fields?.recolor(fieldColor(t));
+    // The fields in their crop's colour now, snow lying on them in a cold land's winter (set
+    // only as it changes).
+    const sown = (kind: Crop): Rgb =>
+      this.seasonNow ? seasonGround(cropColor(kind, t), this.seasonNow) : cropColor(kind, t);
+    for (const c of this.crops) {
+      const color = sown(c.crop),
+        key = color.map((x) => x.toFixed(3)).join();
+      if (key === c.shown) continue;
+      c.shown = key;
+      c.batch.recolor(color);
+    }
     // Lamplight in the windows from dusk to dawn (set only as it changes).
     if (this.windows) {
       const glow = Math.round(lamplight((t % 86_400) / 3600) * 20) / 20;
@@ -890,6 +942,8 @@ export class VillageScene {
     // (The beasts move by the screen's clock: a look, at any speed the world runs.)
     const screen = this.heldFauna ?? performance.now() / 1000;
     this.fauna.update(screen);
+    this.country.update(t, screen, sown);
+    this.feast.update(t, screen);
     this.visitors.update(screen);
     const parts = this.figure.parts,
       // Strides and the motions of work: by the screen's clock, each person a little out of step.
@@ -897,6 +951,9 @@ export class VillageScene {
       // The battle, if its land was fought over (its soldiers stand where they stand).
       troops = this.soldiers.length ? battleOf(plan, this.soldiersEach, clock) : [];
     const targets = plan.people.map((_, i) => momentOf(plan, i, t, downpour));
+    // A feast's ring going round its fire (Phase 33), by the screen's clock.
+    for (const m of targets)
+      if (m.task === "dance" && !m.hidden) Object.assign(m, ringTurn(plan, m, screen));
     // No one stands in anyone else, nor in a soldier; and no one jumps: each is carried to
     // where their day has them, however fast the world runs.
     keepApart(plan, targets, troops);

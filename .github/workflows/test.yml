@@ -214,6 +214,17 @@ jobs:
       - run: npm run gate:31 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 32 gate: the countryside about a town as Classic drew it (the fields bounded in
+      # their land's manner, a patchwork of crops, orchards, barns, windmills turning, the pasture
+      # fenced) and the year on it (blossom, scarecrows, fruit, hay; none of them in winter).
+      - run: npm run gate:32 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 33 gate: a town's feasts and market days (bunting and tables, the bonfire at
+      # dusk, the town at the tables and dancing in a ring about it; the stalls of a morning).
+      - run: npm run gate:33 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest
