@@ -19,6 +19,8 @@ export type ToolContext = {
   readonly near?: (cell: number, camp: number) => void;
   /** Watch a battle fought (Phase 37 M186). */
   readonly battle?: (event: string) => void;
+  /** Watch a war unfold on the globe (Phase 38 M193). */
+  readonly war?: (ref: string) => void;
 };
 
 type Settlement = {
@@ -108,6 +110,15 @@ export function drawTool(
       b.title =
         "Down to the field it was fought on, on a clock of its own: the hosts drawn up, the arrows, the charge, the lines meeting, the beaten breaking and the fallen — held still, slowed, or drawn back and forth.";
       b.onclick = () => ctx.battle!(args.event as string);
+      into.append(b);
+      return;
+    }
+    case "watch.war": {
+      if (!ctx.war) return;
+      const b = el("button", "act", (args.label as string | undefined) ?? "▶ Watch the war unfold");
+      b.title =
+        "Out on the whole world, the war played again on a clock of its own: its host marching from battle to battle, each flaring where it was fought, the fallen mounting, the lands taken — held still, slowed, or drawn back and forth; any of its battles to be watched fought.";
+      b.onclick = () => ctx.war!(args.ref as string);
       into.append(b);
       return;
     }

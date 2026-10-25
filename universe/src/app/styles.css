@@ -650,6 +650,29 @@ body[data-scale="micro"] {
 .battle-followed[hidden] {
   display: none;
 }
+/* A war watched unfolding (Phase 38 M193): its battles marked on its course where their turns
+   come, each in the colour of the side that won it; the battle told of, to be watched fought. */
+.war-mark {
+  top: -4px;
+  bottom: -4px;
+  width: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.war-watch {
+  align-self: center;
+  width: auto;
+  max-width: 100%;
+  margin-top: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.war-watch[hidden] {
+  display: none;
+}
 @media (max-width: 640px) {
   .battle-sheet {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

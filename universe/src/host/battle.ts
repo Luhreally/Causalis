@@ -16,6 +16,7 @@ import {
   realmName,
   warsOf,
   wildsOf,
+  type War,
 } from "../sim/index.ts";
 import { designWords } from "../rules/index.ts";
 import type { BattleNear, BattleOutcome, BattleSideNear } from "../bridge/index.ts";
@@ -92,6 +93,21 @@ function atMoment(world: World, t: number) {
   return out;
 }
 
+/**
+ * What a battle of history won: nothing (the defenders held), the field, a siege laid about a
+ * seat, a land taken, a seat stormed — the land taken told by the taking it caused.
+ */
+export function battleOutcome(world: World, b: War["battles"][number]): BattleOutcome {
+  const e = world.events.get(b.event),
+    seat = b.seat ?? false,
+    taken =
+      !!e &&
+      atMoment(world, e.t).some(
+        (x) => x.type === WAR_EVENTS.taken.type && x.causes.some((c) => c.ref === b.event),
+      );
+  return !b.won ? "held" : taken ? (seat ? "stormed" : "taken") : seat ? "siege" : "field";
+}
+
 export function battleNear(world: World, ref: string): BattleNear | null {
   const e = world.events.get(ref as Ref);
   if (!e || e.type !== WAR_EVENTS.battle.type) return null;
@@ -133,18 +149,7 @@ export function battleNear(world: World, ref: string): BattleNear | null {
     fielded = b.fielded ?? [Math.max(b.fallen[0] * 10, 20), Math.max(b.fallen[1] * 10, 20)],
     land = b.land,
     seat = b.seat ?? false,
-    taken = atMoment(world, e.t).some(
-      (x) => x.type === WAR_EVENTS.taken.type && x.causes.some((c) => c.ref === ref),
-    ),
-    outcome: BattleOutcome = !b.won
-      ? "held"
-      : taken
-        ? seat
-          ? "stormed"
-          : "taken"
-        : seat
-          ? "siege"
-          : "field",
+    outcome = battleOutcome(world, b),
     town = seat ? (ctx.settlements.inProvince(land)[0]?.name ?? null) : null,
     wilds = wildsOf(ctx, land);
   return {

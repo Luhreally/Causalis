@@ -151,6 +151,11 @@ export class BattlePanel {
     this.shown = "";
   }
 
+  /** Where its back button goes: "‹ The land", or "‹ The war" when watched from a war unfolding (M193). */
+  backTo(words: string): void {
+    this.back.textContent = words;
+  }
+
   /** The one followed, told (empty: the hosts again). */
   follow(words: string): void {
     if (this.followed.textContent !== words) this.followed.textContent = words;

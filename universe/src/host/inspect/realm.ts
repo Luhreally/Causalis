@@ -447,11 +447,24 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
     ],
     keys: [b.year, landTitle(world, b.land), b.won ? 1 : 0, b.fallen[0] + b.fallen[1]],
   }));
-  // Its last battle, and its bloodiest where that was another, watched fought (Phase 37).
+  // The whole war watched unfolding on the globe (Phase 38 M193); its last battle, and its
+  // bloodiest where that was another, watched fought (Phase 37).
   const last = w.battles.at(-1),
     fell = (b: (typeof w.battles)[number]) => b.fallen[0] + b.fallen[1],
     bloodiest = [...w.battles].sort((p, q) => fell(q) - fell(p) || q.year - p.year)[0],
     watchLast: Block[] = [
+      ...(last
+        ? [
+            {
+              type: "tool" as const,
+              tool: "watch.war",
+              args: {
+                ref: w.ref,
+                label: `▶ Watch the war unfold (${w.battles.length === 1 ? "one battle" : `${count(w.battles.length)} battles`})`,
+              },
+            },
+          ]
+        : []),
       ...(last
         ? [
             {

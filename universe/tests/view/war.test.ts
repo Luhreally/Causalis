@@ -5,12 +5,14 @@ import { sphereGrid } from "../../src/kernel/index.ts";
 import {
   BATTLE_ROUND,
   MARCH,
+  RANK_STEP,
   battleFigures,
   battleOf,
   clearOf,
   counterWords,
   holdShape,
   hostShape,
+  hostsDepth,
   landBattle,
   landColumn,
   landShape,
@@ -117,6 +119,52 @@ test("a war's host marches its way over the ground, and takes ship where the way
   const over = warPaths(map(from, to, 300), grid, elevation);
   assert.equal(warTokens(over, 3).length, 0);
   assert.equal(over.bursts.length, 2);
+});
+
+test("a war watched unfolding has its host as far along its way as its clock says, in ranks spaced by the ground (Phase 38 M193)", () => {
+  const from = cellNear(0.7, 0.7, 0),
+    to = cellNear(-0.7, 0.7, 0.05),
+    w = warPaths(map(from, to), grid, elevation),
+    path = w.paths[0]!,
+    tokens = (k: number, s = 3, grand = 1) => warTokens(w, s, new Map([["war:0:1", k]]), grand),
+    head = (k: number, s = 3) => tokens(k, s).find((t) => t.attacker && t.lead)!,
+    dist = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) =>
+      Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+  // Set out: its head at its land. At the end of its way, a rank short of the defenders' front,
+  // which stands at what they hold.
+  assert.ok(dist(head(0).at, path.points[0]!) < 1e-9);
+  const front = tokens(1).find((t) => !t.attacker && t.lead)!;
+  assert.ok(dist(front.at, path.points.at(-1)!) < 1e-9);
+  assert.ok(
+    Math.abs(dist(head(1).at, front.at) - RANK_STEP) < 0.002,
+    `${dist(head(1).at, front.at)}`,
+  );
+  // Not marching over and over: where its clock has it, whatever the screen's time; whole.
+  assert.ok(dist(head(0.5, 1).at, head(0.5, 7.3).at) < 1e-12);
+  assert.ok(tokens(0.5).every((t) => t.size === 1));
+  // Every rank drawn as it sets out, trailing back into its own land a step apart; the
+  // defenders' ranks behind their front.
+  const host = hostShape(1200),
+    hold = holdShape(800),
+    out = tokens(0);
+  assert.equal(out.filter((t) => t.attacker).length, host.ranks * host.files);
+  assert.equal(out.filter((t) => !t.attacker).length, hold.ranks * hold.files);
+  const column = out.filter((t) => t.attacker);
+  for (let r = 1; r < column.length; r++)
+    assert.ok(Math.abs(dist(column[r]!.at, column[r - 1]!.at) - RANK_STEP) < 0.002);
+  // Drawn larger, the farther apart.
+  const big = tokens(0, 3, 1.8).filter((t) => t.attacker);
+  assert.ok(Math.abs(dist(big[1]!.at, big[0]!.at) - RANK_STEP * 1.8) < 0.003);
+  assert.ok(Math.abs(hostsDepth(1200, 800, 1) - (host.ranks + hold.ranks) * RANK_STEP) < 1e-12);
+});
+
+test("a war whose host has no way to go still shows its battles and its camp", () => {
+  const spot = cellNear(0.7, 0.7, 0),
+    still = map(spot, spot),
+    w = warPaths({ ...still, wars: [{ ...still.wars[0]!, siege: spot }] }, grid, elevation);
+  assert.equal(w.paths.length, 0);
+  assert.equal(w.bursts.length, 2);
+  assert.equal(w.camps.length, 1);
 });
 
 test("where a battle was fought, a burst: the larger the more fell, and dimmer as the years pass", () => {
@@ -356,6 +404,9 @@ test("a host's counter: its side, its realm and the men it fields, said short", 
   assert.equal(counterWords(9949), "9.9k");
   assert.equal(counterWords(9950), "10k");
   assert.equal(counterWords(12_345), "12k");
+  assert.equal(counterWords(999_499), "999k");
+  assert.equal(counterWords(7_035_000), "7.0M");
+  assert.equal(counterWords(12_600_000), "13M");
   assert.equal(counterWords(-3), "0");
   // On the globe: the marchers are the attacker's, the standard at what they want the defender's.
   const from = cellNear(0.2, 0.9, 0.4),

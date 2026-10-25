@@ -132,6 +132,7 @@ import { villagePlan } from "./village.ts";
 import { landPlan } from "./land.ts";
 import { campNear } from "./camp.ts";
 import { battleNear } from "./battle.ts";
+import { campaignOf } from "./campaign.ts";
 import { landReadings } from "./lenses.ts";
 import { genesisOf } from "./genesis.ts";
 import { TRAIT_LOOK } from "./inspect/folk.ts";
@@ -1170,6 +1171,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       },
       // A battle seen near (Phase 37 M183): its hosts, its ground, what came of it.
       "battle.near": (world, args) => battleNear(world, (args as { event: string }).event),
+      // A war's course, to be watched unfolding on the globe (Phase 38 M193).
+      "war.campaign": (world, args) => campaignOf(world, (args as { ref: string }).ref),
       ...OBSERVE_QUERIES,
       ...PAGE_QUERIES,
       // Every thing's page, and where it is to be seen (Phase 10 M91). (Called through, not

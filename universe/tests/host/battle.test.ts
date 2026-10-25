@@ -4,7 +4,8 @@ import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { sideColors } from "../../src/host/battle.ts";
 import { WAR_EVENTS, warsOf } from "../../src/sim/index.ts";
-import type { BattleNear, Block, PageModel } from "../../src/bridge/index.ts";
+import type { BattleNear, Block, Campaign, PageModel } from "../../src/bridge/index.ts";
+import { campaignAt, campaignSpan } from "../../src/view/index.ts";
 
 // Phase 37 M183/M186: a battle seen near — what history says of it, for the eye to watch it
 // fought: its hosts as they were in the field, who won and what came of it, the ground it was
@@ -135,5 +136,64 @@ test("the ledger's wars offer the bloodiest battles watched; a war's page its bl
       /^⚔️ Watch its bloodiest \(year \d+: [\d,]+ fell\)$/.test(String(t.args.label)),
     ),
     "its bloodiest offered",
+  );
+});
+
+test("a war's course is told to be watched unfolding: its sides, its host's way, each battle in turn (Phase 38 M193)", () => {
+  for (const w of wars) {
+    const c = ask<Campaign | null>("war.campaign", { ref: w.ref });
+    assert.ok(c, w.ref);
+    assert.equal(c.attacker.ref, w.attacker);
+    assert.equal(c.defender.ref, w.defender);
+    assert.equal(c.declared, w.declared);
+    assert.equal(c.ended, w.ended);
+    assert.match(c.title, /^The war of .+ upon .+$/);
+    assert.ok(c.from >= 0 && c.to >= 0, `${w.ref} its way`);
+    assert.deepEqual(
+      c.battles.map((b) => [b.event, b.year, b.cell, b.won, b.fallen[0], b.fallen[1]]),
+      w.battles.map((b) => [b.event, b.year, b.land, b.won, b.fallen[0], b.fallen[1]]),
+    );
+    // Played through, its tallies come to the battles' own.
+    const end = campaignAt(c, campaignSpan(c).to),
+      sum = (i: 0 | 1) => w.battles.reduce((n, b) => n + b.fallen[i], 0);
+    assert.deepEqual(end.fallen, [sum(0), sum(1)]);
+    assert.deepEqual(end.won, [
+      w.battles.filter((b) => b.won).length,
+      w.battles.filter((b) => !b.won).length,
+    ]);
+  }
+  // What came of each battle is as it is seen near.
+  for (const { war, b } of battles.slice(0, 8)) {
+    const c = ask<Campaign>("war.campaign", { ref: war.ref }),
+      n = ask<BattleNear>("battle.near", { event: b.event });
+    assert.equal(c.battles.find((x) => x.event === b.event)!.outcome, n.outcome);
+  }
+  assert.equal(ask("war.campaign", { ref: "war:0:999999999" }), null);
+  // (A war is found by the events that began and ended it too: its tidings'.)
+  const ended = wars.find((w) => w.peace)!;
+  assert.ok(ended, "a war ended in peace");
+  assert.equal(ask<Campaign>("war.campaign", { ref: ended.peace! }).ref, ended.ref);
+  assert.equal(ask<Campaign>("war.campaign", { ref: ended.event }).ref, ended.ref);
+});
+
+test("a war's page offers it watched unfolding, and the ledger its bloodiest", () => {
+  const war = wars.find((w) => w.battles.length > 1)!,
+    watch = tools(ask<PageModel>("page", { ref: war.ref })).find((t) => t.tool === "watch.war");
+  assert.ok(watch, "the war's page has its watch");
+  assert.equal(watch.args.ref, war.ref);
+  assert.match(String(watch.args.label), /^▶ Watch the war unfold \([\d,]+ battles\)$/);
+  const fell = (w: (typeof wars)[number]) => w.fallen[0] + w.fallen[1],
+    bloodiest = [...wars]
+      .filter((w) => w.battles.length > 0 && fell(w) > 0)
+      .sort((a, b) => fell(b) - fell(a) || (a.ref < b.ref ? -1 : 1))[0]!,
+    tab = ask<PageModel>("page", { ref: "world:ledger" }).tabs.find((t) => t.id === "wars")!,
+    ledger = tab.blocks.find(
+      (b): b is Extract<Block, { type: "tool" }> => b.type === "tool" && b.tool === "watch.war",
+    );
+  assert.ok(ledger, "the ledger has the bloodiest war's watch");
+  assert.equal(ledger.args.ref, bloodiest.ref);
+  assert.match(
+    String(ledger.args.label),
+    /^▶ Watch the bloodiest war unfold: .+ upon .+ \([\d,]+ fell\)$/,
   );
 });

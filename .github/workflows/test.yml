@@ -247,6 +247,13 @@ jobs:
       - run: npm run gate:37 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # The Phase 38 gate: wars seen unfolding (a war of history played again on the globe, the
+      # world held while its own clock runs, held and sped and drawn back and forth; its battles in
+      # their turns, drawn and marked, its fallen tallied, its end told; one of them watched fought
+      # and back to the war; from the ledger and the war's page; on a phone).
+      - run: npm run gate:38 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

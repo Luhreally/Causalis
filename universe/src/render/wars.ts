@@ -58,6 +58,8 @@ export class GlobeWars {
   private flags: InstancedBatch[] = [];
   private tabards: InstancedBatch[] = [];
   private tents: InstancedBatch[] = [];
+  /** How much larger than the year's its figures are drawn (a war watched unfolding's, Phase 38 M193). */
+  grand = 1;
   /** How many marks were drawn at the last update (for the look tools). */
   drawn = 0;
   /** What was drawn at the last update, by kind (for the look tools and the gate). */
@@ -145,12 +147,19 @@ export class GlobeWars {
 
   /**
    * Put every host, battle, camp and garrison where it is at screen time `s` (seconds), the eye
-   * `zoom` from the globe's middle (garrisons are shown only closer than GARRISON_ZOOM).
+   * `zoom` from the globe's middle (garrisons are shown only closer than GARRISON_ZOOM); the host
+   * of a war watched unfolding as far along its way as `marching` has it (Phase 38 M193).
    */
-  update(s: number, zoom = 3): void {
+  update(s: number, zoom = 3, marching?: ReadonlyMap<string, number>): void {
     const paths = this.paths;
     if (!paths || !this.root.enabled) return;
-    const tokens = warTokens(paths, s).slice(0, MOST),
+    // (A war watched unfolding: its figures `g` the larger, their heads the smaller so their
+    // colours show from above, its banners and blades `pg` the larger.)
+    const g = this.grand,
+      pg = Math.sqrt(g),
+      wide = g > 1 ? 1.35 : 1,
+      headK = g > 1 ? 0.6 : 1,
+      tokens = warTokens(paths, s, marching, g).slice(0, MOST),
       walkers = tokens.filter((t) => !t.ship),
       ships = tokens.filter((t) => t.ship),
       stand = (
@@ -182,7 +191,7 @@ export class GlobeWars {
         z: at.z + up.z * h * k,
       });
     // Everyone standing: the marchers and defenders, the battles' masses, the garrisons.
-    const battle = battleFigures(paths, s),
+    const battle = battleFigures(paths, s, g),
       fighting = battle.filter((f) => !f.fallen),
       lying = battle.filter((f) => f.fallen),
       garrison = zoom < GARRISON_ZOOM ? garrisonFigures(paths) : [],
@@ -201,39 +210,84 @@ export class GlobeWars {
           h = height(f);
         stand(
           out,
-          lift(f.at, f.up, seat(f) + h / 2, f.size),
+          lift(f.at, f.up, seat(f) + h / 2, f.size * g),
           f.up,
           f.ahead,
-          f.lead ? 0.016 : 0.01,
+          (f.lead ? 0.016 : 0.01) * wide,
           h,
-          f.lead ? 0.01 : 0.008,
-          f.size,
+          (f.lead ? 0.01 : 0.008) * wide,
+          f.size * g,
         );
       });
     });
     this.heads.setBasis(standing.length, (i, out) => {
       const f = standing[i]!,
         h = height(f),
-        r = f.lead ? 0.011 : 0.008;
-      stand(out, lift(f.at, f.up, seat(f) + h + r / 2, f.size), f.up, f.ahead, r, r, r, f.size);
+        r = (f.lead ? 0.011 : 0.008) * headK;
+      stand(
+        out,
+        lift(f.at, f.up, seat(f) + h + r / 2, f.size * g),
+        f.up,
+        f.ahead,
+        r,
+        r,
+        r,
+        f.size * g,
+      );
     });
     const riders = standing.filter((f) => f.mounted);
     this.horses.setBasis(riders.length, (i, out) => {
       const f = riders[i]!;
-      stand(out, lift(f.at, f.up, 0.006, f.size), f.up, f.ahead, 0.009, 0.01, 0.024, f.size);
+      stand(
+        out,
+        lift(f.at, f.up, 0.006, f.size * g),
+        f.up,
+        f.ahead,
+        0.009,
+        0.01,
+        0.024,
+        f.size * g,
+      );
     });
     // The fallen, laid along the ground.
     this.fallen.setBasis(lying.length, (i, out) => {
       const f = lying[i]!;
-      stand(out, lift(f.at, f.up, 0.003, f.size), f.ahead, f.up, 0.01, 0.018, 0.006, f.size);
+      stand(
+        out,
+        lift(f.at, f.up, 0.003, f.size * g),
+        f.ahead,
+        f.up,
+        0.01,
+        0.018,
+        0.006,
+        f.size * g,
+      );
     });
     this.hulls.setBasis(ships.length, (i, out) => {
       const t = ships[i]!;
-      stand(out, lift(t.at, t.up, 0.003, t.size), t.up, t.ahead, 0.011, 0.006, 0.028, t.size);
+      stand(
+        out,
+        lift(t.at, t.up, 0.003, t.size * g),
+        t.up,
+        t.ahead,
+        0.011,
+        0.006,
+        0.028,
+        t.size * g,
+      );
     });
     this.sails.setBasis(ships.length, (i, out) => {
       const t = ships[i]!;
-      stand(out, lift(t.at, t.up, 0.016, t.size), t.up, t.ahead, 0.002, 0.02, 0.016, t.size);
+      stand(
+        out,
+        lift(t.at, t.up, 0.016, t.size * g),
+        t.up,
+        t.ahead,
+        0.002,
+        0.02,
+        0.016,
+        t.size * g,
+      );
     });
     // The camps about the seats under siege: a ring of tents in the besiegers' colours, a
     // banner at their middle.
@@ -242,7 +296,7 @@ export class GlobeWars {
         [t0, t1] = tangents(up);
       return Array.from({ length: 8 }, (_, i) => {
         const a = (i * Math.PI * 2) / 8,
-          r = 0.026;
+          r = 0.026 * g;
         return {
           at: {
             x: c.at.x + (t0.x * Math.cos(a) + t1.x * Math.sin(a)) * r,
@@ -259,7 +313,7 @@ export class GlobeWars {
       const mine = camps.filter((c) => c.side === this.tentSides[k]);
       batch.setBasis(mine.length, (i, out) => {
         const c = mine[i]!;
-        stand(out, lift(c.at, c.up, 0.007, 1), c.up, c.ahead, 0.014, 0.014, 0.014);
+        stand(out, lift(c.at, c.up, 0.007, g), c.up, c.ahead, 0.014, 0.014, 0.014, g);
       });
     });
     // The banners: a pole and a flag in its side's colour, over each banner-bearer, every
@@ -281,21 +335,25 @@ export class GlobeWars {
       const t = bearers[i]!;
       stand(
         out,
-        lift(t.at, t.up, 0.03 + seat(t), t.size),
+        lift(t.at, t.up, 0.03 + seat(t), t.size * g),
         t.up,
         t.ahead,
         0.0022,
         0.05,
         0.0022,
-        t.size,
+        t.size * pg,
       );
     });
     this.flags.forEach((batch, side) => {
       const mine = bearers.filter((t) => t.side === side);
       batch.setBasis(mine.length, (i, out) => {
         const t = mine[i]!,
-          at = lift(t.at, t.up, 0.047 + seat(t), t.size),
-          back = { x: -t.ahead.x * 0.012, y: -t.ahead.y * 0.012, z: -t.ahead.z * 0.012 };
+          at = lift(t.at, t.up, 0.047 + seat(t), t.size * g),
+          back = {
+            x: -t.ahead.x * 0.012 * pg,
+            y: -t.ahead.y * 0.012 * pg,
+            z: -t.ahead.z * 0.012 * pg,
+          };
         stand(
           out,
           { x: at.x + back.x, y: at.y + back.y, z: at.z + back.z },
@@ -304,7 +362,7 @@ export class GlobeWars {
           0.002,
           0.014,
           0.024,
-          t.size,
+          t.size * pg,
         );
       });
     });
@@ -324,7 +382,7 @@ export class GlobeWars {
               z: t0.z * Math.cos(a) + t1.z * Math.sin(a),
             },
             size = c.size * (pulse ? 0.85 + 0.35 * Math.abs(Math.sin(s * 3 + i)) : 0.7);
-          stand(out, c.at, up, ahead, size * 0.28, 0.003, size * 1.6);
+          stand(out, c.at, up, ahead, size * 0.28, 0.003, size * 1.6, g);
         });
     spokes(fresh, this.flares, true);
     spokes(old, this.embers, false);
@@ -338,7 +396,7 @@ export class GlobeWars {
           y: up0.y * Math.cos(lean) + t0.y * Math.sin(lean),
           z: up0.z * Math.cos(lean) + t0.z * Math.sin(lean),
         },
-        h = 0.05;
+        h = 0.05 * pg;
       stand(
         out,
         { x: c.at.x + up.x * h * 0.5, y: c.at.y + up.y * h * 0.5, z: c.at.z + up.z * h * 0.5 },

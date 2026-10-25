@@ -155,6 +155,16 @@ export {
   type Trooper,
   type TrooperNow,
 } from "./battle.ts";
+export {
+  WAR_SPEEDS,
+  WAR_YEARS_A_SECOND,
+  campaignAt,
+  campaignSpan,
+  foughtAt,
+  outcomeWords,
+  type CampaignMark,
+  type CampaignNow,
+} from "./campaign.ts";
 export { BLINK, DASH, FAR, SMOOTH, present, type Presence } from "./presence.ts";
 export {
   BEYOND,
@@ -234,12 +244,14 @@ export {
 export {
   BATTLE_ROUND,
   MARCH,
+  RANK_STEP,
   battleFigures,
   battleFront,
   battleOf,
   counterWords,
   holdShape,
   hostShape,
+  hostsDepth,
   landBattle,
   landColumn,
   landShape,

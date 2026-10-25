@@ -69,6 +69,7 @@ export {
 } from "./town.ts";
 export type { Garrison, HostKinds, WarSide, WarsMap } from "./wars.ts";
 export type { BattleNear, BattleOutcome, BattleSideNear } from "./battle.ts";
+export type { Campaign, CampaignBattle } from "./campaign.ts";
 export type { ActKindShown, ActMark, ActsMap, LandSky, PaletteLand } from "./acts.ts";
 export type { GenesisPlan, MeadowPlan } from "./genesis.ts";
 export type { DepositPage, PlatePage, RealmPage, SpeciesPage } from "./pages.ts";

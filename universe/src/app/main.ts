@@ -51,6 +51,7 @@ import {
   WorldPanel,
   CampPanel,
   BattlePanel,
+  WarPanel,
   GalaxyPanel,
   GuidedWalk,
   FreeControls,
@@ -84,6 +85,7 @@ import type {
   BeastPlan,
   CampNear,
   BattleNear,
+  Campaign,
   ClusterPlan,
   LandPlan,
   LandSky,
@@ -156,6 +158,14 @@ import {
   newMeadow,
   BATTLE_LENGTH,
   BATTLE_SPEEDS,
+  WAR_SPEEDS,
+  WAR_YEARS_A_SECOND,
+  RANK_STEP,
+  hostsDepth,
+  campaignAt,
+  campaignSpan,
+  foughtAt,
+  type CampaignNow,
   MOMENTS,
   battleAt,
   menAt,
@@ -322,6 +332,33 @@ type Exposed = {
   } | null;
   /** The battle watched set to a moment (its seconds), at one of its speeds (an index). */
   battleAt?: (s: number, speed?: number) => void;
+  /** A war watched unfolding on the globe (Phase 38 M193): whether it is watched. */
+  watchWar?: (ref: string) => Promise<boolean>;
+  /** The war watched: its year and speed, what is told, its tallies, its host's way, what is drawn and marked. */
+  war?: () => {
+    ref: string;
+    title: string;
+    year: number;
+    span: { from: number; to: number };
+    speed: number;
+    words: string;
+    fought: number;
+    battles: number;
+    won: number[];
+    fallen: number[];
+    taken: number;
+    march: number | null;
+    siege: number | null;
+    follow: boolean;
+    drawn: { marching: number; battle: number; fallen: number; tents: number };
+    marks: string[];
+    world: boolean;
+    panel: boolean;
+  } | null;
+  /** The war watched set to a year (fractional), at one of its speeds (an index). */
+  warAt?: (year: number, speed?: number) => void;
+  /** Leave the war watched, back to the world as it is. */
+  leaveWar?: () => void;
   /** The world's clock: whether it stands (paused, or held), and the speed asked of it. */
   clock?: () => { stopped: boolean; speed: number };
   /** A town of the land on screen as drawn from its fabric: its square and reach (region units); and the parts drawn in all (M150). */
@@ -744,11 +781,23 @@ async function runPlanetPage(): Promise<void> {
   // One clock for every scale, its speeds the scale's own (asked for 2026-10-24): the date
   // drawn each frame, as the scales draw the world.
   const time = new TimeBar(client, "globe", true);
-  // (While a battle is watched, Space and the numbers work its own clock: Phase 37 M186.)
-  let battleKeys: TimeKeys | null = null;
+  // (While a battle is watched, Space and the numbers work its own clock: Phase 37 M186; while a
+  // war is watched unfolding, its own: Phase 38 M193.)
+  let battleKeys: TimeKeys | null = null,
+    warKeys: TimeKeys | null = null;
   installTimeKeys({
-    toggle: () => (scale === "battle" && battleKeys ? battleKeys.toggle() : time.toggle()),
-    pick: (i) => (scale === "battle" && battleKeys ? battleKeys.pick(i) : time.pick(i)),
+    toggle: () =>
+      scale === "battle" && battleKeys
+        ? battleKeys.toggle()
+        : warKeys
+          ? warKeys.toggle()
+          : time.toggle(),
+    pick: (i) =>
+      scale === "battle" && battleKeys
+        ? battleKeys.pick(i)
+        : warKeys
+          ? warKeys.pick(i)
+          : time.pick(i),
   });
   let lens: Lens = "terrain",
     regionLens: RegionLens = "land",
@@ -1454,12 +1503,35 @@ async function runPlanetPage(): Promise<void> {
   // their way crosses the sea, clashes where history fought.
   const globeWars = new GlobeWars(stage, stage.root);
   let warsKey = "",
-    warsNow: WarsMap | null = null;
-  client.subscribe<WarsMap>({ type: "wars.map" }, 2000, (map) => {
-    const frame = client.latestFrame("globe"),
-      key = JSON.stringify(map);
-    if (!frame || key === warsKey) return;
-    warsKey = key;
+    warsNow: WarsMap | null = null,
+    /** The year's wars as last read (kept while a war watched unfolding is drawn instead). */
+    warsLive: WarsMap | null = null,
+    /** A war watched unfolding (Phase 38 M193: see watchWar), null: none. */
+    campaign: {
+      c: Campaign;
+      /** When each of its battles is seen fought (years of the world's, fractional). */
+      at: number[];
+      /** Its moment (a year, fractional), its speed (of WAR_SPEEDS), the speed it was at before held. */
+      year: number;
+      speed: number;
+      was: number;
+      now: CampaignNow;
+      /** What the globe was last given of it (its key), and how far its host is along its way. */
+      drawn: string;
+      marching: Map<string, number>;
+      /**
+       * Whether the eye goes with its host (let go when the globe is turned by hand, taken up
+       * again as each battle is fought), and how many had been fought when it last looked.
+       */
+      follow: boolean;
+      seen: number;
+      /** Whether the eye has been brought nearer or farther by hand (else it keeps its host's way in view). */
+      zoomed: boolean;
+    } | null = null;
+  /** Wars drawn on the globe and in a land: the year's, or a war's watched unfolding. */
+  const showWars = (map: WarsMap) => {
+    const frame = client.latestFrame("globe");
+    if (!frame) return;
     warsNow = map;
     // (Their soldiers' heads in their people's own hide, where they have a look of their own.)
     const paint = figurePaint(map.body ?? null, "metal", 0);
@@ -1473,10 +1545,20 @@ async function runPlanetPage(): Promise<void> {
         frame.arrays.elevation as Float32Array,
       ),
     );
+  };
+  client.subscribe<WarsMap>({ type: "wars.map" }, 2000, (map) => {
+    const frame = client.latestFrame("globe"),
+      key = JSON.stringify(map);
+    if (!frame || key === warsKey) return;
+    warsKey = key;
+    warsLive = map;
+    // (While a war is watched unfolding, it is drawn instead.)
+    if (!campaign) showWars(map);
   });
   stage.onUpdate(() => {
     globeWars.root.enabled = scale === "globe";
-    if (scale === "globe") globeWars.update(performance.now() / 1000, rig.distance);
+    if (scale === "globe")
+      globeWars.update(performance.now() / 1000, rig.distance, campaign?.marching);
     regionWars.visible = scale === "region";
     if (scale === "region") regionWars.update(performance.now() / 1000);
   });
@@ -1577,6 +1659,30 @@ async function runPlanetPage(): Promise<void> {
         : [],
     );
   };
+  /** A war watched unfolding (M193): each battle lately fought and how many fell, each land taken. */
+  const campaignMarks = (): Label[] => {
+    const frame = client.latestFrame("globe");
+    if (!frame || !campaign || !globeWars.root.enabled) return [];
+    const marks = campaign.now.marks,
+      p = sphereGrid((frame.meta as { frequency: number }).frequency).positions,
+      at = globe.screenOf(
+        marks.map((m) => ({ x: p[m.spot * 3]!, y: p[m.spot * 3 + 1]!, z: p[m.spot * 3 + 2]! })),
+        1.03,
+      );
+    return marks.flatMap((m, i) =>
+      at[i]!.facing > 0.15
+        ? [
+            {
+              key: `war:${m.key}`,
+              text: m.text,
+              // (A land taken over its battle's mark, not under it.)
+              at: { x: at[i]!.x, y: at[i]!.y - (m.key.startsWith("taken:") ? 20 : 0) },
+              priority: 1.65e9,
+            },
+          ]
+        : [],
+    );
+  };
   // Visitors from another star (Phase 18 M134): over each land where they came down, keep an
   // embassy, or struck, their name.
   let visits: { cell: number; text: string; event: string }[] = [];
@@ -1627,8 +1733,9 @@ async function runPlanetPage(): Promise<void> {
     // (Read again every half-minute while near enough to be seen.)
     if (rig.distance < 2.6 && performance.now() - townsAt > 30_000) void readTowns();
     globeTowns.update(rig.distance);
-    const named = globeTowns.named(stage.camera.camera!, rig.distance),
-      counters = [...visitMarks(), ...siegeMarks(), ...globeCounters()];
+    // (While a war is watched unfolding, its marks only: the towns' names stand aside.)
+    const named = campaign ? [] : globeTowns.named(stage.camera.camera!, rig.distance),
+      counters = [...visitMarks(), ...siegeMarks(), ...campaignMarks(), ...globeCounters()];
     if (named.length || counters.length || townsNamed)
       labels.update([
         ...counters,
@@ -1969,7 +2076,8 @@ async function runPlanetPage(): Promise<void> {
     // (The palette's acts fall on the world and its lands: at the other scales it stands aside,
     // and an act in hand is put down.)
     // (Among a band, on their land: Phase 29 M160.)
-    const castable = scale === "globe" || scale === "region" || scale === "camp";
+    // (Nor while a war of history is watched unfolding: Phase 38 M193.)
+    const castable = (scale === "globe" && !campaign) || scale === "region" || scale === "camp";
     if (document.body.classList.contains("palette-off") === castable) {
       document.body.classList.toggle("palette-off", !castable);
       if (!castable) palette.putDown();
@@ -2044,7 +2152,9 @@ async function runPlanetPage(): Promise<void> {
     if (now - coveredAt > 250) {
       coveredAt = now;
       const h = Math.max(1, innerHeight),
-        bar = hud.querySelector<HTMLElement>(".panel:not([hidden]) .bar"),
+        bar =
+          hud.querySelector<HTMLElement>(".war-panel:not([hidden]) .bar") ??
+          hud.querySelector<HTMLElement>(".panel:not([hidden]) .bar"),
         // (A page open stands over the scales' own windows.)
         sheet =
           hud.querySelector<HTMLElement>(".page-panel .inspector:not([hidden])") ??
@@ -2056,6 +2166,12 @@ async function runPlanetPage(): Promise<void> {
         top: bar ? bar.getBoundingClientRect().bottom / h : 0,
         bottom: across ? (h - s!.top) / h : 0,
       };
+    }
+    // (A war watched unfolding is framed on the globe's face, nearer the eye than its middle:
+    // the lift that frames the middle lifts its face the more, the nearer the eye is.)
+    if (campaign && scale === "globe") {
+      const k = Math.max(0, (rig.distance - 1) / rig.distance);
+      return { top: covered.top * k, bottom: covered.bottom * k };
     }
     return covered;
   };
@@ -3880,19 +3996,30 @@ async function runPlanetPage(): Promise<void> {
     rig.yaw = 14;
     rig.follow = battleMiddle;
   };
-  /** Down to a battle's field, from wherever the eye is. */
-  const watchBattle = async (event: string) => {
+  /** A war watched unfolding left for one of its battles (M193): which, where it was, at what speed. */
+  type WarLeft = { ref: string; year: number; speed: number };
+  /** The war to go back to from the battle watched (null: none). */
+  let warReturn: WarLeft | null = null;
+  /** Down to a battle's field, from wherever the eye is (from a war unfolding: back to it after). */
+  const watchBattle = async (event: string, fromWar: WarLeft | null = null) => {
     walk.saw("scale");
     pageWindow.close();
+    warReturn = fromWar;
+    battlePanel.backTo(fromWar ? "‹ The war" : "‹ The land");
     await fadeOver(() => ready("the battle", () => toBattle(event)));
   };
   pageWindow.onBattle = (event) => void watchBattle(event);
   tidings.onBattle = (event) => void watchBattle(event);
   events.onBattle = (event) => void watchBattle(event);
-  /** Back up to the land it was fought in, low over it. */
+  /** Back up to the land it was fought in, low over it (or to the war it was watched from). */
   const leaveBattle = async () => {
     const was = fight?.info;
     if (!was) return;
+    if (warReturn) {
+      const back = warReturn;
+      warReturn = null;
+      if (await watchWar(back.ref, back)) return;
+    }
     await fadeOver(() =>
       ready("the land", () => {
         leaveScale();
@@ -4023,6 +4150,267 @@ async function runPlanetPage(): Promise<void> {
     if (speed !== undefined) battleSpeed(speed);
   };
   exposed.clock = () => ({ stopped: time.stopped, speed: time.speed });
+
+  // A war watched unfolding (Phase 38 M193, asked for 2026-10-24: "i still cant see warfare and
+  // like wars like theres no coherent animations and battle between them or a way to make time in
+  // a way for me to see the carnage"): out on the whole world, a war of history played again on a
+  // clock of its own while the world's waits — its host marching from where it set out to each of
+  // its battles in turn, each flaring where it was fought as its turn comes, the fallen of each
+  // side mounting, the lands taken marked, a seat besieged ringed by the besiegers' tents; the eye
+  // going with its host; told as it goes, the battle told of a tap away to be watched fought, and
+  // back to the war after.
+  const warPanel = new WarPanel(hud);
+  /** How much larger than the year's a war watched unfolding's figures are drawn, near as the eye comes. */
+  const WAR_GRAND = 1.8;
+  /** The war's clock: at speed `i` of its own (0 holds it still). */
+  const warSpeed = (i: number) => {
+    if (!campaign) return;
+    const was = campaign.speed,
+      span = campaignSpan(campaign.c);
+    campaign.speed = Math.max(0, Math.min(WAR_SPEEDS.length - 1, i));
+    if (campaign.speed === 0 && was > 0) campaign.was = was;
+    // (Run on from its end: again from its declaring.)
+    if (campaign.speed > 0 && campaign.year >= span.to) {
+      campaign.year = span.from;
+      campaign.follow = true;
+    }
+  };
+  /** The war drawn as it is at its moment: the globe given it anew only when what it shows changes. */
+  const drawWar = () => {
+    if (!campaign) return;
+    campaign.now = campaignAt(campaign.c, campaign.year, campaign.at);
+    const map = { ...campaign.now.map, ...(warsLive?.body ? { body: warsLive.body } : {}) },
+      key = JSON.stringify(map);
+    if (key !== campaign.drawn) {
+      campaign.drawn = key;
+      showWars(map);
+    }
+    campaign.marching.clear();
+    if (campaign.now.march !== null) campaign.marching.set(campaign.c.ref, campaign.now.march);
+  };
+  /** Where the eye looks for the war now: its host's head on its way, else its latest battle, else what it wanted. */
+  const warEye = (): { x: number; y: number; z: number } | null => {
+    const frame = client.latestFrame("globe");
+    if (!frame || !campaign) return null;
+    const p = sphereGrid((frame.meta as { frequency: number }).frequency).positions,
+      unitOf = (s: number) => ({ x: p[s * 3]!, y: p[s * 3 + 1]!, z: p[s * 3 + 2]! }),
+      w = campaign.now.map.wars[0]!,
+      k = campaign.now.march;
+    if (k === null) {
+      const last = campaign.now.fought.at(-1);
+      return unitOf(last && last.spot >= 0 ? last.spot : w.to);
+    }
+    // (Along the great circle from where it last fought to where it fights next: between its
+    // host's head and the defenders' front, as they are drawn.)
+    const a = unitOf(w.from),
+      b = unitOf(w.to),
+      theta = Math.acos(Math.max(-1, Math.min(1, a.x * b.x + a.y * b.y + a.z * b.z)));
+    if (theta < 1e-6) return b;
+    const head = (k * Math.max(0, theta - RANK_STEP * WAR_GRAND)) / theta,
+      f = (head + 1) / 2,
+      s0 = Math.sin((1 - f) * theta) / Math.sin(theta),
+      s1 = Math.sin(f * theta) / Math.sin(theta);
+    return { x: a.x * s0 + b.x * s1, y: a.y * s0 + b.y * s1, z: a.z * s0 + b.z * s1 };
+  };
+  /** How far off the eye keeps to see its host's way and its two hosts whole: nearer for a march from a land next door. */
+  const warDistance = (): number => {
+    const frame = client.latestFrame("globe");
+    if (!frame || !campaign || campaign.now.march === null) return 1.9;
+    const p = sphereGrid((frame.meta as { frequency: number }).frequency).positions,
+      w = campaign.now.map.wars[0]!,
+      chord = Math.hypot(
+        p[w.from * 3]! - p[w.to * 3]!,
+        p[w.from * 3 + 1]! - p[w.to * 3 + 1]!,
+        p[w.from * 3 + 2]! - p[w.to * 3 + 2]!,
+      );
+    return Math.max(
+      1.4,
+      Math.min(
+        2.4,
+        1 + 2.3 * (chord + hostsDepth(w.attacker.fields, w.defender.fields, WAR_GRAND)),
+      ),
+    );
+  };
+  /** The globe turned toward a place on it, eased (`dt` seconds' worth; at once if none). */
+  const lookToward = (v: { x: number; y: number; z: number }, dt?: number) => {
+    const l = Math.hypot(v.x, v.y, v.z) || 1,
+      yaw = (Math.atan2(v.x, v.z) * 180) / Math.PI,
+      pitch = Math.max(-78, Math.min(78, (-Math.asin(v.y / l) * 180) / Math.PI)),
+      k = dt === undefined ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 1.6),
+      turn = ((((yaw - rig.yaw) % 360) + 540) % 360) - 180;
+    rig.yaw += turn * k;
+    rig.pitch += (pitch - rig.pitch) * k;
+  };
+  /** Leave the war watched: the world as it is drawn again, its clock let go. */
+  const endWar = () => {
+    if (!campaign) return;
+    campaign = null;
+    warKeys = null;
+    warPanel.visible = false;
+    labels.clear();
+    time.release("war");
+    globeWars.grand = 1;
+    if (scale === "globe") planetPanel.visible = true;
+    if (warsLive) showWars(warsLive);
+  };
+  /** Out on the whole world to watch a war unfold, from its declaring (or as it was left). */
+  const watchWar = async (ref: string, left?: WarLeft): Promise<boolean> => {
+    const c = await client.query<Campaign | null>({ type: "war.campaign", args: { ref } });
+    if (!c) return false;
+    pageWindow.close();
+    endWar();
+    await toWholeWorld();
+    if (scale !== "globe") return false;
+    const span = campaignSpan(c),
+      at = foughtAt(c),
+      y = Math.max(span.from, Math.min(span.to, left?.year ?? span.from));
+    campaign = {
+      c,
+      at,
+      year: y,
+      speed: left?.speed ?? 2,
+      was: 2,
+      now: campaignAt(c, y, at),
+      drawn: "",
+      marching: new Map(),
+      follow: true,
+      seen: -1,
+      zoomed: false,
+    };
+    // (The world waits while its war is watched.)
+    time.hold("war");
+    globeWars.grand = WAR_GRAND;
+    planetPanel.visible = false;
+    warPanel.show(c);
+    warPanel.visible = true;
+    warKeys = {
+      toggle: () => {
+        if (campaign) warSpeed(campaign.speed === 0 ? campaign.was : 0);
+      },
+      pick: (i) => {
+        if (!campaign || i < 1 || i >= WAR_SPEEDS.length) return false;
+        warSpeed(i);
+        return true;
+      },
+    };
+    drawWar();
+    warPanel.tally(campaign.now, campaign.speed);
+    // Near enough to see its host march, facing it.
+    const eye = warEye();
+    rig.halt();
+    if (eye) lookToward(eye);
+    rig.userZoomed = true;
+    rig.distance = warDistance();
+    return true;
+  };
+  pageWindow.onWar = (ref) => void watchWar(ref);
+  tidings.onWar = (event) => void watchWar(event);
+  warPanel.onBack = () => endWar();
+  warPanel.onPage = () => {
+    if (campaign) void pageWindow.open(campaign.c.ref);
+  };
+  warPanel.onAgain = () => {
+    if (!campaign) return;
+    campaign.year = campaignSpan(campaign.c).from;
+    campaign.follow = true;
+    if (campaign.speed === 0) warSpeed(campaign.was);
+  };
+  warPanel.onSpeed = (i) => warSpeed(i);
+  warPanel.onScrub = (year) => {
+    if (!campaign) return;
+    const span = campaignSpan(campaign.c);
+    campaign.year = Math.max(span.from, Math.min(span.to, year));
+    drawWar();
+  };
+  warPanel.onSide = (ref) => void pageWindow.open(ref);
+  warPanel.onBattle = (event) => {
+    if (campaign)
+      void watchBattle(event, {
+        ref: campaign.c.ref,
+        year: campaign.year,
+        speed: campaign.speed,
+      });
+  };
+  // (Turning the globe by hand lets the eye's following go, till the next battle is fought.)
+  canvas.addEventListener("pointerdown", () => {
+    if (campaign) campaign.follow = false;
+  });
+  // (Nor, brought nearer or farther by hand, does it keep its host's way in view by itself.)
+  canvas.addEventListener(
+    "wheel",
+    () => {
+      if (campaign) campaign.zoomed = true;
+    },
+    { passive: true },
+  );
+  stage.onUpdate((dt) => {
+    if (!campaign) return;
+    // (Gone from the globe — into a land, out to the sky, down to a battle: the war is left.)
+    if (scale !== "globe") {
+      endWar();
+      return;
+    }
+    const span = campaignSpan(campaign.c),
+      pace = WAR_SPEEDS[campaign.speed] ?? 0;
+    if (pace > 0) {
+      campaign.year = Math.min(
+        span.to,
+        campaign.year + Math.min(dt, 0.1) * pace * WAR_YEARS_A_SECOND,
+      );
+      // (At its end it stands, the world as the war left it.)
+      if (campaign.year >= span.to) warSpeed(0);
+    }
+    drawWar();
+    if (rig.steering) campaign.follow = false;
+    if (campaign.now.fought.length !== campaign.seen) {
+      campaign.seen = campaign.now.fought.length;
+      campaign.follow = true;
+    }
+    const eye = campaign.follow && !rig.flying ? warEye() : null;
+    if (eye) {
+      lookToward(eye, dt);
+      if (!campaign.zoomed)
+        rig.distance += (warDistance() - rig.distance) * (1 - Math.exp(-Math.min(dt, 0.1) * 1.2));
+    }
+    warPanel.tally(campaign.now, campaign.speed);
+  });
+  exposed.watchWar = (ref: string) => watchWar(ref);
+  exposed.war = () =>
+    campaign
+      ? {
+          ref: campaign.c.ref,
+          title: campaign.c.title,
+          year: campaign.year,
+          span: campaignSpan(campaign.c),
+          speed: WAR_SPEEDS[campaign.speed] ?? 0,
+          words: campaign.now.words,
+          fought: campaign.now.fought.length,
+          battles: campaign.c.battles.length,
+          won: [...campaign.now.won],
+          fallen: [...campaign.now.fallen],
+          taken: campaign.now.taken.length,
+          march: campaign.now.march,
+          siege: campaign.now.map.wars[0]!.siege,
+          follow: campaign.follow,
+          drawn: {
+            marching: globeWars.counts.marching,
+            battle: globeWars.counts.battle,
+            fallen: globeWars.counts.fallen,
+            tents: globeWars.counts.tents,
+          },
+          marks: campaignMarks().map((m) => m.text),
+          world: time.stopped,
+          panel: !warPanel.element.hidden,
+        }
+      : null;
+  exposed.warAt = (year: number, speed?: number) => {
+    if (!campaign) return;
+    const span = campaignSpan(campaign.c);
+    campaign.year = Math.max(span.from, Math.min(span.to, year));
+    if (speed !== undefined) warSpeed(speed);
+    drawWar();
+  };
+  exposed.leaveWar = () => endWar();
   // The land's weather where the eye is on the ground (Phase 30 M162, asked for 2026-10-24: "be
   // able to pause and influence and all that"): among a band, over a land, in a town — its sky
   // read every few seconds (and at once when the god's hand falls), and played moment by moment:

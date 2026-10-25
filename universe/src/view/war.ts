@@ -26,6 +26,8 @@ export type WarPath = {
   readonly foeMen: number;
   readonly mounted: boolean;
   readonly foeMounted: boolean;
+  /** How long its way is over the globe (its radius 1). */
+  readonly length: number;
 };
 
 export type WarPaths = {
@@ -137,11 +139,13 @@ export function warPaths(map: WarsMap, grid: SphereGrid, elevation: Float32Array
       b = unit(w.to),
       dot = Math.max(-1, Math.min(1, a.x * b.x + a.y * b.y + a.z * b.z)),
       theta = Math.acos(dot);
-    if (theta < 1e-6) continue;
+    // (A host with no way to go — setting out from what it wants — is not drawn marching; its
+    // battles and its camp are.)
+    const still = theta < 1e-6;
     const points: Vec[] = [],
       sea: boolean[] = [];
     let cell = w.from;
-    for (let i = 0; i <= STEPS; i++) {
+    for (let i = 0; !still && i <= STEPS; i++) {
       // Along the great circle between them (slerp).
       const k = i / STEPS,
         s0 = Math.sin((1 - k) * theta) / Math.sin(theta),
@@ -153,18 +157,27 @@ export function warPaths(map: WarsMap, grid: SphereGrid, elevation: Float32Array
     }
     const side = colorOf(w.attacker.color),
       foe = colorOf(w.defender.color);
-    paths.push({
-      ref: w.ref,
-      side,
-      foe,
-      points,
-      sea,
-      fought: w.ended === null,
-      men: w.attacker.fields,
-      foeMen: w.defender.fields,
-      mounted: rides(w.attacker.host),
-      foeMounted: rides(w.defender.host),
-    });
+    if (!still)
+      paths.push({
+        ref: w.ref,
+        side,
+        foe,
+        points,
+        sea,
+        fought: w.ended === null,
+        men: w.attacker.fields,
+        foeMen: w.defender.fields,
+        mounted: rides(w.attacker.host),
+        foeMounted: rides(w.defender.host),
+        length: points.reduce(
+          (n, p, i) =>
+            i
+              ? n +
+                Math.hypot(p.x - points[i - 1]!.x, p.y - points[i - 1]!.y, p.z - points[i - 1]!.z)
+              : 0,
+          0,
+        ),
+      });
     for (const f of w.battles)
       if (f.spot >= 0)
         bursts.push({
@@ -215,11 +228,132 @@ export type WarToken = {
 /** How long a host's march from its land to the front takes on the screen (seconds). */
 export const MARCH = 10;
 
-/** Every host on the globe at screen time `s`: the marchers of each war still fought, and its defenders. */
-export function warTokens(w: WarPaths, s: number): WarToken[] {
+/** How far apart the ranks of a host watched marching stand (globe units, its figures `grand` the larger). */
+export const RANK_STEP = 0.016;
+
+/**
+ * How deep a war's two hosts stand when watched unfolding (globe units): the attacker's column and
+ * the defenders' ranks, end to end (for the eye to keep them whole in view).
+ */
+export function hostsDepth(men: number, foeMen: number, grand: number): number {
+  return (hostShape(men).ranks + holdShape(foeMen).ranks) * RANK_STEP * grand;
+}
+
+/**
+ * A point of a war's way `d` along it (globe units): its place, which way the host goes there, and
+ * whether it is sea. Past either end, on along the way's bearing there (a host's column trailing back
+ * into its own land; the defenders' ranks behind their front).
+ */
+function alongWay(
+  path: WarPath,
+  cum: readonly number[],
+  d: number,
+): { at: Vec; ahead: Vec; sea: boolean } {
+  const pts = path.points,
+    last = pts.length - 1,
+    reach = cum[last]!;
+  if (d <= 0 || d >= reach) {
+    const [end, next] = d <= 0 ? [0, 1] : [last, last - 1],
+      p = pts[end]!,
+      q = pts[next]!,
+      out = norm({ x: p.x - q.x, y: p.y - q.y, z: p.z - q.z }),
+      past = d <= 0 ? -d : d - reach,
+      r = Math.hypot(p.x, p.y, p.z),
+      v = norm({ x: p.x + out.x * past, y: p.y + out.y * past, z: p.z + out.z * past });
+    return {
+      at: { x: v.x * r, y: v.y * r, z: v.z * r },
+      ahead: d <= 0 ? { x: -out.x, y: -out.y, z: -out.z } : out,
+      sea: path.sea[end]!,
+    };
+  }
+  let i = 0;
+  while (i < last - 1 && cum[i + 1]! <= d) i++;
+  const a = pts[i]!,
+    b = pts[i + 1]!,
+    q = (d - cum[i]!) / Math.max(1e-9, cum[i + 1]! - cum[i]!);
+  return {
+    at: { x: a.x + (b.x - a.x) * q, y: a.y + (b.y - a.y) * q, z: a.z + (b.z - a.z) * q },
+    ahead: norm({ x: b.x - a.x, y: b.y - a.y, z: b.z - a.z }),
+    sea: path.sea[q < 0.5 ? i : i + 1]!,
+  };
+}
+
+/**
+ * The two hosts of a war watched unfolding (Phase 38 M193), its attacker's `k` (0 … 1) along its
+ * way: its column in ranks spaced by the ground, its head at the defenders' front by the end of
+ * its way (as it sets out, trailing back into its own land); the defenders in their ranks at what
+ * they hold, facing it. Their figures `grand` the larger, their files the wider apart.
+ */
+function watchedTokens(path: WarPath, k: number, grand: number): WarToken[] {
+  const out: WarToken[] = [],
+    cum = [0];
+  for (let i = 1; i < path.points.length; i++) {
+    const a = path.points[i - 1]!,
+      b = path.points[i]!;
+    cum.push(cum[i - 1]! + Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z));
+  }
+  const reach = cum.at(-1)!,
+    step = RANK_STEP * grand,
+    file = 0.014 * grand,
+    head = Math.max(0, Math.min(1, k)) * Math.max(0, reach - step),
+    rank = (
+      d: number,
+      files: number,
+      attacker: boolean,
+      r: number,
+      mounted: boolean,
+      side: number,
+    ) => {
+      const p = alongWay(path, cum, d),
+        up = norm(p.at),
+        aside = norm(cross(up, p.ahead)),
+        mid = Math.floor((files - 1) / 2);
+      for (let f = 0; f < files; f++) {
+        const off = (f - (files - 1) / 2) * file;
+        out.push({
+          ref: path.ref,
+          at: { x: p.at.x + aside.x * off, y: p.at.y + aside.y * off, z: p.at.z + aside.z * off },
+          up,
+          ahead: attacker ? p.ahead : { x: -p.ahead.x, y: -p.ahead.y, z: -p.ahead.z },
+          side,
+          attacker,
+          ship: p.sea,
+          lead: r === 0 && f === mid,
+          size: 1,
+          banner: f === mid && (attacker ? r % 3 === 0 : r === 0),
+          mounted,
+        });
+      }
+    };
+  const host = hostShape(path.men),
+    hold = holdShape(path.foeMen);
+  for (let r = 0; r < host.ranks; r++)
+    rank(head - r * step, host.files, true, r, path.mounted, path.side);
+  for (let r = 0; r < hold.ranks; r++)
+    rank(reach + r * step, hold.files, false, r, path.foeMounted, path.foe);
+  return out;
+}
+
+/**
+ * Every host on the globe at screen time `s`: the marchers of each war still fought, and its
+ * defenders. A war in `marching` (one watched unfolding, Phase 38 M193) has its host as far along
+ * its way as that says (0 … 1), not marching out over and over: in ranks spaced by the ground,
+ * their figures `grand` the larger (watchedTokens).
+ */
+export function warTokens(
+  w: WarPaths,
+  s: number,
+  marching?: ReadonlyMap<string, number>,
+  grand = 1,
+): WarToken[] {
   const out: WarToken[] = [];
   w.paths.forEach((path, n) => {
     if (!path.fought) return;
+    const pinned = marching?.get(path.ref);
+    if (pinned !== undefined) {
+      out.push(...watchedTokens(path, pinned, grand));
+      return;
+    }
     const at = (k: number) => {
       const f = Math.max(0, Math.min(1, k)) * (path.points.length - 1),
         i = Math.min(path.points.length - 2, Math.floor(f)),
@@ -309,7 +443,7 @@ export type BattleFigure = {
  * larger the more fought; and between them the fallen, as many more as fell. Last year's
  * smaller: its fight is done, its fallen remain.
  */
-export function battleFigures(w: WarPaths, s: number): BattleFigure[] {
+export function battleFigures(w: WarPaths, s: number, grand = 1): BattleFigure[] {
   const out: BattleFigure[] = [];
   w.bursts.forEach((b, n) => {
     if (b.age > 1) return;
@@ -339,7 +473,7 @@ export function battleFigures(w: WarPaths, s: number): BattleFigure[] {
           file = Math.floor(i / 2) - (Math.ceil(each / 2) - 1) / 2;
         out.push({
           event: b.event,
-          at: place(sign * (0.008 + rank * 0.007) + sign * sway, file * 0.008),
+          at: place((sign * (0.008 + rank * 0.007) + sign * sway) * grand, file * 0.008 * grand),
           up,
           ahead: { x: -sign * dir.x, y: -sign * dir.y, z: -sign * dir.z },
           side,
@@ -355,7 +489,7 @@ export function battleFigures(w: WarPaths, s: number): BattleFigure[] {
         beaten = b.won ? b.foe : b.side;
       out.push({
         event: b.event,
-        at: place((u - 0.5) * 0.012, (v - 0.5) * 0.03),
+        at: place((u - 0.5) * 0.012 * grand, (v - 0.5) * 0.03 * grand),
         up,
         ahead: { x: aside.x, y: aside.y, z: aside.z },
         side: i % 3 === 2 ? (beaten === b.side ? b.foe : b.side) : beaten,
@@ -742,7 +876,15 @@ export function landColumn(
 /** The men a host fields, as its counter says them: 850, 3.4k, 12k (Phase 11 M101). */
 export function counterWords(men: number): string {
   const n = Math.max(0, Math.round(men));
-  return n >= 9950 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`;
+  return n >= 9_950_000
+    ? `${Math.round(n / 1e6)}M`
+    : n >= 999_500
+      ? `${(n / 1e6).toFixed(1)}M`
+      : n >= 9950
+        ? `${Math.round(n / 1000)}k`
+        : n >= 1000
+          ? `${(n / 1000).toFixed(1)}k`
+          : `${n}`;
 }
 
 /**

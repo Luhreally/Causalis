@@ -2089,6 +2089,22 @@ function warLedger(world: World, now: number): Block[] {
           color: realmColor(w.attacker),
         })),
     },
+    // The bloodiest of them watched unfolding on the globe (Phase 38 M193).
+    ...[...wars]
+      .filter((w) => w.battles.length > 0 && w.fallen[0] + w.fallen[1] > 0)
+      .sort(
+        (a, b) =>
+          b.fallen[0] + b.fallen[1] - (a.fallen[0] + a.fallen[1]) || (a.ref < b.ref ? -1 : 1),
+      )
+      .slice(0, 1)
+      .map((w) => ({
+        type: "tool" as const,
+        tool: "watch.war",
+        args: {
+          ref: w.ref,
+          label: `▶ Watch the bloodiest war unfold: ${name(w.attacker)} upon ${name(w.defender)} (${count(w.fallen[0] + w.fallen[1])} fell)`,
+        },
+      })),
     ...battleLedger(world, wars),
     {
       type: "table",

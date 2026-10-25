@@ -106,6 +106,8 @@ export class PageWindow {
   onNear: ((cell: number, camp: number) => void) | null = null;
   /** A battle watched fought (Phase 37 M186). */
   onBattle: ((event: string) => void) | null = null;
+  /** A war watched unfolding on the globe (Phase 38 M193). */
+  onWar: ((ref: string) => void) | null = null;
   /** Told as each page opens (the scales mark what it is). */
   onOpen: (page: PageModel) => void = () => {};
   onClose: () => void = () => {};
@@ -774,6 +776,7 @@ export class PageWindow {
           ...(this.onWatch ? { watch: this.onWatch } : {}),
           ...(this.onNear ? { near: this.onNear } : {}),
           ...(this.onBattle ? { battle: this.onBattle } : {}),
+          ...(this.onWar ? { war: this.onWar } : {}),
         });
         break;
     }
