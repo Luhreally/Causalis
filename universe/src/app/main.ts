@@ -5579,8 +5579,14 @@ async function runPlanetPage(): Promise<void> {
         await new Promise((r) => setTimeout(r, 250));
       }
       // (Their first years go by a year a second while they wander: a people's first village may
-      // be many years in coming, and at the land's month a second the eye would wait minutes.)
-      if (here()) time.pick(4);
+      // be many years in coming, and at the land's month a second the eye would wait minutes. Not
+      // until the eye has come down near them — on a machine slow to draw, the years would go by
+      // while it flies, and the first village come before the camps were ever seen — and not over
+      // the clock as the viewer has held it or set it going themselves meanwhile.)
+      const pace = time.speed;
+      for (let wait = 0; wait < 240 && here() && rig.flying; wait++)
+        await new Promise((r) => setTimeout(r, 250));
+      if (here() && !time.stopped && time.speed === pace) time.pick(4);
     }
     const watching = () =>
       !pageWindow.current &&

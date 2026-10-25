@@ -143,8 +143,24 @@ await begin(page);
   check(l.towns === 0, "a town stands before any people farm");
   check(names.length >= 1, "no camp is named on the land");
   await shot("1-camps");
-  // A camp tapped by its name: its page, who they are and how they live.
-  const named = names[0];
+  // A camp tapped by its name: its page, who they are and how they live. (By a name nothing
+  // stands over: a card come up over the land would take the tap, not the camp.)
+  const uncovered = async (n: { x: number; y: number }) =>
+    k<boolean>(
+      `(() => { const e = document.elementFromPoint(${n.x}, ${n.y}); return !!e && (e.tagName === "CANVAS" || !!e.closest(".labels")); })()`,
+    );
+  let named: (typeof names)[number] | undefined;
+  for (const n of names)
+    if (await uncovered(n)) {
+      named = n;
+      break;
+    }
+  if (!named && names[0])
+    problems.push(
+      `every camp's name is covered: at [${Math.round(names[0].x)},${Math.round(names[0].y)}] ${await k<string>(
+        `document.elementsFromPoint(${names[0].x}, ${names[0].y}).slice(0, 3).map((e) => e.tagName + "." + e.className).join(" > ")`,
+      )}`,
+    );
   if (named) {
     const ref = await k<string | null>(`globalThis.causalis.refAt(${named.x}, ${named.y})`);
     check(!!ref && /^camp:\d+:\d+$/.test(ref), `a tap on a camp's name found ${ref ?? "nothing"}`);
@@ -163,7 +179,16 @@ await begin(page);
       },
       slow(20000),
     );
-    say(`a camp tapped: “${shown.title}” — ${shown.body.slice(0, 120)}…`);
+    say(
+      `a camp tapped at [${Math.round(named.x)},${Math.round(named.y)}]: “${shown.title}” — ${shown.body.slice(0, 120)}…`,
+    );
+    // (Where the page did not come: what stood at the point tapped, over the land.)
+    if (!shown.title)
+      say(
+        `  under the tap: ${await k<string>(
+          `document.elementsFromPoint(${named.x}, ${named.y}).slice(0, 3).map((e) => e.tagName + "." + e.className).join(" > ")`,
+        )}`,
+      );
     check(/km across/.test(shown.body), "a camp's page does not tell how far its band ranges");
     await shot("1b-a-camp");
     // Down among one of its bands, from its page (M160): the land's own beasts about them, their
