@@ -44,6 +44,7 @@ import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
 import { campPage } from "./camp.ts";
 import { armPage } from "./arm.ts";
 import { elementPage } from "./element.ts";
+import { levyManPage, townsfolkPage } from "./townsfolk.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
 function build(world: World, ref: string, tab: string | null): PageModel {
@@ -79,6 +80,9 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("walls:")) return wallsPage(world, ref);
   // A band's camp on its land (Phase 28 M159).
   if (ref.startsWith("camp:")) return campPage(world, ref);
+  // One of a town's many kept by their line, and one of a battle's levy (Phase 55 M225).
+  if (ref.startsWith("folk:town:")) return townsfolkPage(world, ref);
+  if (ref.startsWith("lv:")) return levyManPage(world, ref);
   const code = ref.slice(0, ref.indexOf(":")),
     t = tab ?? undefined;
   switch (code) {

@@ -78,6 +78,8 @@ export class VillagePanel {
   onStores: () => void = () => {};
   /** The war about the town tapped: its page (the battle's, once one is fought before it). */
   onWar: (ref: string) => void = () => {};
+  /** One of the town's many's page (Phase 55 M225). */
+  onPage: (ref: string) => void = () => {};
   /** News of what the observer follows, and the toggles that follow things. */
   tidings: Tidings | null = null;
 
@@ -312,6 +314,7 @@ export class VillagePanel {
     role: string | null,
     today: string | null,
     touch?: Touchable & { readonly done: (agent: string) => void },
+    page?: string,
   ): void {
     this.view++;
     // (Inspired or blessed where they are met, Phase 54: the hand laid on the town from them.)
@@ -322,15 +325,24 @@ export class VillagePanel {
     this.inspector.hidden = false;
     this.who.textContent = name;
     this.folkMore.replaceChildren();
+    // Their page: their line's, where the town's many have one (Phase 55 M225).
+    const their: HTMLElement[] = [];
+    if (page !== undefined) {
+      const pageRef = page;
+      const button = el("button", "line", "Their page ›");
+      button.onclick = () => this.onPage(pageRef);
+      their.push(button);
+    }
     this.page.replaceChildren(
       // (What they are: "a smith of Sairis, 27 years at the anvil", Phase 50 M212.)
       ...(role ? [el("div", "fact folk-role", role[0]!.toUpperCase() + role.slice(1))] : []),
       ...(today ? [el("div", "fact", `Today: ${today}`)] : []),
+      ...their,
       this.folkMore,
       el(
         "p",
         "muted",
-        "One of the town's many, drawn for its crowd and named in its tongue: history counts them among its people but does not follow their lives. They live its day as its own people do.",
+        "One of the town's many, drawn for its crowd and named in its tongue: history keeps them by their line — the wars they went to, their wounds, their fall — though not their days. They live its day as its own people do.",
       ),
       acts,
     );

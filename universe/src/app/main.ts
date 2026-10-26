@@ -4160,6 +4160,7 @@ async function runPlanetPage(): Promise<void> {
     villagePanel.warNow(tw?.words ?? null, tw ? (tw.fought?.event ?? tw.ref) : null);
   });
   villagePanel.onWar = (ref) => void pageWindow.open(ref);
+  villagePanel.onPage = (ref) => void pageWindow.open(ref);
   // (An act cast on the town watched — fire sent on it, a spring, a shrine, its land shaken — read
   // again at once, so it is seen as it falls: Phase 42 M201.)
   const castOnTown = palette.onCast;
@@ -4285,7 +4286,7 @@ async function runPlanetPage(): Promise<void> {
     villagePanel.closeCard();
     if (i === null || !plan) return;
     const p = plan.people[i]!;
-    // (One of the town's many drawn for its crowd, Phase 39 M198, has no page: their card.)
+    // (One of the town's many drawn for its crowd, Phase 39 M198: their card, and their line's page, Phase 55 M225.)
     if (p.folk) {
       pageWindow.close();
       villagePanel.showFolk(
@@ -4303,6 +4304,7 @@ async function runPlanetPage(): Promise<void> {
           ...(p.sex !== undefined ? { sex: p.sex } : {}),
           done: (agent) => void touched(agent),
         },
+        p.trade || p.healer ? undefined : p.ref,
       );
       return;
     }

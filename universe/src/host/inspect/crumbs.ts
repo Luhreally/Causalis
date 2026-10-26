@@ -5,7 +5,7 @@ import { cellRef } from "../../gen/index.ts";
 import { observer } from "../../causal/index.ts";
 import { politiesOf, populationContext, warsOf } from "../../sim/index.ts";
 import type { Ref, World } from "../../kernel/index.ts";
-import type { Line, Span } from "../../bridge/index.ts";
+import { parseLevyManRef, parseTownsfolkRef, type Line, type Span } from "../../bridge/index.ts";
 import { link } from "./words.ts";
 import { landTitle } from "./names.ts";
 import { landOfRef } from "./land.ts";
@@ -46,10 +46,23 @@ export function crumbsOf(world: World, ref: string): Line {
     switch (code) {
       case "cell":
       case "regn":
-      case "folk":
       case "ways":
         realmOf(landOfRef(ref));
         break;
+      // One of a town's many, kept by their line (Phase 55 M225): up through its town.
+      case "folk": {
+        const t = parseTownsfolkRef(ref);
+        if (!t) {
+          realmOf(landOfRef(ref));
+          break;
+        }
+        const s = populationContext(world).settlements.get(t.town as Ref);
+        if (s) {
+          landOf(s.cell);
+          add(s.name, s.ref);
+        }
+        break;
+      }
       case "town": {
         const t = populationContext(world).settlements.get(ref as Ref);
         if (t) landOf(t.cell);
@@ -109,6 +122,22 @@ export function crumbsOf(world: World, ref: string): Line {
           const a = realms.get(w.attacker),
             d = realms.get(w.defender);
           add(`the war of ${a?.town ?? "the fallen"} upon ${d?.town ?? "the fallen"}`, w.ref);
+        }
+        break;
+      }
+      // One of a battle's levy (Phase 55 M225): the war it was fought in, then the battle.
+      case "lv": {
+        const man = parseLevyManRef(ref),
+          w = man
+            ? warsOf(world)
+                .all()
+                .find((x) => x.battles.some((b) => b.event === man.event))
+            : undefined;
+        if (man && w) {
+          const a = realms.get(w.attacker),
+            d = realms.get(w.defender);
+          add(`the war of ${a?.town ?? "the fallen"} upon ${d?.town ?? "the fallen"}`, w.ref);
+          add("the battle", man.event);
         }
         break;
       }
