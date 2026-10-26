@@ -33,6 +33,14 @@ import {
   type Flow,
   type PopulationContext,
 } from "../sim/index.ts";
+import {
+  WAR_PAST_YEARS,
+  drawPastWars,
+  drawWar,
+  warFronts,
+  type Fronts,
+  type WarFate,
+} from "./warfates.ts";
 
 export const PERSON = defineKind("prsn", "person", "structural");
 export const HOUSEHOLD = defineKind("hhold", "household", "structural");
@@ -101,6 +109,8 @@ export type Person = {
   lifeTo?: number;
   memories?: Memory[];
   traits?: Record<string, number>;
+  /** The battles they went to and how they came home, or did not (Phase 55 M225; absent: none). */
+  wars?: WarFate[];
 };
 
 export type Household = {
@@ -125,6 +135,8 @@ export class ObserverLedger implements StateStore {
   readonly remembered = new Map<string, Remembered>();
   /** What the observer follows (lands, villages, realms, people met), by ref. */
   readonly watches = new Map<string, Watch>();
+  /** The battles a man met now is asked of, while the world stands still (neither saved nor hashed). */
+  private past: { readonly at: number; readonly fronts: Fronts } | null = null;
 
   claimed(key: string): number {
     return this.claims.get(key) ?? 0;
@@ -162,6 +174,17 @@ export class ObserverLedger implements StateStore {
   /** Everything followed, in the order it was taken up. */
   allWatches(): Watch[] {
     return [...this.watches.values()].sort((a, b) => a.since - b.since || (a.ref < b.ref ? -1 : 1));
+  }
+  /**
+   * The battles of the WAR_PAST_YEARS before the world's year (Phase 55 M225), as those met now are
+   * asked of them: the same until the world moves on (commands and systems act only as it does).
+   */
+  pastFronts(world: World): Fronts {
+    if (this.past?.at !== world.now) {
+      const now = Math.floor(world.now / YEAR);
+      this.past = { at: world.now, fronts: warFronts(world, now - WAR_PAST_YEARS, now) };
+    }
+    return this.past.fronts;
   }
   /** How many of a village's people have been met and live there still. */
   claimedIn(village: Ref): number {
@@ -204,7 +227,12 @@ export class ObserverLedger implements StateStore {
     this.households.clear();
     this.claims.clear();
     this.remembered.clear();
-    for (const p of s.persons) this.persons.set(p.seq, { ...p, moves: [...p.moves] });
+    for (const p of s.persons)
+      this.persons.set(p.seq, {
+        ...p,
+        moves: [...p.moves],
+        ...(p.wars ? { wars: [...p.wars] } : {}),
+      });
     for (const h of s.households) this.households.set(h.seq, { ...h, members: [...h.members] });
     for (const [k, v] of s.claims) this.claims.set(k, v);
     for (const r of s.remembered) this.remembered.set(r.id, r);
@@ -331,7 +359,8 @@ export function meetHousehold(world: World, cell: number, village: Ref | null): 
     surname = tongueName({ ...tongue, seed: tongue.seed ^ 0xf00d }, seq);
   const hhRef = makeRef(HOUSEHOLD, 0, seq),
     members: Person[] = [],
-    index = flowsIndexed(ctx);
+    index = flowsIndexed(ctx),
+    past = ledger.pastFronts(world);
   const add = (r: number, o: number, role: Role, ageLimit?: [number, number]): Person | null => {
     if (room() < 1 || !ledger.claim(countKey(cell, r, o), p.counts.get(r, o))) return null;
     if (v) ledger.claim(villageKey(v.ref), v.population);
@@ -374,6 +403,10 @@ export function meetHousehold(world: World, cell: number, village: Ref | null): 
       now,
       (pr, n) => world.rng.real(COLLAPSE, pseq, now, 4, n) < pr,
       index,
+    );
+    // The battles of their past they came home from (Phase 55 M225): they live to be met.
+    drawPastWars(ctx, ledger, person, now, past, (pu, n, y) =>
+      world.rng.real(LIFE, pseq, y, pu, n),
     );
     ledger.persons.set(pseq, person);
     members.push(person);
@@ -469,6 +502,7 @@ function followLife(
   ledger: ObserverLedger,
   person: Person,
   index: Map<string, number[]>,
+  fronts: Fronts,
 ): void {
   const now = Math.floor(world.now / YEAR),
     hh = ledger.household(person.household)!;
@@ -501,6 +535,17 @@ function followLife(
         break;
       }
     }
+    // The battles at the year's turn (Phase 55 M225): the levy, the fallen, the wounded.
+    drawWar(
+      ctx,
+      ledger,
+      person,
+      y,
+      fronts,
+      (pu, n) => world.rng.real(LIFE, person.seq, y, pu, n),
+      (band) =>
+        ledger.claim(deathKey(person.cell, y, band), ctx.history.deathsIn(person.cell, y, band)),
+    );
   }
   person.resolvedTo = Math.max(person.resolvedTo, now);
 }
@@ -518,7 +563,11 @@ export function settleAll(world: World): void {
   const ctx = populationContext(world),
     index = flowsIndexed(ctx),
     people = [...ledger.persons.values()].sort((a, b) => a.seq - b.seq);
-  for (const person of people) followLife(world, ctx, ledger, person, index);
+  // The battles of the years anyone met is followed through (Phase 55 M225).
+  let from = now;
+  for (const p of people) from = Math.min(from, p.resolvedTo);
+  const fronts = warFronts(world, from, now);
+  for (const person of people) followLife(world, ctx, ledger, person, index, fronts);
   ledger.releaseAll(["c:", "v:"]);
   for (const person of people) {
     person.claimKey = null;

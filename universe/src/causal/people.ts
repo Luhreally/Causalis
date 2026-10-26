@@ -41,6 +41,10 @@ export const LIFE_WORDS: Readonly<Record<string, string>> = {
   shrine: "Saw a shrine rise in their land, by the god's own hand",
   fire: "Saw the city burn",
   spring: "Saw a spring well up from dry ground",
+  "went-to-war": "Went to war with the levy, and came home whole",
+  "wounded-in-battle": "Was wounded in battle, and came home",
+  "maimed-in-battle": "Was maimed in battle, and came home",
+  "fell-in-battle": "Fell in battle",
 };
 /** What a memory is of, in words. */
 export const MEMORY_WORDS: Readonly<Record<string, string>> = {
@@ -73,6 +77,10 @@ export const MEMORY_WORDS: Readonly<Record<string, string>> = {
   shrine: "the shrine rising",
   fire: "the great fire",
   spring: "the spring welling up",
+  "went-to-war": "the battle they fought in",
+  "wounded-in-battle": "the battle that wounded them",
+  "maimed-in-battle": "the battle that maimed them",
+  "fell-in-battle": "the battle they fell in",
 };
 
 function hasPeople(world: World): boolean {

@@ -29,6 +29,14 @@ import { MEMORY, catchUp, observer, type LifeEvent, type Memory, type Person } f
 
 const CHARACTER = defineStream("observe.character");
 
+/** A battle in a life, by how they came home from it (Phase 55 M225). */
+const WAR_LIFE = {
+  stood: "went-to-war",
+  hurt: "wounded-in-battle",
+  maimed: "maimed-in-battle",
+  fell: "fell-in-battle",
+} as const;
+
 /** How strongly each kind of life event marks a young person. */
 const SALIENCE: Readonly<Record<string, number>> = {
   moved: 5,
@@ -60,6 +68,10 @@ const SALIENCE: Readonly<Record<string, number>> = {
   shrine: 3,
   fire: 4.5,
   spring: 2.5,
+  "went-to-war": 4,
+  "wounded-in-battle": 4.5,
+  "maimed-in-battle": 5,
+  "fell-in-battle": 5,
 };
 
 /** Life events read off the person's work and place now, recomputed whenever their life is. */
@@ -188,6 +200,7 @@ export function deepen(world: World, person: Person): Person {
       }
     }
     for (const m of person.moves) if (m.year === y) add(y, "moved", m.event);
+    for (const w of person.wars ?? []) if (w.year === y) add(y, WAR_LIFE[w.fate], w.event);
   }
   // The work they took up, and what drew them to it: a farmer who grew up before
   // farming came took it up when it did; everyone else took up their work as they

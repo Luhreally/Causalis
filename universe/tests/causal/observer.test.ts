@@ -12,6 +12,7 @@ import {
   resolvePerson,
   spine,
   why,
+  warClaimLimit,
   type Person,
 } from "../../src/causal/index.ts";
 
@@ -33,6 +34,7 @@ function assertWithinHistory(world: World): void {
     else if (kind === "b") limit = ctx.history.birthsIn(Number(a), Number(b));
     else if (kind === "d") limit = ctx.history.deathsIn(Number(a), Number(b), Number(c));
     else if (kind === "f") limit = ctx.history.flowAt(Number(a))!.count;
+    else if (kind === "l" || kind === "w" || kind === "h") limit = warClaimLimit(world, key);
     else throw new Error(`unknown claim ${key}`);
     assert.ok(n <= limit, `${key}: ${n} claimed of ${limit}`);
   }

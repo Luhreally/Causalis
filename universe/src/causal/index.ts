@@ -29,6 +29,7 @@ export {
   type Role,
 } from "./observer.ts";
 export { LIFE_WORDS, MEMORY_WORDS, isObserved } from "./people.ts";
+export { WAR_DRAWS, WAR_PAST_YEARS, warClaimKey, warClaimLimit, type WarFate } from "./warfates.ts";
 export { FOLK, folkRef } from "./population.ts";
 import "./economy.ts";
 import "./acts.ts";
