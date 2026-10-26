@@ -81,6 +81,7 @@ import {
   type StoresNow,
   townWarScene,
   traderSeat,
+  tripOn,
   furnaceOf,
   rackNow,
   rackSlot,
@@ -1974,7 +1975,7 @@ export class VillageScene {
    * The town's trade as drawn (the look tools, Phase 48 M210): its plan's, and each of its traders
    * now (by their place in the plan) — where, what they are about and carry, and whether drawn.
    */
-  tradeShown(): {
+  tradeShown(days = 0): {
     trade: { out: TradeGood[]; in: TradeGood[] } | null;
     traders: {
       index: number;
@@ -1984,9 +1985,44 @@ export class VillageScene {
       carry: string | null;
       hidden: boolean;
     }[];
+    trips: {
+      index: number;
+      out: number;
+      back: number;
+      land: string;
+      take: string | null;
+      bring: string | null;
+    }[];
   } | null {
     const plan = this.plan;
     if (!plan) return null;
+    // (The trips its traders set out on from today for so many days, by the day they set out.)
+    const today = Math.floor(this.lastT / 86_400),
+      trips: {
+        index: number;
+        out: number;
+        back: number;
+        land: string;
+        take: string | null;
+        bring: string | null;
+      }[] = [];
+    if (days > 0)
+      plan.people.forEach((_, index) => {
+        const seat = traderSeat(plan, index);
+        if (seat >= 0)
+          for (let d = today; d < today + days; d++) {
+            const on = tripOn(plan, seat, d);
+            if (on?.part === "out")
+              trips.push({
+                index,
+                out: on.trip.out,
+                back: on.trip.back,
+                land: on.trip.land,
+                take: on.trip.take?.what ?? null,
+                bring: on.trip.bring?.what ?? null,
+              });
+          }
+      });
     return {
       trade: plan.trade ? { out: [...plan.trade.out], in: [...plan.trade.in] } : null,
       traders: plan.people.flatMap((_, index) => {
@@ -1995,6 +2031,7 @@ export class VillageScene {
           ? [{ index, x: m.x, z: m.z, why: m.why, carry: m.carry, hidden: m.hidden }]
           : [];
       }),
+      trips: trips.sort((a, b) => a.out - b.out || a.index - b.index),
     };
   }
 

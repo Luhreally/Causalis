@@ -45,7 +45,15 @@ type Trader = {
   carry: string | null;
   hidden: boolean;
 };
-type Trade = { trade: { out: Good[]; in: Good[] } | null; traders: Trader[] };
+type Trip = {
+  index: number;
+  out: number;
+  back: number;
+  land: string;
+  take: string | null;
+  bring: string | null;
+};
+type Trade = { trade: { out: Good[]; in: Good[] } | null; traders: Trader[]; trips: Trip[] };
 type Plan = {
   ref: string;
   name: string;
@@ -177,23 +185,37 @@ let who = -1,
   out = -1,
   land = "",
   hour = 7.62;
-// (They set out at 7.4 and load for 24 minutes once at the store: looked for while loading, a
+// The trips the town's traders set out on in the months ahead (by the rule its day is drawn by):
+// the first ones taking the town's goods to a land that buys them, each looked for on its morning.
+// (A town's traders go where its trade is greatest, so such a trip can be a month or more off.)
+// They set out at 7.4 and load for 24 minutes once at the store: looked for while loading, a
 // little later for those whose store is further off or who rose late — never once gone, since
-// the clock goes only forward and their loading would be missed.)
-for (let d = d0; d < d0 + 30 && who < 0; d++)
+// the clock goes only forward and their loading would be missed.
+const ahead = (await k<Trade | null>(`globalThis.causalis.trade?.(120) ?? null`))?.trips ?? [],
+  loads = ahead.filter((t) => t.take !== null && takes.has(t.land) && t.out >= d0);
+say(
+  `trips ahead: ${ahead.length} in 120 days, ${loads.length} taking the town's goods${loads[0] ? `, the first in ${loads[0].out - d0 + 1} days to ${loads[0].land}` : ""}`,
+);
+for (const t of loads.slice(0, 3)) {
+  if (who >= 0) break;
   for (const h of [7.62, 7.78, 7.95]) {
-    await advance(d * DAY + h * HOUR);
+    await advance(t.out * DAY + h * HOUR);
     const one = (await trade())!.traders.find(
-      (x) => /^Loading /.test(x.why ?? "") && !x.hidden && takes.has(landOf(x.why) ?? ""),
+      (x) =>
+        x.index === t.index &&
+        /^Loading /.test(x.why ?? "") &&
+        !x.hidden &&
+        takes.has(landOf(x.why) ?? ""),
     );
     if (!one) continue;
     who = one.index;
-    out = d;
+    out = t.out;
     land = landOf(one.why)!;
     hour = h;
     break;
   }
-check(who >= 0, "no trader set out with the town's goods in a month");
+}
+check(who >= 0, "no trader set out with the town's goods in the months ahead");
 const me = async () => (await trade())!.traders.find((x) => x.index === who)!;
 if (who >= 0) {
   let loading: Trader | null = null,

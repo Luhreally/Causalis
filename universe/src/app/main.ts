@@ -870,8 +870,11 @@ type Exposed = {
       name: string | null;
     }[];
   } | null;
-  /** The trade of the town watched (Phase 48 M210): its plan's, and its traders now. */
-  trade?: () => {
+  /**
+   * The trade of the town watched (Phase 48 M210): its plan's, its traders now, and the trips they
+   * set out on from today for so many days.
+   */
+  trade?: (days?: number) => {
     trade: {
       out: { what: string; land: string; count: number }[];
       in: { what: string; land: string; count: number }[];
@@ -883,6 +886,14 @@ type Exposed = {
       why: string | null;
       carry: string | null;
       hidden: boolean;
+    }[];
+    trips: {
+      index: number;
+      out: number;
+      back: number;
+      land: string;
+      take: string | null;
+      bring: string | null;
     }[];
   } | null;
   /**
@@ -6017,7 +6028,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.fields = () => (scale === "village" ? village.fieldsShown() : null);
   exposed.flock = () => (scale === "village" ? village.flockShown() : null);
   exposed.hunt = () => (scale === "village" ? village.huntShown() : null);
-  exposed.trade = () => (scale === "village" ? village.tradeShown() : null);
+  exposed.trade = (days = 0) => (scale === "village" ? village.tradeShown(days) : null);
   exposed.rig = rig;
 
   // Going to anything (Phase 10 M92): a page's place, from whatever scale is up — the scale

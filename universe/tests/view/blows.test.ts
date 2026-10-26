@@ -124,6 +124,13 @@ const OLD = () =>
   );
 
 const count = <T>(xs: readonly T[], f: (x: T) => boolean) => xs.filter(f).length;
+/**
+ * A view's blows as text to digest: numbers to a millionth, so the digest pins the blows and not
+ * the last bit of a float (the view's sines and powers can differ by one ulp between platforms).
+ */
+const rounded = (x: unknown): string =>
+  JSON.stringify(x, (_, v: unknown) => (typeof v === "number" ? Math.round(v * 1e6) / 1e6 : v));
+
 function digest(text: string): string {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619) >>> 0;
@@ -283,8 +290,8 @@ test("the blows of a battle are its own (recorded 2026-10-26 with rules/wounds.t
       JSON.stringify({ edge: 0.1, point: 0.06, blunt: 0.04, shot: 0.14, crush: 0.12, fire: 0.03 });
   // (Tuned since: the places move; re-record from the failure's actual digest.)
   if (!recorded) return;
-  assert.equal(digest(JSON.stringify(newBlows(BLADES()))), "d6918cfa");
-  assert.equal(digest(JSON.stringify(newBlows(GUNS()))), "3a0b1c64");
+  assert.equal(digest(rounded(newBlows(BLADES()))), "8ff317f9");
+  assert.equal(digest(rounded(newBlows(GUNS()))), "aeb522cf");
 });
 
 test("arrows stick where they strike; a cannon's ball and a shell knock men off their feet", () => {
