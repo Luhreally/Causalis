@@ -5,18 +5,17 @@
 // market at its heart, the road out — and what lives about it: the land's wild beasts,
 // its hunters and its flocks (Phase 8 M77). Everything here is looked at, not lived: the
 // people's day is drawn from this plan by the view, and nothing flows back.
-import { YEAR, finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
-import type { Feast } from "../bridge/index.ts";
 import {
-  WATER,
-  cellRef,
-  cradleTongue,
-  livingIn,
-  personName,
-  tongueName,
-  tonguePersonName,
-  type Species,
-} from "../gen/index.ts";
+  YEAR,
+  finish,
+  hashString,
+  mix,
+  yearOfMoment,
+  type Ref,
+  type World,
+} from "../kernel/index.ts";
+import type { Feast } from "../bridge/index.ts";
+import { WATER, cellRef, livingIn, type Species } from "../gen/index.ts";
 import { G, GOODS, HOME_LIFE, OCC, article, roofPitch } from "../rules/index.ts";
 import {
   actsOf,
@@ -26,7 +25,6 @@ import {
   blockAt,
   BLOCKS,
   citiesOf,
-  cultureOf,
   designsOf,
   grainLost,
   handOf,
@@ -50,7 +48,7 @@ import {
   warsOf,
   wildsOf,
 } from "../sim/index.ts";
-import { landWords, meetHousehold, observer, settleAll } from "../causal/index.ts";
+import { landWords, meetHousehold, observer, settleAll, type WarFate } from "../causal/index.ts";
 import { personThings } from "./inspect/things.ts";
 import {
   LAKE_R,
@@ -72,14 +70,17 @@ import {
   type VillagePlan,
   type VillageRest,
   type Visitor,
+  type WarRest,
   type Wonder,
 } from "../bridge/index.ts";
-import { townPlan } from "./town.ts";
+import { strikesOn, townPlan } from "./town.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
 import { visitorsAt } from "./peoples.ts";
-import { flockBeast, makerAt, seatsOf, townStuff, workshopOf } from "./chain.ts";
+import { flockBeast, makerAt, seatsOf, townStuff, workshopOf, type Maker } from "./chain.ts";
 import { peopleFigure } from "./folk.ts";
+import { LINE, ROSTER_YEARS, folkWork, townRoster, workOf, type Roster } from "./roster.ts";
+import { battleWords, townWarDead, warRests } from "./burials.ts";
 
 /** Families the microscope watches in a village: a presentation budget, not a rule. */
 export const WATCHED_FAMILIES = 10;
@@ -87,9 +88,9 @@ export const WATCHED_FAMILIES = 10;
 export const DRAWN_UNDER_HAND = 400;
 /**
  * One of a town's people drawn for every so many of them (Phase 39 M198; a crowd sized to its town,
- * M202), as the eye is given.
+ * M202), as the eye is given (the roster's line, Phase 55 M225).
  */
-export const FOLK_PER = 12;
+export const FOLK_PER = LINE;
 /** What the town's other people are called, by their work. */
 const FOLK_WORDS = [
   "A child",
@@ -102,6 +103,40 @@ const FOLK_WORDS = [
 ];
 
 const u = (seed: number, n: number) => finish(mix(seed, n), 13) / 4294967296;
+
+/** A battle someone came home from (Phase 55 M225): whole, wounded or maimed, not fallen. */
+type HomeFrom<T extends { readonly fate: string }> = T & {
+  readonly fate: "stood" | "hurt" | "maimed";
+};
+/** Whether they came home from it. */
+function homeFrom<T extends { readonly fate: string }>(w: T): w is HomeFrom<T> {
+  return w.fate !== "fell";
+}
+/** The last battle one of a town's people came home from, as its plan tells it (none: nothing). */
+function cameHome(
+  world: World,
+  w:
+    | HomeFrom<{
+        readonly event: string;
+        readonly year: number;
+        readonly land: number;
+        readonly fate: string;
+      }>
+    | undefined,
+): Pick<VillagePlan["people"][number], "war"> {
+  return w
+    ? { war: { event: w.event, year: w.year, where: battleWords(world, w.land), fate: w.fate } }
+    : {};
+}
+/**
+ * One of a town's many as a seat's holder is drawn in their place (a maker, the healer: Phase 55
+ * M225): named as the seat's holder, so their line's battles are not told as theirs.
+ */
+function seated(p: VillagePlan["people"][number]): VillagePlan["people"][number] {
+  const { war, ...rest } = p;
+  void war;
+  return rest;
+}
 
 /** The people's body, as their figures are drawn from it, with what their look is made of (null: upright apes, as ever). */
 export function peopleBody(world: World): VillagePlan["body"] {
@@ -206,6 +241,17 @@ export function landHeart(world: World, cell: number): Ref | null {
         })),
     )?.ref ?? null
   );
+}
+
+/** A town's healer (Phase 55 M225): who holds its seat where its land knows herb-lore by `year` (null: it does not). */
+export function healerOf(
+  world: World,
+  town: { readonly ref: string; readonly cell: number; readonly population: number },
+  year: number,
+): Maker | null {
+  return (loreOf(world).get(town.cell, "herbalism")?.year ?? Infinity) <= year
+    ? makerAt(world, town.cell, town, "healer", 0, year)
+    : null;
 }
 
 export function villagePlan(
@@ -411,6 +457,13 @@ export function villagePlan(
         sex: p.sex,
         child: now - p.birthYear < lifeOf(world).adulthood,
         ...(tool ? { tool: `${tool.name}, made in year ${tool.made}` } : {}),
+        // (The last battle they came home from these years: Phase 55 M225.)
+        ...cameHome(
+          world,
+          p.wars?.findLast(
+            (w): w is HomeFrom<WarFate> => homeFrom(w) && w.year >= now - ROSTER_YEARS,
+          ),
+        ),
       });
     }
   });
@@ -420,51 +473,45 @@ export function villagePlan(
   // not. Not met, and never history's: nothing they do flows back.
   const more = Math.min(folk, Math.max(0, Math.ceil(v.population / FOLK_PER) - people.length));
   if (more > 0) {
-    const land = ctx.provinces.get(v.cell),
-      kinds = [OCC.forager, OCC.farmer, OCC.herder, OCC.crafter, OCC.trader, OCC.leader],
-      counts = kinds.map((o) => land?.occupation(o) ?? 0),
-      total = counts.reduce((a, b) => a + b, 0),
+    // Each the holder of one of its lines (Phase 55 M225): one of every twelve of its people kept
+    // by its roster, named in its land's tongue with a family's name to every four lines (four to a
+    // home, as they live), at the age history has them, home from the battles it sent them to — the
+    // same one its battles' rolls and their own page name. A line its holder lately fell from, or a
+    // strike killed, stands empty a while: no one is drawn for it.
+    const roster = townRoster(world, ref, now),
+      work = folkWork(world, v.cell),
+      grown = lifeOf(world).adulthood,
+      lines = Math.ceil(v.population / LINE),
       builders = Math.min(Math.round(more * 0.4), 2 * risingAt(town, world.now)),
       taken = new Set(people.map((p) => p.home)),
       free = homes.map((_, i) => i).filter((i) => !taken.has(i)),
-      homesFor = free.length ? free : homes.map((_, i) => i);
-    // Each named in its land's tongue, a family's name to each home (Phase 50 M212): the smith at
-    // the forge someone in particular, as the pages of its buildings and of the things its people
-    // hold name them.
-    const tongue = cultureOf(world).get(v.cell)?.tongue,
-      family = tongue ?? cradleTongue(ctx.culture),
-      familyOf = (home: number) =>
-        tongueName({ ...family, seed: family.seed ^ 0xf00d }, hashString(`${ref} home ${home}`)),
-      given = (key: number, sex: number) =>
-        tongue ? tonguePersonName(tongue, key, sex) : personName(ctx.culture, key, sex);
-    for (let k = 0; k < more; k++) {
-      const key = hashString(`folk ${ref} ${k}`),
-        child = u(key, 1) < 0.18,
-        sex = (key >>> 5) & 1;
-      let occupation: number = OCC.farmer;
-      if (child) occupation = OCC.dependent;
-      else if (k < builders) occupation = OCC.crafter;
-      else if (total > 0) {
-        let pick = u(key, 2) * total;
-        for (let j = 0; j < kinds.length; j++) {
-          pick -= counts[j]!;
-          if (pick < 0) {
-            occupation = kinds[j]!;
-            break;
-          }
-        }
-      }
-      const home = homesFor[Math.floor(k / 4) % homesFor.length]!;
+      homesFor = free.length ? free : homes.map((_, i) => i),
+      // (The order each was drawn in: the first drawn are its builders.)
+      drawnAt = new Map<string, number>();
+    for (let k = 0; k < lines && drawnAt.size < more; k++) {
+      const h = roster.holder(k);
+      if (h === null) continue;
+      const i = drawnAt.size,
+        age = now - h.born,
+        child = age < grown,
+        occupation: number = child
+          ? OCC.dependent
+          : i < builders
+            ? OCC.crafter
+            : workOf(h.key, work),
+        last = h.fates.at(-1);
+      drawnAt.set(h.ref, i);
       people.push({
-        ref: `folk:${ref}:${k}`,
-        name: `${given(key, sex)} ${familyOf(home)}`,
+        ref: h.ref,
+        name: roster.nameOf(h),
         role: `${(FOLK_WORDS[occupation] ?? "One").toLowerCase()} of ${v.name}`,
-        home,
-        age: child ? 4 + Math.floor(u(key, 3) * 10) : 17 + Math.floor(u(key, 3) * 42),
+        home: homesFor[Math.floor(k / 4) % homesFor.length]!,
+        age,
         occupation,
         child,
-        sex,
+        sex: h.sex,
         folk: true,
+        ...cameHome(world, last && homeFrom(last) ? last : undefined),
       });
     }
     // Its makers kept at their trades (Phase 50 M212): of its grown crafters not raising its
@@ -475,7 +522,7 @@ export function villagePlan(
           p.folk &&
           p.occupation === OCC.crafter &&
           !p.child &&
-          Number(p.ref.slice(p.ref.lastIndexOf(":") + 1)) >= builders,
+          (drawnAt.get(p.ref) ?? 0) >= builders,
       ),
       // (Its founders at the foundry by its land's works, in the age of engines, and its machinists
       // at the works' machines in the modern age: Phase 51 M215.)
@@ -497,13 +544,29 @@ export function villagePlan(
         const p = crafting[next++]!,
           m = makerAt(world, v.cell, v, kind, seat, now);
         people[people.indexOf(p)] = {
-          ...p,
+          ...seated(p),
           name: m.name,
           role: `${article(kind)} ${kind} of ${v.name}`,
           trade: { kind, seat, years: m.years },
           age: Math.max(p.age, 16 + m.years),
         };
       }
+    }
+    // Its healer (Phase 55 M225): where its land knows herb-lore, the first of its grown folk at
+    // no trade and raising nothing holds its healer's seat, named as the seat's holder is.
+    const healer = healerOf(world, v, now),
+      one = healer
+        ? people.findIndex((p) => p.folk && !p.child && !p.trade && p.occupation !== OCC.crafter)
+        : -1;
+    if (healer && one >= 0) {
+      const p = people[one]!;
+      people[one] = {
+        ...seated(p),
+        name: healer.name,
+        role: `the healer of ${v.name}`,
+        healer: { years: healer.years },
+        age: Math.max(p.age, grown + healer.years),
+      };
     }
   }
   return planOf(people);
@@ -935,6 +998,8 @@ export function villagePlan(
       for (const m of h.members) {
         const q = ledger.person(m);
         if (!q || q.alive || q.diedYear === null || q.diedYear < now - 3) continue;
+        // (Buried with their battle's fallen, or where they fell.)
+        if (q.wars?.some((w) => w.fate === "fell" && w.year === q.diedYear)) continue;
         named.push({
           name: `${q.name} ${q.surname}`,
           year: q.diedYear,
@@ -944,12 +1009,58 @@ export function villagePlan(
       }
     }
     named.sort((a, b) => a.year - b.year || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    // Last year's dead less those buried otherwise (Phase 55 M225): its fallen of the battles at the
+    // year's turn, and those a strike killed — each buried with their own.
+    const struck = town
+        ? (town.struck ?? [])
+        : strikesOn(world, ref, ctx.provinces.get(cell)?.ref ?? null),
+      struckDead = struck.reduce(
+        (n, k) => n + (yearOfMoment(k.at) === now - 1 ? (k.dead ?? 0) : 0),
+        0,
+      ),
+      // (Its roster folded only for a war funeral's names.)
+      war = warRests(world, ref, now, (event, side) =>
+        fallenOf(townRoster(world, ref, now), event, side),
+      );
     return {
       year: now,
-      perYear: ctx.history.deathsIn(cell, now - 1) * share,
+      perYear: Math.max(
+        0,
+        ctx.history.deathsIn(cell, now - 1) * share - townWarDead(world, ref, now - 1) - struckDead,
+      ),
       graves: Math.round(dead * share),
       named,
+      ...(war.length ? { war } : {}),
     };
+  }
+
+  /**
+   * Those known by name of the town's fallen in a battle's side (Phase 55 M225): its line holders
+   * who fell there, then the people met of it who fell there, the first met first.
+   */
+  function fallenOf(roster: Roster, event: string, side: 0 | 1): WarRest["named"] {
+    const out: WarRest["named"][number][] = [];
+    for (const rb of roster.battles)
+      if (rb.event === event && rb.side === side)
+        for (const m of rb.men)
+          if (m.fate === "fell")
+            out.push({
+              name: roster.nameOf(m.holder),
+              age: rb.year - m.holder.born,
+              ref: m.holder.ref,
+            });
+    const met: { readonly seq: number; readonly who: WarRest["named"][number] }[] = [];
+    for (const q of ledger.persons.values()) {
+      if (q.village !== ref || !q.wars) continue;
+      const w = q.wars.find((x) => x.event === event && x.side === side && x.fate === "fell");
+      if (w)
+        met.push({
+          seq: q.seq,
+          who: { name: `${q.name} ${q.surname}`, age: w.year - q.birthYear, ref: q.ref },
+        });
+    }
+    for (const m of met.sort((a, b) => a.seq - b.seq)) out.push(m.who);
+    return out;
   }
 
   function houseOf(cell: number): VillagePlan["house"] {

@@ -226,6 +226,8 @@ function windowOf(world: World): WindowIndex {
     war.battles.forEach((b, k) => {
       for (const side of [0, 1] as const)
         b.fell?.[side].forEach((land, j) => {
+          // (A land whose towns are let go folds into no roster.)
+          if (land[4] === undefined) return;
           const entry: Entry = [war, k, side, j, b.year],
             at = byCell.get(land[0]);
           if (at) at.push(entry);
@@ -376,6 +378,8 @@ const NO_FATES: readonly HolderFate[] = Object.freeze([]),
   NO_STRIKES: readonly StrikeFate[] = Object.freeze([]);
 /** A line's place in a packed order key: the key above, the line below (lines are fewer). */
 const SLOT = 2097152;
+/** No term found yet (no term is numbered so low). */
+const NO_TERM = -2147483648;
 // (The order of a levy and of its fates, packed: SLOT · key + line; one fold at a time.)
 let order = new Float64Array(256),
   fated = new Float64Array(64);
@@ -390,14 +394,43 @@ function leastFirst(a: Float64Array, n: number, m: number): void {
       a[i] = a[least]!;
       a[least] = x;
     }
-  else if (n > 32) a.subarray(0, n).sort();
-  else
+  else if (n > 32) {
+    // (A great city's levy takes few of its many lines: those few found first, then put in order.)
+    if (m < n) selectLeast(a, n, m);
+    a.subarray(0, m).sort();
+  } else
     for (let i = 1; i < n; i++) {
       const x = a[i]!;
       let j = i - 1;
       for (; j >= 0 && a[j]! > x; j--) a[j + 1] = a[j]!;
       a[j + 1] = x;
     }
+}
+/** Put the `m` least of the first `n` first, in no order (Hoare's selection: the keys are distinct). */
+function selectLeast(a: Float64Array, n: number, m: number): void {
+  const k = m - 1;
+  let lo = 0,
+    hi = n - 1;
+  while (lo < hi) {
+    const x = a[lo]!,
+      y = a[(lo + hi) >>> 1]!,
+      z = a[hi]!,
+      pivot = x < y ? (y < z ? y : x < z ? z : x) : x < z ? x : y < z ? z : y;
+    let i = lo,
+      j = hi;
+    while (i <= j) {
+      while (a[i]! < pivot) i++;
+      while (a[j]! > pivot) j--;
+      if (i <= j) {
+        const t = a[i]!;
+        a[i++] = a[j]!;
+        a[j--] = t;
+      }
+    }
+    if (k <= j) hi = j;
+    else if (k >= i) lo = i;
+    else return;
+  }
 }
 /** A death on a line: its year, the term and replacement of the one who died, how long the line stands empty. */
 type Death = {
@@ -513,10 +546,44 @@ function foldRoster(
     fights: boolean[] = [],
     levyKeys = new Map<string, number>();
 
+  // Each line's phase, and the holder of its term as last found where no one has died on it, kept in
+  // arrays: a battle's levy looks at every line of the town that day, and a great city has tens of
+  // thousands of them. A holder is made only when a fate falls on them, or they are asked for.
+  let phis = new Int32Array(0),
+    natTau = new Int32Array(0),
+    natBorn = new Int32Array(0),
+    natSex = new Uint8Array(0),
+    // (1: someone has died on the line.)
+    mourned = new Uint8Array(0);
+  const room = (n: number) => {
+      if (n <= phis.length) return;
+      const size = Math.max(n, 2 * phis.length, 64),
+        p = new Int32Array(size).fill(-1),
+        t = new Int32Array(size).fill(NO_TERM),
+        b = new Int32Array(size),
+        x = new Uint8Array(size),
+        d = new Uint8Array(size);
+      p.set(phis);
+      t.set(natTau);
+      b.set(natBorn);
+      x.set(natSex);
+      d.set(mourned);
+      phis = p;
+      natTau = t;
+      natBorn = b;
+      natSex = x;
+      mourned = d;
+    },
+    phiOf = (k: number): number => {
+      room(k + 1);
+      let phi = phis[k]!;
+      if (phi < 0) phis[k] = phi = keyOf(k) % term;
+      return phi;
+    };
   const lineOf = (k: number): Line =>
       lines[k] ??
       (lines[k] = {
-        phi: keyOf(k) % term,
+        phi: phiOf(k),
         kept: [],
         deaths: null,
         held: null,
@@ -528,6 +595,22 @@ function foldRoster(
       (age >= 0
         ? (fights[age] = age >= life.adulthood && fighting(life, bandOf(age, life)))
         : false);
+
+  /**
+   * Line k's holder in year y where no one has died on it — its term's own, as holderAt would make
+   * them — found without making them: whether a man (natSex), and when born (natBorn).
+   */
+  function naturalAt(k: number, y: number): void {
+    const phi = phiOf(k),
+      tau = Math.floor((y + phi) / term);
+    if (natTau[k] === tau) return;
+    const key = keyOf(k, numberOf(tau, 0)),
+      v = u(key, 3);
+    natTau[k] = tau;
+    natSex[k] = (key >>> 5) & 1;
+    natBorn[k] =
+      tau * term - phi - (youngest + Math.floor(Math.max(0, span - term - youngest) * v * v));
+  }
 
   /** The holder r of a line's term τ, who took it in `from` (the same object each time asked). */
   function holderBy(line: Line, k: number, tau: number, r: number, from: number): Kept {
@@ -597,6 +680,8 @@ function foldRoster(
       };
     h.died = at;
     h.end = at + 1;
+    room(h.line + 1);
+    mourned[h.line] = 1;
     if (line.held === h) line.heldTo = at + 1;
     if (line.deaths) line.deaths.push(d);
     else line.deaths = [d];
@@ -680,11 +765,12 @@ function foldRoster(
         hk = hashString(e.event),
         men: RosterStrike["men"][number][] = [];
       for (let k = 0; k < count; k++) {
-        const h = holderAt(k, at);
-        if (!h || h.died !== null) continue;
+        // (The line's chance first: its holder is made only where it falls.)
         const v = u(finish(mix(hk, k), 3), 1),
           fate = v < p ? "died" : v < p + p * STRIKE_HURT[e.kind] ? "hurt" : null;
         if (!fate) continue;
+        const h = holderAt(k, at);
+        if (!h || h.died !== null) continue;
         const struck: StrikeFate = { event: e.event, kind: e.kind, year: at, fate };
         if (h.struck === NO_STRIKES) h.struck = [struck];
         else (h.struck as StrikeFate[]).push(struck);
@@ -704,10 +790,18 @@ function foldRoster(
     levyKeys.set(war.ref, levyKey);
     if (order.length < count) order = new Float64Array(Math.max(count, 2 * order.length));
     let eligible = 0;
+    room(count);
     for (let k = 0; k < count; k++) {
-      const h = holderAt(k, at);
-      if (h !== null && h.died === null && h.sex === 1 && fits(at - h.born))
-        order[eligible++] = finish(mix(levyKey, k), 1) * SLOT + k;
+      if (mourned[k] === 1) {
+        const h = holderAt(k, at);
+        if (h !== null && h.died === null && h.sex === 1 && fits(at - h.born))
+          order[eligible++] = finish(mix(levyKey, k), 1) * SLOT + k;
+      } else {
+        // (No one has died on it: its term's own holder.)
+        naturalAt(k, at);
+        if (natSex[k] === 1 && fits(at - natBorn[k]!))
+          order[eligible++] = finish(mix(levyKey, k), 1) * SLOT + k;
+      }
     }
     // The levy, by twelves of the men it sent: the first of its eligible lines in the order of its
     // war (by key, then line), so the same men answer every call of a war while they live.
