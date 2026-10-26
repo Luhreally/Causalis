@@ -4,13 +4,15 @@ import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { battleNear, nearCounts } from "../../src/host/battle.ts";
 import { levyPlaces } from "../../src/host/fallen.ts";
-import { ROSTER_YEARS, townRoster } from "../../src/host/roster.ts";
+import { ROSTER_YEARS, clearRosters, rosterCost, townRoster } from "../../src/host/roster.ts";
 import {
+  ROLL_LINES,
   decodeLevy,
   encodeLevy,
   levyName,
   resolveLevyMan,
   rollOf,
+  rosteredPlaces,
   type Lot,
 } from "../../src/host/roll.ts";
 import {
@@ -140,21 +142,26 @@ test("each side's roll is its figures, lot by lot, place by place", () => {
 test("the kept are its towns' levied line holders, by line, then the people met who went", () => {
   const people = observer(world);
   let folk = 0,
-    met = 0;
-  for (const { b, roll } of rolls)
+    met = 0,
+    left = 0;
+  for (const { b, roll } of rolls) {
+    const named = rosteredPlaces(world, b, 360);
     for (const s of [0, 1] as const) {
       const side = sideOf(roll!, s);
       side.towns.forEach((p, i) => {
         if (p.figures[0] + p.figures[1] + p.figures[2] === 0) return;
-        // What its line holders give each lot: the first of each lot's levied men, by line.
+        // What its line holders give each lot: the first of each lot's levied men, by line (where
+        // the roll's bound names its town's figures by them).
         const roster =
             p.kind === "town" && p.ref !== null && b.year >= Y - ROSTER_YEARS
               ? townRoster(world, p.ref, b.year + 1)
               : null,
           rb = roster?.battles.find((x) => x.event === b.event && x.side === s);
         LOTS.forEach((lot, l) => {
+          const levied = (rb?.men ?? []).filter((m) => lotOfFate(m.fate) === l),
+            mine = named[s].has(i) ? levied.slice(0, p.figures[l]) : [];
+          if (!named[s].has(i) && levied.length > 0 && p.figures[l]! > 0) left++;
           const here = side[lot].filter((e) => e.place === i),
-            mine = (rb?.men ?? []).filter((m) => lotOfFate(m.fate) === l).slice(0, p.figures[l]),
             holders = here.filter((e) => e.ref.startsWith("folk:")),
             persons = here.filter((e) => e.ref.startsWith("prsn:"));
           // (Every one of the town's levied men a lot has room for, none skipped.)
@@ -211,8 +218,31 @@ test("the kept are its towns' levied line holders, by line, then the people met 
         });
       });
     }
+  }
   assert.ok(folk > 0, "some line holders named");
   assert.ok(met > 0, "some people met named");
+  // (The young world's battles are small: the bound leaves no town's line holders out.)
+  assert.equal(left, 0, "lots the bound left to the levy");
+});
+
+test("the towns named by their line holders fit in what a roll's rosters may cost", () => {
+  for (const { b, roll } of rolls.slice(0, 12)) {
+    const named = rosteredPlaces(world, b, 360);
+    // (The same with no roster folded: the bound reads the record, not the cache.)
+    clearRosters();
+    assert.deepEqual(rosteredPlaces(world, b, 360), named, `${b.event} the same cold`);
+    let cost = 0;
+    for (const s of [0, 1] as const)
+      for (const i of named[s]) {
+        const p = sideOf(roll!, s).towns[i]!;
+        assert.ok(p.kind === "town" && p.ref !== null, `${b.event}:${s} ${i} a town`);
+        assert.ok(p.figures[0] + p.figures[1] + p.figures[2] > 0, `${b.event}:${s} ${i} figures`);
+        cost += rosterCost(world, p.ref, b.year + 1);
+      }
+    assert.ok(cost <= ROLL_LINES, `${b.event} costs ${cost}`);
+    // (A roll asked again, cold, is the same roll.)
+    assert.deepEqual(ask("battle.roll", { event: b.event, most: 360 }), roll, b.event);
+  }
 });
 
 test("every one of the levy named for the roll is read back from his ref alone", () => {

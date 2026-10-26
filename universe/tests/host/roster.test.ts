@@ -9,7 +9,9 @@ import {
   ROSTER_YEARS,
   clearRosters,
   folkWork,
+  levyHead,
   lineShape,
+  rosterCost,
   rosterOf,
   townRoster,
   workOf,
@@ -276,6 +278,66 @@ test("old saves fold nothing", () => {
   }
 });
 
+test("a levy's head is the first of each of its lots, by line", () => {
+  const lotOf = (fate: string) => (fate === "fell" ? 0 : fate === "stood" ? 2 : 1);
+  let asked = 0;
+  for (const town of towns.slice(0, 40)) {
+    clearRosters();
+    const r = townRoster(world, town);
+    for (const rb of r.battles)
+      for (const most of [
+        [1, 1, 1],
+        [3, 0, 8],
+        [1000, 1000, 1000],
+      ] as const) {
+        // (Asked before its men are made, and after: the same men.)
+        const head = levyHead(r, rb.event, rb.side, most),
+          lots = [0, 1, 2].map((l) => rb.men.filter((m) => lotOf(m.fate) === l).slice(0, most[l]));
+        assert.deepEqual(head, lots, `${town} ${rb.event} ${most.join(" ")}`);
+        asked++;
+      }
+  }
+  assert.ok(asked > 0, "some levies asked of");
+  assert.deepEqual(levyHead(townRoster(world, towns[0]!), "ev:0:999999999", 0, [3, 3, 3]), [
+    [],
+    [],
+    [],
+  ]);
+});
+
+test("what a roster costs is read from the record, not from what has been folded", () => {
+  clearRosters();
+  const some = towns.slice(0, 40),
+    cold = some.map((t) => rosterCost(world, t, Y));
+  for (const t of some) townRoster(world, t);
+  assert.deepEqual(
+    some.map((t) => rosterCost(world, t, Y)),
+    cold,
+  );
+  // (Its battles and strikes of earlier years are fewer; a town of no record costs nothing.)
+  for (const t of some) assert.ok(rosterCost(world, t, Y - 10) <= rosterCost(world, t, Y), t);
+  assert.ok(cold.every((c) => c > 0));
+  assert.equal(rosterCost(world, "town:0:999999999", Y), 0);
+});
+
+test("past what a world keeps, the rosters least lately asked for are let go", () => {
+  // (A world keeps 4096 rosters at most, fewer where they weigh more than it may keep.)
+  const all = [...ctx.settlements.all()].filter((v) => v.population > 0).map((v) => v.ref),
+    many = 4500;
+  assert.ok(all.length > many, `${all.length} towns`);
+  clearRosters();
+  const first = townRoster(world, all[0]!),
+    asked = townRoster(world, all[1]!);
+  for (let i = 2; i < 3000; i++) townRoster(world, all[i]!);
+  assert.equal(townRoster(world, all[1]!), asked, "asked for again: kept");
+  for (let i = 3000; i < many; i++) townRoster(world, all[i]!);
+  assert.equal(townRoster(world, all[1]!), asked, "asked for lately: kept");
+  const again = townRoster(world, all[0]!);
+  assert.notEqual(again, first, "the least lately asked for: let go");
+  assert.equal(JSON.stringify(again.battles), JSON.stringify(first.battles), "the same again");
+  clearRosters();
+});
+
 test("looking changes no history", () => {
   assert.equal(JSON.stringify(world.domainHashes()), before);
 });
@@ -301,6 +363,7 @@ test("a fire's dead come off its lines from the next year", () => {
     assert.ok(told > 0, `${town} the fire killed`);
     assert.ok(fire && fire.kind === "fire" && fire.year === Y, `${town} the fire is folded`);
     assert.ok(fire.lines > 0, `${town} on its lines`);
+    assert.ok(rosterCost(world, town, Y + 1) > rosterCost(world, town, Y), `${town} costs more`);
     assert.equal(fire.dead, told, `${town} its dead as told`);
     // (Not in its own year: a roster never goes stale while its year runs.)
     assert.equal(

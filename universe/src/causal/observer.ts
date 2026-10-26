@@ -137,6 +137,12 @@ export class ObserverLedger implements StateStore {
   readonly watches = new Map<string, Watch>();
   /** The battles a man met now is asked of, while the world stands still (neither saved nor hashed). */
   private past: { readonly at: number; readonly fronts: Fronts } | null = null;
+  /** The history's moves indexed (flowsOf), for the moves it held then (not saved). */
+  private moves: {
+    readonly base: number;
+    readonly n: number;
+    readonly byKey: Map<string, number[]>;
+  } | null = null;
 
   claimed(key: string): number {
     return this.claims.get(key) ?? 0;
@@ -185,6 +191,18 @@ export class ObserverLedger implements StateStore {
       this.past = { at: world.now, fronts: warFronts(world, now - WAR_PAST_YEARS, now) };
     }
     return this.past.fronts;
+  }
+  /**
+   * The history's moves by where and when (flowsIndexed), as everyone met is asked of them: the
+   * same while the history holds the same moves (they are only added, and only let go from the
+   * first, so how many were let go and how many are held tell which).
+   */
+  flowsOf(ctx: PopulationContext): Map<string, number[]> {
+    const base = ctx.history.flowOffset,
+      n = ctx.history.flows().length;
+    if (this.moves?.base !== base || this.moves.n !== n)
+      this.moves = { base, n, byKey: flowsIndexed(ctx) };
+    return this.moves.byKey;
   }
   /** How many of a village's people have been met and live there still. */
   claimedIn(village: Ref): number {
@@ -359,7 +377,7 @@ export function meetHousehold(world: World, cell: number, village: Ref | null): 
     surname = tongueName({ ...tongue, seed: tongue.seed ^ 0xf00d }, seq);
   const hhRef = makeRef(HOUSEHOLD, 0, seq),
     members: Person[] = [],
-    index = flowsIndexed(ctx),
+    index = ledger.flowsOf(ctx),
     past = ledger.pastFronts(world);
   const add = (r: number, o: number, role: Role, ageLimit?: [number, number]): Person | null => {
     if (room() < 1 || !ledger.claim(countKey(cell, r, o), p.counts.get(r, o))) return null;
@@ -561,7 +579,7 @@ export function settleAll(world: World): void {
     now = Math.floor(world.now / YEAR);
   if (ledger.settledAt === now) return;
   const ctx = populationContext(world),
-    index = flowsIndexed(ctx),
+    index = ledger.flowsOf(ctx),
     people = [...ledger.persons.values()].sort((a, b) => a.seq - b.seq);
   // The battles of the years anyone met is followed through (Phase 55 M225).
   let from = now;

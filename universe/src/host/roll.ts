@@ -2,11 +2,12 @@
 // figures (bridge battleFigures, the field's rule) — those that fall, its wounded who lived, the rest
 // — shared out over the places its men came from, its fallen by their dead, its wounded by their
 // wounded, the rest by those who came home whole. Each place's figures are named: first the town's
-// line holders the battle levied (host/roster.ts), then the people met who went (the observer's war
-// fates), then men of its levy named for the roll alone, in their land's tongue, by a ref that tells
-// where each came from and how he came home. History keeps the counts, not the men: no list of
-// every man is made, and a levy man is read back from his ref alone. A battle of an older save, with
-// no record of its men, still names its levy, though not where they came from.
+// line holders the battle levied (host/roster.ts; in a great battle of the late world, only in the
+// towns whose rosters fit in ROLL_LINES), then the people met who went (the observer's war fates),
+// then men of its levy named for the roll alone, in their land's tongue, by a ref that tells where
+// each came from and how he came home. History keeps the counts, not the men: no list of every man
+// is made, and a levy man is read back from his ref alone. A battle of an older save, with no
+// record of its men, still names its levy, though not where they came from.
 import { YEAR, apportion, finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
 import {
   cradleTongue,
@@ -28,6 +29,7 @@ import {
   type RollEntry,
   type RollPlace,
   type RollSide,
+  type SideFigures,
 } from "../bridge/index.ts";
 import { nearCounts } from "./battle.ts";
 import { battleOf } from "./burials.ts";
@@ -36,7 +38,9 @@ import {
   ROSTER_YEARS,
   fellLinesOf,
   hurtLinesOf,
+  levyHead,
   levyLinesOf,
+  rosterCost,
   townRoster,
   type Fate,
 } from "./roster.ts";
@@ -218,20 +222,105 @@ function metAt(world: World, event: string): [Person, WarFate][][] {
 }
 
 /**
+ * What a roll's rosters may cost, in the lines host/roster.ts rosterCost reckons, summed over the
+ * towns whose line holders name its figures (a tenth of a second or so on the desk, cold). A great
+ * battle of the late world drew on hundreds of towns, each folded through the window's battles: the
+ * towns that name the most figures for what they cost are named by their line holders as far as
+ * this goes, the rest by men of their levy named for the roll.
+ */
+export const ROLL_LINES = 500_000;
+
+/** The figures a roll is asked for, 1 … ROLL_MOST (ROLL_DEFAULT where not a number). */
+const mostOf = (most: number) =>
+  Number.isFinite(most) ? Math.min(ROLL_MOST, Math.max(1, Math.round(most))) : ROLL_DEFAULT;
+
+/** A side's places, and each one's figures by lot: fallen, wounded who lived, the rest. */
+type SidePlaces = {
+  readonly places: readonly LevyPlace[];
+  readonly figures: readonly (readonly [number, number, number])[];
+};
+
+/**
+ * A side's places (read fresh, and kept for the levy's pages while the world stands still), each
+ * with its share of every lot.
+ */
+function sidePlaces(world: World, b: Battle, side: 0 | 1, figures: SideFigures): SidePlaces {
+  const places = b.fell ? (keptPlaces(world, b)[side] = levyPlaces(world, b, side, Infinity)) : [];
+  // Each lot's figures shared out over the places: the fallen by their dead, the wounded by their
+  // wounded, the rest by those who came home whole.
+  const fell = shareOut(figures.falls, places, (p) => p.dead),
+    hurt = shareOut(figures.hurt, places, (p) => p.hurt),
+    stood = shareOut(figures.stood, places, (p) => Math.max(0, p.sent - p.dead - p.hurt));
+  return { places, figures: places.map((_, i) => [fell[i]!, hurt[i]!, stood[i]!] as const) };
+}
+
+/**
+ * Of each side's places, those whose town's line holders name its figures: of its towns with
+ * figures whose levy could name any (mayFill), those that name the most figures for what their
+ * rosters to the battle's year cost (rosterCost) first — then the most figures, the attacker's, by
+ * place — each while it fits in what ROLL_LINES leaves. Read from the record alone, so the same
+ * however many rosters are kept.
+ */
+function rosteredOf(
+  world: World,
+  b: Battle,
+  sides: readonly [SidePlaces, SidePlaces],
+): [Set<number>, Set<number>] {
+  const named: [Set<number>, Set<number>] = [new Set(), new Set()];
+  // (A battle before the rosters' window: no town's lines tell its men.)
+  if (b.year < Math.floor(world.now / YEAR) - ROSTER_YEARS) return named;
+  const towns: { side: 0 | 1; i: number; n: number; cost: number }[] = [];
+  for (const side of [0, 1] as const)
+    sides[side].places.forEach((p, i) => {
+      const want = sides[side].figures[i]!,
+        n = want[0] + want[1] + want[2];
+      if (n > 0 && p.kind === "town" && p.ref !== null && mayFill(b.event, p.ref, p, want))
+        towns.push({ side, i, n, cost: rosterCost(world, p.ref, b.year + 1) });
+    });
+  // (Figures for their cost compared whole: q.n / q.cost against p.n / p.cost.)
+  towns.sort((p, q) => q.n * p.cost - p.n * q.cost || q.n - p.n || p.side - q.side || p.i - q.i);
+  let left = ROLL_LINES;
+  for (const t of towns) {
+    if (t.cost > left) continue;
+    left -= t.cost;
+    named[t.side].add(t.i);
+  }
+  return named;
+}
+
+/**
+ * Of a battle's places, side by side, those whose town's line holders name its figures in a roll
+ * of `most`.
+ */
+export function rosteredPlaces(
+  world: World,
+  b: Battle,
+  most: number = ROLL_DEFAULT,
+): [ReadonlySet<number>, ReadonlySet<number>] {
+  const figs = battleFigures(nearCounts(b), mostOf(most));
+  return rosteredOf(world, b, [
+    sidePlaces(world, b, 0, figs.sides[0]),
+    sidePlaces(world, b, 1, figs.sides[1]),
+  ]);
+}
+
+/**
  * A battle's roll, `most` figures to the greater side (1 … ROLL_MOST; ROLL_DEFAULT where not a
  * number): each side's figures by lot, place by place — in each place its line holders the battle
- * levied, by line, then the people met who went, then the rest of its levy named for the roll.
+ * levied, by line (in the towns rosteredOf names them in), then the people met who went, then the
+ * rest of its levy named for the roll.
  */
 export function rollOf(world: World, war: War, b: Battle, most: number = ROLL_DEFAULT): BattleRoll {
-  const m = Number.isFinite(most)
-      ? Math.min(ROLL_MOST, Math.max(1, Math.round(most)))
-      : ROLL_DEFAULT,
+  const m = mostOf(most),
     figs = battleFigures(nearCounts(b), m),
     ctx = populationContext(world),
     nameOf = namerOf(world),
     met = metAt(world, b.event),
-    // (A battle before the rosters' window: no town's lines tell its men.)
-    rostered = b.year >= Math.floor(world.now / YEAR) - ROSTER_YEARS;
+    sides = [
+      sidePlaces(world, b, 0, figs.sides[0]),
+      sidePlaces(world, b, 1, figs.sides[1]),
+    ] as const,
+    rostered = rosteredOf(world, b, sides);
   const rollSide = (side: 0 | 1): RollSide => {
     const figures = figs.sides[side],
       realm = side === 0 ? war.attacker : war.defender,
@@ -251,10 +340,7 @@ export function rollOf(world: World, war: War, b: Battle, most: number = ROLL_DE
           ...(lot === 1 && maimed > 0 && u(key, 5) < maimed ? { maimed: true as const } : {}),
         };
       };
-    // (Read fresh, and kept for the levy's pages while the world stands still.)
-    const places = b.fell
-      ? (keptPlaces(world, b)[side] = levyPlaces(world, b, side, Infinity))
-      : [];
+    const { places, figures: shares } = sides[side];
     if (places.length === 0) {
       // (No record of where its men came from: its levy named in its realm's tongue.)
       const home = homeOf(world, realm, b),
@@ -263,11 +349,6 @@ export function rollOf(world: World, war: War, b: Battle, most: number = ROLL_DE
         for (let i = 0; i < counts[lot]; i++) lots[lot].push(levy(-1, lot, i, home));
       return { realm, figures, fell: lots[0], hurt: lots[1], stood: lots[2], towns: [] };
     }
-    // Each lot's figures shared out over the places: the fallen by their dead, the wounded by their
-    // wounded, the rest by those who came home whole.
-    const fell = shareOut(figures.falls, places, (p) => p.dead),
-      hurt = shareOut(figures.hurt, places, (p) => p.hurt),
-      stood = shareOut(figures.stood, places, (p) => Math.max(0, p.sent - p.dead - p.hurt));
     // Where each of the people met came from: his town, his land's countryside, or the land whole.
     const metHere = new Map<number, [Person, WarFate][]>();
     if (met[side]!.length > 0) {
@@ -292,7 +373,7 @@ export function rollOf(world: World, war: War, b: Battle, most: number = ROLL_DE
       }
     }
     const rolled = places.map((p, i): RollPlace => {
-      const want = [fell[i]!, hurt[i]!, stood[i]!] as const;
+      const want = shares[i]!;
       if (want[0] + want[1] + want[2] === 0) return { ...p, figures: want };
       const got = [0, 0, 0],
         take = (lot: Lot, entry: () => RollEntry) => {
@@ -300,19 +381,20 @@ export function rollOf(world: World, war: War, b: Battle, most: number = ROLL_DE
           lots[lot].push(entry());
           got[lot]!++;
         };
-      // Its line holders the battle levied, by line.
-      if (rostered && p.kind === "town" && p.ref !== null && mayFill(b.event, p.ref, p, want)) {
-        const roster = townRoster(world, p.ref, b.year + 1),
-          rb = roster.battles.find((x) => x.event === b.event && x.side === side);
-        for (const man of rb?.men ?? [])
-          take(lotOf(man.fate), () => ({
-            ref: man.holder.ref,
-            name: roster.nameOf(man.holder),
-            place: i,
-            age: b.year - man.holder.born,
-            kept: true,
-            ...(man.fate === "maimed" ? { maimed: true as const } : {}),
-          }));
+      // Its line holders the battle levied, by line: as many of each lot as it has figures for.
+      if (rostered[side].has(i)) {
+        const roster = townRoster(world, p.ref!, b.year + 1),
+          men = levyHead(roster, b.event, side, want);
+        for (const lot of [0, 1, 2] as const)
+          for (const man of men[lot])
+            take(lot, () => ({
+              ref: man.holder.ref,
+              name: roster.nameOf(man.holder),
+              place: i,
+              age: b.year - man.holder.born,
+              kept: true,
+              ...(man.fate === "maimed" ? { maimed: true as const } : {}),
+            }));
       }
       // The people met who went from here, the first met first.
       for (const [person, w] of metHere.get(i) ?? [])
