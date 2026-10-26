@@ -287,25 +287,38 @@ say(`140 s: "${b.words}"; ${b.wrecks} of ${b.cars} armoured cars knocked out`);
 check(b.wrecks > 0, "no armoured car knocked out");
 await shot("3-wrecks-burning");
 
-// A machine gunner followed and told; their weapon traced from the battle's bar.
+// A machine gunner followed and told; their weapon traced from the battle's bar. The gunner tapped
+// is the one standing clearest of the others on the screen; where a tap still takes a neighbour (as
+// frames drawn slowly can), the next clearest is tapped, up to four.
 b = await at(30);
-const gunner = b.onScreen.find(
-  (t) => t.gun && t.at && t.at.y > 200 && t.at.y < 720 && t.at.x > 40 && t.at.x < 1320,
-);
-check(!!gunner, "no machine gunner seen on the screen");
-if (gunner?.at) {
-  await page.mouse.click(gunner.at.x, gunner.at.y);
-  await until(
-    "the gunner followed",
-    async () => !!(await page.locator(".battle-followed-words").textContent())?.trim(),
-    slow(8000),
-  );
-  const told = (await page.locator(".battle-followed-words").textContent()) ?? "";
+const inView = b.onScreen.filter(
+    (t) => t.at && t.at.y > 200 && t.at.y < 720 && t.at.x > 40 && t.at.x < 1320,
+  ),
+  clearOf = (t: (typeof inView)[number]) =>
+    Math.min(
+      Infinity,
+      ...inView
+        .filter((o) => o.id !== t.id && !o.gun)
+        .map((o) => Math.hypot(o.at!.x - t.at!.x, o.at!.y - t.at!.y)),
+    ),
+  gunners = inView.filter((t) => t.gun).sort((p, q) => clearOf(q) - clearOf(p) || p.id - q.id),
+  gunnerTold = (words: string) => /^👁 A machine gunner of /.test(words);
+check(gunners.length > 0, "no machine gunner seen on the screen");
+if (gunners.length > 0) {
+  let told = "";
+  for (const gunner of gunners.slice(0, 4)) {
+    const was = told;
+    await page.mouse.click(gunner.at!.x, gunner.at!.y);
+    const end = Date.now() + slow(8000);
+    while (Date.now() < end) {
+      told = ((await page.locator(".battle-followed-words").textContent()) ?? "").trim();
+      if (told && (told !== was || gunnerTold(told))) break;
+      await page.waitForTimeout(250);
+    }
+    if (gunnerTold(told)) break;
+  }
   say(`followed: ${told}`);
-  check(
-    /^👁 A machine gunner of /.test(told),
-    `the one followed not told a machine gunner (${told})`,
-  );
+  check(gunnerTold(told), `the one followed not told a machine gunner (${told})`);
   b = (await seen())!;
   check(b.weapon, "no weapon to trace beside the one followed");
   await shot("4-a-machine-gunner");
