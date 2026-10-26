@@ -26,18 +26,22 @@ import { campRef } from "../../src/host/inspect/camp.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import type { VillagePlan } from "../../src/bridge/index.ts";
 
-/** The digests taken before Phase 54, by what they cover. */
+/**
+ * The digests taken before Phase 54, by what they cover. Re-recorded with Phase 55 M224b: Earth's
+ * history moved with its deaths from its first battle on (every land of a realm sends men, and the
+ * fallen are those the foe's arms strike down), and so did its towns, realms and pages.
+ */
 const BEFORE: Record<string, string> = {
-  tools: "a9a2ac9b:18817",
-  stuff: "d7f49f5e:13888",
-  ground: "3c992ee4:44092",
-  deposits: "401053d2:97902",
-  arms: "ec33816c:12221",
-  designs: "12091860:26200",
-  workshops: "a5b6a8a4:83582",
-  substances: "cec4f2c9:130586",
-  reactions: "ea8b9849:68485",
-  principles: "39b0fd2d:168050",
+  tools: "bedd4f7b:19234",
+  stuff: "cd80fa66:13968",
+  ground: "69c1307c:42764",
+  deposits: "1c91efb:97886",
+  arms: "96a0be5c:15859",
+  designs: "88c227cc:27876",
+  workshops: "48410817:53807",
+  substances: "9fd7b207:130570",
+  reactions: "f2b93e4b:68458",
+  principles: "8770ae1:167930",
   guide: "ced49326:17137",
   camps: "cfc0a711:332618",
 };

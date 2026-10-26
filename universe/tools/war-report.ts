@@ -1,5 +1,5 @@
 // node tools/war-report.ts run <seed> <years> <out.json> [--root <universe dir>]
-// node tools/war-report.ts compare <parent dir> <child dir> [--null <dir>] [--from 2]
+// node tools/war-report.ts compare <parent dir> <child dir> [--null <dir>] [--from 2] [--time <dir>]
 //
 // The battle record measured over a family of seeds (Phase 55 M224: T5 records the parent family,
 // T8 measures its levy and losses against it). `run` lives a peopled world (the arms report's: the
@@ -25,7 +25,10 @@
 // FAIL. "Within tol" is within max(tol, 1.5 × |N/P − 1|). A wounded side whose wounded fill its
 // field (wounded = field − fallen) is capped: A7's bounds hold for the uncapped, with 0.05 of slack
 // for rounding (ten fallen or more). A self-compare (the same dir twice) counts only the absolute
-// items, A1 and A6–A8; the others are printed and not counted.
+// items, A1 and A6–A8; the others are printed and not counted. Run times move with what else the
+// machine is doing: --time names the parent's tree run again beside the child's (the same seeds,
+// at the same moment, under the same load), and A9 then holds the child's ms within 3% of those,
+// unwidened by the null's (timed apart); it also tells whether those runs' battles match P's.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -327,16 +330,29 @@ function statsOf(
 
 type Status = "PASS" | "FAIL" | "SKIP";
 
-function compare(parentDir: string, childDir: string, nullDir: string | null, from: number): void {
+function compare(
+  parentDir: string,
+  childDir: string,
+  nullDir: string | null,
+  from: number,
+  timeDir: string | null = null,
+): void {
   const P = readFamily(parentDir),
     C = readFamily(childDir),
     N = nullDir ? readFamily(nullDir) : null,
+    // (The parent's tree run again beside the child's, for A9's times.)
+    T = timeDir ? readFamily(timeDir) : null,
     self = resolve(parentDir) === resolve(childDir),
-    seeds = [...P.keys()].filter((s) => C.has(s) && (!N || N.has(s))).sort(),
+    seeds = [...P.keys()].filter((s) => C.has(s) && (!N || N.has(s)) && (!T || T.has(s))).sort(),
     cuts = new Map<string, number>(
       seeds.map((s) => [
         s,
-        Math.min(P.get(s)!.years, C.get(s)!.years, N?.get(s)?.years ?? Infinity),
+        Math.min(
+          P.get(s)!.years,
+          C.get(s)!.years,
+          N?.get(s)?.years ?? Infinity,
+          T?.get(s)?.years ?? Infinity,
+        ),
       ]),
     );
   if (!seeds.length) {
@@ -348,9 +364,10 @@ function compare(parentDir: string, childDir: string, nullDir: string | null, fr
   }
   const p = statsOf(P, cuts, from),
     c = statsOf(C, cuts, from),
-    n = N ? statsOf(N, cuts, from) : null;
+    n = N ? statsOf(N, cuts, from) : null,
+    tm = T ? statsOf(T, cuts, from) : null;
   console.log(
-    `war-report compare: P ${parentDir}, C ${childDir}${nullDir ? `, N ${nullDir}` : ""}${self ? " (a self-compare: only A1 and A6–A8 count)" : ""}`,
+    `war-report compare: P ${parentDir}, C ${childDir}${nullDir ? `, N ${nullDir}` : ""}${timeDir ? `, P re-timed ${timeDir}` : ""}${self ? " (a self-compare: only A1 and A6–A8 count)" : ""}`,
   );
   console.log(
     `seeds ${seeds.map((s) => `"${s}" to ${cuts.get(s)} y`).join(", ")}; centuries from ${from}`,
@@ -440,6 +457,17 @@ function compare(parentDir: string, childDir: string, nullDir: string | null, fr
   console.log(
     `run ms (to the cut): P ${fix(p.ms, 0)}   N ${n ? fix(n.ms, 0) : "—"}   C ${fix(c.ms, 0)}   C/P ${fix(ratio(c.ms, p.ms), 3)}`,
   );
+  if (T && tm) {
+    // (The same tree, the same seeds: its battles must be P's, side for side, cut alike.)
+    const same = seeds.every((s) => {
+      const cut = cuts.get(s)!,
+        upTo = (r: Run) => JSON.stringify(r.sides.filter((x) => x[0] < cut));
+      return upTo(T.get(s)!) === upTo(P.get(s)!);
+    });
+    console.log(
+      `P re-timed beside C: ${fix(tm.ms, 0)} ms   C/P ${fix(ratio(c.ms, tm.ms), 3)}; its battles ${same ? "match" : "DO NOT match"} P's`,
+    );
+  }
 
   // The acceptance items (spec §8.4). "Within tol": within max(tol, 1.5 × |N/P − 1|).
   const within = (cv: number, pv: number, nv: number, tol: number) => {
@@ -559,11 +587,15 @@ function compare(parentDir: string, childDir: string, nullDir: string | null, fr
     );
   }
   {
-    const w = within(c.ms, p.ms, n?.ms ?? NaN, 0.03);
+    // (Against P's tree timed beside C, when given: then the null, timed apart, widens nothing.)
+    const base = tm ?? p,
+      w = tm
+        ? { ok: Math.abs(ratio(c.ms, tm.ms) - 1) <= 0.03, allowed: 0.03 }
+        : within(c.ms, p.ms, n?.ms ?? NaN, 0.03);
     say(
       "A9",
-      Number.isFinite(p.ms) && p.ms > 0 ? (w.ok ? "PASS" : "FAIL") : "SKIP",
-      `run ms C/P ${fix(ratio(c.ms, p.ms), 3)} (±${fix(w.allowed, 3)})`,
+      Number.isFinite(base.ms) && base.ms > 0 ? (w.ok ? "PASS" : "FAIL") : "SKIP",
+      `run ms C/P${tm ? " (P re-timed beside C)" : ""} ${fix(ratio(c.ms, base.ms), 3)} (±${fix(w.allowed, 3)})`,
       false,
     );
   }
@@ -584,7 +616,7 @@ function usage(): void {
   console.error(
     [
       "usage: node tools/war-report.ts run <seed> <years> <out.json> [--root <universe dir>]",
-      "       node tools/war-report.ts compare <parent dir> <child dir> [--null <dir>] [--from 2]",
+      "       node tools/war-report.ts compare <parent dir> <child dir> [--null <dir>] [--from 2] [--time <dir>]",
     ].join("\n"),
   );
   process.exitCode = 1;
@@ -608,5 +640,6 @@ if (mode === "run" && positional.length === 3) {
 } else if (mode === "compare" && positional.length === 2) {
   const from = Number(flag("--from") ?? "2");
   if (!Number.isInteger(from) || from < 1) usage();
-  else compare(positional[0]!, positional[1]!, flag("--null") ?? null, from);
+  else
+    compare(positional[0]!, positional[1]!, flag("--null") ?? null, from, flag("--time") ?? null);
 } else usage();

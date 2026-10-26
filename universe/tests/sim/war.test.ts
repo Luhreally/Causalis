@@ -77,18 +77,33 @@ test("a war's why reaches the economy and the ground it was fought over", () => 
 });
 
 test("the fallen are written into the ledgers of deaths", () => {
-  // (Within living memory: older deaths are let go from the ledgers.)
+  // Each side's dead are those of the lands that sent its men (Phase 55 M224b), and each land's
+  // ledger counts them in the year they fell. (Within living memory: older deaths are let go from
+  // the ledgers.)
+  const dead = new Map<string, number>();
   let battles = 0;
   for (const w of wars)
     for (const b of w.battles) {
+      for (const i of [0, 1] as const)
+        assert.equal(
+          b.fell![i].reduce((n, land) => n + land[2], 0),
+          b.fallen[i],
+          "a side's dead are its lands' dead",
+        );
       if (b.year < 400 - LIVING_MEMORY) continue;
       battles++;
-      assert.ok(
-        ctx.history.deathsIn(b.land, b.year) >= b.fallen[1],
-        "the defenders' dead are counted where they fell",
-      );
+      for (const side of b.fell!)
+        for (const [cell, , n] of side)
+          dead.set(`${cell}:${b.year}`, (dead.get(`${cell}:${b.year}`) ?? 0) + n);
     }
   assert.ok(battles >= 3);
+  for (const [at, n] of dead) {
+    const [cell, year] = at.split(":").map(Number) as [number, number];
+    assert.ok(
+      ctx.history.deathsIn(cell, year) >= n,
+      `the ${n} who fell from land ${cell} in year ${year} are counted there`,
+    );
+  }
   for (const p of ctx.provinces.all())
     for (let r = 0; r < 20; r++) for (let o = 0; o < 7; o++) assert.ok(p.counts.get(r, o) >= 0);
 });

@@ -25,15 +25,20 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { BANDS, G, MALE, type LandFell, type LifeHistory } from "../../rules/index.ts";
-
-/** Whether an age band fights: the grown, before the last third of life (fifteen to fifty, for upright apes). */
-function fighting(life: LifeHistory, band: number): boolean {
-  return life.bands[band]! >= life.adulthood && life.bands[band]! < life.bands[7]!;
-}
+import { BANDS, G, MALE, apportionCapped, type LandFell } from "../../rules/index.ts";
 import { designsOf } from "../design/design.ts";
 import { ArmsStore, armsOf } from "./arms.ts";
-import { FELL_TOWN_YEARS, battleRecord, fieldOf, hostTerms, type Bore } from "./fell.ts";
+import {
+  FELL_TOWN_YEARS,
+  battleRecord,
+  bodySize,
+  fieldOf,
+  hostTerms,
+  type Bore,
+  type Take,
+} from "./fell.ts";
+import { FALL_PURPOSE, fighting, levyOf, type Levy, type Pool } from "./levy.ts";
+import { battleDead } from "./losses.ts";
 import { COLS, row } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { marketGoodRef, type MarketStore } from "../economy/market.ts";
@@ -42,7 +47,6 @@ import { cutOff, endRealm, politiesOf, realmName, type Polity } from "../polity/
 import { interestsOf, pressure } from "../polity/interests.ts";
 import { loreOf } from "../lore/lore.ts";
 import { RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
-import { handOf } from "../hand/hand.ts";
 import { CREDIT, warChest } from "../credit/credit.ts";
 import { STRIFE, settleCivil } from "../strife/strife.ts";
 import { GENERAL } from "../polity/polity.ts";
@@ -63,7 +67,10 @@ export type Battle = {
   readonly won: boolean;
   readonly fallen: readonly [number, number];
   readonly event: Ref;
-  /** The men each side had in the field (Phase 37 M183: the battle seen; absent in older saves). */
+  /**
+   * The men each side brought to the field: the sum of its levy, before the battle (Phase 55 M224b;
+   * before it, the host as reckoned after the fall, Phase 37 M183; absent in older saves).
+   */
   readonly fielded?: readonly [number, number];
   /** Whether it was fought at the defender's seat, about its walls (M183). */
   readonly seat?: boolean;
@@ -400,35 +407,53 @@ function stores(ctx: PopulationContext, cell: number): number {
   return markets.get(cell)?.stock.reduce((s, v, i) => (i < 3 ? s + v : s), 0) ?? 0;
 }
 
-/** Lose `n` grown men of a land to battle: drawn from its counts (never the hand's own), written as deaths. */
-function fall(ctx: PopulationContext, cell: number, n: number, t: SimTime, key: number): number {
-  const prov = ctx.provinces.get(cell);
-  if (!prov || n <= 0) return 0;
+/**
+ * Lose `n` of a land's men to battle: drawn from its pool (its fighting men at work, never the
+ * hand's own: levy.ts), written as deaths.
+ */
+function fall(
+  ctx: PopulationContext,
+  pool: Pool,
+  n: number,
+  t: SimTime,
+  subject: number,
+  purpose: number,
+): number {
+  const prov = ctx.provinces.get(pool.cell),
+    take = Math.min(n, pool.men);
+  if (!prov || !(take > 0)) return 0;
   const year = yearOfMoment(t),
-    windowed = handOf(ctx.world).composition(cell, year, ctx.life),
-    rows: number[] = [],
-    counts: number[] = [];
-  for (let b = 0; b < BANDS; b++)
-    if (fighting(ctx.life, b))
-      for (let o = 1; o < COLS; o++) {
-        const r = row(MALE, b);
-        rows.push(r * COLS + o);
-        counts.push(prov.counts.get(r, o) - (windowed ? windowed[r * COLS + o]! : 0));
-      }
-  const total = counts.reduce((a, b) => a + b, 0),
-    take = Math.min(n, total);
-  if (!take) return 0;
-  const drawn = drawWithoutReplacement(take, counts, (i) =>
-    ctx.world.rng.real(FIGHT, key, t, 9, i),
-  );
+    drawn = drawWithoutReplacement(take, pool.counts, (i) =>
+      ctx.world.rng.real(FIGHT, subject, t, purpose, i),
+    );
   drawn.forEach((k, i) => {
     if (!k) return;
-    const r = Math.floor(rows[i]! / COLS),
-      o = rows[i]! % COLS;
+    const r = Math.floor(pool.rows[i]! / COLS),
+      o = pool.rows[i]! % COLS;
     prov.counts.add(r, o, -k);
-    ctx.history.addDeaths(cell, year, r % BANDS, k);
+    ctx.history.addDeaths(pool.cell, year, r % BANDS, k);
   });
   return take;
+}
+
+/**
+ * A side's dead split over the lands that sent its men, by the men each sent (never more than it
+ * sent), and drawn from each: its k-th land by FALL_PURPOSE + k. Each land's part: its cell, the men
+ * it sent, its dead.
+ */
+function fallAll(
+  ctx: PopulationContext,
+  levy: Levy,
+  dead: number,
+  t: SimTime,
+  subject: number,
+): Take[] {
+  const each = apportionCapped(dead, levy.sent, levy.sent);
+  return levy.pools.map((pool, k): Take => [
+    pool.cell,
+    levy.sent[k]!,
+    fall(ctx, pool, each[k]!, t, subject, FALL_PURPOSE + k),
+  ]);
 }
 
 const pairKey = (a: Ref, b: Ref) => (a < b ? `${a}|${b}` : `${b}|${a}`);
@@ -679,36 +704,34 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       evenB = defend / (armsB.power * entrench),
       tip = won !== draw < evenA / Math.max(1, evenA + evenB),
       tipped = tip ? designsOf(world).of((won ? a : b).ref)?.event : undefined;
-    // The fallen: a share of the smaller host, more on the losing side.
-    const clash = Math.min(attack, defend),
-      lostA = Math.round(clash * (won ? 0.08 : 0.18) * disperse),
-      lostB = Math.round(clash * (won ? 0.18 : 0.08) * disperse),
-      fromA = a.members.includes(a.seat) ? a.seat : a.members[0]!,
-      fa = fall(ctx, fromA, lostA, t, key * 2),
-      fb = fall(ctx, land, lostB, t, key * 2 + 1);
-    w.fallen = [w.fallen[0] + fa, w.fallen[1] + fb];
-    // What the day cost besides its dead, and where its men came from (Phase 55 M224a: read, never
-    // drawn — the counts as they were): all of a side's dead from the land they fell from above,
-    // its field its host and those who rose with it.
-    const fielded: [number, number] = [
-        Math.round(fieldedOf(ctx, a)),
-        Math.round(fieldedOf(ctx, b)),
+    // The fallen (Phase 55 M224b): every land of each realm on its home world sends men by its
+    // fighting men (D2); of those who close with the foe a share is struck down by the foe's arms
+    // against their guard, more when beaten, fewer the farther and thicker the fire, and of the
+    // struck the share the blow and the care kill (D5: losses.ts, rules/wounds.ts).
+    const levyA = levyOf(ctx, a, Math.round(fieldedOf(ctx, a)), year),
+      levyB = levyOf(ctx, b, Math.round(fieldedOf(ctx, b)), year),
+      fielded: [number, number] = [
+        levyA.sent.reduce((n, x) => n + x, 0),
+        levyB.sent.reduce((n, x) => n + x, 0),
       ],
-      field: [number, number] = [fieldOf(fielded[0], fa), fieldOf(fielded[1], fb)],
-      record = battleRecord(ctx, [
-        {
-          terms: hostTerms(ctx, a, armsA),
-          field: field[0],
-          fallen: fa,
-          takes: [[fromA, field[0], fa]],
-        },
-        {
-          terms: hostTerms(ctx, b, armsB),
-          field: field[1],
-          fallen: fb,
-          takes: [[land, field[1], fb]],
-        },
-      ]);
+      termsA = hostTerms(ctx, a, armsA),
+      termsB = hostTerms(ctx, b, armsB),
+      [deadA, deadB] = battleDead(
+        { fielded: fielded[0], terms: termsA },
+        { fielded: fielded[1], terms: termsB },
+        won,
+        disperse,
+        bodySize(ctx),
+      ),
+      takesA = fallAll(ctx, levyA, deadA, t, key * 2),
+      takesB = fallAll(ctx, levyB, deadB, t, key * 2 + 1),
+      fa = takesA.reduce((n, x) => n + x[2], 0),
+      fb = takesB.reduce((n, x) => n + x[2], 0);
+    w.fallen = [w.fallen[0] + fa, w.fallen[1] + fb];
+    const record = battleRecord(ctx, [
+      { terms: termsA, field: fieldOf(fielded[0], fa), fallen: fa, takes: takesA },
+      { terms: termsB, field: fieldOf(fielded[1], fb), fallen: fb, takes: takesB },
+    ]);
     const battle = world.events.emit({
       type: WAR_EVENTS.battle.type,
       subjects: [w.ref, a.ref, b.ref],

@@ -155,7 +155,7 @@ test("a town's potters throw at their wheels, set each pot on the boards to dry,
 });
 
 test("a town's weavers cut the day before's length from their looms and weave the next, the cloth growing on the loom through the day", () => {
-  const weaving = plans.find((p: VillagePlan) => {
+  const weaves = (p: VillagePlan): boolean => {
     if (!p.people.some((x) => x.trade?.kind === "weaver")) return false;
     const ground: Ground = villageSolids(p);
     return days.some((d) =>
@@ -163,8 +163,19 @@ test("a town's weavers cut the day before's length from their looms and weave th
         (r, i) => r.kind === "workshop" && p.people[i]!.trade?.kind === "weaver",
       ),
     );
-  })!;
-  assert.ok(weaving, "a town whose weavers work at a loom on the days scanned");
+  };
+  // (A town keeps weavers where it has a workshop: four hundred people, a market, and carpentry
+  // known in its land. Which towns those are is history's: since Phase 55's deaths the first of
+  // them in this world at 300 lies past the forty the other tests scan, so this one looks on
+  // through the towns until it finds one.)
+  let found = plans.find(weaves);
+  for (const t of ask<{ ref: string }[]>("towns.map").slice(plans.length)) {
+    if (found) break;
+    const p = ask<VillagePlan>("village.plan", { ref: t.ref, folk: 220 });
+    if (weaves(p)) found = p;
+  }
+  assert.ok(found, "a town whose weavers work at a loom on the days scanned");
+  const weaving: VillagePlan = found;
   const ground: Ground = villageSolids(weaving),
     weavers: number[] = weaving.people.flatMap((p, i) => (p.trade?.kind === "weaver" ? [i] : []));
   let working = 0;

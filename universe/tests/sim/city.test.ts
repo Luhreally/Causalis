@@ -50,6 +50,17 @@ test("towns grow into cities, and paving reshapes them, answering to the road's 
   // Amber's peoples tame beasts to draw carts, and so come to pave their roads.
   const world = makePopulationWorld(seedFromText("amber"), { start: "spread" });
   world.runTo(420 * YEAR);
+  // (The road's learning comes when history brings it: to amber in year 356 before Phase 55's
+  // deaths, in 444 after them. So the world runs on from 420, a decade at a time, until some city
+  // has been paved for thirty years and its quarters have had time to come to their worth.)
+  const firstPaved = () =>
+    Math.min(
+      ...citiesOf(world)
+        .all()
+        .flatMap((c) => (c.paved ? [world.events.get(c.paved)!.t] : [])),
+    );
+  for (let year = 430; world.now - firstPaved() < 30 * YEAR && year <= 700; year += 10)
+    world.runTo(year * YEAR);
   const cities = citiesOf(world).all(),
     paved = cities.filter((c) => c.paved),
     unpaved = cities.filter((c) => !c.paved);

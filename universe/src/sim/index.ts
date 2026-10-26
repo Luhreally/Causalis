@@ -386,6 +386,8 @@ export {
   type SideInBattle,
   type Take,
 } from "./war/fell.ts";
+export { FALL_PURPOSE, fighting, levyOf, poolOf, type Levy, type Pool } from "./war/levy.ts";
+export { LOSSES, battleDead, struckShare, type HostInBattle } from "./war/losses.ts";
 export {
   BLOCKS,
   BLOCK_M,

@@ -554,13 +554,21 @@ test("a war's sides on the map bear their arms and the men each fields, for thei
     map = ask<WarsMap>("wars.map"),
     ctx = populationContext(world);
   assert.ok(map.wars.length > 0, "wars on the map");
+  let standing = 0;
   for (const w of map.wars)
     for (const side of [w.attacker, w.defender]) {
-      assert.ok(Number.isInteger(side.fields) && side.fields > 0, `${side.ref} fields men`);
-      assert.deepEqual(side.arms, ask<(Arms | null)[]>("arms", { refs: [side.ref] })[0]);
       const realm = politiesOf(world).get(side.ref as Ref)!;
+      // A realm standing fields men. One whose seat was taken this year or last (its war is still
+      // on the map) has no land left, and fields no one.
+      assert.ok(Number.isInteger(side.fields), `${side.ref} fields whole men`);
+      if (realm.ended === null) {
+        standing++;
+        assert.ok(side.fields > 0, `${side.ref} fields men`);
+      } else assert.equal(side.fields, 0, `${side.ref} fell in ${realm.ended}: no one to field`);
+      assert.deepEqual(side.arms, ask<(Arms | null)[]>("arms", { refs: [side.ref] })[0]);
       assert.equal(side.fields, Math.round(fieldedOf(ctx, realm)));
     }
+  assert.ok(standing > 0, "realms standing at war");
   assert.equal(JSON.stringify(world.domainHashes()), before, "looking changes nothing");
 });
 
