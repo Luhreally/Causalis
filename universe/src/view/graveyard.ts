@@ -6,11 +6,13 @@
 // back as they fill (full, the oldest dug again). Its dead of the year are buried on the days they
 // fall, as many as its share of its land's dead last year — the same days for the same town and
 // year; the watched households' dead by name, from their own homes; the rest from any of its
-// homes — and those a fire or a quake killed two days after it, borne from its square together.
-// Each funeral leaves at ten, its dead on a bier borne by four, to a grave dug that morning and
-// filled after. Pure: a town's plan gives the same funerals and the same graves.
+// homes — and those a fire or a quake killed two days after it, borne from its square together —
+// and a battle's fallen, from its square at two, two days after it was fought before the town or
+// four where they are brought home (Phase 55 M225). Each funeral leaves at ten, its dead on a bier
+// borne by four, to a grave dug that morning and filled after. Pure: a town's plan gives the same
+// funerals and the same graves.
 import { finish, hashString, mix } from "../kernel/index.ts";
-import type { VillagePlan, VillageRest } from "../bridge/index.ts";
+import type { VillagePlan, VillageRest, WarRest } from "../bridge/index.ts";
 
 const DAY = 86_400,
   HOUR = 3_600;
@@ -150,6 +152,8 @@ export type Funeral = {
   readonly struck: string | null;
   readonly name: string | null;
   readonly age: number | null;
+  /** A battle's fallen (Phase 55 M225): the battle, in words, and those of them known by name. Its `struck` is null. */
+  readonly war?: WarRest;
 };
 
 const unit = (h: number) => (h >>> 0) / 4294967296,
@@ -233,6 +237,23 @@ export function funeralsOf(plan: VillagePlan): readonly Funeral[] {
       age: null,
     });
   }
+  // A battle's fallen (Phase 55 M225): borne from the square together on the day they are buried.
+  for (const w of rest.war ?? []) {
+    const day = Math.floor(w.at / DAY);
+    if (w.dead <= 0 || day < first || day >= first + 365) continue;
+    list.push({
+      key: `war:${w.event}`,
+      home: -1,
+      pick: 0,
+      leaves: w.at,
+      dead: w.dead,
+      biers: Math.min(w.dead, MOST_BIERS),
+      struck: null,
+      name: null,
+      age: null,
+      war: w,
+    });
+  }
   list.sort((a, b) => a.leaves - b.leaves || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   let plot = gravesBefore(plan);
   const out = list.map((f) => {
@@ -255,16 +276,34 @@ function namedFunerals(plan: VillagePlan): VillageRest["named"] {
   return rest.named.filter((d) => d.year === rest.year - 1 && d.home < plan.homes.length);
 }
 
-/** How many graves a town's graveyard holds as its year begins (the year's named dead, though counted, not yet buried). */
+/** How many graves a town's graveyard holds as its year begins (the year's named dead and its war dead, though counted, not yet among them). */
 export function gravesBefore(plan: VillagePlan): number {
   const rest = plan.rest;
-  return rest ? Math.max(0, rest.graves - namedFunerals(plan).length) : 0;
+  return rest ? Math.max(0, rest.graves - namedFunerals(plan).length - warDeadOf(plan)) : 0;
 }
 
-/** Whether a town buries those a fire or a quake killed on a day (its square kept for them that day: no market, no feast). */
-export function buryingDay(plan: Pick<VillagePlan, "town">, day: number): boolean {
-  return !!plan.town?.struck?.some(
-    (k) => (k.dead ?? 0) > 0 && Math.floor((k.at + FUNERAL.struckAfter) / DAY) === day,
+/** The fallen its war funerals bury this year: counted with its graves (its land's dead of last year), not yet in them as its year begins. */
+function warDeadOf(plan: VillagePlan): number {
+  const rest = plan.rest;
+  if (!rest?.war) return 0;
+  const first = rest.year * 365;
+  let dead = 0;
+  for (const w of rest.war) {
+    const day = Math.floor(w.at / DAY);
+    if (w.dead > 0 && day >= first && day < first + 365) dead += w.dead;
+  }
+  return dead;
+}
+
+/** Whether a town buries those a fire or a quake killed, or a battle's fallen, on a day (its square kept for them that day: no market, no feast). */
+export function buryingDay(
+  plan: Pick<VillagePlan, "town"> & { readonly rest?: VillageRest },
+  day: number,
+): boolean {
+  return (
+    !!plan.town?.struck?.some(
+      (k) => (k.dead ?? 0) > 0 && Math.floor((k.at + FUNERAL.struckAfter) / DAY) === day,
+    ) || !!plan.rest?.war?.some((w) => w.dead > 0 && Math.floor(w.at / DAY) === day)
   );
 }
 
@@ -320,5 +359,17 @@ export function namedGraves(plan: VillagePlan): {
         age: f.age ?? 0,
         buried: f.leaves,
       });
+  // A battle's fallen known by name, in the first of the graves their funeral digs.
+  for (const f of funeralsOf(plan))
+    if (f.war)
+      f.war.named.slice(0, f.dead).forEach((n, i) =>
+        out.push({
+          plot: f.plot + i,
+          name: n.name,
+          year: rest.year - 1,
+          age: n.age,
+          buried: f.leaves,
+        }),
+      );
   return out.sort((a, b) => a.plot - b.plot);
 }

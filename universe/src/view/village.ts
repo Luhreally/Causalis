@@ -1226,15 +1226,17 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
       kind = f.struck ? plan.town?.struck?.find((k) => k.event === f.struck)?.kind : null,
       whose = f.name
         ? f.name
-        : kind === "quake"
-          ? "the quake's dead"
-          : kind === "meteor"
-            ? "the dead of the fire from the sky"
-            : kind
-              ? "the fire's dead"
-              : surname
-                ? `the ${surname} household's dead`
-                : "a neighbour's dead",
+        : f.war
+          ? `the fallen of ${f.war.where}`
+          : kind === "quake"
+            ? "the quake's dead"
+            : kind === "meteor"
+              ? "the dead of the fire from the sky"
+              : kind
+                ? "the fire's dead"
+                : surname
+                  ? `the ${surname} household's dead`
+                  : "a neighbour's dead",
       faith = plan.life?.faith ?? null,
       graves = Array.from({ length: f.biers }, (_, b) => plotAt(yard, f.plot + b)),
       // A point by a frame turned `face`: `along` it, `across` it.
@@ -1334,7 +1336,14 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
     // strike's dead), about the door and then about the grave, on the gate's side.
     const mourners = [
       ...kin.filter((i) => free(i, gather, done)),
-      ...nearest(door, (i) => !kin.includes(i), f.struck ? 22 : 8, gather, done, HEARS * 1.5),
+      ...nearest(
+        door,
+        (i) => !kin.includes(i),
+        f.struck || f.war ? 22 : 8,
+        gather,
+        done,
+        HEARS * 1.5,
+      ),
     ];
     mourners.forEach((i, m) => {
       const a = out + Math.PI + (((m % 9) - 4) / 4) * 1.4,
@@ -1659,7 +1668,10 @@ export function burialNow(
     if (t >= Math.max(...r.filled)) graves += r.f.dead;
   }
   const mourning = rites.some(
-    (r) => r.f.struck !== null && t >= r.f.leaves - FUNERAL.gather && t < Math.max(...r.filled),
+    (r) =>
+      (r.f.struck !== null || !!r.f.war) &&
+      t >= r.f.leaves - FUNERAL.gather &&
+      t < Math.max(...r.filled),
   );
   return { biers, open, graves, fresh: graves - gravesBefore(plan), mourning };
 }
