@@ -7,8 +7,12 @@ import {
   apportionCapped,
   fellRows,
   fellTotals,
+  hurtOfLands,
+  packFell,
   packTowns,
+  splitBySent,
   splitTowns,
+  unpackFell,
   unpackTowns,
   type LandFell,
   type Tally,
@@ -154,4 +158,54 @@ test("splitTowns over a grid: the parts add up exactly, and no town holds more t
               `${where}, a negative part`,
             );
           }
+});
+
+test("splitBySent: the dead by the men each part sent, the hurt by those who came back", () => {
+  // Dead 2 over sent [4, 0, 3, 3]: quotas .8, .6, .6, the tie to the lower index. Came back
+  // [3, 0, 2, 3]; hurt 3: quotas 1.125, .75, 1.125, the spare to the largest remainder.
+  assert.deepEqual(splitBySent([4, 0, 3, 3], 2, 3), { dead: [1, 0, 1, 0], hurt: [1, 0, 1, 1] });
+});
+
+test("hurtOfLands: a side's wounded by the men who came back from each land", () => {
+  // Came back [8, 5, 5]; 7 wounded: quotas 3.11, 1.94, 1.94.
+  assert.deepEqual(
+    hurtOfLands(7, [
+      [10, 2],
+      [6, 1],
+      [5, 0],
+    ]),
+    [3, 2, 2],
+  );
+});
+
+test("packFell leaves out what the rules give again, and unpackFell reads the lands back", () => {
+  const lands: LandFell[] = [
+    [12, 10, 2, 3, [4, 1, 1, 0, 0, 0, 3, 1, 1]],
+    [15, 6, 1, 2],
+    [20, 5, 0, 2, []],
+  ];
+  // Cells less the one before; a land's towns kept (-1: let go), their sent less the one before.
+  const packed = packFell(lands);
+  assert.deepEqual(packed, [12, 10, 2, 3, 4, -4, 3, 3, 6, 1, -1, 5, 5, 0, 0]);
+  assert.deepEqual(unpackFell(packed, 7), lands);
+  assert.deepEqual(unpackFell(packFell([]), 0), []);
+});
+
+test("packFell over a grid: every side made by the rules reads back whole", () => {
+  for (const wounded of [0, 1, 5, 9, 40])
+    for (const sents of [[7], [10, 3], [12, 0, 5], [30, 9, 1, 4]]) {
+      const deads = sents.map((s, k) => Math.min(s, (k * 3 + 2) % 5)),
+        hurts = hurtOfLands(
+          wounded,
+          sents.map((s, k) => [s, deads[k]!]),
+        ),
+        lands = sents.map((sent, k): LandFell => {
+          const tally: Tally = [sent, deads[k]!, hurts[k]!];
+          if (k === 1) return [10 + k, ...tally];
+          const people = picks(9, [k + 2, 0, 3 * k, 1]),
+            { towns } = splitTowns(tally, people, k);
+          return [10 + 7 * k, ...tally, packTowns(towns)];
+        });
+      assert.deepEqual(unpackFell(packFell(lands), wounded), lands, `${wounded} ${sents}`);
+    }
 });

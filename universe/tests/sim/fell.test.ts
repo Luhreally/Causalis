@@ -150,6 +150,15 @@ test("the store: a loaded copy hashes the same, forgetting is idempotent and cha
     copy = new WarStore();
   copy.load(JSON.parse(saved));
   assert.equal(hashOf(copy), hashOf(store));
+  // (Kept packed, no battle's tallies written whole, and each read back as it was.)
+  const written = (JSON.parse(saved) as { wars: { battles: Record<string, unknown>[] }[] }).wars
+    .flatMap((w) => w.battles)
+    .filter((b) => b.wounded);
+  assert.ok(written.length > 0 && written.every((b) => b.fellPacked && !b.fell));
+  assert.deepEqual(
+    copy.all().map((w) => w.battles),
+    store.all().map((w) => w.battles),
+  );
   copy.forgetTowns(Y - (FELL_TOWN_YEARS + 1));
   assert.equal(JSON.stringify(copy.save()), saved, "what was let go is let go already");
   copy.forgetTowns(Y + 1);
@@ -171,6 +180,7 @@ test("the store: a loaded copy hashes the same, forgetting is idempotent and cha
       delete b.maimed;
       delete b.bore;
       delete b.fell;
+      delete b.fellPacked;
     }
   const was = new WarStore();
   was.load(older);

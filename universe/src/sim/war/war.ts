@@ -25,7 +25,15 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { BANDS, G, MALE, apportionCapped, type LandFell } from "../../rules/index.ts";
+import {
+  BANDS,
+  G,
+  MALE,
+  apportionCapped,
+  packFell,
+  unpackFell,
+  type LandFell,
+} from "../../rules/index.ts";
 import { designsOf } from "../design/design.ts";
 import { ArmsStore, armsOf } from "./arms.ts";
 import {
@@ -134,6 +142,28 @@ function omitFell(b: Battle): Battle {
  */
 function bare(w: War): War {
   return { ...w, battles: w.battles.map(omitFell) };
+}
+
+/** A battle as kept in a save: its tallies by land and town packed (packFell). */
+type KeptBattle = Omit<Battle, "fell"> & {
+  readonly fellPacked?: readonly [readonly number[], readonly number[]];
+};
+
+/** A battle to keep: its tallies packed where its wounded let them be read back. */
+function keep(b: Battle): Battle | KeptBattle {
+  if (!b.fell || !b.wounded) return b;
+  const { fell, ...rest } = b;
+  return { ...rest, fellPacked: [packFell(fell[0]), packFell(fell[1])] };
+}
+
+/** A kept battle read back (a save from before the packing keeps its tallies whole). */
+function unkeep(b: Battle | KeptBattle): Battle {
+  if (!("fellPacked" in b) || !b.fellPacked || !b.wounded) return b as Battle;
+  const { fellPacked, ...rest } = b;
+  return {
+    ...rest,
+    fell: [unpackFell(fellPacked[0], b.wounded[0]), unpackFell(fellPacked[1], b.wounded[1])],
+  };
 }
 
 /** A land's tally without its towns: the first four elements (rules/apportion.ts LandFell). */
@@ -247,7 +277,8 @@ export class WarStore implements StateStore {
 
   save(): unknown {
     return {
-      wars: this.list,
+      // (A battle's tallies by land and town are kept packed: what the rules give again is left out.)
+      wars: this.list.map((w) => ({ ...w, battles: w.battles.map(keep) })),
       digest: this.digest,
       sealed: [...this.sealed].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
       fellDigest: this.fellDigest,
@@ -257,7 +288,7 @@ export class WarStore implements StateStore {
   load(state: unknown): void {
     this.list = (state as { wars: War[] }).wars.map((w) => ({
       ...w,
-      battles: [...w.battles],
+      battles: w.battles.map(unkeep),
       fallen: [...w.fallen] as [number, number],
     }));
     this.byRef.clear();

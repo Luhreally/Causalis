@@ -107,9 +107,7 @@ export function splitTowns(
   // What the towns cannot take, the countryside takes, even when its weight is 0.
   const left = sent - sentParts.reduce((n, x) => n + x, 0);
   sentParts[last] = sentParts[last]! + left;
-  const deadParts = apportionCapped(dead, sentParts, sentParts),
-    came = sentParts.map((s, i) => s - deadParts[i]!),
-    hurtParts = apportionCapped(hurt, came, came);
+  const { dead: deadParts, hurt: hurtParts } = splitBySent(sentParts, dead, hurt);
   const tally = (i: number): [number, number, number] => [
     sentParts[i]!,
     deadParts[i]!,
@@ -118,6 +116,33 @@ export function splitTowns(
   const towns: [number, number, number][] = [];
   for (let k = 0; k < people.length; k++) towns.push(tally(k));
   return { towns, country: tally(last) };
+}
+
+/**
+ * This splits a place's dead over its parts by the men each part sent, no part given more dead than
+ * it sent, and its hurt by the men who came back (sent less dead), no part given more hurt than
+ * came back.
+ */
+export function splitBySent(
+  sent: readonly number[],
+  dead: number,
+  hurt: number,
+): { dead: number[]; hurt: number[] } {
+  const deadParts = apportionCapped(dead, sent, sent),
+    came = sent.map((s, i) => s - deadParts[i]!);
+  return { dead: deadParts, hurt: apportionCapped(hurt, came, came) };
+}
+
+/**
+ * This splits a side's wounded over its lands by the men who came back from each (sent less dead),
+ * no land given more than came back.
+ */
+export function hurtOfLands(
+  hurt: number,
+  lands: readonly (readonly [sent: number, dead: number])[],
+): number[] {
+  const backs = lands.map(([sent, dead]) => Math.max(0, sent - dead));
+  return apportionCapped(hurt, backs, backs);
 }
 
 /**
@@ -140,6 +165,68 @@ export function unpackTowns(flat: readonly number[]): [number, number, number][]
   const towns: [number, number, number][] = [];
   for (let k = 0; k + 2 < flat.length; k += 3) towns.push([flat[k]!, flat[k + 1]!, flat[k + 2]!]);
   return towns;
+}
+
+/**
+ * This packs a side's lands for keeping (a save), leaving out what the rules give again. Each land
+ * is written as its cell less the cell before it, its sent and its dead, then the number of its
+ * towns kept (-1 when they were let go) and each town's sent less the sent of the town before it.
+ * Its hurt is its side's wounded split by hurtOfLands, and a town's dead and hurt are the land's
+ * split by splitBySent over the towns' sent and the countryside's (the land's sent less theirs).
+ */
+export function packFell(lands: readonly LandFell[]): number[] {
+  const flat: number[] = [];
+  let cellBefore = 0;
+  for (const [cell, sent, dead, , towns] of lands) {
+    flat.push(cell - cellBefore, sent, dead);
+    cellBefore = cell;
+    if (towns === undefined) {
+      flat.push(-1);
+      continue;
+    }
+    flat.push(towns.length / 3);
+    let sentBefore = 0;
+    for (let k = 0; k < towns.length; k += 3) {
+      flat.push(towns[k]! - sentBefore);
+      sentBefore = towns[k]!;
+    }
+  }
+  return flat;
+}
+
+/** This reads back a side's lands packed by packFell, given the side's wounded. */
+export function unpackFell(flat: readonly number[], wounded: number): LandFell[] {
+  const lands: { cell: number; sent: number; dead: number; towns: number[] | null }[] = [];
+  let cell = 0;
+  for (let i = 0; i + 3 < flat.length;) {
+    cell += flat[i]!;
+    const sent = flat[i + 1]!,
+      dead = flat[i + 2]!,
+      kept = flat[i + 3]!;
+    i += 4;
+    let towns: number[] | null = null;
+    if (kept >= 0) {
+      towns = [];
+      let townSent = 0;
+      for (let k = 0; k < kept; k++) towns.push((townSent += flat[i + k]!));
+      i += kept;
+    }
+    lands.push({ cell, sent, dead, towns });
+  }
+  const hurts = hurtOfLands(
+    wounded,
+    lands.map((l) => [l.sent, l.dead]),
+  );
+  return lands.map(({ cell, sent, dead, towns }, n): LandFell => {
+    const hurt = hurts[n]!;
+    if (towns === null) return [cell, sent, dead, hurt];
+    const parts = [...towns, sent - towns.reduce((a, b) => a + b, 0)],
+      split = splitBySent(parts, dead, hurt),
+      flatTowns: number[] = [];
+    for (let k = 0; k < towns.length; k++)
+      flatTowns.push(towns[k]!, split.dead[k]!, split.hurt[k]!);
+    return [cell, sent, dead, hurt, flatTowns];
+  });
 }
 
 /**

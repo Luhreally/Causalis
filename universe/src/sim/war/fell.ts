@@ -7,8 +7,8 @@
 // own. The hand's village sends no one: its people are the god's to watch (weight 0).
 import {
   WOUNDS,
-  apportionCapped,
   blowOf,
+  hurtOfLands,
   packTowns,
   performanceOf,
   sideWounds,
@@ -104,8 +104,10 @@ export function townShares(
 
 /** A side's lands and towns: its wounded split over its lands by those who came back, then each land over its towns. */
 export function fellOf(ctx: PopulationContext, takes: readonly Take[], hurt: number): LandFell[] {
-  const backs = takes.map(([, sent, dead]) => Math.max(0, sent - dead)),
-    hurts = apportionCapped(hurt, backs, backs);
+  const hurts = hurtOfLands(
+    hurt,
+    takes.map(([, sent, dead]) => [sent, dead]),
+  );
   return takes.map(([cell, sent, dead], k): LandFell => {
     const { people, countryside } = townShares(ctx, cell),
       hurtHere = hurts[k]!;

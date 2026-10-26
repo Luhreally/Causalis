@@ -235,26 +235,35 @@ if (smelter) {
 type Leg = { from: number; to: number; why: string | null; carry: string | null };
 const secs = async () => (await k<number>(`globalThis.causalis.client.status?.t ?? 0`)) - day * DAY;
 let carrying: Person | null = null;
-for (const smith of (await people()).filter((p) => smiths.has(p.name))) {
-  const legs = await k<Leg[]>(`globalThis.causalis.legs?.(${smith.index}) ?? []`),
-    after = (await secs()) + 60,
-    walk = legs.find(
-      (l) =>
-        l.carry === "metal" &&
-        /^Carrying the /.test(l.why ?? "") &&
-        (l.from + l.to) / 2 > after &&
-        (l.from + l.to) / 2 < 11 * HOUR,
-    );
-  if (!walk) continue;
-  await advance(day * DAY + (walk.from + walk.to) / 2);
-  carrying =
-    (await people()).find(
-      (p) =>
-        p.index === smith.index &&
-        p.carry === "metal" &&
-        /^Carrying the (copper|copper and tin|iron) to /.test(p.why ?? ""),
-    ) ?? null;
-  if (carrying) break;
+// (The bars are carried of a morning: where the furnace was found working in the afternoon, the
+// next working morning's, from its dawn.)
+for (let tries = 0; tries < 3 && !carrying; tries++) {
+  if (tries > 0) {
+    day++;
+    while (rest(day)) day++;
+    await advance(day * DAY + 6 * HOUR);
+  }
+  for (const smith of (await people()).filter((p) => smiths.has(p.name))) {
+    const legs = await k<Leg[]>(`globalThis.causalis.legs?.(${smith.index}) ?? []`),
+      after = (await secs()) + 60,
+      walk = legs.find(
+        (l) =>
+          l.carry === "metal" &&
+          /^Carrying the /.test(l.why ?? "") &&
+          (l.from + l.to) / 2 > after &&
+          (l.from + l.to) / 2 < 11 * HOUR,
+      );
+    if (!walk) continue;
+    await advance(day * DAY + (walk.from + walk.to) / 2);
+    carrying =
+      (await people()).find(
+        (p) =>
+          p.index === smith.index &&
+          p.carry === "metal" &&
+          /^Carrying the (copper|copper and tin|iron) to /.test(p.why ?? ""),
+      ) ?? null;
+    if (carrying) break;
+  }
 }
 say(
   `${town.metal} to the forge: ${carrying ? `${carrying.name}, “${carrying.why}”` : "none seen"}`,
@@ -399,9 +408,11 @@ const spots = (tool: string) => () =>
 await page.setViewportSize({ width: 1366, height: 800 });
 await k(`document.querySelector(".page-window .close")?.click()`);
 await page.waitForTimeout(slow(500));
-/** The first of the first forty towns whose plan passes `ok`. */
+/** The first of the first 240 towns whose plan passes `ok`. */
 const townWhere = async (ok: (p: Plan) => boolean): Promise<Plan | null> => {
-  for (const c of (await ask<{ ref: string }[]>("towns.map", {})).slice(0, 40)) {
+  // (Looked on well past the first towns: a trade comes to a town with its history, and a craft's
+  // knowledge can be slow to spread to the first-founded.)
+  for (const c of (await ask<{ ref: string }[]>("towns.map", {})).slice(0, 240)) {
     const plan = await ask<Plan>("village.plan", { ref: c.ref, folk: 220 });
     if (ok(plan)) return plan;
   }
