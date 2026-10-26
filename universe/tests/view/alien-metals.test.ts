@@ -33,7 +33,7 @@ test("elsewhere the metal goes by its own name, and the smith melts what it is m
   );
   assert.equal(
     forging("iron", "axe", "telluric iron"),
-    "Hammering an axe cold from a lump of native iron",
+    "Hammering an axe from a lump of native iron",
   );
   assert.equal(takingToForge("bronze", "copper and nickel"), "Taking copper and nickel to melt");
   assert.equal(

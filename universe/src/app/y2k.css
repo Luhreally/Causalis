@@ -639,6 +639,16 @@ body[data-scale="ground"][data-sky="haze"]:not([data-daylight]) {
 .line.entry {
   cursor: pointer;
 }
+/* A small picture of a specimen beside its words (Phase 54 M223). An entry is a block, not a flex row, so it sits inline. */
+.thumb {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  vertical-align: middle;
+  margin-right: 6px;
+  flex: none;
+  image-rendering: auto;
+}
 /* A name: a link to its page. */
 .ref-link {
   display: inline;

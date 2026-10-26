@@ -19,6 +19,7 @@ import {
   livesMade,
   madePrior,
   peoplingMade,
+  showingScale,
   type Prior,
 } from "../rules/index.ts";
 import { makePlanet, makeStar, type Planet, type Star } from "./bodies.ts";
@@ -30,6 +31,7 @@ import { makeHydrology, type Hydrology } from "./hydrology.ts";
 import { AGES, makeDeepTime, type AgeKind, type DeepTime } from "./deeptime.ts";
 import { makeBiosphere, type Biosphere } from "./biosphere.ts";
 import { BOUNDARY, makeTectonics, type Tectonics } from "./plates.ts";
+import { nativeIronLands, worldChemistry } from "./chemistry.ts";
 
 export type HomeWorld = {
   readonly prior: string;
@@ -134,6 +136,13 @@ export function generateHomeWorld(
 }
 
 /**
+ * How often a showing comes to light on a world whose crust holds more or less of its metal than
+ * Earth's (Phase 54): Earth's odds scaled by the crust's share against Earth's (exactly Earth's
+ * own on a world of the Sun's chemistry), never quite a certainty.
+ */
+const odds = (p: number, k: number) => Math.min(0.95, p * k);
+
+/**
  * Copper ores at the surface — green malachite and native copper where old
  * mountain belts and high ground are worn open. Too small to count among the
  * world's deposits, but enough for a first people's smiths. A pure function of
@@ -147,7 +156,7 @@ export function surfaceCopper(w: HomeWorld, cell: number): boolean {
     high = e > 900;
   if (!belt && !high) return false;
   const u = finish(mix(hashString(`surface copper ${w.ground}`), cell), 11) / 4294967296;
-  return u < (belt ? 0.3 : 0.15);
+  return u < odds(belt ? 0.3 : 0.15, showingScale(worldChemistry(w), "Cu"));
 }
 
 /** Buried carbon enough for a seam of coal, or a field of oil, worth working (the deep past's units). */
@@ -159,10 +168,14 @@ export const SEAM = { coal: 12, oil: 12 } as const;
  * tin shows where granites of old collisions are worn open; iron as bog iron in
  * wet lowlands and in hills; salt in dry basins and along coasts; coal and oil
  * wherever the deep past buried enough of its swamp forests and plankton. Pure
- * functions of the generated world.
+ * functions of the generated world. (On a world of its own chemistry, Phase 54: the
+ * "tin" is what hardens its copper — arsenic ore round the same granites, or nickel
+ * where serpentine of the old ocean floor was thrust up along a suture — and each
+ * shows as often as its crust holds of it against Earth's.)
  */
 export function surfaceOre(w: HomeWorld, cell: number, kind: string): boolean {
   if (kind === "copper") return surfaceCopper(w, cell);
+  if (kind === "iron") return ironShowing(w, cell) !== null;
   if (kind === "coal") return w.tectonics.elevation[cell]! > 0 && w.deep.coal[cell]! >= SEAM.coal;
   // Hot springs of the sea floor, where plates meet or part or a plume rises: their
   // chimneys are crusted with the metals the water brings up.
@@ -184,10 +197,14 @@ export function surfaceOre(w: HomeWorld, cell: number, kind: string): boolean {
       return false;
     })();
   switch (kind) {
-    case "tin":
-      return t.boundary[cell] === BOUNDARY.convergent && t.toBoundary[cell]! <= 5 && u < 0.18;
-    case "iron":
-      return (rain > 700 && e < 400 && u < 0.4) || (e > 700 && u < 0.3);
+    case "tin": {
+      const chem = worldChemistry(w);
+      if (chem.hardener === "nickel") return nickelShows(w, cell);
+      // (Arsenic is a vein metal of the same granites as tin, and the crust holds more of it.)
+      const p = chem.hardener === "arsenic" ? 0.18 * (4.8 / 2.1) : 0.18,
+        k = showingScale(chem, chem.hardener === "arsenic" ? "As" : "Sn");
+      return t.boundary[cell] === BOUNDARY.convergent && t.toBoundary[cell]! <= 5 && u < odds(p, k);
+    }
     case "salt":
       return (rain < 350 && u < 0.35) || (coast && u < 0.25);
     default:
@@ -196,17 +213,36 @@ export function surfaceOre(w: HomeWorld, cell: number, kind: string): boolean {
 }
 
 /**
- * How a land's iron shows at the surface (Phase 50 M212): bog ore in its wet lowlands, ironstone in
- * its hills — surfaceOre's own rule and draw, told apart; null where it shows none.
+ * Where nickel shows on a world whose crust is poor in silica (Phase 54): green garnierite weathered
+ * out of the serpentine of an old ocean floor, thrust up where it met a land (an ophiolite belt) —
+ * twice as often in the wet tropics, whose deep weathering makes laterite of it.
  */
-export function ironShowing(w: HomeWorld, cell: number): "bog" | "hill" | null {
+function nickelShows(w: HomeWorld, cell: number): boolean {
+  const t = w.tectonics,
+    across = t.across[cell]!;
+  if (t.elevation[cell]! <= 0 || t.boundary[cell] !== BOUNDARY.convergent) return false;
+  if (t.toBoundary[cell]! > 3 || across < 0 || t.plates[across]!.continental) return false;
+  const u = finish(mix(hashString(`surface nickel ${w.ground}`), cell), 11) / 4294967296,
+    wet = w.climate.precipitation[cell]! > 1000 && w.climate.temperature[cell]! > 18;
+  return u < odds(wet ? 0.24 : 0.12, showingScale(worldChemistry(w), "Ni"));
+}
+
+/**
+ * How a land's iron shows at the surface (Phase 50 M212): bog ore in its wet lowlands, ironstone in
+ * its hills — surfaceOre's own rule and draw, told apart; null where it shows none. On a world where
+ * nothing rusts (Phase 54), native iron where its lava flowed through buried coal.
+ */
+export function ironShowing(w: HomeWorld, cell: number): "bog" | "hill" | "telluric" | null {
   const t = w.tectonics,
     e = t.elevation[cell]!;
   if (e <= 0) return null;
+  const chem = worldChemistry(w);
+  if (chem.redox === "reduced" && nativeIronLands(w).has(cell)) return "telluric";
   const u = finish(mix(hashString(`surface iron ${w.ground}`), cell), 11) / 4294967296,
-    rain = w.climate.precipitation[cell]!;
-  if (rain > 700 && e < 400 && u < 0.4) return "bog";
-  if (e > 700 && u < 0.3) return "hill";
+    rain = w.climate.precipitation[cell]!,
+    k = showingScale(chem, "Fe");
+  if (rain > 700 && e < 400 && u < odds(0.4, k)) return "bog";
+  if (e > 700 && u < odds(0.3, k)) return "hill";
   return null;
 }
 

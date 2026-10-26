@@ -40,7 +40,7 @@ import {
 const EFFECT_INDEX: ReadonlyMap<string, number> = new Map(EFFECTS.map((e, i) => [e, i]));
 import type { PopulationContext } from "../population/systems.ts";
 import { marketGoodRef, type MarketStore } from "../economy/market.ts";
-import { oreWithin } from "../economy/ore.ts";
+import { oreWorkable } from "../economy/heat.ts";
 import { cultureOf } from "../culture/culture.ts";
 import { politiesOf } from "../polity/polity.ts";
 
@@ -183,12 +183,14 @@ function findOreNear(ctx: PopulationContext, cell: number, kind: string): number
  * Whether a land has an ore within reach to find a craft by, and what to cite (Phase 52 M216): a
  * metal's ore by the one rule its smelters go by — its own land's (1), else a neighbour's (0.5) —
  * else the metal itself held in its market, brought down a road or kept (0.5); salt, coal, oil and
- * the vents within two steps, as before.
+ * the vents within two steps, as before. (Phase 54: only ore the furnace the finding would bring can
+ * work — a bloomery's heat for iron.)
  */
 export function oreDriver(
   ctx: PopulationContext,
   cell: number,
   kind: string,
+  bringing?: string,
 ): { value: number; ref: Ref } | null {
   const smelt = SMELTING.find((s) => s.ore === kind);
   if (!smelt) {
@@ -199,7 +201,7 @@ export function oreDriver(
       kind === "coal" || kind === "oil" ? (seamRef(ctx.generated, c, kind) as Ref | null) : null;
     return { value: c === cell ? 1 : 0.5, ref: seam ?? cellRef(0, c) };
   }
-  const ore = oreWithin(ctx, cell, kind);
+  const ore = oreWorkable(ctx, cell, kind, bringing);
   if (ore) return { value: ore.cell === cell ? 1 : 0.5, ref: ore.ref };
   const markets = ctx.world.store<MarketStore>("economy.markets"),
     m = markets.get(cell);
@@ -250,7 +252,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
       if (d.river && !g.water.river[cell]) continue;
       if (d.coast && !coast) continue;
       if (d.hills && g.tectonics.elevation[cell]! < 600) continue;
-      const ore = d.ore ? oreDriver(ctx, cell, d.ore) : null;
+      const ore = d.ore ? oreDriver(ctx, cell, d.ore, p.id) : null;
       if (d.ore && ore === null) continue;
       const terms: [string, number, number, CauseRef | null][] = [
         ["crafters", d.crafters ?? 0, Math.min(1, prov.occupation(OCC.crafter) / 50), null],

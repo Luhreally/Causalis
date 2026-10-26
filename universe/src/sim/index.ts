@@ -116,7 +116,13 @@ export {
   type OreAt,
   type OreLieAt,
 } from "./economy/ore.ts";
-export { anyHardener, furnaceHeat, oreWorkable, type Workable } from "./economy/heat.ts";
+export {
+  anyHardener,
+  furnaceHeat,
+  heatShortfall,
+  oreWorkable,
+  type Workable,
+} from "./economy/heat.ts";
 export {
   bestMetal,
   metalRank,

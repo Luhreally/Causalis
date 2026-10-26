@@ -1234,7 +1234,7 @@ function firstBlocks(world: World, s: Survey): Block[] {
     });
     if (points.at(-1)!.x < s.now) points.push({ x: s.now, y: list.length });
     return {
-      name: sentenceCase(principleName(id)),
+      name: sentenceCase(principleName(id, world)),
       color: RACE_COLORS[i % RACE_COLORS.length]!,
       points: thin(points, 120),
     };
@@ -1947,7 +1947,7 @@ function knowledgeLedger(
         [share(found.size ? ids.size / found.size : 0)],
         newest
           ? [
-              link(sentenceCase(principleName(newest[0])), newest[1].event),
+              link(sentenceCase(principleName(newest[0], world)), newest[1].event),
               ` (year ${count(newest[1].year)})`,
             ]
           : ["—"],

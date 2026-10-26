@@ -10,6 +10,7 @@ const ICONS: Readonly<Record<string, string>> = {
   town: "🏘️",
   pol: "👑",
   prsn: "🧑",
+  agent: "🧑",
   hhold: "🏠",
   war: "⚔️",
   faith: "✨",

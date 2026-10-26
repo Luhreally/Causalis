@@ -375,7 +375,7 @@ export function province(world: World, cell: number) {
     lore: loreOf(world)
       .of(cell)
       .reverse()
-      .map(([id, k]) => ({ id, name: principleName(id), year: k.year, event: k.event })),
+      .map(([id, k]) => ({ id, name: principleName(id, world), year: k.year, event: k.event })),
     years: ctx.history.yearsOf(cell).slice(-12),
   };
 }
@@ -739,7 +739,8 @@ export function seedLife(g: HomeWorld): SeedLife {
 function planetUniverse(name: string, prior: Prior): Universe {
   return {
     name,
-    version: `${name}-6`,
+    // (A world of its own chemistry's history changed with Phase 54 M222: its own ores, heats and arms.)
+    version: name === "alien" ? "alien-7" : `${name}-6`,
     defaultView: "globe",
     // A farming land with no village yet will found one soon: work out its village sites early.
     idle: (world) => {

@@ -310,6 +310,18 @@ await page
   })
   .catch(() => undefined);
 await k(`globalThis.causalis.client.setSpeed(0)`);
+// (By day, the many out at their work: the world opens at midnight, when they are all abed.)
+const morning = 300 * 365 * 86400 + 3 * 86400 + 10.5 * 3600;
+await k(`globalThis.causalis.client.advance(${morning})`);
+await page
+  .waitForFunction(
+    (at) => ((globalThis as any).causalis.client.status?.t ?? 0) >= at - 1,
+    morning,
+    {
+      timeout: slow(20000),
+    },
+  )
+  .catch(() => undefined);
 await page.waitForTimeout(slow(1500));
 const many = (await k<Person[]>(`globalThis.causalis.peopleNow?.() ?? []`)).filter((p) => p.folk);
 say(`${big.name}: ${many.length} of its many drawn`);

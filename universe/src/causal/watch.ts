@@ -13,7 +13,16 @@ import {
   type World,
 } from "../kernel/index.ts";
 import { SURFACE_CELL } from "../gen/index.ts";
-import { POLITY, SETTLEMENT, politiesOf, populationContext, realmName } from "../sim/index.ts";
+import {
+  POLITY,
+  SETTLEMENT,
+  agentName,
+  handOf,
+  politiesOf,
+  populationContext,
+  realmName,
+  type Agent,
+} from "../sim/index.ts";
 import { deepen } from "./biography.ts";
 import { landWords } from "./generated.ts";
 import { PERSON, observer } from "./observer.ts";
@@ -27,6 +36,11 @@ export type Watch = {
   readonly since: number;
   /** The moment up to which its tidings have been told. */
   seen: number;
+  /**
+   * The name it was followed by, kept for one of the people under the hand (Phase 54): they are
+   * no one once the hand is lifted, but are remembered so.
+   */
+  readonly name?: string;
 };
 
 export type Tiding = {
@@ -61,6 +75,21 @@ export function canWatch(world: World, ref: Ref): boolean {
   return label(world, ref) !== null;
 }
 
+/** One of the people under the hand (`agent:<id>`), living or dead, while it rests; else null. */
+function handPerson(world: World, ref: string) {
+  if (!ref.startsWith("agent:")) return null;
+  const w = handOf(world).resting,
+    id = Number(ref.slice("agent:".length));
+  if (!w || !Number.isInteger(id)) return null;
+  const living = w.agents.find((a) => a.id === id),
+    dead = living ? undefined : w.gone?.find((g) => g.id === id);
+  if (!living && !dead) return null;
+  const ctx = populationContext(world),
+    town = ctx.settlements.get(w.village);
+  if (!town) return null;
+  return { w, id, name: agentName(ctx, (living ?? dead) as Agent, town), dead: dead ?? null };
+}
+
 /** What a followed thing is called: "the land of Kirath", "the Kingdom of Asha", "Dena Vorath". */
 export function label(world: World, ref: Ref): string | null {
   const kind = kindCodeOf(ref);
@@ -82,14 +111,20 @@ export function label(world: World, ref: Ref): string | null {
     const p = observer(world).person(ref);
     return p ? `${p.name} ${p.surname}` : null;
   }
-  return null;
+  // One of the people under the hand (Phase 54): theirs while it rests.
+  return handPerson(world, ref)?.name ?? null;
 }
 
 /** Everything followed, in the order it was taken up. */
 export function watches(world: World): (Watch & { label: string })[] {
   return observer(world)
     .allWatches()
-    .map((w) => ({ ...w, label: label(world, w.ref) ?? "something gone from the world" }));
+    .map((w) => ({
+      ...w,
+      label:
+        label(world, w.ref) ??
+        (w.name ? `${w.name} (your hand lifted)` : "something gone from the world"),
+    }));
 }
 
 /** Follow something, or stop following it. Only the observer ledger changes. */
@@ -97,7 +132,8 @@ export function setWatch(world: World, ref: Ref, on: boolean): boolean {
   const ledger = observer(world);
   if (!on) return ledger.watches.delete(ref);
   if (ledger.watches.has(ref) || !canWatch(world, ref)) return false;
-  ledger.watches.set(ref, { ref, since: world.now, seen: world.now });
+  const name = ref.startsWith("agent:") ? label(world, ref) : null;
+  ledger.watches.set(ref, { ref, since: world.now, seen: world.now, ...(name ? { name } : {}) });
   return true;
 }
 
@@ -146,6 +182,10 @@ export function tidings(world: World): Tiding[] {
     }
     if (kindCodeOf(w.ref) === PERSON.code) {
       out.push(...personTidings(world, w, name));
+      continue;
+    }
+    if (w.ref.startsWith("agent:")) {
+      out.push(...agentTidings(world, w, name));
       continue;
     }
     const news = newsOf(world, w.ref);
@@ -213,6 +253,51 @@ function personNews(world: World, ref: Ref, name: string, from: number, to: numb
   return out;
 }
 
+/**
+ * One under the hand's news (Phase 54): in the whole years since last told, their children, the
+ * god's touches and their death.
+ */
+function agentTidings(world: World, w: Watch, name: string): Tiding[] {
+  const from = Math.floor(w.seen / YEAR),
+    to = Math.floor(world.now / YEAR) - 1;
+  if (to < from) return [];
+  w.seen = Math.max(w.seen, (to + 1) * YEAR);
+  return agentNews(world, w.ref, name, from, to).slice(-MOST);
+}
+
+/** What one of the people under the hand lived through in the years [from, to], oldest first. */
+function agentNews(world: World, ref: Ref, name: string, from: number, to: number): Tiding[] {
+  const h = handPerson(world, ref);
+  if (!h) return [];
+  const out: Tiding[] = [],
+    tell = (year: number, about: Ref, claim: string, type: string, importance: number) =>
+      out.push({ watch: ref, label: name, ref: about, year, claim, type, importance });
+  for (const k of [...(h.w.gone ?? []), ...h.w.agents])
+    if ((k.mother === h.id || k.father === h.id) && k.birthYear >= from && k.birthYear <= to)
+      tell(
+        k.birthYear,
+        h.w.event,
+        `${name}: a child born, in year ${k.birthYear}`,
+        "life.child",
+        LIFE_IMPORTANCE,
+      );
+  for (const n of h.w.notables ?? []) {
+    const e = n.agent === h.id ? world.events.get(n.deed) : undefined,
+      year = e ? yearOfMoment(e.t) : -1;
+    if (e && year >= from && year <= to)
+      tell(year, e.id, why(world, e.id).claim, e.type, e.importance);
+  }
+  if (h.dead && h.dead.died >= from && h.dead.died <= to)
+    tell(
+      h.dead.died,
+      h.w.event,
+      `${name} died in year ${h.dead.died}, at ${h.dead.died - h.dead.birthYear}`,
+      "life.died",
+      DEATH_IMPORTANCE,
+    );
+  return out.sort((a, b) => a.year - b.year);
+}
+
 /** The message log's length: its newest messages. */
 const LOG_MOST = 400;
 
@@ -232,6 +317,10 @@ export function newsLog(world: World, most = LOG_MOST): Tiding[] {
     if (name === null) continue;
     if (kindCodeOf(w.ref) === PERSON.code) {
       lives.push(...personNews(world, w.ref, name, Math.floor(w.since / YEAR), now));
+      continue;
+    }
+    if (w.ref.startsWith("agent:")) {
+      lives.push(...agentNews(world, w.ref, name, Math.floor(w.since / YEAR), now));
       continue;
     }
     const news = newsOf(world, w.ref);

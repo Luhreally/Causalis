@@ -2047,7 +2047,7 @@ function wheelSeat(p: VillagePlan["people"][number], role: Role, kilns: number):
  * A smith at the forge, by the metal their land works: only the method changes — copper cast and
  * its edge hammered hard, bronze poured into a mould, iron forged from the bloom, steel quenched.
  * On a world of its own chemistry the metal goes by its own name (Phase 54: an arsenical copper
- * axe; native iron hammered cold from the lump).
+ * axe; native iron hammered from the lump at a red heat).
  */
 export function forging(metal: VillagePlan["metal"], form: string, name?: string): string {
   const n = name ?? metal ?? "";
@@ -2058,7 +2058,7 @@ export function forging(metal: VillagePlan["metal"], form: string, name?: string
       return `Pouring ${article(n)} ${n} ${form} in its mould`;
     case "iron":
       return n === "telluric iron"
-        ? `Hammering ${article(form)} ${form} cold from a lump of native iron`
+        ? `Hammering ${article(form)} ${form} from a lump of native iron`
         : `Forging ${article(form)} ${form} of ${n} from the bloom`;
     case "steel":
       return `Forging ${article(n)} ${n} ${form}, quenching it`;

@@ -4,12 +4,13 @@
 // famine that emptied the stores, the fields that fill them, the ore and the craft
 // that make tools and metal. And the economy's events and decisions, in words.
 import { parseRef, yearOfMoment, type CauseRef, type Ref, type World } from "../kernel/index.ts";
-import { cellRef } from "../gen/index.ts";
-import { FOODS, G, GOODS, SMELTING, WORKED } from "../rules/index.ts";
+import { cellRef, worldChemistry } from "../gen/index.ts";
+import { FOODS, G, GOODS, SMELTING, WORKED, metalOf, type Metal } from "../rules/index.ts";
 import {
   ECONOMY_EVENTS,
   MARKET_GOOD,
   POPULATION_EVENTS,
+  homePlanet,
   loreOf,
   marketsOf,
   populationContext,
@@ -118,9 +119,15 @@ registerEventWords(ECONOMY_EVENTS.metalworkingSpread.type, (world, e) => {
   const from = e.subjects[1] ?? null;
   return `Metalworking came to ${landWords(world, e.place)}${from ? ` from ${landWords(world, from)}` : ""}, ${year(e.t)}`;
 });
+/** A tool's metal in its world's words: its own name on Earth's chemistry, else the world's (stone stays stone). */
+function toolMetalWords(world: World, metal: string): string {
+  if (metal === "stone" || !world.storeNames().includes("planet.home")) return metal;
+  const chem = worldChemistry(homePlanet(world).generated);
+  return chem.solar ? metal : metalOf(chem, metal as Metal).name;
+}
 registerEventWords(ECONOMY_EVENTS.tools.type, (world, e) => {
   const metal = text(e.data, "metal");
-  return `The smiths of ${landWords(world, e.place)} first made a good share of its tools of ${metal ?? "metal"}, ${year(e.t)}`;
+  return `The smiths of ${landWords(world, e.place)} first made a good share of its tools of ${metal === null ? "metal" : toolMetalWords(world, metal)}, ${year(e.t)}`;
 });
 registerEventWords(POPULATION_EVENTS.market.type, (world, e) => {
   const name = text(e.data, "name");

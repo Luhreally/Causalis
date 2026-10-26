@@ -646,6 +646,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
             ...(a.father !== undefined ? { father: a.father } : {}),
             ...(a.partner !== undefined ? { partner: a.partner } : {}),
             ...(a.traits?.length ? { traits: a.traits } : {}),
+            ...(a.name ? { name: a.name } : {}),
           });
           if (w.gone.length > GONE_KEPT) w.gone.splice(0, w.gone.length - GONE_KEPT);
           continue;

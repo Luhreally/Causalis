@@ -265,7 +265,9 @@ export function lensReading(
           { label: "Its age", value: ERA_WORDS[era] ?? era },
           {
             label: "Newest",
-            value: newest ? `${principleName(newest[0])} (year ${count(newest[1].year)})` : "—",
+            value: newest
+              ? `${principleName(newest[0], world)} (year ${count(newest[1].year)})`
+              : "—",
           },
         ],
       };

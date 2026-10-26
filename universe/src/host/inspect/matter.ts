@@ -75,6 +75,8 @@ import type { Block, Item, Line, PageModel, Tab } from "../../bridge/index.ts";
 import { count, item, link, share, stat, yearNow } from "./words.ts";
 import { landLink, landTitle } from "./names.ts";
 import { airBlock } from "./ground.ts";
+import { elementPortrait, matterPortrait } from "../looks.ts";
+import { principleName } from "../../causal/index.ts";
 
 export const substRef = (id: string) => `subst:${id}`,
   rxnRef = (id: string) => `rxn:${id}`,
@@ -193,6 +195,12 @@ export const DEPOSIT_MINERALS: Readonly<Record<string, readonly string[]>> = {
 const substanceOf = (id: string): Substance => findSubstance(id)!;
 const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
 
+/** A list item with its substance's picture beside it, where the item names a substance (Phase 54 M223). */
+function thumbed(it: Item, id: string | null): Item {
+  const s = id ? findSubstance(id) : undefined;
+  return s ? { ...it, thumb: matterPortrait(s) } : it;
+}
+
 /** The chemistry of a world: the Sun's own on an Earth-like one, else its own (Phase 54). */
 const chemOf = (world: World): Chemistry => worldChemistry(homePlanet(world).generated);
 
@@ -289,7 +297,7 @@ function elementsBlock(shares: readonly [string, number][], totalKg: number | nu
     parts: shares.map(([e, s]) => {
       const el = findElement(e)!;
       return {
-        name: [`${cap(el.name)} (${e})`],
+        name: [link(`${cap(el.name)} (${e})`, `elem:${e}`)],
         share: s,
         ...(totalKg !== null ? { amount: weight(totalKg * s) } : {}),
         color: ELEMENT_COLOUR[e] ?? [0.6, 0.6, 0.6],
@@ -457,6 +465,7 @@ export function substancePage(world: World, ref: string): PageModel {
     title: cap(s.name),
     subtitle: [`${s.written} · ${KIND_WORDS[s.kind]}`],
     color: s.colour,
+    portrait: matterPortrait(s),
     place: null,
     stats: [
       stat("Formula", s.written),
@@ -498,7 +507,9 @@ export function reactionPage(world: World, ref: string): PageModel {
         ...(r.fuel ? [stat("Burning", [link(substanceOf(r.fuel).name, substRef(r.fuel))])] : []),
         stat(
           "Taught by",
-          teacher ? [link(teacher.name, prinRef(teacher.id))] : "known from the first",
+          teacher
+            ? [link(principleName(teacher.id, world), prinRef(teacher.id))]
+            : "known from the first",
         ),
         ...(recipe ? [stat("Worked as", recipe.name)] : []),
       ],
@@ -566,7 +577,10 @@ export function principlePage(world: World, ref: string): PageModel {
                 ...(i ? [", "] : []),
                 ...n
                   .split("|")
-                  .flatMap((x, j) => [...(j ? [" or "] : []), link(principle(x).name, prinRef(x))]),
+                  .flatMap((x, j) => [
+                    ...(j ? [" or "] : []),
+                    link(principleName(x, world), prinRef(x)),
+                  ]),
               ])
             : "nothing: it is a root",
         ),
@@ -588,13 +602,15 @@ export function principlePage(world: World, ref: string): PageModel {
     blocks.push({
       type: "list",
       title: "What it opens the way to",
-      items: opens.map((q) => item([link(q.name, prinRef(q.id))], prinRef(q.id))),
+      items: opens.map((q) =>
+        item([link(principleName(q.id, world), prinRef(q.id))], prinRef(q.id)),
+      ),
     });
   return {
     ref,
     kind: "principle",
     icon: "📜",
-    title: cap(p.name),
+    title: cap(principleName(p.id, world)),
     subtitle: ["A principle a people may come to know"],
     color: null,
     place: first ? { scale: "region", cell: first.cell } : null,
@@ -786,14 +802,17 @@ const KIND_TITLE: Readonly<Record<MatterKind, string>> = {
 function oreItem(chem: Chemistry, kind: string, ore: Ore): Item {
   const ref = substRef(ore.mineral),
     smelt = findReaction(ore.smelt)!;
-  return item(
-    [
-      link(cap(ore.name), ref),
-      ` (${roleWord(chem, kind)}) — ${ore.words}; `,
-      link(smelt.name, rxnRef(ore.smelt)),
-      ` at ${count(reductionHeat(ore))} °C`,
-    ],
-    ref,
+  return thumbed(
+    item(
+      [
+        link(cap(ore.name), ref),
+        ` (${roleWord(chem, kind)}) — ${ore.words}; `,
+        link(smelt.name, rxnRef(ore.smelt)),
+        ` at ${count(reductionHeat(ore))} °C`,
+      ],
+      ref,
+    ),
+    ore.mineral,
   );
 }
 
@@ -853,9 +872,12 @@ function worldBlocks(world: World, chem: Chemistry): Block[] {
       title: "Its stones",
       items: stones.map((s) => {
         const ref = s.subst ? substRef(s.subst) : null;
-        return item(
-          [link(cap(s.name), ref), ` — ${s.from}; keen ${edge(s.keen)}, tough ${edge(s.tough)}`],
-          ref,
+        return thumbed(
+          item(
+            [link(cap(s.name), ref), ` — ${s.from}; keen ${edge(s.keen)}, tough ${edge(s.tough)}`],
+            ref,
+          ),
+          s.subst,
         );
       }),
     },
@@ -882,9 +904,12 @@ function worldBlocks(world: World, chem: Chemistry): Block[] {
         ...(nativeIron ? [metalOf(chem, "iron", { lie: "telluric" })] : []),
       ].map((m) => {
         const ref = substRef(m.subst);
-        return item(
-          [link(cap(m.name), ref), ` — keen ${edge(m.stuff.keen)}, tough ${edge(m.stuff.tough)}`],
-          ref,
+        return thumbed(
+          item(
+            [link(cap(m.name), ref), ` — keen ${edge(m.stuff.keen)}, tough ${edge(m.stuff.tough)}`],
+            ref,
+          ),
+          m.subst,
         );
       }),
     },
@@ -898,7 +923,9 @@ function worldBlocks(world: World, chem: Chemistry): Block[] {
           cells: [
             [cap(f.name)],
             [`${count(heat)} °C`],
-            f.by ? [link(principle(f.by).name, prinRef(f.by))] : ["nothing: known from the first"],
+            f.by
+              ? [link(principleName(f.by, world), prinRef(f.by))]
+              : ["nothing: known from the first"],
           ],
           keys: [f.name, heat],
         };
@@ -911,7 +938,10 @@ function worldBlocks(world: World, chem: Chemistry): Block[] {
       called = (id: string) =>
         tongueName({ ...t, seed: t.seed ^ 0x6d61 }, hashString("called " + id) >>> 0).toLowerCase(),
       said = (english: string, id: string, ref: string | null): Item =>
-        item([link(cap(english), ref), ` — they call it ${called(id)}`], ref);
+        thumbed(
+          item([link(cap(english), ref), ` — they call it ${called(id)}`], ref),
+          ref ? id : null,
+        );
     const named: Item[] = [said(roleWord(chem, "tin"), chem.hardener, substRef(chem.hardener))],
       surface = table.copper?.surface,
       bog = table.iron?.bog,
@@ -941,7 +971,12 @@ export function matterGuidePage(world: World, tab?: string): PageModel {
       title: KIND_TITLE[k],
       items: subs
         .filter((s) => s.kind === k)
-        .map((s) => item([link(cap(s.name), substRef(s.id)), ` — ${s.written}`], substRef(s.id))),
+        .map((s) =>
+          thumbed(
+            item([link(cap(s.name), substRef(s.id)), ` — ${s.written}`], substRef(s.id)),
+            s.id,
+          ),
+        ),
     })),
     reactions: Block = {
       type: "list",
@@ -954,10 +989,15 @@ export function matterGuidePage(world: World, tab?: string): PageModel {
       type: "table",
       title: "The elements",
       columns: ["Element", "Symbol", "A mole weighs"],
-      rows: els.map((e) => ({
-        cells: [[cap(e.name)], [e.symbol], [`${e.mass} g`]],
-        keys: [e.name, e.symbol, e.mass],
-      })),
+      rows: els.map((e) => {
+        const thumb = elementPortrait(e.symbol);
+        return {
+          ref: `elem:${e.symbol}`,
+          cells: [[cap(e.name)], [e.symbol], [`${e.mass} g`]],
+          keys: [e.name, e.symbol, e.mass],
+          ...(thumb ? { thumb } : {}),
+        };
+      }),
     };
   return {
     ref: "world:matter",

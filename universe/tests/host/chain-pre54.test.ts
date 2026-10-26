@@ -42,6 +42,22 @@ const BEFORE: Record<string, string> = {
   camps: "cfc0a711:332618",
 };
 
+/**
+ * What the digest reads of a page: its words. The pictures (`portrait`, `thumb`) are new in Phase 54
+ * M223, and so are the links to elements (`elem:`) and the element rows' refs: each names words the
+ * page already had, so a link reads as its text and an element's ref is left out.
+ */
+const WORDS = (key: string, value: unknown): unknown => {
+  if (key === "portrait" || key === "thumb") return undefined;
+  if (key === "ref" && typeof value === "string" && value.startsWith("elem:")) return undefined;
+  // (A link is a span, {text, ref}: only a span reads as its text; an element's row keeps its cells.)
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const { text, ref } = value as { text?: unknown; ref?: unknown };
+    if (typeof text === "string" && typeof ref === "string" && ref.startsWith("elem:")) return text;
+  }
+  return value;
+};
+
 /** FNV-1a over a text, with its length. */
 function digest(text: string): string {
   let h = 0x811c9dc5;
@@ -115,7 +131,7 @@ const CATEGORIES: Record<string, () => unknown> = {
 
 for (const [name, of] of Object.entries(CATEGORIES)) {
   test(`Earth's ${name} as before Phase 54`, () => {
-    const text = JSON.stringify(of());
+    const text = JSON.stringify(of(), WORDS);
     assert.ok(text.length > 100, `${name}: something to digest (${text.length} letters)`);
     if (process.env.PRE54_RECORD) {
       console.log(`  ${JSON.stringify(name)}: ${JSON.stringify(digest(text))},`);

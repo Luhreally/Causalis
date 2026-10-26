@@ -11,6 +11,7 @@
 // - a realm's flag (a war's two, crossed) and a faith's sign.
 import type { Portrait } from "../bridge/index.ts";
 import { drawArms } from "./arms.ts";
+import { drawSpecimen } from "./specimen.ts";
 import {
   EYES,
   HAIRS,
@@ -831,6 +832,12 @@ export function drawPortrait(
     }
     case "sign":
       drawSign(surface(canvas, w, h), p, w, h);
+      return;
+    case "matter":
+    case "element":
+    case "thing":
+      // A specimen (Phase 54 M223): cut, poured or made as its stuff is, turning slowly.
+      drawSpecimen(surface(canvas, w, h), p, box, t);
       return;
     case "arms": {
       // A realm's arms whole; a war's two, face to face, crossed blades between them.

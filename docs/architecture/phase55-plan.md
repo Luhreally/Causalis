@@ -1,4 +1,4 @@
-# Phase 55 — open-world warfare, wounds, lost limbs and healing (M223–M230)
+# Phase 55 — open-world warfare, wounds, lost limbs and healing (M224–M231)
 
 Planned 2026-10-25 (Opus planner). Prerequisites: M214/M215 committed; Phase 52 (M216–M218) landed;
 Phases 53–54 before the arms-traced tasks. The architecture already foresees this: "in a watched
@@ -11,10 +11,10 @@ aggregate engagement, and the shadow plays out a fight consistent with it" (univ
   on the world clock — no hold, no separate scale; the land map shows the same battle as its token
   hosts at the same moments; the Phase 37 field stays as "the close field (replay)"; the old views
   stay as options in a switcher (globe war, the march over the land, before the town, the close field).
-- **D2 spread the fallen (M223b):** the dead come from every land that sent men, not only the
+- **D2 spread the fallen (M224b):** the dead come from every land that sent men, not only the
   attacker's seat (war.ts:567) — calibrated (realm populations ±2%, battles per century ±5%).
 - **D3 accidents:** wounds only from battles and strikes for now; a recorded mishaps ledger later.
-- **D5 the fallen by arms (with M223b, added 2026-10-26 from Phase 53's results):** a battle's dead
+- **D5 the fallen by arms (with M224b, added 2026-10-26 from Phase 53's results):** a battle's dead
   from the men engaged, the foe's arms against one's own protection — not, as since Phase 37, a share
   of the smaller side's armed strength, under which an even fight between well-armed realms kills
   28–45% of those fielded and better arms cost a host more of its own men. Calibrated with D2: war
@@ -34,19 +34,19 @@ borne from the square and buried by name; the wounded lie abed, then walk bandag
 hand, on a crutch, an eye patched — their pages tell it.
 
 ## Design
-- **History (M223a, inert to counts):** each new Battle gains `fell` (per land a side's dead came
+- **History (M224a, inert to counts):** each new Battle gains `fell` (per land a side's dead came
   from: `{cell, n, hurt, towns: [town, people, dead, hurt][]}`, split by population with the
   countryside last, the hand's village weight 0), `wounded` = min(fielded − fallen, round(fallen ×
   woundedPerFallen(foe shock, own protection, own care))), `maimed` = round(wounded ×
   maimedShare(blow, care)), `bore` (the design fought with). No new draws; only the war hash moves.
   Strikes' wounded derived: dead × {fire 2, quake 3, meteor 1.2, flood .4}.
-- **When (M226):** `BATTLE_DAY = {from 8 h, second 60 s, length 150}`; stages eve / morning / battle /
+- **When (M227):** `BATTLE_DAY = {from 8 h, second 60 s, length 150}`; stages eve / morning / battle /
   after / borne with clock caps (1 h/s, 1 min/s in the town, 10 min/s on the land, 1 day/s in the
   rout); the field built only from data fetched after T (hold "battle-roll" if late).
-- **Where (M226):** `fieldFrame(plan, approach, walls)` along the town's road on the attackers' side;
+- **Where (M227):** `fieldFrame(plan, approach, walls)` along the town's road on the attackers' side;
   PLACED_SCALE 1.875 so soldiers match townsfolk (field 262 × 169 m); the battle's wall line on the
   town's walls at a seat; placed mode drops the BattleLayer's own hill/river/houses/camp.
-- **Who (M224):** line k of a town stands for 12 people; holder n ≥ 1 keyed `folk ${town} ${k} ${n}`;
+- **Who (M225):** line k of a town stands for 12 people; holder n ≥ 1 keyed `folk ${town} ${k} ${n}`;
   eligible = not a child, male, in the sim's fighting bands (aliens by their own life table); the levy
   = the first stochasticRound(menSent/12) eligible lines by hash(war, k); `townRoster(world, town,
   year)` folds every battle and strike that took the town's people: the dead from the levy first, a
@@ -55,37 +55,37 @@ hand, on a crutch, an eye patched — their pages tell it.
   recorded line holders and met people first, then `lv:${event}:${side}:${j}` men named in the land's
   tongue; `battleFigures` (today's newBattle rule plus hurt) is the one rule for counts.
 - **Met people:** followLife draws war deaths and wounds against the same pools (unhashed observer).
-- **Wounds (M225):** `rules/anatomy.ts` members from the body plan (an arm takes its hand; vital
+- **Wounds (M226):** `rules/anatomy.ts` members from the body plan (an arm takes its hand; vital
   members never lost; severing ≤ .45 as in Classic); blows by arm (edge/point/blunt/shot/fire/crush);
   `woundWords` ("lost his left hand at the battle at Pounholt in year 312, to a bronze axe; the stump
   bound by Sairis's healer"); `woundLook` hides parts, adds crutch/patch/bandage/limp, abed indoors.
-- **Healing (M228):** hospital, else a healer seat where herb-lore is known, else household, else
+- **Healing (M229):** hospital, else a healer seat where herb-lore is known, else household, else
   kin; `healDays` abed → bandaged → healed or gone; litters where care ≥ .35; the healer's rounds.
-- **Buried (M224):** `VillageRest.war`; war funerals from the square at 14:00 two days after (four for
+- **Buried (M225):** `VillageRest.war`; war funerals from the square at 14:00 two days after (four for
   towns bringing their dead home); ≤ 6 biers; perYear subtracts last year's war and strike dead (the
   double count goes).
-- **Arms traced (M227):** `armsMade(…, who?)` varies the maker seat per soldier; `arms:` pages.
+- **Arms traced (M228):** `armsMade(…, who?)` varies the maker seat per soldier; `arms:` pages.
 - **Pages:** townsfolk page (name, role, town, age, wounds, fate, burial, arms); battle/war pages gain
   wounded, maimed, fallen by town with names; panels "n fallen, m wounded".
 - **Phone:** PLACED_MOST [60, 120, 240, 360] per side by detail; LOD past 160 m; shadows only at
   Ultra; the town shelters during the battle but 24 watchers; layer built on the eve.
 
 ## Milestones (waves of file-disjoint tasks; [S] senior)
-- **M223** history keeps wounded and fallen by town: T1 rules/wounds.ts; T2 rules/apportion.ts; T3
+- **M224** history keeps wounded and fallen by town: T1 rules/wounds.ts; T2 rules/apportion.ts; T3
   bridge types; T5 [S] war.ts + fell.ts (oracle war domain only); T6 host wars.map/campaign/battle;
   T7 pages/panels; T8 [S] spread the fallen (D2).
-- **M224** the town's people kept: T9 bridge wounds + roll; T10 graveyard war funerals; T11 [S]
+- **M225** the town's people kept: T9 bridge wounds + roll; T10 graveyard war funerals; T11 [S]
   host/roster.ts; T12 [S] observer war draws; T13 [S] village folk through the roster + healer seat +
   perYear fix; T14 [S] host/roll.ts + `battle.roll`; T15 townsfolk page; T16 met person's page.
-- **M225** wounds seen: T17 anatomy; T18 view/wounds.ts; T19 host/wounds.ts; T20 [S] village moments
+- **M226** wounds seen: T17 anatomy; T18 view/wounds.ts; T19 host/wounds.ts; T20 [S] village moments
   (abed/away hidden, watchers); T21 [S] render (woundLook, placed BattleLayer under the village).
-- **M226** the battle fought in place: T22 view/battleday.ts; T23 [S] battle.ts placed mode + hurt +
+- **M227** the battle fought in place: T22 view/battleday.ts; T23 [S] battle.ts placed mode + hurt +
   roll; T24 [S] warplay (no falls before the turn); T25 townwar placed window + named soldiers; T26
   [S] render/battle placed; T27 [S] main.ts wiring + exposed hooks; T28 gates 37/38/40/43 updated.
-- **M227** arms traced: T29 [S] chain + arms page; T30 battle panel trooper card; T38 village panel.
-- **M228** healing: T31 litters; T32 healer rounds.
-- **M229** view options: T33 view/warviews.ts; T34 ui/war-views.ts.
-- **M230** gate 55, probe55, docs.
+- **M228** arms traced: T29 [S] chain + arms page; T30 battle panel trooper card; T38 village panel.
+- **M229** healing: T31 litters; T32 healer rounds.
+- **M230** view options: T33 view/warviews.ts; T34 ui/war-views.ts.
+- **M231** gate 55, probe55, docs.
 
 ## Acceptance
 Σ towns + countryside = each side's fallen (100%); roll lengths = figure counts; no dead holder in a

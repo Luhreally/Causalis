@@ -248,6 +248,8 @@ export type Gone = {
   readonly father?: number;
   readonly partner?: number;
   readonly traits?: readonly PersonTrait[];
+  /** The name they were known by, where the hand was laid from them (Phase 54). */
+  readonly name?: string;
 };
 
 /** The most of the dead the hand remembers (the eldest let go first). */

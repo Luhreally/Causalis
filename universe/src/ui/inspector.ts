@@ -17,6 +17,7 @@ import type {
   Line,
   PageModel,
   Place,
+  Portrait,
   Row,
   Stat,
 } from "../bridge/index.ts";
@@ -28,11 +29,19 @@ import type { HoverTips } from "./hovertip.ts";
 import type { ArmsBook } from "./arms.ts";
 import { drawTool } from "./tools.ts";
 import { drawAnatomy, drawPortrait, moves } from "./portrait.ts";
+import { drawThumb } from "./specimen.ts";
 import { lineupStrip, phyloChart } from "./phylo.ts";
 import { dropView } from "./drop.ts";
 
 /** How often an open page is read again while the world runs (ms). */
 const REFRESH_MS = 2000;
+/** A specimen's small picture (Phase 54 M223): beside a list item, or at the start of a table row. */
+function thumbOf(p: Portrait): HTMLCanvasElement {
+  const canvas = el("canvas", "thumb");
+  drawThumb(canvas, p, 28);
+  return canvas;
+}
+
 /** The rows a table shows before "show all". */
 const TABLE_ROWS = 60;
 /** How many pages back the history reaches. */
@@ -44,6 +53,7 @@ const FOLLOW_WORDS: Readonly<Record<string, string>> = {
   town: "this town",
   realm: "this realm",
   person: "this life",
+  agent: "this life",
 };
 
 /** A number in words for a chart's unit. */
@@ -831,6 +841,7 @@ export class PageWindow {
 
   private item(item: Item): HTMLElement {
     const row = el("div", item.ref ? "line entry" : "entry");
+    if (item.thumb) row.append(thumbOf(item.thumb));
     row.append(this.line(item.line));
     if (item.ref) {
       const ref = item.ref;
@@ -875,11 +886,12 @@ export class PageWindow {
       body.replaceChildren(
         ...shown.map((r) => {
           const tr = el("tr", r.ref ? "row entry" : "row");
-          for (const c of r.cells) {
+          r.cells.forEach((c, i) => {
             const td = el("td");
+            if (i === 0 && r.thumb) td.append(thumbOf(r.thumb));
             td.append(this.line(c));
             tr.append(td);
-          }
+          });
           if (r.ref) {
             const ref = r.ref;
             tr.onclick = () => void this.open(ref);

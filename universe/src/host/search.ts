@@ -19,7 +19,7 @@ import {
   warsOf,
 } from "../sim/index.ts";
 import { observer } from "../causal/index.ts";
-import { GOODS, PRINCIPLES, REACTIONS, SUBSTANCES } from "../rules/index.ts";
+import { ELEMENTS, GOODS, PRINCIPLES, REACTIONS, SUBSTANCES } from "../rules/index.ts";
 import type { World } from "../kernel/index.ts";
 import { lineageIcon } from "./inspect/names.ts";
 
@@ -145,6 +145,13 @@ export function search(world: World, asked: string, most = 24): Found[] {
       icon: "🧪",
       title: m.name[0]!.toUpperCase() + m.name.slice(1),
       subtitle: `${m.written} — a substance`,
+    }));
+  for (const e of ELEMENTS)
+    offer(e.name, 5, () => ({
+      ref: `elem:${e.symbol}`,
+      icon: "⚛️",
+      title: `${e.name[0]!.toUpperCase() + e.name.slice(1)} (${e.symbol})`,
+      subtitle: `${e.symbol} — an element`,
     }));
   for (const r of REACTIONS)
     offer(r.name, 5, () => ({

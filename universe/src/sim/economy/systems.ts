@@ -24,7 +24,7 @@ import {
   type SimTime,
   type World,
 } from "../../kernel/index.ts";
-import { cellRef, seamRef, surfaceOre } from "../../gen/index.ts";
+import { cellRef, seamRef, surfaceOre, worldChemistry } from "../../gen/index.ts";
 import { loreOf } from "../lore/lore.ts";
 import {
   ENGINE_GAIN,
@@ -48,7 +48,8 @@ import {
   TRADER_CAPACITY,
   WANTS,
   WORKED,
-  principle,
+  principleNameOn,
+  roleWord,
   type LifeHistory,
   type Recipe,
   type ToolMetal,
@@ -64,7 +65,7 @@ import {
 } from "../population/systems.ts";
 import { GOOD_COUNT, type Market, type MarketStore, type TradeFlow } from "./market.ts";
 import { metalRank, metalSource, sourceRef } from "./metals.ts";
-import { oreWithin } from "./ore.ts";
+import { heatShortfall, oreWorkable } from "./heat.ts";
 import { kmBetween, seaRange, seaReach } from "./sea.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { fieldedOf, warsOf, type War } from "../war/war.ts";
@@ -116,9 +117,14 @@ export function whyNot(ctx: PopulationContext, cell: number, m: Market, r: Recip
   const know = r.needs?.knowledge;
   if (know === "metalworking" && !m.metalworking) return "they do not know how to smelt copper";
   if (know && know !== "metalworking" && !loreOf(ctx.world).get(cell, know))
-    return `they do not know ${principle(know).name}`;
-  if (r.needs?.ore && !oreWithin(ctx, cell, r.needs.ore))
-    return `no ${r.needs.ore} within a few days' walk`;
+    return `they do not know ${principleNameOn(worldChemistry(ctx.generated), know)}`;
+  if (r.needs?.ore && !oreWorkable(ctx, cell, r.needs.ore)) {
+    // A furnace too cool for the ore within reach says so, in its own words (Phase 54 M222).
+    const short = heatShortfall(ctx, cell, r.needs.ore);
+    if (short)
+      return `their ${short.furnace.name.replace(/^an? /, "")} reaches ${short.reached} °C, short of the ${short.wanted} °C ${short.ore.name} wants`;
+    return `no ${roleWord(worldChemistry(ctx.generated), r.needs.ore)} within a few days' walk`;
+  }
   if (r.needs?.seam && !surfaceOre(ctx.generated, cell, r.needs.seam))
     return `no ${r.needs.seam} under its own ground`;
   if (r.clay && !ctx.generated.water.river[cell] && !ctx.generated.water.lake[cell])
@@ -316,7 +322,7 @@ function makeAndUse(
     let spare = 0;
     open.forEach(({ r }, k) => {
       for (const [g, per] of r.inputs) want[g] = want[g]! + alloc[k]! * per;
-      const grade = r.needs?.ore ? oreWithin(ctx, p.cell, r.needs.ore)!.grade : 1,
+      const grade = r.needs?.ore ? oreWorkable(ctx, p.cell, r.needs.ore)!.grade : 1,
         each = r.output[1] * grade * skill(r.output[0]),
         limit = Math.min(shared(r, alloc[k]!), Math.ceil(room(r.output[0]) / Math.max(1e-9, each)));
       if (alloc[k]! > limit) {
@@ -341,7 +347,7 @@ function makeAndUse(
       if (!n) return;
       for (const [g, per] of r.inputs) m.take("used", g, Math.round(n * per));
       // Lean ore, or ore hauled from a neighbour's land, yields less (Phase 52 M216).
-      const grade = r.needs?.ore ? oreWithin(ctx, p.cell, r.needs.ore)!.grade : 1,
+      const grade = r.needs?.ore ? oreWorkable(ctx, p.cell, r.needs.ore)!.grade : 1,
         out = m.move(
           "made",
           r.output[0],
@@ -871,7 +877,7 @@ export function metalYear(ctx: PopulationContext, t: SimTime): void {
     const key = refHash(p.ref),
       crafters = p.occupation(OCC.crafter);
     // Smelting wants fire: a people without it comes to metal another way (the vents' lore).
-    const ore = ctx.affords.fire ? oreWithin(ctx, p.cell, "copper") : null;
+    const ore = ctx.affords.fire ? oreWorkable(ctx, p.cell, "copper", "metalworking") : null;
     if (ore && crafters >= 5) {
       const chance = 0.015 * Math.min(1, crafters / 25) * ore.reach;
       if (world.rng.chance(chance, METAL, key, t, 0)) {
@@ -905,7 +911,7 @@ export function metalYear(ctx: PopulationContext, t: SimTime): void {
       });
       continue;
     }
-    const ore = oreWithin(ctx, p.cell, "copper")!;
+    const ore = oreWorkable(ctx, p.cell, "copper", "metalworking")!;
     const decision = world.decisions.record({
       rule: "knowledge.metalworking",
       subject: p.ref,

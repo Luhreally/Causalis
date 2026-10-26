@@ -166,7 +166,7 @@ export function realmPage(world: World, ref: string): RealmPage {
   // What its seat knows, in the order it came to know it.
   const known = loreOf(world)
     .of(p.seat)
-    .map(([id, k]) => ({ name: principleName(id), year: k.year, event: k.event }))
+    .map(([id, k]) => ({ name: principleName(id, world), year: k.year, event: k.event }))
     .sort((a, b) => a.year - b.year || (a.name < b.name ? -1 : 1));
   const host = designsOf(world).of(p.ref);
   return {

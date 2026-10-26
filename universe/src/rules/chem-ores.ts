@@ -6,6 +6,7 @@
 import { METALS, ORES, type Metal, type Ore, type OreLie } from "./stuffs.ts";
 import { NOVEL_REACTIONS, REACTIONS, findReaction, type Reaction } from "./matter.ts";
 import { chemistryKey, type AirClass, type Chemistry } from "./chemistry.ts";
+import { principle } from "./principles.ts";
 
 /** A furnace: the heat it reaches (°C), and the process that brings it (null: a fire needs none). */
 export type Furnace = {
@@ -90,7 +91,7 @@ export const NOVEL_METALS: Readonly<
     keen: 0.66,
     tough: 0.5,
     colour: [0.48, 0.48, 0.5],
-    hand: "cold-hammered from lumps of native iron",
+    hand: "hammered at a red heat from lumps of native iron",
     works: "rolled at the works",
   },
   // About 3% carbon behaves like white iron.
@@ -320,6 +321,22 @@ export function canWork(heat: number, ore: Ore): boolean {
  */
 export function arsenicalFallback(chem: Chemistry): boolean {
   return !chem.solar && chem.hardener === "nickel";
+}
+
+/** The principles that are a metal's, and the metal each names (Phase 54 M222). */
+export const METAL_PRINCIPLES: ReadonlyMap<string, Metal> = new Map<string, Metal>([
+  ["bronze", "bronze"],
+  ["iron", "iron"],
+]);
+
+/**
+ * A principle's name on this world: a metal's principle is named as the world's chemistry names
+ * that metal ("arsenical copper" for bronze on an arsenic world); the Sun's chemistry keeps the
+ * names the principles have.
+ */
+export function principleNameOn(chem: Chemistry, id: string): string {
+  const metal = METAL_PRINCIPLES.get(id);
+  return chem.solar || !metal ? principle(id).name : metalOf(chem, metal).name;
 }
 
 /**

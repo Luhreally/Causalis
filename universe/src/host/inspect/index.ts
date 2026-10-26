@@ -43,6 +43,7 @@ import { housePage } from "./credit.ts";
 import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
 import { campPage } from "./camp.ts";
 import { armPage } from "./arm.ts";
+import { elementPage } from "./element.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
 function build(world: World, ref: string, tab: string | null): PageModel {
@@ -59,6 +60,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("trait:")) return traitPage(world, ref);
   // Matter (Phase 15 M122): substances, reactions, principles, goods the world over.
   if (ref.startsWith("subst:")) return substancePage(world, ref);
+  // An element (Phase 54 M223): what it is, and what on this world holds it.
+  if (ref.startsWith("elem:")) return elementPage(world, ref);
   if (ref.startsWith("rxn:")) return reactionPage(world, ref);
   if (ref.startsWith("prin:")) return principlePage(world, ref);
   if (ref.startsWith("good:")) return goodKindPage(world, ref);

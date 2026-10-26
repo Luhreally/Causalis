@@ -36,7 +36,11 @@ test("a substance: its elements, how it is, where it lies in this world, what it
   assert.equal(p.kind, "substance");
   const elements = of(blocks(p), "composition")[0]!;
   assert.equal(elements.title, "Its elements");
-  const cu = elements.parts.find((x) => String(x.name[0]).startsWith("Copper"))!;
+  // (A part's name is a link to its element's page now: its words are the link's text.)
+  const cu = elements.parts.find((x) => {
+    const n = x.name[0];
+    return String(typeof n === "string" ? n : n?.text).startsWith("Copper");
+  })!;
   assert.ok(Math.abs(cu.share - 0.575) < 0.002, `copper ${cu.share}`);
   const where = of(blocks(p), "list").find((b) => b.title === "Where it lies in this world")!;
   assert.ok(where.items.length > 0, "copper lies somewhere in this world");

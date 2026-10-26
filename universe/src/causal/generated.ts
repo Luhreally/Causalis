@@ -29,6 +29,7 @@ import {
   surfaceCopper,
   starAgeGyr,
   treeOfLife,
+  worldChemistry,
   type HomeWorld,
   type SystemBody,
 } from "../gen/index.ts";
@@ -318,10 +319,16 @@ registerExplainer(SURFACE_CELL.code, (world, ref) => {
   if (c >= g.grid.count) return null;
   const e = g.tectonics.elevation[c]!,
     b = g.tectonics.boundary[c]!,
-    near = b !== BOUNDARY.none && g.tectonics.toBoundary[c]! <= 3;
+    near = b !== BOUNDARY.none && g.tectonics.toBoundary[c]! <= 3,
+    // Where copper shows at the surface of a reduced world, it lies native, not as ore (Phase 54).
+    copper = surfaceCopper(g, c)
+      ? worldChemistry(g).redox === "reduced"
+        ? "; native copper lies at the surface"
+        : "; copper ores lie at the surface"
+      : "";
   return generated(
     ref,
-    `${BIOME_NAMES[g.climate.biome[c]!]} at ${deg(g.grid.lat[c]!)}${g.grid.lat[c]! >= 0 ? "N" : "S"} ${deg(g.grid.lon[c]!)}${g.grid.lon[c]! >= 0 ? "E" : "W"}: ${Math.round(e)} m ${e >= 0 ? "above" : "below"} the sea, ${g.climate.temperature[c]!.toFixed(0)} °C, ${Math.round(g.climate.precipitation[c]!)} mm of rain a year${near ? `, near a ${BOUNDARY_WORDS[b]} plate boundary` : ""}${surfaceCopper(g, c) ? "; copper ores lie at the surface" : ""}`,
+    `${BIOME_NAMES[g.climate.biome[c]!]} at ${deg(g.grid.lat[c]!)}${g.grid.lat[c]! >= 0 ? "N" : "S"} ${deg(g.grid.lon[c]!)}${g.grid.lon[c]! >= 0 ? "E" : "W"}: ${Math.round(e)} m ${e >= 0 ? "above" : "below"} the sea, ${g.climate.temperature[c]!.toFixed(0)} °C, ${Math.round(g.climate.precipitation[c]!)} mm of rain a year${near ? `, near a ${BOUNDARY_WORDS[b]} plate boundary` : ""}${copper}`,
     edges(world, [
       { ref: g.tectonics.plates[g.tectonics.plate[c]!]!.ref as Ref, role: "enabler", weight: 1 },
     ]),

@@ -269,7 +269,7 @@ export function realmPageModel(world: World, ref: string): PageModel {
       .map(([id, k]) => ({ id, k }))
       .sort((a, b) => b.k.year - a.k.year)
       .map(({ id, k }) =>
-        item([link(principleName(id), k.event), ` — year ${k.year}`], k.event, k.year),
+        item([link(principleName(id, world), k.event), ` — year ${k.year}`], k.event, k.year),
       );
     tabs.push({
       id: "lore",

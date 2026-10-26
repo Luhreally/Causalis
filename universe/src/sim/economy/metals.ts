@@ -9,11 +9,11 @@ import { SMELTING, TOOL_METALS, WORKED, type ToolMetal } from "../../rules/index
 import { knows } from "../lore/lore.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { marketGoodRef, type Market, type MarketStore } from "./market.ts";
-import { oreWithin, type OreAt } from "./ore.ts";
+import { oreWorkable, type Workable } from "./heat.ts";
 
 /** Where a land's metal of a kind comes from: its own smelters' ore, a road, or its store. */
 export type MetalSource =
-  | { readonly how: "ore"; readonly ore: OreAt }
+  | { readonly how: "ore"; readonly ore: Workable }
   | { readonly how: "road"; readonly from: number; readonly road: Ref | null }
   | { readonly how: "store" };
 
@@ -22,10 +22,10 @@ function marketAt(ctx: PopulationContext, cell: number): Market | undefined {
 }
 
 /** The ore a land's smelters can win a metal good from: the craft known and ore within reach. */
-export function smeltable(ctx: PopulationContext, cell: number, good: number): OreAt | null {
+export function smeltable(ctx: PopulationContext, cell: number, good: number): Workable | null {
   const row = SMELTING.find((s) => s.good === good);
   if (!row || !knows(ctx, cell, row.knowledge)) return null;
-  return oreWithin(ctx, cell, row.ore);
+  return oreWorkable(ctx, cell, row.ore);
 }
 
 /**

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
+import { thingForm } from "../../src/host/looks.ts";
 import { politiesOf, populationContext, tameNow } from "../../src/sim/index.ts";
 import type { Block, PageModel } from "../../src/bridge/index.ts";
 
@@ -165,4 +166,30 @@ test("natures in the god's hand, on their pages: a person's ways of being, a rea
     now,
   );
   assert.equal(tool(page(beast.ref), "acts.lineage")!.args.tame, now);
+});
+
+test("a thing's picture (Phase 54 M223): its form and how it was made, the same on its page and in its holder's list", () => {
+  type Pictured = Extract<NonNullable<PageModel["portrait"]>, { kind: "thing" }>;
+  const pictured = met
+    .flatMap((h) => h.members.map((m) => page(m.ref)))
+    .flatMap((p) => of(blocks(p, "things"), "list").flatMap((b) => b.items))
+    .filter((i) => i.thumb?.kind === "thing");
+  assert.ok(pictured.length >= 2, `${pictured.length} things pictured in their holders' lists`);
+  for (const i of pictured.slice(0, 8)) {
+    const t = page(i.ref!),
+      picture = t.portrait as Pictured,
+      name = String((i.line[0] as { text: string }).text);
+    assert.equal(t.kind, "thing");
+    assert.deepEqual(t.portrait, i.thumb, "the page's picture is the list's thumbnail");
+    assert.equal(picture.form, thingForm(name), `${name} is a ${picture.form}`);
+    assert.match(picture.made, /^(knapped|cast|forged|thrown|woven|sewn)$/);
+    if (i.ref!.includes(":pot")) assert.equal(picture.made, "thrown", "a pot is thrown");
+    const worn = of(blocks(t, "overview"), "facts")[0]?.rows.find((r) => r.label === "Worn");
+    if (worn)
+      assert.equal(
+        Math.round(picture.worn * 100),
+        Number(String(worn.value).match(/^(\d+)%/)![1]),
+        "as worn as the page says",
+      );
+  }
 });

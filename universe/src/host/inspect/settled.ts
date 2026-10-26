@@ -596,7 +596,8 @@ export function agentPage(world: World, ref: string): PageModel {
         ],
       },
     ],
-    followable: false,
+    // (Followed while the hand rests, Phase 54: their children, the god's touches, their death.)
+    followable: true,
     year,
   };
 }

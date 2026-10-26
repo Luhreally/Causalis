@@ -20,6 +20,7 @@ import {
   REACTIONS,
   WANTS,
   bodyMakeUp,
+  findSubstance,
   type MakeUp,
 } from "../../rules/index.ts";
 import { hashString, type Ref, type World } from "../../kernel/index.ts";
@@ -36,11 +37,12 @@ import {
   type MarketStore,
   type Window,
 } from "../../sim/index.ts";
-import { observer, type Household, type Person } from "../../causal/index.ts";
-import type { Block, Item, PageModel } from "../../bridge/index.ts";
+import { observer, principleName, type Household, type Person } from "../../causal/index.ts";
+import type { Block, Item, PageModel, Portrait } from "../../bridge/index.ts";
 import { count, item, link, sentence, share, stat, yearNow } from "./words.ts";
 import { landLink, landTitle } from "./names.ts";
 import { goodHere, makeUpBlock, prinRef, rxnRef, substRef, weight } from "./matter.ts";
+import { madeHowOf, thingForm, thingPortrait } from "../looks.ts";
 import { article } from "../../rules/index.ts";
 import {
   castMade,
@@ -294,19 +296,49 @@ function thingsMakeUp(things: readonly Thing[]): { kg: number; parts: [string, n
   return { kg, parts: [...out].map(([s, w]) => [s, kg ? w / kg : 0] as [string, number]) };
 }
 
-function thingItem(t: Thing): Item {
-  return item(
-    [
-      link(t.name, t.ref),
-      t.made === null ? ` — ${t.missing}` : ` — made in year ${t.made}, ${weight(t.kg)}`,
-    ],
-    t.ref,
-  );
+/** How worn a thing is by a year (0 … 1): how far through its life it is; none where there is none. */
+function wornOf(t: Thing, now: number): number {
+  return t.made === null ? 0 : Math.min(1, (now - t.made) / t.life);
+}
+
+/**
+ * A thing's picture (Phase 54 M223), the same on its page and in its list: drawn as its stuff was
+ * made, of its form, in its maker's colour (else its main substance's), as worn as it is. None where
+ * there is no thing made.
+ */
+function thingPicture(t: Thing, now: number): Portrait | undefined {
+  if (t.made === null) return undefined;
+  const mk = t.making,
+    main = t.way.parts[0]?.[0],
+    mainColour = main === undefined ? undefined : findSubstance(main)?.colour;
+  return thingPortrait({
+    form: thingForm(t.name),
+    made: madeHowOf(mk?.stuff ?? t.way.name, t.good),
+    color: mk?.colour ?? mainColour ?? [0.6, 0.55, 0.5],
+    quality: mk?.quality ?? 50,
+    worn: wornOf(t, now),
+    key: hashString(t.ref),
+  });
+}
+
+function thingItem(t: Thing, now: number): Item {
+  const picture = thingPicture(t, now);
+  return {
+    ...item(
+      [
+        link(t.name, t.ref),
+        t.made === null ? ` — ${t.missing}` : ` — made in year ${t.made}, ${weight(t.kg)}`,
+      ],
+      t.ref,
+    ),
+    ...(picture ? { thumb: picture } : {}),
+  };
 }
 
 /** A household's Things tab: its pots, each of its people's things, its store of food. */
 export function householdThingsBlocks(world: World, h: Household): Block[] {
   const ledger = observer(world),
+    now = yearNow(world),
     pots = householdThings(world, h),
     people = h.members.map((m) => ledger.person(m)).filter((p): p is Person => !!p?.alive),
     theirs = people.flatMap((p) => personThings(world, p)),
@@ -314,11 +346,11 @@ export function householdThingsBlocks(world: World, h: Household): Block[] {
     made = thingsMakeUp(all),
     food = foodStore(world, h);
   const blocks: Block[] = [
-    { type: "list", title: "What it keeps", items: pots.map(thingItem) },
+    { type: "list", title: "What it keeps", items: pots.map((t) => thingItem(t, now)) },
     ...people.map((p): Block => ({
       type: "list",
       title: `What ${p.name} holds`,
-      items: personThings(world, p).map(thingItem),
+      items: personThings(world, p).map((t) => thingItem(t, now)),
     })),
   ];
   if (made.kg) blocks.push(makeUpBlock(made.parts, made.kg, "What its things are made of"));
@@ -347,10 +379,15 @@ function bodyKg(world: World, p: Holder): number {
 /** A person's Things tab: what they hold, what they eat in a day, what their body is made of. */
 export function personThingsBlocks(world: World, p: Holder): Block[] {
   const things = personThings(world, p),
+    now = yearNow(world),
     made = thingsMakeUp(things),
     blocks: Block[] = [];
   if (things.length)
-    blocks.push({ type: "list", title: "What they hold", items: things.map(thingItem) });
+    blocks.push({
+      type: "list",
+      title: "What they hold",
+      items: things.map((t) => thingItem(t, now)),
+    });
   if (made.kg) blocks.push(makeUpBlock(made.parts, made.kg, "What their things are made of"));
   if (!p.alive) return blocks;
   // A day's food: a unit a month, in the land's mix of foods, and its energy against their need.
@@ -393,7 +430,7 @@ export function personThingsBlocks(world: World, p: Holder): Block[] {
 }
 
 /** Where a thing's stuff comes from: its metal's ore, the reaction, the principle that taught it. */
-function chainOf(t: Thing): Item[] {
+function chainOf(world: World, t: Thing): Item[] {
   const main = t.way.parts[0]![0],
     makes = REACTIONS.filter((r) => r.outputs[0]![0] === main && r.principle !== "cultivation"),
     out: Item[] = [];
@@ -405,7 +442,7 @@ function chainOf(t: Thing): Item[] {
         " → ",
         link(r.name, rxnRef(r.id)),
         ...(r.principle
-          ? [", taught by ", link(r.principle.replace(/-/g, " "), prinRef(r.principle))]
+          ? [", taught by ", link(principleName(r.principle, world), prinRef(r.principle))]
           : []),
       ]),
     );
@@ -437,7 +474,8 @@ export function thingPage(world: World, ref: string): PageModel {
     t = list.find((x) => x.slot === slot);
   if (!t) throw new Error(`no thing ${ref}`);
   const now = yearNow(world),
-    worn = t.made === null ? 0 : Math.min(1, (now - t.made) / t.life),
+    worn = wornOf(t, now),
+    picture = thingPicture(t, now),
     by = person
       ? [link(`${person.name} ${person.surname}`, person.ref)]
       : house
@@ -512,7 +550,7 @@ export function thingPage(world: World, ref: string): PageModel {
                 title: "From the ground to the hand",
                 items: mk.chain.map((l) => item(l)),
               }
-            : { type: "list", title: "Where its stuff comes from", items: chainOf(t) },
+            : { type: "list", title: "Where its stuff comes from", items: chainOf(world, t) },
         ];
   return {
     ref,
@@ -521,6 +559,7 @@ export function thingPage(world: World, ref: string): PageModel {
     title: t.name[0]!.toUpperCase() + t.name.slice(1),
     subtitle: [house ? "Kept by " : "Held by ", ...by],
     color: null,
+    ...(picture ? { portrait: picture } : {}),
     place: null,
     stats:
       t.made === null
@@ -606,6 +645,15 @@ const MADE_AT: Readonly<
   },
 };
 
+/** The good each trade's made things are, as a thing is drawn by its making (Phase 54 M223). */
+const MADE_GOOD: Readonly<Record<string, "tools" | "clothing" | "pottery" | "machines">> = {
+  smith: "tools",
+  potter: "pottery",
+  weaver: "clothing",
+  founder: "machines",
+  machinist: "machines",
+};
+
 /**
  * A thing made at a town's workshop on a day (`made:<town>:<day>:<trade>:<seat>:<n>:<form>`, Phase
  * 51 M213–M214): the n-th its maker of that trade and seat set out that day, tapped where it lies —
@@ -663,6 +711,15 @@ export function madePage(world: World, ref: string): PageModel {
       ...(mk.workshop.ref ? [link(mk.workshop.name, mk.workshop.ref)] : [mk.workshop.name]),
     ],
     color: null,
+    // (Fresh from the bench: not yet worn.)
+    portrait: thingPortrait({
+      form,
+      made: madeHowOf(mk.stuff, MADE_GOOD[trade]!),
+      color: mk.colour,
+      quality: mk.quality,
+      worn: 0,
+      key: hashString(ref),
+    }),
     place: null,
     stats: [stat("Made", on), stat("Quality", mk.grade)],
     tabs: [

@@ -99,9 +99,9 @@ registerEventWords(
   (world, e) =>
     `By your hand: a spring welled up at ${named(e.data, villageName(world, e.subjects[0]))}, year ${yearOfMoment(e.t)}`,
 );
-registerEventWords(LOCAL_ACT_EVENTS.inspireOne.type, (_, e) => {
+registerEventWords(LOCAL_ACT_EVENTS.inspireOne.type, (world, e) => {
   const p = (e.data as { principle?: string | null } | null)?.principle ?? null;
-  return `By your hand: ${named(e.data, "one of your people")} was inspired${p ? `, and came upon ${principleName(p)}` : ", though there was nothing new their land could learn"}, year ${yearOfMoment(e.t)}`;
+  return `By your hand: ${named(e.data, "one of your people")} was inspired${p ? `, and came upon ${principleName(p, world)}` : ", though there was nothing new their land could learn"}, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(LOCAL_ACT_EVENTS.traitOne.type, (_, e) => {
   const d = e.data as { trait?: string; on?: boolean } | null;

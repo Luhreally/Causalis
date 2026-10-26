@@ -88,6 +88,14 @@ test("the day's tools are hung on the rack as they are made, each one's page tra
       facts = blocks.find((b) => b.type === "facts"),
       chain = blocks.find((b) => b.type === "list" && b.title === "From the ground to the rack");
     assert.equal(page.title, `A copper ${h.form}`);
+    // Its picture (Phase 54 M223): a copper tool, cast in its mould, of its form, fresh from the bench.
+    assert.ok(
+      page.portrait?.kind === "thing" &&
+        page.portrait.made === "cast" &&
+        page.portrait.form === h.form &&
+        page.portrait.worn === 0,
+      `${page.title} pictured as a cast ${h.form}`,
+    );
     // Made by the very smith who hung it, at their trade so many years.
     assert.ok(facts?.type === "facts");
     const by = facts.rows.find((r) => r.label === "By")!;

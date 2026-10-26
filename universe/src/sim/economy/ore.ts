@@ -6,8 +6,14 @@
 // granite, bog ore and the hills' ironstone, coal, oil and salt in their seams. A pure function of the
 // generated world, kept.
 import type { Ref } from "../../kernel/index.ts";
-import { cellRef, ironShowing, surfaceCopper, surfaceOre } from "../../gen/index.ts";
-import { ORES, type OreLie } from "../../rules/index.ts";
+import {
+  cellRef,
+  ironShowing,
+  surfaceCopper,
+  surfaceOre,
+  worldChemistry,
+} from "../../gen/index.ts";
+import { SOLAR, worldOre, type Chemistry, type OreLie } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 
 /** How an ore lies in a land: as the stuffs name it, or in a seam (coal, oil, salt). */
@@ -30,9 +36,12 @@ export type OreAt = {
 /** What ore hauled from a neighbour's land yields, against ore at home. */
 export const NEIGHBOUR_REACH = 0.6;
 
-/** What a smelter's year yields from an ore as it lies, against the best (1 where not said). */
-export function oreGrade(kind: string, lie: OreLieAt): number {
-  return lie === "seam" ? 1 : (ORES[kind]?.[lie]?.grade ?? 1);
+/**
+ * What a smelter's year yields from an ore as it lies, against the best (1 where not said) — the
+ * ore of its own world's chemistry (Phase 54: lumps of native iron yield half a bloom's iron).
+ */
+export function oreGrade(kind: string, lie: OreLieAt, chem: Chemistry = SOLAR): number {
+  return lie === "seam" ? 1 : (worldOre(chem, kind, lie)?.grade ?? 1);
 }
 
 /** The ore of a kind in a land's own ground: its deposit, else what shows at its surface. */
@@ -106,9 +115,10 @@ export function oreWithin(ctx: PopulationContext, cell: number, kind: string): O
 
 function findWithin(ctx: PopulationContext, cell: number, kind: string): OreAt | null {
   const g = ctx.generated,
+    chem = worldChemistry(g),
     at = (c: number, reach: number): OreAt | null => {
       const o = oreIn(ctx, c, kind);
-      return o ? { kind, cell: c, ...o, reach, grade: reach * oreGrade(kind, o.lie) } : null;
+      return o ? { kind, cell: c, ...o, reach, grade: reach * oreGrade(kind, o.lie, chem) } : null;
     };
   const own = at(cell, 1);
   if (own) return own;

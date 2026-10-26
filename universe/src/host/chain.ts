@@ -59,6 +59,7 @@ import {
   cultureOf,
   designsOf,
   fuelFor,
+  heatShortfall,
   homePlanet,
   loreOf,
   machinedFor,
@@ -406,7 +407,7 @@ const SMELTED: Readonly<Record<OreLie, string>> = {
   bog: "a clay furnace by the marsh",
   hill: "a clay furnace in the hills",
   vent: "a furnace on the shore",
-  telluric: "a smith's anvil by the lava field",
+  telluric: "a smith's hearth by the lava field",
 };
 
 /** An ore dug, in words: its mineral (its page), how it lay, the land (and its deposit), how far. */
@@ -441,18 +442,12 @@ const SMELT_WORDS: Readonly<Record<string, string>> = {
   "roast-tennantite": "Roasted for its white arsenic, then smelted",
   "smelt-siderite": "Roasted, then smelted to a bloom",
   "smelt-magnetite": "Smelted to a bloom",
-  "forge-telluric": "Forged cold from the lump",
+  "forge-telluric": "Forged from the lump at a red heat",
   "carbide-bloomery": "Smelted to a carbon-rich bloom",
 };
 
 /** An ore smelted, in words: the reaction (its page), where, with what. */
 function smeltLine(world: World, ore: Ore, lie: OreLie, at: number): Line {
-  // (Native iron is hammered cold on the anvil: no furnace, no charcoal.)
-  if (lie === "telluric")
-    return [
-      link(SMELT_WORDS[ore.smelt] ?? "Forged cold", rxnRef(ore.smelt)),
-      ` on ${SMELTED[lie]}`,
-    ];
   return [
     link(SMELT_WORDS[ore.smelt] ?? "Smelted", rxnRef(ore.smelt)),
     ` in ${SMELTED[lie]}, with charcoal of ${landWood(world, at)}`,
@@ -723,8 +718,8 @@ function metalFrom(world: World, cell: number, kind: "copper" | "iron" | "tin"):
   const chem = worldChemistry(homePlanet(world).generated),
     { roads, smelted } = whence(world, cell, kind),
     o = smelted === cell ? oreOf(world, cell, kind) : null,
-    // (Native iron is forged cold from its lump, not smelted.)
-    cold = o?.lie === "telluric" ? ", forged cold" : "";
+    // (Native iron is forged from its lump at a red heat, not smelted.)
+    cold = o?.lie === "telluric" ? ", forged from the lump" : "";
   if (o)
     return o.cell === cell
       ? `${o.ore.name} of its own ground${cold}`
@@ -734,11 +729,11 @@ function metalFrom(world: World, cell: number, kind: "copper" | "iron" | "tin"):
     : `${roleWord(chem, kind)} bought in the market`;
 }
 
-/** Where a town's iron is from, said: smelted to a bloom, or (native iron) forged cold. */
+/** Where a town's iron is from, said: smelted to a bloom, or (native iron) forged from the lump. */
 function ironFrom(world: World, cell: number, wood: string): string {
   const from = metalFrom(world, cell, "iron");
-  return from.endsWith(", forged cold")
-    ? from
+  return from.endsWith(", forged from the lump")
+    ? `${from} in a hearth of charcoal of ${wood}`
     : `${from}, smelted to a bloom with charcoal of ${wood}`;
 }
 
@@ -1348,6 +1343,8 @@ function unforged(world: World, cell: number, arming: boolean): Line {
   const ctx = populationContext(world),
     { stone } = landStone(world, cell),
     ore = oreWorkable(ctx, cell, "copper") !== null || oreWorkable(ctx, cell, "iron") !== null,
+    // Metal ore within reach that the land's furnace is too cool to work (Phase 54 M222).
+    short = ore ? null : (heatShortfall(ctx, cell, "copper") ?? heatShortfall(ctx, cell, "iron")),
     knapped = [
       "knapped from its own ",
       link(stone.name, stone.subst ? substRef(stone.subst) : null),
@@ -1367,11 +1364,19 @@ function unforged(world: World, cell: number, arming: boolean): Line {
               landLink(world, cell),
               " has ore within reach but has not yet smelted it.",
             ]
-          : [
-              "Nothing was forged here this year: no copper or iron ore lies within reach of ",
-              landLink(world, cell),
-              ", and none came down the road.",
-            ]),
+          : short
+            ? [
+                "Nothing was forged here this year: the ",
+                short.ore.name,
+                " within reach of ",
+                landLink(world, cell),
+                ` wants ${short.wanted} °C, and its ${short.furnace.name.replace(/^an? /, "")} reaches only ${short.reached} °C.`,
+              ]
+            : [
+                "Nothing was forged here this year: no copper or iron ore lies within reach of ",
+                landLink(world, cell),
+                ", and none came down the road.",
+              ]),
         " Its tools are still ",
         ...knapped,
         ".",

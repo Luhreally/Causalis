@@ -155,6 +155,8 @@ test("a trooper's arm in a battle is traced as its realm armed it that day", () 
   for (const side of [0, 1]) {
     const page = armPage(world, `arm:${b.event}:${side}:3`);
     assert.match(page.title, / in the battle at /, page.title);
+    // Its picture (Phase 54 M223) is a made thing's; a body's own arm has none.
+    assert.ok(page.portrait === undefined || page.portrait.kind === "thing", page.title);
     const overview = page.tabs
       .find((t) => t.id === "overview")
       ?.blocks.find((x) => x.type === "list");

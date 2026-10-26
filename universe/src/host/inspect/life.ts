@@ -28,6 +28,7 @@ import {
   roleWord,
 } from "../../rules/index.ts";
 import { DEPOSIT_MINERALS, rxnRef, substRef, weight } from "./matter.ts";
+import { matterPortrait } from "../looks.ts";
 import { landLink, landTitle, landsOf, lineageIcon, spotOfLand } from "./names.ts";
 import { ageLines, ancestryTab } from "./tree.ts";
 
@@ -255,7 +256,10 @@ export function depositPageModel(world: World, ref: string): PageModel {
     grade = oreGradeOn(chem, d.kind) ?? ORE_GRADE[d.kind],
     minerals = depositMineralsOn(chem, d.kind) ?? DEPOSIT_MINERALS[d.kind],
     turns = reactionsOn(chem).filter((r) => r.inputs.some(([x]) => minerals?.includes(x))),
-    process = depositProcessOn(chem, d.kind) ?? d.process;
+    process = depositProcessOn(chem, d.kind) ?? d.process,
+    // (Its picture: the first of its minerals, as a specimen; none where that is no substance.)
+    firstMineral = minerals?.[0],
+    first = firstMineral === undefined ? undefined : findSubstance(firstMineral);
   return {
     ref,
     kind: "deposit",
@@ -263,6 +267,7 @@ export function depositPageModel(world: World, ref: string): PageModel {
     title: `${word[0]!.toUpperCase()}${word.slice(1)}, ${rich}`,
     subtitle: ["In ", landLink(world, d.land, true)],
     color: null,
+    ...(first ? { portrait: matterPortrait(first) } : {}),
     place:
       d.land < landsOf(world)
         ? { scale: "region", cell: d.land, ...(tile !== undefined ? { tile } : {}) }

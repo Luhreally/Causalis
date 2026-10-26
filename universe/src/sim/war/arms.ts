@@ -9,7 +9,7 @@
 // keeps the strength its old arms gave it until the new are made. No random draws: watching changes
 // nothing.
 import { Hasher, type Ref, type StateStore, type World } from "../../kernel/index.ts";
-import { groundStone } from "../../gen/index.ts";
+import { worldChemistry, worldGroundStone } from "../../gen/index.ts";
 import {
   G,
   GOOD_MATTER,
@@ -19,6 +19,7 @@ import {
   ROLE_KG,
   STONES,
   hostPower,
+  metalOf,
   performanceOf,
   qualityOf,
   type Edge,
@@ -77,25 +78,32 @@ const KIT_GOODS: Readonly<Record<Kit, readonly (readonly [number, number])[]>> =
 const isKit = (m: string): m is Kit => m in KIT_GOODS,
   isMetal = (m: string): m is Metal => isKit(m) && m !== "machined";
 
-/** A host part's stuff as it was found and worked: its name, its edge. Null: no worked stuff. */
+/**
+ * A host part's stuff as it was found and worked: its name, its edge. Null: no worked stuff. Of its
+ * world's own stones and metals (Phase 54): lydite or tachylite, arsenical copper or cupronickel,
+ * native or carbide iron — each against its material's usual.
+ */
 export function partStuff(
   ctx: PopulationContext,
   seat: number,
   part: Part,
 ): { readonly stuff: string; readonly edge: Edge; readonly usual: Edge } | null {
   if (part.material === "stone") {
-    const { stone } = groundStone(ctx.generated, seat);
+    const { stone } = worldGroundStone(ctx.generated, seat);
     return { stuff: stone.name, edge: stone, usual: STONES.limestone! };
   }
   if (!isMetal(part.material)) return null;
-  // Bog iron, where the seat's own iron is bog ore: softer, uneven.
-  const source = part.material === "iron" ? metalSource(ctx, seat, G.iron) : null,
-    bog = source?.how === "ore" && source.ore.lie === "bog";
-  return {
-    stuff: bog ? "bog iron" : part.material,
-    edge: METALS[bog ? "bog iron" : part.material],
-    usual: METALS[part.material],
-  };
+  const chem = worldChemistry(ctx.generated),
+    // Bog iron, where the seat's own iron is bog ore: softer, uneven (native iron, carbide iron).
+    source = part.material === "iron" ? metalSource(ctx, seat, G.iron) : null,
+    // (Copper hardened with its own arsenic where its world's hardener is beyond its furnace.)
+    tin = !chem.solar && part.material === "bronze" ? metalSource(ctx, seat, G.tin) : null,
+    arsenical = tin?.how === "ore" && !!tin.ore.arsenical,
+    w = metalOf(chem, part.material, {
+      lie: source?.how === "ore" ? source.ore.lie : null,
+      arsenical,
+    });
+  return { stuff: w.name, edge: w.stuff, usual: METALS[part.material] };
 }
 
 /** A part's quality against its material's usual (1: as usual), within QUALITY_BOUNDS. */
