@@ -373,6 +373,20 @@ export {
   type Arms,
 } from "./war/arms.ts";
 export {
+  FELL_TOWN_YEARS,
+  RISEN_KEPT,
+  battleRecord,
+  bodySize,
+  fellOf,
+  fieldOf,
+  hostTerms,
+  townShares,
+  type Bore,
+  type HostTerms,
+  type SideInBattle,
+  type Take,
+} from "./war/fell.ts";
+export {
   BLOCKS,
   BLOCK_M,
   CITY_EVENTS,

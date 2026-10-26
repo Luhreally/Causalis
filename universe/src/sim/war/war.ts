@@ -25,7 +25,7 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { BANDS, G, MALE, type LifeHistory } from "../../rules/index.ts";
+import { BANDS, G, MALE, type LandFell, type LifeHistory } from "../../rules/index.ts";
 
 /** Whether an age band fights: the grown, before the last third of life (fifteen to fifty, for upright apes). */
 function fighting(life: LifeHistory, band: number): boolean {
@@ -33,6 +33,7 @@ function fighting(life: LifeHistory, band: number): boolean {
 }
 import { designsOf } from "../design/design.ts";
 import { ArmsStore, armsOf } from "./arms.ts";
+import { FELL_TOWN_YEARS, battleRecord, fieldOf, hostTerms, type Bore } from "./fell.ts";
 import { COLS, row } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { marketGoodRef, type MarketStore } from "../economy/market.ts";
@@ -76,6 +77,13 @@ export type Battle = {
   readonly designs?: readonly [Ref | null, Ref | null];
   /** Whether its arms tipped it: with even arms, the same day would have gone the other way. */
   readonly tip?: boolean;
+  /** Of each side, the wounded who lived and of them the maimed (Phase 55 M224; absent in older saves). */
+  readonly wounded?: readonly [number, number];
+  readonly maimed?: readonly [number, number];
+  /** What each side bore: its arm and the stuff it was made of (null: no arm part; M224). */
+  readonly bore?: readonly [Bore | null, Bore | null];
+  /** Each side's men by the land and town they came from: sent, fallen, wounded (rules/apportion.ts LandFell; M224). */
+  readonly fell?: readonly [readonly LandFell[], readonly LandFell[]];
 };
 
 /** What a civil war is fought over (Phase 22 M146): a throne at a succession, a general's revolt, a pretender's claim, an old court's return, the freed taken back. */
@@ -105,6 +113,27 @@ const DECLARE = defineStream("war.declare");
 export const WEARY_YEARS = 30;
 const FIGHT = defineStream("war.fight");
 
+/** A battle without its tallies by land and town (itself, where it has none). */
+function omitFell(b: Battle): Battle {
+  if (!b.fell) return b;
+  const { fell, ...rest } = b;
+  void fell;
+  return rest;
+}
+
+/**
+ * A war as it is hashed: its battles without their tallies by land and town, which are folded in
+ * once, as each battle is fought (WarStore.noteFell), so that letting the towns go changes nothing.
+ */
+function bare(w: War): War {
+  return { ...w, battles: w.battles.map(omitFell) };
+}
+
+/** A land's tally without its towns: the first four elements (rules/apportion.ts LandFell). */
+function strip(lands: readonly LandFell[]): LandFell[] {
+  return lands.map(([cell, sent, dead, hurt]): LandFell => [cell, sent, dead, hurt]);
+}
+
 export class WarStore implements StateStore {
   readonly name = "war.wars";
   private list: War[] = [];
@@ -113,6 +142,13 @@ export class WarStore implements StateStore {
   /** Wars that ended are folded into a digest once, at the end of their year, and not hashed again. */
   private digest = "";
   private readonly sealed = new Set<string>();
+  /** Each battle's tallies by land and town, folded in once, as it is fought (Phase 55 M224). */
+  private fellDigest = "";
+  /**
+   * The leading wars whose towns are all let go (not saved: after a load, forgetting again from
+   * the first war is a no-op).
+   */
+  private forgotten = 0;
 
   /** Fold the wars that have ended into the digest (in ref order): they will not change again. */
   seal(): void {
@@ -122,10 +158,38 @@ export class WarStore implements StateStore {
     if (!ended.length) return;
     const h = new Hasher().string(this.digest);
     for (const w of ended) {
-      h.value(w);
+      h.value(bare(w));
       this.sealed.add(w.ref);
     }
     this.digest = h.hex();
+  }
+
+  /** Fold a battle's tallies by land and town into their digest, as it is fought. */
+  noteFell(b: Battle): void {
+    if (b.fell)
+      this.fellDigest = new Hasher().string(this.fellDigest).string(b.event).value(b.fell).hex();
+  }
+
+  /**
+   * Let go of the town tallies of the battles fought before `before` in the wars that have ended
+   * (their lands' are kept for good). Nothing hashed changes: the tallies were folded in as fought.
+   */
+  forgetTowns(before: number): void {
+    for (let i = this.forgotten; i < this.list.length; i++) {
+      const w = this.list[i]!;
+      if (!this.sealed.has(w.ref)) continue;
+      for (let k = 0; k < w.battles.length; k++) {
+        const b = w.battles[k]!;
+        if (b.year < before && b.fell?.some((side) => side.some((land) => land.length > 4)))
+          w.battles[k] = { ...b, fell: [strip(b.fell[0]), strip(b.fell[1])] };
+      }
+    }
+    // (The leading wars ended and fought out before then are done with.)
+    while (this.forgotten < this.list.length) {
+      const w = this.list[this.forgotten]!;
+      if (!this.sealed.has(w.ref) || (w.battles.at(-1)?.year ?? -Infinity) >= before) break;
+      this.forgotten++;
+    }
   }
 
   add(w: War): void {
@@ -167,7 +231,11 @@ export class WarStore implements StateStore {
   }
 
   hashInto(h: Hasher): void {
-    h.string(this.digest).value(this.list.filter((w) => !this.sealed.has(w.ref)));
+    h.string(this.digest);
+    // (A battle's town tallies are hashed once, as it is fought: the yearly hash does not grow
+    // with them, and letting them go changes nothing hashed.)
+    if (this.fellDigest) h.string(this.fellDigest);
+    h.value(this.list.filter((w) => !this.sealed.has(w.ref)).map(bare));
   }
 
   save(): unknown {
@@ -175,6 +243,7 @@ export class WarStore implements StateStore {
       wars: this.list,
       digest: this.digest,
       sealed: [...this.sealed].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+      fellDigest: this.fellDigest,
     };
   }
 
@@ -186,10 +255,12 @@ export class WarStore implements StateStore {
     }));
     this.byRef.clear();
     for (const w of this.list) this.byRef.set(w.ref, w);
-    const t = state as { digest?: string; sealed?: string[] };
+    const t = state as { digest?: string; sealed?: string[]; fellDigest?: string };
     this.digest = t.digest ?? "";
     this.sealed.clear();
     for (const r of t.sealed ?? []) this.sealed.add(r);
+    this.fellDigest = t.fellDigest ?? "";
+    this.forgotten = 0;
   }
 }
 
@@ -616,6 +687,28 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       fa = fall(ctx, fromA, lostA, t, key * 2),
       fb = fall(ctx, land, lostB, t, key * 2 + 1);
     w.fallen = [w.fallen[0] + fa, w.fallen[1] + fb];
+    // What the day cost besides its dead, and where its men came from (Phase 55 M224a: read, never
+    // drawn — the counts as they were): all of a side's dead from the land they fell from above,
+    // its field its host and those who rose with it.
+    const fielded: [number, number] = [
+        Math.round(fieldedOf(ctx, a)),
+        Math.round(fieldedOf(ctx, b)),
+      ],
+      field: [number, number] = [fieldOf(fielded[0], fa), fieldOf(fielded[1], fb)],
+      record = battleRecord(ctx, [
+        {
+          terms: hostTerms(ctx, a, armsA),
+          field: field[0],
+          fallen: fa,
+          takes: [[fromA, field[0], fa]],
+        },
+        {
+          terms: hostTerms(ctx, b, armsB),
+          field: field[1],
+          fallen: fb,
+          takes: [[land, field[1], fb]],
+        },
+      ]);
     const battle = world.events.emit({
       type: WAR_EVENTS.battle.type,
       subjects: [w.ref, a.ref, b.ref],
@@ -629,19 +722,22 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       ],
       data: { a: realmName(a), b: realmName(b), won, fallen: fa + fb, ...(tip ? { tip } : {}) },
     });
-    w.battles.push({
+    const fought: Battle = {
       year,
       land,
       won,
       fallen: [fa, fb],
       event: battle,
-      fielded: [Math.round(fieldedOf(ctx, a)), Math.round(fieldedOf(ctx, b))],
+      fielded,
       seat,
       power: [Math.round(armsA.power * 1000) / 1000, Math.round(armsB.power * 1000) / 1000],
       armed: [Math.round(armsA.armed * 1000) / 1000, Math.round(armsB.armed * 1000) / 1000],
       designs: [armsA.design, armsB.design],
       tip,
-    });
+      ...record,
+    };
+    w.battles.push(fought);
+    wars.noteFell(fought);
     // A seat is not taken in a day: the first victory there lays a siege, the second takes it.
     const besieged = seat && won && !w.battles.slice(0, -1).some((x) => x.land === land && x.won);
     if (won && !besieged) {
@@ -730,6 +826,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     }
   // The wars that ended this year will not change again: fold them into the digest.
   wars.seal();
+  // (Their battles' town tallies are kept FELL_TOWN_YEARS, their lands' for good.)
+  wars.forgetTowns(year - FELL_TOWN_YEARS);
 }
 
 /** Teach a peopled world its wars. */
