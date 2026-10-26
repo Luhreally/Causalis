@@ -4230,11 +4230,33 @@ async function runPlanetPage(): Promise<void> {
           ? `${p.role ?? p.trade.kind}, ${p.trade.years} years at the ${p.trade.kind === "smith" ? "anvil" : p.trade.kind === "potter" ? "wheel" : "loom"}`
           : (p.role ?? null),
         village.workToday(i),
+        // (Inspired or blessed where they are met, Phase 54: the hand laid on the town from them.)
+        {
+          town: plan.ref,
+          name: p.name,
+          age: p.age,
+          occupation: p.occupation,
+          ...(p.sex !== undefined ? { sex: p.sex } : {}),
+          done: (agent) => void touched(agent),
+        },
       );
       return;
     }
     void pageWindow.open(p.ref);
   };
+  // One of a town's people touched by the god's hand (Phase 54): the town drawn again with its
+  // people under the hand, and the one touched looked at among them.
+  const touched = async (agent: string) => {
+    if (scale !== "village" || !plan) {
+      void pageWindow.open(agent);
+      return;
+    }
+    await loadPlan(plan.ref);
+    const j = plan.people.findIndex((x) => x.ref === agent);
+    if (j >= 0) selectPerson(j);
+    else void pageWindow.open(agent);
+  };
+  pageWindow.onTouched = (agent) => void touched(agent);
   villagePanel.onStores = () => {
     selectPerson(null);
     pageWindow.close();

@@ -1852,9 +1852,14 @@ export function smithedOn(plan: VillagePlan, index: number, day: number): string
   return SMITHED[Math.floor(dayDraw(plan.people[index]!.ref, day)(41) * SMITHED.length)]!;
 }
 
-/** What a smith takes from the yard to work: the metal, or the copper and tin a bronze is cast of. */
-function metalIn(metal: string | null): string {
-  return metal === "bronze" ? "copper and tin" : metal === "steel" ? "iron" : (metal ?? "ore");
+/**
+ * What a smith takes from the yard to work: the metal, or the copper and tin a bronze is cast of —
+ * or, on a world of its own chemistry, what its smiths melt (Phase 54: copper and white arsenic).
+ */
+function metalIn(metal: string | null, from?: string): string {
+  return (
+    from ?? (metal === "bronze" ? "copper and tin" : metal === "steel" ? "iron" : (metal ?? "ore"))
+  );
 }
 
 /** How a smith's words begin as they hang a new tool on the rack (the rack counts them by it). */
@@ -2041,24 +2046,30 @@ function wheelSeat(p: VillagePlan["people"][number], role: Role, kilns: number):
 /**
  * A smith at the forge, by the metal their land works: only the method changes — copper cast and
  * its edge hammered hard, bronze poured into a mould, iron forged from the bloom, steel quenched.
+ * On a world of its own chemistry the metal goes by its own name (Phase 54: an arsenical copper
+ * axe; native iron hammered cold from the lump).
  */
-export function forging(metal: VillagePlan["metal"], form: string): string {
+export function forging(metal: VillagePlan["metal"], form: string, name?: string): string {
+  const n = name ?? metal ?? "";
   switch (metal) {
     case "copper":
-      return `Casting a copper ${form}, hammering its edge hard`;
+      return `Casting ${article(n)} ${n} ${form}, hammering its edge hard`;
     case "bronze":
-      return `Pouring a bronze ${form} in its mould`;
+      return `Pouring ${article(n)} ${n} ${form} in its mould`;
     case "iron":
-      return `Forging ${article(form)} ${form} of iron from the bloom`;
+      return n === "telluric iron"
+        ? `Hammering ${article(form)} ${form} cold from a lump of native iron`
+        : `Forging ${article(form)} ${form} of ${n} from the bloom`;
     case "steel":
-      return `Forging a steel ${form}, quenching it`;
+      return `Forging ${article(n)} ${n} ${form}, quenching it`;
     default:
       return "Forging tools from the ore";
   }
 }
 
-/** A smith fetching what they work, by their land's metal. */
-function takingToForge(metal: VillagePlan["metal"]): string {
+/** A smith fetching what they work, by their land's metal (or what its smiths melt, where said). */
+export function takingToForge(metal: VillagePlan["metal"], from?: string): string {
+  if (from) return `Taking ${from} to melt`;
   return metal === "bronze"
     ? "Taking copper and tin to melt"
     : metal === "copper"
@@ -3463,20 +3474,22 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
           // take from the yard, the new tool hung on the rack before the smithy: Phase 51 M213.)
           form = smithedOn(plan, index, day),
           metal = plan.stuff?.metal?.name ?? null,
+          // (On a world of its own chemistry, what its smiths melt: Phase 54.)
+          from = plan.stuff?.metal?.from,
           rack = rackOf(spots.smithy);
         return [
-          { to: yard.door, carry: null, why: `To ${yard.words} for ${metalIn(metal)}` },
+          { to: yard.door, carry: null, why: `To ${yard.words} for ${metalIn(metal, from)}` },
           {
             hours: 0.06,
             task: "load",
             carry: null,
-            why: takingToForge(plan.metal),
+            why: takingToForge(plan.metal, from),
             effect: { kind: "ore", amount: -1 },
           },
           {
             to: anvil,
             carry: metal ? "metal" : "ore",
-            why: `Carrying the ${metalIn(metal)} to ${spots.smithy.words}`,
+            why: `Carrying the ${metalIn(metal, from)} to ${spots.smithy.words}`,
           },
           {
             flex: true,
@@ -3485,7 +3498,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
             task: "hammer",
             carry: null,
             face: spots.smithy.yaw,
-            why: forging(plan.metal, form),
+            why: forging(plan.metal, form, metal ?? undefined),
           },
           {
             to: clearSpot(ground, rack.stand),

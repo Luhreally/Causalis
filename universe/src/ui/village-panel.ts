@@ -6,6 +6,7 @@
 // out today, who is at what, and what is going up. Watching is looking: it never changes what
 // happens.
 import { STORE_KINDS, type HostClient } from "../bridge/index.ts";
+import { touchActs, type Touchable } from "./tools.ts";
 import {
   ACTIVITY,
   ACTIVITY_WORDS,
@@ -306,8 +307,16 @@ export class VillagePanel {
    * One of the town's many drawn for its crowd (Phase 39 M198): not one history follows, but
    * living the town's day as its own people do — their work today.
    */
-  showFolk(name: string, role: string | null, today: string | null): void {
+  showFolk(
+    name: string,
+    role: string | null,
+    today: string | null,
+    touch?: Touchable & { readonly done: (agent: string) => void },
+  ): void {
     this.view++;
+    // (Inspired or blessed where they are met, Phase 54: the hand laid on the town from them.)
+    const acts = el("div", "touch");
+    if (touch) void touchActs(acts, this.client, touch, touch.done);
     this.storesOpen = false;
     this.folkOpen = true;
     this.inspector.hidden = false;
@@ -323,6 +332,7 @@ export class VillagePanel {
         "muted",
         "One of the town's many, drawn for its crowd and named in its tongue: history counts them among its people but does not follow their lives. They live its day as its own people do.",
       ),
+      acts,
     );
     this.whyBox.replaceChildren();
   }

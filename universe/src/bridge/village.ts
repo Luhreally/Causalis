@@ -169,6 +169,12 @@ export type TownStuff = {
   readonly metal: {
     readonly name: string;
     readonly colour: readonly [number, number, number];
+    /**
+     * On a world of its own chemistry (Phase 54): what it is made of, in words, and what its smiths
+     * take from the yard to melt. Absent on a world of the Sun's.
+     */
+    readonly of?: string;
+    readonly from?: string;
   } | null;
   readonly ore: {
     readonly name: string;
@@ -283,6 +289,8 @@ export type VillagePlan = {
     age: number;
     occupation: number;
     child: boolean;
+    /** Their sex (0 a woman, 1 a man): who the god's hand would touch, laid from them (Phase 54). */
+    sex?: number;
     /** The tool they carry to work, in words (Phase 15 M125: a watched person's own). */
     tool?: string;
     /**

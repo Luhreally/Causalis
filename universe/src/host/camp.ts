@@ -4,7 +4,15 @@
 // people have not hunted out of it (a herding band's flocks among them, tame); the people's
 // figure; a band of the camp's; the hour of the world's day. Looked at, never lived.
 import { DAY, mix, type World } from "../kernel/index.ts";
-import { BIOME, livingIn, personName, tonguePersonName, type Species } from "../gen/index.ts";
+import {
+  BIOME,
+  livingIn,
+  personName,
+  tonguePersonName,
+  worldChemistry,
+  type Species,
+} from "../gen/index.ts";
+import { pigmentOverride } from "../rules/index.ts";
 import {
   cultureOf,
   homePlanet,
@@ -57,7 +65,9 @@ export function campCraft(world: World, cell: number, tile: number): CampCraft {
     // (The stone its land knaps, the land's towns as much as its bands: Phase 50 M212.)
     { rock: from, stone } = landStone(world, cell, rock),
     [wood, fibre, binding] = WOODS[biome] ?? ["ash", "bark", "sinew"],
-    frozen = biome === BIOME.ice || biome === BIOME.tundra;
+    frozen = biome === BIOME.ice || biome === BIOME.tundra,
+    // (Where nothing rusts there are no ochres: green earths and black — Phase 54.)
+    own = pigmentOverride(worldChemistry(homePlanet(world).generated), rock);
   return {
     stone: {
       name: stone.name,
@@ -73,9 +83,11 @@ export function campCraft(world: World, cell: number, tile: number): CampCraft {
     // (On frozen ground there is no earth to dig for colour: soot and fat.)
     pigment: frozen
       ? { name: "soot black", colour: [0.08, 0.08, 0.08] }
-      : (PIGMENTS[rock] ?? { name: "red ochre", colour: [0.62, 0.2, 0.12] }),
+      : (own ?? PIGMENTS[rock] ?? { name: "red ochre", colour: [0.62, 0.2, 0.12] }),
+    // (Any chert struck on the pyrite of its shale: black lydite where nothing rusts, white
+    // novaculite of a silica-rich shale, as Earth's grey — Phase 54.)
     fire:
-      (from === "shale" || from === "coal-measures") && stone.name === "chert"
+      (from === "shale" || from === "coal-measures") && stone.subst === "chert"
         ? "strike-a-light"
         : HAND_DRILL.has(biome)
           ? "hand drill"

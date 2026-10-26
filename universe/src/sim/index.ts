@@ -111,10 +111,12 @@ export {
   NEIGHBOUR_REACH,
   oreGrade,
   oreIn,
+  oresIn,
   oreWithin,
   type OreAt,
   type OreLieAt,
 } from "./economy/ore.ts";
+export { anyHardener, furnaceHeat, oreWorkable, type Workable } from "./economy/heat.ts";
 export {
   bestMetal,
   metalRank,
@@ -150,12 +152,14 @@ export {
   drawTraits,
   handOf,
   installHand,
+  laidFromAgent,
   opposedTo,
   pairUp,
   traitWeight,
   workWeights,
   type Agent,
   type Gone,
+  type LaidFrom,
   type PersonTrait,
   type Window,
 } from "./hand/hand.ts";

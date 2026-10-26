@@ -54,6 +54,11 @@ export type Prior = {
     readonly continental: Range;
   };
   readonly system: SystemPrior;
+  /**
+   * Its bulk chemistry (Phase 54): the Sun's own tables (solar), or drawn from its star and orbit
+   * (drawn); absent: drawn. Never hashed: the world's chemistry follows from what is.
+   */
+  readonly chemistry?: "solar" | "drawn";
 };
 
 export const EARTHLIKE: Prior = {
@@ -87,6 +92,7 @@ export const EARTHLIKE: Prior = {
     spacing: [1.4, 1.9],
     homeMoons: [1, 1],
   },
+  chemistry: "solar",
 };
 
 export const OPEN: Prior = {
@@ -104,6 +110,7 @@ export const OPEN: Prior = {
     continental: [0.15, 0.6],
   },
   system: { template: null, inner: [0, 3], outer: [2, 7], spacing: [1.4, 2.2], homeMoons: [0, 3] },
+  chemistry: "drawn",
 };
 
 export const PRIORS: Readonly<Record<string, Prior>> = { earthlike: EARTHLIKE, open: OPEN };

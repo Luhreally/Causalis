@@ -112,6 +112,8 @@ export class PageWindow {
   onWar: ((ref: string) => void) | null = null;
   /** The world's wars of an age watched unfolding together (M194). */
   onWars: ((from: number, to: number) => void) | null = null;
+  /** One of a town's people touched by the god's hand, now one of its people (Phase 54). */
+  onTouched: ((agent: string) => void) | null = null;
   /** Told as each page opens (the scales mark what it is). */
   onOpen: (page: PageModel) => void = () => {};
   onClose: () => void = () => {};
@@ -784,6 +786,7 @@ export class PageWindow {
           ...(this.onBattle ? { battle: this.onBattle } : {}),
           ...(this.onWar ? { war: this.onWar } : {}),
           ...(this.onWars ? { wars: this.onWars } : {}),
+          ...(this.onTouched ? { touched: this.onTouched } : {}),
         });
         break;
     }

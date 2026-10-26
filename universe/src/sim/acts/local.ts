@@ -74,6 +74,8 @@ function spotOf(args: unknown): { x: number; z: number } | Record<string, never>
 
 /** One of the hand's people by name, in their land's tongue: "Asha of Kirath". */
 export function agentName(ctx: PopulationContext, a: Agent, v: Settlement): string {
+  // (Known by a name of their own: the one the hand was laid from, Phase 54.)
+  if (a.name) return a.name;
   const tongue = cultureOf(ctx.world).get(v.cell)?.tongue ?? cradleTongue(ctx.culture);
   return `${tonguePersonName(tongue, a.id, a.sex)} of ${v.name}`;
 }

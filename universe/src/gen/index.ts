@@ -42,6 +42,7 @@ export {
 } from "./homeworld.ts";
 export { makeHydrology, type Hydrology } from "./hydrology.ts";
 export { SOUGHT, groundOf, groundStone, landBedrock, type Ground } from "./bedrock.ts";
+export { chemistryInputs, nativeIronLands, worldChemistry, worldGroundStone } from "./chemistry.ts";
 export {
   MAX_SPECIES,
   NICHES,

@@ -75,9 +75,12 @@ const DRAB: Rgb = [0.36, 0.38, 0.33],
 
 const darker = (c: Rgb, k: number): Rgb => [c[0] * k, c[1] * k, c[2] * k];
 
-/** A host's shields: of what its kit says they are made, faced in its colour. */
-function shieldOf(kit: string, c: Rgb): Rgb {
-  const stuff: Rgb = /bronze/.test(kit)
+/**
+ * A host's shields: of what its kit says they are made, faced in its colour (the copper alloys of
+ * other chemistries as bronze; their irons as iron: Phase 54).
+ */
+export function shieldOf(kit: string, c: Rgb): Rgb {
+  const stuff: Rgb = /bronze|cupronickel|arsenical/.test(kit)
     ? BRONZE
     : /iron|steel/.test(kit)
       ? IRON

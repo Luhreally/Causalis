@@ -53,7 +53,42 @@ export type Agent = {
   partner?: number;
   /** What they are like: each of PERSON_TRAITS they have. */
   traits?: PersonTrait[];
+  /**
+   * The name they were known by when the hand was laid from them (Phase 54: one of a town's people
+   * tapped and blessed or inspired, the hand laid on their town to touch them): theirs while it rests.
+   */
+  name?: string;
 };
+
+/** One of a town's people the hand is laid from: who the god meant to touch. */
+export type LaidFrom = {
+  readonly name: string;
+  readonly age: number;
+  readonly occupation: number;
+  readonly sex?: number;
+};
+
+/**
+ * Which of the hand's people is the one it was laid from: of their sex and work the nearest in age,
+ * else of their sex, else anyone the nearest in age (ties: the first drawn).
+ */
+export function laidFromAgent(
+  agents: readonly Agent[],
+  from: LaidFrom,
+  year: number,
+): Agent | null {
+  const near = (pool: readonly Agent[]) =>
+    pool.reduce<Agent | null>(
+      (best, a) =>
+        best === null ||
+        Math.abs(year - a.birthYear - from.age) < Math.abs(year - best.birthYear - from.age)
+          ? a
+          : best,
+      null,
+    );
+  const sexed = from.sex === undefined ? agents : agents.filter((a) => a.sex === from.sex);
+  return near(sexed.filter((a) => a.occupation === from.occupation)) ?? near(sexed) ?? near(agents);
+}
 
 /**
  * What a person may be like (Phase 14 M118), as WorldBox's units are: some weigh on their
@@ -289,6 +324,24 @@ export function installHand(world: World): HandStore {
       if (!v) return `no village ${ref}`;
       if (!v.population) return "no one lives there";
       if (store.resting) return "your hand already rests on a village: lift it first";
+      const from = (args as { as?: unknown }).as;
+      if (from !== undefined) {
+        const f = from as Partial<LaidFrom> | null;
+        if (
+          !f ||
+          typeof f.name !== "string" ||
+          !f.name.trim() ||
+          f.name.length > 80 ||
+          !Number.isInteger(f.age) ||
+          f.age! < 0 ||
+          f.age! > 300 ||
+          !Number.isInteger(f.occupation) ||
+          f.occupation! < 0 ||
+          f.occupation! >= COLS ||
+          (f.sex !== undefined && f.sex !== 0 && f.sex !== SEXES - 1)
+        )
+          return "as must be one of its people: a name, an age, a work and a sex";
+      }
       return null;
     },
     apply: (command, t) => {
@@ -339,6 +392,12 @@ export function installHand(world: World): HandStore {
         const m = able[Math.floor(world.rng.real(COLLAPSE, v.cell, t, 3, c.id) * able.length)]!;
         c.mother = m.id;
         if (m.partner !== undefined) c.father = m.partner;
+      }
+      // Laid from one of its people (Phase 54): they are among them, as they were known.
+      const from = (command.args as { as?: LaidFrom }).as;
+      if (from) {
+        const a = laidFromAgent(agents, from, year);
+        if (a) a.name = from.name.trim();
       }
       store.resting = {
         command: command.id,

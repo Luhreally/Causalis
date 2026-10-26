@@ -6,15 +6,23 @@
 import {
   MATERIAL_MATTER,
   ORE_GRADE,
-  ROCKS,
   ROLE_KG,
-  SOILS,
-  SUBSTANCE,
-  SUBSTANCES,
   TONNES_A_UNIT,
-  type Rock,
+  depositMineralsOn,
+  findSubstance,
+  oreGradeOn,
+  roleWord,
+  worldRock,
+  worldSoil,
 } from "../../rules/index.ts";
-import { BIOME, groundOf, isProvinceWorld, type Ground } from "../../gen/index.ts";
+import {
+  BIOME,
+  groundOf,
+  isProvinceWorld,
+  nativeIronLands,
+  worldChemistry,
+  type Ground,
+} from "../../gen/index.ts";
 import type { World } from "../../kernel/index.ts";
 import { airOf, homePlanet, politiesOf } from "../../sim/index.ts";
 import type { Block, Item } from "../../bridge/index.ts";
@@ -42,8 +50,6 @@ function groundIn(world: World): Ground {
   return groundOf(homePlanet(world).generated);
 }
 
-const rockOf = (id: string): Rock => ROCKS.find((r) => r.id === id)!;
-
 /** Every land's chief rock (the Ground lens paints them all, peopled or not). */
 export function groundMap(world: World): { cell: number; rock: string }[] {
   const out: { cell: number; rock: string }[] = [];
@@ -57,12 +63,13 @@ export function groundReading(
   world: World,
   cell: number,
 ): { line: string; stats: { label: string; value: string }[] } | null {
-  const ground = groundIn(world),
+  const chem = worldChemistry(homePlanet(world).generated),
+    ground = groundIn(world),
     rocks = ground.rock.get(cell);
   if (!rocks?.length) return null;
-  const soil = SOILS[BIOME_SOIL[ground.biome.get(cell) ?? -1] ?? "sea"]!;
+  const soil = worldSoil(chem, BIOME_SOIL[ground.biome.get(cell) ?? -1] ?? "sea");
   return {
-    line: `Ground: ${rocks.map(([r, k]) => `${rockOf(r).name} ${Math.round(k * 100)}%`).join(", ")}`,
+    line: `Ground: ${rocks.map(([r, k]) => `${worldRock(chem, r).name} ${Math.round(k * 100)}%`).join(", ")}`,
     stats: [{ label: "Its soil", value: soil.name }],
   };
 }
@@ -72,7 +79,8 @@ export function soilOf(
   world: World,
   cell: number,
 ): { readonly name: string; readonly parts: readonly (readonly [string, number])[] } {
-  return SOILS[BIOME_SOIL[groundIn(world).biome.get(cell) ?? -1] ?? "sea"]!;
+  const chem = worldChemistry(homePlanet(world).generated);
+  return worldSoil(chem, BIOME_SOIL[groundIn(world).biome.get(cell) ?? -1] ?? "sea");
 }
 
 /** One spot's ground: its bedrock, and the soil of a biome over it (a region's tile). */
@@ -81,9 +89,10 @@ export function spotGround(
   spot: number,
   biome: number,
 ): { rock: string; soil: string } {
+  const chem = worldChemistry(homePlanet(world).generated);
   return {
-    rock: rockOf(groundIn(world).rockAt(spot)).name,
-    soil: SOILS[BIOME_SOIL[biome] ?? "sea"]!.name,
+    rock: worldRock(chem, groundIn(world).rockAt(spot)).name,
+    soil: worldSoil(chem, BIOME_SOIL[biome] ?? "sea").name,
   };
 }
 
@@ -99,10 +108,13 @@ export function bedrockOf(world: World, cell: number): readonly (readonly [strin
 
 /** A land's Ground tab: its bedrock and what it is made of, its soil, what lies in it, its water, the air. */
 export function groundBlocks(world: World, cell: number): Block[] {
-  const ground = groundIn(world),
+  // (The world's own chemistry: its rocks and soils are Earth's only on Earth.)
+  const chem = worldChemistry(homePlanet(world).generated),
+    rockOf = (id: string) => worldRock(chem, id),
+    ground = groundIn(world),
     rocks = ground.rock.get(cell) ?? [],
     soilKey = BIOME_SOIL[ground.biome.get(cell) ?? -1] ?? "sea",
-    soil = SOILS[soilKey]!,
+    soil = worldSoil(chem, soilKey),
     minerals = new Map<string, number>();
   for (const [r, k] of rocks)
     for (const [s, m] of rockOf(r).parts) minerals.set(s, (minerals.get(s) ?? 0) + k * m);
@@ -126,43 +138,56 @@ export function groundBlocks(world: World, cell: number): Block[] {
       ),
     );
   blocks.push(makeUpBlock(soil.parts, null, `Its soil: ${soil.name}`));
-  // What lies in it: its deposits, in tonnes of ore and of what the ore holds.
+  // What lies in it: its deposits, in tonnes of ore and of what the ore holds, in this world's
+  // words; and the native iron its basalt keeps, where nothing rusts it.
   const g = homePlanet(world).generated,
     fine = isProvinceWorld(g) ? g.fine : g,
     landOf = (s: number) => (isProvinceWorld(g) ? g.provinceOf[s]! : s),
-    here = fine.deposits.filter((d) => landOf(d.cell) === cell);
-  if (here.length)
+    here = fine.deposits.filter((d) => landOf(d.cell) === cell),
+    native = nativeIronLands(g).has(cell);
+  if (here.length || native)
     blocks.push({
       type: "list",
       title: "What lies in it",
-      items: here.map((d): Item => {
-        const ore = d.richness * TONNES_A_UNIT,
-          grade = ORE_GRADE[d.kind],
-          minerals = DEPOSIT_MINERALS[d.kind] ?? [];
-        return item(
-          [
-            link(`${d.kind}`, d.ref),
-            `: ${weight(ore * 1000)} of ore`,
-            ...(grade
-              ? [
-                  `, holding ${weight(ore * 1000 * grade.share)} of `,
-                  link(SUBSTANCES[SUBSTANCE[grade.of]!]!.name, substRef(grade.of)),
-                ]
-              : []),
-            ...(minerals.length
-              ? [
-                  " (",
-                  ...minerals.flatMap((m, i) => [
-                    ...(i ? [", "] : []),
-                    link(SUBSTANCES[SUBSTANCE[m]!]!.name, substRef(m)),
-                  ]),
-                  ")",
-                ]
-              : []),
-          ],
-          d.ref,
-        );
-      }),
+      items: [
+        ...here.map((d): Item => {
+          const ore = d.richness * TONNES_A_UNIT,
+            grade = oreGradeOn(chem, d.kind) ?? ORE_GRADE[d.kind],
+            minerals = depositMineralsOn(chem, d.kind) ?? DEPOSIT_MINERALS[d.kind] ?? [];
+          return item(
+            [
+              link(roleWord(chem, d.kind), d.ref),
+              `: ${weight(ore * 1000)} of ore`,
+              ...(grade
+                ? [
+                    `, holding ${weight(ore * 1000 * grade.share)} of `,
+                    link(findSubstance(grade.of)!.name, substRef(grade.of)),
+                  ]
+                : []),
+              ...(minerals.length
+                ? [
+                    " (",
+                    ...minerals.flatMap((m, i) => [
+                      ...(i ? [", "] : []),
+                      link(findSubstance(m)!.name, substRef(m)),
+                    ]),
+                    ")",
+                  ]
+                : []),
+            ],
+            d.ref,
+          );
+        }),
+        ...(native
+          ? [
+              item([
+                "Native iron: lumps of ",
+                link(findSubstance("telluric-iron")!.name, substRef("telluric-iron")),
+                " in its basalt, where the lava flowed through buried coal",
+              ]),
+            ]
+          : []),
+      ],
     });
   // Its water; the air over the world.
   const wet = g.water.river[cell] || g.water.lake[cell];
@@ -186,10 +211,14 @@ export function groundBlocks(world: World, cell: number): Block[] {
 
 /** The air's make-up, by volume: nitrogen, oxygen, argon, and the carbon dioxide the world holds now. */
 export function airBlock(world: World): Block {
-  const ppm = airOf(world).air.carbon,
+  const chem = worldChemistry(homePlanet(world).generated),
+    ppm = airOf(world).air.carbon,
+    // (The Sun's own air keeps its literal shares; a world's nitrogen makes up what its oxygen lacks.)
+    nitrogen = chem.solar ? 0.7808 : 0.7808 + (0.2095 - chem.o2),
+    oxygen = chem.solar ? 0.2095 : chem.o2,
     parts: [string, number][] = [
-      ["nitrogen", 0.7808],
-      ["oxygen", 0.2095],
+      ["nitrogen", nitrogen],
+      ["oxygen", oxygen],
       ["argon", 0.0093],
       ["co2", ppm / 1e6],
     ],
@@ -218,8 +247,9 @@ export function designMatter(
   parts: readonly { readonly role: string; readonly material: string }[],
   cell: number | null,
 ): { kg: number; parts: [string, number][] } | null {
-  const chief = cell !== null ? (groundIn(world).rock.get(cell)?.[0]?.[0] ?? "granite") : "granite",
-    stone = rockOf(chief).parts,
+  const chem = worldChemistry(homePlanet(world).generated),
+    chief = cell !== null ? (groundIn(world).rock.get(cell)?.[0]?.[0] ?? "granite") : "granite",
+    stone = worldRock(chem, chief).parts,
     out = new Map<string, number>();
   let kg = 0;
   for (const part of parts) {

@@ -41,10 +41,36 @@ export function oreIn(
   cell: number,
   kind: string,
 ): { lie: OreLieAt; ref: Ref; richness: number } | null {
-  const g = ctx.generated,
-    d = g.deposits.find((x) => x.cell === cell && x.kind === kind);
+  const d = ctx.generated.deposits.find((x) => x.cell === cell && x.kind === kind);
   if (d) return { lie: "deposit", ref: d.ref as Ref, richness: d.richness };
-  const shows = (lie: OreLieAt) => ({ lie, ref: cellRef(0, cell), richness: 0 });
+  return showingIn(ctx, cell, kind);
+}
+
+/**
+ * Every ore of a kind in a land's own ground (Phase 54: a furnace too cool for one may work the
+ * other): its deposit, then what shows at its surface, each that is there.
+ */
+export function oresIn(
+  ctx: PopulationContext,
+  cell: number,
+  kind: string,
+): { lie: OreLieAt; ref: Ref; richness: number }[] {
+  const d = ctx.generated.deposits.find((x) => x.cell === cell && x.kind === kind),
+    shown = showingIn(ctx, cell, kind);
+  return [
+    ...(d ? [{ lie: "deposit" as const, ref: d.ref as Ref, richness: d.richness }] : []),
+    ...(shown ? [shown] : []),
+  ];
+}
+
+/** What of a kind shows at a land's surface: copper where old mountains are worn open, and so on. */
+function showingIn(
+  ctx: PopulationContext,
+  cell: number,
+  kind: string,
+): { lie: OreLieAt; ref: Ref; richness: number } | null {
+  const g = ctx.generated,
+    shows = (lie: OreLieAt) => ({ lie, ref: cellRef(0, cell), richness: 0 });
   switch (kind) {
     case "copper":
       if (surfaceCopper(g, cell)) return shows("surface");

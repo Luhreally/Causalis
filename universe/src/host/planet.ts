@@ -47,7 +47,15 @@ import {
   warsOf,
   wildsOf,
 } from "../sim/index.ts";
-import { FOODS, G, GOODS, OCCUPATIONS, designWords } from "../rules/index.ts";
+import {
+  FOODS,
+  G,
+  GOODS,
+  OCCUPATIONS,
+  depositProcessOn,
+  designWords,
+  roleWord,
+} from "../rules/index.ts";
 import {
   BIOME_NAMES,
   BOUNDARY,
@@ -71,6 +79,7 @@ import {
   spotRef,
   starAgeGyr,
   type ProvinceWorld,
+  worldChemistry,
 } from "../gen/index.ts";
 import { EARTHLIKE, OPEN, type Prior } from "../rules/index.ts";
 import {
@@ -644,7 +653,8 @@ export function cell(pw: ProvinceWorld, c: number) {
   if (!Number.isInteger(c) || c < 0 || c >= g.grid.count) throw new Error(`no place ${c}`);
   const t = g.tectonics,
     plate = t.plates[t.plate[c]!]!,
-    d = g.deposits.find((x) => x.cell === c);
+    d = g.deposits.find((x) => x.cell === c),
+    chem = worldChemistry(pw);
   return {
     cell: c,
     province: pw.provinceOf[c]!,
@@ -660,7 +670,15 @@ export function cell(pw: ProvinceWorld, c: number) {
     boundary: t.toBoundary[c]! <= 3 ? BOUNDARY_WORDS[t.boundary[c]!] : "none",
     river: g.water.river[c] === 1,
     lake: g.water.lake[c] === 1,
-    deposit: d ? { ref: d.ref, kind: d.kind, richness: d.richness, process: d.process } : null,
+    // Phase 54: a world of its own chemistry names its own ores (on Earth, the very words).
+    deposit: d
+      ? {
+          ref: d.ref,
+          kind: roleWord(chem, d.kind),
+          richness: d.richness,
+          process: depositProcessOn(chem, d.kind) ?? d.process,
+        }
+      : null,
   };
 }
 
@@ -1138,6 +1156,11 @@ function planetUniverse(name: string, prior: Prior): Universe {
           since: yearOfMoment(w.laid),
           event: w.event,
         };
+      },
+      /** Which of the hand's people is known by a name (the one it was laid from, Phase 54); null: none. */
+      "hand.named": (world, args) => {
+        const name = (args as { name: string }).name;
+        return handOf(world).resting?.agents.find((a) => a.name === name)?.id ?? null;
       },
       /** One of the people under the hand: who they are, whether blessed, and what they are remembered for. */
       agent: (world, args) => {

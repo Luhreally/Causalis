@@ -1,7 +1,15 @@
 // The pages of the living world and the ground (Phase 10 M91): a lineage — its body, its
 // place in the web of eating, where it lives and what it is to the people — a deposit, a
 // plate, and an age of the deep past.
-import { AGES, BIOME_NAMES, ageRef, cellRef, isProvinceWorld, lives } from "../../gen/index.ts";
+import {
+  AGES,
+  BIOME_NAMES,
+  ageRef,
+  cellRef,
+  isProvinceWorld,
+  lives,
+  worldChemistry,
+} from "../../gen/index.ts";
 import { homePlanet, lineageNature, populationContext, tameNow, wildsOf } from "../../sim/index.ts";
 import { why } from "../../causal/index.ts";
 import type { World } from "../../kernel/index.ts";
@@ -9,7 +17,16 @@ import type { Block, Item, PageModel, Place, Row, Stat } from "../../bridge/inde
 import { depositPage, platePage, speciesPage } from "../pages.ts";
 import { region } from "../planet.ts";
 import { count, eventsAbout, item, link, share, stat, yearNow } from "./words.ts";
-import { ORE_GRADE, REACTIONS, SUBSTANCE, SUBSTANCES, TONNES_A_UNIT } from "../../rules/index.ts";
+import {
+  ORE_GRADE,
+  TONNES_A_UNIT,
+  depositMineralsOn,
+  depositProcessOn,
+  findSubstance,
+  oreGradeOn,
+  reactionsOn,
+  roleWord,
+} from "../../rules/index.ts";
 import { DEPOSIT_MINERALS, rxnRef, substRef, weight } from "./matter.ts";
 import { landLink, landTitle, landsOf, lineageIcon, spotOfLand } from "./names.ts";
 import { ageLines, ancestryTab } from "./tree.ts";
@@ -218,7 +235,8 @@ export function richWords(units: number): "thin" | "fair" | "rich" {
 }
 
 export function depositPageModel(world: World, ref: string): PageModel {
-  const d = depositPage(world, ref);
+  const d = depositPage(world, ref),
+    chem = worldChemistry(homePlanet(world).generated);
   let tile: number | undefined;
   try {
     const r = region(world, d.land),
@@ -230,12 +248,19 @@ export function depositPageModel(world: World, ref: string): PageModel {
   } catch {
     tile = undefined;
   }
-  const rich = richWords(d.richness);
+  // What the deposit is called, what it holds, what makes it and what works it: this world's own
+  // where its chemistry differs (Phase 54), else Earth's.
+  const rich = richWords(d.richness),
+    word = roleWord(chem, d.kind),
+    grade = oreGradeOn(chem, d.kind) ?? ORE_GRADE[d.kind],
+    minerals = depositMineralsOn(chem, d.kind) ?? DEPOSIT_MINERALS[d.kind],
+    turns = reactionsOn(chem).filter((r) => r.inputs.some(([x]) => minerals?.includes(x))),
+    process = depositProcessOn(chem, d.kind) ?? d.process;
   return {
     ref,
     kind: "deposit",
     icon: "⛏️",
-    title: `${d.kind[0]!.toUpperCase()}${d.kind.slice(1)}, ${rich}`,
+    title: `${word[0]!.toUpperCase()}${word.slice(1)}, ${rich}`,
     subtitle: ["In ", landLink(world, d.land, true)],
     color: null,
     place:
@@ -246,15 +271,15 @@ export function depositPageModel(world: World, ref: string): PageModel {
       stat("Richness", `${count(d.richness)} units`),
       // (A unit of richness is a thousand tonnes of ore: Phase 15 M124.)
       stat("Ore", weight(d.richness * TONNES_A_UNIT * 1000)),
-      ...(ORE_GRADE[d.kind]
+      ...(grade
         ? [
             stat(
               "Holding",
-              `${weight(d.richness * TONNES_A_UNIT * 1000 * ORE_GRADE[d.kind]!.share)} of ${SUBSTANCES[SUBSTANCE[ORE_GRADE[d.kind]!.of]!]!.name}`,
+              `${weight(d.richness * TONNES_A_UNIT * 1000 * grade.share)} of ${findSubstance(grade.of)!.name}`,
             ),
           ]
         : []),
-      stat("Laid down by", d.process),
+      stat("Laid down by", process),
       stat("People over it", count(d.people)),
     ],
     tabs: [
@@ -267,30 +292,25 @@ export function depositPageModel(world: World, ref: string): PageModel {
             rows: [
               stat("Land", [landLink(world, d.land)]),
               // What it is, as matter (Phase 15 M122): its ore, and what turns that to metal.
-              ...(DEPOSIT_MINERALS[d.kind]
+              ...(minerals
                 ? [
                     stat(
                       "Its ore",
-                      DEPOSIT_MINERALS[d.kind]!.flatMap((m, i) => [
+                      minerals.flatMap((m, i) => [
                         ...(i ? [", "] : []),
-                        link(SUBSTANCES[SUBSTANCE[m]!]!.name, substRef(m)),
+                        link(findSubstance(m)!.name, substRef(m)),
                       ]),
                     ),
                   ]
                 : []),
-              ...(() => {
-                const turns = REACTIONS.filter((r) =>
-                  r.inputs.some(([x]) => DEPOSIT_MINERALS[d.kind]?.includes(x)),
-                );
-                return turns.length
-                  ? [
-                      stat(
-                        "Worked by",
-                        turns.flatMap((r, i) => [...(i ? [", "] : []), link(r.name, rxnRef(r.id))]),
-                      ),
-                    ]
-                  : [];
-              })(),
+              ...(turns.length
+                ? [
+                    stat(
+                      "Worked by",
+                      turns.flatMap((r, i) => [...(i ? [", "] : []), link(r.name, rxnRef(r.id))]),
+                    ),
+                  ]
+                : []),
               ...(d.plate
                 ? [
                     stat("Plate", [

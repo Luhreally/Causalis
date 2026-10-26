@@ -348,6 +348,11 @@ export function personPage(world: World, ref: string): PageModel {
             alive: p.alive,
             village: p.village,
             first: p.name,
+            // (Who the hand would touch, laid on their town from them: Phase 54.)
+            name: `${p.name} ${p.surname}`,
+            age: yearNow(world) - p.birthYear,
+            occupation: p.occupation,
+            sex: p.sex,
             natures: TRAITS.map((t) => [
               t,
               TRAIT_WORDS[t]![0],

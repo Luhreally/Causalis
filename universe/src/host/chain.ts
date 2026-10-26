@@ -14,32 +14,40 @@ import { finish, hashString, mix, type Ref, type World } from "../kernel/index.t
 import {
   BIOME,
   cradleTongue,
-  groundStone,
   personName,
   tongueName,
   tonguePersonName,
   type Species,
+  worldChemistry,
+  worldGroundStone,
 } from "../gen/index.ts";
 import {
+  ARSENICAL_ORE,
+  CLAYS_REDUCED,
   G,
   GOODS,
   METALS,
   OCC,
-  ORES,
   SMELTING as SMELTS,
   WORKED,
-  SUBSTANCE,
-  SUBSTANCES,
+  alloyOf,
   article,
   civic,
+  clayOverride,
   coatColour,
   coatWord,
   designWords,
+  findSubstance,
   firearm,
   gradeOf,
   machined,
+  metalOf,
+  oresOn,
   partWords,
   qualityOf,
+  roleWord,
+  worldOre,
+  type Chemistry,
   type Edge,
   type Metal,
   type Ore,
@@ -56,7 +64,7 @@ import {
   machinedFor,
   marketGoodRef,
   marketsOf,
-  oreWithin,
+  oreWorkable,
   politiesOf,
   populationContext,
   smeltable,
@@ -147,12 +155,17 @@ const CLAYS: Readonly<Record<string, Omit<Clay, "soil">>> = {
  * orange; next to none, pale.
  */
 export function landClay(world: World, cell: number): Clay {
-  const soil = soilOf(world, cell),
+  const chem = worldChemistry(homePlanet(world).generated),
+    soil = soilOf(world, cell),
     share = (id: string) => soil.parts.find(([s]) => s === id)?.[1] ?? 0,
     body = Math.max(0.01, 1 - share("water") - share("humus")),
-    iron = share("hematite") / body,
+    // (On a reduced world its iron is black: the magnetite fires as Earth's hematite does.)
+    iron = (share("hematite") + (chem.redox === "reduced" ? share("magnetite") : 0)) / body,
     lime = share("calcite") / body,
-    kind = iron >= 0.06 ? "red" : lime >= 0.05 ? "buff" : iron >= 0.02 ? "brown" : "pale";
+    // (Iron fired in an oxygen-poor kiln stays black or grey: a reduced world's own clays.)
+    reducedKind = clayOverride(chem, iron, lime);
+  if (reducedKind !== null) return { soil: soil.name, ...CLAYS_REDUCED[reducedKind] };
+  const kind = iron >= 0.06 ? "red" : lime >= 0.05 ? "buff" : iron >= 0.02 ? "brown" : "pale";
   return { soil: soil.name, ...CLAYS[kind]! };
 }
 
@@ -256,7 +269,7 @@ export function landStone(
   cell: number,
   under?: string,
 ): { readonly rock: string; readonly stone: Stone } {
-  return groundStone(homePlanet(world).generated, cell, under);
+  return worldGroundStone(homePlanet(world).generated, cell, under);
 }
 
 // —— Who made it, and where ———————————————————————————————————————————————————————————
@@ -393,6 +406,7 @@ const SMELTED: Readonly<Record<OreLie, string>> = {
   bog: "a clay furnace by the marsh",
   hill: "a clay furnace in the hills",
   vent: "a furnace on the shore",
+  telluric: "a smith's anvil by the lava field",
 };
 
 /** An ore dug, in words: its mineral (its page), how it lay, the land (and its deposit), how far. */
@@ -419,10 +433,26 @@ const SMELT_WORDS: Readonly<Record<string, string>> = {
   "smelt-cassiterite": "Smelted",
   bloomery: "Smelted to a bloom",
   "bog-bloomery": "Roasted, then smelted to a bloom",
+  // (A world of its own chemistry's ores, as their reactions name them.)
+  "melt-native-copper": "Melted and poured",
+  "smelt-chalcocite": "Melted and blown to copper",
+  "smelt-garnierite": "Smelted at a bloomery's heat",
+  "roast-arsenopyrite": "Roasted for its white arsenic",
+  "roast-tennantite": "Roasted for its white arsenic, then smelted",
+  "smelt-siderite": "Roasted, then smelted to a bloom",
+  "smelt-magnetite": "Smelted to a bloom",
+  "forge-telluric": "Forged cold from the lump",
+  "carbide-bloomery": "Smelted to a carbon-rich bloom",
 };
 
 /** An ore smelted, in words: the reaction (its page), where, with what. */
 function smeltLine(world: World, ore: Ore, lie: OreLie, at: number): Line {
+  // (Native iron is hammered cold on the anvil: no furnace, no charcoal.)
+  if (lie === "telluric")
+    return [
+      link(SMELT_WORDS[ore.smelt] ?? "Forged cold", rxnRef(ore.smelt)),
+      ` on ${SMELTED[lie]}`,
+    ];
   return [
     link(SMELT_WORDS[ore.smelt] ?? "Smelted", rxnRef(ore.smelt)),
     ` in ${SMELTED[lie]}, with charcoal of ${landWood(world, at)}`,
@@ -444,12 +474,23 @@ function oreOf(
   readonly lie: OreLie;
   readonly cell: number;
   readonly deposit: string | null;
+  /** Its copper hardened with its own arsenic, where a world's tin is worked so (Phase 54). */
+  readonly arsenical?: boolean;
 } | null {
-  const o = oreWithin(populationContext(world), cell, kind);
+  const chem = worldChemistry(homePlanet(world).generated),
+    o = oreWorkable(populationContext(world), cell, kind);
   if (!o || o.lie === "seam") return null;
-  const ore = ORES[kind]?.[o.lie] ?? ORES[kind]?.deposit;
+  const ore = o.arsenical
+    ? ARSENICAL_ORE
+    : (worldOre(chem, kind, o.lie) ?? worldOre(chem, kind, "deposit"));
   return ore
-    ? { ore, lie: o.lie, cell: o.cell, deposit: o.lie === "deposit" ? o.ref : null }
+    ? {
+        ore,
+        lie: o.lie,
+        cell: o.cell,
+        deposit: o.lie === "deposit" ? o.ref : null,
+        ...(chem.solar ? {} : { arsenical: !!o.arsenical }),
+      }
     : null;
 }
 
@@ -506,7 +547,8 @@ function whence(
  * neighbour's), then brought down each road to it; else bought in a market.
  */
 function traced(world: World, cell: number, kind: string): Line[] {
-  const { roads, smelted } = whence(world, cell, kind),
+  const chem = worldChemistry(homePlanet(world).generated),
+    { roads, smelted } = whence(world, cell, kind),
     lines: Line[] =
       smelted !== null
         ? (oreLines(
@@ -519,7 +561,8 @@ function traced(world: World, cell: number, kind: string): Line[] {
           ) ?? [])
         : (() => {
             // (Bought where no one can tell whose ore it was: smelted all the same.)
-            const usual = ORES[kind]?.deposit ?? Object.values(ORES[kind] ?? {})[0],
+            const usual =
+                worldOre(chem, kind, "deposit") ?? Object.values(oresOn(chem)[kind] ?? {})[0],
               smelted: Span[] = usual
                 ? [
                     ", ",
@@ -530,12 +573,16 @@ function traced(world: World, cell: number, kind: string): Line[] {
             return [
               roads.length > 1
                 ? [
-                    sentence(kind),
+                    sentence(roleWord(chem, kind)),
                     ...smelted,
                     ", bought in the market of ",
                     landLink(world, roads.at(-1)!),
                   ]
-                : [sentence(kind), ...smelted, ", bought in the market from no road told"],
+                : [
+                    sentence(roleWord(chem, kind)),
+                    ...smelted,
+                    ", bought in the market from no road told",
+                  ],
             ];
           })();
   for (let k = roads.length - 1; k > 0; k--)
@@ -548,15 +595,27 @@ function traced(world: World, cell: number, kind: string): Line[] {
   return lines;
 }
 
+/**
+ * Whether a land's tin is smelted from arsenical ore (Phase 54): the land that smelts it, as `whence`
+ * finds it, and that land's ore of tin. The Sun's tin never is.
+ */
+function tinArsenical(world: World, cell: number): boolean {
+  const chem = worldChemistry(homePlanet(world).generated);
+  if (chem.solar) return false;
+  const { smelted } = whence(world, cell, "tin");
+  return smelted !== null && oreOf(world, smelted, "tin")?.arsenical === true;
+}
+
 /** What a tool or arm of a metal is worked from, each metal traced, then alloyed or steeled. */
 function metalChain(world: World, cell: number, metal: Metal): Line[] {
-  const chain: Line[] = [];
+  const chem = worldChemistry(homePlanet(world).generated),
+    chain: Line[] = [];
   for (const good of WORKED[metal].from) chain.push(...traced(world, cell, GOODS[good]!.id));
-  if (metal === "bronze")
-    chain.push([
-      link("Alloyed", rxnRef("alloy-bronze")),
-      ": a tenth of tin melted into the copper",
-    ]);
+  if (metal === "bronze") {
+    // (Its alloy: the tin of the Sun's, or what its world's hardener makes of the copper.)
+    const a = alloyOf(chem, tinArsenical(world, cell));
+    chain.push([link("Alloyed", rxnRef(a.reaction)), `: ${a.words}`]);
+  }
   if (metal === "steel")
     chain.push([link("Steeled", rxnRef("carburise")), ": the iron packed in charcoal and fired"]);
   return chain;
@@ -585,7 +644,8 @@ export function toolMade(
 ): Made {
   // (At the smithy, what its smiths forged that year; elsewhere what its land's tools were headed
   // with — Phase 52 M217.)
-  const metal: ToolMetal = forged ?? toolMetal(populationContext(world), cell, year),
+  const chem = worldChemistry(homePlanet(world).generated),
+    metal: ToolMetal = forged ?? toolMetal(populationContext(world), cell, year),
     t = town
       ? (populationContext(world).settlements.get(town as Ref) ?? makingTown(world, cell))
       : makingTown(world, cell),
@@ -617,7 +677,13 @@ export function toolMade(
     };
   }
   // Each metal it is worked from: its land's own ore or a neighbour's, else down the roads.
-  const chain = metalChain(world, cell, metal as Metal);
+  const chain = metalChain(world, cell, metal as Metal),
+    // (On a world of its own chemistry, the metal its ores and its hardener make: Phase 54.)
+    w = chem.solar
+      ? { name: metal, stuff: METALS[metal as Metal] }
+      : metalOf(chem, metal as Metal, {
+          arsenical: metal === "bronze" && tinArsenical(world, cell),
+        });
   const works = workshopOf(world, t?.ref ?? null, ["factory"], year),
     smithy = works ?? workshopOf(world, t?.ref ?? null, ["smithy", "workshop"], year),
     trade = works ? "hand at the works" : "smith",
@@ -625,19 +691,18 @@ export function toolMade(
       seat === undefined
         ? makerOf(world, cell, t, trade, key, year)
         : makerAt(world, cell, t, trade, seat, year),
-    m = METALS[metal as Metal],
-    quality = qualityOf(m, craft + (works ? 0.3 : 0), maker.years);
+    quality = qualityOf(w.stuff, craft + (works ? 0.3 : 0), maker.years);
   chain.push([
-    sentence(works ? m.works : m.hand),
+    sentence(works ? w.stuff.works : w.stuff.hand),
     " at ",
     smithy ? link(smithy.name, smithy.ref) : `a smith's hearth${t ? ` in ${t.name}` : ""}`,
     " by ",
     ...makerWords(world, maker, works ? "machines" : "anvil"),
   ]);
   return {
-    stuff: metal,
-    edge: m,
-    colour: m.colour,
+    stuff: w.name,
+    edge: w.stuff,
+    colour: w.stuff.colour,
     quality,
     grade: gradeOf(quality),
     maker,
@@ -650,20 +715,31 @@ export function toolMade(
 
 /** A substance's colour (grey for one not known). */
 function substColour(id: string): Rgb {
-  return SUBSTANCES[SUBSTANCE[id] ?? -1]?.colour ?? [0.5, 0.5, 0.5];
+  return findSubstance(id)?.colour ?? [0.5, 0.5, 0.5];
 }
 
 /** Where a land's metal of a kind comes from, in a few words: its own ore, a neighbour's, the road's. */
 function metalFrom(world: World, cell: number, kind: "copper" | "iron" | "tin"): string {
-  const { roads, smelted } = whence(world, cell, kind),
-    o = smelted === cell ? oreOf(world, cell, kind) : null;
+  const chem = worldChemistry(homePlanet(world).generated),
+    { roads, smelted } = whence(world, cell, kind),
+    o = smelted === cell ? oreOf(world, cell, kind) : null,
+    // (Native iron is forged cold from its lump, not smelted.)
+    cold = o?.lie === "telluric" ? ", forged cold" : "";
   if (o)
     return o.cell === cell
-      ? `${o.ore.name} of its own ground`
-      : `${o.ore.name} dug a few days' walk off`;
+      ? `${o.ore.name} of its own ground${cold}`
+      : `${o.ore.name} dug a few days' walk off${cold}`;
   return roads.length > 1
-    ? `${kind} brought down the road from ${landTitle(world, roads[1]!)}`
-    : `${kind} bought in the market`;
+    ? `${roleWord(chem, kind)} brought down the road from ${landTitle(world, roads[1]!)}`
+    : `${roleWord(chem, kind)} bought in the market`;
+}
+
+/** Where a town's iron is from, said: smelted to a bloom, or (native iron) forged cold. */
+function ironFrom(world: World, cell: number, wood: string): string {
+  const from = metalFrom(world, cell, "iron");
+  return from.endsWith(", forged cold")
+    ? from
+    : `${from}, smelted to a bloom with charcoal of ${wood}`;
 }
 
 /**
@@ -672,13 +748,15 @@ function metalFrom(world: World, cell: number, kind: "copper" | "iron" | "tin"):
  * none); null where its own ground gives none it can smelt.
  */
 function smeltedOre(world: World, cell: number, wood: string): TownStuff["ore"] {
-  const ctx = populationContext(world),
+  const chem = worldChemistry(homePlanet(world).generated),
+    ctx = populationContext(world),
     m = marketsOf(world).get(cell);
   let best: { kind: string; ore: Ore; made: number } | null = null;
   for (const row of SMELTS) {
     const o = smeltable(ctx, cell, row.good);
     if (!o || o.cell !== cell || o.lie === "seam") continue;
-    const ore = ORES[row.ore]?.[o.lie];
+    // (The ore the chain traces for it: its world's own, or the arsenical copper ore.)
+    const ore = oreOf(world, cell, row.ore)?.ore;
     if (!ore) continue;
     const made = m?.book("made", row.good) ?? 0;
     if (!best || made > best.made) best = { kind: row.ore, ore, made };
@@ -688,9 +766,40 @@ function smeltedOre(world: World, cell: number, wood: string): TownStuff["ore"] 
         name: best.ore.name,
         colour: substColour(best.ore.mineral),
         fuel: `charcoal of ${wood}`,
-        yields: best.kind,
+        yields: roleWord(chem, best.kind),
       }
     : null;
+}
+
+/**
+ * A smith's metal as a town's scene draws it: its name and colour, and on a world of its own
+ * chemistry (Phase 54) what it is made of and what its smiths take from the yard to melt.
+ */
+function smithsOf(
+  chem: Chemistry,
+  metal: Metal,
+  arsenical: boolean,
+): NonNullable<TownStuff["metal"]> {
+  const w = chem.solar
+      ? { name: metal, stuff: METALS[metal] }
+      : metalOf(chem, metal, { arsenical }),
+    head = { name: w.name, colour: w.stuff.colour };
+  if (chem.solar) return head;
+  if (metal === "bronze") {
+    const a = alloyOf(chem, arsenical);
+    return { ...head, of: a.of, from: a.from };
+  }
+  if (chem.redox !== "reduced") return head;
+  if (metal === "copper") return { ...head, of: "native copper melted and poured" };
+  if (metal === "iron" || metal === "steel")
+    return {
+      ...head,
+      of:
+        chem.carbon === "carbon-rich"
+          ? "black ore and charcoal, its bloom rich in carbon"
+          : "black ore and charcoal in a bloomery",
+    };
+  return head;
 }
 
 /**
@@ -700,11 +809,13 @@ function smeltedOre(world: World, cell: number, wood: string): TownStuff["ore"] 
  * diggings, burning charcoal of its land's wood.
  */
 export function townStuff(world: World, cell: number, year: number): TownStuff {
-  const ctx = populationContext(world),
+  const chem = worldChemistry(homePlanet(world).generated),
+    ctx = populationContext(world),
     metal = toolMetal(ctx, cell, year),
     // (What its smiths forge: its tools may still be mostly stone — Phase 52 M217.)
     forged = forgedMetal(ctx, cell, year),
-    smiths = forged === "stone" ? null : { name: forged, colour: METALS[forged as Metal].colour },
+    arsenical = tinArsenical(world, cell),
+    smiths = forged === "stone" ? null : smithsOf(chem, forged as Metal, arsenical),
     wood = landWood(world, cell),
     ore = smeltedOre(world, cell, wood);
   const clay = landClay(world, cell),
@@ -723,15 +834,17 @@ export function townStuff(world: World, cell: number, year: number): TownStuff {
       ...made,
     };
   }
-  const m = METALS[metal as Metal],
+  const w = chem.solar
+      ? { name: metal, stuff: METALS[metal as Metal] }
+      : metalOf(chem, metal as Metal, { arsenical }),
     of =
       metal === "iron" || metal === "steel"
-        ? `${metalFrom(world, cell, "iron")}, smelted to a bloom with charcoal of ${wood}`
+        ? ironFrom(world, cell, wood)
         : metal === "bronze"
-          ? `${metalFrom(world, cell, "copper")} with a tenth of tin (${metalFrom(world, cell, "tin")})`
+          ? `${metalFrom(world, cell, "copper")} with ${alloyOf(chem, arsenical).with} (${metalFrom(world, cell, "tin")})`
           : `${metalFrom(world, cell, "copper")}, smelted with charcoal`;
   return {
-    tool: { name: metal, colour: m.colour, of: `${of}; ${m.hand}` },
+    tool: { name: w.name, colour: w.stuff.colour, of: `${of}; ${w.stuff.hand}` },
     metal: smiths,
     ore,
     ...made,
@@ -1104,11 +1217,20 @@ export function armsWords(words: string, stone: string): string {
 }
 
 /**
+ * Bronze in words as its world makes it (Phase 54): "cupronickel", "arsenical copper". The Sun's
+ * bronze is its own word.
+ */
+function bronzeWords(chem: Chemistry, words: string): string {
+  return chem.solar ? words : words.replace(/\bbronze\b/g, metalOf(chem, "bronze").name);
+}
+
+/**
  * A realm's host in words, its stone points of its seat's own land's stone: "obsidian-tipped
  * spears and hide shields, on foot".
  */
 export function hostWords(world: World, realm: string, parts: readonly Part[]): string {
-  const words = designWords(parts),
+  const chem = worldChemistry(homePlanet(world).generated),
+    words = bronzeWords(chem, designWords(parts)),
     p = politiesOf(world).get(realm as Ref);
   return p && parts.some((x) => x.material === "stone")
     ? armsWords(words, landStone(world, p.seat).stone.name)
@@ -1117,7 +1239,8 @@ export function hostWords(world: World, realm: string, parts: readonly Part[]): 
 
 /** One part of a realm's host in words, of its own land's stone: "obsidian-tipped spears". */
 export function hostPartWords(world: World, realm: string, part: Part): string {
-  const words = partWords(part),
+  const chem = worldChemistry(homePlanet(world).generated),
+    words = bronzeWords(chem, partWords(part)),
     p = politiesOf(world).get(realm as Ref);
   return p && part.material === "stone"
     ? armsWords(words, landStone(world, p.seat).stone.name)
@@ -1134,7 +1257,8 @@ export function armsMade(world: World, realm: string, part: Part, year: number):
   const ctx = populationContext(world),
     p = politiesOf(world).get(realm as Ref);
   if (!p) return null;
-  const seat = p.seat,
+  const chem = worldChemistry(homePlanet(world).generated),
+    seat = p.seat,
     t = makingTown(world, seat),
     craft = craftAt(world, seat, "tools"),
     key = `${realm}:${part.role}`;
@@ -1169,28 +1293,31 @@ export function armsMade(world: World, realm: string, part: Part, year: number):
   // else down the roads from the land that smelted it.
   const metal = part.material as Metal,
     chain = metalChain(world, seat, metal),
-    // Bog iron, where the seat's own smelters won its iron from bog ore.
+    // Bog iron, where the seat's own smelters won its iron from bog ore (native iron, where its lie
+    // is telluric).
     iron =
       metal === "iron" && whence(world, seat, "iron").smelted === seat
         ? oreOf(world, seat, "iron")
         : null,
-    stuff = iron?.lie === "bog" ? "bog iron" : metal,
-    m = METALS[stuff as Metal | "bog iron"],
+    w = metalOf(chem, metal, {
+      lie: iron?.lie ?? null,
+      arsenical: metal === "bronze" && tinArsenical(world, seat),
+    }),
     works = workshopOf(world, t?.ref ?? null, ["factory"], year),
     smithy = works ?? workshopOf(world, t?.ref ?? null, ["smithy", "workshop"], year),
     maker = makerOf(world, seat, t, works ? "hand at the works" : "smith", key, year),
-    quality = qualityOf(m, craft + (works ? 0.3 : 0), maker.years);
+    quality = qualityOf(w.stuff, craft + (works ? 0.3 : 0), maker.years);
   chain.push([
-    sentence(works ? m.works : m.hand),
+    sentence(works ? w.stuff.works : w.stuff.hand),
     " at ",
     smithy ? link(smithy.name, smithy.ref) : `a smith's hearth${t ? ` in ${t.name}` : ""}`,
     " by ",
     ...makerWords(world, maker, works ? "machines" : "anvil"),
   ]);
   return {
-    stuff,
-    edge: m,
-    colour: m.colour,
+    stuff: w.name,
+    edge: w.stuff,
+    colour: w.stuff.colour,
     quality,
     grade: gradeOf(quality),
     maker,
@@ -1220,7 +1347,7 @@ const WORKED_AT: Readonly<
 function unforged(world: World, cell: number, arming: boolean): Line {
   const ctx = populationContext(world),
     { stone } = landStone(world, cell),
-    ore = oreWithin(ctx, cell, "copper") !== null || oreWithin(ctx, cell, "iron") !== null,
+    ore = oreWorkable(ctx, cell, "copper") !== null || oreWorkable(ctx, cell, "iron") !== null,
     knapped = [
       "knapped from its own ",
       link(stone.name, stone.subst ? substRef(stone.subst) : null),

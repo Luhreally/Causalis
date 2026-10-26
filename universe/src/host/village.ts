@@ -373,10 +373,11 @@ export function villagePlan(
     hand = handOf(world).resting;
   if (hand && hand.village === ref) {
     // Under the hand, everyone in the village is someone: the hand's own people, five to a home.
-    // Every k-th, so the sample is spread through the village's people.
+    // Every k-th, so the sample is spread through the village's people — and the one it was laid
+    // from, known by their own name, always among them (Phase 54).
     const every = Math.max(1, Math.ceil(hand.agents.length / DRAWN_UNDER_HAND));
     hand.agents
-      .filter((_, i) => i % every === 0)
+      .filter((a, i) => i % every === 0 || a.name !== undefined)
       .forEach((a, k) => {
         const home = Math.min(homes.length - 1, Math.floor(k / 5));
         homes[home]!.household = `home:${home}`;
@@ -386,6 +387,7 @@ export function villagePlan(
           home,
           age: now - a.birthYear,
           occupation: a.occupation,
+          sex: a.sex,
           child: now - a.birthYear < lifeOf(world).adulthood,
         });
       });
@@ -406,6 +408,7 @@ export function villagePlan(
         home,
         age: now - p.birthYear,
         occupation: p.occupation,
+        sex: p.sex,
         child: now - p.birthYear < lifeOf(world).adulthood,
         ...(tool ? { tool: `${tool.name}, made in year ${tool.made}` } : {}),
       });
@@ -436,7 +439,8 @@ export function villagePlan(
         tongue ? tonguePersonName(tongue, key, sex) : personName(ctx.culture, key, sex);
     for (let k = 0; k < more; k++) {
       const key = hashString(`folk ${ref} ${k}`),
-        child = u(key, 1) < 0.18;
+        child = u(key, 1) < 0.18,
+        sex = (key >>> 5) & 1;
       let occupation: number = OCC.farmer;
       if (child) occupation = OCC.dependent;
       else if (k < builders) occupation = OCC.crafter;
@@ -453,12 +457,13 @@ export function villagePlan(
       const home = homesFor[Math.floor(k / 4) % homesFor.length]!;
       people.push({
         ref: `folk:${ref}:${k}`,
-        name: `${given(key, (key >>> 5) & 1)} ${familyOf(home)}`,
+        name: `${given(key, sex)} ${familyOf(home)}`,
         role: `${(FOLK_WORDS[occupation] ?? "One").toLowerCase()} of ${v.name}`,
         home,
         age: child ? 4 + Math.floor(u(key, 3) * 10) : 17 + Math.floor(u(key, 3) * 42),
         occupation,
         child,
+        sex,
         folk: true,
       });
     }

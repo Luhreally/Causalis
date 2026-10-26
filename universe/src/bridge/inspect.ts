@@ -47,6 +47,8 @@ export type Item = {
   readonly ref?: string;
   readonly why?: string;
   readonly year?: number;
+  /** A small picture beside it (Phase 54 M223): the stone, the ore, the metal, the tool itself. */
+  readonly thumb?: Portrait;
 };
 
 /** A row of a table: its cells, the page it opens, and what to sort each column by. */
@@ -54,6 +56,8 @@ export type Row = {
   readonly ref?: string;
   readonly cells: readonly Line[];
   readonly keys?: readonly (number | string)[];
+  /** A small picture at the row's start (Phase 54 M223). */
+  readonly thumb?: Portrait;
 };
 
 export type Block =
@@ -322,6 +326,63 @@ export type Tab = { readonly id: string; readonly name: string; readonly blocks:
 type Rgb = readonly [number, number, number];
 
 /**
+ * How a substance's crystals or grains grow (Phase 54 M223), and so how its specimen is cut: salt
+ * and galena in cubes, magnetite in octahedra, garnet in dodecahedra, quartz in six-sided prisms
+ * capped by points, calcite in rhombs, malachite in rounded grapes, native copper in branching
+ * dendrites, gold in nuggets, flint in nodules and obsidian broken in shells.
+ */
+export type Habit =
+  | "cubic"
+  | "octahedral"
+  | "dodecahedral"
+  | "tetrahedral"
+  | "hexagonal"
+  | "rhombic"
+  | "prismatic"
+  | "bladed"
+  | "acicular"
+  | "platy"
+  | "botryoidal"
+  | "dendritic"
+  | "nugget"
+  | "nodular"
+  | "conchoidal"
+  | "earthy"
+  | "massive"
+  | "fibrous"
+  | "granular";
+
+/** What a portion of a substance is shown as: a crystal, a lump, a bar, a heap, in a flask… */
+export type MatterForm =
+  | "crystal"
+  | "lump"
+  | "ingot"
+  | "powder"
+  | "liquid"
+  | "gas"
+  | "glass"
+  | "fibre"
+  | "sheet"
+  | "flesh";
+
+/** How its face takes the light. */
+export type Lustre =
+  | "metallic"
+  | "submetallic"
+  | "adamantine"
+  | "vitreous"
+  | "resinous"
+  | "waxy"
+  | "greasy"
+  | "pearly"
+  | "silky"
+  | "dull";
+
+/** How a made thing was made, which says how it is drawn: flaked, hammered, poured, thrown… */
+export type MadeHow =
+  "knapped" | "forged" | "cast" | "thrown" | "woven" | "sewn" | "machined" | "carved" | "grown";
+
+/**
  * What a page's picture shows (Phase 10 M93b), drawn from the same plans as the scenes: a
  * lineage's body, a person's figure in their clothes with their tools and hair, a town's
  * houses, a world, a star's light, a realm's flag (a war's two), a faith's sign.
@@ -372,7 +433,57 @@ export type Portrait =
     }
   | { readonly kind: "sign"; readonly color: Rgb; readonly tenet: string }
   /** A realm's arms (Phase 11 M102); a war's, its two sides' face to face. */
-  | { readonly kind: "arms"; readonly arms: readonly Arms[] };
+  | { readonly kind: "arms"; readonly arms: readonly Arms[] }
+  /**
+   * A substance as a specimen (Phase 54 M223): cut as it grows, coloured and lit as it shines,
+   * light passing through it as clear as it is; a metal as a bar, a liquid in its flask, a gas in
+   * its glass. `key` turns and jitters it, the same each time.
+   */
+  | {
+      readonly kind: "matter";
+      readonly form: MatterForm;
+      readonly habit: Habit | null;
+      readonly color: Rgb;
+      readonly lustre: Lustre;
+      /** How much light passes through it (0 opaque … 1 clear as glass). */
+      readonly clarity: number;
+      /** Mohs, where it has one: the harder, the crisper its edges. */
+      readonly hardness: number | null;
+      readonly key: number;
+    }
+  /**
+   * An element as it stands pure (Phase 54 M223): a metal's bar, a gas glowing in its sealed glass,
+   * sulphur's yellow crystals, carbon's black, sodium kept under oil.
+   */
+  | {
+      readonly kind: "element";
+      readonly symbol: string;
+      readonly state: "solid" | "liquid" | "gas";
+      readonly sort: "metal" | "metalloid" | "nonmetal" | "noble";
+      readonly color: Rgb;
+      /** Kept under oil: it burns in the air. */
+      readonly kept: boolean;
+      readonly key: number;
+    }
+  /**
+   * A made thing (Phase 54 M223): a tool, an arm, a pot, a garment, a machine's part — its shape by
+   * its `form` ("axe", "sickle", "storage jar", "rifle", "tunic"), drawn as it was made of its stuff:
+   * a flint head flaked, a bronze one cast and ground, iron hammered dark, a pot thrown and fired.
+   */
+  | {
+      readonly kind: "thing";
+      readonly form: string;
+      readonly made: MadeHow;
+      readonly color: Rgb;
+      readonly lustre: Lustre;
+      /** Its haft, stock or handle, where it has one. */
+      readonly haft: Rgb | null;
+      /** 0 … 100: the finer, the truer its lines. */
+      readonly quality: number;
+      /** 0 … 1: how worn it is (nicks, dulled shine, a darker haft). */
+      readonly worn: number;
+      readonly key: number;
+    };
 
 export type PageKind =
   | "land"
@@ -404,6 +515,8 @@ export type PageKind =
   | "decision"
   | "act"
   | "agent"
+  /** An element (Phase 54 M223): what it is, where it is found, what holds it. */
+  | "element"
   /** The world's own: its chronicle, its ledger, the message log; and the book of concepts. */
   | "chronicle"
   | "ledger"

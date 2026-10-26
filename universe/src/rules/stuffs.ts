@@ -105,9 +105,10 @@ export function keenestRock(rocks: readonly string[]): string {
 /**
  * How an ore lies: in one of the world's deposits; showing at the surface (copper where old
  * mountains are worn open, tin out of worn granite); bog ore in wet lowlands, ironstone in hills;
- * crusted on the sea floor's hot springs.
+ * crusted on the sea floor's hot springs; native iron in basalt that flowed through buried coal, on a
+ * world where nothing rusts (Phase 54).
  */
-export type OreLie = "deposit" | "surface" | "bog" | "hill" | "vent";
+export type OreLie = "deposit" | "surface" | "bog" | "hill" | "vent" | "telluric";
 
 /**
  * An ore as it lies: its mineral (a substance), its name, its words, the reaction it is smelted by,

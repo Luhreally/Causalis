@@ -23,7 +23,93 @@ export type ToolContext = {
   readonly war?: (ref: string) => void;
   /** Watch the world's wars of an age unfold together (M194). */
   readonly wars?: (from: number, to: number) => void;
+  /** One of a town's people touched by the god's hand, now one of its people (Phase 54). */
+  readonly touched?: (agent: string) => void;
 };
+
+/** One of a town's people the god may touch (Phase 54): who they are, and their town. */
+export type Touchable = {
+  readonly town: string;
+  readonly name: string;
+  readonly age: number;
+  readonly occupation: number;
+  readonly sex?: number;
+};
+
+/**
+ * Inspire or bless one of a town's people wherever they are met (Phase 54; asked for 2026-10-26:
+ * "how come i cant bless or inspire people anymore ... when i clikc on a person"). The god touches
+ * one only where the hand rests, so where it does not rest on their town it is laid there from them
+ * — lifted from where it rested — and they are among its people by the name they were known by;
+ * then the act. `done` is told the page of the one touched.
+ */
+export async function touchActs(
+  into: HTMLElement,
+  client: HostClient,
+  who: Touchable,
+  done: (agent: string) => void,
+): Promise<void> {
+  const hand = await client.query<{ village: string; name: string } | null>({ type: "hand" }),
+    here = hand?.village === who.town,
+    named = here
+      ? await client.query<number | null>({ type: "hand.named", args: { name: who.name } })
+      : null,
+    first = who.name.split(" ")[0];
+  if (here && named === null) {
+    // (Met elsewhere, their town already under the hand: they live there as one of its people.)
+    into.replaceChildren(
+      el("h3", undefined, "Your hand on them"),
+      el(
+        "p",
+        "muted",
+        `Your hand rests on their town: every one of its people is someone now. Find ${first} among them in the town to touch them.`,
+      ),
+    );
+    return;
+  }
+  const tools = el("div", "tools"),
+    note = el("p", "note"),
+    lay = here
+      ? ""
+      : hand
+        ? ` Your hand will be lifted from ${hand.name} and laid on their town, every one of its people someone, ${first} among them.`
+        : ` Your hand will be laid on their town: every one of its people someone, ${first} among them.`;
+  note.hidden = true;
+  const act = (type: string) => async () => {
+    let id = named;
+    if (!here) {
+      if (hand) await client.command("hand.lift", {});
+      await client.command("hand.lay", {
+        village: who.town,
+        as: {
+          name: who.name,
+          age: who.age,
+          occupation: who.occupation,
+          ...(who.sex !== undefined ? { sex: who.sex } : {}),
+        },
+      });
+      id = await client.query<number | null>({ type: "hand.named", args: { name: who.name } });
+    }
+    if (id === null) throw new Error(`${first} could not be found under your hand`);
+    await client.command(type, { agent: id });
+    done(`agent:${id}`);
+  };
+  twice(
+    tools,
+    note,
+    "✨ Inspire them",
+    `${first} will come upon the next thing their land could know, and be remembered for it.${lay}`,
+    act("act.inspire-one"),
+  );
+  twice(
+    tools,
+    note,
+    "🌟 Bless them",
+    `${first} will be spared death for twenty years (the pious the longer), while your hand rests on their town.${lay}`,
+    act("act.bless-one"),
+  );
+  into.replaceChildren(el("h3", undefined, "Your hand on them"), tools, note);
+}
 
 type Settlement = {
   ref: string;
@@ -167,6 +253,23 @@ export function drawTool(
       // hand that makes every one of its people someone.
       const natures = (args.natures as [string, string, string, number][] | undefined) ?? [],
         parts: HTMLElement[] = [];
+      // Inspired or blessed where they are met (Phase 54), the hand laid on their town from them.
+      if (args.alive && args.village && typeof args.name === "string") {
+        const touch = el("div", "touch");
+        void touchActs(
+          touch,
+          ctx.client,
+          {
+            town: args.village as string,
+            name: args.name,
+            age: args.age as number,
+            occupation: args.occupation as number,
+            ...(typeof args.sex === "number" ? { sex: args.sex } : {}),
+          },
+          (agent) => (ctx.touched ? ctx.touched(agent) : ctx.open(agent)),
+        );
+        parts.push(touch);
+      }
       if (args.alive && natures.length) {
         parts.push(el("h3", undefined, "What they are like — yours to change"));
         for (const [trait, low, high, value] of natures)

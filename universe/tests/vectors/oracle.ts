@@ -5,6 +5,7 @@
 import { YEAR, type World } from "../../src/kernel/index.ts";
 import { makePlanetWorld, makePopulationWorld, makeToyWorld } from "../../src/sim/index.ts";
 import { seedFromText } from "../../src/kernel/index.ts";
+import { OPEN } from "../../src/rules/index.ts";
 
 export type Fixture = { readonly name: string; readonly years: number; readonly make: () => World };
 
@@ -24,6 +25,19 @@ export const FIXTURES: readonly Fixture[] = [
     name: "people/first-light-spread",
     years: 300,
     make: () => makePopulationWorld(seedFromText("first light"), { start: "spread" }),
+  },
+  {
+    // Worlds of their own chemistry (Phase 54): a thin-aired, metal-poor world hardening its copper
+    // with arsenic, with native iron in its basalt; and a carbon-rich one, rich in metals and air.
+    // Both smelt copper by year 10 and alloy by year 80.
+    name: "alien/thin-arsenic",
+    years: 120,
+    make: () => makePopulationWorld(seedFromText("alien 16"), { prior: OPEN, start: "spread" }),
+  },
+  {
+    name: "alien/carbon-rich",
+    years: 100,
+    make: () => makePopulationWorld(seedFromText("alien 182"), { prior: OPEN, start: "spread" }),
   },
 ];
 

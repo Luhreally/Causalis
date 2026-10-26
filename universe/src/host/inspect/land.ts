@@ -9,8 +9,9 @@ import {
   livingIn,
   offworldSite,
   spotRef,
+  worldChemistry,
 } from "../../gen/index.ts";
-import { GOODS } from "../../rules/index.ts";
+import { GOODS, depositProcessOn, roleWord } from "../../rules/index.ts";
 import {
   homePlanet,
   marketsOf,
@@ -290,12 +291,20 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
         (d) => (isProvinceWorld(g) ? g.provinceOf[d.cell] : d.cell) === cell,
       );
     const blocks: Block[] = [{ type: "facts", rows }];
+    // Phase 54: a world of its own chemistry names its own ores (on Earth, the very words).
+    const chem = worldChemistry(g);
     if (deposits.length)
       blocks.push({
         type: "list",
         title: "What lies in the ground",
         items: deposits.map((d) =>
-          item([link(`${d.kind}, ${richWords(d.richness)}`, d.ref), ` (${d.process})`], d.ref),
+          item(
+            [
+              link(`${roleWord(chem, d.kind)}, ${richWords(d.richness)}`, d.ref),
+              ` (${depositProcessOn(chem, d.kind) ?? d.process})`,
+            ],
+            d.ref,
+          ),
         ),
       });
     tabs.push({ id: "land", name: "Land", blocks });

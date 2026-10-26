@@ -31,8 +31,17 @@ export const ELEMENTS: readonly Element[] = [
   { symbol: "Au", name: "gold", mass: 196.97 },
 ];
 
+/**
+ * Elements Earth's tables never needed, found on worlds of their own chemistry (Phase 54): beside
+ * Earth's, so Earth's pages and counts stay as they were.
+ */
+export const NOVEL_ELEMENTS: readonly Element[] = [
+  { symbol: "As", name: "arsenic", mass: 74.922 },
+  { symbol: "Ni", name: "nickel", mass: 58.693 },
+];
+
 const MASS: Readonly<Record<string, number>> = Object.fromEntries(
-  ELEMENTS.map((e) => [e.symbol, e.mass]),
+  [...ELEMENTS, ...NOVEL_ELEMENTS].map((e) => [e.symbol, e.mass]),
 );
 
 /** What kind of matter a substance is (for the words and the colour of its bars). */
@@ -103,6 +112,14 @@ const PROTEIN = byMass({ C: 0.53, H: 0.07, N: 0.16, O: 0.23, S: 0.01 }),
   BRASS = { Cu: 0.706, Zn: 0.294 },
   /** Steel: iron with a hundredth of carbon, by weight. */
   STEEL = { Fe: 0.9551, C: 0.0449 },
+  /** Cupronickel: copper with a quarter of nickel, by weight (atoms: 73.5 to 26.5). */
+  CUPRONICKEL = { Cu: 0.73481, Ni: 0.26519 },
+  /** Arsenical copper: copper with four hundredths of arsenic, by weight (atoms: 96.6 to 3.4). */
+  ARSENICAL = { Cu: 0.96587, As: 0.03413 },
+  /** Telluric iron: native iron, a tenth of its atoms carbon. */
+  TELLURIC = { Fe: 0.9, C: 0.1 },
+  /** Cohenite iron: iron with three hundredths of carbon, by weight (atoms: 87.4 to 12.6). */
+  COHENITE_IRON = { Fe: 0.87428, C: 0.12572 },
   /**
    * Black powder: per 100 g, three parts saltpetre in four, three in twenty charcoal, one in ten
    * sulphur; the atoms of each, in moles.
@@ -975,6 +992,276 @@ export const SUBSTANCE: Readonly<Record<string, number>> = Object.fromEntries(
   SUBSTANCES.map((s, i) => [s.id, i]),
 );
 
+/**
+ * Substances of worlds of their own chemistry (Phase 54): their ores, metals and stones Earth's
+ * tables never held, beside Earth's (a world's own lists say which of them it has).
+ */
+export const NOVEL_SUBSTANCES: readonly Substance[] = [
+  // Metals and their alloys, with the native iron and the carbide that give them.
+  S(
+    "nickel",
+    "nickel",
+    "Ni",
+    { Ni: 1 },
+    "metal",
+    "solid",
+    8908,
+    1455,
+    4,
+    [0.72, 0.71, 0.66],
+    "A hard silvery metal won from green ore at a bloomery's heat: a quarter of it in copper makes a white alloy that does not rust.",
+  ),
+  S(
+    "arsenic",
+    "arsenic",
+    "As",
+    { As: 1 },
+    "metal",
+    "solid",
+    5727,
+    null,
+    3.5,
+    [0.45, 0.46, 0.47],
+    "Grey and brittle, it smells of garlic when heated and goes off as a poisonous smoke: of no use alone, and kept well away from food.",
+  ),
+  S(
+    "cupronickel",
+    "cupronickel",
+    "Cu + Ni",
+    CUPRONICKEL,
+    "metal",
+    "solid",
+    8940,
+    1210,
+    3.5,
+    [0.78, 0.76, 0.72],
+    "Copper and nickel melted as one: a white metal, harder than copper, that keeps its shine in damp air.",
+  ),
+  S(
+    "arsenical-copper",
+    "arsenical copper",
+    "Cu + As",
+    ARSENICAL,
+    "metal",
+    "solid",
+    8800,
+    1060,
+    3,
+    [0.8, 0.6, 0.45],
+    "Copper with four parts in a hundred of arsenic, where there is no tin: harder than copper, and it casts sharp into a mould.",
+  ),
+  S(
+    "telluric-iron",
+    "telluric iron",
+    "Fe + C",
+    TELLURIC,
+    "ore",
+    "solid",
+    7800,
+    1400,
+    4.5,
+    [0.48, 0.48, 0.5],
+    "Native iron of the ground itself, where basalt flowed through buried coal and was robbed of its oxygen: lumps of metal no smith had to smelt.",
+  ),
+  S(
+    "cohenite",
+    "cohenite",
+    "(Fe,Ni)₃C",
+    { Fe: 2.85, Ni: 0.15, C: 1 },
+    "mineral",
+    "solid",
+    7200,
+    null,
+    5.5,
+    [0.6, 0.6, 0.55],
+    "A carbide of iron and nickel, hard and brittle, that holds its carbon fast in the rock: it breaks down before it will melt.",
+  ),
+  S(
+    "cohenite-iron",
+    "cohenite iron",
+    "Fe + C",
+    COHENITE_IRON,
+    "metal",
+    "solid",
+    7600,
+    1250,
+    5.5,
+    [0.42, 0.42, 0.45],
+    "Iron that has drunk three parts in a hundred of carbon from a rich charcoal fire: it pours into moulds, but shatters under the hammer.",
+  ),
+  // Ores of copper, iron, nickel and arsenic, and what their roasts leave.
+  S(
+    "native-copper",
+    "native copper",
+    "Cu",
+    { Cu: 1 },
+    "ore",
+    "solid",
+    8960,
+    1085,
+    3,
+    [0.72, 0.42, 0.24],
+    "Copper lying in lumps and threads in the rock, the metal itself and no ore: it wants melting, not smelting.",
+  ),
+  S(
+    "chalcocite",
+    "chalcocite",
+    "Cu₂S",
+    { Cu: 2, S: 1 },
+    "ore",
+    "solid",
+    5600,
+    1130,
+    2.75,
+    [0.2, 0.2, 0.22],
+    "Dark, heavy copper glance, with its sulphur still bound in: it must be run molten and blown before it gives up its copper.",
+  ),
+  S(
+    "siderite",
+    "siderite",
+    "FeCO₃",
+    { Fe: 1, C: 1, O: 3 },
+    "ore",
+    "solid",
+    3960,
+    null,
+    4,
+    [0.55, 0.47, 0.35],
+    "Brown iron carbonate settled out of marsh water or laid in beds among the shales: it calcines in a fire and gives up its iron more easily than the black ore does.",
+  ),
+  S(
+    "garnierite",
+    "garnierite",
+    "(Ni,Mg)₃Si₂O₅(OH)₄",
+    { Ni: 1.5, Mg: 1.5, Si: 2, O: 9, H: 4 },
+    "ore",
+    "solid",
+    2700,
+    null,
+    2.5,
+    [0.3, 0.62, 0.38],
+    "Soft green earth of weathered rock, rich in nickel: its silica must be broken down by a bloomery's heat before the metal comes.",
+  ),
+  S(
+    "arsenopyrite",
+    "arsenopyrite",
+    "FeAsS",
+    { Fe: 1, As: 1, S: 1 },
+    "ore",
+    "solid",
+    6070,
+    null,
+    5.75,
+    [0.75, 0.74, 0.7],
+    "Silvery mineral of iron, arsenic and sulphur: roasted in air it smokes out its arsenic and sulphur, and leaves iron behind.",
+  ),
+  S(
+    "white-arsenic",
+    "white arsenic",
+    "As₂O₃",
+    { As: 2, O: 3 },
+    "made",
+    "solid",
+    3740,
+    312,
+    1.5,
+    [0.95, 0.95, 0.93],
+    "The white powder a roast drives up into the cooler flues: a deadly poison, and used to clear glass.",
+  ),
+  S(
+    "tennantite",
+    "tennantite",
+    "Cu₁₂As₄S₁₃",
+    { Cu: 12, As: 4, S: 13 },
+    "ore",
+    "solid",
+    4620,
+    null,
+    3.75,
+    [0.25, 0.26, 0.28],
+    "Grey copper ore with arsenic and sulphur bound in: heavy, and roasted in air it gives copper and poisonous smoke.",
+  ),
+  // Stones and minerals of the other rocks.
+  S(
+    "moissanite",
+    "moissanite",
+    "SiC",
+    { Si: 1, C: 1 },
+    "mineral",
+    "solid",
+    3210,
+    null,
+    9.25,
+    [0.18, 0.3, 0.26],
+    "Crystals of silicon and carbon, found in the hot deep and in fallen stars: nearly as hard as diamond, and it cuts glass.",
+  ),
+  S(
+    "graphite",
+    "graphite",
+    "C",
+    { C: 1 },
+    "mineral",
+    "solid",
+    2260,
+    null,
+    1.5,
+    [0.15, 0.15, 0.16],
+    "Soft black carbon in flakes that mark the hand and slide over one another: it draws a grey line, and greases what rubs on it.",
+  ),
+  S(
+    "nephrite",
+    "nephrite",
+    "Ca₂Mg₅Si₈O₂₂(OH)₂",
+    { Ca: 2, Mg: 5, Si: 8, O: 24, H: 2 },
+    "mineral",
+    "solid",
+    3000,
+    null,
+    6.25,
+    [0.36, 0.52, 0.38],
+    "Tough green stone of the rivers, knit so close that a blow will not chip it: the axe-stone of a people with no metal.",
+  ),
+  S(
+    "corundum",
+    "corundum",
+    "Al₂O₃",
+    { Al: 2, O: 3 },
+    "mineral",
+    "solid",
+    4020,
+    2044,
+    9,
+    [0.48, 0.47, 0.5],
+    "Alumina in hard grey-blue crystals, found in river gravels and old lava: it cuts and grinds every stone but the diamond.",
+  ),
+  S(
+    "tachylite",
+    "tachylite",
+    "basaltic glass",
+    { Si: 1, Al: 0.3, Mg: 0.25, Fe: 0.2, Ca: 0.2, Na: 0.05, O: 3.125 },
+    "mineral",
+    "solid",
+    2800,
+    1100,
+    5.5,
+    [0.08, 0.07, 0.07],
+    "Black glass of basalt, chilled in a moment at the edge of a flow: it breaks like obsidian, and less keenly.",
+  ),
+  S(
+    "dolomite",
+    "dolomite",
+    "CaMg(CO₃)₂",
+    { Ca: 1, Mg: 1, C: 2, O: 6 },
+    "mineral",
+    "solid",
+    2840,
+    null,
+    3.75,
+    [0.88, 0.86, 0.8],
+    "Limestone with magnesia in it: a pale stone of old reefs that fizzes only slowly in acid, where limestone fizzes at once.",
+  ),
+];
+
 /** A substance's weight a mole (grams). */
 export function molarMass(formula: Readonly<Record<string, number>>): number {
   let m = 0;
@@ -1507,12 +1794,215 @@ export const REACTION: Readonly<Record<string, number>> = Object.fromEntries(
   REACTIONS.map((r, i) => [r.id, i]),
 );
 
+/** Reactions of worlds of their own chemistry (Phase 54): working the ores Earth's never held. */
+export const NOVEL_REACTIONS: readonly Reaction[] = [
+  // Copper from its native metal and its glance; nickel and the alloys of copper with it.
+  {
+    id: "melt-native-copper",
+    name: "melting native copper",
+    inputs: [["native-copper", 1]],
+    outputs: [["copper", 1]],
+    heat: 1085,
+    fuel: "carbon",
+    principle: "metalworking",
+    recipe: "copper-smelting",
+    words:
+      "Lumps of native copper melted in a clay crucible: the metal runs out clean, with no ore to roast first.",
+  },
+  {
+    id: "smelt-chalcocite",
+    name: "smelting copper glance",
+    inputs: [
+      ["chalcocite", 1],
+      ["oxygen", 1],
+    ],
+    outputs: [
+      ["copper", 2],
+      ["so2", 1],
+    ],
+    heat: 1150,
+    fuel: "carbon",
+    principle: "metalworking",
+    recipe: "copper-smelting",
+    words:
+      "Copper glance roasted in a blast: its sulphur goes up as sour smoke, and the copper runs out molten.",
+  },
+  {
+    id: "smelt-garnierite",
+    name: "smelting garnierite",
+    inputs: [
+      ["garnierite", 1],
+      ["carbon", 0.75],
+    ],
+    outputs: [
+      ["nickel", 1.5],
+      ["co2", 0.75],
+      ["steam", 2],
+      ["olivine", 0.75],
+      ["quartz", 1.25],
+    ],
+    heat: 1250,
+    fuel: "carbon",
+    principle: "bronze",
+    recipe: "tin-smelting",
+    words:
+      "Green nickel earth and charcoal in a bloomery's heat: the nickel runs free, and its silica and magnesia are left as stone.",
+  },
+  {
+    id: "alloy-cupronickel",
+    name: "alloying cupronickel",
+    inputs: [
+      ["copper", CUPRONICKEL.Cu],
+      ["nickel", CUPRONICKEL.Ni],
+    ],
+    outputs: [["cupronickel", 1]],
+    heat: 1250,
+    fuel: "carbon",
+    principle: "bronze",
+    recipe: "bronze-tools",
+    words:
+      "Copper and nickel melted together in a crucible: cupronickel, white and bright, with no tin needed.",
+  },
+  // Arsenic from the roasts of its ores, and copper hardened with it.
+  {
+    id: "roast-arsenopyrite",
+    name: "roasting arsenopyrite",
+    inputs: [
+      ["arsenopyrite", 2],
+      ["oxygen", 5],
+    ],
+    outputs: [
+      ["white-arsenic", 1],
+      ["hematite", 1],
+      ["so2", 2],
+    ],
+    heat: 700,
+    fuel: "carbon",
+    principle: "bronze",
+    recipe: "tin-smelting",
+    words:
+      "Arsenopyrite roasted in a draught: its arsenic goes off as white poison, its sulphur as sour smoke, and its iron is left as red ore.",
+  },
+  {
+    id: "alloy-arsenical",
+    name: "alloying arsenical copper",
+    inputs: [
+      ["copper", ARSENICAL.Cu],
+      ["white-arsenic", ARSENICAL.As / 2],
+      ["carbon", 0.75 * ARSENICAL.As],
+    ],
+    outputs: [
+      ["arsenical-copper", 1],
+      ["co2", 0.75 * ARSENICAL.As],
+    ],
+    heat: 1100,
+    fuel: "carbon",
+    principle: "bronze",
+    recipe: "bronze-tools",
+    words:
+      "Copper melted with white arsenic and charcoal: the charcoal takes the arsenic's oxygen away, and the arsenic stays in the copper.",
+  },
+  {
+    id: "roast-tennantite",
+    name: "roasting tennantite",
+    inputs: [
+      ["tennantite", 1],
+      ["oxygen", 16],
+    ],
+    outputs: [
+      ["copper", 12],
+      ["white-arsenic", 2],
+      ["so2", 13],
+    ],
+    heat: 1100,
+    fuel: "carbon",
+    principle: "bronze",
+    recipe: "tin-smelting",
+    words:
+      "Grey copper ore roasted in a draught: the copper is left, and its arsenic and sulphur go up as smoke.",
+  },
+  // Iron from carbonate and native ores, and the carbon-rich bloom.
+  {
+    id: "smelt-siderite",
+    name: "smelting siderite",
+    inputs: [
+      ["siderite", 2],
+      ["carbon", 1],
+    ],
+    outputs: [
+      ["iron", 2],
+      ["co2", 3],
+    ],
+    heat: 1150,
+    fuel: "carbon",
+    principle: "iron",
+    recipe: "iron-smelting",
+    words:
+      "Brown iron carbonate calcined and burned with charcoal: its iron is left, and its carbon goes up with the smoke.",
+  },
+  {
+    id: "forge-telluric",
+    name: "forging native iron",
+    inputs: [
+      ["telluric-iron", 1],
+      ["oxygen", 0.1],
+    ],
+    outputs: [
+      ["iron", 0.9],
+      ["co2", 0.1],
+    ],
+    heat: 1000,
+    fuel: "carbon",
+    principle: "iron",
+    recipe: "iron-smelting",
+    words:
+      "Native iron worked in a hearth with a breath of air: the coal's carbon burns out of it, and soft iron is left.",
+  },
+  {
+    id: "carbide-bloomery",
+    name: "the carbon-rich bloomery",
+    inputs: [
+      ["magnetite", 1],
+      ["carbon", 2 + (3 * COHENITE_IRON.C) / COHENITE_IRON.Fe],
+    ],
+    outputs: [
+      ["cohenite-iron", 3 / COHENITE_IRON.Fe],
+      ["co2", 2],
+    ],
+    heat: 1250,
+    fuel: "carbon",
+    principle: "iron",
+    recipe: "iron-smelting",
+    words:
+      "Black ore smelted with more charcoal than the iron can hold: the metal drinks the carbon and runs out pouring like water.",
+  },
+];
+
+/** A substance by its id: Earth's first, then those of other chemistries. */
+export function findSubstance(id: string): Substance | undefined {
+  const i = SUBSTANCE[id];
+  return i === undefined ? NOVEL_SUBSTANCES.find((s) => s.id === id) : SUBSTANCES[i];
+}
+
+/** A reaction by its id: Earth's first, then those of other chemistries. */
+export function findReaction(id: string): Reaction | undefined {
+  const i = REACTION[id];
+  return i === undefined ? NOVEL_REACTIONS.find((r) => r.id === id) : REACTIONS[i];
+}
+
+/** An element by its symbol: Earth's first, then those of other chemistries. */
+export function findElement(symbol: string): Element | undefined {
+  return (
+    ELEMENTS.find((e) => e.symbol === symbol) ?? NOVEL_ELEMENTS.find((e) => e.symbol === symbol)
+  );
+}
+
 /** How far a reaction is from balancing: the largest difference in any element's atoms. */
 export function imbalance(r: Reaction): number {
   const count = (side: readonly (readonly [string, number])[]) => {
     const out: Record<string, number> = {};
     for (const [id, n] of side) {
-      const s = SUBSTANCES[SUBSTANCE[id]!]!;
+      const s = findSubstance(id)!;
       for (const [e, k] of Object.entries(s.formula)) out[e] = (out[e] ?? 0) + k * n;
     }
     return out;
@@ -1532,7 +2022,7 @@ export function reactionKg(r: Reaction): {
 } {
   const kg = ([id, n]: readonly [string, number]): [string, number] => [
       id,
-      (n * molarMass(SUBSTANCES[SUBSTANCE[id]!]!.formula)) / 1000,
+      (n * molarMass(findSubstance(id)!.formula)) / 1000,
     ],
     first = kg(r.outputs[0]!)[1],
     per = (x: [string, number]): [string, number] => [x[0], x[1] / first];
