@@ -18,6 +18,8 @@ export type CampaignBattle = {
   readonly won: boolean;
   /** Of the attacker, of the defender. */
   readonly fallen: readonly [number, number];
+  /** Of the attacker, of the defender (Phase 55; absent in older saves). */
+  readonly wounded?: readonly [number, number];
   /** What it won: the field, a siege laid, a land taken, a seat stormed — or held. */
   readonly outcome: BattleOutcome;
   /** Whether arms decided it (Phase 52 M217). */

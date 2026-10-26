@@ -43,6 +43,8 @@ export type TownStrike = {
   readonly event: string;
   /** How many of its people it killed (Phase 43 M205: buried two days after; absent: none told). */
   readonly dead?: number;
+  /** Its wounded who lived (Phase 55: its dead by the strike's ratio, rules/wounds.ts). */
+  readonly hurt?: number;
 };
 
 /** One of a town's buildings besides its homes, as its fabric keeps it. */

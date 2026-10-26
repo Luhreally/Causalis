@@ -23,6 +23,19 @@ aggregate engagement, and the shadow plays out a fight consistent with it" (univ
 - **D4 year label:** year B's battle (fought at the turn T = (B+1)·YEAR) is watched the next morning
   (year B+1, day 1, 08:00); pages say "year B", captions "the battle at the turn of year B".
 
+## Blows seen where they land (asked for 2026-10-26)
+"and like even in the sim battles where its like reenactted or wtv it should be more graphic, and
+realistic where ever they are getting damaged yk". Every battle view, the close field that replays
+history's battles first and the town's own field (M227) after, shows where each man is struck:
+- the part hit (head, trunk, an arm or hand, a leg), and the fall that follows from it;
+- the wound and its blood on that part, staying on the fallen;
+- arrows and darts stuck where they hit, and shot's dark holes;
+- limbs severed only where an edge, a cannon ball or a shell could do it, lying apart in their blood;
+- the wounded who live (history's, scaled to the figures drawn): they stagger, kneel, clutch the
+  wound, and crawl or are helped back through the ranks, leaving a trail.
+It is graphic by default, in the game's low-poly look. Its spec is scratchpad p55/spec-blows.md
+(Opus planner), a track kept file-disjoint from M224's tasks.
+
 ## How it plays
 A realm goes to war; each sending town's levy (named adult men of fighting age) musters at the drill
 ground and leaves by the road, absent from the town's day until they come home; the hosts march by
@@ -86,6 +99,9 @@ hand, on a crutch, an eye patched — their pages tell it.
 - **M229** healing: T31 litters; T32 healer rounds.
 - **M230** view options: T33 view/warviews.ts; T34 ui/war-views.ts.
 - **M231** gate 55, probe55, docs.
+
+## After Phase 55
+Truly alien worlds (world kinds, alien biochemistry, their own names, invented matter as an option): docs/architecture/alien-worlds-plan.md, Phases 56–59, asked for 2026-10-26.
 
 ## Acceptance
 Σ towns + countryside = each side's fallen (100%); roll lengths = figure counts; no dead holder in a

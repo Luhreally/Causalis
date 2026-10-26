@@ -25,6 +25,11 @@ export type BattleSideNear = {
    * after it (an attacker's), counted with it so a remnant is left standing (none: its host alone).
    */
   readonly risen?: number;
+  /** Of its men, the wounded who lived, and of them the maimed (Phase 55; absent in older saves). */
+  readonly wounded?: number;
+  readonly maimed?: number;
+  /** Where its men came from, the most dead first, at most LEVY_SHOWN (absent in older saves). */
+  readonly levy?: readonly LevyPlace[];
   /** What it fought with: its host's design (on foot with spears, where it had none). */
   readonly host: HostKinds | null;
   /** That host in words: "bronze swords and shields, on foot". */
@@ -37,6 +42,20 @@ export type BattleSideNear = {
 
 /** What the battle won: the field, a siege laid about a seat, a land taken, a seat stormed. */
 export type BattleOutcome = "held" | "field" | "siege" | "taken" | "stormed";
+
+/** A place a side's men came from (Phase 55 M224): a town, a land's countryside, or a land whole (its towns let go). */
+export type LevyPlace = {
+  readonly kind: "town" | "countryside" | "land";
+  /** The town's ref (null: the countryside, or the land whole). */
+  readonly ref: string | null;
+  /** "Pounholt"; "the countryside of Lithiv's land"; "Lithiv's land". */
+  readonly name: string;
+  readonly cell: number;
+  /** The men it sent to the field; of them, the fallen; of them, the wounded who lived. */
+  readonly sent: number;
+  readonly dead: number;
+  readonly hurt: number;
+};
 
 export type BattleNear = {
   /** The battle's event, and its war's. */

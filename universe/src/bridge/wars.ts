@@ -94,6 +94,8 @@ export type WarsMap = {
       readonly year: number;
       readonly won: boolean;
       readonly fallen: number;
+      /** Its wounded who lived, both sides together (Phase 55; absent in older saves). */
+      readonly wounded?: number;
       readonly event: string;
       /** The land its host came on it from (a war watched unfolding, M195: its masses face that way). */
       readonly from?: number;
