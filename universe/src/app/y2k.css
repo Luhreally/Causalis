@@ -1981,6 +1981,11 @@ body.roaming .hint {
     top: calc(var(--bar-bottom, 72px) + 50px);
     max-height: calc(100% - var(--bar-bottom, 72px) - 58px - var(--safe-bottom));
   }
+  /* (The god's bar, while such a window stands at the right: centred on the ground left of it,
+     22rem and its bevel and the column's 60px, so neither hides the other's foot.) */
+  #hud:has(> .panel:not([hidden]) > .inspector:not([hidden], .page-window)) > .palette {
+    left: calc(50vw - 11rem - 46px);
+  }
 }
 @media (max-width: 640px) {
   /* (Not while roaming: its stick is among them.) */
