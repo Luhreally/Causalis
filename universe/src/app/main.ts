@@ -5674,8 +5674,10 @@ async function runPlanetPage(): Promise<void> {
         Math.sin(wall * 0.047 + 2) * k,
       );
     }
-    // A feast kept in the town seen near, or its market standing (Phase 33 M174–M175).
-    const square = scale === "village" && plan ? squareNow(plan, t) : null;
+    // A feast kept in the town seen near, or its market standing (Phase 33 M174–M175); in a downpour,
+    // those at their ease in out of it.
+    const square =
+      scale === "village" && plan ? squareNow(plan, t, village.shelteredNow() > 0) : null;
     time.weather(
       w.icon,
       w.warmth,
@@ -5831,7 +5833,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.feast = () =>
     scale === "village" && plan
       ? Object.assign(village.feastNow(), {
-          words: squareNow(plan, now())?.words ?? "",
+          words: squareNow(plan, now(), village.shelteredNow() > 0)?.words ?? "",
           feasts: plan.life?.feasts?.length ?? 0,
         })
       : null;

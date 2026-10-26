@@ -101,6 +101,10 @@ test("the square is dressed on its feast day only, and its bonfire burns from du
   assert.equal(at(feastDay + 1, 10), null, "put away the next day");
   assert.match(squareNow(plan, feastDay * DAY + 19 * HOUR)!.words, /Harvest home in Feastford/);
   assert.equal(squareNow(plan, feastDay * DAY + 19 * HOUR)!.icon, "🌾🎉");
+  // (In a downpour those at their ease are in out of it, the feast with them, and the bar says so.)
+  const wet = squareNow(plan, feastDay * DAY + 19 * HOUR, true)!;
+  assert.match(wet.words, /^Harvest home in Feastford: the town in out of the downpour/);
+  assert.equal(wet.icon, "🌾🎉", "still its feast day");
 });
 
 test("on a feast day the work is put down by mid-afternoon, and the town feasts at the tables and in the ring", () => {
@@ -220,6 +224,10 @@ test("the market stands once a week of a morning, never on a feast day; the old 
   const day = days.at(-1)!;
   assert.ok(marketAt(p, day * DAY + 9 * HOUR) && !marketAt(p, day * DAY + 19 * HOUR));
   assert.equal(squareNow(p, day * DAY + 9 * HOUR)?.icon, "🛒");
+  assert.match(
+    squareNow(p, day * DAY + 9 * HOUR, true)!.words,
+    /stand in the rain, those come to buy gone in/,
+  );
   const m = marketScene(p),
     near = (x: { x: number; z: number }, q: readonly { x: number; z: number }[], r: number) =>
       q.some((s) => Math.hypot(s.x - x.x, s.z - x.z) < r);

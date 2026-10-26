@@ -383,24 +383,38 @@ export function feastPlace(plan: Pick<VillagePlan, "town">, dance: boolean, u: n
   };
 }
 
-/** A feast in the bar's words: what it is, where, and how far it has come. */
+/**
+ * A feast in the bar's words: what it is, where, and how far it has come. `wet`: a downpour falls on
+ * the town, and those at their ease are in out of it (Phase 30), the feast with them till it passes.
+ */
 export function feastWords(
   at: { readonly feast: Feast; readonly lit: boolean },
   town: string,
+  wet = false,
 ): string {
+  if (wet) return `${at.feast.words} in ${town}: the town in out of the downpour till it passes`;
   return `${at.feast.words} in ${town}: the town feasts in its square${at.lit ? " by its bonfire" : " this evening"}`;
 }
 
-/** What the square of a town seen near shows at moment t, for the bar: its feast while dressed, else its market. */
+/**
+ * What the square of a town seen near shows at moment t, for the bar: its feast while dressed, else
+ * its market. `wet`: a downpour falls on it, those at their ease in out of it.
+ */
 export function squareNow(
   plan: Pick<VillagePlan, "life" | "market" | "seed" | "name">,
   t: number,
+  wet = false,
 ): { readonly icon: string; readonly words: string } | null {
   const f = feastAt(plan, t);
   if (f?.dressed)
-    return { icon: `${FEAST_SIGNS[f.feast.occasion]}🎉`, words: feastWords(f, plan.name) };
+    return { icon: `${FEAST_SIGNS[f.feast.occasion]}🎉`, words: feastWords(f, plan.name, wet) };
   if (marketAt(plan, t))
-    return { icon: "🛒", words: `Market day in ${plan.name}: its stalls stand in the square` };
+    return {
+      icon: "🛒",
+      words: wet
+        ? `Market day in ${plan.name}: its stalls stand in the rain, those come to buy gone in out of it`
+        : `Market day in ${plan.name}: its stalls stand in the square`,
+    };
   return null;
 }
 

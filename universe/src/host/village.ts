@@ -522,7 +522,8 @@ export function villagePlan(
         food: (f(G.meat) + f(G.wild)) * share,
         wood: 0,
         stone: 0,
-        ore: (f(G.copper) + f(G.coal)) * share,
+        // (Its metals as smelted, tin and iron with copper since Phase 52, and the coal it burns.)
+        ore: (f(G.copper) + f(G.tin) + f(G.iron) + f(G.coal)) * share,
         tools: f(G.tools) * share,
       });
     return {
@@ -877,8 +878,8 @@ export function villagePlan(
   /**
    * The land's works about the village, on the open ground furthest from its fields, road
    * and pasture: a mine where it digs coal (a shaft under a headframe once it has engines,
-   * a pit before), else an ore pit where it smelts copper, else a quarry where it builds in
-   * stone; its oil well; its factory by the road.
+   * a pit before), else an ore pit where it smelts its own metal (copper, tin or iron), else a
+   * quarry where it builds in stone; its oil well; its factory by the road.
    */
   function worksOf(cell: number): NonNullable<VillagePlan["works"]> {
     const m = marketsOf(world).get(cell),
@@ -894,7 +895,7 @@ export function villagePlan(
       dig = edge + 70,
       mine = m?.mine
         ? { ...at(ways[0]!, dig), kind: engines ? "shaft" : "pit", what: "coal", ref: m.mine }
-        : (made?.[G.copper] ?? 0) > 0
+        : (made?.[G.copper] ?? 0) + (made?.[G.tin] ?? 0) + (made?.[G.iron] ?? 0) > 0
           ? {
               ...at(ways[0]!, dig),
               kind: engines ? "shaft" : "pit",

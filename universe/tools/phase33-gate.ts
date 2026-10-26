@@ -6,7 +6,8 @@
 //      its realm made, its ruler crowned);
 //   2. on a feast day the square dressed from the morning — bunting, the tables — and the bar
 //      telling the feast by its sign; the work put down by mid-afternoon; at dusk the bonfire
-//      lit, the town at the tables and dancing in a ring about the fire, the ring going round;
+//      lit, the town at the tables and dancing in a ring about the fire, the ring going round (a
+//      feast a downpour has the town in out of passed over for the next, the bar telling it);
 //   3. the next morning the square cleared;
 //   4. a market day: the stalls standing of a morning, traders behind them and buyers before
 //      them, the bar telling it; packed away by evening.
@@ -131,8 +132,8 @@ check(
   feasts.some((f) => f.occasion === "harvest"),
   "no harvest home kept in the greatest town",
 );
-const feast = feasts.filter((f) => f.day > today).sort((a, b) => a.day - b.day)[0];
-check(!!feast, "no feast to come");
+const ahead = feasts.filter((f) => f.day > today).sort((a, b) => a.day - b.day);
+check(ahead.length > 0, "no feast to come");
 
 // (The eye over the square.)
 const overSquare = async (x: number, z: number, distance: number, pitch: number) => {
@@ -141,46 +142,82 @@ const overSquare = async (x: number, z: number, distance: number, pitch: number)
   );
   await page.waitForTimeout(slow(2500));
 };
-
-if (feast) {
-  // 2. The feast day: dressed by the morning, the bar telling it.
-  await advance(feast.day * DAY + 10 * HOUR);
-  const dressed = await until(
-    "the square dressed for the feast",
-    async () => (await square())?.feast === 1,
-    slow(30000),
+/** Whether `ok` comes within `ms` (not a problem if not: the caller judges). */
+const soon = async (ok: () => Promise<boolean>, ms: number) => {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (await ok()) return true;
+    await page.waitForTimeout(250);
+  }
+  return false;
+};
+/** Whether a downpour has the town in out of it now (those at their ease gone in: Phase 30). */
+const wet = async () => {
+  await page.waitForTimeout(slow(1500));
+  return (
+    ((await k<{ sheltered: number } | null>(`globalThis.causalis.weather?.() ?? null`))
+      ?.sheltered ?? 0) > 0
   );
+};
+
+// 2. A feast day: the square dressed by the morning, the bar telling it; the work put down by
+// mid-afternoon; at dusk the fire lit, the town at the tables and in the ring, the ring going round.
+// (A feast a downpour has the town in out of is passed over for the next, as a wet market day is,
+// the bar saying so.)
+let feast: (typeof ahead)[number] | null = null;
+const rained: string[] = [];
+for (const f of ahead.slice(0, 4)) {
+  const fails: string[] = [],
+    need = (ok: boolean, what: string) => {
+      if (!ok) fails.push(what);
+    };
+  await advance(f.day * DAY + 10 * HOUR);
+  const dressed = await soon(async () => (await square())?.feast === 1, slow(30000));
   await overSquare(2, 4, 6, -32);
   const morning = (await square()) ?? ({} as Square),
-    told = await mark();
-  say(
-    `${feast.words}, the morning: ${morning.flags} flags strung, ${morning.tables} tables, fire ${morning.lit ? "lit" : "laid"}; the bar “${told}” — “${morning.words}”`,
-  );
-  check(dressed && (morning.flags ?? 0) >= 20 && morning.tables === 2, "the square not dressed");
-  check(morning.lit === 0, "the bonfire lit in the morning");
-  check(/🎉/.test(told), `the bar does not tell the feast (“${told}”)`);
-  check(/the town feasts in its square/.test(morning.words), "the feast's words not told");
+    told = await mark(),
+    wetMorning = await wet();
+  need(dressed, "the square dressed for the feast did not come");
+  need((morning.flags ?? 0) >= 20 && morning.tables === 2, "the square not dressed");
+  need(morning.lit === 0, "the bonfire lit in the morning");
+  need(/🎉/.test(told), `the bar does not tell the feast (“${told}”)`);
   await shot("1-feast-morning");
 
   // The work put down by mid-afternoon.
-  await advance(feast.day * DAY + 16 * HOUR);
+  await advance(f.day * DAY + 16 * HOUR);
   await page.waitForTimeout(slow(1500));
   const afternoon = await people(),
-    working = afternoon.filter((p) => p.activity === 3).length;
-  say(`the afternoon: ${working} of ${afternoon.length} seen at work`);
-  check(working === 0, `${working} still at work on the feast's afternoon`);
+    working = afternoon.filter((p) => p.activity === 3).length,
+    wetAfternoon = await wet();
+  need(working === 0, `${working} still at work on the feast's afternoon`);
 
-  // At dusk the fire lit, the town at the tables and in the ring, the ring going round.
-  await advance(feast.day * DAY + 20.5 * HOUR);
-  const lit = await until(
-    "the bonfire lit and the town at the feast",
-    async () => {
-      const s = await square(),
-        p = await people();
-      return s?.lit === 1 && p.filter((q) => q.activity === 9).length >= 6;
-    },
-    slow(30000),
+  // At dusk the fire lit, the town at the tables and in the ring.
+  await advance(f.day * DAY + 20.5 * HOUR);
+  const wetEvening = await wet();
+  if (wetMorning || wetAfternoon || wetEvening) {
+    // (In out of the downpour, the bar telling it: the feast waits on the rain.)
+    const words = (await square())?.words ?? "";
+    say(
+      `${f.words}, day ${f.day % 365}: rained off (${[wetMorning && "morning", wetAfternoon && "afternoon", wetEvening && "evening"].filter(Boolean).join(", ")}); the bar “${words}”`,
+    );
+    if (wetEvening)
+      check(
+        /in out of the downpour/.test(words),
+        `the bar does not tell the town in out of the downpour (“${words}”)`,
+      );
+    rained.push(`day ${f.day % 365}`);
+    continue;
+  }
+  say(
+    `${f.words}, the morning: ${morning.flags} flags strung, ${morning.tables} tables, fire ${morning.lit ? "lit" : "laid"}; the bar “${told}” — “${morning.words}”`,
   );
+  need(/the town feasts in its square/.test(morning.words), "the feast's words not told");
+  say(`the afternoon: ${working} of ${afternoon.length} seen at work`);
+  const lit = await soon(async () => {
+    const s = await square(),
+      p = await people();
+    return s?.lit === 1 && p.filter((q) => q.activity === 9).length >= 6;
+  }, slow(30000));
   const fire = fireOf(plan);
   await overSquare(fire.x + 6, fire.z + 4, 4.5, -26);
   const evening = await people(),
@@ -190,9 +227,9 @@ if (feast) {
   say(
     `the evening: ${dancing.length} dancing (${dancing.map((p) => ringR(p).toFixed(1)).join(", ")} m from the fire), ${eating.length} at the tables, of ${evening.length} out`,
   );
-  check(lit, "the feast's evening did not come");
-  check(dancing.length >= 2 && eating.length >= 2, "the town not at the tables and in the ring");
-  check(
+  need(lit, "the feast's evening did not come");
+  need(dancing.length >= 2 && eating.length >= 2, "the town not at the tables and in the ring");
+  need(
     dancing.filter((p) => ringR(p) < 9).length >= dancing.length / 2,
     "the dancers not about the fire",
   );
@@ -205,8 +242,14 @@ if (feast) {
     return p.task === "dance" && b && Math.hypot(p.x - b.x, p.z - b.z) > 0.4;
   }).length;
   say(`the ring going round: ${moved} of ${dancing.length} dancers moved on`);
-  check(moved >= Math.min(2, dancing.length), "the ring does not go round");
+  need(moved >= Math.min(2, dancing.length), "the ring does not go round");
+  for (const x of fails) check(false, x);
+  feast = f;
+  break;
+}
+check(!!feast, `no feast of the next ${Math.min(4, ahead.length)} kept dry (${rained.join(", ")})`);
 
+if (feast) {
   // 3. The next morning, the square cleared.
   await advance((feast.day + 1) * DAY + 10 * HOUR);
   const cleared = await until(

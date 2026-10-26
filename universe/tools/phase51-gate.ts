@@ -4,7 +4,7 @@
 // the Earth seed three centuries on, in its greatest town that digs its own copper ore and keeps a
 // smithy and smiths of its own:
 //   1. a working morning: one of its people at the furnace by the diggings working the bellows, the
-//      furnace's mouth aglow; its smiths carrying copper to the forge;
+//      furnace's mouth aglow; its smiths carrying its metal to the forge;
 //   2. the day's tools hung on the rack before the smithy as they are made, more by the afternoon;
 //   3. one of them tapped where it hangs: its page — "A copper sickle" — made by one of the town's
 //      smiths, traced from its ore to the rack, its ore's page opened from it;
@@ -163,7 +163,8 @@ await k(`globalThis.causalis.setQuality("high")`);
 await k(`globalThis.causalis.client.setSpeed(0)`);
 const t0 = await k<number>(`globalThis.causalis.client.status?.t ?? 0`);
 
-// The greatest town digging its own copper ore, with a smithy standing and smiths of its own.
+// The greatest town digging its own ore (copper, tin or iron), with a smithy standing and smiths of
+// its own.
 const towns = await ask<{ ref: string; name: string }[]>("towns.map", {});
 const standing = (c: Civic) => c.kind === "smithy" && (c.end + 1) * YEAR <= t0 && c.fell === null;
 let town: Plan | null = null;
@@ -202,7 +203,7 @@ const rest = (day: number) => (day + (town!.seed % 7)) % 7 === 0;
 let day = Math.floor(t1 / DAY) + 1;
 while (rest(day)) day++;
 
-// 1. A working morning: at the furnace, the bellows worked and its mouth aglow; copper to the forge.
+// 1. A working morning: at the furnace, the bellows worked and its mouth aglow; its metal to the forge.
 let smelter: Person | null = null,
   glowing = false;
 for (let d = 0; d < 4 && !smelter; d++) {
@@ -255,8 +256,10 @@ for (const smith of (await people()).filter((p) => smiths.has(p.name))) {
     ) ?? null;
   if (carrying) break;
 }
-say(`copper to the forge: ${carrying ? `${carrying.name}, “${carrying.why}”` : "none seen"}`);
-check(!!carrying, "no smith of the town seen carrying copper to the forge");
+say(
+  `${town.metal} to the forge: ${carrying ? `${carrying.name}, “${carrying.why}”` : "none seen"}`,
+);
+check(!!carrying, `no smith of the town seen carrying ${town.metal} to the forge`);
 
 // 2. The day's tools on the rack before the smithy, more as the day goes.
 await advance(day * DAY + Math.max(11.5 * HOUR, (await secs()) + 60));
@@ -304,7 +307,7 @@ if (hung.length) {
   opened = await title();
   say(`tapped on the rack: “${opened}” (a ${tool.form} hung there)`);
   check(
-    opened.toLowerCase() === `a ${town.metal} ${tool.form}`,
+    new RegExp(`^an? ${town.metal} ${tool.form}$`).test(opened.toLowerCase()),
     `the rack's ${tool.form} tapped opened “${opened}”`,
   );
   const chain = await listOn("From the ground to the rack");
@@ -528,7 +531,9 @@ if (weaving) {
 
 // —— At scale (M215): the Earth seed in the modern age ——————————————————————————————
 await k(`document.querySelector(".page-window .close")?.click()`);
-await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=1050&hold=1`);
+await page.goto(
+  `${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=1050&hold=1`,
+);
 await page.waitForFunction(
   () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
   undefined,
