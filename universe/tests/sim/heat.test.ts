@@ -29,16 +29,16 @@ test("on Earth a land works the ore within its reach: the very answer", () => {
       assert.equal(oreWorkable(ctx, cell, kind), oreWithin(ctx, cell, kind), `${cell} ${kind}`);
 });
 
-test("thin air burns cooler: an open fire 740 °C, a kiln 1,140, a bloomery 1,190", () => {
+test("thin air burns cooler: an open fire 690 °C, a kiln 1,090, a bloomery 1,140", () => {
   const ctx = ctxOf("alien 16"),
     cell = lands(ctx)[0]!;
   assert.equal(worldChemistry(ctx.generated).air, "thin");
-  assert.equal(furnaceHeat(ctx, cell), 740);
-  assert.equal(furnaceHeat(ctx, cell, "metalworking"), 1140);
-  assert.equal(furnaceHeat(ctx, cell, "iron"), 1190);
+  assert.equal(furnaceHeat(ctx, cell), 690);
+  assert.equal(furnaceHeat(ctx, cell, "metalworking"), 1090);
+  assert.equal(furnaceHeat(ctx, cell, "iron"), 1140);
 });
 
-test("copper glance wants more heat than a kiln in thin air gives: a bloomery's works it", () => {
+test("copper glance wants more heat than a kiln or a hand-blown bloomery in thin air gives", () => {
   const ctx = ctxOf("alien 16"),
     chem = worldChemistry(ctx.generated);
   // A land whose only copper within reach is a deposit of copper glance.
@@ -52,12 +52,15 @@ test("copper glance wants more heat than a kiln in thin air gives: a bloomery's 
     );
   });
   assert.ok(cell !== undefined, "a land whose only copper is copper glance");
-  assert.equal(oreWorkable(ctx, cell!, "copper", "iron")?.lie, "deposit");
+  assert.equal(oreWorkable(ctx, cell!, "copper", "iron"), null);
   const short = heatShortfall(ctx, cell!, "copper", "metalworking");
   assert.ok(short, "the shortfall told");
   assert.equal(short!.wanted, 1150);
-  assert.equal(short!.reached, 1140);
+  assert.equal(short!.reached, 1090);
   assert.equal(short!.furnace.id, "kiln");
+  const bloom = heatShortfall(ctx, cell!, "copper", "iron");
+  assert.equal(bloom?.reached, 1140);
+  assert.equal(bloom?.furnace.id, "bloomery");
 });
 
 test("nickel beyond a kiln: copper hardened with its own arsenic, and nickel at a bloomery's heat", () => {

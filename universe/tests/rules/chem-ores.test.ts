@@ -9,6 +9,7 @@ import {
   AIR_OFFSET,
   ARSENICAL_GRADE,
   ARSENICAL_ORE,
+  DRIVEN_BLAST,
   FURNACES,
   NOVEL_METALS,
   TELLURIC_GRADE,
@@ -169,16 +170,16 @@ test("the Earth heats: malachite 1100, chalcopyrite 1200, cassiterite 1000, hema
   assert.equal(reductionHeat(EARTH("iron", "bog")), 1150); // limonite
 });
 
-test("heatOf on thin air: 740, 1140, 1190, 1440; rich air adds 60 to the Sun's own heat", () => {
+test("heatOf on thin air: 690, 1090, 1140, 1390; rich air adds 60 to the Sun's own heat", () => {
   const thin = chemOf("oxide", "solar", "solar", "thin"),
     solar = chemOf("oxide", "solar", "solar", "solar"),
     rich = chemOf("oxide", "solar", "solar", "rich");
   // [known, bringing, thin air's heat, the same furnace on the Sun's air]
   const cases: readonly [(p: string) => boolean, string | undefined, number, number][] = [
-    [() => false, undefined, 740, 800],
-    [() => false, "metalworking", 1140, 1200],
-    [(p) => p === "iron", undefined, 1190, 1250],
-    [(p) => p === "steel", undefined, 1440, 1500],
+    [() => false, undefined, 690, 800],
+    [() => false, "metalworking", 1090, 1200],
+    [(p) => p === "iron", undefined, 1140, 1250],
+    [(p) => p === "steel", undefined, 1390, 1500],
   ];
   for (const [known, bringing, thinHeat, solarHeat] of cases) {
     assert.equal(heatOf(thin, known, bringing), thinHeat);
@@ -198,7 +199,7 @@ test("the furnaces, the air's offset, and the furnace a people can run", () => {
       ["arc", "an arc furnace", 3000, "electricity"],
     ],
   );
-  assert.deepEqual({ ...AIR_OFFSET }, { thin: -60, solar: 0, rich: 60 });
+  assert.deepEqual({ ...AIR_OFFSET }, { thin: -110, solar: 0, rich: 60 });
   assert.equal(ARSENICAL_GRADE, 0.5);
   assert.equal(TELLURIC_GRADE, 0.5);
   assert.equal(furnaceOf(SOLAR, () => false).id, "fire");
@@ -230,9 +231,32 @@ test("no world stalls: over all 54 classes, copper, tin and iron each have a lie
   }
 });
 
-test("the invariants: siderite wants no more than the thin bloomery, native copper no more than the thin kiln", () => {
-  assert.ok(heatOfReaction("smelt-siderite") <= 1250 + AIR_OFFSET.thin);
+test("the invariants: siderite wants more than a hand-blown thin bloomery, no more than a driven one; native copper no more than the thin kiln", () => {
+  assert.ok(heatOfReaction("smelt-siderite") > 1250 + AIR_OFFSET.thin);
+  assert.ok(heatOfReaction("smelt-siderite") <= 1250);
   assert.ok(heatOfReaction("melt-native-copper") <= 1200 + AIR_OFFSET.thin);
+});
+
+test("a blast driven by a mill's wheel makes up a thin air's want, and keeps a rich air's gain", () => {
+  const thin = chemOf("oxide", "solar", "solar", "thin"),
+    solar = chemOf("oxide", "solar", "solar", "solar"),
+    rich = chemOf("oxide", "solar", "solar", "rich"),
+    milled = (p: string) => p === DRIVEN_BLAST || p === "iron";
+  assert.equal(DRIVEN_BLAST, "mills");
+  assert.equal(heatOf(thin, milled), 1250);
+  assert.equal(
+    heatOf(thin, (p) => p === "iron", DRIVEN_BLAST),
+    1250,
+  );
+  assert.equal(
+    heatOf(thin, () => false, DRIVEN_BLAST),
+    800,
+  );
+  assert.equal(heatOf(solar, milled), 1250);
+  assert.equal(heatOf(rich, milled), 1310);
+  // Bog iron and magnetite both at a thin world's driven bloomery.
+  assert.ok(reductionHeat(oreAt(thin, "iron", "bog")) <= heatOf(thin, milled));
+  assert.ok(reductionHeat(oreAt(thin, "iron", "deposit")) <= heatOf(thin, milled));
 });
 
 test("copper: reduced worlds' deposit and surface change; the vent and an oxidised world's copper are Earth's", () => {

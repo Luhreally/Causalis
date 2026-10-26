@@ -10,6 +10,7 @@
 // "This world" tab of what it is made of: its air, crust, rocks, ores, metals and furnaces.
 import {
   AIR_OFFSET,
+  DRIVEN_BLAST,
   ARSENICAL_ORE,
   CLASS_WORDS,
   EFFECTS,
@@ -932,6 +933,17 @@ function worldBlocks(world: World, chem: Chemistry): Block[] {
       }),
     },
   ];
+  if (AIR_OFFSET[chem.air] < 0)
+    blocks.push({
+      type: "text",
+      lines: [
+        [
+          `Its thin air burns every fire ${count(-AIR_OFFSET[chem.air])} °C cooler than the Sun's own; a blast driven by `,
+          link(principleName(DRIVEN_BLAST, world), prinRef(DRIVEN_BLAST)),
+          " makes it up.",
+        ],
+      ],
+    });
   if (g.life.people) {
     // The people's own words: the same tongue names each thing, whatever it is called here.
     const t = cradleTongue(populationContext(world).culture),

@@ -1370,7 +1370,12 @@ function unforged(world: World, cell: number, arming: boolean): Line {
                 short.ore.name,
                 " within reach of ",
                 landLink(world, cell),
-                ` wants ${short.wanted} °C, and its ${short.furnace.name.replace(/^an? /, "")} reaches only ${short.reached} °C.`,
+                ` wants ${short.wanted} °C, and its ${short.furnace.name.replace(/^an? /, "")} reaches only ${short.reached} °C${
+                  // (Thin air's want, which a blast driven by a mill's wheel makes up.)
+                  short.reached < short.furnace.heat && short.wanted <= short.furnace.heat
+                    ? " in its thin air: a blast driven by a mill's wheel would reach it"
+                    : ""
+                }.`,
               ]
             : [
                 "Nothing was forged here this year: no copper or iron ore lies within reach of ",

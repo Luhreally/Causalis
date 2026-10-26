@@ -31,8 +31,18 @@ export const FURNACES: readonly Furnace[] = [
   { id: "arc", name: "an arc furnace", heat: 3000, by: "electricity" },
 ];
 
-/** The air's part in a furnace's heat: heat per volume of air scales with its oxygen (a calibration lever). */
-export const AIR_OFFSET: Readonly<Record<AirClass, number>> = { thin: -60, solar: 0, rich: 60 };
+/**
+ * The air's part in a furnace's heat: heat per volume of air scales with its oxygen. A thin air's
+ * fire (15–17.6% oxygen) burns 110 °C cooler, so a bloomery blown by hand falls short of bog iron
+ * until a mill's wheel drives its blast (DRIVEN_BLAST); a rich air's burns 60 °C hotter.
+ */
+export const AIR_OFFSET: Readonly<Record<AirClass, number>> = { thin: -110, solar: 0, rich: 60 };
+
+/**
+ * The principle whose wheel drives a furnace's blast: air forced in makes up a thin air's want, as
+ * water-driven bellows first took furnaces past what a hand-blown draught could reach.
+ */
+export const DRIVEN_BLAST = "mills";
 
 /** The sim's shares of a grade: the arsenical ore's of its copper's, and native iron's. */
 export const ARSENICAL_GRADE = 0.5,
@@ -305,9 +315,14 @@ export function furnaceOf(
   );
 }
 
-/** The heat a furnace reaches on this world: the furnace's own, moved by the world's air. */
+/**
+ * The heat a furnace reaches on this world: the furnace's own, moved by the world's air. A thin air's
+ * want is made up where the blast is driven by a mill's wheel; a rich air's gain is kept.
+ */
 export function heatOf(chem: Chemistry, known: (p: string) => boolean, bringing?: string): number {
-  return furnaceOf(chem, known, bringing).heat + AIR_OFFSET[chem.air];
+  const offset = AIR_OFFSET[chem.air],
+    driven = offset < 0 && (bringing === DRIVEN_BLAST || known(DRIVEN_BLAST));
+  return furnaceOf(chem, known, bringing).heat + (driven ? 0 : offset);
 }
 
 /** Whether a furnace of this heat works an ore: it reaches the ore's smelt. */

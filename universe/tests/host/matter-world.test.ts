@@ -118,7 +118,7 @@ test("alien 16's facts: its star, its metals, its oxygen, its ground and its har
   assert.match(factRow(p, "What this world is made of", "Its ground"), /^nothing rusts/);
 });
 
-test("alien 16's nine blocks: the air, the crust against Earth's, rocks, stones, ores, metals, furnaces, words", () => {
+test("alien 16's ten blocks: the air, the crust against Earth's, rocks, stones, ores, metals, furnaces and the thin air's want, words", () => {
   const p = pageOf(alien, "world:matter#world"),
     titles = tabOf(p, "world").blocks.map((b) => ("title" in b ? b.title : ""));
   assert.deepEqual(titles, [
@@ -130,6 +130,7 @@ test("alien 16's nine blocks: the air, the crust against Earth's, rocks, stones,
     "Its ores",
     "Its metals",
     "Its furnaces",
+    "",
     "In their own words",
   ]);
   const crust = titled(p, "world", "Its crust, against Earth's", "table");
@@ -168,13 +169,25 @@ test("alien 16's ores: native copper, mispickel and the native iron; its stones:
   );
 });
 
-test("alien 16's furnaces: the kiln reaches 1,140 °C on its thin air, and comes with smelting copper", () => {
+test("alien 16's furnaces: the kiln reaches 1,090 °C on its thin air, and comes with smelting copper", () => {
   const p = pageOf(alien, "world:matter#world"),
     furnaces = titled(p, "world", "Its furnaces", "table"),
     kiln = furnaces.rows.find((r) => words(r.cells[0]!) === "A kiln-furnace");
   assert.ok(kiln, "a kiln row");
-  assert.equal(words(kiln.cells[1]!), "1,140 °C");
+  assert.equal(words(kiln.cells[1]!), "1,090 °C");
   assert.equal(words(kiln.cells[2]!), "smelting copper");
+  // What makes up the thin air's want: a blast driven by mills, linked.
+  const tab = tabOf(p, "world"),
+    at = tab.blocks.findIndex((b) => b.type === "table" && b.title === "Its furnaces"),
+    after = tab.blocks[at + 1];
+  assert.equal(after?.type, "text");
+  if (after?.type === "text") {
+    assert.equal(
+      words(after.lines[0]!),
+      "Its thin air burns every fire 110 °C cooler than the Sun's own; a blast driven by mills of wind and water makes it up.",
+    );
+    assert.ok(refsOf([after]).includes("prin:mills"), "mills linked");
+  }
 });
 
 test("alien 16's words: the people call the hardener, the surface copper, the bog iron and the stone", () => {

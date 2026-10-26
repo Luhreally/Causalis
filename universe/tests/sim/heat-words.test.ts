@@ -1,6 +1,6 @@
 // The words a land is short of ore in (Phase 54 M222): where a furnace is too cool for the ore within
 // reach, the words name the furnace, its heat and the heat the ore wants. On alien 16 a land whose only
-// copper within reach is copper glance has a kiln-furnace, 1140 °C, short of the glance's 1150. On
+// copper within reach is copper glance has a kiln-furnace, 1090 °C, short of the glance's 1150. On
 // Earth the same recipe, at a land with no copper, says exactly what it always has.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -42,7 +42,7 @@ test("on alien 16, a kiln too cool for the copper glance within reach says so", 
   m.metalworking = cellRef(0, cell!);
   assert.equal(
     whyNot(ctx, cell!, m, copperSmelting),
-    "their kiln-furnace reaches 1140 °C, short of the 1150 °C copper glance wants",
+    "their kiln-furnace reaches 1090 °C, short of the 1150 °C copper glance wants: a blast driven by a mill's wheel would reach it",
   );
 });
 

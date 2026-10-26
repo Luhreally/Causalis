@@ -122,7 +122,12 @@ export function whyNot(ctx: PopulationContext, cell: number, m: Market, r: Recip
     // A furnace too cool for the ore within reach says so, in its own words (Phase 54 M222).
     const short = heatShortfall(ctx, cell, r.needs.ore);
     if (short)
-      return `their ${short.furnace.name.replace(/^an? /, "")} reaches ${short.reached} °C, short of the ${short.wanted} °C ${short.ore.name} wants`;
+      return `their ${short.furnace.name.replace(/^an? /, "")} reaches ${short.reached} °C, short of the ${short.wanted} °C ${short.ore.name} wants${
+        // (Thin air's want, which a blast driven by a mill's wheel makes up.)
+        short.reached < short.furnace.heat && short.wanted <= short.furnace.heat
+          ? ": a blast driven by a mill's wheel would reach it"
+          : ""
+      }`;
     return `no ${roleWord(worldChemistry(ctx.generated), r.needs.ore)} within a few days' walk`;
   }
   if (r.needs?.seam && !surfaceOre(ctx.generated, cell, r.needs.seam))

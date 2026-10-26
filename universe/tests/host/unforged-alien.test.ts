@@ -55,7 +55,7 @@ test("on alien 16, a smithy by copper glance its kiln cannot melt says why nothi
   );
   assert.match(
     said ?? "",
-    /^Nothing was forged here this year: the copper glance within reach of .+ wants 1150 °C, and its open fire reaches only 740 °C\. Its tools are still knapped from its own .+\.$/,
+    /^Nothing was forged here this year: the copper glance within reach of .+ wants 1150 °C, and its open fire reaches only 690 °C\. Its tools are still knapped from its own .+\.$/,
   );
 });
 
