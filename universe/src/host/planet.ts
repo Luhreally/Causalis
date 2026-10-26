@@ -139,6 +139,7 @@ import { SEARCH_QUERIES } from "./search.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds, realmArms } from "./arms.ts";
 import { landHeart, villagePlan } from "./village.ts";
+import { withWounds, woundedTowns } from "./wounds.ts";
 import { landPlan } from "./land.ts";
 import { campNear } from "./camp.ts";
 import { battleNear, battleOutcome } from "./battle.ts";
@@ -1134,13 +1135,27 @@ function planetUniverse(name: string, prior: Prior): Universe {
       },
       "village.plan": (world, args) => {
         const a = args as { ref: string; families?: number; folk?: number };
-        return villagePlan(
+        // (Their wounds laid over them, their days away with the levy, those a strike killed this
+        // year: Phase 55 M226 — read from the record, the world untouched.)
+        return withWounds(
           world,
-          a.ref as Ref,
-          a.families ? Math.max(1, Math.min(16, Math.round(a.families))) : undefined,
-          a.folk ? Math.max(0, Math.min(480, Math.round(a.folk))) : 0,
+          villagePlan(
+            world,
+            a.ref as Ref,
+            a.families ? Math.max(1, Math.min(16, Math.round(a.families))) : undefined,
+            a.folk ? Math.max(0, Math.min(480, Math.round(a.folk))) : 0,
+          ),
         );
       },
+      /** The towns whose levy comes home wounded this year, the most borne first (Phase 55 M226; the look tools). */
+      "village.wounded": (world, args) =>
+        woundedTowns(
+          world,
+          Math.max(
+            1,
+            Math.min(60, Math.round((args as { most?: number } | undefined)?.most ?? 20)),
+          ),
+        ),
       /** A land's heart (Phase 40 M204): the town its battles are fought before, or null. */
       "land.heart": (world, args) => landHeart(world, (args as { cell: number }).cell),
       /** Ready a land's region before it is asked for (a pure cache: the world is untouched). */

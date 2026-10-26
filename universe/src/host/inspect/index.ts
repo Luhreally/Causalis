@@ -42,6 +42,7 @@ import { sicknessPage } from "./sickness.ts";
 import { housePage } from "./credit.ts";
 import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
 import { campPage } from "./camp.ts";
+import { healerPage } from "./wounds.ts";
 import { armPage } from "./arm.ts";
 import { elementPage } from "./element.ts";
 import { levyManPage, townsfolkPage } from "./townsfolk.ts";
@@ -77,6 +78,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   // A town's lots, its other buildings, its walls (Phase 25 M151).
   if (ref.startsWith("lot:")) return lotPage(world, ref);
   if (ref.startsWith("bldg:")) return buildingPage(world, ref);
+  // A town's healer (Phase 55 M229).
+  if (ref.startsWith("heal:")) return healerPage(world, ref);
   if (ref.startsWith("walls:")) return wallsPage(world, ref);
   // A band's camp on its land (Phase 28 M159).
   if (ref.startsWith("camp:")) return campPage(world, ref);

@@ -44,6 +44,9 @@ export const CARRIES = [
   "charcoal",
   // The ladle of iron, carried from the cupola's tap to the moulds (Phase 51 M215).
   "ladle",
+  // A litter by its poles, one of the levy's wounded on it borne home (Phase 55 M229; drawn whole,
+  // between its bearers).
+  "litter",
 ] as const;
 export type Carry = (typeof CARRIES)[number];
 
@@ -216,6 +219,7 @@ const ITEMS: Readonly<Record<Carry, readonly ItemPart[]>> = {
     P("clay", 0.05, 0.33, 0.12, 0.07, 0.13, 0.07),
   ],
   bier: [],
+  litter: [],
   // (Across the shoulders, its body behind the neck; its head hanging down on one side, its
   // legs held together before them in the carrier's hands.)
   // (Two bars held before them, one on the other.)

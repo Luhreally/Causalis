@@ -315,6 +315,8 @@ export class VillagePanel {
     today: string | null,
     touch?: Touchable & { readonly done: (agent: string) => void },
     page?: string,
+    // (Their wounds as they are now, a line each: Phase 55 M226.)
+    wounds?: readonly string[],
   ): void {
     this.view++;
     // (Inspired or blessed where they are met, Phase 54: the hand laid on the town from them.)
@@ -337,6 +339,7 @@ export class VillagePanel {
       // (What they are: "a smith of Sairis, 27 years at the anvil", Phase 50 M212.)
       ...(role ? [el("div", "fact folk-role", role[0]!.toUpperCase() + role.slice(1))] : []),
       ...(today ? [el("div", "fact", `Today: ${today}`)] : []),
+      ...(wounds ?? []).map((w) => el("div", "fact folk-wound", w)),
       ...their,
       this.folkMore,
       el(

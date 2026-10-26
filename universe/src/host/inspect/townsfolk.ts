@@ -12,8 +12,10 @@ import { landEra, peopleBody } from "../village.ts";
 import { battleWords, burialWords } from "../burials.ts";
 import { LINE, folkWork, townRoster, workOf, type Fate } from "../roster.ts";
 import { resolveLevyMan } from "../roll.ts";
+import { holderWounds } from "../wounds.ts";
 import { item, link, sentence, stat, yearNow } from "./words.ts";
 import { landLink, realmLink, townLink } from "./names.ts";
+import { lookOf, woundBlock } from "./wounds.ts";
 
 /** How a man came home from a battle he went to, said before its name (as the veterans' page does). */
 const WAR_WORDS: Readonly<Record<Fate, string>> = {
@@ -49,7 +51,10 @@ export function townsfolkPage(world: World, ref: string): PageModel {
     died = h.struck.find((f) => f.fate === "died"),
     age = (holds ? now : (h.died ?? Math.min(now, h.end - 1))) - h.born,
     child = age < lifeOf(world).adulthood,
-    occupation = child ? OCC.dependent : workOf(h.key, folkWork(world, s.cell));
+    occupation = child ? OCC.dependent : workOf(h.key, folkWork(world, s.cell)),
+    // (The wounds they came home with, or a strike dealt them: Phase 55 M226.)
+    wounds = holderWounds(world, s.ref, h),
+    told = woundBlock(wounds, h.sex, world.now);
 
   const rows: Stat[] = [
     stat("Born", `year ${h.born}`),
@@ -96,6 +101,7 @@ export function townsfolkPage(world: World, ref: string): PageModel {
         ),
       ),
     });
+  if (told) blocks.push(told);
   blocks.push({
     type: "text",
     lines: [
@@ -118,6 +124,7 @@ export function townsfolkPage(world: World, ref: string): PageModel {
       child,
       era: landEra(world, s.cell),
       body: peopleBody(world),
+      ...lookOf(wounds, world.now),
     },
     title: roster.nameOf(h),
     subtitle: [holds ? `${age}, ` : fell ? `Fell at ${age}, ` : `${age}, `, townLink(world, s.ref)],

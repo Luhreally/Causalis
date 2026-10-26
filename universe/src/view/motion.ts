@@ -42,6 +42,9 @@ export function limbPitch(
   // (A bier borne on the shoulder: the arms up to hold it, the legs in a slow step.)
   if (walking && task === "bear")
     return part.role === "arm" ? -2.7 : swing * 0.7 * Math.sin(ph * STRIDES * 0.8 + off);
+  // (A litter carried by its poles: the arms down to them, the legs in a slow step: Phase 55 M229.)
+  if (walking && task === "carry")
+    return part.role === "arm" ? -0.12 : swing * 0.7 * Math.sin(ph * STRIDES * 0.8 + off);
   if (walking) return swing * Math.sin(ph * STRIDES + off);
   if (part.role === "leg") {
     if (task === "drill") return 0.35 * Math.sign(swing) * Math.max(0, Math.sin(ph * 0.8 + off));
@@ -164,6 +167,12 @@ export function limbPitch(
     // the other, high before them, and the weft beaten up with both.
     case "weave":
       return -1.5 + 0.35 * Math.sin(ph * 0.9 + off + (right ? 0 : Math.PI));
+    // A litter held by its poles (Phase 55 M229).
+    case "carry":
+      return -0.12;
+    // The wounded tended (Phase 55 M229): both hands low before them at the wound, binding it.
+    case "heal":
+      return -0.85 + 0.2 * Math.sin(ph * 0.9 + off + (right ? 0 : Math.PI));
     default:
       return 0;
   }

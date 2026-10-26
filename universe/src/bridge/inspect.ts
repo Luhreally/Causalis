@@ -1,5 +1,6 @@
 import type { Arms } from "./arms.ts";
 import type { BeastPlan, VillagePlan } from "./village.ts";
+import type { WoundLook } from "./wounds.ts";
 
 // Every thing's page (Phase 10 M91, docs/architecture §31): what the host says of any ref —
 // its title and icon, where it is to be seen, its headline numbers with what makes them
@@ -403,6 +404,8 @@ export type Portrait =
       readonly child: boolean;
       readonly era: NonNullable<VillagePlan["era"]>;
       readonly body: VillagePlan["body"];
+      /** How their wounds show now (Phase 55 M226; absent: none). */
+      readonly look?: WoundLook;
     }
   | {
       readonly kind: "town";

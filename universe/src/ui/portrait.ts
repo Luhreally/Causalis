@@ -13,9 +13,11 @@ import type { Portrait } from "../bridge/index.ts";
 import { drawArms } from "./arms.ts";
 import { drawSpecimen } from "./specimen.ts";
 import {
+  BANDAGE_WIDE,
   EYES,
   HAIRS,
   SKIN,
+  WOUND_COLORS,
   buildBody,
   clothes,
   coatOf,
@@ -23,8 +25,10 @@ import {
   figurePaint,
   hairOf,
   houseLook,
+  looksHurt,
   partExtent,
   posed,
+  woundGear,
   type BeastPart,
 } from "../view/index.ts";
 
@@ -349,45 +353,115 @@ function toolOf(occupation: number, hand: V3): Solid[] {
   }
 }
 
-/** A person's figure as solids: dressed as their land's era dresses their group, their hair, their tool. */
-function personSolids(p: Extract<Portrait, { kind: "person" }>): Solid[] {
+/**
+ * A person's figure as solids: dressed as their land's era dresses their group, their hair, their
+ * tool — and their wounds as they show now (Phase 55 M226): a member gone, or a stump kept from its
+ * hinge; a limb held as the wound holds it (in a sling, on a crutch, stiff); linen bound about a
+ * wound; a patch, a sling, a crutch, a scar. No tool in a hand that is gone, held or on a crutch.
+ */
+export function personSolids(p: Extract<Portrait, { kind: "person" }>): Solid[] {
   const figure = figureOf(p.body, 3),
     group = p.child ? 3 : p.occupation === 6 ? 2 : p.occupation === 4 || p.occupation === 5 ? 1 : 0,
     wear = clothes(p.era, group),
     paint = figurePaint(p.body, p.era, group),
     hair = paint.hairs[hairOf(p.ref, p.age, p.span)]!,
-    scale = p.child ? 0.7 : 1;
+    scale = p.child ? 0.7 : 1,
+    gear = p.look && looksHurt(p.look) ? woundGear(figure, p.look) : null,
+    // (The arm that holds their tool, and whether it can.)
+    arm = figure.parts.findIndex((q) => q.role === "arm" && q.x > 0),
+    holds =
+      arm >= 0 &&
+      !p.child &&
+      (!gear ||
+        (gear.keep[arm] === 1 &&
+          Number.isNaN(gear.hold[arm]!) &&
+          !gear.props.some((q) => q.kind === "crutch" && q.x > 0))),
+    solids: Solid[] = [],
+    // (Each part's middle and tip as drawn, for what is bound about it.)
+    placed: { y: number; z: number; pitch: number; len: number }[] = [];
   // (A capsule's sizes are multiples of the figure's capsule: drawn as solids at their true extent.)
-  const solids: Solid[] = figure.parts.map((q) => ({
-    x: q.x * scale,
-    y: q.y * scale,
-    z: q.z * scale,
-    sx: partExtent(q)[0] * scale,
-    sy: partExtent(q)[1] * scale,
-    sz: partExtent(q)[2] * scale,
-    yaw: 0,
-    // (An arm held a little forward, to hold what they work with.)
-    pitch: q.role === "arm" && q.x > 0 && !p.child ? -0.5 : 0,
-    color: paint.folk
-      ? q.tone === 3
-        ? hair
-        : paint.tones[q.tone]
-      : q.tone === 2
-        ? SKIN
-        : q.tone === 3
+  figure.parts.forEach((q, k) => {
+    const keep = gear ? gear.keep[k]! : 1,
+      e = partExtent(q),
+      held = gear ? gear.hold[k]! : Number.NaN,
+      // (A limb a wound holds is tipped about its hinge; the arm with the tool, a little forward
+      // about its middle, as ever.)
+      pitch: number = !Number.isNaN(held)
+        ? held
+        : q.role === "arm" && q.x > 0 && !p.child && holds
+          ? -0.5
+          : 0,
+      lift = keep < 1 ? ((1 - keep) * e[1]) / 2 : 0,
+      hinge = (q.pivot ?? 0) - lift,
+      dy = Number.isNaN(held) ? 0 : hinge - hinge * Math.cos(pitch),
+      dz = Number.isNaN(held) ? 0 : -hinge * Math.sin(pitch),
+      y = (q.y + lift + dy) * scale,
+      z = (q.z + dz) * scale;
+    placed.push({ y, z, pitch, len: e[1] * keep * scale });
+    if (keep <= 0) return;
+    solids.push({
+      x: q.x * scale,
+      y,
+      z,
+      sx: e[0] * scale,
+      sy: e[1] * keep * scale,
+      sz: e[2] * scale,
+      yaw: 0,
+      pitch,
+      color: paint.folk
+        ? q.tone === 3
           ? hair
-          : q.tone === 4
-            ? EYES
-            : q.tone
-              ? wear.legs
-              : wear.body,
-  }));
-  const arm = figure.parts.find((q) => q.role === "arm" && q.x > 0);
-  if (arm && !p.child) {
+          : paint.tones[q.tone]
+        : q.tone === 2
+          ? SKIN
+          : q.tone === 3
+            ? hair
+            : q.tone === 4
+              ? EYES
+              : q.tone
+                ? wear.legs
+                : wear.body,
+    });
+  });
+  if (gear) {
+    // Linen bound about each wound, along what is left of the part, turned with it.
+    for (const b of gear.bound) {
+      const q = figure.parts[b.part]!,
+        at = placed[b.part]!,
+        e = partExtent(q),
+        off = b.along * at.len;
+      solids.push({
+        x: q.x * scale,
+        y: at.y + off * Math.cos(at.pitch),
+        z: at.z + off * Math.sin(at.pitch),
+        sx: e[0] * BANDAGE_WIDE * scale,
+        sy: at.len * b.long,
+        sz: e[2] * BANDAGE_WIDE * scale,
+        yaw: 0,
+        pitch: at.pitch,
+        color: WOUND_COLORS.bandage,
+      });
+    }
+    // What they wear for it: a patch and its strap, a sling, a crutch, a scar.
+    for (const w of gear.props)
+      solids.push({
+        x: w.x * scale,
+        y: w.y * scale,
+        z: w.z * scale,
+        sx: w.sx * scale,
+        sy: w.sy * scale,
+        sz: w.sz * scale,
+        yaw: w.yaw,
+        pitch: w.pitch,
+        color: WOUND_COLORS[w.kind === "strap" ? "patch" : w.kind],
+      });
+  }
+  const tool = arm >= 0 ? figure.parts[arm]! : undefined;
+  if (tool && holds) {
     const hand: V3 = [
-      arm.x * scale,
-      (arm.y - arm.sy * 0.45) * scale,
-      (arm.z + arm.sy * 0.25) * scale,
+      tool.x * scale,
+      (tool.y - tool.sy * 0.45) * scale,
+      (tool.z + tool.sy * 0.25) * scale,
     ];
     solids.push(...toolOf(p.occupation, hand));
   }

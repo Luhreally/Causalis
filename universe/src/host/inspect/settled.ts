@@ -30,6 +30,8 @@ import { province, settlementFacts } from "../planet.ts";
 import { landEra, landHouse, peopleBody } from "../village.ts";
 import { battleWords, burialWords } from "../burials.ts";
 import { townRoster } from "../roster.ts";
+import { metWounds } from "../wounds.ts";
+import { lookOf, woundBlock, woundedTab } from "./wounds.ts";
 import { hashString } from "../../kernel/index.ts";
 import { realmColor } from "../colors.ts";
 import {
@@ -255,6 +257,9 @@ export function townPage(world: World, ref: string): PageModel {
         blocks: [{ type: "list", title: "Its men at war", items }],
       });
   }
+  // Its wounded (Phase 55 M226, M229): those healing now, those marked for good, and its healer.
+  const wounded = woundedTab(world, s.ref);
+  if (wounded) tabs.push(wounded);
   // Back to the beginning (Phase 36 M182): its land, its people, their line, the world.
   tabs.push({ id: "origins", name: "Origins", blocks: [threadBlock(world, { town: s.ref })] });
   {
@@ -355,6 +360,9 @@ export function personPage(world: World, ref: string): PageModel {
   // How they came home from the battles they went to, and the one they fell in (Phase 55 M225).
   const wars = p.wars ?? [],
     fell = wars.find((w) => w.fate === "fell"),
+    // (The wounds they came home with, or a strike dealt them: Phase 55 M226.)
+    wounds = metWounds(world, p),
+    told = woundBlock(wounds, p.sex, world.now),
     // (Where one who fell is laid: his town's square, else his land's name.)
     townName = p.village ? populationContext(world).settlements.get(p.village)?.name : undefined;
   // (What they are like: what they were born with, and what the god has pushed: Phase 16.)
@@ -440,6 +448,7 @@ export function personPage(world: World, ref: string): PageModel {
               },
             ]
           : []),
+        ...(told ? [told] : []),
         ...(hh
           ? [
               {
@@ -562,6 +571,7 @@ export function personPage(world: World, ref: string): PageModel {
       child: !grown,
       era: landEra(world, p.cell),
       body: peopleBody(world),
+      ...lookOf(wounds, world.now),
     },
     title: `${p.name} ${p.surname}`,
     subtitle: [

@@ -192,6 +192,10 @@ export const GATES: readonly { gate: number; args: readonly string[]; s: number 
   // its hardener, native copper, mispickel and lydite — and its smithy's arsenical copper tool
   // traced from its own ore, never tin; Earth's matter guide with no "This world" tab).
   { gate: 54, args: ["--ci"], s: 240 },
+  // Phase 55 wave 3 (wounds seen, and healing: the levy home from the battles at the year's turn,
+  // its wounded borne in on litters and abed, its healer's round door to door and their page, the
+  // wounded up and bound and marked for good — a stump, a crutch, a patch — told on their card).
+  { gate: 55, args: ["--ci"], s: 360 },
 ];
 
 const argv = process.argv.slice(2),

@@ -235,6 +235,7 @@ import {
   type StoresNow,
   dayTold,
   legsTold,
+  woundLines,
   type DayLine,
 } from "../view/index.ts";
 
@@ -829,6 +830,12 @@ type Exposed = {
     burning: { x: number; z: number } | null;
     dusty: { x: number; z: number } | null;
   } | null;
+  /**
+   * The wounds of the town watched as drawn (Phase 55 M226, M229): how many wear a look and what of
+   * it is drawn; who is abed, away with the levy, gone; the wounds healing; the marked for good; the
+   * homecomings of the next ten days; its litters now; where its road leaves it.
+   */
+  wounds?: () => ReturnType<VillageScene["woundsShown"]>;
   /**
    * The graveyard of the town watched as drawn (Phase 43 M205): where it lies, its size, its
    * graves, what of them is drawn, today's open graves and biers, and its funerals of so many
@@ -4304,7 +4311,10 @@ async function runPlanetPage(): Promise<void> {
           ...(p.sex !== undefined ? { sex: p.sex } : {}),
           done: (agent) => void touched(agent),
         },
-        p.trade || p.healer ? undefined : p.ref,
+        // (The healer's page is their seat's: Phase 55 M229.)
+        p.healer ? `heal:${plan.ref}` : p.trade ? undefined : p.ref,
+        // (Their wounds as they are now: Phase 55 M226.)
+        woundLines(p, now()),
       );
       return;
     }
@@ -6027,6 +6037,7 @@ async function runPlanetPage(): Promise<void> {
     scale === "village" && plan ? legsTold(plan, i, Math.floor(now() / 86_400)) : [];
   exposed.felling = () => (scale === "village" ? village.fellingShown() : null);
   exposed.graveyard = (days = 30) => (scale === "village" ? village.graveyardShown(days) : null);
+  exposed.wounds = () => (scale === "village" ? village.woundsShown() : null);
   exposed.fields = () => (scale === "village" ? village.fieldsShown() : null);
   exposed.flock = () => (scale === "village" ? village.flockShown() : null);
   exposed.hunt = () => (scale === "village" ? village.huntShown() : null);

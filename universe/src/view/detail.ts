@@ -195,6 +195,8 @@ export function carryWords(
       return "an empty bucket, back to the water for more";
     case "bier":
       return "a bier, the dead on it borne to the graveyard";
+    case "litter":
+      return "a litter, one of the wounded on it borne home";
     case "beam":
       return "a beam for the walls going up";
     case "spear":

@@ -29,6 +29,7 @@ import { REAPERS_AT, fieldsNow, pulledOn, reapingOn, stookedOn, wateredOn } from
 import { HUNT_PARTY, huntOn } from "./hunt.ts";
 import { traderSeat, tripOn } from "./trade.ts";
 import { furnaceOf } from "./work.ts";
+import { fitOn } from "./wounds.ts";
 
 const DAY = 86_400,
   YEAR = 365 * DAY;
@@ -924,7 +925,8 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
     sent = { reap: 0, water: 0, pull: 0 },
     working = (i: number) => {
       const p = plan.people[i]!;
-      return !rest && !p.child && !oldOf(plan, p);
+      // (Not one the levy or a wound keeps from it: Phase 55 M226.)
+      return !rest && !p.child && !oldOf(plan, p) && fitOn(plan, i, day);
     };
   // Builders first: each site's hands, the nearest first, from those willing — and as they are
   // put to it, as many fellers and quarrymen as keep the yard in what they draw from it (a

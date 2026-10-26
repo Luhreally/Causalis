@@ -13,7 +13,17 @@
 // plan is not changed — who falls and when, where each stands: its tests pin them — this is laid
 // over it. Pure: the same moment always looks the same. Metres on the field, as view/battle.ts's.
 import type { BattleSideNear } from "../bridge/index.ts";
-import { LETHAL, MAIM, blowOf, type Blow } from "../rules/index.ts";
+import {
+  CUTS_OFF,
+  KILL,
+  LETHAL,
+  LIMB_KILL,
+  MAIM,
+  MAIMED_AT,
+  NINES,
+  blowOf,
+  type Blow,
+} from "../rules/index.ts";
 import { armLook, isGun } from "./arms.ts";
 import {
   BLOW_PLACES,
@@ -56,30 +66,9 @@ export type Striker = "hand" | "arrow" | "dart" | "bullet" | "ball" | "shell";
 /** How a wounded one who lives goes back: crawling, limping, propped on one who helps, slumped in the saddle. */
 export type BackWay = "crawl" | "limp" | "propped" | "slump";
 
-/** The rule of nines (Wallace 1951): head 9, trunk 36, each arm 9 (7 the arm, 2 its hand), each leg 18. */
-export const NINES: Readonly<Record<BlowPlace, number>> = {
-  head: 9,
-  trunk: 36,
-  "arm-l": 7,
-  "arm-r": 7,
-  "hand-l": 2,
-  "hand-r": 2,
-  "leg-l": 18,
-  "leg-r": 18,
-};
-/**
- * Of blows that land on a limb, the share that kill (a great vessel opened); the head and the
- * trunk kill by rules/wounds.ts's LETHAL, the head half as often again (at most KILL.most).
- */
-export const LIMB_KILL: Readonly<Record<Blow, number>> = {
-  edge: 0.06,
-  point: 0.03,
-  blunt: 0.02,
-  shot: 0.05,
-  crush: 0.15,
-  fire: 0.02,
-};
-export const KILL = { head: 1.5, most: 0.95 } as const;
+// The rule of nines, what kills on a limb and the head, what cuts off and where it maims: the
+// body's own, rules/anatomy.ts (Phase 55 M226), the same for a battle's blows and a town's wounded.
+export { CUTS_OFF, KILL, LIMB_KILL, MAIMED_AT, NINES };
 /** A cannon's ball and a bursting shell kill as no hand does: on the head, the trunk, a limb. */
 export const ORDNANCE_KILL = {
   ball: { head: 0.95, trunk: 0.95, limb: 0.4 },
@@ -90,16 +79,12 @@ export const ORDNANCE_KILL = {
  * most of the other side's dead to missiles it takes (a ball's share; a shell's, smokeless powder).
  */
 export const BALL = { flight: 0.35, from: 0.1, to: 1.2, share: 0.25, shells: 0.35 } as const;
-/** The arms whose edge cuts off a limb (a claw's or a jaw's does not). */
-export const CUTS_OFF: ReadonlySet<string> = new Set(["axe", "sword"]);
 /**
  * Of the dead, the share whose struck limb is cut off: by an axe or a sword, a cannon's ball, a
  * shell (at most .45, as the plan's anatomy severs); a head struck so, this share of that (an axe,
  * a sword, a ball). Of a side, at most `most` parts cut off, the dead's and the living's together.
  */
 export const SEVER = { edge: 0.12, ball: 0.45, shell: 0.45, head: 0.35, most: 24 } as const;
-/** Where an axe or a sword maims: an arm, a hand, a leg (weights; other blows maim by the nines). */
-export const MAIMED_AT = { arm: 5, hand: 4, leg: 3 } as const;
 /** The wounded who live drawn: at most this share of a side's figures that do not fall. */
 export const HURT = { most: 0.8 } as const;
 /** How long one wounded stays down on a knee before going back (s, after reeling). */

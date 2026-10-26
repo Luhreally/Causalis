@@ -4,7 +4,7 @@
 // about their day. One unit is ten metres; people are drawn three times their size
 // so a phone can see them. Instanced throughout: a village is a handful of draw calls.
 import * as pc from "playcanvas";
-import { LAKE_R, type TradeGood, type VillagePlan } from "../bridge/index.ts";
+import { LAKE_R, woundStage, type TradeGood, type VillagePlan } from "../bridge/index.ts";
 import {
   ACTIVITY,
   ARM_LOOKS,
@@ -97,6 +97,18 @@ import {
   type Thrown,
   type TownWar,
   type TownWarScene,
+  homecomingsOn,
+  littersNow,
+  littersOn,
+  lookKey,
+  roadEdge,
+  lookNow,
+  looksHurt,
+  woundBob,
+  woundGear,
+  woundPitch,
+  type LitterNow,
+  type WoundGear,
 } from "../view/index.ts";
 import {
   InstancedBatch,
@@ -119,6 +131,8 @@ import { FoundryLayer, type FoundryAt } from "./foundry.ts";
 import { FloorLayer, type FloorAt } from "./floor.ts";
 import { BlazeLayer } from "./blaze.ts";
 import { GraveyardLayer } from "./graveyard.ts";
+import { WoundsLayer, bandageOn, propAt, stumpAlong, type WornPiece } from "./wounds.ts";
+import { LittersLayer, litterApart, litterHeld } from "./litters.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
@@ -254,6 +268,16 @@ export class VillageScene {
   private blazed: BlazeNow | null = null;
   /** Its graveyard and its burying (Phase 43 M205): its graves, those open today, the biers borne to them. */
   private readonly graveyard: GraveyardLayer;
+  /** Wounds worn (Phase 55 M226): bandages, patches, slings, crutches, scars. */
+  private readonly worn: WoundsLayer;
+  /** The levy's wounded borne home on litters (Phase 55 M229), and those last drawn. */
+  private readonly litters: LittersLayer;
+  private littersShown: LitterNow[] = [];
+  /** Each look's gear by its key (the same look, the same gear); each one's now (null: none), read for the world's ten minutes `gearAt`; the stumps drawn last. */
+  private readonly gears = new Map<string, WoundGear>();
+  private gearNow: (WoundGear | null)[] = [];
+  private gearAt = Number.NaN;
+  private stumpsDrawn = 0;
   /** Whether the town mourns now (those a strike killed being buried): its talk of them. */
   private mourning = false;
   /** The god's wonders in it as drawn (the look tools): where each stands, off what is built (metres). */
@@ -291,6 +315,8 @@ export class VillageScene {
     this.floorLayer = new FloorLayer(stage, this.root);
     this.blazeLayer = new BlazeLayer(stage, this.root);
     this.graveyard = new GraveyardLayer(stage, this.root);
+    this.worn = new WoundsLayer(stage, this.root);
+    this.litters = new LittersLayer(stage, this.root);
     this.root.enabled = false;
   }
 
@@ -377,7 +403,9 @@ export class VillageScene {
         child !== this.foundryLayer.root &&
         child !== this.floorLayer.root &&
         child !== this.blazeLayer.root &&
-        child !== this.graveyard.root
+        child !== this.graveyard.root &&
+        child !== this.worn.root &&
+        child !== this.litters.root
       )
         child.destroy();
     this.stacks = [];
@@ -970,6 +998,9 @@ export class VillageScene {
     // People: drawn three times their size, so a phone can see them — as their body is
     // built (one figure for a people, part by part, each part a batch per colour group).
     this.figure = figureOf(plan.body, s.quality.detail);
+    // (A new figure, new gear: Phase 55 M226.)
+    this.gears.clear();
+    this.gearAt = Number.NaN;
     const meshes: Record<PartShape, pc.Mesh> = {
       capsule: capsuleMesh(s, FIGURE_CAPSULE.radius, FIGURE_CAPSULE.height),
       box: boxMesh(s),
@@ -1441,6 +1472,24 @@ export class VillageScene {
         6.1 * this.figure.scale,
       );
     }
+    // Their wounds as they show now (Phase 55 M226): the gear of each one's look, read again each
+    // ten minutes of the world (a look turns at its wound's hours), kept by the look's key.
+    if (Math.floor(t / 600) !== this.gearAt) {
+      this.gearAt = Math.floor(t / 600);
+      this.gearNow = plan.people.map((p) => {
+        if (!p.wounds?.length) return null;
+        const look = lookNow(p, t);
+        if (!looksHurt(look)) return null;
+        const key = lookKey(look);
+        let g = this.gears.get(key);
+        if (!g) {
+          if (this.gears.size >= 256) this.gears.clear();
+          g = woundGear(this.figure, look);
+          this.gears.set(key, g);
+        }
+        return g;
+      });
+    }
     this.sizes = drawn.map((d) => d.size);
     this.strides = drawn.map((d) => d.stride);
     // Each limb eased toward its pose now: a stride begun or ended, a task taken up, is a
@@ -1456,7 +1505,9 @@ export class VillageScene {
         if (m.hidden) return drawnPitch;
         const walking = m.activity === ACTIVITY.walking;
         parts.forEach((part, pi) => {
-          const aim = limbPitch(part, m.task, walking, walking ? this.strides[i]! : clock, i),
+          const posed = limbPitch(part, m.task, walking, walking ? this.strides[i]! : clock, i),
+            gear = this.gearNow[i],
+            aim = gear ? woundPitch(gear, pi, posed) : posed,
             was = drawnPitch[pi]!;
           drawnPitch[pi] = Number.isNaN(was) ? aim : was + (aim - was) * ease;
         });
@@ -1471,18 +1522,23 @@ export class VillageScene {
         sn = Math.sin(m.yaw),
         // A limb swings about its hinge: in the stride, or in the work at hand.
         pitch = pitches[i]![pi]!,
-        hinge = part.pivot ?? 0,
+        // (A wound's: a member gone, a stump kept from its hinge, a limp's dip: Phase 55 M226.)
+        gear = this.gearNow[i] ?? null,
+        keep = gear ? gear.keep[pi]! : 1,
+        lift = keep < 1 ? stumpAlong(partExtent(part)[1], keep) : 0,
+        hinge = (part.pivot ?? 0) - lift,
         dy = hinge - hinge * Math.cos(pitch),
         dz = -hinge * Math.sin(pitch),
         px = part.x,
-        pz = part.z + dz;
+        pz = part.z + dz,
+        limp = gear && m.activity === ACTIVITY.walking ? woundBob(gear, this.strides[i]!, i) : 0;
       // The part's place about the figure's middle, turned to the way it faces.
       out[0] = m.x * M + (px * c + pz * sn) * size;
-      out[1] = (part.y + dy + bobOf(m.task, clock, i)) * size;
+      out[1] = (part.y + lift + dy + bobOf(m.task, clock, i) + limp) * size;
       out[2] = m.z * M + (-px * sn + pz * c) * size;
-      out[3] = part.sx * size;
-      out[4] = part.sy * size;
-      out[5] = part.sz * size;
+      out[3] = keep > 0 ? part.sx * size : 0;
+      out[4] = part.sy * size * keep;
+      out[5] = keep > 0 ? part.sz * size : 0;
       out[6] = m.yaw;
       out[7] = pitch;
     };
@@ -1505,6 +1561,49 @@ export class VillageScene {
         batch.set(wearers.length, (k, out) => place(out, wearers[k]!.p, wearers[k]!.i, pi));
       });
     });
+    // Their wounds worn (Phase 55 M226): linen bound about the parts as they are posed now, and
+    // what they wear for them — a patch, a sling, a crutch, a scar — the nearest the eye first.
+    const pieces: WornPiece[] = [],
+      eye = this.stage.camera.getPosition(),
+      placed = [0, 0, 0, 1, 1, 1, 0, 0];
+    let stumps = 0;
+    this.gearNow.forEach((g, i) => {
+      const m = this.moments[i];
+      if (!g || !m || m.hidden) return;
+      const p = plan.people[i]!,
+        size = (p.child ? 0.7 : 1) * this.figure.scale * (this.sizes[i] ?? 1),
+        d2 = (m.x * M - eye.x) ** 2 + (m.z * M - eye.z) ** 2,
+        bob =
+          bobOf(m.task, clock, i) +
+          (m.activity === ACTIVITY.walking ? woundBob(g, this.strides[i]!, i) : 0);
+      for (const k of g.keep) if (k > 0 && k < 1) stumps++;
+      for (const b of g.bound) {
+        place(placed, p, i, b.part);
+        const e = partExtent(parts[b.part]!);
+        pieces.push({
+          kind: "bandage",
+          m: bandageOn(placed, [e[0] * size, e[1] * size, e[2] * size], g.keep[b.part]!, b),
+          d2,
+        });
+      }
+      for (const q of g.props)
+        pieces.push({
+          kind: q.kind === "strap" ? "patch" : q.kind,
+          m: propAt(m.x, m.z, m.yaw, size, bob, q, M),
+          d2,
+        });
+    });
+    this.worn.update(pieces);
+    this.stumpsDrawn = stumps;
+    // The levy's wounded borne home on litters (Phase 55 M229): between their bearers where they
+    // are drawn, else where their day has them.
+    this.littersShown = littersNow(plan, t).map((q) => {
+      const ms = q.bearers.map((i) => this.moments[i]).filter((m) => !!m && !m.hidden) as Moment[];
+      return q.borne && ms.length === q.bearers.length && ms.length >= 2
+        ? { ...q, ...bierBetween(ms) }
+        : q;
+    });
+    this.litters.update(this.littersShown, litterHeld(this.figure), litterApart(this.figure));
     // The war about the town: its hosts mustering, marching, drawn up, closing, fighting, falling,
     // in flight; its fallen where they fell.
     if (this.soldiers.length && troops.length) {
@@ -2107,6 +2206,114 @@ export class VillageScene {
       watered: wateredOn(plan, day, this.yearNow),
       pulled: pulledOn(plan, day, this.yearNow),
       at,
+    };
+  }
+
+  /**
+   * The wounds as last drawn (the look tools, Phase 55 M226): how many drawn wear a look, and what
+   * of them is drawn by kind; who is abed now, how many away with the levy or gone; the homes of
+   * those abed; the wounds healing now or to come; those marked for good; the homecomings of the
+   * next ten days.
+   */
+  woundsShown(): {
+    looks: number;
+    drawn: {
+      bandage: number;
+      patch: number;
+      sling: number;
+      crutch: number;
+      scar: number;
+      stumps: number;
+    };
+    abed: number[];
+    away: number;
+    gone: number;
+    homes: { index: number; x: number; z: number }[];
+    healing: { index: number; ref: string; up: number; mended: number }[];
+    lasting: { index: number; ref: string; marks: string[] }[];
+    homecomings: {
+      event: string;
+      at: number;
+      where: string;
+      people: number;
+      wounded: number;
+      borne: number;
+    }[];
+    /** The day's litters (Phase 55 M229): whom each bears, when it is taken up and set down, its bearers. */
+    litters: { index: number; start: number; arrive: number; bearers: number[] }[];
+    /** The litters drawn now: where, whether borne, whom. */
+    littersNow: { x: number; z: number; borne: boolean; index: number }[];
+    /** Where the road leaves the town (metres). */
+    edge: { x: number; z: number };
+  } | null {
+    const plan = this.plan;
+    if (!plan) return null;
+    const t = this.lastT,
+      day = Math.floor(t / 86_400),
+      abed: number[] = [],
+      homes: { index: number; x: number; z: number }[] = [],
+      healing: { index: number; ref: string; up: number; mended: number }[] = [],
+      lasting: { index: number; ref: string; marks: string[] }[] = [];
+    let away = 0,
+      gone = 0;
+    plan.people.forEach((p, i) => {
+      if (p.gone !== undefined && p.gone <= t) gone++;
+      else if (p.away?.some((a) => a.from <= t && t < a.until)) away++;
+      if (!p.wounds?.length) return;
+      if (
+        p.wounds.some((w) => woundStage(w, t) === "abed") &&
+        !(p.gone !== undefined && p.gone <= t)
+      ) {
+        abed.push(i);
+        const h = plan.homes[p.home];
+        if (h) homes.push({ index: i, x: h.x, z: h.z });
+      }
+      for (const w of p.wounds)
+        if (w.mended > t) healing.push({ index: i, ref: p.ref, up: w.up, mended: w.mended });
+      const l = lookNow(p, t),
+        marks = [
+          ...(l.crutch ? ["crutch"] : []),
+          ...(l.limp ? ["limp"] : []),
+          ...(l.stiff ? ["stiff"] : []),
+          ...(l.patch ? ["patch"] : []),
+          ...(l.lost.some((m) => !m.startsWith("eye")) ? ["stump"] : []),
+        ];
+      if (marks.length) lasting.push({ index: i, ref: p.ref, marks });
+    });
+    // (The homecomings of the next ten days: each, how many come, of them wounded, borne.)
+    const homecomings = Array.from({ length: 11 }, (_, k) => homecomingsOn(plan, day + k))
+      .flat()
+      .map((h) => ({
+        event: h.event,
+        at: h.at,
+        where: h.where,
+        people: h.people.length,
+        wounded: h.people.filter((q) => q.wounded).length,
+        borne: h.people.filter((q) => q.borne).length,
+      }));
+    return {
+      looks: this.gearNow.filter((g, i) => g && !this.moments[i]?.hidden).length,
+      drawn: { ...this.worn.shown, stumps: this.stumpsDrawn },
+      abed,
+      away,
+      gone,
+      homes,
+      healing: healing.sort((a, b) => a.up - b.up || a.index - b.index),
+      lasting,
+      homecomings,
+      litters: littersOn(plan, day).map((l) => ({
+        index: l.index,
+        start: l.start,
+        arrive: l.arrive,
+        bearers: [...l.bearers],
+      })),
+      littersNow: this.littersShown.map((q) => ({
+        x: q.x,
+        z: q.z,
+        borne: q.borne,
+        index: q.index,
+      })),
+      edge: roadEdge(plan),
     };
   }
 

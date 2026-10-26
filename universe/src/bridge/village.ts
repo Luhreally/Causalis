@@ -3,6 +3,7 @@
 // from the village's middle.
 import type { HostKinds } from "./wars.ts";
 import type { TownPlan } from "./town.ts";
+import type { Away, Wound } from "./wounds.ts";
 /** How far a village's water lies out along its way, and how far the lake reaches about that point (metres). */
 export const WATER_OUT = 700;
 export const LAKE_R = 220;
@@ -347,6 +348,12 @@ export type VillagePlan = {
     };
     /** The town's healer, at their seat where its land knows herb-lore (Phase 55 M225): their years at it. */
     healer?: { readonly years: number };
+    /** Their wounds (Phase 55 M226): each as history dealt it, how it was tended and its days (bridge/wounds.ts). Absent: none. */
+    wounds?: readonly Wound[];
+    /** Their days away with the levy (Phase 55 M226): from the battle's turn till they came home with it. Absent: none. */
+    away?: readonly Away[];
+    /** When a strike of this year killed them (world seconds; Phase 55 M226): not seen from then. */
+    gone?: number;
   }[];
   /** What it holds in store and how that flows (Phase 39 M198). Absent: a village's usual. */
   readonly stores?: TownStores;

@@ -102,6 +102,25 @@ export {
   type RollSide,
   type SideFigures,
 } from "./roll.ts";
+export {
+  NO_LOOK,
+  memberWords,
+  woundLookAt,
+  woundNow,
+  woundStage,
+  woundWords,
+  type Away,
+  type Lasting,
+  type Side,
+  type Wound,
+  type WoundBlow,
+  type WoundFrom,
+  type WoundLook,
+  type WoundMember,
+  type WoundOutcome,
+  type WoundStage,
+  type WoundTended,
+} from "./wounds.ts";
 export type { Campaign, CampaignBattle, WarAge } from "./campaign.ts";
 export type { ActKindShown, ActMark, ActsMap, LandSky, PaletteLand } from "./acts.ts";
 export type { GenesisPlan, MeadowPlan } from "./genesis.ts";

@@ -71,7 +71,9 @@ export function crumbsOf(world: World, ref: string): Line {
       // A town's lot, building or walls: up through the town (Phase 25 M151).
       case "lot":
       case "bldg":
-      case "walls": {
+      case "walls":
+      // (And its healer: Phase 55 M229.)
+      case "heal": {
         const t = populationContext(world).settlements.get(
           ref
             .slice(ref.indexOf(":") + 1)

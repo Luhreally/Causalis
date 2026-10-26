@@ -42,6 +42,18 @@ import {
   type Graveyard,
 } from "./graveyard.ts";
 import { furnaceOf, type Carry } from "./work.ts";
+import {
+  fitOn,
+  homecomingsOn,
+  hurtOn,
+  unseen,
+  woundDay,
+  woundPace,
+  type DressAt,
+  type Homecoming,
+  type WoundDay,
+} from "./wounds.ts";
+import { careOn, type CareVisit } from "./healing.ts";
 import { hashText, unitOf } from "./draws.ts";
 import { FLOCK_HANDS, herderAt, keepsFlock } from "./flock.ts";
 import type { TownTrade } from "../bridge/index.ts";
@@ -109,6 +121,10 @@ export const ACTIVITY = {
   feasting: 9,
   /** Away from the town down the road, with its goods (Phase 48 M210). */
   away: 10,
+  /** Abed with their wounds, indoors — at home, or at the hospital (Phase 55 M226). */
+  abed: 11,
+  /** Gone: killed where they were struck, not seen again (Phase 55 M226). */
+  gone: 12,
 } as const;
 export type Activity = (typeof ACTIVITY)[keyof typeof ACTIVITY];
 
@@ -124,6 +140,8 @@ export const ACTIVITY_WORDS: readonly string[] = [
   "indoors, out of the weather",
   "at the feast in the square",
   "away from the town",
+  "abed with their wounds",
+  "gone",
 ];
 
 /**
@@ -182,6 +200,10 @@ export const TASKS = [
   "kindle",
   // Things seen being made (Phase 51 M214): the weft passed and beaten up at the upright loom.
   "weave",
+  // The wounded tended (Phase 55 M229): a wound dressed and bound.
+  "heal",
+  // A litter carried by its poles, one of the levy's wounded on it (Phase 55 M229).
+  "carry",
 ] as const;
 export type Task = (typeof TASKS)[number];
 
@@ -947,8 +969,12 @@ function alongWay(way: readonly Point[], u: number): Point {
 function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly Stint[]> {
   const struck = plan.town?.struck ?? [],
     // (And its funerals: Phase 43 M205.)
-    rites = funeralsOn(plan, day);
-  if (!struck.length && !rites.length) return NO_FIGHTS;
+    rites = funeralsOn(plan, day),
+    // (And the calls made on its wounded: Phase 55 M229.)
+    care = careOn(plan, day),
+    // (And the levy's homecomings: Phase 55 M226.)
+    comings = homecomingsOn(plan, day);
+  if (!struck.length && !rites.length && !care.calls.length && !comings.length) return NO_FIGHTS;
   let days = FIGHTS.get(plan);
   if (!days) FIGHTS.set(plan, (days = new Map()));
   const known = days.get(day);
@@ -962,7 +988,11 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
       out.set(i, list);
     },
     free = (i: number, from: number, until: number) =>
-      !(out.get(i) ?? []).some((st) => st.from < until + 900 && st.until + 900 > from);
+      !(out.get(i) ?? []).some((st) => st.from < until + 900 && st.until + 900 > from) &&
+      // (Nor one whose day the care of the wounded takes, nor one away with the levy, abed or
+      // gone meanwhile: Phase 55 M226, M229.)
+      !care.scripts.has(i) &&
+      !unseen(plan, i, from - 900, until + 900);
   for (const d of [...days.keys()]) if (d < day - 2) days.delete(d);
   days.set(day, out);
   const scene = struck.length ? sceneOf(plan, day * DAY) : null,
@@ -974,7 +1004,8 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
     homeOf = (i: number) => plan.homes[plan.people[i]!.home]!,
     able = (i: number) => {
       const p = plan.people[i]!;
-      return !p.child && !oldOf(plan, p);
+      // (Nor one a wound keeps from it: Phase 55 M226.)
+      return !p.child && !oldOf(plan, p) && !hurtOn(plan, i, day);
     },
     // (The nearest the place by their homes, of those not at another part meanwhile, living
     // within `reach` of it.)
@@ -1194,11 +1225,174 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
   const yard = rites.length ? graveyardFor(plan) : null,
     told: Rite[] = [];
   if (yard) for (const f of rites) bury(f, yard);
+  // The levy home (Phase 55 M226, M229): its litters borne in from the road's end, kin waiting at
+  // their doors, the town out by the road into the square to see its columns come in.
+  const borne: Litter[] = [];
+  for (const h of comings) comeHome(h);
+  if (comings.length) cheer(comings);
+  let litDay = LITTERS.get(plan);
+  if (!litDay) LITTERS.set(plan, (litDay = new Map()));
+  for (const d of [...litDay.keys()]) if (d < day - 2) litDay.delete(d);
+  litDay.set(day, borne);
+  // The calls made on the wounded (Phase 55 M229): a neighbour looking in on one abed with no one
+  // at home, morning and evening; kin at the hospital of an evening.
+  for (const c of care.calls) {
+    if (!free(c.who, c.from, c.until)) continue;
+    const door = careDoor(plan, ground, c.to, c.from);
+    put(c.who, {
+      from: c.from,
+      until: c.until,
+      at: door,
+      task: c.task === "tend" ? null : c.task,
+      carry: null,
+      face: door.face,
+      activity: ACTIVITY.gathering,
+      why: c.why,
+      to: c.to === "hospital" ? "To the hospital" : "To look in on a neighbour abed",
+    });
+  }
   let byDay = RITES.get(plan);
   if (!byDay) RITES.set(plan, (byDay = new Map()));
   for (const d of [...byDay.keys()]) if (d < day - 2) byDay.delete(d);
   byDay.set(day, told);
   return out;
+
+  /**
+   * A homecoming of the levy (Phase 55 M226, M229): each litter, the first in first, borne from the
+   * road's end to its wounded's door (or the hospital's) by two of those free and able who live
+   * nearest the road's end — waiting by it from before the column comes, then in step either end of
+   * it, and setting it down at the door; each man's household waiting at their door for him.
+   */
+  function comeHome(h: Homecoming): void {
+    const pace = paceOf(plan.body),
+      edge = roadEdge(plan),
+      column = new Set(h.people.map((q) => q.index)),
+      long = Math.hypot(plan.road.x, plan.road.z) || 1,
+      dir = { x: plan.road.x / long, z: plan.road.z / long },
+      first = (i: number) => plan.people[i]!.name.split(" ")[0] ?? plan.people[i]!.name,
+      // (Where each comes home to, and when they are there.)
+      doors = new Map<number, Point & { face: number }>(),
+      doorOf = (i: number, t: number) => {
+        let d = doors.get(i);
+        if (!d) {
+          const wd = woundDay(plan, i, day);
+          d =
+            wd.kind === "home" && wd.then === "abed" && wd.where === "hospital"
+              ? hospitalDoor(plan, t)
+              : careDoor(plan, ground, plan.people[i]!.home, t);
+          doors.set(i, d);
+        }
+        return d;
+      },
+      backAt = new Map<number, number>();
+    for (const q of h.people) {
+      const to = doorOf(q.index, q.at),
+        way = bierWay(ground, edge, to);
+      backAt.set(q.index, q.at + TAKE_UP + inStepTime(way, pace));
+      if (!q.borne || borne.length >= MOST_LITTERS) continue;
+      const start = q.at + TAKE_UP,
+        arrive = start + inStepTime(way, pace),
+        wait = q.at - HOMECOMING.gather,
+        done = arrive + HOMECOMING.setDown,
+        two = nearest(edge, (i) => able(i) && !column.has(i), 2, wait, done, Infinity);
+      if (two.length < 2) continue;
+      const head = runsOf(way)[0]?.d ?? { x: -dir.x, z: -dir.z },
+        laid = stepWay(way, HOMECOMING.along + 1),
+        whose = first(q.index);
+      two.forEach((i, j) => {
+        const along = j === 0 ? HOMECOMING.along : -HOMECOMING.along,
+          by = clearSpot(ground, offWay(edge, head, along * 1.3, 1.8)),
+          there = stepAt(laid, laid.long + along, 0);
+        put(i, {
+          from: wait + j * 30,
+          until: q.at,
+          at: by,
+          task: "watch",
+          carry: null,
+          face: Math.atan2(dir.x, dir.z),
+          activity: ACTIVITY.gathering,
+          why: `Waiting at the road's end to bear the wounded home from ${h.where}`,
+          to: "To the road's end, to bear the wounded home",
+        });
+        put(i, {
+          from: q.at,
+          until: done,
+          at: there,
+          task: null,
+          carry: null,
+          face: to.face,
+          activity: ACTIVITY.gathering,
+          why: `Setting ${whose} down at the door`,
+          to: `Bearing ${whose} home on a litter`,
+          walkCarry: "litter",
+          inStep: { way, along, across: 0, start },
+        });
+      });
+      borne.push({ index: q.index, event: h.event, way, start, arrive, bearers: two });
+    }
+    // Each man's household at their door for him: in rows of three before it, each row a step
+    // further out toward the street, at most so many.
+    for (const q of h.people) {
+      const p = plan.people[q.index]!,
+        door = doorOf(q.index, q.at),
+        back = backAt.get(q.index)!,
+        from = back - HOMECOMING.kin,
+        until = back + HOMECOMING.after,
+        d = { x: Math.sin(door.face), z: Math.cos(door.face) };
+      let k = 0;
+      plan.people.forEach((kin, i) => {
+        if (k >= HOMECOMING.door || i === q.index || column.has(i) || kin.home !== p.home) return;
+        if (!free(i, from, until)) return;
+        const row = Math.floor(k / 3);
+        put(i, {
+          from,
+          until,
+          at: clearSpot(ground, offWay(door, d, -1.4 - row * 1.6, ((k % 3) - 1) * 1.4)),
+          task: "watch",
+          carry: null,
+          face: door.face + Math.PI,
+          activity: ACTIVITY.gathering,
+          why: `Waiting at the door for ${first(q.index)}, home from ${h.where}`,
+          to: `Home to meet ${first(q.index)}`,
+        });
+        k++;
+      });
+    }
+  }
+
+  /**
+   * Those come to see the day's columns home (Phase 55 M226): the nearest of the town not in them,
+   * either side of the road where it comes into the square, facing it, from before the first comes
+   * in till after the last man of the last.
+   */
+  function cheer(hs: readonly Homecoming[]): void {
+    const long = Math.hypot(plan.road.x, plan.road.z) || 1,
+      dir = { x: plan.road.x / long, z: plan.road.z / long },
+      into = { x: dir.x * (SQUARE + 6), z: dir.z * (SQUARE + 6) },
+      columns = new Set(hs.flatMap((h) => h.people.map((q) => q.index))),
+      last = hs[hs.length - 1]!,
+      from = hs[0]!.at - HOMECOMING.gather,
+      until = (last.people.at(-1)?.at ?? last.at) + HOMECOMING.after,
+      whence = hs.length === 1 ? hs[0]!.where : "the battles";
+    nearest(into, (i) => !columns.has(i), HOMECOMING.crowd, from, until).forEach((i, j) => {
+      const side = j % 2 ? 1 : -1,
+        at = clearSpot(
+          ground,
+          offWay(into, dir, 4 + (Math.floor(j / 2) % 6) * 2.2, side * (5 + Math.floor(j / 12) * 2)),
+        );
+      put(i, {
+        from: from + j * 30,
+        until,
+        at,
+        task: "watch",
+        carry: null,
+        face: Math.atan2(-side * dir.z, side * dir.x),
+        activity: ACTIVITY.gathering,
+        why: `Come to see the levy home from ${whence}`,
+        to: `To see the levy home from ${whence}`,
+      });
+    });
+  }
 
   function bury(f: Funeral, yard: Graveyard): void {
     const pace = paceOf(plan.body),
@@ -1703,6 +1897,85 @@ export function bierBetween(
   };
 }
 
+/**
+ * A homecoming of the levy (Phase 55 M226, M229): how long before its column comes in the town
+ * gathers by the road to see it, and kin wait at their door; how long after it they stay; how
+ * long a litter rests at the door before it is taken in; how far its bearers walk ahead of and
+ * behind its middle (metres); the most who come to see it, and the most who wait at a door.
+ */
+export const HOMECOMING = {
+  gather: 1500,
+  kin: 1800,
+  after: 900,
+  setDown: 60,
+  along: 3.4,
+  crowd: 24,
+  door: 6,
+} as const;
+/** The litters borne home on a day, at most. */
+export const MOST_LITTERS = 12;
+
+/**
+ * A litter borne home (Phase 55 M229): whom it bears (their place in the people) from which
+ * battle; its way from the road's end to their door (or the hospital's), when its bearers take it
+ * up there and set it down here (world seconds); its bearers, the front first.
+ */
+export type Litter = {
+  readonly index: number;
+  readonly event: string;
+  readonly way: readonly Point[];
+  readonly start: number;
+  readonly arrive: number;
+  readonly bearers: readonly number[];
+};
+const LITTERS = new WeakMap<VillagePlan, Map<number, readonly Litter[]>>();
+
+/** A town's litters of a day (days since the world began), as its homecomings bear them. */
+export function littersOn(plan: VillagePlan, day: number): readonly Litter[] {
+  fightsOn(plan, day);
+  return LITTERS.get(plan)?.get(day) ?? [];
+}
+
+/** A litter at a moment: where its middle is, which way its head lies (as faces), whether it is borne (by whom), and whom it bears. */
+export type LitterNow = {
+  readonly x: number;
+  readonly z: number;
+  readonly face: number;
+  readonly borne: boolean;
+  readonly bearers: readonly number[];
+  readonly index: number;
+};
+
+/** A town's litters at moment t: at the road's end as its column comes, borne between their bearers, set down at the door a while. */
+export function littersNow(plan: VillagePlan, t: number): LitterNow[] {
+  const out: LitterNow[] = [];
+  for (const l of littersOn(plan, Math.floor(t / DAY))) {
+    if (t < l.start - TAKE_UP || t >= l.arrive + HOMECOMING.setDown) continue;
+    if (t < l.start || t >= l.arrive) {
+      const runs = runsOf(l.way),
+        set = t < l.start,
+        p = set ? l.way[0]! : l.way.at(-1)!,
+        d = (set ? runs[0]?.d : runs.at(-1)?.d) ?? { x: 0, z: 1 };
+      out.push({
+        x: p.x,
+        z: p.z,
+        face: Math.atan2(d.x, d.z),
+        borne: false,
+        bearers: [],
+        index: l.index,
+      });
+      continue;
+    }
+    out.push({
+      ...bierBetween(l.bearers.map((i) => momentOf(plan, i, t))),
+      borne: true,
+      bearers: l.bearers,
+      index: l.index,
+    });
+  }
+  return out;
+}
+
 /** The funerals a town keeps from moment t for so many days (the look tools): when each leaves, comes to the graveyard, is done; its biers and dead; where its first grave is. */
 export function funeralsAhead(
   plan: VillagePlan,
@@ -2091,8 +2364,41 @@ export function takingToForge(metal: VillagePlan["metal"], from?: string): strin
         : "Taking ore to forge";
 }
 
+/** Where the road leaves what is shown of a town (Phase 55 M226): the levy goes out by it and comes home by it. */
+export function roadEdge(plan: VillagePlan): Point {
+  return clearSpot(groundFor(plan), { x: plan.road.x * 0.97, z: plan.road.z * 0.97 });
+}
+
+/**
+ * A town's hospital as one comes to it (Phase 55 M229): before its door, facing it; lacking one
+ * standing, the healer's home; else the square's edge.
+ */
+function hospitalDoor(plan: VillagePlan, t: number): Point & { face: number } {
+  const d = plan.town ? civicDoors(plan, t).get("hospital")?.[0] : undefined;
+  if (d) return { x: d.x, z: d.z, face: d.yaw };
+  const k = plan.people.findIndex((q) => !!q.healer);
+  if (k >= 0) return careDoor(plan, groundFor(plan), plan.people[k]!.home, t);
+  return { ...clearSpot(groundFor(plan), { x: SQUARE - 4, z: 0 }), face: -Math.PI / 2 };
+}
+
+/** Where one calls on the wounded (Phase 55 M229): before a home's door, facing it; or the hospital's. */
+function careDoor(
+  plan: VillagePlan,
+  ground: Ground,
+  to: number | "hospital",
+  t: number,
+): Point & { face: number } {
+  if (to === "hospital") return hospitalDoor(plan, t);
+  const home = plan.homes[to]!,
+    door = doorOfHome(plan, ground, to);
+  return { ...door, face: Math.atan2(home.x - door.x, home.z - door.z) };
+}
+
 function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Leg[] {
   const pace = paceOf(plan.body);
+  // (Their own walk, as a wound slows it — on a crutch, a leg lost, a limp, a wound bound: Phase
+  // 55 M226; walking in step with others, theirs.)
+  const ownPace = pace * woundPace(plan, index, day);
   const p = plan.people[index]!,
     draw = dayDraw(p.ref, day),
     home = plan.homes[p.home]!,
@@ -2158,7 +2464,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     for (let k = 0; k + 1 < way.length; k++) {
       const p = way[k]!,
         q = way[k + 1]!,
-        to = t + walkTime(p, q, pace);
+        to = t + walkTime(p, q, ownPace);
       legs.push({
         from: t,
         to,
@@ -2166,7 +2472,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
         next: q,
         activity: ACTIVITY.walking,
         carry,
-        task: carry === "bier" ? "bear" : null,
+        task: carry === "bier" ? "bear" : carry === "litter" ? "carry" : null,
         face: null,
         why,
         effect: null,
@@ -2191,6 +2497,8 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     st: NonNullable<Stint["inStep"]>,
     carry: Carry | null,
     why: string | null,
+    // (One borne on a litter goes in step with it, abed: Phase 55 M229.)
+    activity: Activity = ACTIVITY.walking,
   ): number => {
     const w = stepWay(st.way, Math.abs(st.along) + 1),
       // (Where they are as its middle passes each of its points, and at its ends.)
@@ -2199,7 +2507,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
         ...w.at.filter((u) => u > st.along && u < w.long + st.along),
         w.long + st.along,
       ],
-      task = carry === "bier" ? "bear" : null;
+      task = carry === "bier" ? "bear" : carry === "litter" ? "carry" : null;
     for (let k = 0; k + 1 < marks.length; k++) {
       const u0 = marks[k]!,
         u1 = marks[k + 1]!;
@@ -2208,7 +2516,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
         to: from + (u1 - st.along) / pace,
         at: stepAt(w, u0, st.across),
         next: stepAt(w, u1, st.across),
-        activity: ACTIVITY.walking,
+        activity,
         carry,
         task,
         face: null,
@@ -2278,6 +2586,13 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     );
     return go(until, square, at);
   };
+  // Their wounds and the levy (Phase 55 M226): away with it, home from it, abed, up and bound,
+  // gone; or a day the care of the wounded takes (M229: the healer's round, one kept home to tend
+  // one of theirs abed).
+  const hurt = woundDay(plan, index, day);
+  if (hurt.kind !== "whole" && hurt.kind !== "cut") return hurtDay(hurt);
+  const cared = fine && hurt.kind === "whole" ? careOn(plan, day).scripts.get(index) : undefined;
+  if (cared) return careDay(cared);
   // A trader's trip down the road (Phase 48 M210): loaded at the store of a morning and out
   // along the road, away a night or two in the land they trade with, and back of an afternoon to
   // unload what they bring.
@@ -2308,7 +2623,8 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
   }
   const town = fine && !rest ? townDay(plan, day, ground) : null,
     role = town?.roles[index];
-  if (rest || p.age >= 62) {
+  // (And one a wound keeps from work — on a crutch: Phase 55 M226.)
+  if (rest || p.age >= 62 || !fitOn(plan, index, day)) {
     const ease = (feast ? FEAST_HOURS.gather : 17) * HOUR;
     // A day of rest's morning at prayer (Phase 41 M199): most of a town that keeps a temple or a
     // shrine go to it, stand in its rows before its door a while, and come home.
@@ -2412,6 +2728,8 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
   // A fire in the town, or homes shaken down (Phase 42 M201): from wherever the alarm finds them,
   // to their part in it, and back to their day after — each of their parts in it in turn.
   for (const part of (fine ? fightsOn(plan, day).get(index) : undefined) ?? []) breakIn(part);
+  // (Struck down, or killed, where their day had them: Phase 55 M226.)
+  if (hurt.kind === "cut") cutAt(hurt);
   return legs;
 
   /**
@@ -2505,6 +2823,192 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
   }
 
   /**
+   * A day as their wounds and the levy make it (Phase 55 M226): away all day with the levy; home
+   * today from the road's end, then abed, up and bound, or their evening at home; abed all day, at
+   * home or at the hospital; up and bound; gone.
+   */
+  function hurtDay(h: WoundDay): Leg[] {
+    switch (h.kind) {
+      case "away":
+        stay(0, DAY, roadEdge(plan), ACTIVITY.away, null, null, null, h.why);
+        break;
+      case "gone":
+        stay(0, DAY, at, ACTIVITY.gone);
+        break;
+      case "abed":
+        lie(0, h.where, h.why);
+        break;
+      case "mending":
+        mendingDay(0, h.why, h.dress);
+        break;
+      case "home": {
+        // Away till their place in the column comes in from the road's end; in, and home (or to
+        // the hospital).
+        const edge = roadEdge(plan),
+          from = Math.max(0, Math.min(DAY - 1, h.at)),
+          to = h.then === "abed" && h.where === "hospital" ? hospitalDoor(plan, day * DAY) : at,
+          // (Borne on a litter, in step with it and out of sight, to their door: Phase 55 M229.)
+          litter = h.borne
+            ? littersOn(plan, day).find((l) => l.index === index && l.event === h.event)
+            : undefined;
+        if (litter) {
+          const s0 = Math.max(0, litter.start - day * DAY);
+          stay(0, s0, edge, ACTIVITY.away, null, null, null, h.away);
+          const way = { way: litter.way, along: 0, across: 0, start: litter.start };
+          lie(inStep(s0, way, null, h.away, ACTIVITY.abed), h.where, h.why);
+          break;
+        }
+        if (h.borne) {
+          // (No one to bear them: carried in out of sight.)
+          const t = from + lengthOf(wayOf(edge, to)) / pace;
+          stay(0, t, edge, ACTIVITY.away, null, null, null, h.away);
+          lie(t, h.where, h.why);
+          break;
+        }
+        stay(0, from, edge, ACTIVITY.away, null, null, null, h.away);
+        const t = go(from, edge, to, null, h.away);
+        if (h.then === "abed") lie(t, h.where, h.why);
+        else if (h.then === "mending") mendingDay(t, h.why, null);
+        else homeEvening(t, h.why);
+        break;
+      }
+      default:
+        stay(0, DAY, at, ACTIVITY.home);
+    }
+    return legs;
+  }
+
+  /** Abed from `from` (seconds into the day) to its end: indoors at home, or at the hospital. */
+  function lie(from: number, where: "home" | "hospital", why: string): void {
+    stay(
+      from,
+      DAY,
+      where === "hospital" ? hospitalDoor(plan, day * DAY) : at,
+      ACTIVITY.abed,
+      null,
+      null,
+      null,
+      why,
+    );
+  }
+
+  /** Home at `t`: the evening with their own, and to bed. */
+  function homeEvening(t: number, why: string): void {
+    stay(t, Math.max(t, bed - 0.5 * HOUR), at, ACTIVITY.eating, null, null, null, why);
+    stay(Math.max(t, bed - 0.5 * HOUR), bed, at, ACTIVITY.home);
+    stay(Math.max(t, bed), DAY, at, ACTIVITY.asleep);
+  }
+
+  /**
+   * Up again, the wound still bound (Phase 55 M226), from `from` (0: the whole day): at their door
+   * at their ease; to the healer's door or the hospital at their hour, on a day it is dressed; an
+   * hour and a half in the square of an afternoon; supper, and to bed.
+   */
+  function mendingDay(from: number, why: string, dress: DressAt | null): void {
+    let t = from;
+    if (from === 0) {
+      stay(0, rise, at, ACTIVITY.asleep);
+      stay(rise, rise + 0.75 * HOUR, at, ACTIVITY.eating, null, null, null, "Breakfast at home");
+      t = rise + 0.75 * HOUR;
+    }
+    const door = !dress
+      ? null
+      : dress.to === "hospital"
+        ? hospitalDoor(plan, day * DAY)
+        : healerDoor();
+    if (dress && door && t < dress.at) {
+      // (Set off to be there at their hour.)
+      const way = wayOf(at, door),
+        leave = Math.max(t, dress.at - lengthOf(way) / ownPace);
+      stay(t, leave, at, ACTIVITY.resting, null, null, null, why);
+      t = along(leave, way, null, dress.why);
+      stay(t, Math.max(t, dress.until), door, ACTIVITY.gathering, null, null, door.face, dress.why);
+      t = go(Math.max(t, dress.until), door, at, null, "Home, the wound dressed");
+    }
+    const out = 15 * HOUR,
+      back = 16.5 * HOUR;
+    if (t < out) {
+      stay(t, out, at, ACTIVITY.resting, null, null, null, why);
+      t = go(out, at, square, null, "To the square, the wound bound");
+      stay(
+        t,
+        Math.max(t, back),
+        square,
+        ACTIVITY.gathering,
+        null,
+        "talk",
+        toRing,
+        "Talking in the square, the wound bound",
+      );
+      t = go(Math.max(t, back), square, at);
+    }
+    homeEvening(t, why);
+  }
+
+  /** The healer's door, where the wounded who are up come to be dressed (null: no healer). */
+  function healerDoor(): (Point & { face: number }) | null {
+    const k = plan.people.findIndex((q) => !!q.healer);
+    return k >= 0 ? careDoor(plan, ground, plan.people[k]!.home, day * DAY) : null;
+  }
+
+  /**
+   * A day the care of the wounded takes (Phase 55 M229): the healer's round door to door and salves
+   * made at home; or one kept home to tend one of theirs abed — up, each call in its turn, home.
+   */
+  function careDay(visits: readonly CareVisit[]): Leg[] {
+    stay(0, rise, at, ACTIVITY.asleep);
+    stay(rise, rise + 0.75 * HOUR, at, ACTIVITY.eating, null, null, null, "Breakfast at home");
+    let t = rise + 0.75 * HOUR,
+      here: Point = at;
+    for (const v of visits) {
+      const s0 = v.from - day * DAY,
+        s1 = v.until - day * DAY,
+        door = careDoor(plan, ground, v.to, v.from),
+        // (Their own home's: at their own door.)
+        there: Point & { face: number } = v.to === p.home ? { ...at, face: door.face } : door;
+      if (Math.hypot(there.x - here.x, there.z - here.z) > 0.5) {
+        const way = wayOf(here, there),
+          leave = Math.max(t, s0 - lengthOf(way) / ownPace);
+        stay(t, leave, here, here === at ? ACTIVITY.home : ACTIVITY.resting);
+        t = along(leave, way, null, v.why);
+      }
+      stay(
+        t,
+        Math.max(t, s1),
+        there,
+        v.task === "tend" ? ACTIVITY.home : ACTIVITY.working,
+        null,
+        v.task === "tend" ? null : v.task,
+        there.face,
+        v.why,
+      );
+      t = Math.max(t, s1);
+      here = there;
+    }
+    if (Math.hypot(here.x - at.x, here.z - at.z) > 0.5)
+      t = go(t, here, at, null, "Home from tending the wounded");
+    homeEvening(t, "Supper at home, and the evening");
+    return legs;
+  }
+
+  /** Struck down (or killed) at `h.at` where their day had them: abed at home from then, or gone. */
+  function cutAt(h: Extract<WoundDay, { kind: "cut" }>): void {
+    const plain = legs.splice(0),
+      s = Math.max(0, Math.min(DAY - 1, h.at));
+    legs.push(...cutLegs(plain, 0, s));
+    stay(
+      s,
+      DAY,
+      h.then === "gone" ? whereAt(plain, s) : at,
+      h.then === "gone" ? ACTIVITY.gone : ACTIVITY.abed,
+      null,
+      null,
+      null,
+      h.why,
+    );
+  }
+
+  /**
    * A bier taken up and borne off (Phase 43 M205): a step in to their place at it, held there
    * till all of them set off together, then in step along its way; when they are there.
    */
@@ -2519,7 +3023,16 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
       place = stepAt(stepWay(st.way, Math.abs(st.along) + 1), st.along, st.across),
       there = go(s0, from, place, null, why),
       begin = Math.max(there, st.start - day * DAY);
-    stay(there, begin, place, ACTIVITY.gathering, carry, "bear", Math.atan2(d.x, d.z), why);
+    stay(
+      there,
+      begin,
+      place,
+      ACTIVITY.gathering,
+      carry,
+      carry === "litter" ? "watch" : "bear",
+      Math.atan2(d.x, d.z),
+      why,
+    );
     return inStep(begin, st, carry, why);
   }
 
@@ -4064,7 +4577,9 @@ export function momentOf(
     hidden:
       activity === ACTIVITY.asleep ||
       activity === ACTIVITY.sheltering ||
-      activity === ACTIVITY.away,
+      activity === ACTIVITY.away ||
+      activity === ACTIVITY.abed ||
+      activity === ACTIVITY.gone,
     carry: sheltering ? null : leg.carry,
     hunger: Math.max(0, Math.min(1, (s - fed) / ((lean ? 4.5 : 7) * HOUR))),
     tiredness:
