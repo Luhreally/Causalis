@@ -30,7 +30,7 @@ import {
   substancePage,
 } from "./matter.ts";
 import { groundReading } from "./ground.ts";
-import { thingPage } from "./things.ts";
+import { madePage, thingPage } from "./things.ts";
 import { cladePage, treePage } from "./tree.ts";
 import { alertsOf, breakdownOf, logPage, type Counted } from "./alerts.ts";
 import { answersOf } from "./answers.ts";
@@ -62,6 +62,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("prin:")) return principlePage(world, ref);
   if (ref.startsWith("good:")) return goodKindPage(world, ref);
   if (ref.startsWith("thing:")) return thingPage(world, ref);
+  // A tool hung on a smithy's rack, tapped there (Phase 51 M213).
+  if (ref.startsWith("made:")) return madePage(world, ref);
   if (ref.startsWith("gstar:")) return starPageModel(world, ref);
   if (ref.includes("/")) return foreignWorldPage(world, ref);
   if (ref.startsWith("agent:")) return agentPage(world, ref);

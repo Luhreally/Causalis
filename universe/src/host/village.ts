@@ -78,7 +78,7 @@ import { townPlan } from "./town.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
 import { visitorsAt } from "./peoples.ts";
-import { makerAt, seatsOf, workshopOf } from "./chain.ts";
+import { makerAt, seatsOf, townStuff, workshopOf } from "./chain.ts";
 import { peopleFigure } from "./folk.ts";
 
 /** Families the microscope watches in a village: a presentation budget, not a rule. */
@@ -994,6 +994,8 @@ export function villagePlan(
       fauna: faunaOf(village.cell, village.population),
       era: eraOf(village.cell),
       metal: toolMetal(ctx, village.cell),
+      // (What its things are made of, and its own ore: Phase 51 M213.)
+      stuff: townStuff(world, village.cell, now),
       works: worksOf(village.cell),
       life: lifeNow(village.cell, village.population, visitors),
       body: peopleBody(world),

@@ -79,6 +79,10 @@ import {
   type StoresNow,
   townWarScene,
   traderSeat,
+  furnaceOf,
+  rackNow,
+  rackSlot,
+  type Hung,
   type TownWar,
   type TownWarScene,
 } from "../view/index.ts";
@@ -97,7 +101,7 @@ import { TownLayer } from "./town.ts";
 import { CountryLayer } from "./country.ts";
 import { FeastLayer } from "./feast.ts";
 import { TownWarLayer } from "./townwar.ts";
-import { TradesLayer, type AtWork } from "./trades.ts";
+import { TradesLayer, type AtWork, type RackAt } from "./trades.ts";
 import { BlazeLayer } from "./blaze.ts";
 import { GraveyardLayer } from "./graveyard.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
@@ -440,7 +444,19 @@ export class VillageScene {
     // (Its windows' glass, lit from dusk to dawn as the village's are.)
     if (town) this.townLamps ??= windowMaterial();
     this.town.build(town, plan.ref, t, town ? this.townLamps : null);
-    this.trades.build(town ? this.town.motions(t) : []);
+    // (The furnace by the diggings and the smithy's rack, where its people smelt and smith: Phase
+    // 51 M213.)
+    const furnace = plan.stuff?.ore ? furnaceOf(plan.works?.mine) : null,
+      smiths = plan.people.some((p) => p.trade?.kind === "smith");
+    this.trades.build(
+      town ? this.town.motions(t) : [],
+      furnace
+        ? { x: furnace.mouth.x, z: furnace.mouth.z, yaw: furnace.yaw, top: furnace.top }
+        : null,
+      smiths ? (plan.stuff?.metal?.colour ?? plan.stuff?.tool.colour ?? null) : null,
+    );
+    this.furnaceStand = furnace?.stand ?? null;
+    this.rackKept = null;
     // Its graveyard, just past its homes (Phase 43 M205).
     this.graveyard.build(graveyardFor(plan));
     // A town's well in the middle of its square, where its bucket lines draw (Phase 42 M201): a
@@ -1131,6 +1147,9 @@ export class VillageScene {
    * on the screen's clock (ms).
    */
   private stores: { now: StoresNow; t: number; fine: boolean; at: number } | null = null;
+  /** Where the furnace's smelter stands (metres; null: no furnace), and the rack as last laid. */
+  private furnaceStand: { readonly x: number; readonly z: number } | null = null;
+  private rackKept: { key: number; rack: RackAt | null } | null = null;
 
   /**
    * The village at moment t. `downpour`: the span of a downpour over it, if one falls (those at
@@ -1301,6 +1320,19 @@ export class VillageScene {
       });
       this.trades.update(screen, this.stage.quality.motion, busy);
     }
+    // Things seen being made (Phase 51 M213): the furnace aglow while one works its bellows; the
+    // rack before the smithy, the day's tools hung on it as they are made (laid again each half
+    // minute of the world's clock).
+    const stand = this.furnaceStand,
+      smelting =
+        !!stand &&
+        this.moments.some(
+          (m) => !m.hidden && m.task === "tend" && Math.hypot(m.x - stand.x, m.z - stand.z) < 6,
+        ),
+      key = Math.floor(t / 30);
+    if (this.rackKept?.key !== key)
+      this.rackKept = { key, rack: rackNow(plan, villageSolids(plan), t, fine) };
+    this.trades.making(screen, smelting, this.rackKept.rack);
     // Its dead and their burying (Phase 43 M205): the graves open today, their earth heaped
     // beside them; the dead on their biers, on their bearers' shoulders where they are drawn.
     this.mourning = false;
@@ -2009,7 +2041,10 @@ export class VillageScene {
     };
   }
 
-  /** The town's trades as last drawn (the look tools): its works by kind, the sails' turn, kilns aglow, sparks. */
+  /**
+   * The town's trades as last drawn (the look tools): its works by kind, the sails' turn, kilns
+   * aglow, sparks; the furnace aglow and the tools on the rack (Phase 51 M213).
+   */
   tradesNow(): {
     mills: number;
     kilns: number;
@@ -2017,9 +2052,43 @@ export class VillageScene {
     turn: number;
     glowing: number;
     sparks: number;
+    smelting: boolean;
+    hung: number;
+    rack: { x: number; z: number } | null;
   } {
     const n = (k: string) => this.trades.works.filter((w) => w.kind === k).length;
     return { mills: n("mill"), kilns: n("kiln"), smithies: n("smithy"), ...this.trades.shown };
+  }
+
+  /**
+   * The tool hung on the smithy's rack nearest a point of the screen, if one is within `reach`
+   * pixels of it (Phase 51 M213): who made it, which of theirs today, what — and the rack's day.
+   */
+  rackItemAt(x: number, y: number, reach = 26): (Hung & { readonly day: number }) | null {
+    const rack = this.rackKept?.rack;
+    if (!rack) return null;
+    let best: Hung | null = null,
+      near = reach;
+    this.rackOnScreen().forEach((p, k) => {
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (d < near) {
+        near = d;
+        best = rack.hung[k]!;
+      }
+    });
+    return best ? { ...(best as Hung), day: Math.floor(this.lastT / 86_400) } : null;
+  }
+
+  /** Where each tool on the rack hangs on the screen now (the look tools), the first made first. */
+  rackOnScreen(): { x: number; y: number; form: string }[] {
+    const rack = this.rackKept?.rack;
+    if (!rack) return [];
+    return rack.hung.map((h, k) => {
+      const at = rackSlot(rack, k),
+        // (Halfway down its haft, where a tap on it lands; behind the eye, nowhere.)
+        p = this.stage.camera.camera!.worldToScreen(new pc.Vec3(at.x * M, 3 * M, at.z * M));
+      return p.z > 0 ? { x: p.x, y: p.y, form: h.form } : { x: -1e6, y: -1e6, form: h.form };
+    });
   }
 
   /** The war about the town now (null: none): its soldiers armed for its sides as it comes. */

@@ -23,6 +23,7 @@ export {
   type StoreBook,
   type StoreKind,
   type TownStores,
+  type TownStuff,
   type TownTrade,
   type TradeGood,
   type BeastPlan,

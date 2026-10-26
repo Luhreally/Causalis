@@ -17,6 +17,7 @@ import {
   cartAt,
   factoryPieces,
   figureOf,
+  furnaceOf,
   figurePaint,
   heapCounts,
   itemParts,
@@ -51,7 +52,7 @@ type Gathered = { batch: InstancedBatch; data: Float32Array; count: number };
 export type Carrier = { x: number; z: number; yaw: number; carry: Carry; size: number };
 
 /** The works' pieces by what they are made of. */
-function roleColor(role: MinePiece["role"], engines: boolean): Rgb {
+function roleColor(role: MinePiece["role"], engines: boolean, ore?: Rgb): Rgb {
   switch (role) {
     case "pit":
       return [0.1, 0.09, 0.08];
@@ -72,6 +73,16 @@ function roleColor(role: MinePiece["role"], engines: boolean): Rgb {
       return [0.72, 0.7, 0.64];
     case "block":
       return [0.84, 0.82, 0.76];
+    case "furnace":
+      return [0.6, 0.4, 0.28];
+    case "mouth":
+      return [0.08, 0.05, 0.04];
+    case "bellows":
+      return [0.46, 0.28, 0.16];
+    case "charcoal":
+      return [0.11, 0.1, 0.1];
+    case "orepile":
+      return ore ?? [0.58, 0.32, 0.2];
   }
 }
 
@@ -151,6 +162,7 @@ export class WorkLayer {
     at: { x: number; z: number },
     yaw: number,
     engines: boolean,
+    ore?: Rgb,
   ): void {
     const byRole = new Map<MinePiece["role"], MinePiece[]>();
     for (const p of pieces) byRole.set(p.role, [...(byRole.get(p.role) ?? []), p]);
@@ -162,10 +174,10 @@ export class WorkLayer {
             ? this.wheel
             : role === "pit"
               ? this.disc
-              : role === "spoil"
+              : role === "spoil" || role === "charcoal" || role === "orepile"
                 ? this.heap
                 : this.box,
-        g = this.gathered(roleColor(role, engines), list.length, mesh);
+        g = this.gathered(roleColor(role, engines, ore), list.length, mesh);
       for (const p of list)
         put(
           g,
@@ -213,7 +225,7 @@ export class WorkLayer {
       this.items.set(
         m,
         this.gathered(
-          materialColor(m, plan.era, works?.mine?.what ?? null),
+          materialColor(m, plan.era, works?.mine?.what ?? null, plan.stuff),
           plan.people.length * 2,
           this.box,
           1,
@@ -227,14 +239,25 @@ export class WorkLayer {
       sacks: this.gathered(materialColor("cloth", plan.era), HEAP_MOST.sacks),
       logs: this.gathered(materialColor("wood", plan.era), HEAP_MOST.logs, this.wheel),
       stones: this.gathered(materialColor("stone", plan.era), HEAP_MOST.stones),
-      ore: this.gathered(materialColor("rock", plan.era, mined), HEAP_MOST.ore, this.heap),
+      ore: this.gathered(
+        materialColor("rock", plan.era, mined, plan.stuff),
+        HEAP_MOST.ore,
+        this.heap,
+      ),
       spots,
       k: figure.scale,
     };
     this.heapsShown = "";
     // The mine, the derrick and the factory, each facing the village.
     const facing = (p: { x: number; z: number }) => Math.atan2(-p.x, -p.z);
-    if (works?.mine) this.place(minePieces(works.mine), works.mine, facing(works.mine), engines);
+    if (works?.mine)
+      this.place(
+        minePieces(works.mine),
+        works.mine,
+        facing(works.mine),
+        engines,
+        materialColor("rock", plan.era, "ore", plan.stuff),
+      );
     if (works?.well) this.place(wellPieces(), works.well, facing(works.well), true);
     if (works?.factory) this.place(factoryPieces(), works.factory, facing(works.factory), true);
     this.cart =
@@ -297,6 +320,9 @@ export class WorkLayer {
         for (const p of minePieces(works.mine)) if (p.role === "chimney") tall(works.mine, p);
       if (works?.factory)
         for (const p of factoryPieces()) if (p.role === "chimney") tall(works.factory, p);
+      // (The furnace by the diggings, where its works smelt their own ore: Phase 51 M213.)
+      const furnace = plan.stuff?.ore ? furnaceOf(works?.mine) : null;
+      if (furnace) sources.push({ ...furnace.top, dark: 1 });
       if (sources.length) {
         const count = sources.reduce((a, s) => a + (s.dark > 0.5 ? 6 : 4), 0);
         this.smoke = {

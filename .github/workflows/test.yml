@@ -325,6 +325,13 @@ jobs:
       - run: npm run gate:50 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # Phase 51 M213 (things seen being made: the furnace by a town's diggings roaring as one of
+      # its diggers works the bellows, the copper carried to the yard and from it to the forge, the
+      # day's tools hung on the rack before the smithy, one tapped where it hangs and traced from its
+      # ore to the smith who made it).
+      - run: npm run gate:51 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

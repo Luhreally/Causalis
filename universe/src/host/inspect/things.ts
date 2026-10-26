@@ -11,6 +11,7 @@
 import {
   FEMALE,
   FOODS,
+  G,
   GOODS,
   GOOD_MATTER,
   HOME_MADE,
@@ -27,6 +28,7 @@ import {
   handOf,
   lifeOf,
   loreOf,
+  marketGoodRef,
   populationContext,
   toolMetal,
   type Agent,
@@ -509,5 +511,83 @@ export function thingPage(world: World, ref: string): PageModel {
     tabs: [{ id: "overview", name: "Overview", blocks }],
     followable: false,
     year: now,
+  };
+}
+
+/**
+ * A thing made at a town's workshop on a day (`made:<town>:<day>:<trade>:<seat>:<n>:<form>`, Phase
+ * 51 M213): the n-th its maker of that trade and seat set out that day, tapped where it lies — a
+ * smith's tool on the rack before the smithy — what it is, who made it and where, how good, and its
+ * chain from the ground to where it lies.
+ */
+export function madePage(world: World, ref: string): PageModel {
+  const parts = ref.slice("made:".length).split(":"),
+    form = parts.pop() ?? "tool",
+    n = Number(parts.pop()),
+    seat = Number(parts.pop()),
+    trade = parts.pop(),
+    day = Number(parts.pop()),
+    town = parts.join(":"),
+    s = populationContext(world).settlements.get(town as Ref);
+  if (!s || trade !== "smith" || !Number.isFinite(day) || !Number.isFinite(seat))
+    throw new Error(`no made thing ${ref}`);
+  const year = Math.floor(day / 365),
+    mk = toolMade(world, s.cell, `made:${town}:${day}:${seat}:${n}`, year, false, town, seat),
+    name = `${article(mk.stuff)} ${mk.stuff} ${form}`,
+    on = `day ${(day % 365) + 1} of year ${year}`;
+  return {
+    ref,
+    kind: "thing",
+    icon: "🔨",
+    title: sentence(name),
+    subtitle: [
+      "Hung on the rack by ",
+      ...(mk.workshop.ref ? [link(mk.workshop.name, mk.workshop.ref)] : [mk.workshop.name]),
+    ],
+    color: null,
+    place: null,
+    stats: [stat("Made", on), stat("Quality", mk.grade)],
+    tabs: [
+      {
+        id: "overview",
+        name: "Overview",
+        blocks: [
+          {
+            type: "facts",
+            rows: [
+              stat("Made in", [landLink(world, s.cell)]),
+              stat("On", on),
+              stat("By", mk.maker ? makerWords(world, mk.maker, "anvil") : "a smith"),
+              stat(
+                "At",
+                mk.workshop.ref
+                  ? [link(mk.workshop.name, mk.workshop.ref)]
+                  : sentence(mk.workshop.name),
+              ),
+              stat("Its quality", `${mk.grade} (${mk.quality} of 100)`),
+            ],
+          },
+          {
+            type: "list",
+            title: "From the ground to the rack",
+            items: mk.chain.map((l) => item(l)),
+          },
+          {
+            type: "text",
+            lines: [
+              [
+                "From the rack it goes to the market of ",
+                landLink(world, s.cell),
+                ", where its people come for ",
+                link("their tools", marketGoodRef(s.cell, G.tools)),
+                ".",
+              ],
+            ],
+          },
+        ],
+      },
+    ],
+    followable: false,
+    year: yearNow(world),
   };
 }

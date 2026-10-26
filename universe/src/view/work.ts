@@ -8,7 +8,7 @@
 // are going and what they do there (the view's routine, never history); where the mine is
 // and what it digs, from the land's own works.
 import { finish, hashString, mix } from "../kernel/index.ts";
-import type { VillagePlan } from "../bridge/index.ts";
+import type { TownStuff, VillagePlan } from "../bridge/index.ts";
 
 type Rgb = readonly [number, number, number];
 
@@ -35,6 +35,8 @@ export const CARRIES = [
   "bier",
   // The hunt's kill across the shoulders, its legs hanging (Phase 47 M209).
   "kill",
+  // Bars of metal drawn from the furnace, or taken from the yard to the forge (Phase 51 M213).
+  "metal",
 ] as const;
 export type Carry = (typeof CARRIES)[number];
 
@@ -54,6 +56,8 @@ export const MATERIALS = [
   // The hunt's kill (Phase 47 M209): its hide, and its hooves and muzzle.
   "hide",
   "hoof",
+  // Smelted metal, in its own colour (Phase 51 M213).
+  "metal",
 ] as const;
 export type Material = (typeof MATERIALS)[number];
 
@@ -73,17 +77,24 @@ export function toolHead(era: VillagePlan["era"]): Rgb {
   }
 }
 
-/** The colour of each material (a tool's head by the era; ore by what the mine digs). */
+/**
+ * The colour of each material: a tool's head of what the town's tools are made of (its land's own
+ * stone, or its metal: Phase 51 M213), else by the era; ore by what the mine digs (its own copper
+ * ore in its mineral's colour); metal in its own.
+ */
 export function materialColor(
   m: Material,
   era: VillagePlan["era"],
   what: "coal" | "ore" | "stone" | null = null,
+  stuff?: TownStuff,
 ): Rgb {
   switch (m) {
     case "wood":
       return [0.5, 0.34, 0.2];
     case "head":
-      return toolHead(era);
+      return stuff?.tool.colour ?? toolHead(era);
+    case "metal":
+      return stuff?.metal?.colour ?? [0.78, 0.45, 0.22];
     case "straw":
       return [0.9, 0.76, 0.34];
     case "cloth":
@@ -97,7 +108,7 @@ export function materialColor(
         ? [0.13, 0.12, 0.12]
         : what === "stone"
           ? [0.78, 0.76, 0.7]
-          : [0.58, 0.32, 0.2];
+          : (stuff?.ore?.colour ?? [0.58, 0.32, 0.2]);
     case "leather":
       return [0.46, 0.28, 0.16];
     case "water":
@@ -185,6 +196,11 @@ const ITEMS: Readonly<Record<Carry, readonly ItemPart[]>> = {
   bier: [],
   // (Across the shoulders, its body behind the neck; its head hanging down on one side, its
   // legs held together before them in the carrier's hands.)
+  // (Two bars held before them, one on the other.)
+  metal: [
+    P("metal", 0, 0.33, 0.12, 0.15, 0.05, 0.08),
+    P("metal", 0, 0.38, 0.12, 0.13, 0.045, 0.07),
+  ],
   kill: [
     P("hide", 0, 0.6, -0.06, 0.34, 0.15, 0.15),
     P("hide", -0.21, 0.52, -0.04, 0.09, 0.08, 0.08),
@@ -222,7 +238,14 @@ export type MinePiece = {
     | "chimney"
     | "track"
     | "step"
-    | "block";
+    | "block"
+    // The bloomery by the diggings (Phase 51 M213): its clay shaft, its mouth, its bellows, the
+    // charcoal and the ore heaped by it.
+    | "furnace"
+    | "mouth"
+    | "bellows"
+    | "charcoal"
+    | "orepile";
   readonly x: number;
   readonly y: number;
   readonly z: number;
@@ -232,6 +255,52 @@ export type MinePiece = {
   readonly yaw: number;
   readonly pitch: number;
 };
+
+/**
+ * Where the furnace by the diggings stands (Phase 51 M213), in metres about the mine's mouth, its
+ * front toward the town: its shaft, the mouth at its foot, where its smelter stands to work the
+ * bellows, where the ore and the charcoal are heaped.
+ */
+const FURNACE = {
+  x: 10,
+  z: 16,
+  mouth: 19.6,
+  stand: 22.6,
+  ore: { x: 1, z: 20 },
+  coal: { x: 19, z: 20 },
+};
+
+/** A point about the mine (metres, its front toward the town) in the town's metres. */
+function aboutMine(mine: { x: number; z: number }, u: number, v: number): { x: number; z: number } {
+  const yaw = Math.atan2(-mine.x, -mine.z),
+    c = Math.cos(yaw),
+    s = Math.sin(yaw);
+  return { x: mine.x + u * c + v * s, z: mine.z - u * s + v * c };
+}
+
+/**
+ * The furnace by a mine's diggings, where its works smelt their own ore (Phase 51 M213): its mouth,
+ * where its smelter stands (facing it), the top of its shaft (where it smokes), the ore heaped by
+ * it — in the town's metres. Null: a mine that digs no ore.
+ */
+export function furnaceOf(mine: Mine | null | undefined): {
+  readonly mouth: { readonly x: number; readonly z: number };
+  readonly stand: { readonly x: number; readonly z: number };
+  readonly ore: { readonly x: number; readonly z: number };
+  readonly top: { readonly x: number; readonly y: number; readonly z: number };
+  readonly yaw: number;
+} | null {
+  if (!mine || mine.what !== "ore" || mine.kind === "quarry") return null;
+  const top = aboutMine(mine, FURNACE.x, FURNACE.z);
+  return {
+    mouth: aboutMine(mine, FURNACE.x, FURNACE.mouth),
+    stand: aboutMine(mine, FURNACE.x, FURNACE.stand),
+    ore: aboutMine(mine, FURNACE.ore.x, FURNACE.ore.z + 1.5),
+    top: { ...top, y: 11.4 },
+    // (Facing the furnace from where they stand: back toward the mine.)
+    yaw: Math.atan2(mine.x, mine.z),
+  };
+}
 
 export function minePieces(mine: Mine): MinePiece[] {
   const out: MinePiece[] = [],
@@ -274,6 +343,17 @@ export function minePieces(mine: Mine): MinePiece[] {
     add("engine", -12, 4, -8, 9, 8, 7);
     add("chimney", -15.5, 10, -10.5, 1.8, 20, 1.8);
     add("track", 10, 0.15, -3, 22, 0.3, 1.6, 0.27);
+  }
+  if (furnaceOf(mine)) {
+    // The bloomery, at the size of its folk (drawn three times a person's): a clay shaft narrowing
+    // to its top, its mouth at its foot toward the town, the bellows by it; the charcoal heaped on
+    // one side, the ore on the other.
+    add("furnace", FURNACE.x, 3.6, FURNACE.z, 6.8, 7.2, 6.8);
+    add("furnace", FURNACE.x, 9.2, FURNACE.z, 4.8, 4, 4.8);
+    add("mouth", FURNACE.x, 1.1, FURNACE.z + 3.44, 2.4, 2, 0.2);
+    add("bellows", FURNACE.x - 3.8, 0.9, FURNACE.mouth + 0.6, 1.8, 1.2, 2.6);
+    add("charcoal", FURNACE.coal.x, 1.4, FURNACE.coal.z, 7.2, 2.8, 7.2);
+    add("orepile", FURNACE.ore.x, 1.2, FURNACE.ore.z, 6.4, 2.4, 6.4);
   }
   return out;
 }

@@ -4,7 +4,7 @@
 // bronze one of copper and tin, a steel one of iron and a little carbon — and each
 // material's sheen (metals bright, wood and cloth matte). All of it presentation.
 import { finish, hashString, mix } from "../kernel/index.ts";
-import type { VillagePlan } from "../bridge/index.ts";
+import type { TownStuff, VillagePlan } from "../bridge/index.ts";
 import type { Carry, Material } from "./work.ts";
 
 type Rgb = readonly [number, number, number];
@@ -150,17 +150,25 @@ export function metalOf(
   }
 }
 
-/** A carried thing in words, with what it is made of where that is worth telling. */
+/**
+ * A carried thing in words, with what it is made of where that is worth telling (by what the
+ * town's things are made of where its plan says it: Phase 51 M213).
+ */
 export function carryWords(
   carry: Carry,
   era: VillagePlan["era"],
   what: "coal" | "ore" | "stone" | null = null,
   metal?: VillagePlan["metal"],
+  stuff?: TownStuff,
 ): string {
-  const m = metalOf(era, metal);
+  const m = stuff ? { name: stuff.tool.name, of: stuff.tool.of } : metalOf(era, metal);
   switch (carry) {
     case "tool":
       return `a ${m.name}-headed tool (${m.name}: ${m.of})`;
+    case "metal":
+      return stuff?.metal
+        ? `bars of ${stuff.metal.name}${stuff.ore ? `, smelted from ${stuff.ore.name} with ${stuff.ore.fuel}` : ""}`
+        : "bars of metal";
     case "sheaf":
       return "sheaves from the harvest";
     case "sack":
@@ -174,7 +182,9 @@ export function carryWords(
         ? "a load of coal (the buried forests of the deep ages)"
         : what === "stone"
           ? "cut stone"
-          : "a load of ore (copper in its rock, to be smelted)";
+          : stuff?.ore
+            ? `a load of ${stuff.ore.name} (copper in its rock, to be smelted)`
+            : "a load of ore (copper in its rock, to be smelted)";
     case "pack":
       return "a trader's pack";
     case "staff":
@@ -215,4 +225,5 @@ export const SHEEN: Readonly<Record<Material, { gloss: number; metal: boolean }>
   clay: { gloss: 0.25, metal: false },
   hide: { gloss: 0.08, metal: false },
   hoof: { gloss: 0.4, metal: false },
+  metal: { gloss: 0.7, metal: true },
 };

@@ -26,6 +26,8 @@ import {
   METALS,
   ORES,
   STONES,
+  SUBSTANCE,
+  SUBSTANCES,
   article,
   civic,
   designWords,
@@ -54,7 +56,7 @@ import {
   townsOf,
   type ToolMetal,
 } from "../sim/index.ts";
-import type { Block, Line, Span } from "../bridge/index.ts";
+import type { Block, Line, Span, TownStuff } from "../bridge/index.ts";
 import { bedrockOf } from "./inspect/ground.ts";
 import { rxnRef, substRef } from "./inspect/matter.ts";
 import { landLink, landTitle, realmLink, townLink } from "./inspect/names.ts";
@@ -292,6 +294,25 @@ function economyOre(
   kind: string,
   near = "a few days' walk off",
 ): Line[] | null {
+  const o = economyOreOf(world, cell, kind);
+  if (!o) return null;
+  return [
+    oreLine(world, o.ore, o.cell, o.deposit, o.cell !== cell ? near : null),
+    smeltLine(world, o.ore, o.lie, o.cell),
+  ];
+}
+
+/** A metal's ore by the economy's reach: what it is, how it lies, whose land, its deposit. */
+function economyOreOf(
+  world: World,
+  cell: number,
+  kind: string,
+): {
+  readonly ore: Ore;
+  readonly lie: OreLie;
+  readonly cell: number;
+  readonly deposit: string | null;
+} | null {
   const ctx = populationContext(world),
     o = landOre(ctx, cell, kind);
   if (!o) return null;
@@ -302,11 +323,7 @@ function economyOre(
         ? "vent"
         : "surface",
     ore = ORES[kind]?.[lie] ?? ORES[kind]?.deposit;
-  if (!ore) return null;
-  return [
-    oreLine(world, ore, o.cell, deposit, o.cell !== cell ? near : null),
-    smeltLine(world, ore, lie, o.cell),
-  ];
+  return ore ? { ore, lie, cell: o.cell, deposit } : null;
 }
 
 /** Copper brought down the road (the land it came from most last year), and where that land dug it. */
@@ -335,7 +352,10 @@ function craftAt(world: World, cell: number, work: "tools" | "clothing" | "potte
   return Math.min(1, loreOf(world).effect(cell, work));
 }
 
-/** A tool's head, by the metal its land worked it of in the year it was made. */
+/**
+ * A tool's head, by the metal its land worked it of in the year it was made (`seat`: made by the
+ * one who held that seat at the trade, Phase 51 M213 — a tool hung on the smithy's rack).
+ */
 export function toolMade(
   world: World,
   cell: number,
@@ -343,6 +363,7 @@ export function toolMade(
   year: number,
   home: boolean,
   town?: string | null,
+  seat?: number,
 ): Made {
   const metal: ToolMetal = toolMetal(populationContext(world), cell, year),
     t = town
@@ -392,7 +413,11 @@ export function toolMade(
   }
   const works = workshopOf(world, t?.ref ?? null, ["factory"], year),
     smithy = works ?? workshopOf(world, t?.ref ?? null, ["smithy", "workshop"], year),
-    maker = makerOf(world, cell, t, works ? "hand at the works" : "smith", key, year),
+    trade = works ? "hand at the works" : "smith",
+    maker =
+      seat === undefined
+        ? makerOf(world, cell, t, trade, key, year)
+        : makerAt(world, cell, t, trade, seat, year),
     m = METALS[metal as Metal],
     quality = qualityOf(m, craft + (works ? 0.3 : 0), maker.years);
   chain.push([
@@ -411,6 +436,64 @@ export function toolMade(
     maker,
     workshop: smithy ?? { name: `a smith's hearth${t ? ` in ${t.name}` : ""}`, ref: null },
     chain,
+  };
+}
+
+// —— A town's stuff, as its scene draws it ——————————————————————————————————————————————
+
+/** A substance's colour (grey for one not known). */
+function substColour(id: string): Rgb {
+  return SUBSTANCES[SUBSTANCE[id] ?? -1]?.colour ?? [0.5, 0.5, 0.5];
+}
+
+/** Where a land's metal of a kind comes from, in a few words: its own ore, a neighbour's, the road's. */
+function metalFrom(world: World, cell: number, kind: "copper" | "iron" | "tin"): string {
+  const o = economyOreOf(world, cell, kind);
+  if (o)
+    return o.cell === cell
+      ? `${o.ore.name} of its own ground`
+      : `${o.ore.name} dug a few days' walk off`;
+  const from = marketsOf(world)
+    .flows.filter((f) => f.to === cell && f.good === G.copper)
+    .sort((a, b) => b.count - a.count || a.from - b.from)[0]?.from;
+  return from === undefined
+    ? `${kind} bought in the market`
+    : `${kind} brought down the road from ${landTitle(world, from)}`;
+}
+
+/**
+ * What a town's things are made of this year, as its scene draws them (Phase 51 M213): its tools'
+ * heads, of its land's own stone or the metal it works, and how that came to it; the metal its
+ * smiths work; and the copper ore of its own ground, which its works dig and smelt by the
+ * diggings, burning charcoal of its land's wood.
+ */
+export function townStuff(world: World, cell: number, year: number): TownStuff {
+  const metal = toolMetal(populationContext(world), cell, year),
+    own = economyOreOf(world, cell, "copper"),
+    wood = landWood(world, cell),
+    ore =
+      own && own.cell === cell
+        ? { name: own.ore.name, colour: substColour(own.ore.mineral), fuel: `charcoal of ${wood}` }
+        : null;
+  if (metal === "stone") {
+    const { stone } = landStone(world, cell);
+    return {
+      tool: { name: stone.name, colour: stone.colour, of: `${stone.from}, knapped to an edge` },
+      metal: null,
+      ore,
+    };
+  }
+  const m = METALS[metal as Metal],
+    of =
+      metal === "iron" || metal === "steel"
+        ? `${metalFrom(world, cell, "iron")}, smelted to a bloom with charcoal of ${wood}`
+        : metal === "bronze"
+          ? `${metalFrom(world, cell, "copper")} with a tenth of tin (${metalFrom(world, cell, "tin")})`
+          : `${metalFrom(world, cell, "copper")}, smelted with charcoal`;
+  return {
+    tool: { name: metal, colour: m.colour, of: `${of}; ${m.hand}` },
+    metal: { name: metal, colour: m.colour },
+    ore,
   };
 }
 

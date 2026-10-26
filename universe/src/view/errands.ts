@@ -28,6 +28,7 @@ import { HARVEST, SOWING, WINTER, restDay } from "./seasons.ts";
 import { REAPERS_AT, fieldsNow, pulledOn, reapingOn, stookedOn, wateredOn } from "./fields.ts";
 import { HUNT_PARTY, huntOn } from "./hunt.ts";
 import { traderSeat, tripOn } from "./trade.ts";
+import { furnaceOf } from "./work.ts";
 
 const DAY = 86_400,
   YEAR = 365 * DAY;
@@ -306,6 +307,22 @@ export function beside(store: Store, seat: number, gap = 1.4, back = 0.6, row = 
     across = ((seat % row) - (row - 1) / 2) * gap,
     out = back + Math.floor(seat / row) * gap;
   return { x: store.door.x + c * across - s * out, z: store.door.z - s * across - c * out };
+}
+
+/**
+ * The rack against a smithy's front, past the end of its smiths' row, where the day's new tools
+ * are hung (Phase 51 M213): its middle and which way its bar runs (its front's), and where one
+ * stands to hang a tool on it (metres from the town's middle).
+ */
+export function rackOf(store: Store): { x: number; z: number; yaw: number; stand: Point } {
+  const c = Math.cos(store.yaw),
+    s = Math.sin(store.yaw),
+    across = 9.5,
+    at = (out: number): Point => ({
+      x: store.door.x + c * across - s * out,
+      z: store.door.z - s * across - c * out,
+    });
+  return { ...at(-1), yaw: store.yaw, stand: at(1.2) };
 }
 
 /** A piece of a store's heap: its middle (metres from the town's), its size (metres), how it lies. */
@@ -605,6 +622,8 @@ export type RoleKind =
   | "cut"
   | "quarry"
   | "mine"
+  // At the furnace by the diggings, smelting its own ore (Phase 51 M213).
+  | "smelt"
   | "smith"
   | "workshop"
   | "forage"
@@ -639,6 +658,7 @@ export const ROLE_WORDS: Readonly<Record<RoleKind, string>> = {
   cut: "felling timber",
   quarry: "cutting stone",
   mine: "in the mine",
+  smelt: "smelting ore at the furnace",
   smith: "at the forge",
   workshop: "at the workshop",
   forage: "foraging in the wild",
@@ -841,7 +861,7 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
       const t = p.trade;
       if (!t || !working(i)) return;
       if (t.kind === "smith") {
-        if (!oreIn) return;
+        if (!oreIn || plan.metal === "stone") return;
         kept.add(i);
         sit(i, "smith", 0);
         return;
@@ -925,6 +945,18 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
     plan.people.forEach((p, i) => {
       if ((kinds[i] === "firewood" || kinds[i] === "mend") && draws[i]!(17) < 0.6) put(i, true);
     });
+  // One of its diggers at the furnace by the diggings, where its works smelt their own ore (Phase 51
+  // M213): the one the day draws, on a working day not lean (none digging today, a crafter).
+  if (!lean && plan.stuff?.ore && furnaceOf(mine)) {
+    const first = (from: readonly number[]) =>
+      from.reduce((a, i) => (a < 0 || draws[i]!(43) < draws[a]!(43) ? i : a), -1);
+    let smelter = first(kinds.flatMap((k, i) => (k === "mine" ? [i] : [])));
+    if (smelter < 0) {
+      smelter = first(crafters);
+      if (smelter >= 0) crafters.splice(crafters.indexOf(smelter), 1);
+    }
+    if (smelter >= 0) kinds[smelter] = "smelt";
+  }
   // (Where the willing were too few to keep the yard, the rest of the crafters fell and cut for it.)
   while (crafters.length && fellers * 4.5 < wood - 2.25) {
     kinds[crafters.shift()!] = "cut";
@@ -960,7 +992,7 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
       kiln = d < 0.75 && !potters ? room("kiln", kilns.length, from, POTTERS) : -1,
       shop = room("workshop", shops.length, from, SHOP_HANDS);
     if (lean) kinds[i] = "forage";
-    else if (oreIn && d < 0.5 && !smiths) sit(i, "smith", 0);
+    else if (oreIn && d < 0.5 && !smiths && plan.metal !== "stone") sit(i, "smith", 0);
     else if (kiln >= 0) sit(i, "kiln", kiln);
     else if (shop >= 0) sit(i, "workshop", shop);
     else kinds[i] = "workshop";

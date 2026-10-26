@@ -335,6 +335,8 @@ export class VillagePanel {
     era: VillagePlan["era"];
     what: "coal" | "ore" | "stone" | null;
     metal?: VillagePlan["metal"];
+    /** What its things are made of (Phase 51 M213). */
+    stuff?: VillagePlan["stuff"];
   } = {
     era: undefined,
     what: null,
@@ -356,7 +358,13 @@ export class VillagePanel {
         m.carry === "tool" && tool
           ? tool
           : m.carry
-            ? carryWords(m.carry, this.works.era, this.works.what, this.works.metal)
+            ? carryWords(
+                m.carry,
+                this.works.era,
+                this.works.what,
+                this.works.metal,
+                this.works.stuff,
+              )
             : "",
       why =
         m.why && m.activity !== ACTIVITY.sheltering

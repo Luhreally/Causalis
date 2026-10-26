@@ -41,7 +41,7 @@ import {
   type Funeral,
   type Graveyard,
 } from "./graveyard.ts";
-import type { Carry } from "./work.ts";
+import { furnaceOf, type Carry } from "./work.ts";
 import { hashText, unitOf } from "./draws.ts";
 import { FLOCK_HANDS, herderAt, keepsFlock } from "./flock.ts";
 import type { TownTrade } from "../bridge/index.ts";
@@ -70,6 +70,7 @@ import {
   leanOn,
   monthsOf,
   oldOf,
+  rackOf,
   restDay,
   sceneOf,
   sitesOn,
@@ -1449,8 +1450,9 @@ const YARDS = new WeakMap<VillagePlan, Graveyard | null>();
 
 /**
  * A town's graveyard (Phase 43 M205; null: none of its dead told): just past its homes, off its
- * fields, its pasture, its road, its water and the ground its young drill on; its gate toward
- * the town, its rows running back from it, as many as its dead want.
+ * fields, its pasture, its road, its water, the ground its young drill on and its works (its mine
+ * and the furnace by it, its well, its factory: Phase 51 M213); its gate toward the town, its rows
+ * running back from it, as many as its dead want.
  */
 export function graveyardFor(plan: VillagePlan): Graveyard | null {
   if (YARDS.has(plan)) return YARDS.get(plan)!;
@@ -1476,7 +1478,10 @@ export function graveyardFor(plan: VillagePlan): Graveyard | null {
         return along < 0 && !plan.districts ? Math.hypot(p.x, p.z) : Math.abs(p.x * uz - p.z * ux);
       },
       drill = drillGround(plan),
-      drillWay = Math.atan2(drill.z, drill.x);
+      drillWay = Math.atan2(drill.z, drill.x),
+      works = [plan.works?.mine, plan.works?.well, plan.works?.factory].filter(
+        (w): w is NonNullable<typeof w> => !!w,
+      );
     let best = 0,
       bestScore = -Infinity;
     for (let k = 0; k < 24; k++) {
@@ -1494,7 +1499,9 @@ export function graveyardFor(plan: VillagePlan): Graveyard | null {
           (Math.hypot(mid.x - plan.pasture.x, mid.z - plan.pasture.z) < wide + plan.pasture.r
             ? 3
             : 0) +
-          (roadOver(mid) < wide ? 3 : 0),
+          (roadOver(mid) < wide ? 3 : 0) +
+          // (Over the works, their pit, sheds and furnace about them: put off far.)
+          works.filter((w) => Math.hypot(w.x - mid.x, w.z - mid.z) < wide + 48).length * 6,
         score =
           -over +
           Math.min(apart(a, fieldWay), 1.5) +
@@ -1786,6 +1793,19 @@ export function fellingNow(plan: VillagePlan, t: number): Felling {
  */
 /** What a town's smiths make at the forge (Phase 50 M212). */
 const SMITHED = ["sickle", "hoe", "axe", "knife", "spearhead", "plough share"] as const;
+
+/** What a smith makes at the forge on a day: one kind of tool all day (Phase 51 M213). */
+export function smithedOn(plan: VillagePlan, index: number, day: number): string {
+  return SMITHED[Math.floor(dayDraw(plan.people[index]!.ref, day)(41) * SMITHED.length)]!;
+}
+
+/** What a smith takes from the yard to work: the metal, or the copper and tin a bronze is cast of. */
+function metalIn(metal: string | null): string {
+  return metal === "bronze" ? "copper and tin" : metal === "steel" ? "iron" : (metal ?? "ore");
+}
+
+/** How a smith's words begin as they hang a new tool on the rack (the rack counts them by it). */
+export const HUNG = "Hanging the new ";
 
 /**
  * A smith at the forge, by the metal their land works: only the method changes — copper cast and
@@ -2869,8 +2889,34 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
         const mine = plan.works?.mine;
         if (!mine) return errandOf({ ...role, kind: "workshop" }, town, k);
         const stone = role.kind === "quarry",
-          what = mine.what === "coal" ? "coal" : "ore",
-          [u, v] = at2(8000, 9000);
+          // (Its own copper ore, named where its plan says it: Phase 51 M213.)
+          ore = mine.what === "ore" ? (plan.stuff?.ore ?? null) : null,
+          what = mine.what === "coal" ? "coal" : (ore?.name ?? "ore"),
+          [u, v] = at2(8000, 9000),
+          // (One of them at the furnace by the diggings today: the ore heaped by it, for it.)
+          furnace = ore && town.roles.some((r) => r.kind === "smelt") ? furnaceOf(mine) : null;
+        if (!stone && furnace)
+          return [
+            {
+              to: clearSpot(ground, { x: mine.x + (u - 0.5) * 20, z: mine.z + (v - 0.5) * 20 }),
+              carry: "tool",
+              why: "To the mine",
+            },
+            {
+              flex: true,
+              hours: 2.5,
+              min: 0.5,
+              task: "dig",
+              carry: "tool",
+              why: `Digging ${what}`,
+            },
+            {
+              to: clearSpot(ground, furnace.ore),
+              carry: "ore",
+              why: `Bringing the ${what} to the furnace`,
+            },
+            { hours: 0.08, task: "load", carry: "ore", why: "Heaping it by the furnace" },
+          ];
         return [
           {
             to: clearSpot(ground, { x: mine.x + (u - 0.5) * 20, z: mine.z + (v - 0.5) * 20 }),
@@ -2901,12 +2947,57 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
           },
         ];
       }
-      case "smith": {
-        const anvil = clearSpot(ground, beside(spots.smithy, Math.max(0, role.seat))),
-          // (What they make today, of the metal their land works: Phase 50 M212.)
-          form = SMITHED[Math.floor(draw(41) * SMITHED.length)]!;
+      // At the furnace by the diggings (Phase 51 M213): charged with the ore its diggers heap by it
+      // and charcoal, the bellows worked all morning, the copper drawn and carried to the yard.
+      case "smelt": {
+        const f = furnaceOf(plan.works?.mine),
+          ore = plan.stuff?.ore;
+        if (!f || !ore) return errandOf({ ...role, kind: "mine" }, town, k);
+        const stand = clearSpot(ground, f.stand);
         return [
-          { to: yard.door, carry: null, why: `To ${yard.words} for ore` },
+          { to: stand, carry: null, why: "Out to the furnace by the diggings" },
+          {
+            hours: 0.15,
+            task: "load",
+            carry: null,
+            face: f.yaw,
+            why: `Charging the furnace with ${ore.name} and ${ore.fuel}`,
+          },
+          {
+            flex: true,
+            hours: 3,
+            min: 0.5,
+            task: "tend",
+            carry: null,
+            face: f.yaw,
+            why: "Working the bellows, the furnace roaring",
+          },
+          {
+            hours: 0.12,
+            task: "load",
+            carry: "metal",
+            face: f.yaw,
+            why: "Drawing the copper from the furnace",
+          },
+          { to: yard.door, carry: "metal", why: `Carrying the copper to ${yard.words}` },
+          {
+            hours: 0.08,
+            task: "load",
+            carry: "metal",
+            why: `Stacking the copper in ${yard.words}`,
+            effect: { kind: "ore", amount: 1 },
+          },
+        ];
+      }
+      case "smith": {
+        const anvil = clearSpot(ground, beside(spots.smithy, Math.max(0, role.seat), 2.2)),
+          // (What they make today, of the metal their land works: Phase 50 M212; the bars they
+          // take from the yard, the new tool hung on the rack before the smithy: Phase 51 M213.)
+          form = smithedOn(plan, index, day),
+          metal = plan.stuff?.metal?.name ?? null,
+          rack = rackOf(spots.smithy);
+        return [
+          { to: yard.door, carry: null, why: `To ${yard.words} for ${metalIn(metal)}` },
           {
             hours: 0.06,
             task: "load",
@@ -2914,7 +3005,11 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
             why: takingToForge(plan.metal),
             effect: { kind: "ore", amount: -1 },
           },
-          { to: anvil, carry: "ore", why: `Carrying the ore to ${spots.smithy.words}` },
+          {
+            to: anvil,
+            carry: metal ? "metal" : "ore",
+            why: `Carrying the ${metalIn(metal)} to ${spots.smithy.words}`,
+          },
           {
             flex: true,
             hours: 2.5,
@@ -2924,12 +3019,17 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
             face: spots.smithy.yaw,
             why: forging(plan.metal, form),
           },
-          { to: granary.door, carry: "tool", why: `Bringing the new tools to ${granary.words}` },
+          {
+            to: clearSpot(ground, rack.stand),
+            carry: "tool",
+            why: `Taking the new ${form} to the rack`,
+          },
           {
             hours: 0.06,
             task: "load",
             carry: "tool",
-            why: "Storing the new tools",
+            face: rack.yaw,
+            why: `${HUNG}${form} on the rack by ${spots.smithy.words}`,
             effect: { kind: "tools", amount: 1 },
           },
         ];
@@ -3207,6 +3307,25 @@ function legsOf(plan: VillagePlan, index: number, day: number, fine: boolean): L
     days.set(key, (legs = dayOf(plan, index, day, fine)));
   }
   return legs;
+}
+
+/**
+ * A person's day as its legs (the look tools, Phase 51 M213): from when to when (seconds into the
+ * day), what they are about, what they carry and at what task.
+ */
+export function legsTold(
+  plan: VillagePlan,
+  index: number,
+  day: number,
+  fine = true,
+): { from: number; to: number; why: string | null; carry: Carry | null; task: Task | null }[] {
+  return legsOf(plan, index, day, fine).map((l) => ({
+    from: l.from,
+    to: l.to,
+    why: l.why,
+    carry: l.carry,
+    task: l.task,
+  }));
 }
 
 /**
@@ -3538,6 +3657,57 @@ function dayBook(plan: VillagePlan, day: number): DayBook {
   if (days.size > 40) days.clear();
   days.set(day, book);
   return book;
+}
+
+/** The most tools a smithy's rack shows hung (the day's last made), and how far apart (metres). */
+export const RACK_MOST = 12;
+const RACK_GAP = 0.75;
+
+/** A tool hung on a smithy's rack: who made it (among those drawn), which of theirs today, what. */
+export type Hung = { readonly index: number; readonly n: number; readonly form: string };
+
+/**
+ * A smithy's rack at moment t (Phase 51 M213), where the town keeps its own smiths: where it
+ * stands, which way its bar runs, and the tools its smiths have hung on it today so far (the
+ * first at its left; cleared overnight, taken to market). Null: a town without smiths of its own,
+ * nor any at the forge today.
+ */
+export function rackNow(
+  plan: VillagePlan,
+  ground: Ground,
+  t: number,
+  fine = true,
+): { x: number; z: number; yaw: number; hung: Hung[] } | null {
+  const day = Math.floor(t / DAY),
+    s = t - day * DAY,
+    roles = townDay(plan, day, ground).roles;
+  if (!plan.people.some((p) => p.trade?.kind === "smith") && !roles.some((r) => r.kind === "smith"))
+    return null;
+  const hung: (Hung & { at: number })[] = [];
+  roles.forEach((r, i) => {
+    if (r.kind !== "smith") return;
+    let n = 0;
+    for (const leg of legsOf(plan, i, day, fine))
+      if (leg.why?.startsWith(HUNG) && leg.to <= s)
+        hung.push({ at: leg.to, index: i, n: n++, form: smithedOn(plan, i, day) });
+  });
+  hung.sort((a, b) => a.at - b.at || a.index - b.index);
+  const rack = rackOf(storeSpots(plan, ground, day * DAY).smithy);
+  return {
+    x: rack.x,
+    z: rack.z,
+    yaw: rack.yaw,
+    hung: hung.slice(-RACK_MOST).map(({ index, n, form }) => ({ index, n, form })),
+  };
+}
+
+/** Where the k-th tool hangs on a rack (metres), along its bar from its left. */
+export function rackSlot(
+  rack: { readonly x: number; readonly z: number; readonly yaw: number },
+  k: number,
+): Point {
+  const along = (k - (RACK_MOST - 1) / 2) * RACK_GAP;
+  return { x: rack.x + Math.cos(rack.yaw) * along, z: rack.z - Math.sin(rack.yaw) * along };
 }
 
 /**

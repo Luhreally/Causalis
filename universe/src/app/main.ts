@@ -228,6 +228,7 @@ import {
   type SandboxSpec,
   type StoresNow,
   dayTold,
+  legsTold,
   type DayLine,
 } from "../view/index.ts";
 
@@ -707,7 +708,21 @@ type Exposed = {
     turn: number;
     glowing: number;
     sparks: number;
+    smelting: boolean;
+    hung: number;
+    /** Where the smithy's rack stands (metres; Phase 51 M213). */
+    rack: { x: number; z: number } | null;
   } | null;
+  /** Where each tool hung on the smithy's rack stands on the screen (Phase 51 M213). */
+  rackOnScreen?: () => { x: number; y: number; form: string }[];
+  /** One of those drawn: their day's legs, today (Phase 51 M213). */
+  legs?: (index: number) => {
+    from: number;
+    to: number;
+    why: string | null;
+    carry: string | null;
+    task: string | null;
+  }[];
   /** What struck the town watched as drawn (Phase 42 M201): its homes alight, smoking, in dust; the ground shaking; who is at its fires, by what. */
   /** The god's wonders in a town seen near as drawn (M201): each, where it stands (metres). */
   wonders?: () => { kind: string; x: number; z: number }[];
@@ -4019,6 +4034,7 @@ async function runPlanetPage(): Promise<void> {
       era: plan.era,
       what: plan.works?.mine?.what ?? null,
       ...(plan.metal ? { metal: plan.metal } : {}),
+      ...(plan.stuff ? { stuff: plan.stuff } : {}),
     };
   };
   // The war about the town (Phase 40 M204): of the world's wars, the one its year brings to it now —
@@ -4118,8 +4134,19 @@ async function runPlanetPage(): Promise<void> {
   };
   // A tap in the village: someone, else a beast (its lineage and what it is doing), else no one.
   const tapVillage = (x: number, y: number) => {
-    const i = village.pick(x, y);
+    // A tool hung on the smithy's rack (Phase 51 M213): its page, from the ground to the rack —
+    // tapped right on it, though its smiths stand before it; near it, if no one is nearer.
+    const on = plan ? village.rackItemAt(x, y, 12) : null,
+      i = on ? null : village.pick(x, y);
     if (i !== null) return selectPerson(i);
+    const hung = on ?? (plan ? village.rackItemAt(x, y) : null);
+    if (hung && plan) {
+      selectPerson(null);
+      void pageWindow.open(
+        `made:${plan.ref}:${hung.day}:smith:${plan.people[hung.index]?.trade?.seat ?? 0}:${hung.n}:${hung.form}`,
+      );
+      return;
+    }
     // Visitors from another star (M134): their landing, their embassy's latest, or their raid;
     // the eye goes down to them, near enough to see them among the people.
     const visitors = village.pickVisitors(x, y);
@@ -5749,6 +5776,9 @@ async function runPlanetPage(): Promise<void> {
   exposed.bubblesNow = () => (scale === "village" ? village.bubbles() : []);
   exposed.peopleNow = () => (scale === "village" ? village.peopleNow() : []);
   exposed.trades = () => (scale === "village" ? village.tradesNow() : null);
+  exposed.rackOnScreen = () => (scale === "village" ? village.rackOnScreen() : []);
+  exposed.legs = (i: number) =>
+    scale === "village" && plan ? legsTold(plan, i, Math.floor(now() / 86_400)) : [];
   exposed.felling = () => (scale === "village" ? village.fellingShown() : null);
   exposed.graveyard = (days = 30) => (scale === "village" ? village.graveyardShown(days) : null);
   exposed.fields = () => (scale === "village" ? village.fieldsShown() : null);

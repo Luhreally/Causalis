@@ -152,6 +152,30 @@ export type TownTrade = {
   readonly in: readonly TradeGood[];
 };
 
+/**
+ * What a town's things are made of this year, as its scene draws them and its people's words tell
+ * them (Phase 51 M213): its tools' heads, of its land's own stone or the metal it works, and how
+ * that came to it; the metal its smiths work (null: its tools still of stone); the copper ore of
+ * its own ground, which its works dig and smelt by the diggings, and the charcoal they burn (null:
+ * none of its own — its metal comes from a neighbour's ground or down the road).
+ */
+export type TownStuff = {
+  readonly tool: {
+    readonly name: string;
+    readonly colour: readonly [number, number, number];
+    readonly of: string;
+  };
+  readonly metal: {
+    readonly name: string;
+    readonly colour: readonly [number, number, number];
+  } | null;
+  readonly ore: {
+    readonly name: string;
+    readonly colour: readonly [number, number, number];
+    readonly fuel: string;
+  } | null;
+};
+
 /** One of the god's wonders in a village or town (Phase 42 M201). */
 export type Wonder = {
   readonly kind: "spring" | "shrine";
@@ -277,6 +301,8 @@ export type VillagePlan = {
   readonly era?: "forage" | "farm" | "metal" | "industry" | "modern";
   /** What its tools are headed with (Phase 15 M122: the land's best metal within reach). */
   readonly metal?: "stone" | "copper" | "bronze" | "iron" | "steel";
+  /** What its things are made of, and its own ore (Phase 51 M213). Absent: as the age has it. */
+  readonly stuff?: TownStuff;
   /** How it lives now (M86). Absent: a quiet day. */
   readonly life?: VillageLife;
   /**
