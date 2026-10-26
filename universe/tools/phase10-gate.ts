@@ -390,17 +390,22 @@ await page.waitForTimeout(1500);
       (await scale()) === "region" && land.battles >= 1,
       "a battle zoomed into was not in its land",
     );
-    // Where the land's battles are marked on the screen (under their labels).
+    // Where the land's battles are marked on the screen, by the eye as it is now (not under their
+    // names: a slow machine moves those a frame late, and the zoom toward the pointer carries the
+    // mark further off it each step). One battle followed all the way in, as a player would.
     const marks = () =>
-      k<{ x: number; y: number }[]>(
-        `[...document.querySelectorAll(".labels > *")].filter((e) => e.textContent.includes("A battle of")).map((l) => { const r = l.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.bottom + 14 }; })`,
-      );
+        k<{ ref: string; x: number; y: number }[]>("globalThis.causalis.battlesOnScreen()"),
+      followed = { ref: null as string | null };
     // Zoomed onto the battle: down on its field, to watch it fought (Phase 37 M186).
     await whileNot(
       async () => (await scale()) !== "region",
       async () => {
-        const at = (await marks())[0];
-        if (at) await page.mouse.move(at.x, at.y);
+        const on = await marks(),
+          at = on.find((m) => m.ref === followed.ref) ?? on[0];
+        if (at) {
+          followed.ref = at.ref;
+          await page.mouse.move(at.x, at.y);
+        }
         await page.mouse.wheel(0, -240);
         await page.waitForTimeout(60);
       },
@@ -428,7 +433,7 @@ await page.waitForTimeout(1500);
     await page.waitForTimeout(1500);
     const beside = async () => {
       const all = await marks(),
-        m = all[0];
+        m = all.find((o) => o.ref === followed.ref) ?? all[0];
       if (!m) return null;
       const size = await k<{ w: number; h: number }>("({ w: innerWidth, h: innerHeight })");
       for (let a = 0; a < 16; a++) {

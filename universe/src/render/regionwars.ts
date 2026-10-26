@@ -777,6 +777,24 @@ export class RegionWars {
     return best;
   }
 
+  /**
+   * Where each battle marked stands on the screen now, by the eye as it is (the look tools: a name
+   * over it is moved on a frame later, which a slow machine shows late).
+   */
+  battlesOnScreen(): { ref: string; x: number; y: number }[] {
+    const cam = this.stage.camera.camera!,
+      at = new pc.Vec3(),
+      out = new pc.Vec3(),
+      on: { ref: string; x: number; y: number }[] = [];
+    for (const m of this.marks) {
+      if (!m.battle) continue;
+      at.set(m.x, this.height(m.x, m.z) + 0.8, m.z);
+      cam.worldToScreen(at, out);
+      if (out.z > 0) on.push({ ref: m.ref, x: out.x, y: out.y });
+    }
+    return on;
+  }
+
   /** The host, battle, camp or garrison nearest a screen point, within `reach` (a finger's), its ref; or null. */
   pick(x: number, y: number, reach = 28, battles = false): string | null {
     const cam = this.stage.camera.camera!,

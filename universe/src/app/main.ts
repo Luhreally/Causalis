@@ -651,6 +651,8 @@ type Exposed = {
   warsDrawn?: () => number;
   /** The hosts and battles a land's map shows of the wars (M95), and whether the wars are known. */
   landWars?: () => { marches: number; battles: number; ships: number; known: boolean };
+  /** Where a land's battles stand on the screen now, by the eye as it is (none off the land's map). */
+  battlesOnScreen?: () => { ref: string; x: number; y: number }[];
   /** A land's wars in place now (M203): each host's doing and place, the fights about the turn, the clock slowed for one. */
   warsInPlace?: () => {
     marks: {
@@ -2051,6 +2053,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.warsDrawn = () =>
     scale === "globe" ? globeWars.drawn : scale === "region" ? regionWars.drawn : 0;
   exposed.landWars = () => ({ ...regionWars.shown, known: warsNow !== null });
+  exposed.battlesOnScreen = () => (scale === "region" ? regionWars.battlesOnScreen() : []);
   // What the armies drawn are made of now (M110): on the globe and in a land.
   exposed.armies = () => ({ globe: { ...globeWars.counts }, land: { ...regionWars.counts } });
   exposed.landMarks = () => regionWars.places();
