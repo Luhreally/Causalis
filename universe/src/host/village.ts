@@ -7,8 +7,17 @@
 // people's day is drawn from this plan by the view, and nothing flows back.
 import { YEAR, finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
 import type { Feast } from "../bridge/index.ts";
-import { WATER, cellRef, livingIn, type Species } from "../gen/index.ts";
-import { G, GOODS, HOME_LIFE, OCC, roofPitch } from "../rules/index.ts";
+import {
+  WATER,
+  cellRef,
+  cradleTongue,
+  livingIn,
+  personName,
+  tongueName,
+  tonguePersonName,
+  type Species,
+} from "../gen/index.ts";
+import { G, GOODS, HOME_LIFE, OCC, article, roofPitch } from "../rules/index.ts";
 import {
   actsOf,
   agentName,
@@ -17,6 +26,7 @@ import {
   blockAt,
   BLOCKS,
   citiesOf,
+  cultureOf,
   designsOf,
   grainLost,
   handOf,
@@ -68,6 +78,7 @@ import { townPlan } from "./town.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
 import { visitorsAt } from "./peoples.ts";
+import { makerAt, seatsOf, workshopOf } from "./chain.ts";
 import { peopleFigure } from "./folk.ts";
 
 /** Families the microscope watches in a village: a presentation budget, not a rule. */
@@ -414,6 +425,15 @@ export function villagePlan(
       taken = new Set(people.map((p) => p.home)),
       free = homes.map((_, i) => i).filter((i) => !taken.has(i)),
       homesFor = free.length ? free : homes.map((_, i) => i);
+    // Each named in its land's tongue, a family's name to each home (Phase 50 M212): the smith at
+    // the forge someone in particular, as the pages of its buildings and of the things its people
+    // hold name them.
+    const tongue = cultureOf(world).get(v.cell)?.tongue,
+      family = tongue ?? cradleTongue(ctx.culture),
+      familyOf = (home: number) =>
+        tongueName({ ...family, seed: family.seed ^ 0xf00d }, hashString(`${ref} home ${home}`)),
+      given = (key: number, sex: number) =>
+        tongue ? tonguePersonName(tongue, key, sex) : personName(ctx.culture, key, sex);
     for (let k = 0; k < more; k++) {
       const key = hashString(`folk ${ref} ${k}`),
         child = u(key, 1) < 0.18;
@@ -430,15 +450,47 @@ export function villagePlan(
           }
         }
       }
+      const home = homesFor[Math.floor(k / 4) % homesFor.length]!;
       people.push({
         ref: `folk:${ref}:${k}`,
-        name: `${FOLK_WORDS[occupation] ?? "One"} of ${v.name}`,
-        home: homesFor[Math.floor(k / 4) % homesFor.length]!,
+        name: `${given(key, (key >>> 5) & 1)} ${familyOf(home)}`,
+        role: `${(FOLK_WORDS[occupation] ?? "One").toLowerCase()} of ${v.name}`,
+        home,
         age: child ? 4 + Math.floor(u(key, 3) * 10) : 17 + Math.floor(u(key, 3) * 42),
         occupation,
         child,
         folk: true,
       });
+    }
+    // Its makers kept at their trades (Phase 50 M212): of its grown crafters not raising its
+    // buildings, as many as it keeps seats at each trade it has a place for — the forge where its
+    // land works metal, its kilns, its workshops — each the maker its buildings' pages name.
+    const crafting = people.filter(
+        (p) =>
+          p.folk &&
+          p.occupation === OCC.crafter &&
+          !p.child &&
+          Number(p.ref.slice(p.ref.lastIndexOf(":") + 1)) >= builders,
+      ),
+      trades = (["smith", "potter", "weaver"] as const).filter((kind) =>
+        kind === "smith"
+          ? toolMetal(ctx, v.cell) !== "stone" || !!workshopOf(world, ref, ["smithy"], now)
+          : !!workshopOf(world, ref, [kind === "potter" ? "kiln" : "workshop"], now),
+      );
+    let next = 0;
+    for (const kind of trades) {
+      const seats = Math.min(seatsOf(v), Math.floor(crafting.length / trades.length));
+      for (let seat = 0; seat < seats && next < crafting.length; seat++) {
+        const p = crafting[next++]!,
+          m = makerAt(world, v.cell, v, kind, seat, now);
+        people[people.indexOf(p)] = {
+          ...p,
+          name: m.name,
+          role: `${article(kind)} ${kind} of ${v.name}`,
+          trade: { kind, seat, years: m.years },
+          age: Math.max(p.age, 16 + m.years),
+        };
+      }
     }
   }
   return planOf(people);

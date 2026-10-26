@@ -252,6 +252,18 @@ export type VillagePlan = {
      * as full as it is, at its work — the view's, never history's.
      */
     folk?: boolean;
+    /** What one of the town's many is, said: "a crafter of Sairis" (Phase 50 M212). */
+    role?: string;
+    /**
+     * One of the town's makers, kept at their trade day on day (Phase 50 M212): a smith at the
+     * forge, a potter at the kilns, a weaver at the workshops — the seat they hold, named as the
+     * pages of its buildings name them, and their years at it.
+     */
+    trade?: {
+      readonly kind: "smith" | "potter" | "weaver";
+      readonly seat: number;
+      readonly years: number;
+    };
   }[];
   /** What it holds in store and how that flows (Phase 39 M198). Absent: a village's usual. */
   readonly stores?: TownStores;

@@ -816,6 +816,11 @@ export function hostPower(parts: readonly Part[]): number {
   );
 }
 
+/** One part of a design in words: "bronze swords", "leather armour", "on foot". */
+export function partWords(p: Part): string {
+  return realization(p.id).words(p.material);
+}
+
 /** A design in words: "bronze swords and leather armour, on foot"; "mud brick, flat roofs of packed earth, built around courtyards". */
 export function designWords(parts: readonly Part[]): string {
   const say = (role: Role) => {

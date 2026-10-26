@@ -217,8 +217,11 @@ export function houseFor(ctx: PopulationContext, cell: number): Part[] {
   );
 }
 
-/** The lands within two steps of a realm's lands, and whether any holds an ore. */
-function oreFor(ctx: PopulationContext, p: Polity, kind: string): number | null {
+/**
+ * The lands within two steps of a realm's lands, and whether any holds an ore: the first that does.
+ * (Read by the host's chain too, Phase 50 M212: where its host's metal was dug.)
+ */
+export function oreFor(ctx: PopulationContext, p: Polity, kind: string): number | null {
   const g = ctx.generated,
     seen = new Set<number>(p.members),
     ring = [...p.members];

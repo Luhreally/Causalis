@@ -19,7 +19,7 @@ import {
   warsOf,
   WAY_TRAITS,
 } from "../../sim/index.ts";
-import { designWords } from "../../rules/index.ts";
+import { hostWords } from "../chain.ts";
 import { governmentWords, principleName, standingWords } from "../../causal/index.ts";
 import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
@@ -110,7 +110,11 @@ export function realmPageModel(world: World, ref: string): PageModel {
             why: r.tithed ?? null,
           }),
           ...(host
-            ? [stat("Its host", [link(designWords(host.parts), host.ref)], { why: host.ref })]
+            ? [
+                stat("Its host", [link(hostWords(world, host.owner, host.parts), host.ref)], {
+                  why: host.ref,
+                }),
+              ]
             : []),
           // (The faith and the tongue of its seat: Phase 14 M117.)
           ...(() => {
@@ -501,7 +505,7 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
           stat("Of", [realmLink(world, realm)], { why: realm }),
           ...(design
             ? [
-                stat("Armed with", [link(designWords(design.parts), design.ref)], {
+                stat("Armed with", [link(hostWords(world, realm, design.parts), design.ref)], {
                   why: design.ref,
                 }),
               ]

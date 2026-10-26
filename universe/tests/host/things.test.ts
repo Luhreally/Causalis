@@ -113,7 +113,9 @@ test("a village watched: its workers carry their own tools, told as made where a
     ),
     tooled = plan.people.filter((p) => p.tool);
   assert.ok(tooled.length >= 1, "someone carries their own tool");
-  for (const p of tooled) assert.match(p.tool!, /^a [a-z]+ [a-z]+, made in year \d+$/);
+  // (Named for what it is made of — its land's own stone, or its metal — a pair of shears a pair.)
+  for (const p of tooled)
+    assert.match(p.tool!, /^(a|an|a pair of) [a-z]+ [a-z]+, made in year \d+$/);
 });
 
 test("natures in the god's hand, on their pages: a person's ways of being, a realm's ways, a beast's tameness", () => {

@@ -98,9 +98,11 @@ export {
   economyYear,
   installEconomy,
   metalYear,
+  oreFor as landOre,
   powerOf,
   toolMetal,
   whyNot,
+  type Ore as LandOre,
   type ToolMetal,
 } from "./economy/systems.ts";
 export {
@@ -422,6 +424,7 @@ export {
   houseFor,
   installDesigns,
   landMaterials,
+  oreFor as hostOre,
   type Design,
 } from "./design/design.ts";
 export {

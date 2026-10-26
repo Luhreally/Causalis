@@ -18,7 +18,7 @@ import {
   wildsOf,
   type War,
 } from "../sim/index.ts";
-import { designWords } from "../rules/index.ts";
+import { hostWords } from "./chain.ts";
 import type { BattleNear, BattleOutcome, BattleSideNear } from "../bridge/index.ts";
 import { hostKinds, realmArms } from "./arms.ts";
 import { realmColor } from "./colors.ts";
@@ -141,7 +141,7 @@ export function battleNear(world: World, ref: string): BattleNear | null {
               mount: parts.find((p) => p.role === "mount")?.id ?? "",
             })
           : null,
-        kit: parts ? designWords(parts) : "spears, on foot",
+        kit: parts ? hostWords(world, realm, parts) : "spears, on foot",
         ...(r && lore.get(r.seat, "gunpowder") ? { cannon: true } : {}),
       } satisfies BattleSideNear;
     },

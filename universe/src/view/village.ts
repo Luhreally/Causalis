@@ -25,7 +25,7 @@ import {
   type VillagePlan,
   type Wonder,
 } from "../bridge/index.ts";
-import { OCC } from "../rules/index.ts";
+import { OCC, article } from "../rules/index.ts";
 import { paceOf } from "./figure.ts";
 import { clearAt, clearOf, keepOut, route, villageGround, type Ground } from "./ground.ts";
 import { streetDoor } from "./streets.ts";
@@ -1784,6 +1784,39 @@ export function fellingNow(plan: VillagePlan, t: number): Felling {
  * in the way; else (a town watched growing, a day a frame) their work's one place, walked to
  * straight.
  */
+/** What a town's smiths make at the forge (Phase 50 M212). */
+const SMITHED = ["sickle", "hoe", "axe", "knife", "spearhead", "plough share"] as const;
+
+/**
+ * A smith at the forge, by the metal their land works: only the method changes — copper cast and
+ * its edge hammered hard, bronze poured into a mould, iron forged from the bloom, steel quenched.
+ */
+export function forging(metal: VillagePlan["metal"], form: string): string {
+  switch (metal) {
+    case "copper":
+      return `Casting a copper ${form}, hammering its edge hard`;
+    case "bronze":
+      return `Pouring a bronze ${form} in its mould`;
+    case "iron":
+      return `Forging ${article(form)} ${form} of iron from the bloom`;
+    case "steel":
+      return `Forging a steel ${form}, quenching it`;
+    default:
+      return "Forging tools from the ore";
+  }
+}
+
+/** A smith fetching what they work, by their land's metal. */
+function takingToForge(metal: VillagePlan["metal"]): string {
+  return metal === "bronze"
+    ? "Taking copper and tin to melt"
+    : metal === "copper"
+      ? "Taking copper to melt"
+      : metal === "iron" || metal === "steel"
+        ? "Taking iron to the forge"
+        : "Taking ore to forge";
+}
+
 function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Leg[] {
   const pace = paceOf(plan.body);
   const p = plan.people[index]!,
@@ -2869,14 +2902,16 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
         ];
       }
       case "smith": {
-        const anvil = clearSpot(ground, beside(spots.smithy, Math.max(0, role.seat)));
+        const anvil = clearSpot(ground, beside(spots.smithy, Math.max(0, role.seat))),
+          // (What they make today, of the metal their land works: Phase 50 M212.)
+          form = SMITHED[Math.floor(draw(41) * SMITHED.length)]!;
         return [
           { to: yard.door, carry: null, why: `To ${yard.words} for ore` },
           {
             hours: 0.06,
             task: "load",
             carry: null,
-            why: "Taking ore to forge",
+            why: takingToForge(plan.metal),
             effect: { kind: "ore", amount: -1 },
           },
           { to: anvil, carry: "ore", why: `Carrying the ore to ${spots.smithy.words}` },
@@ -2887,7 +2922,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
             task: "hammer",
             carry: null,
             face: spots.smithy.yaw,
-            why: "Forging tools from the ore",
+            why: forging(plan.metal, form),
           },
           { to: granary.door, carry: "tool", why: `Bringing the new tools to ${granary.words}` },
           {
@@ -2928,9 +2963,11 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
             face: shop?.yaw ?? null,
             why: mend
               ? "Mending tools and fences in the slack season"
-              : shop
-                ? `At their craft in ${shop.words}`
-                : "At their craft by the market",
+              : p.trade?.kind === "weaver"
+                ? `Weaving wool on the loom${shop ? ` in ${shop.words}` : ""}`
+                : shop
+                  ? `At their craft in ${shop.words}`
+                  : "At their craft by the market",
           },
         ];
       }

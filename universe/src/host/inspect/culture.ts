@@ -9,7 +9,8 @@ import {
   type Tongue,
 } from "../../gen/index.ts";
 import { DEITIES, beliefOf, designsOf, languagesOf, populationContext } from "../../sim/index.ts";
-import { GOODS, GOOD_MATTER, designWords } from "../../rules/index.ts";
+import { GOODS, GOOD_MATTER, designWords, partWords, type Part } from "../../rules/index.ts";
+import { armsMade, hostPartWords, hostWords } from "../chain.ts";
 import { goodHere, goodRef, howMadeHere, makeUpBlock, weight } from "./matter.ts";
 import { designMatter, realmSeat } from "./ground.ts";
 import { goodYearBlocks } from "./stores.ts";
@@ -17,7 +18,7 @@ import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, PageModel, Place, Row, Tab } from "../../bridge/index.ts";
 import { market } from "../planet.ts";
 import { realmColor } from "../colors.ts";
-import { count, eventsAbout, item, link, many, stat, yearNow } from "./words.ts";
+import { count, eventsAbout, item, link, many, sentence, stat, yearNow } from "./words.ts";
 import { faithLink, landLink, landTitle, languageLink, realmLink, spotOfLand } from "./names.ts";
 import { landPlace } from "./land.ts";
 import { peopleBlocks } from "./peoples.ts";
@@ -267,11 +268,25 @@ export function designPage(world: World, ref: string): PageModel {
         : ownerKind === "pol"
           ? realmLink(world, d.owner)
           : d.owner;
+  // A host's parts in its own land's stone, and each traced from the ground to the hand (Phase 50
+  // M212): where its metal was dug and smelted, by whom and where it was worked, how good.
+  const host = d.kind === "host",
+    words = (parts: readonly Part[]) =>
+      host ? hostWords(world, d.owner, parts) : designWords(parts),
+    // (One part alone: "bronze swords", "leather armour", "on foot".)
+    one = (p: Part) => (host ? hostPartWords(world, d.owner, p) : partWords(p)),
+    year = yearNow(world),
+    arms = host
+      ? d.parts.flatMap((p) => {
+          const made = armsMade(world, d.owner, p, year);
+          return made ? [{ p, made }] : [];
+        })
+      : [];
   return {
     ref: d.ref,
     kind: "design",
     icon: d.kind === "host" ? "🛡️" : d.kind === "works" ? "🏭" : "📐",
-    title: designWords(d.parts),
+    title: words(d.parts),
     subtitle: [DESIGN_KIND[d.kind], " — ", owner],
     color: null,
     place:
@@ -292,8 +307,13 @@ export function designPage(world: World, ref: string): PageModel {
           {
             type: "list",
             title: "What it is made of",
-            items: d.parts.map((p) => item(designWords([p]))),
+            items: d.parts.map((p) => item(one(p))),
           },
+          ...arms.map(({ p, made }): Block => ({
+            type: "list",
+            title: `${sentence(one(p))}: ${made.grade} (${made.quality} of 100)`,
+            items: made.chain.map((l) => item(l)),
+          })),
           // By weight, down to its substances (Phase 15 M125): stone of its land's own rock.
           ...(() => {
             const made = designMatter(world, d.parts, ownerCell ?? realmSeat(world, d.owner));

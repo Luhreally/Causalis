@@ -4152,7 +4152,13 @@ async function runPlanetPage(): Promise<void> {
     // (One of the town's many drawn for its crowd, Phase 39 M198, has no page: their card.)
     if (p.folk) {
       pageWindow.close();
-      villagePanel.showFolk(p.name, village.workToday(i));
+      villagePanel.showFolk(
+        p.name,
+        p.trade
+          ? `${p.role ?? p.trade.kind}, ${p.trade.years} years at the ${p.trade.kind === "smith" ? "anvil" : p.trade.kind === "potter" ? "wheel" : "loom"}`
+          : (p.role ?? null),
+        village.workToday(i),
+      );
       return;
     }
     void pageWindow.open(p.ref);

@@ -205,7 +205,9 @@ say(
 );
 now = await people();
 // (Sparks where a smith strikes at the anvil, if the town has ore to forge today.)
-const smiths = now.filter((p) => p.task === "hammer" && /Forging/.test(p.why ?? ""));
+const smiths = now.filter(
+  (p) => p.task === "hammer" && /^(Forging|Casting|Pouring)/.test(p.why ?? ""),
+);
 if (smiths.length && (worked?.smithies ?? 0) > 0) {
   let sparks = 0;
   for (let tries = 0; tries < 8 && !sparks; tries++) {

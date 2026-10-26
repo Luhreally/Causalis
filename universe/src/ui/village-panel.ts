@@ -306,7 +306,7 @@ export class VillagePanel {
    * One of the town's many drawn for its crowd (Phase 39 M198): not one history follows, but
    * living the town's day as its own people do — their work today.
    */
-  showFolk(name: string, today: string | null): void {
+  showFolk(name: string, role: string | null, today: string | null): void {
     this.view++;
     this.storesOpen = false;
     this.folkOpen = true;
@@ -314,12 +314,14 @@ export class VillagePanel {
     this.who.textContent = name;
     this.folkMore.replaceChildren();
     this.page.replaceChildren(
+      // (What they are: "a smith of Sairis, 27 years at the anvil", Phase 50 M212.)
+      ...(role ? [el("div", "fact folk-role", role[0]!.toUpperCase() + role.slice(1))] : []),
       ...(today ? [el("div", "fact", `Today: ${today}`)] : []),
       this.folkMore,
       el(
         "p",
         "muted",
-        "One of the town's many, drawn for its crowd: history counts them among its people but does not follow them by name. They live its day as its own people do.",
+        "One of the town's many, drawn for its crowd and named in its tongue: history counts them among its people but does not follow their lives. They live its day as its own people do.",
       ),
     );
     this.whyBox.replaceChildren();

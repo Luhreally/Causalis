@@ -92,6 +92,7 @@ export {
   OPEN_AIR_DRIVES,
   SEALED_DRIVES,
   designWords,
+  partWords,
   hostPower,
   performanceOf,
   realization,
@@ -197,6 +198,20 @@ export {
   type Rock,
   type Substance,
 } from "./matter.ts";
+export {
+  METALS,
+  ORES,
+  STONES,
+  article,
+  gradeOf,
+  keenestRock,
+  qualityOf,
+  type Edge,
+  type Metal,
+  type Ore,
+  type OreLie,
+  type Stone,
+} from "./stuffs.ts";
 export {
   AGE_ACTS,
   DAWN_WAYS,

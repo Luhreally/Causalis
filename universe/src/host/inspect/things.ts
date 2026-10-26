@@ -5,7 +5,9 @@
 // its people and its land's history, never read by the simulation and never in the world's
 // hash. Each thing was made in a year and wears out over its good's life, and then the next is
 // made — a tool of the metal its land knew that year; where the land's crafters could not make
-// enough, a slot is empty, and its page says why.
+// enough, a slot is empty, and its page says why. Each is traced from the ground to the hand
+// (Phase 50 M212, host/chain.ts): its stuff, where that was dug and smelted or grown, who made it
+// and where, and how good it is.
 import {
   FEMALE,
   FOODS,
@@ -33,9 +35,11 @@ import {
 } from "../../sim/index.ts";
 import { observer, type Household, type Person } from "../../causal/index.ts";
 import type { Block, Item, PageModel } from "../../bridge/index.ts";
-import { count, item, link, share, stat, yearNow } from "./words.ts";
+import { count, item, link, sentence, share, stat, yearNow } from "./words.ts";
 import { landLink, landTitle } from "./names.ts";
 import { goodHere, makeUpBlock, prinRef, rxnRef, substRef, weight } from "./matter.ts";
+import { article } from "../../rules/index.ts";
+import { clothMade, makerWords, potMade, toolMade, type Made } from "../chain.ts";
 
 /** The tools each trade that wears them out works with, and what each weighs (kg). */
 const TOOLS: Readonly<Partial<Record<number, readonly (readonly [string, number])[]>>> = {
@@ -54,7 +58,10 @@ const TOOLS: Readonly<Partial<Record<number, readonly (readonly [string, number]
 };
 
 /** Whoever holds things: a person met, or one of the people under the hand (`agent:<id>`). */
-export type Holder = Pick<Person, "ref" | "occupation" | "sex" | "birthYear" | "cell" | "alive">;
+export type Holder = Pick<
+  Person,
+  "ref" | "occupation" | "sex" | "birthYear" | "cell" | "alive" | "village"
+>;
 
 /** One of the people under the hand, as a holder of things. */
 export function agentHolder(w: Window, a: Agent): Holder {
@@ -65,6 +72,7 @@ export function agentHolder(w: Window, a: Agent): Holder {
     birthYear: a.birthYear,
     cell: w.cell,
     alive: true,
+    village: w.village as Ref,
   };
 }
 
@@ -85,6 +93,8 @@ export type Thing = {
   readonly homeMade: boolean;
   /** Why there is none (null: there is one). */
   readonly missing: string | null;
+  /** What it was made of, where from, by whom and where, how good (null: there is none). */
+  readonly making: Made | null;
 };
 
 /** A keyed share (0 … 1) of words: the same words, the same share. */
@@ -120,11 +130,13 @@ function slotThing(
   kg: number,
   life: number,
   cell: number,
-  name: (way: MakeUp) => string,
+  town: string | null,
+  name: (way: MakeUp, making: Made | null) => string,
 ): Thing {
   const now = yearNow(world),
     phase = keyed(`${holder}:${slot}`) * life,
-    made = Math.floor(phase + Math.floor((now - phase) / life) * life),
+    // (The year its turn came round, rounded up: never older than it lasts.)
+    made = Math.ceil(phase + Math.floor((now - phase) / life) * life),
     ctx = populationContext(world),
     way =
       good === "tools"
@@ -133,13 +145,21 @@ function slotThing(
     had = cover(world, cell, good),
     short = had < 1 && keyed(`${holder}:${slot}:short`) > had,
     homeMade = keyed(`${holder}:${slot}:home`) < homeShare(good, way.id),
-    goodName = GOODS.find((g) => g.id === good)!.name;
+    goodName = GOODS.find((g) => g.id === good)!.name,
+    key = `${holder}:${slot}`,
+    making = short
+      ? null
+      : good === "tools"
+        ? toolMade(world, cell, key, made, homeMade, town)
+        : good === "pottery"
+          ? potMade(world, cell, key, made, homeMade, town)
+          : clothMade(world, cell, key, made, way.id === "leather", homeMade, town);
   return {
     ref: `thing:${holder}:${slot}`,
     holder,
     slot,
     good,
-    name: name(way),
+    name: name(way, making),
     way,
     kg,
     made: short ? null : made,
@@ -149,6 +169,7 @@ function slotThing(
     missing: short
       ? `none: ${landTitle(world, cell)} had ${share(had)} of the ${goodName} it wanted last year`
       : null,
+    making,
   };
 }
 
@@ -162,8 +183,23 @@ export function personThings(world: World, p: Holder): Thing[] {
     out: Thing[] = [];
   for (const [slot, kg] of tools)
     out.push(
-      slotThing(world, p.ref, slot, "tools", kg, tools.length / WANTS.toolsPerWorker, cell, (w) =>
-        w.id === "stone" ? `a flint ${slot}` : `a ${w.id} ${slot}`,
+      slotThing(
+        world,
+        p.ref,
+        slot,
+        "tools",
+        kg,
+        tools.length / WANTS.toolsPerWorker,
+        cell,
+        p.village,
+        // (Named for what it is made of: its land's own stone, or the metal it knew then.)
+        (w, mk) => {
+          const stuff = w.id === "stone" ? (mk?.stuff ?? "flint") : w.id;
+          // (Shears are a pair.)
+          return slot.endsWith("s")
+            ? `a pair of ${stuff} ${slot}`
+            : `${article(stuff)} ${stuff} ${slot}`;
+        },
       ),
     );
   // (In the cold, a cloak besides; each garment then lasts the longer.)
@@ -176,7 +212,7 @@ export function personThings(world: World, p: Holder): Thing[] {
     wears = garments.length / WANTS.clothingPerPerson;
   for (const [slot, kg] of garments)
     out.push(
-      slotThing(world, p.ref, slot, "clothing", kg, wears, cell, (w) =>
+      slotThing(world, p.ref, slot, "clothing", kg, wears, cell, p.village, (w) =>
         w.id === "leather" ? `a leather ${slot}` : `a woven wool ${slot}`,
       ),
     );
@@ -190,7 +226,7 @@ export function householdThings(world: World, h: Household): Thing[] {
     pots = Math.max(1, alive),
     life = pots / (WANTS.potteryPerPerson * Math.max(1, alive));
   return Array.from({ length: pots }, (_, i) =>
-    slotThing(world, h.ref, `pot${i + 1}`, "pottery", i % 2 ? 5 : 3, life, h.cell, () =>
+    slotThing(world, h.ref, `pot${i + 1}`, "pottery", i % 2 ? 5 : 3, life, h.cell, h.village, () =>
       i % 2 ? "a storage jar" : "a cooking pot",
     ),
   );
@@ -394,7 +430,19 @@ export function thingPage(world: World, ref: string): PageModel {
             ]
           : [],
     known =
-      t.good === "tools" && t.way.id !== "stone" ? loreOf(world).get(t.cell, t.way.id) : undefined;
+      t.good === "tools" && t.way.id !== "stone" ? loreOf(world).get(t.cell, t.way.id) : undefined,
+    mk = t.making,
+    // (Where its maker works at it: the anvil, the wheel, the loom.)
+    bench =
+      t.good === "tools"
+        ? t.way.id === "stone"
+          ? "knapping stone"
+          : "anvil"
+        : t.good === "pottery"
+          ? "wheel"
+          : t.way.id === "leather"
+            ? "tanning pits"
+            : "loom";
   const blocks: Block[] =
     t.made === null
       ? [{ type: "text", lines: [[`There is ${t.missing}.`]] }]
@@ -407,8 +455,23 @@ export function thingPage(world: World, ref: string): PageModel {
               stat("In the year", `${t.made}`),
               stat(
                 "By",
-                t.homeMade ? "its household, at home" : `a crafter of ${landTitle(world, t.cell)}`,
+                mk?.maker
+                  ? makerWords(world, mk.maker, bench)
+                  : t.homeMade
+                    ? "its household, at home"
+                    : `a crafter of ${landTitle(world, t.cell)}`,
               ),
+              ...(mk
+                ? [
+                    stat(
+                      "At",
+                      mk.workshop.ref
+                        ? [link(mk.workshop.name, mk.workshop.ref)]
+                        : sentence(mk.workshop.name),
+                    ),
+                    stat("Its quality", `${mk.grade} (${mk.quality} of 100)`),
+                  ]
+                : []),
               stat("It lasts", `${t.life.toFixed(t.life < 10 ? 1 : 0)} years`),
               stat(
                 "Worn",
@@ -417,7 +480,14 @@ export function thingPage(world: World, ref: string): PageModel {
               ...(known ? [stat("Its metal known there since", `year ${known.year}`)] : []),
             ],
           },
-          { type: "list", title: "Where its stuff comes from", items: chainOf(t) },
+          // From the ground to the hand (Phase 50 M212): dug, smelted, carried, worked, by whom.
+          mk
+            ? {
+                type: "list",
+                title: "From the ground to the hand",
+                items: mk.chain.map((l) => item(l)),
+              }
+            : { type: "list", title: "Where its stuff comes from", items: chainOf(t) },
         ];
   return {
     ref,
@@ -430,7 +500,12 @@ export function thingPage(world: World, ref: string): PageModel {
     stats:
       t.made === null
         ? [stat("There is", "none")]
-        : [stat("Made", `year ${t.made}`), stat("Weighs", weight(t.kg)), stat("Worn", share(worn))],
+        : [
+            stat("Made", `year ${t.made}`),
+            ...(mk ? [stat("Quality", mk.grade)] : []),
+            stat("Weighs", weight(t.kg)),
+            stat("Worn", share(worn)),
+          ],
     tabs: [{ id: "overview", name: "Overview", blocks }],
     followable: false,
     year: now,

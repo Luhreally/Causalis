@@ -41,6 +41,7 @@ import {
   type Tab,
 } from "../../bridge/index.ts";
 import { townPlan } from "../town.ts";
+import { workshopBlocks } from "../chain.ts";
 import { townSite } from "../village.ts";
 import { count, eventsAbout, item, link, many, sentence, stat, yearNow } from "./words.ts";
 import { landLink, townLink } from "./names.ts";
@@ -334,6 +335,8 @@ export function buildingPage(world: World, ref: string): PageModel {
   const blocks: Block[] = [
     { type: "facts", rows: [...stats, stat("Town", [townLink(world, s.ref)])] },
     { type: "text", lines },
+    // Who works there and what it makes, traced from the ground (Phase 50 M212).
+    ...(c.fell === null && !rising ? workshopBlocks(world, s, c.kind, ref, year) : []),
   ];
   if (why.length) blocks.push({ type: "list", title: "What befell the town then", items: why });
   return {

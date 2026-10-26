@@ -253,6 +253,19 @@ export const SUBSTANCES: readonly Substance[] = [
     "Black iron ore that draws iron to it.",
   ),
   S(
+    "limonite",
+    "bog ore",
+    "FeO(OH)",
+    { Fe: 1, O: 2, H: 1 },
+    "ore",
+    "solid",
+    3800,
+    null,
+    4.5,
+    [0.58, 0.38, 0.16],
+    "Iron rusted out of the ground water into lumps in marsh and lake bed: dug with a spade, soft to smelt, its iron uneven.",
+  ),
+  S(
     "halite",
     "rock salt",
     "NaCl",
@@ -304,6 +317,34 @@ export const SUBSTANCES: readonly Substance[] = [
     7,
     [0.35, 0.31, 0.28],
     "Quartz grown fine in chalk: it breaks to an edge sharper than steel.",
+  ),
+  // The other stones knapped to an edge (Phase 50 M212): chert of the shale's beds, the black
+  // glass of old lava.
+  S(
+    "chert",
+    "chert",
+    "SiO₂",
+    { Si: 1, O: 2 },
+    "mineral",
+    "solid",
+    2650,
+    1713,
+    7,
+    [0.2, 0.2, 0.23],
+    "Quartz grown fine in beds among shale and limestone: flint's duller kin, as keen once knapped.",
+  ),
+  S(
+    "obsidian",
+    "obsidian",
+    "SiO₂ + Al, Na, K",
+    { Si: 1, O: 2.295, Al: 0.16, Na: 0.06, K: 0.05 },
+    "mineral",
+    "solid",
+    2400,
+    null,
+    5.5,
+    [0.06, 0.06, 0.09],
+    "Lava cooled too fast to grow crystals: black glass that knaps to the keenest edge any stone takes, and the most brittle.",
   ),
   S(
     "feldspar",
@@ -901,6 +942,25 @@ export const REACTIONS: readonly Reaction[] = [
     recipe: null,
     words:
       "Red ore and charcoal in a clay stack blown by bellows: a spongy bloom of iron, hammered free of slag.",
+  },
+  {
+    id: "bog-bloomery",
+    name: "smelting bog ore",
+    inputs: [
+      ["limonite", 4],
+      ["carbon", 3],
+    ],
+    outputs: [
+      ["iron", 4],
+      ["co2", 3],
+      ["steam", 2],
+    ],
+    heat: 1150,
+    fuel: "carbon",
+    principle: "iron",
+    recipe: null,
+    words:
+      "Bog ore roasted, then smelted with charcoal in a clay furnace by the marsh: a small bloom of soft iron, hammered and folded to drive its slag out.",
   },
   {
     id: "smelt-magnetite",

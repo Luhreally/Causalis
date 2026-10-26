@@ -807,10 +807,17 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
   // go to (lean or not), one at each kiln and each mill — the crafter living nearest it, the same
   // one day on day. (Without them a day of much building took every crafter to the sites and the
   // woodlot, and the children sat before an empty door.)
+  // (Where the town has its own smiths and potters, named, the forge and the kilns are theirs: the
+  // pages of its smithy and kilns name who works there, Phase 50 M212.)
+  const own = (kind: string) => plan.people.some((p) => p.trade?.kind === kind),
+    smiths = own("smith"),
+    potters = own("potter");
   const kept = new Set<number>(),
     keep = (kind: RoleKind, at: readonly { x: number; z: number }[]) =>
       at.forEach((d, k) => {
         if (kind === "teach" && !seated.has(`school:${k}`)) return;
+        // (A kiln its own potters keep, or any where the town has its own, wants no other.)
+        if (kind === "kiln" && (potters || seated.has(`kiln:${k}`))) return;
         let best = -1,
           far = Infinity;
         plan.people.forEach((p, i) => {
@@ -826,6 +833,26 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
         kept.add(best);
         sit(best, kind, k);
       });
+  // The town's makers at their own trades, day on day (Phase 50 M212): its smiths at the forge
+  // while there is ore to work, its potters at its kilns, its weavers at its workshops — the same
+  // people the pages of its buildings name, and the makers of the things its people hold.
+  if (!rest && !lean)
+    plan.people.forEach((p, i) => {
+      const t = p.trade;
+      if (!t || !working(i)) return;
+      if (t.kind === "smith") {
+        if (!oreIn) return;
+        kept.add(i);
+        sit(i, "smith", 0);
+        return;
+      }
+      // (Its own, at most six to a trade: each to theirs, however many the others fill.)
+      const kind = t.kind === "potter" ? "kiln" : "workshop",
+        at = t.kind === "potter" ? kilns : shops;
+      if (!at.length) return;
+      kept.add(i);
+      sit(i, kind, t.seat % at.length);
+    });
   if (!rest) {
     keep("teach", schools);
     if (!lean) {
@@ -930,10 +957,10 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
   for (const i of crafters.slice(c)) {
     const d = draws[i]!(16),
       from = Math.floor(draws[i]!(18) * 64),
-      kiln = d < 0.75 ? room("kiln", kilns.length, from, POTTERS) : -1,
+      kiln = d < 0.75 && !potters ? room("kiln", kilns.length, from, POTTERS) : -1,
       shop = room("workshop", shops.length, from, SHOP_HANDS);
     if (lean) kinds[i] = "forage";
-    else if (oreIn && d < 0.5) sit(i, "smith", 0);
+    else if (oreIn && d < 0.5 && !smiths) sit(i, "smith", 0);
     else if (kiln >= 0) sit(i, "kiln", kiln);
     else if (shop >= 0) sit(i, "workshop", shop);
     else kinds[i] = "workshop";

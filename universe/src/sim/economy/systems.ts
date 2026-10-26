@@ -93,7 +93,7 @@ const PRICE_STEP = 0.35;
 
 // ── What a province can make ────────────────────────────────────────────────────
 
-type Ore = {
+export type Ore = {
   /** What the explainer cites: the deposit, or the land whose surface holds the ore. */
   readonly ref: Ref;
   readonly cell: number;
@@ -102,8 +102,11 @@ type Ore = {
   readonly reach: number;
 };
 
-/** The ore of a kind a province can work: its own first, then a neighbour's within a few days' walk. */
-function oreFor(ctx: PopulationContext, cell: number, kind: string): Ore | null {
+/**
+ * The ore of a kind a province can work: its own first, then a neighbour's within a few days'
+ * walk. (Read by the host's chain too, Phase 50 M212: where its tools' metal was dug.)
+ */
+export function oreFor(ctx: PopulationContext, cell: number, kind: string): Ore | null {
   const g = ctx.generated,
     at = (c: number, reach: number): Ore | null => {
       const d = g.deposits.find((x) => x.cell === c && x.kind === kind);

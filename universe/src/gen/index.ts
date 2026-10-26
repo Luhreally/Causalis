@@ -34,6 +34,7 @@ export {
   PLANET_FREQUENCY,
   generateHomeWorld,
   SEAM,
+  ironShowing,
   seamRef,
   surfaceCopper,
   surfaceOre,

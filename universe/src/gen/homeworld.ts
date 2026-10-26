@@ -196,6 +196,21 @@ export function surfaceOre(w: HomeWorld, cell: number, kind: string): boolean {
 }
 
 /**
+ * How a land's iron shows at the surface (Phase 50 M212): bog ore in its wet lowlands, ironstone in
+ * its hills — surfaceOre's own rule and draw, told apart; null where it shows none.
+ */
+export function ironShowing(w: HomeWorld, cell: number): "bog" | "hill" | null {
+  const t = w.tectonics,
+    e = t.elevation[cell]!;
+  if (e <= 0) return null;
+  const u = finish(mix(hashString(`surface iron ${w.ground}`), cell), 11) / 4294967296,
+    rain = w.climate.precipitation[cell]!;
+  if (rain > 700 && e < 400 && u < 0.4) return "bog";
+  if (e > 700 && u < 0.3) return "hill";
+  return null;
+}
+
+/**
  * What laid down a land's coal or oil, to cite: the world's named field there if there is
  * one, else the age that buried it (null where there is none to work).
  */

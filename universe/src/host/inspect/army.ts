@@ -14,7 +14,7 @@ import {
   type Polity,
   type War,
 } from "../../sim/index.ts";
-import { designWords } from "../../rules/index.ts";
+import { hostWords } from "../chain.ts";
 import type { Block, Item, Row } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
 import { count, item, link, share, stat } from "./words.ts";
@@ -103,7 +103,7 @@ export function armyBlocks(world: World, r: Polity): Block[] {
         }),
         ...(design
           ? [
-              stat("Armed with", [link(designWords(design.parts), design.ref)], {
+              stat("Armed with", [link(hostWords(world, design.owner, design.parts), design.ref)], {
                 why: design.ref,
               }),
               stat("Since", `year ${design.since}`, { why: design.event }),

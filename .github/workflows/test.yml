@@ -318,6 +318,13 @@ jobs:
       - run: npm run gate:49 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # Phase 50 (the chain from the ground to a thing: a town's named smiths at the anvil casting
+      # its land's metal, one tapped to their card; its smithy's page naming who works there and a
+      # tool made there traced from its ore; a person's tool traced from the ground to the hand; a
+      # realm's arms forged at its seat's smithy, from their ore to the smith who made them).
+      - run: npm run gate:50 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest
