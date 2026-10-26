@@ -137,6 +137,14 @@ jobs:
       - run: node tools/ci-gates.ts ${{ matrix.gates }}
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # (A gate failing twice: the pictures of its second run's steps, kept.)
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shots-${{ strategy.job-index }}
+          path: universe/shots/
+          if-no-files-found: ignore
+          retention-days: 7
 
   universe-engines:
     runs-on: ubuntu-latest

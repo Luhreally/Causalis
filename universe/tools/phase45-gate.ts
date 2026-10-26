@@ -117,9 +117,13 @@ const over = async (x: number, z: number, distance: number, pitch: number) => {
   );
   await page.waitForTimeout(slow(2500));
 };
-/** One drawn tapped where they stand on the screen (the eye brought over them first). */
+/** One drawn tapped where they stand on the screen (the eye brought over them first, come to rest). */
 const tap = async (p: Person) => {
   await over(p.x, p.z, 3.5, -40);
+  // (On a machine drawing in software the flight takes the longer: tapped where they stand once the
+  // eye stands still, not where they were on the screen as it came in.)
+  await soon(async () => !(await k<boolean>("globalThis.causalis.rig.flying")), slow(15000));
+  await page.waitForTimeout(slow(300));
   const at = await k<{ x: number; y: number } | null>(
     `globalThis.causalis.personOnScreen?.(${p.index}) ?? null`,
   );
@@ -259,7 +263,7 @@ const about = new Set([2, 3, 4, 5, 7]),
   astir = (await people()).filter((p) => p.folk && about.has(p.activity));
 let theirs: Lines = [],
   one: Person | null = null;
-for (const p of astir.slice(0, 6)) {
+for (const [n, p] of astir.slice(0, 6).entries()) {
   if (!(await tap(p))) continue;
   await soon(async () => (await linesIn(".folk-more")).length > 0, slow(8000));
   theirs = await linesIn(".folk-more");
@@ -267,6 +271,7 @@ for (const p of astir.slice(0, 6)) {
     one = p;
     break;
   }
+  await shot(`4-missed-${n}`);
 }
 if (one) {
   say(`${one.name} tapped: their day in ${theirs.length} lines`);

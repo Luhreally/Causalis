@@ -5,6 +5,8 @@
 // failed before it.
 // node tools/ci-gates.ts --plan N — the gates shared out over N shards by their time on a runner,
 // longest first to the least loaded (the workflow's matrix is written from it).
+// On CI a gate's second run keeps a picture of each step (gates from Phase 17 on take --shots) in
+// shots/gate-N, which the workflow keeps when its shard fails.
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -211,11 +213,12 @@ for (const n of argv.map(Number)) {
   for (let attempt = 1; attempt <= 2 && !passed; attempt++) {
     const t0 = performance.now();
     console.log(`::group::gate ${n}${attempt > 1 ? ", once more" : ""}`);
-    const run = spawnSync(
-      process.execPath,
-      [fileURLToPath(new URL(`./phase${n}-gate.ts`, import.meta.url)), ...g.args],
-      { stdio: "inherit" },
-    );
+    const shots = attempt > 1 && process.env.CI && n >= 17 ? ["--shots", `shots/gate-${n}`] : [],
+      run = spawnSync(
+        process.execPath,
+        [fileURLToPath(new URL(`./phase${n}-gate.ts`, import.meta.url)), ...g.args, ...shots],
+        { stdio: "inherit" },
+      );
     console.log("::endgroup::");
     passed = run.status === 0;
     console.log(

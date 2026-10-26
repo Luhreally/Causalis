@@ -16,6 +16,7 @@
 import { fileURLToPath } from "node:url";
 import { preview } from "vite";
 import { chromium, type Page } from "playwright";
+import { GOODS } from "../src/rules/goods.ts";
 
 const ci = process.argv.includes("--ci"),
   soft = process.argv.includes("--soft");
@@ -196,8 +197,8 @@ const people = await q<{ cell: number; centre: number; people: number }[]>("peop
   const words = await tip();
   say(`the goods lens: ${legend}, ${picks} goods to choose; “${words.slice(0, 90)}”`);
   check(
-    legend === "Goods" && picks === 12,
-    "the goods lens has not its twelve goods to choose from",
+    legend === "Goods" && picks === GOODS.length,
+    `the goods lens has not its ${GOODS.length} goods to choose from`,
   );
   check(
     tipped && words.includes("In store"),

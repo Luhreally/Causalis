@@ -147,20 +147,17 @@ console.log("the Phase 9 gate");
   if (crowded) problems.push(`people stood in one another ${crowded} times`);
   // Its wars on the globe, and a battle before the heart of a land fought over (Phase 40 M204: its
   // other towns are told none).
-  const wars = q<WarsMap>("wars.map"),
-    globe = EARTH.frames.globe!(world, {} as never) as unknown as {
+  const globe = EARTH.frames.globe!(world, {} as never) as unknown as {
       meta: { frequency: number };
       arrays: { elevation: Float32Array };
     },
     fine = sphereGrid(globe.meta.frequency),
     elevation = globe.arrays.elevation,
-    paths = warPaths(wars, fine, elevation),
-    marching = warTokens(paths, 3).length;
-  say(
-    `the wars of year 700 on the globe: ${wars.wars.length} wars, ${marching} marks marching or standing`,
-  );
-  if (!wars.wars.length || !marching) problems.push("no war was drawn on the globe");
-  let battles = 0;
+    marks = (map: WarsMap) => warTokens(warPaths(map, fine, elevation), 3).length;
+  // The battles of year 700's wars, each seen in the village at the heart of the land fought over.
+  let year = 700,
+    wars = q<WarsMap>("wars.map"),
+    battles = 0;
   for (const w of wars.wars)
     for (const b of w.battles) {
       const cell = map.find((m) => (m as { centre?: number }).centre === b.spot)?.cell;
@@ -174,6 +171,18 @@ console.log("the Phase 9 gate");
     }
   say(`battles seen in the villages fought over: ${battles}`);
   if (!battles) problems.push("no battle was seen in a village fought over");
+  // Its hosts on the globe: year 700's, or of the first year after it with a host on the move (a war
+  // that ended within the year leaves its battles on the globe, not its host).
+  let marching = marks(wars);
+  while (!marching && year < 740) {
+    world.runTo(++year * YEAR);
+    wars = q<WarsMap>("wars.map");
+    marching = marks(wars);
+  }
+  say(
+    `the wars of year ${year} on the globe: ${wars.wars.length} wars, ${marching} marks marching or standing`,
+  );
+  if (!wars.wars.length || !marching) problems.push("no war was drawn on the globe");
 }
 
 // 4. One zoom; 5. the genesis.
