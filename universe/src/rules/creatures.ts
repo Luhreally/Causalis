@@ -253,6 +253,30 @@ export function creatureWords(b: CreatureBody, niche: string): string {
 
 const COLOURS = ["dun", "red", "grey", "black", "pale", "brindled", "spotted", "golden"];
 
+/** Coats by the colour a lineage is named for (dun for one named for none). */
+export const COAT_COLOURS: Readonly<Record<string, readonly [number, number, number]>> = {
+  dun: [0.7, 0.58, 0.4],
+  red: [0.62, 0.31, 0.17],
+  grey: [0.54, 0.54, 0.52],
+  black: [0.17, 0.16, 0.15],
+  pale: [0.88, 0.85, 0.76],
+  brindled: [0.5, 0.37, 0.24],
+  spotted: [0.84, 0.74, 0.52],
+  golden: [0.87, 0.67, 0.28],
+};
+
+/** The colour word a lineage is named for, if any ("dun" in "dun woolly sheep"). */
+export function coatWord(name: string): string | null {
+  const lower = name.toLowerCase();
+  return COLOURS.find((c) => new RegExp(`\\b${c}\\b`).test(lower)) ?? null;
+}
+
+/** A lineage's coat by its name, its wool paler than the hide beneath it. */
+export function coatColour(name: string, wool: boolean): readonly [number, number, number] {
+  const base = COAT_COLOURS[coatWord(name) ?? "dun"]!;
+  return wool ? [base[0] * 0.55 + 0.42, base[1] * 0.55 + 0.4, base[2] * 0.55 + 0.36] : base;
+}
+
 /**
  * A lineage's name from its body and its colour. Under the Earthlike prior, the names of
  * Earth's own that such a body would have (a woolly grazer a sheep, a trunked great beast

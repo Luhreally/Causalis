@@ -160,6 +160,10 @@ export function limbPitch(
       return -0.95 + 0.3 * Math.sin(ph * 1.1 + off);
     case "kindle":
       return right ? -0.9 + 0.45 * Math.sin(ph * 3 + off) : -1.2;
+    // At the upright loom (Phase 51 M214): the shuttle passed through the shed from one hand to
+    // the other, high before them, and the weft beaten up with both.
+    case "weave":
+      return -1.5 + 0.35 * Math.sin(ph * 0.9 + off + (right ? 0 : Math.PI));
     default:
       return 0;
   }

@@ -18,25 +18,13 @@ import type { VillagePlan } from "../bridge/index.ts";
 import { fieldPoint } from "./country.ts";
 import { flockAt, flockMember, foldReach } from "./flock.ts";
 import { gameAt, huntGround, huntOn } from "./hunt.ts";
-import type { CreatureBody } from "../rules/index.ts";
+import { COAT_COLOURS, coatColour, coatWord, type CreatureBody } from "../rules/index.ts";
 import { buildBody, strideOf, type Built, type Pose } from "./creature.ts";
 import { dryAt, keepOut, villageGround, type Ground } from "./ground.ts";
 import { treesOf } from "./village.ts";
 import { travellerAt, type Road } from "./work.ts";
 
 export type Rgb = readonly [number, number, number];
-
-/** Coats by the colour a lineage is named for: the coat, and a pattern over it. */
-const COATS: Readonly<Record<string, Rgb>> = {
-  dun: [0.7, 0.58, 0.4],
-  red: [0.62, 0.31, 0.17],
-  grey: [0.54, 0.54, 0.52],
-  black: [0.17, 0.16, 0.15],
-  pale: [0.88, 0.85, 0.76],
-  brindled: [0.5, 0.37, 0.24],
-  spotted: [0.84, 0.74, 0.52],
-  golden: [0.87, 0.67, 0.28],
-};
 
 export type Coat = {
   readonly coat: Rgb;
@@ -47,11 +35,11 @@ export type Coat = {
   readonly pattern: "spots" | "stripes" | null;
 };
 
+/** A lineage's coat by the colour it is named for: the coat (wool paler), and a pattern over it. */
 export function coatOf(name: string, wool: boolean): Coat {
-  const word = Object.keys(COATS).find((c) => new RegExp(`\\b${c}\\b`).test(name.toLowerCase())),
-    base = COATS[word ?? "dun"]!,
-    // Wool is paler than the hide beneath it.
-    coat: Rgb = wool ? [base[0] * 0.55 + 0.42, base[1] * 0.55 + 0.4, base[2] * 0.55 + 0.36] : base,
+  const word = coatWord(name),
+    base = COAT_COLOURS[word ?? "dun"]!,
+    coat = coatColour(name, wool),
     dark: Rgb =
       word === "black"
         ? [0.07, 0.06, 0.06]

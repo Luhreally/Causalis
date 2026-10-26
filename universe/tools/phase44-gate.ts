@@ -66,6 +66,7 @@ type Fields = {
 type Plan = {
   ref: string;
   name: string;
+  seed: number;
   cell?: number;
   era?: string;
   fields: { x: number; z: number; w: number; d: number; yaw: number }[];
@@ -142,7 +143,7 @@ const cast = async (id: string, done: (p: Plan) => boolean) => {
   return ok;
 };
 
-await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=300`);
+await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=300&hold=1`);
 await page.waitForFunction(
   () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
   undefined,
@@ -197,7 +198,11 @@ await shot("1-summer");
 
 // 2. The rain withheld: parching over the days after; water carried out to the fields.
 const withheld = await cast("drought", (p) => (p.life?.fields?.sent ?? 0) < 0);
-await advance(summer + 14 * DAY + 10.5 * HOUR);
+// (Two weeks on, a working day: no water is carried on a day of rest, and which day of the week the
+// summer's falls on moves with the year the clock was held in — later on a slower machine.)
+let dry = Math.floor((summer + 14 * DAY) / DAY);
+while ((dry + (town.seed % 7)) % 7 === 0) dry++;
+await advance(dry * DAY + 10.5 * HOUR);
 f = await fields();
 let at = await people();
 const watering = at.filter((p) => p.task === "water").length,
@@ -219,7 +224,10 @@ await shot("2-parched");
 
 // 3. The harvest blighted: the blight running through the rows, pulled and burned.
 const blighted = await cast("blight", (p) => (p.life?.fields?.gift ?? 0) < 0);
-await advance(summer + 26 * DAY + 11 * HOUR);
+// (Twelve days on, a working day: none is pulled on a day of rest.)
+let blight = Math.floor((summer + 26 * DAY) / DAY);
+while ((blight + (town.seed % 7)) % 7 === 0) blight++;
+await advance(blight * DAY + 11 * HOUR);
 f = await fields();
 at = await people();
 const pulling = at.filter((p) => p.task === "pull").length;
@@ -238,7 +246,9 @@ await shot("3-blight");
 
 // 4. The harvest weeks: a field reaped row by row, its reapers at its front, stooks behind them;
 // so many at each front, the rest carrying in the sheaves of the fields reaped before.
-const harvest = Math.floor(summer / YEAR) * YEAR + Math.ceil(0.6 * 365 + 12) * DAY;
+let harvest = Math.floor(summer / YEAR) * YEAR + Math.ceil(0.6 * 365 + 12) * DAY;
+// (A working day: none reaps on a day of rest.)
+while ((harvest / DAY + (town.seed % 7)) % 7 === 0) harvest += DAY;
 await advance(harvest + 9 * HOUR);
 const morning = await fields();
 await advance(harvest + 15 * HOUR);

@@ -185,7 +185,7 @@ const follow = async (start: string, prefix: string) => {
 const words = (l: Span[]) => l.map((s) => (typeof s === "string" ? s : s.text)).join("");
 const SMITHING = /^(Casting|Pouring|Forging) /;
 
-await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=300`);
+await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=300&hold=1`);
 await page.waitForFunction(
   () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
   undefined,

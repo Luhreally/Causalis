@@ -8,7 +8,14 @@
 //   2. the day's tools hung on the rack before the smithy as they are made, more by the afternoon;
 //   3. one of them tapped where it hangs: its page — "A copper sickle" — made by one of the town's
 //      smiths, traced from its ore to the rack, its ore's page opened from it;
-//   4. the page at a phone's width.
+//   4. the page at a phone's width;
+// and the crafts (M214) in that world: 5. the clamp smoking in the woodlot of the town that smelts;
+// 6. a town's potters at their wheels, its boards filling with the day's pots, one tapped to its
+// page — the land's own clay ware; 7. a town's weavers at their looms, the cloth growing through
+// the day, one tapped — its land's cloth; and things made at scale (M215), the Earth seed in the
+// modern age (1050): 8. a town's foundry blown and tapped, its moulds poured, its castings stacked,
+// a mould tapped — "A cast iron …" by one of its founders; 9. its works' floor, presses and lathes
+// at work, the bench filling, a finished part tapped — "A steel …" made in the converter.
 // (npm run build first; --soft draws in software, as CI's browser does; --shots keeps a
 // picture of each step.)
 import { mkdirSync } from "node:fs";
@@ -54,7 +61,11 @@ type Plan = {
   name: string;
   seed: number;
   metal?: string;
-  stuff?: { ore: { name: string } | null } | null;
+  stuff?: {
+    ore: { name: string } | null;
+    clay?: { ware: string };
+    cloth?: { name: string };
+  } | null;
   works?: { mine: { what: string } | null } | null;
   town?: { civics: Civic[] } | null;
   people: { ref: string; name: string; folk?: boolean; trade?: { kind: string } }[];
@@ -142,7 +153,7 @@ const listOn = (start: string) =>
     };
   })()`);
 
-await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=300`);
+await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=300&hold=1`);
 await page.waitForFunction(
   () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
   undefined,
@@ -341,6 +352,271 @@ const wide = await k<number>(
 say(`on a phone: the page's blocks overflow by ${wide} px`);
 check(wide <= 2, `the page wider than a phone (${wide} px over)`);
 await shot("4-phone");
+
+// —— The crafts (M214) ————————————————————————————————————————————————————————————
+type Crafts = {
+  wheels: number;
+  turning: number;
+  pots: number;
+  looms: number;
+  weaving: number;
+  clamp: { stage: number; smoking: boolean } | null;
+  boardsAt: { x: number; z: number; pots: number }[];
+  loomsAt: { x: number; z: number; woven: number; index: number }[];
+  clampAt: { x: number; z: number; stage: number; lit: boolean } | null;
+  foundry: {
+    blowing: boolean;
+    tapping: boolean;
+    poured: number;
+    glowing: number;
+    stacked: number;
+  } | null;
+  foundryAt: { x: number; z: number; moulds: { x: number; z: number; poured: boolean }[] } | null;
+  floor: {
+    lathes: number;
+    presses: number;
+    turning: number;
+    pressing: number;
+    benched: number;
+  } | null;
+  floorAt: {
+    machines: { x: number; z: number; kind: string; running: boolean }[];
+    bench: { x: number; z: number };
+    benched: number;
+  } | null;
+};
+const crafts = () => k<Crafts | null>(`globalThis.causalis.crafts?.() ?? null`);
+const spots = (tool: string) => () =>
+  k<{ x: number; y: number }[]>(`globalThis.causalis.${tool}?.() ?? []`);
+await page.setViewportSize({ width: 1366, height: 800 });
+await k(`document.querySelector(".page-window .close")?.click()`);
+await page.waitForTimeout(slow(500));
+/** The first of the first forty towns whose plan passes `ok`. */
+const townWhere = async (ok: (p: Plan) => boolean): Promise<Plan | null> => {
+  for (const c of (await ask<{ ref: string }[]>("towns.map", {})).slice(0, 40)) {
+    const plan = await ask<Plan>("village.plan", { ref: c.ref, folk: 220 });
+    if (ok(plan)) return plan;
+  }
+  return null;
+};
+/** Into a town, the clock held: its next working day. */
+const enter = async (plan: Plan): Promise<number> => {
+  await k(`document.querySelector(".page-window .close")?.click()`);
+  await k(`globalThis.causalis.goTo(${JSON.stringify(plan.ref)})`);
+  await until(`${plan.name}'s view`, async () => (await crafts()) !== null, slow(120000));
+  await k(`globalThis.causalis.client.setSpeed(0)`);
+  await page.waitForTimeout(slow(500));
+  let d = Math.floor((await k<number>(`globalThis.causalis.client.status?.t ?? 0`)) / DAY) + 1;
+  while ((d + (plan.seed % 7)) % 7 === 0) d++;
+  return d;
+};
+/** A made thing tapped where it is on the screen, the eye brought near it: its page's title. */
+const tapMade = async (
+  at: { x: number; z: number },
+  where: () => Promise<{ x: number; y: number }[]>,
+  name: string,
+) => {
+  await k(
+    `globalThis.causalis.rig.flyTo({ target: { x: ${at.x * 0.1}, y: 0.25, z: ${at.z * 0.1} }, distance: 3, pitch: -34 })`,
+  );
+  await page.waitForTimeout(slow(2500));
+  let seen = (await where()).filter(onScreen);
+  if (!seen.length) {
+    await page.waitForTimeout(slow(1000));
+    seen = (await where()).filter(onScreen);
+  }
+  check(seen.length > 0, `${name} not on the screen`);
+  if (!seen.length) return "";
+  const p = seen[Math.floor(seen.length / 2)]!;
+  await page.mouse.click(p.x, p.y);
+  await page
+    .waitForFunction(
+      () => /^An? /.test(document.querySelector(".page-window .page-title")?.textContent ?? ""),
+      undefined,
+      { timeout: slow(20000) },
+    )
+    .catch(() => undefined);
+  return title();
+};
+
+// 5. The clamp in the woodlot of the town that smelts its own ore: there, smoking or built up.
+const clamp = await crafts();
+say(
+  `the clamp: ${clamp?.clampAt ? `stage ${clamp.clampAt.stage}, lit ${clamp.clampAt.lit}` : "none"}; drawn ${!!clamp?.clamp}`,
+);
+check(!!clamp?.clampAt && !!clamp.clamp, `no charcoal clamp drawn in ${town.name}'s woodlot`);
+
+// 6. The potters: at their wheels of a morning, the boards filling, a pot tapped.
+const potting = await townWhere(
+  (p) => !!p.stuff?.clay && p.people.some((x) => x.trade?.kind === "potter"),
+);
+check(!!potting, "no town of the Earth seed keeps potters of its own by year 300");
+if (potting) {
+  const pday = await enter(potting);
+  let turning = 0;
+  for (const hour of [10, 11, 14, 15.5]) {
+    await advance(pday * DAY + hour * HOUR);
+    turning = Math.max(turning, (await crafts())?.turning ?? 0);
+  }
+  const boards = (await crafts())?.boardsAt.filter((b) => b.pots > 0) ?? [];
+  say(
+    `${potting.name}'s potters: a wheel turning ${turning > 0}; pots on the boards ${boards.reduce((a, b) => a + b.pots, 0)}`,
+  );
+  check(turning > 0, `no wheel turning at ${potting.name}'s kiln`);
+  check(boards.length > 0, `no pots on ${potting.name}'s boards by the afternoon`);
+  if (boards.length) {
+    const opened = await tapMade(boards[0]!, spots("potsOnScreen"), "the boards' pots");
+    say(`tapped on the boards: “${opened}”`);
+    check(
+      new RegExp(`^an? ${potting.stuff!.clay!.ware} (storage jar|cooking pot|bowl|jug)$`, "i").test(
+        opened,
+      ),
+      `a pot on the boards opened “${opened}”, not a pot of ${potting.stuff!.clay!.ware}`,
+    );
+    const chain = await listOn("From the ground to the boards");
+    check(
+      !!chain && chain.refs.some((r) => r.startsWith("subst:")),
+      "the pot not traced to its clay",
+    );
+    await shot("6-pot");
+  }
+}
+
+// 7. The weavers: the cloth growing on the looms through the day, a loom tapped.
+const weaving = await townWhere(
+  (p) => !!p.stuff?.cloth && p.people.some((x) => x.trade?.kind === "weaver"),
+);
+check(!!weaving, "no town of the Earth seed keeps weavers of its own by year 300");
+if (weaving) {
+  const wday = await enter(weaving);
+  await advance(wday * DAY + 9.5 * HOUR);
+  const morning = new Map(((await crafts())?.loomsAt ?? []).map((l) => [l.index, l.woven]));
+  let woven = 0;
+  for (const hour of [11, 14, 16]) {
+    await advance(wday * DAY + hour * HOUR);
+    woven = Math.max(woven, (await crafts())?.weaving ?? 0);
+  }
+  const later = (await crafts())?.loomsAt ?? [],
+    grew = later.filter((l) => l.woven > (morning.get(l.index) ?? 1) + 0.05);
+  say(
+    `${weaving.name}'s weavers: at the loom ${woven > 0}; cloth grown on ${grew.length} of ${later.length} looms`,
+  );
+  check(woven > 0, `no one seen weaving at ${weaving.name}'s looms`);
+  check(grew.length > 0, `the cloth not growing on ${weaving.name}'s looms through the day`);
+  if (later.length) {
+    const opened = await tapMade(grew[0] ?? later[0]!, spots("loomsOnScreen"), "the looms' cloth");
+    say(`tapped on a loom: “${opened}”`);
+    check(
+      opened === `A length of ${weaving.stuff!.cloth!.name}`,
+      `a loom's cloth opened “${opened}”, not ${weaving.stuff!.cloth!.name}`,
+    );
+    await shot("7-loom");
+  }
+}
+
+// —— At scale (M215): the Earth seed in the modern age ——————————————————————————————
+await k(`document.querySelector(".page-window .close")?.click()`);
+await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=1050&hold=1`);
+await page.waitForFunction(
+  () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
+  undefined,
+  { timeout: 1500000 },
+);
+await k(`globalThis.causalis.setQuality("high")`);
+await k(`globalThis.causalis.client.setSpeed(0)`);
+const works = await townWhere(
+  (p) =>
+    p.people.some((x) => x.trade?.kind === "machinist") &&
+    p.people.some((x) => x.trade?.kind === "founder"),
+);
+check(!!works, "no town of the Earth seed keeps founders and machinists at its works by 1050");
+if (works) {
+  const founders = new Set(
+      works.people.filter((p) => p.trade?.kind === "founder").map((p) => p.name),
+    ),
+    hands = new Set(works.people.filter((p) => p.trade?.kind === "machinist").map((p) => p.name)),
+    fday = await enter(works);
+
+  // 8. The foundry: blown, tapped (in the middle of a founder's draw), poured, stacked; a mould tapped.
+  await advance(fday * DAY + 7 * HOUR);
+  let tapped = false;
+  for (const p of (await people()).filter((x) => founders.has(x.name))) {
+    const draw = (await k<Leg[]>(`globalThis.causalis.legs?.(${p.index}) ?? []`)).find(
+      (l) => l.why === "Drawing the iron from the cupola into the ladle" && l.from > 7 * HOUR,
+    );
+    if (!draw) continue;
+    await advance(fday * DAY + (draw.from + draw.to) / 2);
+    tapped = !!(await crafts())?.foundry?.tapping;
+    if (tapped) break;
+  }
+  await advance(fday * DAY + 16.75 * HOUR);
+  const foundry = (await crafts())?.foundry ?? null,
+    foundryAt = (await crafts())?.foundryAt ?? null;
+  say(
+    `${works.name}'s foundry: tapped ${tapped}; blowing ${foundry?.blowing}; moulds holding ${foundry?.poured ?? 0}; stacked ${foundry?.stacked ?? 0}`,
+  );
+  check(tapped, `${works.name}'s cupola not seen tapped in the middle of a founder's draw`);
+  check((foundry?.poured ?? 0) >= 2, `${works.name}'s moulds not poured by the afternoon`);
+  check((foundry?.stacked ?? 0) > 0, `no castings stacked by ${works.name}'s works`);
+  const poured = foundryAt?.moulds.find((m) => m.poured);
+  if (poured) {
+    await shot("8-foundry");
+    const opened = await tapMade(poured, spots("mouldsOnScreen"), "the foundry's moulds");
+    say(`tapped on a mould: “${opened}”`);
+    check(/^A cast iron [a-z ]+$/.test(opened), `a mould opened “${opened}”, not a casting`);
+    const chain = await listOn("From the ground to the mould");
+    const by = chain?.rows.at(-1) ?? "";
+    check(
+      [...founders].some((n) => by.includes(`by ${n}, a founder of ${works.name}`)),
+      `the casting not poured by one of ${works.name}'s founders: “${by}”`,
+    );
+  }
+
+  // 9. The works' floor: presses and lathes at work, the bench filling; a finished part tapped.
+  await k(`document.querySelector(".page-window .close")?.click()`);
+  const floorDay = fday + ((fday + 1 + (works.seed % 7)) % 7 === 0 ? 2 : 1);
+  let running = 0;
+  for (const hour of [9.5, 10.5, 14]) {
+    await advance(floorDay * DAY + hour * HOUR);
+    const f = (await crafts())?.floor;
+    running = Math.max(running, (f?.turning ?? 0) + (f?.pressing ?? 0));
+  }
+  await advance(floorDay * DAY + 16 * HOUR);
+  const floor = (await crafts())?.floor ?? null,
+    floorAt = (await crafts())?.floorAt ?? null;
+  say(
+    `${works.name}'s works floor: ${floor?.presses ?? 0} presses, ${floor?.lathes ?? 0} lathes; at work ${running}; on the bench ${floor?.benched ?? 0}`,
+  );
+  check(running > 0, `no machine at work on ${works.name}'s floor`);
+  check((floor?.benched ?? 0) > 0, `no finished parts on ${works.name}'s bench by the afternoon`);
+  if (floorAt && floorAt.benched > 0) {
+    await shot("9-floor");
+    const opened = await tapMade(floorAt.bench, spots("benchOnScreen"), "the bench's parts");
+    say(`tapped on the bench: “${opened}”`);
+    check(
+      /^A steel [a-z ]+$/.test(opened),
+      `a part on the bench opened “${opened}”, not a steel part`,
+    );
+    const chain = await listOn("From the ground to the bench");
+    for (const r of chain?.rows ?? []) say(`    ${r}`);
+    check(
+      !!chain && chain.rows.some((r) => /converter/.test(r)),
+      "the part not traced through the converter",
+    );
+    const by = chain?.rows.at(-1) ?? "";
+    check(
+      [...hands].some((n) => by.includes(`by ${n}, a machinist of ${works.name}`)),
+      `the part not made by one of ${works.name}'s machinists: “${by}”`,
+    );
+    await page.setViewportSize({ width: 430, height: 932 });
+    await page.waitForTimeout(slow(800));
+    const over = await k<number>(
+      `Math.max(0, ...[...document.querySelectorAll(".page-window .block")].map((b) => b.scrollWidth - b.clientWidth))`,
+    );
+    say(`the part's page on a phone: overflow ${over} px`);
+    check(over <= 2, `the part's page wider than a phone (${over} px over)`);
+  }
+}
 
 await browser.close();
 await server.close();

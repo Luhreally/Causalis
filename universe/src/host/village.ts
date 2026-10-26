@@ -78,7 +78,7 @@ import { townPlan } from "./town.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
 import { visitorsAt } from "./peoples.ts";
-import { makerAt, seatsOf, townStuff, workshopOf } from "./chain.ts";
+import { flockBeast, makerAt, seatsOf, townStuff, workshopOf } from "./chain.ts";
 import { peopleFigure } from "./folk.ts";
 
 /** Families the microscope watches in a village: a presentation budget, not a rule. */
@@ -472,10 +472,18 @@ export function villagePlan(
           !p.child &&
           Number(p.ref.slice(p.ref.lastIndexOf(":") + 1)) >= builders,
       ),
-      trades = (["smith", "potter", "weaver"] as const).filter((kind) =>
+      // (Its founders at the foundry by its land's works, in the age of engines, and its machinists
+      // at the works' machines in the modern age: Phase 51 M215.)
+      era = landEra(world, v.cell),
+      works = !!marketsOf(world).get(v.cell)?.works,
+      trades = (["smith", "potter", "weaver", "founder", "machinist"] as const).filter((kind) =>
         kind === "smith"
           ? toolMetal(ctx, v.cell) !== "stone" || !!workshopOf(world, ref, ["smithy"], now)
-          : !!workshopOf(world, ref, [kind === "potter" ? "kiln" : "workshop"], now),
+          : kind === "founder"
+            ? (era === "industry" || era === "modern") && works
+            : kind === "machinist"
+              ? era === "modern" && works
+              : !!workshopOf(world, ref, [kind === "potter" ? "kiln" : "workshop"], now),
       );
     let next = 0;
     for (const kind of trades) {
@@ -846,7 +854,7 @@ export function villagePlan(
         })),
       pop = land?.total() ?? 0,
       herders = land && pop > 0 ? land.occupation(OCC.herder) / pop : 0,
-      beast = land?.herding && herders > 0 ? flockBeast(cell, land.herding) : null;
+      beast = land?.herding && herders > 0 ? flockBeast(world, cell, land.herding) : null;
     return {
       wild,
       flock: beast
@@ -861,27 +869,6 @@ export function villagePlan(
         : null,
       raided: !!w.flocksTaken,
     };
-  }
-
-  /**
-   * The beast a land's flocks are of: its own that can be tamed, else the one its herding
-   * was first found with, followed back through the lands that taught it (else, if that
-   * history is forgotten, the first living beast the world could tame).
-   */
-  function flockBeast(cell: number, herding: Ref): Species | null {
-    const life = ctx.generated.life,
-      own = life.herdBeast[cell] ?? -1;
-    // (Its own, while it is tame: one the god has made wild was herded, if at all, before.)
-    if (own >= 0 && tameNow(world, life.species[own]!)) return life.species[own]!;
-    let ref: Ref | null = herding;
-    for (let hops = 0; ref && hops < 64; hops++) {
-      const e = world.events.get(ref);
-      if (!e) break;
-      const beast = (e.data as { beast?: unknown } | null)?.beast;
-      if (typeof beast === "string") return life.species.find((s) => s.name === beast) ?? null;
-      ref = (e.causes[0]?.ref as Ref | undefined) ?? null;
-    }
-    return life.species.find((s) => s.tame && s.niche === "grazer" && s.died === null) ?? null;
   }
 
   function eraOf(cell: number): NonNullable<VillagePlan["era"]> {

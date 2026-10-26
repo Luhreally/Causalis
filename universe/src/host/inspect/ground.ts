@@ -158,6 +158,14 @@ export function groundReading(
   };
 }
 
+/** A land's soil: what it is called and what it is made of (sea-floor mud for the sea). */
+export function soilOf(
+  world: World,
+  cell: number,
+): { readonly name: string; readonly parts: readonly (readonly [string, number])[] } {
+  return SOILS[BIOME_SOIL[groundOf(world).biome.get(cell) ?? -1] ?? "sea"]!;
+}
+
 /** One spot's ground: its bedrock, and the soil of a biome over it (a region's tile). */
 export function spotGround(
   world: World,

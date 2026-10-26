@@ -715,6 +715,30 @@ type Exposed = {
   } | null;
   /** Where each tool hung on the smithy's rack stands on the screen (Phase 51 M213). */
   rackOnScreen?: () => { x: number; y: number; form: string }[];
+  /**
+   * The crafts seen being made as drawn (Phase 51 M214): the potters' wheels (how many turn), the
+   * pots on the kilns' boards, the looms (how many woven at), the clamp's round; where each is.
+   */
+  crafts?: () => {
+    wheels: number;
+    turning: number;
+    pots: number;
+    looms: number;
+    weaving: number;
+    clamp: { stage: number; smoking: boolean } | null;
+    wheelsAt: { x: number; z: number; turning: boolean }[];
+    boardsAt: { x: number; z: number; pots: number }[];
+    loomsAt: { x: number; z: number; woven: number; index: number }[];
+    clampAt: { x: number; z: number; stage: number; lit: boolean } | null;
+  } | null;
+  /** Where each pot on the kilns' boards, and each loom's cloth, is on the screen (Phase 51 M214). */
+  potsOnScreen?: () => { x: number; y: number; form: string; kiln: number }[];
+  /** Where each of the foundry's moulds lies on the screen, and whether it is poured (Phase 51 M215). */
+  mouldsOnScreen?: () => { x: number; y: number; poured: boolean }[];
+  /** Where each of the works' machines and each part on its bench is on the screen (Phase 51 M215). */
+  machinesOnScreen?: () => { x: number; y: number; kind: "lathe" | "press"; running: boolean }[];
+  benchOnScreen?: () => { x: number; y: number; form: string }[];
+  loomsOnScreen?: () => { x: number; y: number; woven: number; index: number }[];
   /** One of those drawn: their day's legs, today (Phase 51 M213). */
   legs?: (index: number) => {
     from: number;
@@ -1091,6 +1115,9 @@ async function runPlanetPage(): Promise<void> {
   // One clock for every scale, its speeds the scale's own (asked for 2026-10-24): the date
   // drawn each frame, as the scales draw the world.
   const time = new TimeBar(client, "globe", true);
+  // ?hold: the world stands where it was begun until told to go on (the gates: the same moment on
+  // every machine, however long its first picture takes to draw).
+  if (params.has("hold")) client.setSpeed(0);
   // (While a battle is watched, Space and the numbers work its own clock: Phase 37 M186; while a
   // war is watched unfolding, its own: Phase 38 M193.)
   let battleKeys: TimeKeys | null = null,
@@ -4134,16 +4161,18 @@ async function runPlanetPage(): Promise<void> {
   };
   // A tap in the village: someone, else a beast (its lineage and what it is doing), else no one.
   const tapVillage = (x: number, y: number) => {
-    // A tool hung on the smithy's rack (Phase 51 M213): its page, from the ground to the rack —
-    // tapped right on it, though its smiths stand before it; near it, if no one is nearer.
-    const on = plan ? village.rackItemAt(x, y, 12) : null,
+    // A thing being made (Phase 51 M213–M215): a tool on the smithy's rack, a pot drying on a
+    // kiln's boards, the cloth on a loom, a casting in its mould, a part at the works — its page,
+    // from the ground to where it is — tapped right on it, though its makers stand before it; near
+    // it, if no one is nearer.
+    const on = plan ? village.madeAt(x, y, 12) : null,
       i = on ? null : village.pick(x, y);
     if (i !== null) return selectPerson(i);
-    const hung = on ?? (plan ? village.rackItemAt(x, y) : null);
-    if (hung && plan) {
+    const made = on ?? (plan ? village.madeAt(x, y) : null);
+    if (made && plan) {
       selectPerson(null);
       void pageWindow.open(
-        `made:${plan.ref}:${hung.day}:smith:${plan.people[hung.index]?.trade?.seat ?? 0}:${hung.n}:${hung.form}`,
+        `made:${plan.ref}:${made.day}:${made.trade}:${plan.people[made.index]?.trade?.seat ?? 0}:${made.n}:${made.form}`,
       );
       return;
     }
@@ -5777,6 +5806,12 @@ async function runPlanetPage(): Promise<void> {
   exposed.peopleNow = () => (scale === "village" ? village.peopleNow() : []);
   exposed.trades = () => (scale === "village" ? village.tradesNow() : null);
   exposed.rackOnScreen = () => (scale === "village" ? village.rackOnScreen() : []);
+  exposed.crafts = () => (scale === "village" ? village.craftsNow() : null);
+  exposed.potsOnScreen = () => (scale === "village" ? village.potsOnScreen() : []);
+  exposed.mouldsOnScreen = () => (scale === "village" ? village.mouldsOnScreen() : []);
+  exposed.machinesOnScreen = () => (scale === "village" ? village.machinesOnScreen() : []);
+  exposed.benchOnScreen = () => (scale === "village" ? village.benchOnScreen() : []);
+  exposed.loomsOnScreen = () => (scale === "village" ? village.loomsOnScreen() : []);
   exposed.legs = (i: number) =>
     scale === "village" && plan ? legsTold(plan, i, Math.floor(now() / 86_400)) : [];
   exposed.felling = () => (scale === "village" ? village.fellingShown() : null);

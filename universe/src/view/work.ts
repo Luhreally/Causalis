@@ -37,6 +37,13 @@ export const CARRIES = [
   "kill",
   // Bars of metal drawn from the furnace, or taken from the yard to the forge (Phase 51 M213).
   "metal",
+  // Pots of raw clay, new thrown or dried, to the boards and to the kiln; a length of cloth cut
+  // from the loom, folded; a sack of charcoal from the clamp (Phase 51 M214).
+  "raw",
+  "cloth",
+  "charcoal",
+  // The ladle of iron, carried from the cupola's tap to the moulds (Phase 51 M215).
+  "ladle",
 ] as const;
 export type Carry = (typeof CARRIES)[number];
 
@@ -58,6 +65,12 @@ export const MATERIALS = [
   "hoof",
   // Smelted metal, in its own colour (Phase 51 M213).
   "metal",
+  // Raw clay before its firing, the town's own cloth, charcoal (Phase 51 M214).
+  "rawclay",
+  "bolt",
+  "charcoal",
+  // Iron run molten from the cupola (Phase 51 M215).
+  "molten",
 ] as const;
 export type Material = (typeof MATERIALS)[number];
 
@@ -80,7 +93,8 @@ export function toolHead(era: VillagePlan["era"]): Rgb {
 /**
  * The colour of each material: a tool's head of what the town's tools are made of (its land's own
  * stone, or its metal: Phase 51 M213), else by the era; ore by what the mine digs (its own copper
- * ore in its mineral's colour); metal in its own.
+ * ore in its mineral's colour); metal in its own; pots in its own clay, raw and fired, and cloth
+ * in its own fibre's colour (Phase 51 M214).
  */
 export function materialColor(
   m: Material,
@@ -116,7 +130,15 @@ export function materialColor(
     case "stone":
       return [0.76, 0.74, 0.68];
     case "clay":
-      return [0.74, 0.42, 0.26];
+      return stuff?.clay.fired ?? [0.74, 0.42, 0.26];
+    case "rawclay":
+      return stuff?.clay.raw ?? [0.5, 0.4, 0.32];
+    case "bolt":
+      return stuff?.cloth.colour ?? [0.78, 0.7, 0.54];
+    case "charcoal":
+      return [0.12, 0.11, 0.11];
+    case "molten":
+      return [1, 0.52, 0.12];
     case "hide":
       return [0.6, 0.45, 0.3];
     case "hoof":
@@ -200,6 +222,20 @@ const ITEMS: Readonly<Record<Carry, readonly ItemPart[]>> = {
   metal: [
     P("metal", 0, 0.33, 0.12, 0.15, 0.05, 0.08),
     P("metal", 0, 0.38, 0.12, 0.13, 0.045, 0.07),
+  ],
+  // (Held before them as the fired pots are; a length of cloth folded over the arms; a sack of
+  // charcoal on the back.)
+  raw: [
+    P("rawclay", -0.05, 0.31, 0.12, 0.08, 0.11, 0.08),
+    P("rawclay", 0.05, 0.33, 0.12, 0.07, 0.13, 0.07),
+  ],
+  cloth: [P("bolt", 0, 0.33, 0.12, 0.17, 0.06, 0.1)],
+  charcoal: [P("charcoal", 0, 0.4, -0.1, 0.16, 0.16, 0.1)],
+  // (A ladle on its long shank held before them, the iron glowing in its bowl.)
+  ladle: [
+    P("wood", 0.08, 0.3, 0.2, 0.025, 0.025, 0.4),
+    P("head", 0.08, 0.27, 0.42, 0.11, 0.09, 0.11),
+    P("molten", 0.08, 0.32, 0.42, 0.09, 0.02, 0.09),
   ],
   kill: [
     P("hide", 0, 0.6, -0.06, 0.34, 0.15, 0.15),
@@ -287,6 +323,8 @@ export function furnaceOf(mine: Mine | null | undefined): {
   readonly mouth: { readonly x: number; readonly z: number };
   readonly stand: { readonly x: number; readonly z: number };
   readonly ore: { readonly x: number; readonly z: number };
+  /** Where the charcoal for it is heaped (Phase 51 M214). */
+  readonly coal: { readonly x: number; readonly z: number };
   readonly top: { readonly x: number; readonly y: number; readonly z: number };
   readonly yaw: number;
 } | null {
@@ -296,6 +334,7 @@ export function furnaceOf(mine: Mine | null | undefined): {
     mouth: aboutMine(mine, FURNACE.x, FURNACE.mouth),
     stand: aboutMine(mine, FURNACE.x, FURNACE.stand),
     ore: aboutMine(mine, FURNACE.ore.x, FURNACE.ore.z + 1.5),
+    coal: aboutMine(mine, FURNACE.coal.x, FURNACE.coal.z + 1.5),
     top: { ...top, y: 11.4 },
     // (Facing the furnace from where they stand: back toward the mine.)
     yaw: Math.atan2(mine.x, mine.z),
@@ -390,20 +429,37 @@ export function wellPieces(): MinePiece[] {
   return out;
 }
 
-/** A factory: its long shed with a sawtooth of roofs, and its tall chimneys, in metres about its middle. */
-export function factoryPieces(): MinePiece[] {
-  const out: MinePiece[] = [
-    { role: "engine", x: 0, y: 5, z: 0, sx: 40, sy: 10, sz: 22, yaw: 0, pitch: 0 },
-  ];
+/**
+ * A factory: its long shed with a sawtooth of roofs, and its tall chimneys, in metres about its
+ * middle. `open`: in the modern age, the front half of its hall (toward the town) open to the sky
+ * on a steel frame, its roof over its back half only, its floor seen within (Phase 51 M215).
+ */
+export function factoryPieces(open = false): MinePiece[] {
+  const out: MinePiece[] = open
+    ? [
+        { role: "engine", x: 0, y: 5, z: -10.6, sx: 40, sy: 10, sz: 0.8, yaw: 0, pitch: 0 },
+        { role: "engine", x: -19.6, y: 5, z: 0, sx: 0.8, sy: 10, sz: 22, yaw: 0, pitch: 0 },
+        { role: "engine", x: 19.6, y: 5, z: 0, sx: 0.8, sy: 10, sz: 22, yaw: 0, pitch: 0 },
+        // (Its floor, and the wall under the roof's front edge, down to a man's height above it.)
+        { role: "step", x: 0, y: 0.1, z: 0, sx: 39, sy: 0.2, sz: 21.4, yaw: 0, pitch: 0 },
+        { role: "engine", x: 0, y: 8, z: -0.2, sx: 39, sy: 4, sz: 0.6, yaw: 0, pitch: 0 },
+        // (The steel frame over the open half: its pillars at the front, and girders back to the roof.)
+        ...[-12, 0, 12].flatMap((x): MinePiece[] => [
+          { role: "track", x, y: 5, z: 10.6, sx: 0.7, sy: 10, sz: 0.7, yaw: 0, pitch: 0 },
+          { role: "track", x, y: 9.7, z: 5.2, sx: 0.5, sy: 0.6, sz: 10.8, yaw: 0, pitch: 0 },
+        ]),
+        { role: "track", x: 0, y: 9.7, z: 10.6, sx: 39, sy: 0.6, sz: 0.6, yaw: 0, pitch: 0 },
+      ]
+    : [{ role: "engine", x: 0, y: 5, z: 0, sx: 40, sy: 10, sz: 22, yaw: 0, pitch: 0 }];
   for (let k = 0; k < 4; k++)
     out.push({
       role: "shed",
       x: -15 + k * 10,
       y: 11.5,
-      z: 0,
+      z: open ? -5.5 : 0,
       sx: 9,
       sy: 3,
-      sz: 22,
+      sz: open ? 11 : 22,
       yaw: 0,
       pitch: 0,
     });

@@ -174,6 +174,17 @@ export type TownStuff = {
     readonly colour: readonly [number, number, number];
     readonly fuel: string;
   } | null;
+  /** The clay its potters dig: its name, the ware it fires to, its colour drying and fired. */
+  readonly clay: {
+    readonly name: string;
+    readonly ware: string;
+    readonly raw: readonly [number, number, number];
+    readonly fired: readonly [number, number, number];
+  };
+  /** What its weavers weave, and its colour undyed. */
+  readonly cloth: { readonly name: string; readonly colour: readonly [number, number, number] };
+  /** Its land's wood: its hafts, its firing, its charcoal. */
+  readonly wood: string;
 };
 
 /** One of the god's wonders in a village or town (Phase 42 M201). */
@@ -284,7 +295,7 @@ export type VillagePlan = {
      * pages of its buildings name them, and their years at it.
      */
     trade?: {
-      readonly kind: "smith" | "potter" | "weaver";
+      readonly kind: "smith" | "potter" | "weaver" | "founder" | "machinist";
       readonly seat: number;
       readonly years: number;
     };

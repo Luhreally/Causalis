@@ -41,7 +41,15 @@ import { count, item, link, sentence, share, stat, yearNow } from "./words.ts";
 import { landLink, landTitle } from "./names.ts";
 import { goodHere, makeUpBlock, prinRef, rxnRef, substRef, weight } from "./matter.ts";
 import { article } from "../../rules/index.ts";
-import { clothMade, makerWords, potMade, toolMade, type Made } from "../chain.ts";
+import {
+  castMade,
+  clothMade,
+  machinedMade,
+  makerWords,
+  potMade,
+  toolMade,
+  type Made,
+} from "../chain.ts";
 
 /** The tools each trade that wears them out works with, and what each weighs (kg). */
 const TOOLS: Readonly<Partial<Record<number, readonly (readonly [string, number])[]>>> = {
@@ -214,9 +222,11 @@ export function personThings(world: World, p: Holder): Thing[] {
     wears = garments.length / WANTS.clothingPerPerson;
   for (const [slot, kg] of garments)
     out.push(
-      slotThing(world, p.ref, slot, "clothing", kg, wears, cell, p.village, (w) =>
-        w.id === "leather" ? `a leather ${slot}` : `a woven wool ${slot}`,
-      ),
+      // (Named for its cloth, of its land's own fibre: "a woollen tunic", "a goat-hair cloak".)
+      slotThing(world, p.ref, slot, "clothing", kg, wears, cell, p.village, (w, mk) => {
+        const kind = w.id === "leather" ? "leather" : clothKind(mk?.stuff ?? "woollen cloth");
+        return `${article(kind)} ${kind} ${slot}`;
+      }),
     );
   return out;
 }
@@ -228,8 +238,20 @@ export function householdThings(world: World, h: Household): Thing[] {
     pots = Math.max(1, alive),
     life = pots / (WANTS.potteryPerPerson * Math.max(1, alive));
   return Array.from({ length: pots }, (_, i) =>
-    slotThing(world, h.ref, `pot${i + 1}`, "pottery", i % 2 ? 5 : 3, life, h.cell, h.village, () =>
-      i % 2 ? "a storage jar" : "a cooking pot",
+    slotThing(
+      world,
+      h.ref,
+      `pot${i + 1}`,
+      "pottery",
+      i % 2 ? 5 : 3,
+      life,
+      h.cell,
+      h.village,
+      (_, mk) => {
+        // (Of its land's own clay, as it fires: "a terracotta storage jar".)
+        const form = i % 2 ? "storage jar" : "cooking pot";
+        return mk ? `${article(mk.stuff)} ${mk.stuff} ${form}` : `${article(form)} ${form}`;
+      },
     ),
   );
 }
@@ -514,34 +536,120 @@ export function thingPage(world: World, ref: string): PageModel {
   };
 }
 
+/** A garment's cloth as it is called by: "woollen" of "woollen cloth". */
+function clothKind(stuff: string): string {
+  return stuff.endsWith(" cloth") ? stuff.slice(0, -" cloth".length) : stuff;
+}
+
+/** What each trade's made things are tapped on, told on their page (Phase 51 M213–M214). */
+const MADE_AT: Readonly<
+  Record<
+    string,
+    {
+      readonly icon: string;
+      /** Where it lies now, before its workshop's name. */
+      readonly lies: string;
+      readonly bench: string;
+      /** Its chain's last place, and where it goes from there (before its market's link). */
+      readonly to: string;
+      readonly then: string;
+      readonly good: number;
+      readonly wants: string;
+    }
+  >
+> = {
+  smith: {
+    icon: "🔨",
+    lies: "Hung on the rack by ",
+    bench: "anvil",
+    to: "From the ground to the rack",
+    then: "From the rack it goes to the market of ",
+    good: G.tools,
+    wants: "their tools",
+  },
+  potter: {
+    icon: "🏺",
+    lies: "Drying on the boards by ",
+    bench: "wheel",
+    to: "From the ground to the boards",
+    then: "Fired in the morning, it goes to the market of ",
+    good: G.pottery,
+    wants: "their pots",
+  },
+  weaver: {
+    icon: "🧵",
+    lies: "On the loom at ",
+    bench: "loom",
+    to: "From the ground to the loom",
+    then: "Cut from the loom the next morning, it goes to the market of ",
+    good: G.clothing,
+    wants: "their clothes",
+  },
+  founder: {
+    icon: "🏭",
+    lies: "Cast in its mould at the foundry by ",
+    bench: "cupola",
+    to: "From the ground to the mould",
+    then: "Broken out of its sand once cool, it goes to the market of ",
+    good: G.machines,
+    wants: "their machines",
+  },
+  machinist: {
+    icon: "⚙️",
+    lies: "On the bench at the machines of ",
+    bench: "machines",
+    to: "From the ground to the bench",
+    then: "From the bench it goes to the market of ",
+    good: G.machines,
+    wants: "their machines",
+  },
+};
+
 /**
  * A thing made at a town's workshop on a day (`made:<town>:<day>:<trade>:<seat>:<n>:<form>`, Phase
- * 51 M213): the n-th its maker of that trade and seat set out that day, tapped where it lies — a
- * smith's tool on the rack before the smithy — what it is, who made it and where, how good, and its
- * chain from the ground to where it lies.
+ * 51 M213–M214): the n-th its maker of that trade and seat set out that day, tapped where it lies —
+ * a smith's tool on the rack before the smithy, a potter's pot drying on the boards by the kiln, the
+ * cloth on a weaver's loom — what it is, who made it and where, how good, and its chain from the
+ * ground to where it lies.
  */
 export function madePage(world: World, ref: string): PageModel {
   const parts = ref.slice("made:".length).split(":"),
     form = parts.pop() ?? "tool",
     n = Number(parts.pop()),
     seat = Number(parts.pop()),
-    trade = parts.pop(),
+    trade = parts.pop() ?? "",
     day = Number(parts.pop()),
     town = parts.join(":"),
-    s = populationContext(world).settlements.get(town as Ref);
-  if (!s || trade !== "smith" || !Number.isFinite(day) || !Number.isFinite(seat))
+    s = populationContext(world).settlements.get(town as Ref),
+    at = MADE_AT[trade];
+  if (!s || !at || !Number.isFinite(day) || !Number.isFinite(seat))
     throw new Error(`no made thing ${ref}`);
   const year = Math.floor(day / 365),
-    mk = toolMade(world, s.cell, `made:${town}:${day}:${seat}:${n}`, year, false, town, seat),
-    name = `${article(mk.stuff)} ${mk.stuff} ${form}`,
+    // (The smith's key as it was first made: its quality the same as when its rack was all there was.)
+    key =
+      trade === "smith"
+        ? `made:${town}:${day}:${seat}:${n}`
+        : `made:${town}:${day}:${trade}:${seat}:${n}`,
+    mk =
+      trade === "potter"
+        ? potMade(world, s.cell, key, year, false, town, { seat, drying: true })
+        : trade === "weaver"
+          ? clothMade(world, s.cell, key, year, false, false, town, { seat, loom: true })
+          : trade === "founder"
+            ? castMade(world, s.cell, key, year, town, seat)
+            : trade === "machinist"
+              ? machinedMade(world, s.cell, key, year, town, seat)
+              : toolMade(world, s.cell, key, year, false, town, seat),
+    name =
+      trade === "weaver" ? `a ${form} of ${mk.stuff}` : `${article(mk.stuff)} ${mk.stuff} ${form}`,
     on = `day ${(day % 365) + 1} of year ${year}`;
   return {
     ref,
     kind: "thing",
-    icon: "🔨",
+    icon: at.icon,
     title: sentence(name),
     subtitle: [
-      "Hung on the rack by ",
+      at.lies,
       ...(mk.workshop.ref ? [link(mk.workshop.name, mk.workshop.ref)] : [mk.workshop.name]),
     ],
     color: null,
@@ -557,7 +665,7 @@ export function madePage(world: World, ref: string): PageModel {
             rows: [
               stat("Made in", [landLink(world, s.cell)]),
               stat("On", on),
-              stat("By", mk.maker ? makerWords(world, mk.maker, "anvil") : "a smith"),
+              stat("By", mk.maker ? makerWords(world, mk.maker, at.bench) : `a ${trade}`),
               stat(
                 "At",
                 mk.workshop.ref
@@ -569,17 +677,17 @@ export function madePage(world: World, ref: string): PageModel {
           },
           {
             type: "list",
-            title: "From the ground to the rack",
+            title: at.to,
             items: mk.chain.map((l) => item(l)),
           },
           {
             type: "text",
             lines: [
               [
-                "From the rack it goes to the market of ",
+                at.then,
                 landLink(world, s.cell),
                 ", where its people come for ",
-                link("their tools", marketGoodRef(s.cell, G.tools)),
+                link(at.wants, marketGoodRef(s.cell, at.good)),
                 ".",
               ],
             ],

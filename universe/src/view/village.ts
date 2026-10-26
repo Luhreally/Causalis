@@ -61,13 +61,21 @@ import {
 } from "./fields.ts";
 import {
   HARVEST,
+  POTTERS,
   SOWING,
   WINTER,
   WORKSHOP,
+  MOULDS,
   beside,
+  boardsOf,
+  burnsCharcoal,
   civicDoors,
+  floorOf,
+  foundryOf,
+  machineOf,
   dayDraw,
   leanOn,
+  loomOf,
   monthsOf,
   oldOf,
   rackOf,
@@ -78,6 +86,7 @@ import {
   storeFlow,
   storeSpots,
   townDay,
+  wheelOf,
   type Role,
   type RoleKind,
   type TownDay,
@@ -171,6 +180,8 @@ export const TASKS = [
   "sew",
   "grind",
   "kindle",
+  // Things seen being made (Phase 51 M214): the weft passed and beaten up at the upright loom.
+  "weave",
 ] as const;
 export type Task = (typeof TASKS)[number];
 
@@ -585,6 +596,48 @@ function woodlotOf(plan: VillagePlan): Woodlot {
   };
   WOODLOTS.set(plan.ref, w);
   return w;
+}
+
+/** How many days a charcoal clamp's round takes: stacked, turfed and lit, three smouldering, opened. */
+export const CLAMP_DAYS = 6;
+
+/**
+ * Where a clamp's round stands on a day (0 stacked … 5 opened), each town at its own turn: its
+ * round counts the working days (on a day of rest it stands as it was left the day before).
+ */
+export function clampStage(plan: VillagePlan, day: number): number {
+  const first = (7 - (((plan.seed % 7) + 7) % 7)) % 7,
+    rests = day >= first ? Math.floor((day - first) / 7) + 1 : 0,
+    worked = day - rests;
+  return (((worked + (hashText(plan.ref) % CLAMP_DAYS)) % CLAMP_DAYS) + CLAMP_DAYS) % CLAMP_DAYS;
+}
+
+const CLAMPS = new WeakMap<VillagePlan, { at: (Point & { toward: Point }) | null }>();
+
+/**
+ * Where a town's charcoal clamp stands in its woodlot (Phase 51 M214): on open ground a few steps
+ * out of its trees nearest the yard, toward the yard, clear of every wall and trunk; and which way
+ * from it the yard lies (null: no woods to burn).
+ */
+export function clampOf(plan: VillagePlan): (Point & { toward: Point }) | null {
+  const kept = CLAMPS.get(plan);
+  if (kept) return kept.at;
+  const w = woodlotOf(plan),
+    ground = groundFor(plan),
+    yard = storeSpots(plan, ground, 0).yard.door;
+  let at: (Point & { toward: Point }) | null = null;
+  for (const k of w.order.slice(0, 16)) {
+    const t = w.trees[k]!,
+      d = Math.hypot(yard.x - t.x, yard.z - t.z) || 1,
+      toward = { x: (yard.x - t.x) / d, z: (yard.z - t.z) / d },
+      p = { x: t.x + toward.x * 8, z: t.z + toward.z * 8 };
+    if (w.trees.some((o) => Math.hypot(o.x - p.x, o.z - p.z) < 5.5)) continue;
+    if (!clearAt(ground, p, 5)) continue;
+    at = { ...p, toward };
+    break;
+  }
+  CLAMPS.set(plan, { at });
+  return at;
 }
 
 /** A feller's tree of the day (its place in the woodlot's trees), and their place about it (0: on the yard's side). */
@@ -1807,6 +1860,184 @@ function metalIn(metal: string | null): string {
 /** How a smith's words begin as they hang a new tool on the rack (the rack counts them by it). */
 export const HUNG = "Hanging the new ";
 
+/** What a town's potters throw at the wheel (Phase 51 M214): the pots its households keep. */
+const THROWN = ["storage jar", "cooking pot", "bowl", "jug"] as const;
+
+/** What a potter throws at the wheel on their k-th errand of a day. */
+export function thrownOn(plan: VillagePlan, index: number, day: number, k: number): string {
+  return THROWN[Math.floor(dayDraw(plan.people[index]!.ref, day)(60 + k) * THROWN.length)]!;
+}
+
+/**
+ * How a potter's words begin and end as they set a new pot on the boards to dry (the boards count
+ * them by it), and as they take the day before's, dried, off them to be fired.
+ */
+export const DRYING = "Setting the new ",
+  ON_BOARDS = " on the boards to dry";
+const FIRING = "Taking the dried pots off the boards";
+
+/** What the foundry casts (Phase 51 M215): the works' iron, for the age of engines. */
+const CAST = [
+  "cogwheel",
+  "machine bed",
+  "stove",
+  "pump body",
+  "rail chair",
+  "plough share",
+] as const;
+
+/** What is cast in a foundry's m-th mould on a day. */
+export function castOn(plan: VillagePlan, day: number, m: number): string {
+  return CAST[Math.floor(dayDraw(plan.ref, day)(70 + m) * CAST.length)]!;
+}
+
+/** What the works' machines make (Phase 51 M215): a lathe's turned parts, a press's pressed ones. */
+const TURNED = ["shaft", "axle", "piston", "bolt"] as const,
+  PRESSED = ["panel", "bracket", "gear blank", "hinge"] as const;
+
+/** What a machinist makes at their machine on a day, their k-th errand's part. */
+export function machinedOn(
+  plan: VillagePlan,
+  index: number,
+  day: number,
+  k: number,
+  kind: "lathe" | "press",
+): string {
+  const of = kind === "lathe" ? TURNED : PRESSED;
+  return of[Math.floor(dayDraw(plan.people[index]!.ref, day)(90 + k) * of.length)]!;
+}
+
+/** How a machinist's words begin at their machine, and as they set a finished part on the bench. */
+const MACHINING = "Making ",
+  BENCHED = "Setting the finished ";
+
+/** The foundry's taps of a day (hours): the iron run off into the ladle, two moulds poured each. */
+export const TAPS = [8.5, 10, 11.5, 13.5, 15, 16.5] as const;
+
+/** The taps of the q-th of n founders at the foundry today, in turn with the others: tap j pours moulds 2j and 2j + 1. */
+function tapsOf(n: number, q: number): { h: number; j: number }[] {
+  return TAPS.flatMap((h, j) => (j % n === q ? [{ h, j }] : []));
+}
+
+/**
+ * A founder's words as they draw the iron at the tap, pour it into a mould and break a casting out
+ * of one (which mould, said: the moulds read what was done at each by it, whatever else of the day
+ * a rite cut out), stack the castings by the works, and charge the cupola.
+ */
+const DRAWING = "Drawing the iron from the cupola into the ladle",
+  POURING = "Pouring the iron into mould ",
+  POURED = /^Pouring the iron into mould (\d+), for (?:an? )?(.+)$/,
+  BREAKING = "Breaking the last casting out of mould ",
+  BROKEN = /^Breaking the last casting out of mould (\d+)$/,
+  CHARGING = "Charging the cupola with pig iron, coke and limestone",
+  STACKING = "Stacking the castings by the works";
+
+/**
+ * The day before `day` the foundry last worked, its moulds poured (Phase 51 M215): its castings
+ * still in their sand when the day begins, till broken out. Null: none in the week before.
+ */
+function lastPoured(plan: VillagePlan, day: number, ground: Ground): number | null {
+  for (let d = day - 1; d >= day - 7; d--)
+    if (townDay(plan, d, ground).roles.some((r) => r.kind === "foundry")) return d;
+  return null;
+}
+
+/**
+ * The moulds poured on a day, as its founders' taps had them (Phase 51 M215): every tap's two but
+ * those of a founder a fire, a quake or a funeral called away at its hour — read from the day's
+ * plan, not its legs, so the next day's founders know which moulds hold castings to break out.
+ */
+function pouredOn(plan: VillagePlan, day: number, ground: Ground, fine: boolean): Set<number> {
+  const founders = townDay(plan, day, ground).roles.flatMap((r, i) =>
+      r.kind === "foundry" ? [i] : [],
+    ),
+    rites = fine ? fightsOn(plan, day) : NO_FIGHTS,
+    out = new Set<number>();
+  founders.forEach((i, q) => {
+    for (const { h, j } of tapsOf(founders.length, q)) {
+      const at = day * DAY + h * HOUR;
+      if (!(rites.get(i) ?? []).some((st) => st.from < at + 900 && st.until > at - 1800))
+        out.add(2 * j).add(2 * j + 1);
+    }
+  });
+  return out;
+}
+
+/**
+ * A day's work at the foundry (Phase 51 M215): its founders; when the cupola was first charged
+ * and last poured from; its draws; each pour and each break-out, mould by mould; and when each
+ * pair of castings was stacked.
+ */
+function foundryDay(
+  plan: VillagePlan,
+  day: number,
+  ground: Ground,
+  fine: boolean,
+): {
+  founders: number[];
+  first: number;
+  last: number;
+  draws: { from: number; to: number }[];
+  pours: { m: number; at: number; index: number; form: string }[];
+  broken: { m: number; at: number }[];
+  stacked: { at: number; n: number }[];
+} {
+  const founders = townDay(plan, day, ground).roles.flatMap((r, i) =>
+      r.kind === "foundry" ? [i] : [],
+    ),
+    out = {
+      founders,
+      first: Infinity,
+      last: -Infinity,
+      draws: [] as { from: number; to: number }[],
+      pours: [] as { m: number; at: number; index: number; form: string }[],
+      broken: [] as { m: number; at: number }[],
+      stacked: [] as { at: number; n: number }[],
+    };
+  for (const i of founders) {
+    // (Each load stacked: the castings its founder broke out since their last.)
+    let held = 0;
+    for (const l of legsOf(plan, i, day, fine)) {
+      if (l.why === CHARGING) out.first = Math.min(out.first, l.from);
+      else if (l.why === DRAWING) out.draws.push({ from: l.from, to: l.to });
+      else if (l.why === STACKING) {
+        out.stacked.push({ at: l.to, n: held });
+        held = 0;
+      } else if (l.why) {
+        const poured = POURED.exec(l.why),
+          broken = poured ? null : BROKEN.exec(l.why),
+          m = Number((poured ?? broken)?.[1] ?? 0) - 1;
+        if (m < 0 || m >= MOULDS) continue;
+        if (broken) {
+          out.broken.push({ m, at: l.to });
+          held++;
+        } else {
+          out.last = Math.max(out.last, l.to);
+          out.pours.push({ m, at: l.to, index: i, form: poured![2]! });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** How a weaver's words begin as they cut the day before's length from the loom (Phase 51 M214). */
+const CUT = "Cutting the finished length";
+
+/** How a collier's words begin at each turn of the clamp's round (Phase 51 M214). */
+const STACKED = "Stacking the billets about the clamp's flue",
+  COVERED = "Covering the clamp with turf and earth",
+  LIT = "Lighting the clamp down its flue",
+  RAKED = "Raking open the clamp",
+  SACKED = "Filling a sack with charcoal";
+
+/** Which of a kiln's wheels is someone's: a potter's by their seat at the trade, another's by their place at it. */
+function wheelSeat(p: VillagePlan["people"][number], role: Role, kilns: number): number {
+  return p.trade?.kind === "potter"
+    ? Math.floor(p.trade.seat / Math.max(1, kilns))
+    : Math.max(0, role.seat);
+}
+
 /**
  * A smith at the forge, by the metal their land works: only the method changes — copper cast and
  * its edge hammered hard, bronze poured into a mould, iron forged from the bloom, steel quenched.
@@ -2989,6 +3220,243 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
           },
         ];
       }
+      // The collier at the charcoal clamp in the woodlot (Phase 51 M214), its round of six days:
+      // billets of the land's wood cut and stacked about its flue; turfed over and lit down it;
+      // watched three days as it smoulders, stopped where the smoke breaks through; raked open, and
+      // the charcoal carried by the sack to the furnace by the diggings (else to the forge).
+      case "collier": {
+        const clamp = clampOf(plan);
+        if (!clamp) return errandOf({ ...role, kind: "cut" }, town, k);
+        const stage = clampStage(plan, day),
+          by = clearSpot(ground, {
+            x: clamp.x + clamp.toward.x * 6,
+            z: clamp.z + clamp.toward.z * 6,
+          }),
+          face = Math.atan2(clamp.x - by.x, clamp.z - by.z),
+          wood = plan.stuff?.wood ?? "wood",
+          out: Step = { to: by, carry: "tool", why: "Out to the charcoal clamp in the woodlot" };
+        if (stage === 0) {
+          const tree = treeAt(plan, clamp, draw(10000 + k), day);
+          return [
+            tree ? { to: tree, carry: "tool", why: `To the woodlot for billets of ${wood}` } : out,
+            {
+              flex: true,
+              hours: 0.8,
+              min: 0.3,
+              task: "chop",
+              carry: "tool",
+              face: tree?.face ?? face,
+              why: `Cutting billets of ${wood} for the clamp`,
+            },
+            { to: by, carry: "log", why: "Carrying the billets to the clamp" },
+            { hours: 0.12, task: "load", carry: "log", face, why: STACKED },
+          ];
+        }
+        if (stage === 1)
+          return k < 100
+            ? [
+                out,
+                { flex: true, hours: 4, min: 0.5, task: "dig", carry: "tool", face, why: COVERED },
+              ]
+            : k === 100
+              ? [
+                  out,
+                  { hours: 0.15, task: "tend", carry: null, face, why: LIT },
+                  {
+                    flex: true,
+                    hours: 3,
+                    min: 0.25,
+                    task: "watch",
+                    carry: null,
+                    face,
+                    why: "Watching the clamp take, the smoke thick and white",
+                  },
+                ]
+              : null;
+        if (stage < 5)
+          return [
+            out,
+            {
+              flex: true,
+              hours: 4,
+              min: 0.25,
+              task: "dig",
+              carry: "tool",
+              face,
+              why: "Watching over the smouldering clamp, stopping where the smoke breaks through",
+            },
+          ];
+        if (first)
+          return [
+            out,
+            {
+              flex: true,
+              hours: 2,
+              min: 0.5,
+              task: "hoe",
+              carry: "tool",
+              face,
+              why: `${RAKED}, the charcoal black and ringing`,
+            },
+          ];
+        // (To the furnace by the diggings, where the town smelts its own ore; else to the forge.)
+        const f = plan.stuff?.ore ? furnaceOf(plan.works?.mine) : null,
+          heap = f ? clearSpot(ground, f.coal) : spots.smithy.door,
+          where = f ? "the furnace by the diggings" : spots.smithy.words;
+        return [
+          { to: by, carry: null, why: "To the clamp for charcoal" },
+          { hours: 0.1, task: "load", carry: null, face, why: SACKED },
+          { to: heap, carry: "charcoal", why: `Carrying the charcoal to ${where}` },
+          { hours: 0.06, task: "load", carry: "charcoal", why: `Heaping the charcoal by ${where}` },
+        ];
+      }
+      // The founders at the foundry by the works (Phase 51 M215): the cupola charged of a morning
+      // with pig iron, coke and limestone (by all but the first tap's founder, at their moulds by
+      // then); at each tap — theirs in turn — the last day's castings broken out of its two moulds
+      // and carried to the stack, the sand rammed into them again, and the iron run off into the
+      // ladle and poured into them; between and after their taps, the stacked castings dressed.
+      case "foundry": {
+        // (The taps shared among those at the foundry today, in turn.)
+        const f = foundryOf(plan),
+          founders = town.roles.flatMap((r, i) => (r.kind === "foundry" ? [i] : [])),
+          q = founders.indexOf(index);
+        if (!f || q < 0) return errandOf({ ...role, kind: "workshop", place: -1 }, town, k);
+        const toward = (p: Point, from: Point) => Math.atan2(p.x - from.x, p.z - from.z),
+          spout = clearSpot(ground, f.spout),
+          stock = clearSpot(ground, f.stock),
+          stack = clearSpot(ground, f.stack),
+          // (A mould's place on the floor, a step out from it on its far side from the works.)
+          by = (m: number) =>
+            clearSpot(ground, {
+              x: f.moulds[m]!.x + 2.2 * Math.sin(f.yaw),
+              z: f.moulds[m]!.z + 2.2 * Math.cos(f.yaw),
+            }),
+          // (Their taps of the day, in turn with the others: the morning's, then the afternoon's.)
+          mine = tapsOf(founders.length, q),
+          charges = q > 0 || founders.length === 1,
+          ahead = k < 100 ? mine.filter((x) => x.h < 12) : mine.filter((x) => x.h > 12),
+          next = ahead[k < 100 ? k - (charges ? 1 : 0) : k - 100];
+        if (first && charges)
+          return [
+            { to: stock, carry: null, why: "To the stockpile by the cupola" },
+            {
+              hours: 0.08,
+              task: "load",
+              carry: null,
+              why: "Taking pig iron and coke for the cupola",
+            },
+            { to: spout, carry: "metal", why: "Carrying the charge up to the cupola" },
+            {
+              flex: true,
+              hours: 0.6,
+              min: 0.2,
+              task: "tend",
+              carry: null,
+              face: toward(f.cupola, spout),
+              why: CHARGING,
+            },
+          ];
+        if (next) {
+          const a = 2 * next.j,
+            b = a + 1,
+            pour = (m: number): Step => {
+              const form = castOn(plan, day, m);
+              return {
+                hours: 0.05,
+                task: "tend",
+                carry: "ladle",
+                face: f.yaw + Math.PI,
+                why: `${POURING}${m + 1}, for ${article(form)} ${form}`,
+              };
+            };
+          const last = lastPoured(plan, day, ground),
+            full = last === null ? null : pouredOn(plan, last, ground, fine),
+            held = [a, b].filter((m) => full?.has(m));
+          return [
+            // (The last day's castings in their moulds, broken out and stacked.)
+            ...held.flatMap((m, j): Step[] => [
+              {
+                to: by(m),
+                carry: j ? "metal" : null,
+                why: j ? "To the next mould" : "To the casting floor",
+              },
+              {
+                hours: 0.1,
+                task: "hammer",
+                carry: j ? "metal" : null,
+                face: f.yaw + Math.PI,
+                why: `${BREAKING}${m + 1}`,
+              },
+            ]),
+            ...(held.length
+              ? ([
+                  { to: stack, carry: "metal", why: "Carrying the castings to the stack" },
+                  { hours: 0.05, task: "load", carry: "metal", why: STACKING },
+                ] as Step[])
+              : []),
+            { to: by(a), carry: null, why: "To the casting floor" },
+            {
+              until: next.h * HOUR - 360,
+              task: "hammer",
+              carry: null,
+              face: f.yaw + Math.PI,
+              why: "Ramming sand into the moulds for the next pour",
+            },
+            { to: spout, carry: null, why: "To the cupola for the tap" },
+            {
+              hours: 0.06,
+              task: "load",
+              carry: "ladle",
+              face: toward(f.cupola, spout),
+              why: DRAWING,
+            },
+            { to: by(a), carry: "ladle", why: "Bearing the ladle to the moulds" },
+            pour(a),
+            { to: by(b), carry: "ladle", why: "To the next mould" },
+            pour(b),
+          ];
+        }
+        // (Between and after their taps: the castings at the stack dressed, their sand and fins
+        // chipped off.)
+        return [
+          { to: stack, carry: null, why: "To the stack of castings" },
+          {
+            flex: true,
+            hours: 1,
+            min: 0.25,
+            task: "hammer",
+            carry: null,
+            face: toward(f.stack, stack) || f.yaw,
+            why: "Dressing the castings, chipping off their sand and fins",
+          },
+        ];
+      }
+      // The machinists at the works' machines in the modern age (Phase 51 M215): each at their own
+      // press in the front row, the part made, carried to the bench at the hall's end, and set on it.
+      case "machine": {
+        const f = floorOf(plan),
+          seat = p.trade?.kind === "machinist" ? p.trade.seat : role.seat,
+          mc = f?.machines[machineOf(Math.max(0, seat))];
+        if (!f || !mc) return errandOf({ ...role, kind: "workshop", place: -1 }, town, k);
+        const stand = clearSpot(ground, mc.stand),
+          bench = clearSpot(ground, f.bench),
+          part = machinedOn(plan, index, day, k, mc.kind),
+          face = Math.atan2(mc.x - mc.stand.x, mc.z - mc.stand.z);
+        return [
+          { to: stand, carry: null, why: `To their ${mc.kind} on the works' floor` },
+          {
+            flex: true,
+            hours: 1.5,
+            min: 0.3,
+            task: "tend",
+            carry: null,
+            face,
+            why: `${MACHINING}${article(part)} ${part} at the ${mc.kind}`,
+          },
+          { to: bench, carry: "metal", why: `Taking the ${part} to the bench` },
+          { hours: 0.05, task: "load", carry: "metal", why: `${BENCHED}${part} on the bench` },
+        ];
+      }
       case "smith": {
         const anvil = clearSpot(ground, beside(spots.smithy, Math.max(0, role.seat), 2.2)),
           // (What they make today, of the metal their land works: Phase 50 M212; the bars they
@@ -3036,6 +3504,48 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
       }
       case "workshop":
       case "mend": {
+        // The town's weavers at their upright looms before its workshops (Phase 51 M214): of a
+        // morning the day before's length cut from the loom and taken to the market, then the
+        // warp woven down, the cloth growing on the loom through the day.
+        const shops = doors.get("workshop") ?? [],
+          weaver = role.kind === "workshop" && p.trade?.kind === "weaver" ? p.trade : null,
+          loomShop = weaver && role.place >= 0 ? shops[role.place] : undefined;
+        if (weaver && loomShop) {
+          const loom = loomOf(loomShop, Math.floor(weaver.seat / shops.length)),
+            stand = clearSpot(ground, loom.stand),
+            cloth = plan.stuff?.cloth.name ?? "cloth",
+            market = doors.get("market")?.[0] ?? granary,
+            weave: Step = {
+              flex: true,
+              hours: 3,
+              min: 0.25,
+              task: "weave",
+              carry: null,
+              face: loom.yaw,
+              why: `Weaving ${cloth} on the loom by ${loomShop.words}`,
+            };
+          return first
+            ? [
+                { to: stand, carry: null, why: `To the loom by ${loomShop.words}` },
+                {
+                  hours: 0.15,
+                  task: "load",
+                  carry: null,
+                  face: loom.yaw,
+                  why: `${CUT} of ${cloth} from the loom`,
+                },
+                { to: market.door, carry: "cloth", why: `Bringing the cloth to ${market.words}` },
+                {
+                  hours: 0.06,
+                  task: "load",
+                  carry: "cloth",
+                  why: `Setting the cloth out at ${market.words}`,
+                },
+                { to: stand, carry: null, why: `Back to the loom by ${loomShop.words}` },
+                weave,
+              ]
+            : [{ to: stand, carry: null, why: `To the loom by ${loomShop.words}` }, weave];
+        }
         // (A town's crafters at its workshops, where it has them; else by the market.)
         const mend = role.kind === "mend",
           shop = !mend && role.place >= 0 ? doors.get("workshop")?.[role.place] : undefined,
@@ -3071,15 +3581,37 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
           },
         ];
       }
-      // The potters (Phase 41 M199): the kiln fired with wood from the yard, pots thrown at the
-      // wheel by it, and the fired pots brought to the market.
+      // The potters (Phase 41 M199; at their wheels, Phase 51 M214): of a morning the pots dried
+      // on the boards overnight set in the kiln and fired with wood from the yard; then pot after
+      // pot thrown at their wheel, each set on the boards to dry for the morrow's firing, and the
+      // fired pots brought to the market.
       case "kiln": {
-        const kiln = doors.get("kiln")?.[role.place];
+        const kilns = doors.get("kiln") ?? [],
+          kiln = kilns[role.place];
         if (!kiln) return errandOf({ ...role, kind: "workshop", place: -1 }, town, k);
         const spot = clearSpot(ground, beside(kiln, role.seat)),
-          market = doors.get("market")?.[0] ?? granary;
+          market = doors.get("market")?.[0] ?? granary,
+          boards = boardsOf(kiln),
+          board = clearSpot(ground, boards.stand),
+          wheel = wheelOf(kiln, wheelSeat(p, role, kilns.length));
         if (first)
           return [
+            { to: board, carry: null, why: `To the boards by ${kiln.words}` },
+            {
+              hours: 0.1,
+              task: "load",
+              carry: null,
+              face: boards.yaw,
+              why: `${FIRING} to fire them`,
+            },
+            { to: spot, carry: "raw", why: `Carrying them to ${kiln.words}` },
+            {
+              hours: 0.1,
+              task: "load",
+              carry: "raw",
+              face: kiln.yaw,
+              why: `Stacking the pots in ${kiln.words}`,
+            },
             { to: yard.door, carry: null, why: `To ${yard.words} for wood to fire the kiln` },
             {
               hours: 0.06,
@@ -3099,36 +3631,50 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
               why: `Firing ${kiln.words}`,
             },
           ];
-        return k % 2 === 1
-          ? [
-              { to: spot, carry: null, why: `To ${kiln.words}` },
-              {
-                flex: true,
-                hours: 2,
-                min: 0.5,
-                task: "throw",
-                carry: null,
-                face: kiln.yaw,
-                why: "Throwing pots at the wheel by the kiln",
-              },
-            ]
-          : [
-              { to: spot, carry: null, why: `To ${kiln.words}` },
-              {
-                hours: 0.1,
-                task: "load",
-                carry: null,
-                face: kiln.yaw,
-                why: `Taking the fired pots out of ${kiln.words}`,
-              },
-              { to: market.door, carry: "pots", why: `Bringing the pots to ${market.words}` },
-              {
-                hours: 0.06,
-                task: "load",
-                carry: "pots",
-                why: `Setting the pots out at ${market.words}`,
-              },
-            ];
+        if (k % 2 === 1) {
+          const form = thrownOn(plan, index, day, k);
+          return [
+            {
+              to: clearSpot(ground, wheel.stand),
+              carry: null,
+              why: `To the wheel by ${kiln.words}`,
+            },
+            {
+              flex: true,
+              hours: 1.2,
+              min: 0.4,
+              task: "throw",
+              carry: null,
+              face: wheel.yaw,
+              why: `Throwing ${article(form)} ${form} on the wheel`,
+            },
+            { to: board, carry: "raw", why: `Taking the new ${form} to the boards` },
+            {
+              hours: 0.05,
+              task: "load",
+              carry: "raw",
+              face: boards.yaw,
+              why: `${DRYING}${form}${ON_BOARDS}`,
+            },
+          ];
+        }
+        return [
+          { to: spot, carry: null, why: `To ${kiln.words}` },
+          {
+            hours: 0.1,
+            task: "load",
+            carry: null,
+            face: kiln.yaw,
+            why: `Taking the fired pots out of ${kiln.words}`,
+          },
+          { to: market.door, carry: "pots", why: `Bringing the pots to ${market.words}` },
+          {
+            hours: 0.06,
+            task: "load",
+            carry: "pots",
+            why: `Setting the pots out at ${market.words}`,
+          },
+        ];
       }
       // The millers: the granary's grain carried to the mill, ground, and brought back as flour.
       case "mill": {
@@ -3698,6 +4244,421 @@ export function rackNow(
     z: rack.z,
     yaw: rack.yaw,
     hung: hung.slice(-RACK_MOST).map(({ index, n, form }) => ({ index, n, form })),
+  };
+}
+
+/** A pot set on a kiln's boards to dry: who threw it (among those drawn), which of theirs that day, what, the day. */
+export type Thrown = {
+  readonly index: number;
+  readonly n: number;
+  readonly form: string;
+  readonly day: number;
+};
+
+/** The most pots a kiln's boards show (the last set out), and how far apart they stand (metres). */
+export const BOARD_MOST = 12,
+  BOARD_GAP = 1;
+
+/** The pots a kiln's potters set on its boards on a day, by moment `until` of it: each with when. */
+function thrownBy(
+  plan: VillagePlan,
+  roles: readonly Role[],
+  day: number,
+  kiln: number,
+  until: number,
+  fine: boolean,
+): (Thrown & { at: number })[] {
+  const out: (Thrown & { at: number })[] = [];
+  roles.forEach((r, i) => {
+    if (r.kind !== "kiln" || r.place !== kiln) return;
+    let n = 0;
+    for (const leg of legsOf(plan, i, day, fine))
+      if (leg.why?.startsWith(DRYING) && leg.why.endsWith(ON_BOARDS) && leg.to <= until)
+        out.push({
+          at: leg.to,
+          index: i,
+          n: n++,
+          form: leg.why.slice(DRYING.length, -ON_BOARDS.length),
+          day,
+        });
+  });
+  return out.sort((a, b) => a.at - b.at || a.index - b.index);
+}
+
+/**
+ * Each kiln's boards at moment t (Phase 51 M214): where they stand, which way they run, and the
+ * pots on them — the day before's, dried overnight, until its potters take them off to fire them,
+ * then the day's as each is thrown (the last BOARD_MOST of them).
+ */
+export function boardsNow(
+  plan: VillagePlan,
+  ground: Ground,
+  t: number,
+  fine = true,
+): { x: number; z: number; yaw: number; pots: Thrown[] }[] {
+  const day = Math.floor(t / DAY),
+    s = t - day * DAY,
+    kilns = plan.town ? (civicDoors(plan, day * DAY).get("kiln") ?? []) : [];
+  if (!kilns.length) return [];
+  const today = townDay(plan, day, ground).roles,
+    before = townDay(plan, day - 1, ground).roles;
+  return kilns.map((kiln, k) => {
+    const b = boardsOf(kiln),
+      fired = today.some(
+        (r, i) =>
+          r.kind === "kiln" &&
+          r.place === k &&
+          legsOf(plan, i, day, fine).some((l) => l.why?.startsWith(FIRING) && l.to <= s),
+      ),
+      pots = [
+        ...(fired ? [] : thrownBy(plan, before, day - 1, k, DAY, fine)),
+        ...thrownBy(plan, today, day, k, s, fine),
+      ];
+    return {
+      x: b.x,
+      z: b.z,
+      yaw: b.yaw,
+      pots: pots.slice(-BOARD_MOST).map(({ index, n, form, day }) => ({ index, n, form, day })),
+    };
+  });
+}
+
+/** Where the k-th pot stands on a kiln's boards (metres), along them from their left. */
+export function boardSlot(
+  board: { readonly x: number; readonly z: number; readonly yaw: number },
+  k: number,
+): Point {
+  const along = (k - (BOARD_MOST - 1) / 2) * BOARD_GAP;
+  return { x: board.x + Math.cos(board.yaw) * along, z: board.z - Math.sin(board.yaw) * along };
+}
+
+/**
+ * The potters' wheels at moment t (Phase 51 M214): each where it stands before its kiln — each of
+ * the town's own potters' (else four before each kiln) — and, while one throws at it, turning, the
+ * pot rising on it as they work it up.
+ */
+export function wheelsNow(
+  plan: VillagePlan,
+  ground: Ground,
+  t: number,
+  fine = true,
+): {
+  x: number;
+  z: number;
+  yaw: number;
+  turning: boolean;
+  pot: { form: string; grown: number } | null;
+}[] {
+  const day = Math.floor(t / DAY),
+    s = t - day * DAY,
+    kilns = plan.town ? (civicDoors(plan, day * DAY).get("kiln") ?? []) : [];
+  if (!kilns.length) return [];
+  const roles = townDay(plan, day, ground).roles,
+    potters = plan.people.flatMap((p, i) => (p.trade?.kind === "potter" ? [i] : [])),
+    wheels = new Map<
+      string,
+      ReturnType<typeof wheelOf> & { turning: boolean; pot: { form: string; grown: number } | null }
+    >(),
+    key = (kiln: number, w: number) => `${kiln}:${w}`,
+    put = (kiln: number, w: number) => {
+      if (!wheels.has(key(kiln, w)))
+        wheels.set(key(kiln, w), { ...wheelOf(kilns[kiln]!, w), turning: false, pot: null });
+    };
+  if (potters.length)
+    for (const i of potters) {
+      const seat = plan.people[i]!.trade!.seat;
+      put(seat % kilns.length, Math.floor(seat / kilns.length));
+    }
+  else kilns.forEach((_, kiln) => Array.from({ length: POTTERS }, (_, w) => put(kiln, w)));
+  roles.forEach((r, i) => {
+    if (r.kind !== "kiln" || r.place < 0) return;
+    const wheel = wheels.get(key(r.place, wheelSeat(plan.people[i]!, r, kilns.length))),
+      legs = wheel ? legsOf(plan, i, day, fine) : [],
+      leg = legs.length ? legAt(legs, s) : null;
+    if (!wheel || !leg || leg.from > s || s >= leg.to || leg.task !== "throw" || !leg.why) return;
+    const form = leg.why.replace(/^Throwing (a|an) /, "").replace(/ on the wheel$/, "");
+    wheel.turning = true;
+    wheel.pot = {
+      form,
+      grown: Math.min(1, Math.max(0, (s - leg.from) / Math.max(1, leg.to - leg.from))),
+    };
+  });
+  return [...wheels.values()].map(({ x, z, yaw, turning, pot }) => ({ x, z, yaw, turning, pot }));
+}
+
+/**
+ * The town's own weavers' looms at moment t (Phase 51 M214): each where it stands before its
+ * workshop, and how much of its length is woven — the day before's, whole, until it is cut of a
+ * morning, then the day's, growing as its weaver works it (whole where they do not weave today) —
+ * whether they weave at it now, who, and the day its length was begun.
+ */
+export function loomsNow(
+  plan: VillagePlan,
+  ground: Ground,
+  t: number,
+  fine = true,
+): {
+  x: number;
+  z: number;
+  yaw: number;
+  woven: number;
+  weaving: boolean;
+  index: number;
+  day: number;
+}[] {
+  const day = Math.floor(t / DAY),
+    s = t - day * DAY,
+    shops = plan.town ? (civicDoors(plan, day * DAY).get("workshop") ?? []) : [];
+  if (!shops.length) return [];
+  const roles = townDay(plan, day, ground).roles;
+  return plan.people.flatMap((p, i) => {
+    if (p.trade?.kind !== "weaver") return [];
+    const seat = p.trade.seat,
+      loom = loomOf(shops[seat % shops.length]!, Math.floor(seat / shops.length)),
+      legs = roles[i]?.kind === "workshop" ? legsOf(plan, i, day, fine) : [],
+      // (Cut of a morning; where a rite broke into the day in the cutting's place, cut before
+      // they first weave.)
+      cut =
+        legs.find((l) => l.why?.startsWith(CUT))?.to ?? legs.find((l) => l.task === "weave")?.from;
+    let woven = 1,
+      weaving = false,
+      begun = day - 1;
+    if (cut !== undefined && cut <= s) {
+      let done = 0,
+        all = 0;
+      for (const l of legs)
+        if (l.task === "weave") {
+          all += l.to - l.from;
+          done += Math.min(l.to - l.from, Math.max(0, s - l.from));
+          if (l.from <= s && s < l.to) weaving = true;
+        }
+      woven = all > 0 ? done / all : 0;
+      begun = day;
+    }
+    return [{ x: loom.x, z: loom.z, yaw: loom.yaw, woven, weaving, index: i, day: begun }];
+  });
+}
+
+/**
+ * The town's charcoal clamp at moment t (Phase 51 M214), where its works smelt their own ore or its
+ * own smiths forge (null: none): where it stands; how far through its round — `built` the share
+ * of its billets stacked, `covered` of its turf laid; whether it smoulders (`lit`); and, opened,
+ * the share of its charcoal not yet carried off (`heap`).
+ */
+export function clampNow(
+  plan: VillagePlan,
+  ground: Ground,
+  t: number,
+  fine = true,
+): {
+  x: number;
+  z: number;
+  stage: number;
+  built: number;
+  covered: number;
+  lit: boolean;
+  heap: number;
+} | null {
+  const clamp = burnsCharcoal(plan) ? clampOf(plan) : null;
+  if (!clamp) return null;
+  const day = Math.floor(t / DAY),
+    s = t - day * DAY,
+    stage = clampStage(plan, day),
+    collier = townDay(plan, day, ground).roles.findIndex((r) => r.kind === "collier"),
+    legs = collier >= 0 ? legsOf(plan, collier, day, fine) : [],
+    // (The share of the day's legs about a turn of the round done by now: of its stacking, its
+    // turfing, its sacks.)
+    share = (why: string, all: number) => {
+      const of = legs.filter((l) => l.why?.startsWith(why));
+      if (!of.length) return all;
+      let done = 0,
+        span = 0;
+      for (const l of of) {
+        span += l.to - l.from;
+        done += Math.min(l.to - l.from, Math.max(0, s - l.from));
+      }
+      return span > 0 ? done / span : all;
+    },
+    lit = legs.find((l) => l.why === LIT),
+    // (A day without its collier — a day of rest, a lean day — the clamp as the day before left it.)
+    tended = collier >= 0;
+  return {
+    x: clamp.x,
+    z: clamp.z,
+    stage,
+    built: stage === 0 && tended ? share(STACKED, 1) : 1,
+    covered: stage === 0 ? 0 : stage === 1 && tended ? share(COVERED, 1) : 1,
+    lit: (stage === 1 && (!tended || (!!lit && lit.to <= s))) || (stage > 1 && stage < 5),
+    heap: stage === 5 ? (tended ? 1 - share(SACKED, 0) : 0) : 1,
+  };
+}
+
+/**
+ * A town's foundry at moment t (Phase 51 M215; null: none): where its cupola stands, whether it
+ * blows (charged, from its first charge to its last tap), whether the iron runs at a tap now; each
+ * mould — what was poured into it today, by whom (among those drawn), how long ago (null: not yet);
+ * and how many castings are stacked by the works today.
+ */
+export function foundryNow(
+  plan: VillagePlan,
+  ground: Ground,
+  t: number,
+  fine = true,
+): {
+  cupola: Point;
+  spout: Point;
+  stock: Point;
+  stack: Point;
+  yaw: number;
+  blowing: boolean;
+  tapping: boolean;
+  moulds: {
+    x: number;
+    z: number;
+    form: string | null;
+    index: number;
+    day: number;
+    since: number | null;
+  }[];
+  stacked: number;
+} | null {
+  const f = foundryOf(plan);
+  if (!f) return null;
+  const day = Math.floor(t / DAY),
+    s = t - day * DAY,
+    today = foundryDay(plan, day, ground, fine),
+    moulds = f.moulds.map((m) => ({
+      x: m.x,
+      z: m.z,
+      form: null as string | null,
+      index: -1,
+      day: -1,
+      since: null as number | null,
+    }));
+  // (What each mould holds: the foundry's last ten days walked through — each pour fills its
+  // mould, each break-out empties it — and today's up to now.)
+  for (let d = day - 10; d <= day; d++) {
+    const work = d === day ? today : foundryDay(plan, d, ground, fine),
+      events = [
+        ...work.pours.map((p) => ({ at: p.at, m: p.m, pour: p })),
+        ...work.broken.map((b) => ({ at: b.at, m: b.m, pour: null })),
+      ].sort((a, b) => a.at - b.at);
+    for (const e of events) {
+      if (d === day && e.at > s) break;
+      Object.assign(
+        moulds[e.m]!,
+        e.pour
+          ? {
+              form: e.pour.form,
+              index: e.pour.index,
+              day: d,
+              since: s + (day - d) * DAY - e.pour.at,
+            }
+          : { form: null, index: -1, day: -1, since: null },
+      );
+    }
+  }
+  return {
+    cupola: f.cupola,
+    spout: f.spout,
+    stock: f.stock,
+    stack: f.stack,
+    yaw: f.yaw,
+    blowing: today.founders.length > 0 && s >= today.first && s <= today.last + 600,
+    tapping: today.draws.some((d) => d.from <= s && s < d.to + 120),
+    moulds,
+    stacked: today.stacked.reduce((n, st) => n + (st.at <= s ? st.n : 0), 0),
+  };
+}
+
+/** The most finished parts the works' bench shows (the day's last), and how far apart they lie on it (metres). */
+export const BENCH_MOST = 12,
+  BENCH_GAP = 0.8;
+
+/** Where the k-th part lies on the works' bench (metres), along it from its left. */
+export function benchSlot(
+  floor: { readonly bench: Point; readonly yaw: number },
+  k: number,
+): Point {
+  const along = (k - (BENCH_MOST - 1) / 2) * BENCH_GAP;
+  return {
+    x: floor.bench.x + Math.cos(floor.yaw) * along,
+    z: floor.bench.z - Math.sin(floor.yaw) * along,
+  };
+}
+
+/**
+ * A town's works' floor at moment t (Phase 51 M215; null: none): each machine, what kind, whether it
+ * runs (its machinist at it now), the part on it, and whose and which of theirs it is; the bench,
+ * and the parts set on it today (the last BENCH_MOST) — who made each (among those drawn), which of
+ * theirs, what.
+ */
+export function floorNow(
+  plan: VillagePlan,
+  ground: Ground,
+  t: number,
+  fine = true,
+): {
+  machines: {
+    x: number;
+    z: number;
+    kind: "lathe" | "press";
+    running: boolean;
+    part: string | null;
+    index: number;
+    n: number;
+  }[];
+  bench: Point;
+  yaw: number;
+  benched: { index: number; n: number; form: string }[];
+} | null {
+  const f = floorOf(plan);
+  if (!f) return null;
+  const day = Math.floor(t / DAY),
+    s = t - day * DAY,
+    roles = townDay(plan, day, ground).roles,
+    machines = f.machines.map((m) => ({
+      x: m.x,
+      z: m.z,
+      kind: m.kind,
+      running: false,
+      part: null as string | null,
+      index: -1,
+      n: 0,
+    })),
+    benched: { at: number; index: number; n: number; form: string }[] = [];
+  roles.forEach((r, i) => {
+    if (r.kind !== "machine") return;
+    const p = plan.people[i]!,
+      seat = p.trade?.kind === "machinist" ? p.trade.seat : r.seat,
+      mc = machines[machineOf(Math.max(0, seat))]!,
+      legs = legsOf(plan, i, day, fine);
+    let n = 0;
+    for (const l of legs)
+      if (l.why?.startsWith(BENCHED) && l.to <= s)
+        benched.push({
+          at: l.to,
+          index: i,
+          n: n++,
+          form: l.why.slice(BENCHED.length, -" on the bench".length),
+        });
+    const leg = legs.length ? legAt(legs, s) : null;
+    if (leg && leg.from <= s && s < leg.to && leg.why?.startsWith(MACHINING)) {
+      mc.running = true;
+      mc.part = leg.why
+        .slice(MACHINING.length)
+        .replace(/^(a|an) /, "")
+        .replace(/ at the (lathe|press)$/, "");
+      mc.index = i;
+      mc.n = n;
+    }
+  });
+  benched.sort((a, b) => a.at - b.at || a.index - b.index);
+  return {
+    machines,
+    bench: f.bench,
+    yaw: f.yaw,
+    benched: benched.slice(-BENCH_MOST).map(({ index, n, form }) => ({ index, n, form })),
   };
 }
 

@@ -204,7 +204,19 @@ export function carryWords(
     case "stone":
       return "a block of cut stone";
     case "pots":
-      return "pots fired in the kiln, for the market";
+      return stuff
+        ? `pots of ${stuff.clay.ware}, fired in the kiln, for the market`
+        : "pots fired in the kiln, for the market";
+    case "raw":
+      return stuff
+        ? `pots of ${stuff.clay.name} thrown on the wheel, to be dried and fired`
+        : "pots of raw clay, to be dried and fired";
+    case "cloth":
+      return `a length of ${stuff?.cloth.name ?? "cloth"}, cut from the loom`;
+    case "charcoal":
+      return `a sack of charcoal${stuff ? ` of ${stuff.wood}` : ""}, from the clamp in the woodlot`;
+    case "ladle":
+      return "a ladle of iron run molten from the cupola, to be poured into the moulds";
     case "kill":
       return "the hunt's kill, across the shoulders";
   }
@@ -226,4 +238,8 @@ export const SHEEN: Readonly<Record<Material, { gloss: number; metal: boolean }>
   hide: { gloss: 0.08, metal: false },
   hoof: { gloss: 0.4, metal: false },
   metal: { gloss: 0.7, metal: true },
+  rawclay: { gloss: 0.3, metal: false },
+  bolt: { gloss: 0.05, metal: false },
+  charcoal: { gloss: 0.2, metal: false },
+  molten: { gloss: 0.9, metal: false },
 };

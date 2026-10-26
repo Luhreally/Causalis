@@ -20,16 +20,20 @@ import {
   surfaceOre,
   tongueName,
   tonguePersonName,
+  type Species,
 } from "../gen/index.ts";
 import {
   G,
   METALS,
+  OCC,
   ORES,
   STONES,
   SUBSTANCE,
   SUBSTANCES,
   article,
   civic,
+  coatColour,
+  coatWord,
   designWords,
   gradeOf,
   partWords,
@@ -52,12 +56,13 @@ import {
   marketsOf,
   politiesOf,
   populationContext,
+  tameNow,
   toolMetal,
   townsOf,
   type ToolMetal,
 } from "../sim/index.ts";
 import type { Block, Line, Span, TownStuff } from "../bridge/index.ts";
-import { bedrockOf } from "./inspect/ground.ts";
+import { bedrockOf, soilOf } from "./inspect/ground.ts";
 import { rxnRef, substRef } from "./inspect/matter.ts";
 import { landLink, landTitle, realmLink, townLink } from "./inspect/names.ts";
 import { item, link, sentence } from "./inspect/words.ts";
@@ -91,6 +96,149 @@ export const WOODS: Readonly<
 export function landWood(world: World, cell: number): string {
   const biome = populationContext(world).generated.climate.biome[cell] ?? -1;
   return WOODS[biome]?.[0] ?? "ash";
+}
+
+/** A land's clay: what it is called, the ware it fires to, its soil, its colour drying and fired. */
+export type Clay = {
+  readonly name: string;
+  readonly ware: string;
+  readonly soil: string;
+  readonly raw: Rgb;
+  readonly fired: Rgb;
+};
+
+/** Clays by what they fire to: iron-red, lime-buff, a little iron's orange, near none's pale. */
+const CLAYS: Readonly<Record<string, Omit<Clay, "soil">>> = {
+  red: {
+    name: "red clay",
+    ware: "red earthenware",
+    raw: [0.5, 0.29, 0.21],
+    fired: [0.62, 0.28, 0.17],
+  },
+  buff: {
+    name: "yellow lime clay",
+    ware: "buff earthenware",
+    raw: [0.62, 0.58, 0.48],
+    fired: [0.86, 0.75, 0.55],
+  },
+  brown: {
+    name: "brown clay",
+    ware: "terracotta",
+    raw: [0.46, 0.38, 0.3],
+    fired: [0.76, 0.46, 0.29],
+  },
+  pale: {
+    name: "white clay",
+    ware: "pale earthenware",
+    raw: [0.66, 0.65, 0.62],
+    fired: [0.9, 0.87, 0.8],
+  },
+};
+
+/**
+ * The clay a land's potters dig from its banks, by what its soil is made of (Phase 51 M214): of
+ * what is left of it once fired — its water driven off, its humus burnt out — a twentieth of iron
+ * or more fires it red; lime fires it buff, whatever iron it holds; a little iron fires it
+ * orange; next to none, pale.
+ */
+export function landClay(world: World, cell: number): Clay {
+  const soil = soilOf(world, cell),
+    share = (id: string) => soil.parts.find(([s]) => s === id)?.[1] ?? 0,
+    body = Math.max(0.01, 1 - share("water") - share("humus")),
+    iron = share("hematite") / body,
+    lime = share("calcite") / body,
+    kind = iron >= 0.06 ? "red" : lime >= 0.05 ? "buff" : iron >= 0.02 ? "brown" : "pale";
+  return { soil: soil.name, ...CLAYS[kind]! };
+}
+
+/**
+ * The beast a land's flocks are of, where its herders keep any (null: none): its own that can be
+ * tamed, else the one its herding was first found with, followed back through the lands that
+ * taught it (else, if that history is forgotten, the first living beast the world could tame).
+ */
+export function flockOf(world: World, cell: number): Species | null {
+  const land = populationContext(world).provinces.get(cell);
+  if (!land?.herding || land.total() <= 0 || land.occupation(OCC.herder) <= 0) return null;
+  return flockBeast(world, cell, land.herding);
+}
+
+/** The beast a land's flocks are of, its herding found as `herding` (see flockOf). */
+export function flockBeast(world: World, cell: number, herding: Ref): Species | null {
+  const life = populationContext(world).generated.life,
+    own = life.herdBeast[cell] ?? -1;
+  // (Its own, while it is tame: one the god has made wild was herded, if at all, before.)
+  if (own >= 0 && tameNow(world, life.species[own]!)) return life.species[own]!;
+  let ref: Ref | null = herding;
+  for (let hops = 0; ref && hops < 64; hops++) {
+    const e = world.events.get(ref);
+    if (!e) break;
+    const beast = (e.data as { beast?: unknown } | null)?.beast;
+    if (typeof beast === "string") return life.species.find((s) => s.name === beast) ?? null;
+    ref = (e.causes[0]?.ref as Ref | undefined) ?? null;
+  }
+  return life.species.find((s) => s.tame && s.niche === "grazer" && s.died === null) ?? null;
+}
+
+/** A land's plant fibres by their colour, undyed (any other a dry straw's). */
+const FIBRE_COLOUR: Readonly<Record<string, Rgb>> = {
+  nettle: [0.7, 0.68, 0.56],
+  grass: [0.78, 0.74, 0.5],
+  "palm fibre": [0.8, 0.68, 0.46],
+  "bowstring hemp": [0.82, 0.78, 0.62],
+  bark: [0.55, 0.4, 0.27],
+  "cedar bark": [0.58, 0.4, 0.28],
+  "spruce root": [0.6, 0.46, 0.32],
+  "sagebrush bark": [0.62, 0.56, 0.44],
+};
+
+/** What a land's weavers weave: its cloth's name, its colour undyed, where its fibre came from. */
+export type Cloth = {
+  /** What a garment of it is called by: "woollen", "goat-hair", "nettle". */
+  readonly kind: string;
+  /** "woollen cloth", "goat-hair cloth", "nettle cloth". */
+  readonly name: string;
+  readonly colour: Rgb;
+  /** Its fibre, from the land: "Dun woolly sheep wool, shorn from the flocks of [land]". */
+  readonly from: Line;
+};
+
+/**
+ * What a land's weavers weave (Phase 51 M214): the fibre its own flocks give — the wool of a
+ * woolly beast, the hair of a furred one, the down of a feathered one, each its coat's colour —
+ * else the fibre of its own plants, the same its cord is twisted of (sinew, where none grows,
+ * given for grass).
+ */
+export function landCloth(world: World, cell: number): Cloth {
+  const beast = flockOf(world, cell),
+    covering = beast?.wool ? "wool" : (beast?.body?.covering ?? null),
+    land = landLink(world, cell);
+  if (beast && (covering === "wool" || covering === "fur" || covering === "feathers")) {
+    // (The beast without its colour: "goat" of "black goat", "sheep" of "dun woolly sheep".)
+    const word = coatWord(beast.name),
+      noun =
+        beast.name
+          .split(" ")
+          .filter((w) => w !== word && w !== "woolly")
+          .join(" ") || beast.name,
+      kind = covering === "wool" ? "woollen" : `${noun}-${covering === "fur" ? "hair" : "down"}`,
+      fibre = covering === "wool" ? "wool" : covering === "fur" ? "hair" : "down",
+      how = covering === "wool" ? "shorn" : covering === "fur" ? "combed" : "plucked";
+    return {
+      kind,
+      name: `${kind} cloth`,
+      colour: coatColour(beast.name, covering === "wool"),
+      from: [link(sentence(beast.name), beast.ref), ` ${fibre}, ${how} from the flocks of `, land],
+    };
+  }
+  const biome = populationContext(world).generated.climate.biome[cell] ?? -1,
+    grown = WOODS[biome]?.[1] ?? "grass",
+    plant = grown === "sinew" ? "grass" : grown;
+  return {
+    kind: plant,
+    name: `${plant} cloth`,
+    colour: FIBRE_COLOUR[plant] ?? [0.74, 0.7, 0.56],
+    from: [sentence(plant), " gathered in ", land, ", retted and beaten soft"],
+  };
 }
 
 /** The least share of a land a rock must have for its people to go out to it for their stone. */
@@ -475,12 +623,20 @@ export function townStuff(world: World, cell: number, year: number): TownStuff {
       own && own.cell === cell
         ? { name: own.ore.name, colour: substColour(own.ore.mineral), fuel: `charcoal of ${wood}` }
         : null;
+  const clay = landClay(world, cell),
+    cloth = landCloth(world, cell),
+    made = {
+      clay: { name: clay.name, ware: clay.ware, raw: clay.raw, fired: clay.fired },
+      cloth: { name: cloth.name, colour: cloth.colour },
+      wood,
+    };
   if (metal === "stone") {
     const { stone } = landStone(world, cell);
     return {
       tool: { name: stone.name, colour: stone.colour, of: `${stone.from}, knapped to an edge` },
       metal: null,
       ore,
+      ...made,
     };
   }
   const m = METALS[metal as Metal],
@@ -494,10 +650,129 @@ export function townStuff(world: World, cell: number, year: number): TownStuff {
     tool: { name: metal, colour: m.colour, of: `${of}; ${m.hand}` },
     metal: { name: metal, colour: m.colour },
     ore,
+    ...made,
   };
 }
 
-/** A pot: the clay of its land's banks, thrown and fired at its town's kiln (or at home). */
+/**
+ * A casting poured at the foundry by a town's works on a day (Phase 51 M215): the iron of its land's
+ * ore (else a neighbour's, else the market's), smelted to pig iron with coke in the blast furnace,
+ * remelted in the cupola and poured into a sand mould by the founder of that seat.
+ */
+export function castMade(
+  world: World,
+  cell: number,
+  key: string,
+  year: number,
+  town: string,
+  seat: number,
+): Made {
+  const ctx = populationContext(world),
+    t = ctx.settlements.get(town as Ref) ?? makingTown(world, cell),
+    works = workshopOf(world, t?.ref ?? null, ["factory"], year),
+    maker = makerAt(world, cell, t, "founder", seat, year),
+    o = economyOreOf(world, cell, "iron"),
+    m = METALS.iron,
+    quality = qualityOf(m, craftAt(world, cell, "tools") + 0.3, maker.years),
+    at = works ? [link(works.name, works.ref)] : [`the works${t ? ` of ${t.name}` : ""}`];
+  return {
+    stuff: "cast iron",
+    edge: m,
+    colour: [0.3, 0.3, 0.32],
+    quality,
+    grade: gradeOf(quality),
+    maker,
+    workshop: works ?? { name: `the works${t ? ` of ${t.name}` : ""}`, ref: null },
+    chain: [
+      ...(o
+        ? [
+            oreLine(
+              world,
+              o.ore,
+              o.cell,
+              o.deposit,
+              o.cell !== cell ? "a few days' walk off" : null,
+            ),
+            [
+              link("Smelted", rxnRef(o.ore.smelt)),
+              " to pig iron in a blast furnace, burning coke for charcoal",
+            ] as Line,
+          ]
+        : [["Pig iron bought in the market of ", landLink(world, cell)] as Line]),
+      [
+        "Remelted in the cupola at ",
+        ...at,
+        " with coke and limestone, and poured into a sand mould by ",
+        ...makerWords(world, maker, "cupola"),
+      ],
+    ],
+  };
+}
+
+/**
+ * A part finished at a town's works' machines on a day (Phase 51 M215): steel of its land's iron ore
+ * (else the market's), the pig iron blown to steel in the converter, turned or pressed at the works
+ * by the machinist of that seat.
+ */
+export function machinedMade(
+  world: World,
+  cell: number,
+  key: string,
+  year: number,
+  town: string,
+  seat: number,
+): Made {
+  const ctx = populationContext(world),
+    t = ctx.settlements.get(town as Ref) ?? makingTown(world, cell),
+    works = workshopOf(world, t?.ref ?? null, ["factory"], year),
+    maker = makerAt(world, cell, t, "machinist", seat, year),
+    o = economyOreOf(world, cell, "iron"),
+    m = METALS.steel,
+    quality = qualityOf(m, craftAt(world, cell, "tools") + 0.5, maker.years),
+    at = works ? [link(works.name, works.ref)] : [`the works${t ? ` of ${t.name}` : ""}`];
+  return {
+    stuff: "steel",
+    edge: m,
+    colour: m.colour,
+    quality,
+    grade: gradeOf(quality),
+    maker,
+    workshop: works ?? { name: `the works${t ? ` of ${t.name}` : ""}`, ref: null },
+    chain: [
+      ...(o
+        ? [
+            oreLine(
+              world,
+              o.ore,
+              o.cell,
+              o.deposit,
+              o.cell !== cell ? "a few days' walk off" : null,
+            ),
+            [
+              link("Smelted", rxnRef(o.ore.smelt)),
+              " to pig iron in a blast furnace, burning coke for charcoal",
+            ] as Line,
+          ]
+        : [["Pig iron bought in the market of ", landLink(world, cell)] as Line]),
+      [
+        link("Blown to steel", rxnRef("carburise")),
+        " in the converter, the air driven through the molten iron burning its carbon down",
+      ],
+      [
+        "Turned and pressed at the machines of ",
+        ...at,
+        " by ",
+        ...makerWords(world, maker, "machines"),
+      ],
+    ],
+  };
+}
+
+/**
+ * A pot: the clay of its land's banks, thrown and fired at its town's kiln (or at home). `at`: made
+ * by the potter of that seat at the town's kiln, and (`drying`) set on the boards by it today to
+ * dry before its firing — a pot tapped there (Phase 51 M214).
+ */
 export function potMade(
   world: World,
   cell: number,
@@ -505,29 +780,30 @@ export function potMade(
   year: number,
   home: boolean,
   town?: string | null,
+  at?: { readonly seat: number; readonly drying?: boolean },
 ): Made {
   const ctx = populationContext(world),
     t = town
       ? (ctx.settlements.get(town as Ref) ?? makingTown(world, cell))
       : makingTown(world, cell),
-    kiln = home ? null : workshopOf(world, t?.ref ?? null, ["factory", "kiln"], year),
+    kiln = home
+      ? null
+      : workshopOf(world, t?.ref ?? null, at ? ["kiln"] : ["factory", "kiln"], year),
+    trade = kiln?.name.startsWith("the factory") ? "hand at the works" : "potter",
     maker = home
       ? null
-      : makerOf(
-          world,
-          cell,
-          t,
-          kiln?.name.startsWith("the factory") ? "hand at the works" : "potter",
-          key,
-          year,
-        ),
+      : at
+        ? makerAt(world, cell, t, trade, at.seat, year)
+        : makerOf(world, cell, t, trade, key, year),
+    clay = landClay(world, cell),
     water = ctx.generated.water.river[cell] ? "the river's banks" : "the lake's shore",
     edge: Edge = { keen: 0.25, tough: 0.45 },
-    quality = qualityOf(edge, craftAt(world, cell, "pottery"), maker?.years ?? 6);
+    quality = qualityOf(edge, craftAt(world, cell, "pottery"), maker?.years ?? 6),
+    fired = link("fired", rxnRef("fire-clay"));
   return {
-    stuff: "fired clay",
+    stuff: clay.ware,
     edge,
-    colour: [0.66, 0.4, 0.28],
+    colour: clay.fired,
     quality,
     grade: gradeOf(quality),
     maker,
@@ -536,19 +812,37 @@ export function potMade(
       ref: null,
     },
     chain: [
-      [link("Clay", substRef("kaolinite")), ` dug from ${water} in `, landLink(world, cell)],
       [
-        "Thrown and ",
-        link("fired", rxnRef("fire-clay")),
-        kiln ? " at " : home ? " at home" : " in a pit of embers",
-        ...(kiln ? [link(kiln.name, kiln.ref)] : []),
-        ...(maker ? [" by ", ...makerWords(world, maker, "wheel")] : []),
+        link(sentence(clay.name), substRef("kaolinite")),
+        ` dug from ${water} in `,
+        landLink(world, cell),
+        `, its soil ${clay.soil}`,
       ],
+      at?.drying && maker
+        ? [
+            "Thrown on the wheel by ",
+            ...makerWords(world, maker, "wheel"),
+            ", and set on the boards to dry before it is ",
+            fired,
+            ...(kiln ? [" at ", link(kiln.name, kiln.ref)] : []),
+            ` in a fire of ${landWood(world, cell)}`,
+          ]
+        : [
+            "Thrown and ",
+            fired,
+            kiln ? " at " : home ? " at home" : " in a pit of embers",
+            ...(kiln ? [link(kiln.name, kiln.ref)] : []),
+            ...(maker ? [" by ", ...makerWords(world, maker, "wheel")] : []),
+          ],
     ],
   };
 }
 
-/** A garment: woven of its land's flocks' wool, or sewn of its hides tanned, by its weavers or tanners. */
+/**
+ * A garment: woven of its land's own fibre (its flocks', else its plants'), or sewn of its hides
+ * tanned, by its weavers or tanners. `at`: woven by the weaver of that seat at the town's workshop,
+ * and (`loom`) on the loom there today — the cloth tapped on it (Phase 51 M214).
+ */
 export function clothMade(
   world: World,
   cell: number,
@@ -557,30 +851,30 @@ export function clothMade(
   leather: boolean,
   home: boolean,
   town?: string | null,
+  at?: { readonly seat: number; readonly loom?: boolean },
 ): Made {
   const ctx = populationContext(world),
     t = town
       ? (ctx.settlements.get(town as Ref) ?? makingTown(world, cell))
       : makingTown(world, cell),
-    shop = home ? null : workshopOf(world, t?.ref ?? null, ["factory", "workshop"], year),
+    shop = home
+      ? null
+      : workshopOf(world, t?.ref ?? null, at ? ["workshop"] : ["factory", "workshop"], year),
     works = !!shop?.name.startsWith("the factory"),
+    trade = works ? "hand at the works" : leather ? "tanner" : "weaver",
     maker = home
       ? null
-      : makerOf(
-          world,
-          cell,
-          t,
-          works ? "hand at the works" : leather ? "tanner" : "weaver",
-          key,
-          year,
-        ),
+      : at
+        ? makerAt(world, cell, t, trade, at.seat, year)
+        : makerOf(world, cell, t, trade, key, year),
+    cloth = landCloth(world, cell),
     edge: Edge = leather ? { keen: 0.2, tough: 0.8 } : { keen: 0.35, tough: 0.55 },
     quality = qualityOf(edge, craftAt(world, cell, "clothing"), maker?.years ?? 6),
-    at: Span[] = shop ? [" at ", link(shop.name, shop.ref)] : home ? [" at home"] : [];
+    where: Span[] = shop ? [" at ", link(shop.name, shop.ref)] : home ? [" at home"] : [];
   return {
-    stuff: leather ? "leather" : "woven wool",
+    stuff: leather ? "leather" : cloth.name,
     edge,
-    colour: leather ? [0.45, 0.3, 0.18] : [0.72, 0.68, 0.6],
+    colour: leather ? [0.45, 0.3, 0.18] : cloth.colour,
     quality,
     grade: gradeOf(quality),
     maker,
@@ -596,19 +890,29 @@ export function clothMade(
           [
             link("Tanned", rxnRef("tan")),
             " in pits of bark, then cut and sewn",
-            ...at,
+            ...where,
             ...(maker ? [" by ", ...makerWords(world, maker, "tanning pits")] : []),
           ],
         ]
       : [
-          ["Wool shorn from the flocks of ", landLink(world, cell)],
+          cloth.from,
           [
-            works ? "Spun and woven on the works' machines" : "Spun and woven on the loom",
-            ...at,
+            works
+              ? "Spun and woven on the works' machines"
+              : at?.loom
+                ? "Spun on the spindle, and woven today on the loom"
+                : "Spun and woven on the loom",
+            ...where,
             ...(maker ? [" by ", ...makerWords(world, maker, works ? "machines" : "loom")] : []),
           ],
         ],
   };
+}
+
+/** A thing of a stuff in words: "a terracotta pot", "a woollen tunic" (a garment by its cloth). */
+function madeWords(stuff: string, form: string): string {
+  const kind = stuff.endsWith(" cloth") ? stuff.slice(0, -" cloth".length) : stuff;
+  return `${article(kind)} ${kind} ${form}`;
 }
 
 // —— A realm's arms ——————————————————————————————————————————————————————————————————
@@ -888,7 +1192,7 @@ export function workshopBlocks(
   if (now)
     blocks.push({
       type: "list",
-      title: `Made here this year: ${article(now.stuff)} ${now.stuff} ${kind === "kiln" ? "pot" : kind === "workshop" ? "tunic" : "tool"}, ${now.grade}`,
+      title: `Made here this year: ${madeWords(now.stuff, kind === "kiln" ? "pot" : kind === "workshop" ? "tunic" : "tool")}, ${now.grade}`,
       items: now.chain.map((l) => item(l)),
     });
   blocks.push(...arms);

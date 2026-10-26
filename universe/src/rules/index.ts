@@ -159,8 +159,11 @@ export {
   type StarDrive,
 } from "./starships.ts";
 export {
+  COAT_COLOURS,
   FOOD_WEB,
   NICHE_SIZE,
+  coatColour,
+  coatWord,
   creatureWords,
   creatureBody,
   creatureName,

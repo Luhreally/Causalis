@@ -83,6 +83,15 @@ import {
   rackNow,
   rackSlot,
   type Hung,
+  boardSlot,
+  boardsNow,
+  clampNow,
+  benchSlot,
+  floorNow,
+  foundryNow,
+  loomsNow,
+  wheelsNow,
+  type Thrown,
   type TownWar,
   type TownWarScene,
 } from "../view/index.ts";
@@ -102,6 +111,9 @@ import { CountryLayer } from "./country.ts";
 import { FeastLayer } from "./feast.ts";
 import { TownWarLayer } from "./townwar.ts";
 import { TradesLayer, type AtWork, type RackAt } from "./trades.ts";
+import { CraftsLayer, type BoardsAt, type ClampAt, type LoomAt, type WheelAt } from "./crafts.ts";
+import { FoundryLayer, type FoundryAt } from "./foundry.ts";
+import { FloorLayer, type FloorAt } from "./floor.ts";
 import { BlazeLayer } from "./blaze.ts";
 import { GraveyardLayer } from "./graveyard.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
@@ -228,6 +240,12 @@ export class VillageScene {
   private readonly feast: FeastLayer;
   /** Its trades at their buildings (Phase 41 M199): mills' sails turning, kilns aglow, sparks at the anvil. */
   private readonly trades: TradesLayer;
+  /** Its crafts seen being made (Phase 51 M214): the potters' wheels and boards, the looms, the clamp. */
+  private readonly crafts: CraftsLayer;
+  /** Its foundry by the works (Phase 51 M215): the cupola blowing, the iron tapped and poured, the castings. */
+  private readonly foundryLayer: FoundryLayer;
+  /** Its works' floor in the modern age (Phase 51 M215): the presses and lathes at work, the bench. */
+  private readonly floorLayer: FloorLayer;
   /** What struck it, as it plays out (Phase 42 M201): its homes alight, their smoke, the dust of the fallen. */
   private readonly blazeLayer: BlazeLayer;
   private blazed: BlazeNow | null = null;
@@ -265,6 +283,9 @@ export class VillageScene {
     this.feast = new FeastLayer(stage, this.root);
     this.warLayer = new TownWarLayer(stage, this.root);
     this.trades = new TradesLayer(stage, this.root);
+    this.crafts = new CraftsLayer(stage, this.root);
+    this.foundryLayer = new FoundryLayer(stage, this.root);
+    this.floorLayer = new FloorLayer(stage, this.root);
     this.blazeLayer = new BlazeLayer(stage, this.root);
     this.graveyard = new GraveyardLayer(stage, this.root);
     this.root.enabled = false;
@@ -349,6 +370,9 @@ export class VillageScene {
         child !== this.feast.root &&
         child !== this.warLayer.root &&
         child !== this.trades.root &&
+        child !== this.crafts.root &&
+        child !== this.foundryLayer.root &&
+        child !== this.floorLayer.root &&
         child !== this.blazeLayer.root &&
         child !== this.graveyard.root
       )
@@ -457,6 +481,29 @@ export class VillageScene {
     );
     this.furnaceStand = furnace?.stand ?? null;
     this.rackKept = null;
+    // (The potters' wheels and boards, the weavers' looms and the charcoal clamp, each as many as the
+    // town has now and a few more, as its kilns and workshops go up: Phase 51 M214.)
+    const solids = villageSolids(plan),
+      wheels = wheelsNow(plan, solids, t).length,
+      boards = boardsNow(plan, solids, t).length,
+      looms = loomsNow(plan, solids, t).length;
+    this.crafts.build(
+      {
+        wheels: wheels ? wheels + 6 : 0,
+        boards: boards ? boards + 2 : 0,
+        looms: looms ? looms + 2 : 0,
+        clamp: !!clampNow(plan, solids, t),
+      },
+      {
+        raw: plan.stuff?.clay.raw ?? [0.5, 0.4, 0.32],
+        fired: plan.stuff?.clay.fired ?? [0.74, 0.42, 0.26],
+        cloth: plan.stuff?.cloth.colour ?? [0.78, 0.7, 0.54],
+      },
+    );
+    const foundry = foundryNow(plan, solids, t);
+    this.foundryLayer.build(!!foundry, foundry?.moulds.length ?? 0);
+    this.floorLayer.build(floorNow(plan, solids, t)?.machines.length ?? 0);
+    this.craftsKept = null;
     // Its graveyard, just past its homes (Phase 43 M205).
     this.graveyard.build(graveyardFor(plan));
     // A town's well in the middle of its square, where its bucket lines draw (Phase 42 M201): a
@@ -1150,6 +1197,22 @@ export class VillageScene {
   /** Where the furnace's smelter stands (metres; null: no furnace), and the rack as last laid. */
   private furnaceStand: { readonly x: number; readonly z: number } | null = null;
   private rackKept: { key: number; rack: RackAt | null } | null = null;
+  /** The crafts as last laid (Phase 51 M214): the wheels, the boards, the looms and the clamp. */
+  private craftsKept: {
+    key: number;
+    day: number;
+    wheels: WheelAt[];
+    boards: (BoardsAt & { pots: Thrown[] })[];
+    looms: (LoomAt & { index: number; day: number })[];
+    clamp: ClampAt | null;
+    foundry: (FoundryAt & { moulds: { index: number; day: number }[] }) | null;
+    floor:
+      | (FloorAt & {
+          machines: { index: number; n: number }[];
+          benched: { index: number; n: number; form: string }[];
+        })
+      | null;
+  } | null = null;
 
   /**
    * The village at moment t. `downpour`: the span of a downpour over it, if one falls (those at
@@ -1333,6 +1396,24 @@ export class VillageScene {
     if (this.rackKept?.key !== key)
       this.rackKept = { key, rack: rackNow(plan, villageSolids(plan), t, fine) };
     this.trades.making(screen, smelting, this.rackKept.rack);
+    // The crafts seen being made (Phase 51 M214): the wheels turning as the pots are thrown, the
+    // boards filling as they are set out to dry, the cloth growing on the looms, the clamp's round.
+    if (this.craftsKept?.key !== key) {
+      const solids = villageSolids(plan);
+      this.craftsKept = {
+        key,
+        day: Math.floor(t / 86_400),
+        wheels: wheelsNow(plan, solids, t, fine),
+        boards: boardsNow(plan, solids, t, fine),
+        looms: loomsNow(plan, solids, t, fine),
+        clamp: clampNow(plan, solids, t, fine),
+        foundry: foundryNow(plan, solids, t, fine),
+        floor: floorNow(plan, solids, t, fine),
+      };
+    }
+    this.crafts.update(screen, this.stage.quality.motion, this.craftsKept);
+    this.foundryLayer.update(screen, this.stage.quality.motion, this.craftsKept.foundry);
+    this.floorLayer.update(screen, this.stage.quality.motion, this.craftsKept.floor);
     // Its dead and their burying (Phase 43 M205): the graves open today, their earth heaped
     // beside them; the dead on their biers, on their bearers' shoulders where they are drawn.
     this.mourning = false;
@@ -2077,6 +2158,181 @@ export class VillageScene {
       }
     });
     return best ? { ...(best as Hung), day: Math.floor(this.lastT / 86_400) } : null;
+  }
+
+  /** A point of the scene on the screen (behind the eye, nowhere). */
+  private onScreen(x: number, y: number, z: number): { x: number; y: number } {
+    const p = this.stage.camera.camera!.worldToScreen(new pc.Vec3(x * M, y * M, z * M));
+    return p.z > 0 ? { x: p.x, y: p.y } : { x: -1e6, y: -1e6 };
+  }
+
+  /** Where each pot on the kilns' boards stands on the screen now (the look tools, Phase 51 M214). */
+  potsOnScreen(): { x: number; y: number; form: string; kiln: number }[] {
+    return (this.craftsKept?.boards ?? []).flatMap((b, kiln) =>
+      b.pots.map((pot, k) => {
+        const at = boardSlot(b, k);
+        return { ...this.onScreen(at.x, 2.6, at.z), form: pot.form, kiln };
+      }),
+    );
+  }
+
+  /** Where each of the foundry's moulds lies on the screen now (the look tools, Phase 51 M215). */
+  mouldsOnScreen(): { x: number; y: number; poured: boolean }[] {
+    return (this.craftsKept?.foundry?.moulds ?? []).map((m) => ({
+      ...this.onScreen(m.x, 1, m.z),
+      poured: m.since !== null,
+    }));
+  }
+
+  /** Where each of the works' machines stands on the screen now, and whether it runs (the look tools, Phase 51 M215). */
+  machinesOnScreen(): { x: number; y: number; kind: "lathe" | "press"; running: boolean }[] {
+    return (this.craftsKept?.floor?.machines ?? []).map((m) => ({
+      ...this.onScreen(m.x, m.kind === "lathe" ? 3.5 : 2, m.z),
+      kind: m.kind,
+      running: m.running,
+    }));
+  }
+
+  /** Where each finished part on the works' bench lies on the screen now (the look tools, Phase 51 M215). */
+  benchOnScreen(): { x: number; y: number; form: string }[] {
+    const floor = this.craftsKept?.floor;
+    if (!floor) return [];
+    return floor.benched.map((part, k) => {
+      const at = benchSlot(floor, k);
+      return { ...this.onScreen(at.x, 2.7, at.z), form: part.form };
+    });
+  }
+
+  /** Where the middle of each loom's cloth hangs on the screen now (the look tools, Phase 51 M214). */
+  loomsOnScreen(): { x: number; y: number; woven: number; index: number }[] {
+    return (this.craftsKept?.looms ?? []).map((l) => ({
+      ...this.onScreen(l.x, 5.75 - Math.max(0.3, l.woven) * 1.8, l.z),
+      woven: l.woven,
+      index: l.index,
+    }));
+  }
+
+  /**
+   * The crafts as last drawn (the look tools, Phase 51 M214): the wheels and how many turn, the
+   * pots on the boards, the looms and how many are woven at, the clamp's round; where each is.
+   */
+  craftsNow(): CraftsLayer["shown"] & {
+    wheelsAt: { x: number; z: number; turning: boolean }[];
+    boardsAt: { x: number; z: number; pots: number }[];
+    loomsAt: { x: number; z: number; woven: number; index: number }[];
+    clampAt: { x: number; z: number; stage: number; lit: boolean } | null;
+    foundry: FoundryLayer["shown"];
+    foundryAt: { x: number; z: number; moulds: { x: number; z: number; poured: boolean }[] } | null;
+    floor: FloorLayer["shown"];
+    floorAt: {
+      machines: { x: number; z: number; kind: "lathe" | "press"; running: boolean }[];
+      bench: { x: number; z: number };
+      benched: number;
+    } | null;
+  } {
+    const k = this.craftsKept,
+      f = k?.foundry ?? null,
+      w = k?.floor ?? null;
+    return {
+      ...this.crafts.shown,
+      foundry: this.foundryLayer.shown,
+      floor: this.floorLayer.shown,
+      floorAt: w
+        ? {
+            machines: w.machines.map((m) => ({ x: m.x, z: m.z, kind: m.kind, running: m.running })),
+            bench: { x: w.bench.x, z: w.bench.z },
+            benched: w.benched.length,
+          }
+        : null,
+      foundryAt: f
+        ? {
+            x: f.cupola.x,
+            z: f.cupola.z,
+            moulds: f.moulds.map((m) => ({ x: m.x, z: m.z, poured: m.since !== null })),
+          }
+        : null,
+      wheelsAt: (k?.wheels ?? []).map((w) => ({ x: w.x, z: w.z, turning: w.turning })),
+      boardsAt: (k?.boards ?? []).map((b) => ({ x: b.x, z: b.z, pots: b.pots.length })),
+      loomsAt: (k?.looms ?? []).map((l) => ({ x: l.x, z: l.z, woven: l.woven, index: l.index })),
+      clampAt: k?.clamp
+        ? { x: k.clamp.x, z: k.clamp.z, stage: k.clamp.stage, lit: k.clamp.lit }
+        : null,
+    };
+  }
+
+  /**
+   * The thing being made nearest a point of the screen, within `reach` pixels (Phase 51 M213–M215):
+   * a tool on the smithy's rack, a pot on a kiln's boards, the cloth on a loom (its cloth's middle,
+   * a reach and a half), a casting in its mould, a part on the works' bench or in a machine at work
+   * — its maker (among those drawn), their trade, which of theirs, what, the day.
+   */
+  madeAt(
+    x: number,
+    y: number,
+    reach = 26,
+  ): {
+    trade: "smith" | "potter" | "weaver" | "founder" | "machinist";
+    index: number;
+    n: number;
+    form: string;
+    day: number;
+  } | null {
+    let best: ReturnType<VillageScene["madeAt"]> = null,
+      near = Infinity;
+    const offer = (d: number, made: NonNullable<typeof best>) => {
+      if (d < near) {
+        near = d;
+        best = made;
+      }
+    };
+    const rack = this.rackKept?.rack,
+      today = Math.floor(this.lastT / 86_400);
+    if (rack)
+      this.rackOnScreen().forEach((p, k) => {
+        const d = Math.hypot(p.x - x, p.y - y),
+          h = rack.hung[k];
+        if (h && d < reach)
+          offer(d, { trade: "smith", index: h.index, n: h.n, form: h.form, day: today });
+      });
+    const boards = this.craftsKept?.boards ?? [];
+    this.potsOnScreen().forEach((p, j) => {
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (d >= reach) return;
+      // (The j-th pot drawn: its kiln's and its place on those boards.)
+      let k = j,
+        b = 0;
+      while (b < boards.length && k >= boards[b]!.pots.length) k -= boards[b++]!.pots.length;
+      const pot = boards[b]?.pots[k];
+      if (pot)
+        offer(d, { trade: "potter", index: pot.index, n: pot.n, form: pot.form, day: pot.day });
+    });
+    const foundry = this.craftsKept?.foundry;
+    this.mouldsOnScreen().forEach((p, m) => {
+      const d = Math.hypot(p.x - x, p.y - y),
+        mould = foundry?.moulds[m];
+      if (mould?.form && mould.index >= 0 && d < reach)
+        offer(d, { trade: "founder", index: mould.index, n: m, form: mould.form, day: mould.day });
+    });
+    const floor = this.craftsKept?.floor;
+    this.benchOnScreen().forEach((p, k) => {
+      const d = Math.hypot(p.x - x, p.y - y),
+        part = floor?.benched[k];
+      if (part && d < reach)
+        offer(d, { trade: "machinist", index: part.index, n: part.n, form: part.form, day: today });
+    });
+    this.machinesOnScreen().forEach((p, m) => {
+      const d = Math.hypot(p.x - x, p.y - y),
+        mc = floor?.machines[m];
+      if (mc?.running && mc.part && mc.index >= 0 && d < reach * 1.5)
+        offer(d / 1.5, { trade: "machinist", index: mc.index, n: mc.n, form: mc.part, day: today });
+    });
+    this.loomsOnScreen().forEach((p, j) => {
+      const d = Math.hypot(p.x - x, p.y - y),
+        loom = this.craftsKept?.looms[j];
+      if (loom && d < reach * 1.5)
+        offer(d / 1.5, { trade: "weaver", index: loom.index, n: 0, form: "length", day: loom.day });
+    });
+    return best;
   }
 
   /** Where each tool on the rack hangs on the screen now (the look tools), the first made first. */

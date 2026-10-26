@@ -259,7 +259,8 @@ export class WorkLayer {
         materialColor("rock", plan.era, "ore", plan.stuff),
       );
     if (works?.well) this.place(wellPieces(), works.well, facing(works.well), true);
-    if (works?.factory) this.place(factoryPieces(), works.factory, facing(works.factory), true);
+    if (works?.factory)
+      this.place(factoryPieces(plan.era === "modern"), works.factory, facing(works.factory), true);
     this.cart =
       works?.mine?.kind === "shaft"
         ? {

@@ -121,7 +121,7 @@ const mean = (ps: Pt[]) => {
 };
 const off = (p: Pt, q: Pt) => Math.hypot(p.x - q.x, p.z - q.z);
 
-await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=300`);
+await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=300&hold=1`);
 await page.waitForFunction(
   () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
   undefined,

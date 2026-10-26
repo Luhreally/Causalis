@@ -325,6 +325,150 @@ export function rackOf(store: Store): { x: number; z: number; yaw: number; stand
   return { ...at(-1), yaw: store.yaw, stand: at(1.2) };
 }
 
+/**
+ * Whether a town burns charcoal (Phase 51 M214): where its works smelt their own ore, or its own
+ * smiths forge its metal — its collier at the clamp in the woodlot.
+ */
+export function burnsCharcoal(plan: VillagePlan): boolean {
+  return (
+    (!!plan.stuff?.ore && !!furnaceOf(plan.works?.mine)) ||
+    (plan.metal !== undefined &&
+      plan.metal !== "stone" &&
+      plan.people.some((p) => p.trade?.kind === "smith"))
+  );
+}
+
+/** How many moulds a foundry's casting floor holds (two a tap, six taps a day), and their rows. */
+export const MOULDS = 12,
+  MOULD_ROW = 6;
+
+/**
+ * A town's foundry by its works (Phase 51 M215), where its land keeps works in the age of engines:
+ * the cupola beside the works' front (toward the town), its spout at its foot and where its iron is
+ * drawn, its charging door's stockpile; the casting floor before the works, its moulds in two rows;
+ * where the castings are stacked; which way the works face. Null: no works, or before engines.
+ */
+export function foundryOf(plan: VillagePlan): {
+  readonly cupola: Point;
+  readonly spout: Point;
+  readonly stock: Point;
+  readonly moulds: readonly Point[];
+  readonly stack: Point;
+  readonly yaw: number;
+} | null {
+  const f = plan.works?.factory;
+  if (!f || (plan.era !== "industry" && plan.era !== "modern")) return null;
+  // (As the works are drawn: facing the town's middle, its front toward it.)
+  const yaw = Math.atan2(-f.x, -f.z),
+    c = Math.cos(yaw),
+    s = Math.sin(yaw),
+    at = (x: number, z: number): Point => ({ x: f.x + x * c + z * s, z: f.z - x * s + z * c });
+  return {
+    cupola: at(26, 7),
+    spout: at(22.5, 10.5),
+    stock: at(34, 1),
+    moulds: Array.from({ length: MOULDS }, (_, m) =>
+      at(-12.5 + (m % MOULD_ROW) * 5, 16 + Math.floor(m / MOULD_ROW) * 4.5),
+    ),
+    stack: at(-27, 9),
+    yaw,
+  };
+}
+
+/** How many machines the works' floor holds, in two rows (Phase 51 M215): presses in front, lathes behind. */
+export const MACHINES = 12,
+  MACHINE_ROW = 6;
+
+/** The machine a machinist of a seat works at: the presses and the lathes in turn, from the middle out. */
+export function machineOf(seat: number): number {
+  return (seat % 2) * MACHINE_ROW + (Math.floor(seat / 2) % MACHINE_ROW);
+}
+
+/**
+ * A town's works' floor in the modern age (Phase 51 M215): the front half of the works' hall,
+ * open to the sky on its steel frame toward the town (its roof over its back half), its machines
+ * in two rows across it — the presses in front, the lathes behind them — each facing the front,
+ * where its machinist stands at it; the bench just out before the hall where the finished parts
+ * are set; which way the works face. Null: no works, or before the modern age.
+ */
+export function floorOf(plan: VillagePlan): {
+  readonly machines: readonly (Point & {
+    readonly kind: "lathe" | "press";
+    readonly stand: Point;
+  })[];
+  readonly bench: Point;
+  readonly yaw: number;
+} | null {
+  const f = plan.works?.factory;
+  if (!f || plan.era !== "modern") return null;
+  const yaw = Math.atan2(-f.x, -f.z),
+    c = Math.cos(yaw),
+    s = Math.sin(yaw),
+    at = (x: number, z: number): Point => ({ x: f.x + x * c + z * s, z: f.z - x * s + z * c });
+  return {
+    machines: Array.from({ length: MACHINES }, (_, m) => {
+      const x = -15 + (m % MACHINE_ROW) * 6,
+        press = m < MACHINE_ROW,
+        z = press ? 7.5 : 2.5;
+      return { ...at(x, z), kind: press ? "press" : "lathe", stand: at(x, z + 2.6) };
+    }),
+    bench: at(0, 13.4),
+    yaw,
+  };
+}
+
+/** How far out from a kiln's door its potters' wheels stand, three to a row, and how far apart (metres). */
+const WHEEL_OUT = 3.4,
+  WHEEL_GAP = 4.2,
+  WHEEL_ROW = 5.5;
+
+/**
+ * The w-th potter's wheel before a kiln (Phase 51 M214): three to a row along its front, a row
+ * further out for each three; where it stands, which way its potter faces at it (toward the kiln),
+ * and where they stand (metres from the town's middle).
+ */
+export function wheelOf(
+  kiln: Store,
+  w: number,
+): { x: number; z: number; yaw: number; stand: Point } {
+  const c = Math.cos(kiln.yaw),
+    s = Math.sin(kiln.yaw),
+    across = ((w % 3) - 1) * WHEEL_GAP,
+    out = WHEEL_OUT + Math.floor(w / 3) * WHEEL_ROW,
+    at = (o: number): Point => ({
+      x: kiln.door.x + c * across - s * o,
+      z: kiln.door.z - s * across - c * o,
+    });
+  return { ...at(out), yaw: kiln.yaw, stand: at(out + 1.6) };
+}
+
+/**
+ * The boards against a kiln's front, past its wheels, where the pots thrown are set to dry
+ * before their firing (Phase 51 M214): their middle, which way they run, where one stands at them.
+ */
+export function boardsOf(kiln: Store): { x: number; z: number; yaw: number; stand: Point } {
+  return rackOf(kiln);
+}
+
+/**
+ * The w-th weaver's loom before a workshop (Phase 51 M214): upright, either side of its door past
+ * those at their craft before it, turn about; where it stands (its cloth across its front), which
+ * way its weaver faces at it, and where they stand (metres from the town's middle).
+ */
+export function loomOf(
+  shop: Store,
+  w: number,
+): { x: number; z: number; yaw: number; stand: Point } {
+  const c = Math.cos(shop.yaw),
+    s = Math.sin(shop.yaw),
+    across = (w % 2 ? -1 : 1) * (6.5 + Math.floor(w / 2) * 5.6),
+    at = (o: number): Point => ({
+      x: shop.door.x + c * across - s * o,
+      z: shop.door.z - s * across - c * o,
+    });
+  return { ...at(1.4), yaw: shop.yaw, stand: at(3.6) };
+}
+
 /** A piece of a store's heap: its middle (metres from the town's), its size (metres), how it lies. */
 export type HeapPiece = {
   readonly x: number;
@@ -622,8 +766,14 @@ export type RoleKind =
   | "cut"
   | "quarry"
   | "mine"
-  // At the furnace by the diggings, smelting its own ore (Phase 51 M213).
+  // At the furnace by the diggings, smelting its own ore (Phase 51 M213); at the charcoal clamp in
+  // the woodlot, burning the furnace's and the forge's charcoal (Phase 51 M214).
   | "smelt"
+  | "collier"
+  // At the foundry by the works, in the age of engines; at the works' machines in the modern age
+  // (Phase 51 M215).
+  | "foundry"
+  | "machine"
   | "smith"
   | "workshop"
   | "forage"
@@ -659,6 +809,9 @@ export const ROLE_WORDS: Readonly<Record<RoleKind, string>> = {
   quarry: "cutting stone",
   mine: "in the mine",
   smelt: "smelting ore at the furnace",
+  collier: "burning charcoal in the woodlot",
+  foundry: "at the foundry",
+  machine: "at the works' machines",
   smith: "at the forge",
   workshop: "at the workshop",
   forage: "foraging in the wild",
@@ -700,7 +853,7 @@ export type TownDay = {
 };
 
 /** How many fire a kiln and its pots, and how many work at a workshop, at most. */
-const POTTERS = 4,
+export const POTTERS = 4,
   SHOP_HANDS = 8;
 
 /** Whether a child is of an age for school: six to thirteen for upright apes, as late in any people's span. */
@@ -866,6 +1019,19 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
         sit(i, "smith", 0);
         return;
       }
+      // (Its founders at the foundry by its works, its machinists at its machines: Phase 51 M215.)
+      if (t.kind === "founder") {
+        if (!foundryOf(plan)) return;
+        kept.add(i);
+        sit(i, "foundry", 0);
+        return;
+      }
+      if (t.kind === "machinist") {
+        if (!floorOf(plan)) return;
+        kept.add(i);
+        sit(i, "machine", 0);
+        return;
+      }
       // (Its own, at most six to a trade: each to theirs, however many the others fill.)
       const kind = t.kind === "potter" ? "kiln" : "workshop",
         at = t.kind === "potter" ? kilns : shops;
@@ -956,6 +1122,18 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
       if (smelter >= 0) crafters.splice(crafters.indexOf(smelter), 1);
     }
     if (smelter >= 0) kinds[smelter] = "smelt";
+  }
+  // One of its fellers at the charcoal clamp in the woodlot, where it smelts its own ore or its own
+  // smiths forge (Phase 51 M214): the one the day draws (none felling, a crafter).
+  if (!lean && !rest && burnsCharcoal(plan)) {
+    const first = (from: readonly number[]) =>
+      from.reduce((a, i) => (a < 0 || draws[i]!(44) < draws[a]!(44) ? i : a), -1);
+    let collier = first(kinds.flatMap((k, i) => (k === "cut" ? [i] : [])));
+    if (collier < 0) {
+      collier = first(crafters);
+      if (collier >= 0) crafters.splice(crafters.indexOf(collier), 1);
+    }
+    if (collier >= 0) kinds[collier] = "collier";
   }
   // (Where the willing were too few to keep the yard, the rest of the crafters fell and cut for it.)
   while (crafters.length && fellers * 4.5 < wood - 2.25) {
