@@ -6,19 +6,28 @@
 // over them, falling with those who bore them; arrows in the air and spent in the ground; the
 // fallen where they fell, their blood spreading under them; dust where they run and where the lines
 // meet; the town burning, once stormed; the besiegers' tents, a siege laid. Posed afresh every frame
-// from the battle at its moment. Units as the meadow's: a tenth of a unit to the metre.
+// from the battle at its moment. Units as the meadow's: a tenth of a unit to the metre. Phase 55's
+// blows (view/blows.ts, render/blows.ts): the struck posed by their wounds, the wounds on them
+// where they were struck, wet and then dried, shafts stuck in them, the parts cut off lying apart
+// with their stumps raw, the blood thrown from fresh wounds.
 import * as pc from "playcanvas";
 import {
+  BLEED,
   FIELD,
+  SEVER,
   STRIDES,
   figurePaint,
   battleGroundAt,
+  figureAnatomy,
   partExtent,
   type BattleField,
   type BattleNow,
+  type BlowLost,
   type Figure,
+  type FigureAnatomy,
   type FigureBody,
   type FigurePart,
+  type LimbNow,
   type PartShape,
   type TrooperNow,
   FIGURE_CAPSULE,
@@ -26,6 +35,20 @@ import {
   isGun,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, capsuleMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import {
+  blowPose,
+  limbOfPose,
+  looseOf,
+  newPose,
+  placeBit,
+  placeMasks,
+  posedAt,
+  shaftWay,
+  stumpOf,
+  turned,
+  type LooseLook,
+  type Stump,
+} from "./blows.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 import { VehicleLayer } from "./vehicles.ts";
 
@@ -72,8 +95,98 @@ const DRAB: Rgb = [0.36, 0.38, 0.33],
   EARTH: Rgb = [0.2, 0.16, 0.11],
   PARAPET: Rgb = [0.52, 0.44, 0.3],
   GUN: Rgb = [0.2, 0.2, 0.22];
+// (Phase 55's blows: fresh blood, blood dried dark, the wound's own black-red, a stump's raw
+// flesh and its bone, an arrow's fletching.)
+const WET: Rgb = [0.55, 0.02, 0.03],
+  DRIED: Rgb = [0.26, 0.015, 0.02],
+  CORE: Rgb = [0.12, 0, 0.01],
+  FLESH: Rgb = [0.62, 0.1, 0.09],
+  BONE: Rgb = [0.88, 0.85, 0.76],
+  FLETCH: Rgb = [0.85, 0.83, 0.78];
+/**
+ * A wound drawn (the figure's own units): how far proud of its part's face, how thick; a stump's
+ * cap, how thick; a shaft stuck in one: its length out of them (a dart's), its thickness, how far
+ * it is sunk in, and its fletching's (each m of the figure); the drops thrown from a wound: for how
+ * long each flies (s), a stump's beat (s).
+ */
+const MARK = { proud: 0.003, thick: 0.004, cap: 0.012, core: 0.6 } as const;
+const SHAFT = { long: 0.55, dart: 0.3, thick: 0.02, sunk: 0.06, fletch: 0.12, vane: 0.06 } as const;
+const DROPS = { long: 0.6, beat: 0.8 } as const;
 
 const darker = (c: Rgb, k: number): Rgb => [c[0] * k, c[1] * k, c[2] * k];
+
+/**
+ * A wet red's material: its sheen red, as blood's is (a white sheen turns a pool pale where it
+ * catches the sun).
+ */
+function wetRed(color: Rgb, opacity: number, gloss: number, shine: number): pc.StandardMaterial {
+  const m = flatMaterial(color, opacity, gloss);
+  m.specular = new pc.Color(shine, shine * 0.1, shine * 0.1);
+  m.update();
+  return m;
+}
+
+/**
+ * Instances worked out ahead, kept between frames (8 numbers each, as InstancedBatch.set writes
+ * them: x, y, z, the three scales, yaw, pitch), and how many there are now.
+ */
+class Laid {
+  readonly most: number;
+  readonly buf: Float32Array;
+  n = 0;
+  constructor(most: number) {
+    this.most = most;
+    this.buf = new Float32Array(most * 8);
+  }
+  push(
+    x: number,
+    y: number,
+    z: number,
+    sx: number,
+    sy: number,
+    sz: number,
+    yaw: number,
+    pitch: number,
+  ): void {
+    if (this.n >= this.most) return;
+    const o = this.n++ * 8,
+      b = this.buf;
+    b[o] = x;
+    b[o + 1] = y;
+    b[o + 2] = z;
+    b[o + 3] = sx;
+    b[o + 4] = sy;
+    b[o + 5] = sz;
+    b[o + 6] = yaw;
+    b[o + 7] = pitch;
+  }
+  /** InstancedBatch.set's writer for these. */
+  readonly write = (j: number, out: number[]): void => {
+    const o = j * 8;
+    for (let q = 0; q < 8; q++) out[q] = this.buf[o + q]!;
+  };
+}
+
+/** The pose of one struck, worked out where it is needed (kept: nothing made each frame). */
+const POSE = newPose();
+/** Whom POSE was last worked out for, and whether the blows pose them. */
+let posedFor: TrooperNow | null = null,
+  posedNow = false;
+/**
+ * Whether the blows pose `t` (into POSE): worked out once for each one asked of in turn (their
+ * lean, their lift and each limb ask of the same one).
+ */
+function posed(t: TrooperNow): boolean {
+  if (t !== posedFor) {
+    posedFor = t;
+    posedNow = blowPose(t, POSE);
+  }
+  return posedNow;
+}
+
+/** How far one lying is raised so they rest on the ground, not in it. */
+const restOf = (t: TrooperNow, kk: number): number =>
+  t.act === "fall" ? 0.06 * kk * t.down : t.act === "prone" ? 0.06 * kk : 0;
 
 /**
  * A host's shields: of what its kit says they are made, faced in its colour (the copper alloys of
@@ -105,6 +218,8 @@ function unit(a: number, b: number): number {
 function limbAt(part: FigurePart, t: TrooperNow, stroke: string): number {
   const swing = part.swing ?? 0;
   if (!swing) return 0;
+  // (The struck, as their wound has them: Phase 55.)
+  if (posed(t)) return limbOfPose(part, POSE);
   const right = swing > 0,
     ph = t.cycle * 2 * Math.PI,
     off = t.id * 1.7;
@@ -176,6 +291,7 @@ function limbAt(part: FigurePart, t: TrooperNow, stroke: string): number {
 
 /** How far the whole of them leans forward (+) or back (−), about their feet. */
 function leanOf(t: TrooperNow, stroke: string): number {
+  if (posed(t)) return POSE.lean;
   switch (t.act) {
     case "run":
     case "flee":
@@ -202,7 +318,29 @@ type Rig = {
   readonly head: FigurePart | null;
   /** How high they stand (units at k 1). */
   readonly high: number;
+  /**
+   * Phase 55: how high their hips are (their legs' hinges; 0 with none), each part's extent
+   * (partExtent's, kept), their places (view/blows.ts's figureAnatomy), each part's places as bits
+   * (render/blows.ts's placeMasks), and where a part cut off leaves its stump and how it lies apart.
+   */
+  readonly hip: number;
+  readonly ext: readonly (readonly [number, number, number])[];
+  readonly anatomy: FigureAnatomy;
+  readonly masks: Uint8Array;
+  readonly stumps: Partial<Record<BlowLost, Stump>>;
+  readonly loose: Partial<Record<BlowLost, LooseLook>>;
 };
+
+/** What may be cut off. */
+const LOSABLE: readonly BlowLost[] = [
+  "head",
+  "arm-l",
+  "arm-r",
+  "hand-l",
+  "hand-r",
+  "leg-l",
+  "leg-r",
+];
 
 function rigOf(f: Figure): Rig {
   const arms = f.parts.filter((p) => p.role === "arm"),
@@ -212,13 +350,29 @@ function rigOf(f: Figure): Rig {
     head =
       [...f.parts]
         .filter((p) => !p.role && p.shape !== "cone")
-        .sort((a, b) => top(b) - top(a))[0] ?? null;
+        .sort((a, b) => top(b) - top(a))[0] ?? null,
+    legs = f.parts.filter((p) => p.role === "leg"),
+    anatomy = figureAnatomy(f),
+    stumps: Partial<Record<BlowLost, Stump>> = {},
+    loose: Partial<Record<BlowLost, LooseLook>> = {};
+  for (const lost of LOSABLE) {
+    const stump = stumpOf(anatomy, f.parts, lost),
+      lying = looseOf(anatomy, f.parts, lost);
+    if (stump) stumps[lost] = stump;
+    if (lying) loose[lost] = lying;
+  }
   return {
     f,
     hand: arms.find((p) => (p.swing ?? 0) > 0) ?? null,
     off: arms.find((p) => (p.swing ?? 0) < 0) ?? null,
     head,
     high,
+    hip: legs.length ? Math.max(...legs.map((p) => p.y + (p.pivot ?? 0))) : 0,
+    ext: f.parts.map((p) => partExtent(p)),
+    anatomy,
+    masks: placeMasks(anatomy, f.parts.length),
+    stumps,
+    loose,
   };
 }
 
@@ -301,6 +455,44 @@ export class BattleLayer {
   /** The town's houses, where a seat stands behind its walls. */
   private town: { x: number; z: number; w: number; d: number; h: number }[] = [];
   private shown = 0;
+  /**
+   * Phase 55's blows: the blood about each wound (wet, dried), the wounds themselves, the stumps'
+   * raw ends and their bones, the shafts stuck in the struck and their fletching; each laid out
+   * ahead into its kept buffer, then drawn; the drops thrown from fresh wounds (into the spray).
+   */
+  private readonly woundWet: InstancedBatch;
+  private readonly woundDry: InstancedBatch;
+  private readonly woundCore: InstancedBatch;
+  private readonly flesh: InstancedBatch;
+  private readonly bone: InstancedBatch;
+  private readonly stuckShafts: InstancedBatch;
+  private readonly fletches: InstancedBatch;
+  private readonly laid = {
+    wet: new Laid(MOST * 3),
+    dry: new Laid(MOST * 3),
+    core: new Laid(MOST * 3),
+    flesh: new Laid(SEVER.most * 4),
+    bone: new Laid(SEVER.most * 4),
+    shafts: new Laid(MOST * 2),
+    fletches: new Laid(MOST * 2),
+    spray: new Laid(900),
+  };
+  /**
+   * Of each one drawn of a side, worked out once a frame before their parts are (kept, grown as
+   * needed): their scale, lean, height (their feet's, lifted and rested on the ground), and their
+   * turn's cosine and sine.
+   */
+  private each = {
+    kk: new Float64Array(MOST),
+    lean: new Float64Array(MOST),
+    up: new Float64Array(MOST),
+    c: new Float64Array(MOST),
+    s: new Float64Array(MOST),
+  };
+  /** Points and ways worked out as each is posed (kept: nothing made each frame). */
+  private readonly at = { x: 0, y: 0, z: 0 };
+  private readonly way = { x: 0, y: 0, z: 0 };
+  private readonly world = { x: 0, y: 0, z: 0 };
 
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
@@ -326,13 +518,21 @@ export class BattleLayer {
     this.cars = batch(this.box, WOOD, MOST);
     this.wheels = batch(this.cyl, darker(WOOD, 0.7), MOST * 2);
     this.arrows = batch(this.box, [0.36, 0.26, 0.16], 900);
-    this.blood = batch(this.cyl, BLOOD, MOST * 4, flatMaterial(BLOOD, 0.9, 0.7, 0.3));
+    // (The fallen's pools and the wounded's trails: view/blows.ts's, at most BLEED.most.)
+    this.blood = batch(this.cyl, BLOOD, BLEED.most, wetRed(BLOOD, 0.9, 0.6, 0.08));
     this.spray = batch(
       this.box,
       [0.62, 0.03, 0.04],
-      420,
-      flatMaterial([0.62, 0.03, 0.04], 1, 0.5, 0.2),
+      this.laid.spray.most + 420,
+      wetRed([0.62, 0.03, 0.04], 1, 0.5, 0.1),
     );
+    this.woundWet = batch(this.box, WET, this.laid.wet.most, wetRed(WET, 1, 0.6, 0.12));
+    this.woundDry = batch(this.box, DRIED, this.laid.dry.most, flatMaterial(DRIED, 1, 0.3, 0));
+    this.woundCore = batch(this.box, CORE, this.laid.core.most, wetRed(CORE, 1, 0.5, 0.08));
+    this.flesh = batch(this.box, FLESH, this.laid.flesh.most, wetRed(FLESH, 1, 0.6, 0.12));
+    this.bone = batch(this.box, BONE, this.laid.bone.most, flatMaterial(BONE, 1, 0.4, 0.1));
+    this.stuckShafts = batch(this.box, [0.36, 0.26, 0.16], this.laid.shafts.most);
+    this.fletches = batch(this.box, FLETCH, this.laid.fletches.most);
     this.dust = batch(this.box, DUST, 240, flatMaterial(DUST, 0.32));
     const fire = new pc.StandardMaterial();
     fire.useLighting = false;
@@ -395,9 +595,16 @@ export class BattleLayer {
           : [c, darker(c, 0.55), paint.tones[2], paint.tones[3], paint.tones[4], c],
         metal = s.arms?.field[1] ?? [0.92, 0.93, 0.96];
       return {
+        // (Room past the figures for the parts cut off them, lying apart: Phase 55.)
         parts: (f?.parts ?? []).map(
           (p) =>
-            new InstancedBatch(this.stage, this.shapes[p.shape], tones[p.tone]!, MOST, this.root),
+            new InstancedBatch(
+              this.stage,
+              this.shapes[p.shape],
+              tones[p.tone]!,
+              MOST + SEVER.most,
+              this.root,
+            ),
         ),
         shields: new InstancedBatch(this.stage, this.box, shieldOf(s.kit, c), MOST, this.root),
         flags: new InstancedBatch(this.stage, this.box, c, 32, this.root),
@@ -589,39 +796,78 @@ export class BattleLayer {
       hosts = field.hosts,
       mountedOf = (t: TrooperNow) => hosts[t.side]!.mounted,
       lift = (t: TrooperNow) => {
-        const m = mountedOf(t);
+        const m = mountedOf(t),
+          // (Down on a knee, sitting, going down: sunk by so much of their hips' height.)
+          sink = posed(t) ? POSE.sink * rig.hip * k : 0;
         // (A rider sits up on their horse; one in a chariot stands in its car. Those down lie on the ground.)
-        return t.act === "fall" || t.act === "prone"
-          ? 0
-          : m === "horse"
-            ? 0.33 * k
-            : m === "chariot"
-              ? 0.17 * k
-              : 0;
+        return (
+          (t.act === "fall" || t.act === "prone"
+            ? 0
+            : m === "horse"
+              ? 0.33 * k
+              : m === "chariot"
+                ? 0.17 * k
+                : 0) - sink
+        );
       };
     let shown = 0;
+    const limbs = now.limbs ?? [];
     // Each one who fought, in the parts of their figure.
     for (const side of [0, 1] as const) {
       const s = this.sides[side]!,
         list = now.troopers.filter((t) => t.side === side && t.size > 0.01),
-        stroke = hosts[side]!.stroke;
+        stroke = hosts[side]!.stroke,
+        n = list.length;
+      // (What is the same for each of their parts, worked out once for each of them.)
+      if (this.each.kk.length < n)
+        this.each = {
+          kk: new Float64Array(n),
+          lean: new Float64Array(n),
+          up: new Float64Array(n),
+          c: new Float64Array(n),
+          s: new Float64Array(n),
+        };
+      const E = this.each;
+      for (let j = 0; j < n; j++) {
+        const t = list[j]!,
+          kk = k * t.size;
+        E.kk[j] = kk;
+        E.lean[j] = leanOf(t, stroke);
+        // (Lying, they rest on the ground, not in it.)
+        E.up[j] = t.y * M + lift(t) + restOf(t, kk);
+        E.c[j] = Math.cos(t.yaw);
+        E.s[j] = Math.sin(t.yaw);
+      }
       f.parts.forEach((part, i) => {
-        s.parts[i]!.set(list.length, (j, out) => {
+        // (After the figures, the parts cut off them that lie apart: Phase 55.)
+        let apart = 0;
+        for (const l of limbs) if (l.side === side && rig.masks[i]! & placeBit(l.lost)) apart++;
+        s.parts[i]!.set(n + apart, (j, out) => {
+          if (j >= n) {
+            this.lyingPart(limbs, side, i, j - n, k, out);
+            return;
+          }
           const t = list[j]!,
-            kk = k * t.size,
+            kk = E.kk[j]!,
             lp = limbAt(part, t, stroke),
-            lean = leanOf(t, stroke),
-            p = posedPoint(part, lp, lean, -(part.pivot ?? 0)),
-            c = Math.cos(t.yaw),
-            sn = Math.sin(t.yaw),
-            // (Lying, they rest on the ground, not in it.)
-            rest = t.act === "fall" ? 0.06 * kk * t.down : t.act === "prone" ? 0.06 * kk : 0;
+            lean = E.lean[j]!,
+            // (A part cut off them is not drawn on them; of an arm or a leg, its stump is, short
+            // from its hinge: Phase 55.)
+            st = t.lost !== undefined ? rig.stumps[t.lost] : undefined,
+            keep = st !== undefined && st.part === i ? st.keep : 1,
+            p = posedPoint(part, lp, lean, keep < 1 ? (-(1 - keep) * rig.ext[i]![1]) / 2 : 0),
+            c = E.c[j]!,
+            sn = E.s[j]!,
+            gone =
+              keep === 1 && t.lost !== undefined && (rig.masks[i]! & placeBit(t.lost)) !== 0
+                ? 0
+                : kk;
           out[0] = t.x * M + (part.x * c + p.z * sn) * kk;
-          out[1] = t.y * M + lift(t) + p.y * kk + rest;
+          out[1] = E.up[j]! + p.y * kk;
           out[2] = t.z * M + (-part.x * sn + p.z * c) * kk;
-          out[3] = part.sx * kk;
-          out[4] = part.sy * kk;
-          out[5] = part.sz * kk;
+          out[3] = part.sx * gone;
+          out[4] = part.sy * gone * keep;
+          out[5] = part.sz * gone;
           out[6] = t.yaw;
           out[7] = lp + lean;
         });
@@ -629,7 +875,10 @@ export class BattleLayer {
       shown += list.length * f.parts.length;
       // Shields on their off arms, where their host bore them.
       const shielded = field.near[side === 0 ? "attacker" : "defender"].host?.guard === "shield";
-      const bearers = shielded ? list.filter((t) => t.act !== "flee") : [];
+      // (Not on an arm cut off; let fall beside one down on a knee or sitting: Phase 55.)
+      const bearers = shielded
+        ? list.filter((t) => t.act !== "flee" && t.lost !== "arm-l" && t.lost !== "hand-l")
+        : [];
       s.shields.set(bearers.length, (j, out) => {
         const t = bearers[j]!,
           arm = rig.off ?? rig.hand,
@@ -641,7 +890,7 @@ export class BattleLayer {
           ax = arm?.x ?? -0.1,
           c = Math.cos(t.yaw),
           sn = Math.sin(t.yaw),
-          fall = t.act === "fall";
+          fall = t.act === "fall" || t.act === "kneel" || t.act === "sit";
         out[0] = t.x * M + (ax * 1.1 * c + (at.z + 0.06) * sn) * k;
         out[1] = fall ? t.y * M + 0.012 : t.y * M + lift(t) + at.y * k;
         out[2] = t.z * M + (-ax * 1.1 * sn + (at.z + 0.06) * c) * k;
@@ -724,6 +973,9 @@ export class BattleLayer {
         arm = armLook(own).rest ?? own;
       if (arm === "claws" || arm === "mandibles" || arm === "tusks" || arm === "grapple") continue;
       if (t.act === "flee" && unit(t.id, 5) < 0.6) continue;
+      // (Nothing held in a hand cut off, nor a bow in a left one: Phase 55.)
+      const bow = arm === "bow" || arm === "horn-bow";
+      if (t.lost === (bow ? "arm-l" : "arm-r") || t.lost === (bow ? "hand-l" : "hand-r")) continue;
       armed.push({ t, arm });
     }
     const hold = (t: TrooperNow, arm: string) => {
@@ -737,7 +989,8 @@ export class BattleLayer {
         x = part?.x ?? 0.1,
         c = Math.cos(t.yaw),
         sn = Math.sin(t.yaw),
-        fall = t.act === "fall";
+        // (Let fall beside one down on a knee or sitting, clutching their wound: Phase 55.)
+        fall = t.act === "fall" || t.act === "kneel" || t.act === "sit";
       // Which way the thing held points (up and ahead, in the figure's frame).
       let up: number, ahead: number, long: number;
       if (isGun(arm)) {
@@ -848,13 +1101,13 @@ export class BattleLayer {
     };
     const helmed = now.troopers.filter((t) => {
       const g = field.near[t.side === 0 ? "attacker" : "defender"].host?.guard;
-      return t.size > 0.01 && (g === "mail" || g === "plate" || g === "scale");
+      return t.size > 0.01 && t.lost !== "head" && (g === "mail" || g === "plate" || g === "scale");
     });
     this.helmets.set(helmed.length, (j, out) => helmet(helmed[j]!, out, 1, 1));
     this.helmets.recolor(field.near.attacker.host?.guard === "scale" ? BRONZE : IRON);
     const steel = now.troopers.filter((t) => {
       const g = field.near[t.side === 0 ? "attacker" : "defender"].host?.guard;
-      return t.size > 0.01 && g === "helmet";
+      return t.size > 0.01 && t.lost !== "head" && g === "helmet";
     });
     this.steelHelmets.set(steel.length, (j, out) => helmet(steel[j]!, out, 1.3, 0.5));
     // Their horses (riders) and chariots, under them.
@@ -1115,8 +1368,22 @@ export class BattleLayer {
       out[5] = b.r * 1.6 * M;
       out[6] = b.x * 3.1;
     });
-    // The blood thrown up as they are struck down.
-    this.spray.set(Math.min(this.spray.capacity, now.spray.length), (j, out) => {
+    // The wounds on the struck, the shafts stuck in them, the stumps and the parts cut off (Phase 55).
+    const L = this.laid;
+    this.layBlows(now, k, metre, lift);
+    this.woundWet.set(L.wet.n, L.wet.write);
+    this.woundDry.set(L.dry.n, L.dry.write);
+    this.woundCore.set(L.core.n, L.core.write);
+    this.flesh.set(L.flesh.n, L.flesh.write);
+    this.bone.set(L.bone.n, L.bone.write);
+    this.stuckShafts.set(L.shafts.n, L.shafts.write);
+    this.fletches.set(L.fletches.n, L.fletches.write);
+    // The blood thrown up as they are struck down (and, Phase 55, from each fresh wound after).
+    this.spray.set(Math.min(this.spray.capacity, now.spray.length + L.spray.n), (j, out) => {
+      if (j >= now.spray.length) {
+        L.spray.write(j - now.spray.length, out);
+        return;
+      }
       const d = now.spray[j]!;
       out[0] = d.x * M;
       out[1] = (battleGroundAt(field.ground, d.x, d.z) + d.y) * M;
@@ -1214,6 +1481,291 @@ export class BattleLayer {
     // The armoured cars, and the smoke and fire off the wrecks.
     this.vehicles.update(now.vehicles ?? [], now.fumes ?? [], now.flames ?? [], metre);
     this.shown = shown;
+  }
+
+  /**
+   * Phase 55: the marks of the blows laid out ahead for their batches — about each wound its blood
+   * (wet, then dried dark), the wound itself, a stump's raw end and its bone, each shaft stuck in
+   * one and its fletching, the raw ends of the parts lying apart, and the drops thrown from fresh
+   * wounds and spurting stumps — each posed with the part it is on as the part is drawn.
+   */
+  private layBlows(
+    now: BattleNow,
+    k: number,
+    metre: number,
+    lift: (t: TrooperNow) => number,
+  ): void {
+    const field = this.field!,
+      rig = this.rig!,
+      f = rig.f,
+      L = this.laid,
+      at = this.at,
+      way = this.way,
+      world = this.world;
+    L.wet.n = L.dry.n = L.core.n = L.flesh.n = L.bone.n = L.shafts.n = L.fletches.n = L.spray.n = 0;
+    // (A point of the figure `t`, posed, into the world.)
+    const place = (t: TrooperNow, kk: number) => {
+      const c = Math.cos(t.yaw),
+        sn = Math.sin(t.yaw);
+      world.x = t.x * M + (at.x * c + at.z * sn) * kk;
+      world.y = t.y * M + lift(t) + at.y * kk + restOf(t, kk);
+      world.z = t.z * M + (-at.x * sn + at.z * c) * kk;
+    };
+    for (const w of now.wounds ?? []) {
+      const t = now.troopers[w.id];
+      if (!t || t.size <= 0.01) continue;
+      const stroke = field.hosts[t.side]!.stroke,
+        kk = k * t.size,
+        m = metre * t.size,
+        lean = leanOf(t, stroke);
+      if (w.mark === "stump") {
+        // The raw end where the part was cut off, its bone in the middle, spurting while fresh.
+        const st = rig.stumps[w.place as BlowLost];
+        if (!st) continue;
+        const part = f.parts[st.part]!,
+          lp = limbAt(part, t, stroke),
+          pitch = lp + lean;
+        posedAt(part, lp, lean, 0, st.cut + (st.end * MARK.cap) / 2, 0, at);
+        place(t, kk);
+        L.flesh.push(
+          world.x,
+          world.y,
+          world.z,
+          st.wide * 1.04 * kk,
+          MARK.cap * kk,
+          st.deep * 1.04 * kk,
+          t.yaw,
+          pitch,
+        );
+        posedAt(part, lp, lean, 0, st.cut + st.end * MARK.cap, 0, at);
+        place(t, kk);
+        L.bone.push(
+          world.x,
+          world.y,
+          world.z,
+          st.wide * 0.38 * kk,
+          MARK.cap * 1.4 * kk,
+          st.deep * 0.38 * kk,
+          t.yaw,
+          pitch,
+        );
+        if (w.spray > 0) {
+          way.x = 0;
+          way.y = st.end;
+          way.z = 0;
+          this.drops(w.id, w.spray, w.age % DROPS.beat, way, pitch, t.yaw);
+        }
+        continue;
+      }
+      const pi = rig.anatomy.on[w.place];
+      if (pi < 0) continue;
+      const part = f.parts[pi]!,
+        e = rig.ext[pi]!,
+        lp = limbAt(part, t, stroke),
+        pitch = lp + lean,
+        face = w.face * (e[2] / 2 + MARK.proud),
+        // (The blood about it, run a little down the part, kept to its face.)
+        bx = Math.min(w.bleed * m, e[0] * 1.05 * kk),
+        by = Math.min(w.bleed * m * 1.15, e[1] * 1.05 * kk);
+      posedAt(part, lp, lean, w.u * e[0], w.v * e[1] - (0.12 * by) / kk, face, at);
+      place(t, kk);
+      (w.wet ? L.wet : L.dry).push(
+        world.x,
+        world.y,
+        world.z,
+        bx,
+        by,
+        MARK.thick * kk,
+        t.yaw,
+        pitch,
+      );
+      // The wound itself, dark on it: a cut across, a stab, a hole, a smashed wound.
+      const s = w.size * m,
+        ax = w.mark === "cut" ? 1 : w.mark === "stab" ? 0.6 : w.mark === "hole" ? 0.8 : 1,
+        ay = w.mark === "cut" ? 0.28 : w.mark === "stab" ? 0.9 : w.mark === "hole" ? 0.8 : 0.9;
+      posedAt(part, lp, lean, w.u * e[0], w.v * e[1], face + w.face * MARK.thick * 0.6, at);
+      place(t, kk);
+      L.core.push(
+        world.x,
+        world.y,
+        world.z,
+        Math.min(s * ax, e[0] * MARK.core * kk),
+        Math.min(s * ay, e[1] * MARK.core * kk),
+        MARK.thick * kk,
+        t.yaw,
+        pitch,
+      );
+      if (w.spray > 0) {
+        way.x = 0;
+        way.y = 0;
+        way.z = w.face;
+        this.drops(w.id, w.spray, w.age, way, pitch, t.yaw);
+      }
+    }
+    // The shafts stuck in them: out of them back along their flight, fletched at the end.
+    for (const st of now.stuck ?? []) {
+      const t = now.troopers[st.id];
+      if (!t || t.size <= 0.01) continue;
+      const pi = rig.anatomy.on[st.place];
+      if (pi < 0) continue;
+      const stroke = field.hosts[t.side]!.stroke,
+        kk = k * t.size,
+        m = metre * t.size,
+        part = f.parts[pi]!,
+        e = rig.ext[pi]!,
+        lean = leanOf(t, stroke),
+        lp = limbAt(part, t, stroke),
+        out = shaftWay(st.yaw, st.dip, way);
+      posedAt(part, lp, lean, st.u * e[0], st.v * e[1], (out.z >= 0 ? 1 : -1) * (e[2] / 2), at);
+      place(t, kk);
+      const d = turned(out, lp + lean, t.yaw, way),
+        yaw = Math.atan2(d.x, d.z),
+        tip = -Math.asin(Math.max(-1, Math.min(1, d.y))),
+        long = (st.dart ? SHAFT.dart : SHAFT.long) * m,
+        sunk = SHAFT.sunk * m,
+        mid = long / 2 - sunk;
+      L.shafts.push(
+        world.x + d.x * mid,
+        world.y + d.y * mid,
+        world.z + d.z * mid,
+        SHAFT.thick * m,
+        SHAFT.thick * m,
+        long,
+        yaw,
+        tip,
+      );
+      if (!st.dart) {
+        const end = long - sunk - (SHAFT.fletch * m) / 2;
+        L.fletches.push(
+          world.x + d.x * end,
+          world.y + d.y * end,
+          world.z + d.z * end,
+          SHAFT.vane * m,
+          SHAFT.vane * m * 0.2,
+          SHAFT.fletch * m,
+          yaw,
+          tip,
+        );
+      }
+    }
+    // The raw ends of the parts lying apart, their bones.
+    for (const l of now.limbs ?? []) {
+      const look = rig.loose[l.lost];
+      if (!look) continue;
+      // (The cut's side: past the arm's or leg's top, below the head's neck.)
+      const side = look.from[0]![1] < 0 ? 1 : -1,
+        ground = battleGroundAt(field.ground, l.x, l.z) * M + l.y * M + look.lie * k;
+      way.x = 0;
+      way.y = (side * MARK.cap) / 2;
+      way.z = 0;
+      const c = turned(way, l.pitch, l.yaw, world);
+      L.flesh.push(
+        l.x * M + c.x * k,
+        ground + c.y * k,
+        l.z * M + c.z * k,
+        look.wide * 1.04 * k,
+        MARK.cap * k,
+        look.deep * 1.04 * k,
+        l.yaw,
+        l.pitch,
+      );
+      way.x = 0;
+      way.y = side * MARK.cap;
+      way.z = 0;
+      const b = turned(way, l.pitch, l.yaw, world);
+      L.bone.push(
+        l.x * M + b.x * k,
+        ground + b.y * k,
+        l.z * M + b.z * k,
+        look.wide * 0.38 * k,
+        MARK.cap * 1.4 * k,
+        look.deep * 0.38 * k,
+        l.yaw,
+        l.pitch,
+      );
+    }
+  }
+
+  /**
+   * The drops thrown from a wound `age` seconds after it was struck (or a stump's beat): out of it
+   * along `out` (the figure's frame, tipped `pitch` and turned `yaw` with them), up, and falling;
+   * from the point last placed (this.world).
+   */
+  private drops(
+    id: number,
+    n: number,
+    age: number,
+    out: { x: number; y: number; z: number },
+    pitch: number,
+    yaw: number,
+  ): void {
+    if (age >= DROPS.long) return;
+    const field = this.field!,
+      from = this.world,
+      x0 = from.x,
+      y0 = from.y,
+      z0 = from.z,
+      d = turned(out, pitch, yaw, this.way);
+    for (let q = 0; q < n; q++) {
+      const key = id * 16 + q,
+        sp = (0.8 + 1.6 * unit(key, 50)) * M,
+        up = (0.6 + 1.4 * unit(key, 60)) * M,
+        side = (unit(key, 70) - 0.5) * 1.2 * M,
+        x = x0 + (d.x * sp + d.z * side) * age,
+        z = z0 + (d.z * sp - d.x * side) * age,
+        y = y0 + (d.y * sp + up) * age - 4.9 * M * age * age,
+        r = (0.05 + 0.06 * unit(key, 80)) * M;
+      if (y < battleGroundAt(field.ground, x / M, z / M) * M) continue;
+      this.laid.spray.push(x, y, z, r, r, r, q * 1.3, q * 0.7);
+    }
+  }
+
+  /**
+   * The `nth` part `i` of side `side`'s parts cut off, lying apart where the view says each one
+   * lies (`out` as InstancedBatch.set writes it; drawn nowhere if there is none).
+   */
+  private lyingPart(
+    limbs: readonly LimbNow[],
+    side: 0 | 1,
+    i: number,
+    nth: number,
+    k: number,
+    out: number[],
+  ): void {
+    const rig = this.rig!,
+      field = this.field!,
+      part = rig.f.parts[i]!;
+    let left = nth;
+    for (const l of limbs) {
+      if (l.side !== side || !(rig.masks[i]! & placeBit(l.lost))) continue;
+      if (left-- > 0) continue;
+      const look = rig.loose[l.lost];
+      if (!look) break;
+      const q = look.parts.indexOf(i),
+        d = look.from[q]!;
+      this.way.x = d[0];
+      this.way.y = d[1];
+      this.way.z = d[2];
+      const o = turned(this.way, l.pitch, l.yaw, this.at),
+        ground = battleGroundAt(field.ground, l.x, l.z) * M + l.y * M + look.lie * k;
+      out[0] = l.x * M + o.x * k;
+      out[1] = ground + o.y * k;
+      out[2] = l.z * M + o.z * k;
+      out[3] = part.sx * k;
+      // (An arm's or a leg's first part: what its stump did not keep.)
+      out[4] = part.sy * k * (q === 0 ? look.short : 1);
+      out[5] = part.sz * k;
+      out[6] = l.yaw;
+      out[7] = l.pitch;
+      return;
+    }
+    out[3] = out[4] = out[5] = 0;
+  }
+
+  /** What of the blows is drawn now (the look tools, Phase 55): wounds, raw ends (stumps and the parts apart), shafts stuck, drops thrown. */
+  marks(): { wounds: number; ends: number; shafts: number; drops: number } {
+    const L = this.laid;
+    return { wounds: L.core.n, ends: L.flesh.n, shafts: L.shafts.n, drops: L.spray.n };
   }
 
   /** Where one who fought is on the screen, at their middle (or so far over it: `over`, units), or null where not seen. */

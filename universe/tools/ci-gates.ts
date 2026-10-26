@@ -115,8 +115,10 @@ export const GATES: readonly { gate: number; args: readonly string[]; s: number 
   { gate: 36, args: ["--ci"], s: 42 },
   // The Phase 37 gate: battles seen (a battle of history watched on its field, the world held
   // while its own clock runs, held and sped and drawn back and forth; its hosts in proportion and
-  // as many fallen as history says; one who fought followed; back to the land; on a phone).
-  { gate: 37, args: ["--ci"], s: 88 },
+  // as many fallen as history says; one who fought followed; back to the land; on a phone) and
+  // Phase 55's blows where they land (wounds, parts cut off, the wounded going back, arrows stuck;
+  // the setting; on a phone). (Its time with the blows estimated from software GL: 75 → 113 s.)
+  { gate: 37, args: ["--ci"], s: 130 },
   // The Phase 38 gate: wars seen unfolding (a war of history played again on the globe, the
   // world held while its own clock runs, held and sped and drawn back and forth; its battles in
   // their turns, drawn and marked, its fallen tallied, its end told; one of them watched fought

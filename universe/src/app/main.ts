@@ -187,6 +187,12 @@ import {
   fieldMeadow,
   type BattleField,
   type BattleNow,
+  GORES,
+  blowWords,
+  blowsAt,
+  newBlows,
+  type Blows,
+  type Gore,
   stepBand,
   stepMeadow,
   type BandKit,
@@ -307,6 +313,16 @@ let drifting = (() => {
   }
 })();
 let driftRate = 1.5;
+/** How much of the blood and the wounds a battle shows (a setting: all unless chosen; Phase 55). */
+const GORE_KEY = "causalis.gore";
+let gore: Gore = (() => {
+  try {
+    const v = localStorage.getItem(GORE_KEY);
+    return v === "less" || v === "none" ? v : "full";
+  } catch {
+    return "full";
+  }
+})();
 /** A scale's own rate of turning (degrees a second), or none unless turning is chosen. */
 const drift = (rate = 1.5) => {
   driftRate = rate;
@@ -373,6 +389,43 @@ type Exposed = {
   } | null;
   /** The battle watched set to a moment (its seconds), at one of its speeds (an index). */
   battleAt?: (s: number, speed?: number) => void;
+  /**
+   * The blows of the battle watched (Phase 55): the setting; each side's fallen, wounded who
+   * lived and maimed (figures), the parts cut off; what is struck and drawn now; each part lying
+   * apart and how far from where it was cut off; the struck and those who help, by what they are
+   * at; each one struck (where on the screen: null where unseen).
+   */
+  blows?: () => {
+    gore: string;
+    dead: number[];
+    hurt: number[];
+    maimed: number[];
+    loose: number;
+    struck: number[];
+    wounds: number;
+    stuck: number;
+    blood: number;
+    limbs: { id: number; lost: string; striker: string; from: number; y: number }[];
+    drawn: { wounds: number; ends: number; shafts: number; drops: number };
+    acts: Record<string, number>;
+    onScreen: {
+      id: number;
+      side: number;
+      act: string;
+      hit: string;
+      striker: string;
+      living: boolean;
+      lost: string | null;
+      fell: string | null;
+      crawl: boolean;
+      since: number;
+      at: { x: number; y: number } | null;
+    }[];
+  } | null;
+  /** The blood and the wounds shown: "full", "less" or "none" (Phase 55). */
+  setGore?: (gore: string) => void;
+  /** One who fought followed, by their id (null: the hosts again), as a tap on them does (Phase 55). */
+  followFighter?: (id: number | null) => void;
   /** A war watched unfolding on the globe (Phase 38 M193): whether it is watched. */
   watchWar?: (ref: string) => Promise<boolean>;
   /** The war watched: its year and speed, what is told, its tallies, its host's way, what is drawn and marked. */
@@ -4652,6 +4705,8 @@ async function runPlanetPage(): Promise<void> {
       speed: number;
       was: number;
       now: BattleNow;
+      /** Where each one struck was struck and what came of it (Phase 55). */
+      blows: Blows;
       /** The one followed (-1: the hosts), and when they were told last. */
       followed: number;
       toldAt: number;
@@ -4761,6 +4816,7 @@ async function runPlanetPage(): Promise<void> {
       info.figure,
       groundOfLook(meadow.kindOfAge).grass,
     );
+    const blows = newBlows(field);
     fight = {
       info,
       field,
@@ -4768,7 +4824,8 @@ async function runPlanetPage(): Promise<void> {
       s: 0,
       speed: 2,
       was: 2,
-      now: battleAt(field, 0),
+      now: blowsAt(field, blows, battleAt(field, 0), gore),
+      blows,
       followed: -1,
       toldAt: -Infinity,
     };
@@ -4817,7 +4874,7 @@ async function runPlanetPage(): Promise<void> {
     if (scale !== "battle") warReturn = null;
     else if (fromWar?.fields && fight) {
       fight.s = MOMENTS.charge - 4;
-      fight.now = battleAt(fight.field, fight.s);
+      fight.now = blowsAt(fight.field, fight.blows, battleAt(fight.field, fight.s), gore);
       battleSpeed(Math.max(1, Math.min(BATTLE_SPEEDS.length - 1, fromWar.speed + 1)));
     }
   };
@@ -4855,7 +4912,7 @@ async function runPlanetPage(): Promise<void> {
   battlePanel.onScrub = (s) => {
     if (!fight) return;
     fight.s = Math.max(0, Math.min(BATTLE_LENGTH, s));
-    fight.now = battleAt(fight.field, fight.s);
+    fight.now = blowsAt(fight.field, fight.blows, battleAt(fight.field, fight.s), gore);
   };
   battlePanel.onSide = (ref) => void pageWindow.open(ref);
   // Their weapon traced: the page of what they fought with, from the ground to their hand.
@@ -4904,7 +4961,7 @@ async function runPlanetPage(): Promise<void> {
         return;
       }
     }
-    fight.now = battleAt(fight.field, fight.s);
+    fight.now = blowsAt(fight.field, fight.blows, battleAt(fight.field, fight.s), gore);
     meadowScene.update(fight.meadow, []);
     battleLayer.update(fight.now);
     // A battle fought by day: from the morning into the afternoon as it goes.
@@ -4937,7 +4994,8 @@ async function runPlanetPage(): Promise<void> {
     if (fight.followed >= 0 && wall - fight.toldAt >= 250) {
       fight.toldAt = wall;
       battlePanel.follow(
-        trooperWords(fight.field, fight.followed, fight.s),
+        blowWords(fight.field, fight.blows, fight.followed, fight.s) ??
+          trooperWords(fight.field, fight.followed, fight.s),
         fight.now.troopers[fight.followed]?.side ?? null,
       );
     } else if (fight.followed < 0 && fight.toldAt !== -Infinity) {
@@ -4974,7 +5032,11 @@ async function runPlanetPage(): Promise<void> {
           words: fight.now.words,
           arrows: fight.now.flying.length,
           parts: battleLayer.count(),
-          followed: fight.followed >= 0 ? trooperWords(fight.field, fight.followed, fight.s) : null,
+          followed:
+            fight.followed >= 0
+              ? (blowWords(fight.field, fight.blows, fight.followed, fight.s) ??
+                trooperWords(fight.field, fight.followed, fight.s))
+              : null,
           onScreen: fight.now.troopers
             .filter((t) => t.size > 0.3)
             .slice(0, 400)
@@ -4997,8 +5059,71 @@ async function runPlanetPage(): Promise<void> {
   exposed.battleAt = (s: number, speed?: number) => {
     if (!fight) return;
     fight.s = Math.max(0, Math.min(BATTLE_LENGTH, s));
-    fight.now = battleAt(fight.field, fight.s);
+    fight.now = blowsAt(fight.field, fight.blows, battleAt(fight.field, fight.s), gore);
     if (speed !== undefined) battleSpeed(speed);
+  };
+  // The blood and the wounds shown (Phase 55): a setting, kept in this browser.
+  planetPanel.goreNow = () => gore;
+  planetPanel.onGore = (g) => {
+    gore = g;
+    try {
+      localStorage.setItem(GORE_KEY, g);
+    } catch {
+      // Nowhere to remember it: for this visit only.
+    }
+    if (fight) fight.now = blowsAt(fight.field, fight.blows, battleAt(fight.field, fight.s), gore);
+  };
+  exposed.setGore = (g: string) => {
+    if ((GORES as readonly string[]).includes(g)) planetPanel.onGore(g as Gore);
+  };
+  exposed.followFighter = (id: number | null) => followTrooper(id);
+  exposed.blows = () => {
+    if (!fight || !battleLayer) return null;
+    const { blows, now } = fight,
+      acts: Record<string, number> = {};
+    for (const t of now.troopers)
+      if (t.hit !== undefined || blows.helping[t.id]! >= 0) {
+        const key = t.crawl ? "crawl" : t.act;
+        acts[key] = (acts[key] ?? 0) + 1;
+      }
+    return {
+      gore,
+      dead: [...blows.dead],
+      hurt: [...blows.hurt],
+      maimed: [...blows.maimed],
+      loose: blows.loose.length,
+      struck: [...(now.hurt ?? [0, 0])],
+      wounds: now.wounds?.length ?? 0,
+      stuck: now.stuck?.length ?? 0,
+      blood: now.blood.length,
+      limbs: (now.limbs ?? []).map((l) => {
+        const h = blows.hits[blows.of[l.id]!]!;
+        return {
+          id: l.id,
+          lost: l.lost,
+          striker: h.striker,
+          from: Math.hypot(l.x - h.x, l.z - h.z),
+          y: l.y,
+        };
+      }),
+      drawn: battleLayer.marks(),
+      acts,
+      onScreen: now.troopers
+        .filter((t) => t.hit !== undefined && t.size > 0.3)
+        .map((t) => ({
+          id: t.id,
+          side: t.side,
+          act: t.act,
+          hit: t.hit!,
+          striker: blows.hits[blows.of[t.id]!]!.striker,
+          living: blows.hits[blows.of[t.id]!]!.back !== null,
+          lost: t.lost ?? null,
+          fell: t.fell ?? null,
+          crawl: t.crawl > 0,
+          since: t.since ?? 0,
+          at: battleLayer!.onScreen(t),
+        })),
+    };
   };
   exposed.clock = () => ({ stopped: time.stopped, speed: time.speed });
 

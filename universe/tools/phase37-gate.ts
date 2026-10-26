@@ -8,7 +8,12 @@
 //      says fell;
 //   4. one who fought, tapped, is followed and told;
 //   5. back to its land, the world's clock goes on as it went;
-//   6. on a phone the battle's bar keeps to the screen's width.
+//   6. on a phone the battle's bar keeps to the screen's width;
+//   7. Phase 55's blows where they land: the setting on the settings page (full, less, none);
+//      on a battle of axes and swords with history's wounded and maimed, the wounds drawn on the
+//      struck, the parts cut off lying where they fell, the wounded going back, kneeling and
+//      helped, as many falling as history says; arrows stuck in the struck; none of it drawn when
+//      the setting says none, the wounded still going back; on a phone.
 // (npm run build first; --soft draws in software, as CI's browser does; --shots keeps pictures.)
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -97,6 +102,36 @@ await page.waitForFunction(
   },
 );
 await k(page, `globalThis.causalis.client.setSpeed(0)`);
+
+// (7, first: the blood and the wounds a battle shows, on the world's settings page.)
+{
+  const lines = () => page.$$eval("button.line", (x) => x.map((b) => b.textContent ?? ""));
+  await page.click(".world-menu button[title='Settings']");
+  await until(
+    page,
+    "the settings' blood and wounds",
+    async () => (await lines()).some((l) => l.startsWith("None —")),
+    slow(10000),
+  );
+  const gores = (await lines()).filter((l) => /^(Full|Less|None) —/.test(l));
+  say(`blood and wounds: ${gores.map((l) => l.split(" —")[0]).join(", ")}`);
+  check(gores.length === 3, `the setting's three choices (${gores.length})`);
+  check(
+    await page.locator("button.line.chosen", { hasText: "Full —" }).isVisible(),
+    "full chosen unless chosen otherwise",
+  );
+  await page.click("button.line:has-text('None —')");
+  check(
+    (await k<string | null>(page, `localStorage.getItem("causalis.gore")`)) === "none" &&
+      (await page.locator("button.line.chosen", { hasText: "None —" }).isVisible()),
+    "none chosen, and kept",
+  );
+  await page.click("button.line:has-text('Full —')");
+  check(
+    (await k<string | null>(page, `localStorage.getItem("causalis.gore")`)) === "full",
+    "full chosen again",
+  );
+}
 
 // The greatest battle of the world's wars: the one with the most fallen.
 const wars = await k<{ wars: { battles: { event: string; fallen: number; year: number }[] }[] }>(
@@ -227,6 +262,206 @@ if (greatest) {
     `the battle's bar fits a phone (${fits.wide} in ${fits.screen})`,
   );
   await shot(page, "5-on-a-phone");
+
+  // 7. The blows where they land (Phase 55), on battles made for them from this one.
+  type Blows = {
+    gore: string;
+    dead: number[];
+    hurt: number[];
+    maimed: number[];
+    loose: number;
+    struck: number[];
+    wounds: number;
+    stuck: number;
+    blood: number;
+    limbs: { id: number; lost: string; striker: string; from: number; y: number }[];
+    drawn: { wounds: number; ends: number; shafts: number; drops: number };
+    acts: Record<string, number>;
+    onScreen: {
+      id: number;
+      act: string;
+      living: boolean;
+      lost: string | null;
+      crawl: boolean;
+      at: { x: number; y: number } | null;
+    }[];
+  };
+  const blows = () => k<Blows | null>(page, `globalThis.causalis.blows()`);
+  const real = await k<{ event: string; attacker: object; defender: object }>(
+      page,
+      `globalThis.causalis.client.query({ type: "battle.near", args: { event: ${JSON.stringify(greatest.event)} } })`,
+    ),
+    host = (
+      s: object,
+      fielded: number,
+      fallen: number,
+      arm: string,
+      guard: string,
+      wounded: number,
+      maimed: number,
+    ) => ({
+      ...s,
+      fielded,
+      fallen,
+      host: { arm, guard, mount: "" },
+      kit: `${arm}s, ${guard}`,
+      risen: 0,
+      armed: 1,
+      wounded,
+      maimed,
+    }),
+    made = (name: string, a: object, d: object) => ({
+      ...real,
+      event: `${real.event}:${name}`,
+      attacker: a,
+      defender: d,
+      won: true,
+      outcome: "field",
+      hills: false,
+      river: false,
+      walls: 0,
+      town: null,
+    }),
+    watchMade = async (near: object, what: string) =>
+      check(
+        await k<boolean>(page, `globalThis.causalis.watchBattleNear(${JSON.stringify(near)})`),
+        what,
+      ),
+    // (The blows are laid over the moment at once; what is drawn of them, at the next frame.)
+    at = (s: number) => k(page, `globalThis.causalis.battleAt(${s}, 0)`),
+    drawnAs = (what: string, ok: (x: Blows) => boolean) =>
+      until(
+        page,
+        what,
+        async () => {
+          const x = await blows();
+          return !!x && ok(x);
+        },
+        slow(8000),
+      );
+  await page.setViewportSize({ width: 1366, height: 800 });
+  // Axes against swords, history's wounded and maimed given.
+  const blades = made(
+    "blows",
+    host(real.attacker, 700, 160, "axe", "mail", 300, 30),
+    host(real.defender, 600, 220, "sword", "shield", 260, 36),
+  );
+  await watchMade(blades, "a battle of axes and swords watched");
+  await at(90);
+  await drawnAs("the wounds drawn", (x) => x.drawn.wounds > 0 && x.drawn.ends > 0);
+  let w = await blows();
+  say(
+    `axes and swords: fallen ${w?.dead.join(" and ")} figures, wounded ${w?.hurt.join(" and ")}, maimed ${w?.maimed.join(" and ")}, ${w?.loose} parts cut off; at 90 s ${w?.drawn.wounds} wounds and ${w?.drawn.ends} raw ends drawn, ${w?.blood} pools, ${JSON.stringify(w?.acts)}`,
+  );
+  check(
+    !!w && w.hurt.every((n) => n > 0) && w.maimed.every((n) => n > 0) && w.loose > 0,
+    "history's wounded and maimed drawn on both sides, parts cut off",
+  );
+  check(!!w && w.blood > 0, "blood drawn");
+  const going = (a: Record<string, number>) =>
+    (a.kneel ?? 0) + (a.limp ?? 0) + (a.propped ?? 0) + (a.sit ?? 0);
+  check(
+    !!w && (w.acts.crawl ?? 0) > 0 && going(w.acts) > 0 && (w.acts.help ?? 0) > 0,
+    "the wounded crawling, kneeling, limping and helped back",
+  );
+  await shot(page, "6-blows");
+  // None drawn when the setting says none; the wounded go back all the same.
+  await k(page, `globalThis.causalis.setGore("none")`);
+  await drawnAs(
+    "nothing drawn at none",
+    (x) => x.drawn.wounds + x.drawn.ends + x.drawn.drops === 0,
+  );
+  const none = await blows();
+  check(
+    !!none &&
+      none.gore === "none" &&
+      none.wounds + none.blood + none.limbs.length + none.stuck === 0 &&
+      JSON.stringify(none.acts) === JSON.stringify(w?.acts),
+    `none drawn at none (${JSON.stringify(none?.drawn)}), the same going back`,
+  );
+  await k(page, `globalThis.causalis.setGore("full")`);
+  // At its end: as many fell as history says, every wounded one struck, each part where it fell.
+  await at(150);
+  w = await blows();
+  b = await seen(page);
+  check(
+    !!b && b.men.fallen[0] === 160 && b.men.fallen[1] === 220,
+    `as many fall as history says among the blows (${b?.men.fallen})`,
+  );
+  check(
+    !!w && !!b && w.dead[0] === b.fallen[0] && w.dead[1] === b.fallen[1],
+    `each fallen figure struck (${w?.dead} of ${b?.fallen})`,
+  );
+  check(!!w && w.struck.join() === w.hurt.join(), `each wounded one struck (${w?.struck})`);
+  const lying = w?.limbs ?? [];
+  check(
+    lying.length === w?.loose &&
+      lying.every((l) => l.y === 0 && (l.striker !== "hand" || (l.from >= 0.5 && l.from <= 1.5))),
+    `each part cut off lying where it fell (${lying
+      .slice(0, 4)
+      .map((l) => `${l.lost} ${l.from.toFixed(2)} m`)
+      .join(", ")})`,
+  );
+  // One who lost a part to a blade, followed and told (and, for the pictures, seen near).
+  const maimed = w?.onScreen.find((t) => t.living && t.lost !== null);
+  check(!!maimed, "one maimed to follow");
+  if (maimed) {
+    await k(page, `globalThis.causalis.followFighter(${maimed.id})`);
+    await until(
+      page,
+      "the maimed one told",
+      async () => / cut off, /.test((await seen(page))?.followed ?? ""),
+      slow(8000),
+    );
+    say(`followed: ${(await seen(page))?.followed}`);
+    if (shots) {
+      await page.waitForTimeout(slow(1100));
+      await k(
+        page,
+        `(() => { const r = globalThis.causalis.rig; r.userZoomed = true; r.distance = 0.7; r.pitch = -55; r.yaw = 40; })()`,
+      );
+      await page.waitForTimeout(slow(1200));
+      await shot(page, "7-a-part-cut-off");
+    }
+  }
+  // Arrows stuck in those they struck.
+  const bows = made(
+    "arrows",
+    host(real.attacker, 900, 200, "bow", "hide", 400, 20),
+    host(real.defender, 700, 160, "spear", "shield", 350, 20),
+  );
+  await watchMade(bows, "a battle of bows watched");
+  await at(40);
+  await drawnAs("arrows stuck in the struck, drawn", (x) => x.stuck > 0 && x.drawn.shafts > 0);
+  w = await blows();
+  say(`bows: at 40 s ${w?.stuck} shafts stuck, ${w?.drawn.shafts} drawn`);
+  // On a phone: the blows drawn, the battle's bar to the screen.
+  await watchMade(blades, "axes and swords again");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await at(110);
+  await drawnAs("the blows on a phone", (x) => x.drawn.wounds > 0);
+  // (The eye flies in to the field framed for a phone's screen: the picture once it has come.)
+  let was = -1;
+  await until(
+    page,
+    "the eye come to the field on a phone",
+    async () => {
+      const d = await k<number>(page, `globalThis.causalis.rig.distance`),
+        still = was > 0 && Math.abs(d - was) < 0.02 * was;
+      was = d;
+      return still;
+    },
+    slow(10000),
+  );
+  const phone = await k<{ wide: number; screen: number }>(
+    page,
+    `(() => { const b = document.querySelector(".battle-panel:not([hidden]) .bar"), r = b?.getBoundingClientRect(); return { wide: b && r ? Math.max(b.scrollWidth, Math.round(r.right)) : 9999, screen: innerWidth }; })()`,
+  );
+  check(
+    phone.wide <= phone.screen + 1,
+    `the battle's bar fits a phone among the blows (${phone.wide} in ${phone.screen})`,
+  );
+  await shot(page, "8-blows-on-a-phone");
 }
 
 check(errors.length === 0, `errors: ${errors.slice(0, 3).join(" | ")}`);

@@ -3,7 +3,7 @@
 // any place — its ground, weather, plate and ores, and the people living there —
 // where every fact can be asked "why?".
 import type { Breakdown, HostClient, SaveMeta, Status, WorldStage } from "../bridge/index.ts";
-import type { Lens } from "../view/index.ts";
+import type { Gore, Lens } from "../view/index.ts";
 import { lineChart } from "./chart.ts";
 import { HandView } from "./hand.ts";
 import { buildPage, type Page, type PageKind, type PageLinks } from "./pages.ts";
@@ -418,6 +418,9 @@ export class PlanetPanel {
   /** Whether the view turns slowly when left alone (off unless chosen), and its choosing. */
   driftNow: () => boolean = () => false;
   onDrift: (on: boolean) => void = () => {};
+  /** How much of the blood and the wounds a battle shows (Phase 55: all unless chosen), and its choosing. */
+  goreNow: () => Gore = () => "full";
+  onGore: (g: Gore) => void = () => {};
   /** Back to the title screen (the world kept first); says how it goes. */
   onMenu: () => Promise<string> = async () => "";
   /** The bar at the top, where the guided walk shows. */
@@ -1264,12 +1267,34 @@ export class PlanetPanel {
           }),
         );
     drawView();
+    // The blood and the wounds a battle shows: all of it, less, or none.
+    const gore = el("div"),
+      drawGore = () =>
+        gore.replaceChildren(
+          ...(
+            [
+              ["full", "Full — every wound, the blood, limbs cut off"],
+              ["less", "Less — smaller wounds, little blood, nothing cut off"],
+              ["none", "None — no blood and no wounds drawn"],
+            ] as const
+          ).map(([g, words]) => {
+            const b = el("button", `line${this.goreNow() === g ? " chosen" : ""}`, words);
+            b.onclick = () => {
+              this.onGore(g);
+              drawGore();
+            };
+            return b;
+          }),
+        );
+    drawGore();
     this.facts.replaceChildren(
       el("h3", undefined, "Quality"),
       list,
       rate,
       el("h3", undefined, "The view"),
       view,
+      el("h3", undefined, "Blood and wounds"),
+      gore,
       el("h3", undefined, "Controls"),
       keys,
     );

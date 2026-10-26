@@ -45,7 +45,7 @@ const WHEEL = { from: MOMENTS.melee + 3, to: MOMENTS.melee + 20, turn: 1.4 } as 
  * share of them, how long after they fall they begin, how fast they go (m a second), and for how
  * long at least and at most — back toward their own lines, before they lie still.
  */
-const CRAWL = { share: 0.28, after: 1.2, pace: 0.32, least: 5, most: 13 } as const;
+export const CRAWL = { share: 0.28, after: 1.2, pace: 0.32, least: 5, most: 13 } as const;
 
 /**
  * Open order (Phase 53 M220): the metres between files, the rank gap (m), the depth (m) a host
@@ -67,9 +67,110 @@ const RUSH = { bounds: 5, cycle: 6, long: 2.2, apart: 3, shift: 0.6, gun: 0.4 } 
  */
 const SHOTS = { flight: 0.15, burst: 0.09, most: 12, rounds: 700 } as const;
 
-/** What one who fought is at ("prone": down in the grass between rushes, firing; Phase 53 M220). */
+/**
+ * What one who fought is at ("prone": down in the grass between rushes, firing; Phase 53 M220).
+ * Phase 55's blows (view/blows.ts) add the wounded who live: reeling ("stagger"), down on one knee
+ * clutching the wound ("kneel"), limping back ("limp"), propped on one who helps ("propped"),
+ * sitting behind the lines ("sit"), slumped in the saddle ("slump"); and one who helps ("help").
+ */
 export type Act =
-  "stand" | "march" | "run" | "brace" | "fight" | "loose" | "fall" | "flee" | "cheer" | "prone";
+  | "stand"
+  | "march"
+  | "run"
+  | "brace"
+  | "fight"
+  | "loose"
+  | "fall"
+  | "flee"
+  | "cheer"
+  | "prone"
+  | "stagger"
+  | "kneel"
+  | "limp"
+  | "propped"
+  | "sit"
+  | "slump"
+  | "help";
+
+/** Where a blow lands (Phase 55): the rule of nines' places, each arm's hand apart. */
+export type BlowPlace =
+  "head" | "trunk" | "arm-l" | "arm-r" | "hand-l" | "hand-r" | "leg-l" | "leg-r";
+/** The places, in order (each one's bit in the render's masks is 1 << its index). */
+export const BLOW_PLACES: readonly BlowPlace[] = [
+  "head",
+  "trunk",
+  "arm-l",
+  "arm-r",
+  "hand-l",
+  "hand-r",
+  "leg-l",
+  "leg-r",
+];
+/**
+ * The parts of a figure each place is made of (indices into its parts), and the part its wounds
+ * are drawn on (−1: none): view/blows.ts's figureAnatomy.
+ */
+export type FigureAnatomy = {
+  readonly parts: Readonly<Record<BlowPlace, readonly number[]>>;
+  readonly on: Readonly<Record<BlowPlace, number>>;
+};
+/** What a blow may cut off: a limb, a hand, or (of the dead, to an edge or a ball) the head. */
+export type BlowLost = Exclude<BlowPlace, "trunk">;
+/** How one struck dead goes down: a leg giving way, folding where they stood, thrown back, knocked off their feet. */
+export type BlowFall = "buckle" | "crumple" | "thrown" | "blasted";
+/** A wound's look: a cut, a stab, a hole (an arrow's, a ball's), a bruise, a smashed wound, a stump. */
+export type WoundMark = "cut" | "stab" | "hole" | "bruise" | "smash" | "stump";
+/** How long each way of going down takes (s): the view moves the body, the render poses it, alike. */
+export const FALL_LONG: Readonly<Record<BlowFall, number>> = {
+  buckle: 0.9,
+  crumple: 0.85,
+  thrown: 0.5,
+  blasted: 0.6,
+};
+/** How long one wounded who lives reels from the blow before going down on a knee (s). */
+export const STAGGER = 0.6;
+
+/** A wound now, on one struck (the render poses it on their part as drawn). */
+export type WoundNow = {
+  readonly id: number;
+  readonly place: BlowPlace;
+  /** The point on its part's face, across it and along it (each −0.45 … 0.35 of its extent). */
+  readonly u: number;
+  readonly v: number;
+  /** The face it is on: the front (1, toward the foe) or the back (−1). */
+  readonly face: 1 | -1;
+  readonly mark: WoundMark;
+  /** The wound (m of the figure), and the blood about it as it has spread (m). */
+  readonly size: number;
+  readonly bleed: number;
+  /** Fresh (wet), and how long since struck (s). */
+  readonly wet: boolean;
+  readonly age: number;
+  /** The drops of blood thrown from it now (0: none). */
+  readonly spray: number;
+};
+/** A shaft stuck where it struck: its way in against their facing, how steeply (rad); a dart's. */
+export type StuckNow = {
+  readonly id: number;
+  readonly place: BlowPlace;
+  readonly u: number;
+  readonly v: number;
+  /** Its flight's way against their facing (rad: π, straight at their face), and how steeply it came down (rad). */
+  readonly yaw: number;
+  readonly dip: number;
+  readonly dart: boolean;
+};
+/** A part cut off, now: whose, which, where (m: y above the ground), turned (rad). */
+export type LimbNow = {
+  readonly id: number;
+  readonly side: 0 | 1;
+  readonly lost: BlowLost;
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly yaw: number;
+  readonly pitch: number;
+};
 
 /** How a host is carried and what it fights with, as the field shows it. */
 export type HostDrawn = {
@@ -235,7 +336,10 @@ export type BattleField = {
   readonly vehicles?: readonly Vehicle[];
 };
 
-/** One who fought, now. */
+/**
+ * One who fought, now. Each is made with every field below, in this order, those unset undefined:
+ * one shape for all, so the render's loops over them stay fast however they are marked (Phase 55).
+ */
 export type TrooperNow = {
   readonly id: number;
   readonly side: 0 | 1;
@@ -255,8 +359,16 @@ export type TrooperNow = {
   readonly bearer: boolean;
   /** Wounded, dragging themselves back toward their own lines (1), or not (0). */
   readonly crawl: number;
-  /** At a machine gun on its tripod, set before them (Phase 53 M220; absent: not). */
+  /** At a machine gun on its tripod, set before them (Phase 53 M220; unset: not). */
   readonly gun?: true;
+  /**
+   * Phase 55 (view/blows.ts; unset: not struck): where they were struck, how long ago (s), the
+   * part cut off, and how they went down (unset: as the battle lays them).
+   */
+  readonly hit?: BlowPlace;
+  readonly since?: number;
+  readonly lost?: BlowLost;
+  readonly fell?: BlowFall;
 };
 
 export type BattleNow = {
@@ -296,6 +408,14 @@ export type BattleNow = {
   /** Black smoke rising off burning wrecks, and the flames on them (m; absent: none). */
   readonly fumes?: readonly { x: number; y: number; z: number; r: number }[];
   readonly flames?: readonly { x: number; y: number; z: number; r: number }[];
+  /**
+   * Phase 55 (view/blows.ts; absent: none): the wounds on those struck, the shafts stuck in them,
+   * the parts cut off, and each side's wounded who lived struck so far.
+   */
+  readonly wounds?: readonly WoundNow[];
+  readonly stuck?: readonly StuckNow[];
+  readonly limbs?: readonly LimbNow[];
+  readonly hurt?: readonly [number, number];
 };
 
 /** The most figures a side is drawn as (a phone draws fewer). */
@@ -356,7 +476,7 @@ function spacing(mounted: HostDrawn["mounted"]): { file: number; rank: number } 
  * open order (Phase 53 M220) three metres between files and four between ranks, but no deeper
  * than the depth allows.
  */
-function gapOf(h: HostDrawn): { file: number; rank: number } {
+export function gapOf(h: HostDrawn): { file: number; rank: number } {
   return h.open
     ? { file: OPEN.file, rank: Math.min(OPEN.rank, OPEN.depth / Math.max(1, h.ranks - 1)) }
     : spacing(h.mounted);
@@ -985,7 +1105,7 @@ function meetAt(field: BattleField, s: number): number {
 }
 
 /** How far a file has closed up by `s`: one rank for each who fell before them in it. */
-function closedUp(field: BattleField, t: Trooper, s: number): number {
+export function closedUp(field: BattleField, t: Trooper, s: number): number {
   let ahead = 0;
   for (const o of field.files[t.side]![t.file]!) {
     if (o === t) break;
@@ -1281,7 +1401,10 @@ function lying(
 }
 
 /** Where the blood of one fallen spreads: under them, where their body lies (m). */
-function bloodAt(t: Trooper, p: { x: number; z: number; yaw: number }): { x: number; z: number } {
+export function bloodAt(
+  t: Trooper,
+  p: { x: number; z: number; yaw: number },
+): { x: number; z: number } {
   const l = lying(t, p, 1),
     // (On their back, their body lies behind their feet; on their face, before them.)
     along = t.by === "rout" ? 0.6 : -0.6;
@@ -1294,20 +1417,15 @@ function trooperNow(field: BattleField, t: Trooper, s: number): TrooperNow {
   return t.gun ? { ...now, gun: true as const } : now;
 }
 
-/** What one who fought is at now, and how they stand. */
+/** What one who fought is at now, and how they stand (every field of TrooperNow, the marks unset). */
 function trooperNowAt(field: BattleField, t: Trooper, s: number): TrooperNow {
   const p = placeAt(field, t, s),
     h = field.hosts[t.side]!,
     ground = field.ground,
-    wall = ground.wall,
     // (In the trench, sunk to the shoulders: the head, the shoulders and the gun above the ground.)
     trenched = inTrench(field, t, s),
-    sunk = trenched ? ground.trench!.depth - 0.15 : 0;
-  let y = battleGroundAt(ground, p.x, p.z);
-  // (On the walls, those of its front stand on its walk; in the river, wading.)
-  if (wall && t.side === 1 && p.x > wall.x - 0.4 && Math.abs(p.z) > wall.gate)
-    y = (wall.high - 1.1) * clamp01((wall.x + 2.4 - p.x) / 1.2);
-  if (ground.river && Math.abs(p.x - ground.river.x) < ground.river.w) y = -0.55;
+    sunk = trenched ? ground.trench!.depth - 0.15 : 0,
+    y = standY(field, t.side, p.x, p.z);
   const size = clamp01((FIELD.x + 10 - Math.abs(p.x)) / 10),
     cycle = s * (p.run ? 1.6 : 1) + t.u * 3;
   if (t.falls !== null && s >= t.falls) {
@@ -1330,6 +1448,11 @@ function trooperNowAt(field: BattleField, t: Trooper, s: number): TrooperNow {
         size: 1,
         bearer: t.bearer,
         crawl: c.going ? 1 : 0,
+        gun: undefined,
+        hit: undefined,
+        since: undefined,
+        lost: undefined,
+        fell: undefined,
       };
     }
     // Fallen: onto their back where struck from before them, on their face where they ran.
@@ -1348,6 +1471,11 @@ function trooperNowAt(field: BattleField, t: Trooper, s: number): TrooperNow {
       size: 1,
       bearer: t.bearer,
       crawl: 0,
+      gun: undefined,
+      hit: undefined,
+      since: undefined,
+      lost: undefined,
+      fell: undefined,
     };
   }
   const climb = climbing(field, t, s);
@@ -1366,6 +1494,11 @@ function trooperNowAt(field: BattleField, t: Trooper, s: number): TrooperNow {
       size: 1,
       bearer: t.bearer,
       crawl: 0,
+      gun: undefined,
+      hit: undefined,
+      since: undefined,
+      lost: undefined,
+      fell: undefined,
     };
   let act: Act;
   if (t.flees !== null && s >= t.flees) act = "flee";
@@ -1407,6 +1540,11 @@ function trooperNowAt(field: BattleField, t: Trooper, s: number): TrooperNow {
     size: p.fled > 0 ? size : 1,
     bearer: t.bearer,
     crawl: 0,
+    gun: undefined,
+    hit: undefined,
+    since: undefined,
+    lost: undefined,
+    fell: undefined,
   };
 }
 
@@ -1480,6 +1618,21 @@ function climbing(
   return null;
 }
 
+/**
+ * The ground one of `side` stands on at (x, z): the field's, a seat's wall walk (its defenders, on
+ * its front), a river's bed (wading).
+ */
+export function standY(field: BattleField, side: 0 | 1, x: number, z: number): number {
+  const ground = field.ground,
+    wall = ground.wall;
+  let y = battleGroundAt(ground, x, z);
+  // (On the walls, those of its front stand on its walk; in the river, wading.)
+  if (wall && side === 1 && x > wall.x - 0.4 && Math.abs(z) > wall.gate)
+    y = (wall.high - 1.1) * clamp01((wall.x + 2.4 - x) / 1.2);
+  if (ground.river && Math.abs(x - ground.river.x) < ground.river.w) y = -0.55;
+  return y;
+}
+
 /** The ground's height where one lies (in the river, under its water). */
 function groundY(ground: BattleGround, x: number, z: number): number {
   return ground.river && Math.abs(x - ground.river.x) < ground.river.w
@@ -1488,7 +1641,7 @@ function groundY(ground: BattleGround, x: number, z: number): number {
 }
 
 /** How long one fallen crawls (seconds; 0: they lie where they fell). */
-function crawlsFor(field: BattleField, t: Trooper): number {
+export function crawlsFor(field: BattleField, t: Trooper): number {
   if (t.by === null || t.by === "rout") return 0;
   // (Not off a seat's walls: those struck down on them lie on its walk.)
   if (t.side === 1 && field.ground.wall) return 0;
@@ -1503,7 +1656,7 @@ function crawlsFor(field: BattleField, t: Trooper): number {
  * Where one wounded has dragged themselves to by `s`, from where they fell — back toward their own
  * lines, veering a little — whether they are still going, and how far they have come (m).
  */
-function crawledTo(
+export function crawledTo(
   field: BattleField,
   t: Trooper,
   s: number,
@@ -1899,7 +2052,7 @@ export const TRODDEN = { x: 66, z: 40 } as const;
  * machine gun's team strikes with its own bullets one time in three (where `id` % 3 is 0), and
  * with its rest's bullets the rest of the time.
  */
-function shotBy(other: BattleNear["attacker"], id: number): string {
+export function shotBy(other: BattleNear["attacker"], id: number): string {
   const look = armLook(other.host?.arm);
   return look.team !== undefined && id % 3 !== 0 && look.rest !== undefined
     ? armLook(look.rest).shotWords
@@ -1956,21 +2109,7 @@ const CLIMB_WORDS: Partial<Record<Act, string>> = {
 export function trooperWords(field: BattleField, id: number, s: number): string {
   const t = field.troopers[id];
   if (!t) return "";
-  const side = t.side === 0 ? field.near.attacker : field.near.defender,
-    h = field.hosts[t.side]!,
-    look = armLook(side.host?.arm),
-    who =
-      h.mounted === "chariot"
-        ? "a chariot's warrior"
-        : h.mounted === "horse"
-          ? "a rider"
-          : t.bearer
-            ? "a banner's bearer"
-            : t.gun || look.team === undefined
-              ? look.fighter
-              : armLook(look.rest).fighter,
-    rank = ORDINALS[t.rank] ?? `${t.rank + 1}th`,
-    won = t.side === field.beaten ? false : true,
+  const won = t.side === field.beaten ? false : true,
     // (Of a wing that wheels about the other host's flank.)
     wing = !!field.wings && field.wings.side === t.side && Math.abs(t.z) > field.wings.z,
     crawls = crawlsFor(field, t),
@@ -2009,9 +2148,33 @@ export function trooperWords(field: BattleField, id: number, s: number): string 
                             : "in the press"
                           : won
                             ? "standing on the field, its victor"
-                            : "standing still",
+                            : "standing still";
+  return `${trooperWho(field, id)}: ${fate}.`;
+}
+
+/**
+ * Who one who fought was in their host, told ("👁 A spearman of the realm of Ash, in the second
+ * rank"): the words before what had become of them ("" for no such one).
+ */
+export function trooperWho(field: BattleField, id: number): string {
+  const t = field.troopers[id];
+  if (!t) return "";
+  const side = t.side === 0 ? field.near.attacker : field.near.defender,
+    h = field.hosts[t.side]!,
+    look = armLook(side.host?.arm),
+    who =
+      h.mounted === "chariot"
+        ? "a chariot's warrior"
+        : h.mounted === "horse"
+          ? "a rider"
+          : t.bearer
+            ? "a banner's bearer"
+            : t.gun || look.team === undefined
+              ? look.fighter
+              : armLook(look.rest).fighter,
+    rank = ORDINALS[t.rank] ?? `${t.rank + 1}th`,
     each = field.per > 1 ? ` (a figure for ${field.per.toLocaleString("en-US")} men)` : "";
-  return `👁 ${who[0]!.toUpperCase()}${who.slice(1)} of ${side.name}, in the ${rank} rank${each}: ${fate}.`;
+  return `👁 ${who[0]!.toUpperCase()}${who.slice(1)} of ${side.name}, in the ${rank} rank${each}`;
 }
 
 /** The men standing and fallen of each side at `s`, as history counts them (so many for each figure). */
