@@ -29,6 +29,11 @@ import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 /** Units a metre of the meadow, as the village's. */
 const M = 0.1;
 const FLOATS = 8;
+
+/** How tall a cell's grass is drawn (units), as long as it stands (0 … 1): what lies on it lies on this. */
+export function grassDrawn(g: number): number {
+  return 0.008 + 0.05 * g;
+}
 /** How often the grass and woods are drawn again (ms): they change slowly. */
 const GROWTH_EVERY = 250;
 
@@ -356,8 +361,7 @@ export class MeadowScene {
       this.grass[k]!.set(list.length, (j, out) => {
         const i = list[j]!,
           m = cellMiddle(i),
-          g = s.grass[i]!,
-          h = 0.008 + 0.05 * g;
+          h = grassDrawn(s.grass[i]!);
         out[0] = m.x * M;
         out[1] = h / 2;
         out[2] = m.z * M;

@@ -60,6 +60,7 @@ export {
   townLots,
   townReach,
   wallRing,
+  type CampCraft,
   type CampNear,
   type LandCamp,
   type LandEra,

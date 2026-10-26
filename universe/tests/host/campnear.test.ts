@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { DAY, YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { populationContext } from "../../src/sim/index.ts";
+import { bedrockOf } from "../../src/host/inspect/ground.ts";
 import {
   BAND_DAY,
   MEADOW_STEP,
@@ -14,7 +15,7 @@ import {
   stepBand,
   stepMeadow,
 } from "../../src/view/index.ts";
-import type { CampNear, LandPlan } from "../../src/bridge/index.ts";
+import type { CampNear, LandPlan, PageModel } from "../../src/bridge/index.ts";
 
 // Phase 29 M160: a camp of a land's bands seen near — one of its bands living its day among the
 // land's own beasts, at the world's hour. The Earth seed in its first year.
@@ -119,4 +120,76 @@ test("each of the band named in the land's tongue, and told by what they are at"
   const unnamed = newBand(m, 6, near.people, near.plan.seed);
   assert.match(bandPersonWords(unnamed, m, 1), /^One of them, /);
   assert.equal(bandPersonWords(unnamed, m, 999), "");
+});
+
+test("a camp's crafts are of its land's ground: the keenest stone its rocks give, its wood and fibre; its page tells them", () => {
+  // Phase 49 M211: flint from the chalk, chert from the shale, the glass of old lava, quartzite
+  // from the sandstone's cobbles, quartz from the granite's veins — the keenest of them that its
+  // land has a twenty-fifth of, or the ground under the camp. (Bands went far for good stone.)
+  const STONE: Record<string, string> = {
+      limestone: "flint",
+      shale: "chert",
+      "coal-measures": "chert",
+      andesite: "obsidian",
+      basalt: "basalt",
+      sandstone: "quartzite",
+      granite: "quartz",
+      gneiss: "quartzite",
+    },
+    KEENEST = ["obsidian", "flint", "chert", "quartzite", "quartz", "basalt"],
+    ID = (name: string) => name.replace(" ", "-");
+  const stones = new Set<string>();
+  let looked = 0;
+  for (const p of [...ctx.provinces.all()].sort((a, b) => b.total() - a.total()).slice(0, 16))
+    for (const c of ask<LandPlan>("towns.land", { cell: p.cell }).camps.slice(0, 2)) {
+      const near = ask<CampNear>("camp.near", { cell: p.cell, id: c.id }),
+        under = ask<{ ground: { rock: string } }>("tile", { center: p.cell, tile: c.tile }).ground
+          .rock,
+        rocks = [
+          ID(under),
+          ...bedrockOf(world, p.cell)
+            .filter(([, k]) => k >= 0.04)
+            .map(([r]) => r),
+        ],
+        best = rocks
+          .map((r) => STONE[r]!)
+          .sort((a, b) => KEENEST.indexOf(a) - KEENEST.indexOf(b))[0];
+      assert.equal(
+        near.craft.stone.name,
+        best,
+        `a camp on ${under} in a land of ${rocks.join(", ")}`,
+      );
+      assert.ok(
+        near.craft.wood && near.craft.fibre && near.craft.binding,
+        JSON.stringify(near.craft),
+      );
+      assert.ok(["bow drill", "hand drill", "strike-a-light"].includes(near.craft.fire));
+      assert.ok(near.craft.stone.keen > 0 && near.craft.stone.keen <= 1);
+      stones.add(near.craft.stone.name);
+      looked++;
+    }
+  assert.ok(looked >= 8, `${looked} camps looked at`);
+  assert.ok(stones.size >= 2, `one stone everywhere (${[...stones].join(", ")})`);
+  // The camp's page: its stone, and its crafts in a line, the stone a link to what it is.
+  const near = ask<CampNear>("camp.near", { cell, id: camps[0]!.id }),
+    page = ask<PageModel>("page", { ref: `camp:${cell}:${camps[0]!.id}` }),
+    facts = page.tabs[0]!.blocks.find((b) => b.type === "facts"),
+    text = page.tabs[0]!.blocks.find((b) => b.type === "text");
+  assert.ok(
+    facts?.type === "facts" &&
+      facts.rows.some(
+        (r) => r.label === "Their stone" && String(r.value).startsWith(near.craft.stone.name),
+      ),
+    "its stone",
+  );
+  const line =
+    text?.type === "text"
+      ? text.lines.find((l) => typeof l[0] === "string" && l[0].startsWith("They knap"))
+      : undefined;
+  assert.ok(line, "its crafts told");
+  const said = line.map((s) => (typeof s === "string" ? s : s.text)).join("");
+  assert.ok(said.includes(`They knap ${near.craft.stone.name} — ${near.craft.stone.from}`), said);
+  assert.ok(said.includes(`twist ${near.craft.fibre} into cord`), said);
+  if (near.craft.stone.ref)
+    assert.ok(line.some((s) => typeof s !== "string" && s.ref === near.craft.stone.ref));
 });

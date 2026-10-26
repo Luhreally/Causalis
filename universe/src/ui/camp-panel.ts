@@ -10,6 +10,8 @@ export class CampPanel {
   readonly timeSlot = el("span", "time-slot");
   private readonly where = el("span", "clock");
   private readonly doing = el("span", "camp-doing");
+  /** What the band keeps (Phase 49 M211): its spears, blades, cord, hides, cloaks, colour. */
+  private readonly kept = el("span", "camp-kit");
   private readonly back = el("button", "speed", "‹ The land");
   private readonly page = el("button", "speed", "⛺ The camp");
   onBack: () => void = () => {};
@@ -22,7 +24,8 @@ export class CampPanel {
     this.page.onclick = () => this.onPage();
     this.page.title = "The camp's page: who they are, how they live, how far they range";
     this.doing.title = steerWords("flat");
-    bar.append(this.back, this.where, this.timeSlot, this.page, this.doing);
+    this.kept.title = "What the band keeps: what they have made";
+    bar.append(this.back, this.where, this.timeSlot, this.page, this.doing, this.kept);
     this.element.append(bar);
     root.append(this.element);
     this.visible = false;
@@ -40,5 +43,10 @@ export class CampPanel {
   /** What the band is at now. */
   say(words: string): void {
     if (this.doing.textContent !== words) this.doing.textContent = words;
+  }
+
+  /** What the band keeps. */
+  kit(words: string): void {
+    if (this.kept.textContent !== words) this.kept.textContent = words;
   }
 }

@@ -536,6 +536,13 @@ body[data-scale="micro"] {
   color: #a9e3c9;
   font-variant-numeric: tabular-nums;
 }
+/* What it keeps (Phase 49 M211): its spears, blades, cord, hides, cloaks and colour, under it. */
+.camp-kit {
+  flex-basis: 100%;
+  font-size: 0.78rem;
+  color: #ffd76a;
+  font-variant-numeric: tabular-nums;
+}
 /* The town's stores and its work today (Phase 39 M198): a line of them under its bar, a tap
    from their card. */
 .town-stores {

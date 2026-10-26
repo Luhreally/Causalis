@@ -312,6 +312,12 @@ jobs:
       - run: npm run gate:48 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # Phase 49 (the camp's crafts: of an evening the band at the work ground knapping their own
+      # land's stone, twisting cord, binding spears, a hide scraped on its frame; fire made new at a
+      # fresh camp; the camp page's stone tapped through to its own page).
+      - run: npm run gate:49 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

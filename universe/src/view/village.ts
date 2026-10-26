@@ -161,6 +161,15 @@ export const TASKS = [
   // The hunt (Phase 47 M209): creeping on the herd, spear low; the rush, the spear thrust.
   "stalk",
   "strike",
+  // A band's crafts (Phase 49 M211): stone knapped, fibre twisted, a point bound on, a hide
+  // scraped on its frame, a cloak sewn, colour ground, fire made with a drill.
+  "knap",
+  "twist",
+  "bind",
+  "scrape",
+  "sew",
+  "grind",
+  "kindle",
 ] as const;
 export type Task = (typeof TASKS)[number];
 

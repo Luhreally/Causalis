@@ -6,6 +6,7 @@
 // in, and by night they sleep about it. When the land about the camp is eaten bare they pack up and
 // walk on to camp on fresh ground: the bands going out over the land, one band seen near. Pure, and
 // the same for the same land and seed.
+import type { CampCraft } from "../bridge/index.ts";
 import { MEADOW_H, MEADOW_STEP, MEADOW_W, type Beast, type MeadowState } from "./meadow.ts";
 
 /** A day of the band's, in seconds of the meadow's time. */
@@ -59,7 +60,77 @@ export type BandDoing =
   | "butchering"
   | "playing"
   | "tending"
-  | "moving";
+  | "moving"
+  // Their crafts (Phase 49 M211): stone knapped into blades and points; fibre twisted into cord; a
+  // point bound to its shaft; a hide scraped on its frame, and sewn; ochre ground; fire made.
+  | "knapping"
+  | "cording"
+  | "hafting"
+  | "scraping"
+  | "sewing"
+  | "grinding"
+  | "kindling";
+
+/** The crafts, as what they are at. */
+export const CRAFT_DOINGS: readonly BandDoing[] = [
+  "knapping",
+  "cording",
+  "hafting",
+  "scraping",
+  "sewing",
+  "grinding",
+  "kindling",
+];
+
+/**
+ * What a band makes its things of, and how (Phase 49 M211, asked for 2026-10-25: "bring back og
+ * causlaiss like primitve crafting"): from the ground its camp stands on and the land about it.
+ */
+export type BandCraft = CampCraft;
+
+/** A band's crafts where nothing is known of its ground (the creature stage's first people). */
+export const PLAIN_CRAFT: BandCraft = {
+  stone: {
+    name: "flint",
+    from: "cobbles from the stream",
+    keen: 0.85,
+    tough: 0.55,
+    colour: [0.42, 0.38, 0.34],
+  },
+  wood: "ash",
+  fibre: "bark",
+  binding: "sinew",
+  pigment: { name: "red ochre", colour: [0.62, 0.2, 0.12] },
+  fire: "bow drill",
+};
+
+/** A band's things (Phase 49 M211): what they have made and keep, and the work ground's waste. */
+export type BandKit = {
+  /** Spears hafted; points knapped, waiting for a shaft; blades and scrapers. */
+  spears: number;
+  points: number;
+  blades: number;
+  /** Cord, in arm-spans. */
+  cord: number;
+  /** Hides come in from the kills, scraped, and sewn into cloaks and bags. */
+  hides: number;
+  scraped: number;
+  cloaks: number;
+  /** Handfuls of ground colour. */
+  ochre: number;
+  /** The flakes struck off about the work ground. */
+  flakes: number;
+};
+
+/** What one of them is making, and how long it has had. */
+export type Making = {
+  readonly doing: BandDoing;
+  /** What comes of it ("a point", "a blade", "cord", …). */
+  readonly what: "point" | "blade" | "cord" | "spear" | "hide" | "cloak" | "ochre" | "fire";
+  /** The beast a hide being scraped was ("" not known). */
+  readonly of?: string;
+  done: number;
+};
 
 export type BandPerson = {
   readonly id: number;
@@ -83,6 +154,8 @@ export type BandPerson = {
   readonly seat: number;
   readonly row: number;
   phase: number;
+  /** What it is making (Phase 49 M211; null: nothing now). */
+  making: Making | null;
 };
 
 export type BandState = {
@@ -122,6 +195,19 @@ export type BandState = {
   } | null;
   /** What came to pass, to be told. */
   news: string[];
+  /**
+   * Their crafts (Phase 49 M211): what they make their things of; what they keep; whether the
+   * fire is made at this camp yet; the work ground by the fire where they sit at them, and the
+   * frame a hide is stretched on; the beasts the hides waiting for it were, first in first.
+   */
+  readonly craft: BandCraft;
+  kit: BandKit;
+  lit: boolean;
+  work: { x: number; z: number };
+  frame: { x: number; z: number; yaw: number };
+  hidesOf: string[];
+  /** Things made since they were watched. */
+  made: number;
   t: number;
   /** How far apart they stand and sit: as much larger than an upright ape as their figures are drawn. */
   readonly spread: number;
@@ -206,15 +292,29 @@ function campGround(
   return best;
 }
 
-/** Their shelters about the fire: one to every four or five of them, beyond where they sleep. */
+/**
+ * Their shelters about the fire: one to every four or five of them, beyond where they sleep; the
+ * work ground in the gap after the first, between where they sleep and the shelters, and the hide
+ * frame in the gap after the next (Phase 49 M211).
+ */
 function pitch(b: BandState): void {
   const many = b.people.length,
     n = Math.max(2, Math.round(many / 4.5)),
-    r = Math.max(8.5, 7.8 + ROW * ringOf(Math.max(0, many - 1), Math.max(1, many)).row) * b.spread;
+    rows = ringOf(Math.max(0, many - 1), Math.max(1, many)).row,
+    r = Math.max(8.5, 7.8 + ROW * rows) * b.spread;
   b.shelters = Array.from({ length: n }, (_, i) => {
     const a = (2 * Math.PI * (i + 0.3)) / n;
     return { x: b.camp.x + Math.sin(a) * r, z: b.camp.z + Math.cos(a) * r, yaw: a };
   });
+  const inner = (3.2 + ROW * rows + 1.4) * b.spread,
+    mid = (inner + r) / 2,
+    gap = (k: number) => (2 * Math.PI * (k + 0.8)) / n;
+  b.work = { x: b.camp.x + Math.sin(gap(0)) * mid, z: b.camp.z + Math.cos(gap(0)) * mid };
+  b.frame = {
+    x: b.camp.x + Math.sin(gap(1)) * mid,
+    z: b.camp.z + Math.cos(gap(1)) * mid,
+    yaw: gap(1),
+  };
 }
 
 /**
@@ -230,6 +330,7 @@ export function newBand(
   hour = RISE,
   names: readonly string[] = [],
   spread = 1,
+  craft: BandCraft = PLAIN_CRAFT,
 ): BandState {
   const rnd = seeded(hashText(`${seedText} band`)),
     b: BandState = {
@@ -251,6 +352,26 @@ export function newBand(
       tries: 0,
       kill: null,
       news: [],
+      craft,
+      // (What a band has about it when first seen: a spear to each hunter and one over, a blade
+      // to each of them, some cord, a cloak to every other one, a little colour; the waste of
+      // days' knapping about the work ground.)
+      kit: {
+        spears: 0,
+        points: 1,
+        blades: size,
+        cord: 4,
+        hides: 0,
+        scraped: 0,
+        cloaks: Math.round(size / 2),
+        ochre: craft.pigment ? 1 : 0,
+        flakes: 14,
+      },
+      lit: true,
+      work: { x: 0, z: 0 },
+      frame: { x: 0, z: 0, yaw: 0 },
+      hidesOf: [],
+      made: 0,
       t: 0,
       spread: Math.max(1, spread),
       rnd,
@@ -281,8 +402,10 @@ export function newBand(
       seat,
       row: ring.row,
       phase: rnd(),
+      making: null,
     });
   }
+  b.kit.spears = b.people.filter((p) => p.hunter).length + 1;
   pitch(b);
   return b;
 }
@@ -308,6 +431,185 @@ function goTo(p: BandPerson, x: number, z: number, pace: number, near: number): 
   );
   p.speed = pace;
   return false;
+}
+
+// —— Their crafts (Phase 49 M211) ——————————————————————————————————————————————————
+
+/** A band's hour, in its seconds. */
+const HOUR_S = BAND_DAY / 24;
+/** How long each thing takes to make, in hours of their day. */
+const CRAFT_HOURS: Readonly<Record<Making["what"], number>> = {
+  point: 0.6,
+  blade: 0.45,
+  cord: 1,
+  spear: 1.2,
+  hide: 2.2,
+  cloak: 2.6,
+  ochre: 0.5,
+  fire: 0.3,
+};
+const CRAFT_DOING: Readonly<Record<Making["what"], BandDoing>> = {
+  point: "knapping",
+  blade: "knapping",
+  cord: "cording",
+  spear: "hafting",
+  hide: "scraping",
+  cloak: "sewing",
+  ochre: "grinding",
+  fire: "kindling",
+};
+/** The most flakes left about a work ground (drawn). */
+const FLAKES = 60;
+
+/** How many spears a band would keep: two to each hunter, and one over. */
+function spearsWanted(b: BandState): number {
+  return 2 * b.people.filter((p) => p.hunter).length + 1;
+}
+
+/**
+ * What one of them takes up next, by what the band is short of — the hunters to their spears and
+ * points, the gatherers to the hides, the cord and the colour, the old to the cord, the cloaks and
+ * the blades — its makings taken from the band's things as it is begun (null: nothing wants
+ * making). (The fire is the kindler's alone.)
+ */
+function chooseCraft(b: BandState, p: BandPerson): Making | null {
+  const k = b.kit,
+    at = (what: Making["what"]) => b.people.filter((q) => q.making?.what === what).length,
+    can: Readonly<Record<Making["what"], boolean>> = {
+      fire: false,
+      hide: k.hides >= 1,
+      cloak: k.scraped >= 1 && k.cloaks < b.people.length,
+      spear: k.points >= 1 && k.cord >= 1 && k.spears + at("spear") < spearsWanted(b),
+      point: k.points + k.spears + at("point") + at("spear") < spearsWanted(b) + 2,
+      cord: k.cord + 2 * at("cord") < 10,
+      blade: k.blades + at("blade") < b.people.length + 6,
+      ochre: !!b.craft.pigment && k.ochre + at("ochre") < 6,
+    },
+    order: readonly Making["what"][] = p.hunter
+      ? ["spear", "point", "hide", "blade", "cord", "cloak", "ochre"]
+      : p.kin === "old"
+        ? ["cord", "cloak", "blade", "ochre", "hide", "point", "spear"]
+        : ["hide", "cloak", "cord", "ochre", "blade", "point", "spear"],
+    what = order.find((w) => can[w]);
+  if (!what) return null;
+  if (what === "hide") {
+    k.hides--;
+    return { doing: CRAFT_DOING[what], what, of: b.hidesOf.shift() ?? "", done: 0 };
+  }
+  if (what === "cloak") k.scraped--;
+  else if (what === "spear") {
+    k.points--;
+    k.cord--;
+  }
+  return { doing: CRAFT_DOING[what], what, done: 0 };
+}
+
+/** How far a thing being made has gone (0 … 1). */
+export function madeShare(mk: Making): number {
+  return Math.min(1, mk.done / (CRAFT_HOURS[mk.what] * HOUR_S));
+}
+
+/** A thing left off unmade: its makings back with the band's things. */
+function leaveOff(b: BandState, p: BandPerson): void {
+  const mk = p.making;
+  p.making = null;
+  if (!mk) return;
+  const k = b.kit;
+  if (mk.what === "hide") {
+    k.hides++;
+    b.hidesOf.unshift(mk.of ?? "");
+  } else if (mk.what === "cloak") k.scraped++;
+  else if (mk.what === "spear") {
+    k.points++;
+    k.cord++;
+  }
+}
+
+/** A thing made: with the band's things (and its flakes about the work ground). */
+function made(b: BandState, p: BandPerson, mk: Making): void {
+  const k = b.kit;
+  b.made++;
+  switch (mk.what) {
+    case "point":
+      k.points++;
+      k.flakes = Math.min(FLAKES, k.flakes + 3);
+      break;
+    case "blade":
+      k.blades++;
+      k.flakes = Math.min(FLAKES, k.flakes + 2);
+      break;
+    case "cord":
+      k.cord += 2;
+      break;
+    case "spear":
+      k.spears++;
+      break;
+    case "hide":
+      k.scraped++;
+      break;
+    case "cloak":
+      k.cloaks++;
+      break;
+    case "ochre":
+      k.ochre++;
+      break;
+    case "fire":
+      b.lit = true;
+      b.news.push(
+        `${p.name || "One of them"} ${b.craft.fire === "strike-a-light" ? `struck fire from ${b.craft.stone.name} on pyrite` : `made fire with a ${b.craft.fire}`} at the new camp.`,
+      );
+      break;
+  }
+}
+
+/** Where one sits or stands at a craft, and what they face: the fire, the hide's frame, the work ground. */
+function craftSpot(
+  b: BandState,
+  p: BandPerson,
+  what: Making["what"],
+): { x: number; z: number; face: { x: number; z: number } } {
+  if (what === "fire") {
+    const r = 1.4 * b.spread;
+    return { x: b.camp.x + Math.sin(p.seat) * r, z: b.camp.z + Math.cos(p.seat) * r, face: b.camp };
+  }
+  if (what === "hide") {
+    // (Before the frame, on the fire's side of it; a second one beside the first.)
+    const f = b.frame,
+      side = (p.id % 2 ? 1 : -1) * 0.7 * b.spread,
+      back = 1.3 * b.spread;
+    return {
+      x: f.x - Math.sin(f.yaw) * back + Math.cos(f.yaw) * side,
+      z: f.z - Math.cos(f.yaw) * back - Math.sin(f.yaw) * side,
+      face: f,
+    };
+  }
+  // (About the work ground, each at their own place on a ring about it.)
+  const a = p.seat * 5 + p.id * 0.9,
+    r = 1.7 * b.spread;
+  return { x: b.work.x + Math.sin(a) * r, z: b.work.z + Math.cos(a) * r, face: b.work };
+}
+
+/**
+ * One of them at a craft: what they take up (if nothing, null — they sit by the fire instead), to
+ * its place, and at it until it is made; their pace.
+ */
+function craftAt(b: BandState, p: BandPerson, dt: number): number | null {
+  if (!p.making) p.making = chooseCraft(b, p);
+  const mk = p.making;
+  if (!mk) return null;
+  const spot = craftSpot(b, p, mk.what);
+  if (!goTo(p, spot.x, spot.z, WALK, 0.5)) {
+    p.doing = "walking";
+    return p.speed;
+  }
+  p.doing = mk.doing;
+  p.heading = turn(p.heading, Math.atan2(spot.face.x - p.x, spot.face.z - p.z), 0.3);
+  mk.done += dt;
+  if (mk.done >= CRAFT_HOURS[mk.what] * HOUR_S) {
+    p.making = null;
+    made(b, p, mk);
+  }
+  return 0;
 }
 
 /** What a band's hunters may take: the age's beasts that eat grass and leaf, not too small to be worth it nor too great (nor their own flock). */
@@ -373,6 +675,7 @@ export function stepBand(b: BandState, m: MeadowState): void {
     b.quarry = -1;
     leave();
     for (const p of b.people) {
+      leaveOff(b, p);
       p.doing = "moving";
       p.carrying = p.kin === "child" ? null : "bundle";
       p.carry = 0;
@@ -414,14 +717,38 @@ export function stepBand(b: BandState, m: MeadowState): void {
   }
 
   const folk: { x: number; z: number; hunting: boolean }[] = [];
+  // (At a fresh camp the fire is made before anything: by the eldest, else the first of the grown.)
+  const kindler =
+    b.going || b.lit
+      ? -1
+      : ((b.people.find((q) => q.kin === "old") ?? b.people.find((q) => q.kin === "grown"))?.id ??
+        -1);
   for (const p of b.people) {
     p.timer -= dt;
-    let pace = 0;
+    let pace = 0,
+      // (Whether they are at a craft this step: one who is not leaves what they were making.)
+      crafting = false;
+    /** At their crafts, if there is anything to make (else false: they rest). */
+    const craft = (): boolean => {
+      const at = craftAt(b, p, dt);
+      if (at === null) return false;
+      pace = at;
+      crafting = true;
+      return true;
+    };
     if (b.going) {
       // Walking on to the fresh ground, the camp on their backs.
       p.doing = "moving";
       const spot = seatOf(b, p, 3.2, b.going);
       if (!goTo(p, spot.x, spot.z, WALK * (p.kin === "old" ? 0.8 : 1), 1)) pace = p.speed;
+    } else if (p.id === kindler && !p.carrying) {
+      // Making the fire at the fresh camp: the bow drill's string sawn back and forth, the stick
+      // spun in the hands, or a stone struck on pyrite, until the tinder catches.
+      if (p.making?.what !== "fire") {
+        leaveOff(b, p);
+        p.making = { doing: "kindling", what: "fire", done: 0 };
+      }
+      craft();
     } else if (night && p.carrying) {
       // Come in late, laden.
       p.doing = "carrying";
@@ -449,13 +776,20 @@ export function stepBand(b: BandState, m: MeadowState): void {
       (p.kin === "grown" && (late(p.x, p.z) || (full && !(p.hunter && (b.quarry >= 0 || b.kill)))))
     ) {
       // Morning and evening (the far out set off home in time to come in by dusk), or a day's
-      // rest with the store full: about the fire, the day's carrying brought in.
+      // rest with the store full: about the fire, the day's carrying brought in; of an evening
+      // half of them at their crafts by turns, and all on a day of rest (Phase 49 M211).
       if (p.carrying) {
         if (goTo(p, b.camp.x, b.camp.z, WALK, 3)) home(b, p);
         else {
           p.doing = "carrying";
           pace = p.speed;
         }
+      } else if (
+        p.kin !== "child" &&
+        (out ? full : hour >= HOME && (p.id + b.day) % 2 === 0) &&
+        craft()
+      ) {
+        // (At it.)
       } else {
         const spot = seatOf(b, p, 3.2);
         if (goTo(p, spot.x, spot.z, WALK, 0.6)) {
@@ -476,8 +810,10 @@ export function stepBand(b: BandState, m: MeadowState): void {
       const away = Math.hypot(p.x - b.camp.x, p.z - b.camp.z);
       if (away > 9) p.heading = turn(p.heading, Math.atan2(b.camp.x - p.x, b.camp.z - p.z), 0.4);
       pace = 1.8 + 1.2 * Math.max(0, Math.sin(b.t * 2 + p.id));
+    } else if (p.kin === "old" && (Math.floor(b.t / (BAND_DAY / 8)) + p.id) % 3 !== 0 && craft()) {
+      // The old by day at their crafts, two spells of three (Phase 49 M211) …
     } else if (p.kin === "old") {
-      // The old keep the fire and the camp.
+      // … and between, keeping the fire and the camp.
       const spot = seatOf(b, p, 2.4);
       if (goTo(p, spot.x, spot.z, WALK * 0.7, 0.6)) p.doing = "tending";
       else {
@@ -510,7 +846,12 @@ export function stepBand(b: BandState, m: MeadowState): void {
         p.doing = "walking";
         pace = p.speed;
       }
-      if (k.meat <= 0.02) b.kill = null;
+      if (k.meat <= 0.02) {
+        // (Cut up: its hide brought home with the meat, for the frame.)
+        b.kill = null;
+        b.kit.hides++;
+        b.hidesOf.push(k.name);
+      }
     } else if (p.hunter && quarry) {
       // After the quarry: creeping near together, then the run and the spear.
       const d = Math.hypot(quarry.x - p.x, quarry.z - p.z),
@@ -543,6 +884,11 @@ export function stepBand(b: BandState, m: MeadowState): void {
         b.quarry = -1;
         b.chase = 0;
         b.news.push(`The hunters ran down a ${k.name}, and carried it home.`);
+        // (A point snaps on a bone, now and then, or a shaft on the fall: another to be made.)
+        if (b.kit.spears > 1 && r() < 0.3) {
+          b.kit.spears--;
+          b.news.push(`A spear broke on the ${k.name}.`);
+        }
       }
     } else if (p.hunter) {
       // No hunt today: they gather with the rest.
@@ -552,6 +898,7 @@ export function stepBand(b: BandState, m: MeadowState): void {
       gather(b, m, p, dt);
       pace = p.speed;
     }
+    if (!crafting && p.making) leaveOff(b, p);
     p.speed = pace;
     p.x += Math.sin(p.heading) * pace * dt;
     p.z += Math.cos(p.heading) * pace * dt;
@@ -574,9 +921,9 @@ export function stepBand(b: BandState, m: MeadowState): void {
   if (quarry && b.quarry >= 0 && b.people.some((p) => p.doing === "chasing")) b.chase += dt;
   // The meadow's beasts see them: they run from the hunters, and from any who come too near.
   m.folk = folk;
-  m.fire = b.going ? null : b.camp;
+  m.fire = b.going || !b.lit ? null : b.camp;
 
-  // Come to the fresh ground: camp pitched, the fire lit.
+  // Come to the fresh ground: camp pitched, the fire to be made (Phase 49 M211), a fresh work ground.
   const g = b.going;
   if (
     g &&
@@ -586,6 +933,8 @@ export function stepBand(b: BandState, m: MeadowState): void {
     b.going = null;
     b.here = 0;
     b.camps++;
+    b.lit = false;
+    b.kit.flakes = 0;
     pitch(b);
     for (const p of b.people) {
       p.carrying = null;
@@ -724,6 +1073,7 @@ export function bandPersonWords(b: BandState, m: MeadowState, id: number): strin
             : "a gatherer",
     beast = (kind: number | undefined) => m.kinds[kind ?? -1]?.name ?? "a beast",
     quarry = b.quarry >= 0 ? m.beasts.find((q) => q.id === b.quarry) : undefined,
+    c = b.craft,
     doing = ((): string => {
       switch (p.doing) {
         case "sleeping":
@@ -750,6 +1100,23 @@ export function bandPersonWords(b: BandState, m: MeadowState, id: number): strin
           return `cutting up the ${b.kill?.name ?? "kill"}`;
         case "moving":
           return "carrying the camp on to fresh ground";
+        // Their crafts (Phase 49 M211), each of what the land gives them.
+        case "knapping":
+          return `knapping ${c.stone.name} into ${p.making?.what === "point" ? "a spear point" : "a blade"}`;
+        case "cording":
+          return `twisting ${c.fibre} into cord`;
+        case "hafting":
+          return `binding a ${c.stone.name} point to a shaft of ${c.wood} with ${c.binding}`;
+        case "scraping":
+          return `scraping ${p.making?.of ? `a ${p.making.of}'s` : "a"} hide on its frame`;
+        case "sewing":
+          return "sewing hides into a cloak with a bone awl and sinew";
+        case "grinding":
+          return `grinding ${c.pigment?.name ?? "colour"} on a flat stone`;
+        case "kindling":
+          return c.fire === "strike-a-light"
+            ? `striking ${c.stone.name} on pyrite for a spark, to make the fire`
+            : `making fire with a ${c.fire}`;
         default:
           return b.going
             ? "walking on with the band to fresh ground"
@@ -778,14 +1145,18 @@ export function bandWords(b: BandState): string {
               : "evening";
   if (b.going)
     return `The band of ${b.people.length} walks on to fresh ground, the camp on their backs — ${when}, day ${b.day + 1}.`;
+  if (count("kindling"))
+    return `The band of ${b.people.length} at fresh ground: one making the fire — ${when}, day ${b.day + 1}, their ${ordinal(b.camps)} camp.`;
   if (when === "night")
     return `Night: the band of ${b.people.length} sleeps about its fire${count("tending") ? ", one keeping it" : ""} — day ${b.day + 1}, their ${ordinal(b.camps)} camp.`;
   const hunting = count("chasing") + count("stalking"),
+    crafting = b.people.filter((p) => CRAFT_DOINGS.includes(p.doing)).length,
     doing = [
       part(count("gathering"), "gathering"),
       part(hunting, "hunting"),
       part(count("butchering"), "cutting up a kill"),
       part(count("carrying"), "carrying home"),
+      part(crafting, "at their crafts"),
       part(
         count("playing"),
         b.people.filter((p) => p.kin === "child").length === 1
@@ -796,4 +1167,18 @@ export function bandWords(b: BandState): string {
       part(count("walking"), "walking"),
     ].filter(Boolean);
   return `The band of ${b.people.length}: ${doing.join(", ")} — ${when}, day ${b.day + 1}; ${b.food < 0.5 ? "hungry" : `${b.food.toFixed(1)} days' food put by`}; ${b.kills === 1 ? "a beast" : `${b.kills} beasts`} taken.`;
+}
+
+/** What the band keeps, in a line of signs (Phase 49 M211): spears, blades, cord, hides, cloaks, colour. */
+export function bandKitWords(b: BandState): string {
+  const k = b.kit,
+    hides = k.hides + k.scraped + b.people.filter((p) => p.making?.what === "hide").length;
+  return [
+    `🗡️ ${k.spears} spear${k.spears === 1 ? "" : "s"}${k.points ? ` (+${k.points} point${k.points === 1 ? "" : "s"})` : ""}`,
+    `🔪 ${k.blades} ${b.craft.stone.name} blade${k.blades === 1 ? "" : "s"}`,
+    `🧵 ${k.cord} span${k.cord === 1 ? "" : "s"} of cord`,
+    ...(hides ? [`🟫 ${hides} hide${hides === 1 ? "" : "s"}`] : []),
+    `🧥 ${k.cloaks} cloak${k.cloaks === 1 ? "" : "s"}`,
+    ...(b.craft.pigment && k.ochre ? [`🔴 ${k.ochre} of ${b.craft.pigment.name}`] : []),
+  ].join(" · ");
 }

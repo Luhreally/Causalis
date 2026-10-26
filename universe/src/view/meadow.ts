@@ -274,6 +274,9 @@ export function cellMiddle(i: number): { x: number; z: number } {
     z: Math.floor(i / COLS) * CELL + CELL / 2 - MEADOW_H / 2,
   };
 }
+
+/** The grass cell a point lies in (what lies on the ground lies on its grass: Phase 49 M211). */
+export const meadowCellAt = cellAt;
 export const MEADOW_CELLS = { cols: COLS, rows: ROWS, size: CELL } as const;
 
 function inPond(s: MeadowState, x: number, z: number, margin = 0): boolean {

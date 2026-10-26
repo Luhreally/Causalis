@@ -87,6 +87,7 @@ import {
 import type {
   ActsMap,
   BeastPlan,
+  CampCraft,
   CampNear,
   BattleNear,
   Campaign,
@@ -142,8 +143,10 @@ import {
   landTidings,
   campWords,
   BAND_DAY,
+  CRAFT_DOINGS,
   MEADOW_STEP,
   bandHour,
+  bandKitWords,
   bandPersonWords,
   bandWords,
   figureOf,
@@ -186,6 +189,7 @@ import {
   type BattleNow,
   stepBand,
   stepMeadow,
+  type BandKit,
   type BandState,
   type MeadowState,
   beliefColor,
@@ -469,7 +473,31 @@ type Exposed = {
     names: string[];
     followed: string | null;
     onScreen: { id: number; at: { x: number; y: number } | null }[];
+    /**
+     * Their crafts (Phase 49 M211): who is at one, in their words; what the band keeps and has
+     * made; the fire at this camp and the last made; what they make things of; the work ground and
+     * the frame (units); the crafts as drawn.
+     */
+    crafting: {
+      id: number;
+      kin: string;
+      doing: string;
+      words: string;
+      at: { x: number; z: number };
+    }[];
+    kit: BandKit;
+    kitWords: string;
+    made: number;
+    camps: number;
+    lit: boolean;
+    kindled: string;
+    craft: CampCraft;
+    work: { x: number; z: number };
+    frame: { x: number; z: number };
+    drawn: { flakes: number; frame: number; hide: number; racked: number };
   } | null;
+  /** The band seen near packs up at its next morning (Phase 49 M211). */
+  moveCamp?: () => void;
   /** The weather where the eye is on the ground (Phase 30 M162): its land, how it is told, what is drawn. */
   weather?: () => {
     cell: number;
@@ -4153,6 +4181,8 @@ async function runPlanetPage(): Promise<void> {
       followed: number;
       /** The world's day they were come down among on (their first day: their day 0). */
       readonly day0: number;
+      /** The last fire made at a fresh camp, as told (Phase 49 M211; the look tools). */
+      kindled: string;
     } | null = null;
   /** How near the pointer (px) a camp must be to be zoomed into while a village stands on the land. */
   const CAMP_REACH = 90;
@@ -4201,7 +4231,8 @@ async function runPlanetPage(): Promise<void> {
     const meadow = newMeadow(info.plan, 0, info.plan.seed, true);
     // (Their own flock grazes among the land's beasts: the hunters leave it be.)
     for (const k of meadow.kinds) if (info.flocks.includes(k.lineage)) k.tame = true;
-    // (As far apart about their fire as their figures are drawn large.)
+    // (As far apart about their fire as their figures are drawn large; their things made of the
+    // ground their camp stands on, Phase 49 M211.)
     const drawn = figureOf(info.figure, detail),
       band = newBand(
         meadow,
@@ -4211,6 +4242,7 @@ async function runPlanetPage(): Promise<void> {
         info.hour,
         info.names,
         drawn.scale,
+        info.craft,
       );
     bandLayer!.people(drawn, info.figure);
     near = {
@@ -4224,6 +4256,7 @@ async function runPlanetPage(): Promise<void> {
       toldAt: -Infinity,
       followed: -1,
       day0: Math.floor(now() / DAY),
+      kindled: "",
     };
     meadowScene.visible = true;
     bandLayer!.root.enabled = true;
@@ -4353,9 +4386,11 @@ async function runPlanetPage(): Promise<void> {
       // (Set on past midnight, a new day of theirs, as the world's: they are counted together.)
       near.band.day = Math.max(near.band.day, Math.floor(t / DAY) - near.day0);
     }
+    for (const line of near.band.news)
+      if (/ fire .* at the new camp\.$/.test(line)) near.kindled = line;
     near.band.news.length = 0;
     meadowScene.update(near.meadow, near.bodies);
-    bandLayer.update(near.band, near.time);
+    bandLayer.update(near.band, near.time, near.meadow);
     stage.daylight(bandHour(near.band) / 24);
     // Their names over them, once the eye is near enough to tell one from another; the one
     // followed, from any way off.
@@ -4385,6 +4420,8 @@ async function runPlanetPage(): Promise<void> {
           ? bandPersonWords(near.band, near.meadow, near.followed) || bandWords(near.band)
           : bandWords(near.band),
       );
+      // (What they keep, under it: Phase 49 M211.)
+      campPanel.kit(bandKitWords(near.band));
     }
   });
   exposed.folk = () => {
@@ -4466,8 +4503,35 @@ async function runPlanetPage(): Promise<void> {
             id: p.id,
             at: bandLayer!.onScreen(near!.band, p.id),
           })),
+          // Their crafts (Phase 49 M211): who is at one and what they are making, in their words;
+          // what the band keeps; the things made; the fire at this camp, and the last one made;
+          // what they make them of; the work ground, and the crafts as drawn.
+          crafting: near.band.people
+            .filter((p) => CRAFT_DOINGS.includes(p.doing))
+            .map((p) => ({
+              id: p.id,
+              kin: p.kin,
+              doing: p.doing,
+              words: bandPersonWords(near!.band, near!.meadow, p.id),
+              at: { x: p.x * 0.1, z: p.z * 0.1 },
+            })),
+          kit: { ...near.band.kit },
+          kitWords: bandKitWords(near.band),
+          made: near.band.made,
+          camps: near.band.camps,
+          lit: near.band.lit,
+          kindled: near.kindled,
+          craft: near.info.craft,
+          work: { x: near.band.work.x * 0.1, z: near.band.work.z * 0.1 },
+          frame: { x: near.band.frame.x * 0.1, z: near.band.frame.z * 0.1 },
+          drawn: bandLayer.craftsDrawn(),
         }
       : null;
+  // (The look tools: the band seen near packs up at its next morning, as when the land about its
+  // camp is eaten bare — to watch the fire made at fresh ground.)
+  exposed.moveCamp = () => {
+    if (near) near.band.here = Math.max(near.band.here, 5);
+  };
   // A battle watched (Phase 37 M186, asked for 2026-10-24: "i still cant see warfare and like wars
   // like theres no coherent animations and battle between them or a way to make time in a way for
   // me to see the carnage"): down on the field a battle of history was fought on, the world's

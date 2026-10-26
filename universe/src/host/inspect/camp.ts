@@ -5,7 +5,8 @@
 // reads of the land as it stands.
 import { YEAR, type World } from "../../kernel/index.ts";
 import { populationContext, regionOf } from "../../sim/index.ts";
-import type { Item, LandCamp, Line, PageModel, Span, Stat } from "../../bridge/index.ts";
+import type { CampCraft, Item, LandCamp, Line, PageModel, Span, Stat } from "../../bridge/index.ts";
+import { campCraft } from "../camp.ts";
 import { CAMP_RANGE, landCamps } from "../land.ts";
 import { province } from "../planet.ts";
 import { count, item, link, many, share, stat, yearNow } from "./words.ts";
@@ -22,6 +23,14 @@ export function campRef(cell: number, id: number): string {
 /** A camp's name: "a band of foragers", "3 bands of herders". */
 function campName(c: LandCamp): string {
   return `${c.bands > 1 ? `${c.bands} bands` : "a band"} of ${c.herds ? "herders" : "foragers"}`;
+}
+
+/** A band's stone in a few words: its name, and how it takes an edge and bears a blow. */
+function stoneWords(s: CampCraft["stone"]): string {
+  const edge =
+      s.keen >= 0.95 ? "the keenest edge" : s.keen >= 0.75 ? "a keen edge" : "a rough edge",
+    blow = s.tough >= 0.8 ? ", tough" : s.tough < 0.35 ? ", but brittle" : "";
+  return `${s.name}: ${edge}${blow}`;
 }
 
 /** Words joined as a list: "a", "a and b", "a, b and c". */
@@ -79,6 +88,8 @@ export function campPage(world: World, ref: string): PageModel {
     left = Math.max(1, Math.round((1 - into) * 3)),
     game = p.wild.filter((s) => GAME.has(s.niche) && !s.tame),
     flocks = p.wild.filter((s) => GAME.has(s.niche) && s.tame),
+    // Their crafts (Phase 49 M211): of the ground their camp stands on.
+    c = campCraft(world, cell, camp.tile),
     stats: Stat[] = [
       stat("People", count(camp.people), { why: p.folk }),
       ...(camp.bands > 1 ? [stat("Bands", count(camp.bands))] : []),
@@ -94,6 +105,7 @@ export function campPage(world: World, ref: string): PageModel {
       stat("Farming", p.farming ? "known in their land" : "not yet known in their land", {
         why: p.cultivation,
       }),
+      stat("Their stone", stoneWords(c.stone)),
     ];
   const who: Line = [
       `They are of the people of `,
@@ -118,6 +130,12 @@ export function campPage(world: World, ref: string): PageModel {
       camp.herds && flocks.length
         ? ["Their flocks are ", ...listed(flocks.slice(0, 3).map((s) => link(s.name, s.ref))), "."]
         : null,
+    stone: Span = c.stone.ref ? link(c.stone.name, c.stone.ref) : c.stone.name,
+    crafts: Line = [
+      "They knap ",
+      stone,
+      ` — ${c.stone.from} — into blades, scrapers and spear points; twist ${c.fibre} into cord; bind their points to shafts of ${c.wood} with ${c.binding}; scrape the hides of what they kill on frames, and sew them into cloaks with bone awls; grind ${c.pigment?.name ?? "colour"}; and make fire ${c.fire === "strike-a-light" ? `by striking ${c.stone.name} on pyrite` : `with a ${c.fire}`}.`,
+    ],
     next: Line = p.farming
       ? [
           "Their land has learned to farm: those who take to it leave the camps for villages, and fewer bands are left to roam.",
@@ -147,7 +165,7 @@ export function campPage(world: World, ref: string): PageModel {
           { type: "facts", rows: stats },
           // (Down among one of its bands, Phase 29 M160.)
           { type: "tool", tool: "watch.camp", args: { cell, camp: camp.id } },
-          { type: "text", lines: [who, how, hunt, ...(herd ? [herd] : []), next] },
+          { type: "text", lines: [who, how, hunt, ...(herd ? [herd] : []), crafts, next] },
           ...(others.length
             ? [{ type: "list" as const, title: "The land's other camps", items: others }]
             : []),

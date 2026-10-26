@@ -170,6 +170,11 @@ export function spotGround(
   };
 }
 
+/** One spot's bedrock, by its rock's id (a band's stone is knapped from it: Phase 49 M211). */
+export function spotRock(world: World, spot: number): string {
+  return groundOf(world).rockAt(spot);
+}
+
 /** A land's bedrock rocks (each a share), for the Ground lens and tab. */
 export function bedrockOf(world: World, cell: number): readonly (readonly [string, number])[] {
   return groundOf(world).rock.get(cell) ?? [];

@@ -1119,7 +1119,7 @@ export async function runGenesis(o: {
           // A band seen near: the land and its beasts, the band, the hour of their day.
           if (band && bandLand) {
             meadowScene.update(bandLand, bodies);
-            bandLayer.update(band, bandTime);
+            bandLayer.update(band, bandTime, bandLand);
             stage.daylight(bandHour(band) / 24);
             if (bandCounted < 0 || bandTime - bandCounted >= 0.25) {
               bandCounted = bandTime;

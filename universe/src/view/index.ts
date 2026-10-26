@@ -206,7 +206,7 @@ export {
   type LandGround,
   type Way,
 } from "./land.ts";
-export { STRIDES, bobOf, limbPitch } from "./motion.ts";
+export { SEATED, STRIDES, bobOf, limbPitch, seatedSink } from "./motion.ts";
 export {
   BATTLE_LENGTH,
   BATTLE_SPEEDS,
@@ -542,6 +542,7 @@ export {
   followedLife,
   followBeast,
   meadowAge,
+  meadowCellAt,
   meadowCounts,
   meadowLineages,
   meadowProspered,
@@ -560,17 +561,24 @@ export {
 } from "./meadow.ts";
 export {
   BAND_DAY,
+  CRAFT_DOINGS,
+  PLAIN_CRAFT,
   bandHour,
+  bandKitWords,
   bandPace,
   bandPersonWords,
   bandQuarry,
   bandWords,
+  madeShare,
   newBand,
   stepBand,
+  type BandCraft,
   type BandDoing,
   type BandKin,
+  type BandKit,
   type BandPerson,
   type BandState,
+  type Making,
 } from "./band.ts";
 export {
   ALL_REACHED,

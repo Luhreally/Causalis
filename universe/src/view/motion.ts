@@ -12,6 +12,16 @@ import type { Task } from "./village.ts";
 /** Strides a second at an easy walk. */
 export const STRIDES = 1.6;
 
+/** The tasks done sitting on the ground, the legs out before them (a band's crafts, Phase 49 M211). */
+export const SEATED: ReadonlySet<Task> = new Set([
+  "knap",
+  "twist",
+  "bind",
+  "sew",
+  "grind",
+  "kindle",
+]);
+
 /**
  * How far a limb is swung now, radians about its hinge (a hip, a shoulder): `walking` or at
  * `task`, at screen time `t` seconds; `i` sets each person a little out of step.
@@ -42,6 +52,8 @@ export function limbPitch(
     // (The hunt, Phase 47 M209: creeping on the herd step by slow step; the rush at a run.)
     if (task === "stalk") return swing * 0.4 * Math.sin(ph * 0.45 + off);
     if (task === "strike") return swing * 1.25 * Math.sin(ph * 2.6 + off);
+    // (A band's crafts, Phase 49 M211: sat on the ground, the legs out before them.)
+    if (task && SEATED.has(task)) return -1.45;
     return 0;
   }
   switch (task) {
@@ -129,9 +141,39 @@ export function limbPitch(
       return right ? -0.75 : -0.5;
     case "strike":
       return right ? -2.5 + 1.7 * Math.max(0, Math.sin(ph * 1.8 + off)) : -0.7;
+    // A band's crafts (Phase 49 M211): the core held low in one hand, the hammerstone brought down
+    // on its edge in quick short blows; fibre rolled to cord on the thigh; a point bound on, the
+    // hands going round and round the haft; a hide scraped in long strokes down its frame; the
+    // awl's thread drawn up; colour ground back and forth; the bow drill's bow sawn fast, the
+    // other hand bearing down on the drill.
+    case "knap":
+      return right ? -1.0 - 0.6 * Math.max(0, Math.sin(ph * 2.2 + off)) ** 0.5 : -0.9;
+    case "twist":
+      return -0.75 + 0.18 * Math.sin(ph * 1.4 + off + (right ? Math.PI : 0));
+    case "bind":
+      return -1.1 + 0.25 * Math.sin(ph * 1.0 + off + (right ? Math.PI / 2 : 0));
+    case "scrape":
+      return -0.9 - 0.5 * Math.max(0, Math.sin(ph * 0.9 + off));
+    case "sew":
+      return right ? -0.9 - 0.9 * Math.max(0, Math.sin(ph * 0.8 + off)) : -0.8;
+    case "grind":
+      return -0.95 + 0.3 * Math.sin(ph * 1.1 + off);
+    case "kindle":
+      return right ? -0.9 + 0.45 * Math.sin(ph * 3 + off) : -1.2;
     default:
       return 0;
   }
+}
+
+/**
+ * How far a figure sinks to sit on the ground at a seated task (its hips' height, in its own
+ * units), its legs out before it; 0 for one that works standing, or has no pair of legs to sit on.
+ */
+export function seatedSink(parts: readonly FigurePart[], task: Task | null): number {
+  if (!task || !SEATED.has(task)) return 0;
+  const legs = parts.filter((p) => p.role === "leg");
+  if (legs.length !== 2) return 0;
+  return Math.max(...legs.map((l) => l.y + (l.pivot ?? 0))) * 0.92;
 }
 
 /** How far a body rises off the ground now: a hop at play, a bounce in a brawl. */

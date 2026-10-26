@@ -697,4 +697,36 @@ export type CampNear = {
   /** Each of them by name, in the land's tongue (Phase 29 M161). */
   readonly names: readonly string[];
   readonly hour: number;
+  /** What they make their things of, and how (Phase 49 M211): from the ground the camp stands on. */
+  readonly craft: CampCraft;
+};
+
+/**
+ * What a band makes its things of, and how (Phase 49 M211, asked for 2026-10-25: "bring back og
+ * causlaiss like primitve crafting"): from the ground its camp stands on and the land about it.
+ */
+export type CampCraft = {
+  /**
+   * The stone they knap: its name ("flint"), where they find it ("nodules in the chalk"), how keen
+   * an edge it takes and how well it bears a blow (0 … 1), its colour; its substance's page.
+   */
+  readonly stone: {
+    readonly name: string;
+    readonly from: string;
+    readonly keen: number;
+    readonly tough: number;
+    readonly colour: readonly [number, number, number];
+    readonly ref?: string;
+  };
+  /** The wood of their shafts ("ash"), the fibre of their cord ("nettle"), what binds a point on. */
+  readonly wood: string;
+  readonly fibre: string;
+  readonly binding: string;
+  /** The earth they grind for colour ("red ochre"; null: none to hand), and its colour. */
+  readonly pigment: {
+    readonly name: string;
+    readonly colour: readonly [number, number, number];
+  } | null;
+  /** How they make fire: a bow drill, a stick spun in the hands, or a stone struck on pyrite. */
+  readonly fire: "bow drill" | "hand drill" | "strike-a-light";
 };
