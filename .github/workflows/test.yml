@@ -37,6 +37,20 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run build
+
+  universe-history:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: universe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: universe/package-lock.json
+      - run: npm ci
       # The Phase 2 gate: eleven seeds, five hundred years each, every seed in its own process.
       - run: npm run gate:2
       # The Phase 3 gate: the Earth seed nine centuries — its turning points and numbers in
@@ -82,8 +96,30 @@ jobs:
       # npm run gate:5.
       - run: npm run gate:5 -- --ci
 
+  # The journey: every browser gate on the built app, shared out over twelve runners side by side.
+  # tools/ci-gates.ts holds what each gate walks, its CI arguments and its time on a runner; the
+  # shards below are its `--plan 12`. A gate that fails runs once more (a runner's software GL and
+  # slower clock make the odd timing miss); one failing twice fails its shard. Every gate in a shard
+  # runs, whatever failed before it.
   universe-journey:
+    name: universe-journey (gates ${{ matrix.gates }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        gates:
+          - 7 35 41
+          - 8 19 34 36 48
+          - 9 11 44 50
+          - 10 37 42
+          - 12 30 43 46
+          - 13 20 29 33 49
+          - 14 27 40
+          - 15 18 21 47
+          - 17 24 28 53
+          - 25 32 38 52
+          - 26 31 45 51
+          - "39"
     defaults:
       run:
         working-directory: universe
@@ -95,256 +131,10 @@ jobs:
           cache: npm
           cache-dependency-path: universe/package-lock.json
       - run: npm ci
-      - run: npx playwright install --with-deps webkit
+      # (Chromium for the gates; WebKit too for the Phase 7 gate's journey, at a phone's size.)
+      - run: npx playwright install --with-deps chromium ${{ contains(format(' {0} ', matrix.gates), ' 7 ') && 'webkit' || '' }}
       - run: npm run build
-      # The Phase 7 gate's journey: the brief's journey walked at a phone's size in WebKit,
-      # every step answered with its why (to the Earth seed's year 1450, its first war
-      # between the stars fought). The phone's budgets need a GPU; they run locally:
-      # npm run gate:7.
-      - run: npm run gate:7 -- --sky-year 1450 --no-budgets
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 8 gate's world: hunters and their game, a hunt run, a village's flock,
-      # people carrying, a mine, another people's world visited, and the same history at
-      # every setting. Its per-setting budgets run locally: npm run gate:8.
-      - run: npx playwright install --with-deps chromium
-      - run: npm run gate:8 -- --no-budgets
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 9 gate: every beast a body of its own in a web of eating, a village's day
-      # seen (its people kept out of its walls), its wars drawn, one zoom from a person to
-      # the galaxy and back, and the genesis played through to where to begin. Its hand-over
-      # timing needs a GPU; it runs locally: npm run gate:9.
-      - run: npm run gate:9 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 10 gate: everything a page, its numbers explained; tooltips; the political
-      # map and its chrome (search, the outliner, the chronicle, the ledger); zoom both ways
-      # toward the pointer, a battle seen from the globe to its village; go-to flights; free
-      # roam walked and flown through the scales.
-      - run: npm run gate:10 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 11 gate: realms' arms on their pages and beside their names; hosts as
-      # counters on the globe and in a land; a great happening in its window, the clock waiting
-      # and the god's hand answering; realms side by side and a war's tally; the realms' map
-      # closer, taken lands in shadow and sieges marked.
-      - run: npm run gate:11 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 12 gate: the god's palette (an act's reach lit and said, cast, playing where it
-      # fell); the peoples in its hand (peace made and war set between two realms); the deeper
-      # lenses and their tooltips; the world in numbers; armies seen on the globe and in a land;
-      # the palette on a phone.
-      - run: npm run gate:12 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 13 gate: disasters from the palette (a quake, fire from the sky and its crater,
-      # a river raised); makings (settlers, a blessing, two realms made one); a battle played out
-      # in its land; a realm's army and a war's course.
-      - run: npm run gate:13 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 14 gate: a people's ways, a tongue and a faith from the palette; the ways and
-      # belief lenses and their tooltips; one of the people under the hand (their traits as
-      # chips, their family tree walked, a trait given); a people read, the god as they name it.
-      - run: npm run gate:14 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 15 gate: matter (a substance found by name, a reaction, a principle, a good's
-      # ways); stores broken down and balancing; the goods lens.
-      - run: npm run gate:15 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 17 gate: the tree of life (every line of descent charted, the first of each
-      # kind of body drawn, a lineage's ancestry, a forebear's page from its row; on a phone).
-      - run: npm run gate:17 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 18 gate: the sky alive (life on other worlds told and drawn; ships, landings,
-      # contact, exchanges and wars as they come).
-      - run: npm run gate:18 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 19 gate: bonds and freedoms (a realm's order and who it holds, the book's page
-      # of its standing, the lenses of bondage and of standing, the ledger's bonds, the god's
-      # sign against a rule; the Order tab on a phone).
-      - run: npm run gate:19 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 20 gate: sickness (every sickness side by side, the deadliest's page and its
-      # drop of blood under the glass, the book's page of a sickness, the lens of sickness, a land
-      # warded by the god; a sickness's page on a phone).
-      - run: npm run gate:20 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 21 gate: credit (every house of lending side by side, the greatest's page and
-      # the book's page of credit, a realm's war chests, the lens of debt, a house broken by the
-      # god; a house's page on a phone).
-      - run: npm run gate:21 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 24 gate: the dawn, played (the deep clock run and paused, the first seas' drop
-      # alive and fed, a cell followed, what prospered under the hand laid on the seed, an age
-      # cooled and the world remade from it, the world begun the world remade; on a phone).
-      - run: npm run gate:24 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 25 gate: towns seen growing on the land (drawn from their fabric, with their
-      # fields and roads, as the land's clock runs), and in a town a tap on a building, a home
-      # and the walls each opening its page; a building's page on a phone.
-      - run: npm run gate:25 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      - run: npm run gate:26 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      - run: npm run gate:27 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      - run: npm run gate:28 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      - run: npm run gate:29 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      - run: npm run gate:30 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      - run: npm run gate:31 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 32 gate: the countryside about a town as Classic drew it (the fields bounded in
-      # their land's manner, a patchwork of crops, orchards, barns, windmills turning, the pasture
-      # fenced) and the year on it (blossom, scarecrows, fruit, hay; none of them in winter).
-      - run: npm run gate:32 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 33 gate: a town's feasts and market days (bunting and tables, the bonfire at
-      # dusk, the town at the tables and dancing in a ring about it; the stalls of a morning).
-      - run: npm run gate:33 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 34 gate: a people's own look, made of their world (four worlds never seen, each
-      # people's stance, arms, eyes, what grows on them and their hide; Earth's upright apes).
-      - run: npm run gate:34 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 35 gate: the world's making under the god's hand (its star, pull, orbit, seas and
-      # air on the title's dials and in its genesis; the world begun as made, its page telling it).
-      - run: npm run gate:35 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 36 gate: the thread back to the beginning (a life's Origins, from their birth back
-      # through their town, land, people and line to the world and its galaxy; on a phone; on a
-      # world the hand made).
-      - run: npm run gate:36 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 37 gate: battles seen (a battle of history watched on its field, the world held
-      # while its own clock runs, held and sped and drawn back and forth; its hosts in proportion and
-      # as many fallen as history says; one who fought followed; back to the land; on a phone).
-      - run: npm run gate:37 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # The Phase 38 gate: wars seen unfolding (a war of history played again on the globe, the
-      # world held while its own clock runs, held and sped and drawn back and forth; its battles in
-      # their turns, drawn and marked, its fallen tallied, its end told; one of them watched fought
-      # and back to the war; from the ledger and the war's page; on a phone).
-      - run: npm run gate:38 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 39 (the town lived: its many drawn; its people at the work its needs set them —
-      # reaping, the sheaves to the granary, beams to what is going up; its stores heaped, on the
-      # line under its bar and on their card; one of them tapped, what they do and why).
-      - run: npm run gate:39 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 40 (war in place: a war of history played on its land on the world's clock — the
-      # attacker mustered at its border and marched by the roads, the defenders' garrison rallied,
-      # the two drawn up and engaged with the clock slowed to a day a second, the rout at the
-      # year's turn; on the globe, its host going between).
-      - run: npm run gate:40 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 41 (a town's trades at their own buildings: its children at their letters in the
-      # school's rows and one teaching them, its potters at the kiln aglow, sparks at the anvil;
-      # its woodlot's trees felled, lying and carried off, their stumps; a day of rest's prayer).
-      - run: npm run gate:41 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 42 (the god's hand in a town watched: fire sent on a home of it from the palette, its
-      # homes catching and burning, the town come running — throwing water, a line passing
-      # buckets, others watching — the flames out and the ruins smouldering; a spring set where
-      # touched; its land shaken: the ground shaking, homes down in dust, the rubble dug).
-      - run: npm run gate:42 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 43 (a town's dead buried: its graveyard past its homes, a grave dug in the morning,
-      # the dead borne on a bier by four in step, its mourners after it, the grave filled in;
-      # those a fire killed buried together two days after it, on biers one after another).
-      - run: npm run gate:43 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 44 (the year in a town's fields: the crop standing in its rows; the rain withheld and
-      # water carried out to the parched fields; a blight pulled and burned; the harvest reaped
-      # row by row, so many at each field's front, the rest carrying in the sheaves).
-      - run: npm run gate:44 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 45 (a crowd sized to its town; a person's day told on their page and card, a line
-      # still to come taken on to with a tap, the eye kept on them).
-      - run: npm run gate:45 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 46 (a flock's day and year: folded by night in its hurdles, driven out and grazing,
-      # brought in; the stubble after the harvest; the fold on hay in winter, fewer of it).
-      - run: npm run gate:46 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 47 (the hunt: the town's hunters creeping in on the game abreast, its heads up, the
-      # rush and the herd running, one brought down and dressed, carried home across the shoulders).
-      - run: npm run gate:47 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 48 (the road's trade: a trader loading the town's goods at its store and setting out down
-      # the road with them, away, back a day or two on with what that land sends; the card's trade).
-      - run: npm run gate:48 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 49 (the camp's crafts: of an evening the band at the work ground knapping their own
-      # land's stone, twisting cord, binding spears, a hide scraped on its frame; fire made new at a
-      # fresh camp; the camp page's stone tapped through to its own page).
-      - run: npm run gate:49 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 50 (the chain from the ground to a thing: a town's named smiths at the anvil casting
-      # its land's metal, one tapped to their card; its smithy's page naming who works there and a
-      # tool made there traced from its ore; a person's tool traced from the ground to the hand; a
-      # realm's arms forged at its seat's smithy, from their ore to the smith who made them).
-      - run: npm run gate:50 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 51 M213 (things seen being made: the furnace by a town's diggings roaring as one of
-      # its diggers works the bellows, the copper carried to the yard and from it to the forge, the
-      # day's tools hung on the rack before the smithy, one tapped where it hangs and traced from its
-      # ore to the smith who made it).
-      - run: npm run gate:51 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 52 (the chain decides: a town's smiths forging bronze, its tin brought down the road
-      # and traced on its smithy's page; a battle its arms decided, ringed on its war's course, its
-      # page telling each side's arms and how much of its host bore them; the winner's army, how
-      # much of its host is so armed).
-      - run: npm run gate:52 -- --ci
-        env:
-          LIBGL_ALWAYS_SOFTWARE: 1
-      # Phase 53 (later-age arms: a machine gun traced from the ground to the converter and its
-      # machinist, its brass and gun cotton, and an armoured car on its oil; a battle of machine
-      # guns and armoured cars against repeating rifles watched near, the attackers coming on in
-      # rushes, the defenders in their trench, cars knocked out burning, a machine gunner followed
-      # and their weapon traced from the battle's bar; the bar at a phone's width).
-      - run: npm run gate:53 -- --ci
+      - run: node tools/ci-gates.ts ${{ matrix.gates }}
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
 
