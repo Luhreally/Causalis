@@ -11,7 +11,10 @@
 // (so many figures for so many men). Pure: the same moment of a battle always looks the same.
 // Metres on the field, x from the attackers' side (−) to the defenders' (+), z across.
 import type { BattleNear } from "../bridge/index.ts";
+import { armLook, isGun, type Stroke } from "./arms.ts";
 import { cellMiddle, type MeadowState } from "./meadow.ts";
+
+export type { Stroke } from "./arms.ts";
 
 /** How long a battle plays at its own pace, in its seconds: two and a half minutes. */
 export const BATTLE_LENGTH = 150;
@@ -44,12 +47,29 @@ const WHEEL = { from: MOMENTS.melee + 3, to: MOMENTS.melee + 20, turn: 1.4 } as 
  */
 const CRAWL = { share: 0.28, after: 1.2, pace: 0.32, least: 5, most: 13 } as const;
 
-/** How a host strikes hand to hand: a thrust (spears, tusks), a blow (swords, axes, clubs, claws), a bite, a grapple. */
-export type Stroke = "thrust" | "strike" | "bite" | "grapple";
+/**
+ * Open order (Phase 53 M220): the metres between files, the rank gap (m), the depth (m) a host
+ * stands no deeper than, and how many files fit across the field.
+ */
+const OPEN = { file: 3, rank: 4, depth: 30, files: Math.floor((2 * FIELD.z - 6) / 3) + 1 } as const;
 
-/** What one who fought is at. */
+/**
+ * The rushes an attacker in open order comes on in, from the advance to the charge (Phase 53
+ * M220): the field taken in so many bounds, a cycle of the two groups' rushes (the second group
+ * `apart` s after the first), how long a rush lasts (s), how far each one's timing is shifted (s),
+ * and how far a machine gun's team rushes to its place (a share of the way to the stop).
+ */
+const RUSH = { bounds: 5, cycle: 6, long: 2.2, apart: 3, shift: 0.6, gun: 0.4 } as const;
+
+/**
+ * Fire without pause (Phase 53 M220): how long a ball flies (s), how far apart a burst's rounds
+ * are (s), the most shots a side fires in a second, and the most rounds it looses in all.
+ */
+const SHOTS = { flight: 0.15, burst: 0.09, most: 12, rounds: 700 } as const;
+
+/** What one who fought is at ("prone": down in the grass between rushes, firing; Phase 53 M220). */
 export type Act =
-  "stand" | "march" | "run" | "brace" | "fight" | "loose" | "fall" | "flee" | "cheer";
+  "stand" | "march" | "run" | "brace" | "fight" | "loose" | "fall" | "flee" | "cheer" | "prone";
 
 /** How a host is carried and what it fights with, as the field shows it. */
 export type HostDrawn = {
@@ -64,6 +84,43 @@ export type HostDrawn = {
   readonly stroke: Stroke;
   /** How many of its figures fall (as many as fell of its men, so many figures for so many). */
   readonly falls: number;
+  /**
+   * In open order (Phase 53 M220: the magazine rifle and since): files and ranks wide apart, coming
+   * on in rushes and going to ground between them, firing as each will (absent: shoulder to shoulder).
+   */
+  readonly open?: true;
+  /** How many armoured cars go with it (absent: none). */
+  readonly vehicles?: number;
+};
+
+/** An armoured car brought to the field (Phase 53 M220): where across it goes, and its fate. */
+export type Vehicle = {
+  readonly id: number;
+  readonly side: 0 | 1;
+  /** Where across the field it goes (m). */
+  readonly z: number;
+  /** When it is knocked out (battle seconds; null: it comes through). */
+  readonly knocked: number | null;
+  /** Its own draw (0 … 1). */
+  readonly u: number;
+};
+
+/** An armoured car now. */
+export type VehicleNow = {
+  readonly id: number;
+  readonly side: 0 | 1;
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  /** Which way its hull faces (radians, as a trooper's yaw). */
+  readonly yaw: number;
+  /** Its turret's turn from its hull's facing (radians). */
+  readonly turret: number;
+  /** Its gun's kick as it fires (1, easing to 0). */
+  readonly recoil: number;
+  /** How far knocked out (0 running … 1 a wreck), and how fiercely it burns (0 … 1). */
+  readonly knocked: number;
+  readonly burning: number;
 };
 
 /** One who fought: their place in their host, their fate in the battle. */
@@ -88,6 +145,8 @@ export type Trooper = {
   gate: boolean;
   /** Their own draw (0 … 1): their step, their pace. */
   readonly u: number;
+  /** Of a machine gun's team, at its tripod (Phase 53 M220; absent: they bear their own arm). */
+  gun?: true;
   /** Where they lie, once worked out (they lie where they fell). */
   lies?: { x: number; z: number; yaw: number; run: boolean; fled: number };
 };
@@ -130,6 +189,11 @@ export type BattleGround = {
     readonly gate: number;
     readonly stone: boolean;
   } | null;
+  /**
+   * The trench the defenders dug where they stand in open order, in the open (Phase 53 M220): its
+   * line (x), half its width and its depth (m) (absent: none).
+   */
+  readonly trench?: { readonly x: number; readonly w: number; readonly depth: number };
 };
 
 export type BattleField = {
@@ -167,6 +231,8 @@ export type BattleField = {
    * are (|z|, m): its files beyond them wheel about them once the lines have met (none: neither).
    */
   readonly wings: { readonly side: 0 | 1; readonly z: number } | null;
+  /** The armoured cars of both sides (Phase 53 M220; absent: none). */
+  readonly vehicles?: readonly Vehicle[];
 };
 
 /** One who fought, now. */
@@ -189,6 +255,8 @@ export type TrooperNow = {
   readonly bearer: boolean;
   /** Wounded, dragging themselves back toward their own lines (1), or not (0). */
   readonly crawl: number;
+  /** At a machine gun on its tripod, set before them (Phase 53 M220; absent: not). */
+  readonly gun?: true;
 };
 
 export type BattleNow = {
@@ -223,6 +291,11 @@ export type BattleNow = {
   readonly camp: number;
   /** What is told now. */
   readonly words: string;
+  /** The armoured cars (Phase 53 M220; absent: none). */
+  readonly vehicles?: readonly VehicleNow[];
+  /** Black smoke rising off burning wrecks, and the flames on them (m; absent: none). */
+  readonly fumes?: readonly { x: number; y: number; z: number; r: number }[];
+  readonly flames?: readonly { x: number; y: number; z: number; r: number }[];
 };
 
 /** The most figures a side is drawn as (a phone draws fewer). */
@@ -249,38 +322,24 @@ const smooth = (x: number) => {
   return t * t * (3 - 2 * t);
 };
 
-/** How a host's arm strikes hand to hand. */
+/** How a host's arm strikes hand to hand (its row in the arms table). */
 export function strokeOf(arm: string | undefined): Stroke {
-  switch (arm) {
-    case "spear":
-    case "tusks":
-    case "shell-darts":
-    // (A bayonet on the muzzle.)
-    case "musket":
-    case "rifle":
-      return "thrust";
-    case "mandibles":
-      return "bite";
-    case "grapple":
-      return "grapple";
-    default:
-      return "strike";
-  }
+  return armLook(arm).stroke;
 }
 
-/** Whether a host's arm looses at a distance. */
+/** Whether a host's arm looses at a distance: arrows, darts, or powder and shot. */
 export function loosesFrom(arm: string | undefined): boolean {
-  return arm === "bow" || arm === "horn-bow" || arm === "shell-darts" || firesFrom(arm);
+  return armLook(arm).looses !== "none";
 }
 
-/** Whether a host's arm fires powder and shot (Phase 37 M188): a musket, a rifle. */
+/** Whether a host's arm fires powder and shot (Phase 37 M188): a musket, a rifle, the guns since. */
 export function firesFrom(arm: string | undefined): boolean {
-  return arm === "musket" || arm === "rifle";
+  return isGun(arm);
 }
 
 /** The share of a host's dead that fall to what the other side looses: more to shot than to arrows. */
 function loosedShare(arm: string | undefined): number {
-  return arm === "rifle" ? 0.6 : arm === "musket" ? 0.45 : 0.25;
+  return armLook(arm).loosed;
 }
 
 /** Metres between files and between ranks: riders and chariots stand wider. */
@@ -290,6 +349,17 @@ function spacing(mounted: HostDrawn["mounted"]): { file: number; rank: number } 
     : mounted === "horse"
       ? { file: 2.6, rank: 3.6 }
       : { file: 1.55, rank: 1.9 };
+}
+
+/**
+ * A host's gaps, in metres between files and between ranks: close order as it always stood; in
+ * open order (Phase 53 M220) three metres between files and four between ranks, but no deeper
+ * than the depth allows.
+ */
+function gapOf(h: HostDrawn): { file: number; rank: number } {
+  return h.open
+    ? { file: OPEN.file, rank: Math.min(OPEN.rank, OPEN.depth / Math.max(1, h.ranks - 1)) }
+    : spacing(h.mounted);
 }
 
 /** The ground's height under a point (a ridge the defenders hold). */
@@ -323,11 +393,21 @@ export function newBattle(near: BattleNear, most: number): BattleField {
   // Each host as the field draws it.
   const drawnOf = (s: typeof a, side: 0 | 1): HostDrawn => {
     const n = Math.max(1, Math.round(s.fielded / per)),
+      look = armLook(s.host?.arm),
+      // (In open order a host fights on foot: the magazine's riders dismount to it.)
+      open = look.order === "open",
       // (Behind its walls a seat's defenders stand them on foot, their horses within.)
       mount = side === 1 && walls ? undefined : s.host?.mount,
-      mounted: HostDrawn["mounted"] =
-        mount === "chariot" ? "chariot" : mount === "horse" || mount === "cavalry" ? "horse" : null,
-      files = Math.max(1, Math.min(n, Math.round(Math.sqrt(n * (mounted ? 2.2 : 3.6))))),
+      mounted: HostDrawn["mounted"] = open
+        ? null
+        : mount === "chariot"
+          ? "chariot"
+          : mount === "horse" || mount === "cavalry"
+            ? "horse"
+            : null,
+      files = open
+        ? Math.max(1, Math.min(n, OPEN.files, Math.round(Math.sqrt(n * 1.6))))
+        : Math.max(1, Math.min(n, Math.round(Math.sqrt(n * (mounted ? 2.2 : 3.6))))),
       ranks = Math.ceil(n / files),
       // (As many fall as fell of its men: the victors keep some standing, the beaten a few.)
       most = side === beaten ? Math.ceil(n * 0.92) : n - 1,
@@ -338,40 +418,55 @@ export function newBattle(near: BattleNear, most: number): BattleField {
       ranks,
       mounted,
       missiles: loosesFrom(s.host?.arm),
-      stroke: strokeOf(s.host?.arm),
+      // (The rest of a machine gun's team strike with the arm they bear, not the gun's.)
+      stroke: strokeOf(look.rest ?? s.host?.arm),
       falls,
+      ...(open ? { open: true as const } : {}),
+      // (An armoured host brings its cars: one for so many of its figures, from one to sixteen.)
+      ...(s.host?.mount === "armoured"
+        ? { vehicles: Math.min(16, Math.max(1, Math.round(n / 12))) }
+        : {}),
     };
   };
   const hosts = [drawnOf(a, 0), drawnOf(d, 1)] as const;
   // Where the lines meet: at the defenders' front (before their walls, on their ridge's brow,
   // past the river), and how far the victors drive the beaten before they break.
   const meet = ground.wall ? ground.wall.x - 1.3 : ground.river ? 8.4 : ground.hill ? 8 : 6,
-    drive = ground.wall ? 0 : near.won ? 5 : -5;
+    // (The defenders in open order dig a trench where they stand, in the open (Phase 53 M220): it
+    // holds, so the lines do not drive.)
+    trench = hosts[1].open && !walls ? { x: meet + 1, w: 0.7, depth: 1.25 } : undefined,
+    drive = ground.wall || trench ? 0 : near.won ? 5 : -5;
   // Each one in their rank and file.
   const troopers: Trooper[] = [];
   for (const side of [0, 1] as const) {
     const h = hosts[side],
-      gap = spacing(h.mounted).file;
+      gap = gapOf(h).file,
+      // (A machine gun's team: the first two ranks, every third file, are its gunners.)
+      team = armLook((side === 0 ? a : d).host?.arm).team !== undefined;
     for (let i = 0; i < h.n; i++) {
       const file = i % h.files,
         rank = Math.floor(i / h.files),
         // (The last rank, short, stands to the middle.)
         inRank = rank === h.ranks - 1 ? h.n - rank * h.files : h.files,
         across = (file - (inRank - 1) / 2) * gap,
-        u = unit(key + side * 7919, i);
+        u = unit(key + side * 7919, i),
+        gun = team && rank < 2 && file % 3 === 1;
       troopers.push({
         id: troopers.length,
         side,
         file,
         rank,
         z: Math.max(-FIELD.z + 3, Math.min(FIELD.z - 3, across + (u - 0.5) * gap * 0.3)),
-        bearer: rank === 1 % h.ranks && (file === Math.floor(inRank / 2) || file % 14 === 7),
+        // (Those in open order carry no banners.)
+        bearer:
+          !h.open && rank === 1 % h.ranks && (file === Math.floor(inRank / 2) || file % 14 === 7),
         falls: null,
         by: null,
         flees: null,
         pursues: false,
         gate: false,
         u,
+        ...(gun ? { gun: true as const } : {}),
       });
     }
   }
@@ -389,7 +484,8 @@ export function newBattle(near: BattleNear, most: number): BattleField {
   // At a seat's walls, the attackers' ladders along their front, either side of the gate: raised
   // against the walls as they rush them, thrown down where the walls held.
   const ladders: { z: number; up: number; down: number | null; climber: number }[] = [];
-  if (ground.wall) {
+  // (From the self-loading rifle on, the attackers raise no ladders: they blow the gate instead.)
+  if (ground.wall && armLook(a.host?.arm).ladders) {
     const gate = ground.wall.gate,
       far = Math.max(gate + 4, Math.min(reach[0]!, FIELD.z - 5)),
       n = Math.max(2, Math.min(7, Math.round(hosts[0].files / 5))),
@@ -422,6 +518,33 @@ export function newBattle(near: BattleNear, most: number): BattleField {
       }
     }
   }
+  // The armoured cars of both sides, spread across the front. A keyed few of each side's are
+  // knocked out: as many as its falls were of its figures, at most three in four of them.
+  const vehicles: Vehicle[] = [];
+  for (const side of [0, 1] as const) {
+    const h = hosts[side],
+      count = h.vehicles ?? 0,
+      wrecked = new Set(
+        Array.from({ length: count }, (_, i) => i)
+          .sort((p, q) => unit(key + 5000 + side, p) - unit(key + 5000 + side, q))
+          .slice(0, Math.round(count * Math.min(0.75, (1.2 * h.falls) / Math.max(1, h.n)))),
+      );
+    for (let i = 0; i < count; i++)
+      vehicles.push({
+        id: vehicles.length,
+        side,
+        z:
+          (i - (count - 1) / 2) * Math.min(10, (2 * FIELD.z - 10) / count) +
+          (unit(key + 5100 + side, i) - 0.5) * 2,
+        // (Knocked out at a keyed time, from the arrows' sixth second to the rout's fourth.)
+        knocked: wrecked.has(i)
+          ? MOMENTS.arrows +
+            6 +
+            (MOMENTS.rout + 4 - MOMENTS.arrows - 6) * unit(key + 5200 + side, i)
+          : null,
+        u: unit(key + 5300 + side, i),
+      });
+  }
   const field: BattleField = {
     near,
     per,
@@ -436,11 +559,12 @@ export function newBattle(near: BattleNear, most: number): BattleField {
     cannon: cannonOf(near, key),
     ladders,
     beaten,
-    ground,
+    ground: trench ? { ...ground, trench } : ground,
     meet,
     drive,
-    moments: momentsOf(near, wings),
+    moments: momentsOf(near, wings, vehicles, trench !== undefined),
     wings,
+    ...(vehicles.length ? { vehicles } : {}),
   };
   fates(field, key);
   return field;
@@ -477,14 +601,34 @@ function cannonOf(near: BattleNear, key: number): Cannon[] {
   return out;
 }
 
-/** What is told as the battle goes. */
-function momentsOf(near: BattleNear, wings: BattleField["wings"]): { at: number; words: string }[] {
+/**
+ * What is told as the battle goes, and of the later arms' doings (Phase 53 M220): the cars that
+ * roll forward, the machine guns that open up, the first car knocked out, the trench, the gate
+ * blown in. Told in the order the battle comes to them.
+ */
+function momentsOf(
+  near: BattleNear,
+  wings: BattleField["wings"],
+  vehicles: readonly Vehicle[],
+  trench: boolean,
+): { at: number; words: string }[] {
   const a = near.attacker.name,
     d = near.defender.name,
     cap = (s: string) => s[0]!.toUpperCase() + s.slice(1),
     town = near.town ?? "the town",
     arrows = loosesFrom(near.attacker.host?.arm) || loosesFrom(near.defender.host?.arm),
-    guns = firesFrom(near.attacker.host?.arm) || firesFrom(near.defender.host?.arm);
+    guns = firesFrom(near.attacker.host?.arm) || firesFrom(near.defender.host?.arm),
+    continuous = [near.attacker, near.defender].some(
+      (s) => armLook(s.host?.arm).fire === "continuous",
+    ),
+    team = [near.attacker, near.defender].some((s) => armLook(s.host?.arm).team !== undefined),
+    open = armLook(near.attacker.host?.arm).order === "open",
+    // (An attacker that raises no ladders blows the gate: the self-loading rifle on.)
+    blown = !armLook(near.attacker.host?.arm).ladders,
+    firstKnock = vehicles.reduce<number | null>(
+      (m, v) => (v.knocked !== null && (m === null || v.knocked < m) ? v.knocked : m),
+      null,
+    );
   const out: { at: number; words: string }[] = [
     {
       at: 0,
@@ -492,16 +636,37 @@ function momentsOf(near: BattleNear, wings: BattleField["wings"]): { at: number;
         ? `${cap(a)} draw up before the walls of ${town}`
         : `The hosts draw up: ${a} against ${d}`,
     },
-    { at: MOMENTS.advance, words: `${cap(a)} come on` },
+    { at: MOMENTS.advance, words: open ? `${cap(a)} come on in rushes` : `${cap(a)} come on` },
   ];
   if (arrows)
     out.push({
       at: MOMENTS.arrows,
-      words: guns ? "Volleys of shot ring out as they come" : "Arrows fall on them as they come",
+      words: continuous
+        ? "Fire breaks out all along the line"
+        : guns
+          ? "Volleys of shot ring out as they come"
+          : "Arrows fall on them as they come",
     });
+  if (team) out.push({ at: MOMENTS.arrows + 3, words: "Machine guns open up" });
+  if (vehicles.some((v) => v.side === 0))
+    out.push({ at: MOMENTS.advance + 3, words: `The armoured cars of ${a} roll forward` });
   out.push(
-    { at: MOMENTS.charge, words: near.walls ? `${cap(a)} rush the walls` : `${cap(a)} charge` },
-    { at: MOMENTS.melee, words: near.walls ? "They fight at the walls" : "The lines meet" },
+    {
+      at: MOMENTS.charge,
+      words: near.walls
+        ? `${cap(a)} rush the walls`
+        : open
+          ? `${cap(a)} rise and rush the line`
+          : `${cap(a)} charge`,
+    },
+    {
+      at: MOMENTS.melee,
+      words: near.walls
+        ? "They fight at the walls"
+        : trench
+          ? "They fight in the trench"
+          : "The lines meet",
+    },
   );
   if (wings) {
     const [wide, hemmed] = wings.side === 0 ? [a, d] : [d, a];
@@ -510,7 +675,10 @@ function momentsOf(near: BattleNear, wings: BattleField["wings"]): { at: number;
       { at: WHEEL.to + 6, words: `${cap(hemmed)} are hemmed in, fighting on three sides` },
     );
   }
-  if (near.outcome === "stormed") out.push({ at: MOMENTS.gate, words: "The gate is broken" });
+  if (near.outcome === "stormed")
+    out.push({ at: MOMENTS.gate, words: blown ? "The gate is blown in" : "The gate is broken" });
+  if (firstKnock !== null)
+    out.push({ at: firstKnock, words: "An armoured car is knocked out, burning" });
   out.push({
     at: MOMENTS.rout,
     words:
@@ -537,7 +705,7 @@ function momentsOf(near: BattleNear, wings: BattleField["wings"]): { at: number;
               ? `The field is ${a}'s, and ${near.land} with it`
               : `The field is ${a}'s`,
   });
-  return out;
+  return out.sort((p, q) => p.at - q.at);
 }
 
 /**
@@ -582,8 +750,9 @@ function fates(field: BattleField, key: number): void {
           ? 0.1
           : 0,
       rout = side === beaten ? (ground.wall && beaten === 1 ? 0.15 : 0.32) : 0,
-      byArrow = Math.round(n * arrows),
-      byRout = Math.round(n * rout);
+      // (Shot and rout never take more of the side than its falls.)
+      byRout = Math.round(n * rout),
+      byArrow = Math.min(Math.round(n * arrows), n - byRout);
     return { arrow: byArrow, rout: byRout, blow: n - byArrow - byRout };
   };
   type Death = { at: number; side: 0 | 1; by: "arrow" | "blow" | "rout" };
@@ -592,8 +761,19 @@ function fates(field: BattleField, key: number): void {
   for (const side of [0, 1] as const) {
     const s = shares(side),
       shooters = (side === 0 ? 1 : 0) as 0 | 1;
-    // The arrows' dead, a share of each volley's.
-    if (hosts[shooters]!.missiles || s.arrow) {
+    // The arrows' dead, a share of each volley's; from the arms that fire without pause, spread
+    // over the fight instead.
+    if (fireOf(field.near, shooters) === "continuous") {
+      for (let k = 0; k < s.arrow; k++)
+        deaths.push({
+          at:
+            MOMENTS.arrows +
+            2 +
+            (MOMENTS.rout - MOMENTS.arrows - 8) * Math.pow((k + 0.5) / s.arrow, 1.15),
+          side,
+          by: "arrow",
+        });
+    } else if (hosts[shooters]!.missiles || s.arrow) {
       const volleys = 9;
       for (let v = 0; v < volleys; v++) {
         const lands = MOMENTS.arrows + 2 + v * 3.2;
@@ -661,6 +841,11 @@ function fates(field: BattleField, key: number): void {
   for (const shooters of [0, 1] as const) {
     // (Those on a seat's walls throw down on the attackers, bows or none.)
     if (!hosts[shooters]!.missiles && !(ground.wall && shooters === 1)) continue;
+    // (The arms that fire without pause loose their shots as each will: see continuousFire.)
+    if (fireOf(field.near, shooters) === "continuous") {
+      arrows.push(...continuousFire(field, shooters, key));
+      continue;
+    }
     const target = (shooters === 0 ? 1 : 0) as 0 | 1,
       struck = troopers.filter((t) => t.side === target && t.by === "arrow");
     for (let v = 0; v < 9; v++) {
@@ -711,6 +896,87 @@ function fates(field: BattleField, key: number): void {
       t.gate = Math.abs(t.z) < wall.gate + 3 && t.rank < 6;
     t.pursues = !wall ? t.rank < 2 || unit(key + 17, t.id) < 0.2 : t.gate;
   }
+}
+
+/** How a side fires: in volleys, or without pause, as each will (the later arms, Phase 53 M220). */
+function fireOf(near: BattleNear, side: 0 | 1): "volley" | "continuous" {
+  return armLook((side === 0 ? near.attacker : near.defender).host?.arm).fire;
+}
+
+/** Whether one is running at `s`: fled from the field, or rushing forward (in open order). */
+function runningAt(field: BattleField, t: Trooper, s: number): boolean {
+  return (t.flees !== null && s >= t.flees) || lineOrder(field, t, s).run;
+}
+
+/**
+ * Fire without pause (Phase 53 M220): a side that fires as each will fires every second from the
+ * arrows to the rout, a shot from each of its living who are not running then, at a hit that falls
+ * in that second if there is one, else into the ground near one of the other side. Twelve a second
+ * at most, scaled down so the side's rounds stay within the most they may loose. A machine gun's
+ * team fires its bursts from its tripod.
+ */
+function continuousFire(field: BattleField, shooters: 0 | 1, key: number): Arrow[] {
+  const { troopers } = field,
+    target = (shooters === 0 ? 1 : 0) as 0 | 1,
+    burst = armLook((shooters === 0 ? field.near.attacker : field.near.defender).host?.arm).burst,
+    own = troopers.filter((t) => t.side === shooters),
+    onTarget = troopers.filter((t) => t.side === target),
+    struck = onTarget.filter((t) => t.by === "arrow"),
+    living = (s: number) => own.filter((t) => t.falls === null || t.falls > s),
+    perSecond: number[] = [];
+  let rounds = 0;
+  for (let s = MOMENTS.arrows; s <= MOMENTS.rout - 2; s++) {
+    const n = Math.min(SHOTS.most, Math.ceil(living(s).length / 4));
+    perSecond.push(n);
+    rounds += n * burst;
+  }
+  const scale = Math.min(1, SHOTS.rounds / Math.max(1, rounds)),
+    out: Arrow[] = [];
+  perSecond.forEach((n, i) => {
+    const s = MOMENTS.arrows + i,
+      per = Math.floor(n * scale),
+      alive = living(s),
+      free = alive.filter((t) => !runningAt(field, t, s)),
+      pool = free.length ? free : alive,
+      hits = struck
+        .filter((t) => t.falls! >= s && t.falls! < s + 1)
+        .sort((p, q) => p.falls! - q.falls!);
+    if (!pool.length) return;
+    for (let k = 0; k < per; k++) {
+      const seat = s * 16 + k,
+        from = pool[Math.floor(unit(key + 5400 + shooters, seat) * pool.length)]!,
+        hit = hits[k],
+        // (A shot at a hit is fired as it falls; any other is fired within its second.)
+        fire = hit ? hit.falls! - SHOTS.flight : s + ((k + 0.5) / per) * 0.9,
+        src = placeAt(field, from, fire);
+      // (A burst's first round only may hit.)
+      for (let j = 0; j < (from.gun ? burst : 1); j++) {
+        const at = fire + SHOTS.burst * j,
+          aim = j === 0 ? hit : undefined;
+        let dst: { x: number; z: number };
+        if (aim) dst = placeAt(field, aim, aim.falls!);
+        else {
+          const anyone =
+              onTarget[Math.floor(unit(key + 5450 + shooters, seat * 8 + j) * onTarget.length)]!,
+            p = placeAt(field, anyone, at + SHOTS.flight);
+          dst = {
+            x: p.x + (unit(key + 5500 + shooters, seat * 8 + j) - 0.5) * 9,
+            z: p.z + (unit(key + 5600 + shooters, seat * 8 + j) - 0.5) * 7,
+          };
+        }
+        out.push({
+          side: shooters,
+          from: { x: src.x, z: src.z },
+          to: { x: dst.x, z: dst.z },
+          at,
+          flight: SHOTS.flight,
+          hits: aim ? aim.id : -1,
+          shot: true,
+        });
+      }
+    }
+  });
+  return out;
 }
 
 /** The line's front, where the lines meet now (x). */
@@ -777,7 +1043,7 @@ function lineOrder(
   s: number,
 ): { x: number; z: number; run: boolean } {
   const h = field.hosts[t.side]!,
-    gap = spacing(h.mounted),
+    gap = gapOf(h),
     rank = closedUp(field, t, s),
     wall = field.ground.wall,
     meet = meetAt(field, s),
@@ -792,6 +1058,8 @@ function lineOrder(
     }
     return { x: front + rank * gap.rank, z: t.z + (s >= MOMENTS.melee ? sway : 0), run: false };
   }
+  // (The attackers in open order come on in rushes: see openLine.)
+  if (h.open) return openLine(field, t, s);
   // The attackers come on: walk, stand to loose where they bear bows, charge, and fight at the line.
   const start = -32 - (h.mounted ? 6 : 0),
     stop = field.meet - 16,
@@ -820,6 +1088,85 @@ function lineOrder(
     z: t.z + (s >= MOMENTS.melee ? sway : 0),
     run: s >= MOMENTS.charge && s < MOMENTS.melee,
   };
+}
+
+/**
+ * Where an attacker in open order is at `s` in the line (Phase 53 M220). From the advance its
+ * group's front comes up the field in bounds, a rush at a time, and each one goes to ground between
+ * them; a machine gun's team makes one rush to its place and fires from there; from the charge the
+ * rest rise and rush the line, and at the line they fight as the close order does.
+ */
+function openLine(
+  field: BattleField,
+  t: Trooper,
+  s: number,
+): { x: number; z: number; run: boolean } {
+  const gap = gapOf(field.hosts[0]!),
+    rank = closedUp(field, t, s),
+    start = -32,
+    stop = field.meet - 22,
+    sway = Math.sin(s * 0.7 + t.u * 6) * 0.25;
+  if (t.gun) {
+    // (Its one rush, a share of the way to the stop, and then down behind its tripod.)
+    const at = s - MOMENTS.advance - (t.u - 0.5) * RUSH.shift,
+      front = start + (stop - start) * RUSH.gun * smooth(at / RUSH.long);
+    return {
+      x: front - rank * gap.rank,
+      z: t.z + (s >= MOMENTS.melee ? sway : 0),
+      run: at >= 0 && at < RUSH.long,
+    };
+  }
+  const front =
+    s < MOMENTS.charge
+      ? start + (stop - start) * rushedTo(groupOf(t), s)
+      : s < MOMENTS.melee
+        ? stop +
+          (field.meet - 1 - stop) * smooth((s - MOMENTS.charge) / (MOMENTS.melee - MOMENTS.charge))
+        : meetAt(field, s) - 1;
+  return {
+    x: front - rank * gap.rank,
+    z: t.z + (s >= MOMENTS.melee ? sway : 0),
+    run: s < MOMENTS.charge ? rushingAt(t, s) : s < MOMENTS.melee,
+  };
+}
+
+/**
+ * How far up the field one group's front has come by `s` in the rushes: 0 at the start, 1 at the
+ * stop.
+ */
+function rushedTo(group: number, s: number): number {
+  const x = s - MOMENTS.advance - RUSH.apart * group;
+  if (x < 0) return 0;
+  const c = Math.floor(x / RUSH.cycle),
+    r = x - c * RUSH.cycle,
+    bounds = r < RUSH.long ? c + smooth(r / RUSH.long) : c + 1;
+  return Math.min(RUSH.bounds, bounds) / RUSH.bounds;
+}
+
+/** The group one in open order rushes with: a checkerboard across its files and ranks. */
+function groupOf(t: Trooper): number {
+  return (t.file + t.rank) % 2;
+}
+
+/**
+ * Whether one in open order is rushing forward at `s`: its group's rush, shifted by its own draw.
+ */
+function rushingAt(t: Trooper, s: number): boolean {
+  const x = s - MOMENTS.advance - RUSH.apart * groupOf(t) - (t.u - 0.5) * RUSH.shift;
+  return x >= 0 && s < MOMENTS.charge && x - RUSH.cycle * Math.floor(x / RUSH.cycle) < RUSH.long;
+}
+
+/**
+ * Whether a defender stands in the trench at `s` (Phase 53 M220): at the front of its file, closed
+ * up to the line, and not yet run from the field. Those in it stand sunk to their shoulders.
+ */
+function inTrench(field: BattleField, t: Trooper, s: number): boolean {
+  return (
+    !!field.ground.trench &&
+    t.side === 1 &&
+    (t.flees === null || s < t.flees) &&
+    closedUp(field, t, s) < 0.6
+  );
 }
 
 /** Where they run to: the beaten off their side of the field, or (defenders at a seat) into the town. */
@@ -941,12 +1288,21 @@ function bloodAt(t: Trooper, p: { x: number; z: number; yaw: number }): { x: num
   return { x: l.x + Math.sin(l.yaw) * along, z: l.z + Math.cos(l.yaw) * along };
 }
 
-/** What one who fought is at now, and how they stand. */
+/** What one who fought is at now, and how they stand (a machine gun's team marked as it is). */
 function trooperNow(field: BattleField, t: Trooper, s: number): TrooperNow {
+  const now = trooperNowAt(field, t, s);
+  return t.gun ? { ...now, gun: true as const } : now;
+}
+
+/** What one who fought is at now, and how they stand. */
+function trooperNowAt(field: BattleField, t: Trooper, s: number): TrooperNow {
   const p = placeAt(field, t, s),
     h = field.hosts[t.side]!,
     ground = field.ground,
-    wall = ground.wall;
+    wall = ground.wall,
+    // (In the trench, sunk to the shoulders: the head, the shoulders and the gun above the ground.)
+    trenched = inTrench(field, t, s),
+    sunk = trenched ? ground.trench!.depth - 0.15 : 0;
   let y = battleGroundAt(ground, p.x, p.z);
   // (On the walls, those of its front stand on its walk; in the river, wading.)
   if (wall && t.side === 1 && p.x > wall.x - 0.4 && Math.abs(p.z) > wall.gate)
@@ -1014,13 +1370,20 @@ function trooperNow(field: BattleField, t: Trooper, s: number): TrooperNow {
   let act: Act;
   if (t.flees !== null && s >= t.flees) act = "flee";
   else if (p.run) act = "run";
+  // (A machine gun's team fires from its place, from its rush to the rout.)
+  else if (t.gun && s >= MOMENTS.advance && s < MOMENTS.rout) act = "prone";
   else if (s >= MOMENTS.after && t.side !== field.beaten)
     act = unit(t.id, Math.floor(s / 3)) < 0.55 ? "cheer" : "stand";
   else if (s >= MOMENTS.melee) {
     // At the line: the front strikes, those behind press on.
     const rank = closedUp(field, t, s);
     act = rank < 0.6 || (h.mounted && rank < 1.6) ? "fight" : "brace";
-  } else if (
+  }
+  // (The attackers in open order, between their rushes: down in the grass, firing.)
+  else if (t.side === 0 && h.open && s >= MOMENTS.advance && s < MOMENTS.charge) act = "prone";
+  // (In the trench the front rank fires, and the rest lie behind it until the lines meet.)
+  else if (ground.trench && t.side === 1 && s >= MOMENTS.arrows) act = trenched ? "loose" : "prone";
+  else if (
     h.missiles &&
     s >= MOMENTS.arrows &&
     s < MOMENTS.charge - 1 &&
@@ -1034,7 +1397,7 @@ function trooperNow(field: BattleField, t: Trooper, s: number): TrooperNow {
     id: t.id,
     side: t.side,
     x: p.x,
-    y,
+    y: y - sunk,
     z: p.z,
     yaw: p.yaw,
     act,
@@ -1161,6 +1524,109 @@ function crawledTo(
   };
 }
 
+/** The smoke a side's arm leaves when it fires (0 none … 1 black powder's white bank). */
+function smokeOf(near: BattleNear, side: 0 | 1): number {
+  return armLook((side === 0 ? near.attacker : near.defender).host?.arm).smoke;
+}
+
+/** The two attackers' cars nearest the gate (smallest |z|): at a seat stormed, they drive in. */
+function gateCars(field: BattleField): number[] {
+  return (field.vehicles ?? [])
+    .filter((v) => v.side === 0)
+    .sort((p, q) => Math.abs(p.z) - Math.abs(q.z))
+    .slice(0, 2)
+    .map((v) => v.id);
+}
+
+/**
+ * Where an armoured car is at `s` on its own way (before it is knocked out): its place across and
+ * along the field, and which way its hull faces (radians, as a trooper's yaw).
+ */
+function carWay(field: BattleField, v: Vehicle, s: number): { x: number; z: number; yaw: number } {
+  const wall = field.ground.wall,
+    trench = field.ground.trench;
+  if (v.side === 0) {
+    // The attackers' cars come on at an even pace, from before the advance to where the lines meet
+    // (or to the walls), and hold there firing.
+    const start = -24,
+      hold = wall ? wall.x - 6 : field.meet - 6,
+      pace = clamp01((s - MOMENTS.advance) / (MOMENTS.charge + 4 - MOMENTS.advance));
+    let x = start + (hold - start) * pace,
+      z = v.z;
+    if (s >= MOMENTS.rout) {
+      // (The victors drive on across the open; the beaten back off, still facing the foe.)
+      if (field.beaten === 1) {
+        if (!wall) x += 12 * clamp01((s - MOMENTS.rout) / 10);
+      } else x -= 20 * clamp01((s - MOMENTS.rout) / 12);
+    }
+    // (At a seat stormed, the two cars nearest the gate drive in through it, toward its middle.)
+    if (wall && field.near.outcome === "stormed" && gateCars(field).includes(v.id)) {
+      const p = clamp01((s - (MOMENTS.gate + 2)) / 8);
+      x += (wall.x + 14 - x) * p;
+      z *= 1 - p;
+    }
+    return { x, z, yaw: Math.PI / 2 };
+  }
+  // The defenders' cars hold their trench's line, or their walls, firing; beaten, they turn about
+  // and drive off the field's far edge.
+  const hold = trench ? trench.x + 10 : wall ? wall.x + 6 : field.meet + 10;
+  if (field.beaten === 1 && s >= MOMENTS.rout)
+    return {
+      x: hold + (FIELD.x + 14 - hold) * clamp01((s - MOMENTS.rout - 2) / 12),
+      z: v.z,
+      yaw: -Math.PI / 2 + Math.PI * smooth((s - MOMENTS.rout) / 2),
+    };
+  return { x: hold, z: v.z, yaw: -Math.PI / 2 };
+}
+
+/**
+ * One armoured car at `s` (Phase 53 M220): where it is, its turret, its gun's kick and the flash of
+ * each round. Its gun fires a burst of five rounds a tenth of a second apart every 1.6 s (from its
+ * own offset), from the arrows to the rout, while it runs; knocked out, it stops and fires no more,
+ * and its turret is turned askew.
+ */
+function vehicleNow(
+  field: BattleField,
+  v: Vehicle,
+  s: number,
+  flashes: BattleNow["flashes"][number][],
+): VehicleNow {
+  // (Knocked out, it stops where it was then: `since` is how long ago that was.)
+  const k = v.knocked,
+    since = k === null || s < k ? null : s - k,
+    stopAt = s - (since ?? 0),
+    way = carWay(field, v, stopAt),
+    turret = since === null ? 0.35 * Math.sin(s * 0.4 + v.u * 6) : (v.u - 0.5) * 0.8,
+    first = MOMENTS.arrows + v.u * 1.6,
+    fired = Math.min(stopAt, MOMENTS.rout);
+  // (The last round fired by then: the latest burst begun, as far along as it has got.)
+  let last = -Infinity;
+  if (fired >= first) {
+    const b = first + 1.6 * Math.floor((fired - first) / 1.6);
+    last = b + 0.1 * Math.min(4, Math.floor((fired - b) / 0.1 + 1e-9));
+  }
+  const kick = s - last;
+  if (kick < 0.05)
+    flashes.push({
+      x: way.x + Math.sin(way.yaw + turret) * 2.4,
+      y: 2.1,
+      z: way.z + Math.cos(way.yaw + turret) * 2.4,
+      yaw: way.yaw + turret,
+    });
+  return {
+    id: v.id,
+    side: v.side,
+    x: way.x,
+    y: groundY(field.ground, way.x, way.z),
+    z: way.z,
+    yaw: way.yaw,
+    turret,
+    recoil: kick < 0.1 ? 1 - kick / 0.1 : 0,
+    knocked: since === null ? 0 : smooth(since / 1.2),
+    burning: since === null ? 0 : 1 - smooth((since - 40) / 30),
+  };
+}
+
 /** The battle at `s` of its seconds (0 … BATTLE_LENGTH). */
 export function battleAt(field: BattleField, s: number): BattleNow {
   const t = Math.max(0, Math.min(BATTLE_LENGTH, s)),
@@ -1195,7 +1661,18 @@ export function battleAt(field: BattleField, s: number): BattleNow {
           z: a.from.z + uz * 1.1,
           yaw: Math.atan2(dx, dz),
         });
-      if (age < 3.2)
+      if (smokeOf(field.near, a.side) < 1) {
+        // (Smokeless powder leaves one thin puff, gone in a moment.)
+        if (age < 1.2) {
+          const out = 1.2 + 1.6 * smooth(age / 1.2);
+          smoke.push({
+            x: a.from.x + ux * out + 0.6 * age,
+            y: 1.3 + 0.32 * age,
+            z: a.from.z + uz * out - 0.25,
+            r: (0.35 + 1.05 * smooth(age / 2.2)) * 0.35,
+          });
+        }
+      } else if (age < 3.2)
         for (let k = 0; k < 2; k++) {
           const out = 1.2 + 1.6 * smooth(age / 1.2) + k * 0.7;
           smoke.push({
@@ -1312,6 +1789,39 @@ export function battleAt(field: BattleField, s: number): BattleNow {
       }
     }
   }
+  // The armoured cars: where each stands and turns, its guns' kick and flashes, and the smoke and
+  // the flame of the wrecks that burn.
+  const cars: VehicleNow[] = [],
+    fumes: { x: number; y: number; z: number; r: number }[] = [],
+    flames: { x: number; y: number; z: number; r: number }[] = [];
+  for (const v of field.vehicles ?? []) {
+    const car = vehicleNow(field, v, t, flashes);
+    cars.push(car);
+    // (A wreck's flames die down within a minute or so; it smoulders on, smoking, to the end.)
+    if (car.knocked > 0)
+      for (let k = 0; k < 6; k++) {
+        const phase = (t * 0.8 + k * 0.37 + v.u) % 1,
+          y = 2 + 9 * phase;
+        fumes.push({
+          x: car.x + 0.3 * (y - 2),
+          y,
+          z: car.z,
+          r: (0.6 + 1.6 * phase) * Math.max(0.35, car.burning) * car.knocked,
+        });
+      }
+    if (car.burning > 0) {
+      for (let k = 0; k < 3; k++) {
+        const flicker = 0.5 + 0.5 * Math.sin(t * 9 + k * 2.1 + v.u * 6),
+          off = (k - 1) * 1.2;
+        flames.push({
+          x: car.x + Math.sin(car.yaw) * off,
+          y: 1.2 + 0.2 * flicker,
+          z: car.z + Math.cos(car.yaw) * off,
+          r: (0.5 + 0.4 * flicker) * car.burning,
+        });
+      }
+    }
+  }
   // The ladders at a seat's walls: lying at their feet a moment, raised against them, and where
   // the walls held, thrown down off them.
   const w = field.ground.wall,
@@ -1350,6 +1860,7 @@ export function battleAt(field: BattleField, s: number): BattleNow {
     burning: stormed ? smooth((t - MOMENTS.gate - 6) / 14) : 0,
     camp: field.near.outcome === "siege" ? smooth((t - MOMENTS.after - 4) / 10) : 0,
     words: moment?.words ?? "",
+    ...(field.vehicles ? { vehicles: cars, fumes, flames } : {}),
   };
 }
 
@@ -1383,35 +1894,36 @@ export function fieldMeadow(field: BattleField, meadow: MeadowState): void {
 /** Where the hosts tread the grass short (metres either way): over it, the blood is seen. */
 export const TRODDEN = { x: 66, z: 40 } as const;
 
-/** One who fought, by what they fought with. */
-const FIGHTERS: Readonly<Record<string, string>> = {
-  club: "a clubman",
-  spear: "a spearman",
-  musket: "a musketeer",
-  rifle: "a rifleman",
-  axe: "an axeman",
-  sword: "a swordsman",
-  bow: "a bowman",
-  "horn-bow": "a bowman",
-  claws: "a clawed fighter",
-  mandibles: "a biter",
-  tusks: "a tusker",
-  grapple: "a grappler",
-  "shell-darts": "a darter",
-};
+/**
+ * What struck one down from afar: an arrow, a dart, a ball, a bullet (the other side's arm). A
+ * machine gun's team strikes with its own bullets one time in three (where `id` % 3 is 0), and
+ * with its rest's bullets the rest of the time.
+ */
+function shotBy(other: BattleNear["attacker"], id: number): string {
+  const look = armLook(other.host?.arm);
+  return look.team !== undefined && id % 3 !== 0 && look.rest !== undefined
+    ? armLook(look.rest).shotWords
+    : look.shotWords;
+}
 
-/** What struck one down from afar: an arrow, a dart, a ball, a bullet (the other side's arm). */
-function shotBy(other: BattleNear["attacker"]): string {
-  switch (other.host?.arm) {
-    case "musket":
-      return "a musket ball";
-    case "rifle":
-      return "a bullet";
-    case "shell-darts":
-      return "a dart";
-    default:
-      return "an arrow";
+/**
+ * What one in the later arms is doing as the battle goes on (Phase 53 M220): a machine gun's team
+ * rushes once and fires from its tripod; those of an open host rush and go to ground between; the
+ * trench's front fires, the rest lie behind it, and those in the trench fight there. Null: the
+ * line's own words.
+ */
+function laterWords(field: BattleField, t: Trooper, s: number): string | null {
+  if (t.gun && s >= MOMENTS.advance && s < MOMENTS.rout)
+    return runningAt(field, t, s) ? "rushing forward" : "at their machine gun, firing";
+  if (t.side === 0 && field.hosts[0]!.open && s >= MOMENTS.advance && s < MOMENTS.melee)
+    return runningAt(field, t, s) ? "rushing forward" : "down in the grass, firing";
+  if (field.ground.trench && t.side === 1 && s >= MOMENTS.arrows && s < MOMENTS.rout) {
+    const trenched = inTrench(field, t, s);
+    if (s < MOMENTS.melee)
+      return trenched ? "in the trench, firing" : "lying behind the trench, waiting";
+    return trenched ? "fighting in the trench" : null;
   }
+  return null;
 }
 
 const ORDINALS = [
@@ -1446,6 +1958,7 @@ export function trooperWords(field: BattleField, id: number, s: number): string 
   if (!t) return "";
   const side = t.side === 0 ? field.near.attacker : field.near.defender,
     h = field.hosts[t.side]!,
+    look = armLook(side.host?.arm),
     who =
       h.mounted === "chariot"
         ? "a chariot's warrior"
@@ -1453,19 +1966,22 @@ export function trooperWords(field: BattleField, id: number, s: number): string 
           ? "a rider"
           : t.bearer
             ? "a banner's bearer"
-            : (FIGHTERS[side.host?.arm ?? ""] ?? "one"),
+            : t.gun || look.team === undefined
+              ? look.fighter
+              : armLook(look.rest).fighter,
     rank = ORDINALS[t.rank] ?? `${t.rank + 1}th`,
     won = t.side === field.beaten ? false : true,
     // (Of a wing that wheels about the other host's flank.)
     wing = !!field.wings && field.wings.side === t.side && Math.abs(t.z) > field.wings.z,
     crawls = crawlsFor(field, t),
     climb = climbing(field, t, s),
+    later = laterWords(field, t, s),
     fate =
       t.falls !== null && s >= t.falls && crawls && s < t.falls + CRAWL.after + crawls
         ? "struck down, dragging themselves back toward their lines"
         : t.falls !== null && s >= t.falls
           ? t.by === "arrow"
-            ? `fell to ${shotBy(t.side === 0 ? field.near.defender : field.near.attacker)}`
+            ? `fell to ${shotBy(t.side === 0 ? field.near.defender : field.near.attacker, t.id)}`
             : t.by === "rout"
               ? "cut down as they ran"
               : "fell in the press"
@@ -1477,21 +1993,23 @@ export function trooperWords(field: BattleField, id: number, s: number): string 
                 ? "through the broken gate"
                 : t.pursues && s >= MOMENTS.rout && s < MOMENTS.after
                   ? "after the beaten"
-                  : s < MOMENTS.advance
-                    ? "waiting in the line"
-                    : s < MOMENTS.melee
-                      ? t.side === 0
-                        ? "coming on"
-                        : "holding the line"
-                      : s < MOMENTS.rout
-                        ? wing && s > WHEEL.from
-                          ? s < WHEEL.to
-                            ? "wheeling about their flank"
-                            : "falling on their flank"
-                          : "in the press"
-                        : won
-                          ? "standing on the field, its victor"
-                          : "standing still",
+                  : later !== null
+                    ? later
+                    : s < MOMENTS.advance
+                      ? "waiting in the line"
+                      : s < MOMENTS.melee
+                        ? t.side === 0
+                          ? "coming on"
+                          : "holding the line"
+                        : s < MOMENTS.rout
+                          ? wing && s > WHEEL.from
+                            ? s < WHEEL.to
+                              ? "wheeling about their flank"
+                              : "falling on their flank"
+                            : "in the press"
+                          : won
+                            ? "standing on the field, its victor"
+                            : "standing still",
     each = field.per > 1 ? ` (a figure for ${field.per.toLocaleString("en-US")} men)` : "";
   return `👁 ${who[0]!.toUpperCase()}${who.slice(1)} of ${side.name}, in the ${rank} rank${each}: ${fate}.`;
 }

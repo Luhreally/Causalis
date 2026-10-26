@@ -36,8 +36,12 @@ export class BattlePanel {
   private readonly fill = el("div", "battle-fill");
   private readonly told = el("div", "battle-told");
   private readonly each = el("div", "battle-each");
-  /** The one followed, told (empty: none). */
+  /** The one followed, told (empty: none), with the button that traces their weapon beside it. */
   private readonly followed = el("div", "battle-followed");
+  private readonly followedWords = el("span", "battle-followed-words");
+  private readonly weapon = el("button", "speed battle-weapon", "🔍 Their weapon, traced");
+  /** Whether each side has a host design to trace its weapon to (a beast's own claws have none). */
+  private traceable: readonly [boolean, boolean] = [false, false];
   private shown = "";
   onBack: () => void = () => {};
   onPage: () => void = () => {};
@@ -48,6 +52,8 @@ export class BattlePanel {
   onScrub: (s: number) => void = () => {};
   /** A side's realm, to open its page. */
   onSide: (ref: string) => void = () => {};
+  /** The weapon of the one followed, traced: the page of what they fought with. */
+  onWeapon: () => void = () => {};
 
   constructor(root: HTMLElement) {
     const bar = el("header", "bar");
@@ -111,6 +117,10 @@ export class BattlePanel {
     }
     const middle = el("div", "battle-middle");
     this.followed.hidden = true;
+    this.followed.append(this.followedWords, this.weapon);
+    this.weapon.hidden = true;
+    this.weapon.title = "Where what they fought with was made, from the ground to their hand";
+    this.weapon.onclick = () => this.onWeapon();
     middle.append(this.told, this.course, this.each, this.followed);
     const sheet = el("div", "battle-sheet");
     sheet.append(this.sides[0].box, middle, this.sides[1].box);
@@ -127,6 +137,8 @@ export class BattlePanel {
   /** Which battle, its hosts, how many men a figure stands for. */
   show(near: BattleNear, per: number): void {
     this.title.textContent = `⚔️ ${near.title} · year ${near.year}${near.civil ? ` · ${near.civil}` : ""}${near.tip ? " · arms decided it" : ""}`;
+    // (A beast's own claws are not made: no host design to trace them to.)
+    this.traceable = [near.attacker.host !== null, near.defender.host !== null];
     ([near.attacker, near.defender] as const).forEach((s, i) => {
       const c = this.sides[i]!,
         rgb = `rgb(${s.color.map((x) => Math.round(x * 255)).join(",")})`;
@@ -160,10 +172,16 @@ export class BattlePanel {
     this.back.textContent = words;
   }
 
-  /** The one followed, told (empty: the hosts again). */
-  follow(words: string): void {
-    if (this.followed.textContent !== words) this.followed.textContent = words;
+  /** The one followed, told (empty: the hosts again); its side's weapon traced (null: none). */
+  follow(words: string, side: 0 | 1 | null): void {
+    if (this.followedWords.textContent !== words) this.followedWords.textContent = words;
     this.followed.hidden = !words;
+    this.weapon.hidden = !words || side === null || !this.traceable[side];
+  }
+
+  /** Whether the button that traces their weapon is shown. */
+  get weaponShown(): boolean {
+    return !this.weapon.hidden;
   }
 
   /** The battle now: its moment, the men standing and fallen of each side, the speed lit. */

@@ -8,7 +8,9 @@
 // realm goes to war with; Phase 3 adds a third, the works a land's crafts are done in
 // and what drives them.
 
+import { dmath } from "../kernel/index.ts";
 import { affordancesOf, type BodyPlan } from "./bodies.ts";
+import { firearm, firepowerOf, rangeAxisOf } from "./firearms.ts";
 
 export const MATERIALS = [
   "wood",
@@ -32,6 +34,8 @@ export const MATERIALS = [
   "kelp",
   /** A body's own: its claws, its shell (Phase 4 M41). */
   "body",
+  /** Steel cut and fitted at a works finer than a file can (Phase 53 M219): a gun's bolt, a hull. */
+  "machined",
 ] as const;
 export type Material = (typeof MATERIALS)[number];
 
@@ -66,9 +70,23 @@ export const MATERIAL: Readonly<Record<Material, MaterialProps>> = {
   shell: { edge: 0.35, guard: 0.45, mass: 0.5, lasting: 0.7, cost: 0.1 },
   kelp: { edge: 0, guard: 0.05, mass: 0.2, lasting: 0.2, cost: 0.03 },
   body: { edge: 0, guard: 0, mass: 0, lasting: 1, cost: 0 },
+  machined: { edge: 1, guard: 0.85, mass: 0, lasting: 0.95, cost: 0.9 },
 };
 
-export const HOST_AXES = ["shock", "reach", "range", "protection", "mobility", "cost"] as const;
+/**
+ * A host's axes. Firepower (Phase 53 M219): what its arms loose, against the rifle's (rules/firearms.ts);
+ * breach: what carries it through a line dug in against that fire.
+ */
+export const HOST_AXES = [
+  "shock",
+  "reach",
+  "range",
+  "protection",
+  "mobility",
+  "cost",
+  "firepower",
+  "breach",
+] as const;
 export const HOUSE_AXES = [
   "warmth",
   "cool",
@@ -103,6 +121,8 @@ export type Realization = {
   readonly asks?: (b: BodyPlan) => boolean;
   /** What it may be made of (the doctrine's best of those at hand is used). */
   readonly materials: readonly Material[];
+  /** What else must be at hand besides (Phase 53 M219: oil for an armoured car's engine). */
+  readonly with?: readonly Material[];
   /** Its words, made of a material: "bronze swords". */
   readonly words: (m: Material) => string;
   /**
@@ -144,6 +164,12 @@ const digs = (b: BodyPlan) =>
   // Axes and swords want hands (or arms) deft enough to wield them; a spear, a grip.
   wields = (b: BodyPlan) => affordancesOf(b).dexterity >= 0.6,
   grips = (b: BodyPlan) => affordancesOf(b).dexterity >= 0.5;
+
+/** A machined gun's performance from its physics (rules/firearms.ts): its range and firepower. */
+function gun(id: string, cost: number): Performance {
+  const f = firearm(id)!;
+  return { shock: 0.95, reach: 0.45, range: rangeAxisOf(f), firepower: firepowerOf(f), cost };
+}
 
 export const REALIZATIONS: readonly Realization[] = [
   // The host: what it strikes with, what guards it, what carries it.
@@ -237,6 +263,38 @@ export const REALIZATIONS: readonly Realization[] = [
     ["steel"],
     () => "rifles",
     () => ({ shock: 0.95, reach: 0.45, range: 1.15, cost: 0.4 }),
+    undefined,
+    wields,
+  ),
+  // Later arms (Phase 53 M219): rifles fed from a magazine, then loading themselves, then firing
+  // as long as the trigger is held — each from its physics (rules/firearms.ts), and each machined.
+  R(
+    "repeater",
+    "arm",
+    ["repeating-fire"],
+    ["machined"],
+    () => "repeating rifles",
+    () => gun("repeater", 0.5),
+    undefined,
+    wields,
+  ),
+  R(
+    "autoloader",
+    "arm",
+    ["self-loading"],
+    ["machined"],
+    () => "self-loading rifles",
+    () => gun("autoloader", 0.6),
+    undefined,
+    wields,
+  ),
+  R(
+    "automatic",
+    "arm",
+    ["automatic-fire"],
+    ["machined"],
+    () => "machine guns",
+    () => gun("automatic", 0.8),
     undefined,
     wields,
   ),
@@ -370,6 +428,15 @@ export const REALIZATIONS: readonly Realization[] = [
     () => "steel plate",
     () => ({ protection: 0.85, mobility: -0.1, cost: 0.6 }),
   ),
+  // (No plate stops a rifle's bullet: a steel helmet against what bursts overhead, Phase 53 M219.)
+  R(
+    "helmet",
+    "guard",
+    ["self-loading"],
+    ["steel"],
+    () => "steel helmets",
+    () => ({ protection: 0.7, cost: 0.35 }),
+  ),
   R(
     "foot",
     "mount",
@@ -410,6 +477,20 @@ export const REALIZATIONS: readonly Realization[] = [
     undefined,
     (b) => b.size < 300,
   ),
+  // Machine guns in rolled steel on an oil engine (Phase 53 M219): through wire and over trenches.
+  {
+    ...R(
+      "armoured",
+      "mount",
+      ["armoured-vehicles"],
+      ["machined"],
+      () => "with armoured cars",
+      () => ({ mobility: 1.1, shock: 0.25, protection: 0.25, firepower: 1, breach: 1, cost: 0.6 }),
+      undefined,
+      (b) => b.medium !== "water",
+    ),
+    with: ["oil"],
+  },
 
   // The house: its walls, its roof, its shape.
   R(
@@ -793,6 +874,7 @@ export function compose(
       // of a body is for the bodies that can.
       if (r.fits && !(body && r.fits(body))) continue;
       if (r.asks && body && !r.asks(body)) continue;
+      if (r.with && !r.with.every(has)) continue;
       for (const m of r.materials) {
         if (!has(m)) continue;
         const value = worth(r.does(m), doctrine);
@@ -844,7 +926,9 @@ export function hostPower(
     1.0 * ((p.shock ?? 0) - 0.3) +
     0.6 * (p.range ?? 0) +
     0.9 * (p.protection ?? 0) +
-    0.5 * ((p.mobility ?? 0) - 0.2)
+    0.5 * ((p.mobility ?? 0) - 0.2) +
+    // What its arms loose (Phase 53 M219): each doubling of the rifle's rounds-by-metres counts less.
+    ((p.firepower ?? 0) > 0 ? 0.5 * dmath.log1p(p.firepower!) : 0)
   );
 }
 

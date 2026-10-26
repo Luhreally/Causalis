@@ -19,6 +19,7 @@ import {
   ROLE_KG,
   STONES,
   hostPower,
+  performanceOf,
   qualityOf,
   type Edge,
   type MaterialProps,
@@ -48,8 +49,18 @@ export const SEASONED = 15;
 /** The craft (0 … 1) a material's usual stuff is worked with. */
 const USUAL_CRAFT = 0.5;
 
-/** The metal goods a kg of a part of each metal is made of (bronze: a tenth of tin). */
-const KIT_GOODS: Readonly<Record<Metal, readonly (readonly [number, number])[]>> = {
+/** What a kit's parts are worked from: a metal, or steel machined at a works (Phase 53 M219). */
+type Kit = Metal | "machined";
+/** The machines worn out at the works for each kg of a part machined there (Phase 53 M219). */
+const MACHINE_WEAR = 0.05;
+/** An armoured car's weight a man of the host (kg): some thirty tonnes for every hundred and fifty. */
+export const VEHICLE_KG = 200;
+
+/**
+ * The goods a kg of a part of each is made of (bronze: a tenth of tin; machined: steel, and the
+ * machines it wears out at the works — a host cut off from works and their machines is not re-armed).
+ */
+const KIT_GOODS: Readonly<Record<Kit, readonly (readonly [number, number])[]>> = {
   copper: [[G.copper, 1]],
   bronze: [
     [G.copper, 0.9],
@@ -57,9 +68,14 @@ const KIT_GOODS: Readonly<Record<Metal, readonly (readonly [number, number])[]>>
   ],
   iron: [[G.iron, 1]],
   steel: [[G.iron, 1]],
+  machined: [
+    [G.iron, 1],
+    [G.machines, MACHINE_WEAR],
+  ],
 };
 
-const isMetal = (m: string): m is Metal => m in KIT_GOODS;
+const isKit = (m: string): m is Kit => m in KIT_GOODS,
+  isMetal = (m: string): m is Metal => isKit(m) && m !== "machined";
 
 /** A host part's stuff as it was found and worked: its name, its edge. Null: no worked stuff. */
 export function partStuff(
@@ -99,26 +115,32 @@ function partProps(ctx: PopulationContext, seat: number, part: Part): MaterialPr
   return { ...m, edge: m.edge * q, guard: m.guard * q };
 }
 
-/** A host bare of its worked kit: stone-tipped spears for its metal arms, hide shields for its metal guard. */
+/**
+ * A host bare of its worked kit: stone-tipped spears for its metal or machined arms, hide shields for
+ * its metal guard, and on foot where its armoured cars are not made (Phase 53 M219).
+ */
 function bareOf(parts: readonly Part[]): Part[] {
   return parts.map((p) =>
-    isMetal(p.material)
+    isKit(p.material)
       ? p.role === "arm"
         ? { ...p, id: "spear", material: "stone" }
         : p.role === "guard"
           ? { ...p, id: "shield", material: "hide" }
-          : p
+          : p.role === "mount"
+            ? { ...p, id: "foot", material: "hide" }
+            : p
       : p,
   );
 }
 
-/** What a host's full kit weighs in each metal good, a man (kg). */
+/** What a host's full kit weighs in each good it is worked from, a man (kg). */
 export function kitKg(parts: readonly Part[]): Map<number, number> {
   const out = new Map<number, number>();
   for (const p of parts) {
-    if (!isMetal(p.material)) continue;
+    if (!isKit(p.material)) continue;
+    const kg = p.role === "mount" ? VEHICLE_KG : (ROLE_KG[p.role] ?? 0);
     for (const [good, share] of KIT_GOODS[p.material])
-      out.set(good, (out.get(good) ?? 0) + (ROLE_KG[p.role] ?? 0) * share);
+      out.set(good, (out.get(good) ?? 0) + kg * share);
   }
   return out;
 }
@@ -132,6 +154,12 @@ export type Arms = {
   readonly full: number;
   readonly armed: number;
   readonly power: number;
+  /**
+   * What its arms loose against the rifle's (rules/firearms.ts), and how far its armour carries it
+   * through a line dug in, as much of the host as is armed (Phase 53 M219: 0 before the magazine).
+   */
+  readonly fire: number;
+  readonly breach: number;
 };
 
 /** The power of a host of parts at a seat, bare and fully armed (each part as its seat makes it). */
@@ -164,8 +192,18 @@ export function armsOf(ctx: PopulationContext, p: Polity): Arms {
   const d = designsOf(ctx.world).of(p.ref),
     parts = d?.parts ?? hostFor(ctx, p).parts,
     { bare, full } = powers(ctx, p.seat, parts),
-    armed = armedNow(ctx, p, parts, d?.ref ?? null);
-  return { design: d?.ref ?? null, parts, bare, full, armed, power: bare + armed * (full - bare) };
+    armed = armedNow(ctx, p, parts, d?.ref ?? null),
+    does = performanceOf(parts);
+  return {
+    design: d?.ref ?? null,
+    parts,
+    bare,
+    full,
+    armed,
+    power: bare + armed * (full - bare),
+    fire: armed * (does.firepower ?? 0),
+    breach: armed * (does.breach ?? 0),
+  };
 }
 
 /** How armed each realm's host is, with which design (Phase 52 M217). */

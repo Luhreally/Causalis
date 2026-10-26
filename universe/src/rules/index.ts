@@ -113,6 +113,17 @@ export {
   type Role,
 } from "./designs.ts";
 export {
+  FIREARMS,
+  firearm,
+  firepowerOf,
+  machined,
+  rangeAxisOf,
+  type Cartridge,
+  type Firearm,
+  type Powder,
+  type Tolerance,
+} from "./firearms.ts";
+export {
   CIVICS,
   CIVIC_FOR,
   CIVIC_ICON,

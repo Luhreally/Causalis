@@ -1,11 +1,12 @@
 // Wars on the globe (Phase 9 M87, Phase 12 M110): each host a column in its realm's colours, as
-// many ranks and files as the men it fields — riders on their horses where its design rides —
-// its banners over its head and every third rank, a ship with its sail where the way crosses the
-// sea; the defenders in a block at what they hold; each battle of this year and last two masses
-// meeting in their colours, the fallen lying between them, crossed blades over a flare that
-// pulses, the larger the more fell, dimmer as the years pass; a ring of tents about a seat under
-// siege; and at the seats of realms at peace, their garrisons under their banners. Instanced,
-// each mark stood upright on the globe's face (the fallen laid along it).
+// many ranks and files as the men it fields — riders on their horses where its design rides, and
+// cars among its men where it is armoured (Phase 53) — its banners over its head and every third
+// rank, a ship with its sail where the way crosses the sea; the defenders in a block at what they
+// hold; each battle of this year and last two masses meeting in their colours, the fallen lying
+// between them, crossed blades over a flare that pulses, the larger the more fell, dimmer as the
+// years pass; a ring of tents about a seat under siege; and at the seats of realms at peace, their
+// garrisons under their banners. Instanced, each mark stood upright on the globe's face (the fallen
+// laid along it).
 import * as pc from "playcanvas";
 import {
   RANK_STEP,
@@ -41,6 +42,10 @@ type Stood = {
   readonly size: number;
   readonly lead: boolean;
   readonly mounted: boolean;
+  /** Whether its host has armoured cars among its men (Phase 53). */
+  readonly armoured: boolean;
+  /** A car: a hull and a turret, no body, head or horse. Left out for the others. */
+  readonly car?: true;
 };
 
 export class GlobeWars {
@@ -58,10 +63,16 @@ export class GlobeWars {
   private readonly blades: InstancedBatch;
   private readonly flares: InstancedBatch;
   private readonly embers: InstancedBatch;
+  /** The charred hulls of the cars fallen (Phase 53). */
+  private readonly wrecks: InstancedBatch;
   /** Each side's flags, bodies (tabards) and tents, by the colours of the year's wars. */
   private flags: InstancedBatch[] = [];
   private tabards: InstancedBatch[] = [];
   private tents: InstancedBatch[] = [];
+  /** Each side with armoured cars this year: its cars' hulls and turrets, and the side. */
+  private carHulls: InstancedBatch[] = [];
+  private carTurrets: InstancedBatch[] = [];
+  private carSides: number[] = [];
   /** How much larger than the year's its figures are drawn (a war watched unfolding's, Phase 38 M193). */
   grand = 1;
   /**
@@ -101,6 +112,7 @@ export class GlobeWars {
     this.blades = make([0.86, 0.88, 0.92], MOST_CLASHES * 2);
     this.flares = make([1, 0.8, 0.28], MOST_CLASHES * 3);
     this.embers = make([0.66, 0.4, 0.18], MOST_CLASHES * 3);
+    this.wrecks = make([0.12, 0.11, 0.1], MOST_MEN);
     parent.addChild(this.root);
   }
 
@@ -112,7 +124,14 @@ export class GlobeWars {
   /** The year's wars, as ways over the globe (null: none shown). */
   set(paths: WarPaths | null): void {
     this.paths = paths;
-    for (const f of [...this.flags, ...this.tabards, ...this.tents]) f.destroy();
+    for (const f of [
+      ...this.flags,
+      ...this.tabards,
+      ...this.tents,
+      ...this.carHulls,
+      ...this.carTurrets,
+    ])
+      f.destroy();
     const colors = paths?.colors ?? [],
       // Each colour's batches hold as many as it can show (a garrison's few, a great host's
       // many), not the most any could.
@@ -160,6 +179,27 @@ export class GlobeWars {
       camps[i] ? [new InstancedBatch(this.stage, this.tent, c, camps[i]!, this.root)] : [],
     );
     this.tentSides = colors.flatMap((_, i) => (camps[i] ? [i] : []));
+    // The sides with armoured cars among their men this year (each gets a car's two batches).
+    const armour = colors.map(() => false);
+    for (const p of paths?.paths ?? []) {
+      if (p.armoured) armour[p.side] = true;
+      if (p.foeArmoured) armour[p.foe] = true;
+    }
+    for (const g of paths?.garrisons ?? []) if (g.armoured) armour[g.side] = true;
+    this.carSides = colors.flatMap((_, i) => (armour[i] ? [i] : []));
+    // A car's hull and turret: in its side's colour mixed half with drab olive.
+    const carBatch = (i: number) => {
+      const [r, g, b] = colors[i]!;
+      return new InstancedBatch(
+        this.stage,
+        this.box,
+        [(r + 0.33) / 2, (g + 0.36) / 2, (b + 0.26) / 2],
+        MOST_MEN,
+        this.root,
+      );
+    };
+    this.carHulls = this.carSides.map(carBatch);
+    this.carTurrets = this.carSides.map(carBatch);
   }
   /** The colour each tents' batch is of. */
   private tentSides: number[] = [];
@@ -217,7 +257,12 @@ export class GlobeWars {
       garrison = zoom < GARRISON_ZOOM ? garrisonFigures(paths) : [],
       standing: Stood[] = [
         ...walkers,
-        ...fighting.map((f: BattleFigure) => ({ ...f, lead: false, mounted: false })),
+        ...fighting.map((f: BattleFigure) => ({
+          ...f,
+          lead: false,
+          mounted: false,
+          armoured: false,
+        })),
         ...garrison,
       ].slice(0, MOST);
     // (A host watched on the march — its clock gone on since the last — steps as it goes, each
@@ -237,7 +282,8 @@ export class GlobeWars {
     standing.forEach((f, i) => {
       const walker = i < walkers.length,
         stepping = walker && (f as WarToken).attacker && going.has((f as WarToken).ref),
-        k = walker ? n : Math.min(n, 2);
+        // (A car is one vehicle, not a squad of men.)
+        k = f.car ? 1 : walker ? n : Math.min(n, 2);
       if (k === 1) {
         men.push(f);
         if (stepping) steps.set(f, Math.abs(Math.sin(s * 7 + i * 0.9)) * 0.003);
@@ -261,15 +307,19 @@ export class GlobeWars {
               size: (f.size * 1.2) / k,
               lead: false,
               mounted: f.mounted,
+              armoured: f.armoured,
             };
           men.push(man);
           if (stepping)
             steps.set(man, Math.abs(Math.sin(s * 7 + i * 0.9 + (a * k + b) * 1.3)) * 0.003);
         }
     });
+    // (A fallen car lies where it was, its hull charred: the men are strewn as they were.)
+    const wrecks = lying.filter((f) => f.car),
+      dead = lying.filter((f) => !f.car);
     const strewn: { at: V; up: V; ahead: V; size: number }[] =
       n > 1
-        ? lying.flatMap((f) => {
+        ? dead.flatMap((f) => {
             const aside = unit(cross(f.up, f.ahead));
             return (
               [
@@ -288,14 +338,17 @@ export class GlobeWars {
               size: f.size * 0.6,
             }));
           })
-        : lying;
+        : dead;
     // (Their banners over the squads the less tall.)
     const q = n > 1 ? 0.7 : 1;
     // (A rider sits on a horse: a body the higher by it.)
     const seat = (f: Stood) => (f.mounted ? 0.012 : 0) + (steps.get(f) ?? 0),
       height = (f: Stood) => (f.lead ? 0.022 : 0.014);
+    // (A car is drawn as a hull and a turret, not a man: its batches below.)
+    const people = men.filter((f) => !f.car),
+      vehicles = men.filter((f) => f.car);
     this.tabards.forEach((batch, side) => {
-      const mine = men.filter((f) => f.side === side);
+      const mine = people.filter((f) => f.side === side);
       batch.setBasis(mine.length, (i, out) => {
         const f = mine[i]!,
           h = height(f);
@@ -311,8 +364,8 @@ export class GlobeWars {
         );
       });
     });
-    this.heads.setBasis(men.length, (i, out) => {
-      const f = men[i]!,
+    this.heads.setBasis(people.length, (i, out) => {
+      const f = people[i]!,
         h = height(f),
         r = (f.lead ? 0.011 : 0.008) * headK;
       stand(
@@ -326,7 +379,7 @@ export class GlobeWars {
         f.size * g,
       );
     });
-    const riders = men.filter((f) => f.mounted);
+    const riders = people.filter((f) => f.mounted);
     this.horses.setBasis(riders.length, (i, out) => {
       const f = riders[i]!;
       stand(
@@ -337,6 +390,53 @@ export class GlobeWars {
         0.009,
         0.01,
         0.024,
+        f.size * g,
+      );
+    });
+    // The cars: a hull on the ground and a turret on it, in their side's colour; a wreck's hull
+    // charred, lying where it was.
+    this.carHulls.forEach((batch, k) => {
+      const mine = vehicles.filter((f) => f.side === this.carSides[k]);
+      batch.setBasis(mine.length, (i, out) => {
+        const f = mine[i]!;
+        stand(
+          out,
+          lift(f.at, f.up, 0.004, f.size * g),
+          f.up,
+          f.ahead,
+          0.016,
+          0.008,
+          0.03,
+          f.size * g,
+        );
+      });
+    });
+    this.carTurrets.forEach((batch, k) => {
+      const mine = vehicles.filter((f) => f.side === this.carSides[k]);
+      batch.setBasis(mine.length, (i, out) => {
+        const f = mine[i]!;
+        stand(
+          out,
+          lift(f.at, f.up, 0.011, f.size * g),
+          f.up,
+          f.ahead,
+          0.008,
+          0.006,
+          0.012,
+          f.size * g,
+        );
+      });
+    });
+    this.wrecks.setBasis(wrecks.length, (i, out) => {
+      const f = wrecks[i]!;
+      stand(
+        out,
+        lift(f.at, f.up, 0.004, f.size * g),
+        f.up,
+        f.ahead,
+        0.016,
+        0.008,
+        0.03,
         f.size * g,
       );
     });
@@ -419,6 +519,7 @@ export class GlobeWars {
         size: 1,
         lead: true,
         mounted: false,
+        armoured: false,
       })),
       ...garrison.filter((g) => g.lead),
     ];
@@ -584,14 +685,20 @@ export class GlobeWars {
       this.blades,
       this.flares,
       this.embers,
+      this.wrecks,
       ...this.flags,
       ...this.tabards,
       ...this.tents,
+      ...this.carHulls,
+      ...this.carTurrets,
     ])
       b.destroy();
     this.flags = [];
     this.tabards = [];
     this.tents = [];
+    this.carHulls = [];
+    this.carTurrets = [];
+    this.carSides = [];
   }
 }
 
@@ -619,6 +726,9 @@ function garrisonFigures(paths: WarPaths): Stood[] {
         size: 0.55,
         lead: f === Math.floor((files - 1) / 2),
         mounted: g.mounted,
+        armoured: g.armoured,
+        // (In an armoured garrison every fourth man, counted in its line, is a car.)
+        ...(g.armoured && f % 4 === 2 ? { car: true as const } : {}),
       });
     }
   }

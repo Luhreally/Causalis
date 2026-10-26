@@ -22,9 +22,12 @@ import {
   type PartShape,
   type TrooperNow,
   FIGURE_CAPSULE,
+  armLook,
+  isGun,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, capsuleMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
+import { VehicleLayer } from "./vehicles.ts";
 
 const M = 0.1;
 /** How large one who fought is drawn, against a band's figure (theirs drawn 3.2 times life). */
@@ -33,6 +36,22 @@ const SOLDIER = 0.5;
 const MOST = 380;
 /** The rungs of a ladder. */
 const RUNGS = 6;
+/** The pieces the defenders' trench is cut into along the field. */
+const TRENCH_PIECES = 18;
+/** The trench's measures (m, the field's): its strip of earth, its bank's width and height, and the bank's gap from the strip. */
+const TRENCH = { strip: 0.03, bankWide: 1, bankHigh: 0.5, bankAway: 0.55 } as const;
+/**
+ * A machine gun on its tripod (metres of the arms: drawn as large against its gunner as the rifles
+ * are held, GUN_SCALE of a unit a metre at k 1): set this far ahead of one standing to it, its legs'
+ * length, their tilt, and the tripod's head above its feet.
+ */
+const GUN_SCALE = 0.7,
+  GUN_SET = 0.75,
+  LEG = 0.6,
+  TILT = 0.75,
+  HEAD = LEG * Math.sin(TILT),
+  // (One leg ahead, two back to either side.)
+  LEG_ANGLES = [0, 2.1, -2.1] as const;
 const WOOD: Rgb = [0.46, 0.33, 0.19],
   IRON: Rgb = [0.7, 0.71, 0.74],
   BRONZE: Rgb = [0.72, 0.52, 0.26],
@@ -48,6 +67,11 @@ const WOOD: Rgb = [0.46, 0.33, 0.19],
   WATER: Rgb = [0.24, 0.46, 0.64],
   // (Fresh-cut timber, paler than the hafts about it.)
   LADDER: Rgb = [0.8, 0.64, 0.42];
+// (The later arms: drab steel helmets, the trench's dug earth and its bank, a machine gun's steel.)
+const DRAB: Rgb = [0.36, 0.38, 0.33],
+  EARTH: Rgb = [0.2, 0.16, 0.11],
+  PARAPET: Rgb = [0.52, 0.44, 0.3],
+  GUN: Rgb = [0.2, 0.2, 0.22];
 
 const darker = (c: Rgb, k: number): Rgb => [c[0] * k, c[1] * k, c[2] * k];
 
@@ -98,6 +122,9 @@ function limbAt(part: FigurePart, t: TrooperNow, stroke: string): number {
         return t.crawl
           ? 0.25 * Math.sign(swing) + 0.35 * Math.sin(ph * 1.1 + off + (right ? 0 : Math.PI))
           : 0.25 * Math.sign(swing) * t.down;
+      // (Down in the grass, the legs straight back.)
+      case "prone":
+        return 0.05 * Math.sign(swing);
       default:
         return 0;
     }
@@ -136,6 +163,9 @@ function limbAt(part: FigurePart, t: TrooperNow, stroke: string): number {
       return t.crawl
         ? -2.3 - 0.6 * Math.sin(ph * 1.1 + off + (right ? 0 : Math.PI))
         : (right ? -0.7 : 0.5) * t.down;
+    // (Down in the grass, the rifle reached forward to the ground in front.)
+    case "prone":
+      return right ? -2.75 + 0.05 * Math.sin(ph * 0.5 + off) : -2.9;
     default:
       return right ? -0.15 : 0;
   }
@@ -153,6 +183,9 @@ function leanOf(t: TrooperNow, stroke: string): number {
         : 0.08 + 0.06 * Math.sin(t.cycle * 2 * Math.PI * 1.7 + t.id * 1.7);
     case "fall":
       return (t.back ? -1 : 1) * t.down * (Math.PI / 2 - 0.1);
+    // (Lying face down, toward the foe along their yaw.)
+    case "prone":
+      return Math.PI / 2 - 0.12;
     default:
       return 0;
   }
@@ -222,6 +255,7 @@ export class BattleLayer {
   private readonly shafts: InstancedBatch;
   private readonly blades: InstancedBatch;
   private readonly helmets: InstancedBatch;
+  private readonly steelHelmets: InstancedBatch;
   private readonly poles: InstancedBatch;
   private readonly horses: InstancedBatch;
   private readonly necks: InstancedBatch;
@@ -241,6 +275,15 @@ export class BattleLayer {
   private readonly barrels: InstancedBatch;
   private readonly carriages: InstancedBatch;
   private readonly cannonWheels: InstancedBatch;
+  /** The defenders' trench, its strips of earth and its banks (laid for each battle). */
+  private readonly trenches: InstancedBatch;
+  private readonly parapets: InstancedBatch;
+  /** The machine guns: their receivers, their water jackets and barrel tips, their tripods' legs. */
+  private readonly gunBodies: InstancedBatch;
+  private readonly gunTubes: InstancedBatch;
+  private readonly tripods: InstancedBatch;
+  /** The armoured cars, with the smoke and fire off the wrecks (Phase 53 M220). */
+  private readonly vehicles: VehicleLayer;
   /** The field's own: its walls, its town, its river and its ridge (built for each battle). */
   private readonly walls: InstancedBatch;
   private readonly tops: InstancedBatch;
@@ -272,6 +315,7 @@ export class BattleLayer {
     this.shafts = batch(this.box, WOOD, MOST * 2);
     this.blades = batch(this.box, IRON, MOST * 2, flatMaterial(IRON, 1, 0.6, 0.5));
     this.helmets = batch(this.cone, IRON, MOST * 2, flatMaterial(IRON, 1, 0.6, 0.4));
+    this.steelHelmets = batch(this.cone, DRAB, MOST * 2, flatMaterial(DRAB, 1, 0.6, 0.4));
     this.poles = batch(this.cyl, WOOD, 64);
     this.horses = batch(this.box, HORSE, MOST * 2);
     this.necks = batch(this.box, HORSE, MOST * 4);
@@ -301,7 +345,7 @@ export class BattleLayer {
     flare.diffuse = new pc.Color(0, 0, 0);
     flare.emissive = new pc.Color(1, 0.86, 0.4);
     flare.update();
-    this.flash = batch(this.cone, [1, 0.86, 0.4], 120, flare);
+    this.flash = batch(this.cone, [1, 0.86, 0.4], 240, flare);
     this.barrels = batch(
       this.cyl,
       [0.2, 0.2, 0.22],
@@ -310,12 +354,18 @@ export class BattleLayer {
     );
     this.carriages = batch(this.box, darker(WOOD, 0.85), 16);
     this.cannonWheels = batch(this.cyl, darker(WOOD, 0.6), 32);
+    this.trenches = batch(this.box, EARTH, TRENCH_PIECES);
+    this.parapets = batch(this.box, PARAPET, TRENCH_PIECES);
+    this.gunBodies = batch(this.box, GUN, MOST * 2, flatMaterial(GUN, 1, 0.7, 0.45));
+    this.gunTubes = batch(this.cyl, GUN, MOST * 4, flatMaterial(GUN, 1, 0.7, 0.45));
+    this.tripods = batch(this.box, GUN, MOST * 6);
     this.walls = batch(this.box, STONE, 260);
     this.tops = batch(this.box, STONE, 260);
     this.gates = batch(this.box, darker(WOOD, 0.75), 4);
     this.ladders = batch(this.box, LADDER, 7 * (2 + RUNGS));
     this.houses = batch(this.box, HOUSE, 40);
     this.roofs = batch(this.cone, ROOF, 40);
+    this.vehicles = new VehicleLayer(stage, this.root, this.box, this.cyl, this.cone);
     this.river = new pc.Entity("river");
     this.river.addComponent("render", {
       meshInstances: [new pc.MeshInstance(this.box, flatMaterial(WATER, 0.88, 0.85, 0.35))],
@@ -436,6 +486,36 @@ export class BattleLayer {
       this.river.setLocalPosition(r.x * M, 0.006, 0);
       this.river.setLocalScale(r.w * 2 * M, 0.012, (FIELD.z * 2 + 2) * M);
     }
+    // The defenders' trench: a strip of dug earth across the field, its bank on the attackers' side.
+    const tr = g.trench;
+    if (tr) {
+      const piece = (FIELD.z * 2) / TRENCH_PIECES,
+        across = (i: number) => -FIELD.z + (i + 0.5) * piece;
+      this.trenches.set(TRENCH_PIECES, (i, out) => {
+        const z = across(i);
+        out[0] = tr.x * M;
+        // (Just above the ground, so it does not sink into it.)
+        out[1] = (battleGroundAt(g, tr.x, z) + 0.02) * M;
+        out[2] = z * M;
+        out[3] = 2 * tr.w * M;
+        out[4] = TRENCH.strip * M;
+        out[5] = piece * M;
+      });
+      this.parapets.set(TRENCH_PIECES, (i, out) => {
+        const z = across(i),
+          x = tr.x - tr.w - TRENCH.bankAway;
+        out[0] = x * M;
+        out[1] = (battleGroundAt(g, x, z) + TRENCH.bankHigh / 2) * M;
+        out[2] = z * M;
+        out[3] = TRENCH.bankWide * M;
+        out[4] = TRENCH.bankHigh * M;
+        out[5] = piece * M;
+      });
+    } else {
+      this.trenches.set(0, () => {});
+      this.parapets.set(0, () => {});
+    }
+    this.vehicles.setup([field.near.attacker.color as Rgb, field.near.defender.color as Rgb]);
     if (g.hill) this.hill = this.ridge(field, grass);
   }
 
@@ -501,12 +581,20 @@ export class BattleLayer {
     this.root.enabled = true;
     const f = rig.f,
       k = SOLDIER * f.scale,
+      // (A true metre of the figure: it stands 1.75 of them.)
+      metre = (rig.high * k) / 1.75,
       hosts = field.hosts,
       mountedOf = (t: TrooperNow) => hosts[t.side]!.mounted,
       lift = (t: TrooperNow) => {
         const m = mountedOf(t);
-        // (A rider sits up on their horse; one in a chariot stands in its car.)
-        return t.act === "fall" ? 0 : m === "horse" ? 0.33 * k : m === "chariot" ? 0.17 * k : 0;
+        // (A rider sits up on their horse; one in a chariot stands in its car. Those down lie on the ground.)
+        return t.act === "fall" || t.act === "prone"
+          ? 0
+          : m === "horse"
+            ? 0.33 * k
+            : m === "chariot"
+              ? 0.17 * k
+              : 0;
       };
     let shown = 0;
     // Each one who fought, in the parts of their figure.
@@ -524,7 +612,7 @@ export class BattleLayer {
             c = Math.cos(t.yaw),
             sn = Math.sin(t.yaw),
             // (Lying, they rest on the ground, not in it.)
-            rest = t.act === "fall" ? 0.06 * kk * t.down : 0;
+            rest = t.act === "fall" ? 0.06 * kk * t.down : t.act === "prone" ? 0.06 * kk : 0;
           out[0] = t.x * M + (part.x * c + p.z * sn) * kk;
           out[1] = t.y * M + lift(t) + p.y * kk + rest;
           out[2] = t.z * M + (-part.x * sn + p.z * c) * kk;
@@ -627,8 +715,10 @@ export class BattleLayer {
     // a sword, an axe's head) in their right hand; on the ground beside them, fallen.
     const armed: { t: TrooperNow; arm: string }[] = [];
     for (const t of now.troopers) {
-      if (t.size <= 0.01 || t.bearer) continue;
-      const arm = field.near[t.side === 0 ? "attacker" : "defender"].host?.arm ?? "spear";
+      // (A machine gun's team holds its gun, not a rifle; the rest of such a host bear the self-loading one.)
+      if (t.size <= 0.01 || t.bearer || t.gun) continue;
+      const own = field.near[t.side === 0 ? "attacker" : "defender"].host?.arm ?? "spear",
+        arm = armLook(own).rest ?? own;
       if (arm === "claws" || arm === "mandibles" || arm === "tusks" || arm === "grapple") continue;
       if (t.act === "flee" && unit(t.id, 5) < 0.6) continue;
       armed.push({ t, arm });
@@ -647,36 +737,39 @@ export class BattleLayer {
         fall = t.act === "fall";
       // Which way the thing held points (up and ahead, in the figure's frame).
       let up: number, ahead: number, long: number;
-      switch (arm) {
-        case "spear":
-          long = 1.35;
-          [up, ahead] =
-            t.act === "fight" || t.act === "brace" || t.act === "run" ? [0.12, 1] : [1, 0.12];
-          break;
-        case "bow":
-        case "horn-bow":
-          long = 0.75;
-          [up, ahead] = [1, 0.05];
-          break;
-        case "shell-darts":
-          long = 0.5;
-          [up, ahead] = [0.6, 1];
-          break;
-        case "musket":
-        case "rifle":
-          // Levelled to fire, the bayonet levelled in the press, else shouldered.
-          long = arm === "musket" ? 1.0 : 0.9;
-          [up, ahead] =
-            t.act === "loose"
-              ? [0.05, 1]
+      if (isGun(arm)) {
+        // Levelled to fire, the bayonet levelled in the press, else shouldered.
+        // (Its length is its row's in the arms table.)
+        long = armLook(arm).long!;
+        [up, ahead] =
+          t.act === "loose"
+            ? [0.05, 1]
+            : t.act === "prone"
+              ? [0.02, 1]
               : t.act === "fight" || t.act === "brace" || t.act === "run"
                 ? [0.16, 1]
                 : [1, 0.3];
-          break;
-        default:
-          // A blade or a head on a haft, along the forearm and on past the hand.
-          long = arm === "axe" ? 0.62 : arm === "club" ? 0.5 : 0.58;
-          [up, ahead] = [Math.cos(lp + lean - 1.2), Math.sin(lp + lean - 1.2)];
+      } else {
+        switch (arm) {
+          case "spear":
+            long = 1.35;
+            [up, ahead] =
+              t.act === "fight" || t.act === "brace" || t.act === "run" ? [0.12, 1] : [1, 0.12];
+            break;
+          case "bow":
+          case "horn-bow":
+            long = 0.75;
+            [up, ahead] = [1, 0.05];
+            break;
+          case "shell-darts":
+            long = 0.5;
+            [up, ahead] = [0.6, 1];
+            break;
+          default:
+            // A blade or a head on a haft, along the forearm and on past the hand.
+            long = arm === "axe" ? 0.62 : arm === "club" ? 0.5 : 0.58;
+            [up, ahead] = [Math.cos(lp + lean - 1.2), Math.sin(lp + lean - 1.2)];
+        }
       }
       const n = Math.hypot(up, ahead) || 1;
       up /= n;
@@ -696,7 +789,7 @@ export class BattleLayer {
       const { t, arm } = armed[j]!,
         h = hold(t, arm),
         bladed = arm === "sword",
-        gun = arm === "musket" || arm === "rifle";
+        gun = isGun(arm);
       out[0] = h.x;
       out[1] = h.y;
       out[2] = h.z;
@@ -710,7 +803,7 @@ export class BattleLayer {
       const { t, arm } = armed[j]!,
         h = hold(t, arm),
         bow = arm === "bow" || arm === "horn-bow",
-        gun = arm === "musket" || arm === "rifle",
+        gun = isGun(arm),
         // The blade at the far end (a spear's head, an axe's, a bayonet), or the length of a sword.
         tip = arm === "sword" ? 0.12 : bow ? 0 : h.long * (gun ? 0.56 : 0.46),
         dir = { up: -Math.sin(h.pitch), ahead: Math.cos(h.pitch) },
@@ -725,14 +818,10 @@ export class BattleLayer {
       out[6] = h.yaw;
       out[7] = h.pitch;
     });
-    // Helmets where they wore mail, scale or plate (bronze on scale).
-    const helmed = now.troopers.filter((t) => {
-      const g = field.near[t.side === 0 ? "attacker" : "defender"].host?.guard;
-      return t.size > 0.01 && (g === "mail" || g === "plate" || g === "scale");
-    });
-    this.helmets.set(helmed.length, (j, out) => {
-      const t = helmed[j]!,
-        head = rig.head,
+    // Helmets where they wore mail, scale or plate (bronze on scale), and the steel helmets the
+    // later arms wore: wider and flatter, in drab.
+    const helmet = (t: TrooperNow, out: number[], wide: number, flat: number) => {
+      const head = rig.head,
         lean = leanOf(t, hosts[t.side]!.stroke),
         y = head ? head.y + partExtent(head)[1] * 0.35 : rig.high * 0.9,
         z = head?.z ?? 0,
@@ -742,15 +831,29 @@ export class BattleLayer {
         },
         w = head ? Math.max(partExtent(head)[0], partExtent(head)[2]) * 1.15 : 0.2;
       out[0] = t.x * M + Math.sin(t.yaw) * p.z * k;
-      out[1] = t.y * M + lift(t) + p.y * k + (t.act === "fall" ? 0.03 * t.down : 0);
+      out[1] =
+        t.y * M +
+        lift(t) +
+        p.y * k +
+        (t.act === "fall" ? 0.03 * t.down : t.act === "prone" ? 0.03 : 0);
       out[2] = t.z * M + Math.cos(t.yaw) * p.z * k;
-      out[3] = w * k;
-      out[4] = w * 0.8 * k;
-      out[5] = w * k;
+      out[3] = w * wide * k;
+      out[4] = w * 0.8 * flat * k;
+      out[5] = w * wide * k;
       out[6] = t.yaw;
       out[7] = lean;
+    };
+    const helmed = now.troopers.filter((t) => {
+      const g = field.near[t.side === 0 ? "attacker" : "defender"].host?.guard;
+      return t.size > 0.01 && (g === "mail" || g === "plate" || g === "scale");
     });
+    this.helmets.set(helmed.length, (j, out) => helmet(helmed[j]!, out, 1, 1));
     this.helmets.recolor(field.near.attacker.host?.guard === "scale" ? BRONZE : IRON);
+    const steel = now.troopers.filter((t) => {
+      const g = field.near[t.side === 0 ? "attacker" : "defender"].host?.guard;
+      return t.size > 0.01 && g === "helmet";
+    });
+    this.steelHelmets.set(steel.length, (j, out) => helmet(steel[j]!, out, 1.3, 0.5));
     // Their horses (riders) and chariots, under them.
     const ridden = now.troopers.filter((t) => t.size > 0.01 && mountedOf(t) !== null);
     const horseAt = (t: TrooperNow) => {
@@ -936,6 +1039,66 @@ export class BattleLayer {
       out[6] = c.yaw + Math.PI / 2;
       out[7] = Math.PI / 2;
     });
+    // Machine guns on their tripods (a fallen gunner's stays where it was set): on the bank before
+    // a trench's gunner, past the head of one lying down, a step ahead of one standing.
+    const gm = GUN_SCALE * k,
+      trench = field.ground.trench,
+      mgs = now.troopers
+        .filter((t) => t.gun && t.act !== "flee" && t.size > 0.01)
+        .map((t) => {
+          const s = Math.sin(t.yaw),
+            c = Math.cos(t.yaw),
+            banked = !!trench && t.y < -0.3,
+            ahead = banked
+              ? (trench.w + TRENCH.bankAway + TRENCH.bankWide / 2) * M
+              : t.act === "prone" || t.act === "fall"
+                ? rig.high * k + 0.04
+                : GUN_SET * gm,
+            gx = t.x * M + s * ahead,
+            gz = t.z * M + c * ahead,
+            base =
+              (battleGroundAt(field.ground, gx / M, gz / M) + (banked ? TRENCH.bankHigh : 0)) * M;
+          return { s, c, gx, gz, yaw: t.yaw, hy: base + HEAD * gm };
+        });
+    this.gunBodies.set(mgs.length, (j, out) => {
+      const g = mgs[j]!;
+      out[0] = g.gx;
+      out[1] = g.hy;
+      out[2] = g.gz;
+      out[3] = 0.14 * gm;
+      out[4] = 0.14 * gm;
+      out[5] = 0.45 * gm;
+      out[6] = g.yaw;
+      out[7] = 0;
+    });
+    // Each gun's water jacket laid along it, and its barrel's tip beyond.
+    this.gunTubes.set(mgs.length * 2, (j, out) => {
+      const g = mgs[j >> 1]!,
+        tip = (j & 1) === 1,
+        along = (tip ? 0.9 : 0.5) * gm;
+      out[0] = g.gx + g.s * along;
+      out[1] = g.hy;
+      out[2] = g.gz + g.c * along;
+      out[3] = (tip ? 0.04 : 0.12) * gm;
+      out[4] = (tip ? 0.25 : 0.55) * gm;
+      out[5] = (tip ? 0.04 : 0.12) * gm;
+      out[6] = g.yaw;
+      out[7] = Math.PI / 2;
+    });
+    // Three legs to each tripod, splayed, their feet where its head stands above.
+    this.tripods.set(mgs.length * 3, (j, out) => {
+      const g = mgs[Math.floor(j / 3)]!,
+        yaw = g.yaw + LEG_ANGLES[j % 3]!,
+        half = (LEG / 2) * gm;
+      out[0] = g.gx + Math.sin(yaw) * Math.cos(TILT) * half;
+      out[1] = g.hy - Math.sin(TILT) * half;
+      out[2] = g.gz + Math.cos(yaw) * Math.cos(TILT) * half;
+      out[3] = 0.03 * gm;
+      out[4] = 0.03 * gm;
+      out[5] = LEG * gm;
+      out[6] = yaw;
+      out[7] = TILT;
+    });
     // The blood of the fallen.
     // (Over the trodden grass, where the fallen lie.)
     this.blood.set(Math.min(this.blood.capacity, now.blood.length), (j, out) => {
@@ -1045,6 +1208,8 @@ export class BattleLayer {
       out[5] = 3.4 * M;
       out[6] = j;
     });
+    // The armoured cars, and the smoke and fire off the wrecks.
+    this.vehicles.update(now.vehicles ?? [], now.fumes ?? [], now.flames ?? [], metre);
     this.shown = shown;
   }
 
@@ -1053,7 +1218,7 @@ export class BattleLayer {
     const rig = this.rig;
     if (!rig) return null;
     const k = SOLDIER * rig.f.scale * Math.max(0.3, t.size),
-      up = t.act === "fall" ? 0.1 * k : rig.high * k * 0.55,
+      up = t.act === "fall" || t.act === "prone" ? 0.1 * k : rig.high * k * 0.55,
       out = this.stage.camera.camera!.worldToScreen(
         new pc.Vec3(t.x * M, t.y * M + up + over, t.z * M),
       );
@@ -1101,8 +1266,8 @@ export class BattleLayer {
     return [at(0), at(1)];
   }
 
-  /** How many figures' parts are drawn (the look tools). */
+  /** How many figures' parts, and the cars' parts, are drawn (the look tools). */
   count(): number {
-    return this.shown;
+    return this.shown + this.vehicles.count();
   }
 }

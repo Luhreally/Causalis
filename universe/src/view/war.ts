@@ -26,6 +26,9 @@ export type WarPath = {
   readonly foeMen: number;
   readonly mounted: boolean;
   readonly foeMounted: boolean;
+  /** Whether each has armoured cars among its men (Phase 53). */
+  readonly armoured: boolean;
+  readonly foeArmoured: boolean;
   /** How long its way is over the globe (its radius 1). */
   readonly length: number;
 };
@@ -55,6 +58,7 @@ export type WarPaths = {
     readonly side: number;
     readonly men: number;
     readonly mounted: boolean;
+    readonly armoured: boolean;
     readonly realm: string;
   }[];
 };
@@ -62,6 +66,11 @@ export type WarPaths = {
 /** Whether a host's design has it ride (horses, a chariot). */
 export function rides(host: HostKinds | null | undefined): boolean {
   return !!host && (host.mount === "horse" || host.mount === "cavalry" || host.mount === "chariot");
+}
+
+/** Whether a host's design has armoured cars among its men (Phase 53: "with armoured cars"). */
+export function armoured(host: HostKinds | null | undefined): boolean {
+  return !!host && host.mount === "armoured";
 }
 
 /**
@@ -171,6 +180,8 @@ export function warPaths(map: WarsMap, grid: SphereGrid, elevation: Float32Array
         foeMen: w.defender.fields,
         mounted: rides(w.attacker.host),
         foeMounted: rides(w.defender.host),
+        armoured: armoured(w.attacker.host),
+        foeArmoured: armoured(w.defender.host),
         length: points.reduce(
           (n, p, i) =>
             i
@@ -207,6 +218,7 @@ export function warPaths(map: WarsMap, grid: SphereGrid, elevation: Float32Array
     side: colorOf(g.color),
     men: g.fields,
     mounted: rides(g.host),
+    armoured: armoured(g.host),
     realm: g.realm,
   }));
   return { paths, colors, bursts, camps, garrisons };
@@ -231,6 +243,10 @@ export type WarToken = {
   readonly banner: boolean;
   /** Whether it rides (its host's design has horses or chariots). */
   readonly mounted: boolean;
+  /** Whether its host has armoured cars among its men (Phase 53). */
+  readonly armoured: boolean;
+  /** A car of an armoured host: drawn as a car, not a man (left out for the others). */
+  readonly car?: true;
 };
 
 /** How long a host's march from its land to the front takes on the screen (seconds). */
@@ -310,6 +326,7 @@ function watchedTokens(path: WarPath, k: number, grand: number): WarToken[] {
       attacker: boolean,
       r: number,
       mounted: boolean,
+      armoured: boolean,
       side: number,
     ) => {
       const p = alongWay(path, cum, d),
@@ -317,7 +334,9 @@ function watchedTokens(path: WarPath, k: number, grand: number): WarToken[] {
         aside = norm(cross(up, p.ahead)),
         mid = Math.floor((files - 1) / 2);
       for (let f = 0; f < files; f++) {
-        const off = (f - (files - 1) / 2) * file;
+        const off = (f - (files - 1) / 2) * file,
+          // (In an armoured host every fourth figure, counted rank by rank, is a car.)
+          car = armoured && (r * files + f) % 4 === 2;
         out.push({
           ref: path.ref,
           at: { x: p.at.x + aside.x * off, y: p.at.y + aside.y * off, z: p.at.z + aside.z * off },
@@ -326,19 +345,21 @@ function watchedTokens(path: WarPath, k: number, grand: number): WarToken[] {
           side,
           attacker,
           ship: p.sea,
-          lead: r === 0 && f === mid,
+          lead: !car && r === 0 && f === mid,
           size: 1,
-          banner: f === mid && (attacker ? r % 3 === 0 : r === 0),
+          banner: !car && f === mid && (attacker ? r % 3 === 0 : r === 0),
           mounted,
+          armoured,
+          ...(car ? { car: true as const } : {}),
         });
       }
     };
   const host = hostShape(path.men),
     hold = holdShape(path.foeMen);
   for (let r = 0; r < host.ranks; r++)
-    rank(head - r * step, host.files, true, r, path.mounted, path.side);
+    rank(head - r * step, host.files, true, r, path.mounted, path.armoured, path.side);
   for (let r = 0; r < hold.ranks; r++)
-    rank(reach + r * step, hold.files, false, r, path.foeMounted, path.foe);
+    rank(reach + r * step, hold.files, false, r, path.foeMounted, path.foeArmoured, path.foe);
   return out;
 }
 
@@ -389,7 +410,9 @@ export function warTokens(
         up = norm(p.at),
         aside = norm(cross(up, p.ahead));
       for (let f = 0; f < shape.files; f++) {
-        const off = (f - (shape.files - 1) / 2) * 0.011;
+        const off = (f - (shape.files - 1) / 2) * 0.011,
+          // (In an armoured host every fourth figure, counted rank by rank, is a car.)
+          car = path.armoured && (r * shape.files + f) % 4 === 2;
         out.push({
           ref: path.ref,
           at: { x: p.at.x + aside.x * off, y: p.at.y + aside.y * off, z: p.at.z + aside.z * off },
@@ -398,11 +421,13 @@ export function warTokens(
           side: path.side,
           attacker: true,
           ship: p.sea,
-          lead: r === 0 && f === mid,
+          lead: !car && r === 0 && f === mid,
           // (Each behind the lead grows in as it sets out.)
           size: Math.min(size, loopSize(m / 0.9, 0.06, 0)),
-          banner: f === mid && r % 3 === 0,
+          banner: !car && f === mid && r % 3 === 0,
           mounted: path.mounted,
+          armoured: path.armoured,
+          ...(car ? { car: true as const } : {}),
         });
       }
     }
@@ -414,7 +439,8 @@ export function warTokens(
         up = norm(d.at),
         aside = norm(cross(up, d.ahead));
       for (let f = 0; f < hold.files; f++) {
-        const off = (f - (hold.files - 1) / 2) * 0.011;
+        const off = (f - (hold.files - 1) / 2) * 0.011,
+          car = path.foeArmoured && (r * hold.files + f) % 4 === 2;
         out.push({
           ref: path.ref,
           at: { x: d.at.x + aside.x * off, y: d.at.y + aside.y * off, z: d.at.z + aside.z * off },
@@ -423,10 +449,12 @@ export function warTokens(
           side: path.foe,
           attacker: false,
           ship: d.sea,
-          lead: r === 0 && f === hmid,
+          lead: !car && r === 0 && f === hmid,
           size: 1,
-          banner: r === 0 && f === hmid,
+          banner: !car && r === 0 && f === hmid,
           mounted: path.foeMounted,
+          armoured: path.foeArmoured,
+          ...(car ? { car: true as const } : {}),
         });
       }
     }
@@ -443,6 +471,8 @@ export type BattleFigure = {
   readonly side: number;
   readonly fallen: boolean;
   readonly size: number;
+  /** A car that has fallen: drawn as its charred wreck, lying where it was (Phase 53). */
+  readonly car?: true;
 };
 
 /**

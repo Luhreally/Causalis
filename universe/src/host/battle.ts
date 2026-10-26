@@ -146,7 +146,10 @@ export function battleNear(world: World, ref: string): BattleNear | null {
         host: parts ? kindsOf(parts) : null,
         kit: parts ? hostWords(world, realm, parts) : "spears, on foot",
         ...(b.armed ? { armed: b.armed[at] } : {}),
-        ...(r && lore.get(r.seat, "gunpowder") ? { cannon: true } : {}),
+        // (Cannon where its seat knew powder by the battle's year, not by now — Phase 53 M219.)
+        ...(r && (lore.get(r.seat, "gunpowder")?.year ?? Infinity) <= b.year
+          ? { cannon: true }
+          : {}),
       } satisfies BattleSideNear;
     },
     // (A battle of an older save knew not how many were in the field: as many as fell, ten times.)

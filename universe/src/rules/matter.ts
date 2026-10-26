@@ -26,6 +26,7 @@ export const ELEMENTS: readonly Element[] = [
   { symbol: "Ca", name: "calcium", mass: 40.078 },
   { symbol: "Fe", name: "iron", mass: 55.845 },
   { symbol: "Cu", name: "copper", mass: 63.546 },
+  { symbol: "Zn", name: "zinc", mass: 65.38 },
   { symbol: "Sn", name: "tin", mass: 118.71 },
   { symbol: "Au", name: "gold", mass: 196.97 },
 ];
@@ -98,8 +99,15 @@ const PROTEIN = byMass({ C: 0.53, H: 0.07, N: 0.16, O: 0.23, S: 0.01 }),
   LEATHER_TANNIN = 0.0104,
   /** Bronze: copper with a tenth and more of tin, by weight (atoms: 93.2 to 6.8). */
   BRONZE = { Cu: 0.932, Sn: 0.068 },
+  /** Brass: copper with three tenths of zinc, by weight (atoms: 70.6 to 29.4). */
+  BRASS = { Cu: 0.706, Zn: 0.294 },
   /** Steel: iron with a hundredth of carbon, by weight. */
-  STEEL = { Fe: 0.9551, C: 0.0449 };
+  STEEL = { Fe: 0.9551, C: 0.0449 },
+  /**
+   * Black powder: per 100 g, three parts saltpetre in four, three in twenty charcoal, one in ten
+   * sulphur; the atoms of each, in moles.
+   */
+  BLACK_POWDER = { K: 0.7418, N: 0.7418, O: 2.2254, C: 1.2489, S: 0.3119 };
 const plus = (a: Record<string, number>, b: Record<string, number>, k: number) => {
   const out = { ...a };
   for (const [e, n] of Object.entries(b)) out[e] = (out[e] ?? 0) + n * k;
@@ -185,6 +193,32 @@ export const SUBSTANCES: readonly Substance[] = [
     2.5,
     [0.95, 0.78, 0.2],
     "It never rusts, and it lies free in streams: worth much, good for little.",
+  ),
+  S(
+    "zinc",
+    "zinc",
+    "Zn",
+    { Zn: 1 },
+    "metal",
+    "solid",
+    7140,
+    420,
+    2.5,
+    [0.74, 0.77, 0.8],
+    "A bluish-white metal that boils off in the furnace before it can run: caught in a closed retort, it turns copper into brass.",
+  ),
+  S(
+    "brass",
+    "brass",
+    "Cu + Zn",
+    BRASS,
+    "metal",
+    "solid",
+    8530,
+    930,
+    3.5,
+    [0.86, 0.7, 0.32],
+    "Copper with zinc: yellow, and drawn cold into a cartridge's thin case without splitting.",
   ),
   // Ores.
   S(
@@ -290,6 +324,19 @@ export const SUBSTANCES: readonly Substance[] = [
     6.5,
     [0.85, 0.75, 0.3],
     "Fool's gold, in coal and shale: burned, it sours the air.",
+  ),
+  S(
+    "sphalerite",
+    "sphalerite",
+    "ZnS",
+    { Zn: 1, S: 1 },
+    "ore",
+    "solid",
+    4050,
+    null,
+    3.75,
+    [0.42, 0.3, 0.16],
+    "Zinc blende: brown-black crystals with a resinous shine, found in the veins with lead and copper.",
   ),
   // Minerals of rock, soil and craft.
   S(
@@ -514,6 +561,32 @@ export const SUBSTANCES: readonly Substance[] = [
     5,
     [0.2, 0.18, 0.17],
     "What the smelter's fire leaves of an ore that is not its metal.",
+  ),
+  S(
+    "sulphur",
+    "sulphur",
+    "S",
+    { S: 1 },
+    "mineral",
+    "solid",
+    2070,
+    115,
+    2,
+    [0.95, 0.86, 0.2],
+    "Yellow brimstone from the vents of fire-mountains: it burns blue, with a choking smoke.",
+  ),
+  S(
+    "saltpetre",
+    "saltpetre",
+    "KNO₃",
+    { K: 1, N: 1, O: 3 },
+    "mineral",
+    "solid",
+    2109,
+    334,
+    2,
+    [0.96, 0.96, 0.95],
+    "White crystals that grow where dung and earth lie long together: the fire in black powder.",
   ),
   // Fuels.
   S(
@@ -818,6 +891,84 @@ export const SUBSTANCES: readonly Substance[] = [
     [0.9, 0.88, 0.7],
     "The acid of the chemists' works.",
   ),
+  S(
+    "zinc-oxide",
+    "zinc oxide",
+    "ZnO",
+    { Zn: 1, O: 1 },
+    "made",
+    "solid",
+    5610,
+    1975,
+    4.5,
+    [0.96, 0.96, 0.94],
+    "What roasting leaves of zinc blende: a white earth.",
+  ),
+  S(
+    "black-powder",
+    "black powder",
+    "KNO₃ + C + S",
+    BLACK_POWDER,
+    "made",
+    "solid",
+    1700,
+    null,
+    null,
+    [0.16, 0.16, 0.17],
+    "Saltpetre, charcoal and sulphur ground wet together: lit, it burns all at once into hot gas and white smoke.",
+  ),
+  S(
+    "potash-bisulphate",
+    "bisulphate of potash",
+    "KHSO₄",
+    { K: 1, H: 1, S: 1, O: 4 },
+    "made",
+    "solid",
+    2245,
+    197,
+    null,
+    [0.95, 0.95, 0.93],
+    "What is left in the retort when the acid is drawn from saltpetre.",
+  ),
+  S(
+    "nitric-acid",
+    "nitric acid",
+    "HNO₃",
+    { H: 1, N: 1, O: 3 },
+    "made",
+    "liquid",
+    1510,
+    -42,
+    null,
+    [0.95, 0.93, 0.8],
+    "Aqua fortis: it eats copper and silver, and makes cotton into gun cotton.",
+  ),
+  S(
+    "nitrocellulose",
+    "gun cotton",
+    "C₆H₇(NO₂)₃O₅",
+    { C: 6, H: 7, N: 3, O: 11 },
+    "made",
+    "solid",
+    1500,
+    null,
+    null,
+    [0.94, 0.93, 0.88],
+    "Cotton steeped in nitric acid: smokeless powder, burning three times as strong as black and leaving no smoke to give a rifleman away.",
+  ),
+  S(
+    "potassium-sulphide",
+    "sulphide of potash",
+    "K₂S",
+    { K: 2, S: 1 },
+    "made",
+    "solid",
+    1740,
+    840,
+    null,
+    [0.8, 0.72, 0.5],
+    "Part of the foul white smoke a black-powder gun leaves hanging.",
+  ),
 ];
 
 export const SUBSTANCE: Readonly<Record<string, number>> = Object.fromEntries(
@@ -993,6 +1144,156 @@ export const REACTIONS: readonly Reaction[] = [
     recipe: "steel-tools",
     words:
       "Iron kept hot in charcoal takes a little carbon into itself: steel, to be quenched hard.",
+  },
+  // Later arms (Phase 53 M219): brass for cartridges, powders for their charge.
+  {
+    id: "roast-sphalerite",
+    name: "roasting zinc blende",
+    inputs: [
+      ["sphalerite", 2],
+      ["oxygen", 3],
+    ],
+    outputs: [
+      ["zinc-oxide", 2],
+      ["so2", 2],
+    ],
+    heat: 900,
+    fuel: "carbon",
+    principle: "repeating-fire",
+    recipe: null,
+    words: "Zinc blende roasted in air: its sulphur goes up as smoke and a white earth is left.",
+  },
+  {
+    id: "smelt-zinc",
+    name: "smelting zinc",
+    inputs: [
+      ["zinc-oxide", 2],
+      ["carbon", 1],
+    ],
+    outputs: [
+      ["zinc", 2],
+      ["co2", 1],
+    ],
+    heat: 1100,
+    fuel: "carbon",
+    principle: "repeating-fire",
+    recipe: null,
+    words:
+      "The white earth and charcoal shut in a retort: the zinc boils off and is caught as it cools.",
+  },
+  {
+    id: "alloy-brass",
+    name: "alloying brass",
+    inputs: [
+      ["copper", BRASS.Cu],
+      ["zinc", BRASS.Zn],
+    ],
+    outputs: [["brass", 1]],
+    heat: 950,
+    fuel: "carbon",
+    principle: "repeating-fire",
+    recipe: null,
+    words: "Copper melted and zinc stirred in under charcoal, before it can burn away.",
+  },
+  {
+    id: "mix-black-powder",
+    name: "milling black powder",
+    inputs: [
+      ["saltpetre", 0.7418],
+      ["carbon", 1.2489],
+      ["sulphur", 0.3119],
+    ],
+    outputs: [["black-powder", 1]],
+    heat: null,
+    fuel: null,
+    principle: "gunpowder",
+    recipe: null,
+    words:
+      "Saltpetre, charcoal and sulphur ground together wet, pressed into cake and broken into grains.",
+  },
+  {
+    id: "fire-black-powder",
+    name: "black powder burning",
+    inputs: [
+      ["saltpetre", 2],
+      ["sulphur", 1],
+      ["carbon", 3],
+    ],
+    outputs: [
+      ["potassium-sulphide", 1],
+      ["nitrogen", 1],
+      ["co2", 3],
+    ],
+    heat: 300,
+    fuel: null,
+    principle: "gunpowder",
+    recipe: null,
+    words:
+      "Lit in the breech, it turns in an instant to gas that drives the ball, and the white smoke hangs over the line.",
+  },
+  {
+    id: "burn-sulphur",
+    name: "burning sulphur",
+    inputs: [
+      ["sulphur", 1],
+      ["oxygen", 1],
+    ],
+    outputs: [["so2", 1]],
+    heat: 250,
+    fuel: null,
+    principle: "self-loading",
+    recipe: null,
+    words: "Brimstone burned in a draught.",
+  },
+  {
+    id: "lead-chamber",
+    name: "making oil of vitriol",
+    inputs: [
+      ["so2", 2],
+      ["oxygen", 1],
+      ["water", 2],
+    ],
+    outputs: [["vitriol", 2]],
+    heat: null,
+    fuel: null,
+    principle: "self-loading",
+    recipe: null,
+    words:
+      "Sulphur's smoke with steam and air in chambers lined with lead: the acid gathers on the floor.",
+  },
+  {
+    id: "draw-nitric-acid",
+    name: "drawing nitric acid",
+    inputs: [
+      ["saltpetre", 1],
+      ["vitriol", 1],
+    ],
+    outputs: [
+      ["nitric-acid", 1],
+      ["potash-bisulphate", 1],
+    ],
+    heat: 120,
+    fuel: "carbon",
+    principle: "self-loading",
+    recipe: null,
+    words: "Saltpetre warmed with oil of vitriol: nitric acid distils over.",
+  },
+  {
+    id: "nitrate-cellulose",
+    name: "making gun cotton",
+    inputs: [
+      ["cellulose", 1],
+      ["nitric-acid", 3],
+    ],
+    outputs: [
+      ["nitrocellulose", 1],
+      ["water", 3],
+    ],
+    heat: null,
+    fuel: null,
+    principle: "self-loading",
+    recipe: null,
+    words: "Cotton steeped in nitric acid and washed: gun cotton, the smokeless powder.",
   },
   {
     id: "char-wood",
@@ -1755,6 +2056,8 @@ export const MATERIAL_MATTER: Readonly<Record<string, readonly (readonly [string
     ["cellulose", 0.3],
     ["halite", 0.05],
   ],
+  // Parts machined at a works (Phase 53 M219): steel, cut to a fiftieth of a millimetre.
+  machined: [["steel", 1]],
 };
 
 /** What a part of each role weighs: a house's walls, roof and frame; a warrior's arm and guard; a works' hall and drive. */

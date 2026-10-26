@@ -711,6 +711,35 @@ const TREE: readonly Principle[] = [
     { crafters: 1, leaders: 0.5 },
     { arms: 1 },
   ),
+  // Later arms (Phase 53 M219): the magazine and the drawn-brass cartridge; the rifle that loads
+  // itself, on smokeless powder from acids made at scale; the gun that fires while the trigger is
+  // held; machine guns in rolled steel on an oil engine. (They count through the host's design,
+  // not its field share; at the tree's end, so what was found before is found as it was.)
+  P("repeating-fire", "the repeating rifle", ["rifling"], 0.006, { crafters: 1, leaders: 0.5 }, {}),
+  P(
+    "self-loading",
+    "the self-loading rifle",
+    ["repeating-fire", "electricity"],
+    0.005,
+    { crafters: 1, leaders: 0.5 },
+    {},
+  ),
+  P(
+    "automatic-fire",
+    "the machine gun",
+    ["self-loading"],
+    0.005,
+    { crafters: 1, leaders: 0.5 },
+    {},
+  ),
+  P(
+    "armoured-vehicles",
+    "the armoured car",
+    ["automatic-fire", "engines"],
+    0.004,
+    { crafters: 1, leaders: 0.5 },
+    {},
+  ),
 ];
 
 /**
@@ -723,6 +752,10 @@ const ASKS: Readonly<Record<string, BodyNeeds>> = {
   gunpowder: { fire: true, media: ["land", "shore"] },
   firearms: { fire: true, media: ["land", "shore"] },
   rifling: { fire: true, media: ["land", "shore"] },
+  "repeating-fire": { fire: true, media: ["land", "shore"] },
+  "self-loading": { fire: true, media: ["land", "shore"] },
+  "automatic-fire": { fire: true, media: ["land", "shore"] },
+  "armoured-vehicles": { fire: true, media: ["land", "shore"] },
   bronze: { fire: true },
   iron: { fire: true },
   steel: { fire: true },

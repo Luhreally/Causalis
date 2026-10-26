@@ -10,6 +10,9 @@ import {
   armsOf,
   designsOf,
   fieldedParts,
+  loreOf,
+  machinedFor,
+  marketsOf,
   politiesOf,
   populationContext,
   warsOf,
@@ -18,10 +21,10 @@ import {
   type War,
 } from "../../sim/index.ts";
 import { hostWords } from "../chain.ts";
-import type { Block, Item, Row } from "../../bridge/index.ts";
+import type { Block, Item, Row, Stat } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
 import { count, item, link, part, share, stat } from "./words.ts";
-import { landLink, realmLink } from "./names.ts";
+import { landLink, landTitle, realmLink } from "./names.ts";
 
 type Point = { x: number; y: number };
 
@@ -57,6 +60,25 @@ function outcome(r: Ref, w: War, prizeHeld: boolean): string {
   if (w.ended === null) return "still fought";
   const attacking = w.attacker === r;
   return attacking === prizeHeld ? "won" : "lost";
+}
+
+/**
+ * Where a realm's machined arms would be cut (Phase 53), for a realm whose seat knows the repeating
+ * fire: at the works of one of its lands, bought along a road, or nowhere its lands can reach.
+ */
+function machinedStat(world: World, r: Polity): Stat[] {
+  if (!loreOf(world).get(r.seat, "repeating-fire")) return [];
+  const source = machinedFor(populationContext(world), r);
+  if (!source)
+    return [stat("Machined", "nothing: none of its lands can cut a bolt, so it arms as it can")];
+  const works = [...r.members]
+    .sort((a, b) => a - b)
+    .find((c) => marketsOf(world).get(c)?.works === source);
+  return [
+    works !== undefined
+      ? stat("Machined", ["at ", link(landTitle(world, works, true), source)])
+      : stat("Machined", ["bought along ", link("the road", source)]),
+  ];
 }
 
 /** A realm's army: its host, the men it fields now and through the years, its wars and battles. */
@@ -126,6 +148,7 @@ export function armyBlocks(world: World, r: Polity): Block[] {
               }),
             ]
           : [stat("Armed with", "what each man has")]),
+        ...machinedStat(world, r),
         stat("Battles", `${count(won)} won, ${count(lost)} lost`),
         stat("Fallen in war", count(fallen)),
       ],

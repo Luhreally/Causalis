@@ -85,6 +85,100 @@ auto v auto attacker win share in [.25, .60], two-steps-ahead ≤ .85 and ≥ eq
 [0.5×, 2×] of the parent; largest realm's share ≤ max(parent + .10, .35); realms within ±30%; save
 sizes within gates 5/6. A/B digests equal until the first repeating-fire find.
 
+### Results (measured 2026-10-26)
+Four Earth seeds (first light, kestrel, amber, juniper), each run to 1400 and saved
+(tools/snapshot.ts), then read back. Phase 52's tree is the parent.
+
+- **The same history until the magazine.** World hashes are bit-identical to the parent's through
+  year 855 on first light; its first repeating rifle comes in 858. The oracle and the frozen
+  digests of ten battles before the magazine are unchanged.
+- **The finds, in need order on all four seeds:**
+
+  | seed | rifling | repeating | self-loading | machine gun | armoured car | orbital flight |
+  |---|---|---|---|---|---|---|
+  | first light | 812 | 858 | 896 | 955 | 998 | 972 |
+  | kestrel | 818 | 849 | 946 | 1002 | 1019 | 989 |
+  | amber | 981 | 1020 | 1124 | 1181 | 1209 | 1190 |
+  | juniper | 731 | 763 | 822 | 881 | 957 | 885 |
+
+  - The plan's windows (repeating 900–1050 …) were set on the old tree. Since Phase 52, industry
+    comes about a century sooner, and each step follows its need by 30–80 years.
+  - On every seed the machine gun comes before orbital flight is found; the armoured car comes
+    20–70 years after it.
+- **Who bears them.** Realms with a later arm at 1300:
+
+  | first light | kestrel | juniper | amber |
+  |---|---|---|---|
+  | 41% | 60% | 43% | 12% |
+
+  - Three of the four seeds meet the plan's 30%. In amber, 383 of 408 lands know the magazine by
+    1400, but only four realms reach works that make machines. Of its 42 realms, 36 have no works in
+    any land, and no machines come to them by road.
+  - Armour: on all four seeds from 1100 (first light 10–12 realms, kestrel 11–22, juniper 11–20,
+    amber 3–4).
+  - Machined by trade alone: 2–7 realms on first light.
+- **Battles 1201–1400**, pooled over the four seeds (attacker won / fought):
+
+  | battle | won | share | plan |
+  |---|---|---|---|
+  | machine guns against machine guns, no armour | 14/35 | 40% | .25–.60 |
+  | armour and machine guns on both sides | 390/573 | 68% | — |
+  | the attacker two steps ahead | 420/616 | 68% | ≤ .85 and ≥ equal arms |
+  | armour against none | 575/778 | 74% | equal arms + .05 |
+
+  - Equal rifles on the parent tree: 63–66%. Attackers mostly choose fights they can win.
+  - Fire digs a defender in. An attacker with machine guns but no armour, against repeating
+    rifles, is hardly better off than the defender. Armour breaches the line.
+- **The fallen.** Where armour fought, 1.6–3.7% of the men in the field fell. On the parent tree,
+  the rifle era's battles lost 6.6%. Fewer fall where fire lays both sides low.
+  - Worst single battle: 78% of the men in the field. Plan bound: 150%.
+  - War deaths a decade on first light, 1100–1400: 4.6, 4.4 and 4.3M, against the parent's 5.7,
+    6.9 and 5.7M (−18% to −36%; the plan allows 0.5× to 2×).
+- **Realms.** One world's history wanders far, so realm counts were read over several histories of a
+  world, not one pair. Realms living, Phase 53 against the parent, 1250–1400:
+  - kestrel −9% to +5%, amber −11% to +26%, juniper +7% to +30%.
+  - first light, four of its histories against three of the parent's:
+
+    | year | Phase 53 | parent | change |
+    |---|---|---|---|
+    | 1200 | 46 | 33 | +40% |
+    | 1250 | 48 | 37 | +30% |
+    | 1300 | 43 | 37 | +17% |
+    | 1400 | 39 | 32 | +21% |
+
+    The Phase 53 histories are three with one or both fire terms switched off, plus the real one; the
+    parent's have their battles redrawn after 858. Each world's histories spread about ±6 realms
+    around their mean. The single pair first measured had said +42% to +59%.
+  - Where the later arms are common, attackers win less often. On juniper they won 52% and 50% of
+    battles in the 1200s and 1300s, against the parent's 62%, and took about a quarter fewer lands.
+    Fire digs defenders in, so more realms hold. That is the rule working, and it is kept: only first
+    light at 1200–1250 goes beyond the plan's ±30%.
+  - Realms re-arm as often as on the parent (1–2 times a century), and no more flip back to the arms
+    they had. 7–25 a century lose their machined arms with the works or the road to them.
+  - The largest realm's share holds on every seed:
+
+    | seed | Phase 53 | parent |
+    |---|---|---|
+    | first light | 14% | 13% |
+    | kestrel | 46% | 41% |
+    | amber | 28% | 28% |
+    | juniper | 18% | 20% |
+- **Left as it was: the old loss rule.** Losses are still a share of the smaller side's armed
+  strength (Phase 37's rule). So an even fight between two well-armed realms kills many: 28–45% of
+  those fielded, among the last rifle realms after 1200. It is never more than the men in the field
+  plus those who rose with them. A rule from first principles (the dead by the foe's arms against
+  one's own protection) is planned with Phase 55's spread of the fallen (D5 there).
+- **Performance:** first light runs at 28 s a century, as on the parent.
+- **Gate 53:** in node, a taught realm's machine gun is traced to the converter, a named
+  machinist, drawn brass and gun cotton, and its armoured car to rolled steel and oil. On the app,
+  a battle of machine guns and armoured cars against rifles:
+  - the attackers in rushes, the defenders' trench, the guns' teams, the cars and their wrecks;
+  - a machine gunner followed, and their weapon traced from the battle's bar;
+  - the bar at a phone's width.
+- **Seen on the land:** a works' factory page lists the machine guns and armoured cars made there
+  for each realm armed from it. Each is traced from the ore through the converter and its named
+  machinist to the cartridge and the powder.
+
 ## Phase 54: novel elements
 
 ### Axioms

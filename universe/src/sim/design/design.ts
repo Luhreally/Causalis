@@ -98,6 +98,25 @@ export class DesignStore implements StateStore {
         best = d;
     return best;
   }
+  /**
+   * The design its owner had of the same kind before this one (Phase 53 M219: what a realm re-armed
+   * in place of), if any. (Old designs stay, so this is exact.)
+   */
+  before(ref: Ref): Design | undefined {
+    const d = this.all.get(ref);
+    if (!d) return undefined;
+    let best: Design | undefined;
+    for (const x of this.all.values())
+      if (
+        x.owner === d.owner &&
+        x.kind === d.kind &&
+        x.ref !== d.ref &&
+        (x.since < d.since || (x.since === d.since && x.ref < d.ref)) &&
+        (!best || x.since > best.since || (x.since === best.since && x.ref > best.ref))
+      )
+        best = x;
+    return best;
+  }
   /** Every design folded in as it is realized (designs never change once made). */
   private digest = "";
 
@@ -244,9 +263,46 @@ export function houseFor(ctx: PopulationContext, cell: number): Part[] {
 export const HOST_KEEP = 0.1;
 
 /**
+ * Where a realm's machined arms would come from (Phase 53 M219): a member land that knows steel and
+ * has works whose machines are made or kept there (citing its first works), else machines brought
+ * down a road into one of its lands (citing the road). Null: nothing in its reach can cut a bolt.
+ */
+export function machinedFor(ctx: PopulationContext, p: Polity): Ref | null {
+  const markets = ctx.world.store<MarketStore>("economy.markets"),
+    lands = [...p.members].sort((a, b) => a - b);
+  for (const c of lands) {
+    const m = markets.get(c);
+    if (!m?.works || !knows(ctx, c, "steel")) continue;
+    if (m.stock[G.machines]! > 0 || (m.years.at(-1)?.ledger[0]?.[G.machines] ?? 0) > 0)
+      return m.works;
+  }
+  const flow = markets.flows.find((f) => f.good === G.machines && lands.includes(f.to));
+  return flow ? (markets.route(flow.from, flow.to) ?? null) : null;
+}
+
+/**
+ * Where a realm's engines would get their oil (Phase 53 M219): a member land that holds oil, drawn
+ * there (citing its first well) or brought in (citing the road). Null: none.
+ */
+export function fuelFor(ctx: PopulationContext, p: Polity): Ref | null {
+  const markets = ctx.world.store<MarketStore>("economy.markets"),
+    lands = [...p.members].sort((a, b) => a - b);
+  for (const c of lands) {
+    const m = markets.get(c);
+    if (!m || m.stock[G.oil]! <= 0) continue;
+    if (m.well) return m.well;
+    const flow = markets.flows.find((f) => f.good === G.oil && f.to === c),
+      road = flow ? markets.route(flow.from, c) : undefined;
+    return road ?? ctx.provinces.get(c)!.ref;
+  }
+  return null;
+}
+
+/**
  * How a realm would arm its host now, and where its metals come from: only the metals its seat
  * can work this year (`metalsAt`: the craft known, the metal held), each citing its source — the
- * ore within reach, the road it came down, or the market that keeps it.
+ * ore within reach, the road it came down, or the market that keeps it. (Machined arms, Phase 53
+ * M219: only from works it can reach, and an armoured car's engine only with oil.)
  */
 export function hostFor(
   ctx: PopulationContext,
@@ -282,6 +338,10 @@ export function hostFor(
       : ["wood", "reed", "hide", "stone", "body"],
   );
   if (ctx.medium === "shore") at.add("shell");
+  const machined = seatKnows("repeating-fire") ? machinedFor(ctx, p) : null,
+    oil = machined && seatKnows("armoured-vehicles") ? fuelFor(ctx, p) : null;
+  if (machined) sources.machined = machined;
+  if (oil) sources.oil = oil;
   for (const m of Object.keys(sources) as Material[]) at.add(m);
   const doctrine: Doctrine = {
     shock: 0.6 + valour,
@@ -290,6 +350,8 @@ export function hostFor(
     protection: 0.4 + wealth,
     mobility: 0.2 + (2 * herders) / Math.max(1, people),
     cost: 0.6 - 0.5 * wealth,
+    firepower: 0.35,
+    breach: 0.3,
   };
   return {
     parts: compose(
@@ -413,7 +475,9 @@ export function designYear(ctx: PopulationContext, t: SimTime): void {
     const { parts, sources } = hostFor(ctx, realm),
       before = store.of(realm.ref);
     if (before && same(before.parts, parts)) continue;
-    const metal = parts.map((x) => sources[x.material]).find((c) => c !== undefined);
+    const metal = parts.map((x) => sources[x.material]).find((c) => c !== undefined),
+      // (And where its engines' oil comes from, Phase 53 M219.)
+      fuel = parts.some((x) => realization(x.id).with?.includes("oil")) ? sources.oil : undefined;
     const ref = mint(),
       event = world.events.emit({
         type: DESIGN_EVENTS.host.type,
@@ -426,6 +490,7 @@ export function designYear(ctx: PopulationContext, t: SimTime): void {
           ...(metal !== undefined
             ? [{ ref: metal, role: "constraint" as const, weight: 0.3 }]
             : []),
+          ...(fuel !== undefined ? [{ ref: fuel, role: "constraint" as const, weight: 0.2 }] : []),
         ],
         data: { words: designWords(parts), realm: realm.ref },
       });

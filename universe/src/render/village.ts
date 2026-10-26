@@ -7,6 +7,8 @@ import * as pc from "playcanvas";
 import { LAKE_R, type TradeGood, type VillagePlan } from "../bridge/index.ts";
 import {
   ACTIVITY,
+  ARM_LOOKS,
+  isGun,
   HAIRS,
   EYES,
   GROUP_COLORS,
@@ -132,7 +134,7 @@ export const VILLAGE_METRE = M;
 /** How many a side a village's battle draws, by the setting's detail (M202: hosts the size of a town's). */
 const SOLDIERS = [10, 18, 28, 44];
 /** A host's arms that fire (Phase 37 M188): carried as a spear is, levelled to fire. */
-const GUNS: readonly string[] = ["musket", "rifle"];
+const GUNS: readonly string[] = Object.keys(ARM_LOOKS).filter(isGun);
 const YEAR = 365 * 86_400;
 
 /** A city's quarters by use: open, houses, crowded houses, markets, workshops, the temple. */

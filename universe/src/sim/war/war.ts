@@ -298,6 +298,31 @@ function shipCraft(ctx: PopulationContext, cell: number): Ref | null {
 /** A host landing from the sea fights at this share of its strength. */
 const LANDING = 0.6;
 
+/**
+ * How fire tells in a battle (Phase 53 M219), by the firepower of each side's arms (rules/firearms.ts,
+ * 0 for the rifle and all before it): a defender digs in by `dig` for each unit of its fire beyond
+ * what the attacker's armour breaches (`breach` units of fire for each of armour); and both sides lie
+ * low under it, so that fewer fall by `disperse` for each unit of the fiercer side's fire. With equal
+ * men: rifles against rifles the attacker wins 0.40, machine guns against machine guns 0.33, armour
+ * against armour 0.36, armour against rifles 0.48.
+ */
+export const FIRE = { dig: 0.06, breach: 3, disperse: 0.12 } as const;
+
+/**
+ * A battle's fire terms (Phase 53 M219): how far its defender digs in against the attacker, and the
+ * share of the fallen that still fall. Exactly 1 and 1 where neither side's arms loose more than a
+ * rifle's.
+ */
+export function fireTerms(
+  attacker: { readonly fire: number; readonly breach: number },
+  defender: { readonly fire: number },
+): { entrench: number; disperse: number } {
+  return {
+    entrench: 1 + FIRE.dig * Math.max(0, defender.fire - FIRE.breach * attacker.breach),
+    disperse: 1 / (1 + FIRE.disperse * Math.max(attacker.fire, defender.fire)),
+  };
+}
+
 /** A land's food in store (its grain, pulses and roots): what a coveting realm wants of it. */
 function stores(ctx: PopulationContext, cell: number): number {
   const markets = ctx.world.store<MarketStore>("economy.markets");
@@ -560,6 +585,12 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       // Those who hold the land know its ground, and every village is a stronghold; at
       // its seat the whole realm stands.
       seat = land === b.seat,
+      armsA = armsOf(ctx, a),
+      armsB = armsOf(ctx, b),
+      // (Fire, Phase 53 M219: a host whose arms loose much digs in where it stands, unless armour
+      // breaches its line; and the more there is in the air, the more both sides lie low and the
+      // fewer fall. Both exactly 1 before the magazine.)
+      { entrench, disperse } = fireTerms(armsA, armsB),
       defend =
         strengthOf(ctx, b) *
         1.5 *
@@ -567,21 +598,20 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         hills *
         river *
         walls *
-        (chestB ? CREDIT.chest : 1),
+        (chestB ? CREDIT.chest : 1) *
+        entrench,
       odds = attack / Math.max(1, attack + defend),
       draw = world.rng.real(FIGHT, key, t, 0),
       won = draw < odds,
       // (Its arms tipped it where, the same day with even arms, it would have gone the other way.)
-      armsA = armsOf(ctx, a),
-      armsB = armsOf(ctx, b),
       evenA = attack / armsA.power,
-      evenB = defend / armsB.power,
+      evenB = defend / (armsB.power * entrench),
       tip = won !== draw < evenA / Math.max(1, evenA + evenB),
       tipped = tip ? designsOf(world).of((won ? a : b).ref)?.event : undefined;
     // The fallen: a share of the smaller host, more on the losing side.
     const clash = Math.min(attack, defend),
-      lostA = Math.round(clash * (won ? 0.08 : 0.18)),
-      lostB = Math.round(clash * (won ? 0.18 : 0.08)),
+      lostA = Math.round(clash * (won ? 0.08 : 0.18) * disperse),
+      lostB = Math.round(clash * (won ? 0.18 : 0.08) * disperse),
       fromA = a.members.includes(a.seat) ? a.seat : a.members[0]!,
       fa = fall(ctx, fromA, lostA, t, key * 2),
       fb = fall(ctx, land, lostB, t, key * 2 + 1);

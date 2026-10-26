@@ -24,6 +24,8 @@ import { EARTHLIKE, G, GOODS, type Part } from "../src/rules/index.ts";
 import * as sim from "../src/sim/index.ts";
 import type { Polity, PopulationContext } from "../src/sim/index.ts";
 
+/** The arms of powder and shot, worst to best (Phase 53 M219). */
+const GUNS = ["musket", "rifle", "repeater", "autoloader", "automatic"] as const;
 /** A host's or a land's metal, worst to best. */
 const TIERS = ["stone", "copper", "bronze", "iron", "steel"] as const;
 type Tier = (typeof TIERS)[number];
@@ -152,7 +154,8 @@ function main(): void {
       ? (() => {
           const doc = JSON.parse(readFileSync(fromFile, "utf8")) as SaveDocument,
             probe = build(seedFromText(doc.seed));
-          return loadWorld(doc, build, rulesetId(probe, "fork"), { allowRulesetChange: true }).world;
+          return loadWorld(doc, build, rulesetId(probe, "fork"), { allowRulesetChange: true })
+            .world;
         })()
       : null,
     start = forked ? Math.round(forked.now / YEAR) : 0;
@@ -255,6 +258,30 @@ function main(): void {
       console.log(`    ${m.name}: seat cell ${m.seat}, tools ${m.tool}, host ${m.host}`);
     console.log(`  arms share: ${armsLine(world, ctx, living)}`);
 
+    // Later arms (Phase 53 M219), where the tree has them: the living realms by their firearm,
+    // their armoured hosts, and those whose machined arms come only down a road.
+    const machinedFor = field(sim, "machinedFor") as
+      ((c: PopulationContext, p: Polity) => string | null) | undefined;
+    if (machinedFor) {
+      const guns = new Map<string, number>();
+      let armoured = 0,
+        traded = 0;
+      for (const r of living) {
+        const d = designs.of(r.ref);
+        if (!d) continue;
+        const arm = d.parts.find((p) => p.role === "arm")?.id ?? "";
+        if ((GUNS as readonly string[]).includes(arm)) bump(guns, arm);
+        if (d.parts.some((p) => p.id === "armoured")) armoured++;
+        if (d.parts.some((p) => p.material === "machined")) {
+          const source = machinedFor(ctx, r);
+          if (source && !r.members.some((c) => markets.get(c)?.works === source)) traded++;
+        }
+      }
+      console.log(
+        `  firearms: ${tally(guns, GUNS)}; armoured ${armoured}; machined by trade alone ${traded}`,
+      );
+    }
+
     // The battles fought since the last report, and the war deaths in them.
     const battles = wars.all().flatMap((w) => w.battles),
       fought = battles.filter((b) => b.year > from && b.year <= to),
@@ -277,6 +304,44 @@ function main(): void {
     console.log(
       `  war deaths ${fallen} in ${decades} decades: ${(fallen / decades).toFixed(1)} per decade`,
     );
+    // The attacker's share of battles won, by the two sides' firearms (where either bore a gun
+    // that looses more than a rifle), and the fallen against those fielded.
+    const kind = (ref: unknown) => {
+      const d = typeof ref === "string" ? designs.get(ref as never) : undefined,
+        arm = d?.parts.find((p) => p.role === "arm")?.id ?? "";
+      return {
+        gun: (GUNS as readonly string[]).indexOf(arm),
+        armour: !!d?.parts.some((p) => p.id === "armoured"),
+      };
+    };
+    const won = new Map<string, [number, number]>(),
+      count = (key: string, w: boolean) => {
+        const x = won.get(key) ?? [0, 0];
+        won.set(key, [x[0] + (w ? 1 : 0), x[1] + 1]);
+      };
+    let fell = 0,
+      fieldedMen = 0;
+    for (const b of fought) {
+      const ds = field(b, "designs") as [unknown, unknown] | undefined;
+      if (!ds) continue;
+      const a = kind(ds[0]),
+        d = kind(ds[1]);
+      if (Math.max(a.gun, d.gun) < 2) continue;
+      const fielded = field(b, "fielded") as [number, number] | undefined;
+      if (fielded) {
+        fell += b.fallen[0] + b.fallen[1];
+        fieldedMen += fielded[0] + fielded[1];
+      }
+      count("all later", b.won);
+      if (a.gun === d.gun && a.armour === d.armour)
+        count(`${GUNS[a.gun] ?? "none"}${a.armour ? "+armour" : ""} v the same`, b.won);
+      if (a.gun >= d.gun + 2) count("two steps ahead", b.won);
+      if (a.armour && !d.armour) count("armour v none", b.won);
+    }
+    if (won.size)
+      console.log(
+        `  later-arms battles (attacker won / fought): ${[...won.entries()].map(([k, [w, n]]) => `${k} ${w}/${n} (${((100 * w) / n).toFixed(0)}%)`).join("; ")}; fallen ${fell} of ${fieldedMen} fielded`,
+      );
   };
 
   let from = start;

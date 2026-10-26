@@ -14,6 +14,12 @@ aggregate engagement, and the shadow plays out a fight consistent with it" (univ
 - **D2 spread the fallen (M223b):** the dead come from every land that sent men, not only the
   attacker's seat (war.ts:567) — calibrated (realm populations ±2%, battles per century ±5%).
 - **D3 accidents:** wounds only from battles and strikes for now; a recorded mishaps ledger later.
+- **D5 the fallen by arms (with M223b, added 2026-10-26 from Phase 53's results):** a battle's dead
+  from the men engaged, the foe's arms against one's own protection — not, as since Phase 37, a share
+  of the smaller side's armed strength, under which an even fight between well-armed realms kills
+  28–45% of those fielded and better arms cost a host more of its own men. Calibrated with D2: war
+  deaths a decade within ±35% of the parent by century, fallen/fielded falling from the bronze age
+  to the machine gun, no battle's dead above its men in the field and those who rose with them.
 - **D4 year label:** year B's battle (fought at the turn T = (B+1)·YEAR) is watched the next morning
   (year B+1, day 1, 08:00); pages say "year B", captions "the battle at the turn of year B".
 

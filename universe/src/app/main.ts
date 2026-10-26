@@ -336,6 +336,8 @@ type Exposed = {
   villages?: () => number;
   /** Down to a battle's field to watch it fought (Phase 37 M186): whether it is watched. */
   watchBattle?: (event: string) => Promise<boolean>;
+  /** Down to a battle's field from the words it is given, not asked of the host: whether it is watched. */
+  watchBattleNear?: (near: BattleNear) => Promise<boolean>;
   /** The battle watched: its moment and speed, its hosts as drawn and as history counts them, what is told, those seen. */
   battle?: () => {
     event: string;
@@ -352,8 +354,22 @@ type Exposed = {
     arrows: number;
     parts: number;
     followed: string | null;
-    onScreen: { id: number; side: number; act: string; at: { x: number; y: number } | null }[];
+    /** Those seen, where on the screen (a machine gun's team: `gun`). */
+    onScreen: {
+      id: number;
+      side: number;
+      act: string;
+      gun?: true;
+      at: { x: number; y: number } | null;
+    }[];
     world: boolean;
+    /** The armoured cars, those knocked out, those prone, the machine guns' teams, a trench, the weapon button. */
+    cars: number;
+    wrecks: number;
+    prone: number;
+    guns: number;
+    trench: boolean;
+    weapon: boolean;
   } | null;
   /** The battle watched set to a moment (its seconds), at one of its speeds (an index). */
   battleAt?: (s: number, speed?: number) => void;
@@ -4690,8 +4706,10 @@ async function runPlanetPage(): Promise<void> {
       return true;
     },
   };
-  const toBattle = async (event: string): Promise<void> => {
-    const info = await client.query<BattleNear | null>({ type: "battle.near", args: { event } });
+  // (Given its words, a battle is watched from them; else they are asked of the host.)
+  const toBattle = async (event: string, given?: BattleNear): Promise<void> => {
+    const info =
+      given ?? (await client.query<BattleNear | null>({ type: "battle.near", args: { event } }));
     if (!info) return;
     leaveScale();
     scale = "battle";
@@ -4818,6 +4836,13 @@ async function runPlanetPage(): Promise<void> {
     fight.now = battleAt(fight.field, fight.s);
   };
   battlePanel.onSide = (ref) => void pageWindow.open(ref);
+  // Their weapon traced: the page of what they fought with, from the ground to their hand.
+  battlePanel.onWeapon = () => {
+    if (fight && fight.followed >= 0) {
+      const t = fight.field.troopers[fight.followed];
+      if (t) void pageWindow.open(`arm:${fight.info.event}:${t.side}:${t.id}`);
+    }
+  };
   // A tap on the field: one who fought followed (tapped again, the battle's page); the open
   // ground, the hosts again.
   const tapBattle = (x: number, y: number) => {
@@ -4889,14 +4914,26 @@ async function runPlanetPage(): Promise<void> {
     const wall = performance.now();
     if (fight.followed >= 0 && wall - fight.toldAt >= 250) {
       fight.toldAt = wall;
-      battlePanel.follow(trooperWords(fight.field, fight.followed, fight.s));
+      battlePanel.follow(
+        trooperWords(fight.field, fight.followed, fight.s),
+        fight.now.troopers[fight.followed]?.side ?? null,
+      );
     } else if (fight.followed < 0 && fight.toldAt !== -Infinity) {
       fight.toldAt = -Infinity;
-      battlePanel.follow("");
+      battlePanel.follow("", null);
     }
   });
   exposed.watchBattle = async (event: string) => {
     await watchBattle(event);
+    return scale === "battle";
+  };
+  // Down to a battle's field from the words it is given (its near words, already in hand).
+  exposed.watchBattleNear = async (near: BattleNear) => {
+    walk.saw("scale");
+    pageWindow.close();
+    warReturn = null;
+    battlePanel.backTo("‹ The land");
+    await fadeOver(() => ready("the battle", () => toBattle(near.event, near)));
     return scale === "battle";
   };
   exposed.battle = () =>
@@ -4919,8 +4956,20 @@ async function runPlanetPage(): Promise<void> {
           onScreen: fight.now.troopers
             .filter((t) => t.size > 0.3)
             .slice(0, 400)
-            .map((t) => ({ id: t.id, side: t.side, act: t.act, at: battleLayer!.onScreen(t) })),
+            .map((t) => ({
+              id: t.id,
+              side: t.side,
+              act: t.act,
+              ...(t.gun ? { gun: true } : {}),
+              at: battleLayer!.onScreen(t),
+            })),
           world: time.stopped,
+          cars: fight.now.vehicles?.length ?? 0,
+          wrecks: fight.now.vehicles?.filter((v) => v.knocked > 0.5).length ?? 0,
+          prone: fight.now.troopers.filter((t) => t.act === "prone").length,
+          guns: fight.now.troopers.filter((t) => t.gun).length,
+          trench: !!fight.field.ground.trench,
+          weapon: battlePanel.weaponShown,
         }
       : null;
   exposed.battleAt = (s: number, speed?: number) => {
@@ -5842,7 +5891,7 @@ async function runPlanetPage(): Promise<void> {
       battleLayer?.clear();
       if (battleLayer) battleLayer.root.enabled = false;
       battlePanel.visible = false;
-      battlePanel.follow("");
+      battlePanel.follow("", null);
       labels.clear();
       rig.follow = null;
       fight = null;

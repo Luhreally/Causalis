@@ -198,10 +198,10 @@ if (greatest) {
       "the one tapped followed",
       async () =>
         !!(await seen(page))?.followed &&
-        !!(await page.locator(".battle-followed").textContent())?.trim(),
+        !!(await page.locator(".battle-followed-words").textContent())?.trim(),
       slow(8000),
     );
-    const told = await page.locator(".battle-followed").textContent();
+    const told = await page.locator(".battle-followed-words").textContent();
     say(`followed: ${told}`);
     check(/^👁 .+ of .+, in the \w+ rank/.test(told ?? ""), `the one followed told (${told})`);
   }

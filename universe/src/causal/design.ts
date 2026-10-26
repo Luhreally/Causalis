@@ -2,7 +2,7 @@
 // houses and how a realm arms its host — and why: the principles that made it
 // possible, and the land that gave what it is made of (its climate, its ore).
 import { yearOfMoment, type CauseRef } from "../kernel/index.ts";
-import { designWords } from "../rules/index.ts";
+import { designWords, partWords } from "../rules/index.ts";
 import { DESIGN, DESIGN_EVENTS, designsOf, politiesOf, realmName } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { edges, registerEventWords, registerExplainer } from "./why.ts";
@@ -42,8 +42,15 @@ registerEventWords(
     `In ${landWords(world, e.place)} the crafts came to be done in ${words(e.data)}, year ${yearOfMoment(e.t)}`,
 );
 registerEventWords(DESIGN_EVENTS.host.type, (world, e) => {
-  const realm = politiesOf(world).get(e.subjects[1]!);
-  return `${cap(realm ? realmName(realm) : "a realm")} armed its host with ${words(e.data)}, year ${yearOfMoment(e.t)}`;
+  const realm = politiesOf(world).get(e.subjects[1]!),
+    // (What it re-armed in place of, Phase 53 M219: the first part of the old design it gave up.)
+    designs = designsOf(world),
+    d = designs.get(e.subjects[0]!),
+    was = d ? designs.before(d.ref) : undefined,
+    gone = was?.parts.find(
+      (p) => !d!.parts.some((q) => q.id === p.id && q.material === p.material),
+    );
+  return `${cap(realm ? realmName(realm) : "a realm")} ${was ? "re-armed" : "armed"} its host with ${words(e.data)}${gone ? ` in place of ${partWords(gone)}` : ""}, year ${yearOfMoment(e.t)}`;
 });
 
 function cap(s: string): string {

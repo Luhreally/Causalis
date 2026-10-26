@@ -35,7 +35,9 @@ import {
   coatColour,
   coatWord,
   designWords,
+  firearm,
   gradeOf,
+  machined,
   partWords,
   qualityOf,
   type Edge,
@@ -48,8 +50,10 @@ import {
 import {
   cultureOf,
   designsOf,
+  fuelFor,
   homePlanet,
   loreOf,
+  machinedFor,
   marketGoodRef,
   marketsOf,
   oreWithin,
@@ -849,6 +853,103 @@ export function machinedMade(
 }
 
 /**
+ * A machined part of a realm's host (Phase 53): its steel turned and cut at the works its machines
+ * came from — a member land's own works, else the works at the far end of the road the machines came
+ * down (else the seat's). For an arm, its barrel and bolt, its cartridge and charge; for an armoured
+ * car, its rolled hull and the oil its engine burns. Null where nothing is machined for the realm.
+ */
+export function machinedArmsMade(
+  world: World,
+  realm: string,
+  part: Part,
+  year: number,
+): Made | null {
+  const ctx = populationContext(world),
+    p = politiesOf(world).get(realm as Ref);
+  if (!p) return null;
+  const markets = marketsOf(world),
+    lands = [...p.members].sort((a, b) => a - b),
+    // (Its machines are a member land's works, named by the event that made them; else they came
+    // down a road, the flow that brought them in.)
+    source = machinedFor(ctx, p),
+    own = source ? lands.find((c) => markets.get(c)?.works === source) : undefined,
+    flow =
+      source && own === undefined
+        ? markets.flows.find((f) => f.good === G.machines && lands.includes(f.to))
+        : undefined,
+    base = own ?? flow?.from ?? p.seat,
+    made = machinedMade(
+      world,
+      base,
+      `${realm}:${part.role}`,
+      year,
+      makingTown(world, base)?.ref ?? "",
+      0,
+    ),
+    works: Span = made.workshop.ref
+      ? link(made.workshop.name, made.workshop.ref)
+      : made.workshop.name,
+    chain: Line[] = [...made.chain],
+    gun = firearm(part.id);
+  if (gun && machined(gun)) {
+    const tolerance = gun.tolerance === 0.05 ? "a twentieth" : "a fiftieth";
+    chain.push([
+      "Its barrel bored and rifled, its bolt cut true to ",
+      tolerance,
+      " of a millimetre at the machines of ",
+      works,
+    ]);
+    if (gun.cartridge !== "paper")
+      chain.push([
+        link("Cartridges of drawn brass", rxnRef("alloy-brass")),
+        ": copper with three tenths of ",
+        link("zinc", rxnRef("smelt-zinc")),
+        " smelted from zinc blende",
+        ...(gun.cartridge === "belted brass" ? [", fed in belts of a hundred"] : []),
+      ]);
+    chain.push(
+      gun.powder === "black"
+        ? [
+            "Charged with ",
+            link("black powder", rxnRef("mix-black-powder")),
+            ": saltpetre, charcoal and sulphur",
+          ]
+        : [
+            "Charged with ",
+            link("gun cotton", rxnRef("nitrate-cellulose")),
+            ", the smokeless powder: cotton steeped in ",
+            link("nitric acid", rxnRef("draw-nitric-acid")),
+            " drawn from saltpetre",
+          ],
+    );
+  }
+  if (part.id === "armoured") {
+    // (The oil drawn in a member land's well, else brought down a road, else kept in store.)
+    const oil = fuelFor(ctx, p),
+      well = oil ? lands.find((c) => markets.get(c)?.well === oil) : undefined,
+      where: Line =
+        well !== undefined
+          ? [" drawn in ", landLink(world, well)]
+          : oil && !lands.some((c) => ctx.provinces.get(c)?.ref === oil)
+            ? [" brought down the road"]
+            : [];
+    chain.push(
+      ["Its hull of rolled steel plate, riveted at ", works],
+      ["Driven by an engine ", link("burning oil", rxnRef("burn-oil")), ...where],
+      ["Its machine guns turned behind armour"],
+    );
+  }
+  if (source && own === undefined && flow)
+    chain.push([
+      "Bought from the works of ",
+      landLink(world, flow.from),
+      ", ",
+      link("brought down the road", source),
+    ]);
+  return { ...made, stuff: "machined steel", chain };
+}
+
+/**
  * A pot: the clay of its land's banks, thrown and fired at its town's kiln (or at home). `at`: made
  * by the potter of that seat at the town's kiln, and (`drying`) set on the boards by it today to
  * dry before its firing — a pot tapped there (Phase 51 M214).
@@ -1026,7 +1127,8 @@ export function hostPartWords(world: World, realm: string, part: Part): string {
 /**
  * What one of a realm's host's parts is made of and where from (by the design's own rule, Phase 52
  * M216: the metals its seat holds — its own ore within reach, else down the roads), worked at its
- * seat town's smithy; null for a part of no worked stuff (a body's own, on foot).
+ * seat town's smithy; a machined part (Phase 53) at the works its machines came from; null for a
+ * part of no worked stuff (a body's own, on foot).
  */
 export function armsMade(world: World, realm: string, part: Part, year: number): Made | null {
   const ctx = populationContext(world),
@@ -1061,6 +1163,7 @@ export function armsMade(world: World, realm: string, part: Part, year: number):
       ],
     };
   }
+  if (part.material === "machined") return machinedArmsMade(world, realm, part, year);
   if (!(part.material in METALS)) return null;
   // Each metal it is worked from, as its seat's smiths have it: their land's ore within reach,
   // else down the roads from the land that smelted it.
@@ -1149,8 +1252,9 @@ function unforged(world: World, cell: number, arming: boolean): Line {
 }
 
 /**
- * The arms forged at a town's building this year for a realm's host: each realm seated in its
- * land whose host's metal parts are made there, each part traced from the ground.
+ * The arms made at a town's building this year for a realm's host: forged for each realm seated in
+ * its land whose host's metal parts are made there, and machined at its works for each realm whose
+ * machines come from them, seated wherever it is (Phase 53); each part traced from the ground.
  */
 function armsForged(
   world: World,
@@ -1158,15 +1262,24 @@ function armsForged(
   building: string,
   year: number,
 ): Block[] {
-  const blocks: Block[] = [];
+  const blocks: Block[] = [],
+    ctx = populationContext(world),
+    works = marketsOf(world).get(town.cell)?.works ?? null;
   for (const p of politiesOf(world).all()) {
-    if (p.ended !== null || makingTown(world, p.seat)?.ref !== town.ref) continue;
+    if (p.ended !== null) continue;
+    const seated = makingTown(world, p.seat)?.ref === town.ref,
+      machinedHere = works !== null && machinedFor(ctx, p) === works;
+    if (!seated && !machinedHere) continue;
     for (const part of designsOf(world).of(p.ref)?.parts ?? []) {
-      const made = part.material in METALS ? armsMade(world, p.ref, part, year) : null;
+      const machined = part.material === "machined",
+        made = (machined ? machinedHere : seated && part.material in METALS)
+          ? armsMade(world, p.ref, part, year)
+          : null;
       if (made?.workshop.ref !== building) continue;
       blocks.push({
         type: "list",
-        title: `Forged here this year for a realm's host: ${hostPartWords(world, p.ref, part)}, ${made.grade}`,
+        // (A mount's words read "with armoured cars": as a thing made, the cars.)
+        title: `${machined ? "Made at the works" : "Forged here"} this year for a realm's host: ${hostPartWords(world, p.ref, part).replace(/^with /, "")}, ${made.grade}`,
         items: [
           item(["For the host of ", realmLink(world, p.ref)]),
           ...made.chain.map((l) => item(l)),

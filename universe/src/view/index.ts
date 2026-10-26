@@ -256,7 +256,10 @@ export {
   type Stroke,
   type Trooper,
   type TrooperNow,
+  type Vehicle,
+  type VehicleNow,
 } from "./battle.ts";
+export { ARM_LOOKS, DEFAULT_LOOK, armLook, isGun, type ArmLook } from "./arms.ts";
 export {
   WAR_AGE_YEARS_A_SECOND,
   WAR_SPEEDS,
@@ -351,6 +354,7 @@ export {
   BATTLE_ROUND,
   MARCH,
   RANK_STEP,
+  armoured,
   battleFigures,
   battleFront,
   battleOf,

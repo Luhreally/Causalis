@@ -42,6 +42,7 @@ import { sicknessPage } from "./sickness.ts";
 import { housePage } from "./credit.ts";
 import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
 import { campPage } from "./camp.ts";
+import { armPage } from "./arm.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
 function build(world: World, ref: string, tab: string | null): PageModel {
@@ -64,6 +65,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("thing:")) return thingPage(world, ref);
   // A tool hung on a smithy's rack, tapped there (Phase 51 M213).
   if (ref.startsWith("made:")) return madePage(world, ref);
+  // A trooper's arm in a battle (Phase 53): what its host bore that day, traced from the ground.
+  if (ref.startsWith("arm:")) return armPage(world, ref);
   if (ref.startsWith("gstar:")) return starPageModel(world, ref);
   if (ref.includes("/")) return foreignWorldPage(world, ref);
   if (ref.startsWith("agent:")) return agentPage(world, ref);

@@ -339,6 +339,14 @@ jobs:
       - run: npm run gate:52 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # Phase 53 (later-age arms: a machine gun traced from the ground to the converter and its
+      # machinist, its brass and gun cotton, and an armoured car on its oil; a battle of machine
+      # guns and armoured cars against repeating rifles watched near, the attackers coming on in
+      # rushes, the defenders in their trench, cars knocked out burning, a machine gunner followed
+      # and their weapon traced from the battle's bar; the bar at a phone's width).
+      - run: npm run gate:53 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

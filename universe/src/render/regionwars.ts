@@ -1,21 +1,22 @@
 // Wars in a land (Phase 10 M95, Phase 12 M110): the globe's hosts seen closer. Each host a
 // column in ranks under its realm's banners, as many as the men it fields, and each of them as
-// its host's design has it — on foot, on horseback or in chariots; with spears, swords, axes or
-// bows; shields on their arms in their side's colour — marching in from the map's edge to what
-// it wants, or out from its land toward the front, and over the sea in ships under its colours,
-// as the globe shows it; the defenders in a block at what they hold; each battle fought here
-// lately (as the globe shows it), its two hosts in lines face to face, crossed blades over a
-// flare that pulses, the larger the more fell; a seat under siege ringed by its besiegers'
-// tents behind a palisade, their fires burning; and by the seat of a realm at peace, its
-// garrison under its banner. Instanced. Since Phase 40 (M203) each war's hosts are where its year
-// has them on the world's clock (view/warplay.ts): mustering, marching by the roads, drawn up,
-// engaged at the year's turn, routed, entering a land taken, camped about a seat and storming it,
-// going home; a land's battles' fallen lie on their fields.
+// its host's design has it — on foot, on horseback, in chariots, or with armoured cars among
+// them (Phase 53); with spears, swords, axes or bows; shields on their arms in their side's
+// colour — marching in from the map's edge to what it wants, or out from its land toward the
+// front, and over the sea in ships under its colours, as the globe shows it; the defenders in a
+// block at what they hold; each battle fought here lately (as the globe shows it), its two hosts
+// in lines face to face, crossed blades over a flare that pulses, the larger the more fell; a seat
+// under siege ringed by its besiegers' tents behind a palisade, their fires burning; and by the
+// seat of a realm at peace, its garrison under its banner. Instanced. Since Phase 40 (M203) each
+// war's hosts are where its year has them on the world's clock (view/warplay.ts): mustering,
+// marching by the roads, drawn up, engaged at the year's turn, routed, entering a land taken,
+// camped about a seat and storming it, going home; a land's battles' fallen lie on their fields.
 import * as pc from "playcanvas";
 import type { HostKinds, WarsMap } from "../bridge/index.ts";
 import {
   DOING_ICON,
   counterWords,
+  isGun,
   landBattle,
   landInPlace,
   type LandPlay,
@@ -28,9 +29,13 @@ import type { Rgb, Stage } from "./stage.ts";
 /** The most figures of one side drawn at once, the most ships of all sides, and the most of one kind of gear. */
 const MOST = 240,
   MOST_SHIPS = 96,
-  MOST_GEAR = 720;
+  MOST_GEAR = 720,
+  /** The most armoured cars drawn at once: a car's pieces fit the gear's batches (Phase 53). */
+  MOST_CARS = MOST_GEAR / 4;
 /** A head's colour where the people have no look of their own (Earth's upright apes). */
 const SKIN: Rgb = [0.9, 0.72, 0.56];
+/** A car's gun and wheels. */
+const DARK: Rgb = [0.07, 0.07, 0.07];
 
 type Flat = { readonly x: number; readonly z: number };
 
@@ -54,8 +59,11 @@ type Mark = {
   fight?: boolean;
 };
 
-/** How one is carried to war, what they strike with, and whether they bear a shield. */
-type Kit = { ride: "foot" | "horse" | "chariot"; arm: string; shield: boolean };
+/**
+ * How one is carried to war, what they strike with, and whether they bear a shield. An armoured
+ * host's men go on foot; its cars come among them.
+ */
+type Kit = { ride: "foot" | "horse" | "chariot" | "armoured"; arm: string; shield: boolean };
 
 /** A figure: where it stands, which way it faces (yaw), how tall it is drawn (0 … 1: grown in), its kit. */
 type Figure = {
@@ -68,6 +76,8 @@ type Figure = {
   kit: Kit;
   /** Fallen in a battle: laid on the ground, its mount and arms gone from it. */
   fallen?: boolean;
+  /** An armoured car, drawn in place of its man (Phase 53). Left out for the others. */
+  car?: true;
 };
 
 /** A host's design as the figures of its column carry it (on foot with spears, where it has none). */
@@ -75,7 +85,13 @@ function kitOf(host: HostKinds | null | undefined): Kit {
   const mount = host?.mount ?? "foot";
   return {
     ride:
-      mount === "chariot" ? "chariot" : mount === "horse" || mount === "cavalry" ? "horse" : "foot",
+      mount === "chariot"
+        ? "chariot"
+        : mount === "horse" || mount === "cavalry"
+          ? "horse"
+          : mount === "armoured"
+            ? "armoured"
+            : "foot",
     arm: host?.arm ?? "spear",
     shield: host?.guard === "shield",
   };
@@ -114,6 +130,14 @@ export class RegionWars {
   /** A camp's palisade and its fires. */
   private readonly stakes: InstancedBatch;
   private readonly fires: InstancedBatch;
+  /**
+   * The armoured cars: each side's hulls, upper decks and turrets (in set()); the wrecks' charred
+   * pieces; the guns and wheels.
+   */
+  private carBodies: InstancedBatch[] = [];
+  private readonly carWrecks: InstancedBatch;
+  private readonly carGuns: InstancedBatch;
+  private readonly carWheels: InstancedBatch;
   /** The shields to draw with the banners (their colours share the banners' batches). */
   private shields: Figure[] = [];
   /**
@@ -128,6 +152,7 @@ export class RegionWars {
   counts = {
     riders: 0,
     chariots: 0,
+    cars: 0,
     spears: 0,
     guns: 0,
     bows: 0,
@@ -189,6 +214,9 @@ export class RegionWars {
     this.bows = make([0.38, 0.24, 0.1], MOST_GEAR);
     this.stakes = make([0.4, 0.28, 0.16], 256);
     this.fires = make([1, 0.52, 0.12], 32);
+    this.carWrecks = make([0.12, 0.11, 0.1], MOST_CARS * 3);
+    this.carGuns = make(DARK, MOST_CARS);
+    this.carWheels = make(DARK, MOST_CARS * 4);
     stage.root.addChild(this.root);
     this.root.enabled = false;
   }
@@ -216,7 +244,7 @@ export class RegionWars {
     // (The same colours as before: the same batches, not made anew each year.)
     if (key === this.colorKey) return;
     this.colorKey = key;
-    for (const b of [...this.sides, ...this.flags, ...this.tents]) b.destroy();
+    for (const b of [...this.sides, ...this.flags, ...this.tents, ...this.carBodies]) b.destroy();
     this.sides = colors.map((c) => new InstancedBatch(this.stage, this.box, c, MOST, this.root));
     // (Banners and shields a little brighter than their bearers.)
     this.flags = colors.map(
@@ -235,6 +263,17 @@ export class RegionWars {
         ),
     );
     this.tents = colors.map((c) => new InstancedBatch(this.stage, this.tent, c, 96, this.root));
+    // (A car's hull, upper deck and turret: its side's colour mixed half with drab olive.)
+    this.carBodies = colors.map(
+      (c) =>
+        new InstancedBatch(
+          this.stage,
+          this.box,
+          [(c[0] + 0.33) / 2, (c[1] + 0.36) / 2, (c[2] + 0.26) / 2],
+          MOST_CARS * 3,
+          this.root,
+        ),
+    );
   }
 
   /**
@@ -260,13 +299,19 @@ export class RegionWars {
     // Each war's hosts where its year has them: in column, drawn up, on the walls; over the sea in
     // ships (one for every four of a column afloat).
     let afloat = 0;
+    // (Each host's men counted as they are made: in an armoured host every sixth is a car.)
+    const counted = new Map<string, number>();
     for (const f of now?.figures ?? []) {
       const w = wars[f.war]!,
-        kit = kitOf(f.side === 0 ? w.attacker.host : w.defender.host);
+        kit = kitOf(f.side === 0 ? w.attacker.host : w.defender.host),
+        host = `${f.war}:${f.side}`,
+        k = counted.get(host) ?? 0;
+      counted.set(host, k + 1);
       if (f.afloat && !f.fallen) {
         if (afloat++ % 4 === 0) ships.push({ at: f, yaw: f.yaw, side: f.color, size: f.size });
         continue;
       }
+      const car = kit.ride === "armoured" && k % 6 === 3;
       figures.push({
         x: f.x,
         z: f.z,
@@ -275,9 +320,11 @@ export class RegionWars {
         lead: f.lead,
         side: f.color,
         kit,
+        ...(car ? { car: true as const } : {}),
         ...(f.fallen ? { fallen: true } : {}),
       });
-      if (f.banner && !f.fallen) banners.push({ at: f, yaw: f.yaw, side: f.color, size: f.size });
+      if (f.banner && !f.fallen && !car)
+        banners.push({ at: f, yaw: f.yaw, side: f.color, size: f.size });
     }
     for (const m of now?.marks ?? []) {
       const w = wars[m.war]!;
@@ -309,7 +356,11 @@ export class RegionWars {
         fresh = b.age === 0 ? 1 : b.age === 1 ? 0.7 : 0.45,
         each = Math.max(6, Math.min(18, Math.round(6 + 12 * b.size * fresh))),
         kits = [kitOf(b.hosts.attacker), kitOf(b.hosts.defender)] as const;
+      // (Each side's soldiers counted as they are made: in an armoured host every sixth is a car.)
+      const soldiers = [0, 0];
       for (const f of landBattle({ ...b, at, age: Math.max(1, b.age) }, each, s)) {
+        const k = soldiers[f.side]!;
+        soldiers[f.side] = k + 1;
         if (f.doing !== "fallen" && now) continue;
         figures.push({
           x: f.x,
@@ -320,6 +371,7 @@ export class RegionWars {
           side: f.side === 0 ? b.side : b.foe,
           kit: kits[f.side],
           fallen: f.doing === "fallen",
+          ...(kits[f.side].ride === "armoured" && k % 6 === 3 ? { car: true as const } : {}),
         });
         fought++;
         if (f.doing === "fallen") fell++;
@@ -390,6 +442,7 @@ export class RegionWars {
           lead: k === Math.floor(files / 2),
           side: g.side,
           kit,
+          ...(kit.ride === "armoured" && k % 6 === 3 ? { car: true as const } : {}),
         });
         garrisoned++;
       }
@@ -461,8 +514,14 @@ export class RegionWars {
 
   /** Every figure: its body in its side's colour and its head, its mount, its arms. */
   private drawFigures(figures: Figure[], s: number): void {
-    const bySide = new Map<number, Figure[]>();
+    const bySide = new Map<number, Figure[]>(),
+      vehicles: Figure[] = [];
     for (const f of figures) {
+      // (A car is drawn in place of its man, with its own batches below.)
+      if (f.car) {
+        if (vehicles.length < MOST_CARS) vehicles.push(f);
+        continue;
+      }
       let list = bySide.get(f.side);
       if (!list) bySide.set(f.side, (list = []));
       if (list.length < MOST) list.push(f);
@@ -523,7 +582,7 @@ export class RegionWars {
     // (The fallen have lost their mounts and let fall their arms.)
     const standing = shown.filter((f) => !f.fallen);
     // Horses under the riders, and before the chariots; the chariots' carts behind them.
-    const mounted = standing.filter((f) => f.kit.ride !== "foot"),
+    const mounted = standing.filter((f) => f.kit.ride === "horse" || f.kit.ride === "chariot"),
       horseAt = (f: Figure): Flat => (f.kit.ride === "chariot" ? beside(f, 0, 0.95 * f.size) : f);
     this.horses.set(mounted.length, (i, out) => {
       const f = mounted[i]!,
@@ -575,9 +634,57 @@ export class RegionWars {
       out[5] = 0.56 * f.size;
       out[6] = f.yaw;
     });
+    // The armoured cars, in place of their men: a hull, an upper deck and a turret in their side's
+    // colour (a wreck's charred, its turret askew), a gun out of the turret's front (standing), four
+    // wheels at the corners.
+    const standingCars = vehicles.filter((f) => !f.fallen),
+      wrecks = vehicles.filter((f) => f.fallen),
+      // A piece of a car: `right` of its middle, `up` off the ground and `ahead` of it, its size
+      // (as the car's), and how far it is turned beyond the car's own yaw.
+      piece = (
+        f: Figure,
+        out: number[],
+        [right, up, ahead]: readonly [number, number, number],
+        [sx, sy, sz]: readonly [number, number, number],
+        turn = 0,
+      ) => {
+        const p = beside(f, right * f.size, ahead * f.size);
+        out[0] = p.x;
+        out[1] = ground(f) + up * f.size;
+        out[2] = p.z;
+        out[3] = sx * f.size;
+        out[4] = sy * f.size;
+        out[5] = sz * f.size;
+        out[6] = f.yaw + turn;
+      },
+      // A car's body in three pieces: its hull (0), its upper deck (1), its turret (2).
+      body = (f: Figure, out: number[], part: number, turn = 0) => {
+        if (part === 0) piece(f, out, [0, 0.225, 0], [0.75, 0.45, 1.6]);
+        else if (part === 1) piece(f, out, [0, 0.55, 0], [0.6, 0.2, 1]);
+        else piece(f, out, [0, 0.8, 0], [0.55, 0.3, 0.55], turn);
+      };
+    this.carBodies.forEach((batch, side) => {
+      const mine = standingCars.filter((f) => f.side === side);
+      batch.set(mine.length * 3, (i, out) => body(mine[Math.floor(i / 3)]!, out, i % 3));
+    });
+    this.carWrecks.set(wrecks.length * 3, (i, out) =>
+      body(wrecks[Math.floor(i / 3)]!, out, i % 3, 0.6),
+    );
+    this.carGuns.set(standingCars.length, (i, out) =>
+      piece(standingCars[i]!, out, [0, 0.8, 0.575], [0.06, 0.06, 0.6]),
+    );
+    this.carWheels.set(vehicles.length * 4, (i, out) => {
+      const k = i % 4;
+      piece(
+        vehicles[Math.floor(i / 4)]!,
+        out,
+        [k % 2 ? 0.375 : -0.375, 0.16, k < 2 ? 0.6 : -0.6],
+        [0.12, 0.32, 0.32],
+      );
+    });
     // Arms: a spear upright at the right hand, its head of steel (a musket or a rifle shouldered,
     // its bayonet fixed); a blade at the hip; a bow (or a club) in the left hand.
-    const gun = (f: (typeof standing)[number]) => f.kit.arm === "musket" || f.kit.arm === "rifle",
+    const gun = (f: (typeof standing)[number]) => isGun(f.kit.arm),
       spears = standing.filter((f) => f.kit.arm === "spear" || gun(f)),
       blades = standing.filter((f) => f.kit.arm === "sword" || f.kit.arm === "axe"),
       bows = standing.filter(
@@ -632,9 +739,10 @@ export class RegionWars {
     });
     // (Shields on the left arm are drawn with the banners, in their colours.)
     this.shields = standing.filter((f) => f.kit.shield);
-    this.drawn = shown.length;
+    this.drawn = shown.length + vehicles.length;
     this.counts.riders = mounted.length - chariots.length;
     this.counts.chariots = chariots.length;
+    this.counts.cars = standingCars.length;
     this.counts.guns = spears.filter(gun).length;
     this.counts.spears = spears.length - this.counts.guns;
     this.counts.bows = bows.filter((f) => f.kit.arm !== "club").length;

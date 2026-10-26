@@ -94,9 +94,11 @@ test("powder and shot: a host that knows the musket bears muskets, the rifle rif
     arm = (parts: Part[]) => parts.find((p) => p.role === "arm")!.id;
   for (const shock of [0.8, 1.1, 1.6]) {
     const doctrine = { shock, reach: 0.3, range: 0.4, protection: 0.5, mobility: 0.3, cost: 0.5 },
-      swords = compose(HOST_ROLES, but("firearms", "rifling"), () => true, doctrine),
-      muskets = compose(HOST_ROLES, but("rifling"), () => true, doctrine),
-      rifles = compose(HOST_ROLES, all, () => true, doctrine);
+      // (Before the magazine, Phase 53 M219: the later arms are tested in later-arms.test.ts.)
+      later = ["repeating-fire", "self-loading", "automatic-fire", "armoured-vehicles"],
+      swords = compose(HOST_ROLES, but("firearms", "rifling", ...later), () => true, doctrine),
+      muskets = compose(HOST_ROLES, but("rifling", ...later), () => true, doctrine),
+      rifles = compose(HOST_ROLES, but(...later), () => true, doctrine);
     assert.ok(
       !["musket", "rifle"].includes(arm(swords)),
       `no guns without the musket: ${arm(swords)}`,

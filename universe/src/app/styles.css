@@ -710,6 +710,15 @@ body[data-scale="micro"] {
 .battle-followed[hidden] {
   display: none;
 }
+/* Their weapon traced (Phase 53): a small button on the followed line's row. */
+.battle-weapon {
+  font-size: 0.78rem;
+  padding: 2px 8px;
+  margin-left: 6px;
+}
+.battle-weapon[hidden] {
+  display: none;
+}
 /* A war watched unfolding (Phase 38 M193): its battles marked on its course where their turns
    come, each in the colour of the side that won it; the battle told of, to be watched fought. */
 .war-mark {
