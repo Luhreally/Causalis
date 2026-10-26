@@ -196,7 +196,9 @@ console.log("the Phase 9 gate");
     base = server.resolvedUrls!.local[0]!,
     browser = await chromium.launch({ args: ci ? [] : GPU }),
     page = await browser.newPage({ viewport: { width: 430, height: 932 } });
-  await page.goto(`${base}?universe=earth&year=200`);
+  // (Held where it was begun: the same moment on every machine, however long the first
+  // picture takes — a battle fought at the town by then would take the zoom to it.)
+  await page.goto(`${base}?universe=earth&year=200&hold=1`);
   await page.waitForFunction(
     () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
     undefined,
@@ -240,6 +242,33 @@ console.log("the Phase 9 gate");
     // zooming in over it would go into that one.)
     if (way === "in" && (want === "system" || want === "globe"))
       await page.evaluate("globalThis.causalis.rig.pointer = null");
+    // (Into a village, not a battle: zoomed in over a battle's mark the eye goes down onto its
+    // field, Phase 37 M186. So with one marked near the middle, aimed at the nearest point of
+    // the screen clear of every mark.)
+    if (way === "in" && want === "village") {
+      const aimed = await page.evaluate(() => {
+        const k = (globalThis as any).causalis,
+          marks: { x: number; y: number }[] = k.battlesOnScreen?.() ?? [],
+          mid = { x: innerWidth / 2, y: innerHeight / 2 },
+          clear = (p: { x: number; y: number }) =>
+            marks.every((m) => Math.hypot(m.x - p.x, m.y - p.y) > 200);
+        if (clear(mid)) return { marks: marks.length, moved: 0 };
+        for (let r = 40; r < Math.max(innerWidth, innerHeight); r += 40)
+          for (let a = 0; a < 16; a++) {
+            const p = {
+              x: mid.x + r * Math.cos((a * Math.PI) / 8),
+              y: mid.y + r * Math.sin((a * Math.PI) / 8),
+            };
+            if (p.x < 0 || p.y < 0 || p.x > innerWidth || p.y > innerHeight || !clear(p)) continue;
+            k.rig.pointer = p;
+            return { marks: marks.length, moved: r };
+          }
+        return { marks: marks.length, moved: -1 };
+      });
+      say(
+        `  battles marked on the land: ${aimed.marks}${aimed.moved > 0 ? `; aimed ${aimed.moved} px off the middle, clear of them` : ""}`,
+      );
+    }
     await page.evaluate((w) => (globalThis as any).causalis.zoomThrough(w), way);
     await page.waitForTimeout(2600);
     const scale = await page.evaluate(() => (globalThis as any).causalis.scale()),
