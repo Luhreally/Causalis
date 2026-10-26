@@ -124,7 +124,8 @@ const take = async (act: string, tab: string) => {
   return k<string | null>("globalThis.causalis.palette.holding()");
 };
 
-await page.goto(`${base}?universe=earth&year=400`);
+// (Held at the year asked: what is at war, marching or fighting, is the same on every runner.)
+await page.goto(`${base}?universe=earth&year=400&hold=1`);
 await page.waitForFunction(
   () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
   undefined,
@@ -277,8 +278,28 @@ if (fought) {
 
 // 5. Armies seen: on the globe (hosts, garrisons, battles) and in a land (a host in its kinds).
 {
-  const now = await q<{ year: number; garrisons: { spot: number }[]; wars: War[] }>("wars.map"),
-    marching = now.wars.find((w) => w.ended === null);
+  type WarsMap = { year: number; garrisons: { spot: number }[]; wars: War[] };
+  const YEAR = 365 * 86400,
+    clockT = () => k<number>("globalThis.causalis.client.status?.t ?? 0"),
+    // (Of a war still fought: the host of a war made peace on still goes home on the globe.)
+    onWay = async (map: WarsMap) =>
+      Object.entries(await k<Record<string, number>>("globalThis.causalis.globeMarching()")).find(
+        ([ref, v]) => v > 0 && v < 1 && map.wars.some((w) => w.ref === ref && w.ended === null),
+      )?.[0] ?? null;
+  // A host on its way: where the wars of the moment are all drawn up or fighting, the year moved on
+  // a few weeks at a time until one marches (the clock held, as on every runner alike).
+  let now = await q<WarsMap>("wars.map"),
+    way = await onWay(now);
+  const t0 = await clockT();
+  for (let step = 1; step <= 40 && !way && now.wars.some((w) => w.ended === null); step++) {
+    const t = Math.round(t0 + step * 0.05 * YEAR);
+    await k(`globalThis.causalis.client.advance(${t})`);
+    await until("the year moved on", async () => (await clockT()) >= t - 1, slow(60000));
+    await page.waitForTimeout(slow(800));
+    now = await q<WarsMap>("wars.map");
+    way = await onWay(now);
+  }
+  const marching = now.wars.find((w) => w.ref === way) ?? now.wars.find((w) => w.ended === null);
   type Armies = {
     globe: Record<"marching" | "garrison" | "battle" | "fallen" | "riders" | "tents", number>;
     land: Record<"spears" | "bows" | "riders" | "chariots" | "shields" | "banners", number>;
@@ -306,8 +327,16 @@ if (fought) {
     await k(`globalThis.causalis.descend(${cell})`);
     await until("the land fought over", async () => (await scale()) === "region", slow(60000));
     await page.waitForTimeout(slow(3000));
+    // (Its host comes into the land as the year goes: moved on a few days at a time till it does.)
+    const landMarches = () => k<{ marches: number }>("globalThis.causalis.landWars()");
+    for (let step = 1; step <= 30 && (await landMarches()).marches < 1; step++) {
+      const t = Math.round((await clockT()) + 0.02 * YEAR);
+      await k(`globalThis.causalis.client.advance(${t})`);
+      await until("the year moved on", async () => (await clockT()) >= t - 1, slow(60000));
+      await page.waitForTimeout(slow(800));
+    }
     const land = (await armies()).land,
-      marks = await k<{ marches: number }>("globalThis.causalis.landWars()"),
+      marks = await landMarches(),
       kinds = land.spears + land.bows + land.riders + land.chariots + land.shields;
     say(
       `a host in a land: ${marks.marches} marching, armed ${kinds} (spears ${land.spears}, bows ${land.bows}, riders ${land.riders}, chariots ${land.chariots}, shields ${land.shields}), ${land.banners} banners`,
