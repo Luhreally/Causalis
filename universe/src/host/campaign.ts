@@ -138,6 +138,7 @@ function courseOf(read: Read, w: War): Campaign | null {
       land: landTitle(world, b.land, true),
       won: b.won,
       fallen: [b.fallen[0], b.fallen[1]] as const,
+      ...(b.wounded ? { wounded: [b.wounded[0], b.wounded[1]] as const } : {}),
       outcome: battleOutcome(world, b),
       ...(b.tip ? { tip: true } : {}),
     })),

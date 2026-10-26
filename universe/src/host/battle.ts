@@ -6,6 +6,7 @@
 import type { Ref, World } from "../kernel/index.ts";
 import { BIOME } from "../gen/index.ts";
 import {
+  RISEN_KEPT,
   WAR_EVENTS,
   homePlanet,
   hostFor,
@@ -21,6 +22,7 @@ import { hostWords } from "./chain.ts";
 import type { BattleNear, BattleOutcome, BattleSideNear } from "../bridge/index.ts";
 import { hostDesign, kindsOf, realmArms } from "./arms.ts";
 import { realmColor } from "./colors.ts";
+import { levyPlaces } from "./fallen.ts";
 import { peopleFigure } from "./folk.ts";
 import { CIVIL_SHORT } from "./inspect/strife.ts";
 import { landTitle } from "./inspect/names.ts";
@@ -57,8 +59,6 @@ const STRONG: readonly Rgb[] = [
   [0.1, 0.62, 0.66],
 ];
 const GRASS: Rgb = [0.3, 0.55, 0.2];
-/** The most of those in the field that fall: a remnant is left standing (the rest risen with it). */
-const KEPT = 0.9;
 
 const apart = (a: Rgb, b: Rgb) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
@@ -130,7 +130,7 @@ export function battleNear(world: World, ref: string): BattleNear | null {
       const r = realms.get(realm),
         // (Where more fell than its host had in the field, the men who rose with it are counted
         // with it, a remnant of them all left standing.)
-        risen = fallen > host * KEPT ? Math.ceil(fallen / KEPT) - host : 0,
+        risen = fallen > host * RISEN_KEPT ? Math.ceil(fallen / RISEN_KEPT) - host : 0,
         // (Armed as it was that day: the design it fought by, M217.)
         parts =
           hostDesign(world, realm, { year: b.year, design: b.designs?.[at] })?.parts ??
@@ -143,6 +143,9 @@ export function battleNear(world: World, ref: string): BattleNear | null {
         fielded: host + risen,
         fallen,
         ...(risen ? { risen } : {}),
+        // (Of its men, the wounded who lived and the maimed; where they came from: M224.)
+        ...(b.wounded ? { wounded: b.wounded[at], maimed: b.maimed?.[at] ?? 0 } : {}),
+        ...(b.fell ? { levy: levyPlaces(world, b, at) } : {}),
         host: parts ? kindsOf(parts) : null,
         kit: parts ? hostWords(world, realm, parts) : "spears, on foot",
         ...(b.armed ? { armed: b.armed[at] } : {}),

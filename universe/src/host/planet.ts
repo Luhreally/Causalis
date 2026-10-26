@@ -1048,6 +1048,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
                     year: b.year,
                     won: b.won,
                     fallen: b.fallen[0] + b.fallen[1],
+                    ...(b.wounded ? { wounded: b.wounded[0] + b.wounded[1] } : {}),
                     event: b.event,
                     outcome: battleOutcome(world, b),
                     seat: b.seat ?? false,

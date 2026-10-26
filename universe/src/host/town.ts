@@ -3,7 +3,7 @@
 // stand in (the design of each run, the oldest in their own), how long each level takes to
 // raise, and whether its streets are paved. Looked at, never lived.
 import { YEAR, hashString, yearOfMoment, type Ref, type World } from "../kernel/index.ts";
-import { HOME_MONTHS, roofPitch } from "../rules/index.ts";
+import { HOME_MONTHS, roofPitch, strikeHurt } from "../rules/index.ts";
 import {
   DISASTER_EVENTS,
   LOCAL_ACT_EVENTS,
@@ -60,7 +60,7 @@ export function strikesOn(world: World, ref: Ref, land: Ref | null): TownStrike[
       lot: typeof lot === "number" ? lot : -1,
       homes: typeof homes === "number" ? homes : -1,
       event: e.id,
-      ...(dead > 0 ? { dead } : {}),
+      ...(dead > 0 ? { dead, hurt: strikeHurt(kind, dead) } : {}),
     });
   }
   return out.reverse();
