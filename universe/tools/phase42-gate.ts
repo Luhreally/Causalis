@@ -116,7 +116,7 @@ const planOf = (ref: string) =>
 /** The middle of the canvas, where the eye looks (faced to a point, that point). */
 const middle = { x: 683, y: 400 };
 
-await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=300`);
+await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=300&hold=1`);
 await page.waitForFunction(
   () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
   undefined,

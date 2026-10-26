@@ -137,7 +137,7 @@ const planOf = (ref: string) =>
     `globalThis.causalis.client.query({ type: "village.plan", args: { ref: ${JSON.stringify(ref)} } })`,
   );
 
-await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=300`);
+await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=300&hold=1`);
 await page.waitForFunction(
   () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
   undefined,

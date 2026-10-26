@@ -5,8 +5,8 @@
 // school, a potter's kiln and a temple (or a shrine) — its mills are raised later (a mill's
 // millers and its sails turning are checked in tests/view/trades.test.ts):
 //   1. a working morning: its children at their letters in its school's rows, one teaching them
-//      before them; its potters at the kiln, its mouth aglow; and, where one strikes at the
-//      smithy's anvil, sparks;
+//      before them; its potters at the kiln or its wheel, its mouth aglow; and, where one
+//      strikes at the smithy's anvil, sparks;
 //   2. a feller's tree coming down at the end of their first blows, lying as they cut it up and
 //      carry it off, then a stump where it stood;
 //   3. a day of rest: most of the town at prayer before its temple in the morning.
@@ -123,7 +123,7 @@ const mean = (ps: readonly { x: number; z: number }[]) => ({
   z: ps.reduce((a, p) => a + p.z, 0) / Math.max(1, ps.length),
 });
 
-await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=300`);
+await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=300&hold=1`);
 await page.waitForFunction(
   () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
   undefined,
@@ -174,7 +174,8 @@ await advance(day * DAY + 10 * HOUR);
 let now = await people();
 const pupils = now.filter((p) => p.task === "learn"),
   teachers = now.filter((p) => p.task === "talk" && /Teaching/.test(p.why ?? "")),
-  potters = now.filter((p) => /kiln|pots/.test(p.why ?? ""));
+  // (At the wheel too: a potter throws there between firings, Phase 51 M214.)
+  potters = now.filter((p) => p.task === "throw" || /kiln|pots/.test(p.why ?? ""));
 say(
   `a working morning: ${pupils.length} at their letters, ${teachers.length} teaching; ${potters.length} at the kiln`,
 );
