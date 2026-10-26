@@ -29,6 +29,8 @@ export type BattleSideNear = {
   readonly host: HostKinds | null;
   /** That host in words: "bronze swords and shields, on foot". */
   readonly kit: string;
+  /** How much of its host bore that kit, 0 … 1 (Phase 52 M217; absent in older saves). */
+  readonly armed?: number;
   /** Whether its realm knows black powder: it brings cannon to the field (Phase 37 M188). */
   readonly cannon?: boolean;
 };
@@ -50,6 +52,8 @@ export type BattleNear = {
   /** Whether the attacker won. */
   readonly won: boolean;
   readonly outcome: BattleOutcome;
+  /** Whether arms decided it: with even arms the day would have gone the other way (M217). */
+  readonly tip?: boolean;
   /** A rising (a civil war's battle): what it was fought over (null: a war between realms). */
   readonly civil: string | null;
   /** The ground: hills the defenders hold, a river between, a seat's walls (0 none, 1 a palisade, 2 stone). */

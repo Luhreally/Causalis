@@ -30,6 +30,7 @@ import {
   loreOf,
   marketGoodRef,
   populationContext,
+  forgedMetal,
   toolMetal,
   type Agent,
   type MarketStore,
@@ -639,7 +640,16 @@ export function madePage(world: World, ref: string): PageModel {
             ? castMade(world, s.cell, key, year, town, seat)
             : trade === "machinist"
               ? machinedMade(world, s.cell, key, year, town, seat)
-              : toolMade(world, s.cell, key, year, false, town, seat),
+              : toolMade(
+                  world,
+                  s.cell,
+                  key,
+                  year,
+                  false,
+                  town,
+                  seat,
+                  forgedMetal(populationContext(world), s.cell, year),
+                ),
     name =
       trade === "weaver" ? `a ${form} of ${mk.stuff}` : `${article(mk.stuff)} ${mk.stuff} ${form}`,
     on = `day ${(day % 365) + 1} of year ${year}`;

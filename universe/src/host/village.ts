@@ -45,7 +45,7 @@ import {
   realmName,
   regionOf,
   tameNow,
-  toolMetal,
+  forgedMetal,
   USE,
   warsOf,
   wildsOf,
@@ -478,7 +478,7 @@ export function villagePlan(
       works = !!marketsOf(world).get(v.cell)?.works,
       trades = (["smith", "potter", "weaver", "founder", "machinist"] as const).filter((kind) =>
         kind === "smith"
-          ? toolMetal(ctx, v.cell) !== "stone" || !!workshopOf(world, ref, ["smithy"], now)
+          ? forgedMetal(ctx, v.cell) !== "stone" || !!workshopOf(world, ref, ["smithy"], now)
           : kind === "founder"
             ? (era === "industry" || era === "modern") && works
             : kind === "machinist"
@@ -980,7 +980,8 @@ export function villagePlan(
       house: houseOf(village.cell),
       fauna: faunaOf(village.cell, village.population),
       era: eraOf(village.cell),
-      metal: toolMetal(ctx, village.cell),
+      // (The metal its smiths forge, M217: its tools may still be mostly stone.)
+      metal: forgedMetal(ctx, village.cell),
       // (What its things are made of, and its own ore: Phase 51 M213.)
       stuff: townStuff(world, village.cell, now),
       works: worksOf(village.cell),

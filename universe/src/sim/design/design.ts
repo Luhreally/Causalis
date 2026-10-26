@@ -2,10 +2,11 @@
 // and what their land gives. Every five years each settled land weighs how it would
 // house itself — against its cold, its heat and its rain, with its wood, stone, clay
 // or earth, as far as its lore allows — and each realm how it would arm its host,
-// with the metals its lands (and the lands within two steps of them) hold. When the
-// answer changes, history records the new design and why: the principle newly known,
-// the land's climate and materials, the ore. The host's design is what its armies
-// fight with; the house is what the microscope draws.
+// with the metals its seat can work (Phase 52 M216: the craft known and the metal
+// held in its market — smelted from ore within reach, brought down a road, or kept).
+// When the answer changes, history records the new design and why: the principle
+// newly known, the land's climate and materials, where the metal came from. The
+// host's design is what its armies fight with; the house is what the microscope draws.
 import {
   YEAR,
   defineEventType,
@@ -19,12 +20,13 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { BIOME, cellRef, offworldSite, surfaceOre } from "../../gen/index.ts";
+import { BIOME, offworldSite, surfaceOre } from "../../gen/index.ts";
 import {
   G,
   HOST_ROLES,
   HOUSE_ROLES,
   OCC,
+  WORKED,
   WORKS_ROLES,
   compose,
   designWords,
@@ -37,6 +39,7 @@ import {
 } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
+import { metalSource, metalsAt, sourceRef } from "../economy/metals.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { knows, loreOf } from "../lore/lore.ts";
 import { politiesOf, type Polity } from "../polity/polity.ts";
@@ -78,6 +81,22 @@ export class DesignStore implements StateStore {
   worksOf(owner: Ref): Design | undefined {
     const ref = this.current.get(`works|${owner}`);
     return ref ? this.all.get(ref) : undefined;
+  }
+  /**
+   * The design an owner had of a kind in a year (Phase 52 M216): a realm's host as it was armed
+   * then, for a battle fought or a page of the past. (Old designs stay, so this is exact.)
+   */
+  at(owner: Ref, year: number, kind: Design["kind"] = "host"): Design | undefined {
+    let best: Design | undefined;
+    for (const d of this.all.values())
+      if (
+        d.owner === owner &&
+        d.kind === kind &&
+        d.since <= year &&
+        (!best || d.since > best.since || (d.since === best.since && d.ref > best.ref))
+      )
+        best = d;
+    return best;
   }
   /** Every design folded in as it is realized (designs never change once made). */
   private digest = "";
@@ -218,34 +237,21 @@ export function houseFor(ctx: PopulationContext, cell: number): Part[] {
 }
 
 /**
- * The lands within two steps of a realm's lands, and whether any holds an ore: the first that does.
- * (Read by the host's chain too, Phase 50 M212: where its host's metal was dug.)
+ * A realm keeps the arms its host has unless what it could arm it with instead is better by this
+ * share of their worth (Phase 52 M217): re-arming a host costs its markets their metal, and a
+ * realm near the line between two kits does not change back and forth at every review.
  */
-export function oreFor(ctx: PopulationContext, p: Polity, kind: string): number | null {
-  const g = ctx.generated,
-    seen = new Set<number>(p.members),
-    ring = [...p.members];
-  for (let step = 0; step < 2; step++) {
-    const next: number[] = [];
-    for (const c of ring)
-      for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
-        const n = g.grid.neighbours[k]!;
-        if (!seen.has(n)) {
-          seen.add(n);
-          next.push(n);
-        }
-      }
-    ring.splice(0, ring.length, ...next);
-  }
-  for (const c of [...seen].sort((a, b) => a - b)) if (surfaceOre(g, c, kind)) return c;
-  return null;
-}
+export const HOST_KEEP = 0.1;
 
-/** How a realm would arm its host now, and where its metals come from. */
+/**
+ * How a realm would arm its host now, and where its metals come from: only the metals its seat
+ * can work this year (`metalsAt`: the craft known, the metal held), each citing its source — the
+ * ore within reach, the road it came down, or the market that keeps it.
+ */
 export function hostFor(
   ctx: PopulationContext,
   p: Polity,
-): { parts: Part[]; ores: Partial<Record<Material, number>> } {
+): { parts: Part[]; sources: Partial<Record<Material, Ref>> } {
   const culture = cultureOf(ctx.world),
     ways = culture.get(p.seat),
     valour = ways?.traits[WAY.valour] ?? 0.5;
@@ -261,15 +267,13 @@ export function hostFor(
   }
   const wealth = Math.min(0.4, (traders / Math.max(1, people)) * 4 + 0.05),
     seatKnows = (id: string) => knows(ctx, p.seat, id),
-    ores: Partial<Record<Material, number>> = {};
-  const copper = seatKnows("metalworking") ? oreFor(ctx, p, "copper") : null,
-    tin = seatKnows("bronze") && copper !== null ? oreFor(ctx, p, "tin") : null,
-    iron = seatKnows("iron") ? oreFor(ctx, p, "iron") : null;
-  if (copper !== null) ores.copper = copper;
-  if (tin !== null) ores.bronze = tin;
-  if (iron !== null) {
-    ores.iron = iron;
-    if (seatKnows("steel")) ores.steel = iron;
+    sources: Partial<Record<Material, Ref>> = {};
+  for (const metal of metalsAt(ctx, p.seat)) {
+    if (metal === "stone") continue;
+    // (Bronze cites its tin: the copper is the bronze-smith's as much as the copper-smith's.)
+    const good = WORKED[metal].from.at(-1)!,
+      source = metalSource(ctx, p.seat, good);
+    if (source) sources[metal] = sourceRef(p.seat, good, source);
   }
   // What a host can be made of where its people live, and their own bodies.
   const at = new Set<Material>(
@@ -278,7 +282,7 @@ export function hostFor(
       : ["wood", "reed", "hide", "stone", "body"],
   );
   if (ctx.medium === "shore") at.add("shell");
-  for (const m of Object.keys(ores) as Material[]) at.add(m);
+  for (const m of Object.keys(sources) as Material[]) at.add(m);
   const doctrine: Doctrine = {
     shock: 0.6 + valour,
     reach: 0.3,
@@ -294,8 +298,11 @@ export function hostFor(
       (m) => at.has(m),
       doctrine,
       ctx.generated.life.people?.body,
+      undefined,
+      designsOf(ctx.world).of(p.ref)?.parts,
+      HOST_KEEP,
     ),
-    ores,
+    sources,
   };
 }
 
@@ -403,10 +410,10 @@ export function designYear(ctx: PopulationContext, t: SimTime): void {
     store.set({ ref, kind: "works", owner: p.ref, parts, since: year, event });
   }
   for (const realm of politiesOf(world).living()) {
-    const { parts, ores } = hostFor(ctx, realm),
+    const { parts, sources } = hostFor(ctx, realm),
       before = store.of(realm.ref);
     if (before && same(before.parts, parts)) continue;
-    const metal = parts.map((x) => ores[x.material]).find((c) => c !== undefined);
+    const metal = parts.map((x) => sources[x.material]).find((c) => c !== undefined);
     const ref = mint(),
       event = world.events.emit({
         type: DESIGN_EVENTS.host.type,
@@ -417,7 +424,7 @@ export function designYear(ctx: PopulationContext, t: SimTime): void {
           ...principlesOf(ctx, realm.seat, parts),
           // Where its metal comes from.
           ...(metal !== undefined
-            ? [{ ref: cellRef(0, metal), role: "constraint" as const, weight: 0.3 }]
+            ? [{ ref: metal, role: "constraint" as const, weight: 0.3 }]
             : []),
         ],
         data: { words: designWords(parts), realm: realm.ref },

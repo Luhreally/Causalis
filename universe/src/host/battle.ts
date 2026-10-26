@@ -7,7 +7,6 @@ import type { Ref, World } from "../kernel/index.ts";
 import { BIOME } from "../gen/index.ts";
 import {
   WAR_EVENTS,
-  designsOf,
   homePlanet,
   hostFor,
   loreOf,
@@ -20,7 +19,7 @@ import {
 } from "../sim/index.ts";
 import { hostWords } from "./chain.ts";
 import type { BattleNear, BattleOutcome, BattleSideNear } from "../bridge/index.ts";
-import { hostKinds, realmArms } from "./arms.ts";
+import { hostDesign, kindsOf, realmArms } from "./arms.ts";
 import { realmColor } from "./colors.ts";
 import { peopleFigure } from "./folk.ts";
 import { CIVIL_SHORT } from "./inspect/strife.ts";
@@ -120,12 +119,22 @@ export function battleNear(world: World, ref: string): BattleNear | null {
     lore = loreOf(world),
     data = e.data as { a?: string; b?: string },
     colors = sideColors(realmColor(war.attacker), realmColor(war.defender)),
-    side = (realm: Ref, said: string | undefined, host: number, fallen: number, color: Rgb) => {
+    side = (
+      realm: Ref,
+      said: string | undefined,
+      host: number,
+      fallen: number,
+      color: Rgb,
+      at: 0 | 1,
+    ) => {
       const r = realms.get(realm),
         // (Where more fell than its host had in the field, the men who rose with it are counted
         // with it, a remnant of them all left standing.)
         risen = fallen > host * KEPT ? Math.ceil(fallen / KEPT) - host : 0,
-        parts = designsOf(world).of(realm)?.parts ?? (r ? hostFor(ctx, r).parts : null);
+        // (Armed as it was that day: the design it fought by, M217.)
+        parts =
+          hostDesign(world, realm, { year: b.year, design: b.designs?.[at] })?.parts ??
+          (r ? hostFor(ctx, r).parts : null);
       return {
         ref: realm,
         name: said ?? (r ? realmName(r) : "a fallen realm"),
@@ -134,14 +143,9 @@ export function battleNear(world: World, ref: string): BattleNear | null {
         fielded: host + risen,
         fallen,
         ...(risen ? { risen } : {}),
-        host: parts
-          ? (hostKinds(world, realm) ?? {
-              arm: parts.find((p) => p.role === "arm")?.id ?? "",
-              guard: parts.find((p) => p.role === "guard")?.id ?? "",
-              mount: parts.find((p) => p.role === "mount")?.id ?? "",
-            })
-          : null,
+        host: parts ? kindsOf(parts) : null,
         kit: parts ? hostWords(world, realm, parts) : "spears, on foot",
+        ...(b.armed ? { armed: b.armed[at] } : {}),
         ...(r && lore.get(r.seat, "gunpowder") ? { cannon: true } : {}),
       } satisfies BattleSideNear;
     },
@@ -159,10 +163,11 @@ export function battleNear(world: World, ref: string): BattleNear | null {
     cell: land,
     land: landTitle(world, land),
     year: b.year,
-    attacker: side(war.attacker, data.a, fielded[0], b.fallen[0], colors[0]),
-    defender: side(war.defender, data.b, fielded[1], b.fallen[1], colors[1]),
+    attacker: side(war.attacker, data.a, fielded[0], b.fallen[0], colors[0], 0),
+    defender: side(war.defender, data.b, fielded[1], b.fallen[1], colors[1], 1),
     won: b.won,
     outcome,
+    ...(b.tip ? { tip: true } : {}),
     civil: war.civil ? CIVIL_SHORT[war.civil] : null,
     hills: g.tectonics.elevation[land]! > 600,
     river: !!g.water.river[land],

@@ -3,7 +3,9 @@
 // gives those who know how to work it, and what crafters make. A unit of food is
 // a person's food for a month. Values are what a unit is usually worth against a
 // unit of grain; a market's price moves around its value as goods run short or
-// pile up. Recipes say what a crafter makes in a year, and from what.
+// pile up. Recipes say what a crafter makes in a year, and from what. Phase 52
+// (M216) adds tin and iron: smelted from ore within reach, carried by trade like
+// any good, and worked into bronze, iron and steel tools where they are held.
 import { OCC } from "./species.ts";
 
 export type Good = {
@@ -34,6 +36,9 @@ export const GOODS: readonly Good[] = [
   { id: "coal", name: "coal", food: false, value: 2, spoil: 0, bulk: 1 },
   { id: "oil", name: "oil", food: false, value: 3, spoil: 0, bulk: 0.7 },
   { id: "machines", name: "machines", food: false, value: 24, spoil: 0, bulk: 0.6 },
+  // Tin and iron (Phase 52 M216): appended, so every older good keeps its place.
+  { id: "tin", name: "tin", food: false, value: 12, spoil: 0, bulk: 0.5 },
+  { id: "iron", name: "iron", food: false, value: 5, spoil: 0.001, bulk: 0.6 },
 ];
 
 export const G = {
@@ -49,6 +54,8 @@ export const G = {
   coal: 9,
   oil: 10,
   machines: 11,
+  tin: 12,
+  iron: 13,
 } as const;
 
 /** What engines burn, in the order they reach for it. */
@@ -70,7 +77,7 @@ export const WANTS = {
   heatPerPerson: 0.4,
 } as const;
 
-/** Fuel and machines are made only while the stock is under this many years of their use. */
+/** Fuel, machines, tin and iron are made only while the stock is under this many years of their use. */
 export const GLUT_YEARS = 3;
 
 /** What a flock gives besides its meat and milk, per unit of meat. */
@@ -87,11 +94,11 @@ export type Recipe = {
   /** Goods made per crafter-year. */
   readonly output: readonly [number, number];
   /**
-   * What the province must have: a deposit it works (or a seam of coal or field of oil
-   * under its own ground), and a way it knows (metalworking, or a principle).
+   * What the province must have: ore of a kind within reach (sim/economy/ore.ts), or a seam of
+   * coal or field of oil under its own ground, and a way it knows (metalworking, or a principle).
    */
   readonly needs?: {
-    readonly deposit?: string;
+    readonly ore?: string;
     readonly seam?: "coal" | "oil";
     readonly knowledge?: string;
   };
@@ -106,7 +113,7 @@ export const RECIPES: readonly Recipe[] = [
     name: "copper smelted from its ore",
     inputs: [],
     output: [G.copper, 3],
-    needs: { deposit: "copper", knowledge: "metalworking" },
+    needs: { ore: "copper", knowledge: "metalworking" },
   },
   {
     id: "copper-tools",
@@ -149,7 +156,92 @@ export const RECIPES: readonly Recipe[] = [
     output: [G.machines, 3],
     needs: { knowledge: "sea-works" },
   },
+  // Phase 52 (M216): appended after the rest, so the crafters' draws (keyed by a recipe's place)
+  // stay what they were. A smelter's year from the best ore; lean or far ore yields less.
+  {
+    id: "tin-smelting",
+    name: "tin smelted from its ore",
+    inputs: [],
+    output: [G.tin, 2],
+    needs: { ore: "tin", knowledge: "bronze" },
+  },
+  {
+    id: "iron-smelting",
+    name: "iron smelted from its ore",
+    inputs: [],
+    output: [G.iron, 4],
+    needs: { ore: "iron", knowledge: "iron" },
+  },
+  // A tool's worth of bronze is copper with a tenth of tin; steel, iron kept hot in charcoal.
+  {
+    id: "bronze-tools",
+    name: "bronze tools",
+    inputs: [
+      [G.copper, 1.35],
+      [G.tin, 0.15],
+    ],
+    output: [G.tools, 14],
+    needs: { knowledge: "bronze" },
+  },
+  {
+    id: "iron-tools",
+    name: "iron tools",
+    inputs: [[G.iron, 1.5]],
+    output: [G.tools, 15],
+    needs: { knowledge: "iron" },
+  },
+  {
+    id: "steel-tools",
+    name: "steel tools",
+    inputs: [[G.iron, 1.6]],
+    output: [G.tools, 18],
+    needs: { knowledge: "steel" },
+  },
 ];
+
+/** What tools are headed with, worst to best: stone, then the metals in the order they come. */
+export const TOOL_METALS = ["stone", "copper", "bronze", "iron", "steel"] as const;
+export type ToolMetal = (typeof TOOL_METALS)[number];
+
+/**
+ * The metals a land's smelters win from ore within its reach (Phase 52 M216): the good, the ore,
+ * the craft it takes, and the recipe. (An alien world's metals arrive as more rows.)
+ */
+export const SMELTING: readonly {
+  readonly good: number;
+  readonly ore: string;
+  readonly knowledge: string;
+  readonly recipe: string;
+}[] = [
+  { good: G.copper, ore: "copper", knowledge: "metalworking", recipe: "copper-smelting" },
+  { good: G.tin, ore: "tin", knowledge: "bronze", recipe: "tin-smelting" },
+  { good: G.iron, ore: "iron", knowledge: "iron", recipe: "iron-smelting" },
+];
+
+/**
+ * What tools of each metal are worked from (Phase 52 M216): the craft it takes, the recipe, and
+ * the metal goods its smiths must have in the market — bronze takes copper and tin, steel iron.
+ */
+export const WORKED: Readonly<
+  Record<
+    Exclude<ToolMetal, "stone">,
+    { readonly knowledge: string; readonly recipe: string; readonly from: readonly number[] }
+  >
+> = {
+  copper: { knowledge: "metalworking", recipe: "copper-tools", from: [G.copper] },
+  bronze: { knowledge: "bronze", recipe: "bronze-tools", from: [G.copper, G.tin] },
+  iron: { knowledge: "iron", recipe: "iron-tools", from: [G.iron] },
+  steel: { knowledge: "steel", recipe: "steel-tools", from: [G.iron] },
+};
+
+/** The metal each tool recipe heads its tools with. */
+export const TOOL_RECIPE_METAL: Readonly<Record<string, ToolMetal>> = {
+  "stone-tools": "stone",
+  "copper-tools": "copper",
+  "bronze-tools": "bronze",
+  "iron-tools": "iron",
+  "steel-tools": "steel",
+};
 
 /**
  * What households make for themselves, as a share of what they need, by the same

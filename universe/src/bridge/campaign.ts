@@ -20,6 +20,8 @@ export type CampaignBattle = {
   readonly fallen: readonly [number, number];
   /** What it won: the field, a siege laid, a land taken, a seat stormed — or held. */
   readonly outcome: BattleOutcome;
+  /** Whether arms decided it (Phase 52 M217). */
+  readonly tip?: boolean;
 };
 
 export type Campaign = {

@@ -8,8 +8,26 @@ import {
   tongueSounds,
   type Tongue,
 } from "../../gen/index.ts";
-import { DEITIES, beliefOf, designsOf, languagesOf, populationContext } from "../../sim/index.ts";
-import { GOODS, GOOD_MATTER, designWords, partWords, type Part } from "../../rules/index.ts";
+import {
+  DEITIES,
+  beliefOf,
+  designsOf,
+  languagesOf,
+  armsOf,
+  partQuality,
+  partStuff,
+  politiesOf,
+  populationContext,
+  type Design,
+} from "../../sim/index.ts";
+import {
+  GOODS,
+  GOOD_MATTER,
+  STONES,
+  designWords,
+  partWords,
+  type Part,
+} from "../../rules/index.ts";
 import { armsMade, hostPartWords, hostWords } from "../chain.ts";
 import { goodHere, goodRef, howMadeHere, makeUpBlock, weight } from "./matter.ts";
 import { designMatter, realmSeat } from "./ground.ts";
@@ -250,6 +268,48 @@ export function languagePage(world: World, ref: string): PageModel {
   };
 }
 
+/**
+ * How a realm's host counts in battle (Phase 52 M217): each part as its seasoned makers make it of
+ * its seat's stuff, against its material's usual; and, for the design it fights with now, how much
+ * of its host bears it and what a man of it is worth. Null for a realm gone, or a part of no stuff.
+ */
+function inBattle(world: World, d: Design): Block | null {
+  const r = politiesOf(world).get(d.owner);
+  if (!r) return null;
+  const ctx = populationContext(world),
+    rows = d.parts.flatMap((p) => {
+      const stuff = partStuff(ctx, r.seat, p);
+      if (!stuff) return [];
+      const q = partQuality(ctx, r.seat, p),
+        by = Math.round(Math.abs(q - 1) * 100),
+        // (A stone's usual: flint, the chalk's.)
+        usual = p.material === "stone" ? STONES.limestone!.name : p.material,
+        being = stuff.stuff !== usual ? `, being ${stuff.stuff}` : "";
+      return [
+        stat(
+          sentence(hostPartWords(world, d.owner, p)),
+          by === 0
+            ? `as good as the usual ${usual}${being}`
+            : `${by}% ${q > 1 ? "keener" : "poorer"} than the usual ${usual}${being}`,
+        ),
+      ];
+    });
+  // (The design it fights with now: how much of its host bears it.)
+  if (designsOf(world).of(r.ref)?.ref === d.ref) {
+    const a = armsOf(ctx, r);
+    rows.push(
+      stat("So armed", `${Math.round(a.armed * 100)}% of the host`),
+      stat(
+        "A man of it",
+        `worth ${a.power.toFixed(1)} with a club; ${a.full.toFixed(1)} fully armed`,
+      ),
+    );
+  }
+  return rows.length
+    ? { type: "facts", title: "In battle, as its seasoned makers make it", rows }
+    : null;
+}
+
 const DESIGN_KIND = {
   house: "How a people builds",
   host: "What a realm's host fights with",
@@ -314,6 +374,10 @@ export function designPage(world: World, ref: string): PageModel {
             title: `${sentence(one(p))}: ${made.grade} (${made.quality} of 100)`,
             items: made.chain.map((l) => item(l)),
           })),
+          ...(() => {
+            const b = host ? inBattle(world, d) : null;
+            return b ? [b] : [];
+          })(),
           // By weight, down to its substances (Phase 15 M125): stone of its land's own rock.
           ...(() => {
             const made = designMatter(world, d.parts, ownerCell ?? realmSeat(world, d.owner));

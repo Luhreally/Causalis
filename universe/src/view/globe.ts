@@ -397,6 +397,8 @@ const GOOD_ICONS: Readonly<Record<string, string>> = {
   coal: "⚫",
   oil: "🛢️",
   machines: "⚙️",
+  tin: "⚪",
+  iron: "🔩",
 };
 
 /** The goods the goods lens shows, one at a time: each its id, icon and name. */

@@ -90,6 +90,7 @@ export {
   type LedgerLine,
   type MarketYear,
   type PricePoint,
+  type ToolMetalPoint,
   type TradeFlow,
 } from "./economy/market.ts";
 export {
@@ -98,13 +99,31 @@ export {
   economyYear,
   installEconomy,
   metalYear,
-  oreFor as landOre,
   powerOf,
+  TOOL_KEEP,
+  TOOL_SHARE,
+  forgedMetal,
   toolMetal,
   whyNot,
-  type Ore as LandOre,
   type ToolMetal,
 } from "./economy/systems.ts";
+export {
+  NEIGHBOUR_REACH,
+  oreGrade,
+  oreIn,
+  oreWithin,
+  type OreAt,
+  type OreLieAt,
+} from "./economy/ore.ts";
+export {
+  bestMetal,
+  metalRank,
+  metalSource,
+  metalsAt,
+  smeltable,
+  sourceRef,
+  type MetalSource,
+} from "./economy/metals.ts";
 export {
   ACT_EVENTS,
   ACT_KINDS,
@@ -328,6 +347,19 @@ export {
   type War,
 } from "./war/war.ts";
 export {
+  ARMS_TAKE,
+  ARMS_WEAR,
+  ArmsStore,
+  QUALITY_BOUNDS,
+  REARM,
+  SEASONED,
+  armsOf,
+  kitKg,
+  partQuality,
+  partStuff,
+  type Arms,
+} from "./war/arms.ts";
+export {
   BLOCKS,
   BLOCK_M,
   CITY_EVENTS,
@@ -420,11 +452,11 @@ export {
   DesignStore,
   designsOf,
   worksFor,
+  HOST_KEEP,
   hostFor,
   houseFor,
   installDesigns,
   landMaterials,
-  oreFor as hostOre,
   type Design,
 } from "./design/design.ts";
 export {

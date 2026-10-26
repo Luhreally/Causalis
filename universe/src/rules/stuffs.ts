@@ -109,12 +109,17 @@ export function keenestRock(rocks: readonly string[]): string {
  */
 export type OreLie = "deposit" | "surface" | "bog" | "hill" | "vent";
 
-/** An ore as it lies: its mineral (a substance), its name, its words, the reaction it is smelted by. */
+/**
+ * An ore as it lies: its mineral (a substance), its name, its words, the reaction it is smelted by,
+ * and what a smelter's year yields from it against the best (Phase 52 M216: bog ore is lean and
+ * full of water, the hills' ironstone a little leaner than an ancient craton's banded ore).
+ */
 export type Ore = {
   readonly mineral: string;
   readonly name: string;
   readonly words: string;
   readonly smelt: string;
+  readonly grade: number;
 };
 
 export const ORES: Readonly<Record<string, Partial<Record<OreLie, Ore>>>> = {
@@ -124,18 +129,21 @@ export const ORES: Readonly<Record<string, Partial<Record<OreLie, Ore>>>> = {
       name: "copper ore",
       words: "brassy copper ore of the deep veins",
       smelt: "roast-chalcopyrite",
+      grade: 1,
     },
     surface: {
       mineral: "malachite",
       name: "malachite",
       words: "green malachite and native copper where old mountains are worn open",
       smelt: "smelt-malachite",
+      grade: 1,
     },
     vent: {
       mineral: "chalcopyrite",
       name: "vent copper",
       words: "copper ore crusted on the chimneys of the sea floor's hot springs",
       smelt: "roast-chalcopyrite",
+      grade: 1,
     },
   },
   tin: {
@@ -144,12 +152,14 @@ export const ORES: Readonly<Record<string, Partial<Record<OreLie, Ore>>>> = {
       name: "tin stone",
       words: "black tin stone in the veins of old granites",
       smelt: "smelt-cassiterite",
+      grade: 1,
     },
     surface: {
       mineral: "cassiterite",
       name: "stream tin",
       words: "black stream tin washed out of worn granite",
       smelt: "smelt-cassiterite",
+      grade: 1,
     },
   },
   iron: {
@@ -158,18 +168,21 @@ export const ORES: Readonly<Record<string, Partial<Record<OreLie, Ore>>>> = {
       name: "iron ore",
       words: "the banded red ore of an ancient craton",
       smelt: "bloomery",
+      grade: 1,
     },
     bog: {
       mineral: "limonite",
       name: "bog ore",
       words: "bog ore, rusted out of the ground water in marsh and lake bed",
       smelt: "bog-bloomery",
+      grade: 0.7,
     },
     hill: {
       mineral: "hematite",
       name: "ironstone",
       words: "red ironstone of the hills",
       smelt: "bloomery",
+      grade: 0.9,
     },
   },
 };

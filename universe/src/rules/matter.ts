@@ -908,7 +908,7 @@ export const REACTIONS: readonly Reaction[] = [
     heat: 1000,
     fuel: "carbon",
     principle: "bronze",
-    recipe: null,
+    recipe: "tin-smelting",
     words: "Black tin ore and charcoal: tin, at a heat a copper-smith's fire already gives.",
   },
   {
@@ -922,7 +922,7 @@ export const REACTIONS: readonly Reaction[] = [
     heat: 950,
     fuel: "carbon",
     principle: "bronze",
-    recipe: null,
+    recipe: "bronze-tools",
     words: "A tenth of tin melted into copper: bronze, harder than either.",
   },
   {
@@ -939,7 +939,7 @@ export const REACTIONS: readonly Reaction[] = [
     heat: 1200,
     fuel: "carbon",
     principle: "iron",
-    recipe: null,
+    recipe: "iron-smelting",
     words:
       "Red ore and charcoal in a clay stack blown by bellows: a spongy bloom of iron, hammered free of slag.",
   },
@@ -958,7 +958,7 @@ export const REACTIONS: readonly Reaction[] = [
     heat: 1150,
     fuel: "carbon",
     principle: "iron",
-    recipe: null,
+    recipe: "iron-smelting",
     words:
       "Bog ore roasted, then smelted with charcoal in a clay furnace by the marsh: a small bloom of soft iron, hammered and folded to drive its slag out.",
   },
@@ -976,7 +976,7 @@ export const REACTIONS: readonly Reaction[] = [
     heat: 1250,
     fuel: "carbon",
     principle: "iron",
-    recipe: null,
+    recipe: "iron-smelting",
     words: "Black ore and charcoal: iron, as from the red.",
   },
   {
@@ -990,7 +990,7 @@ export const REACTIONS: readonly Reaction[] = [
     heat: 1100,
     fuel: "carbon",
     principle: "steel",
-    recipe: null,
+    recipe: "steel-tools",
     words:
       "Iron kept hot in charcoal takes a little carbon into itself: steel, to be quenched hard.",
   },
@@ -1320,6 +1320,9 @@ export const GOOD_MATTER: Readonly<Record<string, GoodMatter>> = {
     ],
   },
   copper: { unitKg: 5, ways: [{ id: "copper", name: "copper", parts: [["copper", 1]] }] },
+  // Tin and iron as bars and blooms, a unit as heavy as copper's (Phase 52 M216).
+  tin: { unitKg: 5, ways: [{ id: "tin", name: "tin", parts: [["tin", 1]] }] },
+  iron: { unitKg: 5, ways: [{ id: "iron", name: "iron", parts: [["iron", 1]] }] },
   tools: {
     unitKg: 2,
     ways: [

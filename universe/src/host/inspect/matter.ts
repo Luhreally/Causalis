@@ -81,6 +81,8 @@ const GOOD_ICON: Readonly<Record<string, string>> = {
   coal: "⚫",
   oil: "🛢️",
   machines: "⚙️",
+  tin: "⚪",
+  iron: "🔩",
 };
 /** Each element's colour in a make-up (by what it is most seen as). */
 const ELEMENT_COLOUR: Readonly<Record<string, readonly [number, number, number]>> = {

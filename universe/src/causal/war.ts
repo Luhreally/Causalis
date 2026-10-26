@@ -45,8 +45,9 @@ registerEventWords(WAR_EVENTS.declared.type, (world, e) => {
     : `${cap(text(e.data, "a"))} went to war with ${text(e.data, "b")} for ${landWords(world, e.place)}, ${year(e.t)}`;
 });
 registerEventWords(WAR_EVENTS.battle.type, (world, e) => {
-  const d = e.data as { won?: boolean; fallen?: number } | null;
-  return `${cap(text(e.data, "a"))} ${d?.won ? "won" : "lost"} a battle against ${text(e.data, "b")} in ${landWords(world, e.place)}; ${count(d?.fallen ?? 0)} fell, ${year(e.t)}`;
+  const d = e.data as { won?: boolean; fallen?: number; tip?: boolean } | null;
+  // (Where arms decided it, Phase 52 M217: the winner's.)
+  return `${cap(text(e.data, "a"))} ${d?.won ? "won" : "lost"} a battle against ${text(e.data, "b")} in ${landWords(world, e.place)}${d?.tip ? `, ${text(e.data, d.won ? "a" : "b")}'s arms deciding it` : ""}; ${count(d?.fallen ?? 0)} fell, ${year(e.t)}`;
 });
 registerEventWords(
   WAR_EVENTS.taken.type,

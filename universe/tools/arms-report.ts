@@ -7,8 +7,19 @@
 // as in the other reports. What may not exist yet (armsOf, a war.arms store, tin and iron goods,
 // a tip or power field on a battle) is looked up when the report runs and printed as n/a while it
 // is missing. --cradle starts the chronicle from the cradle (makePopulationWorld's start option),
-// not from the spread of bands the app starts from.
-import { YEAR, seedFromText, type StateStore, type World } from "../src/kernel/index.ts";
+// not from the spread of bands the app starts from. --from <snapshot.json> (tools/snapshot.ts)
+// forks from a saved year instead of living the centuries before it again: the reports start
+// after that year, and both sides of an A/B forked from one file differ only by their rules.
+import { readFileSync } from "node:fs";
+import {
+  YEAR,
+  loadWorld,
+  rulesetId,
+  seedFromText,
+  type SaveDocument,
+  type StateStore,
+  type World,
+} from "../src/kernel/index.ts";
 import { EARTHLIKE, G, GOODS, type Part } from "../src/rules/index.ts";
 import * as sim from "../src/sim/index.ts";
 import type { Polity, PopulationContext } from "../src/sim/index.ts";
@@ -121,27 +132,36 @@ function powerGap(battles: readonly object[], key: string): string {
 function main(): void {
   const argv = process.argv.slice(2),
     cradle = argv.includes("--cradle"),
+    fromFile = argv.includes("--from") ? argv[argv.indexOf("--from") + 1] : undefined,
     [seedText = "first light", yearsArg = "900", everyArg = "300"] = argv.filter(
-      (a) => !a.startsWith("--"),
+      (a, i) => !a.startsWith("--") && argv[i - 1] !== "--from",
     ),
     years = Number(yearsArg),
     every = Number(everyArg),
-    stray = argv.filter((a) => a.startsWith("--") && a !== "--cradle");
+    stray = argv.filter((a) => a.startsWith("--") && a !== "--cradle" && a !== "--from");
   if (stray.length) console.log(`ignored flags: ${stray.join(" ")}`);
   if (!Number.isInteger(years) || years < 1 || !Number.isInteger(every) || every < 1) {
     console.error("usage: node tools/arms-report.ts [seed] [years] [every] [--cradle]");
     process.exitCode = 1;
     return;
   }
-  // Every `every` years, and the last year too when it is not one of them.
+  const build = (seed: Parameters<typeof sim.makePopulationWorld>[0]) =>
+      sim.makePopulationWorld(seed, { prior: EARTHLIKE, start: cradle ? "cradle" : "spread" }),
+    // (Forked from a saved year: loaded under these rules, as a history changing rules is.)
+    forked = fromFile
+      ? (() => {
+          const doc = JSON.parse(readFileSync(fromFile, "utf8")) as SaveDocument,
+            probe = build(seedFromText(doc.seed));
+          return loadWorld(doc, build, rulesetId(probe, "fork"), { allowRulesetChange: true }).world;
+        })()
+      : null,
+    start = forked ? Math.round(forked.now / YEAR) : 0;
+  // Every `every` years after the start, and the last year too when it is not one of them.
   const marks: number[] = [];
-  for (let y = every; y <= years; y += every) marks.push(y);
+  for (let y = start + every; y <= years; y += every) marks.push(y);
   if (marks.at(-1) !== years) marks.push(years);
 
-  const world = sim.makePopulationWorld(seedFromText(seedText), {
-      prior: EARTHLIKE,
-      start: cradle ? "cradle" : "spread",
-    }),
+  const world = forked ?? build(seedFromText(seedText)),
     ctx = sim.populationContext(world),
     markets = sim.marketsOf(world),
     realms = sim.politiesOf(world),
@@ -150,7 +170,7 @@ function main(): void {
     TIN = goodIndex("tin"),
     IRON = goodIndex("iron");
   console.log(
-    `arms-report "${seedText}": ${cradle ? "cradle" : "spread"} start, earthlike prior; reports at ${marks.join(", ")}`,
+    `arms-report "${seedText}": ${cradle ? "cradle" : "spread"} start, earthlike prior${forked ? `, forked from ${fromFile} at year ${start}` : ""}; reports at ${marks.join(", ")}`,
   );
 
   const reportYear = (from: number, to: number, ms: number): void => {
@@ -259,7 +279,7 @@ function main(): void {
     );
   };
 
-  let from = 0;
+  let from = start;
   for (const to of marks) {
     const t0 = performance.now();
     world.runTo(to * YEAR);

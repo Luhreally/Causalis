@@ -332,6 +332,13 @@ jobs:
       - run: npm run gate:51 -- --ci
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
+      # Phase 52 (the chain decides: a town's smiths forging bronze, its tin brought down the road
+      # and traced on its smithy's page; a battle its arms decided, ringed on its war's course, its
+      # page telling each side's arms and how much of its host bore them; the winner's army, how
+      # much of its host is so armed).
+      - run: npm run gate:52 -- --ci
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
   universe-engines:
     runs-on: ubuntu-latest

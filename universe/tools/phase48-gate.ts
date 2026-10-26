@@ -119,18 +119,34 @@ await page.waitForFunction(
 await k(`globalThis.causalis.setQuality("high")`);
 await k(`globalThis.causalis.client.setSpeed(0)`);
 
-// The greatest town whose land trades, with two traders or more.
+// The greatest town whose land trades, with two traders or more, a good share of whose trips
+// bring goods back. (A trader's land is picked by all its trade with each: a town that sends a
+// land thousands and has two a year from another sees its traders come back with goods once in
+// years; the first town with a third of its trips bringing goods home is taken, else the one with
+// the most.)
 const towns = await k<{ ref: string; name: string; people: number }[]>(
   `globalThis.causalis.client.query({ type: "towns.map" })`,
 );
-let town: Plan | null = null;
+const bringing = (trade: { out: Good[]; in: Good[] }) => {
+  const all = [...trade.out, ...trade.in].reduce((a, g) => a + g.count, 0),
+    from = new Set(trade.in.map((g) => g.land)),
+    back = [...trade.out, ...trade.in]
+      .filter((g) => from.has(g.land))
+      .reduce((a, g) => a + g.count, 0);
+  return all > 0 ? back / all : 0;
+};
+let town: Plan | null = null,
+  share = 0;
 for (const c of [...towns].sort((a, b) => b.people - a.people).slice(0, 80)) {
   const plan = await planOf(c.ref),
     traders = plan.people.filter((p) => p.occupation === TRADER && !p.child).length;
-  if (plan.trade && plan.trade.out.length && plan.trade.in.length && traders >= 2) {
+  if (!plan.trade || !plan.trade.out.length || !plan.trade.in.length || traders < 2) continue;
+  const s = bringing(plan.trade);
+  if (s > share) {
     town = plan;
-    break;
+    share = s;
   }
+  if (s >= 1 / 3) break;
 }
 check(!!town, "no town of the Earth seed trades, with traders, by year 300");
 if (!town) {
@@ -142,7 +158,7 @@ if (!town) {
 }
 const words = (g: Good) => `${g.what} ${g.land} ${Math.round(g.count)}`;
 say(
-  `the town: ${town.name} (${town.population}); out ${town.trade!.out.map(words).join(", ")}; in ${town.trade!.in.map(words).join(", ")}`,
+  `the town: ${town.name} (${town.population}); out ${town.trade!.out.map(words).join(", ")}; in ${town.trade!.in.map(words).join(", ")}; ${Math.round(share * 100)}% of trips bring goods back`,
 );
 await k(`globalThis.causalis.goTo(${JSON.stringify(town.ref)})`);
 await until(`${town.name} drawn`, async () => (await trade()) !== null, slow(120000));
@@ -152,7 +168,6 @@ await k(`globalThis.causalis.client.setSpeed(0)`);
 // (One taking the town's goods to a land that buys them, so as to see them loaded; another, later,
 // coming back from a land that sends it goods, so as to see those unloaded.)
 const d0 = Math.floor((await now()) / DAY) + 1,
-  setting = /^(To .+ for the |Loading .+ for |Taking .+ down the road to )/,
   landOf = (why: string | null) =>
     (/^Loading .+ for (.+)$/.exec(why ?? "") ?? /down the road to (.+)$/.exec(why ?? ""))?.[1] ??
     null,
@@ -161,25 +176,23 @@ const d0 = Math.floor((await now()) / DAY) + 1,
 let who = -1,
   out = -1,
   land = "",
-  hour = 7.85;
-for (let d = d0; d < d0 + 30 && who < 0; d++) {
-  await advance(d * DAY + 7.85 * HOUR);
-  let t = (await trade())!,
-    ones = t.traders.filter((x) => setting.test(x.why ?? "") && !x.hidden);
-  if (!ones.length) continue;
-  // (Those still on their way to the store: their land told once they load.)
-  if (ones.every((x) => landOf(x.why) === null)) {
-    await advance(d * DAY + 8.05 * HOUR);
-    t = (await trade())!;
-    ones = t.traders.filter((x) => setting.test(x.why ?? "") && !x.hidden);
-    hour = 8.05;
-  } else hour = 7.85;
-  const one = ones.find((x) => takes.has(landOf(x.why) ?? ""));
-  if (!one) continue;
-  who = one.index;
-  out = d;
-  land = landOf(one.why)!;
-}
+  hour = 7.62;
+// (They set out at 7.4 and load for 24 minutes once at the store: looked for while loading, a
+// little later for those whose store is further off or who rose late — never once gone, since
+// the clock goes only forward and their loading would be missed.)
+for (let d = d0; d < d0 + 30 && who < 0; d++)
+  for (const h of [7.62, 7.78, 7.95]) {
+    await advance(d * DAY + h * HOUR);
+    const one = (await trade())!.traders.find(
+      (x) => /^Loading /.test(x.why ?? "") && !x.hidden && takes.has(landOf(x.why) ?? ""),
+    );
+    if (!one) continue;
+    who = one.index;
+    out = d;
+    land = landOf(one.why)!;
+    hour = h;
+    break;
+  }
 check(who >= 0, "no trader set out with the town's goods in a month");
 const me = async () => (await trade())!.traders.find((x) => x.index === who)!;
 if (who >= 0) {

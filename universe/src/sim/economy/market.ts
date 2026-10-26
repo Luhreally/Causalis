@@ -5,7 +5,7 @@
 // to a stock goes through the ledger, so a year always balances.
 import { Hasher, defineKind, makeRef, type Ref, type StateStore } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { G, GOODS, OCCUPATIONS } from "../../rules/index.ts";
+import { G, GOODS, OCCUPATIONS, type ToolMetal } from "../../rules/index.ts";
 
 export const GOOD_COUNT = GOODS.length;
 
@@ -45,6 +45,16 @@ export const PRICE_YEARS = 100;
 /** What food and tools cost against their usual worth, in a year (thousandths). */
 export type PricePoint = { readonly year: number; readonly food: number; readonly tools: number };
 
+/**
+ * From a year on, the metal most of a land's crafted tools were headed with (Phase 52 M216), and
+ * the event that told it the first time the land made tools of a better metal than ever before.
+ */
+export type ToolMetalPoint = {
+  readonly year: number;
+  readonly metal: ToolMetal;
+  readonly event: Ref | null;
+};
+
 export class Market {
   readonly cell: number;
   readonly ref: Ref;
@@ -80,6 +90,19 @@ export class Market {
   series: PricePoint[] = [];
   /** Every closed year folded in as it closed, so a checkpoint need not hash them all again. */
   yearsDigest = "";
+  /** What its crafted tools were headed with, from each year it changed (Phase 52 M216). */
+  toolMetals: ToolMetalPoint[] = [];
+  /**
+   * The best metal its crafters headed any tools with — what its smiths forged — from each year it
+   * changed (M217; stone: none). Its tools in the main may still be stone.
+   */
+  forgedMetals: { readonly year: number; readonly metal: ToolMetal }[] = [];
+  /**
+   * Whether this year's books are open with the economy's year reckoned in them: within the
+   * moment the year turns, between the economy's year and the books closing. Never saved: the
+   * books are always closed between moments.
+   */
+  reckoned = false;
 
   constructor(cell: number) {
     this.cell = cell;
@@ -88,6 +111,46 @@ export class Market {
 
   line(line: LedgerLine, good: number): number {
     return this.ledger[LINE[line] * GOOD_COUNT + good]!;
+  }
+
+  /**
+   * A line of the latest reckoned year's books: this year's while they are open with the
+   * economy's year in them, else the last closed year's — so the sim within the moment and the
+   * pages between moments read the same year.
+   */
+  book(line: LedgerLine, good: number): number {
+    if (this.reckoned) return this.line(line, good);
+    return this.years.at(-1)?.ledger[LINE[line]]?.[good] ?? 0;
+  }
+
+  /** What its crafted tools were headed with in a year (now, if none is given); null: never said. */
+  toolMetalIn(year?: number): ToolMetal | null {
+    for (let i = this.toolMetals.length - 1; i >= 0; i--) {
+      const p = this.toolMetals[i]!;
+      if (year === undefined || p.year <= year) return p.metal;
+    }
+    return this.toolMetals.length ? "stone" : null;
+  }
+
+  /** Set down what its crafted tools were headed with this year, if it changed. */
+  setToolMetal(year: number, metal: ToolMetal, event: Ref | null): void {
+    if (this.toolMetals.at(-1)?.metal === metal) return;
+    this.toolMetals.push({ year, metal, event });
+  }
+
+  /** What its smiths forged in a year (now, if none is given); null: never said. */
+  forgedIn(year?: number): ToolMetal | null {
+    for (let i = this.forgedMetals.length - 1; i >= 0; i--) {
+      const p = this.forgedMetals[i]!;
+      if (year === undefined || p.year <= year) return p.metal;
+    }
+    return this.forgedMetals.length ? "stone" : null;
+  }
+
+  /** Set down what its smiths forged this year, if it changed. */
+  setForged(year: number, metal: ToolMetal): void {
+    if ((this.forgedMetals.at(-1)?.metal ?? "stone") === metal) return;
+    this.forgedMetals.push({ year, metal });
   }
 
   /** Change a stock through a ledger line; returns the amount moved. */
@@ -116,6 +179,7 @@ export class Market {
 
   /** Close the year: keep its line, start the next. */
   closeYear(year: number): void {
+    this.reckoned = false;
     const ledger = LEDGER.map((_, l) => this.ledger.slice(l * GOOD_COUNT, (l + 1) * GOOD_COUNT));
     const line: MarketYear = { year, price: [...this.price], stock: [...this.stock], ledger };
     this.years.push(line);
@@ -147,7 +211,9 @@ export class Market {
       .string(this.metalworking ?? "")
       .string(this.reliefFor ?? "")
       .string(this.yearsDigest)
-      .int(this.series.length);
+      .int(this.series.length)
+      .value(this.toolMetals)
+      .value(this.forgedMetals);
   }
 
   save(): unknown {
@@ -173,6 +239,8 @@ export class Market {
       years: this.years,
       yearsDigest: this.yearsDigest,
       series: this.series,
+      toolMetals: this.toolMetals,
+      forgedMetals: this.forgedMetals,
     };
   }
 
@@ -209,6 +277,8 @@ export class Market {
     m.years = s.years as MarketYear[];
     m.yearsDigest = s.yearsDigest as string;
     m.series = s.series as PricePoint[];
+    m.toolMetals = (s.toolMetals as ToolMetalPoint[] | undefined) ?? [];
+    m.forgedMetals = (s.forgedMetals as Market["forgedMetals"] | undefined) ?? [];
     return m;
   }
 }
@@ -288,8 +358,10 @@ export class MarketStore implements StateStore {
   /** What history must keep for the markets to explain themselves: roads opened, crafts learned. */
   pinned(): Ref[] {
     const refs = this.allRoutes().map(([, r]) => r);
-    for (const m of this.all())
+    for (const m of this.all()) {
       for (const r of [m.metalworking, m.mine, m.well, m.works]) if (r) refs.push(r);
+      for (const p of m.toolMetals) if (p.event) refs.push(p.event);
+    }
     return refs;
   }
 

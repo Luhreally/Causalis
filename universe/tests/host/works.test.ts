@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
-import { MOULDS, floorOf, foundryOf } from "../../src/view/errands.ts";
+import { MOULDS, floorOf, foundryOf, leanOn } from "../../src/view/errands.ts";
 import {
   BENCH_MOST,
   floorNow,
@@ -40,8 +40,9 @@ const pageOf = (ref: string) => {
 };
 
 test("a town's founders break out the last day's castings, pour each mould at its tap, and stack what they broke out", () => {
-  const towns = plansNow().filter((p) => !!foundryOf(p));
-  assert.ok(towns.length > 0, "a town with a foundry by its works at 800");
+  // (Towns whose stores are lean that week work at no craft: the foundry towns that are fed.)
+  const towns = plansNow().filter((p) => !!foundryOf(p) && !leanOn(p, 800 * 365 + 120));
+  assert.ok(towns.length > 0, "a fed town with a foundry by its works at 800");
   let days = 0,
     pages = 0;
   for (const plan of towns.slice(0, 2)) {

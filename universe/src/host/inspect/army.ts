@@ -5,6 +5,9 @@
 // its lands' people as the realm fields them now).
 import type { Ref, World } from "../../kernel/index.ts";
 import {
+  ARMS_WEAR,
+  REARM,
+  armsOf,
   designsOf,
   fieldedParts,
   politiesOf,
@@ -17,7 +20,7 @@ import {
 import { hostWords } from "../chain.ts";
 import type { Block, Item, Row } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
-import { count, item, link, share, stat } from "./words.ts";
+import { count, item, link, part, share, stat } from "./words.ts";
 import { landLink, realmLink } from "./names.ts";
 
 type Point = { x: number; y: number };
@@ -61,6 +64,9 @@ export function armyBlocks(world: World, r: Polity): Block[] {
   const ctx = populationContext(world),
     f = fieldedParts(ctx, r),
     design = designsOf(world).of(r.ref),
+    arms = armsOf(ctx, r),
+    // (A man's worth: against one with a club, bare, on foot.)
+    worth = (x: number) => `worth ${x.toFixed(1)} with a club`,
     realms = politiesOf(world),
     wars = warsOf(world)
       .all()
@@ -107,6 +113,17 @@ export function armyBlocks(world: World, r: Polity): Block[] {
                 why: design.ref,
               }),
               stat("Since", `year ${design.since}`, { why: design.event }),
+              // How much of the host bears it (Phase 52 M217): its kit wears out, and its lands'
+              // markets make it good as they have the metal.
+              stat("So armed", `${share(arms.armed)} of the host`, {
+                parts: [
+                  part("a man of it now", worth(arms.power)),
+                  part("fully armed", worth(arms.full)),
+                  part("bare of its metal", worth(arms.bare)),
+                  part("its kit worn out a year", share(ARMS_WEAR)),
+                  part("made good a year, at most", share(ARMS_WEAR + REARM)),
+                ],
+              }),
             ]
           : [stat("Armed with", "what each man has")]),
         stat("Battles", `${count(won)} won, ${count(lost)} lost`),

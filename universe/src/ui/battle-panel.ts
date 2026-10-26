@@ -126,14 +126,18 @@ export class BattlePanel {
 
   /** Which battle, its hosts, how many men a figure stands for. */
   show(near: BattleNear, per: number): void {
-    this.title.textContent = `⚔️ ${near.title} · year ${near.year}${near.civil ? ` · ${near.civil}` : ""}`;
+    this.title.textContent = `⚔️ ${near.title} · year ${near.year}${near.civil ? ` · ${near.civil}` : ""}${near.tip ? " · arms decided it" : ""}`;
     ([near.attacker, near.defender] as const).forEach((s, i) => {
       const c = this.sides[i]!,
         rgb = `rgb(${s.color.map((x) => Math.round(x * 255)).join(",")})`;
       c.ref = s.ref;
       c.fielded = Math.max(1, s.fielded);
       c.name.textContent = `${i === 0 ? "⚔️" : "🛡️"} ${s.name[0]!.toUpperCase()}${s.name.slice(1)}`;
-      c.kit.textContent = s.kit;
+      // (A host not all armed so, its kit worn out and not made good: Phase 52 M217.)
+      c.kit.textContent =
+        s.armed !== undefined && s.armed < 0.995
+          ? `${s.kit} · ${Math.round(s.armed * 100)}% so armed`
+          : s.kit;
       // (The men who rose with it, where more fell than its host had in the field.)
       const risen = s.risen ?? 0,
         rose = i === 0 ? "levies sent after it" : "of its land's men, risen with it";

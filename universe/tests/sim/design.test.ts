@@ -144,7 +144,7 @@ test("every settled land builds from what it gives and knows; the land and the p
   assert.ok(kinds.size >= 3, `${kinds.size} ways of building: ${[...kinds].join("; ")}`);
 });
 
-test("hosts are armed with metals only where their seats know the craft and ore lies within reach", () => {
+test("hosts are armed with metals only where their seats know the craft and hold the metal", () => {
   const hosts = politiesOf(world)
     .living()
     .map((r) => ({ r, d: designs.of(r.ref) }))
@@ -161,9 +161,14 @@ test("hosts are armed with metals only where their seats know the craft and ore 
     if (!metals.length) continue;
     metal++;
     assert.ok(knows(ctx, r.seat, "metalworking"));
-    // Its metal's land is among the design's causes.
+    // Where its metal came from is among the design's causes (Phase 52 M216): the land or the
+    // deposit of its ore, the road it came down, or the market that kept it.
+    const road = (ref: string) =>
+      ["trade.route-opened", "trade.sea-route"].includes(world.events.get(ref as Ref)?.type ?? "");
     assert.ok(
-      e.causes.some((c) => c.ref.startsWith("cell:")),
+      e.causes.some(
+        (c) => c.role === "constraint" && (/^(cell|depo|mkt):/.test(c.ref) || road(c.ref)),
+      ),
       "where its metal comes from",
     );
   }

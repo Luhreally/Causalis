@@ -84,7 +84,17 @@ function courseOf(read: Read, w: War): Campaign | null {
         color: realmColor(realm),
         fields: r ? Math.round(fieldedOf(ctx, r)) : 0,
         arms: realmArms(world, realm),
-        host: hostKinds(world, realm),
+        // (Armed as it set out: by its first battle's design, else its design of that year.)
+        host: hostKinds(
+          world,
+          realm,
+          w.ended === null
+            ? undefined
+            : {
+                year: w.declared,
+                design: w.battles[0]?.designs?.[realm === w.attacker ? 0 : 1],
+              },
+        ),
       };
     },
     near = (a: number, b: number) => {
@@ -129,6 +139,7 @@ function courseOf(read: Read, w: War): Campaign | null {
       won: b.won,
       fallen: [b.fallen[0], b.fallen[1]] as const,
       outcome: battleOutcome(world, b),
+      ...(b.tip ? { tip: true } : {}),
     })),
     civil: w.civil ? CIVIL_SHORT[w.civil] : null,
   };

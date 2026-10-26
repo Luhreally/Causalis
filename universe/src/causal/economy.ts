@@ -5,11 +5,12 @@
 // that make tools and metal. And the economy's events and decisions, in words.
 import { parseRef, yearOfMoment, type CauseRef, type Ref, type World } from "../kernel/index.ts";
 import { cellRef } from "../gen/index.ts";
-import { FOODS, G, GOODS } from "../rules/index.ts";
+import { FOODS, G, GOODS, SMELTING, WORKED } from "../rules/index.ts";
 import {
   ECONOMY_EVENTS,
   MARKET_GOOD,
   POPULATION_EVENTS,
+  loreOf,
   marketsOf,
   populationContext,
 } from "../sim/index.ts";
@@ -62,6 +63,16 @@ registerExplainer(MARKET_GOOD.code, (world, ref) => {
   }
   if ((good === G.copper || good === G.tools) && m.metalworking)
     causes.push({ ref: m.metalworking, role: "enabler", weight: 0.4 });
+  // Tin and iron (Phase 52 M216): the craft that smelts them there, and tools of a better metal
+  // than copper, the craft they are worked by.
+  const lore = loreOf(world),
+    smelts = SMELTING.find((s) => s.good === good && s.knowledge !== "metalworking"),
+    metal = good === G.tools ? m.toolMetalIn() : null,
+    craft =
+      smelts?.knowledge ??
+      (metal && metal !== "stone" && metal !== "copper" ? WORKED[metal].knowledge : null),
+    known = craft ? lore.get(cell, craft) : undefined;
+  if (known) causes.push({ ref: known.event, role: "enabler", weight: 0.3 });
   // The roads its trade in this good went down last year.
   const roads = new Set<Ref>();
   for (const f of marketsOf(world).flows)
@@ -106,6 +117,10 @@ registerEventWords(
 registerEventWords(ECONOMY_EVENTS.metalworkingSpread.type, (world, e) => {
   const from = e.subjects[1] ?? null;
   return `Metalworking came to ${landWords(world, e.place)}${from ? ` from ${landWords(world, from)}` : ""}, ${year(e.t)}`;
+});
+registerEventWords(ECONOMY_EVENTS.tools.type, (world, e) => {
+  const metal = text(e.data, "metal");
+  return `The smiths of ${landWords(world, e.place)} first made a good share of its tools of ${metal ?? "metal"}, ${year(e.t)}`;
 });
 registerEventWords(POPULATION_EVENTS.market.type, (world, e) => {
   const name = text(e.data, "name");

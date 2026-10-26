@@ -14,23 +14,12 @@ import {
   TONNES_A_UNIT,
   type Rock,
 } from "../../rules/index.ts";
-import { BIOME, BOUNDARY, isProvinceWorld } from "../../gen/index.ts";
+import { BIOME, groundOf, isProvinceWorld, type Ground } from "../../gen/index.ts";
 import type { World } from "../../kernel/index.ts";
 import { airOf, homePlanet, politiesOf } from "../../sim/index.ts";
 import type { Block, Item } from "../../bridge/index.ts";
 import { count, item, link, stat } from "./words.ts";
 import { DEPOSIT_MINERALS, makeUpBlock, substRef, weight } from "./matter.ts";
-
-type Ground = {
-  /** Each land's bedrock: each rock's share of its spots. */
-  readonly rock: ReadonlyMap<number, readonly (readonly [string, number])[]>;
-  /** Each land's biome most of its spots are. */
-  readonly biome: ReadonlyMap<number, number>;
-  /** One spot's bedrock. */
-  readonly rockAt: (spot: number) => string;
-};
-
-const KEPT = new Map<string, Ground>();
 
 const BIOME_SOIL: Readonly<Record<number, string>> = {
   [BIOME.tundra]: "tundra",
@@ -48,89 +37,9 @@ const BIOME_SOIL: Readonly<Record<number, string>> = {
   [BIOME.seaIce]: "ice",
 };
 
-/** The bedrock of one spot of the fine grid. */
-function rockAt(
-  fine: {
-    tectonics: {
-      crust: Uint8Array;
-      boundary: Uint8Array;
-      toBoundary: Uint8Array;
-      elevation: Float32Array;
-      hotspots: readonly number[];
-    };
-    deep: { coal: Float32Array; oil: Float32Array };
-  },
-  spot: number,
-  coalLine: number,
-  oilLine: number,
-  hot: ReadonlySet<number>,
-): string {
-  const t = fine.tectonics;
-  if (!t.crust[spot]) return "basalt";
-  if (hot.has(spot)) return "basalt";
-  if (t.boundary[spot] === BOUNDARY.convergent && t.toBoundary[spot]! <= 2)
-    return t.elevation[spot]! > 2000 ? "granite" : "andesite";
-  if (fine.deep.coal[spot]! > coalLine) return "coal-measures";
-  if (fine.deep.oil[spot]! > oilLine) return "limestone";
-  if (t.toBoundary[spot] === 255) return "gneiss";
-  if (t.elevation[spot]! > 1500) return "granite";
-  return fine.deep.oil[spot]! > 0 ? "shale" : "sandstone";
-}
-
-/** The world's ground, land by land (kept: the ground does not change). */
-function groundOf(world: World): Ground {
-  const g = homePlanet(world).generated,
-    key = g.digest,
-    kept = KEPT.get(key);
-  if (kept) return kept;
-  const fine = isProvinceWorld(g) ? g.fine : g,
-    n = fine.grid.count,
-    landOf = (s: number) => (isProvinceWorld(g) ? g.provinceOf[s]! : s),
-    line = (a: Float32Array) => {
-      const v = [...a].filter((x) => x > 0).sort((x, y) => x - y);
-      return v[Math.floor(v.length * 0.8)] ?? Infinity;
-    },
-    coalLine = line(fine.deep.coal),
-    oilLine = line(fine.deep.oil),
-    // (A hotspot's flood of basalt reaches its neighbours.)
-    hot = new Set<number>(),
-    counts = new Map<number, Map<string, number>>(),
-    biomes = new Map<number, Map<number, number>>();
-  for (const h of fine.tectonics.hotspots) {
-    hot.add(h);
-    for (const nb of fine.grid.neighbours.subarray(
-      fine.grid.offsets[h]!,
-      fine.grid.offsets[h + 1]!,
-    ))
-      hot.add(nb);
-  }
-  for (let s = 0; s < n; s++) {
-    const land = landOf(s);
-    if (land < 0) continue;
-    const r = rockAt(fine, s, coalLine, oilLine, hot);
-    let m = counts.get(land);
-    if (!m) counts.set(land, (m = new Map()));
-    m.set(r, (m.get(r) ?? 0) + 1);
-    const b = fine.climate.biome[s]!;
-    let bm = biomes.get(land);
-    if (!bm) biomes.set(land, (bm = new Map()));
-    bm.set(b, (bm.get(b) ?? 0) + 1);
-  }
-  const rock = new Map<number, [string, number][]>(),
-    biome = new Map<number, number>();
-  for (const [land, m] of counts) {
-    const total = [...m.values()].reduce((a, b) => a + b, 0);
-    rock.set(
-      land,
-      [...m].map(([r, k]) => [r, k / total] as [string, number]).sort((a, b) => b[1] - a[1]),
-    );
-  }
-  for (const [land, bm] of biomes)
-    biome.set(land, [...bm].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]![0]);
-  const out = { rock, biome, rockAt: (s: number) => rockAt(fine, s, coalLine, oilLine, hot) };
-  KEPT.set(key, out);
-  if (KEPT.size > 4) KEPT.delete(KEPT.keys().next().value!);
-  return out;
+/** The world's ground, land by land (gen/bedrock.ts: kept, the ground does not change). */
+function groundIn(world: World): Ground {
+  return groundOf(homePlanet(world).generated);
 }
 
 const rockOf = (id: string): Rock => ROCKS.find((r) => r.id === id)!;
@@ -138,7 +47,7 @@ const rockOf = (id: string): Rock => ROCKS.find((r) => r.id === id)!;
 /** Every land's chief rock (the Ground lens paints them all, peopled or not). */
 export function groundMap(world: World): { cell: number; rock: string }[] {
   const out: { cell: number; rock: string }[] = [];
-  for (const [cell, rocks] of groundOf(world).rock)
+  for (const [cell, rocks] of groundIn(world).rock)
     if (rocks[0]) out.push({ cell, rock: rocks[0][0] });
   return out.sort((a, b) => a.cell - b.cell);
 }
@@ -148,7 +57,7 @@ export function groundReading(
   world: World,
   cell: number,
 ): { line: string; stats: { label: string; value: string }[] } | null {
-  const ground = groundOf(world),
+  const ground = groundIn(world),
     rocks = ground.rock.get(cell);
   if (!rocks?.length) return null;
   const soil = SOILS[BIOME_SOIL[ground.biome.get(cell) ?? -1] ?? "sea"]!;
@@ -163,7 +72,7 @@ export function soilOf(
   world: World,
   cell: number,
 ): { readonly name: string; readonly parts: readonly (readonly [string, number])[] } {
-  return SOILS[BIOME_SOIL[groundOf(world).biome.get(cell) ?? -1] ?? "sea"]!;
+  return SOILS[BIOME_SOIL[groundIn(world).biome.get(cell) ?? -1] ?? "sea"]!;
 }
 
 /** One spot's ground: its bedrock, and the soil of a biome over it (a region's tile). */
@@ -173,24 +82,24 @@ export function spotGround(
   biome: number,
 ): { rock: string; soil: string } {
   return {
-    rock: rockOf(groundOf(world).rockAt(spot)).name,
+    rock: rockOf(groundIn(world).rockAt(spot)).name,
     soil: SOILS[BIOME_SOIL[biome] ?? "sea"]!.name,
   };
 }
 
 /** One spot's bedrock, by its rock's id (a band's stone is knapped from it: Phase 49 M211). */
 export function spotRock(world: World, spot: number): string {
-  return groundOf(world).rockAt(spot);
+  return groundIn(world).rockAt(spot);
 }
 
 /** A land's bedrock rocks (each a share), for the Ground lens and tab. */
 export function bedrockOf(world: World, cell: number): readonly (readonly [string, number])[] {
-  return groundOf(world).rock.get(cell) ?? [];
+  return groundIn(world).rock.get(cell) ?? [];
 }
 
 /** A land's Ground tab: its bedrock and what it is made of, its soil, what lies in it, its water, the air. */
 export function groundBlocks(world: World, cell: number): Block[] {
-  const ground = groundOf(world),
+  const ground = groundIn(world),
     rocks = ground.rock.get(cell) ?? [],
     soilKey = BIOME_SOIL[ground.biome.get(cell) ?? -1] ?? "sea",
     soil = SOILS[soilKey]!,
@@ -309,7 +218,7 @@ export function designMatter(
   parts: readonly { readonly role: string; readonly material: string }[],
   cell: number | null,
 ): { kg: number; parts: [string, number][] } | null {
-  const chief = cell !== null ? (groundOf(world).rock.get(cell)?.[0]?.[0] ?? "granite") : "granite",
+  const chief = cell !== null ? (groundIn(world).rock.get(cell)?.[0]?.[0] ?? "granite") : "granite",
     stone = rockOf(chief).parts,
     out = new Map<string, number>();
   let kg = 0;

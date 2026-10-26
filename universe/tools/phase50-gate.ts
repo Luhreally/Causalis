@@ -55,7 +55,10 @@ type Plan = {
   ref: string;
   name: string;
   seed: number;
+  /** The metal its smiths forge (Phase 52 M217: its tools may still be mostly stone). */
   metal?: string;
+  /** What its tools are headed with, mostly. */
+  stuff?: { tool: { name: string } } | null;
   town?: { civics: Civic[] } | null;
   people: { ref: string; name: string; folk?: boolean; trade?: { kind: string } }[];
 };
@@ -196,13 +199,19 @@ await k(`globalThis.causalis.client.setSpeed(0)`);
 const t0 = await k<number>(`globalThis.causalis.client.status?.t ?? 0`),
   year = Math.floor(t0 / YEAR);
 
-// The greatest town whose tools are of metal and that keeps a smithy, standing now.
+// The greatest town whose tools are of metal and that keeps a smithy, standing now. (Its tools
+// mostly of the metal its smiths forge: Phase 52's tools are headed with what is made of them.)
 const towns = await ask<{ ref: string; name: string; people: number }[]>("towns.map", {});
 const standing = (c: Civic) => c.kind === "smithy" && (c.end + 1) * YEAR <= t0 && c.fell === null;
 let town: Plan | null = null;
 for (const c of towns.slice(0, 40)) {
   const plan = await ask<Plan>("village.plan", { ref: c.ref });
-  if (plan.metal && plan.metal !== "stone" && plan.town?.civics.some(standing)) {
+  if (
+    plan.metal &&
+    plan.metal !== "stone" &&
+    plan.stuff?.tool.name === plan.metal &&
+    plan.town?.civics.some(standing)
+  ) {
     town = plan;
     break;
   }

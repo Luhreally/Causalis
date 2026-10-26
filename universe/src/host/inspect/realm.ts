@@ -18,13 +18,14 @@ import {
   WAR_EVENTS,
   warsOf,
   WAY_TRAITS,
+  type War,
 } from "../../sim/index.ts";
 import { hostWords } from "../chain.ts";
 import { governmentWords, principleName, standingWords } from "../../causal/index.ts";
 import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
-import { realmArms } from "../arms.ts";
+import { hostDesign, realmArms } from "../arms.ts";
 import { compareWith, warTally } from "./compare.ts";
 import { armyBlocks, courseBlocks } from "./army.ts";
 import { storesSummed } from "./stores.ts";
@@ -663,6 +664,7 @@ export function battlePage(world: World, ref: string): PageModel {
                     stat("Defender", [realmLink(world, w.defender)]),
                   ]
                 : []),
+              ...(w && b?.power ? [battleArms(world, w, b)] : []),
               ...(land >= 0 ? [stat("Where", [landLink(world, land)])] : []),
               ...(towns.length
                 ? [
@@ -690,6 +692,36 @@ export function battlePage(world: World, ref: string): PageModel {
 function realms(world: World, ref: Ref): string {
   const r = politiesOf(world).get(ref);
   return r ? r.town : "the fallen";
+}
+
+/**
+ * A battle's arms (Phase 52 M217): what each side fought with that day, how much of its host bore
+ * it, and what a man of it was worth (against one with a club, bare, on foot); and whether they
+ * decided it — with even arms the day would have gone the other way.
+ */
+function battleArms(world: World, w: War, b: War["battles"][number]): Stat {
+  const winner = b.won ? w.attacker : w.defender,
+    side = (realm: Ref, at: 0 | 1) => {
+      const d = hostDesign(world, realm, { year: b.year, design: b.designs?.[at] });
+      return part(
+        [realmLink(world, realm)],
+        `${d ? hostWords(world, realm, d.parts) : "spears, on foot"}; ${share(b.armed?.[at] ?? 1)} of the host so armed, a man worth ${(b.power?.[at] ?? 1).toFixed(1)} with a club`,
+      );
+    };
+  return stat(
+    "Arms",
+    b.tip
+      ? [
+          "won it for ",
+          realmLink(world, winner),
+          ": with even arms it would have gone the other way",
+        ]
+      : ["did not decide it"],
+    {
+      why: b.tip ? (b.designs?.[b.won ? 0 : 1] ?? null) : null,
+      parts: [side(w.attacker, 0), side(w.defender, 1)],
+    },
+  );
 }
 
 /** A war between the stars (`swar:`): its fleet, its enemy, and its battle. */

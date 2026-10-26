@@ -65,6 +65,7 @@
     "gate:49": "node tools/phase49-gate.ts",
     "gate:50": "node tools/phase50-gate.ts",
     "gate:51": "node tools/phase51-gate.ts",
+    "gate:52": "node tools/phase52-gate.ts",
     "diversity": "node tools/diversity.ts 100 900"
   },
   "dependencies": {

@@ -36,9 +36,16 @@ export const MATERIALS = [
 export type Material = (typeof MATERIALS)[number];
 
 /** A material's worth in a blade or point (edge), in armour (guard), in a wall (mass), its lasting, and its cost. */
-export const MATERIAL: Readonly<
-  Record<Material, { edge: number; guard: number; mass: number; lasting: number; cost: number }>
-> = {
+/** What a material is like: its edge, its guard, its mass, how long it lasts, what it costs. */
+export type MaterialProps = {
+  readonly edge: number;
+  readonly guard: number;
+  readonly mass: number;
+  readonly lasting: number;
+  readonly cost: number;
+};
+
+export const MATERIAL: Readonly<Record<Material, MaterialProps>> = {
   wood: { edge: 0.15, guard: 0.1, mass: 0.35, lasting: 0.35, cost: 0.1 },
   reed: { edge: 0.05, guard: 0.08, mass: 0.15, lasting: 0.2, cost: 0.05 },
   hide: { edge: 0, guard: 0.15, mass: 0.1, lasting: 0.15, cost: 0.1 },
@@ -98,8 +105,11 @@ export type Realization = {
   readonly materials: readonly Material[];
   /** Its words, made of a material: "bronze swords". */
   readonly words: (m: Material) => string;
-  /** What it does, made of a material. */
-  readonly does: (m: Material) => Performance;
+  /**
+   * What it does, made of a material — of that material as it was found and worked, where its
+   * properties are given (Phase 52 M217: bog iron's softer edge, a master's keener one).
+   */
+  readonly does: (m: Material, x?: MaterialProps) => Performance;
 };
 
 const R = (
@@ -108,7 +118,7 @@ const R = (
   needs: string[],
   materials: Material[],
   words: (m: Material) => string,
-  does: (m: Material) => Performance,
+  does: (m: Material, x?: MaterialProps) => Performance,
   fits?: (b: BodyPlan) => boolean,
   asks?: (b: BodyPlan) => boolean,
 ): Realization => ({
@@ -151,10 +161,10 @@ export const REALIZATIONS: readonly Realization[] = [
     [],
     ["stone", "copper", "bronze", "iron", "steel"],
     (m) => (m === "stone" ? "stone-tipped spears" : `${m}-tipped spears`),
-    (m) => ({
-      shock: 0.3 + 0.35 * MATERIAL[m].edge,
+    (m, x = MATERIAL[m]) => ({
+      shock: 0.3 + 0.35 * x.edge,
       reach: 0.6,
-      cost: 0.05 + 0.2 * MATERIAL[m].cost,
+      cost: 0.05 + 0.2 * x.cost,
     }),
     undefined,
     grips,
@@ -165,10 +175,10 @@ export const REALIZATIONS: readonly Realization[] = [
     ["metalworking"],
     ["copper", "bronze", "iron", "steel"],
     (m) => `${m} axes`,
-    (m) => ({
-      shock: 0.35 + 0.5 * MATERIAL[m].edge,
+    (m, x = MATERIAL[m]) => ({
+      shock: 0.35 + 0.5 * x.edge,
       reach: 0.3,
-      cost: 0.1 + 0.3 * MATERIAL[m].cost,
+      cost: 0.1 + 0.3 * x.cost,
     }),
     undefined,
     wields,
@@ -179,10 +189,10 @@ export const REALIZATIONS: readonly Realization[] = [
     ["bronze"],
     ["bronze", "iron", "steel"],
     (m) => `${m} swords`,
-    (m) => ({
-      shock: 0.4 + 0.6 * MATERIAL[m].edge,
+    (m, x = MATERIAL[m]) => ({
+      shock: 0.4 + 0.6 * x.edge,
       reach: 0.35,
-      cost: 0.2 + 0.4 * MATERIAL[m].cost,
+      cost: 0.2 + 0.4 * x.cost,
     }),
     undefined,
     wields,
@@ -211,11 +221,11 @@ export const REALIZATIONS: readonly Realization[] = [
     ["firearms"],
     ["iron", "steel"],
     () => "muskets",
-    (m) => ({
-      shock: 0.6 + 0.2 * MATERIAL[m].edge,
+    (m, x = MATERIAL[m]) => ({
+      shock: 0.6 + 0.2 * x.edge,
       reach: 0.45,
       range: 0.85,
-      cost: 0.25 + 0.2 * MATERIAL[m].cost,
+      cost: 0.25 + 0.2 * x.cost,
     }),
     undefined,
     wields,
@@ -326,7 +336,7 @@ export const REALIZATIONS: readonly Realization[] = [
     [],
     ["hide", "reed", "wood"],
     (m) => (m === "reed" ? "wicker shields" : `${m} shields`),
-    (m) => ({ protection: 0.05 + MATERIAL[m].guard, cost: 0.03 }),
+    (m, x = MATERIAL[m]) => ({ protection: 0.05 + x.guard, cost: 0.03 }),
   ),
   R(
     "leather",
@@ -342,7 +352,7 @@ export const REALIZATIONS: readonly Realization[] = [
     ["bronze"],
     ["bronze", "iron"],
     (m) => `${m} scale`,
-    (m) => ({ protection: 0.1 + 0.6 * MATERIAL[m].guard, cost: 0.2 + 0.3 * MATERIAL[m].cost }),
+    (m, x = MATERIAL[m]) => ({ protection: 0.1 + 0.6 * x.guard, cost: 0.2 + 0.3 * x.cost }),
   ),
   R(
     "mail",
@@ -350,7 +360,7 @@ export const REALIZATIONS: readonly Realization[] = [
     ["iron"],
     ["iron", "steel"],
     (m) => `${m} mail`,
-    (m) => ({ protection: 0.2 + 0.6 * MATERIAL[m].guard, cost: 0.3 + 0.3 * MATERIAL[m].cost }),
+    (m, x = MATERIAL[m]) => ({ protection: 0.2 + 0.6 * x.guard, cost: 0.3 + 0.3 * x.cost }),
   ),
   R(
     "plate",
@@ -757,7 +767,9 @@ export function worth(does: Performance, doctrine: Doctrine): number {
 /**
  * Build a design: for each role, of the realizations whose principles are known and one
  * of whose materials is at hand, the one the doctrine values most (ties: the order of
- * the grammar, then of its materials). Greedy, role by role, no search.
+ * the grammar, then of its materials). Greedy, role by role, no search. (`keep`: the parts
+ * of a design already made, each kept while it can still be made unless another is better
+ * by more than `margin` of its worth — Phase 52 M217.)
  */
 export function compose(
   roles: readonly Role[],
@@ -767,10 +779,14 @@ export function compose(
   body?: BodyPlan,
   /** Which realizations this place may build at all (by id); all by default. */
   allow: (realization: string) => boolean = () => true,
+  keep: readonly Part[] = [],
+  margin = 0,
 ): Part[] {
   const parts: Part[] = [];
   for (const role of roles) {
-    let best: { part: Part; value: number } | null = null;
+    let best: { part: Part; value: number } | null = null,
+      kept: number | null = null;
+    const had = keep.find((p) => p.role === role);
     for (const r of REALIZATIONS) {
       if (r.role !== role || !allow(r.id) || !r.needs.every(knows)) continue;
       // A realization for particular bodies is for those alone; one that asks something
@@ -780,20 +796,30 @@ export function compose(
       for (const m of r.materials) {
         if (!has(m)) continue;
         const value = worth(r.does(m), doctrine);
+        if (had && had.id === r.id && had.material === m) kept = value;
         if (!best || value > best.value + 1e-12)
           best = { part: { role, id: r.id, material: m }, value };
       }
     }
+    // (What it has, while it can still be made, gives way only to what is better by the margin.)
+    if (best && had && kept !== null && best.value - kept <= margin * Math.abs(kept))
+      best = { part: had, value: kept };
     if (best) parts.push(best.part);
   }
   return parts;
 }
 
-/** A design's performance: the sum of its parts'. */
-export function performanceOf(parts: readonly Part[]): Record<string, number> {
+/**
+ * A design's performance: the sum of its parts'. (`props`: each part's material as it was found and
+ * worked, where it differs from the usual — Phase 52 M217; left out, the usual.)
+ */
+export function performanceOf(
+  parts: readonly Part[],
+  props?: (p: Part) => MaterialProps | undefined,
+): Record<string, number> {
   const out: Record<string, number> = {};
   for (const p of parts)
-    for (const [axis, x] of Object.entries(realization(p.id).does(p.material)))
+    for (const [axis, x] of Object.entries(realization(p.id).does(p.material, props?.(p))))
       out[axis] = (out[axis] ?? 0) + x;
   return out;
 }
@@ -804,9 +830,15 @@ export function realization(id: string): Realization {
   return r;
 }
 
-/** How much stronger a host fights than one with clubs, bare and on foot. */
-export function hostPower(parts: readonly Part[]): number {
-  const p = performanceOf(parts);
+/**
+ * How much stronger a host fights than one with clubs, bare and on foot. (`props`: its parts'
+ * materials as they were found and worked, Phase 52 M217.)
+ */
+export function hostPower(
+  parts: readonly Part[],
+  props?: (p: Part) => MaterialProps | undefined,
+): number {
+  const p = performanceOf(parts, props);
   return (
     1 +
     1.0 * ((p.shock ?? 0) - 0.3) +

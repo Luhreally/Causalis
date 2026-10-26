@@ -721,7 +721,7 @@ export function seedLife(g: HomeWorld): SeedLife {
 function planetUniverse(name: string, prior: Prior): Universe {
   return {
     name,
-    version: `${name}-5`,
+    version: `${name}-6`,
     defaultView: "globe",
     // A farming land with no village yet will found one soon: work out its village sites early.
     idle: (world) => {

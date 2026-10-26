@@ -721,6 +721,12 @@ body[data-scale="micro"] {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
   pointer-events: none;
 }
+/* A battle its arms decided (Phase 52 M217): ringed in brass. */
+.war-mark.tipped {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 0 0 3px #e8c46a;
+}
 .war-watch {
   align-self: center;
   width: auto;

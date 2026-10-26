@@ -3,8 +3,16 @@
 // (the sea it looks on, its heights, its woods, its sands, its ice) and what its faith holds.
 // Pure reads of the world.
 import { isProvinceWorld } from "../gen/index.ts";
-import { beliefOf, designsOf, homePlanet, politiesOf, type Tenet } from "../sim/index.ts";
+import {
+  beliefOf,
+  designsOf,
+  homePlanet,
+  politiesOf,
+  type Design,
+  type Tenet,
+} from "../sim/index.ts";
 import type { Ref, World } from "../kernel/index.ts";
+import type { Part } from "../rules/index.ts";
 import { armsFor, type Arms, type Charge, type HostKinds } from "../bridge/index.ts";
 import { realmColor } from "./colors.ts";
 
@@ -63,13 +71,33 @@ export function realmArms(world: World, ref: string): Arms | null {
   );
 }
 
+/** When a host was armed: a battle's year, and the design it recorded it fought by (if it did). */
+export type ArmedWhen = { readonly year: number; readonly design?: Ref | null };
+
 /**
- * What a realm's host is made of (Phase 12 M110): what it strikes with, what guards it, what
- * carries it — its design's parts, by their ids (null: it has no design yet).
+ * The design a realm's host is armed by (Phase 52 M217): now, or as it was — the one a battle
+ * recorded, else the one it had that year (old designs stay); else its present one.
  */
-export function hostKinds(world: World, ref: string): HostKinds | null {
-  const parts = designsOf(world).of(ref as Ref)?.parts;
-  if (!parts) return null;
+export function hostDesign(world: World, ref: string, when?: ArmedWhen): Design | undefined {
+  const designs = designsOf(world);
+  return (
+    (when?.design ? designs.get(when.design) : undefined) ??
+    (when ? designs.at(ref as Ref, when.year) : undefined) ??
+    designs.of(ref as Ref)
+  );
+}
+
+/** A host's parts by their ids: what it strikes with, what guards it, what carries it. */
+export function kindsOf(parts: readonly Part[]): HostKinds {
   const id = (role: string) => parts.find((x) => x.role === role)?.id ?? "";
   return { arm: id("arm"), guard: id("guard"), mount: id("mount") };
+}
+
+/**
+ * What a realm's host is made of (Phase 12 M110): its design's parts, by their ids (null: it has
+ * no design yet) — now, or as it was armed when (M217).
+ */
+export function hostKinds(world: World, ref: string, when?: ArmedWhen): HostKinds | null {
+  const d = hostDesign(world, ref, when);
+  return d ? kindsOf(d.parts) : null;
 }

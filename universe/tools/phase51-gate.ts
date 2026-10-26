@@ -275,7 +275,12 @@ if (rackAt) {
   await k(
     `globalThis.causalis.rig.flyTo({ target: { x: ${rackAt.x * 0.1}, y: 0.25, z: ${rackAt.z * 0.1} }, distance: 2.6, pitch: -32 })`,
   );
-  await page.waitForTimeout(slow(2500));
+  await page
+    .waitForFunction(() => !(globalThis as any).causalis.rig.flying, undefined, {
+      timeout: slow(60000),
+    })
+    .catch(() => undefined);
+  await page.waitForTimeout(slow(1000));
 }
 const onScreen = (r: { x: number; y: number }) => r.x > 20 && r.x < 1346 && r.y > 120 && r.y < 680;
 let hung = (await rack()).filter(onScreen);
@@ -419,7 +424,14 @@ const tapMade = async (
   await k(
     `globalThis.causalis.rig.flyTo({ target: { x: ${at.x * 0.1}, y: 0.25, z: ${at.z * 0.1} }, distance: 3, pitch: -34 })`,
   );
-  await page.waitForTimeout(slow(2500));
+  // (The flight eases on by the frames: waited out however slowly they come — a city's works lie
+  // far out, and a great town draws slowly in software.)
+  await page
+    .waitForFunction(() => !(globalThis as any).causalis.rig.flying, undefined, {
+      timeout: slow(60000),
+    })
+    .catch(() => undefined);
+  await page.waitForTimeout(slow(1000));
   let seen = (await where()).filter(onScreen);
   if (!seen.length) {
     await page.waitForTimeout(slow(1000));

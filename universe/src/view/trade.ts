@@ -108,7 +108,12 @@ export function tripOn(
 export function storeOfGood(good: string): "granary" | "smithy" | "yard" {
   return good === "grain" || good === "meat" || good === "wild"
     ? "granary"
-    : good === "copper" || good === "coal" || good === "tools" || good === "machines"
+    : good === "copper" ||
+        good === "tin" ||
+        good === "iron" ||
+        good === "coal" ||
+        good === "tools" ||
+        good === "machines"
       ? "smithy"
       : "yard";
 }

@@ -142,6 +142,70 @@ juniper, amber, kestrel, alien 55 at 300/500/700/900 + `npm run calibrate` + `ga
   baseline; fire-less worlds no bronze/iron.
 - Performance: per-year cost ≤ +10%; gate:5 saves in bounds.
 
+## Results (measured 2026-10-26: first light, spread start, against the tree before Phase 52)
+
+- Agreement: a host is armed only from `metalsAt(seat)` (tests/sim/metals.test.ts). Hosts whose
+  metal outranks their seat's tools, at 100–500: 1 / 3 / 1 / 0 / 4 (before: 12 / 8 / 10 / 14). Each
+  holds that metal by trade or in store.
+- Tin: bronze-tool lands with tin bought the year before were 6 of 16 at 100, 24 of 35 at 200, 30 of
+  40 at 300 and 12 of 13 at 500. Tin roads from year 100: 10 flows, rising to 162 by 400.
+- Spread:
+  - Lands with metal-headed tools: 15% at 300, 22% at 400, 39% at 500, 55% at 600 (before: 18%,
+    17%, 21%, 25%).
+  - Iron or steel in 51% at 700. Iron was first found in 266, with iron tools by 300.
+  - Missed: "metal ≥ 20% at 300" (the old tree had 18%) and "bronze ≥ 5% at 400". Bronze peaks
+    at 7% of lands at 300 (the old tree made no bronze tools), then gives way to iron wherever both
+    are known.
+- Battles decided by arms: 0.8% in 200–400, 1.9% in 400–550, 2.2% in 550–700. This is under the
+  5–20% target.
+  - Arms were unequal in 31–53% of battles. But the median |ln(powerA/powerB)| is 0–0.06 (p90 about
+    0.23) and the largest ratio is 1.67.
+  - Most battles are between neighbours with the same kit. Numbers, ground, walls and the seat's ×2
+    weigh far more than a kit worth 1.3 against 1.1.
+  - **Decided:** keep the physics rather than inflate arms to meet a guessed share.
+- History: the calibration bands pass, and gate 2 passes on 11 of 11 seeds.
+  - Turning points (before in brackets): iron 266 (266), coal 395 (504), steam 551 (711), factory
+    684 (783), electricity 698 (819). They now sit mid-band, where before they sat near the tops.
+  - Cause: bronze and iron now spread along the tin and iron roads (the lore's held-metal driver,
+    foreseen under Risks). Lands knowing each, new against old:
+
+    | | year | new | old |
+    |---|---|---|---|
+    | bronze | 400 | 161 | 99 |
+    | iron | 500 | 234 | 122 |
+    | steel | 600 | 197 | 17 |
+    | clockwork | 600 | 100 | 27 |
+
+  - Industry's power brings the demographic transition earlier: people at 800 are 670M (1017M), at
+    900 560M (767M). They have more grain each (16 against 12 a year at 800) and fewer famines (1037
+    against 1651 in 700–800).
+  - The two histories meet again by 1000: 531M against 511M; at 1100, 533M against 484M.
+  - War deaths per decade from 300 to 800 are within −21% … +8% of the old tree. In 800–900 they are
+    −46% in number and −25% a person.
+  - The space age came too soon: with industry a century earlier, Earth's first satellite flew in
+    946 (1049), under gate 5's 950–1150 band. **Calibrated:** the thirteen sky crafts (electronics
+    to the antimatter drive) are found at 0.7 of their old rates. The other variants tried were 0.55
+    of all, and orbital flight and habitats alone. Run to 1400, before in brackets:
+
+    | | new | before |
+    |---|---|---|
+    | first satellite | 990 | 1049 |
+    | first colony | 1158 | 1197 |
+    | first ship to a star | 1363 | 1255 |
+
+    Every calibration band passes. Gate 5's alien worlds still reach orbit early: alien 41's first
+    satellite flies in 720 (674 at the old rates) and alien 55's in 721 (721).
+- Performance: 900 calibration years took 280 s against 267 s, run side by side (+5%). The arms
+  report's ms/year is +3% … +10% by century.
+- Fixed on the way (found by probing the generated world, not by tests):
+  - Tin and iron took turns between a smelting year and a working year, so a land's tool metal
+    flipped every year. The room rule now takes the most use of the last three years, and the series
+    keeps a metal while it heads a tenth. Changes in 600–700 fell from 1333 to 272 over 549 lands.
+  - Host designs flipped at the five-year reviews, each switch draining the markets' iron. Fixed by
+    `HOST_KEEP` 0.1 and `ARMS_TAKE` 0.5: changes in 500–700 now average about 1.4 per realm.
+  - Crafts sharing an input each saw the whole stock and made output from inputs they never got. The
+    stock is now shared by what each was set to use.
+
 ## Risks
 - Determinism: `.get()` on read paths; pure bounded caches keyed by digest (no WeakMap); `dmath` for
   pow/exp/log; realms in list order; appended goods/recipes; no new random draws.

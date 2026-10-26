@@ -25,13 +25,14 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { BANDS, G, MALE, hostPower, type LifeHistory } from "../../rules/index.ts";
+import { BANDS, G, MALE, type LifeHistory } from "../../rules/index.ts";
 
 /** Whether an age band fights: the grown, before the last third of life (fifteen to fifty, for upright apes). */
 function fighting(life: LifeHistory, band: number): boolean {
   return life.bands[band]! >= life.adulthood && life.bands[band]! < life.bands[7]!;
 }
-import { designsOf, hostFor } from "../design/design.ts";
+import { designsOf } from "../design/design.ts";
+import { ArmsStore, armsOf } from "./arms.ts";
 import { COLS, row } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { marketGoodRef, type MarketStore } from "../economy/market.ts";
@@ -65,6 +66,16 @@ export type Battle = {
   readonly fielded?: readonly [number, number];
   /** Whether it was fought at the defender's seat, about its walls (M183). */
   readonly seat?: boolean;
+  /**
+   * What each side's arms were worth (Phase 52 M217): its host's power — the bare host's and as
+   * much of its full kit's as it bore — and how armed it was (0 … 1). Absent in older saves.
+   */
+  readonly power?: readonly [number, number];
+  readonly armed?: readonly [number, number];
+  /** The designs each side was armed by (null: none yet; M217, absent in older saves). */
+  readonly designs?: readonly [Ref | null, Ref | null];
+  /** Whether its arms tipped it: with even arms, the same day would have gone the other way. */
+  readonly tip?: boolean;
 };
 
 /** What a civil war is fought over (Phase 22 M146): a throne at a succession, a general's revolt, a pretender's claim, an old court's return, the freed taken back. */
@@ -234,11 +245,10 @@ export function fieldedParts(
 /** How many a realm can field, and how well armed: grown men, a share by valour and a standing army. */
 export function strengthOf(ctx: PopulationContext, p: Polity): number {
   const share = fieldShare(ctx, p),
-    // What its host fights with: its design (realized now, if the realm is newer than it),
+    // What its host fights with: its design (realized now, if the realm is newer than it), as
+    // its seat makes it and as much of it as the host bears (Phase 52 M217: sim/war/arms.ts),
     // borne by bodies as strong as they are.
-    arms =
-      hostPower(designsOf(ctx.world).of(p.ref)?.parts ?? hostFor(ctx, p).parts) *
-      ctx.affords.strength;
+    arms = armsOf(ctx, p).power * ctx.affords.strength;
   return fightingMen(ctx, p) * share * arms;
 }
 
@@ -559,7 +569,15 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         walls *
         (chestB ? CREDIT.chest : 1),
       odds = attack / Math.max(1, attack + defend),
-      won = world.rng.real(FIGHT, key, t, 0) < odds;
+      draw = world.rng.real(FIGHT, key, t, 0),
+      won = draw < odds,
+      // (Its arms tipped it where, the same day with even arms, it would have gone the other way.)
+      armsA = armsOf(ctx, a),
+      armsB = armsOf(ctx, b),
+      evenA = attack / armsA.power,
+      evenB = defend / armsB.power,
+      tip = won !== draw < evenA / Math.max(1, evenA + evenB),
+      tipped = tip ? designsOf(world).of((won ? a : b).ref)?.event : undefined;
     // The fallen: a share of the smaller host, more on the losing side.
     const clash = Math.min(attack, defend),
       lostA = Math.round(clash * (won ? 0.08 : 0.18)),
@@ -576,8 +594,10 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         { ref: w.event, role: "trigger", weight: 1 },
         ...(chestA ? [{ ref: chestA, role: "enabler" as const, weight: 0.5 }] : []),
         ...(chestB ? [{ ref: chestB, role: "enabler" as const, weight: 0.5 }] : []),
+        // The winner's arms, where they tipped it.
+        ...(tipped ? [{ ref: tipped, role: "enabler" as const, weight: 0.4 }] : []),
       ],
-      data: { a: realmName(a), b: realmName(b), won, fallen: fa + fb },
+      data: { a: realmName(a), b: realmName(b), won, fallen: fa + fb, ...(tip ? { tip } : {}) },
     });
     w.battles.push({
       year,
@@ -587,6 +607,10 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       event: battle,
       fielded: [Math.round(fieldedOf(ctx, a)), Math.round(fieldedOf(ctx, b))],
       seat,
+      power: [Math.round(armsA.power * 1000) / 1000, Math.round(armsB.power * 1000) / 1000],
+      armed: [Math.round(armsA.armed * 1000) / 1000, Math.round(armsB.armed * 1000) / 1000],
+      designs: [armsA.design, armsB.design],
+      tip,
     });
     // A seat is not taken in a day: the first victory there lays a siege, the second takes it.
     const besieged = seat && won && !w.battles.slice(0, -1).some((x) => x.land === land && x.won);
@@ -681,6 +705,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
 /** Teach a peopled world its wars. */
 export function installWar(world: World, ctx: () => PopulationContext): WarStore {
   const store = world.register(new WarStore());
+  world.register(new ArmsStore());
   world.addPinner(() => store.pinned());
   world.system({ key: "185.war.year", every: YEAR, run: (t) => warYear(ctx(), t) });
   return store;

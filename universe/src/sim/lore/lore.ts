@@ -29,6 +29,7 @@ import {
   OCC,
   PRINCIPLES,
   PRINCIPLE_INDEX,
+  SMELTING,
   affordsPrinciple,
   needsMet,
   type Effect,
@@ -38,7 +39,8 @@ import {
 /** Each effect's place in a land's totals. */
 const EFFECT_INDEX: ReadonlyMap<string, number> = new Map(EFFECTS.map((e, i) => [e, i]));
 import type { PopulationContext } from "../population/systems.ts";
-import type { MarketStore } from "../economy/market.ts";
+import { marketGoodRef, type MarketStore } from "../economy/market.ts";
+import { oreWithin } from "../economy/ore.ts";
 import { cultureOf } from "../culture/culture.ts";
 import { politiesOf } from "../polity/polity.ts";
 
@@ -177,6 +179,38 @@ function findOreNear(ctx: PopulationContext, cell: number, kind: string): number
   return [...new Set(near)].sort((a, b) => a - b).find(has) ?? null;
 }
 
+/**
+ * Whether a land has an ore within reach to find a craft by, and what to cite (Phase 52 M216): a
+ * metal's ore by the one rule its smelters go by — its own land's (1), else a neighbour's (0.5) —
+ * else the metal itself held in its market, brought down a road or kept (0.5); salt, coal, oil and
+ * the vents within two steps, as before.
+ */
+export function oreDriver(
+  ctx: PopulationContext,
+  cell: number,
+  kind: string,
+): { value: number; ref: Ref } | null {
+  const smelt = SMELTING.find((s) => s.ore === kind);
+  if (!smelt) {
+    const c = oreNear(ctx, cell, kind);
+    if (c === null) return null;
+    // Coal and oil cite what laid them down: the field, or the age that buried it.
+    const seam =
+      kind === "coal" || kind === "oil" ? (seamRef(ctx.generated, c, kind) as Ref | null) : null;
+    return { value: c === cell ? 1 : 0.5, ref: seam ?? cellRef(0, c) };
+  }
+  const ore = oreWithin(ctx, cell, kind);
+  if (ore) return { value: ore.cell === cell ? 1 : 0.5, ref: ore.ref };
+  const markets = ctx.world.store<MarketStore>("economy.markets"),
+    m = markets.get(cell);
+  if (!m || (m.stock[smelt.good]! <= 0 && m.book("in", smelt.good) <= 0)) return null;
+  const road = markets.flows.find((f) => f.to === cell && f.good === smelt.good);
+  return {
+    value: 0.5,
+    ref: (road && markets.route(road.from, cell)) || marketGoodRef(cell, smelt.good),
+  };
+}
+
 /** The lore's year: each land may find one principle and learn one from a neighbour. */
 export function loreYear(ctx: PopulationContext, t: SimTime): void {
   const { world, generated: g } = ctx,
@@ -216,7 +250,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
       if (d.river && !g.water.river[cell]) continue;
       if (d.coast && !coast) continue;
       if (d.hills && g.tectonics.elevation[cell]! < 600) continue;
-      const ore = d.ore ? oreNear(ctx, cell, d.ore) : null;
+      const ore = d.ore ? oreDriver(ctx, cell, d.ore) : null;
       if (d.ore && ore === null) continue;
       const terms: [string, number, number, CauseRef | null][] = [
         ["crafters", d.crafters ?? 0, Math.min(1, prov.occupation(OCC.crafter) / 50), null],
@@ -260,16 +294,9 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
       if (ore !== null)
         factors.push({
           name: `${d.ore} within reach`,
-          value: ore === cell ? 1 : 0.5,
+          value: ore.value,
           contribution: 0.5,
-          // Coal and oil cite what laid them down: the field, or the age that buried it.
-          source: {
-            ref:
-              ((d.ore === "coal" || d.ore === "oil") && (seamRef(g, ore, d.ore) as Ref | null)) ||
-              cellRef(0, ore),
-            role: "enabler",
-            weight: 1,
-          },
+          source: { ref: ore.ref, role: "enabler", weight: 1 },
         });
       found = { cell, p, found: true, factors: factors.slice(0, 6), causes: [] };
       break;

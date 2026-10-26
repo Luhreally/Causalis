@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { landStone } from "../../src/host/chain.ts";
-import { METALS, SUBSTANCE, SUBSTANCES } from "../../src/rules/index.ts";
+import { METALS, ORES, SUBSTANCE, SUBSTANCES } from "../../src/rules/index.ts";
+import { populationContext, toolMetal } from "../../src/sim/index.ts";
 import { dayTold, furnaceOf, rackNow, townDay, villageSolids } from "../../src/view/index.ts";
 import type { Line, PageModel, VillagePlan } from "../../src/bridge/index.ts";
 
@@ -111,10 +112,14 @@ test("the day's tools are hung on the rack as they are made, each one's page tra
   assert.equal(rackNow(smelting, ground, (day + 1) * DAY + 5 * HOUR)!.hung.length, 0);
 });
 
-test("a town's tools and ore are drawn in their own stuff, and a smithy whose land still knaps stands idle", () => {
+test("a town's tools and ore are drawn in their own stuff, and a smithy with nothing forged stands idle", () => {
+  const ctx = populationContext(world);
   for (const p of plans) {
-    const s = p.stuff!;
-    if (p.metal === "stone")
+    const s = p.stuff!,
+      // (Its tools are headed with what its land's crafters made most of; its smiths forge the
+      // best metal any were headed with — Phase 52 M217.)
+      tools = toolMetal(ctx, p.cell!);
+    if (tools === "stone")
       assert.deepEqual(
         s.tool.colour,
         landStone(world, p.cell!).stone.colour,
@@ -123,20 +128,30 @@ test("a town's tools and ore are drawn in their own stuff, and a smithy whose la
     else
       assert.deepEqual(
         s.tool.colour,
-        METALS[p.metal as keyof typeof METALS].colour,
-        `${p.name}: its ${p.metal}`,
+        METALS[tools as keyof typeof METALS].colour,
+        `${p.name}: its ${tools}`,
       );
-    if (s.ore)
+    if (p.metal === "stone") assert.equal(s.metal, null, `${p.name}: its smiths forge nothing`);
+    else
       assert.deepEqual(
-        s.ore.colour,
-        SUBSTANCES[SUBSTANCE[s.ore.name === "malachite" ? "malachite" : "chalcopyrite"]!]!.colour,
+        s.metal?.colour,
+        METALS[p.metal as keyof typeof METALS].colour,
+        `${p.name}: its smiths forge ${p.metal}`,
       );
+    // Its own ore (copper's, or since Phase 52 tin's or iron's) in its mineral's colour.
+    if (s.ore) {
+      const ore = Object.values(ORES[s.ore.yields ?? "copper"] ?? {}).find(
+        (o) => o.name === s.ore!.name,
+      );
+      assert.ok(ore, `${p.name}: ${s.ore.name} an ore of ${s.ore.yields}`);
+      assert.deepEqual(s.ore.colour, SUBSTANCES[SUBSTANCE[ore.mineral]!]!.colour, s.ore.name);
+    }
   }
-  // Its smiths named, but nothing to forge: none at the anvil.
+  // Its smiths named, but nothing forged in its land this year: none at the anvil.
   const idle = plans.find(
     (p) => p.metal === "stone" && p.people.some((x) => x.trade?.kind === "smith"),
   );
-  assert.ok(idle, "a town of stone tools keeping smiths");
+  assert.ok(idle, "a town keeping smiths with nothing forged");
   const ground = villageSolids(idle);
   for (const day of days)
     assert.ok(

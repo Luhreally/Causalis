@@ -168,12 +168,13 @@ export class WarPanel {
     const at = foughtAt(c),
       width = this.span.to - this.span.from;
     c.battles.forEach((b, i) => {
-      const m = el("span", "battle-mark war-mark");
+      // (Ringed where arms decided it: Phase 52 M217.)
+      const m = el("span", `battle-mark war-mark${b.tip ? " tipped" : ""}`);
       m.style.left = `${((at[i]! - this.span.from) / width) * 100}%`;
       m.style.background = rgb(b.won ? c.attacker.color : c.defender.color);
       m.title = `Year ${b.year}: the battle at ${b.land} — ${outcomeWords(c, b)}; ${count(
         b.fallen[0] + b.fallen[1],
-      )} fell`;
+      )} fell${b.tip ? "; arms decided it" : ""}`;
       this.course.append(m);
     });
     this.latest = null;
@@ -309,12 +310,12 @@ export class WarAgePanel {
       const at = foughtAt(c);
       c.battles.forEach((b, i) => {
         if (at[i]! < this.span.from || at[i]! > this.span.to) return;
-        const m = el("span", "battle-mark war-mark");
+        const m = el("span", `battle-mark war-mark${b.tip ? " tipped" : ""}`);
         m.style.left = `${((at[i]! - this.span.from) / width) * 100}%`;
         m.style.background = rgb(b.won ? c.attacker.color : c.defender.color);
         m.title = `Year ${b.year}: the battle at ${b.land} — ${outcomeWords(c, b)}; ${count(
           b.fallen[0] + b.fallen[1],
-        )} fell`;
+        )} fell${b.tip ? "; arms decided it" : ""}`;
         this.course.append(m);
       });
     }

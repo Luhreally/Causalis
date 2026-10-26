@@ -19,6 +19,12 @@ export const FIXTURES: readonly Fixture[] = [
     years: 300,
     make: () => makePopulationWorld(seedFromText("first light")),
   },
+  {
+    // The app's own start (Phase 52 M218): bands spread across the land, not one cradle.
+    name: "people/first-light-spread",
+    years: 300,
+    make: () => makePopulationWorld(seedFromText("first light"), { start: "spread" }),
+  },
 ];
 
 export type FixtureRecord = {
@@ -37,6 +43,25 @@ export function recordFixture(fixture: Fixture, years = fixture.years): FixtureR
       domains: c.domains.map(([d, h]) => [d, h] as [string, string]),
     })),
   };
+}
+
+/**
+ * Where each domain of two records first parts (Phase 52 M218): its first checkpoint's moment, for
+ * every domain that differs anywhere (a domain in one record only parts at its first checkpoint).
+ */
+export function domainDivergence(a: FixtureRecord, b: FixtureRecord): Map<string, number> {
+  const out = new Map<string, number>(),
+    n = Math.min(a.checkpoints.length, b.checkpoints.length);
+  for (let i = 0; i < n; i++) {
+    const x = a.checkpoints[i]!,
+      y = b.checkpoints[i]!;
+    if (x.chain === y.chain) continue;
+    const theirs = new Map(y.domains);
+    for (const [d, h] of x.domains) if (!out.has(d) && theirs.get(d) !== h) out.set(d, x.t);
+    for (const [d] of y.domains)
+      if (!out.has(d) && !x.domains.some(([e]) => e === d)) out.set(d, x.t);
+  }
+  return out;
 }
 
 /** Where two records first part: the checkpoint and the domains that differ there. */

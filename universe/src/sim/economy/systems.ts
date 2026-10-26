@@ -6,6 +6,9 @@
 // of each kind of work was worth is set down, for people to follow. The first time
 // goods go down a road, and when trade answers a famine, history records why.
 // Metalworking is found where crafters work a copper seam, and spreads along roads.
+// Ore is reckoned by one rule (./ore.ts): a land's own, else a neighbour's; tin and
+// iron are smelted where their crafts are known, and tools are headed with the metal
+// a land's market holds (Phase 52 M216).
 import {
   YEAR,
   apportion,
@@ -21,7 +24,7 @@ import {
   type SimTime,
   type World,
 } from "../../kernel/index.ts";
-import { cellRef, seamRef, surfaceCopper, surfaceOre } from "../../gen/index.ts";
+import { cellRef, seamRef, surfaceOre } from "../../gen/index.ts";
 import { loreOf } from "../lore/lore.ts";
 import {
   ENGINE_GAIN,
@@ -40,12 +43,15 @@ import {
   PRODUCTIVITY,
   RECIPES,
   TOOL_GAIN,
+  TOOL_RECIPE_METAL,
   TOOL_USERS,
   TRADER_CAPACITY,
   WANTS,
+  WORKED,
   principle,
   type LifeHistory,
   type Recipe,
+  type ToolMetal,
 } from "../../rules/index.ts";
 import type { Province } from "../population/model.ts";
 import {
@@ -57,9 +63,12 @@ import {
   type PopulationContext,
 } from "../population/systems.ts";
 import { GOOD_COUNT, type Market, type MarketStore, type TradeFlow } from "./market.ts";
+import { metalRank, metalSource, sourceRef } from "./metals.ts";
+import { oreWithin } from "./ore.ts";
 import { kmBetween, seaRange, seaReach } from "./sea.ts";
 import { politiesOf } from "../polity/polity.ts";
-import { warsOf, type War } from "../war/war.ts";
+import { fieldedOf, warsOf, type War } from "../war/war.ts";
+import { rearmYear } from "../war/arms.ts";
 
 const SPREADING = purpose("spread");
 const HERDS = defineStream("econ.herds");
@@ -77,6 +86,8 @@ export const ECONOMY_EVENTS = {
   embargo: defineEventType("trade.embargo", 4),
   metalworking: defineEventType("knowledge.metalworking", 6),
   metalworkingSpread: defineEventType("knowledge.metalworking-spread", 3),
+  /** A land's crafters first head most of its tools with a better metal than ever before. */
+  tools: defineEventType("industry.tools", 3),
 };
 
 /** What carrying a unit of grain a hundred kilometres over flat ground costs, in grain. */
@@ -93,43 +104,6 @@ const PRICE_STEP = 0.35;
 
 // ── What a province can make ────────────────────────────────────────────────────
 
-export type Ore = {
-  /** What the explainer cites: the deposit, or the land whose surface holds the ore. */
-  readonly ref: Ref;
-  readonly cell: number;
-  readonly richness: number;
-  /** Ore hauled in from a neighbouring land yields less than ore at home. */
-  readonly reach: number;
-};
-
-/**
- * The ore of a kind a province can work: its own first, then a neighbour's within a few days'
- * walk. (Read by the host's chain too, Phase 50 M212: where its tools' metal was dug.)
- */
-export function oreFor(ctx: PopulationContext, cell: number, kind: string): Ore | null {
-  const g = ctx.generated,
-    at = (c: number, reach: number): Ore | null => {
-      const d = g.deposits.find((x) => x.cell === c && x.kind === kind);
-      if (d) return { ref: d.ref as Ref, cell: c, richness: d.richness, reach };
-      if (kind === "copper" && surfaceCopper(g, c))
-        return { ref: cellRef(0, c), cell: c, richness: 0, reach };
-      // The vents' chimneys, to a people of the water, are their copper.
-      if (kind === "copper" && ctx.medium === "water" && surfaceOre(g, c, "vent"))
-        return { ref: cellRef(0, c), cell: c, richness: 0, reach };
-      return null;
-    };
-  const own = at(cell, 1);
-  if (own) return own;
-  const around = [
-    ...g.grid.neighbours.subarray(g.grid.offsets[cell]!, g.grid.offsets[cell + 1]!),
-  ].sort((a, b) => a - b);
-  for (const c of around) {
-    const o = at(c, 0.6);
-    if (o) return o;
-  }
-  return null;
-}
-
 function canMake(ctx: PopulationContext, p: Province, m: Market, r: Recipe): boolean {
   return whyNot(ctx, p.cell, m, r) === null;
 }
@@ -143,8 +117,8 @@ export function whyNot(ctx: PopulationContext, cell: number, m: Market, r: Recip
   if (know === "metalworking" && !m.metalworking) return "they do not know how to smelt copper";
   if (know && know !== "metalworking" && !loreOf(ctx.world).get(cell, know))
     return `they do not know ${principle(know).name}`;
-  if (r.needs?.deposit && !oreFor(ctx, cell, r.needs.deposit))
-    return `no ${r.needs.deposit} within a few days' walk`;
+  if (r.needs?.ore && !oreWithin(ctx, cell, r.needs.ore))
+    return `no ${r.needs.ore} within a few days' walk`;
   if (r.needs?.seam && !surfaceOre(ctx.generated, cell, r.needs.seam))
     return `no ${r.needs.seam} under its own ground`;
   if (r.clay && !ctx.generated.water.river[cell] && !ctx.generated.water.lake[cell])
@@ -152,38 +126,15 @@ export function whyNot(ctx: PopulationContext, cell: number, m: Market, r: Recip
   return null;
 }
 
-/** What a land's tools are headed with: the best metal it knows and has ore for within reach. */
-export type ToolMetal = "stone" | "copper" | "bronze" | "iron" | "steel";
+export type { ToolMetal } from "../../rules/index.ts";
 
 /**
- * The metal a land's tools would be made of now, as a host's arms are chosen (sim/design
- * hostFor): steel or iron where it knows them and iron ore is within reach, bronze where it
- * knows it and copper and tin are, copper where it smelts copper or has copper by trade,
- * else stone. (The economy's
- * own recipes still make tools of stone or copper; the ores and alloys come in M127.)
+ * What a land's tools were headed with (now, or in a past year): the metal most of its crafted
+ * tools were made of that year, as its market set it down — stone where its crafters never made
+ * tools of a metal. (The host's pages, the town's smithy and the chain read it: the sim's own.)
  */
 export function toolMetal(ctx: PopulationContext, cell: number, year?: number): ToolMetal {
-  // (In a past year, only what the land knew by then: a tool keeps the metal it was made of.)
-  const lore = loreOf(ctx.world),
-    knew = (id: string) => {
-      const k = lore.get(cell, id);
-      return !!k && (year === undefined || k.year <= year);
-    },
-    m = ctx.world.store<MarketStore>("economy.markets").get(cell),
-    smelted = (() => {
-      if (!m?.metalworking) return false;
-      if (year === undefined) return true;
-      const e = ctx.world.events.get(m.metalworking);
-      return !e || yearOfMoment(e.t) <= year;
-    })(),
-    iron = oreFor(ctx, cell, "iron") !== null,
-    copper = oreFor(ctx, cell, "copper") !== null;
-  if (iron && knew("steel")) return "steel";
-  if (iron && knew("iron")) return "iron";
-  if (copper && knew("bronze") && oreFor(ctx, cell, "tin") !== null) return "bronze";
-  // (Copper by trade as well as from its own ore: copper tools are made of either.)
-  if (smelted && (copper || m!.stock[G.copper]! > 0)) return "copper";
-  return "stone";
+  return ctx.world.store<MarketStore>("economy.markets").get(cell)?.toolMetalIn(year) ?? "stone";
 }
 
 /** What a crafter's year at a recipe is worth, at the market's prices. */
@@ -305,17 +256,30 @@ function makeAndUse(
               : 0));
 
   // Crafters go where their work is worth most; what lacks inputs sends them to what needs none.
-  // Fuel and machines are made only while there is use for them: up to GLUT_YEARS of
-  // what the land burned, wore out and sold last year.
+  // Fuel and machines — and tin and iron (Phase 52 M216) — are made only while there is use for
+  // them: up to GLUT_YEARS of what the land burned, wore out, worked and sold last year.
+  // (Tin and iron are worked only the year after they are smelted: their use is the most of the
+  // last GLUT_YEARS, or a year that smelted them and a year that worked them would take turns.)
   const last = m.years.at(-1)?.ledger,
+    gone = (g: number) =>
+      g === G.tin || g === G.iron
+        ? Math.max(
+            0,
+            ...m.years
+              .slice(-GLUT_YEARS)
+              .map((y) => (y.ledger[1]?.[g] ?? 0) + (y.ledger[3]?.[g] ?? 0)),
+          )
+        : (last?.[1]?.[g] ?? 0) + (last?.[3]?.[g] ?? 0),
     room = (g: number) =>
-      FUELS.includes(g) || g === G.machines
-        ? GLUT_YEARS * ((last?.[1]?.[g] ?? 0) + (last?.[3]?.[g] ?? 0) + 1) - m.stock[g]!
+      FUELS.includes(g) || g === G.machines || g === G.tin || g === G.iron
+        ? GLUT_YEARS * (gone(g) + 1) - m.stock[g]!
         : Infinity;
   const crafters = p.occupation(OCC.crafter),
     open = RECIPES.map((r, i) => ({ r, i })).filter(
       ({ r }) => canMake(ctx, p, m, r) && room(r.output[0]) > 0,
-    );
+    ),
+    // The tools its crafters made this year, by the metal they were headed with.
+    made = new Map<ToolMetal, number>();
   if (crafters > 0 && open.length) {
     const weights = open.map(({ r }) => {
       const w = Math.max(0, worth(m, r));
@@ -327,12 +291,34 @@ function makeAndUse(
       any ? weights : open.map(({ r }) => (r.inputs.length ? 0 : 1)),
       open.map(({ i }) => world.rng.u32(CRAFT, key, t, 0, i)),
     );
+    // (A good several crafts are worked from — copper, iron, tools — is shared among them by what
+    // each was set to use of it: what one takes, another cannot. Phase 52 M217.)
+    const asked = new Map<number, number>(),
+      users = new Map<number, number>();
+    open.forEach(({ r }, k) => {
+      for (const [g, per] of r.inputs) {
+        asked.set(g, (asked.get(g) ?? 0) + alloc[k]! * per);
+        users.set(g, (users.get(g) ?? 0) + (alloc[k]! > 0 ? 1 : 0));
+      }
+    });
+    const shared = (r: Recipe, n: number) => {
+      let most = Infinity;
+      for (const [g, per] of r.inputs) {
+        const stock = m.stock[g]!,
+          mine =
+            (users.get(g) ?? 0) > 1
+              ? Math.floor((stock * n * per) / Math.max(1e-9, asked.get(g)!))
+              : stock;
+        most = Math.min(most, Math.floor(Math.min(stock, mine) / per));
+      }
+      return most;
+    };
     let spare = 0;
     open.forEach(({ r }, k) => {
       for (const [g, per] of r.inputs) want[g] = want[g]! + alloc[k]! * per;
-      const reach = r.needs?.deposit ? oreFor(ctx, p.cell, r.needs.deposit)!.reach : 1,
-        each = r.output[1] * reach * skill(r.output[0]),
-        limit = Math.min(inputLimit(m, r), Math.ceil(room(r.output[0]) / Math.max(1e-9, each)));
+      const grade = r.needs?.ore ? oreWithin(ctx, p.cell, r.needs.ore)!.grade : 1,
+        each = r.output[1] * grade * skill(r.output[0]),
+        limit = Math.min(shared(r, alloc[k]!), Math.ceil(room(r.output[0]) / Math.max(1e-9, each)));
       if (alloc[k]! > limit) {
         spare += alloc[k]! - limit;
         alloc[k] = limit;
@@ -354,17 +340,21 @@ function makeAndUse(
       const n = alloc[k]!;
       if (!n) return;
       for (const [g, per] of r.inputs) m.take("used", g, Math.round(n * per));
-      const reach = r.needs?.deposit ? oreFor(ctx, p.cell, r.needs.deposit)!.reach : 1;
-      m.move(
-        "made",
-        r.output[0],
-        roundKeyed(
-          n * r.output[1] * reach * skill(r.output[0]),
-          world.rng.real(CRAFT, key, t, 2, i),
+      // Lean ore, or ore hauled from a neighbour's land, yields less (Phase 52 M216).
+      const grade = r.needs?.ore ? oreWithin(ctx, p.cell, r.needs.ore)!.grade : 1,
+        out = m.move(
+          "made",
+          r.output[0],
+          roundKeyed(
+            n * r.output[1] * grade * skill(r.output[0]),
+            world.rng.real(CRAFT, key, t, 2, i),
+          ),
         ),
-      );
+        metal = TOOL_RECIPE_METAL[r.id];
+      if (metal && out > 0) made.set(metal, (made.get(metal) ?? 0) + out);
     });
   }
+  toolsOfYear(ctx, p, m, made, t);
 
   for (const [g, need, cover] of wants) {
     const had = m.take("used", g, need);
@@ -395,6 +385,86 @@ function makeAndUse(
   firsts(ctx, p, m);
   // Food wanted over the year: a month's for everyone, twelve times.
   for (const g of FOODS) want[g] = want[g]! + (mouths(p, ctx.life) * 12) / FOODS.length;
+}
+
+/** A metal heads a land's tools in a year where it heads at least this share of those its crafters made, */
+export const TOOL_SHARE = 0.25;
+/** and goes on heading them while it heads at least this share. */
+export const TOOL_KEEP = 0.1;
+
+/**
+ * What a land's smiths forged in a year (now, if none is given; Phase 52 M217): the best metal its
+ * crafters headed any tools with — stone where they headed none. (Older saves: its tools' metal.)
+ */
+export function forgedMetal(ctx: PopulationContext, cell: number, year?: number): ToolMetal {
+  const m = ctx.world.store<MarketStore>("economy.markets").get(cell);
+  return m?.forgedIn(year) ?? m?.toolMetalIn(year) ?? "stone";
+}
+
+/**
+ * What a land's tools were headed with this year (Phase 52 M216): the best metal that headed a
+ * fair share (TOOL_SHARE) of the tools its crafters made — what its smiths work — set down when it
+ * changes; the first time it is better than ever before, told: the craft that let them, and where
+ * the metal came from.
+ */
+function toolsOfYear(
+  ctx: PopulationContext,
+  p: Province,
+  m: Market,
+  made: ReadonlyMap<ToolMetal, number>,
+  t: SimTime,
+): void {
+  let total = 0,
+    forged: ToolMetal = "stone";
+  for (const [x, n] of made) {
+    total += n;
+    if (n > 0 && metalRank(x) > metalRank(forged)) forged = x;
+  }
+  m.setForged(yearOfMoment(t), forged);
+  if (!total) return;
+  let metal: ToolMetal = "stone",
+    most = 0;
+  for (const [x, n] of made)
+    if (n >= TOOL_SHARE * total && metalRank(x) >= metalRank(metal)) {
+      metal = x;
+      most = n;
+    }
+  // (A metal that heads its tools goes on heading them while it heads a tenth of them: a lean
+  // year does not put them back to stone.)
+  const was = m.toolMetalIn();
+  if (was && metalRank(was) > metalRank(metal) && (made.get(was) ?? 0) >= TOOL_KEEP * total) {
+    metal = was;
+    most = made.get(was)!;
+  }
+  if (was === metal) return;
+  const best = m.toolMetals.reduce((r, x) => Math.max(r, metalRank(x.metal)), 0);
+  let event: Ref | null = null;
+  if (metal !== "stone" && metalRank(metal) > best) {
+    const { world } = ctx,
+      worked = WORKED[metal],
+      known =
+        worked.knowledge === "metalworking"
+          ? m.metalworking
+          : (loreOf(world).get(p.cell, worked.knowledge)?.event ?? null),
+      causes: CauseRef[] = [];
+    if (known) causes.push({ ref: known, role: "trigger", weight: 0.6 });
+    for (const good of worked.from) {
+      const source = metalSource(ctx, p.cell, good);
+      if (source)
+        causes.push({
+          ref: sourceRef(p.cell, good, source),
+          role: "enabler",
+          weight: 0.4 / worked.from.length,
+        });
+    }
+    event = world.events.emit({
+      type: ECONOMY_EVENTS.tools.type,
+      place: p.ref,
+      causes,
+      data: { metal, tools: most },
+    });
+  }
+  m.setToolMetal(yearOfMoment(t), metal, event);
 }
 
 /**
@@ -776,8 +846,12 @@ export function economyYear(ctx: PopulationContext, t: SimTime): void {
     makeAndUse(ctx, p, m, t, want);
     wanted.set(p.cell, want);
   }
+  // The hosts re-armed from what the crafts made, before what is left is traded (Phase 52 M217).
+  rearmYear(ctx, politiesOf(ctx.world).living(), wanted, (p) => fieldedOf(ctx, p));
   const flows = trade(ctx, markets, t, wanted);
   markets.flows = flows;
+  // The year is reckoned: what reads the books within this moment reads this year's.
+  for (const m of markets.all()) m.reckoned = true;
   relief(ctx, markets, flows, t);
   for (const p of provinces) {
     const m = markets.of(p.cell);
@@ -797,7 +871,7 @@ export function metalYear(ctx: PopulationContext, t: SimTime): void {
     const key = refHash(p.ref),
       crafters = p.occupation(OCC.crafter);
     // Smelting wants fire: a people without it comes to metal another way (the vents' lore).
-    const ore = ctx.affords.fire ? oreFor(ctx, p.cell, "copper") : null;
+    const ore = ctx.affords.fire ? oreWithin(ctx, p.cell, "copper") : null;
     if (ore && crafters >= 5) {
       const chance = 0.015 * Math.min(1, crafters / 25) * ore.reach;
       if (world.rng.chance(chance, METAL, key, t, 0)) {
@@ -831,7 +905,7 @@ export function metalYear(ctx: PopulationContext, t: SimTime): void {
       });
       continue;
     }
-    const ore = oreFor(ctx, p.cell, "copper")!;
+    const ore = oreWithin(ctx, p.cell, "copper")!;
     const decision = world.decisions.record({
       rule: "knowledge.metalworking",
       subject: p.ref,

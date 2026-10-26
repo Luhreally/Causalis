@@ -183,7 +183,7 @@ export function carryWords(
         : what === "stone"
           ? "cut stone"
           : stuff?.ore
-            ? `a load of ${stuff.ore.name} (copper in its rock, to be smelted)`
+            ? `a load of ${stuff.ore.name} (${stuff.ore.yields ?? "copper"} in its rock, to be smelted)`
             : "a load of ore (copper in its rock, to be smelted)";
     case "pack":
       return "a trader's pack";

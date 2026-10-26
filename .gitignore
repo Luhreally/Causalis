@@ -7,3 +7,6 @@ dist/
 
 # Browser-shot fixtures: a scratch world dumped for a screenshot, not source.
 public/__shot-*.json
+
+# A world saved part-way for experiments to fork from (universe/tools/snapshot.ts).
+snapshots/
