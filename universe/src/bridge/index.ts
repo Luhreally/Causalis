@@ -20,6 +20,7 @@ export {
   LAKE_R,
   STORE_KINDS,
   WATER_OUT,
+  WAR_BURIAL,
   type StoreBook,
   type StoreKind,
   type TownStores,
@@ -31,6 +32,7 @@ export {
   type Feast,
   type VillagePlan,
   type VillageRest,
+  type WarRest,
   type FieldYear,
   type Wonder,
   type Visitor,
@@ -83,6 +85,23 @@ export {
 export type { Garrison, HostKinds, WarSide, WarsMap } from "./wars.ts";
 export { HEART_REACH, heartTown } from "./wars.ts";
 export type { BattleNear, BattleOutcome, BattleSideNear, LevyPlace } from "./battle.ts";
+export {
+  HURT_MOST,
+  ROLL_DEFAULT,
+  ROLL_MOST,
+  battleFigures,
+  levyManRef,
+  parseLevyManRef,
+  parseTownsfolkRef,
+  townsfolkRef,
+  type BattleFigures,
+  type BattleRoll,
+  type FigureCounts,
+  type RollEntry,
+  type RollPlace,
+  type RollSide,
+  type SideFigures,
+} from "./roll.ts";
 export type { Campaign, CampaignBattle, WarAge } from "./campaign.ts";
 export type { ActKindShown, ActMark, ActsMap, LandSky, PaletteLand } from "./acts.ts";
 export type { GenesisPlan, MeadowPlan } from "./genesis.ts";

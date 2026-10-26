@@ -206,6 +206,29 @@ export type Wonder = {
 };
 
 /**
+ * When a battle's fallen are buried (Phase 55 M225): from their town's square at two in the
+ * afternoon (seconds into the day), two days after the battle was watched where it was fought, four
+ * where they are brought home; at most so many of them told by name.
+ */
+export const WAR_BURIAL = { near: 2, home: 4, leaves: 14 * 3600, named: 6 } as const;
+
+/** A battle's fallen of a town, buried from its square (Phase 55 M225). */
+export type WarRest = {
+  /** The battle (its event). */
+  readonly event: string;
+  /** When their funeral leaves the square (world seconds). */
+  readonly at: number;
+  /** How many of the town's men it buries. */
+  readonly dead: number;
+  /** Brought home from a battle in a land beside the town's (else fought in its own). */
+  readonly home: boolean;
+  /** "the battle at Pounholt's land". */
+  readonly where: string;
+  /** Those of them known by name (its line holders, the people met), at most WAR_BURIAL.named. */
+  readonly named: readonly { readonly name: string; readonly age: number; readonly ref: string }[];
+};
+
+/**
  * A town's dead and their burying (Phase 43 M205): how many of it die a year (its share, by its
  * people, of its land's dead last year), how many lie in its graveyard when its year began (its
  * share of its land's dead since it was founded, as far back as history holds them), and the
@@ -222,6 +245,8 @@ export type VillageRest = {
     readonly age: number;
     readonly home: number;
   }[];
+  /** Its fallen of the battles at the turn of the year, buried from its square (Phase 55 M225; absent: none). */
+  readonly war?: readonly WarRest[];
 };
 
 export type VillagePlan = {
@@ -310,6 +335,18 @@ export type VillagePlan = {
       readonly seat: number;
       readonly years: number;
     };
+    /**
+     * The last battle they came home from these 39 years (Phase 55 M225; absent: none): the battle,
+     * its year, where in words, and how they came home.
+     */
+    war?: {
+      readonly event: string;
+      readonly year: number;
+      readonly where: string;
+      readonly fate: "stood" | "hurt" | "maimed";
+    };
+    /** The town's healer, at their seat where its land knows herb-lore (Phase 55 M225): their years at it. */
+    healer?: { readonly years: number };
   }[];
   /** What it holds in store and how that flows (Phase 39 M198). Absent: a village's usual. */
   readonly stores?: TownStores;

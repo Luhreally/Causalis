@@ -10,7 +10,7 @@
 import * as pc from "playcanvas";
 import {
   RANK_STEP,
-  battleFigures,
+  warBattleFigures,
   holdShape,
   hostShape,
   warTokens,
@@ -251,7 +251,7 @@ export class GlobeWars {
         z: at.z + up.z * h * k,
       });
     // Everyone standing: the marchers and defenders, the battles' masses, the garrisons.
-    const battle = battleFigures(paths, s, g),
+    const battle = warBattleFigures(paths, s, g),
       fighting = battle.filter((f) => !f.fallen),
       lying = battle.filter((f) => f.fallen),
       garrison = zoom < GARRISON_ZOOM ? garrisonFigures(paths) : [],

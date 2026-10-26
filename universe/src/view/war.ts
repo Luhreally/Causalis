@@ -481,7 +481,7 @@ export type BattleFigure = {
  * larger the more fought; and between them the fallen, as many more as fell. Last year's
  * smaller: its fight is done, its fallen remain.
  */
-export function battleFigures(w: WarPaths, s: number, grand = 1): BattleFigure[] {
+export function warBattleFigures(w: WarPaths, s: number, grand = 1): BattleFigure[] {
   const out: BattleFigure[] = [];
   w.bursts.forEach((b, n) => {
     if (b.age > 1) return;

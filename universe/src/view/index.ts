@@ -383,7 +383,7 @@ export {
   MARCH,
   RANK_STEP,
   armoured,
-  battleFigures,
+  warBattleFigures,
   battleFront,
   battleOf,
   counterWords,

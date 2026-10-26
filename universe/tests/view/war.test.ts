@@ -6,7 +6,7 @@ import {
   BATTLE_ROUND,
   MARCH,
   RANK_STEP,
-  battleFigures,
+  warBattleFigures,
   battleOf,
   clearOf,
   counterWords,
@@ -461,7 +461,7 @@ test("a battle is two masses meeting in their colours, the fallen between them; 
   const from = cellNear(0.7, 0.7, 0),
     to = cellNear(-0.7, 0.7, 0.05),
     paths = warPaths(map(from, to), grid, elevation),
-    now = battleFigures(paths, 2);
+    now = warBattleFigures(paths, 2);
   // This year's battle (4000 fell) and last year's (12): the older smaller, both shown.
   const fresh = now.filter((f) => f.event === "evt:0:1"),
     old = now.filter((f) => f.event === "evt:0:2");
@@ -492,7 +492,7 @@ test("a battle is two masses meeting in their colours, the fallen between them; 
   }
   // Two years on, no battle is fought there: none stand.
   assert.equal(
-    battleFigures({ ...paths, bursts: paths.bursts.map((b) => ({ ...b, age: 2 })) }, 2).length,
+    warBattleFigures({ ...paths, bursts: paths.bursts.map((b) => ({ ...b, age: 2 })) }, 2).length,
     0,
   );
   // A seat under siege: the besiegers' camp; a realm at peace: its garrison at its seat.
@@ -537,7 +537,7 @@ test("a battle of a war watched faces the way its host came on it: the attacker'
       grid,
       elevation,
     ),
-    standing = battleFigures(w, 2).filter((f) => !f.fallen),
+    standing = warBattleFigures(w, 2).filter((f) => !f.fallen),
     p = grid.positions,
     came = { x: p[from * 3]!, y: p[from * 3 + 1]!, z: p[from * 3 + 2]! },
     toward = (side: number) => {
