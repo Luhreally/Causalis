@@ -769,7 +769,8 @@ body[data-scale="micro"] {
     grid-column: 1 / -1;
     grid-row: 2;
   }
-  .battle-side-kit {
+  /* (What a side fought with is let go on a phone; its wounded, once the battle is over, are not.) */
+  .battle-side-kit:not(.battle-side-hurt) {
     display: none;
   }
 }

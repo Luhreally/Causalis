@@ -1,8 +1,8 @@
 // Side by side (Phase 11 M103): two realms set against each other as a grand strategy game's
 // ledger sets them — their numbers pulled apart in bars, their people through the years on one
 // chart, how they stand to each other; the realms a realm is worth setting beside (its foes,
-// those sworn to it, the greatest); and a war's tally, its two sides' fallen, battles won and
-// the men each fields. Pure reads of the world.
+// those sworn to it, the greatest); and a war's tally, its two sides' fallen and wounded, battles
+// won and the men each fields. Pure reads of the world.
 import type { Ref, World } from "../../kernel/index.ts";
 import {
   diplomacyOf,
@@ -194,7 +194,17 @@ export function compareWith(world: World, r: Polity): Block[] {
     : [{ type: "text", lines: [["No other realm stands to set it beside."]] }];
 }
 
-/** A war's tally: its two sides' fallen, battles won, and the men each fields now. */
+/**
+ * A war's wounded who lived, each side's, over the battles that kept them (Phase 55 M224); null
+ * where none did.
+ */
+export function woundedOf(w: War): [number, number] | null {
+  if (!w.battles.some((b) => b.wounded)) return null;
+  const sum = (i: 0 | 1) => w.battles.reduce((n, b) => n + (b.wounded?.[i] ?? 0), 0);
+  return [sum(0), sum(1)];
+}
+
+/** A war's tally: its two sides' fallen (and wounded), battles won, and the men each fields now. */
 export function warTally(world: World, w: War): Block {
   const realms = politiesOf(world),
     ctx = populationContext(world),
@@ -202,7 +212,8 @@ export function warTally(world: World, w: War): Block {
       const r = realms.get(ref);
       return r && r.ended === null ? fieldedOf(ctx, r) : 0;
     },
-    won = w.battles.filter((b) => b.won).length;
+    won = w.battles.filter((b) => b.won).length,
+    wounded = woundedOf(w);
   return {
     type: "tally",
     title: "The tally",
@@ -212,6 +223,7 @@ export function warTally(world: World, w: War): Block {
     ],
     rows: [
       row("Fallen", w.fallen[0], w.fallen[1], count),
+      ...(wounded ? [row("Wounded", wounded[0], wounded[1], count)] : []),
       row("Battles won", won, w.battles.length - won, (n) => many(n, "battle", "battles")),
       row("Men it fields now", fields(w.attacker), fields(w.defender), count),
     ],

@@ -26,7 +26,8 @@ import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
 import { hostDesign, realmArms } from "../arms.ts";
-import { compareWith, warTally } from "./compare.ts";
+import { levyPlaces } from "../fallen.ts";
+import { compareWith, warTally, woundedOf } from "./compare.ts";
 import { armyBlocks, courseBlocks } from "./army.ts";
 import { storesSummed } from "./stores.ts";
 import { realmOrderBlocks } from "./order.ts";
@@ -55,6 +56,9 @@ import {
   spotOfLand,
   townLink,
 } from "./names.ts";
+
+/** How many places a battle's fallen tab names, the most dead first; the rest are counted. */
+export const FELL_ROWS = 40;
 
 /** Where a realm is to be seen: its seat, on the globe. */
 export function realmPlace(world: World, ref: string): Place | null {
@@ -424,7 +428,9 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
     }
   }
   const won = w.battles.filter((b) => b.won).length,
-    fallen = w.fallen[0] + w.fallen[1];
+    fallen = w.fallen[0] + w.fallen[1],
+    // (The wounded who lived, each side's, where the battles kept them: Phase 55 M224.)
+    wounded = woundedOf(w);
   const stats: Stat[] = [
     stat("Declared", `year ${w.declared}`, { why: w.event }),
     stat("For", [landLink(world, w.prize)]),
@@ -440,6 +446,16 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
         part([realmLink(world, w.defender)], count(w.fallen[1])),
       ],
     }),
+    ...(wounded
+      ? [
+          stat("Wounded", count(wounded[0] + wounded[1]), {
+            parts: [
+              part([realmLink(world, w.attacker)], count(wounded[0])),
+              part([realmLink(world, w.defender)], count(wounded[1])),
+            ],
+          }),
+        ]
+      : []),
     stat("Now", w.ended === null ? "still fought" : `ended in year ${w.ended}`, { why: w.peace }),
   ];
   const battleRows: Row[] = [...w.battles].reverse().map((b) => ({
@@ -449,8 +465,15 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
       [landLink(world, b.land)],
       [b.won ? name(a, "the attacker") : name(d, "the defender")],
       [count(b.fallen[0] + b.fallen[1])],
+      [b.wounded ? count(b.wounded[0] + b.wounded[1]) : "—"],
     ],
-    keys: [b.year, landTitle(world, b.land), b.won ? 1 : 0, b.fallen[0] + b.fallen[1]],
+    keys: [
+      b.year,
+      landTitle(world, b.land),
+      b.won ? 1 : 0,
+      b.fallen[0] + b.fallen[1],
+      b.wounded ? b.wounded[0] + b.wounded[1] : -1,
+    ],
   }));
   // The whole war watched unfolding on the globe (Phase 38 M193); its last battle, and its
   // bloodiest where that was another, watched fought (Phase 37).
@@ -558,7 +581,11 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
       name: "Battles",
       blocks: [
         ...watchLast,
-        { type: "table", columns: ["When", "Where", "Won by", "Fallen"], rows: battleRows },
+        {
+          type: "table",
+          columns: ["When", "Where", "Won by", "Fallen", "Wounded"],
+          rows: battleRows,
+        },
       ],
     },
     // Its course (Phase 13 M115): the fallen year by year, the men each fields, the lands taken.
@@ -591,6 +618,56 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
   };
 }
 
+/** Of two numbers, or two words, the order they come in (0 when they are the same). */
+const order = (p: number | string, q: number | string) => (p < q ? -1 : p > q ? 1 : 0);
+
+/**
+ * A battle's fallen by place (Phase 55 M224): the places both sides' men came from, the most dead
+ * first; each row its side, the men it sent, its fallen and the wounded who lived. At most
+ * FELL_ROWS are listed and the rest counted; none where no place sent anyone.
+ */
+function fallenBlocks(world: World, w: War, b: War["battles"][number]): Block[] {
+  const places = ([0, 1] as const)
+    .flatMap((side) => levyPlaces(world, b, side, Infinity).map((p) => ({ p, side })))
+    .sort(
+      (x, y) =>
+        order(y.p.dead, x.p.dead) ||
+        order(y.p.sent, x.p.sent) ||
+        order(x.side, y.side) ||
+        order(x.p.name, y.p.name),
+    );
+  if (!places.length) return [];
+  return [
+    {
+      type: "table",
+      columns: ["From", "Side", "Sent", "Fell", "Wounded"],
+      rows: places.slice(0, FELL_ROWS).map(({ p, side }) => ({
+        ref: p.ref ?? cellRef(0, p.cell),
+        cells: [
+          p.kind === "town"
+            ? [townLink(world, p.ref)]
+            : p.kind === "countryside"
+              ? ["the countryside of ", landLink(world, p.cell, true)]
+              : [landLink(world, p.cell)],
+          [realmLink(world, side ? w.defender : w.attacker)],
+          [count(p.sent)],
+          [count(p.dead)],
+          [count(p.hurt)],
+        ],
+        keys: [p.name, side, p.sent, p.dead, p.hurt],
+      })),
+    },
+    ...(places.length > FELL_ROWS
+      ? [
+          {
+            type: "text" as const,
+            lines: [[`And ${count(places.length - FELL_ROWS)} more places.`]],
+          },
+        ]
+      : []),
+  ];
+}
+
 /** A battle (an event of the war's): where, who won, the fallen, and the war it was of. */
 export function battlePage(world: World, ref: string): PageModel {
   const e = world.events.get(ref as Ref);
@@ -601,7 +678,9 @@ export function battlePage(world: World, ref: string): PageModel {
     land = e.place ? Number(e.place.split(":")[2]) : (b?.land ?? -1),
     year = yearAt(e.t),
     now = yearNow(world),
-    towns = land >= 0 ? populationContext(world).settlements.inProvince(land) : [];
+    towns = land >= 0 ? populationContext(world).settlements.inProvince(land) : [],
+    // (Where its men came from, the fallen by place: Phase 55 M224.)
+    fallen: Block[] = b && w && b.fell ? fallenBlocks(world, w, b) : [];
   // A battle of this year or last is seen fought in its land's first town; older ones in its land.
   const place: Place | null =
     towns[0] && now - year <= 1
@@ -636,6 +715,18 @@ export function battlePage(world: World, ref: string): PageModel {
               ]
             : [],
       }),
+      // (Its wounded who lived, and of them the maimed, where the battle kept them: Phase 55 M224.)
+      ...(b?.wounded && w
+        ? [
+            stat("Wounded", count(b.wounded[0] + b.wounded[1]), {
+              parts: [
+                part([realmLink(world, w.attacker)], count(b.wounded[0])),
+                part([realmLink(world, w.defender)], count(b.wounded[1])),
+                part(["of them maimed"], count((b.maimed?.[0] ?? 0) + (b.maimed?.[1] ?? 0))),
+              ],
+            }),
+          ]
+        : []),
       stat("Year", `${year}`),
     ],
     tabs: [
@@ -683,6 +774,7 @@ export function battlePage(world: World, ref: string): PageModel {
           { type: "why", ref },
         ],
       },
+      ...(fallen.length ? [{ id: "fallen", name: "The fallen", blocks: fallen }] : []),
     ],
     followable: false,
     year: now,

@@ -18,9 +18,14 @@ type SideCard = {
   /** The men who rose with it, where more fell than its host had (hidden: none). */
   readonly risen: HTMLElement;
   readonly tally: HTMLElement;
+  /** Its wounded who lived, and of them the maimed: hidden until the battle is over (or none). */
+  readonly hurt: HTMLElement;
   readonly bar: HTMLElement;
   ref: string;
   fielded: number;
+  /** Its wounded who lived, and of them the maimed (Phase 55 M224). */
+  wounded: number;
+  maimed: number;
 };
 
 export class BattlePanel {
@@ -78,11 +83,24 @@ export class BattlePanel {
         kit = el("span", "battle-side-kit"),
         risen = el("span", "battle-side-kit battle-side-risen"),
         tally = el("span", "battle-side-tally"),
+        hurt = el("span", "battle-side-kit battle-side-hurt"),
         track = el("span", "battle-side-track"),
         bar = el("span", "battle-side-bar");
       track.append(bar);
-      box.append(name, kit, risen, tally, track);
-      const c: SideCard = { box, name, kit, risen, tally, bar, ref: "", fielded: 1 };
+      box.append(name, kit, risen, tally, hurt, track);
+      const c: SideCard = {
+        box,
+        name,
+        kit,
+        risen,
+        tally,
+        hurt,
+        bar,
+        ref: "",
+        fielded: 1,
+        wounded: 0,
+        maimed: 0,
+      };
       box.onclick = () => c.ref && this.onSide(c.ref);
       return c;
     };
@@ -155,6 +173,12 @@ export class BattlePanel {
         rose = i === 0 ? "levies sent after it" : "of its land's men, risen with it";
       c.risen.textContent = risen ? `+ ${risen.toLocaleString("en-US")} ${rose}` : "";
       c.risen.hidden = !risen;
+      // (Its wounded who lived, and of them the maimed; told once the battle is over, in tally.)
+      c.wounded = s.wounded ?? 0;
+      c.maimed = s.maimed ?? 0;
+      const maimed = c.maimed ? `, ${c.maimed.toLocaleString("en-US")} maimed` : "";
+      c.hurt.textContent = `${c.wounded.toLocaleString("en-US")} wounded${maimed}`;
+      c.hurt.hidden = true;
       c.box.style.setProperty("--side", rgb);
       c.box.title = risen
         ? `${s.name}: ${(s.fielded - risen).toLocaleString("en-US")} in its host, ${risen.toLocaleString("en-US")} ${rose} — their realm's page`
@@ -192,7 +216,9 @@ export class BattlePanel {
     words: string,
     speed: number,
   ): void {
-    const key = `${Math.round(s * 4)}|${standing}|${fallen}|${words}|${speed}`;
+    // (Whether the battle is over is in the key too, so its wounded are told the moment it is.)
+    const over = s >= MOMENTS.after,
+      key = `${Math.round(s * 4)}|${standing}|${fallen}|${words}|${speed}|${over}`;
     if (key === this.shown) return;
     this.shown = key;
     this.fill.style.width = `${(s / BATTLE_LENGTH) * 100}%`;
@@ -202,6 +228,8 @@ export class BattlePanel {
       const text = `${standing[i]!.toLocaleString("en-US")} stand · ${fallen[i]!.toLocaleString("en-US")} fallen`;
       if (c.tally.textContent !== text) c.tally.textContent = text;
       c.bar.style.width = `${Math.max(0, Math.min(1, standing[i]! / c.fielded)) * 100}%`;
+      // (The wounded are told when the battle is over, and only where there were any.)
+      c.hurt.hidden = !(c.wounded > 0 && over);
     });
     this.buttons.forEach((b, i) => b.classList.toggle("on", i === speed));
   }

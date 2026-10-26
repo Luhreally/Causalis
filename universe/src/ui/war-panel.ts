@@ -172,9 +172,11 @@ export class WarPanel {
       const m = el("span", `battle-mark war-mark${b.tip ? " tipped" : ""}`);
       m.style.left = `${((at[i]! - this.span.from) / width) * 100}%`;
       m.style.background = rgb(b.won ? c.attacker.color : c.defender.color);
+      // (Its wounded who lived, told with its fallen: Phase 55 M224.)
+      const hurt = b.wounded ? `, ${count(b.wounded[0] + b.wounded[1])} wounded` : "";
       m.title = `Year ${b.year}: the battle at ${b.land} — ${outcomeWords(c, b)}; ${count(
         b.fallen[0] + b.fallen[1],
-      )} fell${b.tip ? "; arms decided it" : ""}`;
+      )} fell${hurt}${b.tip ? "; arms decided it" : ""}`;
       this.course.append(m);
     });
     this.latest = null;
@@ -196,8 +198,10 @@ export class WarPanel {
     } fought`;
     if (this.when.textContent !== when) this.when.textContent = when;
     this.sides.forEach((card, i) => {
-      const won = `${count(now.won[i]!)} ${i === 0 ? "won" : "held"}`,
-        tally = `${count(now.fallen[i]!)} fallen`;
+      // (Its wounded who lived, over the battles fought so far: Phase 55 M224.)
+      const hurt = now.fought.reduce((n, b) => n + (b.wounded?.[i] ?? 0), 0),
+        won = `${count(now.won[i]!)} ${i === 0 ? "won" : "held"}`,
+        tally = `${count(now.fallen[i]!)} fallen${hurt > 0 ? ` · ${count(hurt)} wounded` : ""}`;
       if (card.won.textContent !== won) card.won.textContent = won;
       if (card.tally.textContent !== tally) card.tally.textContent = tally;
       card.bar.style.width = `${Math.min(1, now.fallen[i]! / this.most) * 100}%`;
@@ -313,9 +317,11 @@ export class WarAgePanel {
         const m = el("span", `battle-mark war-mark${b.tip ? " tipped" : ""}`);
         m.style.left = `${((at[i]! - this.span.from) / width) * 100}%`;
         m.style.background = rgb(b.won ? c.attacker.color : c.defender.color);
+        // (Its wounded who lived, told with its fallen: Phase 55 M224.)
+        const hurt = b.wounded ? `, ${count(b.wounded[0] + b.wounded[1])} wounded` : "";
         m.title = `Year ${b.year}: the battle at ${b.land} — ${outcomeWords(c, b)}; ${count(
           b.fallen[0] + b.fallen[1],
-        )} fell${b.tip ? "; arms decided it" : ""}`;
+        )} fell${hurt}${b.tip ? "; arms decided it" : ""}`;
         this.course.append(m);
       });
     }
