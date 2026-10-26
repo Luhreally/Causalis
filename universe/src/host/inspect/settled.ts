@@ -21,12 +21,15 @@ import {
   resolvePerson,
   settleAll,
   type Person,
+  type WarFate,
 } from "../../causal/index.ts";
 import { yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import { FEMALE } from "../../rules/index.ts";
 import type { Block, Item, PageModel, Stat, Tab } from "../../bridge/index.ts";
 import { province, settlementFacts } from "../planet.ts";
 import { landEra, landHouse, peopleBody } from "../village.ts";
+import { battleWords, burialWords } from "../burials.ts";
+import { townRoster } from "../roster.ts";
 import { hashString } from "../../kernel/index.ts";
 import { realmColor } from "../colors.ts";
 import {
@@ -41,7 +44,7 @@ import {
   stat,
   yearNow,
 } from "./words.ts";
-import { faithLink, landLink, languageLink, realmLink, townLink } from "./names.ts";
+import { faithLink, landLink, landTitle, languageLink, realmLink, townLink } from "./names.ts";
 import { TRAIT_LOOK, agentFamily, metChips, metFamily, traitChips } from "./folk.ts";
 import { agentHolder, householdThingsBlocks, personThingsBlocks } from "./things.ts";
 import { buildingsTab } from "./fabric.ts";
@@ -55,6 +58,13 @@ const TRAIT_WORDS: Readonly<Record<string, readonly [string, string, string]>> =
   thrift: ["free-handed", "careful with food", "thrifty"],
   curiosity: ["set in their ways", "open to new ways", "curious"],
   patience: ["quick-tempered", "even-tempered", "patient"],
+};
+/** How a man came home from a battle he went to, said before its name (Phase 55 M225). */
+const WAR_WORDS: Readonly<Record<WarFate["fate"], string>> = {
+  stood: "Fought at ",
+  hurt: "Wounded at ",
+  maimed: "Maimed at ",
+  fell: "Fell at ",
 };
 
 /** A town's page. */
@@ -189,6 +199,62 @@ export function townPage(world: World, ref: string): PageModel {
       ],
     });
   }
+  // Its men at war (Phase 55 M225): each battle its men were levied to, newest first, and who fell
+  // there (its line holders, then the people met from it).
+  {
+    const roster = townRoster(world, s.ref),
+      fallen = new Map<string, Person[]>();
+    for (const person of ledger.persons.values()) {
+      const fate =
+        person.village === s.ref ? person.wars?.find((w) => w.fate === "fell") : undefined;
+      if (fate) fallen.set(fate.event, [...(fallen.get(fate.event) ?? []), person]);
+    }
+    const items: Item[] = [];
+    for (const rb of [...roster.battles].reverse()) {
+      const [sent, dead, hurt] = rb.tally;
+      items.push(
+        item(
+          [
+            link(sentence(battleWords(world, rb.land)), rb.event),
+            `, year ${rb.year}: ${count(sent)} sent, ${count(dead)} fell, ${count(hurt)} came home wounded`,
+          ],
+          rb.event,
+          rb.year,
+        ),
+      );
+      for (const m of rb.men)
+        if (m.fate === "fell")
+          items.push(
+            item(
+              [
+                "Fell there: ",
+                link(roster.nameOf(m.holder), m.holder.ref),
+                `, aged ${rb.year - m.holder.born}`,
+              ],
+              m.holder.ref,
+              rb.year,
+            ),
+          );
+      for (const person of fallen.get(rb.event) ?? [])
+        items.push(
+          item(
+            [
+              "Fell there: ",
+              link(`${person.name} ${person.surname}`, person.ref),
+              `, aged ${rb.year - person.birthYear}`,
+            ],
+            person.ref,
+            rb.year,
+          ),
+        );
+    }
+    if (items.length)
+      tabs.push({
+        id: "war",
+        name: "War",
+        blocks: [{ type: "list", title: "Its men at war", items }],
+      });
+  }
   // Back to the beginning (Phase 36 M182): its land, its people, their line, the world.
   tabs.push({ id: "origins", name: "Origins", blocks: [threadBlock(world, { town: s.ref })] });
   {
@@ -266,13 +332,16 @@ export function householdPage(world: World, ref: string): PageModel {
   };
 }
 
-/** A person in a few words: their age and work, or when they died. */
+/** A person in a few words: their age and work, or when and how they died. */
 function personBrief(world: World, p: Person): string {
   const now = yearNow(world),
-    age = (p.alive ? now : (p.diedYear ?? now)) - p.birthYear;
+    age = (p.alive ? now : (p.diedYear ?? now)) - p.birthYear,
+    fell = p.wars?.find((w) => w.fate === "fell");
   return p.alive
     ? `${age}, ${OCCUPATION_WORDS[p.occupation] ?? "at work"}`
-    : `died in year ${p.diedYear} at ${age}`;
+    : fell
+      ? `fell at ${battleWords(world, fell.land)} in year ${fell.year}, at ${age}`
+      : `died in year ${p.diedYear} at ${age}`;
 }
 
 /** A person met: who they are, the life they lived, what they remember and who they became. */
@@ -283,6 +352,11 @@ export function personPage(world: World, ref: string): PageModel {
     now = yearNow(world),
     age = (p.alive ? now : (p.diedYear ?? now)) - p.birthYear,
     grown = age >= lifeOf(world).adulthood;
+  // How they came home from the battles they went to, and the one they fell in (Phase 55 M225).
+  const wars = p.wars ?? [],
+    fell = wars.find((w) => w.fate === "fell"),
+    // (Where one who fell is laid: his town's square, else his land's name.)
+    townName = p.village ? populationContext(world).settlements.get(p.village)?.name : undefined;
   // (What they are like: what they were born with, and what the god has pushed: Phase 16.)
   const nature = natureOf(world, p.ref, p.traits ?? {}),
     traits = TRAITS.flatMap((t) => {
@@ -317,10 +391,55 @@ export function personPage(world: World, ref: string): PageModel {
             stat("Who", `a ${p.sex === FEMALE ? "woman" : "man"}, the household's ${p.role}`),
             ...(hh ? [stat("Household", [link(`The ${hh.surname} household`, hh.ref)])] : []),
 
-            ...(!p.alive ? [stat("Died", `year ${p.diedYear}`)] : []),
+            ...(fell
+              ? [
+                  stat(
+                    "Fate",
+                    [
+                      "Fell at ",
+                      link(battleWords(world, fell.land), fell.event),
+                      ` in year ${fell.year}`,
+                    ],
+                    { why: fell.event },
+                  ),
+                  stat(
+                    "Grave",
+                    sentence(
+                      burialWords(
+                        world,
+                        fell.land,
+                        fell.cell,
+                        townName ?? landTitle(world, fell.cell, true),
+                      ),
+                    ),
+                  ),
+                ]
+              : !p.alive
+                ? [stat("Died", `year ${p.diedYear}`)]
+                : []),
           ],
         },
         ...(traits.length ? [metChips(traits)] : []),
+        // Each battle they went to, how they came home, and the year (Phase 55 M225).
+        ...(wars.length
+          ? [
+              {
+                type: "list" as const,
+                title: "Their wars",
+                items: wars.map((w) =>
+                  item(
+                    [
+                      WAR_WORDS[w.fate],
+                      link(battleWords(world, w.land), w.event),
+                      `, year ${w.year}`,
+                    ],
+                    w.event,
+                    w.year,
+                  ),
+                ),
+              },
+            ]
+          : []),
         ...(hh
           ? [
               {
@@ -446,7 +565,7 @@ export function personPage(world: World, ref: string): PageModel {
     },
     title: `${p.name} ${p.surname}`,
     subtitle: [
-      p.alive ? `${age}, ` : `Died at ${age}, `,
+      p.alive ? `${age}, ` : fell ? `Fell at ${age}, ` : `Died at ${age}, `,
       p.village ? townLink(world, p.village) : landLink(world, p.cell, true),
     ],
     color: null,
