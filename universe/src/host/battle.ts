@@ -107,6 +107,46 @@ export function battleOutcome(world: World, b: War["battles"][number]): BattleOu
   return !b.won ? "held" : taken ? (seat ? "stormed" : "taken") : seat ? "siege" : "field";
 }
 
+/** A side's men as a battle seen near counts them (Phase 55 M225). */
+export type SideCounts = {
+  /** Its men in the field: its host and the men who rose with it. */
+  readonly fielded: number;
+  readonly host: number;
+  readonly risen: number;
+  readonly fallen: number;
+  /** Of its men, the wounded who lived, and of them the maimed (absent in older saves). */
+  readonly wounded?: number;
+  readonly maimed?: number;
+};
+
+/** A battle's counts as seen near — the field's and the roll's one source (Phase 55 M225). */
+export function nearCounts(b: War["battles"][number]): {
+  readonly won: boolean;
+  readonly attacker: SideCounts;
+  readonly defender: SideCounts;
+} {
+  // (A battle of an older save knew not how many were in the field: as many as fell, ten times.)
+  const hosts: readonly [number, number] = b.fielded ?? [
+      Math.max(b.fallen[0] * 10, 20),
+      Math.max(b.fallen[1] * 10, 20),
+    ],
+    side = (at: 0 | 1): SideCounts => {
+      const host = hosts[at],
+        fallen = b.fallen[at],
+        // (Where more fell than its host had in the field, the men who rose with it are counted
+        // with it, a remnant of them all left standing.)
+        risen = fallen > host * RISEN_KEPT ? Math.ceil(fallen / RISEN_KEPT) - host : 0;
+      return {
+        fielded: host + risen,
+        host,
+        risen,
+        fallen,
+        ...(b.wounded ? { wounded: b.wounded[at], maimed: b.maimed?.[at] ?? 0 } : {}),
+      };
+    };
+  return { won: b.won, attacker: side(0), defender: side(1) };
+}
+
 export function battleNear(world: World, ref: string): BattleNear | null {
   const e = world.events.get(ref as Ref);
   if (!e || e.type !== WAR_EVENTS.battle.type) return null;
@@ -119,18 +159,10 @@ export function battleNear(world: World, ref: string): BattleNear | null {
     lore = loreOf(world),
     data = e.data as { a?: string; b?: string },
     colors = sideColors(realmColor(war.attacker), realmColor(war.defender)),
-    side = (
-      realm: Ref,
-      said: string | undefined,
-      host: number,
-      fallen: number,
-      color: Rgb,
-      at: 0 | 1,
-    ) => {
+    // (Its hosts as they were in the field, with the men who rose with them: as the roll counts them.)
+    counts = nearCounts(b),
+    side = (realm: Ref, said: string | undefined, c: SideCounts, color: Rgb, at: 0 | 1) => {
       const r = realms.get(realm),
-        // (Where more fell than its host had in the field, the men who rose with it are counted
-        // with it, a remnant of them all left standing.)
-        risen = fallen > host * RISEN_KEPT ? Math.ceil(fallen / RISEN_KEPT) - host : 0,
         // (Armed as it was that day: the design it fought by, M217.)
         parts =
           hostDesign(world, realm, { year: b.year, design: b.designs?.[at] })?.parts ??
@@ -140,11 +172,11 @@ export function battleNear(world: World, ref: string): BattleNear | null {
         name: said ?? (r ? realmName(r) : "a fallen realm"),
         color: [color[0], color[1], color[2]] as [number, number, number],
         arms: realmArms(world, realm),
-        fielded: host + risen,
-        fallen,
-        ...(risen ? { risen } : {}),
+        fielded: c.fielded,
+        fallen: c.fallen,
+        ...(c.risen ? { risen: c.risen } : {}),
         // (Of its men, the wounded who lived and the maimed; where they came from: M224.)
-        ...(b.wounded ? { wounded: b.wounded[at], maimed: b.maimed?.[at] ?? 0 } : {}),
+        ...(c.wounded !== undefined ? { wounded: c.wounded, maimed: c.maimed ?? 0 } : {}),
         ...(b.fell ? { levy: levyPlaces(world, b, at) } : {}),
         host: parts ? kindsOf(parts) : null,
         kit: parts ? hostWords(world, realm, parts) : "spears, on foot",
@@ -155,8 +187,6 @@ export function battleNear(world: World, ref: string): BattleNear | null {
           : {}),
       } satisfies BattleSideNear;
     },
-    // (A battle of an older save knew not how many were in the field: as many as fell, ten times.)
-    fielded = b.fielded ?? [Math.max(b.fallen[0] * 10, 20), Math.max(b.fallen[1] * 10, 20)],
     land = b.land,
     seat = b.seat ?? false,
     outcome = battleOutcome(world, b),
@@ -169,8 +199,8 @@ export function battleNear(world: World, ref: string): BattleNear | null {
     cell: land,
     land: landTitle(world, land),
     year: b.year,
-    attacker: side(war.attacker, data.a, fielded[0], b.fallen[0], colors[0], 0),
-    defender: side(war.defender, data.b, fielded[1], b.fallen[1], colors[1], 1),
+    attacker: side(war.attacker, data.a, counts.attacker, colors[0], 0),
+    defender: side(war.defender, data.b, counts.defender, colors[1], 1),
     won: b.won,
     outcome,
     ...(b.tip ? { tip: true } : {}),

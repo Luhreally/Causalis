@@ -142,6 +142,7 @@ import { landHeart, villagePlan } from "./village.ts";
 import { landPlan } from "./land.ts";
 import { campNear } from "./camp.ts";
 import { battleNear, battleOutcome } from "./battle.ts";
+import { battleRoll } from "./roll.ts";
 import { landTitle } from "./inspect/names.ts";
 import { campaignOf, warsOfAge } from "./campaign.ts";
 import { landReadings } from "./lenses.ts";
@@ -1234,6 +1235,12 @@ function planetUniverse(name: string, prior: Prior): Universe {
       },
       // A battle seen near (Phase 37 M183): its hosts, its ground, what came of it.
       "battle.near": (world, args) => battleNear(world, (args as { event: string }).event),
+      // Who fought a battle, figure by figure (Phase 55 M225): its line holders and the people met
+      // first, then the rest of its levy named for the roll.
+      "battle.roll": (world, args) => {
+        const a = args as { event: string; most?: number };
+        return battleRoll(world, a.event, a.most);
+      },
       // A war's course, to be watched unfolding on the globe (Phase 38 M193).
       "war.campaign": (world, args) => campaignOf(world, (args as { ref: string }).ref),
       // The wars of an age, watched unfolding together (M194).

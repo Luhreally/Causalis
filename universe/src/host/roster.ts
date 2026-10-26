@@ -154,6 +154,18 @@ function keyedRound(x: number, h: number): number {
 }
 
 /**
+ * A town's lines in a battle's levy, before its eligible lines bound them: by twelves of the men it
+ * sent, of those who fell, and of those who came home hurt, each rounded by its own keyed chance
+ * (the roll's skip asks the same, so the two cannot part).
+ */
+export const levyLinesOf = (event: string, town: string, sent: number): number =>
+  keyedRound(sent / LINE, hashString(`levy ${event} ${town}`));
+export const fellLinesOf = (event: string, town: string, dead: number): number =>
+  keyedRound(dead / LINE, hashString(`fell ${event} ${town}`));
+export const hurtLinesOf = (event: string, town: string, hurt: number): number =>
+  keyedRound(hurt / LINE, hashString(`hurt ${event} ${town}`));
+
+/**
  * How a people's lines are held: its span (the lower edge of its last band), a natural term at a
  * line (TERM for the span of upright apes, scaled by span, 4 … TERM_MOST years), and the youngest
  * to take one.
@@ -699,18 +711,12 @@ function foldRoster(
     }
     // The levy, by twelves of the men it sent: the first of its eligible lines in the order of its
     // war (by key, then line), so the same men answer every call of a war while they live.
-    const wanted =
-        eligible > 0
-          ? Math.min(eligible, keyedRound(sent / LINE, hashString(`levy ${b.event} ${town}`)))
-          : 0,
+    const wanted = eligible > 0 ? Math.min(eligible, levyLinesOf(b.event, town, sent)) : 0,
       men: RosterMan[] = [];
     if (wanted > 0) {
       leastFirst(order, eligible, wanted);
-      const fell = Math.min(wanted, keyedRound(dead / LINE, hashString(`fell ${b.event} ${town}`))),
-        hurtLines = Math.min(
-          wanted - fell,
-          keyedRound(hurt / LINE, hashString(`hurt ${b.event} ${town}`)),
-        ),
+      const fell = Math.min(wanted, fellLinesOf(b.event, town, dead)),
+        hurtLines = Math.min(wanted - fell, hurtLinesOf(b.event, town, hurt)),
         fateKey = hashString(`fate ${b.event} ${town}`),
         wounded = b.wounded?.[side] ?? 0,
         maimedShare = wounded > 0 ? (b.maimed?.[side] ?? 0) / wounded : 0,
