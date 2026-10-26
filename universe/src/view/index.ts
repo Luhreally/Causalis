@@ -69,6 +69,7 @@ export {
   momentOf,
   dayTold,
   legsTold,
+  workTold,
   type DayLine,
   RACK_MOST,
   rackNow,

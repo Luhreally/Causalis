@@ -78,6 +78,7 @@ import {
   WINTER,
   WORKSHOP,
   MOULDS,
+  ROLE_WORDS,
   beside,
   boardsOf,
   burnsCharcoal,
@@ -2435,7 +2436,10 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
       x: field.x + ((slot & 3) - 1.5) * DRILL_GAP,
       z: field.z + ((slot >> 2) - 1.5) * DRILL_GAP,
     },
-    legs: Leg[] = [];
+    legs: Leg[] = [],
+    // What the day is given to, in words, as it is laid (the card's "Today").
+    told: { words: string | null } = { words: null };
+  TOLD.set(legs, told);
   const stay = (
     from: number,
     to: number,
@@ -2625,6 +2629,11 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     role = town?.roles[index];
   // (And one a wound keeps from work — on a crutch: Phase 55 M226.)
   if (rest || p.age >= 62 || !fitOn(plan, index, day)) {
+    told.words = rest
+      ? null
+      : p.age >= 62
+        ? "at their ease"
+        : "kept from work by their wound, at their ease near home";
     const ease = (feast ? FEAST_HOURS.gather : 17) * HOUR;
     // A day of rest's morning at prayer (Phase 41 M199): most of a town that keeps a temple or a
     // shrine go to it, stand in its rows before its door a while, and come home.
@@ -2671,6 +2680,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     if (feast) t = feasting(t);
     else if ((drills || draw(11) < 0.3) && t < 19 * HOUR) t = evening(t, 20 * HOUR);
   } else {
+    told.words = role ? ROLE_WORDS[role.kind] : null;
     const doing = p.child ? ACTIVITY.playing : ACTIVITY.working,
       far = walkTime(at, work, pace) > 0.6 * HOUR,
       // (On a feast day the work is put down by mid-afternoon.)
@@ -2738,6 +2748,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
    * along the road with what that land sends, unloaded at the store it goes to, and home.
    */
   function tripDay({ trip, part }: NonNullable<ReturnType<typeof tripOn>>): Leg[] {
+    told.words = ROLE_WORDS.trade;
     const { take, bring, land } = trip,
       spots = storeSpots(plan, ground, day * DAY),
       // (Where the road leaves what is shown.)
@@ -2828,6 +2839,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
    * home or at the hospital; up and bound; gone.
    */
   function hurtDay(h: WoundDay): Leg[] {
+    told.words = HURT_WORDS[h.kind];
     switch (h.kind) {
       case "away":
         stay(0, DAY, roadEdge(plan), ACTIVITY.away, null, null, null, h.why);
@@ -2956,6 +2968,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
    * made at home; or one kept home to tend one of theirs abed — up, each call in its turn, home.
    */
   function careDay(visits: readonly CareVisit[]): Leg[] {
+    told.words = p.healer ? "tending the wounded" : "at home, tending one of theirs abed";
     stay(0, rise, at, ACTIVITY.asleep);
     stay(rise, rise + 0.75 * HOUR, at, ACTIVITY.eating, null, null, null, "Breakfast at home");
     let t = rise + 0.75 * HOUR,
@@ -3193,6 +3206,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
 
   /** The k-th errand of a role's day (0 the first of the morning, 100 of the afternoon). */
   function errandOf(role: Role, town: TownDay, k: number): Step[] | null {
+    if (k === 0) told.words = ROLE_WORDS[role.kind];
     const spots = storeSpots(plan, ground, day * DAY),
       doors = civicDoors(plan, day * DAY),
       granary = spots.granary,
@@ -4381,6 +4395,18 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
 // A day's legs, kept while the day lasts: the same person's same day is the same (for
 // the plan as it stands: a plan re-read as the years turn keeps its own).
 const DAYS = new WeakMap<VillagePlan, Map<string, Leg[]>>();
+/** What each day's legs were laid for, in words (dayOf: the card's "Today"). */
+const TOLD = new WeakMap<readonly Leg[], { words: string | null }>();
+/** A wound's day, in words (null: gone). */
+const HURT_WORDS: Readonly<Record<WoundDay["kind"], string | null>> = {
+  whole: null,
+  away: "away with the levy",
+  gone: null,
+  cut: null,
+  abed: "abed with their wounds",
+  mending: "up again, the wound bound",
+  home: "home from the war",
+};
 function legsOf(plan: VillagePlan, index: number, day: number, fine: boolean): Leg[] {
   let days = DAYS.get(plan);
   if (!days) DAYS.set(plan, (days = new Map()));
@@ -4391,6 +4417,15 @@ function legsOf(plan: VillagePlan, index: number, day: number, fine: boolean): L
     days.set(key, (legs = dayOf(plan, index, day, fine)));
   }
   return legs;
+}
+
+/**
+ * What one of those drawn is at on a day, in words, as their day was laid ("felling timber",
+ * "tending the wounded"; where the ground gave their role's errand another, that one's; null: a
+ * day of rest, or nothing told).
+ */
+export function workTold(plan: VillagePlan, index: number, day: number): string | null {
+  return TOLD.get(legsOf(plan, index, day, true))?.words ?? null;
 }
 
 /**

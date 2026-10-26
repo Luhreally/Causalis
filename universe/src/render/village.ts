@@ -51,8 +51,7 @@ import {
   prepareDay,
   sayOf,
   storesNow,
-  townDay,
-  ROLE_WORDS,
+  workTold,
   seasonGround,
   seasonKey,
   seasonLeaf,
@@ -2697,9 +2696,8 @@ export class VillageScene {
   workToday(index: number): string | null {
     const plan = this.plan;
     if (!plan || !this.stores?.fine) return null;
-    const town = townDay(plan, Math.floor(this.lastT / 86_400), villageSolids(plan)),
-      r = town.roles[index];
-    return r && !town.rest ? ROLE_WORDS[r.kind] : null;
+    // (As their day was laid: the care of the wounded, a wound's, or the errand the ground gave.)
+    return workTold(plan, index, Math.floor(this.lastT / 86_400));
   }
 
   /** The town's stores now (Phase 39 M198), as last told; null before the first frame. */
