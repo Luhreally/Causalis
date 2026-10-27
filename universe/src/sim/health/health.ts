@@ -27,7 +27,13 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { cellRef, offworldSite, tongueLikeness } from "../../gen/index.ts";
+import {
+  cellRef,
+  offworldSite,
+  tongueLikeness,
+  worldLife,
+  type HomeWorld,
+} from "../../gen/index.ts";
 import { BANDS } from "../../rules/index.ts";
 import { COLS } from "../population/model.ts";
 import { marketsOf, roundKeyed, type PopulationContext } from "../population/systems.ts";
@@ -106,6 +112,17 @@ export const STAR_SICKNESS = {
 
 /** Of a land's people in each age band, how much likelier than the mean to die of a sickness. */
 const FRAILTY = [2, 0.9, 0.5, 0.5, 0.6, 0.7, 0.9, 1.2, 1.7, 2.4];
+
+/**
+ * Whether a sickness of a people of the stars can live in a world's people, and theirs in them
+ * (Phase 57): a sickness is a life that lives on its host, and every people of the stars rose on a
+ * world of water (gen/civilizations.ts), so only a people whose life is of water shares sickness with
+ * them. (Not its hand: a sickness of mirrored life could still live on what in a body turns neither
+ * way, as the warnings against making mirror bacteria have it.)
+ */
+export function sharesStarSickness(g: HomeWorld): boolean {
+  return worldLife(g).family === "water";
+}
 
 /** A sickness: its nature, its rising, and what it has done. */
 export type Sickness = {
@@ -800,7 +817,8 @@ function fromTheStars(
       .filter((r) => r.year === year - 1 && r.cell >= 0 && r.star === home)
       .map((r): Came => ({ civ: r.civ, cell: r.cell, event: r.event, how: "war" })),
   ];
-  if (!came.length) return;
+  // (None of theirs lives in a body of another liquid, nor ours in theirs: Phase 57.)
+  if (!came.length || !sharesStarSickness(ctx.generated)) return;
   const civs = new Map(civilizationsNear(world).map((c) => [c.ref as string, c])),
     lore = loreOf(world);
   for (const [i, c] of came.entries()) {

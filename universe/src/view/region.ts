@@ -1,7 +1,7 @@
 // How a region looks, as data: tile colours for a lens and heights for the
 // terrain mesh. Pure, like every view builder.
 import type { FrameMessage, LandSky } from "../bridge/index.ts";
-import { biomeColor, frameKind, kindWater } from "./globe.ts";
+import { biomeColor, frameKind, frameLook, kindWater } from "./globe.ts";
 import type { Rgb } from "./sandbox.ts";
 import { seasonAt, seasonGround, seasonWater, type GroundSeason } from "./weather.ts";
 
@@ -66,7 +66,9 @@ export function regionColors(frame: FrameMessage, lens: RegionLens): Uint8Array 
     }
   // (A world of another kind's waters and ground its own: Phase 56.)
   const kind = frameKind(frame),
-    waters = kindWater(kind);
+    waters = kindWater(kind),
+    // (What grows there its life's own colour: Phase 57.)
+    look = frameLook(frame);
   for (let t = 0; t < n; t++) {
     const water = a.water![t]!;
     let c: Rgb;
@@ -74,7 +76,7 @@ export function regionColors(frame: FrameMessage, lens: RegionLens): Uint8Array 
     else if (water === 2) c = waters?.river ?? [0.14, 0.5, 0.88];
     else if (water === 3) c = waters?.lake ?? [0.1, 0.44, 0.8];
     // (The map's lens without the map's colours to hand: the land as it is.)
-    else if (lens === "land" || lens === "world") c = biomeColor(a.biome![t]!, kind);
+    else if (lens === "land" || lens === "world") c = biomeColor(a.biome![t]!, kind, look);
     else if (lens === "height") {
       const k = hi > lo ? (e[t]! - lo) / (hi - lo) : 0;
       c = [0.25 + 0.6 * k, 0.45 + 0.35 * k, 0.25 + 0.55 * k];
@@ -123,6 +125,8 @@ const WOODED: Readonly<Record<number, readonly [number, "conifer" | "broadleaf"]
  * same woods); the look alone, not the world.
  */
 export function regionTrees(frame: FrameMessage, cap = 4000): RegionTree[] {
+  // (Where no life took hold, no woods: Phase 57.)
+  if (frameLook(frame) === "bare") return [];
   const a = frame.arrays,
     biome = a.biome!,
     water = a.water!,

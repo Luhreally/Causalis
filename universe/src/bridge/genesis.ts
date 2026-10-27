@@ -12,6 +12,8 @@ export type GenesisPlan = {
   readonly name: string;
   /** How old the world is, millions of years. */
   readonly worldAge: number;
+  /** Its life's colours, where they are not Earth's green (Phase 57): its meadows' grass and woods. */
+  readonly lifeLook?: string;
   /**
    * The steps of life's dawn, oldest first: when each came (millions of years ago), and what
    * it was — the first replicators, cells, light-eaters, the air, the nucleus, cells together,
@@ -114,4 +116,4 @@ export type GenesisPlan = {
  * What a living land is made from (the meadow of an age, Phase 27; a land's camp seen near, Phase
  * 29 M160): its seed, its ages and the lineages that may walk it.
  */
-export type MeadowPlan = Pick<GenesisPlan, "seed" | "ages" | "lineages">;
+export type MeadowPlan = Pick<GenesisPlan, "seed" | "ages" | "lineages" | "lifeLook">;

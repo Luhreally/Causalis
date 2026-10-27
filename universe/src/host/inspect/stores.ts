@@ -4,7 +4,7 @@
 // each line in and out, what it ended with — that must balance, as Classic's conservation
 // ledger showed its matter; a realm's and the world's stores summed. Pure reads of the
 // markets' books, which every change to a stock goes through (sim/economy/market.ts).
-import { FOODS, GOODS, GOOD_MATTER, SUBSTANCE, SUBSTANCES } from "../../rules/index.ts";
+import { FOODS, GOODS, GOOD_MATTER, findSubstance } from "../../rules/index.ts";
 import type { World } from "../../kernel/index.ts";
 import {
   LEDGER,
@@ -127,8 +127,9 @@ function makeUpOf(world: World, markets: readonly Market[], title: string): Bloc
   return block;
 }
 
-const nameOf = (id: string) => SUBSTANCES[SUBSTANCE[id]!]!.name;
-const colourOf = (id: string) => SUBSTANCES[SUBSTANCE[id]!]!.colour;
+// (Any substance, Earth's first: a world's life's own are in its stores — Phase 57.)
+const nameOf = (id: string) => findSubstance(id)?.name ?? id;
+const colourOf = (id: string) => findSubstance(id)?.colour ?? ([0.6, 0.6, 0.6] as const);
 
 /** Whether every good's last closed year balanced in these markets, and how many were checked. */
 function booksBalance(markets: readonly Market[]): { checked: number; off: number } {

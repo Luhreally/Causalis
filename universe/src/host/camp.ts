@@ -29,6 +29,7 @@ import { spotRock } from "./inspect/ground.ts";
 import { substRef } from "./inspect/matter.ts";
 import { WOODS, landStone } from "./chain.ts";
 import { peopleFigure } from "./folk.ts";
+import { worldLook } from "./biochem.ts";
 
 // —— What a band makes its things of (Phase 49 M211) ——————————————————————————————————
 
@@ -160,6 +161,8 @@ export function campNear(world: World, cell: number, id: number): CampNear | nul
           forests: wilds.firstForest * wilds.forest >= 0.25,
         },
       ],
+      // (Its life's colours: Phase 57.)
+      ...worldLook(world),
       lineages: living.map((s) => ({
         ref: s.ref,
         name: s.name,

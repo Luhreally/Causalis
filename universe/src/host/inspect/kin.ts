@@ -26,6 +26,7 @@ import {
   type Item,
   type PageModel,
   type Portrait,
+  type Stat,
   type Tab,
   type Wound,
 } from "../../bridge/index.ts";
@@ -43,6 +44,7 @@ import {
 import { landEra, peopleBody } from "../village.ts";
 import { townLink } from "./names.ts";
 import { item, link, many, stat } from "./words.ts";
+import { bodyMatter } from "../biochem.ts";
 
 /** A seat's trade's sign on its page. */
 const TRADE_ICON: Readonly<Record<string, string>> = {
@@ -220,6 +222,7 @@ export function bodyTab(
   read: BodyRead,
   person: Extract<Portrait, { kind: "person" }>,
   t: number,
+  matter: readonly Stat[] = [],
 ): Tab {
   const b = bodyAt(read.frame, read.wounds, t, read.death),
     able = ableWords(b, read.sex),
@@ -234,6 +237,7 @@ export function bodyTab(
           stat("Now", bodyLine(b, read.wounds, t, read.sex)),
           ...(able ? [stat("Able", able)] : []),
           stat("Body", cap(planWords(read.frame))),
+          ...matter,
         ],
       },
       {
@@ -309,7 +313,14 @@ export function withKin(world: World, ref: string, page: PageModel): PageModel {
         : page.place?.scale === "village"
           ? (populationContext(world).settlements.get(page.place.town as Ref)?.cell ?? -1)
           : -1,
-    body = bodyTab(read, personOf(world, page, ref, cellOf), toldAt(read, world.now)),
+    person = personOf(world, page, ref, cellOf),
+    body = bodyTab(
+      read,
+      person,
+      toldAt(read, world.now),
+      // (Its bones, or a people in a shell its shell, and its blood, by its world's life: Phase 57.)
+      bodyMatter(world, person.body?.skin),
+    ),
     lines: Block = {
       type: "facts",
       rows: [

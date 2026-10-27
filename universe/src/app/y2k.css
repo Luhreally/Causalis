@@ -857,6 +857,11 @@ body.paging .panel:not(.page-panel) .inspector {
 .anatomy {
   display: block;
   width: 100%;
+  /* (Drawn at its page's width as it opened: held to the page as it narrows — a phone turned, a
+     window drawn in — its drawing kept whole.) */
+  box-sizing: border-box;
+  max-width: 100%;
+  object-fit: contain;
   height: 230px;
   background: radial-gradient(ellipse at 50% 45%, #1a2c63 0%, #0a1230 72%, #050a1c 100%);
   border: 1px solid var(--chrome-lo);

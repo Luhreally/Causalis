@@ -159,6 +159,7 @@ import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./
 import { peoplesSky, visitsNow } from "./peoples.ts";
 import { peopleFigure } from "./folk.ts";
 import { kindOn, lifelessWhy, seedKind, spotBiome, spotSwing, spotWarmth } from "./kinds.ts";
+import { lookMeta } from "./biochem.ts";
 
 const BOUNDARY_WORDS = ["none", "converging", "spreading", "sliding"];
 
@@ -178,6 +179,8 @@ function globeFrame(world: World) {
       biomeNames: BIOME_NAMES,
       // (Its kind, for the colours of its seas and land: Phase 56.)
       kind: kindOn(g),
+      // (Its life's colours, where they are not Earth's green: Phase 57.)
+      ...lookMeta(g),
     },
     arrays: {
       elevation: Float32Array.from(g.tectonics.elevation),
@@ -220,6 +223,7 @@ function regionFrame(world: World, focus: string | null) {
       lat: (g.grid.lat[middle]! * 180) / Math.PI,
       lon: (g.grid.lon[middle]! * 180) / Math.PI,
       kind: kindOn(g),
+      ...lookMeta(g),
     },
     arrays: {
       elevation: Float32Array.from(r.elevation),

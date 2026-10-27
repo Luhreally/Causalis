@@ -80,6 +80,7 @@ import { visitorsAt } from "./peoples.ts";
 import { flockBeast, makerAt, seatsOf, townStuff, workshopOf, type Maker } from "./chain.ts";
 import { peopleFigure } from "./folk.ts";
 import { planKind } from "./kinds.ts";
+import { worldLook } from "./biochem.ts";
 import { LINE, ROSTER_YEARS, folkWork, townRoster, workOf, type Roster } from "./roster.ts";
 import { battleWords, townWarDead, warRests } from "./burials.ts";
 
@@ -1095,6 +1096,8 @@ export function villagePlan(
       market: village.market !== null,
       biome: r.biome[village.tile]!,
       ...planKind(world),
+      // (Its life's colours: its trees, crops and grass — Phase 57.)
+      ...worldLook(world),
       seed,
       homes,
       fields,

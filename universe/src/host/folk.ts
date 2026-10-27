@@ -9,6 +9,7 @@ import { hashString } from "../kernel/index.ts";
 import { treeOfLife, type HomeWorld } from "../gen/index.ts";
 import type { BodyPlan } from "../rules/index.ts";
 import type { FolkFacts, VillagePlan } from "../bridge/index.ts";
+import { folkLife } from "./biochem.ts";
 
 /** What has been gathered, by world (a few worlds at most are open at once). */
 const GATHERED = new Map<string, FolkFacts | null>();
@@ -44,6 +45,8 @@ export function folkFacts(g: HomeWorld): FolkFacts | null {
             legs: fore.legs,
           }
         : null,
+      // (Their blood, and their world's life's colours: Phase 57.)
+      ...folkLife(g),
     };
   }
   if (GATHERED.size >= 8) GATHERED.delete(GATHERED.keys().next().value!);

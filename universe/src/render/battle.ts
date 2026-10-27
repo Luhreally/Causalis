@@ -20,6 +20,8 @@ import {
   STRIDES,
   figurePaint,
   battleGroundAt,
+  bloodTones,
+  lifeTint,
   figureAnatomy,
   partExtent,
   type BattleField,
@@ -636,6 +638,14 @@ export class BattleLayer {
       };
     });
     this.tents.recolor(darker(field.near.attacker.color as Rgb, 0.9));
+    // (Its blood the colour of what carries its people's breath: Phase 57.)
+    const tones = bloodTones(body?.folk?.blood);
+    this.blood.recolor(tones.pool);
+    this.spray.recolor(tones.spray);
+    this.woundWet.recolor(tones.wet);
+    this.woundDry.recolor(tones.dried);
+    this.woundCore.recolor(tones.core);
+    this.flesh.recolor(tones.flesh);
     // The field's own.
     const g = field.ground,
       w = g.wall;
@@ -750,7 +760,8 @@ export class BattleLayer {
       this.parapets.set(0, () => {});
     }
     this.vehicles.setup([field.near.attacker.color as Rgb, field.near.defender.color as Rgb]);
-    if (g.hill) this.hill = this.ridge(field, grass);
+    // (Its ridge's grass its life's own colour: Phase 57.)
+    if (g.hill) this.hill = this.ridge(field, lifeTint(grass, body?.folk?.lifeLook));
     this.far = new Uint8Array(field.troopers.length);
     this.cast();
   }

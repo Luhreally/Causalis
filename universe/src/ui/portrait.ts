@@ -25,6 +25,7 @@ import {
   figurePaint,
   hairOf,
   houseLook,
+  lifeTint,
   looksHurt,
   partExtent,
   posed,
@@ -470,7 +471,7 @@ export function personSolids(p: Extract<Portrait, { kind: "person" }>): Solid[] 
 
 /** A town as a cluster of its own houses about its square (a city's towers at its heart). */
 function townSolids(p: Extract<Portrait, { kind: "town" }>): Solid[] {
-  const look = houseLook(p.house),
+  const look = houseLook(p.house, p.lifeLook),
     solids: Solid[] = [
       {
         x: 0,
@@ -578,7 +579,9 @@ function drawWorld(
     cy = h / 2,
     image = ctx.createImageData(w, h),
     d = image.data,
-    giant = p.look === "giant" || p.look === "ice giant";
+    giant = p.look === "giant" || p.look === "ice giant",
+    // (What grows on it, in its life's colours: Phase 57.)
+    green: Rgb = lifeTint([0.28 + 0.3 * (1 - p.green), 0.56, 0.24], p.lifeLook);
   for (let py = 0; py < h; py++)
     for (let px = 0; px < w; px++) {
       const x = (px - cx) / r,
@@ -614,7 +617,7 @@ function drawWorld(
             : !land && p.sea > 0
               ? [0.12, 0.34, 0.72]
               : p.green > 0 && n < 0.72
-                ? [0.28 + 0.3 * (1 - p.green), 0.56, 0.24]
+                ? green
                 : p.look === "moon"
                   ? [0.62 + n * 0.2, 0.6 + n * 0.2, 0.58 + n * 0.2]
                   : [0.62 + n * 0.25, 0.46 + n * 0.2, 0.32 + n * 0.1];

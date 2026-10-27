@@ -6,17 +6,29 @@
 // node tools/chem-survey.ts --kinds [count=500] [--from 0] [--ages years] [--per 3] [--only kind]
 // — the kinds survey (Phase 56): each open world's kind, the share of each, life and people in each,
 // the named seeds all rocky; with --ages, the ages the first few peopled worlds of each kind reach.
+// node tools/chem-survey.ts --life [count=1500] [--from 0] — the life survey (Phase 57): over the
+// first open seeds, the shares of each living world's families, hands, bones, blood, cells' skins,
+// pigments and foods, and of the pairs of a peopled world and a people of the stars near it that can
+// eat each other's life.
 import { readFileSync, writeFileSync } from "node:fs";
 import {
+  civLife,
   generateHomeWorld,
   makeStar,
+  worldKindOf,
+  worldLife,
   nativeIronLands,
   provinceWorld,
   starAgeGyr,
   worldChemistry,
 } from "../src/gen/index.ts";
-import { Rng, YEAR, seedFromText } from "../src/kernel/index.ts";
-import { makePopulationWorld, populationContext } from "../src/sim/index.ts";
+import { Rng, YEAR, seedFromText, type World } from "../src/kernel/index.ts";
+import {
+  civilizationsNear,
+  clusterOf,
+  makePopulationWorld,
+  populationContext,
+} from "../src/sim/index.ts";
 import { landEra } from "../src/host/village.ts";
 import {
   NOVEL_KINDS,
@@ -24,8 +36,11 @@ import {
   SOLAR,
   WORLD_KINDS,
   madePrior,
+  earthMade,
+  eats,
   stonesKey,
   worldKind,
+  type LifeChemistry,
   type WorldKind,
   type AirClass,
   type CarbonClass,
@@ -286,6 +301,116 @@ export function kindLines(rows: readonly KindRow[]): { ok: boolean; lines: strin
 
 const ERAS = ["forage", "farm", "metal", "industry", "modern"] as const;
 
+/** One open world where life arose (Phase 57): its kind, whether a people rose, its life, the lives of the peoples of the stars near it. */
+export type LifeRow = {
+  seed: string;
+  kind: WorldKind;
+  peopled: boolean;
+  life: LifeChemistry;
+  near: LifeChemistry[];
+};
+
+/** The first `count` open seeds from "alien from" on, each where life arose read for what its life is made of. */
+export function surveyLife(count: number, from = 0): LifeRow[] {
+  const rows: LifeRow[] = [];
+  for (let i = from; i < from + count; i++) {
+    const seed = `alien ${i}`,
+      g = generateHomeWorld(seedFromText(seed), OPEN);
+    if (!g.life.species.length) continue;
+    // (The peoples of the stars near a world are its seed's alone: no world need be built.)
+    const world = { seed: seedFromText(seed) } as unknown as World,
+      stars = clusterOf(world);
+    rows.push({
+      seed,
+      kind: worldKindOf(g),
+      peopled: !!g.life.people,
+      life: worldLife(g),
+      near: civilizationsNear(world).map((c) =>
+        civLife(c, stars.find((s) => s.ref === c.star)?.temperature ?? 5778),
+      ),
+    });
+  }
+  return rows;
+}
+
+/** Each trait's every value: so many of the worlds, and their share. */
+const TRAITS: Readonly<
+  Record<string, { of: (l: LifeChemistry) => string; all: readonly string[] }>
+> = {
+  families: { of: (l) => l.family, all: ["water", "ammonia", "oil", "methane"] },
+  hands: { of: (l) => l.hand, all: ["left", "right"] },
+  bones: { of: (l) => l.bone, all: ["apatite", "calcite", "opal", "greigite", "ice"] },
+  shells: { of: (l) => l.shell, all: ["calcite", "opal", "greigite", "ice"] },
+  blood: { of: (l) => l.blood, all: ["iron", "copper", "vanadium", "iron-sulfur"] },
+  membranes: {
+    of: (l) => l.membrane,
+    all: ["bilayer", "tetraether", "supple", "inverted", "azotosome"],
+  },
+  pigments: {
+    of: (l) => l.pigment,
+    all: ["chlorophyll", "carotene", "phycocyanin", "bacteriochlorophyll", "polyimine"],
+  },
+  foods: {
+    of: (l) => l.store,
+    all: [
+      "starch",
+      "mirror-starch",
+      "glucosamine-starch",
+      "mirror-glucosamine-starch",
+      "squalene",
+      "acetylene",
+    ],
+  },
+};
+
+/** The life survey's lines: each trait's shares among the living and the peopled, the contact pairs, and six checks. */
+export function lifeLines(rows: readonly LifeRow[]): { ok: boolean; lines: string[] } {
+  const peopled = rows.filter((r) => r.peopled),
+    lines = [
+      `${rows.length} worlds where life arose from ${rows[0]?.seed ?? "none"} to ${rows.at(-1)?.seed ?? "none"}; a people on ${peopled.length}`,
+    ],
+    problems: string[] = [],
+    shares = (of: readonly LifeRow[], t: (typeof TRAITS)[string]) =>
+      t.all
+        .map((v) => `${v} ${pc(of.filter((r) => t.of(r.life) === v).length, of.length)}`)
+        .join(", ");
+  for (const [name, t] of Object.entries(TRAITS)) {
+    lines.push(`${name.padEnd(10)} living: ${shares(rows, t)}`);
+    lines.push(`${"".padEnd(10)} peopled: ${shares(peopled, t)}`);
+  }
+  const earthly = rows.filter((r) => earthMade(r.life)).length;
+  lines.push(`made as Earth's in every way: ${earthly} (${pc(earthly, rows.length)})`);
+  // Every pair of a peopled world and a people of the stars near it: whether each eats the other's.
+  let pairs = 0,
+    both = 0,
+    one = 0,
+    liquid = 0,
+    hand = 0;
+  for (const r of peopled)
+    for (const them of r.near) {
+      pairs++;
+      const a = eats(r.life, them),
+        b = eats(them, r.life);
+      if (a && b) both++;
+      else if (a || b) one++;
+      else if (r.life.family !== them.family) liquid++;
+      else hand++;
+    }
+  lines.push(
+    `contact pairs ${pairs}: each can eat the other's life ${both} (${pc(both, pairs)}), one way only ${one} (${pc(one, pairs)}), neither: of another liquid ${liquid} (${pc(liquid, pairs)}), turning the other way ${hand} (${pc(hand, pairs)})`,
+  );
+  // The checks: every value comes about (but Earth's own shell, the same as its bone where it is not
+  // apatite's), and each hand on 40–60% of the worlds.
+  for (const [name, t] of Object.entries(TRAITS))
+    for (const v of t.all)
+      if (!rows.some((r) => t.of(r.life) === v)) problems.push(`no world's ${name} ${v}`);
+  const right = rows.filter((r) => r.life.hand === "right").length;
+  if (!atLeast(right, rows.length, 40) || !atLeast(rows.length - right, rows.length, 40))
+    problems.push(`right-handed on ${pc(right, rows.length)}, not 40–60%`);
+  for (const p of problems) lines.push(`FAIL ${p}`);
+  return { ok: problems.length === 0, lines };
+}
+
 /**
  * The ages a world reaches in so many years: each age the year a land first stood in it, read every
  * twenty-five years as the pages read a land's age (host/village.ts, landEra).
@@ -356,7 +481,14 @@ if (import.meta.main) {
       const at = args.indexOf(name);
       return at >= 0 ? args[at + 1] : undefined;
     };
-  if (args.includes("--kinds")) {
+  if (args.includes("--life")) {
+    const plain = args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--from"),
+      t0 = performance.now(),
+      result = lifeLines(surveyLife(Number(plain[0] ?? 1500), Number(value("--from") ?? 0)));
+    for (const line of result.lines) console.log(line);
+    console.log(`in ${((performance.now() - t0) / 1000).toFixed(0)} s`);
+    if (!result.ok) process.exitCode = 1;
+  } else if (args.includes("--kinds")) {
     const takes = new Set(["--from", "--ages", "--per", "--only"]),
       plain = args.filter((a, i) => !a.startsWith("--") && !takes.has(args[i - 1] ?? "")),
       t0 = performance.now(),

@@ -19,6 +19,8 @@ export class MapModes {
   private current: Lens;
   /** Its world's kind (Phase 56): the warmth legend's degrees its liquid's, told in true ones. */
   private world = "rocky";
+  /** Its world's life's colours (Phase 57): the land legend's woods in its own words. */
+  private look: string | undefined = undefined;
   onLens: (lens: Lens) => void = () => {};
 
   constructor(lens: Lens) {
@@ -57,6 +59,13 @@ export class MapModes {
     this.drawLegend();
   }
 
+  /** Its world's life's colours (Phase 57), for its land legend. */
+  set lifeLook(look: string | undefined) {
+    if (look === this.look) return;
+    this.look = look;
+    this.drawLegend();
+  }
+
   /** The choices a mode offers (the ways lens: which way), each an icon; picking one tells `pick`. */
   choose(
     options: readonly (readonly [string, string, string])[] | null,
@@ -87,7 +96,7 @@ export class MapModes {
   }
 
   private drawLegend(): void {
-    const l = lensLegend(this.current, this.world),
+    const l = lensLegend(this.current, this.world, this.look),
       title = el("div", "legend-title", LENS_NAMES[this.current]);
     const parts: HTMLElement[] = [title];
     if (l.kind === "ramp") {

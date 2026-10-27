@@ -55,6 +55,7 @@ import {
 } from "./wounds.ts";
 import { careOn, type CareVisit } from "./healing.ts";
 import { hashText, unitOf } from "./draws.ts";
+import { lifeTint } from "./biochem.ts";
 import { FLOCK_HANDS, herderAt, keepsFlock } from "./flock.ts";
 import type { TownTrade } from "../bridge/index.ts";
 import { HUNT_DONE, HUNT_STALK, hunterAt, huntOn } from "./hunt.ts";
@@ -5724,7 +5725,11 @@ const ROOF: Readonly<Record<string, Rgb>> = {
   open: [0.98, 0.6, 0.54],
 };
 
-export function houseLook(house: VillagePlan["house"]): HouseLook {
+/**
+ * A house's look: its walls and roof in their colours, its shape and its measures; a roof of turf or
+ * kelp in its world's life's colours (`lifeLook`, Phase 57: lifeTint leaves the rest as they are).
+ */
+export function houseLook(house: VillagePlan["house"], lifeLook?: string): HouseLook {
   const tent = house.walls === "tent",
     form = house.form,
     // Round: huts, tents, towers, hives, nests and warrens; long: long houses and great halls.
@@ -5734,7 +5739,7 @@ export function houseLook(house: VillagePlan["house"]): HouseLook {
     domed = form === "hive" || house.roof === "mound";
   return {
     wall: WALL[house.walls] ?? WALL.wattle!,
-    roof: tent ? WALL.tent! : (ROOF[house.roof] ?? ROOF.thatch!),
+    roof: tent ? WALL.tent! : lifeTint(ROOF[house.roof] ?? ROOF.thatch!, lifeLook),
     round,
     tent,
     length: form === "great-hall" ? 1.7 : long ? 1.15 : court ? 0.9 : form === "warren" ? 1.1 : 0.7,

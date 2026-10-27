@@ -270,6 +270,8 @@ export type VillagePlan = {
    */
   readonly kind?: string;
   readonly fireless?: true;
+  /** Its world's life's colours, where they are not Earth's green (Phase 57): its trees, crops and grass. */
+  readonly lifeLook?: string;
   readonly seed: number;
   /** Positions in metres from the village's middle; `household` for the watched homes. */
   readonly homes: readonly { x: number; z: number; yaw: number; household: string | null }[];
@@ -474,6 +476,15 @@ export type FolkFacts = {
     readonly covering: string;
     readonly legs: number;
   } | null;
+  /**
+   * What carries their breath, where it is not iron (Phase 57: "copper", "vanadium", "iron-sulfur"),
+   * for their blood's colour; what their world's shells are hardened with, where it is not lime
+   * ("opal", "greigite", "ice"), for a shelled people's colour; and their world's life's colours,
+   * where they are not Earth's green (a pigment's name, or "bare" where nothing grows).
+   */
+  readonly blood?: string;
+  readonly shell?: string;
+  readonly lifeLook?: string;
 };
 
 /** A people of another star at a land (Phase 18 M134). */

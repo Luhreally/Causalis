@@ -25,6 +25,7 @@ import type { Block, Item, PageModel, PhyloLine, Place, Stat, Tab } from "../../
 import { count, item, link, stat, yearNow } from "./words.ts";
 import { landLink, landOfSpot, landsOf, lineageIcon } from "./names.ts";
 import { dawnSea, dropBlock, smallLines } from "./small.ts";
+import { lifeBlock, lineMatter } from "../biochem.ts";
 
 type Rgb = readonly [number, number, number];
 
@@ -325,6 +326,7 @@ export function cladePage(world: World, ref: string): PageModel {
             rows: [
               stat("What it was", n.what),
               stat("Its way of life", wayWord(n.way)),
+              ...lineMatter(world, n),
               stat("When", spanWords(tree, n)),
               ...(mother ? [stat("Came of", [link(mother.name, mother.ref)])] : []),
               ...(land >= 0 && land < landsOf(world)
@@ -482,6 +484,8 @@ export function treePage(world: World, tab?: string): PageModel {
               ),
             ),
           },
+          // (What its life is made of, from its first chemistry on: Phase 57.)
+          lifeBlock(world),
           ...[
             dropBlock(world, dawnSea(world), {
               title: "The dawn's life lives on: a drop of the sea, under the glass",

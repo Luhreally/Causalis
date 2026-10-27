@@ -47,6 +47,7 @@ import {
   type Presence,
   homeDetail,
   lamplight,
+  lifeTint,
   houseLook,
   limbPitch,
   momentOf,
@@ -474,7 +475,7 @@ export class VillageScene {
           grass,
         });
       };
-    const g = biomeColor(plan.biome, plan.kind),
+    const g = biomeColor(plan.biome, plan.kind, plan.lifeLook),
       // (The ground runs out past its farthest fields and pasture, and the mills on their rim — a
       // great city's lie kilometres out — to the horizon's edge.)
       reach = Math.max(
@@ -572,7 +573,7 @@ export class VillageScene {
     this.floorLayer.build(floorNow(plan, solids, t)?.machines.length ?? 0);
     this.craftsKept = null;
     // Its graveyard, just past its homes (Phase 43 M205).
-    this.graveyard.build(graveyardFor(plan));
+    this.graveyard.build(graveyardFor(plan), plan.lifeLook);
     // A town's well in the middle of its square, where its bucket lines draw (Phase 42 M201): a
     // ring of stone about its water, two posts and a little roof over it.
     if (town) {
@@ -770,7 +771,7 @@ export class VillageScene {
     if (!town) disc(2.2, [0.66, 0.6, 0.48], 0, 0, 0.016);
     // Its countryside (Phase 32): the orchards drawn there under their trees; the rest sown here,
     // a batch to each crop.
-    this.country.build(plan, houseLook(plan.house), s.quality);
+    this.country.build(plan, houseLook(plan.house, plan.lifeLook), s.quality);
     this.feast.build(plan);
     const crop = this.country.crop;
     this.crops = (["grain", "greens", "fallow"] as const).flatMap((kind) => {
@@ -792,7 +793,7 @@ export class VillageScene {
     // Homes, as the land builds them (its design): walls of its material, four-square
     // or round, long or wide; roofs pitched to the rain, flat, or conical; tents whole
     // cones of hide. The watched homes lighter.
-    const look = houseLook(plan.house),
+    const look = houseLook(plan.house, plan.lifeLook),
       sides = look.round ? 8 : 4,
       box = boxMesh(s),
       shell = look.round ? cylinderMesh(s, Math.SQRT1_2, 1, sides) : box,
@@ -920,7 +921,9 @@ export class VillageScene {
       ),
       pine = coneMesh(s, 0.5, 1, 6),
       g2 = biomeColor(plan.biome, plan.kind),
-      leaf: Rgb = [g2[0] * 0.45 + 0.02, g2[1] * 0.55 + 0.22, g2[2] * 0.4 + 0.04],
+      // (Its trees in its life's own colours: Phase 57.)
+      life = (c: Rgb): Rgb => lifeTint(c, plan.lifeLook),
+      leaf: Rgb = life([g2[0] * 0.45 + 0.02, g2[1] * 0.55 + 0.22, g2[2] * 0.4 + 0.04]),
       grow = (
         list: Tree[],
         mesh: pc.Mesh,
@@ -944,9 +947,9 @@ export class VillageScene {
       ? {
           trunks: this.batch(s, trunk, [0.42, 0.28, 0.16], FELLING, this.root),
           crowns: new Map([
-            ["conifer", this.batch(s, pine, [0.06, 0.36, 0.2], FELLING, this.root)],
+            ["conifer", this.batch(s, pine, life([0.06, 0.36, 0.2]), FELLING, this.root)],
             ["broadleaf", this.batch(s, crown, leaf, FELLING, this.root)],
-            ["palm", this.batch(s, crown, [0.2, 0.62, 0.22], FELLING, this.root)],
+            ["palm", this.batch(s, crown, life([0.2, 0.62, 0.22]), FELLING, this.root)],
           ]),
           stumps: this.batch(s, trunk, [0.6, 0.48, 0.32], Math.min(trees.length, 600), this.root),
         }
@@ -963,7 +966,7 @@ export class VillageScene {
     grow(
       byKind("conifer"),
       pine,
-      [0.06, 0.36, 0.2],
+      life([0.06, 0.36, 0.2]),
       (t) => 1.05 * t.size,
       (t) => 0.9 * t.size,
       (t) => 1.5 * t.size,
@@ -981,7 +984,7 @@ export class VillageScene {
     grow(
       byKind("palm"),
       crown,
-      [0.2, 0.62, 0.22],
+      life([0.2, 0.62, 0.22]),
       (t) => 1.35 * t.size,
       (t) => 1.1 * t.size,
       (t) => 0.3 * t.size,
@@ -1312,7 +1315,11 @@ export class VillageScene {
     // lush, sallow — the earth between their rows where the crop stands in rows, snow lying on
     // them in a cold land's winter (set only as it changes); the grass browning in a dry year.
     const year = fieldsNow(plan, t),
-      snowed = (c: Rgb): Rgb => (this.seasonNow ? seasonGround(c, this.seasonNow) : c),
+      // (Its crops and grass in its life's own colours: Phase 57.)
+      snowed = (c: Rgb): Rgb => {
+        const own = lifeTint(c, plan.lifeLook);
+        return this.seasonNow ? seasonGround(own, this.seasonNow) : own;
+      },
       sown = (kind: Crop): Rgb => snowed(cropTint(kind, t, year)),
       earth = (kind: Crop): Rgb =>
         !this.country.sown

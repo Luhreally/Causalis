@@ -40,8 +40,11 @@ export const NOVEL_ELEMENTS: readonly Element[] = [
   { symbol: "Ni", name: "nickel", mass: 58.693 },
 ];
 
+/** Elements neither Earth's tables nor the novel ones needed: those a world's life holds (Phase 57). */
+export const LIFE_ELEMENTS: readonly Element[] = [{ symbol: "V", name: "vanadium", mass: 50.942 }];
+
 const MASS: Readonly<Record<string, number>> = Object.fromEntries(
-  [...ELEMENTS, ...NOVEL_ELEMENTS].map((e) => [e.symbol, e.mass]),
+  [...ELEMENTS, ...NOVEL_ELEMENTS, ...LIFE_ELEMENTS].map((e) => [e.symbol, e.mass]),
 );
 
 /** What kind of matter a substance is (for the words and the colour of its bars). */
@@ -2415,11 +2418,385 @@ export const KIND_REACTIONS: readonly Reaction[] = [
   },
 ];
 
-/** A substance by its id: Earth's first, then those of other chemistries, then the kinds' (Phase 56). */
+// —— The matter of life (Phase 57) ———————————————————————————————————————————————————————
+
+/** A protein's make-up with a metal held in it, by mass (per 100 g), as atoms. */
+const metalProtein = (metal: string, share: number): Record<string, number> =>
+  byMass({
+    C: 0.52 * (1 - share),
+    H: 0.07 * (1 - share),
+    N: 0.16 * (1 - share),
+    O: 0.24 * (1 - share),
+    S: 0.01 * (1 - share),
+    [metal]: share,
+  });
+/** A mirror of an Earth substance: the same atoms, turning the other way. */
+const mirror = (
+  id: string,
+  name: string,
+  of: Substance,
+  colour: [number, number, number],
+  words: string,
+): Substance =>
+  S(
+    `mirror-${id}`,
+    name,
+    of.written,
+    { ...of.formula },
+    of.kind,
+    of.phase,
+    of.density,
+    of.melts,
+    of.hardness,
+    colour,
+    words,
+  );
+const earthOf = (id: string): Substance => SUBSTANCES.find((s) => s.id === id)!;
+const GLUCOSAMINE = { C: 6, H: 13, N: 1, O: 5 },
+  /** Glucosamine chained, a water given up at each link. */
+  GLUCOSAMINE_CHAIN = { C: 6, H: 11, N: 1, O: 4 };
+const glucosamine = S(
+    "glucosamine",
+    "glucosamine",
+    "C₆H₁₃NO₅",
+    GLUCOSAMINE,
+    "food",
+    "solid",
+    1560,
+    150,
+    null,
+    [0.96, 0.95, 0.9],
+    "A sugar carrying nitrogen in place of one of its oxygens: on Earth what crab shell is built of; where life is dissolved in ammonia water, its sugar.",
+  ),
+  glucosamineStarch = S(
+    "glucosamine-starch",
+    "glucosamine starch",
+    "(C₆H₁₁NO₄)ₙ",
+    GLUCOSAMINE_CHAIN,
+    "food",
+    "solid",
+    1500,
+    null,
+    null,
+    [0.95, 0.93, 0.86],
+    "Glucosamine chained as starch is chained of glucose: no Earthly life makes it, but the seeds and roots of a world of ammonia water store their strength so.",
+  ),
+  chitosan = S(
+    "chitosan",
+    "chitosan",
+    "(C₆H₁₁NO₄)ₙ",
+    GLUCOSAMINE_CHAIN,
+    "living",
+    "solid",
+    1400,
+    null,
+    null,
+    [0.88, 0.84, 0.72],
+    "Glucosamine chained as cellulose is chained of glucose (on Earth, crab shell stripped of its acetyl): the stalks and fibres of plants of ammonia water.",
+  );
+
+/**
+ * The matter of life on worlds whose life is not as Earth's (Phase 57): bones and blood, the skins of
+ * cells, the pigments light favours, the sugars, stores and fibres of other liquids, and Earth's own
+ * turned as in a mirror — beside Earth's tables and never replacing them (a world's life says which
+ * are its own, rules/biochem.ts).
+ */
+export const LIFE_SUBSTANCES: readonly Substance[] = [
+  // Bones.
+  S(
+    "opal",
+    "opal",
+    "SiO₂·nH₂O",
+    blend([
+      [QUARTZ, 90],
+      [{ H: 2, O: 1 }, 10],
+    ]),
+    "living",
+    "solid",
+    2100,
+    null,
+    5.5,
+    [0.86, 0.87, 0.84],
+    "Silica with a tenth of its weight of water, laid down as glass: what Earth's diatoms and glass sponges build of, and the bones of life where acid eats lime away.",
+  ),
+  S(
+    "greigite",
+    "greigite",
+    "Fe₃S₄",
+    { Fe: 3, S: 4 },
+    "living",
+    "solid",
+    4049,
+    null,
+    4,
+    [0.2, 0.21, 0.26],
+    "A blue-black sulfide of iron, drawn to a magnet: the scaly-foot snail of Earth's deep vents armours its foot in it, and life whose seas hold little oxygen hardens its bones with it.",
+  ),
+  // Blood.
+  S(
+    "haem",
+    "haem",
+    "C₃₄H₃₂FeN₄O₄",
+    { C: 34, H: 32, Fe: 1, N: 4, O: 4 },
+    "living",
+    "solid",
+    1400,
+    null,
+    null,
+    [0.42, 0.04, 0.08],
+    "Iron held in a ring of carbon and nitrogen, which takes up oxygen and gives it up again: what makes Earth's blood red.",
+  ),
+  S(
+    "haemocyanin",
+    "haemocyanin",
+    "a protein holding copper (Cu 0.2%)",
+    metalProtein("Cu", 0.002),
+    "living",
+    "solid",
+    1350,
+    null,
+    null,
+    [0.16, 0.36, 0.74],
+    "A great protein holding copper, blue while it holds oxygen and colourless when it lets it go: the blood of Earth's octopuses, snails and crabs, at its best in the cold.",
+  ),
+  S(
+    "vanabin",
+    "vanabin",
+    "a protein holding vanadium (V 6%)",
+    metalProtein("V", 0.06),
+    "living",
+    "solid",
+    1350,
+    null,
+    null,
+    [0.4, 0.6, 0.2],
+    "A small protein that gathers vanadium out of seawater ten million times over, kept in cells of acid by Earth's sea squirts; green in acid, as vanadium is.",
+  ),
+  S(
+    "ferredoxin",
+    "ferredoxin",
+    "a protein holding iron and sulfur (Fe₄S₄)",
+    byMass({ C: 0.47, H: 0.065, N: 0.14, O: 0.27, S: 0.03, Fe: 0.025 }),
+    "living",
+    "solid",
+    1350,
+    null,
+    null,
+    [0.44, 0.27, 0.12],
+    "A small brown protein holding clusters of iron and sulfur, which pass hydrogen's electrons on: Earth's hydrogen-eating cells live by it.",
+  ),
+  // The skins of cells.
+  S(
+    "phospholipid",
+    "phospholipid",
+    "C₄₂H₈₂NO₈P",
+    { C: 42, H: 82, N: 1, O: 8, P: 1 },
+    "living",
+    "solid",
+    1010,
+    null,
+    null,
+    [0.94, 0.88, 0.64],
+    "A fat with a head that loves water and two tails that shun it (POPC): two sheets of it, tail to tail, are the skin of every Earthly cell.",
+  ),
+  S(
+    "kinked-phospholipid",
+    "kinked phospholipid",
+    "C₄₄H₈₄NO₈P",
+    { C: 44, H: 84, N: 1, O: 8, P: 1 },
+    "living",
+    "liquid",
+    1000,
+    -17,
+    null,
+    [0.95, 0.9, 0.68],
+    "A phospholipid with a kink in each of its tails (DOPC), which keeps its sheet supple down to −17 °C where a straight one sets like wax: cold life's skins are kinked further still.",
+  ),
+  S(
+    "caldarchaeol",
+    "caldarchaeol",
+    "C₈₆H₁₇₂O₆",
+    { C: 86, H: 172, O: 6 },
+    "living",
+    "solid",
+    950,
+    null,
+    null,
+    [0.92, 0.9, 0.8],
+    "Two long chains bound end to end across a cell's whole skin by ether, which acid and heat cannot part: the skins of Earth's acid-loving archaea.",
+  ),
+  S(
+    "acrylonitrile",
+    "acrylonitrile",
+    "C₃H₃N",
+    { C: 3, H: 3, N: 1 },
+    "living",
+    "liquid",
+    806,
+    -84,
+    null,
+    [0.9, 0.92, 0.94],
+    "A small molecule of carbon, hydrogen and nitrogen in Titan's air: offered (2015) as a film that might close into cells in liquid methane, an azotosome, though later reckoning doubts it would.",
+  ),
+  // Pigments, and the dyes they give.
+  S(
+    "chlorophyll",
+    "chlorophyll",
+    "C₅₅H₇₂MgN₄O₅",
+    { C: 55, H: 72, Mg: 1, N: 4, O: 5 },
+    "living",
+    "solid",
+    1100,
+    117,
+    null,
+    [0.18, 0.5, 0.16],
+    "Magnesium in a ring of carbon and nitrogen, which drinks the red and blue of a yellow star's light and gives back the green: the green of Earth's leaves.",
+  ),
+  S(
+    "carotene",
+    "carotene",
+    "C₄₀H₅₆",
+    { C: 40, H: 56 },
+    "living",
+    "solid",
+    1000,
+    183,
+    null,
+    [0.95, 0.52, 0.08],
+    "A long chain of carbon that drinks blue light and gives back gold and orange (β-carotene): the orange of Earth's carrots, and the leaves of life under a hot white star.",
+  ),
+  S(
+    "phycocyanobilin",
+    "phycocyanin",
+    "C₃₃H₃₈N₄O₆",
+    { C: 33, H: 38, N: 4, O: 6 },
+    "living",
+    "solid",
+    1300,
+    null,
+    null,
+    [0.1, 0.4, 0.74],
+    "An open chain of four rings, held in a protein, that drinks orange and red light and gives back blue: the blue of Earth's blue-green cells, and the leaves of life under an orange star.",
+  ),
+  S(
+    "bacteriochlorophyll",
+    "bacteriochlorophyll",
+    "C₅₅H₇₄MgN₄O₆",
+    { C: 55, H: 74, Mg: 1, N: 4, O: 6 },
+    "living",
+    "solid",
+    1100,
+    null,
+    null,
+    [0.26, 0.12, 0.32],
+    "Chlorophyll's kin that drinks the near-infrared past what eyes see: Earth's purple bacteria live by it, and life under a dim red star is all but black with it.",
+  ),
+  // The stores and fibres of other liquids.
+  S(
+    "polyimine",
+    "polyimine",
+    "(CHN)ₙ",
+    { C: 1, H: 1, N: 1 },
+    "living",
+    "solid",
+    1500,
+    null,
+    null,
+    [0.32, 0.2, 0.08],
+    "Hydrogen cyanide joined into chains of carbon and nitrogen, dark amber and tough, and supple even at −180 °C: offered (2016) as what life in oil or liquid methane might be built of.",
+  ),
+  S(
+    "squalene",
+    "squalene",
+    "C₃₀H₅₀",
+    { C: 30, H: 50 },
+    "food",
+    "liquid",
+    858,
+    -75,
+    null,
+    [0.93, 0.88, 0.6],
+    "An oil of thirty carbons with six double bonds, from which Earth's cells build their sterols: to life that breathes hydrogen, joining hydrogen to its double bonds is food, as burning starch in oxygen is to Earth's.",
+  ),
+  glucosamine,
+  glucosamineStarch,
+  chitosan,
+  // Earth's own, turned the other way.
+  mirror(
+    "sugar",
+    "mirror sugar",
+    earthOf("sugar"),
+    [0.97, 0.96, 0.92],
+    "Glucose turned the other way, as in a mirror (L-glucose): as sweet, but no Earthly body can use it; on a world whose life turned so from the first, its own sugar.",
+  ),
+  mirror(
+    "starch",
+    "mirror starch",
+    earthOf("starch"),
+    [0.96, 0.94, 0.86],
+    "Starch of mirrored glucose: what its grain and roots store, and no enzyme of Earth's can unchain it.",
+  ),
+  mirror(
+    "cellulose",
+    "mirror wood fibre",
+    earthOf("cellulose"),
+    [0.78, 0.66, 0.46],
+    "Cellulose of mirrored glucose: its wood, straw and fibre, as tough as Earth's.",
+  ),
+  mirror(
+    "protein",
+    "mirror protein",
+    earthOf("protein"),
+    [0.86, 0.62, 0.52],
+    "Protein of right-handed amino acids: its flesh, which an Earthly body could neither use nor build from.",
+  ),
+  mirror(
+    "keratin",
+    "mirror keratin",
+    earthOf("keratin"),
+    [0.92, 0.9, 0.84],
+    "Keratin of right-handed amino acids: its wool, hair, horn and hoof.",
+  ),
+  mirror(
+    "collagen",
+    "mirror collagen",
+    earthOf("collagen"),
+    [0.9, 0.8, 0.7],
+    "Collagen of right-handed amino acids: its skin and sinew.",
+  ),
+  mirror(
+    "glucosamine",
+    "mirror glucosamine",
+    glucosamine,
+    [0.96, 0.95, 0.9],
+    "Glucosamine turned the other way: the sugar of ammonia-water life that turned so from the first.",
+  ),
+  mirror(
+    "glucosamine-starch",
+    "mirror glucosamine starch",
+    glucosamineStarch,
+    [0.95, 0.93, 0.86],
+    "Glucosamine starch of the mirror hand: what its seeds and roots store.",
+  ),
+  mirror(
+    "chitosan",
+    "mirror chitosan",
+    chitosan,
+    [0.88, 0.84, 0.72],
+    "Chitosan of the mirror hand: the stalks and fibres of its plants.",
+  ),
+];
+
+/**
+ * A substance by its id: Earth's first, then those of other chemistries, then the kinds' (Phase 56),
+ * then life's (Phase 57).
+ */
 export function findSubstance(id: string): Substance | undefined {
   const i = SUBSTANCE[id];
   return i === undefined
-    ? (NOVEL_SUBSTANCES.find((s) => s.id === id) ?? KIND_SUBSTANCES.find((s) => s.id === id))
+    ? (NOVEL_SUBSTANCES.find((s) => s.id === id) ??
+        KIND_SUBSTANCES.find((s) => s.id === id) ??
+        LIFE_SUBSTANCES.find((s) => s.id === id))
     : SUBSTANCES[i];
 }
 
@@ -2431,10 +2808,12 @@ export function findReaction(id: string): Reaction | undefined {
     : REACTIONS[i];
 }
 
-/** An element by its symbol: Earth's first, then those of other chemistries. */
+/** An element by its symbol: Earth's first, then those of other chemistries, then life's (Phase 57). */
 export function findElement(symbol: string): Element | undefined {
   return (
-    ELEMENTS.find((e) => e.symbol === symbol) ?? NOVEL_ELEMENTS.find((e) => e.symbol === symbol)
+    ELEMENTS.find((e) => e.symbol === symbol) ??
+    NOVEL_ELEMENTS.find((e) => e.symbol === symbol) ??
+    LIFE_ELEMENTS.find((e) => e.symbol === symbol)
   );
 }
 
@@ -2925,6 +3304,22 @@ export const KCAL: Readonly<Record<string, number>> = {
   protein: 4,
   fat: 9,
   cellulose: 2,
+  // (Each life's own, to a body of that life: Phase 57. The mirror's as Earth's; sugars that carry
+  // nitrogen as sugars; squalene as a fat; acetylene with the hydrogen breathed with it, about 3 kcal
+  // a gram, as McKay and Smith reckoned for Titan, 2005; polyimine as protein.)
+  "mirror-starch": 4,
+  "mirror-sugar": 4,
+  "mirror-protein": 4,
+  "mirror-cellulose": 2,
+  glucosamine: 4,
+  "mirror-glucosamine": 4,
+  "glucosamine-starch": 4,
+  "mirror-glucosamine-starch": 4,
+  chitosan: 2,
+  "mirror-chitosan": 2,
+  squalene: 9,
+  acetylene: 3,
+  polyimine: 4,
 };
 
 /**

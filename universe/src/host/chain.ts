@@ -81,6 +81,7 @@ import { rxnRef, substRef } from "./inspect/matter.ts";
 import { landLink, landTitle, realmLink, townLink } from "./inspect/names.ts";
 import { item, link, sentence } from "./inspect/words.ts";
 import { kindVessel, smithAt, workedBought, workedLine } from "./kinds.ts";
+import { clothLife, millBlock, ropeLines } from "./biochem.ts";
 
 type Rgb = readonly [number, number, number];
 
@@ -220,6 +221,8 @@ export type Cloth = {
   readonly colour: Rgb;
   /** Its fibre, from the land: "Dun woolly sheep wool, shorn from the flocks of [land]". */
   readonly from: Line;
+  /** Woven of the land's plants, not its flocks' coats (Phase 57: of its world's own fibre). */
+  readonly plant?: true;
 };
 
 /**
@@ -255,6 +258,7 @@ export function landCloth(world: World, cell: number): Cloth {
     plant = grown === "sinew" ? "grass" : grown;
   return {
     kind: plant,
+    plant: true,
     name: `${plant} cloth`,
     colour: FIBRE_COLOUR[plant] ?? [0.74, 0.7, 0.56],
     from: [sentence(plant), " gathered in ", land, ", retted and beaten soft"],
@@ -848,7 +852,8 @@ export function townStuff(world: World, cell: number, year: number): TownStuff {
     cloth = landCloth(world, cell),
     made = {
       clay: { name: clay.name, ware: clay.ware, raw: clay.raw, fired: clay.fired },
-      cloth: { name: cloth.name, colour: cloth.colour },
+      // (Its colour as its world's life gives it, and dyed: Phase 57.)
+      cloth: { name: cloth.name, colour: clothLife(world, cell, cloth).colour },
       wood,
     };
   if (metal === "stone") {
@@ -1216,13 +1221,15 @@ export function clothMade(
         ? makerAt(world, cell, t, trade, at.seat, year)
         : makerOf(world, cell, t, trade, key, year),
     cloth = landCloth(world, cell),
+    // (Its fibre and its dye, as its world's life makes them: Phase 57.)
+    life = clothLife(world, cell, cloth),
     edge: Edge = leather ? { keen: 0.2, tough: 0.8 } : { keen: 0.35, tough: 0.55 },
     quality = qualityOf(edge, craftAt(world, cell, "clothing"), maker?.years ?? 6),
     where: Span[] = shop ? [" at ", link(shop.name, shop.ref)] : home ? [" at home"] : [];
   return {
     stuff: leather ? "leather" : cloth.name,
     edge,
-    colour: leather ? [0.45, 0.3, 0.18] : cloth.colour,
+    colour: leather ? [0.45, 0.3, 0.18] : life.colour,
     quality,
     grade: gradeOf(quality),
     maker,
@@ -1244,6 +1251,7 @@ export function clothMade(
         ]
       : [
           cloth.from,
+          ...life.lines,
           [
             works
               ? "Spun and woven on the works' machines"
@@ -1563,6 +1571,15 @@ export function workshopBlocks(
       title: `Made here this year: ${madeWords(now.stuff, kind === "kiln" ? "pot" : kind === "workshop" ? "tunic" : "tool")}, ${now.grade}`,
       items: now.chain.map((l) => item(l)),
     });
+  // (Bread at the mill on every world; rope at the weavers' where its life is not Earth's, of its
+  // own fibre: Phase 57.)
+  if (kind === "mill") blocks.push(millBlock(world, town.cell));
+  if (kind === "workshop") {
+    const cord =
+        WOODS[populationContext(world).generated.climate.biome[town.cell] ?? -1]?.[1] ?? "grass",
+      rope = ropeLines(world, cord);
+    if (rope.length) blocks.push({ type: "text", title: "Their rope and cord", lines: rope });
+  }
   blocks.push(...arms);
   return blocks;
 }

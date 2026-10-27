@@ -147,6 +147,36 @@ const LOOK_ROWS: readonly LookRow[] = [
   ["acetylene", "gas", null, "dull", 0.9],
   ["hydrogen", "gas", null, "dull", 0.9],
   ["carbon-monoxide", "gas", null, "dull", 0.9],
+  // A world's life's own (Phase 57): bones, blood, cells' skins, pigments, stores and fibres.
+  ["opal", "lump", "botryoidal", "vitreous", 0.45],
+  ["greigite", "crystal", "cubic", "metallic", 0],
+  ["haem", "powder", null, "dull", 0],
+  ["haemocyanin", "powder", null, "dull", 0],
+  ["vanabin", "powder", null, "dull", 0],
+  ["ferredoxin", "powder", null, "dull", 0],
+  ["phospholipid", "lump", "massive", "waxy", 0.2],
+  ["kinked-phospholipid", "liquid", null, "greasy", 0.4],
+  ["caldarchaeol", "lump", "massive", "waxy", 0.15],
+  ["acrylonitrile", "liquid", null, "vitreous", 0.9],
+  ["chlorophyll", "powder", null, "dull", 0],
+  ["carotene", "crystal", "prismatic", "vitreous", 0.3],
+  ["phycocyanobilin", "powder", null, "dull", 0],
+  ["bacteriochlorophyll", "powder", null, "dull", 0],
+  ["polyimine", "fibre", "fibrous", "waxy", 0],
+  ["squalene", "liquid", null, "greasy", 0.7],
+  ["glucosamine", "crystal", "granular", "vitreous", 0.5],
+  ["glucosamine-starch", "powder", null, "dull", 0],
+  ["chitosan", "fibre", "fibrous", "silky", 0],
+  // (The mirror's, as Earth's own: the same stuff turned the other way.)
+  ["mirror-sugar", "crystal", "granular", "vitreous", 0.5],
+  ["mirror-starch", "powder", null, "dull", 0],
+  ["mirror-cellulose", "fibre", "fibrous", "silky", 0],
+  ["mirror-protein", "flesh", null, "waxy", 0],
+  ["mirror-keratin", "sheet", null, "waxy", 0.2],
+  ["mirror-collagen", "sheet", null, "waxy", 0.25],
+  ["mirror-glucosamine", "crystal", "granular", "vitreous", 0.5],
+  ["mirror-glucosamine-starch", "powder", null, "dull", 0],
+  ["mirror-chitosan", "fibre", "fibrous", "silky", 0],
 ];
 
 /**
@@ -257,6 +287,8 @@ export const ELEMENT_NATURE: Readonly<Record<string, ElementNature>> = {
   Au: { state: "solid", sort: "metal", color: [0.95, 0.78, 0.3], kept: false },
   As: { state: "solid", sort: "metalloid", color: [0.55, 0.55, 0.57], kept: false },
   Ni: { state: "solid", sort: "metal", color: [0.75, 0.73, 0.68], kept: false },
+  // (A green blood's: Phase 57.)
+  V: { state: "solid", sort: "metal", color: [0.66, 0.68, 0.72], kept: false },
 };
 
 /** An element missing from ELEMENT_NATURE: a solid, not a metal, grey, kept under nothing. */

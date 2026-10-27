@@ -12,8 +12,11 @@
 // sea-blue by the water) and by their star (pale under a hot white star, dark purples under a dim
 // red one, to drink what light there is); their eyes stand out against it. A key of their own
 // keeps any two worlds' peoples apart. Their clothes go over their hide, in their group's colour.
+// What their life is made of shows (Phase 57): a shell hardened with iron sulfide is black, with
+// opal milky as glass, with ice white; bare skin is flushed with blood that is not red.
 // Earth's people are its upright apes, as ever: no look. Pure: the same facts, the same people.
 import type { FolkFacts } from "../bridge/index.ts";
+import { BLOOD_TONES } from "./biochem.ts";
 
 type Rgb = readonly [number, number, number];
 
@@ -99,6 +102,18 @@ export function hsl(h: number, s: number, l: number): Rgb {
 function toward(a: number, b: number, k: number): number {
   const d = ((((b - a) % 360) + 540) % 360) - 180;
   return a + d * k;
+}
+
+/**
+ * Bare skin flushed with what flows under it, where its blood is not red (Phase 57): a quarter of
+ * the way to its blood's colour, as Earth's lips and cheeks are with haem — blue with copper,
+ * green with vanadium, brown with iron and sulfur. Fur, scales, feathers and shells hide it.
+ */
+function flushed(c: Rgb, blood: string | undefined): Rgb {
+  const b = blood ? BLOOD_TONES[blood]?.spray : undefined;
+  return b
+    ? [c[0] + 0.25 * (b[0] - c[0]), c[1] + 0.25 * (b[1] - c[1]), c[2] + 0.25 * (b[2] - c[2])]
+    : c;
 }
 
 /** How many markings' shades a look has: as many as the upright apes' hairs (five, and grey). */
@@ -220,6 +235,20 @@ export function folkLook(b: LookBody | null): FolkLook | null {
       s = 0.2 + 0.35 * u(22);
       l = 0.34 + 0.26 * u(23);
   }
+  // A shell hardened with what is not lime (Phase 57): iron sulfide black and lustrous, as the
+  // scaly-foot snail's scales are; opal milky as glass; ice white and faintly blue. A shell of lime
+  // keeps its pigments' colours, as Earth's crabs' do.
+  if (b.skin === "shell" && f.shell === "greigite") {
+    s = 0.06 + 0.08 * u(22);
+    l = 0.13 + 0.06 * u(23);
+  } else if (b.skin === "shell" && f.shell === "opal") {
+    s = 0.04 + 0.06 * u(22);
+    l = 0.68 + 0.1 * u(23);
+  } else if (b.skin === "shell" && f.shell === "ice") {
+    h = 196 + 14 * u(21);
+    s = 0.24 + 0.1 * u(22);
+    l = 0.76 + 0.08 * u(23);
+  }
   if (f.warmth < -3) {
     // (Pale on the ice: white fur, the rest washed out.)
     if (b.skin === "fur") {
@@ -280,7 +309,10 @@ export function folkLook(b: LookBody | null): FolkLook | null {
     ears,
     pattern,
     hide: hsl(h, s, l),
-    under: hsl(h, s * 0.55, Math.min(0.9, l + 0.2)),
+    under: flushed(
+      hsl(h, s * 0.55, Math.min(0.9, l + 0.2)),
+      b.skin === "skin" ? f.blood : undefined,
+    ),
     shade: hsl(h, s * 0.95, l * 0.72),
     mark: marks[2]!,
     marks,

@@ -274,6 +274,7 @@ export {
   SICKNESS,
   SOURCES,
   STAR_SICKNESS,
+  sharesStarSickness,
   VIAS,
   healthOf,
   healthYear,

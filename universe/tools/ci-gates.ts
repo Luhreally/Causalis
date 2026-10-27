@@ -216,6 +216,13 @@ export const GATES: readonly Gate[] = [
   // carbon, a sulfur-volcano, an ice-and-ammonia and a methane world by day — globe, land, town, the
   // matter guide's "This world", bronze shut where nothing burns, their own ages — and a rocky one).
   { gate: 56, args: ["--ci"], s: 260 },
+  // Phase 57 (alien biochemistry: the gate's worlds' lives and the open worlds' shares; a sulfur
+  // world's near-black woods and legend, bones of silica and green blood on a lineage's page and a
+  // met one's Body tab, its dawn and matter guide, opal's and vanadium's pages, a battle of its
+  // wars; an ammonia world's golden woods, a garment of its own mirrored fibre and its stores; a
+  // methane world's amber woods and its dawn fed by the haze; a lifeless world's bare ground; Earth
+  // as it was, and bread at its mill).
+  { gate: 57, args: ["--ci"], s: 480 },
   // Phase 60 (one of a town's people possessed, the god's hand made flesh: refused in plain words
   // where the hand does not rest; a smith of the greatest town taken from the palette, walked to his
   // forge by the keys and set to it until a plough share is made, his and the town's; a word to one

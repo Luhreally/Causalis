@@ -24,6 +24,7 @@ import {
   type FieldsNow,
   fruitHangs,
   hayStands,
+  lifeTint,
   sailTurn,
   scarecrowsStand,
   seasonGround,
@@ -285,16 +286,18 @@ export class CountryLayer {
     this.boats = [];
     this.plan = plan;
     this.motion = q.motion;
+    // (Its hedges, orchard grass and crowns in its life's own colours: Phase 57.)
+    const life = (c: Rgb): Rgb => lifeTint(c, plan.lifeLook);
     const c = countryOf(plan, q.detail);
     this.country = c;
     const engines = plan.era === "industry" || plan.era === "modern";
     // The fields' bounds and posts; the crop's rows.
     if (c.manner) {
-      const bounds = this.placed(this.box, BOUND_COLOR[c.manner], c.bounds);
+      const bounds = this.placed(this.box, life(BOUND_COLOR[c.manner]), c.bounds);
       if (bounds)
         this.dressed.push({
           kind: c.manner === "hedge" ? "leaf" : c.manner === "wall" ? "snow" : "ground",
-          base: BOUND_COLOR[c.manner],
+          base: life(BOUND_COLOR[c.manner]),
           batch: bounds,
         });
     }
@@ -325,7 +328,7 @@ export class CountryLayer {
       };
     }
     // The orchards: their grass, their trees in rows, their fruit in its season.
-    const grassBase: Rgb = [0.36, 0.56, 0.24],
+    const grassBase: Rgb = life([0.36, 0.56, 0.24]),
       grass = this.placed(
         this.box,
         grassBase,
@@ -349,7 +352,7 @@ export class CountryLayer {
     );
     this.crowns = this.placed(
       this.ball,
-      CROWN,
+      life(CROWN),
       c.trees.map((t) => ({
         x: t.x,
         y: (1.8 + 1.5) * t.size,
@@ -612,7 +615,8 @@ export class CountryLayer {
         key = `${this.dressedAs}|${bloom}`;
       if (key !== this.crownsAs) {
         this.crownsAs = key;
-        const leaf = this.seasonNow ? seasonLeaf(CROWN, this.seasonNow) : CROWN;
+        const crown = lifeTint(CROWN, plan.lifeLook),
+          leaf = this.seasonNow ? seasonLeaf(crown, this.seasonNow) : crown;
         this.crowns.recolor(mix(leaf, BLOSSOM, bloom * 0.85));
         this.bloom = bloom;
       }

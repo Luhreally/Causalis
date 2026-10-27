@@ -98,6 +98,8 @@ export type TownPlan = {
   readonly struck?: readonly TownStrike[];
   /** Its world's kind, where it is not rocky (Phase 56): its yards in its kind's colours. */
   readonly kind?: string;
+  /** Its world's life's colours, where they are not Earth's green (Phase 57): its yards' grass. */
+  readonly lifeLook?: string;
 };
 
 /** A small hash of whole numbers, for the plan's wanderings (not history's). */

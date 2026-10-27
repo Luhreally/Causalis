@@ -32,6 +32,7 @@ import { DEPOSIT_MINERALS, rxnRef, substRef, weight } from "./matter.ts";
 import { matterPortrait } from "../looks.ts";
 import { landLink, landTitle, landsOf, lineageIcon, spotOfLand } from "./names.ts";
 import { ageLines, ancestryTab } from "./tree.ts";
+import { speciesMatter } from "../biochem.ts";
 
 const LEVEL_WORDS = [
   "",
@@ -84,6 +85,8 @@ export function lineagePage(world: World, ref: string): PageModel {
   const facts: Stat[] = [
     stat("What it is", s.what),
     ...(s.body ? [stat("Its body", s.body.words)] : []),
+    // (What it is made of, by its world's life: its bones or shell and blood, or its stalks — Phase 57.)
+    ...speciesMatter(world, sp),
     stat("In the web", LEVEL_WORDS[s.level] ?? `level ${s.level}`),
     ...(s.size !== null
       ? [stat("Weight", `${s.size < 1 ? s.size.toFixed(2) : count(s.size)} kg`)]

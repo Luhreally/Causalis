@@ -430,6 +430,8 @@ export type Portrait =
       readonly homes: number;
       readonly city: boolean;
       readonly key: number;
+      /** Its world's life's colours, for its turf roofs (Phase 57; absent: Earth's green). */
+      readonly lifeLook?: string;
     }
   | {
       readonly kind: "world";
@@ -440,6 +442,8 @@ export type Portrait =
       readonly green: number;
       readonly air: boolean;
       readonly key: number;
+      /** What grows on the home world, in its life's colours (Phase 57; absent: Earth's green). */
+      readonly lifeLook?: string;
     }
   | {
       readonly kind: "star";

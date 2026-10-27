@@ -146,6 +146,8 @@ export type MeadowState = {
   readonly age: number;
   /** The age's kind and whether its land is wooded: its look and its growth. */
   kindOfAge: string;
+  /** Its world's life's colours (Phase 57: a pigment's name; none for Earth's green). */
+  readonly lifeLook?: string;
   forests: boolean;
   kinds: MeadowKind[];
   beasts: Beast[];
@@ -300,6 +302,7 @@ export function newMeadow(
     s: MeadowState = {
       age,
       kindOfAge: a?.kind ?? "quiet",
+      ...(plan.lifeLook ? { lifeLook: plan.lifeLook } : {}),
       forests: a?.forests ?? true,
       kinds: [],
       beasts: [],

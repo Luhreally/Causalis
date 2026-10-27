@@ -22,7 +22,9 @@ export {
   STANDING_COLORS,
   WAR_COLORS,
   biomeColor,
+  frameLook,
   kindWater,
+  lifePalette,
   LENS_NAMES,
   BELIEF_COLORS,
   GOOD_CHOICES,
@@ -38,6 +40,7 @@ export {
   type Lens,
   type Lit,
 } from "./globe.ts";
+export { BLOOD_TONES, LIFE_WORDS, bloodTones, lifeTint, type BloodTones } from "./biochem.ts";
 export {
   ACT_PARTS,
   ACT_PART_LOOK,

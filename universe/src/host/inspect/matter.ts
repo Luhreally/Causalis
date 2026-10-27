@@ -85,6 +85,13 @@ import { airBlock } from "./ground.ts";
 import { elementPortrait, matterPortrait } from "../looks.ts";
 import { principleName } from "../../causal/index.ts";
 import { kindBlocks, kindOf, recipeName, shutWhy, workedWords } from "../kinds.ts";
+import {
+  lifeBlock,
+  lifeUseBlock,
+  lifeWay,
+  withLifeElements,
+  withLifeSubstances,
+} from "../biochem.ts";
 
 export const substRef = (id: string) => `subst:${id}`,
   rxnRef = (id: string) => `rxn:${id}`,
@@ -151,6 +158,8 @@ const ELEMENT_COLOUR: Readonly<Record<string, readonly [number, number, number]>
   Au: [0.95, 0.78, 0.2],
   As: [0.45, 0.46, 0.47],
   Ni: [0.72, 0.71, 0.66],
+  // (A green blood's: Phase 57.)
+  V: [0.62, 0.66, 0.7],
 };
 const EFFECT_WORDS: Readonly<Record<(typeof EFFECTS)[number], string>> = {
   farmYield: "fields give more",
@@ -436,6 +445,9 @@ export function substancePage(world: World, ref: string): PageModel {
     elementsBlock(elementShares(s), null),
     { type: "facts", title: "How it is", rows: properties },
   ];
+  // (What it is in its world's life, where that is not Earth's: Phase 57.)
+  const life = lifeUseBlock(world, id);
+  if (life) blocks.push(life);
   if (lies.items.length || DEPOSIT_MINERALS[id] === undefined)
     blocks.push({
       type: "list",
@@ -763,8 +775,17 @@ export function goodKindPage(world: World, ref: string): PageModel {
   };
 }
 
-/** The way a good is made in a land, as matter: tools by its metal, clothing by what it can make. */
+/**
+ * The way a good is made in a land, as matter: tools by its metal, clothing by what it can make; of
+ * its world's own life where that is not Earth's (Phase 57: its food of its own sugars and stores,
+ * its wool of its own hair, its hafts of its own fibre).
+ */
 export function goodHere(world: World, cell: number, goodId: string): MakeUp {
+  return lifeWay(world, goodId, earthWay(world, cell, goodId));
+}
+
+/** The way a good is made in a land, by Earth's tables. */
+function earthWay(world: World, cell: number, goodId: string): MakeUp {
   const m = GOOD_MATTER[goodId]!,
     ctx = populationContext(world),
     way = (id: string) => m.ways.find((w) => w.id === id) ?? m.ways[0]!;
@@ -915,6 +936,8 @@ function worldBlocks(world: World, chem: Chemistry): Block[] {
       ],
     },
     airBlock(world),
+    // (What its life is made of: Phase 57.)
+    lifeBlock(world),
     {
       type: "table",
       title: "Its crust, against Earth's",
@@ -1038,9 +1061,10 @@ function worldBlocks(world: World, chem: Chemistry): Block[] {
  */
 export function matterGuidePage(world: World, tab?: string): PageModel {
   const chem = chemOf(world),
-    subs = substancesOn(chem),
+    // (Its life's own beside its tables: Phase 57.)
+    subs = withLifeSubstances(world, substancesOn(chem)),
     rxns = reactionsOn(chem),
-    els = elementsOn(chem);
+    els = withLifeElements(world, elementsOn(chem), subs);
   const substances: Block[] = KIND_ORDER.map((k) => ({
       type: "list" as const,
       title: KIND_TITLE[k],

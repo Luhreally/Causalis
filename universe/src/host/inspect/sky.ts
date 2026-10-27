@@ -17,6 +17,7 @@ import type { Item, PageModel, Place, Stat } from "../../bridge/index.ts";
 import { starByRef, starFacts, foreignGlobe } from "../galaxy.ts";
 import { civilizationOn, lifeOfBody, lifeOfWorld, sameStar } from "../elsewhere.ts";
 import { elsewhereBlocks } from "./small.ts";
+import { worldLook } from "../biochem.ts";
 import { kindBlocks } from "../kinds.ts";
 import { foreignPlanets } from "../../gen/index.ts";
 import { claimOf, count, item, link, many, stat, yearNow } from "./words.ts";
@@ -271,6 +272,8 @@ export function bodyPage(world: World, ref: string): PageModel {
       green: home ? 0.65 : 0,
       air: b.pressure > 0.05,
       key: hashString(b.ref),
+      // (What grows on the home world in its life's colours: Phase 57.)
+      ...(home ? worldLook(world) : {}),
     },
     title: home
       ? "The home world"

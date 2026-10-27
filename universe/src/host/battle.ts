@@ -24,6 +24,7 @@ import { hostDesign, kindsOf, realmArms } from "./arms.ts";
 import { realmColor } from "./colors.ts";
 import { levyPlaces } from "./fallen.ts";
 import { peopleFigure } from "./folk.ts";
+import { worldLook } from "./biochem.ts";
 import { CIVIL_SHORT } from "./inspect/strife.ts";
 import { landTitle } from "./inspect/names.ts";
 
@@ -226,6 +227,8 @@ export function battleNear(world: World, ref: string): BattleNear | null {
       ],
       // (No beast stays on a field where hosts meet.)
       lineages: [],
+      // (Its life's colours: Phase 57.)
+      ...worldLook(world),
     },
   };
 }

@@ -19,6 +19,7 @@ import {
   FOOD_WEB,
   NICHE_SIZE,
   creatureName,
+  dawnWords,
   creatureWords,
   type BodyPlan,
   type Covering,
@@ -33,6 +34,8 @@ import { climateMean, starAgeGyr } from "./bodies.ts";
 import type { HomeWorld } from "./homeworld.ts";
 import type { Species } from "./biosphere.ts";
 import { cladeRef } from "./kinds.ts";
+import { worldChemistry } from "./chemistry.ts";
+import { worldLife } from "./life.ts";
 
 const EVO = defineStream("gen.evolution");
 
@@ -1156,6 +1159,9 @@ function growTree(g: HomeWorld): TreeOfLife {
     early = (share: number) => Math.round(first - share * span),
     sea = climateMean(g.planet) + 4;
 
+  // (The dawn told by what its life is made of, its iron rusting or not: Earth's own words on Earth, Phase 57.)
+  const dawn = dawnWords(worldLife(g), worldChemistry(g).redox === "oxidised");
+
   const dawnLine = (
     parent: number,
     name: string,
@@ -1188,7 +1194,7 @@ function growTree(g: HomeWorld): TreeOfLife {
   const replicators = dawnLine(
     -1,
     "the first replicators",
-    "chains of matter that copied themselves, in the warm water of the young world",
+    dawn.replicators,
     first,
     "",
     "",
@@ -1199,7 +1205,7 @@ function growTree(g: HomeWorld): TreeOfLife {
   const cells = dawnLine(
     replicators.id,
     "the first cells",
-    "replicators inside a skin of fat: the first cells, dividing to fill the water",
+    dawn.cells,
     early(0.05),
     "a skin closed about its chemistry",
     "keeping what it made for itself",
@@ -1207,10 +1213,10 @@ function growTree(g: HomeWorld): TreeOfLife {
   const light = dawnLine(
     cells.id,
     "the light-eaters",
-    "cells that made their food from the star's light, breathing out a gas the air had never held",
+    dawn.light,
     early(0.15),
-    "it came to eat light",
-    "where the sunlit water had food for none",
+    dawn.lightHow,
+    dawn.lightWhy,
   );
   const nucleus = dawnLine(
     cells.id,
@@ -1218,7 +1224,7 @@ function growTree(g: HomeWorld): TreeOfLife {
     "larger cells keeping their instructions in a nucleus, and another cell taken in to burn their food",
     early(0.55),
     "one cell took another in and kept it",
-    "burning its food in the air the light-eaters had made",
+    dawn.nucleus,
   );
   const together = dawnLine(
     nucleus.id,
@@ -1230,14 +1236,14 @@ function growTree(g: HomeWorld): TreeOfLife {
   );
   const weed = dawnLine(
     light.id,
-    "green weed of the shallows",
-    "the light-eaters' cells together: weeds swaying in the sunlit shallows",
+    dawn.weed,
+    dawn.weedWords,
     togetherAt - 40 - Math.round(80 * u(0, 0, 4)),
     "its cells stayed together",
-    "to reach the light",
+    dawn.weedWhy,
     "plant",
     null,
-    "growing in the light",
+    dawn.weedWay,
   );
 
   // The first bodies: a worm, a jelly's bell, a sponge's cup.
@@ -1440,14 +1446,13 @@ function growTree(g: HomeWorld): TreeOfLife {
       words: replicators.what,
     },
     { id: "cells", name: "The first cells", at: cells.from, node: cells.id, words: cells.what },
-    { id: "light", name: "Life eats light", at: light.from, node: light.id, words: light.what },
+    { id: "light", name: dawn.lightName, at: light.from, node: light.id, words: light.what },
     {
       id: "air",
-      name: "The air fills with oxygen",
+      name: dawn.air,
       at: early(0.4),
       node: null,
-      words:
-        "the light-eaters' breath gathered in the seas and the air, and the world's iron rusted red",
+      words: dawn.airWords,
     },
     {
       id: "nucleus",

@@ -5,7 +5,6 @@
 // world, kept per world (the ground does not change).
 import {
   KIND_GASES,
-  MATERIAL_MATTER,
   ORE_GRADE,
   ROLE_KG,
   TONNES_A_UNIT,
@@ -30,6 +29,7 @@ import { airOf, homePlanet, politiesOf } from "../../sim/index.ts";
 import type { Block, Item } from "../../bridge/index.ts";
 import { count, item, link, stat } from "./words.ts";
 import { DEPOSIT_MINERALS, makeUpBlock, substRef, weight } from "./matter.ts";
+import { lifeMaterial } from "../biochem.ts";
 
 const BIOME_SOIL: Readonly<Record<number, string>> = {
   [BIOME.tundra]: "tundra",
@@ -267,7 +267,8 @@ export function designMatter(
   let kg = 0;
   for (const part of parts) {
     const w = ROLE_KG[part.role] ?? 0,
-      makeup = part.material === "stone" ? stone : MATERIAL_MATTER[part.material];
+      // (Its wood of its world's own fibre, its shell of its own shells: Phase 57.)
+      makeup = part.material === "stone" ? stone : lifeMaterial(world, part.material);
     if (!w || !makeup) continue;
     kg += w;
     for (const [s, k] of makeup) out.set(s, (out.get(s) ?? 0) + w * k);

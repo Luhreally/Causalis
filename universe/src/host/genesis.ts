@@ -26,6 +26,7 @@ import type { GenesisPlan } from "../bridge/index.ts";
 import { dawnSeaOf, dropOfWorld } from "./inspect/small.ts";
 import { figureBody, folkFacts } from "./folk.ts";
 import { spotBiome } from "./kinds.ts";
+import { lookMeta } from "./biochem.ts";
 
 /** The last world remade from acts laid on its dawn (a viewer asks again and again of one). */
 let remade: { readonly key: string; readonly g: ProvinceWorld } | null = null;
@@ -122,6 +123,8 @@ export function genesisPlan(pw: ProvinceWorld, seed: string): GenesisPlan {
     seed,
     name: seedName(seed),
     worldAge: tree.worldAge,
+    // (Its life's colours, for its meadows: Phase 57.)
+    ...lookMeta(pw),
     rungs: tree.rungs.map((r) => ({ id: r.id, name: r.name, at: r.at, words: r.words })),
     drop: dropOfWorld(g, dawnSeaOf(g), {
       title: "A drop of the first seas",

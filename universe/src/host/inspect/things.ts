@@ -47,12 +47,14 @@ import { article } from "../../rules/index.ts";
 import {
   castMade,
   clothMade,
+  landCloth,
   machinedMade,
   makerWords,
   potMade,
   toolMade,
   type Made,
 } from "../chain.ts";
+import { lifeHere, lifeParts, lifeWay, plantCloth } from "../biochem.ts";
 
 /** The tools each trade that wears them out works with, and what each weighs (kg). */
 const TOOLS: Readonly<Partial<Record<number, readonly (readonly [string, number])[]>>> = {
@@ -151,10 +153,19 @@ function slotThing(
     // (The year its turn came round, rounded up: never older than it lasts.)
     made = Math.ceil(phase + Math.floor((now - phase) / life) * life),
     ctx = populationContext(world),
+    // (Of its world's own life — a haft of its own fibre — and a garment of the land's plants woven
+    // of their fibre, not of a fleece: Phase 57.)
+    here = good === "tools" ? null : goodHere(world, cell, good),
     way =
-      good === "tools"
-        ? GOOD_MATTER.tools!.ways.find((w) => w.id === toolMetal(ctx, cell, made))!
-        : goodHere(world, cell, good),
+      here === null
+        ? lifeWay(
+            world,
+            "tools",
+            GOOD_MATTER.tools!.ways.find((w) => w.id === toolMetal(ctx, cell, made))!,
+          )
+        : here.id === "woven" && landCloth(world, cell).plant
+          ? plantCloth(world)
+          : here,
     had = cover(world, cell, good),
     short = had < 1 && keyed(`${holder}:${slot}:short`) > had,
     homeMade = keyed(`${holder}:${slot}:home`) < homeShare(good, way.id),
@@ -278,7 +289,8 @@ function foodStore(
       w = u * GOOD_MATTER[good.id]!.unitKg;
     units += u;
     kg += w;
-    for (const [s, k] of GOOD_MATTER[good.id]!.ways[0]!.parts)
+    // (Of its world's own life: Phase 57.)
+    for (const [s, k] of goodHere(world, h.cell, good.id).parts)
       out.set(s, (out.get(s) ?? 0) + w * k);
   }
   return { units, kg, parts: [...out].map(([s, w]) => [s, kg ? w / kg : 0] as [string, number]) };
@@ -400,7 +412,7 @@ export function personThingsBlocks(world: World, p: Holder): Block[] {
       const good = GOODS[f]!,
         k = (m.stock[f]! / total) * (GOOD_MATTER[good.id]!.unitKg / 30);
       kg += k;
-      for (const [s, x] of GOOD_MATTER[good.id]!.ways[0]!.parts)
+      for (const [s, x] of goodHere(world, p.cell, good.id).parts)
         day.set(s, (day.get(s) ?? 0) + k * x);
     }
   if (kg) {
@@ -420,7 +432,12 @@ export function personThingsBlocks(world: World, p: Holder): Block[] {
     kgBody = bodyKg(world, p);
   blocks.push(
     makeUpBlock(
-      bodyMakeUp(p.sex === FEMALE, body?.skin ?? "skin", body?.warm ?? true),
+      // (Its bones, flesh and water its world's life's own: Phase 57.)
+      lifeParts(
+        lifeHere(world),
+        bodyMakeUp(p.sex === FEMALE, body?.skin ?? "skin", body?.warm ?? true),
+        "body",
+      ),
       kgBody,
       "What their body is made of",
       `${weight(kgBody)}, as their people's bodies go at their age.`,

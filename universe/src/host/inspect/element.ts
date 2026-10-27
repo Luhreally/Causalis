@@ -10,6 +10,7 @@ import type { Block, Item, PageModel } from "../../bridge/index.ts";
 import { elementNature, elementPortrait, matterPortrait, type ElementNature } from "../looks.ts";
 import { item, link, stat, yearNow } from "./words.ts";
 import { substRef, substancesOn } from "./matter.ts";
+import { withLifeSubstances } from "../biochem.ts";
 
 /** How many of the substances that hold it are listed; the rest are counted. */
 const MOST_HELD = 40;
@@ -52,7 +53,7 @@ export function elementPage(world: World, ref: string): PageModel {
   const nature = elementNature(symbol),
     chem = worldChemistry(homePlanet(world).generated),
     // Every substance of this world whose formula has the element, its share of the weight first.
-    holds = substancesOn(chem)
+    holds = withLifeSubstances(world, substancesOn(chem))
       .filter((s) => s.formula[symbol] !== undefined)
       .map((s) => ({ s, share: elementShares(s).find(([e]) => e === symbol)?.[1] ?? 0 }))
       .sort((a, b) => b.share - a.share || (a.s.id < b.s.id ? -1 : 1));

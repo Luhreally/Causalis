@@ -4,6 +4,7 @@
 import type { FrameMessage } from "../bridge/index.ts";
 import type { SphereGrid } from "../kernel/index.ts";
 import type { Rgb } from "./sandbox.ts";
+import { LIFE_WORDS, lifeTint } from "./biochem.ts";
 import {
   GOODS,
   KIND_SEAS,
@@ -164,7 +165,8 @@ const BIOME_COLORS: readonly Rgb[] = [
  * The kinds' colours (Phase 56), in BIOME's order as BIOME_COLORS: each its seas its liquid's —
  * black oil, sour turquoise acid, slate ammonia water, dark amber methane — its ice and bare ground
  * its bedrock's (graphite and carbide, sulfur flats and red lava, ice and grey rock flour, ice and
- * tholin dunes), and what grows there as its light shows it (its own pigments are Phase 57's).
+ * tholin dunes), and what grows there as its light shows it — the rows where something grows are
+ * its life's own pigment's (lifePalette, Phase 57).
  */
 const KIND_BIOMES: Readonly<Record<string, readonly Rgb[]>> = {
   carbon: [
@@ -241,6 +243,45 @@ const KIND_BIOMES: Readonly<Record<string, readonly Rgb[]>> = {
   ],
 };
 
+/** The rows of BIOME's order where something grows green: tundra, the boreal, temperate and tropical woods. */
+const GROWING: ReadonlySet<number> = new Set([5, 6, 9, 10, 13, 14]);
+
+/** Where nothing grows, each living row's bare ground: its cold desert, its hot desert, its bare rock. */
+const BARE: Readonly<Partial<Record<number, number>>> = {
+  5: 7,
+  6: 7,
+  8: 7,
+  9: 7,
+  10: 15,
+  12: 11,
+  13: 11,
+  14: 11,
+};
+
+const PALETTES = new Map<string, readonly Rgb[]>();
+
+/**
+ * A world's land colours, by its kind and its life's (Phase 57): its kind's seas, ice and bare ground
+ * (Phase 56), and what grows green there Earth's green turned to its life's own pigment (`look`:
+ * its name, none for Earth's chlorophyll) — gold, blue, near black, dark amber — its dry grass straw
+ * as any; where nothing took hold ("bare"), its bare ground. A rocky world's, green with
+ * chlorophyll, is Earth's own.
+ */
+export function lifePalette(kind = "rocky", look?: string): readonly Rgb[] {
+  const key = `${kind}|${look ?? ""}`,
+    kept = PALETTES.get(key);
+  if (kept) return kept;
+  const base = KIND_BIOMES[kind] ?? BIOME_COLORS,
+    palette =
+      look === "bare"
+        ? base.map((c, i) => base[BARE[i] ?? i] ?? c)
+        : !look && !KIND_BIOMES[kind]
+          ? BIOME_COLORS
+          : base.map((c, i) => (GROWING.has(i) ? lifeTint(BIOME_COLORS[i]!, look) : c));
+  PALETTES.set(key, palette);
+  return palette;
+}
+
 /** A kind's waters (Phase 56): what they are, and their colours as a land shows them. */
 type KindWaters = {
   readonly liquid: string;
@@ -285,6 +326,11 @@ export function kindWater(kind: string | undefined): KindWaters | null {
 /** A frame's world kind (Phase 56: a rocky world's frames say none). */
 export function frameKind(frame: FrameMessage): string {
   return (frame.meta as { kind?: string }).kind ?? "rocky";
+}
+
+/** A frame's world's life's colours (Phase 57: its pigment's name, "bare", or none for Earth's green). */
+export function frameLook(frame: FrameMessage): string | undefined {
+  return (frame.meta as { lifeLook?: string }).lifeLook;
 }
 
 export const DEPOSIT_COLORS: readonly Rgb[] = [
@@ -599,9 +645,12 @@ const DEEP: Readonly<
   debt: { stops: DEBT, at: (v) => v, shown: () => true },
 };
 
-/** A biome's colour on the land lens (on a world of another kind, its kind's: Phase 56). */
-export function biomeColor(biome: number, kind = "rocky"): Rgb {
-  return (KIND_BIOMES[kind] ?? BIOME_COLORS)[biome] ?? [0.5, 0.6, 0.35];
+/**
+ * A biome's colour on the land lens (on a world of another kind, its kind's: Phase 56; what grows
+ * there its life's own colour, `look`: Phase 57).
+ */
+export function biomeColor(biome: number, kind = "rocky", look?: string): Rgb {
+  return lifePalette(kind, look)[biome] ?? [0.5, 0.6, 0.35];
 }
 
 /** A warmth on a lens's ramp (degrees of its world's liquid) in true °C, in words. */
@@ -630,7 +679,8 @@ export function globeColors(
     meta = frame.meta as { plates: { continental: boolean }[] },
     // (A world of another kind in its own colours: Phase 56.)
     kind = frameKind(frame),
-    palette = KIND_BIOMES[kind] ?? BIOME_COLORS,
+    // (What grows there in its life's own colours: Phase 57.)
+    palette = lifePalette(kind, frameLook(frame)),
     depth = KIND_DEPTH[kind] ?? DEPTH,
     waters = kindWater(kind);
   for (let c = 0; c < n; c++) {
@@ -855,21 +905,32 @@ const KIND_ICE: Readonly<Record<string, string>> = {
   methane: "frozen methane",
 };
 
-/** The land lens's keys on a world of another kind: its own colours, its sea and ice its liquid's. */
-function kindLegend(kind: string): Legend {
+/**
+ * The land lens's keys: its own colours, its sea and ice its liquid's (Phase 56); its woods in its
+ * life's colour and words ("golden woods"), or bare ground where nothing took hold (Phase 57). A
+ * rocky world green with chlorophyll's as ever.
+ */
+function kindLegend(kind: string, look?: string): Legend {
+  const colour = (biome: number) => biomeColor(biome, kind, look),
+    life = look ? LIFE_WORDS[look] : undefined,
+    ice: [Rgb, string] = [colour(4), KIND_ICE[kind] ?? "ice"],
+    sea: [Rgb, string] = [colour(1), kind === "rocky" ? "sea" : KIND_SEAS[kind as NovelKind].sea];
   return {
     kind: "keys",
-    keys: [
-      [biomeColor(9, kind), "woods"],
-      [biomeColor(8, kind), "grassland"],
-      [biomeColor(11, kind), "desert"],
-      [biomeColor(4, kind), KIND_ICE[kind] ?? "ice"],
-      [biomeColor(1, kind), KIND_SEAS[kind as NovelKind].sea],
-    ],
+    keys:
+      look === "bare"
+        ? [[colour(9), "bare ground"], [colour(11), "desert"], ice, sea]
+        : [
+            [colour(9), life ? `${life} woods` : "woods"],
+            [colour(8), "grassland"],
+            [colour(11), "desert"],
+            ice,
+            sea,
+          ],
   };
 }
 
-export function lensLegend(lens: Lens, kind = "rocky"): Legend {
+export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
   const stops = (list: readonly Stop[]) => list.map(([, c]) => c);
   switch (lens) {
     case "people":
@@ -990,18 +1051,9 @@ export function lensLegend(lens: Lens, kind = "rocky"): Legend {
         ],
       };
     default:
-      // (A world of another kind: its own ground and seas, named for its liquid — Phase 56.)
-      if (KIND_BIOMES[kind]) return kindLegend(kind);
-      return {
-        kind: "keys",
-        keys: [
-          [[0.24, 0.58, 0.2], "woods"],
-          [[0.8, 0.76, 0.38], "grassland"],
-          [[0.97, 0.82, 0.46], "desert"],
-          [[0.97, 0.98, 1], "ice"],
-          [[0.05, 0.22, 0.6], "sea"],
-        ],
-      };
+      // (A world of another kind: its own ground and seas, named for its liquid — Phase 56; its
+      // woods its life's — Phase 57. A rocky world green with chlorophyll's as ever.)
+      return kindLegend(kind, look);
   }
 }
 

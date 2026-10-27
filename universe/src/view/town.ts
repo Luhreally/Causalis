@@ -42,6 +42,7 @@ import {
 import { HOME_LIFE } from "../rules/index.ts";
 import { houseLook, type HouseLook } from "./village.ts";
 import { biomeColor } from "./globe.ts";
+import { lifeTint } from "./biochem.ts";
 
 type Rgb = readonly [number, number, number];
 export type PartMesh = "box" | "gable" | "cone" | "cyl";
@@ -184,7 +185,10 @@ export function townScene(plan: TownPlan, t: number, previous?: TownLots): TownS
     states = lotStates(plan),
     held = blocksHeld(plan, states),
     looks = plan.designs.map((d: TownDesign) =>
-      houseLook({ walls: d.walls, roof: d.roof, form: d.form, pitch: d.pitch, design: null }),
+      houseLook(
+        { walls: d.walls, roof: d.roof, form: d.form, pitch: d.pitch, design: null },
+        plan.lifeLook,
+      ),
     ),
     active: number[] = [],
     settled: number[] = [],
@@ -265,8 +269,8 @@ export function roofTop(scene: TownScene, p: number, t: number): number | null {
 export function townGround(scene: TownScene, out: TownParts): void {
   const { plan, lots } = scene,
     street: Rgb = plan.paved ? [0.66, 0.64, 0.6] : [0.6, 0.53, 0.4],
-    // (On a world of another kind, its grassland's colour: Phase 56.)
-    yard: Rgb = plan.kind ? biomeColor(8, plan.kind) : [0.5, 0.6, 0.34];
+    // (On a world of another kind, its grassland's colour: Phase 56; its life's: Phase 57.)
+    yard: Rgb = lifeTint(plan.kind ? biomeColor(8, plan.kind) : [0.5, 0.6, 0.34], plan.lifeLook);
   // In metres, as everything here: the streets stand a hand above the land's ground and the
   // pasture under them, the yards a curb above the streets, so neither sinks out of sight.
   out.put(

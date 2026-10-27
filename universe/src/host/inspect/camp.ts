@@ -7,6 +7,7 @@ import { YEAR, type World } from "../../kernel/index.ts";
 import { populationContext, regionOf } from "../../sim/index.ts";
 import type { CampCraft, Item, LandCamp, Line, PageModel, Span, Stat } from "../../bridge/index.ts";
 import { campCraft } from "../camp.ts";
+import { ropeLines } from "../biochem.ts";
 import { CAMP_RANGE, landCamps } from "../land.ts";
 import { province } from "../planet.ts";
 import { count, item, link, many, share, stat, yearNow } from "./words.ts";
@@ -165,7 +166,19 @@ export function campPage(world: World, ref: string): PageModel {
           { type: "facts", rows: stats },
           // (Down among one of its bands, Phase 29 M160.)
           { type: "tool", tool: "watch.camp", args: { cell, camp: camp.id } },
-          { type: "text", lines: [who, how, hunt, ...(herd ? [herd] : []), crafts, next] },
+          // (Their cord of their world's own fibre, where it is not Earth's: Phase 57.)
+          {
+            type: "text",
+            lines: [
+              who,
+              how,
+              hunt,
+              ...(herd ? [herd] : []),
+              crafts,
+              ...ropeLines(world, c.fibre),
+              next,
+            ],
+          },
           ...(others.length
             ? [{ type: "list" as const, title: "The land's other camps", items: others }]
             : []),

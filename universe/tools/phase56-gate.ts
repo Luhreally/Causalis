@@ -462,8 +462,10 @@ for (const [universe, seed] of [
     shown.frame === "rocky" && shown.sky === "rocky",
     `${seed} drawn as a ${shown.frame} world under a ${shown.sky} sky`,
   );
+  // (Alien 16's woods its life's own blue: Phase 57.)
+  const woods = seed === "alien 16" ? "blue woods" : "woods";
   check(
-    keys.join(",") === "woods,grassland,desert,ice,sea",
+    keys.join(",") === `${woods},grassland,desert,ice,sea`,
     `${seed}'s land legend reads ${keys.join(", ")}`,
   );
   check(

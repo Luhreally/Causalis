@@ -7,7 +7,15 @@
 // the dead on their biers — before their door, on their bearers' shoulders, set by the grave.
 // Units as the village's: a tenth of a unit to the metre; sized as its folk are drawn.
 import * as pc from "playcanvas";
-import { PLOT, plotAt, plotsOf, sectionsOf, yardPoint, type Graveyard } from "../view/index.ts";
+import {
+  PLOT,
+  lifeTint,
+  plotAt,
+  plotsOf,
+  sectionsOf,
+  yardPoint,
+  type Graveyard,
+} from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
@@ -102,6 +110,8 @@ export class GraveyardLayer {
   private poles: InstancedBatch | null = null;
   private legs: InstancedBatch | null = null;
   private snow = 0;
+  /** Its world's life's colours (Phase 57): its grass, its yews and its graves' turf. */
+  private look: string | undefined = undefined;
   /** The graves drawn (their count and the first fresh), so they are laid out again only as they change. */
   private gravesKey = "";
   /** The graveyard drawn (null: none). */
@@ -137,16 +147,21 @@ export class GraveyardLayer {
   }
 
   private grassNow(): Rgb {
-    const s = Math.min(1, Math.max(0, this.snow));
+    const s = Math.min(1, Math.max(0, this.snow)),
+      grass = lifeTint(GRASS, this.look);
     return [
-      GRASS[0] + (SNOW[0] - GRASS[0]) * s,
-      GRASS[1] + (SNOW[1] - GRASS[1]) * s,
-      GRASS[2] + (SNOW[2] - GRASS[2]) * s,
+      grass[0] + (SNOW[0] - grass[0]) * s,
+      grass[1] + (SNOW[1] - grass[1]) * s,
+      grass[2] + (SNOW[2] - grass[2]) * s,
     ];
   }
 
-  /** Lay out a town's graveyard (null: none): its ground, paths, wall, gate and yews; its graves as they come. */
-  build(yard: Graveyard | null): void {
+  /**
+   * Lay out a town's graveyard (null: none): its ground, paths, wall, gate and yews; its graves as
+   * they come; its grass, yews and graves' turf in its world's life's colours (`look`, Phase 57).
+   */
+  build(yard: Graveyard | null, look?: string): void {
+    this.look = look;
     for (const b of this.batches) b.destroy();
     this.batches = [];
     this.grass =
@@ -255,7 +270,7 @@ export class GraveyardLayer {
         { u: -(GATE_HALF + 5), v: 5 },
       ],
       trunks = make(this.drum, BARK, yews.length),
-      crowns = make(this.cone, YEW, yews.length * 2);
+      crowns = make(this.cone, lifeTint(YEW, look), yews.length * 2);
     trunks.set(yews.length, (i, out) => {
       const p = at(yews[i]!.u, yews[i]!.v);
       out[0] = p.x * M;
@@ -279,7 +294,7 @@ export class GraveyardLayer {
     this.stones = STONES.map((c) => make(this.box, c, cap));
     this.arches = STONES.map((c) => make(this.drum, c, cap));
     this.crosses = [make(this.box, NEW_WOOD, cap * 2), make(this.box, OLD_WOOD, cap * 2)];
-    this.mounds = [make(this.gable, EARTH, cap), make(this.gable, MOUND, cap)];
+    this.mounds = [make(this.gable, EARTH, cap), make(this.gable, lifeTint(MOUND, look), cap)];
     this.pits = make(this.box, PIT, MOST_OPEN);
     this.heaps = make(this.cone, EARTH, MOST_OPEN);
     this.planks = make(this.box, BIER, MOST_BIERS);

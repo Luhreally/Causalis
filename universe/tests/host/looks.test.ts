@@ -7,6 +7,8 @@ import { hashString } from "../../src/kernel/index.ts";
 import {
   ELEMENTS,
   KIND_SUBSTANCES,
+  LIFE_ELEMENTS,
+  LIFE_SUBSTANCES,
   NOVEL_ELEMENTS,
   NOVEL_SUBSTANCES,
   SUBSTANCES,
@@ -42,19 +44,22 @@ function made(over: Partial<Substance>): Substance {
   };
 }
 
-test("every substance of Earth's, of the novel chemistries and of the kinds has its row in LOOKS, and no other", () => {
-  for (const s of [...SUBSTANCES, ...NOVEL_SUBSTANCES, ...KIND_SUBSTANCES])
+test("every substance of Earth's, of the novel chemistries, of the kinds and of a world's life has its row in LOOKS, and no other", () => {
+  for (const s of [...SUBSTANCES, ...NOVEL_SUBSTANCES, ...KIND_SUBSTANCES, ...LIFE_SUBSTANCES])
     assert.ok(LOOKS[s.id], `${s.id} has a look`);
   assert.equal(
     Object.keys(LOOKS).length,
-    SUBSTANCES.length + NOVEL_SUBSTANCES.length + KIND_SUBSTANCES.length,
+    SUBSTANCES.length + NOVEL_SUBSTANCES.length + KIND_SUBSTANCES.length + LIFE_SUBSTANCES.length,
   );
 });
 
 test("every element of Earth's and of the novel chemistries has its nature in ELEMENT_NATURE", () => {
-  for (const e of [...ELEMENTS, ...NOVEL_ELEMENTS])
+  for (const e of [...ELEMENTS, ...NOVEL_ELEMENTS, ...LIFE_ELEMENTS])
     assert.ok(ELEMENT_NATURE[e.symbol], `${e.symbol} has a nature`);
-  assert.equal(Object.keys(ELEMENT_NATURE).length, ELEMENTS.length + NOVEL_ELEMENTS.length);
+  assert.equal(
+    Object.keys(ELEMENT_NATURE).length,
+    ELEMENTS.length + NOVEL_ELEMENTS.length + LIFE_ELEMENTS.length,
+  );
 });
 
 test("matterPortrait for quartz: hexagonal, vitreous, clear as .85, keyed by its id", () => {

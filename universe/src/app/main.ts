@@ -7704,6 +7704,10 @@ async function runPlanetPage(): Promise<void> {
     region.kind(kind);
     stage.worldKind(kind);
     mapModes.kind = kind;
+    // (And its life's colours: a land's woods, the map's legend — Phase 57.)
+    const look = (frame.meta as { lifeLook?: string }).lifeLook;
+    region.lifeLook(look);
+    mapModes.lifeLook = look;
   });
   client.onFrame((frame) => {
     if (frame.view === "globe") paintGlobe();

@@ -8,6 +8,7 @@ import * as pc from "playcanvas";
 import type { LandPlan } from "../bridge/index.ts";
 import {
   kindWater,
+  lifeTint,
   seasonKey,
   seasonLeaf,
   seasonNeedle,
@@ -38,6 +39,8 @@ export class RegionScene {
   private woodKinds: { kind: string; color: Rgb }[] = [];
   private seasonNow: GroundSeason | null = null;
   private seasonSeen = "";
+  /** Its world's life's colours (Phase 57: a pigment's name, none for Earth's green). */
+  private look: string | undefined;
   private villageTiles: number[] = [];
   /** The land's ground as its towns, roads and fields read it; and what is drawn on it. */
   private ground: LandGround | null = null;
@@ -187,6 +190,11 @@ export class RegionScene {
     this.seaColour = kindWater(kind)?.sea ?? SEA;
   }
 
+  /** Its world's life's colours (Phase 57): its woods' leaves, from the next woods planted. */
+  lifeLook(look: string | undefined): void {
+    this.look = look;
+  }
+
   /** The land's ground as its roads read it (null: none built), for the ways its hosts go by (M203). */
   get landGround(): LandGround | null {
     return this.ground;
@@ -325,7 +333,7 @@ export class RegionScene {
         {
           kind: "conifer",
           mesh: coneMesh(s, 0.5, 1, 6),
-          color: [0.06, 0.4, 0.22] as const,
+          color: lifeTint([0.06, 0.4, 0.22], this.look),
           w: 0.5,
           h: 1.05,
         },
@@ -335,7 +343,7 @@ export class RegionScene {
             s.device,
             new pc.SphereGeometry({ radius: 0.5, latitudeBands: 3, longitudeBands: 6 }),
           ),
-          color: [0.16, 0.56, 0.18] as const,
+          color: lifeTint([0.16, 0.56, 0.18], this.look),
           w: 0.65,
           h: 0.55,
         },

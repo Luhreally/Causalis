@@ -10,6 +10,7 @@ import { ELEMENTS, SUBSTANCES } from "../../src/rules/index.ts";
 import { ALIEN, EARTH } from "../../src/host/planet.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { substancesOn } from "../../src/host/inspect/matter.ts";
+import { withLifeSubstances } from "../../src/host/biochem.ts";
 import type { Block, Item, PageModel, Tab } from "../../src/bridge/index.ts";
 
 const earth = EARTH.build(seedFromText("first light"));
@@ -88,7 +89,10 @@ test("alien 16's 'This world': its stones, ores, metals and words carry pictures
   for (const i of rocks) assert.equal(i.thumb, undefined, "a rock is no substance");
   // The alien's own substances are the ones pictured on its guide, too.
   const own = itemsOf(pageOf(alien, "world:matter"), "substances");
-  assert.equal(own.length, substancesOn(worldChemistry(homePlanet(alien).generated)).length);
+  assert.equal(
+    own.length,
+    withLifeSubstances(alien, substancesOn(worldChemistry(homePlanet(alien).generated))).length,
+  );
   for (const i of own) assert.equal(i.thumb?.kind, "matter", `${i.ref} pictured`);
 });
 

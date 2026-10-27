@@ -7,6 +7,7 @@ import { seedFromText } from "../../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../../src/host/planet.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { elementsOn, substancesOn } from "../../src/host/inspect/matter.ts";
+import { withLifeElements, withLifeSubstances } from "../../src/host/biochem.ts";
 import { worldChemistry } from "../../src/gen/index.ts";
 import { homePlanet } from "../../src/sim/index.ts";
 import {
@@ -95,8 +96,14 @@ test("alien 16 has a chemistry of its own, and its guide lists its own lists, wi
   );
   assert.equal(p.tabs[3]!.name, "This world");
   assert.equal(words(p.stats[1]!.value), String(reactionsOn(chem).length));
-  assert.equal(words(p.stats[0]!.value), String(substancesOn(chem).length));
-  assert.equal(words(p.stats[2]!.value), String(elementsOn(chem).length));
+  // (Its life's own substances and elements beside its tables: Phase 57.)
+  const subs = withLifeSubstances(alien, substancesOn(chem));
+  assert.ok(subs.length > substancesOn(chem).length, "its life's own beside them");
+  assert.equal(words(p.stats[0]!.value), String(subs.length));
+  assert.equal(
+    words(p.stats[2]!.value),
+    String(withLifeElements(alien, elementsOn(chem), subs).length),
+  );
   assert.ok(reactionsOn(chem).length > REACTIONS.length, "its own reactions beyond Earth's");
 });
 
@@ -118,12 +125,13 @@ test("alien 16's facts: its star, its metals, its oxygen, its ground and its har
   assert.match(factRow(p, "What this world is made of", "Its ground"), /^nothing rusts/);
 });
 
-test("alien 16's ten blocks: the air, the crust against Earth's, rocks, stones, ores, metals, furnaces and the thin air's want, words", () => {
+test("alien 16's eleven blocks: the air, its life, the crust against Earth's, rocks, stones, ores, metals, furnaces and the thin air's want, words", () => {
   const p = pageOf(alien, "world:matter#world"),
     titles = tabOf(p, "world").blocks.map((b) => ("title" in b ? b.title : ""));
   assert.deepEqual(titles, [
     "What this world is made of",
     "The air (by volume)",
+    "What its life is made of",
     "Its crust, against Earth's",
     "Its rocks",
     "Its stones",

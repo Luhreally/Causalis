@@ -13,6 +13,7 @@ import {
   buildBody,
   cellMiddle,
   coatOf,
+  lifeTint,
   posed,
   seasonGround,
   seasonKey,
@@ -319,11 +320,13 @@ export class MeadowScene {
 
   /** The ground, grass, woods and pool in the age's colours (and the season's, where told). */
   private dress(s: MeadowState): void {
-    const key = `${s.kindOfAge}|${this.seasonSeen}`;
+    const key = `${s.kindOfAge}|${s.lifeLook ?? ""}|${this.seasonSeen}`;
     if (key === this.look) return;
     this.look = key;
     const look = LOOKS[s.kindOfAge] ?? LOOKS.quiet!,
       sea = this.seasonNow,
+      // (What grows in its life's own colours: Phase 57.)
+      life = (c: Rgb) => lifeTint(c, s.lifeLook),
       ground = (c: Rgb) => (sea ? seasonGround(c, sea) : c),
       dirt = ground(look.dirt),
       water = sea ? seasonWater(POOL, sea) : POOL,
@@ -334,9 +337,9 @@ export class MeadowScene {
       };
     paint(this.ground, dirt);
     paint(this.pond, water);
-    this.grass.forEach((b, i) => b.recolor(ground(look.grass[i]!)));
+    this.grass.forEach((b, i) => b.recolor(ground(life(look.grass[i]!))));
     this.trunks.recolor(look.bark);
-    this.crowns.recolor(sea ? seasonLeaf(look.leaf, sea) : look.leaf);
+    this.crowns.recolor(sea ? seasonLeaf(life(look.leaf), sea) : life(look.leaf));
     const p = s.pond;
     this.pond.enabled = !!p;
     if (p) {

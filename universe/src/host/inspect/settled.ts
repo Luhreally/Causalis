@@ -52,6 +52,7 @@ import { TRAIT_LOOK, agentFamily, metChips, metFamily, traitChips } from "./folk
 import { agentHolder, householdThingsBlocks, personThingsBlocks } from "./things.ts";
 import { buildingsTab } from "./fabric.ts";
 import { threadBlock } from "./thread.ts";
+import { worldLook } from "../biochem.ts";
 
 const OCCUPATION_WORDS = ["child", "forager", "farmer", "herder", "crafter", "trader", "leader"];
 /** Each trait said low / middling / high. */
@@ -278,6 +279,8 @@ export function townPage(world: World, ref: string): PageModel {
       homes: Math.max(3, Math.round(s.population / 5)),
       city: !!s.city,
       key: hashString(s.ref),
+      // (Its turf roofs in its world's life's colours: Phase 57.)
+      ...worldLook(world),
     },
     title: s.name,
     subtitle: [s.city ? "A city of " : "A town of ", landLink(world, s.cell, true)],
