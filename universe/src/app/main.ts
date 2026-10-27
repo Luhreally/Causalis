@@ -4148,20 +4148,27 @@ async function runPlanetPage(): Promise<void> {
       free.ground = roamGround();
       free.keep = roamKeep(mode);
       // (From the orbit's own place, not the camera lifted clear of the bar: over a globe that
-      // lift is degrees of its face, and "up" would rise over another spot.)
+      // lift is degrees of its face, and "up" would rise over another spot. Out already, it goes
+      // on from where it is: walking, then flown up from where the walker stands, not from the
+      // orbit high over the village, which had it out of the village before a key could rise.)
       const v = rig.view,
         y = (v.yaw * Math.PI) / 180,
         p = (v.pitch * Math.PI) / 180;
-      free.start(roamRules(mode), {
-        x: v.target.x + v.distance * Math.cos(p) * Math.sin(y),
-        y: v.target.y - v.distance * Math.sin(p),
-        z: v.target.z + v.distance * Math.cos(p) * Math.cos(y),
-        yaw: v.yaw,
-        pitch: v.pitch,
-      });
+      free.start(
+        roamRules(mode),
+        free.on
+          ? free.state
+          : {
+              x: v.target.x + v.distance * Math.cos(p) * Math.sin(y),
+              y: v.target.y - v.distance * Math.sin(p),
+              z: v.target.z + v.distance * Math.cos(p) * Math.cos(y),
+              yaw: v.yaw,
+              pitch: v.pitch,
+            },
+      );
       rig.enabled = false;
       // Walking: down among the people, at the eye's height, looking along the ground.
-      if (mode === "walk") {
+      if (mode === "walk" && roaming !== "walk") {
         const s = free.state,
           o = orbitOf(s, 0, 40 * VILLAGE_METRE);
         free.state = { ...s, x: o.target.x, y: 1.7 * VILLAGE_METRE, z: o.target.z, pitch: -4 };

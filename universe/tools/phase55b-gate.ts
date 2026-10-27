@@ -658,12 +658,31 @@ const lineOf = (ref: string) => Number(ref.split(":")[4] ?? -1);
         `globalThis.causalis.rig.flyTo({ target: { x: ${spot.x * 0.1}, y: 0, z: ${spot.z * 0.1} }, distance: 3.5, pitch: -40 })`,
       );
       await page.waitForTimeout(slow(2500));
+      // (Flown all the way, however slowly the frames come: CI draws in software, and a tap read
+      // before the eye stood still fell beside them.)
+      const by = Date.now() + slow(15000);
+      while (Date.now() < by && (await k<boolean>("!!globalThis.causalis.rig.flying")))
+        await page.waitForTimeout(200);
     }
-    const on = await k<{ x: number; y: number } | null>(
-      `globalThis.causalis.personOnScreen?.(${one.index}) ?? null`,
-    );
-    if (on) await page.mouse.click(on.x, on.y);
-    await page.waitForTimeout(slow(800));
+    // Tapped where they stand, and again where they stand then if no card of theirs came.
+    for (let tries = 0; tries < 3; tries++) {
+      const on = await k<{ x: number; y: number } | null>(
+        `globalThis.causalis.personOnScreen?.(${one.index}) ?? null`,
+      );
+      if (on) await page.mouse.click(on.x, on.y);
+      // (Their card come, its kin or not yet.)
+      const came = await page
+        .waitForFunction(
+          `[...document.querySelectorAll(${JSON.stringify(CARD)})].some((b) => !b.hidden && b.getClientRects().length > 0 && b.querySelector("h2")?.textContent === ${JSON.stringify(p.name)})`,
+          undefined,
+          { timeout: slow(2000) },
+        )
+        .then(
+          () => true,
+          () => false,
+        );
+      if (came) break;
+    }
     const c = await cardWithKin();
     say(`${p.name} tapped: “${c.name}” | ${c.family} | ${c.body}`);
     check(c.name === p.name, `the card of ${p.name} not come (“${c.name}”)`);

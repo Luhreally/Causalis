@@ -10,6 +10,7 @@ import {
   clearRosters,
   folkWork,
   levyHead,
+  levyLinesOf,
   lineShape,
   rosterCost,
   rosterOf,
@@ -17,6 +18,7 @@ import {
   workOf,
   type Holder,
   type Roster,
+  type RosterBattle,
 } from "../../src/host/roster.ts";
 import { parseTownsfolkRef } from "../../src/bridge/index.ts";
 import { HUMANLIKE, OCC, bandOf } from "../../src/rules/index.ts";
@@ -139,6 +141,50 @@ test("a battle's own roster tells its men as today's does", () => {
         `${town} ${rb.event}`,
       );
   }
+});
+
+test("one battle a man a turn: each of a year's levies takes the next of its eligible men", () => {
+  // (A year's battles are all fought at its turn: a man levied for one is gone to it, and each
+  // after it in the roster's order takes its men from those none before it took, as many as its
+  // twelves, fewer only where too few were left. Its eligible are those it was left.)
+  let shared = 0;
+  for (const town of towns) {
+    const r = townRoster(world, town),
+      byYear = new Map<number, RosterBattle[]>();
+    for (const rb of r.battles) byYear.set(rb.year, [...(byYear.get(rb.year) ?? []), rb]);
+    for (const [y, list] of byYear) {
+      if (list.filter((rb) => rb.men.length > 0).length > 1) shared++;
+      // (Its lines as the years before left them, less those a strike of the year killed first.)
+      const before = townRoster(world, town, y),
+        killed = new Set(
+          r.strikes
+            .filter((x) => x.year === y)
+            .flatMap((x) => x.men.filter((m) => m.fate === "died").map((m) => m.line)),
+        ),
+        taken = new Set<number>();
+      for (const rb of list) {
+        const at = `${town} ${rb.event}:${rb.side}`;
+        let eligible = 0;
+        for (let k = 0; k < rb.lines; k++) {
+          if (taken.has(k) || killed.has(k)) continue;
+          const h = before.holder(k);
+          if (h?.sex === 1 && fights(y - h.born)) eligible++;
+        }
+        assert.equal(rb.eligible, eligible, `${at} eligible`);
+        assert.equal(
+          rb.men.length,
+          Math.min(levyLinesOf(rb.event, town, rb.tally[0]), eligible),
+          `${at} its twelves, or all it was left`,
+        );
+        for (const m of rb.men) {
+          assert.ok(!taken.has(m.line), `${at} line ${m.line} levied once in ${y}`);
+          taken.add(m.line);
+          assert.equal(m.holder.fates.filter((f) => f.year === y).length, 1, `${at} one fate`);
+        }
+      }
+    }
+  }
+  assert.ok(shared > 0, "some town sent men to two battles of one year");
 });
 
 test("a fallen holder is gone", () => {

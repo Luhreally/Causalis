@@ -59,12 +59,13 @@ export class FreeRig {
     this.element = element;
     addEventListener("keydown", (e) => {
       this.fast = e.shiftKey;
-      if (!this.active || isTyping(e) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (isTyping(e) || e.ctrlKey || e.metaKey || e.altKey) return;
       const k = keyOf(e);
-      if (k) {
-        this.held.add(k);
-        e.preventDefault();
-      }
+      if (!k) return;
+      // (Kept held while it is given back too: a key pressed as it passes from one scale to the
+      // next is still held when it is taken again, as the hand on the keyboard still holds it.)
+      this.held.add(k);
+      if (this.active) e.preventDefault();
     });
     addEventListener("keyup", (e) => {
       const k = keyOf(e);

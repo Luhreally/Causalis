@@ -1,15 +1,16 @@
 // Met people go to war (Phase 55 M225). History keeps each battle's men by the land and the town they
 // came from (the battle's record, sim/war/fell.ts): those sent, their fallen, their wounded who lived.
 // A man the observer has met is drawn into the battles his land fought while he was of fighting age:
-// levied by his land's share of its fighting men sent, then falling, or coming home wounded (and of
-// the wounded, maimed by the side's share) or whole. Each fate is claimed from the tally of the place
-// he was sent from (his town's, his land's countryside's, or the land's whole where its towns were
-// let go), and drawn from what that tally leaves unclaimed by those met before him, so no more of the
-// met went, fell, came home hurt or came home whole than history holds. Followed forward, a man who
-// falls claims his death from the death ledger as any other death. Met for the first time, his past
-// wars are drawn as well, but only as one who came home: he is alive to be met. Every draw is on the
-// observer's life stream (purposes 70–77), and nothing here is hashed into history. A battle of an
-// older save, with no record of its men, sends no one.
+// levied by his land's share of its fighting men sent (to one battle a year: they are all fought at
+// its turn), then falling, or coming home wounded (and of the wounded, maimed by the side's share) or
+// whole. Each fate is claimed from the tally of the place he was sent from (his town's, his land's
+// countryside's, or the land's whole where its towns were let go), and drawn from what that tally
+// leaves unclaimed by those met before him, so no more of the met went, fell, came home hurt or came
+// home whole than history holds. Followed forward, a man who falls claims his death from the death
+// ledger as any other death. Met for the first time, his past wars are drawn as well, but only as one
+// who came home: he is alive to be met. Every draw is on the observer's life stream (purposes 70–77),
+// and nothing here is hashed into history. A battle of an older save, with no record of its men,
+// sends no one.
 import type { Ref, World } from "../kernel/index.ts";
 import { MALE, bandOf, unpackTowns, type LandFell } from "../rules/index.ts";
 import { fighting, poolOf, warsOf, type PopulationContext } from "../sim/index.ts";
@@ -247,10 +248,12 @@ function townIndex(ctx: PopulationContext, cell: number, village: Ref | null): n
 }
 
 /**
- * A met man's battles at the turn of `year` (followed forward, the year followLife follows): of each
- * battle his land sent men to, levied by its share of its fighting men sent; then falling (his death
- * claimed from the death ledger, `claimDeath`), or coming home wounded (maimed by the side's share), or
- * whole — each as his place's tally leaves room. A man who falls is dead at the year's turn.
+ * A met man's battle at the turn of `year` (followed forward, the year followLife follows): of the
+ * battles his land sent men to (all fought at the year's turn, so a man goes to one of them), each
+ * in its order (by event, then side) levying him by the share it sent of the fighting men those
+ * before it left; then falling (his death claimed from the death ledger, `claimDeath`), or coming
+ * home wounded (maimed by the side's share), or whole — each as his place's tally leaves room. A
+ * man who falls is dead at the year's turn.
  */
 export function drawWar(
   ctx: PopulationContext,
@@ -265,12 +268,16 @@ export function drawWar(
   if (!person.alive || person.sex !== MALE || !ofFightingAge(ctx, age)) return;
   const cell = person.cell,
     town = townIndex(ctx, cell, person.village);
+  // (The men his land has sent to the year's battles so far: none is sent again.)
+  let gone = 0;
   for (const f of fronts.byYear.get(year)?.get(cell) ?? []) {
     const { place, tally } = placeOf(f.fell, town),
-      [sent, dead, hurt] = tally;
+      [sent, dead, hurt] = tally,
+      before = gone;
+    gone += f.fell[1];
     if (sent <= 0) continue;
-    if (!(draw(WAR_DRAWS.levy, f.n) < Math.min(1, f.fell[1] / menOf(ctx, fronts, cell, year))))
-      continue;
+    const left = Math.max(1, menOf(ctx, fronts, cell, year) - before);
+    if (!(draw(WAR_DRAWS.levy, f.n) < Math.min(1, f.fell[1] / left))) continue;
     const keys = keysOf(f, cell, place),
       room = roomOf(ledger, keys, tally),
       all = room.fell + room.hurt + room.stood;
@@ -312,8 +319,9 @@ export function drawWar(
     if (fate === "fell") {
       person.alive = false;
       person.diedYear = year;
-      return;
     }
+    // (Gone to this one: the rest of the year's battles are fought without him.)
+    return;
   }
 }
 
@@ -355,17 +363,16 @@ export function drawPastWars(
         village.founded <= year &&
         !person.moves.some((m) => m.year > year),
       town = settled ? townIndex(ctx, cell, village.ref) : null;
+    // (As drawWar: the men his land has sent to the year's battles so far are not sent again.)
+    let gone = 0;
     for (const f of list) {
       const { place, tally } = placeOf(f.fell, town),
-        [sent, , hurt] = tally;
+        [sent, , hurt] = tally,
+        before = gone;
+      gone += f.fell[1];
       if (sent <= 0) continue;
-      if (
-        !(
-          draw(WAR_DRAWS.pastLevy, f.n, year) <
-          Math.min(1, f.fell[1] / menOf(ctx, fronts, cell, year))
-        )
-      )
-        continue;
+      const left = Math.max(1, menOf(ctx, fronts, cell, year) - before);
+      if (!(draw(WAR_DRAWS.pastLevy, f.n, year) < Math.min(1, f.fell[1] / left))) continue;
       const keys = keysOf(f, cell, place),
         room = roomOf(ledger, keys, tally),
         back = room.hurt + room.stood;
@@ -389,6 +396,8 @@ export function drawPastWars(
         town: typeof place === "number" ? place : null,
         fate,
       });
+      // (One battle of the year's turn: the rest were fought without him.)
+      break;
     }
   }
 }

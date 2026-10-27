@@ -316,7 +316,7 @@ registerExplainer(SPOT.code, (world, ref) => {
     near = b !== BOUNDARY.none && g.tectonics.toBoundary[c]! <= 3;
   return generated(
     ref,
-    `${groundWords(pw, c)}${near ? `, near a ${BOUNDARY_WORDS[b]} plate boundary` : ""}`,
+    `${groundWords(g, c)}${near ? `, near a ${BOUNDARY_WORDS[b]} plate boundary` : ""}`,
     edges(world, [
       { ref: g.tectonics.plates[g.tectonics.plate[c]!]!.ref as Ref, role: "enabler", weight: 0.7 },
       { ref: cellRef(0, pw.provinceOf[c]!), role: "constraint", weight: 0.3 },

@@ -64,10 +64,14 @@ const until = async (what: string, ok: () => Promise<boolean>, ms = 60000) => {
   problems.push(`${what} did not come`);
   return false;
 };
-/** The middle of what a selector names on the screen, or null if it is not shown. */
+/**
+ * The middle of what a selector names on the screen, or null if it is not shown: scrolled to
+ * first, as a viewer scrolls a page to what is further down it (a person's page has their family
+ * and body above the hand's tools, Phase 55 wave 5).
+ */
 const centre = (sel: string) =>
   k<{ x: number; y: number } | null>(
-    `(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return null; const r = e.getBoundingClientRect(); return r.width ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null; })()`,
+    `(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return null; e.scrollIntoView({ block: "nearest" }); const r = e.getBoundingClientRect(); return r.width ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null; })()`,
   );
 // (Pressed by the pointer as a viewer's is: Playwright's own checks wait for two frames alike,
 // long where the frames come slowly, as in CI.)

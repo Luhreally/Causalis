@@ -1,7 +1,8 @@
 // A town's people by line (Phase 55 M225): one of every LINE of its people kept by name, the holder
 // of a line, each for a natural term (the young taking it after the old), and what history did to
 // them. Its battles levied them by twelves of the men its tally sent: the eligible men of its lines,
-// the same men to every call of a war while they live, and the fallen and the wounded among them.
+// the same men to every call of a war while they live (but no man to two battles of one year: they
+// are all fought at its turn), and the fallen and the wounded among them.
 // A fire or a quake killed or hurt some of them, counted from the year after. A fallen holder's line
 // stands empty a year or a few, then another takes it. It is read from the battle record (the town's
 // tally of its men, M224) and the strikes history tells, never drawn, so looking moves nothing, and
@@ -111,7 +112,10 @@ export type RosterBattle = {
   readonly land: number;
   /** The town's men in it, as the record tells them: sent, fallen, wounded who lived. */
   readonly tally: readonly [number, number, number];
-  /** Its lines that day, and how many of them held a man grown and of fighting age. */
+  /**
+   * Its lines that day, and how many of them held a man grown and of fighting age whom no battle
+   * of its year before it had levied.
+   */
   readonly lines: number;
   readonly eligible: number;
   /** The levied, by line. */
@@ -484,6 +488,8 @@ const NO_FATES: readonly HolderFate[] = Object.freeze([]),
 const SLOT = 2097152;
 /** No term found yet (no term is numbered so low). */
 const NO_TERM = -2147483648;
+/** Not levied yet in the fold (no battle is fought so early). */
+const NO_YEAR = -2147483648;
 /** A levied man's fate as the fold keeps it. */
 const STOOD = 0,
   HURT = 1,
@@ -501,8 +507,8 @@ const NO_LINES = new Int32Array(0),
 // The fold's scratch, one fold at a time (a fold asks nothing that folds another): each line's
 // phase, and its key's hash as far as its number (see lineState); the holder of its term as last
 // found where no one has died on it — its term, its key, and the years it is a man grown and of
-// fighting age, from … to (none: a woman); whether someone has died on it; and the order of a
-// levy's fates, packed SLOT · key + place.
+// fighting age, from … to (none: a woman); whether someone has died on it; the year a levy last
+// took it; and the order of a levy's fates, packed SLOT · key + place.
 let phis = new Int32Array(0),
   lineHs = new Int32Array(0),
   lineNs = new Uint8Array(0),
@@ -511,11 +517,12 @@ let phis = new Int32Array(0),
   natFrom = new Int32Array(0),
   natTo = new Int32Array(0),
   mourned = new Uint8Array(0),
+  calledIn = new Int32Array(0),
   fated = new Float64Array(64);
 
 /**
- * Room in the scratch for `n` lines, each line's phase and term not yet found and none mourned,
- * and no line yet looked at by a levy.
+ * Room in the scratch for `n` lines, each line's phase and term not yet found, none mourned and
+ * none levied, and no line yet looked at by a levy.
  */
 function scratch(n: number): void {
   if (n > phis.length) {
@@ -528,11 +535,14 @@ function scratch(n: number): void {
     natFrom = new Int32Array(size);
     natTo = new Int32Array(size);
     mourned = new Uint8Array(size);
+    calledIn = new Int32Array(size);
   }
   phis.fill(-1, 0, n);
   natTau.fill(NO_TERM, 0, n);
   mourned.fill(0, 0, n);
-  looked = fitting = 0;
+  calledIn.fill(NO_YEAR, 0, n);
+  looked = fitting = calls = 0;
+  callsYear = NO_YEAR;
 }
 
 /** Put the `m` least of a[lo … lo + n) first, in no order (Hoare's selection: the keys are distinct). */
@@ -768,21 +778,27 @@ const KEYS = 4294967296;
 
 // (What a levy looks at, as levyOf leaves it, one fold at a time: the eligible lines it found, by
 // line, and their keys in its war's order; how many lines were eligible, where it looked at every
-// one (−1: it did not); and the lines the fold's levies have looked at, and found eligible.)
+// one (−1: it did not); the lines the fold's levies have looked at, and found held by a man grown
+// and of fighting age (eligible, or gone to another battle of the year); and the year of the last
+// levies to take men, and how many lines they took.)
 let levied = new Int32Array(64),
   levyKeys = new Uint32Array(64),
   packed = new Float64Array(64),
   everyFit = -1,
   looked = 0,
-  fitting = 0;
+  fitting = 0,
+  callsYear = NO_YEAR,
+  calls = 0;
 
 /**
  * A battle's levy: the first `target` of its lines below `count` whose holder in year `at` is a man
- * grown and of fighting age (`mourning` asks it of a line someone has died on), in the order of its
- * war (by key, finish(mix(war, line), 1), then line). Only the lines whose keys come first are
- * looked at, as many as the levy asks by the share of lines the fold's levies have found eligible
- * (and a quarter more), and every line where those held too few. Put in `levied` by line: how
- * many, fewer only where too few of all its lines were eligible.
+ * grown and of fighting age (`mourning` asks it of a line someone has died on) whom no levy has
+ * taken that year (a year's battles are all fought at its turn, a man at one of them), in the order
+ * of its war (by key, finish(mix(war, line), 1), then line). Only the lines whose keys come first
+ * are looked at, as many as the levy asks by the share of lines the fold's levies have found held
+ * by such men, less those the year's levies took (and a quarter more), and every line where those
+ * held too few. Put in `levied` by line: how many, fewer only where too few of all its lines were
+ * eligible.
  */
 function levyOf(
   s: Shape,
@@ -807,18 +823,27 @@ function levyOf(
     keys = levyKeys,
     phase = phis,
     dying = mourned,
+    called = calledIn,
     terms = natTau,
     from = natFrom,
     to = natTo,
-    share = looked > 0 ? Math.max(0.05, fitting / looked) : 0.25;
-  let below = Math.min(KEYS, Math.ceil(((1.25 * target + 32) / (share * count)) * KEYS)),
-    n = 0;
+    share = looked > 0 ? Math.max(0.05, fitting / looked) : 0.25,
+    // (Its lines held by men grown, as many as the share tells, but for those already gone.)
+    free = share * count - (callsYear === at ? calls : 0);
+  let below = free > 0 ? Math.min(KEYS, Math.ceil(((1.25 * target + 32) / free) * KEYS)) : KEYS,
+    n = 0,
+    gone = 0;
   for (;;) {
-    n = 0;
+    n = gone = 0;
     for (let k = 0; k < count; k++) {
       const x = finish(mix(war, k), 1);
       if (x >= below) continue;
       looked++;
+      // (Gone with the levy to another of the year's battles: a man grown, not this levy's.)
+      if (called[k] === at) {
+        gone++;
+        continue;
+      }
       let phi = phase[k]!;
       if (phi < 0) phi = seenLine(s, k);
       if (dying[k] === 1) {
@@ -831,7 +856,7 @@ function levyOf(
       keys[n] = x;
       lines[n++] = k;
     }
-    fitting += n;
+    fitting += n + gone;
     if (n >= target || below >= KEYS) break;
     // (Too few among the first: every line looked at.)
     below = KEYS;
@@ -1084,8 +1109,10 @@ function foldRoster(
       [sent, dead, hurt] = tally,
       at = b.year;
     // The levy, by twelves of the men it sent: the first of its eligible lines in the order of its
-    // war (by key, then line), so the same men answer every call of a war while they live. Where it
-    // looked at every line, how many were eligible is known.
+    // war (by key, then line), so the same men answer every call of a war while they live. A man
+    // is levied for one battle of a year: its battles are all fought at its turn, and each takes
+    // its men in the fold's order (by event, then side) from those no battle before it took. Where
+    // it looked at every line, how many were eligible is known.
     let wanted = 0,
       eligible = -1;
     if (target > 0) {
@@ -1103,6 +1130,13 @@ function foldRoster(
       fates = NO_CODES;
     if (wanted > 0) {
       lines = levied.slice(0, wanted);
+      // (Gone to this battle: none of the year's levies after it takes them.)
+      if (callsYear !== at) {
+        callsYear = at;
+        calls = 0;
+      }
+      calls += wanted;
+      for (let i = 0; i < wanted; i++) calledIn[lines[i]!] = at;
       fates = new Uint8Array(wanted);
       // Their fates in the order of the battle (by key, then line): the first fall, the next come
       // home wounded (maimed as often as the wounded of their side were), the rest stood.
@@ -1149,9 +1183,10 @@ function foldRoster(
         men: [],
       },
       kept: KeptBattle = { year: at, lines, fates, told },
-      j = at_;
+      j = at_,
+      nth = levies.length;
     // (Where its levy did not look at every line, how many were eligible is counted when asked.)
-    if (eligible < 0) lazily(told, "eligible", () => eligibleAt(j, count, at));
+    if (eligible < 0) lazily(told, "eligible", () => eligibleAt(j, nth, count, at));
     lazily(told, "men", () =>
       menOf(kept, (k, f) => ({ line: k, holder: holderIn(k, at), fate: FATES[f]! })),
     );
@@ -1162,12 +1197,20 @@ function foldRoster(
   steps.length = 0;
 
   /**
-   * How many of a battle's lines held a man grown and of fighting age, as the deaths of the steps
-   * before it left them (the fold's j-th step, in year `at`).
+   * How many of a battle's lines held a man grown and of fighting age whom no battle of its year
+   * before it had levied, as the deaths of the steps before it left them (the fold's j-th step, in
+   * year `at`, its nth levy).
    */
-  function eligibleAt(j: number, count: number, at: number): number {
+  function eligibleAt(j: number, nth: number, count: number, at: number): number {
+    // (The levies before it of its year: the last of the fold's before it, as the years run.)
+    const taken = new Uint8Array(count);
+    for (let x = nth - 1; x >= 0 && levies[x]!.year === at; x--) {
+      const lines = levies[x]!.lines;
+      for (let m = 0; m < lines.length; m++) if (lines[m]! < count) taken[lines[m]!] = 1;
+    }
     let n = 0;
     for (let k = 0; k < count; k++) {
+      if (taken[k] === 1) continue;
       lineState(pre, k);
       const h0 = stateH,
         n0 = stateN,

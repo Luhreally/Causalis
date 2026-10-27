@@ -306,3 +306,15 @@ test("their wars go on: the levy, the fallen, the wounded, as the years pass", (
     "a battle is remembered",
   );
 });
+
+test("one battle a man a turn: no man met went to two battles of one year", () => {
+  // (A year's battles are all fought at its turn: met after it or followed through it, a man went
+  // to one of them.)
+  let men = 0;
+  for (const p of ledger.persons.values()) {
+    const years = (p.wars ?? []).map((w) => w.year);
+    if (years.length) men++;
+    assert.equal(new Set(years).size, years.length, `${p.ref}: ${years.join(", ")}`);
+  }
+  assert.ok(men > 0, "some went to war");
+});
