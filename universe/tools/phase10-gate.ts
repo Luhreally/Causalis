@@ -404,7 +404,15 @@ await page.waitForTimeout(1500);
     const marks = () =>
         k<{ ref: string; x: number; y: number }[]>("globalThis.causalis.battlesOnScreen()"),
       followed = { ref: battle.event as string | null };
-    // Zoomed onto the battle: down on its field, to watch it fought (Phase 37 M186).
+    // Whether it is being fought at this moment (the clock held): from its eve until the beaten fly,
+    // the way in to a battle goes into the town it is fought before (Phase 55 wave 4, asked for
+    // 2026-10-27: "i meant open world warfare on town view not land view"); a battle past, onto its
+    // field.
+    const townNow = await k<string | null>(
+      `globalThis.causalis.battleTownNow(${JSON.stringify(battle.event)})`,
+    );
+    // Zoomed onto the battle: into its town while it is fought, else down on its field, to watch it
+    // fought (Phase 37 M186).
     await whileNot(
       async () => (await scale()) !== "region",
       async () => {
@@ -420,6 +428,23 @@ await page.waitForTimeout(1500);
       120000,
     );
     const watched = () => k<{ event: string } | null>("globalThis.causalis.battle()");
+    if (townNow) {
+      const views = () => k<{ at: string | null }>("globalThis.causalis.warViews()");
+      // (Come to the town, and its battle laid there: the switcher lit at "town".)
+      await whileNot(
+        async () => (await scale()) === "village" && (await views()).at === "town",
+        () => page.waitForTimeout(250),
+        slow(30000),
+      );
+      const at = (await views()).at;
+      say(`zoomed onto its battle while it is fought: ${await scale()}, before ${townNow} (${at})`);
+      check(
+        (await scale()) === "village" && at === "town" && !(await watched()),
+        "zooming onto a battle being fought did not go into the town it is fought before",
+      );
+      // Its close field a tap away in the switcher.
+      await k(`globalThis.causalis.warView("field")`);
+    }
     await whileNot(
       async () => !!(await watched()),
       () => page.waitForTimeout(250),

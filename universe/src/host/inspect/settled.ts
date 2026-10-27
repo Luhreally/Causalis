@@ -32,6 +32,7 @@ import { battleWords, burialWords } from "../burials.ts";
 import { townRoster } from "../roster.ts";
 import { metWounds } from "../wounds.ts";
 import { lookOf, woundBlock, woundedTab } from "./wounds.ts";
+import { armsBlock } from "./arm.ts";
 import { hashString } from "../../kernel/index.ts";
 import { realmColor } from "../colors.ts";
 import {
@@ -449,6 +450,12 @@ export function personPage(world: World, ref: string): PageModel {
             ]
           : []),
         ...(told ? [told] : []),
+        // What he bore at the battle he fell at, else his last (Phase 55 M228).
+        ...(() => {
+          const w = fell ?? wars.at(-1),
+            arms = w ? armsBlock(world, w.event, w.side, p.ref) : null;
+          return arms ? [arms] : [];
+        })(),
         ...(hh
           ? [
               {

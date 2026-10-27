@@ -34,6 +34,11 @@ export class TimeBar {
   private widest = 0;
   /** Called as the clock widens (the bar it is in may take another line). */
   onWiden: (() => void) | null = null;
+  /**
+   * What bounds the speed sent to the world as it is chosen, before a frame has seen it (Phase 55
+   * M227: a battle the clock is to be slowed for, at once — a frame late, at a month a second, is days).
+   */
+  govern: ((speed: number) => number) | null = null;
 
   constructor(client: HostClient, scale: TimeScale, framed = false) {
     this.state = new TimeState(scale);
@@ -178,7 +183,9 @@ export class TimeBar {
 
   /** The speed sent where it changed; the scale's speeds drawn, the one running lit. */
   private apply(): void {
-    const speed = this.state.speed;
+    const speed = this.govern
+      ? Math.min(this.state.speed, this.govern(this.state.speed))
+      : this.state.speed;
     if (speed !== this.sent) {
       this.sent = speed;
       this.askedAt = performance.now();

@@ -49,6 +49,8 @@ const war = (over: Partial<War> = {}): War => ({
   ...over,
 });
 const mapOf = (w: War, year = 300): WarsMap => ({ year, garrisons: [], wars: [w] });
+/** A moment of a turn's first day (the world's years): the battle at the turn is fought from eight (D4). */
+const morning = (turn: number, hours: number) => turn + (hours * 3600) / (365 * 86_400);
 
 const town: VillagePlan = {
   ref: "town:0:5",
@@ -120,7 +122,7 @@ test("a land's muster: every town of it sees its men gathered past its homes, th
   assert.equal(townWarNow(map, 300.97, place), null);
 });
 
-test("before the land's heart: the hosts come by the road, draw up, close and fight as the year ends", () => {
+test("before the land's heart: the hosts come by the road, draw up, and close and fight the morning after the turn", () => {
   const map = mapOf(war()),
     place = { spot: N, heart: true };
   // Coming by the road at the march's end; the defenders come to hold the land.
@@ -133,9 +135,23 @@ test("before the land's heart: the hosts come by the road, draw up, close and fi
     D = mean(drawn(facing, 1).host);
   assert.ok(out(A) > out(D) + 40, `${out(A).toFixed(0)} m against ${out(D).toFixed(0)} m`);
   assert.ok(out(D) > reach, "before the town, not in it");
-  // Engaged: closed to the line between, fighting, some fallen.
-  const fight = townWarNow(map, 300.99, place)!;
+  // Drawn up still at the year's end; engaged the next morning: closed to the line between,
+  // fighting, some fallen.
+  assert.equal(townWarNow(map, 300.99, place)!.fight?.stage, "drawn");
+  const fought = mapOf(
+      war({
+        battles: [
+          { spot: P, year: 299, won: false, fallen: 300, event: "evt:0:9", outcome: "held" },
+          { spot: N, year: 300, won: true, fallen: 900, event: "evt:0:12", outcome: "taken" },
+        ],
+        next: P,
+      }),
+      301,
+    ),
+    fight = townWarNow(fought, morning(301, 9.5), place)!;
   assert.equal(fight.fight?.stage, "engaged");
+  assert.equal(fight.fight?.key, "war:0:7:301");
+  assert.equal(fight.fought, null, "its fallen not lying yet");
   const a = drawn(fight, 0).host,
     d = drawn(fight, 1).host,
     gap = Math.abs(out(mean(a)) - out(mean(d)));
@@ -146,12 +162,11 @@ test("before the land's heart: the hosts come by the road, draw up, close and fi
     "some fallen",
   );
   // A town of the land not its heart sees none of it.
-  assert.equal(townWarNow(map, 300.99, { spot: N, heart: false }), null);
+  assert.equal(townWarNow(fought, morning(301, 9.5), { spot: N, heart: false }), null);
 });
 
-test("at the turn the beaten fly, the fallen lie where they fell, and the victors hold the field and march in", () => {
-  const before = mapOf(war()),
-    place = { spot: N, heart: true },
+test("after the battle the beaten fly, the fallen lie where they fell till they are buried, and the victors hold the field and march in", () => {
+  const place = { spot: N, heart: true },
     won = war({
       battles: [
         { spot: P, year: 299, won: false, fallen: 300, event: "evt:0:9", outcome: "held" },
@@ -161,11 +176,11 @@ test("at the turn the beaten fly, the fallen lie where they fell, and the victor
     }),
     after = mapOf(won, 301);
   // Those who fell in the fight lie where they fell, after it as in it.
-  const fighting = townWarNow(before, 300.999, place)!,
+  const fighting = townWarNow(after, morning(301, 10.45), place)!,
     fell = [0, 1].flatMap((side) =>
       drawn(fighting, side as 0 | 1).host.filter((q) => q.doing === "fallen"),
     ),
-    rout = townWarNow(after, 301.01, place)!;
+    rout = townWarNow(after, morning(301, 12), place)!;
   assert.equal(rout.fight?.stage, "rout");
   assert.equal(rout.fought?.outcome, "taken");
   const dead = [0, 1].flatMap((side) => drawn(rout, side as 0 | 1).dead);
@@ -190,13 +205,18 @@ test("at the turn the beaten fly, the fallen lie where they fell, and the victor
     inside.some((q) => out(q) < reach),
     "come into the town",
   );
-  // The fallen lie on through the year; the burning dies down.
+  // The fallen lie there until they are borne in and buried two days on (Phase 55 M227); the
+  // burning dies down.
+  assert.ok(drawn(townWarNow(after, morning(301, 2 * 24 + 13), place)!, 1).dead.length > 0);
+  const buried = townWarNow(after, morning(301, 2 * 24 + 14), place)!;
+  assert.ok(buried.fought?.buried);
+  assert.equal(drawn(buried, 0).dead.length + drawn(buried, 1).dead.length, 0);
   const autumn = townWarNow(after, 301.7, place)!;
-  assert.ok(drawn(autumn, 1).dead.length > 0);
+  assert.equal(drawn(autumn, 1).dead.length, 0);
   assert.equal(autumn.burning, 0);
 });
 
-test("a siege: the besiegers camped about the town all year, the defenders on its walls; stormed at its end, it burns", () => {
+test("a siege: the besiegers camped about the town all year, the defenders on its walls; stormed the morning after the turn, it burns", () => {
   const sieged = war({ siege: SD, next: SD }),
     place = { spot: SD, heart: true },
     summer = townWarNow(mapOf(sieged), 300.5, place)!;
@@ -213,16 +233,47 @@ test("a siege: the besiegers camped about the town all year, the defenders on it
     ring.map((q) => Math.floor(((Math.atan2(q.z, q.x) + Math.PI) / (2 * Math.PI)) * 4)),
   );
   assert.equal(turns.size, 4, "on every side");
-  // The storm: the besiegers at the walls, fighting.
-  const storm = townWarNow(mapOf(sieged), 300.99, place)!;
+  // Making ready at the year's end; the storm the next morning: the besiegers at the walls, fighting.
+  assert.equal(
+    townWarNow(mapOf(sieged), 300.99, place)!.hosts.find((h) => h.side === 0)?.doing,
+    "besieging",
+  );
+  const storming = war({
+      siege: SD,
+      next: null,
+      battles: [
+        { spot: SD, year: 299, won: true, fallen: 500, event: "evt:0:20", outcome: "siege" },
+        { spot: SD, year: 300, won: true, fallen: 700, event: "evt:0:21", outcome: "stormed" },
+      ],
+    }),
+    storm = townWarNow(mapOf(storming, 301), morning(301, 9.5), place)!;
+  assert.equal(storm.fight?.stage, "engaged");
   assert.equal(storm.hosts.find((h) => h.side === 0)?.doing, "assaulting");
+  assert.equal(storm.hosts.find((h) => h.side === 1)?.doing, "besieged");
   const at = drawn(storm, 0).host;
   assert.ok(
     at.every((q) => Math.hypot(q.x, q.z) < reach + 8),
     "at its walls",
   );
   assert.ok(at.some((q) => q.doing === "fight"));
-  // Stormed at the turn: it burns, its fallen about its walls.
+  // Fought in place by its own layer (Phase 55 M227): no tents while it is fought; the storm beaten
+  // off and the siege going on, the camp stands about the town again the next day.
+  const beatenOff = war({
+      siege: SD,
+      next: SD,
+      battles: [
+        { spot: SD, year: 299, won: true, fallen: 500, event: "evt:0:20", outcome: "siege" },
+        { spot: SD, year: 300, won: false, fallen: 600, event: "evt:0:22", outcome: "siege" },
+      ],
+    }),
+    stormDay = townWarNow(mapOf(beatenOff, 301), morning(301, 9.5), place)!,
+    dayAfter = townWarNow(mapOf(beatenOff, 301), morning(301, 24 + 9.5), place)!;
+  assert.equal(stormDay.placed?.stage, "battle");
+  assert.equal(townWarScene(town, stormDay, EACH, true).tents.length, 0);
+  assert.equal(dayAfter.placed?.stage, "after");
+  assert.ok(dayAfter.siege);
+  assert.equal(townWarScene(town, dayAfter, EACH, true).tents.length, 12);
+  // Stormed the morning after the turn: it burns, its fallen about its walls.
   const stormed = war({
       siege: null,
       next: null,

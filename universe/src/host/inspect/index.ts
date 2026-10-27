@@ -43,7 +43,7 @@ import { housePage } from "./credit.ts";
 import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
 import { campPage } from "./camp.ts";
 import { healerPage } from "./wounds.ts";
-import { armPage } from "./arm.ts";
+import { armPage, armsPage } from "./arm.ts";
 import { elementPage } from "./element.ts";
 import { levyManPage, townsfolkPage } from "./townsfolk.ts";
 
@@ -72,6 +72,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("made:")) return madePage(world, ref);
   // A trooper's arm in a battle (Phase 53): what its host bore that day, traced from the ground.
   if (ref.startsWith("arm:")) return armPage(world, ref);
+  // The arm one man bore in a battle (Phase 55 M228): his own, made by his seat's maker then.
+  if (ref.startsWith("arms:")) return armsPage(world, ref);
   if (ref.startsWith("gstar:")) return starPageModel(world, ref);
   if (ref.includes("/")) return foreignWorldPage(world, ref);
   if (ref.startsWith("agent:")) return agentPage(world, ref);

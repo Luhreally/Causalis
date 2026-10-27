@@ -9,7 +9,9 @@
 // from the battle at its moment. Units as the meadow's: a tenth of a unit to the metre. Phase 55's
 // blows (view/blows.ts, render/blows.ts): the struck posed by their wounds, the wounds on them
 // where they were struck, wet and then dried, shafts stuck in them, the parts cut off lying apart
-// with their stumps raw, the blood thrown from fresh wounds.
+// with their stumps raw, the blood thrown from fresh wounds. Fought before a town in its own scene
+// (Phase 55 M227): laid on its frame, turned and scaled with it, the town its own and its houses not
+// drawn here; the far figures in their larger parts alone; shadows cast only at the finest setting.
 import * as pc from "playcanvas";
 import {
   BLEED,
@@ -33,6 +35,8 @@ import {
   FIGURE_CAPSULE,
   armLook,
   isGun,
+  frameYaw,
+  type PlacedFrame,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, capsuleMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
 import {
@@ -57,6 +61,12 @@ const M = 0.1;
 const SOLDIER = 0.5;
 /** The most of one side's figures the batches hold. */
 const MOST = 380;
+/**
+ * Fought before a town (Phase 55 M227): past how far from the eye (metres, as the scene draws them)
+ * a figure is drawn in its larger parts alone (of a tenth of its body's bulk or more), with none of
+ * the blows' small marks on it.
+ */
+const LOD = { metres: 160, bulk: 0.1 } as const;
 /** The rungs of a ladder. */
 const RUNGS = 6;
 /** The pieces the defenders' trench is cut into along the field. */
@@ -329,6 +339,8 @@ type Rig = {
   readonly masks: Uint8Array;
   readonly stumps: Partial<Record<BlowLost, Stump>>;
   readonly loose: Partial<Record<BlowLost, LooseLook>>;
+  /** Which parts a far figure is drawn in (Phase 55 M227): those of a tenth of its body's bulk or more. */
+  readonly big: readonly boolean[];
 };
 
 /** What may be cut off. */
@@ -354,7 +366,9 @@ function rigOf(f: Figure): Rig {
     legs = f.parts.filter((p) => p.role === "leg"),
     anatomy = figureAnatomy(f),
     stumps: Partial<Record<BlowLost, Stump>> = {},
-    loose: Partial<Record<BlowLost, LooseLook>> = {};
+    loose: Partial<Record<BlowLost, LooseLook>> = {},
+    bulk = (p: FigurePart) => partExtent(p).reduce((a, b) => a * b, 1),
+    bulkiest = Math.max(...f.parts.map(bulk));
   for (const lost of LOSABLE) {
     const stump = stumpOf(anatomy, f.parts, lost),
       lying = looseOf(anatomy, f.parts, lost);
@@ -373,6 +387,7 @@ function rigOf(f: Figure): Rig {
     masks: placeMasks(anatomy, f.parts.length),
     stumps,
     loose,
+    big: f.parts.map((p) => bulk(p) >= LOD.bulk * bulkiest),
   };
 }
 
@@ -455,6 +470,15 @@ export class BattleLayer {
   /** The town's houses, where a seat stands behind its walls. */
   private town: { x: number; z: number; w: number; d: number; h: number }[] = [];
   private shown = 0;
+  /**
+   * Fought before a town (Phase 55 M227; null: on its own field): its frame there, whether it casts
+   * shadows, and of each one who fought by their id whether they stand past LOD from the eye.
+   */
+  private placed: PlacedFrame | null = null;
+  private casting = true;
+  private far = new Uint8Array(0);
+  private readonly inverse = new pc.Mat4();
+  private readonly eyeAt = new pc.Vec3();
   /**
    * Phase 55's blows: the blood about each wound (wet, dried), the wounds themselves, the stumps'
    * raw ends and their bones, the shafts stuck in the struck and their fletching; each laid out
@@ -651,9 +675,9 @@ export class BattleLayer {
         out[5] = (w.stone ? 0.9 : 0.3) * M;
         out[6] = w.stone ? 0 : Math.PI / 4;
       });
-      // The town behind its walls.
+      // The town behind its walls (before a town, the town itself: Phase 55 M227).
       this.town = [];
-      for (let i = 0; i < 26; i++) {
+      for (let i = 0; i < (field.placed ? 0 : 26); i++) {
         const u = unit(i, 3),
           v = unit(i, 7);
         this.town.push({
@@ -727,6 +751,46 @@ export class BattleLayer {
     }
     this.vehicles.setup([field.near.attacker.color as Rgb, field.near.defender.color as Rgb]);
     if (g.hill) this.hill = this.ridge(field, grass);
+    this.far = new Uint8Array(field.troopers.length);
+    this.cast();
+  }
+
+  /**
+   * Fought before a town in its scene (Phase 55 M227; null: on its own field): laid at the frame's
+   * middle, turned and scaled as the frame has it; casting shadows only where `shadows` (a phone's
+   * frame spared every figure drawn twice).
+   */
+  place(frame: PlacedFrame | null, shadows = true): void {
+    this.placed = frame;
+    const k = frame?.scale ?? 1;
+    this.root.setLocalPosition(frame ? frame.x * M : 0, 0, frame ? frame.z * M : 0);
+    this.root.setLocalEulerAngles(0, frame ? (frameYaw(frame) * 180) / Math.PI : 0, 0);
+    this.root.setLocalScale(k, k, k);
+    this.casting = shadows;
+    this.cast();
+  }
+
+  /** Whether it casts shadows now (the look tools). */
+  get casts(): boolean {
+    return this.casting;
+  }
+
+  /** Each of its batches casting shadows, or not, as it is set to. */
+  private cast(): void {
+    for (const r of this.root.findComponents("render") as pc.RenderComponent[])
+      r.castShadows = this.casting;
+  }
+
+  /** The eye in the field's own units (through its root, laid before a town). */
+  private eye(): pc.Vec3 {
+    this.inverse.copy(this.root.getWorldTransform()).invert();
+    return this.inverse.transformPoint(this.stage.camera.getPosition(), this.eyeAt);
+  }
+
+  /** A point of the field (its units) where the scene has it (through its root, laid before a town). */
+  private toScene(x: number, y: number, z: number): pc.Vec3 {
+    const p = new pc.Vec3(x, y, z);
+    return this.root.getWorldTransform().transformPoint(p, p);
   }
 
   /** The ridge the defenders hold: the ground raised as the battle's ground is. */
@@ -812,11 +876,26 @@ export class BattleLayer {
       };
     let shown = 0;
     const limbs = now.limbs ?? [];
+    // Before a town (Phase 55 M227): who stands past LOD from the eye.
+    const far = this.far;
+    if (this.placed) {
+      const eye = this.eye(),
+        reach = (LOD.metres * M) / this.placed.scale;
+      for (const t of now.troopers) {
+        const dx = t.x * M - eye.x,
+          dy = t.y * M - eye.y,
+          dz = t.z * M - eye.z;
+        far[t.id] = dx * dx + dy * dy + dz * dz > reach * reach ? 1 : 0;
+      }
+    } else far.fill(0);
     // Each one who fought, in the parts of their figure.
     for (const side of [0, 1] as const) {
+      // (The near first: of the far, only their larger parts are drawn.)
       const s = this.sides[side]!,
-        list = now.troopers.filter((t) => t.side === side && t.size > 0.01),
-        stroke = hosts[side]!.stroke,
+        list = now.troopers.filter((t) => t.side === side && t.size > 0.01 && !far[t.id]),
+        close = list.length;
+      for (const t of now.troopers) if (t.side === side && t.size > 0.01 && far[t.id]) list.push(t);
+      const stroke = hosts[side]!.stroke,
         n = list.length;
       // (What is the same for each of their parts, worked out once for each of them.)
       if (this.each.kk.length < n)
@@ -842,9 +921,11 @@ export class BattleLayer {
         // (After the figures, the parts cut off them that lie apart: Phase 55.)
         let apart = 0;
         for (const l of limbs) if (l.side === side && rig.masks[i]! & placeBit(l.lost)) apart++;
-        s.parts[i]!.set(n + apart, (j, out) => {
-          if (j >= n) {
-            this.lyingPart(limbs, side, i, j - n, k, out);
+        const m = rig.big[i] ? n : close;
+        shown += m;
+        s.parts[i]!.set(m + apart, (j, out) => {
+          if (j >= m) {
+            this.lyingPart(limbs, side, i, j - m, k, out);
             return;
           }
           const t = list[j]!,
@@ -872,7 +953,6 @@ export class BattleLayer {
           out[7] = lp + lean;
         });
       });
-      shown += list.length * f.parts.length;
       // Shields on their off arms, where their host bore them.
       const shielded = field.near[side === 0 ? "attacker" : "defender"].host?.guard === "shield";
       // (Not on an arm cut off; let fall beside one down on a knee or sitting: Phase 55.)
@@ -1513,7 +1593,7 @@ export class BattleLayer {
     };
     for (const w of now.wounds ?? []) {
       const t = now.troopers[w.id];
-      if (!t || t.size <= 0.01) continue;
+      if (!t || t.size <= 0.01 || this.far[w.id]) continue;
       const stroke = field.hosts[t.side]!.stroke,
         kk = k * t.size,
         m = metre * t.size,
@@ -1605,7 +1685,7 @@ export class BattleLayer {
     // The shafts stuck in them: out of them back along their flight, fletched at the end.
     for (const st of now.stuck ?? []) {
       const t = now.troopers[st.id];
-      if (!t || t.size <= 0.01) continue;
+      if (!t || t.size <= 0.01 || this.far[st.id]) continue;
       const pi = rig.anatomy.on[st.place];
       if (pi < 0) continue;
       const stroke = field.hosts[t.side]!.stroke,
@@ -1775,7 +1855,7 @@ export class BattleLayer {
     const k = SOLDIER * rig.f.scale * Math.max(0.3, t.size),
       up = t.act === "fall" || t.act === "prone" ? 0.1 * k : rig.high * k * 0.55,
       out = this.stage.camera.camera!.worldToScreen(
-        new pc.Vec3(t.x * M, t.y * M + up + over, t.z * M),
+        this.toScene(t.x * M, t.y * M + up + over, t.z * M),
       );
     return out.z > 0 ? { x: out.x, y: out.y } : null;
   }
@@ -1814,7 +1894,7 @@ export class BattleLayer {
         }
       if (!n) return null;
       const out = this.stage.camera.camera!.worldToScreen(
-        new pc.Vec3((x / n) * M, (y + 9) * M, (z / n) * M),
+        this.toScene((x / n) * M, (y + 9) * M, (z / n) * M),
       );
       return out.z > 0 ? { x: out.x, y: out.y } : null;
     };

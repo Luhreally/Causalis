@@ -2,7 +2,9 @@
 // that green and ripen with the year, the pasture and water, the road out, homes
 // with their roofs, the square or the market hall, and the watched people going
 // about their day. One unit is ten metres; people are drawn three times their size
-// so a phone can see them. Instanced throughout: a village is a handful of draw calls.
+// so a phone can see them. Instanced throughout: a village is a handful of draw calls. A battle
+// fought before it in its own scene (Phase 55 M227): its field laid along its road (render/battle.ts),
+// its people indoors while it is fought but for those come out to its edge to watch.
 import * as pc from "playcanvas";
 import { LAKE_R, woundStage, type TradeGood, type VillagePlan } from "../bridge/index.ts";
 import {
@@ -108,6 +110,11 @@ import {
   woundPitch,
   type LitterNow,
   type WoundGear,
+  type BattleField,
+  type BattleNow,
+  type FigureBody,
+  type PlacedFrame,
+  type Watcher,
 } from "../view/index.ts";
 import {
   InstancedBatch,
@@ -124,6 +131,7 @@ import { TownLayer } from "./town.ts";
 import { CountryLayer } from "./country.ts";
 import { FeastLayer } from "./feast.ts";
 import { TownWarLayer } from "./townwar.ts";
+import { BattleLayer } from "./battle.ts";
 import { TradesLayer, type AtWork, type RackAt } from "./trades.ts";
 import { CraftsLayer, type BoardsAt, type ClampAt, type LoomAt, type WheelAt } from "./crafts.ts";
 import { FoundryLayer, type FoundryAt } from "./foundry.ts";
@@ -145,6 +153,8 @@ const CROWNS = {
 } as const;
 /** A village scene's units per metre (its plans are in metres). */
 export const VILLAGE_METRE = M;
+/** The grass of a battle's field before a town (laid flat: no ridge to colour). */
+const PLACED_GRASS: Rgb = [0.42, 0.56, 0.3];
 /** How many a side a village's battle draws, by the setting's detail (M202: hosts the size of a town's). */
 const SOLDIERS = [10, 18, 28, 44];
 /** A host's arms that fire (Phase 37 M188): carried as a spear is, levelled to fire. */
@@ -201,6 +211,16 @@ export class VillageScene {
   private meshes: Record<PartShape, pc.Mesh> | null = null;
   /** The besiegers' tents and fires, a town burning (M204). */
   private readonly warLayer: TownWarLayer;
+  /**
+   * A battle fought before the town in its own scene (Phase 55 M227): its layer (made when first
+   * wanted), the frame its field is laid on (null: none), whether it casts shadows (the finest
+   * setting alone); those come out to watch it and the hosts' fires the night before, as last given.
+   */
+  private placedLayer: BattleLayer | null = null;
+  private placedFrame: PlacedFrame | null = null;
+  private placedShadows = false;
+  private watchers: readonly Watcher[] = [];
+  private campNow: readonly { readonly x: number; readonly z: number }[] = [];
   /**
    * What each side bears, as its host's design has it (Phase 13 M114): its arm (a spear, a
    * sword, an axe, a bow), whether a shield; and the batches of blades, bows and each side's
@@ -404,7 +424,8 @@ export class VillageScene {
         child !== this.blazeLayer.root &&
         child !== this.graveyard.root &&
         child !== this.worn.root &&
-        child !== this.litters.root
+        child !== this.litters.root &&
+        child !== this.placedLayer?.root
       )
         child.destroy();
     this.stacks = [];
@@ -1249,12 +1270,13 @@ export class VillageScene {
 
   /**
    * The village at moment t. `downpour`: the span of a downpour over it, if one falls (those at
-   * their ease go in out of it). `fine`: its people at their day's errands (else, a town watched
-   * growing, each at their work as it was before Phase 39, walking straight to it).
+   * their ease go in out of it; `all`, all of them: a battle fought before it, Phase 55 M227).
+   * `fine`: its people at their day's errands (else, a town watched growing, each at their work as
+   * it was before Phase 39, walking straight to it).
    */
   update(
     t: number,
-    downpour: { readonly from: number; readonly to: number } | null = null,
+    downpour: { readonly from: number; readonly to: number; readonly all?: boolean } | null = null,
     fine = true,
   ): void {
     const plan = this.plan;
@@ -1307,12 +1329,25 @@ export class VillageScene {
       // The war about the town (M204): its hosts where its year has them, its fallen where they fell.
       scene =
         this.townWar && this.soldiers.length
-          ? townWarScene(plan, this.townWar, this.soldiersEach / 2)
+          ? townWarScene(plan, this.townWar, this.soldiersEach / 2, this.placedFrame !== null)
           : null,
       troops = scene?.soldiers ?? [];
     this.warScene = scene;
-    this.warLayer.update(scene, screen);
+    this.warLayer.update(scene, screen, this.campNow);
     const targets = plan.people.map((_, i) => momentOf(plan, i, t, downpour, fine));
+    // Those come out to watch a battle fought before the town (Phase 55 M227): at its edge, facing it.
+    for (const w of this.watchers) {
+      const m = targets[w.index];
+      if (!m) continue;
+      m.x = w.x;
+      m.z = w.z;
+      m.yaw = w.yaw;
+      m.activity = ACTIVITY.gathering;
+      m.task = null;
+      m.hidden = false;
+      m.carry = null;
+      m.why = "Come out to watch the battle before the town";
+    }
     // Through the evening the next day is laid out, a few at a time (as many a frame as see it
     // laid by midnight at the speed the day goes), so its turn comes without a stall.
     const into = t % 86_400;
@@ -2599,10 +2634,86 @@ export class VillageScene {
   }
 
   /** The war about the town as last drawn (the look tools). */
-  warNow(): { war: TownWar; scene: TownWarScene; tents: number; fires: number } | null {
+  warNow(): {
+    war: TownWar;
+    scene: TownWarScene;
+    tents: number;
+    fires: number;
+    camp: number;
+  } | null {
     return this.townWar && this.warScene
       ? { war: this.townWar, scene: this.warScene, ...this.warLayer.shown }
       : null;
+  }
+
+  /** The battle before the town made ready on its eve (Phase 55 M227): its layer built ahead of the morning. */
+  readyBattle(): void {
+    this.placedLayer ??= new BattleLayer(this.stage, this.root);
+  }
+
+  /**
+   * A battle fought before the town in its scene (Phase 55 M227; null: none): its field laid on its
+   * frame, in the figure of the people who fought it.
+   */
+  placeBattle(
+    p: {
+      readonly field: BattleField;
+      readonly frame: PlacedFrame;
+      readonly figure: Figure | null;
+      readonly body: FigureBody | null;
+    } | null,
+  ): void {
+    this.placedFrame = p?.frame ?? null;
+    this.watchers = [];
+    this.campNow = [];
+    if (!p) {
+      if (this.placedLayer) {
+        this.placedLayer.clear();
+        this.placedLayer.root.enabled = false;
+      }
+      return;
+    }
+    this.placedLayer ??= new BattleLayer(this.stage, this.root);
+    this.placedLayer.setup(p.field, p.figure, p.body, PLACED_GRASS);
+    this.placedShadows = this.stage.quality.name === "ultra";
+    this.placedLayer.place(p.frame, this.placedShadows);
+  }
+
+  /**
+   * The battle before the town at its moment (Phase 55 M227; null: not drawn now), those of the
+   * town come out to its edge to watch it, and the hosts' fires behind their lines the night before.
+   * (Given before the town's moment is drawn: those watching stand there in it.)
+   */
+  battleAt(
+    now: BattleNow | null,
+    watchers: readonly Watcher[] = [],
+    camp: readonly { readonly x: number; readonly z: number }[] = [],
+  ): void {
+    this.watchers = watchers;
+    this.campNow = camp;
+    const layer = this.placedLayer;
+    if (!layer || !this.placedFrame) return;
+    if (!now) {
+      layer.root.enabled = false;
+      return;
+    }
+    // (Shadows at the finest setting alone, as the setting moves.)
+    const ultra = this.stage.quality.name === "ultra";
+    if (ultra !== this.placedShadows) {
+      this.placedShadows = ultra;
+      layer.place(this.placedFrame, ultra);
+    }
+    layer.update(now);
+  }
+
+  /** How many of the town stand at its edge watching the battle before it now (the look tools). */
+  get watching(): number {
+    return this.placedFrame ? this.watchers.length : 0;
+  }
+
+  /** The layer of the battle laid before the town (null: none), for its figures on the screen and a tap. */
+  get placedBattle(): BattleLayer | null {
+    return this.placedFrame ? this.placedLayer : null;
   }
 
   /** Whether a soldier of the war about the town stands at a point of its ground (metres). */

@@ -83,6 +83,8 @@ import {
   el,
   DirectorControls,
   DayTold,
+  WarViews,
+  type ManCard,
 } from "../ui/index.ts";
 import type {
   ActsMap,
@@ -107,6 +109,9 @@ import type {
   WarsMap,
   WorldFirst,
   WorldStage,
+  ArmBorne,
+  BattleRoll,
+  RollEntry,
 } from "../bridge/index.ts";
 import { nearestCell, sphereGrid, yearOfMoment } from "../kernel/index.ts";
 
@@ -205,6 +210,7 @@ import {
   heartTown,
   landSpots,
   townWarNow,
+  warNow,
   TOWN_DOING_ICON,
   TIME_LADDERS,
   type TownWar,
@@ -237,6 +243,32 @@ import {
   legsTold,
   woundLines,
   type DayLine,
+  FATE_WORDS,
+  battleCapAt,
+  battleCapWords,
+  battleSlowings,
+  battleSecond,
+  battleShelter,
+  battleStage,
+  borneNow,
+  borneShare,
+  fallenNow,
+  fieldFrame,
+  fieldWatchers,
+  figureFate,
+  placedCamp,
+  placedMost,
+  placedPoint,
+  rollNames,
+  foughtNow,
+  warViewsClosed,
+  type PlacedFrame,
+  type Watcher,
+  type WarView,
+  type WarViewed,
+  slowAhead,
+  slowingBegun,
+  type Slowing,
 } from "../view/index.ts";
 
 /** A point along a name's line: `d` radians from its centre, on the unit sphere. */
@@ -353,6 +385,13 @@ type Exposed = {
   villages?: () => number;
   /** Down to a battle's field to watch it fought (Phase 37 M186): whether it is watched. */
   watchBattle?: (event: string) => Promise<boolean>;
+  /**
+   * A battle watched where it is now, as its page, the tidings and a war's bar watch it (Phase 55):
+   * before the town it is fought before while it is fought, else on its field. The scale come to.
+   */
+  watchBattleWhere?: (event: string) => Promise<string>;
+  /** The town a battle is watched fought before now (null: none — it is watched on its field). */
+  battleTownNow?: (event: string) => Promise<string | null>;
   /** Down to a battle's field from the words it is given, not asked of the host: whether it is watched. */
   watchBattleNear?: (near: BattleNear) => Promise<boolean>;
   /** The battle watched: its moment and speed, its hosts as drawn and as history counts them, what is told, those seen. */
@@ -387,6 +426,9 @@ type Exposed = {
     guns: number;
     trench: boolean;
     weapon: boolean;
+    /** The one followed as his card names him (Phase 55 M227–M228), and how many figures the roll named. */
+    named: ManCard | null;
+    rolled: number;
   } | null;
   /** The battle watched set to a moment (its seconds), at one of its speeds (an index). */
   battleAt?: (s: number, speed?: number) => void;
@@ -480,6 +522,56 @@ type Exposed = {
   leaveWarAge?: () => void;
   /** The world's clock: whether it stands (paused, or held), and the speed asked of it. */
   clock?: () => { stopped: boolean; speed: number };
+  /**
+   * The battle at the turn fought before the town watched (Phase 55 M227): its stage and moment; its
+   * figures, those the roll named, its fallen and wounded drawn against the one rule (battleFigures)
+   * and the roll's lots; those drawn and lying now; those seen on the screen (named); what of its
+   * blows is drawn; the town indoors and those watching; the hosts' fires; where its field lies; the
+   * clock and its slowing.
+   */
+  placedBattle?: () => {
+    event: string;
+    turn: number;
+    title: string;
+    stage: string | null;
+    s: number;
+    per: number;
+    figures: number[];
+    named: number;
+    falls: number[];
+    hurt: number[];
+    rule: { n: number; falls: number; hurt: number; stood: number }[];
+    roll: { fell: number; hurt: number; stood: number }[];
+    drawn: number;
+    lying: number;
+    onScreen: {
+      id: number;
+      side: number;
+      act: string;
+      crawl: boolean;
+      hit: string | null;
+      lost: string | null;
+      fate: string;
+      name: string | null;
+      ref: string | null;
+      at: { x: number; y: number } | null;
+    }[];
+    marks: { wounds: number; ends: number; shafts: number; drops: number };
+    parts: number;
+    shadows: boolean;
+    watchers: number;
+    sheltered: number;
+    camp: number;
+    frame: PlacedFrame;
+    clock: { speed: number; pace: number; stopped: boolean };
+    slowed: string | null;
+    told: string;
+  } | null;
+  /** One who fought before the town tapped, as a tap on him does: his card's words (null: none). */
+  tapPlaced?: (id: number) => Promise<string | null>;
+  /** The ways to watch a battle shown (Phase 55 M230): the one watched, those open now; one chosen (the scale come to). */
+  warViews?: () => { at: string | null; open: string[] };
+  warView?: (view: string) => Promise<string>;
   /** A town of the land on screen as drawn from its fabric: its square and reach (region units); and the parts drawn in all (M150). */
   landTown?: (ref: string) => { x: number; z: number; r: number } | null;
   landParts?: () => number;
@@ -2028,6 +2120,14 @@ async function runPlanetPage(): Promise<void> {
       ),
     );
   };
+  /**
+   * The moment the year's wars are drawn at (in years): the world's, but for a year turned before its
+   * wars are come — history fights its battles at the turn, and until the page has them it keeps
+   * the wars as they were the moment before (Phase 55 M227: the hosts drawn up through the night,
+   * the slowing for the battle the morning after kept, not let go for a frame or two as at peace).
+   */
+  const warsAt = (y: number) =>
+    warsLive && Math.floor(y) > warsLive.year ? warsLive.year + 1 - 1e-9 : y;
   const takeWars = (map: WarsMap) => {
     const frame = client.latestFrame("globe"),
       key = JSON.stringify(map);
@@ -2048,6 +2148,13 @@ async function runPlanetPage(): Promise<void> {
     warsAsked = 0,
     /** The battle the land's clock is slowed for now (M203), and every battle slowed for once. */
     slowFor: string | null = null,
+    /** How the slowing is told. */
+    slowWords = "",
+    /** The speed the clock was last held to for it (0: not yet). */
+    slowCap = 0,
+    /** When the last frame was drawn (ms), and how long frames take (s: the longest lately, let go slowly). */
+    frameAt = 0,
+    frameSlow = 1 / 60,
     /** The war about the town watched, as its year has it now (Phase 40 M204). */
     townWar: TownWar | null = null;
   const slowedOnce = new Set<string>();
@@ -2055,7 +2162,8 @@ async function runPlanetPage(): Promise<void> {
     globeWars.root.enabled = scale === "globe";
     // (The eye leaning over a war watched: its figures drawn as seen from the side.)
     globeWars.lean = Math.min(1, rig.lean / 45);
-    const y = now() / YEAR;
+    const y = now() / YEAR,
+      yw = warsAt(y);
     // (A year turned: its battles asked for at once, not at the next telling.)
     if (
       (scale === "globe" || scale === "region" || scale === "village") &&
@@ -2069,7 +2177,7 @@ async function runPlanetPage(): Promise<void> {
     if (scale === "globe") {
       const frame = client.latestFrame("globe");
       if (!campaign && !warAge && warsLive && frame) {
-        const placed = globeInPlace(warsLive, y),
+        const placed = globeInPlace(warsLive, yw),
           legs = placed.map.wars
             .map((w) => `${w.ref}:${w.from}:${w.to}:${w.ended}:${w.siege}`)
             .join("|");
@@ -2092,7 +2200,7 @@ async function runPlanetPage(): Promise<void> {
       );
     }
     regionWars.visible = scale === "region";
-    if (scale === "region") regionWars.update(performance.now() / 1000, y);
+    if (scale === "region") regionWars.update(performance.now() / 1000, yw);
     // Come down onto a battle's spot: the eye over its field, where it is drawn.
     if (arriveField) {
       const at =
@@ -2106,43 +2214,76 @@ async function runPlanetPage(): Promise<void> {
         arriveField = null;
       } else if (performance.now() > arriveField.until || scale !== "region") arriveField = null;
     }
-    // A battle drawn near in the land (M203): its clock slowed to a day a second from the hosts
-    // drawn up to the rout, for it to be watched fought; once for each battle, and let go at a
-    // speed the viewer sets meanwhile.
-    const townFight =
-        scale === "village" && plan && townWar?.fight
-          ? townWar.fight.stage !== "drawn" || townWar.fight.k >= 0.55
-            ? { key: townWar.fight.key, name: `⚔️ The battle before ${plan.name}` }
-            : null
-          : null,
-      fight =
-        scale === "region" && regionWars.now
-          ? (regionWars.now.fights.find((f) => f.stage !== "drawn" || f.k >= 0.55) ?? null)
-          : townFight;
-    if (
-      fight &&
-      fight.key !== slowFor &&
-      !slowedOnce.has(fight.key) &&
-      !time.stopped &&
-      time.pace > DAY &&
-      time.pace <= 30 * DAY
-    ) {
-      slowedOnce.add(fight.key);
-      slowFor = fight.key;
-      time.cap("battle", DAY);
-    }
-    if (slowFor && (!fight || fight.key !== slowFor || !time.capped("battle"))) {
-      time.uncap("battle");
+    // The battle at the turn drawn near (Phase 55 M227, D4; M203 before): the clock slowed once for
+    // each of its stages where the viewer watches at a month a second or less — toward it, through
+    // the night before it, while it is fought (in its town at its own pace, a minute a second; on its
+    // land ten), after it, and in its town as its fallen are borne in — let go at a speed the viewer
+    // sets meanwhile, or once what it was for is over. (And brought down to each as it nears it, so
+    // as to come to its beginning at its own speed: where frames come slowly, as software draws them,
+    // or after one long in the making, it is not carried past it between two of them.)
+    const frameMs = performance.now();
+    frameSlow = Math.min(
+      1,
+      Math.max(1 / 60, frameAt ? (frameMs - frameAt) / 1000 : 0, frameSlow * 0.98),
+    );
+    frameAt = frameMs;
+    const t = now(),
+      slowings = slowingsNow(),
+      live = !time.stopped && time.pace <= 30 * DAY;
+    // (The viewer's word — a speed chosen, or "Go on" — lets go of the slowing in force.)
+    if (slowCap > 0 && !time.capped("battle")) {
+      slowCap = 0;
       slowFor = null;
     }
+    const begun = live ? slowingBegun(slowings, t, time.pace, slowedOnce) : null;
+    if (begun) {
+      slowedOnce.add(begun.key);
+      slowFor = begun.key;
+      slowWords = battleCapWords(begun.cap, begun.speed, begun.turn);
+    }
+    const held = slowFor ? slowings.find((s) => s.key === slowFor) : undefined;
+    if (slowFor && (!held || t >= held.to)) slowFor = null;
+    const ahead = live ? slowAhead(slowings, t, frameSlow, slowedOnce) : null,
+      inForce = slowFor && held ? held.speed : Infinity,
+      limit = Math.min(inForce, ahead?.speed ?? Infinity);
+    if (limit < time.pace) {
+      if (limit !== slowCap) {
+        slowCap = limit;
+        time.cap("battle", limit);
+      }
+    } else if (slowCap > 0) {
+      slowCap = 0;
+      time.uncap("battle");
+    }
+    // (Told as what holds the clock: the stage ahead it is brought down to, where slower.)
     battleSlow.show(
-      slowFor && fight
-        ? `Slowed to a day a second for ${fight.name.replace(/^⚔️ The battle/, "the battle").replace(/, before .*$/, "")}`
-        : null,
+      slowCap > 0 && ahead?.s && ahead.speed < inForce
+        ? battleCapWords(ahead.s.cap, ahead.s.speed, ahead.s.turn)
+        : slowFor
+          ? slowWords
+          : null,
     );
   });
   const battleSlow = new BattleSlowCaption(hud);
   battleSlow.onGo = () => time.uncap("battle");
+  /**
+   * The slowings of the battle at the turn the clock may be slowed for, the earliest first: a town's,
+   * where it is its land's heart; a land's, where drawn on it.
+   */
+  function slowingsNow(): Slowing[] {
+    const townTurn =
+      scale === "village" && plan && townWar
+        ? (townWar.placed?.turn ??
+          (townWar.fight ? Number(townWar.fight.key.split(":").at(-1)) : null))
+        : null;
+    return townTurn !== null && townWar
+      ? battleSlowings(`${townWar.ref}:${townTurn}`, "town")
+      : scale === "region" && regionWars.now
+        ? regionWars.now.fights
+            .flatMap((f) => battleSlowings(f.key, "land"))
+            .sort((a, b) => a.from - b.from)
+        : [];
+  }
   exposed.warsInPlace = () => {
     const n = regionWars.now;
     return n
@@ -3580,8 +3721,55 @@ async function runPlanetPage(): Promise<void> {
     if (k >= 1) followHome = false;
   });
   let through = false;
+  /**
+   * The eye on a battle fought before the town (Phase 55 M227): from its side, a little behind the
+   * attackers' line — the two lines and where they meet, the town beyond — some hundred metres off,
+   * so the clash is drawn in full (render/battle.ts LOD); on a narrow screen (a phone held upright)
+   * drawn back till some fifty-five metres about the clash fill its width. (Its side nearer the
+   * eye: the short turn.)
+   */
+  const placedView = (frame: PlacedFrame, meet: number) => {
+    const m = placedPoint(frame, meet, 0),
+      here = (rig.yaw * Math.PI) / 180,
+      side = -frame.uz * Math.sin(here) + frame.ux * Math.cos(here) >= 0 ? 1 : -1,
+      back = (25 * Math.PI) / 180,
+      dx = -side * frame.uz * Math.cos(back) - frame.ux * Math.sin(back),
+      dz = side * frame.ux * Math.cos(back) - frame.uz * Math.sin(back);
+    return {
+      target: { x: m.x * VILLAGE_METRE, y: 0, z: m.z * VILLAGE_METRE },
+      yaw: (Math.atan2(dx, dz) * 180) / Math.PI,
+      pitch: -28,
+      distance: Math.min(16, Math.max(10, 6.8 / aspect())),
+    };
+  };
   /** A village's view turned on its battle, the line where the hosts meet (M95). */
   const faceBattle = (): boolean => {
+    // (Fought in place before it, Phase 55 M227: from its side.)
+    const inPlace = scale === "village" && plan ? placed : null;
+    if (inPlace) {
+      const v = placedView(inPlace.frame, inPlace.field.meet);
+      rig.halt();
+      rig.target.set(v.target.x, 0, v.target.z);
+      rig.yaw = v.yaw;
+      rig.pitch = v.pitch;
+      rig.distance = v.distance;
+      rig.userZoomed = true;
+      return true;
+    }
+    // (The night before it, its hosts drawn up by their fires before the town: between them.)
+    const middles = scale === "village" && townWar?.eve ? village.warNow()?.scene.middles : null,
+      hosts = middles?.filter((m): m is NonNullable<typeof m> => m !== null) ?? [];
+    if (hosts.length) {
+      rig.halt();
+      rig.target.set(
+        (hosts.reduce((s, m) => s + m.x, 0) / hosts.length) * VILLAGE_METRE,
+        0,
+        (hosts.reduce((s, m) => s + m.z, 0) / hosts.length) * VILLAGE_METRE,
+      );
+      rig.userZoomed = true;
+      rig.distance = 12;
+      return true;
+    }
     const front = scale === "village" && plan ? battleFront(plan) : null;
     if (!front) return false;
     rig.target.set(front.x * VILLAGE_METRE, 0, front.z * VILLAGE_METRE);
@@ -3591,6 +3779,13 @@ async function runPlanetPage(): Promise<void> {
     return true;
   };
   exposed.faceBattle = faceBattle;
+  /** Where a point of the land (km) is on the screen now, a little above its ground (null: behind the eye). */
+  const landOnScreen = (x: number, z: number, lift = 0.8) => {
+    const s = stage.camera.camera!.worldToScreen(
+      rig.target.clone().set(x, region.heightAt(x, z) + lift, z),
+    );
+    return s.z > 0 ? { x: s.x, y: s.y } : null;
+  };
   const zoomThrough = async (way: "in" | "out") => {
     followHome = false;
     if (way === "out") {
@@ -3744,13 +3939,29 @@ async function runPlanetPage(): Promise<void> {
           best = i;
         }
       });
-      // Zoomed in on a battle: down onto its field to watch it fought (Phase 37 M186).
+      // Zoomed in on a battle: down onto its field to watch it fought (Phase 37 M186) — or, while it
+      // is fought, into the town it is fought before, facing it (Phase 55; asked for 2026-10-27: "i
+      // meant open world warfare on town view not land view").
       const aimed = rig.aimed,
         picked = regionWars.pick(aim.x, aim.y, 160, true),
         near = picked || !aimed ? null : regionWars.battleNear(aimed.x, aimed.z, BATTLE_NEAR_KM),
         field = regionWars.pick(aim.x, aim.y, 90, true);
+      // (A battle fought now — from the night before it, its hosts drawn up by their fires, until
+      // the beaten fly — before any past marked with it: its land's last was fought on the same field.)
+      for (const f of regionWars.now?.fights ?? []) {
+        const turn = Number(f.key.split(":").at(-1)),
+          on = foughtNow(now(), turn) ? landOnScreen(f.x, f.z) : null,
+          to =
+            on && Math.hypot(on.x - aim.x, on.y - aim.y) < 90
+              ? await townFoughtBefore(f.ref, turn)
+              : null;
+        if (to) {
+          await toTownFight(to);
+          return;
+        }
+      }
       if (field?.startsWith("ev:")) {
-        await fadeOver(() => ready("the battle", () => toBattle(field)));
+        await watchBattleWhere(field);
         return;
       }
       // Near enough it, its village, its view facing the fight: the town of its land it is fought
@@ -4146,6 +4357,19 @@ async function runPlanetPage(): Promise<void> {
     return Math.min(shown, clock.t + clock.speed);
   };
   stage.onUpdate(() => time.tick(now()));
+  // (A speed chosen inside a stage of the battle at the turn not yet slowed for goes to the world
+  // already slowed: a frame late, at a month a second, is days — the battle gone by before the
+  // clock comes down to it.)
+  time.govern = (speed) => {
+    if (!(speed > 0 && speed <= 30 * DAY)) return speed;
+    const t = now(),
+      slowings = slowingsNow();
+    return Math.min(
+      speed,
+      slowingBegun(slowings, t, speed, slowedOnce)?.speed ?? Infinity,
+      slowAhead(slowings, t, frameSlow, slowedOnce).speed,
+    );
+  };
   // The land's towns rising as its clock runs, its fields at the season, its roads at the year.
   stage.onUpdate(() => {
     if (scale === "region") region.land.update(now(), time.speed > 0);
@@ -4182,7 +4406,7 @@ async function runPlanetPage(): Promise<void> {
         scale === "village" && plan ? (plan.spot ?? centres.get(plan.cell ?? -1)) : undefined,
       tw =
         plan && warsLive && spot !== undefined
-          ? townWarNow(warsLive, now() / YEAR, { spot, heart: plan.life?.heart ?? true })
+          ? townWarNow(warsLive, warsAt(now() / YEAR), { spot, heart: plan.life?.heart ?? true })
           : null;
     if (tw === null && townWar === null) return;
     townWar = tw;
@@ -4191,6 +4415,284 @@ async function runPlanetPage(): Promise<void> {
   });
   villagePanel.onWar = (ref) => void pageWindow.open(ref);
   villagePanel.onPage = (ref) => void pageWindow.open(ref);
+  // The battle at the turn fought before the town watched (Phase 55 M227, D1, D4, asked for
+  // 2026-10-25: "the battles should be fought on the land, by the townsfolk, where you can see
+  // them"): history fights it at the turn; the morning after, on the field before the town its
+  // land's battles are fought before, it is drawn soldier by soldier in the town's own scene on the
+  // world's clock — every figure a man of its roll, its fallen and wounded as many as history counts
+  // them, its fallen lying until they are borne in; the town indoors while it is fought, but for some
+  // come out to its edge to watch; the hosts' fires the night before. Asked for once its turn has come.
+  let placed: {
+      /** The town and the battle (`<town>|<event>`), the turn it is fought at, the detail it was laid at. */
+      key: string;
+      turn: number;
+      detail: number;
+      info: BattleNear;
+      field: BattleField;
+      blows: Blows;
+      roll: BattleRoll;
+      /** Who each figure is, as its roll names him. */
+      names: readonly (RollEntry | null)[];
+      frame: PlacedFrame;
+      /** The hosts' fires behind their lines the night before it. */
+      camp: readonly { readonly x: number; readonly z: number }[];
+      /** The battle at its end (its fallen where they lie), worked out once for the blood shown. */
+      end: BattleNow | null;
+      /** The battle as drawn now (null: not drawn); those come out to watch it, and the day they are of. */
+      now: BattleNow | null;
+      watchers: readonly Watcher[];
+      watchDay: number;
+      /** The eye brought to it as it begins (once). */
+      faced: boolean;
+    } | null = null,
+    /** The battle before the town asked for (its key), and whether the asking came to nothing. */
+    placedAsked = "",
+    placedFailed = false;
+  /** The battle before the town let go: no longer drawn, the clock no longer waiting for it. */
+  const unplace = () => {
+    if (!placed && !placedAsked) return;
+    placed = null;
+    placedAsked = "";
+    placedFailed = false;
+    village.placeBattle(null);
+    village.battleAt(null);
+    time.release("battle-roll");
+  };
+  /** The battle before the town laid on its field: its words and its roll asked for together. */
+  const layBattle = async (town: VillagePlan, event: string, turn: number, key: string) => {
+    const detail = stage.quality.detail,
+      most = placedMost(detail),
+      [info, roll] = await Promise.all([
+        client.query<BattleNear | null>({ type: "battle.near", args: { event } }),
+        client.query<BattleRoll | null>({ type: "battle.roll", args: { event, most } }),
+      ]).catch(() => [null, null] as const);
+    // (Moved on meanwhile: to another town, or the battle let go.)
+    if (placedAsked !== key || plan?.ref !== town.ref) return;
+    if (!info || !roll) {
+      placedFailed = true;
+      time.release("battle-roll");
+      return;
+    }
+    const field = newBattle(info, most, true),
+      blows = newBlows(field),
+      frame = fieldFrame(town, field);
+    village.placeBattle({
+      field,
+      frame,
+      figure: info.figure ? figureOf(info.figure, detail) : null,
+      body: info.figure,
+    });
+    placed = {
+      key,
+      turn,
+      detail,
+      info,
+      field,
+      blows,
+      roll,
+      names: rollNames(field, blows, roll),
+      frame,
+      camp: placedCamp(frame, field),
+      end: null,
+      now: null,
+      watchers: [],
+      watchDay: -1,
+      faced: false,
+    };
+    time.release("battle-roll");
+  };
+  stage.onUpdate(() => {
+    // (Its layer built on the eve, ahead of the morning.)
+    if (scale === "village" && townWar?.eve) village.readyBattle();
+    const p = scale === "village" && plan ? (townWar?.placed ?? null) : null;
+    if (!p || !plan) {
+      unplace();
+      return;
+    }
+    const key = `${plan.ref}|${p.event}`;
+    // (Laid again at a setting's detail as the setting moves: so many figures as it draws.)
+    if (placed && placed.detail !== stage.quality.detail) unplace();
+    if (placedAsked !== key) {
+      unplace();
+      placedAsked = key;
+      void layBattle(plan, p.event, p.turn, key);
+    }
+    const t = now(),
+      seen = time.lapse ? Math.floor(t / DAY) * DAY + 10 * 3600 : t,
+      at = battleStage(seen, p.turn),
+      P = placed;
+    if (!P) {
+      // (Not laid yet as it is about to begin: the world waits for it.)
+      if (!placedFailed && battleCapAt(seen, p.turn) === "battle") time.hold("battle-roll");
+      village.battleAt(null);
+      return;
+    }
+    // The battle at its moment; once over, its fallen where they lie, borne in from noon two days on.
+    let shown: BattleNow | null = null;
+    if (at === "morning" || at === "battle")
+      shown = blowsAt(P.field, P.blows, battleAt(P.field, battleSecond(seen, P.turn)), gore);
+    else if (at === "after" || at === "borne") {
+      P.end ??= fallenNow(
+        P.field,
+        blowsAt(P.field, P.blows, battleAt(P.field, BATTLE_LENGTH), gore),
+      );
+      shown = at === "borne" ? borneNow(P.field, P.end, borneShare(seen, P.turn)) : P.end;
+    }
+    P.now = shown;
+    // The town indoors through it, but for those come out to its edge to watch (told once a day).
+    const kept = battleShelter(P.turn),
+      watching = seen >= kept.from && seen < kept.to,
+      day = Math.floor(seen / DAY);
+    if (watching && P.watchDay !== day) {
+      P.watchers = fieldWatchers(plan, P.frame, seen);
+      P.watchDay = day;
+    }
+    // (The hosts' fires behind their lines until the dawn before it.)
+    const dark = at === "morning" && seen < P.turn * YEAR + 6.5 * 3600;
+    village.battleAt(shown, watching ? P.watchers : [], dark ? P.camp : []);
+    // The eye to where the lines meet as it begins (once; not where the viewer has it on someone).
+    if (!P.faced && battleCapAt(seen, P.turn) === "battle" && watched === null) {
+      P.faced = true;
+      rig.flyTo(placedView(P.frame, P.field.meet), 1.2);
+    }
+  });
+  /**
+   * The eye brought onto the battle before the town once it is drawn there, where the town is gone
+   * into for it (until then: wall-clock ms; 0: not) — its field once laid; the night before it, its
+   * hosts by their fires once the town draws them; by then, what the town has. (Let go as the viewer
+   * steers.)
+   */
+  let faceFightBy = 0;
+  stage.onUpdate(() => {
+    if (!faceFightBy) return;
+    const P = placed,
+      laying = !!townWar?.placed && !placedFailed,
+      drawing = !!townWar?.eve && !village.warNow()?.scene.middles.some((m) => m !== null);
+    if (scale !== "village" || rig.steering) faceFightBy = 0;
+    else if (P) {
+      faceFightBy = 0;
+      rig.flyTo(placedView(P.frame, P.field.meet), 1.2);
+    } else if (performance.now() > faceFightBy || !(laying || drawing)) {
+      faceFightBy = 0;
+      faceBattle();
+    }
+  });
+  /** What a man of a battle's roll bore there, asked of the host once (Phase 55 M228). */
+  const borneAsked = new Map<string, Promise<ArmBorne | null>>();
+  /** One who fought, as his card tells him (Phase 55 M227–M228). */
+  const cardOf = async (
+    event: string,
+    roll: BattleRoll,
+    side: 0 | 1,
+    e: RollEntry,
+    fate: string,
+  ): Promise<ManCard> => {
+    const key = `${event}|${side}|${e.ref}`;
+    let asked = borneAsked.get(key);
+    if (!asked) {
+      if (borneAsked.size > 2000) borneAsked.clear();
+      asked = client
+        .query<ArmBorne | null>({ type: "arms.borne", args: { event, side, who: e.ref } })
+        .catch(() => null);
+      borneAsked.set(key, asked);
+    }
+    const borne = await asked;
+    return {
+      name: e.name,
+      page: e.ref,
+      side,
+      from: (side === 0 ? roll.attacker : roll.defender).towns[e.place]?.name ?? null,
+      age: e.age,
+      fate,
+      arm: borne?.words ?? null,
+      maker: borne?.maker ?? null,
+      armPage: borne?.page ?? null,
+    };
+  };
+  /** One who fought before the town tapped: his card (null: none of the roll is his). */
+  const showFighter = async (id: number): Promise<string | null> => {
+    const P = placed,
+      e = P?.names[id],
+      t = P?.field.troopers[id];
+    if (!P || !e || !t) return null;
+    selectPerson(null);
+    const s = Math.min(BATTLE_LENGTH, battleSecond(now(), P.turn)),
+      m = await cardOf(
+        P.info.event,
+        P.roll,
+        t.side,
+        e,
+        FATE_WORDS[figureFate(P.field, P.blows, id)],
+      );
+    if (placed !== P) return null;
+    villagePanel.showSoldier(
+      m,
+      (t.side === 0 ? P.info.attacker : P.info.defender).name,
+      blowWords(P.field, P.blows, id, s) ?? trooperWords(P.field, id, s),
+    );
+    return villagePanel.cardShown();
+  };
+  exposed.tapPlaced = (id: number) => showFighter(id);
+  exposed.placedBattle = () => {
+    const P = scale === "village" ? placed : null,
+      layer = village.placedBattle;
+    if (!P || !layer) return null;
+    const t = now(),
+      seen = time.lapse ? Math.floor(t / DAY) * DAY + 10 * 3600 : t,
+      n = P.now,
+      sideOf = (s: number) => (s === 0 ? P.roll.attacker : P.roll.defender);
+    return {
+      event: P.info.event,
+      turn: P.turn,
+      title: P.info.title,
+      stage: battleStage(seen, P.turn),
+      s: battleSecond(seen, P.turn),
+      per: P.field.per,
+      figures: [P.field.hosts[0].n, P.field.hosts[1].n],
+      named: P.names.filter((e) => e !== null).length,
+      falls: [0, 1].map(
+        (s) => P.field.troopers.filter((q) => q.side === s && q.falls !== null).length,
+      ),
+      hurt: [...P.blows.hurt],
+      rule: [0, 1].map((s) => ({ ...sideOf(s).figures })),
+      roll: [0, 1].map((s) => ({
+        fell: sideOf(s).fell.length,
+        hurt: sideOf(s).hurt.length,
+        stood: sideOf(s).stood.length,
+      })),
+      drawn: n ? n.troopers.filter((q) => q.size > 0.01).length : 0,
+      lying: n
+        ? n.troopers.filter((q) => q.size > 0.01 && P.field.troopers[q.id]!.falls !== null).length
+        : 0,
+      onScreen: n
+        ? n.troopers
+            .filter((q) => q.size > 0.3)
+            .slice(0, 400)
+            .map((q) => ({
+              id: q.id,
+              side: q.side,
+              act: q.act,
+              crawl: q.crawl > 0,
+              hit: q.hit ?? null,
+              lost: q.lost ?? null,
+              fate: figureFate(P.field, P.blows, q.id),
+              name: P.names[q.id]?.name ?? null,
+              ref: P.names[q.id]?.ref ?? null,
+              at: layer.onScreen(q),
+            }))
+        : [],
+      marks: layer.marks(),
+      parts: layer.count(),
+      shadows: layer.casts,
+      watchers: village.watching,
+      sheltered: village.shelteredNow(),
+      camp: village.warNow()?.camp ?? 0,
+      frame: P.frame,
+      clock: { speed: time.speed, pace: time.pace, stopped: time.stopped },
+      slowed: slowFor,
+      told: battleSlow.told,
+    };
+  };
   // (An act cast on the town watched — fire sent on it, a spring, a shrine, its land shaken — read
   // again at once, so it is seen as it falls: Phase 42 M201.)
   const castOnTown = palette.onCast;
@@ -4279,6 +4781,12 @@ async function runPlanetPage(): Promise<void> {
     const on = plan ? village.madeAt(x, y, 12) : null,
       i = on ? null : village.pick(x, y);
     if (i !== null) return selectPerson(i);
+    // One who fought before the town (Phase 55 M227): his card, named from the battle's roll.
+    const fighter = placed?.now ? (village.placedBattle?.pick(placed.now, x, y) ?? null) : null;
+    if (fighter !== null) {
+      void showFighter(fighter);
+      return;
+    }
     const made = on ?? (plan ? village.madeAt(x, y) : null);
     if (made && plan) {
       selectPerson(null);
@@ -4753,6 +5261,9 @@ async function runPlanetPage(): Promise<void> {
       now: BattleNow;
       /** Where each one struck was struck and what came of it (Phase 55). */
       blows: Blows;
+      /** Who each figure is, as the battle's roll names him (Phase 55 M227; none: no roll). */
+      names: readonly (RollEntry | null)[];
+      roll: BattleRoll | null;
       /** The one followed (-1: the hosts), and when they were told last. */
       followed: number;
       toldAt: number;
@@ -4786,11 +5297,31 @@ async function runPlanetPage(): Promise<void> {
       at = a && d ? { x: (a.x + d.x) / 2, z: (a.z + d.z) / 2 } : (a ?? d ?? { x: 0, z: 0 });
     return { x: at.x * 0.1, y: 0.15, z: at.z * 0.1 };
   };
+  /** The one followed named on the battle's card (Phase 55 M227–M228), as the roll names him. */
+  const nameFollowed = () => {
+    const f = fight,
+      id = f ? f.followed : -1,
+      e = f && id >= 0 ? f.names[id] : null;
+    if (!f || !e || !f.roll) {
+      battlePanel.named(null);
+      return;
+    }
+    void cardOf(
+      f.info.event,
+      f.roll,
+      f.field.troopers[id]!.side,
+      e,
+      FATE_WORDS[figureFate(f.field, f.blows, id)],
+    ).then((m) => {
+      if (fight === f && f.followed === id) battlePanel.named(m);
+    });
+  };
   /** The eye kept on one who fought (their id), or on the hosts (null). */
   const followTrooper = (id: number | null) => {
     if (!fight) return;
     fight.followed = id ?? -1;
     fight.toldAt = -Infinity;
+    nameFollowed();
     rig.follow =
       id === null
         ? battleMiddle
@@ -4831,8 +5362,16 @@ async function runPlanetPage(): Promise<void> {
   };
   // (Given its words, a battle is watched from them; else they are asked of the host.)
   const toBattle = async (event: string, given?: BattleNear): Promise<void> => {
-    const info =
-      given ?? (await client.query<BattleNear | null>({ type: "battle.near", args: { event } }));
+    // (Each figure a man of the battle's roll, Phase 55 M227: asked for with its words.)
+    const [info, roll] = await Promise.all([
+      given ?? client.query<BattleNear | null>({ type: "battle.near", args: { event } }),
+      client
+        .query<BattleRoll | null>({
+          type: "battle.roll",
+          args: { event, most: mostFor(fieldDetail()) },
+        })
+        .catch(() => null),
+    ]);
     if (!info) return;
     leaveScale();
     scale = "battle";
@@ -4872,9 +5411,12 @@ async function runPlanetPage(): Promise<void> {
       was: 2,
       now: blowsAt(field, blows, battleAt(field, 0), gore),
       blows,
+      names: roll ? rollNames(field, blows, roll) : [],
+      roll,
       followed: -1,
       toldAt: -Infinity,
     };
+    battlePanel.named(null);
     if (bandLayer) bandLayer.root.enabled = false;
     meadowScene.visible = true;
     meadowScene.season(null);
@@ -4924,9 +5466,63 @@ async function runPlanetPage(): Promise<void> {
       battleSpeed(Math.max(1, Math.min(BATTLE_SPEEDS.length - 1, fromWar.speed + 1)));
     }
   };
-  pageWindow.onBattle = (event) => void watchBattle(event);
-  tidings.onBattle = (event) => void watchBattle(event);
-  events.onBattle = (event) => void watchBattle(event);
+  /**
+   * The town a battle of the world's wars is fought before now, and its land (null: none): while it
+   * is fought (`foughtNow`), the town its land's battles are fought before, where one stands there.
+   * Its war, the turn it is fought at, and where history fought it (once it has).
+   */
+  const townFoughtBefore = async (
+    war: string,
+    turn: number,
+    spot?: number,
+  ): Promise<{ cell: number; town: string } | null> => {
+    const w = warsLive?.wars.find((x) => x.ref === war);
+    if (!w || !warsLive || !foughtNow(now(), turn)) return null;
+    const n = warNow(w, warsAt(now() / YEAR), warsLive.year),
+      at = n?.closing?.at === turn ? n.closing.spot : -1,
+      cell =
+        at >= 0 && (spot === undefined || spot === at)
+          ? ((client.latestFrame("globe")?.arrays.province as Int32Array | undefined)?.[at] ?? -1)
+          : -1;
+    if (cell < 0) return null;
+    const town = await client.query<string | null>({ type: "land.heart", args: { cell } });
+    return town ? { cell, town } : null;
+  };
+  /** The town a battle (its event) is fought before now, and its land (null: watched on its field). */
+  const battleTownNow = (event: string) => {
+    const w = warsLive?.wars.find((x) => x.battles.some((b) => b.event === event)),
+      b = w?.battles.find((x) => x.event === event);
+    return w && b ? townFoughtBefore(w.ref, b.year + 1, b.spot) : Promise.resolve(null);
+  };
+  /** Into the town a battle is fought before, from wherever the eye is: the eye on the fight. */
+  const toTownFight = async (to: { cell: number; town: string }) => {
+    walk.saw("scale");
+    pageWindow.close();
+    warReturn = null;
+    arriveField = null;
+    if (scale !== "village" || plan?.ref !== to.town)
+      await fadeOver(() =>
+        ready("the village", async () => {
+          leaveScale();
+          regionCell = to.cell;
+          await toVillage(to.town);
+        }),
+      );
+    faceFightBy = performance.now() + 8000;
+  };
+  /**
+   * A battle watched where it is now (asked for 2026-10-27: "i meant open world warfare on town view
+   * not land view"): while it is fought, before the town it is fought before, facing it; a battle
+   * past, or on a land no town stands on, on its field (from a war unfolding: back to it after).
+   */
+  const watchBattleWhere = async (event: string, fromWar: WarLeft | null = null) => {
+    const before = await battleTownNow(event);
+    if (before) await toTownFight(before);
+    else await watchBattle(event, fromWar);
+  };
+  pageWindow.onBattle = (event) => void watchBattleWhere(event);
+  tidings.onBattle = (event) => void watchBattleWhere(event);
+  events.onBattle = (event) => void watchBattleWhere(event);
   /** Back up to the land it was fought in, low over it (or to the war it was watched from). */
   const leaveBattle = async () => {
     const was = fight?.info;
@@ -4968,6 +5564,7 @@ async function runPlanetPage(): Promise<void> {
       if (t) void pageWindow.open(`arm:${fight.info.event}:${t.side}:${t.id}`);
     }
   };
+  battlePanel.onMan = (ref) => void pageWindow.open(ref);
   // A tap on the field: one who fought followed (tapped again, the battle's page); the open
   // ground, the hosts again.
   const tapBattle = (x: number, y: number) => {
@@ -5053,6 +5650,11 @@ async function runPlanetPage(): Promise<void> {
     await watchBattle(event);
     return scale === "battle";
   };
+  exposed.watchBattleWhere = async (event: string) => {
+    await watchBattleWhere(event);
+    return scale;
+  };
+  exposed.battleTownNow = async (event: string) => (await battleTownNow(event))?.town ?? null;
   // Down to a battle's field from the words it is given (its near words, already in hand).
   exposed.watchBattleNear = async (near: BattleNear) => {
     walk.saw("scale");
@@ -5100,6 +5702,8 @@ async function runPlanetPage(): Promise<void> {
           guns: fight.now.troopers.filter((t) => t.gun).length,
           trench: !!fight.field.ground.trench,
           weapon: battlePanel.weaponShown,
+          named: battlePanel.manNamed,
+          rolled: fight.names.filter((e) => e !== null).length,
         }
       : null;
   exposed.battleAt = (s: number, speed?: number) => {
@@ -5118,6 +5722,8 @@ async function runPlanetPage(): Promise<void> {
       // Nowhere to remember it: for this visit only.
     }
     if (fight) fight.now = blowsAt(fight.field, fight.blows, battleAt(fight.field, fight.s), gore);
+    // (The battle before the town, drawn again as it ended, in the blood now shown.)
+    if (placed) placed.end = null;
   };
   exposed.setGore = (g: string) => {
     if ((GORES as readonly string[]).includes(g)) planetPanel.onGore(g as Gore);
@@ -5393,7 +5999,7 @@ async function runPlanetPage(): Promise<void> {
   warPanel.onSide = (ref) => void pageWindow.open(ref);
   warPanel.onBattle = (event) => {
     if (campaign)
-      void watchBattle(event, {
+      void watchBattleWhere(event, {
         ref: campaign.c.ref,
         year: campaign.year,
         speed: campaign.speed,
@@ -5634,7 +6240,7 @@ async function runPlanetPage(): Promise<void> {
   warAgePanel.onBattle = (event) => {
     if (!warAge) return;
     const war = warAge.now.latest?.war.ref ?? "";
-    void watchBattle(event, {
+    void watchBattleWhere(event, {
       ref: war,
       year: warAge.year,
       speed: warAge.speed,
@@ -5726,6 +6332,100 @@ async function runPlanetPage(): Promise<void> {
     drawWarAge();
   };
   exposed.leaveWarAge = () => endWarAge();
+  // The ways to watch a battle, a tap apart (Phase 55 M230): its war over the world, its hosts on
+  // the land, fought before its town, its field close — offered wherever one is watched; each gone
+  // to as from nowhere (what the view left held — its clock, the one followed, the way back to a war
+  // or to a field coming down to — let go).
+  const warViews = new WarViews(hud);
+  /** The battle watched now and the view it is watched in (null: none). */
+  const viewedNow = (): { at: WarView; b: WarViewed } | null => {
+    const near = (i: BattleNear): WarViewed => ({
+      war: i.war,
+      event: i.event,
+      cell: i.cell,
+      year: i.year,
+    });
+    if (scale === "battle" && fight) return { at: "field", b: near(fight.info) };
+    if (scale === "village" && placed) return { at: "town", b: near(placed.info) };
+    if (scale === "globe" && campaign) {
+      const last = campaign.now.fought.at(-1);
+      return last && last.cell >= 0
+        ? {
+            at: "globe",
+            b: { war: campaign.c.ref, event: last.event, cell: last.cell, year: last.year },
+          }
+        : null;
+    }
+    if (scale === "region" && regionWars.now && warsLive)
+      for (const f of regionWars.now.fights) {
+        if (f.stage === "drawn") continue;
+        const turn = Number(f.key.split(":").at(-1)),
+          b = warsLive.wars.find((w) => w.ref === f.ref)?.battles.find((x) => x.year === turn - 1);
+        if (b)
+          return { at: "land", b: { war: f.ref, event: b.event, cell: regionCell, year: b.year } };
+      }
+    return null;
+  };
+  stage.onUpdate(() => {
+    const v = viewedNow();
+    warViews.show(v?.at ?? null, v ? warViewsClosed(v.b, now()) : {});
+    // (Under the close field's bar, or the war's over the world, as it grows with what it tells —
+    // its hosts' cards and its lines are in it; read each frame, after the frame's words are set.)
+    const bar =
+      v === null
+        ? null
+        : scale === "battle"
+          ? battlePanel.element.querySelector("header")
+          : scale === "globe" && campaign
+            ? warPanel.element.querySelector("header")
+            : null;
+    warViews.below(bar ? bar.getBoundingClientRect().bottom : null);
+  });
+  /** To a view of the battle watched now. */
+  const switchView = async (to: WarView): Promise<void> => {
+    const v = viewedNow();
+    if (!v || v.at === to || warViewsClosed(v.b, now())[to] !== undefined) return;
+    const b = v.b;
+    walk.saw("scale");
+    pageWindow.close();
+    warReturn = null;
+    arriveField = null;
+    if (to === "field") {
+      await watchBattle(b.event);
+      return;
+    }
+    if (to === "globe") {
+      await watchWar(b.war);
+      return;
+    }
+    if (to === "land") {
+      await fadeOver(() =>
+        ready("the land", () => {
+          leaveScale();
+          toRegion(b.cell);
+          arriveField = { event: b.event, cell: b.cell, until: performance.now() + 10_000 };
+        }),
+      );
+      return;
+    }
+    // Before its town: the town its land's battles are fought before, at the world's moment.
+    const heart = await client.query<string | null>({ type: "land.heart", args: { cell: b.cell } });
+    if (!heart) return;
+    await fadeOver(() =>
+      ready("the village", async () => {
+        leaveScale();
+        regionCell = b.cell;
+        await toVillage(heart);
+      }),
+    );
+    faceFightBy = performance.now() + 8000;
+  };
+  warViews.onView = (to) => void switchView(to);
+  exposed.warViews = () => warViews.state;
+  exposed.warView = async (to: string) => {
+    await switchView(to as WarView);
+    return scale;
+  };
   // The land's weather where the eye is on the ground (Phase 30 M162, asked for 2026-10-24: "be
   // able to pause and influence and all that"): among a band, over a land, in a town — its sky
   // read every few seconds (and at once when the god's hand falls), and played moment by moment:
@@ -5928,9 +6628,19 @@ async function runPlanetPage(): Promise<void> {
       // work and its sky by day, not a day's round flashing by in every frame.
       seen = time.lapse ? Math.floor(t / DAY) * DAY + 10 * 3600 : t;
     stage.daylight((seen % DAY) / DAY);
-    // Those at their ease go in out of a downpour (Phase 30), and come out when it is over.
-    const sky = landSky?.cell === weatherCell() ? landSky : null;
-    village.update(seen, sky ? downpourAt(sky, seen, time.pace) : null, !time.lapse);
+    // Those at their ease go in out of a downpour (Phase 30), and come out when it is over; and all
+    // of the town while a battle is fought before it, but for those come out to watch (Phase 55 M227).
+    const sky = landSky?.cell === weatherCell() ? landSky : null,
+      kept = placed ? battleShelter(placed.turn) : null;
+    village.update(
+      seen,
+      kept && seen >= kept.from && seen < kept.to
+        ? { ...kept, all: true }
+        : sky
+          ? downpourAt(sky, seen, time.pace)
+          : null,
+      !time.lapse,
+    );
     // The town's stores and its work today (Phase 39 M198), as they are told.
     const told = village.storesShown();
     if (told !== storesTold) villagePanel.storesNow((storesTold = told));
@@ -6088,6 +6798,7 @@ async function runPlanetPage(): Promise<void> {
       if (battleLayer) battleLayer.root.enabled = false;
       battlePanel.visible = false;
       battlePanel.follow("", null);
+      battlePanel.named(null);
       labels.clear();
       rig.follow = null;
       fight = null;

@@ -59,12 +59,27 @@ const war = (over: Partial<War> = {}): War => ({
   ...over,
 });
 const mapOf = (w: War, year = 300): WarsMap => ({ year, garrisons: [], wars: [w] });
+/** A moment of a turn's first day (the world's years): the battle at the turn is fought from eight (D4). */
+const morning = (turn: number, hours: number) => turn + (hours * 3600) / (365 * 86_400);
 
-test("a war's year on the world's clock: thrown back, mustered, marching, drawn up, engaged at the turn", () => {
+test("a war's year on the world's clock: fought the morning after the turn, thrown back, mustered, marching, drawn up to the turn", () => {
   const w = war(),
     at = (y: number) => warNow(w, y, 300)!;
-  // Just after the turn its last battle was fought at: thrown back from it, the defenders holding.
-  let n = at(300.01);
+  // The night after the turn its last battle was fought at: the two still drawn up before the land,
+  // engaged from eight in the morning (D4), told how far through it.
+  let n = at(morning(300, 4));
+  assert.equal(n.attacker!.doing, "facing");
+  assert.equal(n.defender!.doing, "facing");
+  assert.deepEqual(n.closing, { spot: P, at: 300, engaged: false, k: 1 });
+  assert.equal(n.fought!.battle.event, "evt:0:9");
+  n = at(morning(300, 9));
+  assert.equal(n.attacker!.doing, "engaged");
+  assert.equal(n.defender!.doing, "engaged");
+  assert.ok(n.closing!.engaged && Math.abs(n.closing!.k - 0.4) < 1e-6, `${n.closing!.k}`);
+  assert.equal(n.after, 0, "not over yet");
+  // After it: thrown back from it, the defenders holding.
+  n = at(300.01);
+  assert.ok(n.after > 0 && n.after < 0.01);
   assert.equal(n.attacker!.doing, "withdrawing");
   assert.equal(n.attacker!.from, P);
   assert.equal(n.attacker!.to, M);
@@ -87,20 +102,21 @@ test("a war's year on the world's clock: thrown back, mustered, marching, drawn 
     k6 = at(300.6).attacker!.k;
   assert.ok(k5 > 0 && k5 < k6 && k6 < 1, `along its way: ${k5.toFixed(2)} then ${k6.toFixed(2)}`);
   assert.equal(at(300.6).defender!.doing, "rallying");
-  // Drawn up before the land; engaged as the year ends, told how near the turn.
+  // Drawn up before the land to the year's end, told how near the turn: none engaged before it.
   n = at(300.9);
   assert.equal(n.attacker!.doing, "facing");
   assert.equal(n.defender!.doing, "facing");
   assert.equal(n.held, null, "the host has come: the garrison with it");
   assert.equal(n.closing?.engaged, false);
-  n = at(300.97);
-  assert.equal(n.attacker!.doing, "engaged");
-  assert.equal(n.defender!.doing, "engaged");
-  assert.ok(n.closing!.engaged && n.closing!.k > 0 && n.closing!.k < 1);
+  n = at(300.99);
+  assert.equal(n.attacker!.doing, "facing");
+  assert.equal(n.defender!.doing, "facing");
+  assert.ok(!n.closing!.engaged && n.closing!.k > 0.9 && n.closing!.k < 1);
   assert.equal(n.closing!.spot, N);
-  // Past the turn, its map not come yet: still engaged, at its very end.
+  assert.equal(n.closing!.at, 301);
+  // Past the turn, its map not come yet: still drawn up, at the year's very end.
   n = warNow(w, 301.2, 300)!;
-  assert.equal(n.attacker!.doing, "engaged");
+  assert.equal(n.attacker!.doing, "facing");
   assert.ok(n.closing!.k > 0.99);
 });
 
@@ -123,7 +139,7 @@ test("after a battle won: the victors hold the field and march into the land tak
   assert.equal(at(300.2).attacker!.doing, "mustering");
 });
 
-test("a seat besieged: its besiegers camp about it all year and storm its walls as the year ends", () => {
+test("a seat besieged: its besiegers camp about it all year and storm its walls the morning after the turn", () => {
   const w = war({
       next: SD,
       siege: SD,
@@ -151,10 +167,25 @@ test("a seat besieged: its besiegers camp about it all year and storm its walls 
   assert.equal(n.attacker!.doing, "besieging");
   assert.equal(n.siege, SD);
   assert.equal(n.closing, null);
+  // Making ready to the year's end; stormed the next morning.
   n = at(300.97);
-  assert.equal(n.attacker!.doing, "assaulting");
-  assert.equal(n.attacker!.words, "storming the walls of Bluecairn's land");
-  assert.ok(n.closing?.engaged);
+  assert.equal(n.attacker!.doing, "besieging");
+  assert.equal(n.closing?.engaged, false);
+  assert.equal(n.closing?.at, 301);
+  const stormed = war({
+      next: null,
+      siege: SD,
+      battles: [
+        ...w.battles,
+        { spot: SD, year: 300, won: true, fallen: 900, event: "evt:0:10", outcome: "stormed" },
+      ],
+    }),
+    storm = warNow(stormed, morning(301, 9), 301)!;
+  assert.equal(storm.attacker!.doing, "assaulting");
+  assert.equal(storm.attacker!.words, "storming the walls of Bluecairn's land");
+  assert.equal(storm.defender!.doing, "engaged");
+  assert.equal(storm.siege, SD);
+  assert.ok(storm.closing?.engaged);
 });
 
 test("at peace both hosts go home and stand down; a war ended before is not drawn", () => {
@@ -279,31 +310,32 @@ test("in a land a host marches on the town by the roads, round the water, and is
   assert.ok(drawn.marks.every((m) => /host: /.test(m.name)));
 });
 
-test("in a land the fight the year ends in is told where it is fought, and its rout after the turn", () => {
+test("in a land the battle at the turn is told where it is fought the next morning, and its rout after it", () => {
   const g = ground(),
     p = play(g),
     w = war(),
-    engaged = landInPlace(mapOf(w), 300.97, p, 0),
-    fought = landInPlace(
-      mapOf(
-        {
-          ...w,
-          battles: [
-            ...w.battles,
-            { spot: N, year: 300, won: true, fallen: 1200, event: "evt:0:12", outcome: "taken" },
-          ],
-        },
-        301,
-      ),
-      301.01,
-      p,
-      0,
-    );
+    after = mapOf(
+      {
+        ...w,
+        battles: [
+          ...w.battles,
+          { spot: N, year: 300, won: true, fallen: 1200, event: "evt:0:12", outcome: "taken" },
+        ],
+      },
+      301,
+    ),
+    drawn = landInPlace(mapOf(w), 300.995, p, 0),
+    engaged = landInPlace(after, morning(301, 9), p, 0),
+    fought = landInPlace(after, 301.01, p, 0);
+  // Drawn up to the turn: none falls before it.
+  assert.equal(drawn.fights[0]!.stage, "drawn");
+  assert.equal(drawn.fights[0]!.key, "war:0:7:301");
+  assert.ok(!drawn.figures.some((f) => f.fallen), "none falls before the turn");
   const fight = engaged.fights[0]!;
   assert.equal(fight.stage, "engaged");
   assert.equal(fight.key, "war:0:7:301");
   // A few fall as it is fought.
-  const late = landInPlace(mapOf(w), 300.995, p, 0);
+  const late = landInPlace(after, morning(301, 10.4), p, 0);
   assert.ok(
     late.figures.some((f) => f.fallen),
     "some fall in the fight",
@@ -317,7 +349,7 @@ test("in a land the fight the year ends in is told where it is fought, and its r
   assert.equal(fought.marks.find((m) => m.side === 1)!.doing, "routed");
   assert.equal(fought.marks.find((m) => m.side === 0)!.doing, "holding");
   // The year's beats line up with the battle's turn.
-  assert.ok(WAR_YEAR.engage > WAR_YEAR.marched && WAR_YEAR.rout < WAR_YEAR.after);
+  assert.ok(WAR_YEAR.marched < 1 && WAR_YEAR.rout < WAR_YEAR.after);
 });
 
 test("a land's battles are fought before its heart: its greatest town near its middle, else the nearest", () => {

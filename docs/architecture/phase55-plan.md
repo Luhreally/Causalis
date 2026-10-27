@@ -100,6 +100,54 @@ hand, on a crutch, an eye patched — their pages tell it.
 - **M230** view options: T33 view/warviews.ts; T34 ui/war-views.ts.
 - **M231** gate 55, probe55, docs.
 
+## Wave 4 as built (M227, M228, M230, M231; 2026-10-26)
+- **The battle's day (D4, view/battleday.ts):** `BATTLE_DAY` = fought from 08:00 the morning after
+  the turn, a battle second a minute of the world's, 150 of them; the eve from 18:00 the night
+  before; toward it from ten days before; borne in from 12:00 two days on, buried at 14:00. The
+  clock is slowed once a stage, told under the bar ("Slowed to a minute a second for the battle at
+  the turn of year B") and let go at the viewer's word: toward it a day a second (town and land), the
+  eve an hour, the battle a minute in its town and ten minutes on its land, after it a day, the
+  borne an hour in its town. A speed chosen inside a stage goes to the world already slowed (the
+  time bar's governor): a frame late, at a month a second, is days, and the battle would be gone.
+  At the turn, until the page has the year's wars (a host round trip), the wars are drawn, and
+  their battles' slowings kept, as they were the moment before (`warsAt`).
+  The clock is brought down to each slowing as it nears it, no faster than would carry it half way
+  there by the next frame (frames as long as they have lately been), so it comes to each beginning
+  at its own speed however slowly frames come (view/battleday.ts `slowAhead`); the bar tells what
+  holds it, the stage ahead where that is slower than the one in force.
+- **Where (view/placed.ts):** along the town's road on the attackers' side, the defenders' rear rank
+  12 m short of its homes; laid twice the close field's size (PLACED_SCALE 2, not 1.875: its figures
+  as large as the town's folk, the field 280 × 180 m); flat, the field's own ridge and river dropped;
+  at a seat its walls stand as outworks before the town's own; the beaten defenders fly to the
+  flanks, its pursuers stop short of the town.
+- **Seen (render):** every figure a man of the roll (`rollNames`, by the roll's lots: no line ever
+  assumed); the town indoors 07:00–11:00 but 24 come out to its edge; the hosts' fires behind their
+  lines until 06:30; the eye brought to the clash from its side as the battle begins, some 100 m off
+  (on a phone held upright, drawn back until some 55 m about the clash fill its width); past 160 m
+  only a figure's larger parts and no blows; shadows at Ultra alone; the layer built on the eve and
+  kept through the town's rebuilding; laid again at a setting's detail; the victors and the beaten
+  after it as the town's war draws them.
+- **Phone (430 × 932 at 3, CPU ×4, the battle at the clash):** Low 18–19 ms and Balanced 18–20 ms
+  p80 playing at a minute a second; High 25–31 ms and Ultra 34–39 ms held (the town alone at High is
+  21 ms); Auto comes to rest within the budget, at Balanced (18 ms) on a quiet machine.
+- **Arms traced (M228):** `arms.borne {event, side, who}` → what one man bore there, its maker, where
+  and when it was made and its grade (`armsMade(…, who)` varies the maker's seat by the man); his
+  `arms:` page from the ground to his hand; the battle panel's man and the town's card tell it.
+- **Views (M230):** the war over the world, the march on the land, before the town, the close field —
+  a column of four under the bar wherever a battle is watched; one closed says why ("Fought before
+  its town the morning of the turn of year Y: the world is not there now"); each gone to as from
+  nowhere.
+- **The town, the way in while it is fought (2026-10-27: "i meant open world warfare on town view
+  not land view"):** from its eve until the beaten fly (`foughtNow`), a battle is gone into before
+  the town of its land — its mark on the land zoomed onto (the night before it, its hosts' mark), its
+  page's watch, the tidings', an event window's, a war's or an age's bar — the eye brought onto the
+  fight; a battle past, or on a land no town stands on, onto its field as before. The switcher's
+  field and land stay a tap away; a war unfolding going down to each battle (M196) and the
+  director's battle take keep the field.
+- **Gate 55's battle part (B1–B6)** and `tools/probe-placed.ts` (figures, names, the rule, the
+  roll's and the field's cost per setting); gate 40 follows the battle to the morning after, the
+  clock left to run across the turn on the land and before a town.
+
 ## After Phase 55
 Truly alien worlds (world kinds, alien biochemistry, their own names, invented matter as an option): docs/architecture/alien-worlds-plan.md, Phases 56–59, asked for 2026-10-26.
 

@@ -3,10 +3,34 @@
 // the start), its page — and under it the two hosts, each in its colour with what it fought with,
 // how many of it stand and how many have fallen as the battle goes (so many men to a figure); and
 // the battle's course, a line drawn back and forth to see any moment of it, what is told now
-// under it.
+// under it. The one followed named (Phase 55 M227–M228): who he was, where from, how he came out of
+// it, what he bore and who made it.
 import type { BattleNear } from "../bridge/index.ts";
 import { BATTLE_LENGTH, BATTLE_SPEEDS, MOMENTS } from "../view/index.ts";
 import { el } from "./why.ts";
+
+/** One who fought, named (Phase 55 M227–M228), as his card tells him. */
+export type ManCard = {
+  readonly name: string;
+  /** His page. */
+  readonly page: string;
+  /** Which host he fought in (0 the attacker's). */
+  readonly side: 0 | 1;
+  /** Where he came from (null: not known), and his age that day. */
+  readonly from: string | null;
+  readonly age: number;
+  /** How he came out of it: "Fell in the battle". */
+  readonly fate: string;
+  /** What he bore ("a chert-tipped spear"), who made it ("Ana Talinor, a knapper of Elmstead"), and its page (null: none told). */
+  readonly arm: string | null;
+  readonly maker: string | null;
+  readonly armPage: string | null;
+};
+
+/** What he bore and who made it, told: "Bore a chert-tipped spear, made by Ana Talinor, a knapper of Elmstead". */
+export function boreWords(m: ManCard): string | null {
+  return m.arm ? `Bore ${m.arm}${m.maker ? `, made by ${m.maker}` : ""}` : null;
+}
 
 /** A speed as its button says it. */
 const SPEED_WORDS = ["❚❚", "½×", "1×", "2×", "4×"] as const;
@@ -45,6 +69,9 @@ export class BattlePanel {
   private readonly followed = el("div", "battle-followed");
   private readonly followedWords = el("span", "battle-followed-words");
   private readonly weapon = el("button", "speed battle-weapon", "🔍 Their weapon, traced");
+  /** Who the one followed is, where the battle's roll names him (Phase 55 M227–M228). */
+  private readonly man = el("div", "battle-man");
+  private manShown: ManCard | null = null;
   /** Whether each side has a host design to trace its weapon to (a beast's own claws have none). */
   private traceable: readonly [boolean, boolean] = [false, false];
   private shown = "";
@@ -59,6 +86,8 @@ export class BattlePanel {
   onSide: (ref: string) => void = () => {};
   /** The weapon of the one followed, traced: the page of what they fought with. */
   onWeapon: () => void = () => {};
+  /** The page of the one followed, named, or of the arm he bore (Phase 55 M227–M228). */
+  onMan: (ref: string) => void = () => {};
 
   constructor(root: HTMLElement) {
     const bar = el("header", "bar");
@@ -135,7 +164,8 @@ export class BattlePanel {
     }
     const middle = el("div", "battle-middle");
     this.followed.hidden = true;
-    this.followed.append(this.followedWords, this.weapon);
+    this.man.hidden = true;
+    this.followed.append(this.man, this.followedWords, this.weapon);
     this.weapon.hidden = true;
     this.weapon.title = "Where what they fought with was made, from the ground to their hand";
     this.weapon.onclick = () => this.onWeapon();
@@ -201,6 +231,40 @@ export class BattlePanel {
     if (this.followedWords.textContent !== words) this.followedWords.textContent = words;
     this.followed.hidden = !words;
     this.weapon.hidden = !words || side === null || !this.traceable[side];
+  }
+
+  /**
+   * Who the one followed is (Phase 55 M227–M228; null: none named): his name (a tap to his page),
+   * where he came from and his age, how he came out of it, what he bore and who made it.
+   */
+  named(m: ManCard | null): void {
+    if (m === this.manShown) return;
+    this.manShown = m;
+    this.man.hidden = !m;
+    if (!m) {
+      this.man.replaceChildren();
+      return;
+    }
+    const who = el("button", "link battle-man-name", m.name),
+      bore = boreWords(m);
+    who.title = "His page";
+    who.onclick = () => this.onMan(m.page);
+    const arm = bore ? el("button", "link battle-man-arm", bore) : null;
+    if (arm && m.armPage) {
+      const ref = m.armPage;
+      arm.title = "His arm, from the ground to his hand";
+      arm.onclick = () => this.onMan(ref);
+    }
+    this.man.replaceChildren(
+      who,
+      el("span", "battle-man-facts", `${m.from ? ` of ${m.from}` : ""}, ${m.age}: ${m.fate}`),
+      ...(arm ? [arm] : []),
+    );
+  }
+
+  /** The one followed as named on the card (null: none), for the look tools. */
+  get manNamed(): ManCard | null {
+    return this.man.hidden ? null : this.manShown;
   }
 
   /** Whether the button that traces their weapon is shown. */

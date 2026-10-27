@@ -1,5 +1,6 @@
 // A town's war drawn about it (Phase 40 M204): the besiegers' tents ringing it and their camp's
-// fires, and its houses burning when it is stormed — flames and the smoke over them. Its soldiers
+// fires, and its houses burning when it is stormed — flames and the smoke over them; the hosts'
+// fires the night before a battle before it (Phase 55 M227). Its soldiers
 // are the village's own figures in their sides' colours (render/village.ts). Units as the
 // village's: a tenth of a unit to the metre; tents and flames sized to its folk, drawn three times
 // a person's size.
@@ -11,6 +12,7 @@ import type { TownWarScene } from "../view/index.ts";
 const M = 0.1;
 /** The most tents, camp fires, burning houses (each its flames and its smoke's puffs). */
 const MOST_TENTS = 16,
+  MOST_CAMP = 24,
   MOST_FIRES = 16,
   FLAMES = 3,
   PUFFS = 5;
@@ -25,7 +27,7 @@ export class TownWarLayer {
   private readonly flames: InstancedBatch;
   private readonly smoke: InstancedBatch;
   /** What was last drawn (the look tools). */
-  shown = { tents: 0, fires: 0 };
+  shown = { tents: 0, fires: 0, camp: 0 };
 
   constructor(stage: Stage, parent: pc.Entity) {
     parent.addChild(this.root);
@@ -37,7 +39,14 @@ export class TownWarLayer {
     fire.update();
     const cone = coneMesh(stage, 0.5, 1, 6);
     this.tents = new InstancedBatch(stage, coneMesh(stage, 0.5, 1, 4), CANVAS, MOST_TENTS, root);
-    this.campFires = new InstancedBatch(stage, cone, [1, 0.5, 0.12], MOST_TENTS, root, fire);
+    this.campFires = new InstancedBatch(
+      stage,
+      cone,
+      [1, 0.5, 0.12],
+      MOST_TENTS + MOST_CAMP,
+      root,
+      fire,
+    );
     this.flames = new InstancedBatch(stage, cone, [1, 0.5, 0.12], MOST_FIRES * FLAMES, root, fire);
     this.smoke = new InstancedBatch(
       stage,
@@ -49,13 +58,23 @@ export class TownWarLayer {
     );
   }
 
-  /** The war about the town now (null: none), its flames and smoke moving by the screen's clock `s`. */
-  update(scene: TownWarScene | null, s: number): void {
+  /**
+   * The war about the town now (null: none), its flames and smoke moving by the screen's clock `s`;
+   * and `camp`, the fires of a battle's hosts drawn up before it in place the night before (metres).
+   */
+  update(
+    scene: TownWarScene | null,
+    s: number,
+    camp: readonly { readonly x: number; readonly z: number }[] = [],
+  ): void {
     const tents = scene?.tents ?? [],
       fires = scene?.fires ?? [],
       nt = Math.min(MOST_TENTS, tents.length),
-      nf = Math.min(MOST_FIRES, fires.length);
-    this.shown = { tents: nt, fires: nf };
+      nf = Math.min(MOST_FIRES, fires.length),
+      // (The hosts' fires the night before a battle before it: drawn up about the town, or in place.)
+      lines = [...(scene?.camp ?? []), ...camp],
+      nc = Math.min(MOST_CAMP, lines.length);
+    this.shown = { tents: nt, fires: nf, camp: nc };
     this.tents.set(nt, (i, out) => {
       const t = tents[i]!;
       out[0] = t.x * M;
@@ -66,9 +85,21 @@ export class TownWarLayer {
       out[5] = 0.95;
       out[6] = t.yaw + Math.PI / 4;
     });
-    // (A fire before every third tent.)
-    const camp = Math.ceil(nt / 3);
-    this.campFires.set(camp, (j, out) => {
+    // (A fire before every third tent; then the hosts' fires.)
+    const byTents = Math.ceil(nt / 3);
+    this.campFires.set(byTents + nc, (j, out) => {
+      if (j >= byTents) {
+        const c = lines[j - byTents]!,
+          flick = 0.85 + 0.15 * Math.sin(s * 9 + j * 2.1);
+        out[0] = c.x * M;
+        out[1] = 0.1 * flick;
+        out[2] = c.z * M;
+        out[3] = 0.16;
+        out[4] = 0.22 * flick;
+        out[5] = 0.16;
+        out[6] = s * 2 + j;
+        return;
+      }
       const t = tents[j * 3]!,
         a = Math.atan2(t.z, t.x),
         flick = 0.85 + 0.15 * Math.sin(s * 9 + j * 2.1);

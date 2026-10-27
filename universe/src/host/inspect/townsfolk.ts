@@ -13,6 +13,7 @@ import { battleWords, burialWords } from "../burials.ts";
 import { LINE, folkWork, townRoster, workOf, type Fate } from "../roster.ts";
 import { resolveLevyMan } from "../roll.ts";
 import { holderWounds } from "../wounds.ts";
+import { armsBlock } from "./arm.ts";
 import { item, link, sentence, stat, yearNow } from "./words.ts";
 import { landLink, realmLink, townLink } from "./names.ts";
 import { lookOf, woundBlock } from "./wounds.ts";
@@ -102,6 +103,10 @@ export function townsfolkPage(world: World, ref: string): PageModel {
       ),
     });
   if (told) blocks.push(told);
+  // What he bore at the battle he fell at, else his last (Phase 55 M228), from the ground to his hand.
+  const bore = fell ?? h.fates.at(-1),
+    arms = bore ? armsBlock(world, bore.event, bore.side, h.ref) : null;
+  if (arms) blocks.push(arms);
   blocks.push({
     type: "text",
     lines: [
@@ -147,7 +152,9 @@ export function townsfolkPage(world: World, ref: string): PageModel {
 export function levyManPage(world: World, ref: string): PageModel {
   const man = resolveLevyMan(world, ref);
   if (!man) throw new Error(`no one of a battle's levy is ${ref}`);
-  const from = man.place;
+  const from = man.place,
+    // (What he bore there, from the ground to his hand: Phase 55 M228.)
+    arms = armsBlock(world, man.event, man.side, ref);
   return {
     ref,
     kind: "person",
@@ -188,6 +195,7 @@ export function levyManPage(world: World, ref: string): PageModel {
               stat("Host", [realmLink(world, man.realm)]),
             ],
           },
+          ...(arms ? [arms] : []),
           {
             type: "text",
             lines: [

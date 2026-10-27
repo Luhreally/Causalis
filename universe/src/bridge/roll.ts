@@ -70,6 +70,18 @@ export type RollEntry = {
   readonly kept: boolean;
   readonly maimed?: true;
 };
+/** What one man of a battle's roll bore there and who made it, told (Phase 55 M228: his card's words). */
+export type ArmBorne = {
+  /** "a chert-tipped spear". */
+  readonly words: string;
+  /** "Ana Talinor, a knapper of Elmstead" (null: none made it, a body's own). */
+  readonly maker: string | null;
+  /** Where it was made: "the knappers' ground" (null: none). */
+  readonly at: string | null;
+  readonly grade: string | null;
+  /** Its page: `arms:<battle>:<side>:<his page>`. */
+  readonly page: string;
+};
 /** A place a side's men came from, with its figures: fallen, wounded who lived, the rest. */
 export type RollPlace = LevyPlace & { readonly figures: readonly [number, number, number] };
 /** A side on the roll: its figures, those named in each lot (place by place), and its places. */

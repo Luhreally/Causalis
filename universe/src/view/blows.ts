@@ -425,7 +425,11 @@ function markOf(striker: Striker, blow: Blow): Exclude<WoundMark, "stump"> {
   return blow === "edge" ? "cut" : blow === "point" ? "stab" : "bruise";
 }
 
-/** How many of a side's figures are drawn as its wounded who lived: so many for so many men, at most HURT.most of those that may be. */
+/**
+ * How many of a side's figures are drawn as its wounded who lived: so many for so many men, at most
+ * HURT.most of those that may be (its figures that do not fall: the one rule, bridge/roll.ts
+ * battleFigures, so the roll names each of them).
+ */
 export function hurtFigures(wounded: number, eligible: number, per: number): number {
   return wounded > 0
     ? Math.max(
@@ -625,10 +629,12 @@ export function newBlows(field: BattleField): Blows {
       arm = foe.host?.arm,
       wounded = own.wounded ?? 0,
       h = field.hosts[side]!,
-      eligible = field.troopers.filter(
-        (t) => t.side === side && t.falls === null && !t.bearer && !t.gun && !climbers.has(t.id),
-      ),
-      n = hurtFigures(wounded, eligible.length, field.per);
+      standing = field.troopers.filter((t) => t.side === side && t.falls === null),
+      n = hurtFigures(wounded, standing.length, field.per),
+      // (Struck of those in the ranks, not a banner's bearer, a gun's team or one on a ladder;
+      // where too few, of those too.)
+      ranks = standing.filter((t) => !t.bearer && !t.gun && !climbers.has(t.id)),
+      eligible = ranks.length >= n ? ranks : standing;
     if (!n) continue;
     // As the side's dead fell: so many to what the other side loosed, the rest in the press.
     const dead = field.troopers.filter((t) => t.side === side && t.falls !== null),

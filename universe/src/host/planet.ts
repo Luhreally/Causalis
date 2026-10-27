@@ -144,6 +144,7 @@ import { landPlan } from "./land.ts";
 import { campNear } from "./camp.ts";
 import { battleNear, battleOutcome } from "./battle.ts";
 import { battleRoll } from "./roll.ts";
+import { armBorne } from "./inspect/arm.ts";
 import { landTitle } from "./inspect/names.ts";
 import { campaignOf, warsOfAge } from "./campaign.ts";
 import { landReadings } from "./lenses.ts";
@@ -1255,6 +1256,11 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "battle.roll": (world, args) => {
         const a = args as { event: string; most?: number };
         return battleRoll(world, a.event, a.most);
+      },
+      // What a man of a battle's roll bore there and who made it (Phase 55 M228): his card's words.
+      "arms.borne": (world, args) => {
+        const a = args as { event: string; side: 0 | 1; who: string };
+        return armBorne(world, a.event, a.side === 1 ? 1 : 0, a.who);
       },
       // A war's course, to be watched unfolding on the globe (Phase 38 M193).
       "war.campaign": (world, args) => campaignOf(world, (args as { ref: string }).ref),

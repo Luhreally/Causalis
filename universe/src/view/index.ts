@@ -313,6 +313,25 @@ export {
   type WoundNow,
 } from "./battle.ts";
 export {
+  BATTLE_CAPS,
+  BATTLE_DAY,
+  battleCapAt,
+  battleCapSpans,
+  battleCapWords,
+  battleSecond,
+  battleSlowings,
+  battleSpan,
+  battleStage,
+  battleTurn,
+  battleTurnWords,
+  borneShare,
+  slowAhead,
+  slowingBegun,
+  type BattleCap,
+  type BattleStage,
+  type Slowing,
+} from "./battleday.ts";
+export {
   BLEED,
   GORES,
   SEVER,
@@ -478,6 +497,35 @@ export {
   type TownWar,
   type TownWarScene,
 } from "./townwar.ts";
+export {
+  FATE_WORDS,
+  PLACED_MOST,
+  PLACED_SCALE,
+  WATCHERS,
+  battleShelter,
+  borneNow,
+  fallenNow,
+  fieldFrame,
+  fieldPoint,
+  fieldWatchers,
+  figureFate,
+  frameYaw,
+  placedCamp,
+  placedMost,
+  placedPoint,
+  rollNames,
+  type FigureFate,
+  type PlacedFrame,
+  type Watcher,
+} from "./placed.ts";
+export {
+  WAR_VIEWS,
+  WAR_VIEW_WORDS,
+  foughtNow,
+  warViewsClosed,
+  type WarView,
+  type WarViewed,
+} from "./warviews.ts";
 export { hallCells, hallDomes } from "./halls.ts";
 
 export {

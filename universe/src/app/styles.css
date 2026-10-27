@@ -719,6 +719,72 @@ body[data-scale="micro"] {
 .battle-weapon[hidden] {
   display: none;
 }
+/* One who fought, named (Phase 55 M227–M228): his name a tap to his page, what he bore under it. */
+.battle-man {
+  font-size: 0.82rem;
+  color: var(--ink);
+}
+.battle-man[hidden] {
+  display: none;
+}
+.battle-man-name {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 650;
+  color: #ffe08a;
+}
+.battle-man-arm {
+  display: block;
+  min-height: 0;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  text-decoration: underline dotted;
+}
+/* The ways to watch a battle (Phase 55 M230): a column of four under the bar at the left, the one
+   watched lit, those it cannot be watched in now dimmed; on a phone, their signs alone. */
+.war-views {
+  position: absolute;
+  z-index: 0;
+  left: 8px;
+  top: calc(var(--bar-bottom, 72px) + 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.war-views[hidden] {
+  display: none;
+}
+.war-view {
+  min-height: 32px;
+  padding: 3px 10px;
+  font-size: 0.85rem;
+  text-align: left;
+}
+.war-view.on {
+  border-color: #ff9a3c;
+  box-shadow: inset 0 0 10px rgba(255, 140, 40, 0.35);
+}
+.war-view:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+@media (max-width: 640px) {
+  .war-views {
+    top: calc(var(--bar-bottom, 72px) + 96px);
+  }
+  .war-view {
+    min-width: 40px;
+    padding: 3px 8px;
+  }
+  .war-view-words {
+    display: none;
+  }
+}
 /* A war watched unfolding (Phase 38 M193): its battles marked on its course where their turns
    come, each in the colour of the side that won it; the battle told of, to be watched fought. */
 .war-mark {

@@ -7,12 +7,15 @@
 // - the attacker's host musters in its land nearest that, marches on it by the roads, and draws
 //   up before it;
 // - the defenders' host keeps its seat, rallies to the land, and comes out to meet it;
-// - the two are engaged as the year ends, and the battle is fought at its turn.
+// - the two lie drawn up before it to the year's end; history decides the battle at the turn, and
+//   it is fought the next morning (Phase 55 M227, D4: view/battleday.ts), the two engaged from eight
+//   until the beaten break, at the same moments in the land, before its town, and on the globe.
 // After the battle, the beaten fall back or fly. The victors hold the field, then march into the
 // land taken or lay siege to the seat; they camp about the seat all year and storm it at its end.
 // At peace, both go home. Pure: where each host is, and at what, at a moment of the world's.
 import { HEART_REACH, heartTown, type BattleOutcome, type WarsMap } from "../bridge/index.ts";
 import { roadLine, roadTiles, tileOf, wayOf, type LandGround, type Way } from "./land.ts";
+import { BATTLE_DAY } from "./battleday.ts";
 import { holdShape, landShape, type LandSpots } from "./war.ts";
 
 type War = WarsMap["wars"][number];
@@ -21,22 +24,31 @@ type Flat = { readonly x: number; readonly z: number };
 
 /**
  * When, through a war's year (from the turn its last battle was fought, 0, to the turn its next
- * is, 1), its hosts do what.
+ * is, 1), its hosts do what. (The rout and what follows it are counted from the end of that battle,
+ * fought the morning after the turn.)
  */
 export const WAR_YEAR = {
   /** The beaten in flight from the field until then. */
   rout: 0.03,
   /** The victors in the land taken or about the seat besieged, the beaten gone home, by then. */
   after: 0.15,
-  /** Its host mustered by then; on the march until `marched`; drawn up until `engage`; engaged to the turn. */
+  /** Its host mustered by then; on the march until `marched`; drawn up from then to the turn. */
   mustered: 0.3,
   marched: 0.82,
-  engage: 0.94,
   /** The defenders' host rallies from its seat from then, to be drawn up before the land by `marched`. */
   rally: 0.55,
   /** At peace: both hosts home by then, and stood down over `disband` more. */
   home: 0.45,
   disband: 0.05,
+} as const;
+
+/**
+ * The battle at the turn fought the next morning (D4), through its year from the turn: from eight,
+ * for its own seconds at a minute of the world's each (view/battleday.ts).
+ */
+const FOUGHT = {
+  from: BATTLE_DAY.from / (365 * 86_400),
+  to: (BATTLE_DAY.from + BATTLE_DAY.length * BATTLE_DAY.second) / (365 * 86_400),
 } as const;
 
 /** What a war's host is at. */
@@ -130,10 +142,23 @@ export type WarNow = {
   /** The turn its year began at (the world's years), and how far through the year it is (0 … 1). */
   readonly turn: number;
   readonly f: number;
+  /**
+   * How far through its year from the end of the battle it began with (0 until it is over; its year
+   * from the turn where it began with none): what the rout and what follows it are counted from.
+   */
+  readonly after: number;
   readonly attacker: HostNow | null;
   readonly defender: HostNow | null;
-  /** The battle its year ends in, once its hosts are drawn up for it: where, whether engaged yet, and how near the turn (0 … 1). */
-  readonly closing: { readonly spot: number; readonly engaged: boolean; readonly k: number } | null;
+  /**
+   * The battle to come, once its hosts are drawn up for it: where, the turn it is fought at, whether
+   * engaged yet, and how far on (0 … 1: drawn up, toward the turn; engaged, through the fight).
+   */
+  readonly closing: {
+    readonly spot: number;
+    readonly at: number;
+    readonly engaged: boolean;
+    readonly k: number;
+  } | null;
   /** The battle its year began with (fought at its turn), and what came of it. */
   readonly fought: { readonly battle: Fought; readonly outcome: BattleOutcome } | null;
   /** A seat under siege (its besiegers' camp about it), or null. */
@@ -191,32 +216,56 @@ export function warNow(w: War, y: number, mapYear: number): WarNow | null {
   let attacker: HostNow | null = null,
     defender: HostNow | null = null,
     closing: WarNow["closing"] = null,
-    held: number | null = null;
-  const begin = prev ? T.after : 0;
-  if (prev && prev.spot >= 0 && f < T.after) {
+    held: number | null = null,
+    /** A seat's walls stormed this morning (the siege's last battle, fought about them). */
+    storming: number | null = null;
+  // (The rest of the year from the end of the battle it began with.)
+  const g = Math.max(0, f - FOUGHT.to),
+    begin = prev ? FOUGHT.to + T.after : 0;
+  if (prev && prev.spot >= 0 && f < FOUGHT.to) {
+    // The battle the year began with, fought this morning (D4): its hosts drawn up through the
+    // night, engaged from eight. (The storm of a seat besieged a year: about its walls.)
+    const P = prev.spot,
+      engaged = f >= FOUGHT.from,
+      storm = w.battles.some((b) => b.year === turn - 2 && b.spot === P && b.outcome === "siege"),
+      D = seatD >= 0 ? seatD : P;
+    if (storm) storming = P;
+    attacker = storm
+      ? host(0, engaged ? "assaulting" : "besieging", P, P, 1, P, P)
+      : host(0, engaged ? "engaged" : "facing", muster, P, 1, P, P);
+    defender = storm
+      ? host(1, engaged ? "engaged" : "besieged", P, P, 1, P, P)
+      : host(1, engaged ? "engaged" : "facing", D, P, 1, P, P);
+    closing = {
+      spot: P,
+      at: turn,
+      engaged,
+      k: engaged ? (f - FOUGHT.from) / (FOUGHT.to - FOUGHT.from) : 1,
+    };
+  } else if (prev && prev.spot >= 0 && g < T.after) {
     // The battle the year began with, at its end.
     const P = prev.spot,
-      flight = ease(f / T.after),
-      into = ease((f - T.rout) / (T.after - T.rout));
+      flight = ease(g / T.after),
+      into = ease((g - T.rout) / (T.after - T.rout));
     if (outcome === "held") {
       attacker = host(0, "withdrawing", P, muster, flight, P, P);
       defender = host(1, "holding", P, P, 1, P, P);
     } else if (outcome === "siege") {
-      attacker = host(0, f < T.rout ? "holding" : "besieging", P, P, 1, P, P);
+      attacker = host(0, g < T.rout ? "holding" : "besieging", P, P, 1, P, P);
       defender =
-        f < T.rout
-          ? host(1, "routed", P, P, ease(f / T.rout), P, P)
+        g < T.rout
+          ? host(1, "routed", P, P, ease(g / T.rout), P, P)
           : host(1, "besieged", P, P, 1, P, P);
     } else {
       // The field won, and the land with it (or the seat stormed, its realm fallen).
       attacker =
-        outcome === "field" || f < T.rout
+        outcome === "field" || g < T.rout
           ? host(0, "holding", P, P, 1, P, P)
           : host(0, "entering", P, P, into, P, P);
       defender =
         outcome === "stormed"
-          ? f < T.rout
-            ? host(1, "routed", P, P, 1, P, P, 1 - ease(f / T.rout))
+          ? g < T.rout
+            ? host(1, "routed", P, P, 1, P, P, 1 - ease(g / T.rout))
             : null
           : host(1, "routed", P, seatD, flight, P, P, 1 - 0.5 * flight);
     }
@@ -230,12 +279,13 @@ export function warNow(w: War, y: number, mapYear: number): WarNow | null {
       if (outcome !== "stormed") defender = host(1, "returning", from, seatD, g, from, seatD, gone);
     }
   } else if (w.siege !== null && (next === w.siege || next === null)) {
-    // The seat under siege: its besiegers about it all year, storming its walls as it ends.
-    const S = w.siege,
-      storm = f >= T.engage;
-    attacker = host(0, storm ? "assaulting" : "besieging", S, S, 1, S, S);
-    defender = host(1, storm ? "engaged" : "besieged", S, S, 1, S, S);
-    if (storm) closing = { spot: S, engaged: true, k: (f - T.engage) / (1 - T.engage) };
+    // The seat under siege: its besiegers about it all year, making ready to storm its walls as it
+    // ends (stormed the next morning).
+    const S = w.siege;
+    attacker = host(0, "besieging", S, S, 1, S, S);
+    defender = host(1, "besieged", S, S, 1, S, S);
+    if (f >= T.marched)
+      closing = { spot: S, at: turn + 1, engaged: false, k: (f - T.marched) / (1 - T.marched) };
   } else if (next !== null) {
     // The year's march: mustered, on the way, drawn up before what it wants, engaged.
     if (f < T.mustered)
@@ -259,11 +309,10 @@ export function warNow(w: War, y: number, mapYear: number): WarNow | null {
         next,
         next,
       );
-    else attacker = host(0, f < T.engage ? "facing" : "engaged", muster, next, 1, next, next);
+    else attacker = host(0, "facing", muster, next, 1, next, next);
     // The defenders: the land's own garrison holds it while their host keeps the seat, then rallies.
     const D = seatD >= 0 ? seatD : next;
-    if (f >= T.marched)
-      defender = host(1, f < T.engage ? "facing" : "engaged", D, next, 1, next, next);
+    if (f >= T.marched) defender = host(1, "facing", D, next, 1, next, next);
     else if (D === next) defender = host(1, "garrisoned", next, next, 1, next, next);
     else if (f >= T.rally) {
       defender = host(
@@ -281,11 +330,7 @@ export function warNow(w: War, y: number, mapYear: number): WarNow | null {
       held = next;
     }
     if (f >= T.marched)
-      closing = {
-        spot: next,
-        engaged: f >= T.engage,
-        k: (f - T.marched) / (1 - T.marched),
-      };
+      closing = { spot: next, at: turn + 1, engaged: false, k: (f - T.marched) / (1 - T.marched) };
   } else {
     // Nothing left between them to fight for: the war ends at the turn; its hosts wait at home.
     attacker = host(0, "garrisoned", muster, muster, 1, muster, muster);
@@ -295,11 +340,12 @@ export function warNow(w: War, y: number, mapYear: number): WarNow | null {
     ref: w.ref,
     turn,
     f,
+    after: prev ? g : f,
     attacker,
     defender,
     closing,
     fought: prev && outcome ? { battle: prev, outcome } : null,
-    siege: peace ? null : w.siege,
+    siege: storming ?? (peace ? null : w.siege),
     held,
   };
 }
@@ -711,7 +757,7 @@ export function landInPlace(map: WarsMap, y: number, play: LandPlay, s: number):
     const where = n.siege !== null && n.siege === front ? town0 : F;
     if (n.closing && where && n.closing.spot === front)
       fights.push({
-        key: `${w.ref}:${n.turn + 1}`,
+        key: `${w.ref}:${n.closing.at}`,
         war: wi,
         ref: w.ref,
         x: where.x,
@@ -720,7 +766,13 @@ export function landInPlace(map: WarsMap, y: number, play: LandPlay, s: number):
         k: n.closing.k,
         name: `⚔️ The battle for ${landName}${before}`,
       });
-    else if (n.fought && n.f < WAR_YEAR.rout && n.fought.battle.spot === front && where)
+    else if (
+      n.fought &&
+      !n.closing &&
+      n.after < WAR_YEAR.rout &&
+      n.fought.battle.spot === front &&
+      where
+    )
       fights.push({
         key: `${w.ref}:${n.turn}`,
         war: wi,
@@ -728,7 +780,7 @@ export function landInPlace(map: WarsMap, y: number, play: LandPlay, s: number):
         x: where.x,
         z: where.z,
         stage: "rout",
-        k: n.f / WAR_YEAR.rout,
+        k: n.after / WAR_YEAR.rout,
         name: `⚔️ The battle for ${landName}${before}`,
       });
     /** The besieged on their walls about a seat's town (stirred as it is stormed): where its middle stands. */
@@ -952,9 +1004,9 @@ export function landInPlace(map: WarsMap, y: number, play: LandPlay, s: number):
 }
 
 /**
- * Which of a host's ranks fall at the fight the year ends in, by how far on it is: a few of its
- * front rank, each at its own moment of the fight (no more than history's least for a victor, so
- * none rise again once the battle is told).
+ * Which of a host's ranks fall in the battle the year began with, fought the morning after the turn,
+ * by how far on it is: a few of its front rank, each at its own moment of the fight (no more than
+ * history's least for a victor; none before the turn, when history tells it).
  */
 function fallingAt(n: WarNow, w: War, side: 0 | 1): (i: number) => boolean {
   const c = n.closing;

@@ -5,12 +5,21 @@
 // - before the land's heart (the town its battles are fought before, view/warplay's heartTown) the
 //   hosts come by the road, draw up, close and fight as the year ends; at the turn the beaten fly
 //   (behind its walls, a siege laid), the fallen lie where they fell, the victors hold the field
-//   and march in;
+//   and march in — fought the morning after the turn, and in place where its own layer draws it
+//   (Phase 55 M227: view/placed.ts), the fallen lying until they are borne in two days on;
 // - a siege: the besiegers camped about it all year and storming its walls at the end; a town
 //   stormed burns;
 // - at the peace its men come home by the road.
 // Pure: who stands where, at a moment of the world's.
 import type { BattleOutcome, VillagePlan, WarsMap } from "../bridge/index.ts";
+import {
+  BATTLE_DAY,
+  battleSecond,
+  battleStage,
+  battleTurnWords,
+  borneShare,
+  type BattleStage,
+} from "./battleday.ts";
 import { keepOut, villageGround } from "./ground.ts";
 import { drillGround } from "./village.ts";
 import { WAR_YEAR, warNow, type HostNow, type WarNow } from "./warplay.ts";
@@ -93,7 +102,23 @@ export type TownWar = {
     readonly outcome: BattleOutcome;
     /** Fought about its walls (a siege's storm), not on the field before it. */
     readonly walls: boolean;
+    /** Its fallen borne in and buried (two days after it was fought: Phase 55 M227), lying there no more. */
+    readonly buried: boolean;
   } | null;
+  /**
+   * The battle at the turn fought in place before it (Phase 55 M227; null: none now), from the turn
+   * until its fallen are buried: the battle, the turn it is fought at, its stage, its own second now,
+   * and how many of its fallen are borne in (0 … 1).
+   */
+  readonly placed: {
+    readonly event: string;
+    readonly turn: number;
+    readonly stage: Exclude<BattleStage, "eve">;
+    readonly s: number;
+    readonly borne: number;
+  } | null;
+  /** The night before the battle at the turn before it (from six on its eve to eight): the hosts by their fires. */
+  readonly eve: boolean;
   /** Whether a siege is about it this year (its besiegers' camp; the storm at the year's end). */
   readonly siege: boolean;
   /** How hard it burns (0 … 1): a town stormed (a land taken, a little). */
@@ -105,6 +130,7 @@ export type TownWar = {
 /** What a town is to its land's wars: its land's spot (the globe's grid), and whether it is the land's heart. */
 export type TownPlace = { readonly spot: number; readonly heart: boolean };
 
+const YEAR = 365 * 86_400;
 /** How much of a march's way (eased) a town sees: its column leaving by the road, and coming in by it. */
 const OUT = 0.08,
   IN = 0.08;
@@ -189,7 +215,7 @@ function atTown(h: HostNow, n: WarNow, w: War, place: TownPlace): TownHost | nul
       // (Out of the town's sight, or behind its walls, as the rout ends.)
       const inward = h.to === S && n.fought?.outcome === "siege";
       return heart && h.from === S
-        ? host("fleeing", inward ? `fled behind the walls` : `in flight`, n.f / WAR_YEAR.rout, {
+        ? host("fleeing", inward ? `fled behind the walls` : `in flight`, n.after / WAR_YEAR.rout, {
             inward,
           })
         : null;
@@ -201,7 +227,7 @@ function atTown(h: HostNow, n: WarNow, w: War, place: TownPlace): TownHost | nul
         ? host(
             "besieging",
             `besieging the town`,
-            n.fought ? (n.f - WAR_YEAR.rout) / (WAR_YEAR.after - WAR_YEAR.rout) : 1,
+            n.fought ? (n.after - WAR_YEAR.rout) / (WAR_YEAR.after - WAR_YEAR.rout) : 1,
           )
         : null;
     case "assaulting":
@@ -241,27 +267,22 @@ export function townWarNow(map: WarsMap, y: number, place: TownPlace): TownWar |
         gathered: 1,
         words: `holding the town until their host comes`,
       });
-    const fought = place.heart && n.fought && n.fought.battle.spot === place.spot ? n.fought : null;
+    // (Its fallen lie there once it is fought: the morning after the turn, D4.)
+    const fought =
+      place.heart && n.fought && n.fought.battle.spot === place.spot && n.closing?.at !== n.turn
+        ? n.fought
+        : null;
     if (!hosts.length && !fought) continue;
     const score = Math.max(0, ...hosts.map((h) => PRESSING[h.doing])) + (fought ? 0.5 : 0);
     if (score <= bestScore) continue;
     bestScore = score;
     const c = place.heart && n.closing?.spot === place.spot ? n.closing : null,
       T = WAR_YEAR,
+      // (Drawn up to the turn and through the night; engaged the next morning, D4: Phase 55 M227.)
       fight: TownWar["fight"] = c
-        ? c.engaged
-          ? {
-              stage: "engaged",
-              k: clamp01((n.f - T.engage) / (1 - T.engage)),
-              key: `${w.ref}:${n.turn + 1}`,
-            }
-          : {
-              stage: "drawn",
-              k: clamp01((n.f - T.marched) / (T.engage - T.marched)),
-              key: `${w.ref}:${n.turn + 1}`,
-            }
-        : fought && n.f < T.rout
-          ? { stage: "rout", k: clamp01(n.f / T.rout), key: `${w.ref}:${n.turn}` }
+        ? { stage: c.engaged ? "engaged" : "drawn", k: clamp01(c.k), key: `${w.ref}:${c.at}` }
+        : fought && n.after < T.rout
+          ? { stage: "rout", k: clamp01(n.after / T.rout), key: `${w.ref}:${n.turn}` }
           : null,
       // (A storm of its walls: the battle the year before laid the siege it ended.)
       walls =
@@ -271,12 +292,30 @@ export function townWarNow(map: WarsMap, y: number, place: TownPlace): TownWar |
         ),
       fire = fought?.outcome === "stormed" ? 1 : fought?.outcome === "taken" && !walls ? 0.35 : 0,
       // (Burning through the victors' entry, smouldering a season after.)
-      burning = fire * (n.f < T.after ? 1 : clamp01(1 - (n.f - T.after) / 0.25)),
+      burning = fire * (n.after < T.after ? 1 : clamp01(1 - (n.after - T.after) / 0.25)),
       top = [...hosts].sort((a, b) => PRESSING[b.doing] - PRESSING[a.doing])[0],
       sideName = (side: 0 | 1) => {
         const name = (side === 0 ? w.attacker : w.defender).name;
         return name.charAt(0).toUpperCase() + name.slice(1);
-      };
+      },
+      // The battle at the turn fought in place before its heart (Phase 55 M227): from the turn until
+      // its fallen are buried; and the night before it, its hosts by their fires.
+      t = y * YEAR,
+      atTurn =
+        place.heart && n.fought && n.fought.battle.spot === place.spot ? n.fought.battle : null,
+      stage = atTurn ? battleStage(t, n.turn) : null,
+      placed: TownWar["placed"] =
+        atTurn && stage && stage !== "eve"
+          ? {
+              event: atTurn.event,
+              turn: n.turn,
+              stage,
+              s: battleSecond(t, n.turn),
+              borne: borneShare(t, n.turn),
+            }
+          : null,
+      night = c && !c.engaged ? battleStage(t, c.at) : null,
+      told = battleTurnWords(n.turn).replace(/^the/, "The");
     best = {
       ref: w.ref,
       sides: [w.attacker, w.defender],
@@ -289,13 +328,21 @@ export function townWarNow(map: WarsMap, y: number, place: TownPlace): TownWar |
             fallen: fought.battle.fallen,
             outcome: fought.outcome,
             walls,
+            buried: t >= n.turn * YEAR + BATTLE_DAY.buried,
           }
         : null,
-      siege: place.heart && (n.siege === place.spot || (walls && n.f < T.after)),
+      placed,
+      eve: night === "eve" || night === "morning",
+      siege: place.heart && (n.siege === place.spot || (walls && n.after < T.after)),
       burning,
-      words: top
-        ? `${TOWN_DOING_ICON[top.doing]} ${sideName(top.side)}: ${top.words}`
-        : `⚔️ The field where ${sideName(0)} fought ${w.defender.name}`,
+      words:
+        placed?.stage === "morning"
+          ? `🛡️ ${sideName(0)} and ${w.defender.name} drawn up before the town: ${battleTurnWords(n.turn)}, at eight`
+          : placed?.stage === "battle"
+            ? `⚔️ ${told}, fought before the town`
+            : top
+              ? `${TOWN_DOING_ICON[top.doing]} ${sideName(top.side)}: ${top.words}`
+              : `⚔️ The field where ${sideName(0)} fought ${w.defender.name}`,
     };
   }
   return best;
@@ -313,6 +360,8 @@ export type TownWarScene = {
   readonly tents: readonly { readonly x: number; readonly z: number; readonly yaw: number }[];
   /** Its houses burning: where, how high the flames (0 … 1). */
   readonly fires: readonly { readonly x: number; readonly z: number; readonly size: number }[];
+  /** The hosts' fires the night before a battle before it, behind their lines (Phase 55 M227). */
+  readonly camp: readonly { readonly x: number; readonly z: number }[];
   /** Where each side's host stands (the middle of those drawn), for its label; null: none there. */
   readonly middles: readonly [Flat | null, Flat | null];
 };
@@ -384,9 +433,16 @@ const fallsAt = (i: number, side: number) => 0.3 + 0.6 * unit(i, side * 13 + 1);
  * A town's war drawn as it stands now: `each` of a side's host, placed by what it is
  * at — on its muster ground, in column on the road, in two ranks on its line before the town or
  * closing and fighting at the line between, about its walls, in flight — and the fallen of the
- * battle fought before it lying where they fell, the beaten the more. Pure.
+ * battle fought before it lying where they fell, the beaten the more, until they are buried; the
+ * night before a battle, its hosts' fires. `placed`: the battle at the turn drawn in place by its
+ * own layer (Phase 55 M227), so none of its hosts here while it is fought, nor its fallen. Pure.
  */
-export function townWarScene(plan: VillagePlan, war: TownWar, each: number): TownWarScene {
+export function townWarScene(
+  plan: VillagePlan,
+  war: TownWar,
+  each: number,
+  placed = false,
+): TownWarScene {
   const ground = villageGround(plan),
     way = Math.atan2(plan.road.z, plan.road.x),
     ux = Math.cos(way),
@@ -406,6 +462,7 @@ export function townWarScene(plan: VillagePlan, war: TownWar, each: number): Tow
     soldiers: Soldier[] = [],
     tents: { x: number; z: number; yaw: number }[] = [],
     fires: { x: number; z: number; size: number }[] = [],
+    nightFires: { x: number; z: number }[] = [],
     sum = [
       { x: 0, z: 0, n: 0 },
       { x: 0, z: 0, n: 0 },
@@ -514,6 +571,9 @@ export function townWarScene(plan: VillagePlan, war: TownWar, each: number): Tow
   };
   const fight = war.fight,
     fought = war.fought,
+    // (Drawn in place by its own layer: its hosts while it is fought, its fallen till they are buried.)
+    inPlace = placed && war.placed !== null,
+    fighting = inPlace && (war.placed!.stage === "morning" || war.placed!.stage === "battle"),
     beaten: 0 | 1 = fought ? (fought.won ? 1 : 0) : 1,
     // (As many fell, the beaten two in three of them, as fell of those who fought — at least a few.)
     share = fought ? Math.max(0.1, Math.min(0.5, fought.fallen / (fought.fallen + 400))) : 0,
@@ -544,8 +604,9 @@ export function townWarScene(plan: VillagePlan, war: TownWar, each: number): Tow
     const h = war.hosts.find((x) => x.side === side) ?? null,
       shown = h ? Math.round(h.gathered * each) : 0;
     for (let i = 0; i < each; i++) {
-      // The fallen of the battle fought before it, where they fell; its host without them.
-      const dead = !!fought && falls(i, side, each, deadOf(side));
+      // The fallen of the battle fought before it, where they fell until buried; its host without them.
+      const fell = !!fought && falls(i, side, each, deadOf(side)),
+        dead = fell && !fought.buried && !inPlace;
       if (dead) {
         const p = foughtAt(i, side);
         soldiers[side * 2 * each + each + i] = {
@@ -565,7 +626,7 @@ export function townWarScene(plan: VillagePlan, war: TownWar, each: number): Tow
           doing: "fallen",
           size: 0,
         };
-      if (!h || i >= shown || (dead && h.doing !== "mustering" && h.doing !== "home")) {
+      if (!h || i >= shown || fighting || (fell && h.doing !== "mustering" && h.doing !== "home")) {
         hide(i, side);
         continue;
       }
@@ -718,12 +779,22 @@ export function townWarScene(plan: VillagePlan, war: TownWar, each: number): Tow
     }
     for (let i = 0; i < each; i++) if (!soldiers[side * 2 * each + i]) hide(i, side);
   }
-  // The besiegers' tents about the town, and their camp's fires.
-  if (war.siege || war.hosts.some((h) => h.doing === "besieging" || h.doing === "assaulting"))
+  // The besiegers' tents about the town, and their camp's fires (none while the battle before it
+  // is fought in place: its hosts and their fires are its own layer's then).
+  if (
+    !fighting &&
+    (war.siege || war.hosts.some((h) => h.doing === "besieging" || h.doing === "assaulting"))
+  )
     for (let j = 0; j < TENTS; j++) {
       const a = way + ((j + 0.25) / TENTS) * 2 * Math.PI + (unit(key, 5) - 0.5) * 0.3,
         r = camp + 4 + unit(j, key) * 6;
       tents.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, yaw: a });
+    }
+  // The night before a battle before it: the hosts' fires behind their lines across the road.
+  if (war.eve && !inPlace && war.hosts.some((h) => h.doing === "drawn"))
+    for (let k = 0; k < 6; k++) {
+      const across = (k - 2.5) * 9;
+      nightFires.push(at(front + 34 + 12, across), at(front - 30 - 8, across + 4));
     }
   // A town stormed burns: its houses nearest the road it was stormed from, and about its gate.
   if (war.burning > 0) {
@@ -741,5 +812,5 @@ export function townWarScene(plan: VillagePlan, war: TownWar, each: number): Tow
   }
   const middle = (s: 0 | 1): Flat | null =>
     sum[s]!.n ? { x: sum[s]!.x / sum[s]!.n, z: sum[s]!.z / sum[s]!.n } : null;
-  return { soldiers, tents, fires, middles: [middle(0), middle(1)] };
+  return { soldiers, tents, fires, camp: nightFires, middles: [middle(0), middle(1)] };
 }

@@ -334,6 +334,12 @@ export type BattleField = {
   readonly wings: { readonly side: 0 | 1; readonly z: number } | null;
   /** The armoured cars of both sides (Phase 53 M220; absent: none). */
   readonly vehicles?: readonly Vehicle[];
+  /**
+   * Fought before a town in its own scene (Phase 55 M227): on the town's flat ground, with no ridge or
+   * river of its own; the beaten defenders fly to either flank, or in behind their walls, out of
+   * sight there (absent: the close field).
+   */
+  readonly placed?: true;
 };
 
 /**
@@ -494,9 +500,10 @@ export function battleGroundAt(g: BattleGround, x: number, z: number): number {
 /**
  * A battle made ready to watch: its hosts drawn up, as many figures each as the men it had (or
  * one for so many: `most` the most of a side), and each one's fate in it — who falls, when and
- * how, who runs, who gives chase — as history's numbers have it.
+ * how, who runs, who gives chase — as history's numbers have it. `placed`: fought before a town in
+ * its own scene (Phase 55 M227), on the town's ground.
  */
-export function newBattle(near: BattleNear, most: number): BattleField {
+export function newBattle(near: BattleNear, most: number, placed = false): BattleField {
   const key = hashText(near.event),
     a = near.attacker,
     d = near.defender,
@@ -504,8 +511,9 @@ export function newBattle(near: BattleNear, most: number): BattleField {
     beaten: 0 | 1 = near.won ? 1 : 0,
     walls = near.walls > 0,
     ground: BattleGround = {
-      hill: near.hills && !walls ? { x: 18, rx: 17, rz: 52, h: 3.6 } : null,
-      river: near.river && !walls ? { x: 3, w: 3.2 } : null,
+      // (Before a town the ground is the town's own, flat: no ridge or river of the field's.)
+      hill: near.hills && !walls && !placed ? { x: 18, rx: 17, rz: 52, h: 3.6 } : null,
+      river: near.river && !walls && !placed ? { x: 3, w: 3.2 } : null,
       wall: walls
         ? { x: 14, high: near.walls === 2 ? 3.4 : 2.6, gate: 3.6, stone: near.walls === 2 }
         : null,
@@ -685,6 +693,7 @@ export function newBattle(near: BattleNear, most: number): BattleField {
     moments: momentsOf(near, wings, vehicles, trench !== undefined),
     wings,
     ...(vehicles.length ? { vehicles } : {}),
+    ...(placed ? { placed: true as const } : {}),
   };
   fates(field, key);
   return field;
@@ -1289,9 +1298,14 @@ function inTrench(field: BattleField, t: Trooper, s: number): boolean {
   );
 }
 
-/** Where they run to: the beaten off their side of the field, or (defenders at a seat) into the town. */
+/**
+ * Where they run to: the beaten off their side of the field, or (defenders at a seat) into the town;
+ * before a town in its own scene, its defenders off either flank, away from the town behind them.
+ */
 function fleeTo(field: BattleField, t: Trooper): { x: number; z: number } {
   if (t.side === 1 && field.ground.wall) return { x: FIELD.x + 12, z: t.z * 0.5 };
+  if (t.side === 1 && field.placed)
+    return { x: FIELD.x * 0.35 + 12 * t.u, z: (t.z < 0 ? -1 : 1) * (FIELD.z + 16) };
   const way = t.side === 0 ? -1 : 1;
   return { x: way * (FIELD.x + 14), z: t.z * 1.25 + (t.u - 0.5) * 18 };
 }
@@ -1355,7 +1369,8 @@ function placed(
           run: true,
           fled: 0,
         };
-      const on = Math.min(28 + 10 * t.u, gone - toDoor);
+      // (Before a town in its own scene, no further than its outworks' gate: the town is its own.)
+      const on = Math.min(field.placed ? 3 + 3 * t.u : 28 + 10 * t.u, gone - toDoor);
       return {
         x: door.x + on,
         z: door.z + (t.u - 0.5) * on * 0.9,
@@ -1367,7 +1382,12 @@ function placed(
     const way = field.beaten === 0 ? -1 : 1,
       chase = Math.min(7, when - (MOMENTS.rout + 1)),
       pace = (field.hosts[t.side]!.mounted ? 7.5 : 4.6) * (0.85 + 0.3 * t.u),
-      stop = wall ? wall.x - 2.2 : way * FIELD.x,
+      // (Before a town in its own scene, no further than where the beaten stood: the town is its own.)
+      stop = wall
+        ? wall.x - 2.2
+        : field.placed && way > 0
+          ? Math.min(FIELD.x, field.meet + 12)
+          : way * FIELD.x,
       x = way > 0 ? Math.min(stop, p.x + pace * chase) : Math.max(stop, p.x - pace * chase);
     return { x, z: p.z, yaw: facing, run: chase < 7 && x !== stop, fled: 0 };
   }
@@ -1411,6 +1431,24 @@ export function bloodAt(
   return { x: l.x + Math.sin(l.yaw) * along, z: l.z + Math.cos(l.yaw) * along };
 }
 
+/**
+ * Before a town in its own scene, how much of one is drawn as they leave the field (1: all): fading
+ * past either flank, and the defenders who fled in behind their walls once through them.
+ */
+function placedFade(
+  field: BattleField,
+  t: Trooper,
+  p: { readonly x: number; readonly z: number },
+  s: number,
+): number {
+  if (!field.placed) return 1;
+  const flank = clamp01((FIELD.z + 12 - Math.abs(p.z)) / 10),
+    wall = field.ground.wall;
+  return wall && t.side === 1 && t.flees !== null && s >= t.flees
+    ? flank * clamp01((wall.x + 8 - p.x) / 4)
+    : flank;
+}
+
 /** What one who fought is at now, and how they stand (a machine gun's team marked as it is). */
 function trooperNow(field: BattleField, t: Trooper, s: number): TrooperNow {
   const now = trooperNowAt(field, t, s);
@@ -1426,7 +1464,7 @@ function trooperNowAt(field: BattleField, t: Trooper, s: number): TrooperNow {
     trenched = inTrench(field, t, s),
     sunk = trenched ? ground.trench!.depth - 0.15 : 0,
     y = standY(field, t.side, p.x, p.z);
-  const size = clamp01((FIELD.x + 10 - Math.abs(p.x)) / 10),
+  const size = clamp01((FIELD.x + 10 - Math.abs(p.x)) / 10) * placedFade(field, t, p, s),
     cycle = s * (p.run ? 1.6 : 1) + t.u * 3;
   if (t.falls !== null && s >= t.falls) {
     const down = smooth((s - t.falls) / 0.7),

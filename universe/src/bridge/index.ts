@@ -94,6 +94,7 @@ export {
   parseLevyManRef,
   parseTownsfolkRef,
   townsfolkRef,
+  type ArmBorne,
   type BattleFigures,
   type BattleRoll,
   type FigureCounts,

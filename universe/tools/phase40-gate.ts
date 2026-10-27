@@ -6,15 +6,18 @@
 //   2. the clock held, they stand: nothing marches by the screen's clock;
 //   3. as the year goes, its host marches on the land by its roads, and the two are drawn up before
 //      it, what each is at on its counter, the battle to come named;
-//   4. the land's clock set going: the battle drawn near, it is slowed to a day a second, told under
-//      the bar; the two engaged, falling; at the year's turn, history's battle — its beaten falling
-//      back or flying, its fallen on its field — and the clock going on as it went once the rout is
-//      over;
+//   4. the land's clock set going and left to run: the battle drawn near, it is slowed to a day a
+//      second toward it, told under the bar, and to an hour a second through the night before it;
+//      at the year's turn, history's battle, fought the morning after (D4): the two engaged,
+//      falling, slowed to ten minutes a second; its beaten falling back or flying, its fallen on its
+//      field — and the clock going on as it went once the rout is over;
 //   5. on the globe, each of the world's wars' hosts as far along its way as its year has gone;
 //   6. in a town at war (M204): a land's men mustering past its homes and marching out by its road;
 //      before the heart of the land fought for, the hosts drawn up, named over them and told under
-//      its bar, its clock slowed for the battle, the two engaged and falling, and after the turn
-//      the fallen where they fell; a siege's camp about the town besieged, if one is laid.
+//      its bar, its clock slowed toward the battle and through the night before it, left to run
+//      across the turn, and the morning after the battle laid and fought in place before it at a
+//      minute a second (Phase 55 M227: gate 55's battle part looks closer), its fallen where they
+//      fell; a siege's camp about the town besieged, if one is laid.
 // (npm run build first; --soft draws in software, as CI's browser does; --shots keeps a picture of
 // each step.)
 import { mkdirSync } from "node:fs";
@@ -162,6 +165,13 @@ for (const w of fought.slice(0, 6)) {
   );
   await k(`globalThis.causalis.descend(${province})`);
   await until("the land fought for", async () => (await scale()) === "region", slow(60000));
+  // (Its towns come a host round trip after it, and a host bound for its heart is placed by its
+  // heart once they have: the hosts read after that.)
+  await comes(
+    async () => (await k<{ towns: number }>(`globalThis.causalis.land()`)).towns > 0,
+    slow(15000),
+  );
+  await page.waitForTimeout(slow(1000));
   war = w;
   const seen = await comes(
     async () => mine(await inPlace(), 0).length > 0 && mine(await inPlace(), 1).length > 0,
@@ -185,6 +195,7 @@ await page.waitForTimeout(slow(1500));
 await shot("1-mustering");
 
 // 2. Held, they stand.
+now = await inPlace();
 const held = attacker();
 await page.waitForTimeout(slow(1500));
 now = await inPlace();
@@ -236,7 +247,7 @@ await shot("3-drawn-up");
 // 4. The land's clock going: slowed for the battle, the two engaged, the turn, and on again.
 check(await press(/^1 month/i), "no month-a-second speed in the land's bar");
 const slowed = await until(
-  "the land's clock slowed for the battle",
+  "the land's clock slowed toward the battle",
   async () => {
     const n = await inPlace(),
       c = await clock();
@@ -246,21 +257,49 @@ const slowed = await until(
 );
 now = await inPlace();
 say(`slowed: ${slowed} — "${now?.told}"`);
-check(/slowed to a day a second/i.test(now?.told ?? ""), `the slowing not told (${now?.told})`);
+check(
+  /slowed to a day a second toward the battle at the turn of year/i.test(now?.told ?? ""),
+  `the slowing not told (${now?.told})`,
+);
+// The battle at the turn fought the morning after it (D4), the clock left to run: slowed to an
+// hour a second through the night before it, across the turn as the year's wars come, to ten
+// minutes a second from just before eight as the two engage; until one falls.
+const toldOnLand = new Set<string>();
 await until(
-  "the two hosts engaged",
+  "the two hosts engaged the morning after the turn",
   async () => {
     now = await inPlace();
+    if (now?.told) toldOnLand.add(now.told);
     return attacker()?.doing === "engaged" && defender()?.doing === "engaged";
   },
+  slow(90000),
+);
+say(`told on the way: ${[...toldOnLand].join(" | ")}`);
+check(
+  [...toldOnLand].some((t) =>
+    /an hour a second through the night before the battle at the turn of year/i.test(t),
+  ),
+  "the night before the battle not slowed for on the land",
+);
+await until(
+  "the land's clock slowed for the battle",
+  async () => (await clock()).speed === 600,
+  slow(20000),
+);
+now = await inPlace();
+check(
+  /ten minutes a second for the battle at the turn of year/i.test(now?.told ?? ""),
+  `the battle's slowing not told (${now?.told})`,
+);
+await until(
+  "one falling in the fight",
+  async () => ((now = await inPlace())?.fallen ?? 0) > 0,
   slow(30000),
 );
-// (On toward the turn, past the moment the first fall.)
-await advance((Y + 0.985) * YEAR);
-now = await inPlace();
 say(`engaged: ${now?.fallen} fallen in the fight; ${now?.figures} figures`);
-check((now?.fallen ?? 0) > 0, "none falls in the fight");
 await shot("4-engaged");
+// (On past its end: the beaten in flight.)
+await advance((Y + 1) * YEAR + DAY);
 const turned = await until(
   "history's battle at the year's turn",
   async () => {
@@ -282,17 +321,21 @@ check(
   `no battle's end (${JSON.stringify(after)})`,
 );
 check(armies.land.fallen > 0, "no fallen on the field");
-await shot("5-the-turn");
 const goneOn = await until(
-  "the land's clock going on as it went, the rout over",
-  async () => {
-    const c = await clock(),
-      n = await inPlace();
-    return c.speed === 30 * DAY && !n?.slowed && !n?.told;
-  },
-  slow(60000),
-);
-say(`after the rout: ${goneOn ? "a month a second again" : JSON.stringify(await clock())}`);
+    "the land's clock going on as it went, the rout over",
+    async () => {
+      const c = await clock(),
+        n = await inPlace();
+      return c.speed === 30 * DAY && !n?.slowed && !n?.told;
+    },
+    slow(60000),
+  ),
+  goneAt = goneOn ? null : await clock();
+// (Held as soon as it is seen going on, before its picture: where pictures are slow to take, as in
+// software, months went by at a month a second, past the moments the globe's hosts are looked at.)
+await k(`globalThis.causalis.client.setSpeed(0)`);
+say(`after the rout: ${goneOn ? "a month a second again" : JSON.stringify(goneAt)}`);
+await shot("5-the-turn");
 
 // 5. On the globe: each war's host as far along its way as its year has gone.
 await k(`globalThis.causalis.client.setSpeed(0)`);
@@ -453,34 +496,65 @@ check(
 await shot("9-town-drawn-up");
 check(await press(/^1 month/i), "no month-a-second speed in the town's bar");
 const townSlowed = await until(
-  "the town's clock slowed for the battle before it",
+  "the town's clock slowed toward the battle before it",
   async () => !!(await slowedNow()).slowed && (await clock()).speed === DAY,
   slow(20000),
 );
 const slowTold = (await slowedNow()).told;
 say(`slowed: ${townSlowed} — "${slowTold}"`);
-check(/the battle before/i.test(slowTold), `the town's slowing not told (${slowTold})`);
-await advance((Z + 0.985) * YEAR);
-const fighting = await townWar();
-say(
-  `engaged before it: ${fighting?.fight?.stage}; ${fighting?.fallen} fallen, ${fighting?.soldiers} fighting`,
+check(
+  /toward the battle at the turn of year/i.test(slowTold),
+  `the town's slowing not told (${slowTold})`,
 );
-check(fighting?.fight?.stage === "engaged", "the hosts not engaged before the town");
-check((fighting?.fallen ?? 0) > 0, "none falls before the town");
-await faceWar(fighting);
-await shot("10-town-engaged");
+// The morning after the turn, the battle fought in place before the town (Phase 55 M227), the
+// clock left to run as a viewer's: an hour a second through the night before, across the turn as
+// the year's wars come and the battle is laid, a minute a second as it begins; held once it has.
+type Placed = { stage: string | null; drawn: number; lying: number; falls: number[] };
+const placedNow = () => k<Placed | null>(`globalThis.causalis.placedBattle?.() ?? null`);
+const toldInTown = new Set<string>();
 await until(
-  "the year turned before the town",
-  async () => (await clockT()) >= (Z + 1) * YEAR + DAY,
-  slow(90000),
+  "the battle laid before the town",
+  async () => {
+    const told = (await slowedNow()).told;
+    if (told) toldInTown.add(told);
+    return (await placedNow())?.stage === "battle";
+  },
+  slow(120000),
 );
-await page.waitForTimeout(slow(1500));
-const afterTown = await townWar();
-say(
-  `after: ${afterTown?.fought ? `${afterTown.fought.outcome}, ${afterTown.fallen} fallen where they fell` : "fought elsewhere"}; “${afterTown?.told}”`,
+await k(`globalThis.causalis.client.setSpeed(0)`);
+say(`told on the way: ${[...toldInTown].join(" | ")}`);
+check(
+  [...toldInTown].some((t) =>
+    /an hour a second through the night before the battle at the turn of year/i.test(t),
+  ),
+  "the night before the battle before the town not slowed for",
 );
 check(
-  !!afterTown?.fought && afterTown.fallen > 0,
+  [...toldInTown].some((t) => /a minute a second for the battle at the turn of year/i.test(t)),
+  "the battle before the town not slowed to a minute a second",
+);
+// (The town's war as the frame after the clock is held draws it: in software a frame is a minute of
+// the world's here, and the last one before may be from before eight.)
+await comes(async () => (await townWar())?.fight?.stage === "engaged", slow(10000));
+const fighting = await townWar(),
+  inPlaceNow = await placedNow();
+say(
+  `engaged before it: ${fighting?.fight?.stage}; ${inPlaceNow?.drawn} figures fought in place before it`,
+);
+check(fighting?.fight?.stage === "engaged", "the hosts not engaged before the town");
+check((inPlaceNow?.drawn ?? 0) > 0, "no battle fought in place before the town");
+await k(`globalThis.causalis.faceBattle()`);
+await page.waitForTimeout(slow(1500));
+await shot("10-town-engaged");
+await advance((Z + 1) * YEAR + DAY);
+await page.waitForTimeout(slow(1500));
+const afterTown = await townWar(),
+  lying = await placedNow();
+say(
+  `after: ${afterTown?.fought ? `${afterTown.fought.outcome}, ${lying?.lying} fallen where they fell` : "fought elsewhere"}; “${afterTown?.told}”`,
+);
+check(
+  !!afterTown?.fought && (lying?.lying ?? 0) > 0,
   "no fallen before the town after the battle fought there",
 );
 await shot("11-town-after");

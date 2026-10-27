@@ -965,12 +965,15 @@ export function machinedMade(
  * came from — a member land's own works, else the works at the far end of the road the machines came
  * down (else the seat's). For an arm, its barrel and bolt, its cartridge and charge; for an armoured
  * car, its rolled hull and the oil its engine burns. Null where nothing is machined for the realm.
+ * `who`: the one who bore it (a man's page, Phase 55 M228), turned at the works by a hand of its
+ * own (absent: the realm's).
  */
 export function machinedArmsMade(
   world: World,
   realm: string,
   part: Part,
   year: number,
+  who?: string,
 ): Made | null {
   const ctx = populationContext(world),
     p = politiesOf(world).get(realm as Ref);
@@ -986,13 +989,15 @@ export function machinedArmsMade(
         ? markets.flows.find((f) => f.good === G.machines && lands.includes(f.to))
         : undefined,
     base = own ?? flow?.from ?? p.seat,
+    t = makingTown(world, base),
+    // (One man's: turned at a machine a hand of its own kept.)
     made = machinedMade(
       world,
       base,
-      `${realm}:${part.role}`,
+      who === undefined ? `${realm}:${part.role}` : `${realm}:${part.role}:${who}`,
       year,
-      makingTown(world, base)?.ref ?? "",
-      0,
+      t?.ref ?? "",
+      who === undefined ? 0 : Math.floor(keyed(`${realm}:${part.role}:${who}:seat`) * seatsOf(t)),
     ),
     works: Span = made.workshop.ref
       ? link(made.workshop.name, made.workshop.ref)
@@ -1246,9 +1251,17 @@ export function hostPartWords(world: World, realm: string, part: Part): string {
  * What one of a realm's host's parts is made of and where from (by the design's own rule, Phase 52
  * M216: the metals its seat holds — its own ore within reach, else down the roads), worked at its
  * seat town's smithy; a machined part (Phase 53) at the works its machines came from; null for a
- * part of no worked stuff (a body's own, on foot).
+ * part of no worked stuff (a body's own, on foot). `who`: the one who bore it (a man's page, Phase
+ * 55 M228), made at one of its seat's benches as he would have had it, by its maker then (absent:
+ * the realm's, as its host's page tells it).
  */
-export function armsMade(world: World, realm: string, part: Part, year: number): Made | null {
+export function armsMade(
+  world: World,
+  realm: string,
+  part: Part,
+  year: number,
+  who?: string,
+): Made | null {
   const ctx = populationContext(world),
     p = politiesOf(world).get(realm as Ref);
   if (!p) return null;
@@ -1256,7 +1269,8 @@ export function armsMade(world: World, realm: string, part: Part, year: number):
     seat = p.seat,
     t = makingTown(world, seat),
     craft = craftAt(world, seat, "tools"),
-    key = `${realm}:${part.role}`;
+    // (One man's: the seat a maker of his own held.)
+    key = who === undefined ? `${realm}:${part.role}` : `${realm}:${part.role}:${who}`;
   if (part.material === "stone") {
     const { stone } = landStone(world, seat),
       maker = makerOf(world, seat, t, "knapper", key, year),
@@ -1282,7 +1296,7 @@ export function armsMade(world: World, realm: string, part: Part, year: number):
       ],
     };
   }
-  if (part.material === "machined") return machinedArmsMade(world, realm, part, year);
+  if (part.material === "machined") return machinedArmsMade(world, realm, part, year, who);
   if (!(part.material in METALS)) return null;
   // Each metal it is worked from, as its seat's smiths have it: their land's ore within reach,
   // else down the roads from the land that smelted it.

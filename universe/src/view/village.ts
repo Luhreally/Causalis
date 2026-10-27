@@ -4530,14 +4530,16 @@ function atEase(leg: Leg): boolean {
 /**
  * Where a watched person is at sim time t, and how they fare. `downpour`: the span of a downpour
  * over the village (world seconds; weather's downpourAt), if one falls — those at their ease in
- * it go home through it and in at their door, and come out again when it is over. `fine`: their
- * day as lived, errand on errand (Phase 39 M198); else as a town watched growing sees it.
+ * it go home through it and in at their door, and come out again when it is over (`all`: every
+ * one of them in the town, whatever they are at — a battle fought before it, Phase 55 M227).
+ * `fine`: their day as lived, errand on errand (Phase 39 M198); else as a town watched growing
+ * sees it.
  */
 export function momentOf(
   plan: VillagePlan,
   index: number,
   t: number,
-  downpour: { readonly from: number; readonly to: number } | null = null,
+  downpour: { readonly from: number; readonly to: number; readonly all?: boolean } | null = null,
   fine = true,
 ): Moment {
   const day = Math.floor(t / DAY),
@@ -4549,7 +4551,15 @@ export function momentOf(
     yaw = leg.face ?? 0,
     activity: Activity = leg.activity,
     task = leg.task;
-  const sheltering = !!downpour && t >= downpour.from && t < downpour.to && atEase(leg);
+  const sheltering =
+    !!downpour &&
+    t >= downpour.from &&
+    t < downpour.to &&
+    (downpour.all
+      ? leg.activity !== ACTIVITY.away &&
+        leg.activity !== ACTIVITY.abed &&
+        leg.activity !== ACTIVITY.gone
+      : atEase(leg));
   if (sheltering) {
     // From where they were at their ease when it came on (or when they came to it, in it), home
     // to their doorstep and in.
@@ -4619,7 +4629,11 @@ export function momentOf(
     hunger: Math.max(0, Math.min(1, (s - fed) / ((lean ? 4.5 : 7) * HOUR))),
     tiredness:
       leg.activity === ACTIVITY.asleep ? 0 : Math.max(0, Math.min(1, (s - woke) / (16 * HOUR))),
-    why: sheltering ? "In out of the downpour" : leg.why,
+    why: sheltering
+      ? downpour!.all
+        ? "Indoors while the battle is fought before the town"
+        : "In out of the downpour"
+      : leg.why,
   };
 }
 

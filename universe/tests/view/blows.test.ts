@@ -384,7 +384,8 @@ test("a battle bled white shows no more blood than is drawn, each part cut off k
     b = newBlows(f),
     end = blowsAt(f, b, battleAt(f, BATTLE_LENGTH), "full");
   assert.equal(f.per, 1);
-  assert.deepEqual([b.dead, b.hurt, b.loose.length], [[100, 120], [206, 192], 2 * SEVER.most]);
+  // (The wounded as the one rule has them, bridge/roll.ts battleFigures: four in five of those standing.)
+  assert.deepEqual([b.dead, b.hurt, b.loose.length], [[100, 120], [208, 192], 2 * SEVER.most]);
   assert.equal(end.blood.length, BLEED.most);
   // (The last, under the parts cut off where they lie.)
   const under = end.blood.slice(BLEED.most - b.loose.length);

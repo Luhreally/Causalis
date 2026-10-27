@@ -130,9 +130,11 @@ export const GATES: readonly { gate: number; args: readonly string[]; s: number 
   { gate: 39, args: ["--ci"], s: 921 },
   // Phase 40 (war in place: a war of history played on its land on the world's clock — the
   // attacker mustered at its border and marched by the roads, the defenders' garrison rallied,
-  // the two drawn up and engaged with the clock slowed to a day a second, the rout at the
-  // year's turn; on the globe, its host going between).
-  { gate: 40, args: ["--ci"], s: 185 },
+  // the two drawn up, the clock left to run and slowed toward the battle and through the night
+  // before it, the battle fought the morning after the year's turn, the rout; on the globe, its
+  // host going between; before a town, the battle laid and fought in place). (Its time with the
+  // clock run across the turn estimated from software GL.)
+  { gate: 40, args: ["--ci"], s: 345 },
   // Phase 41 (a town's trades at their own buildings: its children at their letters in the
   // school's rows and one teaching them, its potters at the kiln aglow, sparks at the anvil;
   // its woodlot's trees felled, lying and carried off, their stumps; a day of rest's prayer).
@@ -194,8 +196,14 @@ export const GATES: readonly { gate: number; args: readonly string[]; s: number 
   { gate: 54, args: ["--ci"], s: 240 },
   // Phase 55 wave 3 (wounds seen, and healing: the levy home from the battles at the year's turn,
   // its wounded borne in on litters and abed, its healer's round door to door and their page, the
-  // wounded up and bound and marked for good — a stump, a crutch, a patch — told on their card).
-  { gate: 55, args: ["--ci"], s: 360 },
+  // wounded up and bound and marked for good — a stump, a crutch, a patch — told on their card)
+  // and wave 4 (the battle at the turn fought the morning after before its town: every figure a
+  // man of its roll, the town indoors but for some come out to watch, the clock slowed for it, its
+  // blows, its rout, its fallen lying until borne in and buried; one who fell tapped, his page and
+  // his arm's; the four views a tap apart; zoomed onto its mark from the land, into its town while
+  // it is fought and down onto its field once it is past). Its phone budgets run locally. (Its time
+  // with the battle estimated from software GL.)
+  { gate: 55, args: ["--ci"], s: 680 },
 ];
 
 const argv = process.argv.slice(2),

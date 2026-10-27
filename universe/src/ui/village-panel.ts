@@ -3,8 +3,9 @@
 // person — who they are, what they are doing now and why, how hungry and tired, and their
 // page with its whys. Under its bar, the town's stores and its work today (Phase 39 M198), a
 // tap from their card: what each store holds and how long it would last, what came in and went
-// out today, who is at what, and what is going up. Watching is looking: it never changes what
-// happens.
+// out today, who is at what, and what is going up. One who fought in a battle before the town, tapped
+// (Phase 55 M227–M228): his card, named from the battle's roll. Watching is looking: it never changes
+// what happens.
 import { STORE_KINDS, type HostClient } from "../bridge/index.ts";
 import { touchActs, type Touchable } from "./tools.ts";
 import {
@@ -18,6 +19,7 @@ import {
 } from "../view/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 import { PeopleView } from "./people.ts";
+import { boreWords, type ManCard } from "./battle-panel.ts";
 import type { Tidings } from "./tidings.ts";
 import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
@@ -348,6 +350,45 @@ export class VillagePanel {
         "One of the town's many, drawn for its crowd and named in its tongue: history keeps them by their line — the wars they went to, their wounds, their fall — though not their days. They live its day as its own people do.",
       ),
       acts,
+    );
+    this.whyBox.replaceChildren();
+  }
+
+  /**
+   * One who fought in the battle before the town, tapped (Phase 55 M227–M228): his name and host,
+   * where he came from and his age, how he came out of it, what he bore and who made it, what he is
+   * at now; his page and his arm's a tap away.
+   */
+  showSoldier(m: ManCard, host: string, now: string | null): void {
+    this.view++;
+    this.storesOpen = false;
+    this.folkOpen = true;
+    this.inspector.hidden = false;
+    this.who.textContent = `${m.side === 0 ? "⚔️" : "🛡️"} ${m.name}`;
+    this.now.textContent = now ? `Now: ${now}` : "";
+    const bore = boreWords(m),
+      page = el("button", "line", "His page ›"),
+      arm = m.armPage ? el("button", "line", "His arm, from the ground to his hand ›") : null;
+    page.onclick = () => this.onPage(m.page);
+    if (arm && m.armPage) {
+      const ref = m.armPage;
+      arm.onclick = () => this.onPage(ref);
+    }
+    this.page.replaceChildren(
+      el(
+        "div",
+        "fact folk-role",
+        `Of the host of ${host}${m.from ? `, from ${m.from}` : ""}; ${m.age} years old`,
+      ),
+      el("div", "fact soldier-fate", m.fate),
+      ...(bore ? [el("div", "fact soldier-arm", bore)] : []),
+      page,
+      ...(arm ? [arm] : []),
+      el(
+        "p",
+        "muted",
+        "One who fought in the battle before the town, a man of its roll: history keeps him by name, the arm he bore and who made it.",
+      ),
     );
     this.whyBox.replaceChildren();
   }

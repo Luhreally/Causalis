@@ -14,7 +14,7 @@ import {
   type BattleOutcome,
   type BattleSideNear,
 } from "../../src/bridge/index.ts";
-import { newBattle } from "../../src/view/index.ts";
+import { newBattle, newBlows } from "../../src/view/index.ts";
 
 const side = (
   name: string,
@@ -172,6 +172,26 @@ test("the wounded who live: so many figures for so many men, at most HURT_MOST o
           }
         }
     }
+});
+
+test("the blows draw as many wounded who live as battleFigures counts, on the field and before a town", () => {
+  for (const [name, battle] of CASES)
+    for (const most of MOSTS)
+      for (const wa of woundsOf(battle.attacker))
+        for (const wd of woundsOf(battle.defender)) {
+          const hit: BattleNear = {
+              ...battle,
+              attacker: { ...battle.attacker, wounded: wa },
+              defender: { ...battle.defender, wounded: wd },
+            },
+            f = battleFigures(hit, most);
+          for (const placed of [false, true]) {
+            const b = newBlows(newBattle(hit, most, placed)),
+              where = `${name}, most ${most}, wounded ${wa} and ${wd}${placed ? ", placed" : ""}`;
+            assert.deepEqual(b.hurt, [f.sides[0].hurt, f.sides[1].hurt], where);
+            assert.deepEqual(b.dead, [f.sides[0].falls, f.sides[1].falls], where);
+          }
+        }
 });
 
 test("the refs round-trip", () => {
