@@ -359,7 +359,10 @@ const phone: Hands = {
 
 /**
  * Walked toward a point of the town (m) until within `near` of it, the way the eye looks turned
- * as it goes; stepping aside where a wall stops him. `then`, asked each beat: done when true.
+ * as it goes; stepping aside where a wall stops him. `then`, asked each beat: done when true. Its
+ * time is the possession's own, `seconds` of its steps: where frames come slowly its clock goes
+ * slower than the wall's (a stall does not throw him far, app/possess.ts), and he is given the
+ * same walk wherever he is walked (the wall's own bound, four times as long, ends a clock stopped).
  */
 async function walkTo(
   hands: Hands,
@@ -369,28 +372,33 @@ async function walkTo(
   run: boolean,
   then?: (s: State) => Promise<boolean>,
 ): Promise<State | null> {
-  const until = Date.now() + slow(seconds * 1000);
+  const STEPS = 20,
+    until = Date.now() + slow(seconds * 1000) * 4;
   let s: State | null = null,
+    from: number | null = null,
     best = Infinity,
-    bestAt = Date.now(),
+    bestAt = 0,
     side = 0,
-    sideUntil = 0;
+    sideUntil = -1;
   while (Date.now() < until) {
     s = await state();
     if (!s?.me) break;
+    const step = s.live?.step ?? 0;
+    if (from === null) from = bestAt = step;
+    if (step - from > seconds * STEPS) break;
     const dx = to.x - s.me.x,
       dz = to.z - s.me.z,
       d = Math.hypot(dx, dz);
     if (d <= near || (then && (await then(s)))) break;
     if (d < best - 0.5) {
       best = d;
-      bestAt = Date.now();
-    } else if (Date.now() - bestAt > slow(2500) && Date.now() > sideUntil) {
+      bestAt = step;
+    } else if (step - bestAt > 2.5 * STEPS && step > sideUntil) {
       side = side >= 0 ? -1 : 1;
-      sideUntil = Date.now() + slow(1500);
-      bestAt = Date.now();
+      sideUntil = step + 1.5 * STEPS;
+      bestAt = step;
     }
-    const aim = Math.atan2(dx, dz) + (Date.now() < sideUntil ? (side * Math.PI) / 2 : 0);
+    const aim = Math.atan2(dx, dz) + (step < sideUntil ? (side * Math.PI) / 2 : 0);
     await hands.steer(aim, s.eye.yaw, run && d > 4);
     await page.waitForTimeout(100);
   }
@@ -473,7 +481,11 @@ async function arm(hands: Hands): Promise<string | null> {
   const holding = await k<string | null>(`globalThis.causalis.palette.holding()`);
   return holding === "possess" ? null : `the palette holds ${holding ?? "nothing"}, not Possess`;
 }
-/** One of those drawn brought before the eye, and where they are on the screen. */
+/**
+ * One of those drawn brought before the eye, and where they are on the screen: read once the
+ * flight has come to rest (where frames come slowly, as on CI's software drawing, a point read on
+ * the way is gone by the touch, or not on the screen yet).
+ */
 async function before(index: number): Promise<{ x: number; y: number } | null> {
   const p = (
     await k<{ index: number; x: number; z: number }[]>(`globalThis.causalis.peopleNow()`)
@@ -482,9 +494,25 @@ async function before(index: number): Promise<{ x: number; y: number } | null> {
   await k(
     `globalThis.causalis.rig.flyTo({ target: { x: ${p.x * 0.1}, y: 0, z: ${p.z * 0.1} }, distance: 3.5, pitch: -40 })`,
   );
-  await page.waitForTimeout(slow(2500));
-  return k<{ x: number; y: number } | null>(`globalThis.causalis.personOnScreen(${index})`);
+  await page.waitForTimeout(slow(500));
+  await page
+    .waitForFunction(
+      () => !(globalThis as { causalis?: { rig?: { flying?: boolean } } }).causalis?.rig?.flying,
+      undefined,
+      { timeout: slow(15_000) },
+    )
+    .catch(() => undefined);
+  for (let i = 0; i < 5; i++) {
+    await page.waitForTimeout(slow(400));
+    const at = await k<{ x: number; y: number } | null>(
+      `globalThis.causalis.personOnScreen(${index})`,
+    );
+    if (at) return at;
+  }
+  return null;
 }
+/** The palette's line. */
+const paletteWords = () => k<string>(`document.querySelector(".palette-words")?.textContent ?? ""`);
 
 /** A walk in one of the town's people by these hands; what was done, for the checks after. */
 async function walk(
@@ -498,12 +526,15 @@ async function walk(
     const armed = await arm(hands);
     check(!armed, n(armed ?? ""));
     const anyone = (await k<{ index: number }[]>(`globalThis.causalis.peopleNow()`))[0];
-    const at = anyone ? await before(anyone.index) : null;
-    if (at) {
+    // (Touched again if the touch found no one: Possess stays in hand after it.)
+    for (let i = 0; i < 3 && anyone; i++) {
+      const at = await before(anyone.index);
+      if (!at) continue;
       await hands.tap(at.x, at.y);
       await page.waitForTimeout(slow(1200));
+      if ((await paletteWords()).includes("your hand rests on")) break;
     }
-    const refused = await k<string>(`document.querySelector(".palette-words")?.textContent ?? ""`);
+    const refused = await paletteWords();
     say(n(`in ${other.name}: “${refused}”`));
     check(
       refused.includes(`your hand rests on ${great.name}, not ${other.name}`),
@@ -523,27 +554,42 @@ async function walk(
   if (!chosen) return null;
   const armed = await arm(hands);
   check(!armed, n(armed ?? ""));
-  const at = await before(chosen.index);
-  check(!!at, n(`${chosen.name} not on the screen`));
-  if (!at) return null;
-  await hands.tap(at.x, at.y);
-  await page
-    .waitForFunction(
-      () =>
-        !!(
-          globalThis as { causalis?: { possess?: { state(): { live: unknown } | null } } }
-        ).causalis?.possess?.state()?.live,
-      undefined,
-      { timeout: slow(30_000) },
-    )
-    .catch(() => undefined);
-  let s = await state();
-  check(
-    !!s,
-    n(
-      `${chosen.name} not taken from the palette: “${await k<string>(`document.querySelector(".palette-words")?.textContent ?? ""`)}”`,
-    ),
-  );
+  // (Touched again if the touch found no one, Possess taken up again if it was put down.)
+  let s: Awaited<ReturnType<typeof state>> = null,
+    seen = false;
+  for (let i = 0; i < 3 && !s; i++) {
+    if (i > 0) {
+      const again = await arm(hands);
+      check(!again, n(again ?? ""));
+    }
+    const at = await before(chosen.index);
+    if (!at) continue;
+    seen = true;
+    await hands.tap(at.x, at.y);
+    await page
+      .waitForFunction(
+        () => {
+          const c = (
+            globalThis as {
+              causalis?: { possess?: { state(): { live: unknown } | null } };
+            }
+          ).causalis;
+          return (
+            !!c?.possess?.state()?.live ||
+            (document.querySelector(".palette-words")?.textContent ?? "").includes(
+              "no one is there",
+            )
+          );
+        },
+        undefined,
+        { timeout: slow(30_000) },
+      )
+      .catch(() => undefined);
+    s = await state();
+  }
+  check(seen, n(`${chosen.name} not on the screen`));
+  if (!seen) return null;
+  check(!!s, n(`${chosen.name} not taken from the palette: “${await paletteWords()}”`));
   if (!s?.live || !s.me) return null;
   const work = WORKS[s.trade]!,
     hint = s.live.offers[0]!.words;
