@@ -33,6 +33,7 @@ import {
   civic,
   needsMet,
   wallYears,
+  type CivicDef,
   type CivicKind,
 } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
@@ -198,6 +199,19 @@ type Saved = [
   fallen: number[],
 ];
 
+/**
+ * A town as its settling last went over it: the year, the first year after it that anything of
+ * it comes due, and the runs and buildings it went over (see TownBuilder.settle).
+ */
+type Settled = {
+  readonly year: number;
+  due: number;
+  readonly changes: Change[];
+  readonly runs: number;
+  readonly civics: Civic[];
+  readonly buildings: number;
+};
+
 export class TownStore implements StateStore {
   readonly name = "town.fabric";
   /** Saved packed by column (kernel/pack.ts). */
@@ -205,6 +219,8 @@ export class TownStore implements StateStore {
   private readonly map = new Map<string, Fabric>();
   /** (Each town's fabric by the settlement itself, for the year's walk over them: a cache, let go on loading.) */
   private readonly bySettlement = new Map<Settlement, Fabric>();
+  /** (Each town as its settling last went over it: a cache, let go on loading.) */
+  readonly settled = new Map<Fabric, Settled>();
   /** Every change folded in as it is made, for the checkpoints: two lanes of the kernel's absorber. */
   private a = 0x2545f491 | 0;
   private b = 0x6a09e667 | 0;
@@ -258,6 +274,7 @@ export class TownStore implements StateStore {
     const s = state as { digest: [number, number]; fabrics: Saved[] };
     this.map.clear();
     this.bySettlement.clear();
+    this.settled.clear();
     [this.a, this.b] = s.digest;
     for (const saved of s.fabrics) {
       const f = unpack(saved);
@@ -433,6 +450,57 @@ export function civicMask(f: Fabric, from: number, to: number): Uint8Array {
   return out;
 }
 
+/**
+ * The highest of lots [from, to) a home stands on now, as levelsOf tells it (-1 where none does):
+ * run by run, past the buildings standing on them.
+ */
+function highestHome(f: Fabric, from: number, to: number): number {
+  let best = -1;
+  for (const [what, a, b] of f.changes) {
+    if (!isHome(what)) continue;
+    for (let p = Math.min(b, to) - 1; p >= Math.max(a, from, best + 1);) {
+      const c = f.civics.find((x) => x.fell === null && x.at <= p && x.at + x.lots > p);
+      if (!c) {
+        best = p;
+        break;
+      }
+      p = c.at - 1;
+    }
+  }
+  return best;
+}
+
+/**
+ * The lots of [0, next) homes stand on now, as runs [first lot, end lot, level] in the order of
+ * their lots: what levelsOf and civicMask tell lot by lot, told run by run (a great town has a
+ * hundred thousand lots). Null where two runs of homes share a lot (there the later stands).
+ */
+function standingRuns(f: Fabric): [number, number, number][] | null {
+  const runs = f.changes.filter((c) => isHome(c[0])).sort((a, b) => a[1] - b[1]),
+    civics = f.civics.filter((c) => c.fell === null && c.lots > 0),
+    out: [number, number, number][] = [];
+  let end = 0;
+  for (const [, a, b, , , level] of runs) {
+    const lo = Math.max(a, 0),
+      hi = Math.min(b, f.next);
+    if (lo >= hi) continue;
+    if (lo < end) return null;
+    end = hi;
+    for (let p = lo; p < hi;) {
+      const on = civics.find((x) => x.at <= p && x.at + x.lots > p);
+      if (on) {
+        p = on.at + on.lots;
+        continue;
+      }
+      let q = hi;
+      for (const x of civics) if (x.at > p && x.at < q) q = x.at;
+      out.push([p, q, level]);
+      p = q;
+    }
+  }
+  return out;
+}
+
 /** The lots its standing buildings (other than homes) take, now. */
 export function civicLots(f: Fabric): Set<number> {
   const out = new Set<number>();
@@ -517,6 +585,8 @@ export class TownBuilder {
   private readonly ctx: PopulationContext;
   private readonly year: number;
   private readonly store: TownStore;
+  /** Whether what a land knows meets each building's needs, by the land's own test of it (see meets). */
+  private readonly met = new Map<(id: string) => boolean, boolean[]>();
   constructor(ctx: PopulationContext, year: number) {
     this.ctx = ctx;
     this.year = year;
@@ -531,6 +601,7 @@ export class TownBuilder {
     if (to <= from) return;
     const year = this.year,
       runs = f.changes;
+    this.comesDue(f, year + SETTLED);
     this.store.fold(f.town, FOLD.change, what, from, to, year, level, design);
     this.cut(f, from, to);
     // (Within a year: a run continued, as one.)
@@ -573,19 +644,57 @@ export class TownBuilder {
    * run let go).
    */
   settle(f: Fabric): void {
-    const old = this.year - SETTLED,
-      gone = this.year - RUIN_YEARS;
+    const year = this.year,
+      last = this.store.settled.get(f);
+    // (Nothing comes due before the year its last settling found, while its runs and buildings
+    // are those it went over: every change and every fall since brings that year nearer.)
+    if (
+      last &&
+      last.year < year &&
+      year < last.due &&
+      last.changes === f.changes &&
+      last.runs === f.changes.length &&
+      last.civics === f.civics &&
+      last.buildings === f.civics.length
+    )
+      return;
+    const old = year - SETTLED,
+      gone = year - RUIN_YEARS;
     let c = f.changes,
       due = false,
-      weathered = false;
+      weathered = false,
+      fallen = false,
+      // The next year anything comes due: a run SETTLED years on, a ruin or a building fallen
+      // RUIN_YEARS on.
+      next = Infinity;
     // (Only a year a run comes to be history, or a ruin weathers away, changes anything here.)
-    for (const b of c)
+    for (const b of c) {
       if (b[4] === old) due = true;
       else if (!isHome(b[0]) && b[4] < gone) weathered = due = true;
+      if (b[4] + SETTLED > year) next = Math.min(next, b[4] + SETTLED);
+      if (!isHome(b[0]) && b[4] + RUIN_YEARS >= year) next = Math.min(next, b[4] + RUIN_YEARS + 1);
+    }
+    for (const x of f.civics)
+      if (x.fell === null) continue;
+      else if (x.fell < gone) fallen = true;
+      else next = Math.min(next, x.fell + RUIN_YEARS + 1);
     if (weathered) c = f.changes = c.filter((b) => isHome(b[0]) || b[4] >= gone);
     if (due) this.join(f, c, old);
-    if (f.civics.some((x) => x.fell !== null && x.fell < gone))
-      f.civics = f.civics.filter((x) => x.fell === null || x.fell >= gone);
+    if (fallen) f.civics = f.civics.filter((x) => x.fell === null || x.fell >= gone);
+    this.store.settled.set(f, {
+      year,
+      due: next,
+      changes: f.changes,
+      runs: f.changes.length,
+      civics: f.civics,
+      buildings: f.civics.length,
+    });
+  }
+
+  /** Something of a town comes due in `year` (a change, a fall): its next settling goes over it by then. */
+  private comesDue(f: Fabric, year: number): void {
+    const last = this.store.settled.get(f);
+    if (last && year < last.due) last.due = year;
   }
 
   /** Runs years-old joined, in the order of their lots (see settle). */
@@ -731,19 +840,23 @@ export class TownBuilder {
       return;
     }
     if (++f.lean < 3) return;
+    // (Gone over from the highest lot a home stands on: a town long lean has let its last lots
+    // fall already, and would go over them every year.)
+    const from = Math.max(0, f.next - 512),
+      high = highestHome(f, from, f.next);
+    if (high < 0) return;
     let excess = housing - Math.ceil(people / 0.8),
       count = Math.max(1, Math.ceil(homesOf(f) * 0.05)),
       top = -1;
-    const from = Math.max(0, f.next - 512),
-      levels = levelsOf(f, from, f.next),
-      under = civicMask(f, from, f.next),
+    const levels = levelsOf(f, from, high + 1),
+      under = civicMask(f, from, high + 1),
       fall = (lo: number) => {
         if (top < 0) return;
         this.change(f, CHANGE.fell, lo, top + 1, 0, 0);
         this.release(f, lo, top + 1);
         top = -1;
       };
-    for (let p = f.next - 1; p >= from && excess > 0 && count > 0; p--) {
+    for (let p = high; p >= from && excess > 0 && count > 0; p--) {
       const was = levels[p - from]!;
       if (was < 0 || under[p - from]) {
         fall(p + 1);
@@ -760,6 +873,15 @@ export class TownBuilder {
 
   /** A share of a town's homes razed: its heart first, or its edge for a town sacked. */
   raze(f: Fabric, share: number, edge: boolean, near?: number): number {
+    // (Run by run where it may be: a great town sacked has a hundred thousand lots.)
+    const runs = near === undefined ? standingRuns(f) : null;
+    if (runs) {
+      let all = 0;
+      for (const [a, b] of runs) all += b - a;
+      const n = Math.min(all, Math.ceil(all * share));
+      if (n >= 1) return this.razeRuns(f, runs, n, edge);
+      if (all === 0) return 0;
+    }
     const levels = levelsOf(f, 0, f.next),
       under = civicMask(f, 0, f.next),
       standing: number[] = [];
@@ -793,9 +915,41 @@ export class TownBuilder {
     return down.length;
   }
 
+  /**
+   * Raze's `n` lots of the runs homes stand on, its edge's last or its heart's first, razed as it
+   * razes them lot by lot: each stretch of lots side by side one change.
+   */
+  private razeRuns(f: Fabric, runs: [number, number, number][], n: number, edge: boolean): number {
+    const down: [number, number, number][] = [];
+    for (let i = edge ? runs.length - 1 : 0, left = n; left > 0; i += edge ? -1 : 1) {
+      const [a, b, level] = runs[i]!,
+        k = Math.min(left, b - a);
+      down.push(edge ? [b - k, b, level] : [a, a + k, level]);
+      left -= k;
+    }
+    if (edge) down.reverse();
+    let run = -1,
+      at = -1;
+    const done = () => {
+      if (run < 0) return;
+      this.change(f, CHANGE.razed, run, at, 0, 0);
+      this.release(f, run, at);
+      run = -1;
+    };
+    for (const [a, b, level] of down) {
+      if (run >= 0 && a !== at) done();
+      if (run < 0) run = a;
+      at = b;
+      f.homes[level]! -= b - a;
+    }
+    done();
+    return n;
+  }
+
   /** A building gone: fallen out of use or taken the place of, its lots open again. */
   private fall(f: Fabric, c: Civic, why: number): void {
     c.fell = this.year;
+    this.comesDue(f, this.year + RUIN_YEARS + 1);
     this.cut(f, c.at, c.at + c.lots);
     this.release(f, c.at, c.at + c.lots);
     this.store.fold(f.town, why, CIVIC_INDEX.get(c.kind)!, c.at);
@@ -842,7 +996,7 @@ export class TownBuilder {
         ? Math.max(1, Math.min(def.most ?? 99, Math.floor(people / def.per)))
         : 1;
       if (HAVE[i]! >= want || RISING[i]) continue;
-      if ((def.faith && !faith()) || (def.water && !water()) || !needsMet(def, k)) continue;
+      if ((def.faith && !faith()) || (def.water && !water()) || !this.meets(def, i, k)) continue;
       // (What it takes the place of comes down first: it may rise where that stood.)
       const old = def.replaces
         ? f.civics.find((c) => c.fell === null && c.kind === def.replaces)
@@ -873,6 +1027,16 @@ export class TownBuilder {
         });
       }
     }
+  }
+
+  /**
+   * Whether what a land knows (k) meets a building's needs: asked once of each test of a land's
+   * knowledge (a land's towns weighed in a year share one, and nothing they build changes it).
+   */
+  private meets(def: CivicDef, i: number, k: (id: string) => boolean): boolean {
+    let met = this.met.get(k);
+    if (!met) this.met.set(k, (met = []));
+    return (met[i] ??= needsMet(def, k));
   }
 
   /** Where a building of `lots` lots goes: about the square (the innermost lots no other building has), or at the edge. */
@@ -950,6 +1114,25 @@ function threatened(
 }
 
 /**
+ * What a land knows, as its towns ask it through a year's building: each answer once (its towns
+ * ask alike, and nothing a town builds changes what its land knows).
+ */
+function knower(ctx: PopulationContext, cell: number): (id: string) => boolean {
+  const known = new Map<string, boolean>();
+  return (id) => {
+    let v = known.get(id);
+    if (v === undefined)
+      known.set(
+        id,
+        (v = id.includes("|")
+          ? id.split("|").some((x) => knows(ctx, cell, x))
+          : knows(ctx, cell, id)),
+      );
+    return v;
+  };
+}
+
+/**
  * The towns' year: each housed as its people ask and its hands allow; and, one year in
  * CIVIC_EVERY (each town in its own, and in its first), its other buildings weighed and its
  * walls.
@@ -974,6 +1157,12 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
       if (b.year === year - 1 && b.won && fallen >= 100)
         sacked.set(b.land, (sacked.get(b.land) ?? 0) + fallen);
     }
+  const knowers = new Map<number, (id: string) => boolean>(),
+    knowerOf = (cell: number) => {
+      const k = knower(ctx, cell);
+      knowers.set(cell, k);
+      return k;
+    };
   for (const s of ctx.settlements.all()) {
     let f = store.of(s);
     if (!f) {
@@ -981,8 +1170,7 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
       f = found(ctx, s);
     }
     const cell = s.cell,
-      k = (id: string) =>
-        id.includes("|") ? id.split("|").some((x) => knows(ctx, cell, x)) : knows(ctx, cell, id),
+      k = knowers.get(cell) ?? knowerOf(cell),
       city = !!cities.get(s.ref),
       people = s.population,
       weighs = f.next === 0 || (year + f.phase) % CIVIC_EVERY === 0;

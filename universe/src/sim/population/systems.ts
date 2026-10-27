@@ -554,6 +554,10 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       smoke = 1 + 0.3 * smokeIn(ctx, p.cell),
       // (What changes slowly — the cold, clothing, medicine, smoke — as it stands now.)
       mortality = pressure * (1 + 0.25 * cold * bare) * healed * smoke,
+      // A band's chance of dying within the months, the same for every one of it (reckoned once).
+      dying: number[] = [],
+      dyingIn = (b: number) =>
+        (dying[b] ??= deathWithin(riskUnder(life.mortality[b]!, mortality), months)),
       d = new CountDeltas(p.counts),
       key = refHash(p.ref),
       // Under the hand, a village's people are born and die one by one; the rest by rates.
@@ -575,10 +579,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       // the first years' chance spread over the months.
       const infants = Math.min(
           births,
-          roundKeyed(
-            births * diedInBirthYear(deathWithin(riskUnder(life.mortality[0]!, mortality), months)),
-            world.rng.real(DEATHS, key, t, 1, 0),
-          ),
+          roundKeyed(births * diedInBirthYear(dyingIn(0)), world.rng.real(DEATHS, key, t, 1, 0)),
         ),
         // Who of the newborns they were: drawn from the girls and boys born, never more of either.
         [lostGirls] = infants
@@ -598,10 +599,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
           if (!n) continue;
           const dead = Math.min(
             n,
-            roundKeyed(
-              n * deathWithin(riskUnder(life.mortality[b]!, mortality), months),
-              world.rng.real(DEATHS, key, t, 0, row(s, b) * COLS + o),
-            ),
+            roundKeyed(n * dyingIn(b), world.rng.real(DEATHS, key, t, 0, row(s, b) * COLS + o)),
           );
           if (!dead) continue;
           d.add(row(s, b), o, -dead);
@@ -627,12 +625,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
         if (
           !blessed &&
           world.rng.real(HAND_VITAL, a.id, t, 0) <
-            Math.min(
-              1,
-              deathWithin(riskUnder(life.mortality[band]!, mortality), months) *
-                traitWeight(a, "death") *
-                care,
-            )
+            Math.min(1, dyingIn(band) * traitWeight(a, "death") * care)
         ) {
           d.add(row(a.sex, band), a.occupation, -1);
           history.addDeaths(p.cell, year, band, 1);

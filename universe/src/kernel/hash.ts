@@ -109,13 +109,30 @@ export class Hasher {
         throw new Error(`cannot hash a ${typeof v}`);
     }
   }
+  /**
+   * The sixteen hex digits of a fingerprint's lanes, as string() absorbs the text hex() writes
+   * of them (without writing it: a digest folded thousands of times over is kept as its lanes).
+   */
+  hexDigits(lanes: readonly [number, number]): this {
+    for (const v of lanes)
+      for (let shift = 28; shift > 0; shift -= 8) {
+        const hi = (v >>> shift) & 15,
+          lo = (v >>> (shift - 4)) & 15;
+        this.word((hi < 10 ? 48 + hi : 87 + hi) | ((lo < 10 ? 48 + lo : 87 + lo) << 16));
+      }
+    return this.word(16);
+  }
   /** The two 32-bit lanes of the fingerprint. */
   lanes(): [number, number] {
     return [finish(this.a, this.n), finish(this.b ^ 0x27d4eb2f, this.n)];
   }
   /** Sixteen hex digits. */
   hex(): string {
-    const [a, b] = this.lanes();
-    return a.toString(16).padStart(8, "0") + b.toString(16).padStart(8, "0");
+    return hexOf(this.lanes());
   }
+}
+
+/** The sixteen hex digits of a fingerprint's two lanes (what Hasher.hex writes). */
+export function hexOf([a, b]: readonly [number, number]): string {
+  return a.toString(16).padStart(8, "0") + b.toString(16).padStart(8, "0");
 }

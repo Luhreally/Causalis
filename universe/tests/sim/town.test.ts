@@ -18,6 +18,7 @@ import {
   TownBuilder,
   TownStore,
   civicLots,
+  civicMask,
   homesOf,
   housingOf,
   levelsOf,
@@ -26,6 +27,8 @@ import {
   makePopulationWorld,
   populationContext,
   townsOf,
+  type Change,
+  type Civic,
   type Fabric,
   type PopulationContext,
   type Settlement,
@@ -292,6 +295,279 @@ test("a town's runs stay few: years-old runs join, and those built over are let 
     consistent(f, `year ${y}`);
   }
   assert.ok(f.changes.length <= 60, `${f.changes.length} runs over three hundred years`);
+});
+
+/** Homes let fall lot by lot over a town's last 512 lots, as the builder let them before it went run by run. */
+function shrinkByLot(b: TownBuilder, f: Fabric, people: number): void {
+  const housing = housingOf(f);
+  if (housing === 0 || housing <= people / 0.6) {
+    f.lean = 0;
+    return;
+  }
+  if (++f.lean < 3) return;
+  let excess = housing - Math.ceil(people / 0.8),
+    count = Math.max(1, Math.ceil(homesOf(f) * 0.05)),
+    top = -1;
+  const from = Math.max(0, f.next - 512),
+    levels = levelsOf(f, from, f.next),
+    under = civicMask(f, from, f.next),
+    fall = (lo: number) => {
+      if (top < 0) return;
+      b.change(f, CHANGE.fell, lo, top + 1, 0, 0);
+      b.release(f, lo, top + 1);
+      top = -1;
+    };
+  for (let p = f.next - 1; p >= from && excess > 0 && count > 0; p--) {
+    const was = levels[p - from]!;
+    if (was < 0 || under[p - from]) {
+      fall(p + 1);
+      continue;
+    }
+    if (top < 0) top = p;
+    f.homes[was]!--;
+    excess -= HOLDS[was]!;
+    count--;
+    if (excess <= 0 || count <= 0) fall(p);
+  }
+  fall(from);
+}
+
+/** A share of a town's homes razed lot by lot, its heart first or its edge, as the builder razed them before. */
+function razeByLot(b: TownBuilder, f: Fabric, share: number, edge: boolean): number {
+  const levels = levelsOf(f, 0, f.next),
+    under = civicMask(f, 0, f.next),
+    standing: number[] = [];
+  for (let p = 0; p < f.next; p++) if (levels[p]! >= 0 && !under[p]) standing.push(p);
+  const n = Math.min(standing.length, Math.ceil(standing.length * share)),
+    down = edge ? standing.slice(-n) : standing.slice(0, n);
+  let run = -1,
+    at = -1;
+  const done = () => {
+    if (run < 0) return;
+    b.change(f, CHANGE.razed, run, at + 1, 0, 0);
+    b.release(f, run, at + 1);
+    run = -1;
+  };
+  for (const p of down) {
+    if (run >= 0 && p !== at + 1) done();
+    if (run < 0) run = p;
+    at = p;
+    f.homes[levels[p]!]!--;
+  }
+  done();
+  return down.length;
+}
+
+test("homes fall and burn run by run as they did lot by lot: the same lots, runs and digest", () => {
+  const towns = [bare(), bare()],
+    digest = (s: TownStore) => {
+      const h = new Hasher();
+      s.hashInto(h);
+      return h.hex();
+    },
+    emptied = { population: 5, cell: 0, ref: "town:test", name: "Test" } as unknown as Settlement;
+  let people = 400,
+    fell = 0,
+    idle = 0;
+  for (let y = 0; y < 400; y++) {
+    // Booms and long lean spells; now and then a building among its homes or at its edge, one
+    // fallen out of use, a fire at its heart or a sack at its edge.
+    people = Math.max(30, Math.round(people * (y % 100 < 40 ? 1.08 : y % 100 < 90 ? 0.95 : 1)));
+    const razed: number[] = [];
+    for (const [i, { ctx, f }] of towns.entries()) {
+      const b = new TownBuilder(ctx, y);
+      b.settle(f);
+      if (people > housingOf(f)) {
+        f.lean = 0;
+        b.grow(f, people, LEVEL.townhouse, LEVEL.house, -1);
+      } else if (i === 1) shrinkByLot(b, f, people);
+      else b.shrink(f, people);
+      if (y % 17 === 3) {
+        const at = b.siteFor(f, 2, y % 2 === 0 ? "core" : "edge");
+        b.clearFor(f, at, 2);
+        f.civics.push({ kind: "workshop", at, lots: 2, start: y, end: y + 1, fell: null });
+      }
+      if (y % 41 === 20)
+        b.civics(
+          f,
+          emptied,
+          () => false,
+          false,
+          () => false,
+          () => false,
+        );
+      if (y % 13 === 6) {
+        const share = 0.01 + (y % 7) / 50,
+          edge = y % 2 === 1;
+        razed.push(i === 1 ? razeByLot(b, f, share, edge) : b.raze(f, share, edge));
+      }
+    }
+    const [{ f, store }, { f: byLot, store: byLotStore }] = towns as [
+      (typeof towns)[0],
+      (typeof towns)[0],
+    ];
+    assert.deepEqual(f, byLot, `year ${y}: the same town`);
+    assert.equal(digest(store), digest(byLotStore), `year ${y}: the same digest`);
+    assert.equal(razed[0], razed[1], `year ${y}: as many razed`);
+    consistent(f, `year ${y}`);
+    if (f.changes.some((c) => c[0] === CHANGE.fell && c[4] === y)) fell++;
+    else if (f.lean >= 3) idle++;
+  }
+  // (Lean years that let homes fall, and those with none left to fall in its last lots.)
+  assert.ok(
+    fell > 10 && idle > 10,
+    `${fell} years let homes fall, ${idle} none (of ${towns[0]!.f.next} lots)`,
+  );
+});
+
+test("homes fall and burn run by run as they did lot by lot, whatever stands on a town's lots", () => {
+  let s = 7;
+  const roll = (n: number) => {
+      s = (Math.imul(s, 1103515245) + 12345) >>> 0;
+      return (s >>> 8) % n;
+    },
+    digest = (store: TownStore) => {
+      const h = new Hasher();
+      store.hashInto(h);
+      return h.hex();
+    };
+  for (let k = 0; k < 400; k++) {
+    // Runs of every kind and length with open lots among them, and buildings standing or fallen
+    // over any of it (a lone lot of homes at its top, a building over its last lots).
+    const next = 1 + roll(roll(3) === 0 ? 40 : 1500),
+      changes: Change[] = [],
+      civics: Civic[] = [];
+    for (let p = 0; p < next;) {
+      const n = Math.min(next - p, 1 + roll(roll(4) === 0 ? 300 : 6));
+      if (roll(4) > 0) changes.push([roll(5), p, p + n, 0, 0, roll(HOLDS.length), -1]);
+      p += n;
+    }
+    // (Now and then two runs of homes on a lot, which a town never has: the later stands.)
+    if (roll(8) === 0) {
+      const at = roll(next);
+      changes.push([roll(2), at, at + 1 + roll(20), 0, 0, roll(HOLDS.length), -1]);
+    }
+    for (let c = roll(10); c > 0; c--)
+      civics.push({
+        kind: "workshop",
+        at: roll(next),
+        lots: 1 + roll(roll(5) === 0 ? 40 : 4),
+        start: 0,
+        end: 0,
+        fell: roll(3) === 0 ? 0 : null,
+      });
+    const towns = [bare(), bare()],
+      people = roll(1 + 3 * next),
+      share = roll(4) === 0 ? 1 / (1 + roll(next)) : roll(40) / 100,
+      edge = roll(2) === 0,
+      what = `town ${k} (${next} lots, ${people} people, ${share} razed at its ${edge ? "edge" : "heart"})`;
+    for (const { f } of towns) {
+      Object.assign(f, {
+        next,
+        changes: structuredClone(changes),
+        civics: structuredClone(civics),
+      });
+      f.homes = HOLDS.map(() => 0);
+      for (const l of levelsOf(f, 0, next)) if (l >= 0) f.homes[l]!++;
+      f.lean = 2;
+    }
+    const [{ ctx, f, store }, { ctx: byLotCtx, f: byLot, store: byLotStore }] = towns as [
+      ReturnType<typeof bare>,
+      ReturnType<typeof bare>,
+    ];
+    new TownBuilder(ctx, 1).shrink(f, people);
+    shrinkByLot(new TownBuilder(byLotCtx, 1), byLot, people);
+    assert.deepEqual(f, byLot, `${what}: the same fall`);
+    assert.equal(
+      new TownBuilder(ctx, 2).raze(f, share, edge),
+      razeByLot(new TownBuilder(byLotCtx, 2), byLot, share, edge),
+      `${what}: as many razed`,
+    );
+    assert.deepEqual(f, byLot, `${what}: the same lots razed`);
+    assert.equal(digest(store), digest(byLotStore), `${what}: the same digest`);
+  }
+});
+
+test("a town settled only as something of it comes due is the town settled every year", () => {
+  const towns = [bare(), bare()],
+    digest = (store: TownStore) => {
+      const h = new Hasher();
+      store.hashInto(h);
+      return h.hex();
+    },
+    emptied = { population: 5, cell: 0, ref: "town:test", name: "Test" } as unknown as Settlement;
+  let people = 400,
+    passed = 0;
+  for (let y = 0; y < 400; y++) {
+    // Booms and long lean spells, buildings raised and fallen out of use, fires and sacks, and
+    // years on end when nothing is built at all.
+    people = Math.max(30, Math.round(people * (y % 100 < 30 ? 1.08 : y % 100 < 60 ? 0.95 : 1)));
+    for (const [i, { ctx, f, store }] of towns.entries()) {
+      // (The second goes over every run and building every year, as settling always did.)
+      if (i === 1) store.settled.clear();
+      const b = new TownBuilder(ctx, y);
+      b.settle(f);
+      if (i === 0 && store.settled.get(f)!.year < y) passed++;
+      if (people > housingOf(f)) {
+        f.lean = 0;
+        b.grow(f, people, LEVEL.townhouse, LEVEL.house, -1);
+      } else b.shrink(f, people);
+      if (y % 23 === 3) {
+        const at = b.siteFor(f, 2, y % 2 === 0 ? "core" : "edge");
+        b.clearFor(f, at, 2);
+        f.civics.push({ kind: "workshop", at, lots: 2, start: y, end: y + 1, fell: null });
+      }
+      if (y % 31 === 20)
+        b.civics(
+          f,
+          emptied,
+          () => false,
+          false,
+          () => false,
+          () => false,
+        );
+      if (y % 37 === 6) b.raze(f, 0.01 + (y % 7) / 50, y % 2 === 1);
+    }
+    const [{ f, store }, { f: everyYear, store: everyYearStore }] = towns as [
+      ReturnType<typeof bare>,
+      ReturnType<typeof bare>,
+    ];
+    assert.deepEqual(f, everyYear, `year ${y}: the same town`);
+    assert.equal(digest(store), digest(everyYearStore), `year ${y}: the same digest`);
+  }
+  assert.ok(passed > 100, `${passed} years with nothing come due`);
+});
+
+test("a town otherwise still settles on time a building fallen out of use and a run razed whole", () => {
+  const towns = [bare(), bare()],
+    emptied = { population: 5, cell: 0, ref: "town:test", name: "Test" } as unknown as Settlement,
+    none = () => false;
+  // Ten years of building and a workshop at its edge (on lots no run holds); then years of
+  // nothing, but for the workshop let fall (cutting no run) and every home razed at once (as
+  // many runs after as before).
+  for (const { ctx, f } of towns) {
+    for (let y = 0; y < 10; y++) year(ctx, f, y, 300 + y * 40, LEVEL.house);
+    const b = new TownBuilder(ctx, 10),
+      at = b.siteFor(f, 2, "edge");
+    b.clearFor(f, at, 2);
+    f.civics.push({ kind: "workshop", at, lots: 2, start: 10, end: 11, fell: null });
+  }
+  for (let y = 11; y < 160; y++) {
+    for (const [i, { ctx, f, store }] of towns.entries()) {
+      // (The second goes over every run and building every year, as settling always did.)
+      if (i === 1) store.settled.clear();
+      const b = new TownBuilder(ctx, y);
+      b.settle(f);
+      if (y === 20) b.civics(f, emptied, none, false, none, none);
+      if (y === 90) {
+        assert.equal(f.changes.length, 1, "its homes one run");
+        b.change(f, CHANGE.razed, f.changes[0]![1], f.changes[0]![2], 0, 0);
+      }
+    }
+    assert.deepEqual(towns[0]!.f, towns[1]!.f, `year ${y}: the same town`);
+    if (y === 20 + RUIN_YEARS + 1) assert.equal(towns[0]!.f.civics.length, 0, "the workshop gone");
+  }
+  assert.equal(towns[0]!.f.changes.length, 0, "the razed run weathered away");
 });
 
 test("the towns' fabric is saved and loaded whole, digest and all", () => {

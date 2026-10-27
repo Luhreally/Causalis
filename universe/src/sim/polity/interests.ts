@@ -125,8 +125,10 @@ export function interestsOf(ctx: PopulationContext, p: Polity, t: SimTime): Inte
   const sway = swayOf(count, p.leadership, piety, seatFaith.faith !== null, sacred);
 
   // The realms it meets: those it trades with (and down which road), and those of another faith.
+  // (Only the flows out of or into its own lands can be its trade: a land is a realm's only
+  // while among its members.)
   const trade = new Map<Ref, { volume: number; road: Ref | null }>();
-  for (const f of markets.flows) {
+  for (const f of markets.flowsOf(p.members)) {
     const from = realms.of(f.from),
       to = realms.of(f.to);
     if (!from || !to || from === to || (from !== p && to !== p)) continue;
@@ -142,12 +144,7 @@ export function interestsOf(ctx: PopulationContext, p: Polity, t: SimTime): Inte
       const q = realms.of(g.grid.neighbours[k]!);
       if (q && q !== p && q.ended === null) neighbours.add(q);
     }
-  const atWar = world.hasStore("war.wars")
-    ? world
-        .store<WarStore>("war.wars")
-        .all()
-        .filter((w) => w.ended === null && (w.attacker === p.ref || w.defender === p.ref))
-    : [];
+  const atWar = world.hasStore("war.wars") ? world.store<WarStore>("war.wars").fighting(p.ref) : [];
 
   const demands: Demand[] = [];
   const want = (d: Omit<Demand, "strength"> & { strength: number }) => {

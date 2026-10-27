@@ -49,6 +49,57 @@ test("apportion sums exactly and follows the weights", () => {
   assert.deepEqual(apportion(1, [1, 1], [5, 2]), [0, 1]);
 });
 
+test("apportion gives what the largest remainders sorted whole would, however many the parts", () => {
+  /** Largest remainder by sorting every remainder, as apportion did for any number of parts. */
+  const sorted = (total: number, weights: readonly number[], tieKeys?: readonly number[]) => {
+    const parts = weights.map(() => 0);
+    let sum = 0,
+      given = 0;
+    for (const w of weights) if (w > 0) sum += w;
+    const order: { i: number; rem: number; tie: number }[] = [];
+    weights.forEach((weight, i) => {
+      const w = weight > 0 ? weight : 0,
+        exact = (total * w) / sum,
+        whole = Math.floor(exact);
+      parts[i] = whole;
+      given += whole;
+      if (w > 0) order.push({ i, rem: exact - whole, tie: tieKeys?.[i] ?? i });
+    });
+    order.sort((x, y) =>
+      x.rem !== y.rem
+        ? x.rem > y.rem
+          ? -1
+          : 1
+        : x.tie !== y.tie
+          ? x.tie < y.tie
+            ? -1
+            : 1
+          : x.i - y.i,
+    );
+    for (let r = 0; given < total; r = (r + 1) % order.length, given++) parts[order[r]!.i]!++;
+    return parts;
+  };
+  for (let k = 0; k < 3000; k++) {
+    const n = 1 + rng.index(k % 3 === 0 ? 200 : 40, S, k),
+      // Weights of few kinds (many remainders alike), of many, fractions, zero or below.
+      kinds = 1 + rng.index(k % 2 ? 4 : 1000, S, k, 1),
+      weights = Array.from({ length: n }, (_, i) =>
+        rng.unit(S, k, 2, i) < 0.1
+          ? -rng.index(3, S, k, 3, i)
+          : k % 7 === 3
+            ? rng.unit(S, k, 7, i)
+            : 1 + rng.index(kinds, S, k, 4, i),
+      ),
+      ties =
+        k % 4 === 0
+          ? undefined
+          : weights.map((_, i) => rng.index(k % 8 === 1 ? 3 : 1e6, S, k, 5, i)),
+      total = rng.index(k % 5 === 0 ? 10 : 100_000, S, k, 6);
+    if (!weights.some((w) => w > 0)) weights[0] = 1;
+    assert.deepEqual(apportion(total, weights, ties), sorted(total, weights, ties), `case ${k}`);
+  }
+});
+
 test("selectLowest ignores input order", () => {
   const items: Keyed<string>[] = [];
   for (let i = 0; i < 50; i++) items.push({ key: rng.u32(S, i), tie: i, item: `x${i}` });

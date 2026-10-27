@@ -2,6 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DAY,
+  DecisionLog,
+  EventLog,
+  Hasher,
   World,
   EVENT,
   YEAR,
@@ -303,4 +306,113 @@ test("an old event raised by hindsight is kept whole, as a world loaded then wou
   loaded.runTo(100 * YEAR);
   assert.ok(run.events.get(a), "the raised event's own cause stays");
   assert.deepEqual(loaded.domainHashes(), run.domainHashes());
+});
+
+test("a sweep forgets as it always did: the digest folded one by one, tombstones and summaries", () => {
+  // (The hex digits of a digest's lanes are absorbed as its text would be.)
+  for (const lanes of [
+    [0, 0],
+    [0xabc, 0xffffffff],
+    [0x12345678, 0x9abcdef0],
+  ] as [number, number][])
+    assert.equal(
+      new Hasher().hexDigits(lanes).hex(),
+      new Hasher().string(lanes.map((v) => v.toString(16).padStart(8, "0")).join("")).hex(),
+    );
+  const w = new World(seedFromText("sweeps"));
+  w.retention = { window: 10_000 * YEAR, chronicle: 0 };
+  const places = [null, "cell:0:3", "cell:0:1"] as (Ref | null)[];
+  for (let y = 0; y < 60; y++) {
+    w.runTo(y * YEAR);
+    for (let k = 0; k < 5; k++) {
+      w.events.emit({ type: k % 2 ? PING.type : MIDDLING.type, place: places[(y + k) % 3]! });
+      w.decisions.record({
+        rule: "test.rule",
+        subject: "cell:0:1" as Ref,
+        outcome: k,
+        score: 1,
+        threshold: 0,
+        factors: [],
+      });
+    }
+  }
+  const digest = (log: EventLog | DecisionLog) => (log.save() as { digest: string }).digest;
+  // Twice: the first sweep from the digest as text, the second from the one the first wrote.
+  const forgotten: { id: Ref; t: number; type: string; place: Ref | null }[] = [];
+  for (const every of [3, 2]) {
+    const events = [...w.events.all()],
+      decisions = [...w.decisions.all()],
+      gone = events.filter((_, i) => i % every !== 0),
+      lost = decisions.filter((_, i) => i % every !== 0);
+    let events0 = digest(w.events),
+      decisions0 = digest(w.decisions);
+    for (const e of gone)
+      events0 = new Hasher().string(events0).string("forget").string(e.id).hex();
+    for (const d of lost)
+      decisions0 = new Hasher().string(decisions0).string("forget").string(d.id).hex();
+    const at = new Map(events.map((e, i) => [e, i])),
+      atD = new Map(decisions.map((d, i) => [d, i]));
+    assert.equal(
+      w.events.sweep((e) => at.get(e)! % every === 0),
+      gone.length,
+    );
+    assert.equal(
+      w.decisions.sweep((d) => atD.get(d)! % every === 0),
+      lost.length,
+    );
+    assert.equal(digest(w.events), events0, "the events' digest");
+    assert.equal(digest(w.decisions), decisions0, "the decisions' digest");
+    for (const e of gone) {
+      assert.deepEqual(w.events.tombstone(e.id), {
+        id: e.id,
+        t: e.t,
+        type: e.type,
+        place: e.place,
+        subjects: e.subjects,
+      });
+      forgotten.push(e);
+    }
+    for (const d of lost)
+      assert.deepEqual(w.decisions.tombstone(d.id), {
+        id: d.id,
+        t: d.t,
+        rule: d.rule,
+        subject: d.subject,
+      });
+    for (const e of w.events.all()) assert.equal(w.events.tombstone(e.id), undefined);
+  }
+  // The summaries: what was forgotten, by place and decade, in their order.
+  const expected = new Map<
+    string,
+    { place: string; decade: number; counts: Record<string, number> }
+  >();
+  for (const e of forgotten) {
+    const place = e.place ?? "",
+      decade = Math.floor(e.t / (10 * YEAR)),
+      key = `${place}|${decade}`;
+    const s = expected.get(key) ?? { place, decade, counts: {} };
+    expected.set(key, s);
+    s.counts[e.type] = (s.counts[e.type] ?? 0) + 1;
+  }
+  assert.deepEqual(
+    w.events.summaries(),
+    [...expected.values()].sort((a, b) =>
+      a.place !== b.place ? (a.place < b.place ? -1 : 1) : a.decade - b.decade,
+    ),
+  );
+  // Saved and loaded alike; tombstones let go, whether asked for since (the log run) or not (loaded).
+  const events = new EventLog(w.minter, () => w.now),
+    decisions = new DecisionLog(w.minter, () => w.now);
+  events.load(JSON.parse(JSON.stringify(w.events.save())));
+  decisions.load(JSON.parse(JSON.stringify(w.decisions.save())));
+  assert.deepEqual(events.save(), w.events.save());
+  assert.deepEqual(decisions.save(), w.decisions.save());
+  const old = forgotten.filter((e) => e.t < 30 * YEAR);
+  assert.ok(old.length > 0 && old.length < forgotten.length);
+  for (const log of [w.events, events]) {
+    assert.equal(log.dropTombstones(30 * YEAR), old.length);
+    for (const e of forgotten)
+      assert.equal(!!log.tombstone(e.id), e.t >= 30 * YEAR, `${e.id}'s tombstone`);
+  }
+  assert.equal(digest(events), digest(w.events));
 });

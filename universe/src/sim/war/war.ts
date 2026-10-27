@@ -225,6 +225,11 @@ export class WarStore implements StateStore {
   private list: War[] = [];
   /** The same wars by ref. */
   private readonly byRef = new Map<string, War>();
+  /**
+   * The same wars by each realm that fought them, attacker or defender, in the order they were
+   * declared (a cache, never saved: what reads one realm's wars need not walk every war fought).
+   */
+  private readonly byRealm = new Map<string, War[]>();
   /** Wars that ended are folded into a digest once, at the end of their year, and not hashed again. */
   private digest = "";
   private readonly sealed = new Set<string>();
@@ -281,6 +286,16 @@ export class WarStore implements StateStore {
   add(w: War): void {
     this.list.push(w);
     this.byRef.set(w.ref, w);
+    this.index(w);
+  }
+
+  /** A war under each realm that fights it (once, should a realm be on both sides). */
+  private index(w: War): void {
+    for (const realm of w.attacker === w.defender ? [w.attacker] : [w.attacker, w.defender]) {
+      const wars = this.byRealm.get(realm);
+      if (wars) wars.push(w);
+      else this.byRealm.set(realm, [w]);
+    }
   }
 
   all(): readonly War[] {
@@ -291,15 +306,21 @@ export class WarStore implements StateStore {
     return this.byRef.get(ref);
   }
 
+  /** A realm's wars, attacker or defender, ended or not, in the order they were declared. */
+  of(realm: Ref): readonly War[] {
+    return this.byRealm.get(realm) ?? [];
+  }
+
   /** The wars a realm is fighting now. */
   fighting(realm: Ref): War[] {
-    return this.list.filter(
+    return this.of(realm).filter(
       (w) => w.ended === null && (w.attacker === realm || w.defender === realm),
     );
   }
 
   between(a: Ref, b: Ref): War | undefined {
-    return this.list.find(
+    // (Among a's wars, in the order they were declared: the first of all wars that matches.)
+    return this.of(a).find(
       (w) =>
         w.ended === null &&
         ((w.attacker === a && w.defender === b) || (w.attacker === b && w.defender === a)),
@@ -341,7 +362,11 @@ export class WarStore implements StateStore {
       fallen: [...w.fallen] as [number, number],
     }));
     this.byRef.clear();
-    for (const w of this.list) this.byRef.set(w.ref, w);
+    this.byRealm.clear();
+    for (const w of this.list) {
+      this.byRef.set(w.ref, w);
+      this.index(w);
+    }
     const t = state as { digest?: string; sealed?: string[]; fellDigest?: string };
     this.digest = t.digest ?? "";
     this.sealed.clear();

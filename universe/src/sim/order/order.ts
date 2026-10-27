@@ -376,7 +376,7 @@ export function legitimacyFactors(ctx: PopulationContext, p: Polity): Factor[] {
     cap = capacityOf(ctx, p).value;
   let won = 0,
     lost = 0;
-  for (const w of warsOf(world).all()) {
+  for (const w of warsOf(world).of(p.ref)) {
     const side = w.attacker === p.ref ? 0 : w.defender === p.ref ? 1 : -1;
     if (side < 0) continue;
     for (const b of w.battles) if (b.year >= year - 5) b.won === (side === 0) ? won++ : lost++;
@@ -1166,6 +1166,15 @@ function weighAbolition(
   o.movements = o.movements.filter((m) => m !== movement);
 }
 
+/** How many realms but this one, still standing, have freed their bound. */
+function freedElsewhere(world: World, store: OrderStore, o: RealmOrder): number {
+  const realms = politiesOf(world);
+  let n = 0;
+  for (const x of store.realms.values())
+    if (x !== o && x.abolished !== null && realms.get(x.realm)?.ended === null) n++;
+  return n;
+}
+
 /** Movements among a realm's people, rising and fading with what moves them. */
 function stirMovements(
   ctx: PopulationContext,
@@ -1186,9 +1195,7 @@ function stirMovements(
       1,
       risings.reduce((s, m) => s + m.weight, 0),
     ),
-    free = [...store.realms.values()].filter(
-      (x) => x !== o && x.abolished !== null && politiesOf(world).get(x.realm)?.ended === null,
-    ).length,
+    free = freedElsewhere(world, store, o),
     interests = interestsOf(ctx, p, t),
     traders = interests.find((i) => i.group === "traders")?.sway ?? 0,
     makers = interests.reduce(
