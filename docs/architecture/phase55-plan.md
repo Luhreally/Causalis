@@ -60,14 +60,18 @@ hand, on a crutch, an eye patched — their pages tell it.
   PLACED_SCALE 1.875 so soldiers match townsfolk (field 262 × 169 m); the battle's wall line on the
   town's walls at a seat; placed mode drops the BattleLayer's own hill/river/houses/camp.
 - **Who (M225):** line k of a town stands for 12 people; holder n ≥ 1 keyed `folk ${town} ${k} ${n}`;
-  eligible = not a child, male, in the sim's fighting bands (aliens by their own life table); the levy
-  = the first stochasticRound(menSent/12) eligible lines by hash(war, k); `townRoster(world, town,
+  eligible = not a child, male, in the sim's fighting bands (aliens by their own life table), and not
+  taken by another battle of the same year (one battle per man per turn, 2026-10-27: a year's battles
+  are all fought at its turn, so they take their men in event-ref order, the attackers' side first);
+  the levy = the first stochasticRound(menSent/12) eligible lines by hash(war, k); `townRoster(world, town,
   year)` folds every battle and strike that took the town's people: the dead from the levy first, a
   dead holder's line empty 1–4 years then held again; fates kept 40 years.
 - **The roll (`battle.roll {event, most}`):** per side `fell[]`, `hurt[]`, `stood[]`, `towns[]` —
   recorded line holders and met people first, then `lv:${event}:${side}:${j}` men named in the land's
   tongue; `battleFigures` (today's newBattle rule plus hurt) is the one rule for counts.
-- **Met people:** followLife draws war deaths and wounds against the same pools (unhashed observer).
+- **Met people:** followLife draws war deaths and wounds against the same pools (unhashed observer);
+  a met man goes to the first battle of the year he is levied for, and each later one draws him at its
+  sent ÷ (the land's fighting men less those sent to that year's earlier battles).
 - **Wounds (M226):** `rules/anatomy.ts` members from the body plan (an arm takes its hand; vital
   members never lost; severing ≤ .45 as in Classic); blows by arm (edge/point/blunt/shot/fire/crush);
   `woundWords` ("lost his left hand at the battle at Pounholt in year 312, to a bronze axe; the stump
