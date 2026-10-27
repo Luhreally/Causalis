@@ -1205,6 +1205,23 @@ async function runPlanetPage(): Promise<void> {
   // ?hold: the world stands where it was begun until told to go on (the gates: the same moment on
   // every machine, however long its first picture takes to draw).
   if (params.has("hold")) client.setSpeed(0);
+  // The world waits for its first picture: else it runs on unseen at the globe's pace for as long
+  // as that takes to draw (seconds on a phone, minutes on a machine drawing without a graphics
+  // card), and the moment first seen is the machine's, not the world's. Held until its ground is
+  // painted and drawn whole, two frames on; a speed chosen meanwhile lets it go at once.
+  time.hold("first picture");
+  let pictured: () => void = () => {};
+  const firstPicture = new Promise<void>((done) => (pictured = done));
+  {
+    let frames = 0;
+    const off = stage.onUpdate(() => {
+      if (painted > 0) frames++;
+      if (frames < 2) return;
+      off();
+      time.release("first picture");
+      pictured();
+    });
+  }
   // (While a battle is watched, Space and the numbers work its own clock: Phase 37 M186; while a
   // war is watched unfolding, its own: Phase 38 M193.)
   let battleKeys: TimeKeys | null = null,
@@ -3779,6 +3796,12 @@ async function runPlanetPage(): Promise<void> {
         }
       if (camp >= 0 && campD < bestD && (best < 0 || campD < CAMP_REACH)) {
         await fadeOver(() => ready("the band", () => toCamp(regionCell, camp)));
+        return;
+      }
+      // (Beside a battle on a land no town stands on, and no village in view: down onto its field,
+      // the one thing there to be seen near, not nowhere.)
+      if (best < 0 && !battleTown && war?.startsWith("ev:")) {
+        await fadeOver(() => ready("the battle", () => toBattle(war)));
         return;
       }
       if (best < 0 && !battleTown) return;
@@ -6557,7 +6580,9 @@ async function runPlanetPage(): Promise<void> {
       // be many years in coming, and at the land's month a second the eye would wait minutes. Not
       // until the eye has come down near them — on a machine slow to draw, the years would go by
       // while it flies, and the first village come before the camps were ever seen — and not over
-      // the clock as the viewer has held it or set it going themselves meanwhile.)
+      // the clock as the viewer has held it or set it going themselves meanwhile; nor before the
+      // world goes at all, at its first picture.)
+      await firstPicture;
       const pace = time.speed,
         watch = (cradle = { acted: false, back: 0 });
       for (let wait = 0; wait < 240 && here() && rig.flying; wait++)

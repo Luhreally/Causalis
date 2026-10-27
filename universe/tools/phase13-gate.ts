@@ -184,15 +184,24 @@ const lands = [...people].sort((a, b) => b.people - a.people);
   const settled = await cast(lands[3]!.centre, "settlers sent");
   await take("bless", "realms");
   const blessed = await cast(lands[4]!.centre, "a realm blessed");
+  // (Each side touched on its own seat, as it stands now: the land a war is over may be the
+  // attacker's already, and touched there both hands would fall on one realm.)
   const wars = await q<{ wars: War[] }>("wars.map"),
-    pair = wars.wars.find((w) => w.ended === null) ?? wars.wars[0];
+    standing = await q<{ ref: string; seat: number; spots: number[] }[]>("realms.map"),
+    seatOf = (ref: string) => {
+      const r = standing.find((x) => x.ref === ref);
+      return r ? (r.seat >= 0 ? r.seat : (r.spots[0] ?? -1)) : -1;
+    },
+    pair = [...wars.wars.filter((w) => w.ended === null), ...wars.wars].find(
+      (w) => seatOf(w.attacker.ref) >= 0 && seatOf(w.defender.ref) >= 0,
+    );
   let united = "no two realms at hand",
     gone = false;
   if (pair) {
     await take("union", "peoples");
-    await point(pair.from, true);
+    await point(seatOf(pair.attacker.ref), true);
     await page.waitForTimeout(slow(1200));
-    united = await cast(pair.to, "two realms made one");
+    united = await cast(seatOf(pair.defender.ref), "two realms made one");
     const realms = await q<{ ref: string }[]>("realms.map");
     gone = !realms.some((r) => r.ref === pair.defender.ref);
   }

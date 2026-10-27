@@ -358,14 +358,22 @@ await page.waitForTimeout(1500);
 // its village.
 {
   say(`the host answers in ${await hostAnswers("before the zoom")} ms`);
-  const wars = await k<{ year: number; wars: { battles: { spot: number; year: number }[] }[] }>(
-      `globalThis.causalis.client.query({ type: "wars.map" })`,
-    ),
-    battle = wars.wars
+  // (The latest fought in a land with a town, to be seen from its village after: a battle on a
+  // land no town stands on has only its field to go down onto.)
+  const battle = await k<{ event: string; spot: number; year: number } | null>(`(async () => {
+    const c = globalThis.causalis.client,
+      wars = await c.query({ type: "wars.map" }),
+      province = c.latestFrame("globe")?.arrays.province;
+    for (const b of wars.wars
       .flatMap((w) => w.battles)
       .filter((b) => b.spot >= 0 && wars.year - b.year <= 1)
-      .sort((a, b) => b.year - a.year)[0];
-  if (!battle) say("no battle lately: the zoom through a battle is not tried");
+      .sort((a, b) => b.year - a.year)) {
+      const land = province?.[b.spot] ?? -1;
+      if (land >= 0 && (await c.query({ type: "land.heart", args: { cell: land } }))) return b;
+    }
+    return null;
+  })()`);
+  if (!battle) say("no battle lately by a town: the zoom through a battle is not tried");
   else {
     await k(`globalThis.causalis.faceSpot(${battle.spot}, 1.5)`);
     await page.waitForTimeout(1500);
@@ -395,7 +403,7 @@ await page.waitForTimeout(1500);
     // mark further off it each step). One battle followed all the way in, as a player would.
     const marks = () =>
         k<{ ref: string; x: number; y: number }[]>("globalThis.causalis.battlesOnScreen()"),
-      followed = { ref: null as string | null };
+      followed = { ref: battle.event as string | null };
     // Zoomed onto the battle: down on its field, to watch it fought (Phase 37 M186).
     await whileNot(
       async () => (await scale()) !== "region",
