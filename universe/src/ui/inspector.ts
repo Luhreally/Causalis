@@ -98,6 +98,11 @@ export class PageWindow {
   private tab = "";
   private token = 0;
   private seen = "";
+  /** The page's scene actions as last asked for, and what its buttons last said. */
+  private acts: { label: string; title: string; on: boolean; run: () => void }[] = [];
+  private actsSaid = "";
+  /** What the tabs last said (which is open, and each one's words). */
+  private tabsSaid = "";
   private opened = new Set<string>();
   private openStat: string | null = null;
   /** The blocks drawn, by their tab and place, with what each said (to keep what is unchanged). */
@@ -325,25 +330,39 @@ export class PageWindow {
   }
 
   private drawActions(page: PageModel): void {
+    const acts = this.sceneActions(page),
+      what = page.followable && this.tidings ? (FOLLOW_WORDS[page.kind] ?? "this") : null,
+      said = JSON.stringify([
+        !!page.place,
+        what && page.ref,
+        what,
+        acts.map((a) => [a.label, a.title, a.on]),
+      ]);
+    this.acts = acts;
+    // (A page is drawn again every few seconds as the world runs: its buttons stay the same ones
+    // while they say the same, so that none is taken from under the finger pressing it.)
+    if (said === this.actsSaid) return;
+    this.actsSaid = said;
     const parts: HTMLElement[] = [];
     if (page.place) {
       const go = el("button", "go-to", "⌖ Go to");
       go.title = "Go to where it is to be seen";
-      go.onclick = () => this.onGoTo(page.place!, page.ref);
+      go.onclick = () => {
+        if (this.page?.place) this.onGoTo(this.page.place, this.page.ref);
+      };
       parts.push(go);
     }
-    if (page.followable && this.tidings)
-      parts.push(this.tidings.follow(page.ref, FOLLOW_WORDS[page.kind] ?? "this"));
-    for (const a of this.sceneActions(page)) {
+    if (what) parts.push(this.tidings!.follow(page.ref, what));
+    acts.forEach((a, i) => {
       const b = el("button", a.on ? "scene-act on" : "scene-act", a.label);
       b.title = a.title;
       b.setAttribute("aria-pressed", String(a.on));
       b.onclick = () => {
-        a.run();
-        this.drawActions(page);
+        this.acts[i]?.run();
+        if (this.page) this.drawActions(this.page);
       };
       parts.push(b);
-    }
+    });
     this.actions.replaceChildren(...parts);
   }
 
@@ -433,20 +452,24 @@ export class PageWindow {
   }
 
   private drawTabs(page: PageModel): void {
+    this.tabs.hidden = page.tabs.length < 2;
+    // (Kept while they say the same, as the actions are.)
+    const said = JSON.stringify([this.tab, page.tabs.map((t) => [t.id, t.name])]);
+    if (said === this.tabsSaid) return;
+    this.tabsSaid = said;
     this.tabs.replaceChildren(
       ...page.tabs.map((t) => {
         const b = el("button", t.id === this.tab ? "tab on" : "tab", t.name);
         b.onclick = () => {
-          if (this.tab === t.id) return;
+          if (this.tab === t.id || !this.page) return;
           this.tab = t.id;
-          this.drawTabs(page);
-          this.drawBody(page);
+          this.drawTabs(this.page);
+          this.drawBody(this.page);
           this.inspector.scrollTop = 0;
         };
         return b;
       }),
     );
-    this.tabs.hidden = page.tabs.length < 2;
   }
 
   /**
