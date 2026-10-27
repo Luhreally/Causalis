@@ -122,6 +122,23 @@ export {
   type WoundStage,
   type WoundTended,
 } from "./wounds.ts";
+export {
+  APE_FRAME,
+  STATE_WORDS,
+  ableWords,
+  bodyAt,
+  bodyLine,
+  deathWords,
+  woundShort,
+  type BodyFrame,
+  type BodyMember,
+  type BodyNow,
+  type DeathBlow,
+  type MemberState,
+  type StruckMember,
+  type StruckNow,
+} from "./body.ts";
+export { parseSeatRef, seatRef, type KinCard } from "./kin.ts";
 export type { Campaign, CampaignBattle, WarAge } from "./campaign.ts";
 export type { ActKindShown, ActMark, ActsMap, LandSky, PaletteLand } from "./acts.ts";
 export type { GenesisPlan, MeadowPlan } from "./genesis.ts";

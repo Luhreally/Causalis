@@ -1282,3 +1282,33 @@ body[data-scale="micro"] {
   max-width: 100%;
   font-size: 0.85rem;
 }
+
+/* Anyone's family and body (Phase 55 wave 5): a line each on their card, their body drawn whole
+   on their page's Body tab, each member not whole marked. */
+.folk-kin .fact {
+  display: block;
+  line-height: 1.35;
+}
+.folk-family,
+.folk-body {
+  color: var(--ink, #e8eefc);
+}
+.body-view {
+  width: 100%;
+}
+.body-figure {
+  display: block;
+  /* (Its border is outside its width.) */
+  max-width: calc(100% - 2px);
+  height: 260px;
+  background: radial-gradient(ellipse at 50% 45%, #1a2c63 0%, #0a1230 72%, #050a1c 100%);
+  border: 1px solid var(--chrome-lo, #3a4466);
+  border-radius: 6px;
+}
+/* The page window's close box in its title bar's row like the boxes beside it: a card's corner
+   rule outranked the title bar's, and the box stood 2 px past the window's edge, so at a phone's
+   width every page slid sideways. */
+.page-window h2 .close {
+  position: static;
+  margin: 0;
+}

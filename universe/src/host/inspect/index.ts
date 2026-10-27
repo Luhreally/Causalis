@@ -46,6 +46,7 @@ import { healerPage } from "./wounds.ts";
 import { armPage, armsPage } from "./arm.ts";
 import { elementPage } from "./element.ts";
 import { levyManPage, townsfolkPage } from "./townsfolk.ts";
+import { seatPage, withKin } from "./kin.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
 function build(world: World, ref: string, tab: string | null): PageModel {
@@ -88,6 +89,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   // One of a town's many kept by their line, and one of a battle's levy (Phase 55 M225).
   if (ref.startsWith("folk:town:")) return townsfolkPage(world, ref);
   if (ref.startsWith("lv:")) return levyManPage(world, ref);
+  // A maker named for their seat at a trade (Phase 55 wave 5).
+  if (ref.startsWith("seat:")) return seatPage(world, ref);
   const code = ref.slice(0, ref.indexOf(":")),
     t = tab ?? undefined;
   switch (code) {
@@ -162,7 +165,8 @@ export function pageOf(world: World, ref: string): PageModel {
   const { ref: base, tab } = splitPageRef(ref);
   let page: PageModel;
   try {
-    page = withConcepts(tidy(build(world, base, tab)));
+    // (One of the town's people: their family and their body, Phase 55 wave 5.)
+    page = withConcepts(tidy(withKin(world, base, build(world, base, tab))));
   } catch {
     return unknownPage(world, base, true);
   }

@@ -22,6 +22,7 @@ import {
   anatomyOf,
   blowOf,
   borneHome,
+  deathMember,
   healDays,
   maimedShare,
   tendedBy,
@@ -36,6 +37,8 @@ import { observer, type Person } from "../causal/index.ts";
 import {
   parseTownsfolkRef,
   type Away,
+  type BodyFrame,
+  type DeathBlow,
   type VillagePlan,
   type Wound,
   type WoundTended,
@@ -43,6 +46,7 @@ import {
 import { battleOf, battleWords, battlesOfYear, burialOf, type Burial } from "./burials.ts";
 import { LINE, ROSTER_YEARS, townRoster, type Holder, type Roster } from "./roster.ts";
 import { strikesOn } from "./town.ts";
+import type { LevyMan } from "./roll.ts";
 import { healerOf } from "./village.ts";
 import { hostPartWords } from "./chain.ts";
 import { landTitle } from "./inspect/names.ts";
@@ -576,4 +580,86 @@ export function woundedTowns(world: World, most = 20): WoundedTown[] {
         (a.ref < b.ref ? -1 : a.ref > b.ref ? 1 : 0),
     )
     .slice(0, most);
+}
+
+// —— A body told whole (Phase 55 wave 5) ————————————————————————————————————————————————
+
+/** The people's body plan as a body is told (rules/anatomy.ts), for their pages and cards. */
+export function bodyFrameOf(world: World): BodyFrame {
+  return anatomyOf(populationContext(world).generated.life.people?.body ?? null);
+}
+
+/**
+ * A levy man's wound from his battle, by his ref alone (`lv:`), as a line holder's is dealt:
+ * keyed `wound <ref> <battle>`, tended where he came from (none: kin). Empty: he stood, or fell.
+ */
+export function levyWounds(world: World, man: LevyMan): Wound[] {
+  if (man.fate !== "hurt" && man.fate !== "maimed") return [];
+  const cell = man.place?.cell ?? man.land,
+    r = readerOf(world, townOf(world, man.place?.ref ?? null, cell)),
+    w = battleWound(
+      r,
+      man.ref,
+      { event: man.event, side: man.side, year: man.year, fate: man.fate },
+      cell,
+      false,
+    );
+  return w ? [w] : [];
+}
+
+/**
+ * The blow that killed one who fell at a battle (`ref` theirs, sent from `cell` of `town`): where
+ * on them by the share a blow there kills, keyed `death <ref> <battle>`, by what the foe bore; null:
+ * no record of the battle.
+ */
+export function battleDeath(
+  world: World,
+  town: string | null,
+  ref: string,
+  f: { readonly event: string; readonly side: 0 | 1; readonly year: number },
+  cell: number,
+): DeathBlow | null {
+  const fought = battleOf(world, f.event);
+  if (!fought) return null;
+  const r = readerOf(world, townOf(world, town, cell)),
+    { war, b } = fought,
+    foe = f.side === 0 ? 1 : 0,
+    blow = blowOf(b.bore?.[foe]?.[0] ?? null),
+    member = deathMember(r.body, blow, u(hashString(`death ${ref} ${f.event}`), 1));
+  return {
+    event: f.event,
+    from: "battle",
+    year: f.year,
+    where: battleWords(world, b.land),
+    blow,
+    arm: armWords(r, war, b, foe),
+    member,
+    words: r.body.words[member] ?? "~ body",
+    at: (f.year + 1) * 365 * DAY + BATTLE_HOUR * HOUR,
+  };
+}
+
+/** The blow that killed one of a town's lines in a strike on it (a fire's burns, a quake's crushing). */
+export function strikeDeath(
+  world: World,
+  town: string,
+  ref: string,
+  s: { readonly event: string; readonly kind: StrikeKind; readonly year: number },
+): DeathBlow | null {
+  const t = townOf(world, town, -1);
+  if (!t.ref) return null;
+  const r = readerOf(world, t),
+    blow = STRIKE_BLOW[s.kind],
+    member = deathMember(r.body, blow, u(hashString(`death ${ref} ${s.event}`), 1));
+  return {
+    event: s.event,
+    from: s.kind,
+    year: s.year,
+    where: `${STRIKE_WHERE[s.kind]} ${t.name}`,
+    blow,
+    arm: null,
+    member,
+    words: r.body.words[member] ?? "~ body",
+    at: strikeAt(world, s.event, s.year),
+  };
 }

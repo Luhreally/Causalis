@@ -278,6 +278,10 @@ function rim(s: NameShape, d: number): { x: number; y: number; z: number } {
   return { x: s.x * c + s.ax * n, y: s.y * c + s.ay * n, z: s.z * c + s.az * n };
 }
 import { deviceTier } from "./tier.ts";
+// (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
+import { kinLines } from "../ui/index.ts";
+import { seatRef, type KinCard, type StruckMember, type StruckNow } from "../bridge/index.ts";
+import { struckOf, toldBlows, warManOf, warSlot } from "../view/index.ts";
 
 const DAY = 86_400;
 /** What the hand's people do, in words. */
@@ -1115,6 +1119,19 @@ type Exposed = {
   rig?: OrbitRig;
   /** The genesis played (Phase 24): its stage and clock, the seed as the hand left it, its drop. */
   genesis?: () => unknown;
+  /**
+   * Anyone's family and body as their card tells them, by their ref; the soldiers of the war about
+   * the town and the litters borne in sight, on the screen (Phase 55 wave 5).
+   */
+  kin?: (ref: string) => Promise<KinCard>;
+  warMenOnScreen?: () => {
+    slot: number;
+    fallen: boolean;
+    x: number;
+    y: number;
+    ground: { x: number; z: number };
+  }[];
+  littersOnScreen?: () => { index: number; x: number; y: number }[];
 };
 const exposed: Exposed = {};
 (globalThis as { causalis?: Exposed }).causalis = exposed;
@@ -4433,6 +4450,8 @@ async function runPlanetPage(): Promise<void> {
       roll: BattleRoll;
       /** Who each figure is, as its roll names him. */
       names: readonly (RollEntry | null)[];
+      /** Where history struck each man of the roll, by his ref (Phase 55 wave 5). */
+      members: Readonly<Record<string, StruckMember>>;
       frame: PlacedFrame;
       /** The hosts' fires behind their lines the night before it. */
       camp: readonly { readonly x: number; readonly z: number }[];
@@ -4462,10 +4481,15 @@ async function runPlanetPage(): Promise<void> {
   const layBattle = async (town: VillagePlan, event: string, turn: number, key: string) => {
     const detail = stage.quality.detail,
       most = placedMost(detail),
-      [info, roll] = await Promise.all([
+      [info, roll, members] = await Promise.all([
         client.query<BattleNear | null>({ type: "battle.near", args: { event } }),
         client.query<BattleRoll | null>({ type: "battle.roll", args: { event, most } }),
-      ]).catch(() => [null, null] as const);
+        // (Where history struck each man of it: his figure struck there, Phase 55 wave 5.)
+        client.query<Record<string, StruckMember>>({
+          type: "battle.members",
+          args: { event, most },
+        }),
+      ]).catch(() => [null, null, null] as const);
     // (Moved on meanwhile: to another town, or the battle let go.)
     if (placedAsked !== key || plan?.ref !== town.ref) return;
     if (!info || !roll) {
@@ -4474,7 +4498,10 @@ async function runPlanetPage(): Promise<void> {
       return;
     }
     const field = newBattle(info, most, true),
-      blows = newBlows(field),
+      drawn = newBlows(field),
+      names = rollNames(field, drawn, roll),
+      // (Each named man struck where history struck him: his fate, and so his name, the same.)
+      blows = members ? newBlows(field, toldBlows(names, members)) : drawn,
       frame = fieldFrame(town, field);
     village.placeBattle({
       field,
@@ -4490,7 +4517,8 @@ async function runPlanetPage(): Promise<void> {
       field,
       blows,
       roll,
-      names: rollNames(field, blows, roll),
+      names,
+      members: members ?? {},
       frame,
       camp: placedCamp(frame, field),
       end: null,
@@ -4629,6 +4657,16 @@ async function runPlanetPage(): Promise<void> {
       m,
       (t.side === 0 ? P.info.attacker : P.info.defender).name,
       blowWords(P.field, P.blows, id, s) ?? trooperWords(P.field, id, s),
+    );
+    // His family, and his body as the battle so far leaves him while it is fought (Phase 55 wave 5).
+    await kinOnCard(
+      e.ref,
+      s < BATTLE_LENGTH
+        ? {
+            event: P.info.event,
+            struck: struckOf(P.field, P.blows, id, s, P.members[e.ref]?.member),
+          }
+        : undefined,
     );
     return villagePanel.cardShown();
   };
@@ -4774,6 +4812,9 @@ async function runPlanetPage(): Promise<void> {
   };
   // A tap in the village: someone, else a beast (its lineage and what it is doing), else no one.
   const tapVillage = (x: number, y: number) => {
+    // One borne home on a litter (Phase 55 wave 5): their card, as anyone's.
+    const borne = plan ? village.pickLitter(x, y) : null;
+    if (borne !== null) return selectPerson(borne);
     // A thing being made (Phase 51 M213–M215): a tool on the smithy's rack, a pot drying on a
     // kiln's boards, the cloth on a loom, a casting in its mould, a part at the works — its page,
     // from the ground to where it is — tapped right on it, though its makers stand before it; near
@@ -4804,6 +4845,9 @@ async function runPlanetPage(): Promise<void> {
       void pageWindow.open(visitors.event);
       return;
     }
+    // A soldier of the war about the town (Phase 55 wave 5): the man of its battle's roll he stands
+    // for, on his card; or what he stands for.
+    if (tapWarMan(x, y)) return;
     const beast = village.pickBeast(x, y);
     if (!beast) {
       selectPerson(null);
@@ -4816,6 +4860,93 @@ async function runPlanetPage(): Promise<void> {
     selectPerson(null);
     village.markBeast(beast.index);
     void pageWindow.open(beast.ref).then(() => pageWindow.setLive(`Now ${beast.doing}`));
+  };
+  // A card's family and body (Phase 55 wave 5): the host's lines for whom the card is, put on it as
+  // they come, if it is still theirs.
+  let kinAsked = 0;
+  // (In a battle being fought: their body as its blows so far leave it, `during`.)
+  const kinOnCard = async (
+    ref: string,
+    during?: { readonly event: string; readonly struck: readonly StruckNow[] },
+  ) => {
+    const asked = ++kinAsked,
+      card = await client.query<KinCard>({
+        type: "kin.card",
+        args: { ref, t: now(), ...(during ? { during } : {}) },
+      });
+    if (asked === kinAsked) villagePanel.folkKin.replaceChildren(...kinLines(card));
+  };
+  // The rolls of the battles fought before the towns watched, asked once each (as warManOf reads them).
+  type WarRoll = Parameters<typeof warManOf>[3];
+  const rolls = new Map<string, Promise<WarRoll | null>>();
+  const rollOf = (event: string) => {
+    let r = rolls.get(event);
+    if (!r)
+      rolls.set(
+        event,
+        (r = client.query<WarRoll | null>({ type: "battle.roll", args: { event } })),
+      );
+    return r;
+  };
+  /** A tap on a soldier of the war about the town: his card (false: no soldier there). */
+  const tapWarMan = (x: number, y: number): boolean => {
+    const war = townWar,
+      hit = plan && war ? village.pickSoldier(x, y) : null,
+      at = hit ? warSlot(hit.slot, hit.each) : null;
+    if (!war || !hit || !at) return false;
+    selectPerson(null);
+    pageWindow.close();
+    const host = war.sides[at.side].name,
+      sign = at.side === 0 ? "⚔️" : "🛡️",
+      fought = war.fought,
+      asked = ++kinAsked;
+    if (!fought) {
+      villagePanel.showMan(
+        `${sign} One of the host of ${host}`,
+        [war.words],
+        null,
+        "One of a host drawn for its many: history names a battle's men once the battle is fought.",
+      );
+      return true;
+    }
+    villagePanel.showMan(
+      `${sign} One of the host of ${host}`,
+      [],
+      null,
+      "Reading the battle's roll…",
+    );
+    void rollOf(fought.event).then(async (roll) => {
+      if (asked !== kinAsked) return;
+      const scene = village.warNow()?.scene,
+        man = roll && scene ? warManOf(scene, hit.each, hit.slot, roll) : null;
+      if (!man) {
+        villagePanel.showMan(
+          `${sign} One of the host of ${host}`,
+          [at.fallen ? "Fell in the battle before the town" : war.words],
+          null,
+          "One of the host the battle's roll does not name: it names so many of each side's men, not every one.",
+        );
+        return;
+      }
+      const e = man.entry;
+      villagePanel.showMan(
+        `${sign} ${e.name}`,
+        [
+          `Of the host of ${host}; ${e.age} years old`,
+          man.fate === "fell"
+            ? "Fell in the battle before the town"
+            : man.fate === "maimed"
+              ? "Maimed in it, and lived"
+              : man.fate === "wounded"
+                ? "Wounded in it, and lived"
+                : "Came through it unhurt",
+        ],
+        e.ref,
+        "One of the battle fought before the town, named from its roll: their page tells their family and their body.",
+      );
+      await kinOnCard(e.ref);
+    });
+    return true;
   };
   const selectPerson = (i: number | null) => {
     watched = i;
@@ -4842,10 +4973,22 @@ async function runPlanetPage(): Promise<void> {
           ...(p.sex !== undefined ? { sex: p.sex } : {}),
           done: (agent) => void touched(agent),
         },
-        // (The healer's page is their seat's: Phase 55 M229.)
-        p.healer ? `heal:${plan.ref}` : p.trade ? undefined : p.ref,
+        // (The healer's page is their seat's: Phase 55 M229; a maker's, theirs: wave 5.)
+        p.healer
+          ? `heal:${plan.ref}`
+          : p.trade
+            ? seatRef(plan.ref, p.trade.kind, p.trade.seat)
+            : p.ref,
         // (Their wounds as they are now: Phase 55 M226.)
         woundLines(p, now()),
+      );
+      // (Their family and body: Phase 55 wave 5.)
+      void kinOnCard(
+        p.healer
+          ? `heal:${plan.ref}`
+          : p.trade
+            ? seatRef(plan.ref, p.trade.kind, p.trade.seat)
+            : p.ref,
       );
       return;
     }
@@ -5363,11 +5506,18 @@ async function runPlanetPage(): Promise<void> {
   // (Given its words, a battle is watched from them; else they are asked of the host.)
   const toBattle = async (event: string, given?: BattleNear): Promise<void> => {
     // (Each figure a man of the battle's roll, Phase 55 M227: asked for with its words.)
-    const [info, roll] = await Promise.all([
+    const [info, roll, members] = await Promise.all([
       given ?? client.query<BattleNear | null>({ type: "battle.near", args: { event } }),
       client
         .query<BattleRoll | null>({
           type: "battle.roll",
+          args: { event, most: mostFor(fieldDetail()) },
+        })
+        .catch(() => null),
+      // (Where history struck each man of it, Phase 55 wave 5.)
+      client
+        .query<Record<string, StruckMember>>({
+          type: "battle.members",
           args: { event, most: mostFor(fieldDetail()) },
         })
         .catch(() => null),
@@ -5401,7 +5551,10 @@ async function runPlanetPage(): Promise<void> {
       info.figure,
       groundOfLook(meadow.kindOfAge).grass,
     );
-    const blows = newBlows(field);
+    const drawn = newBlows(field),
+      names = roll ? rollNames(field, drawn, roll) : [],
+      // (Each named man struck where history struck him: his fate, and so his name, the same.)
+      blows = roll && members ? newBlows(field, toldBlows(names, members)) : drawn;
     fight = {
       info,
       field,
@@ -5411,7 +5564,7 @@ async function runPlanetPage(): Promise<void> {
       was: 2,
       now: blowsAt(field, blows, battleAt(field, 0), gore),
       blows,
-      names: roll ? rollNames(field, blows, roll) : [],
+      names,
       roll,
       followed: -1,
       toldAt: -Infinity,
@@ -6645,12 +6798,16 @@ async function runPlanetPage(): Promise<void> {
     const told = village.storesShown();
     if (told !== storesTold) villagePanel.storesNow((storesTold = told));
     if (watched !== null) {
-      villagePanel.moment(village.momentAt(watched), plan.people[watched]?.tool);
+      villagePanel.moment(
+        village.momentAt(watched),
+        plan.people[watched]?.tool,
+        village.borneNow(watched),
+      );
       // (What they are doing now, on their page.)
       const m = village.momentAt(watched),
         p = plan.people[watched];
       if (m && p && pageWindow.current === p.ref)
-        pageWindow.setLive(villagePanel.nowWords(m, p.tool));
+        pageWindow.setLive(villagePanel.nowWords(m, p.tool, village.borneNow(watched)));
       // Their day told (Phase 45 M207), on their page or the card of one of the town's many: a
       // town watched growing has no day to tell.
       const fine = !time.lapse,
@@ -6771,6 +6928,10 @@ async function runPlanetPage(): Promise<void> {
   exposed.felling = () => (scale === "village" ? village.fellingShown() : null);
   exposed.graveyard = (days = 30) => (scale === "village" ? village.graveyardShown(days) : null);
   exposed.wounds = () => (scale === "village" ? village.woundsShown() : null);
+  exposed.kin = (ref: string) =>
+    client.query<KinCard>({ type: "kin.card", args: { ref, t: now() } });
+  exposed.warMenOnScreen = () => (scale === "village" ? village.soldiersOnScreen() : []);
+  exposed.littersOnScreen = () => (scale === "village" ? village.littersOnScreen() : []);
   exposed.fields = () => (scale === "village" ? village.fieldsShown() : null);
   exposed.flock = () => (scale === "village" ? village.flockShown() : null);
   exposed.hunt = () => (scale === "village" ? village.huntShown() : null);

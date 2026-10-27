@@ -123,6 +123,7 @@ const GARRISONS = 48;
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 import { PAGE_QUERIES } from "./pages.ts";
+import { KIN_QUERIES } from "./kin.ts";
 import {
   alertsOf,
   answersOf,
@@ -1267,6 +1268,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "wars.age": (world, args) =>
         warsOfAge(world, (args ?? {}) as { from?: number; to?: number; most?: number }),
       ...OBSERVE_QUERIES,
+      // A card's family and body, and the people's body plan (Phase 55 wave 5).
+      ...KIN_QUERIES,
       ...PAGE_QUERIES,
       // Every thing's page, and where it is to be seen (Phase 10 M91). (Called through, not
       // spread: the pages read this module's builders, so they load after it.)

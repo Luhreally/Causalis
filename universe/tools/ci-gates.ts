@@ -10,8 +10,10 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+/** A gate CI runs: its phase, and its part where a phase has a second ("55b": tools/phase55b-gate.ts). */
+type Gate = { gate: number; part?: string; args: readonly string[]; s: number };
 /** The gates CI runs in a browser: their CI arguments, and how long each took on a runner (s, run 2026-10-26). */
-export const GATES: readonly { gate: number; args: readonly string[]; s: number }[] = [
+export const GATES: readonly Gate[] = [
   // The Phase 7 gate's journey: the brief's journey walked at a phone's size in WebKit,
   // every step answered with its why (to the Earth seed's year 1450, its first war
   // between the stars fought). The phone's budgets need a GPU; they run locally:
@@ -194,6 +196,12 @@ export const GATES: readonly { gate: number; args: readonly string[]; s: number 
   // its hardener, native copper, mispickel and lydite — and its smithy's arsenical copper tool
   // traced from its own ore, never tin; Earth's matter guide with no "This world" tab).
   { gate: 54, args: ["--ci"], s: 240 },
+  // Phase 55 wave 5 (the soldier as a person: a fallen soldier before the town tapped where he
+  // lies, his card naming him from the battle's roll with his family and his body, his page's
+  // Family and Body tabs; one maimed, the member lost; one of the town's people, their roof the
+  // household the town draws; one borne home on a litter; an alien people's own plan; the card and
+  // the page at a phone's width).
+  { gate: 55, part: "b", args: ["--ci"], s: 420 },
   // Phase 55 wave 3 (wounds seen, and healing: the levy home from the battles at the year's turn,
   // its wounded borne in on litters and abed, its healer's round door to door and their page, the
   // wounded up and bound and marked for good — a stump, a crutch, a patch — told on their card)
@@ -210,24 +218,31 @@ export const GATES: readonly { gate: number; args: readonly string[]; s: number 
   { gate: 56, args: ["--ci"], s: 260 },
 ];
 
+/** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */
+const nameOf = (g: Gate) => `${g.gate}${g.part ?? ""}`;
+/** Gates in their phases' order, a phase's parts after it. */
+const byPhase = (a: Gate, b: Gate) =>
+  a.gate - b.gate || (nameOf(a) < nameOf(b) ? -1 : nameOf(a) > nameOf(b) ? 1 : 0);
+
 const argv = process.argv.slice(2),
   planned = argv.indexOf("--plan");
 if (planned >= 0) {
   const n = Number(argv[planned + 1]),
-    shards = Array.from({ length: n }, () => ({ s: 0, gates: [] as number[] }));
-  for (const g of [...GATES].sort((a, b) => b.s - a.s || a.gate - b.gate)) {
+    shards = Array.from({ length: n }, () => ({ s: 0, gates: [] as Gate[] }));
+  for (const g of [...GATES].sort((a, b) => b.s - a.s || byPhase(a, b))) {
     const least = shards.reduce((m, x) => (x.s < m.s ? x : m));
     least.s += g.s;
-    least.gates.push(g.gate);
+    least.gates.push(g);
   }
-  for (const x of shards.sort((a, b) => Math.min(...a.gates) - Math.min(...b.gates)))
-    console.log(`${x.gates.sort((a, b) => a - b).join(" ")}  (~${Math.round(x.s / 60)} min)`);
+  for (const x of shards) x.gates.sort(byPhase);
+  for (const x of shards.sort((a, b) => byPhase(a.gates[0]!, b.gates[0]!)))
+    console.log(`${x.gates.map(nameOf).join(" ")}  (~${Math.round(x.s / 60)} min)`);
   process.exit(0);
 }
 
-const failed: number[] = [];
-for (const n of argv.map(Number)) {
-  const g = GATES.find((x) => x.gate === n);
+const failed: string[] = [];
+for (const n of argv) {
+  const g = GATES.find((x) => nameOf(x) === n);
   if (!g) {
     console.error(`gate ${n} is not one CI runs`);
     process.exit(2);
@@ -236,7 +251,8 @@ for (const n of argv.map(Number)) {
   for (let attempt = 1; attempt <= 2 && !passed; attempt++) {
     const t0 = performance.now();
     console.log(`::group::gate ${n}${attempt > 1 ? ", once more" : ""}`);
-    const shots = attempt > 1 && process.env.CI && n >= 17 ? ["--shots", `shots/gate-${n}`] : [],
+    const shots =
+        attempt > 1 && process.env.CI && g.gate >= 17 ? ["--shots", `shots/gate-${n}`] : [],
       run = spawnSync(
         process.execPath,
         [fileURLToPath(new URL(`./phase${n}-gate.ts`, import.meta.url)), ...g.args, ...shots],

@@ -33,7 +33,7 @@ import {
 } from "../view/index.ts";
 
 type Rgb = readonly [number, number, number];
-type V3 = [number, number, number];
+export type V3 = [number, number, number];
 /** A creature's plan, as the view builds bodies from it. */
 type CreatureBody = Parameters<typeof buildBody>[0];
 
@@ -52,7 +52,7 @@ type Solid = {
 };
 
 /** How a picture is looked at: turned about the up axis, and tipped to look down. */
-type Look = { turn: number; tilt: number };
+export type Look = { turn: number; tilt: number };
 
 const css = (c: Rgb, k = 1, a = 1) =>
   `rgba(${Math.round(Math.min(1, c[0] * k) * 255)},${Math.round(Math.min(1, c[1] * k) * 255)},${Math.round(Math.min(1, c[2] * k) * 255)},${a})`;
@@ -146,7 +146,7 @@ function viewOf(p: V3, look: Look): V3 {
  * Draw solids looked at so, fitted into the box (x, y, w, h) of the canvas; answers where a
  * point of the world falls on it (for what is named of it).
  */
-function drawSolids(
+export function drawSolids(
   ctx: CanvasRenderingContext2D,
   solids: readonly Solid[],
   look: Look,
@@ -822,7 +822,7 @@ function drawSign(
 }
 
 /** A canvas sized for the screen's pixels, and its context scaled to CSS pixels. */
-function surface(canvas: HTMLCanvasElement, w: number, h: number): CanvasRenderingContext2D {
+export function surface(canvas: HTMLCanvasElement, w: number, h: number): CanvasRenderingContext2D {
   const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
     canvas.width = Math.round(w * dpr);

@@ -329,6 +329,7 @@ export class VillagePanel {
     this.inspector.hidden = false;
     this.who.textContent = name;
     this.folkMore.replaceChildren();
+    this.folkKin.replaceChildren();
     // Their page: their line's, where the town's many have one (Phase 55 M225).
     const their: HTMLElement[] = [];
     if (page !== undefined) {
@@ -342,6 +343,7 @@ export class VillagePanel {
       ...(role ? [el("div", "fact folk-role", role[0]!.toUpperCase() + role.slice(1))] : []),
       ...(today ? [el("div", "fact", `Today: ${today}`)] : []),
       ...(wounds ?? []).map((w) => el("div", "fact folk-wound", w)),
+      this.folkKin,
       ...their,
       this.folkMore,
       el(
@@ -366,6 +368,7 @@ export class VillagePanel {
     this.inspector.hidden = false;
     this.who.textContent = `${m.side === 0 ? "⚔️" : "🛡️"} ${m.name}`;
     this.now.textContent = now ? `Now: ${now}` : "";
+    this.folkKin.replaceChildren();
     const bore = boreWords(m),
       page = el("button", "line", "His page ›"),
       arm = m.armPage ? el("button", "line", "His arm, from the ground to his hand ›") : null;
@@ -382,6 +385,8 @@ export class VillagePanel {
       ),
       el("div", "fact soldier-fate", m.fate),
       ...(bore ? [el("div", "fact soldier-arm", bore)] : []),
+      // (His family and his body, a line each: Phase 55 wave 5.)
+      this.folkKin,
       page,
       ...(arm ? [arm] : []),
       el(
@@ -395,6 +400,8 @@ export class VillagePanel {
 
   /** Under the card of one of the town's many, more of them as the scene shows it (their day, Phase 45 M207). */
   readonly folkMore = el("div", "folk-more");
+  /** On the card of anyone of the town, their family and their body, a line each (Phase 55 wave 5). */
+  readonly folkKin = el("div", "folk-kin");
 
   /** The village's age and what its mine digs, for the words of what they carry. */
   works: {
@@ -408,10 +415,13 @@ export class VillagePanel {
     what: null,
   };
 
-  /** What the person looked at is doing now, and what they carry (and what it is made of). */
-  moment(m: Moment | null, tool?: string): void {
+  /**
+   * What the person looked at is doing now, and what they carry (and what it is made of); `borne`,
+   * carried home on a litter (Phase 55 wave 5: their walk home is the litter's).
+   */
+  moment(m: Moment | null, tool?: string, borne = false): void {
     if (!m || this.storesOpen) return;
-    this.now.textContent = this.nowWords(m, tool);
+    this.now.textContent = this.nowWords(m, tool, borne);
   }
 
   /**
@@ -419,7 +429,7 @@ export class VillagePanel {
    * fed and rested; carrying an axe" — their own tool where it is known (Phase 15 M125: "a flint
    * hoe, made in year 254").
    */
-  nowWords(m: Moment, tool?: string): string {
+  nowWords(m: Moment, tool?: string, borne = false): string {
     const carrying =
         m.carry === "tool" && tool
           ? tool
@@ -436,7 +446,37 @@ export class VillagePanel {
         m.why && m.activity !== ACTIVITY.sheltering
           ? `: ${m.why[0]!.toLowerCase()}${m.why.slice(1)}`
           : "";
-    return `Now ${ACTIVITY_WORDS[m.activity]}${why}; ${needWords(m)}${carrying ? `; carrying ${carrying}` : ""}`;
+    return `Now ${borne ? "borne on a litter" : ACTIVITY_WORDS[m.activity]}${why}; ${needWords(m)}${carrying ? `; carrying ${carrying}` : ""}`;
+  }
+
+  /**
+   * One of a war drawn about the town, tapped (Phase 55 wave 5): the man of its battle's roll he
+   * stands for — who he is, how he came out of it, his family and his body, his page — or, where he
+   * stands for no man named, what he stands for.
+   */
+  showMan(name: string, facts: readonly string[], page: string | null, note: string): void {
+    this.view++;
+    this.storesOpen = false;
+    this.folkOpen = true;
+    this.inspector.hidden = false;
+    this.who.textContent = name;
+    // (No day of theirs is drawn: what the one looked at before was doing is not theirs.)
+    this.now.textContent = "";
+    this.folkMore.replaceChildren();
+    this.folkKin.replaceChildren();
+    const their: HTMLElement[] = [];
+    if (page !== null) {
+      const button = el("button", "line", "Their page ›");
+      button.onclick = () => this.onPage(page);
+      their.push(button);
+    }
+    this.page.replaceChildren(
+      ...facts.map((f) => el("div", "fact", f)),
+      this.folkKin,
+      ...their,
+      el("p", "muted", note),
+    );
+    this.whyBox.replaceChildren();
   }
 
   /** Whether the hand rests on the village watched: then its people are the hand's. */

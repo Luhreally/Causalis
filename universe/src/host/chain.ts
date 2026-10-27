@@ -389,6 +389,28 @@ export function makerAt(
   };
 }
 
+/**
+ * Who holds one of a town's seats at a trade in a year, as makerAt names them: their key, whether a
+ * man, and the year they took the seat (Phase 55 wave 5: their family and body, told on their page).
+ */
+export function makerKeyAt(
+  town: { readonly ref: string } | null,
+  cell: number,
+  trade: string,
+  seat: number,
+  year: number,
+): { readonly key: number; readonly sex: 0 | 1; readonly took: number } {
+  const at = `${town?.ref ?? cell}:${trade}:${seat}`,
+    phase = Math.floor(keyed(at) * TENURE),
+    term = Math.floor((year + phase) / TENURE),
+    who = finish(mix(hashString(`maker ${at}`), term), 7) >>> 0;
+  return {
+    key: who,
+    sex: trade === "smith" || trade === "knapper" ? 1 : (((who >>> 9) & 1) as 0 | 1),
+    took: term * TENURE - phase - 2,
+  };
+}
+
 /** A maker in words: "Aldin Vorrane, a smith of Sairis, eleven years at the anvil". */
 export function makerWords(world: World, m: Maker, bench: string): Line {
   const s = m.town ? populationContext(world).settlements.get(m.town as Ref) : undefined;

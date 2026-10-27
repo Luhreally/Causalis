@@ -2773,6 +2773,99 @@ export class VillageScene {
     return best;
   }
 
+  /**
+   * The one borne on the litter nearest a screen point, within a finger's reach (Phase 55 wave 5):
+   * their index (null: no litter there, or none on it).
+   */
+  pickLitter(x: number, y: number, reach = 22): number | null {
+    const cam = this.stage.camera.camera!,
+      at = new pc.Vec3();
+    let best: number | null = null,
+      bestD = reach * reach;
+    for (const q of this.littersShown) {
+      if (!q.borne) continue;
+      const p = cam.worldToScreen(new pc.Vec3(q.x * M, 0.6, q.z * M), at),
+        d = (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y);
+      if (p.z > 0 && d < bestD) {
+        bestD = d;
+        best = q.index;
+      }
+    }
+    return best;
+  }
+
+  /** Whether one of the town is borne on a litter now (Phase 55 wave 5: their card says so). */
+  borneNow(index: number): boolean {
+    return this.littersShown.some((q) => q.borne && q.index === index);
+  }
+
+  /** Where a soldier of the war about the town shows on the screen: about their middle, or on the ground where they lie. */
+  private soldierOnScreen(q: TownWarScene["soldiers"][number], at: pc.Vec3): pc.Vec3 {
+    const up = q.doing === "fallen" ? 0.05 : 0.2 * this.figure.scale * q.size;
+    return this.stage.camera.camera!.worldToScreen(new pc.Vec3(q.x * M, up, q.z * M), at);
+  }
+
+  /**
+   * The soldier of the war about the town nearest a screen point, within a finger's reach (Phase 55
+   * wave 5): their slot in its scene, and how many of a side's host are drawn (null: none there).
+   */
+  pickSoldier(x: number, y: number, reach = 22): { slot: number; each: number } | null {
+    const at = new pc.Vec3();
+    let best = -1,
+      bestD = reach * reach;
+    (this.warScene?.soldiers ?? []).forEach((q, k) => {
+      if (q.size <= 0.5) return;
+      const p = this.soldierOnScreen(q, at),
+        d = (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y);
+      if (p.z > 0 && d < bestD) {
+        bestD = d;
+        best = k;
+      }
+    });
+    return best >= 0 ? { slot: best, each: this.soldiersEach / 2 } : null;
+  }
+
+  /**
+   * The soldiers of the war about the town in sight now (the look tools): their slots, where on the
+   * screen, and where they stand on its ground (metres).
+   */
+  soldiersOnScreen(): {
+    slot: number;
+    fallen: boolean;
+    x: number;
+    y: number;
+    ground: { x: number; z: number };
+  }[] {
+    const at = new pc.Vec3(),
+      out: ReturnType<VillageScene["soldiersOnScreen"]> = [];
+    (this.warScene?.soldiers ?? []).forEach((q, slot) => {
+      if (q.size <= 0.5) return;
+      const p = this.soldierOnScreen(q, at);
+      if (p.z > 0)
+        out.push({
+          slot,
+          fallen: q.doing === "fallen",
+          x: p.x,
+          y: p.y,
+          ground: { x: q.x, z: q.z },
+        });
+    });
+    return out;
+  }
+
+  /** The litters borne in sight now (the look tools): whom each bears, and where on the screen. */
+  littersOnScreen(): { index: number; x: number; y: number }[] {
+    const cam = this.stage.camera.camera!,
+      at = new pc.Vec3(),
+      out: { index: number; x: number; y: number }[] = [];
+    for (const q of this.littersShown) {
+      if (!q.borne) continue;
+      const p = cam.worldToScreen(new pc.Vec3(q.x * M, 0.6, q.z * M), at);
+      if (p.z > 0) out.push({ index: q.index, x: p.x, y: p.y });
+    }
+    return out;
+  }
+
   /** Everyone in sight now: where (metres), doing what, at what (for the look tools). */
   peopleNow(): {
     name: string;

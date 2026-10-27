@@ -903,3 +903,4 @@ export {
   type MakingSubject,
   type Makings,
 } from "./making.ts";
+export { placeOfMember, struckOf, toldBlows, warManOf, warSlot, type WarSlot } from "./body.ts";

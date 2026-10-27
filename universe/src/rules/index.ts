@@ -433,6 +433,8 @@ export {
   SCAR,
   SEVER_MOST,
   anatomyOf,
+  deathMember,
+  deathWeights,
   hurtWeights,
   killShareOf,
   lastingOf,

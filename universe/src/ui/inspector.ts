@@ -29,6 +29,7 @@ import type { HoverTips } from "./hovertip.ts";
 import type { ArmsBook } from "./arms.ts";
 import { drawTool } from "./tools.ts";
 import { drawAnatomy, drawPortrait, moves } from "./portrait.ts";
+import { bodyView } from "./body.ts";
 import { drawThumb } from "./specimen.ts";
 import { lineupStrip, phyloChart } from "./phylo.ts";
 import { dropView } from "./drop.ts";
@@ -781,6 +782,10 @@ export class PageWindow {
           );
         break;
       }
+      case "body":
+        // A body drawn whole (Phase 55 wave 5): each member of their people's plan as it is.
+        box.append(bodyView(b));
+        break;
       case "tool":
         drawTool(box, b.tool, b.args, {
           client: this.client,

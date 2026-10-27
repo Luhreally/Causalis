@@ -332,9 +332,13 @@ function onFigure(a: FigureAnatomy, p: BlowPlace): BlowPlace {
   return a.on[p] >= 0 ? p : "trunk";
 }
 
-/** How far along its part a blow lands (−0.35 … 0.35); a hand struck on a figure that draws none, at its arm's end. */
-function alongOf(a: FigureAnatomy, p: BlowPlace, r: number): number {
-  return (p === "hand-l" || p === "hand-r") && a.parts[p].length === 0 ? -0.45 : (r - 0.5) * 0.7;
+/**
+ * How far along its part a blow lands (−0.35 … 0.35); a hand struck on a figure that draws none, at
+ * its arm's end; one history tells (`told`) on the trunk, on its chest, as its words have it.
+ */
+function alongOf(a: FigureAnatomy, p: BlowPlace, r: number, told = false): number {
+  if ((p === "hand-l" || p === "hand-r") && a.parts[p].length === 0) return -0.45;
+  return told && p === "trunk" ? 0.12 + 0.2 * r : (r - 0.5) * 0.7;
 }
 
 /** What a host strikes with in the press: its arm's blow (a bow's bearer, a blow; a gun's, its bayonet; a team's, the rest's). */
@@ -454,12 +458,20 @@ function wrap(a: number): number {
 type Building = BlowHit & { lost: BlowLost | null; shattered: boolean; back: BlowBack | null };
 
 /**
+ * Where history struck the man a figure stands for (by its id; null: none told, as the battle view
+ * draws it): the place, and whether the member was cut off there (Phase 55 wave 5, view/body.ts).
+ */
+export type BlowTold = (id: number) => { readonly place: BlowPlace; readonly cut: boolean } | null;
+
+/**
  * A battle's blows, from its field: each fallen one's hit (where, with what, how they go down, a
  * part cut off); of the shot that struck them, those a cannon's ball or shell took; history's
  * wounded who lived, so many figures for so many men, each struck where and when, the maimed among
- * them, each one's way back and who helps them; the parts cut off, where they came to lie.
+ * them, each one's way back and who helps them; the parts cut off, where they came to lie. Where
+ * `told`, each figure that stands for a named man struck where history struck him, his figure's
+ * fate the same (the same draws for the rest).
  */
-export function newBlows(field: BattleField): Blows {
+export function newBlows(field: BattleField, told: BlowTold | null = null): Blows {
   const key = (hashText(field.near.event) ^ BLOW_KEY) >>> 0,
     draw = (id: number, purpose: number) => unit(key, id * 32 + purpose),
     anatomy = figureAnatomy(figureOf(field.near.figure, 1)),
@@ -517,7 +529,10 @@ export function newBlows(field: BattleField): Blows {
       striker = strikers.get(t.id)!,
       blow = blowBy(striker, arm),
       rout = t.by === "rout",
-      place = onFigure(anatomy, pick(placeWeights("dead", striker, blow, false), draw(t.id, 0))),
+      place = onFigure(
+        anatomy,
+        told?.(t.id)?.place ?? pick(placeWeights("dead", striker, blow, false), draw(t.id, 0)),
+      ),
       p = placeAt(field, t, t.falls),
       // (Riders lie with their horses, a seat's defenders on its walk, its climbers at its foot,
       // the battle's crawlers as it has them crawl: their falls the battle's own.)
@@ -587,7 +602,7 @@ export function newBlows(field: BattleField): Blows {
       blow,
       place,
       u: (draw(t.id, 1) - 0.5) * 0.7,
-      v: alongOf(anatomy, place, draw(t.id, 2)),
+      v: alongOf(anatomy, place, draw(t.id, 2), !!told?.(t.id)),
       face: rout ? -1 : 1,
       mark,
       size: SIZE[mark] * (0.8 + 0.4 * draw(t.id, 9)),
@@ -694,11 +709,14 @@ export function newBlows(field: BattleField): Blows {
         blow = blows[i]!,
         hurt = maimed.has(i),
         edge = striker === "hand" && arm !== undefined && CUTS_OFF.has(arm),
+        says = told?.(t.id) ?? null,
         place = onFigure(
           anatomy,
-          pick(placeWeights(hurt ? "maimed" : "wounded", striker, blow, edge), draw(t.id, 0)),
+          says?.place ??
+            pick(placeWeights(hurt ? "maimed" : "wounded", striker, blow, edge), draw(t.id, 0)),
         ),
-        cuts = hurt && edge && isLimb(place) && anatomy.parts[place].length > 0,
+        // (A maimed one's limb cut off by an edge, or where history says it was cut off there.)
+        cuts = hurt && (says ? says.cut : edge) && isLimb(place) && anatomy.parts[place].length > 0,
         mark = markOf(striker, blow),
         p = placeAt(field, t, pk.at),
         rear = side === 0 ? -1 : 1,
@@ -734,7 +752,7 @@ export function newBlows(field: BattleField): Blows {
           blow,
           place,
           u: (draw(t.id, 1) - 0.5) * 0.7,
-          v: alongOf(anatomy, place, draw(t.id, 2)),
+          v: alongOf(anatomy, place, draw(t.id, 2), says !== null),
           face: 1,
           mark,
           size: SIZE[mark] * (0.8 + 0.4 * draw(t.id, 9)) * (hurt && !lost ? 2 : 1),

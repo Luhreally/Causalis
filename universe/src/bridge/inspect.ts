@@ -1,6 +1,7 @@
 import type { Arms } from "./arms.ts";
 import type { BeastPlan, VillagePlan } from "./village.ts";
-import type { WoundLook } from "./wounds.ts";
+import type { WoundLook, WoundMember } from "./wounds.ts";
+import type { MemberState } from "./body.ts";
 
 // Every thing's page (Phase 10 M91, docs/architecture §31): what the host says of any ref —
 // its title and icon, where it is to be seen, its headline numbers with what makes them
@@ -283,6 +284,22 @@ export type Block =
     }
   /** The page's picture large, with what it is made of named (a lineage's anatomy). */
   | { readonly type: "anatomy"; readonly title?: string }
+  /**
+   * A person's body drawn whole (Phase 55 wave 5): their figure in their people's look, each
+   * member of their people's plan marked as it is — struck, healing, scarred, lame, lost (drawn
+   * gone), the blow that killed — and told.
+   */
+  | {
+      readonly type: "body";
+      readonly title?: string;
+      readonly person: Extract<Portrait, { kind: "person" }>;
+      readonly members: readonly {
+        readonly member: WoundMember;
+        /** Its name, theirs ("his left hand"). */
+        readonly words: string;
+        readonly state: MemberState;
+      }[];
+    }
   /** Something to do (the god's acts, meeting a family, the hand): the page's tools draw it. */
   | {
       readonly type: "tool";

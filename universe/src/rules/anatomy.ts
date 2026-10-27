@@ -201,6 +201,28 @@ export function hurtWeights(a: Anatomy, blow: Blow): number[] {
   return w;
 }
 
+/**
+ * Where a blow that killed landed (weights in MEMBERS' order; Phase 55 wave 5, a fallen man's
+ * death blow told on his page): the nines, by the share a blow there kills — laid on what bears a
+ * place the body lacks, as hurtWeights lays them.
+ */
+export function deathWeights(a: Anatomy, blow: Blow): number[] {
+  const has = new Set(a.members),
+    w = MEMBERS.map(() => 0);
+  for (const p of BODY_PLACES) {
+    const arm: Member | null = p === "hand-l" ? "arm-l" : p === "hand-r" ? "arm-r" : null,
+      on: Member = has.has(p) ? p : arm && has.has(arm) ? arm : "trunk",
+      k = MEMBERS.indexOf(on);
+    w[k] = (w[k] ?? 0) + NINES[p] * killShareOf(p, blow);
+  }
+  return w;
+}
+
+/** Where the blow that killed one of `a`'s kind landed (`r` 0 … 1, its own draw). */
+export function deathMember(a: Anatomy, blow: Blow, r: number): Member {
+  return memberOf(deathWeights(a, blow), r);
+}
+
 /** The members a blow may take (weights in MEMBERS' order), only those the body may lose: an axe's or a sword's by MAIMED_AT, any other's by the nines' limbs; an eye by EYE_LOST. */
 export function lostWeights(a: Anatomy, blow: Blow, cuts: boolean): number[] {
   const lose = new Set(a.losable);

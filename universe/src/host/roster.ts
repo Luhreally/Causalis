@@ -54,7 +54,7 @@ export const ROSTER_YEARS = 39;
  */
 const TERM_MOST = 36;
 /** Holders numbered to a term: its natural holder and the replacements after him. */
-const PER_TERM = 16;
+export const PER_TERM = 16;
 /** Rosters kept for a world before the least lately asked for are let go. */
 const ROSTERS_MOST = 4096;
 /**
@@ -192,6 +192,17 @@ export function folkWork(world: World, cell: number): FolkWork {
     kinds = [OCC.forager, OCC.farmer, OCC.herder, OCC.crafter, OCC.trader, OCC.leader],
     counts = kinds.map((o) => land?.occupation(o) ?? 0);
   return { kinds, counts, total: counts.reduce((a, b) => a + b, 0) };
+}
+
+/**
+ * The name of the family to every four of a town's lines, as four folk share a home, in its land's
+ * family names' tongue (Phase 55 wave 5: their kin bear it too).
+ */
+export function houseName(family: Tongue, town: string, line: number): string {
+  return tongueName(
+    { ...family, seed: family.seed ^ 0xf00d },
+    hashString(`${town} line ${Math.floor(line / 4)}`),
+  );
 }
 
 /** A grown holder's work by their key: u(key, 2) over the mix (a farmer where it has none). */
@@ -1323,10 +1334,7 @@ function foldRoster(
       const given = speech.tongue
           ? tonguePersonName(speech.tongue, h.key, h.sex)
           : personName(ctx.culture, h.key, h.sex),
-        family = tongueName(
-          { ...speech.family, seed: speech.family.seed ^ 0xf00d },
-          hashString(`${town} line ${Math.floor(h.line / 4)}`),
-        );
+        family = houseName(speech.family, town, h.line);
       names.set(h.ref, (name = `${given} ${family}`));
       weigh(96);
     }
