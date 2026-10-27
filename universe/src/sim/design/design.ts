@@ -66,6 +66,8 @@ export type Design = {
 
 export class DesignStore implements StateStore {
   readonly name = "design.designs";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   /** Every design ever realized, by ref (old ones stay, for the whys that cite them). */
   private readonly all = new Map<string, Design>();
   private readonly current = new Map<string, Ref>();

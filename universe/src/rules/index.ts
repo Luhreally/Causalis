@@ -464,6 +464,8 @@ export {
 } from "./healing.ts";
 export {
   apportionCapped,
+  fellColumns,
+  fellOfColumns,
   fellRows,
   fellTotals,
   hurtOfLands,
@@ -473,6 +475,7 @@ export {
   splitTowns,
   unpackFell,
   unpackTowns,
+  type FellColumns,
   type FellRow,
   type LandFell,
   type Tally,

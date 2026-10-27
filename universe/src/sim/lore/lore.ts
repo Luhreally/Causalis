@@ -72,6 +72,8 @@ export type Known = { readonly year: number; readonly event: Ref };
 
 export class LoreStore implements StateStore {
   readonly name = "lore.known";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private readonly known = new Map<number, Map<string, Known>>();
   /** Each land's effects, summed from what it knows (derived; rebuilt as lore grows). */
   private readonly totals = new Map<number, Float64Array>();

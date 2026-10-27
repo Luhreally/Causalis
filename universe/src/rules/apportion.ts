@@ -196,7 +196,7 @@ export function packFell(lands: readonly LandFell[]): number[] {
 
 /** This reads back a side's lands packed by packFell, given the side's wounded. */
 export function unpackFell(flat: readonly number[], wounded: number): LandFell[] {
-  const lands: { cell: number; sent: number; dead: number; towns: number[] | null }[] = [];
+  const lands: KeptLand[] = [];
   let cell = 0;
   for (let i = 0; i + 3 < flat.length;) {
     cell += flat[i]!;
@@ -213,6 +213,23 @@ export function unpackFell(flat: readonly number[], wounded: number): LandFell[]
     }
     lands.push({ cell, sent, dead, towns });
   }
+  return landsKept(lands, wounded);
+}
+
+/** A land as a save keeps it: its cell, its sent and dead, and its towns' sent (null: let go). */
+type KeptLand = {
+  readonly cell: number;
+  readonly sent: number;
+  readonly dead: number;
+  readonly towns: readonly number[] | null;
+};
+
+/**
+ * This reads back a side's lands as a save keeps them, given the side's wounded: each land's hurt
+ * by hurtOfLands, and its towns' dead and hurt by splitBySent over the towns' sent and the
+ * countryside's.
+ */
+function landsKept(lands: readonly KeptLand[], wounded: number): LandFell[] {
   const hurts = hurtOfLands(
     wounded,
     lands.map((l) => [l.sent, l.dead]),
@@ -227,6 +244,47 @@ export function unpackFell(flat: readonly number[], wounded: number): LandFell[]
       flatTowns.push(towns[k]!, split.dead[k]!, split.hurt[k]!);
     return [cell, sent, dead, hurt, flatTowns];
   });
+}
+
+/**
+ * A side's lands as a save keeps them by column (it packs well so): each land's cell, the men it
+ * sent, and its towns' sent in founding order (null where they were let go). The lands' dead are
+ * kept only where they are not the side's fallen split by the men each land sent, as the battle
+ * split them (apportionCapped, no land given more dead than it sent); the lands' hurt and the
+ * towns' dead and hurt never, as unpackFell gives them.
+ */
+export type FellColumns = {
+  readonly cell: readonly number[];
+  readonly sent: readonly number[];
+  readonly dead?: readonly number[];
+  readonly towns: readonly (readonly number[] | null)[];
+};
+
+/** This keeps a side's lands by column, given the side's fallen (FellColumns). */
+export function fellColumns(lands: readonly LandFell[], fallen: number): FellColumns {
+  const cell = lands.map((l) => l[0]),
+    sent = lands.map((l) => l[1]),
+    dead = lands.map((l) => l[2]),
+    towns = lands.map(([, , , , t]) => (t === undefined ? null : t.filter((_, k) => k % 3 === 0)));
+  if (Number.isInteger(fallen) && fallen >= 0) {
+    const split = apportionCapped(fallen, sent, sent);
+    if (split.every((d, k) => d === dead[k])) return { cell, sent, towns };
+  }
+  return { cell, sent, dead, towns };
+}
+
+/** This reads back a side's lands kept by fellColumns, given the side's fallen and wounded. */
+export function fellOfColumns(kept: FellColumns, fallen: number, wounded: number): LandFell[] {
+  const dead = kept.dead ?? apportionCapped(fallen, kept.sent, kept.sent);
+  return landsKept(
+    kept.cell.map((cell, k) => ({
+      cell,
+      sent: kept.sent[k]!,
+      dead: dead[k]!,
+      towns: kept.towns[k] ?? null,
+    })),
+    wounded,
+  );
 }
 
 /**

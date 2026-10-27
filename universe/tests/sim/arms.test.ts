@@ -7,11 +7,13 @@ import assert from "node:assert/strict";
 import {
   Hasher,
   YEAR,
+  chunkData,
   loadWorld,
   saveWorld,
   seedFromText,
   type SaveDocument,
   type Seed,
+  type StoreChunk,
 } from "../../src/kernel/index.ts";
 import { hostPower, type Part } from "../../src/rules/index.ts";
 import {
@@ -137,19 +139,24 @@ test("the arms kept are saved and loaded alike; reading them changes nothing", (
 test("a save from before arms were counted loads, and its hosts are armed anew", () => {
   const build = (seed: Seed) => makePopulationWorld(seed, { start: "spread" }),
     doc = JSON.parse(JSON.stringify(saveWorld(world, "with arms"))) as SaveDocument,
-    stores = doc.stores as Record<string, { data: unknown; hash: string }>,
-    rehash = (name: string) => (stores[name]!.hash = new Hasher().value(stores[name]!.data).hex());
+    stores = doc.stores as Record<string, StoreChunk>,
+    // (Each store as a save before Phase 52 kept it: unpacked, its hash of what it holds.)
+    plain = (name: string) => {
+      const data = chunkData(stores[name]!);
+      stores[name] = { schema: stores[name]!.schema, data, hash: "" };
+      return data;
+    },
+    rehash = (name: string) =>
+      (stores[name] = { ...stores[name]!, hash: new Hasher().value(stores[name]!.data).hex() });
   // (As saved before Phase 52: no arms kept, no record of what tools were made of, battles
   // without their arms.)
   delete stores["war.arms"];
-  for (const m of (stores["economy.markets"]!.data as { markets: Record<string, unknown>[] })
-    .markets) {
+  for (const m of (plain("economy.markets") as { markets: Record<string, unknown>[] }).markets) {
     delete m.toolMetals;
     delete m.forgedMetals;
   }
   rehash("economy.markets");
-  for (const w of (stores["war.wars"]!.data as { wars: { battles: Record<string, unknown>[] }[] })
-    .wars)
+  for (const w of (plain("war.wars") as { wars: { battles: Record<string, unknown>[] }[] }).wars)
     for (const b of w.battles) {
       delete b.power;
       delete b.armed;

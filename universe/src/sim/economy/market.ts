@@ -293,6 +293,8 @@ export type TradeFlow = {
 
 export class MarketStore implements StateStore {
   readonly name = "economy.markets";
+  /** Saved packed by column (kernel/pack.ts): each market keeps a row of numbers a year. */
+  readonly packed = true;
   private readonly map = new Map<number, Market>();
   /** Routes that have carried goods, by "a:b" (a < b): the event that opened each. */
   private readonly routes = new Map<string, Ref>();

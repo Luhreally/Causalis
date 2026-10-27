@@ -105,6 +105,7 @@ export {
 export {
   SAVE_FORMAT,
   SaveError,
+  chunkData,
   defineMigration,
   loadWorld,
   rulesetId,
@@ -115,6 +116,7 @@ export {
   type SaveDocument,
   type StoreChunk,
 } from "./save.ts";
+export { packList, unpackList, type Packed } from "./pack.ts";
 export { MinHeap } from "./heap.ts";
 export { fbm3, noise3 } from "./noise.ts";
 export { forNeighbours, nearestCell, sphereGrid, type SphereGrid } from "./sphere.ts";

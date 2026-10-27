@@ -87,6 +87,8 @@ export type Settlement = {
 
 export class SettlementStore implements StateStore {
   readonly name = "population.settlements";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private list: Settlement[] = [];
   /** The same settlements by province (in founding order) and by ref. */
   private readonly byCell = new Map<number, Settlement[]>();
@@ -206,6 +208,8 @@ const SUMMARY_YEARS = 100,
 
 export class HistoryStore implements StateStore {
   readonly name = "population.history";
+  /** Saved packed by column (kernel/pack.ts): the ledgers are long rows of counts. */
+  readonly packed = true;
   private readonly births = new Map<number, number[]>();
   private readonly deaths = new Map<number, number[]>();
   private flowList: Flow[] = [];

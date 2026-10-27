@@ -143,6 +143,8 @@ export type RetentionOptions = {
  */
 export class EventLog {
   readonly name = "history.events";
+  /** Saved packed by column (kernel/pack.ts): its events, tombstones and summaries are long lists. */
+  readonly packed = true;
   private events: HistoryEvent[] = [];
   private readonly index = new Map<string, HistoryEvent>();
   private tombstones: Tombstone[] = [];
@@ -343,6 +345,8 @@ export type DecisionTombstone = {
  */
 export class DecisionLog {
   readonly name = "history.decisions";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private records: DecisionRecord[] = [];
   private readonly index = new Map<string, DecisionRecord>();
   private tombstones: DecisionTombstone[] = [];

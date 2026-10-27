@@ -7,17 +7,33 @@
 // recomputing each domain's hash.
 //
 // Bytes, compression and storage slots are the host's business (host/storage.ts);
-// this file only turns a world into plain data and back.
+// this file only turns a world into plain data and back. A store that keeps long lists
+// of records asks to be saved packed by column (StateStore.packed, kernel/pack.ts): what
+// it loads is what it saved, as JSON would have given it back.
 import { Hasher } from "./hash.ts";
 import { eventTypes } from "./history.ts";
+import { packList, unpackList, type Packed } from "./pack.ts";
 import { kinds } from "./ref.ts";
 import { seedFromText, streams, type Seed } from "./rng.ts";
 import type { AgendaItem } from "./schedule.ts";
 import type { Checkpoint, World } from "./world.ts";
 
-export const SAVE_FORMAT = 1;
+/** 2: a store may be kept packed by column (a save of format 1 keeps every store as it is). */
+export const SAVE_FORMAT = 2;
+const FORMATS: readonly number[] = [1, 2];
 
-export type StoreChunk = { readonly schema: number; readonly data: unknown; readonly hash: string };
+export type StoreChunk = {
+  readonly schema: number;
+  readonly data: unknown;
+  readonly hash: string;
+  /** The store's save packed by column (packList of it alone), as a store of long lists asks. */
+  readonly packed?: true;
+};
+
+/** What a store saved, from its chunk (unpacked if it was packed): for reading a save as it is. */
+export function chunkData(chunk: StoreChunk): unknown {
+  return chunk.packed ? unpackList(chunk.data as Packed)[0] : chunk.data;
+}
 
 export type SaveDocument = {
   readonly format: number;
@@ -86,8 +102,15 @@ export function saveWorld(
   const stores: Record<string, StoreChunk> = {};
   for (const name of world.storeNames()) {
     const store = world.store(name),
-      data = JSON.parse(JSON.stringify(store.save())) as unknown;
-    stores[name] = { schema: schemaOf(store), data, hash: chunkHash(data) };
+      packed = store.packed === true,
+      // (Packed straight from the store: packList keeps what JSON keeps, and the copy through
+      // JSON is then of the packed lists, a fraction of the size.)
+      data = JSON.parse(
+        JSON.stringify(packed ? packList([store.save()]) : store.save()),
+      ) as unknown;
+    stores[name] = packed
+      ? { schema: schemaOf(store), data, hash: chunkHash(data), packed: true }
+      : { schema: schemaOf(store), data, hash: chunkHash(data) };
   }
   return {
     format: SAVE_FORMAT,
@@ -121,8 +144,8 @@ export function loadWorld(
   ruleset: string,
   options: LoadOptions = {},
 ): Loaded {
-  if (doc.format !== SAVE_FORMAT)
-    throw new SaveError(`save format ${doc.format} is not ${SAVE_FORMAT}`);
+  if (!FORMATS.includes(doc.format))
+    throw new SaveError(`save format ${doc.format} is not ${FORMATS.join(" or ")}`);
   const changed = doc.ruleset !== ruleset;
   if (changed && !options.allowRulesetChange)
     throw new SaveError(
@@ -144,7 +167,10 @@ export function loadWorld(
       throw new SaveError(`store ${name} is corrupt (its hash does not match)`);
     const store = world.store(name),
       target = schemaOf(store);
-    let data = chunk.data;
+    // (A copy: a store keeps what it loads, and the world running on must not write into the
+    // save it came from — the same save may be loaded again. A packed chunk is copied as it is
+    // packed, and unpacks into lists of its own.)
+    let data = chunk.packed ? unpackList(structuredClone(chunk.data) as Packed)[0] : chunk.data;
     for (let v = chunk.schema; v < target; v++) {
       const migrate = MIGRATIONS.get(`${name}@${v}`);
       if (!migrate) throw new SaveError(`no migration for ${name} from schema ${v}`);
@@ -154,9 +180,7 @@ export function loadWorld(
       throw new SaveError(
         `store ${name} has schema ${chunk.schema}, newer than this game's ${target}`,
       );
-    // (A copy: a store keeps what it loads, and the world running on must not write into the
-    // save it came from — the same save may be loaded again.)
-    store.load(structuredClone(data));
+    store.load(chunk.packed ? data : structuredClone(data));
   }
   world.minter.restore(doc.minter);
   world.scheduler.load(doc.scheduler);
@@ -191,8 +215,9 @@ export function verifyByReplay(
       ok: false,
       problem: "replay is valid only within one ruleset; this history changed rules",
     };
-  const commands =
-    (doc.stores["commands.log"]?.data as { commands?: [] } | undefined)?.commands ?? [];
+  const log = doc.stores["commands.log"],
+    commands =
+      ((log ? chunkData(log) : undefined) as { commands?: [] } | undefined)?.commands ?? [];
   const world = build(seedFromText(doc.seed));
   world.replay(commands, doc.t);
   const chain = world.checkpoints().map((c) => c.chain),

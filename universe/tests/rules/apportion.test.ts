@@ -5,6 +5,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   apportionCapped,
+  fellColumns,
+  fellOfColumns,
   fellRows,
   fellTotals,
   hurtOfLands,
@@ -208,4 +210,50 @@ test("packFell over a grid: every side made by the rules reads back whole", () =
         });
       assert.deepEqual(unpackFell(packFell(lands), wounded), lands, `${wounded} ${sents}`);
     }
+});
+
+test("fellColumns keeps a side's lands by column, its dead only where its fallen do not give them", () => {
+  const lands: LandFell[] = [
+    [12, 10, 2, 3, [4, 1, 1, 0, 0, 0, 3, 1, 1]],
+    [15, 6, 1, 2],
+    [20, 5, 0, 2, []],
+  ];
+  // Three fallen split by sent (10, 6, 5) give 1, 1, 1, not these lands' 2, 1, 0: the dead are kept.
+  const kept = fellColumns(lands, 3);
+  assert.deepEqual(kept, {
+    cell: [12, 15, 20],
+    sent: [10, 6, 5],
+    dead: [2, 1, 0],
+    towns: [[4, 0, 3], null, []],
+  });
+  assert.deepEqual(fellOfColumns(kept, 3, 7), lands);
+  assert.deepEqual(fellOfColumns(fellColumns([], 0), 0, 0), []);
+});
+
+test("fellColumns over a grid: the dead the rules give are left out, and every side reads back whole", () => {
+  for (const fallen of [0, 1, 4, 11])
+    for (const wounded of [0, 1, 5, 9])
+      for (const sents of [[7], [10, 3], [12, 0, 5], [30, 9, 1, 4]]) {
+        const most = sents.reduce((n, s) => n + s, 0),
+          deads = apportionCapped(Math.min(fallen, most), sents, sents),
+          hurts = hurtOfLands(
+            wounded,
+            sents.map((s, k) => [s, deads[k]!]),
+          ),
+          lands = sents.map((sent, k): LandFell => {
+            const tally: Tally = [sent, deads[k]!, hurts[k]!];
+            if (k === 1) return [10 + k, ...tally];
+            const people = picks(9, [k + 2, 0, 3 * k, 1]),
+              { towns } = splitTowns(tally, people, k);
+            return [10 + 7 * k, ...tally, packTowns(towns)];
+          }),
+          side = deads.reduce((n, d) => n + d, 0),
+          kept = fellColumns(lands, side);
+        assert.equal(kept.dead, undefined, `${fallen} ${sents}: the dead left out`);
+        assert.deepEqual(
+          fellOfColumns(kept, side, wounded),
+          lands,
+          `${fallen} ${wounded} ${sents}`,
+        );
+      }
 });

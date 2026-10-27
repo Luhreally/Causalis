@@ -1367,6 +1367,14 @@ checksums   per chunk
   settlements to interstellar war (sublight makes the interstellar era long;
   the deep past is kept at decade resolution); ≤ 3 MB for the Phase 1 slice
   at 200 years.
+- **Lists packed by column** (2026-10-27, save format 2; format 1 still
+  loads): the longest lists (history's events, tombstones and summaries, a
+  ledger's years, the wars' battles, markets, designs, lore, stores, a town's
+  fabric) are kept by column (`kernel/pack.ts`: whole numbers as varints or
+  differences, strings once each, an object's keys once per shape), and they
+  unpack value for value to what JSON gives back. Earth's save at year 3,100
+  went from 22.9 MB to 13.0 MB, and at year 1,080 from 17.6 MB to 10.5 MB.
+  Saving and loading take about half the time.
 - **Export/import to a file** is required, not optional: Safari may evict
   script-written storage for a site not used in 7 days of browsing; call
   `navigator.storage.persist()` and offer export.

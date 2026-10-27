@@ -4,7 +4,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Hasher, YEAR, seedFromText } from "../../src/kernel/index.ts";
-import { fellTotals, unpackTowns, type LandFell } from "../../src/rules/index.ts";
+import {
+  fellOfColumns,
+  fellTotals,
+  packFell,
+  unpackTowns,
+  type FellColumns,
+  type LandFell,
+} from "../../src/rules/index.ts";
 import {
   FELL_TOWN_YEARS,
   RISEN_KEPT,
@@ -150,15 +157,37 @@ test("the store: a loaded copy hashes the same, forgetting is idempotent and cha
     copy = new WarStore();
   copy.load(JSON.parse(saved));
   assert.equal(hashOf(copy), hashOf(store));
-  // (Kept packed, no battle's tallies written whole, and each read back as it was.)
+  // (Kept by column, no battle's tallies written whole, the lands' dead left out where the side's
+  // fallen give them, and each read back as it was.)
   const written = (JSON.parse(saved) as { wars: { battles: Record<string, unknown>[] }[] }).wars
     .flatMap((w) => w.battles)
     .filter((b) => b.wounded);
-  assert.ok(written.length > 0 && written.every((b) => b.fellPacked && !b.fell));
+  assert.ok(written.length > 0 && written.every((b) => b.fellColumns && !b.fell && !b.fellPacked));
+  assert.ok(
+    written.every((b) => (b.fellColumns as { dead?: number[] }[]).every((side) => !side.dead)),
+  );
   assert.deepEqual(
     copy.all().map((w) => w.battles),
     store.all().map((w) => w.battles),
   );
+  // A save from before the columns keeps them packed (packFell), and reads back the same.
+  const packed = JSON.parse(saved) as { wars: { battles: Record<string, unknown>[] }[] };
+  for (const w of packed.wars)
+    for (const b of w.battles) {
+      if (!b.fellColumns) continue;
+      const fallen = b.fallen as number[],
+        wounded = b.wounded as number[],
+        sides = b.fellColumns as FellColumns[];
+      delete b.fellColumns;
+      b.fellPacked = sides.map((side, s) => packFell(fellOfColumns(side, fallen[s]!, wounded[s]!)));
+    }
+  const before = new WarStore();
+  before.load(packed);
+  assert.deepEqual(
+    before.all().map((w) => w.battles),
+    store.all().map((w) => w.battles),
+  );
+  assert.equal(JSON.stringify(before.save()), saved, "and is saved again by column");
   copy.forgetTowns(Y - (FELL_TOWN_YEARS + 1));
   assert.equal(JSON.stringify(copy.save()), saved, "what was let go is let go already");
   copy.forgetTowns(Y + 1);
@@ -181,6 +210,7 @@ test("the store: a loaded copy hashes the same, forgetting is idempotent and cha
       delete b.bore;
       delete b.fell;
       delete b.fellPacked;
+      delete b.fellColumns;
     }
   const was = new WarStore();
   was.load(older);

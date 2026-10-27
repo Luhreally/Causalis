@@ -31,6 +31,11 @@ export interface StateStore {
    * with the world but never part of its hash, because looking must not change history.
    */
   readonly observational?: boolean;
+  /**
+   * Whether a save keeps what save() gives packed by column (kernel/pack.ts): for a store of
+   * long lists of records, which load back as JSON would give them.
+   */
+  readonly packed?: boolean;
   hashInto(h: Hasher): void;
   save(): unknown;
   load(state: unknown): void;

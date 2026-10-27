@@ -5,6 +5,7 @@ import {
   SaveError,
   World,
   YEAR,
+  chunkData,
   defineMigration,
   loadWorld,
   rulesetId,
@@ -15,6 +16,7 @@ import {
   type SaveDocument,
   type Seed,
   type StateStore,
+  type StoreChunk,
 } from "../../src/kernel/index.ts";
 import { makePopulationWorld, makeToyWorld } from "../../src/sim/index.ts";
 
@@ -151,4 +153,71 @@ test("an old store schema is migrated on load", () => {
     { who: "Ada", amount: 0 },
     { who: "Ben", amount: 0 },
   ]);
+});
+
+/** A save as a game before packing wrote it: format 1, every store as it saved it. */
+function unpacked(doc: SaveDocument): SaveDocument {
+  const stores: Record<string, StoreChunk> = {};
+  for (const [name, chunk] of Object.entries(doc.stores)) {
+    const data = chunkData(chunk);
+    stores[name] = { schema: chunk.schema, data, hash: new Hasher().value(data).hex() };
+  }
+  return { ...doc, format: 1, stores };
+}
+
+test("a store of long lists is saved packed by column, and loads back as it was", () => {
+  const live = liveWorld(),
+    ruleset = rulesetId(live, VERSION),
+    doc = roundTrip(saveWorld(live, ruleset)),
+    chunk = doc.stores["history.events"]!;
+  assert.equal(doc.format, 2);
+  assert.equal(chunk.packed, true);
+  assert.equal(
+    doc.stores["commands.log"]!.packed,
+    undefined,
+    "a store that does not ask is kept as it is",
+  );
+  assert.deepEqual(chunkData(chunk), JSON.parse(JSON.stringify(live.events.save())));
+  const { world } = loadWorld(doc, build, ruleset);
+  assert.deepEqual(world.domainHashes(), live.domainHashes());
+  assert.deepEqual(world.events.all(), live.events.all());
+  assert.deepEqual(world.decisions.all(), live.decisions.all());
+});
+
+test("a save from before packing loads, and runs on as the world it came from", () => {
+  const live = liveWorld(),
+    ruleset = rulesetId(live, VERSION),
+    old = roundTrip(unpacked(saveWorld(live, ruleset)));
+  assert.equal(old.stores["history.events"]!.packed, undefined);
+  const { world } = loadWorld(old, build, ruleset);
+  assert.deepEqual(world.domainHashes(), live.domainHashes());
+  live.runTo(20 * YEAR);
+  world.runTo(20 * YEAR);
+  assert.deepEqual(
+    world.checkpoints().map((c) => c.chain),
+    live.checkpoints().map((c) => c.chain),
+  );
+  assert.throws(() => loadWorld({ ...old, format: 3 }, build, ruleset), /save format 3/);
+});
+
+test("a packed store damaged is refused by its hash", () => {
+  const live = liveWorld(),
+    ruleset = rulesetId(live, VERSION),
+    doc = roundTrip(saveWorld(live, ruleset));
+  // (A letter of a column of numbers changed: the column still reads, its hash does not match.)
+  const text = JSON.stringify(doc.stores["history.events"]!.data),
+    at = text.indexOf('"d":"') + 6;
+  assert.ok(at > 6);
+  const damaged = JSON.parse(
+    text.slice(0, at) + (text[at] === "B" ? "C" : "B") + text.slice(at + 1),
+  );
+  (doc.stores as Record<string, StoreChunk>)["history.events"] = {
+    ...doc.stores["history.events"]!,
+    data: damaged,
+  };
+  assert.throws(
+    () => loadWorld(doc, build, ruleset),
+    (e: unknown) =>
+      e instanceof SaveError && /history.events is corrupt/.test((e as Error).message),
+  );
 });

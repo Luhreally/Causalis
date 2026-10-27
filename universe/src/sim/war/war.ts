@@ -30,8 +30,10 @@ import {
   G,
   MALE,
   apportionCapped,
-  packFell,
+  fellColumns,
+  fellOfColumns,
   unpackFell,
+  type FellColumns,
   type LandFell,
 } from "../../rules/index.ts";
 import { designsOf } from "../design/design.ts";
@@ -144,26 +146,71 @@ function bare(w: War): War {
   return { ...w, battles: w.battles.map(omitFell) };
 }
 
-/** A battle as kept in a save: its tallies by land and town packed (packFell). */
+/**
+ * A battle as kept in a save: its tallies by land and town by column, what the rules give again
+ * left out (fellColumns); in older saves, packed (packFell) or whole.
+ */
 type KeptBattle = Omit<Battle, "fell"> & {
+  readonly fellColumns?: readonly [FellColumns, FellColumns];
   readonly fellPacked?: readonly [readonly number[], readonly number[]];
 };
 
-/** A battle to keep: its tallies packed where its wounded let them be read back. */
+/**
+ * A battle to keep: its tallies by column where its fallen and wounded let them be read back as
+ * they are (a battle whose tallies the rules would not give again is kept whole).
+ */
 function keep(b: Battle): Battle | KeptBattle {
   if (!b.fell || !b.wounded) return b;
-  const { fell, ...rest } = b;
-  return { ...rest, fellPacked: [packFell(fell[0]), packFell(fell[1])] };
+  const { fell, ...rest } = b,
+    kept: KeptBattle = {
+      ...rest,
+      fellColumns: [fellColumns(fell[0], b.fallen[0]), fellColumns(fell[1], b.fallen[1])],
+    };
+  return sameFell(unkeep(kept).fell!, fell) ? kept : b;
 }
 
 /** A kept battle read back (a save from before the packing keeps its tallies whole). */
 function unkeep(b: Battle | KeptBattle): Battle {
+  if ("fellColumns" in b && b.fellColumns && b.wounded) {
+    const { fellColumns: kept, ...rest } = b;
+    return {
+      ...rest,
+      fell: [
+        fellOfColumns(kept[0], b.fallen[0], b.wounded[0]),
+        fellOfColumns(kept[1], b.fallen[1], b.wounded[1]),
+      ],
+    };
+  }
   if (!("fellPacked" in b) || !b.fellPacked || !b.wounded) return b as Battle;
   const { fellPacked, ...rest } = b;
   return {
     ...rest,
     fell: [unpackFell(fellPacked[0], b.wounded[0]), unpackFell(fellPacked[1], b.wounded[1])],
   };
+}
+
+/** Whether two battles' tallies are the same, number for number (and land for land). */
+function sameFell(a: NonNullable<Battle["fell"]>, b: NonNullable<Battle["fell"]>): boolean {
+  for (let s = 0; s < 2; s++) {
+    const x = a[s]!,
+      y = b[s]!;
+    if (x.length !== y.length) return false;
+    for (let k = 0; k < x.length; k++) {
+      const p = x[k]!,
+        q = y[k]!;
+      if (p.length !== q.length) return false;
+      for (let j = 0; j < 4; j++) if (p[j] !== q[j]) return false;
+      const pt = p[4],
+        qt = q[4];
+      if (pt === undefined || qt === undefined) {
+        if (pt !== qt) return false;
+        continue;
+      }
+      if (pt.length !== qt.length) return false;
+      for (let j = 0; j < pt.length; j++) if (pt[j] !== qt[j]) return false;
+    }
+  }
+  return true;
 }
 
 /** A land's tally without its towns: the first four elements (rules/apportion.ts LandFell). */
@@ -173,6 +220,8 @@ function strip(lands: readonly LandFell[]): LandFell[] {
 
 export class WarStore implements StateStore {
   readonly name = "war.wars";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private list: War[] = [];
   /** The same wars by ref. */
   private readonly byRef = new Map<string, War>();
