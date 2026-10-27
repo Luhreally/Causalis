@@ -141,6 +141,8 @@ import { BlazeLayer } from "./blaze.ts";
 import { GraveyardLayer } from "./graveyard.ts";
 import { WoundsLayer, bandageOn, propAt, stumpAlong, type WornPiece } from "./wounds.ts";
 import { LittersLayer, litterApart, litterHeld } from "./litters.ts";
+import type { PosedHook } from "../view/index.ts";
+import { lieDown } from "./possess.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
@@ -310,6 +312,11 @@ export class VillageScene {
   private hearths: { x: number; y: number; z: number }[] = [];
   private stacks: { x: number; y: number; z: number }[] = [];
   key: string | null = null;
+  /**
+   * One of its people possessed (Phase 60): the clock the town is drawn at, the bodies the small
+   * world moves drawn where it has them, those it struck down lying where they fell.
+   */
+  posed: PosedHook | null = null;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -1297,6 +1304,7 @@ export class VillageScene {
   ): void {
     const plan = this.plan;
     if (!plan) return;
+    if (this.posed) t = this.posed.at(t);
     const step = t - this.lastT;
     this.lastT = t;
     this.town.update(t);
@@ -1450,6 +1458,7 @@ export class VillageScene {
       dt,
       villageSolids(plan),
     );
+    this.posed?.pose(drawn, this.presence);
     this.moments = drawn.map((d) => d.moment);
     // The town's trades at their buildings (Phase 41 M199): who tends each kiln now (or throws
     // pots by it), and who strikes at each smithy's anvil.
@@ -1591,6 +1600,7 @@ export class VillageScene {
       out[5] = keep > 0 ? part.sz * size : 0;
       out[6] = m.yaw;
       out[7] = pitch;
+      if (this.posed?.downed.has(i)) lieDown(out, part, m.x, m.z, m.yaw, size, pitch);
     };
     this.people.forEach((batches, gi) => {
       const members = plan.people

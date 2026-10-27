@@ -136,6 +136,7 @@ import {
   type Counted,
 } from "./inspect/index.ts";
 import { MAP_QUERIES } from "./map.ts";
+import { POSSESS_QUERIES } from "./possess.ts";
 import { SEARCH_QUERIES } from "./search.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds, realmArms } from "./arms.ts";
@@ -1277,6 +1278,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // The political map's names, the diplomacy and war lenses, the top bar's numbers (M96).
       ...MAP_QUERIES,
       ...SEARCH_QUERIES,
+      // One of a town's people possessed (Phase 60): the small world about him, stepped ahead.
+      ...POSSESS_QUERIES,
       place: (world, args) => placeOf(world, (args as { ref: string }).ref),
       // A thing in a few words, for a tooltip (Phase 10 M93).
       tip: (world, args) => {

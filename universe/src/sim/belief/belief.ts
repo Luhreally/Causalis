@@ -92,6 +92,9 @@ function omenOf(type: string, data: unknown): { tenet: Tenet; strength: number }
       return { tenet: "teaching", strength: 1 };
     case "hand.laid":
       return { tenet: "presence", strength: 1.2 };
+    // (The god walking among them in one of their own bodies: Phase 60.)
+    case "hand.possessed":
+      return { tenet: "presence", strength: 1 };
     case "act.shrine":
       return { tenet: "presence", strength: 1 };
     case "act.fire":

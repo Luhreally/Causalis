@@ -25,6 +25,8 @@ export type ToolContext = {
   readonly wars?: (from: number, to: number) => void;
   /** One of a town's people touched by the god's hand, now one of its people (Phase 54). */
   readonly touched?: (agent: string) => void;
+  /** One under the hand possessed (Phase 60): why they cannot be (null: taken). */
+  readonly possess?: (agent: number) => Promise<string | null>;
 };
 
 /** One of a town's people the god may touch (Phase 54): who they are, and their town. */
@@ -782,6 +784,20 @@ async function agentActs(into: HTMLElement, id: number, ctx: ToolContext): Promi
     `${first} will come upon the next thing their land could know, and be remembered for it.`,
     act("act.inspire-one"),
   );
+  // Walked in by the god (Phase 60): in the town drawn, steered by hand.
+  if (ctx.possess) {
+    const possess = ctx.possess;
+    twice(
+      tools,
+      note,
+      "🫳 Possess them",
+      `You will walk in ${first}'s body among their town: steered by your hand, set to work, to speak, to strike.`,
+      async () => {
+        const why = await possess(id);
+        if (why) throw new Error(why);
+      },
+    );
+  }
   const parts: HTMLElement[] = [el("h3", undefined, "Your hand on them"), tools, note];
   if (a.blessedUntil === null)
     twice(

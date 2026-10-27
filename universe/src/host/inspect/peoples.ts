@@ -66,12 +66,18 @@ const SEEN: Readonly<Record<string, { reading: Reading; epithet: string; words: 
   "war.declared": { reading: "wrath", epithet: "the Warbringer", words: "a war begun" },
   "war.peace": { reading: "favour", epithet: "the Peacegiver", words: "a war ended" },
   "hand.laid": { reading: "portent", epithet: "the Near One", words: "your hand among them" },
+  "hand.possessed": {
+    reading: "portent",
+    epithet: "the Walker Among Us",
+    words: "the god walking among them in one of their own",
+  },
   "act.warm": { reading: "portent", epithet: "the Kindler", words: "the world warmed or cooled" },
 };
 
 /** What the god's hand did among the peoples, told by the events it caused rather than its own. */
 const BY_HAND = new Set([
   "hand.laid",
+  "hand.possessed",
   "belief.founded",
   "belief.converted",
   "language.arose",

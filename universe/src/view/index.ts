@@ -903,4 +903,28 @@ export {
   type MakingSubject,
   type Makings,
 } from "./making.ts";
+export {
+  JOIN_M,
+  NEAR_M,
+  OUT_OF_SIGHT,
+  PosedBodies,
+  STEPS_PER_SECOND,
+  STILL_BID,
+  WAY_STEP,
+  agentOf,
+  bidOf,
+  bodyMoment,
+  drawnHeight,
+  joinsAt,
+  lettersOf,
+  lying,
+  placesNear,
+  solidsNear,
+  takeOf,
+  tradeOf,
+  waysOf,
+  workOf,
+  type HandBid,
+  type PosedHook,
+} from "./possess.ts";
 export { placeOfMember, struckOf, toldBlows, warManOf, warSlot, type WarSlot } from "./body.ts";

@@ -32,3 +32,4 @@ export { ClusterScene } from "./cluster.ts";
 export { GalaxyScene, galaxyMaterial } from "./galaxy.ts";
 export { VILLAGE_METRE, VillageScene } from "./village.ts";
 export { Stage, flatMaterial, type DeviceTier, type Rgb } from "./stage.ts";
+export { EYE_FARTHEST, EYE_NEAREST, PossessEye, lieDown } from "./possess.ts";

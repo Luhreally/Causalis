@@ -1,0 +1,292 @@
+/* One of a town's people possessed (Phase 60): the game's own chrome put away, and the possession's
+   controls over the whole screen — a stick where the left thumb lands, four round acts under the
+   right, "Let go" apart at the top right, the strip of who he is — inside the phone's safe areas,
+   none of the page's own gestures taking a touch. In the era's glossy look. */
+body.possessing {
+  overscroll-behavior: none;
+}
+body.possessing #hud > *:not(.possess-hud) {
+  display: none !important;
+}
+/* Possess in hand: why one cannot be taken told whole on the palette's line, not cut short. */
+.palette-line.whole .palette-words {
+  white-space: normal;
+}
+.possess-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
+  font-size: 14px;
+}
+.possess-hud[hidden] {
+  display: none !important;
+}
+.possess-hud button {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.possess-strip {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: calc(env(safe-area-inset-left, 0px) + 8px);
+  /* (Clear of Let go and the paces under it.) */
+  right: calc(env(safe-area-inset-right, 0px) + 128px);
+  padding: 6px 10px;
+  border: 1px solid rgba(143, 176, 255, 0.55);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(20, 44, 96, 0.9), rgba(8, 18, 44, 0.86));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+}
+.possess-name {
+  display: block;
+  font-size: 15px;
+  color: #fff;
+}
+.possess-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.possess-left {
+  position: relative;
+  display: inline-block;
+  width: 64px;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+.possess-strength {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #4fdc8f, #a9f56a);
+}
+.possess-left.low .possess-strength {
+  background: linear-gradient(90deg, #ff5a4a, #ffa14a);
+}
+.possess-told {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 104px);
+  left: 50%;
+  max-width: min(90vw, 560px);
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(8, 18, 44, 0.72);
+  color: #e9f6ff;
+  text-align: center;
+  pointer-events: none;
+}
+.possess-told:empty {
+  display: none;
+}
+.possess-told.bad {
+  color: #ffd2b0;
+}
+/* Told as it comes, and gone a while after (what the act came to is told again on the next). */
+.possess-told.fresh {
+  animation:
+    possess-told 0.35s ease-out,
+    possess-told-gone 0.8s ease-in 6s forwards;
+}
+@keyframes possess-told {
+  from {
+    scale: 1.08;
+  }
+}
+@keyframes possess-told-gone {
+  to {
+    opacity: 0;
+  }
+}
+.possess-letgo {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  right: calc(env(safe-area-inset-right, 0px) + 8px);
+  min-width: 102px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 2px solid #9a2a00;
+  border-radius: 24px;
+  color: #3a1000;
+  font-weight: 700;
+  background: linear-gradient(180deg, #fff1d8 0%, #ffc070 46%, #ff8d2e 54%, #ffcf8f 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+.possess-paces {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 62px);
+  right: calc(env(safe-area-inset-right, 0px) + 8px);
+  display: flex;
+  gap: 4px;
+}
+.possess-pace {
+  min-width: 36px;
+  min-height: 32px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: rgba(8, 18, 44, 0.7);
+}
+.possess-pace.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 8px rgba(143, 176, 255, 0.7);
+}
+.possess-stick {
+  position: absolute;
+  width: 104px;
+  height: 104px;
+  margin: -52px 0 0 -52px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(111, 231, 255, 0.2), rgba(8, 22, 60, 0.55));
+  pointer-events: none;
+}
+.possess-stick[hidden] {
+  display: none;
+}
+.possess-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+/* The four acts in an arc under the right thumb: the one that fits the largest, at the corner. */
+.possess-acts {
+  position: absolute;
+  right: calc(env(safe-area-inset-right, 0px) + 14px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  width: 214px;
+  height: 214px;
+  pointer-events: none;
+}
+.possess-act {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 2px solid #2d5d9a;
+  border-radius: 50%;
+  color: #08203e;
+  background: linear-gradient(180deg, #eaf6ff 0%, #9fd2ff 46%, #5aa8f0 54%, #b8e0ff 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+.possess-act-0 {
+  right: 0;
+  bottom: 0;
+  width: 84px;
+  height: 84px;
+  border-color: #5b7d00;
+  background: linear-gradient(180deg, #f4ffd6 0%, #d5ff72 46%, #a9e61e 54%, #e2ff9a 100%);
+}
+.possess-act-1 {
+  right: 96px;
+  bottom: 6px;
+}
+.possess-act-2 {
+  right: 74px;
+  bottom: 74px;
+}
+.possess-act-3 {
+  right: 6px;
+  bottom: 96px;
+}
+.possess-act.cannot {
+  filter: saturate(0.25) brightness(0.8);
+}
+.possess-act.struck {
+  animation: possess-struck 0.22s ease-out;
+}
+@keyframes possess-struck {
+  from {
+    transform: scale(0.86);
+  }
+}
+.possess-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+.possess-act-0 .possess-icon {
+  font-size: 30px;
+}
+.possess-label {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.possess-hint {
+  position: absolute;
+  right: calc(env(safe-area-inset-right, 0px) + 14px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 240px);
+  max-width: min(64vw, 380px);
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(8, 18, 44, 0.66);
+  color: #dfeaff;
+  font-size: 12px;
+  text-align: right;
+  pointer-events: none;
+}
+.possess-hint:empty {
+  display: none;
+}
+.possess-bubbles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.possess-bubble {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #10203a;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.possess-bubble[hidden] {
+  display: none;
+}
+/* Turned on its side: the strip narrower, the paces beside Let go, what was told between them. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .possess-strip {
+    right: auto;
+    max-width: 30vw;
+  }
+  /* (Between the strip and the controls at the top right.) */
+  .possess-told {
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    left: calc(env(safe-area-inset-left, 0px) + 30vw + 34px);
+    right: calc(env(safe-area-inset-right, 0px) + 254px);
+    max-width: none;
+    transform: none;
+  }
+  .possess-paces {
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    right: calc(env(safe-area-inset-right, 0px) + 118px);
+  }
+}

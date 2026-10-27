@@ -278,6 +278,7 @@ function rim(s: NameShape, d: number): { x: number; y: number; z: number } {
   return { x: s.x * c + s.ax * n, y: s.y * c + s.ay * n, z: s.z * c + s.az * n };
 }
 import { deviceTier } from "./tier.ts";
+import { installPossession } from "./possess.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
 import { seatRef, type KinCard, type StruckMember, type StruckNow } from "../bridge/index.ts";
@@ -5014,6 +5015,24 @@ async function runPlanetPage(): Promise<void> {
     else void pageWindow.open(agent);
   };
   pageWindow.onTouched = (agent) => void touched(agent);
+  // One of a town's people possessed (Phase 60; asked for 2026-10-27: "add in functionality to
+  // possess anything like worldbox/worldfall mod ... make sure it works right in mobile"): the god's
+  // hand made flesh, walked and set to work by hand, from the palette or a person's card.
+  installPossession({
+    stage,
+    canvas,
+    hud,
+    client,
+    time,
+    rig,
+    village,
+    palette,
+    pages: pageWindow,
+    plan: () => (scale === "village" ? plan : null),
+    scale: () => scale,
+    reload: loadPlan,
+    toOrbit: () => setRoam("orbit"),
+  });
   villagePanel.onStores = () => {
     selectPerson(null);
     pageWindow.close();

@@ -9,7 +9,18 @@ import type { CommandReceipt, HostClient, PaletteLand } from "../bridge/index.ts
 import type { Lit } from "../view/index.ts";
 import { el } from "./why.ts";
 
-type Target = "land" | "town" | "city" | "pair" | "faith" | "tongue" | "realm" | "world" | "star";
+type Target =
+  | "land"
+  | "town"
+  | "city"
+  | "pair"
+  | "faith"
+  | "tongue"
+  | "realm"
+  | "world"
+  | "star"
+  // One of a town's people, touched in it (Phase 60).
+  | "person";
 
 /** Where in a town watched the hand touches (Phase 42 M201): metres from its middle, and the lot there (-1: none). */
 export type TownPlace = { readonly x: number; readonly z: number; readonly lot: number };
@@ -334,6 +345,14 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
     choose: "tenet",
   },
   curse: { id: "curse", icon: "🌑", name: "Curse a realm", target: "realm", command: "act.curse" },
+  // The god's hand made flesh (Phase 60): one of the people of the town the hand rests on, walked in.
+  possess: {
+    id: "possess",
+    icon: "🫳",
+    name: "Possess one of them",
+    target: "person",
+    command: "possess.take",
+  },
 };
 
 /** The acts by kind, as the palette's tabs hold them. */
@@ -374,6 +393,7 @@ export const PALETTE_KINDS: readonly {
     acts: ["ways", "tongue", "newtongue", "faith", "convert"],
   },
   { id: "sky", icon: "🌍", name: "The world and its sun", acts: ["warm", "cool", "flare", "calm"] },
+  { id: "flesh", icon: "🫳", name: "The god made flesh", acts: ["possess"] },
 ];
 
 /** Years a world is warmed or cooled for, and a sun made to flare or calm. */
@@ -417,6 +437,12 @@ export class GodPalette {
   onOpen: (ref: string) => void = () => {};
   /** The palette took an act in hand, or put it down. */
   onArmed: (armed: boolean) => void = () => {};
+  /**
+   * One of a town's people touched with Possess in hand (Phase 60): the town and where in it; told
+   * why they cannot be taken (null: taken, the act put down).
+   */
+  onPossess: (town: string | null, place?: TownPlace) => Promise<string | null> = async () =>
+    "possession is not to be had here";
 
   constructor(parent: HTMLElement, client: HostClient) {
     this.client = client;
@@ -533,6 +559,15 @@ export class GodPalette {
       this.first = land;
       this.say();
       this.light();
+      return;
+    }
+    if (a.target === "person") {
+      const why = await this.onPossess(town, place);
+      if (why) this.say(why, "bad");
+      else {
+        this.putDown();
+        this.element.classList.remove("open");
+      }
       return;
     }
     const aim = this.aim(a, land, town, place);
@@ -763,6 +798,13 @@ export class GodPalette {
           args: { village: t.ref, ...where },
         };
       }
+      case "person":
+        return town
+          ? {
+              words: "touch one of its people: you will walk in their body",
+              args: { town },
+            }
+          : { words: "go down into a town to touch one of its people", args: null };
       case "realm": {
         const r = land?.realm;
         if (!r) return { words: land ? `${land.name} is no realm's` : "no land there", args: null };
@@ -827,6 +869,8 @@ export class GodPalette {
     this.spans.hidden = !a?.lasting;
     this.drawChoices();
     this.line.classList.toggle("bad", tone === "bad");
+    // (Why one of a town's people cannot be taken, told whole, on two lines if it must: Phase 60.)
+    this.line.classList.toggle("whole", a?.target === "person");
     if (problem) {
       this.words.replaceChildren(`${a?.icon ?? "✋"} ${problem}`);
       return;
@@ -866,6 +910,7 @@ export class GodPalette {
         : "touch a land that speaks the tongue",
       world: "touch the world",
       star: "touch the world under its sun",
+      person: "touch one of the people of the town your hand rests on",
     };
     if (!this.over) {
       this.words.replaceChildren(`${a.icon} ${a.name}: ${asking[a.target]} · Esc puts it down`);

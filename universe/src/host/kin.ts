@@ -44,6 +44,7 @@ import { healerOf } from "./village.ts";
 import {
   battleDeath,
   bodyFrameOf,
+  handWoundsOf,
   holderWounds,
   levyWounds,
   metWounds,
@@ -932,7 +933,15 @@ export function bodyOf(world: World, ref: string): BodyRead | null {
   if (ref.startsWith("agent:")) {
     const id = Number(ref.slice(ref.indexOf(":") + 1)),
       a = handOf(world).resting?.agents.find((x) => x.id === id);
-    return a ? { frame, wounds: [], death: null, sex: (a.sex === 0 ? 0 : 1) as 0 | 1 } : null;
+    // (Their wounds dealt by blows by hand: Phase 60.)
+    return a
+      ? {
+          frame,
+          wounds: handWoundsOf(world, a),
+          death: null,
+          sex: (a.sex === 0 ? 0 : 1) as 0 | 1,
+        }
+      : null;
   }
   const seat = ref.startsWith("heal:")
     ? { town: ref.slice("heal:".length), trade: "healer", seat: 0 }

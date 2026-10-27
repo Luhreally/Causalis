@@ -27,12 +27,22 @@ import {
   maimedShare,
   tendedBy,
   unpackTowns,
+  woundAt,
   woundCare,
   woundOf,
   type Anatomy,
   type Blow,
 } from "../rules/index.ts";
-import { loreOf, populationContext, townsOf, type Battle, type War } from "../sim/index.ts";
+import {
+  handOf,
+  loreOf,
+  populationContext,
+  townsOf,
+  type Agent,
+  type Battle,
+  type HandHit,
+  type War,
+} from "../sim/index.ts";
 import { observer, type Person } from "../causal/index.ts";
 import {
   parseTownsfolkRef,
@@ -417,12 +427,79 @@ export function metWounds(world: World, p: Person): Wound[] {
 }
 
 /**
+ * A wound a blow struck by the god's hand in another's body dealt one of the hand's people, or one
+ * of them dealt the body the god was in (Phase 60): on the place it landed, by the body's own rules
+ * (rules/possess.ts woundAt), tended as the town tends its wounded.
+ */
+function handWound(r: Reader, ref: string, hit: HandHit, household: boolean): Wound {
+  const year = yearOfMoment(hit.at),
+    care = careOf(r, r.town.cell, year),
+    key = hashString(`wound ${ref} ${hit.event}`),
+    cuts = hit.arm !== null && CUTS_OFF.has(hit.arm),
+    w = woundAt(r.body, hit.place, hit.maimed, hit.blow, cuts, care, u(key, 2), u(key, 3)),
+    healer = healerWords(r, year),
+    tended = tendedBy(hospitalIn(r, year), healer !== null, household),
+    days = healDays(w.outcome, w.member, hit.blow, care, tended),
+    up = hit.at + days.abed * DAY;
+  return {
+    event: hit.event,
+    from: "hand",
+    year,
+    where: `a brawl in ${r.town.name}`,
+    blow: hit.blow,
+    arm: hit.arm ? `${/^[aeiou]/i.test(hit.arm) ? "an" : "a"} ${hit.arm}` : null,
+    member: w.member,
+    words: r.body.words[w.member] ?? "~ body",
+    outcome: w.outcome,
+    how: w.how,
+    lasting: w.lasting,
+    at: hit.at,
+    home: hit.at,
+    up,
+    mended: up + days.mending * DAY,
+    tended,
+    by: byWords(r, tended, healer),
+    borne: false,
+  };
+}
+
+/**
+ * The wounds blows by hand dealt one of the hand's people (Phase 60), each where it landed: tended at
+ * home, as the hand's people live five to a home (host/village.ts). The same on their town's plan,
+ * their page and the strip of a body possessed.
+ */
+export function handWoundsOf(world: World, a: Agent): Wound[] {
+  const w = handOf(world).resting;
+  if (!w || !a.struck?.length) return [];
+  const r = readerOf(world, townOf(world, w.village, -1));
+  return a.struck.map((h) => handWound(r, `agent:${a.id}`, h, true));
+}
+
+/** The hand's people with the wounds blows by hand dealt them (Phase 60), laid over their town's plan. */
+function withHandWounds(world: World, plan: VillagePlan): VillagePlan {
+  const w = handOf(world).resting;
+  if (!w || w.village !== plan.ref) return plan;
+  const hurt = new Map<string, Agent>();
+  for (const a of w.agents) if (a.struck?.length) hurt.set(`agent:${a.id}`, a);
+  if (!hurt.size) return plan;
+  let changed = false;
+  const people = plan.people.map((p) => {
+    const a = hurt.get(p.ref);
+    if (!a) return p;
+    changed = true;
+    return { ...p, wounds: handWoundsOf(world, a) };
+  });
+  return changed ? { ...plan, people } : plan;
+}
+
+/**
  * A town's plan with its people's wounds laid over it (Phase 55 M226): each line holder's and met
  * man's wounds and days away with the levy, and those this year's strikes killed. A seat's holder
- * (a maker, the healer) is named for the seat, not the line: none. The hand's people: none.
+ * (a maker, the healer) is named for the seat, not the line: none. The hand's people: the blows
+ * the god's hand dealt them in another's body, or took in one (Phase 60).
  */
 export function withWounds(world: World, plan: VillagePlan): VillagePlan {
-  if (plan.hand) return plan;
+  if (plan.hand) return withHandWounds(world, plan);
   const t = townOf(world, plan.ref, -1);
   if (!t.ref) return plan;
   const year = Math.floor(world.now / YEAR),

@@ -24,7 +24,12 @@ import {
   SEXES,
   bandOf,
   bandWidth,
+  copyLocal,
+  type Blow,
+  type BodyPlace,
   type LifeHistory,
+  type LocalScene,
+  type LocalWorld,
 } from "../../rules/index.ts";
 import { lifeOf } from "../population/life.ts";
 import { COLS, ROWS, row } from "../population/model.ts";
@@ -58,6 +63,40 @@ export type Agent = {
    * tapped and blessed or inspired, the hand laid on their town to touch them): theirs while it rests.
    */
   name?: string;
+  /** Their spirits as the god's hand in one of their people moved them (Phase 60): by so much, at that moment (fading: rules/possess.ts moodAt). */
+  mood?: { readonly by: number; readonly at: number };
+  /** Blows that struck them down by the god's hand in a body, and they lived (Phase 60): their wounds are told from these (host/wounds.ts handWound). */
+  struck?: HandHit[];
+};
+
+/** A blow that struck one of the hand's people down in a possessed body's small world, and they lived: when, how, where it landed. */
+export type HandHit = {
+  /** The hand's event that tells it. */
+  readonly event: Ref;
+  readonly at: number;
+  readonly blow: Blow;
+  readonly place: BodyPlace;
+  readonly maimed: boolean;
+  /** What struck it, in hand ("sickle"; null: bare hands). */
+  readonly arm: string | null;
+  /** Who struck it: the god in a body, by that body's name, or one of the town struck by him. */
+  readonly by: string;
+};
+
+/**
+ * One of the hand's people possessed (Phase 60): who, the take and its event, the second taken, his
+ * name; the town about him as the view drew it, the small world as it stands, and the bids that
+ * moved it, a second at a time with the second each was stepped at (sim/hand/possess.ts).
+ */
+export type Possession = {
+  readonly agent: number;
+  readonly name: string;
+  readonly command: Ref;
+  readonly event: Ref;
+  readonly from: number;
+  readonly scene: LocalScene;
+  local: LocalWorld;
+  inputs: { readonly at: number; readonly steps: string }[];
 };
 
 /** One of a town's people the hand is laid from: who the god meant to touch. */
@@ -193,7 +232,8 @@ export function workWeights(targets: readonly number[], a: Agent): readonly numb
 
 /**
  * Pair the grown who live alone, the eldest first, each with the nearest in age of the other
- * sex (within a dozen years) who lives alone too. As the village would: a keyed order, no draw.
+ * sex (within a dozen years) who lives alone too (of the nearest, the least id). As the village
+ * would: a keyed order, no draw.
  */
 export function pairUp(agents: readonly Agent[], year: number, adulthood: number): void {
   const living = new Set(agents.map((a) => a.id)),
@@ -203,23 +243,42 @@ export function pairUp(agents: readonly Agent[], year: number, adulthood: number
       .filter((a) => a.sex === FEMALE && alone(a))
       .sort((a, b) => a.birthYear - b.birthYear || a.id - b.id),
     men = grown.filter((a) => a.sex === MALE && alone(a));
+  // The men by birth year, each year's by id, and the first of each year still alone (one paired
+  // is passed over for good): a woman's man is found among the years either side of hers, the
+  // nearest first — as each man was weighed against each, in a city's tens of thousands
+  // (Phase 60: a great town's hand took minutes to lay, and as long each month it rested).
+  const years = [...new Set(men.map((m) => m.birthYear))].sort((a, b) => a - b),
+    index = new Map(years.map((y, k) => [y, k])),
+    born: Agent[][] = years.map(() => []),
+    first: number[] = years.map(() => 0);
+  for (const m of men) born[index.get(m.birthYear)!]!.push(m);
+  for (const list of born) list.sort((a, b) => a.id - b.id);
+  const free = (k: number): Agent | null => {
+    const list = born[k]!;
+    while (first[k]! < list.length && !alone(list[first[k]!]!)) first[k]!++;
+    return list[first[k]!] ?? null;
+  };
   for (const w of women) {
-    let best: Agent | null = null;
-    for (const m of men) {
-      if (!alone(m)) continue;
-      const gap = Math.abs(m.birthYear - w.birthYear);
-      if (gap > 12) continue;
-      if (
-        !best ||
-        gap < Math.abs(best.birthYear - w.birthYear) ||
-        (gap === Math.abs(best.birthYear - w.birthYear) && m.id < best.id)
-      )
-        best = m;
+    // (The first year at or after hers, and the last before.)
+    let hi = 0,
+      top = years.length;
+    while (hi < top) {
+      const mid = (hi + top) >> 1;
+      if (years[mid]! < w.birthYear) hi = mid + 1;
+      else top = mid;
     }
-    if (best) {
-      w.partner = best.id;
-      best.partner = w.id;
-    }
+    let lo = hi - 1;
+    while (lo >= 0 && !free(lo)) lo--;
+    while (hi < years.length && !free(hi)) hi++;
+    const below = lo >= 0 ? w.birthYear - years[lo]! : Infinity,
+      above = hi < years.length ? years[hi]! - w.birthYear : Infinity,
+      gap = Math.min(below, above);
+    if (gap > 12) continue;
+    const a = below === gap ? free(lo) : null,
+      b = above === gap ? free(hi) : null,
+      best = (a && b ? (a.id < b.id ? a : b) : (a ?? b))!;
+    w.partner = best.id;
+    best.partner = w.id;
   }
 }
 
@@ -236,6 +295,8 @@ export type Window = {
   notables?: { readonly agent: number; readonly deed: Ref }[];
   /** Those who died while it rests (Phase 14 M118): who they were, for their families' trees. */
   gone?: Gone[];
+  /** One of them possessed, while the god's hand is in their body (Phase 60). */
+  possessed?: Possession;
 };
 
 /** One of the hand's people who died while it rests: who they were, and when they died. */
@@ -301,7 +362,21 @@ export class HandStore implements StateStore {
     this.resting = w
       ? {
           ...w,
-          agents: w.agents.map((a) => ({ ...a, ...(a.traits ? { traits: [...a.traits] } : {}) })),
+          agents: w.agents.map((a) => ({
+            ...a,
+            ...(a.traits ? { traits: [...a.traits] } : {}),
+            ...(a.struck ? { struck: [...a.struck] } : {}),
+          })),
+          // (The small world steps in place: its own copy.)
+          ...(w.possessed
+            ? {
+                possessed: {
+                  ...w.possessed,
+                  local: copyLocal(w.possessed.local),
+                  inputs: [...w.possessed.inputs],
+                },
+              }
+            : {}),
         }
       : null;
   }
@@ -383,13 +458,20 @@ export function installHand(world: World): HandStore {
         a.traits = drawTraits((k) => world.rng.real(COLLAPSE, v.cell, t, 4 + k, a.id), null);
       pairUp(agents, year, life.adulthood);
       const mothers = agents.filter(
-        (a) => a.sex === FEMALE && year - a.birthYear >= life.adulthood,
-      );
+          (a) => a.sex === FEMALE && year - a.birthYear >= life.adulthood,
+        ),
+        // (Those who could have borne a child of a year, found once for every child of it.)
+        ables = new Map<number, Agent[]>();
       for (const c of agents) {
         if (year - c.birthYear >= life.adulthood) continue;
-        const able = mothers.filter(
-          (m) => c.birthYear - m.birthYear >= 16 && c.birthYear - m.birthYear <= 44,
-        );
+        let able = ables.get(c.birthYear);
+        if (!able)
+          ables.set(
+            c.birthYear,
+            (able = mothers.filter(
+              (m) => c.birthYear - m.birthYear >= 16 && c.birthYear - m.birthYear <= 44,
+            )),
+          );
         if (!able.length) continue;
         const m = able[Math.floor(world.rng.real(COLLAPSE, v.cell, t, 3, c.id) * able.length)]!;
         c.mother = m.id;
@@ -414,7 +496,12 @@ export function installHand(world: World): HandStore {
   });
   world.defineCommand({
     type: "hand.lift",
-    validate: () => (store.resting ? null : "your hand rests on no village"),
+    validate: () =>
+      !store.resting
+        ? "your hand rests on no village"
+        : store.resting.possessed
+          ? "your hand is in one of its people: let them go first"
+          : null,
     apply: (command) => {
       const w = store.resting!;
       world.events.emit({

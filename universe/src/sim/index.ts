@@ -165,8 +165,10 @@ export {
   workWeights,
   type Agent,
   type Gone,
+  type HandHit,
   type LaidFrom,
   type PersonTrait,
+  type Possession,
   type Window,
 } from "./hand/hand.ts";
 export {
@@ -656,3 +658,17 @@ export {
   type Restoration,
   type Revolution,
 } from "./strife/strife.ts";
+export {
+  HAND_POSSESS,
+  POSSESS_EVENTS,
+  agentById,
+  bodyFor,
+  installPossession,
+  possessionAhead,
+  type BodyAt,
+  type InputArgs,
+  type JoinArgs,
+  type NearArgs,
+  type ReleaseArgs,
+  type TakeArgs,
+} from "./hand/possess.ts";

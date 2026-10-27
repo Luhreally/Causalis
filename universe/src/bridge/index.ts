@@ -181,3 +181,16 @@ export type {
   SystemPlanBody,
   GalaxyPlan,
 } from "./system.ts";
+export type {
+  PossessAt,
+  PossessBody,
+  PossessInputArgs,
+  PossessJoin,
+  PossessLive,
+  PossessNear,
+  PossessNow,
+  PossessOffer,
+  PossessPlace,
+  PossessStrip,
+  PossessTakeArgs,
+} from "./possess.ts";

@@ -173,7 +173,7 @@ export function keepOut(ground: Ground, p: { x: number; z: number }, reach: numb
       z = p.z;
     if (ground.lake) pushOut(ground.lake, p, reach);
     if (p.x * p.x + p.z * p.z < (ground.homesReach + reach) ** 2) {
-      for (const h of ground.homes) pushOut(h, p, reach);
+      homesOut(ground, p, reach);
       ground.town?.keepOut(p, reach);
     }
     if (p.x === x && p.z === z) return;
@@ -183,8 +183,105 @@ export function keepOut(ground: Ground, p: { x: number; z: number }, reach: numb
 /** Whether a point stands `reach` clear of every wall on the ground and dry. */
 export function clearAt(ground: Ground, p: Point, reach: number): boolean {
   if (ground.lake && clearOf(ground.lake, p) < reach) return false;
-  for (const h of ground.homes) if (clearOf(h, p) < reach) return false;
+  if (ground.homes.length <= FEW_HOMES) {
+    for (const h of ground.homes) if (clearOf(h, p) < reach) return false;
+  } else
+    for (const i of homesAbout(ground, p, reach))
+      if (clearOf(ground.homes[i]!, p) < reach) return false;
   return !ground.town || ground.town.clearAt(p, reach);
+}
+
+/**
+ * The homes a walker stands near, found by the cells of the ground each home stands over (Phase
+ * 60: a great town under the hand draws 400 people, every one kept out of its homes every frame —
+ * on a slowed phone, most of the frame went in walking every home for each). A home further off
+ * than its own extent and the walker's reach cannot touch it, so the push and the clearance are
+ * the same as walking them all, bit for bit (tests/view/ground-homes.test.ts).
+ */
+const FEW_HOMES = 24;
+/** A cell of the homes' (metres across), and how much more each is looked for over (metres). */
+const HOME_CELL = 8,
+  HOME_SPARE = 0.01;
+type HomeCells = {
+  readonly cells: Map<number, number[]>;
+  /** The look each home was last found in (none found twice in one), and the looks made. */
+  readonly seen: Uint32Array;
+  looks: number;
+};
+const HOME_CELLS = new WeakMap<Ground, HomeCells>();
+const about: number[] = [];
+
+function homeCellsOf(ground: Ground): HomeCells {
+  const known = HOME_CELLS.get(ground);
+  if (known) return known;
+  const cells = new Map<number, number[]>();
+  ground.homes.forEach((h, i) => {
+    // (As far as its core reaches from its middle, and its wall beyond.)
+    const extent = Math.hypot(h.half ?? 0, h.across ?? 0) + h.r + HOME_SPARE,
+      i1 = Math.floor((h.x + extent) / HOME_CELL),
+      j1 = Math.floor((h.z + extent) / HOME_CELL);
+    for (let ci = Math.floor((h.x - extent) / HOME_CELL); ci <= i1; ci++)
+      for (let cj = Math.floor((h.z - extent) / HOME_CELL); cj <= j1; cj++) {
+        const key = (ci + 32768) * 65536 + (cj + 32768),
+          list = cells.get(key);
+        if (list) list.push(i);
+        else cells.set(key, [i]);
+      }
+  });
+  const made = { cells, seen: new Uint32Array(ground.homes.length), looks: 0 };
+  HOME_CELLS.set(ground, made);
+  return made;
+}
+
+/** The homes within `reach` of a point's cells, in their order (the list is reused: read it at once). */
+function homesAbout(ground: Ground, p: Point, reach: number): readonly number[] {
+  const known = homeCellsOf(ground),
+    { cells, seen } = known,
+    spare = reach + HOME_SPARE,
+    i1 = Math.floor((p.x + spare) / HOME_CELL),
+    j1 = Math.floor((p.z + spare) / HOME_CELL);
+  // (Its looks counted on; past what a mark holds, every mark cleared and counted from one.)
+  if (++known.looks >= 0xffffffff) {
+    seen.fill(0);
+    known.looks = 1;
+  }
+  const looks = known.looks;
+  about.length = 0;
+  for (let ci = Math.floor((p.x - spare) / HOME_CELL); ci <= i1; ci++)
+    for (let cj = Math.floor((p.z - spare) / HOME_CELL); cj <= j1; cj++)
+      for (const i of cells.get((ci + 32768) * 65536 + (cj + 32768)) ?? [])
+        if (seen[i] !== looks) {
+          seen[i] = looks;
+          about.push(i);
+        }
+  return about.length > 1 ? about.sort((a, b) => a - b) : about;
+}
+
+/**
+ * Out of each home a walker stands within, in the homes' order, as walking them all does: those
+ * about it; pushed out of one, those about where it now stands, from the next on.
+ */
+function homesOut(ground: Ground, p: { x: number; z: number }, reach: number): void {
+  const homes = ground.homes;
+  if (homes.length <= FEW_HOMES) {
+    for (const h of homes) pushOut(h, p, reach);
+    return;
+  }
+  for (let from = 0; ;) {
+    let moved = -1;
+    for (const i of homesAbout(ground, p, reach)) {
+      if (i < from) continue;
+      const x = p.x,
+        z = p.z;
+      pushOut(homes[i]!, p, reach);
+      if (p.x !== x || p.z !== z) {
+        moved = i;
+        break;
+      }
+    }
+    if (moved < 0) return;
+    from = moved + 1;
+  }
 }
 
 /** Whether the way from p to q keeps `reach` off a solid's wall. */

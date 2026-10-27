@@ -216,6 +216,14 @@ export const GATES: readonly Gate[] = [
   // carbon, a sulfur-volcano, an ice-and-ammonia and a methane world by day — globe, land, town, the
   // matter guide's "This world", bronze shut where nothing burns, their own ages — and a rocky one).
   { gate: 56, args: ["--ci"], s: 260 },
+  // Phase 60 (one of a town's people possessed, the god's hand made flesh: refused in plain words
+  // where the hand does not rest; a smith of the greatest town taken from the palette, walked to his
+  // forge by the keys and set to it until a plough share is made, his and the town's; a word to one
+  // near him, their spirits moved; let go, the chronicle and his page telling it, the world going
+  // on, the town handed back; the same world opened again in a phone's own frame, by touch, the
+  // stick and the acts, turned on its side; the save replayed from the seed to the same world.
+  // WebKit's touch run and the phone's frames: locally).
+  { gate: 60, args: ["--ci"], s: 900 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

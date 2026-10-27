@@ -33,6 +33,7 @@ export { WAR_DRAWS, WAR_PAST_YEARS, warClaimKey, warClaimLimit, type WarFate } f
 export { FOLK, folkRef } from "./population.ts";
 import "./economy.ts";
 import "./acts.ts";
+import "./possess.ts";
 export { WAYS, WAY_WORDS, kept, waysRef, waysWords } from "./culture.ts";
 export { governmentWords } from "./polity.ts";
 import "./belief.ts";

@@ -87,6 +87,8 @@ import { battleWords, townWarDead, warRests } from "./burials.ts";
 export const WATCHED_FAMILIES = 10;
 /** Under the hand, at most this many of the village's people are drawn (all of them live). */
 export const DRAWN_UNDER_HAND = 400;
+/** The crowd a town's folk are drawn to at High (render/quality.ts): from it up, the hand's 400. */
+export const HAND_FOLK_AT_HIGH = 220;
 /**
  * One of a town's people drawn for every so many of them (Phase 39 M198; a crowd sized to its town,
  * M202), as the eye is given (the roster's line, Phase 55 M225).
@@ -425,10 +427,16 @@ export function villagePlan(
   if (hand && hand.village === ref) {
     // Under the hand, everyone in the village is someone: the hand's own people, five to a home.
     // Every k-th, so the sample is spread through the village's people — and the one it was laid
-    // from, known by their own name, always among them (Phase 54).
-    const every = Math.max(1, Math.ceil(hand.agents.length / DRAWN_UNDER_HAND));
+    // from, known by their own name, always among them (Phase 54). Below High, as many as the
+    // setting draws of a town's folk, as in a town the hand is not on (a phone's frame: Low and
+    // Balanced); at High and above the hand's 400, as before. And one possessed and those about
+    // him always among them, so none of the small world is lost from sight when the town is read
+    // again (Phase 60).
+    const most = folk > 0 && folk < HAND_FOLK_AT_HIGH ? folk : DRAWN_UNDER_HAND,
+      every = Math.max(1, Math.ceil(hand.agents.length / most)),
+      held = new Set(hand.possessed?.local.bodies.map((b) => b.id) ?? []);
     hand.agents
-      .filter((a, i) => i % every === 0 || a.name !== undefined)
+      .filter((a, i) => i % every === 0 || a.name !== undefined || held.has(a.id))
       .forEach((a, k) => {
         const home = Math.min(homes.length - 1, Math.floor(k / 5));
         homes[home]!.household = `home:${home}`;

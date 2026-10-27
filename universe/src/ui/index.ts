@@ -35,4 +35,5 @@ export { Alerts, LogButton } from "./alerts.ts";
 export { ArmsBook, drawArms, paintArms } from "./arms.ts";
 export { EventWindows, isGreat, type EventMode } from "./events.ts";
 export { GodPalette, PALETTE_KINDS, WAY_CHOICES, type TownPlace } from "./palette.ts";
+export { PossessHud } from "./possess-hud.ts";
 export { bodyView, drawBody, kinLines } from "./body.ts";

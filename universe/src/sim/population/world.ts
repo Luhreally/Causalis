@@ -43,6 +43,7 @@ import { installOrder } from "../order/order.ts";
 import { installCities } from "../city/city.ts";
 import { installTowns } from "../town/fabric.ts";
 import { installLocalActs } from "../acts/local.ts";
+import { installPossession } from "../hand/possess.ts";
 import { installPeopleActs } from "../acts/peoples.ts";
 import { installDisasters } from "../acts/disasters.ts";
 import { installWaysActs } from "../acts/ways.ts";
@@ -322,6 +323,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installCities(world, () => populationContext(world));
   installTowns(world, () => populationContext(world));
   installLocalActs(world, () => populationContext(world));
+  installPossession(world, () => populationContext(world));
   installPeopleActs(world, () => populationContext(world));
   installDisasters(world, () => populationContext(world));
   installWaysActs(world, () => populationContext(world));

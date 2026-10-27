@@ -125,6 +125,8 @@ export class PageWindow {
   onWars: ((from: number, to: number) => void) | null = null;
   /** One of a town's people touched by the god's hand, now one of its people (Phase 54). */
   onTouched: ((agent: string) => void) | null = null;
+  /** One under the hand possessed (Phase 60): why they cannot be (null: taken). */
+  onPossess: ((agent: number) => Promise<string | null>) | null = null;
   /** Told as each page opens (the scales mark what it is). */
   onOpen: (page: PageModel) => void = () => {};
   onClose: () => void = () => {};
@@ -802,6 +804,7 @@ export class PageWindow {
           ...(this.onWar ? { war: this.onWar } : {}),
           ...(this.onWars ? { wars: this.onWars } : {}),
           ...(this.onTouched ? { touched: this.onTouched } : {}),
+          ...(this.onPossess ? { possess: this.onPossess } : {}),
         });
         break;
     }
